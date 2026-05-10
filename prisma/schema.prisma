@@ -112,6 +112,11 @@ model Product {
   price            Decimal  @db.Decimal(12, 2)
   images           Json     @default("[]")
   type             String   @default("PHYSICAL")
+  // capability flags (P1 — spec 2026-05-10)
+  fulfillmentMode  String   @default("SHIPPED")
+  billingMode      String   @default("ONE_TIME")
+  billingPeriod    String?
+  billingPeriodDays Int?
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
