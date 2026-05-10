@@ -7,7 +7,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import type { Metadata } from 'next'
-import ProductForm from '@/app/(paces)/seller/(dashboard)/products/components/ProductForm'
+import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/ProductFormV2'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 
 export const metadata: Metadata = { title: 'แก้ไขสินค้า' }
@@ -71,7 +71,7 @@ export default async function EditProductPage({ params }: PageProps) {
         cancelHref="/products"
         saveFormId={FORM_ID}
       />
-      <ProductForm
+      <ProductFormV2
         shopId={shop.id}
         product={product}
         formId={FORM_ID}

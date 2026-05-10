@@ -69,6 +69,9 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   if (!order) throw new Error("Order not found");
   // Type guard — เฉพาะ PHYSICAL ที่มี SHIPPED state (PRD section 4 state machine)
   // UI gate ที่ OrderActions.tsx ป้องกันไว้แต่ต้องกัน bypass ผ่าน API direct ด้วย
+  // TODO(P3): เปลี่ยนจาก order.type → order.fulfillmentMode เพื่อรองรับ
+  //   sub-box (SUBSCRIPTION + SHIPPED override). ดู spec
+  //   docs/superpowers/specs/2026-05-10-product-types-capability-design.md section 5
   if (order.type !== "PHYSICAL") {
     throw new Error(`Only PHYSICAL orders can be shipped (this order is ${order.type})`);
   }

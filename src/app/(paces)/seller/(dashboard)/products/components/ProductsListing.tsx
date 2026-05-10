@@ -32,12 +32,14 @@ const TYPE_LABELS: Record<ProductRow['type'], string> = {
   PHYSICAL: 'สินค้าจับต้องได้',
   DIGITAL: 'ดิจิทัล',
   SERVICE: 'บริการ',
+  SUBSCRIPTION: 'สมาชิก/รอบ',
 }
 
 const TYPE_COLORS: Record<ProductRow['type'], string> = {
   PHYSICAL: 'bg-primary/10 text-primary',
   DIGITAL: 'bg-info/10 text-info',
   SERVICE: 'bg-success/10 text-success',
+  SUBSCRIPTION: 'bg-warning/10 text-warning',
 }
 
 const columnHelper = createColumnHelper<ProductRow>()
@@ -278,6 +280,7 @@ const ProductsListing = ({ products }: Props) => {
                     { value: 'PHYSICAL', label: 'สินค้าจับต้องได้' },
                     { value: 'DIGITAL', label: 'ดิจิทัล' },
                     { value: 'SERVICE', label: 'บริการ' },
+                    { value: 'SUBSCRIPTION', label: 'สมาชิก/รอบ' },
                   ]
                   const current = (table.getColumn('type')?.getFilterValue() as string) ?? 'All'
                   return (

@@ -4,7 +4,7 @@ export type ProductDetailProps = {
   description: string
   images: string[]
   price: number
-  type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE'
+  type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION'
   totalSold: number
   reviews: number
   rating: number

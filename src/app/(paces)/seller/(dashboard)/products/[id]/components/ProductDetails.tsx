@@ -24,6 +24,11 @@ const TYPE_META: Record<ProductDetailProps['type'], { icon: string; label: strin
     label: 'บริการ',
     cls: 'bg-success/15 text-success',
   },
+  SUBSCRIPTION: {
+    icon: 'refresh',
+    label: 'สมาชิก/รอบ',
+    cls: 'bg-warning/15 text-warning',
+  },
 }
 
 const ProductDetails = ({ product }: Props) => {
