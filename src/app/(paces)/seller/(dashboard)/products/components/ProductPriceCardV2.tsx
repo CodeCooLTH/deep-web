@@ -5,7 +5,9 @@
 // Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputGroup.tsx
 //   line 35-40 (input-group + input-group-text pattern — แต่ override เป็น inline borderless)
 // Layout override: marketplace-style — ฿ inline, ไม่มี label, chips เล็ก scrollable
-import type { UseFormRegister, FieldErrors, UseFormSetValue } from 'react-hook-form'
+// P2: placeholder + sr-only label เปลี่ยนตาม billingMode + billingPeriod (registry-aware)
+
+import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 import { useState } from 'react'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 
@@ -15,14 +17,27 @@ interface ProductPriceCardV2Props {
   register: UseFormRegister<ProductFormV2Values>
   errors: FieldErrors<ProductFormV2Values>
   setValue: UseFormSetValue<ProductFormV2Values>
+  watch: UseFormWatch<ProductFormV2Values>
+}
+
+function derivePriceCopy(
+  billingMode: ProductFormV2Values['billingMode'],
+  billingPeriod: ProductFormV2Values['billingPeriod'],
+): { srLabel: string; placeholder: string } {
+  if (billingMode === 'RECURRING') {
+    if (billingPeriod === 'MONTHLY') return { srLabel: 'ค่าบริการ บาทต่อเดือน', placeholder: 'ค่าบริการ/เดือน*' }
+    if (billingPeriod === 'YEARLY') return { srLabel: 'ค่าบริการ บาทต่อปี', placeholder: 'ค่าบริการ/ปี*' }
+    return { srLabel: 'ค่าบริการต่อรอบ บาท', placeholder: 'ค่าบริการ/รอบ*' }
+  }
+  return { srLabel: 'ราคา บาท', placeholder: 'ราคา*' }
 }
 
 export default function ProductPriceCardV2({
   register,
   errors,
   setValue,
+  watch,
 }: ProductPriceCardV2Props) {
-  // chip state แยกจาก form (ไม่อยู่ใน schema) — แค่ visual selected
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
 
   const handleChipClick = (price: number) => {
@@ -31,11 +46,12 @@ export default function ProductPriceCardV2({
   }
 
   const priceField = register('price', { valueAsNumber: true })
+  const { srLabel, placeholder } = derivePriceCopy(watch('billingMode'), watch('billingPeriod'))
 
   return (
     <div className="px-3 py-2.5">
       <label htmlFor="v2-price" className="sr-only">
-        ราคา
+        {srLabel}
       </label>
       <div className="flex items-center gap-1">
         <span className="text-dark text-base font-bold">฿</span>
@@ -46,7 +62,7 @@ export default function ProductPriceCardV2({
           min="0.01"
           inputMode="decimal"
           className="text-dark placeholder:text-default-400 focus:border-primary block w-full min-h-11 border-0 border-b-2 border-transparent bg-transparent px-0 text-base font-medium outline-hidden focus:ring-0"
-          placeholder="ราคา*"
+          placeholder={placeholder}
           aria-describedby={errors.price ? 'v2-price-error' : undefined}
           {...priceField}
           onChange={(e) => {
@@ -61,7 +77,6 @@ export default function ProductPriceCardV2({
         </p>
       )}
 
-      {/* Quick-pick chips — scroll horizontal, btn-xs compact (gap-1.5, min-h-8) */}
       <div className="-mx-3 mt-2 overflow-x-auto px-3 pb-1">
         <div className="flex w-max items-center gap-1.5">
           {QUICK_PICK_PRICES.map((price) => {

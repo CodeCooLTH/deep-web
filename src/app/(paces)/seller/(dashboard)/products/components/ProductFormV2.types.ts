@@ -1,17 +1,26 @@
-// shared types สำหรับ ProductFormV2 และ sub-cards
-export type ProductTypeV2 = 'PHYSICAL' | 'DIGITAL' | 'SERVICE'
+import type {
+  ProductTypeId,
+  FulfillmentMode,
+  BillingMode,
+  BillingPeriod,
+} from "@/lib/product-types/registry";
+
+// ลบ ProductTypeV2 ที่ hardcoded — ใช้ ProductTypeId จาก registry แทน
+export type ProductTypeV2 = ProductTypeId;
 
 export type ProductFormV2Values = {
-  name: string
-  // shortDescription = teaser/หัวข้อย่อย ใช้แสดงใน card ผลค้นหา (max 200)
-  shortDescription: string
-  // description = คำอธิบายเต็ม (max 5000 — ขยายตาม validations.ts)
-  description: string
-  price: number
-  type: ProductTypeV2
-  images: string[]
-  // tags = array ของ "ชื่อ tag" (ไม่ใช่ id) — server upsert ลง Tag table
-  tags: string[]
-  // attributes = key-value (เช่น สี: แดง) — เก็บเป็น Record ตรงตาม API
-  attributes: Record<string, string>
-}
+  name: string;
+  shortDescription: string;
+  description: string;
+  price: number;
+  type: ProductTypeV2;
+  images: string[];
+  tags: string[];
+  attributes: Record<string, string>;
+  // capability flags (P2)
+  fulfillmentMode: FulfillmentMode;
+  billingMode: BillingMode;
+  // null ใน RHF state แทน undefined เพื่อให้ Yup nullable() ทำงานตรง
+  billingPeriod: BillingPeriod | null;
+  billingPeriodDays: number | null;
+};

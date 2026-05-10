@@ -22,7 +22,7 @@ interface ProductPreviewPanelProps {
   shortDescription?: string
   description?: string
   price: number | undefined
-  type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE'
+  type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION'
   images: string[]
   tags: string[]
   attributes: Record<string, string>
@@ -33,6 +33,7 @@ const TYPE_BADGE: Record<ProductPreviewPanelProps['type'], { emoji: string; labe
   PHYSICAL: { emoji: '📦', label: 'ต้องจัดส่ง' },
   DIGITAL: { emoji: '💻', label: 'ดิจิทัล' },
   SERVICE: { emoji: '🛠️', label: 'ให้บริการ' },
+  SUBSCRIPTION: { emoji: '🔁', label: 'สมาชิก/รอบ' },
 }
 
 export default function ProductPreviewPanel({

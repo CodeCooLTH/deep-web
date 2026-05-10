@@ -14,15 +14,23 @@
 //                  save button ใช้จาก FullscreenPageHeader (sticky top)
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'react-toastify'
 import * as Yup from 'yup'
+import {
+  PRODUCT_TYPE_IDS,
+  FULFILLMENT_MODES,
+  BILLING_MODES,
+  BILLING_PERIODS,
+} from '@/lib/product-types/registry'
 import ProductImagesCardV2 from './ProductImagesCardV2'
 import ProductBasicCardV2 from './ProductBasicCardV2'
 import ProductShortDescCardV2 from './ProductShortDescCardV2'
 import ProductPriceCardV2 from './ProductPriceCardV2'
 import ProductTypePickerCardV2 from './ProductTypePickerCardV2'
+import ProductCapabilityCardV2 from './ProductCapabilityCardV2'
+import ProductBillingPeriodCardV2 from './ProductBillingPeriodCardV2'
 import ProductTagsCardV2 from './ProductTagsCardV2'
 import ProductAttributesCardV2 from './ProductAttributesCardV2'
 import ProductDescriptionCardV2 from './ProductDescriptionCardV2'
@@ -31,7 +39,7 @@ import type { ProductFormV2Values } from './ProductFormV2.types'
 import type { SerializedProduct } from '@/services/product.service'
 
 // schema — error messages ภาษาคน ตาม Copy deck
-// description ขยายเป็น 5000 ตาม validations.ts (Valibot ฝั่ง backend อนุญาตแล้ว)
+// description ขยายเป็น 5000 ตาม validations.ts
 const schema = Yup.object({
   name: Yup.string()
     .min(2, 'ชื่อสั้นไป ใส่อย่างน้อย 2 ตัวอักษร')
@@ -51,7 +59,7 @@ const schema = Yup.object({
     )
     .required('ใส่ราคาก่อนนะคะ'),
   type: Yup.string()
-    .oneOf(['PHYSICAL', 'DIGITAL', 'SERVICE'] as const, 'เลือกประเภทสินค้าก่อนนะคะ')
+    .oneOf(PRODUCT_TYPE_IDS as unknown as string[], 'เลือกประเภทสินค้าก่อนนะคะ')
     .required('เลือกประเภทสินค้าก่อนนะคะ'),
   images: Yup.array()
     .of(Yup.string().required().max(200))
@@ -61,8 +69,6 @@ const schema = Yup.object({
     .of(Yup.string().required().max(50, 'แท็กยาวได้ไม่เกิน 50 ตัวอักษร'))
     .max(10, 'แท็กได้สูงสุด 10 รายการ')
     .default([]),
-  // attributes — Record<string,string> validation ผ่าน .test() ตรงๆ
-  // (Yup record/lazy validation ของ object keys จะอ่านยาก เลยใช้ test แบบ explicit)
   attributes: Yup.object()
     .default({})
     .test('shape', 'รายละเอียดสินค้าผิดรูปแบบ', (val) => {
@@ -76,6 +82,32 @@ const schema = Yup.object({
         if (v.length > 200) return false
         return true
       })
+    }),
+  // capability flags (P2)
+  fulfillmentMode: Yup.string()
+    .oneOf(FULFILLMENT_MODES as unknown as string[], 'เลือกการจัดส่ง')
+    .required(),
+  billingMode: Yup.string()
+    .oneOf(BILLING_MODES as unknown as string[], 'เลือกการเก็บเงิน')
+    .required(),
+  billingPeriod: Yup.string()
+    .oneOf(BILLING_PERIODS as unknown as string[], 'เลือกรอบเก็บเงิน')
+    .nullable()
+    .default(null)
+    // required เฉพาะถ้า billingMode = RECURRING
+    .when('billingMode', {
+      is: 'RECURRING',
+      then: (s) => s.required('เลือกรอบเก็บเงิน').nonNullable(),
+    }),
+  billingPeriodDays: Yup.number()
+    .integer('ต้องเป็นจำนวนเต็ม')
+    .min(1)
+    .max(365, 'ไม่เกิน 365 วันต่อรอบ')
+    .nullable()
+    .default(null)
+    .when('billingPeriod', {
+      is: 'CUSTOM',
+      then: (s) => s.required('ใส่จำนวนวันต่อรอบ').min(1, 'อย่างน้อย 1 วัน'),
     }),
 })
 
@@ -125,6 +157,11 @@ export default function ProductFormV2({
         !Array.isArray(product.attributes)
           ? (product.attributes as Record<string, string>)
           : {},
+      // capability defaults — edit mode อ่านจาก product, create mode = SHIPPED+ONE_TIME
+      fulfillmentMode: (product?.fulfillmentMode as ProductFormV2Values['fulfillmentMode']) ?? 'SHIPPED',
+      billingMode: (product?.billingMode as ProductFormV2Values['billingMode']) ?? 'ONE_TIME',
+      billingPeriod: (product?.billingPeriod as ProductFormV2Values['billingPeriod']) ?? null,
+      billingPeriodDays: product?.billingPeriodDays ?? null,
     },
   })
 
@@ -132,6 +169,16 @@ export default function ProductFormV2({
   // RHF จะ re-render เมื่อ subscribed value เปลี่ยน ดังนั้น preview update
   // เรียลไทม์ตามที่ผู้ใช้พิมพ์
   const watched = watch()
+
+  // Reset billingPeriod fields เมื่อไม่ใช่ RECURRING — กัน stale value submit
+  // (ถ้า user เปลี่ยน billingMode ใน CapabilityCard manually หลัง pick SUBSCRIPTION)
+  const billingMode = watch('billingMode')
+  useEffect(() => {
+    if (billingMode !== 'RECURRING') {
+      setValue('billingPeriod', null)
+      setValue('billingPeriodDays', null)
+    }
+  }, [billingMode, setValue])
 
   const onSubmit = async (values: ProductFormV2Values) => {
     try {
@@ -147,6 +194,11 @@ export default function ProductFormV2({
         images: values.images ?? [],
         tags: values.tags ?? [],
         attributes: values.attributes ?? {},
+        // capability fields
+        fulfillmentMode: values.fulfillmentMode,
+        billingMode: values.billingMode,
+        billingPeriod: values.billingPeriod,
+        billingPeriodDays: values.billingPeriodDays,
       }
 
       const url = isEdit ? `/api/products/${product!.id}` : '/api/products'
@@ -247,10 +299,25 @@ export default function ProductFormV2({
             <ProductShortDescCardV2 register={register} errors={errors} />
 
             <div className="border-default-100 border-t" />
-            <ProductPriceCardV2 register={register} errors={errors} setValue={setValue} />
+            <ProductPriceCardV2 register={register} errors={errors} setValue={setValue} watch={watch} />
 
             <div className="border-default-100 border-t" />
-            <ProductTypePickerCardV2 register={register} errors={errors} />
+            <ProductTypePickerCardV2
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+            />
+
+            <div className="border-default-100 border-t" />
+            <ProductCapabilityCardV2 register={register} errors={errors} />
+
+            {/* BillingPeriodCardV2 self-renders null ถ้า billingMode !== RECURRING */}
+            <ProductBillingPeriodCardV2
+              register={register}
+              errors={errors}
+              watch={watch}
+            />
 
             <div className="border-default-100 border-t" />
             <Controller
