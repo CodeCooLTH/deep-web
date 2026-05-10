@@ -368,6 +368,9 @@ export default function ProductFormV2({
                 tags={watched.tags ?? []}
                 attributes={watched.attributes ?? {}}
                 shopName={shopName}
+                fulfillmentMode={watched.fulfillmentMode}
+                billingMode={watched.billingMode}
+                billingPeriod={watched.billingPeriod}
               />
             </div>
           </div>

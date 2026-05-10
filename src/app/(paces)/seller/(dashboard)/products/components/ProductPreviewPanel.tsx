@@ -16,6 +16,7 @@
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import type { FulfillmentMode, BillingMode, BillingPeriod } from '@/lib/product-types/registry'
 
 interface ProductPreviewPanelProps {
   name: string
@@ -27,6 +28,9 @@ interface ProductPreviewPanelProps {
   tags: string[]
   attributes: Record<string, string>
   shopName?: string
+  billingMode?: BillingMode
+  billingPeriod?: BillingPeriod | null
+  fulfillmentMode?: FulfillmentMode
 }
 
 const TYPE_BADGE: Record<ProductPreviewPanelProps['type'], { emoji: string; label: string }> = {
@@ -46,6 +50,9 @@ export default function ProductPreviewPanel({
   tags,
   attributes,
   shopName,
+  billingMode,
+  billingPeriod,
+  fulfillmentMode,
 }: ProductPreviewPanelProps) {
   const [activeIdx, setActiveIdx] = useState(0)
 
@@ -69,6 +76,17 @@ export default function ProductPreviewPanel({
   const hasShortDescription = (shortDescription ?? '').trim().length > 0
   const hasAnyDescription = hasDescription || hasShortDescription
   const typeMeta = TYPE_BADGE[type]
+
+  // label ต่อท้ายราคาสำหรับ RECURRING — แสดงรอบเก็บเงินให้ผู้ใช้เห็นใน live preview
+  const priceLabel = (() => {
+    if (billingMode === 'RECURRING') {
+      if (billingPeriod === 'MONTHLY') return '/เดือน'
+      if (billingPeriod === 'YEARLY') return '/ปี'
+      if (billingPeriod === 'CUSTOM') return '/รอบ'
+      return '/รอบ'
+    }
+    return ''
+  })()
 
   return (
     <div className="bg-card border-default-100 mx-auto w-full max-w-md rounded-2xl border p-4 lg:p-5">
@@ -144,6 +162,22 @@ export default function ProductPreviewPanel({
         <h1 className="text-default-300 mt-2 text-xl italic">ชื่อสินค้าจะแสดงที่นี่</h1>
       )}
 
+      {/* Capability badges — แสดงใต้ชื่อ เหนือราคา เฉพาะเมื่อมี flag พิเศษ */}
+      {(fulfillmentMode === 'NO_SHIPPING' || billingMode === 'RECURRING') && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {fulfillmentMode === 'NO_SHIPPING' && (
+            <span className="bg-default-100 text-default-700 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+              ไม่ต้องจัดส่ง
+            </span>
+          )}
+          {billingMode === 'RECURRING' && (
+            <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+              🔁 เก็บเป็นรอบ
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Price */}
       <div className="mt-2">
         {hasPrice ? (
@@ -153,6 +187,9 @@ export default function ProductPreviewPanel({
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
+            {priceLabel && (
+              <span className="text-default-500 ml-0.5 text-sm font-normal">{priceLabel}</span>
+            )}
           </div>
         ) : (
           <div className="text-default-400 text-2xl">฿ -</div>
