@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import type { FulfillmentMode, BillingMode, BillingPeriod } from "@/lib/product-types/registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -105,6 +106,11 @@ export interface SerializedProduct {
   price: number;
   images: string[];
   type: string;
+  // capability flags (P1)
+  fulfillmentMode: string;
+  billingMode: string;
+  billingPeriod: string | null;
+  billingPeriodDays: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -131,6 +137,10 @@ export function serializeProduct(product: ProductWithTags): SerializedProduct {
     price: Number(product.price),
     images: Array.isArray(product.images) ? (product.images as string[]) : [],
     type: product.type,
+    fulfillmentMode: product.fulfillmentMode,
+    billingMode: product.billingMode,
+    billingPeriod: product.billingPeriod,
+    billingPeriodDays: product.billingPeriodDays,
     isActive: product.isActive,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
@@ -151,6 +161,11 @@ export interface CreateProductInput {
   images?: string[];
   tags?: string[];
   attributes?: Record<string, string>;
+  // capability flags (P1) — optional in input; service ใช้ column default ถ้าไม่ส่ง
+  fulfillmentMode?: FulfillmentMode;
+  billingMode?: BillingMode;
+  billingPeriod?: BillingPeriod | null;
+  billingPeriodDays?: number | null;
 }
 
 /**
@@ -183,6 +198,11 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       type: data.type,
       images: (data.images ?? []) as Prisma.InputJsonValue,
       attributes: (data.attributes ?? {}) as Prisma.InputJsonValue,
+      // capability flags — ถ้า input ไม่ส่งมา ปล่อย Prisma ใช้ column default
+      ...(data.fulfillmentMode !== undefined && { fulfillmentMode: data.fulfillmentMode }),
+      ...(data.billingMode !== undefined && { billingMode: data.billingMode }),
+      ...(data.billingPeriod !== undefined && { billingPeriod: data.billingPeriod }),
+      ...(data.billingPeriodDays !== undefined && { billingPeriodDays: data.billingPeriodDays }),
       tags: uniqueTagNames.length
         ? {
             connectOrCreate: uniqueTagNames.map((name) => ({
@@ -208,6 +228,11 @@ export interface UpdateProductInput {
   tags?: string[];
   attributes?: Record<string, string>;
   isActive?: boolean;
+  // capability flags (P1)
+  fulfillmentMode?: FulfillmentMode;
+  billingMode?: BillingMode;
+  billingPeriod?: BillingPeriod | null;
+  billingPeriodDays?: number | null;
 }
 
 /**
@@ -236,6 +261,10 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.images !== undefined) scalarUpdate.images = data.images as Prisma.InputJsonValue;
   if (data.attributes !== undefined) scalarUpdate.attributes = data.attributes as Prisma.InputJsonValue;
   if (data.isActive !== undefined) scalarUpdate.isActive = data.isActive;
+  if (data.fulfillmentMode !== undefined) scalarUpdate.fulfillmentMode = data.fulfillmentMode;
+  if (data.billingMode !== undefined) scalarUpdate.billingMode = data.billingMode;
+  if (data.billingPeriod !== undefined) scalarUpdate.billingPeriod = data.billingPeriod;
+  if (data.billingPeriodDays !== undefined) scalarUpdate.billingPeriodDays = data.billingPeriodDays;
 
   // ถ้าไม่มี tags ใน payload — update ครั้งเดียว ไม่ต้อง transaction
   if (data.tags === undefined) {
