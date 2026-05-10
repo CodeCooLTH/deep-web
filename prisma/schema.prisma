@@ -103,19 +103,31 @@ model UserBadge {
 }
 
 model Product {
-  id          String   @id @default(uuid())
-  shopId      String
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(12, 2)
-  images      Json     @default("[]")
-  type        String   @default("PHYSICAL")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid())
+  shopId           String
+  name             String
+  description      String?  @db.Text
+  shortDescription String?  @db.VarChar(200)
+  attributes       Json     @default("{}")
+  price            Decimal  @db.Decimal(12, 2)
+  images           Json     @default("[]")
+  type             String   @default("PHYSICAL")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   shop       Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orderItems OrderItem[]
+  tags       Tag[]
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  products Product[]
 }
 
 model Order {

@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getShopByUserId } from '@/services/shop.service'
 import { prisma } from '@/lib/prisma'
+import { serializeProduct } from '@/services/product.service'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
@@ -49,11 +50,18 @@ export default async function EditProductPage({ params }: PageProps) {
   }
 
   // Fetch product and verify it belongs to this shop (security: prevent editing other shops' products)
-  const product = await prisma.product.findUnique({ where: { id } })
+  // ใช้ serializeProduct เพื่อแปลง Decimal/Date/Json ให้ RSC ส่งผ่านไปยัง
+  // client component (ProductForm) ได้โดยไม่ต้อง cast ด้วยมือ
+  const productRaw = await prisma.product.findUnique({
+    where: { id },
+    include: { tags: true },
+  })
 
-  if (!product || product.shopId !== shop.id) {
+  if (!productRaw || productRaw.shopId !== shop.id) {
     notFound()
   }
+
+  const product = serializeProduct(productRaw)
 
   return (
     <>
@@ -63,7 +71,11 @@ export default async function EditProductPage({ params }: PageProps) {
         cancelHref="/products"
         saveFormId={FORM_ID}
       />
-      <ProductForm shopId={shop.id} product={product} formId={FORM_ID} />
+      <ProductForm
+        shopId={shop.id}
+        product={product}
+        formId={FORM_ID}
+      />
     </>
   )
 }

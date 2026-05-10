@@ -16,7 +16,17 @@ const AppProvidersWrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <SessionProvider>
       <LayoutProvider>{children}</LayoutProvider>
-      <ToastContainer position="top-right" autoClose={4000} theme="colored" />
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        theme="light"
+        toastClassName="!bg-card !text-default-700 !rounded-lg !shadow !border !border-default-200 !font-normal"
+        className="!text-sm"
+      />
     </SessionProvider>
   )
 }

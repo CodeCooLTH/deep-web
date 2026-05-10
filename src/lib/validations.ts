@@ -19,11 +19,72 @@ export const CreateShopSchema = v.object({
   businessType: v.picklist(["INDIVIDUAL", "COMPANY"]),
 });
 
+// TagNameSchema — ใช้ซ้ำในหลายที่ (CreateProduct.tags, autocomplete API)
+// ชื่อ tag 1-50 ตัวอักษร — server upsert เข้า Tag table แล้วสร้าง relation M:N
+export const TagNameSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(50));
+
 export const CreateProductSchema = v.object({
   name: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
-  description: v.optional(v.pipe(v.string(), v.maxLength(1000))),
+  // description ขยายเป็น 5000 chars ตามตกลง (DB ไม่มี length limit แล้ว)
+  description: v.optional(v.pipe(v.string(), v.maxLength(5000))),
+  // shortDescription ใช้แสดงในการ์ดสินค้า/ผลค้นหา — สูงสุด 200 chars
+  shortDescription: v.optional(v.pipe(v.string(), v.maxLength(200))),
   price: v.pipe(v.number(), v.minValue(0.01)),
   type: v.picklist(["PHYSICAL", "DIGITAL", "SERVICE"]),
+  images: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
+      v.maxLength(10),
+    ),
+    [],
+  ),
+  // tags เป็น array ของ "ชื่อ tag" (ไม่ใช่ id) — server จะ upsert ลง Tag table
+  // จำกัดสูงสุด 10 tags ต่อ product, แต่ละชื่อ 1-50 chars
+  tags: v.optional(
+    v.pipe(
+      v.array(TagNameSchema),
+      v.maxLength(10),
+    ),
+    [],
+  ),
+  // attributes เป็น key-value pairs (เช่น size: M, color: red)
+  // key 1-50 chars, value 0-200 chars — UI จำกัดไม่เกิน 10 keys
+  attributes: v.optional(
+    v.record(
+      v.pipe(v.string(), v.minLength(1), v.maxLength(50)),
+      v.pipe(v.string(), v.maxLength(200)),
+    ),
+    {},
+  ),
+});
+
+export const UpdateProductSchema = v.object({
+  name: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
+  description: v.optional(v.pipe(v.string(), v.maxLength(5000))),
+  shortDescription: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  price: v.optional(v.pipe(v.number(), v.minValue(0.01))),
+  type: v.optional(v.picklist(["PHYSICAL", "DIGITAL", "SERVICE"])),
+  images: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
+      v.maxLength(10),
+    ),
+  ),
+  // partial update: omit = ไม่เปลี่ยน, ส่ง [] = ลบ tag ทั้งหมด
+  tags: v.optional(
+    v.pipe(
+      v.array(TagNameSchema),
+      v.maxLength(10),
+    ),
+  ),
+  // partial update: omit = ไม่เปลี่ยน, ส่ง {} = ลบ attributes ทั้งหมด
+  attributes: v.optional(
+    v.record(
+      v.pipe(v.string(), v.minLength(1), v.maxLength(50)),
+      v.pipe(v.string(), v.maxLength(200)),
+    ),
+  ),
+  isActive: v.optional(v.boolean()),
 });
 
 export const CreateOrderSchema = v.object({

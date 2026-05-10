@@ -1,12 +1,12 @@
 'use client'
 
 import { yupResolver } from '@hookform/resolvers/yup'
-import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'react-toastify'
 import * as Yup from 'yup'
 import Select from '@/components/wrappers/Select'
+import ProductImages from './ProductImages'
 
 const schema = Yup.object({
   name: Yup.string()
@@ -24,6 +24,10 @@ const schema = Yup.object({
   type: Yup.string()
     .oneOf(['PHYSICAL', 'DIGITAL', 'SERVICE'] as const, 'กรุณาเลือกประเภทสินค้า')
     .required('กรุณาเลือกประเภทสินค้า'),
+  images: Yup.array()
+    .of(Yup.string().required().max(200))
+    .max(10, 'อัปโหลดได้สูงสุด 10 รูป')
+    .default([]),
 })
 
 type FormValues = {
@@ -31,6 +35,7 @@ type FormValues = {
   description: string
   price: number
   type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE'
+  images: string[]
 }
 
 interface ProductFormProps {
@@ -42,6 +47,7 @@ interface ProductFormProps {
     description: string | null
     price: unknown // Decimal from Prisma — serialized as string
     type: string
+    images?: unknown // Json from Prisma — actually string[]
   }
 }
 
@@ -61,6 +67,10 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
       description: product?.description ?? '',
       price: product?.price !== undefined ? Number(product.price) : (undefined as unknown as number),
       type: (product?.type as FormValues['type']) ?? 'PHYSICAL',
+      images:
+        product?.images && Array.isArray(product.images)
+          ? (product.images as unknown as string[])
+          : [],
     },
   })
 
@@ -75,7 +85,7 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
             description: values.description ?? '',
             price: values.price,
             type: values.type,
-            images: [], // TODO: image upload UI not implemented yet
+            images: values.images ?? [],
           }
         : {
             shopId,
@@ -83,7 +93,7 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
             description: values.description ?? '',
             price: values.price,
             type: values.type,
-            images: [], // TODO: image upload UI not implemented yet
+            images: values.images ?? [],
           }
 
       const res = await fetch(url, {
@@ -110,7 +120,7 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
     <form id={formId} onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main info */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-5">
           <div className="card rounded-xl">
             <div className="card-header p-5 border-b border-default-100">
               <h4 className="card-title text-base font-semibold text-dark">ข้อมูลสินค้า</h4>
@@ -149,17 +159,25 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
                   <p className="text-danger mt-1 text-sm">{errors.description.message}</p>
                 )}
               </div>
-
-              {/* Image upload — TODO */}
-              <div className="rounded-lg border border-dashed border-default-300 p-6 text-center text-default-400 text-sm">
-                <Icon icon="mdi:image-plus-outline" width={32} height={32} className="mx-auto mb-2 opacity-50" />
-                <p>อัปโหลดรูปภาพ — ยังไม่รองรับในเวอร์ชันนี้</p>
-                <p className="text-xs mt-1 text-default-300">
-                  {/* TODO: implement image upload (S3 or local storage) */}
-                  (TODO: image upload)
-                </p>
-              </div>
             </div>
+          </div>
+
+          {/* Product images — separate card sibling to ProductInformation (Paces theme structure) */}
+          <div>
+            <Controller
+              control={control}
+              name="images"
+              render={({ field }) => (
+                <ProductImages
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  formId={formId}
+                />
+              )}
+            />
+            {errors.images?.message && (
+              <p className="text-danger mt-1 text-sm">{errors.images.message}</p>
+            )}
           </div>
         </div>
 

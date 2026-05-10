@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { updateProduct, deleteProduct } from "@/services/product.service";
+import * as v from "valibot";
+import { UpdateProductSchema } from "@/lib/validations";
+import {
+  updateProduct,
+  deleteProduct,
+  serializeProduct,
+} from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,8 +21,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const body = await request.json();
-  const updated = await updateProduct(id, body);
-  return NextResponse.json(updated);
+  const parsed = v.safeParse(UpdateProductSchema, body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  const updated = await updateProduct(id, parsed.output);
+  return NextResponse.json(serializeProduct(updated));
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

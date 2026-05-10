@@ -3,7 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateProductSchema } from "@/lib/validations";
-import { createProduct, getProductsByShop } from "@/services/product.service";
+import {
+  createProduct,
+  getProductsByShop,
+  serializeProduct,
+} from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -14,7 +18,7 @@ export async function GET() {
   if (!shop) return NextResponse.json([]);
 
   const products = await getProductsByShop(shop.id);
-  return NextResponse.json(products);
+  return NextResponse.json(products.map(serializeProduct));
 }
 
 export async function POST(request: NextRequest) {
@@ -29,5 +33,5 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   const product = await createProduct(shop.id, parsed.output);
-  return NextResponse.json(product, { status: 201 });
+  return NextResponse.json(serializeProduct(product), { status: 201 });
 }
