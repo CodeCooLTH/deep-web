@@ -86,6 +86,7 @@ model Badge {
   name      String
   nameEN    String   @unique
   icon      String?
+  imageUrl  String?
   type      String
   criteria  Json
   audience  String   @default("SELLER")
