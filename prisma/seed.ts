@@ -9,6 +9,43 @@ const prisma = new PrismaClient({
   datasources: { db: { url: connectionUrl } },
 });
 
+// BadgeSeed — type + array อยู่ระดับ module เพื่อให้ test/script อื่น import ได้
+// imageUrl: ใส่เฉพาะ entry ที่มี SVG asset; 11 entry เดิมไม่มี (undefined = omit)
+export type BadgeSeed = {
+  name: string;
+  nameEN: string;
+  icon: string | null;
+  type: string;
+  audience: string;
+  criteria: object;
+  imageUrl?: string | null;
+};
+
+export const defaultBadges: BadgeSeed[] = [
+  // ── 11 badges เดิม (10 SELLER + Fully Verified ANY; มี audience field) ──────────────────────────
+  { name: "เปิดหน้าร้าน",       nameEN: "First Sale",         icon: "🏪", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FIRST_ORDER" } },
+  { name: "ร้านค้าขายอดนิยม",  nameEN: "Trusted Seller 50",  icon: "⭐", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 50 } },
+  { name: "ร้อยออเดอร์",        nameEN: "Century Club",       icon: "💯", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 100 } },
+  { name: "ร้านคะแนนเต็ม",     nameEN: "Perfect Rating",     icon: "💎", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "PERFECT_RATING", minReviews: 10 } },
+  { name: "ร้านคะแนนสูง",      nameEN: "Highly Rated",       icon: "🌟", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "HIGH_RATING", minRating: 4.8, minReviews: 20 } },
+  { name: "ไร้ข้อร้องเรียน",   nameEN: "Zero Complaint",     icon: "🛡️", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ZERO_COMPLAINT", minOrders: 50 } },
+  { name: "ร้านค้าเก่าแก่",    nameEN: "Veteran",            icon: "🏆", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "VETERAN", minDays: 365 } },
+  { name: "จัดส่งสายฟ้า",      nameEN: "Speed Demon",        icon: "⚡", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FAST_SHIPPING", maxHours: 24, minOrders: 20 } },
+  { name: "ยืนยันครบถ้วน",     nameEN: "Fully Verified",     icon: "✅", type: "VERIFICATION", audience: "ANY",    criteria: { type: "FULL_VERIFICATION" } },
+  { name: "ขวัญใจชุมชน",       nameEN: "Community Favorite", icon: "❤️", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "UNIQUE_REVIEWERS", count: 50 } },
+  // ── badge ใหม่ (Phase 3) ──────────────────────────────────────────────────────────────────────
+  // icon: null — engine ใช้ fallback SVG/image แทน emoji สำหรับ badge ปี
+  { name: "ปี 2026",            nameEN: "2026_BADGE",         icon: null, type: "ACHIEVEMENT",  audience: "ANY",    criteria: { type: "SIGNUP_YEAR", year: 2026 } },
+  // ── P1 — 7 badge ใหม่ ฝั่ง seller, reuse engine, ไม่มี reward ──
+  { name: "เริ่มมีลูกค้า",       nameEN: "Getting Started",    icon: "🌱", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 },                                  imageUrl: "/badges/seller/getting-started.svg" },
+  { name: "ร้านกำลังโต",        nameEN: "Rising Seller",      icon: "📈", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 25 },                                  imageUrl: "/badges/seller/rising-seller.svg" },
+  { name: "คะแนนดีน่าซื้อ",     nameEN: "Well Rated",         icon: "👍", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "HIGH_RATING", minRating: 4.5, minReviews: 10 },            imageUrl: "/badges/seller/well-rated.svg" },
+  { name: "เริ่มเป็นที่รู้จัก",  nameEN: "Getting Noticed",    icon: "👀", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "UNIQUE_REVIEWERS", count: 10 },                             imageUrl: "/badges/seller/getting-noticed.svg" },
+  { name: "ขายดีไร้ปัญหา",      nameEN: "Spotless 100",       icon: "✨", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ZERO_COMPLAINT", minOrders: 100 },                          imageUrl: "/badges/seller/spotless-100.svg" },
+  { name: "เปิดร้านครบไตรมาส",  nameEN: "3 Months Strong",    icon: "📅", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "VETERAN", minDays: 90 },                                    imageUrl: "/badges/seller/3-months-strong.svg" },
+  { name: "ส่งไวระดับเทพ",      nameEN: "Same-Day Hero",      icon: "🚀", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FAST_SHIPPING", maxHours: 12, minOrders: 20 },              imageUrl: "/badges/seller/same-day-hero.svg" },
+];
+
 type Addr = {
   name: string; phone: string; line1: string; line2?: string;
   district: string; amphoe: string; province: string; postalCode: string; note?: string;
@@ -33,37 +70,32 @@ const SUBURB_ADDR: Addr = {
 const PHYSICAL_ADDRS: Addr[] = [BKK_ADDR, UPCOUNTRY_ADDR, SUBURB_ADDR];
 
 async function main() {
-  // Seed default badges \u2014 single source of truth, idempotent upsert keyed by nameEN.
+  // defaultBadges \u0E2D\u0E22\u0E39\u0E48\u0E23\u0E30\u0E14\u0E31\u0E1A module \u2014 single source of truth, idempotent upsert keyed by nameEN.
   // audience: 'SELLER' = seller-only achievement badge, 'ANY' = applies to all users.
   // icon: nullable String \u2014 null \u0E2B\u0E21\u0E32\u0E22\u0E16\u0E36\u0E07 engine \u0E08\u0E30\u0E41\u0E2A\u0E14\u0E07 fallback icon \u0E41\u0E17\u0E19.
-  const badges: Array<{
-    name: string; nameEN: string; icon: string | null;
-    type: string; audience: string; criteria: object;
-  }> = [
-    // \u2500\u2500 10 badges \u0E40\u0E14\u0E34\u0E21 (\u0E15\u0E2D\u0E19\u0E19\u0E35\u0E49\u0E21\u0E35 audience field) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    { name: "\u0E40\u0E1B\u0E34\u0E14\u0E2B\u0E19\u0E49\u0E32\u0E23\u0E49\u0E32\u0E19",       nameEN: "First Sale",         icon: "\uD83C\uDFEA", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FIRST_ORDER" } },
-    { name: "\u0E23\u0E49\u0E32\u0E19\u0E04\u0E49\u0E32\u0E02\u0E32\u0E22\u0E2D\u0E14\u0E19\u0E34\u0E22\u0E21",  nameEN: "Trusted Seller 50",  icon: "\u2B50", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 50 } },
-    { name: "\u0E23\u0E49\u0E2D\u0E22\u0E2D\u0E2D\u0E40\u0E14\u0E2D\u0E23\u0E4C",        nameEN: "Century Club",       icon: "\uD83D\uDCAF", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 100 } },
-    { name: "\u0E23\u0E49\u0E32\u0E19\u0E04\u0E30\u0E41\u0E19\u0E19\u0E40\u0E15\u0E47\u0E21",     nameEN: "Perfect Rating",     icon: "\uD83D\uDC8E", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "PERFECT_RATING", minReviews: 10 } },
-    { name: "\u0E23\u0E49\u0E32\u0E19\u0E04\u0E30\u0E41\u0E19\u0E19\u0E2A\u0E39\u0E07",      nameEN: "Highly Rated",       icon: "\uD83C\uDF1F", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "HIGH_RATING", minRating: 4.8, minReviews: 20 } },
-    { name: "\u0E44\u0E23\u0E49\u0E02\u0E49\u0E2D\u0E23\u0E49\u0E2D\u0E07\u0E40\u0E23\u0E35\u0E22\u0E19",   nameEN: "Zero Complaint",     icon: "\uD83D\uDEE1\uFE0F", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ZERO_COMPLAINT", minOrders: 50 } },
-    { name: "\u0E23\u0E49\u0E32\u0E19\u0E04\u0E49\u0E32\u0E40\u0E01\u0E48\u0E32\u0E41\u0E01\u0E48",    nameEN: "Veteran",            icon: "\uD83C\uDFC6", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "VETERAN", minDays: 365 } },
-    { name: "\u0E08\u0E31\u0E14\u0E2A\u0E48\u0E07\u0E2A\u0E32\u0E22\u0E1F\u0E49\u0E32",      nameEN: "Speed Demon",        icon: "\u26A1", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FAST_SHIPPING", maxHours: 24, minOrders: 20 } },
-    { name: "\u0E22\u0E37\u0E19\u0E22\u0E31\u0E19\u0E04\u0E23\u0E1A\u0E16\u0E49\u0E27\u0E19",     nameEN: "Fully Verified",     icon: "\u2705", type: "VERIFICATION", audience: "ANY",    criteria: { type: "FULL_VERIFICATION" } },
-    { name: "\u0E02\u0E27\u0E31\u0E0D\u0E43\u0E08\u0E0A\u0E38\u0E21\u0E0A\u0E19",       nameEN: "Community Favorite", icon: "\u2764\uFE0F", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "UNIQUE_REVIEWERS", count: 50 } },
-    // \u2500\u2500 badge \u0E43\u0E2B\u0E21\u0E48 (Phase 3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    // icon: null \u2014 engine \u0E43\u0E0A\u0E49 fallback SVG/image \u0E41\u0E17\u0E19 emoji \u0E2A\u0E33\u0E2B\u0E23\u0E31\u0E1A badge \u0E1B\u0E35
-    { name: "\u0E1B\u0E35 2026",            nameEN: "2026_BADGE",         icon: null, type: "ACHIEVEMENT",  audience: "ANY",    criteria: { type: "SIGNUP_YEAR", year: 2026 } },
-  ];
-
-  for (const badge of badges) {
+  for (const badge of defaultBadges) {
     await prisma.badge.upsert({
       where: { nameEN: badge.nameEN },
-      update: { name: badge.name, icon: badge.icon, type: badge.type, audience: badge.audience, criteria: badge.criteria },
-      create: badge,
+      update: {
+        name: badge.name,
+        icon: badge.icon,
+        type: badge.type,
+        audience: badge.audience,
+        criteria: badge.criteria,
+        imageUrl: badge.imageUrl ?? null,
+      },
+      create: {
+        name: badge.name,
+        nameEN: badge.nameEN,
+        icon: badge.icon,
+        type: badge.type,
+        audience: badge.audience,
+        criteria: badge.criteria,
+        imageUrl: badge.imageUrl ?? null,
+      },
     });
   }
-  console.log(`Seeded ${badges.length} badges`);
+  console.log(`Seeded ${defaultBadges.length} badges`);
 
   // Seed admin user
   const admin = await prisma.user.upsert({
