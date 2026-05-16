@@ -44,9 +44,20 @@ WHERE NOT EXISTS (
 );
 
 -- status remap per spec migration mapping table
+-- ORDER IS MANDATORY — do NOT reorder these four statements.
+-- Invariant: old-CONFIRMED rows must be split into their new states BEFORE
+-- COMPLETED→CONFIRMED runs. If COMPLETED→CONFIRMED ran first, those newly
+-- renamed rows would have status='CONFIRMED' AND fulfillmentMode='SHIPPED'
+-- (the common case for completed physical orders) and would be re-matched and
+-- corrupted to PENDING by the final split — making terminal orders appear
+-- in-progress and understating trust/badge CONFIRMED counts. (spec-review CRITICAL, 2026-05-16)
 UPDATE "Order" SET "status" = 'PENDING'   WHERE "status" = 'CREATED';
-UPDATE "Order" SET "status" = 'CONFIRMED' WHERE "status" = 'COMPLETED';
+-- split old CONFIRMED first, while status is still literally 'CONFIRMED':
+-- old CONFIRMED + NO_SHIPPING stays CONFIRMED (logical no-op on value, kept for explicit documentation)
 UPDATE "Order" SET "status" = 'CONFIRMED' WHERE "status" = 'CONFIRMED' AND "fulfillmentMode" = 'NO_SHIPPING';
+-- old CONFIRMED + SHIPPED → PENDING (in-progress physical orders not yet delivered)
 UPDATE "Order" SET "status" = 'PENDING'   WHERE "status" = 'CONFIRMED' AND "fulfillmentMode" = 'SHIPPED';
+-- now safe: no old-CONFIRMED rows remain as 'CONFIRMED'; COMPLETED→CONFIRMED cannot re-touch any of them
+UPDATE "Order" SET "status" = 'CONFIRMED' WHERE "status" = 'COMPLETED';
 
 ALTER TABLE "Order" ALTER COLUMN "status" SET DEFAULT 'PENDING';

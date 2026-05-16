@@ -59,12 +59,13 @@ WHERE NOT EXISTS (
 );
 -- (rows with at least one shipping item keep DEFAULT 'SHIPPED')
 
--- (3) status remap (order matters: handle CONFIRMED before generic)
+-- (3) status remap — ORDER IS MANDATORY (splits before COMPLETED→CONFIRMED — prevents re-touch corruption, spec-review 2026-05-16)
 UPDATE "Order" SET "status" = 'PENDING'   WHERE "status" = 'CREATED';
-UPDATE "Order" SET "status" = 'CONFIRMED' WHERE "status" = 'COMPLETED';
--- old CONFIRMED (not yet completed/shipped): by fulfillmentMode
+-- split old CONFIRMED first, while status is still literally 'CONFIRMED':
 UPDATE "Order" SET "status" = 'CONFIRMED' WHERE "status" = 'CONFIRMED' AND "fulfillmentMode" = 'NO_SHIPPING';
 UPDATE "Order" SET "status" = 'PENDING'   WHERE "status" = 'CONFIRMED' AND "fulfillmentMode" = 'SHIPPED';
+-- now safe: no old-CONFIRMED rows remain as 'CONFIRMED'; COMPLETED→CONFIRMED cannot re-touch any of them
+UPDATE "Order" SET "status" = 'CONFIRMED' WHERE "status" = 'COMPLETED';
 -- SHIPPED stays SHIPPED; CANCELLED stays CANCELLED (cancelInitiator left NULL)
 
 -- (4) change default
