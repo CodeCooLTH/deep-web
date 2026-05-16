@@ -14,6 +14,7 @@ import { cn } from '@/utils/helpers'
 import { Icon as IconifyIcon } from '@iconify/react'
 import { LUCIDE_FOR_BADGE, FALLBACK_LUCIDE } from '../../_constants/badge-icons'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
+import { useState } from 'react'
 
 export type AchievementBadge = {
   id: string
@@ -22,6 +23,50 @@ export type AchievementBadge = {
   icon: string | null // legacy (emoji) — nullable since Badge.icon migration; not rendered (uses LUCIDE_FOR_BADGE)
   earned: boolean
   criteria: string    // human-readable criteria (e.g. "สั่ง 50 ออเดอร์")
+  // imageUrl: URL รูป badge จาก seed/admin; null = fallback ไป LUCIDE_FOR_BADGE (T3B)
+  imageUrl?: string | null
+}
+
+/**
+ * BadgeIcon — precedence: imageUrl → img(onError→fallback) → IconifyIcon → FALLBACK_LUCIDE
+ * ทำไม: pattern เดียวกับ admin/badges/components/BadgesTable.tsx:BadgeAvatar (T3B)
+ * ใช้ useState เพราะ onError เป็น browser event — ต้องการ client-side state
+ */
+function BadgeIcon({
+  nameEN,
+  imageUrl,
+  earned,
+}: {
+  nameEN: string
+  imageUrl?: string | null
+  earned: boolean
+}) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const lucide = LUCIDE_FOR_BADGE[nameEN] ?? FALLBACK_LUCIDE
+  const showImg = !!imageUrl && !imgFailed
+
+  if (showImg) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl!}
+        alt={nameEN}
+        loading="lazy"
+        className={cn('size-6 object-contain', earned ? '' : 'opacity-60')}
+        onError={() => setImgFailed(true)}
+      />
+    )
+  }
+
+  return (
+    <IconifyIcon
+      icon={lucide}
+      className={cn(
+        'size-6',
+        earned ? 'text-primary' : 'text-default-400',
+      )}
+    />
+  )
 }
 
 export type AchievementLevelProps = {
@@ -90,9 +135,7 @@ export default function AchievementLevel({
           <SellerEmptyState compact icon="award" title="ยังไม่มี Badge" description="เมื่อปลดล็อก achievement จะแสดงที่นี่" />
         ) : (
         <div className="grid grid-cols-5 gap-2 mt-5">
-          {badges.map((b) => {
-            const lucide = LUCIDE_FOR_BADGE[b.nameEN] ?? FALLBACK_LUCIDE
-            return (
+          {badges.map((b) => (
               <div
                 key={b.id}
                 title={b.earned ? b.name : b.criteria}
@@ -101,19 +144,12 @@ export default function AchievementLevel({
                   b.earned ? 'bg-card' : 'bg-default-50 opacity-40 grayscale',
                 )}
               >
-                <IconifyIcon
-                  icon={lucide}
-                  className={cn(
-                    'size-6',
-                    b.earned ? 'text-primary' : 'text-default-400',
-                  )}
-                />
+                <BadgeIcon nameEN={b.nameEN} imageUrl={b.imageUrl} earned={b.earned} />
                 <div className="text-[10px] text-default-500 text-center leading-tight line-clamp-2">
                   {b.name}
                 </div>
               </div>
-            )
-          })}
+          ))}
         </div>
         )}
       </div>

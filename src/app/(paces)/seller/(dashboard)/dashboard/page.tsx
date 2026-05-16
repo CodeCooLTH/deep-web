@@ -178,11 +178,13 @@ export default async function SellerDashboardPage() {
         orderBy: { createdAt: 'asc' },
       })
 
-      badges = allBadges.map((b: { id: string; name: string; nameEN: string; icon: string | null; criteria: unknown }) => ({
+      badges = allBadges.map((b: { id: string; name: string; nameEN: string; icon: string | null; imageUrl: string | null; criteria: unknown }) => ({
         id: b.id,
         name: b.name,
         nameEN: b.nameEN,
         icon: b.icon,
+        // imageUrl ส่งมาจาก badge row เต็ม (T3B) — AchievementLevel render เป็นรูปถ้ามีค่า
+        imageUrl: b.imageUrl,
         earned: earnedBadgeIds.has(b.id),
         criteria: criteriaToText(b.criteria),
       }))

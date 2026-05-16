@@ -22,10 +22,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getBadgeProgress } from '@/services/badge.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { Icon as IconifyIcon } from '@iconify/react'
 import type { Metadata } from 'next'
 import type { BadgeProgress } from '@/types/badge'
-import { LUCIDE_FOR_BADGE, FALLBACK_LUCIDE } from '../_constants/badge-icons'
+import { BadgeImage } from './BadgeImage'
 
 export const metadata: Metadata = { title: 'ความสำเร็จของร้านค้า' }
 
@@ -109,15 +108,20 @@ export default async function BadgesPage() {
 /**
  * EarnedCard — card ของ badge ที่ได้รับแล้ว
  * card shell + icon circle: มาจาก StatisticCard (card/card-body + bg-primary/15 rounded-full)
+ * ขนาด circle: size-24 (≥96px) ตาม T3B spec สำหรับ earned badge; ใช้ BadgeImage client island
  */
 function EarnedCard({ item }: { item: BadgeProgress }) {
-  const lucide = LUCIDE_FOR_BADGE[item.badge.nameEN] ?? FALLBACK_LUCIDE
   return (
     <div className="card h-full" title={item.badge.name}>
       <div className="card-body flex flex-col items-center text-center gap-3 py-5">
-        {/* icon circle — pattern มาจาก StatisticCard: size-9 bg-primary/15 text-primary rounded-full */}
-        <div className="size-12 bg-primary/15 text-primary rounded-full flex items-center justify-center">
-          <IconifyIcon icon={lucide} className="size-6" />
+        {/* icon circle — size-24 (≥96px) per T3B earned spec; ถ้ามี imageUrl แสดงรูป ถ้าไม่มีใช้ lucide icon */}
+        <div className="size-24 bg-primary/15 text-primary rounded-full flex items-center justify-center overflow-hidden">
+          <BadgeImage
+            nameEN={item.badge.nameEN}
+            imageUrl={item.badge.imageUrl}
+            sizeClass="size-12"
+            className="text-primary"
+          />
         </div>
         <div>
           <p className="text-sm font-medium text-default-800 leading-snug">{item.badge.name}</p>
@@ -136,14 +140,18 @@ function EarnedCard({ item }: { item: BadgeProgress }) {
  * inner: bg-primary + width inline style
  */
 function InProgressRow({ item }: { item: BadgeProgress }) {
-  const lucide = LUCIDE_FOR_BADGE[item.badge.nameEN] ?? FALLBACK_LUCIDE
   const pct = Math.round(item.progressRatio * 100)
 
   return (
     <div className="flex items-start gap-4">
-      {/* icon circle — grayscale เพราะยังไม่ได้รับ (pattern unearned จาก AchievementLevel) */}
-      <div className="size-10 bg-default-100 text-default-400 rounded-full flex items-center justify-center shrink-0">
-        <IconifyIcon icon={lucide} className="size-5" />
+      {/* icon circle — grayscale เพราะยังไม่ได้รับ (pattern unearned จาก AchievementLevel); ใช้ BadgeImage */}
+      <div className="size-10 bg-default-100 text-default-400 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
+        <BadgeImage
+          nameEN={item.badge.nameEN}
+          imageUrl={item.badge.imageUrl}
+          sizeClass="size-5"
+          className="text-default-400"
+        />
       </div>
 
       <div className="flex-1 min-w-0">
