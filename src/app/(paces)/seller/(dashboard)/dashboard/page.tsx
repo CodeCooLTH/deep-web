@@ -49,6 +49,7 @@ function criteriaToText(c: unknown): string {
     case 'FAST_SHIPPING':     return `จัดส่งเฉลี่ย ≤ ${obj['maxHours']} ชม. (${obj['minOrders']}+ ออเดอร์)`
     case 'FULL_VERIFICATION': return 'ยืนยันตัวตนครบทุกระดับ'
     case 'UNIQUE_REVIEWERS':  return `ผู้รีวิว ${obj['count']}+ คน`
+    case 'SIGNUP_YEAR':       return `สมัครภายในปี ${obj['year']}`
     default:                  return ''
   }
 }
