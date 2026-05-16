@@ -29,3 +29,12 @@
 
 ## S-C6. proxy ไม่ใช่ auth/redirect safety-net
 - ดู `docs/system/ui-guideline/seller/page-sourcing.md` (explicit `/seller/*` nav). security angle: อย่าพึ่ง edge rewrite เป็น auth guard — guard ที่ server component / route handler เสมอ; redirect target เป็น static literal (ไม่ต่อ user input → กัน open-redirect).
+
+## S-C7. DAL ownership — enforce ที่ query layer ไม่ใช่หลัง fetch (Next RSC)
+- **กฎ:** resource-by-identifier ที่ผูกกับเจ้าของ ต้อง scope ownership ใน WHERE clause:
+  `prisma.x.findFirst({ where: { <id>, <ownerKey: serverDerivedId> } })` → คืน `null` ให้ non-owner → `notFound()`.
+- **ห้าม** pattern: `const x = await findUnique({where:{id}}); if (x.ownerKey !== me) redirect()/notFound()`.
+  Next.js 16 App Router **serialize fetched object เข้า RSC flight payload (`self.__next_f.push`) รอบ ๆ redirect throw** → response เป็น HTTP **200** + soft meta-refresh, PII (เช่น `buyerContact`) รั่วใน body แม้ browser จะ redirect ทีหลัง. ownership check **หลัง** fetch สายเกินไปเสมอ.
+- `<ownerKey>` ต้องเป็นค่า **server-derived จาก session** (เช่น `shop.id` จาก `getShopByUserId(session.user.id)`) — ห้าม trust จาก URL/param.
+- ฟังก์ชัน fetch ที่ใช้กับ public flow (ไม่มีเจ้าของ เช่น buyer `/o/[token]`) แยกออกจาก ownership-scoped variant อย่าใช้ตัวเดียวข้าม boundary. (เช่น `getOrderByToken` public vs `getOrderForShop(token, shopId)` seller.)
+- Evidence/origin: OMS retro 2026-05-16 P3 — curl repro leak `buyerContact` ใน flight; fix commit `8d9485b` (DAL); แตกต่างจาก S-C1 (S-C1 = mask ตอน display boundary; S-C7 = ไม่ให้ fetch เข้า tree ตั้งแต่แรก).
