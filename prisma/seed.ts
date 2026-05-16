@@ -159,6 +159,7 @@ async function main() {
     type OrderLine = { idx: number; qty: number };
     const orderRecipes: Array<{
       status: string;
+      fulfillmentMode: string;
       type: string;
       buyerContact: string;
       lines: OrderLine[];
@@ -168,12 +169,16 @@ async function main() {
       review?: { rating: number; comment: string; reviewerContact: string };
     }> = [
       // ── Single-item PHYSICAL ──────────────────────────────────────────────────
-      { status: "CREATED", type: "PHYSICAL", buyerContact: "0812345678", lines: [{ idx: 0, qty: 1 }], createdDaysAgo: 0, addr: BKK_ADDR },
+      // CREATED → PENDING (spec mapping); มี PHYSICAL item → fulfillmentMode SHIPPED
+      { status: "PENDING", fulfillmentMode: "SHIPPED", type: "PHYSICAL", buyerContact: "0812345678", lines: [{ idx: 0, qty: 1 }], createdDaysAgo: 0, addr: BKK_ADDR },
       // ── Single-item SERVICE ───────────────────────────────────────────────────
-      { status: "CREATED", type: "SERVICE", buyerContact: "0823456789", lines: [{ idx: 7, qty: 1 }], createdDaysAgo: 1 },
+      // CREATED → PENDING; SERVICE-only → NO_SHIPPING
+      { status: "PENDING", fulfillmentMode: "NO_SHIPPING", type: "SERVICE", buyerContact: "0823456789", lines: [{ idx: 7, qty: 1 }], createdDaysAgo: 1 },
       // ── Combo: product + installation service ────────────────────────────────
+      // CONFIRMED + PHYSICAL item (fulfillmentMode SHIPPED) → PENDING (spec Q1: CONFIRMED+SHIPPED-fulfillment → PENDING)
       {
-        status: "CONFIRMED",
+        status: "PENDING",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0834567890",
         lines: [
@@ -183,9 +188,11 @@ async function main() {
         createdDaysAgo: 2,
         addr: SUBURB_ADDR,
       },
-      { status: "CONFIRMED", type: "SERVICE", buyerContact: "0845678901", lines: [{ idx: 6, qty: 1 }], createdDaysAgo: 3 },
+      // CONFIRMED + SERVICE-only (NO_SHIPPING) → CONFIRMED terminal (spec Q1: CONFIRMED+NO_SHIPPING → CONFIRMED)
+      { status: "CONFIRMED", fulfillmentMode: "NO_SHIPPING", type: "SERVICE", buyerContact: "0845678901", lines: [{ idx: 6, qty: 1 }], createdDaysAgo: 3 },
       {
         status: "SHIPPED",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0856789012",
         lines: [{ idx: 2, qty: 1 }],
@@ -196,6 +203,7 @@ async function main() {
       // ── Combo: projector headlight + custom-fitting service ──────────────────
       {
         status: "SHIPPED",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0867890123",
         lines: [
@@ -206,8 +214,10 @@ async function main() {
         addr: BKK_ADDR,
         tracking: { provider: "Flash Express", trackingNo: "FL987654321TH" },
       },
+      // COMPLETED → CONFIRMED (spec mapping); มี PHYSICAL item → SHIPPED
       {
-        status: "COMPLETED",
+        status: "CONFIRMED",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0878901234",
         lines: [{ idx: 1, qty: 1 }],
@@ -217,8 +227,10 @@ async function main() {
         review: { rating: 5, comment: "ไฟสว่างมาก ติดตั้งง่าย ร้านบริการดี!", reviewerContact: "0878901234" },
       },
       // ── Combo: completed physical + install, both invoiced together ─────────
+      // COMPLETED → CONFIRMED; มี PHYSICAL item → SHIPPED
       {
-        status: "COMPLETED",
+        status: "CONFIRMED",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0889012345",
         lines: [
@@ -230,15 +242,18 @@ async function main() {
         tracking: { provider: "Kerry Express", trackingNo: "KEX555666777TH" },
         review: { rating: 5, comment: "ทีมช่างชำนาญ ติดตั้งเร็ว แนะนำเลย", reviewerContact: "0889012345" },
       },
+      // COMPLETED → CONFIRMED; SERVICE-only → NO_SHIPPING
       {
-        status: "COMPLETED",
+        status: "CONFIRMED",
+        fulfillmentMode: "NO_SHIPPING",
         type: "SERVICE",
         buyerContact: "0892345678",
         lines: [{ idx: 7, qty: 1 }],
         createdDaysAgo: 10,
         review: { rating: 4, comment: "โคมใสขึ้นเยอะ รอดูว่าจะอยู่ได้นานแค่ไหน", reviewerContact: "0892345678" },
       },
-      { status: "CANCELLED", type: "PHYSICAL", buyerContact: "0890123456", lines: [{ idx: 3, qty: 2 }], createdDaysAgo: 1, addr: UPCOUNTRY_ADDR },
+      // CANCELLED unchanged; PHYSICAL → SHIPPED; cancelInitiator unset (null) per spec Q3
+      { status: "CANCELLED", fulfillmentMode: "SHIPPED", type: "PHYSICAL", buyerContact: "0890123456", lines: [{ idx: 3, qty: 2 }], createdDaysAgo: 1, addr: UPCOUNTRY_ADDR },
     ];
 
     let orderCount = 0;
@@ -258,6 +273,7 @@ async function main() {
           shopId: shop.id,
           type: r.type,
           status: r.status,
+          fulfillmentMode: r.fulfillmentMode,
           buyerContact: r.buyerContact,
           totalAmount: total,
           shippingAddress: r.type === 'PHYSICAL' && r.addr ? (r.addr as object) : undefined,
@@ -341,6 +357,7 @@ async function main() {
     const daysAgo2 = (n: number) => new Date(Date.now() - n * 86_400_000);
     const recipes2: Array<{
       status: string;
+      fulfillmentMode: string;
       type: string;
       buyerContact: string;
       lines: { idx: number; qty: number }[];
@@ -348,9 +365,12 @@ async function main() {
       addr?: Addr;
       tracking?: { provider: string; trackingNo: string };
     }> = [
-      { status: "CREATED", type: "PHYSICAL", buyerContact: "0901234567", lines: [{ idx: 0, qty: 1 }], createdDaysAgo: 0, addr: BKK_ADDR },
+      // CREATED → PENDING; PHYSICAL → SHIPPED
+      { status: "PENDING", fulfillmentMode: "SHIPPED", type: "PHYSICAL", buyerContact: "0901234567", lines: [{ idx: 0, qty: 1 }], createdDaysAgo: 0, addr: BKK_ADDR },
+      // CONFIRMED + PHYSICAL item (fulfillmentMode SHIPPED) → PENDING (spec Q1)
       {
-        status: "CONFIRMED",
+        status: "PENDING",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0912345678",
         lines: [
@@ -362,6 +382,7 @@ async function main() {
       },
       {
         status: "SHIPPED",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0923456789",
         lines: [{ idx: 2, qty: 1 }],
@@ -369,8 +390,10 @@ async function main() {
         addr: UPCOUNTRY_ADDR,
         tracking: { provider: "Kerry Express", trackingNo: "KEX998877665TH" },
       },
+      // COMPLETED → CONFIRMED; มี PHYSICAL item → SHIPPED
       {
-        status: "COMPLETED",
+        status: "CONFIRMED",
+        fulfillmentMode: "SHIPPED",
         type: "PHYSICAL",
         buyerContact: "0934567890",
         lines: [
@@ -396,6 +419,7 @@ async function main() {
           shopId: shop2.id,
           type: r.type,
           status: r.status,
+          fulfillmentMode: r.fulfillmentMode,
           buyerContact: r.buyerContact,
           totalAmount: total,
           shippingAddress: r.type === 'PHYSICAL' && r.addr ? (r.addr as object) : undefined,
