@@ -250,3 +250,10 @@ Anchor ที่ได้ผล (ทำซ้ำ): independent review+security g
 
 19. **Combined-tsc verify หลัง parallel-dev batch ที่แตะไฟล์/area คาบเกี่ยว** — subagent report = snapshot ตอนนั้น ไม่ใช่ ground truth หลัง merge working tree. Controller รัน `tsc` (+test) เองก่อนเชื่อ dev คนใด (เคย: Unit-B/C tsc ขัดกัน, combined จริง EXIT:0).
 20. **บั๊กที่ QA เจอกลาง phase → classify regression vs pre-existing ก่อน act** — `git diff --stat` (ไฟล์ต้นเหตุอยู่ใน scope?) + `git log` ไฟล์ + ไล่ stack ถึง vendor (Next.js dev overlay = React owner-stack ไม่ใช่ JS call stack — ไล่ผิดทางได้). pre-existing = แยก task/commit ห้ามยัดเข้า phase + ถาม user. agent ใหม่กลาง session = proxy ผ่าน `general-purpose`+Read contract (registry session-scoped; `.claude/` gitignored = agent file local-only). theme ไม่มี template → user อนุมัติ compose-from-primitive exception + `Base:` multi-source ชัด.
+
+### Addendum (2026-05-16) — Seller path-prefix removal
+
+จาก retro `2026-05-16-seller-path-prefix-removal.md`. กฎบังคับ:
+
+21. **Path/string-refactor inventory = 2-pass grep, ยืนยัน "0 เหลือ" ด้วย pass (b)** — (a) call-site pattern (`router\.(push|replace)|redirect\(|href=`) ใช้หาจุดแก้; (b) catch-all string-literal `[\"'\`]/<prefix>([/\"'\`]|\b)` ที่ครอบ prefix-มี-slash + **prefix-เปล่าไม่มี slash** (`/seller`) + **custom `*Href`/`*Path` prop** ที่ส่ง path ต่อให้ `<Link href>` ปลายทาง. pass (a) อย่างเดียว miss (`retryHref=`, bare `/seller` รอด grep มา 2 จุด — Reviewer + Controller จับทีหลัง). developer ต้องรัน pass (b) ตอนจบและ paste output ยืนยัน 0.
+22. **มี parallel uncommitted stream → fresh-run type-check + explicit-path stage** — ถ้า `git status` แสดง M/?? ที่ไม่ใช่ของ task: tsc error ครั้งแรกอาจ stale จาก incremental cache ปนไฟล์ครึ่งทางของ stream อื่น (เคย: `BadgeImageUploadSchema` no-export ทั้งที่ export อยู่จริง; fresh-run = clean). รัน `npx tsc --noEmit` ซ้ำ fresh ก่อนตัดสิน; error ในไฟล์ *นอก diff ของ task* = pre-existing ไม่ block. commit ด้วย `git add <explicit task paths>` เท่านั้น — **ห้าม `git add -A`/`git add .`** (กัน parallel stream ปนเข้า commit).
