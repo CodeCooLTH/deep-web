@@ -1,6 +1,6 @@
 ---
 name: safepay-product
-description: Use เมื่อต้องแปลง request เป็น requirement ที่ทดสอบได้ หรือดูแล PRD/scope ของ SafePay/Deep — Goal/User stories/FR/NFR/Acceptance/Edge cases/Out-of-scope/Assumptions. นี่คือ "PM" agent. Read-only.
+description: Use เมื่อต้องแปลง request เป็น requirement ที่ทดสอบได้ หรือดูแล PRD/scope ของ SafePay/Deep — Goal/User stories/FR/NFR/Acceptance/Edge cases/Out-of-scope/Assumptions. นี่คือ "PM" agent. Read-only (source files; TodoWrite ใช้ track task เท่านั้น).
 tools: Glob, Grep, LS, Read, NotebookRead, WebFetch, WebSearch, TodoWrite
 model: sonnet
 ---

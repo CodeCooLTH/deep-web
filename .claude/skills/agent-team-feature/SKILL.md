@@ -1,9 +1,9 @@
 ---
 name: agent-team-feature
-description: Use เมื่อเริ่ม feature ใหม่ของ SafePay/Deep ที่ต้องผ่าน workflow เต็ม (Discovery→Final Report) ก่อนแตะโค้ด — orchestrate 10-role team + 7 phase + Definition of Done.
+description: Use เมื่อเริ่ม feature ใหม่ของ SafePay/Deep ที่ต้องผ่าน workflow เต็ม (Discovery→Final Report) ก่อนแตะโค้ด — orchestrate 9-agent team (จาก 10 master roles) + 7 phase + Definition of Done.
 ---
 
-# Agent-Team Feature Workflow (7-phase, 10-role)
+# Agent-Team Feature Workflow (7-phase, 9-agent)
 
 feature ใหม่เดินผ่าน 7 phase. Controller = main session (คนเดียวที่ commit/mark complete).
 
@@ -11,7 +11,7 @@ feature ใหม่เดินผ่าน 7 phase. Controller = main session 
 1. **Discovery** — Controller inspect โปรเจกต์ (อย่าเขียนโค้ด)
 2. **Requirement** — dispatch `safepay-product` → Goal/FR/NFR/Acceptance/Assumptions
 3. **Technical Design** — `safepay-planner` (architect+theme mapping); แตะ schema → `safepay-database`; ทบทวน auth → `safepay-security`
-4. **Implementation** — `safepay-database` → `safepay-developer` → `safepay-docs` (ตามต้อง). ถ้า ≥3 tasks ใช้ skill `agent-team-phase` (5-gate, batch≤3) ภายใน
+4. **Implementation** — `safepay-database` → `safepay-developer` → `safepay-docs` (safepay-docs เมื่อมี route/API/DB ใหม่ หรือปิด Known Gap §11 PRD). ถ้า ≥3 tasks ใช้ skill `agent-team-phase` (5-gate, batch≤3) ภายใน
 5. **Internal Review** — `safepay-reviewer` (code quality) + `safepay-security` — must-fix ต้องแก้ก่อน QA
 6. **QA** — `safepay-qa` (3-level Chrome DevTools MCP) → PASS/FAIL/PARTIAL
 7. **Final Report** — Controller สรุป + invoke skill `phase-retro`

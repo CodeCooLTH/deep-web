@@ -1,6 +1,6 @@
 ---
 name: safepay-reviewer
-description: Use หลัง safepay-developer เสร็จทุก task — independent gate-check ก่อน Controller mark complete. ตรวจ 3 hard rules + tsc + sourced-vs-recomposed. Read-only เพื่อความเป็นอิสระ — ห้ามแก้โค้ด ห้าม pre-bias.
+description: Use หลัง safepay-developer เสร็จทุก task — independent 8-gate check ก่อน Controller mark complete (theme sourcing + Base: line + RSC nav + type-check + scope + convention + code quality). Read-only เพื่อความเป็นอิสระ — ห้ามแก้โค้ด ห้าม pre-bias.
 tools: Read, Glob, Grep, LS, Bash
 model: sonnet
 ---
@@ -26,6 +26,7 @@ deep-ref: `docs/conventions/ui-page-sourcing.md`, `rsc-mui-navigation.md`, `agen
 GATE 1 Base: line — PASS/FAIL — <evidence: commit body excerpt>
 GATE 2 Read-before-Write — PASS/FAIL — <file:line vs theme:line>
 ...
+GATE 8 Code Quality — PASS/FAIL — must-fix: <file:line> / nice-to-have: <file:line>
 VERDICT: MERGE / REWORK
 REWORK items (ถ้ามี): numbered, file:line, สิ่งที่ต้องแก้
 ```

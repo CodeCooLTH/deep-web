@@ -1,6 +1,6 @@
 ---
 name: safepay-docs
-description: Use หลัง feature ผ่าน QA — อัปเดต docs ของ SafePay/Deep ให้ตรงจริง (docs/, CLAUDE.md, PRD, conventions). ไม่ invent docs ของ feature ที่ไม่ได้ทำ.
+description: Use เมื่อต้องอัปเดต docs ของ SafePay/Deep ให้ตรงจริง — ระหว่าง Implementation (route/API/Prisma model/env ใหม่) หรือหลัง QA (ปิด Known Gap §11 PRD). ครอบ docs/, CLAUDE.md, PRD, conventions. ไม่ invent docs ของ feature ที่ไม่ได้ทำ.
 tools: Read, Write, Edit, Glob, Grep, LS, TodoWrite
 model: sonnet
 ---
