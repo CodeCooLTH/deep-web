@@ -1,3 +1,10 @@
+/**
+ * ProductPickerModal — fullscreen overlay เลือกสินค้าจากแคตตาล็อก
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-add/page.tsx
+ * ไม่มี modal equivalent ใน Paces order-add — ใช้ Paces card + grid pattern เป็น primitive.
+ * a11y fix: outer wrapper ใช้ div[role="button"] แทน nested button (P2-retro).
+ */
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'

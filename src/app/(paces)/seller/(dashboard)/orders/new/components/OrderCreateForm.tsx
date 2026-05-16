@@ -1,3 +1,11 @@
+/**
+ * OrderCreateForm — ฟอร์มสร้างออเดอร์
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-add/page.tsx
+ * Layout card + 2-col grid ได้จาก Paces order-add.
+ * ตัด Flatpickr date (ใช้ server timestamp); เพิ่ม orderType select ที่มองเห็นได้.
+ * Submit/validate/redirect wiring คงเดิมทั้งหมด.
+ */
 'use client'
 
 import { yupResolver } from '@hookform/resolvers/yup'
@@ -251,9 +259,9 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
       const token = order?.publicToken ?? order?.order?.publicToken
       toast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
       if (token) {
-        router.push(`/orders/${token}`)
+        router.push(`/seller/orders/${token}`)
       } else {
-        router.push('/orders')
+        router.push('/seller/orders')
       }
     } catch {
       toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -261,13 +269,15 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-
+  // โครงสร้าง card ได้จาก Paces order-add: single card ครอบ 2-col grid
+  // (Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-add/page.tsx)
   return (
     <form
       id={formId}
       onSubmit={handleSubmit(onSubmit)}
       noValidate
     >
+      {/* Loading indicator ระหว่าง submit */}
       {isSubmitting && (
         <div className="mb-4 flex items-center gap-2 text-sm text-default-500">
           <Icon icon="loader-2" className="animate-spin" width={16} height={16} />
@@ -275,62 +285,154 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[30%_40%_30%] gap-6">
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1 — ฟิลด์หลัก (Paces 2-col grid card pattern)            */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="card">
+        <div className="card-header">
+          <h4 className="card-title">ข้อมูลออเดอร์</h4>
+        </div>
+        <div className="card-body">
+          <div className="grid md:grid-cols-2 gap-5">
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COLUMN 1 — ข้อมูลลูกค้า                                           */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="card rounded-xl p-6 flex flex-col gap-5">
-          <h2 className="text-base font-semibold text-dark">ข้อมูลลูกค้า</h2>
+            {/* ── ประเภทออเดอร์ (orderType) ──────────────────────────────── */}
+            <div>
+              <label htmlFor="order-type" className="form-label">
+                ประเภทออเดอร์<span className="text-danger ms-0.5">*</span>
+              </label>
+              <select
+                id="order-type"
+                className="form-select"
+                {...register('type')}
+              >
+                <option value="PHYSICAL">สินค้าจริง (Physical)</option>
+                <option value="DIGITAL">สินค้าดิจิทัล (Digital)</option>
+                <option value="SERVICE">บริการ (Service)</option>
+              </select>
+              {errors.type && (
+                <p className="text-danger mt-1 text-sm">{errors.type.message}</p>
+              )}
+            </div>
 
-          {/* Order type hidden — defaults to PHYSICAL in form state */}
+            {/* ── ชื่อลูกค้า (buyerName) — UI-only ──────────────────────── */}
+            <div>
+              <label htmlFor="buyer-name" className="form-label">
+                ชื่อ-นามสกุลลูกค้า<span className="text-danger ms-0.5">*</span>
+              </label>
+              <input
+                id="buyer-name"
+                type="text"
+                placeholder="เช่น สมชาย ใจดี"
+                className="form-input"
+                {...register('buyerName')}
+              />
+              {errors.buyerName && (
+                <p className="text-danger mt-1 text-sm">{errors.buyerName.message}</p>
+              )}
+            </div>
 
-          {/* Buyer name — UI-only */}
-          <div>
-            <label htmlFor="buyer-name" className="form-label">
-              ชื่อ-นามสกุลลูกค้า<span className="text-danger">*</span>
-            </label>
-            <input
-              id="buyer-name"
-              type="text"
-              placeholder="เช่น สมชาย ใจดี"
-              className="form-input"
-              {...register('buyerName')}
-            />
-            {errors.buyerName && (
-              <p className="text-danger mt-1 text-sm">{errors.buyerName.message}</p>
-            )}
-          </div>
+            {/* ── ช่องทางติดต่อผู้ซื้อ (buyerContact) ────────────────────── */}
+            <div>
+              <label htmlFor="buyer-contact" className="form-label">
+                ช่องทางติดต่อผู้ซื้อ
+              </label>
+              <input
+                id="buyer-contact"
+                type="text"
+                placeholder="0812345678 หรือ buyer@email.com"
+                className="form-input"
+                {...register('buyerContact')}
+              />
+              {errors.buyerContact ? (
+                <p className="text-danger mt-1 text-sm">{errors.buyerContact.message}</p>
+              ) : (
+                <p className="text-default-400 mt-1 text-xs">
+                  เบอร์หรือ email สำหรับแจ้งลิงก์ให้ผู้ซื้อ
+                </p>
+              )}
+            </div>
 
-          {/* Buyer contact */}
-          <div>
-            <label htmlFor="buyer-contact" className="form-label">
-              ช่องทางติดต่อผู้ซื้อ
-            </label>
-            <input
-              id="buyer-contact"
-              type="text"
-              placeholder="0812345678 หรือ buyer@email.com"
-              className="form-input"
-              {...register('buyerContact')}
-            />
-            {errors.buyerContact ? (
-              <p className="text-danger mt-1 text-sm">{errors.buyerContact.message}</p>
-            ) : (
+            {/* ── ช่องทางการขาย (channel) — UI-only ──────────────────────── */}
+            <div>
+              <label htmlFor="order-channel" className="form-label">
+                ช่องทางการขาย
+              </label>
+              <Controller
+                control={control}
+                name="channel"
+                render={({ field }) => (
+                  <Select
+                    inputId="order-channel"
+                    className="select2 react-select"
+                    classNamePrefix="react-select"
+                    isSearchable={false}
+                    isClearable
+                    options={CHANNEL_OPTIONS}
+                    value={CHANNEL_OPTIONS.find((o) => o.value === field.value) ?? null}
+                    onChange={(opt: any) => field.onChange(opt?.value || undefined)}
+                    placeholder="เลือกช่องทาง"
+                  />
+                )}
+              />
+            </div>
+
+            {/* ── วิธีชำระเงิน (paymentMethod) — UI-only ──────────────────── */}
+            <div>
+              <label htmlFor="order-payment" className="form-label">
+                วิธีชำระเงิน
+              </label>
+              <Controller
+                control={control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <Select
+                    inputId="order-payment"
+                    className="select2 react-select"
+                    classNamePrefix="react-select"
+                    isSearchable={false}
+                    isClearable
+                    options={PAYMENT_OPTIONS}
+                    value={PAYMENT_OPTIONS.find((o) => o.value === field.value) ?? null}
+                    onChange={(opt: any) => field.onChange(opt?.value || undefined)}
+                    placeholder="เลือกวิธีชำระเงิน"
+                  />
+                )}
+              />
+            </div>
+
+            {/* ── หมายเหตุภายใน (note) ────────────────────────────────────── */}
+            <div>
+              <label htmlFor="order-note" className="form-label">
+                หมายเหตุภายใน
+              </label>
+              <textarea
+                id="order-note"
+                rows={3}
+                placeholder="บันทึกส่วนตัวเกี่ยวกับออเดอร์นี้"
+                className="form-input resize-none"
+                {...register('note')}
+              />
               <p className="text-default-400 mt-1 text-xs">
-                เบอร์หรือ email สำหรับแจ้งลิงก์ให้ผู้ซื้อ
+                มองเห็นเฉพาะร้านค้า ไม่แสดงให้ผู้ซื้อเห็น
               </p>
-            )}
+            </div>
+
           </div>
+        </div>
+      </div>
 
-          {/* Shipping address — visible only for PHYSICAL orders */}
-          {isPhysical && (
-            <fieldset className="border border-default-200 rounded-lg p-4 flex flex-col gap-3">
-              <legend className="text-xs font-semibold text-default-500 px-1">
-                ที่อยู่จัดส่ง
-              </legend>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SECTION 2 — ที่อยู่จัดส่ง (แสดงเมื่อ PHYSICAL เท่านั้น)           */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {isPhysical && (
+        <div className="card mt-5">
+          <div className="card-header">
+            <h4 className="card-title">ที่อยู่จัดส่ง</h4>
+          </div>
+          <div className="card-body">
+            <div className="grid md:grid-cols-2 gap-5">
 
-              <div>
+              <div className="md:col-span-2">
                 <label htmlFor="addr-line1" className="form-label">
                   ที่อยู่ / บ้านเลขที่ + ถนน
                 </label>
@@ -343,59 +445,57 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="addr-district" className="form-label">
-                    ตำบล/แขวง
-                  </label>
-                  <input
-                    id="addr-district"
-                    type="text"
-                    placeholder="คลองเตย"
-                    className="form-input"
-                    {...register('shippingAddress.district')}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="addr-amphoe" className="form-label">
-                    อำเภอ/เขต
-                  </label>
-                  <input
-                    id="addr-amphoe"
-                    type="text"
-                    placeholder="คลองเตย"
-                    className="form-input"
-                    {...register('shippingAddress.amphoe')}
-                  />
-                </div>
+              <div>
+                <label htmlFor="addr-district" className="form-label">
+                  ตำบล/แขวง
+                </label>
+                <input
+                  id="addr-district"
+                  type="text"
+                  placeholder="คลองเตย"
+                  className="form-input"
+                  {...register('shippingAddress.district')}
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="addr-province" className="form-label">
-                    จังหวัด
-                  </label>
-                  <input
-                    id="addr-province"
-                    type="text"
-                    placeholder="กรุงเทพมหานคร"
-                    className="form-input"
-                    {...register('shippingAddress.province')}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="addr-postal" className="form-label">
-                    รหัสไปรษณีย์
-                  </label>
-                  <input
-                    id="addr-postal"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="10110"
-                    className="form-input"
-                    {...register('shippingAddress.postalCode')}
-                  />
-                </div>
+              <div>
+                <label htmlFor="addr-amphoe" className="form-label">
+                  อำเภอ/เขต
+                </label>
+                <input
+                  id="addr-amphoe"
+                  type="text"
+                  placeholder="คลองเตย"
+                  className="form-input"
+                  {...register('shippingAddress.amphoe')}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="addr-province" className="form-label">
+                  จังหวัด
+                </label>
+                <input
+                  id="addr-province"
+                  type="text"
+                  placeholder="กรุงเทพมหานคร"
+                  className="form-input"
+                  {...register('shippingAddress.province')}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="addr-postal" className="form-label">
+                  รหัสไปรษณีย์
+                </label>
+                <input
+                  id="addr-postal"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="10110"
+                  className="form-input"
+                  {...register('shippingAddress.postalCode')}
+                />
               </div>
 
               <div>
@@ -410,56 +510,57 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                   {...register('shippingAddress.note')}
                 />
               </div>
-            </fieldset>
-          )}
-        </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COLUMN 2 — รายการสั่งซื้อ (cart-style)                            */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="card rounded-xl flex flex-col overflow-hidden">
-          {/* Card header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-default-100">
-            <h2 className="text-base font-semibold text-dark">รายการสั่งซื้อ</h2>
-            <button
-              type="button"
-              onClick={() => setIsPickerOpen(true)}
-              className="btn btn-sm bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-1 px-3 py-1.5"
-            >
-              <Icon icon="plus" width={14} height={14} />
-              เลือกสินค้า
-            </button>
+            </div>
           </div>
+        </div>
+      )}
 
-          {/* Cart list */}
-          <div className="flex-1 overflow-y-auto divide-y divide-default-100">
-            {/* Empty state */}
-            {watchedItems.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-14 gap-3 text-default-400 px-4 text-center">
-                <Icon icon="shopping-cart" width={40} height={40} className="opacity-40" />
-                <p className="text-sm font-medium">ยังไม่มีรายการ</p>
-                <button
-                  type="button"
-                  onClick={() => setIsPickerOpen(true)}
-                  className="text-sm text-primary hover:underline"
-                >
-                  เลือกสินค้า
-                </button>
-              </div>
-            )}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SECTION 3 — รายการสินค้า (product reference)                      */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="card mt-5">
+        <div className="card-header flex items-center justify-between">
+          <h4 className="card-title">รายการสินค้า</h4>
+          <button
+            type="button"
+            onClick={() => setIsPickerOpen(true)}
+            className="btn btn-sm bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-1 px-3 py-1.5"
+          >
+            <Icon icon="plus" width={14} height={14} />
+            เลือกสินค้า
+          </button>
+        </div>
+        <div className="card-body p-0">
 
-            {/* Catalog cart rows */}
+          {/* Empty state */}
+          {watchedItems.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-14 gap-3 text-default-400 px-4 text-center">
+              <Icon icon="shopping-cart" width={40} height={40} className="opacity-40" />
+              <p className="text-sm font-medium">ยังไม่มีรายการสินค้า</p>
+              <button
+                type="button"
+                onClick={() => setIsPickerOpen(true)}
+                className="text-sm text-primary hover:underline"
+              >
+                เลือกสินค้าจากแคตตาล็อก
+              </button>
+            </div>
+          )}
+
+          {/* Catalog item rows */}
+          <div className="divide-y divide-default-100">
             {watchedItems.map((item, idx) => {
-              if (!item.productId) return null // custom items rendered below
+              if (!item.productId) return null // custom items rendered in next block
               const product = catalog.find((p) => p.id === item.productId)
               const shortId = item.productId.slice(0, 8)
               const itemErrors = (errors.items as any)?.[idx]
               return (
                 <div
                   key={`catalog-${item.productId}`}
-                  className="flex gap-3 px-4 py-3 border-b border-default-100 last:border-b-0"
+                  className="flex gap-3 px-4 py-3"
                 >
-                  {/* Image / icon */}
+                  {/* ภาพสินค้า */}
                   <div className="size-12 rounded bg-default-100 flex items-center justify-center shrink-0 overflow-hidden">
                     {product?.image ? (
                       <img
@@ -472,17 +573,17 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                     )}
                   </div>
 
-                  {/* Content */}
+                  {/* เนื้อหา */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-dark truncate">{item.name}</p>
-                        <p className="text-xs text-default-400 mt-0.5">SKU: {shortId}</p>
+                        <p className="text-xs text-default-400 mt-0.5">ID: {shortId}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => remove(idx)}
-                        aria-label="ลบ"
+                        aria-label="ลบรายการ"
                         className="text-default-400 hover:text-danger shrink-0"
                       >
                         <Icon icon="x" className="size-4" />
@@ -494,7 +595,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                           type="button"
                           onClick={() => dec(item.productId!)}
                           className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
-                          aria-label="ลด"
+                          aria-label="ลดจำนวน"
                         >
                           <Icon icon="minus" width={12} height={12} />
                         </button>
@@ -510,7 +611,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                           type="button"
                           onClick={() => inc(catalog.find((p) => p.id === item.productId)!)}
                           className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
-                          aria-label="เพิ่ม"
+                          aria-label="เพิ่มจำนวน"
                         >
                           <Icon icon="plus" width={12} height={12} />
                         </button>
@@ -530,14 +631,14 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
               return (
                 <div
                   key={`custom-${idx}`}
-                  className="flex gap-3 px-4 py-3 border-b border-default-100 last:border-b-0"
+                  className="flex gap-3 px-4 py-3"
                 >
-                  {/* Icon placeholder */}
+                  {/* ไอคอน placeholder */}
                   <div className="size-12 rounded bg-default-100 flex items-center justify-center shrink-0">
                     <Icon icon="edit" className="size-6 text-default-400" />
                   </div>
 
-                  {/* Content */}
+                  {/* เนื้อหา */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -555,7 +656,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                         {itemErrors?.name && (
                           <p className="text-danger text-xs mt-0.5">{itemErrors.name.message}</p>
                         )}
-                        {/* Price input */}
+                        {/* ราคา */}
                         <div className="relative mt-1.5">
                           <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-default-400 text-xs pointer-events-none">฿</span>
                           <input
@@ -575,14 +676,14 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                       <button
                         type="button"
                         onClick={() => remove(idx)}
-                        aria-label="ลบ"
+                        aria-label="ลบรายการ"
                         className="text-default-400 hover:text-danger shrink-0"
                       >
                         <Icon icon="x" className="size-4" />
                       </button>
                     </div>
 
-                    {/* Qty stepper */}
+                    {/* จำนวน stepper */}
                     <div className="flex justify-end mt-2">
                       <div className="flex items-center gap-1">
                         <button
@@ -593,7 +694,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                             else remove(idx)
                           }}
                           className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
-                          aria-label="ลด"
+                          aria-label="ลดจำนวน"
                         >
                           <Icon icon="minus" width={12} height={12} />
                         </button>
@@ -612,7 +713,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                             update(idx, { ...item, qty: cur + 1 })
                           }}
                           className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
-                          aria-label="เพิ่ม"
+                          aria-label="เพิ่มจำนวน"
                         >
                           <Icon icon="plus" width={12} height={12} />
                         </button>
@@ -630,7 +731,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
             })}
           </div>
 
-          {/* Add custom item link */}
+          {/* เพิ่มรายการกำหนดเอง */}
           <div className="px-4 py-3 border-t border-default-100">
             <button
               type="button"
@@ -642,103 +743,32 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
             </button>
           </div>
 
-          {/* Validation error for items array */}
+          {/* Validation error สำหรับ items array */}
           {errors.items && typeof errors.items.message === 'string' && (
-            <div className="px-4 pb-2">
+            <div className="px-4 pb-3">
               <p className="text-danger text-sm">{errors.items.message}</p>
             </div>
           )}
 
-          {/* Total footer */}
-          <div className="px-4 py-3 border-t border-default-200 bg-card flex items-center justify-between">
-            <span className="text-sm text-default-500">รวม</span>
+          {/* ยอดรวม footer */}
+          <div className="px-4 py-4 border-t border-default-200 bg-default-50 flex items-center justify-between rounded-b">
+            <span className="text-sm text-default-500">ยอดรวมทั้งหมด</span>
             <span className="text-xl font-bold text-dark">{formatThb(total)}</span>
           </div>
+
         </div>
-
-        {/* Product picker modal (rendered outside form columns, full-screen overlay) */}
-        <ProductPickerModal
-          open={isPickerOpen}
-          onClose={() => setIsPickerOpen(false)}
-          catalog={catalog}
-          qtyByProduct={qtyByProduct}
-          inc={inc}
-          dec={dec}
-        />
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COLUMN 3 — ข้อมูลอื่น ๆ                                            */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="card rounded-xl p-6 flex flex-col gap-5">
-          <h2 className="text-base font-semibold text-dark">ข้อมูลอื่น ๆ</h2>
-
-          {/* Channel — UI-only */}
-          <div>
-            <label htmlFor="order-channel" className="form-label">
-              ช่องทางการขาย
-            </label>
-            <Controller
-              control={control}
-              name="channel"
-              render={({ field }) => (
-                <Select
-                  inputId="order-channel"
-                  className="select2 react-select"
-                  classNamePrefix="react-select"
-                  isSearchable={false}
-                  isClearable
-                  options={CHANNEL_OPTIONS}
-                  value={CHANNEL_OPTIONS.find((o) => o.value === field.value) ?? null}
-                  onChange={(opt: any) => field.onChange(opt?.value || undefined)}
-                  placeholder="เลือกช่องทาง"
-                />
-              )}
-            />
-          </div>
-
-          {/* Payment method — UI-only */}
-          <div>
-            <label htmlFor="order-payment" className="form-label">
-              วิธีชำระเงิน
-            </label>
-            <Controller
-              control={control}
-              name="paymentMethod"
-              render={({ field }) => (
-                <Select
-                  inputId="order-payment"
-                  className="select2 react-select"
-                  classNamePrefix="react-select"
-                  isSearchable={false}
-                  isClearable
-                  options={PAYMENT_OPTIONS}
-                  value={PAYMENT_OPTIONS.find((o) => o.value === field.value) ?? null}
-                  onChange={(opt: any) => field.onChange(opt?.value || undefined)}
-                  placeholder="เลือกวิธีชำระเงิน"
-                />
-              )}
-            />
-          </div>
-
-          {/* Note — UI-only */}
-          <div>
-            <label htmlFor="order-note" className="form-label">
-              หมายเหตุภายใน
-            </label>
-            <textarea
-              id="order-note"
-              rows={3}
-              placeholder="บันทึกส่วนตัวเกี่ยวกับออเดอร์นี้"
-              className="form-input resize-none"
-              {...register('note')}
-            />
-            <p className="text-default-400 mt-1 text-xs">
-              มองเห็นเฉพาะร้านค้า ไม่แสดงให้ผู้ซื้อเห็น
-            </p>
-          </div>
-        </div>
-
       </div>
+
+      {/* ProductPickerModal — fullscreen overlay, อยู่นอก card columns */}
+      <ProductPickerModal
+        open={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        catalog={catalog}
+        qtyByProduct={qtyByProduct}
+        inc={inc}
+        dec={dec}
+      />
+
     </form>
   )
 }
