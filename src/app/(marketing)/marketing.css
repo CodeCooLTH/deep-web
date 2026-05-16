@@ -8,6 +8,10 @@
 @import 'tailwindcss/utilities.css' layer(utilities) important;
 @plugin 'tailwindcss-logical';
 
+/* Build-config: กัน Tailwind v4 ไม่ให้สแกน docs/ (retro/convention ที่ยกตัวอย่าง
+ * class arbitrary จะ gen CSS พังทั้ง group). ดู task #12 / retro B1. */
+@source not "../../../docs";
+
 /* Vuexy tabler icons (generated from @iconify/json) */
 @import '../../assets/iconify-icons/generated-icons.css';
 

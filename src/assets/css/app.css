@@ -41,6 +41,11 @@
 /* ========= Tailwind CSS ========= */
 @import "tailwindcss";
 
+/* Build-config (ไม่ใช่ theme UI): กัน Tailwind v4 auto-content-detection ไม่ให้
+ * สแกน docs/ — retro/convention ที่อธิบายบั๊ก class arbitrary (เช่น url ใน bracket)
+ * จะถูก oxide tokenize แล้ว gen CSS rule พังทั้ง (paces) group. ดู task #12 / retro B1. */
+@source not "../../../docs";
+
 /* ========= Tailwind Plugin ========= */
 @plugin "@tailwindcss/typography";
 @plugin "@tailwindcss/forms";
