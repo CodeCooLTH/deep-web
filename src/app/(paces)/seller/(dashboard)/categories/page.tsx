@@ -1,3 +1,14 @@
+/**
+ * CategoriesPage — หน้าหมวดหมู่สินค้าของร้านค้า (read-only, ประเภทคงที่)
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/page.tsx
+ *
+ * Adapted:
+ * - หมวดหมู่ SafePay เป็น FIXED product types (PHYSICAL/DIGITAL/SERVICE) ไม่ใช่ DB-managed CRUD
+ * - ดึงข้อมูล products + orders ของร้านจริงจาก service layer
+ * - คำนวณ productCount, activeCount, orderCount, revenue แยกตาม type
+ * - ไม่มี AddCategoryModal (sellers ไม่สามารถสร้าง/แก้ไขหมวดหมู่เอง)
+ */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'

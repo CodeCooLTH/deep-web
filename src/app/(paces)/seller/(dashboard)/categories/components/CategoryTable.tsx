@@ -1,3 +1,16 @@
+/**
+ * CategoryTable — ตารางหมวดหมู่สินค้าของร้านค้า (read-only, ประเภทคงที่)
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/CategoryTable.tsx
+ *
+ * Adapted:
+ * - รับ rows จาก RSC (props) แทนการใช้ static data จาก data.ts
+ * - ตัด AddCategoryModal + DeleteConfirmationModal + row-selection (SafePay categories คงที่ ไม่ CRUD)
+ * - ตัด status filter dropdown (ทุก type เป็น active เสมอ)
+ * - ใช้ icon Tabler แทน Image
+ * - แสดงยอดขาย THB, จำนวนสินค้า/ออเดอร์ตามจริง
+ * - filterFns: {} ตาม constraint
+ */
 'use client'
 
 import DataTable from '@/components/table/DataTable'
@@ -72,6 +85,8 @@ const CategoryTable = ({ rows }: CategoryTableProps) => {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: 'includesString',
+    // filterFns จำเป็นสำหรับ type-safety ของ tanstack-table
+    filterFns: {},
   })
 
   const pageIndex = table.getState().pagination.pageIndex
