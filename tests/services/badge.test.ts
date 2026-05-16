@@ -1,11 +1,23 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, cleanDatabase } from "../setup";
-import { evaluateBadges, seedDefaultBadges } from "@/services/badge.service";
+import { evaluateBadges } from "@/services/badge.service";
+
+// seedDefaultBadges ถูกลบออกใน Phase-4 Batch 1 Unit B (data-driven engine)
+// seed เฉพาะ badge ที่ test ต้องการแทน — single source of truth คือ prisma/seed.ts
+async function seedTestBadges() {
+  await prisma.badge.createMany({
+    data: [
+      { name: "เปิดหน้าร้าน",    nameEN: "First Sale",    icon: "🏪", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FIRST_ORDER" } },
+      { name: "ยืนยันครบถ้วน",   nameEN: "Fully Verified", icon: "✅", type: "VERIFICATION", audience: "ANY",    criteria: { type: "FULL_VERIFICATION" } },
+    ],
+    skipDuplicates: true,
+  });
+}
 
 describe("BadgeService", () => {
   beforeEach(async () => {
     await cleanDatabase();
-    await seedDefaultBadges();
+    await seedTestBadges();
   });
 
   it("awards Fully Verified badge when all levels approved", async () => {
