@@ -1,11 +1,18 @@
 'use client'
 
-// Base: src/app/(paces)/seller/(dashboard)/products/components/ProductImages.tsx
-//   (auto-upload + valueRef pattern + per-item uploading skeleton + double-blob-revoke)
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/fileuploads/components/Dropzone.tsx
-//   (dashed border + p-5 dropzone shell)
-// Layout override: marketplace post-composer style — no card shell, hero image
-//   เต็มความกว้าง + thumbnail strip แนวนอนเล็ก + counter ตัวเล็ก
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductImage.tsx
+ *   (card shell pattern: card > card-header > card-body, FileUploader dropzone)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/fileuploads/components/Dropzone.tsx
+ *   (dashed border + dropzone shell)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ hero+thumbnail layout นี้
+ *   ProductImages.tsx เป็น SafePay sibling ที่เป็น upstream ของ auto-upload pattern
+ *   (auto-upload + valueRef pattern + per-item uploading skeleton + double-blob-revoke)
+ *   Layout override: marketplace post-composer style — hero image เต็มความกว้าง
+ *   + thumbnail strip แนวนอน + counter; ไม่ใช้ Paces FileUploader wrapper
+ *   เพราะต้องการ control render ของ hero state กับ +tile state แยกกัน
+ */
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'

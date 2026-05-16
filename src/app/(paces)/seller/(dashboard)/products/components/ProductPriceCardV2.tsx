@@ -1,11 +1,18 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
-//   line 322-381 (peer hidden + label.btn + peer-checked:bg-primary toggle pattern — quick-pick chips)
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputGroup.tsx
-//   line 35-40 (input-group + input-group-text pattern — แต่ override เป็น inline borderless)
-// Layout override: marketplace-style — ฿ inline, ไม่มี label, chips เล็ก scrollable
-// P2: placeholder + sr-only label เปลี่ยนตาม billingMode + billingPeriod (registry-aware)
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/Pricing.tsx
+ *   (card shell + base price field ด้วย input-icon-group currency pattern)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
+ *   line 322-381 (peer hidden + label.btn + peer-checked:bg-primary toggle pattern — quick-pick chips)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputGroup.tsx
+ *   line 35-40 (input-group + input-group-text pattern — override เป็น inline borderless)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ quick-pick price chips
+ *   Pricing.tsx ของ theme เป็น static select; V2 นี้เพิ่ม quick-pick chip row + billingMode-aware label
+ *   Layout override: marketplace-style — ฿ inline borderless, chips เล็ก scrollable horizontal
+ *   P2: placeholder + sr-only label เปลี่ยนตาม billingMode + billingPeriod (registry-aware)
+ */
 
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 import { useState } from 'react'

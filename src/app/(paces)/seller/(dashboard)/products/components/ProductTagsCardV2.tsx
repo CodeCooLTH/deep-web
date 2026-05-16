@@ -1,10 +1,16 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
-//   (อ้างอิง pill style จาก "Checkbox Toggle" + "Radio Toggle" — ใช้ border-primary
-//   text-primary peer-checked:bg-primary peer-checked:text-white แล้ว adapt เป็น
-//   bg-primary/10 light pill ตาม spec; layout wrapper ใช้แบบเดียวกับ
-//   ProductAttributesCardV2.tsx — px-3 py-2.5 borderless compact, mobile + desktop visible)
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
+ *   (pill style จาก Checkbox Toggle + Radio Toggle — border-primary text-primary
+ *    peer-checked:bg-primary peer-checked:text-white; adapt เป็น bg-primary/10 light pill)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ tag autocomplete input นี้
+ *   SafePay-specific: typeahead suggestions จาก /api/tags endpoint
+ *   Enter/comma commit, Backspace remove last, keyboard navigation (ArrowUp/Down/Tab)
+ *   dedupe case-insensitive, debounced fetch (200ms), AbortController กัน race condition
+ *   layout wrapper: px-3 py-2.5 borderless compact, mobile + desktop visible
+ */
 import { Icon } from '@iconify/react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'react-toastify'

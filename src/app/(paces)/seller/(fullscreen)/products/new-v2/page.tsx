@@ -1,6 +1,16 @@
-// Base: src/app/(paces)/seller/(fullscreen)/products/new/page.tsx (legacy structure)
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx (Paces fullscreen pattern)
-// V2 mockup route — marketplace post-composer style (no card shells in form body)
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
+ *
+ * Page shell re-sourced from product-add layout:
+ *   - (fullscreen) route group แทน PageBreadcrumb ด้วย FullscreenPageHeader (sticky top bar)
+ *   - grid grid-cols-1 lg:grid-cols-3 gap-base ตาม product-add 2-col structure
+ *   - ProductFormV2 เป็น domain component ไม่มี 1:1 theme equivalent
+ *     (render ด้วย internal split layout 3fr/2fr + preview panel; ดู JSDoc ใน ProductFormV2.tsx)
+ *   - ปุ่ม Discard/Save อยู่ใน FullscreenPageHeader ซึ่ง sticky top
+ *     (product-add theme ใช้ Link ล่างสุด; fullscreen ย้าย action bar ไป top ตาม SafePay convention)
+ *
+ * Corrections: wrong Base citation (src/...) ถูกแก้ไขเป็น theme/... path นี้
+ */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getShopByUserId } from '@/services/shop.service'
@@ -51,12 +61,22 @@ export default async function NewProductV2Page() {
 
   return (
     <>
+      {/*
+        FullscreenPageHeader แทน PageBreadcrumb + bottom action buttons ของ theme
+        product-add มี Link Discard/Save as Draft/Publish ล่างสุด —
+        fullscreen ย้าย actions ไป sticky top bar เพื่อ UX ที่ดีกว่าบน mobile
+      */}
       <FullscreenPageHeader
         title="เพิ่มสินค้าใหม่"
         cancelHref="/products"
         saveLabel="บันทึก"
         saveFormId={FORM_ID}
       />
+      {/*
+        ProductFormV2 เป็น domain component ที่ implement 2-col layout (3fr/2fr) ภายใน
+        ตาม product-add ซ้าย = fields, ขวา = preview panel (ProductPreviewPanel)
+        ดู JSDoc ใน ProductFormV2.tsx สำหรับ domain-component note
+      */}
       <ProductFormV2 shopId={shop.id} formId={FORM_ID} />
     </>
   )

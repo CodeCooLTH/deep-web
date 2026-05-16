@@ -1,17 +1,24 @@
 'use client'
 
-// Base: src/app/(paces)/seller/(dashboard)/products/components/ProductForm.tsx
-//   (RHF + Yup orchestration, POST/PATCH /api/products contract, toast feedback)
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
-//   (desktop ≥lg: 2-column grid wrap ทั้งฟอร์มใน card-like surface)
-// Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
-//   (line ~450: nav.border-default-300 flex border-b + active = border-primary text-primary
-//    — ใช้เป็นฐานของ mobile tab toggle "แก้ไข / ตัวอย่าง" แต่ control ด้วย React state
-//    แทน data-hs-tab-select เพื่อกัน hydration race เหมือนที่ทำใน ProductDescriptionCardV2)
-// Layout (Direction B — Split Editor + Live Preview):
-//   mobile (<lg): tab switcher [แก้ไข | ตัวอย่าง] ที่หัวฟอร์ม, sticky bottom save bar
-//   desktop (≥lg): grid 3fr_2fr — left = field stack, right = preview panel sticky top-24
-//                  save button ใช้จาก FullscreenPageHeader (sticky top)
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
+ *   (desktop 2-col grid structure: left = fields stack, right = preview panel)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
+ *   (nav.border-default-300 flex border-b + active = border-primary text-primary
+ *    — ใช้เป็นฐานของ mobile tab toggle "แก้ไข / ตัวอย่าง" แต่ control ด้วย React state
+ *    แทน data-hs-tab-select เพื่อกัน hydration race)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent โดยตรง
+ *   ProductFormV2 รวม RHF + Yup schema + POST/PATCH /api/products + toast feedback
+ *   + mobile tab switcher + desktop split layout (3fr/2fr) + ProductPreviewPanel ไว้ใน component เดียว
+ *   การเปลี่ยนแปลง layout หรือ validation logic ต้องแก้ที่นี่ ไม่ใช่ที่ page shell
+ *   page shell (new-v2/page.tsx) ทำหน้าที่เฉพาะ: auth guard + shop lookup + render form นี้
+ *
+ * Layout (Direction B — Split Editor + Live Preview):
+ *   mobile (<lg): tab switcher [แก้ไข | ตัวอย่าง] ที่หัวฟอร์ม, sticky bottom save bar
+ *   desktop (≥lg): grid 3fr_2fr — left = field stack, right = preview panel sticky top-24
+ *                  save button ใช้จาก FullscreenPageHeader (sticky top)
+ */
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'

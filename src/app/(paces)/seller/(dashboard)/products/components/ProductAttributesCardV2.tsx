@@ -1,16 +1,18 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
-//   (อ้างอิง pill style + bg-primary/10 text-primary chip pattern จาก radio toggle)
-// Base (sibling): src/app/(paces)/seller/(dashboard)/products/components/ProductTagsCardV2.tsx
-//   (chips input UX — Enter/comma commit, Backspace remove last, dedupe case-insensitive,
-//    container border focus-within ring; ที่นี่ duplicate pattern เป็น per-row chip input)
-// Layout override (Shopee/Lazada-style variant editor, desktop only):
-//   - hidden lg:block — mobile ไม่กรอกที่นี่ (ใช้พื้นที่เยอะเกินไป)
-//   - preset quick-add buttons (สี/ขนาด/วัสดุ/น้ำหนัก/ปริมาณ/รุ่น) + "+ อื่นๆ" ปลายแถว
-//   - แต่ละหัวข้อเป็น row card (border + rounded + padding) — key locked สำหรับ preset,
-//     editable input สำหรับ "อื่นๆ"; chips input ด้านล่างให้ใส่หลายค่าได้
-//   - schema unchanged: Record<string, string> โดย value เป็น "แดง, น้ำเงิน, ดำ" comma-joined
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
+ *   (pill style + bg-primary/10 text-primary chip pattern จาก radio toggle)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ variant/attribute editor นี้
+ *   SafePay-specific: Shopee/Lazada-style variant editor ที่ map กับ Product.attributes schema
+ *   (Record<string, string> โดย value เป็น "แดง, น้ำเงิน, ดำ" comma-joined)
+ *   Chips input UX (Enter/comma commit, Backspace remove last, dedupe case-insensitive,
+ *   container border focus-within ring) — duplicate pattern จาก ProductTagsCardV2 เป็น per-row chip input
+ *   Layout override: desktop only (hidden lg:block) — preset quick-add buttons + "+ อื่นๆ"
+ *   แต่ละหัวข้อเป็น row card (border + rounded + padding) — key locked สำหรับ preset,
+ *   editable input สำหรับ custom key
+ */
 import { Icon } from '@iconify/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'react-toastify'

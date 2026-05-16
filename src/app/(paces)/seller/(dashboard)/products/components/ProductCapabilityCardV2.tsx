@@ -1,11 +1,16 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
-//   line 355-381 (Radio Toggle pattern — peer hidden + label.btn)
-// Base: theme/paces/Admin/TS/src/app/(admin)/components/accordion/page.tsx
-//   (Preline data-hs-collapse pattern — แต่ control ด้วย React state แทน
-//    เพื่อกัน hydration race เหมือนที่ทำใน ProductDescriptionCardV2)
-// "ตั้งค่าขั้นสูง" — ป้าๆ ใช้ default จาก type pickerได้, advanced user override
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
+ *   line 355-381 (Radio Toggle pattern — peer hidden + label.btn)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/components/accordion/page.tsx
+ *   (Preline data-hs-collapse pattern — control ด้วย React state แทนเพื่อกัน hydration race)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent
+ *   SafePay-specific capability flags (fulfillmentMode / billingMode) ที่ derive จาก product-types registry
+ *   "ตั้งค่าขั้นสูง" collapsible section — user ส่วนใหญ่ใช้ default จาก type picker
+ *   advanced user override ค่านี้ได้โดยตรง
+ */
 
 import type { UseFormRegister, FieldErrors } from 'react-hook-form'
 import { useState } from 'react'

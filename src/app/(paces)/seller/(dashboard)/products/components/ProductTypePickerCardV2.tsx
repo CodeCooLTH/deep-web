@@ -1,9 +1,17 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
-//   line 355-381 (Radio Toggle — peer hidden + <label className="btn ...peer-checked:bg-primary">)
-// Layout: marketplace-style segmented control — inline pills, scroll-x
-// Options derive จาก registry — เพิ่ม type ใหม่ใน registry → picker pickup auto
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/Organize.tsx
+ *   (card shell + select field pattern สำหรับ category/status)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
+ *   line 355-381 (Radio Toggle — peer hidden + label.btn + peer-checked:bg-primary)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ product type picker นี้
+ *   theme ใช้ static select; V2 นี้ใช้ radio pill chips ที่ derive จาก product-types registry
+ *   Layout: marketplace-style segmented control — inline pills, scroll-x
+ *   เพิ่ม type ใหม่ใน registry → picker pickup auto (ไม่ต้องแก้ไฟล์นี้)
+ *   Side effect: sync capability defaults (fulfillmentMode/billingMode) เมื่อ type เปลี่ยน
+ */
 
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 import { useEffect, useRef } from 'react'

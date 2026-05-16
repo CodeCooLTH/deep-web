@@ -1,8 +1,15 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
-//   line 355-381 (Radio Toggle pattern)
-// Conditional render — แสดงเฉพาะเมื่อ billingMode === 'RECURRING'
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx
+ *   line 355-381 (Radio Toggle pattern — peer hidden + label.btn + peer-checked:bg-primary)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent
+ *   SafePay-specific billing period selector (MONTHLY/YEARLY/CUSTOM)
+ *   Conditional render — แสดงเฉพาะเมื่อ billingMode === 'RECURRING'
+ *   CUSTOM period เปิด input จำนวนวัน (billingPeriodDays)
+ *   Schema enforcement อยู่ใน ProductFormV2.tsx (Yup when() condition)
+ */
 
 import type { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form'
 import { BILLING_PERIODS } from '@/lib/product-types/registry'

@@ -1,18 +1,21 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-details/components/ProductDisplay.tsx
-//   (image gallery + thumbnail strip pattern — slides + hs-carousel-pagination-item;
-//    เรา adapt เป็น click-to-switch แบบ mobile e-commerce แทน Preline carousel เพราะ
-//    ใน live preview ผู้ใช้ดูภาพเดียวต่อครั้ง ไม่ต้องการ auto-rotate)
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-details/components/ProductDetails.tsx
-//   (typography: badge bg-{tone}/15 text-{tone} rounded-full text-sm py-1.5 px-3,
-//    text-danger text-xl font-bold สำหรับราคา, text-default-400 text-xs uppercase
-//    สำหรับ section heading; pattern h6/p ใน attributes block)
-// Layout override (Lazada/Shopee mobile-first preview panel):
-//   - max-w-md container เพราะนี่คือ preview ของ "การ์ดสินค้า" ไม่ใช่หน้าเต็ม
-//   - main image เป็น aspect-square ใหญ่อันเดียว, thumbnail strip เลื่อนแนวนอน
-//   - ราคาตัวใหญ่ text-2xl text-danger (Lazada/Shopee เน้นราคาให้สะดุดตา)
-//   - empty/placeholder states ใช้ text-default-300 italic เป็นมาตรฐาน
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-details/components/ProductDisplay.tsx
+ *   (image gallery + thumbnail strip — adapt จาก Preline carousel เป็น click-to-switch
+ *    เพราะ live preview ดูภาพเดียวต่อครั้ง ไม่ต้องการ auto-rotate)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-details/components/ProductDetails.tsx
+ *   (typography: badge bg-{tone}/15 text-{tone} rounded-full, text-danger font-bold สำหรับราคา,
+ *    text-default-400 สำหรับ section heading; pattern h6/p ใน attributes block)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ live-preview panel นี้
+ *   SafePay-specific: preview panel ที่ subscribe ค่าจาก RHF watch() และ update realtime
+ *   Layout override (Lazada/Shopee mobile-first preview):
+ *   max-w-md container (preview ของ "การ์ดสินค้า" ไม่ใช่หน้าเต็ม),
+ *   main image aspect-square, thumbnail strip เลื่อนแนวนอน,
+ *   ราคา text-2xl text-danger, empty states ใช้ text-default-300 italic
+ *   billingMode-aware: แสดง "/เดือน" "/ปี" "/รอบ" ต่อท้ายราคา
+ */
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'

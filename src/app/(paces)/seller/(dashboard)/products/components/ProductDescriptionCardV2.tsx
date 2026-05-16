@@ -1,10 +1,14 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductInformation.tsx
-//   (form-textarea pattern — ห้ามใช้ Quill ตาม design doc)
-// Layout override: marketplace-style — default state คือ link เล็ก "+ คำอธิบายเพิ่มเติม"
-//   กดแล้ว expand เป็น textarea borderless (bg-default-50). ไม่ใช้ Preline data-hs-collapse
-//   เพื่อกัน hydration race + เพื่อให้ flow control อยู่ที่ React state ตรงๆ
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductInformation.tsx
+ *   (form-textarea pattern — ห้ามใช้ Quill ตาม design doc เพราะ bundle ใหญ่เกิน)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ collapsible description input นี้
+ *   Layout override: marketplace-style — default state คือ link "+ คำอธิบายเพิ่มเติม" เล็กๆ
+ *   กดแล้ว expand เป็น textarea borderless (bg-default-50) + ปุ่ม "ซ่อน"
+ *   ไม่ใช้ Preline data-hs-collapse เพื่อกัน hydration race + flow control อยู่ที่ React state
+ */
 import type { UseFormRegister, FieldErrors } from 'react-hook-form'
 import { useState } from 'react'
 import type { ProductFormV2Values } from './ProductFormV2.types'

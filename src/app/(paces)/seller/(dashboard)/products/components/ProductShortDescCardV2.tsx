@@ -1,10 +1,15 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductInformation.tsx
-//   (form-textarea pattern — เลียนแบบ ProductDescriptionCardV2 พี่น้องโดยตรง
-//    เพื่อให้ visual rhythm ของ field stack สม่ำเสมอ: borderless + bg-default-50)
-// Layout: compact single-card — ไม่มี collapse pattern (ของ description) เพราะ
-//   short description คาดหวังว่าจะกรอกเสมอ (เป็น teaser หลักที่โผล่ใน card สินค้า)
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductInformation.tsx
+ *   (form-textarea pattern — เลียนแบบ ProductDescriptionCardV2 sibling)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent
+ *   SafePay-specific: short description field แยกจาก description (ไม่มีใน Paces product-add)
+ *   เป็น teaser text ที่โผล่ใน product card (max 200 ตัวอักษร)
+ *   Layout: compact textarea borderless + bg-default-50 ให้ visual rhythm เดียวกับ description sibling
+ *   ไม่มี collapse pattern เพราะคาดว่าจะกรอกเสมอ (ต่างจาก long description ที่ optional)
+ */
 import type { UseFormRegister, FieldErrors } from 'react-hook-form'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 

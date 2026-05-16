@@ -1,8 +1,15 @@
 'use client'
 
-// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductInformation.tsx
-//   (อ้างอิง form-input pattern ของ Paces — แต่ override ที่นี่เป็น borderless inline
-//   ตามทิศทาง marketplace-style: placeholder ทำหน้าที่ label, ใช้ underline-on-focus)
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/components/ProductInformation.tsx
+ *   (อ้างอิง form-input pattern ของ Paces — override ที่นี่เป็น borderless inline
+ *    ตามทิศทาง marketplace-style: placeholder ทำหน้าที่ label, ใช้ underline-on-focus)
+ *
+ * Domain component — ไม่มี 1:1 Paces theme equivalent สำหรับ borderless-inline input style นี้
+ *   นำ form-input primitive จาก theme แล้ว adapt เป็น marketplace-style ชื่อสินค้า input
+ *   ไม่มี explicit card shell (no card > card-header > card-body wrapper)
+ *   sr-only label เพื่อ accessibility เพราะ placeholder ทำหน้าที่ visual label
+ */
 import type { UseFormRegister, FieldErrors } from 'react-hook-form'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 
