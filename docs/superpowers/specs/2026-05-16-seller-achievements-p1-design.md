@@ -1,147 +1,142 @@
-# Seller Achievements P1 — Design Spec
+# Seller Achievements P1 — Design Spec (full scope)
 
-วันที่: 2026-05-16
-สถานะ: รออนุมัติจาก user
-ขอบเขต: เพิ่ม achievement badge ฝั่ง **seller อย่างเดียว** 7 อัน — **ไม่มี reward ผูก**
-แบ่งเป็น **P1a (data, ทำก่อน)** + **P1b (visual, phase ถัดไป)**
+วันที่: 2026-05-16 (revised — scope ขยายตามคำสั่ง user)
+สถานะ: อนุมัติแล้ว → ดู plan `docs/superpowers/plans/2026-05-16-seller-achievements-p1.md`
+ขอบเขต: 7 seller achievement badge ใหม่ (**ไม่มี reward**) + **รูป badge เป็น asset
+จริง** (bundled default + admin upload override) แสดง **ทุก surface**
 
-อ้างอิง asset ออกแบบ: `/Users/craftman/Documents/Claude/Projects/Deep Achivements/`
-(`DESIGN_SYSTEM.md`, `ach_p1_*.svg` ×7, `mockup_dashboard.html`)
+อ้างอิง asset: `/Users/craftman/Documents/Claude/Projects/Deep Achivements/`
+(`ach_p1_*.svg` ×7 — pixel-art ~40KB, `DESIGN_SYSTEM.md`, `mockup_dashboard.html`)
 
 ---
 
 ## 1. เป้าหมาย
 
-อุดช่องโหว่ขั้นบันได achievement ฝั่ง seller — badge เป็น **status symbol เฉย ๆ
-ไม่มี reward** (เหมือนของเดิมทุกอัน)
-
-### ปัญหาที่แก้
-
-ระบบมี 10 seller badge แต่ขั้นบันไดโหว่:
-- **Volume:** กระโดดจากออเดอร์แรก (1) → Trusted Seller 50 ทันที + ไม่มี prestige tier
-  ไร้ปัญหาเหนือ 50
-- **Rating:** tier ต่ำสุด 4.8 ยากเกินร้านกลาง ไม่มี 4.5
-- **Unique reviewers:** มีแต่ 50 ไม่มี tier เริ่มต้น
-- **Tenure:** มีแต่ 365 วัน ไม่มี milestone สั้น
-- **Shipping:** มีแต่ ≤ 24 ชม. ไม่มี elite tier
+อุดช่องโหว่ขั้นบันได achievement ฝั่ง seller + ยกระดับ visual จาก emoji/lucide
+เป็นรูปออกแบบจริง โดย admin จัดการรูปเองได้ — badge ยังเป็น **status symbol
+ไม่มี reward**
 
 ## 2. Non-Goals
 
-- ❌ ไม่มี reward mechanic (แต้ม/ส่วนลด/สิทธิ/unlock) — badge = status เท่านั้น
-- ❌ ไม่แตะ buyer — `audience: "SELLER"` ทุกอัน
-- ❌ ไม่เพิ่ม criteria type / handler / Prisma schema (เป็น P2/P3 — out of scope)
-- ❌ ไม่แตะ trust score formula — นับเข้า `min(10, badgeCount)` เดิมอัตโนมัติ
-- ❌ ไม่ใช้ tier system (`tier_1..5`) — นั่นคือ seller rank track แยก ไม่เกี่ยว P1
+- ❌ ไม่มี reward mechanic (แต้ม/ส่วนลด/สิทธิ/unlock)
+- ❌ ไม่เพิ่ม criteria type / badge handler ใหม่ (reuse engine เดิมล้วน)
+- ❌ ไม่แตะ trust score formula
+- ❌ ไม่ทำ locked/desaturate + progress styling ตาม `mockup_dashboard.html`
+  (เป็น polish รอบหน้า — out of scope; รอบนี้แค่เปลี่ยน icon→รูป + upload)
+- ❌ ไม่ใช้ `smooth_` vector / tier system — ใช้ pixel `ach_p1_*` ไปก่อน
+- ❌ ไม่ bundle รูปให้ 10 badge เดิม — เดิมคง emoji/lucide (imageUrl ว่าง→fallback)
 
-## 3. รายการ Badge ที่จะเพิ่ม (7)
+## 3. รายการ Badge ที่จะเพิ่ม (7) + asset
 
-`type: "ACHIEVEMENT"`, `audience: "SELLER"`, criteria type **เป็น type ที่ engine
-รองรับแล้ว** (ไม่มี logic ใหม่). `nameEN` ตั้งให้ map กับชื่อไฟล์ asset (snake_case):
+`type:"ACHIEVEMENT"`, `audience:"SELLER"`, reuse handler ที่ engine มีอยู่:
 
-| # | name (TH) | nameEN | asset file | criteria | reuse handler |
+| # | name (TH) | nameEN | asset → `public/badges/seller/` | criteria | handler |
 |---|---|---|---|---|---|
-| 1 | เริ่มมีลูกค้า | `Getting Started` | `ach_p1_getting_started.svg` | `{ type:"ORDER_COUNT", count:10 }` | `checkOrderCount` |
-| 2 | ร้านกำลังโต | `Rising Seller` | `ach_p1_rising_seller.svg` | `{ type:"ORDER_COUNT", count:25 }` | `checkOrderCount` |
-| 3 | คะแนนดีน่าซื้อ | `Well Rated` | `ach_p1_well_rated.svg` | `{ type:"HIGH_RATING", minRating:4.5, minReviews:10 }` | `checkHighRating` |
-| 4 | เริ่มเป็นที่รู้จัก | `Getting Noticed` | `ach_p1_getting_noticed.svg` | `{ type:"UNIQUE_REVIEWERS", count:10 }` | `checkUniqueReviewers` |
-| 5 | ขายดีไร้ปัญหา | `Spotless 100` | `ach_p1_spotless_100.svg` | `{ type:"ZERO_COMPLAINT", minOrders:100 }` | `checkZeroComplaint` |
-| 6 | เปิดร้านครบไตรมาส | `3 Months Strong` | `ach_p1_3_months.svg` | `{ type:"VETERAN", minDays:90 }` | `checkVeteran` |
-| 7 | ส่งไวระดับเทพ | `Same-Day Hero` | `ach_p1_same_day_hero.svg` | `{ type:"FAST_SHIPPING", maxHours:12, minOrders:20 }` | `checkFastShipping` |
+| 1 | เริ่มมีลูกค้า | `Getting Started` | `getting-started.svg` | `{type:"ORDER_COUNT",count:10}` | `checkOrderCount` |
+| 2 | ร้านกำลังโต | `Rising Seller` | `rising-seller.svg` | `{type:"ORDER_COUNT",count:25}` | `checkOrderCount` |
+| 3 | คะแนนดีน่าซื้อ | `Well Rated` | `well-rated.svg` | `{type:"HIGH_RATING",minRating:4.5,minReviews:10}` | `checkHighRating` |
+| 4 | เริ่มเป็นที่รู้จัก | `Getting Noticed` | `getting-noticed.svg` | `{type:"UNIQUE_REVIEWERS",count:10}` | `checkUniqueReviewers` |
+| 5 | ขายดีไร้ปัญหา | `Spotless 100` | `spotless-100.svg` | `{type:"ZERO_COMPLAINT",minOrders:100}` | `checkZeroComplaint` |
+| 6 | เปิดร้านครบไตรมาส | `3 Months Strong` | `3-months-strong.svg` | `{type:"VETERAN",minDays:90}` | `checkVeteran` |
+| 7 | ส่งไวระดับเทพ | `Same-Day Hero` | `same-day-hero.svg` | `{type:"FAST_SHIPPING",maxHours:12,minOrders:20}` | `checkFastShipping` |
 
-`icon` field (Prisma, ใช้ฝั่ง buyer/emoji): 🌱 📈 👍 👀 ✨ 📅 🚀
-(เลือกไม่ชนกับ 10 badge เดิม: 🏪 ⭐ 💯 💎 🌟 🛡️ 🏆 ⚡ ✅ ❤️)
+`icon` (emoji fallback): 🌱 📈 👍 👀 ✨ 📅 🚀 (ไม่ชนของเดิม)
 
-## 4. การแบ่งงาน: P1a + P1b
+ที่มาไฟล์ → ปลายทาง (clone + rename เป็น kebab-case):
+`ach_p1_getting_started.svg`→`getting-started.svg`, `ach_p1_rising_seller.svg`→
+`rising-seller.svg`, `ach_p1_well_rated.svg`→`well-rated.svg`,
+`ach_p1_getting_noticed.svg`→`getting-noticed.svg`, `ach_p1_spotless_100.svg`→
+`spotless-100.svg`, `ach_p1_3_months.svg`→`3-months-strong.svg`,
+`ach_p1_same_day_hero.svg`→`same-day-hero.svg`
 
-### P1a — Data (ทำก่อน, ได้ของเร็ว, risk ต่ำ)
+## 4. สถาปัตยกรรม
 
-**สิ่งที่ทำ:** seed 7 badge ใหม่ให้ระบบประเมิน/มอบ/นับ trust ได้จริง โดยใช้
-icon เดิม (buyer = emoji จาก `icon` field; seller = `LUCIDE_FOR_BADGE` map +
-`FALLBACK_LUCIDE` ที่มีอยู่ — ยังไม่เปลี่ยนเป็น asset)
+### 4.1 Schema (Prisma — additive, ปลอดภัย ไม่มี data loss)
 
-ไฟล์ที่แก้ (อาจ 1–2):
-1. `prisma/seed.ts` — เพิ่ม 7 entry ใน array `badges` (ก่อน comment "badge ใหม่
-   (Phase 3)") `upsert` keyed `nameEN` idempotent
-2. `src/app/(paces)/seller/(dashboard)/_constants/badge-icons.ts` — เพิ่ม 7
-   mapping `nameEN → lucide:*` (ชั่วคราว จนกว่า P1b จะเปลี่ยนเป็น asset path):
-   Getting Started→`lucide:sprout`, Rising Seller→`lucide:trending-up`,
-   Well Rated→`lucide:thumbs-up`, Getting Noticed→`lucide:eye`,
-   Spotless 100→`lucide:sparkles`, 3 Months Strong→`lucide:calendar-check`,
-   Same-Day Hero→`lucide:rocket` (ถ้าไม่เพิ่ม `FALLBACK_LUCIDE` รองรับ ไม่พัง)
+เพิ่ม field เดียวใน model `Badge`:
 
-**ไม่แตะ:** `badge.service.ts` (engine), Prisma schema, trust-score, buyer, admin
-
-**ทำเป็น 1 commit** — ไม่มี `Base:` line (เป็น data + map เดิม ไม่ใช่ UI ใหม่จาก
-theme) commit body ภาษาไทย อ้าง spec นี้
-
-### P1b — Visual (phase ถัดไป, แยก risk)
-
-**สิ่งที่ทำ:** แทน icon ของ 7 badge นี้ (+ พิจารณา badge เดิมด้วย) เป็นรูป
-ออกแบบจริง + state locked/desaturate + progress bar ตาม `mockup_dashboard.html`
-
-**ขอบเขต/การตัดสินใจที่ตกลงแล้ว:**
-- **ใช้ pixel-art `ach_p1_*.svg` (~40KB/ไฟล์) ไปก่อน** — เวอร์ชัน `smooth_`
-  vector ยังไม่ถูก generate; ยอมรับ pixel ชั่วคราว **แสดงที่ขนาดใหญ่ ≥ 96px
-  เท่านั้น** (ย่อเล็กจะแตก) แล้ว swap เป็น smooth ทีหลัง (out of P1b scope)
-- คัดลอก asset → `public/badges/seller/` (snake_case ตามตาราง §3)
-- เปลี่ยน `badge-icons.ts` จาก lucide name → path SVG asset (`/badges/seller/*.svg`)
-  ผ่าน `<img>` (seller = Paces/Tailwind ไม่มี MUI)
-- State locked/in-progress ทำที่ **CSS/Tailwind layer ไม่แก้ SVG** ตาม
-  DESIGN_SYSTEM §4 + mockup: `.ach-card--locked` (grayscale/desaturate) +
-  lock overlay (lucide path) + progress bar (`.prog-fill` width %, `.near`
-  เปลี่ยนเป็นทองเมื่อใกล้สำเร็จ) + label `7 / 10` / `Avg 18hr`
-- จุดที่กระทบ UI: หน้า `/seller/badges`
-  (`src/app/(paces)/seller/(dashboard)/badges/page.tsx`) + widget
-  `AchievementLevel.tsx` บน dashboard
-
-**P1b = UI work + ≥3 tasks** → ต้องผ่าน `ui-theme-sourcing` (Paces) +
-`agent-team-phase` (Planner→Developer→Reviewer→QA→Controller) — spec/plan
-ของ P1b แยกเอกสารตอนเริ่ม phase นั้น เอกสารนี้ล็อกแค่ scope + การตัดสินใจ
-
-## 5. Data Flow (ไม่เปลี่ยนจากเดิม — P1a)
-
-```
-order/review/verification เปลี่ยน → evaluateBadges(userId,'SELLER')
-  → loop badge จาก DB (รวม 7 ใหม่) → dispatch criteria.type → handler เดิม
-  → ผ่าน → awardBadge (UserBadge upsert, sticky) → recalculateTrustScore
-/badges + AchievementLevel → getBadgeProgress() → progressLabel/Ratio
-  ของ type เดิม → progress bar ทำงานอัตโนมัติ
+```prisma
+imageUrl  String?   // null = ใช้ icon(emoji)/lucide fallback; ถ้าตั้ง = render รูปนี้
 ```
 
-## 6. Error Handling / ความเสี่ยง
+migration additive (nullable, ไม่มี default destructive) — badge เดิม 11 ตัว
+`imageUrl=null` อัตโนมัติ ไม่กระทบ. ผ่าน `safepay-database` review.
 
-- **Seed idempotent:** `upsert` keyed `nameEN` — รันซ้ำปลอดภัย badge เดิมไม่กระทบ
-- **Sticky award:** `@@unique(userId, badgeId)` — seller ที่เข้าเกณฑ์อยู่แล้ว
-  ได้ badge ใหม่รอบ evaluate ถัดไป (ไม่ retroactive จน trigger) — ยอมรับได้
-- **Icon fallback (P1a):** ลืม map → `FALLBACK_LUCIDE` (`lucide:award`) ไม่พัง
-- **`VETERAN` 90 วัน:** `checkVeteran` ต้อง active (ออเดอร์ใน 30 วันล่าสุด) ด้วย
-  — พฤติกรรมเดิม ยอมรับ (รางวัล "ยังขายอยู่" ไม่ใช่แค่ "บัญชีเก่า")
-- **P1b pixel ~40KB ×7:** ยอมรับชั่วคราว, บังคับ render ≥ 96px, ใส่ TODO swap smooth
-- **Font ใน asset:** `ach_p1_*` เป็น pure pixel rect ไม่มี `<text>`/ฟอนต์ฝัง →
-  ไม่ขัด Hard Rule 5 (Anuphan). ถ้าอนาคตใช้ smooth ที่มีตัวเลข Impact ต้อง
-  convert text→path ก่อน (นอก scope P1)
+### 4.2 ค่า imageUrl 2 รูปแบบ (เก็บเป็น URL string เดียวกัน)
+
+- **Bundled default:** seed ตั้ง `imageUrl = "/badges/seller/<file>.svg"` (static
+  ใต้ `public/` — เสิร์ฟตรงโดย Next)
+- **Admin upload override:** admin อัปโหลด → `saveFile()` (storage lib เดิม,
+  driver `local`/`s3`) คืน `fileId` → set `imageUrl = "/api/files/<fileId>"`
+  (route serve ที่มีอยู่แล้ว) — ทับ bundled เฉพาะ badge นั้น
+
+`<img src={badge.imageUrl}>` ใช้ได้ทั้ง 2 รูปแบบเหมือนกัน
+
+### 4.3 Render precedence (ทุก surface)
+
+helper กลาง 1 ตัว: `imageUrl` มีค่า → `<img>`; ไม่มี → fallback เดิม
+(buyer/public = emoji `icon`; seller/admin Paces = `LUCIDE_FOR_BADGE` +
+`FALLBACK_LUCIDE`). Surface ที่ต้อง wire:
+- buyer Vuexy: `src/app/(marketing)/(buyer-app)/badges/page.tsx`
+- seller Paces: `.../seller/(dashboard)/badges/page.tsx` + `dashboard/components/AchievementLevel.tsx`
+- public profile: `src/app/(marketing)/u/[username]/...` (ส่วนแสดง badge)
+- admin: `.../admin/(dashboard)/badges/components/BadgeFormDialog.tsx` + table
+
+> ⚠️ buyer/public เป็น Vuexy (MUI), seller/admin เป็น Paces (Tailwind) — helper
+> render ต้องไม่ผูก MUI/Preline เฉพาะทาง (ใช้ `<img>` + className กลาง)
+
+### 4.4 Admin upload (security-sensitive)
+
+- ปุ่ม/field อัปโหลดใน `BadgeFormDialog.tsx` (admin Paces — ผ่าน
+  `ui-theme-sourcing`, copy จาก theme/paces ที่ระบุ)
+- API: **admin-only** — `/api/upload` เดิมเปิดให้ user login ทุกคน (security
+  gap) → ห้าม reuse ตรง ๆ. ทำ route ใหม่ admin-gated (ตรวจ session +
+  admin role/subdomain ตามแบบ admin route อื่น) → `saveFile` → PATCH
+  `badge.imageUrl` ผ่าน service layer (validate ด้วย Valibot)
+- **ข้อจำกัดไฟล์ (default — `safepay-security` ยืนยัน/ปรับเข้ม):** อนุญาต
+  **PNG/WebP/JPEG เท่านั้น ≤ 256KB**; **ไม่รับ SVG upload** (SVG = XSS vector,
+  มี script ได้) — SVG ใช้ได้เฉพาะ bundled asset ใน repo ที่ trusted แล้ว
+- ผ่าน `safepay-security` gate ก่อน commit (auth, file-type allowlist, size,
+  path traversal, env leak)
+
+## 5. Data Flow
+
+ประเมิน/มอบ badge: ไม่เปลี่ยน — `evaluateBadges` dispatch criteria.type เดิม.
+แสดงผล: ทุก surface อ่าน `badge.imageUrl` → helper precedence (§4.3).
+Admin upload: form → admin API → `saveFile` → service set `imageUrl` →
+ทุก surface เห็นรูปใหม่รอบ render ถัดไป.
+
+## 6. ความเสี่ยง
+
+- Migration additive nullable → ปลอดภัย; ยืนยัน badge เดิมครบหลัง migrate
+- Sticky award เดิม (`@@unique`) — ไม่เปลี่ยน
+- pixel ~40KB ×7: bundle ใน repo ยอมรับ, render ≥ 96px (ย่อเล็กแตก)
+- **SVG upload XSS** → mitigate: ไม่รับ SVG upload (raster only) — §4.4
+- Admin API auth bypass → `safepay-security` mandatory ก่อน commit
+- helper render ข้าม theme (Vuexy↔Paces) → ใช้ `<img>` ล้วน ไม่ผูก lib
 
 ## 7. Testing / QA
 
-**P1a:**
-- Type-check `npx tsc --noEmit` ผ่าน
-- รัน seed → DB มี 18 badge (11 เดิม + 7 ใหม่) badge เดิมครบ/ไม่ซ้ำ
-- Browser QA (Chrome DevTools MCP ผ่าน `seller.deepth.local`, probe port):
-  - `/seller/badges` แสดง 7 badge ใหม่ใน in-progress/earned + progress bar
-    มีค่า (ไม่ NaN/ว่าง) + icon ไม่พัง (lucide หรือ fallback)
-  - widget AchievementLevel บน dashboard ไม่พัง
-  - public profile `/u/{username}` ของ seller ที่ได้ badge ใหม่ — แสดง badge
-  - admin badges list แสดง 7 อันใหม่ + criteria JSON อ่านออก
+- Vitest: criteria 7 ตัวเป๊ะ + icon/imageUrl map + `evaluateBadges` dispatch
+  (boundary) + render-precedence helper (imageUrl set → img, null → fallback)
+- type-check ผ่าน
+- Browser QA (Chrome DevTools MCP, `*.deepth.local`, probe port — user รัน
+  server เอง):
+  1. buyer `/badges` — รูป asset 7 badge
+  2. seller `/seller/badges` + dashboard widget
+  3. public `/u/<seller>` — รูป badge
+  4. admin badges — list + **upload happy path** (อัปรูป PNG → reload เห็นรูป
+     ใหม่ทุก surface) + reject SVG/ไฟล์ใหญ่
+- Security: smoke ว่า non-admin ยิง API upload → 401/403
 
-**P1b:** กำหนดตอนเขียน spec/plan ของ phase นั้น (รวม visual regression ของ
-locked/progress state ตาม mockup)
+## 8. Definition of Done
 
-## 8. Definition of Done — P1a
-
-- [ ] 7 badge ใน `prisma/seed.ts`, seed สำเร็จ, count = 18, badge เดิมครบ
-- [ ] 7 icon mapping ชั่วคราวใน `badge-icons.ts`
-- [ ] type-check ผ่าน
-- [ ] Browser QA 4 จุด (seller /badges, dashboard widget, public profile,
-      admin list) เขียว
-- [ ] 1 commit (seed + icon map), body ไทย อ้าง spec นี้, ไม่มี `Base:` line
-- [ ] เปิด follow-up note สำหรับ P1b (asset integration + locked/progress)
+- [ ] Prisma `Badge.imageUrl String?` migrate สำเร็จ, badge เดิม 11 ครบ
+- [ ] 7 SVG อยู่ `public/badges/seller/` (kebab-case ตาม §3)
+- [ ] seed 7 badge (criteria + icon emoji + imageUrl bundled), `Seeded 18 badges`
+- [ ] render helper + wire 4 surface (precedence imageUrl→fallback) ผ่าน
+      `ui-theme-sourcing` (admin/seller Paces) + `Base:` line ที่ commit แตะ UI
+- [ ] admin upload (admin-gated API + form) ผ่าน `safepay-security`
+- [ ] Vitest + type-check เขียว
+- [ ] Browser QA 4 surface + upload happy path + security smoke เขียว
+- [ ] retro ปลาย phase (`phase-retro`)
