@@ -1,3 +1,16 @@
+/**
+ * ปุ่มปิด fullscreen overlay — client component เพราะต้องใช้ router.back()
+ *
+ * ไม่มี Paces fullscreen-overlay layout ตรง ๆ (Explore E2 ยืนยัน: theme/paces/Admin/TS/src/layouts/
+ * มีแต่ Vertical/Horizontal/Main ซึ่งเป็น sidebar-shell ทั้งหมด ไม่มี fullscreen-overlay)
+ *
+ * Nearest structural ref:
+ *   theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
+ *   — Discard button ในกลุ่ม action-bar (className "btn bg-danger text-white")
+ *
+ * ใช้ router.back() เพื่อรักษา UX (กลับหน้าก่อน) — fallback ไป /seller/dashboard
+ * ถ้าไม่มี history (เช่น เปิด URL โดยตรง)
+ */
 'use client'
 
 import { Icon } from '@iconify/react'
@@ -10,7 +23,8 @@ export default function FullscreenCloseButton() {
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back()
     } else {
-      router.push('/dashboard')
+      // fallback: ไม่มี history → ไป seller dashboard (seller route ไม่ใช่ buyer /dashboard)
+      router.push('/seller/dashboard')
     }
   }
 
@@ -20,7 +34,8 @@ export default function FullscreenCloseButton() {
       onClick={onClose}
       className="btn btn-icon border border-default-300 text-default-900 hover:bg-default-50 flex items-center gap-2 px-4 py-2"
     >
-      <Icon icon="mdi:close" width={20} height={20} />
+      {/* tabler:x ตาม convention icons ของ project (tabler icon names) */}
+      <Icon icon="tabler:x" width={20} height={20} />
       <span className="hidden sm:inline">ยกเลิก</span>
     </button>
   )

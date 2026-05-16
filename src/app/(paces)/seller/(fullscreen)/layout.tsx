@@ -1,3 +1,19 @@
+/**
+ * Fullscreen overlay layout สำหรับหน้า seller ที่ต้องการ overlay เต็มจอ (เช่น create-order, create-product)
+ *
+ * ไม่มี Paces fullscreen-overlay layout ตรง ๆ (Explore E2 ยืนยัน: theme/paces/Admin/TS/src/layouts/
+ * มีแต่ Vertical/Horizontal/Main ซึ่งเป็น sidebar-shell ทั้งหมด ไม่มี fullscreen-overlay)
+ *
+ * Nearest structural ref (SafePay domain component):
+ *   theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
+ *   — header pattern (title + action buttons) + bottom action-bar pattern อ้างอิงมาจากไฟล์นี้
+ *
+ * Wrapper ชั้นนี้ (fixed inset-0 z-50 bg-card) ไม่มี theme source — เป็น SafePay domain component
+ * ที่ออกแบบเฉพาะสำหรับ fullscreen overlay workflow (ไม่ใช่ dialog modal; ไม่ใช่ sidebar shell)
+ *
+ * Guard: ตรวจ session → redirect /seller/auth/sign-in ถ้าไม่มี session
+ *        ตรวจ shop → auto-create ถ้า seller ยังไม่มีร้าน (invariant เดียวกับ (dashboard)/layout.tsx)
+ */
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
@@ -16,7 +32,7 @@ export default async function FullscreenLayout({ children }: { children: React.R
         trustScore: number
       }
     | undefined
-  if (!session || !user?.id) redirect('/auth/sign-in')
+  if (!session || !user?.id) redirect('/seller/auth/sign-in')
 
   // Ensure seller has a shop — same invariant as (dashboard)/layout.tsx
   const shop = await prisma.shop.findUnique({
