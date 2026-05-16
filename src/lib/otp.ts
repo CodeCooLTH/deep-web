@@ -1,9 +1,29 @@
-// In-memory OTP store (MVP — replace with Redis in production)
-const otpStore = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+// In-memory OTP store (MVP — replace with Redis in production).
+//
+// ⚠️ ต้องเป็น globalThis singleton — Next.js bundle แต่ละ route handler
+// (/api/otp/send, /api/otp/verify, /api/auth/[...nextauth]) เป็นคนละ module
+// instance → ถ้าใช้ module-level `const … = new Map()` ตรง ๆ store ที่
+// storeOtp เขียนใน route ส่ง จะมองไม่เห็นตอน verifyOtp อ่านใน route auth
+// → verify false ทุกครั้ง (real OTP login พังหมด, test-bypass เคยบังไว้).
+// pattern เดียวกับ src/lib/prisma.ts. หมายเหตุ: singleton นี้ share เฉพาะ
+// ภายใน process เดียว — prod multi-instance ยังต้องใช้ Redis (PRD Known Gap).
+const globalForOtp = globalThis as unknown as {
+  otpStore?: Map<string, { otp: string; expiresAt: number; attempts: number }>;
+  otpRequestTimestamps?: Map<string, number[]>;
+};
+
+const otpStore =
+  globalForOtp.otpStore ??
+  (globalForOtp.otpStore = new Map<
+    string,
+    { otp: string; expiresAt: number; attempts: number }
+  >());
 
 // In-memory rate-limit bucket per contact (MVP — replace with Redis/Upstash)
 // PRD NFR-2.7: "OTP rate limit: 3 ครั้ง / 10 นาที ต่อเบอร์โทร"
-const otpRequestTimestamps = new Map<string, number[]>();
+const otpRequestTimestamps =
+  globalForOtp.otpRequestTimestamps ??
+  (globalForOtp.otpRequestTimestamps = new Map<string, number[]>());
 
 /**
  * ตรวจว่า contact นี้ยังส่ง OTP ได้อยู่ไหม ภายใต้ quota.
