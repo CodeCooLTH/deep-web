@@ -1,3 +1,16 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/page.tsx
+ *
+ * Adaptations:
+ * - stat cards: ใช้ OrdersStatCard (จาก theme) แทน StatStrip (shared — task S20 จะ handle ทีหลัง)
+ * - data fetching: getOrdersByShop (SafePay service) + getShopByUserId
+ * - Date boundary: createdAt → .toISOString() ก่อนส่งผ่าน RSC→client boundary
+ * - "no shop" guard เก็บไว้ (ไม่มีใน theme แต่จำเป็นสำหรับ seller ที่ยังไม่ตั้งร้าน)
+ * - maskContact ใช้ซ่อน buyer contact (PDPA-lite)
+ * - productId → productImagesById lookup ถูก stripped: ไม่มีคอลัมน์รูปภาพในหน้า list แล้ว
+ * - StatStrip import ลบออก — ไม่แก้ไขไฟล์ _shared/StatStrip.tsx
+ */
+
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { getShopByUserId } from '@/services/shop.service'
@@ -6,10 +19,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
-import type { OrderRow, OrderItemRow } from './components/data'
+import type { OrderRow, OrderStatType } from './components/data'
 import OrdersList from './components/OrdersList'
-import StatStrip from '../_shared/StatStrip'
-import { prisma } from '@/lib/prisma'
+import OrdersStatCard from './components/OrdersStatCard'
 
 export const metadata: Metadata = { title: 'ออเดอร์' }
 
@@ -43,7 +55,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         <h2 className="text-xl font-bold text-dark mb-2">ยังไม่มีร้านค้า</h2>
         <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะดูออเดอร์ได้</p>
         <Link
-          href="/shop"
+          href="/seller/shop"
           className="btn bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-hover inline-flex items-center gap-2"
         >
           <Icon icon="plus" />
@@ -55,67 +67,39 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   let rawOrders: any[] = []
   try {
-    // Fetch all orders — client component does status filtering
+    // ดึงทุก order ของร้าน — client component ทำ status filter เอง
     rawOrders = await getOrdersByShop(shop.id)
   } catch {
     rawOrders = []
   }
 
-  // Collect all productIds referenced in orders so we can look up images once
-  const productIds = Array.from(
-    new Set(
-      rawOrders.flatMap((o: any) =>
-        (Array.isArray(o.items) ? o.items : [])
-          .map((i: any) => i.productId)
-          .filter(Boolean),
-      ),
-    ),
-  )
+  // แปลง rawOrder → OrderRow, Date → ISO string ที่ RSC boundary (ห้ามส่ง Date object ข้าม boundary)
+  const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    id: (o.publicToken ?? o.id).slice(0, 8),
+    publicToken: o.publicToken ?? o.id,
+    buyer: maskContact(o.buyerContact),
+    orderType: o.type ?? 'PHYSICAL',
+    total: Number(o.totalAmount ?? 0),
+    status: o.status,
+    // ISO string — client component จะ format เป็นภาษาไทย
+    createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+  }))
 
-  let productImagesById: Record<string, string> = {}
-  if (productIds.length > 0) {
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds as string[] } },
-      select: { id: true, images: true },
-    })
-    productImagesById = Object.fromEntries(
-      (
-        products.map((p) => {
-          const img = Array.isArray(p.images) && p.images.length > 0 ? String((p.images as any[])[0]) : null
-          return [p.id, img] as [string, string | null]
-        })
-      ).filter((entry): entry is [string, string] => entry[1] !== null),
-    )
-  }
-
-  // Coerce Decimal → Number and shape into OrderRow
-  const orders: OrderRow[] = rawOrders.map((o: any) => {
-    const rawItems = Array.isArray(o.items) ? o.items : []
-    const items: OrderItemRow[] = rawItems.map((i: any) => ({
-      name: i.name ?? '—',
-      qty: i.qty ?? 1,
-      image: i.productId ? (productImagesById[i.productId] ?? null) : null,
-    }))
-    const totalQty = items.reduce((s, it) => s + it.qty, 0)
-    return {
-      id: (o.publicToken ?? o.id).slice(0, 8),
-      publicToken: o.publicToken ?? o.id,
-      buyer: maskContact(o.buyerContact),
-      items,
-      totalQty,
-      total: Number(o.totalAmount ?? 0),
-      status: o.status,
-      date: o.createdAt
-        ? new Date(o.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '—',
-    }
-  })
-
-  // Compute stat card values
-  const totalCount = orders.length
-  const pendingCount = orders.filter((o) => o.status === 'CREATED').length
-  const activeCount = orders.filter((o) => o.status === 'CONFIRMED' || o.status === 'SHIPPED').length
+  // คำนวณค่า stat card จาก orders ที่ fetch มา
+  const totalCount     = orders.length
+  const pendingCount   = orders.filter((o) => o.status === 'CREATED').length
+  const activeCount    = orders.filter((o) => o.status === 'CONFIRMED' || o.status === 'SHIPPED').length
   const completedCount = orders.filter((o) => o.status === 'COMPLETED').length
+  const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length
+
+  // stat card data ตาม OrderStatType (theme format)
+  const orderStatData: OrderStatType[] = [
+    { title: 'ออเดอร์ทั้งหมด', value: totalCount,     change: 0, icon: 'shopping-cart',   className: 'bg-info' },
+    { title: 'รอยืนยัน',       value: pendingCount,   change: 0, icon: 'hourglass',       className: 'bg-warning' },
+    { title: 'กำลังดำเนินการ', value: activeCount,    change: 0, icon: 'truck-delivery',  className: 'bg-primary' },
+    { title: 'สำเร็จแล้ว',     value: completedCount, change: 0, icon: 'check',           className: 'bg-success' },
+    { title: 'ยกเลิก',         value: cancelledCount, change: 0, icon: 'x',               className: 'bg-danger' },
+  ]
 
   const activeStatus = sp.status ?? 'all'
 
@@ -123,15 +107,11 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     <>
       <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'Business' }]} />
 
-      <div className="mb-base">
-        <StatStrip
-          items={[
-            { title: 'ออเดอร์ทั้งหมด', value: totalCount,     change: 0, icon: 'shopping-cart',  iconClass: 'bg-primary/15 text-primary' },
-            { title: 'รอยืนยัน',        value: pendingCount,   change: 0, icon: 'clock',          iconClass: 'bg-warning/15 text-warning' },
-            { title: 'กำลังดำเนินการ',  value: activeCount,    change: 0, icon: 'truck-delivery', iconClass: 'bg-info/15 text-info' },
-            { title: 'สำเร็จแล้ว',      value: completedCount, change: 0, icon: 'check',          iconClass: 'bg-success/15 text-success' },
-          ]}
-        />
+      {/* Stat cards — 5 columns (theme grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-5) */}
+      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
+        {orderStatData.map((item, idx) => (
+          <OrdersStatCard item={item} key={idx} />
+        ))}
       </div>
 
       <OrdersList orders={orders} activeStatus={activeStatus} />
