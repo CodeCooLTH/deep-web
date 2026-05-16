@@ -5,6 +5,8 @@
  *
  * เปลี่ยน copy เป็นภาษาไทย: Today/Monthly/Annual → วันนี้/รายเดือน/รายปี
  * Revenue/Orders/Growth Rate → รายได้/ออเดอร์/อัตราการเติบโต
+ * รับ real series+summary จาก page แทน fixture — ถ้า orders=0 แสดง SellerEmptyState
+ * growth ซ่อนเมื่อคำนวณไม่ได้ (ไม่มี prev period) — หลักเดียวกับ change indicator ใน StatisticCard
  */
 'use client'
 import ApexChart from '@/components/wrappers/ApexChart'
@@ -12,26 +14,45 @@ import { CountUp } from '@/components/wrappers/CountUp'
 import Icon from '@/components/wrappers/Icon'
 import { getColor } from '@/utils/helpers'
 import { ApexOptions } from 'apexcharts'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 
-export const getSalesReportChart = (): ApexOptions => ({
+/** แต่ละ data point ต่อเดือน — ส่งผ่าน RSC boundary เป็น plain object */
+export type SalesSeriesPoint = {
+  label: string    // e.g. "ม.ค.", "ก.พ."
+  revenue: number  // บาท
+  orderCount: number
+}
+
+export type SalesSummary = {
+  totalRevenue: number
+  totalOrders: number
+  /** growth percentage เทียบ period ก่อน — null เมื่อคำนวณไม่ได้ */
+  growth: number | null
+}
+
+type SalesReportProps = {
+  series: SalesSeriesPoint[]
+  summary: SalesSummary
+}
+
+/** สร้าง ApexOptions จาก real series data */
+export const buildSalesReportChart = (series: SalesSeriesPoint[]): ApexOptions => ({
   series: [
     {
       name: 'รายได้รวม',
       type: 'area',
-      data: [21, 21, 21, 35, 35, 35, 44, 44, 44, 54, 54, 54, 48, 48, 76, 76, 95, 95, 76, 76, 32, 32, 46, 48, 48],
+      data: series.map((s) => Math.round(s.revenue / 1000)), // แสดงในหน่วย k
     },
     {
       name: 'ออเดอร์',
       type: 'line',
-      data: [40, 40, 40, 50, 50, 35, 27, 27, 27, 15, 15, 27, 27, 36, 36, 33, 33, 34, 35, 33, 50, 50, 55, 55, 55],
+      data: series.map((s) => s.orderCount),
     },
   ],
   chart: {
     type: 'line',
     height: 359,
-    toolbar: {
-      show: false,
-    },
+    toolbar: { show: false },
     offsetX: 0,
   },
   stroke: {
@@ -40,46 +61,28 @@ export const getSalesReportChart = (): ApexOptions => ({
     dashArray: [0, 8],
   },
   colors: [getColor('chart-secondary'), getColor('chart-alpha')],
-  grid: {
-    strokeDashArray: 7,
-  },
+  grid: { strokeDashArray: 7 },
   xaxis: {
-    axisBorder: {
-      show: false,
-    },
-    labels: {
-      offsetY: 2,
-    },
+    categories: series.map((s) => s.label),
+    axisBorder: { show: false },
+    labels: { offsetY: 2 },
   },
   yaxis: {
     tickAmount: 4,
     min: 0,
-    max: 100,
     labels: {
       show: true,
-      formatter: function (value) {
-        return value + 'k'
-      },
+      formatter: (value) => value + 'k',
       offsetX: -10,
     },
-    axisBorder: {
-      show: false,
-    },
+    axisBorder: { show: false },
   },
-  dataLabels: {
-    enabled: false,
-  },
-  markers: {
-    size: 0,
-  },
+  dataLabels: { enabled: false },
+  markers: { size: 0 },
   tooltip: {
-    x: {
-      format: 'dd MMM yyyy',
-    },
+    x: { show: true },
     y: {
-      formatter: function (val) {
-        return '฿' + val + 'k'
-      },
+      formatter: (val) => '฿' + val + 'k',
     },
   },
   fill: {
@@ -93,18 +96,16 @@ export const getSalesReportChart = (): ApexOptions => ({
       stops: [0, 70],
     },
   },
-  legend: {
-    offsetY: 15,
-  },
+  legend: { offsetY: 15 },
 })
 
-const SalesReport = () => {
+const SalesReport = ({ series, summary }: SalesReportProps) => {
+  const isEmpty = summary.totalOrders === 0
+
   return (
     <div className="card h-full">
       <div className="card-header md:py-0 pt-6 pb-0">
-        <h4 className="card-title">
-          รายงานยอดขาย
-        </h4>
+        <h4 className="card-title">รายงานยอดขาย</h4>
         <div>
           <nav className="flex gap-x-1" aria-label="Tabs" role="tablist" aria-orientation="horizontal">
             <button
@@ -143,46 +144,68 @@ const SalesReport = () => {
           </nav>
         </div>
       </div>
-      <div>
-        <div className="bg-light/25 border-b border-default-300 border-dashed">
-          <div className="grid md:grid-cols-3 grid-cols-2 md:gap-base text-center">
-            <div>
-              <p className="text-default-400 mt-5 mb-1.25">รายได้</p>
-              <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
-                <Icon icon="wallet" className="text-success me-2" />
-                <span>
-                  <CountUp start={0} end={0} prefix="฿" duration={1} decimals={2} />
-                </span>
-              </h4>
+
+      {isEmpty ? (
+        // ยังไม่มีออเดอร์ — ซ่อน chart ทั้งหมด แสดง empty state
+        <div className="card-body">
+          <SellerEmptyState
+            compact
+            icon="chart-bar-off"
+            title="ยังไม่มียอดขาย"
+            description="กราฟจะแสดงเมื่อเริ่มมีออเดอร์"
+          />
+        </div>
+      ) : (
+        <div>
+          {/* Headline summary — real data จาก orders */}
+          <div className="bg-light/25 border-b border-default-300 border-dashed">
+            <div className={`grid ${summary.growth != null ? 'md:grid-cols-3' : 'md:grid-cols-2'} grid-cols-2 md:gap-base text-center`}>
+              <div>
+                <p className="text-default-400 mt-5 mb-1.25">รายได้</p>
+                <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
+                  <Icon icon="wallet" className="text-success me-2" />
+                  <span>
+                    <CountUp start={0} end={summary.totalRevenue} prefix="฿" duration={1} decimals={2} />
+                  </span>
+                </h4>
+              </div>
+              <div>
+                <p className="text-default-400 mt-5 mb-1.25">ออเดอร์</p>
+                <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
+                  <Icon icon="basket" className="text-success me-2" />
+                  <span>
+                    <CountUp start={0} end={summary.totalOrders} duration={1} />
+                  </span>
+                </h4>
+              </div>
+              {/* ซ่อน growth column เมื่อคำนวณไม่ได้ (ไม่มี prev period) */}
+              {summary.growth != null && (
+                <div>
+                  <p className="text-default-400 mt-5 mb-1.25">อัตราเติบโต</p>
+                  <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
+                    <Icon icon="trending-up" className="text-success me-2" />
+                    <span>
+                      <CountUp start={0} end={summary.growth} duration={1} decimals={2} suffix="%" />
+                    </span>
+                  </h4>
+                </div>
+              )}
             </div>
+          </div>
+          <div className="p-5 pt-1.25 relative">
             <div>
-              <p className="text-default-400 mt-5 mb-1.25">ออเดอร์</p>
-              <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
-                <Icon icon="basket" className="text-success me-2" />
-                <span>
-                  <CountUp start={0} end={0} duration={1} />
-                </span>
-              </h4>
-            </div>
-            <div>
-              <p className="text-default-400 mt-5 mb-1.25">อัตราการเติบโต</p>
-              <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
-                <Icon icon="trending-up" className="text-success me-2" />
-                <span>
-                  <CountUp start={0} end={0} duration={1} decimals={2} suffix="%" />
-                </span>
-              </h4>
+              <div className="apex-charts">
+                <ApexChart
+                  getOptions={() => buildSalesReportChart(series)}
+                  series={buildSalesReportChart(series).series}
+                  type="line"
+                  height={359}
+                />
+              </div>
             </div>
           </div>
         </div>
-        <div className="p-5 pt-1.25 relative">
-          <div>
-            <div className="apex-charts">
-              <ApexChart getOptions={getSalesReportChart} series={getSalesReportChart().series} type="line" height={359} />
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { CountUp } from '@/components/wrappers/CountUp'
 import { cn } from '@/utils/helpers'
 import { Icon as IconifyIcon } from '@iconify/react'
 import { LUCIDE_FOR_BADGE, FALLBACK_LUCIDE } from '../../_constants/badge-icons'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 export type AchievementBadge = {
   id: string
@@ -84,7 +85,10 @@ export default function AchievementLevel({
           )}
         </div>
 
-        {/* Badges grid */}
+        {/* Badges grid — ถ้าไม่มี badge ในระบบเลย (ก่อน seed) แสดง empty state */}
+        {badges.length === 0 ? (
+          <SellerEmptyState compact icon="award" title="ยังไม่มี Badge" description="เมื่อปลดล็อก achievement จะแสดงที่นี่" />
+        ) : (
         <div className="grid grid-cols-5 gap-2 mt-5">
           {badges.map((b) => {
             const lucide = LUCIDE_FOR_BADGE[b.nameEN] ?? FALLBACK_LUCIDE
@@ -111,6 +115,7 @@ export default function AchievementLevel({
             )
           })}
         </div>
+        )}
       </div>
     </div>
   )

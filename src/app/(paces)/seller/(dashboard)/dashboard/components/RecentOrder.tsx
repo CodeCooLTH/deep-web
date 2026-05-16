@@ -12,6 +12,7 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { cn, toPascalCase } from '@/utils/helpers'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -146,12 +147,13 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
       </div>
       <div className="card-body p-0">
         {data.length === 0 ? (
-          // empty state — แสดงเมื่อยังไม่มีออเดอร์ในร้าน
-          <div className="flex flex-col items-center justify-center py-12 text-center text-default-400">
-            <Icon icon="shopping-cart-off" className="text-4xl mb-3 opacity-40" />
-            <p className="font-medium">ยังไม่มีออเดอร์</p>
-            <p className="text-xs mt-1">เมื่อมีออเดอร์เข้ามา จะแสดงที่นี่</p>
-          </div>
+          // แทนที่ ad-hoc empty ด้วย SellerEmptyState (Unit-C) เพื่อ consistent empty pattern
+          <SellerEmptyState
+            compact
+            icon="shopping-cart-off"
+            title="ยังไม่มีออเดอร์"
+            description="เมื่อมีออเดอร์เข้ามา จะแสดงที่นี่"
+          />
         ) : (
           <DataTable<OrderType> table={table} emptyMessage="ไม่พบออเดอร์" className="table-centered table-hover" />
         )}

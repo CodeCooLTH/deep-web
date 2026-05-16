@@ -31,6 +31,7 @@ import UserCard from './components/UserCard'
 import AchievementLevel from './components/AchievementLevel'
 import type { AchievementBadge } from './components/AchievementLevel'
 import type { StatType } from './components/StatisticCard'
+import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
 import type { OrderType } from './components/data'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
@@ -91,6 +92,9 @@ export default async function SellerDashboardPage() {
   // stat counters — คำนวณจาก rawOrders ที่ fetch ครั้งเดียว (ไม่ duplicate query)
   let orderCount = 0
   let revenueK = 0
+  // monthly series สำหรับ SalesReport chart
+  let salesSeries: SalesSeriesPoint[] = []
+  let salesSummary: SalesSummary = { totalRevenue: 0, totalOrders: 0, growth: null }
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -131,6 +135,36 @@ export default async function SellerDashboardPage() {
           type: o.type,
           status: o.status as OrderType['status'],
         }))
+
+        // ─── monthly series สำหรับ SalesReport chart ─────────────────────────
+        // group rawOrders by ปี-เดือน (YYYY-MM) → คำนวณรายได้ + จำนวนออเดอร์ต่อเดือน
+        // ใช้ JS ธรรมดา ใน RSC — ไม่ query ซ้ำ (มี rawOrders array แล้ว)
+        const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
+        const monthMap = new Map<string, { revenue: number; orderCount: number; label: string }>()
+        for (const o of rawOrders) {
+          const d = o.createdAt
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          const label = `${thMonths[d.getMonth()]} ${d.getFullYear() + 543}` // พ.ศ.
+          const existing = monthMap.get(key)
+          if (existing) {
+            existing.revenue += Number(o.totalAmount)
+            existing.orderCount += 1
+          } else {
+            monthMap.set(key, { revenue: Number(o.totalAmount), orderCount: 1, label })
+          }
+        }
+        // เรียง key chronologically แล้ว build series array
+        salesSeries = Array.from(monthMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([, v]) => ({ label: v.label, revenue: v.revenue, orderCount: v.orderCount }))
+
+        // summary — totalRevenue ใช้ยอด CONFIRMED เหมือนกับ revenueK stat; totalOrders = ทั้งหมด
+        salesSummary = {
+          totalRevenue: completedRevenueBaht,
+          totalOrders: orderCount,
+          // growth คำนวณไม่ได้เมื่อมีเพียง 1 เดือนหรือไม่มีข้อมูล — ซ่อน column (null)
+          growth: null,
+        }
       }
 
       const earnedRows = await prisma.userBadge.findMany({
@@ -166,11 +200,12 @@ export default async function SellerDashboardPage() {
     }
   }
 
-  // stat cards — ออเดอร์/รายได้ใช้ข้อมูลจริงจาก rawOrders ที่ fetch ไปแล้ว
+  // stat cards — ไม่ส่ง change field (undefined) → StatisticCard ซ่อน indicator block
+  // เพราะยังไม่มี prev period data — ไม่โชว์ "0%" หลอกตา
   const statData: StatType[] = [
-    { title: 'ออเดอร์', value: orderCount, change: 0, icon: 'shopping-cart' },
-    { title: 'รายได้', value: revenueK, prefix: '฿', suffix: 'k', change: 0, icon: 'pig-money' },
-    { title: 'Trust Score', value: score, suffix: '/100', change: 0, icon: 'shield-check' },
+    { title: 'ออเดอร์', value: orderCount, icon: 'shopping-cart' },
+    { title: 'รายได้', value: revenueK, prefix: '฿', suffix: 'k', icon: 'pig-money' },
+    { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]
 
   return (
@@ -199,17 +234,16 @@ export default async function SellerDashboardPage() {
         </div>
       </div>
 
-      {/* แถว 2 (theme row 2): SalesReport เต็มความกว้าง
-          TopSellingProducts ถูก drop → SalesReport ยึดทั้งแถว */}
-      <div className="grid grid-cols-1 gap-base mb-base">
-        <SalesReport />
-      </div>
-
-      {/* แถว 3 (theme row 3): RecentOrder เต็มความกว้าง
-          RecentActivity ถูก drop → RecentOrder ยึดทั้งแถว
-          orders รับจาก getOrdersByShop — ถ้าไม่มีออเดอร์จะแสดง empty state */}
-      <div className="grid grid-cols-1 gap-base">
-        <RecentOrder orders={recentOrders} />
+      {/* แถว 2 (re-grid Unit-C): SalesReport xl:col-span-8 + RecentOrder xl:col-span-4
+          ลดจาก 3 แถวโล่งเหลือ 2 แถว — ไม่เพิ่ม widget ใหม่
+          SalesReport รับ real series+summary จาก RSC boundary */}
+      <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
+        <div className="xl:col-span-8">
+          <SalesReport series={salesSeries} summary={salesSummary} />
+        </div>
+        <div className="xl:col-span-4">
+          <RecentOrder orders={recentOrders} />
+        </div>
       </div>
     </>
   )

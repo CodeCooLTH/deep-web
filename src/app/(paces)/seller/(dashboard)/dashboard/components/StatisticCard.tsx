@@ -15,7 +15,8 @@ export type StatType = {
   value: number
   prefix?: string
   suffix?: string
-  change: number
+  /** ซ่อน indicator ทั้ง block เมื่อ change == null — ป้องกัน "0% เทียบเดือนที่แล้ว" หลอกตา */
+  change?: number
   icon: string
 }
 
@@ -32,13 +33,16 @@ const StatisticCard = ({ stat }: { stat: StatType }) => {
             <h3 className="my-5 py-1.25 text-xl">
               <CountUp start={0} end={value} prefix={prefix ?? ''} suffix={suffix ?? ''} duration={1} decimals={Number.isInteger(value) ? 0 : 2} />
             </h3>
-            <p className="text-default-400 text-sm flex items-center gap-3.25">
-              <span className={cn('flex items-center gap-1', change > 0 ? 'text-success' : change < 0 ? 'text-danger' : 'text-default-400')}>
-                {change > 0 ? <Icon icon="arrow-up" /> : change < 0 ? <Icon icon="arrow-down" /> : null}
-                {Math.abs(change)}%
-              </span>
-              <span>เทียบเดือนที่แล้ว</span>
-            </p>
+            {/* ซ่อน indicator ทั้ง block เมื่อ change == null — ไม่โชว์ 0% หลอกตา */}
+            {change != null && (
+              <p className="text-default-400 text-sm flex items-center gap-3.25">
+                <span className={cn('flex items-center gap-1', change > 0 ? 'text-success' : change < 0 ? 'text-danger' : 'text-default-400')}>
+                  {change > 0 ? <Icon icon="arrow-up" /> : change < 0 ? <Icon icon="arrow-down" /> : null}
+                  {Math.abs(change)}%
+                </span>
+                <span>เทียบเดือนที่แล้ว</span>
+              </p>
+            )}
           </div>
           <div>
             <div className="size-9 bg-primary/15 text-primary rounded-full flex justify-center items-center">
