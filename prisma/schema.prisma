@@ -142,10 +142,12 @@ model Order {
   shopId          String
   buyerUserId     String?
   buyerContact    String?
-  type            String   @default("PHYSICAL")
-  totalAmount     Decimal  @db.Decimal(12, 2)
-  status          String   @default("CREATED")
-  shippingAddress Json?
+  type              String   @default("PHYSICAL")
+  totalAmount       Decimal  @db.Decimal(12, 2)
+  status            String   @default("PENDING")
+  fulfillmentMode   String   @default("SHIPPED")
+  cancelInitiator   String?
+  shippingAddress   Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
