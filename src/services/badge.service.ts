@@ -10,6 +10,13 @@
  *   DEFAULT_TERMINAL_STATUSES — handler ใดที่ต้องนับ completed order ใช้ค่านี้
  *   เป็น default, แต่ถ้า badge row มี criteria.statuses[] ก็ override ได้.
  *   เมื่อ OMS ออกแบบใหม่ให้เปลี่ยนที่ const นี้ที่เดียว ไม่ต้องแตะ handler ทุกตัว.
+ *
+ * U1 hardening (retro 2026-05-16 #3):
+ *   (1) resolveStatuses() — validate criteria.statuses ก่อนส่งเข้า Prisma
+ *   (2) guard divide-by-zero ใน getBadgeProgress ratio ทุก case
+ *   (3) findMany → aggregate/count สำหรับ rating/count queries (perf)
+ *   (4) if(!earned) guard บน 5 case ที่ยังขาด (PERFECT_RATING, HIGH_RATING,
+ *       ZERO_COMPLAINT, VETERAN, FAST_SHIPPING) เพื่อ skip DB เมื่อ earned=true
  */
 
 import { prisma } from "@/lib/prisma"
@@ -51,6 +58,31 @@ function resolveAudienceFilter(audience: AudienceArg): string[] {
   return ['ANY']
 }
 
+// ─── Statuses guard helper (U1 item 1) ────────────────────────────────────────
+
+/**
+ * ดึง statuses จาก criteria พร้อม validate ก่อนส่งให้ Prisma
+ * ทำไม: criteria มาจาก JSON column ใน DB — อาจมีค่า malformed ถ้า seed ผิดหรือถูก
+ * แก้ไขโดยตรง → validate ที่จุดนี้จุดเดียว (DRY) ป้องกัน Prisma รับ type ผิด
+ *
+ * Valid: Array.isArray && every element string && length > 0
+ * Invalid / missing → fall back to DEFAULT_TERMINAL_STATUSES
+ */
+function resolveStatuses(criteria: unknown): string[] {
+  const raw = (criteria as { statuses?: unknown } | null)?.statuses
+  if (raw === undefined || raw === null) return DEFAULT_TERMINAL_STATUSES
+  if (
+    Array.isArray(raw) &&
+    raw.length > 0 &&
+    raw.every((s) => typeof s === 'string')
+  ) {
+    return raw as string[]
+  }
+  // ทำไม warn: criteria.statuses มีค่าแต่ invalid → developer/seed ต้องแก้
+  console.warn('[badge] criteria.statuses malformed — falling back to DEFAULT_TERMINAL_STATUSES', raw)
+  return DEFAULT_TERMINAL_STATUSES
+}
+
 // ─── DB helper (shared by handlers + progress) ────────────────────────────────
 
 async function getShopForUser(userId: string) {
@@ -82,35 +114,48 @@ export async function checkOrderCount(
   return { met: count >= criteria.count, count }
 }
 
+/**
+ * U1 item 3: เปลี่ยนจาก findMany+JS-avg → aggregate(_avg, _count) เพื่อลด payload
+ * ทำไม: ไม่จำเป็นต้องโหลด row ทั้งหมดมา JS เพียงเพื่อ sum/count
+ * Behavior เดิม: reviewCount < minReviews → met=false, avg=0
+ *              reviewCount >= minReviews → met = avg === 5.0
+ * Prisma aggregate _avg.rating คำนวณเหมือน sum/count ทุก row → ผลเหมือนกัน
+ */
 export async function checkPerfectRating(
   userId: string,
   criteria: CriteriaPerfectRating,
 ): Promise<{ met: boolean; reviewCount: number; avg: number }> {
   const shop = await getShopForUser(userId)
   if (!shop) return { met: false, reviewCount: 0, avg: 0 }
-  const reviews = await prisma.review.findMany({
+  const agg = await prisma.review.aggregate({
+    _avg: { rating: true },
+    _count: { rating: true },
     where: { order: { shopId: shop.id } },
-    select: { rating: true },
   })
-  const reviewCount = reviews.length
+  const reviewCount = agg._count.rating
   if (reviewCount < criteria.minReviews) return { met: false, reviewCount, avg: 0 }
-  const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+  const avg = agg._avg.rating ?? 0
   return { met: avg === 5.0, reviewCount, avg }
 }
 
+/**
+ * U1 item 3: เปลี่ยนจาก findMany+JS-avg → aggregate เหมือน checkPerfectRating
+ * ทำไม: ลด network payload, ผลลัพธ์เหมือนเดิม (avg คำนวณ server-side)
+ */
 export async function checkHighRating(
   userId: string,
   criteria: CriteriaHighRating,
 ): Promise<{ met: boolean; reviewCount: number; avg: number }> {
   const shop = await getShopForUser(userId)
   if (!shop) return { met: false, reviewCount: 0, avg: 0 }
-  const reviews = await prisma.review.findMany({
+  const agg = await prisma.review.aggregate({
+    _avg: { rating: true },
+    _count: { rating: true },
     where: { order: { shopId: shop.id } },
-    select: { rating: true },
   })
-  const reviewCount = reviews.length
+  const reviewCount = agg._count.rating
   if (reviewCount < criteria.minReviews) return { met: false, reviewCount, avg: 0 }
-  const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+  const avg = agg._avg.rating ?? 0
   return { met: avg >= criteria.minRating, reviewCount, avg }
 }
 
@@ -147,6 +192,11 @@ export async function checkVeteran(
   return { met: !!recentOrder, daysOld }
 }
 
+/**
+ * U1 item 3: คง findMany ไว้เพราะต้องคำนวณ delta ต่อ row (shipmentTracking.createdAt - order.createdAt)
+ * ทำไม: avg ของ delta ไม่ใช่ avg ของ column เดียว → Prisma aggregate ไม่รองรับ computed field
+ * เพิ่ม select เฉพาะ field ที่ใช้จริง (createdAt ทั้งสองฝั่ง) + เพิ่ม take bound เพื่อ scale safety
+ */
 export async function checkFastShipping(
   userId: string,
   criteria: CriteriaFastShipping,
@@ -157,7 +207,13 @@ export async function checkFastShipping(
 
   const ordersWithShipment = await prisma.order.findMany({
     where: { shopId: shop.id, status: { in: statuses }, shipmentTracking: { isNot: null } },
-    include: { shipmentTracking: true },
+    select: {
+      createdAt: true,
+      shipmentTracking: { select: { createdAt: true } },
+    },
+    // ทำไม take: ป้องกัน seller ที่มีออเดอร์หลักหมื่นทำให้ query ใหญ่เกิน
+    // 10,000 แถวเพียงพอสำหรับ avg ที่มีนัยสำคัญ
+    take: 10_000,
   })
   const orderCount = ordersWithShipment.length
   if (orderCount < criteria.minOrders) return { met: false, orderCount, avgHours: 0 }
@@ -184,17 +240,25 @@ export async function checkFullVerification(
   return { met: levels.has(1) && levels.has(2) && levels.has(3), levels }
 }
 
+/**
+ * U1 item 3: เปลี่ยนจาก findMany({select:{reviewerUserId}}) + JS Set → findMany distinct
+ * ทำไม: โหลดเฉพาะ 1 row ต่อ distinct reviewerUserId ลด payload
+ * Behavior เดิม: นับจำนวน unique reviewerUserId (ไม่นับ null) → เหมือนกันทุกกรณี
+ * ทำไม distinct ไม่ใช่ groupBy: distinct ส่ง 1 row ต่อ unique value เหมือน Set ใน JS
+ * แต่ filter + distinct ทำที่ DB ทำให้ไม่ต้องโหลด duplicate rows มา JS
+ */
 export async function checkUniqueReviewers(
   userId: string,
   criteria: CriteriaUniqueReviewers,
 ): Promise<{ met: boolean; uniqueCount: number }> {
   const shop = await getShopForUser(userId)
   if (!shop) return { met: false, uniqueCount: 0 }
-  const reviews = await prisma.review.findMany({
+  const distinctRows = await prisma.review.findMany({
     where: { order: { shopId: shop.id }, reviewerUserId: { not: null } },
+    distinct: ['reviewerUserId'],
     select: { reviewerUserId: true },
   })
-  const uniqueCount = new Set(reviews.map((r) => r.reviewerUserId)).size
+  const uniqueCount = distinctRows.length
   return { met: uniqueCount >= criteria.count, uniqueCount }
 }
 
@@ -270,7 +334,8 @@ export async function evaluateBadges(
     }
 
     let met = false
-    const statuses = (criteria as { statuses?: string[] }).statuses ?? DEFAULT_TERMINAL_STATUSES
+    // U1 item 1: ใช้ resolveStatuses แทน cast โดยตรง — validate ก่อนส่งเข้า Prisma
+    const statuses = resolveStatuses(criteria)
 
     try {
       switch (criteria.type) {
@@ -406,7 +471,8 @@ export async function getBadgeProgress(
   for (const badge of badges) {
     const earned = earnedIds.has(badge.id)
     const criteria = parseCriteria(badge.criteria)
-    const statuses = (criteria as { statuses?: string[] } | null)?.statuses ?? DEFAULT_TERMINAL_STATUSES
+    // U1 item 1: ใช้ resolveStatuses แทน cast โดยตรง
+    const statuses = resolveStatuses(criteria)
 
     let progressLabel: string | null = null
     let progressRatio = earned ? 1 : 0
@@ -429,16 +495,21 @@ export async function getBadgeProgress(
         case 'ORDER_COUNT': {
           if (!earned) {
             const { count } = await checkOrderCount(userId, criteria, statuses)
-            progressRatio = Math.min(count / criteria.count, 1)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
+            const threshold = criteria.count
+            progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
             const remaining = criteria.count - count
             progressLabel = remaining > 0 ? `อีก ${remaining} ออเดอร์` : `ครบ ${criteria.count} ออเดอร์แล้ว`
           }
           break
         }
         case 'PERFECT_RATING': {
-          const { reviewCount, avg } = await checkPerfectRating(userId, criteria)
-          progressRatio = Math.min(reviewCount / criteria.minReviews, 1)
+          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
           if (!earned) {
+            const { reviewCount, avg } = await checkPerfectRating(userId, criteria)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
+            const threshold = criteria.minReviews
+            progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
             if (reviewCount < criteria.minReviews) {
               progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
             } else {
@@ -449,9 +520,12 @@ export async function getBadgeProgress(
           break
         }
         case 'HIGH_RATING': {
-          const { reviewCount, avg } = await checkHighRating(userId, criteria)
-          progressRatio = Math.min(reviewCount / criteria.minReviews, 1)
+          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
           if (!earned) {
+            const { reviewCount, avg } = await checkHighRating(userId, criteria)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
+            const threshold = criteria.minReviews
+            progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
             if (reviewCount < criteria.minReviews) {
               progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
             } else {
@@ -461,9 +535,12 @@ export async function getBadgeProgress(
           break
         }
         case 'ZERO_COMPLAINT': {
-          const { completed, cancelled } = await checkZeroComplaint(userId, criteria, statuses)
-          progressRatio = Math.min(completed / criteria.minOrders, 1)
+          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
           if (!earned) {
+            const { completed, cancelled } = await checkZeroComplaint(userId, criteria, statuses)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
+            const threshold = criteria.minOrders
+            progressRatio = threshold > 0 ? Math.min(completed / threshold, 1) : 0
             if (completed < criteria.minOrders) {
               progressLabel = `อีก ${criteria.minOrders - completed} ออเดอร์`
             } else if (cancelled > 0) {
@@ -473,18 +550,24 @@ export async function getBadgeProgress(
           break
         }
         case 'VETERAN': {
-          const { daysOld } = await checkVeteran(userId, criteria, statuses)
-          progressRatio = Math.min(daysOld / criteria.minDays, 1)
+          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
           if (!earned) {
+            const { daysOld } = await checkVeteran(userId, criteria, statuses)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.minDays <= 0
+            const threshold = criteria.minDays
+            progressRatio = threshold > 0 ? Math.min(daysOld / threshold, 1) : 0
             const remaining = Math.max(0, Math.ceil(criteria.minDays - daysOld))
             progressLabel = remaining > 0 ? `อีก ${remaining} วัน` : 'ครบวันแล้ว (ต้องมีออเดอร์ล่าสุด)'
           }
           break
         }
         case 'FAST_SHIPPING': {
-          const { orderCount, avgHours } = await checkFastShipping(userId, criteria, statuses)
-          progressRatio = Math.min(orderCount / criteria.minOrders, 1)
+          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
           if (!earned) {
+            const { orderCount, avgHours } = await checkFastShipping(userId, criteria, statuses)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
+            const threshold = criteria.minOrders
+            progressRatio = threshold > 0 ? Math.min(orderCount / threshold, 1) : 0
             if (orderCount < criteria.minOrders) {
               progressLabel = `อีก ${criteria.minOrders - orderCount} ออเดอร์ที่มีการจัดส่ง`
             } else {
@@ -504,7 +587,9 @@ export async function getBadgeProgress(
         case 'UNIQUE_REVIEWERS': {
           if (!earned) {
             const { uniqueCount } = await checkUniqueReviewers(userId, criteria)
-            progressRatio = Math.min(uniqueCount / criteria.count, 1)
+            // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
+            const threshold = criteria.count
+            progressRatio = threshold > 0 ? Math.min(uniqueCount / threshold, 1) : 0
             const remaining = criteria.count - uniqueCount
             progressLabel = remaining > 0 ? `อีก ${remaining} คน` : `ครบ ${criteria.count} คนแล้ว`
           }
