@@ -30,4 +30,11 @@ VERDICT: MERGE / REWORK
 REWORK items (ถ้ามี): numbered, file:line, สิ่งที่ต้องแก้
 ```
 
+## GATE 8 Code Quality / Refactor (เพิ่ม)
+ตรวจเพิ่มเติม (PASS/FAIL + file:line) แยก **must-fix** vs **nice-to-have**:
+- naming สื่อความ, duplication, ความซับซ้อนเกินจำเป็น, ขนาด component/ไฟล์ใหญ่เกิน
+- service boundary (`src/services/` แยกจาก API/route), type safety (no `any` เลี่ยงได้)
+- alignment กับ convention เดิม (ไม่ introduce abstraction/แพตเทิร์นใหม่โดยไม่จำเป็น)
+nice-to-have ไม่บล็อก MERGE; must-fix บล็อก. ห้าม refactor module ที่ไม่เกี่ยว.
+
 ห้ามแก้ไฟล์. ห้ามเขียน "ผมว่าน่าจะ ok โดยรวม". ทุก gate ต้องมี evidence.
