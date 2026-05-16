@@ -36,11 +36,18 @@ export async function GET() {
     return NextResponse.json({ balance: 0, transactions: [] });
   }
 
-  // อ่าน balance และ transactions แบบ parallel — ทั้งคู่ read-only ไม่มี dependency
-  const [balance, transactions] = await Promise.all([
-    getBalance(shop.id),
-    getTransactions(shop.id, 50),
-  ]);
-
-  return NextResponse.json({ balance, transactions });
+  // try/catch ตาม convention orders/route.ts (959b7cd) — ถ้า Prisma throw
+  // (connection drop / timeout) ต้องไม่ปล่อย unhandled rejection (dev-mode
+  // อาจ leak DB error/connection string ใน body); log server-side ไม่มี PII
+  try {
+    // อ่าน balance + transactions แบบ parallel — ทั้งคู่ read-only ไม่มี dependency
+    const [balance, transactions] = await Promise.all([
+      getBalance(shop.id),
+      getTransactions(shop.id, 50),
+    ]);
+    return NextResponse.json({ balance, transactions });
+  } catch (e) {
+    console.error("[GET /api/wallet] DB error", e);
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
+  }
 }

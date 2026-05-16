@@ -32,10 +32,14 @@ export async function getBalance(shopId: string): Promise<number> {
  * getTransactions — ดึงประวัติธุรกรรมของ shop (desc createdAt)
  * limit default 50 เพื่อกัน payload ใหญ่เกิน; caller ปรับได้
  */
+// internal walletId ไม่ควรหลุดไปฝั่ง client (defense-in-depth — กันใช้เป็น
+// enumeration token ถ้าอนาคตมี endpoint ที่รับ walletId จาก client)
+export type WalletTransactionView = Omit<WalletTransaction, "walletId">;
+
 export async function getTransactions(
   shopId: string,
   limit = 50,
-): Promise<WalletTransaction[]> {
+): Promise<WalletTransactionView[]> {
   const wallet = await prisma.sellerWallet.findUnique({
     where: { shopId },
     select: { id: true },
@@ -44,6 +48,15 @@ export async function getTransactions(
 
   return prisma.walletTransaction.findMany({
     where: { walletId: wallet.id },
+    select: {
+      id: true,
+      type: true,
+      amount: true,
+      balanceAfter: true,
+      description: true,
+      refId: true,
+      createdAt: true,
+    },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
