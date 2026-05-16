@@ -138,3 +138,62 @@ But "I'll just do it quickly myself" is a trap for multi-page phases. If the pha
 - Developer agent claims the task (Controller updates `owner`).
 - After review pass, Controller marks the task completed.
 - If rework needed, Controller leaves the task in_progress and re-dispatches.
+
+---
+
+## 10-Role Roster (รวมจาก master team, ปรับ stack จริง)
+
+| Role | ในโปรเจกต์ | หมายเหตุ |
+|---|---|---|
+| Coordinator | main session (Controller) | ไม่ใช่ subagent |
+| Product/Requirement | `safepay-product` | PM agent |
+| System Architect | `safepay-planner` | + Technical Design output |
+| Database | `safepay-database` | Prisma+Postgres, **ไม่มี RLS/Supabase-migration** |
+| Backend/API + Frontend/UI | `safepay-developer` | รวมตัวเดียว (theme-copy+3 hard rules) |
+| QA/Test | `safepay-qa` | 3-level Chrome DevTools MCP |
+| Security | `safepay-security` | NextAuth/service-layer/env (ไม่ใช่ RLS) |
+| Documentation | `safepay-docs` | |
+| Refactor/Code Quality | `safepay-reviewer` | GATE 8 + 7 gate เดิม |
+
+Stack จริง (อย่าสับสนกับ generic master prompt): NextAuth v4 (ไม่ใช่ Supabase Auth) · Prisma migrate (ไม่ใช่ Supabase migration) · ไม่มี RLS (authz ที่ `src/services/`) · Valibot+Yup (ไม่ใช่ Zod) · Vuexy/Paces theme-copy (ไม่ใช่ shadcn) · Supabase = DB host เฉย ๆ.
+
+## 7-Phase Feature Workflow (ครอบ 5-gate per-task เดิม)
+
+5-gate คือกลไก **ระดับ task**; 7-phase คือ **ระดับ feature** ที่ห่อหุ้มอีกชั้น — ไม่ขัดกัน:
+
+1. **Discovery** — Controller inspect (routing/UI/API/Supabase-host/auth/Prisma/test/docs). ไม่เขียนโค้ด.
+2. **Requirement** — `safepay-product`.
+3. **Technical Design** — `safepay-planner` (+`safepay-database` ถ้าแตะ schema, +`safepay-security` review แผน auth).
+4. **Implementation** — `safepay-database`→`safepay-developer`→`safepay-docs`. ถ้า ≥3 tasks เดิน 5-gate per-task (Plan→Develop→Review→QA→Integrate, batch≤3) ตามหัวข้อด้านบนของ doc นี้.
+5. **Internal Review** — `safepay-reviewer` + `safepay-security`; must-fix แก้ก่อน QA.
+6. **QA** — `safepay-qa` 3-level → PASS/FAIL/PARTIAL.
+7. **Final Report** — Controller สรุป (งานเสร็จ/ไฟล์/DB/API/UI/security/test/risk) + `phase-retro`.
+
+## Definition of Done
+
+feature done เมื่อครบทุกข้อ:
+- **Requirement:** วิเคราะห์แล้ว, acceptance criteria มี, edge case จด
+- **Architecture:** technical design + affected files + data flow + auth rule ชัด
+- **Database:** schema reviewed, migration ปลอดภัย, index พิจารณาแล้ว (ไม่มี RLS — authz service layer)
+- **Backend:** input validation (Valibot), auth check, permission check, error handling, response format สม่ำเสมอ
+- **Frontend:** ตาม theme (Vuexy/Paces theme-copy), loading/empty/error/success state, responsive
+- **Security:** ไม่มี secret หลุด `NEXT_PUBLIC_`, authz server-side, self-review block ที่จำเป็น
+- **QA:** lint/typecheck/test/build (ที่มี) + manual checklist; **ไม่ done ถ้า QA = FAIL**
+- **Docs:** PRD/conventions/CLAUDE.md อัปเดตเท่าที่จำเป็น
+
+## Templates (ใช้ inline — ไม่แตกไฟล์)
+
+### Handoff
+```
+From / To agent · Feature · Context summary · Files changed · Decisions · Assumptions · Risks/Blockers · ต้อง review อะไร · Next action
+```
+
+### QA Report
+```
+Feature · วันที่ · Requirement coverage (id|desc|status) · Commands executed (cmd|result) · Test cases (case|expected|actual|status) · Bugs (severity|issue|file|fix) · Unverified · Final: PASS|FAIL|PARTIAL
+```
+
+### Security Review
+```
+Feature · Scope · Auth review · Authorization review · Env review · Sensitive-data review · Risks (severity|location|fix) · Final: PASS|FAIL|PARTIAL
+```
