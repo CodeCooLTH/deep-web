@@ -98,6 +98,11 @@ StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
 - **Block/risk:** badge.service + admin badge UI; โยงกับ seed badge naming (item #1).
 - **Ref:** PRD §11 #1, FR-4.3
 
+## 9. Feature: Paid SMS Order Link + Seller Wallet/Credit [MVP-Must, S-8/FR-6.8/6.9/§10]
+- **สถานะ:** Phase 1-3 เสร็จ (Discovery/Requirement/Design+Security — read-only). **Phase 4 BUILD deferred.**
+- **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` (decisions D1-D3 + RC-1..8 mandatory + AR-1..3) · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md` (22-task, batches, preconditions, theme map)
+- **เริ่ม build เมื่อ:** preconditions ในไฟล์ plan ครบ — สำคัญสุด: parallel stream commit (schema.prisma + /o/[token] ชนตรง ๆ) + Explore E1-E4 + safepay-database migration + apitel WebFetch. แล้ว invoke `agent-team-feature` ต่อจาก Phase 4.
+
 ## 🟡 ต่ำกว่า / ไม่ note ละเอียด (ดู PRD §11 ตรง)
 #10 admin metrics บางตัวขาด (Completion Rate/Avg Rating/Active Users; avgTrust มีแล้ว) ·
 #6 .env.vercel safepay.co reconcile (config, น่าจะ user-side) · #9 FB-no-email
