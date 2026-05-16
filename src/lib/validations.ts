@@ -7,7 +7,7 @@ import {
 } from "@/lib/product-types/registry";
 
 export const SendOtpSchema = v.object({
-  contact: v.pipe(v.string(), v.minLength(1)),
+  contact: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
   type: v.picklist(["phone", "email", "PHONE", "EMAIL"]),
 });
 

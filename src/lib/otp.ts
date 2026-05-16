@@ -9,15 +9,13 @@ const otpRequestTimestamps = new Map<string, number[]>();
  * ตรวจว่า contact นี้ยังส่ง OTP ได้อยู่ไหม ภายใต้ quota.
  * Return true = ผ่าน (consume 1 slot), false = เกิน quota
  *
- * Test accounts (TEST_ACCOUNTS) bypass rate limit — dev/QA ไม่ติด
+ * ทุกเบอร์ติด rate limit เท่ากัน รวมถึง TEST_ACCOUNTS — เพราะส่ง SMS จริงทุก env
  */
 export function consumeOtpRequestQuota(
   contact: string,
   max = 3,
   windowMs = 10 * 60 * 1000,
 ): boolean {
-  if (TEST_ACCOUNTS[contact]) return true; // bypass for bypass accounts
-
   const now = Date.now();
   const cutoff = now - windowMs;
   const prev = otpRequestTimestamps.get(contact) ?? [];
@@ -61,6 +59,54 @@ const TEST_ACCOUNTS: Record<string, string> = {
   [TEST_ACCOUNT.phone]: TEST_ACCOUNT.otp,
   '0000000001': '123456', // 2nd seller test account — BT Premium สุขสวัสดิ์
 };
+
+/**
+ * แปลงเบอร์โทรไทย local format → E.164
+ * input ที่ถูกต้อง: ^0[0-9]{9}$ (10 หลัก ขึ้นต้น 0)
+ * เช่น "0812345678" → "+66812345678"
+ * ถ้าไม่ match → throw เพื่อกัน bug ชั้นสอง (route guard ควรกรองก่อนแล้ว)
+ */
+export function toE164Thai(phone: string): string {
+  if (!/^0[0-9]{9}$/.test(phone)) {
+    throw new Error("INVALID_THAI_PHONE");
+  }
+  return "+66" + phone.slice(1);
+}
+
+/**
+ * ส่ง OTP ผ่าน apitel.co SMS API
+ * ห้าม log otp / apiKey / apiSecret ที่ใด — กฎ security hard rule
+ * ส่งจริงทุก env รวมถึง TEST_ACCOUNTS (ไม่มี bypass)
+ */
+export async function sendOtpViaSms(phone: string, otp: string): Promise<void> {
+  const apiKey = process.env.APITEL_API_KEY;
+  const apiSecret = process.env.APITEL_API_SECRET;
+
+  if (!apiKey || !apiSecret) {
+    throw new Error("APITEL_NOT_CONFIGURED");
+  }
+
+  const sender = process.env.APITEL_SENDER_NAME || "ATSMS";
+  const baseUrl = process.env.APITEL_BASE_URL || "https://api.apitel.co/sms";
+  const to = toE164Thai(phone);
+
+  // ข้อความไทย ≤70 ตัวอักษร (Unicode SMS = 1 segment ที่ 70 chars)
+  // "รหัส OTP ของคุณคือ " = 19, otp = 6, " (ใช้ได้ 10 นาที) - Deep" = 24 → รวม 49 chars
+  const text = `รหัส OTP ของคุณคือ ${otp} (ใช้ได้ 10 นาที) - Deep`;
+
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to, from: sender, text, ttl: 600, apiKey, apiSecret }),
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!res.ok) {
+    // log เฉพาะ HTTP status — ไม่อ่าน body เพื่อกัน secret echo ในอนาคต
+    console.error(`[apitel] SMS failed: HTTP ${res.status}`);
+    throw new Error(`APITEL_HTTP_${res.status}`);
+  }
+}
 
 export function verifyOtp(contact: string, otp: string): boolean {
   if (TEST_ACCOUNTS[contact] && otp === TEST_ACCOUNTS[contact]) return true;
