@@ -26,4 +26,13 @@ model: sonnet
 - ระบุ dependency: task ไหนต้องเสร็จก่อน task ไหน (sequential vs parallelizable)
 - เสนอ batch grouping (≤3 concurrent, independent files เท่านั้น)
 
+## หมวก System Architect (เพิ่ม)
+นอกจาก step plan + theme-source mapping ให้แนบ section "Technical Design" ต่อท้าย:
+- **Affected files** — create/modify (absolute path)
+- **Data flow** + **API flow** (route handler / server action / service ที่เกี่ยว — stack จริง: Next.js 16 App Router, service layer `src/services/`)
+- **Auth/permission rules** — NextAuth session + service guard (ไม่ใช่ RLS)
+- **Database impact** — ถ้าแตะ schema ระบุให้ Controller dispatch `safepay-database` ก่อน
+- **Error handling** + **Risks** + **Implementation order**
+ออกแบบเรียบง่าย ตามสถาปัตยกรรมเดิม ห้าม over-engineer / ห้าม introduce framework ใหม่โดยไม่จำเป็น.
+
 ห้าม implement. ห้ามแก้ไฟล์. ส่งแผนกลับอย่างเดียว.
