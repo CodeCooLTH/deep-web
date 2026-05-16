@@ -38,6 +38,7 @@ Theme source root: `theme/paces/Admin/TS/src/`
 - **Shell ไม่ใช่ไฟล์เดียว** — `VerticalLayout.tsx` + `Sidenav` + `TopBar` + `Footer` (4 ไฟล์) เป็น bundle อะตอมเดียว ไม่มี shell `page.tsx` ให้ copy โดยตรง ต้อง copy ทั้ง 4 ไฟล์พร้อมกัน
 - **`useAuth` ใน `MainLayout`** — Paces theme ใช้ `useAuth` hook ของตัวเอง (ไม่ใช่ NextAuth). เวอร์ชัน SafePay ต้องเปลี่ยนเป็น `useSession()` จาก `next-auth/react` พร้อม redirect ไป `/seller/auth/sign-in` เมื่อ session ไม่มี
 - **Route groups มีวงเล็บ ไม่โผล่ใน URL** — `(orders)`, `(products)`, `(reports)`, `(sellers)`, `(inventory)` เป็น route group ไม่ปรากฏใน URL แต่ `Base:` ใน commit message ต้องใส่วงเล็บเต็ม path เช่น `theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/page.tsx`
+- **🛑 proxy ไม่ใช่ redirect safety-net (Phase B B7 — เคยทำ seller login พังทั้ง flow)** — ทุก `router.push/replace`, server `redirect()`, `<Link href>`, `cancelHref`, `signOut({callbackUrl})` ใน `(paces)/seller/**` ที่ชี้ route ที่อยู่ใต้ `/seller/**` **ต้องเขียน `/seller/...` แบบ explicit เสมอ**. `src/proxy.ts` ทำ `NextResponse.rewrite` ที่ครอบแค่ cold HTTP GET (address bar / `<a>` / sidebar menu) — **ไม่ครอบ client-side `router.push` หรือ server `redirect()`** → bare `/dashboard` `/products` `/auth/sign-in` จะลงที่ buyer app บน `seller.*`. ข้อยกเว้น: `/u/[username]` `/o/[token]` เป็น buyer-domain public route จริง → ใช้ absolute buyer URL ผ่าน `resolveBuyerBaseUrl()` (ห้าม `/seller/u`); `/api/*` subdomain-agnostic ปล่อยได้; `?query` relative ที่อยู่หน้าเดิมปล่อยได้
 
 ## สถานะปัจจุบัน
 
