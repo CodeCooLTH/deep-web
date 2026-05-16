@@ -36,10 +36,19 @@ export async function POST(request: NextRequest) {
   const shop = await prisma.shop.findUnique({ where: { userId } });
   if (!shop) return NextResponse.json({ error: "No shop" }, { status: 404 });
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (body === null) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   const parsed = v.safeParse(CreateOrderSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
-  const order = await createOrder(shop.id, parsed.output);
-  return NextResponse.json(order, { status: 201 });
+  // ครอบ try-catch: เดิมไม่มี → exception ใด ๆ จาก createOrder ถูก Next กลืน
+  // เป็น 500 ตัวเปล่า วินิจฉัยไม่ได้ (B9 transient ตอน OMS cutover พิสูจน์ปัญหานี้).
+  // log server-side ให้เห็น + ตอบ structured ให้ client.
+  try {
+    const order = await createOrder(shop.id, parsed.output);
+    return NextResponse.json(order, { status: 201 });
+  } catch (e) {
+    console.error("[POST /api/orders] createOrder failed", e);
+    return NextResponse.json({ error: "Order creation failed" }, { status: 500 });
+  }
 }
