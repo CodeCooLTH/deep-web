@@ -1,3 +1,9 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-details/components/ProductDisplay.tsx
+ * แสดงรูปภาพ product ด้วย Preline carousel (hs-carousel) หรือ empty-state icon ถ้าไม่มีรูป
+ * ปุ่ม Edit เชื่อมไป /products/[id]/edit
+ */
+
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
@@ -15,13 +21,10 @@ const ProductDisplay = ({ product }: Props) => {
 
   return (
     <div className="card sticky top-20">
-      <div className="card-body">
-        {hasImages ? (
-          <div
-            data-hs-carousel='{ "loadingClasses": "opacity-0" }'
-            className="relative"
-          >
-            <div className="hs-carousel relative overflow-hidden w-full lg:min-h-120 min-h-90 rounded-lg">
+      <div data-hs-carousel='{ "loadingClasses": "opacity-0" }' className="relative">
+        <div className="hs-carousel relative overflow-hidden w-full lg:min-h-120 min-h-90 rounded-lg">
+          {hasImages ? (
+            <>
               <div className="hs-carousel-body flex flex-nowrap transition-transform duration-700 opacity-0">
                 {images.map((src, idx) => (
                   <div className="hs-carousel-slide" key={idx}>
@@ -30,7 +33,7 @@ const ProductDisplay = ({ product }: Props) => {
                       alt={`${name} รูปที่ ${idx + 1}`}
                       width={600}
                       height={600}
-                      className="w-full object-cover rounded-lg"
+                      className="w-full object-cover"
                     />
                   </div>
                 ))}
@@ -48,30 +51,30 @@ const ProductDisplay = ({ product }: Props) => {
                           alt={`thumb-${idx}`}
                           width={48}
                           height={48}
-                          className="w-12 h-12 object-cover"
+                          className="w-12"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+            </>
+          ) : (
+            /* Empty-state: ไม่มีรูปสินค้า */
+            <div className="flex items-center justify-center lg:min-h-120 min-h-90 bg-default-100 rounded-lg">
+              <Icon icon="package" className="size-24 text-default-300" />
             </div>
-          </div>
-        ) : (
-          <div className="bg-default-100 rounded-lg flex items-center justify-center lg:min-h-120 min-h-90">
-            <Icon icon="package" className="size-24 text-default-300" />
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-center gap-2">
-          <Link
-            href={`/products/${id}/edit`}
-            className="btn bg-light hover:text-primary inline-flex items-center gap-1.5"
-          >
-            <Icon icon="pencil" className="text-base" />
-            แก้ไขสินค้า
-          </Link>
+          )}
         </div>
+      </div>
+      <div className="my-5 flex justify-center gap-2">
+        <Link
+          href={`/products/${id}/edit`}
+          className="btn bg-light hover:text-primary inline-flex items-center gap-1.5"
+        >
+          <Icon icon="pencil" className="text-base" />
+          แก้ไขสินค้า
+        </Link>
       </div>
     </div>
   )

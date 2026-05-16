@@ -1,11 +1,17 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-details/page.tsx
+ * 3-col card layout: ซ้าย ProductDisplay, ขวา (col-span-2) ProductDetails + ProductReviews
+ * ข้อมูล product + reviews มาจาก real DB — ไม่มี demo data
+ */
+
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
 import { getShopByUserId } from '@/services/shop.service'
 import { getOrdersByShop } from '@/services/order.service'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
+import { getServerSession } from 'next-auth'
 import ProductDisplay from './components/ProductDisplay'
 import ProductDetails from './components/ProductDetails'
 import ProductReviews from './components/ProductReviews'
@@ -38,7 +44,7 @@ export default async function ProductDetailPage({
     orders = []
   }
 
-  // Aggregate sold count and reviews for this product
+  // รวม sold count และ reviews สำหรับ product นี้
   let totalSold = 0
   const reviewRows: ReviewRow[] = []
 
@@ -49,26 +55,25 @@ export default async function ProductDetailPage({
       const hasThisProduct = o.items.some((item: any) => item.productId === id)
       if (!hasThisProduct) return
 
-      // Count sold qty for this product
+      // นับจำนวนที่ขายได้สำหรับ product นี้
       o.items.forEach((item: any) => {
         if (item.productId === id) {
           totalSold += item.qty ?? 1
         }
       })
 
-      // Collect review
+      // เก็บ review ของ order นี้
       if (o.review) {
         const review = o.review
         let reviewerLabel = 'ลูกค้า'
         if (o.buyerContact) {
-          // Mask: show last 4 chars of contact
+          // Mask ข้อมูลผู้ซื้อ: แสดงเฉพาะส่วนที่จำเป็น
           const contact = String(o.buyerContact)
           if (contact.includes('@')) {
-            // Email: mask local part, show last chars before @
             const [local, domain] = contact.split('@')
             reviewerLabel = `${local.slice(0, 2)}***@${domain}`
           } else {
-            // Phone: show last 4 digits
+            // Phone: แสดงแค่ 4 หลักท้าย
             reviewerLabel = `•••${contact.slice(-4)}`
           }
         }
@@ -77,6 +82,7 @@ export default async function ProductDetailPage({
           rating: review.rating,
           comment: review.comment ?? '',
           reviewerLabel,
+          // ส่ง ISO string เพื่อหลีกเลี่ยง Date serialization error ระหว่าง RSC → client
           createdAt: review.createdAt instanceof Date
             ? review.createdAt.toISOString()
             : String(review.createdAt),
@@ -84,21 +90,21 @@ export default async function ProductDetailPage({
       }
     })
 
-  // Rating stats
+  // คำนวณ rating stats
   const totalReviews = reviewRows.length
   const avgRating =
     totalReviews > 0
       ? reviewRows.reduce((sum, r) => sum + r.rating, 0) / totalReviews
       : 0
 
-  // Rating breakdown (1–5 stars)
+  // สรุปการกระจาย rating 1–5 ดาว
   const ratingBreakdown = [5, 4, 3, 2, 1].map((stars) => {
     const count = reviewRows.filter((r) => Math.round(r.rating) === stars).length
     const progress = totalReviews > 0 ? Math.round((count / totalReviews) * 100) : 0
     return { stars, count, progress }
   })
 
-  // Build product props (coerce Decimal → number)
+  // Build product props — coerce Decimal → number เพื่อ serialization ข้าม RSC boundary
   const productProps: ProductDetailProps = {
     id: product.id,
     name: product.name,
@@ -109,6 +115,7 @@ export default async function ProductDetailPage({
     totalSold,
     reviews: totalReviews,
     rating: avgRating,
+    // ส่ง ISO string เพื่อหลีกเลี่ยง Date serialization error
     createdAt: product.createdAt instanceof Date
       ? product.createdAt.toISOString()
       : String(product.createdAt),
@@ -117,30 +124,28 @@ export default async function ProductDetailPage({
   return (
     <>
       <PageBreadcrumb title={product.name} trail={[{ label: 'Business' }, { label: 'สินค้า', href: '/products' }]} />
+      {/* 3-col card layout ตาม Paces theme: ซ้าย display, ขวา details + reviews */}
       <div className="card">
         <div className="card-body">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-base">
-            {/* Left: image display */}
             <div>
               <ProductDisplay product={productProps} />
             </div>
-            {/* Right: details + reviews */}
             <div className="lg:col-span-2">
               <div className="md:p-7.5">
                 <ProductDetails product={productProps} />
+                <div className="mt-10 md:mt-15">
+                  <ProductReviews
+                    reviews={reviewRows}
+                    avgRating={avgRating}
+                    totalReviews={totalReviews}
+                    ratingBreakdown={ratingBreakdown}
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-      {/* Reviews section */}
-      <div className="mt-base">
-        <ProductReviews
-          reviews={reviewRows}
-          avgRating={avgRating}
-          totalReviews={totalReviews}
-          ratingBreakdown={ratingBreakdown}
-        />
       </div>
     </>
   )
