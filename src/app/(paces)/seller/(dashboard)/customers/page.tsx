@@ -1,3 +1,11 @@
+/**
+ * Customers list — ลูกค้าของร้าน (ผู้ที่เคยสั่งซื้อ)
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/customers/page.tsx
+ *
+ * เปลี่ยน: ดึง customers จาก orders จริง (ไม่ใช้ demo data)
+ * ตัด: StatStrip (เป็นของ S20), AddCustomerModal (seller ไม่ add customers เอง)
+ */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -8,10 +16,10 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { CustomerRow } from './components/data'
 import CustomerTable from './components/CustomerTable'
-import StatStrip from '../_shared/StatStrip'
 
 export const metadata: Metadata = { title: 'ลูกค้า' }
 
+/** PDPA masking: แสดงแค่ 4 ตัวท้าย ปิดส่วนที่เหลือ */
 function maskContact(c: string | null | undefined): string {
   if (!c || c.length <= 4) return c ?? '—'
   return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
@@ -60,7 +68,7 @@ export default async function CustomersPage() {
     orders = []
   }
 
-  // Aggregate orders into customer rows
+  // รวม orders เป็น customer rows — group by buyerUserId หรือ buyerContact
   const map = new Map<string, CustomerRow>()
   for (const o of orders) {
     const key = o.buyerUserId ?? o.buyerContact ?? 'unknown'
@@ -73,9 +81,12 @@ export default async function CustomersPage() {
     if (existing) {
       existing.totalOrders += 1
       if (isCompleted) existing.totalSpent += itemTotal
-      if (new Date(o.createdAt).getTime() > existing.lastOrderRaw) {
-        existing.lastOrderRaw = new Date(o.createdAt).getTime()
-        existing.lastOrderDate = new Date(o.createdAt).toLocaleDateString('th-TH')
+      // อัปเดต lastOrder ถ้าใหม่กว่า
+      const oTime = new Date(o.createdAt).getTime()
+      if (oTime > existing.lastOrderRaw) {
+        existing.lastOrderRaw = oTime
+        // แปลง Date → ISO string เพื่อส่ง RSC → client component ได้อย่างปลอดภัย
+        existing.lastOrderISO = new Date(o.createdAt).toISOString()
       }
     } else {
       const isReg = !!o.buyer
@@ -91,7 +102,8 @@ export default async function CustomersPage() {
         username: o.buyer?.username ?? null,
         totalOrders: 1,
         totalSpent: isCompleted ? itemTotal : 0,
-        lastOrderDate: new Date(o.createdAt).toLocaleDateString('th-TH'),
+        // แปลง Date → ISO string เพื่อส่ง RSC → client component ได้อย่างปลอดภัย
+        lastOrderISO: new Date(o.createdAt).toISOString(),
         lastOrderRaw: new Date(o.createdAt).getTime(),
       })
     }
@@ -99,18 +111,9 @@ export default async function CustomersPage() {
 
   const customers = Array.from(map.values()).sort((a, b) => b.lastOrderRaw - a.lastOrderRaw)
 
-  const stripItems = [
-    { title: 'ลูกค้าทั้งหมด', value: customers.length,                                                  change: 0, icon: 'users',      iconClass: 'bg-primary/15 text-primary' },
-    { title: 'สมาชิก',         value: customers.filter((c) => c.isRegistered).length,                    change: 0, icon: 'user-check', iconClass: 'bg-success/15 text-success' },
-    { title: 'ยอดซื้อรวม',     value: customers.reduce((s, c) => s + c.totalSpent, 0), prefix: '฿',    change: 0, icon: 'cash',       iconClass: 'bg-info/15 text-info' },
-  ]
-
   return (
     <>
-      <PageBreadcrumb title="ผู้ซื้อ" trail={[{ label: 'Buyer' }]} />
-      <div className="mb-base">
-        <StatStrip items={stripItems} />
-      </div>
+      <PageBreadcrumb title="ลูกค้า" subtitle="ร้านค้า" />
       <CustomerTable customers={customers} />
     </>
   )

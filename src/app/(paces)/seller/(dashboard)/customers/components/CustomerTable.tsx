@@ -1,21 +1,49 @@
 'use client'
 
+/**
+ * CustomerTable — ตาราง customers ของ seller
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/customers/components/CustomerTable.tsx
+ *
+ * เปลี่ยน: ใช้ CustomerRow จาก real data แทน CustomerType demo
+ * ตัด: AddCustomerModal, DeleteConfirmationModal, checkbox select, demo data import,
+ *       country column, avatar image — seller ไม่มี action เหล่านี้
+ * เปลี่ยน columns: displayName, contact (PDPA masked), totalOrders, lastOrderISO (แสดงเป็น locale date)
+ * เพิ่ม: filterFns: {} ใน useReactTable (ป้องกัน type error)
+ * Date: lastOrderISO รับมาเป็น ISO string (RSC→client ปลอดภัย) แล้ว format ใน cell
+ */
+
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
-import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
-import { cn } from '@/utils/helpers'
 import {
   createColumnHelper,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CustomerRow } from './data'
+
+// ลบ: import Link from 'next/link' — ลิงก์ชื่อลูกค้าข้ามโดเมน (buyer) ใช้ <a> แทน next/link
+// เพื่อหลีกเลี่ยง proxy /seller/u/{username} → 404
+
+// Mirror ของ CopyLinkButton.resolveBuyerBaseUrl: resolve buyer base URL ณ runtime
+// เพื่อให้ทำงานได้ทั้ง dev (seller.deepth.local) และ prod (seller.deepthailand.app)
+function resolveBuyerBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BUYER_URL
+  if (envUrl) return envUrl.replace(/\/$/, '')
+  if (typeof window !== 'undefined') {
+    const { protocol, host } = window.location
+    // Seller อยู่บน `seller.<buyerHost>` — ตัด prefix ออกเพื่อได้ buyer domain
+    const buyerHost = host.replace(/^seller\./, '')
+    return `${protocol}//${buyerHost}`
+  }
+  return 'https://deepthailand.app'
+}
 
 const columnHelper = createColumnHelper<CustomerRow>()
 
@@ -24,19 +52,34 @@ type CustomerTableProps = {
 }
 
 const CustomerTable = ({ customers }: CustomerTableProps) => {
+  // buyerBase ต้องเป็น state เพราะ window ไม่พร้อมตอน SSR
+  const [buyerBase, setBuyerBase] = useState('https://deepthailand.app')
+
+  useEffect(() => {
+    setBuyerBase(resolveBuyerBaseUrl())
+  }, [])
+
   const columns = [
     columnHelper.accessor('displayName', {
       header: 'ลูกค้า',
       cell: ({ row }) => (
         <div className="flex gap-3 items-center">
+          {/* Avatar placeholder: ใช้ initial แทน image — ไม่มี avatar ใน MVP */}
           <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
             {row.original.initial}
           </div>
           <h5 className="text-sm font-medium">
             {row.original.isRegistered && row.original.username ? (
-              <Link href={`/u/${row.original.username}`} className="hover:text-primary">
+              // ใช้ <a> แทน next/link เพราะเป็น cross-domain nav ไปยัง buyer domain
+              // href เป็น absolute URL เพื่อป้องกัน proxy /seller/u/{username} → 404
+              <a
+                href={`${buyerBase}/u/${row.original.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary"
+              >
                 {row.original.displayName}
-              </Link>
+              </a>
             ) : (
               <span>{row.original.displayName}</span>
             )}
@@ -51,57 +94,34 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
       ),
     }),
     columnHelper.accessor('totalOrders', {
-      header: 'ออเดอร์',
+      header: 'ออเดอร์ทั้งหมด',
       cell: ({ row }) => (
         <span className="font-medium">{row.original.totalOrders}</span>
       ),
     }),
-    columnHelper.accessor('totalSpent', {
-      header: 'ยอดซื้อ',
+    columnHelper.accessor('lastOrderISO', {
+      header: 'ออเดอร์ล่าสุด',
       cell: ({ row }) => (
-        <span className="font-medium">
-          {Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(
-            row.original.totalSpent
-          )}
+        // แปลง ISO string → locale date ใน client — ปลอดภัยเพราะ input เป็น string ไม่ใช่ Date object
+        <span className="text-default-500 text-sm">
+          {new Date(row.original.lastOrderISO).toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })}
         </span>
       ),
-    }),
-    columnHelper.accessor('lastOrderRaw', {
-      header: 'ล่าสุด',
-      cell: ({ row }) => (
-        <span className="text-default-500 text-sm">{row.original.lastOrderDate}</span>
-      ),
-    }),
-    columnHelper.accessor('isRegistered', {
-      header: 'สถานะ',
-      cell: ({ row }) =>
-        row.original.isRegistered ? (
-          <span className="badge bg-success/10 text-success text-xs font-medium px-2 py-1 rounded-md">
-            สมาชิก
-          </span>
-        ) : (
-          <span className="badge bg-default-200 text-default-700 text-xs font-medium px-2 py-1 rounded-md">
-            ไม่ระบุตัวตน
-          </span>
-        ),
     }),
   ]
 
   const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<{ id: string; desc: boolean }[]>([])
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  })
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
 
   const table = useReactTable({
     data: customers,
     columns,
-    state: {
-      sorting,
-      globalFilter,
-      pagination,
-    },
+    state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
@@ -110,6 +130,8 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: 'includesString',
+    // filterFns ว่างเพื่อให้ type inference ถูกต้อง — ไม่มี custom column filter ใน page นี้
+    filterFns: {},
     enableColumnFilters: true,
   })
 
@@ -135,29 +157,25 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
           </div>
         </div>
         <div className="flex gap-2.5 items-center flex-wrap md:flex-nowrap">
-          <div className="w-24">
-            <Select
-              className="select2 react-select"
-              classNamePrefix="react-select"
-              isSearchable={false}
-              options={[
-                { value: 5, label: '5' },
-                { value: 10, label: '10' },
-                { value: 15, label: '15' },
-                { value: 20, label: '20' },
-              ]}
-              value={{
-                value: table.getState().pagination.pageSize,
-                label: String(table.getState().pagination.pageSize),
-              }}
-              onChange={(opt: any) => table.setPageSize(Number(opt?.value ?? 10))}
-            />
-          </div>
+          <select
+            className="form-select"
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => table.setPageSize(Number(e.target.value))}
+          >
+            {[5, 8, 10, 15, 20].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className="overflow-x-auto whitespace-normal">
-        <DataTable table={table} emptyMessage="ยังไม่มีลูกค้า" />
+        <DataTable<CustomerRow>
+          table={table}
+          emptyMessage="ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ"
+        />
       </div>
 
       {table.getRowModel().rows.length > 0 && (
