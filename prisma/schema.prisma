@@ -81,10 +81,11 @@ model VerificationRecord {
 model Badge {
   id        String   @id @default(uuid())
   name      String
-  nameEN    String
-  icon      String
+  nameEN    String   @unique
+  icon      String?
   type      String
   criteria  Json
+  audience  String   @default("SELLER")
   createdAt DateTime @default(now())
 
   userBadges UserBadge[]

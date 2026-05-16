@@ -31,7 +31,7 @@ export type AdminBadgeRow = {
   id: string
   name: string
   nameEN: string
-  icon: string
+  icon: string | null
   type: 'VERIFICATION' | 'ACHIEVEMENT'
   criteria: Record<string, unknown>
   awardedCount: number

@@ -181,7 +181,7 @@ export default async function PublicProfilePage({ params }: Props) {
       id: ub.id,
       name: ub.badge.name,
       nameEN: ub.badge.nameEN,
-      icon: ub.badge.icon,
+      icon: ub.badge.icon ?? '',
     })),
     reviews: reviews.map((r) => ({
       id: r.id,

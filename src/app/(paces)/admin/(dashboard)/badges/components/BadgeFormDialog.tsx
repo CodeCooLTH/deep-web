@@ -140,11 +140,12 @@ const defaultValues: FormValues = {
 }
 
 // Shape matching the BadgesTable row (kept local to avoid circular import).
+// icon เป็น string | null เพราะ prisma schema เปลี่ยนเป็น nullable
 type EditPayload = {
   id: string
   name: string
   nameEN: string
-  icon: string
+  icon: string | null
   type: 'VERIFICATION' | 'ACHIEVEMENT'
   criteria: Record<string, unknown>
 }
@@ -207,7 +208,8 @@ const BadgeFormDialog = () => {
         ...defaultValues,
         name: row.name,
         nameEN: row.nameEN,
-        icon: row.icon,
+        // coerce null → '' ที่ load boundary เพราะ form field คง type เป็น string
+        icon: row.icon ?? '',
         type: row.type,
         ...criteriaToForm(row.criteria),
       })
