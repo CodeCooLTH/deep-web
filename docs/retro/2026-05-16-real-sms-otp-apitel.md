@@ -54,3 +54,20 @@ apitel ไม่มี sandbox + ส่ง SMS จริงทุก env + key �
 2. โปรโมต Convention #3 (lock external API schema) เป็น personal-Claude memory (Controller habit)
 3. **Pending user:** ใส่ `APITEL_API_KEY` + `APITEL_API_SECRET` ใน `.env.local` (sender = `ATSMS` ต้อง approve กับ apitel ก่อน) → ทดสอบ happy-path: ขอ OTP เบอร์ `0920791649` → รับ SMS จริง → verify เข้าสู่ระบบ (AC-1, AC-2, AC-13)
 4. (future) ถ้า apitel มี cost monitoring ทีหลัง — พิจารณา alert credit ใกล้หมด (PRD §11 Known Gap, out of scope phase นี้)
+
+---
+
+## Follow-up debug (2026-05-16, หลัง user ใส่ key จริง) — commit `06f027c`
+
+ตอน user ใส่ key จริงแล้วทดสอบ → 503. systematic-debugging เจอ 2 root cause:
+
+### RC1 — env var ชื่อไม่ตรง
+โค้ด/`.env.example` ใช้ `APITEL_API_KEY`/`APITEL_API_SECRET` แต่ user ตั้งใน `.env` เป็น `APITEL_KEY`/`APITEL_SECRET` (สั้นกว่า + ตรง convention repo `FACEBOOK_SECRET`/`S3_ACCESS_KEY_ID` = `PROVIDER_FIELD` ไม่ใช่ `PROVIDER_API_FIELD`). user แก้ `.env` เองให้ตรงโค้ด.
+→ **Lesson:** ตอน PM/planner กำหนดชื่อ env ใหม่ ต้องเทียบ convention provider env เดิมในโปรเจกต์ (`grep -E '^[A-Z]+_(KEY|SECRET|ID)=' .env.example`) — `.env.example` ที่ commit ไปครั้งแรกไม่ตรง pattern เดิม ทำให้ user เดาชื่อแล้วพลาด.
+
+### RC2 — sender ต้อง provider-approve (รู้จาก docs ไม่ได้)
+`APITEL_SENDER_NAME=ATSMS` (ค่าที่ user เลือก + เป็น hardcode fallback ในโค้ด) → apitel ตอบ `400 {"errors":{"from":"Sender Name Invalid"}}`. probe boundary ด้วย cred จริง (omit `from`) พบ account approve **`ATLSMS`** เท่านั้น. แก้: `from` optional (ว่าง→omit→ใช้ account default), ลบ hardcode `|| "ATSMS"`.
+→ **Lesson (สำคัญ):** identity field ของ external API (sender name / from / caller ID) มักต้อง **provider-side approval** ที่อ่านจาก API docs ไม่เจอ และ default ที่ทีมเดาเอง (`ATSMS`) มักผิด. **Hardcode fallback ของ identity field = footgun** — ทำให้ทุก request fail เงียบเป็น 503 ถ้า env ไม่ตั้ง. ค่า default ที่ปลอดภัยคือ "omit แล้วให้ provider เลือก default ของ account" ไม่ใช่เดาค่าใส่.
+
+### Convention เพิ่ม (promote → agent-team-workflow.md rule 13)
+13. **Verify external API ที่ boundary ด้วย credential จริง ก่อน mark integration complete** — happy-path ที่ unit test (mock fetch) ผ่าน + smoke (provider-unconfigured→503) ผ่าน **ยังไม่พอ**. ต้องยิง provider จริง 1 ครั้งด้วย cred จริง (เมื่อ user ให้ key) เพื่อจับ provider-side gotcha ที่ docs ไม่บอก (sender/identity approval, IP allowlist, account default, credit). identity field (sender/from) ห้าม hardcode fallback — เว้นว่าง = omit ให้ provider ใช้ default ของ account.
