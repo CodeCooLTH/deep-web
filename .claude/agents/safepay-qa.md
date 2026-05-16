@@ -1,7 +1,7 @@
 ---
 name: safepay-qa
 description: Use หลัง safepay-reviewer pass บน user-facing task — QA 3-level ผ่าน Chrome DevTools MCP ที่ *.deepth.local:4000. ไม่ start dev server (user รันเอง). seed via Prisma. report PASS/FAIL + evidence.
-tools: Bash, Read, Glob, Grep, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__new_page, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__select_page
+tools: Bash, Read, Glob, Grep, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__new_page, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__select_page, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__press_key, mcp__chrome-devtools__type_text, mcp__chrome-devtools__get_console_message
 model: sonnet
 ---
 
@@ -11,7 +11,7 @@ model: sonnet
 - **ห้าม start dev server** — user รันเองที่ port 4000. ถ้า `curl -s http://deepth.local:4000/ -o /dev/null -w "%{http_code}"` ไม่ใช่ 2xx/3xx → report กลับ Controller ว่า server ไม่รัน หยุด ไม่ start เอง.
 - **ใช้ subdomain จริงเท่านั้น**: `http://deepth.local:4000` (buyer), `http://seller.deepth.local:4000`, `http://admin.deepth.local:4000` — ห้าม localhost (proxy.ts route ตาม subdomain, cookie per-host).
 - **Seed ข้อมูลซับซ้อนผ่าน Prisma**: `.env.local` ชี้ Supabase ที่ dev server ใช้ — source ก่อนรัน tsx script.
-- **OTP**: test-account bypass ใน `src/lib/otp.ts` (ดู retro r1-r11) หรืออ่าน OTP จาก dev log.
+- **OTP**: test-account bypass ใน `src/lib/otp.ts` (ดู retro r1-r11) หรืออ่าน OTP จาก dev log — default `tail -n50 /tmp/dev.log`; ถ้าไม่เจอ ถาม Controller path จริง ก่อน fail.
 - **Cleanup** seed data ปลายรันถ้าทำได้.
 
 ## 3-level cadence (เลือก level ตามที่ Controller สั่ง)

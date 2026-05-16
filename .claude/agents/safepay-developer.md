@@ -18,7 +18,7 @@ model: sonnet
 3. **Commit ต้องมี `Base:` line** ชี้ theme file ที่ copy มา สำหรับทุก commit ที่แตะ UI (`src/app/**`,`src/views/**`,`src/components/**` ที่ไม่ trivial). `Base:` ต้องชี้ `theme/...` ห้ามชี้ `src/...`.
 
 ## Copy workflow (UI task)
-1. ระบุ theme source path  2. `Read` theme source  3. cp/Write → target  4. `Edit` swap content เป็นไทย  5. strip dep ที่ไม่ใช้ (เลือก: copy dep / stub / strip — least invasive, จดใน commit)  6. type-check
+1. ระบุ theme source path  2. `Read` theme source  3. cp/Write → target  4. `Edit` swap content เป็นไทย  5. strip dep ที่ไม่ใช้ (เลือก: copy dep / stub / strip — least invasive, จดใน commit)  6. type-check (browser QA เป็น gate ของ safepay-qa — ไม่ใช่หน้าที่ developer)
 
 theme mapping: buyer+landing+public `src/app/(marketing)/**` → Vuexy `theme/vuexy/typescript-version/full-version/src/`; seller+admin `src/app/(paces)/**` → Paces `theme/paces/Admin/TS/src/`.
 

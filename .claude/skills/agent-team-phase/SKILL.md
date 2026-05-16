@@ -10,7 +10,7 @@ phase ที่มี ≥3 tasks ห้าม build single-threaded. background:
 ## Controller (main session) คือคนเดียวที่ commit / mark task complete
 
 ## 5 gates ต่อ task
-1. **Plan** — dispatch `safepay-planner` → ได้ target↔theme mapping + atomic-commit boundary. ไม่มีแผน → ไม่ dispatch.
+1. **Plan** — dispatch `safepay-planner` → ได้ target↔theme mapping + atomic-commit boundary. ถ้าแผนมีแถว "ต้อง Explore: ..." → Controller dispatch Explore agent (subagent_type Explore หรือ general-purpose) แก้ให้ได้ theme path ที่แน่นอน แล้ว re-dispatch `safepay-planner` ก่อนเข้า Develop. ไม่มีแผน → ไม่ dispatch.
 2. **Develop** — dispatch `safepay-developer` (prompt self-contained: goal / target path / theme source / content ไทย / constraints / done criteria / report format).
 3. **Review** — dispatch `safepay-reviewer` (independent, ไม่ pre-bias). อย่า parallelize reviewer กับงานที่มันรีวิว.
 4. **QA** — dispatch `safepay-qa` สำหรับ user-facing task (skip เฉพาะ pure-infra เช่น shell copy ไม่มี URL). ดู 3-level cadence.

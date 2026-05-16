@@ -20,7 +20,7 @@ description: Use เมื่อ phase ของ SafePay/Deep เสร็จ (�
 - personal-Claude reminder → `~/.claude/projects/-Users-craftman-Projects-safepay/memory/feedback_<topic>.md` + เพิ่ม 1 บรรทัดใน `MEMORY.md`
 - team process → `docs/conventions/` อย่างเดียว
 
-## 3. Commit retro + convention update แยก commit ปลาย phase (ไม่ bundle กับ feature work)
+## 3. Commit retro + convention update แยก commit ปลาย phase (ไม่ bundle กับ feature work) — commit บน branch ของ phase นั้น (โปรเจกต์นี้ทำงานบน main)
 
 ## Deep reference
 `docs/conventions/agent-team-workflow.md` §"Per-phase retrospective"

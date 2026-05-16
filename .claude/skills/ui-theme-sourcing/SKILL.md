@@ -1,6 +1,6 @@
 ---
 name: ui-theme-sourcing
-description: Use BEFORE any Write or Edit ของ page/component/layout ใน src/app/**, src/views/**, src/components/** (SafePay/Deep). Enforce theme-copy (no UI from scratch) + Base: commit line. ครอบทั้ง buyer Vuexy และ seller/admin Paces.
+description: Use BEFORE any Write/Edit ของ page/component/layout ใน src/app/**, src/views/**, src/components/** (SafePay/Deep) — รวมถึงเมื่อ user ขอ "สร้าง/ทำ/แก้หน้า X", "เพิ่ม component", หรือ build UI ใด ๆ. Enforce theme-copy (no UI from scratch) + Base: commit line. ครอบทั้ง buyer Vuexy และ seller/admin Paces.
 ---
 
 # UI Theme Sourcing — Hard Rule 1 + 3
