@@ -13,6 +13,7 @@ import { getShopByUserId } from '@/services/shop.service'
 import { getServerSession } from 'next-auth'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
+import { createHash } from 'crypto'
 import type { Metadata } from 'next'
 import type { CustomerRow } from './components/data'
 import CustomerTable from './components/CustomerTable'
@@ -23,6 +24,19 @@ export const metadata: Metadata = { title: 'ลูกค้า' }
 function maskContact(c: string | null | undefined): string {
   if (!c || c.length <= 4) return c ?? '—'
   return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
+}
+
+/**
+ * สร้าง row key ที่ไม่สามารถย้อนกลับเป็น raw contact ได้
+ * — registered buyer: ใช้ buyerUserId โดยตรง (ไม่มี PII)
+ * — guest buyer: SHA-256 ของ raw contact → 16 hex chars (server-side เท่านั้น)
+ * ค่านี้ใช้แค่เพื่อ Map grouping (dedupe) และ React list identity
+ * ไม่มีข้อมูลส่วนตัวข้ามไปยัง RSC payload
+ */
+function makeRowKey(buyerUserId: string | null | undefined, contact: string | null | undefined): string {
+  if (buyerUserId) return buyerUserId
+  if (!contact) return 'guest-unknown'
+  return 'g-' + createHash('sha256').update(contact).digest('hex').slice(0, 16)
 }
 
 export default async function CustomersPage() {
@@ -68,10 +82,11 @@ export default async function CustomersPage() {
     orders = []
   }
 
-  // รวม orders เป็น customer rows — group by buyerUserId หรือ buyerContact
+  // รวม orders เป็น customer rows — group by hashed key (ไม่ใช้ raw contact เป็น key)
   const map = new Map<string, CustomerRow>()
   for (const o of orders) {
-    const key = o.buyerUserId ?? o.buyerContact ?? 'unknown'
+    // PDPA fix: key ต้องไม่ใช่ raw contact — ใช้ userId หรือ hash ที่ย้อนกลับไม่ได้แทน
+    const key = makeRowKey(o.buyerUserId, o.buyerContact)
     const existing = map.get(key)
     const itemTotal = o.items.reduce(
       (s: number, i: any) => s + Number(i.price ?? 0) * (i.qty ?? 1),
