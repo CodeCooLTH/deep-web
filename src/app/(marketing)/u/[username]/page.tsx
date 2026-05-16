@@ -79,6 +79,12 @@ export default async function PublicProfilePage({ params }: Props) {
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : 0
 
+  // FR-4.8: กรอง badge ที่จะแสดงบน public profile — เฉพาะ seller-context (SELLER|ANY) เท่านั้น
+  // BUYER-audience badge ดูได้เฉพาะหน้า /badges (self) ไม่ใช่ public profile
+  const sellerContextBadges = user.userBadges.filter(
+    (ub) => ub.badge.audience === 'SELLER' || ub.badge.audience === 'ANY'
+  )
+
   // --- Header data -----------------------------------------------------------
   const profileHeader: ProfileHeaderData = {
     coverImg: DEFAULT_COVER,
@@ -94,7 +100,8 @@ export default async function PublicProfilePage({ params }: Props) {
     stats: {
       completedOrders,
       reviews: reviews.length,
-      badges: user.userBadges.length,
+      // นับเฉพาะ seller-context badge ที่แสดงบน public profile จริง ๆ
+      badges: sellerContextBadges.length,
     },
   }
 
@@ -138,7 +145,7 @@ export default async function PublicProfilePage({ params }: Props) {
     },
     {
       property: 'Badge',
-      value: `${user.userBadges.length} รายการ`,
+      value: `${sellerContextBadges.length} รายการ`,
       icon: 'tabler-award',
     },
   ]
@@ -177,7 +184,8 @@ export default async function PublicProfilePage({ params }: Props) {
         active: maxVerifyLevel >= 3,
       },
     ],
-    achievements: user.userBadges.map((ub) => ({
+    // FR-4.8 + FR-9.5: ใช้ sellerContextBadges ที่กรองไว้แล้ว — ไม่แสดง BUYER-audience และ progress
+    achievements: sellerContextBadges.map((ub) => ({
       id: ub.id,
       name: ub.badge.name,
       nameEN: ub.badge.nameEN,
@@ -191,6 +199,8 @@ export default async function PublicProfilePage({ params }: Props) {
       itemName: r.order.items[0]?.name ?? null,
     })),
     avgRating,
+    // FR-9.5: buyer-only account → ส่ง flag เพื่อให้ ProfileTab แสดง empty-state ชวนเปิดร้าน
+    openShopEmptyState: !user.isShop,
   }
 
   return (

@@ -1,5 +1,11 @@
 // MUI Imports
 import Grid from '@mui/material/Grid'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import Typography from '@mui/material/Typography'
+
+// Icon Imports
+import { Icon } from '@iconify/react'
 
 // Component Imports
 import AboutOverview from './AboutOverview'
@@ -30,6 +36,8 @@ export type ProfileTabData = {
     itemName: string | null
   }[]
   avgRating: number
+  /** FR-9.5: true เมื่อบัญชี buyer-only (ไม่มีร้าน) — แสดง empty-state ชวนเปิดร้านแทน achievement badge */
+  openShopEmptyState?: boolean
 }
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
@@ -49,6 +57,20 @@ const ProfileTab = ({ data }: { data: ProfileTabData }) => {
           {data.achievements.length > 0 && (
             <Grid size={{ xs: 12 }}>
               <AchievementBadges items={data.achievements} />
+            </Grid>
+          )}
+          {/* FR-9.5: บัญชี buyer-only — แสดง empty-state ชวนเปิดร้าน แทนการแสดง achievement badge */}
+          {data.openShopEmptyState && data.achievements.length === 0 && (
+            <Grid size={{ xs: 12 }}>
+              <Card variant='outlined'>
+                <CardContent className='flex flex-col items-center gap-3 py-8 text-center'>
+                  <Icon icon='tabler-building-store' className='text-5xl text-[var(--mui-palette-primary-main)]' />
+                  <Typography variant='h6'>เปิดร้านเพื่อสะสม Achievement Badge</Typography>
+                  <Typography variant='body2' color='text.secondary'>
+                    บัญชีนี้ยังไม่มีร้านค้า Achievement Badge จะแสดงเมื่อเปิดร้านและเริ่มขายสินค้า
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
           )}
           <Grid size={{ xs: 12 }}>
