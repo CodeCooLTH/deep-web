@@ -54,6 +54,15 @@ function criteriaToText(c: unknown): string {
   }
 }
 
+/** PDPA masking — แสดงเฉพาะ 4 ตัวท้าย ปิดส่วนที่เหลือด้วย bullet
+ *  คัดลอก logic จาก customers/page.tsx และ orders/[token]/components/CustomerDetails.tsx
+ *  เพื่อความสม่ำเสมอ (S5-pdpafix)
+ */
+function maskContact(c: string | null | undefined): string {
+  if (!c || c.length <= 4) return c ?? 'ไม่ระบุ'
+  return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
+}
+
 // tailwind text-color class ต่อ trust level
 const LEVEL_COLOR: Record<string, string> = {
   'A+': 'text-success',
@@ -79,6 +88,9 @@ export default async function SellerDashboardPage() {
   let shopName = 'ร้านค้าของคุณ'
   // ออเดอร์ล่าสุดสำหรับ RecentOrder widget (real data)
   let recentOrders: OrderType[] = []
+  // stat counters — คำนวณจาก rawOrders ที่ fetch ครั้งเดียว (ไม่ duplicate query)
+  let orderCount = 0
+  let revenueK = 0
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -96,12 +108,24 @@ export default async function SellerDashboardPage() {
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {
         const rawOrders = await getOrdersByShop(shop.id)
+
+        // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
+        orderCount = rawOrders.length
+        // รวมยอดเฉพาะ COMPLETED orders; หาร 1000 เพื่อให้แสดงในหน่วย k
+        // (StatisticCard ใช้ suffix:'k' เป็น literal text — value ต้องเป็น หน่วยพัน)
+        // ตัวอย่าง: ฿12,400 → 12.4 → แสดงเป็น ฿12.4k
+        const completedRevenueBaht = rawOrders
+          .filter((o) => o.status === 'COMPLETED')
+          .reduce((sum, o) => sum + Number(o.totalAmount), 0)
+        revenueK = completedRevenueBaht / 1000
+
         // เอา 8 รายการล่าสุด; map เป็น OrderType ที่ client component รับได้
         // totalAmount เป็น Prisma Decimal → ต้อง Number() ก่อนส่งผ่าน RSC boundary
         // createdAt เป็น Date → .toISOString() ป้องกัน Date serialization error
         recentOrders = rawOrders.slice(0, 8).map((o) => ({
           token: o.publicToken,
-          buyerLabel: o.buyerContact ?? 'ไม่ระบุ',
+          // mask ก่อนข้าม RSC boundary — ห้ามส่ง raw contact ไปยัง client payload (S5-pdpafix)
+          buyerLabel: maskContact(o.buyerContact),
           createdAtISO: o.createdAt.toISOString(),
           totalAmount: Number(o.totalAmount),
           type: o.type,
@@ -142,10 +166,10 @@ export default async function SellerDashboardPage() {
     }
   }
 
-  // stat cards — รับ score จาก trust score จริง; orders/revenue ยังเป็น placeholder ใน MVP
+  // stat cards — ออเดอร์/รายได้ใช้ข้อมูลจริงจาก rawOrders ที่ fetch ไปแล้ว
   const statData: StatType[] = [
-    { title: 'ออเดอร์', value: 0, change: 0, icon: 'shopping-cart' },
-    { title: 'รายได้', value: 0, prefix: '฿', suffix: 'k', change: 0, icon: 'pig-money' },
+    { title: 'ออเดอร์', value: orderCount, change: 0, icon: 'shopping-cart' },
+    { title: 'รายได้', value: revenueK, prefix: '฿', suffix: 'k', change: 0, icon: 'pig-money' },
     { title: 'Trust Score', value: score, suffix: '/100', change: 0, icon: 'shield-check' },
   ]
 
