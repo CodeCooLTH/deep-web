@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges } from "@/services/badge.service";
-import { recalculateTrustScore } from "@/services/trust-score.service";
 
 export async function createReview(orderToken: string, data: {
   rating: number;
@@ -36,7 +35,6 @@ export async function createReview(orderToken: string, data: {
   // is already saved. Log the failure so it's visible, not silent.
   try {
     await evaluateBadges(order.shop.userId);
-    await recalculateTrustScore(order.shop.userId);
   } catch (err) {
     console.error(
       `[review] post-create recalc failed for shop owner ${order.shop.userId}; review ${review.id} persisted but trust score / badges may be stale. Retry via admin tool.`,

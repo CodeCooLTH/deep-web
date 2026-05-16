@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges } from "@/services/badge.service";
-import { recalculateTrustScore } from "@/services/trust-score.service";
 
 export const VALID_TRANSITIONS: Record<string, string[]> = {
   CREATED: ["CONFIRMED", "CANCELLED"],
@@ -94,7 +93,6 @@ export async function completeOrder(publicToken: string) {
   // แล้ว). Log ให้เห็นชัดถ้าล้ม. Pattern เดียวกับ createReview
   try {
     await evaluateBadges(order.shop.userId);
-    await recalculateTrustScore(order.shop.userId);
   } catch (err) {
     console.error(
       `[order] post-complete recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${updated.publicToken} persisted but trust/badges อาจไม่ update`,

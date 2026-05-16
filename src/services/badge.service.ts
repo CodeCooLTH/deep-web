@@ -369,7 +369,7 @@ export async function evaluateSignupYearBadge(userId: string): Promise<void> {
     for (const badge of badges) {
       const criteria = parseCriteria(badge.criteria)
       if (!criteria || criteria.type !== 'SIGNUP_YEAR') continue
-      const signupCriteria = criteria as import('@/types/badge').CriteriaSignupYear
+      const signupCriteria = criteria as CriteriaSignupYear
       if (signupCriteria.year !== year) continue
 
       // Idempotent upsert — ถ้าได้แล้วก็ skip ผ่าน @@unique

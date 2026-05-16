@@ -86,9 +86,4 @@ export interface BadgeProgress {
   progressRatio: number
 }
 
-/** ผลลัพธ์รวมจาก evaluateBadges */
-export interface EvaluateResult {
-  userId: string
-  awarded: string[]  // nameEN ของ badge ที่เพิ่งได้ในรอบนี้
-  skipped: string[]  // nameEN ที่ยังไม่ผ่าน criteria
-}
+
