@@ -5,20 +5,9 @@ const typography = (fontFamily: string): Theme['typography'] =>
   ({
     fontFamily:
       typeof fontFamily === 'undefined' || fontFamily === ''
-        ? [
-            '"Public Sans"',
-            'sans-serif',
-            '-apple-system',
-            'BlinkMacSystemFont',
-            '"Segoe UI"',
-            'Roboto',
-            '"Helvetica Neue"',
-            'Arial',
-            'sans-serif',
-            '"Apple Color Emoji"',
-            '"Segoe UI Emoji"',
-            '"Segoe UI Symbol"'
-          ].join(',')
+        ? // กัน edge case ที่ fontFamily arg ว่าง — ปกติ @core/theme/index.ts ส่ง anuphan.style.fontFamily อยู่แล้ว
+          // แต่ถ้าหลุดมา fallback ต้องไม่ขึ้นต้นด้วย Public Sans (Hard Rule 5 Anuphan-only)
+          'var(--font-anuphan), "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif'
         : fontFamily,
     fontSize: 13.125,
     h1: {

@@ -1,6 +1,10 @@
 @theme {
-    --font-body: "Nunito", sans-serif;
-    --font-secondary: "Google Sans", sans-serif;
+    /* [Hard Rule 5] font-body และ font-secondary default เป็น Anuphan โดยตรง — ไม่พึ่ง cascade จาก safepay-overrides.css อีกต่อไป
+       --font-anuphan มาจาก next/font (Google Fonts) inject ผ่าน className={anuphan.variable} ใน (paces)/layout.tsx (T1)
+       safepay-overrides.css ยัง override ทับได้ตามปกติ แต่ base ไม่ต้องพึ่ง cascade แล้ว
+       ref: docs/conventions/anuphan-font.md */
+    --font-body: var(--font-anuphan), "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-secondary: var(--font-anuphan), "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
 
     --text-body: 0.875rem;
     --color-body-bg: #f6f7fb;
