@@ -1,11 +1,23 @@
+/**
+ * StatStrip — แถบ stat card แนวนอน (grid หลายช่อง)
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
+ * Adapted: multiple cards rendered as a single horizontal strip inside one card shell;
+ *   divided by dashed vertical border (lg breakpoint). ตัด: `stat.change` arrow-icon dependency
+ *   ของ theme (ใช้ chevron จาก Icon wrapper แทน ซึ่ง consistent กับ codebase); เพิ่ม
+ *   `compactNumber` formatter สำหรับค่าขนาดใหญ่; เพิ่ม `sinceLabel` prop สำหรับ
+ *   custom period label. font-family: ไม่ได้ระบุ — inherit Anuphan จาก Paces layout (safe).
+ * Prop contract: StatStripItem[] — backward-compatible กับทุก importer เดิม.
+ */
+
 'use client'
 
 import { CountUp } from '@/components/wrappers/CountUp'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 
-// Compact number formatter: 999 → "999", 1000 → "1K", 52100 → "52.1K",
-// 1_000_000 → "1M", 1_250_000 → "1.25M". Decimals trimmed when ".0".
+// จัดรูปแบบตัวเลขแบบ compact: 999 → "999", 1000 → "1K", 1_250_000 → "1.25M"
+// ตัด trailing ".0" เพื่อความกระชับ
 function compactNumber(n: number): string {
   const abs = Math.abs(n)
   const sign = n < 0 ? '-' : ''
@@ -29,10 +41,10 @@ export type StatStripItem = {
   value: number
   prefix?: string
   suffix?: string
-  change: number          // % vs. previous month (0 when no history)
-  icon: string            // tabler
-  iconClass: string       // e.g. 'bg-primary/15 text-primary'
-  sinceLabel?: string     // defaults to "เทียบเดือนก่อน"
+  change: number         // % เทียบเดือนก่อน (0 = ไม่มีข้อมูลเปรียบเทียบ)
+  icon: string           // tabler icon name
+  iconClass: string      // Tailwind class สำหรับไอคอน เช่น 'bg-primary/15 text-primary'
+  sinceLabel?: string    // ค่า default: "เทียบเดือนก่อน"
 }
 
 export default function StatStrip({ items }: { items: StatStripItem[] }) {
@@ -57,52 +69,68 @@ export default function StatStrip({ items }: { items: StatStripItem[] }) {
                 : '',
             )}
           >
-            <div className="p-5 text-center">
-              <h5 className="text-default-400 mb-2 text-xs uppercase">{item.title}</h5>
-              <div className="flex items-center justify-center gap-2.5 my-5">
-                <span
+            {/* โครงสร้าง card-body มาจาก StatisticCard: title → value+icon → change+label */}
+            <div className="card-body">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  {/* Title — uppercase label เหมือน StatisticCard */}
+                  <h5 className="text-default-400 text-xs uppercase mb-2 font-medium">
+                    {item.title}
+                  </h5>
+
+                  {/* Value — CountUp พร้อม compactNumber formatter */}
+                  <h3 className="my-5 py-1 text-xl font-bold">
+                    <CountUp
+                      start={0}
+                      end={item.value}
+                      duration={1}
+                      prefix={item.prefix}
+                      suffix={item.suffix}
+                      formattingFn={(n) =>
+                        `${item.prefix ?? ''}${compactNumber(n)}${item.suffix ?? ''}`
+                      }
+                    />
+                  </h3>
+
+                  {/* Change indicator — ลดเป็น chevron-up/down/minus (tabler) */}
+                  <p className="text-default-400 text-sm flex items-center gap-3">
+                    <span
+                      className={cn(
+                        'flex items-center gap-1',
+                        item.change > 0
+                          ? 'text-success'
+                          : item.change < 0
+                            ? 'text-danger'
+                            : 'text-default-400',
+                      )}
+                    >
+                      <Icon
+                        icon={
+                          item.change > 0
+                            ? 'arrow-up'
+                            : item.change < 0
+                              ? 'arrow-down'
+                              : 'minus'
+                        }
+                      />
+                      {Math.abs(item.change)}%
+                    </span>
+                    <span className="text-nowrap">
+                      {item.sinceLabel ?? 'เทียบเดือนก่อน'}
+                    </span>
+                  </p>
+                </div>
+
+                {/* Icon — rounded circle พร้อม iconClass (เหมือน StatisticCard) */}
+                <div
                   className={cn(
-                    'size-8 flex justify-center items-center rounded-full',
+                    'size-9 rounded-full flex justify-center items-center',
                     item.iconClass,
                   )}
                 >
                   <Icon icon={item.icon} className="size-5.5" />
-                </span>
-                <h3 className="text-xl font-bold">
-                  <CountUp
-                    start={0}
-                    end={item.value}
-                    duration={1}
-                    prefix={item.prefix}
-                    suffix={item.suffix}
-                    formattingFn={(n) => `${item.prefix ?? ''}${compactNumber(n)}${item.suffix ?? ''}`}
-                  />
-                </h3>
+                </div>
               </div>
-              <p className="text-default-400 flex justify-center">
-                <span
-                  className={cn(
-                    item.change > 0
-                      ? 'text-success'
-                      : item.change < 0
-                        ? 'text-danger'
-                        : 'text-default-400',
-                    'me-2.5 flex items-center',
-                  )}
-                >
-                  <Icon
-                    icon={
-                      item.change > 0
-                        ? 'chevron-up'
-                        : item.change < 0
-                          ? 'chevron-down'
-                          : 'minus'
-                    }
-                  />
-                  {Math.abs(item.change)}%
-                </span>
-                <span className="text-nowrap">{item.sinceLabel ?? 'เทียบเดือนก่อน'}</span>
-              </p>
             </div>
           </div>
         ))}
