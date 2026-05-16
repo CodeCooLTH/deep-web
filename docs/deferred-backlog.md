@@ -50,3 +50,55 @@ item = atomic commit, tsc 0, ตาม convention เดิม (theme-copy/Anuph
 ## ทำเสร็จแล้ว (อ้างอิง — ไม่ต้องทำซ้ำ)
 StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
 `262b009` · OMS tsc verified-clean (no-op) · order-500 `959b7cd`.
+
+---
+
+# PRD §11 MVP gaps — ยังไม่เริ่ม (verified 2026-05-16)
+
+> ตรวจ `docs/PRD.md §11 Known Gaps` (12 ข้อ) เทียบโค้ดจริงแล้ว. ด้านล่าง = ที่ยัง
+> OPEN และ MVP-worth. **verify สถานะอีกครั้งก่อนเริ่ม** (parallel stream อาจปิดบางตัว).
+
+## ✅ ปิดแล้ว — อย่าทำซ้ำ
+- §11 #2/#5 ship-guard + order state machine → OMS stream ปิด (`fulfillmentMode!=="SHIPPED"` confirmOrder; PENDING/SHIPPED/CONFIRMED/CANCELLED)
+- §11 #4 admin self-review block → มีแล้ว `src/app/api/admin/verifications/[id]/route.ts:12`
+- §11 #8 seller menu ไทย → Phase B
+
+## 5. §11 #11 — general rate-limit (100/30) + CSRF [security, ก่อน prod]
+- **ทำอะไร:** ปัจจุบัน grep เจอ **0** (มีแต่ OTP `consumeOtpRequestQuota`). เพิ่ม
+  general rate-limit (NFR-2.2: ~100 req/30s ต่อ IP/identity) + CSRF (NFR-2.3)
+  ครอบ API/mutation. store in-memory ได้ (Redis = §11 #12 Phase 2). pattern
+  globalThis singleton (เหมือน OTP store / `src/lib/prisma.ts`).
+- **Block/risk:** `src/proxy.ts` (middleware) + `src/lib/*` ใหม่ — pre-flight เช็ก
+  proxy.ts ไม่อยู่ใน parallel M. design-sensitive (Next 16 App Router +
+  NextAuth CSRF token) → **ต้อง safepay-security**. ความเสี่ยงสูงสุดในลิสต์.
+- **Ref:** PRD §11 #11, NFR-2.2/2.3
+
+## 6. §11 #3 — shippingAddress persist via CreateOrderSchema [FR-6.5 Must]
+- **ทำอะไร:** `CreateOrderSchema` (validations.ts) ยัง `{items,type}` เปล่า —
+  เพิ่ม `shippingAddress` optional + **required เมื่อ fulfillmentMode===SHIPPED**;
+  `createOrder` persist (Order.shippingAddress มี field แล้ว — B9 JSON เห็น
+  `shippingAddress:null`); seller order-create form (S8 OrderCreateForm) เพิ่ม
+  input ตอน SHIPPED. **contained + natural follow-on ของ OMS fulfillmentMode**.
+- **Block/risk:** validations.ts/order.service.ts = clean (ผมเพิ่งแตะ committed);
+  OrderCreateForm = committed. **ไม่ชน parallel** → quick win MVP. pre-flight ยืนยันอีกที.
+- **Ref:** PRD §11 #3, FR-6.5
+
+## 7. §11 #7 — buyer `/orders` `/reviews` `/settings/*` server-side auth guard [security §5.6]
+- **ทำอะไร:** PRD ว่า client-only auth (bypassable). **ต้อง verify ก่อน** — Phase B
+  แตะแต่ seller; buyer (Vuexy R1-R11) อาจยังไม่มี server guard. ถ้ายังขาด → เพิ่ม
+  `getServerSession` guard ใน RSC layout/page ฝั่ง `(marketing)/(buyer-app)/*`.
+  ระวัง S-C7 (DAL ownership — scope ใน WHERE ไม่ใช่หลัง fetch).
+- **Block/risk:** buyer (marketing) pages — verify parallel M ก่อน. security.
+- **Ref:** PRD §11 #7, §5.6, S-C7
+
+## 8. §11 #1 — badge data-driven engine [FR-4.3 Must, rework ใหญ่]
+- **ทำอะไร:** badge evaluator ยัง hardcode ตาม nameEN (สอดคล้อง seed badge naming
+  issue item #1 ข้างบน). rework ให้ criteria JSON มีผล runtime จริง (admin แก้
+  criteria แล้วมีผล). ใหญ่สุด — ควร plan/agent-team ไม่ใช่ quick task.
+- **Block/risk:** badge.service + admin badge UI; โยงกับ seed badge naming (item #1).
+- **Ref:** PRD §11 #1, FR-4.3
+
+## 🟡 ต่ำกว่า / ไม่ note ละเอียด (ดู PRD §11 ตรง)
+#10 admin metrics บางตัวขาด (Completion Rate/Avg Rating/Active Users; avgTrust มีแล้ว) ·
+#6 .env.vercel safepay.co reconcile (config, น่าจะ user-side) · #9 FB-no-email
+link fallback (edge) · #12 Redis = Phase 2 (ไม่ใช่ MVP).
