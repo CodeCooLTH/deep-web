@@ -6,15 +6,20 @@ export async function createShop(userId: string, data: {
   category?: string;
   address?: string;
   businessType: string;
+  logo?: string; // fileId จาก /api/upload — เดิม CreateShopSchema strip ทิ้ง (B6 retro)
 }) {
-  const shop = await prisma.shop.create({
-    data: { userId, ...data },
+  // S-C4: shop.create + user.update(isShop) ต้อง atomic — เดิม 2 query แยก
+  // partial-fail = shop มี แต่ isShop=false กู้ไม่ได้ (unique บล็อก recreate)
+  return prisma.$transaction(async (tx) => {
+    const shop = await tx.shop.create({
+      data: { userId, ...data },
+    });
+    await tx.user.update({
+      where: { id: userId },
+      data: { isShop: true },
+    });
+    return shop;
   });
-  await prisma.user.update({
-    where: { id: userId },
-    data: { isShop: true },
-  });
-  return shop;
 }
 
 export async function updateShop(shopId: string, data: {

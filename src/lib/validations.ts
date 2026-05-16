@@ -23,6 +23,9 @@ export const CreateShopSchema = v.object({
   category: v.optional(v.pipe(v.string(), v.maxLength(50))),
   address: v.optional(v.pipe(v.string(), v.maxLength(200))),
   businessType: v.picklist(["INDIVIDUAL", "COMPANY"]),
+  // logo: fileId จาก /api/upload — เดิมไม่อยู่ใน schema → /api/shops POST
+  // strip logo ที่ user อัปโหลดตอนสร้างร้านทิ้ง (B6 retro). Shop.logo = String?
+  logo: v.optional(v.pipe(v.string(), v.maxLength(200))),
 });
 
 // TagNameSchema — ใช้ซ้ำในหลายที่ (CreateProduct.tags, autocomplete API)
