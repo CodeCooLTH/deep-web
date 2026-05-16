@@ -28,7 +28,7 @@ async function calcOrderScore(userId: string): Promise<number> {
   if (!shop) return 0;
 
   const count = await prisma.order.count({
-    where: { shopId: shop.id, status: "COMPLETED" },
+    where: { shopId: shop.id, status: "CONFIRMED" },
   });
   return Math.min(25, Math.round(Math.sqrt(count) * 2.5));
 }

@@ -20,6 +20,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { recalculateTrustScore } from "@/services/trust-score.service"
 import type {
   BadgeCriteria,
@@ -39,7 +40,7 @@ import type {
  * Status ที่นับเป็น "สำเร็จ" สำหรับ order handlers ทุกตัว
  * เปลี่ยนที่นี่ที่เดียวเมื่อ OMS redesign เพิ่ม status ใหม่
  */
-const DEFAULT_TERMINAL_STATUSES = ['COMPLETED']
+const DEFAULT_TERMINAL_STATUSES = ['CONFIRMED']
 
 // ─── Audience mapping ─────────────────────────────────────────────────────────
 
@@ -168,7 +169,10 @@ export async function checkZeroComplaint(
   if (!shop) return { met: false, completed: 0, cancelled: 0 }
   const completed = await prisma.order.count({ where: { shopId: shop.id, status: { in: statuses } } })
   if (completed < criteria.minOrders) return { met: false, completed, cancelled: 0 }
-  const cancelled = await prisma.order.count({ where: { shopId: shop.id, status: 'CANCELLED' } })
+  // นับเฉพาะ seller-initiated cancel (spec Q3) — buyer-cancel / null ไม่นับ
+  // cancelInitiator ยังไม่อยู่ใน generated client — cast ณ query boundary (เหมือน Task 2)
+  const cancelledWhere = { shopId: shop.id, status: 'CANCELLED', cancelInitiator: 'seller' } as unknown as Prisma.OrderWhereInput
+  const cancelled = await prisma.order.count({ where: cancelledWhere })
   return { met: cancelled === 0, completed, cancelled }
 }
 
