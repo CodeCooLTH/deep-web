@@ -8,7 +8,7 @@
  * - ตัด FacebookButton (เคยมีใน SafePay เวอร์ชันก่อน; component ยังอยู่เพราะใช้ที่อื่น)
  * - ตัด OAuthErrorToast (ไม่มี OAuth flow ในหน้านี้)
  * - ตัด image panel ซ้ายขวา (สองคอลัมน์) — ใช้ single-col card เหมือน base ต้นฉบับ
- * - ลบ inline style={{ backgroundImage }} — ใช้ Tailwind bg-[url()] แทน (P2 retro convention)
+ * - ลบ inline style={{ backgroundImage }} — ใช้ Tailwind background utility แทน (P2 retro convention)
  * - UI copy ภาษาไทย
  */
 
