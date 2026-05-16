@@ -1,6 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// Seed ต้องใช้ DIRECT_URL (non-pooled) — pgbouncer transaction mode
+// จะทำให้ FK ไม่ valid ถ้า parent row ถูก write บน session ที่ต่างกัน
+// seed.ts ดึง DIRECT_URL แทน DATABASE_URL โดยอัตโนมัติถ้ามีใน env
+// วิธีรัน: npm run seed:supabase (อ่าน docs/conventions/seed-and-env.md)
+const connectionUrl = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+const prisma = new PrismaClient({
+  datasources: { db: { url: connectionUrl } },
+});
 
 type Addr = {
   name: string; phone: string; line1: string; line2?: string;
@@ -77,12 +84,13 @@ async function main() {
   // Remove together with the OTP bypass before production.
   const testUser = await prisma.user.upsert({
     where: { username: "testuser" },
-    update: {},
+    update: { isShop: true },
     create: {
       phone: "0920791649",
       displayName: "ผู้ใช้ทดสอบ",
       username: "testuser",
       trustScore: 50,
+      isShop: true,
       authAccounts: {
         create: { provider: "PHONE", providerAccountId: "0920791649" },
       },
@@ -94,12 +102,13 @@ async function main() {
   // Separate shop + data, for parallel browser sessions or data-isolation demos.
   const testUser2 = await prisma.user.upsert({
     where: { username: "btpremium_suksawat" },
-    update: {},
+    update: { isShop: true },
     create: {
       phone: "0000000001",
       displayName: "BT Premium สุขสวัสดิ์",
       username: "btpremium_suksawat",
       trustScore: 65,
+      isShop: true,
       authAccounts: {
         create: { provider: "PHONE", providerAccountId: "0000000001" },
       },
@@ -124,22 +133,25 @@ async function main() {
       },
     });
 
-    const products = await Promise.all(
-      [
-        { name: "หลอดไฟซีนอน HID 6000K (คู่)", price: 2500, type: "PHYSICAL", description: "หลอดไฟซีนอน แสงขาว 6000K รับประกัน 1 ปี ใช้ได้ H1/H4/H7/H11/9005/9006" },
-        { name: "ชุด LED Headlight H4/H7 (คู่)", price: 3200, type: "PHYSICAL", description: "หลอด LED headlight ความสว่างสูง ระบายความร้อนด้วยพัดลม รับประกัน 2 ปี" },
-        { name: "ไฟเดย์ไลท์ DRL LED (คู่)", price: 1800, type: "PHYSICAL", description: "ไฟ Daytime Running Light LED ติดตั้งง่าย รับประกัน 1 ปี" },
-        { name: "บัลลาสซีนอน Slim Ballast (คู่)", price: 1500, type: "PHYSICAL", description: "บัลลาสไฟซีนอน slim 35W กันน้ำ IP67 รับประกัน 1 ปี" },
-        { name: "โคมไฟหน้า Projector Bi-Xenon", price: 8900, type: "PHYSICAL", description: "โคมไฟหน้าโปรเจคเตอร์ Bi-Xenon พร้อม shroud angle eye สำหรับรถทุกรุ่น" },
-        { name: "บริการติดตั้งไฟซีนอน", price: 800, type: "SERVICE", description: "บริการติดตั้งชุดไฟซีนอน HID ที่ร้าน ใช้เวลา 30-45 นาที" },
-        { name: "บริการโมไฟหน้ารถ Projector", price: 3500, type: "SERVICE", description: "บริการโมไฟหน้าใส่โคมโปรเจคเตอร์ พร้อมงานประกอบ ใช้เวลา 1-2 วัน" },
-        { name: "บริการซ่อมโคมไฟหน้าเบลอ/ขุ่น", price: 1200, type: "SERVICE", description: "ขัดและเคลือบโคมไฟหน้ารถที่เบลอหรือขุ่น คืนความใส เหมือนใหม่ ใช้เวลา 1-2 ชม." },
-      ].map((p) =>
-        prisma.product.create({
-          data: { shopId: shop.id, ...p },
-        }),
-      ),
-    );
+    // ใช้ sequential loop แทน Promise.all — pgbouncer transaction mode
+    // ไม่รับประกันว่า concurrent write จะ visible ข้าม session ก่อน FK ถูกเช็ก
+    const productDefs = [
+      { name: "หลอดไฟซีนอน HID 6000K (คู่)", price: 2500, type: "PHYSICAL", description: "หลอดไฟซีนอน แสงขาว 6000K รับประกัน 1 ปี ใช้ได้ H1/H4/H7/H11/9005/9006" },
+      { name: "ชุด LED Headlight H4/H7 (คู่)", price: 3200, type: "PHYSICAL", description: "หลอด LED headlight ความสว่างสูง ระบายความร้อนด้วยพัดลม รับประกัน 2 ปี" },
+      { name: "ไฟเดย์ไลท์ DRL LED (คู่)", price: 1800, type: "PHYSICAL", description: "ไฟ Daytime Running Light LED ติดตั้งง่าย รับประกัน 1 ปี" },
+      { name: "บัลลาสซีนอน Slim Ballast (คู่)", price: 1500, type: "PHYSICAL", description: "บัลลาสไฟซีนอน slim 35W กันน้ำ IP67 รับประกัน 1 ปี" },
+      { name: "โคมไฟหน้า Projector Bi-Xenon", price: 8900, type: "PHYSICAL", description: "โคมไฟหน้าโปรเจคเตอร์ Bi-Xenon พร้อม shroud angle eye สำหรับรถทุกรุ่น" },
+      { name: "บริการติดตั้งไฟซีนอน", price: 800, type: "SERVICE", description: "บริการติดตั้งชุดไฟซีนอน HID ที่ร้าน ใช้เวลา 30-45 นาที" },
+      { name: "บริการโมไฟหน้ารถ Projector", price: 3500, type: "SERVICE", description: "บริการโมไฟหน้าใส่โคมโปรเจคเตอร์ พร้อมงานประกอบ ใช้เวลา 1-2 วัน" },
+      { name: "บริการซ่อมโคมไฟหน้าเบลอ/ขุ่น", price: 1200, type: "SERVICE", description: "ขัดและเคลือบโคมไฟหน้ารถที่เบลอหรือขุ่น คืนความใส เหมือนใหม่ ใช้เวลา 1-2 ชม." },
+    ];
+    const products: Awaited<ReturnType<typeof prisma.product.create>>[] = [];
+    for (const p of productDefs) {
+      const product = await prisma.product.create({
+        data: { shopId: shop.id, ...p },
+      });
+      products.push(product);
+    }
 
     const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
@@ -308,19 +320,21 @@ async function main() {
       },
     });
 
-    const products2 = await Promise.all(
-      [
-        { name: "ชุดไฟหน้า LED Premium (คู่)", price: 4500, type: "PHYSICAL", description: "LED ความสว่าง 8000lm ใช้ได้ทุกรุ่น รับประกัน 2 ปี" },
-        { name: "ไฟซีนอน HID Slim Kit", price: 2800, type: "PHYSICAL", description: "หลอดซีนอน + บัลลาส slim 35W รับประกัน 1 ปี" },
-        { name: "ไฟ Daylight Signature", price: 2400, type: "PHYSICAL", description: "DRL พร้อมไฟเลี้ยววิ่ง รับประกัน 1 ปี" },
-        { name: "บริการติดตั้งไฟหน้า", price: 900, type: "SERVICE", description: "ติดตั้งไฟหน้าทุกประเภท ใช้เวลา 30-60 นาที" },
-        { name: "บริการโมไฟหน้า Full Custom", price: 4500, type: "SERVICE", description: "โมโคมไฟหน้าตามแบบ พร้อมติดตั้ง ใช้เวลา 2-3 วัน" },
-      ].map((p) =>
-        prisma.product.create({
-          data: { shopId: shop2.id, ...p },
-        }),
-      ),
-    );
+    // Sequential loop — เหตุผลเดียวกับ shop 1: หลีกเลี่ยง concurrent write FK race
+    const productDefs2 = [
+      { name: "ชุดไฟหน้า LED Premium (คู่)", price: 4500, type: "PHYSICAL", description: "LED ความสว่าง 8000lm ใช้ได้ทุกรุ่น รับประกัน 2 ปี" },
+      { name: "ไฟซีนอน HID Slim Kit", price: 2800, type: "PHYSICAL", description: "หลอดซีนอน + บัลลาส slim 35W รับประกัน 1 ปี" },
+      { name: "ไฟ Daylight Signature", price: 2400, type: "PHYSICAL", description: "DRL พร้อมไฟเลี้ยววิ่ง รับประกัน 1 ปี" },
+      { name: "บริการติดตั้งไฟหน้า", price: 900, type: "SERVICE", description: "ติดตั้งไฟหน้าทุกประเภท ใช้เวลา 30-60 นาที" },
+      { name: "บริการโมไฟหน้า Full Custom", price: 4500, type: "SERVICE", description: "โมโคมไฟหน้าตามแบบ พร้อมติดตั้ง ใช้เวลา 2-3 วัน" },
+    ];
+    const products2: Awaited<ReturnType<typeof prisma.product.create>>[] = [];
+    for (const p of productDefs2) {
+      const product = await prisma.product.create({
+        data: { shopId: shop2.id, ...p },
+      });
+      products2.push(product);
+    }
 
     // A small set of orders for the second shop — includes one product+service combo.
     const daysAgo2 = (n: number) => new Date(Date.now() - n * 86_400_000);

@@ -10,6 +10,9 @@
     "lint": "next lint",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "migrate": "dotenv -e .env -- npx prisma migrate dev",
+    "test": "dotenv -e .env -- npx vitest",
+    "seed:local": "dotenv -e .env -- npx tsx prisma/seed.ts",
+    "seed:supabase": "dotenv -e .env.local -- npx tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "clean": "rm -rf .next",
     "clear": "rm -rf node_modules .next"
