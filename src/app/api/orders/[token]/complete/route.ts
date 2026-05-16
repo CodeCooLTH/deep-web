@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 // completeOrder ถูกลบใน OMS redesign Task 2 — terminal ใหม่คือ confirmOrder (CONFIRMED)
 // route นี้ preserved เพื่อ backward compat แต่ redirect logic ไปที่ confirmOrder
-// TODO(Task 4): ลบ route นี้เมื่อ UI อัปเดตครบ
+// TODO(Task 7): ลบ route นี้เมื่อ OMS UI ลบ complete button + route นี้ออก
 import { confirmOrder } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
 
