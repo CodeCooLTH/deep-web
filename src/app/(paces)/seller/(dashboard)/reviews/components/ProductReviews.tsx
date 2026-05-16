@@ -1,16 +1,39 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/reviews/components/ProductReviews.tsx
+ *
+ * Adaptations from theme:
+ * - Data รับจาก RSC props (ไม่ใช่ productReviewData mock)
+ * - Reviewer column: initials avatar แทนรูป (ไม่มี user photo ใน SafePay)
+ * - Product column: icon แทนรูปสินค้า (orderItems ไม่มี snapshot image)
+ * - Order link: /seller/orders/{token} — internal seller route (proxy rewrite ไม่จำเป็นเพราะ explicit)
+ *   ไม่ใช้ /o/{token} เพราะนั่นคือ buyer-domain route ที่จะ 404 บน seller subdomain
+ * - date: รับเป็น dateISO (ISO string จาก RSC) แล้ว format เป็นภาษาไทยใน client
+ * - filterFns: {} ใส่ใน useReactTable ทุก instance (ป้องกัน TanStack warning)
+ * - Stripped: ApexChart review-trend, Delete action, Export dropdown (ไม่มีใน MVP)
+ * - Stripped: DeleteConfirmationModal, row selection (SafePay ไม่ให้ seller ลบรีวิว)
+ * - Stripped: Status badge (SafePay ไม่มี published/draft บน review)
+ * - Stripped: Select wrapper react-select — ใช้ native select แทน (เบากว่า)
+ */
+
 'use client'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Rating from '@/components/Rating'
-import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
-import { cn } from '@/utils/helpers'
 import ratingsImg from '@/assets/images/ratings.svg'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import { createColumnHelper, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table'
+import {
+  ColumnFiltersState,
+  createColumnHelper,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import type { ReviewRow, SummaryData } from './data'
 
 type Props = {
@@ -22,8 +45,18 @@ const starRatings = [5, 4, 3, 2, 1] as const
 
 const columnHelper = createColumnHelper<ReviewRow>()
 
+// format ISO string เป็นวันที่ภาษาไทย (client-side ป้องกัน hydration mismatch)
+function formatThaiDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 const ProductReviews = ({ reviews, summary }: Props) => {
   const [globalFilter, setGlobalFilter] = useState('')
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 5 })
 
   const columns = [
@@ -31,7 +64,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
       header: 'สินค้า',
       cell: ({ row }) => (
         <div className="flex items-center gap-base">
-          {/* Product image omitted — orderItems don't snapshot images */}
+          {/* Product image omitted — orderItems ไม่มี snapshot image */}
           <div className="bg-default-100 text-default-400 size-11 rounded flex items-center justify-center">
             <Icon icon="package" className="text-lg" />
           </div>
@@ -46,12 +79,14 @@ const ProductReviews = ({ reviews, summary }: Props) => {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center gap-2.5">
-          {/* Avatar: initials fallback — no user image available */}
+          {/* Avatar initials — ไม่มีรูปผู้ใช้ใน SafePay MVP */}
           <div className="bg-primary/10 text-primary rounded-full size-10 flex items-center justify-center font-bold shrink-0">
             {row.original.reviewerInitial}
           </div>
           <div>
-            <h5 className="text-sm leading-tight font-medium text-default-800">{row.original.reviewerLabel}</h5>
+            <h5 className="text-sm leading-tight font-medium text-default-800">
+              {row.original.reviewerLabel}
+            </h5>
           </div>
         </div>
       ),
@@ -62,25 +97,30 @@ const ProductReviews = ({ reviews, summary }: Props) => {
       cell: ({ row }) => (
         <>
           <Rating rating={row.original.rating} />
-          <p className={cn('mt-2 text-sm', row.original.comment ? 'text-default-700 italic' : 'text-default-300 italic')}>
+          <p className={`mt-2 text-sm ${row.original.comment ? 'text-default-700 italic' : 'text-default-300 italic'}`}>
             {row.original.comment ?? 'ไม่มีความคิดเห็น'}
           </p>
         </>
       ),
     }),
-    columnHelper.accessor('date', {
+    columnHelper.accessor('dateISO', {
       header: 'วันที่',
       cell: ({ row }) => (
-        <span className="text-default-500 text-sm">{row.original.date}</span>
+        <span className="text-default-500 text-sm">
+          {formatThaiDate(row.original.dateISO)}
+        </span>
       ),
     }),
     {
       id: 'actions',
       header: 'ออเดอร์',
       enableSorting: false,
+      enableColumnFilter: false,
       cell: ({ row }: { row: { original: ReviewRow } }) => (
+        // Internal seller route: /seller/orders/{token}
+        // ไม่ใช้ /o/{token} เพราะเป็น buyer-domain route — 404 บน seller.deepth.local
         <Link
-          href={`/orders/${row.original.orderToken}`}
+          href={`/seller/orders/${row.original.orderToken}`}
           className="btn btn-sm border border-default-300 text-default-800 hover:border-default-400 flex items-center gap-1"
         >
           <Icon icon="receipt" className="text-base" />
@@ -93,13 +133,16 @@ const ProductReviews = ({ reviews, summary }: Props) => {
   const table = useReactTable({
     data: reviews,
     columns,
-    state: { pagination, globalFilter },
+    state: { columnFilters, pagination, globalFilter },
+    onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    // filterFns object บังคับต้องมีแม้ว่าจะว่าง เพื่อหลีกเลี่ยง TanStack warning
+    filterFns: {},
   })
 
   const pageIndex = table.getState().pagination.pageIndex
@@ -108,15 +151,12 @@ const ProductReviews = ({ reviews, summary }: Props) => {
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
-  // Compute distribution bar widths from summary
-  const maxCount = Math.max(1, ...Object.values(summary.distribution))
-
   return (
     <div className="card">
-      {/* ── Summary header: left = rating overview, right = distribution bars ── */}
+      {/* ── Summary header: ซ้าย = rating overview, ขวา = distribution bars ── */}
       <div className="border-default-300 border-b border-dashed">
         <div className="grid grid-cols-1 lg:grid-cols-2">
-          {/* Left: overall rating block */}
+          {/* ซ้าย: คะแนนรวม + distribution bars */}
           <div className="border-default-300 grid grid-cols-12 border-e border-dashed">
             <div className="col-span-7">
               <div className="flex items-center gap-base p-7.5 md:gap-7.5">
@@ -138,7 +178,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
               </div>
             </div>
 
-            {/* Distribution bars (5 → 1 star) */}
+            {/* Distribution bars (5 → 1 ดาว) */}
             <div className="col-span-5">
               <div className="space-y-2.5 mt-2 p-5">
                 {starRatings.map((star) => {
@@ -169,7 +209,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
             </div>
           </div>
 
-          {/* Right: placeholder area — chart omitted (no time-series review data in MVP) */}
+          {/* ขวา: placeholder chart — ตัด ApexChart เพราะไม่มี time-series review data ใน MVP */}
           <div className="flex items-center justify-center p-7.5 text-default-300">
             <div className="text-center">
               <Icon icon="chart-bar" className="text-5xl mb-2" />
@@ -196,46 +236,18 @@ const ProductReviews = ({ reviews, summary }: Props) => {
         </div>
         <div className="ms-auto">
           <div className="flex items-center gap-2.5">
-            <div className="w-24">
-              <Select
-                className="select2 react-select"
-                classNamePrefix="react-select"
-                isSearchable={false}
-                options={[
-                  { value: 5, label: '5' },
-                  { value: 10, label: '10' },
-                  { value: 15, label: '15' },
-                  { value: 20, label: '20' },
-                ]}
-                value={{
-                  value: table.getState().pagination.pageSize,
-                  label: String(table.getState().pagination.pageSize),
-                }}
-                onChange={(opt: any) => table.setPageSize(Number(opt?.value ?? 10))}
-              />
-            </div>
-            {/* Filter dropdown — visual only (MVP: no server-side filtering) */}
-            <div className="hs-dropdown relative inline-flex [--placement:bottom-right]">
-              <button
-                type="button"
-                className="hs-dropdown-toggle btn border-default-300 text-default-800 hover:bg-default-100 border text-nowrap"
-                aria-haspopup="menu"
-                aria-expanded="false"
-                aria-label="Dropdown"
-              >
-                ทั้งหมด
-                <Icon icon="chevron-down" className="text-sm" />
-              </button>
-              {/* Visual-only filter tabs — no actual filtering in MVP */}
-              <div className="hs-dropdown-menu" role="menu" aria-orientation="vertical">
-                <div className="space-y-0.5">
-                  <span className="dropdown-item cursor-default text-default-400">ทั้งหมด</span>
-                  <span className="dropdown-item cursor-default text-default-400">5 ดาว</span>
-                  <span className="dropdown-item cursor-default text-default-400">4 ดาว</span>
-                  <span className="dropdown-item cursor-default text-default-400">3 ดาว หรือต่ำกว่า</span>
-                </div>
-              </div>
-            </div>
+            {/* Native select แทน react-select เพื่อลด bundle size */}
+            <select
+              className="form-select"
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+            >
+              {[5, 10, 15, 20].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>

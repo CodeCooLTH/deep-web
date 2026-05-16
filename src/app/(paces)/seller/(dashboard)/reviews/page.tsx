@@ -1,3 +1,15 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/reviews/page.tsx
+ *
+ * Adaptations from theme:
+ * - Data จาก getReviewsByShopUser (real DB) ไม่ใช่ productReviewData mock
+ * - RSC ทำ auth guard, aggregate stats, mask buyer contact (PDPA)
+ * - Date → .toISOString() ก่อนส่งข้ามขอบเขต RSC→client (ไม่มี Date object ข้าม boundary)
+ * - Stripped: ApexChart review-trend (ไม่มี time-series data ใน MVP)
+ * - Stripped: Delete/Edit actions (SafePay ไม่ให้ seller ลบรีวิว)
+ * - Stripped: Export PDF/CSV/Excel (ไม่ใช้ใน MVP)
+ */
+
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getReviewsByShopUser } from '@/services/review.service'
@@ -10,11 +22,13 @@ export const metadata: Metadata = { title: 'รีวิวจากลูกค
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// PDPA: ซ่อนข้อมูลติดต่อ เหลือแค่ 4 ตัวท้าย
 function maskContact(c: string | null): string {
   if (!c || c.length <= 4) return c ?? '—'
   return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
 }
 
+// ดึงตัวอักษรแรกเพื่อแสดงเป็น avatar initials
 function getInitial(label: string): string {
   const first = label.replace(/^[•@\s]+/, '').charAt(0)
   return first ? first.toUpperCase() : '?'
@@ -53,6 +67,7 @@ export default async function ReviewsPage() {
   }
 
   // ── Shape rows ───────────────────────────────────────────────────────────
+  // Date → ISO string ที่ RSC boundary เพื่อป้องกัน Date object ข้ามไปยัง client component
 
   const rows: ReviewRow[] = rawReviews.map((review) => {
     const order = review.order as { publicToken: string; items: { name: string }[] }
@@ -65,11 +80,8 @@ export default async function ReviewsPage() {
 
     const reviewerInitial = getInitial(reviewerLabel)
 
-    const date = new Date(review.createdAt).toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    // ส่งเป็น ISO string — client component จะ format เป็นภาษาไทย
+    const dateISO = new Date(review.createdAt).toISOString()
 
     const productName = order?.items?.[0]?.name ?? '—'
 
@@ -79,7 +91,7 @@ export default async function ReviewsPage() {
       reviewerInitial,
       rating: review.rating,
       comment: review.comment ?? null,
-      date,
+      dateISO,
       productName,
       orderToken: order?.publicToken ?? '',
     }
