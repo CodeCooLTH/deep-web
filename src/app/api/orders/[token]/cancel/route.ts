@@ -20,7 +20,9 @@ export async function POST(
   if (order.shop.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const updated = await cancelOrder(token);
+    // initiator derive จาก session — ไม่รับจาก client body (spec §2)
+    const initiator: "seller" | "buyer" = order.shop.userId === userId ? "seller" : "buyer";
+    const updated = await cancelOrder(token, initiator);
     return NextResponse.json(updated);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });

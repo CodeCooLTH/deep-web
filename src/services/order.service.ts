@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { evaluateBadges } from "@/services/badge.service";
 
+// State machine ใหม่ตาม OMS redesign spec §2
+// PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
+// CANCELLED = terminal ยกเลิก
 export const VALID_TRANSITIONS: Record<string, string[]> = {
-  CREATED: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["SHIPPED", "COMPLETED", "CANCELLED"],
-  SHIPPED: ["COMPLETED"],
+  PENDING: ["SHIPPED", "CONFIRMED", "CANCELLED"],
+  SHIPPED: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: [],
+  CANCELLED: [],
 };
 
 function assertTransition(currentStatus: string, newStatus: string) {
@@ -19,30 +24,80 @@ export async function createOrder(shopId: string, data: {
   type: string;
 }) {
   const totalAmount = data.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+
+  // คำนวณ order-level fulfillmentMode ตาม spec §2:
+  // SHIPPED ถ้ามี item ใด ๆ ที่ต้องจัดส่ง (product.fulfillmentMode=SHIPPED หรือ
+  // item พิมพ์เอง productId=null แล้ว order.type=PHYSICAL)
+  // มิฉะนั้น NO_SHIPPING
+  const productIds = data.items
+    .map((i) => i.productId)
+    .filter((id): id is string => !!id);
+
+  let fulfillmentMode = "NO_SHIPPING";
+
+  // ตรวจ item ที่ไม่มี productId (พิมพ์เอง) ก่อน — ถ้า order.type=PHYSICAL → SHIPPED
+  const hasManualPhysicalItem = data.items.some(
+    (i) => !i.productId && data.type === "PHYSICAL",
+  );
+  if (hasManualPhysicalItem) {
+    fulfillmentMode = "SHIPPED";
+  }
+
+  // ตรวจ product จริงจาก DB — ถ้ามี product ใดที่ fulfillmentMode=SHIPPED → SHIPPED
+  if (fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
+    const shippedProduct = await prisma.product.findFirst({
+      where: { id: { in: productIds }, fulfillmentMode: "SHIPPED" },
+      select: { id: true },
+    });
+    if (shippedProduct) {
+      fulfillmentMode = "SHIPPED";
+    }
+  }
+
+  // fulfillmentMode ยังไม่อยู่ใน generated Prisma client (Task 1 authored-not-applied)
+  // ใช้ cast ตรงนี้เพื่อ persist ค่า — field จะถูก type-safe เมื่อ migrate + regenerate client
   return prisma.order.create({
     data: {
       shopId,
       type: data.type,
       totalAmount,
       items: { create: data.items },
-    },
+      ...(({ fulfillmentMode } as unknown) as Record<string, unknown>),
+    } as Prisma.OrderUncheckedCreateInput,
     include: { items: true },
   });
 }
 
 export async function confirmOrder(publicToken: string, buyerContact: string, buyerUserId?: string) {
-  const order = await prisma.order.findUnique({ where: { publicToken } });
+  const order = await prisma.order.findUnique({
+    where: { publicToken },
+    include: { shop: true },
+  });
   if (!order) throw new Error("Order not found");
   // เบอร์ต้องตรงกับที่ seller ใส่ไว้ตอนสร้าง หรือถ้า order ยังว่าง buyer
-  // รายแรกเป็นคน claim (เก็บ buyerContact ตอน transition CREATED → CONFIRMED)
+  // รายแรกเป็นคน claim (เก็บ buyerContact ตอน transition → CONFIRMED)
   if (order.buyerContact && order.buyerContact !== buyerContact) {
     throw new Error("Phone ไม่ตรงกับคำสั่งซื้อนี้");
   }
+  // CONFIRMED รับจาก PENDING หรือ SHIPPED (VALID_TRANSITIONS ครอบคลุมทั้งสอง)
   assertTransition(order.status, "CONFIRMED");
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { publicToken },
     data: { status: "CONFIRMED", buyerContact, buyerUserId },
   });
+  // Post-confirm recalc เป็น best-effort — ถ้า dev pool timeout หรือ error
+  // อื่นใน badges/trust-score ไม่ควร fail confirmation (ข้อมูลหลัก save
+  // แล้ว). Log ให้เห็นชัดถ้าล้ม. Pattern เดียวกับ createReview
+  // (ย้ายมาจาก completeOrder เดิม — terminal ใหม่คือ CONFIRMED ไม่ใช่ COMPLETED)
+  try {
+    await evaluateBadges(order.shop.userId);
+  } catch (err) {
+    console.error(
+      `[order] post-confirm recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${updated.publicToken} persisted but trust/badges อาจไม่ update`,
+      err,
+    );
+  }
+  return updated;
 }
 
 /**
@@ -51,7 +106,7 @@ export async function confirmOrder(publicToken: string, buyerContact: string, bu
  *
  * Return true ถ้า:
  * - order.buyerContact ตรงกับ phone ที่กรอก (กรณี confirmed แล้ว หรือ seller pre-set)
- * - order.buyerContact ยังว่าง + order status = CREATED (first-time unlock; phone จะถูก claim ตอน confirm)
+ * - order.buyerContact ยังว่าง + order status = PENDING (first-time unlock; phone จะถูก claim ตอน confirm)
  */
 export async function checkOrderPhone(publicToken: string, phone: string): Promise<boolean> {
   const order = await prisma.order.findUnique({
@@ -60,19 +115,19 @@ export async function checkOrderPhone(publicToken: string, phone: string): Promi
   });
   if (!order) return false;
   if (order.buyerContact) return order.buyerContact === phone;
-  return order.status === "CREATED";
+  // สถานะ PENDING = order ยังไม่มี buyer claim → อนุญาต phone unlock ครั้งแรก
+  return order.status === "PENDING";
 }
 
 export async function shipOrder(publicToken: string, data: { provider: string; trackingNo: string }) {
   const order = await prisma.order.findUnique({ where: { publicToken } });
   if (!order) throw new Error("Order not found");
-  // Type guard — เฉพาะ PHYSICAL ที่มี SHIPPED state (PRD section 4 state machine)
-  // UI gate ที่ OrderActions.tsx ป้องกันไว้แต่ต้องกัน bypass ผ่าน API direct ด้วย
-  // TODO(P3): เปลี่ยนจาก order.type → order.fulfillmentMode เพื่อรองรับ
-  //   sub-box (SUBSCRIPTION + SHIPPED override). ดู spec
-  //   docs/superpowers/specs/2026-05-10-product-types-capability-design.md section 5
-  if (order.type !== "PHYSICAL") {
-    throw new Error(`Only PHYSICAL orders can be shipped (this order is ${order.type})`);
+  // Guard ใช้ fulfillmentMode แทน order.type (spec §2 ship guard)
+  // รองรับ sub-box และ product type อื่น ๆ ที่อาจ override fulfillmentMode
+  // fulfillmentMode ยังไม่อยู่ใน generated client — cast ผ่าน unknown ก่อน cutover
+  const fm = (order as unknown as { fulfillmentMode: string }).fulfillmentMode;
+  if (fm !== "SHIPPED") {
+    throw new Error("ออเดอร์นี้ไม่ต้องจัดส่ง");
   }
   assertTransition(order.status, "SHIPPED");
   return prisma.$transaction(async (tx) => {
@@ -83,30 +138,16 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   });
 }
 
-export async function completeOrder(publicToken: string) {
-  const order = await prisma.order.findUnique({ where: { publicToken }, include: { shop: true } });
-  if (!order) throw new Error("Order not found");
-  assertTransition(order.status, "COMPLETED");
-  const updated = await prisma.order.update({ where: { publicToken }, data: { status: "COMPLETED" } });
-  // Post-operation recalc เป็น best-effort — ถ้า dev pool timeout หรือ error
-  // อื่นใน badges/trust-score ไม่ควร fail order completion (ข้อมูลหลัก save
-  // แล้ว). Log ให้เห็นชัดถ้าล้ม. Pattern เดียวกับ createReview
-  try {
-    await evaluateBadges(order.shop.userId);
-  } catch (err) {
-    console.error(
-      `[order] post-complete recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${updated.publicToken} persisted but trust/badges อาจไม่ update`,
-      err,
-    );
-  }
-  return updated;
-}
-
-export async function cancelOrder(publicToken: string) {
+export async function cancelOrder(publicToken: string, initiator: "seller" | "buyer") {
   const order = await prisma.order.findUnique({ where: { publicToken } });
   if (!order) throw new Error("Order not found");
+  // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
-  return prisma.order.update({ where: { publicToken }, data: { status: "CANCELLED" } });
+  // cancelInitiator ยังไม่อยู่ใน generated client — cast ณ persistence boundary
+  return prisma.order.update({
+    where: { publicToken },
+    data: { status: "CANCELLED", ...({ cancelInitiator: initiator } as unknown as Record<string, unknown>) } as Prisma.OrderUncheckedUpdateInput,
+  });
 }
 
 export async function getOrderByToken(publicToken: string) {
