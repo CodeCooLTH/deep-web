@@ -27,6 +27,8 @@ export type ProfileTabData = {
     name: string
     nameEN: string
     icon: string
+    /** URL รูป badge; null = ใช้ emoji fallback */
+    imageUrl?: string | null
   }[]
   reviews: {
     id: string

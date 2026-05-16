@@ -185,11 +185,14 @@ export default async function PublicProfilePage({ params }: Props) {
       },
     ],
     // FR-4.8 + FR-9.5: ใช้ sellerContextBadges ที่กรองไว้แล้ว — ไม่แสดง BUYER-audience และ progress
+    // imageUrl: เพิ่มเพื่อให้ AchievementBadges ใช้ precedence imageUrl→emoji; badge row มีอยู่แล้วใน
+    // include:{ badge: true } ของ findByUsername — ไม่ leak PII (imageUrl เป็น public URL)
     achievements: sellerContextBadges.map((ub) => ({
       id: ub.id,
       name: ub.badge.name,
       nameEN: ub.badge.nameEN,
       icon: ub.badge.icon ?? '',
+      imageUrl: ub.badge.imageUrl ?? null,
     })),
     reviews: reviews.map((r) => ({
       id: r.id,
