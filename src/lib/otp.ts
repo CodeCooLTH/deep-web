@@ -86,7 +86,11 @@ export async function sendOtpViaSms(phone: string, otp: string): Promise<void> {
     throw new Error("APITEL_NOT_CONFIGURED");
   }
 
-  const sender = process.env.APITEL_SENDER_NAME || "ATSMS";
+  // sender ต้องเป็นชื่อที่ apitel approve บน account นั้น ๆ — ถ้าส่งชื่อที่ไม่
+  // approve apitel ตอบ 400 {"errors":{"from":"Sender Name Invalid"}}.
+  // เว้นว่าง = omit field from → apitel ใช้ default sender ของ account
+  // (ห้าม hardcode fallback ชื่อใด ๆ — เคยใช้ "ATSMS" แล้วเป็นชื่อที่ไม่ approve)
+  const sender = process.env.APITEL_SENDER_NAME?.trim();
   const baseUrl = process.env.APITEL_BASE_URL || "https://api.apitel.co/sms";
   const to = toE164Thai(phone);
 
@@ -97,7 +101,14 @@ export async function sendOtpViaSms(phone: string, otp: string): Promise<void> {
   const res = await fetch(baseUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ to, from: sender, text, ttl: 600, apiKey, apiSecret }),
+    body: JSON.stringify({
+      to,
+      ...(sender ? { from: sender } : {}),
+      text,
+      ttl: 600,
+      apiKey,
+      apiSecret,
+    }),
     signal: AbortSignal.timeout(10000),
   });
 

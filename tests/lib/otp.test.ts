@@ -42,13 +42,16 @@ describe("sendOtpViaSms", () => {
   // เก็บค่า env เดิมไว้ restore หลัง test
   let originalApiKey: string | undefined;
   let originalApiSecret: string | undefined;
+  let originalSender: string | undefined;
 
   beforeEach(() => {
     originalApiKey = process.env.APITEL_API_KEY;
     originalApiSecret = process.env.APITEL_API_SECRET;
+    originalSender = process.env.APITEL_SENDER_NAME;
     // set ค่า env ครบก่อนทุก test — test ที่ต้องการ "ไม่ครบ" จะ delete เอง
     process.env.APITEL_API_KEY = "test-api-key";
     process.env.APITEL_API_SECRET = "test-api-secret";
+    process.env.APITEL_SENDER_NAME = "TESTSENDER";
   });
 
   afterEach(() => {
@@ -62,6 +65,11 @@ describe("sendOtpViaSms", () => {
       delete process.env.APITEL_API_SECRET;
     } else {
       process.env.APITEL_API_SECRET = originalApiSecret;
+    }
+    if (originalSender === undefined) {
+      delete process.env.APITEL_SENDER_NAME;
+    } else {
+      process.env.APITEL_SENDER_NAME = originalSender;
     }
     vi.restoreAllMocks();
   });
@@ -112,8 +120,8 @@ describe("sendOtpViaSms", () => {
     // to ต้องเป็น E.164
     expect(body.to).toBe("+66812345678");
 
-    // from (sender) ต้องมีค่า
-    expect(body.from).toBeTruthy();
+    // from ต้องตรงกับ APITEL_SENDER_NAME ที่ตั้งไว้
+    expect(body.from).toBe("TESTSENDER");
 
     // text ต้องมี OTP
     expect(body.text).toContain(VALID_OTP);
@@ -124,6 +132,40 @@ describe("sendOtpViaSms", () => {
     // apiKey/apiSecret ถูกส่งใน body
     expect(body.apiKey).toBe("test-api-key");
     expect(body.apiSecret).toBe("test-api-secret");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("omit field from เมื่อ APITEL_SENDER_NAME ว่าง — ใช้ default sender ของ account", async () => {
+    // ทำไม: ส่ง from ที่ apitel ไม่ approve → 400 Sender Name Invalid.
+    // เว้นว่าง ต้อง omit field ไปเลย (ไม่ใช่ส่ง "" หรือ hardcode) เพื่อให้
+    // apitel ใช้ default sender ของ account
+    delete process.env.APITEL_SENDER_NAME;
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendOtpViaSms(VALID_PHONE, VALID_OTP)).resolves.toBeUndefined();
+
+    const [, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(calledInit.body as string);
+    expect("from" in body).toBe(false);
+    // field อื่นยังครบ
+    expect(body.to).toBe("+66812345678");
+    expect(body.apiKey).toBe("test-api-key");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("omit field from เมื่อ APITEL_SENDER_NAME เป็น whitespace ล้วน", async () => {
+    process.env.APITEL_SENDER_NAME = "   ";
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendOtpViaSms(VALID_PHONE, VALID_OTP);
+
+    const [, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(calledInit.body as string);
+    expect("from" in body).toBe(false);
 
     vi.unstubAllGlobals();
   });
