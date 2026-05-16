@@ -1,3 +1,8 @@
+/**
+ * Seller verification page (L1/L2/L3) — ไม่มี Paces verification-workflow template (Explore E1).
+ * ประกอบจาก LevelCard (shell re-sourced จาก AddCategoryModal — ดู LevelCard.tsx Base).
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
+ */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getUserVerifications, getMaxVerificationLevel } from '@/services/verification.service'

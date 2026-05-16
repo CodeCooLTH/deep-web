@@ -21,6 +21,7 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/seller/orders', slug: 'seller:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
       { url: '/seller/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
       { url: '/seller/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
+      { url: '/seller/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
     ],
   },
   {
@@ -39,6 +40,7 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/seller/shop', slug: 'seller:shop', label: 'ตั้งค่าร้าน', icon: 'building-store' },
+      { url: '/seller/verification', slug: 'seller:verification', label: 'การยืนยันตัวตน', icon: 'shield-check' },
     ],
   },
 ]
