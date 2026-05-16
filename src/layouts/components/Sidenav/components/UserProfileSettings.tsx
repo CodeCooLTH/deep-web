@@ -1,20 +1,51 @@
+/**
+ * Base: theme/paces/Admin/TS/src/layouts/components/Sidenav/components/UserProfileSettings.tsx
+ *
+ * การปรับจาก theme:
+ * - เพิ่ม 'use client' เพื่อใช้ useSession() จาก next-auth/react
+ * - แทนที่ hardcoded "Art Director" / user-1.jpg ด้วยข้อมูล session จริง
+ * - copy session-access pattern เดียวกันกับ UserDropdownDetailed.tsx
+ * - ตัด Profile / Account Settings / Lock Screen ออก (ยังไม่มี route จริงใน seller/admin — กัน 404)
+ * - เหลือเฉพาะ header ต้อนรับ + Log Out จนกว่าจะมีหน้า profile/settings จริง
+ * - wire Log Out ผ่าน signOut({ callbackUrl: '/auth/sign-in' }) เหมือน UserDropdownDetailed
+ */
+'use client'
+
 import bgPattern from '@/assets/images/user-bg-pattern.svg'
 import user1 from '@/assets/images/users/user-1.jpg'
 import Icon from '@/components/wrappers/Icon'
-import { META_DATA } from '@/config/constants'
 import Image from 'next/image'
 import Link from 'next/link'
+import { signOut, useSession } from 'next-auth/react'
 
 const UserProfileSettings = () => {
+  // session shape เหมือน UserDropdownDetailed — cast เพื่อเข้าถึง custom fields
+  const { data: session } = useSession()
+  const user = (session as any)?.user as
+    | { id: string; displayName: string; username: string; avatar: string | null }
+    | undefined
+
+  const handleSignOut = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    signOut({ callbackUrl: '/auth/sign-in' })
+  }
+
   return (
     <div id="user-profile-settings" className={`sidenav-user p-5`} style={{ backgroundImage: `url("${bgPattern.src}")` }}>
       <div className="flex items-center justify-between">
         <div>
-          <Link href="" className="link-reset">
-            <Image src={user1} alt="user-image" className="mb-3 size-9 rounded-full" />
-            <span className="sidenav-user-name block font-bold text-nowrap">{META_DATA.username}</span>
+          <Link href="/seller" className="link-reset">
+            {user?.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatar} alt={user.displayName} className="mb-3 size-9 rounded-full object-cover" />
+            ) : (
+              <Image src={user1} alt="user-image" className="mb-3 size-9 rounded-full" />
+            )}
+            <span className="sidenav-user-name block font-bold text-nowrap">
+              {user?.displayName ?? user?.username ?? 'ผู้ขาย'}
+            </span>
             <span className="text-xs font-semibold" data-lang="user-role">
-              Art Director
+              ผู้ขาย
             </span>
           </Link>
         </div>
@@ -25,23 +56,11 @@ const UserProfileSettings = () => {
             </button>
             <div className="hs-dropdown-menu" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
               <div className="py-2 px-3.5">
-                <h6 className="text-xs">Welcome back 👋!</h6>
+                <h6 className="text-xs">ยินดีต้อนรับ 👋</h6>
               </div>
-              <Link href="" className="dropdown-item">
-                <Icon icon="user-circle" className="me-1 align-middle text-lg" />
-                <span className="align-middle">Profile</span>
-              </Link>
-              <Link href="" className="dropdown-item">
-                <Icon icon="settings-2" className="me-1 align-middle text-lg" />
-                <span className="align-middle">Account Settings</span>
-              </Link>
-              <Link href="/auth/lock-screen" className="dropdown-item">
-                <Icon icon="lock" className="me-1 align-middle text-lg" />
-                <span className="align-middle">Lock Screen</span>
-              </Link>
-              <Link href="" className="dropdown-item text-danger">
+              <Link href="#" className="dropdown-item text-danger" onClick={handleSignOut}>
                 <Icon icon="logout" className="me-1 align-middle text-lg" />
-                <span className="align-middle">Log Out</span>
+                <span className="align-middle">ออกจากระบบ</span>
               </Link>
             </div>
           </div>

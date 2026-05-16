@@ -1,3 +1,10 @@
+/**
+ * Base: theme/paces/Admin/TS/src/layouts/components/Sidenav/index.tsx
+ *
+ * การปรับจาก theme:
+ * - เพิ่ม items prop เพื่อรับ nav data (MenuItemType[]) จาก VerticalLayout → AppMenu
+ * - AppLogo แสดงโลโก้ Deep แทน Paces logo (component เดิมที่ SafePay กำหนดไว้)
+ */
 import AppLogo from '@/components/AppLogo'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import type { MenuItemType } from '@/types'

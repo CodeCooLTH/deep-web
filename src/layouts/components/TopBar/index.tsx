@@ -1,3 +1,14 @@
+/**
+ * Base: theme/paces/Admin/TS/src/layouts/components/TopBar/index.tsx
+ *
+ * การปรับจาก theme:
+ * - ตัด widgets ที่ไม่ใช้ใน prod: AppsDropdownGrid, LanguageSelectorRounded,
+ *   MegamenuApps, MegamenuColumns, SearchBoxRounded, CustomizerToggler,
+ *   MonochromeToggler (theme switcher ต่างๆ ไม่เกี่ยวกับ SafePay)
+ * - คงไว้: MenuToggler, NotificationDropdownPeople, ThemeDropdown,
+ *   FullscreenToggler, UserDropdownDetailed
+ * - UserDropdownDetailed ใช้ useSession() จาก next-auth/react ไม่ใช่ useAuth ของ Paces
+ */
 import useScrollEvent from '@/hooks/useScrollEvent'
 import clsx from 'clsx'
 import FullscreenToggler from './components/FullscreenToggler'
