@@ -87,18 +87,18 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   // คำนวณค่า stat card จาก orders ที่ fetch มา
   const totalCount     = orders.length
-  const pendingCount   = orders.filter((o) => o.status === 'CREATED').length
-  const activeCount    = orders.filter((o) => o.status === 'CONFIRMED' || o.status === 'SHIPPED').length
-  const completedCount = orders.filter((o) => o.status === 'COMPLETED').length
+  const pendingCount   = orders.filter((o) => o.status === 'PENDING').length
+  const activeCount    = orders.filter((o) => o.status === 'SHIPPED').length
+  const completedCount = orders.filter((o) => o.status === 'CONFIRMED').length
   const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length
 
   // stat card data ตาม OrderStatType (theme format)
   const orderStatData: OrderStatType[] = [
     { title: 'ออเดอร์ทั้งหมด', value: totalCount,     change: 0, icon: 'shopping-cart',   className: 'bg-info' },
-    { title: 'รอยืนยัน',       value: pendingCount,   change: 0, icon: 'hourglass',       className: 'bg-warning' },
-    { title: 'กำลังดำเนินการ', value: activeCount,    change: 0, icon: 'truck-delivery',  className: 'bg-primary' },
-    { title: 'สำเร็จแล้ว',     value: completedCount, change: 0, icon: 'check',           className: 'bg-success' },
-    { title: 'ยกเลิก',         value: cancelledCount, change: 0, icon: 'x',               className: 'bg-danger' },
+    { title: 'รอดำเนินการ',    value: pendingCount,   change: 0, icon: 'hourglass',       className: 'bg-warning' },
+    { title: 'จัดส่งแล้ว',    value: activeCount,    change: 0, icon: 'truck-delivery',  className: 'bg-primary' },
+    { title: 'สำเร็จแล้ว',    value: completedCount, change: 0, icon: 'check',           className: 'bg-success' },
+    { title: 'ยกเลิก',        value: cancelledCount, change: 0, icon: 'x',               className: 'bg-danger' },
   ]
 
   const activeStatus = sp.status ?? 'all'

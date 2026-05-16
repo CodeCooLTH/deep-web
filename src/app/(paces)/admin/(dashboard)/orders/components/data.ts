@@ -1,8 +1,7 @@
 export type AdminOrderStatus =
-  | 'CREATED'
-  | 'CONFIRMED'
+  | 'PENDING'
   | 'SHIPPED'
-  | 'COMPLETED'
+  | 'CONFIRMED'
   | 'CANCELLED'
 
 export type AdminOrderType = 'PHYSICAL' | 'DIGITAL' | 'SERVICE'

@@ -28,7 +28,8 @@ interface OrderActionsProps {
   order: {
     publicToken: string
     status: string
-    type: string
+    /** fulfillmentMode snapshot — SHIPPED หรือ NO_SHIPPING (spec §2 ship guard) */
+    fulfillmentMode: string
   }
 }
 
@@ -37,7 +38,7 @@ export default function OrderActions({ order }: OrderActionsProps) {
   const [showShipForm, setShowShipForm] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
 
-  const { status, type, publicToken } = order
+  const { status, fulfillmentMode, publicToken } = order
 
   const {
     register,
@@ -77,19 +78,6 @@ export default function OrderActions({ order }: OrderActionsProps) {
     }
   }
 
-  const handleComplete = async () => {
-    setLoading('complete')
-    try {
-      await callAction('complete')
-      toast.success('ออเดอร์เสร็จสมบูรณ์แล้ว')
-      router.refresh()
-    } catch (err: any) {
-      toast.error(err.message || 'ไม่สามารถอัปเดตสถานะได้')
-    } finally {
-      setLoading(null)
-    }
-  }
-
   const handleCancel = async () => {
     if (!confirm('ยืนยันการยกเลิกออเดอร์นี้?')) return
     setLoading('cancel')
@@ -104,8 +92,8 @@ export default function OrderActions({ order }: OrderActionsProps) {
     }
   }
 
-  // Terminal states — no actions
-  if (status === 'COMPLETED') {
+  // Terminal state CONFIRMED — ไม่มี action ให้ seller ทำแล้ว
+  if (status === 'CONFIRMED') {
     return (
       <div className="flex items-center gap-2 text-success text-sm font-medium">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -132,20 +120,8 @@ export default function OrderActions({ order }: OrderActionsProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* CREATED → Cancel */}
-      {status === 'CREATED' && (
-        <button
-          type="button"
-          onClick={handleCancel}
-          disabled={loading !== null}
-          className="btn border border-danger text-danger hover:bg-danger/10 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
-        >
-          {loading === 'cancel' ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
-        </button>
-      )}
-
-      {/* CONFIRMED + PHYSICAL → Ship */}
-      {status === 'CONFIRMED' && type === 'PHYSICAL' && (
+      {/* PENDING + fulfillmentMode=SHIPPED → บันทึกการจัดส่ง (spec §2 ship gate) */}
+      {status === 'PENDING' && fulfillmentMode === 'SHIPPED' && (
         <>
           <button
             type="button"
@@ -212,49 +188,18 @@ export default function OrderActions({ order }: OrderActionsProps) {
               </div>
             </form>
           )}
-
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={loading !== null}
-            className="btn border border-danger text-danger hover:bg-danger/10 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
-          >
-            {loading === 'cancel' ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
-          </button>
         </>
       )}
 
-      {/* CONFIRMED + DIGITAL/SERVICE → Complete + Cancel */}
-      {status === 'CONFIRMED' && (type === 'DIGITAL' || type === 'SERVICE') && (
-        <>
-          <button
-            type="button"
-            onClick={handleComplete}
-            disabled={loading !== null}
-            className="btn bg-success text-white hover:opacity-90 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
-          >
-            {loading === 'complete' ? 'กำลังอัปเดต...' : 'ทำเครื่องหมายว่าเสร็จแล้ว'}
-          </button>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={loading !== null}
-            className="btn border border-danger text-danger hover:bg-danger/10 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
-          >
-            {loading === 'cancel' ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
-          </button>
-        </>
-      )}
-
-      {/* SHIPPED → Complete */}
-      {status === 'SHIPPED' && (
+      {/* cancel — ทำได้เมื่อ PENDING หรือ SHIPPED (ก่อน CONFIRMED terminal) */}
+      {(status === 'PENDING' || status === 'SHIPPED') && (
         <button
           type="button"
-          onClick={handleComplete}
+          onClick={handleCancel}
           disabled={loading !== null}
-          className="btn bg-success text-white hover:opacity-90 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
+          className="btn border border-danger text-danger hover:bg-danger/10 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
         >
-          {loading === 'complete' ? 'กำลังอัปเดต...' : 'ยืนยันได้รับสินค้าแล้ว'}
+          {loading === 'cancel' ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
         </button>
       )}
     </div>

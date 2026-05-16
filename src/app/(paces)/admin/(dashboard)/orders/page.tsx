@@ -29,10 +29,9 @@ import type {
 export const metadata: Metadata = { title: 'ออเดอร์ทั้งหมด' }
 
 const VALID_STATUSES: AdminOrderStatus[] = [
-  'CREATED',
-  'CONFIRMED',
+  'PENDING',
   'SHIPPED',
-  'COMPLETED',
+  'CONFIRMED',
   'CANCELLED',
 ]
 
@@ -131,7 +130,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
 
       total: Number(o.totalAmount ?? 0),
       type: (o.type as AdminOrderType) ?? 'PHYSICAL',
-      status: (o.status as AdminOrderStatus) ?? 'CREATED',
+      status: (o.status as AdminOrderStatus) ?? 'PENDING',
       createdAt: o.createdAt.toISOString(),
       createdAtTh: thDate(o.createdAt),
 

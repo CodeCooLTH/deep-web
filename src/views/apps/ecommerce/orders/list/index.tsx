@@ -12,11 +12,10 @@ import { LinkChip } from '@/app/(marketing)/_components/mui-link'
  * replaced with status filter chips driven by ?status= searchParam.
  */
 const FILTERS: Array<{ key: string; label: string }> = [
-  { key: 'ALL', label: 'ทั้งหมด' },
-  { key: 'CREATED', label: 'รอยืนยัน' },
-  { key: 'CONFIRMED', label: 'ยืนยันแล้ว' },
-  { key: 'SHIPPED', label: 'จัดส่งแล้ว' },
-  { key: 'COMPLETED', label: 'สำเร็จ' },
+  { key: 'ALL',       label: 'ทั้งหมด' },
+  { key: 'PENDING',   label: 'รอดำเนินการ' },
+  { key: 'SHIPPED',   label: 'จัดส่งแล้ว' },
+  { key: 'CONFIRMED', label: 'สำเร็จ' },
   { key: 'CANCELLED', label: 'ยกเลิก' }
 ]
 

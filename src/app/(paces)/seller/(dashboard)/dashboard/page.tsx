@@ -111,11 +111,11 @@ export default async function SellerDashboardPage() {
 
         // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
         orderCount = rawOrders.length
-        // รวมยอดเฉพาะ COMPLETED orders; หาร 1000 เพื่อให้แสดงในหน่วย k
+        // รวมยอดเฉพาะ CONFIRMED orders (terminal สำเร็จ); หาร 1000 เพื่อให้แสดงในหน่วย k
         // (StatisticCard ใช้ suffix:'k' เป็น literal text — value ต้องเป็น หน่วยพัน)
         // ตัวอย่าง: ฿12,400 → 12.4 → แสดงเป็น ฿12.4k
         const completedRevenueBaht = rawOrders
-          .filter((o) => o.status === 'COMPLETED')
+          .filter((o) => o.status === 'CONFIRMED')
           .reduce((sum, o) => sum + Number(o.totalAmount), 0)
         revenueK = completedRevenueBaht / 1000
 

@@ -26,12 +26,11 @@ import type { OrderType } from './data'
 
 const columnHelper = createColumnHelper<OrderType>()
 
-// แปลงสถานะจาก Prisma enum เป็นภาษาไทยสำหรับ badge
+// แปลงสถานะจาก state machine ใหม่เป็นภาษาไทยสำหรับ badge
 const STATUS_LABEL: Record<string, string> = {
-  CREATED: 'รอยืนยัน',
-  CONFIRMED: 'ยืนยันแล้ว',
-  SHIPPED: 'จัดส่งแล้ว',
-  COMPLETED: 'สำเร็จ',
+  PENDING:   'รอดำเนินการ',
+  SHIPPED:   'จัดส่งแล้ว',
+  CONFIRMED: 'สำเร็จ',
   CANCELLED: 'ยกเลิก',
 }
 
@@ -96,10 +95,10 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
         return (
           <span
             className={cn('badge', {
-              'bg-success/15 text-success': s === 'COMPLETED',
-              'bg-warning/15 text-warning': s === 'CREATED' || s === 'CONFIRMED',
-              'bg-primary/15 text-primary': s === 'SHIPPED',
-              'bg-danger/15 text-danger': s === 'CANCELLED',
+              'bg-success/15 text-success': s === 'CONFIRMED',
+              'bg-warning/15 text-warning': s === 'PENDING',
+              'bg-info/15 text-info':       s === 'SHIPPED',
+              'bg-danger/15 text-danger':   s === 'CANCELLED',
             })}
           >
             {STATUS_LABEL[s] ?? toPascalCase(s)}

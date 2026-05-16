@@ -73,6 +73,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
               publicToken: order.publicToken,
               status: order.status,
               type: order.type,
+              // fulfillmentMode ยังไม่อยู่ใน generated Prisma client (Task 1 pending) — cast ผ่าน unknown
+              fulfillmentMode: (order as unknown as { fulfillmentMode?: string }).fulfillmentMode ?? 'SHIPPED',
               totalAmount: order.totalAmount,
               createdAtISO,
               items: (order.items ?? []).map((item: any) => ({
@@ -87,7 +89,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
           <ShippingActivity
             data={{
               status: order.status,
-              type: order.type,
+              // fulfillmentMode ยังไม่อยู่ใน generated Prisma client (Task 1 pending) — cast ผ่าน unknown
+              fulfillmentMode: (order as unknown as { fulfillmentMode?: string }).fulfillmentMode ?? 'SHIPPED',
               createdAtISO,
               shipmentTracking: order.shipmentTracking
                 ? {

@@ -26,7 +26,7 @@ import ReviewForm from './ReviewForm'
 
 export type PublicOrderData = {
   publicToken: string
-  status: 'CREATED' | 'CONFIRMED' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED'
+  status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
   type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE'
   totalAmount: number
   createdAtIso: string
@@ -47,23 +47,21 @@ export type PublicOrderData = {
 type Props = {
   order: PublicOrderData
   unlockedPhone: string
-  /** Action: buyer กด "ยืนยันคำสั่งซื้อ" — transitions CREATED → CONFIRMED */
+  /** Action: buyer กด "ยืนยันคำสั่งซื้อ" — transitions PENDING|SHIPPED → CONFIRMED (terminal) */
   onConfirmAction: () => Promise<void>
 }
 
 const STATUS_LABEL: Record<PublicOrderData['status'], string> = {
-  CREATED: 'รอยืนยัน',
-  CONFIRMED: 'ยืนยันแล้ว',
-  SHIPPED: 'จัดส่งแล้ว',
-  COMPLETED: 'สำเร็จ',
+  PENDING:   'รอดำเนินการ',
+  SHIPPED:   'จัดส่งแล้ว',
+  CONFIRMED: 'สำเร็จ',
   CANCELLED: 'ยกเลิก',
 }
 
 const STATUS_COLOR: Record<PublicOrderData['status'], 'default' | 'info' | 'warning' | 'success' | 'error'> = {
-  CREATED: 'warning',
-  CONFIRMED: 'info',
-  SHIPPED: 'info',
-  COMPLETED: 'success',
+  PENDING:   'warning',
+  SHIPPED:   'info',
+  CONFIRMED: 'success',
   CANCELLED: 'error',
 }
 
@@ -104,10 +102,12 @@ const dateFmt = new Intl.DateTimeFormat('th-TH', {
 export default function OrderDetailMobile({ order, unlockedPhone, onConfirmAction }: Props) {
   const [submitting, setSubmitting] = useState(false)
 
-  const canConfirm = order.status === 'CREATED'
+  // confirm เมื่อ PENDING หรือ SHIPPED (ผู้ซื้อกดรับ = terminal CONFIRMED)
+  const canConfirm = order.status === 'PENDING' || order.status === 'SHIPPED'
+  // review เมื่อ CONFIRMED หรือ SHIPPED (spec §3 public order gate)
   const canReview =
     !order.hasReview &&
-    (order.status === 'CONFIRMED' || order.status === 'SHIPPED' || order.status === 'COMPLETED')
+    (order.status === 'CONFIRMED' || order.status === 'SHIPPED')
   const isCancelled = order.status === 'CANCELLED'
 
   const handleConfirm = async () => {

@@ -15,16 +15,10 @@ import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
 
 const STATUS_LABELS: Record<string, { title: string; description: string; icon: string; done: boolean }> = {
-  CREATED: {
+  PENDING: {
     title: 'สร้างออเดอร์แล้ว',
     description: 'ออเดอร์ถูกสร้างโดย seller รอผู้ซื้อยืนยัน',
     icon: 'file-plus',
-    done: true,
-  },
-  CONFIRMED: {
-    title: 'ผู้ซื้อยืนยันแล้ว',
-    description: 'ผู้ซื้อยืนยัน OTP เรียบร้อย ออเดอร์รอดำเนินการต่อ',
-    icon: 'circle-check',
     done: true,
   },
   SHIPPED: {
@@ -33,9 +27,9 @@ const STATUS_LABELS: Record<string, { title: string; description: string; icon: 
     icon: 'truck',
     done: true,
   },
-  COMPLETED: {
+  CONFIRMED: {
     title: 'ออเดอร์สำเร็จ',
-    description: 'ออเดอร์เสร็จสมบูรณ์',
+    description: 'ผู้ซื้อยืนยันรับสินค้า/บริการเรียบร้อย',
     icon: 'circle-check-filled',
     done: true,
   },
@@ -47,12 +41,14 @@ const STATUS_LABELS: Record<string, { title: string; description: string; icon: 
   },
 }
 
-// ลำดับ state ตาม state machine (CANCELLED ไม่อยู่ใน flow ปกติ)
-const FLOW_ORDER = ['CREATED', 'CONFIRMED', 'SHIPPED', 'COMPLETED']
+// ลำดับ state ตาม state machine ใหม่ (CANCELLED ไม่อยู่ใน flow ปกติ)
+// NO_SHIPPING path ตัด SHIPPED ออก — ผ่าน visibleFlow filter ด้านล่าง
+const FLOW_ORDER = ['PENDING', 'SHIPPED', 'CONFIRMED']
 
 export type ShippingActivityData = {
   status: string
-  type: string
+  /** fulfillmentMode snapshot — ใช้กำหนด SHIPPED step visibility (spec §2) */
+  fulfillmentMode: string
   createdAtISO: string
   shipmentTracking?: {
     provider: string
@@ -65,11 +61,11 @@ interface ShippingActivityProps {
 }
 
 const ShippingActivity = ({ data }: ShippingActivityProps) => {
-  const { status, type, createdAtISO, shipmentTracking } = data
+  const { status, fulfillmentMode, createdAtISO, shipmentTracking } = data
 
   // สร้าง timeline จาก state machine
-  // ถ้า DIGITAL/SERVICE ไม่มี SHIPPED step — ตัดออก
-  const visibleFlow = type === 'PHYSICAL'
+  // ถ้า fulfillmentMode=NO_SHIPPING ไม่มี SHIPPED step — ตัดออก (spec §3 ShippingActivity)
+  const visibleFlow = fulfillmentMode === 'SHIPPED'
     ? FLOW_ORDER
     : FLOW_ORDER.filter((s) => s !== 'SHIPPED')
 
@@ -91,10 +87,10 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
   }> = []
 
   if (isCancelled) {
-    // แสดง CREATED เป็นจุดเริ่ม (done)
-    const created = STATUS_LABELS['CREATED']
+    // แสดง PENDING เป็นจุดเริ่ม (done)
+    const created = STATUS_LABELS['PENDING']
     timelineItems.push({
-      key: 'CREATED',
+      key: 'PENDING',
       title: created.title,
       description: created.description,
       icon: created.icon,

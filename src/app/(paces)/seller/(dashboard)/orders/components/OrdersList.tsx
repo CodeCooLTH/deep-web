@@ -37,20 +37,18 @@ import type { OrderRow, OrderStatus } from './data'
 // สถานะทั้งหมดของ SafePay Order — tabs สำหรับ filter
 const STATUS_TABS: { value: string; label: string; dot?: string }[] = [
   { value: 'all',       label: 'ทั้งหมด' },
-  { value: 'CREATED',   label: 'รอยืนยัน',    dot: 'bg-warning' },
-  { value: 'CONFIRMED', label: 'ยืนยันแล้ว',  dot: 'bg-info' },
-  { value: 'SHIPPED',   label: 'จัดส่งแล้ว',  dot: 'bg-primary' },
-  { value: 'COMPLETED', label: 'สำเร็จ',      dot: 'bg-success' },
+  { value: 'PENDING',   label: 'รอดำเนินการ', dot: 'bg-warning' },
+  { value: 'SHIPPED',   label: 'จัดส่งแล้ว',  dot: 'bg-info' },
+  { value: 'CONFIRMED', label: 'สำเร็จ',      dot: 'bg-success' },
   { value: 'CANCELLED', label: 'ยกเลิก',     dot: 'bg-danger' },
 ]
 
 // สี badge แต่ละสถานะ SafePay
 const STATUS_META: Record<OrderStatus, { label: string; cls: string }> = {
-  CREATED:   { label: 'รอยืนยัน',   cls: 'bg-warning/15 text-warning' },
-  CONFIRMED: { label: 'ยืนยันแล้ว', cls: 'bg-info/15 text-info' },
-  SHIPPED:   { label: 'จัดส่งแล้ว', cls: 'bg-primary/15 text-primary' },
-  COMPLETED: { label: 'สำเร็จ',     cls: 'bg-success/15 text-success' },
-  CANCELLED: { label: 'ยกเลิก',    cls: 'bg-danger/15 text-danger' },
+  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning' },
+  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/15 text-info' },
+  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/15 text-success' },
+  CANCELLED: { label: 'ยกเลิก',     cls: 'bg-danger/15 text-danger' },
 }
 
 // แปลง order type เป็นภาษาไทย

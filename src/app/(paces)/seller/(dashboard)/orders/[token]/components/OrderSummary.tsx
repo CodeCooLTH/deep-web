@@ -16,11 +16,10 @@ import CopyLinkButton from './CopyLinkButton'
 import OrderActions from './OrderActions'
 
 const STATUS_META: Record<string, { label: string; cls: string; icon: string }> = {
-  CREATED: { label: 'รอยืนยัน', cls: 'bg-warning/15 text-warning', icon: 'clock' },
-  CONFIRMED: { label: 'ยืนยันแล้ว', cls: 'bg-info/15 text-info', icon: 'circle-check' },
-  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-primary/15 text-primary', icon: 'truck' },
-  COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
-  CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger', icon: 'circle-x' },
+  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning',  icon: 'clock' },
+  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/15 text-info',        icon: 'truck' },
+  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/15 text-success',  icon: 'circle-check-filled' },
+  CANCELLED: { label: 'ยกเลิก',      cls: 'bg-danger/15 text-danger',    icon: 'circle-x' },
 }
 
 const TYPE_META: Record<string, { label: string; icon: string; cls: string }> = {
@@ -37,6 +36,8 @@ export type OrderSummaryOrder = {
   publicToken: string
   status: string
   type: string
+  /** fulfillmentMode snapshot จาก order — ใช้กำหนด ship gate แทน order.type */
+  fulfillmentMode: string
   totalAmount: unknown
   createdAtISO: string
   items: Array<{
@@ -161,7 +162,7 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
         {/* การดำเนินการออเดอร์ */}
         <div className="mt-6 border-t border-default-200 pt-5">
           <h4 className="mb-4 text-sm font-semibold text-default-800">การดำเนินการ</h4>
-          <OrderActions order={{ publicToken: order.publicToken, status: order.status, type: order.type }} />
+          <OrderActions order={{ publicToken: order.publicToken, status: order.status, fulfillmentMode: order.fulfillmentMode }} />
         </div>
       </div>
     </div>

@@ -15,5 +15,5 @@ export type OrderType = {
   /** ประเภทออเดอร์ PHYSICAL / DIGITAL / SERVICE */
   type: string
   /** สถานะออเดอร์ (ตรงกับ Prisma enum ที่ใช้ใน schema) */
-  status: 'CREATED' | 'CONFIRMED' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED'
+  status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 }

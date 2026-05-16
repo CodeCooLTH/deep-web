@@ -40,20 +40,18 @@ import type {
 type StatusTab = 'all' | AdminOrderStatus
 
 const STATUS_TABS: { value: StatusTab; label: string; icon: string; dot?: string }[] = [
-  { value: 'all',       label: 'ทั้งหมด',    icon: 'list' },
-  { value: 'CREATED',   label: 'รอยืนยัน',   icon: 'clock',         dot: 'bg-warning' },
-  { value: 'CONFIRMED', label: 'ยืนยันแล้ว', icon: 'circle-check',  dot: 'bg-info' },
-  { value: 'SHIPPED',   label: 'จัดส่งแล้ว', icon: 'truck-delivery', dot: 'bg-primary' },
-  { value: 'COMPLETED', label: 'สำเร็จ',     icon: 'check',         dot: 'bg-success' },
-  { value: 'CANCELLED', label: 'ยกเลิก',    icon: 'x',             dot: 'bg-danger' },
+  { value: 'all',       label: 'ทั้งหมด',      icon: 'list' },
+  { value: 'PENDING',   label: 'รอดำเนินการ',  icon: 'clock',         dot: 'bg-warning' },
+  { value: 'SHIPPED',   label: 'จัดส่งแล้ว',   icon: 'truck-delivery', dot: 'bg-info' },
+  { value: 'CONFIRMED', label: 'สำเร็จ',        icon: 'check',         dot: 'bg-success' },
+  { value: 'CANCELLED', label: 'ยกเลิก',        icon: 'x',             dot: 'bg-danger' },
 ]
 
 const STATUS_META: Record<AdminOrderStatus, { label: string; cls: string }> = {
-  CREATED:   { label: 'รอยืนยัน',   cls: 'bg-warning/10 text-warning' },
-  CONFIRMED: { label: 'ยืนยันแล้ว', cls: 'bg-info/10 text-info' },
-  SHIPPED:   { label: 'จัดส่งแล้ว', cls: 'bg-primary/10 text-primary' },
-  COMPLETED: { label: 'สำเร็จ',     cls: 'bg-success/10 text-success' },
-  CANCELLED: { label: 'ยกเลิก',     cls: 'bg-danger/10 text-danger' },
+  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/10 text-warning' },
+  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/10 text-info' },
+  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/10 text-success' },
+  CANCELLED: { label: 'ยกเลิก',      cls: 'bg-danger/10 text-danger' },
 }
 
 const TYPE_META: Record<AdminOrderType, { label: string; cls: string }> = {

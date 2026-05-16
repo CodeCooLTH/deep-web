@@ -3,7 +3,7 @@
  * (OrderStatType นำมาจาก theme; OrderRow/OrderStatus เป็น SafePay-specific)
  */
 
-export type OrderStatus = 'CREATED' | 'CONFIRMED' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED'
+export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 
 export type OrderRow = {
   id: string            // publicToken short (8-char)

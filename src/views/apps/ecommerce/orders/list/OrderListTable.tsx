@@ -57,18 +57,16 @@ export type BuyerOrderRow = {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  CREATED: 'รอยืนยัน',
-  CONFIRMED: 'ยืนยันแล้ว',
-  SHIPPED: 'จัดส่งแล้ว',
-  COMPLETED: 'สำเร็จ',
+  PENDING:   'รอดำเนินการ',
+  SHIPPED:   'จัดส่งแล้ว',
+  CONFIRMED: 'สำเร็จ',
   CANCELLED: 'ยกเลิก'
 }
 
 const STATUS_COLOR: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
-  CREATED: 'warning',
-  CONFIRMED: 'info',
-  SHIPPED: 'info',
-  COMPLETED: 'success',
+  PENDING:   'warning',
+  SHIPPED:   'info',
+  CONFIRMED: 'success',
   CANCELLED: 'error'
 }
 
