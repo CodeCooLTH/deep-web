@@ -1,0 +1,46 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getShopByUserId } from "@/services/shop.service";
+import { getBalance, getTransactions } from "@/services/wallet.service";
+
+/**
+ * GET /api/wallet — ดึง balance + transactions ของ seller ที่ login อยู่
+ *
+ * ทำไมไม่รับ shopId จาก query param:
+ * DAL ownership (S-C7) — shop ต้อง derive จาก session userId เสมอ
+ * เพื่อกันกรณี seller A ส่ง shopId ของ seller B มาดูข้อมูล wallet คนอื่น
+ *
+ * ทำไม no-shop → 200 {balance:0, transactions:[]} ไม่ใช่ 404:
+ * UI wallet page ของ seller ที่ยังไม่มีร้าน ควร render ได้โดยไม่ error —
+ * แสดง balance=0, รายการว่าง. 404 ทำให้ UI ต้องจัดการ error state พิเศษโดยไม่จำเป็น
+ *
+ * ทำไม getBalance (read-only) ไม่ใช่ getOrCreateWallet:
+ * GET ต้องเป็น read-only (idempotent) — ไม่ควร side-effect สร้าง wallet ใหม่
+ * getBalance คืน 0 เองถ้ายังไม่มี wallet ซึ่งครอบ case นี้แล้ว
+ */
+export async function GET() {
+  // auth gate — session ต้องมีก่อน
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = (session.user as any).id as string;
+
+  // DAL: shop derive จาก session userId เท่านั้น — ไม่รับ shopId จาก client
+  const shop = await getShopByUserId(userId);
+
+  // seller ยังไม่มีร้าน → คืน wallet ว่าง (ไม่ 404 เพื่อให้ UI render ได้)
+  if (!shop) {
+    return NextResponse.json({ balance: 0, transactions: [] });
+  }
+
+  // อ่าน balance และ transactions แบบ parallel — ทั้งคู่ read-only ไม่มี dependency
+  const [balance, transactions] = await Promise.all([
+    getBalance(shop.id),
+    getTransactions(shop.id, 50),
+  ]);
+
+  return NextResponse.json({ balance, transactions });
+}
