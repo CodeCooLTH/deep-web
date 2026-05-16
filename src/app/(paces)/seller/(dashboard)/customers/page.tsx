@@ -92,7 +92,7 @@ export default async function CustomersPage() {
       (s: number, i: any) => s + Number(i.price ?? 0) * (i.qty ?? 1),
       0
     )
-    const isCompleted = o.status === 'COMPLETED'
+    const isCompleted = o.status === 'CONFIRMED'
     if (existing) {
       existing.totalOrders += 1
       if (isCompleted) existing.totalSpent += itemTotal

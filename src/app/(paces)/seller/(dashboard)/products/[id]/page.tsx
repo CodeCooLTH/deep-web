@@ -49,7 +49,7 @@ export default async function ProductDetailPage({
   const reviewRows: ReviewRow[] = []
 
   orders
-    .filter((o: any) => o.status === 'COMPLETED')
+    .filter((o: any) => o.status === 'CONFIRMED')
     .forEach((o: any) => {
       if (!Array.isArray(o.items)) return
       const hasThisProduct = o.items.some((item: any) => item.productId === id)

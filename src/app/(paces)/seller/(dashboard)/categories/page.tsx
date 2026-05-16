@@ -67,7 +67,7 @@ export default async function CategoriesPage() {
         Array.isArray(o.items) && o.items.some((i: any) => ofType.find((p: any) => p.id === i.productId)),
     )
     const revenue = orders
-      .filter((o: any) => o.status === 'COMPLETED' && Array.isArray(o.items))
+      .filter((o: any) => o.status === 'CONFIRMED' && Array.isArray(o.items))
       .reduce((sum: number, o: any) => {
         const typed = o.items.filter((i: any) => ofType.find((p: any) => p.id === i.productId))
         const add = typed.reduce((s: number, i: any) => s + Number(i.price ?? 0) * (i.qty ?? 1), 0)

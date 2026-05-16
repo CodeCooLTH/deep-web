@@ -77,7 +77,7 @@ export default async function ProductsPage() {
   // createdAt แปลงเป็น ISO string ที่ server boundary — ห้ามส่ง Date object ข้าม RSC→client
   const productRows: ProductRow[] = products.map((p: any) => {
     const soldEntries = orders
-      .filter((o: any) => o.status === 'COMPLETED')
+      .filter((o: any) => o.status === 'CONFIRMED')
       .flatMap((o: any) => (Array.isArray(o.items) ? o.items : []))
       .filter((i: any) => i.productId === p.id)
     const totalSold = soldEntries.reduce((s: number, i: any) => s + (i.qty ?? 1), 0)
@@ -85,7 +85,7 @@ export default async function ProductsPage() {
     const productReviews = orders
       .filter(
         (o: any) =>
-          o.status === 'COMPLETED' && o.review && Array.isArray(o.items),
+          o.status === 'CONFIRMED' && o.review && Array.isArray(o.items),
       )
       .filter((o: any) => o.items.some((i: any) => i.productId === p.id))
       .map((o: any) => o.review!.rating as number)

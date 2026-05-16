@@ -88,7 +88,7 @@ export default async function SalesPage({
   for (const o of inRange) {
     const day = new Date(o.createdAt).toISOString().slice(0, 10)
     ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
-    if (o.status === 'COMPLETED') {
+    if (o.status === 'CONFIRMED') {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
       revenuePerDay[day] = (revenuePerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
     }
