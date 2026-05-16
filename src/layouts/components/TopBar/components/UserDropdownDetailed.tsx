@@ -16,12 +16,10 @@ type UserProfileMenuType = {
   action?: 'sign-out'
 }
 
+// เหลือเฉพาะ sign-out — ตัด บัญชีของฉัน/การแจ้งเตือน/ตั้งค่าบัญชี/ช่วยเหลือ
+// ที่ลิงก์ไป /my-account (404) หรือ '#' ออก จนกว่าจะมี route จริง (consistent กับ UserProfileSettings)
 const userProfileMenuData: UserProfileMenuType[] = [
-  { label: 'บัญชีของฉัน',  icon: 'user-circle', link: '/my-account' },
-  { label: 'การแจ้งเตือน', icon: 'bell-ringing', link: '#' },
-  { label: 'ตั้งค่าบัญชี',  icon: 'settings-2',  link: '#' },
-  { label: 'ช่วยเหลือ',    icon: 'headset',     link: '#', divider: true },
-  { label: 'ออกจากระบบ',  icon: 'logout',      link: '#', action: 'sign-out', className: 'font-semibold' },
+  { label: 'ออกจากระบบ', icon: 'logout', link: '#', action: 'sign-out', className: 'font-semibold' },
 ]
 
 const UserDropdown = () => {
