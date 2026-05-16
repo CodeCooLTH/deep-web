@@ -1,3 +1,12 @@
+/**
+ * VerifyOtpForm — client component จัดการ OTP input + signIn
+ *
+ * Base: theme/paces/Admin/TS/src/app/auth/(basic)/two-factor/page.tsx
+ * (form/input section ของ two-factor template — extracted เป็น client component)
+ *
+ * Bug fix (B1 reviewer): fallback redirect เมื่อไม่มี phone context
+ * เปลี่ยนจาก '/auth/sign-in' เป็น '/seller/auth/sign-in' (seller subdomain route ที่ถูกต้อง)
+ */
 'use client'
 
 import { signIn } from 'next-auth/react'
@@ -21,7 +30,7 @@ export default function VerifyOtpForm() {
 
   // Redirect if no phone context
   useEffect(() => {
-    if (!phone) router.replace('/auth/sign-in')
+    if (!phone) router.replace('/seller/auth/sign-in')
   }, [phone, router])
 
   const masked = phone
