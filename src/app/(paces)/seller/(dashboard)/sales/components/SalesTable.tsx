@@ -1,3 +1,12 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/components/SalesTable.tsx
+ *
+ * Re-sourced S15 (Phase B): ตัด card wrapper ออกเพื่อฝังใน card เดียวกับ SalesChart (ตาม Paces layout).
+ * ข้อมูลเป็น DailyRow[] จาก real aggregation บน server — ไม่มี demo saleData จาก theme.
+ * เพิ่ม filterFns: {} ตาม retro B1 (tanstack/react-table v8 constraint).
+ * ยอดเงินแสดงเป็น ฿ (THB) ไม่ใช่ $.
+ * PDPA: ตารางแสดงเฉพาะ aggregate (วันที่, ออเดอร์, สำเร็จ, ยอดขาย, เฉลี่ย) — ไม่มี buyer PII.
+ */
 'use client'
 
 import DataTable from '@/components/table/DataTable'
@@ -9,6 +18,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  type SortingState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -18,6 +28,7 @@ type Props = { rows: DailyRow[] }
 
 const columnHelper = createColumnHelper<DailyRow>()
 
+// formatter ฿ สกุลบาท — client-side เท่านั้น (Date→ISO ทำที่ RSC boundary แล้ว)
 const thb = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 })
 
 const columns = [
@@ -47,7 +58,7 @@ const columns = [
 
 const SalesTable = ({ rows }: Props) => {
   const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<any[]>([])
+  const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
 
   const table = useReactTable({
@@ -61,6 +72,8 @@ const SalesTable = ({ rows }: Props) => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    // filterFns ว่างเพื่อให้ type inference ถูกต้อง — ไม่มี custom column filter ใน page นี้ (retro B1)
+    filterFns: {},
   })
 
   const pageIndex = table.getState().pagination.pageIndex
@@ -70,9 +83,10 @@ const SalesTable = ({ rows }: Props) => {
   const end = Math.min(start + pageSize - 1, totalItems)
 
   return (
-    <div className="card">
-      <div className="card-header flex items-center justify-between flex-wrap gap-3">
-        <h5 className="card-title">รายละเอียดรายวัน</h5>
+    // ไม่มี .card wrapper — ฝังใน card เดียวกับ SalesChart บน page.tsx (ตาม Paces single-card layout)
+    <>
+      <div className="card-header flex items-center justify-between flex-wrap gap-3 border-t border-default-200">
+        <h6 className="card-title text-sm">รายละเอียดรายวัน</h6>
         <div className="input-icon-group">
           <Icon icon="search" className="input-icon" />
           <input
@@ -105,7 +119,7 @@ const SalesTable = ({ rows }: Props) => {
           />
         </div>
       )}
-    </div>
+    </>
   )
 }
 

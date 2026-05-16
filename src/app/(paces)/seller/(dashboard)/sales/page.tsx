@@ -1,3 +1,11 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/page.tsx
+ *
+ * Re-sourced S15 (Phase B): single-card layout (chart-on-top, table-below) จาก Paces theme.
+ * ตัด Flatpickr ออกจาก page — ย้ายไปอยู่ใน SalesDateRange client component แทน
+ * (SalesDateRange ขับ real date filtering ผ่าน ?from=&to= searchParams → real data).
+ * ข้อมูลทั้งหมดมาจาก real orders ของ shop — ไม่มี Paces demo series ใด ๆ ใน runtime.
+ */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
@@ -64,7 +72,10 @@ export default async function SalesPage({
 
   const allOrders = await getOrdersByShop(shop.id)
 
-  const inRange = (allOrders as any[]).filter((o) => {
+  // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
+  type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
+
+  const inRange = allOrders.filter((o: OrderItem) => {
     const t = new Date(o.createdAt).getTime()
     return t >= from.getTime() && t <= to.getTime()
   })
@@ -109,20 +120,23 @@ export default async function SalesPage({
     <>
       <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'Analytics' }]} />
 
-      <div className="card mb-base">
+      {/* โครงสร้าง single-card ตาม Paces theme: header → card-body (chart) → table+pagination */}
+      <div className="card">
         <div className="card-header flex items-center justify-between flex-wrap gap-3">
-          <h4 className="card-title">รายงานยอดขาย</h4>
+          <h5 className="card-title">รายงานยอดขาย</h5>
           <SalesDateRange
             from={from.toISOString().slice(0, 10)}
             to={to.toISOString().slice(0, 10)}
           />
         </div>
+
         <div className="card-body">
           <SalesChart daily={daily} summary={summary} />
         </div>
-      </div>
 
-      <SalesTable rows={daily} />
+        {/* SalesTable render เป็น header+DataTable+card-footer ภายใน card เดียวกัน */}
+        <SalesTable rows={daily} />
+      </div>
     </>
   )
 }

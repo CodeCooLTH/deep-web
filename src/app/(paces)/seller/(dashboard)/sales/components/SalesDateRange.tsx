@@ -1,3 +1,11 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/page.tsx
+ *
+ * Client component สำหรับ date-range picker — แยกออกมาเพื่อให้ page.tsx เป็น RSC ได้.
+ * Flatpickr เก็บไว้เพราะมัน drive real date filtering ผ่าน ?from=&to= searchParams
+ * (ไม่ใช่ decoration — ถ้าตัดออกจะไม่มีทางเลือก date range).
+ * Date ที่ส่งออกเป็น ISO YYYY-MM-DD เสมอ (ตาม Date→ISO boundary rule).
+ */
 'use client'
 
 import Flatpickr from '@/components/wrappers/Flatpickr'

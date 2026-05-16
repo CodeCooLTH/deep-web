@@ -1,3 +1,11 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/components/SalesChart.tsx
+ *
+ * Re-sourced S15 (Phase B): ใช้ ApexChart wrapper (src/components/wrappers/ApexChart.tsx) เหมือน theme.
+ * series ทั้งหมดมาจาก real DailyRow[] ที่ RSC คำนวณ — ไม่มี demo [320,402,...] จาก theme data.ts.
+ * Currency: ฿ THB. Date label: th-TH (format ที่ RSC boundary ก่อนส่งมา).
+ * PDPA: ข้อมูลเป็น aggregate ตามวัน ไม่มี buyer PII ใด ๆ.
+ */
 'use client'
 
 import ApexChart from '@/components/wrappers/ApexChart'

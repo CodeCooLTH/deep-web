@@ -1,3 +1,10 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/components/data.ts
+ *
+ * ไฟล์นี้มีเฉพาะ type definitions — ไม่มี demo saleData จาก theme.
+ * DailyRow สร้างจาก real COMPLETED orders ที่ RSC aggregate บน page.tsx.
+ */
+
 export type DailyRow = {
   date: string      // ISO YYYY-MM-DD
   label: string     // formatted th-TH e.g. "1 เม.ย. 2569"
