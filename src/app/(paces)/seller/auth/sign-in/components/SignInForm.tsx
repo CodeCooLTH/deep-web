@@ -1,3 +1,17 @@
+/**
+ * Seller sign-in form — re-sourced from Paces (basic) sign-in Form component.
+ *
+ * Base: theme/paces/Admin/TS/src/app/auth/(basic)/sign-in/components/Form.tsx
+ *
+ * Changes vs base:
+ * - เปลี่ยน email+password fields เป็น phone field เดียว (SafePay phone-OTP flow)
+ * - ลบ "Keep me signed in" checkbox + "Forgot Password" link (ไม่มี password ใน OTP flow)
+ * - form state จัดการด้วย react-hook-form + Yup (แทน useState ของ base)
+ * - onSubmit: POST /api/otp/send → redirect ไป /seller/auth/verify-otp (auth wiring เดิม)
+ * - error แสดงผ่าน react-toastify (แทน inline error ของ base)
+ * - ปุ่ม submit ใช้ Preline btn class เหมือน base แต่ข้อความภาษาไทย
+ */
+
 'use client'
 
 import { yupResolver } from '@hookform/resolvers/yup'
@@ -36,8 +50,9 @@ export default function SignInForm() {
         toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
         return
       }
+      // redirect ไปหน้า verify-otp พร้อม mode=signin และ phone param
       router.push(
-        `/auth/verify-otp?mode=signin&phone=${encodeURIComponent(phone)}`
+        `/seller/auth/verify-otp?mode=signin&phone=${encodeURIComponent(phone)}`
       )
     } catch {
       toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
@@ -67,13 +82,15 @@ export default function SignInForm() {
         )}
       </div>
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="btn bg-primary w-full py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
-      >
-        {isSubmitting ? 'กำลังส่งรหัส...' : 'ส่งรหัส OTP'}
-      </button>
+      <div>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="btn bg-primary w-full py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+        >
+          {isSubmitting ? 'กำลังส่งรหัส...' : 'ส่งรหัส OTP'}
+        </button>
+      </div>
     </form>
   )
 }
