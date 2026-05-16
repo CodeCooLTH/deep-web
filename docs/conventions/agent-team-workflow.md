@@ -243,3 +243,10 @@ Anchor ที่ได้ผล (ทำซ้ำ): independent review+security g
 16. **Security gate = mandate-before-commit ห้าม defer** — `safepay-security` mandatory สำหรับ task แตะ auth/PII/redirect/credential. required-fix ต้องแก้**ก่อน** commit ไม่ใช่ backlog (Phase B: CRITICAL prod auth-bypass P6 — hardcoded credential ไม่ NODE_ENV-gate; 3 PDPA leak; shopName auth-boundary). checklist: `docs/conventions/security-conventions.md` (PII@RSC-boundary, test-bypass prod-dead, auth-input server-validate, multi-write transaction).
 17. **retro-QA หลังแก้ infra ก่อน trust QA** — ถ้า QA RED จาก env (DB ไม่ seed/wrong DB) → แก้ infra (`seed-and-env.md`) แล้ว **re-QA บน DB จริง**; env-gap บัง code defect (Phase B: seeded retro-QA เปิด 3 defect ที่ B3/B4 RED-env เคยกลบ). Controller แยก **RED-code vs RED-env vs RED-parallel-track** ชัดเจน — ไม่ block phase ด้วย env/OMS-collateral, ไม่ปล่อย code defect ผ่านเพราะ env เขียว.
 18. **reviewer pre-commit ประเมิน code + JSDoc `Base:` ไม่ใช่ commit body** — working-tree uncommitted ≠ Hard Rule 3 FAIL (Controller commit ที่ integrate gate). อย่า noise gate-1 ซ้ำทุก batch.
+
+### Addendum (2026-05-16) — Seller UI rework + Anuphan + parallel-dev/regression
+
+จาก retro `2026-05-16-seller-ui-rework-anuphan.md`. กฎบังคับ:
+
+19. **Combined-tsc verify หลัง parallel-dev batch ที่แตะไฟล์/area คาบเกี่ยว** — subagent report = snapshot ตอนนั้น ไม่ใช่ ground truth หลัง merge working tree. Controller รัน `tsc` (+test) เองก่อนเชื่อ dev คนใด (เคย: Unit-B/C tsc ขัดกัน, combined จริง EXIT:0).
+20. **บั๊กที่ QA เจอกลาง phase → classify regression vs pre-existing ก่อน act** — `git diff --stat` (ไฟล์ต้นเหตุอยู่ใน scope?) + `git log` ไฟล์ + ไล่ stack ถึง vendor (Next.js dev overlay = React owner-stack ไม่ใช่ JS call stack — ไล่ผิดทางได้). pre-existing = แยก task/commit ห้ามยัดเข้า phase + ถาม user. agent ใหม่กลาง session = proxy ผ่าน `general-purpose`+Read contract (registry session-scoped; `.claude/` gitignored = agent file local-only). theme ไม่มี template → user อนุมัติ compose-from-primitive exception + `Base:` multi-source ชัด.
