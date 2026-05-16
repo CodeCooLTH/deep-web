@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { evaluateBadges } from "@/services/badge.service";
 
 // State machine ใหม่ตาม OMS redesign spec §2
@@ -54,16 +53,14 @@ export async function createOrder(shopId: string, data: {
     }
   }
 
-  // fulfillmentMode ยังไม่อยู่ใน generated Prisma client (Task 1 authored-not-applied)
-  // ใช้ cast ตรงนี้เพื่อ persist ค่า — field จะถูก type-safe เมื่อ migrate + regenerate client
   return prisma.order.create({
     data: {
       shopId,
       type: data.type,
       totalAmount,
+      fulfillmentMode,
       items: { create: data.items },
-      ...(({ fulfillmentMode } as unknown) as Record<string, unknown>),
-    } as Prisma.OrderUncheckedCreateInput,
+    },
     include: { items: true },
   });
 }
@@ -124,9 +121,7 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   if (!order) throw new Error("Order not found");
   // Guard ใช้ fulfillmentMode แทน order.type (spec §2 ship guard)
   // รองรับ sub-box และ product type อื่น ๆ ที่อาจ override fulfillmentMode
-  // fulfillmentMode ยังไม่อยู่ใน generated client — cast ผ่าน unknown ก่อน cutover
-  const fm = (order as unknown as { fulfillmentMode: string }).fulfillmentMode;
-  if (fm !== "SHIPPED") {
+  if (order.fulfillmentMode !== "SHIPPED") {
     throw new Error("ออเดอร์นี้ไม่ต้องจัดส่ง");
   }
   assertTransition(order.status, "SHIPPED");
@@ -143,10 +138,9 @@ export async function cancelOrder(publicToken: string, initiator: "seller" | "bu
   if (!order) throw new Error("Order not found");
   // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
-  // cancelInitiator ยังไม่อยู่ใน generated client — cast ณ persistence boundary
   return prisma.order.update({
     where: { publicToken },
-    data: { status: "CANCELLED", ...({ cancelInitiator: initiator } as unknown as Record<string, unknown>) } as Prisma.OrderUncheckedUpdateInput,
+    data: { status: "CANCELLED", cancelInitiator: initiator },
   });
 }
 
