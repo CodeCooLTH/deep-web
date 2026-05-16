@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import FacebookProvider from "next-auth/providers/facebook";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
+import { evaluateSignupYearBadge } from "@/services/badge.service";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -71,6 +72,9 @@ export const authOptions: NextAuthOptions = {
             if (err && typeof err === "object" && "code" in err && err.code === "P2002") return null;
             throw err;
           }
+          // best-effort badge evaluation — ต้องอยู่นอก try ข้างบนเพื่อไม่ให้ badge error
+          // ถูก rethrow เป็น auth failure (security must-fix Phase-3)
+          try { await evaluateSignupYearBadge(user.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (phone) failed', e) }
         }
         return { id: user.id, name: user.displayName, email: user.email };
       },
@@ -133,6 +137,9 @@ export const authOptions: NextAuthOptions = {
             const { linkBuyerHistory } = await import("@/services/user.service");
             await linkBuyerHistory(dbUser.id, undefined, dbUser.email);
           }
+          // best-effort badge evaluation — อยู่ใน if (!dbUser) branch เท่านั้น
+          // (new-user only) ไม่กระทบ jwt refresh path (security must-fix Phase-3)
+          try { await evaluateSignupYearBadge(dbUser.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (facebook) failed', e) }
         }
         token.userId = dbUser.id;
       }
