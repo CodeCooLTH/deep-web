@@ -24,11 +24,13 @@ import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 
 // หมวดหมู่ร้านค้าที่รองรับใน SafePay MVP
+// เพิ่ม 'ยานยนต์' — ร้านค้าตัวอย่าง (seed) ใช้หมวดนี้; ลิสต์เดิมขาดไป
 const CATEGORIES = [
   'อาหารและเครื่องดื่ม',
   'แฟชั่น',
   'ความงาม',
   'อิเล็กทรอนิกส์',
+  'ยานยนต์',
   'บ้านและสวน',
   'บริการ',
   'ดิจิทัล',
@@ -154,6 +156,15 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
     }
   }
 
+  // สร้าง options สำหรับ category select:
+  // ถ้าค่าที่บันทึกไว้ใน DB ไม่อยู่ในลิสต์ canonical → prepend ไว้ก่อน
+  // เพื่อให้ select แสดง & รักษาค่าเดิมได้เสมอ ไม่ว่าจะเป็นค่าอะไร
+  const savedCategory = shop?.category ?? ''
+  const selectOptions =
+    savedCategory && !CATEGORIES.includes(savedCategory)
+      ? [savedCategory, ...CATEGORIES]
+      : CATEGORIES
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="card">
@@ -246,7 +257,7 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
                         </label>
                         <select className="form-select" {...register('category')}>
                           <option value="">-- เลือกหมวดหมู่ --</option>
-                          {CATEGORIES.map((cat) => (
+                          {selectOptions.map((cat) => (
                             <option key={cat} value={cat}>
                               {cat}
                             </option>
