@@ -138,3 +138,94 @@ export const ShipOrderSchema = v.object({
   provider: v.pipe(v.string(), v.minLength(1)),
   trackingNo: v.pipe(v.string(), v.minLength(1)),
 });
+
+// ─── Badge schemas (admin write endpoints) ───────────────────────────────────
+// ทำไม: POST/PATCH /api/admin/badges เคย pass raw JSON เข้า prisma.badge.create/update
+// โดยไม่ validate — ป้องกัน malformed criteria, audience ผิด, field ไม่ครบ
+// criteria discriminated union: validate fields ตาม type แต่ละ variant
+// unknown criteria.type → reject ทันที (ห้าม pass ค่าที่ service ไม่รู้จัก)
+
+/** criteria variants ที่รู้จักใน src/types/badge.ts (ต้องตรงกับ seed + service) */
+const KnownCriteriaTypes = [
+  'FIRST_ORDER',
+  'ORDER_COUNT',
+  'PERFECT_RATING',
+  'HIGH_RATING',
+  'ZERO_COMPLAINT',
+  'VETERAN',
+  'FAST_SHIPPING',
+  'FULL_VERIFICATION',
+  'UNIQUE_REVIEWERS',
+  'SIGNUP_YEAR',
+] as const;
+
+const BadgeCriteriaSchema = v.union([
+  // FIRST_ORDER — ไม่มี field เพิ่มเติม
+  v.object({ type: v.literal('FIRST_ORDER') }),
+  // ORDER_COUNT — count: number (จำนวน order สำเร็จ)
+  v.object({
+    type: v.literal('ORDER_COUNT'),
+    count: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // PERFECT_RATING — minReviews: number
+  v.object({
+    type: v.literal('PERFECT_RATING'),
+    minReviews: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // HIGH_RATING — minRating: number (decimal ok), minReviews: number
+  v.object({
+    type: v.literal('HIGH_RATING'),
+    minRating: v.pipe(v.number(), v.minValue(0.1)),
+    minReviews: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // ZERO_COMPLAINT — minOrders: number
+  v.object({
+    type: v.literal('ZERO_COMPLAINT'),
+    minOrders: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // VETERAN — minDays: number; statuses optional (service อาจ pass หรือไม่ก็ได้)
+  v.object({
+    type: v.literal('VETERAN'),
+    minDays: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    statuses: v.optional(v.array(v.pipe(v.string(), v.minLength(1)))),
+  }),
+  // FAST_SHIPPING — maxHours: number (decimal ok), minOrders: number; statuses optional
+  v.object({
+    type: v.literal('FAST_SHIPPING'),
+    maxHours: v.pipe(v.number(), v.minValue(0.1)),
+    minOrders: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    statuses: v.optional(v.array(v.pipe(v.string(), v.minLength(1)))),
+  }),
+  // FULL_VERIFICATION — ไม่มี field เพิ่มเติม
+  v.object({ type: v.literal('FULL_VERIFICATION') }),
+  // UNIQUE_REVIEWERS — count: number
+  v.object({
+    type: v.literal('UNIQUE_REVIEWERS'),
+    count: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // SIGNUP_YEAR — year: number (เช่น 2024)
+  v.object({
+    type: v.literal('SIGNUP_YEAR'),
+    year: v.pipe(v.number(), v.integer(), v.minValue(2000), v.maxValue(2100)),
+  }),
+]);
+
+export const CreateBadgeSchema = v.object({
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+  nameEN: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+  // icon เป็น String? ใน Prisma — nullable; ถ้าส่งมาต้องเป็น string non-empty
+  icon: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
+  type: v.picklist(['ACHIEVEMENT', 'VERIFICATION']),
+  audience: v.optional(v.picklist(['SELLER', 'BUYER', 'ANY'])),
+  criteria: BadgeCriteriaSchema,
+});
+
+export const UpdateBadgeSchema = v.object({
+  id: v.pipe(v.string(), v.minLength(1)),
+  name: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(80))),
+  nameEN: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(80))),
+  icon: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
+  type: v.optional(v.picklist(['ACHIEVEMENT', 'VERIFICATION'])),
+  audience: v.optional(v.picklist(['SELLER', 'BUYER', 'ANY'])),
+  criteria: v.optional(BadgeCriteriaSchema),
+});
