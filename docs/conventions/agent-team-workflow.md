@@ -222,3 +222,12 @@ Anchor ที่ได้ผล (ทำซ้ำ): independent review+security g
 
 7. **รัน test = `npm run test` เท่านั้น** (= `dotenv -e .env` → **Local Docker Postgres**). **ห้าม** `dotenv -e .env.local` (= Supabase shared — `tests/setup.ts` มี guard throw + destructive `cleanDatabase()` จะ wipe ข้อมูล dev). ก่อนรัน test ใด ๆ Controller/subagent **ต้องอ่าน `docs/conventions/seed-and-env.md`** + pre-flight เช็ก Docker daemon up (`docker ps`); ถ้า Docker ดับ → test = **BLOCKED by env** (defer, เหมือน browser QA) — **ห้ามสรุปว่า regression หรือ infra-flaky จากการรันผิด env/ไม่มี DB**. map ทุก fail: assertion (`expect`) = code; `PrismaClientInitializationError`/connect/`cleanDatabase` ก่อน test body = env.
 8. **เมื่อ test รันไม่ได้ (env blocker):** subagent ส่ง code + tsc + static behavior-preservation argument; Controller mark "code-gated, empirical test deferred" อย่างตรงไปตรงมา — **ห้าม claim verified-green**. ปลด defer เมื่อ env พร้อม (Docker up → `npm run test`).
+
+### Addendum (2026-05-16) — Context-shift review + external-paid dependency
+
+จาก retro `2026-05-16-real-sms-otp-apitel.md` (เปลี่ยน OTP mock→real apitel SMS; security เจอ HIGH ที่ reviewer มองข้าม — `consumeOtpRequestQuota` bypass เดิมปลอดภัยตอน console.log กลายเป็น cost-abuse ตอนส่ง SMS จริง). กฎบังคับ:
+
+9. **Context-shift review:** เมื่อ task เปลี่ยน runtime behavior ของระบบ (mock→real / free→paid / internal→external call / sync→async) — reviewer **และ** security ต้อง grep โค้ดเดิม *นอก diff* ที่ assumption ถูกทำให้ผิด (`if (TEST_`/bypass/short-circuit/skip/`NODE_ENV` guard ที่เคย no-op จึงปลอดภัย) แล้วประเมินใหม่ภายใต้ behavior ใหม่. review แค่ diff lines = miss. dispatch `safepay-security` เป็น **mandatory** สำหรับ task free→paid / external-call (ไม่ใช่แค่ auth/env/upload).
+10. **Lock external API schema ก่อน dispatch developer:** `safepay-developer` ไม่มี WebFetch — Controller ต้อง WebFetch ยืนยัน request+response schema (field names verbatim) ฝังใน developer prompt. ห้ามให้ developer เดา field name third-party API.
+11. **Comment-follows-logic:** developer ที่ลบ/ย้าย logic ต้อง grep ชื่อ function/flag ที่ลบ ใน comment ทั้ง repo + อัปเดต comment ที่อ้างถึง ก่อนรายงานเสร็จ.
+12. **External-paid-dependency QA:** provider ไม่มี sandbox + คิดเงินต่อ call → QA smoke ครอบ guard/error/degradation (invalid, format guard, rate-limit, provider-unconfigured→graceful) ด้วย curl; happy-path เต็มประกาศเป็น manual user-acceptance ระบุ pre-req (key + เบอร์จริง) ใน commit body + final report — ไม่ block phase เพราะรอ key.
