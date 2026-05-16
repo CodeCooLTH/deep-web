@@ -197,3 +197,21 @@ Feature · วันที่ · Requirement coverage (id|desc|status) · Comman
 ```
 Feature · Scope · Auth review · Authorization review · Env review · Sensitive-data review · Risks (severity|location|fix) · Final: PASS|FAIL|PARTIAL
 ```
+
+---
+
+## Lessons promoted — Achievements Phase 4 (retro 2026-05-16)
+
+ที่มา: `docs/retro/2026-05-16-achievements-phase4.md`. กฎ actionable ต่อไปนี้บังคับทุก phase:
+
+1. **Pre-flight ก่อนทุก feature/QA phase** (Controller, Phase 1 Discovery):
+   - `git status` — ถ้าไม่ clean: enumerate งาน uncommitted ของ human, แล้ว commit งาน agent ด้วย **explicit `git add <paths>` เท่านั้น** (ห้าม `-A`/`git add .`) + verify `git diff <file>` แต่ละไฟล์ว่าเป็นของ agent ล้วนก่อน add.
+   - probe dev server ด้วย `curl` หา **port จริง** — อย่าเชื่อ memory/หัวข้อ (เคยจำ 4000 จริง 3000).
+   - ถ้า browser QA อยู่ใน scope: เช็ก chrome-devtools MCP connected ก่อน นับ QA เป็น blocker ถ้าไม่พร้อม (mark deferred ไม่ใช่ skip).
+2. **Subagent: verify อย่า narrate.** ห้าม assert สาเหตุ repo/infra/ประวัติที่ไม่ได้ verify เอง. ผล test ที่ผันผวน: รัน ≥2 รอบ + map failing-test→function ก่อนสรุป flaky vs regression. Controller **ต้อง re-verify ทุก state-diagnosis ของ subagent** ก่อน act (เคย: dev วินิจฉัย setup.ts bug ที่ไม่มีจริง — reviewer รัน 2 รอบพบ 46/46).
+3. **Schema nullable/enum change = downstream type-fix ทั้งหมดใน Unit เดียว.** Migration task ต้อง `prisma generate` → `tsc` เต็ม → แก้ทุก break ก่อน claim เสร็จ. Reviewer ของ schema change ต้อง review **หลัง** client regen (ไม่ใช่ก่อน).
+4. **Service เปลี่ยนมา own side-effect** (เช่น recalc/award) → task เดียวกันต้องอัปเดต caller ทุกตัว; reviewer เช็ก caller redundancy (เคย: double `recalculateTrustScore`).
+5. **Switch/handler guard ต้อง uniform** ทุก case; Vitest มี case ต่อ handler ยืนยัน invariant (เช่น earned⟹ratio=1). Test ที่ต้อง "work around" service behavior = **flag เป็น bug ห้ามกลบ**.
+6. **Project agent/skill ที่เพิ่งสร้างใน session dispatch ไม่ได้จน session reload** — Controller วางแผนเผื่อ หรือใช้ general-purpose-embed อย่างรู้ตัว.
+
+Anchor ที่ได้ผล (ทำซ้ำ): independent review+security gate จับ bug จริง + subagent misdiagnosis ได้ทุก batch; planner "ต้อง Explore" ไม่เดา theme source; selective `git add` + verify diff กัน commit ปน; surface CRITICAL ให้ user ตัดสินแทน auto-fix กลาง feature.
