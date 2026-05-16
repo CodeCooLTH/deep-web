@@ -67,15 +67,12 @@ export default async function ProductDetailPage({
         const review = o.review
         let reviewerLabel = 'ลูกค้า'
         if (o.buyerContact) {
-          // Mask ข้อมูลผู้ซื้อ: แสดงเฉพาะส่วนที่จำเป็น
+          // Mask ตาม PDPA: แสดงเฉพาะ 4 ตัวท้าย — เหมือนกับ CustomerDetails และ customers/page
+          // (ไม่แยก local/domain ของ email เพื่อไม่รั่ว domain และตัวแรกของ local part)
           const contact = String(o.buyerContact)
-          if (contact.includes('@')) {
-            const [local, domain] = contact.split('@')
-            reviewerLabel = `${local.slice(0, 2)}***@${domain}`
-          } else {
-            // Phone: แสดงแค่ 4 หลักท้าย
-            reviewerLabel = `•••${contact.slice(-4)}`
-          }
+          reviewerLabel = contact.length <= 4
+            ? contact || 'ลูกค้า'
+            : '•'.repeat(Math.max(0, contact.length - 4)) + contact.slice(-4)
         }
         reviewRows.push({
           id: review.id,
