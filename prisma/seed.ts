@@ -80,8 +80,9 @@ async function main() {
   });
   console.log(`Seeded admin user: ${admin.id}`);
 
-  // Seed test account — phone 0920791649 / OTP 123456 (bypass in src/lib/otp.ts)
-  // Remove together with the OTP bypass before production.
+  // Seed user — phone 0920791649 (username testuser, isShop).
+  // OTP bypass ถูกถอดแล้ว (user request 2026-05-16) — login ต้องใช้ SMS OTP จริง
+  // ผ่าน apitel เหมือนเบอร์ปกติ ไม่มี OTP ตายตัว 123456 อีกต่อไป
   const testUser = await prisma.user.upsert({
     where: { username: "testuser" },
     update: { isShop: true },

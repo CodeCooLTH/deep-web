@@ -45,19 +45,11 @@ export function storeOtp(contact: string): string {
   return otp;
 }
 
-// Test account bypass — remove in production.
-// Used to log in without DB/SMS for smoke-testing the UI flow.
-export const TEST_ACCOUNT = {
-  phone: '0920791649',
-  otp: '123456',
-  id: 'test-user-0920791649',
-  displayName: 'ผู้ใช้ทดสอบ',
-  username: 'testuser',
-} as const;
-
+// Test account verify-bypass — remove in production.
+// 0920791649 ถูกถอดออกแล้ว (user request 2026-05-16) — ตอนนี้เป็นเบอร์ปกติ
+// ส่ง SMS จริง + verify ผ่าน otpStore เท่านั้น ไม่มี OTP ตายตัว
 const TEST_ACCOUNTS: Record<string, string> = {
-  [TEST_ACCOUNT.phone]: TEST_ACCOUNT.otp,
-  '0000000001': '123456', // 2nd seller test account — BT Premium สุขสวัสดิ์
+  '0000000001': '123456', // seller test account — BT Premium สุขสวัสดิ์
 };
 
 /**
