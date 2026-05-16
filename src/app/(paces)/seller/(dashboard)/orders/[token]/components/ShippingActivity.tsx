@@ -5,7 +5,7 @@
  * - ลบ data mock (shippingTimelineData + trackingNo + trackingBy) ออก
  * - แทนด้วย timeline ที่ derive จาก status จริงของ order SafePay
  * - SafePay ไม่มี shipping-carrier event feed → derive timeline จาก state machine
- *   (CREATED → CONFIRMED → SHIPPED/COMPLETED → CANCELLED) พร้อม createdAt ที่รู้
+ *   (PENDING → SHIPPED → CONFIRMED ; NO_SHIPPING: PENDING → CONFIRMED ; * → CANCELLED) พร้อม createdAt ที่รู้
  * - แสดง shipmentTracking provider/trackingNo ถ้ามี (PHYSICAL orders)
  * - คง: timeline layout, dot-and-line CSS, card structure
  * - empty-state ที่ชัดเจน ถ้า status ไม่รู้จัก

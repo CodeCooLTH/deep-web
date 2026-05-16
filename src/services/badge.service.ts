@@ -6,10 +6,10 @@
  *   of truth แยกกัน 2 แห่ง (service + seed.ts). เวอร์ชันใหม่ดึง Badge ทุกแถวจาก DB
  *   แล้ว dispatch ตาม criteria.type ทำให้ seed.ts เป็น source เดียว.
  *
- * Known Gap #5 (OMS redesign): order status 'COMPLETED' hardcode เป็น module const
- *   DEFAULT_TERMINAL_STATUSES — handler ใดที่ต้องนับ completed order ใช้ค่านี้
+ * OMS redesign (done 2026-05-16): terminal order status = 'CONFIRMED' เป็น module const
+ *   DEFAULT_TERMINAL_STATUSES — handler ใดที่ต้องนับ order สำเร็จใช้ค่านี้
  *   เป็น default, แต่ถ้า badge row มี criteria.statuses[] ก็ override ได้.
- *   เมื่อ OMS ออกแบบใหม่ให้เปลี่ยนที่ const นี้ที่เดียว ไม่ต้องแตะ handler ทุกตัว.
+ *   ถ้า state machine เปลี่ยนอีกให้แก้ที่ const นี้ที่เดียว ไม่ต้องแตะ handler ทุกตัว.
  *
  * U1 hardening (retro 2026-05-16 #3):
  *   (1) resolveStatuses() — validate criteria.statuses ก่อนส่งเข้า Prisma

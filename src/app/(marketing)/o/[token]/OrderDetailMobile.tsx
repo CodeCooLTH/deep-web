@@ -261,7 +261,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
         {canReview && <ReviewForm token={order.publicToken} />}
       </div>
 
-      {/* Fixed bottom CTA — เฉพาะ CREATED state */}
+      {/* Fixed bottom CTA — เฉพาะ PENDING/SHIPPED (canConfirm) */}
       {canConfirm && (
         <div
           className='fixed inset-x-0 bottom-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)] shadow-[0_-4px_12px_rgba(0,0,0,0.06)]'
