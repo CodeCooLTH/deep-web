@@ -99,9 +99,14 @@ StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
 - **Ref:** PRD §11 #1, FR-4.3
 
 ## 9. Feature: Paid SMS Order Link + Seller Wallet/Credit [MVP-Must, S-8/FR-6.8/6.9/§10]
-- **สถานะ:** Phase 1-3 เสร็จ (Discovery/Requirement/Design+Security — read-only). **Phase 4 BUILD deferred.**
-- **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` (decisions D1-D3 + RC-1..8 mandatory + AR-1..3) · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md` (22-task, batches, preconditions, theme map)
-- **เริ่ม build เมื่อ:** preconditions ในไฟล์ plan ครบ — สำคัญสุด: parallel stream commit (schema.prisma + /o/[token] ชนตรง ๆ) + Explore E1-E4 + safepay-database migration + apitel WebFetch. แล้ว invoke `agent-team-feature` ต่อจาก Phase 4.
+- **สถานะ (2026-05-16 checkpoint):** Phase 4 backend **บางส่วนเสร็จ**:
+  - Unit A schema/migration `367f3c9` (4 model additive + CHECK balance>=0)
+  - B1: T2 sms.ts `4077133` · T3 wallet.service `20b9b40` · T4 sms-code.service `e1808f6` (reviewed+committed)
+  - B2: T5 topup.service `6833a2f`→fix `6ed858d` · T8 GET /api/wallet `e65bac3`→fix `cdf9f6c` (gate-3 reviewed post-commit; 2 money/integrity must-fix แก้แล้ว: approveTopUp double-credit, rejectTopUp TOCTOU, T8 try/catch+strip walletId)
+- **🔴 BLOCKED — T6 + B3 + B4:** `src/lib/validations.ts` ปนงาน parallel stream (Badge: `BadgeImageUploadSchema` uncommitted, intermix กับ T6 SendSms/TopUp schemas). isolate-commit ไม่ได้ (git add -p interactive ไม่รองรับ env นี้; whole-file add = bundle parallel = ผิด pre-flight). **T6 commit ไม่ได้ → B3 (T7 send-sms/T9 topup-POST/T12 admin-topups-GET) + B4 (T10 approve/T11 reject) import schemas เหล่านั้นไม่ได้.**
+- **วิธีเช็ค unblock:** `git diff src/lib/validations.ts | grep BadgeImageUploadSchema` — ถ้า **ไม่มี output** (parallel commit Badge schema แล้ว) → validations.ts เหลือแต่ T6 ผม → commit T6 ได้ → ทำ B3→B4→backend checkpoint→Phase 5(security re-review)→6(QA)→7(retro).
+- **carry-forward hard requirement:** B4 T10 `/api/admin/topups/[id]/approve|reject` **ต้อง** enforce RC-7 self-approve block (`topUpRequest.shop.userId !== session.user.id`) ตาม pattern `src/app/api/admin/verifications/[id]/route.ts:13-23` — service ไม่ enforce (รับแค่ adminId). ขาด = financial fraud (admin ที่เป็นเจ้าของร้านอนุมัติ top-up ตัวเอง).
+- **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md`
 
 ## 🟡 ต่ำกว่า / ไม่ note ละเอียด (ดู PRD §11 ตรง)
 #10 admin metrics บางตัวขาด (Completion Rate/Avg Rating/Active Users; avgTrust มีแล้ว) ·
