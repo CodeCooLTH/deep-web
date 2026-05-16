@@ -35,6 +35,7 @@ const MENU_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'หน้าหลักของฉัน', icon: 'tabler-home' },
   { href: '/orders', label: 'การซื้อของฉัน', icon: 'tabler-shopping-bag' },
   { href: '/reviews', label: 'รีวิวที่ให้', icon: 'tabler-star' },
+  { href: '/badges', label: 'ความสำเร็จ', icon: 'tabler-award' },
   { href: '/settings/verification', label: 'ยืนยันตัวตน', icon: 'tabler-shield-check' },
   { href: '/settings/profile', label: 'ตั้งค่าบัญชี', icon: 'tabler-user-cog' },
 ]

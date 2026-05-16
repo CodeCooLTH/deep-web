@@ -9,6 +9,7 @@ export const sellerMenuItems: MenuItemType[] = [
     children: [
       { url: '/dashboard', slug: 'seller:dashboard', label: 'ภาพรวมร้านค้า', icon: 'dashboard' },
       { url: '/sales', slug: 'seller:sales', label: 'ภาพรวมยอดขาย', icon: 'chart-line' },
+      { url: '/badges', slug: 'seller:badges', label: 'ความสำเร็จ', icon: 'award' },
     ],
   },
   {
