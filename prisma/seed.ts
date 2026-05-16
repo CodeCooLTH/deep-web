@@ -95,6 +95,11 @@ async function main() {
       authAccounts: {
         create: { provider: "PHONE", providerAccountId: "0920791649" },
       },
+      // PRD FR-2.2: phone user ต้องมี L1 PHONE_OTP APPROVED ตั้งแต่แรก
+      // ป้องกัน verification page แสดง "ยังไม่ปลดล็อก" หลัง seed ใหม่
+      verifications: {
+        create: { type: "PHONE_OTP", level: 1, status: "APPROVED", reviewedAt: new Date() },
+      },
     },
   });
   console.log(`Seeded test user: ${testUser.id}`);
@@ -112,6 +117,10 @@ async function main() {
       isShop: true,
       authAccounts: {
         create: { provider: "PHONE", providerAccountId: "0000000001" },
+      },
+      // PRD FR-2.2: ใส่ L1 record ให้ตรงกับ testUser — ป้องกัน verification page แสดง "ยังไม่ปลดล็อก"
+      verifications: {
+        create: { type: "PHONE_OTP", level: 1, status: "APPROVED", reviewedAt: new Date() },
       },
     },
   });

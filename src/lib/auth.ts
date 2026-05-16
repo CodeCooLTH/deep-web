@@ -106,6 +106,30 @@ export const authOptions: NextAuthOptions = {
           // ถูก rethrow เป็น auth failure (security must-fix Phase-3)
           try { await evaluateSignupYearBadge(user.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (phone) failed', e) }
         }
+
+        // ensure L1 PHONE_OTP record สำหรับ user ที่มีอยู่แล้ว (seeded / สร้างก่อน logic นี้มี):
+        // — user ใหม่มี record จาก nested create ข้างบนแล้ว → findFirst เจอ → ไม่ create ซ้ำ (idempotent)
+        // — user เก่าที่ไม่มี record → findFirst ไม่เจอ → create ให้ครั้งเดียว
+        // ห่อ try/catch best-effort: DB error ของ ensure ไม่ควรทำให้ login พัง
+        try {
+          const existing = await prisma.verificationRecord.findFirst({
+            where: { userId: user.id, type: "PHONE_OTP", level: 1 },
+          });
+          if (!existing) {
+            await prisma.verificationRecord.create({
+              data: {
+                userId: user.id,
+                type: "PHONE_OTP",
+                level: 1,
+                status: "APPROVED",
+                reviewedAt: new Date(),
+              },
+            });
+          }
+        } catch (e) {
+          console.error("[auth] ensure L1 VerificationRecord failed", e);
+        }
+
         return { id: user.id, name: user.displayName, email: user.email };
       },
     }),
