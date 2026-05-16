@@ -1,39 +1,59 @@
+/**
+ * Seller Dashboard — ภาพรวมร้านค้า
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
+ *
+ * Widget mapping (per docs/system/ui-guideline/seller/page-sourcing.md):
+ *  - UserCard          → kept, รับ shopName + trustScore จาก server
+ *  - StatisticCard     → kept, map orders/revenue/trust score (x3)
+ *  - AchievementLevel  → kept (compose-from StatisticCard shell), แทนที่ WeeklyPerformanceInsights
+ *  - SalesReport       → kept, Thai copy, headline stats เป็น 0 (honest-zero)
+ *  - RecentOrder       → kept, Thai copy
+ *
+ *  DROPPED (ไม่อยู่ใน keep-list ของ page-sourcing.md + ไม่มี real data source ใน MVP):
+ *  - StorePerformanceOverview (fake channel donut, Math.random refresh)
+ *  - TopSellingProducts (12 Paces furniture fixtures, USD prices)
+ *  - RecentActivity (fake English platform events, ไม่มี activity-log model)
+ *  - RevenueByLocation (ไม่มี geo data)
+ *  - WeeklyPerformanceInsights (ไม่มีใน SafePay schema)
+ */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTrustLevel } from '@/services/trust-score.service'
+import { getOrdersByShop } from '@/services/order.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
-import { statData } from './components/data'
-import RecentActivity from './components/RecentActivity'
 import RecentOrder from './components/RecentOrder'
-import RevenueByLocation from './components/RevenueByLocation'
 import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
-import StorePerformanceOverview from './components/StorePerformanceOverview'
-import TopSellingProducts from './components/TopSellingProducts'
 import UserCard from './components/UserCard'
 import AchievementLevel from './components/AchievementLevel'
 import type { AchievementBadge } from './components/AchievementLevel'
+import type { StatType } from './components/StatisticCard'
+import type { OrderType } from './components/data'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
-function criteriaToText(c: any): string {
+// ─── helper: แปล badge criteria object → ข้อความไทย ─────────────────────────
+function criteriaToText(c: unknown): string {
   if (!c || typeof c !== 'object') return ''
-  switch (c.type) {
+  const obj = c as Record<string, unknown>
+  switch (obj['type']) {
     case 'FIRST_ORDER':       return 'ปิดออเดอร์แรกได้'
-    case 'ORDER_COUNT':       return `ปิด ${c.count} ออเดอร์`
-    case 'PERFECT_RATING':    return `เรตติ้ง 5.0 (ต้องมี ${c.minReviews}+ รีวิว)`
-    case 'HIGH_RATING':       return `เรตติ้ง ≥ ${c.minRating} (${c.minReviews}+ รีวิว)`
-    case 'ZERO_COMPLAINT':    return `ปิด ${c.minOrders} ออเดอร์ ไม่มี cancel`
-    case 'VETERAN':           return `เป็นสมาชิกครบ ${c.minDays ?? 365} วัน`
-    case 'FAST_SHIPPING':     return `จัดส่งเฉลี่ย ≤ ${c.maxHours} ชม. (${c.minOrders}+ ออเดอร์)`
+    case 'ORDER_COUNT':       return `ปิด ${obj['count']} ออเดอร์`
+    case 'PERFECT_RATING':    return `เรตติ้ง 5.0 (ต้องมี ${obj['minReviews']}+ รีวิว)`
+    case 'HIGH_RATING':       return `เรตติ้ง ≥ ${obj['minRating']} (${obj['minReviews']}+ รีวิว)`
+    case 'ZERO_COMPLAINT':    return `ปิด ${obj['minOrders']} ออเดอร์ ไม่มี cancel`
+    case 'VETERAN':           return `เป็นสมาชิกครบ ${obj['minDays'] ?? 365} วัน`
+    case 'FAST_SHIPPING':     return `จัดส่งเฉลี่ย ≤ ${obj['maxHours']} ชม. (${obj['minOrders']}+ ออเดอร์)`
     case 'FULL_VERIFICATION': return 'ยืนยันตัวตนครบทุกระดับ'
-    case 'UNIQUE_REVIEWERS':  return `ผู้รีวิว ${c.count}+ คน`
+    case 'UNIQUE_REVIEWERS':  return `ผู้รีวิว ${obj['count']}+ คน`
     default:                  return ''
   }
 }
 
+// tailwind text-color class ต่อ trust level
 const LEVEL_COLOR: Record<string, string> = {
   'A+': 'text-success',
   'A':  'text-success',
@@ -43,16 +63,21 @@ const LEVEL_COLOR: Record<string, string> = {
   'D':  'text-danger',
 }
 
+// stat card data รับ live values จากนั้น fallback 0 ถ้ายังไม่มี session
+
 export default async function SellerDashboardPage() {
   const session = await getServerSession(authOptions)
-  const user = (session as any)?.user
+  const user = (session as { user?: { id?: string; trustScore?: number; name?: string } } | null)?.user
 
-  // Fetch achievement badge data server-side
+  // ─── badge + trust score data (server-side) ─────────────────────────────────
   let badges: AchievementBadge[] = []
   let score = 0
   let level = 'D'
   let levelColor = 'text-danger'
   let nextMilestone: string | undefined
+  let shopName = 'ร้านค้าของคุณ'
+  // ออเดอร์ล่าสุดสำหรับ RecentOrder widget (real data)
+  let recentOrders: OrderType[] = []
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -60,6 +85,29 @@ export default async function SellerDashboardPage() {
     levelColor = LEVEL_COLOR[level] ?? 'text-primary'
 
     try {
+      // ดึงชื่อร้านค้า + id เพื่อแสดงใน UserCard header และ fetch orders
+      const shop = await prisma.shop.findUnique({
+        where: { userId: user.id },
+        select: { id: true, shopName: true },
+      })
+      if (shop?.shopName) shopName = shop.shopName
+
+      // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
+      if (shop?.id) {
+        const rawOrders = await getOrdersByShop(shop.id)
+        // เอา 8 รายการล่าสุด; map เป็น OrderType ที่ client component รับได้
+        // totalAmount เป็น Prisma Decimal → ต้อง Number() ก่อนส่งผ่าน RSC boundary
+        // createdAt เป็น Date → .toISOString() ป้องกัน Date serialization error
+        recentOrders = rawOrders.slice(0, 8).map((o) => ({
+          token: o.publicToken,
+          buyerLabel: o.buyerContact ?? 'ไม่ระบุ',
+          createdAtISO: o.createdAt.toISOString(),
+          totalAmount: Number(o.totalAmount),
+          type: o.type,
+          status: o.status as OrderType['status'],
+        }))
+      }
+
       const earnedRows = await prisma.userBadge.findMany({
         where: { userId: user.id },
         select: { badgeId: true },
@@ -71,67 +119,72 @@ export default async function SellerDashboardPage() {
         orderBy: { createdAt: 'asc' },
       })
 
-      badges = allBadges.map((b: any) => ({
+      badges = allBadges.map((b: { id: string; name: string; nameEN: string; icon: string | null; criteria: unknown }) => ({
         id: b.id,
         name: b.name,
         nameEN: b.nameEN,
         icon: b.icon,
         earned: earnedBadgeIds.has(b.id),
-        criteria: criteriaToText(b.criteria as any),
+        criteria: criteriaToText(b.criteria),
       }))
 
       const firstUnearned = badges.find((b) => !b.earned)
       nextMilestone = firstUnearned
         ? `ยังต้องการ: ${firstUnearned.criteria}`
-        : 'ปลดล็อกทุก achievement แล้ว 🎉'
-    } catch {
+        : 'ปลดล็อกทุก achievement แล้ว!'
+    } catch (e) {
+      // ใช้ console.error เพื่อ surface error ที่ซ่อนอยู่ — silent catch คือสาเหตุที่ QA พบ
+      // badges=[] โดยไม่รู้ว่า query throw อะไร (S5-badgefix)
+      console.error('[dashboard] badge fetch failed', e)
       badges = []
       nextMilestone = undefined
     }
   }
 
+  // stat cards — รับ score จาก trust score จริง; orders/revenue ยังเป็น placeholder ใน MVP
+  const statData: StatType[] = [
+    { title: 'ออเดอร์', value: 0, change: 0, icon: 'shopping-cart' },
+    { title: 'รายได้', value: 0, prefix: '฿', suffix: 'k', change: 0, icon: 'pig-money' },
+    { title: 'Trust Score', value: score, suffix: '/100', change: 0, icon: 'shield-check' },
+  ]
+
   return (
     <>
       <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'Analytics' }]} />
 
+      {/* แถว 1 (theme row 1): UserCard + StatCards (5 คอล) | AchievementLevel (7 คอล)
+          StorePerformanceOverview ถูก drop → AchievementLevel ยึด 7 คอลเต็ม */}
       <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
         <div className="xl:col-span-5">
           <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
-            <UserCard />
+            <UserCard shopName={shopName} trustScore={score} />
             {statData.map((stat, idx) => (
               <StatisticCard stat={stat} key={idx} />
             ))}
           </div>
         </div>
         <div className="xl:col-span-7">
-          <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
-            <StorePerformanceOverview />
-            <AchievementLevel
-              score={score}
-              level={level}
-              levelColor={levelColor}
-              badges={badges}
-              nextMilestone={nextMilestone}
-            />
-          </div>
+          <AchievementLevel
+            score={score}
+            level={level}
+            levelColor={levelColor}
+            badges={badges}
+            nextMilestone={nextMilestone}
+          />
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
+      {/* แถว 2 (theme row 2): SalesReport เต็มความกว้าง
+          TopSellingProducts ถูก drop → SalesReport ยึดทั้งแถว */}
+      <div className="grid grid-cols-1 gap-base mb-base">
         <SalesReport />
-        <TopSellingProducts />
       </div>
 
-      <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
-        <div className="xl:col-span-5">
-          <RecentOrder />
-        </div>
-        <div className="xl:col-span-7">
-          <div className="grid xl:grid-cols-2 grid-cols-1 gap-base h-full">
-            <RevenueByLocation />
-            <RecentActivity />
-          </div>
-        </div>
+      {/* แถว 3 (theme row 3): RecentOrder เต็มความกว้าง
+          RecentActivity ถูก drop → RecentOrder ยึดทั้งแถว
+          orders รับจาก getOrdersByShop — ถ้าไม่มีออเดอร์จะแสดง empty state */}
+      <div className="grid grid-cols-1 gap-base">
+        <RecentOrder orders={recentOrders} />
       </div>
     </>
   )

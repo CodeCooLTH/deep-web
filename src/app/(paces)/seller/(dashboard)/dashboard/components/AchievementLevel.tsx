@@ -1,3 +1,12 @@
+/**
+ * AchievementLevel — widget แสดงระดับ trust + badges ของร้านค้า
+ *
+ * Base (compose-from): theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
+ * (card shell: card/card-header/card-body primitives จาก Paces; behavior + data logic เป็น SafePay core)
+ *
+ * เป็น SafePay core system — ห้ามลบ; badge grid แสดง earned/unearned state
+ * Circular ring วาด SVG ตรงๆ ไม่พึ่ง lib เพิ่มเติม
+ */
 'use client'
 
 import { CountUp } from '@/components/wrappers/CountUp'
@@ -8,7 +17,7 @@ export type AchievementBadge = {
   id: string
   name: string
   nameEN: string
-  icon: string        // legacy (emoji) — kept for backward compat, no longer rendered
+  icon: string | null // legacy (emoji) — nullable since Badge.icon migration; not rendered (uses LUCIDE_FOR_BADGE)
   earned: boolean
   criteria: string    // human-readable criteria (e.g. "สั่ง 50 ออเดอร์")
 }

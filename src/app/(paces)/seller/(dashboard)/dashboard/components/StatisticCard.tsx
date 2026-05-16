@@ -1,7 +1,23 @@
+/**
+ * StatisticCard — stat card แสดงตัวเลข orders / revenue / trust score
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
+ *
+ * เปลี่ยน "Since last month" → "เทียบเดือนที่แล้ว" (Thai copy)
+ * ปรับ change color ให้รองรับ change === 0 (ไม่แสดง arrow)
+ */
 import { CountUp } from '@/components/wrappers/CountUp'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { StatType } from './data'
+
+export type StatType = {
+  title: string
+  value: number
+  prefix?: string
+  suffix?: string
+  change: number
+  icon: string
+}
 
 const StatisticCard = ({ stat }: { stat: StatType }) => {
   const { title, value, prefix, suffix, change, icon } = stat

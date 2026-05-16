@@ -1,16 +1,42 @@
+/**
+ * RecentOrder — ตารางออเดอร์ล่าสุด
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/RecentOrder.tsx
+ *
+ * เปลี่ยน copy เป็นภาษาไทย; เพิ่ม filterFns: {} ตาม retro B1 (tanstack/react-table debt)
+ * รับ orders prop จาก server — ถ้าไม่มีออเดอร์ fallback เป็น empty array + empty state
+ * ลบ mock orderData ออก (S5-rework-2) ป้องกัน fake order บน dashboard
+ */
 'use client'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { cn, toPascalCase } from '@/utils/helpers'
-import { createColumnHelper, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable } from '@tanstack/react-table'
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  SortingState,
+  useReactTable,
+} from '@tanstack/react-table'
 import { useState } from 'react'
-import { orderData, OrderType } from './data'
+import type { OrderType } from './data'
 
 const columnHelper = createColumnHelper<OrderType>()
 
-const RecentOrder = ({ orders }: { orders?: OrderType[] }) => {
-  const [data] = useState<OrderType[]>(orders ?? orderData)
+// แปลงสถานะจาก Prisma enum เป็นภาษาไทยสำหรับ badge
+const STATUS_LABEL: Record<string, string> = {
+  CREATED: 'รอยืนยัน',
+  CONFIRMED: 'ยืนยันแล้ว',
+  SHIPPED: 'จัดส่งแล้ว',
+  COMPLETED: 'สำเร็จ',
+  CANCELLED: 'ยกเลิก',
+}
+
+const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
+  const [data] = useState<OrderType[]>(orders)
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({
     pageIndex: 0,
@@ -18,50 +44,72 @@ const RecentOrder = ({ orders }: { orders?: OrderType[] }) => {
   })
 
   const columns = [
-    columnHelper.accessor('id', {
-      header: '#ID',
-    }),
-
-    columnHelper.accessor('customer', {
-      header: 'Customer',
-      cell: ({ row }) => (
-        <>
-          <h5 className="font-semibold">{row.original.customer.name}</h5>
-          <span className="text-default-400 text-xs">{row.original.customer.email}</span>
-        </>
+    columnHelper.accessor('token', {
+      header: 'รหัส',
+      cell: ({ getValue }) => (
+        <span className="font-mono text-xs text-default-500">
+          {getValue().slice(0, 8).toUpperCase()}
+        </span>
       ),
     }),
 
-    columnHelper.accessor('date', {
-      header: 'Date',
+    columnHelper.accessor('buyerLabel', {
+      header: 'ผู้ซื้อ',
+      cell: ({ getValue }) => (
+        <span className="font-semibold">{getValue()}</span>
+      ),
     }),
 
-    columnHelper.accessor('amount', {
-      header: 'Amount',
+    columnHelper.accessor('createdAtISO', {
+      header: 'วันที่',
+      cell: ({ getValue }) => {
+        // format วันที่เป็น th-TH ที่ client (หลีกเลี่ยง hydration mismatch)
+        const d = new Date(getValue())
+        return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+      },
     }),
 
-    columnHelper.accessor('payment', {
-      header: 'Payment',
+    columnHelper.accessor('totalAmount', {
+      header: 'ยอด',
+      cell: ({ getValue }) =>
+        new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(
+          getValue()
+        ),
+    }),
+
+    columnHelper.accessor('type', {
+      header: 'ประเภท',
+      cell: ({ getValue }) => {
+        const typeLabel: Record<string, string> = {
+          PHYSICAL: 'สินค้า',
+          DIGITAL: 'ดิจิทัล',
+          SERVICE: 'บริการ',
+        }
+        return typeLabel[getValue()] ?? getValue()
+      },
     }),
 
     columnHelper.accessor('status', {
-      header: 'Status',
+      header: 'สถานะ',
       cell: ({ row }) => {
+        const s = row.original.status
         return (
           <span
             className={cn('badge', {
-              'bg-success/15 text-success': row.original.status === 'completed',
-              'bg-warning/15 text-warning': row.original.status === 'pending',
-              'bg-danger/15 text-danger': row.original.status === 'cancelled',
+              'bg-success/15 text-success': s === 'COMPLETED',
+              'bg-warning/15 text-warning': s === 'CREATED' || s === 'CONFIRMED',
+              'bg-primary/15 text-primary': s === 'SHIPPED',
+              'bg-danger/15 text-danger': s === 'CANCELLED',
             })}
           >
-            {toPascalCase(row.original.status)}
+            {STATUS_LABEL[s] ?? toPascalCase(s)}
           </span>
         )
       },
     }),
   ]
 
+  // filterFns: {} required — tanstack v8 retro B1 debt fix
   const table = useReactTable({
     data,
     columns,
@@ -72,49 +120,61 @@ const RecentOrder = ({ orders }: { orders?: OrderType[] }) => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    filterFns: {},
   })
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
   const totalItems = table.getFilteredRowModel().rows.length
 
-  const start = pageIndex * pageSize + 1
+  const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
   return (
     <div className="card h-full">
       <div className="card-header">
         <h4 className="card-title">
-          Recent Orders <span className="text-default-400 text-sm font-normal ms-1">(186.25k Transactions)</span>
+          ออเดอร์ล่าสุด
         </h4>
         <div>
           <button className="btn btn-sm border-default-300 hover:border-default-400 font-semibold me-1">
-            <Icon icon="cloud-upload" /> Export
+            <Icon icon="cloud-upload" /> ส่งออก
           </button>
           <button className="btn btn-sm bg-light hover:text-primary font-semibold">
-            <Icon icon="download" /> Import
+            <Icon icon="download" /> นำเข้า
           </button>
         </div>
       </div>
       <div className="card-body p-0">
-        <DataTable<OrderType> table={table} emptyMessage="No orders found" className="table-centered table-hover" />
+        {data.length === 0 ? (
+          // empty state — แสดงเมื่อยังไม่มีออเดอร์ในร้าน
+          <div className="flex flex-col items-center justify-center py-12 text-center text-default-400">
+            <Icon icon="shopping-cart-off" className="text-4xl mb-3 opacity-40" />
+            <p className="font-medium">ยังไม่มีออเดอร์</p>
+            <p className="text-xs mt-1">เมื่อมีออเดอร์เข้ามา จะแสดงที่นี่</p>
+          </div>
+        ) : (
+          <DataTable<OrderType> table={table} emptyMessage="ไม่พบออเดอร์" className="table-centered table-hover" />
+        )}
       </div>
-      <div className="card-footer">
-        <TablePagination
-          totalItems={totalItems}
-          start={start}
-          end={end}
-          itemsName="orders"
-          showInfo
-          previousPage={table.previousPage}
-          canPreviousPage={table.getCanPreviousPage()}
-          pageCount={table.getPageCount()}
-          pageIndex={pageIndex}
-          setPageIndex={table.setPageIndex}
-          nextPage={table.nextPage}
-          canNextPage={table.getCanNextPage()}
-        />
-      </div>
+      {data.length > 0 && (
+        <div className="card-footer">
+          <TablePagination
+            totalItems={totalItems}
+            start={start}
+            end={end}
+            itemsName="ออเดอร์"
+            showInfo
+            previousPage={table.previousPage}
+            canPreviousPage={table.getCanPreviousPage()}
+            pageCount={table.getPageCount()}
+            pageIndex={pageIndex}
+            setPageIndex={table.setPageIndex}
+            nextPage={table.nextPage}
+            canNextPage={table.getCanNextPage()}
+          />
+        </div>
+      )}
     </div>
   )
 }
