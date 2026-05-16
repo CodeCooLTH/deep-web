@@ -127,7 +127,7 @@ export default function SignUpForm() {
         username: values.username,
         shopName: values.shopName,
       })
-      router.push(`/seller/auth/verify-otp?${params.toString()}`)
+      router.push(`/auth/verify-otp?${params.toString()}`)
     } catch {
       toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
     }

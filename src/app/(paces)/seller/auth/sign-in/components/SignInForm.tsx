@@ -52,7 +52,7 @@ export default function SignInForm() {
       }
       // redirect ไปหน้า verify-otp พร้อม mode=signin และ phone param
       router.push(
-        `/seller/auth/verify-otp?mode=signin&phone=${encodeURIComponent(phone)}`
+        `/auth/verify-otp?mode=signin&phone=${encodeURIComponent(phone)}`
       )
     } catch {
       toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')

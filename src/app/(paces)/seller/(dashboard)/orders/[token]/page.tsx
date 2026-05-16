@@ -35,7 +35,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  if (!user) redirect('/seller/auth/sign-in')
+  if (!user) redirect('/auth/sign-in')
 
   let shop: any = null
   try {
@@ -44,7 +44,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     shop = null
   }
 
-  if (!shop) redirect('/seller/orders')
+  if (!shop) redirect('/orders')
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)
@@ -89,7 +89,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     <>
       <PageBreadcrumb
         title="รายละเอียดออเดอร์"
-        trail={[{ label: 'คำสั่งซื้อ', href: '/seller/orders' }]}
+        trail={[{ label: 'คำสั่งซื้อ', href: '/orders' }]}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">

@@ -55,7 +55,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         <h2 className="text-xl font-bold text-dark mb-2">ยังไม่มีร้านค้า</h2>
         <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะดูออเดอร์ได้</p>
         <Link
-          href="/seller/shop"
+          href="/shop"
           className="btn bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-hover inline-flex items-center gap-2"
         >
           <Icon icon="plus" />

@@ -48,7 +48,7 @@ const Page = () => {
               <p className="text-default-400 mt-7.5 text-center">
                 มีบัญชีอยู่แล้ว?&nbsp;
                 <Link
-                  href="/seller/auth/sign-in"
+                  href="/auth/sign-in"
                   className="text-primary font-semibold underline underline-offset-4"
                 >
                   เข้าสู่ระบบ

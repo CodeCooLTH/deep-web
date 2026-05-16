@@ -70,7 +70,7 @@ export default async function VerificationPage() {
         <SellerErrorState
           title="โหลดข้อมูลการยืนยันตัวตนไม่สำเร็จ"
           message="เกิดข้อผิดพลาดชั่วคราว ลองโหลดใหม่อีกครั้ง"
-          retryHref="/seller/verification"
+          retryHref="/verification"
         />
       </>
     )

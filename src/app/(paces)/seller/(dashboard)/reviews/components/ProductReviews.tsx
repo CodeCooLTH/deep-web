@@ -117,10 +117,10 @@ const ProductReviews = ({ reviews, summary }: Props) => {
       enableSorting: false,
       enableColumnFilter: false,
       cell: ({ row }: { row: { original: ReviewRow } }) => (
-        // Internal seller route: /seller/orders/{token}
+        // seller subdomain route — proxy rewrite ครอบ /orders/{token} → /seller/orders/{token}
         // ไม่ใช้ /o/{token} เพราะเป็น buyer-domain route — 404 บน seller.deepth.local
         <Link
-          href={`/seller/orders/${row.original.orderToken}`}
+          href={`/orders/${row.original.orderToken}`}
           className="btn btn-sm border border-default-300 text-default-800 hover:border-default-400 flex items-center gap-1"
         >
           <Icon icon="receipt" className="text-base" />

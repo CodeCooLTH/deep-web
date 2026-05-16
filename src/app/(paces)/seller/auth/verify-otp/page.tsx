@@ -54,7 +54,7 @@ export default function SellerVerifyOtpPage() {
               <p className="text-default-400 mt-9 text-center">
                 กลับไปที่&nbsp;
                 <Link
-                  href="/seller/auth/sign-in"
+                  href="/auth/sign-in"
                   className="text-primary font-semibold underline underline-offset-3"
                 >
                   เข้าสู่ระบบ

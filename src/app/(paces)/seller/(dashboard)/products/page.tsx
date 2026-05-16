@@ -48,7 +48,7 @@ export default async function ProductsPage() {
           <h2 className="text-xl font-bold mb-2">ยังไม่มีร้านค้า</h2>
           <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะเพิ่มสินค้าได้</p>
           <Link
-            href="/seller/shop"
+            href="/shop"
             className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 px-6 py-3 font-semibold"
           >
             <Icon icon="plus" />

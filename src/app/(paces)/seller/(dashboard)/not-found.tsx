@@ -29,7 +29,7 @@ const NotFound = () => {
                     <h3 className="mb-2 text-xl font-bold uppercase">ไม่พบหน้าที่คุณค้นหา</h3>
                     <p className="text-default-400 mx-auto">หน้านี้อาจถูกย้าย ลบ หรือคุณไม่มีสิทธิ์เข้าถึง</p>
                     <div className="mt-8 flex items-center justify-center gap-1.5">
-                      <Link href="/seller/dashboard" className="btn bg-primary text-white hover:bg-primary-hover">
+                      <Link href="/dashboard" className="btn bg-primary text-white hover:bg-primary-hover">
                         กลับหน้าร้านค้า
                       </Link>
                     </div>

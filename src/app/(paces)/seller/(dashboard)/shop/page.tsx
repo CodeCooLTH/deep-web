@@ -40,7 +40,7 @@ function formatShopAge(createdAt: Date): string {
 export default async function ShopSettingsPage() {
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  if (!user) redirect('/seller/auth/sign-in')
+  if (!user) redirect('/auth/sign-in')
 
   let shop: any = null
   try {
@@ -62,7 +62,7 @@ export default async function ShopSettingsPage() {
     <>
       <PageBreadcrumb
         title="ตั้งค่าร้าน"
-        trail={[{ label: 'ร้านค้า', href: '/seller/shop' }]}
+        trail={[{ label: 'ร้านค้า', href: '/shop' }]}
       />
       {/* ส่วนหัวหน้า — แสดง mode (สร้างใหม่ หรือ แก้ไข) และอายุร้าน */}
       <div className="mb-5">

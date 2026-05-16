@@ -20,7 +20,7 @@ import Link from 'next/link'
 export type FullscreenPageHeaderProps = {
   title: string
   subtitle?: string
-  /** href ปุ่มยกเลิก — default: /seller/dashboard */
+  /** href ปุ่มยกเลิก — default: /dashboard (proxy rewrite ครอบบน seller subdomain) */
   cancelHref?: string
   saveLabel?: string
   saveFormId?: string
@@ -30,7 +30,7 @@ export type FullscreenPageHeaderProps = {
 export default function FullscreenPageHeader({
   title,
   subtitle,
-  cancelHref = '/seller/dashboard',
+  cancelHref = '/dashboard',
   saveLabel = 'บันทึก',
   saveFormId,
   disableSave,

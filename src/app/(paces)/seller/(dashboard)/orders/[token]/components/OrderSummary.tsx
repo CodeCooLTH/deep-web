@@ -93,7 +93,7 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           </div>
         </div>
         <div className="mt-4 md:ms-auto md:mt-0">
-          <Link href="/seller/orders" className="btn bg-light hover:text-primary me-1">
+          <Link href="/orders" className="btn bg-light hover:text-primary me-1">
             <Icon icon="arrow-left" className="text-base" /> กลับ
           </Link>
         </div>

@@ -259,9 +259,9 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
       const token = order?.publicToken ?? order?.order?.publicToken
       toast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
       if (token) {
-        router.push(`/seller/orders/${token}`)
+        router.push(`/orders/${token}`)
       } else {
-        router.push('/seller/orders')
+        router.push('/orders')
       }
     } catch {
       toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')

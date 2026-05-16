@@ -34,7 +34,7 @@ const UserProfileSettings = () => {
     <div id="user-profile-settings" className={`sidenav-user p-5`} style={{ backgroundImage: `url("${bgPattern.src}")` }}>
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/seller" className="link-reset">
+          <Link href="/dashboard" className="link-reset">
             {user?.avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={user.avatar} alt={user.displayName} className="mb-3 size-9 rounded-full object-cover" />

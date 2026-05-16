@@ -52,7 +52,7 @@ export default function SellerSignInPage() {
               <p className="text-default-400 mt-7.5 text-center">
                 ยังไม่มีบัญชี?&nbsp;
                 <Link
-                  href="/seller/auth/sign-up"
+                  href="/auth/sign-up"
                   className="text-primary font-semibold underline underline-offset-4"
                 >
                   สมัครสมาชิก

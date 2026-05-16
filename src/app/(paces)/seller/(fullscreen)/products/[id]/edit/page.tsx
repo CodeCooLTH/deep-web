@@ -15,7 +15,7 @@
  *   - ส่ง product prop ไปยัง ProductFormV2 → form pre-populate ผ่าน useEffect defaultValues
  *
  * Update wiring: ProductFormV2 detect product prop → ส่ง PATCH /api/products/{id}
- * Redirect after save: router.push('/seller/products') ผ่าน ProductFormV2 (untouched)
+ * Redirect after save: router.push('/products') ผ่าน ProductFormV2
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -42,7 +42,7 @@ export default async function EditProductPage({ params }: PageProps) {
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  if (!user) redirect('/seller/auth/sign-in')
+  if (!user) redirect('/auth/sign-in')
 
   let shop: any = null
   try {
@@ -64,7 +64,7 @@ export default async function EditProductPage({ params }: PageProps) {
         <h2 className="text-dark mb-2 text-xl font-bold">ยังไม่มีร้านค้า</h2>
         <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะแก้ไขสินค้าได้</p>
         <Link
-          href="/seller/shop"
+          href="/shop"
           className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-2 px-6 py-3 font-semibold text-white"
         >
           <Icon icon="tabler:plus" width={18} height={18} />
@@ -93,12 +93,12 @@ export default async function EditProductPage({ params }: PageProps) {
       {/*
         FullscreenPageHeader แทน PageBreadcrumb + bottom buttons ของ product-add theme
         "Publish" (theme) → "บันทึก" (edit context) ผ่าน default saveLabel ของ FullscreenPageHeader
-        cancelHref → /seller/products (ไม่ใช่ buyer route)
+        cancelHref → /products (proxy rewrite ครอบ → /seller/products บน seller subdomain)
       */}
       <FullscreenPageHeader
         title="แก้ไขสินค้า"
         subtitle={product.name}
-        cancelHref="/seller/products"
+        cancelHref="/products"
         saveFormId={FORM_ID}
       />
       {/*

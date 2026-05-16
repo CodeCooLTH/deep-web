@@ -87,7 +87,7 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
         cell: ({ row }) => (
           <h5 className="text-sm font-medium font-mono">
             <Link
-              href={`/seller/orders/${row.original.publicToken}`}
+              href={`/orders/${row.original.publicToken}`}
               className="hover:text-primary"
             >
               #{row.original.id}
@@ -144,7 +144,7 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
         cell: ({ row }: { row: { original: OrderRow } }) => (
           <div className="flex justify-center gap-1.5">
             <Link
-              href={`/seller/orders/${row.original.publicToken}`}
+              href={`/orders/${row.original.publicToken}`}
               className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
             >
               <Icon icon="eye" className="text-base" />
@@ -190,7 +190,7 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
     // sync URL search param เพื่อให้ reload แล้ว SSR render tab เดิม
     if (value === 'all') {
-      router.push('/seller/orders')
+      router.push('/orders')
     } else {
       router.push(`?status=${value}`)
     }
@@ -262,7 +262,7 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/seller/orders/new"
+            href="/orders/new"
             className="btn bg-primary text-white hover:bg-primary-hover"
           >
             <Icon icon="plus" />

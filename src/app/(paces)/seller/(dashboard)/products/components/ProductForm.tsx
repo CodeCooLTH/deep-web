@@ -109,8 +109,7 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
       }
 
       toast.success('บันทึกแล้ว')
-      // explicit /seller/products — router.push ทำ client-side nav ไม่ผ่าน proxy rewrite
-      router.push('/seller/products')
+      router.push('/products')
       router.refresh()
     } catch {
       toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')

@@ -8,8 +8,8 @@
  *   theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
  *   — Discard button ในกลุ่ม action-bar (className "btn bg-danger text-white")
  *
- * ใช้ router.back() เพื่อรักษา UX (กลับหน้าก่อน) — fallback ไป /seller/dashboard
- * ถ้าไม่มี history (เช่น เปิด URL โดยตรง)
+ * ใช้ router.back() เพื่อรักษา UX (กลับหน้าก่อน) — fallback ไป /dashboard
+ * ถ้าไม่มี history (เช่น เปิด URL โดยตรง); proxy rewrite ครอบให้อัตโนมัติบน seller subdomain
  */
 'use client'
 
@@ -23,8 +23,8 @@ export default function FullscreenCloseButton() {
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back()
     } else {
-      // fallback: ไม่มี history → ไป seller dashboard (seller route ไม่ใช่ buyer /dashboard)
-      router.push('/seller/dashboard')
+      // fallback: ไม่มี history → ไป dashboard (proxy rewrite ครอบให้บน seller subdomain)
+      router.push('/dashboard')
     }
   }
 

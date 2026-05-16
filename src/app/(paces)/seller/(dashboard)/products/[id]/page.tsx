@@ -28,11 +28,10 @@ export default async function ProductDetailPage({
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  // explicit /seller/... — server redirect ไม่ผ่าน proxy rewrite
-  if (!user) redirect('/seller/auth/sign-in')
+  if (!user) redirect('/auth/sign-in')
 
   const shop = await getShopByUserId(user.id)
-  if (!shop) redirect('/seller/shop')
+  if (!shop) redirect('/shop')
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   const product = await prisma.product.findFirst({ where: { id, shopId: shop.id } })
@@ -122,7 +121,7 @@ export default async function ProductDetailPage({
 
   return (
     <>
-      <PageBreadcrumb title={product.name} trail={[{ label: 'Business' }, { label: 'สินค้า', href: '/seller/products' }]} />
+      <PageBreadcrumb title={product.name} trail={[{ label: 'Business' }, { label: 'สินค้า', href: '/products' }]} />
       {/* 3-col card layout ตาม Paces theme: ซ้าย display, ขวา details + reviews */}
       <div className="card">
         <div className="card-body">

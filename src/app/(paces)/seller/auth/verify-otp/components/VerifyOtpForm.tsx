@@ -5,7 +5,7 @@
  * (form/input section ของ two-factor template — extracted เป็น client component)
  *
  * Bug fix (B1 reviewer): fallback redirect เมื่อไม่มี phone context
- * เปลี่ยนจาก '/auth/sign-in' เป็น '/seller/auth/sign-in' (seller subdomain route ที่ถูกต้อง)
+ * proxy rewrite ครอบ /auth/sign-in → /seller/auth/sign-in ให้อัตโนมัติบน seller subdomain
  */
 'use client'
 
@@ -33,7 +33,7 @@ export default function VerifyOtpForm() {
 
   // Redirect if no phone context
   useEffect(() => {
-    if (!phone) router.replace('/seller/auth/sign-in')
+    if (!phone) router.replace('/auth/sign-in')
   }, [phone, router])
 
   const masked = phone
@@ -72,9 +72,8 @@ export default function VerifyOtpForm() {
         redirect: false,
       })
       if (result?.ok) {
-        // ต้องใช้ explicit /seller/dashboard เพราะ router.push ทำ client-side nav
-        // ไม่ผ่าน middleware rewrite — bare /dashboard จะตกไป buyer app
-        router.push('/seller/dashboard')
+        // proxy rewrite ครอบ /dashboard → /seller/dashboard บน seller subdomain อัตโนมัติ
+        router.push('/dashboard')
         return
       }
       setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')

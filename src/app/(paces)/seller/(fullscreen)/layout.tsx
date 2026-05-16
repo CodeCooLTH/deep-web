@@ -11,7 +11,7 @@
  * Wrapper ชั้นนี้ (fixed inset-0 z-50 bg-card) ไม่มี theme source — เป็น SafePay domain component
  * ที่ออกแบบเฉพาะสำหรับ fullscreen overlay workflow (ไม่ใช่ dialog modal; ไม่ใช่ sidebar shell)
  *
- * Guard: ตรวจ session → redirect /seller/auth/sign-in ถ้าไม่มี session
+ * Guard: ตรวจ session → redirect /auth/sign-in ถ้าไม่มี session
  *        ตรวจ shop → auto-create ถ้า seller ยังไม่มีร้าน (invariant เดียวกับ (dashboard)/layout.tsx)
  */
 import { authOptions } from '@/lib/auth'
@@ -32,7 +32,7 @@ export default async function FullscreenLayout({ children }: { children: React.R
         trustScore: number
       }
     | undefined
-  if (!session || !user?.id) redirect('/seller/auth/sign-in')
+  if (!session || !user?.id) redirect('/auth/sign-in')
 
   // Ensure seller has a shop — same invariant as (dashboard)/layout.tsx
   const shop = await prisma.shop.findUnique({
