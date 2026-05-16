@@ -10,6 +10,79 @@ const MIME: Record<string, string> = {
   png: "image/png", webp: "image/webp",
 };
 
+// ---------------------------------------------------------------------------
+// Module-level TTL cache สำหรับ KYC file lookup
+//
+// ปัญหาเดิม (GATE 8): findVerificationRecordByFileId ทำ full-table scan ทุก
+// request รวมถึง unauthenticated public product/shop image loads ซึ่งเป็น
+// endpoint ที่มี traffic สูงที่สุด → scalability regression
+//
+// วิธีแก้: เก็บ Map<fileId → {recordId, userId}> ไว้ใน memory, refresh ทุก 60s
+// แทนที่จะ query per request
+//
+// Trade-off ที่ยอมรับ (hotfix scope):
+//   - KYC document ที่เพิ่งอัปโหลดอาจถูก serve เป็น public ได้นานสูงสุด <60s
+//     ก่อน cache จะ refresh — ยอมรับได้สำหรับ hotfix เพราะ:
+//       1. window สั้นมาก (60s)
+//       2. document ใหม่ต้องผ่าน admin review อยู่แล้ว ไม่มีข้อมูลอ่อนไหวทันที
+//   - long-term fix ที่ถูกต้อง = denormalized indexed fileIds column ใน schema
+//     (backlog item) เพื่อ O(1) lookup โดยไม่ต้องใช้ cache
+//   - double-scan หาก request หลายตัว expire พร้อมกันเป็นไปได้ แต่ยอมรับได้
+//     เพราะ VerificationRecord table มีขนาดเล็กและ scan ไม่บ่อย
+// ---------------------------------------------------------------------------
+
+type KycEntry = { recordId: string; userId: string };
+
+let kycCache: Map<string, KycEntry> = new Map();
+let kycCacheExpiresAt = 0; // epoch ms; 0 = ยังไม่เคย populate
+
+const KYC_CACHE_TTL_MS = 60_000; // 60 วินาที
+
+/**
+ * โหลด (หรือใช้ cache ที่ยังสด) map ของ fileId → KycEntry
+ * ครอบคลุมทุก fileId ที่อยู่ใน VerificationRecord.documents ใน query เดียว
+ */
+async function getKycMap(): Promise<Map<string, KycEntry>> {
+  const now = Date.now();
+  if (now < kycCacheExpiresAt) {
+    // cache ยังสด — ใช้ได้เลย
+    return kycCache;
+  }
+
+  // cache หมดอายุหรือยังไม่เคย populate — scan ครั้งเดียว แล้ว repopulate
+  const records = await prisma.verificationRecord.findMany({
+    where: { documents: { not: Prisma.AnyNull } },
+    select: { id: true, userId: true, documents: true },
+  });
+
+  const fresh = new Map<string, KycEntry>();
+
+  for (const record of records) {
+    const docs = record.documents;
+    if (!docs || typeof docs !== "object" || Array.isArray(docs)) continue;
+
+    for (const val of Object.values(docs as Record<string, unknown>)) {
+      if (typeof val !== "string") continue;
+
+      // รองรับ 2 รูปแบบ (defensive เหมือนเดิม):
+      //   1. raw fileId
+      //   2. URL ที่มี /api/files/<fileId> เป็น substring
+      const rawId = val.includes("/api/files/")
+        ? val.split("/api/files/")[1]?.split("/")[0]
+        : val;
+
+      if (rawId) {
+        fresh.set(rawId, { recordId: record.id, userId: record.userId });
+      }
+    }
+  }
+
+  kycCache = fresh;
+  kycCacheExpiresAt = now + KYC_CACHE_TTL_MS;
+
+  return fresh;
+}
+
 /**
  * ตรวจสอบว่า fileId นี้อยู่ใน VerificationRecord.documents หรือไม่
  *
@@ -22,36 +95,15 @@ const MIME: Record<string, string> = {
  * const documents = { idCard: idCardId, selfie: selfieId, ... }
  * โดย idCardId คือ string ที่ได้จาก POST /api/upload → { fileId }.
  *
- * เราตรวจ 2 รูปแบบ (defensive):
- *   1. ค่าตรงๆ เท่ากับ fileId
- *   2. ค่าเป็น string ที่มี "/api/files/<fileId>" เป็น substring
- *      (รองรับถ้า client เก็บ URL แทน raw id ในอนาคต)
- *
- * เพื่อหลีกเลี่ยง full-table scan ที่หนัก: query เฉพาะ record ที่
- * documents IS NOT NULL แล้ว filter ใน JS — VerificationRecord จะมีน้อย
- * (user ละ 1-2 record), table นี้ไม่ใช่ hot table
+ * ใช้ module-level TTL cache (60s) แทน per-request scan
  */
-async function findVerificationRecordByFileId(fileId: string) {
-  const records = await prisma.verificationRecord.findMany({
-    where: { documents: { not: Prisma.AnyNull } },
-    select: { id: true, userId: true, documents: true },
-  });
-
-  const urlForm = `/api/files/${fileId}`;
-
-  for (const record of records) {
-    const docs = record.documents;
-    if (!docs || typeof docs !== "object" || Array.isArray(docs)) continue;
-
-    for (const val of Object.values(docs as Record<string, unknown>)) {
-      if (typeof val !== "string") continue;
-      if (val === fileId || val.includes(urlForm)) {
-        return record;
-      }
-    }
-  }
-
-  return null;
+async function findVerificationRecordByFileId(
+  fileId: string
+): Promise<{ id: string; userId: string } | null> {
+  const map = await getKycMap();
+  const entry = map.get(fileId);
+  if (!entry) return null;
+  return { id: entry.recordId, userId: entry.userId };
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
