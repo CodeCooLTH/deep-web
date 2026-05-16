@@ -12,6 +12,7 @@
 import { CountUp } from '@/components/wrappers/CountUp'
 import { cn } from '@/utils/helpers'
 import { Icon as IconifyIcon } from '@iconify/react'
+import { LUCIDE_FOR_BADGE, FALLBACK_LUCIDE } from '../../_constants/badge-icons'
 
 export type AchievementBadge = {
   id: string
@@ -21,22 +22,6 @@ export type AchievementBadge = {
   earned: boolean
   criteria: string    // human-readable criteria (e.g. "สั่ง 50 ออเดอร์")
 }
-
-// Map badge nameEN → lucide icon. Uses paces `@iconify/react` with
-// the 'lucide:' prefix (see theme/paces/Admin/TS/src/app/(admin)/icons/lucide).
-const LUCIDE_FOR_BADGE: Record<string, string> = {
-  'First Sale':          'lucide:store',
-  'Trusted Seller 50':   'lucide:star',
-  'Century Club':        'lucide:trophy',
-  'Perfect Rating':      'lucide:gem',
-  'Highly Rated':        'lucide:sparkles',
-  'Zero Complaint':      'lucide:shield-check',
-  'Veteran':             'lucide:medal',
-  'Speed Demon':         'lucide:zap',
-  'Fully Verified':      'lucide:badge-check',
-  'Community Favorite':  'lucide:heart',
-}
-const FALLBACK_LUCIDE = 'lucide:award'
 
 export type AchievementLevelProps = {
   score: number            // 0-100

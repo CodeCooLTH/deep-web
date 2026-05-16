@@ -25,24 +25,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { Icon as IconifyIcon } from '@iconify/react'
 import type { Metadata } from 'next'
 import type { BadgeProgress } from '@/types/badge'
+import { LUCIDE_FOR_BADGE, FALLBACK_LUCIDE } from '../_constants/badge-icons'
 
 export const metadata: Metadata = { title: 'ความสำเร็จของร้านค้า' }
-
-// ─── Icon map (เหมือนกับ AchievementLevel.tsx — visual consistency) ────────────
-
-const LUCIDE_FOR_BADGE: Record<string, string> = {
-  'First Sale':          'lucide:store',
-  'Trusted Seller 50':   'lucide:star',
-  'Century Club':        'lucide:trophy',
-  'Perfect Rating':      'lucide:gem',
-  'Highly Rated':        'lucide:sparkles',
-  'Zero Complaint':      'lucide:shield-check',
-  'Veteran':             'lucide:medal',
-  'Speed Demon':         'lucide:zap',
-  'Fully Verified':      'lucide:badge-check',
-  'Community Favorite':  'lucide:heart',
-}
-const FALLBACK_LUCIDE = 'lucide:award'
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
