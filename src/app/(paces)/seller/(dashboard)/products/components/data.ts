@@ -9,4 +9,6 @@ export type ProductRow = {
   totalSold: number
   reviews: number
   rating: number
+  /** ISO string — แปลงจาก Date ที่ server boundary ก่อนส่ง prop มา client */
+  createdAt: string
 }

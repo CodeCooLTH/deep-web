@@ -1,3 +1,15 @@
+/**
+ * /seller/products — หน้า listing สินค้าของร้านค้า
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/products/page.tsx
+ * เปลี่ยน:
+ *   - ใช้ ProductStats (sourced from theme) แทน StatStrip shared
+ *   - statData คำนวณจาก products จริง (count by type)
+ *   - fetch products + orders จาก service layer (getProductsByShop, getOrdersByShop)
+ *   - createdAt แปลงเป็น ISO string ที่ server boundary ก่อนส่ง props ข้าม RSC→client
+ *   - UI copy ภาษาไทย
+ */
+
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import { authOptions } from '@/lib/auth'
@@ -8,9 +20,9 @@ import { getOrdersByShop } from '@/services/order.service'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import ProductsListing from './components/ProductsListing'
+import ProductStats from './components/ProductStats'
 import type { ProductRow } from './components/data'
-import StatStrip from '../_shared/StatStrip'
-import type { StatStripItem } from '../_shared/StatStrip'
+import type { StatType } from './components/ProductStats'
 
 export const metadata: Metadata = { title: 'สินค้า' }
 
@@ -62,6 +74,7 @@ export default async function ProductsPage() {
   }
 
   // --- Derive ProductRow data ---
+  // createdAt แปลงเป็น ISO string ที่ server boundary — ห้ามส่ง Date object ข้าม RSC→client
   const productRows: ProductRow[] = products.map((p: any) => {
     const soldEntries = orders
       .filter((o: any) => o.status === 'COMPLETED')
@@ -72,7 +85,7 @@ export default async function ProductsPage() {
     const productReviews = orders
       .filter(
         (o: any) =>
-          o.status === 'COMPLETED' && o.review && Array.isArray(o.items)
+          o.status === 'COMPLETED' && o.review && Array.isArray(o.items),
       )
       .filter((o: any) => o.items.some((i: any) => i.productId === p.id))
       .map((o: any) => o.review!.rating as number)
@@ -91,48 +104,78 @@ export default async function ProductsPage() {
         productReviews.length > 0
           ? productReviews.reduce((a: number, b: number) => a + b, 0) / productReviews.length
           : 0,
+      // Date → ISO string ที่ server boundary ก่อนข้าม RSC→client boundary
+      createdAt: (p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt)).toISOString(),
     }
   })
 
-  // --- Derive stats ---
-  const completedOrders = orders.filter((o: any) => o.status === 'COMPLETED')
+  // --- Derive ProductStats data (count by type) ---
+  const countByType = (type: ProductRow['type']) => productRows.filter((p) => p.type === type).length
+  const activeCount = productRows.filter((p) => p.isActive).length
 
-  const totalRevenue = completedOrders
-    .flatMap((o: any) => (Array.isArray(o.items) ? o.items : []))
-    .reduce((sum: number, i: any) => sum + Number(i.price ?? 0) * (i.qty ?? 1), 0)
-
-  // Best-seller by totalSold
-  const topProduct = productRows.reduce<{ name: string; sales: number } | null>((best, p) => {
-    if (!best || p.totalSold > best.sales) return { name: p.name, sales: p.totalSold }
-    return best
-  }, null)
-
-  const allRatings = productRows.flatMap((p) =>
-    Array(p.reviews).fill(p.rating)
-  )
-  const avgRating =
-    allRatings.length > 0
-      ? allRatings.reduce((a: number, b: number) => a + b, 0) / allRatings.length
-      : 0
-  const productCount = products.length
-  const totalOrderCount = orders.length
-  const topSoldQty = topProduct?.sales ?? 0
-  const avgRatingRounded = Math.round(avgRating * 10) / 10
-
-  const stripItems: StatStripItem[] = [
-    { title: 'สินค้าทั้งหมด', value: productCount,      change: 0, icon: 'package',       iconClass: 'bg-primary/15 text-primary' },
-    { title: 'ออเดอร์',       value: totalOrderCount,   change: 0, icon: 'shopping-cart', iconClass: 'bg-secondary/15 text-secondary' },
-    { title: 'รายได้',        value: totalRevenue,      change: 0, icon: 'cash',          iconClass: 'bg-success/15 text-success',  prefix: '฿' },
-    { title: 'ขายดี',         value: topSoldQty,        change: 0, icon: 'trending-up',   iconClass: 'bg-warning/15 text-warning' },
-    { title: 'เรตติ้งเฉลี่ย', value: avgRatingRounded,  change: 0, icon: 'star',          iconClass: 'bg-info/15 text-info',        suffix: '/5' },
+  const statData: StatType[] = [
+    {
+      title: 'สินค้าทั้งหมด',
+      value: productRows.length,
+      change: 0,
+      icon: 'package',
+      iconClassName: 'bg-primary/15 text-primary',
+      bulletClassName: 'text-primary',
+      metric: 'เปิดขาย',
+      metricValue: String(activeCount),
+    },
+    {
+      title: 'สินค้าจับต้องได้',
+      value: countByType('PHYSICAL'),
+      change: 0,
+      icon: 'box',
+      iconClassName: 'bg-secondary/15 text-secondary',
+      bulletClassName: 'text-secondary',
+      metric: 'ประเภท PHYSICAL',
+      metricValue: String(countByType('PHYSICAL')),
+    },
+    {
+      title: 'ดิจิทัล',
+      value: countByType('DIGITAL'),
+      change: 0,
+      icon: 'device-laptop',
+      iconClassName: 'bg-info/15 text-info',
+      bulletClassName: 'text-info',
+      metric: 'ประเภท DIGITAL',
+      metricValue: String(countByType('DIGITAL')),
+    },
+    {
+      title: 'บริการ',
+      value: countByType('SERVICE'),
+      change: 0,
+      icon: 'tools',
+      iconClassName: 'bg-success/15 text-success',
+      bulletClassName: 'text-success',
+      metric: 'ประเภท SERVICE',
+      metricValue: String(countByType('SERVICE')),
+    },
+    {
+      title: 'สมาชิก/รอบ',
+      value: countByType('SUBSCRIPTION'),
+      change: 0,
+      icon: 'repeat',
+      iconClassName: 'bg-warning/15 text-warning',
+      bulletClassName: 'text-warning',
+      metric: 'ประเภท SUBSCRIPTION',
+      metricValue: String(countByType('SUBSCRIPTION')),
+    },
   ]
 
   return (
     <>
       <PageBreadcrumb title="สินค้า" trail={[{ label: 'Business' }]} />
-      <div className="mb-base">
-        <StatStrip items={stripItems} />
+
+      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
+        {statData.map((stat, idx) => (
+          <ProductStats key={idx} stat={stat} />
+        ))}
       </div>
+
       <ProductsListing products={productRows} />
     </>
   )
