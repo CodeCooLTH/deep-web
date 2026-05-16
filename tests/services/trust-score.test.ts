@@ -51,7 +51,7 @@ describe("TrustScoreService", () => {
     for (let i = 0; i < 3; i++) {
       const order = await prisma.order.create({
         data: {
-          shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "COMPLETED",
+          shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CONFIRMED",
           items: { create: { name: "Item", qty: 1, price: 100 } },
         },
       });

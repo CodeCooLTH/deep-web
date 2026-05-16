@@ -46,7 +46,7 @@ async function createCompletedOrder(shopId: string) {
       shopId,
       type: "DIGITAL",
       totalAmount: 100,
-      status: "COMPLETED",
+      status: "CONFIRMED",
       items: { create: { name: "Item", qty: 1, price: 100 } },
     },
   });
@@ -89,7 +89,7 @@ describe("BadgeService", () => {
     });
     await prisma.order.create({
       data: {
-        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "COMPLETED",
+        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CONFIRMED",
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
@@ -111,7 +111,7 @@ describe("BadgeService", () => {
     });
     await prisma.order.create({
       data: {
-        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "COMPLETED",
+        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CONFIRMED",
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
@@ -144,11 +144,11 @@ describe("H1 — checkFirstOrder", () => {
     expect(result.count).toBe(0);
   });
 
-  it("met=false เมื่อ order ยังไม่ COMPLETED", async () => {
+  it("met=false เมื่อ order ยังไม่ CONFIRMED", async () => {
     const { user, shop } = await createUserWithShop("fo2");
     await prisma.order.create({
       data: {
-        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CREATED",
+        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "PENDING",
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
@@ -278,13 +278,14 @@ describe("H1 — checkZeroComplaint", () => {
     expect(result.completed).toBeGreaterThanOrEqual(2);
   });
 
-  it("met=false เมื่อมี order CANCELLED", async () => {
+  it("met=false เมื่อมี order CANCELLED โดย seller (นับเป็น complaint)", async () => {
     const { user, shop } = await createUserWithShop("zc2");
     await createCompletedOrder(shop.id);
     await createCompletedOrder(shop.id);
     await prisma.order.create({
       data: {
         shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CANCELLED",
+        cancelInitiator: "seller",
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
@@ -319,7 +320,7 @@ describe("H1 — checkVeteran", () => {
     // order ล่าสุด (updatedAt ≈ now → ตรง where clause)
     await prisma.order.create({
       data: {
-        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "COMPLETED",
+        shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "CONFIRMED",
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
