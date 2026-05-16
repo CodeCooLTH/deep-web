@@ -69,6 +69,8 @@ export interface BadgeProgress {
     name: string
     nameEN: string
     icon: string | null
+    /** URL รูป badge (bundled /badges/... หรือ /api/files/... ที่ admin อัปโหลด); null = ใช้ icon/lucide fallback */
+    imageUrl: string | null
     type: string
     audience: string
     criteria: unknown

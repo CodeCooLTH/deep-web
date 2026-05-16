@@ -11,6 +11,14 @@ export const LUCIDE_FOR_BADGE: Record<string, string> = {
   'Speed Demon':         'lucide:zap',
   'Fully Verified':      'lucide:badge-check',
   'Community Favorite':  'lucide:heart',
+  // ── P1 — 7 badge ใหม่ (fallback เมื่อ imageUrl ว่าง; ปกติ render รูป asset จาก badge.imageUrl) ──
+  'Getting Started':     'lucide:sprout',
+  'Rising Seller':       'lucide:trending-up',
+  'Well Rated':          'lucide:thumbs-up',
+  'Getting Noticed':     'lucide:eye',
+  'Spotless 100':        'lucide:sparkles',
+  '3 Months Strong':     'lucide:calendar-check',
+  'Same-Day Hero':       'lucide:rocket',
 }
 
 export const FALLBACK_LUCIDE = 'lucide:award'
