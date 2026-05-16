@@ -11,6 +11,7 @@ import Rating from '@/components/Rating'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import SellerEmptyState from '../../../_shared/SellerEmptyState'
 import { ColumnFiltersState, createColumnHelper, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table'
 import { useState } from 'react'
 import type { ReviewRow } from './data'
@@ -147,10 +148,12 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
       <DataTable<ReviewRow>
         table={table}
         emptyMessage={
-          <div className="py-12 text-center">
-            <Icon icon="message-off" className="size-12 text-default-300 mx-auto mb-3" />
-            <p className="text-default-400">ยังไม่มีรีวิว</p>
-          </div>
+          <SellerEmptyState
+            compact
+            icon="star-off"
+            title="ยังไม่มีรีวิว"
+            description="เมื่อมีรีวิวสินค้านี้ จะแสดงที่นี่"
+          />
         }
       />
       {table.getRowModel().rows.length > 0 && (
