@@ -427,9 +427,9 @@ export async function getBadgeProgress(
           break
         }
         case 'ORDER_COUNT': {
-          const { count } = await checkOrderCount(userId, criteria, statuses)
-          progressRatio = Math.min(count / criteria.count, 1)
           if (!earned) {
+            const { count } = await checkOrderCount(userId, criteria, statuses)
+            progressRatio = Math.min(count / criteria.count, 1)
             const remaining = criteria.count - count
             progressLabel = remaining > 0 ? `อีก ${remaining} ออเดอร์` : `ครบ ${criteria.count} ออเดอร์แล้ว`
           }
@@ -494,26 +494,26 @@ export async function getBadgeProgress(
           break
         }
         case 'FULL_VERIFICATION': {
-          const { met } = await checkFullVerification(userId)
-          progressRatio = met ? 1 : 0
           if (!earned) {
+            const { met } = await checkFullVerification(userId)
+            progressRatio = met ? 1 : 0
             progressLabel = met ? 'ยืนยันตัวตนครบแล้ว' : 'ยังยืนยันตัวตนไม่ครบ'
           }
           break
         }
         case 'UNIQUE_REVIEWERS': {
-          const { uniqueCount } = await checkUniqueReviewers(userId, criteria)
-          progressRatio = Math.min(uniqueCount / criteria.count, 1)
           if (!earned) {
+            const { uniqueCount } = await checkUniqueReviewers(userId, criteria)
+            progressRatio = Math.min(uniqueCount / criteria.count, 1)
             const remaining = criteria.count - uniqueCount
             progressLabel = remaining > 0 ? `อีก ${remaining} คน` : `ครบ ${criteria.count} คนแล้ว`
           }
           break
         }
         case 'SIGNUP_YEAR': {
-          const { met } = await checkSignupYear(userId, criteria)
-          progressRatio = met ? 1 : 0
           if (!earned) {
+            const { met } = await checkSignupYear(userId, criteria)
+            progressRatio = met ? 1 : 0
             progressLabel = met ? `สมัครปี ${criteria.year} แล้ว` : `badge พิเศษปี ${criteria.year}`
           }
           break
