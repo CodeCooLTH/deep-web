@@ -34,8 +34,9 @@ export default async function ProductDetailPage({
   const shop = await getShopByUserId(user.id)
   if (!shop) redirect('/seller/shop')
 
-  const product = await prisma.product.findUnique({ where: { id } })
-  if (!product || product.shopId !== shop.id) notFound()
+  // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
+  const product = await prisma.product.findFirst({ where: { id, shopId: shop.id } })
+  if (!product) notFound()
 
   // Derive review stats + total sold from orders
   let orders: any[] = []

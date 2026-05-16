@@ -76,12 +76,13 @@ export default async function EditProductPage({ params }: PageProps) {
 
   // Fetch product + verify ownership (security: กัน seller แก้ product ของร้านอื่น)
   // serializeProduct แปลง Decimal/Date/Json → plain object ให้ RSC ส่งผ่าน boundary ได้
-  const productRaw = await prisma.product.findUnique({
-    where: { id },
+  // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
+  const productRaw = await prisma.product.findFirst({
+    where: { id, shopId: shop.id },
     include: { tags: true },
   })
 
-  if (!productRaw || productRaw.shopId !== shop.id) {
+  if (!productRaw) {
     notFound()
   }
 

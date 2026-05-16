@@ -14,8 +14,8 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getShopByUserId } from '@/services/shop.service'
-import { getOrderByToken } from '@/services/order.service'
-import { redirect } from 'next/navigation'
+import { getOrderForShop } from '@/services/order.service'
+import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import OrderSummary from './components/OrderSummary'
@@ -44,15 +44,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   if (!shop) redirect('/seller/orders')
 
-  let order: any = null
-  try {
-    order = await getOrderByToken(token)
-  } catch {
-    order = null
-  }
-
-  // Guard: order ต้องมีอยู่และเป็นของ shop นี้
-  if (!order || order.shopId !== shop.id) redirect('/seller/orders')
+  // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
+  // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)
+  const orderRaw = await getOrderForShop(token, shop.id)
+  if (!orderRaw) notFound()
+  // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
+  // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
+  const order: any = orderRaw
 
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js

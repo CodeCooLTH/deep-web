@@ -156,6 +156,20 @@ export async function getOrderByToken(publicToken: string) {
   });
 }
 
+// DAL pattern: กรอง ownership ตั้งแต่ query layer เพื่อกัน RSC flight-data leak
+// (redirect-after-fetch ไม่เพียงพอเพราะ Next.js serialize object ก่อน redirect throw)
+export async function getOrderForShop(publicToken: string, shopId: string) {
+  return prisma.order.findFirst({
+    where: { publicToken, shopId },
+    include: {
+      items: true,
+      shop: { include: { user: { select: { id: true, displayName: true, username: true, trustScore: true, userBadges: { include: { badge: true } } } } } },
+      shipmentTracking: true,
+      review: true,
+    },
+  });
+}
+
 export async function getOrdersByShop(shopId: string, status?: string) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
