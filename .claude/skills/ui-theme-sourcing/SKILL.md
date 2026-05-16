@@ -37,4 +37,4 @@ Dropped: ...
 backend (`src/app/api/**`,`src/services/**`,`src/lib/**`), trivial tsx utility (เช่น mui-link wrapper).
 
 ## Deep reference (อ่านเมื่อต้องการ page-type→theme file mapping เต็ม + dependency handling)
-`docs/conventions/ui-page-sourcing.md` — มีตาราง SafePay page → Vuexy/Paces source ครบทุกหน้า.
+`docs/system/ui-guideline/README.md` — entry hub. ตาราง mapping แยกตาม role: `customer/page-sourcing.md` (Vuexy buyer), `seller/page-sourcing.md` + `admin/page-sourcing.md` (Paces). อ่าน README ก่อนเสมอ แล้วเปิด role doc ที่ตรงกับ route ที่ทำ.

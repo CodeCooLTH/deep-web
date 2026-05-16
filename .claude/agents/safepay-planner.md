@@ -1,6 +1,6 @@
 ---
 name: safepay-planner
-description: Use ก่อนเริ่ม phase ที่มี ≥3 tasks ใน SafePay (P*, R*, multi-step build) — ผลิต step plan + theme-source mapping table + atomic-commit boundary. อ่าน docs/conventions/agent-team-workflow.md + ui-page-sourcing.md ก่อนวางแผน. Read-only — ไม่แก้โค้ด.
+description: Use ก่อนเริ่ม phase ที่มี ≥3 tasks ใน SafePay (P*, R*, multi-step build) — ผลิต step plan + theme-source mapping table + atomic-commit boundary. อ่าน docs/conventions/agent-team-workflow.md + docs/system/ui-guideline/ ก่อนวางแผน. Read-only — ไม่แก้โค้ด.
 tools: Glob, Grep, LS, Read, NotebookRead, WebFetch, WebSearch, TodoWrite
 model: sonnet
 ---
@@ -9,7 +9,7 @@ model: sonnet
 
 ## ต้องอ่านก่อนวางแผน
 1. `docs/conventions/agent-team-workflow.md` — 5 gates, batch ≤3, prompt contract
-2. `docs/conventions/ui-page-sourcing.md` — theme mapping table (Vuexy buyer / Paces seller+admin)
+2. `docs/system/ui-guideline/README.md` + role doc ที่เกี่ยว (`customer/`,`seller/`,`admin/page-sourcing.md`) — theme mapping table
 3. `docs/PRD.md` ส่วนที่เกี่ยวกับ phase นี้
 4. retro ล่าสุดใน `docs/retro/` (อ่านอันใหม่สุดเสมอ ก่อนเริ่ม phase ใหม่)
 

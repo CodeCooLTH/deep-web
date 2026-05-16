@@ -10,9 +10,9 @@
 
 | # | Rule | Skill (auto-trigger) | Deep reference |
 |---|---|---|---|
-| 1 | No UI from scratch — ทุกหน้า/component ต้อง copy จาก theme file ที่ระบุ แล้วปรับ content | `ui-theme-sourcing` | `docs/conventions/ui-page-sourcing.md` |
+| 1 | No UI from scratch — ทุกหน้า/component ต้อง copy จาก theme file ที่ระบุ แล้วปรับ content. **ทุกครั้งก่อนทำ Frontend ต้องอ่าน guideline ก่อน** | `ui-theme-sourcing` | `docs/system/ui-guideline/README.md` (+ `customer/`,`seller/`,`admin/`) |
 | 2 | No `component={Link}` ใน server component — ใช้ LinkButton/LinkChip wrapper | `rsc-mui-nav` | `docs/conventions/rsc-mui-navigation.md` |
-| 3 | Commit ที่แตะ UI ต้องมี `Base:` line ชี้ `theme/...` ที่ copy มา | `ui-theme-sourcing` | `docs/conventions/ui-page-sourcing.md` |
+| 3 | Commit ที่แตะ UI ต้องมี `Base:` line ชี้ `theme/...` ที่ copy มา | `ui-theme-sourcing` | `docs/system/ui-guideline/README.md` |
 | 4 | Phase ≥3 tasks = agent team (Planner→Developer→Reviewer→QA→Controller, 5 gates, 3-level QA) + retro ปลาย phase | `agent-team-phase`, `phase-retro` | `docs/conventions/agent-team-workflow.md` |
 
 Subagents: `safepay-product` `safepay-planner` `safepay-database` `safepay-developer` `safepay-reviewer` `safepay-security` `safepay-qa` `safepay-docs` (ทุกตัว Sonnet; Controller = main session). Feature เต็มรูป (7-phase) ดู skill `agent-team-feature`.
@@ -26,8 +26,8 @@ SafePay เป็นระบบสร้างความน่าเชื่
 ## Key Documents
 
 - **PRD:** `docs/PRD.md`
-- **Conventions (must-read before UI work):**
-  - `docs/conventions/ui-page-sourcing.md` — theme-copy rule + page-type mapping
+- **UI Guideline (must-read before ANY Frontend work):** `docs/system/ui-guideline/README.md` — entry hub (universal theme-copy rule + checklist + workflow + commit rule). Role docs: `customer/`, `seller/`, `admin/` page-sourcing.md
+- **Conventions:**
   - `docs/conventions/rsc-mui-navigation.md` — RSC + MUI + next/link pattern
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`

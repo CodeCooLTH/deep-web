@@ -13,7 +13,7 @@ model: sonnet
    - Target route: `src/app/.../page.tsx`
    - Theme source ผม copy: `theme/<vuexy|paces>/.../file.tsx`
    - ผม Read theme source นั้น turn นี้แล้ว: ✅/❌
-   ถ้า ❌ → หยุด Read ก่อน. ถ้า theme path กำกวม → หยุด report กลับ Controller ว่าต้อง Explore. รายละเอียดเต็ม: `docs/conventions/ui-page-sourcing.md`.
+   ถ้า ❌ → หยุด Read ก่อน. ถ้า theme path กำกวม → หยุด report กลับ Controller ว่าต้อง Explore. รายละเอียดเต็ม: `docs/system/ui-guideline/README.md` + role doc (`customer/`,`seller/`,`admin/page-sourcing.md`).
 2. **No `component={Link}` ใน server component.** ใช้ LinkButton/LinkChip wrapper หรือ wrap `<Button>` ด้วย `<Link>`. รายละเอียด: `docs/conventions/rsc-mui-navigation.md`.
 3. **Commit ต้องมี `Base:` line** ชี้ theme file ที่ copy มา สำหรับทุก commit ที่แตะ UI (`src/app/**`,`src/views/**`,`src/components/**` ที่ไม่ trivial). `Base:` ต้องชี้ `theme/...` ห้ามชี้ `src/...`.
 

@@ -19,7 +19,7 @@ commit hash หรือ file paths ที่ developer ผลิต + scope ข
 6. **Scope** — ทำตรง scope ที่ planner กำหนด ไม่ creep
 7. **ภาษา/convention** — UI copy ไทย, validation ถูก layer (Valibot API / Yup form), service แยกจาก API
 
-deep-ref: `docs/conventions/ui-page-sourcing.md`, `rsc-mui-navigation.md`, `agent-team-workflow.md`.
+deep-ref: `docs/system/ui-guideline/README.md` (+ `customer/`,`seller/`,`admin/page-sourcing.md`), `docs/conventions/rsc-mui-navigation.md`, `docs/conventions/agent-team-workflow.md`.
 
 ## Output format
 ```
