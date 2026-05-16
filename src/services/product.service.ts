@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import type { FulfillmentMode, BillingMode, BillingPeriod } from "@/lib/product-types/registry";
+import type { FulfillmentMode, BillingMode, BillingPeriod, ProductTypeId } from "@/lib/product-types/registry";
+import { deriveCapabilityDefaults, PRODUCT_TYPES } from "@/lib/product-types/registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -198,8 +199,15 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       type: data.type,
       images: (data.images ?? []) as Prisma.InputJsonValue,
       attributes: (data.attributes ?? {}) as Prisma.InputJsonValue,
-      // capability flags — ถ้า input ไม่ส่งมา ปล่อย Prisma ใช้ column default
-      ...(data.fulfillmentMode !== undefined && { fulfillmentMode: data.fulfillmentMode }),
+      // capability flags — derive fulfillmentMode จาก type ถ้า caller ไม่ส่งมา
+      // ไม่พึ่ง client หรือ DB default: SERVICE/DIGITAL ที่ไม่ส่ง fulfillmentMode จะได้
+      // SHIPPED จาก schema default → post-OMS createOrder จะ require shipping ผิด
+      fulfillmentMode:
+        data.fulfillmentMode !== undefined
+          ? data.fulfillmentMode
+          : (data.type in PRODUCT_TYPES
+              ? deriveCapabilityDefaults(data.type as ProductTypeId).fulfillmentMode
+              : undefined),
       ...(data.billingMode !== undefined && { billingMode: data.billingMode }),
       ...(data.billingPeriod !== undefined && { billingPeriod: data.billingPeriod }),
       ...(data.billingPeriodDays !== undefined && { billingPeriodDays: data.billingPeriodDays }),
@@ -261,7 +269,13 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.images !== undefined) scalarUpdate.images = data.images as Prisma.InputJsonValue;
   if (data.attributes !== undefined) scalarUpdate.attributes = data.attributes as Prisma.InputJsonValue;
   if (data.isActive !== undefined) scalarUpdate.isActive = data.isActive;
-  if (data.fulfillmentMode !== undefined) scalarUpdate.fulfillmentMode = data.fulfillmentMode;
+  // ถ้าเปลี่ยน type + ไม่ได้ส่ง fulfillmentMode มาด้วย → re-derive จาก type ใหม่
+  // ไม่พึ่ง client: PHYSICAL→SERVICE โดยไม่ส่ง fulfillmentMode จะเหลือ SHIPPED เดิม → OMS ผิด
+  if (data.fulfillmentMode !== undefined) {
+    scalarUpdate.fulfillmentMode = data.fulfillmentMode;
+  } else if (data.type !== undefined && data.type in PRODUCT_TYPES) {
+    scalarUpdate.fulfillmentMode = deriveCapabilityDefaults(data.type as ProductTypeId).fulfillmentMode;
+  }
   if (data.billingMode !== undefined) scalarUpdate.billingMode = data.billingMode;
   if (data.billingPeriod !== undefined) scalarUpdate.billingPeriod = data.billingPeriod;
   if (data.billingPeriodDays !== undefined) scalarUpdate.billingPeriodDays = data.billingPeriodDays;
