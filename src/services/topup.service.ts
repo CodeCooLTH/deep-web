@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { TopUpRequest } from "@prisma/client";
 import { creditWallet } from "@/services/wallet.service";
 
@@ -48,14 +49,15 @@ export async function createTopUpRequest(
  * การ wrap ใน $transaction ทำให้ทั้ง status-change + creditWallet + WalletTransaction
  * อยู่ใน PostgreSQL transaction เดียว: commit พร้อมกันทั้งหมด หรือ rollback ทั้งหมด.
  *
- * ทำไม idempotency guard (ALREADY_PROCESSED):
- * double-approve = double-credit: ถ้า admin กด approve 2 ครั้ง (หรือ 2 admin พร้อมกัน)
- * โดยไม่มี guard → status อาจ update ซ้ำได้ (Prisma update ไม่มี OCC ในตัว) และ
- * creditWallet จะถูกเรียก 2 ครั้ง → balance บวก 2x โดยไม่มีเงินโอนเข้าจริง.
- * การตรวจ status !== "PENDING" ภายใน transaction เดียวกัน (pessimistic lock ผ่าน
- * SELECT ... FOR UPDATE หรือ Prisma's serializable isolation) กัน race ได้:
- * admin คนแรก load → PENDING → update → APPROVED (commit); admin คนที่สอง load
- * → เห็น APPROVED แล้ว → throw ALREADY_PROCESSED ก่อน credit (ไม่ double-credit).
+ * ทำไม conditional updateMany (where status=PENDING) ไม่ใช่ findUnique+if+update:
+ * Prisma $transaction default = READ COMMITTED (ไม่ใช่ serializable). ถ้าใช้
+ * findUnique ก่อน → if status===PENDING → update: 2 admin concurrent ต่าง findUnique
+ * เห็น PENDING พร้อมกัน (ยังไม่มีใคร commit) → ผ่าน guard ทั้งคู่ → update by id
+ * (WHERE มีแค่ id) สำเร็จทั้งคู่ → creditWallet 2 ครั้ง = double-credit (เงินงอก).
+ * แก้: ยุบ guard+flip เป็น UPDATE เดียว `updateMany({where:{id,status:PENDING}})`
+ * — atomic ที่ระดับ DB row regardless of isolation. concurrent ตัวที่สอง
+ * count===0 → throw ALREADY_PROCESSED ก่อนถึง creditWallet. (pattern เดียวกับ
+ * deductCredit RC-3 / consumeSmsCode RC-1 ในโปรเจกต์นี้)
  *
  * RC-7 NOTE (boundary — ห้าม implement ที่นี่):
  * self-approve block (`topUpRequest.shop.userId !== admin.id`) ต้องทำที่ ROUTE layer
@@ -68,8 +70,7 @@ export async function approveTopUp(
   adminId: string,
 ): Promise<TopUpRequest> {
   return prisma.$transaction(async (tx) => {
-    // load request ภายใน transaction — เพื่อให้ idempotency check + update อยู่ใน
-    // snapshot เดียวกัน (กัน TOCTOU: read outside tx แล้ว race กับ tx อื่น)
+    // load เพื่อเอา shopId/amount (จำเป็นต่อ creditWallet) — ยังไม่ถือเป็น gate
     const req = await tx.topUpRequest.findUnique({
       where: { id: requestId },
     });
@@ -78,24 +79,26 @@ export async function approveTopUp(
       throw new Error("NOT_FOUND");
     }
 
-    // idempotency guard — กัน double-approve = double-credit
-    // ถ้า status ไม่ใช่ PENDING (APPROVED หรือ REJECTED แล้ว) → reject ทันที
-    if (req.status !== "PENDING") {
-      throw new Error("ALREADY_PROCESSED");
-    }
+    const now = new Date();
 
-    // update status → APPROVED (ยังอยู่ใน transaction เดียวกัน)
-    const updated = await tx.topUpRequest.update({
-      where: { id: requestId },
+    // atomic gate: status flip เกิดก็ต่อเมื่อยังเป็น PENDING — อยู่ใน UPDATE เดียว
+    // (ไม่ใช่ check-then-update) → กัน double-approve/double-credit ที่ READ COMMITTED
+    const gate = await tx.topUpRequest.updateMany({
+      where: { id: requestId, status: "PENDING" },
       data: {
         status: "APPROVED",
         reviewedById: adminId,
-        reviewedAt: new Date(),
+        reviewedAt: now,
       },
     });
 
+    // concurrent ตัวที่สอง (หรือ replay) → count===0 → ไม่ถึง creditWallet
+    if (gate.count === 0) {
+      throw new Error("ALREADY_PROCESSED");
+    }
+
     // credit wallet พร้อม tx — atomic: balance + WalletTransaction(TOPUP) อยู่ใน
-    // snapshot เดียวกับ status change ด้านบน; ถ้า creditWallet throw → rollback ทั้งหมด
+    // transaction เดียวกับ status flip ด้านบน; ถ้า creditWallet throw → rollback ทั้งหมด
     await creditWallet(
       req.shopId,
       req.amount,
@@ -104,7 +107,7 @@ export async function approveTopUp(
       tx,
     );
 
-    return updated;
+    return { ...req, status: "APPROVED", reviewedById: adminId, reviewedAt: now };
   });
 }
 
@@ -115,30 +118,20 @@ export async function approveTopUp(
 /**
  * ปฏิเสธ TopUpRequest — ต้องระบุเหตุผลภาษาไทย; ไม่แตะ wallet
  *
- * ทำไม guard PENDING เหมือน approveTopUp:
- * กัน admin reject request ที่ approve แล้ว (= overwrite status กลับ = data corruption)
- * และกัน reject ซ้ำที่สร้าง event log ปลอม
+ * ทำไม conditional updateMany (เหมือน approveTopUp):
+ * กัน TOCTOU — findUnique+if+update ที่ READ COMMITTED ทำให้ 2 admin concurrent
+ * (หรือ reject ชน approve) เห็น PENDING พร้อมกัน แล้ว update by-id ทับกัน →
+ * overwrite reviewedById/rejectedReason หรือ ดึง APPROVED กลับเป็น REJECTED
+ * (= corrupt finalized money record / audit trail). UPDATE เดียวที่ WHERE
+ * status=PENDING เป็น atomic gate; count===0 = ถูก finalize ไปแล้ว.
  */
 export async function rejectTopUp(
   requestId: string,
   adminId: string,
   reason: string,
 ): Promise<TopUpRequest> {
-  const req = await prisma.topUpRequest.findUnique({
-    where: { id: requestId },
-  });
-
-  if (!req) {
-    throw new Error("NOT_FOUND");
-  }
-
-  // idempotency guard — เหมือน approveTopUp; ห้ามเปลี่ยน status ที่ finalize แล้ว
-  if (req.status !== "PENDING") {
-    throw new Error("ALREADY_PROCESSED");
-  }
-
-  return prisma.topUpRequest.update({
-    where: { id: requestId },
+  const gate = await prisma.topUpRequest.updateMany({
+    where: { id: requestId, status: "PENDING" },
     data: {
       status: "REJECTED",
       reviewedById: adminId,
@@ -146,6 +139,20 @@ export async function rejectTopUp(
       rejectedReason: reason,
     },
   });
+
+  if (gate.count === 0) {
+    // แยก NOT_FOUND ออกจาก ALREADY_PROCESSED ให้ caller (route) map error ได้ถูก
+    const exists = await prisma.topUpRequest.findUnique({
+      where: { id: requestId },
+      select: { id: true },
+    });
+    throw new Error(exists ? "ALREADY_PROCESSED" : "NOT_FOUND");
+  }
+
+  const updated = await prisma.topUpRequest.findUnique({
+    where: { id: requestId },
+  });
+  return updated as TopUpRequest;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -157,9 +164,11 @@ export async function rejectTopUp(
  * include shop minimal เพื่อแสดงชื่อร้านใน admin UI โดยไม่ต้อง join เพิ่ม
  * orderBy createdAt asc — first-in-first-out เพื่อความยุติธรรม
  */
-export async function getPendingTopUps(): Promise<
-  (TopUpRequest & { shop: { id: string; shopName: string } })[]
-> {
+export type PendingTopUp = Prisma.TopUpRequestGetPayload<{
+  include: { shop: { select: { id: true; shopName: true } } };
+}>;
+
+export async function getPendingTopUps(): Promise<PendingTopUp[]> {
   return prisma.topUpRequest.findMany({
     where: { status: "PENDING" },
     include: {
@@ -168,7 +177,7 @@ export async function getPendingTopUps(): Promise<
       },
     },
     orderBy: { createdAt: "asc" },
-  }) as Promise<(TopUpRequest & { shop: { id: string; shopName: string } })[]>;
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
