@@ -1,3 +1,17 @@
+/**
+ * Base: theme/paces/Admin/TS/src/app/auth/(basic)/sign-up/components/SignUpForm.tsx
+ *
+ * Re-sourced จาก Paces (basic) SignUpForm.
+ * การเปลี่ยนแปลงจาก theme:
+ *   - ลบ PasswordInputWithStrength (SafePay ไม่ใช้ password)
+ *   - ลบ terms & policy checkbox (ไม่มีใน SafePay MVP)
+ *   - เปลี่ยน email input → phone (tel) input
+ *   - shopName ไม่ถูกเก็บในขั้นตอนนี้โดยตั้งใจ — ร้านค้าสร้างอัตโนมัติด้วยชื่อ "ร้านของ {displayName}"
+ *     (onboarding ชื่อร้านที่แท้จริงจะเพิ่มใน task แยกต่างหาก)
+ *   - เพิ่ม username field พร้อม debounce check-username API
+ *   - Yup + react-hook-form (ตาม convention — Yup + @hookform/resolvers สำหรับ frontend form)
+ *   - submit: POST /api/otp/send แล้ว redirect ไป /seller/auth/verify-otp พร้อม params
+ */
 'use client'
 
 import { yupResolver } from '@hookform/resolvers/yup'
@@ -48,18 +62,16 @@ export default function SignUpForm() {
   })
 
   const username = watch('username')
-  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>({
-    state: 'idle',
-  })
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>({ state: 'idle' })
   const reqId = useRef(0)
 
-  // Debounce check-username on value change
+  // Debounce check-username — ตรวจสอบชื่อผู้ใช้ซ้ำกับ API ทุก 400ms
   useEffect(() => {
     if (!username) {
       setUsernameStatus({ state: 'idle' })
       return
     }
-    // Client regex pre-check — don't hit API for obviously invalid input
+    // client regex pre-check — ไม่ยิง API สำหรับ input ที่ชัดเจนว่าไม่ valid
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
       setUsernameStatus({ state: 'idle' })
       return
@@ -68,9 +80,7 @@ export default function SignUpForm() {
     const t = setTimeout(async () => {
       const id = ++reqId.current
       try {
-        const res = await fetch(
-          `/api/users/check-username?u=${encodeURIComponent(username)}`
-        )
+        const res = await fetch(`/api/users/check-username?u=${encodeURIComponent(username)}`)
         const data: { available: boolean; reason?: 'taken' | 'reserved' | 'invalid' } =
           await res.json()
         if (reqId.current !== id) return
@@ -88,6 +98,7 @@ export default function SignUpForm() {
   }, [username])
 
   const onSubmit = async (values: FormValues) => {
+    // บล็อก submit ถ้า username ยังไม่ผ่าน check
     if (usernameStatus.state !== 'ok') {
       if (usernameStatus.state === 'error') {
         toast.error(REASON_MESSAGE[usernameStatus.reason])
@@ -110,7 +121,7 @@ export default function SignUpForm() {
         name: values.displayName,
         username: values.username,
       })
-      router.push(`/auth/verify-otp?${params.toString()}`)
+      router.push(`/seller/auth/verify-otp?${params.toString()}`)
     } catch {
       toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
     }
@@ -118,52 +129,61 @@ export default function SignUpForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      {/* เบอร์โทร — แทน email จาก theme */}
       <div className="mb-5">
         <label htmlFor="phone" className="form-label">
           เบอร์โทรศัพท์<span className="text-danger">*</span>
         </label>
-        <input
-          id="phone"
-          type="tel"
-          inputMode="numeric"
-          autoComplete="tel"
-          placeholder="08xxxxxxxx"
-          className="form-input"
-          {...register('phone')}
-        />
+        <div className="input-group">
+          <input
+            id="phone"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="08xxxxxxxx"
+            className="form-input"
+            {...register('phone')}
+          />
+        </div>
         {errors.phone && (
           <p className="text-danger mt-1 text-sm">{errors.phone.message}</p>
         )}
       </div>
 
+      {/* ชื่อที่แสดง */}
       <div className="mb-5">
         <label htmlFor="displayName" className="form-label">
           ชื่อที่แสดง<span className="text-danger">*</span>
         </label>
-        <input
-          id="displayName"
-          type="text"
-          placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"
-          className="form-input"
-          {...register('displayName')}
-        />
+        <div className="input-group">
+          <input
+            id="displayName"
+            type="text"
+            placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"
+            className="form-input"
+            {...register('displayName')}
+          />
+        </div>
         {errors.displayName && (
           <p className="text-danger mt-1 text-sm">{errors.displayName.message}</p>
         )}
       </div>
 
-      <div className="mb-5">
+      {/* username พร้อม debounce check */}
+      <div className="mb-6">
         <label htmlFor="username" className="form-label">
           ชื่อผู้ใช้ (username)<span className="text-danger">*</span>
         </label>
-        <input
-          id="username"
-          type="text"
-          autoComplete="off"
-          placeholder="a-z, 0-9, _ เท่านั้น"
-          className="form-input"
-          {...register('username')}
-        />
+        <div className="input-group">
+          <input
+            id="username"
+            type="text"
+            autoComplete="off"
+            placeholder="a-z, 0-9, _ เท่านั้น"
+            className="form-input"
+            {...register('username')}
+          />
+        </div>
         {errors.username && (
           <p className="text-danger mt-1 text-sm">{errors.username.message}</p>
         )}
@@ -174,24 +194,24 @@ export default function SignUpForm() {
           <p className="text-success mt-1 text-sm">ใช้ชื่อนี้ได้</p>
         )}
         {!errors.username && usernameStatus.state === 'error' && (
-          <p className="text-danger mt-1 text-sm">
-            {REASON_MESSAGE[usernameStatus.reason]}
-          </p>
+          <p className="text-danger mt-1 text-sm">{REASON_MESSAGE[usernameStatus.reason]}</p>
         )}
       </div>
 
-      <button
-        type="submit"
-        disabled={
-          isSubmitting ||
-          usernameStatus.state === 'checking' ||
-          usernameStatus.state === 'error' ||
-          (!!username && /^[a-zA-Z0-9_]{3,30}$/.test(username) && usernameStatus.state === 'idle')
-        }
-        className="btn bg-primary w-full py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
-      >
-        {isSubmitting ? 'กำลังส่งรหัส...' : 'สร้างบัญชีและรับรหัส OTP'}
-      </button>
+      <div>
+        <button
+          type="submit"
+          disabled={
+            isSubmitting ||
+            usernameStatus.state === 'checking' ||
+            usernameStatus.state === 'error' ||
+            (!!username && /^[a-zA-Z0-9_]{3,30}$/.test(username) && usernameStatus.state === 'idle')
+          }
+          className="btn bg-primary w-full py-3 font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+        >
+          {isSubmitting ? 'กำลังส่งรหัส...' : 'สร้างบัญชีและรับรหัส OTP'}
+        </button>
+      </div>
     </form>
   )
 }
