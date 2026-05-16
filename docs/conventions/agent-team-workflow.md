@@ -215,3 +215,10 @@ Feature · Scope · Auth review · Authorization review · Env review · Sensiti
 6. **Project agent/skill ที่เพิ่งสร้างใน session dispatch ไม่ได้จน session reload** — Controller วางแผนเผื่อ หรือใช้ general-purpose-embed อย่างรู้ตัว.
 
 Anchor ที่ได้ผล (ทำซ้ำ): independent review+security gate จับ bug จริง + subagent misdiagnosis ได้ทุก batch; planner "ต้อง Explore" ไม่เดา theme source; selective `git add` + verify diff กัน commit ปน; surface CRITICAL ให้ user ตัดสินแทน auto-fix กลาง feature.
+
+### Addendum (2026-05-16, follow-up batch) — Test/DB environment
+
+**Root cause ของ subagent misdiagnosis "setup.ts teardown FK / infra flaky" ซ้ำ ~4 รอบ = ไม่มีใครเปิด `docs/conventions/seed-and-env.md`.** กฎบังคับ:
+
+7. **รัน test = `npm run test` เท่านั้น** (= `dotenv -e .env` → **Local Docker Postgres**). **ห้าม** `dotenv -e .env.local` (= Supabase shared — `tests/setup.ts` มี guard throw + destructive `cleanDatabase()` จะ wipe ข้อมูล dev). ก่อนรัน test ใด ๆ Controller/subagent **ต้องอ่าน `docs/conventions/seed-and-env.md`** + pre-flight เช็ก Docker daemon up (`docker ps`); ถ้า Docker ดับ → test = **BLOCKED by env** (defer, เหมือน browser QA) — **ห้ามสรุปว่า regression หรือ infra-flaky จากการรันผิด env/ไม่มี DB**. map ทุก fail: assertion (`expect`) = code; `PrismaClientInitializationError`/connect/`cleanDatabase` ก่อน test body = env.
+8. **เมื่อ test รันไม่ได้ (env blocker):** subagent ส่ง code + tsc + static behavior-preservation argument; Controller mark "code-gated, empirical test deferred" อย่างตรงไปตรงมา — **ห้าม claim verified-green**. ปลด defer เมื่อ env พร้อม (Docker up → `npm run test`).
