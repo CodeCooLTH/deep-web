@@ -23,7 +23,7 @@ import type { BuyerOrderRow } from '@views/apps/ecommerce/orders/list/OrderListT
 
 export const metadata: Metadata = { title: 'คำสั่งซื้อของฉัน' }
 
-const VALID_STATUSES = new Set(['ALL', 'CREATED', 'CONFIRMED', 'SHIPPED', 'COMPLETED', 'CANCELLED'])
+const VALID_STATUSES = new Set(['ALL', 'PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED'])
 
 export default async function MyOrdersPage({
   searchParams

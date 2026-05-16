@@ -64,7 +64,7 @@ export default async function BuyerDashboardPage() {
   ])
 
   const recentOrdersRaw = allOrders.slice(0, 5)
-  const completedOrders = allOrders.filter((o) => o.status === 'COMPLETED').length
+  const completedOrders = allOrders.filter((o) => o.status === 'CONFIRMED').length
 
   const trustLevel = getTrustLevel(user.trustScore)
   const nextLevelLabel = NEXT_LEVEL_LABEL[trustLevel] ?? 'A+'

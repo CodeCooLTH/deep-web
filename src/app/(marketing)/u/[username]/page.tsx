@@ -73,7 +73,7 @@ export default async function PublicProfilePage({ params }: Props) {
     : 0
 
   const completedOrders =
-    orderStats.find((s) => s.status === 'COMPLETED')?._count._all ?? 0
+    orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
 
   const avgRating = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
