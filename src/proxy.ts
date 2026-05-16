@@ -45,6 +45,13 @@ export async function proxy(request: NextRequest) {
     if (pathname.startsWith('/dashboard') && !isAuthed) {
       return NextResponse.redirect(new URL('/auth/sign-in', request.url))
     }
+    // Backward-compat: URL เก่าที่ผู้ใช้ bookmark/พิมพ์ตรงแบบ /seller/orders
+    // หลัง SP-1 strip /seller prefix ออกจาก nav แล้ว — redirect ถาวรเพื่อเลิกใช้รูปแบบเก่า
+    if (pathname === '/seller' || pathname.startsWith('/seller/')) {
+      const stripped = pathname.slice('/seller'.length) || '/'
+      const target = stripped + request.nextUrl.search
+      return NextResponse.redirect(new URL(target, request.url), 301)
+    }
     // Everything else: rewrite to the internal /seller/* path tree
     if (!pathname.startsWith('/seller')) {
       const url = request.nextUrl.clone()
