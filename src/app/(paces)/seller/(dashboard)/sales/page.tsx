@@ -60,10 +60,11 @@ export default async function SalesPage({
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  if (!user) redirect('/auth/sign-in')
+  // explicit /seller/... — server redirect ไม่ผ่าน proxy rewrite
+  if (!user) redirect('/seller/auth/sign-in')
 
   const shop = await getShopByUserId(user.id)
-  if (!shop) redirect('/shop')
+  if (!shop) redirect('/seller/shop')
 
   const { from: defFrom, to: defTo } = monthRange()
   const from = parseDate(fromStr, defFrom)

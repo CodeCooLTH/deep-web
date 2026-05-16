@@ -69,7 +69,7 @@ const ProductDisplay = ({ product }: Props) => {
       </div>
       <div className="my-5 flex justify-center gap-2">
         <Link
-          href={`/products/${id}/edit`}
+          href={`/seller/products/${id}/edit`}
           className="btn bg-light hover:text-primary inline-flex items-center gap-1.5"
         >
           <Icon icon="pencil" className="text-base" />

@@ -104,7 +104,7 @@ const ProductDetails = ({ product }: Props) => {
       {/* Action buttons */}
       <div className="flex flex-wrap gap-3 mt-6">
         <Link
-          href={`/products/${id}/edit`}
+          href={`/seller/products/${id}/edit`}
           className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-1.5"
         >
           <Icon icon="pencil" className="text-base" />

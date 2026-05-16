@@ -28,10 +28,11 @@ export default async function ProductDetailPage({
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  if (!user) redirect('/auth/sign-in')
+  // explicit /seller/... — server redirect ไม่ผ่าน proxy rewrite
+  if (!user) redirect('/seller/auth/sign-in')
 
   const shop = await getShopByUserId(user.id)
-  if (!shop) redirect('/shop')
+  if (!shop) redirect('/seller/shop')
 
   const product = await prisma.product.findUnique({ where: { id } })
   if (!product || product.shopId !== shop.id) notFound()
@@ -120,7 +121,7 @@ export default async function ProductDetailPage({
 
   return (
     <>
-      <PageBreadcrumb title={product.name} trail={[{ label: 'Business' }, { label: 'สินค้า', href: '/products' }]} />
+      <PageBreadcrumb title={product.name} trail={[{ label: 'Business' }, { label: 'สินค้า', href: '/seller/products' }]} />
       {/* 3-col card layout ตาม Paces theme: ซ้าย display, ขวา details + reviews */}
       <div className="card">
         <div className="card-body">

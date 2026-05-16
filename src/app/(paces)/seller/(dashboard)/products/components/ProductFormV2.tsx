@@ -226,7 +226,8 @@ export default function ProductFormV2({
       }
 
       toast.success('บันทึกแล้ว')
-      router.push('/products')
+      // explicit /seller/products — router.push ทำ client-side nav ไม่ผ่าน proxy rewrite
+      router.push('/seller/products')
       router.refresh()
     } catch {
       toast.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะคะ')

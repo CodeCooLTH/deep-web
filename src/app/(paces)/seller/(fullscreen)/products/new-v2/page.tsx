@@ -28,7 +28,8 @@ const FORM_ID = 'product-form-v2'
 export default async function NewProductV2Page() {
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
-  if (!user) redirect('/auth/sign-in')
+  // explicit /seller/auth/sign-in — server redirect ไม่ผ่าน proxy rewrite
+  if (!user) redirect('/seller/auth/sign-in')
 
   let shop: any = null
   try {
@@ -49,7 +50,7 @@ export default async function NewProductV2Page() {
         <h2 className="text-dark mb-2 text-xl font-bold">ยังไม่มีร้านค้า</h2>
         <p className="text-default-400 mb-6">เปิดร้านก่อนนะคะ ถึงจะเพิ่มสินค้าได้</p>
         <Link
-          href="/shop"
+          href="/seller/shop"
           className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-2 px-6 py-3 font-semibold text-white"
         >
           <Icon icon="tabler:plus" width={18} height={18} />
@@ -68,7 +69,7 @@ export default async function NewProductV2Page() {
       */}
       <FullscreenPageHeader
         title="เพิ่มสินค้าใหม่"
-        cancelHref="/products"
+        cancelHref="/seller/products"
         saveLabel="บันทึก"
         saveFormId={FORM_ID}
       />

@@ -92,7 +92,7 @@ const ProductsListing = ({ products }: Props) => {
           </div>
           <div>
             <h5 className="mb-0.5">
-              <Link href={`/products/${row.original.id}`} className="hover:text-primary font-medium">
+              <Link href={`/seller/products/${row.original.id}`} className="hover:text-primary font-medium">
                 {row.original.name}
               </Link>
             </h5>
@@ -169,13 +169,13 @@ const ProductsListing = ({ products }: Props) => {
       cell: ({ row }: { row: TableRow<ProductRow> }) => (
         <div className="flex justify-center gap-1.5">
           <Link
-            href={`/products/${row.original.id}`}
+            href={`/seller/products/${row.original.id}`}
             className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
           >
             <Icon icon="eye" className="text-base" />
           </Link>
           <Link
-            href={`/products/${row.original.id}/edit`}
+            href={`/seller/products/${row.original.id}/edit`}
             className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
           >
             <Icon icon="pencil" className="text-base" />
@@ -295,7 +295,7 @@ const ProductsListing = ({ products }: Props) => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/products/new" className="btn bg-primary text-white hover:bg-primary-hover">
+          <Link href="/seller/products/new" className="btn bg-primary text-white hover:bg-primary-hover">
             <Icon icon="plus" />
             เพิ่มสินค้า
           </Link>

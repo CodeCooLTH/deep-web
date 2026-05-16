@@ -68,7 +68,9 @@ export default function VerifyOtpForm() {
         redirect: false,
       })
       if (result?.ok) {
-        router.push('/dashboard')
+        // ต้องใช้ explicit /seller/dashboard เพราะ router.push ทำ client-side nav
+        // ไม่ผ่าน middleware rewrite — bare /dashboard จะตกไป buyer app
+        router.push('/seller/dashboard')
         return
       }
       setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')

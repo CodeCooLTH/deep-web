@@ -20,7 +20,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     | undefined
   // No session OR token points to a user that no longer exists in DB (stale
   // cookie from the old synthetic-session bypass) → force re-sign-in.
-  if (!session || !user?.id) redirect('/auth/sign-in')
+  // ต้องใช้ explicit /seller/auth/sign-in — server redirect() ไม่ผ่าน proxy rewrite
+  if (!session || !user?.id) redirect('/seller/auth/sign-in')
 
   // Every seller MUST have a shop — auto-create a default one on first visit
   // so they land on a usable dashboard instead of a "create shop" CTA.

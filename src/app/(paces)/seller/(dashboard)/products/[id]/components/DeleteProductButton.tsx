@@ -25,7 +25,8 @@ export default function DeleteProductButton({ productId }: Props) {
         return
       }
       toast.success('ลบสินค้าแล้ว')
-      router.push('/products')
+      // explicit /seller/products — router.push ทำ client-side nav ไม่ผ่าน proxy rewrite
+      router.push('/seller/products')
     } catch {
       toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
