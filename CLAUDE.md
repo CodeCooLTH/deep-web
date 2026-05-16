@@ -15,7 +15,7 @@
 | 3 | Commit ที่แตะ UI ต้องมี `Base:` line ชี้ `theme/...` ที่ copy มา | `ui-theme-sourcing` | `docs/conventions/ui-page-sourcing.md` |
 | 4 | Phase ≥3 tasks = agent team (Planner→Developer→Reviewer→QA→Controller, 5 gates, 3-level QA) + retro ปลาย phase | `agent-team-phase`, `phase-retro` | `docs/conventions/agent-team-workflow.md` |
 
-Subagents: `safepay-planner` `safepay-developer` `safepay-reviewer` `safepay-qa` (ทุกตัว Sonnet; Controller = main session).
+Subagents: `safepay-product` `safepay-planner` `safepay-database` `safepay-developer` `safepay-reviewer` `safepay-security` `safepay-qa` `safepay-docs` (ทุกตัว Sonnet; Controller = main session). Feature เต็มรูป (7-phase) ดู skill `agent-team-feature`.
 
 ---
 
