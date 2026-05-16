@@ -232,3 +232,39 @@ export const UpdateBadgeSchema = v.object({
   audience: v.optional(v.picklist(['SELLER', 'BUYER', 'ANY'])),
   criteria: v.optional(BadgeCriteriaSchema),
 });
+
+// ─── SMS Wallet schemas (Phase 4 — SMS Order Link + Seller Wallet) ────────────
+
+// SendSmsSchema — body ของ POST /api/orders/[token]/send-sms
+// ทำไม ไม่มี phone field: RC-8/RC-6 — buyer phone ต้องมาจาก order.buyerContact
+// ที่ server ดึงผ่าน DAL (getOrderForShop(token, shopId)) เท่านั้น.
+// ถ้ารับ phone จาก client = seller อาจส่งเบอร์ที่ไม่ตรง order (RC-6 bypass)
+// หรือ raw PII ข้าม trust boundary (RC-8 S-C1). token อยู่ใน path param ไม่ใช่ body.
+export const SendSmsSchema = v.object({});
+
+// CreateTopUpRequestSchema — body ของ POST /api/wallet/topup
+// seller ส่ง amount + slipFileId (fileId จาก /api/upload เหมือน verification doc)
+export const CreateTopUpRequestSchema = v.object({
+  // amount หน่วย ฿ integer:
+  //   min 100 — กัน top-up ขนาดเล็กที่ค่า overhead admin review ไม่คุ้ม (฿1/SMS → 100 SMS/ครั้ง)
+  //   max 100000 — ceiling กัน abuse/typo ที่ทำให้ยอดเกินที่ admin จะ approve ได้จริง
+  //   (RC-4 daily cap ~200 SMS/day → max balance ที่สมเหตุสมผลคือ ~฿200-500/เดือน
+  //   แต่ให้ headroom ฝาก bulk; ฿100000 คือ hard ceiling ไม่ใช่ expected amount)
+  amount: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(100),
+    v.maxValue(100000),
+  ),
+  // slipFileId — fileId ที่ได้จาก /api/upload (ไม่ใช่ URL ตรง)
+  // รูปแบบเดียวกับ CreateShopSchema.logo และ verification doc upload
+  slipFileId: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+});
+
+// AdminTopUpActionSchema — body ของ POST /api/admin/topups/[id]/reject
+// ใช้กับ reject endpoint เท่านั้น; approve ไม่มี body (action ชัดจาก path เอง)
+export const AdminTopUpActionSchema = v.object({
+  // reason — เหตุผล reject เป็นภาษาไทย แสดงให้ seller เห็น
+  // min 1 กัน reject โดยไม่ให้เหตุผล, max 500 เพียงพอสำหรับข้อความอธิบาย
+  reason: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
+});

@@ -153,18 +153,18 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 **Achievement Badges (10):**
 
-| # | Badge | ชื่อไทย | เงื่อนไข |
-|---|-------|---------|----------|
-| 1 | First Sale | เปิดหน้าร้าน | order CONFIRMED แรก |
-| 2 | Trusted Seller 50 | ร้านค้ายอดนิยม | CONFIRMED ครบ 50 |
-| 3 | Century Club | ร้อยออเดอร์ | CONFIRMED ครบ 100 |
-| 4 | Perfect Rating | ร้านคะแนนเต็ม | avg 5.0 (≥10 reviews) |
-| 5 | Highly Rated | ร้านคะแนนสูง | avg ≥4.8 (≥20 reviews) |
-| 6 | Zero Complaint | ไร้ข้อร้องเรียน | CONFIRMED 50 + **ไม่มี seller-initiated cancel** (buyer-initiated cancel ไม่นับ) |
-| 7 | Veteran | ร้านค้าเก่าแก่ | สมาชิกครบ 1 ปี + active (order ใน 30 วัน) |
-| 8 | Speed Demon | จัดส่งสายฟ้า | avg เวลา PENDING → SHIPPED ≤ 24 ชม. (≥20 orders, ใช้ shipmentTracking.createdAt เป็น proxy) |
-| 9 | Fully Verified | ยืนยันครบ | ผ่าน verification L1+L2+L3 |
-| 10 | Community Favorite | ขวัญใจชุมชน | reviewer ≥50 คน (**unique reviewerUserId เท่านั้น — anonymous review ไม่นับ**) |
+| #   | Badge              | ชื่อไทย         | เงื่อนไข                                                                                    |
+| --- | ------------------ | --------------- | ------------------------------------------------------------------------------------------- |
+| 1   | First Sale         | เปิดหน้าร้าน    | order CONFIRMED แรก                                                                         |
+| 2   | Trusted Seller 50  | ร้านค้ายอดนิยม  | CONFIRMED ครบ 50                                                                            |
+| 3   | Century Club       | ร้อยออเดอร์     | CONFIRMED ครบ 100                                                                           |
+| 4   | Perfect Rating     | ร้านคะแนนเต็ม   | avg 5.0 (≥10 reviews)                                                                       |
+| 5   | Highly Rated       | ร้านคะแนนสูง    | avg ≥4.8 (≥20 reviews)                                                                      |
+| 6   | Zero Complaint     | ไร้ข้อร้องเรียน | CONFIRMED 50 + **ไม่มี seller-initiated cancel** (buyer-initiated cancel ไม่นับ)            |
+| 7   | Veteran            | ร้านค้าเก่าแก่  | สมาชิกครบ 1 ปี + active (order ใน 30 วัน)                                                   |
+| 8   | Speed Demon        | จัดส่งสายฟ้า    | avg เวลา PENDING → SHIPPED ≤ 24 ชม. (≥20 orders, ใช้ shipmentTracking.createdAt เป็น proxy) |
+| 9   | Fully Verified     | ยืนยันครบ       | ผ่าน verification L1+L2+L3                                                                  |
+| 10  | Community Favorite | ขวัญใจชุมชน     | reviewer ≥50 คน (**unique reviewerUserId เท่านั้น — anonymous review ไม่นับ**)              |
 
 ### FR-5: Product (Capability Model)
 
@@ -212,13 +212,13 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ### FR-9: Public Profile (Seller-centric)
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-9.1 | ทุกคนมี `/u/{username}` | Must |
-| FR-9.2 | แสดง: trust score + breakdown, badges (3 หมวด), จำนวน order สำเร็จ, reviews ที่ได้รับในฐานะ seller | Must |
-| FR-9.3 | ถ้าเป็นร้าน → แสดงข้อมูลร้าน | Must |
-| FR-9.4 | เข้าดูได้โดยไม่ต้อง login | Must |
-| FR-9.5 | บัญชี buyer-only (ไม่มีร้าน) → แสดง trust + verification badge + empty-state ชวนเปิดร้าน. **ไม่แสดง review-as-buyer; ไม่แสดง buyer-audience achievement** (buyer badge ดูได้เฉพาะหน้า self `/badges`) | Must |
+| ID     | ข้อกำหนด                                                                                                                                                                                              | Priority |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| FR-9.1 | ทุกคนมี `/u/{username}`                                                                                                                                                                               | Must     |
+| FR-9.2 | แสดง: trust score + breakdown, badges (3 หมวด), จำนวน order สำเร็จ, reviews ที่ได้รับในฐานะ seller                                                                                                    | Must     |
+| FR-9.3 | ถ้าเป็นร้าน → แสดงข้อมูลร้าน                                                                                                                                                                          | Must     |
+| FR-9.4 | เข้าดูได้โดยไม่ต้อง login                                                                                                                                                                             | Must     |
+| FR-9.5 | บัญชี buyer-only (ไม่มีร้าน) → แสดง trust + verification badge + empty-state ชวนเปิดร้าน. **ไม่แสดง review-as-buyer; ไม่แสดง buyer-audience achievement** (buyer badge ดูได้เฉพาะหน้า self `/badges`) | Must     |
 
 ### FR-10: Admin Panel
 
