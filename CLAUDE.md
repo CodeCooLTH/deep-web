@@ -4,63 +4,18 @@
 
 ---
 
-## 🛑 HARD RULES — read this first, every time
+## 🛑 HARD RULES — enforced by project skills
 
-### 1. No UI from scratch — always copy from the theme
+กฎเหล่านี้ enforce ผ่าน project-local skills ใน `.claude/skills/` (trigger อัตโนมัติ) — เมื่อ skill activate ให้ทำตาม skill ไม่ใช่จำจากที่นี่. Subagents ใน `.claude/agents/` ฝัง contract เดียวกัน.
 
-**ห้ามเขียน UI/page เองเด็ดขาด** — ทุกหน้าต้อง copy จากไฟล์ theme ที่ระบุเจาะจง แล้วปรับ content
+| # | Rule | Skill (auto-trigger) | Deep reference |
+|---|---|---|---|
+| 1 | No UI from scratch — ทุกหน้า/component ต้อง copy จาก theme file ที่ระบุ แล้วปรับ content | `ui-theme-sourcing` | `docs/conventions/ui-page-sourcing.md` |
+| 2 | No `component={Link}` ใน server component — ใช้ LinkButton/LinkChip wrapper | `rsc-mui-nav` | `docs/conventions/rsc-mui-navigation.md` |
+| 3 | Commit ที่แตะ UI ต้องมี `Base:` line ชี้ `theme/...` ที่ copy มา | `ui-theme-sourcing` | `docs/conventions/ui-page-sourcing.md` |
+| 4 | Phase ≥3 tasks = agent team (Planner→Developer→Reviewer→QA→Controller, 5 gates, 3-level QA) + retro ปลาย phase | `agent-team-phase`, `phase-retro` | `docs/conventions/agent-team-workflow.md` |
 
-Which theme depends on the route group:
-
-| Route | Theme | Source root |
-|---|---|---|
-| `src/app/(marketing)/**` (buyer + landing + public `/u/[username]` + `/o/[token]`) | **Vuexy** | `theme/vuexy/typescript-version/full-version/src/` |
-| `src/app/(paces)/seller/**` | **Paces** | `theme/paces/Admin/TS/src/` |
-| `src/app/(paces)/admin/**` | **Paces** | `theme/paces/Admin/TS/src/` |
-
-**Before any `Write` of a page/component/layout, state in the response:**
-
-1. Target route: `src/app/.../<path>/page.tsx`
-2. Theme source I will copy: `theme/<vuexy|paces>/.../<path>/<file>.tsx`
-3. I have `Read` that theme source this turn: ✅ / ❌
-
-If 3 is ❌ → stop, `Read` first. If 2 is vague → stop, research with Glob/Grep.
-
-Full mapping + workflow: **`docs/conventions/ui-page-sourcing.md`** (MANDATORY read before any UI task).
-
-### 2. No `component={Link}` in server components
-
-RSC refuses to serialize a component function prop across the server→client boundary. Use `LinkButton` / `LinkChip` wrappers (under `src/app/<group>/_components/mui-link.tsx`) or wrap `<Button>` with `<Link>`. Full pattern: **`docs/conventions/rsc-mui-navigation.md`**.
-
-### 3. Commit message must cite theme source for UI changes
-
-Every commit that touches `src/app/**`, `src/views/**`, or `src/components/**` (non-trivial UI) must include a `Base:` line pointing to the theme file it copied from. Trivial utility files are exempt. Missing `Base:` on a UI commit = convention violation.
-
-Example:
-```
-feat(buyer): /dashboard using Vuexy ecommerce widgets
-
-Base: theme/vuexy/.../(private)/apps/ecommerce/dashboard/page.tsx
-Widgets adapted: Congratulations → welcome, StatisticsCard, Orders, Transactions.
-Dropped: InvoiceListTable.
-```
-
-### 4. Multi-step phases run as an agent team, not single-threaded
-
-Any phase with ≥3 tasks (e.g. P1, P2, R1-R11) MUST be executed with the agent-team workflow: Planner → (parallel Developers) → independent Reviewer per task → **QA agent via Chrome DevTools MCP per user-facing task + per batch + end-of-phase** → Controller integrates → per-phase Retro.
-
-**Five gates per task: Plan → Develop → Review → QA → Integrate.** The Controller (this main session) is the only one who commits or marks tasks complete. Reviewers and QA agents must be independent from the Developer.
-
-**3-level QA cadence (required):**
-1. Per-task smoke — after Reviewer pass, exercise the new page in browser via Chrome DevTools MCP at `http://deepth.local:4000/...`.
-2. Batch integration — after a batch of 3 tasks, walk a golden path across all of them.
-3. End-of-phase — full PRD FR walk with seeded data.
-
-Code review + type-check ≠ working feature. If no QA step runs, the task is not done.
-
-After every phase: write `docs/retro/YYYY-MM-DD-<phase>.md` covering problems, root causes, conventions to adopt, action items. Promote durable conventions to `CLAUDE.md` + `docs/conventions/`; personal reminders to `~/.claude/.../memory/`.
-
-Full workflow: **`docs/conventions/agent-team-workflow.md`**.
+Subagents: `safepay-planner` `safepay-developer` `safepay-reviewer` `safepay-qa` (ทุกตัว Sonnet; Controller = main session).
 
 ---
 
