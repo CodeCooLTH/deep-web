@@ -150,6 +150,9 @@ export async function getOrderByToken(publicToken: string) {
     include: {
       items: true,
       shop: { include: { user: { select: { id: true, displayName: true, username: true, trustScore: true, userBadges: { include: { badge: true } } } } } },
+      // buyer: registered user ที่ยืนยัน order — ใช้แสดง displayName ใน seller view
+      // additive include — caller เดิมที่ไม่ใช้ buyer ไม่กระทบ
+      buyer: { select: { id: true, displayName: true, username: true } },
       shipmentTracking: true,
       review: true,
     },
@@ -164,6 +167,9 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
     include: {
       items: true,
       shop: { include: { user: { select: { id: true, displayName: true, username: true, trustScore: true, userBadges: { include: { badge: true } } } } } },
+      // buyer: registered user ที่ยืนยัน order — ใช้แสดง displayName ใน seller order detail
+      // additive include — ไม่ break caller เดิม
+      buyer: { select: { id: true, displayName: true, username: true } },
       shipmentTracking: true,
       review: true,
     },

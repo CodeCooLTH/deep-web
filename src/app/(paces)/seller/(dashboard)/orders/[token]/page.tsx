@@ -21,6 +21,8 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import OrderSummary from './components/OrderSummary'
 import CustomerDetails from './components/CustomerDetails'
 import ShippingActivity from './components/ShippingActivity'
+import OrderReviewCard from './components/OrderReviewCard'
+import type { OrderReviewData } from './components/OrderReviewCard'
 
 export const metadata: Metadata = { title: 'รายละเอียดออเดอร์' }
 
@@ -55,6 +57,33 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
+
+  // สร้าง review data — mask PII ที่ RSC boundary ก่อนส่งข้าม (S-C1)
+  // ห้ามส่ง raw phone/email ข้ามขอบเขต RSC→client แม้แต่ฟิลด์เดียว
+  // เฉพาะ masked string หรือ displayName (public) เท่านั้นที่ข้ามได้
+  function maskContactLocal(c: string): string {
+    if (!c || c.length <= 4) return c || '—'
+    return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
+  }
+
+  const reviewerLabel: string = (() => {
+    // buyer ลงทะเบียนแล้ว → displayName เป็น public field — ส่งได้ตรง
+    if (order.buyer?.displayName) return order.buyer.displayName
+    // guest → mask ที่ server boundary ก่อน — ห้ามส่ง raw ข้าม RSC
+    const raw = order.review?.reviewerContact ?? order.buyerContact ?? null
+    if (raw) return maskContactLocal(raw)
+    return 'ผู้ซื้อนิรนาม'
+  })()
+
+  const reviewData: OrderReviewData | null = order.review
+    ? {
+        rating: order.review.rating,
+        comment: order.review.comment ?? null,
+        // reviewerLabel คือ safe label ที่ mask แล้วจาก server — ไม่มี raw contact ข้ามมา
+        reviewerLabel,
+        createdAtISO: (order.review.createdAt as Date).toISOString(),
+      }
+    : null
 
   return (
     <>
@@ -107,6 +136,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
               buyerUsername: order.buyer?.username ?? null,
             }}
           />
+          {/* review card: compose กลับตาม retro action #4 + #9 — trust-critical info ที่ seller ต้องเห็น */}
+          <OrderReviewCard review={reviewData} />
         </div>
       </div>
     </>
