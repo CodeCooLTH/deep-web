@@ -21,14 +21,15 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  authAccounts      AuthAccount[]
-  shop              Shop?
-  verifications     VerificationRecord[]
-  userBadges        UserBadge[]
-  trustScoreHistory TrustScoreHistory[]
-  ordersAsBuyer     Order[]              @relation("BuyerOrders")
-  reviewsGiven      Review[]             @relation("ReviewerReviews")
+  authAccounts          AuthAccount[]
+  shop                  Shop?
+  verifications         VerificationRecord[]
+  userBadges            UserBadge[]
+  trustScoreHistory     TrustScoreHistory[]
+  ordersAsBuyer         Order[]              @relation("BuyerOrders")
+  reviewsGiven          Review[]             @relation("ReviewerReviews")
   verificationsReviewed VerificationRecord[] @relation("ReviewedBy")
+  topUpRequestsReviewed TopUpRequest[]       @relation("TopUpReviewedBy")
 }
 
 model AuthAccount {
@@ -57,9 +58,11 @@ model Shop {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products Product[]
-  orders   Order[]
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products        Product[]
+  orders          Order[]
+  wallet          SellerWallet?
+  topUpRequests   TopUpRequest[]
 }
 
 model VerificationRecord {
@@ -156,6 +159,7 @@ model Order {
   items            OrderItem[]
   shipmentTracking ShipmentTracking?
   review           Review?
+  smsCodes         SmsCode[]
 }
 
 model OrderItem {
@@ -205,4 +209,73 @@ model TrustScoreHistory {
   calculatedAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// --- Wallet + SMS (Phase 4: Paid SMS Order Link + Seller Wallet/Credit) ---
+
+model SellerWallet {
+  id        String   @id @default(uuid())
+  shopId    String   @unique
+  // balance เป็น integer หน่วย ฿; RC-3: CHECK(balance >= 0) enforce ใน migration SQL ด้วยมือ
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop         Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id           String   @id @default(uuid())
+  walletId     String
+  // type: "TOPUP" | "DEDUCT" — String ตาม convention project (ดู Order.status, VerificationRecord.status)
+  type         String
+  amount       Int
+  balanceAfter Int
+  description  String
+  refId        String?
+  createdAt    DateTime @default(now())
+
+  wallet SellerWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+}
+
+model TopUpRequest {
+  id             String    @id @default(uuid())
+  shopId         String
+  amount         Int
+  slipFileId     String
+  // status: "PENDING" | "APPROVED" | "REJECTED"
+  status         String    @default("PENDING")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectedReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  shop       Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("TopUpReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([shopId])
+}
+
+model SmsCode {
+  id             String    @id @default(uuid())
+  // codeHash: SHA-256 hex ของ raw code — เก็บแบบ hashed at rest (RC-3/D1)
+  codeHash       String    @unique
+  orderId        String
+  buyerPhone     String
+  expiresAt      DateTime
+  usedAt         DateTime?
+  // deliveryStatus: "PENDING" | "SENT" | "FAILED" — ใช้ reconcile crash (RC-3 AR-1)
+  deliveryStatus String    @default("PENDING")
+  createdAt      DateTime  @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([codeHash])
+  @@index([orderId])
+  @@index([expiresAt])
 }
