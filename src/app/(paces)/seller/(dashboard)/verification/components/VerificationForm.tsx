@@ -1,6 +1,6 @@
 'use client'
 
-import { Icon } from '@iconify/react'
+import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -74,12 +74,14 @@ function FileField({
         className="relative flex items-center gap-3 rounded-lg border border-default-200 bg-default-50 px-4 py-3 cursor-pointer hover:border-primary transition-colors"
         onClick={() => inputRef.current?.click()}
       >
-        <Icon icon="mdi:file-upload-outline" width={20} height={20} className="text-default-400 shrink-0" />
+        {/* mdi:file-upload-outline → tabler:file-upload (ผ่าน wrapper) */}
+        <Icon icon="file-upload" className="size-5 text-default-400 shrink-0" />
         <span className="text-sm text-default-500 truncate flex-1">
           {fileName ?? 'คลิกเพื่อเลือกไฟล์ (รูปภาพ / PDF, ≤ 5 MB)'}
         </span>
         {fileName && (
-          <Icon icon="mdi:check-circle" width={16} height={16} className="text-success shrink-0" />
+          /* mdi:check-circle → tabler:circle-check (ผ่าน wrapper) */
+          <Icon icon="circle-check" className="size-4 text-success shrink-0" />
         )}
         <input
           ref={inputRef}
@@ -194,12 +196,14 @@ function L2Form({ onDone }: { onDone: () => void }) {
         >
           {submitting ? (
             <>
-              <Icon icon="mdi:loading" width={16} height={16} className="animate-spin" />
+              {/* mdi:loading → tabler:loader-2 (ผ่าน wrapper) */}
+              <Icon icon="loader-2" className="size-4 animate-spin" />
               กำลังส่ง...
             </>
           ) : (
             <>
-              <Icon icon="mdi:send-outline" width={16} height={16} />
+              {/* mdi:send-outline → tabler:send (ผ่าน wrapper) */}
+              <Icon icon="send" className="size-4" />
               ส่งเอกสาร
             </>
           )}
@@ -322,12 +326,14 @@ function L3Form({ onDone }: { onDone: () => void }) {
         >
           {submitting ? (
             <>
-              <Icon icon="mdi:loading" width={16} height={16} className="animate-spin" />
+              {/* mdi:loading → tabler:loader-2 (ผ่าน wrapper) */}
+              <Icon icon="loader-2" className="size-4 animate-spin" />
               กำลังส่ง...
             </>
           ) : (
             <>
-              <Icon icon="mdi:send-outline" width={16} height={16} />
+              {/* mdi:send-outline → tabler:send (ผ่าน wrapper) */}
+              <Icon icon="send" className="size-4" />
               ส่งเอกสาร
             </>
           )}

@@ -1,15 +1,19 @@
 /**
  * Seller verification page (L1/L2/L3) — ไม่มี Paces verification-workflow template (Explore E1).
- * ประกอบจาก LevelCard (shell re-sourced จาก AddCategoryModal — ดู LevelCard.tsx Base).
- * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
+ * status header: re-sourced จาก SellerStatisticCard (icon-circle + value + subTitle pattern)
+ * level cards: re-sourced จาก pricing/page.tsx + pricing/components/data.ts (isPopular pattern)
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(sellers)/seller-details/components/SellerStatisticCard.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getUserVerifications, getMaxVerificationLevel } from '@/services/verification.service'
-import { Icon } from '@iconify/react'
+import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import LevelCard from './components/LevelCard'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import SellerErrorState from '../_shared/SellerErrorState'
 
 export const metadata: Metadata = { title: 'ยืนยันตัวตนร้านค้า' }
 
@@ -46,10 +50,31 @@ export default async function VerificationPage() {
   const user = (session as any)?.user
   if (!user) return null // layout redirect guard handles unauthenticated
 
-  const [verifications, maxLevel] = await Promise.all([
-    getUserVerifications(user.id).catch(() => [] as any[]),
-    getMaxVerificationLevel(user.id).catch(() => 0),
-  ])
+  // fetch fail → SellerErrorState (ไม่โยน exception ให้ error boundary)
+  let verifications: any[] = []
+  let maxLevel = 0
+  let fetchFailed = false
+  try {
+    ;[verifications, maxLevel] = await Promise.all([
+      getUserVerifications(user.id),
+      getMaxVerificationLevel(user.id),
+    ])
+  } catch {
+    fetchFailed = true
+  }
+
+  if (fetchFailed) {
+    return (
+      <>
+        <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'Setting' }]} />
+        <SellerErrorState
+          title="โหลดข้อมูลการยืนยันตัวตนไม่สำเร็จ"
+          message="เกิดข้อผิดพลาดชั่วคราว ลองโหลดใหม่อีกครั้ง"
+          retryHref="/seller/verification"
+        />
+      </>
+    )
+  }
 
   // Build a quick lookup: level → latest record (already desc by createdAt)
   const byLevel: Record<number, (typeof verifications)[0]> = {}
@@ -111,31 +136,41 @@ export default async function VerificationPage() {
         </div>
       </div>
 
-      {/* Current status card */}
-      <div className="card p-6 rounded-xl mb-6 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20">
-        <div className="flex items-center gap-5">
-          <div className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-card shadow-sm border border-primary/20">
-            <span className="text-3xl font-extrabold text-primary leading-none">{maxLevel}</span>
-            <span className="text-xs text-default-400 mt-0.5">/ 3</span>
+      {/* Current status card — shell จาก SellerStatisticCard (icon-circle + value + subTitle) */}
+      <div className="card mb-6">
+        <div className="card-body">
+          <div className="flex items-center justify-between">
+            <h5 className="card-title text-sm">ระดับปัจจุบัน</h5>
           </div>
-          <div>
-            <div className="text-default-400 text-sm font-medium">ระดับปัจจุบัน</div>
-            <div className="text-dark font-bold text-xl mt-0.5">
-              Level {maxLevel} — {currentLevelInfo.label}
+          {/* icon-circle + value — ตาม SellerStatisticCard mt-5 mb-2.5 flex items-center gap-2.5 */}
+          <div className="mt-5 mb-2.5 flex items-center gap-2.5">
+            <div className="size-9 flex items-center justify-center rounded-full bg-primary">
+              <Icon icon="shield-check" className="size-5.5 text-white" />
             </div>
-            <p className="text-default-400 text-sm mt-0.5">{currentLevelInfo.sub}</p>
+            <h3 className="text-xl">
+              Level {maxLevel} — {currentLevelInfo.label}
+            </h3>
           </div>
+          {/* subTitle + hint — ตาม SellerStatisticCard text-default-400 flex items-center justify-between text-sm */}
+          <div className="text-default-400 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-1">
+              <span className="flex items-center gap-1">
+                <Icon icon="circle-filled" className="align-middle" />
+              </span>
+              <span>{currentLevelInfo.sub}</span>
+            </div>
+            <span className="font-semibold text-default-800">/ 3</span>
+          </div>
+          {/* hint — ซ่อนเมื่อ maxLevel = 3 */}
+          {maxLevel < 3 && (
+            <div className="mt-3 flex items-center gap-2 text-primary text-sm">
+              <Icon icon="info-circle" className="size-4 shrink-0" />
+              <span>
+                ยืนยันให้ครบ Level 3 เพื่อรับ Trust Score สูงสุด
+              </span>
+            </div>
+          )}
         </div>
-
-        {maxLevel < 3 && (
-          <div className="mt-4 flex items-center gap-2 text-primary text-sm">
-            <Icon icon="mdi:information-outline" width={16} height={16} />
-            <span>
-              ยืนยันให้ครบ Level 3 เพื่อรับ Trust Score สูงสุดและ Badge{' '}
-              <strong>ธุรกิจเต็มรูปแบบ</strong>
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Level cards */}
@@ -160,7 +195,7 @@ export default async function VerificationPage() {
       {/* Info footer */}
       <div className="mt-6 rounded-xl border border-default-200 bg-default-50 p-4 text-sm text-default-400">
         <div className="flex items-start gap-2">
-          <Icon icon="mdi:shield-lock-outline" width={16} height={16} className="mt-0.5 shrink-0 text-default-300" />
+          <Icon icon="shield-lock" className="mt-0.5 shrink-0 text-default-300 size-4" />
           <p>
             เอกสารทั้งหมดถูกเก็บอย่างปลอดภัย ใช้สำหรับการยืนยันตัวตนเท่านั้น ไม่เปิดเผยต่อสาธารณะ
             ขนาดไฟล์ไม่เกิน 5 MB ต่อไฟล์ รองรับ JPG, PNG, PDF

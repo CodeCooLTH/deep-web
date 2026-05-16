@@ -1,11 +1,9 @@
 /**
- * LevelCard — เปลือกการ์ดยืนยันตัวตนต่อระดับ (L1 / L2 / L3)
+ * LevelCard — การ์ดยืนยันตัวตนต่อระดับ (L1 / L2 / L3)
+ * shell re-sourced จาก pricing-tier card (isPopular pattern)
  *
- * Base (card shell): theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
- *   — ใช้โครงสร้าง card → card-header → card-body → card-footer + button
- *   — E1 investigation (Phase B B0) กำหนดว่า AddCategoryModal เป็น source ที่ถูกต้อง
- *     (guideline row /seller/verification ระบุ SellerStatisticCard ซึ่งผิด
- *      เพราะ SellerStatisticCard ไม่มี CTA/footer slot — ดู Controller task S18 note)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/pages/pricing/components/data.ts
  *
  * Logic + API wiring: คงเดิมจาก E1 — ห้ามเปลี่ยน
  *   - POST /api/upload (returns fileId)
@@ -20,7 +18,8 @@
 
 'use client'
 
-import { Icon } from '@iconify/react'
+import Icon from '@/components/wrappers/Icon'
+import { cn } from '@/utils/helpers'
 import { useState } from 'react'
 import StatusBadge from './StatusBadge'
 import VerificationForm from './VerificationForm'
@@ -36,20 +35,40 @@ interface LevelCardProps {
   canSubmit: boolean
 }
 
-// ไอคอนต่อระดับ — ใช้ tabler prefix สอดคล้อง project convention
+// ไอคอนต่อระดับ — tabler ชื่อ (ไม่มี prefix, ส่งเข้า wrapper)
 const levelIcons: Record<number, string> = {
-  1: 'tabler:phone-check',
-  2: 'tabler:id-badge-2',
-  3: 'tabler:building-store',
+  1: 'phone-check',
+  2: 'id-badge-2',
+  3: 'building-store',
 }
 
-// border ของ card-header แต่ละสถานะ — semantic Tailwind class เท่านั้น (ไม่มี arbitrary value)
-const headerBorderByStatus: Record<string, string> = {
-  APPROVED: 'border-success/30',
-  AUTO_APPROVED: 'border-success/30',
-  PENDING: 'border-warning/30',
-  REJECTED: 'border-danger/30',
-  NOT_SUBMITTED: 'border-default-200',
+// รายการเอกสารต่อระดับ — แสดงใน features ul (pricing card pattern)
+const levelFeatures: Record<number, { title: string; included: boolean }[]> = {
+  1: [
+    { title: 'ยืนยันเบอร์โทรศัพท์ผ่าน OTP', included: true },
+    { title: 'อัตโนมัติเมื่อสมัครผ่านเบอร์โทร', included: true },
+    { title: 'ไม่ต้องอัปโหลดเอกสาร', included: true },
+  ],
+  2: [
+    { title: 'บัตรประชาชน', included: true },
+    { title: 'Selfie คู่กับบัตรประชาชน', included: true },
+    { title: 'รูปหน้าร้าน / ป้ายร้าน', included: true },
+    { title: 'แอดมินตรวจสอบภายใน 1–2 วัน', included: true },
+  ],
+  3: [
+    { title: 'เอกสารจดทะเบียนธุรกิจ', included: true },
+    { title: 'เลขที่จดทะเบียน', included: true },
+    { title: 'แอดมินตรวจสอบภายใน 3–5 วัน', included: true },
+    { title: 'ต้องผ่าน Level 2 ก่อน', included: false },
+  ],
+}
+
+// การ์ด actionable (canSubmit=true) ใช้ isPopular highlight (pricing pattern)
+// APPROVED/AUTO_APPROVED → ขอบเขียว เพื่อบ่งบอกว่าผ่านแล้ว
+function getCardHighlight(status: LevelCardProps['status'], canSubmit: boolean): string {
+  if (canSubmit) return '!bg-primary'
+  if (status === 'APPROVED' || status === 'AUTO_APPROVED') return 'border-success/40'
+  return ''
 }
 
 export default function LevelCard({
@@ -60,62 +79,111 @@ export default function LevelCard({
   rejectedReason,
   canSubmit,
 }: LevelCardProps) {
-  // toggle แสดงฟอร์มอัปโหลด — onDone() พับกลับ
+  // toggle แสดงฟอร์มอัปโหลด — onDone() พับกลับ (คงเดิม)
   const [showForm, setShowForm] = useState(false)
 
-  const headerBorderCls = headerBorderByStatus[status] ?? 'border-default-200'
+  const isActionable = canSubmit
+  const cardHighlight = getCardHighlight(status, isActionable)
+  const features = levelFeatures[level] ?? []
 
   return (
-    // card shell: มาจาก AddCategoryModal "w-full flex flex-col card"
-    <div className="w-full flex flex-col card">
-
-      {/* card-header: ระดับ + ชื่อ + status chip — จาก AddCategoryModal card-header p-5 */}
-      <div className={`card-header p-5 border-b ${headerBorderCls} flex items-center gap-4`}>
-        {/* ไอคอนระดับ */}
-        <div className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-primary/10">
-          <Icon icon={levelIcons[level]} width={22} height={22} className="text-primary" />
-        </div>
-
-        {/* หัวการ์ด */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-0.5">
-            <span className="text-xs font-semibold text-default-400 uppercase tracking-wider">
+    // shell จาก pricing card: card h-full rounded-md + isPopular → !bg-primary
+    <div className={cn('card h-full rounded-md', cardHighlight)}>
+      {/* card-body text-center — pricing pattern */}
+      <div className="card-body p-7.5">
+        {/* header: icon-circle + Level label + ชื่อระดับ */}
+        <div className="flex items-center gap-3 mb-1.25">
+          <div
+            className={cn(
+              'size-9 flex items-center justify-center rounded-full',
+              isActionable ? 'bg-white/20' : 'bg-primary/10',
+            )}
+          >
+            <Icon
+              icon={levelIcons[level]}
+              className={cn('size-5', isActionable ? 'text-white' : 'text-primary')}
+            />
+          </div>
+          <div>
+            <span
+              className={cn(
+                'text-xs font-semibold uppercase tracking-wider',
+                isActionable ? 'text-white/60' : 'text-default-400',
+              )}
+            >
               Level {level}
             </span>
-
-            {/* status chip: StatusBadge (APPROVED/PENDING/REJECTED) หรือ inline สำหรับ AUTO_APPROVED/NOT_SUBMITTED */}
-            {status === 'APPROVED' && <StatusBadge status="APPROVED" />}
-            {status === 'AUTO_APPROVED' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-success/10 text-success">
-                <Icon icon="tabler:circle-check" width={14} height={14} />
-                ยืนยันแล้ว (อัตโนมัติ)
-              </span>
-            )}
-            {status === 'PENDING' && <StatusBadge status="PENDING" />}
-            {status === 'REJECTED' && <StatusBadge status="REJECTED" />}
-            {status === 'NOT_SUBMITTED' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-default-100 text-default-500">
-                <Icon icon="tabler:minus-circle" width={14} height={14} />
-                ยังไม่ส่ง
-              </span>
-            )}
+            <h3
+              className={cn('text-xl font-bold leading-tight', isActionable ? 'text-white' : '')}
+            >
+              {title}
+            </h3>
           </div>
-
-          <h3 className="text-dark font-semibold text-base leading-snug">{title}</h3>
         </div>
-      </div>
 
-      {/* card-body: คำอธิบาย + เหตุผลถูกปฏิเสธ — จาก AddCategoryModal card-body */}
-      <div className="card-body">
-        <p className="text-default-500 text-sm leading-relaxed">{description}</p>
+        {/* คำอธิบาย — pricing subtitle */}
+        <p className={cn('text-default-400 text-sm mb-4', isActionable && 'text-white/50')}>
+          {description}
+        </p>
 
-        {/* แสดงเหตุผลที่ถูกปฏิเสธ — ไม่มี raw filename/PII ที่ส่งมาจาก DB ใน field นี้ */}
+        {/* "price" slot → status badge */}
+        <div className="my-4 flex justify-start">
+          {status === 'APPROVED' && <StatusBadge status="APPROVED" />}
+          {status === 'AUTO_APPROVED' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-success/10 text-success">
+              <Icon icon="circle-check" className="size-3.5" />
+              ยืนยันแล้ว (อัตโนมัติ)
+            </span>
+          )}
+          {status === 'PENDING' && <StatusBadge status="PENDING" />}
+          {status === 'REJECTED' && <StatusBadge status="REJECTED" />}
+          {status === 'NOT_SUBMITTED' && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold',
+                isActionable
+                  ? 'bg-white/20 text-white'
+                  : 'bg-default-100 text-default-500',
+              )}
+            >
+              <Icon icon="lock" className="size-3.5" />
+              ยังไม่ปลดล็อก
+            </span>
+          )}
+        </div>
+
+        {/* เหตุผลถูกปฏิเสธ */}
         {status === 'REJECTED' && rejectedReason && (
-          <div className="mt-3 rounded-lg border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">
+          <div className="mb-4 rounded-lg border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">
             <span className="font-semibold">เหตุผล: </span>
             {rejectedReason}
           </div>
         )}
+
+        {/* features ul + Icon check/x — pricing pattern */}
+        <ul className="space-y-2.5">
+          {features.map((feature, i) => (
+            <li
+              key={i}
+              className={cn(
+                'flex items-center gap-3 text-sm',
+                isActionable ? 'text-white' : '',
+              )}
+            >
+              <Icon
+                icon={feature.included ? 'check' : 'x'}
+                className={cn(
+                  'text-sm shrink-0',
+                  feature.included ? 'text-success' : 'text-danger',
+                  // อักษรขาวบน primary bg → ปรับ icon ให้อ่านง่าย
+                  isActionable && feature.included && 'text-white/80',
+                  isActionable && !feature.included && 'text-white/40',
+                )}
+              />
+              {feature.title}
+            </li>
+          ))}
+        </ul>
 
         {/* ฟอร์มอัปโหลดเอกสาร (inline, toggle) — logic คงเดิม */}
         {showForm && (level === 2 || level === 3) && (
@@ -123,15 +191,15 @@ export default function LevelCard({
         )}
       </div>
 
-      {/* card-footer: CTA button — จาก AddCategoryModal "flex justify-end items-center gap-x-2 border-t ... card-body" */}
+      {/* footer btn → CTA ตาม canSubmit — pricing px-15 pt-3.75 pb-7.5 */}
       {canSubmit && (level === 2 || level === 3) && !showForm && (
-        <div className="flex items-center gap-x-2 border-t border-default-200 card-body">
+        <div className="px-7.5 pt-3.75 pb-7.5">
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2"
+            className="btn w-full rounded-full py-3 font-semibold bg-white text-primary hover:bg-white/90 inline-flex items-center justify-center gap-2"
           >
-            <Icon icon="tabler:upload" width={16} height={16} />
+            <Icon icon="upload" className="size-4" />
             อัปโหลดเอกสาร
           </button>
         </div>
