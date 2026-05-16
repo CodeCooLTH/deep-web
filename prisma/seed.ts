@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 // Seed ต้องใช้ DIRECT_URL (non-pooled) — pgbouncer transaction mode
 // จะทำให้ FK ไม่ valid ถ้า parent row ถูก write บน session ที่ต่างกัน
@@ -268,6 +268,7 @@ async function main() {
         };
       });
       const total = lineData.reduce((s, l) => s + l.subtotal, 0);
+      // pre-cutover cast — fulfillmentMode ยังไม่อยู่ใน generated client; ลบเมื่อ Task 10 prisma generate
       const order = await prisma.order.create({
         data: {
           shopId: shop.id,
@@ -288,7 +289,7 @@ async function main() {
               price: l.product.price,
             })),
           },
-        },
+        } as Prisma.OrderUncheckedCreateInput,
       });
       if (r.tracking) {
         await prisma.shipmentTracking.create({
@@ -414,6 +415,7 @@ async function main() {
         return { product, qty: ln.qty, subtotal: Number(product.price) * ln.qty };
       });
       const total = lineData.reduce((s, l) => s + l.subtotal, 0);
+      // pre-cutover cast — fulfillmentMode ยังไม่อยู่ใน generated client; ลบเมื่อ Task 10 prisma generate
       const order = await prisma.order.create({
         data: {
           shopId: shop2.id,
@@ -434,7 +436,7 @@ async function main() {
               price: l.product.price,
             })),
           },
-        },
+        } as Prisma.OrderUncheckedCreateInput,
       });
       if (r.tracking) {
         await prisma.shipmentTracking.create({
