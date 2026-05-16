@@ -6,8 +6,8 @@
  *   - ลบ PasswordInputWithStrength (SafePay ไม่ใช้ password)
  *   - ลบ terms & policy checkbox (ไม่มีใน SafePay MVP)
  *   - เปลี่ยน email input → phone (tel) input
- *   - shopName ไม่ถูกเก็บในขั้นตอนนี้โดยตั้งใจ — ร้านค้าสร้างอัตโนมัติด้วยชื่อ "ร้านของ {displayName}"
- *     (onboarding ชื่อร้านที่แท้จริงจะเพิ่มใน task แยกต่างหาก)
+ *   - เพิ่ม shopName field — ชื่อร้านค้าที่ผู้ใช้ตั้งเอง ส่งต่อไป verify-otp → auth.ts
+ *     เพื่อสร้าง Shop ทันทีที่ signup (task #9 — ไม่ใช้ fallback "ร้านของ {displayName}" อีกต่อไปสำหรับ signup path)
  *   - เพิ่ม username field พร้อม debounce check-username API
  *   - Yup + react-hook-form (ตาม convention — Yup + @hookform/resolvers สำหรับ frontend form)
  *   - submit: POST /api/otp/send แล้ว redirect ไป /seller/auth/verify-otp พร้อม params
@@ -32,6 +32,11 @@ const schema = Yup.object({
   username: Yup.string()
     .matches(/^[a-zA-Z0-9_]{3,30}$/, 'ใช้ a-z, 0-9, _ ได้ 3-30 ตัว')
     .required('กรุณาตั้งชื่อผู้ใช้'),
+  shopName: Yup.string()
+    .trim()
+    .min(1, 'กรุณากรอกชื่อร้านค้า')
+    .max(100, 'ชื่อร้านค้าไม่เกิน 100 ตัวอักษร')
+    .required('กรุณากรอกชื่อร้านค้า'),
 })
 
 type FormValues = Yup.InferType<typeof schema>
@@ -58,7 +63,7 @@ export default function SignUpForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { phone: '', displayName: '', username: '' },
+    defaultValues: { phone: '', displayName: '', username: '', shopName: '' },
   })
 
   const username = watch('username')
@@ -120,6 +125,7 @@ export default function SignUpForm() {
         phone: values.phone,
         name: values.displayName,
         username: values.username,
+        shopName: values.shopName,
       })
       router.push(`/seller/auth/verify-otp?${params.toString()}`)
     } catch {
@@ -170,7 +176,7 @@ export default function SignUpForm() {
       </div>
 
       {/* username พร้อม debounce check */}
-      <div className="mb-6">
+      <div className="mb-5">
         <label htmlFor="username" className="form-label">
           ชื่อผู้ใช้ (username)<span className="text-danger">*</span>
         </label>
@@ -195,6 +201,25 @@ export default function SignUpForm() {
         )}
         {!errors.username && usernameStatus.state === 'error' && (
           <p className="text-danger mt-1 text-sm">{REASON_MESSAGE[usernameStatus.reason]}</p>
+        )}
+      </div>
+
+      {/* ชื่อร้านค้า — ส่งต่อ verify-otp → auth.ts เพื่อสร้าง Shop ด้วยชื่อที่ผู้ใช้ตั้ง */}
+      <div className="mb-6">
+        <label htmlFor="shopName" className="form-label">
+          ชื่อร้านค้า<span className="text-danger">*</span>
+        </label>
+        <div className="input-group">
+          <input
+            id="shopName"
+            type="text"
+            placeholder="ชื่อร้านที่แสดงต่อลูกค้า"
+            className="form-input"
+            {...register('shopName')}
+          />
+        </div>
+        {errors.shopName && (
+          <p className="text-danger mt-1 text-sm">{errors.shopName.message}</p>
         )}
       </div>
 

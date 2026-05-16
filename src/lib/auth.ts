@@ -19,6 +19,9 @@ export const authOptions: NextAuthOptions = {
         mode: { label: "Mode", type: "text" },
         displayName: { label: "DisplayName", type: "text" },
         username: { label: "Username", type: "text" },
+        // shopName ส่งมาจาก VerifyOtpForm เฉพาะ mode=signup (seller onboarding)
+        // signin path จะส่ง empty string — authorize() ตรวจ mode+shopName ก่อนใช้
+        shopName: { label: "ShopName", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.otp) return null;
@@ -67,6 +70,33 @@ export const authOptions: NextAuthOptions = {
             // Auto-link any orders/reviews placed as a guest with this phone (PRD FR-8, B-4)
             const { linkBuyerHistory } = await import("@/services/user.service");
             await linkBuyerHistory(user.id, credentials.phone);
+
+            // สร้าง Shop ทันทีที่ signup seller ถ้า shopName ถูกส่งมา
+            // (mode=signup + shopName ไม่ว่าง) — ป้องกัน layout fallback override ชื่อที่ผู้ใช้ตั้ง.
+            // ไม่ใช้ createShop service เพราะ service ต้องการ businessType ซึ่งยังไม่มีใน onboarding นี้
+            // — prisma direct create เหมือน layout fallback แต่ใช้ชื่อที่ผู้ใช้ตั้ง + set isShop=true.
+            // Layout fallback ยังคงอยู่เป็น safety net สำหรับ Facebook signup / buyer ที่เปิดร้านทีหลัง
+            const trimmedShopName = credentials.shopName?.trim();
+            if (credentials.mode === "signup" && trimmedShopName) {
+              // server-side guard — credentials เป็น untrusted input (Yup frontend bypass ได้); ตรงสัญญา CreateShopSchema maxLength 100
+              if (trimmedShopName.length > 100) return null;
+              // ห่อทั้ง shop.create + user.update ใน transaction เดียว —
+              // ถ้า user.update ล้มเหลว Prisma จะ rollback shop.create อัตโนมัติ
+              // ป้องกัน orphan shop + isShop stuck false ซึ่ง layout fallback ไม่สามารถแก้ไขได้ (userId unique constraint)
+              await prisma.$transaction(async (tx) => {
+                await tx.shop.create({
+                  data: {
+                    userId: user!.id,
+                    shopName: trimmedShopName,
+                    businessType: "INDIVIDUAL",
+                  },
+                });
+                await tx.user.update({
+                  where: { id: user!.id },
+                  data: { isShop: true },
+                });
+              });
+            }
           } catch (err: unknown) {
             // P2002 = unique constraint on username or phone; surface as auth failure
             if (err && typeof err === "object" && "code" in err && err.code === "P2002") return null;

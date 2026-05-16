@@ -22,6 +22,9 @@ export default function VerifyOtpForm() {
   const mode = (params.get('mode') ?? 'signin') as 'signin' | 'signup'
   const displayName = params.get('name') ?? ''
   const username = params.get('username') ?? ''
+  // shopName ส่งมาจาก SignUpForm ผ่าน querystring — ใช้เฉพาะ mode=signup
+  // mode=signin ค่าจะเป็น '' และ auth.ts จะข้ามไม่สร้าง Shop (ไม่กระทบ signin flow)
+  const shopName = params.get('shopName') ?? ''
 
   const [digits, setDigits] = useState(['', '', '', '', '', ''])
   const [submitting, setSubmitting] = useState(false)
@@ -65,6 +68,7 @@ export default function VerifyOtpForm() {
         mode,
         displayName,
         username,
+        shopName,
         redirect: false,
       })
       if (result?.ok) {
