@@ -65,12 +65,23 @@ export function storeOtp(contact: string): string {
   return otp;
 }
 
-// Test account verify-bypass — remove in production.
-// 0920791649 ถูกถอดออกแล้ว (user request 2026-05-16) — ตอนนี้เป็นเบอร์ปกติ
-// ส่ง SMS จริง + verify ผ่าน otpStore เท่านั้น ไม่มี OTP ตายตัว
-const TEST_ACCOUNTS: Record<string, string> = {
-  '0000000001': '123456', // seller test account — BT Premium สุขสวัสดิ์
-};
+// Test account verify-bypass — ใน production ต้องว่างเปล่าเสมอ (safepay-security mandate)
+// prod = {} → bypass ตาย: verifyOtp `TEST_ACCOUNTS[contact]` = undefined, isTestAccount `contact in {}` = false
+// dev/QA (NODE_ENV !== 'production') = บัญชีทดสอบครบ ไม่กระทบ workflow การทดสอบ
+// 0920791649 ถูกถอดออกแล้ว (user request 2026-05-16) — ตอนนี้เป็นเบอร์ปกติ ส่ง SMS จริง
+const TEST_ACCOUNTS: Record<string, string> = process.env.NODE_ENV === 'production'
+  ? {}
+  : { '0000000001': '123456' }; // seller test account — BT Premium สุขสวัสดิ์
+
+/**
+ * ตรวจว่า contact นี้อยู่ใน TEST_ACCOUNTS หรือไม่
+ * ใช้แทนการ export TEST_ACCOUNTS ตรง ๆ — กัน route handler อื่น
+ * อ่าน OTP ที่ตายตัวได้โดยตรง (least-privilege)
+ * กฎเดียวกับ verifyOtp: ไม่มี env-guard — unconditional (ดู note สำหรับ security)
+ */
+export function isTestAccount(contact: string): boolean {
+  return contact in TEST_ACCOUNTS;
+}
 
 /**
  * แปลงเบอร์โทรไทย local format → E.164

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { SendOtpSchema } from "@/lib/validations";
-import { consumeOtpRequestQuota, sendOtpViaSms, storeOtp } from "@/lib/otp";
+import { consumeOtpRequestQuota, isTestAccount, sendOtpViaSms, storeOtp } from "@/lib/otp";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -29,9 +29,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // TEST_ACCOUNTS bypass: ถ้าเบอร์นี้อยู่ใน TEST_ACCOUNTS ใน lib/otp.ts
+  // ให้ข้ามการส่ง SMS จริงทั้งหมด (APITEL จะ 503 เพราะเบอร์ทดสอบรับ SMS ไม่ได้)
+  // verifyOtp สำหรับ test account ตรวจ fixed-code โดยตรง — ไม่ต้องการ otpStore
+  // ดังนั้นไม่ต้อง storeOtp ด้วย (แต่ไม่ผิดถ้า store — ไม่ถูก read อยู่ดี)
+  // กฎเดียวกับ verifyOtp: unconditional (ไม่มี env-guard) — ดู security note ล่างนี้
+  // ⚠️ SECURITY NOTE สำหรับ safepay-security: bypass นี้ไม่ได้ gate ด้วย NODE_ENV
+  // เพราะ verifyOtp เองก็ไม่มี env-guard — เราต้อง mirror model เดิม ไม่ใช่คิดเอง
+  // ความเสี่ยง: ถ้า TEST_ACCOUNTS รั่วไปสู่ prod → attacker ใช้ '0000000001'/'123456' login ได้
+  // แนะนำ: ให้ safepay-security พิจารณาเพิ่ม NODE_ENV !== 'production' guard ทั้งใน
+  // verifyOtp และ isTestAccount พร้อมกัน (ไม่ใช่หน้าที่ developer task นี้)
+  if (isTestAccount(contact)) {
+    return NextResponse.json({ message: "OTP sent", contact });
+  }
+
   const otp = storeOtp(contact);
 
-  // ส่ง SMS จริงทุก env — ไม่มี bypass แม้แต่ TEST_ACCOUNTS (ยืนยันจาก Controller แล้ว)
+  // ส่ง SMS จริง — เฉพาะเบอร์ที่ไม่ใช่ TEST_ACCOUNTS
   try {
     await sendOtpViaSms(contact, otp);
   } catch {
