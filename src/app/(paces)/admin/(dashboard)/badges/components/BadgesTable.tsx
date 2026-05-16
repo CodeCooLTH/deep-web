@@ -27,11 +27,38 @@ import {
 } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 
+// BadgeAvatar — แสดง imageUrl เป็นอันดับแรก; ถ้าโหลดไม่สำเร็จ/ไม่มี → IconifyIcon เดิม
+// ทำไม: ป้องกัน broken-image icon โผล่ เมื่อ imageUrl หมดอายุหรือ 404
+function BadgeAvatar({ badge }: { badge: Pick<AdminBadgeRow, 'imageUrl' | 'icon'> }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const showImg = !!badge.imageUrl && !imgFailed
+
+  return (
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-default-100 overflow-hidden">
+      {showImg ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={badge.imageUrl!}
+          alt="badge"
+          className="size-10 object-cover"
+          onError={() => setImgFailed(true)}
+        />
+      ) : badge.icon ? (
+        <IconifyIcon icon={badge.icon} className="text-xl" />
+      ) : (
+        <Icon icon="award" className="text-xl text-default-400" />
+      )}
+    </div>
+  )
+}
+
 export type AdminBadgeRow = {
   id: string
   name: string
   nameEN: string
   icon: string | null
+  // imageUrl: URL ที่ได้จาก /api/files/<fileId> — prefer เหนือ icon ใน table cell
+  imageUrl: string | null
   type: 'VERIFICATION' | 'ACHIEVEMENT'
   criteria: Record<string, unknown>
   awardedCount: number
@@ -116,13 +143,7 @@ const BadgesTable = ({ rows }: BadgesTableProps) => {
         const b = row.original
         return (
           <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-default-100">
-              {b.icon ? (
-                <IconifyIcon icon={b.icon} className="text-xl" />
-              ) : (
-                <Icon icon="award" className="text-xl text-default-400" />
-              )}
-            </div>
+            <BadgeAvatar badge={b} />
             <div className="min-w-0">
               <p className="text-sm font-medium truncate">{b.name}</p>
               <p className="text-xs text-default-400 truncate">{b.nameEN}</p>

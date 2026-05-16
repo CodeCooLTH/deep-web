@@ -22,7 +22,7 @@
  */
 
 import { yupResolver } from '@hookform/resolvers/yup'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'react-toastify'
@@ -141,11 +141,13 @@ const defaultValues: FormValues = {
 
 // Shape matching the BadgesTable row (kept local to avoid circular import).
 // icon เป็น string | null เพราะ prisma schema เปลี่ยนเป็น nullable
+// imageUrl: URL ที่ได้จาก /api/files/<fileId> ใช้ prefill preview ตอน edit
 type EditPayload = {
   id: string
   name: string
   nameEN: string
   icon: string | null
+  imageUrl: string | null
   type: 'VERIFICATION' | 'ACHIEVEMENT'
   criteria: Record<string, unknown>
 }
@@ -174,6 +176,12 @@ const BadgeFormDialog = () => {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // imageUrl: URL ที่แสดง preview รูป badge ปัจจุบัน (จาก /api/files/<fileId>)
+  // null = ยังไม่มีรูป หรือโหลดไม่สำเร็จ
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  // fileInputRef: ใช้ trigger input[type=file] แบบ programmatic (pattern จาก ProductImages.tsx)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -197,6 +205,7 @@ const BadgeFormDialog = () => {
   useEffect(() => {
     const onCreate = () => {
       setEditingId(null)
+      setImageUrl(null)
       reset(defaultValues)
     }
     const onEdit = (e: Event) => {
@@ -204,6 +213,8 @@ const BadgeFormDialog = () => {
       const row = ce.detail
       if (!row) return
       setEditingId(row.id)
+      // prefill imageUrl จาก row ที่ BadgesTable ส่งมา เพื่อแสดง preview ตอน edit
+      setImageUrl(row.imageUrl ?? null)
       reset({
         ...defaultValues,
         name: row.name,
@@ -221,6 +232,37 @@ const BadgeFormDialog = () => {
       window.removeEventListener('badge-dialog:edit', onEdit as EventListener)
     }
   }, [reset])
+
+  // handleImageFileChange — อ่านไฟล์จาก input แล้ว POST ไปยัง /api/admin/badges/upload
+  // ทำไมไม่ใช้ FileUploader component: dialog นี้ต้องการ single-file inline upload
+  // ไม่ใช่ dropzone multi-file grid — ใช้ pattern fetch ตรง (เหมือน ProductImages.tsx:uploadOne)
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // reset input เพื่อให้ user เลือกไฟล์เดิมซ้ำได้
+    e.target.value = ''
+    if (!file || !editingId) return
+
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('badgeId', editingId)
+      const res = await fetch('/api/admin/badges/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error ?? 'อัปโหลดไม่สำเร็จ')
+      }
+      const data = (await res.json()) as { imageUrl: string }
+      setImageUrl(data.imageUrl)
+      toast.success('อัปโหลดรูป badge สำเร็จ')
+      router.refresh()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ'
+      toast.error(msg)
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   const onSubmit = async (values: FormValues) => {
     // Serialize the numeric sub-fields that belong to the selected type into
@@ -389,6 +431,72 @@ const BadgeFormDialog = () => {
                       แต่การมอบ badge ใหม่ต้องให้ developer เพิ่ม check function
                       และ deploy โค้ดก่อน จึงจะ auto-award ได้
                     </div>
+                  </div>
+                )}
+
+                {/* Image upload — แสดงเฉพาะตอน edit (ต้องมี badgeId ก่อน) */}
+                {/* ทำไม: upload route ต้องการ badgeId ที่มีอยู่ใน DB แล้ว
+                    → สำหรับ badge ใหม่ให้สร้างก่อนแล้วกลับมา edit เพื่อเพิ่มรูป */}
+                {editingId && (
+                  <div className="md:col-span-12 border-t border-default-200 pt-4">
+                    <h4 className="text-sm font-medium mb-3">รูปภาพ Badge (ไม่บังคับ)</h4>
+                    <div className="flex items-center gap-4">
+                      {/* Preview — ใช้ <img> เพื่อรองรับ blob: URL และ /api/files/ URL
+                          onError: ซ่อนรูปแล้ว reset imageUrl → null กัน broken-image icon โผล่ */}
+                      <div className="flex size-20 shrink-0 items-center justify-center rounded-lg bg-default-100 overflow-hidden border border-default-200">
+                        {imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={imageUrl}
+                            alt="badge preview"
+                            className="size-20 object-cover"
+                            onError={() => setImageUrl(null)}
+                          />
+                        ) : (
+                          <Icon icon="photo" className="text-3xl text-default-300" />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {/* hidden file input — trigger โดย button ด้านล่าง (pattern จาก ProductImages) */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/png,image/webp,image/jpeg"
+                          className="sr-only"
+                          onChange={handleImageFileChange}
+                        />
+                        <button
+                          type="button"
+                          disabled={uploadingImage}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+                        >
+                          {uploadingImage ? (
+                            <>
+                              <IconifyIcon icon="tabler:loader-2" className="text-sm animate-spin" />
+                              กำลังอัปโหลด…
+                            </>
+                          ) : (
+                            <>
+                              <Icon icon="upload" className="text-sm" />
+                              {imageUrl ? 'เปลี่ยนรูป' : 'เลือกรูป'}
+                            </>
+                          )}
+                        </button>
+                        <p className="text-xs text-default-400">
+                          PNG / WebP / JPEG · ไม่เกิน 256 KB · ไม่รองรับ SVG
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ประกาศสำหรับ badge ใหม่ — upload ได้หลัง save แล้ว */}
+                {!editingId && (
+                  <div className="md:col-span-12">
+                    <p className="text-xs text-default-400">
+                      หมายเหตุ: สามารถอัปโหลดรูปภาพ badge ได้หลังจากบันทึก badge แล้วกลับมาแก้ไข
+                    </p>
                   </div>
                 )}
 

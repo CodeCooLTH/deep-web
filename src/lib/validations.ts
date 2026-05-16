@@ -233,6 +233,16 @@ export const UpdateBadgeSchema = v.object({
   criteria: v.optional(BadgeCriteriaSchema),
 });
 
+// ─── BadgeImageUploadSchema ───────────────────────────────────────────────────
+// ทำไม: SVG เป็น XSS vector — reject ทั้ง mime + extension; จำกัด 256 KB
+const BADGE_IMAGE_MAX_BYTES = 256 * 1024;
+const BADGE_IMAGE_ALLOWED_MIMES = ['image/png', 'image/webp', 'image/jpeg'] as const;
+export const BadgeImageUploadSchema = v.object({
+  mime: v.picklist(BADGE_IMAGE_ALLOWED_MIMES),
+  size: v.pipe(v.number(), v.integer(), v.minValue(1, 'ไฟล์ว่างเปล่า'), v.maxValue(BADGE_IMAGE_MAX_BYTES, `ไฟล์ต้องไม่เกิน ${BADGE_IMAGE_MAX_BYTES / 1024} KB`)),
+  badgeId: v.pipe(v.string(), v.minLength(1, 'ต้องระบุ badgeId')),
+});
+
 // ─── SMS Wallet schemas (Phase 4 — SMS Order Link + Seller Wallet) ────────────
 
 // SendSmsSchema — body ของ POST /api/orders/[token]/send-sms

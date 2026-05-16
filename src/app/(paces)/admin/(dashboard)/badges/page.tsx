@@ -30,6 +30,8 @@ export default async function AdminBadgesPage() {
     name: b.name,
     nameEN: b.nameEN,
     icon: b.icon,
+    // imageUrl: /api/files/<fileId> หรือ null — ใช้ใน BadgeAvatar เป็น primary visual
+    imageUrl: b.imageUrl ?? null,
     type: b.type === 'VERIFICATION' ? 'VERIFICATION' : 'ACHIEVEMENT',
     criteria: (b.criteria as Record<string, unknown>) ?? {},
     awardedCount: b._count.userBadges,

@@ -141,6 +141,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       "Cache-Control": sensitiveRecord
         ? "private, no-cache"
         : "public, max-age=86400",
+      // nosniff — defense-in-depth เพราะ phase นี้เพิ่มไฟล์ admin-uploaded badge image
+      // ป้องกัน browser sniff content-type เป็น text/html แล้วรัน script
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
