@@ -33,6 +33,9 @@ Dropped: ...
 ```
 `Base:` ต้องชี้ `theme/...` — ห้ามชี้ `src/...` (retro 2026-05-10 task 12 พังเพราะข้อนี้).
 
+## Font: Anuphan เท่านั้น (Hard Rule 5)
+theme file ที่ copy มามักมี default font ของ theme เดิม (Vuexy=Public Sans, Paces=Poppins/Nunito) — เมื่อ adapt **ห้าม**ปล่อย/เพิ่ม `font-family`/`fontFamily` เป็นค่าอื่น. ใช้ `var(--font-anuphan)`/CSS variable ของ theme ที่ override เป็น Anuphan แล้วเท่านั้น. ยกเว้น: `monospace` ใน code block, icon font `@iconify`. รายละเอียด + จุด source-of-truth + known non-compliant: `docs/conventions/anuphan-font.md`. reviewer ต้อง grep `font-family|fontFamily` ในไฟล์ที่แตะ.
+
 ## ไม่ applies
 backend (`src/app/api/**`,`src/services/**`,`src/lib/**`), trivial tsx utility (เช่น mui-link wrapper).
 
