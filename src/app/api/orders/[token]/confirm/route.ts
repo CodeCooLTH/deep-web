@@ -67,8 +67,13 @@ export async function POST(
         const order = await confirmOrder(token, orderRow.buyerContact, buyerUserId);
         return NextResponse.json(order);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "ยืนยันไม่สำเร็จ";
-        return NextResponse.json({ error: message }, { status: 400 });
+        // F2 security fix: ห้าม echo err.message ดิบ — confirmOrder throw ข้อความที่เปิด oracle
+        // (เช่น "Order not found" / "Phone ไม่ตรง" / "Invalid transition") → ตอบ generic เดียว
+        console.error('[confirm/Path-A]', err);
+        return NextResponse.json(
+          { error: "ยืนยันคำสั่งซื้อไม่สำเร็จ กรุณาตรวจสอบและลองใหม่" },
+          { status: 400 },
+        );
       }
     }
     // cookie มีแต่ verify ไม่ผ่าน (expired / wrong order) → fall-through Path B
@@ -88,7 +93,11 @@ export async function POST(
     const order = await confirmOrder(token, contact, buyerUserId);
     return NextResponse.json(order);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "ยืนยันไม่สำเร็จ";
-    return NextResponse.json({ error: message }, { status: 400 });
+    // F2 security fix: ห้าม echo err.message ดิบ — เหตุผลเดียวกับ Path A
+    console.error('[confirm/Path-B]', err);
+    return NextResponse.json(
+      { error: "ยืนยันคำสั่งซื้อไม่สำเร็จ กรุณาตรวจสอบและลองใหม่" },
+      { status: 400 },
+    );
   }
 }

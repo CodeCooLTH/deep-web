@@ -30,8 +30,15 @@ export async function GET(
   const { code } = await params
 
   // RC-1: rate-limit per-IP ก่อนทำอะไร
+  // F1 security fix: fallback chain สำหรับ IP extraction
+  // - prod (Vercel/reverse-proxy) จะมี x-forwarded-for เสมอ
+  // - x-real-ip เป็น fallback สำหรับ proxy บางตัว (nginx, Cloudflare Workers) ที่ไม่ส่ง x-forwarded-for
+  // - 'unknown' = fail-safe over-throttle (ไม่ใช่ under-throttle/bypass)
+  //   หากไม่รู้ IP จริง ทุก request รวม bucket เดียวกัน → ยัง throttle อยู่ ไม่ใช่ข้ามไป
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    request.headers.get('x-real-ip')?.trim() ??
+    'unknown'
 
   if (!checkSmsConsumeRateLimit(ip)) {
     // RC-2: rate-limited → uniform redirect (ไม่บอกว่า rate-limit)

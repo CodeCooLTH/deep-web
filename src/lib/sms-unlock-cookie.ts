@@ -25,6 +25,10 @@ export const smsUnlockCookieOpts = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
+  // path:'/' จำเป็น — cookie ถูกอ่านทั้ง RSC `/o/[token]` และ route `/api/orders/[token]/confirm` (Path A)
+  // ถ้าแคบเป็น `/o/` browser จะไม่ส่ง cookie ไปที่ `/api/orders/*` → confirm Path A ไม่ได้รับ cookie → พัง
+  // ปลอดภัยเพราะ HMAC bind orderId + SameSite=Lax + httpOnly — ไม่มี exploitable chain
+  // (Phase 5 security audit — F3)
   path: '/',
   maxAge: 72 * 3600,
 }
