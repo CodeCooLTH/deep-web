@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายละเอียดออเดอร์ (C·Two-pane) · Deep Seller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<link rel="stylesheet" href="assets/shell.css">
+<script>
+tailwind.config={theme:{extend:{fontFamily:{sans:['Anuphan','sans-serif']},
+ colors:{primary:{DEFAULT:'#236dc9',hover:'#1e5dab'},secondary:'#7b70ef',success:'#02bc9c',info:'#5bc3e1',warning:'#f9bf59',danger:'#f7577e',dark:'#313a46',card:'#ffffff',
+  default:{100:'#f6f7fb',200:'#eef2f7',300:'#e7e9eb',400:'#9ba6b7',500:'#a1a9b1',600:'#8a969c',700:'#6c757d',800:'#343a40',900:'#313a46'}},
+ borderRadius:{DEFAULT:'4px'},boxShadow:{DEFAULT:'0px 1px 4px 0px rgba(130,143,163,.15)'}}}}
+</script>
+<style>
+ body{background:#f6f7fb;color:#4c4c5c;font-family:'Anuphan',sans-serif}
+ .card{background:#fff;border-radius:10px;box-shadow:0 2px 10px 0 rgba(47,43,61,.07)}
+ .card-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;border-bottom:1px dashed #e7e9eb;padding:.85rem 1.25rem}
+ .card-body{padding:1.25rem}
+ .btn{display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:.5rem;border-radius:6px;border:1px solid transparent;padding:.4375rem 1rem;font-size:.875rem;font-weight:500;transition:.15s}
+ .btn-sm{padding:.3125rem .75rem;font-size:.8125rem}.btn-icon{width:2.3125rem;height:2.3125rem;padding:0}
+ .badge{display:inline-flex;align-items:center;gap:.25rem;border-radius:999px;padding:.25em .75em;font-size:.75rem;font-weight:600}
+ .vstep{position:relative;padding-left:1.5rem;padding-bottom:1rem}.vstep:last-child{padding-bottom:0}
+ .vstep .vdot{position:absolute;left:0;top:.05rem;width:1.1rem;height:1.1rem;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:.55rem;background:#fff;border:2px solid #e7e9eb;color:#9ba6b7}
+ .vstep.done .vdot{background:#02bc9c;border-color:#02bc9c;color:#fff}
+ .vstep.current .vdot{background:#236dc9;border-color:#236dc9;color:#fff;box-shadow:0 0 0 3px rgba(35,109,201,.18)}
+ .vstep:not(:last-child)::before{content:"";position:absolute;left:.5rem;top:1.15rem;bottom:0;width:2px;background:#e7e9eb}
+ .vstep.done::before{background:#02bc9c}
+ ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#cbd2da;border-radius:3px}
+</style>
+</head>
+<body data-page="orders" data-title="คำสั่งซื้อ" data-crumb="Business / คำสั่งซื้อ / รายละเอียด">
+<div id="app-content" hidden>
+ <div class="grid gap-4 lg:grid-cols-3">
+
+  <!-- ░ LEFT STICKY RAIL ░ -->
+  <aside class="lg:col-span-1">
+   <div class="space-y-4 lg:sticky lg:top-2">
+    <div class="card overflow-hidden">
+      <div class="bg-primary px-5 py-4 text-white">
+        <div class="flex items-center justify-between">
+          <span class="badge bg-white/20 text-white"><iconify-icon icon="tabler:clock"></iconify-icon> รอจัดส่ง</span>
+          <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1877F2]"><iconify-icon icon="tabler:brand-facebook"></iconify-icon></span>
+        </div>
+        <p class="mt-3 text-xs text-white/70">ยอดสุทธิ</p>
+        <p class="text-3xl font-bold">฿69,325</p>
+        <p class="mt-1 font-mono text-xs text-white/80">20260516A1B2C3</p>
+      </div>
+      <div class="card-body space-y-3">
+        <div class="flex items-center gap-3">
+          <img src="https://i.pravatar.cc/96?img=12" class="h-10 w-10 rounded-full ring-1 ring-default-200">
+          <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold text-dark">สมชาย ใจดี</p><p class="text-xs text-default-500">081-234-5678</p></div>
+          <span class="badge bg-warning/15 text-warning text-[10px]">ยังไม่ยืนยัน</span>
+        </div>
+        <p class="rounded-lg bg-default-100 px-3 py-2 text-xs text-default-600">123/4 ถ.สุขุมวิท คลองเตย กรุงเทพฯ 10110</p>
+        <div class="border-t border-default-200 pt-3 text-xs">
+          <div class="flex justify-between text-default-500"><span>ขายผ่าน</span><span class="font-medium text-dark">Facebook</span></div>
+          <div class="mt-1 flex justify-between text-default-500"><span>ชำระเงิน</span><span class="font-medium text-dark">โอนเงิน</span></div>
+          <div class="mt-1 flex justify-between text-default-500"><span>สร้าง</span><span class="font-medium text-dark">16 พ.ค. 13:45</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- quick actions -->
+    <div class="card card-body space-y-2">
+      <button id="shipBtn" class="btn w-full bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:truck-delivery"></iconify-icon> บันทึกการจัดส่ง</button>
+      <a href="edit.html" class="btn w-full border-default-300 text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:pencil"></iconify-icon> แก้ไขออเดอร์</a>
+      <button id="cancelBtn" class="btn w-full border-danger/40 text-danger hover:bg-danger/10"><iconify-icon icon="tabler:x"></iconify-icon> ยกเลิกออเดอร์</button>
+      <div class="flex items-center gap-2 rounded-lg bg-default-100 px-3 py-2">
+        <iconify-icon icon="tabler:link" class="shrink-0 text-sm text-default-400"></iconify-icon>
+        <span class="flex-1 truncate font-mono text-xs text-primary">deepth.local:4000/o/a1b2c3d4e5f6</span>
+        <button id="copyBtn" title="คัดลอก" class="text-default-500 hover:text-primary"><iconify-icon icon="tabler:copy" class="text-sm"></iconify-icon></button>
+      </div>
+    </div>
+   </div>
+  </aside>
+
+  <!-- ░ RIGHT SCROLL ░ -->
+  <div class="space-y-4 lg:col-span-2">
+
+    <div class="card">
+      <div class="card-header"><h3 class="font-semibold text-dark">รายการสินค้า</h3><span class="text-xs text-default-500">2 รายการ</span></div>
+      <div class="card-body !p-0">
+        <div class="divide-y divide-default-200 px-5">
+          <div class="flex items-center gap-3 py-3">
+            <img src="https://picsum.photos/seed/iphone15/100" class="h-12 w-12 shrink-0 rounded-md object-cover">
+            <p class="min-w-0 flex-1 truncate text-sm font-medium text-dark">iPhone 15 (128GB) สี Black</p>
+            <span class="shrink-0 text-xs tabular-nums text-default-500">฿32,900 × 2</span>
+            <span class="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">฿65,800</span>
+          </div>
+          <div class="flex items-center gap-3 py-3">
+            <img src="https://picsum.photos/seed/leathercase/100" class="h-12 w-12 shrink-0 rounded-md object-cover">
+            <p class="min-w-0 flex-1 truncate text-sm font-medium text-dark">เคสหนังแท้</p>
+            <span class="shrink-0 text-xs tabular-nums text-default-500">฿990 × 1</span>
+            <span class="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">฿990</span>
+          </div>
+        </div>
+        <div class="border-t border-default-300 bg-default-100/50 px-5 py-4">
+          <div class="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+            <div class="flex justify-between text-default-600"><span>ยอดสินค้า</span><span class="tabular-nums">฿66,790</span></div>
+            <div class="flex justify-between text-danger"><span>ส่วนลด</span><span class="tabular-nums">-฿2,000</span></div>
+            <div class="flex justify-between text-default-600"><span>VAT 7%</span><span class="tabular-nums">฿4,535</span></div>
+            <div class="flex justify-between border-t border-default-300 pt-2"><span class="font-medium text-dark">ยอดสุทธิ</span><span class="text-lg font-bold tabular-nums text-dark">฿69,325</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3 class="font-semibold text-dark">การชำระเงิน</h3><span class="badge bg-success/15 text-success"><iconify-icon icon="tabler:circle-check"></iconify-icon> ตรวจสลิปแล้ว</span></div>
+      <div class="card-body flex items-center gap-3">
+        <img src="https://picsum.photos/seed/slip/160" class="h-16 w-16 shrink-0 rounded-md border border-default-200 object-cover">
+        <div class="flex-1"><p class="text-sm font-medium text-dark">โอนเงินผ่านธนาคาร</p><p class="text-xs text-default-500">ผู้ซื้อแนบสลิป 16 พ.ค. · 14:02 น.</p></div>
+        <button class="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:eye"></iconify-icon> ดูเต็ม</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3 class="font-semibold text-dark">สถานะ &amp; บันทึกเหตุการณ์</h3></div>
+      <div class="card-body">
+        <div class="vstep done"><span class="vdot"><iconify-icon icon="tabler:check"></iconify-icon></span><p class="text-sm font-semibold text-dark">สร้างออเดอร์แล้ว</p><p class="text-xs text-default-500">16 พ.ค. 69 · 13:45 — โดยร้าน</p></div>
+        <div class="vstep done"><span class="vdot"><iconify-icon icon="tabler:link"></iconify-icon></span><p class="text-sm font-semibold text-dark">ส่งลิงก์ให้ผู้ซื้อ</p><p class="text-xs text-default-500">16 พ.ค. 69 · 13:46</p></div>
+        <div class="vstep done"><span class="vdot"><iconify-icon icon="tabler:receipt"></iconify-icon></span><p class="text-sm font-semibold text-dark">ผู้ซื้อแนบสลิป</p><p class="text-xs text-default-500">16 พ.ค. 69 · 14:02</p></div>
+        <div class="vstep current"><span class="vdot"><iconify-icon icon="tabler:truck-delivery"></iconify-icon></span><p class="text-sm font-semibold text-dark">รอจัดส่ง</p><p class="text-xs text-default-500">รอร้านดำเนินการ</p></div>
+        <div class="vstep"><span class="vdot"><iconify-icon icon="tabler:circle-check"></iconify-icon></span><p class="text-sm font-semibold text-default-500">สำเร็จ</p><p class="text-xs text-default-400">รอผู้ซื้อยืนยันรับสินค้า</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3 class="font-semibold text-dark">รีวิวออเดอร์</h3></div>
+      <div class="card-body flex items-center justify-center gap-2.5 py-4 text-center">
+        <iconify-icon icon="tabler:star-off" class="text-lg text-default-400"></iconify-icon>
+        <p class="text-sm text-default-500">ยังไม่มีรีวิว — ผู้ซื้อรีวิวได้หลังยืนยันรับสินค้า</p>
+      </div>
+    </div>
+  </div>
+ </div>
+</div>
+
+<div id="shipModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-dark/40 p-4">
+  <div class="card w-full max-w-md p-5">
+    <div class="mb-4 flex items-center justify-between"><h3 class="font-semibold text-dark">บันทึกการจัดส่ง</h3><button onclick="shipModal.classList.add('hidden')" class="text-default-500"><iconify-icon icon="tabler:x"></iconify-icon></button></div>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <input class="rounded-lg border border-default-300 px-3 py-2 text-sm" placeholder="ขนส่ง เช่น Kerry">
+      <input class="rounded-lg border border-default-300 px-3 py-2 text-sm" placeholder="เลขพัสดุ">
+    </div>
+    <button onclick="shipModal.classList.add('hidden')" class="btn mt-4 w-full bg-primary text-white">ยืนยันจัดส่ง</button>
+  </div>
+</div>
+<div id="cancelModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-dark/40 p-4">
+  <div class="card w-full max-w-sm p-6 text-center">
+    <span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-danger/10 text-danger"><iconify-icon icon="tabler:alert-triangle" class="text-3xl"></iconify-icon></span>
+    <p class="text-lg font-semibold text-dark">ยกเลิกออเดอร์นี้?</p>
+    <p class="mt-1 text-sm text-default-500">การยกเลิกย้อนกลับไม่ได้</p>
+    <div class="mt-5 flex gap-2"><button onclick="cancelModal.classList.add('hidden')" class="btn flex-1 border-default-300 text-default-700">ไม่ใช่ตอนนี้</button><button onclick="cancelModal.classList.add('hidden')" class="btn flex-1 bg-danger text-white">ยืนยันยกเลิก</button></div>
+  </div>
+</div>
+
+<script src="assets/shell.js"></script>
+<script>
+const sm=document.getElementById('shipModal');document.getElementById('shipBtn').onclick=()=>{sm.classList.remove('hidden');sm.classList.add('flex');};
+const cm=document.getElementById('cancelModal');document.getElementById('cancelBtn').onclick=()=>{cm.classList.remove('hidden');cm.classList.add('flex');};
+const cb=document.getElementById('copyBtn'),ci=cb.querySelector('iconify-icon');
+cb.onclick=()=>{ci.setAttribute('icon','tabler:check');cb.classList.add('text-success');setTimeout(()=>{ci.setAttribute('icon','tabler:copy');cb.classList.remove('text-success');},1500);};
+</script>
+</body>
+</html>
