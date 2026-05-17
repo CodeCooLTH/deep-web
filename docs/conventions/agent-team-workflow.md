@@ -258,3 +258,35 @@ Anchor ที่ได้ผล (ทำซ้ำ): independent review+security g
 
 21. **Path/string-refactor inventory = 2-pass grep, ยืนยัน "0 เหลือ" ด้วย pass (b)** — (a) call-site pattern (`router\.(push|replace)|redirect\(|href=`) ใช้หาจุดแก้; (b) catch-all string-literal `[\"'\`]/<prefix>([/\"'\`]|\b)` ที่ครอบ prefix-มี-slash + **prefix-เปล่าไม่มี slash** (`/seller`) + **custom `*Href`/`*Path` prop** ที่ส่ง path ต่อให้ `<Link href>` ปลายทาง. pass (a) อย่างเดียว miss (`retryHref=`, bare `/seller` รอด grep มา 2 จุด — Reviewer + Controller จับทีหลัง). developer ต้องรัน pass (b) ตอนจบและ paste output ยืนยัน 0.
 22. **มี parallel uncommitted stream → fresh-run type-check + explicit-path stage** — ถ้า `git status` แสดง M/?? ที่ไม่ใช่ของ task: tsc error ครั้งแรกอาจ stale จาก incremental cache ปนไฟล์ครึ่งทางของ stream อื่น (เคย: `BadgeImageUploadSchema` no-export ทั้งที่ export อยู่จริง; fresh-run = clean). รัน `npx tsc --noEmit` ซ้ำ fresh ก่อนตัดสิน; error ในไฟล์ *นอก diff ของ task* = pre-existing ไม่ block. commit ด้วย `git add <explicit task paths>` เท่านั้น — **ห้าม `git add -A`/`git add .`** (กัน parallel stream ปนเข้า commit).
+
+### Addendum (2026-05-17) — SMS-Wallet feature (7-phase เต็มรูป)
+
+จาก retro `2026-05-17-sms-wallet-feature.md`. กฎบังคับ:
+
+23. **Controller git-diff-verify agent file-edits ก่อน re-QA/commit เสมอ** — subagent
+    (developer ฯลฯ) รายงาน "แก้เสร็จ + tsc 0 + diff บรรทัด X" **ไม่ใช่หลักฐานว่า edit ลง
+    disk จริง**. Controller ต้อง `git diff HEAD -- <files>` หรือ grep marker บน disk
+    **ก่อน** dispatch reviewer/QA หรือ commit. (เคย: rework T13/T23 dev report ครบถ้วน
+    แต่ `git diff HEAD` ว่าง — edit ไม่เคยลง; safepay-qa + Controller จับได้ แต่เสีย re-QA
+    1 cycle ~2455s. รอบสอง Controller แก้เอง + verify บน disk ก่อน → MERGE). ขยายกฎ #19:
+    self-report = intent ไม่ใช่ ground truth — กับ "edit persisted" ก็เช่นกัน ไม่ใช่แค่ tsc.
+24. **Next.js 16 (Turbopack): ห้าม `request.url` เป็น base ของ redirect/absolute URL** —
+    resolve เป็น `http://localhost:PORT` (internal bind) ไม่ใช่ public host → wrong-host
+    redirect + cookie domain mismatch (เคย T13: auto-unlock พังทั้ง flow, cookie
+    `o_smsunlock` domain deepth.local ไม่ถูกส่งเมื่อ redirect ไป localhost). ใช้
+    configured base (`NEXT_PUBLIC_*_URL` → `NEXTAUTH_URL` fallback) แทน. คู่กับ AGENTS.md
+    "This is NOT the Next.js you know" — runtime behavior ที่ curl+tsc มองไม่เห็น.
+25. **UI client-mutation บน RSC page ต้อง `router.refresh()`** — submit/modal-success ที่
+    เปลี่ยน state ฝั่ง server แล้วหน้าเป็น RSC + มี section ที่ดึง data นั้น: ปิด modal
+    เฉย ๆ ไม่พอ (เคย T23: แถว PENDING ไม่โผล่จน reload เอง — comment เดิมอ้างผิดว่า
+    "ไม่ต้อง refresh"). curl+tsc มองไม่เห็น → ต้อง browser E2E (ย้ำ #2 QA-baseline).
+26. **Controller UX/architecture decision ที่แตะ auth boundary → safepay-security
+    pre-check ก่อน build** — ห้ามตัด decision เกี่ยว session/unlock/token/cookie/redirect
+    ด้วยเหตุ cosmetic (เคย P4: Controller เลือก `?unlocked=1` query "เพราะ URL สะอาด" =
+    client-trusted auth-bypass ทุก order; security จับตอน T13 ต้อง redesign ใหญ่เป็น
+    server-signed HMAC cookie). เอา cosmetic นำ security = anti-pattern.
+27. **ux/planner ต้องเดิน actor journey ครบรวม "เห็นสถานะงานตัวเองที่ pending/รอ external"**
+    — spec ที่มีแต่ list/aggregate/balance พลาด visibility ของ in-flight request ของ
+    actor เอง (เคย P3: seller ยื่น top-up แล้วเห็น "ว่าง" ระหว่างรอ admin — `getTopUpsByShop`
+    service build ไว้แต่ zero UI map → user manual-QA จับเอง = T23). **service ที่ build
+    ไว้แต่ไม่มี UI เรียก = red flag spec-gap** ให้ planner/ux ตรวจตอนวาง.

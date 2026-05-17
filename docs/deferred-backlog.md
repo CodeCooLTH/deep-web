@@ -110,8 +110,27 @@ StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
   - B7: T18 wire SendSmsButton เข้า order-detail `10f76e8` · T19 admin `/topups` queue `c222052` · T20+T21 admin `/topups/[id]` detail + TopUpReviewActions `38b69f2`
   - Pre-Batch nav `73026d7` · T22 docs (commit นี้)
 - **UI ครบทุก task — ไม่มีช่องว่าง route** (`/topups/{id}` มี page แล้ว `38b69f2` — eye-link ใช้งานได้)
-- **Accepted-risk ที่รอ Phase 5 hardening:** cross-subdomain CSRF SameSite=Lax (`smsUnlockCookieOpts` — AR-3), slip cookie path กว้าง `path:'/'` (ควรแคบเป็น `/o/`)
-- **ต่อไป:** Phase 5 safepay-reviewer + safepay-security re-review โค้ดจริง (verify RC-1..8 implemented + context-shift C1) → Phase 6 QA (Chrome DevTools MCP @ *.deepth.local) → Phase 7 `phase-retro`
+- **สถานะ (2026-05-17): FEATURE COMPLETE — Phase 4+5+6+7 ครบ, QA GREEN.** + T23
+  (seller pending-topup list, QA-found `e0006f0`) + T24 (near-realtime celebration
+  alert `1a5dad9`, migration `20260517040000_topup_notified_at`) + Phase 5 fixes
+  `04e3572` (F1 IP-fallback/F2 confirm-error-mask/F3 cookie-path-doc) + Phase 6
+  QA-bug fix `132e600` (T13 redirect host=BUYER_BASE / T23 modal router.refresh)
+  + retro `2026-05-17-sms-wallet-feature.md`. Phase 6 re-QA = MERGE (browser E2E
+  19+ scenario; RC-1..8 + RC-7 + celebration fire-once + 402/403/422 PASS จริง).
+- **⚠️ ต้อง `prisma migrate deploy` (env.local/Supabase) ก่อน prod-use:** migrations
+  `20260517000001_topup_slipfileid_index` + `20260517040000_topup_notified_at`
+  (additive nullable + index — ปลอดภัย ไม่ backfill).
+- **Phase-2 backlog (deferred, ไม่ block MVP):**
+  - **AR-C1:** แยก `SMS_UNLOCK_SECRET` env (ตอนนี้ reuse `NEXTAUTH_SECRET` สำหรับ
+    HMAC cookie — secure แต่ blast-radius กว้าง; แยก secret + fallback chain).
+  - **true-realtime:** ปัจจุบัน poll 20s (T24). upgrade เป็น SSE (Next16 route
+    stream) หรือ Supabase Realtime ถ้าต้อง <1s + ลด poll cost.
+  - **confirm route คืน full Prisma order incl `buyerContact`** (pre-existing,
+    buyer-confirms-own = mild S-C1) — narrow select / mask ที่ confirm response.
+  - **AR-3:** cross-subdomain CSRF SameSite=Lax — Origin-check ที่ confirm route.
+    slip cookie `path:'/'` คงไว้ (จำเป็น — confirm route อ่าน; แคบ /o/ จะพัง — ดู
+    sms-unlock-cookie.ts comment).
+  - inline-guard → Valibot schema ที่ `/api/wallet/events` ack (functionally secure).
 - **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md` · PRD §11-SMS `docs/PRD.md`
 
 ## 🟡 ต่ำกว่า / ไม่ note ละเอียด (ดู PRD §11 ตรง)
