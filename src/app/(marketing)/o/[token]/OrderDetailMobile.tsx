@@ -278,8 +278,11 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
             >
               {submitting ? 'กำลังยืนยัน…' : 'ยืนยันคำสั่งซื้อ'}
             </Button>
+            {/* SMS flow: unlockedPhone='' (RC-8 ไม่โชว์เบอร์) — ซ่อน "เบอร์ ·" ตอนว่าง */}
             <Typography color='text.disabled' className='text-xs text-center mt-2'>
-              เบอร์ {unlockedPhone} · แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว
+              {unlockedPhone
+                ? `เบอร์ ${unlockedPhone} · แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว`
+                : 'แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว'}
             </Typography>
           </div>
         </div>

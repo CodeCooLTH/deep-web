@@ -7,6 +7,14 @@
  *
  * Unlock persists via sessionStorage (key scoped per token) — reload หน้าเดิม
  * ภายใน session เดียวไม่ต้อง unlock ใหม่
+ *
+ * T13 (Phase 4 B5 — rework): ลบ ?unlocked=1 query trust ออกทั้งหมด
+ * Security fix: query param = client-trusted = auth bypass → ใครก็ได้ต่อ ?unlocked=1
+ * แทนด้วย server-decided props (initialUnlocked / smsUnlocked) จาก parent RSC
+ * ที่ verify HMAC signed cookie แล้วก่อนส่งลงมา
+ *
+ * UUID flow ที่ไม่มี cookie ทำงานเหมือนเดิมเป๊ะ (regression safe):
+ * - initialUnlocked=false → stage='lock' → PhoneUnlock → sessionStorage persist
  */
 import { useEffect, useState } from 'react'
 
@@ -19,24 +27,42 @@ type Stage = 'lock' | 'detail'
 
 type Props = {
   order: PublicOrderData
+  /** server-decided: true = SMS code ผ่าน HMAC verify แล้ว → ข้าม PhoneUnlock */
+  initialUnlocked?: boolean
+  /** server-decided: true = SMS flow → handleConfirm ไม่ต้องส่ง contact (RC-8) */
+  smsUnlocked?: boolean
 }
 
 const unlockStorageKey = (token: string) => `deep-o-unlock-${token.slice(0, 8)}`
 
-export default function PublicOrderClient({ order }: Props) {
+export default function PublicOrderClient({
+  order,
+  initialUnlocked,
+  smsUnlocked,
+}: Props) {
   const [stage, setStage] = useState<Stage>('lock')
   const [phone, setPhone] = useState('')
   const [orderState, setOrderState] = useState(order)
 
-  // ลอง restore unlock จาก sessionStorage
+  // ลอง restore unlock จาก initialUnlocked (server-decided) หรือ sessionStorage (UUID flow)
   useEffect(() => {
     if (typeof window === 'undefined') return
+
+    // SMS flow: server verify HMAC cookie แล้ว → ข้าม PhoneUnlock ทันที
+    // ไม่ set phone เพราะ SMS flow ไม่รู้ phone ฝั่ง client (RC-8: client ไม่ควรรู้)
+    // unlockedPhone='' ที่ส่งไป OrderDetailMobile จะ suppress "เบอร์ · ..." footer
+    if (initialUnlocked) {
+      setStage('detail')
+      return
+    }
+
+    // UUID flow เดิม: restore จาก sessionStorage
     const saved = sessionStorage.getItem(unlockStorageKey(order.publicToken))
     if (saved && /^0[0-9]{9}$/.test(saved)) {
       setPhone(saved)
       setStage('detail')
     }
-  }, [order.publicToken])
+  }, [order.publicToken, initialUnlocked])
 
   const handleUnlock = async (enteredPhone: string) => {
     const res = await fetch(`/api/orders/${order.publicToken}/unlock`, {
@@ -56,10 +82,17 @@ export default function PublicOrderClient({ order }: Props) {
   }
 
   const handleConfirm = async () => {
+    // SMS flow (smsUnlocked): server รู้ phone จาก cookie+order.buyerContact แล้ว
+    // ส่ง smsUnlock:true เพื่อให้ route handler รู้ว่าใช้ cookie-verified path
+    // ห้ามส่ง phone/contact ใน body (RC-8: client ไม่ควรรู้/ส่ง phone)
+    //
+    // UUID flow (ไม่ใช่ smsUnlocked): ส่ง contact ตามปกติ (PhoneUnlock flow เดิม)
+    const body = smsUnlocked ? { smsUnlock: true } : { contact: phone }
+
     const res = await fetch(`/api/orders/${order.publicToken}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact: phone }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
