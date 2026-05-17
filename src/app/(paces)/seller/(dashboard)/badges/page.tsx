@@ -22,9 +22,9 @@ import type { BadgeProgress } from '@/types/badge'
 import { BadgeImage } from './BadgeImage'
 
 export const metadata: Metadata = { title: 'ความสำเร็จของร้านค้า' }
-
-// per-user badge data + เปลี่ยนทุกครั้งที่ evaluate/seed — ห้าม cache หน้า (กัน stale imageUrl/progress)
-export const dynamic = 'force-dynamic'
+// หมายเหตุ: ไม่ต้องตั้ง dynamic — getServerSession (อ่าน cookie) ทำให้หน้า dynamic
+// อยู่แล้ว เหมือน reviews/dashboard sibling. force-dynamic บน child ทำ Paces
+// AppProvidersWrapper/LayoutProvider แตก (MenuToggler crash)
 
 // ─── Category label map — derive จาก criteria.type (ไม่ใช่ badge.type) ──────────
 // badge.type จริงมีแค่ ACHIEVEMENT|VERIFICATION — category label derive จาก criteria.type
