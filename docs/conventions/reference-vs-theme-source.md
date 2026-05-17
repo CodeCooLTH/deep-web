@@ -1,21 +1,26 @@
 # Convention: Reference ≠ Theme Source — ของที่ user ส่งมาต้อง "ปรับเข้า theme" ไม่ใช่ "copy ตรง ๆ"
 
-> เกิดจาก feedback 2026-05-17: เอา pixel-art SVG จาก design set ที่ user ส่งมา
-> bundle เป็นรูป badge ตรง ๆ → หลุดจาก theme Vuexy/Paces, ไม่กลมกลืนกับ surface
-> อื่น user reject. เป็น pattern ผิดที่เกิดซ้ำเวลามี reference ภายนอกเข้ามา.
+> เกิดจาก feedback 2026-05-17: bundle pixel-art SVG จาก design set ที่ user ส่ง —
+> **ตัวรูป pixel ใช้ตาม ref ถูกแล้ว** (user ยืนยันเอาตรง ๆ) แต่ **layout การวาง
+> บน badge page/widget หลุด theme** (ขนาด/circle/grid ดูเป็น mockup ต่างถิ่น) →
+> user reject ที่ "layout ไม่เข้าหน้าอื่น" ไม่ใช่ที่ตัวรูป.
 
 ## กฎ
 
-มี **2 ประเภทของ "ของอ้างอิง"** ที่ปฏิบัติตรงข้ามกันโดยตั้งใจ:
+เมื่อ user ส่ง reference (asset, ภาพดีไซน์, mockup, โค้ดตัวอย่าง, ลิงก์, design set)
+ต้อง **แยก 2 ชั้น**:
 
-| ประเภท | ตัวอย่าง | วิธีปฏิบัติ |
+| ชั้น | คือ | วิธีปฏิบัติ |
 |---|---|---|
-| **Theme source ของโปรเจกต์** | `theme/vuexy/...`, `theme/paces/...` | **copy โครงใกล้ชิด** — Hard Rule 1/3 (ห้าม compose เอง, ต้องมี `Base:` line) |
-| **Reference ภายนอกที่ user ส่ง** | asset, ภาพดีไซน์, mockup, โค้ดตัวอย่าง, ลิงก์, design set | **adapt ให้เข้า theme/layout ปัจจุบัน** — ห้าม copy verbatim |
+| **Asset / content** | ตัวรูป/ไฟล์/เนื้อหาที่ user ส่ง | **ใช้ตามที่ user ตั้งใจ** — default ห้าม redesign/ทิ้งเอง ถ้าไม่ได้ขอ |
+| **Layout / integration** | card, grid, ขนาด, การจัดวาง, framing, สไตล์การวางบนหน้า | **ตาม theme/layout ปัจจุบันเสมอ** (โครงจาก `theme/vuexy/...`,`theme/paces/...` — Hard Rule 1/3) |
 
-"Reference" จาก user = **ทิศทาง/ไอเดีย** ไม่ใช่ **ผลลัพธ์สุดท้ายที่จะแปะลงระบบ**.
-หน้าที่คือกลั่นให้เข้า design system ที่มีอยู่ ให้ดูเป็นส่วนหนึ่งของระบบเดียวกัน
-ไม่ใช่ของแปะที่ "ดูเป็นตัวอย่างเกินไป".
+ความผิดที่ต้องเลี่ยง = เอา **layout/สไตล์การวาง** แบบ mockup ต่างถิ่นมาแปะจน
+"ดูเป็นตัวอย่างเกินไป ไม่กลมกลืนกับหน้าอื่น". **ไม่ใช่** การใช้ตัว asset ตาม ref.
+
+ห้ามแกว่งสุดอีกทาง: "adapt" ≠ ไป redesign หรือทิ้ง asset ที่ user ส่ง. ถ้าไม่ชัดว่า
+ส่วนไหน "ตาม ref" ส่วนไหน "fit theme" → **ถาม user ก่อน build** (พลาดได้ 2 ทาง:
+แปะ layout ดิบ หรือ redesign asset เขาทิ้ง).
 
 ## เช็คก่อนเริ่ม build เมื่อมี reference
 
