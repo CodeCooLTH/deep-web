@@ -16,7 +16,7 @@ export const defaultBadges: BadgeSeed[] = [
   // ── 11 badges เดิม (10 SELLER + Fully Verified ANY; มี audience field) ──────────────────────────
   { name: "เปิดหน้าร้าน",       nameEN: "First Sale",         icon: "🏪", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FIRST_ORDER" } },
   { name: "ร้านค้าขายอดนิยม",  nameEN: "Trusted Seller 50",  icon: "⭐", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 50 } },
-  { name: "ร้อยออเดอร์",        nameEN: "Century Club",       icon: "💯", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 100 } },
+  { name: "ร้อยออเดอร์",        nameEN: "Century Club",       icon: "💯", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 100 },        imageUrl: "/images/badges/orders-100.svg" },
   { name: "ร้านคะแนนเต็ม",     nameEN: "Perfect Rating",     icon: "💎", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "PERFECT_RATING", minReviews: 10 } },
   { name: "ร้านคะแนนสูง",      nameEN: "Highly Rated",       icon: "🌟", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "HIGH_RATING", minRating: 4.8, minReviews: 20 } },
   { name: "ไร้ข้อร้องเรียน",   nameEN: "Zero Complaint",     icon: "🛡️", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ZERO_COMPLAINT", minOrders: 50 } },
@@ -26,7 +26,7 @@ export const defaultBadges: BadgeSeed[] = [
   { name: "ขวัญใจชุมชน",       nameEN: "Community Favorite", icon: "❤️", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "UNIQUE_REVIEWERS", count: 50 } },
   // ── badge ใหม่ (Phase 3) ──────────────────────────────────────────────────────────────────────
   // icon: null — engine ใช้ fallback SVG/image แทน emoji สำหรับ badge ปี
-  { name: "ปี 2026",            nameEN: "2026_BADGE",         icon: null, type: "ACHIEVEMENT",  audience: "ANY",    criteria: { type: "SIGNUP_YEAR", year: 2026 } },
+  { name: "ปี 2026",            nameEN: "2026_BADGE",         icon: null, type: "ACHIEVEMENT",  audience: "ANY",    criteria: { type: "SIGNUP_YEAR", year: 2026 },        imageUrl: "/images/badges/deep-2026.svg" },
   // ── P1 — 7 badge ใหม่ ฝั่ง seller, reuse engine, ไม่มี reward ──
   { name: "เริ่มมีลูกค้า",       nameEN: "Getting Started",    icon: "🌱", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 },                                  imageUrl: "/images/badges/seller/getting-started.svg" },
   { name: "ร้านกำลังโต",        nameEN: "Rising Seller",      icon: "📈", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 25 },                                  imageUrl: "/images/badges/seller/rising-seller.svg" },

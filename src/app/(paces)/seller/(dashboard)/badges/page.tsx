@@ -93,7 +93,7 @@ export default async function BadgesPage() {
               ยังไม่มีรางวัลที่ได้รับ — เริ่มขายเพื่อสะสมรางวัลแรก
             </p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
               {earned.map((item) => (
                 <EarnedCard key={item.badge.id} item={item} />
               ))}
@@ -116,7 +116,7 @@ export default async function BadgesPage() {
               คุณได้รับรางวัลครบทุกรายการแล้ว
             </p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
               {locked.map((item) => (
                 <LockedCard key={item.badge.id} item={item} />
               ))}
@@ -140,13 +140,13 @@ function EarnedCard({ item }: { item: BadgeProgress }) {
   const categoryLabel = getCategoryLabel(item.badge.criteria)
 
   return (
-    <div className="card p-4 text-center rounded-2xl border border-default-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all">
+    <div className="card p-3 text-center rounded-2xl border border-default-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all">
       {/* art wrapper — 110px ตาม spec */}
-      <div className="size-[110px] mx-auto mb-3 relative">
+      <div className="size-[72px] mx-auto mb-2 relative">
         <BadgeImage
           nameEN={item.badge.nameEN}
           imageUrl={item.badge.imageUrl}
-          sizeClass="size-[110px]"
+          sizeClass="size-[72px]"
         />
       </div>
 
@@ -157,7 +157,7 @@ function EarnedCard({ item }: { item: BadgeProgress }) {
         </p>
       )}
 
-      <h3 className="text-[15px] font-bold text-default-800 mb-1 leading-snug">
+      <h3 className="text-[13px] font-bold text-default-800 mb-1 leading-snug">
         {item.badge.name}
       </h3>
       <p className="text-xs text-default-500">ได้รับแล้ว</p>
@@ -178,13 +178,13 @@ function LockedCard({ item }: { item: BadgeProgress }) {
   const barColor = item.progressRatio >= 0.7 ? 'bg-warning' : 'bg-primary'
 
   return (
-    <div className="card bg-default-50 p-4 text-center rounded-2xl border border-default-200 shadow-sm">
+    <div className="card bg-default-50 p-3 text-center rounded-2xl border border-default-200 shadow-sm">
       {/* art wrapper — 110px + grayscale/opacity บน BadgeImage + lock overlay */}
-      <div className="size-[110px] mx-auto mb-3 relative">
+      <div className="size-[72px] mx-auto mb-2 relative">
         <BadgeImage
           nameEN={item.badge.nameEN}
           imageUrl={item.badge.imageUrl}
-          sizeClass="size-[110px]"
+          sizeClass="size-[72px]"
           className="grayscale opacity-70"
         />
         {/* lock overlay — bottom-right corner (spec: bottom-0.5 right-0.5) */}
@@ -200,7 +200,7 @@ function LockedCard({ item }: { item: BadgeProgress }) {
         </p>
       )}
 
-      <h3 className="text-[15px] font-bold text-default-500 mb-1 leading-snug">
+      <h3 className="text-[13px] font-bold text-default-500 mb-1 leading-snug">
         {item.badge.name}
       </h3>
 
