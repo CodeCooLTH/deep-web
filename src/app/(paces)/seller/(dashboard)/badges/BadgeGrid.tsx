@@ -123,7 +123,7 @@ function EarnedCard({ item, onClick }: CardProps) {
           onClick()
         }
       }}
-      className="card p-3 text-center rounded-2xl border border-default-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all cursor-pointer"
+      className="p-3 text-center rounded-lg bg-default-50 hover:bg-default-100 transition-colors cursor-pointer"
     >
       {/* art wrapper — 72px ตาม spec */}
       <div className="size-[72px] mx-auto mb-2 relative">
@@ -174,7 +174,7 @@ function LockedCard({ item, onClick }: CardProps) {
           onClick()
         }
       }}
-      className="card bg-default-50 p-3 text-center rounded-2xl border border-default-200 shadow-sm cursor-pointer"
+      className="p-3 text-center rounded-lg bg-default-50 opacity-75 hover:opacity-100 hover:bg-default-100 transition-all cursor-pointer"
     >
       {/* art wrapper — grayscale บอกสถานะ locked */}
       <div className="size-[72px] mx-auto mb-2">
