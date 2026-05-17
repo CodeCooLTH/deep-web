@@ -20,6 +20,7 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import TopUpRequestModal from './TopUpRequestModal'
 
@@ -32,6 +33,7 @@ type WalletCardProps = {
 
 export default function WalletCard({ balance, lowBalance, hasError = false }: WalletCardProps) {
   const [modalOpen, setModalOpen] = useState(false)
+  const router = useRouter()
 
   return (
     <>
@@ -118,10 +120,12 @@ export default function WalletCard({ balance, lowBalance, hasError = false }: Wa
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSuccess={() => {
-          // หลัง submit สำเร็จ: ปิด modal เฉย ๆ (page refresh จะดึงข้อมูลใหม่)
-          // router.refresh() ไม่ได้ทำที่นี่เพราะ TopUpRequest เป็น PENDING
-          // — ยังไม่มี balance เปลี่ยน ไม่ต้อง refresh
+          // หลัง submit สำเร็จ: ปิด modal + refresh RSC
+          // T23: section "คำขอเติมเครดิต" แสดง TopUpRequest PENDING — ต้อง
+          // router.refresh() ให้แถว PENDING ใหม่โผล่ทันทีโดยไม่ต้อง reload เอง
+          // (QA bug1: comment เดิมอ้างว่าไม่ต้อง refresh — ผิด เพราะ T23 เพิ่ม section นั้น)
           setModalOpen(false)
+          router.refresh()
         }}
       />
     </>

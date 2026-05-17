@@ -23,6 +23,17 @@ import {
 // charset เป๊ะจาก sms-code.service.ts line 7 (ห้าม drift)
 const SMS_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}$/
 
+// QA bug2 fix: redirect base ต้องเป็น buyer host จริง ไม่ใช่ request.url
+// (Next.js 16 Turbopack: request.url resolve เป็น http://localhost:PORT →
+//  browser ตาม redirect ไป localhost → cookie domain=deepth.local ไม่ถูกส่ง →
+//  verifySmsUnlock=false → auto-unlock พัง). ใช้ pattern เดียวกับ
+//  send-sms/route.ts (canonical). base=env คงที่ + path static/DB UUID =
+//  ไม่มี open-redirect.
+const BUYER_BASE =
+  process.env.NEXT_PUBLIC_BUYER_URL ||
+  process.env.NEXTAUTH_URL ||
+  'https://deepthailand.app'
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ code: string }> },
@@ -42,12 +53,12 @@ export async function GET(
 
   if (!checkSmsConsumeRateLimit(ip)) {
     // RC-2: rate-limited → uniform redirect (ไม่บอกว่า rate-limit)
-    return NextResponse.redirect(new URL('/o/link-invalid', request.url))
+    return NextResponse.redirect(new URL('/o/link-invalid', BUYER_BASE))
   }
 
   // ตรวจ format ก่อน consume (กัน invalid query ไปถึง DB)
   if (!SMS_CODE_RE.test(code)) {
-    return NextResponse.redirect(new URL('/o/link-invalid', request.url))
+    return NextResponse.redirect(new URL('/o/link-invalid', BUYER_BASE))
   }
 
   // RC-8: ห้าม log code/hash/phone/orderId — consumeSmsCode รับ rawCode ภายใน
@@ -55,13 +66,13 @@ export async function GET(
 
   if (!result || !result.order) {
     // RC-2: not-found / expired / used / phone-mismatch / order-mismatch → uniform
-    return NextResponse.redirect(new URL('/o/link-invalid', request.url))
+    return NextResponse.redirect(new URL('/o/link-invalid', BUYER_BASE))
   }
 
   // สำเร็จ: set signed cookie + redirect ไป UUID order URL (302)
   // URL ปลายสะอาด — ไม่มี query param ใด ๆ (reload-safe: cookie persist)
   const res = NextResponse.redirect(
-    new URL('/o/' + result.order.publicToken, request.url),
+    new URL('/o/' + result.order.publicToken, BUYER_BASE),
   )
   res.cookies.set(
     SMS_UNLOCK_COOKIE,
