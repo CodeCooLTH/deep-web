@@ -4,6 +4,7 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-add/page.tsx
  * ไม่มี modal equivalent ใน Paces order-add — ใช้ Paces card + grid pattern เป็น primitive.
  * a11y fix: outer wrapper ใช้ div[role="button"] แทน nested button (P2-retro).
+ * B8: เพิ่ม shipping indicator (จัดส่ง/ไม่จัดส่ง) ต่อ product ตาม create.html lines ~277/288.
  */
 'use client'
 
@@ -132,6 +133,17 @@ export default function ProductPickerModal({ open, onClose, catalog, qtyByProduc
                   <div className="p-3 flex-1">
                     <p className="text-sm font-medium text-dark line-clamp-2">{product.name}</p>
                     <p className="text-sm text-primary font-semibold mt-1">{formatThb(product.price)}</p>
+                    {/* shipping indicator ตาม create.html lines ~277/288 — ไม่ใช้ hex ไม่ใช้ inline style */}
+                    <span
+                      className={cn(
+                        'mt-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold',
+                        product.fulfillmentMode === 'SHIPPED'
+                          ? 'bg-info/15 text-info'
+                          : 'bg-default-200 text-default-600',
+                      )}
+                    >
+                      {product.fulfillmentMode === 'SHIPPED' ? 'จัดส่ง' : 'ไม่จัดส่ง'}
+                    </span>
                   </div>
 
                   {/* Qty stepper — only visible when qty > 0 */}
