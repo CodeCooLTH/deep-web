@@ -290,3 +290,28 @@ Anchor ที่ได้ผล (ทำซ้ำ): independent review+security g
     actor เอง (เคย P3: seller ยื่น top-up แล้วเห็น "ว่าง" ระหว่างรอ admin — `getTopUpsByShop`
     service build ไว้แต่ zero UI map → user manual-QA จับเอง = T23). **service ที่ build
     ไว้แต่ไม่มี UI เรียก = red flag spec-gap** ให้ planner/ux ตรวจตอนวาง.
+
+### Addendum (2026-05-17) — Seller Orders Phase B (Create rework, parallel block dev)
+
+retro: `docs/retro/2026-05-17-seller-orders-phase-b.md`
+
+28. **ล็อก shared contract เป็น Controller ก่อน dispatch parallel developer ที่ทำชิ้นพึ่งกัน** —
+    type/field-name/API-mapping/JSON-shape ที่ ≥2 block ต้องตรงกัน (เคย Phase B: `FormValues`
+    field-name + vatRate%÷100 + vatAmount formula + shippingAddress key set). ฝัง contract
+    เดียวกันใน prompt ของ developer ทุกตัวในรอบ → integrator (B7) รวมได้ **ศูนย์ rework** ทั้งที่
+    B4/B5/B6 build parallel. ไม่ล็อก = แต่ละ dev เดา field-name เอง → integrate พังยับ.
+    คู่กับ Parallelism rule: "independent file" อย่างเดียวไม่พอ ต้อง "shared contract freeze".
+29. **Controller cross-check approved-mockup ↔ plan/decision ก่อน dispatch batch UI** — field/
+    section ที่ plan สั่งทำแต่ไม่มีใน mockup ที่ user approve (หรือกลับกัน) = หยุด ถาม user
+    ห้ามเลือกข้างเงียบ ๆ (เคย Phase B: plan §3 ใส่ discount/VAT แต่ mockup ไม่มีทั้ง field
+    และ summary line). ขยาย Hard Rule 6 → ครอบ "plan vs own-approved-mockup" ไม่ใช่แค่
+    reference ของ user.
+30. **Plan path = logical ต้อง verify เป็น physical ก่อนเข้า Develop** — Controller `ls`/`Glob`
+    ยืนยัน target dir + route-group จริง แล้วฝัง absolute path ใน developer prompt (เคย Phase B:
+    plan เขียน `.../orders/new/components/` แต่จริงคือ `(dashboard)/orders/new/components/` +
+    shell แยกที่ `(fullscreen)/.../page.tsx`). ส่ง logical path ดิบจาก planner = สร้างผิดที่ทั้ง batch.
+31. **คำสั่ง user ที่อ้าง infra/DB/env ("มันคือ docker", "local เฉย ๆ") = verify ปลายทางก่อนทำ** —
+    โดยเฉพาะ migrate/seed/reset. echo host จาก env ที่จะใช้จริง + แก้ความเข้าใจ user ถ้าไม่ตรง
+    ก่อนรัน (เคย Phase B: user "migrate มันเป็น docker local" แต่ `.env.local` ชี้ Supabase cloud
+    ที่แชร์กัน). ปิด phase แบบมี QA-debt = เฉพาะเมื่อ user สั่งชัด + บันทึก QA-debt เป็น action
+    item + memory; เขียน "code-complete, QA-pending" ห้าม claim "Phase complete" ลอย ๆ.
