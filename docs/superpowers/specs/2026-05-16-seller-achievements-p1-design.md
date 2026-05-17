@@ -131,12 +131,17 @@ Admin upload: form → admin API → `saveFile` → service set `imageUrl` →
 
 ## 8. Definition of Done
 
-- [ ] Prisma `Badge.imageUrl String?` migrate สำเร็จ, badge เดิม 11 ครบ
-- [ ] 7 SVG อยู่ `public/images/badges/seller/` (kebab-case ตาม §3)
-- [ ] seed 7 badge (criteria + icon emoji + imageUrl bundled), `Seeded 18 badges`
-- [ ] render helper + wire 4 surface (precedence imageUrl→fallback) ผ่าน
-      `ui-theme-sourcing` (admin/seller Paces) + `Base:` line ที่ commit แตะ UI
-- [ ] admin upload (admin-gated API + form) ผ่าน `safepay-security`
-- [ ] Vitest + type-check เขียว
-- [ ] Browser QA 4 surface + upload happy path + security smoke เขียว
-- [ ] retro ปลาย phase (`phase-retro`)
+- [x] Prisma `Badge.imageUrl String?` migrate สำเร็จ, badge เดิมครบ (T1 `9f2e027`)
+- [x] SVG ใน `public/images/badges/` (ย้ายจาก /badges/ — proxy fix `1bb9f7d`)
+- [x] seed badge + imageUrl bundled (7 P1 + 2026 + Century Club) — 2 DB (T2/`1447543`)
+- [x] render + wire ทุก surface (precedence imageUrl→fallback) + `Base:` (T3/T8b/T8c/T8d)
+- [x] admin upload (admin-gated + reject SVG + nosniff) ผ่าน `safepay-security` (T4 `88bc84f`)
+- [x] Earned/Locked grid + rich detail modal (rarity/pace honest) (T8b–T8d)
+- [x] backfill ร้านที่มีอยู่ (`scripts/backfill-badges.ts`)
+- [x] Vitest 6/6 + type-check scope clean (T5 `4a66121`)
+- [~] Browser QA: **automated 3-level รันไม่ได้ทั้ง phase** (Chrome MCP profile-lock).
+      verify ด้วย curl static/HTTP + query DB ตรง + user manual visual ทุก surface.
+      known gap — ดู retro §"หมายเหตุ DoD"
+- [x] retro ปลาย phase — `docs/retro/2026-05-17-seller-achievements-p1.md`
+
+> **Phase ปิด 2026-05-17.** สรุปบทเรียน + conventions ที่ promote: ดู retro.
