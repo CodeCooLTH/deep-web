@@ -79,6 +79,7 @@ Type-check and code review alone do NOT prove a feature works. QA via Chrome Dev
 - **Always use the real dev subdomains** (`http://deepth.local:4000`, `seller.deepth.local:4000`, `admin.deepth.local:4000`) — NOT `localhost` — because `src/proxy.ts` routes by subdomain and cookies are per-host. See `feedback_qa_domains.md` memory.
 - **Seed data via direct Prisma** for complex setup (creating test sellers/products/orders). `.env.local` points to the Supabase instance the dev server uses — source it when running tsx scripts.
 - **OTP codes** are logged to the dev server stdout (`/tmp/dev.log` or wherever the user has the server writing) — tail the log to grab them.
+- **Screenshots ต้องเขียนที่ `docs/qa-screenshots/` เท่านั้น** (gitignored) — ห้ามเขียน `qa-*.png` ที่ repo root (รก + เสี่ยง commit artifact; root มี `/qa-*.png` ใน .gitignore เป็น catch แต่ห้ามพึ่ง). dispatch QA ต้องสั่ง path นี้ใน prompt; safepay-qa ต้องใช้ `filePath: docs/qa-screenshots/<ชื่อ>.png` ทุก take_screenshot.
 - **Cleanup** test data at end of QA agent run when possible (delete seeded sellers/orders) so subsequent QA runs start clean.
 - **Report format:** PASS/FAIL per scenario with the specific evidence (screenshot filename, assertion output, console error excerpt). Recommend MERGE or REWORK for the Controller.
 
