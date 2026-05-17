@@ -7,9 +7,9 @@ import { getShopByUserId } from "@/services/shop.service";
 import { getOrderForShop } from "@/services/order.service";
 import { getMaxVerificationLevel } from "@/services/verification.service";
 import { issueSmsCode, markSmsCodeDelivery } from "@/services/sms-code.service";
-import { deductCredit, creditWallet, getOrCreateWallet } from "@/services/wallet.service";
+import { deductCredit, creditWallet } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
-import { sendSms } from "@/lib/sms";
+import { sendSms, consumeSmsQuota } from "@/lib/sms";
 
 // RC-4: daily SMS cap ต่อ shop ~200 SMS/วัน (DB-layer — นับ WalletTransaction DEDUCT วันนี้)
 // spec กำหนด: DB-layer count ที่แยกจาก in-memory hourly burst; ceiling cost-exposure
@@ -29,30 +29,46 @@ async function getDailySmsCount(shopId: string): Promise<number> {
   });
   if (!wallet) return 0;
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // NTH-5: ใช้ ICT boundary แทน server-local midnight
+  // UTC+7 = offset 7h → วันใหม่ ICT เริ่มเวลา 17:00 UTC ของวันก่อน (= 00:00 ICT)
+  // setUTCHours(17,0,0,0) แล้วถ้า UTC hour ปัจจุบัน < 17 ต้องถอย 1 วัน
+  // วิธีง่าย: หา "ต้นวัน ICT" = floor(Date.now() / 86400000 วัน UTC+7)
+  //   startOfDayICT = now - ((now + 7*3600*1000) % 86400000 - 0 workaround)
+  //   ใช้ Date.UTC trick: ต้นวัน UTC+7 = Date.UTC(y,m,d,0,0,0) + 7h offset → แปลงกลับ
+  // ใช้วิธีชัดที่สุด: แปลง "เวลาตอนนี้" เป็น ISO ที่ offset +07:00 → ตัด T แล้วเอาแค่วัน
+  // → สร้าง Date 00:00:00 ICT → แปลงเป็น UTC
+  const nowMs = Date.now();
+  // ICT = UTC + 7h: หา วัน/เดือน/ปี ตาม ICT โดยเลื่อน epoch +7h ก่อน getUTC*
+  const ictNow = new Date(nowMs + 7 * 3_600_000);
+  const startOfDayICT = new Date(
+    Date.UTC(ictNow.getUTCFullYear(), ictNow.getUTCMonth(), ictNow.getUTCDate(), 0, 0, 0, 0)
+    - 7 * 3_600_000, // ถอย 7h กลับเป็น UTC ที่ตรงกับ 00:00 ICT
+  );
 
   return prisma.walletTransaction.count({
     where: {
       walletId: wallet.id,
       type: "DEDUCT",
-      createdAt: { gte: startOfDay },
+      createdAt: { gte: startOfDayICT },
     },
   });
 }
 
 // POST /api/orders/[token]/send-sms
 //
-// Flow:
+// Flow (ลำดับแก้ไขตาม RC-5 + OQ-5 MUST-FIX):
 // 1. session check → 401 ถ้าไม่มี session
 // 2. DAL ownership: resolve shop จาก session.user.id → load order scoped ด้วย shopId ใน WHERE (S-C7)
-// 3. RC-4 / D3: verification gate L2+ (DOCUMENT APPROVED) — ห้าม test-account exception (RC-5 spec)
-// 4. RC-4: daily SMS cap DB-layer
-// 5. body parse ด้วย SendSmsSchema (v.object({}) — RC-6/RC-8: ไม่รับ phone จาก client)
-// 6. RC-6: buyerContact จาก DB เท่านั้น
-// 7. issue smsCode (hash-at-rest, 72h expiry)
-// 8. RC-5: deduct ฿1 ก่อน; ถ้า INSUFFICIENT_CREDIT → 402 ไม่ส่ง
-// 9. sendSms → ถ้า fail: compensate creditWallet + mark FAILED (NFR-ATOM)
+// 3. D3 / RC-5: verification gate L2+ (DOCUMENT APPROVED) — ห้าม test-account exception
+// 4. RC-4: daily SMS cap DB-layer (200/วัน ICT boundary)
+// 5. OQ-5: in-memory hourly rate-limit (20/ชม./shop, globalThis) → 429 เกิน
+// 6. body parse ด้วย SendSmsSchema (v.object({}) — RC-6/RC-8: ไม่รับ phone จาก client)
+// 7. RC-6: buyerContact จาก DB เท่านั้น; null/invalid → 422
+// 8. ATOMIC TRANSACTION (RC-5 ordering fix):
+//      8a. deductCredit (tx) — INSUFFICIENT_CREDIT → rollback → 402; ไม่มี orphan code
+//      8b. issueSmsCode (tx) — hash-at-rest, 72h expiry, PENDING
+//      8c. set order.buyerContact = buyerPhone ถ้ายังเป็น null (RC-6 lock)
+// 9. sendSms (หลัง tx commit) → ถ้า fail: compensate creditWallet + mark FAILED (NFR-ATOM, AR-1)
 // 10. mark SENT → 200 {ok:true} (RC-8: ไม่ return rawCode/phone)
 export async function POST(
   request: NextRequest,
@@ -110,7 +126,18 @@ export async function POST(
     );
   }
 
-  // ── Step 5: Body parse (SendSmsSchema — empty object โดยตั้งใจ) ──────────
+  // ── Step 5: OQ-5 in-memory hourly rate-limit (per shop, globalThis) ──────
+  // 20 SMS/ชม. ต่อ shop — กัน burst attack (attacker ส่ง 200 SMS ใน 1 วินาที ไม่ได้)
+  // ทำก่อน DB ops ทุกตัวเพื่อตัดสั้น (ไม่ต้องเปิด transaction ก่อน check)
+  // AR-2: per-instance in-memory (Phase 2 → Redis) — accepted risk ตาม spec
+  if (!consumeSmsQuota(shop.id)) {
+    return NextResponse.json(
+      { error: "ส่ง SMS บ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่" },
+      { status: 429 },
+    );
+  }
+
+  // ── Step 6: Body parse (SendSmsSchema — empty object โดยตั้งใจ) ──────────
   // RC-6/RC-8: ไม่รับ phone จาก client — buyerPhone มาจาก DB เท่านั้น
   let body: unknown;
   try {
@@ -124,9 +151,9 @@ export async function POST(
     return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
   }
 
-  // ── Step 6: RC-6 buyer phone จาก server (DB) เท่านั้น ───────────────────
+  // ── Step 7: RC-6 buyer phone จาก server (DB) เท่านั้น ───────────────────
   // order.buyerContact ต้องเป็นเบอร์ (ถ้าเป็น email หรือ null → 422)
-  // ทำไม: RC-6 ห้ามรับ phone จาก client; ห้าม override buyerContact ที่มีอยู่แล้ว
+  // ทำไม: RC-6 ห้ามรับ phone จาก client; buyerPhone จาก DB ใช้ lock ใน transaction
   const buyerPhone = order.buyerContact;
   if (!buyerPhone || !/^0[0-9]{9}$/.test(buyerPhone)) {
     return NextResponse.json(
@@ -138,32 +165,51 @@ export async function POST(
     );
   }
 
-  // ── Step 7: Issue SmsCode (hash-at-rest, 72h expiry, deliveryStatus=PENDING) ─
-  // issueSmsCode คืน rawCode + smsCodeId — rawCode ใส่ใน SMS text แล้วทิ้ง (ห้าม log/persist)
+  // ── Step 8: ATOMIC TRANSACTION — deduct + issue + lock buyerContact ──────
+  //
+  // RC-5 ordering fix: issueSmsCode รันก่อน deductCredit ในโค้ดเดิมทำให้
+  // INSUFFICIENT_CREDIT throw หลัง orphan SmsCode ถูกสร้างแล้ว (code ค้าง PENDING ไม่มี SMS)
+  //
+  // ลำดับใหม่ที่ถูกต้อง (ทั้งสามอยู่ใน prisma.$transaction เดียว):
+  //   (a) deductCredit(tx) — ถ้า INSUFFICIENT_CREDIT → rollback ทั้งหมด → ไม่มี orphan code
+  //   (b) issueSmsCode(tx) — สร้าง SmsCode row ใน tx เดียวกัน
+  //   (c) order.buyerContact lock (RC-6) — set buyerContact = buyerPhone ถ้ายัง null
+  //       ปิด race ที่คนอื่น claim order ด้วยเบอร์อื่นผ่าน UUID link (ขณะ buyerContact ยัง null)
+  //
+  // sendSms เรียก หลัง transaction commit (ห้ามอยู่ใน tx เพราะ external call ยาว)
+  // ถ้า sendSms fail → compensate creditWallet + mark FAILED (NFR-ATOM, AR-1)
+
   let rawCode: string;
   let smsCodeId: string;
   try {
-    ({ rawCode, smsCodeId } = await issueSmsCode(order.id, buyerPhone));
-  } catch {
-    // DB error: ไม่ leak stack ออกนอก (RC-8)
-    console.error("[send-sms] issueSmsCode failed: DB error");
-    return NextResponse.json(
-      { error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" },
-      { status: 500 },
-    );
-  }
+    ({ rawCode, smsCodeId } = await prisma.$transaction(async (tx) => {
+      // (a) deduct ก่อน — ถ้า INSUFFICIENT_CREDIT throw → rollback → ไม่มี orphan
+      // NTH-4: ไม่ต้องเรียก getOrCreateWallet แยก (deductCredit ทำ upsert ใน tx เองแล้ว)
+      await deductCredit(
+        shop.id,
+        SMS_COST_BAHT,
+        order.id, // refId = orderId เพื่อ audit trail
+        `ส่ง SMS คำสั่งซื้อ ${token.slice(0, 8)}...`,
+        tx,
+      );
 
-  // ── Step 8: RC-5 deduct credit ฿1 ก่อน SMS ──────────────────────────────
-  // ลำดับที่ปลอดภัย: deduct ก่อน → ถ้า INSUFFICIENT_CREDIT throw → 402 ไม่ส่ง SMS
-  // ใช้ getOrCreateWallet เพื่อ ensure wallet row มีอยู่ก่อน deduct (pattern จาก wallet.service)
-  await getOrCreateWallet(shop.id);
-  try {
-    await deductCredit(
-      shop.id,
-      SMS_COST_BAHT,
-      order.id, // refId = orderId เพื่อ audit trail
-      `ส่ง SMS คำสั่งซื้อ ${token.slice(0, 8)}...`,
-    );
+      // (b) issue code ใน tx เดียวกัน (rc-5: ไม่มี orphan ถ้า deduct fail)
+      const issued = await issueSmsCode(order.id, buyerPhone, tx);
+
+      // (c) RC-6: lock buyerContact ถ้ายัง null
+      // ทำไม: buyerContact ที่ยัง null ทำให้ UUID link + เบอร์ใดก็ได้ unlock order ได้
+      // ตรง consumeSmsCode ก็ทำ RC-6 อยู่แล้ว แต่ lock ฝั่ง issue ด้วยเพื่อปิดช่องตั้งแต่ต้น
+      if (!order.buyerContact) {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { buyerContact: buyerPhone },
+        });
+      }
+      // ถ้า order.buyerContact มีอยู่แล้ว (= buyerPhone แน่นอน เพราะ step 7 ดึงมาจาก order)
+      // ไม่ต้อง update ซ้ำ
+
+      return issued;
+    }));
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message === "INSUFFICIENT_CREDIT") {
@@ -172,15 +218,15 @@ export async function POST(
         { status: 402 },
       );
     }
-    // error อื่น: generic (ไม่ leak stack)
-    console.error("[send-sms] deductCredit failed:", message);
+    // error อื่น (DB/constraint): generic (ไม่ leak stack, ไม่ leak code/phone)
+    console.error("[send-sms] atomic transaction failed: DB error");
     return NextResponse.json(
       { error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" },
       { status: 500 },
     );
   }
 
-  // ── Step 9: D1 สร้าง SMS text + sendSms ──────────────────────────────────
+  // ── Step 9: D1 สร้าง SMS text + sendSms (หลัง transaction commit) ────────
   // D1: short-code path /o/{rawCode} (ไม่ใช่ UUID token)
   // domain: NEXT_PUBLIC_BUYER_URL (buyer subdomain) หรือ NEXTAUTH_URL fallback
   // ข้อความไทยสั้น 1 segment Unicode (≤70 ตัว)

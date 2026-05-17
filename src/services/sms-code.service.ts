@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // charset ตัด 0/O/1/I ออก (สับสนตาแมว) — เหลือ 32 สัญลักษณ์ [A-Z2-9]
 // 12 chars * 5 bit/char = 60-bit entropy ซึ่งเป็น threshold ของ D1 spec
@@ -35,17 +36,27 @@ function hashCode(rawCode: string): string {
  * - เก็บ codeHash (SHA-256) ใน DB — ไม่เก็บ raw
  * - expiresAt = now + 72h (OQ-3)
  * - deliveryStatus เริ่มที่ "PENDING" ให้ route อัปเดตเป็น SENT/FAILED (RC-3 reconcile)
+ *
+ * @param tx - optional TransactionClient จาก prisma.$transaction ของ caller
+ *   ถ้าส่งมา → ใช้ tx client ตรง ๆ (caller จัดการ transaction ภายนอก; atomic กับ deduct+setContact)
+ *   ถ้าไม่ส่ง → ใช้ prisma global (standalone, backward-compatible กับ caller เดิม)
+ *   pattern เดียวกับ wallet.service deductCredit/creditWallet (RC-5 MUST-FIX)
  */
 export async function issueSmsCode(
   orderId: string,
   buyerPhone: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<{ rawCode: string; smsCodeId: string }> {
   const rawCode = generateSecureCode();
   const codeHash = hashCode(rawCode);
 
   const expiresAt = new Date(Date.now() + EXPIRY_HOURS * 60 * 60 * 1000);
 
-  const smsCodeRow = await prisma.smsCode.create({
+  // ใช้ tx ถ้า caller ส่งมา (atomic ร่วมกับ deduct+setContact ใน T7)
+  // ไม่มี tx → ใช้ prisma global (backward-compatible)
+  const client = tx ?? prisma;
+
+  const smsCodeRow = await client.smsCode.create({
     data: {
       codeHash,
       orderId,

@@ -4,6 +4,52 @@
 
 import { toE164Thai } from "@/lib/otp";
 
+// ─── OQ-5: In-memory hourly SMS rate-limit per shop ────────────────────────
+//
+// globalThis singleton — Next.js route handlers คนละ module instance
+// ถ้าใช้ module-level Map ตรง ๆ → rate-limit ไม่ share ข้าม request (bypass ได้)
+// pattern เดียวกับ otpRequestTimestamps ใน otp.ts (บรรทัด 10-26)
+//
+// AR-2 (accepted risk MVP): per-instance, multi-instance prod ต้องใช้ Redis (Phase 2)
+const globalForSms = globalThis as unknown as {
+  smsRequestTimestamps?: Map<string, number[]>;
+};
+
+const smsRequestTimestamps =
+  globalForSms.smsRequestTimestamps ??
+  (globalForSms.smsRequestTimestamps = new Map<string, number[]>());
+
+/**
+ * consumeSmsQuota — ตรวจ + consume 1 slot ของ per-shop hourly SMS rate-limit
+ *
+ * Return true = ผ่าน (ยังส่งได้), false = เกิน quota → caller ตอบ 429
+ *
+ * OQ-5 spec: 20 SMS/ชม. ต่อ shop (กัน loop/abuse burst), in-memory globalThis singleton
+ * window = 3600_000 ms (1 ชั่วโมงเลื่อน sliding window เหมือน OTP)
+ *
+ * @param shopId - shop.id ของ seller (key สำหรับ bucket)
+ */
+export function consumeSmsQuota(
+  shopId: string,
+  max = 20,
+  windowMs = 3_600_000,
+): boolean {
+  const now = Date.now();
+  const cutoff = now - windowMs;
+  const prev = smsRequestTimestamps.get(shopId) ?? [];
+  // trim timestamps เก่าที่หมด window แล้ว
+  const recent = prev.filter((t) => t > cutoff);
+
+  if (recent.length >= max) {
+    smsRequestTimestamps.set(shopId, recent); // เก็บ trimmed list
+    return false; // เกิน quota
+  }
+
+  recent.push(now);
+  smsRequestTimestamps.set(shopId, recent);
+  return true; // ผ่าน
+}
+
 /**
  * ส่ง SMS ข้อความ arbitrary ผ่าน apitel.co
  *
