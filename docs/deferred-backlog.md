@@ -99,13 +99,13 @@ StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
 - **Ref:** PRD §11 #1, FR-4.3
 
 ## 9. Feature: Paid SMS Order Link + Seller Wallet/Credit [MVP-Must, S-8/FR-6.8/6.9/§10]
-- **สถานะ (2026-05-16 checkpoint):** Phase 4 backend **บางส่วนเสร็จ**:
-  - Unit A schema/migration `367f3c9` (4 model additive + CHECK balance>=0)
-  - B1: T2 sms.ts `4077133` · T3 wallet.service `20b9b40` · T4 sms-code.service `e1808f6` (reviewed+committed)
-  - B2: T5 topup.service `6833a2f`→fix `6ed858d` · T8 GET /api/wallet `e65bac3`→fix `cdf9f6c` (gate-3 reviewed post-commit; 2 money/integrity must-fix แก้แล้ว: approveTopUp double-credit, rejectTopUp TOCTOU, T8 try/catch+strip walletId)
-- **🔴 BLOCKED — T6 + B3 + B4:** `src/lib/validations.ts` ปนงาน parallel stream (Badge: `BadgeImageUploadSchema` uncommitted, intermix กับ T6 SendSms/TopUp schemas). isolate-commit ไม่ได้ (git add -p interactive ไม่รองรับ env นี้; whole-file add = bundle parallel = ผิด pre-flight). **T6 commit ไม่ได้ → B3 (T7 send-sms/T9 topup-POST/T12 admin-topups-GET) + B4 (T10 approve/T11 reject) import schemas เหล่านั้นไม่ได้.**
-- **วิธีเช็ค unblock:** `git diff src/lib/validations.ts | grep BadgeImageUploadSchema` — ถ้า **ไม่มี output** (parallel commit Badge schema แล้ว) → validations.ts เหลือแต่ T6 ผม → commit T6 ได้ → ทำ B3→B4→backend checkpoint→Phase 5(security re-review)→6(QA)→7(retro).
-- **carry-forward hard requirement:** B4 T10 `/api/admin/topups/[id]/approve|reject` **ต้อง** enforce RC-7 self-approve block (`topUpRequest.shop.userId !== session.user.id`) ตาม pattern `src/app/api/admin/verifications/[id]/route.ts:13-23` — service ไม่ enforce (รับแค่ adminId). ขาด = financial fraud (admin ที่เป็นเจ้าของร้านอนุมัติ top-up ตัวเอง).
+- **สถานะ (2026-05-17): Phase 4 BACKEND COMPLETE** — Unit A + B1-B4 commit + gate-3 (safepay-reviewer + safepay-security) + tsc 0 ครบทุก task:
+  - Unit A schema/migration `367f3c9`
+  - B1: T2 `4077133` · T3 `20b9b40` · T4 `e1808f6`
+  - B2: T5 `6833a2f`→`6ed858d` (atomic gate กัน double-credit/TOCTOU) · T8 `e65bac3`→`cdf9f6c` (try/catch+strip walletId) · T6 schemas เข้า `4578fad` (parallel WIP sweep — verified intact)
+  - B3: T7 `cab811f` (atomic deduct+issue+lock 1 tx, OQ-5 burst limit 20/ชม.) · T9/T12 `9b7c454` · slip-gate+`@@index([slipFileId])` `c47220a` (+migration `20260517000001`, ปิด S-C5: slip การเงิน เคย serve ไม่ auth)
+  - B4: T10 approve + T11 reject `1dbc32e` — RC-7 self-block (fail-closed)
+- **เหลือ (post-checkpoint, ตาม user pace "backend ก่อนแล้ว checkpoint"):** UI B5-B8 (seller "ซื้อเครดิต SMS"+wallet/transaction page, admin topup review queue+approve/reject UI, ปุ่มส่ง SMS ใน seller order detail) → Phase 5 internal review รวม → Phase 6 QA (Chrome DevTools MCP @ *.deepth.local, user รัน dev server) → Phase 7 `phase-retro`. resume = invoke `agent-team-feature` ต่อ Phase 4 UI batch.
 - **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md`
 
 ## 🟡 ต่ำกว่า / ไม่ note ละเอียด (ดู PRD §11 ตรง)
