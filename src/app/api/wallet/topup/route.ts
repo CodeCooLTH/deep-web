@@ -14,12 +14,15 @@ import { CreateTopUpRequestSchema } from "@/lib/validations";
  * seller B เพื่อ top-up credit ให้คนอื่น (หรือดึง audit trail ข้าม shop ได้).
  * session.user.id เป็น single source of truth สำหรับ identity.
  *
- * ทำไม slipFileId ไม่ validate ว่า fileId มีจริงใน DB:
- * spec/plan ไม่ระบุ file-existence check ณ route นี้ — DB FK (TopUpRequest.slipFileId)
- * จะ throw ถ้า fileId ไม่มีอยู่จริง (Prisma P2003). admin ยังต้องตรวจ slip ก่อน
- * approve อยู่ดี (B4) — เป็น AR-3 accepted risk.
- * FLAG สำหรับ reviewer: ถ้าต้องการ strict file-ownership check (fileId ต้อง
- * เป็นของ user นี้) ให้เพิ่ม query UploadedFile.userId===session.user.id ที่นี่.
+ * ทำไม slipFileId ไม่ validate file-existence หรือ file-ownership:
+ * schema.prisma:249 — `slipFileId String` ไม่มี @relation/FK ไปยัง model ใด
+ * และไม่มี model UploadedFile ในโปรเจกต์ → ไม่มีทาง query file-ownership ได้
+ * (Prisma P2003 จะ NOT throw เพราะไม่มี FK constraint จริงใน DB).
+ *
+ * slip integrity อาศัย: admin ตรวจรูปด้วยตาเมื่อ review TopUpRequest (D2 moderation
+ * flow) ก่อน approve — route นี้ไม่ได้ check file ownership และ accepted ภายใต้
+ * D2 admin moderation + AR-3 (accepted-risk MVP, spec 2026-05-16-sms-order-link-wallet.md).
+ * ถ้าต้องการ file-ownership จริงในอนาคต ต้องเพิ่ม UploadedFile model ใน schema ก่อน.
  *
  * ทำไมไม่ log slipFileId (RC-8):
  * slip เป็นไฟล์ที่ผูกกับ payment information — RC-8 ห้าม log slip content/PII.

@@ -15,9 +15,11 @@ import { getPendingTopUps } from "@/services/topup.service";
  *   อยู่แล้วสำหรับคิวนี้ แต่ Prisma type รวมไว้ → ok ไม่ต้อง strip
  *
  * slipFileId: คืนมาพร้อม TopUpRequest เพื่อให้ admin client load รูป slip
- * ผ่าน /api/files/[fileId] ซึ่งมี admin gate แยก (ไม่ embed binary ใน payload นี้)
- * spec D2 บอก "admin คิว review TopUpRequest" แต่ไม่ระบุ format ชัด — ใช้ slipFileId
- * ให้ reviewer ยืนยัน (ดู flag ท้ายไฟล์)
+ * ผ่าน /api/files/[fileId] (ไม่ embed binary ใน payload นี้). หมายเหตุความปลอดภัย:
+ * /api/files/[fileId] gate เฉพาะ fileId ที่อยู่ใน VerificationRecord.documents
+ * (KYC map) — slipFileId ของ TopUpRequest จะถูก gate เพิ่ม (admin-or-shop-owner)
+ * ใน rework เดียวกับ T9 ให้ตรง spec AR-3 "admin-only viewer". endpoint นี้คืนแค่
+ * slipFileId (UUID ref) ให้ admin ที่ผ่าน requireAdmin แล้ว — ไม่ได้ทำให้ gap แย่ลง
  *
  * RC-8: ไม่ log PII — console.error log เฉพาะ "[GET /api/admin/topups] DB error"
  * ไม่ log shopId/slipFileId/amount ที่อาจมีข้อมูลธุรกรรม

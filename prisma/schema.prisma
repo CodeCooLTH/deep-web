@@ -260,6 +260,7 @@ model TopUpRequest {
 
   @@index([status])
   @@index([shopId])
+  @@index([slipFileId])
 }
 
 model SmsCode {

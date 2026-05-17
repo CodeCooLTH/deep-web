@@ -129,16 +129,55 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  // ตรวจ slip gate: fileId ที่ตรงกับ TopUpRequest.slipFileId เป็นเอกสารการเงิน
+  // ต้องอนุญาตเฉพาะ admin หรือเจ้าของร้านที่ส่ง slip (spec AR-3 ระบุ "admin-only viewer"
+  // แต่ implementation bug เดิม serve unauthenticated = ขัด spec → ปิด S-C5)
+  //
+  // ทำไมใช้ findFirst ตรงๆ ไม่ใช้ in-memory map เหมือน KYC:
+  // TopUpRequest table มีขนาดเล็ก + slip access เกิดเฉพาะตอน admin/เจ้าของร้าน
+  // ดูรูป (ไม่ใช่ public traffic สูง) — overhead หนึ่ง indexed query ต่อ request
+  // ยอมรับได้ (pattern เดียวกับ owner-check ทั่วไปใน project); ไม่ log fileId (RC-8)
+  let isSlipFile = false;
+  if (!sensitiveRecord) {
+    // ทำ slip check เฉพาะถ้ายังไม่ถูก gate โดย KYC path
+    // (ถ้าเป็นทั้ง KYC และ slip พร้อมกัน — ไม่น่าเกิด — KYC path ข้างบนจะ gate ก่อนแล้ว)
+    const slipTopUp = await prisma.topUpRequest.findFirst({
+      where: { slipFileId: fileId },
+      select: { id: true, shop: { select: { userId: true } } },
+    });
+
+    if (slipTopUp) {
+      isSlipFile = true;
+      // ไฟล์นี้เป็น slip โอนเงิน — เลียนแบบ control flow KYC บรรทัด 117-129
+      const session = await getServerSession(authOptions);
+      const user = session?.user as { id?: string; isAdmin?: boolean } | undefined;
+
+      if (!user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const isAdmin = user.isAdmin === true;
+      const isShopOwner = user.id === slipTopUp.shop.userId;
+
+      if (!isAdmin && !isShopOwner) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+  }
+
   // ไฟล์ public หรือผ่าน auth check แล้ว — serve เหมือนเดิม
   const result = await getFile(fileId);
   if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // isSensitive ครอบทั้ง KYC และ slip — ทั้งสองไม่ควร cache ที่ browser/CDN
+  const isSensitive = !!sensitiveRecord || isSlipFile;
+
   return new NextResponse(new Uint8Array(result.buffer), {
     headers: {
       "Content-Type": MIME[result.ext] || "application/octet-stream",
-      // ไฟล์ KYC ไม่ควร cache ที่ browser/CDN นาน (อาจถูก revoke)
+      // ไฟล์ KYC/slip ไม่ควร cache ที่ browser/CDN นาน (อาจถูก revoke)
       // ไฟล์ทั่วไป (product image) ยังคง public, max-age=86400 เหมือนเดิม
-      "Cache-Control": sensitiveRecord
+      "Cache-Control": isSensitive
         ? "private, no-cache"
         : "public, max-age=86400",
       // nosniff — defense-in-depth เพราะ phase นี้เพิ่มไฟล์ admin-uploaded badge image
