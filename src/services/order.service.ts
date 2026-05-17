@@ -21,8 +21,31 @@ function assertTransition(currentStatus: string, newStatus: string) {
 export async function createOrder(shopId: string, data: {
   items: { productId?: string; name: string; description?: string; qty: number; price: number }[];
   type: string;
+  // Phase B — optional fields เพิ่มใน B0 migration; ทั้งหมด nullable ใน DB
+  buyerContact?: string;
+  buyerName?: string;
+  paymentMethod?: string;
+  salesChannel?: string;
+  internalNote?: string;
+  discount?: number;
+  vatRate?: number;
+  vatAmount?: number;
+  shippingAddress?: {
+    line1?: string;
+    subdistrict?: string;
+    district?: string;
+    province?: string;
+    postcode?: string;
+    note?: string;
+  };
 }) {
-  const totalAmount = data.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
+  // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  // subtotal = ราคารวมก่อนหัก discount + บวก vat
+  const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
+  // totalAmount = subtotal - discount + vatAmount (ตาม spec B1)
+  const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
 
   // คำนวณ order-level fulfillmentMode ตาม spec §2:
   // SHIPPED ถ้ามี item ใด ๆ ที่ต้องจัดส่ง (product.fulfillmentMode=SHIPPED หรือ
@@ -60,6 +83,16 @@ export async function createOrder(shopId: string, data: {
       totalAmount,
       fulfillmentMode,
       items: { create: data.items },
+      // Phase B fields — ส่งเฉพาะที่ caller ให้มา (undefined = omit จาก Prisma create)
+      buyerContact: data.buyerContact ?? undefined,
+      buyerName: data.buyerName ?? undefined,
+      paymentMethod: data.paymentMethod ?? undefined,
+      salesChannel: data.salesChannel ?? undefined,
+      internalNote: data.internalNote ?? undefined,
+      discount: data.discount ?? undefined,
+      vatRate: data.vatRate ?? undefined,
+      vatAmount: data.vatAmount ?? undefined,
+      shippingAddress: data.shippingAddress ?? undefined,
     },
     include: { items: true },
   });

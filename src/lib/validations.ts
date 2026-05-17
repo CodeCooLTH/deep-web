@@ -117,6 +117,26 @@ export const CreateOrderSchema = v.object({
   ),
   // type — derive จาก registry (replaces hardcoded picklist)
   type: v.picklist(PRODUCT_TYPE_IDS),
+  // Phase B fields — ทั้งหมด optional เพื่อ backward-compatible กับ caller เดิม
+  buyerContact: v.optional(v.string()),
+  buyerName: v.optional(v.string()),
+  paymentMethod: v.optional(v.string()),
+  salesChannel: v.optional(v.string()),
+  internalNote: v.optional(v.string()),
+  // discount/vatRate/vatAmount เป็นตัวเลข: minValue(0) กัน negative
+  discount: v.optional(v.pipe(v.number(), v.minValue(0))),
+  // vatRate เก็บเป็น decimal fraction (0.07 = 7%) — maxValue(1) ป้องกัน input ผิด (เช่น 7 แทน 0.07)
+  vatRate: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(1))),
+  vatAmount: v.optional(v.pipe(v.number(), v.minValue(0))),
+  // shippingAddress เป็น Json? ใน DB — validate shape ที่ app-layer ก่อน persist
+  shippingAddress: v.optional(v.object({
+    line1: v.optional(v.string()),
+    subdistrict: v.optional(v.string()),
+    district: v.optional(v.string()),
+    province: v.optional(v.string()),
+    postcode: v.optional(v.string()),
+    note: v.optional(v.string()),
+  })),
 });
 
 // ConfirmOrderSchema — OTP ถูกถอดออกตาม UX ใหม่ (2026-04-18) buyer เปิดลิงก์
