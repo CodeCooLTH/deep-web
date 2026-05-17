@@ -84,6 +84,11 @@ export default async function SellerDashboardPage() {
     levelColor = LEVEL_COLOR[level] ?? 'text-primary'
 
     try {
+      // perf: getBadgeProgress ต้องการแค่ user.id (ไม่ขึ้นกับ shop) — kick off
+      // ขนานตั้งแต่ต้น ให้ทับซ้อนกับ shop.findUnique + getOrdersByShop + JS processing
+      // (wall time = max(badge, shop+orders) แทนผลรวม sequential)
+      const progressPromise = getBadgeProgress(user.id, 'SELLER')
+
       // ดึงชื่อร้านค้า + id เพื่อแสดงใน UserCard header และ fetch orders
       const shop = await prisma.shop.findUnique({
         where: { userId: user.id },
@@ -149,9 +154,9 @@ export default async function SellerDashboardPage() {
         }
       }
 
-      // T9: ใช้ getBadgeProgress แทน prisma.userBadge + prisma.badge สองรอบ
-      // perf debt ยอมรับ — เหมือน /badges page (Q3 Controller decision)
-      const rawProgress = await getBadgeProgress(user.id, 'SELLER')
+      // T9: getBadgeProgress (kick off ตั้งแต่ต้น block — ดู progressPromise ด้านบน)
+      // await ตรงนี้: ถ้า shop+orders ใช้เวลานานกว่า badge ก็เสร็จพร้อมแล้ว (overlap)
+      const rawProgress = await progressPromise
       earnedBadges = rawProgress.filter((i) => i.earned)
       // top in-progress: ยังไม่ได้รับ, เรียง progressRatio มากสุดก่อน, slice 4 รายการ
       topInProgress = rawProgress
