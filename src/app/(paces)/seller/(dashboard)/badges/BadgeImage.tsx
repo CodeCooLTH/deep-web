@@ -18,16 +18,14 @@ import { useState } from 'react'
 type BadgeImageProps = {
   nameEN: string
   imageUrl: string | null
-  /** ขนาด Tailwind class เช่น 'size-6' (earned circle) หรือ 'size-5' (in-progress row) */
+  /** ขนาด Tailwind class เช่น 'size-[110px]' (badge card) — parent กำหนดตาม layout */
   sizeClass?: string
   className?: string
 }
 
 /**
  * BadgeImage — render รูป badge ตาม precedence (imageUrl → img onError → IconifyIcon)
- * earned card: wrapper circle size-12; ตัว img/icon size-6 ภายใน
- * in-progress row: wrapper circle size-10; ตัว icon size-5
- * component นี้รับแค่ icon/img — ไม่รู้เรื่อง wrapper circle (parent จัดการ)
+ * รับแค่ icon/img ตาม sizeClass ที่ parent ส่ง — ไม่รู้เรื่อง wrapper/card (parent จัดการ)
  */
 export function BadgeImage({ nameEN, imageUrl, sizeClass = 'size-6', className = '' }: BadgeImageProps) {
   const [imgFailed, setImgFailed] = useState(false)
@@ -42,6 +40,7 @@ export function BadgeImage({ nameEN, imageUrl, sizeClass = 'size-6', className =
         alt={nameEN}
         loading="lazy"
         className={`${sizeClass} object-contain ${className}`}
+        style={{ imageRendering: 'pixelated' }}
         onError={() => setImgFailed(true)}
       />
     )
