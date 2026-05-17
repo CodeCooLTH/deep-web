@@ -1,15 +1,15 @@
 /**
  * loading.tsx — skeleton สำหรับ /seller/orders
- * mirror layout: data table
+ * เปลี่ยนจาก table skeleton → card skeleton เพราะ orders page ใช้ card layout บน mobile
  *
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton.tsx
+ *   (extend PulseBar pattern จาก theme/paces/Admin/TS/src/app/(admin)/ui/placeholders/page.tsx)
  */
-import { SellerTableSkeleton } from '../_shared/SellerCardSkeleton'
+import { SellerOrderCardSkeleton } from '../_shared/SellerCardSkeleton'
 
 const OrdersLoading = () => (
   <div>
-    <span className="sr-only">กำลังโหลด...</span>
-    <SellerTableSkeleton />
+    <SellerOrderCardSkeleton />
   </div>
 )
 

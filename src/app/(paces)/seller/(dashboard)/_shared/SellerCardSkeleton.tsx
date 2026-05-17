@@ -84,5 +84,59 @@ export const SellerChartSkeleton = () => (
   </div>
 )
 
+/**
+ * SellerOrderCardSkeleton — mimic การ์ดออเดอร์ (mobile card layout)
+ * ใช้ใน /seller/orders/loading.tsx แทน table skeleton (list page ใช้ card view บน mobile)
+ *
+ * โครงสร้าง:
+ *   - header row: avatar วงกลม + 2 บรรทัดข้อความ (ชื่อผู้ซื้อ + หมายเลขออเดอร์)
+ *   - 2 item row: icon placeholder + 2 ช่องข้อมูล
+ *   - footer: badge status + action button pulse
+ *
+ * render 4 การ์ดใน space-y-2.5 — export นี้คือ SellerOrderCardSkeleton (ไม่ replace ตัวเดิม)
+ */
+const OrderCard = () => (
+  <div className="card">
+    {/* header row: avatar + 2 line */}
+    <div className="card-header gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <PulseBar className="h-9 w-9 shrink-0 rounded-full" />
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <PulseBar className="h-3.5 w-28" />
+          <PulseBar className="h-3 w-20" />
+        </div>
+      </div>
+      <PulseBar className="h-5 w-16 rounded-full" />
+    </div>
+    {/* 2 item rows */}
+    <div className="card-body space-y-3 py-3">
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <PulseBar className="h-4 w-4 shrink-0 rounded" />
+          <PulseBar className="h-3.5 w-24" />
+          <PulseBar className="h-3.5 flex-1" />
+        </div>
+      ))}
+    </div>
+    {/* footer */}
+    <div className="border-t border-default-200 px-5 py-3 flex items-center justify-between gap-2">
+      <PulseBar className="h-5 w-20 rounded-full" />
+      <PulseBar className="h-8 w-28 rounded" />
+    </div>
+  </div>
+)
+
+/**
+ * SellerOrderCardSkeleton — render 4 การ์ด order placeholder ใน space-y-2.5
+ */
+export const SellerOrderCardSkeleton = () => (
+  <div className="space-y-2.5">
+    <span className="sr-only">กำลังโหลด...</span>
+    {Array.from({ length: 4 }).map((_, i) => (
+      <OrderCard key={i} />
+    ))}
+  </div>
+)
+
 // default export ชี้ไปที่ SellerCardSkeleton เพื่อ convenience import
 export default SellerCardSkeleton
