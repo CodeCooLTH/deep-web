@@ -17,7 +17,7 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import type { OrderRow, OrderStatus } from './data'
 import OrderCard from './OrderCard'
@@ -54,7 +54,8 @@ type Props = {
 }
 
 export default function OrdersList({ orders, activeStatus }: Props) {
-  const router = useRouter()
+  const router   = useRouter()
+  const pathname = usePathname()
 
   // ─── local UI state ───────────────────────────────────────────────────────
   const [localStatus, setLocalStatus] = useState<string>(activeStatus ?? 'all')
@@ -71,11 +72,12 @@ export default function OrdersList({ orders, activeStatus }: Props) {
   const handleStatusTab = (value: string) => {
     setLocalStatus(value)
     setPageIndex(0)
-    // sync URL เพื่อให้ reload แล้ว SSR render tab เดิม
+    // sync URL ด้วย pathname เต็ม เพื่อให้ pushState อัปเดต address bar จริง
+    // (relative `?status=` ไม่ trigger pushState ใน Next 16 App Router — ต้องใช้ pathname + query string)
     if (value === 'all') {
-      router.push('/orders')
+      router.push(pathname, { scroll: false })
     } else {
-      router.push(`?status=${value}`)
+      router.push(`${pathname}?status=${value}`, { scroll: false })
     }
   }
 
@@ -153,8 +155,10 @@ export default function OrdersList({ orders, activeStatus }: Props) {
 
         {/* card-header: search + filters (ซ้าย) + สร้างออเดอร์ (ขวา) ตาม list.html L62-71 */}
         <div className="card-header flex-wrap gap-3">
-          {/* ซ้าย: search + type filter + page size */}
-          <div className="flex flex-1 flex-wrap items-center gap-2">
+          {/* ซ้าย: search + type filter + page size
+              ลบ flex-1 ออก — ไม่ให้ container stretch เต็มแถว ซึ่งทำให้ selects ถูกดันลงแถวล่าง
+              flex-wrap เฉพาะ mobile; md+ บังคับ flex-nowrap ให้ 1 แถว */}
+          <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
             {/* search input พร้อม icon */}
             <div className="relative">
               <Icon icon="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-default-500 text-sm" />
