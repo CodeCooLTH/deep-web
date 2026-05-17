@@ -120,7 +120,14 @@ StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
 - **⚠️ ต้อง `prisma migrate deploy` (env.local/Supabase) ก่อน prod-use:** migrations
   `20260517000001_topup_slipfileid_index` + `20260517040000_topup_notified_at`
   (additive nullable + index — ปลอดภัย ไม่ backfill).
+- **Product change 2026-05-17 (commit `3acbcbe`):** ตัด L2/D3 verification gate
+  → credit-only + SendSmsButton เป็น confirm dialog + ปุ่มใน Orders List. gate-3
+  reviewer MERGE + security PASS (residual anti-abuse verified). ดู spec
+  AR-L2-REMOVAL + retro 2026-05-17-sms-wallet.
 - **Phase-2 backlog (deferred, ไม่ block MVP):**
+  - **AR-L2-REMOVAL mitigation:** ถ้ามี spam/abuse report — เพิ่ม per-phone
+    cross-shop daily SMS limit (ตอนนี้ bound ที่ ฿1+200/วัน+20/ชม per-shop
+    เท่านั้น; เบอร์เดียวกันถูกหลาย shop ส่งได้ถ้าแต่ละ shop อยู่ใน cap).
   - **AR-C1:** แยก `SMS_UNLOCK_SECRET` env (ตอนนี้ reuse `NEXTAUTH_SECRET` สำหรับ
     HMAC cookie — secure แต่ blast-radius กว้าง; แยก secret + fallback chain).
   - **true-realtime:** ปัจจุบัน poll 20s (T24). upgrade เป็น SSE (Next16 route

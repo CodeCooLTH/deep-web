@@ -15,6 +15,14 @@ Seller ที่ verify **L2+** กดส่ง Order Link เข้า SMS buye
   - admin backend: คิว review TopUpRequest → approve → credit wallet + WalletTransaction(TOPUP) atomic / reject + เหตุผล (ภาษาไทย)
   - ไม่มี payment gateway (manual โอน+สลิป). reuse pattern upload+admin-review ที่มีอยู่ (verification L2/L3)
 - **D3 Verification gate = L2+** (เอกสารบุคคล ปชช.+selfie ขึ้นไป) — enforce ที่ API ไม่ใช่แค่ UI (anti-smishing platform SMS reputation)
+  > ⚠️ **REVERSED — Product decision 2026-05-17 (owner-confirmed):** D3/RC-5 L2 gate
+  > **ถูกตัดออก** → credit-only (มีเครดิตก็ส่งได้). commit `3acbcbe`. anti-abuse
+  > เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap 200/วัน + RC-1 + RC-6 (เบอร์จาก
+  > order DAL-scoped ของ seller เอง ไม่ใช่เบอร์ใดก็ได้). **AR-L2-REMOVAL**
+  > (security-verified, accepted): L1-auth seller + credit ส่ง SMS ไปเบอร์ที่
+  > เขียนใน buyerContact ของ order ตัวเอง — bound ด้วย cost+rate+admin-approved
+  > topup + traceable (wallet ledger audit). Phase-2 mitigation ถ้ามี spam
+  > report: per-phone cross-shop daily limit. ดู retro 2026-05-17-sms-wallet.
 
 ## Remaining OQ — ใช้ default product spec (planner/security finalize, ไม่ต้องถาม user ซ้ำ; security tighten ได้)
 - balance unit = ฿ integer (OQ-1)

@@ -526,7 +526,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | topup.service | **DONE** `6833a2f`+`6ed858d` | create/approveTopUp (atomic creditWallet+lock TOCTOU)/rejectTopUp |
 | GET /api/wallet | **DONE** `e65bac3`+`cdf9f6c` | balance + transaction history |
 | POST /api/wallet/topup | **DONE** `9b7c454` | สร้าง TopUpRequest + slip |
-| POST /api/orders/[token]/send-sms | **DONE** `cab811f` | L2 gate, daily-cap, OQ-5 burst, atomic deduct+issue+setContact |
+| POST /api/orders/[token]/send-sms | **DONE** `cab811f`; **L2 gate ถูกตัด `3acbcbe`** (product decision 2026-05-17 → credit-only) | daily-cap, OQ-5 burst, atomic deduct+issue+setContact (ไม่มี L2/D3 — ดู spec AR-L2-REMOVAL) |
 | GET /api/admin/topups | **DONE** `9b7c454` | คิว PENDING |
 | POST /api/admin/topups/[id]/approve | **DONE** `1dbc32e` | RC-7 self-block |
 | POST /api/admin/topups/[id]/reject | **DONE** `1dbc32e` | RC-7 self-block |
