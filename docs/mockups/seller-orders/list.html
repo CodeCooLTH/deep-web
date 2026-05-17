@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>คำสั่งซื้อ · Deep Seller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<link rel="stylesheet" href="assets/shell.css">
+<script>
+tailwind.config={theme:{extend:{
+ fontFamily:{sans:['Anuphan','sans-serif']},
+ colors:{primary:{DEFAULT:'#236dc9',hover:'#1e5dab'},secondary:'#7b70ef',success:'#02bc9c',info:'#5bc3e1',warning:'#f9bf59',danger:'#f7577e',dark:'#313a46',card:'#ffffff','body-color':'#4c4c5c',
+  default:{100:'#f6f7fb',200:'#eef2f7',300:'#e7e9eb',400:'#9ba6b7',500:'#a1a9b1',600:'#8a969c',700:'#6c757d',800:'#343a40',900:'#313a46'}},
+ borderRadius:{DEFAULT:'4px'},
+ boxShadow:{DEFAULT:'0px 1px 4px 0px rgba(130,143,163,.15)',lg:'0 .25rem 1rem rgba(76,76,92,.2)'}}}}
+</script>
+<style>
+ body{background:#f6f7fb;color:#4c4c5c;font-family:'Anuphan',sans-serif}
+ .card{background:#fff;border-radius:4px;box-shadow:0px 1px 4px 0px rgba(130,143,163,.15);display:flex;flex-direction:column}
+ .card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;border-bottom:1px dashed #e7e9eb;padding:.9375rem 1.25rem}
+ .card-body{padding:1.25rem;flex:auto}
+ .card-footer{border-top:1px solid #eef2f7;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding:.9375rem 1.25rem}
+ .btn{position:relative;display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:.5rem;border-radius:4px;border:1px solid transparent;padding:.4375rem 1rem;font-size:.875rem;font-weight:500;transition:all .15s}
+ .btn-sm{padding:.3125rem .75rem;font-size:.8125rem}.btn-icon{width:2.3125rem;height:2.3125rem;padding:0}
+ .badge{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;border-radius:4px;padding:.2em .6em;font-size:.75rem;font-weight:600}
+ .form-input,.form-select{width:100%;height:2.3125rem;border:1px solid #e7e9eb;border-radius:4px;padding:0 .75rem;font-size:.875rem;background:#fff;color:#4c4c5c;transition:border-color .15s}
+ .form-input:hover,.form-select:hover,.form-input:focus,.form-select:focus{outline:0;border-color:#9ba6b7;box-shadow:none}
+ .form-select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:2.31rem;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='%239ba6b7' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 16a1 1 0 0 1-.64-.23l-6-5a1 1 0 1 1 1.28-1.54L12 13.71l5.36-4.32a1 1 0 0 1 1.41.15a1 1 0 0 1-.14 1.46l-6 4.83A1 1 0 0 1 12 16'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:1.1rem}
+ table{width:100%;border-collapse:collapse}th{text-align:left}
+ ::-webkit-scrollbar{height:6px;width:6px}::-webkit-scrollbar-thumb{background:#cbd2da;border-radius:3px}
+ .tab-btn{padding:.75rem 1rem;font-size:.875rem;font-weight:500;color:#6c757d;border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+ .tab-btn.active{color:#236dc9;border-bottom-color:#236dc9}
+</style>
+</head>
+<body data-page="orders" data-title="คำสั่งซื้อ" data-crumb="Business / คำสั่งซื้อ">
+<div id="app-content" hidden>
+
+  <!-- Stat cards -->
+  <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div class="card"><div class="card-body flex items-center justify-between gap-3">
+      <div><p class="text-2xl font-bold text-dark">12</p><p class="text-xs text-default-500">ออเดอร์ทั้งหมด</p></div>
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-info text-white"><iconify-icon icon="tabler:shopping-cart" class="text-xl"></iconify-icon></span></div></div>
+    <div class="card"><div class="card-body flex items-center justify-between gap-3">
+      <div><p class="text-2xl font-bold text-dark">4</p><p class="text-xs text-default-500">รอดำเนินการ</p></div>
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-warning text-white"><iconify-icon icon="tabler:clock" class="text-xl"></iconify-icon></span></div></div>
+    <div class="card"><div class="card-body flex items-center justify-between gap-3">
+      <div><p class="text-2xl font-bold text-dark">3</p><p class="text-xs text-default-500">จัดส่งแล้ว</p></div>
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white"><iconify-icon icon="tabler:truck-delivery" class="text-xl"></iconify-icon></span></div></div>
+    <div class="card"><div class="card-body flex items-center justify-between gap-3">
+      <div><p class="text-2xl font-bold text-dark">4</p><p class="text-xs text-default-500">สำเร็จแล้ว</p></div>
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-success text-white"><iconify-icon icon="tabler:circle-check" class="text-xl"></iconify-icon></span></div></div>
+    <div class="card"><div class="card-body flex items-center justify-between gap-3">
+      <div><p class="text-2xl font-bold text-dark">1</p><p class="text-xs text-default-500">ยกเลิก</p></div>
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-danger text-white"><iconify-icon icon="tabler:circle-x" class="text-xl"></iconify-icon></span></div></div>
+  </div>
+
+  <!-- Orders card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="flex flex-1 flex-wrap items-center gap-2">
+        <div class="relative">
+          <iconify-icon icon="tabler:search" class="absolute left-3 top-1/2 -translate-y-1/2 text-default-500"></iconify-icon>
+          <input class="form-input w-full !pl-9 sm:w-64" placeholder="ค้นหาออเดอร์...">
+        </div>
+        <select class="form-select w-auto"><option>ประเภทออเดอร์</option><option>สินค้า</option><option>ดิจิทัล</option><option>บริการ</option></select>
+        <select class="form-select w-auto"><option>แสดง 10</option><option>แสดง 25</option><option>แสดง 50</option></select>
+      </div>
+      <a href="create.html" class="btn bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:plus"></iconify-icon> สร้างออเดอร์</a>
+    </div>
+
+    <!-- Status tabs -->
+    <div class="flex gap-1 overflow-x-auto border-b border-default-300 px-3">
+      <button class="tab-btn active" data-st="all">ทั้งหมด <span class="ml-1 rounded-full bg-default-200 px-1.5 text-xs">12</span></button>
+      <button class="tab-btn" data-st="PENDING">รอดำเนินการ <span class="ml-1 rounded-full bg-warning/20 px-1.5 text-xs text-warning">4</span></button>
+      <button class="tab-btn" data-st="SHIPPED">จัดส่งแล้ว <span class="ml-1 rounded-full bg-primary/15 px-1.5 text-xs text-primary">3</span></button>
+      <button class="tab-btn" data-st="CONFIRMED">สำเร็จ <span class="ml-1 rounded-full bg-success/15 px-1.5 text-xs text-success">4</span></button>
+      <button class="tab-btn" data-st="CANCELLED">ยกเลิก <span class="ml-1 rounded-full bg-danger/15 px-1.5 text-xs text-danger">1</span></button>
+    </div>
+
+    <div class="card-body">
+      <div id="rows" class="space-y-2.5"></div>
+      <!-- Empty state (hidden by default; shows when a filter yields 0) -->
+      <div id="empty" class="hidden flex-col items-center justify-center gap-3 py-16 text-center">
+        <span class="flex h-16 w-16 items-center justify-center rounded-full bg-default-100 text-default-400"><iconify-icon icon="tabler:shopping-cart-off" class="text-3xl"></iconify-icon></span>
+        <p class="text-default-700 font-medium">ไม่มีออเดอร์ในสถานะนี้</p>
+        <a href="create.html" class="btn bg-primary text-white hover:bg-primary-hover btn-sm"><iconify-icon icon="tabler:plus"></iconify-icon> สร้างออเดอร์แรก</a>
+      </div>
+    </div>
+    <div class="card-footer">
+      <p class="text-xs text-default-500">แสดง <span id="cnt">12</span> จาก 12 ออเดอร์</p>
+      <div class="flex gap-1">
+        <button class="btn btn-sm border-default-300 text-default-700">ก่อนหน้า</button>
+        <button class="btn btn-sm bg-primary text-white">1</button>
+        <button class="btn btn-sm border-default-300 text-default-700">2</button>
+        <button class="btn btn-sm border-default-300 text-default-700">ถัดไป</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error state demo (toggle) -->
+  <div class="mt-4 flex items-center gap-2 text-xs text-default-500">
+    <button id="toggleErr" class="btn btn-sm border-default-300 text-default-700">▸ ดู state: โหลดออเดอร์ไม่สำเร็จ</button>
+  </div>
+  <div id="errCard" class="card mt-3 hidden">
+    <div class="card-body flex flex-col items-center gap-3 py-14 text-center">
+      <span class="flex h-16 w-16 items-center justify-center rounded-full bg-danger/10 text-danger"><iconify-icon icon="tabler:alert-triangle" class="text-3xl"></iconify-icon></span>
+      <p class="font-medium text-dark">โหลดรายการออเดอร์ไม่สำเร็จ</p>
+      <p class="text-sm text-default-500">เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง</p>
+      <button class="btn bg-primary text-white hover:bg-primary-hover btn-sm"><iconify-icon icon="tabler:refresh"></iconify-icon> ลองใหม่</button>
+    </div>
+  </div>
+
+</div>
+<script src="assets/shell.js"></script>
+<script>
+const TYPE={PHYSICAL:['สินค้า','bg-info/15 text-info'],DIGITAL:['ดิจิทัล','bg-secondary/15 text-secondary'],SERVICE:['บริการ','bg-secondary/15 text-secondary']};
+const STAT={
+ PENDING:{t:'รอดำเนินการ',badge:'bg-warning/15 text-warning',accent:'border-l-warning',icon:'tabler:clock'},
+ SHIPPED:{t:'จัดส่งแล้ว',badge:'bg-primary/15 text-primary',accent:'border-l-primary',icon:'tabler:truck-delivery'},
+ CONFIRMED:{t:'สำเร็จ',badge:'bg-success/15 text-success',accent:'border-l-success',icon:'tabler:circle-check'},
+ CANCELLED:{t:'ยกเลิก',badge:'bg-danger/15 text-danger',accent:'border-l-danger',icon:'tabler:circle-x'},
+};
+const DATA=[
+ {t:'20260516A1B2C3',nm:'สมชาย ใจดี',b:'089•••5678',av:'https://i.pravatar.cc/64?img=12',oc:3,ty:'PHYSICAL',s:'PENDING',d:'16 พ.ค. 69',tm:'13:45',ch:'Facebook',pay:'โอนเงิน',dc:2000,vatR:7,items:[{n:'iPhone 15 (128GB) สี Black',sku:'IP15-128-BK',q:1,p:32900,img:'https://picsum.photos/seed/iphone15/120'},{n:'เคสหนังแท้',sku:'CASE-LTH-01',q:2,p:990,img:'https://picsum.photos/seed/leathercase/120'},{n:'ฟิล์มกระจก',sku:'FLM-GLS-15',q:1,p:290,img:'https://picsum.photos/seed/glassfilm/120'}]},
+ {t:'20260515E5F6G7',nm:'ผู้ซื้อยังไม่ยืนยัน',b:'buyer•••@gmail.com',av:null,oc:null,ty:'DIGITAL',s:'CONFIRMED',d:'15 พ.ค. 69',tm:'10:02',ch:'หน้าร้าน',pay:'พร้อมเพย์',rating:5,items:[{n:'E-book: คู่มือขายของออนไลน์',sku:'EBOOK-SELL',q:1,p:290,img:'https://picsum.photos/seed/ebook/120'}]},
+ {t:'20260515I9J0K1',nm:'สมศักดิ์ มั่นคง',b:'062•••1622',av:'https://i.pravatar.cc/64?img=33',oc:7,ty:'PHYSICAL',s:'SHIPPED',d:'15 พ.ค. 69',tm:'09:18',ch:'Line',pay:'เก็บปลายทาง',ship:'Kerry · TH1234567890',vatR:7,items:[{n:'หูฟัง Sony WH-1000XM5',sku:'SNY-WH1000XM5',q:1,p:11900,img:'https://picsum.photos/seed/headphone/120'},{n:'สาย USB-C',sku:'CBL-USBC-1M',q:3,p:350,img:'https://picsum.photos/seed/usbc/120'}]},
+ {t:'20260514M3N4O5',nm:'ผู้ซื้อยังไม่ยืนยัน',b:'081•••0042',av:null,oc:null,ty:'PHYSICAL',s:'PENDING',d:'14 พ.ค. 69',tm:'18:30',ch:'TikTok Shop',pay:'บัตรเครดิต',items:[{n:'AirPods Pro 2',sku:'APP-GEN2',q:1,p:8990,img:'https://picsum.photos/seed/airpods/120'}]},
+ {t:'20260513Q7R8S9',nm:'ธนวัฒน์ พาณิชย์',b:'095•••7781',av:'https://i.pravatar.cc/64?img=51',oc:2,ty:'PHYSICAL',s:'CANCELLED',d:'13 พ.ค. 69',tm:'11:05',ch:'Facebook',pay:'โอนเงิน',dc:900,items:[{n:'จอ Monitor 27" 4K',sku:'MON-27-4K',q:2,p:6900,img:'https://picsum.photos/seed/monitor/120'}]},
+ {t:'20260512U1V2W3',nm:'ผู้ซื้อยังไม่ยืนยัน',b:'line•••@deep',av:null,oc:null,ty:'DIGITAL',s:'CONFIRMED',d:'12 พ.ค. 69',tm:'20:47',ch:'Line',pay:'พร้อมเพย์',rating:4,items:[{n:'Template เว็บไซต์ร้านค้า',sku:'TPL-SHOP-01',q:1,p:2500,img:'https://picsum.photos/seed/template/120'}]},
+];
+function avatarHtml(r){
+ return r.av
+  ? `<img src="${r.av}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-default-200">`
+  : `<span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-default-100 text-default-400 ring-1 ring-default-200"><iconify-icon icon="tabler:user" class="text-base"></iconify-icon></span>`;
+}
+function copyBtn(val,label){return `<button data-copy="${val}" title="คัดลอก${label}" class="copy-btn shrink-0 text-default-400 opacity-0 transition hover:text-primary group-hover:opacity-100 max-sm:opacity-100"><iconify-icon icon="tabler:copy" class="text-sm"></iconify-icon></button>`;}
+function custTag(r){
+ return r.oc==null
+  ? `<span class="badge bg-default-200 text-default-600">ยังไม่ยืนยัน</span>`
+  : `<span class="badge bg-success/15 text-success"><iconify-icon icon="tabler:user-check" class="text-[0.9em]"></iconify-icon> ลูกค้าเดิม · ${r.oc}</span>`;
+}
+function meta(icon,txt){return `<span class="inline-flex items-center gap-1.5"><iconify-icon icon="${icon}" class="text-sm text-default-400"></iconify-icon>${txt}</span>`;}
+function render(st){
+ const rows=document.getElementById('rows'); const list=st==='all'?DATA:DATA.filter(r=>r.s===st);
+ document.getElementById('cnt').textContent=list.length;
+ document.getElementById('empty').classList.toggle('hidden',list.length>0);
+ document.getElementById('empty').classList.toggle('flex',list.length===0);
+ rows.innerHTML=list.map(r=>{
+  const stat=STAT[r.s], qty=r.items.reduce((s,i)=>s+i.q,0);
+  const sub=r.items.reduce((s,i)=>s+i.p*i.q,0), dc=r.dc||0, vat=r.vatR?Math.round((sub-dc)*r.vatR/100):0, total=sub-dc+vat;
+  const fmt=n=>'฿'+n.toLocaleString();
+  const show=r.items.slice(0,2), more=r.items.length-show.length;
+  return `<div class="rounded-lg border border-l-4 border-default-300 ${stat.accent} bg-card transition hover:shadow-lg">
+
+   <!-- ╔ HEADER: ลูกค้า + ข้อมูลออเดอร์ — บรรทัดเดียว ╗ -->
+   <div class="flex items-center gap-2.5 border-b border-default-300 px-3 py-2">
+     ${avatarHtml(r)}
+     <div class="group flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap text-xs text-default-600">
+       <span class="text-[13px] font-semibold text-dark">${r.nm}</span>
+       ${custTag(r)}
+       <span class="text-default-300">·</span>
+       <span class="inline-flex items-center gap-1"><iconify-icon icon="tabler:phone" class="text-sm text-default-400"></iconify-icon>${r.b}</span>${copyBtn(r.b,'ผู้ติดต่อ')}
+       <span class="text-default-300">·</span>
+       <span class="inline-flex items-center gap-1"><iconify-icon icon="tabler:hash" class="text-sm text-default-400"></iconify-icon><span class="font-mono font-semibold text-default-800">${r.t}</span></span>${copyBtn(r.t,'เลขออเดอร์')}
+       <span class="text-default-300">·</span>
+       ${meta('tabler:calendar-event',r.d+' '+r.tm)}
+       <span class="text-default-300">·</span>
+       ${meta('tabler:building-store',r.ch)}
+       <span class="text-default-300">·</span>
+       ${meta('tabler:credit-card',r.pay)}
+       ${r.ship?'<span class="text-default-300">·</span>'+meta('tabler:truck',`<span class="font-medium text-primary">${r.ship}</span>`):''}
+       ${r.rating?'<span class="text-default-300">·</span>'+meta('tabler:star-filled','<span class="font-medium text-warning">'+r.rating.toFixed(1)+'</span>'):''}
+     </div>
+     <span class="badge ${stat.badge} shrink-0 gap-1"><iconify-icon icon="${stat.icon}" class="text-[0.95em]"></iconify-icon> ${stat.t}</span>
+   </div>
+
+   <!-- ╔ ITEMS: ไม่มี border แยกด้วยเส้น header/footer แทน ╗ -->
+   <div class="divide-y divide-default-200 px-3 py-1">
+     ${show.map(it=>`<div class="flex items-center gap-3 py-2">
+       <img src="${it.img}" alt="" loading="lazy" class="h-14 w-14 shrink-0 rounded-md border border-default-200 object-cover bg-default-100">
+       <div class="min-w-0 flex-1">
+         <p class="truncate text-sm font-medium text-dark">${it.n}</p>
+         <p class="mt-0.5 text-[11px] text-default-500">SKU: <span class="font-mono">${it.sku}</span></p>
+       </div>
+       <span class="shrink-0 text-xs tabular-nums text-default-500">฿${it.p.toLocaleString()} × ${it.q}</span>
+       <span class="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">฿${(it.p*it.q).toLocaleString()}</span>
+     </div>`).join('')}
+     ${more>0?`<a href="detail.html" class="block py-1.5 text-center text-[11px] font-medium text-primary hover:underline">+ ดูอีก ${more} รายการ</a>`:''}
+     <!-- summary row อยู่ในรายการสินค้า -->
+     <div class="ml-auto w-full max-w-[15rem] space-y-1 py-2 text-xs">
+       <div class="flex justify-between text-default-500"><span>ยอดสินค้า</span><span class="tabular-nums">${fmt(sub)}</span></div>
+       ${dc>0?`<div class="flex justify-between text-danger"><span>ส่วนลด</span><span class="tabular-nums">-${fmt(dc)}</span></div>`:''}
+       ${vat>0?`<div class="flex justify-between text-default-500"><span>VAT ${r.vatR}%</span><span class="tabular-nums">${fmt(vat)}</span></div>`:''}
+       <div class="flex justify-between border-t border-default-200 pt-1"><span class="font-medium text-dark">ยอดสุทธิ</span><span class="text-base font-bold tabular-nums text-dark">${fmt(total)}</span></div>
+     </div>
+   </div>
+
+   <!-- ╔ FOOTER: action เท่านั้น (ปุ่มเล็ก) ╗ -->
+   <div class="flex items-center justify-end border-t border-default-300 px-3 py-2">
+     <div class="flex items-center gap-1.5">
+       <div class="relative">
+         <button type="button" class="card-menu btn btn-sm btn-icon border-default-300 text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:dots-vertical"></iconify-icon></button>
+         <div class="card-menu-pop absolute bottom-full right-0 z-30 mb-1 hidden w-44 overflow-hidden rounded border border-default-300 bg-card shadow-lg">
+           ${r.s==='PENDING'?`<a href="edit.html" class="flex items-center gap-2 px-3 py-2 text-sm text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:pencil"></iconify-icon> แก้ไขออเดอร์</a>`:''}
+           ${(r.s==='PENDING'||r.s==='SHIPPED')?`<button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-danger/10"><iconify-icon icon="tabler:x"></iconify-icon> ยกเลิกออเดอร์</button>`:`<a href="detail.html" class="flex items-center gap-2 px-3 py-2 text-sm text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:eye"></iconify-icon> ดูรายละเอียด</a>`}
+         </div>
+       </div>
+       <button type="button" data-copy="https://deepth.local:4000/o/${r.t.toLowerCase()}" class="copy-btn btn btn-sm border-default-300 text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:link"></iconify-icon> คัดลอกลิงก์</button>
+       <a href="detail.html" class="btn btn-sm bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:eye"></iconify-icon> ดูรายละเอียด</a>
+     </div>
+   </div>
+
+  </div>`;}).join('');
+}
+render('all');
+// per-card dropdown (⋯)
+document.addEventListener('click',e=>{
+ const btn=e.target.closest('.card-menu');
+ document.querySelectorAll('.card-menu-pop').forEach(m=>{ if(!btn||m!==btn.nextElementSibling) m.classList.add('hidden'); });
+ if(btn) btn.nextElementSibling.classList.toggle('hidden');
+});
+// copy (delegation) — คงไอคอนเดิมหลังเด้ง ✓
+document.addEventListener('click',e=>{
+ const b=e.target.closest('.copy-btn'); if(!b) return;
+ navigator.clipboard&&navigator.clipboard.writeText(b.dataset.copy);
+ const ic=b.querySelector('iconify-icon'), orig=ic.getAttribute('icon');
+ ic.setAttribute('icon','tabler:check'); b.classList.add('text-success');
+ setTimeout(()=>{ic.setAttribute('icon',orig);b.classList.remove('text-success');},1200);
+});
+document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+ b.classList.add('active'); render(b.dataset.st);
+});
+document.getElementById('toggleErr').onclick=function(){document.getElementById('errCard').classList.toggle('hidden')};
+</script>
+</body>
+</html>

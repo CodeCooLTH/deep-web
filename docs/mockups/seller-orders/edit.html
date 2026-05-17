@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แก้ไขออเดอร์ · Deep Seller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script>
+tailwind.config={theme:{extend:{
+ fontFamily:{sans:['Anuphan','sans-serif']},
+ colors:{primary:{DEFAULT:'#236dc9',hover:'#1e5dab'},secondary:'#7b70ef',success:'#02bc9c',info:'#5bc3e1',warning:'#f9bf59',danger:'#f7577e',dark:'#313a46',card:'#ffffff',
+  default:{100:'#f6f7fb',200:'#eef2f7',300:'#e7e9eb',400:'#9ba6b7',500:'#a1a9b1',600:'#8a969c',700:'#6c757d',800:'#343a40',900:'#313a46'}},
+ borderRadius:{DEFAULT:'4px'},boxShadow:{DEFAULT:'0px 1px 4px 0px rgba(130,143,163,.15)'}}}}
+</script>
+<style>
+ body{background:#f6f7fb;color:#4c4c5c;font-family:'Anuphan',sans-serif}
+ .card{background:#fff;border-radius:4px;box-shadow:0px 1px 4px 0px rgba(130,143,163,.15);display:flex;flex-direction:column}
+ .card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;border-bottom:1px dashed #e7e9eb;padding:.9375rem 1.25rem}
+ .card-body{padding:1.25rem;flex:auto}
+ .btn{position:relative;display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:.5rem;border-radius:4px;border:1px solid transparent;padding:.4375rem 1rem;font-size:.875rem;font-weight:500;transition:all .15s}
+ .btn-sm{padding:.3125rem .75rem;font-size:.8125rem}.btn-icon{width:2.3125rem;height:2.3125rem;padding:0}
+ .form-input,.form-select,.form-textarea{width:100%;border:1px solid #e7e9eb;border-radius:4px;font-size:.875rem;background:#fff;color:#4c4c5c;transition:border-color .15s}
+ .form-input,.form-select{height:2.3125rem;padding:0 .75rem}
+ .form-textarea{padding:.5rem .75rem}
+ .form-input:hover,.form-select:hover,.form-textarea:hover,.form-input:focus,.form-select:focus,.form-textarea:focus{outline:0;border-color:#9ba6b7;box-shadow:none}
+ .form-select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:2.31rem;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='%239ba6b7' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 16a1 1 0 0 1-.64-.23l-6-5a1 1 0 1 1 1.28-1.54L12 13.71l5.36-4.32a1 1 0 0 1 1.41.15a1 1 0 0 1-.14 1.46l-6 4.83A1 1 0 0 1 12 16'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:1.1rem}
+ .form-label{display:block;font-size:.875rem;font-weight:600;margin-bottom:.5rem;color:#4c4c5c}
+ .hint{font-size:.75rem;color:#a1a9b1;margin-top:.25rem}
+ .form-select:disabled{background-color:#f6f7fb;color:#8a969c;cursor:not-allowed;opacity:.7;background-image:none}
+ ::-webkit-scrollbar{width:7px}::-webkit-scrollbar-thumb{background:#cbd2da;border-radius:3px}
+</style>
+</head>
+<body class="overflow-hidden">
+<div class="fixed inset-0 z-40 bg-dark/50"></div>
+<div class="fixed inset-3 z-50 flex flex-col overflow-hidden rounded-xl bg-[#f6f7fb] shadow-2xl ring-1 ring-black/5 sm:inset-5 lg:inset-8">
+
+  <header class="flex items-center justify-between gap-3 border-b border-default-300 bg-card px-4 py-3 lg:px-8">
+    <div>
+      <h1 class="text-base font-semibold text-dark">แก้ไขออเดอร์ <span class="font-mono text-primary">20260516A1B2C3</span></h1>
+      <p class="text-xs text-default-500">ร้าน ABC Shop</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="detail.html" class="btn border-default-300 text-default-700 hover:bg-default-100">ยกเลิก</a>
+      <button form="f" class="btn bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:device-floppy"></iconify-icon> บันทึกการแก้ไข</button>
+    </div>
+  </header>
+
+  <div class="flex-1 overflow-y-auto px-4 py-5 lg:px-8">
+   <div class="space-y-4">
+
+    <!-- Guard banner (demo toggle: shows when status != PENDING) -->
+    <button id="guardToggle" class="btn btn-sm border-default-300 text-default-700">▸ จำลอง state: ออเดอร์ไม่ใช่ "รอดำเนินการ"</button>
+    <div id="guard" class="card hidden border-l-4 border-l-warning">
+      <div class="card-body flex items-start gap-3">
+        <iconify-icon icon="tabler:alert-triangle" class="mt-0.5 text-2xl text-warning"></iconify-icon>
+        <div class="flex-1">
+          <p class="font-medium text-dark">ออเดอร์นี้ไม่สามารถแก้ไขได้</p>
+          <p class="text-sm text-default-500">ออเดอร์อยู่ในสถานะ "จัดส่งแล้ว" — แก้ไขได้เฉพาะออเดอร์ที่รอดำเนินการ ระบบจะ redirect อัตโนมัติ</p>
+        </div>
+        <a href="detail.html" class="btn btn-sm bg-primary text-white">ดูรายละเอียด</a>
+      </div>
+    </div>
+
+    <form id="f" class="space-y-4">
+      <div class="card">
+        <div class="card-header"><h2 class="font-semibold text-dark">ข้อมูลออเดอร์</h2></div>
+        <div class="card-body grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="form-label flex items-center gap-1">ประเภทออเดอร์
+              <iconify-icon icon="tabler:lock" class="text-default-500" title="ล็อกหลังสร้างออเดอร์ — เปลี่ยนไม่ได้"></iconify-icon></label>
+            <select class="form-select" disabled><option>สินค้าจริง (Physical)</option></select>
+            <p class="hint">ประเภทถูกล็อกตั้งแต่สร้างออเดอร์ — แก้ไม่ได้</p>
+          </div>
+          <div><label class="form-label">ชื่อ-นามสกุลลูกค้า *</label><input class="form-input" value="สมชาย ใจดี"></div>
+          <div><label class="form-label">ช่องทางติดต่อผู้ซื้อ</label><input class="form-input" value="0812345678"><p class="hint">ร้านเห็นค่าจริง (ไม่ mask) เพื่อแก้ไข</p></div>
+          <div><label class="form-label">ช่องทางการขาย</label><select class="form-select"><option>Facebook</option><option>หน้าร้าน</option><option>Line</option></select></div>
+          <div><label class="form-label">วิธีชำระเงิน</label><select class="form-select"><option>โอนเงิน</option><option>เงินสด</option><option>พร้อมเพย์</option></select></div>
+          <div><label class="form-label">หมายเหตุภายใน</label><textarea class="form-textarea" rows="1">ลูกค้าประจำ ส่งฟรี</textarea></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2 class="font-semibold text-dark">ที่อยู่จัดส่ง</h2><span class="text-xs text-default-500">เฉพาะสินค้าจริง</span></div>
+        <div class="card-body grid gap-4 md:grid-cols-2">
+          <div class="md:col-span-2"><label class="form-label">ที่อยู่ / บ้านเลขที่ + ถนน</label><input class="form-input" value="123/4 ถ.สุขุมวิท"></div>
+          <div><label class="form-label">ตำบล / แขวง</label><input class="form-input" value="คลองตัน"></div>
+          <div><label class="form-label">อำเภอ / เขต</label><input class="form-input" value="คลองเตย"></div>
+          <div><label class="form-label">จังหวัด</label><input class="form-input" value="กรุงเทพฯ"></div>
+          <div><label class="form-label">รหัสไปรษณีย์</label><input class="form-input" value="10110"></div>
+          <div class="md:col-span-2"><label class="form-label">หมายเหตุถึงผู้ส่ง</label><input class="form-input" value="โทรก่อนส่ง"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2 class="font-semibold text-dark">รายการสินค้า</h2>
+          <button type="button" class="btn btn-sm bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:plus"></iconify-icon> เลือกสินค้า</button></div>
+        <div class="card-body">
+          <div id="cart" class="divide-y divide-default-200"></div>
+          <button type="button" class="mt-3 text-sm font-medium text-primary hover:underline">+ เพิ่มรายการกำหนดเอง</button>
+          <div class="mt-4 flex items-center justify-between border-t border-default-300 pt-4">
+            <span class="font-medium text-dark">ยอดรวมทั้งหมด</span><span id="total" class="text-lg font-bold text-dark"></span>
+          </div>
+        </div>
+      </div>
+    </form>
+
+   </div>
+  </div>
+</div>
+<script>
+document.getElementById('guardToggle').onclick=function(){
+ document.getElementById('guard').classList.toggle('hidden');
+ document.getElementById('f').classList.toggle('opacity-40');
+ document.getElementById('f').classList.toggle('pointer-events-none');
+};
+const cart=[{n:'iPhone 15 (128GB)',p:32900,q:2},{n:'เคสหนัง',p:990,q:1}];
+function draw(){
+ document.getElementById('cart').innerHTML=cart.map((c,k)=>`<div class="flex items-center gap-3 py-3">
+  <span class="flex h-12 w-12 items-center justify-center rounded bg-default-100 text-default-400"><iconify-icon icon="tabler:photo"></iconify-icon></span>
+  <div class="flex-1"><p class="text-sm font-medium text-dark">${c.n}</p><p class="text-xs text-default-500">฿${c.p.toLocaleString()}</p></div>
+  <div class="flex items-center gap-2">
+   <button onclick="chg(${k},-1)" class="btn btn-sm btn-icon border-default-300">-</button>
+   <span class="w-6 text-center text-sm">${c.q}</span>
+   <button onclick="chg(${k},1)" class="btn btn-sm btn-icon border-default-300">+</button></div>
+  <span class="w-24 text-right text-sm font-semibold text-dark">฿${(c.p*c.q).toLocaleString()}</span>
+  <button onclick="cart.splice(${k},1);draw()" class="text-danger"><iconify-icon icon="tabler:trash"></iconify-icon></button>
+ </div>`).join('');
+ document.getElementById('total').textContent='฿ '+cart.reduce((s,c)=>s+c.p*c.q,0).toLocaleString(undefined,{minimumFractionDigits:2});
+}
+function chg(k,d){cart[k].q=Math.max(1,cart[k].q+d);draw();}
+draw();
+</script>
+</body>
+</html>

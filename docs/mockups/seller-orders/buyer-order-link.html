@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ลิงก์ผู้ซื้อ /o/{token} · Deep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script>
+tailwind.config={theme:{extend:{fontFamily:{sans:['Anuphan','sans-serif']},
+ colors:{primary:{DEFAULT:'#7367F0',hover:'#675DD8',soft:'#E8E6FD'},success:'#28C76F',info:'#00CFE8',warning:'#FF9F43',danger:'#EA5455',
+  ink:'#2F2B3D',muted:'#6F6B7D',line:'#E6E6E8'}}}}
+</script>
+<style>
+ body{background:#F8F7FA;color:#6F6B7D;font-family:'Anuphan',sans-serif}
+ .vcard{background:#fff;border-radius:10px;box-shadow:0 3px 12px 0 rgba(47,43,61,.08)}
+ .vbtn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:8px;padding:.625rem 1.25rem;font-size:.9375rem;font-weight:600;cursor:pointer;transition:.15s;border:1px solid transparent}
+ .vbtn-primary{background:#7367F0;color:#fff;box-shadow:0 2px 6px rgba(115,103,240,.4)}
+ .vbtn-primary:hover{background:#675DD8}
+ .vbtn-ghost{background:transparent;color:#6F6B7D;border-color:#E6E6E8}
+ .vbtn-ghost:hover{background:#F8F7FA}
+ .vinput{width:100%;height:3rem;border:1px solid #E6E6E8;border-radius:8px;padding:0 1rem;font-size:1rem;color:#2F2B3D;background:#fff;transition:.15s}
+ .vinput:focus{outline:0;border-color:#7367F0;box-shadow:0 0 0 3px rgba(115,103,240,.15)}
+ .chip{display:inline-flex;align-items:center;gap:.3rem;border-radius:999px;padding:.25rem .7rem;font-size:.75rem;font-weight:600}
+ .devbar{position:fixed;top:0;left:0;right:0;z-index:50;background:#2F2B3D;color:#fff;font-size:.75rem}
+ .devbar button{padding:.35rem .7rem;border-radius:6px;font-weight:600}
+ .devbar button.on{background:#7367F0}
+ ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#cfcdd8;border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- DEV preview switcher (mock only — ไม่มีในของจริง) -->
+<div class="devbar flex flex-wrap items-center gap-2 px-4 py-2">
+  <span class="opacity-70">พรีวิวสถานะ (mock):</span>
+  <button data-go="lock" class="on">1·ยืนยันเบอร์</button>
+  <button data-go="PENDING">2·รอยืนยัน</button>
+  <button data-go="SHIPPED">3·จัดส่งแล้ว</button>
+  <button data-go="CONFIRMED">✓ สำเร็จ</button>
+  <button data-go="CANCELLED">✕ ยกเลิก</button>
+  <span class="ml-auto opacity-60">/o/a1b2c3d4e5f6</span>
+</div>
+
+<div class="mx-auto min-h-screen max-w-[480px] px-4 pb-28 pt-16">
+
+  <!-- ════ STAGE 1: PHONE UNLOCK ════ -->
+  <section id="stage-lock" class="flex min-h-[80vh] flex-col items-center justify-center">
+    <div class="vcard w-full p-7">
+      <div class="mb-6 flex justify-center">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-xl font-bold text-white">D</span>
+      </div>
+      <h1 class="text-center text-xl font-bold text-ink">ยืนยันเบอร์โทร 💬</h1>
+      <p class="mb-6 mt-1 text-center text-sm">กรอกเบอร์โทรของคุณเพื่อเข้าดูคำสั่งซื้อ <span class="font-mono font-semibold text-ink">#a1b2c3d4</span></p>
+      <label class="mb-1.5 block text-sm font-medium text-ink">เบอร์โทรศัพท์</label>
+      <input class="vinput" placeholder="08xxxxxxxx" inputmode="numeric" maxlength="10">
+      <p class="mt-2 text-xs text-muted">ใช้เบอร์เดียวกับที่ผู้ขายกรอกตอนสร้างคำสั่งซื้อ — ไม่มี OTP ไม่ต้องสมัคร</p>
+      <button class="vbtn vbtn-primary mt-6 w-full" data-go="PENDING">เข้าดูคำสั่งซื้อ</button>
+      <p class="mt-6 text-center text-xs text-muted">ลิงก์ที่ส่งผ่าน SMS จากร้าน จะข้ามขั้นตอนนี้อัตโนมัติ</p>
+    </div>
+    <p class="mt-5 text-center text-xs text-muted">© 2026 Deep — ระบบสร้างความน่าเชื่อถือการซื้อขายออนไลน์</p>
+  </section>
+
+  <!-- ════ STAGE 2: ORDER DETAIL (status-driven) ════ -->
+  <section id="stage-detail" class="hidden space-y-4">
+
+    <!-- status banner -->
+    <div id="b-pending" class="vcard flex items-center gap-3 border-l-4 border-warning p-4">
+      <iconify-icon icon="tabler:clock-hour-4" class="text-2xl text-warning"></iconify-icon>
+      <div><p class="font-semibold text-ink">รอคุณยืนยันคำสั่งซื้อ</p><p class="text-xs text-muted">ตรวจรายการแล้วกดยืนยันด้านล่าง</p></div>
+    </div>
+    <div id="b-shipped" class="vcard hidden items-center gap-3 border-l-4 border-info p-4">
+      <iconify-icon icon="tabler:truck-delivery" class="text-2xl text-info"></iconify-icon>
+      <div><p class="font-semibold text-ink">ร้านจัดส่งแล้ว</p><p class="text-xs text-muted">ติดตามพัสดุด้านล่าง · เมื่อได้รับของแล้วกดยืนยัน</p></div>
+    </div>
+    <div id="b-confirmed" class="vcard hidden items-center gap-3 border-l-4 border-success p-4">
+      <iconify-icon icon="tabler:circle-check" class="text-2xl text-success"></iconify-icon>
+      <div><p class="font-semibold text-ink">คำสั่งซื้อสำเร็จ</p><p class="text-xs text-muted">ขอบคุณ! ให้คะแนนร้านได้ด้านล่าง</p></div>
+    </div>
+    <div id="b-cancelled" class="vcard hidden items-center gap-3 border-l-4 border-danger p-4">
+      <iconify-icon icon="tabler:circle-x" class="text-2xl text-danger"></iconify-icon>
+      <div><p class="font-semibold text-ink">คำสั่งซื้อถูกยกเลิก</p><p class="text-xs text-muted">ออเดอร์นี้ถูกปิดแล้ว</p></div>
+    </div>
+
+    <!-- seller trust hero -->
+    <div class="vcard p-5">
+      <div class="flex items-center gap-3">
+        <img src="https://i.pravatar.cc/96?img=15" class="h-12 w-12 rounded-full ring-2 ring-primary/30">
+        <div class="min-w-0 flex-1">
+          <p class="truncate font-semibold text-ink">ร้าน ABC Shop</p>
+          <p class="text-xs text-muted">@abcshop</p>
+        </div>
+        <div class="text-right">
+          <div class="chip bg-success/15 text-success"><iconify-icon icon="tabler:shield-check"></iconify-icon> Trust 86 · A</div>
+          <p class="mt-1 text-[11px] text-muted">ยืนยันตัวตนแล้ว</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- order summary -->
+    <div class="vcard overflow-hidden">
+      <div class="flex items-center justify-between border-b border-line px-5 py-3">
+        <div>
+          <p class="font-mono text-sm font-bold text-ink">#a1b2c3d4</p>
+          <p class="text-[11px] text-muted">16 พ.ค. 2569 · 13:45</p>
+        </div>
+        <span id="statusChip" class="chip bg-warning/15 text-warning">รอดำเนินการ</span>
+      </div>
+      <!-- items -->
+      <div class="divide-y divide-line px-5">
+        <div class="flex items-center gap-3 py-3">
+          <img src="https://picsum.photos/seed/iphone15/100" class="h-12 w-12 shrink-0 rounded-lg object-cover">
+          <div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-ink">iPhone 15 (128GB) สี Black</p><p class="text-xs text-muted">฿32,900 × 2</p></div>
+          <span class="text-sm font-semibold text-ink">฿65,800</span>
+        </div>
+        <div class="flex items-center gap-3 py-3">
+          <img src="https://picsum.photos/seed/leathercase/100" class="h-12 w-12 shrink-0 rounded-lg object-cover">
+          <div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-ink">เคสหนังแท้</p><p class="text-xs text-muted">฿990 × 1</p></div>
+          <span class="text-sm font-semibold text-ink">฿990</span>
+        </div>
+      </div>
+      <!-- totals -->
+      <div class="space-y-1.5 bg-[#F8F7FA] px-5 py-4 text-sm">
+        <div class="flex justify-between text-muted"><span>ยอดสินค้า</span><span>฿66,790</span></div>
+        <div class="flex justify-between text-danger"><span>ส่วนลด</span><span>-฿2,000</span></div>
+        <div class="flex justify-between text-muted"><span>VAT 7%</span><span>฿4,535</span></div>
+        <div class="flex justify-between border-t border-line pt-2"><span class="font-semibold text-ink">ยอดสุทธิ</span><span class="text-lg font-bold text-primary">฿69,325</span></div>
+      </div>
+    </div>
+
+    <!-- shipping address (physical only) -->
+    <div class="vcard p-5">
+      <p class="mb-2 flex items-center gap-2 text-sm font-semibold text-ink"><iconify-icon icon="tabler:map-pin" class="text-primary"></iconify-icon> ที่อยู่จัดส่ง</p>
+      <p class="text-sm text-muted">สมชาย ใจดี · 081-234-5678<br>123/4 ถ.สุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพฯ 10110</p>
+    </div>
+
+    <!-- tracking (SHIPPED) -->
+    <div id="trackCard" class="vcard hidden p-5">
+      <p class="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><iconify-icon icon="tabler:truck-delivery" class="text-info"></iconify-icon> การจัดส่ง</p>
+      <div class="flex items-center justify-between rounded-lg bg-[#F8F7FA] px-4 py-3">
+        <div><p class="text-xs text-muted">ขนส่ง</p><p class="font-semibold text-ink">Kerry Express</p></div>
+        <div class="text-right"><p class="text-xs text-muted">เลขพัสดุ</p><p class="font-mono font-semibold text-ink">TH1234567890</p></div>
+      </div>
+      <a href="#" class="vbtn vbtn-ghost mt-3 w-full"><iconify-icon icon="tabler:external-link"></iconify-icon> ติดตามพัสดุกับขนส่ง</a>
+    </div>
+
+    <!-- ⚠ PROPOSED: attach slip (NOT in PRD/code) -->
+    <div id="slipCard" class="vcard border border-dashed border-warning/60 p-5">
+      <p class="mb-1 flex items-center gap-2 text-sm font-semibold text-ink"><iconify-icon icon="tabler:receipt" class="text-warning"></iconify-icon> แนบสลิปการโอน
+        <span class="chip bg-warning/15 text-warning text-[10px]">เสนอเพิ่ม — ไม่อยู่ใน PRD ปัจจุบัน</span></p>
+      <p class="mb-3 text-xs text-muted">อัปโหลดสลิปให้ร้านตรวจสอบการชำระเงิน (optional)</p>
+      <div class="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line bg-[#F8F7FA] px-4 py-6 text-sm text-muted">
+        <iconify-icon icon="tabler:upload" class="text-xl"></iconify-icon> แตะเพื่อเลือกรูปสลิป
+      </div>
+    </div>
+
+    <!-- review (CONFIRMED) -->
+    <div id="reviewCard" class="vcard hidden p-5">
+      <p class="mb-3 text-sm font-semibold text-ink">ให้คะแนนร้านนี้</p>
+      <div class="mb-3 flex gap-1 text-3xl text-warning">
+        <iconify-icon icon="tabler:star-filled"></iconify-icon><iconify-icon icon="tabler:star-filled"></iconify-icon><iconify-icon icon="tabler:star-filled"></iconify-icon><iconify-icon icon="tabler:star-filled"></iconify-icon><iconify-icon icon="tabler:star" class="text-line"></iconify-icon>
+      </div>
+      <textarea class="vinput !h-auto py-3" rows="3" placeholder="เล่าประสบการณ์การซื้อ (optional)"></textarea>
+      <button class="vbtn vbtn-primary mt-3 w-full">ส่งรีวิว</button>
+    </div>
+
+    <p class="px-2 text-center text-[11px] text-muted">เปิดลิงก์นี้ซ้ำได้ตลอดเพื่อติดตามสถานะ — สถานะอัปเดตอัตโนมัติเมื่อร้านดำเนินการ</p>
+  </section>
+</div>
+
+<!-- fixed bottom CTA (status-driven) -->
+<div id="bottomBar" class="fixed inset-x-0 bottom-0 z-40 hidden border-t border-line bg-white/95 backdrop-blur">
+  <div class="mx-auto max-w-[480px] space-y-2 p-4">
+    <button id="ctaPending" class="vbtn vbtn-primary w-full text-base"><iconify-icon icon="tabler:circle-check"></iconify-icon> ยืนยันคำสั่งซื้อ</button>
+    <button id="ctaShipped" class="vbtn vbtn-primary hidden w-full text-base"><iconify-icon icon="tabler:package"></iconify-icon> ยืนยันได้รับสินค้าแล้ว</button>
+    <button id="ctaCancel" class="vbtn vbtn-ghost w-full !text-danger !border-danger/40">ยกเลิกคำสั่งซื้อ</button>
+  </div>
+</div>
+
+<script>
+function setStatus(st){
+ const lock=st==='lock';
+ document.getElementById('stage-lock').classList.toggle('hidden',!lock);
+ document.getElementById('stage-detail').classList.toggle('hidden',lock);
+ document.getElementById('bottomBar').classList.toggle('hidden',lock||st==='CANCELLED'||st==='CONFIRMED');
+ if(lock){syncDev('lock');return;}
+ const map={PENDING:['รอดำเนินการ','bg-warning/15 text-warning'],SHIPPED:['จัดส่งแล้ว','bg-info/15 text-info'],CONFIRMED:['สำเร็จ','bg-success/15 text-success'],CANCELLED:['ยกเลิก','bg-danger/15 text-danger']};
+ const sc=document.getElementById('statusChip'); sc.className='chip '+map[st][1]; sc.textContent=map[st][0];
+ ['pending','shipped','confirmed','cancelled'].forEach(b=>document.getElementById('b-'+b).classList.toggle('hidden',b!==st.toLowerCase()));
+ ['b-pending','b-shipped','b-confirmed','b-cancelled'].forEach(id=>{const e=document.getElementById(id);e.classList.toggle('flex',!e.classList.contains('hidden'));});
+ document.getElementById('trackCard').classList.toggle('hidden',st!=='SHIPPED'&&st!=='CONFIRMED');
+ document.getElementById('reviewCard').classList.toggle('hidden',st!=='CONFIRMED');
+ document.getElementById('slipCard').classList.toggle('hidden',st!=='PENDING');
+ document.getElementById('ctaPending').classList.toggle('hidden',st!=='PENDING');
+ document.getElementById('ctaShipped').classList.toggle('hidden',st!=='SHIPPED');
+ document.getElementById('ctaCancel').classList.toggle('hidden',st!=='PENDING'&&st!=='SHIPPED');
+ syncDev(st);
+}
+function syncDev(st){document.querySelectorAll('.devbar [data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===st));}
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>setStatus(b.dataset.go)));
+setStatus('lock');
+</script>
+</body>
+</html>

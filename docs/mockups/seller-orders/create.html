@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สร้างออเดอร์ · Deep Seller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script>
+tailwind.config={theme:{extend:{
+ fontFamily:{sans:['Anuphan','sans-serif']},
+ colors:{primary:{DEFAULT:'#236dc9',hover:'#1e5dab'},secondary:'#7b70ef',success:'#02bc9c',info:'#5bc3e1',warning:'#f9bf59',danger:'#f7577e',dark:'#313a46',card:'#ffffff',
+  default:{100:'#f6f7fb',200:'#eef2f7',300:'#e7e9eb',400:'#9ba6b7',500:'#a1a9b1',600:'#8a969c',700:'#6c757d',800:'#343a40',900:'#313a46'}},
+ borderRadius:{DEFAULT:'4px'},boxShadow:{DEFAULT:'0px 1px 4px 0px rgba(130,143,163,.15)'}}}}
+</script>
+<style>
+ body{background:#f6f7fb;color:#4c4c5c;font-family:'Anuphan',sans-serif}
+ .card{background:#fff;border-radius:4px;box-shadow:0px 1px 4px 0px rgba(130,143,163,.15);display:flex;flex-direction:column}
+ .card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;border-bottom:1px dashed #e7e9eb;padding:.9375rem 1.25rem}
+ .card-body{padding:1.25rem;flex:auto}
+ .btn{position:relative;display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:.5rem;border-radius:4px;border:1px solid transparent;padding:.4375rem 1rem;font-size:.875rem;font-weight:500;transition:all .15s}
+ .btn-sm{padding:.3125rem .75rem;font-size:.8125rem}.btn-icon{width:2.3125rem;height:2.3125rem;padding:0}
+ .badge{display:inline-flex;align-items:center;gap:.25rem;border-radius:4px;padding:.2em .6em;font-size:.75rem;font-weight:600}
+ .form-input,.form-select,.form-textarea{width:100%;border:1px solid #e7e9eb;border-radius:4px;font-size:.875rem;background:#fff;color:#4c4c5c;transition:border-color .15s}
+ .form-input,.form-select{height:2.3125rem;padding:0 .75rem}
+ .form-textarea{padding:.5rem .75rem}
+ .form-input:hover,.form-select:hover,.form-textarea:hover,.form-input:focus,.form-select:focus,.form-textarea:focus{outline:0;border-color:#9ba6b7;box-shadow:none}
+ .form-select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:2.31rem;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='%239ba6b7' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 16a1 1 0 0 1-.64-.23l-6-5a1 1 0 1 1 1.28-1.54L12 13.71l5.36-4.32a1 1 0 0 1 1.41.15a1 1 0 0 1-.14 1.46l-6 4.83A1 1 0 0 1 12 16'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:1.1rem}
+ .form-label{display:block;font-size:.875rem;font-weight:600;margin-bottom:.5rem;color:#4c4c5c}
+ .hint{font-size:.75rem;color:#a1a9b1;margin-top:.25rem}
+ ::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:#cbd2da;border-radius:3px}
+ .step-no{display:inline-flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;border-radius:9999px;background:#236dc9;color:#fff;font-size:.75rem;font-weight:700}
+</style>
+</head>
+<body class="overflow-hidden">
+<div class="fixed inset-0 z-40 bg-dark/50"></div>
+<div class="fixed inset-3 z-50 flex flex-col overflow-hidden rounded-xl bg-[#f6f7fb] shadow-2xl ring-1 ring-black/5 sm:inset-5 lg:inset-8">
+
+  <header class="flex items-center justify-between gap-3 border-b border-default-300 bg-card px-4 py-3 lg:px-8">
+    <div>
+      <h1 class="text-base font-semibold text-dark">สร้างออเดอร์</h1>
+      <p class="text-xs text-default-500">ร้าน ABC Shop</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="list.html" class="btn border-default-300 text-default-700 hover:bg-default-100">ยกเลิก</a>
+      <button form="f" class="btn bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:device-floppy"></iconify-icon> บันทึกออเดอร์</button>
+    </div>
+  </header>
+
+  <div class="flex-1 overflow-y-auto px-4 py-5 lg:px-8">
+   <form id="f" class="grid gap-4 lg:grid-cols-3">
+
+    <!-- LEFT: 3 blocks -->
+    <div class="space-y-4 lg:col-span-2">
+
+      <!-- BLOCK 1 — ลูกค้า (search-first) -->
+      <div class="card">
+        <div class="card-header"><h2 class="flex items-center gap-2 font-semibold text-dark"><span class="step-no">1</span> ข้อมูลลูกค้า</h2></div>
+        <div class="card-body">
+
+          <!-- mode radio — เลือกก่อนว่าจะค้นหาเดิม หรือเพิ่มใหม่ -->
+          <div class="mb-4">
+            <label class="form-label">เลือกวิธีระบุลูกค้า</label>
+            <div class="grid grid-cols-2 gap-2 sm:max-w-md">
+              <label data-mode="search" class="cust-mode flex cursor-pointer items-center justify-center gap-2 rounded border border-default-300 px-4 py-2.5 text-sm font-medium text-default-700 transition-all hover:border-default-500">
+                <input type="radio" name="custMode" value="search" class="sr-only">
+                <iconify-icon icon="tabler:search"></iconify-icon> ค้นหาลูกค้าเดิม
+              </label>
+              <label data-mode="new" class="cust-mode flex cursor-pointer items-center justify-center gap-2 rounded border border-default-300 px-4 py-2.5 text-sm font-medium text-default-700 transition-all hover:border-default-500">
+                <input type="radio" name="custMode" value="new" class="sr-only">
+                <iconify-icon icon="tabler:user-plus"></iconify-icon> เพิ่มลูกค้าใหม่
+              </label>
+            </div>
+          </div>
+
+          <!-- prompt ก่อนเลือกโหมด -->
+          <p id="custPrompt" class="rounded border border-dashed border-default-300 bg-default-100 px-4 py-6 text-center text-sm text-default-500">เลือกด้านบนว่าจะ "ค้นหาลูกค้าเดิม" หรือ "เพิ่มลูกค้าใหม่"</p>
+
+          <!-- search state — select2-style combobox (dropdown ลอย ไม่ดัน layout) -->
+          <div id="custSearch" class="hidden">
+            <div class="relative" id="custCombo">
+              <iconify-icon icon="tabler:search" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-default-400"></iconify-icon>
+              <input id="custQ" autocomplete="off" class="form-input !pl-9 !pr-9" placeholder="พิมพ์เบอร์โทร หรือ ชื่อลูกค้า…">
+              <iconify-icon id="custCaret" icon="tabler:chevron-down" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-default-400 transition-transform"></iconify-icon>
+              <div id="custResults" class="absolute left-0 right-0 top-full z-30 mt-1 hidden max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg"></div>
+            </div>
+            <p class="hint">ค้นด้วยเบอร์โทรหรือชื่อที่คล้ายกัน — ถ้าเคยซื้อมาก่อนจะเลือกได้เลย</p>
+          </div>
+
+          <!-- selected existing customer -->
+          <div id="custSelected" class="hidden">
+            <div class="flex items-center gap-3 rounded border border-default-300 bg-default-100 p-3">
+              <span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 font-semibold text-primary" id="custAvatar">ส</span>
+              <div class="flex-1">
+                <div class="flex items-center gap-2">
+                  <p class="font-semibold text-dark" id="custName">—</p>
+                  <span class="badge bg-success/15 text-success">ลูกค้าเดิม</span>
+                </div>
+                <p class="text-xs text-default-500" id="custMeta">—</p>
+              </div>
+              <button type="button" id="custChange" class="btn btn-sm border-default-300 text-default-700 hover:bg-card">เปลี่ยน</button>
+            </div>
+          </div>
+
+          <!-- new customer manual form -->
+          <div id="custNew" class="hidden">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div><label class="form-label">ชื่อ-นามสกุล *</label><input class="form-input" placeholder="เช่น สมชาย ใจดี"></div>
+              <div><label class="form-label">เบอร์โทร / อีเมล *</label><input class="form-input" placeholder="0812345678 หรือ buyer@email.com"><p class="hint">ใช้แจ้งลิงก์ยืนยันให้ผู้ซื้อ</p></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BLOCK 2 — การชำระเงิน / ช่องทาง -->
+      <div class="card">
+        <div class="card-header"><h2 class="flex items-center gap-2 font-semibold text-dark"><span class="step-no">2</span> การชำระเงิน &amp; ช่องทาง</h2></div>
+        <div class="card-body grid gap-4 sm:grid-cols-2">
+          <div><label class="form-label">ช่องทางการขาย</label><select class="form-select"><option>หน้าร้าน</option><option>Facebook</option><option>Line</option><option>TikTok / TikTok Shop</option><option>อื่นๆ</option></select></div>
+          <div><label class="form-label">วิธีชำระเงิน</label><select class="form-select"><option>เงินสด</option><option>โอนเงิน</option><option>พร้อมเพย์</option><option>บัตรเครดิต/เดบิต</option><option>เก็บปลายทาง</option><option>อื่นๆ</option></select></div>
+          <div class="sm:col-span-2"><label class="form-label">หมายเหตุภายใน</label><textarea class="form-textarea" rows="2" placeholder="มองเห็นเฉพาะร้านค้า ไม่แสดงให้ผู้ซื้อ"></textarea></div>
+        </div>
+      </div>
+
+      <!-- BLOCK 3 — รายการสินค้า (กำหนดประเภทออเดอร์อัตโนมัติ) -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="flex items-center gap-2 font-semibold text-dark"><span class="step-no">3</span> รายการสินค้า</h2>
+          <button type="button" id="openPicker" class="btn btn-sm bg-primary text-white hover:bg-primary-hover"><iconify-icon icon="tabler:plus"></iconify-icon> เลือกสินค้า</button>
+        </div>
+        <div class="card-body">
+          <div id="cartEmpty" class="flex flex-col items-center gap-2 py-10 text-center">
+            <span class="flex h-14 w-14 items-center justify-center rounded-full bg-default-100 text-default-400"><iconify-icon icon="tabler:basket-off" class="text-2xl"></iconify-icon></span>
+            <p class="font-medium text-default-700">ยังไม่มีรายการสินค้า</p>
+            <p class="text-sm text-default-500">ประเภทออเดอร์จะถูกกำหนดจากสินค้าที่เลือก</p>
+          </div>
+          <div id="cart" class="hidden divide-y divide-default-200"></div>
+          <button type="button" id="addCustom" class="mt-3 text-sm font-medium text-primary hover:underline">+ เพิ่มรายการกำหนดเอง</button>
+
+          <!-- ที่อยู่จัดส่ง — โผล่อัตโนมัติเมื่อมีสินค้าที่ต้องจัดส่ง -->
+          <div id="shipBlock" class="mt-5 hidden rounded border border-dashed border-info/50 bg-info/5 p-4">
+            <p class="mb-3 flex items-center gap-2 text-sm font-semibold text-dark">
+              <iconify-icon icon="tabler:truck-delivery" class="text-info"></iconify-icon>
+              ที่อยู่จัดส่ง <span class="badge bg-info/15 text-info">มีสินค้าที่ต้องจัดส่ง</span>
+            </p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="sm:col-span-2"><label class="form-label">ที่อยู่ / บ้านเลขที่ + ถนน</label><input class="form-input" placeholder="123/4 ถ.สุขุมวิท"></div>
+              <div><label class="form-label">ตำบล / แขวง</label><input class="form-input"></div>
+              <div><label class="form-label">อำเภอ / เขต</label><input class="form-input"></div>
+              <div><label class="form-label">จังหวัด</label><input class="form-input"></div>
+              <div><label class="form-label">รหัสไปรษณีย์</label><input class="form-input"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: summary panel (sticky) -->
+    <div class="lg:col-span-1">
+      <div class="card lg:sticky lg:top-2">
+        <div class="card-header"><h2 class="font-semibold text-dark">สรุปออเดอร์</h2></div>
+        <div class="card-body space-y-3 text-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-default-500">ลูกค้า</span>
+            <span id="sumCust" class="font-medium text-default-700">ยังไม่เลือก</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-default-500">ประเภทออเดอร์ <span class="text-[10px] text-default-400">(อัตโนมัติ)</span></span>
+            <span id="sumType" class="badge bg-default-200 text-default-600">—</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-default-500">การจัดส่ง</span>
+            <span id="sumShip" class="font-medium text-default-700">—</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-default-500">จำนวนรายการ</span>
+            <span id="sumQty" class="font-medium text-default-700">0</span>
+          </div>
+          <div class="border-t border-default-300 pt-3">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-dark">ยอดรวมทั้งหมด</span>
+              <span id="sumTotal" class="text-lg font-bold text-dark">฿ 0.00</span>
+            </div>
+          </div>
+          <p class="hint text-center">ระบบสรุปประเภทออเดอร์จากสินค้าที่เลือกอัตโนมัติ — ปุ่มบันทึกอยู่แถบบนสุด</p>
+        </div>
+      </div>
+    </div>
+
+   </form>
+  </div>
+</div>
+
+<!-- Product Picker Modal -->
+<div id="picker" class="fixed inset-0 z-[60] hidden items-center justify-center bg-dark/40 p-4">
+  <div class="card w-full max-w-lg">
+    <div class="card-header"><h3 class="font-semibold text-dark">เลือกสินค้า</h3>
+      <button type="button" onclick="picker.classList.add('hidden')" class="btn btn-icon btn-sm text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:x"></iconify-icon></button></div>
+    <div class="card-body">
+      <div class="relative mb-3"><iconify-icon icon="tabler:search" class="absolute left-3 top-1/2 -translate-y-1/2 text-default-400"></iconify-icon><input class="form-input !pl-9" placeholder="ค้นหาสินค้า..."></div>
+      <div id="catalog" class="max-h-72 space-y-2 overflow-y-auto"></div>
+      <div id="catEmpty" class="hidden flex-col items-center gap-2 py-8 text-center">
+        <iconify-icon icon="tabler:box-off" class="text-3xl text-default-400"></iconify-icon>
+        <p class="font-medium text-default-700">ร้านยังไม่มีสินค้า</p>
+        <a href="#" class="btn btn-sm bg-primary text-white">เพิ่มสินค้าในร้าน</a>
+      </div>
+      <button type="button" onclick="picker.classList.add('hidden')" class="btn mt-4 w-full bg-primary text-white hover:bg-primary-hover">เสร็จสิ้น</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- customer search-first ---------- */
+const CUST=[
+ {n:'สมชาย ใจดี',ph:'0812345678',o:3},
+ {n:'สมหญิง รักดี',ph:'0898887766',o:1},
+ {n:'สมศักดิ์ มั่นคง',ph:'0623451622',o:7},
+ {n:'ธนวัฒน์ พาณิชย์',ph:'0955551234',o:2},
+];
+const q=document.getElementById('custQ'), res=document.getElementById('custResults');
+const caret=document.getElementById('custCaret'), combo=document.getElementById('custCombo');
+function mask(p){return p.slice(0,3)+'•••'+p.slice(-4);}
+function closeCombo(){res.classList.add('hidden');caret.classList.remove('rotate-180');}
+function openCombo(){
+ const v=q.value.trim().toLowerCase();
+ const m=v?CUST.filter(c=>c.n.toLowerCase().includes(v)||c.ph.includes(v)):CUST;
+ res.innerHTML = m.length ? m.map(c=>`<button type="button" data-i="${CUST.indexOf(c)}" class="flex w-full items-center gap-3 p-3 text-left hover:bg-default-100">
+   <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">${c.n[0]}</span>
+   <div class="flex-1"><p class="text-sm font-medium text-dark">${c.n}</p><p class="text-xs text-default-500">${mask(c.ph)} · ${c.o} ออเดอร์ก่อนหน้า</p></div>
+   <iconify-icon icon="tabler:chevron-right" class="text-default-400"></iconify-icon></button>`).join('')
+  : `<div class="p-4 text-center text-sm text-default-500">ไม่พบลูกค้า — <button type="button" id="toNew" class="font-medium text-primary hover:underline">เพิ่มเป็นลูกค้าใหม่</button></div>`;
+ res.classList.remove('hidden');caret.classList.add('rotate-180');
+ const tn=document.getElementById('toNew'); if(tn) tn.onclick=showNew;
+ res.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>selectCust(CUST[+b.dataset.i]));
+}
+q.addEventListener('input',openCombo);
+q.addEventListener('focus',openCombo);
+document.addEventListener('mousedown',e=>{ if(!combo.contains(e.target)) closeCombo(); });
+function show(id){
+ document.getElementById('custPrompt').classList.add('hidden');
+ ['custSearch','custSelected','custNew'].forEach(x=>document.getElementById(x).classList.toggle('hidden',x!==id));
+}
+function selectCust(c){
+ document.getElementById('custName').textContent=c.n;
+ document.getElementById('custAvatar').textContent=c.n[0];
+ document.getElementById('custMeta').textContent=mask(c.ph)+' · ลูกค้าเดิม '+c.o+' ออเดอร์';
+ document.getElementById('sumCust').textContent=c.n;
+ show('custSelected');
+}
+function setMode(mode){
+ document.querySelectorAll('.cust-mode').forEach(l=>{
+  const on=l.dataset.mode===mode;
+  l.classList.toggle('border-primary',on);l.classList.toggle('bg-primary/10',on);l.classList.toggle('text-primary',on);
+  l.classList.toggle('border-default-300',!on);l.classList.toggle('text-default-700',!on);
+  l.querySelector('input').checked=on;
+ });
+ if(mode==='search'){q.value='';closeCombo();document.getElementById('sumCust').textContent='ยังไม่เลือก';show('custSearch');}
+ else{document.getElementById('sumCust').textContent='ลูกค้าใหม่';show('custNew');}
+}
+function showNew(){setMode('new');}
+document.querySelectorAll('.cust-mode input').forEach(r=>r.addEventListener('change',()=>setMode(r.value)));
+document.getElementById('custChange').onclick=()=>setMode('search');
+
+/* ---------- products → type derivation ---------- */
+const PROD=[
+ {n:'iPhone 15 (128GB)',p:32900,ship:true},
+ {n:'AirPods Pro 2',p:8990,ship:true},
+ {n:'E-book: คู่มือขายของ',p:290,ship:false},
+ {n:'คอร์สออนไลน์ 1 ชม.',p:1500,ship:false},
+];
+const cart=[];
+document.getElementById('catalog').innerHTML=PROD.map((x,i)=>`<div class="flex items-center gap-3 rounded border border-default-200 p-2">
+ <span class="flex h-10 w-10 items-center justify-center rounded bg-default-100 text-default-400"><iconify-icon icon="tabler:${x.ship?'package':'cloud-download'}"></iconify-icon></span>
+ <div class="flex-1"><p class="text-sm font-medium text-dark">${x.n}</p>
+   <p class="text-xs text-default-500">฿${x.p.toLocaleString()} · <span class="${x.ship?'text-info':'text-default-500'}">${x.ship?'มีการจัดส่ง':'ไม่มีจัดส่ง'}</span></p></div>
+ <button type="button" onclick="add(${i})" class="btn btn-sm bg-primary/10 text-primary">เพิ่ม</button></div>`).join('');
+function add(i){const e=cart.find(c=>c.i===i); e?e.q++:cart.push({...PROD[i],i,q:1}); draw();}
+function chg(k,d){cart[k].q=Math.max(1,cart[k].q+d);draw();}
+function draw(){
+ const box=document.getElementById('cart'), has=cart.length>0;
+ document.getElementById('cartEmpty').classList.toggle('hidden',has);
+ box.classList.toggle('hidden',!has);
+ box.innerHTML=cart.map((c,k)=>`<div class="flex items-center gap-3 py-3">
+  <span class="flex h-12 w-12 items-center justify-center rounded bg-default-100 text-default-400"><iconify-icon icon="tabler:${c.ship?'package':'cloud-download'}"></iconify-icon></span>
+  <div class="flex-1"><p class="text-sm font-medium text-dark">${c.n}</p>
+    <span class="badge ${c.ship?'bg-info/15 text-info':'bg-default-200 text-default-600'} mt-0.5">${c.ship?'จัดส่ง':'ไม่จัดส่ง'}</span></div>
+  <div class="flex items-center gap-2">
+   <button type="button" onclick="chg(${k},-1)" class="btn btn-sm btn-icon border-default-300">-</button>
+   <span class="w-6 text-center text-sm">${c.q}</span>
+   <button type="button" onclick="chg(${k},1)" class="btn btn-sm btn-icon border-default-300">+</button></div>
+  <span class="w-24 text-right text-sm font-semibold text-dark">฿${(c.p*c.q).toLocaleString()}</span>
+  <button type="button" onclick="cart.splice(${k},1);draw()" class="text-danger"><iconify-icon icon="tabler:trash"></iconify-icon></button>
+ </div>`).join('');
+
+ const hasShip=cart.some(c=>c.ship), qty=cart.reduce((s,c)=>s+c.q,0), total=cart.reduce((s,c)=>s+c.p*c.q,0);
+ document.getElementById('shipBlock').classList.toggle('hidden',!hasShip);
+ const st=document.getElementById('sumType'), sh=document.getElementById('sumShip');
+ if(!cart.length){st.className='badge bg-default-200 text-default-600';st.textContent='—';sh.textContent='—';}
+ else if(hasShip){st.className='badge bg-info/15 text-info';st.textContent='สินค้าจริง';sh.textContent='ต้องจัดส่ง';}
+ else{st.className='badge bg-secondary/15 text-secondary';st.textContent='ดิจิทัล / บริการ';sh.textContent='ไม่ต้องจัดส่ง';}
+ document.getElementById('sumQty').textContent=qty;
+ document.getElementById('sumTotal').textContent='฿ '+total.toLocaleString(undefined,{minimumFractionDigits:2});
+}
+document.getElementById('openPicker').onclick=()=>{picker.classList.remove('hidden');picker.classList.add('flex');};
+document.getElementById('addCustom').onclick=()=>{cart.push({n:'รายการกำหนดเอง',p:0,i:-1,q:1,ship:false});draw();};
+draw();
+</script>
+</body>
+</html>

@@ -191,6 +191,9 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 | FR-6.8 | **SMS Order Link (paid):** ลิงก์ที่ส่งผ่าน SMS จาก seller ที่ verify แล้ว ฝัง **phone-bound token → buyer ข้าม phone-unlock อัตโนมัติ**; ลิงก์ที่ seller แชร์เอง (manual) ยังต้อง phone-unlock | Must |
 | FR-6.9 | หักเครดิตจาก wallet ฿1/SMS ตอนกดส่ง (ดู §10) | Must |
 | FR-6.10 | SUBSCRIPTION: แต่ละ cycle = order ย่อย เดิน PENDING→CONFIRMED ของตัวเอง (recurring dashboard + billing — P4) | Must |
+| FR-6.11 | **วิธีชำระเงิน (paymentMethod) ต้อง persist ใน Order** — seller เลือก/บันทึกตอนสร้าง order; แสดงทั้ง order detail (seller) และหน้า buyer link. วิธีที่ต้องแนบสลิป (เช่น โอนเงิน/พร้อมเพย์) vs ไม่ต้อง (เช่น COD/เงินสด) ควบคุมโดย `requiresSlip` flag ตาม `paymentMethod` *(เพิ่ม 2026-05-17 — เดิม OQ-8 ใน handoff spec ระงับไว้)* | Must |
+| FR-6.12 | **Payment slip upload โดย buyer** — buyer ที่ผ่าน phone-unlock แนบสลิปการชำระเงินได้ที่ `/o/{token}` (optional; แสดงปุ่มเฉพาะ PENDING + `paymentMethod` ที่ `requiresSlip=true`); seller ตรวจสลิปได้ใน order detail ฝั่ง seller. 1 order = 1 slip (ถ้าแนบซ้ำ = replace) *(เพิ่ม 2026-05-17 — เดิมไม่อยู่ใน scope)* | Must |
+| FR-6.13 | **Buyer cancel เฉพาะ PENDING** — buyer ที่ผ่าน phone-unlock สามารถยกเลิก order ได้เฉพาะสถานะ `PENDING`; เมื่อ status = `SHIPPED` ปุ่มยกเลิกหาย เหลือแต่ปุ่มยืนยันรับของ; `CONFIRMED`/`CANCELLED` = terminal. guard ทั้ง UI + API. `cancelInitiator='buyer'` ไม่กระทบ Zero Complaint *(เพิ่ม 2026-05-17)* | Must |
 
 ### FR-7: Review
 
@@ -244,8 +247,9 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 ไม่จัดส่ง (NO_SHIPPING: digital / service / subscription):
   PENDING ──buyer กดยืนยัน──▶ CONFIRMED ✅ (นับ trust/badge)
 
-ยกเลิก (ทุก path, เฉพาะก่อน CONFIRMED):
-  PENDING / SHIPPED ──seller หรือ buyer ยกเลิก──▶ CANCELLED
+ยกเลิก (เฉพาะก่อน CONFIRMED):
+  PENDING / SHIPPED ──seller ยกเลิก──▶ CANCELLED
+  PENDING ──buyer ยกเลิก──▶ CANCELLED   ← buyer ยกเลิกได้เฉพาะ PENDING เท่านั้น (เพิ่ม 2026-05-17)
 ```
 
 | สถานะ | คำอธิบาย | ใครเปลี่ยน |
@@ -259,6 +263,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 - terminal เดียว = `CONFIRMED` (ไม่มี COMPLETED / DELIVERED / BUYER_CONFIRMED แยก — เพื่อความง่ายและไม่ให้ seller กด 2 จังหวะ)
 - trust score / achievement badge / Zero Complaint นับที่ `CONFIRMED`
 - **Zero Complaint:** นับเฉพาะ **seller-initiated cancel** — buyer-initiated cancel ไม่ลงโทษ seller
+- **Buyer-cancel rule (เพิ่ม 2026-05-17):** buyer ยกเลิกได้เฉพาะ status = `PENDING` เท่านั้น; เมื่อ SHIPPED แล้ว buyer ยกเลิกไม่ได้ (เหลือแค่ "ยืนยันรับของ"); CONFIRMED/CANCELLED = terminal
 - ยกเลิกหลัง CONFIRMED ไม่ได้ (terminal). MVP **ไม่มี dispute system** (Phase 2)
 - SUBSCRIPTION: แต่ละรอบบิล (cycle) สร้าง order ย่อยที่เดิน PENDING→CONFIRMED ของตัวเอง
 
@@ -267,7 +272,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 | ผู้เข้าชม | เห็นอะไร |
 |----------|---------|
 | ทั่วไป (ก่อน unlock) | ข้อมูลสินค้า, ราคา, trust score ร้าน + ช่องกรอกเบอร์ (phone-lock) |
-| Buyer (unlock แล้ว / มาจาก SMS phone-bound) | รายละเอียดเต็ม + ปุ่มยืนยัน + ปุ่มยกเลิก |
+| Buyer (unlock แล้ว / มาจาก SMS phone-bound) | รายละเอียดเต็ม + ปุ่มยืนยัน (PENDING/SHIPPED) + **ปุ่มแนบสลิป (PENDING เท่านั้น, optional)** + **ปุ่มยกเลิก (PENDING เท่านั้น)** *(เพิ่ม 2026-05-17)* |
 | Seller (เจ้าของ) | ทุกอย่าง + ข้อมูล buyer + ปุ่มจัดการสถานะ |
 
 ---
