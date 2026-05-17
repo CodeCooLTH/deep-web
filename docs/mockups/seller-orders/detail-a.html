@@ -117,19 +117,13 @@ tailwind.config={theme:{extend:{
           <div class="divide-y divide-default-200 px-5">
             <div class="flex items-center gap-3 py-3">
               <img src="https://picsum.photos/seed/iphone15/120" alt="" class="h-14 w-14 shrink-0 rounded-md border border-default-200 object-cover bg-default-100">
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-dark">iPhone 15 (128GB) สี Black</p>
-                <p class="mt-0.5 text-[11px] text-default-500">SKU: <span class="font-mono">IP15-128-BK</span></p>
-              </div>
+              <p class="min-w-0 flex-1 truncate text-sm font-medium text-dark">iPhone 15 (128GB) สี Black</p>
               <span class="shrink-0 text-xs tabular-nums text-default-500">฿32,900 × 2</span>
               <span class="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">฿65,800</span>
             </div>
             <div class="flex items-center gap-3 py-3">
               <img src="https://picsum.photos/seed/leathercase/120" alt="" class="h-14 w-14 shrink-0 rounded-md border border-default-200 object-cover bg-default-100">
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-dark">เคสหนังแท้</p>
-                <p class="mt-0.5 text-[11px] text-default-500">SKU: <span class="font-mono">CASE-LTH-01</span></p>
-              </div>
+              <p class="min-w-0 flex-1 truncate text-sm font-medium text-dark">เคสหนังแท้</p>
               <span class="shrink-0 text-xs tabular-nums text-default-500">฿990 × 1</span>
               <span class="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">฿990</span>
             </div>
@@ -142,6 +136,29 @@ tailwind.config={theme:{extend:{
               <div class="flex justify-between border-t border-default-300 pt-2"><span class="font-medium text-dark">ยอดสุทธิ</span><span class="text-lg font-bold tabular-nums text-dark">฿69,325</span></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Payment + Slip (FR-6.11/6.12) -->
+      <div class="card">
+        <div class="card-header"><h3 class="font-semibold text-dark">การชำระเงิน</h3>
+          <span class="badge bg-success/15 text-success"><iconify-icon icon="tabler:circle-check" class="text-[0.9em]"></iconify-icon> ตรวจสลิปแล้ว</span>
+        </div>
+        <div class="card-body space-y-4">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-muted text-default-500">วิธีชำระเงิน</span>
+            <span class="inline-flex items-center gap-1.5 font-medium text-dark"><iconify-icon icon="tabler:building-bank" class="text-default-400"></iconify-icon> โอนเงินผ่านธนาคาร</span>
+          </div>
+          <!-- buyer-uploaded slip -->
+          <div class="flex items-center gap-3 rounded-lg border border-default-200 bg-default-100/50 p-3">
+            <img src="https://picsum.photos/seed/slip/200" alt="สลิป" class="h-16 w-16 shrink-0 rounded-md border border-default-200 object-cover">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-dark">สลิปการโอนเงิน</p>
+              <p class="text-xs text-default-500">ผู้ซื้อแนบเมื่อ 16 พ.ค. 69 · 14:02 น.</p>
+            </div>
+            <button class="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"><iconify-icon icon="tabler:eye"></iconify-icon> ดูเต็ม</button>
+          </div>
+          <p class="text-xs text-default-500">ผู้ซื้ออัปโหลดสลิปผ่านลิงก์ — ตรวจยอด/บัญชีให้ตรงก่อนยืนยัน (กรณีโอน/พร้อมเพย์)</p>
         </div>
       </div>
 

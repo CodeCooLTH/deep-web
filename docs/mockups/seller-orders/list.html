@@ -182,7 +182,6 @@ function render(st){
        <img src="${it.img}" alt="" loading="lazy" class="h-14 w-14 shrink-0 rounded-md border border-default-200 object-cover bg-default-100">
        <div class="min-w-0 flex-1">
          <p class="truncate text-sm font-medium text-dark">${it.n}</p>
-         <p class="mt-0.5 text-[11px] text-default-500">SKU: <span class="font-mono">${it.sku}</span></p>
        </div>
        <span class="shrink-0 text-xs tabular-nums text-default-500">฿${it.p.toLocaleString()} × ${it.q}</span>
        <span class="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">฿${(it.p*it.q).toLocaleString()}</span>

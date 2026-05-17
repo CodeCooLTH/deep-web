@@ -144,14 +144,14 @@ tailwind.config={theme:{extend:{fontFamily:{sans:['Anuphan','sans-serif']},
       <a href="#" class="vbtn vbtn-ghost mt-3 w-full"><iconify-icon icon="tabler:external-link"></iconify-icon> ติดตามพัสดุกับขนส่ง</a>
     </div>
 
-    <!-- ⚠ PROPOSED: attach slip (NOT in PRD/code) -->
-    <div id="slipCard" class="vcard border border-dashed border-warning/60 p-5">
-      <p class="mb-1 flex items-center gap-2 text-sm font-semibold text-ink"><iconify-icon icon="tabler:receipt" class="text-warning"></iconify-icon> แนบสลิปการโอน
-        <span class="chip bg-warning/15 text-warning text-[10px]">เสนอเพิ่ม — ไม่อยู่ใน PRD ปัจจุบัน</span></p>
-      <p class="mb-3 text-xs text-muted">อัปโหลดสลิปให้ร้านตรวจสอบการชำระเงิน (optional)</p>
-      <div class="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line bg-[#F8F7FA] px-4 py-6 text-sm text-muted">
-        <iconify-icon icon="tabler:upload" class="text-xl"></iconify-icon> แตะเพื่อเลือกรูปสลิป
-      </div>
+    <!-- Attach slip (FR-6.12 — PENDING + paymentMethod requiresSlip) -->
+    <div id="slipCard" class="vcard p-5">
+      <p class="mb-1 flex items-center gap-2 text-sm font-semibold text-ink"><iconify-icon icon="tabler:receipt" class="text-primary"></iconify-icon> แนบสลิปการโอนเงิน</p>
+      <p class="mb-3 text-xs text-muted">วิธีชำระ: <span class="font-medium text-ink">โอนเงินผ่านธนาคาร</span> — อัปโหลดสลิปให้ร้านตรวจสอบ</p>
+      <button class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line bg-[#F8F7FA] px-4 py-6 text-sm text-muted hover:border-primary hover:text-primary">
+        <iconify-icon icon="tabler:camera-plus" class="text-xl"></iconify-icon> แตะเพื่อถ่าย/เลือกรูปสลิป
+      </button>
+      <p class="mt-2 text-[11px] text-muted">รองรับ JPG/PNG/PDF ≤ 5MB · 1 ออเดอร์แนบได้ 1 สลิป (แนบใหม่ = แทนที่)</p>
     </div>
 
     <!-- review (CONFIRMED) -->
@@ -177,6 +177,19 @@ tailwind.config={theme:{extend:{fontFamily:{sans:['Anuphan','sans-serif']},
   </div>
 </div>
 
+<!-- buyer cancel confirm modal (FR-6.13 — PENDING only) -->
+<div id="cxModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+  <div class="vcard w-full max-w-sm p-6 text-center">
+    <span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-danger/10 text-danger"><iconify-icon icon="tabler:alert-triangle" class="text-3xl"></iconify-icon></span>
+    <p class="text-lg font-bold text-ink">ยกเลิกคำสั่งซื้อนี้?</p>
+    <p class="mt-1 text-sm text-muted">ยกเลิกได้เฉพาะก่อนร้านจัดส่ง · เมื่อยกเลิกแล้วย้อนกลับไม่ได้</p>
+    <div class="mt-5 flex gap-2">
+      <button data-close class="vbtn vbtn-ghost flex-1">ไม่ยกเลิก</button>
+      <button data-close class="vbtn flex-1 bg-danger text-white">ยืนยันยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function setStatus(st){
  const lock=st==='lock';
@@ -193,9 +206,12 @@ function setStatus(st){
  document.getElementById('slipCard').classList.toggle('hidden',st!=='PENDING');
  document.getElementById('ctaPending').classList.toggle('hidden',st!=='PENDING');
  document.getElementById('ctaShipped').classList.toggle('hidden',st!=='SHIPPED');
- document.getElementById('ctaCancel').classList.toggle('hidden',st!=='PENDING'&&st!=='SHIPPED');
+ document.getElementById('ctaCancel').classList.toggle('hidden',st!=='PENDING'); /* FR-6.13: buyer ยกเลิกได้เฉพาะ PENDING */
  syncDev(st);
 }
+const cxm=document.getElementById('cxModal');
+document.getElementById('ctaCancel').addEventListener('click',()=>{cxm.classList.remove('hidden');cxm.classList.add('flex');});
+cxm&&cxm.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{cxm.classList.add('hidden');cxm.classList.remove('flex');}));
 function syncDev(st){document.querySelectorAll('.devbar [data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===st));}
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>setStatus(b.dataset.go)));
 setStatus('lock');
