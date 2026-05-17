@@ -82,9 +82,11 @@ src/
 ├── assets/, components/,      # Paces scaffolds (copied from theme/paces)
 │   config/, context/, hooks/,
 │   layouts/, utils/
-├── lib/                       # auth, prisma, otp, storage, subdomain, validations
+├── lib/                       # auth, prisma, otp, storage, subdomain, validations,
+│                              #   sms, sms-unlock-cookie, sms-consume-rl
 ├── services/                  # user, shop, verification, trust-score, badge,
-│                              #   product, order, review, history-linking
+│                              #   product, order, review, history-linking,
+│                              #   wallet, sms-code, topup
 ├── types/
 └── proxy.ts                   # Subdomain router (main/seller/admin)
 
@@ -98,8 +100,9 @@ theme/
 1. **Verification** — หลายระดับ: OTP (L1) → เอกสาร (L2) → จดทะเบียนธุรกิจ (L3), admin review
 2. **Trust Score** — คำนวณจาก Verification 35%, Orders 25%, Rating 20%, Age 10%, Badges 10%. MVP มีแต่ขึ้น (no penalties)
 3. **Badges** — Verification badges (auto) + 10 achievement badges (auto evaluated)
-4. **Simple OMS** — Seller creates order → public `/o/{token}` → buyer OTP confirm + review → trust recalc. Types: PHYSICAL / DIGITAL / SERVICE
-5. **Buyer History Linking** — Buyer confirms as guest (OTP + contact) → signs up later → `linkBuyerHistory` auto-links by phone/email match. Wired in `lib/auth.ts` on phone-OTP + Facebook signup.
+4. **Simple OMS** — Seller creates order → public `/o/{token}` → buyer phone-unlock → ยืนยัน → review → trust recalc. Types: PHYSICAL / DIGITAL / SERVICE / SUBSCRIPTION
+5. **Buyer History Linking** — Buyer confirms as guest (contact) → signs up later → `linkBuyerHistory` auto-links by phone/email match. Wired in `lib/auth.ts` on phone-OTP + Facebook signup.
+6. **SMS Order Link + Seller Wallet** (paid ฿1/SMS) — Seller L2+ กดส่ง link เข้า SMS buyer; link ฝัง 12-char short-code → `/api/o/sms/{code}` consume → HMAC-signed httpOnly cookie → buyer ข้าม phone-unlock อัตโนมัติ. Credit ledger: `SellerWallet` (1:1 Shop, balance ฿ integer, DB CHECK≥0), `WalletTransaction` (TOPUP/DEDUCT), `TopUpRequest` (slip → admin approve/reject, RC-7 self-block). Services: `wallet.service` (conditional-updateMany atomic deduct), `sms-code.service` (hash-at-rest single-use), `topup.service`, `lib/sms.ts` (generic sendSms apitel), `lib/sms-unlock-cookie.ts` (HMAC NEXTAUTH_SECRET), `lib/sms-consume-rl.ts` (RC-1 per-IP 10/15min globalThis).
 
 ## Conventions
 
@@ -121,6 +124,7 @@ theme/
 - **2026-04-13:** Attempted Paces-wide UI rewrite (original plan wiped Vuexy).
 - **2026-04-18 (AM):** User reversed the decision for buyer side — buyer + landing back to Vuexy. Admin + seller stay Paces.
 - **2026-04-18 (PM):** P1 buyer build shipped (9 commits) but retrospectively violated theme-copy rule; R1-R11 rework planned. See `docs/retro/2026-04-18-p1-retrospective.md`.
+- **2026-05-17:** Phase 4 SMS Wallet complete — backend B1-B4 + UI B5-B8 built (tsc 0). ช่องว่างเหลือ: admin `/topups/[id]` detail page ยังไม่มี (Phase 5 todo). Accepted-risk Phase 5 hardening: CSRF Origin-check + slip cookie path narrow.
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

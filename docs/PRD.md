@@ -297,7 +297,9 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Pricing | `/pricing` |
 | Sign-in / Sign-up / Verify OTP | `/auth/sign-in`, `/auth/sign-up`, `/auth/verify-otp` |
 | Public Profile | `/u/{username}` |
-| Public Order | `/o/{token}` |
+| Public Order (UUID) | `/o/{token}` |
+| Public Order (SMS short-code) | `/o/{12-char-code}` → redirect ผ่าน `/api/o/sms/{code}` → `/o/{uuid}` |
+| SMS Link Invalid / Error | `/o/link-invalid` |
 
 ### 5.3 Buyer (`deepthailand.app/...`) — ต้อง login
 
@@ -323,6 +325,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Create Order | `/orders/new` |
 | Reviews | `/reviews` |
 | Badges & Progress | `/badges` |
+| **เครดิต SMS (wallet)** | **`/wallet`** |
 | Shop Settings | `/shop` |
 | Verification | `/verification` |
 
@@ -336,6 +339,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Users | `/users` |
 | Verifications | `/verifications` |
 | Orders | `/orders` |
+| **เติมเครดิต SMS (topup queue)** | **`/topups`** |
 | Badges | `/badges` |
 
 ### 5.6 Route Auth
@@ -493,17 +497,53 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 
 ## 11. Known Gaps (โค้ดจริง vs PRD เป้าหมาย — ต้องปิดก่อน prod)
 
-| # | Gap | ต้องทำ |
-|---|-----|--------|
-| 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) |
-| 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) |
-| 3 | `shippingAddress` persist ไม่ได้ (ไม่มีใน CreateOrderSchema) | เพิ่ม + required เมื่อ SHIPPED (P3) |
-| 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | เพิ่ม self-review block (FR-2.6) |
-| 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` (§4) |
-| 6 | `.env.vercel` ยังชี้ `safepay.co` (ขัด `.env.production.local`) | reconcile env → `deepthailand.app` |
-| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (§5.6) |
-| 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) |
-| 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key |
-| 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | implement ให้ครบ (§9.1) |
-| 11 | general rate-limit (100/30) + CSRF ยังไม่มี | implement ก่อน prod (NFR-2.2/2.3) |
-| 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) |
+| # | Gap | ต้องทำ | สถานะ |
+|---|-----|--------|-------|
+| 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | OPEN |
+| 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) | **CLOSED** (OMS stream) |
+| 3 | `shippingAddress` persist ไม่ได้ (ไม่มีใน CreateOrderSchema) | เพิ่ม + required เมื่อ SHIPPED (P3) | OPEN |
+| 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | เพิ่ม self-review block (FR-2.6) | **CLOSED** (`api/admin/verifications/[id]/route.ts:12`) |
+| 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` (§4) | **CLOSED** (OMS stream) |
+| 6 | `.env.vercel` ยังชี้ `safepay.co` (ขัด `.env.production.local`) | reconcile env → `deepthailand.app` | OPEN (user-side config) |
+| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (§5.6) | OPEN |
+| 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) | **CLOSED** (Phase B — ไทยครบแล้ว) |
+| 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
+| 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | implement ให้ครบ (§9.1) | OPEN |
+| 11 | general rate-limit (100/30) + CSRF ยังไม่มี | implement ก่อน prod (NFR-2.2/2.3) | OPEN |
+| 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
+| S-8 | S-8 / FR-6.8 / FR-6.9 / §10 SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 build | **BUILT** — Phase 4 complete (ดู §11-SMS ด้านล่าง) |
+
+### §11-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
+
+**Phase 4 Build — COMPLETE (backend + UI)**
+
+| ส่วน | สถานะ | หมายเหตุ |
+|------|-------|---------|
+| Prisma schema (4 model) | **DONE** `367f3c9` | SellerWallet, WalletTransaction, TopUpRequest, SmsCode |
+| lib/sms.ts (generic sendSms) | **DONE** `4077133` | apitel; sender omit; RC-8 no-log |
+| wallet.service | **DONE** `20b9b40` | getBalance/getTransactions/deductCredit (conditional-updateMany) |
+| sms-code.service | **DONE** `e1808f6` | issueSmsCode/consumeSmsCode/markSmsCodeDelivery; hash-at-rest; single-use |
+| topup.service | **DONE** `6833a2f`+`6ed858d` | create/approveTopUp (atomic creditWallet+lock TOCTOU)/rejectTopUp |
+| GET /api/wallet | **DONE** `e65bac3`+`cdf9f6c` | balance + transaction history |
+| POST /api/wallet/topup | **DONE** `9b7c454` | สร้าง TopUpRequest + slip |
+| POST /api/orders/[token]/send-sms | **DONE** `cab811f` | L2 gate, daily-cap, OQ-5 burst, atomic deduct+issue+setContact |
+| GET /api/admin/topups | **DONE** `9b7c454` | คิว PENDING |
+| POST /api/admin/topups/[id]/approve | **DONE** `1dbc32e` | RC-7 self-block |
+| POST /api/admin/topups/[id]/reject | **DONE** `1dbc32e` | RC-7 self-block |
+| GET /api/o/sms/[code] | **DONE** | consume code → signed cookie → redirect UUID |
+| /api/files/[fileId] slip gate | **DONE** `c47220a` | admin-or-owner เท่านั้น |
+| /o/[token] SMS short-code resolver | **DONE** | discriminator UUID vs 12-char; smsUnlocked cookie |
+| /o/link-invalid | **DONE** | RC-2 uniform error page |
+| seller /wallet page | **DONE** | balance card + TopUpRequestModal + WalletTransactionTable |
+| SendSmsButton | **DONE** | RC-8 no buyerContact prop |
+| admin /topups queue | **DONE** | TopUpQueueTable (PENDING queue) |
+| lib/sms-unlock-cookie.ts | **DONE** | HMAC-signed httpOnly cookie (NEXTAUTH_SECRET) |
+| lib/sms-consume-rl.ts | **DONE** | RC-1 per-IP globalThis 10/15min |
+| admin /topups/[id] detail | **DONE** `38b69f2` — RSC detail (slip+sidebar) + TopUpReviewActions + RC-7 self-block UI |
+| T22 docs | **DONE** — PRD/backlog/CLAUDE/security-conventions sync |
+
+**Pending (Phase 5-7):**
+- Phase 5: safepay-reviewer + safepay-security re-review code (context-shift C1 grep; verify RC-1..8 implemented)
+- Phase 5 hardening (accepted-risk ที่ยังค้าง): cross-subdomain CSRF Origin-check (AR-3 SameSite=Lax), slip cookie path ให้แคบลง (`/o/`)
+- Phase 6: QA 3-level (Chrome DevTools MCP @ *.deepth.local) — happy path + negative (L2-block / balance<1 / expired / rate-limit / self-approve)
+- Phase 7: phase-retro

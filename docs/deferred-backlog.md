@@ -99,14 +99,20 @@ StatStrip ลบ `424f912` · S7 review card `fa04de1` · createShop logo+$txn
 - **Ref:** PRD §11 #1, FR-4.3
 
 ## 9. Feature: Paid SMS Order Link + Seller Wallet/Credit [MVP-Must, S-8/FR-6.8/6.9/§10]
-- **สถานะ (2026-05-17): Phase 4 BACKEND COMPLETE** — Unit A + B1-B4 commit + gate-3 (safepay-reviewer + safepay-security) + tsc 0 ครบทุก task:
+- **สถานะ (2026-05-17): Phase 4 COMPLETE** — Backend B1-B4 + UI B5-B8 build เสร็จ (tsc 0 ครบ):
   - Unit A schema/migration `367f3c9`
   - B1: T2 `4077133` · T3 `20b9b40` · T4 `e1808f6`
-  - B2: T5 `6833a2f`→`6ed858d` (atomic gate กัน double-credit/TOCTOU) · T8 `e65bac3`→`cdf9f6c` (try/catch+strip walletId) · T6 schemas เข้า `4578fad` (parallel WIP sweep — verified intact)
-  - B3: T7 `cab811f` (atomic deduct+issue+lock 1 tx, OQ-5 burst limit 20/ชม.) · T9/T12 `9b7c454` · slip-gate+`@@index([slipFileId])` `c47220a` (+migration `20260517000001`, ปิด S-C5: slip การเงิน เคย serve ไม่ auth)
+  - B2: T5 `6833a2f`→`6ed858d` (atomic gate กัน double-credit/TOCTOU) · T8 `e65bac3`→`cdf9f6c` (try/catch+strip walletId) · T6 schemas เข้า `4578fad`
+  - B3: T7 `cab811f` (atomic deduct+issue+lock 1 tx, OQ-5 burst limit 20/ชม.) · T9/T12 `9b7c454` · slip-gate+`@@index([slipFileId])` `c47220a`
   - B4: T10 approve + T11 reject `1dbc32e` — RC-7 self-block (fail-closed)
-- **เหลือ (post-checkpoint, ตาม user pace "backend ก่อนแล้ว checkpoint"):** UI B5-B8 (seller "ซื้อเครดิต SMS"+wallet/transaction page, admin topup review queue+approve/reject UI, ปุ่มส่ง SMS ใน seller order detail) → Phase 5 internal review รวม → Phase 6 QA (Chrome DevTools MCP @ *.deepth.local, user รัน dev server) → Phase 7 `phase-retro`. resume = invoke `agent-team-feature` ต่อ Phase 4 UI batch.
-- **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md`
+  - B5: T13 `/o/{code}` short-code resolver + signed cookie `ee2d326` · T15 TopUpRequestModal `dcbbbd1` · T17 SendSmsButton `e023d97`
+  - B6: T14+T16 seller `/wallet` page + WalletCard + WalletTransactionTable `a3cbd22`
+  - B7: T18 wire SendSmsButton เข้า order-detail `10f76e8` · T19 admin `/topups` queue `c222052` · T20+T21 admin `/topups/[id]` detail + TopUpReviewActions `38b69f2`
+  - Pre-Batch nav `73026d7` · T22 docs (commit นี้)
+- **UI ครบทุก task — ไม่มีช่องว่าง route** (`/topups/{id}` มี page แล้ว `38b69f2` — eye-link ใช้งานได้)
+- **Accepted-risk ที่รอ Phase 5 hardening:** cross-subdomain CSRF SameSite=Lax (`smsUnlockCookieOpts` — AR-3), slip cookie path กว้าง `path:'/'` (ควรแคบเป็น `/o/`)
+- **ต่อไป:** Phase 5 safepay-reviewer + safepay-security re-review โค้ดจริง (verify RC-1..8 implemented + context-shift C1) → Phase 6 QA (Chrome DevTools MCP @ *.deepth.local) → Phase 7 `phase-retro`
+- **เอกสาร:** spec `docs/superpowers/specs/2026-05-16-sms-order-link-wallet.md` · plan `docs/superpowers/plans/2026-05-16-sms-wallet-phase4-plan.md` · PRD §11-SMS `docs/PRD.md`
 
 ## 🟡 ต่ำกว่า / ไม่ note ละเอียด (ดู PRD §11 ตรง)
 #10 admin metrics บางตัวขาด (Completion Rate/Avg Rating/Active Users; avgTrust มีแล้ว) ·
