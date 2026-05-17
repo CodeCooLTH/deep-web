@@ -4,6 +4,7 @@ import VerticalLayout from '@/layouts/VerticalLayout'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { sellerMenuItems } from './_seller-menu'
+import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -39,5 +40,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     })
   }
 
-  return <VerticalLayout menuItems={sellerMenuItems}>{children}</VerticalLayout>
+  return (
+    <VerticalLayout menuItems={sellerMenuItems}>
+      {children}
+      {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s
+          mount ที่ layout เพื่อให้แจ้ง seller ทุก page ไม่ใช่แค่ wallet page
+          'use client' component — import ตรงจาก RSC layout ได้ (Next.js 16) */}
+      <TopUpCelebrationPoller />
+    </VerticalLayout>
+  )
 }

@@ -253,6 +253,7 @@ model TopUpRequest {
   reviewedById   String?
   reviewedAt     DateTime?
   rejectedReason String?
+  notifiedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -262,6 +263,7 @@ model TopUpRequest {
   @@index([status])
   @@index([shopId])
   @@index([slipFileId])
+  @@index([shopId, status, notifiedAt])
 }
 
 model SmsCode {
