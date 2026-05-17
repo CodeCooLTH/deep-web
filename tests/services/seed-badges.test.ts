@@ -6,13 +6,13 @@ import { evaluateBadges } from "@/services/badge.service";
 
 // P1 — 7 badge ใหม่ฝั่ง seller (ดู spec 2026-05-16-seller-achievements-p1-design.md §3)
 const P1 = [
-  { nameEN: "Getting Started", criteria: { type: "ORDER_COUNT", count: 10 }, imageUrl: "/badges/seller/getting-started.svg" },
-  { nameEN: "Rising Seller", criteria: { type: "ORDER_COUNT", count: 25 }, imageUrl: "/badges/seller/rising-seller.svg" },
-  { nameEN: "Well Rated", criteria: { type: "HIGH_RATING", minRating: 4.5, minReviews: 10 }, imageUrl: "/badges/seller/well-rated.svg" },
-  { nameEN: "Getting Noticed", criteria: { type: "UNIQUE_REVIEWERS", count: 10 }, imageUrl: "/badges/seller/getting-noticed.svg" },
-  { nameEN: "Spotless 100", criteria: { type: "ZERO_COMPLAINT", minOrders: 100 }, imageUrl: "/badges/seller/spotless-100.svg" },
-  { nameEN: "3 Months Strong", criteria: { type: "VETERAN", minDays: 90 }, imageUrl: "/badges/seller/3-months-strong.svg" },
-  { nameEN: "Same-Day Hero", criteria: { type: "FAST_SHIPPING", maxHours: 12, minOrders: 20 }, imageUrl: "/badges/seller/same-day-hero.svg" },
+  { nameEN: "Getting Started", criteria: { type: "ORDER_COUNT", count: 10 }, imageUrl: "/images/badges/seller/getting-started.svg" },
+  { nameEN: "Rising Seller", criteria: { type: "ORDER_COUNT", count: 25 }, imageUrl: "/images/badges/seller/rising-seller.svg" },
+  { nameEN: "Well Rated", criteria: { type: "HIGH_RATING", minRating: 4.5, minReviews: 10 }, imageUrl: "/images/badges/seller/well-rated.svg" },
+  { nameEN: "Getting Noticed", criteria: { type: "UNIQUE_REVIEWERS", count: 10 }, imageUrl: "/images/badges/seller/getting-noticed.svg" },
+  { nameEN: "Spotless 100", criteria: { type: "ZERO_COMPLAINT", minOrders: 100 }, imageUrl: "/images/badges/seller/spotless-100.svg" },
+  { nameEN: "3 Months Strong", criteria: { type: "VETERAN", minDays: 90 }, imageUrl: "/images/badges/seller/3-months-strong.svg" },
+  { nameEN: "Same-Day Hero", criteria: { type: "FAST_SHIPPING", maxHours: 12, minOrders: 20 }, imageUrl: "/images/badges/seller/same-day-hero.svg" },
 ] as const;
 
 describe("P1 — defaultBadges definitions", () => {
@@ -62,7 +62,7 @@ describe("P1 — engine dispatch ผ่าน DB จริง (ORDER_COUNT bound
 
   it("10 CONFIRMED order → award 'Getting Started' (criteria ORDER_COUNT count:10)", async () => {
     await prisma.badge.create({
-      data: { name: "เริ่มมีลูกค้า", nameEN: "Getting Started", icon: "🌱", type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 }, imageUrl: "/badges/seller/getting-started.svg" },
+      data: { name: "เริ่มมีลูกค้า", nameEN: "Getting Started", icon: "🌱", type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 }, imageUrl: "/images/badges/seller/getting-started.svg" },
     });
     const user = await prisma.user.create({ data: { displayName: "S10", username: "s_gs10", isShop: true } });
     const shop = await prisma.shop.create({ data: { userId: user.id, shopName: "Shop10", businessType: "INDIVIDUAL" } });
@@ -76,7 +76,7 @@ describe("P1 — engine dispatch ผ่าน DB จริง (ORDER_COUNT bound
 
   it("9 CONFIRMED order → ยังไม่ award 'Getting Started' (boundary)", async () => {
     await prisma.badge.create({
-      data: { name: "เริ่มมีลูกค้า", nameEN: "Getting Started", icon: "🌱", type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 }, imageUrl: "/badges/seller/getting-started.svg" },
+      data: { name: "เริ่มมีลูกค้า", nameEN: "Getting Started", icon: "🌱", type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 }, imageUrl: "/images/badges/seller/getting-started.svg" },
     });
     const user = await prisma.user.create({ data: { displayName: "S9", username: "s_gs9", isShop: true } });
     const shop = await prisma.shop.create({ data: { userId: user.id, shopName: "Shop9", businessType: "INDIVIDUAL" } });

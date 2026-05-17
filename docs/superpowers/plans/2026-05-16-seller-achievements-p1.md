@@ -26,12 +26,12 @@ storage lib (`local`/`s3`), Valibot, Vitest, Chrome DevTools MCP
 - gate: safepay-database review (no data loss) → commit (1)
 
 ### Task 2 — Clone assets + seed (agent: `safepay-developer`)
-- สร้าง `public/badges/seller/` clone 7 SVG จาก
+- สร้าง `public/images/badges/seller/` clone 7 SVG จาก
   `/Users/craftman/Documents/Claude/Projects/Deep Achivements/ach_p1_*.svg`
   rename เป็น kebab-case ตาม spec §3 (mapping table)
 - `prisma/seed.ts`: refactor `const badges` → `export const defaultBadges`
   (+`export type BadgeSeed`) ย้ายเหนือ `main()`, loop ใช้ `defaultBadges`;
-  เพิ่ม 7 entry P1 (criteria + icon emoji + `imageUrl:"/badges/seller/<file>.svg"`)
+  เพิ่ม 7 entry P1 (criteria + icon emoji + `imageUrl:"/images/badges/seller/<file>.svg"`)
   — **ยึดค่า 11 entry เดิมในไฟล์จริง ห้ามแก้**
 - `npm run seed:local` → `Seeded 18 badges`
 - gate: safepay-reviewer → commit (1, no `Base:` — data/asset ไม่ใช่ UI theme)
@@ -62,7 +62,7 @@ storage lib (`local`/`s3`), Valibot, Vitest, Chrome DevTools MCP
 ### Task 5 — Tests (agent: `safepay-developer`)
 - `tests/services/seed-badges.test.ts` (DB จริงผ่าน `../setup`):
   - `defaultBadges` มี 7 P1 criteria เป๊ะ + `audience SELLER` + `imageUrl`
-    ขึ้นต้น `/badges/seller/` + `LUCIDE_FOR_BADGE` มีทุก nameEN + ไม่มี nameEN ซ้ำ
+    ขึ้นต้น `/images/badges/seller/` + `LUCIDE_FOR_BADGE` มีทุก nameEN + ไม่มี nameEN ซ้ำ
   - `evaluateBadges`: `ORDER_COUNT:10` award `Getting Started` ที่ 10 order,
     ไม่ award ที่ 9 (boundary)
 - test render helper: imageUrl set → คืน img branch; null → fallback branch

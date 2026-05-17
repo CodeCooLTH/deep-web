@@ -30,7 +30,7 @@
 
 `type:"ACHIEVEMENT"`, `audience:"SELLER"`, reuse handler ที่ engine มีอยู่:
 
-| # | name (TH) | nameEN | asset → `public/badges/seller/` | criteria | handler |
+| # | name (TH) | nameEN | asset → `public/images/badges/seller/` | criteria | handler |
 |---|---|---|---|---|---|
 | 1 | เริ่มมีลูกค้า | `Getting Started` | `getting-started.svg` | `{type:"ORDER_COUNT",count:10}` | `checkOrderCount` |
 | 2 | ร้านกำลังโต | `Rising Seller` | `rising-seller.svg` | `{type:"ORDER_COUNT",count:25}` | `checkOrderCount` |
@@ -64,7 +64,7 @@ migration additive (nullable, ไม่มี default destructive) — badge เ
 
 ### 4.2 ค่า imageUrl 2 รูปแบบ (เก็บเป็น URL string เดียวกัน)
 
-- **Bundled default:** seed ตั้ง `imageUrl = "/badges/seller/<file>.svg"` (static
+- **Bundled default:** seed ตั้ง `imageUrl = "/images/badges/seller/<file>.svg"` (static
   ใต้ `public/` — เสิร์ฟตรงโดย Next)
 - **Admin upload override:** admin อัปโหลด → `saveFile()` (storage lib เดิม,
   driver `local`/`s3`) คืน `fileId` → set `imageUrl = "/api/files/<fileId>"`
@@ -132,7 +132,7 @@ Admin upload: form → admin API → `saveFile` → service set `imageUrl` →
 ## 8. Definition of Done
 
 - [ ] Prisma `Badge.imageUrl String?` migrate สำเร็จ, badge เดิม 11 ครบ
-- [ ] 7 SVG อยู่ `public/badges/seller/` (kebab-case ตาม §3)
+- [ ] 7 SVG อยู่ `public/images/badges/seller/` (kebab-case ตาม §3)
 - [ ] seed 7 badge (criteria + icon emoji + imageUrl bundled), `Seeded 18 badges`
 - [ ] render helper + wire 4 surface (precedence imageUrl→fallback) ผ่าน
       `ui-theme-sourcing` (admin/seller Paces) + `Base:` line ที่ commit แตะ UI
