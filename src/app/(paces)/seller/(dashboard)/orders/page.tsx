@@ -83,6 +83,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     status: o.status,
     // ISO string — client component จะ format เป็นภาษาไทย
     createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+    // Phase A Unit A: buyer identity (null = guest ยังไม่ register)
+    // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
+    buyerName: o.buyer?.displayName ?? null,
+    buyerUsername: o.buyer?.username ?? null,
   }))
 
   // คำนวณค่า stat card จาก orders ที่ fetch มา

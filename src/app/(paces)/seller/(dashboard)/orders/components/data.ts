@@ -13,6 +13,10 @@ export type OrderRow = {
   total: number
   status: OrderStatus
   createdAtISO: string  // ISO 8601 string — convert to Date ใน client เพื่อ format
+  // Phase A Unit A: buyer identity fields (null = guest ยังไม่ register)
+  // component จะ fallback เป็น masked contact / placeholder เอง (T3-T6)
+  buyerName: string | null
+  buyerUsername: string | null
 }
 
 // รูปแบบข้อมูลสำหรับ OrdersStatCard (ตาม theme OrderStatType)

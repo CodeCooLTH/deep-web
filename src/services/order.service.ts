@@ -179,7 +179,14 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
 export async function getOrdersByShop(shopId: string, status?: string) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
-    include: { items: true, shipmentTracking: true, review: true },
+    include: {
+      items: true,
+      shipmentTracking: true,
+      review: true,
+      // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list
+      // คัดลอก select เดียวกับ getOrderForShop (additive — ไม่ break caller เดิม)
+      buyer: { select: { id: true, displayName: true, username: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
