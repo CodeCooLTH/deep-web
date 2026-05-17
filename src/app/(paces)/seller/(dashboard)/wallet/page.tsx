@@ -16,10 +16,12 @@
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getShopByUserId } from '@/services/shop.service'
+import { getTopUpsByShop } from '@/services/topup.service'
 import { getBalance, getTransactions } from '@/services/wallet.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import WalletCard from './components/WalletCard'
+import TopUpRequestTable, { type TopUpRequestRow } from './components/TopUpRequestTable'
 import WalletTransactionTable from './components/WalletTransactionTable'
 
 export const metadata: Metadata = { title: 'เครดิต SMS' }
@@ -52,6 +54,8 @@ export default async function WalletPage() {
   // no-shop case: balance = 0, transactions = [] — ตาม spec "no-shop → balance 0 + empty table"
   let balance = 0
   let transactions: TransactionRow[] = []
+  // topUpRequests: ประวัติคำขอเติมเครดิตของ shop (รวม PENDING ที่รออนุมัติ)
+  let topUpRequests: TopUpRequestRow[] = []
   // hasError: true เมื่อ service throw — ห้าม silent ฿0 ที่ทำให้ seller เข้าใจผิดว่าเครดิตหาย
   let hasError = false
 
@@ -75,12 +79,32 @@ export default async function WalletPage() {
           ? t.createdAt.toISOString()
           : String(t.createdAt),
       }))
+      // ดึง TopUpRequest ทั้งหมดของ shop (รวม PENDING ที่ยังรออนุมัติ)
+      // S-C7: ใช้ shop.id จาก session (getShopByUserId ด้านบน) ไม่รับ param จาก client
+      // RC-8: ไม่ log; ไม่ส่ง slipFileId ลง client; แปลง Date → ISO string
+      const rawTopUps = await getTopUpsByShop(shop.id)
+      topUpRequests = rawTopUps.map((r) => ({
+        id: r.id,
+        amount: Number(r.amount),
+        status: r.status as 'PENDING' | 'APPROVED' | 'REJECTED',
+        rejectedReason: r.rejectedReason,
+        // RC-8: ไม่ expose slipFileId ใน payload (seller เห็นสถานะเท่านั้น)
+        createdAtISO: r.createdAt instanceof Date
+          ? r.createdAt.toISOString()
+          : String(r.createdAt),
+        reviewedAtISO: r.reviewedAt
+          ? (r.reviewedAt instanceof Date
+              ? r.reviewedAt.toISOString()
+              : String(r.reviewedAt))
+          : null,
+      }))
     } catch {
       // service throw → บอก WalletCard ให้แสดง error banner ชัด ๆ
       // ไม่ silent ฿0 เพราะ seller อาจเข้าใจผิดว่าเครดิตจริงหาย (financial trust issue)
       hasError = true
       balance = 0
       transactions = []
+      topUpRequests = []
     }
   }
 
@@ -104,6 +128,15 @@ export default async function WalletPage() {
           hasError={hasError}
         />
       </div>
+
+      {/* TopUpRequest section — วางระหว่าง balance card กับ ledger table */}
+      {/* แยก section นี้ออกจาก "ประวัติรายการเครดิต" (WalletTransactionTable ด้านล่าง) */}
+      {/* เหตุผล: ledger แสดงเฉพาะที่ approve แล้ว; section นี้แสดง PENDING ที่รออยู่ด้วย */}
+      {!hasError && (
+        <div className="mb-6">
+          <TopUpRequestTable topups={topUpRequests} />
+        </div>
+      )}
 
       {/* Transaction table — แสดงเฉพาะเมื่อไม่มี error (error → ไม่แสดง table ปลอม) */}
       {!hasError && <WalletTransactionTable transactions={transactions} />}
