@@ -22,6 +22,7 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
       { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
       { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
+      { url: '/wallet', slug: 'seller:wallet', label: 'เครดิต SMS', icon: 'wallet' },
     ],
   },
   {

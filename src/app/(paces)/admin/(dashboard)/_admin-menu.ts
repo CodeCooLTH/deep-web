@@ -27,6 +27,7 @@ export const adminMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/orders', slug: 'admin:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
+      { url: '/topups', slug: 'admin:topups', label: 'เติมเครดิต SMS', icon: 'credit-card' },
       { url: '/badges', slug: 'admin:badges', label: 'Badges', icon: 'award' },
     ],
   },
