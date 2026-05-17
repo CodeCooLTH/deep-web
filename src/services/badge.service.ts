@@ -455,6 +455,13 @@ export async function evaluateSignupYearBadge(userId: string): Promise<void> {
 /**
  * คืน progress ของ badge ทุกใบที่ตรง audience สำหรับ user
  * ใช้ helper เดียวกับ evaluateBadges (DRY) เพื่อให้ผล consistent
+ *
+ * ทำไม Promise.all: เดิม for-loop แบบ sequential await ทำให้ ~18 badge
+ * รัน DB query ทีละใบ (N round-trips ต่อเนื่อง) ส่งผลให้ dashboard โหลด ~17s
+ * บน Supabase remote. badges.map รักษา order ตาม DB findMany เดิมเป๊ะ
+ * (Array.map + Promise.all ไม่เปลี่ยน index) — I/O แต่ละ badge อิสระกัน
+ * ไม่มี shared mutable state: progressLabel/progressRatio เป็น local per-callback,
+ * earnedIds (Set) อ่านอย่างเดียว ไม่มีการ mutate
  */
 export async function getBadgeProgress(
   userId: string,
@@ -470,153 +477,152 @@ export async function getBadgeProgress(
   })
   const earnedIds = new Set(existing.map((ub) => ub.badgeId))
 
-  const results: BadgeProgress[] = []
+  const results = await Promise.all(
+    badges.map(async (badge) => {
+      const earned = earnedIds.has(badge.id)
+      const criteria = parseCriteria(badge.criteria)
+      // U1 item 1: ใช้ resolveStatuses แทน cast โดยตรง
+      const statuses = resolveStatuses(criteria)
 
-  for (const badge of badges) {
-    const earned = earnedIds.has(badge.id)
-    const criteria = parseCriteria(badge.criteria)
-    // U1 item 1: ใช้ resolveStatuses แทน cast โดยตรง
-    const statuses = resolveStatuses(criteria)
+      let progressLabel: string | null = null
+      let progressRatio = earned ? 1 : 0
 
-    let progressLabel: string | null = null
-    let progressRatio = earned ? 1 : 0
-
-    if (!criteria) {
-      results.push({ badge, earned, progressLabel: null, progressRatio })
-      continue
-    }
-
-    try {
-      switch (criteria.type) {
-        case 'FIRST_ORDER': {
-          if (!earned) {
-            const { count } = await checkFirstOrder(userId, statuses)
-            progressLabel = count >= 1 ? 'ปิดออเดอร์แรกแล้ว' : 'ยังไม่มีออเดอร์'
-            progressRatio = count >= 1 ? 1 : 0
-          }
-          break
-        }
-        case 'ORDER_COUNT': {
-          if (!earned) {
-            const { count } = await checkOrderCount(userId, criteria, statuses)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
-            const threshold = criteria.count
-            progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
-            const remaining = criteria.count - count
-            progressLabel = remaining > 0 ? `อีก ${remaining} ออเดอร์` : `ครบ ${criteria.count} ออเดอร์แล้ว`
-          }
-          break
-        }
-        case 'PERFECT_RATING': {
-          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
-          if (!earned) {
-            const { reviewCount, avg } = await checkPerfectRating(userId, criteria)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
-            const threshold = criteria.minReviews
-            progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
-            if (reviewCount < criteria.minReviews) {
-              progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
-            } else {
-              const avgFixed = avg.toFixed(2)
-              progressLabel = `เรตติ้งปัจจุบัน ${avgFixed} (ต้องการ 5.0)`
-            }
-          }
-          break
-        }
-        case 'HIGH_RATING': {
-          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
-          if (!earned) {
-            const { reviewCount, avg } = await checkHighRating(userId, criteria)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
-            const threshold = criteria.minReviews
-            progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
-            if (reviewCount < criteria.minReviews) {
-              progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
-            } else {
-              progressLabel = `เรตติ้งปัจจุบัน ${avg.toFixed(2)} (ต้องการ ≥${criteria.minRating})`
-            }
-          }
-          break
-        }
-        case 'ZERO_COMPLAINT': {
-          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
-          if (!earned) {
-            const { completed, cancelled } = await checkZeroComplaint(userId, criteria, statuses)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
-            const threshold = criteria.minOrders
-            progressRatio = threshold > 0 ? Math.min(completed / threshold, 1) : 0
-            if (completed < criteria.minOrders) {
-              progressLabel = `อีก ${criteria.minOrders - completed} ออเดอร์`
-            } else if (cancelled > 0) {
-              progressLabel = `มี ${cancelled} ออเดอร์ที่ยกเลิก`
-            }
-          }
-          break
-        }
-        case 'VETERAN': {
-          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
-          if (!earned) {
-            const { daysOld } = await checkVeteran(userId, criteria, statuses)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.minDays <= 0
-            const threshold = criteria.minDays
-            progressRatio = threshold > 0 ? Math.min(daysOld / threshold, 1) : 0
-            const remaining = Math.max(0, Math.ceil(criteria.minDays - daysOld))
-            progressLabel = remaining > 0 ? `อีก ${remaining} วัน` : 'ครบวันแล้ว (ต้องมีออเดอร์ล่าสุด)'
-          }
-          break
-        }
-        case 'FAST_SHIPPING': {
-          // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
-          if (!earned) {
-            const { orderCount, avgHours } = await checkFastShipping(userId, criteria, statuses)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
-            const threshold = criteria.minOrders
-            progressRatio = threshold > 0 ? Math.min(orderCount / threshold, 1) : 0
-            if (orderCount < criteria.minOrders) {
-              progressLabel = `อีก ${criteria.minOrders - orderCount} ออเดอร์ที่มีการจัดส่ง`
-            } else {
-              progressLabel = `เฉลี่ย ${avgHours.toFixed(1)} ชม. (ต้องการ ≤${criteria.maxHours} ชม.)`
-            }
-          }
-          break
-        }
-        case 'FULL_VERIFICATION': {
-          if (!earned) {
-            const { met } = await checkFullVerification(userId)
-            progressRatio = met ? 1 : 0
-            progressLabel = met ? 'ยืนยันตัวตนครบแล้ว' : 'ยังยืนยันตัวตนไม่ครบ'
-          }
-          break
-        }
-        case 'UNIQUE_REVIEWERS': {
-          if (!earned) {
-            const { uniqueCount } = await checkUniqueReviewers(userId, criteria)
-            // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
-            const threshold = criteria.count
-            progressRatio = threshold > 0 ? Math.min(uniqueCount / threshold, 1) : 0
-            const remaining = criteria.count - uniqueCount
-            progressLabel = remaining > 0 ? `อีก ${remaining} คน` : `ครบ ${criteria.count} คนแล้ว`
-          }
-          break
-        }
-        case 'SIGNUP_YEAR': {
-          if (!earned) {
-            const { met } = await checkSignupYear(userId, criteria)
-            progressRatio = met ? 1 : 0
-            progressLabel = met ? `สมัครปี ${criteria.year} แล้ว` : `badge พิเศษปี ${criteria.year}`
-          }
-          break
-        }
-        default: {
-          console.warn('[badge] getBadgeProgress: unknown criteria type', (criteria as { type: string }).type)
-        }
+      if (!criteria) {
+        return { badge, earned, progressLabel: null, progressRatio }
       }
-    } catch (err) {
-      console.error('[badge] getBadgeProgress handler error', badge.nameEN, err)
-    }
 
-    results.push({ badge, earned, progressLabel, progressRatio })
-  }
+      try {
+        switch (criteria.type) {
+          case 'FIRST_ORDER': {
+            if (!earned) {
+              const { count } = await checkFirstOrder(userId, statuses)
+              progressLabel = count >= 1 ? 'ปิดออเดอร์แรกแล้ว' : 'ยังไม่มีออเดอร์'
+              progressRatio = count >= 1 ? 1 : 0
+            }
+            break
+          }
+          case 'ORDER_COUNT': {
+            if (!earned) {
+              const { count } = await checkOrderCount(userId, criteria, statuses)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = criteria.count - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} ออเดอร์` : `ครบ ${criteria.count} ออเดอร์แล้ว`
+            }
+            break
+          }
+          case 'PERFECT_RATING': {
+            // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
+            if (!earned) {
+              const { reviewCount, avg } = await checkPerfectRating(userId, criteria)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
+              const threshold = criteria.minReviews
+              progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
+              if (reviewCount < criteria.minReviews) {
+                progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
+              } else {
+                const avgFixed = avg.toFixed(2)
+                progressLabel = `เรตติ้งปัจจุบัน ${avgFixed} (ต้องการ 5.0)`
+              }
+            }
+            break
+          }
+          case 'HIGH_RATING': {
+            // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
+            if (!earned) {
+              const { reviewCount, avg } = await checkHighRating(userId, criteria)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
+              const threshold = criteria.minReviews
+              progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
+              if (reviewCount < criteria.minReviews) {
+                progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
+              } else {
+                progressLabel = `เรตติ้งปัจจุบัน ${avg.toFixed(2)} (ต้องการ ≥${criteria.minRating})`
+              }
+            }
+            break
+          }
+          case 'ZERO_COMPLAINT': {
+            // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
+            if (!earned) {
+              const { completed, cancelled } = await checkZeroComplaint(userId, criteria, statuses)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
+              const threshold = criteria.minOrders
+              progressRatio = threshold > 0 ? Math.min(completed / threshold, 1) : 0
+              if (completed < criteria.minOrders) {
+                progressLabel = `อีก ${criteria.minOrders - completed} ออเดอร์`
+              } else if (cancelled > 0) {
+                progressLabel = `มี ${cancelled} ออเดอร์ที่ยกเลิก`
+              }
+            }
+            break
+          }
+          case 'VETERAN': {
+            // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
+            if (!earned) {
+              const { daysOld } = await checkVeteran(userId, criteria, statuses)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.minDays <= 0
+              const threshold = criteria.minDays
+              progressRatio = threshold > 0 ? Math.min(daysOld / threshold, 1) : 0
+              const remaining = Math.max(0, Math.ceil(criteria.minDays - daysOld))
+              progressLabel = remaining > 0 ? `อีก ${remaining} วัน` : 'ครบวันแล้ว (ต้องมีออเดอร์ล่าสุด)'
+            }
+            break
+          }
+          case 'FAST_SHIPPING': {
+            // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
+            if (!earned) {
+              const { orderCount, avgHours } = await checkFastShipping(userId, criteria, statuses)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
+              const threshold = criteria.minOrders
+              progressRatio = threshold > 0 ? Math.min(orderCount / threshold, 1) : 0
+              if (orderCount < criteria.minOrders) {
+                progressLabel = `อีก ${criteria.minOrders - orderCount} ออเดอร์ที่มีการจัดส่ง`
+              } else {
+                progressLabel = `เฉลี่ย ${avgHours.toFixed(1)} ชม. (ต้องการ ≤${criteria.maxHours} ชม.)`
+              }
+            }
+            break
+          }
+          case 'FULL_VERIFICATION': {
+            if (!earned) {
+              const { met } = await checkFullVerification(userId)
+              progressRatio = met ? 1 : 0
+              progressLabel = met ? 'ยืนยันตัวตนครบแล้ว' : 'ยังยืนยันตัวตนไม่ครบ'
+            }
+            break
+          }
+          case 'UNIQUE_REVIEWERS': {
+            if (!earned) {
+              const { uniqueCount } = await checkUniqueReviewers(userId, criteria)
+              // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(uniqueCount / threshold, 1) : 0
+              const remaining = criteria.count - uniqueCount
+              progressLabel = remaining > 0 ? `อีก ${remaining} คน` : `ครบ ${criteria.count} คนแล้ว`
+            }
+            break
+          }
+          case 'SIGNUP_YEAR': {
+            if (!earned) {
+              const { met } = await checkSignupYear(userId, criteria)
+              progressRatio = met ? 1 : 0
+              progressLabel = met ? `สมัครปี ${criteria.year} แล้ว` : `badge พิเศษปี ${criteria.year}`
+            }
+            break
+          }
+          default: {
+            console.warn('[badge] getBadgeProgress: unknown criteria type', (criteria as { type: string }).type)
+          }
+        }
+      } catch (err) {
+        console.error('[badge] getBadgeProgress handler error', badge.nameEN, err)
+      }
+
+      return { badge, earned, progressLabel, progressRatio }
+    }),
+  )
 
   return results
 }
