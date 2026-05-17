@@ -64,6 +64,7 @@ export default async function NewOrderPage() {
       description: p.description ?? null,
       price: Number(p.price),
       type: p.type,
+      fulfillmentMode: p.fulfillmentMode,
       image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
     }))
   } catch {

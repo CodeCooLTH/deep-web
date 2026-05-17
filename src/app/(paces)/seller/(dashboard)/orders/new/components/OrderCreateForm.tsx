@@ -26,6 +26,8 @@ export interface CatalogProduct {
   description?: string | null
   price: number
   type: string
+  /** Product.fulfillmentMode (SHIPPED | NO_SHIPPING) — ใช้ derive ที่อยู่จัดส่ง + indicator */
+  fulfillmentMode: string
   image?: string | null
 }
 
