@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * Base: src/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton.tsx
+ * Base: theme/paces/Admin/TS/src/assets/css/custom/_buttons.css (btn/btn-sm primitive)
  *
  * Generalize: รับ value (full URL/text) จาก caller แทนที่จะ resolve URL ภายใน
  * - เพิ่ม props: value, label, iconOnly, className, showPreview

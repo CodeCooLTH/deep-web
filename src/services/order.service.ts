@@ -180,7 +180,13 @@ export async function getOrdersByShop(shopId: string, status?: string) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
     include: {
-      items: true,
+      // items: เพิ่ม product.images เพื่อ resolve imageUrl → /api/files/{id} ใน OrderCard (F2)
+      // pattern เดียวกับ new/page.tsx L67 ที่ resolve image จาก p.images[0]
+      items: {
+        include: {
+          product: { select: { images: true } },
+        },
+      },
       shipmentTracking: true,
       review: true,
       // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list

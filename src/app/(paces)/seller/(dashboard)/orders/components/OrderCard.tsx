@@ -6,11 +6,14 @@
  * SafePay domain component — ไม่มี theme card-per-order equivalent; สร้างจาก primitive CSS + item-row pattern.
  * avatar: placeholder เสมอ (D8) เพราะ service ไม่ select avatar field (ข้อมูล + T3 spec)
  * discount/VAT: ไม่มีใน OrderRow schema → ไม่ render (breakdown แสดงเฉพาะบรรทัดมีค่าตาม D5)
- * CopyButton: ไม่ inline copy (buyer URL ต้อง resolve runtime); ปุ่มลิงก์แยกต่างหาก
+ * resolveBuyerBaseUrl: ย้ายไป @/lib/buyer-url (canonical single source — F1)
+ * CopyLinkButton: reuse จาก orders/[token]/components/CopyLinkButton (generalized, props value/label/iconOnly/className)
  */
 
 'use client'
 
+import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -69,18 +72,6 @@ function formatThaiDate(isoStr: string): string {
   }
 }
 
-// Resolve buyer-facing URL ตามที่ทำใน CopyLinkButton.tsx (D7 copy link)
-function resolveBuyerBaseUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BUYER_URL
-  if (envUrl) return envUrl.replace(/\/$/, '')
-  if (typeof window !== 'undefined') {
-    const { protocol, host } = window.location
-    const buyerHost = host.replace(/^seller\./, '')
-    return `${protocol}//${buyerHost}`
-  }
-  return 'https://deepthailand.app'
-}
-
 // --- CopyButton: คัดลอก text + ไอคอนเด้งเป็น check 1.2 วิ (D7) ---
 function CopyButton({
   value,
@@ -123,41 +114,21 @@ function CopyButton({
   )
 }
 
-// --- CopyLinkButton: คัดลอกลิงก์ผู้ซื้อ (resolve URL runtime) ---
-function CopyLinkButton({ token }: { token: string }) {
+// OrderCardCopyLink: resolve buyer URL runtime แล้วส่งให้ CopyLinkButton (generalized จาก orders/[token])
+// แยก component นี้ไว้เพราะต้องใช้ useEffect (ไม่สามารถ resolve URL ใน render ครั้งแรก — hydration mismatch)
+function OrderCardCopyLink({ token }: { token: string }) {
   const [url, setUrl] = useState(`/o/${token}`)
-  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     setUrl(`${resolveBuyerBaseUrl()}/o/${token}`)
   }, [token])
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(url)
-    } catch {
-      const el = document.createElement('textarea')
-      el.value = url
-      el.style.position = 'fixed'
-      el.style.opacity = '0'
-      document.body.appendChild(el)
-      el.select()
-      document.execCommand('copy')
-      document.body.removeChild(el)
-    }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
-  }
-
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"
-    >
-      <Icon icon={copied ? 'check' : 'link'} className={`text-sm ${copied ? 'text-success' : ''}`} />
-      {copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}
-    </button>
+    <CopyLinkButton
+      value={url}
+      label="คัดลอกลิงก์"
+      className="border-default-300 text-default-700 hover:bg-default-100"
+    />
   )
 }
 
@@ -290,15 +261,42 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
         </span>
       </div>
 
-      {/* ╔ ITEMS: ไม่มี items array ใน OrderRow → แสดง breakdown total เท่านั้น ╗
-          * DEVIATION: OrderRow ไม่มี field items[]/productName/qty/price
-          * spec T3 ระบุ "รูปสินค้า join /api/files/{productId-image}" แต่ข้อมูลไม่มีใน type
-          * → render breakdown ยอดสุทธิ total field (ที่มีจริงใน schema) แทน
-          * เมื่อ T6/data.ts เพิ่ม items field แล้ว ให้ dev อัปเดต component นี้
-      */}
+      {/* ╔ ITEMS: แสดงสินค้า 2 รายการแรก + "+ ดูอีก N รายการ" ถ้ามีมากกว่า ╗ */}
       <div className="divide-y divide-default-200 px-3 py-1">
-        {/* breakdown: แสดงเฉพาะบรรทัดมีค่า (D5) — discount/VAT ไม่มีใน schema → ไม่ render */}
+        {/* รายการสินค้า: แสดงสูงสุด 2 รายการ (spec §4 D5) */}
+        {order.items.slice(0, 2).map((item) => (
+          <div key={item.id} className="flex items-center gap-3 py-2">
+            <ProductImage src={item.imageUrl ?? undefined} alt={item.name} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-dark">{item.name}</p>
+            </div>
+            <span className="shrink-0 text-xs tabular-nums text-default-500">
+              ฿{item.price.toLocaleString('th-TH')} × {item.qty}
+            </span>
+            <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-dark">
+              ฿{(item.price * item.qty).toLocaleString('th-TH')}
+            </span>
+          </div>
+        ))}
+
+        {/* "+ ดูอีก N รายการ" → ลิงก์ไปหน้า detail (spec D5) */}
+        {order.items.length > 2 && (
+          <Link
+            href={`/orders/${order.publicToken}`}
+            className="block py-1.5 text-center text-[11px] font-medium text-primary hover:underline"
+          >
+            + ดูอีก {order.items.length - 2} รายการ
+          </Link>
+        )}
+
+        {/* breakdown ยอด: แสดงเฉพาะบรรทัดมีค่า (D5) — discount/VAT ไม่มีใน schema → ไม่ render */}
         <div className="ml-auto w-full max-w-[15rem] space-y-1 py-2 text-xs">
+          <div className="flex justify-between text-default-500">
+            <span>ยอดสินค้า</span>
+            <span className="tabular-nums">
+              ฿{order.items.reduce((s, i) => s + i.price * i.qty, 0).toLocaleString('th-TH')}
+            </span>
+          </div>
           <div className="flex justify-between border-t border-default-200 pt-1">
             <span className="font-medium text-dark">ยอดสุทธิ</span>
             <span className="text-base font-bold tabular-nums text-dark">
@@ -318,8 +316,8 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
             onCancelRequest={onCancelRequest}
           />
 
-          {/* คัดลอกลิงก์ผู้ซื้อ (D7) */}
-          <CopyLinkButton token={order.publicToken} />
+          {/* คัดลอกลิงก์ผู้ซื้อ (D7) — resolve buyer domain runtime */}
+          <OrderCardCopyLink token={order.publicToken} />
 
           {/* ดูรายละเอียด — next/link ปกติ (Paces = ไม่มี MUI) */}
           <Link

@@ -19,7 +19,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
-import type { OrderRow, OrderStatType } from './components/data'
+import type { OrderRow, OrderStatType, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
 
@@ -87,6 +87,19 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
     buyerName: o.buyer?.displayName ?? null,
     buyerUsername: o.buyer?.username ?? null,
+    // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
+    // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
+    items: (o.items ?? []).map((item: any): OrderItemRow => {
+      const images = item.product?.images
+      const firstImageId = Array.isArray(images) && images.length > 0 ? images[0] : null
+      return {
+        id: item.id,
+        name: item.name,
+        qty: item.qty,
+        price: Number(item.price),
+        imageUrl: firstImageId ? `/api/files/${firstImageId}` : null,
+      }
+    }),
   }))
 
   // คำนวณค่า stat card จาก orders ที่ fetch มา

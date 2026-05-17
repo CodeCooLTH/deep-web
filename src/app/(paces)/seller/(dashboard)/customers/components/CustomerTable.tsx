@@ -31,8 +31,9 @@ import type { CustomerRow } from './data'
 // ลบ: import Link from 'next/link' — ลิงก์ชื่อลูกค้าข้ามโดเมน (buyer) ใช้ <a> แทน next/link
 // เพื่อหลีกเลี่ยง proxy /seller/u/{username} → 404
 
-// Mirror ของ CopyLinkButton.resolveBuyerBaseUrl: resolve buyer base URL ณ runtime
-// เพื่อให้ทำงานได้ทั้ง dev (seller.deepth.local) และ prod (seller.deepthailand.app)
+// TODO(F1): resolveBuyerBaseUrl ที่ canonical คือ @/lib/buyer-url → resolveBuyerBaseUrl
+// คงไว้ที่นี่เพื่อป้องกัน regress (CustomerTable อยู่นอก scope Phase A Unit B)
+// เมื่อ refactor CustomerTable ครั้งต่อไป ให้ import จาก @/lib/buyer-url แทน
 function resolveBuyerBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_BUYER_URL
   if (envUrl) return envUrl.replace(/\/$/, '')

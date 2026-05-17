@@ -2,193 +2,76 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
  *
  * Adaptations from theme:
- * - columns: token, buyer contact, orderType, status, createdAt, action (SafePay schema)
- * - Data comes from RSC props (ไม่ใช่ mock data จาก data.ts)
- * - createdAtISO รับเป็น ISO string จาก server; format เป็นไทยใน client
- * - filterFns: {} ใส่ไว้ใน useReactTable options ทุก instance (ป้องกัน warning)
- * - Status filter ผ่าน status tabs (Paces underline style) ไม่ใช่ select dropdown
- * - DeleteConfirmationModal: stripped (SafePay ไม่มี delete order จาก list)
- * - paymentStatus / paymentMethod / amount: stripped (SafePay ไม่มีในหน้านี้)
- * - "Add Order" link เปลี่ยนเป็น Link ธรรมดา (server component ไม่เกี่ยวข้อง — component นี้ client)
- * - ทุก Date object ผ่าน RSC→client แล้วเป็น string (createdAtISO)
+ * - toolbar: search input + type filter select + page-size select (ซ้าย) + "สร้างออเดอร์" (ขวา) ตาม list.html L62-71
+ * - status tabs: underline style + count badge ต่อ tab (ตาม list.html L75-80)
+ * - DataTable/TanStack: ถูก strip ออกทั้งหมด — ใช้ card layout (space-y-2.5 ของ OrderCard) แทน (spec D5)
+ * - search = client globalFilter (เลขออเดอร์/ชื่อลูกค้า) ไม่ใช้ DataTable infrastructure
+ * - pagination: custom footer ตาม list.html L92-98
+ * - cancel modal: CancelOrderModal hosted ที่นี่ (controlled state cancelToken)
+ * - empty state: SellerEmptyState compact; error: SellerErrorState (ไม่แตะ SellerErrorState.tsx)
+ * - "สร้างออเดอร์" ลิงก์ → /orders/new (next/link ปกติ; Paces ไม่มี MUI)
  */
 
 'use client'
 
-import DataTable from '@/components/table/DataTable'
-import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
-import { cn } from '@/utils/helpers'
-import {
-  ColumnFiltersState,
-  createColumnHelper,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-} from '@tanstack/react-table'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { cn } from '@/utils/helpers'
 import type { OrderRow, OrderStatus } from './data'
+import OrderCard from './OrderCard'
+import CancelOrderModal from './CancelOrderModal'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 
-// สถานะทั้งหมดของ SafePay Order — tabs สำหรับ filter
-const STATUS_TABS: { value: string; label: string; dot?: string }[] = [
-  { value: 'all',       label: 'ทั้งหมด' },
-  { value: 'PENDING',   label: 'รอดำเนินการ', dot: 'bg-warning' },
-  { value: 'SHIPPED',   label: 'จัดส่งแล้ว',  dot: 'bg-info' },
-  { value: 'CONFIRMED', label: 'สำเร็จ',      dot: 'bg-success' },
-  { value: 'CANCELLED', label: 'ยกเลิก',     dot: 'bg-danger' },
+// ─── tab config ──────────────────────────────────────────────────────────────
+const STATUS_TABS: {
+  value: string
+  label: string
+  badgeCls: string
+}[] = [
+  { value: 'all',       label: 'ทั้งหมด',       badgeCls: 'bg-default-200 text-default-700' },
+  { value: 'PENDING',   label: 'รอดำเนินการ',   badgeCls: 'bg-warning/20 text-warning' },
+  { value: 'SHIPPED',   label: 'จัดส่งแล้ว',    badgeCls: 'bg-primary/15 text-primary' },
+  { value: 'CONFIRMED', label: 'สำเร็จ',        badgeCls: 'bg-success/15 text-success' },
+  { value: 'CANCELLED', label: 'ยกเลิก',        badgeCls: 'bg-danger/15 text-danger' },
 ]
 
-// สี badge แต่ละสถานะ SafePay
-const STATUS_META: Record<OrderStatus, { label: string; cls: string }> = {
-  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning' },
-  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/15 text-info' },
-  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/15 text-success' },
-  CANCELLED: { label: 'ยกเลิก',     cls: 'bg-danger/15 text-danger' },
-}
+// ─── order type options สำหรับ filter select ────────────────────────────────
+const TYPE_OPTIONS = [
+  { value: '',         label: 'ประเภทออเดอร์' },
+  { value: 'PHYSICAL', label: 'สินค้า' },
+  { value: 'DIGITAL',  label: 'ดิจิทัล' },
+  { value: 'SERVICE',  label: 'บริการ' },
+]
 
-// แปลง order type เป็นภาษาไทย
-const ORDER_TYPE_LABEL: Record<string, string> = {
-  PHYSICAL: 'สินค้า',
-  DIGITAL:  'ดิจิทัล',
-  SERVICE:  'บริการ',
-}
-
-const columnHelper = createColumnHelper<OrderRow>()
+// ─── page size options ────────────────────────────────────────────────────────
+const PAGE_SIZES = [10, 25, 50]
 
 type Props = {
   orders: OrderRow[]
   activeStatus: string
 }
 
-const OrdersList = ({ orders, activeStatus }: Props) => {
+export default function OrdersList({ orders, activeStatus }: Props) {
   const router = useRouter()
 
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  // ─── local UI state ───────────────────────────────────────────────────────
   const [localStatus, setLocalStatus] = useState<string>(activeStatus ?? 'all')
+  const [search,      setSearch]      = useState('')
+  const [typeFilter,  setTypeFilter]  = useState('')
+  const [pageSize,    setPageSize]    = useState(10)
+  const [pageIndex,   setPageIndex]   = useState(0)
 
-  // กรอง orders ตาม status tab ที่เลือก (ทุก order fetch มาแล้ว)
-  const filteredByStatus = useMemo(() => {
-    if (localStatus === 'all' || !localStatus) return orders
-    return orders.filter((o) => o.status === localStatus)
-  }, [orders, localStatus])
+  // cancel modal
+  const [cancelToken,   setCancelToken]   = useState<string | null>(null)
+  const [cancelDisplay, setCancelDisplay] = useState<string | undefined>(undefined)
 
-  const columns = useMemo(
-    () => [
-      columnHelper.accessor('id', {
-        header: 'คำสั่งซื้อ #',
-        cell: ({ row }) => (
-          <h5 className="text-sm font-medium font-mono">
-            <Link
-              href={`/orders/${row.original.publicToken}`}
-              className="hover:text-primary"
-            >
-              #{row.original.id}
-            </Link>
-          </h5>
-        ),
-      }),
-      columnHelper.accessor('buyer', {
-        header: 'ผู้ซื้อ',
-        cell: ({ getValue }) => (
-          <span className="text-default-700">{getValue()}</span>
-        ),
-      }),
-      columnHelper.accessor('orderType', {
-        header: 'ประเภท',
-        filterFn: 'equalsString',
-        enableColumnFilter: true,
-        cell: ({ getValue }) => {
-          const v = getValue()
-          return (
-            <span className="badge bg-default-100 text-default-700">
-              {ORDER_TYPE_LABEL[v] ?? v}
-            </span>
-          )
-        },
-      }),
-      columnHelper.accessor('status', {
-        header: 'สถานะ',
-        filterFn: 'equalsString',
-        enableColumnFilter: true,
-        cell: ({ getValue }) => {
-          const s = STATUS_META[getValue()] ?? { label: getValue(), cls: 'bg-default-100 text-default-700' }
-          return <span className={cn('badge', s.cls)}>{s.label}</span>
-        },
-      }),
-      columnHelper.accessor('createdAtISO', {
-        header: 'วันที่สั่ง',
-        cell: ({ getValue }) => {
-          // แปลง ISO string → วันที่ภาษาไทยใน client
-          const d = new Date(getValue())
-          return (
-            <span className="text-default-400 text-sm">
-              {isNaN(d.getTime())
-                ? '—'
-                : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>
-          )
-        },
-      }),
-      {
-        id: 'action',
-        header: () => <div className="text-center">จัดการ</div>,
-        enableSorting: false,
-        cell: ({ row }: { row: { original: OrderRow } }) => (
-          <div className="flex justify-center gap-1.5">
-            <Link
-              href={`/orders/${row.original.publicToken}`}
-              className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
-            >
-              <Icon icon="eye" className="text-base" />
-            </Link>
-          </div>
-        ),
-      },
-    ],
-    [],
-  )
-
-  const table = useReactTable({
-    data: filteredByStatus,
-    columns,
-    state: {
-      sorting,
-      globalFilter,
-      columnFilters,
-      pagination,
-    },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    onColumnFiltersChange: setColumnFilters,
-    onPaginationChange: setPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
-    enableColumnFilters: true,
-    // filterFns object บังคับต้องมีแม้ว่าจะว่าง เพื่อหลีกเลี่ยง TanStack warning
-    filterFns: {},
-  })
-
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
-  const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
-
+  // ─── handle status tab click ─────────────────────────────────────────────
   const handleStatusTab = (value: string) => {
     setLocalStatus(value)
-    setPagination((p) => ({ ...p, pageIndex: 0 }))
-    // sync URL search param เพื่อให้ reload แล้ว SSR render tab เดิม
+    setPageIndex(0)
+    // sync URL เพื่อให้ reload แล้ว SSR render tab เดิม
     if (value === 'all') {
       router.push('/orders')
     } else {
@@ -196,7 +79,7 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
     }
   }
 
-  // นับจำนวน order ต่อ status สำหรับ badge บน tab
+  // ─── count per status ─────────────────────────────────────────────────────
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: orders.length }
     for (const o of orders) {
@@ -205,78 +88,127 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
     return counts
   }, [orders])
 
+  // ─── client filter pipeline ───────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let list = orders
+
+    // 1. status tab
+    if (localStatus !== 'all') {
+      list = list.filter((o) => o.status === localStatus)
+    }
+
+    // 2. order type filter
+    if (typeFilter) {
+      list = list.filter((o) => o.orderType === typeFilter)
+    }
+
+    // 3. global search: เลขออเดอร์ (id/publicToken) หรือ ชื่อลูกค้า/buyer
+    if (search.trim()) {
+      const q = search.toLowerCase().trim()
+      list = list.filter(
+        (o) =>
+          o.id.toLowerCase().includes(q) ||
+          o.publicToken.toLowerCase().includes(q) ||
+          (o.buyerName ?? '').toLowerCase().includes(q) ||
+          o.buyer.toLowerCase().includes(q),
+      )
+    }
+
+    return list
+  }, [orders, localStatus, typeFilter, search])
+
+  // ─── pagination ──────────────────────────────────────────────────────────
+  const totalItems = filtered.length
+  const pageCount  = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage   = Math.min(pageIndex, pageCount - 1)
+  const start      = safePage * pageSize
+  const end        = Math.min(start + pageSize, totalItems)
+  const paginated  = filtered.slice(start, end)
+
+  const handleSearch = (v: string) => {
+    setSearch(v)
+    setPageIndex(0)
+  }
+  const handleTypeFilter = (v: string) => {
+    setTypeFilter(v)
+    setPageIndex(0)
+  }
+  const handlePageSize = (v: number) => {
+    setPageSize(v)
+    setPageIndex(0)
+  }
+
+  // ─── cancel modal callbacks ──────────────────────────────────────────────
+  const handleCancelRequest = (token: string) => {
+    // หา displayId จาก orders
+    const order = orders.find((o) => o.publicToken === token)
+    setCancelToken(token)
+    setCancelDisplay(order?.id.toUpperCase())
+  }
+
   return (
-    <div className="card">
-      {/* Toolbar — search + page size + new order */}
-      <div className="card-header">
-        <div className="flex gap-2.5">
-          <div className="input-icon-group">
-            <Icon icon="search" className="input-icon" />
-            <input
-              type="text"
-              className="form-input"
-              placeholder="ค้นหาออเดอร์..."
-              value={globalFilter}
-              onChange={(e) => {
-                setGlobalFilter(e.target.value)
-                setPagination((p) => ({ ...p, pageIndex: 0 }))
-              }}
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
-          <div className="flex flex-wrap items-center gap-2.5 md:flex-nowrap">
-            {/* Filter by order type */}
-            <div className="input-icon-group">
-              <Icon icon="package" className="input-icon" />
-              <select
-                className="form-select"
-                value={(table.getColumn('orderType')?.getFilterValue() as string) ?? 'All'}
-                onChange={(e) =>
-                  table.getColumn('orderType')?.setFilterValue(
-                    e.target.value === 'All' ? undefined : e.target.value,
-                  )
-                }
-              >
-                <option value="All">ประเภทออเดอร์</option>
-                <option value="PHYSICAL">สินค้า</option>
-                <option value="DIGITAL">ดิจิทัล</option>
-                <option value="SERVICE">บริการ</option>
-              </select>
+    <>
+      {/* ─── Main orders card ─────────────────────────────────────────────── */}
+      <div className="card">
+
+        {/* card-header: search + filters (ซ้าย) + สร้างออเดอร์ (ขวา) ตาม list.html L62-71 */}
+        <div className="card-header flex-wrap gap-3">
+          {/* ซ้าย: search + type filter + page size */}
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            {/* search input พร้อม icon */}
+            <div className="relative">
+              <Icon icon="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-default-500 text-sm" />
+              <input
+                type="text"
+                className="form-input w-full !pl-9 sm:w-64"
+                placeholder="ค้นหาออเดอร์..."
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
             </div>
-            {/* Page size */}
-            <div>
-              <select
-                className="form-select"
-                value={table.getState().pagination.pageSize}
-                onChange={(e) => table.setPageSize(Number(e.target.value))}
-              >
-                {[5, 8, 10, 15, 20].map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </div>
+
+            {/* filter ประเภทออเดอร์ */}
+            <select
+              className="form-select w-auto"
+              value={typeFilter}
+              onChange={(e) => handleTypeFilter(e.target.value)}
+            >
+              {TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* page size */}
+            <select
+              className="form-select w-auto"
+              value={pageSize}
+              onChange={(e) => handlePageSize(Number(e.target.value))}
+            >
+              {PAGE_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  แสดง {s}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
+
+          {/* ขวา: ปุ่มสร้างออเดอร์ — next/link ปกติ (Paces ไม่มี MUI) */}
           <Link
             href="/orders/new"
-            className="btn bg-primary text-white hover:bg-primary-hover"
+            className="btn bg-primary text-white hover:bg-primary-hover shrink-0"
           >
-            <Icon icon="plus" />
+            <Icon icon="plus" className="text-sm" />
             สร้างออเดอร์
           </Link>
         </div>
-      </div>
 
-      {/* Status tabs — Paces underline style */}
-      <div className="card-header px-0 pt-0 pb-0 border-b border-default-200">
-        <div className="flex gap-1 px-5 overflow-x-auto">
+        {/* status tabs — underline style ตาม list.html L74-80 */}
+        <div className="flex gap-1 overflow-x-auto border-b border-default-300 px-3">
           {STATUS_TABS.map((tab) => {
             const active = localStatus === tab.value
-            const count = statusCounts[tab.value] ?? 0
+            const count  = statusCounts[tab.value] ?? 0
             return (
               <button
                 key={tab.value}
@@ -284,52 +216,99 @@ const OrdersList = ({ orders, activeStatus }: Props) => {
                 onClick={() => handleStatusTab(tab.value)}
                 className={cn(
                   'relative inline-flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap',
-                  'border-b-2 transition-colors focus:outline-none',
+                  'border-b-2 transition-colors focus:outline-none shrink-0',
                   active
                     ? 'text-primary border-primary'
                     : 'text-default-500 border-transparent hover:text-primary hover:border-default-400',
                 )}
               >
-                {tab.dot && (
-                  <span className={cn('inline-block size-1.5 rounded-full', tab.dot)} />
-                )}
-                <span>{tab.label}</span>
-                <span
-                  className={cn(
-                    'inline-flex items-center justify-center rounded-full text-xs font-semibold leading-none px-2 py-0.5 min-w-5',
-                    active ? 'bg-primary text-white' : 'bg-default-100 text-default-700',
-                  )}
-                >
+                {tab.label}
+                <span className={cn('ml-1 rounded-full px-1.5 text-xs', tab.badgeCls)}>
                   {count}
                 </span>
               </button>
             )
           })}
         </div>
+
+        {/* card-body: รายการ order การ์ด */}
+        <div className="card-body">
+          {paginated.length === 0 ? (
+            /* empty state — ไม่มีออเดอร์ในแท็บ/filter นี้ */
+            <SellerEmptyState
+              compact
+              icon="shopping-cart-off"
+              title="ไม่มีออเดอร์ในสถานะนี้"
+              action={{ label: '+ สร้างออเดอร์แรก', href: '/orders/new' }}
+            />
+          ) : (
+            <div className="space-y-2.5">
+              {paginated.map((order) => (
+                <OrderCard
+                  key={order.publicToken}
+                  order={order}
+                  onCancelRequest={handleCancelRequest}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* card-footer: pagination ตาม list.html L92-98 */}
+        {totalItems > 0 && (
+          <div className="card-footer">
+            <p className="text-xs text-default-500">
+              แสดง <span>{Math.min(end, totalItems) - start}</span> จาก {totalItems} ออเดอร์
+            </p>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                className="btn btn-sm border-default-300 text-default-700 disabled:opacity-40"
+                disabled={safePage === 0}
+                onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+              >
+                ก่อนหน้า
+              </button>
+
+              {Array.from({ length: pageCount }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={cn(
+                    'btn btn-sm',
+                    i === safePage
+                      ? 'bg-primary text-white'
+                      : 'border-default-300 text-default-700',
+                  )}
+                  onClick={() => setPageIndex(i)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                className="btn btn-sm border-default-300 text-default-700 disabled:opacity-40"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      <DataTable<OrderRow> table={table} emptyMessage="ไม่มีออเดอร์ในขณะนี้" />
-
-      {table.getRowModel().rows.length > 0 && (
-        <div className="card-footer">
-          <TablePagination
-            totalItems={totalItems}
-            start={start}
-            end={end}
-            itemsName="ออเดอร์"
-            showInfo
-            previousPage={table.previousPage}
-            canPreviousPage={table.getCanPreviousPage()}
-            pageCount={table.getPageCount()}
-            pageIndex={table.getState().pagination.pageIndex}
-            setPageIndex={table.setPageIndex}
-            nextPage={table.nextPage}
-            canNextPage={table.getCanNextPage()}
-          />
-        </div>
-      )}
-    </div>
+      {/* CancelOrderModal — hosted ที่นี่เพราะ state cancelToken อยู่ที่ list level */}
+      <CancelOrderModal
+        open={cancelToken !== null}
+        token={cancelToken}
+        displayId={cancelDisplay}
+        onClose={() => {
+          setCancelToken(null)
+          setCancelDisplay(undefined)
+        }}
+      />
+    </>
   )
 }
-
-export default OrdersList

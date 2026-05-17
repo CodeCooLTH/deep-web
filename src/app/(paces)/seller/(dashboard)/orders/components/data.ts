@@ -5,6 +5,16 @@
 
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 
+/** item แต่ละรายการใน order — map จาก OrderItem + product.images[0] */
+export type OrderItemRow = {
+  id: string
+  name: string
+  qty: number
+  price: number         // Decimal → number ที่ RSC boundary
+  /** imageUrl = /api/files/{images[0]} ถ้า product มีรูป; null = placeholder */
+  imageUrl: string | null
+}
+
 export type OrderRow = {
   id: string            // publicToken short (8-char)
   publicToken: string
@@ -17,6 +27,8 @@ export type OrderRow = {
   // component จะ fallback เป็น masked contact / placeholder เอง (T3-T6)
   buyerName: string | null
   buyerUsername: string | null
+  /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
+  items: OrderItemRow[]
 }
 
 // รูปแบบข้อมูลสำหรับ OrdersStatCard (ตาม theme OrderStatType)
