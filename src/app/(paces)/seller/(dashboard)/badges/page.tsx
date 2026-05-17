@@ -16,7 +16,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getBadgeProgress } from '@/services/badge.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import type { BadgeProgress } from '@/types/badge'
 import { BadgeImage } from './BadgeImage'
@@ -179,18 +178,15 @@ function LockedCard({ item }: { item: BadgeProgress }) {
 
   return (
     <div className="card bg-default-50 p-3 text-center rounded-2xl border border-default-200 shadow-sm">
-      {/* art wrapper — 110px + grayscale/opacity บน BadgeImage + lock overlay */}
-      <div className="size-[72px] mx-auto mb-2 relative">
+      {/* art wrapper — grayscale บอกสถานะ locked (section header + progress สื่อครบแล้ว
+          เอา lock-circle overlay ออก: ไอคอนไม่ขึ้น = วงกลมเปล่าดูเป็นบั๊ก + รก) */}
+      <div className="size-[72px] mx-auto mb-2">
         <BadgeImage
           nameEN={item.badge.nameEN}
           imageUrl={item.badge.imageUrl}
           sizeClass="size-[72px]"
-          className="grayscale opacity-70"
+          className="grayscale opacity-60"
         />
-        {/* lock overlay — bottom-right corner (spec: bottom-0.5 right-0.5) */}
-        <div className="absolute bottom-0.5 right-0.5 size-7 rounded-full bg-white border-2 border-default-200 shadow-sm flex items-center justify-center">
-          <Icon icon="tabler-lock" className="size-[18px] text-default-600" />
-        </div>
       </div>
 
       {/* category label — omit ถ้า map ไม่เจอ */}
