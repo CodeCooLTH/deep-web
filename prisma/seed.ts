@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 // Seed ต้องใช้ DIRECT_URL (non-pooled) — pgbouncer transaction mode
 // จะทำให้ FK ไม่ valid ถ้า parent row ถูก write บน session ที่ต่างกัน
@@ -66,13 +67,24 @@ async function main() {
   console.log(`Seeded ${defaultBadges.length} badges`);
 
   // Seed admin user
+  // guard: ป้องกัน seed admin ด้วย null hash เงียบ ๆ — ถ้าไม่มี env var ให้หยุดทันที
+  if (!process.env.ADMIN_DEFAULT_PASSWORD) {
+    throw new Error("ADMIN_DEFAULT_PASSWORD not set — required to seed admin");
+  }
+  // work factor 12 — สมดุลระหว่างความปลอดภัยและเวลา seed ที่ยอมรับได้
+  const passwordHash = await bcrypt.hash(process.env.ADMIN_DEFAULT_PASSWORD, 12);
   const admin = await prisma.user.upsert({
     where: { username: "admin" },
-    update: {},
+    update: {
+      // อัปเดต hash ทุกครั้งที่ seed รันซ้ำ — ป้องกัน passwordHash ค้าง null
+      // จาก seed เก่าที่ไม่มี field นี้
+      passwordHash,
+    },
     create: {
       displayName: "Admin",
       username: "admin",
       isAdmin: true,
+      passwordHash,
       authAccounts: {
         create: { provider: "EMAIL", providerAccountId: "admin@safepay.co" },
       },
