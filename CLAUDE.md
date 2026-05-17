@@ -15,6 +15,7 @@
 | 3 | Commit ที่แตะ UI ต้องมี `Base:` line ชี้ `theme/...` ที่ copy มา | `ui-theme-sourcing` | `docs/system/ui-guideline/README.md` |
 | 4 | Phase ≥3 tasks = agent team (Planner→Developer→Reviewer→QA→Controller, 5 gates, 3-level QA) + retro ปลาย phase | `agent-team-phase`, `phase-retro` | `docs/conventions/agent-team-workflow.md` |
 | 5 | Font Anuphan เท่านั้น — ทุก surface ทุก subdomain ทุก skin (ยกเว้น monospace code block + icon font). ห้าม hardcode font อื่น (Inter/Public Sans/Poppins/Nunito/...) | `ui-theme-sourcing` | `docs/conventions/anuphan-font.md` |
+| 6 | Reference ที่ user ส่ง (asset/mockup/design set/โค้ดตัวอย่าง) = **adapt ให้เข้า theme/layout ปัจจุบัน** ห้าม copy verbatim/แปะดิบ. ถ้าขัด theme มาก → ถาม user ก่อน build. (ตรงข้าม Rule 1/3 โดยตั้งใจ: theme file=copy ใกล้ชิด, ref ภายนอก=adapt) | `ui-theme-sourcing` (reviewer gate) | `docs/conventions/reference-vs-theme-source.md` |
 
 Subagents: `safepay-product` `safepay-planner` `safepay-ux` `safepay-database` `safepay-developer` `safepay-reviewer` `safepay-security` `safepay-qa` `safepay-docs` (ทุกตัว Sonnet; Controller = main session). `safepay-ux` = ออกแบบ UX/UI (read-only Design Spec) invoke ก่อน developer สำหรับ UI task ไม่ trivial. Feature เต็มรูป (7-phase) ดู skill `agent-team-feature`.
 
