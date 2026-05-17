@@ -3,6 +3,17 @@ import FacebookProvider from "next-auth/providers/facebook";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
+import bcrypt from "bcryptjs";
+
+// Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
+// ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
+// key = username, value = timestamps[] ใน sliding window 10 นาที
+const globalForAdminAuth = globalThis as unknown as {
+  adminLoginTimestamps?: Map<string, number[]>;
+};
+const adminLoginTimestamps =
+  globalForAdminAuth.adminLoginTimestamps ??
+  (globalForAdminAuth.adminLoginTimestamps = new Map<string, number[]>());
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -130,6 +141,71 @@ export const authOptions: NextAuthOptions = {
           console.error("[auth] ensure L1 VerificationRecord failed", e);
         }
 
+        return { id: user.id, name: user.displayName, email: user.email };
+      },
+    }),
+    CredentialsProvider({
+      id: "admin-credentials",
+      name: "Admin",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        // (a) empty-credentials guard — username/password falsy → null ทันที
+        if (!credentials?.username || !credentials?.password) return null;
+
+        // (b) password maxLength guard — กัน CPU DoS จาก bcryptjs (pure-JS ต้อง process ทั้ง string ก่อน truncate ที่ 72 bytes)
+        // threshold 1000 ตามที่ security แนะนำ: ยาวกว่านี้ไม่มีผู้ใช้จริง แต่ทำ bcrypt ช้ามาก
+        if (credentials.password.length > 1000) return null;
+
+        // (c) rate-limit: 5 attempts / 10 นาที per username (sliding window)
+        // ต้องอยู่ก่อน DB call — กัน attacker probe username ที่ไม่มี/ไม่ใช่ admin ได้ไม่จำกัด
+        // บันทึก attempt ทุกชนิด (รวม fail) เพื่อ gate DB load ด้วย
+        const WINDOW_MS = 10 * 60 * 1000;
+        const MAX_ATTEMPTS = 5;
+        const now = Date.now();
+        const cutoff = now - WINDOW_MS;
+        const prev = adminLoginTimestamps.get(credentials.username) ?? [];
+        const recent = prev.filter((t) => t > cutoff);
+        if (recent.length >= MAX_ATTEMPTS) {
+          // trim stale แล้วปฏิเสธ — ไม่บันทึก attempt เพิ่ม (นับเกินแล้ว)
+          adminLoginTimestamps.set(credentials.username, recent);
+          return null;
+        }
+        // บันทึก attempt ก่อนตรวจ password — นับทุก attempt ไม่ว่าจะสำเร็จหรือไม่
+        recent.push(now);
+        adminLoginTimestamps.set(credentials.username, recent);
+
+        // (d) หา user จาก username — ใช้ findUnique (username เป็น @unique ใน schema) แทน findFirst
+        const user = await prisma.user.findUnique({
+          where: { username: credentials.username },
+        });
+
+        // (e) ไม่เจอ user → return null (ห้ามบอก error ละเอียด — กัน user enumeration)
+        if (!user) return null;
+
+        // (f) ต้องเป็น admin เท่านั้น — buyer/seller ที่รู้รหัส login เข้าไม่ได้
+        if (!user.isAdmin) return null;
+
+        // (g) ยังไม่มี passwordHash → reject (account ยังไม่ได้ตั้งรหัส)
+        if (user.passwordHash == null) return null;
+
+        // (h) ตรวจ password ด้วย bcrypt — ใช้ bcryptjs (pure JS ไม่มี native addon)
+        // ป้องกัน bcrypt throw ไม่ให้กลายเป็น 500 — catch แล้ว return null แทน
+        try {
+          const valid = await bcrypt.compare(
+            credentials.password,
+            user.passwordHash,
+          );
+          if (!valid) return null;
+        } catch (e) {
+          // log best-effort เพื่อ debug — ไม่ log credentials หรือ hash
+          console.error("[auth] admin bcrypt.compare failed", e);
+          return null;
+        }
+
+        // (i) สำเร็จ — return shape เดียวกับ phone-otp ให้ jwt callback รับ token.userId ได้
         return { id: user.id, name: user.displayName, email: user.email };
       },
     }),
