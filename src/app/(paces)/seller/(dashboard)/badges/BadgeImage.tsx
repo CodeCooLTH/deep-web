@@ -18,15 +18,15 @@ import { useState } from 'react'
 type BadgeImageProps = {
   nameEN: string
   imageUrl: string | null
-  /** ขนาด Tailwind class เช่น 'size-6' (widget) หรือ 'size-8' (earned card ≥96px circle) */
+  /** ขนาด Tailwind class เช่น 'size-6' (earned circle) หรือ 'size-5' (in-progress row) */
   sizeClass?: string
   className?: string
 }
 
 /**
- * BadgeImage — render รูป badge ตาม precedence
- * earned card: wrapper มี size-24 (≥96px) circle; ตัว img/icon size-8 ภายใน
- * in-progress row: wrapper มี size-10 circle; ตัว icon size-5
+ * BadgeImage — render รูป badge ตาม precedence (imageUrl → img onError → IconifyIcon)
+ * earned card: wrapper circle size-12; ตัว img/icon size-6 ภายใน
+ * in-progress row: wrapper circle size-10; ตัว icon size-5
  * component นี้รับแค่ icon/img — ไม่รู้เรื่อง wrapper circle (parent จัดการ)
  */
 export function BadgeImage({ nameEN, imageUrl, sizeClass = 'size-6', className = '' }: BadgeImageProps) {

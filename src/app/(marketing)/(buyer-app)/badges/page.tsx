@@ -74,21 +74,30 @@ export default async function BadgesPage() {
             title='ได้รับแล้ว'
             subheader={`${earned.length} แบดจ์`}
           />
-          {/* earned grid — icon ≥96px ตาม spec; layout: grid 2 col sm:3 col md:4 col */}
-          <CardContent>
-            <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4'>
-              {earned.map(item => (
-                <div key={item.badge.id} className='flex flex-col items-center gap-2 p-3 rounded-lg border border-[var(--mui-palette-divider)] bg-[var(--mui-palette-action-hover)]'>
-                  {/* precedence: imageUrl → img(onError→emoji) → emoji badge.icon (ไม่ใช่ lucide) */}
-                  <BadgeIcon imageUrl={item.badge.imageUrl} icon={item.badge.icon} size={96} alt={item.badge.name} />
-                  <Typography className='font-medium text-center text-sm' color='text.primary'>
-                    {item.badge.name}
-                  </Typography>
+          {/* โครงสร้าง row จาก ActiveProjects: flex items-center gap-4 → icon + label + chip */}
+          <CardContent className='flex flex-col gap-4'>
+            {earned.map(item => (
+              <div key={item.badge.id} className='flex items-center gap-4'>
+                {/* icon circle ขนาด w-8 h-8 — เท่ากับ theme เดิม; img แทน tabler:award ขนาด 20px เท่าเดิม */}
+                <span className='flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary flex-shrink-0'>
+                  <BadgeIcon imageUrl={item.badge.imageUrl} icon={item.badge.icon} size={20} alt={item.badge.name} />
+                </span>
+                <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
+                  <div className='flex flex-col'>
+                    <Typography className='font-medium' color='text.primary'>
+                      {item.badge.name}
+                    </Typography>
+                    {item.progressLabel && (
+                      <Typography variant='body2' color='text.secondary'>
+                        {item.progressLabel}
+                      </Typography>
+                    )}
+                  </div>
                   {/* Chip style ref จาก Courses.tsx line 133 */}
                   <Chip label='ได้รับแล้ว' variant='tonal' size='small' color='success' />
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -107,8 +116,10 @@ export default async function BadgesPage() {
               const pct = Math.round(item.progressRatio * 100)
               return (
                 <div key={item.badge.id} className='flex items-center gap-4'>
-                  {/* in-progress: ขนาดเล็ก 32px เพราะเป็น list row ไม่ใช่ grid */}
-                  <BadgeIcon imageUrl={item.badge.imageUrl} icon={item.badge.icon} size={32} alt={item.badge.name} />
+                  {/* icon circle ขนาด w-8 h-8 — เท่ากับ theme เดิม; img แทน tabler:award ขนาด 20px เท่าเดิม */}
+                  <span className='flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary flex-shrink-0'>
+                    <BadgeIcon imageUrl={item.badge.imageUrl} icon={item.badge.icon} size={20} alt={item.badge.name} />
+                  </span>
                   <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
                     <div className='flex flex-col'>
                       <Typography className='font-medium' color='text.primary'>

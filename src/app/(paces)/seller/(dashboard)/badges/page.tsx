@@ -108,18 +108,17 @@ export default async function BadgesPage() {
 /**
  * EarnedCard — card ของ badge ที่ได้รับแล้ว
  * card shell + icon circle: มาจาก StatisticCard (card/card-body + bg-primary/15 rounded-full)
- * ขนาด circle: size-24 (≥96px) ตาม T3B spec สำหรับ earned badge; ใช้ BadgeImage client island
  */
 function EarnedCard({ item }: { item: BadgeProgress }) {
   return (
     <div className="card h-full" title={item.badge.name}>
       <div className="card-body flex flex-col items-center text-center gap-3 py-5">
-        {/* icon circle — size-24 (≥96px) per T3B earned spec; ถ้ามี imageUrl แสดงรูป ถ้าไม่มีใช้ lucide icon */}
-        <div className="size-24 bg-primary/15 text-primary rounded-full flex items-center justify-center overflow-hidden">
+        {/* icon circle — size-12 ตาม theme เดิม (StatisticCard pattern); img แทน icon ขนาด size-6 เท่าเดิม */}
+        <div className="size-12 bg-primary/15 text-primary rounded-full flex items-center justify-center overflow-hidden">
           <BadgeImage
             nameEN={item.badge.nameEN}
             imageUrl={item.badge.imageUrl}
-            sizeClass="size-12"
+            sizeClass="size-6"
             className="text-primary"
           />
         </div>
