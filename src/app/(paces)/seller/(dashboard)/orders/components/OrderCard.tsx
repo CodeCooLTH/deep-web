@@ -13,6 +13,7 @@
 'use client'
 
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
+import SendSmsButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/SendSmsButton'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
@@ -318,6 +319,9 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
 
           {/* คัดลอกลิงก์ผู้ซื้อ (D7) — resolve buyer domain runtime */}
           <OrderCardCopyLink token={order.publicToken} />
+
+          {/* ส่งลิงก์ทาง SMS — RC-8: ส่งแค่ publicToken (ห้าม buyerContact) */}
+          <SendSmsButton publicToken={order.publicToken} compact />
 
           {/* ดูรายละเอียด — next/link ปกติ (Paces = ไม่มี MUI) */}
           <Link

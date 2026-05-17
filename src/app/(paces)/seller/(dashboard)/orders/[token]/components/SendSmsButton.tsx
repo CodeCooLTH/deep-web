@@ -1,30 +1,47 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+/**
+ * SendSmsButton — ปุ่มส่งลิงก์ทาง SMS พร้อม confirm dialog
+ *
+ * Base (dialog shell): src/app/(paces)/seller/(dashboard)/orders/components/CancelOrderModal.tsx
+ *   (controlled overlay/card/confirm-cancel pattern — backdrop bg-dark/40, card, card-header/body/footer)
+ *   ดู Base เดิมของ CancelOrderModal: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
+ *
+ * RC-8: ห้ามรับ buyerContact/phone ใดๆ — server-side ดึง buyer phone เองผ่าน DAL
+ *
+ * compact prop (ใหม่): ตอน true ปุ่มเล็ก icon+text สั้น สำหรับ list row; false = ปกติ
+ * dialog เหมือนกันทั้งสองโหมด
+ *
+ * เปลี่ยนจาก inline 2-step (confirm state + timeout 5s) → confirm dialog
+ * ลบ 403-L2 error case ออก — route ไม่ return 403 L2 อีก (product decision 2026-05-17)
+ */
 
+import { Icon } from '@iconify/react'
 import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
 
 // RC-8: ห้ามรับ buyerContact/phone ใดๆ — server-side ดึง buyer phone เองผ่าน DAL
 interface SendSmsButtonProps {
   publicToken: string
+  /** compact=true → ปุ่มเล็ก icon+text สั้น สำหรับ list row footer */
+  compact?: boolean
 }
 
-type UiState = 'idle' | 'confirm' | 'sending' | 'success'
-
-// กำหนด timeout ชัดเจนเพื่อ cleanup ไม่ให้ leak
-const CONFIRM_TIMEOUT_MS = 5000
+// SUCCESS_RESET_MS: reset ปุ่มกลับ idle หลัง success (ยังใช้งานอยู่)
 const SUCCESS_RESET_MS = 3000
 
-export default function SendSmsButton({ publicToken }: SendSmsButtonProps) {
-  const [uiState, setUiState] = useState<UiState>('idle')
+export default function SendSmsButton({ publicToken, compact = false }: SendSmsButtonProps) {
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [sending, setSending] = useState(false)
   // error message แยกตาม HTTP status — บางเคส embed JSX ด้วย Link
   const [errorNode, setErrorNode] = useState<React.ReactNode | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
 
   // useRef เพื่อ clear timeout ได้ทั้ง on unmount และ on state change — กัน leak
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // clear timer เมื่อ state เปลี่ยน หรือ unmount
+  // cleanup timer เมื่อ unmount — กัน setState after unmount
   useEffect(() => {
     return () => {
       if (timerRef.current !== null) {
@@ -32,33 +49,22 @@ export default function SendSmsButton({ publicToken }: SendSmsButtonProps) {
         timerRef.current = null
       }
     }
-  }, [uiState])
+  }, [])
 
-  const clearTimer = () => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
+  const handleOpenDialog = () => {
+    setErrorNode(null)
+    setDialogOpen(true)
   }
 
-  const goIdle = () => {
-    clearTimer()
-    setUiState('idle')
+  const handleCloseDialog = () => {
+    if (sending) return
+    setDialogOpen(false)
     setErrorNode(null)
   }
 
-  const handleInitialClick = () => {
-    setErrorNode(null)
-    setUiState('confirm')
-    // timeout 5s ไม่ทำอะไร → กลับ idle อัตโนมัติ (Controller decision LOCKED)
-    timerRef.current = setTimeout(() => {
-      setUiState('idle')
-    }, CONFIRM_TIMEOUT_MS)
-  }
-
-  const handleConfirm = async () => {
-    clearTimer()
-    setUiState('sending')
+  const handleSend = async () => {
+    if (sending) return
+    setSending(true)
     setErrorNode(null)
 
     try {
@@ -68,112 +74,136 @@ export default function SendSmsButton({ publicToken }: SendSmsButtonProps) {
       })
 
       if (res.ok) {
-        setUiState('success')
         toast.success('ส่ง SMS แล้ว ฿1 ถูกหักจากเครดิต')
+        setDialogOpen(false)
+        setShowSuccess(true)
+        // reset success state หลัง SUCCESS_RESET_MS
         timerRef.current = setTimeout(() => {
-          setUiState('idle')
+          setShowSuccess(false)
+          timerRef.current = null
         }, SUCCESS_RESET_MS)
         return
       }
 
-      // แปลง HTTP error เป็น inline node ตาม spec
+      // แปลง HTTP error เป็น inline node — แสดงใน dialog
       const errorResult = buildErrorNode(res.status)
       setErrorNode(errorResult)
-      setUiState('idle')
     } catch {
       // network / unexpected error
       setErrorNode('ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่')
-      setUiState('idle')
+    } finally {
+      setSending(false)
     }
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {uiState === 'idle' && (
+    <>
+      {/* ── ปุ่มหลัก ── */}
+      {showSuccess ? (
+        <span className="text-xs text-success font-medium">ส่งแล้ว</span>
+      ) : (
         <button
           type="button"
-          onClick={handleInitialClick}
-          className="btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+          onClick={handleOpenDialog}
+          className={
+            compact
+              ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
+              : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs'
+          }
         >
-          {/* tabler-message icon */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          ส่งลิงก์ทาง SMS (฿1)
+          <Icon icon="tabler:message" className="text-sm" aria-hidden="true" />
+          {compact ? 'SMS' : 'ส่งลิงก์ทาง SMS (฿1)'}
         </button>
       )}
 
-      {uiState === 'confirm' && (
-        <div className="inline-flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-default-700">ยืนยันส่ง SMS? (฿1)</span>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            className="btn btn-sm bg-primary text-white hover:bg-primary-hover px-3 py-1.5 text-xs"
-          >
-            ยืนยัน
-          </button>
-          <button
-            type="button"
-            onClick={goIdle}
-            className="btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 px-3 py-1.5 text-xs"
-          >
-            ยกเลิก
-          </button>
+      {/* ── Confirm Dialog — Base: CancelOrderModal (overlay/card/card-header/card-body/card-footer) ── */}
+      {dialogOpen && (
+        /* overlay backdrop — controlled React state เหมือน CancelOrderModal */
+        <div
+          className="size-full fixed top-0 start-0 z-80 overflow-x-hidden overflow-y-auto bg-dark/40 flex items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sendSmsDialogLabel"
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleCloseDialog()
+          }}
+        >
+          {/* animation wrapper — copy จาก CancelOrderModal */}
+          <div className="ease-in-out transition-all duration-200 sm:max-w-sm w-[calc(100%-24px)] m-3 sm:mx-auto flex items-center">
+            <div className="w-full flex flex-col card pointer-events-auto">
+
+              {/* Header */}
+              <div className="card-header p-5">
+                <h3 id="sendSmsDialogLabel" className="font-medium text-sm">
+                  ยืนยันส่งลิงก์ทาง SMS
+                </h3>
+                <button
+                  type="button"
+                  aria-label="ปิด"
+                  onClick={handleCloseDialog}
+                  disabled={sending}
+                  className="disabled:opacity-40"
+                >
+                  <Icon icon="tabler:x" className="text-2xl align-middle text-default-600" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="card-body flex flex-col items-center text-center gap-4 py-6">
+                {/* วงกลม primary icon */}
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Icon icon="tabler:message-forward" className="text-3xl" />
+                </span>
+
+                <div>
+                  <p className="font-semibold text-default-800 text-base">ส่งลิงก์ทาง SMS?</p>
+                  <p className="mt-1 text-sm text-default-500">
+                    ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อ และหัก ฿1 จากเครดิต SMS ของคุณ
+                  </p>
+                </div>
+
+                {/* inline error (แสดงใน dialog ก่อนปิด) */}
+                {errorNode && (
+                  <p className="text-danger text-xs w-full text-left" role="alert">
+                    {errorNode}
+                  </p>
+                )}
+              </div>
+
+              {/* Footer — 2 ปุ่ม */}
+              <div className="flex justify-end items-center gap-x-2 border-t border-default-300 card-body">
+                <button
+                  type="button"
+                  className="btn bg-light hover:text-primary disabled:opacity-40"
+                  onClick={handleCloseDialog}
+                  disabled={sending}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  className="btn bg-primary text-white hover:opacity-90 disabled:opacity-60 inline-flex items-center gap-2"
+                  onClick={handleSend}
+                  disabled={sending}
+                >
+                  {sending && (
+                    <Icon icon="tabler:loader-2" className="size-4 animate-spin" />
+                  )}
+                  ส่ง SMS
+                </button>
+              </div>
+
+            </div>
+          </div>
         </div>
       )}
-
-      {uiState === 'sending' && (
-        <button
-          type="button"
-          disabled
-          className="btn btn-sm border border-default-300 bg-card text-default-400 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs disabled:opacity-60 cursor-not-allowed"
-        >
-          {/* spinner */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="animate-spin"
-            aria-hidden="true"
-          >
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-          </svg>
-          กำลังส่ง...
-        </button>
-      )}
-
-      {uiState === 'success' && (
-        <span className="text-xs text-success font-medium">ส่งแล้ว</span>
-      )}
-
-      {errorNode && (
-        <p className="text-danger text-xs mt-0.5" role="alert">
-          {errorNode}
-        </p>
-      )}
-    </div>
+    </>
   )
 }
 
 // แยก function เพื่อความชัดเจน — map HTTP status → inline error node
+// หมายเหตุ: ลบ case 403 (L2 gate) ออกแล้ว — route ไม่ return 403 อีกตาม product decision 2026-05-17
 function buildErrorNode(status: number): React.ReactNode {
   switch (status) {
     case 402:
@@ -182,15 +212,6 @@ function buildErrorNode(status: number): React.ReactNode {
           เครดิตไม่พอ —{' '}
           <Link href="/wallet" className="underline hover:text-danger-dark">
             ซื้อเครดิต SMS
-          </Link>
-        </>
-      )
-    case 403:
-      return (
-        <>
-          ต้องยืนยันตัวตนระดับ L2 ก่อน —{' '}
-          <Link href="/verification" className="underline hover:text-danger-dark">
-            ยืนยันตัวตน
           </Link>
         </>
       )

@@ -5,7 +5,6 @@ import { authOptions } from "@/lib/auth";
 import { SendSmsSchema } from "@/lib/validations";
 import { getShopByUserId } from "@/services/shop.service";
 import { getOrderForShop } from "@/services/order.service";
-import { getMaxVerificationLevel } from "@/services/verification.service";
 import { issueSmsCode, markSmsCodeDelivery } from "@/services/sms-code.service";
 import { deductCredit, creditWallet } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
@@ -59,7 +58,9 @@ async function getDailySmsCount(shopId: string): Promise<number> {
 // Flow (ลำดับแก้ไขตาม RC-5 + OQ-5 MUST-FIX):
 // 1. session check → 401 ถ้าไม่มี session
 // 2. DAL ownership: resolve shop จาก session.user.id → load order scoped ด้วย shopId ใน WHERE (S-C7)
-// 3. D3 / RC-5: verification gate L2+ (DOCUMENT APPROVED) — ห้าม test-account exception
+// 3. [ถูกตัด] L2 verification gate (D3/RC-5) ถูกตัดตาม product decision 2026-05-17 — credit-only
+//    (มีเครดิตก็ส่งได้). anti-abuse เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap + RC-1.
+//    ดู retro 2026-05-17 + spec note
 // 4. RC-4: daily SMS cap DB-layer (200/วัน ICT boundary)
 // 5. OQ-5: in-memory hourly rate-limit (20/ชม./shop, globalThis) → 429 เกิน
 // 6. body parse ด้วย SendSmsSchema (v.object({}) — RC-6/RC-8: ไม่รับ phone จาก client)
@@ -101,19 +102,10 @@ export async function POST(
     return NextResponse.json({ error: "ไม่พบคำสั่งซื้อ" }, { status: 404 });
   }
 
-  // ── Step 3: RC-4 / D3 Verification gate L2+ ──────────────────────────────
-  // D3: seller ต้องมี verification ระดับ DOCUMENT (L2) APPROVED ขึ้นไป
-  // RC-5 mandate: ไม่มี test-account exception ทุกกรณี — query จริงเสมอ
-  const maxLevel = await getMaxVerificationLevel(userId);
-  if (maxLevel < 2) {
-    return NextResponse.json(
-      {
-        error:
-          "ต้องยืนยันตัวตนระดับ L2 (เอกสารบัตรประชาชน+เซลฟี่) ขึ้นไปก่อนส่ง SMS",
-      },
-      { status: 403 },
-    );
-  }
+  // ── Step 3: [ถูกตัด] L2 verification gate (D3/RC-5) ──────────────────────
+  // L2 verification gate (D3/RC-5) ถูกตัดตาม product decision 2026-05-17 — credit-only
+  // (มีเครดิตก็ส่งได้). anti-abuse เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap + RC-1.
+  // ดู retro 2026-05-17 + spec note
 
   // ── Step 4: RC-4 daily SMS cap (DB-layer) ────────────────────────────────
   // นับ WalletTransaction DEDUCT วันนี้ของ shop นี้ — แยกจาก in-memory hourly burst
