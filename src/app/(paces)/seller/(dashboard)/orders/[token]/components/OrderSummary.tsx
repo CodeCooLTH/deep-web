@@ -12,7 +12,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
-import CopyLinkButton from './CopyLinkButton'
+import OrderCopyLink from './OrderCopyLink'
 import SendSmsButton from './SendSmsButton'
 import OrderActions from './OrderActions'
 
@@ -159,7 +159,7 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           </p>
           {/* RC-8: ส่งแค่ publicToken — ไม่มี buyerContact/phone ผ่านมาที่นี่ */}
           <div className="flex flex-wrap gap-2">
-            <CopyLinkButton publicToken={order.publicToken} />
+            <OrderCopyLink publicToken={order.publicToken} />
             <SendSmsButton publicToken={order.publicToken} />
           </div>
         </div>
