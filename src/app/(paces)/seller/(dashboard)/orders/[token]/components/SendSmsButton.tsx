@@ -77,7 +77,7 @@ export default function SendSmsButton({ publicToken }: SendSmsButtonProps) {
       }
 
       // แปลง HTTP error เป็น inline node ตาม spec
-      const errorResult = await buildErrorNode(res.status)
+      const errorResult = buildErrorNode(res.status)
       setErrorNode(errorResult)
       setUiState('idle')
     } catch {
@@ -174,7 +174,7 @@ export default function SendSmsButton({ publicToken }: SendSmsButtonProps) {
 }
 
 // แยก function เพื่อความชัดเจน — map HTTP status → inline error node
-async function buildErrorNode(status: number): Promise<React.ReactNode> {
+function buildErrorNode(status: number): React.ReactNode {
   switch (status) {
     case 402:
       return (

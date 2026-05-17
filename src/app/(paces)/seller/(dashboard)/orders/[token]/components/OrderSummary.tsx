@@ -13,6 +13,7 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import CopyLinkButton from './CopyLinkButton'
+import SendSmsButton from './SendSmsButton'
 import OrderActions from './OrderActions'
 
 const STATUS_META: Record<string, { label: string; cls: string; icon: string }> = {
@@ -156,7 +157,11 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           <p className="text-default-400 text-xs mb-3">
             ส่งลิงก์นี้ให้ผู้ซื้อเพื่อยืนยันและรีวิวออเดอร์
           </p>
-          <CopyLinkButton publicToken={order.publicToken} />
+          {/* RC-8: ส่งแค่ publicToken — ไม่มี buyerContact/phone ผ่านมาที่นี่ */}
+          <div className="flex flex-wrap gap-2">
+            <CopyLinkButton publicToken={order.publicToken} />
+            <SendSmsButton publicToken={order.publicToken} />
+          </div>
         </div>
 
         {/* การดำเนินการออเดอร์ */}
