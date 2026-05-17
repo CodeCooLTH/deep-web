@@ -620,3 +620,144 @@ export async function getBadgeProgress(
 
   return results
 }
+
+// ─── getBadgeRarity ────────────────────────────────────────────────────────────
+
+export type RarityTier = 'COMMON' | 'UNCOMMON' | 'RARE' | 'LEGENDARY'
+
+export interface BadgeRarity {
+  pct: number
+  tier: RarityTier
+  earnedCount: number
+  shopCount: number
+}
+
+/**
+ * getBadgeRarity — คำนวณความหายากของ badge จากสัดส่วนร้านที่ได้รับ
+ *
+ * ทำไม shopCount (ไม่ใช่ userCount): badge ระบบนี้ออกแบบสำหรับ seller
+ * threshold ตาม Controller decision:
+ *   ≥50% COMMON / 20–49.9% UNCOMMON / 5–19.9% RARE / <5% LEGENDARY
+ * ถ้า shopCount=0 → pct=0, tier=LEGENDARY (edge case ไม่มีร้านเลย)
+ * คืน null ถ้า badgeId ไม่มีจริง — กัน fabricated LEGENDARY ให้ badge มั่ว (security MEDIUM)
+ */
+export async function getBadgeRarity(badgeId: string): Promise<BadgeRarity | null> {
+  const exists = await prisma.badge.findUnique({ where: { id: badgeId }, select: { id: true } })
+  if (!exists) return null
+  const [earnedCount, shopCount] = await Promise.all([
+    prisma.userBadge.count({ where: { badgeId } }),
+    prisma.shop.count(),
+  ])
+  const pct = shopCount > 0 ? (earnedCount / shopCount) * 100 : 0
+  let tier: RarityTier
+  if (pct >= 50) tier = 'COMMON'
+  else if (pct >= 20) tier = 'UNCOMMON'
+  else if (pct >= 5) tier = 'RARE'
+  else tier = 'LEGENDARY'
+  return { pct, tier, earnedCount, shopCount }
+}
+
+// ─── getBadgePaceEstimate ──────────────────────────────────────────────────────
+
+export type PaceReason = 'estimated' | 'no_data' | 'non_countable' | 'earned'
+
+export interface BadgePaceEstimate {
+  estimateDays: number | null
+  ratePerDay: number | null
+  reason: PaceReason
+}
+
+/**
+ * getBadgePaceEstimate — ประเมิน "กี่วันถึงจะได้รับ" badge จากอัตราย้อนหลัง 30 วัน
+ *
+ * ทำไม window 30 วัน: สั้นพอที่จะ reflect พฤติกรรมล่าสุด ยาวพอมี data ในช่วง active
+ *
+ * countable types: ORDER_COUNT/FIRST_ORDER/ZERO_COMPLAINT (นับ order ใน shop) /
+ *   UNIQUE_REVIEWERS (distinct reviewer)
+ * non-countable types: VETERAN/HIGH_RATING/PERFECT_RATING/FAST_SHIPPING/
+ *   FULL_VERIFICATION/SIGNUP_YEAR → reason=non_countable
+ *
+ * ถ้า badge.earned → reason='earned', nulls
+ */
+export async function getBadgePaceEstimate(
+  userId: string,
+  badge: BadgeProgress,
+): Promise<BadgePaceEstimate> {
+  if (badge.earned) return { estimateDays: null, ratePerDay: null, reason: 'earned' }
+
+  const criteria = parseCriteria(badge.badge.criteria)
+  if (!criteria) return { estimateDays: null, ratePerDay: null, reason: 'non_countable' }
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+  switch (criteria.type) {
+    case 'FIRST_ORDER':
+    case 'ORDER_COUNT':
+    case 'ZERO_COMPLAINT': {
+      const shop = await getShopForUser(userId)
+      if (!shop) return { estimateDays: null, ratePerDay: null, reason: 'no_data' }
+      const statuses = resolveStatuses(criteria)
+      // นับ order CONFIRMED ใน 30 วันล่าสุด — ใช้ updatedAt เพราะ order complete เมื่อ status update
+      const recentCount = await prisma.order.count({
+        where: {
+          shopId: shop.id,
+          status: { in: statuses },
+          updatedAt: { gte: thirtyDaysAgo },
+        },
+      })
+      const ratePerDay = recentCount / 30
+
+      // คำนวณ remaining จาก progressRatio
+      let threshold = 1
+      if (criteria.type === 'ORDER_COUNT') threshold = criteria.count
+      else if (criteria.type === 'ZERO_COMPLAINT') threshold = criteria.minOrders
+
+      const currentProgress = Math.round(badge.progressRatio * threshold)
+      const remaining = Math.max(0, threshold - currentProgress)
+
+      if (remaining === 0) return { estimateDays: null, ratePerDay, reason: 'no_data' }
+      if (ratePerDay <= 0) return { estimateDays: null, ratePerDay: 0, reason: 'no_data' }
+
+      const estimateDays = Math.ceil(remaining / ratePerDay)
+      return { estimateDays, ratePerDay, reason: 'estimated' }
+    }
+
+    case 'UNIQUE_REVIEWERS': {
+      const shop = await getShopForUser(userId)
+      if (!shop) return { estimateDays: null, ratePerDay: null, reason: 'no_data' }
+      // distinct reviewer ใน 30 วันล่าสุด
+      const recentRows = await prisma.review.findMany({
+        where: {
+          order: { shopId: shop.id },
+          reviewerUserId: { not: null },
+          createdAt: { gte: thirtyDaysAgo },
+        },
+        distinct: ['reviewerUserId'],
+        select: { reviewerUserId: true },
+      })
+      const recentCount = recentRows.length
+      const ratePerDay = recentCount / 30
+
+      const threshold = criteria.count
+      const currentProgress = Math.round(badge.progressRatio * threshold)
+      const remaining = Math.max(0, threshold - currentProgress)
+
+      if (remaining === 0) return { estimateDays: null, ratePerDay, reason: 'no_data' }
+      if (ratePerDay <= 0) return { estimateDays: null, ratePerDay: 0, reason: 'no_data' }
+
+      const estimateDays = Math.ceil(remaining / ratePerDay)
+      return { estimateDays, ratePerDay, reason: 'estimated' }
+    }
+
+    case 'VETERAN':
+    case 'HIGH_RATING':
+    case 'PERFECT_RATING':
+    case 'FAST_SHIPPING':
+    case 'FULL_VERIFICATION':
+    case 'SIGNUP_YEAR':
+      return { estimateDays: null, ratePerDay: null, reason: 'non_countable' }
+
+    default:
+      return { estimateDays: null, ratePerDay: null, reason: 'non_countable' }
+  }
+}
