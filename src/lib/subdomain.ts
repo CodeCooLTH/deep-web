@@ -10,7 +10,7 @@ export function getSubdomain(host: string): SubdomainType {
 export function getLoginPath(subdomain: SubdomainType): string {
   switch (subdomain) {
     case "seller": return "/auth/sign-in";
-    case "admin": return "/admin/auth/sign-in";
+    case "admin": return "/auth/sign-in";
     default: return "/auth/sign-in";
   }
 }
