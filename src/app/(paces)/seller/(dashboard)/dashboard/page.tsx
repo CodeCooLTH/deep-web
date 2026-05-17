@@ -29,31 +29,13 @@ import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
 import UserCard from './components/UserCard'
 import AchievementLevel from './components/AchievementLevel'
-import type { AchievementBadge } from './components/AchievementLevel'
+import { getBadgeProgress } from '@/services/badge.service'
+import type { BadgeProgress } from '@/types/badge'
 import type { StatType } from './components/StatisticCard'
 import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
 import type { OrderType } from './components/data'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
-
-// ─── helper: แปล badge criteria object → ข้อความไทย ─────────────────────────
-function criteriaToText(c: unknown): string {
-  if (!c || typeof c !== 'object') return ''
-  const obj = c as Record<string, unknown>
-  switch (obj['type']) {
-    case 'FIRST_ORDER':       return 'ปิดออเดอร์แรกได้'
-    case 'ORDER_COUNT':       return `ปิด ${obj['count']} ออเดอร์`
-    case 'PERFECT_RATING':    return `เรตติ้ง 5.0 (ต้องมี ${obj['minReviews']}+ รีวิว)`
-    case 'HIGH_RATING':       return `เรตติ้ง ≥ ${obj['minRating']} (${obj['minReviews']}+ รีวิว)`
-    case 'ZERO_COMPLAINT':    return `ปิด ${obj['minOrders']} ออเดอร์ ไม่มี cancel`
-    case 'VETERAN':           return `เป็นสมาชิกครบ ${obj['minDays'] ?? 365} วัน`
-    case 'FAST_SHIPPING':     return `จัดส่งเฉลี่ย ≤ ${obj['maxHours']} ชม. (${obj['minOrders']}+ ออเดอร์)`
-    case 'FULL_VERIFICATION': return 'ยืนยันตัวตนครบทุกระดับ'
-    case 'UNIQUE_REVIEWERS':  return `ผู้รีวิว ${obj['count']}+ คน`
-    case 'SIGNUP_YEAR':       return `สมัครภายในปี ${obj['year']}`
-    default:                  return ''
-  }
-}
 
 /** PDPA masking — แสดงเฉพาะ 4 ตัวท้าย ปิดส่วนที่เหลือด้วย bullet
  *  คัดลอก logic จาก customers/page.tsx และ orders/[token]/components/CustomerDetails.tsx
@@ -81,11 +63,11 @@ export default async function SellerDashboardPage() {
   const user = (session as { user?: { id?: string; trustScore?: number; name?: string } } | null)?.user
 
   // ─── badge + trust score data (server-side) ─────────────────────────────────
-  let badges: AchievementBadge[] = []
+  let earnedBadges: BadgeProgress[] = []
+  let topInProgress: BadgeProgress[] = []
   let score = 0
   let level = 'D'
   let levelColor = 'text-danger'
-  let nextMilestone: string | undefined
   let shopName = 'ร้านค้าของคุณ'
   // ออเดอร์ล่าสุดสำหรับ RecentOrder widget (real data)
   let recentOrders: OrderType[] = []
@@ -167,38 +149,20 @@ export default async function SellerDashboardPage() {
         }
       }
 
-      const earnedRows = await prisma.userBadge.findMany({
-        where: { userId: user.id },
-        select: { badgeId: true },
-      })
-      const earnedBadgeIds = new Set(earnedRows.map((x: { badgeId: string }) => x.badgeId))
-
-      const allBadges = await prisma.badge.findMany({
-        where: { type: 'ACHIEVEMENT' },
-        orderBy: { createdAt: 'asc' },
-      })
-
-      badges = allBadges.map((b: { id: string; name: string; nameEN: string; icon: string | null; imageUrl: string | null; criteria: unknown }) => ({
-        id: b.id,
-        name: b.name,
-        nameEN: b.nameEN,
-        icon: b.icon,
-        // imageUrl ส่งมาจาก badge row เต็ม (T3B) — AchievementLevel render เป็นรูปถ้ามีค่า
-        imageUrl: b.imageUrl,
-        earned: earnedBadgeIds.has(b.id),
-        criteria: criteriaToText(b.criteria),
-      }))
-
-      const firstUnearned = badges.find((b) => !b.earned)
-      nextMilestone = firstUnearned
-        ? `ยังต้องการ: ${firstUnearned.criteria}`
-        : 'ปลดล็อกทุก achievement แล้ว!'
+      // T9: ใช้ getBadgeProgress แทน prisma.userBadge + prisma.badge สองรอบ
+      // perf debt ยอมรับ — เหมือน /badges page (Q3 Controller decision)
+      const rawProgress = await getBadgeProgress(user.id, 'SELLER')
+      earnedBadges = rawProgress.filter((i) => i.earned)
+      // top in-progress: ยังไม่ได้รับ, เรียง progressRatio มากสุดก่อน, slice 4 รายการ
+      topInProgress = rawProgress
+        .filter((i) => !i.earned)
+        .sort((a, b) => b.progressRatio - a.progressRatio)
+        .slice(0, 4)
     } catch (e) {
       // ใช้ console.error เพื่อ surface error ที่ซ่อนอยู่ — silent catch คือสาเหตุที่ QA พบ
-      // badges=[] โดยไม่รู้ว่า query throw อะไร (S5-badgefix)
       console.error('[dashboard] badge fetch failed', e)
-      badges = []
-      nextMilestone = undefined
+      earnedBadges = []
+      topInProgress = []
     }
   }
 
@@ -230,8 +194,8 @@ export default async function SellerDashboardPage() {
             score={score}
             level={level}
             levelColor={levelColor}
-            badges={badges}
-            nextMilestone={nextMilestone}
+            earnedBadges={earnedBadges}
+            topInProgress={topInProgress}
           />
         </div>
       </div>

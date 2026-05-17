@@ -1,158 +1,194 @@
 /**
- * AchievementLevel — widget แสดงระดับ trust + badges ของร้านค้า
+ * AchievementLevel — widget แสดงระดับ trust + badges ของร้านค้า (T9 redesign)
  *
- * Base (compose-from): theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
- * (card shell: card/card-header/card-body primitives จาก Paces; behavior + data logic เป็น SafePay core)
+ * Base (card shell): theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
+ * Progress bar pattern: theme/paces/Admin/TS/src/app/(admin)/apps/issue-tracker/components/IssueDetailModal.tsx (lines 54-56)
+ * Section header pattern: src/app/(paces)/seller/(dashboard)/badges/BadgeGrid.tsx (lines ~35-41)
  *
- * เป็น SafePay core system — ห้ามลบ; badge grid แสดง earned/unearned state
+ * T9: แยก "ได้รับแล้ว" strip + "ใกล้ได้รับ" top4-progress rows
+ * ลบ local BadgeIcon (ซ้ำซ้อนกับ BadgeImage) → ใช้ BadgeImage จาก badges/
+ * เหตุที่ import cross-feature: BadgeImage เป็น client island ที่แยกไว้เพราะ onError
+ * ต้องการ useState — ไม่มี equivalent ใน dashboard component tree
+ *
+ * เป็น SafePay core system — ห้ามลบ widget
  * Circular ring วาด SVG ตรงๆ ไม่พึ่ง lib เพิ่มเติม
  */
 'use client'
 
 import { CountUp } from '@/components/wrappers/CountUp'
 import { cn } from '@/utils/helpers'
-import { Icon as IconifyIcon } from '@iconify/react'
-import { LUCIDE_FOR_BADGE, FALLBACK_LUCIDE } from '../../_constants/badge-icons'
-import SellerEmptyState from '../../_shared/SellerEmptyState'
-import { useState } from 'react'
-
-export type AchievementBadge = {
-  id: string
-  name: string
-  nameEN: string
-  icon: string | null // legacy (emoji) — nullable since Badge.icon migration; not rendered (uses LUCIDE_FOR_BADGE)
-  earned: boolean
-  criteria: string    // human-readable criteria (e.g. "สั่ง 50 ออเดอร์")
-  // imageUrl: URL รูป badge จาก seed/admin; null = fallback ไป LUCIDE_FOR_BADGE (T3B)
-  imageUrl?: string | null
-}
-
-/**
- * BadgeIcon — precedence: imageUrl → img(onError→fallback) → IconifyIcon → FALLBACK_LUCIDE
- * ทำไม: pattern เดียวกับ admin/badges/components/BadgesTable.tsx:BadgeAvatar (T3B)
- * ใช้ useState เพราะ onError เป็น browser event — ต้องการ client-side state
- */
-function BadgeIcon({
-  nameEN,
-  imageUrl,
-  earned,
-}: {
-  nameEN: string
-  imageUrl?: string | null
-  earned: boolean
-}) {
-  const [imgFailed, setImgFailed] = useState(false)
-  const lucide = LUCIDE_FOR_BADGE[nameEN] ?? FALLBACK_LUCIDE
-  const showImg = !!imageUrl && !imgFailed
-
-  if (showImg) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={imageUrl!}
-        alt={nameEN}
-        loading="lazy"
-        className={cn('size-6 object-contain', earned ? '' : 'opacity-60')}
-        onError={() => setImgFailed(true)}
-      />
-    )
-  }
-
-  return (
-    <IconifyIcon
-      icon={lucide}
-      className={cn(
-        'size-6',
-        earned ? 'text-primary' : 'text-default-400',
-      )}
-    />
-  )
-}
+import type { BadgeProgress } from '@/types/badge'
+// cross-feature import — BadgeImage ต้องการ useState (onError) จึง extract แยกไฟล์;
+// ไม่ duplicate ไว้ใน dashboard เพราะเป็น pattern เดียวกันทุกประการ (perf debt ยอมรับ)
+import { BadgeImage } from '../../badges/BadgeImage'
+import { useRouter } from 'next/navigation'
 
 export type AchievementLevelProps = {
-  score: number            // 0-100
-  level: string            // 'A+' | 'A' | ...
-  levelColor?: string      // tailwind text color class, defaults 'text-primary'
-  badges: AchievementBadge[]
-  nextMilestone?: string   // text for the line
+  score: number           // 0-100
+  level: string           // 'A+' | 'A' | ...
+  levelColor?: string     // tailwind text color class, defaults 'text-primary'
+  earnedBadges: BadgeProgress[]
+  topInProgress: BadgeProgress[]
 }
 
 export default function AchievementLevel({
   score,
   level,
   levelColor = 'text-primary',
-  badges,
-  nextMilestone,
+  earnedBadges,
+  topInProgress,
 }: AchievementLevelProps) {
-  const earned = badges.filter((b) => b.earned).length
-  const total = badges.length
+  const router = useRouter()
 
   // Ring constants
   const R = 54
   const C = 2 * Math.PI * R
   const offset = C * (1 - Math.min(100, Math.max(0, score)) / 100)
 
+  // earned strip: แสดงสูงสุด 8 รางวัล; ถ้าเกิน → chip "+N รางวัล"
+  const EARNED_MAX = 8
+  const earnedSlice = earnedBadges.slice(0, EARNED_MAX)
+  const earnedOverflow = earnedBadges.length - EARNED_MAX
+
   return (
     <div className="card h-full">
+
+      {/* card-header: title ซ้าย + SVG ring (size-14 = 56px) ขวา */}
       <div className="card-header flex items-center justify-between">
         <h4 className="card-title">ระดับความสำเร็จ</h4>
-        <span className="text-default-400 text-xs">{earned} / {total} badges</span>
-      </div>
-      <div className="card-body">
-        <div className="flex flex-col items-center text-center">
-          {/* Circular score ring */}
-          <div className="relative size-36">
-            <svg viewBox="0 0 120 120" className="size-full -rotate-90">
-              <circle
-                cx="60" cy="60" r={R}
-                className="stroke-default-200"
-                strokeWidth="8" fill="none"
-              />
-              <circle
-                cx="60" cy="60" r={R}
-                className={cn('stroke-current transition-all duration-700', levelColor)}
-                strokeWidth="8" fill="none"
-                strokeDasharray={C}
-                strokeDashoffset={offset}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className={cn('text-4xl font-bold leading-none', levelColor)}>{level}</div>
-              <div className="text-default-400 mt-1 text-sm">
-                <CountUp start={0} end={score} duration={1} decimals={0} />/100
-              </div>
+
+        {/* Circular score ring ย่อ size-14 (56px) — คง score/level/levelColor metric */}
+        <div className="relative size-14">
+          <svg viewBox="0 0 120 120" className="size-full -rotate-90">
+            <circle
+              cx="60" cy="60" r={R}
+              className="stroke-default-200"
+              strokeWidth="8" fill="none"
+            />
+            <circle
+              cx="60" cy="60" r={R}
+              className={cn('stroke-current transition-all duration-700', levelColor)}
+              strokeWidth="8" fill="none"
+              strokeDasharray={C}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className={cn('text-xs font-bold leading-none', levelColor)}>{level}</div>
+            <div className="text-default-400 text-[9px] tabular-nums">
+              <CountUp start={0} end={score} duration={1} decimals={0} />
             </div>
           </div>
-
-          {nextMilestone && (
-            <p className="text-default-400 text-xs mt-3">{nextMilestone}</p>
-          )}
         </div>
-
-        {/* Badges grid — ถ้าไม่มี badge ในระบบเลย (ก่อน seed) แสดง empty state */}
-        {badges.length === 0 ? (
-          <SellerEmptyState compact icon="award" title="ยังไม่มี Badge" description="เมื่อปลดล็อก achievement จะแสดงที่นี่" />
-        ) : (
-        <div className="grid grid-cols-5 gap-2 mt-5">
-          {badges.map((b) => (
-              <div
-                key={b.id}
-                title={b.earned ? b.name : b.criteria}
-                className={cn(
-                  'flex flex-col items-center gap-1 p-2 rounded-lg border border-default-200 transition',
-                  b.earned ? 'bg-card' : 'bg-default-50 opacity-40 grayscale',
-                )}
-              >
-                <BadgeIcon nameEN={b.nameEN} imageUrl={b.imageUrl} earned={b.earned} />
-                <div className="text-[10px] text-default-500 text-center leading-tight line-clamp-2">
-                  {b.name}
-                </div>
-              </div>
-          ))}
-        </div>
-        )}
       </div>
+
+      <div className="card-body space-y-5">
+
+        {/* ── Section: ได้รับแล้ว ────────────────────────────────────────── */}
+        <section>
+          {/* section header — count pill + divider (copy pattern จาก BadgeGrid.tsx บรรทัด ~35-41) */}
+          <div className="flex items-center gap-3 mb-3">
+            <h5 className="text-sm font-bold text-default-800 shrink-0">ได้รับแล้ว</h5>
+            <span className="bg-default-800 text-white text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
+              {earnedBadges.length}
+            </span>
+            <div className="flex-1 h-px bg-default-200" />
+          </div>
+
+          {earnedBadges.length === 0 ? (
+            <p className="text-xs text-default-400">
+              ยังไม่มีรางวัล — เริ่มขายเพื่อสะสม
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              {earnedSlice.map((item) => (
+                <div
+                  key={item.badge.id}
+                  title={item.badge.name}
+                  className="shrink-0"
+                >
+                  <BadgeImage
+                    nameEN={item.badge.nameEN}
+                    imageUrl={item.badge.imageUrl}
+                    sizeClass="size-8"
+                  />
+                </div>
+              ))}
+              {earnedOverflow > 0 && (
+                <span className="text-xs font-bold text-default-500 bg-default-100 rounded-full px-2 py-0.5 shrink-0">
+                  +{earnedOverflow} รางวัล
+                </span>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ── Section: ใกล้ได้รับ ──────────────────────────────────────── */}
+        <section>
+          {/* section header — count pill + divider (copy pattern จาก BadgeGrid.tsx) */}
+          <div className="flex items-center gap-3 mb-3">
+            <h5 className="text-sm font-bold text-default-800 shrink-0">ใกล้ได้รับ</h5>
+            <span className="bg-default-800 text-white text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
+              {topInProgress.length}
+            </span>
+            <div className="flex-1 h-px bg-default-200" />
+          </div>
+
+          {topInProgress.length === 0 ? (
+            <p className="text-xs text-default-400">
+              คุณได้รับทุกรางวัลแล้ว
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {topInProgress.map((item) => {
+                const pct = Math.round(item.progressRatio * 100)
+                // threshold 0.7 ตาม spec: progressRatio>=0.7 → bg-warning else bg-primary
+                const barColor = item.progressRatio >= 0.7 ? 'bg-warning' : 'bg-primary'
+                return (
+                  <div key={item.badge.id}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {/* badge icon — grayscale opacity-60 บอกสถานะ locked */}
+                      <BadgeImage
+                        nameEN={item.badge.nameEN}
+                        imageUrl={item.badge.imageUrl}
+                        sizeClass="size-8"
+                        className="grayscale opacity-60 shrink-0"
+                      />
+                      <span className="text-xs text-default-700 flex-1 line-clamp-1">
+                        {item.badge.name}
+                      </span>
+                      <span className="text-xs font-bold text-default-500 tabular-nums shrink-0">
+                        {item.progressLabel ?? 'ยังไม่เริ่ม'}
+                      </span>
+                    </div>
+                    {/* progress bar — Base: IssueDetailModal.tsx lines 54-56 */}
+                    <div className="h-1.5 w-full rounded bg-default-200">
+                      <div
+                        className={`h-full rounded transition-[width] duration-500 ${barColor}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+      </div>
+
+      {/* card-footer: link ไป /badges (ห้าม component={Link} ใน 'use client' component ที่มี router) */}
+      <div className="card-footer border-t border-default-200 pt-3">
+        <button
+          type="button"
+          onClick={() => router.push('/badges')}
+          className="text-sm text-primary hover:underline"
+        >
+          ดูทั้งหมด →
+        </button>
+      </div>
+
     </div>
   )
 }
