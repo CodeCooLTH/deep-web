@@ -11,6 +11,9 @@ import Typography from '@mui/material/Typography'
 // Icon Imports
 import { Icon } from '@iconify/react'
 
+// Lib Imports
+import { getTierCover } from '@/lib/trust-tier'
+
 // Next Imports
 // ทำไม: back button ใน client component — ใช้ Link ได้โดยตรง ไม่ผิด Hard Rule 2 (ซึ่งห้ามเฉพาะ component={Link} ใน MUI server component)
 import Link from 'next/link'
@@ -39,26 +42,6 @@ export type ProfileHeaderData = {
   location?: string | null
 }
 
-// --- Helper: map trustLevel → cover image (5-tier scheme; ชื่อ tier + dots baked ในรูปแล้ว) ---
-// mapping (user 2026-05-23): D,C→Classic · B→Silver · B+→Gold · A→Diamond · A+→Star
-function getTierCover(trustLevel: string): string {
-  const base = '/images/tier_covers'
-  switch (trustLevel) {
-    case 'A+':
-      return `${base}/tier_cover_5_star.png`
-    case 'A':
-      return `${base}/tier_cover_4_diamond.png`
-    case 'B+':
-      return `${base}/tier_cover_3_gold.png`
-    case 'B':
-      return `${base}/tier_cover_2_silver.png`
-    case 'C':
-    case 'D':
-    default:
-      return `${base}/tier_cover_1_classic.png`
-  }
-}
-
 // ── ProfileBanner — Trust Banner section only ──
 // ทำไม: แยกออกมาเพื่อให้ desktop wrapper span ทั้ง 2 col ใน CSS Grid ได้
 // bannerHeight: responsive ผ่าน prop — mobile 160 / desktop 200 (ความสูงคงที่ตามที่ user ชอบ)
@@ -66,11 +49,11 @@ export const ProfileBanner = ({
   data,
   bannerHeight = 160,
 }: {
-  data: Pick<ProfileHeaderData, 'trustLevel'>
+  data: Pick<ProfileHeaderData, 'trustScore'>
   /** MUI sx height — ตัวเลข / responsive object */
   bannerHeight?: number | string | { xs?: number; md?: number }
 }) => {
-  const cover = getTierCover(data.trustLevel)
+  const cover = getTierCover(data.trustScore)
 
   return (
     <Box

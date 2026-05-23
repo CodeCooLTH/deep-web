@@ -49,3 +49,17 @@ export function getTierColor(trustScore: number): TierChipColor {
       return 'warning' // ส้ม = Deep Classic (C, D)
   }
 }
+
+/** cover image ต่อ tier (ชื่อ tier + dots baked ในรูป) — SSOT, keyed by score */
+// ทำไม: mapping ย้ายมาที่นี่จาก UserProfileHeader.tsx เพื่อให้ Order Detail V1 ใช้ร่วมได้
+// D,C → Classic · B → Silver · B+ → Gold · A → Diamond · A+ → Star
+export function getTierCover(trustScore: number): string {
+  const base = '/images/tier_covers'
+  switch (letterFromScore(trustScore)) {
+    case 'A+': return `${base}/tier_cover_5_star.png`
+    case 'A':  return `${base}/tier_cover_4_diamond.png`
+    case 'B+': return `${base}/tier_cover_3_gold.png`
+    case 'B':  return `${base}/tier_cover_2_silver.png`
+    default:   return `${base}/tier_cover_1_classic.png` // C, D = Classic
+  }
+}
