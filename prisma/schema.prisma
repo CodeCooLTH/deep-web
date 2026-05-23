@@ -165,6 +165,10 @@ model Order {
   vatRate         Decimal?         @db.Decimal(5, 4)
   vatAmount       Decimal?         @db.Decimal(12, 2)
 
+  // Phase 2 fields — additive, nullable (migration order_slip_access_url)
+  slipFileId      String?          // fileId ของสลิปโอนเงิน (storage); null = ยังไม่แนบ (Phase 2 OOS-1)
+  accessUrl       String?          // URL ส่งมอบ digital order; null = ยังไม่ส่งมอบ (Phase 2 OOS-2)
+
   shop             Shop              @relation(fields: [shopId], references: [id])
   buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   items            OrderItem[]
