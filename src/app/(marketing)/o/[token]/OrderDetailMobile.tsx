@@ -456,9 +456,11 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
     ? 'กำลังยืนยัน...'
     : order.status === 'SHIPPED'
       ? 'ยืนยันรับสินค้า'
-      : isCOD
-        ? 'ยืนยันคำสั่งซื้อ'
-        : 'ยืนยันการชำระเงิน'
+      : order.fulfillmentMode !== 'SHIPPED' // NO_SHIPPING (digital/service/subscription) PENDING — ยืนยันรับของส่งมอบ (scenario 8)
+        ? 'ยืนยันว่าได้รับแล้ว'
+        : isCOD
+          ? 'ยืนยันคำสั่งซื้อ'
+          : 'ยืนยันการชำระเงิน'
 
   // total label ตาม status
   const totalLabel = order.status === 'PENDING' ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'

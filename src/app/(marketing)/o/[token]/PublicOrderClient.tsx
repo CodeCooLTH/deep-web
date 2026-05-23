@@ -97,8 +97,13 @@ export default function PublicOrderClient({
       }
       throw new Error(data.error ?? 'ยกเลิกไม่สำเร็จ')
     }
-    // Optimistic update — ตาม pattern เดียวกับ handleConfirm
-    setOrderState((prev) => ({ ...prev, status: 'CANCELLED' }))
+    toast.success('ยกเลิกคำสั่งซื้อแล้ว')
+    // Optimistic update — รวม cancelInitiator จาก response เพื่อให้ copy "คุณ/ร้านค้ายกเลิก" ถูกต้องทันที (ไม่ต้อง reload)
+    setOrderState((prev) => ({
+      ...prev,
+      status: 'CANCELLED',
+      cancelInitiator: (data.cancelInitiator as 'seller' | 'buyer' | null) ?? prev.cancelInitiator,
+    }))
   }
 
   const handleConfirm = async () => {
