@@ -1,6 +1,6 @@
 # Scope Baseline — Order Detail Phase 2 (Slip Attachment + Digital Access Link)
 
-สถานะ: ACTIVE
+สถานะ: SIGNED-OFF (Gate 2 · 2026-05-23)
 อ้างอิง PRD: FR-6.12, FR-6.11, FR-6.6, FR-6.8 · spec: `docs/superpowers/specs/2026-05-23-order-detail-phase2-design.md` · mockup SSOT: `docs/mockups/order-detail-scenarios.html`
 
 ## Goal
@@ -85,3 +85,5 @@
 |--------|-----------|--------|-----------|
 | 2026-05-23 | baseline สร้าง | — | — |
 | 2026-05-23 | S-4 refine: slip endpoint = **combined upload+attach** `POST /api/orders/[token]/slip` รับ `multipart/form-data` (file + contact) — ไม่ใช่ 2-step `/api/upload`→`/slip` | `/api/upload` require session (line 7-8); buyer เป็น guest → 401. รวม upload+attach ใน route เดียว auth ด้วย contact-parity/SMS + PENDING guard + `validateUpload`+`saveFile`+`attachSlip`. ไม่กระทบ scope (ยังคือ "buyer แนบสลิป"), ไม่อ่อนแอ /api/upload | Controller (plan) |
+| 2026-05-23 | reviewer must-fix: `@@index([slipFileId])` บน Order (migration `20260523124323`) + ย้าย isHttpUrl import ขึ้น top | files-gate findFirst(slipFileId) จะ table-scan ถ้าไม่มี index | Controller (review) |
+| 2026-05-23 | **Phase 2 SIGNED-OFF** — S-1..S-14 DONE, tsc 0, Vitest 47/47, security PASS, backend E2E (curl) + visual QA ผ่าน (eyeball deepth.local) | Chrome MCP disconnected → visual eyeball (accepted per feedback_qa_domains). Light debt: Chrome-MCP pass + qa-seed slipFileId → Phase 3 | safepay-product (Gate 2) |
