@@ -39,69 +39,52 @@ export type ProfileHeaderData = {
   location?: string | null
 }
 
-// --- Helper: map trustLevel → tier name + gradient ---
-
-type TierInfo = { name: string; gradient: string; filledDots: number }
-
-function getTierInfo(trustLevel: string): TierInfo {
-  // Frozen mapping ตาม spec 2026-05-23
+// --- Helper: map trustLevel → cover image (5-tier scheme; ชื่อ tier + dots baked ในรูปแล้ว) ---
+// mapping (user 2026-05-23): D,C→Classic · B→Silver · B+→Gold · A→Diamond · A+→Star
+function getTierCover(trustLevel: string): string {
+  const base = '/images/tier_covers'
   switch (trustLevel) {
     case 'A+':
-      return { name: 'Deep Diamond', gradient: 'linear-gradient(135deg, #DDD6FE, #7C3AED, #EC4899)', filledDots: 5 }
+      return `${base}/tier_cover_5_star.png`
     case 'A':
-      return { name: 'Deep Platinum', gradient: 'linear-gradient(135deg, #BAE6FD, #0284C7)', filledDots: 4 }
+      return `${base}/tier_cover_4_diamond.png`
     case 'B+':
-      return { name: 'Deep Gold', gradient: 'linear-gradient(135deg, #FEF9C3, #CA8A04)', filledDots: 3 }
+      return `${base}/tier_cover_3_gold.png`
     case 'B':
-      return { name: 'Deep Silver', gradient: 'linear-gradient(135deg, #E2E8F0, #9CA3AF)', filledDots: 2 }
+      return `${base}/tier_cover_2_silver.png`
     case 'C':
-      return { name: 'Deep Bronze', gradient: 'linear-gradient(135deg, #FDE68A, #D97706)', filledDots: 1 }
     case 'D':
     default:
-      return { name: 'Deep Starter', gradient: 'linear-gradient(135deg, #E2E8F0, #94A3B8)', filledDots: 0 }
+      return `${base}/tier_cover_1_classic.png`
   }
 }
 
-const TOTAL_DOTS = 5
-
 // ── ProfileBanner — Trust Banner section only ──
 // ทำไม: แยกออกมาเพื่อให้ desktop wrapper span ทั้ง 2 col ใน CSS Grid ได้
-// bannerHeight: responsive ผ่าน prop — mobile 160 / desktop 200
+// bannerHeight: responsive ผ่าน prop — mobile 160 / desktop 200 (ความสูงคงที่ตามที่ user ชอบ)
 export const ProfileBanner = ({
   data,
   bannerHeight = 160,
 }: {
   data: Pick<ProfileHeaderData, 'trustLevel'>
-  /** MUI sx height — ตัวเลข / responsive object / string (เช่น '100%') */
+  /** MUI sx height — ตัวเลข / responsive object */
   bannerHeight?: number | string | { xs?: number; md?: number }
 }) => {
-  const tier = getTierInfo(data.trustLevel)
+  const cover = getTierCover(data.trustLevel)
 
   return (
     <Box
       sx={{
         height: bannerHeight,
-        background: tier.gradient,
         position: 'relative',
         overflow: 'hidden',
-        // sunburst pattern — opacity .6 ตาม mockup .trust-banner::before
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          inset: 0,
-          background:
-            'repeating-conic-gradient(from 45deg at 50% 50%, transparent 0deg, transparent 18deg, #F8FAFC22 18deg, #F8FAFC22 22deg)',
-          opacity: 0.6,
-        },
-        // dot pattern overlay — opacity .35 ตาม mockup .trust-banner::after
-        '&::after': {
-          content: '""',
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(#1E293B15 1px, transparent 1px)',
-          backgroundSize: '14px 14px',
-          opacity: 0.35,
-        },
+        // cover image ต่อ tier (ชื่อ tier + dots baked ในรูป) — backgroundSize cover
+        // user จะปรับ crop/ขนาดของไฟล์รูปเองให้พอดี banner ความสูงคงที่
+        backgroundImage: `url(${cover})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        bgcolor: '#E2E8F0',
       }}
     >
       {/* Back button — มุมซ้ายบน absolute; frosted glass กัน background gradient กลืน */}
@@ -132,79 +115,6 @@ export const ProfileBanner = ({
         </IconButton>
       </Link>
 
-      {/* Trust content: ชิดขวา ตาม mockup .trust-content */}
-      {/* R11: px responsive — xs:20px (กันชนมือถือแคบ) md:36px (ค่าเดิม) */}
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          px: { xs: '20px', md: '36px' },
-          py: '28px',
-          zIndex: 1,
-        }}
-      >
-        {/* trust-left: column align-end */}
-        {/* R7: maxWidth 60% กัน "Deep Diamond" ล้นบน mobile แคบ */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', maxWidth: '60%' }}>
-          {/* Trust Level label */}
-          <Typography
-            component='p'
-            sx={{
-              m: 0,
-              fontSize: '10px',
-              fontWeight: 700,
-              letterSpacing: '0.25em',
-              textTransform: 'uppercase',
-              opacity: 0.8,
-              color: '#1E293B',
-            }}
-          >
-            Trust Level
-          </Typography>
-
-          {/* Tier name — R7: responsive fontSize xs:22px md:28px กัน overflow บน mobile แคบ */}
-          <Typography
-            component='p'
-            sx={{
-              m: 0,
-              fontSize: { xs: '22px', md: '28px' },
-              fontWeight: 900,
-              letterSpacing: '-0.02em',
-              lineHeight: 1.05,
-              color: '#1E293B',
-              textShadow: '0 1px 0 rgba(0,0,0,.06)',
-            }}
-          >
-            {tier.name}
-          </Typography>
-
-          {/* Progress dots — R12: responsive size xs:10 md:12, gap xs:5px md:6px */}
-          <Box sx={{ display: 'flex', gap: { xs: '5px', md: '6px' }, mt: '8px', justifyContent: 'flex-end' }}>
-            {Array.from({ length: TOTAL_DOTS }).map((_, i) => {
-              const filled = i < tier.filledDots
-              return (
-                <Box
-                  key={i}
-                  sx={{
-                    width: { xs: 10, md: 12 },
-                    height: { xs: 10, md: 12 },
-                    borderRadius: '50%',
-                    background: filled ? '#1E293B' : '#1E293B33',
-                    border: '1.5px solid',
-                    borderColor: filled ? '#1E293B' : '#1E293B66',
-                    boxShadow: filled
-                      ? '0 0 0 2px #F8FAFC, 0 0 8px #1E293B44'
-                      : 'none',
-                  }}
-                />
-              )
-            })}
-          </Box>
-        </Box>
-      </Box>
     </Box>
   )
 }
