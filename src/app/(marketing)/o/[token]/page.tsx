@@ -28,6 +28,7 @@ import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
 
+import { prisma } from '@/lib/prisma'
 import { getOrderByToken } from '@/services/order.service'
 import { verifySmsUnlock, SMS_UNLOCK_COOKIE } from '@/lib/sms-unlock-cookie'
 
@@ -55,6 +56,17 @@ export default async function PublicOrderPage({ params }: Props) {
     const order = await getOrderByToken(token)
     if (!order) notFound()
 
+    // query verificationRecord ของ shop owner หลัง order resolve
+    // shop.userId: field โดยตรงบน Shop model (ไม่ต้องไป user.id)
+    // ส่งแค่ maxVerifyLevel: number ข้าม RSC boundary — ไม่ leak PII
+    const approvedVerifications = await prisma.verificationRecord.findMany({
+      where: { userId: order.shop.userId, status: 'APPROVED' },
+      select: { level: true },
+    })
+    const maxVerifyLevel = approvedVerifications.length
+      ? Math.max(...approvedVerifications.map((v) => v.level))
+      : 0
+
     // อ่าน signed SMS unlock cookie (server-side only — ไม่เปิดเผยสู่ client)
     // verifySmsUnlock: fail-closed → false ทุก error; ไม่ throw
     const cookieStore = await cookies()
@@ -65,7 +77,7 @@ export default async function PublicOrderPage({ params }: Props) {
     const data: PublicOrderData = {
       publicToken: order.publicToken,
       status: order.status as PublicOrderData['status'],
-      type: order.type as PublicOrderData['type'],
+      type: order.type as 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION',
       totalAmount: Number(order.totalAmount),
       createdAtIso: order.createdAt.toISOString(),
       hasReview: !!order.review,
@@ -93,6 +105,10 @@ export default async function PublicOrderPage({ params }: Props) {
             trackingNo: order.shipmentTracking.trackingNo,
           }
         : null,
+      // 3 fields ใหม่จาก frozen contract (T1)
+      paymentMethod: order.paymentMethod ?? null,
+      fulfillmentMode: order.fulfillmentMode,
+      maxVerifyLevel,
     }
 
     // ส่ง smsUnlocked ให้ client — server-decided ไม่ใช่ client-trusted

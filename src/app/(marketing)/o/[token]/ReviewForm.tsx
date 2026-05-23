@@ -17,6 +17,8 @@
 
 import { useState, type FormEvent } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -30,6 +32,7 @@ import CustomTextField from '@core/components/mui/TextField'
 type Props = { token: string }
 
 export default function ReviewForm({ token }: Props) {
+  const router = useRouter()
   const [rating, setRating] = useState<number>(0)
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(false)
@@ -53,7 +56,9 @@ export default function ReviewForm({ token }: Props) {
         return
       }
       toast.success('ขอบคุณสำหรับรีวิว!')
-      window.location.reload()
+      // router.refresh() invalidate RSC cache ให้ server page re-render thank-you card
+      // โดยไม่ทำ full reload — ตาม convention #25 SMS-wallet retro
+      router.refresh()
     } finally {
       setLoading(false)
     }
@@ -63,7 +68,7 @@ export default function ReviewForm({ token }: Props) {
     <Card>
       <CardContent className='flex flex-col gap-6 !p-5 sm:!p-10'>
         <div className='flex flex-col gap-1'>
-          <Typography variant='h5'>รีวิวร้านค้า ⭐</Typography>
+          <Typography variant='h5'>รีวิวร้านค้านี้</Typography>
           <Typography color='text.secondary'>
             ประสบการณ์การซื้อครั้งนี้เป็นอย่างไร ช่วยแชร์เพื่อให้ชุมชน Deep น่าเชื่อถือยิ่งขึ้น
           </Typography>

@@ -81,6 +81,26 @@ export default function PublicOrderClient({
     setStage('detail')
   }
 
+  // handleCancel — buyer ขอยกเลิก order (PENDING เท่านั้น)
+  // ส่ง contact = phone (เบอร์ที่ buyer unlock ไว้) ตาม schema ของ cancel route
+  // SMS flow ที่ phone='' จะไม่ถูกเรียก (canCancel guard ด้านล่างป้องกัน)
+  const handleCancel = async () => {
+    const res = await fetch(`/api/orders/${orderState.publicToken}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact: phone }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      if (res.status === 403) {
+        throw new Error('ไม่สามารถยกเลิกได้ กรุณาติดต่อผู้ขาย')
+      }
+      throw new Error(data.error ?? 'ยกเลิกไม่สำเร็จ')
+    }
+    // Optimistic update — ตาม pattern เดียวกับ handleConfirm
+    setOrderState((prev) => ({ ...prev, status: 'CANCELLED' }))
+  }
+
   const handleConfirm = async () => {
     // SMS flow (smsUnlocked): server รู้ phone จาก cookie+order.buyerContact แล้ว
     // ส่ง smsUnlock:true เพื่อให้ route handler รู้ว่าใช้ cookie-verified path
@@ -108,15 +128,28 @@ export default function PublicOrderClient({
       <PhoneUnlock
         orderHint={`#${order.publicToken.slice(0, 8)}`}
         onUnlock={handleUnlock}
+        // ส่ง shop preview เพื่อแสดง Trust Strip ก่อน buyer กรอกเบอร์ (FR-UX-1 anti-scam)
+        // field path ตรงกับ PublicOrderData: order.shop.user.{trustScore,username}, order.maxVerifyLevel
+        shop={{
+          shopName: order.shop.shopName,
+          trustScore: order.shop.user.trustScore,
+          maxVerifyLevel: order.maxVerifyLevel,
+          username: order.shop.user.username,
+        }}
       />
     )
   }
+
+  // canCancel: ส่ง onCancel เฉพาะเมื่อ PENDING และ (ไม่ใช่ SMS flow หรือรู้ phone แล้ว)
+  // SMS flow ที่ phone='' จะยกเลิกผ่าน buyer path ไม่ได้ (route ต้องการ contact)
+  const canCancel = orderState.status === 'PENDING' && (!smsUnlocked || !!phone)
 
   return (
     <OrderDetailMobile
       order={orderState}
       unlockedPhone={phone}
       onConfirmAction={handleConfirm}
+      onCancel={canCancel ? handleCancel : undefined}
     />
   )
 }
