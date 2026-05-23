@@ -163,6 +163,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
+
+    // ตรวจ order-slip gate: fileId ที่ตรงกับ Order.slipFileId เป็นหลักฐานการชำระเงิน
+    // ต้องอนุญาตเฉพาะเจ้าของร้านที่รับออเดอร์หรือ admin เท่านั้น
+    // buyer (ไม่มี session) ขอดูสลิปผ่าน server ไม่ได้ (spec S-7 Q2) — ตั้งใจให้เป็น 401
+    //
+    // ทำไมใช้ findFirst ตรงๆ ไม่ใช้ cache เหมือน KYC:
+    // pattern เดียวกับ TopUp slip ด้านบน — order slip access เกิดเฉพาะ
+    // admin/เจ้าของร้านดูย้อนหลัง ไม่ใช่ public traffic สูง;
+    // indexed query หนึ่งครั้งต่อ request ยอมรับได้; ไม่ log fileId (RC-8)
+    if (!isSlipFile) {
+      // ทำ order-slip check เฉพาะถ้ายังไม่ถูก gate โดย TopUp-slip path ข้างบน
+      const orderSlip = await prisma.order.findFirst({
+        where: { slipFileId: fileId },
+        select: { id: true, shop: { select: { userId: true } } },
+      });
+
+      if (orderSlip) {
+        isSlipFile = true;
+        // ไฟล์นี้เป็น order payment slip — เลียนแบบ control flow TopUp-slip บรรทัดข้างบน
+        const session = await getServerSession(authOptions);
+        const user = session?.user as { id?: string; isAdmin?: boolean } | undefined;
+
+        if (!user?.id) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const isAdmin = user.isAdmin === true;
+        const isShopOwner = user.id === orderSlip.shop.userId;
+
+        if (!isAdmin && !isShopOwner) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+    }
   }
 
   // ไฟล์ public หรือผ่าน auth check แล้ว — serve เหมือนเดิม

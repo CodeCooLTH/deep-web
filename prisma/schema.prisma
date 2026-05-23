@@ -175,6 +175,9 @@ model Order {
   shipmentTracking ShipmentTracking?
   review           Review?
   smsCodes         SmsCode[]
+
+  // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
+  @@index([slipFileId])
 }
 
 model OrderItem {
