@@ -7,6 +7,56 @@
 // จริงใน schema ดังนั้น PENDING ของ order กลุ่มนี้ = "ส่งมอบแล้ว/รอ buyer ยืนยัน"
 // ตาม mockup scenario 8. cancelReason ไม่มีใน schema → timeline ใช้ cancelInitiator
 // ที่ฝั่ง UI (S-13) แทน — helper นี้ไม่รับ cancelReason เข้ามา
+//
+// Phase 2 additions (S-3, S-13):
+//   isCODPayment — canonical export (logic เดิมอยู่ใน OrderDetailMobile.tsx เป็น local fn)
+//   isHttpUrl    — URL scheme guard กัน stored-XSS ผ่าน javascript:/data:
+//   showSlipZone — derive slip upload zone visibility จาก status + paymentMethod
+
+// ─── Phase 2: URL + slip-zone helpers ────────────────────────────────────────
+
+/**
+ * isCODPayment — ตรวจว่า paymentMethod เป็นการชำระเงินปลายทาง (COD) หรือไม่
+ *
+ * ทำไม: logic นี้เคยอยู่ใน OrderDetailMobile.tsx เป็น local fn แต่ S-13 ต้องการ
+ * export canonical เพื่อ test + reuse ใน showSlipZone และ UI task (S-8/S-9) สามารถ
+ * import จากที่เดียวแทนการ duplicate — UI task จะลบ local fn ออกเมื่อ import ตัวนี้
+ */
+export function isCODPayment(paymentMethod: string | null | undefined): boolean {
+  return /COD|ปลายทาง|เก็บเงิน/i.test(paymentMethod ?? '')
+}
+
+/**
+ * isHttpUrl — ตรวจว่า string เป็น URL ที่มี scheme http: หรือ https: เท่านั้น
+ *
+ * ทำไม: accessUrl ที่ seller set อาจถูก inject เป็น javascript: หรือ data:
+ * ซึ่งทำให้เกิด stored-XSS เมื่อ buyer คลิก "เปิด" — reject ทุก scheme ที่ไม่ใช่ http/https
+ * ทั้งที่ Valibot layer (SetAccessUrlSchema) และที่ render layer (S-10)
+ */
+export function isHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * showSlipZone — true เมื่อควรแสดง slip upload zone ให้ buyer
+ *
+ * ทำไม: zone ต้องปรากฏเฉพาะ PENDING + ไม่ใช่ COD (กรณีโอนเงิน/พร้อมเพย์ etc.)
+ * COD ไม่มีการโอนเงินล่วงหน้า = ไม่ต้องแนบสลิป
+ * สถานะอื่น (SHIPPED/CONFIRMED/CANCELLED) = order เดินหน้าแล้วหรือเสร็จสิ้น = ซ่อน
+ */
+export function showSlipZone(
+  status: string,
+  paymentMethod: string | null | undefined,
+): boolean {
+  return status === 'PENDING' && !isCODPayment(paymentMethod)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'

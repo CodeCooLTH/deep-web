@@ -5,6 +5,8 @@ import {
   BILLING_MODES,
   BILLING_PERIODS,
 } from "@/lib/product-types/registry";
+// isHttpUrl — ใช้ logic เดียวกับ render layer (S-10) เพื่อ validate accessUrl (S-3)
+import { isHttpUrl } from "@/lib/order-display";
 
 export const SendOtpSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
@@ -297,4 +299,17 @@ export const AdminTopUpActionSchema = v.object({
   // reason — เหตุผล reject เป็นภาษาไทย แสดงให้ seller เห็น
   // min 1 กัน reject โดยไม่ให้เหตุผล, max 500 เพียงพอสำหรับข้อความอธิบาย
   reason: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
+});
+
+// ─── Phase 2 — Order Detail: accessUrl schema (S-3) ──────────────────────────
+
+// SetAccessUrlSchema — body ของ POST /api/orders/[token]/access-url (seller endpoint)
+// ทำไม: accessUrl ต้องเป็น http/https เท่านั้น — กัน stored-XSS ผ่าน javascript:/data:
+// (isHttpUrl import อยู่บนสุดของไฟล์)
+export const SetAccessUrlSchema = v.object({
+  url: v.pipe(
+    v.string(),
+    v.minLength(1, "กรุณาระบุ URL"),
+    v.check(isHttpUrl, "ลิงก์ต้องเป็น http หรือ https"),
+  ),
 });
