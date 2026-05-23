@@ -215,13 +215,21 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ### FR-9: Public Profile (Seller-centric)
 
-| ID     | ข้อกำหนด                                                                                                                                                                                              | Priority |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| FR-9.1 | ทุกคนมี `/u/{username}`                                                                                                                                                                               | Must     |
-| FR-9.2 | แสดง: trust score + breakdown, badges (3 หมวด), จำนวน order สำเร็จ, reviews ที่ได้รับในฐานะ seller                                                                                                    | Must     |
-| FR-9.3 | ถ้าเป็นร้าน → แสดงข้อมูลร้าน                                                                                                                                                                          | Must     |
-| FR-9.4 | เข้าดูได้โดยไม่ต้อง login                                                                                                                                                                             | Must     |
-| FR-9.5 | บัญชี buyer-only (ไม่มีร้าน) → แสดง trust + verification badge + empty-state ชวนเปิดร้าน. **ไม่แสดง review-as-buyer; ไม่แสดง buyer-audience achievement** (buyer badge ดูได้เฉพาะหน้า self `/badges`) | Must     |
+> **Redesign (2026-05-23):** หน้า `/u/{username}` ถูก rebuild เป็น single-column Instagram-style card (max-width 640px) ตาม mockup ที่ user อนุมัติ. Spec เต็ม: `docs/superpowers/specs/2026-05-23-shop-public-profile-design.md`. Section ที่ตัดออกจากหน้า public (ตาม mockup): About card, Verification list, Reviews list — ย้ายให้ดูได้เฉพาะหน้า self
+
+| ID      | ข้อกำหนด                                                                                                                                                                                              | Priority | สถานะ |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
+| FR-9.1  | ทุกคนมี `/u/{username}`                                                                                                                                                                               | Must     | **DONE** |
+| FR-9.2  | แสดง: trust score, badges (seller-context เท่านั้น — SELLER/ANY audience), จำนวน order สำเร็จ, avg rating (≥3 reviews), completion rate                                                               | Must     | **DONE** |
+| FR-9.3  | ถ้าเป็นร้าน → แสดงข้อมูลร้าน (ชื่อร้าน, bio/Shop.description, location/Shop.address, วันเข้าร่วม)                                                                                                  | Must     | **DONE** |
+| FR-9.4  | เข้าดูได้โดยไม่ต้อง login (session=null ไม่ redirect)                                                                                                                                               | Must     | **DONE** |
+| FR-9.5  | บัญชี buyer-only (isShop=false) → แสดง trust + verification badge + empty-state ชวนเปิดร้าน. **ไม่แสดง review-as-buyer; ไม่แสดง buyer-audience achievement** (buyer badge ดูได้เฉพาะหน้า self `/badges`) | Must     | **DONE** |
+| FR-9.6  | **Trust Banner** — แสดง Deep tier name + gradient สีตาม trust level (D=Deep Starter gray, C=Deep Bronze amber, B=Deep Silver, B+=Deep Gold, A=Deep Platinum blue, A+=Deep Diamond violet-pink). ผูก `getTrustLevel(user.trustScore)` | Must     | **DONE** |
+| FR-9.7  | **Product Grid** — แสดง active products ≤9 (isActive=true, เรียง createdAt desc) ใน grid 3-col square; tile = รูปแรกจาก images[] + hover ชื่อ+ราคา; ร้านไม่มี active product → empty state ไม่ crash; buyer-only → ซ่อน section | Must     | **DONE** |
+| FR-9.8  | **avgRating bug fix** — คำนวณจาก review **ทั้งหมด** ผ่าน `prisma.review.aggregate` (ไม่ใช้ `take=10` แบบเดิม); แสดงเฉพาะเมื่อ reviewCount ≥ 3 | Must     | **DONE** |
+| FR-9.9  | **Verified chip** — แสดงเมื่อ maxVerifyLevel ≥ 1 (สีตาม level: L1=info, L2=success, L3=primary); ไม่มี verification → ซ่อน chip (ไม่แสดง "ยังไม่ยืนยัน") | Must     | **DONE** |
+| FR-9.10 | **Cross-platform stats + On-time/Response time** — แสดงเป็น **placeholder ตัวอย่าง (hardcode)** พร้อมป้าย "ตัวอย่าง" ชัดเจนและ fine print "*ข้อมูลตัวอย่าง ไม่ใช่ยอดจริง" — **Phase 2:** เชื่อม real cross-platform API + deliveryDeadline tracking จริง | Phase 2 | PLACEHOLDER |
+| FR-9.11 | **Follow + Chat FAB** — ปุ่ม disabled + tooltip "เร็ว ๆ นี้" — **Phase 2:** ต้องมี backend follow system + chat | Phase 2 | DISABLED |
 
 ### FR-10: Admin Panel
 
@@ -512,6 +520,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 11 | general rate-limit (100/30) + CSRF ยังไม่มี | implement ก่อน prod (NFR-2.2/2.3) | OPEN |
 | 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
 | S-8 | S-8 / FR-6.8 / FR-6.9 / §10 SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 build | **BUILT** — Phase 4 complete (ดู §11-SMS ด้านล่าง) |
+| P9 | `/u/{username}` public profile redesign — cross-platform stats จริง + on-time tracking + follow/chat backend | Phase 2 (FR-9.10, FR-9.11) — ปัจจุบัน placeholder + disabled | OPEN (Phase 2) |
 
 ### §11-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
 

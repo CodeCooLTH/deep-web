@@ -125,6 +125,7 @@ theme/
 - **2026-04-18 (AM):** User reversed the decision for buyer side — buyer + landing back to Vuexy. Admin + seller stay Paces.
 - **2026-04-18 (PM):** P1 buyer build shipped (9 commits) but retrospectively violated theme-copy rule; R1-R11 rework planned. See `docs/retro/2026-04-18-p1-retrospective.md`.
 - **2026-05-17:** Phase 4 SMS Wallet complete — backend B1-B4 + UI B5-B8 built (tsc 0). ช่องว่างเหลือ: admin `/topups/[id]` detail page ยังไม่มี (Phase 5 todo). Accepted-risk Phase 5 hardening: CSRF Origin-check + slip cookie path narrow.
+- **2026-05-23:** `/u/[username]` public profile redesign complete (user approve visual แล้ว) — single-column Instagram-style card (max-width 640px). ข้อมูล live จาก DB: trust banner (Deep tier names), avatar, shop identity, verified chip, badges, product grid (≤9 active), avg rating (aggregate ทั้งหมด — bug fix), order count + completion rate. Cross-platform stats + on-time/response = placeholder "ตัวอย่าง" (Phase 2). Follow/Chat = disabled "เร็ว ๆ นี้" (Phase 2). Services เพิ่ม: `getAvgRatingByUsername` (review.service), `getProductsByShop(shopId, take?)` (product.service). Spec: `docs/superpowers/specs/2026-05-23-shop-public-profile-design.md`.
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
