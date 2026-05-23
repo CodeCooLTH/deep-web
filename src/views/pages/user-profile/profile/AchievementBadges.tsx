@@ -59,15 +59,36 @@ function BadgeChip({ item }: { item: AchievementItem }) {
   )
 }
 
-const AchievementBadges = ({ items }: { items: AchievementItem[] }) => {
+type AchievementBadgesProps = {
+  items: AchievementItem[]
+  /** จำนวน badge ทั้งหมด — ถ้ามีค่า > 0 จะแสดง "ดูทั้งหมด N" ชิดขวาหัว section
+   * ทำไม: section header มี totalCount เพื่อให้ buyer รู้ว่ามี badge เพิ่มเติม
+   * ใช้ Typography ธรรมดา (ไม่ใช่ Link) เพราะหน้า badge list ยังไม่มี (pattern D3 disabled) */
+  totalCount?: number
+}
+
+const AchievementBadges = ({ items, totalCount }: AchievementBadgesProps) => {
   if (items.length === 0) return null
 
   return (
     <Card>
       <CardContent className='flex flex-col gap-4'>
-        <Typography className='uppercase' variant='body2' color='text.disabled'>
-          Badge ที่ได้รับ
-        </Typography>
+        {/* header row: title ซ้าย + "ดูทั้งหมด N" ขวา (ถ้ามี totalCount > 0) */}
+        <div className='flex items-center justify-between'>
+          <Typography className='uppercase' variant='body2' color='text.disabled'>
+            Badge ที่ได้รับ
+          </Typography>
+          {totalCount != null && totalCount > 0 && (
+            /* cursor: 'default' เพราะยังไม่มีหน้า badge list (pattern D3); ใช้ primary color เป็น visual hint เท่านั้น — ไม่ navigate */
+            <Typography
+              variant='body2'
+              color='primary.main'
+              sx={{ cursor: 'default', userSelect: 'none' }}
+            >
+              ดูทั้งหมด {totalCount}
+            </Typography>
+          )}
+        </div>
         <div className='flex flex-wrap gap-3'>
           {items.map((item) => (
             <BadgeChip key={item.id} item={item} />

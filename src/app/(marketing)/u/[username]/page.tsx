@@ -5,13 +5,14 @@ import { notFound } from 'next/navigation'
 // Service Imports
 import { prisma } from '@/lib/prisma'
 import { findByUsername } from '@/services/user.service'
-import { getReviewsByUsername } from '@/services/review.service'
+import { getReviewsByUsername, getAvgRatingByUsername } from '@/services/review.service'
+import { getProductsByShop } from '@/services/product.service'
 import { getTrustLevel } from '@/services/trust-score.service'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
-import type { ProfileTabData } from '@views/pages/user-profile/profile'
+import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 
 // Base: theme/vuexy/typescript-version/full-version/src/app/[lang]/(dashboard)/(private)/pages/user-profile/page.tsx
 // Adapted: public (no auth), data sourced from SafePay services instead of getProfileData(),
@@ -51,7 +52,7 @@ export default async function PublicProfilePage({ params }: Props) {
   const user = await findByUsername(username)
   if (!user) notFound()
 
-  const [reviews, approvedVerifications, orderStats] = await Promise.all([
+  const [reviews, approvedVerifications, orderStats, ratingAgg, rawProducts] = await Promise.all([
     getReviewsByUsername(username, 10, 0),
     prisma.verificationRecord.findMany({
       where: { userId: user.id, status: 'APPROVED' },
@@ -64,6 +65,10 @@ export default async function PublicProfilePage({ params }: Props) {
           _count: { _all: true },
         })
       : Promise.resolve([] as Array<{ status: string; _count: { _all: number } }>),
+    // ใช้ aggregate แทน reviews.reduce/length เพราะ getReviewsByUsername มี take=10 ทำให้ avg ผิด
+    getAvgRatingByUsername(username),
+    // ดึงสินค้าเฉพาะเมื่อมีร้าน (isShop=true) — buyer-only ส่ง [] แทน
+    user.shop ? getProductsByShop(user.shop.id, 9) : Promise.resolve([]),
   ])
 
   const trustLevel = getTrustLevel(user.trustScore)
@@ -72,12 +77,25 @@ export default async function PublicProfilePage({ params }: Props) {
     ? Math.max(...approvedVerifications.map((v) => v.level))
     : 0
 
-  const completedOrders =
-    orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
+  const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
+  const cancelledCount = orderStats.find((s) => s.status === 'CANCELLED')?._count._all ?? 0
+  // totalOrders = CONFIRMED + CANCELLED เพื่อคำนวณ completionRate ที่มีความหมาย
+  const totalOrders = confirmedCount + cancelledCount
+  const completedOrders = confirmedCount
+  const completionRate =
+    totalOrders > 0 ? Math.round((confirmedCount / totalOrders) * 1000) / 10 : 0
 
-  const avgRating = reviews.length
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-    : 0
+  // avgRating + reviewCount จาก aggregate (ครอบคลุม review ทั้งหมด ไม่ใช่แค่ 10)
+  const { avgRating, reviewCount } = ratingAgg
+
+  // serialize products: Decimal → string, images Json → string[] → first
+  // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
+  const products: SerializedProduct[] = rawProducts.map((p) => ({
+    id: p.id,
+    name: p.name,
+    price: p.price.toFixed(2),
+    imageUrl: (p.images as string[])[0] ?? null,
+  }))
 
   // FR-4.8: กรอง badge ที่จะแสดงบน public profile — เฉพาะ seller-context (SELLER|ANY) เท่านั้น
   // BUYER-audience badge ดูได้เฉพาะหน้า /badges (self) ไม่ใช่ public profile
@@ -99,10 +117,13 @@ export default async function PublicProfilePage({ params }: Props) {
     maxVerifyLevel,
     stats: {
       completedOrders,
-      reviews: reviews.length,
+      reviews: reviewCount,
       // นับเฉพาะ seller-context badge ที่แสดงบน public profile จริง ๆ
       badges: sellerContextBadges.length,
     },
+    // ข้อมูลร้านสำหรับแสดง bio + location ใต้ชื่อ (public field เท่านั้น ไม่มี email/phone)
+    bio: user.shop?.description ?? null,
+    location: user.shop?.address ?? null,
   }
 
   // --- About / Overview data -------------------------------------------------
@@ -152,6 +173,8 @@ export default async function PublicProfilePage({ params }: Props) {
 
   // --- Profile tab data ------------------------------------------------------
   const profileTab: ProfileTabData = {
+    // about ส่งเฉพาะ field ของ AboutOverviewData จริง — ไม่ยัด stats เพิ่ม
+    // ทำไม: stats ย้ายมาเป็น top-level fields ของ ProfileTabData แล้ว (type-safe ไม่ต้อง cast)
     about: {
       about: aboutItems,
       overview: overviewItems,
@@ -164,6 +187,11 @@ export default async function PublicProfilePage({ params }: Props) {
             }
           : null,
     },
+    // stats fields ที่ StatsBar อ่านโดยตรง — ไม่ piggyback บน about อีกต่อไป
+    completedOrders,
+    totalOrders,
+    reviewCount,
+    completionRate,
     verification: [
       {
         level: 1,
@@ -204,6 +232,12 @@ export default async function PublicProfilePage({ params }: Props) {
     avgRating,
     // FR-9.5: buyer-only account → ส่ง flag เพื่อให้ ProfileTab แสดง empty-state ชวนเปิดร้าน
     openShopEmptyState: !user.isShop,
+    // สินค้า 9 รายการล่าสุด (serialize แล้ว — ห้ามส่ง Decimal ข้าม RSC boundary)
+    products,
+    // totalBadgeCount = จำนวน seller-context badge ที่แสดงจริงบน public profile
+    totalBadgeCount: sellerContextBadges.length,
+    // แสดง rating summary เฉพาะเมื่อมีรีวิวอย่างน้อย 3 รายการ (เพื่อความน่าเชื่อถือ)
+    showRating: reviewCount >= 3,
   }
 
   return (
