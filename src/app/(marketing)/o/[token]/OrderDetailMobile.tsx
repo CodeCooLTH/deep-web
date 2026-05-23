@@ -1,17 +1,28 @@
 'use client'
 
 /**
- * Order detail — Shopee-style mobile layout (redesign 2026-05-23)
+ * Order detail — V1 "Profile-consistent" mobile layout (2026-05-23)
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
- *       (item list + totals row pattern)
- *       + theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailHeader.tsx
- *       (status chip + date header pattern)
- *       + theme/vuexy/typescript-version/full-version/src/views/apps/invoice/preview/PreviewCard.tsx
- *       (Card+CardContent shell, bg-actionHover inset block)
- *       + compose-primitive: Box/Card/Chip/Button/Avatar/Typography/Divider/IconButton (MUI v9)
- *         Shopee layout ไม่มีใน Vuexy → exception ที่อนุญาต สำหรับ buyer page
- *       + ref: "Shopee Order Details" (user-provided reference)
+ * Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
+ *   - Banner (tier cover image + frosted back button) → copied from ProfileBanner pattern
+ *     in src/views/pages/user-profile/UserProfileHeader.tsx
+ *   - Avatar overlap (mt: -40px, border 4px white, verify badge) → copied from ProfileLeftPanel pattern
+ *   - Centered identity (shop name link, @handle, chip row) → copied from ProfileLeftPanel pattern
+ *
+ * Widgets adapted (from theme pattern):
+ *   - Banner height reduced 130px (vs 160 on profile — order detail shorter)
+ *   - Avatar size 78px (vs 128 on profile — secondary focus)
+ *   - Chips: ยืนยันแล้ว / tier / Trust score (same pattern, order-specific label)
+ *   - Actions row removed (no Follow/Chat on order detail)
+ *
+ * Widgets composed from MUI primitives (no theme equivalent):
+ *   - Status pill + meta line (order-specific)
+ *   - Horizontal timeline 3-step (order-specific)
+ *   - Items card, payment card, tracking card (order-specific)
+ *   - Review zone (order-specific, uses ReviewForm child)
+ *   - Cancel box (order-specific)
+ *   - Fixed bottom CTA bar (order-specific)
+ *   - Cancel confirm dialog (order-specific)
  *
  * คงฟังก์ชัน/flow/props เดิมทุกอย่าง — เปลี่ยนเฉพาะ layout/visual
  */
@@ -24,19 +35,20 @@ import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
-import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
-import { getTierColor, getTierLabel } from '@/lib/trust-tier'
+import { getOrderTimeline, getStatusPill } from '@/lib/order-display'
+import type { TimelineState, TimelineStep } from '@/lib/order-display'
+import { getTierColor, getTierCover, getTierLabel } from '@/lib/trust-tier'
 
 import ReviewForm from './ReviewForm'
 
@@ -91,37 +103,16 @@ type Props = {
   onCancel?: () => void | Promise<void>
 }
 
-// TRUST_LEVEL/TRUST_COLOR เดิมลบออกแล้ว — ใช้ getTierLabel/getTierColor จาก @/lib/trust-tier แทน (SSOT)
+// ── Design token สำหรับ timeline dot styles (ตาม mockup CSS variables) ──
+const TL_CUR = '#2563EB'
+const TL_DONE = '#0E9F6E'
+const TL_UP = '#D5DCE6'
 
-const STATUS_LABEL: Record<PublicOrderData['status'], string> = {
-  PENDING:   'รอดำเนินการ',
-  SHIPPED:   'จัดส่งแล้ว',
-  CONFIRMED: 'ยืนยันรับแล้ว',
-  CANCELLED: 'ยกเลิกแล้ว',
-}
-
-// Shopee-style: สี bg ทึบเต็มแถบ (ไม่ใช่ chip สีอ่อน)
-const STATUS_BG: Record<PublicOrderData['status'], string> = {
-  PENDING:   'var(--mui-palette-warning-main)',
-  SHIPPED:   'var(--mui-palette-info-main)',
-  CONFIRMED: 'var(--mui-palette-success-main)',
-  CANCELLED: 'var(--mui-palette-text-disabled)',
-}
-
-// hero copy ต่อ status (FR-UX-7)
-const STATUS_HERO_COPY: Record<PublicOrderData['status'], { icon: string; body: string }> = {
-  PENDING:   { icon: 'tabler-clock-hour-4',  body: 'รอการยืนยันจากคุณ กดยืนยันหลังได้รับสินค้า/บริการแล้ว' },
-  SHIPPED:   { icon: 'tabler-truck',          body: 'สินค้าอยู่ระหว่างจัดส่ง กดยืนยันเมื่อได้รับพัสดุ' },
-  CONFIRMED: { icon: 'tabler-circle-check',   body: 'คำสั่งซื้อเสร็จสมบูรณ์ ขอบคุณที่ใช้ Deep' },
-  CANCELLED: { icon: 'tabler-circle-x',       body: 'คำสั่งซื้อนี้ถูกยกเลิก' },
-}
-
-const TYPE_LABEL: Record<PublicOrderData['type'], string> = {
-  PHYSICAL:     'สินค้า',
-  DIGITAL:      'สินค้าดิจิทัล',
-  SERVICE:      'บริการ',
-  SUBSCRIPTION: 'สมาชิกรายคาบ',
-}
+const dateFmt = new Intl.DateTimeFormat('th-TH', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+})
 
 const baht = new Intl.NumberFormat('th-TH', {
   style: 'currency',
@@ -129,11 +120,267 @@ const baht = new Intl.NumberFormat('th-TH', {
   minimumFractionDigits: 0,
 })
 
-const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-})
+// ── TimelineDot — render single dot ตาม state mockup spec ──
+// ทำไม: แยก sub-component เพื่อ logic dot ไม่รกใน render หลัก
+function TimelineDot({ state }: { state: TimelineState }) {
+  // done: filled green + white check
+  if (state === 'done') {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          width: 17,
+          height: 17,
+          borderRadius: '50%',
+          bgcolor: TL_DONE,
+          border: `2.5px solid ${TL_DONE}`,
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <Icon icon='tabler-check' style={{ fontSize: 9, color: '#fff', strokeWidth: 4 }} />
+      </Box>
+    )
+  }
+  // cur: blue ring, white center + blue inner dot, larger (27px)
+  if (state === 'cur') {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          width: 27,
+          height: 27,
+          borderRadius: '50%',
+          bgcolor: '#fff',
+          border: `3px solid ${TL_CUR}`,
+          boxShadow: `0 0 0 5px #EFF4FF`,
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <Box
+          sx={{
+            width: 9,
+            height: 9,
+            borderRadius: '50%',
+            bgcolor: TL_CUR,
+          }}
+        />
+      </Box>
+    )
+  }
+  // fin: large green + check, success glow
+  if (state === 'fin') {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          width: 27,
+          height: 27,
+          borderRadius: '50%',
+          bgcolor: TL_DONE,
+          border: `3px solid ${TL_DONE}`,
+          boxShadow: '0 0 0 5px #E7F6F0',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <Icon icon='tabler-check' style={{ fontSize: 11, color: '#fff', strokeWidth: 3.5 }} />
+      </Box>
+    )
+  }
+  // cx: red bg + red X
+  if (state === 'cx') {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          width: 25,
+          height: 25,
+          borderRadius: '50%',
+          bgcolor: '#FEE2E2',
+          border: '2.5px solid #EF4444',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <Typography sx={{ color: '#EF4444', fontSize: 13, fontWeight: 800, lineHeight: 1 }}>
+          ✕
+        </Typography>
+      </Box>
+    )
+  }
+  // mute: gray faded hollow
+  if (state === 'mute') {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          width: 17,
+          height: 17,
+          borderRadius: '50%',
+          bgcolor: '#fff',
+          border: '2.5px solid #E5EAF1',
+        }}
+      />
+    )
+  }
+  // up: gray hollow (default)
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        zIndex: 1,
+        width: 17,
+        height: 17,
+        borderRadius: '50%',
+        bgcolor: '#fff',
+        border: `2.5px solid ${TL_UP}`,
+      }}
+    />
+  )
+}
+
+// ── connector line color ตาม state ──
+function connectorColor(state: TimelineState): string {
+  if (state === 'done' || state === 'fin' || state === 'cur') return TL_DONE
+  if (state === 'cx') return '#FCA5A5'
+  if (state === 'mute') return '#E5EAF1'
+  return TL_UP
+}
+
+// ── label color ตาม state ──
+function labelColor(state: TimelineState): string {
+  if (state === 'cur') return TL_CUR
+  if (state === 'fin') return '#059669'
+  if (state === 'cx') return '#DC2626'
+  if (state === 'done') return '#334155'
+  if (state === 'mute') return '#CBD5E1'
+  return TL_UP
+}
+
+// ── HorizontalTimeline — 3-step flat timeline ──
+function HorizontalTimeline({ steps }: { steps: TimelineStep[] }) {
+  return (
+    <Box sx={{ display: 'flex', padding: '4px 0 2px', mx: '-2px' }}>
+      {steps.map((step, i) => (
+        <Box
+          key={i}
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+          }}
+        >
+          {/* dotbox — หน้าต่าง 30px ความสูง, connector line ทำผ่าน ::before */}
+          <Box
+            sx={{
+              height: 30,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              // connector line สีตาม state ของ step นี้ (ลากจากซ้ายมาหา dot)
+              '&::before':
+                i === 0
+                  ? { display: 'none' }
+                  : {
+                      content: '""',
+                      position: 'absolute',
+                      top: '50%',
+                      right: '50%',
+                      width: '100%',
+                      height: 3,
+                      background: connectorColor(step.state),
+                      transform: 'translateY(-50%)',
+                      zIndex: 0,
+                      borderRadius: 2,
+                    },
+            }}
+          >
+            <TimelineDot state={step.state} />
+          </Box>
+          {/* label */}
+          <Typography
+            sx={{
+              fontSize: step.state === 'cur' || step.state === 'fin' ? 11.5 : 10.5,
+              fontWeight:
+                step.state === 'cur' || step.state === 'fin' || step.state === 'cx' ? 800 : 600,
+              color: labelColor(step.state),
+              mt: '7px',
+              lineHeight: 1.2,
+            }}
+          >
+            {step.label}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
+// ── ItemThumbnail — รูปสินค้า + fallback placeholder (ห้าม <img src="">) ──
+function ItemThumbnail({
+  imageUrl,
+  name,
+  grayscale,
+}: {
+  imageUrl: string | null
+  name: string
+  grayscale: boolean
+}) {
+  if (!imageUrl) {
+    // fallback: neutral box + icon เมื่อ imageUrl null
+    return (
+      <Box
+        sx={{
+          width: 44,
+          height: 44,
+          borderRadius: '9px',
+          bgcolor: '#EEF2F7',
+          flexShrink: 0,
+          display: 'grid',
+          placeItems: 'center',
+          ...(grayscale ? { filter: 'grayscale(.4)', opacity: 0.75 } : {}),
+        }}
+        aria-label={name}
+      >
+        <Icon icon='tabler-package' style={{ fontSize: 20, color: '#94A3B8' }} />
+      </Box>
+    )
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={imageUrl}
+      alt={name}
+      width={44}
+      height={44}
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 9,
+        objectFit: 'cover',
+        flexShrink: 0,
+        ...(grayscale ? { filter: 'grayscale(.4)', opacity: 0.75 } : {}),
+      }}
+    />
+  )
+}
+
+// ── isCOD helper ──
+function isCODPayment(paymentMethod: string | null | undefined): boolean {
+  return /COD|ปลายทาง|เก็บเงิน/i.test(paymentMethod ?? '')
+}
 
 export default function OrderDetailMobile({ order, unlockedPhone, onConfirmAction, onCancel }: Props) {
   const [submitting, setSubmitting] = useState(false)
@@ -193,48 +440,50 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
   }
 
   const trustScore = order.shop.user.trustScore
-  // ใช้ SSOT helper จาก @/lib/trust-tier (ลบ TRUST_LEVEL/TRUST_COLOR เดิมทิ้ง)
+  // ใช้ SSOT helper จาก @/lib/trust-tier
   const tierLabel = getTierLabel(trustScore)
   const tierColor = getTierColor(trustScore)
+  const tierCover = getTierCover(trustScore)
   const avatarLetter = order.shop.user.displayName.slice(0, 1)
 
-  const heroCopy = STATUS_HERO_COPY[order.status]
-  // จำนวน safe-area padding ที่ bottom bar ใช้ (ใช้ซ้ำใน content pb ด้วย)
-  // pb ของ body กัน content ถูก fixed bottom bar บัง: canConfirm มี bar (~8rem+safe-area), อื่น ๆ ไม่มี bar (1.5rem พอ)
+  // display helpers จาก order-display.ts (T2/T3)
+  const statusPill = getStatusPill(order.status, order.fulfillmentMode, order.paymentMethod)
+  const timeline = getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
+
+  // CTA label ตาม status + paymentMethod
+  const isCOD = isCODPayment(order.paymentMethod)
+  const ctaLabel = submitting
+    ? 'กำลังยืนยัน...'
+    : order.status === 'SHIPPED'
+      ? 'ยืนยันรับสินค้า'
+      : isCOD
+        ? 'ยืนยันคำสั่งซื้อ'
+        : 'ยืนยันการชำระเงิน'
+
+  // total label ตาม status
+  const totalLabel = order.status === 'PENDING' ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
+
+  // cancel copy ตาม cancelInitiator
+  const cancelCopy =
+    order.cancelInitiator === 'seller'
+      ? 'ร้านค้ายกเลิกคำสั่งซื้อ'
+      : order.cancelInitiator === 'buyer'
+        ? 'คุณยกเลิกคำสั่งซื้อ'
+        : 'คำสั่งซื้อนี้ถูกยกเลิก'
+
+  // pb ของ body กัน content ถูก fixed bottom bar บัง
   const bottomBarHeight = canConfirm ? 'calc(8rem + env(safe-area-inset-bottom, 0px))' : '1.5rem'
 
   return (
-    // พื้นหลังเทาอ่อน — Shopee-style flat section layout
+    // พื้นหลังเทาอ่อน — Profile-consistent flat column layout
     <Box
-      sx={{ minHeight: '100dvh', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}
+      sx={{
+        minHeight: '100dvh',
+        bgcolor: '#F3F5F8',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
     >
-      {/* ── 1. Header bar (sticky, ขาว) ── */}
-      <Box
-        sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 20,
-          bgcolor: 'background.paper',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 2,
-          py: 1.5,
-        }}
-      >
-        {/* ปุ่ม back — ไฟล์นี้ client component ใช้ Link ตรงได้ (RSC rule ไม่ apply) */}
-        <Link href='/' aria-label='กลับหน้าหลัก'>
-          <IconButton size='small' sx={{ mr: 0.5 }}>
-            <Icon icon='tabler-arrow-left' />
-          </IconButton>
-        </Link>
-        <Typography variant='h6' component='h1' sx={{ fontWeight: 600, fontSize: '1rem' }}>
-          รายละเอียดคำสั่งซื้อ
-        </Typography>
-      </Box>
-
       {/* ── Scrollable body ── */}
       <Box
         sx={{
@@ -243,364 +492,708 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
           pb: bottomBarHeight,
           display: 'flex',
           flexDirection: 'column',
-          gap: 1,        // gap เล็กระหว่าง section (Shopee ใช้ gap บาง ๆ ไม่ใช่ shadow หนา)
-          maxWidth: 480, // mobile-first max width
+          gap: '10px',
+          maxWidth: 420, // mobile-first max-width ตาม mockup .phone width 380px
           mx: 'auto',
           width: '100%',
         }}
       >
-        {/* ── 2. Status Banner (เต็มกว้าง สีทึบตาม status) ── */}
+
+        {/* ── 1. Tier Cover Banner — pattern จาก ProfileBanner (UserProfileHeader.tsx) ── */}
+        {/* ทำไม: banner + frosted back button = pattern เดียวกับ /u/[username] profile header */}
         <Box
           sx={{
-            bgcolor: STATUS_BG[order.status],
-            px: 3,
-            py: 2.5,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0.75,
+            height: 130,
+            position: 'relative',
+            overflow: 'hidden',
+            backgroundImage: `url(${tierCover})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            bgcolor: '#E2E8F0',
           }}
         >
-          {/* icon + label หลัก */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Icon
-              icon={heroCopy.icon}
-              style={{ fontSize: '2rem', color: '#fff', flexShrink: 0 }}
-            />
-            <Typography
-              variant='h5'
-              sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2, fontSize: '1.25rem' }}
+          {/* frosted circle back button — pattern ตรงจาก ProfileBanner */}
+          {/* ทำไม: client component ใช้ Link ได้โดยตรง — ไม่ผิด Hard Rule 2 */}
+          <Link href='/' style={{ textDecoration: 'none' }}>
+            <IconButton
+              aria-label='กลับหน้าหลัก'
+              title='กลับหน้าหลัก'
+              sx={{
+                position: 'absolute',
+                top: 13,
+                left: 13,
+                zIndex: 3,
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                bgcolor: 'rgba(255,255,255,0.92)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,0.6)',
+                boxShadow: '0 2px 6px rgba(0,0,0,.12)',
+                color: '#0F172A',
+                '&:hover': { bgcolor: 'rgba(255,255,255,1)' },
+              }}
             >
-              {STATUS_LABEL[order.status]}
-            </Typography>
+              <Icon icon='tabler-arrow-left' fontSize={18} />
+            </IconButton>
+          </Link>
+        </Box>
+
+        {/* ── 2. Hero section: Avatar overlap + Identity ── */}
+        {/* ทำไม: overlap avatar + centered identity = pattern เดียวกับ ProfileLeftPanel */}
+        <Box
+          sx={{
+            bgcolor: '#fff',
+            // ดึง section ขึ้นให้ avatar ซ้อนทับ banner
+            mt: '-40px',
+            pt: 0,
+            pb: '12px',
+            textAlign: 'center',
+          }}
+        >
+          {/* Avatar overlap — centered, -40px ดึงขึ้น banner */}
+          {/* ทำไม: mt -40px (เทียบกับ -68px ของ profile) เพราะ avatar 78px เล็กกว่า 128px */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              // ทำ mt -40px ให้ avatar ชนกับ banner ข้างบน
+              position: 'relative',
+              mt: '-40px',
+              mb: '8px',
+            }}
+          >
+            <Box sx={{ position: 'relative', width: 78, height: 78 }}>
+              <Avatar
+                src={order.shop.user.avatar ?? undefined}
+                alt={order.shop.user.displayName}
+                sx={{
+                  width: 78,
+                  height: 78,
+                  borderRadius: '50%',
+                  border: '4px solid #fff',
+                  boxShadow: '0 6px 14px rgba(15,23,42,.16)',
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  bgcolor: '#E2E8F0',
+                  color: '#475569',
+                }}
+              >
+                {avatarLetter}
+              </Avatar>
+              {/* Verify badge มุมขวาล่าง — แสดงเมื่อ maxVerifyLevel >= 1 */}
+              {/* ทำไม: pattern ตรงจาก ProfileLeftPanel verify badge */}
+              {order.maxVerifyLevel >= 1 && (
+                <Box
+                  component='span'
+                  title='ยืนยันแล้ว'
+                  sx={{
+                    position: 'absolute',
+                    bottom: 1,
+                    right: 1,
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    bgcolor: '#1D9BF0',
+                    color: 'white',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: '11px',
+                    fontWeight: 900,
+                    border: '3px solid white',
+                    boxShadow: '0 1px 4px rgba(29,155,240,.4)',
+                  }}
+                >
+                  ✓
+                </Box>
+              )}
+            </Box>
           </Box>
 
-          {/* sub-copy ตาม status */}
-          <Typography sx={{ color: 'rgba(255,255,255,0.88)', fontSize: '0.8125rem' }}>
-            {heroCopy.body}
+          {/* Shop name — link → /u/[username] */}
+          <Link
+            href={`/u/${order.shop.user.username}`}
+            style={{ textDecoration: 'none' }}
+          >
+            <Typography
+              component='span'
+              sx={{
+                fontSize: 18,
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                color: '#0F172A',
+                lineHeight: 1.2,
+                display: 'block',
+              }}
+            >
+              {order.shop.shopName}
+            </Typography>
+          </Link>
+
+          {/* @handle */}
+          <Typography
+            sx={{ fontSize: 12, color: '#64748B', mt: '2px' }}
+          >
+            @{order.shop.user.username}
           </Typography>
 
-          {/* เลขที่ + วันที่ + type */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
-            <Typography sx={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.75rem' }}>
-              #{order.publicToken.slice(0, 8)}
-            </Typography>
-            <Typography sx={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.75rem' }}>
-              {dateFmt.format(new Date(order.createdAtIso))}
-            </Typography>
+          {/* Chips: verified / tier / Trust score — pattern จาก mockup .chips */}
+          <Box
+            sx={{
+              display: 'flex',
+              gap: '5px',
+              justifyContent: 'center',
+              mt: '7px',
+              flexWrap: 'wrap',
+              px: 2,
+            }}
+          >
+            {/* verified chip — แสดงเฉพาะ maxVerifyLevel >= 1 */}
+            {order.maxVerifyLevel >= 1 && (
+              <Chip
+                size='small'
+                label='✓ ยืนยันแล้ว'
+                sx={{
+                  fontSize: '10.5px',
+                  fontWeight: 700,
+                  height: 22,
+                  bgcolor: '#E5F4FE',
+                  color: '#0C7DC2',
+                  borderRadius: 999,
+                  '& .MuiChip-label': { px: '9px' },
+                }}
+              />
+            )}
+            {/* tier chip — ใช้ getTierLabel SSOT */}
             <Chip
               size='small'
-              label={TYPE_LABEL[order.type]}
+              color={tierColor}
+              label={tierLabel}
               sx={{
-                bgcolor: 'rgba(255,255,255,0.18)',
-                color: '#fff',
-                fontSize: '0.6875rem',
-                height: 20,
-                '& .MuiChip-label': { px: 1 },
+                fontSize: '10.5px',
+                fontWeight: 700,
+                height: 22,
+                borderRadius: 999,
+                '& .MuiChip-label': { px: '9px' },
+              }}
+            />
+            {/* Trust score chip */}
+            <Chip
+              size='small'
+              label={`Trust ${trustScore}`}
+              sx={{
+                fontSize: '10.5px',
+                fontWeight: 700,
+                height: 22,
+                bgcolor: '#EEF2F7',
+                color: '#334155',
+                borderRadius: 999,
+                '& .MuiChip-label': { px: '9px' },
               }}
             />
           </Box>
         </Box>
 
-        {/* ── 3. ข้อมูลการจัดส่ง (แสดงเฉพาะเมื่อมี shipmentTracking) ── */}
-        {order.shipmentTracking && (
-          <Card elevation={0} sx={{ borderRadius: 0 }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              {/* หัว section */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <Icon
-                  icon='tabler-truck-delivery'
-                  style={{ fontSize: '1.25rem', color: 'var(--mui-palette-success-main)', flexShrink: 0 }}
-                />
-                <Typography variant='subtitle2' sx={{ fontWeight: 600 }}>
-                  ข้อมูลการจัดส่ง
+        {/* ── 3. Status line — pill + meta ── */}
+        <Box
+          sx={{
+            bgcolor: '#fff',
+            px: '18px',
+            py: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          {/* Status pill ตาม getStatusPill palette */}
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: 13,
+              fontWeight: 800,
+              px: '13px',
+              py: '6px',
+              borderRadius: 999,
+              bgcolor: statusPill.bg,
+              color: statusPill.text,
+            }}
+          >
+            {/* dot */}
+            <Box
+              sx={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                bgcolor: statusPill.dot,
+                flexShrink: 0,
+              }}
+            />
+            {statusPill.label}
+          </Box>
+          {/* meta: #token + date — muted */}
+          <Typography
+            sx={{ fontSize: 11, color: '#94A3B8', ml: 'auto' }}
+          >
+            #{order.publicToken.slice(0, 8)} · {dateFmt.format(new Date(order.createdAtIso))}
+          </Typography>
+        </Box>
+
+        {/* ── 4. Horizontal Timeline 3-step — flat (ไม่มี card รอบ) ── */}
+        <Box sx={{ bgcolor: '#fff', px: '18px', pt: '8px', pb: '12px' }}>
+          <Typography
+            sx={{
+              fontSize: 10,
+              letterSpacing: '0.13em',
+              textTransform: 'uppercase',
+              color: '#94A3B8',
+              mb: '9px',
+            }}
+          >
+            ขั้นตอน
+          </Typography>
+          <HorizontalTimeline steps={timeline} />
+        </Box>
+
+        {/* ── 5. Cancel detail box (เมื่อ isCancelled) — S-13 ── */}
+        {isCancelled && (
+          <Box
+            sx={{
+              bgcolor: '#F8FAFC',
+              borderRadius: '12px',
+              mx: '0',
+              px: '14px',
+              py: '12px',
+              boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+            }}
+          >
+            <Typography sx={{ fontSize: 10.5, color: '#94A3B8', mb: '2px' }}>
+              เหตุผล
+            </Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>
+              {cancelCopy}
+            </Typography>
+          </Box>
+        )}
+
+        {/* ── 6. Items card — flat white Card ── */}
+        {/* ทำไม: flat card radius 12, shadow ตาม mockup .card token */}
+        <Card
+          elevation={0}
+          sx={{
+            borderRadius: '12px',
+            boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* section header */}
+          <Box sx={{ px: '13px', pt: '11px', pb: '6px' }}>
+            <Typography
+              sx={{
+                fontSize: 10,
+                letterSpacing: '0.13em',
+                textTransform: 'uppercase',
+                color: '#94A3B8',
+              }}
+            >
+              รายการสินค้า
+            </Typography>
+          </Box>
+
+          {/* item rows */}
+          {order.items.map((item, idx) => (
+            <Box
+              key={item.id}
+              sx={{
+                px: '13px',
+                py: '11px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                borderTop: idx === 0 ? 'none' : '1px solid #EEF2F7',
+              }}
+            >
+              {/* thumbnail 44×44 — fallback placeholder เมื่อ null; grayscale เมื่อ CANCELLED */}
+              <ItemThumbnail
+                imageUrl={item.imageUrl}
+                name={item.name}
+                grayscale={isCancelled}
+              />
+              {/* item info */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                  {item.name}
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: '#64748B', mt: '1px' }}>
+                  {item.qty} × {baht.format(item.price)}
                 </Typography>
               </Box>
-
-              {/* provider */}
-              <Typography color='text.secondary' sx={{ fontSize: '0.8125rem', mb: 0.5 }}>
-                {order.shipmentTracking.provider}
+              {/* line price */}
+              <Typography sx={{ fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                {baht.format(item.qty * item.price)}
               </Typography>
+            </Box>
+          ))}
 
-              {/* "พัสดุถูกจัดส่งแล้ว" badge */}
-              <Typography
-                sx={{
-                  color: 'success.main',
-                  fontSize: '0.8125rem',
-                  fontWeight: 500,
-                  mb: 1,
-                }}
-              >
-                พัสดุถูกจัดส่งแล้ว
-              </Typography>
+          {/* total row */}
+          <Box
+            sx={{
+              px: '13px',
+              py: '12px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              borderTop: '1px solid #EEF2F7',
+              bgcolor: '#FBFCFE',
+            }}
+          >
+            <Typography sx={{ fontSize: 12, color: '#64748B' }}>{totalLabel}</Typography>
+            <Typography sx={{ fontSize: 17, fontWeight: 800 }}>
+              {baht.format(order.totalAmount)}
+            </Typography>
+          </Box>
+        </Card>
 
-              {/* tracking no + ปุ่ม copy */}
+        {/* ── 7. Payment method card (เมื่อ paymentMethod != null) ── */}
+        {order.paymentMethod !== null && (
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: '12px',
+              boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+              overflow: 'hidden',
+            }}
+          >
+            <Box
+              sx={{
+                px: '13px',
+                py: '11px',
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'center',
+              }}
+            >
+              {/* icon box — green สำหรับ transfer, amber สำหรับ COD */}
               <Box
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  bgcolor: 'action.hover',
-                  borderRadius: 1.5,
-                  px: 1.5,
-                  py: 1,
+                  width: 32,
+                  height: 32,
+                  borderRadius: '9px',
+                  bgcolor: isCOD ? '#FEF3E2' : '#E7F6F0',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: isCOD ? '#B45309' : '#059669',
+                  flexShrink: 0,
                 }}
               >
+                <Icon
+                  icon={isCOD ? 'tabler-coin' : 'tabler-credit-card'}
+                  fontSize={16}
+                />
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+                  {isCOD ? 'ชำระเมื่อได้รับสินค้า' : 'โอนเข้าบัญชี'}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
+                  {order.paymentMethod}
+                </Typography>
+              </Box>
+            </Box>
+          </Card>
+        )}
+
+        {/* ── 8. Shipment tracking card (เมื่อ shipmentTracking != null) ── */}
+        {order.shipmentTracking && (
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: '12px',
+              boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+              overflow: 'hidden',
+            }}
+          >
+            <Box
+              sx={{
+                px: '12px',
+                py: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}
+            >
+              {/* icon box */}
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '9px',
+                  bgcolor: '#E7F1FE',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: '#2563EB',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon icon='tabler-truck' fontSize={16} />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+                  {order.shipmentTracking.provider}
+                </Typography>
+                {/* trackingNo — monospace ที่อนุญาต (ตาม Hard Rule 5 exception) */}
                 <Typography
                   sx={{
-                    fontFamily: 'monospace',
+                    fontSize: 13,
                     fontWeight: 700,
-                    fontSize: '0.9375rem',
-                    flex: 1,
+                    fontFamily: 'monospace',
                     wordBreak: 'break-all',
                   }}
                 >
                   {order.shipmentTracking.trackingNo}
                 </Typography>
-                {/* ซ่อนปุ่ม copy ถ้า clipboard API ไม่ available (e.g. non-secure context) */}
-                {typeof navigator !== 'undefined' && navigator?.clipboard && (
-                  <IconButton
-                    size='small'
-                    onClick={() => handleCopyTracking(order.shipmentTracking!.trackingNo)}
-                    aria-label='คัดลอกเลข tracking'
-                    sx={{ flexShrink: 0 }}
-                  >
-                    <Icon
-                      icon={copied ? 'tabler-check' : 'tabler-copy'}
-                      style={{
-                        color: copied
-                          ? 'var(--mui-palette-success-main)'
-                          : 'var(--mui-palette-text-secondary)',
-                      }}
-                    />
-                  </IconButton>
-                )}
               </Box>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── 4. ผู้รับ section (แสดงเมื่อมี buyerContact หรือ buyerName) ── */}
-        {/* buyerContact = unlockedPhone; buyerName ไม่มีใน data เราโดยตรง — ใช้ unlockedPhone */}
-        {unlockedPhone && (
-          <Card elevation={0} sx={{ borderRadius: 0 }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                <Icon
-                  icon='tabler-map-pin'
-                  style={{
-                    fontSize: '1.25rem',
-                    color: 'var(--mui-palette-text-secondary)',
+              {/* copy button — ซ่อนถ้า clipboard API ไม่ available */}
+              {typeof navigator !== 'undefined' && navigator?.clipboard && (
+                <Button
+                  size='small'
+                  onClick={() => handleCopyTracking(order.shipmentTracking!.trackingNo)}
+                  aria-label='คัดลอกเลข tracking'
+                  sx={{
                     flexShrink: 0,
-                    marginTop: 2,
-                  }}
-                />
-                <Box>
-                  <Typography variant='subtitle2' sx={{ fontWeight: 600, mb: 0.25 }}>
-                    ข้อมูลผู้รับ
-                  </Typography>
-                  <Typography color='text.secondary' sx={{ fontSize: '0.8125rem' }}>
-                    {unlockedPhone}
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── 5. ร้าน + สินค้า section (Deep trust signal) ── */}
-        <Card elevation={0} sx={{ borderRadius: 0 }}>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-            {/* แถวร้าน: Avatar + ชื่อ + tier chip + verified chip + trust score */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                mb: 2,
-                opacity: isCancelled ? 0.6 : 1,
-              }}
-            >
-              <Avatar sx={{ width: 44, height: 44, fontSize: '1.125rem', flexShrink: 0 }}>
-                {avatarLetter}
-              </Avatar>
-
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                {/* shopName link → public profile */}
-                <Link
-                  href={`/u/${order.shop.user.username}`}
-                  style={{
-                    fontWeight: 600,
-                    fontSize: '0.9375rem',
-                    color: 'var(--mui-palette-text-primary)',
-                    textDecoration: 'none',
-                    display: 'block',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    ml: 'auto',
+                    bgcolor: '#EFF4FF',
+                    color: '#2563EB',
+                    border: 'none',
+                    borderRadius: '8px',
+                    px: '11px',
+                    py: '6px',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    minWidth: 0,
+                    '&:hover': { bgcolor: '#DBEAFE' },
                   }}
                 >
-                  {order.shop.shopName}
-                </Link>
-
-                {/* chips แถวล่าง: verified + tier */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5, flexWrap: 'wrap' }}>
-                  {/* verified chip — แสดงเมื่อ maxVerifyLevel >= 1 */}
-                  {order.maxVerifyLevel >= 1 && (
-                    <Chip
-                      size='small'
-                      color='info'
-                      icon={<Icon icon='tabler-shield-check' style={{ fontSize: '0.875rem' }} />}
-                      label='ยืนยันแล้ว'
-                      sx={{ fontSize: '0.6875rem', height: 22 }}
-                    />
+                  {copied ? (
+                    <Icon icon='tabler-check' style={{ color: 'var(--mui-palette-success-main)', fontSize: 16 }} />
+                  ) : (
+                    'คัดลอก'
                   )}
-                  {/* tier chip — ใช้ helper SSOT (ห้าม hardcode) */}
-                  <Chip
-                    size='small'
-                    color={tierColor}
-                    label={tierLabel}
-                    sx={{ fontSize: '0.6875rem', height: 22 }}
-                  />
-                </Box>
-              </Box>
-
-              {/* Trust Score เล็ก ๆ ขวาสุด — anti-scam signal ของ Deep */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
-                <Typography color='text.disabled' sx={{ fontSize: '0.6875rem' }}>
-                  Trust Score
-                </Typography>
-                <Typography
-                  variant='h6'
-                  color={`${tierColor}.main`}
-                  sx={{ fontWeight: 700, lineHeight: 1 }}
-                >
-                  {trustScore}
-                </Typography>
-              </Box>
+                </Button>
+              )}
             </Box>
-
-            <Divider sx={{ mb: 2 }} />
-
-            {/* รายการสินค้า (pattern จาก OrderDetailsCard item list) */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {order.items.map((item, idx) => (
-                <Box key={item.id}>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
-                        {item.name}
-                      </Typography>
-                      {item.description && (
-                        <Typography color='text.secondary' sx={{ fontSize: '0.75rem', mt: 0.25 }}>
-                          {item.description}
-                        </Typography>
-                      )}
-                      {/* x qty — Shopee-style */}
-                      <Typography color='text.disabled' sx={{ fontSize: '0.75rem', mt: 0.5 }}>
-                        x{item.qty}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600 }}>
-                        {baht.format(item.qty * item.price)}
-                      </Typography>
-                      {item.qty > 1 && (
-                        <Typography color='text.disabled' sx={{ fontSize: '0.6875rem' }}>
-                          {baht.format(item.price)} / ชิ้น
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-                  {idx < order.items.length - 1 && <Divider sx={{ mt: 1.5 }} />}
-                </Box>
-              ))}
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-
-            {/* ยอดรวม — Shopee-style เน้น */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>
-                รวมคำสั่งซื้อ
-              </Typography>
-              <Typography variant='h6' sx={{ fontWeight: 700, color: 'error.main' }}>
-                {baht.format(order.totalAmount)}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* ── 6. วิธีชำระเงิน (เมื่อ paymentMethod != null) ── */}
-        {order.paymentMethod !== null && (
-          <Card elevation={0} sx={{ borderRadius: 0 }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Icon
-                  icon='tabler-cash'
-                  style={{
-                    fontSize: '1.25rem',
-                    color: 'var(--mui-palette-text-secondary)',
-                    flexShrink: 0,
-                  }}
-                />
-                <Box>
-                  <Typography variant='subtitle2' sx={{ fontWeight: 600, mb: 0.25 }}>
-                    วิธีชำระเงิน
-                  </Typography>
-                  <Typography color='text.secondary' sx={{ fontSize: '0.8125rem' }}>
-                    {order.paymentMethod}
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
           </Card>
         )}
 
-        {/* ── รีวิวที่มีอยู่แล้ว ── */}
+        {/* ── 9. Review zone ── */}
+        {/* scenario 6: hasReview + review → แสดง review card */}
         {order.hasReview && order.review && (
-          <Card elevation={0} sx={{ borderRadius: 0 }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Typography variant='subtitle2' sx={{ fontWeight: 600, mb: 1.5 }}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: '12px',
+              boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ px: '14px', py: '13px' }}>
+              {/* section header */}
+              <Typography
+                sx={{
+                  fontSize: 10,
+                  letterSpacing: '0.13em',
+                  textTransform: 'uppercase',
+                  color: '#94A3B8',
+                  mb: '10px',
+                }}
+              >
                 รีวิวของคุณ
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'warning.main', mb: 1 }}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Icon
-                    key={i}
-                    icon={i < order.review!.rating ? 'tabler-star-filled' : 'tabler-star'}
-                    style={{
-                      fontSize: '1.25rem',
-                      color:
-                        i < order.review!.rating
-                          ? 'var(--mui-palette-warning-main)'
-                          : 'var(--mui-palette-text-disabled)',
-                    }}
-                  />
-                ))}
+              {/* head: stars + badge */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  mb: '8px',
+                }}
+              >
+                {/* stars 5 ดาว filled ตาม rating */}
+                <Box sx={{ display: 'flex', gap: '2px' }}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Icon
+                      key={i}
+                      icon={i < order.review!.rating ? 'tabler-star-filled' : 'tabler-star'}
+                      style={{
+                        fontSize: 16,
+                        color:
+                          i < order.review!.rating
+                            ? '#F59E0B'
+                            : '#E2E8F0',
+                        letterSpacing: 2,
+                      }}
+                    />
+                  ))}
+                </Box>
+                {/* "✓ รีวิวแล้ว" badge */}
+                <Typography
+                  sx={{
+                    ml: 'auto',
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: '#059669',
+                    bgcolor: '#E7F6F0',
+                    px: '9px',
+                    py: '3px',
+                    borderRadius: 999,
+                  }}
+                >
+                  ✓ รีวิวแล้ว
+                </Typography>
               </Box>
+              {/* comment */}
               {order.review.comment && (
-                <Typography sx={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
+                <Typography
+                  sx={{
+                    fontSize: 13,
+                    color: '#334155',
+                    lineHeight: 1.5,
+                    mb: '8px',
+                  }}
+                >
                   {order.review.comment}
                 </Typography>
               )}
-              <Typography color='text.disabled' sx={{ fontSize: '0.75rem', mt: 1 }}>
-                ขอบคุณที่แชร์ประสบการณ์ของคุณ
+              {/* by-line */}
+              <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+                คุณ · {dateFmt.format(new Date(order.createdAtIso))}
               </Typography>
-            </CardContent>
+            </Box>
           </Card>
         )}
 
-        {/* ── 8. Review form (CONFIRMED/SHIPPED ยังไม่มีรีวิว) ── */}
+        {/* scenario 5: canReview → ReviewForm ใน card */}
         {canReview && (
-          <Card elevation={0} sx={{ borderRadius: 0 }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: '12px',
+              boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ px: '14px', py: '15px' }}>
+              {/* section header */}
+              <Typography
+                sx={{
+                  fontSize: 10,
+                  letterSpacing: '0.13em',
+                  textTransform: 'uppercase',
+                  color: '#94A3B8',
+                  mb: '10px',
+                }}
+              >
+                รีวิวร้านค้า
+              </Typography>
+              {/* invite heading — mockup scenario 5: สินค้าถึงมือคุณแล้ว + sub muted */}
+              {/* ทำไม: heading + sub ช่วย context ผู้ซื้อก่อนกรอก form — ไม่ใช้ emoji (NFR) */}
+              <Typography
+                sx={{
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: '#0F172A',
+                  mb: '2px',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                สินค้าถึงมือคุณแล้ว
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  color: '#94A3B8',
+                  mb: '14px',
+                }}
+              >
+                ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น
+              </Typography>
               <ReviewForm token={order.publicToken} />
-            </CardContent>
+            </Box>
           </Card>
         )}
+
+        {/* TODO Phase 2: slip upload (OOS-1) */}
+        {/* TODO Phase 2: digital access link (OOS-2) */}
+
+        {/* ── Footer — non-canConfirm states ── */}
+        {!canConfirm && (
+          <Box
+            sx={{
+              textAlign: 'center',
+              py: '16px',
+              px: '18px',
+            }}
+          >
+            {/* S-13: CANCELLED → ghost "ติดต่อร้านค้า" button ตาม mockup scenario 7 .btn.ghost */}
+            {/* ทำไม: disabled + tooltip "เร็ว ๆ นี้" ตาม pattern Follow/Chat ของ UserProfileHeader */}
+            {/* disabled MUI button ต้องมี <span> wrapper ภายใน Tooltip เพื่อให้ pointer-events ทำงาน */}
+            {isCancelled && (
+              <Tooltip title='เร็ว ๆ นี้' placement='top'>
+                <span style={{ display: 'block', marginBottom: '12px' }}>
+                  <Button
+                    disabled
+                    fullWidth
+                    sx={{
+                      height: 48,
+                      bgcolor: '#fff',
+                      color: '#334155',
+                      border: '1px solid #D5DCE6',
+                      borderRadius: '13px',
+                      fontSize: 14.5,
+                      fontWeight: 700,
+                      textTransform: 'none',
+                      '&.Mui-disabled': {
+                        bgcolor: '#fff',
+                        color: '#334155',
+                        border: '1px solid #D5DCE6',
+                        opacity: 0.7,
+                      },
+                    }}
+                  >
+                    ติดต่อร้านค้า
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
+            {order.status === 'CONFIRMED' && (
+              <Typography
+                sx={{
+                  fontSize: 10.5,
+                  color: '#94A3B8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  mb: '4px',
+                }}
+              >
+                <Icon icon='tabler-shield-check' style={{ color: '#818CF8', fontSize: 12 }} />
+                ธุรกรรมนี้สำเร็จและบันทึกแล้ว
+              </Typography>
+            )}
+            {/* info text ปัจจุบัน — คงไว้ทุก state */}
+            <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+              {isCancelled
+                ? 'คำสั่งซื้อนี้ถูกยกเลิกแล้ว ไม่สามารถดำเนินการต่อได้'
+                : 'ปกป้องการซื้อขายโดย Deep'}
+            </Typography>
+          </Box>
+        )}
+
       </Box>
 
-      {/* ── 7. Bottom bar fixed — เฉพาะ PENDING/SHIPPED (canConfirm) ── */}
+      {/* ── Bottom CTA bar fixed — เฉพาะ canConfirm (PENDING/SHIPPED) ── */}
       {canConfirm && (
         <Box
           sx={{
@@ -608,64 +1201,95 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
             insetInline: 0,
             bottom: 0,
             zIndex: 30,
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            // frosted glass effect — Shopee bottom bar style
-            bgcolor: 'rgba(255,255,255,0.92)',
+            borderTop: '1px solid #E8EDF3',
+            bgcolor: 'rgba(243,245,248,0.94)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
-            boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
             pb: 'max(0px, env(safe-area-inset-bottom))',
           }}
         >
           <Box
             sx={{
-              maxWidth: 480,
+              maxWidth: 420,
               mx: 'auto',
-              px: 2,
-              pt: 1.5,
-              pb: 1.5,
+              px: '16px',
+              pt: '12px',
+              pb: '15px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 1,
+              gap: '4px',
             }}
           >
-            {/* แถว 2 ปุ่ม — Shopee bottom bar style */}
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              {/* ปุ่ม "ยกเลิกคำสั่งซื้อ" — เฉพาะ PENDING + onCancel */}
-              {showCancel && (
-                <Button
-                  variant='outlined'
-                  color='error'
-                  fullWidth
-                  onClick={() => setCancelDialogOpen(true)}
-                  sx={{ minHeight: 48, fontWeight: 600 }}
-                >
-                  ยกเลิกคำสั่งซื้อ
-                </Button>
-              )}
+            {/* Primary CTA — ink button ตาม mockup .btn (#0F172A) */}
+            <Button
+              fullWidth
+              disabled={submitting}
+              onClick={handleConfirm}
+              sx={{
+                height: 48,
+                bgcolor: '#0F172A',
+                color: '#fff',
+                borderRadius: '13px',
+                fontSize: 14.5,
+                fontWeight: 800,
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#1E293B' },
+                '&.Mui-disabled': { bgcolor: 'rgba(15,23,42,0.4)', color: '#fff' },
+              }}
+            >
+              {ctaLabel}
+            </Button>
 
-              {/* ปุ่ม primary CTA — สีแบรนด์ Deep (primary ไม่ใช่ tier color) */}
+            {/* Cancel button — เฉพาะ PENDING + onCancel (mockup .cx) */}
+            {showCancel && (
               <Button
-                variant='contained'
-                color='primary'
                 fullWidth
-                disabled={submitting}
-                onClick={handleConfirm}
-                sx={{ minHeight: 48, fontWeight: 600 }}
+                onClick={() => setCancelDialogOpen(true)}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#DC2626',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  py: '4px',
+                  '&:hover': { bgcolor: 'rgba(220,38,38,0.04)' },
+                }}
               >
-                {submitting
-                  ? 'กำลังยืนยัน...'
-                  : order.status === 'SHIPPED'
-                    ? 'ยืนยันรับสินค้า'
-                    : 'ยืนยันคำสั่งซื้อ'}
+                ยกเลิกคำสั่งซื้อ
               </Button>
-            </Box>
+            )}
 
-            {/* sub-text เล็กใต้ปุ่ม (SMS flow: unlockedPhone='' → ซ่อนเบอร์) */}
+            {/* Decorative CTAs (mockup เท่านั้น — ไม่มี handler ยัง) */}
+            {/* ทำไม: disabled + tooltip "เร็ว ๆ นี้" ตาม pattern Follow/Chat ของ UserProfileHeader */}
+            {order.status === 'SHIPPED' && (
+              <Tooltip title='เร็ว ๆ นี้' placement='top'>
+                <span>
+                  <Button
+                    disabled
+                    fullWidth
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#64748B',
+                      fontSize: 11.5,
+                      textTransform: 'none',
+                      '&.Mui-disabled': { opacity: 1, color: '#94A3B8' },
+                    }}
+                  >
+                    ยังไม่ได้รับสินค้า?
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
+
+            {/* sub-text: SMS flow — unlockedPhone==='' → suppress เบอร์ */}
             <Typography
-              color='text.disabled'
-              sx={{ fontSize: '0.6875rem', textAlign: 'center' }}
+              sx={{
+                fontSize: '0.6875rem',
+                textAlign: 'center',
+                color: 'text.disabled',
+              }}
             >
               {unlockedPhone
                 ? `เบอร์ ${unlockedPhone} · แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว`
@@ -676,7 +1300,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
       )}
 
       {/* ── Cancel confirm dialog (FR-UX-5) ── */}
-      {/* base pattern: theme/vuexy/.../dialogs/confirmation-dialog (Dialog/DialogContent/DialogActions) */}
+      {/* base pattern: Dialog/DialogContent/DialogActions จาก Vuexy confirmation dialog */}
       {showCancel && (
         <Dialog
           fullWidth
@@ -684,6 +1308,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
           open={cancelDialogOpen}
           onClose={() => setCancelDialogOpen(false)}
           closeAfterTransition={false}
+          aria-labelledby='cancel-dialog-title'
         >
           <DialogContent
             sx={{
@@ -696,7 +1321,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
               px: 4,
             }}
           >
-            {/* icon เตือน — ไม่มี emoji ใน heading (NFR) */}
+            {/* icon เตือน */}
             <Icon
               icon='tabler-alert-circle'
               style={{
@@ -705,7 +1330,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
                 color: 'var(--mui-palette-error-main)',
               }}
             />
-            <Typography variant='h5' sx={{ mb: 1 }}>
+            <Typography id='cancel-dialog-title' variant='h5' sx={{ mb: 1 }}>
               ยืนยันการยกเลิก?
             </Typography>
             <Typography color='text.secondary' sx={{ fontSize: '0.875rem' }}>
