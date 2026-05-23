@@ -1,6 +1,6 @@
 # Scope Baseline — Order Detail V1 (Profile-consistent Port)
 
-สถานะ: ACTIVE
+สถานะ: SIGNED-OFF (Gate 2 · 2026-05-23)
 อ้างอิง PRD: FR-6.2, FR-6.3, FR-6.11, FR-6.13, FR-7.1, FR-7.2, FR-9.6 · spec: `docs/superpowers/specs/2026-05-23-order-detail-redesign-design.md` · mockup SSOT: `docs/mockups/order-detail-scenarios.html`
 
 ## Goal
@@ -91,3 +91,4 @@ Port หน้า buyer-facing `/o/[token]` (`OrderDetailMobile.tsx`) จาก 
 |--------|-----------|--------|-----------|
 | 2026-05-23 | baseline สร้าง | - | - |
 | 2026-05-23 | S-2 drop unused `type` param → `getOrderTimeline(status, fulfillmentMode, paymentMethod)`; S-3 → `getStatusPill(status, fulfillmentMode, paymentMethod)` (PENDING label แยก 3 กรณี digital/COD/transfer ต้องใช้ทั้ง 2 param) | type info subsumed โดย fulfillmentMode; ไม่กระทบ scope coverage, Vitest ครอบ combinations ครบ | Controller (Gate 1) |
+| 2026-05-23 | **Gate 2 SIGNED-OFF** — S-1..S-16 DONE; OOS-1/OOS-2 absent | QA 7/8 PASS + scn8 CTA & live-cancel fix (5af74eb) code-verified. Carried debt (non-blocking): (1) visual re-confirm scn8 CTA + cancel copy/toast (MCP disconnected post-fix), (2) tracking-copy verify บน prod HTTPS, (3) ReviewForm star-radio a11y → Phase 2 | safepay-product (Gate 2) |
