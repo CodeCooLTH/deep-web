@@ -246,6 +246,48 @@ export async function getOrdersByShop(shopId: string, status?: string) {
   });
 }
 
+/**
+ * attachSlip — buyer แนบ fileId ของสลิปโอนเงินเข้า order
+ *
+ * ทำไม: แยกเป็น service เพื่อให้ route handler (S-4) เรียกได้โดยไม่ต้อง
+ * duplicate contact-parity guard และ status guard
+ * contact param เป็น optional เพราะ SMS-unlock path ทำ auth ระดับ route แล้ว
+ * (route ส่ง contact เฉพาะเมื่อ buyer กรอกเบอร์เอง ไม่ใช่ SMS-unlock)
+ */
+export async function attachSlip(publicToken: string, fileId: string, contact?: string) {
+  const order = await prisma.order.findUnique({ where: { publicToken } });
+  if (!order) throw new Error("Order not found");
+  // contact parity — mirror confirmOrder lines ~107-111
+  // ทำไม: กัน buyer คนอื่นแอบแนบสลิปทับ (ถ้า order ล็อกเบอร์ไว้แล้ว)
+  if (order.buyerContact && contact && order.buyerContact !== contact) {
+    throw new Error("เบอร์ไม่ตรงกับคำสั่งซื้อนี้");
+  }
+  // status guard — slip แนบได้เฉพาะ PENDING เท่านั้น (ยังรอดำเนินการ)
+  // CONFIRMED/CANCELLED/SHIPPED = terminal หรือ transit ที่ไม่ต้องการสลิปแล้ว
+  if (order.status !== "PENDING") {
+    throw new Error("แนบสลิปได้เฉพาะคำสั่งซื้อที่รอดำเนินการ");
+  }
+  return prisma.order.update({ where: { publicToken }, data: { slipFileId: fileId } });
+}
+
+/**
+ * setAccessUrl — seller ตั้ง URL เข้าถึง digital content ของ order
+ *
+ * ทำไม: แยกเป็น service เพื่อให้ route handler (S-5) ทำ ownership check
+ * ผ่าน shopOwnerId โดยตรง แทนที่จะ duplicate findUnique + shop.userId check
+ * ไม่มี status guard — seller ตั้งได้ทุก status (ตาม spec S-5)
+ */
+export async function setAccessUrl(publicToken: string, url: string, shopOwnerId: string) {
+  const order = await prisma.order.findUnique({
+    where: { publicToken },
+    include: { shop: true },
+  });
+  if (!order) throw new Error("Order not found");
+  // ownership guard — กัน seller อื่นมา set accessUrl ทับ
+  if (order.shop.userId !== shopOwnerId) throw new Error("Forbidden");
+  return prisma.order.update({ where: { publicToken }, data: { accessUrl: url } });
+}
+
 export async function getOrdersByBuyer(userId: string) {
   return prisma.order.findMany({
     where: { buyerUserId: userId },

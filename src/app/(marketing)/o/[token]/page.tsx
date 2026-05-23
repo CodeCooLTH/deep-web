@@ -115,6 +115,10 @@ export default async function PublicOrderPage({ params }: Props) {
       maxVerifyLevel,
       // cancelInitiator: derive copy ใน UI ว่าใครยกเลิก (S-13 T1)
       cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,
+      // Phase 2 fields (S-2) — getOrderByToken ใช้ include ไม่มี top-level select จำกัด scalar
+      // Prisma คืน slipFileId/accessUrl อัตโนมัติ หลัง migration เพิ่ม column แล้ว
+      slipFileId: order.slipFileId ?? null,
+      accessUrl: order.accessUrl ?? null,
     }
 
     // ส่ง smsUnlocked ให้ client — server-decided ไม่ใช่ client-trusted

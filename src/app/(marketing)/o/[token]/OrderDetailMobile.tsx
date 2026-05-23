@@ -88,6 +88,9 @@ export type PublicOrderData = {
   maxVerifyLevel: number
   // ผู้เริ่มยกเลิก — derive copy ใน UI (S-13): 'seller'→"ร้านค้ายกเลิก" / 'buyer'→"คุณยกเลิก"
   cancelInitiator: 'seller' | 'buyer' | null
+  // Phase 2 fields (S-2 frozen contract) — UI ใช้ใน S-8/S-9/S-10; type เพิ่มก่อน UI task
+  slipFileId: string | null
+  accessUrl: string | null
 }
 
 type Props = {
