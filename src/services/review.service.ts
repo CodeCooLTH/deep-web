@@ -79,3 +79,19 @@ export async function getReviewsByUsername(username: string, take = 10, skip = 0
     skip,
   });
 }
+
+// คำนวณ avg rating + จำนวน review จาก review ทั้งหมดของร้าน
+// ไม่ใช้ getReviewsByUsername เพราะมี take=10 ทำให้ avg ผิด (bug เดิม)
+export async function getAvgRatingByUsername(
+  username: string,
+): Promise<{ avgRating: number; reviewCount: number }> {
+  const agg = await prisma.review.aggregate({
+    _avg: { rating: true },
+    _count: { id: true },
+    where: { order: { shop: { user: { username } } } },
+  });
+  return {
+    avgRating: agg._avg.rating ?? 0,
+    reviewCount: agg._count.id,
+  };
+}

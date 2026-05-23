@@ -332,10 +332,11 @@ export async function deleteProduct(productId: string) {
   return prisma.product.update({ where: { id: productId }, data: { isActive: false } });
 }
 
-export async function getProductsByShop(shopId: string) {
+export async function getProductsByShop(shopId: string, take?: number) {
   return prisma.product.findMany({
     where: { shopId, isActive: true },
     orderBy: { createdAt: "desc" },
     include: { tags: true },
+    ...(take ? { take } : {}),
   });
 }
