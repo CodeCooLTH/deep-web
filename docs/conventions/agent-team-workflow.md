@@ -315,3 +315,31 @@ retro: `docs/retro/2026-05-17-seller-orders-phase-b.md`
     ก่อนรัน (เคย Phase B: user "migrate มันเป็น docker local" แต่ `.env.local` ชี้ Supabase cloud
     ที่แชร์กัน). ปิด phase แบบมี QA-debt = เฉพาะเมื่อ user สั่งชัด + บันทึก QA-debt เป็น action
     item + memory; เขียน "code-complete, QA-pending" ห้าม claim "Phase complete" ลอย ๆ.
+
+### Addendum (2026-05-23) — Shop public profile redesign (mockup-driven + visual iteration)
+
+retro: `docs/retro/2026-05-23-shop-public-profile.md`
+
+32. **Freeze contract = verify consumer component ไม่ใช่แค่ field list** — ก่อน freeze type ที่ ≥2
+    component แชร์ ระบุชัดว่า field ไหน **component ไหน render** แล้ววางบน type ของ component ที่ใช้จริง
+    (ไม่ใช่ producer object). เคย: freeze stats fields บน `ProfileHeaderData` (header) ทั้งที่ StatsBar
+    อยู่ใน tab → developer hack `as` cast + dead fields (reviewer จับ, rework 1 รอบ). ขยาย #28.
+33. **Full-page mockup ที่ user ให้ = layout structure เป็น reference ด้วย** (Hard Rule 6 nuance) —
+    เมื่อ user ส่ง mockup เต็มหน้า + สั่ง "ให้เหมือน" → โครง layout (single-column/grid/ลำดับ section)
+    คือ asset/content ที่ต้องตาม; theme ใช้แค่ component primitive. อย่า default โครง 2-col ของ theme.
+    เคย: developer build Vuexy 5/7 2-col ทั้งที่ mockup เป็น single-column IG → "ไม่เหมือนเลย" rework ใหญ่.
+34. **browser QA ใช้ไม่ได้ → front-load design decisions** — ถ้า chrome-devtools MCP ไม่พร้อม Controller
+    verify visual เองไม่ได้ → ทุก tweak = user round-trip (แพง). dispatch `safepay-ux` ทำ Design Spec ครบ
+    (layout/spacing/placement options) **ก่อน** build รอบใหญ่ เพื่อรวบ decision; นับ browser-QA-unavailable
+    เป็น process blocker (ไม่ลุยแก้ทีละจุดแบบ reactive). เคย: full-bleed/centered/badge/back/FAB/grid ×3
+    round-trip user เยอะจน user หงุดหงิด "ยิ่งทำยิ่งเพี้ยน".
+35. **Visual "ดูว่าง/น้อย/เพี้ยน" → verify data ก่อน redesign** — symptom visual ที่อาจมาจาก data ขาด
+    (รูป/จำนวน) ต้อง query/นับของจริงก่อน; data ขาด → seed/แก้ data ไม่ใช่ redesign component รอบ ๆ.
+    3+ design changes บน component เดียวที่สร้างปัญหาใหม่ = หยุดถาม root (systematic-debugging 4.5).
+    เคย: "สินค้าน้อย/ว่าง" เพราะ imageUrl=null (placeholder กลืนพื้น) — ไปแก้ grid 3 รอบ ต้นเหตุคือไม่มีรูป.
+36. **Phantom-500 (Turbopack dev):** compiled chunk มี code ใหม่ + mtime ใหม่ **ไม่ตัด** phantom-crash;
+    tsc/reviewer เขียวแต่หน้า 500 → force recompile (เพิ่ม/ลบไฟล์ หรือ user restart) ก่อนล่า code bug.
+    เคย: เสีย debugging cycle ไล่ code ที่ถูกอยู่แล้ว — recompile หายเอง (แก้ 0 บรรทัด). คู่ memory pitfalls.
+37. **Controller-direct edit ระหว่าง fast visual iteration = ยอมรับได้ แต่ต้องปิดด้วย independent reviewer
+    gate ก่อน commit เสมอ** — เมื่อ Controller แก้เองเยอะ (เสีย developer→reviewer separation) dispatch
+    `safepay-reviewer` รอบสุดท้ายก่อน commit (รอบนี้จับ stale comment/dead field/padding regression ได้).
