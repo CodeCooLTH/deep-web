@@ -9,6 +9,16 @@
  *   - Avatar overlap (mt: -40px, border 4px white, verify badge) → copied from ProfileLeftPanel pattern
  *   - Centered identity (shop name link, @handle, chip row) → copied from ProfileLeftPanel pattern
  *
+ * S-8/S-9 slip upload zone (2026-05-23):
+ * Base: docs/mockups/order-detail-scenarios.html .slip-empty (scenario 1) + .slip-done (scenario 2)
+ *   - .slip-empty → Card with icon + "อัปโหลดสลิปการโอนเงิน" + dashed button "เลือกรูปสลิป"
+ *   - .slip-done  → Card with thumb preview + "แนบสลิปแล้ว ✓" + filename + "เปลี่ยน" button
+ *
+ * S-10 digital access-link card (2026-05-23):
+ * Base: docs/mockups/order-detail-scenarios.html .track block (scenario 8 "การเข้าถึง")
+ *   - .track .pic (tabler-link icon) + .track .l "ลิงก์เข้าถึง" + .track .v (URL truncated)
+ *   - .copy → MUI Button component="a" "เปิด" (opens accessUrl in new tab, noopener noreferrer)
+ *
  * Widgets adapted (from theme pattern):
  *   - Banner height reduced 130px (vs 160 on profile — order detail shorter)
  *   - Avatar size 78px (vs 128 on profile — secondary focus)
@@ -27,7 +37,7 @@
  * คงฟังก์ชัน/flow/props เดิมทุกอย่าง — เปลี่ยนเฉพาะ layout/visual
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import Link from 'next/link'
 
@@ -46,7 +56,7 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
-import { getOrderTimeline, getStatusPill } from '@/lib/order-display'
+import { getOrderTimeline, getStatusPill, isCODPayment, isHttpUrl, showSlipZone } from '@/lib/order-display'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierCover, getTierLabel } from '@/lib/trust-tier'
 
@@ -380,10 +390,8 @@ function ItemThumbnail({
   )
 }
 
-// ── isCOD helper ──
-function isCODPayment(paymentMethod: string | null | undefined): boolean {
-  return /COD|ปลายทาง|เก็บเงิน/i.test(paymentMethod ?? '')
-}
+// ── isCODPayment + showSlipZone imported from @/lib/order-display (dedup) ──
+// ทำไม: S-8/S-9 ลบ local fn + import canonical เพื่อหลีกเลี่ยง duplicate logic
 
 export default function OrderDetailMobile({ order, unlockedPhone, onConfirmAction, onCancel }: Props) {
   const [submitting, setSubmitting] = useState(false)
@@ -392,6 +400,16 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
   // state สำหรับ cancel confirm dialog
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+
+  // ── S-8/S-9: slip upload state ──
+  // ทำไม: slipFileId เริ่มจาก server (order.slipFileId) — buyer อัปโหลดใหม่ update local state
+  const [slipFileId, setSlipFileId] = useState(order.slipFileId)
+  // object URL สร้างใน session นี้เท่านั้น — ไม่ fetch กลับจาก server (guest ไม่มี auth)
+  const [slipPreview, setSlipPreview] = useState<string | null>(null)
+  const [slipName, setSlipName] = useState<string | null>(null)
+  const [uploadingSlip, setUploadingSlip] = useState(false)
+  // hidden file input ref — trigger ผ่าน handleSlipClick
+  const slipInputRef = useRef<HTMLInputElement>(null)
 
   // confirm เมื่อ PENDING หรือ SHIPPED (ผู้ซื้อกดรับ = terminal CONFIRMED)
   const canConfirm = order.status === 'PENDING' || order.status === 'SHIPPED'
@@ -439,6 +457,46 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
     } finally {
       setCancelling(false)
       setCancelDialogOpen(false)
+    }
+  }
+
+  // ── S-8/S-9: slip upload handler ──
+  const handleSlipUpload = async (file: File) => {
+    // client-side guard — ≤5MB ก่อน upload เพื่อ UX ดี (server ก็ตรวจอีกชั้น)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('ไฟล์ใหญ่เกิน 5MB กรุณาเลือกไฟล์ขนาดเล็กลง')
+      return
+    }
+    setUploadingSlip(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      // SMS flow: unlockedPhone==='' → server ใช้ cookie แทน — ไม่ต้องส่ง contact
+      if (unlockedPhone) fd.append('contact', unlockedPhone)
+
+      const res = await fetch(`/api/orders/${order.publicToken}/slip`, {
+        method: 'POST',
+        body: fd,
+      })
+
+      if (!res.ok) {
+        toast.error('แนบสลิปไม่สำเร็จ')
+        return
+      }
+
+      const data = (await res.json()) as { slipFileId: string }
+      setSlipFileId(data.slipFileId)
+      // object URL ใช้ใน session นี้เท่านั้น — revoke เมื่อ component unmount ไม่บังคับ (short-lived page)
+      setSlipPreview(URL.createObjectURL(file))
+      setSlipName(file.name)
+      toast.success('แนบสลิปแล้ว')
+    } catch {
+      // network error / res.json() พัง → ต้องมี feedback (review must-fix)
+      toast.error('แนบสลิปไม่สำเร็จ กรุณาลองอีกครั้ง')
+    } finally {
+      setUploadingSlip(false)
+      // reset ค่า input เพื่อให้เลือกไฟล์เดิมได้อีกครั้ง (onChange จะไม่ fire ถ้า value ไม่เปลี่ยน)
+      if (slipInputRef.current) slipInputRef.current.value = ''
     }
   }
 
@@ -1128,8 +1186,289 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
           </Card>
         )}
 
-        {/* TODO Phase 2: slip upload (OOS-1) */}
-        {/* TODO Phase 2: digital access link (OOS-2) */}
+        {/* ── S-8/S-9: Slip upload zone (OOS-1) ── */}
+        {/* แสดงเฉพาะ PENDING + ไม่ใช่ COD (helper showSlipZone จาก order-display.ts) */}
+        {/* Base: docs/mockups/order-detail-scenarios.html .slip-empty / .slip-done */}
+        {showSlipZone(order.status, order.paymentMethod) && (
+          <>
+            {/* hidden file input — trigger ผ่าน slipInputRef.current?.click() */}
+            <input
+              ref={slipInputRef}
+              type='file'
+              accept='image/*,application/pdf'
+              style={{ display: 'none' }}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) handleSlipUpload(file)
+              }}
+            />
+
+            {slipFileId == null ? (
+              /* ── slip-empty: ยังไม่แนบสลิป ── */
+              <Card
+                elevation={0}
+                sx={{
+                  borderRadius: '12px',
+                  boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+                  overflow: 'hidden',
+                  px: '14px',
+                  py: '18px',
+                  textAlign: 'center',
+                }}
+              >
+                {/* section header */}
+                <Typography
+                  sx={{
+                    fontSize: 10,
+                    letterSpacing: '0.13em',
+                    textTransform: 'uppercase',
+                    color: '#94A3B8',
+                    mb: '12px',
+                    textAlign: 'left',
+                  }}
+                >
+                  แนบสลิป
+                </Typography>
+
+                {/* upload icon box — ตาม mockup .slip-ic (42×42 bg:#EFF4FF color:#2563EB) */}
+                <Box
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: '12px',
+                    bgcolor: '#EFF4FF',
+                    color: '#2563EB',
+                    display: 'grid',
+                    placeItems: 'center',
+                    mx: 'auto',
+                    mb: '9px',
+                  }}
+                >
+                  <Icon icon='tabler-camera' fontSize={20} />
+                </Box>
+
+                {/* title + hint — ตาม mockup .slip-t / .slip-h */}
+                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                  อัปโหลดสลิปการโอนเงิน
+                </Typography>
+                <Typography sx={{ fontSize: 10.5, color: '#94A3B8', mt: '3px' }}>
+                  ไฟล์ภาพหรือ PDF ≤ 5MB
+                </Typography>
+
+                {/* dashed upload button — ตาม mockup .slip-btn */}
+                <Button
+                  fullWidth
+                  disabled={uploadingSlip}
+                  onClick={() => slipInputRef.current?.click()}
+                  startIcon={<Icon icon='tabler-plus' fontSize={15} />}
+                  sx={{
+                    mt: '11px',
+                    height: 40,
+                    border: '1.5px dashed #C7D2E5',
+                    borderRadius: '10px',
+                    bgcolor: '#F8FAFE',
+                    color: '#2563EB',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    '&:hover': { bgcolor: '#EFF4FF', borderColor: '#2563EB' },
+                    '&.Mui-disabled': { bgcolor: '#F8FAFE', opacity: 0.6 },
+                  }}
+                >
+                  {uploadingSlip ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป'}
+                </Button>
+              </Card>
+            ) : (
+              /* ── slip-done: แนบสลิปแล้ว ── */
+              <Card
+                elevation={0}
+                sx={{
+                  borderRadius: '12px',
+                  boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+                  overflow: 'hidden',
+                  px: '13px',
+                  py: '11px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '11px',
+                }}
+              >
+                {/* thumbnail — preview object URL ถ้ามี, fallback icon */}
+                {slipPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={slipPreview}
+                    alt='ตัวอย่างสลิป'
+                    style={{
+                      width: 46,
+                      height: 62,
+                      borderRadius: 7,
+                      objectFit: 'cover',
+                      flexShrink: 0,
+                      border: '1px solid #E2E8F0',
+                      boxShadow: '0 1px 2px rgba(0,0,0,.05)',
+                    }}
+                  />
+                ) : (
+                  /* ไม่มี preview (slipFileId มาจาก server — buyer refresh) → icon แทน */
+                  <Box
+                    sx={{
+                      width: 46,
+                      height: 62,
+                      borderRadius: '7px',
+                      bgcolor: '#E7F6F0',
+                      border: '1px solid #E2E8F0',
+                      flexShrink: 0,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#059669',
+                      boxShadow: '0 1px 2px rgba(0,0,0,.05)',
+                    }}
+                  >
+                    <Icon icon='tabler-file-check' fontSize={22} />
+                  </Box>
+                )}
+
+                {/* info — filename + ok badge */}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {slipName ?? 'สลิปที่แนบ'}
+                  </Typography>
+                  {/* "แนบสลิปแล้ว ✓" success line — ตาม mockup .slip-ok */}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      mt: '2px',
+                    }}
+                  >
+                    <Icon icon='tabler-check' style={{ fontSize: 12, color: '#059669' }} />
+                    <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#059669' }}>
+                      แนบสลิปแล้ว
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* "เปลี่ยน" button — ตาม mockup .slip-change */}
+                <Button
+                  size='small'
+                  disabled={uploadingSlip}
+                  onClick={() => slipInputRef.current?.click()}
+                  sx={{
+                    flexShrink: 0,
+                    border: '1px solid #D5DCE6',
+                    borderRadius: '8px',
+                    px: '11px',
+                    py: '5px',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: '#475569',
+                    textTransform: 'none',
+                    bgcolor: 'transparent',
+                    '&:hover': { bgcolor: '#F1F5F9' },
+                    '&.Mui-disabled': { opacity: 0.5 },
+                  }}
+                >
+                  {uploadingSlip ? '...' : 'เปลี่ยน'}
+                </Button>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* ── S-10: Digital access-link card (OOS-2) ── */}
+        {/* แสดงเฉพาะ NO_SHIPPING + accessUrl valid http/https — guard ป้องกัน javascript:/data: XSS */}
+        {/* Base: docs/mockups/order-detail-scenarios.html scenario 8 .track block */}
+        {order.fulfillmentMode === 'NO_SHIPPING' &&
+          order.accessUrl != null &&
+          isHttpUrl(order.accessUrl) && (
+            <Card
+              elevation={0}
+              sx={{
+                borderRadius: '12px',
+                boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+                overflow: 'hidden',
+              }}
+            >
+              <Box
+                sx={{
+                  px: '12px',
+                  py: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+              >
+                {/* icon box — ตาม mockup .track .pic (bg:#E7F1FE color:#2563EB) */}
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '9px',
+                    bgcolor: '#E7F1FE',
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: '#2563EB',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon icon='tabler-link' fontSize={16} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  {/* label — ตาม mockup .track .l */}
+                  <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+                    ลิงก์เข้าถึง
+                  </Typography>
+                  {/* URL — truncate ellipsis; monospace ไม่ใช้ (ตาม Hard Rule 5 — URL ไม่ใช่ code block) */}
+                  <Typography
+                    sx={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {order.accessUrl}
+                  </Typography>
+                </Box>
+                {/* "เปิด" button — MUI Button component="a" ใช้ได้ใน 'use client' component (Hard Rule 2 ไม่ apply) */}
+                <Button
+                  component='a'
+                  href={order.accessUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  size='small'
+                  sx={{
+                    flexShrink: 0,
+                    ml: 'auto',
+                    bgcolor: '#EFF4FF',
+                    color: '#2563EB',
+                    border: 'none',
+                    borderRadius: '8px',
+                    px: '11px',
+                    py: '6px',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    minWidth: 0,
+                    textTransform: 'none',
+                    '&:hover': { bgcolor: '#DBEAFE' },
+                  }}
+                >
+                  เปิด
+                </Button>
+              </Box>
+            </Card>
+          )}
 
         {/* ── Footer — non-canConfirm states ── */}
         {!canConfirm && (
