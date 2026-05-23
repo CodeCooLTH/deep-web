@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.supabase.co' },
       { protocol: 'https', hostname: '*.r2.cloudflarestorage.com' },
       { protocol: 'https', hostname: '*.s3.amazonaws.com' },
+      // DEV/TEST เท่านั้น — รูปสินค้า seed ทดสอบจาก picsum; ถอดออกเมื่อต่อ upload จริง (supabase/r2/s3)
+      { protocol: 'https', hostname: 'picsum.photos' },
     ],
   },
   serverExternalPackages: ['@prisma/client', 'prisma'],
