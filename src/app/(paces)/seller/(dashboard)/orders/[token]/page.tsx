@@ -110,6 +110,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 qty: item.qty,
                 price: item.price,
               })),
+              // S-11/S-12: Prisma returns all scalars ใน findFirst — ไม่ต้อง extend include
+              slipFileId: order.slipFileId ?? null,
+              accessUrl: order.accessUrl ?? null,
             }}
           />
           <ShippingActivity

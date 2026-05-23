@@ -48,6 +48,10 @@ export type OrderSummaryOrder = {
     qty: number
     price: unknown
   }>
+  /** fileId ของสลิปโอนเงินที่ buyer แนบ (S-11); null = ยังไม่แนบ */
+  slipFileId: string | null
+  /** URL ส่งมอบสินค้า/บริการดิจิทัล (S-12); null = ยังไม่ตั้ง */
+  accessUrl: string | null
 }
 
 interface OrderSummaryProps {
@@ -167,7 +171,13 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
         {/* การดำเนินการออเดอร์ */}
         <div className="mt-6 border-t border-default-200 pt-5">
           <h4 className="mb-4 text-sm font-semibold text-default-800">การดำเนินการ</h4>
-          <OrderActions order={{ publicToken: order.publicToken, status: order.status, fulfillmentMode: order.fulfillmentMode }} />
+          <OrderActions order={{
+            publicToken: order.publicToken,
+            status: order.status,
+            fulfillmentMode: order.fulfillmentMode,
+            slipFileId: order.slipFileId,
+            accessUrl: order.accessUrl,
+          }} />
         </div>
       </div>
     </div>

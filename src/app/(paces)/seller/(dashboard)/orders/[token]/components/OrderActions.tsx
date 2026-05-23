@@ -7,6 +7,8 @@ import { Controller, useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import Select from '@/components/wrappers/Select'
+import { Icon } from '@iconify/react'
+import SlipViewer from './SlipViewer'
 
 const CARRIERS = [
   'Kerry Express',
@@ -30,6 +32,10 @@ interface OrderActionsProps {
     status: string
     /** fulfillmentMode snapshot — SHIPPED หรือ NO_SHIPPING (spec §2 ship guard) */
     fulfillmentMode: string
+    /** fileId ของสลิปโอนเงินที่ buyer แนบ (S-11); null = ยังไม่แนบ */
+    slipFileId: string | null
+    /** URL ส่งมอบสินค้า/บริการดิจิทัล (S-12); null = ยังไม่ตั้ง */
+    accessUrl: string | null
   }
 }
 
@@ -38,7 +44,37 @@ export default function OrderActions({ order }: OrderActionsProps) {
   const [showShipForm, setShowShipForm] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
 
-  const { status, fulfillmentMode, publicToken } = order
+  const { status, fulfillmentMode, publicToken, slipFileId, accessUrl } = order
+
+  // S-12 accessUrl form — ใช้ state แยกเพื่อไม่ปนกับ tracking form
+  const [accessUrlValue, setAccessUrlValue] = useState(accessUrl ?? '')
+  const [accessUrlLoading, setAccessUrlLoading] = useState(false)
+
+  const handleSaveAccessUrl = async () => {
+    const url = accessUrlValue.trim()
+    if (!url) {
+      toast.error('กรุณากรอกลิงก์')
+      return
+    }
+    setAccessUrlLoading(true)
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/access-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'บันทึกลิงก์ไม่สำเร็จ')
+      }
+      toast.success('บันทึกลิงก์แล้ว')
+      router.refresh()
+    } catch (err: any) {
+      toast.error(err.message || 'บันทึกลิงก์ไม่สำเร็จ')
+    } finally {
+      setAccessUrlLoading(false)
+    }
+  }
 
   const {
     register,
@@ -119,7 +155,55 @@ export default function OrderActions({ order }: OrderActionsProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      {/* S-11: สลิปโอนเงิน — แสดงเฉพาะเมื่อ buyer แนบสลิปแล้ว */}
+      {slipFileId && (
+        <div className="border border-default-200 rounded-xl p-4 flex flex-col gap-3">
+          <h4 className="text-sm font-semibold text-dark flex items-center gap-1.5">
+            <Icon icon="tabler:receipt" className="text-base text-default-400" />
+            สลิปการโอนเงิน
+          </h4>
+          <SlipViewer slipFileId={slipFileId} />
+        </div>
+      )}
+
+      {/* S-12: ลิงก์ส่งมอบสินค้าดิจิทัล — แสดงเฉพาะ fulfillmentMode=NO_SHIPPING */}
+      {fulfillmentMode === 'NO_SHIPPING' && (
+        <div className="border border-default-200 rounded-xl p-4 flex flex-col gap-3">
+          <h4 className="text-sm font-semibold text-dark flex items-center gap-1.5">
+            <Icon icon="tabler:link" className="text-base text-default-400" />
+            ลิงก์เข้าถึงสินค้า/บริการดิจิทัล
+          </h4>
+          <p className="text-default-400 text-xs">
+            กรอก URL เพื่อส่งมอบให้ผู้ซื้อ (ต้องเป็น http หรือ https)
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={accessUrlValue}
+              onChange={(e) => setAccessUrlValue(e.target.value)}
+              placeholder="https://example.com/download/..."
+              className="form-input text-sm flex-1"
+              disabled={accessUrlLoading}
+            />
+            <button
+              type="button"
+              onClick={handleSaveAccessUrl}
+              disabled={accessUrlLoading}
+              className="btn bg-primary text-white hover:bg-primary-hover px-4 py-2 text-sm font-medium disabled:opacity-60 whitespace-nowrap"
+            >
+              {accessUrlLoading ? 'กำลังบันทึก...' : 'บันทึกลิงก์'}
+            </button>
+          </div>
+          {/* แสดง URL ที่บันทึกอยู่ปัจจุบัน (ถ้ามี) เพื่อ seller ยืนยันก่อน refresh */}
+          {accessUrl && (
+            <p className="text-xs text-default-400 break-all">
+              <span className="font-medium text-default-600">บันทึกอยู่:</span> {accessUrl}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* PENDING + fulfillmentMode=SHIPPED → บันทึกการจัดส่ง (spec §2 ship gate) */}
       {status === 'PENDING' && fulfillmentMode === 'SHIPPED' && (
         <>
