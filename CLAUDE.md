@@ -28,6 +28,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
 ## Key Documents
 
 - **PRD:** `docs/PRD.md`
+- **Business Rules:** `docs/10 - Business Rules/` — กฎธุรกิจที่เป็น SSOT. **🛑 เมื่อใดก็ตามที่พูดถึง/ทำงานกับ "Tier" (trust tier, tier name/cover/color/mapping) ต้องอ่าน `docs/10 - Business Rules/Tier Lists.md` ก่อนเสมอ แล้วยึดตามนั้น — ห้ามตั้ง mapping/ชื่อ tier เองที่อื่น**
 - **UI Guideline (must-read before ANY Frontend work):** `docs/system/ui-guideline/README.md` — entry hub (universal theme-copy rule + checklist + workflow + commit rule). Role docs: `customer/`, `seller/`, `admin/` page-sourcing.md
 - **Conventions:**
   - `docs/conventions/rsc-mui-navigation.md` — RSC + MUI + next/link pattern
