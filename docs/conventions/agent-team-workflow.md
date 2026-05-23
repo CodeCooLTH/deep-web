@@ -343,3 +343,21 @@ retro: `docs/retro/2026-05-23-shop-public-profile.md`
 37. **Controller-direct edit ระหว่าง fast visual iteration = ยอมรับได้ แต่ต้องปิดด้วย independent reviewer
     gate ก่อน commit เสมอ** — เมื่อ Controller แก้เองเยอะ (เสีย developer→reviewer separation) dispatch
     `safepay-reviewer` รอบสุดท้ายก่อน commit (รอบนี้จับ stale comment/dead field/padding regression ได้).
+
+### Addendum (2026-05-23) — Order-confirm UX (backend-reality verify + SSOT util + API-DB QA)
+
+retro: `docs/retro/2026-05-23-order-confirm-ux.md`
+
+38. **"Backend done" claim ของ product/spec → Controller grep-verify (schema+routes) ต่อ feature ก่อน scope UX-only** —
+    อย่าเชื่อ PRD/"code-complete" ลอย ๆ ก่อนวาง phase ว่า "ทำแค่ UI". เคย: product req ระบุ slip (FR-6.12)
+    "backend done" แต่ verify schema แล้ว `requiresSlip`/order-slip **ไม่มีจริง** (มีแต่ wallet topup) →
+    defer ทันแทน build UI บน backend ที่ไม่มี. ขยาย #15 (verify infra เชิงประจักษ์) ครอบ "verify feature-exists ก่อน scope".
+39. **Shared mapping/business rule ข้ามหลาย surface → 1 client-safe util + SSOT doc (ไม่ copy ต่อไฟล์)** —
+    Controller สร้าง util ก่อน dispatch parallel batch (กัน race ถ้า 2 task สร้าง/import พร้อมกัน + กัน drift).
+    business-rule สำคัญ → SSOT ใน `docs/10 - Business Rules/` + กฎ "ต้องอ่านก่อนทำงาน X" ใน CLAUDE.md.
+    เคย: tier mapping drift 3 ทาง (order letter / profile 5-tier cover / spec 6-tier) → รวมเป็น `src/lib/trust-tier.ts` + `Tier Lists.md`.
+    คู่ #28: optional-prop pattern (ทำ prop ใหม่ optional ใน task ที่ผลิต → parallel task ไม่มี cross-task tsc error → integrator wire ทีหลัง).
+40. **browser QA ใช้ไม่ได้ + feature แตะ DB-mutation → พิสูจน์ด้วย API-curl + DB-query E2E** —
+    seed (Prisma .env.local) → curl endpoint จริง (ระบุ Host/Origin/field-name ก่อน) → query DB ยืนยัน persist;
+    defer เฉพาะ visual layer ไม่ blanket-defer ทั้งหมด. เคย: chrome MCP หลุด → พิสูจน์ confirm→CONFIRMED + cancel→CANCELLED
+    ผ่าน API+DB ได้ (core "บันทึก DB จริง" ของ user). เช็ก origin/CSRF guard ของ route ก่อน curl (#9 context-shift).
