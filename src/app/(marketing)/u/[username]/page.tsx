@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 // Service Imports
 import { prisma } from '@/lib/prisma'
 import { findByUsername } from '@/services/user.service'
-import { getReviewsByUsername, getAvgRatingByUsername } from '@/services/review.service'
+import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getTrustLevel } from '@/services/trust-score.service'
 
@@ -15,8 +15,9 @@ import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHea
 import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 
 // Base: theme/vuexy/typescript-version/full-version/src/app/[lang]/(dashboard)/(private)/pages/user-profile/page.tsx
-// Adapted: public (no auth), data sourced from SafePay services instead of getProfileData(),
-// tab wrapper dropped — see views/pages/user-profile/index.tsx comment.
+// Adapted: public (no auth), data sourced from SafePay services instead of getProfileData()
+// Rework (2026-05-23): ตัด about/verification/reviews data ออก — ProfileTabData ไม่มี field เหล่านี้แล้ว
+// ตัด getReviewsByUsername call + ลด Promise.all — ไม่ต้องการ reviews array อีกต่อไป
 
 type Props = { params: Promise<{ username: string }> }
 
@@ -52,8 +53,9 @@ export default async function PublicProfilePage({ params }: Props) {
   const user = await findByUsername(username)
   if (!user) notFound()
 
-  const [reviews, approvedVerifications, orderStats, ratingAgg, rawProducts] = await Promise.all([
-    getReviewsByUsername(username, 10, 0),
+  // ทำไม: ตัด getReviewsByUsername ออก — ProfileTab ไม่แสดง RecentReviews อีกแล้ว
+  // คง getAvgRatingByUsername + orderStats + products ที่ยังใช้งานอยู่
+  const [approvedVerifications, orderStats, ratingAgg, rawProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { userId: user.id, status: 'APPROVED' },
       select: { level: true },
@@ -65,7 +67,7 @@ export default async function PublicProfilePage({ params }: Props) {
           _count: { _all: true },
         })
       : Promise.resolve([] as Array<{ status: string; _count: { _all: number } }>),
-    // ใช้ aggregate แทน reviews.reduce/length เพราะ getReviewsByUsername มี take=10 ทำให้ avg ผิด
+    // aggregate ทั้งหมด — ใช้แสดง rating บน platforms section
     getAvgRatingByUsername(username),
     // ดึงสินค้าเฉพาะเมื่อมีร้าน (isShop=true) — buyer-only ส่ง [] แทน
     user.shop ? getProductsByShop(user.shop.id, 9) : Promise.resolve([]),
@@ -78,14 +80,9 @@ export default async function PublicProfilePage({ params }: Props) {
     : 0
 
   const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
-  const cancelledCount = orderStats.find((s) => s.status === 'CANCELLED')?._count._all ?? 0
-  // totalOrders = CONFIRMED + CANCELLED เพื่อคำนวณ completionRate ที่มีความหมาย
-  const totalOrders = confirmedCount + cancelledCount
   const completedOrders = confirmedCount
-  const completionRate =
-    totalOrders > 0 ? Math.round((confirmedCount / totalOrders) * 1000) / 10 : 0
 
-  // avgRating + reviewCount จาก aggregate (ครอบคลุม review ทั้งหมด ไม่ใช่แค่ 10)
+  // avgRating + reviewCount จาก aggregate (ครอบคลุม review ทั้งหมด)
   const { avgRating, reviewCount } = ratingAgg
 
   // serialize products: Decimal → string, images Json → string[] → first
@@ -97,8 +94,7 @@ export default async function PublicProfilePage({ params }: Props) {
     imageUrl: (p.images as string[])[0] ?? null,
   }))
 
-  // FR-4.8: กรอง badge ที่จะแสดงบน public profile — เฉพาะ seller-context (SELLER|ANY) เท่านั้น
-  // BUYER-audience badge ดูได้เฉพาะหน้า /badges (self) ไม่ใช่ public profile
+  // FR-4.8: กรอง badge ที่แสดงบน public profile — เฉพาะ seller-context (SELLER|ANY)
   const sellerContextBadges = user.userBadges.filter(
     (ub) => ub.badge.audience === 'SELLER' || ub.badge.audience === 'ANY'
   )
@@ -115,106 +111,13 @@ export default async function PublicProfilePage({ params }: Props) {
     trustLevel,
     trustColor,
     maxVerifyLevel,
-    stats: {
-      completedOrders,
-      reviews: reviewCount,
-      // นับเฉพาะ seller-context badge ที่แสดงบน public profile จริง ๆ
-      badges: sellerContextBadges.length,
-    },
-    // ข้อมูลร้านสำหรับแสดง bio + location ใต้ชื่อ (public field เท่านั้น ไม่มี email/phone)
     bio: user.shop?.description ?? null,
     location: user.shop?.address ?? null,
   }
 
-  // --- About / Overview data -------------------------------------------------
-  const aboutItems = [
-    {
-      property: 'ชื่อที่แสดง',
-      value: user.displayName,
-      icon: 'tabler-user',
-    },
-    {
-      property: 'ชื่อผู้ใช้',
-      value: `@${user.username}`,
-      icon: 'tabler-at',
-    },
-    {
-      property: 'สมาชิกตั้งแต่',
-      value: dateFmt.format(user.createdAt),
-      icon: 'tabler-calendar',
-    },
-  ]
-
-  if (user.isShop && user.shop) {
-    aboutItems.push({
-      property: 'ร้าน',
-      value: user.shop.shopName,
-      icon: 'tabler-building-store',
-    })
-  }
-
-  const overviewItems = [
-    {
-      property: 'Trust Score',
-      value: `${user.trustScore} (ระดับ ${trustLevel})`,
-      icon: 'tabler-shield-check',
-    },
-    {
-      property: 'ระดับการยืนยัน',
-      value: maxVerifyLevel > 0 ? `ระดับ ${maxVerifyLevel}` : 'ยังไม่ยืนยัน',
-      icon: 'tabler-rosette-discount-check',
-    },
-    {
-      property: 'Badge',
-      value: `${sellerContextBadges.length} รายการ`,
-      icon: 'tabler-award',
-    },
-  ]
-
-  // --- Profile tab data ------------------------------------------------------
+  // --- Profile tab data (ตัด about/verification/reviews ออกแล้ว) ------------
   const profileTab: ProfileTabData = {
-    // about ส่งเฉพาะ field ของ AboutOverviewData จริง — ไม่ยัด stats เพิ่ม
-    // ทำไม: stats ย้ายมาเป็น top-level fields ของ ProfileTabData แล้ว (type-safe ไม่ต้อง cast)
-    about: {
-      about: aboutItems,
-      overview: overviewItems,
-      shopInfo:
-        user.isShop && user.shop
-          ? {
-              shopName: user.shop.shopName,
-              description: user.shop.description,
-              category: user.shop.category,
-            }
-          : null,
-    },
-    // stats fields ที่ StatsBar อ่านโดยตรง — ไม่ piggyback บน about อีกต่อไป
-    completedOrders,
-    totalOrders,
-    reviewCount,
-    completionRate,
-    verification: [
-      {
-        level: 1,
-        label: 'ยืนยันเบอร์/อีเมล',
-        icon: 'tabler-phone-check',
-        active: maxVerifyLevel >= 1,
-      },
-      {
-        level: 2,
-        label: 'ยืนยันบัตรประชาชน',
-        icon: 'tabler-id-badge-2',
-        active: maxVerifyLevel >= 2,
-      },
-      {
-        level: 3,
-        label: 'ยืนยันจดทะเบียนธุรกิจ',
-        icon: 'tabler-briefcase',
-        active: maxVerifyLevel >= 3,
-      },
-    ],
-    // FR-4.8 + FR-9.5: ใช้ sellerContextBadges ที่กรองไว้แล้ว — ไม่แสดง BUYER-audience และ progress
-    // imageUrl: เพิ่มเพื่อให้ AchievementBadges ใช้ precedence imageUrl→emoji; badge row มีอยู่แล้วใน
-    // include:{ badge: true } ของ findByUsername — ไม่ leak PII (imageUrl เป็น public URL)
+    // FR-4.8 + FR-9.5: ใช้ sellerContextBadges ที่กรองไว้แล้ว
     achievements: sellerContextBadges.map((ub) => ({
       id: ub.id,
       name: ub.badge.name,
@@ -222,29 +125,28 @@ export default async function PublicProfilePage({ params }: Props) {
       icon: ub.badge.icon ?? '',
       imageUrl: ub.badge.imageUrl ?? null,
     })),
-    reviews: reviews.map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      createdAt: r.createdAt.toISOString(),
-      itemName: r.order.items[0]?.name ?? null,
-    })),
     avgRating,
-    // FR-9.5: buyer-only account → ส่ง flag เพื่อให้ ProfileTab แสดง empty-state ชวนเปิดร้าน
+    completedOrders,
+    // FR-9.5: buyer-only account → ส่ง flag เพื่อซ่อน products + platforms sections
     openShopEmptyState: !user.isShop,
-    // สินค้า 9 รายการล่าสุด (serialize แล้ว — ห้ามส่ง Decimal ข้าม RSC boundary)
     products,
-    // totalBadgeCount = จำนวน seller-context badge ที่แสดงจริงบน public profile
     totalBadgeCount: sellerContextBadges.length,
     // แสดง rating summary เฉพาะเมื่อมีรีวิวอย่างน้อย 3 รายการ (เพื่อความน่าเชื่อถือ)
     showRating: reviewCount >= 3,
   }
 
+  // ทำไม: outer div เปลี่ยน bg → radial gradient + padding ตาม mockup body background
+  // inner div ไม่มี max-w-6xl อีกต่อไป — wrapper การ์ดจัดการ max-width 640px เอง
   return (
-    <div className='p-4 sm:p-6 lg:p-10 min-bs-[100dvh] bg-[var(--mui-palette-background-default)]'>
-      <div className='mx-auto max-w-6xl'>
-        <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
-      </div>
+    <div
+      style={{
+        background:
+          'radial-gradient(ellipse at top, #DDD6FE 0%, transparent 50%), radial-gradient(ellipse at bottom, #FBCFE8 0%, transparent 50%), #F8FAFC',
+        minHeight: '100vh',
+        padding: '60px 24px',
+      }}
+    >
+      <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
     </div>
   )
 }

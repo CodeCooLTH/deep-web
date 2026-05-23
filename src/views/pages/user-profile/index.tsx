@@ -1,5 +1,5 @@
 // MUI Imports
-import Grid from '@mui/material/Grid'
+import Box from '@mui/material/Box'
 
 // Component Imports
 import UserProfileHeader from './UserProfileHeader'
@@ -8,9 +8,9 @@ import ProfileTab from './profile'
 import type { ProfileTabData } from './profile'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/index.tsx
-// Tabs decision: dropped the Tabs wrapper (TabContext + CustomTabList + TabPanel) entirely.
-// The SafePay public profile only has one "Profile" tab — rendering a single-tab Tabs component
-// is visually noisy and forces a client boundary for no benefit. This keeps the page a pure RSC.
+// Adapted: ตัด Tabs wrapper ออก (มีแท็บเดียว — ไม่ต้องการ TabContext + CustomTabList)
+// Rework: เปลี่ยนจาก Grid 2-คอลัมน์ → การ์ดเดียว max-width 640px ตาม mockup_shop_profile.html (D7 approved)
+// โครง: Box การ์ดเดียว ครอบ Header + ProfileTab ไล่ลงตาม mockup
 const UserProfile = ({
   profileHeader,
   profileTab,
@@ -19,14 +19,24 @@ const UserProfile = ({
   profileTab: ProfileTabData
 }) => {
   return (
-    <Grid container spacing={6}>
-      <Grid size={{ xs: 12 }}>
-        <UserProfileHeader data={profileHeader} />
-      </Grid>
-      <Grid size={{ xs: 12 }} className='flex flex-col gap-6'>
-        <ProfileTab data={profileTab} />
-      </Grid>
-    </Grid>
+    <Box
+      sx={{
+        maxWidth: 640,
+        mx: 'auto',
+        bgcolor: 'background.paper',
+        borderRadius: '24px',
+        overflow: 'hidden',
+        position: 'relative',
+        // เงาตาม mockup --shadow-xl
+        boxShadow: '0 25px 70px rgba(15,23,42,.18), 0 8px 16px rgba(15,23,42,.08)',
+      }}
+    >
+      {/* Header: trust banner + x-header + identity — render ภายในการ์ดเดียว */}
+      <UserProfileHeader data={profileHeader} />
+
+      {/* Tab content: platforms + stats + achievements + products — ต่อเนื่องไม่มี Card ซ้อน */}
+      <ProfileTab data={profileTab} />
+    </Box>
   )
 }
 
