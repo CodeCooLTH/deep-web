@@ -40,6 +40,25 @@ Every task passes through five gates before being marked complete:
 4. **QA** — QA agent exercises the page in a real browser via the Chrome DevTools MCP. See the 3-level cadence below. Required for any task that produces a user-facing page or flow; skipped only for pure-infrastructure tasks (e.g. R1 shell copies that have no standalone URL).
 5. **Integrate** — Controller reads the review + QA findings, decides pass/fail. On fail, re-dispatch Developer with the review + QA findings. On pass, commit and mark task complete.
 
+## Scope Baseline & 3 scope gates (required)
+
+`safepay-product` เป็น **เจ้าของ scope ตลอด phase** ไม่ใช่แค่ออก requirement ตอนต้นแล้วหาย. continuity มาจาก artifact ถาวร + Controller re-dispatch product ที่ 3 จุด (subagent stateless — เฝ้าเองไม่ได้).
+
+### Scope Baseline artifact
+- ที่อยู่: `docs/scope/<YYYY-MM-DD>-<phase-id>-scope-baseline.md` (copy จาก `docs/scope/_TEMPLATE.md`)
+- In-Scope ทุกข้อมี ID `S-n` + acceptance ทดสอบได้; Out-of-Scope ID `OOS-n` (แตะ = CREEP); Deferred→Phase 2 (ไม่นับ GAP); Change Log = audit trail การแก้ scope
+- สถานะ `ACTIVE` → `SIGNED-OFF` (product เปลี่ยนตอน Gate 2 เท่านั้น)
+- **ทุก commit ของ phase ต้อง cite `S-id`** — developer prompt ระบุ task serve S-?, reviewer Gate 6 เช็ก citation มีจริง, product Gate 1 audit ว่า map ครบ
+
+### 3 gates (เกาะ 3-level QA cadence)
+| Gate | เมื่อ | mode | input | output / hard rule |
+|---|---|---|---|---|
+| **0 Baseline** | ต้น phase, ก่อน Planner | Scope Baseline | request + PRD + retro | เนื้อ baseline → Controller Write + commit; Planner map ทุก task → S-id |
+| **1 Scope-diff** | ต่อ batch, รวมกับ batch-QA | Scope Audit | baseline + `git diff --stat` + commits + task list | `PASS\|CREEP\|GAP`. CREEP/GAP = **hard block** commit |
+| **2 Sign-off** | ปลาย phase, ก่อน retro | Sign-off | baseline + commit ทั้ง phase + QA end-of-phase | `SIGNED-OFF` (flip สถานะ) \| `BLOCKED`. ต้อง SIGNED-OFF ก่อน `phase-retro` |
+
+CREEP/GAP → Controller ตัดสิน 3 ทาง: (ก) ตัดงานเกินออก / (ข) รับเข้า scope → product อัปเดต baseline + Change Log แล้ว re-audit / (ค) เลื่อน Phase 2. ห้าม Controller ตัดสินใจแทน product ว่า "ไม่เป็นไร" โดยไม่จด Change Log.
+
 ## 3-level QA cadence (required)
 
 Type-check and code review alone do NOT prove a feature works. QA via Chrome DevTools MCP is mandatory at three levels. **Level 2 and 3 are functional E2E tests, not smoke tests** — they actually fill forms, submit data, verify persistence, and walk cross-subdomain flows.
@@ -197,6 +216,21 @@ Feature · วันที่ · Requirement coverage (id|desc|status) · Comman
 ### Security Review
 ```
 Feature · Scope · Auth review · Authorization review · Env review · Sensitive-data review · Risks (severity|location|fix) · Final: PASS|FAIL|PARTIAL
+```
+
+### Scope gate dispatch (Controller → safepay-product)
+```
+Gate 0 (baseline):
+  "MODE: Scope Baseline. Phase: <id>. Request: <สรุป>. อ้าง PRD FR-?. 
+   ออกเนื้อ baseline ตาม docs/scope/_TEMPLATE.md (S-id/OOS-id/acceptance/deferred). ส่งเนื้อไฟล์กลับ."
+
+Gate 1 (scope-audit ต่อ batch):
+  "MODE: Scope Audit. Baseline: docs/scope/<file>. Batch <n> tasks: <list>.
+   <แนบ git diff --stat + git log --format=%s ของ batch>. คืน verdict PASS|CREEP|GAP + หลักฐาน."
+
+Gate 2 (sign-off ปลาย phase):
+  "MODE: Sign-off. Baseline: docs/scope/<file>. Commits ทั้ง phase: <log>. QA end-of-phase: <สรุป PASS/FAIL ต่อ FR>.
+   ตรวจ S-id ครบ+acceptance ผ่าน / ไม่มี CREEP ค้าง / PRD sync. คืน SIGNED-OFF | BLOCKED + รายการค้าง."
 ```
 
 ---

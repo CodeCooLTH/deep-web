@@ -9,12 +9,12 @@ feature ใหม่เดินผ่าน 7 phase. Controller = main session 
 
 ## 7 Phases → ใคร
 1. **Discovery** — Controller inspect โปรเจกต์ (อย่าเขียนโค้ด)
-2. **Requirement** — dispatch `safepay-product` → Goal/FR/NFR/Acceptance/Assumptions
+2. **Requirement** — dispatch `safepay-product` → Goal/FR/NFR/Acceptance/Assumptions **+ Scope Baseline** (`docs/scope/<...>-scope-baseline.md`, ID `S-n`/`OOS-n`) ที่ Controller commit เป็น SSOT ของ scope (= Gate 0 ของ `agent-team-phase`)
 3. **Technical Design** — `safepay-planner` (architect+theme mapping); แตะ schema → `safepay-database`; ทบทวน auth → `safepay-security`
 4. **Implementation** — `safepay-database` → `safepay-developer` → `safepay-docs` (safepay-docs เมื่อมี route/API/DB ใหม่ หรือปิด Known Gap §11 PRD). ถ้า ≥3 tasks ใช้ skill `agent-team-phase` (5-gate, batch≤3) ภายใน
 5. **Internal Review** — `safepay-reviewer` (code quality) + `safepay-security` — must-fix ต้องแก้ก่อน QA
 6. **QA** — `safepay-qa` (3-level Chrome DevTools MCP) → PASS/FAIL/PARTIAL
-7. **Final Report** — Controller สรุป + invoke skill `phase-retro`
+7. **Final Report** — dispatch `safepay-product` (sign-off mode) → ต้องได้ `SIGNED-OFF` (= Gate 2) → Controller สรุป + invoke skill `phase-retro`. ห้าม report complete ถ้า sign-off = `BLOCKED`
 
 ## Definition of Done (ย่อ)
 requirement+acceptance ครบ / design+affected files ชัด / migration ปลอดภัย+reviewed /

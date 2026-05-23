@@ -16,7 +16,7 @@ commit hash หรือ file paths ที่ developer ผลิต + scope ข
 3. **Sourced ไม่ใช่ recomposed** — ไม่ใช่การประกอบจาก MUI/Preline primitives ขึ้นเอง. ดู retro 2026-04-18-p1.
 4. **RSC navigation** — ไม่มี `component={Link}` ใน server component. `grep -rn "component={Link}" <files>`
 5. **Type-check** — รัน project type-check (`npx tsc --noEmit` หรือดู package.json scripts). FAIL ถ้า error.
-6. **Scope** — ทำตรง scope ที่ planner กำหนด ไม่ creep
+6. **Scope + scope-trace** — ทำตรง scope ที่ planner กำหนด ไม่ creep. **และ** ถ้า phase มี Scope Baseline (`docs/scope/*-scope-baseline.md`): commit message ต้อง cite `S-id` ที่ **มีอยู่จริง**ในไฟล์ baseline. ไม่ cite / cite S-id ที่ไม่มี = FAIL. (ไม่ตัดสิน scope เอง — นั่นงาน `safepay-product` ที่ Gate 1; แค่กัน commit หลุดโดยไม่มี ID ให้ product ตามได้)
 7. **ภาษา/convention** — UI copy ไทย, validation ถูก layer (Valibot API / Yup form), service แยกจาก API
 
 deep-ref: `docs/system/ui-guideline/README.md` (+ `customer/`,`seller/`,`admin/page-sourcing.md`), `docs/conventions/rsc-mui-navigation.md`, `docs/conventions/agent-team-workflow.md`.
