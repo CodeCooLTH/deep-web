@@ -258,6 +258,8 @@ async function seed() {
       fulfillmentMode: 'NO_SHIPPING',
       paymentMethod: 'พร้อมเพย์ 081-234-5678',
       buyerContact: BUYER_CONTACT,
+      // Phase 2 S-10: seed accessUrl เพื่อทดสอบ buyer "เปิด" link + seller view
+      accessUrl: 'https://example.com/course-access/bt-premium-pro',
       items: {
         create: [
           { productId: PROD.course, name: 'คอร์สแต่งรถออนไลน์ (Pro)', qty: 1, price: 3500 },
