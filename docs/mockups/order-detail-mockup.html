@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Order Detail — Deep (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F172A; --ink-2:#334155; --ink-3:#64748B; --ink-4:#94A3B8;
+    --line:#E8EDF3; --card:#FFFFFF; --bg:#EEF2F7;
+    --amber:#D97706; --amber-bg:#FEF3E2; --green:#059669; --green-bg:#E7F6F0;
+    --blue:#1D9BF0; --silver-a:#E2E8F0; --silver-b:#9CA3AF;
+    --shadow-card:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+    --shadow-xl:0 30px 60px rgba(15,23,42,.16), 0 8px 20px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    font-family:'Anuphan',sans-serif; color:var(--ink);
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, #DDD6FE55, transparent),
+      radial-gradient(ellipse 90% 50% at 50% 110%, #FBCFE855, transparent),
+      var(--bg);
+    min-height:100vh; display:flex; justify-content:center; padding:32px 16px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .phone{
+    width:100%; max-width:412px; background:var(--card);
+    border-radius:28px; box-shadow:var(--shadow-xl); overflow:hidden;
+    position:relative; padding-bottom:120px;
+  }
+
+  /* ── Tier cover banner ── */
+  .banner{
+    height:150px; position:relative; overflow:hidden;
+    background:linear-gradient(135deg,var(--silver-a),var(--silver-b));
+    background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');
+    background-size:cover; background-position:center;
+  }
+  .back{
+    position:absolute; top:16px; left:16px; width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,.92); backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.6); box-shadow:0 2px 8px rgba(0,0,0,.14);
+    display:grid; place-items:center; color:var(--ink); cursor:pointer;
+  }
+
+  /* ── Trust hero (consistent กับ /u/[username]) ── */
+  .hero{ padding:0 22px; text-align:center; position:relative; z-index:2; }
+  .avatar-wrap{ margin-top:-46px; display:inline-block; position:relative; }
+  .avatar{
+    width:92px; height:92px; border-radius:50%; border:4px solid #fff;
+    box-shadow:0 8px 18px rgba(15,23,42,.18); object-fit:cover; display:block;
+    background:#fff;
+  }
+  .verify{
+    position:absolute; right:2px; bottom:2px; width:26px; height:26px; border-radius:50%;
+    background:var(--blue); border:3px solid #fff; display:grid; place-items:center; color:#fff;
+  }
+  .shop{ font-size:21px; font-weight:800; letter-spacing:-.02em; margin-top:10px; line-height:1.2; }
+  .handle{ font-size:13px; color:var(--ink-3); margin-top:1px; }
+  .chips{ display:flex; gap:6px; justify-content:center; margin-top:9px; flex-wrap:wrap; }
+  .chip{ font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:4px; }
+  .chip.verify-c{ background:#E5F4FE; color:#0C7DC2; }
+  .chip.tier-c{ background:#EDF1F6; color:#475569; }
+  .chip.score-c{ background:#F1F5F9; color:var(--ink-2); }
+
+  /* ── Status strip ── */
+  .status{
+    margin:18px 22px 0; padding:14px 16px; border-radius:16px;
+    background:var(--amber-bg); display:flex; align-items:center; gap:12px;
+  }
+  .status .ic{ width:38px; height:38px; border-radius:12px; background:#fff; display:grid; place-items:center; color:var(--amber); flex-shrink:0; box-shadow:0 1px 3px rgba(217,119,6,.18); }
+  .status .t{ font-size:15px; font-weight:800; color:#92400E; line-height:1.2; }
+  .status .s{ font-size:12px; color:#B45309; margin-top:2px; line-height:1.35; }
+
+  .meta-row{ text-align:center; font-size:11.5px; color:var(--ink-4); margin-top:10px; }
+
+  /* ── Sections ── */
+  .sec{ margin:22px 22px 0; }
+  .sec-h{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-4); margin-bottom:12px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow-card); overflow:hidden; }
+  .item{ padding:14px 16px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .item + .item{ border-top:1px solid var(--line); }
+  .item .nm{ font-size:14px; font-weight:600; color:var(--ink); line-height:1.3; }
+  .item .qy{ font-size:12px; color:var(--ink-3); margin-top:3px; }
+  .item .pr{ font-size:14px; font-weight:700; white-space:nowrap; }
+  .total{ padding:14px 16px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--line); background:#FBFCFE; }
+  .total .l{ font-size:13px; color:var(--ink-3); font-weight:600; }
+  .total .v{ font-size:19px; font-weight:800; letter-spacing:-.02em; }
+
+  .pay{ padding:14px 16px; display:flex; align-items:center; gap:12px; }
+  .pay .ic{ width:36px; height:36px; border-radius:10px; background:var(--green-bg); display:grid; place-items:center; color:var(--green); flex-shrink:0; }
+  .pay .l{ font-size:11.5px; color:var(--ink-4); font-weight:600; }
+  .pay .v{ font-size:14px; font-weight:700; color:var(--ink); margin-top:1px; }
+
+  /* ── Bottom CTA ── */
+  .bottom{
+    position:absolute; left:0; right:0; bottom:0; padding:14px 20px 18px;
+    background:rgba(255,255,255,.86); backdrop-filter:blur(14px); border-top:1px solid var(--line);
+  }
+  .btn-confirm{
+    width:100%; height:52px; border:none; border-radius:15px; background:var(--ink); color:#fff;
+    font-family:inherit; font-size:15.5px; font-weight:800; letter-spacing:.01em; cursor:pointer;
+    box-shadow:0 8px 20px rgba(15,23,42,.28); transition:transform .15s;
+  }
+  .btn-confirm:hover{ transform:translateY(-1px); }
+  .btn-cancel{ width:100%; margin-top:8px; background:none; border:none; color:#DC2626; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; padding:6px; }
+  .protect{ text-align:center; font-size:11px; color:var(--ink-4); margin-top:6px; display:flex; align-items:center; justify-content:center; gap:5px; }
+
+  svg{ display:block; }
+</style>
+</head><body>
+  <article class="phone">
+    <!-- Banner -->
+    <div class="banner">
+      <div class="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+    </div>
+
+    <!-- Trust hero -->
+    <div class="hero">
+      <div class="avatar-wrap">
+        <img class="avatar" src="../../public/images/avatars/btpremium-logo.png" alt="shop"/>
+        <div class="verify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+      </div>
+      <div class="shop">BT Premium Auto Xeon</div>
+      <div class="handle">@btpremium_suksawat</div>
+      <div class="chips">
+        <span class="chip verify-c">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>
+          ยืนยันแล้ว</span>
+        <span class="chip tier-c">Deep Silver</span>
+        <span class="chip score-c">Trust 65</span>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status">
+      <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+      <div>
+        <div class="t">รอดำเนินการ</div>
+        <div class="s">รอการยืนยันจากคุณ กดยืนยันหลังได้รับสินค้า/บริการแล้ว</div>
+      </div>
+    </div>
+    <div class="meta-row">คำสั่งซื้อ #000bd0de · 23 พ.ค. 2569</div>
+
+    <!-- Items -->
+    <div class="sec">
+      <div class="sec-h">รายการสินค้า</div>
+      <div class="card">
+        <div class="item">
+          <div><div class="nm">ชุดไฟหน้า LED Premium (คู่)</div><div class="qy">จำนวน 1 × ฿2,500</div></div>
+          <div class="pr">฿2,500</div>
+        </div>
+        <div class="item">
+          <div><div class="nm">ค่าติดตั้ง</div><div class="qy">จำนวน 1 × ฿1,000</div></div>
+          <div class="pr">฿1,000</div>
+        </div>
+        <div class="total"><span class="l">ยอดรวมทั้งหมด</span><span class="v">฿3,500</span></div>
+      </div>
+    </div>
+
+    <!-- Payment -->
+    <div class="sec">
+      <div class="sec-h">วิธีชำระเงิน</div>
+      <div class="card">
+        <div class="pay">
+          <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+          <div><div class="l">ชำระโดย</div><div class="v">โอนเงิน / พร้อมเพย์ 081-234-5678</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom -->
+    <div class="bottom">
+      <button class="btn-confirm">ยืนยันคำสั่งซื้อ</button>
+      <button class="btn-cancel">ยกเลิกคำสั่งซื้อ</button>
+      <div class="protect">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#818CF8"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>
+        ปกป้องการซื้อขายโดย Deep
+      </div>
+    </div>
+  </article>
+</body></html>

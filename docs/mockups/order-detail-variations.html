@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Order Detail — 5 variations + timeline (Deep)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Anuphan',sans-serif;background:#E5E9F0;padding:40px 24px;min-height:100vh}
+  .gallery{display:flex;gap:32px;justify-content:center;flex-wrap:wrap;align-items:flex-start;max-width:2200px;margin:0 auto}
+  .col{width:390px}
+  .label{text-align:center;font-weight:800;font-size:15px;color:#1E293B;margin-bottom:6px}
+  .sub{text-align:center;font-size:12px;color:#64748B;margin-bottom:14px}
+  .phone{width:390px;border-radius:26px;overflow:hidden;position:relative;padding-bottom:108px;box-shadow:0 30px 60px rgba(15,23,42,.18)}
+  .arr{width:20px;height:20px}
+  svg{display:block}
+
+  /* ── Horizontal timeline (current จุดกลาง) — themed ต่อ variation ผ่าน --tl-* ── */
+  .hsteps{display:flex;padding:4px 0 2px;margin:0 -2px}
+  .hstep{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
+  .hstep .dotbox{height:30px;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+  .hstep .dotbox::before{content:"";position:absolute;top:50%;right:50%;width:100%;height:3px;background:var(--tl-up);transform:translateY(-50%);z-index:0;border-radius:2px}
+  .hstep:first-child .dotbox::before{display:none}
+  .hstep.done .dotbox::before,.hstep.cur .dotbox::before{background:var(--tl-done)}
+  .hstep .dot{position:relative;z-index:1;width:18px;height:18px;border-radius:50%;background:var(--tl-bg);border:2.5px solid var(--tl-up);display:grid;place-items:center}
+  .hstep.done .dot{background:var(--tl-done);border-color:var(--tl-done)}
+  .hstep.cur .dot{width:28px;height:28px;border:3px solid var(--tl-cur);background:var(--tl-bg);box-shadow:0 0 0 5px var(--tl-curbg)}
+  .hstep.cur .dot i{width:10px;height:10px;border-radius:50%;background:var(--tl-cur);display:block}
+  .hstep .lab{font-size:11px;font-weight:600;color:var(--tl-up);margin-top:7px;line-height:1.2}
+  .hstep.done .lab{color:var(--tl-lab)}
+  .hstep.cur .lab{color:var(--tl-cur);font-weight:800;font-size:12px}
+  .ck{color:#fff}
+
+  /* ═══ V1 — PROFILE-CONSISTENT (light, flat) ═══ */
+  .v1{background:#F3F5F8;color:#0F172A;--tl-cur:#2563EB;--tl-curbg:#EFF4FF;--tl-done:#0E9F6E;--tl-up:#D5DCE6;--tl-bg:#fff;--tl-lab:#334155}
+  .v1 .banner{height:140px;position:relative;overflow:hidden;background:linear-gradient(135deg,#E2E8F0,#9CA3AF);background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');background-size:cover;background-position:center}
+  .v1 .back{position:absolute;top:14px;left:14px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.6);display:grid;place-items:center;color:#0F172A;z-index:2}
+  .v1 .hero{text-align:center;padding:0 20px}
+  .v1 .avw{margin-top:-44px;display:inline-block;position:relative}
+  .v1 .av{width:86px;height:86px;border-radius:50%;border:4px solid #fff;object-fit:cover;background:#fff;box-shadow:0 6px 16px rgba(15,23,42,.16)}
+  .v1 .verify{position:absolute;right:2px;bottom:2px;width:24px;height:24px;border-radius:50%;background:#1D9BF0;border:3px solid #fff;display:grid;place-items:center;color:#fff}
+  .v1 .shop{font-size:20px;font-weight:800;margin-top:9px;letter-spacing:-.02em}.v1 .h{font-size:12.5px;color:#64748B}
+  .v1 .chips{display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+  .v1 .chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}.v1 .chip.v{background:#E5F4FE;color:#0C7DC2}.v1 .chip.t{background:#EDF1F6;color:#475569}.v1 .chip.s{background:#EEF2F7;color:#334155}
+  .v1 .sec{margin:18px 18px 0}.v1 .sh{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#94A3B8;margin-bottom:9px}
+  .v1 .card{background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.06);overflow:hidden}
+  .v1 .it{padding:12px 14px;display:flex;align-items:center;gap:11px}.v1 .it+.it{border-top:1px solid #EEF2F7}
+  .v1 .th{width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0}
+  .v1 .it .info{flex:1;min-width:0}.v1 .it .n{font-size:13.5px;font-weight:600}.v1 .it .q{font-size:11.5px;color:#64748B;margin-top:2px}.v1 .it .p{font-weight:700;font-size:13.5px}
+  .v1 .tot{padding:13px 14px;display:flex;justify-content:space-between;border-top:1px solid #EEF2F7;background:#FBFCFE}.v1 .tot .l{font-size:12.5px;color:#64748B}.v1 .tot .v{font-size:18px;font-weight:800}
+  .v1 .pay{padding:12px 14px;display:flex;gap:10px;align-items:center}.v1 .pay .l{font-size:11px;color:#94A3B8}.v1 .pay .v{font-size:13px;font-weight:700}
+  .v1 .bottom{position:absolute;left:0;right:0;bottom:0;padding:13px 18px 16px;background:rgba(243,245,248,.92);backdrop-filter:blur(12px);border-top:1px solid #E8EDF3}
+  .v1 .btn{width:100%;height:50px;border:none;border-radius:13px;background:#0F172A;color:#fff;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer}
+  .v1 .cx{width:100%;background:none;border:none;color:#DC2626;font-family:inherit;font-size:12.5px;margin-top:7px;cursor:pointer}
+
+  /* ═══ V2 — DARK LUXE ═══ */
+  .v2{background:#0B1120;color:#E2E8F0;--tl-cur:#D4AF37;--tl-curbg:rgba(212,175,55,.18);--tl-done:#0E9F6E;--tl-up:#3A4660;--tl-bg:#131C2E;--tl-lab:#CBD5E1}
+  .v2 .banner{height:138px;position:relative;background:linear-gradient(135deg,#1E293B,#0B1120);overflow:hidden}
+  .v2 .banner::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 30%,#D4AF3733,transparent 60%)}
+  .v2 .back{position:absolute;top:14px;left:14px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(212,175,55,.4);display:grid;place-items:center;color:#D4AF37;z-index:2}
+  .v2 .tl{position:absolute;top:24px;right:22px;text-align:right;z-index:2}.v2 .tl small{font-size:9px;letter-spacing:.28em;color:#94A3B8}.v2 .tl b{display:block;font-size:22px;font-weight:800;color:#D4AF37}
+  .v2 .hero{text-align:center;margin-top:-44px;position:relative;z-index:2}
+  .v2 .av{width:86px;height:86px;border-radius:50%;border:3px solid #D4AF37;object-fit:cover;background:#1E293B;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  .v2 .shop{font-size:19px;font-weight:800;margin-top:9px}.v2 .h{font-size:12px;color:#94A3B8}
+  .v2 .chips{display:flex;gap:6px;justify-content:center;margin-top:8px}.v2 .chip{font-size:11px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#CBD5E1}.v2 .chip.g{border-color:rgba(212,175,55,.5);color:#D4AF37}
+  .v2 .sec{margin:18px 20px 0}.v2 .sh{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#64748B;margin-bottom:9px}
+  .v2 .card{background:#131C2E;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .v2 .it{padding:12px 14px;display:flex;align-items:center;gap:11px}.v2 .it+.it{border-top:1px solid rgba(255,255,255,.06)}
+  .v2 .th{width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.1);flex-shrink:0}
+  .v2 .it .info{flex:1;min-width:0}.v2 .it .n{font-size:13.5px;font-weight:500}.v2 .it .q{font-size:11.5px;color:#64748B;margin-top:2px}.v2 .it .p{font-weight:700;font-size:13.5px}
+  .v2 .tot{padding:13px 14px;display:flex;justify-content:space-between;border-top:1px solid rgba(212,175,55,.2);background:rgba(212,175,55,.05)}.v2 .tot .l{font-size:12px;color:#94A3B8}.v2 .tot .v{font-size:18px;font-weight:800;color:#D4AF37}
+  .v2 .pay{padding:12px 14px;display:flex;gap:10px;align-items:center}.v2 .pay .l{font-size:11px;color:#64748B}.v2 .pay .v{font-size:13px;font-weight:600}
+  .v2 .bottom{position:absolute;left:0;right:0;bottom:0;padding:14px 18px 16px;background:rgba(11,17,32,.9);backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,.08)}
+  .v2 .btn{width:100%;height:50px;border:none;border-radius:13px;background:linear-gradient(135deg,#E9C766,#D4AF37);color:#0B1120;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer}
+  .v2 .cx{width:100%;background:none;border:none;color:#94A3B8;font-family:inherit;font-size:12.5px;margin-top:7px;cursor:pointer}
+
+  /* ═══ V3 — TICKET ═══ */
+  .v3{background:#FBF7EF;color:#1C1917;--tl-cur:#0E7C66;--tl-curbg:rgba(14,124,102,.12);--tl-done:#0E7C66;--tl-up:#C9BFA8;--tl-bg:#FBF7EF;--tl-lab:#57534E}
+  .v3 .top{padding:18px 22px 16px;background:#0E7C66;color:#fff;position:relative}
+  .v3 .back{position:absolute;top:16px;left:14px;color:#fff}
+  .v3 .st{text-align:center}.v3 .st b{font-size:17px;font-weight:800}.v3 .st span{font-size:12px;opacity:.85;display:block;margin-top:2px}
+  .v3 .perf{position:relative;height:22px;background:#0E7C66}
+  .v3 .perf::before,.v3 .perf::after{content:"";position:absolute;width:24px;height:24px;border-radius:50%;background:#E5E9F0;top:-1px}.v3 .perf::before{left:-12px}.v3 .perf::after{right:-12px}
+  .v3 .perf .dash{position:absolute;left:14px;right:14px;top:50%;border-top:2px dashed rgba(255,255,255,.5)}
+  .v3 .body{padding:4px 22px 0}
+  .v3 .tlbox{padding:16px 0 14px;border-bottom:1px dashed #E7DFD0}
+  .v3 .shoprow{display:flex;align-items:center;gap:11px;padding:14px 0;border-bottom:1px solid #E7DFD0}
+  .v3 .av{width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid #E7DFD0}
+  .v3 .shop{font-size:15px;font-weight:800}.v3 .h{font-size:11.5px;color:#78716C}
+  .v3 .chip{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#0E7C6618;color:#0E7C66;margin-left:auto}
+  .v3 .meta{display:flex;justify-content:space-between;padding:12px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#57534E;border-bottom:1px dashed #D6CCB8}
+  .v3 .it{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px dashed #E7DFD0}
+  .v3 .th{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid #E7DFD0;flex-shrink:0}
+  .v3 .it .info{flex:1;min-width:0}.v3 .it .n{font-size:13.5px;font-weight:600}.v3 .it .q{font-size:11px;color:#78716C;font-family:'IBM Plex Mono',monospace}.v3 .it .p{font-weight:700;font-family:'IBM Plex Mono',monospace}
+  .v3 .tot{display:flex;justify-content:space-between;align-items:center;padding:14px 0}.v3 .tot .l{font-size:13px;font-weight:700}.v3 .tot .v{font-size:20px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:#0E7C66}
+  .v3 .pay{background:#F2ECE0;border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:center;margin-bottom:4px}.v3 .pay .l{font-size:10.5px;color:#78716C}.v3 .pay .v{font-size:13px;font-weight:700}
+  .v3 .bottom{position:absolute;left:0;right:0;bottom:0;padding:14px 20px 18px;background:#FBF7EF;border-top:2px dashed #D6CCB8}
+  .v3 .btn{width:100%;height:50px;border:none;border-radius:10px;background:#0E7C66;color:#fff;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer}
+  .v3 .cx{width:100%;background:none;border:none;color:#B91C1C;font-family:inherit;font-size:12.5px;margin-top:7px;cursor:pointer}
+
+  /* ═══ V4 — BOLD FINTECH ═══ */
+  .v4{background:#fff;color:#18181B;--tl-cur:#EA580C;--tl-curbg:#FFF1E6;--tl-done:#0E9F6E;--tl-up:#E5E7EB;--tl-bg:#fff;--tl-lab:#3F3F46}
+  .v4 .hero{padding:48px 22px 26px;background:linear-gradient(150deg,#FB923C,#F97316 55%,#EA580C);color:#fff;position:relative;border-radius:0 0 30px 30px}
+  .v4 .back{position:absolute;top:16px;left:16px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;color:#fff}
+  .v4 .big{font-size:27px;font-weight:800;letter-spacing:-.02em;margin-top:6px}.v4 .sub2{font-size:13px;opacity:.95;margin-top:4px;max-width:80%}
+  .v4 .pill{display:inline-block;font-size:11px;font-weight:700;background:rgba(255,255,255,.25);padding:5px 12px;border-radius:999px;backdrop-filter:blur(4px)}
+  .v4 .shopcard{margin:-18px 18px 0;background:#fff;border-radius:18px;box-shadow:0 8px 24px rgba(234,88,12,.14);padding:14px 16px;display:flex;align-items:center;gap:12px;position:relative;z-index:2}
+  .v4 .av{width:50px;height:50px;border-radius:14px;object-fit:cover}.v4 .shop{font-size:15.5px;font-weight:800}.v4 .h{font-size:12px;color:#71717A}
+  .v4 .chips{display:flex;gap:5px;margin-top:5px}.v4 .chip{font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;background:#FFF1E6;color:#EA580C}.v4 .chip.b{background:#E0F2FE;color:#0284C7}
+  .v4 .sec{margin:18px 18px 0}.v4 .sh{font-size:13px;font-weight:800;margin-bottom:11px}
+  .v4 .card{background:#F8FAFC;border-radius:18px;padding:4px 16px}
+  .v4 .it{padding:12px 0;display:flex;align-items:center;gap:12px}.v4 .it+.it{border-top:1px solid #EEF1F5}
+  .v4 .th{width:50px;height:50px;border-radius:12px;object-fit:cover;flex-shrink:0}
+  .v4 .it .info{flex:1;min-width:0}.v4 .it .n{font-size:14px;font-weight:700}.v4 .it .q{font-size:12px;color:#71717A;margin-top:2px}.v4 .it .p{font-weight:800;font-size:14px}
+  .v4 .tot{margin:14px 18px 0;background:#18181B;color:#fff;border-radius:16px;padding:15px 18px;display:flex;justify-content:space-between;align-items:center}.v4 .tot .l{font-size:13px;opacity:.7}.v4 .tot .v{font-size:21px;font-weight:800}
+  .v4 .pay{display:flex;gap:11px;align-items:center;padding:12px 0}.v4 .pay .l{font-size:11px;color:#A1A1AA}.v4 .pay .v{font-size:13.5px;font-weight:700}
+  .v4 .bottom{position:absolute;left:0;right:0;bottom:0;padding:14px 18px 18px;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid #F1F5F9}
+  .v4 .btn{width:100%;height:52px;border:none;border-radius:16px;background:linear-gradient(135deg,#F97316,#EA580C);color:#fff;font-family:inherit;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(234,88,12,.32)}
+  .v4 .cx{width:100%;background:none;border:none;color:#DC2626;font-family:inherit;font-size:13px;margin-top:8px;cursor:pointer}
+
+  /* ═══ V5 — MINIMAL ═══ */
+  .v5{background:#fff;color:#111827;--tl-cur:#111827;--tl-curbg:#F3F4F6;--tl-done:#9CA3AF;--tl-up:#E5E7EB;--tl-bg:#fff;--tl-lab:#6B7280}
+  .v5 .top{padding:22px 24px 0;display:flex;align-items:center;gap:14px}.v5 .back{color:#111827}.v5 .ttl{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#9CA3AF;font-weight:600}
+  .v5 .hero{text-align:center;padding:26px 24px 0}
+  .v5 .av{width:68px;height:68px;border-radius:50%;object-fit:cover;border:1px solid #F0F0F0}
+  .v5 .shop{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-top:13px}.v5 .h{font-size:13px;color:#9CA3AF;margin-top:2px}
+  .v5 .tier{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font-size:12px;color:#6B7280}.v5 .tier .dot{width:6px;height:6px;border-radius:50%;background:#9CA3AF}
+  .v5 .sec{padding:24px 24px 0}.v5 .sh{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#D1D5DB;margin-bottom:14px}
+  .v5 .it{display:flex;align-items:center;gap:13px;margin-bottom:16px}
+  .v5 .th{width:46px;height:46px;border-radius:6px;object-fit:cover;border:1px solid #F0F0F0;flex-shrink:0}
+  .v5 .it .info{flex:1;min-width:0}.v5 .it .n{font-size:14.5px;font-weight:500}.v5 .it .q{font-size:12px;color:#9CA3AF;margin-top:2px}.v5 .it .p{font-size:14.5px;font-weight:600}
+  .v5 .tot{display:flex;justify-content:space-between;align-items:baseline;padding-top:16px;border-top:1px solid #F0F0F0}.v5 .tot .l{font-size:13px;color:#9CA3AF}.v5 .tot .v{font-size:21px;font-weight:700}
+  .v5 .pay{display:flex;justify-content:space-between;font-size:13.5px}.v5 .pay .l{color:#9CA3AF}.v5 .pay .v{font-weight:600;text-align:right}
+  .v5 .bottom{position:absolute;left:0;right:0;bottom:0;padding:16px 24px 20px;background:#fff;border-top:1px solid #F0F0F0}
+  .v5 .btn{width:100%;height:52px;border:none;border-radius:4px;background:#111827;color:#fff;font-family:inherit;font-size:14px;font-weight:600;letter-spacing:.06em;cursor:pointer}
+  .v5 .cx{width:100%;background:none;border:none;color:#9CA3AF;font-family:inherit;font-size:12px;margin-top:9px;cursor:pointer}
+</style></head>
+<body>
+<div class="gallery">
+
+  <!-- V1 -->
+  <div class="col"><div class="label">V1 · Profile-consistent</div><div class="sub">tier cover + flat</div>
+    <div class="phone v1">
+      <div class="banner"><div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div></div>
+      <div class="hero"><div class="avw"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="verify"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+        <div class="shop">BT Premium Auto Xeon</div><div class="h">@btpremium_suksawat</div>
+        <div class="chips"><span class="chip v">✓ ยืนยันแล้ว</span><span class="chip t">Deep Silver</span><span class="chip s">Trust 65</span></div></div>
+      <div class="sec"><div class="sh">สถานะคำสั่งซื้อ</div><div class="hsteps">
+        <div class="hstep done"><div class="dotbox"><span class="dot"><svg class="ck" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span></div><div class="lab">ยืนยันแล้ว</div></div>
+        <div class="hstep cur"><div class="dotbox"><span class="dot"><i></i></span></div><div class="lab">กำลังจัดส่ง</div></div>
+        <div class="hstep up"><div class="dotbox"><span class="dot"></span></div><div class="lab">ได้รับสินค้า</div></div></div></div>
+      <div class="sec"><div class="sh">รายการสินค้า</div><div class="card">
+        <div class="it"><img class="th" src="https://picsum.photos/seed/carled/120/120"/><div class="info"><div class="n">ชุดไฟหน้า LED Premium (คู่)</div><div class="q">1 × ฿2,500</div></div><div class="p">฿2,500</div></div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/garage/120/120"/><div class="info"><div class="n">ค่าติดตั้ง</div><div class="q">1 × ฿1,000</div></div><div class="p">฿1,000</div></div>
+        <div class="tot"><span class="l">ยอดรวม</span><span class="v">฿3,500</span></div></div></div>
+      <div class="sec"><div class="sh">วิธีชำระเงิน</div><div class="card"><div class="pay"><div><div class="l">ชำระโดย</div><div class="v">โอนเงิน / พร้อมเพย์</div></div></div></div></div>
+      <div class="bottom"><button class="btn">ยืนยันรับสินค้า</button><button class="cx">ยกเลิกคำสั่งซื้อ</button></div>
+    </div></div>
+
+  <!-- V2 -->
+  <div class="col"><div class="label">V2 · Dark Luxe</div><div class="sub">มืด + ทอง</div>
+    <div class="phone v2">
+      <div class="banner"><div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div><div class="tl"><small>TRUST LEVEL</small><b>Deep Silver</b></div></div>
+      <div class="hero"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="shop">BT Premium Auto Xeon</div><div class="h">@btpremium_suksawat</div>
+        <div class="chips"><span class="chip g">✓ ยืนยันแล้ว</span><span class="chip">Trust 65</span></div></div>
+      <div class="sec"><div class="sh">สถานะคำสั่งซื้อ</div><div class="hsteps">
+        <div class="hstep done"><div class="dotbox"><span class="dot"><svg class="ck" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span></div><div class="lab">ยืนยันแล้ว</div></div>
+        <div class="hstep cur"><div class="dotbox"><span class="dot"><i></i></span></div><div class="lab">กำลังจัดส่ง</div></div>
+        <div class="hstep up"><div class="dotbox"><span class="dot"></span></div><div class="lab">ได้รับสินค้า</div></div></div></div>
+      <div class="sec"><div class="sh">รายการสินค้า</div><div class="card">
+        <div class="it"><img class="th" src="https://picsum.photos/seed/carled/120/120"/><div class="info"><div class="n">ชุดไฟหน้า LED Premium (คู่)</div><div class="q">1 × ฿2,500</div></div><div class="p">฿2,500</div></div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/garage/120/120"/><div class="info"><div class="n">ค่าติดตั้ง</div><div class="q">1 × ฿1,000</div></div><div class="p">฿1,000</div></div>
+        <div class="tot"><span class="l">ยอดรวม</span><span class="v">฿3,500</span></div></div></div>
+      <div class="sec"><div class="sh">วิธีชำระเงิน</div><div class="card"><div class="pay"><div><div class="l">ชำระโดย</div><div class="v">โอนเงิน / พร้อมเพย์</div></div></div></div></div>
+      <div class="bottom"><button class="btn">ยืนยันรับสินค้า</button><button class="cx">ยกเลิกคำสั่งซื้อ</button></div>
+    </div></div>
+
+  <!-- V3 -->
+  <div class="col"><div class="label">V3 · Ticket / ใบเสร็จ</div><div class="sub">รอยปรุ · monospace</div>
+    <div class="phone v3">
+      <div class="top"><div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div><div class="st"><b>กำลังจัดส่ง</b><span>สินค้าอยู่ระหว่างจัดส่ง</span></div></div>
+      <div class="perf"><div class="dash"></div></div>
+      <div class="body">
+        <div class="tlbox"><div class="hsteps">
+          <div class="hstep done"><div class="dotbox"><span class="dot"><svg class="ck" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span></div><div class="lab">ยืนยันแล้ว</div></div>
+          <div class="hstep cur"><div class="dotbox"><span class="dot"><i></i></span></div><div class="lab">กำลังจัดส่ง</div></div>
+          <div class="hstep up"><div class="dotbox"><span class="dot"></span></div><div class="lab">ได้รับสินค้า</div></div></div></div>
+        <div class="shoprow"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div><div class="shop">BT Premium Auto Xeon</div><div class="h">@btpremium_suksawat ✓</div></div><span class="chip">Deep Silver</span></div>
+        <div class="meta"><span>ORDER #000BD0DE</span><span>23 พ.ค. 2569</span></div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/carled/120/120"/><div class="info"><div class="n">ชุดไฟหน้า LED Premium (คู่)</div><div class="q">QTY 1</div></div><div class="p">฿2,500</div></div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/garage/120/120"/><div class="info"><div class="n">ค่าติดตั้ง</div><div class="q">QTY 1</div></div><div class="p">฿1,000</div></div>
+        <div class="tot"><span class="l">ยอดรวมทั้งหมด</span><span class="v">฿3,500</span></div>
+        <div class="pay"><div><div class="l">วิธีชำระเงิน</div><div class="v">โอนเงิน / พร้อมเพย์</div></div></div>
+      </div>
+      <div class="bottom"><button class="btn">ยืนยันรับสินค้า</button><button class="cx">ยกเลิกคำสั่งซื้อ</button></div>
+    </div></div>
+
+  <!-- V4 -->
+  <div class="col"><div class="label">V4 · Bold Fintech</div><div class="sub">ส้มสด · neobank</div>
+    <div class="phone v4">
+      <div class="hero"><div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+        <span class="pill">คำสั่งซื้อ #000bd0de</span><div class="big">กำลังจัดส่ง</div><div class="sub2">สินค้าอยู่ระหว่างจัดส่ง กดยืนยันเมื่อได้รับ</div></div>
+      <div class="shopcard"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div><div class="shop">BT Premium Auto Xeon</div><div class="h">@btpremium_suksawat</div><div class="chips"><span class="chip b">✓ ยืนยันแล้ว</span><span class="chip">Deep Silver · Trust 65</span></div></div></div>
+      <div class="sec"><div class="sh">สถานะคำสั่งซื้อ</div><div class="hsteps">
+        <div class="hstep done"><div class="dotbox"><span class="dot"><svg class="ck" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span></div><div class="lab">ยืนยันแล้ว</div></div>
+        <div class="hstep cur"><div class="dotbox"><span class="dot"><i></i></span></div><div class="lab">กำลังจัดส่ง</div></div>
+        <div class="hstep up"><div class="dotbox"><span class="dot"></span></div><div class="lab">ได้รับสินค้า</div></div></div></div>
+      <div class="sec"><div class="sh">รายการสินค้า</div><div class="card">
+        <div class="it"><img class="th" src="https://picsum.photos/seed/carled/120/120"/><div class="info"><div class="n">ชุดไฟหน้า LED Premium (คู่)</div><div class="q">1 × ฿2,500</div></div><div class="p">฿2,500</div></div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/garage/120/120"/><div class="info"><div class="n">ค่าติดตั้ง</div><div class="q">1 × ฿1,000</div></div><div class="p">฿1,000</div></div></div></div>
+      <div class="tot"><span class="l">ยอดรวมทั้งหมด</span><span class="v">฿3,500</span></div>
+      <div class="sec"><div class="sh">วิธีชำระเงิน</div><div class="card"><div class="pay"><div><div class="l">ชำระโดย</div><div class="v">โอนเงิน / พร้อมเพย์</div></div></div></div></div>
+      <div class="bottom"><button class="btn">ยืนยันรับสินค้า</button><button class="cx">ยกเลิกคำสั่งซื้อ</button></div>
+    </div></div>
+
+  <!-- V5 -->
+  <div class="col"><div class="label">V5 · Minimal</div><div class="sub">whitespace · refined</div>
+    <div class="phone v5">
+      <div class="top"><div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div><div class="ttl">คำสั่งซื้อ</div></div>
+      <div class="hero"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="shop">BT Premium Auto Xeon</div><div class="h">@btpremium_suksawat</div>
+        <div class="tier"><span class="dot"></span>Deep Silver · ยืนยันแล้ว · Trust 65</div></div>
+      <div class="sec"><div class="sh">สถานะคำสั่งซื้อ</div><div class="hsteps">
+        <div class="hstep done"><div class="dotbox"><span class="dot"><svg class="ck" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span></div><div class="lab">ยืนยันแล้ว</div></div>
+        <div class="hstep cur"><div class="dotbox"><span class="dot"><i></i></span></div><div class="lab">กำลังจัดส่ง</div></div>
+        <div class="hstep up"><div class="dotbox"><span class="dot"></span></div><div class="lab">ได้รับสินค้า</div></div></div></div>
+      <div class="sec"><div class="sh">รายการสินค้า</div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/carled/120/120"/><div class="info"><div class="n">ชุดไฟหน้า LED Premium (คู่)</div><div class="q">จำนวน 1</div></div><div class="p">฿2,500</div></div>
+        <div class="it"><img class="th" src="https://picsum.photos/seed/garage/120/120"/><div class="info"><div class="n">ค่าติดตั้ง</div><div class="q">จำนวน 1</div></div><div class="p">฿1,000</div></div>
+        <div class="tot"><span class="l">ยอดรวม</span><span class="v">฿3,500</span></div></div>
+      <div class="sec"><div class="sh">การชำระเงิน</div><div class="pay"><span class="l">วิธีชำระ</span><span class="v">โอนเงิน / พร้อมเพย์</span></div></div>
+      <div class="bottom"><button class="btn">ยืนยันรับสินค้า</button><button class="cx">ยกเลิกคำสั่งซื้อ</button></div>
+    </div></div>
+
+</div>
+</body></html>
