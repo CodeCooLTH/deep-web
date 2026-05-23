@@ -2,6 +2,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
+// MUI Imports
+import Box from '@mui/material/Box'
+
 // Service Imports
 import { prisma } from '@/lib/prisma'
 import { findByUsername } from '@/services/user.service'
@@ -136,18 +139,21 @@ export default async function PublicProfilePage({ params }: Props) {
     showRating: reviewCount >= 3,
   }
 
-  // ทำไม: outer div เปลี่ยน bg → radial gradient + padding ตาม mockup body background
-  // inner div ไม่มี max-w-6xl อีกต่อไป — wrapper การ์ดจัดการ max-width (640 mobile / 1024 desktop) เอง
-  // padding: { xs: '60px 24px', md: '60px 32px' } — mobile คง 24px ตามที่ approve (ห้าม regress 16px)
+  // ทำไม: mobile full-bleed — ไม่มี padding/frame รอบ การ์ดเต็มจอจริง (user feedback 2026-05-23)
+  // desktop (md+) คง radial-gradient bg + padding 60px 32px เหมือนเดิม
+  // Box ใน RSC ได้ — ไม่มี interactivity ไม่ต้องการ 'use client'
   return (
-    <div
-      className='min-h-screen px-6 py-[60px] md:px-8'
-      style={{
-        background:
-          'radial-gradient(ellipse at top, #DDD6FE 0%, transparent 50%), radial-gradient(ellipse at bottom, #FBCFE8 0%, transparent 50%), #F8FAFC',
+    <Box
+      sx={{
+        minHeight: '100dvh',
+        p: { xs: 0, md: '0 32px 60px' },
+        background: {
+          xs: 'var(--mui-palette-background-paper)',
+          md: 'radial-gradient(ellipse at top, #DDD6FE 0%, transparent 50%), radial-gradient(ellipse at bottom, #FBCFE8 0%, transparent 50%), #F8FAFC',
+        },
       }}
     >
       <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
-    </div>
+    </Box>
   )
 }

@@ -2,8 +2,6 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
 // Icon Imports
@@ -50,25 +48,24 @@ export type ProfileTabData = {
 
 // ── Cross-platform platform data (hardcode placeholder ตาม D2 + D4 + D5) ──
 // ทำไม: data จริงยังไม่มี — spec กำหนดให้แสดงค่าตัวอย่าง + caption ซื่อสัตย์ (D5)
-const PLATFORMS_PLACEHOLDER = [
+// R8: simple-icons:lazada ไม่มีใน Iconify bundle — ใช้ null เป็น signal ให้ render Box "L" แทน
+const PLATFORMS_PLACEHOLDER: { key: string; label: string; icon: string | null; color: string; orders: string; rating: string }[] = [
   { key: 'shopee', label: 'Shopee', icon: 'simple-icons:shopee', color: '#EE4D2D', orders: '8.5K', rating: '4.8' },
   { key: 'lazada', label: 'Lazada', icon: null, color: '#0F146D', orders: '1.2K', rating: '4.9' },
   { key: 'tiktok', label: 'TikTok', icon: 'simple-icons:tiktok', color: '#010101', orders: '240', rating: '4.7' },
-] as const
+]
 
 // ── Product tile ──
 const ProductTile = ({ product }: { product: SerializedProduct }) => {
   const price = parseFloat(product.price)
+  const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 
+  // Instagram-style tile: รูปเต็มช่อง edge-to-edge (object-cover), hover โชว์ชื่อ+ราคา
+  // ตาม mockup .prod-tile — ไม่มี border/มุมโค้ง/พื้นการ์ด (รูปติดกันแบบ IG)
   return (
     <Box
       className='group'
-      sx={{
-        position: 'relative',
-        aspectRatio: '1/1',
-        overflow: 'hidden',
-        bgcolor: '#E2E8F0',
-      }}
+      sx={{ position: 'relative', aspectRatio: '1/1', overflow: 'hidden', bgcolor: '#E2E8F0' }}
     >
       {product.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -80,15 +77,11 @@ const ProductTile = ({ product }: { product: SerializedProduct }) => {
           className='group-hover:scale-105'
         />
       ) : (
-        // placeholder icon เมื่อสินค้าไม่มีรูป
-        <Box
-          sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}
-        >
-          <Icon icon='tabler-photo' fontSize={32} />
+        // ไม่มีรูป → placeholder icon กลางช่อง (รอ seller อัปรูป)
+        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+          <Icon icon='tabler-photo' fontSize={30} />
         </Box>
       )}
-
-      {/* hover overlay — name + price ตาม mockup .prod-overlay */}
       <Box
         className='opacity-0 group-hover:opacity-100'
         sx={{
@@ -129,7 +122,7 @@ const ProductTile = ({ product }: { product: SerializedProduct }) => {
             textShadow: '0 1px 2px rgba(0,0,0,.4)',
           }}
         >
-          ฿{isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+          {priceLabel}
         </Typography>
       </Box>
     </Box>
@@ -181,7 +174,8 @@ export const ProfileLeftContent = ({
                   {p.icon ? (
                     <Icon icon={p.icon} style={{ color: p.color, fontSize: 15, verticalAlign: 'middle' }} aria-label={p.label} />
                   ) : (
-                    <Box component='span' sx={{ fontSize: '12px', fontWeight: 700, color: p.color }}>{p.label}</Box>
+                    /* R8: Lazada ไม่มี icon ใน bundle — Box วงกลม 16px bg #0F146D ตัว "L" ขาว ให้ visual weight เท่า icon อื่น */
+                    <Box component='span' sx={{ display: 'inline-flex', width: 16, height: 16, borderRadius: '50%', bgcolor: p.color, color: 'white', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800, lineHeight: 1, flexShrink: 0, verticalAlign: 'middle' }}>L</Box>
                   )}
                   <Box component='span' sx={{ fontWeight: 800, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                     {p.orders}
@@ -204,30 +198,26 @@ export const ProfileLeftContent = ({
       {!openShopEmptyState && (
         <Box sx={{ px: '24px', pt: '8px' }}>
           <Typography component='p' sx={{ m: 0, lineHeight: 1.45, fontSize: '13px', color: '#64748B' }}>
-            <Box component='span' sx={{ mr: '3px' }}>📦</Box>
+            {/* R13: เปลี่ยน emoji → Iconify เพื่อ consistent ทุก OS */}
+            <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-package' style={{ fontSize: 14, color: '#64748B' }} /></Box>
             <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
               {completedOrders.toLocaleString('th-TH')}
             </Box>
             {' '}lifetime orders
             <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
-            <Box component='span' sx={{ mr: '3px' }}>🚚</Box>
+            <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-truck-delivery' style={{ fontSize: 14, color: '#64748B' }} /></Box>
             <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>98%</Box>
             {' '}on-time delivery
             <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
-            <Box component='span' sx={{ mr: '3px' }}>💬</Box>
+            <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-message' style={{ fontSize: 14, color: '#64748B' }} /></Box>
             replies in{' '}
             <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>~8 min</Box>
           </Typography>
-
-          {/* D5 honesty caption — บางเบาแต่ซื่อสัตย์ */}
-          <Typography
-            component='p'
-            sx={{ m: 0, mt: '4px', fontSize: '11px', color: '#94A3B8', lineHeight: 1.4 }}
-          >
-            *สถิติ Shopee/Lazada/TikTok และเวลาจัดส่ง/ตอบกลับ เป็นตัวอย่าง
-          </Typography>
         </Box>
       )}
+
+      {/* R3: breathing room ท้าย left content — mobile หายใจก่อน achievements ด้านล่าง */}
+      <Box sx={{ pb: { xs: '16px', md: 0 } }} />
     </>
   )
 }
@@ -246,7 +236,7 @@ export const ProfileRightContent = ({
   return (
     <>
       {/* ── Featured Achievements ── */}
-      {/* ทำไม: ใช้ AchievementBadges ที่ปรับ layout เป็น column-center 78px ตาม mockup .achv-section */}
+      {/* ทำไม: ใช้ AchievementBadgeRow (badge cell 78px column-center) ตาม mockup .achv-section */}
       {achievements.length > 0 && (
         <Box sx={{ px: '24px', pt: '18px', pb: '12px' }}>
           {/* section-head: flex space-between ตาม mockup .section-head */}
@@ -299,19 +289,24 @@ export const ProfileRightContent = ({
           </Box>
 
           {/* prod-grid: CSS grid gap 3px bg #E2E8F0 ชิดขอบการ์ด (ไม่มี px) ตาม mockup .prod-grid */}
-          {/* ทำไม: mobile 3 col / desktop 4 col ใช้ MUI responsive sx โดยตรง */}
+          {/* ทำไม: 3-col Instagram grid edge-to-edge ทั้ง mobile/desktop ตาม mockup .prod-grid */}
           {products.length === 0 ? (
-            <Box sx={{ px: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '32px', textAlign: 'center' }}>
+            /* R10: เพิ่ม subtext + py จาก 32px → 48px เพื่อให้ empty state หายใจ */
+            <Box sx={{ px: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
               <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
-              <Typography sx={{ color: '#64748B', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
+              <Box>
+                <Typography sx={{ color: '#64748B', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
+                <Typography sx={{ color: '#94A3B8', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
+              </Box>
             </Box>
           ) : (
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-                gap: '3px',
-                bgcolor: '#E2E8F0',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                // Instagram grid: รูปติดกัน gap บาง 2px ไม่มีพื้นเทาคั่น (เลี่ยงบล็อกเทาตอนแถวไม่เต็ม)
+                // edge-to-edge ชิดขอบการ์ด ตาม mockup .prod-grid — รูปแสดงเต็มช่อง
+                gap: '2px',
               }}
             >
               {products.map((product) => (
@@ -322,43 +317,6 @@ export const ProfileRightContent = ({
         </Box>
       )}
 
-      {/* ── Chat FAB ── */}
-      {/* ทำไม: sticky bottom 32 ตาม mockup .fab-chat — disabled "เร็ว ๆ นี้" (D3) */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          mt: '24px',
-          mb: '32px',
-          position: 'sticky',
-          bottom: 32,
-          zIndex: 10,
-        }}
-      >
-        <Tooltip title='เร็ว ๆ นี้' placement='top'>
-          <span>
-            <Button
-              disabled
-              startIcon={<Icon icon='tabler-message-circle' />}
-              sx={{
-                bgcolor: '#0F172A',
-                color: 'white',
-                borderRadius: '999px',
-                padding: '14px 22px',
-                fontSize: '14px',
-                fontWeight: 700,
-                boxShadow: '0 12px 30px rgba(15,23,42,.35), 0 4px 8px rgba(15,23,42,.15)',
-                '&.Mui-disabled': {
-                  bgcolor: '#0F172A',
-                  color: 'rgba(255,255,255,0.5)',
-                },
-              }}
-            >
-              แชทกับร้านนี้
-            </Button>
-          </span>
-        </Tooltip>
-      </Box>
     </>
   )
 }

@@ -38,6 +38,9 @@ function BadgeCell({ item }: { item: AchievementItem }) {
           padding: '6px 4px',
           borderRadius: '10px',
           cursor: 'default',
+          // R5: hover lift + tint — transition รองรับทั้ง bg และ transform
+          transition: 'background .15s, transform .15s',
+          '&:hover': { bgcolor: '#EEF2FF', transform: 'translateY(-2px)' },
         }}
       >
         {/* badge art 60px ตาม mockup .achv-art */}

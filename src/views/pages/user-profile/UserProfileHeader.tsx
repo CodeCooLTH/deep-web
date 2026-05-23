@@ -4,11 +4,16 @@
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
 // Icon Imports
 import { Icon } from '@iconify/react'
+
+// Next Imports
+// ทำไม: back button ใน client component — ใช้ Link ได้โดยตรง ไม่ผิด Hard Rule 2 (ซึ่งห้ามเฉพาะ component={Link} ใน MUI server component)
+import Link from 'next/link'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
 // Asset/content source: mockup_shop_profile.html
@@ -99,7 +104,36 @@ export const ProfileBanner = ({
         },
       }}
     >
+      {/* Back button — มุมซ้ายบน absolute; frosted glass กัน background gradient กลืน */}
+      {/* ทำไม: user ต้องการ back button ใน banner — ใช้ Link (client component ทำได้) นำทางไป home "/" */}
+      <Link href='/' style={{ textDecoration: 'none' }}>
+        <IconButton
+          aria-label='กลับหน้าหลัก'
+          title='กลับหน้าหลัก'
+          sx={{
+            position: 'absolute',
+            top: { xs: 16, md: 16 },
+            left: { xs: 16, md: 24 },
+            zIndex: 3,
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            bgcolor: 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.6)',
+            boxShadow: '0 2px 6px rgba(0,0,0,.12)',
+            color: '#0F172A',
+            '&:hover': {
+              bgcolor: 'rgba(255,255,255,1)',
+            },
+          }}
+        >
+          <Icon icon='tabler-arrow-left' fontSize={20} />
+        </IconButton>
+      </Link>
+
       {/* Trust content: ชิดขวา ตาม mockup .trust-content */}
+      {/* R11: px responsive — xs:20px (กันชนมือถือแคบ) md:36px (ค่าเดิม) */}
       <Box
         sx={{
           position: 'absolute',
@@ -107,13 +141,14 @@ export const ProfileBanner = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          px: '36px',
+          px: { xs: '20px', md: '36px' },
           py: '28px',
           zIndex: 1,
         }}
       >
         {/* trust-left: column align-end */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+        {/* R7: maxWidth 60% กัน "Deep Diamond" ล้นบน mobile แคบ */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', maxWidth: '60%' }}>
           {/* Trust Level label */}
           <Typography
             component='p'
@@ -130,12 +165,12 @@ export const ProfileBanner = ({
             Trust Level
           </Typography>
 
-          {/* Tier name — 28px/900 ตาม mockup .trust-name */}
+          {/* Tier name — R7: responsive fontSize xs:22px md:28px กัน overflow บน mobile แคบ */}
           <Typography
             component='p'
             sx={{
               m: 0,
-              fontSize: '28px',
+              fontSize: { xs: '22px', md: '28px' },
               fontWeight: 900,
               letterSpacing: '-0.02em',
               lineHeight: 1.05,
@@ -146,16 +181,16 @@ export const ProfileBanner = ({
             {tier.name}
           </Typography>
 
-          {/* Progress dots — 5 จุด gap 5px ตาม mockup .trust-stars */}
-          <Box sx={{ display: 'flex', gap: '5px', mt: '8px', justifyContent: 'flex-end' }}>
+          {/* Progress dots — R12: responsive size xs:10 md:12, gap xs:5px md:6px */}
+          <Box sx={{ display: 'flex', gap: { xs: '5px', md: '6px' }, mt: '8px', justifyContent: 'flex-end' }}>
             {Array.from({ length: TOTAL_DOTS }).map((_, i) => {
               const filled = i < tier.filledDots
               return (
                 <Box
                   key={i}
                   sx={{
-                    width: 10,
-                    height: 10,
+                    width: { xs: 10, md: 12 },
+                    height: { xs: 10, md: 12 },
                     borderRadius: '50%',
                     background: filled ? '#1E293B' : '#1E293B33',
                     border: '1.5px solid',
@@ -188,128 +223,72 @@ export const ProfileLeftPanel = ({
 
   return (
     <>
-      {/* ── X-style header: Avatar LEFT + Actions RIGHT ── */}
-      {/* mt: -68px ดึง avatar ขึ้นทับ banner ตาม mockup .x-header margin-top:-68px */}
+      {/* ── Header: Avatar กลาง + Actions ใต้ avatar (user: ย้าย avatar มากลาง) ── */}
+      {/* mt: -68px ดึง avatar ขึ้นทับ banner; column + center จัด avatar/actions กลาง */}
       <Box
         sx={{
           mt: '-68px',
           px: '24px',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px',
           position: 'relative',
           zIndex: 2,
         }}
       >
-        {/* Avatar 128px วงกลม border 5px white ตาม mockup .logo */}
-        <Avatar
-          src={data.profileImg ?? undefined}
-          alt={displayName}
-          sx={{
-            width: 128,
-            height: 128,
-            borderRadius: '50%',
-            border: '5px solid white',
-            boxShadow: '0 6px 14px rgba(15,23,42,.18)',
-            fontSize: '3.25rem',
-            fontWeight: 800,
-            bgcolor: '#E2E8F0',
-            color: '#475569',
-            flexShrink: 0,
-          }}
-        >
-          {displayName.slice(0, 1)}
-        </Avatar>
-
-        {/* Action buttons: ⋯ + chat icon + Follow pill ตาม mockup .x-actions */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', pb: '8px' }}>
-          {/* ปุ่มกลม ⋯ 36px */}
-          <Tooltip title='เร็ว ๆ นี้' placement='top'>
-            <span>
-              <Button
-                disabled
-                sx={{
-                  minWidth: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  bgcolor: 'white',
-                  border: '1px solid #CBD5E1',
-                  color: '#334155',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  p: 0,
-                  '&.Mui-disabled': {
-                    bgcolor: 'white',
-                    color: '#94A3B8',
-                    border: '1px solid #E2E8F0',
-                  },
-                }}
-              >
-                ⋯
-              </Button>
-            </span>
-          </Tooltip>
-
-          {/* ปุ่มกลม chat icon 36px */}
-          <Tooltip title='เร็ว ๆ นี้' placement='top'>
-            <span>
-              <Button
-                disabled
-                sx={{
-                  minWidth: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  bgcolor: 'white',
-                  border: '1px solid #CBD5E1',
-                  color: '#334155',
-                  p: 0,
-                  '&.Mui-disabled': {
-                    bgcolor: 'white',
-                    color: '#94A3B8',
-                    border: '1px solid #E2E8F0',
-                  },
-                }}
-              >
-                <Icon icon='tabler-message' fontSize={16} />
-              </Button>
-            </span>
-          </Tooltip>
-
-          {/* ปุ่ม Follow dark pill ตาม mockup .x-follow */}
-          <Tooltip title='เร็ว ๆ นี้' placement='top'>
-            <span>
-              <Button
-                disabled
-                sx={{
-                  padding: '9px 22px',
-                  bgcolor: '#0F172A',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '999px',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  letterSpacing: 0,
-                  lineHeight: 1,
-                  '&.Mui-disabled': {
-                    bgcolor: '#0F172A',
-                    color: 'rgba(255,255,255,0.6)',
-                  },
-                }}
-              >
-                Follow
-              </Button>
-            </span>
-          </Tooltip>
+        {/* Avatar 128px + verify badge มุมขวาล่าง (user: ย้าย verify มาบน avatar) */}
+        <Box sx={{ position: 'relative', width: 128, height: 128, flexShrink: 0 }}>
+          <Avatar
+            src={data.profileImg ?? undefined}
+            alt={displayName}
+            sx={{
+              width: 128,
+              height: 128,
+              borderRadius: '50%',
+              border: '5px solid white',
+              boxShadow: '0 6px 14px rgba(15,23,42,.18)',
+              fontSize: '3.25rem',
+              fontWeight: 800,
+              bgcolor: '#E2E8F0',
+              color: '#475569',
+            }}
+          >
+            {displayName.slice(0, 1)}
+          </Avatar>
+          {/* D9: verify badge มุมขวาล่าง — แสดงเมื่อ maxVerifyLevel >= 1; ring ขาวให้เด่นบน avatar */}
+          {showVerify && (
+            <Box
+              component='span'
+              title='ยืนยันแล้ว'
+              sx={{
+                position: 'absolute',
+                bottom: 6,
+                right: 6,
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                bgcolor: '#1D9BF0',
+                color: 'white',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: '15px',
+                fontWeight: 900,
+                border: '3px solid white',
+                boxShadow: '0 1px 4px rgba(29,155,240,.4)',
+              }}
+            >
+              ✓
+            </Box>
+          )}
         </Box>
+
       </Box>
 
-      {/* ── Identity ── */}
-      {/* px 24 pt 12 ตาม mockup .identity */}
-      <Box sx={{ px: '24px', pt: '12px' }}>
+      {/* ── Identity (จัดกลางให้ coherent กับ avatar กลาง) ── */}
+      <Box sx={{ px: '24px', pt: '12px', textAlign: 'center' }}>
         {/* name-row: ชื่อร้าน + verify badge */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <Typography
             component='h2'
             sx={{
@@ -323,29 +302,6 @@ export const ProfileLeftPanel = ({
           >
             {displayName}
           </Typography>
-
-          {/* D9: แสดงเฉพาะเมื่อ maxVerifyLevel >= 1 — วงกลม 22px bg #1D9BF0 white ✓ */}
-          {showVerify && (
-            <Box
-              component='span'
-              title='ยืนยันแล้ว'
-              sx={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                bgcolor: '#1D9BF0',
-                color: 'white',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: '12px',
-                fontWeight: 900,
-                boxShadow: '0 1px 3px rgba(29,155,240,.3)',
-                flexShrink: 0,
-              }}
-            >
-              ✓
-            </Box>
-          )}
         </Box>
 
         {/* handle @username — 14px color #64748B */}
@@ -386,6 +342,7 @@ export const ProfileLeftPanel = ({
             pb: '16px',
             display: 'flex',
             flexWrap: 'wrap',
+            justifyContent: 'center',
             gap: '12px',
             fontSize: '13px',
             color: '#64748B',
@@ -405,6 +362,97 @@ export const ProfileLeftPanel = ({
             <Icon icon='tabler-calendar' fontSize={14} />
             เข้าร่วม {data.memberSince}
           </Box>
+        </Box>
+
+        {/* Action buttons: ⋯ + chat icon + Follow — ย้ายมาหลัง meta-row ตาม user feedback */}
+        {/* ทำไม: user เลือก "ใต้ identity" — actions อยู่ท้าย identity block จัดกลาง */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: '8px', pt: '12px' }}>
+          {/* ปุ่มกลม ⋯ 36px */}
+          <Tooltip title='เร็ว ๆ นี้' placement='top'>
+            <span>
+              <Button
+                disabled
+                sx={{
+                  minWidth: 0,
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  bgcolor: 'white',
+                  border: '1px solid #CBD5E1',
+                  color: '#334155',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  p: 0,
+                  '&.Mui-disabled': {
+                    // R6: opacity 1 — ดู "เร็ว ๆ นี้" ไม่ใช่ "พัง" (MUI default 0.38 ทำให้ button ดูพัง)
+                    opacity: 1,
+                    bgcolor: 'white',
+                    color: '#94A3B8',
+                    border: '1px solid #E2E8F0',
+                  },
+                }}
+              >
+                ⋯
+              </Button>
+            </span>
+          </Tooltip>
+
+          {/* ปุ่มกลม chat icon 36px */}
+          <Tooltip title='เร็ว ๆ นี้' placement='top'>
+            <span>
+              <Button
+                disabled
+                sx={{
+                  minWidth: 0,
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  bgcolor: 'white',
+                  border: '1px solid #CBD5E1',
+                  color: '#334155',
+                  p: 0,
+                  '&.Mui-disabled': {
+                    // R6: opacity 1 — คุม color เองผ่าน sx
+                    opacity: 1,
+                    bgcolor: 'white',
+                    color: '#94A3B8',
+                    border: '1px solid #E2E8F0',
+                  },
+                }}
+              >
+                <Icon icon='tabler-message' fontSize={16} />
+              </Button>
+            </span>
+          </Tooltip>
+
+          {/* ปุ่ม Follow dark pill — user ขอเก็บ x-actions Follow ไว้ (ลบเฉพาะ banner-follow R14) */}
+          {/* style ตาม mockup .x-follow: bg ink, white, radius 999, 14px/700 */}
+          <Tooltip title='เร็ว ๆ นี้' placement='top'>
+            <span>
+              <Button
+                disabled
+                sx={{
+                  px: '22px',
+                  py: '9px',
+                  bgcolor: '#0F172A',
+                  color: 'white',
+                  borderRadius: 999,
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  lineHeight: 1.2,
+                  '&.Mui-disabled': {
+                    // R6: opacity 1 — ดู "เร็ว ๆ นี้" ไม่ใช่ disabled พัง
+                    opacity: 1,
+                    bgcolor: '#0F172A',
+                    color: 'rgba(255,255,255,0.7)',
+                  },
+                }}
+              >
+                Follow
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
       </Box>
     </>

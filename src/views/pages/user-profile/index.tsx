@@ -29,14 +29,18 @@ const UserProfile = ({
   return (
     <Box
       sx={{
-        maxWidth: { xs: 640, md: 1024 },
-        mx: 'auto',
+        // ทำไม: mobile full-bleed (user feedback 2026-05-23) — การ์ดเต็มจอ ไม่มีมุมโค้ง/เงา/max-width
+        // desktop (md+) คง contained card 1024px ลอยมี padding+เงา+gradient เหมือนเดิม
+        maxWidth: { xs: '100%', md: 1024 },
+        mx: { md: 'auto' },
         bgcolor: 'background.paper',
-        borderRadius: { xs: '24px', md: '16px' },
-        overflow: 'hidden',
+        borderRadius: { xs: 0, md: '16px' },
+        // R9: overflow hidden ทำให้ sticky ใน left panel ไม่ทำงาน — เปลี่ยนเป็น visible บน md+
+        // banner radius ยังคงจากตัว Banner box เอง (overflow:hidden ภายใน Banner) — ไม่เสีย
+        overflow: { xs: 'hidden', md: 'visible' },
         position: 'relative',
-        // เงาตาม mockup --shadow-xl
-        boxShadow: '0 25px 70px rgba(15,23,42,.18), 0 8px 16px rgba(15,23,42,.08)',
+        // mobile: ไม่มีเงา (เต็มจอ เงาไม่มีความหมาย); desktop: คงเงา mockup --shadow-xl
+        boxShadow: { xs: 'none', md: '0 25px 70px rgba(15,23,42,.18), 0 8px 16px rgba(15,23,42,.08)' },
         // base (mobile): flex column — เรียง Banner → Left → Right ตาม flow เดิม
         // md+: CSS grid-template-areas 2-column เมื่อมี right content; single-column เมื่อไม่มี
         display: { md: 'grid' },
@@ -57,7 +61,8 @@ const UserProfile = ({
 
       {/* ── Left panel: x-header + identity + platforms + stats ── */}
       {/* ทำไม: บน desktop left col 340px — content ไหลตาม natural height */}
-      <Box sx={{ gridArea: { md: 'left' } }}>
+      {/* R9: sticky left panel บน desktop — identity ติดบนขณะ scroll (alignSelf:start ป้องกัน stretch) */}
+      <Box sx={{ gridArea: { md: 'left' }, position: { md: 'sticky' }, top: { md: 16 }, alignSelf: { md: 'start' } }}>
         <ProfileLeftPanel data={profileHeader} />
         <ProfileLeftContent
           data={{
@@ -77,6 +82,8 @@ const UserProfile = ({
             gridArea: { md: 'right' },
             // ทำไม: min-height ป้องกัน right col แคบเกินไปเมื่อ products ว่าง
             minHeight: { md: 200 },
+            // R2: เส้นคั่น left-right เฉพาะ desktop — ไม่มี mobile
+            borderLeft: { md: '1px solid #E2E8F0' },
           }}
         >
           <ProfileRightContent
