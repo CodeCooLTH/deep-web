@@ -49,13 +49,23 @@ export type PublicOrderData = {
   createdAtIso: string
   hasReview: boolean
   review: { rating: number; comment: string | null } | null
-  items: Array<{ id: string; name: string; description: string | null; qty: number; price: number }>
+  items: Array<{
+    id: string
+    name: string
+    description: string | null
+    qty: number
+    price: number
+    // thumbnail จาก Product.images[0] raw — T1 S-1; null เมื่อสินค้าไม่มีรูปหรือ item ไม่มี product
+    imageUrl: string | null
+  }>
   shop: {
     shopName: string
     user: {
       displayName: string
       username: string
       trustScore: number
+      // raw avatar URL — T1 S-1; null เมื่อ shop owner ยังไม่ตั้ง avatar
+      avatar: string | null
     }
   }
   shipmentTracking: { provider: string; trackingNo: string } | null
@@ -64,6 +74,8 @@ export type PublicOrderData = {
   // contract field (page.tsx flatten) — ยังไม่ได้ render ใน detail; เก็บไว้ให้ contract ครบ
   fulfillmentMode: string
   maxVerifyLevel: number
+  // ผู้เริ่มยกเลิก — derive copy ใน UI (S-13): 'seller'→"ร้านค้ายกเลิก" / 'buyer'→"คุณยกเลิก"
+  cancelInitiator: 'seller' | 'buyer' | null
 }
 
 type Props = {

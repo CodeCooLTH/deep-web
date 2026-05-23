@@ -181,8 +181,24 @@ export async function getOrderByToken(publicToken: string) {
   return prisma.order.findUnique({
     where: { publicToken },
     include: {
-      items: true,
-      shop: { include: { user: { select: { id: true, displayName: true, username: true, trustScore: true, userBadges: { include: { badge: true } } } } } },
+      // เพิ่ม product.images เพื่อ resolve imageUrl ต่อ item (S-1 T1)
+      // pattern เดียวกับ getOrdersByShop ที่ทำ items: { include: { product: { select: { images: true } } } }
+      items: { include: { product: { select: { images: true } } } },
+      shop: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              username: true,
+              trustScore: true,
+              // เพิ่ม avatar เพื่อแสดง shop owner avatar ใน V1 UI (S-1 T1)
+              avatar: true,
+              userBadges: { include: { badge: true } },
+            },
+          },
+        },
+      },
       // buyer: registered user ที่ยืนยัน order — ใช้แสดง displayName ใน seller view
       // additive include — caller เดิมที่ไม่ใช้ buyer ไม่กระทบ
       buyer: { select: { id: true, displayName: true, username: true } },

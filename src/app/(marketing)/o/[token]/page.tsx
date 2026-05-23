@@ -90,6 +90,8 @@ export default async function PublicOrderPage({ params }: Props) {
         description: it.description,
         qty: it.qty,
         price: Number(it.price),
+        // raw URL ไม่ผ่าน /api/files/ — pattern เดียวกับ /u/[username]/page.tsx:98 (S-1 T1)
+        imageUrl: (it.product?.images as string[] | undefined)?.[0] ?? null,
       })),
       shop: {
         shopName: order.shop.shopName,
@@ -97,6 +99,8 @@ export default async function PublicOrderPage({ params }: Props) {
           displayName: order.shop.user.displayName,
           username: order.shop.user.username,
           trustScore: order.shop.user.trustScore,
+          // เพิ่ม avatar — raw URL เหมือน /u/[username]/page.tsx:109 (S-1 T1)
+          avatar: order.shop.user.avatar ?? null,
         },
       },
       shipmentTracking: order.shipmentTracking
@@ -109,6 +113,8 @@ export default async function PublicOrderPage({ params }: Props) {
       paymentMethod: order.paymentMethod ?? null,
       fulfillmentMode: order.fulfillmentMode,
       maxVerifyLevel,
+      // cancelInitiator: derive copy ใน UI ว่าใครยกเลิก (S-13 T1)
+      cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,
     }
 
     // ส่ง smsUnlocked ให้ client — server-decided ไม่ใช่ client-trusted
