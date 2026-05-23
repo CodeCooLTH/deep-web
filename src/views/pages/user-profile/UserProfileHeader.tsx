@@ -15,6 +15,9 @@ import { Icon } from '@iconify/react'
 // Rework: เปลี่ยนเป็น fragment/Box ไล่ลงตาม mockup_shop_profile.html (single-card — ไม่มี Card wrapper อีก)
 // D7 approved exception: trust banner + sunburst/dot overlays + progress dots compose จาก MUI Box primitive
 // Tooltip บน disabled Button ต้องการ 'use client'
+// Responsive (2026-05-23): เพิ่ม named exports ProfileBanner + ProfileLeftPanel
+//   เพื่อให้ wrapper/index.tsx จัด 3-block CSS Grid บน desktop
+//   UserProfileHeader คงเป็น default export รวม (= ProfileBanner + ProfileLeftPanel) สำหรับ mobile flow เดิม
 
 export type ProfileHeaderData = {
   coverImg: string           // คง field เดิมไว้ (ไม่ใช้ render แต่ไม่ break ผู้เรียก)
@@ -56,118 +59,135 @@ function getTierInfo(trustLevel: string): TierInfo {
 
 const TOTAL_DOTS = 5
 
-// --- Component ---
-
-const UserProfileHeader = ({ data }: { data: ProfileHeaderData }) => {
+// ── ProfileBanner — Trust Banner section only ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper span ทั้ง 2 col ใน CSS Grid ได้
+// bannerHeight: responsive ผ่าน prop — mobile 160 / desktop 200
+export const ProfileBanner = ({
+  data,
+  bannerHeight = 160,
+}: {
+  data: Pick<ProfileHeaderData, 'trustLevel'>
+  /** MUI sx height — ตัวเลข / responsive object / string (เช่น '100%') */
+  bannerHeight?: number | string | { xs?: number; md?: number }
+}) => {
   const tier = getTierInfo(data.trustLevel)
-  const displayName = data.shopName ?? data.fullName
 
+  return (
+    <Box
+      sx={{
+        height: bannerHeight,
+        background: tier.gradient,
+        position: 'relative',
+        overflow: 'hidden',
+        // sunburst pattern — opacity .6 ตาม mockup .trust-banner::before
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          background:
+            'repeating-conic-gradient(from 45deg at 50% 50%, transparent 0deg, transparent 18deg, #F8FAFC22 18deg, #F8FAFC22 22deg)',
+          opacity: 0.6,
+        },
+        // dot pattern overlay — opacity .35 ตาม mockup .trust-banner::after
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'radial-gradient(#1E293B15 1px, transparent 1px)',
+          backgroundSize: '14px 14px',
+          opacity: 0.35,
+        },
+      }}
+    >
+      {/* Trust content: ชิดขวา ตาม mockup .trust-content */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          px: '36px',
+          py: '28px',
+          zIndex: 1,
+        }}
+      >
+        {/* trust-left: column align-end */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+          {/* Trust Level label */}
+          <Typography
+            component='p'
+            sx={{
+              m: 0,
+              fontSize: '10px',
+              fontWeight: 700,
+              letterSpacing: '0.25em',
+              textTransform: 'uppercase',
+              opacity: 0.8,
+              color: '#1E293B',
+            }}
+          >
+            Trust Level
+          </Typography>
+
+          {/* Tier name — 28px/900 ตาม mockup .trust-name */}
+          <Typography
+            component='p'
+            sx={{
+              m: 0,
+              fontSize: '28px',
+              fontWeight: 900,
+              letterSpacing: '-0.02em',
+              lineHeight: 1.05,
+              color: '#1E293B',
+              textShadow: '0 1px 0 rgba(0,0,0,.06)',
+            }}
+          >
+            {tier.name}
+          </Typography>
+
+          {/* Progress dots — 5 จุด gap 5px ตาม mockup .trust-stars */}
+          <Box sx={{ display: 'flex', gap: '5px', mt: '8px', justifyContent: 'flex-end' }}>
+            {Array.from({ length: TOTAL_DOTS }).map((_, i) => {
+              const filled = i < tier.filledDots
+              return (
+                <Box
+                  key={i}
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: filled ? '#1E293B' : '#1E293B33',
+                    border: '1.5px solid',
+                    borderColor: filled ? '#1E293B' : '#1E293B66',
+                    boxShadow: filled
+                      ? '0 0 0 2px #F8FAFC, 0 0 8px #1E293B44'
+                      : 'none',
+                  }}
+                />
+              )
+            })}
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  )
+}
+
+// ── ProfileLeftPanel — X-header (avatar + actions) + Identity (name/verify/bio/meta) ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน left column ของ grid ได้
+// bio clamp: ใช้ responsive sx ภายใน — md+ clamp 4 บรรทัด ตาม spec; mobile ไม่ clamp
+export const ProfileLeftPanel = ({
+  data,
+}: {
+  data: ProfileHeaderData
+}) => {
+  const displayName = data.shopName ?? data.fullName
   // D9: แสดง verify badge วงกลมเมื่อ maxVerifyLevel >= 1 เท่านั้น
   const showVerify = data.maxVerifyLevel >= 1
 
   return (
     <>
-      {/* ── Trust Banner ── */}
-      {/* height 160 + gradient tier + sunburst overlay (::before) + dot overlay (::after) ตาม mockup */}
-      <Box
-        sx={{
-          height: 160,
-          background: tier.gradient,
-          position: 'relative',
-          overflow: 'hidden',
-          // sunburst pattern — opacity .6 ตาม mockup .trust-banner::before
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            background:
-              'repeating-conic-gradient(from 45deg at 50% 50%, transparent 0deg, transparent 18deg, #F8FAFC22 18deg, #F8FAFC22 22deg)',
-            opacity: 0.6,
-          },
-          // dot pattern overlay — opacity .35 ตาม mockup .trust-banner::after
-          '&::after': {
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: 'radial-gradient(#1E293B15 1px, transparent 1px)',
-            backgroundSize: '14px 14px',
-            opacity: 0.35,
-          },
-        }}
-      >
-        {/* Trust content: ชิดขวา ตาม mockup .trust-content */}
-        <Box
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            px: '36px',
-            py: '28px',
-            zIndex: 1,
-          }}
-        >
-          {/* trust-left: column align-end */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-            {/* Trust Level label */}
-            <Typography
-              component='p'
-              sx={{
-                m: 0,
-                fontSize: '10px',
-                fontWeight: 700,
-                letterSpacing: '0.25em',
-                textTransform: 'uppercase',
-                opacity: 0.8,
-                color: '#1E293B',
-              }}
-            >
-              Trust Level
-            </Typography>
-
-            {/* Tier name — 28px/900 ตาม mockup .trust-name */}
-            <Typography
-              component='p'
-              sx={{
-                m: 0,
-                fontSize: '28px',
-                fontWeight: 900,
-                letterSpacing: '-0.02em',
-                lineHeight: 1.05,
-                color: '#1E293B',
-                textShadow: '0 1px 0 rgba(0,0,0,.06)',
-              }}
-            >
-              {tier.name}
-            </Typography>
-
-            {/* Progress dots — 5 จุด gap 5px ตาม mockup .trust-stars */}
-            <Box sx={{ display: 'flex', gap: '5px', mt: '8px', justifyContent: 'flex-end' }}>
-              {Array.from({ length: TOTAL_DOTS }).map((_, i) => {
-                const filled = i < tier.filledDots
-                return (
-                  <Box
-                    key={i}
-                    sx={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      background: filled ? '#1E293B' : '#1E293B33',
-                      border: '1.5px solid',
-                      borderColor: filled ? '#1E293B' : '#1E293B66',
-                      boxShadow: filled
-                        ? '0 0 0 2px #F8FAFC, 0 0 8px #1E293B44'
-                        : 'none',
-                    }}
-                  />
-                )
-              })}
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-
       {/* ── X-style header: Avatar LEFT + Actions RIGHT ── */}
       {/* mt: -68px ดึง avatar ขึ้นทับ banner ตาม mockup .x-header margin-top:-68px */}
       <Box
@@ -337,10 +357,23 @@ const UserProfileHeader = ({ data }: { data: ProfileHeaderData }) => {
         </Typography>
 
         {/* bio — ซ่อนถ้า null ตาม mockup .bio */}
+        {/* ทำไม: md+ clamp 4 บรรทัดตาม spec ด้วย responsive sx — mobile ไม่ clamp (display unset) */}
         {data.bio && (
           <Typography
             component='p'
-            sx={{ m: 0, pt: '8px', fontSize: '14px', color: '#0F172A', lineHeight: 1.45 }}
+            sx={{
+              m: 0,
+              pt: '8px',
+              fontSize: '14px',
+              color: '#0F172A',
+              lineHeight: 1.45,
+              // mobile: ไม่ clamp — แสดงเต็ม
+              // md+: clamp 4 บรรทัด
+              display: { xs: 'block', md: '-webkit-box' },
+              WebkitLineClamp: { md: 4 },
+              WebkitBoxOrient: { md: 'vertical' },
+              overflow: { md: 'hidden' },
+            }}
           >
             {data.bio}
           </Typography>
@@ -374,6 +407,17 @@ const UserProfileHeader = ({ data }: { data: ProfileHeaderData }) => {
           </Box>
         </Box>
       </Box>
+    </>
+  )
+}
+
+// ── UserProfileHeader — default export รวม (mobile-compatible) ──
+// ทำไม: คง default export ไว้เพื่อ backward compat + ใช้ใน mobile flow ผ่าน wrapper/index.tsx
+const UserProfileHeader = ({ data }: { data: ProfileHeaderData }) => {
+  return (
+    <>
+      <ProfileBanner data={data} bannerHeight={160} />
+      <ProfileLeftPanel data={data} />
     </>
   )
 }

@@ -15,6 +15,8 @@ import AchievementBadgeRow from './AchievementBadgeRow'
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
 // Rework (2026-05-23): ตัด AboutOverview, VerificationBadges, RecentReviews ออกทั้งหมด ตามคำสั่ง user
 // เปลี่ยนจาก Grid 2-คอลัมน์ → single-column ไล่ลงตาม mockup_shop_profile.html (D7 approved exception)
+// Responsive (2026-05-23): แยก named exports ProfileLeftContent + ProfileRightContent
+//   เพื่อให้ wrapper/index.tsx จัด 3-block CSS Grid บน desktop — ProfileTab คงไว้ mobile-compatible
 
 // ── Type: สินค้าที่ serialize จาก RSC boundary (Decimal → string) ──
 export type SerializedProduct = {
@@ -134,9 +136,15 @@ const ProductTile = ({ product }: { product: SerializedProduct }) => {
   )
 }
 
-// ── Profile Tab (single-column, ไม่มี Grid/Card ซ้อน — อยู่ในการ์ดใหญ่แล้ว) ──
-const ProfileTab = ({ data }: { data: ProfileTabData }) => {
-  const { completedOrders, avgRating, showRating, totalBadgeCount, achievements, products, openShopEmptyState } = data
+// ── ProfileLeftContent — Platforms + Stats (เฉพาะ seller) ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน left panel ของ grid ได้
+// mobile: ถูก render ผ่าน ProfileTab ตามลำดับเดิม — ไม่เปลี่ยน flow
+export const ProfileLeftContent = ({
+  data,
+}: {
+  data: Pick<ProfileTabData, 'completedOrders' | 'avgRating' | 'showRating' | 'openShopEmptyState'>
+}) => {
+  const { completedOrders, avgRating, showRating, openShopEmptyState } = data
 
   return (
     <>
@@ -220,7 +228,23 @@ const ProfileTab = ({ data }: { data: ProfileTabData }) => {
           </Typography>
         </Box>
       )}
+    </>
+  )
+}
 
+// ── ProfileRightContent — Achievements + Shop Highlights + Chat FAB ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน right panel ของ grid ได้
+// mobile: ถูก render ผ่าน ProfileTab ตามลำดับเดิม — ไม่เปลี่ยน flow
+// responsive values ใช้ MUI sx responsive object ภายใน — ไม่ต้องรับ prop จาก wrapper
+export const ProfileRightContent = ({
+  data,
+}: {
+  data: Pick<ProfileTabData, 'achievements' | 'products' | 'openShopEmptyState' | 'totalBadgeCount'>
+}) => {
+  const { achievements, products, openShopEmptyState, totalBadgeCount } = data
+
+  return (
+    <>
       {/* ── Featured Achievements ── */}
       {/* ทำไม: ใช้ AchievementBadges ที่ปรับ layout เป็น column-center 78px ตาม mockup .achv-section */}
       {achievements.length > 0 && (
@@ -245,7 +269,16 @@ const ProfileTab = ({ data }: { data: ProfileTabData }) => {
           </Box>
 
           {/* achv-row: flex wrap gap 2px ตาม mockup .achv-row */}
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: '2px', flexWrap: 'wrap' }}>
+          {/* ทำไม: desktop ชิดซ้าย (justifyContent: flex-start) ตาม spec — mobile ก็ flex-start เหมือนกัน */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '2px',
+              flexWrap: 'wrap',
+              justifyContent: 'flex-start',
+            }}
+          >
             <AchievementBadgeRow items={achievements} />
           </Box>
         </Box>
@@ -265,7 +298,8 @@ const ProfileTab = ({ data }: { data: ProfileTabData }) => {
             </Typography>
           </Box>
 
-          {/* prod-grid: CSS grid 3 col gap 3px bg #E2E8F0 ชิดขอบการ์ด (ไม่มี px) ตาม mockup .prod-grid */}
+          {/* prod-grid: CSS grid gap 3px bg #E2E8F0 ชิดขอบการ์ด (ไม่มี px) ตาม mockup .prod-grid */}
+          {/* ทำไม: mobile 3 col / desktop 4 col ใช้ MUI responsive sx โดยตรง */}
           {products.length === 0 ? (
             <Box sx={{ px: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '32px', textAlign: 'center' }}>
               <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
@@ -275,7 +309,7 @@ const ProfileTab = ({ data }: { data: ProfileTabData }) => {
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
+                gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
                 gap: '3px',
                 bgcolor: '#E2E8F0',
               }}
@@ -325,6 +359,24 @@ const ProfileTab = ({ data }: { data: ProfileTabData }) => {
           </span>
         </Tooltip>
       </Box>
+    </>
+  )
+}
+
+// ── Profile Tab (single-column, mobile-compatible — ไม่มี Grid/Card ซ้อน) ──
+// ทำไม: default export ยังใช้งานได้ปกติ — mobile render ผ่าน wrapper/index.tsx ที่ใช้ ProfileLeftContent + ProfileRightContent
+// ProfileTab ยังถูก export ไว้สำหรับ backward compat แต่ปัจจุบัน wrapper/index.tsx ใช้ named exports แทน
+const ProfileTab = ({ data }: { data: ProfileTabData }) => {
+  const { completedOrders, avgRating, showRating, openShopEmptyState, achievements, products, totalBadgeCount } = data
+
+  return (
+    <>
+      <ProfileLeftContent
+        data={{ completedOrders, avgRating, showRating, openShopEmptyState }}
+      />
+      <ProfileRightContent
+        data={{ achievements, products, openShopEmptyState, totalBadgeCount }}
+      />
     </>
   )
 }

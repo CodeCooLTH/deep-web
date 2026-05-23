@@ -70,7 +70,8 @@ export default async function PublicProfilePage({ params }: Props) {
     // aggregate ทั้งหมด — ใช้แสดง rating บน platforms section
     getAvgRatingByUsername(username),
     // ดึงสินค้าเฉพาะเมื่อมีร้าน (isShop=true) — buyer-only ส่ง [] แทน
-    user.shop ? getProductsByShop(user.shop.id, 9) : Promise.resolve([]),
+    // เปลี่ยน 9 → 12: desktop 4-col เต็ม 3 แถว / mobile 3-col 4 แถว ตาม spec
+    user.shop ? getProductsByShop(user.shop.id, 12) : Promise.resolve([]),
   ])
 
   const trustLevel = getTrustLevel(user.trustScore)
@@ -136,14 +137,14 @@ export default async function PublicProfilePage({ params }: Props) {
   }
 
   // ทำไม: outer div เปลี่ยน bg → radial gradient + padding ตาม mockup body background
-  // inner div ไม่มี max-w-6xl อีกต่อไป — wrapper การ์ดจัดการ max-width 640px เอง
+  // inner div ไม่มี max-w-6xl อีกต่อไป — wrapper การ์ดจัดการ max-width (640 mobile / 1024 desktop) เอง
+  // padding: { xs: '60px 24px', md: '60px 32px' } — mobile คง 24px ตามที่ approve (ห้าม regress 16px)
   return (
     <div
+      className='min-h-screen px-6 py-[60px] md:px-8'
       style={{
         background:
           'radial-gradient(ellipse at top, #DDD6FE 0%, transparent 50%), radial-gradient(ellipse at bottom, #FBCFE8 0%, transparent 50%), #F8FAFC',
-        minHeight: '100vh',
-        padding: '60px 24px',
       }}
     >
       <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
