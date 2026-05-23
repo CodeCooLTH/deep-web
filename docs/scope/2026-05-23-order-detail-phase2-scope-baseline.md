@@ -84,3 +84,4 @@
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-05-23 | baseline สร้าง | — | — |
+| 2026-05-23 | S-4 refine: slip endpoint = **combined upload+attach** `POST /api/orders/[token]/slip` รับ `multipart/form-data` (file + contact) — ไม่ใช่ 2-step `/api/upload`→`/slip` | `/api/upload` require session (line 7-8); buyer เป็น guest → 401. รวม upload+attach ใน route เดียว auth ด้วย contact-parity/SMS + PENDING guard + `validateUpload`+`saveFile`+`attachSlip`. ไม่กระทบ scope (ยังคือ "buyer แนบสลิป"), ไม่อ่อนแอ /api/upload | Controller (plan) |
