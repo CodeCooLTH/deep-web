@@ -90,3 +90,4 @@ Port หน้า buyer-facing `/o/[token]` (`OrderDetailMobile.tsx`) จาก 
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-05-23 | baseline สร้าง | - | - |
+| 2026-05-23 | S-2 drop unused `type` param → `getOrderTimeline(status, fulfillmentMode, paymentMethod)`; S-3 → `getStatusPill(status, fulfillmentMode, paymentMethod)` (PENDING label แยก 3 กรณี digital/COD/transfer ต้องใช้ทั้ง 2 param) | type info subsumed โดย fulfillmentMode; ไม่กระทบ scope coverage, Vitest ครอบ combinations ครบ | Controller (Gate 1) |
