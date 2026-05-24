@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Order Lock Screen — 5 variations (Deep)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Anuphan',sans-serif;background:#E5E9F0;padding:36px 22px 60px;min-height:100vh;color:#0F172A}
+  h1{text-align:center;font-size:18px;font-weight:800;color:#1E293B;margin-bottom:4px}
+  .note{text-align:center;font-size:12px;color:#64748B;margin-bottom:30px;max-width:760px;margin-left:auto;margin-right:auto;line-height:1.5}
+  .gallery{display:flex;gap:34px;justify-content:center;flex-wrap:wrap;align-items:flex-start;max-width:2200px;margin:0 auto}
+  .block{display:flex;flex-direction:column;align-items:center}
+  .label{text-align:center;font-weight:800;font-size:14px;color:#1E293B;margin-bottom:3px}
+  .sub{text-align:center;font-size:11.5px;color:#64748B;margin-bottom:14px;max-width:380px;line-height:1.45}
+  svg{display:block}.arr{width:20px;height:20px}
+
+  /* SHARED phone frame — same fixed size for fair comparison */
+  .phone{width:380px;height:820px;background:#F3F5F8;border-radius:26px;overflow:hidden;position:relative;
+    box-shadow:0 24px 50px rgba(15,23,42,.16);display:flex;flex-direction:column}
+
+  /* shared atoms */
+  .back{position:absolute;top:14px;left:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 6px rgba(0,0,0,.12);display:grid;place-items:center;color:#0F172A;z-index:5}
+  .back.dark{background:rgba(15,23,42,.35);border:1px solid rgba(255,255,255,.25);color:#fff;backdrop-filter:blur(10px)}
+  .av{width:78px;height:78px;border-radius:50%;border:4px solid #fff;object-fit:cover;background:#fff;box-shadow:0 6px 14px rgba(15,23,42,.16)}
+  .avw{position:relative;display:inline-block}
+  .verify{position:absolute;right:1px;bottom:1px;width:22px;height:22px;border-radius:50%;background:#1D9BF0;border:3px solid #fff;display:grid;place-items:center;color:#fff;box-shadow:0 1px 4px rgba(29,155,240,.4)}
+  .shop{font-size:18px;font-weight:800;letter-spacing:-.02em;line-height:1.25}
+  .handle{font-size:12px;color:#64748B;margin-top:2px}
+  .chips{display:flex;gap:5px;justify-content:center;margin-top:9px;flex-wrap:wrap}
+  .chip{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .chip.v{background:#E5F4FE;color:#0C7DC2}.chip.t{background:#EDF1F6;color:#475569}.chip.s{background:#EEF2F7;color:#334155}
+
+  /* form atoms */
+  .flabel{font-size:12px;font-weight:600;color:#334155;margin-bottom:6px;display:block}
+  .field{width:100%;height:46px;border:1px solid #D5DCE6;border-radius:11px;background:#fff;padding:0 14px;font-family:inherit;font-size:14px;color:#0F172A;outline:none}
+  .field::placeholder{color:#94A3B8}
+  .field:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  .helper{font-size:11px;color:#94A3B8;margin-top:7px}
+  .cta{width:100%;height:48px;border:none;border-radius:13px;background:#0F172A;color:#fff;font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+  .cta:hover{background:#1E293B}
+  .protect{font-size:10.5px;color:#94A3B8;display:flex;align-items:center;justify-content:center;gap:5px}
+  .protect svg{width:12px;height:12px}
+  .formhead{font-size:16px;font-weight:800;color:#0F172A;line-height:1.3}
+  .formsub{font-size:13px;color:#64748B;margin-top:3px}
+
+  /* ════════ V1 · Hero-centered card ════════ */
+  .v1{background:#F3F5F8}
+  .v1 .banner{height:108px;flex-shrink:0;background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');background-size:cover;background-position:center;position:relative}
+  .v1 .card{flex:1;background:#fff;margin:-26px 14px 14px;border-radius:20px;box-shadow:0 8px 28px rgba(15,23,42,.10);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 26px}
+  .v1 .card .inner{display:flex;flex-direction:column;align-items:center;width:100%}
+  .v1 .form{width:100%;margin-top:26px;text-align:left}
+  .v1 .protect{margin-top:22px}
+
+  /* ════════ V2 · Full-bleed cover + frosted glass ════════ */
+  .v2{position:relative;background:#1E293B}
+  .v2 .bg{position:absolute;inset:0;background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');background-size:cover;background-position:center}
+  .v2 .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,23,42,.30) 0%,rgba(15,23,42,.45) 42%,rgba(15,23,42,.78) 100%)}
+  .v2 .content{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 18px 22px}
+  .v2 .identity{text-align:center;color:#fff;margin-bottom:18px}
+  .v2 .identity .av{border-color:rgba(255,255,255,.85)}
+  .v2 .identity .shop{color:#fff;margin-top:10px;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+  .v2 .identity .handle{color:rgba(255,255,255,.82)}
+  .v2 .chip.t{background:rgba(255,255,255,.22);color:#fff}.v2 .chip.s{background:rgba(255,255,255,.22);color:#fff}
+  .v2 .glass{background:rgba(255,255,255,.16);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.30);border-radius:20px;padding:20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+  .v2 .glass .formhead{color:#fff}
+  .v2 .glass .formsub{color:rgba(255,255,255,.78)}
+  .v2 .glass .flabel{color:rgba(255,255,255,.9)}
+  .v2 .glass .field{background:rgba(255,255,255,.92);border-color:rgba(255,255,255,.4)}
+  .v2 .glass .helper{color:rgba(255,255,255,.72)}
+  .v2 .glass .protect{color:rgba(255,255,255,.78);margin-top:16px}
+  .v2 .glass .protect svg path{fill:rgba(255,255,255,.85)}
+
+  /* ════════ V3 · Top hero / bottom sheet ════════ */
+  .v3{background:#F3F5F8}
+  .v3 .hero{height:44%;flex-shrink:0;position:relative;background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');background-size:cover;background-position:center;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 22px}
+  .v3 .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,23,42,.15) 0%,rgba(15,23,42,.50) 100%)}
+  .v3 .hero .z{position:relative;z-index:2;color:#fff}
+  .v3 .hero .shop{color:#fff;margin-top:10px;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+  .v3 .hero .handle{color:rgba(255,255,255,.85)}
+  .v3 .hero .chip.t{background:rgba(255,255,255,.22);color:#fff}.v3 .hero .chip.s{background:rgba(255,255,255,.22);color:#fff}
+  .v3 .sheet{flex:1;background:#fff;border-radius:26px 26px 0 0;margin-top:-26px;position:relative;z-index:3;padding:22px 22px 22px;display:flex;flex-direction:column;box-shadow:0 -8px 24px rgba(15,23,42,.08)}
+  .v3 .grip{width:42px;height:5px;border-radius:3px;background:#E2E8F0;margin:0 auto 18px}
+  .v3 .form{flex:1;display:flex;flex-direction:column}
+  .v3 .form .spacer{flex:1}
+  .v3 .protect{margin-top:18px}
+
+  /* ════════ V4 · Trust-forward split ════════ */
+  .v4{background:#F3F5F8}
+  .v4 .banner{height:96px;flex-shrink:0;background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');background-size:cover;background-position:center;position:relative}
+  .v4 .idrow{background:#fff;text-align:center;padding:0 18px 14px}
+  .v4 .idrow .avwrap{margin-top:-40px;margin-bottom:8px}
+  .v4 .body{flex:1;display:flex;flex-direction:column;padding:14px 16px 0;overflow:hidden}
+  .v4 .trustpanel{background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.06);padding:14px;display:flex}
+  .v4 .tcol{flex:1;text-align:center;padding:2px 4px}
+  .v4 .tcol+.tcol{border-left:1px solid #EEF2F7}
+  .v4 .tcol .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin:0 auto 7px}
+  .v4 .tcol .ic.blue{background:#E5F4FE;color:#0C7DC2}.v4 .tcol .ic.gray{background:#EDF1F6;color:#475569}.v4 .tcol .ic.score{background:#EEF2F7;color:#334155}
+  .v4 .tcol .tv{font-size:14px;font-weight:800;color:#0F172A;line-height:1.1}
+  .v4 .tcol .tl{font-size:10px;color:#94A3B8;margin-top:3px}
+  .v4 .formcard{background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.06);padding:18px;margin-top:14px}
+  .v4 .spacer{flex:1}
+  .v4 .footer{padding:16px;text-align:center}
+
+  /* ════════ V5 · Minimal focus ════════ */
+  .v5{background:#FBFCFE}
+  .v5 .banner{height:6px;flex-shrink:0;background-image:url('../../public/images/tier_covers/tier_cover_2_silver.png');background-size:cover;background-position:center}
+  .v5 .top{padding:42px 26px 0;text-align:center}
+  .v5 .av{width:64px;height:64px}
+  .v5 .verify{width:20px;height:20px}
+  .v5 .shop{font-size:17px;margin-top:14px}
+  .v5 .mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 28px}
+  .v5 .formhead{text-align:center}.v5 .formsub{text-align:center;margin-bottom:24px}
+  .v5 .footer{padding:24px;text-align:center}
+</style></head>
+<body>
+<h1>Order Lock Screen · 5 ทิศทางออกแบบ (Deep) — ก่อนกรอกเบอร์ที่ /o/[token]</h1>
+<div class="note">เนื้อหาเดียวกันทุกแบบ (BT premium · @btpremium_suksawat · ✓ ยืนยันแล้ว · Deep Silver · Trust 65 · ฟอร์มเบอร์โทร · ปกป้องโดย Deep) — ต่างกันที่ composition. ทุก phone = สูง 820px เต็มจอ ไม่มีพื้นที่ว่างก้นจอ. เลือก 1 แบบ.</div>
+<div class="gallery">
+
+  <!-- ════════════ V1 · Hero-centered card ════════════ -->
+  <div class="block">
+    <div class="label">1 · Hero-centered card</div>
+    <div class="sub">แบนเนอร์สั้น แล้วทุกอย่าง (avatar/ตัวตน/ฟอร์ม) อยู่ในการ์ดเดียวจัดกึ่งกลางแนวตั้งเต็มความสูง</div>
+    <div class="phone v1">
+      <div class="banner">
+        <div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      </div>
+      <div class="card">
+        <div class="inner">
+          <div class="avw"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="verify"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+          <div class="shop" style="margin-top:12px">BT premium auto xeon</div>
+          <div class="handle">@btpremium_suksawat</div>
+          <div class="chips"><span class="chip v">✓ ยืนยันแล้ว</span><span class="chip t">Deep Silver</span><span class="chip s">Trust 65</span></div>
+
+          <div class="form">
+            <div class="formhead" style="text-align:center;margin-top:24px">ยืนยันตัวตนเพื่อดูคำสั่งซื้อ</div>
+            <div class="formsub" style="text-align:center;margin-bottom:18px">กรอกเบอร์โทรที่ใช้ติดต่อกับร้านนี้</div>
+            <label class="flabel">เบอร์โทรศัพท์</label>
+            <input class="field" placeholder="08xxxxxxxx" inputmode="numeric"/>
+            <div class="helper">สำหรับคำสั่งซื้อ #aa000001</div>
+            <button class="cta" style="margin-top:18px">เข้าดูคำสั่งซื้อ</button>
+          </div>
+
+          <div class="protect"><svg viewBox="0 0 24 24" fill="#818CF8"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>ปกป้องการซื้อขายโดย Deep</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ V2 · Full-bleed cover + frosted glass ════════════ -->
+  <div class="block">
+    <div class="label">2 · Full-bleed cover + frosted glass</div>
+    <div class="sub">tier cover เต็มจอเป็นพื้นหลัง (มี gradient คลุม) + ฟอร์มกระจกฝ้าลอยอยู่ด้านล่าง · ตัวตนวางบนภาพ</div>
+    <div class="phone v2">
+      <div class="bg"></div>
+      <div class="back dark"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="content">
+        <div class="identity">
+          <div class="avw"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="verify"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+          <div class="shop">BT premium auto xeon</div>
+          <div class="handle">@btpremium_suksawat</div>
+          <div class="chips"><span class="chip v">✓ ยืนยันแล้ว</span><span class="chip t">Deep Silver</span><span class="chip s">Trust 65</span></div>
+        </div>
+        <div class="glass">
+          <div class="formhead">ยืนยันตัวตนเพื่อดูคำสั่งซื้อ</div>
+          <div class="formsub" style="margin-bottom:16px">กรอกเบอร์โทรที่ใช้ติดต่อกับร้านนี้</div>
+          <label class="flabel">เบอร์โทรศัพท์</label>
+          <input class="field" placeholder="08xxxxxxxx" inputmode="numeric"/>
+          <div class="helper">สำหรับคำสั่งซื้อ #aa000001</div>
+          <button class="cta" style="margin-top:16px">เข้าดูคำสั่งซื้อ</button>
+          <div class="protect" style="margin-top:16px"><svg viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>ปกป้องการซื้อขายโดย Deep</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ V3 · Top hero / bottom sheet ════════════ -->
+  <div class="block">
+    <div class="label">3 · Top hero / bottom sheet</div>
+    <div class="sub">บน ~44% = hero immersive (cover+avatar+ตัวตน+chips) · ล่าง = bottom sheet ขาวโค้งติดก้นจอ ใส่ฟอร์ม</div>
+    <div class="phone v3">
+      <div class="hero">
+        <div class="back dark"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+        <div class="z">
+          <div class="avw"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="verify"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+          <div class="shop">BT premium auto xeon</div>
+          <div class="handle">@btpremium_suksawat</div>
+          <div class="chips"><span class="chip v">✓ ยืนยันแล้ว</span><span class="chip t">Deep Silver</span><span class="chip s">Trust 65</span></div>
+        </div>
+      </div>
+      <div class="sheet">
+        <div class="grip"></div>
+        <div class="form">
+          <div class="formhead">ยืนยันตัวตนเพื่อดูคำสั่งซื้อ</div>
+          <div class="formsub" style="margin-bottom:20px">กรอกเบอร์โทรที่ใช้ติดต่อกับร้านนี้</div>
+          <label class="flabel">เบอร์โทรศัพท์</label>
+          <input class="field" placeholder="08xxxxxxxx" inputmode="numeric"/>
+          <div class="helper">สำหรับคำสั่งซื้อ #aa000001</div>
+          <button class="cta" style="margin-top:18px">เข้าดูคำสั่งซื้อ</button>
+          <div class="spacer"></div>
+          <div class="protect"><svg viewBox="0 0 24 24" fill="#818CF8"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>ปกป้องการซื้อขายโดย Deep</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ V4 · Trust-forward split ════════════ -->
+  <div class="block">
+    <div class="label">4 · Trust-forward split</div>
+    <div class="sub">header แบบ order-detail V1 + แผง trust (verify/tier/score เด่น) เหนือฟอร์ม · footer ปักก้นจอ</div>
+    <div class="phone v4">
+      <div class="banner">
+        <div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      </div>
+      <div class="idrow">
+        <div class="avwrap"><span class="avw"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="verify"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></span></div>
+        <div class="shop">BT premium auto xeon</div>
+        <div class="handle">@btpremium_suksawat</div>
+      </div>
+      <div class="body">
+        <div class="trustpanel">
+          <div class="tcol"><div class="ic blue"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div><div class="tv">ยืนยันแล้ว</div><div class="tl">ตัวตนร้านค้า</div></div>
+          <div class="tcol"><div class="ic gray"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 6.9H22l-5.8 4.3 2.2 7L12 16l-6.4 4.2 2.2-7L2 8.9h7.6z"/></svg></div><div class="tv">Deep Silver</div><div class="tl">ระดับความน่าเชื่อถือ</div></div>
+          <div class="tcol"><div class="ic score"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div><div class="tv">65</div><div class="tl">คะแนน Trust</div></div>
+        </div>
+        <div class="formcard">
+          <div class="formhead">ยืนยันตัวตนเพื่อดูคำสั่งซื้อ</div>
+          <div class="formsub" style="margin-bottom:16px">กรอกเบอร์โทรที่ใช้ติดต่อกับร้านนี้</div>
+          <label class="flabel">เบอร์โทรศัพท์</label>
+          <input class="field" placeholder="08xxxxxxxx" inputmode="numeric"/>
+          <div class="helper">สำหรับคำสั่งซื้อ #aa000001</div>
+          <button class="cta" style="margin-top:16px">เข้าดูคำสั่งซื้อ</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="footer"><div class="protect"><svg viewBox="0 0 24 24" fill="#818CF8"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>ปกป้องการซื้อขายโดย Deep</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ V5 · Minimal focus ════════════ -->
+  <div class="block">
+    <div class="label">5 · Minimal focus</div>
+    <div class="sub">เรียบ — avatar+ชื่อ+chips เล็กบนสุด · ฟอร์มจัดกึ่งกลาง · ใช้ whitespace สง่างามแต่ยังเต็มจอ</div>
+    <div class="phone v5">
+      <div class="banner"></div>
+      <div class="back"><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="top">
+        <div class="avw"><img class="av" src="../../public/images/avatars/btpremium-logo.png"/><div class="verify"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+        <div class="shop">BT premium auto xeon</div>
+        <div class="handle">@btpremium_suksawat</div>
+        <div class="chips"><span class="chip v">✓ ยืนยันแล้ว</span><span class="chip t">Deep Silver</span><span class="chip s">Trust 65</span></div>
+      </div>
+      <div class="mid">
+        <div class="formhead">ยืนยันตัวตนเพื่อดูคำสั่งซื้อ</div>
+        <div class="formsub">กรอกเบอร์โทรที่ใช้ติดต่อกับร้านนี้</div>
+        <label class="flabel">เบอร์โทรศัพท์</label>
+        <input class="field" placeholder="08xxxxxxxx" inputmode="numeric"/>
+        <div class="helper">สำหรับคำสั่งซื้อ #aa000001</div>
+        <button class="cta" style="margin-top:18px">เข้าดูคำสั่งซื้อ</button>
+      </div>
+      <div class="footer"><div class="protect"><svg viewBox="0 0 24 24" fill="#818CF8"><path d="M12 2l7 3v6c0 4.4-3 8.3-7 9.5C8 19.3 5 15.4 5 11V5l7-3z"/></svg>ปกป้องการซื้อขายโดย Deep</div></div>
+    </div>
+  </div>
+
+</div>
+</body></html>
