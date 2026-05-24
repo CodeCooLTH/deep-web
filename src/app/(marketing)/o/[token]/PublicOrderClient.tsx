@@ -2,11 +2,13 @@
 
 /**
  * Orchestrator สำหรับ /o/[token] — จัดการ 2 stages:
- * 1. 'lock'   — PhoneUnlock (ต้องกรอกเบอร์ตรงกับ order)
+ * 1. 'lock'   — PhoneUnlock OTP multi-step (T4+T5 rewrite)
  * 2. 'detail' — OrderDetailMobile (mobile-first + fixed bottom CTA)
  *
- * Unlock persists via sessionStorage (key scoped per token) — reload หน้าเดิม
- * ภายใน session เดียวไม่ต้อง unlock ใหม่
+ * Unlock flow ใหม่ (T4+T5, S-3, S-4, S-5, S-7, S-9):
+ *   PhoneUnlock → OTP → signIn('phone-otp') → onSignedIn → router.refresh()
+ *   → RSC page.tsx re-eval session → ส่ง sessionUnlockedPhone → detail
+ * ไม่มี sessionStorage lock persist สำหรับ OTP path (session cookie ทำหน้าที่แทน)
  *
  * T13 (Phase 4 B5 — rework): ลบ ?unlocked=1 query trust ออกทั้งหมด
  * Security fix: query param = client-trusted = auth bypass → ใครก็ได้ต่อ ?unlocked=1
@@ -14,9 +16,15 @@
  * ที่ verify HMAC signed cookie แล้วก่อนส่งลงมา
  *
  * UUID flow ที่ไม่มี cookie ทำงานเหมือนเดิมเป๊ะ (regression safe):
- * - initialUnlocked=false → stage='lock' → PhoneUnlock → sessionStorage persist
+ * - initialUnlocked=false → stage='lock' → PhoneUnlock OTP → router.refresh()
+ *
+ * NOTE: handleUnlock (old phone-match POST /api/orders/[token]/unlock) ถูกลบออก
+ * เพราะ OTP path ใช้ signIn แทน lock/unlock route ไม่ได้ถูกลบ (ยังอยู่ที่ /api/orders/[token]/unlock)
+ * แค่หยุดเรียกจาก client นี้ตาม task spec
  */
 import { useEffect, useState } from 'react'
+
+import { useRouter } from 'next/navigation'
 
 import { toast } from 'react-toastify'
 
@@ -39,19 +47,18 @@ type Props = {
   sessionUnlockedPhone?: string
 }
 
-const unlockStorageKey = (token: string) => `deep-o-unlock-${token.slice(0, 8)}`
-
 export default function PublicOrderClient({
   order,
   initialUnlocked,
   smsUnlocked,
   sessionUnlockedPhone,
 }: Props) {
+  const router = useRouter()
   const [stage, setStage] = useState<Stage>('lock')
   const [phone, setPhone] = useState('')
   const [orderState, setOrderState] = useState(order)
 
-  // ลอง restore unlock จาก initialUnlocked (server-decided) หรือ sessionStorage (UUID flow)
+  // ลอง restore unlock จาก initialUnlocked (server-decided) หรือ sessionUnlockedPhone (session path)
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -70,30 +77,10 @@ export default function PublicOrderClient({
       return
     }
 
-    // UUID flow เดิม: restore จาก sessionStorage
-    const saved = sessionStorage.getItem(unlockStorageKey(order.publicToken))
-    if (saved && /^0[0-9]{9}$/.test(saved)) {
-      setPhone(saved)
-      setStage('detail')
-    }
+    // OTP path: ไม่มี sessionStorage restore — session cookie จาก signIn เป็น gate
+    // หลัง router.refresh() page.tsx จะ re-eval session + ส่ง sessionUnlockedPhone กลับมา
+    // ทำให้ useEffect นี้วิ่งอีกครั้งกับ sessionUnlockedPhone ที่มีค่า → detail
   }, [order.publicToken, initialUnlocked, sessionUnlockedPhone])
-
-  const handleUnlock = async (enteredPhone: string) => {
-    const res = await fetch(`/api/orders/${order.publicToken}/unlock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: enteredPhone }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      throw new Error(data?.error ?? 'เบอร์นี้ไม่ตรงกับคำสั่งซื้อ')
-    }
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(unlockStorageKey(order.publicToken), enteredPhone)
-    }
-    setPhone(enteredPhone)
-    setStage('detail')
-  }
 
   // handleCancel — buyer ขอยกเลิก order (PENDING เท่านั้น)
   // ส่ง contact = phone (เบอร์ที่ buyer unlock ไว้) ตาม schema ของ cancel route
@@ -125,7 +112,7 @@ export default function PublicOrderClient({
     // ส่ง smsUnlock:true เพื่อให้ route handler รู้ว่าใช้ cookie-verified path
     // ห้ามส่ง phone/contact ใน body (RC-8: client ไม่ควรรู้/ส่ง phone)
     //
-    // UUID flow (ไม่ใช่ smsUnlocked): ส่ง contact ตามปกติ (PhoneUnlock flow เดิม)
+    // session/OTP flow: ส่ง contact ตามปกติ (phone มาจาก sessionUnlockedPhone)
     const body = smsUnlocked ? { smsUnlock: true } : { contact: phone }
 
     const res = await fetch(`/api/orders/${order.publicToken}/confirm`, {
@@ -146,7 +133,9 @@ export default function PublicOrderClient({
     return (
       <PhoneUnlock
         orderHint={`#${order.publicToken.slice(0, 8)}`}
-        onUnlock={handleUnlock}
+        // onSignedIn: เรียก router.refresh() → RSC page.tsx re-eval session → ส่ง sessionUnlockedPhone
+        // → useEffect detect → setStage('detail') (retro #25 pattern: refresh ไม่ใช่ setStage ตรง)
+        onSignedIn={() => router.refresh()}
         // ส่ง shop preview เพื่อแสดง Trust Strip ก่อน buyer กรอกเบอร์ (FR-UX-1 anti-scam)
         // field path ตรงกับ PublicOrderData: order.shop.user.{trustScore,username}, order.maxVerifyLevel
         shop={{
