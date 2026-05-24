@@ -1,6 +1,6 @@
 # Scope Baseline — OTP Customer Account at Order View
 
-สถานะ: ACTIVE
+สถานะ: SIGNED-OFF (Gate 2 · 2026-05-24)
 อ้างอิง PRD: FR-1.2, FR-6.3, FR-6.8, FR-8.1, FR-8.2, FR-8.3, NFR-2.6, NFR-3.2, NFR-3.3, NFR-5.4
 spec: `docs/superpowers/specs/2026-05-24-otp-customer-account-design.md`
 
@@ -83,3 +83,5 @@ spec: `docs/superpowers/specs/2026-05-24-otp-customer-account-design.md`
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-05-24 | baseline สร้าง | Gate 0 — spec approved | - |
+| 2026-05-24 | review/security must-fix: isNewUser ย้ายหลัง rate-limit; block ย้ายเป็น server-side early-return (`OrderAccessBlock`) กัน RSC PII leak; ลบ phone PII echo ใน /api/otp/send; auto-send countdown; S-11(b) parseIsNewUser guard+test | gate fixes (commit 1143007, 1a1a14c) | Controller (review+security) |
+| 2026-05-24 | **Phase SIGNED-OFF** — S-1..S-12 DONE | tsc 0, Vitest 12/12, reviewer PASS, security PASS, browser QA ผ่าน (user, test-account 0000000001/123456). S-7 design moved server-side (improvement). Accepted-risk: isNewUser oracle (quota-gated) + buyer-phone full-phone reveal (HMAC cookie). Deferred Phase 2: Redis OTP, general rate-limit/CSRF | safepay-product (Gate 2) |
