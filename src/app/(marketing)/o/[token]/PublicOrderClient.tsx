@@ -31,6 +31,12 @@ type Props = {
   initialUnlocked?: boolean
   /** server-decided: true = SMS flow → handleConfirm ไม่ต้องส่ง contact (RC-8) */
   smsUnlocked?: boolean
+  /**
+   * T3: logged-in user เบอร์ตรงกับ order.buyerContact (server-resolved) → ข้าม lock screen
+   * ทันที + ใช้เบอร์นี้ใน confirm/cancel. mismatch ถูกบล็อกที่ server (page.tsx) แล้ว
+   * จึงไม่ต้องมี blockedByMismatch prop ที่นี่ (กัน order PII เข้า RSC flight)
+   */
+  sessionUnlockedPhone?: string
 }
 
 const unlockStorageKey = (token: string) => `deep-o-unlock-${token.slice(0, 8)}`
@@ -39,6 +45,7 @@ export default function PublicOrderClient({
   order,
   initialUnlocked,
   smsUnlocked,
+  sessionUnlockedPhone,
 }: Props) {
   const [stage, setStage] = useState<Stage>('lock')
   const [phone, setPhone] = useState('')
@@ -47,6 +54,13 @@ export default function PublicOrderClient({
   // ลอง restore unlock จาก initialUnlocked (server-decided) หรือ sessionStorage (UUID flow)
   useEffect(() => {
     if (typeof window === 'undefined') return
+
+    // logged-in user เบอร์ตรง order (server-resolved) → ข้าม lock + ใช้เบอร์ใน confirm/cancel (S-9)
+    if (sessionUnlockedPhone) {
+      setPhone(sessionUnlockedPhone)
+      setStage('detail')
+      return
+    }
 
     // SMS flow: server verify HMAC cookie แล้ว → ข้าม PhoneUnlock ทันที
     // ไม่ set phone เพราะ SMS flow ไม่รู้ phone ฝั่ง client (RC-8: client ไม่ควรรู้)
@@ -62,7 +76,7 @@ export default function PublicOrderClient({
       setPhone(saved)
       setStage('detail')
     }
-  }, [order.publicToken, initialUnlocked])
+  }, [order.publicToken, initialUnlocked, sessionUnlockedPhone])
 
   const handleUnlock = async (enteredPhone: string) => {
     const res = await fetch(`/api/orders/${order.publicToken}/unlock`, {

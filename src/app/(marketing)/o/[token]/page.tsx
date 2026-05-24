@@ -27,12 +27,15 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { getServerSession } from 'next-auth'
 
 import { prisma } from '@/lib/prisma'
+import { authOptions } from '@/lib/auth'
 import { getOrderByToken } from '@/services/order.service'
 import { verifySmsUnlock, SMS_UNLOCK_COOKIE } from '@/lib/sms-unlock-cookie'
 
 import PublicOrderClient from './PublicOrderClient'
+import OrderAccessBlock from './OrderAccessBlock'
 import type { PublicOrderData } from './OrderDetailMobile'
 
 type Props = { params: Promise<{ token: string }> }
@@ -55,6 +58,33 @@ export default async function PublicOrderPage({ params }: Props) {
   if (UUID_V4_RE.test(token)) {
     const order = await getOrderByToken(token)
     if (!order) notFound()
+
+    // ── Session-aware phone check (T3) ──────────────────────────────────────────
+    // session callback ใน auth.ts ไม่ include phone ใน select (id/displayName/username/
+    // avatar/isShop/isAdmin/trustScore เท่านั้น) → ต้อง resolve phone แยกด้วย findUnique
+    // รวม getServerSession + findUnique ได้ใน 1 call คู่ (acceptable overhead per spec)
+    const session = await getServerSession(authOptions)
+    let sessionPhone: string | undefined
+    if (session) {
+      const me = await prisma.user.findUnique({
+        where: { id: (session.user as { id: string }).id },
+        select: { phone: true },
+      })
+      sessionPhone = me?.phone ?? undefined
+    }
+
+    // pendingUnclaimed: order ยังไม่มี buyerContact และยังเป็น PENDING
+    // → ถือว่า "ยังไม่มีเจ้าของ" ไม่ต้องบล็อกใคร (แม้แต่ logged-in user)
+    const phoneMatches = !!sessionPhone && sessionPhone === order.buyerContact
+    const pendingUnclaimed = order.buyerContact == null && order.status === 'PENDING'
+    const blockedByMismatch =
+      !!sessionPhone && !phoneMatches && !pendingUnclaimed
+
+    // ⚠️ security must-fix: บล็อก "ก่อน" สร้าง PublicOrderData → ไม่ส่ง order PII ใด ๆ
+    // ลง RSC flight ไปยัง user ที่เบอร์ไม่ตรง (block UI render ฝั่ง server, ไม่มี order data)
+    if (blockedByMismatch) {
+      return <OrderAccessBlock />
+    }
 
     // query verificationRecord ของ shop owner หลัง order resolve
     // shop.userId: field โดยตรงบน Shop model (ไม่ต้องไป user.id)
@@ -124,11 +154,14 @@ export default async function PublicOrderPage({ params }: Props) {
     // ส่ง smsUnlocked ให้ client — server-decided ไม่ใช่ client-trusted
     // initialUnlocked: ข้าม PhoneUnlock ทันที (SMS flow พิสูจน์แล้ว)
     // smsUnlocked: บอก handleConfirm ว่าไม่ต้องส่ง contact ใน body (RC-8)
+    //
     return (
       <PublicOrderClient
         order={data}
         initialUnlocked={smsUnlocked}
         smsUnlocked={smsUnlocked}
+        // logged-in user เบอร์ตรง → ข้าม lock + ใช้เบอร์นี้ใน confirm (S-9 returning skip)
+        sessionUnlockedPhone={phoneMatches ? sessionPhone : undefined}
       />
     )
   }
