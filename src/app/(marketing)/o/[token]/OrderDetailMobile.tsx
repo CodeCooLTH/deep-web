@@ -61,6 +61,7 @@ import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierCover, getTierLabel } from '@/lib/trust-tier'
 
 import ReviewForm from './ReviewForm'
+import MobileFrame from './MobileFrame'
 
 export type PublicOrderData = {
   publicToken: string
@@ -534,33 +535,11 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
         ? 'คุณยกเลิกคำสั่งซื้อ'
         : 'คำสั่งซื้อนี้ถูกยกเลิก'
 
-  // pb ของ body กัน content ถูก fixed bottom bar บัง
-  const bottomBarHeight = canConfirm ? 'calc(8rem + env(safe-area-inset-bottom, 0px))' : '1.5rem'
-
   return (
-    // พื้นหลังเทาอ่อน — Profile-consistent flat column layout
-    <Box
-      sx={{
-        minHeight: '100dvh',
-        bgcolor: '#F3F5F8',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* ── Scrollable body ── */}
-      <Box
-        sx={{
-          flex: 1,
-          overflowY: 'auto',
-          pb: bottomBarHeight,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          maxWidth: 420, // mobile-first max-width ตาม mockup .phone width 380px
-          mx: 'auto',
-          width: '100%',
-        }}
-      >
+    // Profile-consistent flat column ในกรอบ MobileFrame (desktop = phone device, mobile = เต็มจอ)
+    <MobileFrame bg='#F3F5F8'>
+      {/* ── Scrollable content ── */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
         {/* ── 1. Tier Cover Banner — pattern จาก ProfileBanner (UserProfileHeader.tsx) ── */}
         {/* ทำไม: banner + frosted back button = pattern เดียวกับ /u/[username] profile header */}
@@ -1541,9 +1520,10 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
       {canConfirm && (
         <Box
           sx={{
-            position: 'fixed',
-            insetInline: 0,
+            // sticky (ไม่ใช่ fixed) เพื่อให้เกาะก้น "กรอบ phone" บน desktop ไม่ใช่ก้น viewport
+            position: 'sticky',
             bottom: 0,
+            mt: 'auto',
             zIndex: 30,
             borderTop: '1px solid #E8EDF3',
             bgcolor: 'rgba(243,245,248,0.94)',
@@ -1703,6 +1683,6 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
           </DialogActions>
         </Dialog>
       )}
-    </Box>
+    </MobileFrame>
   )
 }
