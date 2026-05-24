@@ -155,6 +155,11 @@ export default async function PublicOrderPage({ params }: Props) {
     // initialUnlocked: ข้าม PhoneUnlock ทันที (SMS flow พิสูจน์แล้ว)
     // smsUnlocked: บอก handleConfirm ว่าไม่ต้องส่ง contact ใน body (RC-8)
     //
+    // canPromptAccount: S-8 — SMS-unlock แต่ยังไม่มี session → เสนอสร้างบัญชี opt-in
+    // ทำไม: buyer ที่ unlock ผ่าน SMS link และไม่ได้ login ควรได้รับโอกาสสร้างบัญชี
+    // โดยไม่บังคับ — guest flow ยังทำงานได้ถ้า dismiss
+    const canPromptAccount = smsUnlocked && !sessionPhone
+
     return (
       <PublicOrderClient
         order={data}
@@ -162,6 +167,7 @@ export default async function PublicOrderPage({ params }: Props) {
         smsUnlocked={smsUnlocked}
         // logged-in user เบอร์ตรง → ข้าม lock + ใช้เบอร์นี้ใน confirm (S-9 returning skip)
         sessionUnlockedPhone={phoneMatches ? sessionPhone : undefined}
+        canPromptAccount={canPromptAccount}
       />
     )
   }
