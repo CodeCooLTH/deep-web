@@ -21,6 +21,9 @@ const SELLER_ID = 'e7e8d500-600a-4484-a741-3a6475a6b969'
 const SHOP_ID = '9226d13a-8b25-4ab6-8c50-d77bce4086af'
 const ADMIN_ID = 'f0eb0238-a37a-4aea-b125-a78b7c4e7b61'
 const BUYER_CONTACT = '0812345678'
+// test account (dev OTP bypass: เบอร์ 0000000001 / OTP 123456) — สำหรับ QA OTP→account flow
+// โดยไม่ต้องรอ SMS จริง. ดู TEST_ACCOUNTS ใน src/lib/otp.ts
+const OTP_TEST_CONTACT = '0000000001'
 
 // publicToken คงที่ (valid UUID v4 — ต้องผ่าน UUID_V4_RE ใน page.tsx)
 const TOK = {
@@ -32,6 +35,8 @@ const TOK = {
   cancelledSeller: 'aa000006-6666-4666-8666-666666666666',
   cancelledBuyer: 'aa000007-7777-4777-8777-777777777777',
   digitalPending: 'aa000008-8888-4888-8888-888888888888',
+  // OTP-account QA: PENDING transfer ผูก test-account → unlock ด้วย OTP bypass
+  otpTest: 'aa000009-9999-4999-8999-999999999999',
 }
 
 async function seed() {
@@ -268,7 +273,23 @@ async function seed() {
     },
   })
 
-  console.log('\n✅ Seeded 8 Order Detail V1 scenarios (buyer phone = ' + BUYER_CONTACT + ')\n')
+  // 9) OTP-account QA · PENDING transfer ผูก test-account 0000000001
+  //    → unlock ด้วย OTP bypass (เบอร์ 0000000001 / OTP 123456) ทดสอบ OTP→account ครบ flow
+  await prisma.order.create({
+    data: {
+      publicToken: TOK.otpTest,
+      shopId: SHOP_ID,
+      type: 'PHYSICAL',
+      totalAmount: 3500,
+      status: 'PENDING',
+      fulfillmentMode: 'SHIPPED',
+      paymentMethod: 'พร้อมเพย์ 081-234-5678',
+      buyerContact: OTP_TEST_CONTACT,
+      items: physicalItems,
+    },
+  })
+
+  console.log('\n✅ Seeded Order Detail QA orders\n')
   const labels: Record<string, string> = {
     pendingTransfer: '1+2 PENDING โอนเงิน (slip=Phase2)',
     pendingCOD: '3   PENDING COD',
@@ -278,6 +299,7 @@ async function seed() {
     cancelledSeller: '7a  CANCELLED (seller)',
     cancelledBuyer: '7b  CANCELLED (buyer)',
     digitalPending: '8   DIGITAL ส่งมอบแล้ว',
+    otpTest: '9   OTP→account (เบอร์ 0000000001 / OTP 123456)',
   }
   for (const [k, tok] of Object.entries(TOK)) {
     console.log(`  ${labels[k].padEnd(34)} /o/${tok}`)
