@@ -58,8 +58,9 @@ export async function POST(request: NextRequest) {
   // แนะนำ: ให้ safepay-security พิจารณาเพิ่ม NODE_ENV !== 'production' guard ทั้งใน
   // verifyOtp และ isTestAccount พร้อมกัน (ไม่ใช่หน้าที่ developer task นี้)
   if (isTestAccount(contact)) {
-    // isNewUser รวมอยู่ใน response เฉพาะเมื่อ lookup สำเร็จ (ไม่ undefined)
-    const testPayload: Record<string, unknown> = { message: "OTP sent", contact };
+    // ไม่ echo contact (raw phone = PII) กลับ — client มี phone ใน state อยู่แล้ว (security must-fix)
+    // isNewUser รวมเฉพาะเมื่อ lookup สำเร็จ (ไม่ undefined)
+    const testPayload: Record<string, unknown> = { message: "OTP sent" };
     if (isNewUser !== undefined) testPayload.isNewUser = isNewUser;
     return NextResponse.json(testPayload);
   }
@@ -77,8 +78,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // isNewUser รวมอยู่ใน response เฉพาะเมื่อ lookup สำเร็จ (ไม่ undefined)
-  const payload: Record<string, unknown> = { message: "OTP sent", contact };
+  // ไม่ echo contact (raw phone = PII) กลับ — client มี phone ใน state อยู่แล้ว (security must-fix)
+  // isNewUser รวมเฉพาะเมื่อ lookup สำเร็จ (ไม่ undefined)
+  const payload: Record<string, unknown> = { message: "OTP sent" };
   if (isNewUser !== undefined) payload.isNewUser = isNewUser;
   return NextResponse.json(payload);
 }

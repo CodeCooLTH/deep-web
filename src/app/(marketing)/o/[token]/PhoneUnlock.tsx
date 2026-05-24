@@ -45,6 +45,7 @@ import { signIn } from 'next-auth/react'
 import CustomTextField from '@core/components/mui/TextField'
 
 import { getTierLabel, getTierColor, getTierCover } from '@/lib/trust-tier'
+import { parseIsNewUser } from '@/lib/otp-account'
 
 import styles from '@/libs/styles/inputOtp.module.css'
 
@@ -136,7 +137,10 @@ export default function PhoneUnlock({
   useEffect(() => {
     if (!startAtOtpStep || !prefilledPhone || autoSentRef.current) return
     autoSentRef.current = true
-    void sendOtp(prefilledPhone)
+    // เริ่ม countdown หลังส่งสำเร็จ — กัน resend ถูกกดรัวทันที (review must-fix: client throttle)
+    void sendOtp(prefilledPhone).then((ok) => {
+      if (ok) startCountdown()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -150,8 +154,7 @@ export default function PhoneUnlock({
     if (res.status === 429) return false
     if (!res.ok) return false
     const data = await res.json().catch(() => ({}))
-    // isNewUser: ถ้า API ไม่คืน (DB error) → ใช้ true defensive (แสดงช่องชื่อ)
-    setIsNewUser(typeof data.isNewUser === 'boolean' ? data.isNewUser : true)
+    setIsNewUser(parseIsNewUser(data))
     return true
   }
 
@@ -182,7 +185,7 @@ export default function PhoneUnlock({
         return
       }
       const data = await res.json().catch(() => ({}))
-      setIsNewUser(typeof data.isNewUser === 'boolean' ? data.isNewUser : true)
+      setIsNewUser(parseIsNewUser(data))
       setOtp('')
       setName('')
       setStep2Error(null)
