@@ -3,25 +3,22 @@
 /**
  * ReviewForm — post-order review (1-5 stars + optional comment)
  *
- * Base:
- *   - theme/vuexy/typescript-version/full-version/src/views/apps/invoice/preview/PreviewCard.tsx
- *     (Card/CardContent shell + sm:!p-* spacing)
- *   - MUI Rating primitive (Vuexy uses it throughout, e.g. front-pages/pricing/Plans.tsx,
- *     apps/ecommerce/manage-reviews — no dedicated template page for a review form)
+ * Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
+ *   - flat (ไม่มี Card ของตัวเอง) — render ภายใน review card ของ OrderDetailMobile V1
+ *     (เลิก card-in-card + ลบหัวข้อซ้ำ; invite "สินค้าถึงมือคุณแล้ว" อยู่ที่ wrapper แล้ว)
+ *   - MUI Rating primitive + CustomTextField + ink CTA #0F172A เหมือน CTA อื่นใน V1 (ให้เข้าชุดกัน)
  *
- * Business logic preserved from previous implementation:
+ * Business logic preserved:
  *   - 1-5 star required, 500-char optional comment
- *   - POST /api/orders/[token]/review -> on success reload so server page re-renders
- *     the thank-you card.
+ *   - POST /api/orders/[token]/review -> success router.refresh() ให้ server re-render thank-you card
  */
 
 import { useState, type FormEvent } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
 import Rating from '@mui/material/Rating'
 import Typography from '@mui/material/Typography'
 
@@ -65,46 +62,54 @@ export default function ReviewForm({ token }: Props) {
   }
 
   return (
-    <Card>
-      <CardContent className='flex flex-col gap-6 !p-5 sm:!p-10'>
-        <div className='flex flex-col gap-1'>
-          <Typography variant='h5'>รีวิวร้านค้านี้</Typography>
-          <Typography color='text.secondary'>
-            ประสบการณ์การซื้อครั้งนี้เป็นอย่างไร ช่วยแชร์เพื่อให้ชุมชน Deep น่าเชื่อถือยิ่งขึ้น
-          </Typography>
-        </div>
+    // flat — ไม่มี Card ของตัวเอง (อยู่ใน review card ของ OrderDetailMobile แล้ว)
+    <form onSubmit={onSubmit} noValidate autoComplete='off'>
+      {/* stars จัดกลาง */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', mb: '16px' }}>
+        <Rating
+          name='order-review-rating'
+          value={rating}
+          onChange={(_e, v) => setRating(v ?? 0)}
+          size='large'
+          sx={{ fontSize: '2.25rem' }}
+        />
+        <Typography sx={{ fontSize: 12, color: '#94A3B8' }}>
+          {rating ? `${rating}/5` : 'แตะเพื่อให้คะแนน'}
+        </Typography>
+      </Box>
 
-        <form onSubmit={onSubmit} noValidate autoComplete='off' className='flex flex-col gap-6'>
-          <div className='flex flex-col items-center gap-2'>
-            <Rating
-              name='order-review-rating'
-              value={rating}
-              onChange={(_e, v) => setRating(v ?? 0)}
-              size='large'
-              className='!text-5xl sm:!text-4xl'
-            />
-            <Typography color='text.disabled' className='text-xs'>
-              {rating ? `${rating}/5` : 'แตะเพื่อให้คะแนน'}
-            </Typography>
-          </div>
+      <CustomTextField
+        fullWidth
+        multiline
+        minRows={3}
+        maxRows={6}
+        label='ความคิดเห็น (ไม่บังคับ)'
+        placeholder='แชร์ประสบการณ์ของคุณ…'
+        value={comment}
+        onChange={(e) => setComment(e.target.value.slice(0, 500))}
+        helperText={`${comment.length}/500`}
+      />
 
-          <CustomTextField
-            fullWidth
-            multiline
-            minRows={3}
-            maxRows={6}
-            label='ความคิดเห็น (ไม่บังคับ)'
-            placeholder='แชร์ประสบการณ์ของคุณ…'
-            value={comment}
-            onChange={(e) => setComment(e.target.value.slice(0, 500))}
-            helperText={`${comment.length}/500`}
-          />
-
-          <Button type='submit' variant='contained' fullWidth disabled={loading || !rating}>
-            {loading ? 'กำลังส่ง…' : 'ส่งรีวิว'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      {/* ink CTA #0F172A — เข้าชุดกับ CTA อื่นใน V1 (เลิกปุ่มม่วง default) */}
+      <Button
+        type='submit'
+        fullWidth
+        disabled={loading || !rating}
+        sx={{
+          mt: '16px',
+          minHeight: 48,
+          bgcolor: '#0F172A',
+          color: '#fff',
+          borderRadius: '13px',
+          fontSize: 14.5,
+          fontWeight: 800,
+          textTransform: 'none',
+          '&:hover': { bgcolor: '#1E293B' },
+          '&.Mui-disabled': { bgcolor: '#CBD5E1', color: '#fff' },
+        }}
+      >
+        {loading ? 'กำลังส่ง…' : 'ส่งรีวิว'}
+      </Button>
+    </form>
   )
 }
