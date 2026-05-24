@@ -140,6 +140,8 @@ export default function PublicOrderClient({
           trustScore: order.shop.user.trustScore,
           maxVerifyLevel: order.maxVerifyLevel,
           username: order.shop.user.username,
+          // avatar สำหรับ V1 header ของ lock screen (field มีจาก data layer Phase 2 V1)
+          avatar: order.shop.user.avatar,
         }}
       />
     )
