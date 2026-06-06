@@ -512,9 +512,9 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 3 | `shippingAddress` persist ไม่ได้ (ไม่มีใน CreateOrderSchema) | เพิ่ม + required เมื่อ SHIPPED (P3) | OPEN |
 | 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ **service layer** `reviewVerification()` (single source) + ลบ orphan route `api/verification/[id]/review` ที่ bypass ได้ | **CLOSED** 2026-06-06 (`services/verification.service.ts` — guard กลาง; เดิม guard อยู่แค่ API layer ทำให้ orphan route หลุด) |
 | 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` (§4) | **CLOSED** (OMS stream) |
-| 6 | `.env.vercel` ยังชี้ `safepay.co` (ขัด `.env.production.local`) | reconcile env → `deepthailand.app` | OPEN (user-side config) |
+| 6 | `.env.vercel` ยังชี้ `safepay.co` | seed.ts email → deepthailand.app ✅; `.env.vercel` = local untracked + **gitignored** (ไม่กระทบ repo/prod — Vercel ใช้ env จาก dashboard); user ลบ local เองได้ | **CLOSED (code)** 2026-06-06 — เหลือ user ลบไฟล์ local |
 | 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (§5.6) | OPEN |
-| 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) | **CLOSED** (Phase B — ไทยครบแล้ว) |
+| 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) | **CLOSED** 2026-06-06 — section titles (Analytics/Business/Buyer/Setting + Overview/People) + breadcrumb 16 หน้า + child 'Badges' แปลไทยครบ (child labels เดิมไทยอยู่แล้ว) |
 | 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
 | 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | ✅ CLOSED 2026-06-06 — ครบ 8 metric ใน dashboard page + api/admin/dashboard | CLOSED |
 | 11 | general rate-limit (100/30) + CSRF | ✅ CLOSED 2026-06-06 — Origin-check (mutation) + per-IP RL (unauth 100/auth 30) ใน `proxy.ts`/`guardApi` (in-memory; Vercel per-instance = known-gap, Redis Phase 2) | CLOSED |
