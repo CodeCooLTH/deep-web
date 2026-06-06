@@ -18,6 +18,11 @@ function assertTransition(currentStatus: string, newStatus: string) {
   }
 }
 
+// FR-6.5: order ที่ต้องจัดส่งต้องมีที่อยู่จัดส่ง — throw นี้ให้ route map เป็น 400
+export class ShippingAddressRequiredError extends Error {
+  constructor() { super("SHIPPING_ADDRESS_REQUIRED"); this.name = "ShippingAddressRequiredError"; }
+}
+
 export async function createOrder(shopId: string, data: {
   items: { productId?: string; name: string; description?: string; qty: number; price: number }[];
   type: string;
@@ -74,6 +79,14 @@ export async function createOrder(shopId: string, data: {
     if (shippedProduct) {
       fulfillmentMode = "SHIPPED";
     }
+  }
+
+  // FR-6.5: ออเดอร์ที่ต้องจัดส่ง (SHIPPED) ต้องมีที่อยู่ครบขั้นต่ำ (line1 + จังหวัด + รหัสไปรษณีย์)
+  // enforce ที่ service layer (single source) — กัน API-direct call ที่ข้าม form
+  if (fulfillmentMode === "SHIPPED") {
+    const a = data.shippingAddress;
+    const hasEssentials = !!(a?.line1?.trim() && a?.province?.trim() && a?.postcode?.trim());
+    if (!hasEssentials) throw new ShippingAddressRequiredError();
   }
 
   return prisma.order.create({

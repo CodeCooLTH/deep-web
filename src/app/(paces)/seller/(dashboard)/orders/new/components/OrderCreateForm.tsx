@@ -133,6 +133,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
   const {
     control,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -187,6 +188,20 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
       if (!item.productId) return true
       return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
     })
+
+    // ── FR-6.5: ออเดอร์ที่ต้องจัดส่งต้องมีที่อยู่ครบขั้นต่ำ (ที่อยู่ + จังหวัด + รหัสไปรษณีย์) ──
+    // server enforce ซ้ำที่ createOrder (single source) — นี่คือ UX surface ก่อน submit
+    if (needsShipping) {
+      const a = values.shippingAddress
+      let missing = false
+      if (!a?.line1?.trim()) { setError('shippingAddress.line1', { message: 'กรุณากรอกที่อยู่' }); missing = true }
+      if (!a?.province?.trim()) { setError('shippingAddress.province', { message: 'กรุณากรอกจังหวัด' }); missing = true }
+      if (!a?.postcode?.trim()) { setError('shippingAddress.postcode', { message: 'กรุณากรอกรหัสไปรษณีย์' }); missing = true }
+      if (missing) {
+        toast.error('ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)')
+        return
+      }
+    }
 
     // ── vatAmount (ส่ง undefined ถ้าไม่มี VAT) ─────────────────────────────
     const vatAmount =

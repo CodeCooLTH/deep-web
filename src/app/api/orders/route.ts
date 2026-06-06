@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateOrderSchema } from "@/lib/validations";
-import { createOrder, getOrdersByShop, getOrdersByBuyer } from "@/services/order.service";
+import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
     const order = await createOrder(shop.id, parsed.output);
     return NextResponse.json(order, { status: 201 });
   } catch (e) {
+    if (e instanceof ShippingAddressRequiredError) {
+      return NextResponse.json(
+        { error: "ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)" },
+        { status: 400 },
+      );
+    }
     console.error("[POST /api/orders] createOrder failed", e);
     return NextResponse.json({ error: "Order creation failed" }, { status: 500 });
   }
