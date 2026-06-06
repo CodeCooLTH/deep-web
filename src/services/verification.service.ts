@@ -20,10 +20,28 @@ export async function submitVerification(userId: string, data: {
   });
 }
 
+// throw codes ที่ caller (API route) map เป็น HTTP status ได้
+export class VerificationNotFoundError extends Error {
+  constructor() { super("VERIFICATION_NOT_FOUND"); this.name = "VerificationNotFoundError"; }
+}
+export class SelfReviewForbiddenError extends Error {
+  constructor() { super("SELF_REVIEW_FORBIDDEN"); this.name = "SelfReviewForbiddenError"; }
+}
+
 export async function reviewVerification(recordId: string, adminId: string, data: {
   status: "APPROVED" | "REJECTED";
   rejectedReason?: string;
 }) {
+  // Self-review guard ที่ "service layer" (FR-2.6 / retro P2 mandate) — single source of truth
+  // เคยมี guard แค่ที่ API layer ของ admin route ทำให้ route อื่นที่เรียก service ตรง bypass ได้
+  // (orphan POST /api/verification/[id]/review ลบไปแล้ว แต่ guard ที่นี่กันทุก caller ในอนาคต)
+  const existing = await prisma.verificationRecord.findUnique({
+    where: { id: recordId },
+    select: { userId: true },
+  });
+  if (!existing) throw new VerificationNotFoundError();
+  if (existing.userId === adminId) throw new SelfReviewForbiddenError();
+
   const record = await prisma.verificationRecord.update({
     where: { id: recordId },
     data: {
