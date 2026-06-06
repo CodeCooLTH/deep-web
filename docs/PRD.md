@@ -466,10 +466,10 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | Shops | COUNT(users where isShop=true) | ✅ มี |
 | Total Orders | COUNT(orders) | ✅ มี |
 | Verifications Pending | COUNT(verification where status=PENDING) | ✅ มี |
-| Completion Rate | CONFIRMED / (CONFIRMED + CANCELLED) | ⚠️ ต้องทำ (§11) |
-| Avg. Rating | AVG(reviews.rating) | ⚠️ ต้องทำ (§11) |
-| Active Users | users มี order ใน 30 วันล่าสุด | ⚠️ ต้องทำ (§11) |
-| Avg. Trust Score | AVG(users.trustScore) | ⚠️ ต้องทำ (§11) |
+| Completion Rate | CONFIRMED / (CONFIRMED + CANCELLED) | ✅ มี (2026-06-06) |
+| Avg. Rating | AVG(reviews.rating) | ✅ มี (2026-06-06) |
+| Active Users | users มี order ใน 30 วันล่าสุด (buyer+เจ้าของร้าน distinct) | ✅ มี (2026-06-06) |
+| Avg. Trust Score | AVG(users.trustScore) | ✅ มี |
 
 ### 9.2 Marketing / SEO
 
@@ -516,7 +516,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (§5.6) | OPEN |
 | 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) | **CLOSED** (Phase B — ไทยครบแล้ว) |
 | 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
-| 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | implement ให้ครบ (§9.1) | OPEN |
+| 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | ✅ CLOSED 2026-06-06 — ครบ 8 metric ใน dashboard page + api/admin/dashboard | CLOSED |
 | 11 | general rate-limit (100/30) + CSRF | ✅ CLOSED 2026-06-06 — Origin-check (mutation) + per-IP RL (unauth 100/auth 30) ใน `proxy.ts`/`guardApi` (in-memory; Vercel per-instance = known-gap, Redis Phase 2) | CLOSED |
 | 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
 | S-8 | S-8 / FR-6.8 / FR-6.9 / §10 SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 build | **BUILT** — Phase 4 complete (ดู §11-SMS ด้านล่าง) |
