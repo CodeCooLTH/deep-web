@@ -517,7 +517,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) | **CLOSED** (Phase B — ไทยครบแล้ว) |
 | 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
 | 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | implement ให้ครบ (§9.1) | OPEN |
-| 11 | general rate-limit (100/30) + CSRF ยังไม่มี | implement ก่อน prod (NFR-2.2/2.3) | OPEN |
+| 11 | general rate-limit (100/30) + CSRF | ✅ CLOSED 2026-06-06 — Origin-check (mutation) + per-IP RL (unauth 100/auth 30) ใน `proxy.ts`/`guardApi` (in-memory; Vercel per-instance = known-gap, Redis Phase 2) | CLOSED |
 | 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
 | S-8 | S-8 / FR-6.8 / FR-6.9 / §10 SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 build | **BUILT** — Phase 4 complete (ดู §11-SMS ด้านล่าง) |
 | P9 | `/u/{username}` public profile redesign — cross-platform stats จริง + on-time tracking + follow/chat backend | Phase 2 (FR-9.10, FR-9.11) — ปัจจุบัน placeholder + disabled | OPEN (Phase 2) |
