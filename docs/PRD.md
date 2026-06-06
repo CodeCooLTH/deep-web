@@ -510,7 +510,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | OPEN |
 | 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) | **CLOSED** (OMS stream) |
 | 3 | `shippingAddress` persist ไม่ได้ (ไม่มีใน CreateOrderSchema) | เพิ่ม + required เมื่อ SHIPPED (P3) | OPEN |
-| 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | เพิ่ม self-review block (FR-2.6) | **CLOSED** (`api/admin/verifications/[id]/route.ts:12`) |
+| 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ **service layer** `reviewVerification()` (single source) + ลบ orphan route `api/verification/[id]/review` ที่ bypass ได้ | **CLOSED** 2026-06-06 (`services/verification.service.ts` — guard กลาง; เดิม guard อยู่แค่ API layer ทำให้ orphan route หลุด) |
 | 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` (§4) | **CLOSED** (OMS stream) |
 | 6 | `.env.vercel` ยังชี้ `safepay.co` (ขัด `.env.production.local`) | reconcile env → `deepthailand.app` | OPEN (user-side config) |
 | 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (§5.6) | OPEN |
