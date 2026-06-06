@@ -20,8 +20,8 @@
 Reviewer 8-gate PASS ทุก batch · tsc 0 (เหลือเฉพาะ `prisma/qa-seed.ts` pre-existing parallel-noise) · migration `20260517050000` apply ลง dev DB (Supabase cloud) แล้ว 2026-05-17.
 
 **งานเหลือ ตามลำดับ:**
-1. **QA-debt Phase B** (priority — phase ปิดแบบ code-complete, ไม่มี runtime/E2E). user start dev server เอง (Claude ไม่ start) → Controller dispatch `safepay-qa` **batch-E2E + end-of-phase** ที่ `seller.deepth.local` (curl-probe port 3000/4000). Scenario: สร้างออเดอร์ผ่าน 4 block → ค้นลูกค้าเดิม (`/api/orders/customers` debounce+stale-guard) + เพิ่มใหม่ → discount(฿)+VAT(%) honest breakdown ใน summary → derive type จาก cart → ที่อยู่จัดส่ง auto-show เมื่อมี item SHIPPED → POST `/api/orders` → redirect `/orders/{token}` → **verify field ใหม่ persist จริงใน DB**. เขียว = Phase B verified-complete.
-2. **Phase A Unit D** (Detail rework variant A) ยังค้างทั้งดุ้น — spec handoff §3.2 + mockup `docs/mockups/seller-orders/detail-a.html`. ถาม user ทำต่อเลย หรือหลัง QA Phase B.
+1. ~~**QA-debt Phase B**~~ ✅ **DONE 2026-06-06** — `safepay-qa` E2E PASS ทุก level (4-block create, customer search debounce+stale-guard, derive type + shipping auto-show, VAT/discount honest breakdown math ตรง [subtotal 3,700 − discount 200 + VAT 245 = total 3,745], DB persist ครบ 7 field). ไม่มี blocker. **Phase B = verified-complete.** (env note: dev DB = Supabase via `.env.local`; Supabase เคย paused ต้อง user restore; login = `/auth/sign-in`).
+2. **Phase A Unit D** — **superseded แล้ว**โดย Paces re-source `c7b559b` (seller detail `[token]/page.tsx` = Paces `order-details` 3-col grid + slip/digital/OTP, ไม่ใช่ Status Hero `detail-a.html`). **ถาม user**: ปิด Unit D เป็น "superseded" หรือยังอยากได้ Status Hero variant A ตาม mockup เดิม.
 3. Backlog nice-to-have: cart `SUBSCRIPTION` ล้วน → `derivedType` ตก `DIGITAL` (plan §3 ล็อก 3-way ไม่ครอบ SUBSCRIPTION).
 
 **อย่า re-run B1-B8.** อ่าน retro `docs/retro/2026-05-17-seller-orders-phase-b.md` ก่อนทำ phase ต่อไป.
