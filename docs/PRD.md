@@ -509,7 +509,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 |---|-----|--------|-------|
 | 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | OPEN |
 | 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) | **CLOSED** (OMS stream) |
-| 3 | `shippingAddress` persist ไม่ได้ (ไม่มีใน CreateOrderSchema) | เพิ่ม + required เมื่อ SHIPPED (P3) | OPEN |
+| 3 | `shippingAddress` persist + required เมื่อ SHIPPED | ✅ CLOSED 2026-06-06 — persist (Phase B) + required guard ที่ `createOrder` service (line1+province+postcode เมื่อ fulfillmentMode=SHIPPED) → 400; form onSubmit surface ก่อน | CLOSED |
 | 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ **service layer** `reviewVerification()` (single source) + ลบ orphan route `api/verification/[id]/review` ที่ bypass ได้ | **CLOSED** 2026-06-06 (`services/verification.service.ts` — guard กลาง; เดิม guard อยู่แค่ API layer ทำให้ orphan route หลุด) |
 | 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` (§4) | **CLOSED** (OMS stream) |
 | 6 | `.env.vercel` ยังชี้ `safepay.co` | seed.ts email → deepthailand.app ✅; `.env.vercel` = local untracked + **gitignored** (ไม่กระทบ repo/prod — Vercel ใช้ env จาก dashboard); user ลบ local เองได้ | **CLOSED (code)** 2026-06-06 — เหลือ user ลบไฟล์ local |
