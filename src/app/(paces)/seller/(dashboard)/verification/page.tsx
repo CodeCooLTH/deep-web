@@ -66,7 +66,7 @@ export default async function VerificationPage() {
   if (fetchFailed) {
     return (
       <>
-        <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'Setting' }]} />
+        <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'ตั้งค่า' }]} />
         <SellerErrorState
           title="โหลดข้อมูลการยืนยันตัวตนไม่สำเร็จ"
           message="เกิดข้อผิดพลาดชั่วคราว ลองโหลดใหม่อีกครั้ง"
@@ -125,7 +125,7 @@ export default async function VerificationPage() {
 
   return (
     <>
-      <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'Setting' }]} />
+      <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'ตั้งค่า' }]} />
       {/* Page header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

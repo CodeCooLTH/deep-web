@@ -116,7 +116,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
       <PageBreadcrumb
         title="ตรวจสอบคำขอยืนยันตัวตน"
         trail={[
-          { label: 'People' },
+          { label: 'ผู้ใช้' },
           { label: 'ยืนยันตัวตน', href: '/verifications' },
         ]}
       />

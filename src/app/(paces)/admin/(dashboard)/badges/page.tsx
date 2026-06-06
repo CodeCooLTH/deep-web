@@ -39,7 +39,7 @@ export default async function AdminBadgesPage() {
 
   return (
     <>
-      <PageBreadcrumb title="Badges" trail={[{ label: 'Admin' }, { label: 'Business' }]} />
+      <PageBreadcrumb title="ตราสัญลักษณ์" trail={[{ label: 'ผู้ดูแล' }, { label: 'ธุรกิจ' }]} />
       <BadgesTable rows={rows} />
       <BadgeFormDialog />
     </>

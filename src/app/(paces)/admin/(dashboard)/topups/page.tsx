@@ -64,7 +64,7 @@ export default async function AdminTopUpsPage() {
       {/* Breadcrumb: Business → "เติมเครดิต SMS" — ตาม Design Spec */}
       <PageBreadcrumb
         title="คำขอเติมเครดิต SMS"
-        trail={[{ label: 'Business' }]}
+        trail={[{ label: 'ธุรกิจ' }]}
       />
 
       <TopUpQueueTable

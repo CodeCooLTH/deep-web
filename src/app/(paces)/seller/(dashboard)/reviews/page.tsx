@@ -99,7 +99,7 @@ export default async function ReviewsPage() {
 
   return (
     <>
-      <PageBreadcrumb title="รีวิว" trail={[{ label: 'Business' }]} />
+      <PageBreadcrumb title="รีวิว" trail={[{ label: 'การขาย' }]} />
       <ProductReviews reviews={rows} summary={summary} />
     </>
   )

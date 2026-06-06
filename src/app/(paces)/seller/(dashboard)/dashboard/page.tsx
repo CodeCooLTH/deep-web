@@ -181,7 +181,7 @@ export default async function SellerDashboardPage() {
 
   return (
     <>
-      <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'Analytics' }]} />
+      <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
 
       {/* แถว 1 (theme row 1): UserCard + StatCards (5 คอล) | AchievementLevel (7 คอล)
           StorePerformanceOverview ถูก drop → AchievementLevel ยึด 7 คอลเต็ม */}

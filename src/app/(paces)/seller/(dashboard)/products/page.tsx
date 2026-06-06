@@ -42,7 +42,7 @@ export default async function ProductsPage() {
   if (!shop) {
     return (
       <>
-        <PageBreadcrumb title="สินค้า" trail={[{ label: 'Business' }]} />
+        <PageBreadcrumb title="สินค้า" trail={[{ label: 'การขาย' }]} />
         <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
           <Icon icon="building-store" className="size-16 text-warning mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2">ยังไม่มีร้านค้า</h2>
@@ -168,7 +168,7 @@ export default async function ProductsPage() {
 
   return (
     <>
-      <PageBreadcrumb title="สินค้า" trail={[{ label: 'Business' }]} />
+      <PageBreadcrumb title="สินค้า" trail={[{ label: 'การขาย' }]} />
 
       <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
         {statData.map((stat, idx) => (

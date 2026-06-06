@@ -81,7 +81,7 @@ export default async function AdminUsersPage() {
 
   return (
     <>
-      <PageBreadcrumb title="ผู้ใช้งาน" trail={[{ label: 'Admin' }, { label: 'People' }]} />
+      <PageBreadcrumb title="ผู้ใช้งาน" trail={[{ label: 'ผู้ดูแล' }, { label: 'ผู้ใช้' }]} />
       <UsersTable users={rows} />
     </>
   )

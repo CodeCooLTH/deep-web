@@ -88,7 +88,7 @@ export default async function AdminVerificationsPage({ searchParams }: PageProps
 
   return (
     <>
-      <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'People' }]} />
+      <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'ผู้ใช้' }]} />
 
       <div className="card">
         <div className="card-header flex flex-wrap items-center justify-between gap-3">

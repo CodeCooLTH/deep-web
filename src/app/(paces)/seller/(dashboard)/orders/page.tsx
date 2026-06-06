@@ -122,7 +122,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'Business' }]} />
+      <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
 
       {/* Stat cards — 5 columns (theme grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-5) */}
       <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">

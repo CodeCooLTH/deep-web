@@ -144,7 +144,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     <>
       <PageBreadcrumb
         title="ออเดอร์ทั้งหมด"
-        trail={[{ label: 'Admin' }, { label: 'Orders' }]}
+        trail={[{ label: 'ผู้ดูแล' }, { label: 'คำสั่งซื้อ' }]}
       />
       <OrdersTable orders={rows} activeStatus={activeStatus} />
     </>

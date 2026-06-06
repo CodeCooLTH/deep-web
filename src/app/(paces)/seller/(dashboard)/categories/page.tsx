@@ -89,7 +89,7 @@ export default async function CategoriesPage() {
 
   return (
     <>
-      <PageBreadcrumb title="หมวดหมู่สินค้า" trail={[{ label: 'Business' }]} />
+      <PageBreadcrumb title="หมวดหมู่สินค้า" trail={[{ label: 'การขาย' }]} />
       <CategoryTable rows={rows} />
     </>
   )

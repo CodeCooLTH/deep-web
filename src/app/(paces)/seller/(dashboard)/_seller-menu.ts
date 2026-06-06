@@ -4,7 +4,7 @@ export const sellerMenuItems: MenuItemType[] = [
   {
     icon: 'chart-bar',
     slug: 'seller-analytics',
-    label: 'Analytics',
+    label: 'ภาพรวม',
     isTitle: true,
     children: [
       { url: '/dashboard', slug: 'seller:dashboard', label: 'ภาพรวมร้านค้า', icon: 'dashboard' },
@@ -15,7 +15,7 @@ export const sellerMenuItems: MenuItemType[] = [
   {
     icon: 'briefcase',
     slug: 'seller-business',
-    label: 'Business',
+    label: 'การขาย',
     isTitle: true,
     children: [
       { url: '/orders', slug: 'seller:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
@@ -28,7 +28,7 @@ export const sellerMenuItems: MenuItemType[] = [
   {
     icon: 'users',
     slug: 'seller-buyer',
-    label: 'Buyer',
+    label: 'ลูกค้า',
     isTitle: true,
     children: [
       { url: '/customers', slug: 'seller:customers', label: 'ผู้ซื้อ', icon: 'user-circle' },
@@ -37,7 +37,7 @@ export const sellerMenuItems: MenuItemType[] = [
   {
     icon: 'settings',
     slug: 'seller-settings',
-    label: 'Setting',
+    label: 'ตั้งค่า',
     isTitle: true,
     children: [
       { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้าน', icon: 'building-store' },

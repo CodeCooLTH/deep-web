@@ -118,7 +118,7 @@ export default async function SalesPage({
 
   return (
     <>
-      <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'Analytics' }]} />
+      <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'ภาพรวม' }]} />
 
       {/* โครงสร้าง single-card ตาม Paces theme: header → card-body (chart) → table+pagination */}
       <div className="card">

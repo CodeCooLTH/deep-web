@@ -121,7 +121,7 @@ export default async function ProductDetailPage({
 
   return (
     <>
-      <PageBreadcrumb title={product.name} trail={[{ label: 'Business' }, { label: 'สินค้า', href: '/products' }]} />
+      <PageBreadcrumb title={product.name} trail={[{ label: 'การขาย' }, { label: 'สินค้า', href: '/products' }]} />
       {/* 3-col card layout ตาม Paces theme: ซ้าย display, ขวา details + reviews */}
       <div className="card">
         <div className="card-body">

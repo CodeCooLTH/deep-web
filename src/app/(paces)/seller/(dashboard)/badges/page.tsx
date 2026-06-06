@@ -55,7 +55,7 @@ export default async function BadgesPage() {
 
   return (
     <>
-      <PageBreadcrumb title="ความสำเร็จ" trail={[{ label: 'Analytics' }]} />
+      <PageBreadcrumb title="ความสำเร็จ" trail={[{ label: 'ภาพรวม' }]} />
 
       {/* BadgeGrid: client island รับผิดชอบ render card + modal state */}
       <BadgeGrid earned={earned} locked={locked} />

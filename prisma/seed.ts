@@ -86,7 +86,7 @@ async function main() {
       isAdmin: true,
       passwordHash,
       authAccounts: {
-        create: { provider: "EMAIL", providerAccountId: "admin@safepay.co" },
+        create: { provider: "EMAIL", providerAccountId: "admin@deepthailand.app" },
       },
     },
   });

@@ -117,7 +117,7 @@ export default async function WalletPage() {
       {/* Breadcrumb: Business → เครดิต SMS (ตาม Design Spec) */}
       <PageBreadcrumb
         title="เครดิต SMS"
-        trail={[{ label: 'Business' }]}
+        trail={[{ label: 'การขาย' }]}
       />
 
       {/* Balance card — full-width บนสุด (Controller decision 1 LOCKED) */}
