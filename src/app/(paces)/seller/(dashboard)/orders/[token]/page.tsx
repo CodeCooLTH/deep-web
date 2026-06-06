@@ -20,6 +20,8 @@ import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import OrderSummary from './components/OrderSummary'
 import CustomerDetails from './components/CustomerDetails'
+import ShippingAddress from './components/ShippingAddress'
+import type { ShippingAddressData } from './components/ShippingAddress'
 import ShippingActivity from './components/ShippingActivity'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
@@ -85,6 +87,24 @@ export default async function OrderDetailPage({ params }: PageProps) {
       }
     : null
 
+  // S-C1 defense-in-depth: คำนวณ masked contact ให้ครบ "ก่อน" แล้ว neutralize raw บน order object
+  // เหตุผล: seller page อยู่ใต้ client VerticalLayout → Next serialize ทั้ง order object เข้า RSC
+  // flight payload (เห็นใน page source). lib มาส์กที่ปลายทางไม่พอ — raw ยังติด full-order blob.
+  // จึงลบ raw contact ทิ้งที่ source หลังดึง masked เสร็จ (downstream ไม่มีใครใช้ raw แล้ว:
+  // reviewerLabel + CustomerDetails ใช้ masked, OrderActions/SendSms ไม่รับ contact ตาม RC-8)
+  const buyerContactMasked = order.buyerContact ? maskContactLocal(order.buyerContact) : null
+  order.buyerContact = null
+  // เช่นเดียวกัน: reviewerContact (raw phone/email ใน review) — reviewerLabel mask ไปแล้วด้านบน
+  // neutralize ที่ source ให้ consistent กัน กันรั่วถ้าอนาคตมีใคร pass order.review ทั้งก้อน
+  if (order.review) order.review.reviewerContact = null
+
+  // Phase B: shippingAddress เป็น Json (Prisma คืน object แล้ว) — render card เฉพาะเมื่อมีค่าจริง
+  const rawAddr = order.shippingAddress
+  const shippingAddr: ShippingAddressData | null =
+    rawAddr && typeof rawAddr === 'object' && Object.values(rawAddr).some((v) => v && String(v).trim())
+      ? (rawAddr as ShippingAddressData)
+      : null
+
   return (
     <>
       <PageBreadcrumb
@@ -102,6 +122,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
               type: order.type,
               fulfillmentMode: order.fulfillmentMode,
               totalAmount: order.totalAmount,
+              discount: order.discount ?? null,
+              vatRate: order.vatRate ?? null,
+              vatAmount: order.vatAmount ?? null,
               createdAtISO,
               items: (order.items ?? []).map((item: any) => ({
                 id: item.id,
@@ -134,11 +157,17 @@ export default async function OrderDetailPage({ params }: PageProps) {
         <div className="space-y-base">
           <CustomerDetails
             data={{
-              buyerContact: order.buyerContact ?? null,
+              // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน
+              buyerContactMasked,
               buyerDisplayName: order.buyer?.displayName ?? null,
               buyerUsername: order.buyer?.username ?? null,
+              buyerName: order.buyerName ?? null,
+              paymentMethod: order.paymentMethod ?? null,
+              salesChannel: order.salesChannel ?? null,
             }}
           />
+          {/* Phase B: ที่อยู่จัดส่ง — render เฉพาะเมื่อ order มี shippingAddress */}
+          {shippingAddr && <ShippingAddress address={shippingAddr} />}
           {/* review card: compose กลับตาม retro action #4 + #9 — trust-critical info ที่ seller ต้องเห็น */}
           <OrderReviewCard review={reviewData} />
         </div>

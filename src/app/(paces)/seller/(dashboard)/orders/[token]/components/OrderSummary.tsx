@@ -6,7 +6,9 @@
  * - แทนด้วยข้อมูลจริงจาก order.items + order.totalAmount (Baht)
  * - เพิ่มปุ่ม CopyLinkButton (ลิงก์สำหรับผู้ซื้อ) ใน card header
  * - เพิ่ม OrderActions ใต้ตาราง
- * - ตัด: product image links, fake subtotal/tax/discount/shipping rows
+ * - restore: subtotal/discount/VAT/grand-total breakdown rows จาก theme (Phase B)
+ *   honest breakdown — โชว์ discount/VAT เฉพาะเมื่อมีค่า (>0) ไม่โชว์ "−฿0"
+ * - ตัด: product image links, shipping-fee row (ไม่มี field ใน SafePay MVP)
  * - คง: card layout, table structure, header with status badges
  */
 
@@ -33,6 +35,12 @@ function formatAmount(amount: unknown) {
   return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(amount))
 }
 
+/** แปลง Decimal|null → number (null/NaN → 0) — ใช้ตัดสินใจ honest breakdown */
+function toNum(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
 export type OrderSummaryOrder = {
   publicToken: string
   status: string
@@ -40,6 +48,12 @@ export type OrderSummaryOrder = {
   /** fulfillmentMode snapshot จาก order — ใช้กำหนด ship gate แทน order.type */
   fulfillmentMode: string
   totalAmount: unknown
+  /** Phase B: ส่วนลด (฿), null/0 = ไม่โชว์ row */
+  discount?: unknown
+  /** Phase B: VAT rate 0..1 (เช่น 0.07), null = ไม่โชว์ % */
+  vatRate?: unknown
+  /** Phase B: VAT amount (฿), null/0 = ไม่โชว์ row */
+  vatAmount?: unknown
   createdAtISO: string
   items: Array<{
     id: string
@@ -73,6 +87,14 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
   })
 
   const tokenShort = order.publicToken.slice(0, 8)
+
+  // honest breakdown (Phase B) — subtotal คำนวณจาก items, discount/VAT โชว์เฉพาะเมื่อมีค่า
+  // total = round2(subtotal − discount + vatAmount) เป็น single source จาก DB (order.totalAmount)
+  const subtotal = order.items.reduce((sum, it) => sum + toNum(it.price) * it.qty, 0)
+  const discountVal = toNum(order.discount)
+  const vatVal = toNum(order.vatAmount)
+  // vatRate เก็บเป็น 0..1 → แปลงเป็น % (0.07 → 7); ตัดทศนิยมลอยด้วย parseFloat(toFixed)
+  const vatPct = parseFloat((toNum(order.vatRate) * 100).toFixed(2))
 
   return (
     <div className="card">
@@ -143,7 +165,31 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
                 ))
               )}
               <tr className="border-default-300 border-t">
-                <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-bold uppercase">
+                <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-medium">
+                  ยอดสินค้า
+                </td>
+                <td className="text-end">{formatAmount(subtotal)}</td>
+              </tr>
+              {discountVal > 0 && (
+                <tr>
+                  <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-medium">
+                    ส่วนลด
+                  </td>
+                  <td className="text-danger px-4 py-3 text-right font-semibold">
+                    - {formatAmount(discountVal)}
+                  </td>
+                </tr>
+              )}
+              {vatVal > 0 && (
+                <tr>
+                  <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-medium">
+                    VAT{vatPct > 0 ? ` ${vatPct}%` : ''}
+                  </td>
+                  <td className="text-end">{formatAmount(vatVal)}</td>
+                </tr>
+              )}
+              <tr className="border-default-300 border-t">
+                <td colSpan={3} className="text-end font-bold uppercase">
                   ยอดรวมทั้งหมด
                 </td>
                 <td className="text-end font-bold bg-default-50">{formatAmount(order.totalAmount)}</td>

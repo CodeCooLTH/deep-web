@@ -3,24 +3,48 @@
  *
  * ปรับจาก Paces CustomerDetails:
  * - ลบข้อมูล mock (fake customer avatar, flag image, email/phone hardcode) ออก
- * - แทนด้วย buyerContact จริงจาก order (mask ตาม PDPA — แสดงเฉพาะ 4 ตัวท้าย)
+ * - แทนด้วย buyerContact จริงจาก order — **mask ที่ server boundary (page.tsx) ก่อนส่ง** (S-C1)
+ *   component รับ buyerContactMasked ที่ mask แล้ว ไม่เห็น raw phone (กัน RSC flight leak —
+ *   seller page อยู่ใต้ client VerticalLayout → server props serialize เข้า flight payload)
  * - ลบ: avatar image, country flag, dropdown actions (Share/Edit/Block/Delete)
  *   เหล่านี้ไม่มีข้อมูลใน schema SafePay
  * - คง: card layout, icon-list pattern สำหรับ contact info
  * - empty-state ที่สื่อความหมาย ถ้าผู้ซื้อยังไม่ยืนยัน
+ * - Phase B: เพิ่ม buyerName (ชื่อที่ร้านบันทึกตอนสร้าง) + paymentMethod + salesChannel
+ *   ใน icon-list เดิม (render เฉพาะเมื่อมีค่า)
  */
 
 import Icon from '@/components/wrappers/Icon'
 
-function maskContact(c: string) {
-  if (!c || c.length <= 4) return c || '—'
-  return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
+// label map — mirror ของ PAYMENT_OPTIONS/CHANNEL_OPTIONS ใน orders/new/components/PaymentChannelBlock.tsx
+// (display-only; เก็บ sync กับ create form — ถ้าเพิ่ม option ที่นั่นต้องเพิ่มที่นี่)
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH: 'เงินสด',
+  TRANSFER: 'โอนเงิน',
+  PROMPTPAY: 'พร้อมเพย์',
+  CARD: 'บัตรเครดิต/เดบิต',
+  COD: 'เก็บปลายทาง',
+  OTHER: 'อื่นๆ',
+}
+const CHANNEL_LABELS: Record<string, string> = {
+  STOREFRONT: 'หน้าร้าน',
+  FACEBOOK: 'Facebook',
+  LINE: 'Line',
+  TIKTOK: 'TikTok / TikTok Shop',
+  OTHER: 'อื่นๆ',
 }
 
 export type CustomerDetailsData = {
-  buyerContact: string | null
+  /** เบอร์/อีเมลผู้ซื้อที่ mask แล้วจาก server (S-C1) — ห้ามส่ง raw ข้าม RSC boundary */
+  buyerContactMasked: string | null
   buyerDisplayName: string | null
   buyerUsername: string | null
+  /** Phase B: ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (buyer อาจยังไม่ลงทะเบียน) */
+  buyerName: string | null
+  /** Phase B: วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS */
+  paymentMethod: string | null
+  /** Phase B: ช่องทางการขาย (code) — map ผ่าน CHANNEL_LABELS */
+  salesChannel: string | null
 }
 
 interface CustomerDetailsProps {
@@ -28,8 +52,12 @@ interface CustomerDetailsProps {
 }
 
 const CustomerDetails = ({ data }: CustomerDetailsProps) => {
-  const { buyerContact, buyerDisplayName, buyerUsername } = data
-  const displayName = buyerDisplayName || buyerUsername || null
+  const { buyerContactMasked, buyerDisplayName, buyerUsername, buyerName, paymentMethod, salesChannel } = data
+  // ลำดับชื่อ: registered displayName/username > ชื่อที่ร้านบันทึก (buyerName)
+  const registeredName = buyerDisplayName || buyerUsername || null
+  const displayName = registeredName || buyerName || null
+  const paymentLabel = paymentMethod ? PAYMENT_LABELS[paymentMethod] ?? paymentMethod : null
+  const channelLabel = salesChannel ? CHANNEL_LABELS[salesChannel] ?? salesChannel : null
 
   return (
     <div className="card">
@@ -37,7 +65,7 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
         <h4 className="card-title">ข้อมูลผู้ซื้อ</h4>
       </div>
       <div className="card-body">
-        {!buyerContact ? (
+        {!buyerContactMasked ? (
           // empty-state ที่ชัดเจน — ผู้ซื้อยังไม่ได้ยืนยันออเดอร์
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="user-off" className="text-3xl text-default-300 mb-2" />
@@ -55,7 +83,9 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
                 </div>
                 <div>
                   <h5 className="text-default-800 text-sm font-medium mb-0.5">{displayName}</h5>
-                  <p className="text-default-400 text-xs">ผู้ซื้อที่ลงทะเบียนแล้ว</p>
+                  <p className="text-default-400 text-xs">
+                    {registeredName ? 'ผู้ซื้อที่ลงทะเบียนแล้ว' : 'ชื่อที่ร้านบันทึก'}
+                  </p>
                 </div>
               </div>
             )}
@@ -66,11 +96,35 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
                     <Icon icon="phone" className="text-sm" />
                   </span>
                   <h5 className="text-default-400 font-medium text-sm">
-                    {/* mask ตาม PDPA — แสดงเฉพาะ 4 ตัวท้าย */}
-                    {maskContact(buyerContact)}
+                    {/* mask แล้วจาก server (S-C1) — แสดงเฉพาะ 4 ตัวท้าย */}
+                    {buyerContactMasked}
                   </h5>
                 </div>
               </li>
+              {channelLabel && (
+                <li>
+                  <div className="flex items-center gap-2.5">
+                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
+                      <Icon icon="speakerphone" className="text-sm" />
+                    </span>
+                    <h5 className="text-default-400 font-medium text-sm">
+                      ช่องทาง: {channelLabel}
+                    </h5>
+                  </div>
+                </li>
+              )}
+              {paymentLabel && (
+                <li>
+                  <div className="flex items-center gap-2.5">
+                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
+                      <Icon icon="cash" className="text-sm" />
+                    </span>
+                    <h5 className="text-default-400 font-medium text-sm">
+                      วิธีชำระ: {paymentLabel}
+                    </h5>
+                  </div>
+                </li>
+              )}
             </ul>
           </>
         )}
