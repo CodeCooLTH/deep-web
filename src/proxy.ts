@@ -1,15 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { getSubdomain } from '@/lib/subdomain'
+import { isAllowedOrigin } from '@/lib/csrf-origin'
+import { checkApiRateLimit, clientIp } from '@/lib/api-rate-limit'
+
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+// CSRF + rate-limit สำหรับ /api (NFR-2.2/2.3) — proxy = nodejs runtime
+// ยกเว้น /api/auth/* (NextAuth จัดการ CSRF + session polling เอง)
+async function guardApi(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl
+  if (pathname.startsWith('/api/auth/')) return NextResponse.next()
+
+  // CSRF: Origin-check เฉพาะ mutation (OPTIONS preflight ปล่อยผ่าน)
+  if (MUTATION_METHODS.has(request.method)) {
+    if (!isAllowedOrigin(request.headers.get('origin'))) {
+      return NextResponse.json({ error: 'CSRF check failed' }, { status: 403 })
+    }
+  }
+
+  // Rate-limit per-IP: unauth 100/min, auth 30/min (แยก bucket ด้วย suffix)
+  const token = await getToken({ req: request })
+  const limit = token ? 30 : 100
+  const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}`
+  if (!checkApiRateLimit(key, limit, 60_000)) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded' },
+      { status: 429, headers: { 'Retry-After': '60' } },
+    )
+  }
+
+  return NextResponse.next()
+}
 
 export async function proxy(request: NextRequest) {
   const host = request.headers.get('host') || 'localhost:3000'
   const subdomain = getSubdomain(host)
   const { pathname } = request.nextUrl
 
-  // Skip internal paths early (no auth checks, no rewrites)
-  if (pathname.startsWith('/_next') || pathname.startsWith('/api')) {
+  // Internal Next paths — ปล่อยผ่าน
+  if (pathname.startsWith('/_next')) {
     return NextResponse.next()
+  }
+  // API — CSRF + rate-limit (ไม่ rewrite, ไม่แตะ subdomain routing)
+  if (pathname.startsWith('/api')) {
+    return guardApi(request)
   }
 
   // Cookies are per-hostname → this token is specific to this subdomain's session
