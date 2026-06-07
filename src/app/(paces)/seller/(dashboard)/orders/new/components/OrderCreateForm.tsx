@@ -272,11 +272,14 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
   // grid lg:grid-cols-3 ตาม mockup create.html line 52:
   //   left (lg:col-span-2) = BLOCK1 + BLOCK2 + BLOCK3 (stacked in space-y-4 / gap-5)
   //   right (lg:col-span-1) = sticky summary panel
+  //
+  // M0-b: pb-20 บน form wrapper กัน sticky bottom bar ทับ content ล่างสุด (mobile)
   return (
     <form
       id={formId}
       onSubmit={handleSubmit(onSubmit)}
       noValidate
+      className="pb-20 lg:pb-0"
     >
       {/* Loading indicator ระหว่าง submit */}
       {isSubmitting && (
@@ -312,6 +315,28 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
           <OrderSummaryPanel control={control} catalog={catalog} />
         </div>
 
+      </div>
+
+      {/* ── Sticky bottom save bar — mobile only (M0-b) ─────────────────
+          Desktop ≥lg ใช้ FullscreenPageHeader save button (sticky top)
+          Pattern copy จาก ProductFormV2.tsx (gold-standard)
+          Base: src/app/(paces)/seller/(dashboard)/products/components/ProductFormV2.tsx */}
+      <div className="bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden">
+        <button
+          type="submit"
+          form={formId}
+          disabled={isSubmitting}
+          className="btn bg-primary hover:bg-primary-hover inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-semibold text-white disabled:opacity-60"
+        >
+          {isSubmitting ? (
+            <>
+              <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              กำลังบันทึก…
+            </>
+          ) : (
+            'บันทึกออเดอร์'
+          )}
+        </button>
       </div>
     </form>
   )
