@@ -1,8 +1,7 @@
 /**
  * CommandCenter — Mobile shell RSC (lg:hidden)
  *
- * รับ CommandCenterData จาก page.tsx และ render stack บนลงล่าง
- * แต่ละ section เป็น placeholder สำหรับ T2-T8 (ยังไม่ build จริง)
+ * รับ CommandCenterData จาก page.tsx และ render stack บนลงล่าง (S-8..S-13)
  *
  * wrapper: pb-28 กัน FAB ทับ content ล่าง (S-13)
  * relative ให้ children absolute elements วางได้
@@ -14,6 +13,9 @@ import HideAppHeaderMobile from './HideAppHeaderMobile'
 import CommandTopBar from './CommandTopBar'
 import ShortcutPanel from './ShortcutPanel'
 import MiniBanner from './MiniBanner'
+import OrderStatusTimeline from './OrderStatusTimeline'
+import RecentActivityFeed from './RecentActivityFeed'
+import CreateFab from './CreateFab'
 
 type Props = {
   data: CommandCenterData
@@ -34,13 +36,14 @@ export default function CommandCenter({ data }: Props) {
       {/* T4: MINI BANNER — static promo (null = ซ่อน section) */}
       <MiniBanner banner={data.promoBanner} />
 
-      {/* TODO T5: OrderStatusTimeline — 4-node horizontal */}
-      {/* counts={data.orderStatusCounts} */}
+      {/* T5: ORDER STATUS — 4-node horizontal timeline */}
+      <OrderStatusTimeline counts={data.orderStatusCounts} />
 
-      {/* TODO T7: RecentActivityFeed — vertical timeline (ต้อง T6 activity.service ก่อน) */}
-      {/* items={data.recentActivity} */}
+      {/* T7: RECENT ACTIVITY — vertical timeline feed */}
+      <RecentActivityFeed items={data.recentActivity} />
 
-      {/* TODO T8: CreateFab — speed-dial FAB (client island) */}
+      {/* T8: CREATE FAB — speed-dial (client island) */}
+      <CreateFab />
     </div>
   )
 }

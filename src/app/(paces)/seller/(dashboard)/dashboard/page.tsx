@@ -36,6 +36,7 @@ import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
 import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
 import { PROMO_BANNER } from './_constants/command-center'
+import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -86,6 +87,8 @@ export default async function SellerDashboardPage() {
   // orderStatusCounts: นับ order ต่อ status สำหรับ OrderStatusTimeline
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
+  // recentActivity: feed aggregate (Order/Review/SMS/TopUp) — service ครอบ try/catch→[] อยู่แล้ว
+  let recentActivity: ActivityItem[] = []
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -118,6 +121,9 @@ export default async function SellerDashboardPage() {
           // fallback 0 ทุก bucket — CommandCenter แสดง 0 ทุก node แทน crash
           console.error('[dashboard] getOrderStatusCounts failed', e)
         }
+
+        // recentActivity feed — service ครอบ error เป็น [] เองแล้ว (ไม่ throw)
+        recentActivity = await getRecentActivity(shop.id, 8)
 
         const rawOrders = await getOrdersByShop(shop.id)
 
@@ -217,7 +223,7 @@ export default async function SellerDashboardPage() {
             avatarUrl,
             pendingOrderCount,
             orderStatusCounts,
-            recentActivity: [],
+            recentActivity,
             promoBanner: PROMO_BANNER,
           }}
         />
