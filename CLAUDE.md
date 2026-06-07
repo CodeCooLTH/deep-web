@@ -134,6 +134,8 @@ theme/
   - **Admin dashboard ครบ 8 metrics (PRD §11 #10 CLOSED)** — เติม Completion Rate / Avg Review Rating / Active Users (30d) ใน dashboard page + `api/admin/dashboard`.
   - **PRD gap เหลือ:** §11 #3 shippingAddress required-when-SHIPPED (quick win), FR-6.10 SUBSCRIPTION recurring (P4, effort สูง), FR-9.6 tier names ใน PRD ขัด SSOT (doc-sync — โค้ดถูกแล้ว).
   - **Carried debt:** Chrome-DevTools MCP visual QA (CSRF/RL, admin 8-card, order detail) — MCP หลุดทั้ง session, verify ด้วย authenticated-curl + DB-query แทน. รอ MCP กลับมาเก็บรวด.
+- **2026-06-07: 🚀 FIRST PROD DEPLOY** — phase-a (210 commits) merged → `origin/main` (FF) + deployed prod `deepthailand.app` (smoke-test ผ่าน: 200 ทุก subdomain, CSRF guard live 403). + pre-prod gaps ปิดเพิ่ม: shippingAddress required-when-SHIPPED (FR-6.5), admin self-review bypass fix (FR-2.6 — orphan route ลบ + service guard), menu/breadcrumb i18n, FR-9.6 tier doc-sync, brand email.
+  - **Prod infra (สำคัญ — ดู memory `project_prod_deploy_setup`):** Vercel project `trust-me` reconnect จาก `trustme` → **`deep-web/main`** (prod ผูก repo นี้แล้ว). prod DB = **dev Supabase ตัวเดียวกัน** (แชร์). **🔴 git auto-deploy พัง** (Vercel GitHub App ไม่มีสิทธิ์ clone deep-web → deploy ค้าง "Initializing") → **deploy ด้วย `vercel deploy --prod --yes` (CLI upload)** จนกว่าจะ grant GitHub App เข้า deep-web. prod env: apitel added (phone-OTP/SMS ใช้ได้); **FB creds ยังขาด** (FB login ปิด — OTP ใช้แทน).
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
