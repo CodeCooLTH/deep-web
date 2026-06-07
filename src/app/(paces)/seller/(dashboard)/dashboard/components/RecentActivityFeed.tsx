@@ -5,9 +5,18 @@
  *            ไม่ต้องมี client state → RSC ป้องกัน PII รั่วเข้า client bundle
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/users/profile/components/TimeLine.tsx
- *       — copy pattern: relative pl-7 container + absolute -left-7 node + เส้น bg-gray-200
+ *       — copy pattern: relative container + absolute node + เส้นแนวตั้ง
  *       — ตัด: form post, image, like, comment, iframe ทั้งหมด
- *       — เพิ่ม: icon node color-per-type, formatDistanceToNow Thai, empty state, footer link
+ *       — เพิ่ม: section header พร้อม link ขวา (v4), icon node color-per-type,
+ *                formatDistanceToNow Thai, empty state
+ *
+ * V4 polish (P5):
+ *   - ย้าย "ดูทั้งหมด ›" จาก footer ขึ้นมาที่ section header (ตาม mockup v4)
+ *   - container: px-4 mb-4 (จาก mx-3)
+ *   - card: rounded-[20px] + layered shadow (จาก rounded-2xl shadow-sm)
+ *   - timeline: pl-8 + เส้น left-[13px] bg-[#eef0f4] (เบาลง จาก bg-gray-200)
+ *   - node: w-[26px] h-[26px] -left-8 ring-4 ring-white (จาก w-6 h-6 -left-7)
+ *   - icon: text-[15px] ชัดเจน
  */
 
 import Link from 'next/link'
@@ -61,21 +70,24 @@ type Props = {
 // ─── Component ────────────────────────────────────────────────────────────────
 const RecentActivityFeed = ({ items }: Props) => {
   return (
-    <section className="mx-3 mb-4">
-      {/* label section */}
-      <p className="text-[13px] font-semibold text-muted-foreground mb-2 pl-1">กิจกรรมล่าสุด</p>
+    <section className="px-4 mb-4">
+      {/* section header: label ซ้าย + "ดูทั้งหมด ›" ขวา (ตาม mockup v4) */}
+      <div className="flex items-center justify-between px-[6px] mb-[10px]">
+        <span className="text-[13.5px] font-bold text-default-500 tracking-[0.1px]">กิจกรรมล่าสุด</span>
+        <Link href="/orders" className="text-[12.5px] font-semibold text-primary">ดูทั้งหมด ›</Link>
+      </div>
 
-      {/* card shell — ใช้ Tailwind primitive ไม่ใช้ .card (padding global ขัด flex) */}
-      <div className="bg-white rounded-2xl shadow-sm p-4">
+      {/* card shell — rounded-[20px] + layered shadow ตาม v4 card treatment */}
+      <div className="bg-white rounded-[20px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_6px_16px_-8px_rgba(16,24,40,0.10)] p-4">
 
         {items.length === 0 ? (
           // empty state — แสดงแทน timeline เมื่อยังไม่มีกิจกรรม
-          <p className="text-[13px] text-muted-foreground text-center py-4">ยังไม่มีกิจกรรม</p>
+          <p className="text-[13px] text-muted text-center py-4">ยังไม่มีกิจกรรม</p>
         ) : (
-          // timeline container — copy pattern จาก TimeLine.tsx (relative pl-7 + เส้นแนวตั้ง)
-          <div className="relative pl-7">
-            {/* เส้นแนวตั้ง — ปรับจาก border-e dashed → solid w-px bg-gray-200 ตาม spec */}
-            <div className="absolute left-[11px] top-2 bottom-2 w-px bg-gray-200" />
+          // timeline container — pl-8 ให้ node -left-8 วางทับเส้นพอดี (เพิ่มจาก pl-7)
+          <div className="relative pl-8">
+            {/* เส้นแนวตั้ง — left-[13px] ให้อยู่กึ่งกลาง node 26px; bg-[#eef0f4] เบากว่า gray-200 */}
+            <div className="absolute left-[13px] top-3 bottom-3 w-px bg-[#eef0f4]" />
 
             {items.map((item, index) => {
               const style = ACTIVITY_STYLE[item.type]
@@ -86,11 +98,11 @@ const RecentActivityFeed = ({ items }: Props) => {
                   key={`${item.type}-${item.at.getTime()}-${index}`}
                   className={`relative${isLast ? '' : ' mb-4'}`}
                 >
-                  {/* node icon — absolute -left-7 ให้วางทับเส้นพอดี */}
+                  {/* node icon — w-[26px] h-[26px] ring-4 ring-white ตาม mockup v4 */}
                   <span
-                    className={`absolute -left-7 inline-flex w-6 h-6 rounded-full ring-4 ring-white items-center justify-center ${style.bg} ${style.text}`}
+                    className={`absolute -left-8 inline-flex w-[26px] h-[26px] rounded-full ring-4 ring-white items-center justify-center ${style.bg} ${style.text}`}
                   >
-                    <Icon icon={style.icon} className="text-sm" />
+                    <Icon icon={style.icon} className="text-[15px]" />
                   </span>
 
                   {/* label — wrap <Link> เมื่อมี href (ทำให้ item clickable) */}
@@ -105,7 +117,7 @@ const RecentActivityFeed = ({ items }: Props) => {
                   )}
 
                   {/* relative time ภาษาไทย ด้วย date-fns + locale th */}
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-default-500">
                     {formatDistanceToNow(item.at, { addSuffix: true, locale: th })}
                   </p>
                 </div>
@@ -113,14 +125,6 @@ const RecentActivityFeed = ({ items }: Props) => {
             })}
           </div>
         )}
-
-        {/* footer — แสดงเสมอไม่ว่ามี items หรือไม่ */}
-        <Link
-          href="/orders"
-          className="block text-center text-[13px] font-semibold text-primary pt-3 mt-1 border-t border-gray-100"
-        >
-          ดูทั้งหมด
-        </Link>
       </div>
     </section>
   )

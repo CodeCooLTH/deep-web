@@ -37,6 +37,8 @@ import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
 import { PROMO_BANNER } from './_constants/command-center'
 import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
+// getTierLabel: reuse helper เดิม (src/lib/trust-tier.ts) — ห้าม hardcode mapping ใหม่ตาม SSOT
+import { getTierLabel } from '@/lib/trust-tier'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -225,6 +227,9 @@ export default async function SellerDashboardPage() {
             orderStatusCounts,
             recentActivity,
             promoBanner: PROMO_BANNER,
+            // tier data: getTierLabel รับ score (number) → คืน "Deep ..." ตาม SSOT
+            // default เมื่อไม่มี session: score=0 → "Deep Classic", level='D'
+            tierName: getTierLabel(score),
           }}
         />
       </div>

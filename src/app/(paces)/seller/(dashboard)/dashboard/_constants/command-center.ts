@@ -37,6 +37,8 @@ export type CommandCenterData = {
   }
   recentActivity: ActivityItem[]
   promoBanner: PromoBanner | null
+  /** Deep tier name ตาม SSOT (เช่น "Deep Silver") — CommandTopBar แสดงเป็น chip */
+  tierName: string
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────
@@ -56,14 +58,20 @@ export type ShortcutTile = {
  * short path ไม่มี /seller prefix ตาม Paces routing convention
  */
 export const SHORTCUT_TILES: ShortcutTile[] = [
-  { label: 'คำสั่งซื้อ', href: '/orders',   icon: 'shopping-cart', color: 'blue',   showBadge: true  },
-  { label: 'สินค้า',     href: '/products',  icon: 'package',       color: 'indigo'                   },
-  { label: 'รีวิว',      href: '/reviews',   icon: 'star',          color: 'yellow'                   },
+  // กลุ่มงานหลัก (core ops) = น้ำเงิน
+  { label: 'คำสั่งซื้อ', href: '/orders',   icon: 'shopping-cart', color: 'blue',    showBadge: true  },
+  { label: 'สินค้า',     href: '/products',  icon: 'package',       color: 'blue'                     },
+  { label: 'รีวิว',      href: '/reviews',   icon: 'star',          color: 'amber'                    },
+  // กลุ่มเงิน = เขียว
   { label: 'เติมเงิน',  href: '/wallet',    icon: 'wallet',        color: 'emerald'                  },
-  { label: 'เช็ก Blacklist', href: null,    icon: 'shield-x',      color: 'rose',   disabled: true    },
+  // utility = เทา (disabled)
+  { label: 'เช็ก Blacklist', href: null,    icon: 'shield-x',      color: 'slate',   disabled: true   },
+  // กลุ่ม engagement = เหลืองอำพัน
   { label: 'ความสำเร็จ', href: '/badges',   icon: 'trophy',        color: 'amber'                    },
-  { label: 'ลูกค้า',    href: '/customers', icon: 'users',         color: 'sky'                      },
-  { label: 'ตั้งค่า',   href: '/shop',      icon: 'settings',      color: 'gray'                     },
+  // กลุ่มงานหลัก (core ops) = น้ำเงิน
+  { label: 'ลูกค้า',    href: '/customers', icon: 'users',         color: 'blue'                     },
+  // utility = เทา
+  { label: 'ตั้งค่า',   href: '/shop',      icon: 'settings',      color: 'slate'                    },
 ]
 
 /**

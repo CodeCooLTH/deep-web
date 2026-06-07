@@ -27,8 +27,12 @@ export default function CommandCenter({ data }: Props) {
       {/* ซ่อน Paces app-header บน mobile — CommandTopBar เป็น top bar เดียว */}
       <HideAppHeaderMobile />
 
-      {/* T2: TOP MENU — hamburger + shopName + bell + avatar */}
-      <CommandTopBar shopName={data.shopName} avatarUrl={data.avatarUrl} />
+      {/* T2: TOP MENU — hamburger + shopName + bell + avatar + tier chip */}
+      <CommandTopBar
+        shopName={data.shopName}
+        avatarUrl={data.avatarUrl}
+        tierName={data.tierName}
+      />
 
       {/* T3: SHORTCUT — 8-tile grid */}
       <ShortcutPanel pendingOrderCount={data.pendingOrderCount} />
