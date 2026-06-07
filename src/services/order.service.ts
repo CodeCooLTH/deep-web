@@ -301,6 +301,39 @@ export async function setAccessUrl(publicToken: string, url: string, shopOwnerId
   return prisma.order.update({ where: { publicToken }, data: { accessUrl: url } });
 }
 
+/**
+ * getOrderStatusCounts — นับจำนวน order ต่อ status สำหรับ Command Center timeline
+ *
+ * ทำไม: ใช้ groupBy เดียว ไม่ query ซ้ำหลายครั้ง;
+ * normalize ให้ 4 bucket เสมอ (status ที่ไม่มีใน DB = 0)
+ * เพื่อกัน UI ต้อง handle undefined
+ *
+ * Status ที่ project ใช้จริง (จาก VALID_TRANSITIONS): PENDING, SHIPPED, CONFIRMED, CANCELLED
+ * (schema ใช้ String ไม่ใช่ enum — ค่าตรงกับ 4 bucket ที่ต้องการพอดี ไม่ต้อง map)
+ */
+export async function getOrderStatusCounts(
+  shopId: string,
+): Promise<{ PENDING: number; SHIPPED: number; CONFIRMED: number; CANCELLED: number }> {
+  const rows = await prisma.order.groupBy({
+    by: ['status'],
+    where: { shopId },
+    _count: { id: true },
+  })
+
+  // normalize — status ที่ไม่มีใน result ให้เป็น 0
+  const map: Record<string, number> = {}
+  for (const row of rows) {
+    map[row.status] = row._count.id
+  }
+
+  return {
+    PENDING:   map['PENDING']   ?? 0,
+    SHIPPED:   map['SHIPPED']   ?? 0,
+    CONFIRMED: map['CONFIRMED'] ?? 0,
+    CANCELLED: map['CANCELLED'] ?? 0,
+  }
+}
+
 export async function getOrdersByBuyer(userId: string) {
   return prisma.order.findMany({
     where: { buyerUserId: userId },

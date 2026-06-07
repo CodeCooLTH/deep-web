@@ -21,7 +21,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTrustLevel } from '@/services/trust-score.service'
-import { getOrdersByShop } from '@/services/order.service'
+import { getOrdersByShop, getOrderStatusCounts } from '@/services/order.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import RecentOrder from './components/RecentOrder'
@@ -34,6 +34,8 @@ import type { BadgeProgress } from '@/types/badge'
 import type { StatType } from './components/StatisticCard'
 import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
 import type { OrderType } from './components/data'
+import CommandCenter from './components/CommandCenter'
+import { PROMO_BANNER } from './_constants/command-center'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -78,6 +80,13 @@ export default async function SellerDashboardPage() {
   let salesSeries: SalesSeriesPoint[] = []
   let salesSummary: SalesSummary = { totalRevenue: 0, totalOrders: 0, growth: null }
 
+  // ─── Command Center data (mobile) ───────────────────────────────────────────
+  // avatarUrl: shop logo หรือ null → CommandTopBar แสดง initial fallback
+  let avatarUrl: string | null = null
+  // orderStatusCounts: นับ order ต่อ status สำหรับ OrderStatusTimeline
+  // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
+  let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
+
   if (user?.id) {
     score = user.trustScore ?? 0
     level = getTrustLevel(score)
@@ -89,15 +98,27 @@ export default async function SellerDashboardPage() {
       // (wall time = max(badge, shop+orders) แทนผลรวม sequential)
       const progressPromise = getBadgeProgress(user.id, 'SELLER')
 
-      // ดึงชื่อร้านค้า + id เพื่อแสดงใน UserCard header และ fetch orders
+      // ดึงชื่อร้านค้า + id + logo เพื่อแสดงใน UserCard header และ Command Center
       const shop = await prisma.shop.findUnique({
         where: { userId: user.id },
-        select: { id: true, shopName: true },
+        select: { id: true, shopName: true, logo: true },
       })
       if (shop?.shopName) shopName = shop.shopName
+      // avatarUrl ใช้ logo ร้านค้า (อาจเป็น fileId หรือ URL ขึ้นกับ upload format)
+      // ส่งตรงไปยัง CommandCenter — ไม่ใช่ PII sensitive
+      if (shop?.logo) avatarUrl = shop.logo
 
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {
+        // getOrderStatusCounts: ใช้ groupBy เดียว — pendingOrderCount = counts.PENDING (UX Q2)
+        // try/catch แยก เพื่อกัน error ใน groupBy ทำให้ rawOrders (desktop widget) ล้มไปด้วย
+        try {
+          orderStatusCounts = await getOrderStatusCounts(shop.id)
+        } catch (e) {
+          // fallback 0 ทุก bucket — CommandCenter แสดง 0 ทุก node แทน crash
+          console.error('[dashboard] getOrderStatusCounts failed', e)
+        }
+
         const rawOrders = await getOrdersByShop(shop.id)
 
         // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
@@ -179,41 +200,67 @@ export default async function SellerDashboardPage() {
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]
 
+  // pendingOrderCount: single source จาก orderStatusCounts.PENDING (UX Q2 resolved)
+  // ไม่ derive แยกจาก JS filter อีกต่อไป
+  const pendingOrderCount = orderStatusCounts.PENDING
+
   return (
     <>
-      <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
-
-      {/* แถว 1 (theme row 1): UserCard + StatCards (5 คอล) | AchievementLevel (7 คอล)
-          StorePerformanceOverview ถูก drop → AchievementLevel ยึด 7 คอลเต็ม */}
-      <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
-        <div className="xl:col-span-5">
-          <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
-            <UserCard shopName={shopName} trustScore={score} />
-            {statData.map((stat, idx) => (
-              <StatisticCard stat={stat} key={idx} />
-            ))}
-          </div>
-        </div>
-        <div className="xl:col-span-7">
-          <AchievementLevel
-            score={score}
-            level={level}
-            levelColor={levelColor}
-            earnedBadges={earnedBadges}
-            topInProgress={topInProgress}
-          />
-        </div>
+      {/* ─── Mobile: Command Center (< lg) ─────────────────────────────────────
+          แสดงเฉพาะหน้าจอ < 1024px; desktop markup ซ่อนด้วย hidden lg:block ด้านล่าง
+          recentActivity = [] ตอนนี้ (T6 activity.service จะ wire จริงใน T7)
+          promoBanner = PROMO_BANNER constant (null = ซ่อน section ตาม Q3) */}
+      <div className="lg:hidden">
+        <CommandCenter
+          data={{
+            shopName,
+            avatarUrl,
+            pendingOrderCount,
+            orderStatusCounts,
+            recentActivity: [],
+            promoBanner: PROMO_BANNER,
+          }}
+        />
       </div>
 
-      {/* แถว 2 (re-grid Unit-C): SalesReport xl:col-span-8 + RecentOrder xl:col-span-4
-          ลดจาก 3 แถวโล่งเหลือ 2 แถว — ไม่เพิ่ม widget ใหม่
-          SalesReport รับ real series+summary จาก RSC boundary */}
-      <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
-        <div className="xl:col-span-8">
-          <SalesReport series={salesSeries} summary={salesSummary} />
+      {/* ─── Desktop: ภาพรวมร้านค้า (≥ lg) ──────────────────────────────────
+          ห้ามแก้/ลบ desktop widget ใด ๆ ตาม Hard Rule T1
+          ครอบด้วย hidden lg:block เพื่อซ่อนบน mobile */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
+
+        {/* แถว 1 (theme row 1): UserCard + StatCards (5 คอล) | AchievementLevel (7 คอล)
+            StorePerformanceOverview ถูก drop → AchievementLevel ยึด 7 คอลเต็ม */}
+        <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
+          <div className="xl:col-span-5">
+            <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
+              <UserCard shopName={shopName} trustScore={score} />
+              {statData.map((stat, idx) => (
+                <StatisticCard stat={stat} key={idx} />
+              ))}
+            </div>
+          </div>
+          <div className="xl:col-span-7">
+            <AchievementLevel
+              score={score}
+              level={level}
+              levelColor={levelColor}
+              earnedBadges={earnedBadges}
+              topInProgress={topInProgress}
+            />
+          </div>
         </div>
-        <div className="xl:col-span-4">
-          <RecentOrder orders={recentOrders} />
+
+        {/* แถว 2 (re-grid Unit-C): SalesReport xl:col-span-8 + RecentOrder xl:col-span-4
+            ลดจาก 3 แถวโล่งเหลือ 2 แถว — ไม่เพิ่ม widget ใหม่
+            SalesReport รับ real series+summary จาก RSC boundary */}
+        <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
+          <div className="xl:col-span-8">
+            <SalesReport series={salesSeries} summary={salesSummary} />
+          </div>
+          <div className="xl:col-span-4">
+            <RecentOrder orders={recentOrders} />
+          </div>
         </div>
       </div>
     </>

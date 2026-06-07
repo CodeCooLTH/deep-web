@@ -72,6 +72,7 @@
 export type PromoBanner = { icon: string; label: string; body: string; href?: string }
 export type CommandCenterData = {
   shopName: string
+  avatarUrl: string | null   // = Shop.logo (T2 CommandTopBar; ไม่ใช่ PII)
   pendingOrderCount: number
   orderStatusCounts: { PENDING: number; SHIPPED: number; CONFIRMED: number; CANCELLED: number }
   recentActivity: ActivityItem[]
@@ -241,7 +242,7 @@ T9 Polish + a11y sweep [H]
 ```
 SellerDashboardPage (RSC, page.tsx)
   ├── getServerSession() → user.id
-  ├── prisma.shop.findUnique(userId) → shopId, shopName
+  ├── prisma.shop.findUnique(userId) → shopId, shopName, logo(→avatarUrl)
   ├── getOrdersByShop(shopId) → reuse → pendingOrderCount = filter(PENDING).length
   ├── getOrderStatusCounts(shopId) [NEW] → orderStatusCounts
   ├── getRecentActivity(shopId, 8) [NEW] → recentActivity (masked)
