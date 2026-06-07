@@ -76,13 +76,3 @@ html[data-skin="orbit"] {
     padding-right: 0 !important;
 }
 
-/* ─── Command Center: ซ่อน Paces app-header เฉพาะ dashboard บน mobile ──────── */
-/* CommandTopBar เป็น top bar เดียวของ /dashboard ที่ <lg (ตรง V3 mockup);        */
-/* body.cc-hide-appheader ถูก toggle โดย HideAppHeaderMobile (mount เฉพาะหน้า   */
-/* dashboard). หน้า seller อื่นไม่มี class นี้ → app-header เดิมคงอยู่.           */
-/* app-header เป็น sticky in-flow → display:none ไม่ทิ้ง gap.                    */
-@media (max-width: 1023px) {
-    body.cc-hide-appheader .app-header {
-        display: none;
-    }
-}

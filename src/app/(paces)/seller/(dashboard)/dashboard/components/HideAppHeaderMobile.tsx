@@ -1,22 +1,19 @@
-'use client'
-
 /**
- * HideAppHeaderMobile — toggle body class เพื่อซ่อน Paces app-header บน dashboard mobile
+ * HideAppHeaderMobile — ซ่อน Paces app-header บน dashboard mobile (SSR, ไม่มี FOUC)
  *
- * ทำไม: V3 ให้ CommandTopBar เป็น top bar เดียวของ /dashboard ที่ <lg
- * แต่ Paces app-header (.app-header) render ระดับ layout ทุกหน้า → ซ้อนกัน
- * แก้ด้วย body class (mount เฉพาะหน้านี้) + CSS scoped <lg ใน safepay-overrides.css
- * class ถูก add ทุก viewport แต่ CSS จำกัด effect ที่ max-width:1023px → desktop ไม่กระทบ
+ * ทำไม SSR <style> ไม่ใช่ client body-class: เดิมใช้ useEffect toggle body class
+ * → app-header กระพริบ 1-2 frame ก่อน JS hydrate ที่ viewport จริง <lg (FOUC).
+ * render <style> ฝั่ง server → อยู่ใน initial HTML ตั้งแต่ paint แรก = ไม่ flash.
  *
- * Base: N/A (utility client island — ไม่มี UI)
+ * scope ทาง "เวลา": <style> อยู่เฉพาะตอนหน้า dashboard mount — navigate ออก
+ * (เช่น /products) React unmount → app-header กลับมาเอง. ไม่ leak ข้ามหน้า.
+ * scope ทาง "viewport": media max-width:1023px — CommandCenter render บน desktop
+ * ด้วย (แต่ lg:hidden) จึงต้อง gate <lg ไม่ให้กระทบ desktop app-header.
+ *
+ * Base: N/A (utility — SSR style injection, ไม่มี UI)
  */
-import { useEffect } from 'react'
-
 export default function HideAppHeaderMobile() {
-  useEffect(() => {
-    document.body.classList.add('cc-hide-appheader')
-    return () => document.body.classList.remove('cc-hide-appheader')
-  }, [])
-
-  return null
+  return (
+    <style>{`@media (max-width:1023px){.app-header{display:none!important}}`}</style>
+  )
 }
