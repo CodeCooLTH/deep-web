@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command Center — Mockup V2 (FAB speed-dial)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f4f5f7; --blue:#2563eb; --ink:#1e2939; --muted:#6b7280; }
+  * { font-family:'Anuphan',sans-serif; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--bg); margin:0; }
+  .card { background:#fff; border-radius:1rem; box-shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04); }
+  .tile { transition:transform .08s ease; }
+  .tile:active { transform:scale(.97); }
+  .ic { display:inline-flex; align-items:center; justify-content:center; }
+  .fab-shadow { box-shadow:0 8px 24px rgba(37,99,235,.35); }
+  .speed-shadow { box-shadow:0 4px 12px rgba(16,24,40,.18); }
+</style>
+</head>
+<body>
+<div class="max-w-[480px] mx-auto min-h-screen pb-28 relative">
+
+  <!-- TOP BAR -->
+  <header class="card !rounded-2xl m-3 px-4 py-3 flex items-center justify-between sticky top-3 z-10">
+    <button class="ic w-11 h-11 rounded-xl bg-[var(--blue)] text-white">
+      <span class="iconify text-2xl" data-icon="tabler:menu-2"></span>
+    </button>
+    <div class="flex items-center gap-3">
+      <button class="ic w-11 h-11 rounded-xl bg-gray-50 text-gray-600 relative">
+        <span class="iconify text-2xl" data-icon="tabler:bell"></span>
+        <span class="absolute top-1.5 right-1.5 w-5 h-5 text-[11px] font-semibold bg-red-500 text-white rounded-full ic">5</span>
+      </button>
+      <img src="https://i.pravatar.cc/80?img=12" class="w-11 h-11 rounded-xl object-cover" alt="avatar">
+    </div>
+  </header>
+
+  <!-- GREETING -->
+  <section class="mx-3 mb-3 px-4 py-3 card flex items-center justify-between">
+    <div class="min-w-0">
+      <p class="text-[13px] text-[var(--muted)]">ยินดีต้อนรับ,</p>
+      <h1 class="text-[17px] font-700 text-[var(--ink)] truncate leading-snug">BT premium auto xenon สาขา สุขสวัสดิ์</h1>
+    </div>
+    <div class="shrink-0 text-center pl-3">
+      <div class="text-[22px] font-700 text-[var(--blue)] leading-none">65</div>
+      <div class="text-[11px] text-[var(--muted)] mt-0.5">Trust</div>
+    </div>
+  </section>
+
+  <!-- HERO STATUS -->
+  <section class="mx-3 mb-3 grid grid-cols-2 gap-3">
+    <a class="tile card p-4 flex flex-col gap-3 active:bg-gray-50">
+      <span class="ic w-12 h-12 rounded-2xl bg-blue-50 text-[var(--blue)]"><span class="iconify text-[26px]" data-icon="tabler:shopping-cart"></span></span>
+      <div>
+        <div class="flex items-end gap-1.5"><span class="text-[28px] font-700 text-[var(--ink)] leading-none">3</span><span class="text-[13px] text-[var(--muted)] mb-0.5">รอดำเนินการ</span></div>
+        <p class="text-[14px] font-600 text-[var(--ink)] mt-1">คำสั่งซื้อ</p>
+      </div>
+    </a>
+    <a class="tile card p-4 flex flex-col gap-3 active:bg-gray-50">
+      <span class="ic w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600"><span class="iconify text-[26px]" data-icon="tabler:wallet"></span></span>
+      <div>
+        <div class="flex items-end gap-1"><span class="text-[24px] font-700 text-[var(--ink)] leading-none">฿16,900</span></div>
+        <p class="text-[14px] font-600 text-[var(--ink)] mt-1">เติมเงิน / เครดิต SMS</p>
+      </div>
+    </a>
+  </section>
+
+  <!-- QUICK ACCESS GRID -->
+  <section class="mx-3">
+    <p class="text-[13px] font-600 text-[var(--muted)] px-1 mb-2">เมนูร้านค้า</p>
+    <div class="grid grid-cols-3 gap-3">
+      <a class="tile card p-3 flex flex-col items-center gap-2 text-center active:bg-gray-50">
+        <span class="ic w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600"><span class="iconify text-[24px]" data-icon="tabler:package"></span></span>
+        <span class="text-[13px] font-600 text-[var(--ink)] leading-tight">สินค้า</span>
+        <span class="text-[12px] text-[var(--muted)] -mt-1">24 รายการ</span>
+      </a>
+      <a class="tile card p-3 flex flex-col items-center gap-2 text-center active:bg-gray-50">
+        <span class="ic w-12 h-12 rounded-2xl bg-amber-50 text-amber-600"><span class="iconify text-[24px]" data-icon="tabler:category"></span></span>
+        <span class="text-[13px] font-600 text-[var(--ink)] leading-tight">หมวดหมู่</span>
+        <span class="text-[12px] text-[var(--muted)] -mt-1">6 หมวด</span>
+      </a>
+      <a class="tile card p-3 flex flex-col items-center gap-2 text-center active:bg-gray-50">
+        <span class="ic w-12 h-12 rounded-2xl bg-sky-50 text-sky-600"><span class="iconify text-[24px]" data-icon="tabler:users"></span></span>
+        <span class="text-[13px] font-600 text-[var(--ink)] leading-tight">ลูกค้า</span>
+        <span class="text-[12px] text-[var(--muted)] -mt-1">12 คน</span>
+      </a>
+      <a class="tile card p-3 flex flex-col items-center gap-2 text-center active:bg-gray-50">
+        <span class="ic w-12 h-12 rounded-2xl bg-yellow-50 text-yellow-600"><span class="iconify text-[24px]" data-icon="tabler:star"></span></span>
+        <span class="text-[13px] font-600 text-[var(--ink)] leading-tight">รีวิว</span>
+        <span class="text-[12px] text-[var(--muted)] -mt-1">4.8 ★</span>
+      </a>
+      <a class="tile card p-3 flex flex-col items-center gap-2 text-center active:bg-gray-50">
+        <span class="ic w-12 h-12 rounded-2xl bg-green-50 text-green-600"><span class="iconify text-[24px]" data-icon="tabler:shield-check"></span></span>
+        <span class="text-[13px] font-600 text-[var(--ink)] leading-tight">ยืนยันตัวตน</span>
+        <span class="text-[12px] text-green-600 font-600 -mt-1">L2 ✓</span>
+      </a>
+      <a class="tile card p-3 flex flex-col items-center gap-2 text-center active:bg-gray-50">
+        <span class="ic w-12 h-12 rounded-2xl bg-gray-100 text-gray-600"><span class="iconify text-[24px]" data-icon="tabler:settings"></span></span>
+        <span class="text-[13px] font-600 text-[var(--ink)] leading-tight">ตั้งค่าร้าน</span>
+        <span class="text-[12px] text-[var(--muted)] -mt-1">จัดการ</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="mx-3 mt-4">
+    <a class="flex items-center justify-center gap-1.5 text-[14px] font-600 text-[var(--blue)] py-2">
+      ดูรายงานยอดขายแบบเต็ม <span class="iconify text-lg" data-icon="tabler:arrow-right"></span>
+    </a>
+  </section>
+
+  <!-- ===== FAB SPEED-DIAL (shown OPEN) ===== -->
+  <!-- dim backdrop -->
+  <div class="fixed inset-0 bg-black/25 z-20"></div>
+
+  <div class="fixed z-30 right-5 bottom-6 flex flex-col items-end gap-3">
+    <!-- action: สร้างหมวดหมู่ -->
+    <div class="flex items-center gap-3">
+      <span class="speed-shadow bg-white text-[14px] font-600 text-[var(--ink)] px-3 py-1.5 rounded-lg">สร้างหมวดหมู่</span>
+      <button class="ic w-12 h-12 rounded-full bg-amber-500 text-white speed-shadow"><span class="iconify text-[22px]" data-icon="tabler:category-plus"></span></button>
+    </div>
+    <!-- action: สร้างสินค้า -->
+    <div class="flex items-center gap-3">
+      <span class="speed-shadow bg-white text-[14px] font-600 text-[var(--ink)] px-3 py-1.5 rounded-lg">สร้างสินค้า</span>
+      <button class="ic w-12 h-12 rounded-full bg-indigo-500 text-white speed-shadow"><span class="iconify text-[22px]" data-icon="tabler:box"></span></button>
+    </div>
+    <!-- action: สร้างออเดอร์ -->
+    <div class="flex items-center gap-3">
+      <span class="speed-shadow bg-white text-[14px] font-600 text-[var(--ink)] px-3 py-1.5 rounded-lg">สร้างออเดอร์</span>
+      <button class="ic w-12 h-12 rounded-full bg-blue-500 text-white speed-shadow"><span class="iconify text-[22px]" data-icon="tabler:shopping-cart-plus"></span></button>
+    </div>
+    <!-- main FAB (open = ×) -->
+    <button class="ic w-15 h-15 w-[60px] h-[60px] rounded-full bg-[var(--blue)] text-white fab-shadow">
+      <span class="iconify text-3xl" data-icon="tabler:x"></span>
+    </button>
+  </div>
+
+</div>
+</body>
+</html>
