@@ -10,6 +10,7 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
 import type { CommandCenterData } from '../_constants/command-center'
+import HideAppHeaderMobile from './HideAppHeaderMobile'
 import CommandTopBar from './CommandTopBar'
 import ShortcutPanel from './ShortcutPanel'
 import MiniBanner from './MiniBanner'
@@ -21,6 +22,9 @@ type Props = {
 export default function CommandCenter({ data }: Props) {
   return (
     <div className="lg:hidden pb-28 relative">
+      {/* ซ่อน Paces app-header บน mobile — CommandTopBar เป็น top bar เดียว */}
+      <HideAppHeaderMobile />
+
       {/* T2: TOP MENU — hamburger + shopName + bell + avatar */}
       <CommandTopBar shopName={data.shopName} avatarUrl={data.avatarUrl} />
 
