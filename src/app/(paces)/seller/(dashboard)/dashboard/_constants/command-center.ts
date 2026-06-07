@@ -8,15 +8,11 @@
  */
 
 // ─── ActivityItem ────────────────────────────────────────────────────────────
-// NOTE: type นี้เป็น temporary single source ใน T1
-// T6 จะสร้าง src/services/activity.service.ts และ re-home type ไปที่นั่น
-// ตอนนั้นให้ import ActivityItem จาก activity.service แทน และลบออกจากที่นี่
-export type ActivityItem = {
-  type: 'ORDER_CREATED' | 'ORDER_CONFIRMED' | 'SMS_SENT' | 'REVIEW_RECEIVED' | 'TOPUP'
-  label: string
-  at: Date
-  href?: string
-}
+// T6 re-home: type ย้ายไปอยู่ที่ src/services/activity.service.ts แล้ว
+// import มาใช้ใน CommandCenterData + re-export เพื่อ backward compat กับ component ที่ import จาก _constants
+// ไม่ circular: _constants ไม่ถูก import โดย activity.service → OK
+import type { ActivityItem } from '@/services/activity.service'
+export type { ActivityItem }
 
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
 // Phase 2: Promo model + admin CRUD + dynamic banner ค่อยเพิ่ม
