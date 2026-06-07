@@ -10,6 +10,9 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
 import type { CommandCenterData } from '../_constants/command-center'
+import CommandTopBar from './CommandTopBar'
+import ShortcutPanel from './ShortcutPanel'
+import MiniBanner from './MiniBanner'
 
 type Props = {
   data: CommandCenterData
@@ -18,14 +21,14 @@ type Props = {
 export default function CommandCenter({ data }: Props) {
   return (
     <div className="lg:hidden pb-28 relative">
-      {/* TODO T2: CommandTopBar — hamburger + shopName + bell + avatar */}
-      {/* shopName={data.shopName} avatarUrl={data.avatarUrl} */}
+      {/* T2: TOP MENU — hamburger + shopName + bell + avatar */}
+      <CommandTopBar shopName={data.shopName} avatarUrl={data.avatarUrl} />
 
-      {/* TODO T3: ShortcutPanel — 8-tile grid */}
-      {/* pendingOrderCount={data.pendingOrderCount} */}
+      {/* T3: SHORTCUT — 8-tile grid */}
+      <ShortcutPanel pendingOrderCount={data.pendingOrderCount} />
 
-      {/* TODO T4: MiniBanner — static promo banner (null = ซ่อน) */}
-      {/* banner={data.promoBanner} */}
+      {/* T4: MINI BANNER — static promo (null = ซ่อน section) */}
+      <MiniBanner banner={data.promoBanner} />
 
       {/* TODO T5: OrderStatusTimeline — 4-node horizontal */}
       {/* counts={data.orderStatusCounts} */}
