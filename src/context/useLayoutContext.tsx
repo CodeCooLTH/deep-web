@@ -1,6 +1,6 @@
 'use client'
 import { getSystemTheme, toggleAttribute } from '@/utils/layout'
-import { createContext, use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSessionStorage } from 'usehooks-ts'
 
 export type LayoutState = {
@@ -148,6 +148,13 @@ export const LayoutProvider = ({ children }: { children: ReactNode }) => {
     toggleAttribute('dir', settings.dir)
   }, [settings])
 
+  // ใช้ ref เก็บ snapshot orientation ล่าสุด
+  // เพื่อให้ mount-once effect อ่านค่าปัจจุบันได้โดยไม่ต้องเพิ่ม deps (ป้องกัน infinite loop)
+  const settingsRef = useRef(settings)
+  useEffect(() => {
+    settingsRef.current = settings
+  })
+
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth
@@ -177,6 +184,25 @@ export const LayoutProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('resize', debouncedResize)
     }
   }, [settings.orientation, settings.sidenavSize, updateSettings])
+
+  // mount-once effect: ตั้ง offcanvas บน mobile เท่านั้น
+  // desktop (width > 768) → return ทันที ไม่แตะ sessionStorage preference เดิม
+  // updateSettings stable (useCallback[setSettings]) — เรียกได้โดยไม่ต้องอยู่ใน deps
+  // SSR-safe: อยู่ใน useEffect เท่านั้น ไม่อ่าน window ที่ render body
+  useEffect(() => {
+    const width = window.innerWidth
+
+    // desktop: ปล่อย sessionStorage preference + resize listener ดูแลเอง
+    if (width > 768) return
+
+    const orientation = settingsRef.current.orientation
+    if (orientation === 'vertical') {
+      updateSettings({ sidenavSize: 'offcanvas' })
+    } else if (orientation === 'horizontal' && width < 992) {
+      updateSettings({ sidenavSize: 'offcanvas' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <LayoutContext

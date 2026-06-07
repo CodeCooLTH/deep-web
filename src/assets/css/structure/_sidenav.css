@@ -481,6 +481,11 @@ html[data-sidenav-size="offcanvas"] {
         @apply -ms-(--sidenav-width) fixed opacity-0 !transition-all;
     }
 
+    /* reset margin เมื่อ sidebar ซ่อน — ป้องกัน page-content ถูก push ~250px บน mobile */
+    .page-content {
+        @apply ms-0;
+    }
+
     &.sidenav-enable {
         .app-menu {
             @apply z-50 ms-0 opacity-100;
