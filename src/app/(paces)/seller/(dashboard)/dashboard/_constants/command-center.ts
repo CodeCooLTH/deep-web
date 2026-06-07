@@ -25,9 +25,8 @@ export type PromoBanner = {
 
 // ─── CommandCenterData ───────────────────────────────────────────────────────
 // contract ที่ page.tsx ส่งให้ CommandCenter RSC
+// T5: ลบ shopName / avatarUrl / tierName ออก — ย้ายไปอยู่ใน layout (SellerMobileHeader) แล้ว
 export type CommandCenterData = {
-  shopName: string
-  avatarUrl: string | null
   pendingOrderCount: number
   orderStatusCounts: {
     PENDING: number
@@ -37,8 +36,6 @@ export type CommandCenterData = {
   }
   recentActivity: ActivityItem[]
   promoBanner: PromoBanner | null
-  /** Deep tier name ตาม SSOT (เช่น "Deep Silver") — CommandTopBar แสดงเป็น chip */
-  tierName: string
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ const MiniBanner = ({ banner }: Props) => {
   if (!banner) return null
 
   return (
-    <section className="px-4 mb-4">
+    <section className="mb-4">
       <div className="bg-white rounded-[20px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_6px_16px_-8px_rgba(16,24,40,0.10)] p-3.5 flex items-center gap-3 border-l-4 border-primary">
         {/* ไอคอน banner — ใช้สีธีม primary */}
         <span className="inline-flex w-11 h-11 rounded-xl bg-primary/10 text-primary shrink-0 items-center justify-center">

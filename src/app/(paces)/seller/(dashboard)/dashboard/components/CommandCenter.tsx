@@ -3,14 +3,15 @@
  *
  * รับ CommandCenterData จาก page.tsx และ render stack บนลงล่าง (S-8..S-13)
  *
+ * T5: ลบ HideAppHeaderMobile + CommandTopBar ออก — header ย้ายไปอยู่ใน layout (T2/T3) แล้ว
+ *     .app-header ซ่อนด้วย CSS shell ใน safepay-overrides.css (T4) ไม่ต้อง inject <style> ที่นี่
+ *
  * wrapper: pb-28 กัน FAB ทับ content ล่าง (S-13)
  * relative ให้ children absolute elements วางได้
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
 import type { CommandCenterData } from '../_constants/command-center'
-import HideAppHeaderMobile from './HideAppHeaderMobile'
-import CommandTopBar from './CommandTopBar'
 import ShortcutPanel from './ShortcutPanel'
 import MiniBanner from './MiniBanner'
 import OrderStatusTimeline from './OrderStatusTimeline'
@@ -24,16 +25,6 @@ type Props = {
 export default function CommandCenter({ data }: Props) {
   return (
     <div className="lg:hidden pb-28 relative">
-      {/* ซ่อน Paces app-header บน mobile — CommandTopBar เป็น top bar เดียว */}
-      <HideAppHeaderMobile />
-
-      {/* T2: TOP MENU — hamburger + shopName + bell + avatar + tier chip */}
-      <CommandTopBar
-        shopName={data.shopName}
-        avatarUrl={data.avatarUrl}
-        tierName={data.tierName}
-      />
-
       {/* T3: SHORTCUT — 8-tile grid */}
       <ShortcutPanel pendingOrderCount={data.pendingOrderCount} />
 

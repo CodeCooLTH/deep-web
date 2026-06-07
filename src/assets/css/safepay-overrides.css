@@ -76,3 +76,25 @@ html[data-skin="orbit"] {
     padding-right: 0 !important;
 }
 
+/* ─── Seller Mobile Shell — <lg ซ่อน sidebar/header, ตัด margin และ padding สม่ำเสมอ ─── */
+/* breakpoint เส้นเดียว = lg (1024px) ตรงกับ SellerMobileHeader / CommandCenter lg:hidden    */
+/* scoped ด้วย .seller-mobile-shell → ไม่กระทบ buyer (Vuexy) และ admin                       */
+/* !important ทุกตัวจำเป็น: html[data-sidenav-size="..."] .page-content มี specificity        */
+/* เท่ากัน (0,2,0) กับ .seller-mobile-shell .page-content (0,2,0) — ชนะด้วย cascade          */
+/* ต้องใช้ !important เพื่อการันตีบน ทุก data-sidenav-size value (default/condensed/offcanvas) */
+@media (max-width: 1023px) {
+  /* ซ่อน sidebar Paces ฝั่ง mobile — layout จะว่างเต็มจอ */
+  .seller-mobile-shell .app-menu { display: none !important; }
+
+  /* ซ่อน Paces topbar เดิม — แทนที่ด้วย SellerMobileHeader (T3) */
+  .seller-mobile-shell .app-header { display: none !important; }
+
+  /* ตัด margin-inline-start ที่ตั้งค่า offset สำหรับ sidebar (ค่าเริ่มต้น + ทุก data-sidenav-size) */
+  .seller-mobile-shell .page-content { margin-inline-start: 0 !important; }
+
+  /* ล้าง padding-inline ให้ได้ 16px สม่ำเสมอทุกหน้า — !important ชนะ rule เดิม line 75 */
+  /* desktop ≥ 1024px ยังคง px-5 ปกติ (ไม่อยู่ใน media query นี้)                          */
+  /* T5 จะถอด px-4 ออกจาก section ย่อย เพื่อป้องกัน double padding                         */
+  .seller-mobile-shell .page-content main { padding-inline: 1rem !important; }
+}
+

@@ -58,7 +58,7 @@ const SECONDARY_NODES = [
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function OrderStatusTimeline({ counts }: Props) {
   return (
-    <section className="px-4 mb-4">
+    <section className="mb-4">
       {/* section header — label + link "จัดการ ›" ตาม mockup v4 */}
       <div className="flex items-center justify-between mb-[10px]">
         <span className="text-[13.5px] font-bold text-default-500">สถานะคำสั่งซื้อ</span>

@@ -36,7 +36,7 @@ const DEFAULT_CHIP = 'bg-slate-100 text-slate-600'
 
 export default function ShortcutPanel({ pendingOrderCount }: Props) {
   return (
-    <section className="px-4 mb-4">
+    <section className="mb-4">
       <p className="text-[13.5px] font-bold text-default-500 mb-2.5 pl-1.5">เมนูลัด</p>
       {/* card wrapper — V4: 8 tile อยู่ใน card เดียว (contained ไม่ลอยบน bg เปล่า) */}
       <div className="bg-white rounded-[20px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_6px_16px_-8px_rgba(16,24,40,0.10)] p-3">

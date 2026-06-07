@@ -37,8 +37,7 @@ import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
 import { PROMO_BANNER } from './_constants/command-center'
 import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
-// getTierLabel: reuse helper เดิม (src/lib/trust-tier.ts) — ห้าม hardcode mapping ใหม่ตาม SSOT
-import { getTierLabel } from '@/lib/trust-tier'
+// getTierLabel: ย้ายไปใช้ใน layout.tsx (SellerMobileHeader) แล้ว — ไม่ import ที่นี่อีกต่อไป (T5)
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -84,7 +83,7 @@ export default async function SellerDashboardPage() {
   let salesSummary: SalesSummary = { totalRevenue: 0, totalOrders: 0, growth: null }
 
   // ─── Command Center data (mobile) ───────────────────────────────────────────
-  // avatarUrl: shop logo หรือ null → CommandTopBar แสดง initial fallback
+  // avatarUrl: shop logo หรือ null → SellerMobileHeader (layout) แสดง initial fallback
   let avatarUrl: string | null = null
   // orderStatusCounts: นับ order ต่อ status สำหรับ OrderStatusTimeline
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
@@ -221,15 +220,11 @@ export default async function SellerDashboardPage() {
       <div className="lg:hidden">
         <CommandCenter
           data={{
-            shopName,
-            avatarUrl,
+            // T5: shopName / avatarUrl / tierName ย้ายไปอยู่ใน layout (SellerMobileHeader) แล้ว
             pendingOrderCount,
             orderStatusCounts,
             recentActivity,
             promoBanner: PROMO_BANNER,
-            // tier data: getTierLabel รับ score (number) → คืน "Deep ..." ตาม SSOT
-            // default เมื่อไม่มี session: score=0 → "Deep Classic", level='D'
-            tierName: getTierLabel(score),
           }}
         />
       </div>

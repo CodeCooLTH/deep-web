@@ -70,7 +70,7 @@ type Props = {
 // ─── Component ────────────────────────────────────────────────────────────────
 const RecentActivityFeed = ({ items }: Props) => {
   return (
-    <section className="px-4 mb-4">
+    <section className="mb-4">
       {/* section header: label ซ้าย + "ดูทั้งหมด ›" ขวา (ตาม mockup v4) */}
       <div className="flex items-center justify-between px-[6px] mb-[10px]">
         <span className="text-[13.5px] font-bold text-default-500 tracking-[0.1px]">กิจกรรมล่าสุด</span>

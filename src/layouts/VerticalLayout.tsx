@@ -5,6 +5,10 @@
  * - ลบ Customizer import และ <Customizer /> (theme switcher — ไม่ใช้ใน prod)
  * - เพิ่ม menuItems prop เพื่อรับ nav data จาก (dashboard)/layout.tsx ส่งผ่าน Sidenav
  * - 'use client' คงไว้เพราะ Sidenav/TopBar เป็น client components ที่ใช้ hooks
+ * - T3: เพิ่ม shellClassName + topbarSlot (optional) — admin ไม่ส่ง → ไม่กระทบ
+ *   shellClassName: เติม class ที่ .wrapper เพื่อให้ CSS selector scoped ผ่าน marker
+ *   topbarSlot: render หลัง <TopBar /> ใน .wrapper (นอก .page-content main) + ครอบ lg:hidden
+ *              SellerMobileHeader ไม่มี lg:hidden ในตัว → ครอบที่นี่แทนเพื่อไม่กระทบ desktop ≥lg
  */
 'use client'
 import Footer from '@/layouts/components/Footer'
@@ -13,10 +17,24 @@ import TopBar from '@/layouts/components/TopBar'
 import type { MenuItemType } from '@/types'
 import { type ReactNode } from 'react'
 
-const VerticalLayout = ({ children, menuItems }: { children: ReactNode; menuItems?: MenuItemType[] }) => {
+type VerticalLayoutProps = {
+  children: ReactNode
+  menuItems?: MenuItemType[]
+  /** marker class สำหรับ CSS selector scoped (เช่น "seller-mobile-shell") — admin ไม่ส่ง */
+  shellClassName?: string
+  /** sticky topbar เพิ่มเติม render หลัง <TopBar /> นอก .page-content — ครอบ lg:hidden อัตโนมัติ */
+  topbarSlot?: ReactNode
+}
+
+const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot }: VerticalLayoutProps) => {
+  // รวม class: "wrapper" เสมอ + shellClassName ถ้าส่งมา (admin ไม่ส่ง → ไม่เพิ่ม)
+  const wrapperClass = shellClassName ? `wrapper ${shellClassName}` : 'wrapper'
+
   return (
-    <div className="wrapper">
+    <div className={wrapperClass}>
       <TopBar />
+      {/* topbarSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
+      {topbarSlot && <div className="lg:hidden">{topbarSlot}</div>}
       <Sidenav items={menuItems} />
       <div className="page-content">
         <main>

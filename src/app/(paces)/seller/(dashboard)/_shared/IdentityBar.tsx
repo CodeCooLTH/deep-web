@@ -1,22 +1,18 @@
 'use client'
 
 /**
- * CommandTopBar — Top menu bar สำหรับ mobile command center (S-8)
+ * IdentityBar — แสดง identity ร้านค้า (avatar + ชื่อร้าน + tier + bell)
  *
- * ทำไม: desktop sidebar มีเมนูครบแล้ว; mobile ไม่เห็น sidebar โดยตรง
- * จึงต้องมี sticky top bar ที่เปิด offcanvas ได้ + แสดง identity ร้าน
- *
- * V4 Polish: hamburger → ghost; avatar กลม ring; tier chip (Deep tier name);
- * bell → dot แดง; sticky + gradient fade ด้านล่าง; card rounded-[20px] + layered shadow
+ * ทำไม: แตกออกจาก CommandTopBar (T1) เพื่อให้ SellerMobileHeader ใช้ได้
+ * โดยตรง — ลบ hamburger slot ออกทั้งหมด เพราะ mobile shell ไม่มี drawer อีกต่อไป
+ * (T3 layout เป็นผู้ inject header slot แทน CommandCenter)
  *
  * Base: theme/paces/Admin/TS/src/layouts/components/TopBar/components/MenuToggler.tsx
- * Adapt: เพิ่ม shopName / avatarUrl / tierName props;
- *        hamburger ghost ไม่ทึบ; bell dot แดงแทนตัวเลข; tier chip;
- *        header sticky gradient fade; ใช้ showBackdrop() (plain function ไม่ใช้ useLayoutContext hook)
+ * Adapt: ลบ hamburger; คง avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier chip + bell dot แดง
+ *        เหมือน CommandTopBar identity slot เป๊ะ (copy markup เดิม ยกเว้น slot 1)
  */
 
 import Icon from '@/components/wrappers/Icon'
-import { showBackdrop } from '@/context/useLayoutContext'
 
 type Props = {
   shopName: string
@@ -25,15 +21,14 @@ type Props = {
   tierName: string
 }
 
-const CommandTopBar = ({ shopName, avatarUrl, tierName }: Props) => {
+const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
   // คำนวณตัวอักษรแรกของชื่อร้านสำหรับ avatar fallback
   // guard ถ้า shopName ว่าง → ใช้ "?" แทน
   const initial = shopName.trim().charAt(0).toUpperCase() || '?'
 
   return (
-    /* sticky top + gradient fade ด้านล่าง (78%→transparent) ตาม mockup v4
-       bg = #eef1f6 (Paces app bg token --bg) — ใช้ inline style เพราะ Tailwind arbitrary
-       ไม่รองรับ CSS var ใน gradient ได้ clean เท่า */
+    /* sticky top + gradient fade ด้านล่าง (78%→transparent) — เหมือน CommandTopBar
+       bg = #eef1f6 (Paces app bg token --bg) */
     <header
       className="sticky top-0 z-20 px-4 pt-4 pb-3"
       style={{ background: 'linear-gradient(180deg,#eef1f6 78%,rgba(238,241,246,0))' }}
@@ -44,18 +39,7 @@ const CommandTopBar = ({ shopName, avatarUrl, tierName }: Props) => {
         className="bg-white rounded-[20px] flex items-center gap-3 px-3.5 py-2.5"
         style={{ boxShadow: '0 1px 2px rgba(16,24,40,0.04),0 6px 16px -8px rgba(16,24,40,0.10)' }}
       >
-        {/* Slot 1: Hamburger ซ้าย — ghost style ไม่ทึบ; เปิด offcanvas sidebar */}
-        <button
-          type="button"
-          className="w-11 h-11 rounded-xl text-[#374151] hover:bg-gray-50 inline-flex items-center justify-center shrink-0"
-          onClick={() => showBackdrop()}
-          aria-label="เปิดเมนู"
-        >
-          {/* icon menu-2 ตาม design spec v4 */}
-          <Icon icon="menu-2" className="text-[26px]" />
-        </button>
-
-        {/* Slot 2: Identity กลาง — avatar กลม + ชื่อร้าน 2 บรรทัด + tier chip */}
+        {/* Identity: avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier chip */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {/* Avatar — กลม ring-2 ring-white shadow-sm; null → initial fallback */}
           {avatarUrl ? (
@@ -82,13 +66,14 @@ const CommandTopBar = ({ shopName, avatarUrl, tierName }: Props) => {
             </p>
             {/* บรรทัด 2: tier chip — icon check เขียว + Deep tier name เทา */}
             <p className="text-[11px] text-[#7b8597] leading-tight flex items-center gap-1">
+              {/* icon wrapper เติม tabler: ให้อัตโนมัติ — ส่ง name ไม่มี prefix */}
               <Icon icon="rosette-discount-check-filled" className="text-[13px] text-emerald-500 shrink-0" />
               <span className="truncate">{tierName}</span>
             </p>
           </div>
         </div>
 
-        {/* Slot 3: Bell ขวา — dot แดงแทนตัวเลข (Phase 2 = notification count จริง) */}
+        {/* Bell ขวา — dot แดงแทนตัวเลข (Phase 2 = notification count จริง) */}
         <button
           type="button"
           className="w-11 h-11 rounded-xl text-[#374151] hover:bg-gray-50 relative inline-flex items-center justify-center shrink-0"
@@ -103,4 +88,4 @@ const CommandTopBar = ({ shopName, avatarUrl, tierName }: Props) => {
   )
 }
 
-export default CommandTopBar
+export default IdentityBar

@@ -1,9 +1,11 @@
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getTierLabel } from '@/lib/trust-tier'
 import VerticalLayout from '@/layouts/VerticalLayout'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { sellerMenuItems } from './_seller-menu'
+import SellerMobileHeader from './_shared/SellerMobileHeader'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -26,9 +28,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Every seller MUST have a shop — auto-create a default one on first visit
   // so they land on a usable dashboard instead of a "create shop" CTA.
+  // T3: ขยาย select เพิ่ม shopName + logo เพื่อส่งเข้า SellerMobileHeader
   const shop = await prisma.shop.findUnique({
     where: { userId: user.id },
-    select: { id: true },
+    select: { id: true, shopName: true, logo: true },
   })
   if (!shop) {
     await prisma.shop.create({
@@ -38,10 +41,27 @@ export default async function DashboardLayout({ children }: { children: React.Re
         businessType: 'INDIVIDUAL',
       },
     })
+    // หลัง auto-create ไม่ refetch — ใช้ fallback ชื่อแทน (ตรงกับ shopName ที่ create)
+    // shop variable ยังเป็น null → fallback ใน topbarSlot จะใช้ `ร้านของ ${displayName}` แทน
   }
 
+  // คำนวณ tier label ตาม SSOT (getTierLabel) จาก trustScore session
+  const tierName = getTierLabel(user.trustScore ?? 0)
+  // ชื่อร้านสำหรับ mobile header — fallback กรณี shop เพิ่ง create (shop = null ช่วง auto-create)
+  const shopNameForHeader = shop?.shopName ?? `ร้านของ ${user.displayName}`
+
   return (
-    <VerticalLayout menuItems={sellerMenuItems}>
+    <VerticalLayout
+      menuItems={sellerMenuItems}
+      shellClassName="seller-mobile-shell"
+      topbarSlot={
+        <SellerMobileHeader
+          shopName={shopNameForHeader}
+          avatarUrl={shop?.logo ?? null}
+          tierName={tierName}
+        />
+      }
+    >
       {children}
       {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s
           mount ที่ layout เพื่อให้แจ้ง seller ทุก page ไม่ใช่แค่ wallet page
