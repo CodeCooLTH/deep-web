@@ -138,7 +138,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
       <div className="card-header">
         <h4 className="card-title">ประวัติสถานะออเดอร์</h4>
       </div>
-      <div className="card-body p-7.5">
+      <div className="card-body p-4 sm:p-7.5">
         {timelineItems.length === 0 ? (
           <p className="text-default-400 text-sm text-center py-4">ไม่มีข้อมูลสถานะ</p>
         ) : (
@@ -146,7 +146,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
             {timelineItems.map((item, idx) => (
               <div className="flex gap-x-base" key={item.key}>
                 {/* คอลัมน์เวลา */}
-                <div className="w-15 text-end md:w-25">
+                <div className="w-12 text-end sm:w-15 md:w-25">
                   {item.time ? (
                     <span className="text-default-400 text-xs">{item.time}</span>
                   ) : item.isPending ? (
@@ -175,7 +175,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                 </div>
 
                 {/* เนื้อหา */}
-                <div className={`flex-1 ${idx === timelineItems.length - 1 ? '' : 'pb-15'}`}>
+                <div className={`flex-1 ${idx === timelineItems.length - 1 ? '' : 'pb-8 sm:pb-15'}`}>
                   <h5 className={`mb-1.25 flex items-center gap-1.5 ${item.isPending ? 'text-default-400' : ''}`}>
                     <Icon
                       icon={item.icon}

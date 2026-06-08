@@ -98,7 +98,7 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
 
   return (
     <div className="card">
-      <div className="card-header block items-start p-7.5 md:flex">
+      <div className="card-header block items-start p-4 sm:p-7.5 md:flex">
         <div>
           <h3 className="mb-1.25 flex items-center text-lg font-mono">
             ออเดอร์ #{tokenShort}
@@ -126,9 +126,38 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
         </div>
       </div>
 
-      <div className="card-body px-7.5!">
+      {/* px-4 sm:px-7.5 — ลบ !important ออก เพื่อให้ responsive breakpoint override ชนะ */}
+      <div className="card-body px-4 sm:px-7.5">
         <h4 className="mb-5">รายการสินค้า</h4>
-        <div className="table-wrapper">
+
+        {/* ---- mobile stacked list (<sm) — ไม่ h-scroll ---- */}
+        <div className="sm:hidden">
+          {order.items.length === 0 ? (
+            <p className="text-center text-default-400 py-6">ยังไม่มีรายการสินค้า</p>
+          ) : (
+            <div className="divide-y divide-default-200">
+              {order.items.map((item) => (
+                <div key={item.id} className="py-3">
+                  {/* บรรทัดบน: ชื่อสินค้า */}
+                  <p className="text-default-800 font-medium leading-snug truncate">{item.name}</p>
+                  {item.description && (
+                    <p className="text-default-400 text-2xs mt-0.5 truncate">{item.description}</p>
+                  )}
+                  {/* บรรทัดล่าง: ฿ราคา × qty = ฿รวม (tap ≥44px ผ่าน py-3 ของ row) */}
+                  <p className="text-default-500 text-sm mt-1">
+                    {formatAmount(item.price)} × {item.qty}{' '}
+                    <span className="text-default-800 font-semibold">
+                      = {formatAmount(Number(item.price) * item.qty)}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ---- desktop table (≥sm) — เดิม ---- */}
+        <div className="table-wrapper hidden sm:block">
           <table className="table table-bordered">
             <thead className="thead-sm text-2xs uppercase bg-light/25">
               <tr>
@@ -164,38 +193,33 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
                   </tr>
                 ))
               )}
-              <tr className="border-default-300 border-t">
-                <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-medium">
-                  ยอดสินค้า
-                </td>
-                <td className="text-end">{formatAmount(subtotal)}</td>
-              </tr>
-              {discountVal > 0 && (
-                <tr>
-                  <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-medium">
-                    ส่วนลด
-                  </td>
-                  <td className="text-danger px-4 py-3 text-right font-semibold">
-                    - {formatAmount(discountVal)}
-                  </td>
-                </tr>
-              )}
-              {vatVal > 0 && (
-                <tr>
-                  <td colSpan={3} className="text-default-800 px-4 py-3 text-right font-medium">
-                    VAT{vatPct > 0 ? ` ${vatPct}%` : ''}
-                  </td>
-                  <td className="text-end">{formatAmount(vatVal)}</td>
-                </tr>
-              )}
-              <tr className="border-default-300 border-t">
-                <td colSpan={3} className="text-end font-bold uppercase">
-                  ยอดรวมทั้งหมด
-                </td>
-                <td className="text-end font-bold bg-default-50">{formatAmount(order.totalAmount)}</td>
-              </tr>
             </tbody>
           </table>
+        </div>
+
+        {/* ---- totals breakdown — flex justify-between block (ทั้ง mobile + desktop) ---- */}
+        {/* ใช้ block แทน colSpan ใน table → ไม่ h-scroll บน 360px */}
+        <div className="mt-4 border-t border-default-200 pt-3 space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span className="text-default-600 font-medium">ยอดสินค้า</span>
+            <span className="text-default-800">{formatAmount(subtotal)}</span>
+          </div>
+          {discountVal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-default-600 font-medium">ส่วนลด</span>
+              <span className="text-danger font-semibold">- {formatAmount(discountVal)}</span>
+            </div>
+          )}
+          {vatVal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-default-600 font-medium">VAT{vatPct > 0 ? ` ${vatPct}%` : ''}</span>
+              <span className="text-default-800">{formatAmount(vatVal)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-default-200 pt-2">
+            <span className="font-bold uppercase text-sm">ยอดรวมทั้งหมด</span>
+            <span className="font-bold text-sm bg-default-50 px-2 py-0.5 rounded">{formatAmount(order.totalAmount)}</span>
+          </div>
         </div>
 
         {/* ลิงก์สำหรับผู้ซื้อ — อยู่ใต้ตาราง เพื่อให้ seller copy ง่าย */}

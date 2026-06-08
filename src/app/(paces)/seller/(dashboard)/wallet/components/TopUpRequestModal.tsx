@@ -199,7 +199,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
        state (open prop) ไม่ใช่ Preline data-hs-overlay trigger จากภายนอก
        เพื่อให้ reset state ทุกครั้งที่ปิด/เปิดได้ถูกต้อง */
     <div
-      className="size-full fixed top-0 start-0 z-80 overflow-x-hidden overflow-y-auto bg-black/50 flex items-center"
+      className="size-full fixed top-0 start-0 z-80 overflow-x-hidden overflow-y-auto bg-black/50 flex items-start sm:items-center py-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="topUpModalLabel"
@@ -209,6 +209,9 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
         if (e.target === e.currentTarget) handleClose()
       }}
     >
+      {/* ใช้ items-start + py-4 บน wrapper ทำให้ card ไม่ถูก clamp ตรงกลาง
+          และ overflow-y-auto บน wrapper ทำให้ทั้ง card scroll ได้เมื่อจอเตี้ย
+          (แก้ปัญหา footer หลุดจอบน 360×640 เมื่อแสดง slip preview) */}
       <div className="ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center">
         <div className="w-full flex flex-col card pointer-events-auto">
           {/* ─── Header ───────────────────────────────────────────────────── */}
@@ -253,7 +256,8 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
                     onClick={() => handlePresetClick(preset)}
                     disabled={isBusy}
                     className={[
-                      'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+                      /* min-h-11 = 44px touch target (M3 mobile rule) */
+                      'rounded-full border px-4 py-2.5 min-h-11 text-sm font-medium transition-colors',
                       'disabled:opacity-50 disabled:cursor-not-allowed',
                       selectedPreset === preset
                         ? 'bg-primary text-white border-primary'
@@ -351,10 +355,11 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
           </div>
 
           {/* ─── Footer ───────────────────────────────────────────────────── */}
+          {/* min-h-11 บนปุ่ม footer = 44px touch target */}
           <div className="flex justify-end items-center gap-x-2 border-t border-default-300 card-body">
             <button
               type="button"
-              className="btn bg-light hover:text-primary disabled:opacity-40"
+              className="btn bg-light hover:text-primary disabled:opacity-40 min-h-11"
               onClick={handleClose}
               disabled={isBusy}
             >
@@ -364,7 +369,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
               type="button"
               disabled={!canSubmit}
               onClick={handleSubmit}
-              className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-60 inline-flex items-center gap-2"
+              className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-60 inline-flex items-center gap-2 min-h-11"
             >
               {isBusy && (
                 <Icon icon="loader-2" className="size-4 animate-spin" />

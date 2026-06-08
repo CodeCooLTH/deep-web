@@ -45,7 +45,7 @@ export function BadgeGrid({ earned, locked }: BadgeGridProps) {
               ยังไม่มีรางวัลที่ได้รับ — เริ่มขายเพื่อสะสมรางวัลแรก
             </p>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
               {earned.map((item) => (
                 <EarnedCard
                   key={item.badge.id}
@@ -72,7 +72,7 @@ export function BadgeGrid({ earned, locked }: BadgeGridProps) {
               คุณได้รับรางวัลครบทุกรายการแล้ว
             </p>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
               {locked.map((item) => (
                 <LockedCard
                   key={item.badge.id}

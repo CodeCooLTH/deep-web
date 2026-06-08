@@ -66,9 +66,9 @@ export default function CopyLinkButton({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
       {showPreview && (
-        <span className="text-xs text-default-500 font-mono bg-default-100 px-3 py-1.5 rounded-lg flex-1 truncate select-all">
+        <span className="text-xs text-default-500 font-mono bg-default-100 px-3 py-1.5 rounded-lg flex-1 min-w-0 truncate select-all">
           {value}
         </span>
       )}

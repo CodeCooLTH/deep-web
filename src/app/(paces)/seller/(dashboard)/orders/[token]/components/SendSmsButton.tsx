@@ -106,8 +106,9 @@ export default function SendSmsButton({ publicToken, compact = false }: SendSmsB
           type="button"
           onClick={handleOpenDialog}
           className={
+            // min-h-11 = touch target ≥44px (impeccable product rule M3-#1)
             compact
-              ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
+              ? 'btn btn-sm min-h-11 border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
               : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs'
           }
         >

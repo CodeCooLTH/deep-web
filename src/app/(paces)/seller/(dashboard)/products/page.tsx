@@ -94,7 +94,10 @@ export default async function ProductsPage() {
       id: p.id,
       name: p.name,
       description: p.description ?? '',
-      image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : '',
+      // guard: ถ้า images[0] เป็น full URL (seed picsum / CDN) → ใช้ตรง; ไม่งั้น wrap /api/files/ (storage key)
+      image: Array.isArray(p.images) && p.images.length > 0
+        ? (String(p.images[0]).startsWith('http') ? String(p.images[0]) : `/api/files/${p.images[0]}`)
+        : '',
       price: Number(p.price ?? 0),
       type: (p.type as ProductRow['type']) ?? 'PHYSICAL',
       isActive: p.isActive ?? true,

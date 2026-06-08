@@ -200,7 +200,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                         <button
                           type="button"
                           onClick={() => dec(item.productId!)}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
+                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
                           aria-label="ลดจำนวน"
                         >
                           <Icon icon="minus" width={12} height={12} />
@@ -216,7 +216,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                         <button
                           type="button"
                           onClick={() => inc(catalog.find((p) => p.id === item.productId)!)}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
+                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
                           aria-label="เพิ่มจำนวน"
                         >
                           <Icon icon="plus" width={12} height={12} />
@@ -301,7 +301,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                             if (cur > 1) update(idx, { ...item, qty: cur - 1 })
                             else remove(idx)
                           }}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
+                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
                           aria-label="ลดจำนวน"
                         >
                           <Icon icon="minus" width={12} height={12} />
@@ -320,7 +320,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                             const cur = Number(item?.qty) || 1
                             update(idx, { ...item, qty: cur + 1 })
                           }}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-7 h-7"
+                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
                           aria-label="เพิ่มจำนวน"
                         >
                           <Icon icon="plus" width={12} height={12} />

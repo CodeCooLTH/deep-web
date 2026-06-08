@@ -124,11 +124,12 @@ function OrderCardCopyLink({ token }: { token: string }) {
     setUrl(`${resolveBuyerBaseUrl()}/o/${token}`)
   }, [token])
 
+  // min-h-11 = touch target ≥44px (impeccable product rule M3-#1)
   return (
     <CopyLinkButton
       value={url}
       label="คัดลอกลิงก์"
-      className="border-default-300 text-default-700 hover:bg-default-100"
+      className="min-h-11 border-default-300 text-default-700 hover:bg-default-100"
     />
   )
 }
@@ -185,81 +186,93 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
 
   return (
     <div
-      className={`rounded-lg border border-l-4 border-default-300 ${stat.accent} bg-card transition hover:shadow-lg`}
+      className="rounded-lg border border-default-300 bg-card transition hover:shadow-lg"
     >
-      {/* ╔ HEADER: ลูกค้า + ข้อมูลออเดอร์ — บรรทัดเดียว ╗ */}
-      <div className="group flex items-center gap-2.5 border-b border-default-300 px-3 py-2">
+      {/* ╔ HEADER: stacked 3 บรรทัด — อ่านครบบน 360px ไม่ต้องเลื่อนข้าง ╗ */}
+      {/*
+       * เปลี่ยนจาก overflow-x-auto whitespace-nowrap (M3-#1 audit) เป็น stack:
+       *   แถว 1: ชื่อ + badge สถานะ + buyer tag  (flex justify-between)
+       *   แถว 2: เบอร์ + copy + เลขออเดอร์ + copy  (flex-wrap gap-x-2)
+       *   แถว 3: วันที่ + ประเภท  (flex-wrap gap-x-2)
+       * ลบ border-l-4 side-stripe ออก — ขัด impeccable product rule
+       * avatar ยังคงไว้ที่แถว 1 ชิดซ้าย (visual anchor)
+       */}
+      <div className="group flex gap-2.5 border-b border-default-300 px-3 py-2.5">
         {/* Avatar placeholder (D8) — avatar ไม่มีใน data */}
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-default-100 text-default-400 ring-1 ring-default-200">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-default-100 text-default-400 ring-1 ring-default-200">
           <Icon icon="user" className="text-base" />
         </span>
 
-        {/* ข้อมูลหลัก — scroll แนวนอน + whitespace-nowrap ตาม mockup */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap text-xs text-default-600">
-          {/* ชื่อลูกค้า */}
-          <span className="text-[13px] font-semibold text-dark">{customerName}</span>
+        {/* block ข้อมูล — stack 3 แถว ไม่ overflow แนวนอน */}
+        <div className="min-w-0 flex-1 space-y-1 text-xs text-default-600">
 
-          {/* tag ลูกค้าเดิม / ยังไม่ยืนยัน (D5) */}
-          {isVerifiedBuyer ? (
-            <span className="badge bg-success/15 text-success">
-              <Icon icon="user-check" className="text-[0.9em]" />
-              ลูกค้าเดิม
-              {order.buyerUsername && (
-                <span className="text-[0.85em] opacity-70">@{order.buyerUsername}</span>
+          {/* แถว 1: ชื่อ + buyer tag ชิดซ้าย | status badge ชิดขวา */}
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="truncate text-[13px] font-semibold text-dark">{customerName}</span>
+
+              {/* tag ลูกค้าเดิม / ยังไม่ยืนยัน (D5) */}
+              {isVerifiedBuyer ? (
+                <span className="badge bg-success/15 text-success shrink-0">
+                  <Icon icon="user-check" className="text-[0.9em]" />
+                  ลูกค้าเดิม
+                  {order.buyerUsername && (
+                    <span className="text-[0.85em] opacity-70">@{order.buyerUsername}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="badge bg-default-200 text-default-600 shrink-0">ยังไม่ยืนยัน</span>
               )}
+            </div>
+
+            {/* Status badge — shrink-0 ชิดขวา */}
+            <span className={`badge ${stat.badge} shrink-0 gap-1`}>
+              <Icon icon={stat.icon} className="text-[0.95em]" />
+              {stat.label}
             </span>
-          ) : (
-            <span className="badge bg-default-200 text-default-600">ยังไม่ยืนยัน</span>
-          )}
+          </div>
 
-          <span className="text-default-300">·</span>
+          {/* แถว 2: เบอร์ผู้ติดต่อ + copy + เลขออเดอร์ + copy */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="inline-flex items-center gap-1">
+              <Icon icon="phone" className="shrink-0 text-sm text-default-400" />
+              {order.buyer}
+            </span>
+            <CopyButton
+              value={order.buyer}
+              label="ผู้ติดต่อ"
+              className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-100"
+            />
 
-          {/* ผู้ติดต่อ (masked) + copy-on-hover (D7) */}
-          <span className="inline-flex items-center gap-1">
-            <Icon icon="phone" className="text-sm text-default-400" />
-            {order.buyer}
-          </span>
-          <CopyButton
-            value={order.buyer}
-            label="ผู้ติดต่อ"
-            className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-100"
-          />
+            <span className="text-default-300" aria-hidden="true">·</span>
 
-          <span className="text-default-300">·</span>
+            <span className="inline-flex items-center gap-1">
+              <Icon icon="hash" className="shrink-0 text-sm text-default-400" />
+              <span className="font-mono font-semibold text-default-800">{displayId}</span>
+            </span>
+            <CopyButton
+              value={displayId}
+              label="เลขออเดอร์"
+              className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-100"
+            />
+          </div>
 
-          {/* เลขออเดอร์ (displayId) + copy-on-hover (D7) */}
-          <span className="inline-flex items-center gap-1">
-            <Icon icon="hash" className="text-sm text-default-400" />
-            <span className="font-mono font-semibold text-default-800">{displayId}</span>
-          </span>
-          <CopyButton
-            value={displayId}
-            label="เลขออเดอร์"
-            className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-100"
-          />
+          {/* แถว 3: วันเวลา + ประเภทออเดอร์ */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-default-500">
+            <span className="inline-flex items-center gap-1.5">
+              <Icon icon="calendar-event" className="shrink-0 text-sm text-default-400" />
+              {formatThaiDate(order.createdAtISO)}
+            </span>
 
-          <span className="text-default-300">·</span>
+            <span className="text-default-300" aria-hidden="true">·</span>
 
-          {/* วันเวลา */}
-          <span className="inline-flex items-center gap-1.5">
-            <Icon icon="calendar-event" className="text-sm text-default-400" />
-            {formatThaiDate(order.createdAtISO)}
-          </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon icon="tag" className="shrink-0 text-sm text-default-400" />
+              {TYPE_LABEL[order.orderType] ?? order.orderType}
+            </span>
+          </div>
 
-          <span className="text-default-300">·</span>
-
-          {/* ประเภทออเดอร์ */}
-          <span className="inline-flex items-center gap-1.5">
-            <Icon icon="tag" className="text-sm text-default-400" />
-            {TYPE_LABEL[order.orderType] ?? order.orderType}
-          </span>
         </div>
-
-        {/* Status badge — shrink-0 ชิดขวา */}
-        <span className={`badge ${stat.badge} shrink-0 gap-1`}>
-          <Icon icon={stat.icon} className="text-[0.95em]" />
-          {stat.label}
-        </span>
       </div>
 
       {/* ╔ ITEMS: แสดงสินค้า 2 รายการแรก + "+ ดูอีก N รายการ" ถ้ามีมากกว่า ╗ */}
@@ -307,31 +320,37 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
         </div>
       </div>
 
-      {/* ╔ FOOTER: action ปุ่มเล็กชิดขวา [⋯][คัดลอกลิงก์][ดูรายละเอียด] ╗ */}
-      <div className="flex items-center justify-end border-t border-default-300 px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          {/* ⋯ dropdown (T4) — ลำดับ ⋯ → secondary → primary ตาม convention §4 */}
-          <OrderCardMenu
-            token={order.publicToken}
-            status={order.status}
-            onCancelRequest={onCancelRequest}
-          />
+      {/* ╔ FOOTER: flex-wrap — 4 action ครบ ไม่ล้นที่ 360px (M3-#1) ╗ */}
+      {/*
+       * เปลี่ยนจาก flex items-center gap-1.5 (แถวเดียว → ล้นขอบขวา 360px)
+       * เป็น flex flex-wrap justify-end gap-2 — wrap อัตโนมัติ
+       * ปุ่ม "ดูรายละเอียด" (primary) w-full sm:w-auto ให้เต็มแถวบน mobile
+       * min-h-11 ทุกปุ่ม = touch target ≥44px (impeccable product rule)
+       * เก็บทั้ง 4 action ครบ: ⋯ menu / copy link / SMS / ดูรายละเอียด
+       * (ไม่ย้าย copy/SMS เข้า menu เพราะมี visual flash state ที่ menu ทำไม่ได้)
+       */}
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-default-300 px-3 py-2">
+        {/* ⋯ dropdown (T4) — ลำดับ ⋯ → secondary → primary ตาม convention §4 */}
+        <OrderCardMenu
+          token={order.publicToken}
+          status={order.status}
+          onCancelRequest={onCancelRequest}
+        />
 
-          {/* คัดลอกลิงก์ผู้ซื้อ (D7) — resolve buyer domain runtime */}
-          <OrderCardCopyLink token={order.publicToken} />
+        {/* คัดลอกลิงก์ผู้ซื้อ (D7) — resolve buyer domain runtime */}
+        <OrderCardCopyLink token={order.publicToken} />
 
-          {/* ส่งลิงก์ทาง SMS — RC-8: ส่งแค่ publicToken (ห้าม buyerContact) */}
-          <SendSmsButton publicToken={order.publicToken} compact />
+        {/* ส่งลิงก์ทาง SMS — RC-8: ส่งแค่ publicToken (ห้าม buyerContact) */}
+        <SendSmsButton publicToken={order.publicToken} compact />
 
-          {/* ดูรายละเอียด — next/link ปกติ (Paces = ไม่มี MUI) */}
-          <Link
-            href={`/orders/${order.publicToken}`}
-            className="btn btn-sm bg-primary text-white hover:bg-primary-hover"
-          >
-            <Icon icon="eye" className="text-sm" />
-            ดูรายละเอียด
-          </Link>
-        </div>
+        {/* ดูรายละเอียด — next/link ปกติ (Paces = ไม่มี MUI); w-full บน mobile */}
+        <Link
+          href={`/orders/${order.publicToken}`}
+          className="btn btn-sm min-h-11 w-full bg-primary text-white hover:bg-primary-hover sm:w-auto"
+        >
+          <Icon icon="eye" className="text-sm" />
+          ดูรายละเอียด
+        </Link>
       </div>
     </div>
   )
