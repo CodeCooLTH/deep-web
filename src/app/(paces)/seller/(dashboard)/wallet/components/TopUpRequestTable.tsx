@@ -198,6 +198,61 @@ const TopUpRequestTable = ({ topups }: Props) => {
         <DataTable<TopUpRequestRow>
           table={table}
           emptyMessage={emptyMessage}
+          mobileCard={(row) => {
+            const r = row.original
+            const statusMeta = STATUS_META[r.status]
+            const note = getNoteText(r)
+            const d = new Date(r.createdAtISO)
+            const dateStr = isNaN(d.getTime())
+              ? '—'
+              : d.toLocaleString('th-TH', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+            // สีวงไอคอน: PENDING = warning, APPROVED = success, REJECTED = danger
+            const iconBgMap: Record<TopUpRequestRow['status'], string> = {
+              PENDING:  'bg-warning-50 text-warning',
+              APPROVED: 'bg-success-50 text-success',
+              REJECTED: 'bg-danger-50 text-danger',
+            }
+            return (
+              <div className="flex items-center gap-3 px-1 py-3.5">
+                {/* leading: icon รับเงิน/slip วงกลมสีตามสถานะ */}
+                <div
+                  className={cn(
+                    'size-10 rounded-full flex items-center justify-center shrink-0',
+                    iconBgMap[r.status],
+                  )}
+                  aria-hidden="true"
+                >
+                  <Icon icon="receipt" className="size-5" />
+                </div>
+                {/* main: จำนวน + วันที่ยื่น + หมายเหตุ (ถ้า REJECTED) */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-medium text-ink truncate">
+                    ฿{r.amount.toLocaleString('th-TH')}
+                  </p>
+                  <p className="text-[12px] text-default-500 truncate">{dateStr}</p>
+                  {/* หมายเหตุ REJECTED แสดงบรรทัดเล็กสีแดง */}
+                  {r.status === 'REJECTED' && note && note !== '—' && (
+                    <p className="text-[11px] text-danger truncate">{note}</p>
+                  )}
+                </div>
+                {/* trailing: สถานะ chip */}
+                <div className="shrink-0 text-right">
+                  <span
+                    className={cn('badge', statusMeta.cls)}
+                    aria-label={`สถานะ: ${statusMeta.label}`}
+                  >
+                    {statusMeta.label}
+                  </span>
+                </div>
+              </div>
+            )
+          }}
         />
       </div>
 

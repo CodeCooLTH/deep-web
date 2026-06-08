@@ -25,6 +25,15 @@ interface Props {
 
 const columnHelper = createColumnHelper<ReviewRow>()
 
+// format ISO string เป็นวันที่ภาษาไทย (client-side ป้องกัน hydration mismatch)
+function formatThaiDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: Props) => {
   const columns = [
     columnHelper.accessor('reviewerLabel', {
@@ -42,10 +51,12 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
     columnHelper.accessor('rating', {
       header: 'รีวิว',
       cell: ({ row }) => (
-        <div className="w-xs px-4 py-3">
+        // ลบ w-xs fixed width — เป็นต้นเหตุ h-scroll บน mobile
+        // ใช้ min-w-0 + line-clamp แทน
+        <div className="min-w-0 px-4 py-3">
           <Rating rating={row.original.rating} />
           {row.original.comment ? (
-            <p className="text-default-400 text-sm italic mt-2">{row.original.comment}</p>
+            <p className="text-default-400 text-sm italic mt-2 line-clamp-3">{row.original.comment}</p>
           ) : (
             <p className="text-default-400 text-sm italic mt-2">ไม่มีความคิดเห็น</p>
           )}
@@ -98,10 +109,13 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
       </div>
 
       {/* Summary: avg rating + rating breakdown */}
+      {/* Summary: avg rating + rating breakdown
+          grid-cols-1 sm:grid-cols-12 — stack เหนือกันบน mobile ป้องกัน cram */}
       <div>
-        <div className="grid grid-cols-1 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <div className="flex flex-wrap items-start p-7.5 gap-7.5">
+        <div className="grid grid-cols-1 sm:grid-cols-12">
+          <div className="sm:col-span-7">
+            {/* p-4 sm:p-7.5 — ลด padding บน mobile */}
+            <div className="flex flex-wrap items-start p-4 sm:p-7.5 gap-4 sm:gap-7.5">
               <div className="flex flex-col gap-y-2.5">
                 <h3 className="text-primary flex items-center gap-2.5 text-xl font-bold">
                   {totalReviews > 0 ? avgRating.toFixed(1) : '-'}
@@ -118,8 +132,9 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
               </div>
             </div>
           </div>
-          <div className="lg:col-span-5">
-            <div className="space-y-2.5 p-7.5">
+          {/* Distribution bars — sm:col-span-5 */}
+          <div className="sm:col-span-5">
+            <div className="space-y-2.5 p-4 sm:p-7.5">
               {ratingBreakdown.map((rating, idx) => (
                 <div className="flex items-center gap-2" key={idx}>
                   <div className="text-default-800 text-sm text-nowrap">{rating.stars} ดาว</div>
@@ -155,6 +170,38 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
             description="เมื่อมีรีวิวสินค้านี้ จะแสดงที่นี่"
           />
         }
+        mobileCard={(row) => {
+          const r = row.original
+          // ใช้ตัวอักษรแรกของ reviewerLabel เป็น avatar initial
+          const initial = r.reviewerLabel.charAt(0).toUpperCase()
+          // 3-zone: leading avatar | main content | trailing date
+          // items-start เพราะ comment หลายบรรทัด (ไม่ใช่ items-center)
+          return (
+            <div className="flex items-start gap-3 px-1 py-3.5">
+              {/* leading: avatar initial */}
+              <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
+                {initial}
+              </div>
+              {/* main: ชื่อ + ดาว + comment */}
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-medium text-ink truncate">{r.reviewerLabel}</p>
+                <p className="text-[13px] text-warning leading-tight">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</p>
+                {/* line-clamp-2 ป้องกัน comment ยาวดัน layout */}
+                {r.comment ? (
+                  <p className="text-[13px] text-default-600 mt-0.5 line-clamp-2">{r.comment}</p>
+                ) : (
+                  <p className="text-[13px] text-default-300 italic mt-0.5">ไม่มีความคิดเห็น</p>
+                )}
+              </div>
+              {/* trailing: วันที่ */}
+              <div className="shrink-0">
+                <p className="text-[11px] text-default-400 leading-tight whitespace-nowrap">
+                  {formatThaiDate(r.createdAt)}
+                </p>
+              </div>
+            </div>
+          )
+        }}
       />
       {table.getRowModel().rows.length > 0 && (
         <div className="card-footer border-light">

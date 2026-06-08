@@ -105,13 +105,14 @@ export default async function CustomersPage() {
       }
     } else {
       const isReg = !!o.buyer
-      const name = isReg
-        ? (o.buyer?.displayName ?? 'สมาชิก')
-        : maskContact(o.buyerContact)
+      // guest: ใช้ label "ลูกค้าทั่วไป" (ไม่ใช่เบอร์ masked ซ้ำกับ contact) + initial เป็น '?'
+      // (เลี่ยง bullet '•' จาก masked contact) — registered ใช้ชื่อจริง + อักษรแรก
+      const name = isReg ? (o.buyer?.displayName ?? 'สมาชิก') : 'ลูกค้าทั่วไป'
+      const initial = isReg ? (name.charAt(0).toUpperCase() || '?') : '?'
       map.set(key, {
         key,
         displayName: name,
-        initial: (name || '?').charAt(0).toUpperCase(),
+        initial,
         contact: maskContact(o.buyerContact),
         isRegistered: isReg,
         username: o.buyer?.username ?? null,

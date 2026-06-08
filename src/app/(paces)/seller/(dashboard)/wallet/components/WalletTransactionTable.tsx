@@ -249,6 +249,57 @@ const WalletTransactionTable = ({ transactions }: Props) => {
         <DataTable<TransactionRow>
           table={table}
           emptyMessage={emptyMessage}
+          mobileCard={(row) => {
+            const t = row.original
+            const type = t.type as 'TOPUP' | 'DEDUCT'
+            const meta = TYPE_META[type]
+            // icon และสีตามประเภท: TOPUP = เขียว, DEDUCT = แดง-ส้ม
+            const isTopup = type === 'TOPUP'
+            const iconName = isTopup ? 'arrow-up' : 'arrow-down'
+            const iconBg = isTopup ? 'bg-success-50 text-success' : 'bg-danger-50 text-danger'
+            const amountColor = isTopup ? 'text-success' : 'text-danger'
+            const amountSign = isTopup ? '+' : '−'
+            const d = new Date(t.createdAtISO)
+            const dateStr = isNaN(d.getTime())
+              ? '—'
+              : d.toLocaleString('th-TH', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+            return (
+              <div className="flex items-center gap-3 px-1 py-3.5">
+                {/* leading: icon วงกลมสีตาม type — tap target ≥44px */}
+                <div
+                  className={cn(
+                    'size-10 rounded-full flex items-center justify-center shrink-0',
+                    iconBg,
+                  )}
+                  aria-hidden="true"
+                >
+                  <Icon icon={iconName} className="size-5" />
+                </div>
+                {/* main: รายละเอียด + วันเวลา */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-medium text-ink truncate">
+                    {t.description ?? meta.label}
+                  </p>
+                  <p className="text-[12px] text-default-500 truncate">{dateStr}</p>
+                </div>
+                {/* trailing: จำนวน +/- + คงเหลือเล็ก ๆ */}
+                <div className="shrink-0 text-right">
+                  <p className={cn('text-[14px] font-semibold leading-tight tabular-nums', amountColor)}>
+                    {amountSign}฿{t.amount.toLocaleString('th-TH')}
+                  </p>
+                  <p className="text-[11px] text-default-400 leading-tight tabular-nums">
+                    คงเหลือ ฿{t.balanceAfter.toLocaleString('th-TH')}
+                  </p>
+                </div>
+              </div>
+            )
+          }}
         />
       </div>
 

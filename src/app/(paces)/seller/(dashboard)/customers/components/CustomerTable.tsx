@@ -172,12 +172,47 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
         </div>
       </div>
 
-      <div className="overflow-x-auto whitespace-normal">
-        <DataTable<CustomerRow>
-          table={table}
-          emptyMessage="ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ"
-        />
-      </div>
+      <DataTable<CustomerRow>
+        table={table}
+        emptyMessage="ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ"
+        mobileCard={(row) => {
+          const c = row.original
+          const lastDate = new Date(c.lastOrderISO).toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })
+          return (
+            <div className="flex items-center gap-3 px-1 py-3.5">
+              {/* leading: avatar initial */}
+              <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
+                {c.initial}
+              </div>
+              {/* main: ชื่อ (link ถ้า registered) + ติดต่อ */}
+              <div className="min-w-0 flex-1">
+                {c.isRegistered && c.username ? (
+                  <a
+                    href={`${buyerBase}/u/${c.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[14px] font-medium text-ink hover:text-primary block truncate"
+                  >
+                    {c.displayName}
+                  </a>
+                ) : (
+                  <p className="text-[14px] font-medium text-ink truncate">{c.displayName}</p>
+                )}
+                <p className="text-[12px] text-default-500 font-mono truncate">{c.contact}</p>
+              </div>
+              {/* trailing: จำนวนออเดอร์ + ล่าสุด */}
+              <div className="shrink-0 text-right">
+                <p className="text-[14px] font-semibold text-ink leading-tight">{c.totalOrders}</p>
+                <p className="text-[11px] text-default-400 leading-tight">{lastDate}</p>
+              </div>
+            </div>
+          )
+        }}
+      />
 
       {table.getRowModel().rows.length > 0 && (
         <div className="card-footer">

@@ -302,7 +302,87 @@ const ProductsListing = ({ products }: Props) => {
         </div>
       </div>
 
-      <DataTable<ProductRow> table={table} emptyMessage="ไม่พบสินค้า" />
+      <DataTable<ProductRow>
+        table={table}
+        emptyMessage="ไม่พบสินค้า"
+        mobileCard={(row) => {
+          const p = row.original
+          const priceStr = `฿${new Intl.NumberFormat('th-TH').format(p.price)}`
+          return (
+            <div className="flex items-center gap-3 px-1 py-3.5">
+              {/* leading: รูปสินค้า 48px หรือ placeholder */}
+              <div className="size-12 shrink-0">
+                {p.image ? (
+                  <Image
+                    src={p.image}
+                    alt={p.name}
+                    width={48}
+                    height={48}
+                    className="size-12 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="size-12 rounded-lg bg-default-100 flex items-center justify-center">
+                    <Icon icon="package" className="size-6 text-default-300" />
+                  </div>
+                )}
+              </div>
+
+              {/* main: ชื่อ (link → detail) + meta line (ราคา · ประเภท · สถานะ) */}
+              <div className="min-w-0 flex-1">
+                <Link
+                  href={`/products/${p.id}`}
+                  className="text-[14px] font-medium text-ink hover:text-primary block truncate"
+                >
+                  {p.name}
+                </Link>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <span className="text-[12px] text-default-500">{priceStr}</span>
+                  <span className="text-default-300 text-[10px]">·</span>
+                  <span className={cn('badge py-0 text-[10px] font-semibold leading-tight', TYPE_COLORS[p.type])}>
+                    {TYPE_LABELS[p.type]}
+                  </span>
+                  <span className={cn(
+                    'badge py-0 text-[10px] font-semibold leading-tight',
+                    p.isActive ? 'bg-success/10 text-success' : 'bg-default-200 text-default-700',
+                  )}>
+                    {p.isActive ? 'เปิดขาย' : 'ซ่อน'}
+                  </span>
+                </div>
+              </div>
+
+              {/* trailing: ขายแล้ว + 3 action icons */}
+              <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
+                <p className="text-[12px] text-default-400 leading-tight whitespace-nowrap">
+                  ขายแล้ว {new Intl.NumberFormat('th-TH').format(p.totalSold)}
+                </p>
+                {/* action: แก้ไข / ลบ — touch ≥44px (ดู = แตะชื่อสินค้าไป detail แล้ว เลยตัด eye) */}
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    href={`/products/${p.id}/edit`}
+                    className="btn btn-icon border border-default-300 text-default-800 hover:border-default-400 !size-11 min-h-0"
+                    aria-label="แก้ไขสินค้า"
+                  >
+                    <Icon icon="pencil" className="text-base" />
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-icon border border-default-300 text-default-800 hover:border-default-400 !size-11 min-h-0"
+                    onClick={() => {
+                      'use no memo'
+                      setDeletingId(p.id)
+                    }}
+                    data-hs-overlay="#confirm-delete-modal"
+                    suppressHydrationWarning
+                    aria-label="ลบสินค้า"
+                  >
+                    <Icon icon="trash" className="text-base" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }}
+      />
 
       {table.getRowModel().rows.length > 0 && (
         <div className="card-footer">

@@ -103,17 +103,15 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
       {/* Desktop: ตารางเดิม — ซ่อนบน mobile */}
       <div className="hidden lg:block">{tableEl}</div>
 
-      {/* Mobile: card list — ซ่อนบน desktop */}
-      <div className="lg:hidden">
+      {/* Mobile: divided list — ซ่อนบน desktop
+          ใช้ divide-y (ไม่ใช่ card ซ้อน) เพราะตารางอยู่ใน .card panel แล้ว
+          → row-card มีขอบ = nested cards (impeccable ban). แต่ละ row จัดการ padding เอง */}
+      <div className="lg:hidden divide-y divide-default-100">
         {rows?.length ? (
-          <div className="space-y-3 p-3">
-            {rows.map((row) => (
-              <div key={row.id}>{mobileCard(row)}</div>
-            ))}
-          </div>
+          rows.map((row) => <div key={row.id}>{mobileCard(row)}</div>)
         ) : (
           // empty state เดียวกับตาราง
-          <div className="text-center text-default-400 py-6">{emptyMessage}</div>
+          <div className="text-center text-default-400 py-6 px-4">{emptyMessage}</div>
         )}
       </div>
     </>

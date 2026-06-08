@@ -133,7 +133,36 @@ const CategoryTable = ({ rows }: CategoryTableProps) => {
         </div>
       </div>
 
-      <DataTable table={table} emptyMessage="ไม่พบหมวดหมู่" />
+      <DataTable
+        table={table}
+        emptyMessage="ไม่พบหมวดหมู่"
+        mobileCard={(row) => {
+          const c = row.original
+          return (
+            <div className="flex items-center gap-3 px-1 py-3.5">
+              {/* leading: icon หมวดหมู่ — size-10 rounded-xl ตาม spec */}
+              <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${c.iconClass}`}>
+                <Icon icon={c.icon} className="text-xl" />
+              </div>
+              {/* main: ชื่อหมวดหมู่ + คำอธิบาย + metric รอง (สินค้า · ออเดอร์) */}
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-medium text-ink truncate">{c.label}</p>
+                <p className="text-[12px] text-default-500 truncate">{c.description}</p>
+                <p className="text-[11px] text-default-400 mt-0.5">
+                  {c.activeCount}/{c.productCount} สินค้า · {c.orderCount} ออเดอร์
+                </p>
+              </div>
+              {/* trailing: ยอดขาย (metric เด่น) */}
+              <div className="shrink-0 text-right">
+                <p className="text-[14px] font-semibold text-ink leading-tight">
+                  {thbFormatter.format(c.revenue)}
+                </p>
+                <p className="text-[11px] text-default-400 leading-tight">ยอดขาย</p>
+              </div>
+            </div>
+          )
+        }}
+      />
 
       {table.getRowModel().rows.length > 0 && (
         <div className="card-footer">
