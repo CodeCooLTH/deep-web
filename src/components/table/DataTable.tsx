@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/utils/helpers'
-import { flexRender, Table as TableType } from '@tanstack/react-table'
+import { flexRender, Row, Table as TableType } from '@tanstack/react-table'
 import clsx from 'clsx'
 import Icon from '../wrappers/Icon'
 
@@ -25,12 +25,27 @@ type DataTableProps<TData> = {
    * @default true
    */
   showHeaders?: boolean
+
+  /**
+   * Opt-in mobile card render — ถ้าส่ง prop นี้จะ render 2 โหมด:
+   *   - desktop (lg:block): table เดิมไม่เปลี่ยน
+   *   - mobile (<lg): card list แทนตาราง
+   *
+   * ถ้าไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%)
+   *
+   * ตัวอย่าง:
+   *   mobileCard={(row) => <MyCard data={row.original} />}
+   */
+  mobileCard?: (row: Row<TData>) => React.ReactNode
 }
 
-const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true }: DataTableProps<TData>) => {
+const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard }: DataTableProps<TData>) => {
   'use no memo'
   const columns = table.getAllColumns()
-  return (
+  const rows = table.getRowModel().rows
+
+  // ตารางเดิม — ใช้ร่วมกันทั้งสองโหมด
+  const tableEl = (
     <div className={clsx('table-wrapper', className)}>
       <table className="table table-hover">
         {showHeaders && (
@@ -55,8 +70,8 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
           </thead>
         )}
         <tbody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
+          {rows?.length ? (
+            rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <td suppressHydrationWarning key={cell.id}>
@@ -75,6 +90,33 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
         </tbody>
       </table>
     </div>
+  )
+
+  // ถ้าไม่มี mobileCard → render ตารางเดิมเลย (backward-compatible เดิม 100%)
+  if (!mobileCard) {
+    return tableEl
+  }
+
+  // มี mobileCard → render 2 โหมด: desktop table (hidden บน mobile) + mobile card list
+  return (
+    <>
+      {/* Desktop: ตารางเดิม — ซ่อนบน mobile */}
+      <div className="hidden lg:block">{tableEl}</div>
+
+      {/* Mobile: card list — ซ่อนบน desktop */}
+      <div className="lg:hidden">
+        {rows?.length ? (
+          <div className="space-y-3 p-3">
+            {rows.map((row) => (
+              <div key={row.id}>{mobileCard(row)}</div>
+            ))}
+          </div>
+        ) : (
+          // empty state เดียวกับตาราง
+          <div className="text-center text-default-400 py-6">{emptyMessage}</div>
+        )}
+      </div>
+    </>
   )
 }
 
