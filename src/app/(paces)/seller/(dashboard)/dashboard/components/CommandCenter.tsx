@@ -25,8 +25,8 @@ type Props = {
 export default function CommandCenter({ data }: Props) {
   return (
     <div className="lg:hidden pb-28 relative">
-      {/* T3: SHORTCUT — 8-tile grid */}
-      <ShortcutPanel pendingOrderCount={data.pendingOrderCount} />
+      {/* T5: SHORTCUT — 6-tile grid 3×2 (badge ย้ายไป bottom nav แล้ว — ไม่ต้องส่ง pendingOrderCount) */}
+      <ShortcutPanel />
 
       {/* T4: MINI BANNER — static promo (null = ซ่อน section) */}
       <MiniBanner banner={data.promoBanner} />
