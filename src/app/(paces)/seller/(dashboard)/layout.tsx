@@ -6,7 +6,9 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { sellerMenuItems } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
+import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
+import { getOrderStatusCounts } from '@/services/order.service'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -50,6 +52,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // ชื่อร้านสำหรับ mobile header — fallback กรณี shop เพิ่ง create (shop = null ช่วง auto-create)
   const shopNameForHeader = shop?.shopName ?? `ร้านของ ${user.displayName}`
 
+  // pendingCount สำหรับ SellerBottomNav badge — ดึงเฉพาะเมื่อ shop มี id
+  // (shop อาจเป็น null เมื่อเพิ่ง auto-create → skip getOrderStatusCounts กัน error ก่อน redirect ทำงาน)
+  // try/catch fallback 0 — pattern เดียวกับ dashboard/page.tsx (ไม่ให้ layout crash จาก DB error)
+  let pendingCount = 0
+  if (shop?.id) {
+    try {
+      const counts = await getOrderStatusCounts(shop.id)
+      pendingCount = counts.PENDING
+    } catch (e) {
+      console.error('[layout] getOrderStatusCounts failed, fallback pendingCount=0', e)
+    }
+  }
+
   return (
     <VerticalLayout
       menuItems={sellerMenuItems}
@@ -61,6 +76,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           tierName={tierName}
         />
       }
+      bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} />}
     >
       {children}
       {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s
