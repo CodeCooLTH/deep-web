@@ -78,6 +78,7 @@ export default function OrderStatusRow({ counts }: { counts: StatusCounts }) {
                 >
                   <Icon icon={icon} className="size-5" />
                   {/* badge แสดงเฉพาะเมื่อ count > 0 */}
+                  {/* arbitrary: badge 18px — size-4(16px) เล็กเกินรับ 2 หลัก, size-5(20px) ใหญ่เกิน balance บน icon-circle */}
                   {badge && (
                     <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1.5 bg-danger text-white text-xs font-bold rounded-full flex items-center justify-center leading-none tabular-nums">
                       {badge}

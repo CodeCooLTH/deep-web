@@ -247,7 +247,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           </button>
           {/* label ใต้ปุ่ม — margin-top ชดเชย absolute button ที่ยกขึ้น */}
           <span
-            className="text-xs font-medium text-default-400"
+            className="text-xs font-medium text-default-500"
             style={{ marginTop: '34px' }}
           >
             สร้าง
