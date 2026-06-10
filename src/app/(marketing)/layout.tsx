@@ -1,6 +1,7 @@
 // Next Imports
 import type { Metadata } from 'next'
 import { Anuphan } from 'next/font/google'
+import Script from 'next/script'
 
 // Vercel Imports
 import { Analytics } from '@vercel/analytics/next'
@@ -27,6 +28,9 @@ import { getMode, getSettingsFromCookie, getSystemMode } from '@core/utils/serve
 import ToastMount from '@/components/ToastMount'
 
 import './marketing.css'
+
+// Google Analytics 4 measurement ID
+const GA_MEASUREMENT_ID = 'G-TB854DJZX4'
 
 const anuphan = Anuphan({
   subsets: ['thai', 'latin'],
@@ -64,6 +68,16 @@ export default async function MarketingRootLayout({ children }: ChildrenType) {
         </NextAuthProvider>
         <Analytics />
         <SpeedInsights />
+        {/* Google Analytics (gtag.js) — โหลดหลัง interactive เพื่อไม่บล็อก render */}
+        <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
       </body>
     </html>
   )
