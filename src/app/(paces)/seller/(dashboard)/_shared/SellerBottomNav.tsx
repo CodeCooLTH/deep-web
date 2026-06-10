@@ -73,7 +73,7 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
       aria-label={label}
       className="inline-flex items-center gap-2 bg-white rounded-full shadow-md px-4 h-11 text-[13px] font-semibold text-[rgba(47,43,61,0.87)] hover:bg-gray-50 transition-colors"
     >
-      <Icon icon={icon} className="text-[#7367F0] text-lg" />
+      <Icon icon={icon} className="text-primary text-lg" />
       {label}
     </Link>
   )
@@ -168,7 +168,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           href="/dashboard"
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/dashboard', true)
-              ? 'text-[#7367F0]'
+              ? 'text-primary'
               : 'text-[rgba(47,43,61,0.40)]'
           }`}
           aria-label="หน้าหลัก"
@@ -183,7 +183,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           href="/orders"
           className={`relative flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/orders', false)
-              ? 'text-[#7367F0]'
+              ? 'text-primary'
               : 'text-[rgba(47,43,61,0.40)]'
           }`}
           aria-label={`คำสั่งซื้อ${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
@@ -214,7 +214,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
             aria-label={open ? 'ปิดเมนูสร้าง' : 'เปิดเมนูสร้าง'}
-            className="absolute top-[-26px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] rounded-full bg-[#7367F0] text-white flex items-center justify-center border-[3px] border-white shadow-[0_8px_18px_-4px_rgba(115,103,240,0.55),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform active:scale-95"
+            className="absolute top-[-26px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform active:scale-95"
           >
             {/* icon toggle: plus (ปิด) → x (เปิด) */}
             <Icon icon={open ? 'x' : 'plus'} style={{ fontSize: '26px' }} />
@@ -233,7 +233,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           href="/products"
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/products', false)
-              ? 'text-[#7367F0]'
+              ? 'text-primary'
               : 'text-[rgba(47,43,61,0.40)]'
           }`}
           aria-label="สินค้า"
@@ -248,7 +248,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           href="/shop"
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/shop', false)
-              ? 'text-[#7367F0]'
+              ? 'text-primary'
               : 'text-[rgba(47,43,61,0.40)]'
           }`}
           aria-label="ร้านค้า"

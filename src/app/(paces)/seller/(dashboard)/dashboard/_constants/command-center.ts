@@ -63,7 +63,7 @@ export const SHORTCUT_TILES: ShortcutTile[] = [
   { label: 'ลูกค้า',       href: '/customers',    icon: 'users',          color: 'cyan'   },
   { label: 'ตั้งค่าร้าน',  href: '/shop',         icon: 'building-store', color: 'gray'   },
   { label: 'ความสำเร็จ',   href: '/badges',       icon: 'trophy',         color: 'amber'  },
-  { label: 'การยืนยัน',    href: '/verification', icon: 'shield-check',   color: 'violet' },
+  { label: 'การยืนยัน',    href: '/verification', icon: 'shield-check',   color: 'primary' },
 ]
 
 /**

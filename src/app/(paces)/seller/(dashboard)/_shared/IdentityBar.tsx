@@ -10,7 +10,7 @@
  * v7 (U-A):
  * - avatar ขยาย 36→44px (w-11 h-11) เพื่อ touch target และ visual weight ที่ดีขึ้น
  * - trust progress bar ใต้ tier name — สัญญาณ trust ที่มองเห็นได้ทันที;
- *   width = trustScore% (0→100); สี #7367F0 (Confident Violet) + track muted ตาม DESIGN.md
+ *   width = trustScore% (0→100); สี primary (Paces theme token) + track muted
  *   trustScore=0 → bar width 0% แสดง track เปล่า (ไม่ซ่อน element)
  *
  * Base: theme/paces/Admin/TS/src/layouts/components/TopBar/components/MenuToggler.tsx
@@ -57,7 +57,7 @@ const IdentityBar = ({ shopName, avatarUrl, tierName, trustScore }: Props) => {
           />
         ) : (
           <div
-            className="w-11 h-11 rounded-full bg-[rgba(115,103,240,0.12)] inline-flex items-center justify-center text-[#7367F0] font-bold text-[14px] shrink-0"
+            className="w-11 h-11 rounded-full bg-primary/10 inline-flex items-center justify-center text-primary font-bold text-[14px] shrink-0"
             style={{ boxShadow: '0 0 0 2px #fff,0 1px 3px rgba(47,43,61,0.18)' }}
             aria-hidden="true"
           >
@@ -77,9 +77,9 @@ const IdentityBar = ({ shopName, avatarUrl, tierName, trustScore }: Props) => {
             <Icon icon="rosette-discount-check-filled" className="text-[14px] shrink-0 text-[#28C76F]" />
             <span className="truncate">{tierName}</span>
           </p>
-          {/* trust progress bar — สัญญาณ trust ใต้ tier name; width = trustScore% (0→100); token #7367F0 ตาม DESIGN.md */}
+          {/* trust progress bar — สัญญาณ trust ใต้ tier name; width = trustScore% (0→100); สี primary (Paces theme) */}
           <div className="h-1 rounded-full bg-[rgba(47,43,61,0.08)] overflow-hidden mt-1">
-            <div className="h-full rounded-full bg-[#7367F0]" style={{ width: `${trustScore}%` }} />
+            <div className="h-full rounded-full bg-primary" style={{ width: `${trustScore}%` }} />
           </div>
         </div>
 

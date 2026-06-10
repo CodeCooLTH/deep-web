@@ -14,7 +14,7 @@
  *   - card: rounded-[14px] + shadow-[0_2px_8px_rgba(47,43,61,0.07)] + p-3.5
  *   - node: w-7 h-7 (28px) + shadow-[0_0_0_3px_#fff] (ring-3 white via box-shadow)
  *   - tint: arbitrary rgba ตาม mockup command-center-v6 — ไม่ใช้ Tailwind color name
- *     เพื่อให้ตรง brand palette (#FF9F43 amber / #28C76F green / #00BAD1 cyan / #7367F0 violet)
+ *     semantic (#FF9F43 amber / #28C76F green / #00BAD1 cyan) + primary (Paces token) สำหรับ ORDER_CREATED
  *   - timeline line: bg-[rgba(47,43,61,0.10)]
  *   - time: text-[12px] text-[rgba(47,43,61,0.55)] (S-5: 0.40→0.55 WCAG fix)
  *   - label: font-medium text-[#2F2B3D]
@@ -38,8 +38,8 @@ type ActivityStyle = {
 const ACTIVITY_STYLE: Record<ActivityItem['type'], ActivityStyle> = {
   ORDER_CREATED: {
     icon: 'plus',
-    bg: 'bg-[rgba(115,103,240,0.12)]',
-    text: 'text-[#7367F0]',
+    bg: 'bg-primary/10',
+    text: 'text-primary',
   },
   ORDER_CONFIRMED: {
     icon: 'user-check',
@@ -76,7 +76,7 @@ const RecentActivityFeed = ({ items }: Props) => {
       {/* v6.1: ลบ px-4 ซ้อน (main มี padding-inline 1rem แล้ว → เดิม 32px เยื้องกว่าการ์ดอื่น) */}
       <div className="flex items-center justify-between px-[2px] mb-2">
         <span className="text-[13px] font-semibold text-[rgba(47,43,61,0.70)]">กิจกรรมล่าสุด</span>
-        <Link href="/orders" className="text-[12.5px] font-medium text-[#7367F0] inline-flex items-center gap-[1px]">
+        <Link href="/orders" className="text-[12.5px] font-medium text-primary inline-flex items-center gap-[1px]">
           ดูทั้งหมด <Icon icon="chevron-right" className="text-[15px]" />
         </Link>
       </div>
@@ -88,8 +88,8 @@ const RecentActivityFeed = ({ items }: Props) => {
           // S-6: empty state onboarding — แทน text เปล่าด้วย block ที่ guide ให้ seller สร้างออเดอร์แรก
           // ทำไม: "ยังไม่มีกิจกรรม" ไม่บอก seller ว่าต้องทำอะไร → เพิ่ม CTA ลด onboarding friction (spec v7 §4 Section B)
           <div className="flex flex-col items-center justify-center gap-3 py-8 px-4">
-            {/* icon จาง — opacity-40 บน wrapper ให้สี #7367F0 ส่อง neutral ทำให้อ่านได้โดยไม่ดึงความสนใจมาก */}
-            <span className="opacity-40 text-[#7367F0]">
+            {/* icon จาง — opacity-40 บน wrapper ให้สี primary ส่อง neutral ทำให้อ่านได้โดยไม่ดึงความสนใจมาก */}
+            <span className="opacity-40 text-primary">
               <Icon icon="shopping-cart-plus" className="text-[32px]" />
             </span>
             <div className="text-center space-y-1">
@@ -99,7 +99,7 @@ const RecentActivityFeed = ({ items }: Props) => {
             {/* CTA ใช้ Tailwind explicit แทน btn btn-sm — เพราะ btn-sm ให้ py-1.25 (~26px) ไม่ถึง 44px touch target ที่ NF-4 กำหนด */}
             <Link
               href="/orders/new"
-              className="inline-flex items-center justify-center h-11 px-5 rounded-[10px] bg-[#7367F0] text-white text-[13px] font-semibold active:scale-95 transition-transform"
+              className="inline-flex items-center justify-center h-11 px-5 rounded-[10px] bg-primary text-white text-[13px] font-semibold active:scale-95 transition-transform"
             >
               สร้างออเดอร์
             </Link>
@@ -131,7 +131,7 @@ const RecentActivityFeed = ({ items }: Props) => {
                   {/* label — wrap <Link> เมื่อมี href (ทำให้ item clickable) */}
                   {item.href ? (
                     <Link href={item.href}>
-                      <p className="text-[13.5px] font-medium text-[#2F2B3D] leading-snug hover:text-[#7367F0] transition-colors">
+                      <p className="text-[13.5px] font-medium text-[#2F2B3D] leading-snug hover:text-primary transition-colors">
                         {item.label}
                       </p>
                     </Link>

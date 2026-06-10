@@ -38,7 +38,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
         <span className="text-[13px] font-semibold text-[rgba(47,43,61,0.70)]">สถานะคำสั่งซื้อ</span>
         <Link
           href="/orders"
-          className="text-[12.5px] font-medium text-[#7367F0] inline-flex items-center gap-[1px]"
+          className="text-[12.5px] font-medium text-primary inline-flex items-center gap-[1px]"
         >
           จัดการ
           <Icon icon="chevron-right" className="text-[15px]" />
@@ -50,11 +50,11 @@ export default function OrderStatusTimeline({ counts }: Props) {
 
         {/* CTA block — violet solid, actionable ─────────────────────────────── */}
         {/* ทำไม: seller เห็นทันทีว่าต้องทำอะไรก่อน (mockup v6 ORDER STATUS §1) */}
-        {/* v6.2 (skill polish): primary CTA depth — เงาม่วง primary + inner highlight ขาว + press feedback
-            (DESIGN.md primary-sm shadow; ม่วงทึบไม่ใช่ gradient) */}
+        {/* v7 (Paces theme): primary CTA depth — bg-primary (Paces blue) + ink shadow + inner highlight ขาว + press feedback
+            (ใช้ Paces token ไม่ใช่ม่วง Vuexy hardcode) */}
         <Link
           href="/orders"
-          className="flex items-center gap-3 bg-[#7367F0] rounded-[11px] px-3.5 py-2 shadow-[0_6px_16px_-4px_rgba(115,103,240,0.45),inset_0_1px_0_rgba(255,255,255,0.18)] active:scale-[0.99] transition-transform"
+          className="flex items-center gap-3 bg-primary rounded-[11px] px-3.5 py-2 shadow-[0_6px_16px_-4px_rgba(47,43,61,0.30),inset_0_1px_0_rgba(255,255,255,0.18)] active:scale-[0.99] transition-transform"
         >
           {/* icon chip ขาวบนพื้น violet */}
           <span className="inline-flex shrink-0 w-[38px] h-[38px] rounded-[10px] bg-white/[0.18] items-center justify-center">

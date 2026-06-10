@@ -27,14 +27,14 @@ const COLOR_BOX: Record<string, string> = {
   amber:  'bg-[rgba(255,159,67,0.14)]',
   green:  'bg-[rgba(40,199,111,0.14)]',
   cyan:   'bg-[rgba(0,186,209,0.13)]',
-  violet: 'bg-[rgba(115,103,240,0.12)]',
+  primary: 'bg-primary/10',
   gray:   'bg-[#F2F1F6]',
 }
 const COLOR_ICON: Record<string, string> = {
   amber:  'text-[#FF9F43]',
   green:  'text-[#28C76F]',
   cyan:   'text-[#00BAD1]',
-  violet: 'text-[#7367F0]',
+  primary: 'text-primary',
   gray:   'text-[rgba(47,43,61,0.60)]',
 }
 
