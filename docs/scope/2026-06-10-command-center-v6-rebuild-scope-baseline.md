@@ -2,7 +2,7 @@
 
 > `safepay-product` เป็นคนออก/ดูแล; Controller เป็นคน commit + เปลี่ยนสถานะตามที่ product สั่ง.
 
-สถานะ: ACTIVE
+สถานะ: SIGNED-OFF (2026-06-10 — safepay-product Gate 2, QA 20/20, ไม่มี GAP/CREEP)
 branch: feat/seller-mobile-responsive
 อ้างอิง PRD: B-5 (mobile-first), S-3 (สร้าง order ง่าย), S-4 (เห็นสถานะทุก order)
 Visual SoT: docs/mockups/home/command-center-v6.html (APPROVED 2026-06-10)
@@ -129,3 +129,4 @@ rebuild หน้า Seller Mobile Command Center (`/dashboard` ฝั่ง `lg
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-06-10 | baseline สร้าง | Gate 0 — phase command-center-v6-rebuild เริ่มต้น | - |
+| 2026-06-10 | SIGNED-OFF | Gate 2 — S-1…S-10 ผ่านครบ, QA 20/20, reviewer APPROVE 2 batch, ไม่มี GAP/CREEP/OOS | safepay-product |
