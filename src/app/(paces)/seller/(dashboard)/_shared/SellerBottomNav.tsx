@@ -178,7 +178,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/dashboard', true)
               ? 'text-primary'
-              : 'text-default-400'
+              : 'text-default-500'
           }`}
           aria-label="หน้าหลัก"
           aria-current={isActive('/dashboard', true) ? 'page' : undefined}
@@ -193,7 +193,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`relative flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/orders', false)
               ? 'text-primary'
-              : 'text-default-400'
+              : 'text-default-500'
           }`}
           aria-label={`คำสั่งซื้อ${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
           aria-current={isActive('/orders', false) ? 'page' : undefined}
@@ -260,7 +260,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/products', false)
               ? 'text-primary'
-              : 'text-default-400'
+              : 'text-default-500'
           }`}
           aria-label="สินค้า"
           aria-current={isActive('/products', false) ? 'page' : undefined}
@@ -275,7 +275,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/shop', false)
               ? 'text-primary'
-              : 'text-default-400'
+              : 'text-default-500'
           }`}
           aria-label="ร้านค้า"
           aria-current={isActive('/shop', false) ? 'page' : undefined}

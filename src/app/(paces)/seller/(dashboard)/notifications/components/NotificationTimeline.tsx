@@ -33,7 +33,7 @@ const BADGE_COLOR_MAP: Record<NotiColor, string> = {
   success: 'bg-success/15 text-success',
   info:    'bg-info/15 text-info',
   warning: 'bg-warning/15 text-warning',
-  default: 'bg-default-100 border border-default-300 text-default-400',
+  default: 'bg-default-100 border border-default-300 text-default-500',
 }
 
 // ── แปล daysAgo → ป้ายหัวกลุ่ม ──
@@ -136,7 +136,7 @@ export default function NotificationTimeline({ notifications }: Props) {
       {/* ── Timeline body ── */}
       <div className="space-y-5 p-4">
         {groups.length === 0 && (
-          <p className="text-sm text-default-400 py-6 text-center">ไม่มีการแจ้งเตือน</p>
+          <p className="text-sm text-default-500 py-6 text-center">ไม่มีการแจ้งเตือน</p>
         )}
 
         {groups.map(([daysAgo, items]) => (
