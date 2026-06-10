@@ -108,9 +108,23 @@ html[data-skin="orbit"] {
   .seller-mobile-shell { margin-inline: 0 !important; }
   /* side padding 16→8px ให้เต็มขึ้น (การ์ดชิดขอบแบบ app) */
   .seller-mobile-shell .page-content main { padding-inline: 0.5rem !important; }
-  /* card แน่นแบบ mobile: padding 20→14px, ตัด header divider เส้นประ desktop ออก */
+  /* card แน่นแบบ mobile: padding 16px, ตัด header divider เส้นประ desktop ออก */
   .seller-mobile-shell .card > .card-body,
-  .seller-mobile-shell .card > .card-header { padding: 0.875rem !important; }
+  .seller-mobile-shell .card > .card-header { padding: 1rem !important; }
   .seller-mobile-shell .card > .card-header { padding-bottom: 0 !important; border-bottom: 0 !important; }
+
+  /* ─── CC-v8.1 premium-mobile craft: soft depth + rounded แทน flat border ───
+     Paces .card ดิบ = flat border (admin look). modern app 2026 = การ์ดลอยนุ่ม
+     soft shadow tinted ink + rounded ใหญ่ → ดู premium (Revolut/Wise/Cash App).
+     เก็บสี/token Paces; latitude หลุด Paces ดิบเฉพาะ command center (user เคาะ) */
+  .seller-mobile-shell .card {
+    border: 0 !important;
+    border-radius: 18px !important;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 24px -10px rgba(16, 24, 40, 0.12) !important;
+  }
+  /* card title แน่นขึ้น มี hierarchy: weight + ขนาดพอดี */
+  .seller-mobile-shell .card-title { font-size: 0.9375rem; font-weight: 600; }
+  /* พื้นหลังเย็นนวลขึ้นนิด ให้การ์ดขาวเด้ง (premium contrast) */
+  .seller-mobile-shell .page-content { background: #f3f5f9; }
 }
 

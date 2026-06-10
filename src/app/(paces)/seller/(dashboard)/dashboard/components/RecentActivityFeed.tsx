@@ -89,7 +89,7 @@ const RecentActivityFeed = ({ items }: Props) => {
             {/* NF-4: min-height 44px → h-11 = 44px ผ่าน touch target */}
             <Link
               href="/orders/new"
-              className="btn btn-primary btn-sm h-11 px-5 flex items-center justify-center"
+              className="bg-primary text-white text-sm font-semibold h-11 px-5 rounded-xl inline-flex items-center justify-center active:scale-95 transition-transform"
             >
               สร้างออเดอร์
             </Link>

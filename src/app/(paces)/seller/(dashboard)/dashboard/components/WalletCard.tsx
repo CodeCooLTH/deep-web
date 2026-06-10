@@ -1,5 +1,6 @@
+// WalletCard — เครดิตคงเหลือ (premium money treatment: balance เป็น hero number)
 // Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
-// RSC — ไม่มี "use client", ไม่มี modal; แค่ link ไป /wallet
+// CC-v8.1: ยกตัวเลขเงินเป็น hero (text-2xl bold) ตาม modern fintech app (Revolut/Wise)
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 
@@ -10,28 +11,30 @@ type WalletCardProps = {
 const WalletCard = ({ balance }: WalletCardProps) => {
   return (
     <div className="card">
-      <div className="card-body flex items-center gap-3">
-        {/* icon chip — success tint ตาม mockup command-center-v8 frame 1 (.wallet .wic) */}
-        <span className="size-11 rounded-lg bg-success/15 text-success flex items-center justify-center flex-shrink-0">
-          <Icon icon="wallet" className="size-5.5" />
-        </span>
-
-        {/* ข้อมูล balance */}
-        <div className="min-w-0">
-          <p className="text-default-500 text-xs">เครดิตคงเหลือ</p>
-          {/* tabular-nums — ตัวเลขไม่กระโดดเวลา balance เปลี่ยน */}
-          <p className="text-default-900 text-lg font-bold tabular-nums">
-            ฿{balance.toLocaleString('th-TH')}
-          </p>
+      <div className="card-body">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* icon chip — success tint นุ่ม rounded ใหญ่ (premium) */}
+            <span className="size-12 rounded-2xl bg-success/10 text-success flex items-center justify-center flex-shrink-0">
+              <Icon icon="wallet" className="text-2xl" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-default-500 text-xs font-medium">เครดิตคงเหลือ</p>
+              {/* hero number — text-2xl bold tabular-nums (เน้น value ตาม peak-end rule) */}
+              <p className="text-default-900 text-2xl font-bold tabular-nums leading-tight">
+                ฿{balance.toLocaleString('th-TH')}
+              </p>
+            </div>
+          </div>
+          {/* ปุ่มเติมเงิน — explicit bg-primary (Paces .btn-primary ไม่ render filled ใน build นี้)
+              rounded-xl + h-11 (touch 44px) + press feedback */}
+          <Link
+            href="/wallet"
+            className="bg-primary text-white text-sm font-semibold h-11 px-5 rounded-xl inline-flex items-center justify-center whitespace-nowrap flex-shrink-0 active:scale-95 transition-transform"
+          >
+            เติมเงิน
+          </Link>
         </div>
-
-        {/* ปุ่มเติมเงิน — btn-sm + h-11 เพราะ Paces btn-sm สูงแค่ ~26px ต่ำกว่า touch target 44px (NF-4) */}
-        <Link
-          href="/wallet"
-          className="btn btn-primary btn-sm h-11 ms-auto whitespace-nowrap"
-        >
-          เติมเงิน
-        </Link>
       </div>
     </div>
   )
