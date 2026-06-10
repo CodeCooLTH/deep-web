@@ -1,13 +1,13 @@
 /**
  * OrderStatusTimeline — RSC
- * S-11 (v4 polish): highlight bar "รอดำเนินการ" + grid-3 สถานะที่เหลือ
+ * S-11 (v6 polish): violet CTA "รอคุณดำเนินการ" + 3-stat inline grid
  *
- * ทำไม: seller เห็น action ที่รอทำก่อนทันที (PENDING เด่น, actionable)
- *       3 สถานะที่เหลือย่อเป็นแถวเล็กลดน้ำหนักสายตา
+ * ทำไม: violet CTA โดดเด่นกว่า blue-50 bar เดิม (v4) — actionable ชัดขึ้น;
+ *       3-stat ใต้ CTA ย่อเป็น icon+count (ไม่มี chip กลม) เบากว่าเดิม
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/ShippingActivity.tsx
- * — adapt (v4): vertical timeline → highlight bar + grid-3; ตัด time/desc;
- *   node → circle chip + icon; เพิ่ม section header + link; highlight PENDING bar บนสุด
+ * — adapt (v6): vertical timeline → violet CTA block + grid-3 inline stat;
+ *   ตัด time/desc; node → icon-only; เพิ่ม section header + sec-link violet
  *
  * ⚠️ literal Tailwind class เต็มทุก node — กัน Tailwind v4 purge dynamic string
  */
@@ -29,96 +29,79 @@ function clamp(n: number): string {
   return n > 99 ? '99+' : String(n)
 }
 
-// ─── config: 3 สถานะที่เหลือ (ไม่รวม PENDING ที่อยู่ใน highlight bar) ──────────
-// ทำไม: literal class เต็มทุก entry กัน Tailwind v4 purge
-const SECONDARY_NODES = [
-  {
-    key: 'SHIPPED' as const,
-    icon: 'truck-delivery',
-    chipBg: 'bg-blue-50',
-    chipText: 'text-blue-600',
-    label: 'จัดส่งแล้ว',
-  },
-  {
-    key: 'CONFIRMED' as const,
-    icon: 'circle-check',
-    chipBg: 'bg-emerald-50',
-    chipText: 'text-emerald-600',
-    label: 'สำเร็จ',
-  },
-  {
-    key: 'CANCELLED' as const,
-    icon: 'circle-x',
-    chipBg: 'bg-slate-100',
-    chipText: 'text-slate-500',
-    label: 'ยกเลิก',
-  },
-] as const
-
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function OrderStatusTimeline({ counts }: Props) {
   return (
-    <section className="mb-4">
-      {/* section header — label + link "จัดการ ›" ตาม mockup v4 */}
-      <div className="flex items-center justify-between mb-[10px]">
-        <span className="text-[13.5px] font-bold text-default-500">สถานะคำสั่งซื้อ</span>
+    <section className="mb-[14px]">
+      {/* section header — label + sec-link violet ตาม mockup v6 */}
+      <div className="flex items-center justify-between mb-2 px-0.5">
+        <span className="text-[13px] font-semibold text-[rgba(47,43,61,0.70)]">สถานะคำสั่งซื้อ</span>
         <Link
           href="/orders"
-          className="text-[12.5px] font-semibold text-primary"
+          className="text-[12.5px] font-medium text-[#7367F0] inline-flex items-center gap-[1px]"
         >
-          จัดการ ›
+          จัดการ
+          <Icon icon="chevron-right" className="text-[15px]" />
         </Link>
       </div>
 
-      {/* card shell — rounded-[20px] + layered shadow ตาม card treatment v4 */}
-      <div className="bg-white rounded-[20px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_6px_16px_-8px_rgba(16,24,40,0.10)] p-4">
+      {/* card shell — rounded-[14px] + shadow v6 bg ขาว */}
+      <div className="bg-white rounded-[14px] shadow-[0_2px_8px_rgba(47,43,61,0.07)] p-3">
 
-        {/* highlight bar — PENDING actionable, blue-tint bg ────────────────── */}
-        {/* ทำไม: seller มือใหม่เห็นทันทีว่าต้องทำอะไรก่อน (mockup v4 §3 ใช้ง่าย) */}
+        {/* CTA block — violet solid, actionable ─────────────────────────────── */}
+        {/* ทำไม: seller เห็นทันทีว่าต้องทำอะไรก่อน (mockup v6 ORDER STATUS §1) */}
         <Link
           href="/orders"
-          className="flex items-center gap-3 rounded-2xl bg-blue-50 px-3.5 py-3 mb-3.5"
+          className="flex items-center gap-3 bg-[#7367F0] rounded-[11px] px-3.5 py-3"
         >
-          {/* icon chip ขาว ลอยใน bar */}
-          <span className="inline-flex w-11 h-11 rounded-xl bg-white text-blue-600 shadow-sm shrink-0 items-center justify-center">
-            <Icon icon="clock-hour-4" className="text-[24px]" />
+          {/* icon chip ขาวบนพื้น violet */}
+          <span className="inline-flex shrink-0 w-[38px] h-[38px] rounded-[10px] bg-white/[0.18] items-center justify-center">
+            <Icon icon="clock-hour-4" className="text-[21px] text-white" />
           </span>
 
           {/* text block */}
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] text-default-600 leading-tight">รอคุณดำเนินการ</p>
-            <p className="text-[20px] font-bold text-blue-600 leading-tight">
+          <span className="flex-1 min-w-0">
+            <span className="block text-[12.5px] text-white/85 leading-[1.2]">รอคุณดำเนินการ</span>
+            <span className="block text-[19px] font-bold text-white leading-[1.25]">
               {clamp(counts.PENDING)} รายการ
-            </p>
-          </div>
+            </span>
+          </span>
 
           {/* chevron actionable indicator */}
-          <Icon icon="chevron-right" className="text-[22px] text-blue-600" />
+          <Icon icon="chevron-right" className="text-[20px] text-white/90 shrink-0" />
         </Link>
 
-        {/* grid-3: 3 สถานะที่เหลือ (เล็กกว่า PENDING) ─────────────────────── */}
-        <div className="grid grid-cols-3 gap-2">
-          {SECONDARY_NODES.map((node) => (
-            <div
-              key={node.key}
-              className="flex flex-col items-center gap-1 py-1"
-            >
-              {/* circle chip — literal bg/text กัน purge */}
-              <span
-                className={`inline-flex w-9 h-9 rounded-full ${node.chipBg} ${node.chipText} items-center justify-center`}
-              >
-                <Icon icon={node.icon} className="text-[19px]" />
-              </span>
+        {/* 3-stat inline grid ──────────────────────────────────────────────── */}
+        {/* ทำไม: 3 สถานะที่เหลือย่อเป็นแถวเบา ลดน้ำหนักสายตา (mockup v6 §2) */}
+        <div className="grid grid-cols-3 mt-3">
 
-              {/* count — 0 แสดง "0"; clamp "99+" กัน 3 หลัก */}
-              <span className="text-[17px] font-bold leading-none">
-                {clamp(counts[node.key])}
-              </span>
+          {/* จัดส่งแล้ว — SHIPPED, icon สี cyan */}
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="flex items-center gap-1.5">
+              <Icon icon="truck-delivery" className="text-[16px] text-[#00BAD1]" />
+              <span className="text-[18px] font-bold">{clamp(counts.SHIPPED)}</span>
+            </span>
+            <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">จัดส่งแล้ว</span>
+          </div>
 
-              {/* label */}
-              <span className="text-[11px] text-default-500">{node.label}</span>
-            </div>
-          ))}
+          {/* สำเร็จ — CONFIRMED, icon สี green; ตัวกลางมี border-l/r */}
+          <div className="flex flex-col items-center gap-0.5 border-l border-r border-[rgba(47,43,61,0.10)]">
+            <span className="flex items-center gap-1.5">
+              <Icon icon="circle-check" className="text-[16px] text-[#28C76F]" />
+              <span className="text-[18px] font-bold">{clamp(counts.CONFIRMED)}</span>
+            </span>
+            <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">สำเร็จ</span>
+          </div>
+
+          {/* ยกเลิก — CANCELLED, icon สี ink-40, ตัวเลข ink-70 */}
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="flex items-center gap-1.5">
+              <Icon icon="circle-x" className="text-[16px] text-[rgba(47,43,61,0.40)]" />
+              <span className="text-[18px] font-bold text-[rgba(47,43,61,0.70)]">{clamp(counts.CANCELLED)}</span>
+            </span>
+            <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">ยกเลิก</span>
+          </div>
+
         </div>
       </div>
     </section>
