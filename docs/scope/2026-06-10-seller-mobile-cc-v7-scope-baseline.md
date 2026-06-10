@@ -22,7 +22,7 @@ Redesign UI ของ seller mobile command center (viewport `lg:hidden`, หน
 | S-7 | **ShortcutPanel: tile set ใหม่ 6 tiles** | `command-center.ts` (edit ไฟล์ที่มีอยู่) มี SHORTCUT_TILES ครบ 6: รีวิว/เติมเงิน/ลูกค้า/ตั้งค่าร้าน/ความสำเร็จ/การยืนยัน พร้อม href, icon, color (`amber|green|cyan|violet|gray`); ไม่มี tile คำสั่งซื้อ/สินค้า/Blacklist | TODO |
 | S-8 | **ShortcutPanel: color class literal 5-way + tile size** | tile-box `w-[50px] h-[50px]`, icon `text-[24px]`; color mapping literal class (ไม่ template-concat): amber=`bg-[rgba(255,159,67,0.14)] text-[#FF9F43]`, green=`bg-[rgba(40,199,111,0.14)] text-[#28C76F]`, cyan=`bg-[rgba(0,186,209,0.13)] text-[#00BAD1]`, violet=`bg-[rgba(115,103,240,0.12)] text-[#7367F0]`, gray=`bg-[#F2F1F6] text-[rgba(47,43,61,0.60)]`; ทุก token ใน DESIGN.md | TODO |
 | S-9 | **ShortcutPanel: grid layout 4+2** | แถว 1 `grid-cols-4` (tile 0-3); แถว 2 `grid-cols-2 max-w-[200px] mx-auto` centered (tile 4-5); render ถูกต้องบน 360px | TODO |
-| S-10 | **CommandCenter: reorder section + wrapper padding** | ลำดับ render `OrderStatusTimeline → RecentActivityFeed → ShortcutPanel`; wrapper มี `px-4 pb-28` | TODO |
+| S-10 | **CommandCenter: reorder section** | ลำดับ render `OrderStatusTimeline → RecentActivityFeed → ShortcutPanel`. ~~wrapper px-4 pb-28~~ **แก้ไข:** wrapper คง `lg:hidden relative` ไม่ใส่ px/pb — `.seller-mobile-shell main` มี `padding-inline:1rem` + `padding-bottom:5rem` ครอบแล้ว (safepay-overrides.css L98/L101) | TODO |
 
 ## Out-of-Scope
 
@@ -69,3 +69,4 @@ Redesign UI ของ seller mobile command center (viewport `lg:hidden`, หน
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-06-10 | baseline สร้าง (แก้ A-2/A-7: command-center.ts มีอยู่จริง) | Gate 0 — phase เริ่ม | Controller |
+| 2026-06-10 | S-10 ตัด `px-4 pb-28` ออก (เก็บแค่ section reorder) | verify พบ `.seller-mobile-shell main` มี padding-inline:1rem + padding-bottom:5rem แล้ว (css L98/L101) — spec ตั้งบนสมมุติฐานผิด, ใส่ซ้ำ = เยื้อง/ห่างเกิน | Controller (U-E dev flag) |

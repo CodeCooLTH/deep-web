@@ -10,8 +10,8 @@
  *        (center raised button + speed-dial) แล้ว; MiniBanner ไม่มีใน v6 design (PROMO_BANNER = null)
  *        pb-28 ลบออก — padding-bottom ครอบโดย global CSS (T1) แล้ว
  *
- * Section order ตาม v6 mockup (command-center-v6.html):
- *   OrderStatusTimeline → ShortcutPanel → RecentActivityFeed
+ * Section order ตาม v7 spec (§4 Section D):
+ *   OrderStatusTimeline → RecentActivityFeed → ShortcutPanel
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
@@ -25,16 +25,18 @@ type Props = {
 }
 
 export default function CommandCenter({ data }: Props) {
+  // wrapper ไม่ใส่ px/pb — .seller-mobile-shell main มี padding-inline:1rem + padding-bottom:5rem
+  // ครอบอยู่แล้ว (safepay-overrides.css L98/L101); ใส่ซ้ำจะเยื้อง 32px + ล่างห่างเกิน
   return (
     <div className="lg:hidden relative">
-      {/* ORDER STATUS — 4-node timeline (v6 section ที่ 1) */}
+      {/* ORDER STATUS — 4-node timeline (v7 section ที่ 1) */}
       <OrderStatusTimeline counts={data.orderStatusCounts} />
 
-      {/* SHORTCUT — 6-tile grid 3×2 (v6 section ที่ 2; badge ย้ายไป bottom nav แล้ว) */}
-      <ShortcutPanel />
-
-      {/* RECENT ACTIVITY — vertical timeline feed (v6 section ที่ 3) */}
+      {/* RECENT ACTIVITY — vertical timeline feed (v7 section ที่ 2; เลื่อนขึ้นก่อน shortcut ตาม mental model) */}
       <RecentActivityFeed items={data.recentActivity} />
+
+      {/* SHORTCUT — 6-tile grid 4+2 (v7 section ที่ 3; เลื่อนลงหลัง activity) */}
+      <ShortcutPanel />
     </div>
   )
 }
