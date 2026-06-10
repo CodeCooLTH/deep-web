@@ -56,21 +56,20 @@ const SellerMobileHeader = ({ shopName, avatarUrl, tierName }: Props) => {
   }
 
   return (
-    /* sticky top + gradient fade ด้านล่าง (78%→transparent) — match IdentityBar เป๊ะ */
+    /* sticky top + gradient fade ด้านล่าง (80%→transparent) — v6: bg mist #F8F7FA
+       ลบ card wrapper เดิม (bg-white rounded-[20px] shadow) → flat บนพื้น mist เหมือน IdentityBar */
     <header
-      className="sticky top-0 z-20 px-4 pt-4 pb-3"
-      style={{ background: 'linear-gradient(180deg,#eef1f6 78%,rgba(238,241,246,0))' }}
+      className="sticky top-0 z-20"
+      style={{ background: 'linear-gradient(180deg,#F8F7FA 80%,rgba(248,247,250,0))' }}
       role="banner"
     >
-      {/* card: rounded-[20px] + layered shadow ลอยเบา — เหมือน IdentityBar */}
-      <div
-        className="bg-white rounded-[20px] flex items-center gap-3 px-3.5 py-2.5"
-        style={{ boxShadow: '0 1px 2px rgba(16,24,40,0.04),0 6px 16px -8px rgba(16,24,40,0.10)' }}
-      >
+      {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
+      <div className="flex items-center gap-3 px-4 pt-3.5 pb-2.5">
         {/* Back button ซ้าย — w-11 h-11 = 44px touch target */}
         <button
           type="button"
-          className="w-11 h-11 rounded-xl text-[#374151] hover:bg-gray-50 inline-flex items-center justify-center shrink-0"
+          className="w-11 h-11 rounded-[11px] inline-flex items-center justify-center shrink-0"
+          style={{ color: 'rgba(47,43,61,.70)' }}
           aria-label="ย้อนกลับ"
           onClick={handleBack}
         >
@@ -79,19 +78,23 @@ const SellerMobileHeader = ({ shopName, avatarUrl, tierName }: Props) => {
         </button>
 
         {/* Page title กลาง — flex-1 truncate ป้องกันล้น; text-center ให้สม่ำเสมอ */}
-        <p className="flex-1 min-w-0 text-center text-[15px] font-bold text-[#111827] truncate">
+        <p className="flex-1 min-w-0 text-center text-[15px] font-semibold text-[#2F2B3D] truncate">
           {pageTitle}
         </p>
 
-        {/* Bell ขวา — คงสไตล์เดียวกับ IdentityBar (dot แดง + ring-2 ring-white) */}
+        {/* Bell ขวา — w-11 h-11=44px touch target; dot แดง ring mist สอดคล้องกับ IdentityBar */}
         <button
           type="button"
-          className="w-11 h-11 rounded-xl text-[#374151] hover:bg-gray-50 relative inline-flex items-center justify-center shrink-0"
+          className="w-11 h-11 rounded-[11px] relative inline-flex items-center justify-center shrink-0"
+          style={{ color: 'rgba(47,43,61,.70)' }}
           aria-label="การแจ้งเตือน"
         >
-          <Icon icon="bell" className="text-[23px]" />
-          {/* dot แดงมุมขวาบน — คงที่จน Phase 2 (notification count จริง) */}
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+          <Icon icon="bell" className="text-[22px]" />
+          {/* dot แดง #FF4C51 มุมขวาบน — ring mist กัน dot ชนกับ icon */}
+          <span
+            className="absolute w-[7px] h-[7px] rounded-full"
+            style={{ top: '9px', right: '10px', background: '#FF4C51', boxShadow: '0 0 0 2px #F8F7FA' }}
+          />
         </button>
       </div>
     </header>

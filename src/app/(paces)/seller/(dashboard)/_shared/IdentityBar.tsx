@@ -27,61 +27,62 @@ const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
   const initial = shopName.trim().charAt(0).toUpperCase() || '?'
 
   return (
-    /* sticky top + gradient fade ด้านล่าง (78%→transparent) — เหมือน CommandTopBar
-       bg = #eef1f6 (Paces app bg token --bg) */
+    /* sticky top + gradient fade ด้านล่าง (80%→transparent) — v6: bg mist #F8F7FA
+       ลบ card wrapper เดิม (bg-white rounded-[20px] shadow) → flat บนพื้น mist */
     <header
-      className="sticky top-0 z-20 px-4 pt-4 pb-3"
-      style={{ background: 'linear-gradient(180deg,#eef1f6 78%,rgba(238,241,246,0))' }}
+      className="sticky top-0 z-20"
+      style={{ background: 'linear-gradient(180deg,#F8F7FA 80%,rgba(248,247,250,0))' }}
       role="banner"
     >
-      {/* card: rounded-[20px] + layered shadow ลอยเบา ตาม design spec v4 */}
-      <div
-        className="bg-white rounded-[20px] flex items-center gap-3 px-3.5 py-2.5"
-        style={{ boxShadow: '0 1px 2px rgba(16,24,40,0.04),0 6px 16px -8px rgba(16,24,40,0.10)' }}
-      >
-        {/* Identity: avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier chip */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {/* Avatar — กลม ring-2 ring-white shadow-sm; null → initial fallback */}
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              className="w-9 h-9 rounded-full object-cover ring-2 ring-white shadow-sm shrink-0"
-              alt=""
-              aria-hidden="true"
-            />
-          ) : (
-            <div
-              className="w-9 h-9 rounded-full bg-gray-200 inline-flex items-center justify-center text-gray-600 font-bold text-[14px] ring-2 ring-white shadow-sm shrink-0"
-              aria-hidden="true"
-            >
-              {initial}
-            </div>
-          )}
-
-          {/* ข้อความ 2 บรรทัด: ชื่อร้าน + tier chip */}
-          <div className="min-w-0">
-            {/* บรรทัด 1: ชื่อร้าน bold truncate */}
-            <p className="text-[14.5px] font-bold text-[#111827] truncate leading-tight">
-              {shopName}
-            </p>
-            {/* บรรทัด 2: tier chip — icon check เขียว + Deep tier name เทา */}
-            <p className="text-[11px] text-[#7b8597] leading-tight flex items-center gap-1">
-              {/* icon wrapper เติม tabler: ให้อัตโนมัติ — ส่ง name ไม่มี prefix */}
-              <Icon icon="rosette-discount-check-filled" className="text-[13px] text-emerald-500 shrink-0" />
-              <span className="truncate">{tierName}</span>
-            </p>
+      {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
+      <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2.5">
+        {/* Identity: avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier */}
+        {/* Avatar — กลม w-9 h-9; ring ผ่าน boxShadow (ring+shadow รวม 1 layer); null → initial fallback */}
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            className="w-9 h-9 rounded-full object-cover shrink-0"
+            style={{ boxShadow: '0 0 0 2px #fff,0 1px 3px rgba(47,43,61,0.18)' }}
+            alt=""
+            aria-hidden="true"
+          />
+        ) : (
+          <div
+            className="w-9 h-9 rounded-full bg-gray-200 inline-flex items-center justify-center text-gray-600 font-bold text-[14px] shrink-0"
+            style={{ boxShadow: '0 0 0 2px #fff,0 1px 3px rgba(47,43,61,0.18)' }}
+            aria-hidden="true"
+          >
+            {initial}
           </div>
+        )}
+
+        {/* ข้อความ 2 บรรทัด: ชื่อร้าน + tier */}
+        <div className="min-w-0 flex-1">
+          {/* บรรทัด 1: ชื่อร้าน semibold truncate ink เข้ม */}
+          <p className="text-[14.5px] font-semibold text-[#2F2B3D] truncate leading-tight">
+            {shopName}
+          </p>
+          {/* บรรทัด 2: icon check เขียว #28C76F + Deep tier name ink-55 */}
+          <p className="text-[11.5px] leading-tight flex items-center gap-1" style={{ color: 'rgba(47,43,61,.55)' }}>
+            {/* icon wrapper เติม tabler: ให้อัตโนมัติ — ส่ง name ไม่มี prefix */}
+            <Icon icon="rosette-discount-check-filled" className="text-[14px] shrink-0 text-[#28C76F]" />
+            <span className="truncate">{tierName}</span>
+          </p>
         </div>
 
-        {/* Bell ขวา — dot แดงแทนตัวเลข (Phase 2 = notification count จริง) */}
+        {/* Bell ขวา — w-11 h-11=44px touch target; dot แดง ring mist (ไม่ใช่ ring-white เพราะ bg เป็น mist) */}
         <button
           type="button"
-          className="w-11 h-11 rounded-xl text-[#374151] hover:bg-gray-50 relative inline-flex items-center justify-center shrink-0"
+          className="w-11 h-11 rounded-[11px] relative inline-flex items-center justify-center shrink-0"
+          style={{ color: 'rgba(47,43,61,.70)' }}
           aria-label="การแจ้งเตือน"
         >
-          <Icon icon="bell" className="text-[23px]" />
-          {/* dot แดงมุมขวาบน — ring-2 ring-white ให้ดูลอยชัด; คงที่จน Phase 2 */}
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+          <Icon icon="bell" className="text-[22px]" />
+          {/* dot แดง #FF4C51 มุมขวาบน — ring mist กัน dot ชนกับ icon */}
+          <span
+            className="absolute w-[7px] h-[7px] rounded-full"
+            style={{ top: '9px', right: '10px', background: '#FF4C51', boxShadow: '0 0 0 2px #F8F7FA' }}
+          />
         </button>
       </div>
     </header>
