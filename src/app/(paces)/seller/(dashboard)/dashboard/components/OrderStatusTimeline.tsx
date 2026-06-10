@@ -73,35 +73,40 @@ export default function OrderStatusTimeline({ counts }: Props) {
           <Icon icon="chevron-right" className="text-[20px] text-white/90 shrink-0" />
         </Link>
 
-        {/* 3-stat inline grid ──────────────────────────────────────────────── */}
-        {/* ทำไม: 3 สถานะที่เหลือย่อเป็นแถวเบา ลดน้ำหนักสายตา (mockup v6 §2) */}
-        <div className="grid grid-cols-3 mt-2">
+        {/* 3-stat stacked grid ─────────────────────────────────────────────── */}
+        {/* ทำไม: stacked (chip บน/count/label) อ่านตัวเลขง่ายกว่า inline (v7 S-4)
+            Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersStatCard.tsx
+            — adapt: ย่อ chip จาก size-9 rounded-full → w-8 h-8 rounded-[9px], stacked layout, ตัด CountUp */}
+        <div className="grid grid-cols-3 mt-3">
 
-          {/* จัดส่งแล้ว — SHIPPED, icon สี cyan */}
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="flex items-center gap-1.5">
+          {/* จัดส่งแล้ว — SHIPPED: signal-cyan #00BAD1 */}
+          <div className="flex flex-col items-center gap-1">
+            {/* icon chip — w-8 h-8 rounded-[9px] tint 10% ตาม spec §4A */}
+            <span className="w-8 h-8 rounded-[9px] bg-[rgba(0,186,209,0.10)] flex items-center justify-center">
               <Icon icon="truck-delivery" className="text-[16px] text-[#00BAD1]" />
-              <span className="text-[18px] font-bold tabular-nums">{clamp(counts.SHIPPED)}</span>
             </span>
-            <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">จัดส่งแล้ว</span>
+            <span className="text-[17px] font-bold tabular-nums text-[#00BAD1]">{clamp(counts.SHIPPED)}</span>
+            <span className="text-[11px] text-[rgba(47,43,61,0.65)]">จัดส่งแล้ว</span>
           </div>
 
-          {/* สำเร็จ — CONFIRMED, icon สี green; ตัวกลางมี border-l/r */}
-          <div className="flex flex-col items-center gap-0.5 border-l border-r border-[rgba(47,43,61,0.10)]">
-            <span className="flex items-center gap-1.5">
+          {/* สำเร็จ — CONFIRMED: verified-green #28C76F; ตัวกลางมี border-l/r */}
+          <div className="flex flex-col items-center gap-1 border-l border-r border-[rgba(47,43,61,0.10)]">
+            {/* icon chip — tint 10% */}
+            <span className="w-8 h-8 rounded-[9px] bg-[rgba(40,199,111,0.10)] flex items-center justify-center">
               <Icon icon="circle-check" className="text-[16px] text-[#28C76F]" />
-              <span className="text-[18px] font-bold tabular-nums">{clamp(counts.CONFIRMED)}</span>
             </span>
-            <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">สำเร็จ</span>
+            <span className="text-[17px] font-bold tabular-nums text-[#28C76F]">{clamp(counts.CONFIRMED)}</span>
+            <span className="text-[11px] text-[rgba(47,43,61,0.65)]">สำเร็จ</span>
           </div>
 
-          {/* ยกเลิก — CANCELLED, icon สี ink-40, ตัวเลข ink-70 */}
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="flex items-center gap-1.5">
+          {/* ยกเลิก — CANCELLED: ink tone จาง (icon/count rgba 0.40, chip bg rgba 0.06) */}
+          <div className="flex flex-col items-center gap-1">
+            {/* icon chip — bg จางมาก */}
+            <span className="w-8 h-8 rounded-[9px] bg-[rgba(47,43,61,0.06)] flex items-center justify-center">
               <Icon icon="circle-x" className="text-[16px] text-[rgba(47,43,61,0.40)]" />
-              <span className="text-[18px] font-bold tabular-nums text-[rgba(47,43,61,0.70)]">{clamp(counts.CANCELLED)}</span>
             </span>
-            <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">ยกเลิก</span>
+            <span className="text-[17px] font-bold tabular-nums text-[rgba(47,43,61,0.40)]">{clamp(counts.CANCELLED)}</span>
+            <span className="text-[11px] text-[rgba(47,43,61,0.65)]">ยกเลิก</span>
           </div>
 
         </div>
