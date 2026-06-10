@@ -49,26 +49,19 @@ export type ShortcutTile = {
 }
 
 /**
- * SHORTCUT_TILES — 8 tile ตาม design spec S-9
- * tile#5 Blacklist = href null + disabled (Phase 2 feature — 0 codebase ใน phase นี้)
- * tile#1 คำสั่งซื้อ = showBadge true (pending count badge)
+ * SHORTCUT_TILES — 6 tile ตาม design spec v6
+ * คำสั่งซื้อ + สินค้า ย้ายไป bottom nav แล้ว → เอาออกจาก shortcut
+ * tile Blacklist = href null + disabled (Phase 2 feature)
+ * color: 'green' = เติมเงิน, 'neutral' = ที่เหลือ (T5 map ต่อ)
  * short path ไม่มี /seller prefix ตาม Paces routing convention
  */
 export const SHORTCUT_TILES: ShortcutTile[] = [
-  // กลุ่มงานหลัก (core ops) = น้ำเงิน
-  { label: 'คำสั่งซื้อ', href: '/orders',   icon: 'shopping-cart', color: 'blue',    showBadge: true  },
-  { label: 'สินค้า',     href: '/products',  icon: 'package',       color: 'blue'                     },
-  { label: 'รีวิว',      href: '/reviews',   icon: 'star',          color: 'amber'                    },
-  // กลุ่มเงิน = เขียว
-  { label: 'เติมเงิน',  href: '/wallet',    icon: 'wallet',        color: 'emerald'                  },
-  // utility = เทา (disabled)
-  { label: 'เช็ก Blacklist', href: null,    icon: 'shield-x',      color: 'slate',   disabled: true   },
-  // กลุ่ม engagement = เหลืองอำพัน
-  { label: 'ความสำเร็จ', href: '/badges',   icon: 'trophy',        color: 'amber'                    },
-  // กลุ่มงานหลัก (core ops) = น้ำเงิน
-  { label: 'ลูกค้า',    href: '/customers', icon: 'users',         color: 'blue'                     },
-  // utility = เทา
-  { label: 'ตั้งค่า',   href: '/shop',      icon: 'settings',      color: 'slate'                    },
+  { label: 'ลูกค้า',        href: '/customers', icon: 'users',    color: 'neutral' },
+  { label: 'เติมเงิน',      href: '/wallet',    icon: 'wallet',   color: 'green'   },
+  { label: 'รีวิว',         href: '/reviews',   icon: 'star',     color: 'neutral' },
+  { label: 'ความสำเร็จ',    href: '/badges',    icon: 'trophy',   color: 'neutral' },
+  { label: 'ตั้งค่า',       href: '/shop',      icon: 'settings', color: 'neutral' },
+  { label: 'เช็ก Blacklist', href: null,        icon: 'shield-x', color: 'neutral', disabled: true },
 ]
 
 /**
