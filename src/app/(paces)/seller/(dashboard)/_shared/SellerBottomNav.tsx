@@ -71,7 +71,7 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
       ref={innerRef}
       href={href}
       aria-label={label}
-      className="inline-flex items-center gap-2 bg-white rounded-full shadow-md px-4 h-11 text-[13px] font-semibold text-[rgba(47,43,61,0.87)] hover:bg-gray-50 transition-colors"
+      className="inline-flex items-center gap-2 bg-white rounded-full shadow-md px-4 h-11 text-sm font-semibold text-default-900 hover:bg-default-100 transition-colors"
     >
       <Icon icon={icon} className="text-primary text-lg" />
       {label}
@@ -160,22 +160,31 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
         z-30 สูงกว่า backdrop (z-20)
       */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 h-16 bg-white border-t border-[rgba(47,43,61,0.10)] shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)] grid grid-cols-5 items-center pb-[env(safe-area-inset-bottom)]"
+        className={[
+          'fixed bottom-0 left-0 right-0 z-30 h-16 bg-white',
+          'border-t border-default-200',
+          /* arbitrary: nav drop-shadow — Paces ไม่มี token shadow ด้านบน (shadow-md ลงล่าง) */
+          'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
+          'grid grid-cols-5 items-center',
+          /* arbitrary: safe-area iOS notch/home bar — ไม่มี token แทน */
+          'pb-[env(safe-area-inset-bottom)]',
+        ].join(' ')}
         aria-label="เมนูหลัก"
       >
         {/* ช่อง 1: หน้าหลัก */}
+        {/* arbitrary: gap-[3px] ระหว่าง icon กับ label ทุกช่อง — Tailwind ไม่มี 3px (gap-0.5=2px, gap-1=4px) */}
         <Link
           href="/dashboard"
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/dashboard', true)
               ? 'text-primary'
-              : 'text-[rgba(47,43,61,0.40)]'
+              : 'text-default-400'
           }`}
           aria-label="หน้าหลัก"
           aria-current={isActive('/dashboard', true) ? 'page' : undefined}
         >
           <Icon icon="home-2" style={{ fontSize: '23px' }} />
-          <span className="text-[10.5px] font-medium">หน้าหลัก</span>
+          <span className="text-xs font-medium">หน้าหลัก</span>
         </Link>
 
         {/* ช่อง 2: คำสั่งซื้อ + badge */}
@@ -184,18 +193,26 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`relative flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/orders', false)
               ? 'text-primary'
-              : 'text-[rgba(47,43,61,0.40)]'
+              : 'text-default-400'
           }`}
           aria-label={`คำสั่งซื้อ${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
           aria-current={isActive('/orders', false) ? 'page' : undefined}
         >
           <Icon icon="clipboard-list" style={{ fontSize: '23px' }} />
-          <span className="text-[10.5px] font-medium">คำสั่งซื้อ</span>
+          <span className="text-xs font-medium">คำสั่งซื้อ</span>
           {/* badge — แสดงเฉพาะเมื่อ pendingCount > 0 */}
           {pendingCount > 0 && (
             <span
               aria-hidden="true"
-              className="absolute top-[-2px] left-[calc(50%+8px)] min-w-[16px] h-[16px] px-1 rounded-[8px] bg-[#FF4C51] text-white text-[10px] font-bold flex items-center justify-center shadow-[0_0_0_2px_white]"
+              className={[
+                'absolute top-[-2px] left-[calc(50%+8px)]',
+                /* arbitrary: badge ตำแหน่ง offset จาก center icon — calc ไม่มี token แทน */
+                'min-w-[16px] h-[16px]',
+                /* arbitrary: badge ขนาดเล็กสุด 16px — ต่ำกว่า Tailwind w-4 (=16px) ใช้ w-4 ได้แต่ใช้ min-w เพื่อรองรับ 2 หลัก */
+                'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
+                /* arbitrary: badge ring 2px ขาว — ไม่มี Paces/Tailwind token outline white สำหรับ ring บน badge */
+                'shadow-[0_0_0_2px_white]',
+              ].join(' ')}
             >
               {badgeText}
             </span>
@@ -214,14 +231,23 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
             aria-label={open ? 'ปิดเมนูสร้าง' : 'เปิดเมนูสร้าง'}
-            className="absolute top-[-26px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform active:scale-95"
+            className={[
+              /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button */
+              'absolute top-[-26px] left-1/2 -translate-x-1/2',
+              'w-[54px] h-[54px]',
+              /* arbitrary: FAB border ring 3px ขาว — ไม่มี Paces border-width token > 2px */
+              'rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white',
+              /* arbitrary: FAB drop shadow + inset highlight — Paces shadow-* ไม่รองรับ multi-layer + inset */
+              'shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]',
+              'transition-transform active:scale-95',
+            ].join(' ')}
           >
             {/* icon toggle: plus (ปิด) → x (เปิด) */}
             <Icon icon={open ? 'x' : 'plus'} style={{ fontSize: '26px' }} />
           </button>
           {/* label ใต้ปุ่ม — margin-top ชดเชย absolute button ที่ยกขึ้น */}
           <span
-            className="text-[10.5px] font-medium text-[rgba(47,43,61,0.40)]"
+            className="text-xs font-medium text-default-400"
             style={{ marginTop: '34px' }}
           >
             สร้าง
@@ -234,13 +260,13 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/products', false)
               ? 'text-primary'
-              : 'text-[rgba(47,43,61,0.40)]'
+              : 'text-default-400'
           }`}
           aria-label="สินค้า"
           aria-current={isActive('/products', false) ? 'page' : undefined}
         >
           <Icon icon="box" style={{ fontSize: '23px' }} />
-          <span className="text-[10.5px] font-medium">สินค้า</span>
+          <span className="text-xs font-medium">สินค้า</span>
         </Link>
 
         {/* ช่อง 5: ร้านค้า */}
@@ -249,13 +275,13 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           className={`flex h-full flex-col items-center justify-center gap-[3px] ${
             isActive('/shop', false)
               ? 'text-primary'
-              : 'text-[rgba(47,43,61,0.40)]'
+              : 'text-default-400'
           }`}
           aria-label="ร้านค้า"
           aria-current={isActive('/shop', false) ? 'page' : undefined}
         >
           <Icon icon="building-store" style={{ fontSize: '23px' }} />
-          <span className="text-[10.5px] font-medium">ร้านค้า</span>
+          <span className="text-xs font-medium">ร้านค้า</span>
         </Link>
       </nav>
     </>
