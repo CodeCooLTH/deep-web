@@ -9,6 +9,8 @@
  *   shellClassName: เติม class ที่ .wrapper เพื่อให้ CSS selector scoped ผ่าน marker
  *   topbarSlot: render หลัง <TopBar /> ใน .wrapper (นอก .page-content main) + ครอบ lg:hidden
  *              SellerMobileHeader ไม่มี lg:hidden ในตัว → ครอบที่นี่แทนเพื่อไม่กระทบ desktop ≥lg
+ * - CC-v6 T1: เพิ่ม bottomNavSlot (optional) — render ท้าย .wrapper + ครอบ lg:hidden
+ *   (SellerBottomNav position:fixed; ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; admin ไม่ส่ง → ไม่กระทบ)
  */
 'use client'
 import Footer from '@/layouts/components/Footer'
@@ -24,9 +26,11 @@ type VerticalLayoutProps = {
   shellClassName?: string
   /** sticky topbar เพิ่มเติม render หลัง <TopBar /> นอก .page-content — ครอบ lg:hidden อัตโนมัติ */
   topbarSlot?: ReactNode
+  /** bottom nav (fixed) render ท้าย .wrapper — ครอบ lg:hidden อัตโนมัติ; admin ไม่ส่ง → ไม่กระทบ */
+  bottomNavSlot?: ReactNode
 }
 
-const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot }: VerticalLayoutProps) => {
+const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot, bottomNavSlot }: VerticalLayoutProps) => {
   // รวม class: "wrapper" เสมอ + shellClassName ถ้าส่งมา (admin ไม่ส่ง → ไม่เพิ่ม)
   const wrapperClass = shellClassName ? `wrapper ${shellClassName}` : 'wrapper'
 
@@ -42,6 +46,8 @@ const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot }: Ver
         </main>
         <Footer />
       </div>
+      {/* bottomNavSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
+      {bottomNavSlot && <div className="lg:hidden">{bottomNavSlot}</div>}
     </div>
   )
 }

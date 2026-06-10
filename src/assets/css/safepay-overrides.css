@@ -96,5 +96,8 @@ html[data-skin="orbit"] {
   /* desktop ≥ 1024px ยังคง px-5 ปกติ (ไม่อยู่ใน media query นี้)                          */
   /* T5 จะถอด px-4 ออกจาก section ย่อย เพื่อป้องกัน double padding                         */
   .seller-mobile-shell .page-content main { padding-inline: 1rem !important; }
+
+  /* CC-v6 T1: เว้นพื้นล่างกัน SellerBottomNav (fixed, 64px) ทับ content + เผื่อ safe-area iPhone */
+  .seller-mobile-shell .page-content main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
 }
 
