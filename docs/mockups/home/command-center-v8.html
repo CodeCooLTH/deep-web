@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center v8 — Shopee-IA × Paces theme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab; --primary-15:rgba(35,109,201,.12);
+    --primary-tint:rgba(35,109,201,.055);
+    --success:#1aae6f; --success-15:rgba(26,174,111,.13);
+    --info:#0ea5e9;    --info-15:rgba(14,165,233,.13);
+    --warning:#f08c00; --warning-15:rgba(240,140,0,.13);
+    --danger:#e23744; --danger-15:rgba(226,55,68,.12);
+    --default-900:#1e293b; --default-700:#334155; --default-500:#5b6678; --default-400:#94a3b8;
+    --default-300:#cbd2db; --default-200:#e2e8f0; --default-100:#f1f5f9;
+    --body-bg:#eef0f3; --card-bg:#ffffff; --border:#e9ecf0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#aeb4bd;font-family:'Anuphan',sans-serif;display:flex;justify-content:center;gap:26px;padding:24px;flex-wrap:wrap;align-items:flex-start}
+  .frame-label{width:390px;text-align:center;color:#1b1d22;font-weight:600;font-size:13px;margin-bottom:8px}
+  .phone{width:390px;background:var(--body-bg);border-radius:36px;overflow:hidden;border:9px solid #1b1d22;height:844px;position:relative;display:flex;flex-direction:column}
+
+  /* ── HEADER ── */
+  .app-head{background:var(--primary);padding:13px 16px 16px;color:#fff;flex-shrink:0}
+  .ah-row{display:flex;align-items:center;gap:11px}
+  .ah-av{width:46px;height:46px;border-radius:50%;background:#fff;color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;flex-shrink:0}
+  .ah-info{flex:1;min-width:0}
+  .ah-name{font-size:15.5px;font-weight:700;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ah-tier{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;color:rgba(255,255,255,.92);margin-top:2px}
+  .ah-tier b{background:rgba(255,255,255,.2);padding:1px 8px;border-radius:7px;font-weight:600}
+  .ah-bell{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;position:relative;flex-shrink:0}
+  .ah-bell .nb{position:absolute;top:7px;right:8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--danger);color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--primary)}
+  .ah-trust{display:flex;align-items:center;gap:9px;margin-top:13px}
+  .ah-trust .tl{font-size:11.5px;font-weight:500;color:rgba(255,255,255,.9);white-space:nowrap}
+  .ah-bar{flex:1;height:7px;border-radius:99px;background:rgba(255,255,255,.25);overflow:hidden}
+  .ah-bar>i{display:block;height:100%;border-radius:99px;background:#fff;width:72%}
+  .ah-pct{font-size:11.5px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+
+  .scroll{flex:1;overflow-y:auto;padding:12px 14px 90px}
+  .scroll::-webkit-scrollbar{display:none}
+
+  .card{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;margin-bottom:12px}
+  .card-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px 0}
+  .card-title{font-size:14.5px;font-weight:600;color:var(--default-900)}
+  .seelink{font-size:12.5px;font-weight:500;color:var(--primary);display:inline-flex;align-items:center;gap:1px;text-decoration:none}
+
+  .ostat{display:grid;grid-template-columns:repeat(4,1fr);padding:14px 6px 13px}
+  .ostat a{display:flex;flex-direction:column;align-items:center;gap:7px;text-decoration:none}
+  .os-ic{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:23px;position:relative}
+  .os-badge{position:absolute;top:-3px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;font-variant-numeric:tabular-nums}
+  .os-lb{font-size:12px;color:var(--default-700);font-weight:500;text-align:center;line-height:1.2}
+  .ic-warning{background:var(--warning-15);color:var(--warning)}
+  .ic-info{background:var(--info-15);color:var(--info)}
+  .ic-success{background:var(--success-15);color:var(--success)}
+  .ic-default{background:var(--default-100);color:var(--default-500)}
+  .ic-primary{background:var(--primary-15);color:var(--primary)}
+
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 4px;padding:15px 8px 17px}
+  .tile{display:flex;flex-direction:column;align-items:center;gap:8px;text-decoration:none}
+  .tile .chip{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:23px}
+  .tile .lb{font-size:11.5px;font-weight:500;color:var(--default-700);text-align:center;line-height:1.2}
+
+  .wallet{display:flex;align-items:center;gap:13px;padding:14px 15px}
+  .wallet .wic{width:44px;height:44px;border-radius:12px;background:var(--success-15);color:var(--success);display:flex;align-items:center;justify-content:center;font-size:23px;flex-shrink:0}
+  .wallet .wlb{font-size:12.5px;color:var(--default-500)}
+  .wallet .wval{font-size:19px;font-weight:700;color:var(--default-900);font-variant-numeric:tabular-nums;line-height:1.2}
+  .wallet .wbtn{margin-left:auto;font-size:12.5px;font-weight:600;color:#fff;background:var(--primary);padding:8px 15px;border-radius:9px;text-decoration:none;white-space:nowrap}
+
+  .tl{padding:13px 15px 4px}
+  .tl .row{display:flex;gap:13px}
+  .tl .nodewrap{position:relative}
+  .tl .nodewrap::after{content:'';position:absolute;top:30px;bottom:0;left:14px;width:0;border-left:1px dashed var(--default-200)}
+  .tl .row:last-child .nodewrap::after{display:none}
+  .tl .node{width:29px;height:29px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;position:relative;z-index:1}
+  .n-success{background:var(--success)}.n-info{background:var(--info)}.n-warning{background:var(--warning)}.n-primary{background:var(--primary)}
+  .tl .body{flex:1;padding-bottom:16px}
+  .tl .row:last-child .body{padding-bottom:13px}
+  .tl .t{font-size:13.5px;font-weight:500;color:var(--default-900);line-height:1.35}
+  .tl .tm{font-size:12px;color:var(--default-500);margin-top:2px}
+
+  .bnav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);align-items:center;z-index:6}
+  .bnav a{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--default-500);font-size:10.5px;font-weight:500;position:relative}
+  .bnav a.on{color:var(--primary);font-weight:600}
+  .bnav a i{font-size:23px}
+  .bnav .badge{position:absolute;top:-3px;left:calc(50% + 7px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}
+  .bnav .center{position:relative}
+  .bnav .center b{position:absolute;top:-24px;left:50%;transform:translateX(-50%);width:52px;height:52px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;border:3px solid #fff}
+  .bnav .center span{margin-top:32px}
+
+  /* ── NOTIFICATION full page — Paces CRM Activities timeline ── */
+  .noti-page{position:absolute;inset:0;background:var(--body-bg);z-index:30;display:flex;flex-direction:column}
+  .np-head{display:flex;align-items:center;gap:6px;padding:13px 14px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+  .np-back{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--default-700);font-size:22px;margin-left:-4px}
+  .np-title{font-size:16.5px;font-weight:700;color:var(--default-900);flex:1}
+  .np-read{font-size:12.5px;font-weight:500;color:var(--primary);text-decoration:none}
+  .np-tabs{display:flex;gap:20px;padding:0 16px;background:#fff;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+  .np-tabs::-webkit-scrollbar{display:none}
+  .np-tab{padding:11px 0;font-size:13.5px;font-weight:500;color:var(--default-500);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent}
+  .np-tab.on{color:var(--primary);font-weight:600;border-bottom-color:var(--primary)}
+  .np-scroll{flex:1;overflow-y:auto}
+  .np-scroll::-webkit-scrollbar{display:none}
+
+  /* timeline card (.card > .card-body > space-y groups) */
+  .np-tlcard{background:#fff;margin:0;padding:16px 16px 4px}
+  .np-date{font-size:12px;font-weight:700;color:var(--default-400);margin:10px 0 16px}
+  .np-grp:first-child .np-date{margin-top:0}
+  .np-row{display:flex;gap:14px}
+  .np-nw{position:relative}
+  .np-nw::after{content:'';position:absolute;top:32px;bottom:0;left:15px;border-left:1px dashed var(--default-300)}
+  .np-row.last .np-nw::after{display:none}
+  .np-node{width:31px;height:31px;border-radius:50%;border:1px dashed var(--default-300);background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;position:relative;z-index:1}
+  .nd-primary{color:var(--primary)}.nd-success{color:var(--success)}.nd-info{color:var(--info)}.nd-warning{color:var(--warning)}.nd-default{color:var(--default-400)}
+  .np-c{flex:1;padding-bottom:22px;min-width:0}
+  .np-ct{font-size:13.5px;color:var(--default-900);line-height:1.4}
+  .np-ct b{font-weight:600}
+  .np-cd{font-size:12.5px;color:var(--default-700);line-height:1.45;margin-top:3px}
+  .np-cbtn{display:inline-flex;align-items:center;gap:4px;margin-top:9px;font-size:12px;font-weight:600;padding:5px 13px;border-radius:8px;border:1px solid var(--primary);color:var(--primary);text-decoration:none}
+  .np-meta{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:9px}
+  .np-bdg{font-size:11px;font-weight:500;padding:2px 9px;border-radius:7px}
+  .bdg-warning{background:var(--warning-15);color:var(--warning)}
+  .bdg-success{background:var(--success-15);color:var(--success)}
+  .bdg-info{background:var(--info-15);color:var(--info)}
+  .bdg-primary{background:var(--primary-15);color:var(--primary)}
+  .np-ts{font-size:11.5px;color:var(--default-400)}
+  .np-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;color:var(--default-500);font-size:13px;font-weight:600}
+  .np-spin{width:18px;height:18px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:sp 0.7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ════ FRAME 1: Command Center ════ -->
+<div>
+<div class="frame-label">หน้าหลัก (Command Center)</div>
+<div class="phone">
+  <div class="app-head">
+    <div class="ah-row">
+      <div class="ah-av">B</div>
+      <div class="ah-info">
+        <div class="ah-name">BT premium auto xenon</div>
+        <div class="ah-tier"><i class="ti ti-rosette-discount-check-filled"></i> <b>Deep Silver</b></div>
+      </div>
+      <div class="ah-bell"><i class="ti ti-bell"></i><span class="nb">5</span></div>
+    </div>
+    <div class="ah-trust"><span class="tl">Trust</span><span class="ah-bar"><i></i></span><span class="ah-pct">72</span></div>
+  </div>
+  <div class="scroll">
+    <div class="card">
+      <div class="card-head"><span class="card-title">เมนูลัด</span></div>
+      <div class="grid4">
+        <a class="tile"><span class="chip ic-warning"><i class="ti ti-star"></i></span><span class="lb">รีวิว</span></a>
+        <a class="tile"><span class="chip ic-success"><i class="ti ti-wallet"></i></span><span class="lb">เติมเงิน</span></a>
+        <a class="tile"><span class="chip ic-info"><i class="ti ti-users"></i></span><span class="lb">ลูกค้า</span></a>
+        <a class="tile"><span class="chip ic-primary"><i class="ti ti-box"></i></span><span class="lb">สินค้า</span></a>
+        <a class="tile"><span class="chip ic-warning"><i class="ti ti-trophy"></i></span><span class="lb">ความสำเร็จ</span></a>
+        <a class="tile"><span class="chip ic-info"><i class="ti ti-category"></i></span><span class="lb">หมวดหมู่</span></a>
+        <a class="tile"><span class="chip ic-primary"><i class="ti ti-shield-check"></i></span><span class="lb">การยืนยัน</span></a>
+        <a class="tile"><span class="chip ic-default"><i class="ti ti-building-store"></i></span><span class="lb">ตั้งค่าร้าน</span></a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">คำสั่งซื้อ</span><a class="seelink">ดูทั้งหมด <i class="ti ti-chevron-right"></i></a></div>
+      <div class="ostat">
+        <a><span class="os-ic ic-warning"><i class="ti ti-clock-hour-4"></i><b class="os-badge">9</b></span><span class="os-lb">รอดำเนินการ</span></a>
+        <a><span class="os-ic ic-info"><i class="ti ti-truck-delivery"></i><b class="os-badge">2</b></span><span class="os-lb">กำลังจัดส่ง</span></a>
+        <a><span class="os-ic ic-success"><i class="ti ti-circle-check"></i></span><span class="os-lb">สำเร็จ</span></a>
+        <a><span class="os-ic ic-default"><i class="ti ti-ban"></i></span><span class="os-lb">ยกเลิก</span></a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="wallet">
+        <span class="wic"><i class="ti ti-wallet"></i></span>
+        <div><div class="wlb">เครดิตคงเหลือ</div><div class="wval">฿200</div></div>
+        <a class="wbtn">เติมเงิน</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">กิจกรรมล่าสุด</span><a class="seelink">ดูทั้งหมด <i class="ti ti-chevron-right"></i></a></div>
+      <div class="tl">
+        <div class="row"><div class="nodewrap"><div class="node n-primary"><i class="ti ti-plus"></i></div></div><div class="body"><div class="t">สร้างคำสั่งซื้อ AA000009</div><div class="tm">5 นาทีที่แล้ว</div></div></div>
+        <div class="row"><div class="nodewrap"><div class="node n-success"><i class="ti ti-user-check"></i></div></div><div class="body"><div class="t">ผู้ซื้อยืนยันรับสินค้า AA000008</div><div class="tm">22 นาทีที่แล้ว</div></div></div>
+        <div class="row"><div class="nodewrap"><div class="node n-warning"><i class="ti ti-star"></i></div></div><div class="body"><div class="t">ได้รับรีวิว 5 ดาว</div><div class="tm">1 ชั่วโมงที่แล้ว</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="bnav">
+    <a class="on"><i class="ti ti-home-2"></i><span>หน้าหลัก</span></a>
+    <a><i class="ti ti-clipboard-list"></i><span>คำสั่งซื้อ</span><span class="badge">9</span></a>
+    <a class="center"><b><i class="ti ti-plus"></i></b><span>สร้าง</span></a>
+    <a><i class="ti ti-box"></i><span>สินค้า</span></a>
+    <a><i class="ti ti-building-store"></i><span>ร้านค้า</span></a>
+  </div>
+</div>
+</div>
+
+<!-- ════ FRAME 2: Notification — CRM-activities timeline (lazy load) ════ -->
+<div>
+<div class="frame-label">การแจ้งเตือน — timeline (lazy load)</div>
+<div class="phone">
+  <div class="noti-page">
+    <div class="np-head">
+      <div class="np-back"><i class="ti ti-arrow-left"></i></div>
+      <span class="np-title">การแจ้งเตือน</span>
+      <a class="np-read">อ่านทั้งหมด</a>
+    </div>
+    <div class="np-tabs">
+      <a class="np-tab on">ทั้งหมด</a>
+      <a class="np-tab">คำสั่งซื้อ</a>
+      <a class="np-tab">รีวิว</a>
+      <a class="np-tab">การเงิน</a>
+      <a class="np-tab">ระบบ</a>
+    </div>
+    <div class="np-scroll">
+      <div class="np-tlcard">
+
+        <div class="np-grp">
+          <div class="np-date">วันนี้</div>
+          <div class="np-row">
+            <div class="np-nw"><div class="np-node nd-primary"><i class="ti ti-shopping-cart-plus"></i></div></div>
+            <div class="np-c">
+              <div class="np-ct"><b>คำสั่งซื้อใหม่ AA000010</b></div>
+              <div class="np-cd">มีคำสั่งซื้อใหม่ ฿1,290 รอคุณดำเนินการ กดเพื่อจัดการออเดอร์</div>
+              <a class="np-cbtn">จัดการออเดอร์ <i class="ti ti-chevron-right"></i></a>
+              <div class="np-meta"><span class="np-bdg bdg-warning">รอดำเนินการ</span><span class="np-ts">2 นาทีที่แล้ว</span></div>
+            </div>
+          </div>
+          <div class="np-row">
+            <div class="np-nw"><div class="np-node nd-success"><i class="ti ti-user-check"></i></div></div>
+            <div class="np-c">
+              <div class="np-ct"><b>ผู้ซื้อยืนยันรับสินค้าแล้ว AA000008</b></div>
+              <div class="np-cd">ออเดอร์เสร็จสมบูรณ์ Trust Score ของคุณเพิ่มขึ้น</div>
+              <div class="np-meta"><span class="np-bdg bdg-success">สำเร็จ</span><span class="np-ts">22 นาทีที่แล้ว</span></div>
+            </div>
+          </div>
+          <div class="np-row">
+            <div class="np-nw"><div class="np-node nd-warning"><i class="ti ti-star"></i></div></div>
+            <div class="np-c">
+              <div class="np-ct"><b>คุณได้รับรีวิวใหม่ 5 ดาว</b></div>
+              <div class="np-cd">"ของแท้ ส่งไว บริการดีมากครับ" จากออเดอร์ AA000007</div>
+              <div class="np-meta"><span class="np-bdg bdg-warning">รีวิว</span><span class="np-ts">1 ชั่วโมงที่แล้ว</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="np-grp">
+          <div class="np-date">เมื่อวานนี้</div>
+          <div class="np-row">
+            <div class="np-nw"><div class="np-node nd-success"><i class="ti ti-coin"></i></div></div>
+            <div class="np-c">
+              <div class="np-ct"><b>เติมเครดิต ฿200 สำเร็จ</b></div>
+              <div class="np-cd">เครดิตคงเหลือ ฿200 พร้อมส่ง SMS ลิงก์ชำระเงิน</div>
+              <div class="np-meta"><span class="np-bdg bdg-success">การเงิน</span><span class="np-ts">เมื่อวาน 14:30</span></div>
+            </div>
+          </div>
+          <div class="np-row">
+            <div class="np-nw"><div class="np-node nd-info"><i class="ti ti-shield-check"></i></div></div>
+            <div class="np-c">
+              <div class="np-ct"><b>การยืนยันตัวตน L2 ได้รับอนุมัติ</b></div>
+              <div class="np-cd">ร้านของคุณได้รับ badge ยืนยันเอกสารแล้ว เพิ่มความน่าเชื่อถือ</div>
+              <div class="np-meta"><span class="np-bdg bdg-info">ระบบ</span><span class="np-ts">เมื่อวาน 09:12</span></div>
+            </div>
+          </div>
+          <div class="np-row last">
+            <div class="np-nw"><div class="np-node nd-default"><i class="ti ti-message-2"></i></div></div>
+            <div class="np-c">
+              <div class="np-ct"><b>ส่ง SMS ลิงก์สำเร็จ</b></div>
+              <div class="np-cd">ส่งลิงก์ชำระเงินไปยัง 08x-xxx-5678 เรียบร้อย</div>
+              <div class="np-meta"><span class="np-ts">เมื่อวาน 08:40</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="np-loading"><span class="np-spin"></span> กำลังโหลด...</div>
+    </div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

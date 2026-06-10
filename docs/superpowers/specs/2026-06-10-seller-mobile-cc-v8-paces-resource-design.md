@@ -1,129 +1,119 @@
 # Seller Mobile Command Center v8 — Re-source from real Paces components
 
-> **สถานะ:** design draft (รออนุมัติ user)
-> **หน้า:** `/dashboard` (mobile `lg:hidden`) — seller (Paces)
-> **แนวทาง:** B — re-source rebuild จาก Paces eCommerce dashboard component จริง (ไม่ใช่ refine ม็อกอัพเดิม)
-> **ก่อนหน้า:** v7 (`docs/.../DESIGN-SPEC-v7.md`) + color-fix `2ab35da` — v7 ใช้ custom CSS (arbitrary Tailwind) แต่งจนหลุด Paces; v8 รื้อใหม่จาก Paces primitive
-> **Token:** Paces `--color-primary` = น้ำเงิน `#236dc9` (ห้ามม่วง #7367F0 — buyer เท่านั้น)
+> **สถานะ:** APPROVED (design locked ผ่าน mockup iteration 2026-06-10) — user สั่ง "build ครบ agent-team"
+> **หน้า:** `/dashboard` (mobile `lg:hidden`) + **`/notifications` (ใหม่ เต็มหน้า)** — seller (Paces)
+> **แนวทาง:** B — re-source rebuild จาก Paces component จริง + IA แบบ Shopee "ฉัน" (sectioned cards + icon grids)
+> **Mockup (visual SoT):** `docs/mockups/home/command-center-v8.html` (2 frame: หน้าหลัก + การแจ้งเตือน timeline)
+> **Token:** Paces `--color-primary` = **น้ำเงิน `#236dc9`** (ห้ามม่วง #7367F0 — buyer เท่านั้น; ดู [[feedback_paces_own_primary_not_violet]])
 
 ---
 
-## 1. ปัญหาของ v7 (ทำไมต้อง v8)
+## 1. ทำไม v8 (ปัญหา v6/v7)
 
-v7 อ้าง `Base: theme/paces/...` ใน comment แต่ implement ด้วย **arbitrary Tailwind ทั้งหมด** (`text-[13px]`, `rounded-[14px]`, `bg-[rgba(...)]`, `shadow-[...]`, hardcode `#7367F0`) = custom CSS ปลอม ๆ หลุดจากระบบ Paces. ผลคือหน้าตาไม่เหมือน Paces demo และฝัง bug สีม่วง.
+v6/v7 อ้าง `Base: theme/paces/...` ใน comment แต่ implement ด้วย **arbitrary Tailwind ล้วน** (`text-[13px]`, `rounded-[14px]`, `bg-[rgba(...)]`, `shadow-[...]`, hardcode `#7367F0`) = custom CSS ปลอม หลุด Paces → หน้าตาไม่เหมือน Paces + bug สีม่วง. v8 ประกอบจาก **Paces primitive จริง** ให้ "วางข้าง Paces demo แล้วเป็นตระกูลเดียวกัน". IA อ้าง Shopee "ฉัน" (sectioned cards) ที่ user เลือก — เอา **layout/structure ตาม ref, ผิว = Paces theme** (กฎ reference-vs-theme).
 
-**v8 = ประกอบจาก Paces primitive จริง** — `.card`/`.card-body`/`.card-header`/`.card-title`, `text-default-*`, `bg-primary/15`, `size-*`, `text-success`/`text-danger`, `.progress`, `.btn` — ให้ "วางข้าง Paces eCommerce demo แล้วดูเป็นตระกูลเดียวกัน".
+## 2. 🛑 Hard Rule 7 (promote เข้า CLAUDE.md หลัง phase)
 
----
+> **หน้า `(paces)/**` ต้องประกอบจาก Paces primitive — ห้าม arbitrary Tailwind value.**
+> ใช้: `.card .card-body .card-header .card-title`, `btn btn-primary btn-sm`, `text-default-400/500/700`, `bg-primary bg-primary/15 text-primary`, `text-success text-danger text-warning text-info`, `badge bg-*/15 text-*`, `size-7.5 size-9`, `rounded-full rounded-lg`, grid/flex utility, `space-y-*`.
+> ห้าม: `text-[13px]`, `bg-[rgba(...)]`, `shadow-[...]`, `rounded-[14px]`, `w-[50px]`, hardcode hex/rgba — **เว้นจำเป็นจริง เขียน comment กำกับ**.
 
-## 2. Hard Rule ใหม่ (Rule 7 — จะ promote เข้า CLAUDE.md หลัง phase)
+## 3. การตัดสินใจ (locked)
 
-> **หน้า `(paces)/**` (seller/admin) ต้องประกอบจาก Paces primitive — ห้าม arbitrary Tailwind value.**
-> ใช้: `.card .card-body .card-header .card-title`, `btn btn-primary btn-sm`, `text-default-400/500`, `bg-primary bg-primary/15 text-primary`, `text-success text-danger text-warning`, `size-7.5 size-9`, `rounded-full rounded-lg`, `.progress .progress-bar`, grid/flex utility.
-> ห้าม: `text-[13px]`, `bg-[rgba(...)]`, `shadow-[...]`, `rounded-[14px]`, `w-[50px]`, hardcode hex/rgba — **เว้นมีเหตุผลจำเป็นจริง เขียน comment กำกับ** (เช่น value ที่ Paces ไม่มี token ให้).
-> ม่วง `#7367F0` = buyer/Vuexy เท่านั้น. ดู [[feedback_paces_own_primary_not_violet]].
+| # | เรื่อง | ผล |
+|---|---|---|
+| Q1 | การ์ดทักทาย | เอา date/clock ออก — **header น้ำเงินทึบ** (แบบ Shopee profile) + tier + trust progress |
+| Q2 | order status | **4 สถานะ** (รอดำเนินการ/กำลังจัดส่ง/สำเร็จ/ยกเลิก) เป็น icon-row + badge นับ |
+| Q3 | เลข | **static** ไม่ animate (DESIGN.md product side) |
+| Q4 | shortcut color | semantic per tile (รีวิว=warning/เติมเงิน=success/ลูกค้า=info/สินค้า=primary/ความสำเร็จ=warning/หมวดหมู่=info/การยืนยัน=primary/ตั้งค่าร้าน=default) |
+| — | header | **น้ำเงินทึบ** (Shopee-style, Committed accent บน surface เดียว — product register อนุญาต) |
+| — | ลำดับ section | **shortcut บนสุด** → คำสั่งซื้อ → wallet → กิจกรรม (user ยืนยัน "shortcut บนสุดเสมอ") |
+| — | notification | **เต็มหน้า** (route ใหม่ `/notifications`) เป็น timeline แบบ CRM Activities + lazy-load; **data = mock ก่อน** (real source Phase 2) |
 
----
+## 4. Command center — `/dashboard` (`lg:hidden`)
 
-## 3. Layout — single-column stack ของ Paces `.card`
+stack ของ Paces `.card` (single column). main shell มี padding-inline/bottom ครอบแล้ว (safepay-overrides.css L98/L101 — **ห้ามใส่ px/pb ซ้ำ**, บทเรียน v7).
 
-```
-┌─────────────────────────────────────┐
-│  SellerMobileHeader (sticky, เดิม)  │  ← layout slot, ไม่แตะ (นอก scope)
-├─────────────────────────────────────┤
-│  [1] การ์ดทักทาย + identity + trust │  ← UserCard
-│  [2] สถานะออเดอร์ (stat card grid)  │  ← StatisticCard ×N
-│  [3] กิจกรรมล่าสุด (timeline card)  │  ← RecentActivity
-│  [4] เมนูลัด (card + icon grid)     │  ← .card + Preline grid
-├─────────────────────────────────────┤
-│  SellerBottomNav (exception, เก็บ)  │  ← clean arbitrary → token
-└─────────────────────────────────────┘
-```
+### [0] Header (น้ำเงินทึบ)
+- block `bg-primary` (Paces token) text ขาว: avatar (`rounded-full` ขาว) + ชื่อร้าน + tier chip (`bg-white/20`) + bell (มี count badge `bg-danger`, **44px touch**)
+- trust row: label "Trust" + Paces progress (`bg-white/25` track, `bg-white` fill, width=trustScore%) + เลข %
+- ข้อมูล: page.tsx ดึง shopName/avatar/tierName/trustScore จาก session+shop (ไม่พึ่ง layout prop)
+- bell → navigate `/notifications`
+- Source: UserCard concept + `bg-primary` block
 
-container: `<div className="lg:hidden">` + spacing ระหว่างการ์ดด้วย Paces gutter (`space-y-*`/`gap-*` ของ theme เช่น `space-y-4` ตาม Paces card stack). main shell มี padding-inline/bottom ครอบแล้ว (safepay-overrides.css L98/L101 — ห้ามใส่ px/pb ซ้ำ ตามบทเรียน v7).
+### [1] เมนูลัด — grid 4 คอลัมน์ (Shopee grid)
+- `.card` + `.card-header` ("เมนูลัด") + grid-cols-4 ของ tile: chip (`bg-{semantic}/15 text-{semantic} rounded-lg size-12`) + label (`text-default-700 text-xs`)
+- 8 tiles: รีวิว/เติมเงิน/ลูกค้า/สินค้า/ความสำเร็จ/หมวดหมู่/การยืนยัน/ตั้งค่าร้าน (สี Q4)
+- Source: StatisticCard icon-chip pattern
 
----
+### [2] คำสั่งซื้อ — status row (Shopee การซื้อของฉัน)
+- `.card` + `.card-header` ("คำสั่งซื้อ" + "ดูทั้งหมด ›" → `/orders`) + grid-cols-4 ของ status: icon-circle (`size-11 rounded-full bg-{semantic}/15`) + count badge (`bg-danger`, แสดงเมื่อ >0) + label
+- 4 สถานะ: รอดำเนินการ(warning,badge)/กำลังจัดส่ง(info,badge)/สำเร็จ(success)/ยกเลิก(default) ← `data.orderStatusCounts`
+- Source: StatisticCard
 
-## 4. Block breakdown
+### [3] กระเป๋าเงิน — wallet card (Shopee My Wallet)
+- `.card` + row: icon (`bg-success/15`) + "เครดิตคงเหลือ" + ฿balance (`text-default-900 text-lg`) + `btn btn-primary btn-sm` "เติมเงิน" → `/wallet`
+- ข้อมูล: wallet balance (SellerWallet) — page.tsx ดึง
 
-### [1] การ์ดทักทาย + identity + trust
-**Source:** `theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/UserCard.tsx`
-**โครง Paces:** `.card` → `.card-body` (ทักทาย) + `.card-body bg-light/50` (sub-bar)
-**Seller content:**
-- บรรทัดบน: `<span class="text-default-400 text-sm uppercase font-medium">สวัสดี,</span>` + `<b>{ชื่อร้าน}!</b>` (จาก layout `shopNameForHeader` — ส่งเป็น prop)
-- แทนรูป email illustration → avatar ร้าน (กลม) + tier badge
-- sub-bar (`bg-light/50`): **tier + trust score** ด้วย Paces `.progress`
-  - tier name (`text-default-500`) + `.progress` (`.progress-bar bg-primary` width=trustScore%)
-**State:** avatar null → initial fallback (`bg-primary/15 text-primary rounded-full`); trustScore=0 → progress 0%
-**ข้อมูล:** ต้องส่ง `shopName`, `avatarUrl`, `tierName`, `trustScore` เข้า CommandCenter (ปัจจุบันอยู่ใน layout — เพิ่ม prop chain หรือ fetch ใน page.tsx). **Decision:** page.tsx ดึงเองจาก session+shop (เหมือน layout) แล้วส่งเข้า CommandCenter — ไม่พึ่ง layout prop.
+### [4] กิจกรรมล่าสุด — timeline (compact)
+- `.card` + `.card-header` ("กิจกรรมล่าสุด" + "ดูทั้งหมด ›" → `/notifications`) + timeline 3-5 รายการล่าสุด
+- Source: RecentActivity (`apps/ecommerce/RecentActivity.tsx`) — node `size-7.5` + `after:border-dashed`
+- ข้อมูล: `data.recentActivity` (activity.service เดิม)
 
-### [2] สถานะออเดอร์ — stat card grid
-**Source:** `theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx`
-**โครง Paces ต่อใบ:** `.card` → `.card-body` → flex(เนื้อ / icon chip `size-9 bg-primary/15 text-primary rounded-full`); เลขใหญ่ (`text-xl`, CountUp ได้); บรรทัด label
-**Seller content (decision ก):** grid stat card — **รอดำเนินการ / จัดส่งแล้ว / สำเร็จ** (อาจ + ยกเลิก)
-- แทน delta "Since last month" (seller ไม่มี) ด้วย **label คงที่**: รอดำเนินการ → "รอคุณจัดการ"; จัดส่งแล้ว → "กำลังส่ง"; สำเร็จ → "เดือนนี้" (หรือ label เหมาะสม)
-- **"รอดำเนินการ" เด่นกว่าใบอื่น** — เป็น stat card ที่เน้น (เช่น `bg-primary/10` ทั้งใบ หรือ icon chip ทึบ `bg-primary text-white`) + ทั้งใบเป็น link → `/orders`
-- สี icon chip ต่อ stat: รอดำเนินการ=primary, จัดส่ง=info/cyan, สำเร็จ=success
-- เลข ≥100 → CountUp/clamp ตามเหมาะ
-- grid: Paces responsive — mobile `grid-cols-2` (หรือ 3 ถ้าพอ)
-**State:** count=0 → แสดง 0; error → 0 (page fallback เดิม)
-**ข้อมูล:** `data.orderStatusCounts` (มีแล้ว)
+## 5. Notification — `/notifications` (เต็มหน้า, ใหม่)
 
-### [3] กิจกรรมล่าสุด — timeline card
-**Source:** `theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/RecentActivity.tsx`
-**โครง Paces:** `.card` → `.card-header` (`.card-title` "กิจกรรมล่าสุด" + link "ดูทั้งหมด" ขวา) → `.card-body` (SimpleBar ได้/หรือไม่) → timeline rows: node `size-7.5 rounded-full {color}` + icon ขาว + `after:border-dashed` เส้นเชื่อม; เนื้อ `<h5>` + `text-default-400` time
-**Seller content:** map ActivityItem → row (label ไทยตาม type: ORDER_CREATED/CONFIRMED/SMS_SENT/REVIEW_RECEIVED/TOPUP); time = `formatDistanceToNow` th; node color = semantic per type (success/info/warning/primary)
-**Empty state:** ใช้ Paces pattern — `.card-body` center + icon + ข้อความ "ยังไม่มีกิจกรรม" + `btn btn-primary btn-sm` "สร้างออเดอร์" → `/orders/new`
-**ข้อมูล:** `data.recentActivity` (มีแล้ว, ActivityItem service)
+Source: **`theme/paces/Admin/TS/src/app/(admin)/apps/crm/activities/page.tsx`** (timeline + lazy-load spinner)
 
-### [4] เมนูลัด — card + icon grid
-**Source:** `.card` + Preline grid (ไม่มี analog ตรงใน Paces dashboard → ประกอบจาก primitive)
-**โครง:** `.card` → `.card-header` (`.card-title` "เมนูลัด") → `.card-body` → `grid grid-cols-4 gap-*` ของ item: `<Link>` → icon chip (`size-* bg-{semantic}/15 text-{semantic} rounded-lg`) + label (`text-default-500 text-xs`)
-**Seller content:** 6 tile เดิม (รีวิว/เติมเงิน/ลูกค้า/ตั้งค่าร้าน/ความสำเร็จ/การยืนยัน) — สี semantic per tile (success/info/warning/primary) ผ่าน token; **ไม่มี arbitrary** (`bg-primary/15` ฯลฯ)
-**Decision:** ใช้ semantic Paces (`text-success/info/warning/primary` + `/15` bg) ไม่ใช่ hex. tile การยืนยัน = primary.
-**State:** ทุก tile link ปกติ (ไม่มี disabled ใน v8)
+- header: back (→ /dashboard หรือ history) + "การแจ้งเตือน" + "อ่านทั้งหมด"
+- tab filter: ทั้งหมด/คำสั่งซื้อ/รีวิว/การเงิน/ระบบ (`border-b` active = primary)
+- **timeline จัดกลุ่มตามวัน** (`<h6 text-default-400>` date header + `space-y`): row = `flex gap-x-5`:
+  - node: `size-7.5 rounded-full border border-dashed border-default-300` + Icon (`text-{semantic}`)
+  - dashed connector: `after:border-dashed ... last:after:hidden`
+  - content: title (`<strong>`) + desc (`text-default-700`) + ปุ่ม action (`btn btn-sm border-primary text-primary`) + meta (`badge bg-*/15 text-*` + `<small text-default-400>` time)
+- **lazy-load:** bottom spinner (`animate-spin ... rounded-full`) — client component, IntersectionObserver โหลดเพิ่มเมื่อ scroll ถึงท้าย
+- **data: mock ก่อน** (sample notifications array) — real source (activity.service paginated + unread last-seen) = **Phase 2**
+- บน mobile: ตัด `w-30` time column ของ CRM ออก (cramped) — time อยู่ใน meta row
 
-### [5] bottom nav — exception (เก็บ + clean)
-**ไฟล์:** `_shared/SellerBottomNav.tsx` (mobile pattern — Paces ไม่มี → documented exception)
-**งาน v8:** แทน arbitrary ที่เหลือ → token เท่าที่ทำได้ (`text-primary` มีแล้ว; `text-[10.5px]`→`text-xs` ถ้าใกล้, `w-[54px]` center button = exception เขียน comment; shadow → Paces shadow util ถ้ามี). **ไม่เปลี่ยนพฤติกรรม/layout** (user เคาะว่าจำเป็น)
-**หมายเหตุ:** ถ้า token Paces ไม่มีขนาดที่ต้องการเป๊ะ → คง arbitrary + comment เหตุผล (center raised button เป็น custom mobile pattern)
+## 6. Bottom nav (exception, เก็บ)
+`_shared/SellerBottomNav.tsx` — mobile pattern (Paces ไม่มี). v8: clean arbitrary → token เท่าที่ได้; center button คง (เขียน comment เหตุผล). bell ใน header → /notifications.
 
----
+## 7. A11y (จาก /impeccable audit — fold เข้า build)
+- secondary text ที่ต้องอ่าน → **`text-default-500` ขั้นต่ำ** (ห้าม default-400 บน text สำคัญ — fail 4.5:1; PRODUCT.md AA+ ผู้สูงวัย)
+- touch target **≥44px** ทุก interactive (bell, tile, status, ปุ่ม, nav)
+- ขาวบนน้ำเงิน (header) → opacity ≥ .9
+- focus state ชัดทุก interactive (Paces `focus` util)
 
-## 5. ไฟล์ที่กระทบ
+## 8. ไฟล์ที่กระทบ
+**Command center (rebuild จาก Paces primitive):**
+- `dashboard/components/CommandCenter.tsx` (wrapper + order)
+- `dashboard/components/SellerHeader.tsx` *(ใหม่)* — header น้ำเงิน + trust (block [0])
+- `dashboard/components/ShortcutGrid.tsx` *(rewrite ShortcutPanel)* — grid-4
+- `dashboard/components/OrderStatusRow.tsx` *(rewrite OrderStatusTimeline)* — 4-status row
+- `dashboard/components/WalletCard.tsx` *(ใหม่)*
+- `dashboard/components/RecentActivityFeed.tsx` *(rewrite จาก Paces RecentActivity)*
+- `dashboard/page.tsx` (ดึง shop/tier/trust/wallet + ส่งเข้า component)
+- `dashboard/_constants/command-center.ts` (SHORTCUT_TILES → 8 tiles semantic)
 
-**Rebuild (rewrite จาก Paces primitive):**
-- `dashboard/components/CommandCenter.tsx` — wrapper + ลำดับ + spacing Paces
-- `dashboard/components/UserGreetingCard.tsx` *(ใหม่)* — block 1 (จาก UserCard) — หรือ reuse `UserCard.tsx` scaffold ที่ copy ไว้
-- `dashboard/components/OrderStatusCards.tsx` *(ใหม่/rewrite OrderStatusTimeline)* — block 2 (จาก StatisticCard)
-- `dashboard/components/RecentActivityFeed.tsx` — rewrite block 3 (จาก RecentActivity)
-- `dashboard/components/ShortcutPanel.tsx` — rewrite block 4 (Paces primitive)
-- `dashboard/page.tsx` — ส่ง shopName/avatar/tier/trustScore เข้า CommandCenter
-- `_shared/SellerBottomNav.tsx` — clean arbitrary (block 5)
-- `dashboard/_constants/command-center.ts` — ปรับ SHORTCUT_TILES color → semantic key
+**Notification (ใหม่):**
+- `(dashboard)/notifications/page.tsx` *(ใหม่)* — route
+- `(dashboard)/notifications/components/NotificationTimeline.tsx` *(ใหม่)* — timeline + lazy-load client
+- `(dashboard)/notifications/components/notification-data.ts` *(ใหม่)* — mock data + type
 
-**ลบ/superseded:** `IdentityBar` trust bar (ย้ายเข้าการ์ดทักทาย — แต่ IdentityBar ยังใช้ใน SellerMobileHeader sticky; trust bar เดิมใน IdentityBar อาจคงไว้หรือลบ — **decision: ลบ trust bar ออกจาก IdentityBar** ให้ trust อยู่ที่การ์ดทักทายที่เดียว กัน duplicate)
+**Shared:**
+- `_shared/SellerMobileHeader.tsx` — dashboard mode ใช้ header ใหม่ (หรือ command center render header เอง); bell → /notifications
+- `_shared/SellerBottomNav.tsx` — clean arbitrary
 
-**ไม่แตะ:** SellerMobileHeader โครง (sticky topbar), layout shell, admin, buyer, `lg:` desktop, data/service/API
+**ไม่แตะ:** layout shell, admin, buyer, `lg:` desktop, schema/API (noti = mock)
 
----
+## 9. Out-of-scope
+- real notification data + unread/read persistence + lazy-load จริง (Phase 2 — v8 ใช้ mock)
+- desktop dashboard (`lg:`)
+- bell wiring จริง (count = static/derived)
+- charts (donut/line ของ Paces demo)
+- admin
 
-## 6. Out-of-scope
-- Promo banner, Blacklist, bell wiring จริง, cross-platform stats (Phase 2)
-- desktop dashboard (`lg:` ขึ้นไป)
-- data/schema/API ใหม่ (ใช้ CommandCenterData + session เดิม)
-- admin (สะอาดอยู่แล้ว)
-- charts (donut/line ของ Paces demo — seller ยังไม่มี data ที่มีความหมาย → ไม่เอาเข้า v8)
-
-## 7. Open questions
-- **Q1:** การ์ดทักทาย — เก็บ date/clock แบบ UserCard ไหม หรือเอาออก (seller ไม่ต้องการนาฬิกา)? → เสนอ **เอาออก**, ใส่ tier+trust แทน sub-bar
-- **Q2:** stat card grid — 3 ใบ (รอ/ส่ง/สำเร็จ) หรือ 4 (+ยกเลิก)? → เสนอ **3 ใบ** (ยกเลิกไม่ค่อย actionable), grid-cols-2 หรือ 3
-- **Q3:** เลข CountUp animation (Paces ใช้) — เอาด้วยไหม หรือ static? → เสนอ **static** (DESIGN.md product side ไม่ใส่ choreography)
-- **Q4:** SHORTCUT semantic color mapping — รีวิว=warning, เติมเงิน=success, ลูกค้า=info, ตั้งค่าร้าน=secondary/default, ความสำเร็จ=warning, การยืนยัน=primary — โอเคไหม?
-
-## 8. Definition of Done
-- ทุก block = Paces primitive, grep ไม่เจอ arbitrary value ใหม่ (ยกเว้นที่ comment กำกับ)
-- grep ไม่เจอ `#7367F0`/`rgba(115,103,240`)
+## 10. Definition of Done
+- ทุก block = Paces primitive; grep **ไม่เจอ arbitrary value ใหม่** (ยกเว้น comment กำกับ) + **ไม่เจอ `#7367F0`/`rgba(115,103,240`)**
 - tsc 0
-- QA mobile 360px: หน้าตาเป็น Paces (การ์ดขาว `.card`, accent น้ำเงิน), 4 block + bottom nav, touch ≥44px, console clean
-- วางข้าง Paces eCommerce demo แล้วเป็นตระกูลเดียวกัน (visual-quality gate)
+- a11y: secondary text ≥ default-500, touch ≥44px
+- QA mobile 360px: command center 5 block + bottom nav; /notifications timeline + lazy-load spinner; console clean; หน้าตาเป็น Paces (วางข้าง Paces demo เป็นตระกูลเดียวกัน — visual-quality gate)
