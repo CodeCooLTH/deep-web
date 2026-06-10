@@ -25,7 +25,8 @@ const SellerHeader = ({
   const score = Math.min(100, Math.max(0, trustScore ?? 0))
 
   return (
-    <div className="card">
+    // subtle gradient (primary tint จาง → ขาว) ให้ header เป็น hero นุ่ม ไม่ใช่ solid block
+    <div className="card bg-gradient-to-br from-primary/[0.07] to-white">
       <div className="card-body">
         {/* row บน: avatar + greeting + bell */}
         <div className="flex items-center gap-3">
@@ -35,10 +36,10 @@ const SellerHeader = ({
             <img
               src={avatarUrl}
               alt={shopName}
-              className="size-11 rounded-full object-cover flex-shrink-0"
+              className="size-12 rounded-full object-cover flex-shrink-0 ring-2 ring-primary/10"
             />
           ) : (
-            <div className="size-11 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg flex-shrink-0 select-none">
+            <div className="size-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg flex-shrink-0 select-none ring-2 ring-primary/10">
               {initial}
             </div>
           )}
@@ -71,12 +72,12 @@ const SellerHeader = ({
         </div>
 
         {/* trust row — primary เป็น accent (ไม่ใช่ solid fill ทั้ง header) */}
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-default-100">
+        <div className="flex items-center gap-2.5 mt-3.5 pt-3.5 border-t border-default-100">
           <span className="text-default-500 text-xs font-medium whitespace-nowrap">Trust Score</span>
-          <div className="h-1.5 rounded-full bg-default-200 overflow-hidden flex-1">
+          <div className="h-2 rounded-full bg-default-100 overflow-hidden flex-1">
             <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
           </div>
-          <span className="text-primary text-xs font-bold tabular-nums whitespace-nowrap">{score}/100</span>
+          <span className="text-primary text-sm font-bold tabular-nums whitespace-nowrap">{score}<span className="text-default-400 text-xs font-medium">/100</span></span>
         </div>
       </div>
     </div>

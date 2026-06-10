@@ -70,7 +70,7 @@ export default function OrderStatusRow({ counts }: { counts: StatusCounts }) {
               <Link
                 key={key}
                 href="/orders"
-                className="flex flex-col items-center gap-2"
+                className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
               >
                 {/* icon-circle size-11 = 44px (NF-4 touch target) */}
                 <span
