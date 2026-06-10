@@ -99,5 +99,18 @@ html[data-skin="orbit"] {
 
   /* CC-v6 T1: เว้นพื้นล่างกัน SellerBottomNav (fixed, 64px) ทับ content + เผื่อ safe-area iPhone */
   .seller-mobile-shell .page-content main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
+
+  /* ─── CC-v8 mobile-density: ทำให้เต็มจอ + แน่นแบบ app (ไม่ใช่ admin desktop) ───
+     ปัญหา: .wrapper.seller-mobile-shell มี margin 20px (เศษ sidebar offset) + main 16px
+     + card-body 20px → เนื้อหาเริ่มที่ 56px จากขอบ (จอ 375 = การ์ดกว้างแค่ 81%, "ไม่เต็ม").
+     แก้ด้วย scoped override (ไม่แตะ Paces component — ยังใช้ .card เดิม) */
+  /* kill wrapper margin (เศษ sidebar offset) → การ์ดชิดขอบ */
+  .seller-mobile-shell { margin-inline: 0 !important; }
+  /* side padding 16→12px ให้เต็มขึ้น */
+  .seller-mobile-shell .page-content main { padding-inline: 0.75rem !important; }
+  /* card แน่นแบบ mobile: padding 20→14px, ตัด header divider เส้นประ desktop ออก */
+  .seller-mobile-shell .card > .card-body,
+  .seller-mobile-shell .card > .card-header { padding: 0.875rem !important; }
+  .seller-mobile-shell .card > .card-header { padding-bottom: 0 !important; border-bottom: 0 !important; }
 }
 
