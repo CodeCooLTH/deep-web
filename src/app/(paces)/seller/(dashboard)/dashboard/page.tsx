@@ -118,26 +118,27 @@ export default async function SellerDashboardPage() {
 
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {
-        // getOrderStatusCounts: ใช้ groupBy เดียว — pendingOrderCount = counts.PENDING (UX Q2)
-        // try/catch แยก เพื่อกัน error ใน groupBy ทำให้ rawOrders (desktop widget) ล้มไปด้วย
-        try {
-          orderStatusCounts = await getOrderStatusCounts(shop.id)
-        } catch (e) {
-          // fallback 0 ทุก bucket — CommandCenter แสดง 0 ทุก node แทน crash
-          console.error('[dashboard] getOrderStatusCounts failed', e)
-        }
+        // perf: 4 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
+        // wall time = max(4 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
+        const [statusRes, balanceRes, activityRes, ordersRes] = await Promise.allSettled([
+          getOrderStatusCounts(shop.id),
+          getBalance(shop.id),
+          getRecentActivity(shop.id, 8),
+          getOrdersByShop(shop.id),
+        ])
 
-        // v8: wallet balance สำหรับ WalletCard — try/catch fallback 0 (pattern เดียวกับ getOrderStatusCounts)
-        try {
-          walletBalance = await getBalance(shop.id)
-        } catch (e) {
-          console.error('[dashboard] getBalance failed', e)
-        }
+        // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
+        if (statusRes.status === 'fulfilled') orderStatusCounts = statusRes.value
+        else console.error('[dashboard] getOrderStatusCounts failed', statusRes.reason)
 
-        // recentActivity feed — service ครอบ error เป็น [] เองแล้ว (ไม่ throw)
-        recentActivity = await getRecentActivity(shop.id, 8)
+        // v8: walletBalance — fallback 0 ถ้าล้ม
+        if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
+        else console.error('[dashboard] getBalance failed', balanceRes.reason)
 
-        const rawOrders = await getOrdersByShop(shop.id)
+        // recentActivity feed — fallback [] (service ครอบ error เองแต่กัน allSettled reject ด้วย)
+        recentActivity = activityRes.status === 'fulfilled' ? activityRes.value : []
+
+        const rawOrders = ordersRes.status === 'fulfilled' ? ordersRes.value : []
 
         // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
         orderCount = rawOrders.length
