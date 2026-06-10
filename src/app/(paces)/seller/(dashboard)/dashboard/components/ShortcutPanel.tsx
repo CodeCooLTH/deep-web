@@ -19,15 +19,15 @@ import { SHORTCUT_TILES, type ShortcutTile } from '../_constants/command-center'
 
 export default function ShortcutPanel() {
   return (
-    <section className="mb-4">
+    <section className="mb-3">
       {/* sec-label v6 — weight 600, ink-70, ตาม mockup .sec-label */}
       <p className="text-[13px] font-semibold text-[rgba(47,43,61,0.70)] mb-2 pl-[2px]">เมนูลัด</p>
 
-      {/* card wrapper v6 — rounded-[14px] shadow-sm bg ขาว padding px-2 py-3 */}
-      <div className="bg-white rounded-[14px] shadow-[0_2px_8px_rgba(47,43,61,0.07)] px-2 py-3">
+      {/* card wrapper v6 — rounded-[14px] shadow-sm bg ขาว (v6.1: padding 8-pt grid py-2) */}
+      <div className="bg-white rounded-[14px] shadow-[0_2px_8px_rgba(47,43,61,0.07)] px-2 py-2">
 
-        {/* grid 3×2 gap-y-[14px] */}
-        <div className="grid grid-cols-3 gap-y-[14px]">
+        {/* grid 3×2 (v6.1: gap-y 8px = 8-pt grid) */}
+        <div className="grid grid-cols-3 gap-y-2">
           {SHORTCUT_TILES.map((tile: ShortcutTile) => {
 
             /*
@@ -50,7 +50,7 @@ export default function ShortcutPanel() {
               return (
                 <div
                   key={tile.label}
-                  className="flex flex-col items-center gap-[6px] opacity-40 pointer-events-none"
+                  className="flex flex-col items-center gap-1 opacity-40 pointer-events-none"
                   title="เร็ว ๆ นี้"
                   aria-disabled="true"
                 >
@@ -72,7 +72,7 @@ export default function ShortcutPanel() {
               <Link
                 key={tile.label}
                 href={tile.href}
-                className="flex flex-col items-center gap-[6px] active:scale-95 transition-transform"
+                className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
               >
                 {/* tile-box 46×46 rounded-[13px] — touch area ≥44px (46px ผ่าน) */}
                 <span

@@ -71,8 +71,9 @@ type Props = {
 // ─── Component ────────────────────────────────────────────────────────────────
 const RecentActivityFeed = ({ items }: Props) => {
   return (
-    <section className="mb-[14px] px-4">
+    <section className="mb-3">
       {/* section header: label ซ้าย + "ดูทั้งหมด ›" ขวา (ตาม mockup v6) */}
+      {/* v6.1: ลบ px-4 ซ้อน (main มี padding-inline 1rem แล้ว → เดิม 32px เยื้องกว่าการ์ดอื่น) */}
       <div className="flex items-center justify-between px-[2px] mb-2">
         <span className="text-[13px] font-semibold text-[rgba(47,43,61,0.70)]">กิจกรรมล่าสุด</span>
         <Link href="/orders" className="text-[12.5px] font-medium text-[#7367F0] inline-flex items-center gap-[1px]">
@@ -96,7 +97,7 @@ const RecentActivityFeed = ({ items }: Props) => {
               return (
                 <li
                   key={`${item.type}-${item.at.getTime()}-${index}`}
-                  className={`relative${isLast ? ' pb-2' : ' pb-4'}`}
+                  className={`relative${isLast ? ' pb-1' : ' pb-3'}`}
                 >
                   {/* เส้นแนวตั้ง — left-[13px] กึ่งกลาง node 28px; ซ่อนที่ item สุดท้าย */}
                   {!isLast && (

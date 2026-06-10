@@ -35,7 +35,7 @@ const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
       role="banner"
     >
       {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
-      <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2.5">
+      <div className="flex items-center gap-2.5 px-4 pt-2 pb-2">
         {/* Identity: avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier */}
         {/* Avatar — กลม w-9 h-9; ring ผ่าน boxShadow (ring+shadow รวม 1 layer); null → initial fallback */}
         {avatarUrl ? (

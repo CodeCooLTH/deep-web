@@ -32,7 +32,7 @@ function clamp(n: number): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function OrderStatusTimeline({ counts }: Props) {
   return (
-    <section className="mb-[14px]">
+    <section className="mb-3">
       {/* section header — label + sec-link violet ตาม mockup v6 */}
       <div className="flex items-center justify-between mb-2 px-0.5">
         <span className="text-[13px] font-semibold text-[rgba(47,43,61,0.70)]">สถานะคำสั่งซื้อ</span>
@@ -52,7 +52,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
         {/* ทำไม: seller เห็นทันทีว่าต้องทำอะไรก่อน (mockup v6 ORDER STATUS §1) */}
         <Link
           href="/orders"
-          className="flex items-center gap-3 bg-[#7367F0] rounded-[11px] px-3.5 py-3"
+          className="flex items-center gap-3 bg-[#7367F0] rounded-[11px] px-3.5 py-2"
         >
           {/* icon chip ขาวบนพื้น violet */}
           <span className="inline-flex shrink-0 w-[38px] h-[38px] rounded-[10px] bg-white/[0.18] items-center justify-center">
@@ -73,7 +73,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
 
         {/* 3-stat inline grid ──────────────────────────────────────────────── */}
         {/* ทำไม: 3 สถานะที่เหลือย่อเป็นแถวเบา ลดน้ำหนักสายตา (mockup v6 §2) */}
-        <div className="grid grid-cols-3 mt-3">
+        <div className="grid grid-cols-3 mt-2">
 
           {/* จัดส่งแล้ว — SHIPPED, icon สี cyan */}
           <div className="flex flex-col items-center gap-0.5">
