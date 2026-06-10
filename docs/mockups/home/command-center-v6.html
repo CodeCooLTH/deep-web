@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Command Center v6 — Deep (dense · modern · bottom nav)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --mist:#F8F7FA; --paper:#FFFFFF;
+    --ink:#2F2B3D; --ink-70:rgba(47,43,61,.70); --ink-55:rgba(47,43,61,.55); --ink-40:rgba(47,43,61,.40);
+    --line:rgba(47,43,61,.10);
+    --violet:#7367F0; --violet-dark:#675DD8; --violet-tint:rgba(115,103,240,.12);
+    --green:#28C76F; --green-tint:rgba(40,199,111,.14);
+    --cyan:#00BAD1; --cyan-tint:rgba(0,186,209,.13);
+    --amber:#FF9F43; --amber-tint:rgba(255,159,67,.16);
+    --coral:#FF4C51;
+    --neutral-box:#F2F1F6;
+  }
+  *{ -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; }
+  body{ font-family:'Anuphan','Noto Sans Thai',system-ui,sans-serif; background:var(--mist); color:var(--ink);
+        -webkit-font-smoothing:antialiased; }
+  .stage{ background:#26222e; min-height:100vh; display:flex; justify-content:center; padding:24px 0; }
+  .phone{ width:390px; max-width:100%; background:var(--mist); min-height:800px; border-radius:36px; overflow:hidden;
+          box-shadow:0 30px 80px -20px rgba(0,0,0,.6); position:relative; }
+  .card{ background:var(--paper); border-radius:14px; box-shadow:0 2px 8px rgba(47,43,61,.07); }
+  .sec{ padding:0 16px; margin-bottom:14px; }
+  .sec-head{ display:flex; align-items:center; justify-content:space-between; padding:0 2px; margin-bottom:8px; }
+  .sec-label{ font-size:13px; font-weight:600; color:var(--ink-70); }
+  .sec-link{ font-size:12.5px; font-weight:500; color:var(--violet); display:inline-flex; align-items:center; gap:1px; }
+  .ic{ display:inline-flex; align-items:center; justify-content:center; }
+  .iconify{ display:block; }
+  .tile{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:6px 0 2px; background:none; border:0; cursor:pointer; }
+  .tile-box{ width:46px; height:46px; border-radius:13px; background:var(--neutral-box);
+             display:flex; align-items:center; justify-content:center; position:relative; transition:transform .15s; }
+  .tile:active .tile-box{ transform:scale(.94); }
+  .tile-lbl{ font-size:11.5px; font-weight:500; color:var(--ink-70); }
+  .badge{ position:absolute; top:-5px; right:-6px; min-width:18px; height:18px; padding:0 4px; border-radius:9px;
+          background:var(--coral); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center;
+          justify-content:center; box-shadow:0 0 0 2px var(--paper); }
+  /* feed */
+  .feed{ position:relative; padding:0 0 14px 32px; }
+  .feed::before{ content:''; position:absolute; left:13px; top:26px; bottom:-2px; width:2px; background:var(--line); }
+  .feed-last{ padding-bottom:8px; }
+  .feed-last::before{ display:none; }
+  .feed-node{ position:absolute; left:0; top:0; width:28px; height:28px; border-radius:50%;
+              display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 3px var(--paper); }
+  .feed-lbl{ margin:0; font-size:13.5px; font-weight:500; color:var(--ink); line-height:1.35; }
+  .feed-time{ margin:1px 0 0; font-size:12px; color:var(--ink-40); }
+  .mono{ font-variant-numeric:tabular-nums; font-weight:600; }
+  /* bottom nav */
+  .navbar{ position:absolute; left:0; right:0; bottom:0; height:64px; background:var(--paper);
+           border-top:1px solid var(--line); box-shadow:0 -4px 16px -6px rgba(47,43,61,.10);
+           display:grid; grid-template-columns:repeat(5,1fr); align-items:center; padding-bottom:env(safe-area-inset-bottom); }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:0; cursor:pointer;
+             color:var(--ink-40); }
+  .nav-item.active{ color:var(--violet); }
+  .nav-lbl{ font-size:10.5px; font-weight:500; }
+  .nav-center{ position:relative; }
+  .nav-fab{ position:absolute; top:-26px; left:50%; transform:translateX(-50%); width:54px; height:54px; border-radius:50%;
+            background:var(--violet); color:#fff; display:flex; align-items:center; justify-content:center;
+            box-shadow:0 8px 18px -4px rgba(115,103,240,.55); border:3px solid var(--paper); }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="phone">
+
+  <!-- ░░ TOP BAR ░░ -->
+  <header class="sticky top-0 z-20" style="background:linear-gradient(180deg,var(--mist) 80%,rgba(248,247,250,0));">
+    <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2.5">
+      <img src="https://i.pravatar.cc/80?img=12" alt=""
+           class="w-9 h-9 rounded-full object-cover shrink-0" style="box-shadow:0 0 0 2px #fff,0 1px 3px rgba(47,43,61,.18);">
+      <div class="min-w-0 flex-1">
+        <p class="truncate" style="font-size:14.5px;font-weight:600;line-height:1.25;">BT Premium Auto Xeon</p>
+        <p class="flex items-center gap-1" style="font-size:11.5px;color:var(--ink-55);line-height:1.3;">
+          <span class="iconify" data-icon="tabler:rosette-discount-check-filled" style="font-size:14px;color:var(--green);"></span>
+          Deep Classic
+        </p>
+      </div>
+      <button class="ic relative shrink-0" style="width:40px;height:40px;border-radius:11px;color:var(--ink-70);" aria-label="การแจ้งเตือน">
+        <span class="iconify" data-icon="tabler:bell" style="font-size:22px;"></span>
+        <span style="position:absolute;top:9px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 0 2px var(--mist);"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="pt-1" style="padding-bottom:84px;">
+
+    <!-- ░░ ORDER STATUS ░░ -->
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-label">สถานะคำสั่งซื้อ</span>
+        <a class="sec-link" href="#">จัดการ <span class="iconify" data-icon="tabler:chevron-right" style="font-size:15px;"></span></a>
+      </div>
+      <div class="card" style="padding:12px;">
+        <a href="#" class="flex items-center gap-3" style="background:var(--violet);border-radius:11px;padding:12px 14px;text-decoration:none;">
+          <span class="ic shrink-0" style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.18);">
+            <span class="iconify" data-icon="tabler:clock-hour-4" style="font-size:21px;color:#fff;"></span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block" style="font-size:12.5px;color:rgba(255,255,255,.85);line-height:1.2;">รอคุณดำเนินการ</span>
+            <span class="block" style="font-size:19px;font-weight:700;color:#fff;line-height:1.25;">5 รายการ</span>
+          </span>
+          <span class="iconify shrink-0" data-icon="tabler:chevron-right" style="font-size:20px;color:rgba(255,255,255,.9);"></span>
+        </a>
+        <div class="grid grid-cols-3" style="margin-top:12px;">
+          <div class="flex flex-col items-center gap-0.5">
+            <span class="flex items-center gap-1.5">
+              <span class="iconify" data-icon="tabler:truck-delivery" style="font-size:16px;color:var(--cyan);"></span>
+              <span style="font-size:18px;font-weight:700;">2</span>
+            </span>
+            <span style="font-size:11.5px;color:var(--ink-55);">จัดส่งแล้ว</span>
+          </div>
+          <div class="flex flex-col items-center gap-0.5" style="border-left:1px solid var(--line);border-right:1px solid var(--line);">
+            <span class="flex items-center gap-1.5">
+              <span class="iconify" data-icon="tabler:circle-check" style="font-size:16px;color:var(--green);"></span>
+              <span style="font-size:18px;font-weight:700;">5</span>
+            </span>
+            <span style="font-size:11.5px;color:var(--ink-55);">สำเร็จ</span>
+          </div>
+          <div class="flex flex-col items-center gap-0.5">
+            <span class="flex items-center gap-1.5">
+              <span class="iconify" data-icon="tabler:circle-x" style="font-size:16px;color:var(--ink-40);"></span>
+              <span style="font-size:18px;font-weight:700;color:var(--ink-70);">1</span>
+            </span>
+            <span style="font-size:11.5px;color:var(--ink-55);">ยกเลิก</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░░ เมนูลัด ░░ -->
+    <section class="sec">
+      <div class="sec-head"><span class="sec-label">เมนูลัด</span></div>
+      <div class="card" style="padding:12px 8px;">
+        <div class="grid grid-cols-3" style="gap:14px 0;">
+          <button class="tile">
+            <span class="tile-box"><span class="iconify" data-icon="tabler:users" style="font-size:22px;color:var(--ink-70);"></span></span>
+            <span class="tile-lbl">ลูกค้า</span>
+          </button>
+          <button class="tile">
+            <span class="tile-box" style="background:var(--green-tint);">
+              <span class="iconify" data-icon="tabler:wallet" style="font-size:22px;color:var(--green);"></span>
+            </span>
+            <span class="tile-lbl">เติมเงิน</span>
+          </button>
+          <button class="tile">
+            <span class="tile-box"><span class="iconify" data-icon="tabler:star" style="font-size:22px;color:var(--ink-70);"></span></span>
+            <span class="tile-lbl">รีวิว</span>
+          </button>
+          <button class="tile">
+            <span class="tile-box"><span class="iconify" data-icon="tabler:trophy" style="font-size:22px;color:var(--ink-70);"></span></span>
+            <span class="tile-lbl">ความสำเร็จ</span>
+          </button>
+          <button class="tile">
+            <span class="tile-box"><span class="iconify" data-icon="tabler:settings" style="font-size:22px;color:var(--ink-70);"></span></span>
+            <span class="tile-lbl">ตั้งค่า</span>
+          </button>
+          <button class="tile" style="opacity:.4;" disabled title="เร็ว ๆ นี้">
+            <span class="tile-box"><span class="iconify" data-icon="tabler:shield-x" style="font-size:22px;color:var(--ink-70);"></span></span>
+            <span class="tile-lbl">Blacklist</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░░ กิจกรรมล่าสุด ░░ -->
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-label">กิจกรรมล่าสุด</span>
+        <a class="sec-link" href="#">ดูทั้งหมด <span class="iconify" data-icon="tabler:chevron-right" style="font-size:15px;"></span></a>
+      </div>
+      <div class="card" style="padding:14px 14px 6px;">
+        <ul style="list-style:none;margin:0;padding:0;">
+          <li class="feed">
+            <span class="feed-node" style="background:var(--amber-tint);"><span class="iconify" data-icon="tabler:star" style="font-size:15px;color:var(--amber);"></span></span>
+            <div><p class="feed-lbl">ได้รับรีวิว 5 ดาว</p><p class="feed-time">3 วันที่ผ่านมา</p></div>
+          </li>
+          <li class="feed">
+            <span class="feed-node" style="background:var(--green-tint);"><span class="iconify" data-icon="tabler:user-check" style="font-size:15px;color:var(--green);"></span></span>
+            <div><p class="feed-lbl">ผู้ซื้อยืนยันรับของ <span class="mono">4700C4BB</span></p><p class="feed-time">3 วันที่ผ่านมา</p></div>
+          </li>
+          <li class="feed">
+            <span class="feed-node" style="background:var(--cyan-tint);"><span class="iconify" data-icon="tabler:message-2" style="font-size:15px;color:var(--cyan);"></span></span>
+            <div><p class="feed-lbl">ส่ง SMS ลิงก์ <span class="mono">092-xxx-1649</span></p><p class="feed-time">3 วันที่ผ่านมา</p></div>
+          </li>
+          <li class="feed feed-last">
+            <span class="feed-node" style="background:var(--violet-tint);"><span class="iconify" data-icon="tabler:plus" style="font-size:15px;color:var(--violet);"></span></span>
+            <div><p class="feed-lbl">สร้างคำสั่งซื้อ <span class="mono">4700C4BB</span></p><p class="feed-time">3 วันที่ผ่านมา</p></div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ░░ BOTTOM NAV (tab bar) — center raised create ░░ -->
+  <nav class="navbar">
+    <button class="nav-item active">
+      <span class="iconify" data-icon="tabler:home-2" style="font-size:23px;"></span>
+      <span class="nav-lbl">หน้าหลัก</span>
+    </button>
+    <button class="nav-item" style="position:relative;">
+      <span class="iconify" data-icon="tabler:clipboard-list" style="font-size:23px;"></span>
+      <span class="nav-lbl">คำสั่งซื้อ</span>
+      <span style="position:absolute;top:-2px;left:calc(50% + 8px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--coral);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--paper);">5</span>
+    </button>
+    <div class="nav-item nav-center">
+      <button class="nav-fab" aria-label="สร้างใหม่">
+        <span class="iconify" data-icon="tabler:plus" style="font-size:26px;"></span>
+      </button>
+      <span class="nav-lbl" style="margin-top:34px;color:var(--ink-40);">สร้าง</span>
+    </div>
+    <button class="nav-item">
+      <span class="iconify" data-icon="tabler:box" style="font-size:23px;"></span>
+      <span class="nav-lbl">สินค้า</span>
+    </button>
+    <button class="nav-item">
+      <span class="iconify" data-icon="tabler:building-store" style="font-size:23px;"></span>
+      <span class="nav-lbl">ร้านค้า</span>
+    </button>
+  </nav>
+
+</div>
+</div>
+</body>
+</html>
