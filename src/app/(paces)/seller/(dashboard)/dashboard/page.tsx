@@ -37,7 +37,9 @@ import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
 import { PROMO_BANNER } from './_constants/command-center'
 import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
-// getTierLabel: ย้ายไปใช้ใน layout.tsx (SellerMobileHeader) แล้ว — ไม่ import ที่นี่อีกต่อไป (T5)
+// v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
+import { getBalance } from '@/services/wallet.service'
+import { getTierLabel } from '@/lib/trust-tier'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -90,6 +92,8 @@ export default async function SellerDashboardPage() {
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
   // recentActivity: feed aggregate (Order/Review/SMS/TopUp) — service ครอบ try/catch→[] อยู่แล้ว
   let recentActivity: ActivityItem[] = []
+  // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
+  let walletBalance = 0
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -121,6 +125,13 @@ export default async function SellerDashboardPage() {
         } catch (e) {
           // fallback 0 ทุก bucket — CommandCenter แสดง 0 ทุก node แทน crash
           console.error('[dashboard] getOrderStatusCounts failed', e)
+        }
+
+        // v8: wallet balance สำหรับ WalletCard — try/catch fallback 0 (pattern เดียวกับ getOrderStatusCounts)
+        try {
+          walletBalance = await getBalance(shop.id)
+        } catch (e) {
+          console.error('[dashboard] getBalance failed', e)
         }
 
         // recentActivity feed — service ครอบ error เป็น [] เองแล้ว (ไม่ throw)
@@ -220,11 +231,16 @@ export default async function SellerDashboardPage() {
       <div className="lg:hidden">
         <CommandCenter
           data={{
-            // T5: shopName / avatarUrl / tierName ย้ายไปอยู่ใน layout (SellerMobileHeader) แล้ว
             pendingOrderCount,
             orderStatusCounts,
             recentActivity,
             promoBanner: PROMO_BANNER,
+            // v8: header card + wallet (S-6/S-8)
+            walletBalance,
+            shopName,
+            avatarUrl,
+            tierName: getTierLabel(score),
+            trustScore: score,
           }}
         />
       </div>

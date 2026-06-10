@@ -25,7 +25,8 @@ export type PromoBanner = {
 
 // ─── CommandCenterData ───────────────────────────────────────────────────────
 // contract ที่ page.tsx ส่งให้ CommandCenter RSC
-// T5: ลบ shopName / avatarUrl / tierName ออก — ย้ายไปอยู่ใน layout (SellerMobileHeader) แล้ว
+// v8: เพิ่ม field optional สำหรับ header card + wallet
+// optional (?) กัน downstream tsc break ก่อน component ใหม่รับ field ทัน
 export type CommandCenterData = {
   pendingOrderCount: number
   orderStatusCounts: {
@@ -36,6 +37,12 @@ export type CommandCenterData = {
   }
   recentActivity: ActivityItem[]
   promoBanner: PromoBanner | null
+  // v8: ข้อมูลเพิ่มสำหรับ header + wallet
+  walletBalance?: number
+  shopName?: string
+  tierName?: string
+  trustScore?: number
+  avatarUrl?: string | null
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────
@@ -49,21 +56,21 @@ export type ShortcutTile = {
 }
 
 /**
- * SHORTCUT_TILES — 6 tile ตาม design spec v7
- * คำสั่งซื้อ + สินค้า ย้ายไป bottom nav แล้ว → ไม่อยู่ใน shortcut
- * Blacklist ตัดออก (Phase 2 feature — OOS-2)
- * 5-way color: amber/green/cyan/gray/violet — map ตรงใน ShortcutPanel
- * การยืนยัน = link ปกติ ไม่ disabled (spec Q4 safe default)
- * slice(0,4) = แถวบน grid-cols-4, slice(4) = แถวล่าง grid-cols-2 centered
- * short path ไม่มี /seller prefix ตาม Paces routing convention
+ * SHORTCUT_TILES — 8 tiles v8 (grid-cols-4 = 2 แถวละ 4)
+ * semantic color ตาม Paces token: warning/success/info/primary/default
+ * ไม่มี Blacklist/disabled (OOS Phase 2) — ทุก tile เป็น link ปกติ
+ * ไม่มี /seller prefix ตาม Paces routing convention (short path)
+ * color: free string รับ semantic key → ShortcutGrid map เป็น Paces class
  */
 export const SHORTCUT_TILES: ShortcutTile[] = [
-  { label: 'รีวิว',       href: '/reviews',      icon: 'star',           color: 'amber'  },
-  { label: 'เติมเงิน',     href: '/wallet',       icon: 'wallet',         color: 'green'  },
-  { label: 'ลูกค้า',       href: '/customers',    icon: 'users',          color: 'cyan'   },
-  { label: 'ตั้งค่าร้าน',  href: '/shop',         icon: 'building-store', color: 'gray'   },
-  { label: 'ความสำเร็จ',   href: '/badges',       icon: 'trophy',         color: 'amber'  },
+  { label: 'รีวิว',       href: '/reviews',      icon: 'star',           color: 'warning' },
+  { label: 'เติมเงิน',     href: '/wallet',       icon: 'wallet',         color: 'success' },
+  { label: 'ลูกค้า',       href: '/customers',    icon: 'users',          color: 'info'    },
+  { label: 'สินค้า',       href: '/products',     icon: 'box',            color: 'primary' },
+  { label: 'ความสำเร็จ',   href: '/badges',       icon: 'trophy',         color: 'warning' },
+  { label: 'หมวดหมู่',     href: '/categories',   icon: 'category',       color: 'info'    },
   { label: 'การยืนยัน',    href: '/verification', icon: 'shield-check',   color: 'primary' },
+  { label: 'ตั้งค่าร้าน',  href: '/shop',         icon: 'building-store', color: 'default' },
 ]
 
 /**
