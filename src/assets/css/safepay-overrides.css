@@ -106,8 +106,8 @@ html[data-skin="orbit"] {
      แก้ด้วย scoped override (ไม่แตะ Paces component — ยังใช้ .card เดิม) */
   /* kill wrapper margin (เศษ sidebar offset) → การ์ดชิดขอบ */
   .seller-mobile-shell { margin-inline: 0 !important; }
-  /* side padding 16→12px ให้เต็มขึ้น */
-  .seller-mobile-shell .page-content main { padding-inline: 0.75rem !important; }
+  /* side padding 16→8px ให้เต็มขึ้น (การ์ดชิดขอบแบบ app) */
+  .seller-mobile-shell .page-content main { padding-inline: 0.5rem !important; }
   /* card แน่นแบบ mobile: padding 20→14px, ตัด header divider เส้นประ desktop ออก */
   .seller-mobile-shell .card > .card-body,
   .seller-mobile-shell .card > .card-header { padding: 0.875rem !important; }

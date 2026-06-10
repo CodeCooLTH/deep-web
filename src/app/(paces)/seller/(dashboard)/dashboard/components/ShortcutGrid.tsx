@@ -46,7 +46,7 @@ function TileLink({ tile }: { tile: ShortcutTile }) {
         aria-disabled="true"
       >
         {/* chip 48×48 (size-12) rounded-lg — touch area ≥44px (NF-4) */}
-        <span className={`size-12 rounded-lg flex items-center justify-center ${chipClass}`}>
+        <span className={`size-11 rounded-lg flex items-center justify-center ${chipClass}`}>
           <Icon icon={tile.icon} className="text-2xl" />
         </span>
         <span className="text-xs font-medium text-default-700 text-center leading-tight">
@@ -82,7 +82,7 @@ export default function ShortcutGrid() {
       </div>
       <div className="card-body">
         {/* grid-cols-4 8 tile = 2 แถวละ 4 (ตาม .grid4 ใน mockup command-center-v8.html) */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-x-2 gap-y-3">
           {SHORTCUT_TILES.map((tile: ShortcutTile) => (
             <TileLink key={tile.label} tile={tile} />
           ))}
