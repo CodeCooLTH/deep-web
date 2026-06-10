@@ -20,7 +20,6 @@ import { usePathname, useRouter } from 'next/navigation'
 
 import Icon from '@/components/wrappers/Icon'
 
-import IdentityBar from './IdentityBar'
 import { getSellerPageTitle } from './getSellerPageTitle'
 
 type Props = {
@@ -28,17 +27,18 @@ type Props = {
   avatarUrl: string | null
   /** Deep tier name ตาม SSOT เช่น "Deep Silver" */
   tierName: string
-  /** Trust score 0–100; ส่งต่อไป IdentityBar เพื่อแสดง progress bar */
+  /** Trust score 0–100 */
   trustScore: number
 }
 
-const SellerMobileHeader = ({ shopName, avatarUrl, tierName, trustScore }: Props) => {
+const SellerMobileHeader = (_props: Props) => {
   const pathname = usePathname()
   const router = useRouter()
 
-  // dashboard path → delegate ทั้งหมดไป IdentityBar
+  // v8: /dashboard มี SellerHeader (น้ำเงิน) ของตัวเองใน CommandCenter (page content)
+  // → layout topbar คืน null กัน header ซ้อน 2 อัน (IdentityBar เก่า superseded)
   if (pathname === '/dashboard') {
-    return <IdentityBar shopName={shopName} avatarUrl={avatarUrl} tierName={tierName} trustScore={trustScore} />
+    return null
   }
 
   // sub-page mode — ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
