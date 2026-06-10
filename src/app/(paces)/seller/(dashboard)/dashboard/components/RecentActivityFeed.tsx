@@ -16,7 +16,7 @@
  *   - tint: arbitrary rgba ตาม mockup command-center-v6 — ไม่ใช้ Tailwind color name
  *     เพื่อให้ตรง brand palette (#FF9F43 amber / #28C76F green / #00BAD1 cyan / #7367F0 violet)
  *   - timeline line: bg-[rgba(47,43,61,0.10)]
- *   - time: text-[12px] text-[rgba(47,43,61,0.40)]
+ *   - time: text-[12px] text-[rgba(47,43,61,0.55)] (S-5: 0.40→0.55 WCAG fix)
  *   - label: font-medium text-[#2F2B3D]
  */
 
@@ -85,8 +85,25 @@ const RecentActivityFeed = ({ items }: Props) => {
       <div className="bg-white rounded-[14px] shadow-[0_2px_8px_rgba(47,43,61,0.07)] pt-3.5 px-3.5 pb-1.5">
 
         {items.length === 0 ? (
-          // empty state — แสดงแทน timeline เมื่อยังไม่มีกิจกรรม
-          <p className="text-[13px] text-muted text-center py-4">ยังไม่มีกิจกรรม</p>
+          // S-6: empty state onboarding — แทน text เปล่าด้วย block ที่ guide ให้ seller สร้างออเดอร์แรก
+          // ทำไม: "ยังไม่มีกิจกรรม" ไม่บอก seller ว่าต้องทำอะไร → เพิ่ม CTA ลด onboarding friction (spec v7 §4 Section B)
+          <div className="flex flex-col items-center justify-center gap-3 py-8 px-4">
+            {/* icon จาง — opacity-40 บน wrapper ให้สี #7367F0 ส่อง neutral ทำให้อ่านได้โดยไม่ดึงความสนใจมาก */}
+            <span className="opacity-40 text-[#7367F0]">
+              <Icon icon="shopping-cart-plus" className="text-[32px]" />
+            </span>
+            <div className="text-center space-y-1">
+              <p className="text-[14px] font-semibold text-[#2F2B3D]">สร้างออเดอร์แรกเลย</p>
+              <p className="text-[12px] text-[rgba(47,43,61,0.55)]">กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน</p>
+            </div>
+            {/* CTA ใช้ Tailwind explicit แทน btn btn-sm — เพราะ btn-sm ให้ py-1.25 (~26px) ไม่ถึง 44px touch target ที่ NF-4 กำหนด */}
+            <Link
+              href="/orders/new"
+              className="inline-flex items-center justify-center h-11 px-5 rounded-[10px] bg-[#7367F0] text-white text-[13px] font-semibold active:scale-95 transition-transform"
+            >
+              สร้างออเดอร์
+            </Link>
+          </div>
         ) : (
           // timeline container — pl-8 ให้ node -left-8 วางทับเส้นพอดี
           <ul className="relative pl-8 list-none m-0 p-0">
@@ -123,7 +140,8 @@ const RecentActivityFeed = ({ items }: Props) => {
                   )}
 
                   {/* relative time ภาษาไทย ด้วย date-fns + locale th */}
-                  <p className="text-[12px] text-[rgba(47,43,61,0.40)] mt-[1px]">
+                  {/* S-5: เปลี่ยน opacity 0.40 → 0.55 เพื่อให้ผ่าน WCAG 4.5:1 contrast บน white card */}
+                  <p className="text-[12px] text-[rgba(47,43,61,0.55)] mt-[1px]">
                     {formatDistanceToNow(item.at, { addSuffix: true, locale: th })}
                   </p>
                 </li>
