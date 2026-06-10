@@ -39,6 +39,12 @@ const SORTED_ITEMS = [...FLAT_ITEMS].sort((a, b) => b.url.length - a.url.length)
 
 const FALLBACK = 'Deep ผู้ขาย'
 
+// route ที่ไม่อยู่ใน sellerMenuItems (เช่น /notifications) — map ชื่อตรงนี้
+// กัน sticky header แสดง FALLBACK "Deep ผู้ขาย" บนหน้าที่ไม่มีใน menu
+const EXTRA_TITLES: Record<string, string> = {
+  '/notifications': 'การแจ้งเตือน',
+}
+
 /**
  * คืนชื่อหน้าภาษาไทยสำหรับ pathname ที่รับมา
  *
@@ -49,6 +55,10 @@ const FALLBACK = 'Deep ผู้ขาย'
  * @param pathname - pathname จาก usePathname() ของ Next.js (short path เช่น /orders)
  */
 export function getSellerPageTitle(pathname: string): string {
+  // ตรวจ extra map ก่อน (route นอก menu เช่น /notifications)
+  for (const [url, label] of Object.entries(EXTRA_TITLES)) {
+    if (pathname === url || pathname.startsWith(url + '/')) return label
+  }
   for (const item of SORTED_ITEMS) {
     // match ถ้า pathname ขึ้นต้นด้วย url นั้น
     // guard กรณี url="/dashboard" ไม่ match "/dashboard-extra" → ตรวจ char ถัดไป

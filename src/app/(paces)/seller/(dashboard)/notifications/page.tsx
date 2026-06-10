@@ -11,28 +11,22 @@
  * ข้อมูล real Phase 2 (OOS-1)
  */
 
-import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
 import { MOCK_NOTIFICATIONS } from './components/notification-data'
 import NotificationTimeline from './components/NotificationTimeline'
 
 export const metadata: Metadata = { title: 'การแจ้งเตือน' }
 
+// sticky SellerMobileHeader แสดง "การแจ้งเตือน" แล้ว (getSellerPageTitle EXTRA map)
+// → ไม่ต้องมี PageBreadcrumb / card-header ซ้ำ (premium: หัวข้อเดียว)
 export default function NotificationsPage() {
   return (
-    <>
-      <PageBreadcrumb title="การแจ้งเตือน" subtitle="ร้านค้า" />
-
-      <div className="container-fluid">
-        <div className="card">
-          <div className="card-header">
-            <h4 className="card-title">การแจ้งเตือนทั้งหมด</h4>
-          </div>
-          <div className="card-body p-0">
-            <NotificationTimeline notifications={MOCK_NOTIFICATIONS} />
-          </div>
+    <div className="container-fluid">
+      <div className="card">
+        <div className="card-body p-0">
+          <NotificationTimeline notifications={MOCK_NOTIFICATIONS} />
         </div>
       </div>
-    </>
+    </div>
   )
 }
