@@ -1,11 +1,17 @@
 'use client'
 
 /**
- * IdentityBar — แสดง identity ร้านค้า (avatar + ชื่อร้าน + tier + bell)
+ * IdentityBar — แสดง identity ร้านค้า (avatar 44px + ชื่อร้าน + tier + trust bar + bell)
  *
  * ทำไม: แตกออกจาก CommandTopBar (T1) เพื่อให้ SellerMobileHeader ใช้ได้
  * โดยตรง — ลบ hamburger slot ออกทั้งหมด เพราะ mobile shell ไม่มี drawer อีกต่อไป
  * (T3 layout เป็นผู้ inject header slot แทน CommandCenter)
+ *
+ * v7 (U-A):
+ * - avatar ขยาย 36→44px (w-11 h-11) เพื่อ touch target และ visual weight ที่ดีขึ้น
+ * - trust progress bar ใต้ tier name — สัญญาณ trust ที่มองเห็นได้ทันที;
+ *   width = trustScore% (0→100); สี #7367F0 (Confident Violet) + track muted ตาม DESIGN.md
+ *   trustScore=0 → bar width 0% แสดง track เปล่า (ไม่ซ่อน element)
  *
  * Base: theme/paces/Admin/TS/src/layouts/components/TopBar/components/MenuToggler.tsx
  * Adapt: ลบ hamburger; คง avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier chip + bell dot แดง
@@ -19,9 +25,11 @@ type Props = {
   avatarUrl: string | null
   /** Deep tier name ตาม SSOT เช่น "Deep Silver" */
   tierName: string
+  /** Trust score 0–100; ใช้แสดง progress bar ใต้ tier name */
+  trustScore: number
 }
 
-const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
+const IdentityBar = ({ shopName, avatarUrl, tierName, trustScore }: Props) => {
   // คำนวณตัวอักษรแรกของชื่อร้านสำหรับ avatar fallback
   // guard ถ้า shopName ว่าง → ใช้ "?" แทน
   const initial = shopName.trim().charAt(0).toUpperCase() || '?'
@@ -37,18 +45,19 @@ const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
       {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
       <div className="flex items-center gap-2.5 px-4 pt-2 pb-2">
         {/* Identity: avatar กลม ring + ชื่อร้าน 2 บรรทัด + tier */}
-        {/* Avatar — กลม w-9 h-9; ring ผ่าน boxShadow (ring+shadow รวม 1 layer); null → initial fallback */}
+        {/* Avatar — กลม w-11 h-11 (44px) ขยายจาก 36px เพื่อ touch target + visual weight;
+            ring ผ่าน boxShadow (ring+shadow รวม 1 layer); null → initial fallback */}
         {avatarUrl ? (
           <img
             src={avatarUrl}
-            className="w-9 h-9 rounded-full object-cover shrink-0"
+            className="w-11 h-11 rounded-full object-cover shrink-0"
             style={{ boxShadow: '0 0 0 2px #fff,0 1px 3px rgba(47,43,61,0.18)' }}
             alt=""
             aria-hidden="true"
           />
         ) : (
           <div
-            className="w-9 h-9 rounded-full bg-[rgba(115,103,240,0.12)] inline-flex items-center justify-center text-[#7367F0] font-bold text-[14px] shrink-0"
+            className="w-11 h-11 rounded-full bg-[rgba(115,103,240,0.12)] inline-flex items-center justify-center text-[#7367F0] font-bold text-[14px] shrink-0"
             style={{ boxShadow: '0 0 0 2px #fff,0 1px 3px rgba(47,43,61,0.18)' }}
             aria-hidden="true"
           >
@@ -68,6 +77,10 @@ const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
             <Icon icon="rosette-discount-check-filled" className="text-[14px] shrink-0 text-[#28C76F]" />
             <span className="truncate">{tierName}</span>
           </p>
+          {/* trust progress bar — สัญญาณ trust ใต้ tier name; width = trustScore% (0→100); token #7367F0 ตาม DESIGN.md */}
+          <div className="h-1 rounded-full bg-[rgba(47,43,61,0.08)] overflow-hidden mt-1">
+            <div className="h-full rounded-full bg-[#7367F0]" style={{ width: `${trustScore}%` }} />
+          </div>
         </div>
 
         {/* Bell ขวา — w-11 h-11=44px touch target; dot แดง ring mist (ไม่ใช่ ring-white เพราะ bg เป็น mist) */}

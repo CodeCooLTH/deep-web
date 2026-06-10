@@ -74,6 +74,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           shopName={shopNameForHeader}
           avatarUrl={shop?.logo ?? null}
           tierName={tierName}
+          trustScore={user.trustScore ?? 0}
         />
       }
       bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} />}

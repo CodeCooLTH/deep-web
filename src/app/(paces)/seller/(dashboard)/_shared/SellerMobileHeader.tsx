@@ -28,15 +28,17 @@ type Props = {
   avatarUrl: string | null
   /** Deep tier name ตาม SSOT เช่น "Deep Silver" */
   tierName: string
+  /** Trust score 0–100; ส่งต่อไป IdentityBar เพื่อแสดง progress bar */
+  trustScore: number
 }
 
-const SellerMobileHeader = ({ shopName, avatarUrl, tierName }: Props) => {
+const SellerMobileHeader = ({ shopName, avatarUrl, tierName, trustScore }: Props) => {
   const pathname = usePathname()
   const router = useRouter()
 
   // dashboard path → delegate ทั้งหมดไป IdentityBar
   if (pathname === '/dashboard') {
-    return <IdentityBar shopName={shopName} avatarUrl={avatarUrl} tierName={tierName} />
+    return <IdentityBar shopName={shopName} avatarUrl={avatarUrl} tierName={tierName} trustScore={trustScore} />
   }
 
   // sub-page mode — ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
