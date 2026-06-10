@@ -49,19 +49,21 @@ export type ShortcutTile = {
 }
 
 /**
- * SHORTCUT_TILES — 6 tile ตาม design spec v6
- * คำสั่งซื้อ + สินค้า ย้ายไป bottom nav แล้ว → เอาออกจาก shortcut
- * tile Blacklist = href null + disabled (Phase 2 feature)
- * color: 'green' = เติมเงิน, 'neutral' = ที่เหลือ (T5 map ต่อ)
+ * SHORTCUT_TILES — 6 tile ตาม design spec v7
+ * คำสั่งซื้อ + สินค้า ย้ายไป bottom nav แล้ว → ไม่อยู่ใน shortcut
+ * Blacklist ตัดออก (Phase 2 feature — OOS-2)
+ * 5-way color: amber/green/cyan/gray/violet — map ตรงใน ShortcutPanel
+ * การยืนยัน = link ปกติ ไม่ disabled (spec Q4 safe default)
+ * slice(0,4) = แถวบน grid-cols-4, slice(4) = แถวล่าง grid-cols-2 centered
  * short path ไม่มี /seller prefix ตาม Paces routing convention
  */
 export const SHORTCUT_TILES: ShortcutTile[] = [
-  { label: 'ลูกค้า',        href: '/customers', icon: 'users',    color: 'neutral' },
-  { label: 'เติมเงิน',      href: '/wallet',    icon: 'wallet',   color: 'green'   },
-  { label: 'รีวิว',         href: '/reviews',   icon: 'star',     color: 'neutral' },
-  { label: 'ความสำเร็จ',    href: '/badges',    icon: 'trophy',   color: 'neutral' },
-  { label: 'ตั้งค่า',       href: '/shop',      icon: 'settings', color: 'neutral' },
-  { label: 'เช็ก Blacklist', href: null,        icon: 'shield-x', color: 'neutral', disabled: true },
+  { label: 'รีวิว',       href: '/reviews',      icon: 'star',           color: 'amber'  },
+  { label: 'เติมเงิน',     href: '/wallet',       icon: 'wallet',         color: 'green'  },
+  { label: 'ลูกค้า',       href: '/customers',    icon: 'users',          color: 'cyan'   },
+  { label: 'ตั้งค่าร้าน',  href: '/shop',         icon: 'building-store', color: 'gray'   },
+  { label: 'ความสำเร็จ',   href: '/badges',       icon: 'trophy',         color: 'amber'  },
+  { label: 'การยืนยัน',    href: '/verification', icon: 'shield-check',   color: 'violet' },
 ]
 
 /**
