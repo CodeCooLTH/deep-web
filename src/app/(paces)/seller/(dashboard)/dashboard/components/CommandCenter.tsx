@@ -6,17 +6,19 @@
  * T5: ลบ HideAppHeaderMobile + CommandTopBar ออก — header ย้ายไปอยู่ใน layout (T2/T3) แล้ว
  *     .app-header ซ่อนด้วย CSS shell ใน safepay-overrides.css (T4) ไม่ต้อง inject <style> ที่นี่
  *
- * wrapper: pb-28 กัน FAB ทับ content ล่าง (S-13)
- * relative ให้ children absolute elements วางได้
+ * T8/T9: ลบ CreateFab + MiniBanner ออกจาก render — CreateFab ย้ายฟังก์ชันไปอยู่ใน SellerBottomNav
+ *        (center raised button + speed-dial) แล้ว; MiniBanner ไม่มีใน v6 design (PROMO_BANNER = null)
+ *        pb-28 ลบออก — padding-bottom ครอบโดย global CSS (T1) แล้ว
+ *
+ * Section order ตาม v6 mockup (command-center-v6.html):
+ *   OrderStatusTimeline → ShortcutPanel → RecentActivityFeed
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
 import type { CommandCenterData } from '../_constants/command-center'
 import ShortcutPanel from './ShortcutPanel'
-import MiniBanner from './MiniBanner'
 import OrderStatusTimeline from './OrderStatusTimeline'
 import RecentActivityFeed from './RecentActivityFeed'
-import CreateFab from './CreateFab'
 
 type Props = {
   data: CommandCenterData
@@ -24,21 +26,15 @@ type Props = {
 
 export default function CommandCenter({ data }: Props) {
   return (
-    <div className="lg:hidden pb-28 relative">
-      {/* T5: SHORTCUT — 6-tile grid 3×2 (badge ย้ายไป bottom nav แล้ว — ไม่ต้องส่ง pendingOrderCount) */}
-      <ShortcutPanel />
-
-      {/* T4: MINI BANNER — static promo (null = ซ่อน section) */}
-      <MiniBanner banner={data.promoBanner} />
-
-      {/* T5: ORDER STATUS — 4-node horizontal timeline */}
+    <div className="lg:hidden relative">
+      {/* ORDER STATUS — 4-node timeline (v6 section ที่ 1) */}
       <OrderStatusTimeline counts={data.orderStatusCounts} />
 
-      {/* T7: RECENT ACTIVITY — vertical timeline feed */}
-      <RecentActivityFeed items={data.recentActivity} />
+      {/* SHORTCUT — 6-tile grid 3×2 (v6 section ที่ 2; badge ย้ายไป bottom nav แล้ว) */}
+      <ShortcutPanel />
 
-      {/* T8: CREATE FAB — speed-dial (client island) */}
-      <CreateFab />
+      {/* RECENT ACTIVITY — vertical timeline feed (v6 section ที่ 3) */}
+      <RecentActivityFeed items={data.recentActivity} />
     </div>
   )
 }
