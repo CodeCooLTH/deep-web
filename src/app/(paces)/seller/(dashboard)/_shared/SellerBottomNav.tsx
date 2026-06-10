@@ -214,7 +214,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
             aria-label={open ? 'ปิดเมนูสร้าง' : 'เปิดเมนูสร้าง'}
-            className="absolute top-[-26px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] rounded-full bg-[#7367F0] text-white flex items-center justify-center border-[3px] border-white shadow-[0_8px_18px_-4px_rgba(115,103,240,0.55)] transition-transform active:scale-95"
+            className="absolute top-[-26px] left-1/2 -translate-x-1/2 w-[54px] h-[54px] rounded-full bg-[#7367F0] text-white flex items-center justify-center border-[3px] border-white shadow-[0_8px_18px_-4px_rgba(115,103,240,0.55),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform active:scale-95"
           >
             {/* icon toggle: plus (ปิด) → x (เปิด) */}
             <Icon icon={open ? 'x' : 'plus'} style={{ fontSize: '26px' }} />

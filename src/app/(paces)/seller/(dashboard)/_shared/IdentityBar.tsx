@@ -48,7 +48,7 @@ const IdentityBar = ({ shopName, avatarUrl, tierName }: Props) => {
           />
         ) : (
           <div
-            className="w-9 h-9 rounded-full bg-gray-200 inline-flex items-center justify-center text-gray-600 font-bold text-[14px] shrink-0"
+            className="w-9 h-9 rounded-full bg-[rgba(115,103,240,0.12)] inline-flex items-center justify-center text-[#7367F0] font-bold text-[14px] shrink-0"
             style={{ boxShadow: '0 0 0 2px #fff,0 1px 3px rgba(47,43,61,0.18)' }}
             aria-hidden="true"
           >

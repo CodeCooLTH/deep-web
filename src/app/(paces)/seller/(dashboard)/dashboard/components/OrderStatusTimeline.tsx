@@ -50,9 +50,11 @@ export default function OrderStatusTimeline({ counts }: Props) {
 
         {/* CTA block — violet solid, actionable ─────────────────────────────── */}
         {/* ทำไม: seller เห็นทันทีว่าต้องทำอะไรก่อน (mockup v6 ORDER STATUS §1) */}
+        {/* v6.2 (skill polish): primary CTA depth — เงาม่วง primary + inner highlight ขาว + press feedback
+            (DESIGN.md primary-sm shadow; ม่วงทึบไม่ใช่ gradient) */}
         <Link
           href="/orders"
-          className="flex items-center gap-3 bg-[#7367F0] rounded-[11px] px-3.5 py-2"
+          className="flex items-center gap-3 bg-[#7367F0] rounded-[11px] px-3.5 py-2 shadow-[0_6px_16px_-4px_rgba(115,103,240,0.45),inset_0_1px_0_rgba(255,255,255,0.18)] active:scale-[0.99] transition-transform"
         >
           {/* icon chip ขาวบนพื้น violet */}
           <span className="inline-flex shrink-0 w-[38px] h-[38px] rounded-[10px] bg-white/[0.18] items-center justify-center">
@@ -62,7 +64,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
           {/* text block */}
           <span className="flex-1 min-w-0">
             <span className="block text-[12.5px] text-white/85 leading-[1.2]">รอคุณดำเนินการ</span>
-            <span className="block text-[19px] font-bold text-white leading-[1.25]">
+            <span className="block text-[19px] font-bold text-white leading-[1.25] tabular-nums">
               {clamp(counts.PENDING)} รายการ
             </span>
           </span>
@@ -79,7 +81,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
           <div className="flex flex-col items-center gap-0.5">
             <span className="flex items-center gap-1.5">
               <Icon icon="truck-delivery" className="text-[16px] text-[#00BAD1]" />
-              <span className="text-[18px] font-bold">{clamp(counts.SHIPPED)}</span>
+              <span className="text-[18px] font-bold tabular-nums">{clamp(counts.SHIPPED)}</span>
             </span>
             <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">จัดส่งแล้ว</span>
           </div>
@@ -88,7 +90,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
           <div className="flex flex-col items-center gap-0.5 border-l border-r border-[rgba(47,43,61,0.10)]">
             <span className="flex items-center gap-1.5">
               <Icon icon="circle-check" className="text-[16px] text-[#28C76F]" />
-              <span className="text-[18px] font-bold">{clamp(counts.CONFIRMED)}</span>
+              <span className="text-[18px] font-bold tabular-nums">{clamp(counts.CONFIRMED)}</span>
             </span>
             <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">สำเร็จ</span>
           </div>
@@ -97,7 +99,7 @@ export default function OrderStatusTimeline({ counts }: Props) {
           <div className="flex flex-col items-center gap-0.5">
             <span className="flex items-center gap-1.5">
               <Icon icon="circle-x" className="text-[16px] text-[rgba(47,43,61,0.40)]" />
-              <span className="text-[18px] font-bold text-[rgba(47,43,61,0.70)]">{clamp(counts.CANCELLED)}</span>
+              <span className="text-[18px] font-bold tabular-nums text-[rgba(47,43,61,0.70)]">{clamp(counts.CANCELLED)}</span>
             </span>
             <span className="text-[11.5px] text-[rgba(47,43,61,0.55)]">ยกเลิก</span>
           </div>
