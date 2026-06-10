@@ -1,6 +1,7 @@
 # Scope Baseline — Seller Mobile Command Center v8 (Paces Re-source)
 
-> สถานะ: ACTIVE
+> สถานะ: ✅ SIGNED-OFF (2026-06-10, Gate 2 product)
+> Carried-debt (Phase 2 polish): /notifications sub-page title fallback (getSellerPageTitle ไม่ map); activity feed ~8 รายการ (spec 3-5)
 > spec: `docs/superpowers/specs/2026-06-10-seller-mobile-cc-v8-paces-resource-design.md` · mockup: `docs/mockups/home/command-center-v8.html`
 
 ## Goal
@@ -13,18 +14,18 @@ Rebuild seller mobile command center (`/dashboard` `lg:hidden`) + route ให�
 
 | ID | รายการ | Acceptance | สถานะ |
 |----|--------|-----------|-------|
-| S-1 | Header น้ำเงินทึบ + trust progress | `bg-primary` ทึบ; ชื่อร้าน + tier chip `bg-white/20`; bell touch ≥44px + `bg-danger` badge; trust bar ขาวบนน้ำเงิน fill=trustScore%; ขาวบนน้ำเงิน opacity ≥.9; ไม่ hardcode hex | TODO |
-| S-2 | ShortcutGrid grid-4 8-tile | `.card .card-header` "เมนูลัด" + `grid-cols-4`; 8 tile (รีวิว/เติมเงิน/ลูกค้า/สินค้า/ความสำเร็จ/หมวดหมู่/การยืนยัน/ตั้งค่าร้าน) สีตาม Q4; chip `size-12 rounded-lg bg-{semantic}/15`; touch ≥44px | TODO |
-| S-3 | OrderStatusRow 4-status + badge | `.card .card-header` "คำสั่งซื้อ" + "ดูทั้งหมด ›"→/orders; `grid-cols-4`; icon-circle `size-11 rounded-full bg-{semantic}/15`; badge `bg-danger` แสดงเมื่อ >0; data `orderStatusCounts` | TODO |
-| S-4 | WalletCard | `.card` row: icon `bg-success/15`; "เครดิตคงเหลือ" `text-default-500`; ยอด `text-default-900 text-lg tabular-nums`; `btn btn-primary btn-sm` "เติมเงิน"→/wallet; data SellerWallet | TODO |
-| S-5 | RecentActivityFeed compact (3-5) | `.card .card-header` "กิจกรรมล่าสุด" + "ดูทั้งหมด ›"→/notifications; node `size-7.5 rounded-full border border-dashed`; `after:border-dashed last:after:hidden`; data `recentActivity`; source RecentActivity.tsx | TODO |
-| S-6 | `dashboard/page.tsx` ดึงข้อมูล + props | ดึง shopName/avatar/tierName/trustScore + wallet balance + orderStatusCounts + recentActivity; ส่ง props เดียวเข้า CommandCenter; tsc 0 | TODO |
-| S-7 | CommandCenter wrapper + ลำดับ | ประกอบ SellerHeader→ShortcutGrid→OrderStatusRow→WalletCard→RecentActivityFeed (ลำดับนี้เสมอ); `lg:hidden`; ไม่ใส่ padding ซ้ำ shell (safepay-overrides.css L98/L101) | TODO |
-| S-8 | `SHORTCUT_TILES` 8-tile semantic | constants ส่งออก array 8 (key/label/icon/href/color semantic); ไม่ hardcode hex | TODO |
-| S-9 | `/notifications` route + mock data | `(dashboard)/notifications/page.tsx` render; `notification-data.ts` mock ≥8 รายการ 4 ประเภท; type `Notification`; tsc 0 | TODO |
-| S-10 | NotificationTimeline (CRM Activities + lazy-load) | source `apps/crm/activities/page.tsx`; tab filter ทั้งหมด/คำสั่งซื้อ/รีวิว/การเงิน/ระบบ (`border-b` active=primary); date group; row node `size-7.5` + dashed connector + content (title `<strong>`/desc `text-default-700`/badge `bg-*/15`/time); lazy-load client IntersectionObserver + spinner `animate-spin`; mock slice จำลอง | TODO |
-| S-11 | SellerBottomNav clean arbitrary | grep arbitrary (`text-[`/`bg-[`/`rounded-[`/hex) → Paces token; center button arbitrary จำเป็น = comment กำกับ; touch ≥44px | TODO |
-| S-12 | A11y sweep | `text-default-400` ใน text สำคัญ = 0 (≥default-500); touch ≥44px @360px; ขาวบนน้ำเงิน ≥.9; focus state ชัด; ไม่มี `#7367F0`/`rgba(115,103,240` | TODO |
+| S-1 | Header น้ำเงินทึบ + trust progress | `bg-primary` ทึบ; ชื่อร้าน + tier chip `bg-white/20`; bell touch ≥44px + `bg-danger` badge; trust bar ขาวบนน้ำเงิน fill=trustScore%; ขาวบนน้ำเงิน opacity ≥.9; ไม่ hardcode hex | ✅ DONE |
+| S-2 | ShortcutGrid grid-4 8-tile | `.card .card-header` "เมนูลัด" + `grid-cols-4`; 8 tile (รีวิว/เติมเงิน/ลูกค้า/สินค้า/ความสำเร็จ/หมวดหมู่/การยืนยัน/ตั้งค่าร้าน) สีตาม Q4; chip `size-12 rounded-lg bg-{semantic}/15`; touch ≥44px | ✅ DONE |
+| S-3 | OrderStatusRow 4-status + badge | `.card .card-header` "คำสั่งซื้อ" + "ดูทั้งหมด ›"→/orders; `grid-cols-4`; icon-circle `size-11 rounded-full bg-{semantic}/15`; badge `bg-danger` แสดงเมื่อ >0; data `orderStatusCounts` | ✅ DONE |
+| S-4 | WalletCard | `.card` row: icon `bg-success/15`; "เครดิตคงเหลือ" `text-default-500`; ยอด `text-default-900 text-lg tabular-nums`; `btn btn-primary btn-sm` "เติมเงิน"→/wallet; data SellerWallet | ✅ DONE |
+| S-5 | RecentActivityFeed compact (3-5) | `.card .card-header` "กิจกรรมล่าสุด" + "ดูทั้งหมด ›"→/notifications; node `size-7.5 rounded-full border border-dashed`; `after:border-dashed last:after:hidden`; data `recentActivity`; source RecentActivity.tsx | ✅ DONE |
+| S-6 | `dashboard/page.tsx` ดึงข้อมูล + props | ดึง shopName/avatar/tierName/trustScore + wallet balance + orderStatusCounts + recentActivity; ส่ง props เดียวเข้า CommandCenter; tsc 0 | ✅ DONE |
+| S-7 | CommandCenter wrapper + ลำดับ | ประกอบ SellerHeader→ShortcutGrid→OrderStatusRow→WalletCard→RecentActivityFeed (ลำดับนี้เสมอ); `lg:hidden`; ไม่ใส่ padding ซ้ำ shell (safepay-overrides.css L98/L101) | ✅ DONE |
+| S-8 | `SHORTCUT_TILES` 8-tile semantic | constants ส่งออก array 8 (key/label/icon/href/color semantic); ไม่ hardcode hex | ✅ DONE |
+| S-9 | `/notifications` route + mock data | `(dashboard)/notifications/page.tsx` render; `notification-data.ts` mock ≥8 รายการ 4 ประเภท; type `Notification`; tsc 0 | ✅ DONE |
+| S-10 | NotificationTimeline (CRM Activities + lazy-load) | source `apps/crm/activities/page.tsx`; tab filter ทั้งหมด/คำสั่งซื้อ/รีวิว/การเงิน/ระบบ (`border-b` active=primary); date group; row node `size-7.5` + dashed connector + content (title `<strong>`/desc `text-default-700`/badge `bg-*/15`/time); lazy-load client IntersectionObserver + spinner `animate-spin`; mock slice จำลอง | ✅ DONE |
+| S-11 | SellerBottomNav clean arbitrary | grep arbitrary (`text-[`/`bg-[`/`rounded-[`/hex) → Paces token; center button arbitrary จำเป็น = comment กำกับ; touch ≥44px | ✅ DONE |
+| S-12 | A11y sweep | `text-default-400` ใน text สำคัญ = 0 (≥default-500); touch ≥44px @360px; ขาวบนน้ำเงิน ≥.9; focus state ชัด; ไม่มี `#7367F0`/`rgba(115,103,240` | ✅ DONE |
 
 ## Out-of-Scope
 
@@ -56,3 +57,4 @@ real noti source (activity paginated + Notification model + unread persistence) 
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-06-10 | baseline สร้าง | Gate 0 phase cc-v8 | Controller |
+| 2026-06-10 | Gate 2 SIGNED-OFF | S-1..S-12 ผ่าน Review 8-gate + QA mobile 360px (Paces blue, ม่วง 0, console clean) | product |
