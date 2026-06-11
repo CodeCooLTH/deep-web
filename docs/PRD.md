@@ -1,15 +1,19 @@
 # Deep — Product Requirements Document (PRD)
 
-**เวอร์ชัน:** 3.0
-**วันที่:** 16 พฤษภาคม 2569
+**เวอร์ชัน:** 3.2
+**วันที่:** 11 มิถุนายน 2569
 **ผู้จัดทำ:** Deep Team
 
-> **แบรนด์:** ชื่อทางการค้าคือ **"Deep"** (UI copy, domain `deepthailand.app`). **"SafePay"** เป็น internal codename — repo, identifiers, ตาราง DB ยังใช้ SafePay. PRD ฉบับนี้ใช้ "Deep" เป็นหลัก.
+> **Changelog 3.2 (2026-06-11):** แยก technical spec ออกไป `docs/SRS.md` (data model/API/FR detail/state machine/routing/NFR/tech stack/enums/auth matrix/validation). PRD เหลือ product-level: vision, stories, feature overview, MVP scope, metrics, business model, roadmap.
+
+> **Changelog 3.1 (2026-06-11):** เพิ่ม §12-§16 technical contract (ย้ายไป SRS แล้ว)
+
+> **แบรนด์:** ชื่อทางการค้าคือ **"Deep"** (UI copy, domain `deepthailand.app`). **"SafePay"** เป็น internal codename — repo, identifiers, ตาราง DB ยังใช้ SafePay.
 > ปรับปรุงจาก interview ทบทวนทีละ section (2026-05-16). decision log: `docs/superpowers/specs/2026-05-16-prd-rewrite-decisions.md`. gap analysis เทียบโค้ดจริงเป็นฐาน.
 
 ---
 
-## 1. ภาพรวมผลิตภัณฑ์ (Product Overview)
+## §1 ภาพรวมผลิตภัณฑ์ (Product Overview)
 
 Deep เป็นระบบจัดเก็บ History และคำนวณ Trust Score เพื่อสร้างความน่าเชื่อถือในการซื้อขายออนไลน์ ผ่าน Verify ตัวตน, Badge, Public Profile — แก้ปัญหามิจฉาชีพในโลกการค้าออนไลน์
 
@@ -21,7 +25,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 - ไม่แบ่ง role — ทุก account มี trust profile เดียวกัน, เปิดร้านเพิ่มได้ (`isShop` flag, auto-set เมื่อสร้างร้านสำเร็จ)
 - **Free core ตลอดไป** — ทุกคนใช้ฟรี: สร้าง Order/Product, Order Link อย่างง่าย, Report 1 ตัว, **ทุกขั้นตอน manual** (สร้าง + ส่งลิงก์เอง). ระบบทำหน้าที่บันทึก history + คำนวณ Trust + Public Profile
-- **คิดเงินเฉพาะฟังก์ชันช่วยเหลือ** แบบ à la carte (ดู §10 Business Model)
+- **คิดเงินเฉพาะฟังก์ชันช่วยเหลือ** แบบ à la carte (ดู §6 Business Model)
 - **หลักออกแบบสำคัญ:** flow ฝั่ง Free โดยเฉพาะ Order Link ต้อง **"ง่ายมาก ๆ"** — เป็น design constraint ระดับ product ไม่ใช่แค่ usability NFR
 
 ### 1.3 Target Users / Personas
@@ -34,7 +38,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ---
 
-## 2. User Stories
+## §2 User Stories
 
 ### 2.1 User/Buyer (มี profile + guest)
 
@@ -71,7 +75,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 | ID | User Story | Priority | Acceptance Criteria |
 |----|-----------|----------|-------------------|
-| A-1 | เห็น dashboard สถิติครบ | Must | 8 metrics (ดู §9) |
+| A-1 | เห็น dashboard สถิติครบ | Must | 8 metrics (ดู §5) |
 | A-2 | review เอกสาร verification | Must | ดูเอกสาร, approve/reject + เหตุผล — **ห้าม approve ของตัวเอง** |
 | A-3 | ดูรายการผู้ใช้ | Must | users + trust score + verification status |
 | A-4 | ดูรายการ orders ทั้งหมด | Must | filter ตามสถานะ |
@@ -79,354 +83,73 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ---
 
-## 3. Functional Requirements
+## §3 Features (Functional Overview)
+
+> รายละเอียด FR ฉบับเต็ม (สูตร/acceptance criteria/state machine/routing/validation): ดู `docs/SRS.md`
 
 ### FR-1: Authentication & Session
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-1.1 | รองรับ Facebook OAuth Login | Must |
-| FR-1.2 | รองรับ Phone OTP Login (SMS) — OTP store ปัจจุบัน in-memory (Redis = Phase 2) | Must |
-| FR-1.3 | 1 user ผูก auth provider ได้ (AuthAccount) — link เฉพาะตอน signup เท่านั้น | Must |
-| FR-1.4 | Session แยกตาม subdomain (buyer / seller / admin) — host-scoped cookie ต่อ hostname | Must |
-| FR-1.5 | Login แยกแต่ละ subdomain, logout ฝั่งหนึ่งไม่กระทบอีกฝั่ง | Must |
-| FR-1.6 | **ตัดถาวร:** Email+Password, multi-provider linking หลัง signup | — |
+ระบบ login 2 ช่องทาง: Facebook OAuth และ Phone OTP (SMS). Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี Email+Password ใน MVP หรือ Phase 2.
+
+Priority: Must — รายละเอียด/acceptance: ดู SRS §1 FR-1
 
 ### FR-2: Verification (3 ระดับ)
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-2.1 | **Level 1: ยืนยันเบอร์โทร Phone OTP** (auto-approve) — ไม่ใช้ email OTP | Must |
-| FR-2.2 | Level 2: เอกสารบุคคล (บัตรประชาชน + selfie) — admin review | Must |
-| FR-2.3 | Level 3: เอกสารจดทะเบียนธุรกิจ — admin review | Must |
-| FR-2.4 | Verification type enum กำหนดชัด: `PHONE_OTP`, `ID_DOC`, `BUSINESS_REG` | Must |
-| FR-2.5 | Verification ที่ผ่าน → ได้ Verification Badge อัตโนมัติ | Must |
-| FR-2.6 | **Admin อนุมัติ/ปฏิเสธ verification ของตัวเองไม่ได้** (self-review block) — acceptance criterion บังคับ | Must |
+ยืนยันตัวตนได้ 3 ระดับ: L1 = Phone OTP (auto), L2 = บัตรประชาชน+selfie (admin review), L3 = เอกสารธุรกิจ (admin review). Admin ห้าม approve verification ของตัวเอง.
+
+Priority: Must — รายละเอียด/acceptance: ดู SRS §1 FR-2
 
 ### FR-3: Trust Score
 
-สูตรจริง = **raw additive points** (ไม่ใช่ % weighting) cap ต่อ component, รวม 0–100:
+คะแนนความน่าเชื่อถือ 0-100 คำนวณจาก 5 ปัจจัย (Verification 35 / Orders 25 / Rating 20 / Age 10 / Badges 10). Rating floor: ถ้า review < 3 = 0 คะแนน component. MVP มีแต่ขึ้น ไม่หักคะแนน.
 
-| Component | สูตร | Cap |
-|-----------|------|-----|
-| Verification | 0 / 10 / 25 / 35 ตามระดับสูงสุดที่ผ่าน | 35 |
-| Orders | `min(25, √(completedCount) × 2.5)` | 25 |
-| Rating | `(avgRating − 1) × 5` — **0 ถ้า review < 3** | 20 |
-| Age | `min(10, accountAgeDays / 365 × 10)` | 10 |
-| Badges | `min(10, badgeCount)` | 10 |
-
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-3.1 | คำนวณตามสูตร raw additive ด้านบน (sum 5 component, รวม 0–100) | Must |
-| FR-3.2 | ระดับ: A+ (90-100), A (80-89), B+ (70-79), B (60-69), C (40-59), D (0-39) | Must |
-| FR-3.3 | **Rating floor:** ถ้า review < 3 → rating component = 0 + ต้องมี UX copy อธิบาย seller ชัดเจน (กัน beta confusion) | Must |
-| FR-3.4 | Recalculate เมื่อ: order CONFIRMED, review ใหม่, verification approved, badge ใหม่ | Must |
-| FR-3.5 | Snapshot ใน TrustScoreHistory ทุกครั้งที่คำนวณ | Must |
-| FR-3.6 | MVP: Trust Score มีแต่ขึ้น ยังไม่หักคะแนน | Must |
+Priority: Must — สูตรเต็ม/acceptance: ดู SRS §1 FR-3
 
 ### FR-4: Badge
 
-แบ่ง **3 ประเภท** ชัดเจน:
+3 ประเภท: Verification badge (auto), Achievement badge (data-driven engine; 10 badge seller + buyer audience), Paid Verified Badge (Phase 2). Badge ติดตัวถาวร ไม่ revoke. หน้า Badge Process แสดง progress.
 
-1. **Verification badge** — auto เมื่อผ่าน verification แต่ละระดับ
-2. **Achievement badge** — auto-evaluate **ผ่าน data-driven engine** (criteria JSON authoritative). มีทั้งฝั่ง **Seller และ Buyer**
-3. **Paid badge (Verified Badge)** — ซื้อ subscription (Phase 2, ~฿299/เดือน), ติดหลังชื่อร้าน/profile แบบ Meta/Twitter. **แยกขาด — ไม่นับเข้า trust score, ไม่ใช่ผลของ KYC**
-
-**Achievements system (MVP):**
-- ทุก achievement มี `audience` = SELLER / BUYER / ANY
-- **ติดตัวถาวร (sticky)** — ครบเงื่อนไขเมื่อไหร่ได้รับทันทีและ **ไม่ถูก revoke** แม้เงื่อนไขเปลี่ยนภายหลัง (เช่น avg rating ตกทีหลัง badge ยังอยู่) — สอดคล้องหลัก "Trust มีแต่ขึ้น"
-- รองรับ **event/time-bound achievement** เช่น `2026_BADGE` (สมัครภายในปี 2026 — ประเมินตอน signup, ค่าคงที่), `FIRST_ORDER_REVIEWED` (seller ได้เมื่อมี order CONFIRMED แรก)
-- แต่ละ badge มี field `icon` (เพิ่ม asset ภายหลังได้ — nullable, มี fallback)
-- **Badge Process** — ผู้ใช้เห็น progress ต่อ badge ที่ยังไม่ได้ ("อีก N order / N วัน จะได้ badge นี้")
-
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-4.1 | Verification badge: auto เมื่อผ่าน verification | Must |
-| FR-4.2 | Achievement badge: auto-evaluate, มีฝั่ง Seller + Buyer (audience field) | Must |
-| FR-4.3 | **Badge engine data-driven** — admin แก้ criteria JSON แล้วมีผล runtime จริง (ปัจจุบัน hardcode ตาม nameEN = tech-debt ต้อง rework, ดู §11) | Must |
-| FR-4.4 | **Badge ติดตัวถาวร** — ได้แล้วไม่ revoke (sticky award table) | Must |
-| FR-4.5 | รองรับ event/time-bound achievement (signup-year, first-order ฯลฯ) นอกเหนือ 10 achievement seller เดิม | Must |
-| FR-4.6 | แต่ละ badge มี `icon` (deferred asset, มี fallback icon) | Must |
-| FR-4.7 | **หน้า Badge Process** (`/badges` ฝั่ง buyer + seller, self-only) — list badge ทั้งหมด + สถานะ (ได้แล้ว / progress เหลืออีกเท่าไหร่). **progress แสดงเฉพาะหน้า self นี้** | Must |
-| FR-4.8 | Public profile แสดงเฉพาะ badge **ที่ได้แล้ว** หมวด seller-context (verification + seller achievement + paid, แยกหมวด paid ≠ trust). **ไม่แสดง progress; ไม่แสดง buyer-audience achievement** | Must |
-| FR-4.9 | Paid Verified Badge — Phase 2 | Phase 2 |
-
-**Achievement Badges (10):**
-
-| #   | Badge              | ชื่อไทย         | เงื่อนไข                                                                                    |
-| --- | ------------------ | --------------- | ------------------------------------------------------------------------------------------- |
-| 1   | First Sale         | เปิดหน้าร้าน    | order CONFIRMED แรก                                                                         |
-| 2   | Trusted Seller 50  | ร้านค้ายอดนิยม  | CONFIRMED ครบ 50                                                                            |
-| 3   | Century Club       | ร้อยออเดอร์     | CONFIRMED ครบ 100                                                                           |
-| 4   | Perfect Rating     | ร้านคะแนนเต็ม   | avg 5.0 (≥10 reviews)                                                                       |
-| 5   | Highly Rated       | ร้านคะแนนสูง    | avg ≥4.8 (≥20 reviews)                                                                      |
-| 6   | Zero Complaint     | ไร้ข้อร้องเรียน | CONFIRMED 50 + **ไม่มี seller-initiated cancel** (buyer-initiated cancel ไม่นับ)            |
-| 7   | Veteran            | ร้านค้าเก่าแก่  | สมาชิกครบ 1 ปี + active (order ใน 30 วัน)                                                   |
-| 8   | Speed Demon        | จัดส่งสายฟ้า    | avg เวลา PENDING → SHIPPED ≤ 24 ชม. (≥20 orders, ใช้ shipmentTracking.createdAt เป็น proxy) |
-| 9   | Fully Verified     | ยืนยันครบ       | ผ่าน verification L1+L2+L3                                                                  |
-| 10  | Community Favorite | ขวัญใจชุมชน     | reviewer ≥50 คน (**unique reviewerUserId เท่านั้น — anonymous review ไม่นับ**)              |
+Priority: Must — criteria 10 badge/acceptance: ดู SRS §1 FR-4
 
 ### FR-5: Product (Capability Model)
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-5.1 | Seller สร้าง/แก้/ลบสินค้า (ชื่อ, shortDescription ≤200, description ≤5000, ราคา, รูป ≤10, tags, attributes, isActive) | Must |
-| FR-5.2 | **4 ชนิด:** PHYSICAL / DIGITAL / SERVICE / **SUBSCRIPTION** | Must |
-| FR-5.3 | **Capability axes:** `fulfillmentMode` (SHIPPED / NO_SHIPPING), `billingMode` (ONE_TIME / RECURRING), `billingPeriod` + `billingPeriodDays` | Must |
-| FR-5.4 | Type เป็น preset ของ capability, override ขั้น advanced ได้ (ดู spec `2026-05-10-product-types-capability-design.md`) | Must |
-| FR-5.5 | เลือกสินค้าจาก catalog ตอนสร้าง order หรือพิมพ์เอง (one-off, productId optional) | Must |
-| FR-5.6 | Backward-compat: product เดิม (PHYSICAL) ทำงานต่อได้ | Must |
+สินค้า 4 ชนิด: PHYSICAL / DIGITAL / SERVICE / SUBSCRIPTION. Capability axes: fulfillmentMode (SHIPPED/NO_SHIPPING), billingMode (ONE_TIME/RECURRING). Ship guard ใช้ fulfillmentMode ไม่ใช่ type.
+
+Priority: Must — capability defaults/acceptance: ดู SRS §1 FR-5
 
 ### FR-6: Simple OMS
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-6.1 | Seller สร้าง order → public link `/o/{token}` | Must |
-| FR-6.2 | Buyer เปิดลิงก์ → เห็นข้อมูล order + trust score ร้าน | Must |
-| FR-6.3 | **Confirm = phone-unlock** — buyer กรอกเบอร์ให้ตรง → unlock → กดยืนยัน. **ไม่มี OTP confirm** | Must |
-| FR-6.4 | Order status = state machine (ดู §4) | Must |
-| FR-6.5 | **Ship guard = `fulfillmentMode === SHIPPED`** (ไม่ใช่ type===PHYSICAL — ดู §11). `shippingAddress` จำเป็นเมื่อ SHIPPED และ **ต้อง persist** ผ่าน CreateOrderSchema | Must |
-| FR-6.6 | NO_SHIPPING (digital/service/subscription) → PENDING แล้วยืนยันได้เลย | Must |
-| FR-6.7 | Snapshot ชื่อ/ราคาลง OrderItem (ไม่ผูกตรง product) | Must |
-| FR-6.8 | **SMS Order Link (paid):** ลิงก์ที่ส่งผ่าน SMS จาก seller ที่ verify แล้ว ฝัง **phone-bound token → buyer ข้าม phone-unlock อัตโนมัติ**; ลิงก์ที่ seller แชร์เอง (manual) ยังต้อง phone-unlock | Must |
-| FR-6.9 | หักเครดิตจาก wallet ฿1/SMS ตอนกดส่ง (ดู §10) | Must |
-| FR-6.10 | SUBSCRIPTION: แต่ละ cycle = order ย่อย เดิน PENDING→CONFIRMED ของตัวเอง (recurring dashboard + billing — P4) | Must |
-| FR-6.11 | **วิธีชำระเงิน (paymentMethod) ต้อง persist ใน Order** — seller เลือก/บันทึกตอนสร้าง order; แสดงทั้ง order detail (seller) และหน้า buyer link. วิธีที่ต้องแนบสลิป (เช่น โอนเงิน/พร้อมเพย์) vs ไม่ต้อง (เช่น COD/เงินสด) ควบคุมโดย `requiresSlip` flag ตาม `paymentMethod` *(เพิ่ม 2026-05-17 — เดิม OQ-8 ใน handoff spec ระงับไว้)* | Must |
-| FR-6.12 | **Payment slip upload โดย buyer** — buyer ที่ผ่าน phone-unlock แนบสลิปการชำระเงินได้ที่ `/o/{token}` (optional; แสดงปุ่มเฉพาะ PENDING + `paymentMethod` ที่ `requiresSlip=true`); seller ตรวจสลิปได้ใน order detail ฝั่ง seller. 1 order = 1 slip (ถ้าแนบซ้ำ = replace) *(เพิ่ม 2026-05-17 — เดิมไม่อยู่ใน scope)* | Must |
-| FR-6.13 | **Buyer cancel เฉพาะ PENDING** — buyer ที่ผ่าน phone-unlock สามารถยกเลิก order ได้เฉพาะสถานะ `PENDING`; เมื่อ status = `SHIPPED` ปุ่มยกเลิกหาย เหลือแต่ปุ่มยืนยันรับของ; `CONFIRMED`/`CANCELLED` = terminal. guard ทั้ง UI + API. `cancelInitiator='buyer'` ไม่กระทบ Zero Complaint *(เพิ่ม 2026-05-17)* | Must |
+Seller สร้าง order → link `/o/{token}` → buyer phone-unlock → ยืนยัน → recalc trust. รองรับ SMS Order Link (paid ฿1/SMS; phone-bound token ข้าม phone-unlock). Buyer cancel ได้เฉพาะ PENDING. Payment slip upload โดย buyer.
+
+Priority: Must — state machine/sub-IDs FR-6.1-6.13: ดู SRS §1 FR-6 + §2
 
 ### FR-7: Review
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-7.1 | Buyer review + rating (1-5) ได้ตั้งแต่ order = CONFIRMED (รวมหลัง SHIPPED ก่อน CONFIRMED ถ้ามี — ตามจริงโค้ดอนุญาต CONFIRMED ขึ้นไป) | Must |
-| FR-7.2 | 1 order = 1 review (unique constraint บน orderId; error message ผู้ใช้เป็นไทย) | Must |
-| FR-7.3 | Buyer ไม่สมัคร → เก็บ `reviewerContact`. **anonymous review นับเข้า rating แต่ไม่นับ unique-reviewer ของ Community Favorite** | Must |
-| FR-7.4 | แสดง reviews บน public profile | Must |
+Buyer review + rating 1-5 ดาว หลัง CONFIRMED. 1 order = 1 review. Guest buyer เก็บ reviewerContact. Anonymous review นับเข้า rating แต่ไม่นับ unique reviewer (Community Favorite).
+
+Priority: Must — acceptance: ดู SRS §1 FR-7
 
 ### FR-8: Buyer History Linking
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-8.1 | Buyer ไม่สมัคร → เก็บ buyerContact (phone/email) ทั้งใน order และ reviewerContact | Must |
-| FR-8.2 | สมัครภายหลัง → auto-link: phone match (phone-OTP signup) / email match (FB signup) | Must |
-| FR-8.3 | History ย้อนหลังแสดงครบทันทีหลัง link | Must |
-| FR-8.4 | **Known limitation:** FB user ที่ไม่มี email → ไม่ auto-link (ดู §11) | — |
+Buyer ยืนยัน order โดยไม่สมัคร → เก็บ buyerContact → สมัครภายหลัง → auto-link orders+reviews ทันที (phone match = phone-OTP; email match = FB).
+
+Priority: Must — acceptance: ดู SRS §1 FR-8
 
 ### FR-9: Public Profile (Seller-centric)
 
-> **Redesign (2026-05-23):** หน้า `/u/{username}` ถูก rebuild เป็น single-column Instagram-style card (max-width 640px) ตาม mockup ที่ user อนุมัติ. Spec เต็ม: `docs/superpowers/specs/2026-05-23-shop-public-profile-design.md`. Section ที่ตัดออกจากหน้า public (ตาม mockup): About card, Verification list, Reviews list — ย้ายให้ดูได้เฉพาะหน้า self
+หน้า `/u/{username}` สาธารณะ (ไม่ต้อง login). แสดง trust banner (Deep tier), badges (seller-context), product grid ≤9, avg rating, order count. Redesign 2026-05-23: single-column Instagram-style (max-width 640px).
 
-| ID      | ข้อกำหนด                                                                                                                                                                                              | Priority | สถานะ |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
-| FR-9.1  | ทุกคนมี `/u/{username}`                                                                                                                                                                               | Must     | **DONE** |
-| FR-9.2  | แสดง: trust score, badges (seller-context เท่านั้น — SELLER/ANY audience), จำนวน order สำเร็จ, avg rating (≥3 reviews), completion rate                                                               | Must     | **DONE** |
-| FR-9.3  | ถ้าเป็นร้าน → แสดงข้อมูลร้าน (ชื่อร้าน, bio/Shop.description, location/Shop.address, วันเข้าร่วม)                                                                                                  | Must     | **DONE** |
-| FR-9.4  | เข้าดูได้โดยไม่ต้อง login (session=null ไม่ redirect)                                                                                                                                               | Must     | **DONE** |
-| FR-9.5  | บัญชี buyer-only (isShop=false) → แสดง trust + verification badge + empty-state ชวนเปิดร้าน. **ไม่แสดง review-as-buyer; ไม่แสดง buyer-audience achievement** (buyer badge ดูได้เฉพาะหน้า self `/badges`) | Must     | **DONE** |
-| FR-9.6  | **Trust Banner** — แสดง Deep tier name + cover ตาม trust level. **5-tier ตาม SSOT `docs/10 - Business Rules/Tier Lists.md`** (6 letter grade → 5 tier): A+ = **Deep Star** (ม่วง), A = **Deep Diamond** (ฟ้า), B+ = **Deep Gold** (ทอง), B = **Deep Silver** (เทา), C+D = **Deep Classic** (ส้ม, entry). ผูก `getTrustLevel(user.trustScore)` + helper `src/lib/trust-tier.ts`. ⚠️ ห้าม hardcode mapping ใหม่ — ยึด Tier Lists.md | Must     | **DONE** |
-| FR-9.7  | **Product Grid** — แสดง active products ≤9 (isActive=true, เรียง createdAt desc) ใน grid 3-col square; tile = รูปแรกจาก images[] + hover ชื่อ+ราคา; ร้านไม่มี active product → empty state ไม่ crash; buyer-only → ซ่อน section | Must     | **DONE** |
-| FR-9.8  | **avgRating bug fix** — คำนวณจาก review **ทั้งหมด** ผ่าน `prisma.review.aggregate` (ไม่ใช้ `take=10` แบบเดิม); แสดงเฉพาะเมื่อ reviewCount ≥ 3 | Must     | **DONE** |
-| FR-9.9  | **Verified chip** — แสดงเมื่อ maxVerifyLevel ≥ 1 (สีตาม level: L1=info, L2=success, L3=primary); ไม่มี verification → ซ่อน chip (ไม่แสดง "ยังไม่ยืนยัน") | Must     | **DONE** |
-| FR-9.10 | **Cross-platform stats + On-time/Response time** — แสดงเป็น **placeholder ตัวอย่าง (hardcode)** พร้อมป้าย "ตัวอย่าง" ชัดเจนและ fine print "*ข้อมูลตัวอย่าง ไม่ใช่ยอดจริง" — **Phase 2:** เชื่อม real cross-platform API + deliveryDeadline tracking จริง | Phase 2 | PLACEHOLDER |
-| FR-9.11 | **Follow + Chat FAB** — ปุ่ม disabled + tooltip "เร็ว ๆ นี้" — **Phase 2:** ต้องมี backend follow system + chat | Phase 2 | DISABLED |
+Priority: Must — sub-IDs FR-9.1-9.11/สถานะ: ดู SRS §1 FR-9
 
 ### FR-10: Admin Panel
 
-| ID | ข้อกำหนด | Priority |
-|----|---------|----------|
-| FR-10.1 | Dashboard 8 metrics ครบ (ดู §9) | Must |
-| FR-10.2 | User management: list, filter, trust score | Must |
-| FR-10.3 | Verification review: ดูเอกสาร, approve/reject + self-review block (FR-2.6) | Must |
-| FR-10.4 | Order monitoring: filter ตามสถานะ | Must |
-| FR-10.5 | Badge management: เพิ่ม/แก้ + criteria มีผล runtime (FR-4.3) | Must |
-| FR-10.6 | Admin auth แยก subdomain. การได้สิทธิ์ admin = ตั้ง `isAdmin=true` ผ่าน DB seed (ไม่มี self-service) | Must |
+Dashboard 8 metrics ครบ. User management, verification queue (self-review block), order monitoring, badge management (criteria data-driven), topup queue approval.
+
+Priority: Must — acceptance: ดู SRS §1 FR-10
 
 ---
 
-## 4. Order Status Flow (Redesign)
-
-### 4.1 State Machine
-
-```
-มีจัดส่ง (fulfillmentMode = SHIPPED):
-  PENDING ──seller ใส่ tracking──▶ SHIPPED ──buyer กดรับของ──▶ CONFIRMED ✅ (นับ trust/badge)
-
-ไม่จัดส่ง (NO_SHIPPING: digital / service / subscription):
-  PENDING ──buyer กดยืนยัน──▶ CONFIRMED ✅ (นับ trust/badge)
-
-ยกเลิก (เฉพาะก่อน CONFIRMED):
-  PENDING / SHIPPED ──seller ยกเลิก──▶ CANCELLED
-  PENDING ──buyer ยกเลิก──▶ CANCELLED   ← buyer ยกเลิกได้เฉพาะ PENDING เท่านั้น (เพิ่ม 2026-05-17)
-```
-
-| สถานะ | คำอธิบาย | ใครเปลี่ยน |
-|-------|---------|-----------|
-| PENDING | สร้าง order แล้ว รอ buyer ยืนยัน (phone-lock เป็น sub-state ของ PENDING ไม่ใช่ status เต็ม) | Seller (สร้าง) |
-| SHIPPED | seller ใส่ tracking แล้ว (เฉพาะ fulfillmentMode=SHIPPED) | Seller |
-| CONFIRMED | buyer ยืนยันรับของ/ยืนยัน order — **terminal สำเร็จ ชื่อเดียวทั้งสอง path** | Buyer |
-| CANCELLED | ยกเลิกก่อน CONFIRMED — เก็บ `cancelInitiator` (seller \| buyer) | Seller / Buyer |
-
-**กติกา:**
-- terminal เดียว = `CONFIRMED` (ไม่มี COMPLETED / DELIVERED / BUYER_CONFIRMED แยก — เพื่อความง่ายและไม่ให้ seller กด 2 จังหวะ)
-- trust score / achievement badge / Zero Complaint นับที่ `CONFIRMED`
-- **Zero Complaint:** นับเฉพาะ **seller-initiated cancel** — buyer-initiated cancel ไม่ลงโทษ seller
-- **Buyer-cancel rule (เพิ่ม 2026-05-17):** buyer ยกเลิกได้เฉพาะ status = `PENDING` เท่านั้น; เมื่อ SHIPPED แล้ว buyer ยกเลิกไม่ได้ (เหลือแค่ "ยืนยันรับของ"); CONFIRMED/CANCELLED = terminal
-- ยกเลิกหลัง CONFIRMED ไม่ได้ (terminal). MVP **ไม่มี dispute system** (Phase 2)
-- SUBSCRIPTION: แต่ละรอบบิล (cycle) สร้าง order ย่อยที่เดิน PENDING→CONFIRMED ของตัวเอง
-
-### 4.2 Data Visibility — Order Link (`/o/{token}`)
-
-| ผู้เข้าชม | เห็นอะไร |
-|----------|---------|
-| ทั่วไป (ก่อน unlock) | ข้อมูลสินค้า, ราคา, trust score ร้าน + ช่องกรอกเบอร์ (phone-lock) |
-| Buyer (unlock แล้ว / มาจาก SMS phone-bound) | รายละเอียดเต็ม + ปุ่มยืนยัน (PENDING/SHIPPED) + **ปุ่มแนบสลิป (PENDING เท่านั้น, optional)** + **ปุ่มยกเลิก (PENDING เท่านั้น)** *(เพิ่ม 2026-05-17)* |
-| Seller (เจ้าของ) | ทุกอย่าง + ข้อมูล buyer + ปุ่มจัดการสถานะ |
-
----
-
-## 5. Page Map & Routing
-
-### 5.1 Subdomain Strategy
-
-| Subdomain (prod / dev) | ใช้สำหรับ | Session |
-|---|---|---|
-| `deepthailand.app` / `deepth.local:4000` | Public + Buyer | Buyer session |
-| `seller.deepthailand.app` / `seller.deepth.local:4000` | Seller (ต้องเปิดร้าน) | Seller session |
-| `admin.deepthailand.app` / `admin.deepth.local:4000` | Admin | Admin session |
-
-Account เดียวกัน login/session แยกตาม subdomain (host-scoped cookie). routing ใน `src/proxy.ts`.
-
-### 5.2 Public (`deepthailand.app`)
-
-| Page | Path |
-|------|------|
-| Landing | `/` |
-| Pricing | `/pricing` |
-| Sign-in / Sign-up / Verify OTP | `/auth/sign-in`, `/auth/sign-up`, `/auth/verify-otp` |
-| Public Profile | `/u/{username}` |
-| Public Order (UUID) | `/o/{token}` |
-| Public Order (SMS short-code) | `/o/{12-char-code}` → redirect ผ่าน `/api/o/sms/{code}` → `/o/{uuid}` |
-| SMS Link Invalid / Error | `/o/link-invalid` |
-
-### 5.3 Buyer (`deepthailand.app/...`) — ต้อง login
-
-| เมนู | Path |
-|------|------|
-| Dashboard | `/dashboard` |
-| My Orders | `/orders` |
-| My Reviews | `/reviews` |
-| Badges & Progress | `/badges` |
-| Verification | `/settings/verification` |
-| Profile | `/settings/profile` |
-
-### 5.4 Seller (`seller.deepthailand.app/...`) — login แยก + ต้องมีร้าน
-
-| เมนู | Path |
-|------|------|
-| Dashboard | `/dashboard` |
-| Sales (analytics) | `/sales` |
-| Products | `/products` |
-| Categories | `/categories` |
-| Customers | `/customers` |
-| Orders | `/orders` |
-| Create Order | `/orders/new` |
-| Reviews | `/reviews` |
-| Badges & Progress | `/badges` |
-| **เครดิต SMS (wallet)** | **`/wallet`** |
-| Shop Settings | `/shop` |
-| Verification | `/verification` |
-
-> path ฝั่ง seller **ไม่มี** `/settings/` prefix (sync ตามโค้ดจริง)
-
-### 5.5 Admin (`admin.deepthailand.app/...`) — login แยก + isAdmin
-
-| เมนู | Path |
-|------|------|
-| Dashboard | `/dashboard` |
-| Users | `/users` |
-| Verifications | `/verifications` |
-| Orders | `/orders` |
-| **เติมเครดิต SMS (topup queue)** | **`/topups`** |
-| Badges | `/badges` |
-
-### 5.6 Route Auth
-
-**ทุก authed route ต้อง server-side guard (proxy/server) ไม่พึ่ง client-side อย่างเดียว.**
-known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ยัง client-only — ต้องแก้ (ดู §11).
-
----
-
-## 6. Non-Functional Requirements
-
-### NFR-1: Performance
-
-| ID | ข้อกำหนด |
-|----|---------|
-| NFR-1.1 | API response < 500ms (p95) |
-| NFR-1.2 | Public Profile โหลด < 2s |
-| NFR-1.3 | File upload ≤ 5MB, ภาพสินค้า ≤ 10 รูป |
-
-### NFR-2: Security
-
-| ID | ข้อกำหนด |
-|----|---------|
-| NFR-2.1 | Host-scoped cookie ต่อ subdomain |
-| NFR-2.2 | CSRF protection (requirement — known-gap: custom API ยังไม่มี, ดู §11) |
-| NFR-2.3 | Rate limiting: 100 req/min public, 30 req/min auth, 5 req/min OTP (requirement — known-gap: มีแค่ OTP in-memory) |
-| NFR-2.4 | File upload: validate MIME, limit size, rename UUID, serve นอก public/ + auth check |
-| NFR-2.5 | Input validation ทุก endpoint — Valibot (API) / Yup (form) |
-| NFR-2.6 | OTP rate limit 3 ครั้ง/10 นาที/เบอร์ |
-| NFR-2.7 | Admin self-review block (verification) — FR-2.6 |
-
-### NFR-3: Usability
-
-| ID | ข้อกำหนด |
-|----|---------|
-| NFR-3.1 | **UI user-facing ภาษาไทยทั้งหมด** (รวม seller/admin) — known-gap: menu label seller/admin ยังอังกฤษ ต้องแปล (§11) |
-| NFR-3.2 | Responsive mobile-first สำหรับ order link + public profile |
-| NFR-3.3 | Order Link / Free flow ต้อง **"ง่ายมาก ๆ"** — ขั้นตอนน้อยสุด, ไม่ต้องสมัครก่อนยืนยัน |
-| NFR-3.4 | Sidebar layout (buyer Vuexy / seller-admin Paces), collapse เป็น drawer บน mobile |
-
-### NFR-4: Reliability
-
-| ID | ข้อกำหนด |
-|----|---------|
-| NFR-4.1 | Uptime > 99% |
-| NFR-4.2 | Database backup รายวัน (Supabase) |
-
-### NFR-5: Maintainability
-
-| ID | ข้อกำหนด |
-|----|---------|
-| NFR-5.1 | Service layer แยกจาก API layer |
-| NFR-5.2 | Prisma ORM, migration ผ่าน Prisma |
-| NFR-5.3 | Docker Compose local; prod Supabase |
-| NFR-5.4 | Unit tests สำหรับ critical services (Vitest) |
-
----
-
-## 7. Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Framework | Next.js 16.1 (App Router, Turbopack) |
-| Language | TypeScript (strict) |
-| UI Theme | **Dual:** buyer/marketing = Vuexy (**MUI v9** + Emotion + Tailwind 4); seller/admin = Paces (Preline 4 + Tailwind 4, no MUI) |
-| Database | PostgreSQL 16 (Supabase) |
-| ORM | Prisma |
-| Auth | NextAuth.js v4 (Facebook OAuth + Phone OTP) |
-| OTP / SMS | SMS Gateway provider — **TBD provider, เป็น MVP dependency** (ใช้ทั้ง auth OTP + SMS Order Link) |
-| Validation | Valibot (API) + Yup (form, react-hook-form) |
-| Charts | ApexCharts / ECharts / Chart.js |
-| Alerts | react-toastify |
-| Analytics | Google Analytics + Google Search Console |
-| Container | Docker + Docker Compose |
-| Testing | Vitest |
-
----
-
-## 8. MVP Scope
+## §4 MVP Scope
 
 ### ทำใน MVP
 
@@ -435,7 +158,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 - Verification L1 (Phone OTP) + L2 (เอกสารบุคคล) + L3 (ธุรกิจ) + admin review + self-review block
 - Trust Score (raw additive + rating floor + UX copy)
 - **Achievements system** — Badge data-driven engine (3 ประเภท; rework จาก hardcode), Seller+Buyer audience, ติดตัวถาวร, event/time-bound, icon deferred, **หน้า Badge Process** (buyer+seller `/badges`)
-- Simple OMS — state machine ใหม่ (PENDING→CONFIRMED, unified terminal)
+- Simple OMS — state machine (PENDING→CONFIRMED, unified terminal)
 - **SMS Order Link + credit/top-up wallet** (paid, ฿1/SMS)
 - **SUBSCRIPTION เต็มรูป** — capability model + P3 (NO_SHIPPING hide-address) + P4 (recurring dashboard + recurring billing)
 - Buyer history linking (phone/email match)
@@ -450,15 +173,15 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 - พิมพ์เอกสาร (ใบเสร็จ/ใบแจ้งหนี้) — paid (โมเดล A: ฿590/600 orders | B: ฿199/เดือน unlimited — TBD)
 - **Verified Badge** — paid subscription ~฿299/เดือน
 - ระบบ billing เต็มรูป + Redis store (OTP/rate-limit)
-- General rate-limit (100/30) + CSRF เต็มรูป
+- General rate-limit Redis-backed + CSRF เต็มรูป
 - Dispute / Complaint system (admin review ก่อนหักคะแนน)
 - Embeddable widget, Platform integration, Shipping status sync
 
 ---
 
-## 9. Metrics & Analytics
+## §5 Metrics & Analytics
 
-### 9.1 Product Metrics (Admin Dashboard) — 8 metrics ครบใน MVP
+### 5.1 Product Metrics (Admin Dashboard) — 8 metrics ครบใน MVP
 
 | Metric | วิธีคำนวณ | สถานะ |
 |--------|----------|-------|
@@ -471,25 +194,25 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | Active Users | users มี order ใน 30 วันล่าสุด (buyer+เจ้าของร้าน distinct) | ✅ มี (2026-06-06) |
 | Avg. Trust Score | AVG(users.trustScore) | ✅ มี |
 
-### 9.2 Marketing / SEO
+### 5.2 Marketing / SEO
 
 Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEXT_PUBLIC_GSC_VERIFICATION`)
 
-### 9.3 Seller Analytics
+### 5.3 Seller Analytics
 
 หน้า `/sales` — ร้านดูยอดขาย/order ของตัวเอง (SalesChart, SalesTable)
 
 ---
 
-## 10. Business Model
+## §6 Business Model
 
 **โมเดล: Free core ตลอดไป + ขายฟังก์ชันช่วยเหลือแบบ à la carte** (ไม่ใช่ tier subscription)
 
-### 10.1 Free (ทุกคน ตลอดไป)
+### 6.1 Free (ทุกคน ตลอดไป)
 
 สร้าง Order/Product, Order Link อย่างง่าย, Report 1 ตัว, **manual ทุกขั้นตอน** (สร้าง + ส่งลิงก์เอง). ระบบให้: บันทึก history, Trust Score, Public Profile (order สำเร็จ + badges)
 
-### 10.2 Paid Add-ons
+### 6.2 Paid Add-ons
 
 | Add-on | โมเดล | Phase |
 |--------|-------|-------|
@@ -497,62 +220,65 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | **พิมพ์เอกสาร** (ใบเสร็จ/ใบแจ้งหนี้/อื่น ๆ) | TBD — A: pack ฿590 / 600 orders (reprint ออเดอร์เดิมได้) หรือ B: ฿199/เดือน ไม่อั้น | Phase 2 |
 | **Verified Badge** | subscription ~฿299/เดือน — badge หลังชื่อร้าน/profile (แบบ Meta/Twitter) | Phase 2 |
 
-### 10.3 ทิศทาง
+### 6.3 ทิศทาง
 
 ฟีเจอร์เสริมในอนาคตคิดเงินแบบ à la carte ต่อไป — เพิ่ม add-on ใหม่โดยไม่กระทบ Free core
 
 ---
 
-## 11. Known Gaps (โค้ดจริง vs PRD เป้าหมาย — ต้องปิดก่อน prod)
+## §7 Known Gaps & Roadmap
 
 | # | Gap | ต้องทำ | สถานะ |
 |---|-----|--------|-------|
 | 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | OPEN |
 | 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) | **CLOSED** (OMS stream) |
-| 3 | `shippingAddress` persist + required เมื่อ SHIPPED | ✅ CLOSED 2026-06-06 — persist (Phase B) + required guard ที่ `createOrder` service (line1+province+postcode เมื่อ fulfillmentMode=SHIPPED) → 400; form onSubmit surface ก่อน | CLOSED |
-| 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ **service layer** `reviewVerification()` (single source) + ลบ orphan route `api/verification/[id]/review` ที่ bypass ได้ | **CLOSED** 2026-06-06 (`services/verification.service.ts` — guard กลาง; เดิม guard อยู่แค่ API layer ทำให้ orphan route หลุด) |
-| 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` (§4) | **CLOSED** (OMS stream) |
-| 6 | `.env.vercel` ยังชี้ `safepay.co` | seed.ts email → deepthailand.app ✅; `.env.vercel` = local untracked + **gitignored** (ไม่กระทบ repo/prod — Vercel ใช้ env จาก dashboard); user ลบ local เองได้ | **CLOSED (code)** 2026-06-06 — เหลือ user ลบไฟล์ local |
-| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (§5.6) | OPEN |
-| 8 | seller/admin menu label อังกฤษ | แปลไทย (NFR-3.1) | **CLOSED** 2026-06-06 — section titles (Analytics/Business/Buyer/Setting + Overview/People) + breadcrumb 16 หน้า + child 'Badges' แปลไทยครบ (child labels เดิมไทยอยู่แล้ว) |
+| 3 | `shippingAddress` persist + required เมื่อ SHIPPED | ✅ CLOSED 2026-06-06 — persist (Phase B) + required guard ที่ `createOrder` service | CLOSED |
+| 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ service layer `reviewVerification()` + ลบ orphan route | **CLOSED** 2026-06-06 |
+| 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` | **CLOSED** (OMS stream) |
+| 6 | `.env.vercel` ยังชี้ `safepay.co` | seed.ts email → deepthailand.app ✅; `.env.vercel` = local untracked + gitignored | **CLOSED (code)** 2026-06-06 |
+| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (SRS §3.6) | OPEN |
+| 8 | seller/admin menu label อังกฤษ | แปลไทย (SRS NFR-3.1) | **CLOSED** 2026-06-06 |
 | 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
 | 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | ✅ CLOSED 2026-06-06 — ครบ 8 metric ใน dashboard page + api/admin/dashboard | CLOSED |
-| 11 | general rate-limit (100/30) + CSRF | ✅ CLOSED 2026-06-06 — Origin-check (mutation) + per-IP RL (unauth 100/auth 30) ใน `proxy.ts`/`guardApi` (in-memory; Vercel per-instance = known-gap, Redis Phase 2) | CLOSED |
+| 11 | general rate-limit (100/30) + CSRF | ✅ CLOSED 2026-06-06 — Origin-check + per-IP RL ใน `proxy.ts`/`guardApi` (in-memory; Vercel per-instance = known-gap, Redis Phase 2) | CLOSED |
 | 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
-| S-8 | S-8 / FR-6.8 / FR-6.9 / §10 SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 build | **BUILT** — Phase 4 complete (ดู §11-SMS ด้านล่าง) |
-| P9 | `/u/{username}` public profile redesign — cross-platform stats จริง + on-time tracking + follow/chat backend | Phase 2 (FR-9.10, FR-9.11) — ปัจจุบัน placeholder + disabled | OPEN (Phase 2) |
+| S-8 | SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 | **BUILT** — Phase 4 complete |
+| P9 | `/u/{username}` cross-platform stats จริง + follow/chat backend | Phase 2 (FR-9.10, FR-9.11) — ปัจจุบัน placeholder + disabled | OPEN (Phase 2) |
 
-### §11-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
+### §7-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
 
 **Phase 4 Build — COMPLETE (backend + UI)**
 
 | ส่วน | สถานะ | หมายเหตุ |
 |------|-------|---------|
 | Prisma schema (4 model) | **DONE** `367f3c9` | SellerWallet, WalletTransaction, TopUpRequest, SmsCode |
-| lib/sms.ts (generic sendSms) | **DONE** `4077133` | apitel; sender omit; RC-8 no-log |
-| wallet.service | **DONE** `20b9b40` | getBalance/getTransactions/deductCredit (conditional-updateMany) |
+| lib/sms.ts | **DONE** `4077133` | apitel; sender omit; RC-8 no-log |
+| wallet.service | **DONE** `20b9b40` | getBalance/getTransactions/deductCredit |
 | sms-code.service | **DONE** `e1808f6` | issueSmsCode/consumeSmsCode/markSmsCodeDelivery; hash-at-rest; single-use |
-| topup.service | **DONE** `6833a2f`+`6ed858d` | create/approveTopUp (atomic creditWallet+lock TOCTOU)/rejectTopUp |
-| GET /api/wallet | **DONE** `e65bac3`+`cdf9f6c` | balance + transaction history |
-| POST /api/wallet/topup | **DONE** `9b7c454` | สร้าง TopUpRequest + slip |
-| POST /api/orders/[token]/send-sms | **DONE** `cab811f`; **L2 gate ถูกตัด `3acbcbe`** (product decision 2026-05-17 → credit-only) | daily-cap, OQ-5 burst, atomic deduct+issue+setContact (ไม่มี L2/D3 — ดู spec AR-L2-REMOVAL) |
-| GET /api/admin/topups | **DONE** `9b7c454` | คิว PENDING |
-| POST /api/admin/topups/[id]/approve | **DONE** `1dbc32e` | RC-7 self-block |
-| POST /api/admin/topups/[id]/reject | **DONE** `1dbc32e` | RC-7 self-block |
+| topup.service | **DONE** `6833a2f`+`6ed858d` | create/approveTopUp (atomic)/rejectTopUp |
+| GET /api/wallet | **DONE** | balance + transaction history |
+| POST /api/wallet/topup | **DONE** | สร้าง TopUpRequest + slip |
+| POST /api/orders/[token]/send-sms | **DONE** | daily-cap, atomic deduct+issue (credit-only, ไม่ต้อง L2) |
+| GET/POST /api/admin/topups/[id]/approve|reject | **DONE** | RC-7 self-block |
 | GET /api/o/sms/[code] | **DONE** | consume code → signed cookie → redirect UUID |
-| /api/files/[fileId] slip gate | **DONE** `c47220a` | admin-or-owner เท่านั้น |
-| /o/[token] SMS short-code resolver | **DONE** | discriminator UUID vs 12-char; smsUnlocked cookie |
-| /o/link-invalid | **DONE** | RC-2 uniform error page |
 | seller /wallet page | **DONE** | balance card + TopUpRequestModal + WalletTransactionTable |
-| SendSmsButton | **DONE** | RC-8 no buyerContact prop |
-| admin /topups queue | **DONE** | TopUpQueueTable (PENDING queue) |
+| admin /topups queue + detail | **DONE** `38b69f2` | TopUpQueueTable + RSC detail (slip+sidebar) + RC-7 self-block UI |
 | lib/sms-unlock-cookie.ts | **DONE** | HMAC-signed httpOnly cookie (NEXTAUTH_SECRET) |
 | lib/sms-consume-rl.ts | **DONE** | RC-1 per-IP globalThis 10/15min |
-| admin /topups/[id] detail | **DONE** `38b69f2` — RSC detail (slip+sidebar) + TopUpReviewActions + RC-7 self-block UI |
-| T22 docs | **DONE** — PRD/backlog/CLAUDE/security-conventions sync |
 
-**Pending (Phase 5-7):**
-- Phase 5: safepay-reviewer + safepay-security re-review code (context-shift C1 grep; verify RC-1..8 implemented)
-- Phase 5 hardening (accepted-risk ที่ยังค้าง): cross-subdomain CSRF Origin-check (AR-3 SameSite=Lax), slip cookie path ให้แคบลง (`/o/`)
-- Phase 6: QA 3-level (Chrome DevTools MCP @ *.deepth.local) — happy path + negative (L2-block / balance<1 / expired / rate-limit / self-approve)
-- Phase 7: phase-retro
+**Pending (Phase 5-7):** safepay-reviewer/security re-review; CSRF slip cookie path narrow; QA 3-level Chrome DevTools; phase-retro
+
+---
+
+## ลิงก์ที่เกี่ยวข้อง
+
+| เอกสาร | ที่อยู่ |
+|--------|--------|
+| **SRS (technical detail)** | `docs/SRS.md` |
+| Business Rules / Tier Lists | `docs/10 - Business Rules/Tier Lists.md` |
+| UI Guideline | `docs/system/ui-guideline/README.md` |
+| Conventions | `docs/conventions/` |
+| Retros | `docs/retro/` |
+| Plans / Specs | `docs/superpowers/plans/`, `docs/superpowers/specs/` |
+| Schema | `prisma/schema.prisma` |
+| Validations | `src/lib/validations.ts` |
