@@ -829,7 +829,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | SMS consume rate-limit | 10 req/15min/IP | `lib/sms-consume-rl.ts` |
 | SMS code TTL | 72 ชั่วโมง | `sms-code.service` |
 | SMS code length | 12 chars (charset ไม่มี I/O/0/1) | `sms-code.service:7` |
-| File upload max | 5 MB | `lib/storage.ts:validateUpload` |
+| File upload max | 5 MB | `lib/storage/types.ts:24` (validateUpload) |
 | Product images max | 10 รูป | `validations.ts:64` |
 | Badge image max | 256 KB (PNG/WebP/JPEG เท่านั้น ห้าม SVG) | `validations.ts:260` |
 | OTP rate-limit | 3 req/10min/เบอร์ | `lib/otp.ts:consumeOtpRequestQuota` |
@@ -1014,7 +1014,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | กฎ | ค่า |
 |----|-----|
 | Max size | 5 MB |
-| MIME ที่รองรับ | image/jpeg, image/png, image/webp, application/pdf — ตรวจสอบใน `lib/storage.ts:validateUpload` |
+| MIME ที่รองรับ (ทั่วไป/slip/KYC) | image/jpeg, image/png, image/webp, application/pdf (PDF สำหรับ L3 business reg + slip) — `lib/storage/types.ts:5` (ALLOWED_TYPES) |
+| MIME — Badge image (stricter) | image/png, image/webp, image/jpeg เท่านั้น (ห้าม PDF/SVG) — `validations.ts:261` |
 
 ### 10.10 หมายเหตุ
 
