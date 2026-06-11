@@ -74,7 +74,7 @@ export default function OrderStatusRow({ counts }: { counts: StatusCounts }) {
               >
                 {/* icon-circle size-11 = 44px (NF-4 touch target) */}
                 <span
-                  className={`relative size-11 rounded-full flex items-center justify-center ${circleClass}`}
+                  className={`relative size-12 rounded-full flex items-center justify-center ${circleClass}`}
                 >
                   <Icon icon={icon} className="size-5" />
                   {/* badge แสดงเฉพาะเมื่อ count > 0 */}

@@ -46,7 +46,7 @@ function TileLink({ tile }: { tile: ShortcutTile }) {
         aria-disabled="true"
       >
         {/* chip 48×48 (size-12) rounded-lg — touch area ≥44px (NF-4) */}
-        <span className={`size-11 rounded-lg flex items-center justify-center ${chipClass}`}>
+        <span className={`size-12 rounded-2xl flex items-center justify-center ${chipClass}`}>
           <Icon icon={tile.icon} className="text-2xl" />
         </span>
         <span className="text-xs font-medium text-default-700 text-center leading-tight">
