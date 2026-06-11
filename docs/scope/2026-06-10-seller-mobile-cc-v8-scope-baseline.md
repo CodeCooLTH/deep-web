@@ -58,3 +58,22 @@ real noti source (activity paginated + Notification model + unread persistence) 
 |--------|-----------|--------|-----------|
 | 2026-06-10 | baseline สร้าง | Gate 0 phase cc-v8 | Controller |
 | 2026-06-10 | Gate 2 SIGNED-OFF | S-1..S-12 ผ่าน Review 8-gate + QA mobile 360px (Paces blue, ม่วง 0, console clean) | product |
+| 2026-06-11 | **v8.1 premium-craft pass (post-sign-off)** | user: v8 ดิบ "ดูไม่เป็น modern mobile 2026" → ref Shopee "ฉัน" | **user เคาะ "Modern mobile craft"** |
+
+---
+
+## 🎨 v8.1 Premium-craft Addendum (post-sign-off, 2026-06-11)
+
+> **⚠️ Hard Rule 7 latitude (เฉพาะ seller command center mobile) — user อนุมัติ:** หน้านี้ **ได้รับอนุญาตให้ใช้ arbitrary value เพื่อ premium craft** (gradient, custom shadow/radius) — เก็บ **สี/token Paces** (`var(--color-primary)` = saas skin น้ำเงิน `#0a74ff`, semantic) แต่ execution เป็น modern app 2026 (ref Shopee). **ห้าม reviewer/agent "แก้กลับ" เป็น Paces ดิบ** โดยอ้าง Hard Rule 7 — นี่คือ documented exception. เหตุผล: Paces = admin dashboard theme มีเพดานความ "premium consumer app"; user ยอมหลุดกฎเพื่อ look ที่ต้องการ.
+
+**สิ่งที่เปลี่ยน (7 commit `b508deb`..`5a08bf4`):**
+- **mobile-density:** kill wrapper margin 20px + side padding 16→8px (การ์ดเต็มจอ 94%) + ตัด card-header divider (safepay-overrides.css `.seller-mobile-shell`)
+- **card depth:** flat border → rounded-18 + soft shadow tinted ink + พื้นเย็นนวล (scoped CSS)
+- **header:** Paces-light card → **gradient น้ำเงินเต็มขอบ** (`-mx-2 -mt-2` full-bleed, `linear-gradient(var(--color-primary)→#0a5fd9)`, rounded-b-28, shadow-primary) + avatar ring + tier chip + **Trust Score ใน frosted banner** (แนว Shopee VIP banner)
+- **wallet:** balance ฿ เป็น hero number (text-2xl) + fix `btn-primary` ไม่ render filled → explicit `bg-primary text-white`
+- **icons:** chip rounded-2xl size-12 semantic; order circle size-12
+- **notification:** เหลือหัวข้อเดียว (getSellerPageTitle EXTRA map /notifications)
+- **perf:** dashboard queries sequential → `Promise.allSettled` (parallel)
+- a11y/touch/Paces-token discipline คงไว้; ม่วง #7367F0 = 0
+
+**เปิดค้าง (optional, ยังไม่ทำ):** promo/VIP banner ใต้ header (รอ promo data), wallet number สีน้ำเงิน, page-load micro-animation. **ค้าง infra:** branch ahead origin 54 commit (ยังไม่ push).
