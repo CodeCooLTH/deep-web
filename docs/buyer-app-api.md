@@ -14,7 +14,7 @@
 - **Error shape:** `{ error: string }` (client เช็ก `err.status` / `err.message`).
 - ทุก response map เป็น shape ที่แอปคาดหวัง (ตรงกับ `Deep-App/src/api/types.ts`).
 
-## Endpoints (25)
+## Endpoints (32 method-routes / 31 route files)
 
 | Method | Path | Auth | หมายเหตุ / mapper |
 |---|---|---|---|
@@ -68,11 +68,11 @@ Migrations: `add_buyer_app_auction`, `order_auction_id`, `add_push_token`.
 
 ## Push notifications
 
-`lib/expo-push.ts` (`sendExpoPush` → Expo Push API) + `app-push.service.ts` (`pushToUser` หา token แล้วส่ง). ยิงแบบ best-effort **หลัง commit** ใน `placeBid` (outbid) + `settleAuction` (won) — ไม่บล็อกการบิด. แอปลงทะเบียน token ตอน login/เปิดแอป (`registerPush`). ⚠️ ส่งจริงต้องตั้ง **EAS projectId** + ทดสอบเครื่องจริง + ยังไม่ทำ receipt handling.
+`lib/expo-push.ts` (`sendExpoPush` → Expo Push API) + `app-push.service.ts` (`pushToUser` หา token แล้วส่ง). ยิงแบบ best-effort **หลัง commit** ใน `placeBid` (outbid) + `settleAuction` (won) — ไม่บล็อกการบิด. แอปลงทะเบียน token ตอน login/เปิดแอป (`registerPush`). **Receipt handling:** `sendExpoPush` คืน list ของ token ที่ `DeviceNotRegistered` → `pushToUser` ลบทิ้งจาก `PushToken` (กัน token เน่าค้าง). ⚠️ ส่ง *จริง* ยังต้องตั้ง **EAS projectId** (`eas init`) + ทดสอบเครื่องจริง (ตอนนี้ `registerPush` รองรับกรณีไม่มี projectId อย่าง graceful).
 
 ## Phase 2 — ชนะประมูล → Order
 
-`settleAuction(id)` / `settleEndedAuctions()` (`src/services/auction.service.ts`): เมื่อ `endTime` ผ่านและยัง `live` → set `ended` + สร้าง **SafePay Order** (PENDING) ให้ผู้บิดสูงสุด (ผูก `auctionId`, idempotent) + แจ้งเตือน `won`. เรียกแบบ lazy ตอน browse/top/orders + endpoint `/settle` (cron). **Phase ถัดไป:** ต่อ escrow flow (จ่าย→ส่ง→รับ→รีวิว) ของ SafePay เข้า UI แอป.
+`settleAuction(id)` / `settleEndedAuctions()` (`src/services/auction.service.ts`): เมื่อ `endTime` ผ่านและยัง `live` → set `ended` + สร้าง **SafePay Order** (PENDING) ให้ผู้บิดสูงสุด (ผูก `auctionId`, idempotent) + แจ้งเตือน `won`. เรียกแบบ lazy ตอน browse/top/orders + endpoint `/settle` (cron). escrow flow (จ่าย→ส่ง→รับ→รีวิว) ต่อเข้า UI แอปแล้ว — ดูหัวข้อ **Escrow flow**.
 
 ## Trust (กันมิจฉาชีพ — เมนหลักของ Deep)
 
@@ -85,7 +85,7 @@ Migrations: `add_buyer_app_auction`, `order_auction_id`, `add_push_token`.
 - **Order history** — `/orders`, `/me/won`, `/me/history`.
 
 > ⚠️ ห้าม hardcode tier mapping ที่อื่น — ใช้ `getTierDisplay` เสมอ (SSOT).
-> **ยังไม่ทำ:** อัปโหลดเอกสาร verify จริง (ตอนนี้ POST สร้างคำขอ PENDING เปล่า ๆ → ต้องต่อ image-picker → `/api/upload`).
+> **อัปโหลดเอกสาร verify = ทำแล้ว:** แอป `/me/verify` เลือกรูปด้วย `expo-image-picker` → `POST /api/app/upload` (multipart) ได้ `fileId` → `POST /verification { level, documents:[fileId] }`.
 
 ## Services
 
@@ -97,8 +97,20 @@ Migrations: `add_buyer_app_auction`, `order_auction_id`, `add_push_token`.
 - Migrate: `npm run migrate` · Seed: `npx dotenv -e .env -- npx tsx scripts/seed-auctions.ts` (ร้าน + 6 auction live + 1 ended ที่ `0000000001` ชนะ).
 - Dev login: เบอร์ **`0000000001`** / OTP **`123456`** (TEST_ACCOUNTS, dev only).
 - ⚠️ หลัง `migrate`/`generate` ต้อง **restart `npm run dev`** (Prisma client cache ในแรม).
-- ⚠️ อย่ารัน Vitest บน DB local ที่มี seed — `cleanDatabase()` จะลบข้อมูล.
+- ⚠️ อย่ารัน Vitest บน DB local ที่มี seed — `cleanDatabase()` (export ใน `tests/setup.ts`) จะลบข้อมูล. รัน **เฉพาะ pure unit test** ที่ระบุไฟล์ (ดูหัวข้อ Tests).
+
+## Tests
+
+Pure unit tests (ไม่แตะ DB → ปลอดภัยกับ seed local) — รันเจาะไฟล์:
+
+```
+npx vitest run src/services/trust-score.service.test.ts src/lib/app-token.test.ts src/lib/expo-push.test.ts
+```
+
+- `trust-score.service.test.ts` — กัน tier mapping drift จาก SSOT (score→letter→tier→dots ทุก boundary).
+- `app-token.test.ts` — HMAC Bearer: sign↔verify round-trip, tamper/มั่ว/ว่าง → `null` (security).
+- `expo-push.test.ts` — ข้าม token ที่ไม่ใช่ Expo, คืน `DeviceNotRegistered` ไว้ลบ, fetch error → `[]` (best-effort).
 
 ## ที่ยังไม่ทำ (deferred)
 
-Realtime (Live room, แชต, live feed มีเนื้อหา) · **seller สร้าง auction** (โซน seller web) · automated test ของ `/api/app` · **deploy prod** (ต้องรีวิว migration ก่อน). Push delivery จริง (EAS projectId + เครื่องจริง + receipt handling) ยังไม่ครบ. (escrow flow + verify upload = **ทำแล้ว**.)
+Realtime (Live room, แชต, live feed มีเนื้อหา) · **seller สร้าง auction** (โซน seller web) · integration/E2E test ของ route `/api/app` (ตอนนี้มีแต่ pure unit) · **deploy prod** (ต้องรีวิว migration ก่อน). Push delivery จริงต้อง **EAS projectId** (`eas init`) + ทดสอบเครื่องจริง. (escrow flow · verify upload · push receipt handling · pure unit tests = **ทำแล้ว**.)
