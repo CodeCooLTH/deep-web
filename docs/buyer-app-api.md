@@ -20,18 +20,21 @@
 |---|---|---|---|
 | POST | `/api/app/auth/request-otp` | – | `{ phone }` → ส่ง OTP (ใช้ระบบ OTP เดิม); คืน `{ ok, message }` |
 | POST | `/api/app/auth/verify-otp` | – | `{ phone, code }` → upsert user + คืน `{ token, phone, user }` |
-| GET | `/api/app/me` | ✅ | โปรไฟล์ + trustScore + badges |
+| GET | `/api/app/me` | ✅ | โปรไฟล์ + **trust (score/letter/tier/dots)** + **verifyLevel** + memberSince + badges |
+| GET | `/api/app/users/[username]` | – | **Public Profile** (trust + badges) — เหมือน `/u/{username}` ของเว็บ |
+| GET | `/api/app/verification` | ✅ | สถานะยืนยันตัวตน (currentLevel + records) |
+| POST | `/api/app/verification` | ✅ | ขอยืนยัน L2/L3 (`{ level }`) → record PENDING (dedup) |
 | GET | `/api/app/server-time` | – | `{ serverNowMs }` (sync นาฬิกา countdown) |
 | GET | `/api/app/auctions/browse` | – | `?sort=&category=&page=` → `{ items, nextCursor }` (auto-settle ก่อน) |
 | GET | `/api/app/auctions/top` | – | auction บิดเยอะสุด |
-| GET | `/api/app/auctions/[id]` | – | รายละเอียด + `bidHistory` |
+| GET | `/api/app/auctions/[id]` | – | รายละเอียด + `bidHistory` + **`seller` (trust ผู้ขาย)** |
 | POST | `/api/app/auctions/[id]/bid` | ✅ | `{ amount }` — atomic + แจ้งเตือน outbid |
 | POST | `/api/app/auctions/[id]/settle` | – | (cron/manual) ปิดประมูล + ออก order ให้ผู้ชนะ |
 | GET | `/api/app/categories` | – | 16 หมวดหลัก (static; name ตรงกับ `CategoryTile` CAT_MAP) |
-| GET | `/api/app/command-center` | – | 4 tile หน้า Home (id `cc1–cc4` ตรง `CommandTile` ICON_MAP) |
+| GET | `/api/app/command-center` | – | 4 tile หน้า Home: Trust ฉัน / ที่ฉันบิด / ออเดอร์ / แจ้งเตือน (id `cc1–cc4`) |
 | GET | `/api/app/search?q=` | – | ค้นหา auction จาก title |
 | GET | `/api/app/shops` | – | `?page=` รายชื่อร้าน (paginated) |
-| GET | `/api/app/shops/[id]` | – | รายละเอียดร้าน (ไม่ส่ง `trustLevel` — tier เป็น SSOT) |
+| GET | `/api/app/shops/[id]` | – | รายละเอียดร้าน + `trustLevel` (tier ตาม SSOT `getTierDisplay`) |
 | GET | `/api/app/shops/[id]/reviews` | – | รีวิวของร้าน |
 | GET | `/api/app/orders` | ✅ | ออเดอร์ของ buyer (auto-settle ก่อน) |
 | GET | `/api/app/orders/[id]` | ✅ | รายละเอียด + invoice |
@@ -58,9 +61,22 @@ Migrations: `add_buyer_app_auction`, `order_auction_id`.
 
 `settleAuction(id)` / `settleEndedAuctions()` (`src/services/auction.service.ts`): เมื่อ `endTime` ผ่านและยัง `live` → set `ended` + สร้าง **SafePay Order** (PENDING) ให้ผู้บิดสูงสุด (ผูก `auctionId`, idempotent) + แจ้งเตือน `won`. เรียกแบบ lazy ตอน browse/top/orders + endpoint `/settle` (cron). **Phase ถัดไป:** ต่อ escrow flow (จ่าย→ส่ง→รับ→รีวิว) ของ SafePay เข้า UI แอป.
 
+## Trust (กันมิจฉาชีพ — เมนหลักของ Deep)
+
+แอปนำด้วย Trust เหมือนเว็บ ครบ 5 เสา ใช้ระบบเดิมของ Deep ผ่าน `/api/app/*`:
+
+- **Verify ตัวตน** — `GET/POST /verification` (ใช้ `verification.service`: `getMaxVerificationLevel`, `submitVerification` L1 phone auto / L2 เอกสาร / L3 ธุรกิจ → admin review ฝั่งเว็บ). POST มี dedup กันส่งซ้ำ.
+- **Trust Score** — `getTierDisplay(score)` ใน `trust-score.service` → letter + tier + dots **ตาม SSOT `docs/10 - Business Rules/Tier Lists.md`** (Deep Classic/Silver/Gold/Diamond/Star). โผล่ที่: `/me`, `/users/[username]`, `/shops/[id]` (`trustLevel`), `/auctions/[id]` (`seller.trust`).
+- **Badge** — `/me` + `/users/[username]` คืน `badges[]` (ระบบ badge เดิม).
+- **Public Profile** — `/users/[username]` (reuse `findByUsername`).
+- **Order history** — `/orders`, `/me/won`, `/me/history`.
+
+> ⚠️ ห้าม hardcode tier mapping ที่อื่น — ใช้ `getTierDisplay` เสมอ (SSOT).
+> **ยังไม่ทำ:** อัปโหลดเอกสาร verify จริง (ตอนนี้ POST สร้างคำขอ PENDING เปล่า ๆ → ต้องต่อ image-picker → `/api/upload`).
+
 ## Services
 
-`auction.service` (โดเมนประมูล + settle + `toAuctionDTO` mapper ใช้ร่วม) · `app-account.service` (upsert buyer จากเบอร์) · `app-shop.service` (map shop/review; batched ไม่ N+1) · `app-order.service` (map order/invoice).
+`auction.service` (โดเมนประมูล + settle + `toAuctionDTO` mapper ใช้ร่วม) · `app-account.service` (upsert buyer จากเบอร์) · `app-shop.service` (map shop/review + `getSellerTrust`; batched ไม่ N+1) · `app-order.service` (map order/invoice) · ใช้ `trust-score.service` + `verification.service` เดิมของ Deep.
 
 ## Dev setup (local)
 

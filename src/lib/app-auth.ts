@@ -21,6 +21,7 @@ export type AppUser = {
   phone: string | null
   trustScore: number
   isShop: boolean
+  createdAt: Date
 }
 
 const APP_USER_SELECT = {
@@ -31,6 +32,7 @@ const APP_USER_SELECT = {
   phone: true,
   trustScore: true,
   isShop: true,
+  createdAt: true,
 } as const
 
 function bearerFromHeader(request: NextRequest): string | null {

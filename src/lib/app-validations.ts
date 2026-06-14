@@ -26,3 +26,10 @@ export const AppReviewSchema = v.object({
   rating: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(5)),
   text: v.optional(v.pipe(v.string(), v.maxLength(1000))),
 })
+
+// ขอยืนยันตัวตน — L2 (เอกสารบุคคล) / L3 (ธุรกิจ). documents = array ของ fileId (optional ตอนนี้)
+export const AppVerifyRequestSchema = v.object({
+  level: v.picklist([2, 3]),
+  type: v.optional(v.pipe(v.string(), v.maxLength(40))),
+  documents: v.optional(v.array(v.string())),
+})

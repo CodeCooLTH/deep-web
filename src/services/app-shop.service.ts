@@ -2,12 +2,12 @@
  * App shop service — map SafePay Shop/Review → shape ที่แอปคาดหวัง
  * (ShopProfile / ShopDetail / Review ใน Deep-App src/api/types.ts).
  *
- * หมายเหตุ: ไม่ส่ง `trustLevel` (tier) — tier mapping เป็น SSOT ใน
- * docs/10 - Business Rules/Tier Lists.md (hard rule ห้ามตั้งเอง). field
- * ฝั่งแอปเป็น optional อยู่แล้ว → ละไว้ได้.
+ * หมายเหตุ: `trustLevel` (tier) ใช้ `getTierDisplay` จาก trust-score.service
+ * ซึ่งยึด SSOT `docs/10 - Business Rules/Tier Lists.md` (ห้ามตั้ง mapping เองที่อื่น).
  */
 import { prisma } from '@/lib/prisma'
 import { toAuctionDTO } from '@/services/auction.service'
+import { getTierDisplay } from '@/services/trust-score.service'
 
 const PAGE_SIZE = 20
 
@@ -94,10 +94,20 @@ export async function getShopDetail(id: string) {
   const s = await prisma.shop.findUnique({
     where: { id },
     include: {
-      user: { select: { id: true, username: true, avatar: true, userBadges: { include: { badge: true } } } },
+      user: {
+        select: {
+          id: true,
+          username: true,
+          avatar: true,
+          trustScore: true,
+          userBadges: { include: { badge: true } },
+        },
+      },
     },
   })
   if (!s) return null
+
+  const t = getTierDisplay(s.user.trustScore)
 
   // query ที่ไม่พึ่งกัน → ยิงขนานกัน (ลด latency)
   const [{ avg, count }, verified, lifetimeOrders, liveAuctions] = await Promise.all([
@@ -124,6 +134,8 @@ export async function getShopDetail(id: string) {
     bio: s.description ?? undefined,
     location: s.address ?? undefined,
     joinedMonth,
+    // ชั้น Trust (ตาม SSOT Tier Lists) — index = dots, total = 5
+    trustLevel: { tier: t.tier, index: t.dots, total: 5 },
     stats: {
       lifetimeOrders,
       onTimePct: 0, // ยังไม่มีข้อมูล (placeholder ตามเว็บ Phase 2)
@@ -138,6 +150,42 @@ export async function getShopDetail(id: string) {
     })),
     achievementsTotal: s.user.userBadges.length,
     auctions: liveAuctions.map(toAuctionDTO), // ใช้ mapper ร่วม ไม่ map ซ้ำ
+  }
+}
+
+export type SellerTrust = {
+  shopId: string
+  name: string
+  avatarUrl: string
+  verified: boolean
+  rating: number
+  reviewCount: number
+  trust: { score: number; letter: string; tier: string; dots: number }
+}
+
+/** ข้อมูล trust ของผู้ขาย (ไว้โชว์บนหน้า auction detail ให้ผู้ซื้อมั่นใจ — "กันโกง") */
+export async function getSellerTrust(shopId: string): Promise<SellerTrust | null> {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: {
+      id: true,
+      shopName: true,
+      logo: true,
+      userId: true,
+      user: { select: { avatar: true, trustScore: true } },
+    },
+  })
+  if (!shop) return null
+  const [{ avg, count }, verified] = await Promise.all([ratingFor(shopId), isVerified(shop.userId)])
+  const t = getTierDisplay(shop.user.trustScore)
+  return {
+    shopId: shop.id,
+    name: shop.shopName,
+    avatarUrl: fileUrl(shop.logo) || shop.user.avatar || '',
+    verified,
+    rating: Number(avg.toFixed(1)),
+    reviewCount: count,
+    trust: { score: shop.user.trustScore, letter: t.letter, tier: t.tier, dots: t.dots },
   }
 }
 
