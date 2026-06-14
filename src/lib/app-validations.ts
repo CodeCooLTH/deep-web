@@ -27,9 +27,19 @@ export const AppReviewSchema = v.object({
   text: v.optional(v.pipe(v.string(), v.maxLength(1000))),
 })
 
-// ขอยืนยันตัวตน — L2 (เอกสารบุคคล) / L3 (ธุรกิจ). documents = array ของ fileId (optional ตอนนี้)
+// ขอยืนยันตัวตน — L2 (เอกสารบุคคล) / L3 (ธุรกิจ). documents = array ของ fileId
 export const AppVerifyRequestSchema = v.object({
   level: v.picklist([2, 3]),
   type: v.optional(v.pipe(v.string(), v.maxLength(40))),
   documents: v.optional(v.array(v.string())),
+})
+
+// แนบสลิปโอนเงิน — fileId ที่อัปจาก /api/app/upload
+export const AppSlipSchema = v.object({
+  fileId: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+})
+
+// ลงทะเบียน Expo push token
+export const AppPushTokenSchema = v.object({
+  token: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
 })

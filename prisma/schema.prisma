@@ -36,6 +36,7 @@ model User {
   bids          Bid[]          @relation("UserBids")
   watchList     WatchList[]    @relation("UserWatches")
   notifications Notification[] @relation("UserNotifications")
+  pushTokens    PushToken[]    @relation("UserPushTokens")
 }
 
 model AuthAccount {
@@ -369,6 +370,18 @@ model WatchList {
   auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, auctionId])
+  @@index([userId])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  // Expo push token (ExponentPushToken[...]) — unique กัน register ซ้ำ
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation("UserPushTokens", fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 

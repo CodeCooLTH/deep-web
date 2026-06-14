@@ -10,6 +10,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
+import { pushToUser } from '@/services/app-push.service'
 
 const PAGE_SIZE = 20
 
@@ -202,7 +203,11 @@ export async function bidHistory(
 export async function settleAuction(
   auctionId: string,
 ): Promise<{ ended: boolean; orderId: string | null }> {
-  return prisma.$transaction(async (tx) => {
+  let wonUserId: string | null = null
+  let wonTitle = ''
+  let wonPrice = 0
+  let wonOrderId = ''
+  const result = await prisma.$transaction(async (tx) => {
     const a = await tx.auction.findUnique({
       where: { id: auctionId },
       include: { bids: { orderBy: { amount: 'desc' }, take: 1 } },
@@ -251,8 +256,21 @@ export async function settleAuction(
         refId: order.id,
       },
     })
+    wonUserId = winner.bidderId
+    wonTitle = a.title
+    wonPrice = Number(a.currentPrice)
+    wonOrderId = order.id
     return { ended: true, orderId: order.id }
   })
+
+  // push หลัง commit (best-effort)
+  if (wonUserId) {
+    void pushToUser(wonUserId, 'คุณชนะการประมูล! 🎉', `${wonTitle} ฿${wonPrice.toLocaleString()} — ชำระเงินเพื่อรับสินค้า`, {
+      type: 'won',
+      orderId: wonOrderId,
+    })
+  }
+  return result
 }
 
 /** sweep — ปิดทุก auction ที่หมดเวลาแต่ยัง live (เรียกแบบ lazy ตอน browse/won) */
@@ -295,7 +313,9 @@ export async function placeBid(
   bidderId: string,
   amount: number,
 ): Promise<AuctionDTO> {
-  return prisma.$transaction(async (tx) => {
+  let outbidUserId: string | null = null
+  let outbidTitle = ''
+  const dto = await prisma.$transaction(async (tx) => {
     const a = await tx.auction.findUnique({ where: { id: auctionId } })
     if (!a) throw new BidError('ไม่พบรายการประมูล', 404)
     if (a.status === 'ended' || a.endTime.getTime() <= Date.now()) {
@@ -330,7 +350,18 @@ export async function placeBid(
           refId: auctionId,
         },
       })
+      outbidUserId = prevTop.bidderId
+      outbidTitle = a.title
     }
     return toAuctionDTO(updated)
   })
+
+  // push หลัง commit (best-effort — ไม่บล็อก/rollback การบิด)
+  if (outbidUserId) {
+    void pushToUser(outbidUserId, 'มีคนเสนอราคาสูงกว่า', `${outbidTitle} — ฿${amount.toLocaleString()}`, {
+      type: 'outbid',
+      auctionId,
+    })
+  }
+  return dto
 }

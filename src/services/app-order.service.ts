@@ -14,12 +14,13 @@ type OrderRow = Prisma.OrderGetPayload<{
   include: { items: true; shop: true; review: true }
 }>
 
-export type AppOrderStatus = 'awaiting_payment' | 'completed' | 'cancelled'
+export type AppOrderStatus = 'awaiting_payment' | 'shipped' | 'completed' | 'cancelled'
 
 function mapStatus(s: string): AppOrderStatus {
   if (s === 'CONFIRMED') return 'completed'
   if (s === 'CANCELLED') return 'cancelled'
-  return 'awaiting_payment' // PENDING | SHIPPED
+  if (s === 'SHIPPED') return 'shipped'
+  return 'awaiting_payment' // PENDING
 }
 
 export type AppOrder = {
@@ -86,7 +87,7 @@ export type AppInvoice = {
 export async function getBuyerOrderDetail(
   userId: string,
   orderId: string,
-): Promise<(AppOrder & { invoice: AppInvoice | null }) | null> {
+): Promise<(AppOrder & { invoice: AppInvoice | null; hasSlip: boolean }) | null> {
   const o = await prisma.order.findFirst({
     where: { id: orderId, buyerUserId: userId },
     include: { ...INCLUDE, shop: { include: { user: { select: { displayName: true } } } } },
@@ -107,7 +108,7 @@ export async function getBuyerOrderDetail(
         }
       : null
 
-  return { ...base, invoice }
+  return { ...base, invoice, hasSlip: o.slipFileId !== null }
 }
 
 /** ยืนยัน order เป็นของ buyer คนนี้ แล้วคืน publicToken (ไว้เรียก createReview ของเว็บ) */

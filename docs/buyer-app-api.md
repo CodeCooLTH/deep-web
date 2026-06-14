@@ -23,7 +23,7 @@
 | GET | `/api/app/me` | ✅ | โปรไฟล์ + **trust (score/letter/tier/dots)** + **verifyLevel** + memberSince + badges |
 | GET | `/api/app/users/[username]` | – | **Public Profile** (trust + badges) — เหมือน `/u/{username}` ของเว็บ |
 | GET | `/api/app/verification` | ✅ | สถานะยืนยันตัวตน (currentLevel + records) |
-| POST | `/api/app/verification` | ✅ | ขอยืนยัน L2/L3 (`{ level }`) → record PENDING (dedup) |
+| POST | `/api/app/verification` | ✅ | ขอยืนยัน L2/L3 (`{ level, documents:[fileId] }`) → PENDING (dedup) |
 | GET | `/api/app/server-time` | – | `{ serverNowMs }` (sync นาฬิกา countdown) |
 | GET | `/api/app/auctions/browse` | – | `?sort=&category=&page=` → `{ items, nextCursor }` (auto-settle ก่อน) |
 | GET | `/api/app/auctions/top` | – | auction บิดเยอะสุด |
@@ -39,6 +39,10 @@
 | GET | `/api/app/orders` | ✅ | ออเดอร์ของ buyer (auto-settle ก่อน) |
 | GET | `/api/app/orders/[id]` | ✅ | รายละเอียด + invoice |
 | POST | `/api/app/orders/[id]/review` | ✅ | `{ rating, text }` → createReview เดิม |
+| POST | `/api/app/orders/[id]/confirm` | ✅ | กดรับของ → CONFIRMED (escrow; `confirmOrder`) |
+| POST | `/api/app/orders/[id]/slip` | ✅ | `{ fileId }` แนบสลิป (เฉพาะ status PENDING) |
+| POST | `/api/app/upload` | ✅ | multipart `file` → `{ fileId }` (เอกสาร verify / สลิป; `saveFile`) |
+| POST | `/api/app/push-token` | ✅ | `{ token }` ลงทะเบียน Expo push (upsert) |
 | GET | `/api/app/me/watching` | ✅ | auction ที่ติดตาม (WatchList) |
 | GET | `/api/app/me/won` | ✅ | order ที่ชนะ (CONFIRMED) |
 | GET | `/api/app/me/history` | ✅ | ประวัติการบิด |
@@ -53,9 +57,18 @@
 - **`Bid`** — auctionId, bidderId, amount
 - **`WatchList`** — userId, auctionId (`@@unique`)
 - **`Notification`** — userId, kind (`outbid`|`won`|`system`), title, body, refId?, read
+- **`PushToken`** — userId, token (`@unique`) — Expo push token ต่ออุปกรณ์
 - **`Order.auctionId`** — เพิ่ม field (`@unique`) ผูก order ที่มาจากการชนะประมูล
 
-Migrations: `add_buyer_app_auction`, `order_auction_id`.
+Migrations: `add_buyer_app_auction`, `order_auction_id`, `add_push_token`.
+
+## Escrow flow (ผู้ซื้อในแอป)
+
+ชนะประมูล → Order PENDING → **แนบสลิป** (`/orders/[id]/slip` + `/upload`) → ผู้ขาย **ship** (ฝั่งเว็บ → SHIPPED) → ผู้ซื้อ **กดรับของ** (`/orders/[id]/confirm` → CONFIRMED) → **รีวิว**. app order status: `awaiting_payment`(PENDING) / `shipped`(SHIPPED) / `completed`(CONFIRMED) / `cancelled`.
+
+## Push notifications
+
+`lib/expo-push.ts` (`sendExpoPush` → Expo Push API) + `app-push.service.ts` (`pushToUser` หา token แล้วส่ง). ยิงแบบ best-effort **หลัง commit** ใน `placeBid` (outbid) + `settleAuction` (won) — ไม่บล็อกการบิด. แอปลงทะเบียน token ตอน login/เปิดแอป (`registerPush`). ⚠️ ส่งจริงต้องตั้ง **EAS projectId** + ทดสอบเครื่องจริง + ยังไม่ทำ receipt handling.
 
 ## Phase 2 — ชนะประมูล → Order
 
@@ -88,4 +101,4 @@ Migrations: `add_buyer_app_auction`, `order_auction_id`.
 
 ## ที่ยังไม่ทำ (deferred)
 
-Realtime (Live room, แชต, live feed มีเนื้อหา) · push notification (expo) · escrow flow ใน UI · seller สร้าง auction · automated test ของ `/api/app` · deploy prod (ต้องรีวิว migration ก่อน).
+Realtime (Live room, แชต, live feed มีเนื้อหา) · **seller สร้าง auction** (โซน seller web) · automated test ของ `/api/app` · **deploy prod** (ต้องรีวิว migration ก่อน). Push delivery จริง (EAS projectId + เครื่องจริง + receipt handling) ยังไม่ครบ. (escrow flow + verify upload = **ทำแล้ว**.)
