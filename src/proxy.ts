@@ -13,7 +13,10 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   if (pathname.startsWith('/api/auth/')) return NextResponse.next()
 
   // CSRF: Origin-check เฉพาะ mutation (OPTIONS preflight ปล่อยผ่าน)
-  if (MUTATION_METHODS.has(request.method)) {
+  // ยกเว้น /api/app/* — Buyer App (mobile) ไม่มี Origin header แบบ browser;
+  // auth ของ /api/app ใช้ Bearer token (lib/app-auth.ts) ไม่ใช่ cookie จึงไม่มี
+  // CSRF surface (CSRF อาศัย cookie ที่ browser แนบอัตโนมัติ). ยังคง rate-limit ด้านล่าง.
+  if (MUTATION_METHODS.has(request.method) && !pathname.startsWith('/api/app/')) {
     if (!isAllowedOrigin(request.headers.get('origin'))) {
       return NextResponse.json({ error: 'CSRF check failed' }, { status: 403 })
     }

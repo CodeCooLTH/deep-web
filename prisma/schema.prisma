@@ -31,6 +31,11 @@ model User {
   reviewsGiven          Review[]             @relation("ReviewerReviews")
   verificationsReviewed VerificationRecord[] @relation("ReviewedBy")
   topUpRequestsReviewed TopUpRequest[]       @relation("TopUpReviewedBy")
+
+  // --- Buyer App (auction domain — additive, mobile-only) ---
+  bids          Bid[]          @relation("UserBids")
+  watchList     WatchList[]    @relation("UserWatches")
+  notifications Notification[] @relation("UserNotifications")
 }
 
 model AuthAccount {
@@ -64,6 +69,7 @@ model Shop {
   orders          Order[]
   wallet          SellerWallet?
   topUpRequests   TopUpRequest[]
+  auctions        Auction[]
 }
 
 model VerificationRecord {
@@ -168,6 +174,9 @@ model Order {
   // Phase 2 fields — additive, nullable (migration order_slip_access_url)
   slipFileId      String?          // fileId ของสลิปโอนเงิน (storage); null = ยังไม่แนบ (Phase 2 OOS-1)
   accessUrl       String?          // URL ส่งมอบ digital order; null = ยังไม่ส่งมอบ (Phase 2 OOS-2)
+
+  // Buyer App — order ที่เกิดจากการชนะประมูล (additive, nullable, unique = 1 order ต่อ 1 auction)
+  auctionId       String?          @unique
 
   shop             Shop              @relation(fields: [shopId], references: [id])
   buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
@@ -299,4 +308,83 @@ model SmsCode {
   @@index([codeHash])
   @@index([orderId])
   @@index([expiresAt])
+}
+
+// ============================================================
+// Buyer App — Auction domain (additive; mobile-only)
+// แยกจากระบบเดิมของ SafePay ทั้งหมด ไม่แก้ตารางเดิม. consume ผ่าน /api/app/*.
+// เมื่อชนะประมูล (ปิดราคา) → ผูกเข้าระบบ Order/escrow/trust ของ SafePay
+// ภายหลัง (Phase 2 — ดู memory project-scope). realtime (live) ยังไม่ทำ.
+// ============================================================
+
+model Auction {
+  id           String   @id @default(uuid())
+  shopId       String
+  // productId: ลิงก์ไปสินค้าใน catalog เดิมได้ (optional — auction สร้าง item เองก็ได้)
+  productId    String?
+  title        String
+  imageUrl     String
+  // images: รูปเพิ่มเติม (JSON array of url) — รองรับ gallery/live feed
+  images       Json     @default("[]")
+  startPrice   Decimal  @db.Decimal(12, 2)
+  currentPrice Decimal  @db.Decimal(12, 2)
+  bidIncrement Decimal  @db.Decimal(12, 2)
+  endTime      DateTime
+  // status: "live" | "ended" — ตรงกับ app type Auction.status
+  status       String   @default("live")
+  bidCount     Int      @default(0)
+  category     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shop      Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  bids      Bid[]
+  watchList WatchList[]
+
+  @@index([shopId])
+  @@index([status, endTime])
+}
+
+model Bid {
+  id        String   @id @default(uuid())
+  auctionId String
+  bidderId  String
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder  User    @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
+
+  @@index([auctionId, createdAt])
+  @@index([bidderId])
+}
+
+model WatchList {
+  id        String   @id @default(uuid())
+  userId    String
+  auctionId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation("UserWatches", fields: [userId], references: [id], onDelete: Cascade)
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, auctionId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  // kind: "outbid" | "won" | "system" — ตรงกับ app type Notification.kind
+  kind      String
+  title     String
+  body      String
+  // refId: id ของ auction/order ที่เกี่ยวข้อง (deep-link ฝั่งแอป)
+  refId     String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
