@@ -75,7 +75,6 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
 
   const displayId = order.publicToken.slice(0, 8).toUpperCase()
-  const customerName = order.buyerName ?? order.buyer
   const isVerifiedBuyer = Boolean(order.buyerUsername)
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
 
@@ -85,43 +84,35 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
   return (
     <div className="card">
       <div className="card-body">
-        {/* ── หัว: [ลูกค้า + tag / #เลข · วันที่]  |  เบอร์โทร (มุมขวา) ── */}
-        <div className="flex items-start justify-between gap-2 border-b border-dashed border-default-300 pb-2.5">
-          <div className="flex min-w-0 gap-1.5">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-default-100 text-default-400">
-              <Icon icon="user" className="text-sm" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate font-semibold text-default-900">{customerName}</span>
-                {isVerifiedBuyer ? (
-                  <span className="badge bg-success/15 text-success shrink-0">
-                    <Icon icon="user-check" className="text-sm" />
-                    ลูกค้าเดิม
-                  </span>
-                ) : (
-                  <span className="badge bg-default-200 text-default-600 shrink-0">ยังไม่ยืนยัน</span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-default-500">
-                <span className="font-mono font-semibold text-default-700">#{displayId}</span>
-                <span className="mx-1 text-default-300" aria-hidden="true">·</span>
-                {formatThaiDate(order.createdAtISO)}
-              </p>
-            </div>
+        {/* ── หัว 2 คอลัมน์: ซ้าย #เลข/วันที่ — ขวา ชื่อลูกค้า/เบอร์โทร(กดโทร) ── */}
+        <div className="flex items-start justify-between gap-3 border-b border-dashed border-default-300 pb-2.5">
+          {/* ซ้าย */}
+          <div className="shrink-0">
+            <p className="font-mono text-sm font-semibold text-default-700">#{displayId}</p>
+            <p className="mt-0.5 text-xs text-default-500">{formatThaiDate(order.createdAtISO)}</p>
           </div>
-
-          {/* เบอร์โทร + กดโทร (tel:) — มุมขวาบน; เบอร์จริง (buyerPhone) */}
-          {order.buyerPhone && (
-            <a
-              href={`tel:${order.buyerPhone}`}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success"
-              aria-label={`โทรหา ${order.buyerPhone}`}
-            >
-              <Icon icon="phone" className="text-sm" />
-              {order.buyerPhone}
-            </a>
-          )}
+          {/* ขวา */}
+          <div className="min-w-0 text-right">
+            <p className="truncate font-semibold text-default-900">
+              {isVerifiedBuyer && (
+                <Icon
+                  icon="rosette-discount-check-filled"
+                  className="mr-0.5 align-middle text-sm text-primary"
+                />
+              )}
+              {order.buyerName ?? 'ลูกค้า'}
+            </p>
+            {order.buyerPhone && (
+              <a
+                href={`tel:${order.buyerPhone}`}
+                aria-label={`โทรหา ${order.buyerPhone}`}
+                className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-success"
+              >
+                <Icon icon="phone" className="text-sm" />
+                {order.buyerPhone}
+              </a>
+            )}
+          </div>
         </div>
 
         {/* ── รายการสินค้า (1 รายการ default; กางเพิ่มเมื่อ expand) ── */}
