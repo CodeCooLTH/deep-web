@@ -24,11 +24,9 @@ const SellerHeader = ({
 
   return (
     // full-bleed: -mx-2 -mt-2 ดึงออกนอก main padding (8px) → เต็มขอบ + ถึงบนสุด
-    // gradient ผ่าน var(--color-primary) → เฉดเข้ม; rounded-b-[28px] หัวห้อยแบบ app
-    <div
-      className="-mx-2 -mt-2 px-4 pt-5 pb-6 rounded-b-[28px] text-white shadow-lg shadow-primary/25"
-      style={{ background: 'linear-gradient(135deg, var(--color-primary) 0%, #0a5fd9 100%)' }}
-    >
+    // gradient: token ล้วน from-primary → to-primary-hover (#236dc9 → #1e5dab) — ไม่ hardcode hex
+    // arbitrary rounded-b-[28px]: Paces ไม่มี radius token >24px (rounded-3xl) — app-style header curve
+    <div className="-mx-2 -mt-2 px-4 pt-5 pb-6 rounded-b-[28px] text-white shadow-lg shadow-primary/25 bg-linear-to-br from-primary to-primary-hover">
       {/* row บน: avatar + ชื่อร้าน + tier + bell */}
       <div className="flex items-center gap-3">
         {avatarUrl ? (
@@ -45,7 +43,7 @@ const SellerHeader = ({
         )}
 
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-white text-[17px] truncate leading-tight">{shopName}</p>
+          <p className="font-bold text-white text-lg truncate leading-tight">{shopName}</p>
           {tierName && (
             <span className="inline-flex items-center gap-1 bg-white/20 text-white text-xs rounded-full px-2.5 py-0.5 font-medium mt-1">
               <Icon icon="rosette-discount-check-filled" className="text-sm" />

@@ -58,44 +58,46 @@ const SellerMobileHeader = (_props: Props) => {
   }
 
   return (
-    /* sticky top + gradient fade ด้านล่าง (80%→transparent) — v6: bg mist #F8F7FA
-       ลบ card wrapper เดิม (bg-white rounded-[20px] shadow) → flat บนพื้น mist เหมือน IdentityBar */
+    /* sticky top + gradient fade ด้านล่าง (body-bg 80%→transparent) — flat บนพื้น body ไม่มี card ครอบ
+       v8 fix: เดิม hardcode #F8F7FA (สี mist ของ Vuexy) → ใช้ var(--color-body-bg) (#f6f7fb ของ Paces) */
     <header
       className="sticky top-0 z-20"
-      style={{ background: 'linear-gradient(180deg,#F8F7FA 80%,rgba(248,247,250,0))' }}
+      style={{ background: 'linear-gradient(180deg, var(--color-body-bg) 80%, transparent)' }}
       role="banner"
     >
       {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
       <div className="flex items-center gap-3 px-4 pt-3.5 pb-2.5">
-        {/* Back button ซ้าย — w-11 h-11 = 44px touch target */}
+        {/* Back button ซ้าย — w-11 h-11 = 44px touch target; text-default-700 (token) แทน hardcode หมึก Vuexy */}
         <button
           type="button"
-          className="w-11 h-11 rounded-[11px] inline-flex items-center justify-center shrink-0"
-          style={{ color: 'rgba(47,43,61,.70)' }}
+          className="w-11 h-11 rounded-lg inline-flex items-center justify-center shrink-0 text-default-700"
           aria-label="ย้อนกลับ"
           onClick={handleBack}
         >
-          {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic */}
+          {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic
+              arbitrary text-[22px]: Paces ไม่มี icon token 22px (text-xl=20) — ขนาดให้สมดุล 44px hit area */}
           <Icon icon="arrow-left" className="text-[22px]" />
         </button>
 
-        {/* Page title กลาง — flex-1 truncate ป้องกันล้น; text-center ให้สม่ำเสมอ */}
-        <p className="flex-1 min-w-0 text-center text-[15px] font-semibold text-[#2F2B3D] truncate">
+        {/* Page title กลาง — flex-1 truncate ป้องกันล้น; text-center ให้สม่ำเสมอ
+            text-md (15px token) + text-default-900 (token) แทน text-[15px]/text-[#2F2B3D] (สี Vuexy) */}
+        <p className="flex-1 min-w-0 text-center text-md font-semibold text-default-900 truncate">
           {pageTitle}
         </p>
 
-        {/* Bell ขวา — w-11 h-11=44px touch target; dot แดง ring mist สอดคล้องกับ IdentityBar */}
+        {/* Bell ขวา — w-11 h-11=44px touch target; text-default-700 (token) */}
         <button
           type="button"
-          className="w-11 h-11 rounded-[11px] relative inline-flex items-center justify-center shrink-0"
-          style={{ color: 'rgba(47,43,61,.70)' }}
+          className="w-11 h-11 rounded-lg relative inline-flex items-center justify-center shrink-0 text-default-700"
           aria-label="การแจ้งเตือน"
         >
+          {/* arbitrary text-[22px]: ดู comment back button */}
           <Icon icon="bell" className="text-[22px]" />
-          {/* dot แดง #FF4C51 มุมขวาบน — ring mist กัน dot ชนกับ icon */}
+          {/* dot bg-danger (token #f7577e แทน hardcode #FF4C51 ของ Vuexy) + ring body-bg กัน dot ชน icon
+              arbitrary size/offset: ตำแหน่ง+ขนาด dot 7px ไม่มี token แทน */}
           <span
-            className="absolute w-[7px] h-[7px] rounded-full"
-            style={{ top: '9px', right: '10px', background: '#FF4C51', boxShadow: '0 0 0 2px #F8F7FA' }}
+            className="absolute w-[7px] h-[7px] rounded-full bg-danger ring-2 ring-[var(--color-body-bg)]"
+            style={{ top: '9px', right: '10px' }}
           />
         </button>
       </div>

@@ -183,7 +183,8 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           aria-label="หน้าหลัก"
           aria-current={isActive('/dashboard', true) ? 'page' : undefined}
         >
-          <Icon icon="home-2" style={{ fontSize: '23px' }} />
+          {/* nav icon = text-2xl (24px token) แทน inline fontSize 23px — ทุกช่องใช้ขนาดนี้ */}
+          <Icon icon="home-2" className="text-2xl" />
           <span className="text-xs font-medium">หน้าหลัก</span>
         </Link>
 
@@ -198,7 +199,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           aria-label={`คำสั่งซื้อ${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
           aria-current={isActive('/orders', false) ? 'page' : undefined}
         >
-          <Icon icon="clipboard-list" style={{ fontSize: '23px' }} />
+          <Icon icon="clipboard-list" className="text-2xl" />
           <span className="text-xs font-medium">คำสั่งซื้อ</span>
           {/* badge — แสดงเฉพาะเมื่อ pendingCount > 0 */}
           {pendingCount > 0 && (
@@ -242,10 +243,11 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
               'transition-transform active:scale-95',
             ].join(' ')}
           >
-            {/* icon toggle: plus (ปิด) → x (เปิด) */}
+            {/* icon toggle: plus (ปิด) → x (เปิด)
+                arbitrary fontSize 26px: FAB hero icon ใหญ่กว่า nav (text-2xl=24) — ไม่มี token 26px แทน */}
             <Icon icon={open ? 'x' : 'plus'} style={{ fontSize: '26px' }} />
           </button>
-          {/* label ใต้ปุ่ม — margin-top ชดเชย absolute button ที่ยกขึ้น */}
+          {/* label ใต้ปุ่ม — arbitrary marginTop 34px ชดเชย absolute FAB ที่ยกขึ้น (top-[-26px]+h-54) — ไม่มี token แทน */}
           <span
             className="text-xs font-medium text-default-500"
             style={{ marginTop: '34px' }}
@@ -265,7 +267,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           aria-label="สินค้า"
           aria-current={isActive('/products', false) ? 'page' : undefined}
         >
-          <Icon icon="box" style={{ fontSize: '23px' }} />
+          <Icon icon="box" className="text-2xl" />
           <span className="text-xs font-medium">สินค้า</span>
         </Link>
 
@@ -280,7 +282,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           aria-label="ร้านค้า"
           aria-current={isActive('/shop', false) ? 'page' : undefined}
         >
-          <Icon icon="building-store" style={{ fontSize: '23px' }} />
+          <Icon icon="building-store" className="text-2xl" />
           <span className="text-xs font-medium">ร้านค้า</span>
         </Link>
       </nav>
