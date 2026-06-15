@@ -63,25 +63,40 @@ export default function OrdersList({ orders, activeStatus }: Props) {
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // ─── tab scroll-arrows: ซ่อน scrollbar + ‹ › จิ้มเลื่อน (user ไม่รู้ว่าเลื่อนได้) ───
+  // ─── tabs: swipe ซ้าย/ขวาทั้งจอเพื่อสลับ tab (แบบ Shopee) + auto-scroll tab active เข้าจอ ───
   const tabsRef = useRef<HTMLDivElement | null>(null)
-  const [canScrollLeft, setCanScrollLeft]   = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
+  const touchStart = useRef<{ x: number; y: number; inHeader: boolean }>({ x: 0, y: 0, inHeader: false })
 
-  const updateTabArrows = () => {
-    const el = tabsRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 4)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  const switchTabByDir = (dir: number) => {
+    const idx = STATUS_TABS.findIndex((t) => t.value === localStatus)
+    const next = idx + dir
+    if (next >= 0 && next < STATUS_TABS.length) handleStatusTab(STATUS_TABS[next].value)
   }
-  const scrollTabs = (dir: number) => {
-    tabsRef.current?.scrollBy({ left: dir * 140, behavior: 'smooth' })
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    touchStart.current = {
+      x: t.clientX,
+      y: t.clientY,
+      // ปัดที่ header (search/tab strip) → ไม่สลับ (ปล่อยให้ strip เลื่อน / search ทำงาน)
+      inHeader: !!(e.target as HTMLElement).closest('[data-orders-header]'),
+    }
   }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart.current.inHeader) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - touchStart.current.x
+    const dy = t.clientY - touchStart.current.y
+    // ต้องเป็น swipe แนวนอนชัดเจน (กันชนกับ scroll แนวตั้ง)
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    switchTabByDir(dx < 0 ? 1 : -1) // ปัดซ้าย = tab ถัดไป, ปัดขวา = ก่อนหน้า
+  }
+
+  // เลื่อน tab ที่ active เข้ามากลางจอเมื่อสลับ (โดยเฉพาะจาก swipe)
   useEffect(() => {
-    updateTabArrows()
-    window.addEventListener('resize', updateTabArrows)
-    return () => window.removeEventListener('resize', updateTabArrows)
-  }, [])
+    tabsRef.current
+      ?.querySelector('[data-active="true"]')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [localStatus])
 
   // ─── status tab click (sync URL) ───────────────────────────────────────────
   const handleStatusTab = (value: string) => {
@@ -150,12 +165,13 @@ export default function OrdersList({ orders, activeStatus }: Props) {
   return (
     <>
       {/* full-bleed: -mx-4 หักล้าง padding-inline 16px ของ mobile shell → เต็มขอบจอ (user req)
-          .orders-fullbleed = marker ให้ CSS :has() scope การตัด top-margin + ซ่อน footer เฉพาะ /orders */}
-      <div className="orders-fullbleed -mx-4">
+          .orders-fullbleed = marker ให้ CSS :has() scope การตัด top-margin + ซ่อน footer เฉพาะ /orders
+          onTouch*: swipe ซ้าย/ขวาทั้งจอเพื่อสลับ status tab */}
+      <div className="orders-fullbleed -mx-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {/* ─── Sticky header (พื้นขาว bg-card): back + search + filter + bell + tabs ──
           z-30: Paces .btn มี position:relative z-index:10 → ปุ่มในการ์ดจะทะลุทับ header
           ตอน scroll ถ้า header z ≤ 10. ดัน z-30 ให้ชนะ (modal = z-50 ยังเหนือกว่า) */}
-      <div className="sticky top-0 z-30 bg-card px-4 pt-3">
+      <div data-orders-header className="sticky top-0 z-30 bg-card px-2 pt-6">
         <div className="flex items-center gap-2">
           {/* back → /dashboard (แท็บหลัก: กลับหน้าหลัก) */}
           <Link
@@ -210,58 +226,32 @@ export default function OrdersList({ orders, activeStatus }: Props) {
           </Link>
         </div>
 
-        {/* status tabs — ซ่อน scrollbar + ลูกศร ‹ › จิ้มเลื่อน (กัน user ไม่รู้ว่าเลื่อนได้) */}
-        <div className="mt-2 flex items-center border-b border-default-200">
-          {/* ลูกศรซ้าย — disable เมื่อสุดซ้าย */}
-          <button
-            type="button"
-            onClick={() => scrollTabs(-1)}
-            disabled={!canScrollLeft}
-            aria-label="เลื่อนแท็บไปซ้าย"
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-default-500 transition-opacity disabled:opacity-25"
-          >
-            <Icon icon="chevron-left" className="text-base" />
-          </button>
-
-          <div
-            ref={tabsRef}
-            onScroll={updateTabArrows}
-            className="no-scrollbar flex flex-1 gap-1 overflow-x-auto"
-          >
-            {STATUS_TABS.map((tab) => {
-              const active = localStatus === tab.value
-              const count  = statusCounts[tab.value] ?? 0
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => handleStatusTab(tab.value)}
-                  className={cn(
-                    'relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors focus:outline-none',
-                    active
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-default-500 hover:text-primary',
-                  )}
-                >
-                  {tab.label}
-                  <span className={cn('rounded-full px-1.5 text-xs', active ? 'bg-primary/15 text-primary' : 'bg-default-200 text-default-600')}>
-                    {count}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* ลูกศรขวา — disable เมื่อสุดขวา */}
-          <button
-            type="button"
-            onClick={() => scrollTabs(1)}
-            disabled={!canScrollRight}
-            aria-label="เลื่อนแท็บไปขวา"
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-default-500 transition-opacity disabled:opacity-25"
-          >
-            <Icon icon="chevron-right" className="text-base" />
-          </button>
+        {/* status tabs — เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
+            ตัวอักษร inactive = สีดำ (text-default-900), active = primary + underline */}
+        <div ref={tabsRef} className="no-scrollbar mt-2 flex gap-1 overflow-x-auto border-b border-default-200">
+          {STATUS_TABS.map((tab) => {
+            const active = localStatus === tab.value
+            const count  = statusCounts[tab.value] ?? 0
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                data-active={active}
+                onClick={() => handleStatusTab(tab.value)}
+                className={cn(
+                  'relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors focus:outline-none',
+                  active
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-default-900',
+                )}
+              >
+                {tab.label}
+                <span className={cn('rounded-full px-1.5 text-xs', active ? 'bg-primary/15 text-primary' : 'bg-default-200 text-default-600')}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
