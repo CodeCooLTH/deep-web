@@ -53,7 +53,7 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
         ) : (
           <>
             {displayName && (
-              <div className="mb-5 flex items-center">
+              <div className="mb-7.5 flex items-center">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/15 me-2.5">
                   <Icon icon="user" className="text-lg text-primary" />
                 </div>

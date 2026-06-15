@@ -53,22 +53,22 @@ export default function StatusHero({ publicToken, status, type, fulfillmentMode,
 
   return (
     <div className="card">
-      <div className="card-body md:flex md:items-center md:justify-between gap-base">
-        {/* โซนซ้าย: badges + token + วันที่ */}
-        <div className="flex flex-col gap-3">
-          {/* badges บรรทัดเดียวกัน */}
+      <div className="card-body p-4 sm:p-7.5 md:flex md:items-center md:justify-between gap-base">
+        {/* โซนซ้าย: badges + token + วันที่ — block แน่น (gap-1.25 ตาม theme header) */}
+        <div className="flex flex-col gap-1.25">
+          {/* badges บรรทัดเดียวกัน — ขนาดเท่ากันทั้งคู่ */}
           <div className="flex items-center gap-1 flex-wrap">
-            <span className={`badge badge-label text-xs font-semibold ${s.cls}`}>
+            <span className={`badge badge-label text-2xs font-semibold ${s.cls}`}>
               <Icon icon={s.icon} className="text-sm" />
               {s.label}
             </span>
-            <span className={`badge badge-label text-2xs ${t.cls}`}>
+            <span className={`badge badge-label text-2xs font-semibold ${t.cls}`}>
               <Icon icon={t.icon} className="text-sm" />
               {t.label}
             </span>
           </div>
-          {/* ออเดอร์ # */}
-          <h3 className="text-lg font-mono mb-0 text-default-800">
+          {/* ออเดอร์ # — ไม่ใช้ font-mono (Anuphan ไม่มี mono → fallback Courier ดูหลุดธีม) */}
+          <h3 className="text-lg mb-0 text-default-800">
             ออเดอร์ #{tokenShort}
           </h3>
           {/* วันที่/เวลา */}
@@ -90,22 +90,23 @@ export default function StatusHero({ publicToken, status, type, fulfillmentMode,
             <SendSmsButton publicToken={publicToken} />
           )}
 
+          {/* terminal/wait states: callout box สม่ำเสมอกัน (rounded = Paces 4px token) */}
           {status === 'SHIPPED' && (
-            <div className="bg-info/15 text-info rounded-lg p-3 flex items-center gap-2 text-sm">
+            <div className="bg-info/15 text-info rounded p-3 flex items-center gap-2 text-sm font-medium">
               <Icon icon="clock" className="shrink-0" />
               รอผู้ซื้อยืนยันรับสินค้า
             </div>
           )}
 
           {status === 'CONFIRMED' && (
-            <div className="flex items-center gap-2 text-success text-sm font-medium">
+            <div className="bg-success/15 text-success rounded p-3 flex items-center gap-2 text-sm font-medium">
               <Icon icon="circle-check-filled" className="shrink-0" />
               ออเดอร์สำเร็จแล้ว
             </div>
           )}
 
           {status === 'CANCELLED' && (
-            <div className="flex items-center gap-2 text-danger text-sm font-medium">
+            <div className="bg-danger/15 text-danger rounded p-3 flex items-center gap-2 text-sm font-medium">
               <Icon icon="circle-x" className="shrink-0" />
               ออเดอร์ถูกยกเลิกแล้ว
             </div>

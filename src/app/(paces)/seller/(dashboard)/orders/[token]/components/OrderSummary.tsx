@@ -172,7 +172,7 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           )}
           <div className="flex justify-between border-t border-default-200 pt-2">
             <span className="font-bold uppercase text-sm">ยอดรวมทั้งหมด</span>
-            <span className="font-bold text-sm bg-default-50 px-2 py-0.5 rounded">{formatAmount(order.totalAmount)}</span>
+            <span className="font-bold text-sm text-default-800">{formatAmount(order.totalAmount)}</span>
           </div>
         </div>
 
