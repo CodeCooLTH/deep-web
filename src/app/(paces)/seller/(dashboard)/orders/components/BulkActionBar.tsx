@@ -62,45 +62,59 @@ export default function BulkActionBar({ selectedRows, onClear, buyerBaseUrl }: B
 
   return (
     <>
-      {/* fixed-bar centering + width cap — no Paces token (Hard Rule 7 exception) */}
+      {/* fixed-bar centering — no Paces token (Hard Rule 7 exception) */}
       <div
-        className={`fixed bottom-8 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 transition-all duration-200 ${
+        className={`fixed bottom-8 left-1/2 z-50 -translate-x-1/2 transition-all duration-200 ${
           visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
         }`}
         aria-hidden={!visible}
       >
-        <div className="card flex-row items-center gap-3 px-5 py-3 shadow-lg">
-          <span className="badge bg-primary/15 text-primary rounded-full">เลือก {selectedCount}</span>
-          <span className="flex-1 text-sm font-medium text-default-800">ออเดอร์ที่เลือก</span>
+        {/* dark pill bar — bg-dark ตัดกับตารางขาว เห็นชัด/CTA เด่น (ux 2026-06-15) */}
+        <div className="bg-dark rounded-full shadow-lg flex items-center py-2">
+          {/* zone 1: count */}
+          <div className="flex items-center gap-2 ps-4 pe-3">
+            <span className="badge bg-primary text-white rounded-full">{selectedCount}</span>
+            <span className="text-xs text-white/70 font-medium text-nowrap">ออเดอร์ที่เลือก</span>
+          </div>
 
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="btn bg-light hover:text-primary inline-flex items-center gap-1.5"
-          >
-            <Icon icon="copy" className="size-4.5" />
-            คัดลอกลิงก์
-          </button>
+          <span className="border-l border-white/20 self-stretch my-1.5" aria-hidden="true" />
 
-          <button
-            type="button"
-            onClick={() => setSmsDialogOpen(true)}
-            disabled={eligibleCount === 0}
-            title={eligibleCount === 0 ? 'ออเดอร์ที่เลือกทั้งหมดเสร็จสิ้นแล้ว ส่ง SMS ไม่ได้' : undefined}
-            className="btn bg-primary/15 text-primary hover:bg-primary hover:text-white inline-flex items-center gap-1.5 disabled:pointer-events-none disabled:opacity-50"
-          >
-            <Icon icon="message-forward" className="size-4.5" />
-            ส่ง SMS
-          </button>
+          {/* zone 2: actions */}
+          <div className="flex items-center gap-1.5 px-2">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="btn text-white/80 hover:text-white hover:bg-white/10 rounded-full inline-flex items-center gap-1.5 text-nowrap"
+            >
+              <Icon icon="copy" className="size-4.5" />
+              คัดลอกลิงก์
+            </button>
 
-          <button
-            type="button"
-            onClick={onClear}
-            aria-label="ยกเลิกการเลือก"
-            className="btn btn-icon bg-light hover:text-danger"
-          >
-            <Icon icon="x" className="size-4.5" />
-          </button>
+            <button
+              type="button"
+              onClick={() => setSmsDialogOpen(true)}
+              disabled={eligibleCount === 0}
+              title={eligibleCount === 0 ? 'ออเดอร์ที่เลือกทั้งหมดเสร็จสิ้นแล้ว ส่ง SMS ไม่ได้' : undefined}
+              className="btn bg-primary hover:bg-primary-hover text-white rounded-full inline-flex items-center gap-1.5 text-nowrap disabled:pointer-events-none disabled:opacity-50"
+            >
+              <Icon icon="message-forward" className="size-4.5" />
+              ส่ง SMS
+            </button>
+          </div>
+
+          <span className="border-l border-white/20 self-stretch my-1.5" aria-hidden="true" />
+
+          {/* zone 3: close */}
+          <div className="ps-1 pe-2">
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label="ยกเลิกการเลือก"
+              className="btn btn-icon text-white/60 hover:bg-white/10 hover:text-danger rounded-full"
+            >
+              <Icon icon="x" className="size-4.5" />
+            </button>
+          </div>
         </div>
       </div>
 
