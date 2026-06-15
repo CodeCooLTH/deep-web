@@ -29,7 +29,7 @@ import {
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import type { OrderRow } from './data'
+import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -228,6 +228,21 @@ export default function OrdersTable({ orders }: Props) {
       ),
     }),
 
+    // ─ การชำระเงิน ─
+    columnHelper.accessor('paymentMethod', {
+      header: 'การชำระเงิน',
+      cell: ({ row }) => {
+        const pm = row.original.paymentMethod
+        if (!pm) return <span className="text-sm text-default-400">—</span>
+        return (
+          <span className="inline-flex items-center gap-1.5 text-sm text-default-700">
+            <Icon icon={PAYMENT_ICONS[pm] ?? 'wallet'} className="text-base text-default-500" />
+            {PAYMENT_LABELS[pm] ?? pm}
+          </span>
+        )
+      },
+    }),
+
     // ─ วันที่ ─
     columnHelper.accessor('createdAtISO', {
       header: 'วันที่',
@@ -255,17 +270,31 @@ export default function OrdersTable({ orders }: Props) {
     {
       id: 'action',
       header: () => <div className="text-center">จัดการ</div>,
-      cell: ({ row }: { row: TableRow<OrderRow> }) => (
-        <div className="flex justify-center">
-          {/* next/link ใน 'use client' component — Hard Rule 2 ผ่าน */}
-          <Link
-            href={`/orders/${row.original.publicToken}`}
-            className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25"
-          >
-            ดูรายละเอียด
-          </Link>
-        </div>
-      ),
+      cell: ({ row }: { row: TableRow<OrderRow> }) => {
+        const o = row.original
+        const canEdit = o.status === 'PENDING'
+        // icon buttons แบบ Paces theme (👁 ดู / ✏️ แก้) — next/link ใน 'use client' (Hard Rule 2 ผ่าน)
+        return (
+          <div className="flex justify-center gap-1.5">
+            <Link
+              href={`/orders/${o.publicToken}`}
+              aria-label="ดูรายละเอียด"
+              className="btn btn-icon btn-sm border-default-300 text-default-700 hover:bg-default-100"
+            >
+              <Icon icon="eye" className="text-base" />
+            </Link>
+            {canEdit && (
+              <Link
+                href={`/orders/${o.publicToken}/edit`}
+                aria-label="แก้ไขออเดอร์"
+                className="btn btn-icon btn-sm border-default-300 text-default-700 hover:bg-default-100"
+              >
+                <Icon icon="pencil" className="text-base" />
+              </Link>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -297,10 +326,10 @@ export default function OrdersTable({ orders }: Props) {
 
   return (
     <div className="card">
-      {/* ─── card-header: search + filter controls (ตาม pattern theme) ───────── */}
-      <div className="card-header flex-wrap gap-3">
+      {/* ─── card-header: search + filter controls — แถวเดียว (nowrap) บน desktop ───────── */}
+      <div className="card-header !flex-nowrap gap-3">
         {/* search global */}
-        <div className="input-icon-group">
+        <div className="input-icon-group shrink">
           <Icon icon="search" className="input-icon" />
           <input
             type="text"
@@ -315,8 +344,8 @@ export default function OrdersTable({ orders }: Props) {
           />
         </div>
 
-        {/* filter group */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* filter group — nowrap แถวเดียว */}
+        <div className="flex flex-nowrap items-center gap-2.5">
           {/* filter by status */}
           <div className="input-icon-group">
             <Icon icon="truck" className="input-icon" />

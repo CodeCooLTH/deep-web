@@ -5,6 +5,26 @@
 
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 
+// วิธีชำระเงิน — mirror PAYMENT_LABELS ใน orders/[token]/components/CustomerDetails.tsx
+// (display-only; sync กับ create form PaymentChannelBlock)
+export const PAYMENT_LABELS: Record<string, string> = {
+  CASH: 'เงินสด',
+  TRANSFER: 'โอนเงิน',
+  PROMPTPAY: 'พร้อมเพย์',
+  CARD: 'บัตรเครดิต/เดบิต',
+  COD: 'เก็บปลายทาง',
+  OTHER: 'อื่นๆ',
+}
+// tabler icon ต่อวิธีชำระเงิน
+export const PAYMENT_ICONS: Record<string, string> = {
+  CASH: 'cash',
+  TRANSFER: 'building-bank',
+  PROMPTPAY: 'qrcode',
+  CARD: 'credit-card',
+  COD: 'truck-delivery',
+  OTHER: 'wallet',
+}
+
 /** item แต่ละรายการใน order — map จาก OrderItem + product.images[0] */
 export type OrderItemRow = {
   id: string
@@ -30,6 +50,8 @@ export type OrderRow = {
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
    *  (user decision 2026-06-15: เปิดเบอร์จริงให้ seller โทรลูกค้าตัวเองได้) */
   buyerPhone: string | null
+  /** วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS/PAYMENT_ICONS */
+  paymentMethod: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
 }

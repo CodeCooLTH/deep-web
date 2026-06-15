@@ -16,7 +16,7 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
-import type { OrderRow } from './data'
+import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 import OrderCardMenu from './OrderCardMenu'
 import SendSmsButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/SendSmsButton'
 
@@ -143,11 +143,21 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           </button>
         )}
 
-        {/* ── สรุปยอด ── */}
-        <div className="mt-2.5 border-t border-dashed border-default-300 pt-2.5 text-right text-sm">
-          <span className="text-default-500">สินค้ารวม {itemCount} รายการ:</span>{' '}
-          <span className="font-bold tabular-nums text-default-900">
-            ฿{order.total.toLocaleString('th-TH')}
+        {/* ── สรุป: วิธีชำระเงิน (ซ้าย) + ยอดรวม (ขวา) ── */}
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-dashed border-default-300 pt-2.5 text-sm">
+          {order.paymentMethod ? (
+            <span className="inline-flex items-center gap-1 text-xs text-default-500">
+              <Icon icon={PAYMENT_ICONS[order.paymentMethod] ?? 'wallet'} className="text-sm" />
+              {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
+            </span>
+          ) : (
+            <span />
+          )}
+          <span>
+            <span className="text-default-500">รวม {itemCount} รายการ:</span>{' '}
+            <span className="font-bold tabular-nums text-default-900">
+              ฿{order.total.toLocaleString('th-TH')}
+            </span>
           </span>
         </div>
 
