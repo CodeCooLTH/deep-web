@@ -3,15 +3,18 @@
 /**
  * OrderActions — ชุดปุ่ม action ต่อ 1 ออเดอร์ (centralized) ใช้ทั้ง card (mobile) + table (desktop)
  *
- * จุดประสงค์: source เดียวของ order actions → เพิ่ม/แก้ปุ่มที่นี่ที่เดียว ได้ทั้ง 2 view เท่ากัน
- * actions: คัดลอกลิงก์ + ส่ง SMS (non-terminal) + ⋮ (ดูรายละเอียด / แก้ไข / ยกเลิก ใน OrderCardMenu)
+ * จุดประสงค์: source เดียวของ order actions → เพิ่ม/แก้ปุ่มที่นี่ที่เดียว ได้ทั้ง 2 view
  *
  * variant:
- *  - 'card'  (mobile) → ปุ่มแบบ icon + label
- *  - 'table' (desktop) → icon only (ประหยัดพื้นที่ใน cell)
+ *  - 'table' (desktop) → ปุ่มชัดเรียง [ดู] [แก้ไข] [SMS] [copy] icon-only (ไม่มี ⋮ — user req 2026-06-15)
+ *  - 'card'  (mobile)  → copy + SMS (icon+label) + ⋮ (ดู/แก้ไข/ยกเลิก ใน OrderCardMenu)
+ *
+ * action ทั้งหมดนิยามที่นี่ที่เดียว — เพิ่มปุ่มใหม่ = แก้ component นี้ ได้ทั้ง 2 view
  */
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import Icon from '@/components/wrappers/Icon'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import SendSmsButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/SendSmsButton'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -26,9 +29,11 @@ interface OrderActionsProps {
   variant: OrderActionsVariant
 }
 
+const ICON_BTN = 'btn btn-icon border-default-300 text-default-700 hover:bg-default-100'
+
 export default function OrderActions({ order, onCancelRequest, variant }: OrderActionsProps) {
-  const iconOnly = variant === 'table'
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
+  const canEdit = order.status === 'PENDING'
 
   // resolve buyer URL runtime (กัน hydration mismatch)
   const [url, setUrl] = useState(`/o/${order.publicToken}`)
@@ -36,18 +41,29 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
     setUrl(`${resolveBuyerBaseUrl()}/o/${order.publicToken}`)
   }, [order.publicToken])
 
+  // ── desktop (table): [ดู] [แก้ไข] [SMS] [copy] icon-only, ไม่มี ⋮ ──
+  if (variant === 'table') {
+    return (
+      <div className="flex items-center justify-center gap-1.5">
+        <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={ICON_BTN}>
+          <Icon icon="eye" className="text-base" />
+        </Link>
+        {canEdit && (
+          <Link href={`/orders/${order.publicToken}/edit`} aria-label="แก้ไข" className={ICON_BTN}>
+            <Icon icon="pencil" className="text-base" />
+          </Link>
+        )}
+        {!isTerminal && <SendSmsButton publicToken={order.publicToken} iconOnly />}
+        <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly />
+      </div>
+    )
+  }
+
+  // ── mobile (card): copy + SMS (icon+label) + ⋮ overflow (ดู/แก้ไข/ยกเลิก) ──
   return (
-    // table = จัดกลาง (ตรงกับ header "จัดการ" ที่ text-center); card = ชิดขวา
-    <div className={`flex items-center gap-1.5 ${iconOnly ? 'justify-center' : 'justify-end'}`}>
-      {/* คัดลอกลิงก์ผู้ซื้อ (component จัด btn/btn-icon เอง) */}
-      <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly={iconOnly} />
-
-      {/* ส่ง SMS — เฉพาะ non-terminal */}
-      {!isTerminal && (
-        <SendSmsButton publicToken={order.publicToken} compact={!iconOnly} iconOnly={iconOnly} />
-      )}
-
-      {/* ⋮ overflow: ดูรายละเอียด / แก้ไข / ยกเลิก */}
+    <div className="flex items-center justify-end gap-1.5">
+      <CopyLinkButton value={url} label="คัดลอกลิงก์" />
+      {!isTerminal && <SendSmsButton publicToken={order.publicToken} compact />}
       <OrderCardMenu
         token={order.publicToken}
         status={order.status}
