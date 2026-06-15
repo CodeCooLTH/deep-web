@@ -25,13 +25,16 @@ import {
   Table as TableType,
   useReactTable,
   SortingState,
+  RowSelectionState,
 } from '@tanstack/react-table'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 import OrderActions from './OrderActions'
 import CancelOrderModal from './CancelOrderModal'
+import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 
 // ─── status badge config ──────────────────────────────────────────────────────
@@ -103,6 +106,13 @@ export default function OrdersTable({ orders }: Props) {
   const [sorting,        setSorting]        = useState<SortingState>([])
   const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
   const [pagination,     setPagination]     = useState({ pageIndex: 0, pageSize: 10 })
+  const [rowSelection,   setRowSelection]   = useState<RowSelectionState>({})
+
+  // buyer base URL — resolve client-side ครั้งเดียว (กัน hydration mismatch) สำหรับ copy ลิงก์กลุ่ม
+  const [buyerBaseUrl, setBuyerBaseUrl] = useState('')
+  useEffect(() => {
+    setBuyerBaseUrl(resolveBuyerBaseUrl())
+  }, [])
 
   // cancel modal — OrderActions (centralized) ส่ง token มาขอเปิด
   const [cancelToken,   setCancelToken]   = useState<string | null>(null)
@@ -294,11 +304,12 @@ export default function OrdersTable({ orders }: Props) {
   const table = useReactTable({
     data: orders,
     columns,
-    state: { sorting, globalFilter, columnFilters, pagination },
+    state: { sorting, globalFilter, columnFilters, pagination, rowSelection },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -454,6 +465,13 @@ export default function OrdersTable({ orders }: Props) {
         setCancelToken(null)
         setCancelDisplay(undefined)
       }}
+    />
+
+    {/* bulk action bubble — โผล่เมื่อเลือก checkbox ≥1 (desktop) */}
+    <BulkActionBar
+      selectedRows={table.getSelectedRowModel().rows}
+      onClear={() => table.resetRowSelection()}
+      buyerBaseUrl={buyerBaseUrl}
     />
     </>
   )
