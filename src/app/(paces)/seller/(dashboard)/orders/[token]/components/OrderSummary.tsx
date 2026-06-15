@@ -5,31 +5,21 @@
  * - ลบข้อมูล mock (product images, fake $ amounts) ออกทั้งหมด
  * - แทนด้วยข้อมูลจริงจาก order.items + order.totalAmount (Baht)
  * - เพิ่มปุ่ม CopyLinkButton (ลิงก์สำหรับผู้ซื้อ) ใน card header
- * - เพิ่ม OrderActions ใต้ตาราง
  * - restore: subtotal/discount/VAT/grand-total breakdown rows จาก theme (Phase B)
  *   honest breakdown — โชว์ discount/VAT เฉพาะเมื่อมีค่า (>0) ไม่โชว์ "−฿0"
  * - ตัด: product image links, shipping-fee row (ไม่มี field ใน SafePay MVP)
- * - คง: card layout, table structure, header with status badges
+ * - S-5 (Batch B): ลบ STATUS_META/TYPE_META → ย้ายไป StatusHero (เจ้าของใหม่)
+ *   ลบ badges ใน card-header, section "การดำเนินการ" (OrderActions), slip/accessUrl
+ *   card-header: เหลือ title "รายการสินค้า" + ปุ่มกลับ
+ *   เพิ่ม CancelOrderButton ใต้ section ลิงก์ผู้ซื้อ
+ *   ลบ prop slipFileId/accessUrl; คง status/fulfillmentMode (cancel condition + buyer link)
  */
 
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import OrderCopyLink from './OrderCopyLink'
 import SendSmsButton from './SendSmsButton'
-import OrderActions from './OrderActions'
-
-const STATUS_META: Record<string, { label: string; cls: string; icon: string }> = {
-  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning',  icon: 'clock' },
-  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/15 text-info',        icon: 'truck' },
-  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/15 text-success',  icon: 'circle-check-filled' },
-  CANCELLED: { label: 'ยกเลิก',      cls: 'bg-danger/15 text-danger',    icon: 'circle-x' },
-}
-
-const TYPE_META: Record<string, { label: string; icon: string; cls: string }> = {
-  PHYSICAL: { label: 'สินค้าจับต้องได้', icon: 'package', cls: 'bg-primary/15 text-primary' },
-  DIGITAL: { label: 'ดิจิทัล', icon: 'cloud-download', cls: 'bg-info/15 text-info' },
-  SERVICE: { label: 'บริการ', icon: 'tool', cls: 'bg-success/15 text-success' },
-}
+import CancelOrderButton from './CancelOrderButton'
 
 function formatAmount(amount: unknown) {
   return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(amount))
@@ -62,10 +52,6 @@ export type OrderSummaryOrder = {
     qty: number
     price: unknown
   }>
-  /** fileId ของสลิปโอนเงินที่ buyer แนบ (S-11); null = ยังไม่แนบ */
-  slipFileId: string | null
-  /** URL ส่งมอบสินค้า/บริการดิจิทัล (S-12); null = ยังไม่ตั้ง */
-  accessUrl: string | null
 }
 
 interface OrderSummaryProps {
@@ -73,21 +59,6 @@ interface OrderSummaryProps {
 }
 
 const OrderSummary = ({ order }: OrderSummaryProps) => {
-  const s = STATUS_META[order.status] ?? { label: order.status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
-  const t = TYPE_META[order.type] ?? { label: order.type, icon: 'help-circle', cls: 'bg-default-100 text-default-700' }
-
-  const createdDate = new Date(order.createdAtISO).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-  const createdTime = new Date(order.createdAtISO).toLocaleTimeString('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-
-  const tokenShort = order.publicToken.slice(0, 8)
-
   // honest breakdown (Phase B) — subtotal คำนวณจาก items, discount/VAT โชว์เฉพาะเมื่อมีค่า
   // total = round2(subtotal − discount + vatAmount) เป็น single source จาก DB (order.totalAmount)
   const subtotal = order.items.reduce((sum, it) => sum + toNum(it.price) * it.qty, 0)
@@ -98,26 +69,11 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
 
   return (
     <div className="card">
+      {/* card-header: title "รายการสินค้า" (ซ้าย) + ปุ่มกลับ (ขวา) */}
+      {/* badges/วันที่/ออเดอร์# ย้ายไป StatusHero แล้ว */}
       <div className="card-header block items-start p-4 sm:p-7.5 md:flex">
         <div>
-          <h3 className="mb-1.25 flex items-center text-lg font-mono">
-            ออเดอร์ #{tokenShort}
-          </h3>
-          <p className="text-default-400 mb-5">
-            <span className="flex items-center gap-1">
-              <Icon icon="calendar" className="align-middle" />
-              {createdDate}
-              <small className="text-default-400">{createdTime}</small>
-            </span>
-          </p>
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className={`badge badge-label text-2xs font-semibold ${s.cls}`}>
-              <Icon icon={s.icon} className="text-sm" /> {s.label}
-            </span>
-            <span className={`badge badge-label text-2xs font-semibold ${t.cls}`}>
-              <Icon icon={t.icon} className="text-sm" /> {t.label}
-            </span>
-          </div>
+          <h4 className="card-title">รายการสินค้า</h4>
         </div>
         <div className="mt-4 md:ms-auto md:mt-0">
           <Link href="/orders" className="btn bg-light hover:text-primary me-1">
@@ -128,8 +84,6 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
 
       {/* px-4 sm:px-7.5 — ลบ !important ออก เพื่อให้ responsive breakpoint override ชนะ */}
       <div className="card-body px-4 sm:px-7.5">
-        <h4 className="mb-5">รายการสินค้า</h4>
-
         {/* ---- mobile stacked list (<sm) — ไม่ h-scroll ---- */}
         <div className="sm:hidden">
           {order.items.length === 0 ? (
@@ -232,22 +186,19 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
             ส่งลิงก์นี้ให้ผู้ซื้อเพื่อยืนยันและรีวิวออเดอร์
           </p>
           {/* RC-8: ส่งแค่ publicToken — ไม่มี buyerContact/phone ผ่านมาที่นี่ */}
+          {/* NO_SHIPPING: SMS เป็น primary action ใน StatusHero แล้ว → ที่นี่โชว์แค่ copy กัน duplicate */}
           <div className="flex flex-wrap gap-2">
             <OrderCopyLink publicToken={order.publicToken} />
-            <SendSmsButton publicToken={order.publicToken} />
+            {order.fulfillmentMode !== 'NO_SHIPPING' && (
+              <SendSmsButton publicToken={order.publicToken} />
+            )}
           </div>
         </div>
 
-        {/* การดำเนินการออเดอร์ */}
-        <div className="mt-6 border-t border-default-200 pt-5">
-          <h4 className="mb-4 text-sm font-semibold text-default-800">การดำเนินการ</h4>
-          <OrderActions order={{
-            publicToken: order.publicToken,
-            status: order.status,
-            fulfillmentMode: order.fulfillmentMode,
-            slipFileId: order.slipFileId,
-            accessUrl: order.accessUrl,
-          }} />
+        {/* ยกเลิกออเดอร์ — client component แยก (OrderSummary เป็น RSC) */}
+        {/* CancelOrderButton render เฉพาะ PENDING/SHIPPED ภายในตัวเอง */}
+        <div className="mt-4">
+          <CancelOrderButton publicToken={order.publicToken} status={order.status} />
         </div>
       </div>
     </div>

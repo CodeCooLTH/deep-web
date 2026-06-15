@@ -1,13 +1,13 @@
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/page.tsx
  *
- * Re-source จาก Paces order-details:
+ * Re-source จาก Paces order-details (redesign 2026-06-15 — action-first/mobile-first):
  * - ใช้ 3-col grid เหมือน theme: col-span-3 (main) + col-span-1 (sidebar)
- * - Main: OrderSummary (items + token link + actions) + ShippingActivity (status timeline)
- * - Sidebar: CustomerDetails (buyer contact, PDPA masked)
- * - ตัด: BillingDetails + ShippingAddress (ไม่มีใน SafePay schema MVP)
- * - คง: data fetching (getOrderByToken), auth guard (getServerSession), shop ownership check
- * - คง: OrderActions (seller actions) + CopyLinkButton (share link) — ย้ายเข้า OrderSummary card
+ * - Main: StatusHero (สถานะ + primary next-action) → OrderSummary (items + ลิงก์ผู้ซื้อ + cancel) → ShippingActivity (timeline)
+ * - Sidebar: CustomerDetails (identity + contact, PDPA masked) → PaymentCard (วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล) → ShippingAddress → OrderReviewCard
+ * - คง: data fetching (getOrderForShop), auth guard (getServerSession), shop ownership check
+ * - PII: mask + neutralize raw contact ที่ server boundary ก่อนส่งข้าม RSC (S-C1) — ห้ามแตะ
+ * - paymentMethod/salesChannel/slipFileId/accessUrl ไม่ใช่ PII → ส่งให้ PaymentCard ได้
  * - Date → .toISOString() ก่อนส่งข้ามขอบเขต RSC→client component
  */
 
@@ -18,8 +18,10 @@ import { getOrderForShop } from '@/services/order.service'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import StatusHero from './components/StatusHero'
 import OrderSummary from './components/OrderSummary'
 import CustomerDetails from './components/CustomerDetails'
+import PaymentCard from './components/PaymentCard'
 import ShippingAddress from './components/ShippingAddress'
 import type { ShippingAddressData } from './components/ShippingAddress'
 import ShippingActivity from './components/ShippingActivity'
@@ -115,6 +117,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
         {/* Main content — col-span-3 */}
         <div className="space-y-base lg:col-span-3">
+          {/* StatusHero — สถานะเด่น + primary next-action (action-first) */}
+          <StatusHero
+            publicToken={order.publicToken}
+            status={order.status}
+            type={order.type}
+            fulfillmentMode={order.fulfillmentMode}
+            createdAtISO={createdAtISO}
+          />
           <OrderSummary
             order={{
               publicToken: order.publicToken,
@@ -133,9 +143,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 qty: item.qty,
                 price: item.price,
               })),
-              // S-11/S-12: Prisma returns all scalars ใน findFirst — ไม่ต้อง extend include
-              slipFileId: order.slipFileId ?? null,
-              accessUrl: order.accessUrl ?? null,
             }}
           />
           <ShippingActivity
@@ -162,9 +169,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
               buyerDisplayName: order.buyer?.displayName ?? null,
               buyerUsername: order.buyer?.username ?? null,
               buyerName: order.buyerName ?? null,
-              paymentMethod: order.paymentMethod ?? null,
-              salesChannel: order.salesChannel ?? null,
             }}
+          />
+          {/* PaymentCard — วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล (ไม่ใช่ PII) */}
+          <PaymentCard
+            paymentMethod={order.paymentMethod ?? null}
+            salesChannel={order.salesChannel ?? null}
+            slipFileId={order.slipFileId ?? null}
+            accessUrl={order.accessUrl ?? null}
+            fulfillmentMode={order.fulfillmentMode}
+            publicToken={order.publicToken}
           />
           {/* Phase B: ที่อยู่จัดส่ง — render เฉพาะเมื่อ order มี shippingAddress */}
           {shippingAddr && <ShippingAddress address={shippingAddr} />}
