@@ -27,6 +27,9 @@ export type OrderRow = {
   // component จะ fallback เป็น masked contact / placeholder เอง (T3-T6)
   buyerName: string | null
   buyerUsername: string | null
+  /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
+   *  (user decision 2026-06-15: เปิดเบอร์จริงให้ seller โทรลูกค้าตัวเองได้) */
+  buyerPhone: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
 }
