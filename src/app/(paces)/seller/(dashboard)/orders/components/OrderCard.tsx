@@ -93,14 +93,11 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           </div>
           {/* ขวา */}
           <div className="min-w-0 text-right">
-            <p className="truncate font-semibold text-default-900">
+            <p className="flex items-center justify-end gap-1 font-semibold text-default-900">
               {isVerifiedBuyer && (
-                <Icon
-                  icon="rosette-discount-check-filled"
-                  className="mr-0.5 align-middle text-sm text-primary"
-                />
+                <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
               )}
-              {order.buyerName ?? 'ลูกค้า'}
+              <span className="truncate">{order.buyerName ?? 'ลูกค้า'}</span>
             </p>
             {order.buyerPhone && (
               <a

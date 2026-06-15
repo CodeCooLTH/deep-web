@@ -94,13 +94,20 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
     items: (o.items ?? []).map((item: any): OrderItemRow => {
       const images = item.product?.images
-      const firstImageId = Array.isArray(images) && images.length > 0 ? images[0] : null
+      const firstImage = Array.isArray(images) && images.length > 0 ? images[0] : null
+      // images[] เก็บได้ทั้ง file id (อัปโหลดจริง → /api/files/{id}) และ full URL (seed/external)
+      // เดิม wrap /api/files/ ทุกกรณี → full URL กลายเป็น /api/files/https://... = 404 (รูปไม่ขึ้น)
+      const imageUrl = firstImage
+        ? firstImage.startsWith('http')
+          ? firstImage
+          : `/api/files/${firstImage}`
+        : null
       return {
         id: item.id,
         name: item.name,
         qty: item.qty,
         price: Number(item.price),
-        imageUrl: firstImageId ? `/api/files/${firstImageId}` : null,
+        imageUrl,
       }
     }),
   }))
