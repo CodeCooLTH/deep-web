@@ -30,6 +30,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
+import OrderActions from './OrderActions'
+import CancelOrderModal from './CancelOrderModal'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -100,6 +102,15 @@ export default function OrdersTable({ orders }: Props) {
   const [sorting,        setSorting]        = useState<SortingState>([])
   const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
   const [pagination,     setPagination]     = useState({ pageIndex: 0, pageSize: 10 })
+
+  // cancel modal — OrderActions (centralized) ส่ง token มาขอเปิด
+  const [cancelToken,   setCancelToken]   = useState<string | null>(null)
+  const [cancelDisplay, setCancelDisplay] = useState<string | undefined>(undefined)
+  const handleCancelRequest = (token: string) => {
+    const o = orders.find((x) => x.publicToken === token)
+    setCancelToken(token)
+    setCancelDisplay(o?.id.toUpperCase())
+  }
 
   // ─── columns (adapt จาก theme; ปรับ field ให้ตรง OrderRow) ───────────────
   const columns = [
@@ -270,31 +281,10 @@ export default function OrdersTable({ orders }: Props) {
     {
       id: 'action',
       header: () => <div className="text-center">จัดการ</div>,
-      cell: ({ row }: { row: TableRow<OrderRow> }) => {
-        const o = row.original
-        const canEdit = o.status === 'PENDING'
-        // icon buttons แบบ Paces theme (👁 ดู / ✏️ แก้) — next/link ใน 'use client' (Hard Rule 2 ผ่าน)
-        return (
-          <div className="flex justify-center gap-1.5">
-            <Link
-              href={`/orders/${o.publicToken}`}
-              className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"
-            >
-              <Icon icon="eye" className="text-base" />
-              ดูรายละเอียด
-            </Link>
-            {canEdit && (
-              <Link
-                href={`/orders/${o.publicToken}/edit`}
-                className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"
-              >
-                <Icon icon="pencil" className="text-base" />
-                แก้ไข
-              </Link>
-            )}
-          </div>
-        )
-      },
+      cell: ({ row }: { row: TableRow<OrderRow> }) => (
+        // centralized OrderActions (ชุดเดียวกับ mobile card) — variant table = icon only
+        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table" />
+      ),
     },
   ]
 
@@ -325,6 +315,7 @@ export default function OrdersTable({ orders }: Props) {
   const end        = Math.min(start + pageSize - 1, totalItems)
 
   return (
+    <>
     <div className="card">
       {/* ─── card-header: search + filter controls — แถวเดียว (nowrap) บน desktop ───────── */}
       <div className="card-header !flex-nowrap gap-3">
@@ -444,5 +435,17 @@ export default function OrdersTable({ orders }: Props) {
         </div>
       )}
     </div>
+
+    {/* cancel modal — เปิดจาก OrderActions (⋮ → ยกเลิก) ในตาราง */}
+    <CancelOrderModal
+      open={cancelToken !== null}
+      token={cancelToken}
+      displayId={cancelDisplay}
+      onClose={() => {
+        setCancelToken(null)
+        setCancelDisplay(undefined)
+      }}
+    />
+    </>
   )
 }

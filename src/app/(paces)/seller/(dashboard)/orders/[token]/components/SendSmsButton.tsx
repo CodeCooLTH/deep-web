@@ -123,7 +123,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
           }
         >
           <Icon icon="tabler:message" className="text-base" aria-hidden="true" />
-          {!iconOnly && (compact ? 'SMS' : 'ส่งลิงก์ทาง SMS (฿1)')}
+          {!iconOnly && (compact ? 'ส่ง SMS' : 'ส่งลิงก์ทาง SMS (฿1)')}
         </button>
       )}
 

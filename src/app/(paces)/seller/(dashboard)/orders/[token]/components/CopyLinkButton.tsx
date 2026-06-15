@@ -75,12 +75,19 @@ export default function CopyLinkButton({
       <button
         type="button"
         onClick={handleCopy}
-        className={`btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs flex-shrink-0 transition-colors ${copied ? 'border-success text-success' : ''} ${className}`.trim()}
+        aria-label={iconOnly ? label : undefined}
+        className={
+          iconOnly
+            ? // icon-only → btn-icon จริง (icon centered, ไม่มี px override) ขนาด = ปุ่ม action อื่น
+              `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 flex-shrink-0 transition-colors ${copied ? 'border-success text-success' : ''} ${className}`.trim()
+            : `btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs flex-shrink-0 transition-colors ${copied ? 'border-success text-success' : ''} ${className}`.trim()
+        }
       >
         <Icon
           icon={copied ? 'tabler:check' : 'tabler:copy'}
-          width={14}
-          height={14}
+          className={iconOnly ? 'text-base' : undefined}
+          width={iconOnly ? undefined : 14}
+          height={iconOnly ? undefined : 14}
         />
         {!iconOnly && label}
       </button>

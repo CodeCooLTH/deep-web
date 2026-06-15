@@ -14,11 +14,9 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
-import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
-import OrderCardMenu from './OrderCardMenu'
-import SendSmsButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/SendSmsButton'
+import OrderActions from './OrderActions'
 
 const TYPE_LABEL: Record<string, string> = {
   PHYSICAL: 'สินค้า',
@@ -76,7 +74,6 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
 
   const displayId = order.publicToken.slice(0, 8).toUpperCase()
   const isVerifiedBuyer = Boolean(order.buyerUsername)
-  const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
 
   const itemCount = order.items.length
   const visibleItems = expanded ? order.items : order.items.slice(0, 1)
@@ -161,21 +158,9 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           </span>
         </div>
 
-        {/* ── action bar: icon buttons (Paces .btn-icon 37px) — ⋮ / SMS / ดูรายละเอียด ── */}
-        <div className="mt-3 flex items-center justify-end gap-2">
-          <OrderCardMenu
-            token={order.publicToken}
-            status={order.status}
-            onCancelRequest={onCancelRequest}
-          />
-          {!isTerminal && <SendSmsButton publicToken={order.publicToken} iconOnly />}
-          <Link
-            href={`/orders/${order.publicToken}`}
-            aria-label="ดูรายละเอียด"
-            className="btn btn-icon bg-primary text-white hover:bg-primary-hover"
-          >
-            <Icon icon="eye" className="text-base" />
-          </Link>
+        {/* ── action bar: centralized OrderActions (ชุดเดียวกับ desktop table) ── */}
+        <div className="mt-3">
+          <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" />
         </div>
       </div>
     </div>
