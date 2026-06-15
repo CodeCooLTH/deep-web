@@ -85,7 +85,7 @@ export default async function SellerDashboardPage() {
   let salesSummary: SalesSummary = { totalRevenue: 0, totalOrders: 0, growth: null }
 
   // ─── Command Center data (mobile) ───────────────────────────────────────────
-  // avatarUrl: shop logo หรือ null → SellerMobileHeader (layout) แสดง initial fallback
+  // avatarUrl: shop.logo → fallback user.avatar → null (SellerHeader แสดงอักษรย่อเมื่อ null)
   let avatarUrl: string | null = null
   // orderStatusCounts: นับ order ต่อ status สำหรับ OrderStatusTimeline
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
@@ -106,15 +106,15 @@ export default async function SellerDashboardPage() {
       // (wall time = max(badge, shop+orders) แทนผลรวม sequential)
       const progressPromise = getBadgeProgress(user.id, 'SELLER')
 
-      // ดึงชื่อร้านค้า + id + logo เพื่อแสดงใน UserCard header และ Command Center
+      // ดึงชื่อร้านค้า + id + logo + user.avatar เพื่อแสดงใน UserCard header และ Command Center
       const shop = await prisma.shop.findUnique({
         where: { userId: user.id },
-        select: { id: true, shopName: true, logo: true },
+        select: { id: true, shopName: true, logo: true, user: { select: { avatar: true } } },
       })
       if (shop?.shopName) shopName = shop.shopName
-      // avatarUrl ใช้ logo ร้านค้า (อาจเป็น fileId หรือ URL ขึ้นกับ upload format)
-      // ส่งตรงไปยัง CommandCenter — ไม่ใช่ PII sensitive
-      if (shop?.logo) avatarUrl = shop.logo
+      // avatarUrl: ใช้ logo ร้านก่อน → fallback user.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
+      // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ user แทน; ไม่ใช่ PII sensitive
+      avatarUrl = shop?.logo ?? shop?.user?.avatar ?? null
 
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {

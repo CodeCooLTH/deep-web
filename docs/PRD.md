@@ -230,13 +230,13 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 
 | # | Gap | ต้องทำ | สถานะ |
 |---|-----|--------|-------|
-| 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | OPEN |
+| 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | ✅ **CLOSED** (verified 2026-06-11) — `badge.service.evaluateBadges` อ่าน `badge.criteria` JSON จาก DB → `parseCriteria` → dispatch ตาม `criteria.type`; seed.ts = single source (เดิม hardcode DEFAULT_BADGES/BADGE_CHECKS ลบแล้ว) |
 | 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) | **CLOSED** (OMS stream) |
 | 3 | `shippingAddress` persist + required เมื่อ SHIPPED | ✅ CLOSED 2026-06-06 — persist (Phase B) + required guard ที่ `createOrder` service | CLOSED |
 | 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ service layer `reviewVerification()` + ลบ orphan route | **CLOSED** 2026-06-06 |
 | 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` | **CLOSED** (OMS stream) |
 | 6 | `.env.vercel` ยังชี้ `safepay.co` | seed.ts email → deepthailand.app ✅; `.env.vercel` = local untracked + gitignored | **CLOSED (code)** 2026-06-06 |
-| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (SRS §3.6) | OPEN |
+| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (SRS §3.6) | ✅ **CLOSED** (verified 2026-06-11) — `(buyer-app)/layout.tsx` มี `getServerSession`+redirect ครอบทุก child; แต่ละ page เป็น server component + `getServerSession` เอง (defense-in-depth) + data fetch ผ่าน service ที่ scope ownership (`getOrdersByBuyer(userId)`) + flatten Decimal/Date กัน RSC leak |
 | 8 | seller/admin menu label อังกฤษ | แปลไทย (SRS NFR-3.1) | **CLOSED** 2026-06-06 |
 | 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
 | 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | ✅ CLOSED 2026-06-06 — ครบ 8 metric ใน dashboard page + api/admin/dashboard | CLOSED |

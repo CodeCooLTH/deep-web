@@ -87,17 +87,28 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
     buyerName: o.buyer?.displayName ?? null,
     buyerUsername: o.buyer?.username ?? null,
+    // เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller โทรลูกค้าตัวเองได้ (user decision 2026-06-15)
+    // PII note: เปิดเบอร์จริงเข้า flight ของ seller (เจ้าของออเดอร์) — ต้อง security review ก่อน prod
+    buyerPhone: o.buyerContact ?? null,
+    paymentMethod: o.paymentMethod ?? null,
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
     items: (o.items ?? []).map((item: any): OrderItemRow => {
       const images = item.product?.images
-      const firstImageId = Array.isArray(images) && images.length > 0 ? images[0] : null
+      const firstImage = Array.isArray(images) && images.length > 0 ? images[0] : null
+      // images[] เก็บได้ทั้ง file id (อัปโหลดจริง → /api/files/{id}) และ full URL (seed/external)
+      // เดิม wrap /api/files/ ทุกกรณี → full URL กลายเป็น /api/files/https://... = 404 (รูปไม่ขึ้น)
+      const imageUrl = firstImage
+        ? firstImage.startsWith('http')
+          ? firstImage
+          : `/api/files/${firstImage}`
+        : null
       return {
         id: item.id,
         name: item.name,
         qty: item.qty,
         price: Number(item.price),
-        imageUrl: firstImageId ? `/api/files/${firstImageId}` : null,
+        imageUrl,
       }
     }),
   }))
@@ -122,10 +133,13 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+      {/* breadcrumb desktop เท่านั้น — มือถือมีชื่อหน้าใน SellerMobileHeader แล้ว (กันซ้ำ) */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+      </div>
 
-      {/* Stat cards — 5 columns (theme grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-5) */}
-      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
+      {/* Stat cards — desktop ≥lg เท่านั้น (มือถือ: ซ้ำซ้อนกับ status filter tab ที่มี count ใน OrdersList → ซ่อน) */}
+      <div className="mb-1.25 hidden gap-1.25 lg:grid lg:grid-cols-5">
         {orderStatData.map((item, idx) => (
           <OrdersStatCard item={item} key={idx} />
         ))}

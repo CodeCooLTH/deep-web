@@ -53,7 +53,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="bg-light/25 text-2xs uppercase">
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={cn('select-none', header.column.getCanSort() ? 'cursor-pointer' : 'cursor-default')}>
+                  <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={cn('select-none', header.column.getCanSort() ? 'cursor-pointer' : 'cursor-default', (header.column.columnDef.meta as { headerClassName?: string } | undefined)?.headerClassName)}>
                     <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' })}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getCanSort() &&
@@ -74,7 +74,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
             rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <td suppressHydrationWarning key={cell.id}>
+                  <td suppressHydrationWarning key={cell.id} className={cn((cell.column.columnDef.meta as { cellClassName?: string } | undefined)?.cellClassName)}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

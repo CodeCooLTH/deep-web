@@ -86,10 +86,11 @@ const RecentActivityFeed = ({ items }: Props) => {
               <p className="text-sm font-semibold">สร้างออเดอร์แรกเลย</p>
               <p className="text-xs text-default-500">กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน</p>
             </div>
-            {/* NF-4: min-height 44px → h-11 = 44px ผ่าน touch target */}
+            {/* NF-4: min-height 44px → h-11 = 44px ผ่าน touch target
+                convention: .btn bg-primary hover:bg-primary-hover (เหมือน WalletCard / หน้า seller อื่น) */}
             <Link
               href="/orders/new"
-              className="bg-primary text-white text-sm font-semibold h-11 px-5 rounded-xl inline-flex items-center justify-center active:scale-95 transition-transform"
+              className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-lg inline-flex items-center justify-center active:scale-95 transition-transform"
             >
               สร้างออเดอร์
             </Link>

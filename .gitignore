@@ -52,3 +52,7 @@ uploads/
 docs/qa-screenshots/
 # root-catch: กัน QA เผลอเขียน qa-*.png ที่ root (อย่า commit artifact)
 /qa-*.png
+
+# editor / tool working dirs (ไม่ใช่ source — ไม่ commit)
+.obsidian/
+.impeccable/
