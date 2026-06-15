@@ -1,6 +1,15 @@
 /* SafePay — theme overrides */
 /* Force "Anuphan" as the primary font across every skin. */
 
+/* ซ่อน scrollbar แต่ยัง scroll ได้ (ใช้กับ status tabs ที่เลื่อนด้วยลูกศร ‹ ›) */
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
 html {
     --font-body: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-secondary: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -33,13 +42,12 @@ html[data-skin="orbit"] {
     --font-secondary: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* ─── Base size bump for Thai content ─────────────────────────────────────── */
-/* Thai glyphs read smaller than Latin at the same px size; bump the root     */
-/* font-size so every rem-based utility scales up accordingly, and override   */
-/* the paces saas literal-px --text-* vars so body text lands at 16px too.    */
+/* ─── rem base = 16px ─────────────────────────────────────────────────────── */
+/* คง html font-size 16px เพื่อให้ rem-based token ตรงกับ Paces _root            */
+/* (0.875rem = 14px ตามที่ _root.css ตั้งไว้) — saas skin เดิม set 14px ทำให้เพี้ยน */
 
 html[data-skin="saas"] {
-    font-size: 16px; /* was 14px — 1rem = 16px */
+    font-size: 16px;
 }
 
 html[data-skin="default"],
@@ -65,10 +73,11 @@ html[data-skin="aurora"],
 html[data-skin="xenon"],
 html[data-skin="matrix"],
 html[data-skin="orbit"] {
-    --text-body: 1rem;     /* 16px — was 13px (saas) / 14px (root default) */
-    --text-sm:   0.9375rem;/* 15px — was 13px (saas skin override) */
-    --text-xs:   0.875rem; /* 14px — was 13px (root default) */
-    --text-2xs:  0.75rem;  /* 12px — was 11px */
+    /* revert → ขนาด Paces _root แท้ (user req 2026-06-15: ฟอนต์ใหญ่กว่า Paces) */
+    --text-body: 0.875rem; /* 14px — Paces _root */
+    --text-sm:   0.875rem; /* 14px — Tailwind/Paces default */
+    --text-xs:   0.8125rem;/* 13px — Paces _root */
+    --text-2xs:  0.6875rem;/* 11px — Paces _root */
 }
 
 /* Drop the unwanted right padding paces adds inside .page-content main. */
@@ -107,7 +116,13 @@ html[data-skin="orbit"] {
      คงเฉพาะ structural mobile (kill sidebar offset); ปล่อย Paces .card native ทำงาน
      เอง → radius 4px (--radius), เงา subtle (--shadow), card-header เส้นประ, body p-5.
      page padding ใช้ 1rem จาก rule line ~98 (ไม่ override 0.5rem แล้ว). */
+  /* kill sidebar offset (inline) — ทุกหน้า seller mobile */
   .seller-mobile-shell { margin-inline: 0 !important; }
+  /* เฉพาะ /orders (full-bleed): ตัด top margin 20px ของ .wrapper + ซ่อน footer
+     scope ด้วย :has(.orders-fullbleed) marker จาก OrdersList → ไม่กระทบหน้าอื่น
+     (เดิมใช้ margin:0 global ทำให้หน้าอื่นเพี้ยน — user รายงาน 2026-06-15) */
+  .seller-mobile-shell:has(.orders-fullbleed) { margin-top: 0 !important; }
+  .seller-mobile-shell:has(.orders-fullbleed) footer { display: none !important; }
   /* พื้นหลัง = Paces body-bg token (ให้การ์ดขาวเด้ง) แทน hardcode hex เดิม */
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }
