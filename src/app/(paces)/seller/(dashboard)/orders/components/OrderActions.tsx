@@ -46,7 +46,7 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
   // ดู=ตัวแรก (rounded-e-none), copy=ตัวสุดท้าย (rounded-s-none), กลาง rounded-none
   if (variant === 'table') {
     return (
-      <div className="flex justify-center">
+      <div className="flex justify-start">
         <div className="inline-flex">
           <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={`${ICON_BTN} rounded-e-none`}>
             <Icon icon="eye" className="text-base" />
@@ -67,7 +67,7 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
 
   // ── mobile (card): copy + SMS (icon+label) + ⋮ overflow (ดู/แก้ไข/ยกเลิก) ──
   return (
-    <div className="flex items-center justify-start gap-1.5">
+    <div className="flex items-center justify-end gap-1.5">
       <CopyLinkButton value={url} label="คัดลอกลิงก์" />
       {!isTerminal && <SendSmsButton publicToken={order.publicToken} compact />}
       <OrderCardMenu
