@@ -32,7 +32,7 @@ import { useState } from 'react'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 import OrderActions from './OrderActions'
 import CancelOrderModal from './CancelOrderModal'
-import FilterDropdown from './FilterDropdown'
+import FilterDropdown from '@/components/safepay/FilterDropdown'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {

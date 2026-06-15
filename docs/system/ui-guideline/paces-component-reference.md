@@ -61,6 +61,30 @@ Source: `theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx`
 - placement: `[--placement:bottom-right]` ฯลฯ; hover: `[--trigger:hover]`; close: `[--auto-close:inside|outside|false]`
 Source: `theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx`
 
+> ⚠️ **Preline `hs-dropdown` พังใน list/toolbar ที่ re-render** — Preline เก็บ open/close state ไว้ inline (DOM attribute) เมื่อ React re-render component (lazy-load list, เลือก filter แล้ว state เปลี่ยน) → inline-state หาย → menu `opacity` ค้าง 0 (กดได้แต่มองไม่เห็น). ใช้ได้เฉพาะ dropdown ที่ **static** (topbar, ปุ่มเดี่ยวที่ parent ไม่ re-render). dropdown ใน list/toolbar ที่ dynamic → ใช้ **FilterDropdown / custom React** (§3b). บทเรียน 2026-06-15 (order ⋮ + filter toolbar).
+
+## 3b. FilterDropdown — shared reusable (Single Button Dropdown ที่ทน re-render)
+**`src/components/safepay/FilterDropdown.tsx`** — Single Button Dropdown (หน้าตา = theme §3) แต่ขับ open/close ด้วย custom React (useState + click-outside + Escape) แทน Preline → ทน re-render ของ list/toolbar. **ใช้ตัวนี้สำหรับ filter/select ทุกหน้า `(paces)` ที่ parent re-render** (orders ✅ ใช้แล้ว; products/settings ใช้ต่อ).
+
+```tsx
+import FilterDropdown from '@/components/safepay/FilterDropdown'
+
+<FilterDropdown
+  icon="truck"              // tabler icon นำหน้าปุ่ม (ไม่ส่ง = ไม่มี icon เช่น page size)
+  defaultLabel="สถานะ"      // label บนปุ่มตอนยังไม่กรอง (ไม่ส่ง = โชว์ label option ที่ match เสมอ)
+  resetValue="All"          // ค่าที่ถือว่า "ยังไม่กรอง" → ปุ่ม neutral + defaultLabel
+  value={current}           // ค่าที่เลือกอยู่
+  options={[{ value: 'All', label: 'ทั้งหมด' }, { value: 'PENDING', label: 'รอดำเนินการ' }]}
+  onChange={(v) => setX(v === 'All' ? undefined : v)}
+  align="right"             // 'left'(default) | 'right' (page size ท้าย toolbar กัน overflow)
+/>
+```
+- ปุ่ม trigger: `btn bg-light text-dark` (default) → `btn bg-primary/15 text-primary` (active เมื่อ value ≠ resetValue) + chevron rotate
+- menu item: `.dropdown-item` (theme) + check icon ซ้ายเมื่อ active (ไม่ active = spacer `size-4` ให้ text ตรงกัน)
+- props ครบ: `icon?` `value` `options` `onChange` `defaultLabel?` `resetValue?` `align?` `className?`
+- ตัวอย่างใช้จริง (3 filter + page size): `src/app/(paces)/seller/(dashboard)/orders/components/OrdersTable.tsx`
+Base: theme `SingleButtonDropdowns` (§3) + click-outside จาก `OrderCardMenu.tsx`
+
 ## 4. Form — `_forms.css`
 - input: `form-input` (37px) / `form-input-sm` (30px) / `form-input-lg` (47px). border default-300 → hover/focus default-500 → invalid danger/60
 - select: `form-select` (+ `-sm`/`-lg` ขนาดเดียวกับ input)
@@ -119,7 +143,7 @@ shadow: `shadow` (default) · `shadow-sm` · `shadow-lg`
 layout: topbar 65px · sidenav 245px (sm 75px)
 
 ## 9. Do / Don't
-**DO (ลายเซ็น Paces):** `.card-header` ต้อง `border-dashed` · soft = `bg-{color}/15` · primary seller/admin = `#236dc9` ผ่าน token · grid `gap-base` · dropdown = `hs-dropdown` · icon ใน btn `size-4.5` (sm `size-3`)
+**DO (ลายเซ็น Paces):** `.card-header` ต้อง `border-dashed` · soft = `bg-{color}/15` · primary seller/admin = `#236dc9` ผ่าน token · grid `gap-base` · dropdown static = `hs-dropdown`, dropdown ใน list/toolbar ที่ re-render = `FilterDropdown` (§3b) · icon ใน btn `size-4.5` (sm `size-3`)
 **DON'T ใน `(paces)/**`:** `text-[NNpx]` · `bg-[rgba()]`/`bg-[#hex]` · `shadow-[]` · `rounded-[Npx]` · `#7367F0` (ม่วง Vuexy) · Bootstrap classes · `.btn-group` · hardcode hex (ยกเว้น raised-FAB/safe-area + comment กำกับ)
 
 ## Source files (copy จาก)

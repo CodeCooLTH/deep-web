@@ -11,7 +11,10 @@
  * Base (markup/visual): theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx
  *   → SingleButtonDropdowns (.hs-dropdown-toggle btn / .dropdown-item)
  * Base (CSS .dropdown-item): theme/paces/Admin/TS/src/assets/css/custom/_dropdown.css
- * Base (click-outside pattern): ./OrderCardMenu.tsx
+ * Base (click-outside pattern): src/app/(paces)/seller/(dashboard)/orders/components/OrderCardMenu.tsx
+ *
+ * Shared reusable — ใช้ได้ทุกหน้า (paces) ที่ต้องการ filter dropdown (orders, products,
+ * settings ฯลฯ). ดู docs/system/ui-guideline/paces-component-reference.md §FilterDropdown
  */
 
 'use client'
