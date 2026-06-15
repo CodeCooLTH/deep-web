@@ -3,8 +3,8 @@
  *
  * Re-source จาก Paces order-details (redesign 2026-06-15 — action-first/mobile-first):
  * - ใช้ 3-col grid เหมือน theme: col-span-3 (main) + col-span-1 (sidebar)
- * - Main: StatusHero (สถานะ + primary next-action) → OrderSummary (items + ลิงก์ผู้ซื้อ + cancel) → ShippingActivity (timeline)
- * - Sidebar: CustomerDetails (identity + contact, PDPA masked) → PaymentCard (วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล) → ShippingAddress → OrderReviewCard
+ * - Main: StatusHero (สถานะ) → OrderSummary (items + totals) → ShippingActivity (timeline)
+ * - Sidebar: OrderActionPanel (ทุก action รวม — S-13) → CustomerDetails → PaymentCard → ShippingAddress → OrderReviewCard
  * - คง: data fetching (getOrderForShop), auth guard (getServerSession), shop ownership check
  * - PII: mask + neutralize raw contact ที่ server boundary ก่อนส่งข้าม RSC (S-C1) — ห้ามแตะ
  * - paymentMethod/salesChannel/slipFileId/accessUrl ไม่ใช่ PII → ส่งให้ PaymentCard ได้
@@ -20,6 +20,7 @@ import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import StatusHero from './components/StatusHero'
 import OrderSummary from './components/OrderSummary'
+import OrderActionPanel from './components/OrderActionPanel'
 import CustomerDetails from './components/CustomerDetails'
 import PaymentCard from './components/PaymentCard'
 import ShippingAddress from './components/ShippingAddress'
@@ -117,20 +118,17 @@ export default async function OrderDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
         {/* Main content — col-span-3 */}
         <div className="space-y-base lg:col-span-3">
-          {/* StatusHero — สถานะเด่น + primary next-action (action-first) */}
+          {/* StatusHero — สถานะเด่น (action ย้ายไป OrderActionPanel แล้ว — S-13) */}
           <StatusHero
             publicToken={order.publicToken}
             status={order.status}
             type={order.type}
-            fulfillmentMode={order.fulfillmentMode}
             createdAtISO={createdAtISO}
           />
           <OrderSummary
             order={{
               publicToken: order.publicToken,
-              status: order.status,
               type: order.type,
-              fulfillmentMode: order.fulfillmentMode,
               totalAmount: order.totalAmount,
               discount: order.discount ?? null,
               vatRate: order.vatRate ?? null,
@@ -162,6 +160,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
         {/* Sidebar — col-span-1 */}
         <div className="space-y-base">
+          {/* OrderActionPanel — รวมทุก action ของ order ไว้บนสุด sidebar (S-13) */}
+          <OrderActionPanel
+            publicToken={order.publicToken}
+            status={order.status}
+            fulfillmentMode={order.fulfillmentMode}
+          />
           <CustomerDetails
             data={{
               // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน

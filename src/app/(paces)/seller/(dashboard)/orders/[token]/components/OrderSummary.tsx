@@ -11,15 +11,12 @@
  * - S-5 (Batch B): ลบ STATUS_META/TYPE_META → ย้ายไป StatusHero (เจ้าของใหม่)
  *   ลบ badges ใน card-header, section "การดำเนินการ" (OrderActions), slip/accessUrl
  *   card-header: เหลือ title "รายการสินค้า" + ปุ่มกลับ
- *   เพิ่ม CancelOrderButton ใต้ section ลิงก์ผู้ซื้อ
- *   ลบ prop slipFileId/accessUrl; คง status/fulfillmentMode (cancel condition + buyer link)
+ * - S-13: ลบ section "ลิงก์สำหรับผู้ซื้อ" (OrderCopyLink/SendSmsButton) + CancelOrderButton
+ *   ออก → ย้ายไป OrderActionPanel แล้ว; ลบ status/fulfillmentMode จาก type (ไม่ใช้แล้ว)
  */
 
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
-import OrderCopyLink from './OrderCopyLink'
-import SendSmsButton from './SendSmsButton'
-import CancelOrderButton from './CancelOrderButton'
 
 function formatAmount(amount: unknown) {
   return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(amount))
@@ -33,10 +30,7 @@ function toNum(v: unknown): number {
 
 export type OrderSummaryOrder = {
   publicToken: string
-  status: string
   type: string
-  /** fulfillmentMode snapshot จาก order — ใช้กำหนด ship gate แทน order.type */
-  fulfillmentMode: string
   totalAmount: unknown
   /** Phase B: ส่วนลด (฿), null/0 = ไม่โชว์ row */
   discount?: unknown
@@ -176,30 +170,6 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           </div>
         </div>
 
-        {/* ลิงก์สำหรับผู้ซื้อ — อยู่ใต้ตาราง เพื่อให้ seller copy ง่าย */}
-        <div className="mt-6 border-t border-default-200 pt-5">
-          <h4 className="mb-2 text-sm font-semibold text-default-800 flex items-center gap-1.5">
-            <Icon icon="link" className="text-base text-default-400" />
-            ลิงก์สำหรับผู้ซื้อ
-          </h4>
-          <p className="text-default-400 text-xs mb-3">
-            ส่งลิงก์นี้ให้ผู้ซื้อเพื่อยืนยันและรีวิวออเดอร์
-          </p>
-          {/* RC-8: ส่งแค่ publicToken — ไม่มี buyerContact/phone ผ่านมาที่นี่ */}
-          {/* NO_SHIPPING: SMS เป็น primary action ใน StatusHero แล้ว → ที่นี่โชว์แค่ copy กัน duplicate */}
-          <div className="flex flex-wrap gap-2">
-            <OrderCopyLink publicToken={order.publicToken} />
-            {order.fulfillmentMode !== 'NO_SHIPPING' && (
-              <SendSmsButton publicToken={order.publicToken} />
-            )}
-          </div>
-        </div>
-
-        {/* ยกเลิกออเดอร์ — client component แยก (OrderSummary เป็น RSC) */}
-        {/* CancelOrderButton render เฉพาะ PENDING/SHIPPED ภายในตัวเอง */}
-        <div className="mt-4">
-          <CancelOrderButton publicToken={order.publicToken} status={order.status} />
-        </div>
       </div>
     </div>
   )

@@ -29,6 +29,7 @@
 | S-10 | Layout ถูกต้องทั้ง desktop และ mobile | (1) desktop ≥ lg: grid-cols-4, Main col-span-3 (StatusHero → OrderSummary → ShippingActivity) + Sidebar col-span-1 (CustomerDetails → PaymentCard → ShippingAddress → OrderReviewCard); (2) mobile < lg: single column เรียง StatusHero → OrderSummary → ShippingActivity → CustomerDetails → PaymentCard → ShippingAddress → OrderReviewCard; (3) ไม่มี sticky action bar ใด ๆ | TODO |
 | S-11 | Paces token compliance + ไม่มี arbitrary value | (1) grep `text-\[` / `bg-\[` / `shadow-\[` / `rounded-\[` / `w-\[` / hardcode hex ใน component ที่แก้/ใหม่ทุกไฟล์ = 0 match (เว้น comment กำกับเหตุผล); (2) grep `#7367F0` ใน path ที่แตะ = 0; (3) primary ใช้ `bg-primary`/`text-primary` token | TODO |
 | S-12 | ทุก component ใหม่/แก้ มี `Base:` comment | grep `Base:` ใน StatusHero.tsx, PaymentCard.tsx, ShipForm.tsx, OrderSummary.tsx, CustomerDetails.tsx, ShippingActivity.tsx = ครบทุกไฟล์ (Hard Rule 3) | TODO |
+| S-13 | **OrderActionPanel** (ใหม่) — รวมทุก action ของ order ไว้ panel เดียว บนสุด sidebar (user request 2026-06-15) | (1) card บนสุด sidebar เหนือ CustomerDetails, title "การดำเนินการ"; (2) per-state: PENDING+SHIPPED=ShipForm+copy+SMS+cancel, PENDING+NO_SHIPPING=SMS+copy+cancel, SHIPPED=callout+copy+SMS+cancel, CONFIRMED/CANCELLED=callout+copy+"ไม่มีการดำเนินการเพิ่มเติม"; (3) reuse ShipForm/SendSmsButton/OrderCopyLink/CancelOrderButton ไม่แตะ internal; (4) StatusHero ตัด action zone+callout เหลือ badges+order#+date (ตัด prop fulfillmentMode); (5) OrderSummary ตัด section ลิงก์+cancel (ตัด status/fulfillmentMode จาก type); (6) ปุ่ม full-width ผ่าน flex-stretch ไม่ใช้ arbitrary; (7) Base: + ไม่มี arbitrary | TODO |
 
 ## Out-of-Scope
 
@@ -80,3 +81,4 @@ phase นี้ถือว่าเสร็จเมื่อเงื่อ�
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-06-15 | baseline สร้าง | phase เริ่มต้น — spec APPROVED | - |
+| 2026-06-15 | +S-13 OrderActionPanel (รวม action sidebar); StatusHero→status-only; OrderSummary ตัด action | user request หลัง polish — "อยากให้บนข้อมูลผู้ซื้อมี action panel รวม action" | user |
