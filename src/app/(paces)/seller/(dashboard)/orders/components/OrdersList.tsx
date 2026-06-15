@@ -22,6 +22,7 @@ import type { OrderRow } from './data'
 import OrderCard from './OrderCard'
 import CancelOrderModal from './CancelOrderModal'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
+import OrdersTable from './OrdersTable'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 const STATUS_TABS: { value: string; label: string }[] = [
@@ -164,6 +165,13 @@ export default function OrdersList({ orders, activeStatus }: Props) {
 
   return (
     <>
+      {/* ─── Desktop (≥lg): DataTable แบบ Paces theme ──────────────────────── */}
+      <div className="hidden lg:block">
+        <OrdersTable orders={orders} />
+      </div>
+
+      {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}
+      <div className="lg:hidden">
       {/* phone: full-bleed (-mx-4 หักล้าง shell padding); tablet+ (md): center + max-width
           กันการ์ดยืดเต็มกว้างบน tablet (responsive). marker .orders-fullbleed = CSS :has() scope
           onTouch*: swipe ซ้าย/ขวาเพื่อสลับ status tab */}
@@ -290,8 +298,9 @@ export default function OrdersList({ orders, activeStatus }: Props) {
         </div>
       )}
       </div>{/* /full-bleed wrapper */}
+      </div>{/* /lg:hidden mobile wrapper */}
 
-      {/* ─── Filter modal (full screen) ───────────────────────────────────────── */}
+      {/* ─── Filter modal (full screen) — อยู่นอก lg:hidden เพราะเป็น overlay ใช้ทุก breakpoint ───────────────────────────────────────── */}
       {filterOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-card" role="dialog" aria-modal="true" aria-label="ตัวกรอง">
           <div className="flex items-center gap-3 border-b border-default-200 px-4 py-3">
