@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-08T02:07:58Z",
+  "title": "Design System: Deep (SafePay)",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Confident Violet", "canonical": "#7367F0", "tonalRamp": ["#1c1750", "#2c2480", "#4339b5", "#5a4ee0", "#7367F0", "#9389f4", "#b3acf8", "#d9d4fb"] },
+      "verified-green": { "role": "secondary", "displayName": "Verified Green", "canonical": "#28C76F", "tonalRamp": ["#0a3a20", "#11592f", "#177a40", "#1ea055", "#28C76F", "#5fd994", "#92e6b8", "#c8f3db"] },
+      "signal-cyan": { "role": "secondary", "displayName": "Signal Cyan", "canonical": "#00BAD1", "tonalRamp": ["#003a41", "#005a66", "#007e8e", "#009eb2", "#00BAD1", "#4dd2e1", "#8ee5ee", "#c8f3f8"] },
+      "warning-amber": { "role": "tertiary", "displayName": "Warning Amber", "canonical": "#FF9F43", "tonalRamp": ["#5c3300", "#874c00", "#b36700", "#e08400", "#FF9F43", "#ffb873", "#ffd1a3", "#ffe8d1"] },
+      "error-coral": { "role": "tertiary", "displayName": "Error Coral", "canonical": "#FF4C51", "tonalRamp": ["#5c0e10", "#871619", "#b31e22", "#e0282d", "#FF4C51", "#ff7d80", "#ffaaac", "#ffd6d7"] },
+      "ink": { "role": "neutral", "displayName": "Ink Plum", "canonical": "#2F2B3D", "tonalRamp": ["#2F2B3D", "#454155", "#5c5870", "#7a7689", "#9b98a8", "#bdbbc7", "#dedce4", "#f1f0f4"] },
+      "surface-mist": { "role": "neutral", "displayName": "Cool Mist", "canonical": "#F8F7FA", "tonalRamp": ["#2F2B3D", "#454155", "#6d6a7d", "#9b98a8", "#c6c4cf", "#e4e3e9", "#F8F7FA", "#FFFFFF"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display / h1", "purpose": "หัวเรื่องหน้า/hero. 46px, text-wrap: balance." },
+      "headline": { "displayName": "Headline / h3", "purpose": "หัวข้อ section. 28px." },
+      "title": { "displayName": "Title / h5", "purpose": "หัวข้อย่อย, ชื่อร้าน. 18px." },
+      "body": { "displayName": "Body", "purpose": "เนื้อหาหลัก ~15px, prose 65–75ch." },
+      "label": { "displayName": "Label / Caption", "purpose": "chip, caption, meta. 13px, ls 0.4px, sentence case." }
+    },
+    "shadows": [
+      { "name": "sm", "value": "0 2px 8px rgb(47 43 61 / 0.12)", "purpose": "การ์ด/dropdown ตอนพัก." },
+      { "name": "md", "value": "0 3px 12px rgb(47 43 61 / 0.14)", "purpose": "การ์ด hover, แผงลอย." },
+      { "name": "lg", "value": "0 4px 18px rgb(47 43 61 / 0.16)", "purpose": "modal, popover, แผงสำคัญ." },
+      { "name": "primary-sm", "value": "0 2px 6px rgb(115 103 240 / 0.30)", "purpose": "ปุ่ม primary contained — เงาม่วงจาง." }
+    ],
+    "motion": [
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "easing หลักของ state transition (ออกแบบเอ็กซ์โพเนนเชียล ไม่เด้ง)." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "hover/focus, feedback ทันที." },
+      { "name": "duration-base", "value": "200ms", "purpose": "transition ทั่วไปในฝั่ง product." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "600px" },
+      { "name": "md", "value": "900px" },
+      { "name": "lg", "value": "1200px" },
+      { "name": "seller-mobile", "value": "1024px" },
+      { "name": "xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Action หลัก — ม่วงทึบ เงาม่วงจาง sentence case.",
+      "html": "<button class=\"ds-btn-primary\">ยืนยันรับของ</button>",
+      "css": ".ds-btn-primary { background: #7367F0; color: #fff; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 500; padding: 8px 20px; border: none; border-radius: 6px; box-shadow: 0 2px 6px rgb(115 103 240 / 0.30); cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1), transform 150ms cubic-bezier(0.25,1,0.5,1); } .ds-btn-primary:hover { background: #675DD8; transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 2px solid #7367F0; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(0); }"
+    },
+    {
+      "name": "Tonal Button",
+      "kind": "button",
+      "refersTo": "button-tonal",
+      "description": "Action รองที่ยังคงเป็นม่วง — พื้นม่วงโปร่ง.",
+      "html": "<button class=\"ds-btn-tonal\">ดูรายละเอียด</button>",
+      "css": ".ds-btn-tonal { background: rgb(115 103 240 / 0.16); color: #7367F0; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 500; padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1); } .ds-btn-tonal:hover { background: rgb(115 103 240 / 0.24); } .ds-btn-tonal:focus-visible { outline: 2px solid #7367F0; outline-offset: 2px; }"
+    },
+    {
+      "name": "Verified Chip",
+      "kind": "chip",
+      "refersTo": "chip-verified",
+      "description": "Signature ของแพลตฟอร์ม — ยืนยันตัวตนแล้ว. เขียวโปร่ง + ไอคอน rosette.",
+      "html": "<span class=\"ds-chip-verified\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3l2.5 1.8 3-.3 1 2.9 2.5 1.7-1 2.9 1 2.9-2.5 1.7-1 2.9-3-.3L12 21l-2.5-1.8-3 .3-1-2.9L3 14.1l1-2.9-1-2.9 2.5-1.7 1-2.9 3 .3z\"/><path d=\"M9 12l2 2 4-4\"/></svg>ยืนยันตัวตนแล้ว</span>",
+      "css": ".ds-chip-verified { display: inline-flex; align-items: center; gap: 4px; background: rgb(40 199 111 / 0.16); color: #28C76F; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 500; padding: 3px 10px; border-radius: 9999px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "ฟิลด์มาตรฐาน — โฟกัสม่วง placeholder ผ่าน contrast.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"ชื่อร้านหรือเบอร์โทร\" />",
+      "css": ".ds-input { width: 100%; background: #fff; color: #2F2B3D; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.9375rem; padding: 10px 14px; border: 1px solid rgb(47 43 61 / 0.22); border-radius: 6px; transition: border-color 150ms cubic-bezier(0.25,1,0.5,1), box-shadow 150ms cubic-bezier(0.25,1,0.5,1); } .ds-input::placeholder { color: rgb(47 43 61 / 0.55); } .ds-input:focus { outline: none; border-color: #7367F0; box-shadow: 0 0 0 3px rgb(115 103 240 / 0.16); }"
+    },
+    {
+      "name": "Trust Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "การ์ด Paper บนพื้น Cool Mist — เงาฟุ้งผสมหมึก ไม่มีขอบหนัก.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">ร้านน่าเชื่อถือ</div><div class=\"ds-card-body\">ยืนยันตัวตน L2 · 142 ออเดอร์สำเร็จ · ตรงเวลา 98%</div></div>",
+      "css": ".ds-card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgb(47 43 61 / 0.12); transition: box-shadow 200ms cubic-bezier(0.25,1,0.5,1); } .ds-card:hover { box-shadow: 0 3px 12px rgb(47 43 61 / 0.14); } .ds-card-title { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 1.125rem; font-weight: 500; color: #2F2B3D; margin-bottom: 6px; } .ds-card-body { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; color: rgb(47 43 61 / 0.7); line-height: 1.54; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Trusted Counter",
+    "overview": "Deep รู้สึกเหมือนเคาน์เตอร์ร้านที่ไฟสว่าง สะอาด และเป็นมิตร ที่ทุกอย่างถูกตรวจสอบกันอย่างเปิดเผยตรงหน้า ก่อนเงินจะเปลี่ยนมือ. ความน่าเชื่อถือไม่ได้มาจากการป่าวประกาศ แต่มาจากสัญญาณจริงที่ยืนยันได้ — verified chip, ประวัติออเดอร์, completion rate, รีวิวจริง. โทนคือ fintech ที่เข้าถึงง่าย: มั่นใจแต่ไม่ข่มขู่, โมเดิร์นแต่ไม่เย็นชา. ระบบวางอยู่บนพื้นเย็นนวล (Cool Mist #F8F7FA) กับการ์ดสีขาว ขอบโค้งนุ่ม และเงาฟุ้งบางที่ผสมหมึกพลัม. ม่วงมั่นใจเป็นเสียงหลักของ action ส่วนเขียว Verified คือสีที่มีความหมายเชิงแบรนด์มากที่สุด.",
+    "keyCharacteristics": [
+      "น่าเชื่อถือแบบอบอุ่น — credible โดยไม่เย็นชา",
+      "Trust แสดงด้วยสัญญาณจริง ไม่ใช่ badge ตกแต่ง",
+      "Mobile-first, ภาษาไทยเรียบง่าย, tap target ≥44px",
+      "ม่วงเป็น accent ทึบ ≤ ~10% ของจอ; เขียว Verified สื่อความเชื่อใจ",
+      "ขอบโค้งนุ่ม, เงาฟุ้งบาง, ฟอนต์เดียว Anuphan ทุก surface"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Confident Violet ปรากฏ ≤ ~10% ของพื้นที่จอใดๆ — มันคือ accent ของ action ไม่ใช่ของตกแต่ง.", "section": "colors" },
+      { "name": "The Verified-Means-Green Rule", "body": "เขียว #28C76F สงวนไว้สำหรับความเชื่อใจที่ยืนยันแล้วเท่านั้น (verified/สำเร็จ/ผ่าน). ห้ามใช้กับสถานะที่ยังไม่ยืนยัน.", "section": "colors" },
+      { "name": "The One Family Rule", "body": "Anuphan เท่านั้นทุก surface ทุก subdomain (ยกเว้น monospace + icon font). ห้าม hardcode ฟอนต์อื่น.", "section": "typography" },
+      { "name": "The Sentence-Case Rule", "body": "ปุ่ม/label เป็น sentence case ไม่ใช่ ALL CAPS — ภาษาไทยไม่มี case.", "section": "typography" },
+      { "name": "The Ink-Tinted Shadow Rule", "body": "เงาทุกตัวผสมหมึกพลัม rgb(47 43 61) ไม่ใช่ดำสนิท.", "section": "elevation" },
+      { "name": "The Flat-At-Rest Rule", "body": "พื้นผิวแบนตอนพัก เงาเพิ่มเป็นการตอบสนองต่อ state.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do ใช้ Confident Violet #7367F0 เป็นสีทึบสำหรับ action/ลิงก์/โฟกัส ≤ ~10% ของจอ.",
+      "Do สงวน Verified Green #28C76F ไว้กับความเชื่อใจที่ยืนยันแล้วเท่านั้น.",
+      "Do ใช้ Anuphan ทุก element; ลำดับชั้นด้วย scale + น้ำหนัก 400/500.",
+      "Do ใช้ขอบมน 6–8px, เงาฟุ้งผสมหมึกพลัม, พื้น Cool Mist + การ์ด Paper.",
+      "Do ใช้ sentence case และ label แบบ กริยา+กรรม.",
+      "Do ผ่าน WCAG 2.1 AA: contrast ≥4.5:1, focus ชัด, tap target ≥44px, รองรับ prefers-reduced-motion."
+    ],
+    "donts": [
+      "Don't ทำแบบเทมเพลต AI-SaaS โหลๆ: ไล่สีม่วง gradient ตกแต่ง, hero-metric template, กริดไอคอนเหมือนกันเป๊ะ, eyebrow ตัวพิมพ์ใหญ่จิ๋ว, gradient text.",
+      "Don't ทำให้ดูองค์กร/ธนาคารเย็นชา: ดำสนิท, ฟอร์มแข็งทื่อ, ไร้ความอบอุ่น.",
+      "Don't ทำแบบ crypto/web3 จัดจ้าน: นีออนบนดำ, ไล่สีรุนแรง, copy ไฮป์.",
+      "Don't ใช้ border-left/right >1px เป็นแถบสีตกแต่ง.",
+      "Don't ใช้เขียวกับสถานะที่ยังไม่ยืนยัน.",
+      "Don't ซ้อนการ์ดในการ์ด, ใช้ดำ #000, หรือ hardcode ฟอนต์อื่นนอกจาก Anuphan.",
+      "Don't ใช้ ALL CAPS กับข้อความไทย หรือ placeholder ที่ตก contrast."
+    ]
+  }
+}
