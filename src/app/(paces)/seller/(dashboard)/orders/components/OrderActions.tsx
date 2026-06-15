@@ -41,20 +41,26 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
     setUrl(`${resolveBuyerBaseUrl()}/o/${order.publicToken}`)
   }, [order.publicToken])
 
-  // ── desktop (table): [ดู] [แก้ไข] [SMS] [copy] icon-only, ไม่มี ⋮ ──
+  // ── desktop (table): button group [ดู][แก้ไข][SMS][copy] icon-only, ไม่มี ⋮ ──
+  // button group ตาม theme ui/buttons: inline-flex + rounded-*-none + -ms-px (ปุ่มเชื่อมกัน)
+  // ดู=ตัวแรก (rounded-e-none), copy=ตัวสุดท้าย (rounded-s-none), กลาง rounded-none
   if (variant === 'table') {
     return (
-      <div className="flex items-center justify-center gap-1.5">
-        <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={ICON_BTN}>
-          <Icon icon="eye" className="text-base" />
-        </Link>
-        {canEdit && (
-          <Link href={`/orders/${order.publicToken}/edit`} aria-label="แก้ไข" className={ICON_BTN}>
-            <Icon icon="pencil" className="text-base" />
+      <div className="flex justify-center">
+        <div className="inline-flex">
+          <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={`${ICON_BTN} rounded-e-none`}>
+            <Icon icon="eye" className="text-base" />
           </Link>
-        )}
-        {!isTerminal && <SendSmsButton publicToken={order.publicToken} iconOnly />}
-        <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly />
+          {canEdit && (
+            <Link href={`/orders/${order.publicToken}/edit`} aria-label="แก้ไข" className={`${ICON_BTN} -ms-px rounded-none`}>
+              <Icon icon="pencil" className="text-base" />
+            </Link>
+          )}
+          {!isTerminal && (
+            <SendSmsButton publicToken={order.publicToken} iconOnly className="-ms-px rounded-none" />
+          )}
+          <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly className="-ms-px rounded-s-none" />
+        </div>
       </div>
     )
   }

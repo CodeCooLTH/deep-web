@@ -28,12 +28,14 @@ interface SendSmsButtonProps {
   compact?: boolean
   /** iconOnly=true → icon button ล้วน (Paces .btn-icon) สำหรับ action bar การ์ด */
   iconOnly?: boolean
+  /** class เพิ่ม (เช่น rounded-none สำหรับ button group) — ใช้กับ iconOnly */
+  className?: string
 }
 
 // SUCCESS_RESET_MS: reset ปุ่มกลับ idle หลัง success (ยังใช้งานอยู่)
 const SUCCESS_RESET_MS = 3000
 
-export default function SendSmsButton({ publicToken, compact = false, iconOnly = false }: SendSmsButtonProps) {
+export default function SendSmsButton({ publicToken, compact = false, iconOnly = false, className = '' }: SendSmsButtonProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [sending, setSending] = useState(false)
   // error message แยกตาม HTTP status — บางเคส embed JSX ด้วย Link
@@ -116,7 +118,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
           aria-label="ส่งลิงก์ทาง SMS"
           className={
             iconOnly
-              ? 'btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700'
+              ? `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 ${className}`.trim()
               : compact
                 ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
                 : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs'
