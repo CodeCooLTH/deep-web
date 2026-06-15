@@ -122,10 +122,13 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+      {/* breadcrumb desktop เท่านั้น — มือถือมีชื่อหน้าใน SellerMobileHeader แล้ว (กันซ้ำ) */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+      </div>
 
-      {/* Stat cards — 5 columns (theme grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-5) */}
-      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
+      {/* Stat cards — desktop ≥lg เท่านั้น (มือถือ: ซ้ำซ้อนกับ status filter tab ที่มี count ใน OrdersList → ซ่อน) */}
+      <div className="mb-1.25 hidden gap-1.25 lg:grid lg:grid-cols-5">
         {orderStatData.map((item, idx) => (
           <OrdersStatCard item={item} key={idx} />
         ))}

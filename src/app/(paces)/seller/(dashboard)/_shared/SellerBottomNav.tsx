@@ -127,6 +127,12 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
     setOpen(false)
   }
 
+  // /orders = หน้า full-screen focused (มี back มุมซ้ายบน) → ซ่อน bottom nav (user req)
+  // วาง return null หลัง hooks ทั้งหมดเพื่อไม่ละเมิด rules of hooks
+  if (pathname === '/orders') {
+    return null
+  }
+
   return (
     <>
       {/* Backdrop — dim content เมื่อ speed-dial เปิด, click ปิด */}

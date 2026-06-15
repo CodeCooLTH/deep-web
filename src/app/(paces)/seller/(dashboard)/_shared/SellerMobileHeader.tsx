@@ -37,12 +37,19 @@ const SellerMobileHeader = (_props: Props) => {
 
   // v8: /dashboard มี SellerHeader (น้ำเงิน) ของตัวเองใน CommandCenter (page content)
   // → layout topbar คืน null กัน header ซ้อน 2 อัน (IdentityBar เก่า superseded)
-  if (pathname === '/dashboard') {
+  // /orders: หน้าเป็นเจ้าของ header เอง (search + filter + bell ใน OrdersList) → คืน null เช่นกัน
+  if (pathname === '/dashboard' || pathname === '/orders') {
     return null
   }
 
-  // sub-page mode — ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
+  // ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
   const pageTitle = getSellerPageTitle(pathname)
+
+  // แท็บหลักใน bottom nav (orders/products/shop) = top-level destination → ไม่มีปุ่ม back/noti
+  // back ไม่มีความหมายบนหน้าหลัก (สลับแท็บผ่าน bottom nav); noti เข้าได้จาก bell หน้า dashboard
+  // หน้า drill-down (order detail, product edit ฯลฯ) ยังเป็น sub-page mode มี back ปกติ
+  const PRIMARY_TABS = ['/orders', '/products', '/shop']
+  const isPrimaryTab = PRIMARY_TABS.includes(pathname)
 
   /**
    * deep-link safe back:
@@ -67,37 +74,44 @@ const SellerMobileHeader = (_props: Props) => {
     >
       {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
       <div className="flex items-center gap-3 px-4 pt-3.5 pb-2.5">
-        {/* Back button ซ้าย — w-11 h-11 = 44px touch target; text-default-700 (token) แทน hardcode หมึก Vuexy */}
-        <button
-          type="button"
-          className="w-11 h-11 rounded-lg inline-flex items-center justify-center shrink-0 text-default-700"
-          aria-label="ย้อนกลับ"
-          onClick={handleBack}
-        >
-          {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic; text-xl (20px token) แทน arbitrary */}
-          <Icon icon="arrow-left" className="text-xl" />
-        </button>
+        {/* Back button — เฉพาะ sub-page (drill-down); แท็บหลักไม่มี. w-11 h-11 = 44px touch */}
+        {!isPrimaryTab && (
+          <button
+            type="button"
+            className="w-11 h-11 rounded-lg inline-flex items-center justify-center shrink-0 text-default-700"
+            aria-label="ย้อนกลับ"
+            onClick={handleBack}
+          >
+            {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic; text-xl (20px token) */}
+            <Icon icon="arrow-left" className="text-xl" />
+          </button>
+        )}
 
-        {/* Page title กลาง — flex-1 truncate ป้องกันล้น; text-center ให้สม่ำเสมอ
-            text-md (15px token) + text-default-900 (token) แทน text-[15px]/text-[#2F2B3D] (สี Vuexy) */}
-        <p className="flex-1 min-w-0 text-center text-md font-semibold text-default-900 truncate">
+        {/* Page title — แท็บหลัก: ชิดซ้ายตัวใหญ่ (app-style); sub-page: กึ่งกลาง (สมดุลกับ back+bell) */}
+        <p
+          className={`flex-1 min-w-0 truncate font-semibold text-default-900 ${
+            isPrimaryTab ? 'text-left text-lg' : 'text-center text-md'
+          }`}
+        >
           {pageTitle}
         </p>
 
-        {/* Bell ขวา — w-11 h-11=44px touch target; text-default-700 (token) */}
-        <button
-          type="button"
-          className="w-11 h-11 rounded-lg relative inline-flex items-center justify-center shrink-0 text-default-700"
-          aria-label="การแจ้งเตือน"
-        >
-          <Icon icon="bell" className="text-xl" />
-          {/* dot bg-danger (token #f7577e แทน hardcode #FF4C51 ของ Vuexy) + ring body-bg กัน dot ชน icon
-              arbitrary size/offset: ตำแหน่ง+ขนาด dot 7px ไม่มี token แทน */}
-          <span
-            className="absolute w-[7px] h-[7px] rounded-full bg-danger ring-2 ring-[var(--color-body-bg)]"
-            style={{ top: '9px', right: '10px' }}
-          />
-        </button>
+        {/* Bell — เฉพาะ sub-page; แท็บหลักไม่มี (noti เข้าได้จาก bell หน้า dashboard) */}
+        {!isPrimaryTab && (
+          <button
+            type="button"
+            className="w-11 h-11 rounded-lg relative inline-flex items-center justify-center shrink-0 text-default-700"
+            aria-label="การแจ้งเตือน"
+          >
+            <Icon icon="bell" className="text-xl" />
+            {/* dot bg-danger (token) + ring body-bg กัน dot ชน icon
+                arbitrary size/offset: ตำแหน่ง+ขนาด dot 7px ไม่มี token แทน */}
+            <span
+              className="absolute w-[7px] h-[7px] rounded-full bg-danger ring-2 ring-[var(--color-body-bg)]"
+              style={{ top: '9px', right: '10px' }}
+            />
+          </button>
+        )}
       </div>
     </header>
   )

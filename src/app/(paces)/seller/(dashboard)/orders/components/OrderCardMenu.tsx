@@ -12,6 +12,8 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'react-toastify'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderStatus } from './data'
 
 interface OrderCardMenuProps {
@@ -42,6 +44,26 @@ export default function OrderCardMenu({ token, status, onCancelRequest }: OrderC
   const canEdit = status === 'PENDING'
   const canCancel = status === 'PENDING' || status === 'SHIPPED'
 
+  // คัดลอกลิงก์ผู้ซื้อ — ย้ายมาจาก footer การ์ด (redesign v8.2); feedback = toast แทน icon-flash
+  const handleCopyLink = async () => {
+    const url = `${resolveBuyerBaseUrl()}/o/${token}`
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      // fallback HTTP context
+      const el = document.createElement('textarea')
+      el.value = url
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+    toast.success('คัดลอกลิงก์ผู้ซื้อแล้ว')
+    setOpen(false)
+  }
+
   return (
     // ใช้ relative + ref เพื่อ detect click outside แทน Preline JS ที่ต้องการ browser env
     <div className="relative" ref={ref}>
@@ -65,6 +87,18 @@ export default function OrderCardMenu({ token, status, onCancelRequest }: OrderC
           aria-orientation="vertical"
         >
           <div className="space-y-0.5 p-1">
+            {/* คัดลอกลิงก์ผู้ซื้อ — แสดงทุกสถานะ */}
+            <button
+              type="button"
+              className="dropdown-item text-sm"
+              role="menuitem"
+              onClick={handleCopyLink}
+            >
+              <Icon icon="copy" className="size-4" />
+              คัดลอกลิงก์ผู้ซื้อ
+            </button>
+            <hr className="dropdown-divider" />
+
             {!isTerminal && (
               <>
                 {/* แก้ไขออเดอร์ — เฉพาะ PENDING */}
