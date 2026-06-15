@@ -150,13 +150,13 @@ export default function OrdersTable({ orders }: Props) {
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
               {displayName.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <p className="font-medium text-default-900">
-                {displayName}
-                {/* verified check: มี buyerUsername = สมาชิก Deep */}
+            <div className="min-w-0">
+              {/* verified check หน้าชื่อ (ตรงกับ mobile) + inline (flex กัน icon เด้งลงบรรทัด) */}
+              <p className="flex items-center gap-1 font-medium text-default-900">
                 {buyerUsername && (
-                  <Icon icon="circle-check-filled" className="ms-1 text-sm text-primary" />
+                  <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
                 )}
+                <span className="truncate">{displayName}</span>
               </p>
               <p className="text-xs text-default-400">
                 {/* แสดงเบอร์จริง (seller เห็นลูกค้าตัวเอง) หรือ masked contact */}
@@ -278,18 +278,18 @@ export default function OrdersTable({ orders }: Props) {
           <div className="flex justify-center gap-1.5">
             <Link
               href={`/orders/${o.publicToken}`}
-              aria-label="ดูรายละเอียด"
-              className="btn btn-icon btn-sm border-default-300 text-default-700 hover:bg-default-100"
+              className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"
             >
               <Icon icon="eye" className="text-base" />
+              ดูรายละเอียด
             </Link>
             {canEdit && (
               <Link
                 href={`/orders/${o.publicToken}/edit`}
-                aria-label="แก้ไขออเดอร์"
-                className="btn btn-icon btn-sm border-default-300 text-default-700 hover:bg-default-100"
+                className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100"
               >
                 <Icon icon="pencil" className="text-base" />
+                แก้ไข
               </Link>
             )}
           </div>
