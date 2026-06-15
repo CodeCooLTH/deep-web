@@ -317,13 +317,13 @@ export default function OrdersTable({ orders }: Props) {
   return (
     <>
     <div className="card">
-      {/* ─── toolbar: search (ซ้าย) | กรอง: + filter icon+label + page size + สร้าง (ขวา) ───
-          Spec: safepay-ux 2026-06-15 (อิง theme orders "Filter By:" + paces-component-reference)
-          card-header default = justify-between → 2 group; right group nowrap */}
-      <div className="card-header flex-col items-stretch gap-3">
-        {/* row 1: search (เต็มแถว) + สร้างออเดอร์ */}
-        <div className="flex items-center gap-3">
-          <div className="input-icon-group flex-1">
+      {/* ─── toolbar — เรียงตาม theme orders OrdersList.tsx: [search ซ้าย] [กรอง:+filter กลาง] [Add ขวา] ───
+          Base/source: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
+          (ดู docs/system/ui-guideline/seller/page-sourcing.md → orders). คง w-* บน select กัน flex บีบ label หาย */}
+      <div className="card-header">
+        {/* ซ้าย: search */}
+        <div className="flex gap-2.5">
+          <div className="input-icon-group">
             <Icon icon="search" className="input-icon" />
             <input
               type="text"
@@ -336,36 +336,33 @@ export default function OrdersTable({ orders }: Props) {
               }}
             />
           </div>
-          <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover shrink-0">
-            <Icon icon="plus" className="size-4.5" />
-            สร้างออเดอร์
-          </Link>
         </div>
 
-        {/* row 2: กรอง: + filters (icon+label) + page size — แถวเต็ม label โชว์ครบ */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-sm font-semibold text-nowrap text-default-700">กรอง:</span>
-
-          {/* สถานะ — w-36 (label สั้นใน wrapper) */}
-          <div className="input-icon-group w-36">
-            <Icon icon="truck" className="input-icon" />
-            <select
-              className="form-select"
-              value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-              onChange={(e) => {
-                table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                setPagination((p) => ({ ...p, pageIndex: 0 }))
-              }}
-            >
-              <option value="All">สถานะ</option>
-              <option value="PENDING">รอดำเนินการ</option>
-              <option value="SHIPPED">จัดส่งแล้ว</option>
-              <option value="CONFIRMED">สำเร็จ</option>
-              <option value="CANCELLED">ยกเลิก</option>
-            </select>
+        {/* กลาง: กรอง: + filter (สถานะ/ประเภท/ช่วงเวลา) + page size — flex-wrap lg:flex-nowrap ตาม theme */}
+        <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+          {/* "กรอง:" + filter แรก group เข้าด้วยกัน (ตาม theme) */}
+          <div className="items-center gap-2.5 md:flex">
+            <span className="font-semibold text-nowrap me-2.5">กรอง:</span>
+            <div className="input-icon-group w-36">
+              <Icon icon="truck" className="input-icon" />
+              <select
+                className="form-select"
+                value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
+                onChange={(e) => {
+                  table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
+                  setPagination((p) => ({ ...p, pageIndex: 0 }))
+                }}
+              >
+                <option value="All">สถานะ</option>
+                <option value="PENDING">รอดำเนินการ</option>
+                <option value="SHIPPED">จัดส่งแล้ว</option>
+                <option value="CONFIRMED">สำเร็จ</option>
+                <option value="CANCELLED">ยกเลิก</option>
+              </select>
+            </div>
           </div>
 
-          {/* ประเภท — w-36 */}
+          {/* ประเภท */}
           <div className="input-icon-group w-36">
             <Icon icon="package" className="input-icon" />
             <select
@@ -383,7 +380,7 @@ export default function OrdersTable({ orders }: Props) {
             </select>
           </div>
 
-          {/* ช่วงเวลา — w-40 (label ยาวกว่า) */}
+          {/* ช่วงเวลา */}
           <div className="input-icon-group w-40">
             <Icon icon="calendar" className="input-icon" />
             <select
@@ -402,16 +399,26 @@ export default function OrdersTable({ orders }: Props) {
             </select>
           </div>
 
-          {/* page size — w-20 ไม่มี icon */}
-          <select
-            className="form-select w-20"
-            value={pageSize}
-            onChange={(e) => table.setPageSize(Number(e.target.value))}
-          >
-            {[5, 10, 15, 20].map((size) => (
-              <option key={size} value={size}>{size}</option>
-            ))}
-          </select>
+          {/* page size */}
+          <div>
+            <select
+              className="form-select w-20"
+              value={pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+            >
+              {[5, 10, 15, 20].map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* ขวา: สร้างออเดอร์ */}
+        <div className="flex items-center gap-2">
+          <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
+            <Icon icon="plus" className="size-4.5" />
+            สร้างออเดอร์
+          </Link>
         </div>
       </div>
 
