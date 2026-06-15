@@ -278,9 +278,11 @@ export default function OrdersTable({ orders }: Props) {
     }),
 
     // ─ action ─
+    // meta: w-px + whitespace-nowrap → column หดพอดีความกว้างปุ่ม (ไม่กินพื้นที่เกิน)
     {
       id: 'action',
-      header: () => <div className="text-center">จัดการ</div>,
+      header: () => <div>จัดการ</div>,
+      meta: { headerClassName: 'w-px whitespace-nowrap', cellClassName: 'w-px whitespace-nowrap' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => (
         // centralized OrderActions (ชุดเดียวกับ mobile card) — variant table = icon only
         <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table" />
