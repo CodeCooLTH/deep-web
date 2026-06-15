@@ -14,8 +14,8 @@ const WalletCard = ({ balance }: WalletCardProps) => {
       <div className="card-body">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            {/* icon chip — success tint นุ่ม rounded ใหญ่ (premium); bg-{semantic}/15 ตาม Paces convention */}
-            <span className="size-12 rounded-2xl bg-success/15 text-success flex items-center justify-center flex-shrink-0">
+            {/* icon chip — success tint, rounded-full ตาม Paces StatisticCard (เลิก rounded-2xl แบบ Vuexy) */}
+            <span className="size-12 rounded-full bg-success/15 text-success flex items-center justify-center flex-shrink-0">
               <Icon icon="wallet" className="text-2xl" />
             </span>
             <div className="min-w-0">
@@ -28,10 +28,10 @@ const WalletCard = ({ balance }: WalletCardProps) => {
           </div>
           {/* ปุ่มเติมเงิน — convention ทั้งโปรเจกต์ seller: .btn bg-primary hover:bg-primary-hover
               (Paces ไม่มี .btn-primary filled variant ใน build นี้ — ดู grep หน้า seller อื่น)
-              rounded-xl premium pill + h-11 (touch 44px) + press feedback */}
+              rounded-lg (Paces radius) + h-11 (touch 44px) + press feedback */}
           <Link
             href="/wallet"
-            className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-xl inline-flex items-center justify-center whitespace-nowrap flex-shrink-0 active:scale-95 transition-transform"
+            className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-lg inline-flex items-center justify-center whitespace-nowrap flex-shrink-0 active:scale-95 transition-transform"
           >
             เติมเงิน
           </Link>

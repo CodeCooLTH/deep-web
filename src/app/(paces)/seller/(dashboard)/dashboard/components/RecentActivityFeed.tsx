@@ -90,7 +90,7 @@ const RecentActivityFeed = ({ items }: Props) => {
                 convention: .btn bg-primary hover:bg-primary-hover (เหมือน WalletCard / หน้า seller อื่น) */}
             <Link
               href="/orders/new"
-              className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-xl inline-flex items-center justify-center active:scale-95 transition-transform"
+              className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-lg inline-flex items-center justify-center active:scale-95 transition-transform"
             >
               สร้างออเดอร์
             </Link>

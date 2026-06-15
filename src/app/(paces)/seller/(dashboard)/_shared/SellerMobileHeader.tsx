@@ -74,9 +74,8 @@ const SellerMobileHeader = (_props: Props) => {
           aria-label="ย้อนกลับ"
           onClick={handleBack}
         >
-          {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic
-              arbitrary text-[22px]: Paces ไม่มี icon token 22px (text-xl=20) — ขนาดให้สมดุล 44px hit area */}
-          <Icon icon="arrow-left" className="text-[22px]" />
+          {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic; text-xl (20px token) แทน arbitrary */}
+          <Icon icon="arrow-left" className="text-xl" />
         </button>
 
         {/* Page title กลาง — flex-1 truncate ป้องกันล้น; text-center ให้สม่ำเสมอ
@@ -91,8 +90,7 @@ const SellerMobileHeader = (_props: Props) => {
           className="w-11 h-11 rounded-lg relative inline-flex items-center justify-center shrink-0 text-default-700"
           aria-label="การแจ้งเตือน"
         >
-          {/* arbitrary text-[22px]: ดู comment back button */}
-          <Icon icon="bell" className="text-[22px]" />
+          <Icon icon="bell" className="text-xl" />
           {/* dot bg-danger (token #f7577e แทน hardcode #FF4C51 ของ Vuexy) + ring body-bg กัน dot ชน icon
               arbitrary size/offset: ตำแหน่ง+ขนาด dot 7px ไม่มี token แทน */}
           <span

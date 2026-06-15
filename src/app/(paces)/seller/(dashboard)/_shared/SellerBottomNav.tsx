@@ -172,10 +172,10 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
         aria-label="เมนูหลัก"
       >
         {/* ช่อง 1: หน้าหลัก */}
-        {/* arbitrary: gap-[3px] ระหว่าง icon กับ label ทุกช่อง — Tailwind ไม่มี 3px (gap-0.5=2px, gap-1=4px) */}
+        {/* gap-1 (4px token) ระหว่าง icon กับ label ทุกช่อง — เลิก arbitrary gap-[3px] */}
         <Link
           href="/dashboard"
-          className={`flex h-full flex-col items-center justify-center gap-[3px] ${
+          className={`flex h-full flex-col items-center justify-center gap-1 ${
             isActive('/dashboard', true)
               ? 'text-primary'
               : 'text-default-500'
@@ -191,7 +191,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
         {/* ช่อง 2: คำสั่งซื้อ + badge */}
         <Link
           href="/orders"
-          className={`relative flex h-full flex-col items-center justify-center gap-[3px] ${
+          className={`relative flex h-full flex-col items-center justify-center gap-1 ${
             isActive('/orders', false)
               ? 'text-primary'
               : 'text-default-500'
@@ -259,7 +259,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
         {/* ช่อง 4: สินค้า */}
         <Link
           href="/products"
-          className={`flex h-full flex-col items-center justify-center gap-[3px] ${
+          className={`flex h-full flex-col items-center justify-center gap-1 ${
             isActive('/products', false)
               ? 'text-primary'
               : 'text-default-500'
@@ -274,7 +274,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
         {/* ช่อง 5: ร้านค้า */}
         <Link
           href="/shop"
-          className={`flex h-full flex-col items-center justify-center gap-[3px] ${
+          className={`flex h-full flex-col items-center justify-center gap-1 ${
             isActive('/shop', false)
               ? 'text-primary'
               : 'text-default-500'
