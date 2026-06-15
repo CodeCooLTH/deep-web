@@ -317,28 +317,37 @@ export default function OrdersTable({ orders }: Props) {
   return (
     <>
     <div className="card">
-      {/* ─── card-header: search + filter controls — แถวเดียว (nowrap) บน desktop ───────── */}
-      <div className="card-header !flex-nowrap gap-3">
-        {/* search global */}
-        <div className="input-icon-group shrink">
-          <Icon icon="search" className="input-icon" />
-          <input
-            type="text"
-            className="form-input"
-            placeholder="ค้นหาออเดอร์..."
-            value={globalFilter}
-            onChange={(e) => {
-              setGlobalFilter(e.target.value)
-              // reset page เมื่อค้นหา
-              setPagination((p) => ({ ...p, pageIndex: 0 }))
-            }}
-          />
+      {/* ─── toolbar: search (ซ้าย) | กรอง: + filter icon+label + page size + สร้าง (ขวา) ───
+          Spec: safepay-ux 2026-06-15 (อิง theme orders "Filter By:" + paces-component-reference)
+          card-header default = justify-between → 2 group; right group nowrap */}
+      <div className="card-header flex-col items-stretch gap-3">
+        {/* row 1: search (เต็มแถว) + สร้างออเดอร์ */}
+        <div className="flex items-center gap-3">
+          <div className="input-icon-group flex-1">
+            <Icon icon="search" className="input-icon" />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="ค้นหาออเดอร์..."
+              value={globalFilter}
+              onChange={(e) => {
+                setGlobalFilter(e.target.value)
+                setPagination((p) => ({ ...p, pageIndex: 0 }))
+              }}
+            />
+          </div>
+          <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover shrink-0">
+            <Icon icon="plus" className="size-4.5" />
+            สร้างออเดอร์
+          </Link>
         </div>
 
-        {/* filter group — nowrap แถวเดียว */}
-        <div className="flex flex-nowrap items-center gap-2.5">
-          {/* filter by status */}
-          <div className="input-icon-group">
+        {/* row 2: กรอง: + filters (icon+label) + page size — แถวเต็ม label โชว์ครบ */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-sm font-semibold text-nowrap text-default-700">กรอง:</span>
+
+          {/* สถานะ — w-36 (label สั้นใน wrapper) */}
+          <div className="input-icon-group w-36">
             <Icon icon="truck" className="input-icon" />
             <select
               className="form-select"
@@ -348,7 +357,7 @@ export default function OrdersTable({ orders }: Props) {
                 setPagination((p) => ({ ...p, pageIndex: 0 }))
               }}
             >
-              <option value="All">ทุกสถานะ</option>
+              <option value="All">สถานะ</option>
               <option value="PENDING">รอดำเนินการ</option>
               <option value="SHIPPED">จัดส่งแล้ว</option>
               <option value="CONFIRMED">สำเร็จ</option>
@@ -356,8 +365,8 @@ export default function OrdersTable({ orders }: Props) {
             </select>
           </div>
 
-          {/* filter by type */}
-          <div className="input-icon-group">
+          {/* ประเภท — w-36 */}
+          <div className="input-icon-group w-36">
             <Icon icon="package" className="input-icon" />
             <select
               className="form-select"
@@ -367,15 +376,15 @@ export default function OrdersTable({ orders }: Props) {
                 setPagination((p) => ({ ...p, pageIndex: 0 }))
               }}
             >
-              <option value="All">ทุกประเภท</option>
+              <option value="All">ประเภท</option>
               <option value="PHYSICAL">สินค้า</option>
               <option value="DIGITAL">ดิจิทัล</option>
               <option value="SERVICE">บริการ</option>
             </select>
           </div>
 
-          {/* filter by date range */}
-          <div className="input-icon-group">
+          {/* ช่วงเวลา — w-40 (label ยาวกว่า) */}
+          <div className="input-icon-group w-40">
             <Icon icon="calendar" className="input-icon" />
             <select
               className="form-select"
@@ -385,7 +394,7 @@ export default function OrdersTable({ orders }: Props) {
                 setPagination((p) => ({ ...p, pageIndex: 0 }))
               }}
             >
-              <option value="All">ช่วงเวลาทั้งหมด</option>
+              <option value="All">ช่วงเวลา</option>
               <option value="Today">วันนี้</option>
               <option value="Last 7 Days">7 วันที่ผ่านมา</option>
               <option value="Last 30 Days">30 วันที่ผ่านมา</option>
@@ -393,9 +402,9 @@ export default function OrdersTable({ orders }: Props) {
             </select>
           </div>
 
-          {/* page size */}
+          {/* page size — w-20 ไม่มี icon */}
           <select
-            className="form-select"
+            className="form-select w-20"
             value={pageSize}
             onChange={(e) => table.setPageSize(Number(e.target.value))}
           >
@@ -404,12 +413,6 @@ export default function OrdersTable({ orders }: Props) {
             ))}
           </select>
         </div>
-
-        {/* สร้างออเดอร์ */}
-        <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover shrink-0 ms-auto">
-          <Icon icon="plus" />
-          สร้างออเดอร์
-        </Link>
       </div>
 
       {/* ─── DataTable ───────────────────────────────────────────────────────── */}
