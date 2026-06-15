@@ -26,12 +26,14 @@ interface SendSmsButtonProps {
   publicToken: string
   /** compact=true → ปุ่มเล็ก icon+text สั้น สำหรับ list row footer */
   compact?: boolean
+  /** iconOnly=true → icon button ล้วน (Paces .btn-icon) สำหรับ action bar การ์ด */
+  iconOnly?: boolean
 }
 
 // SUCCESS_RESET_MS: reset ปุ่มกลับ idle หลัง success (ยังใช้งานอยู่)
 const SUCCESS_RESET_MS = 3000
 
-export default function SendSmsButton({ publicToken, compact = false }: SendSmsButtonProps) {
+export default function SendSmsButton({ publicToken, compact = false, iconOnly = false }: SendSmsButtonProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [sending, setSending] = useState(false)
   // error message แยกตาม HTTP status — บางเคส embed JSX ด้วย Link
@@ -100,20 +102,28 @@ export default function SendSmsButton({ publicToken, compact = false }: SendSmsB
     <>
       {/* ── ปุ่มหลัก ── */}
       {showSuccess ? (
-        <span className="text-xs text-success font-medium">ส่งแล้ว</span>
+        iconOnly ? (
+          <span className="btn btn-icon border border-success/30 bg-success/10 text-success" aria-label="ส่ง SMS แล้ว">
+            <Icon icon="tabler:check" className="text-base" />
+          </span>
+        ) : (
+          <span className="text-xs text-success font-medium">ส่งแล้ว</span>
+        )
       ) : (
         <button
           type="button"
           onClick={handleOpenDialog}
+          aria-label="ส่งลิงก์ทาง SMS"
           className={
-            // min-h-11 = touch target ≥44px (impeccable product rule M3-#1)
-            compact
-              ? 'btn btn-sm min-h-11 border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
-              : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs'
+            iconOnly
+              ? 'btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700'
+              : compact
+                ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
+                : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs'
           }
         >
-          <Icon icon="tabler:message" className="text-sm" aria-hidden="true" />
-          {compact ? 'SMS' : 'ส่งลิงก์ทาง SMS (฿1)'}
+          <Icon icon="tabler:message" className="text-base" aria-hidden="true" />
+          {!iconOnly && (compact ? 'SMS' : 'ส่งลิงก์ทาง SMS (฿1)')}
         </button>
       )}
 

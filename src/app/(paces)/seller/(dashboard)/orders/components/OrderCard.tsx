@@ -151,20 +151,20 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           </span>
         </div>
 
-        {/* ── action bar: ⋮ / ส่ง SMS / ดูรายละเอียด ── */}
+        {/* ── action bar: icon buttons (Paces .btn-icon 37px) — ⋮ / SMS / ดูรายละเอียด ── */}
         <div className="mt-3 flex items-center justify-end gap-2">
           <OrderCardMenu
             token={order.publicToken}
             status={order.status}
             onCancelRequest={onCancelRequest}
           />
-          {!isTerminal && <SendSmsButton publicToken={order.publicToken} compact />}
+          {!isTerminal && <SendSmsButton publicToken={order.publicToken} iconOnly />}
           <Link
             href={`/orders/${order.publicToken}`}
-            className="btn btn-sm min-h-11 bg-primary text-white hover:bg-primary-hover"
+            aria-label="ดูรายละเอียด"
+            className="btn btn-icon bg-primary text-white hover:bg-primary-hover"
           >
-            <Icon icon="eye" className="text-sm" />
-            ดูรายละเอียด
+            <Icon icon="eye" className="text-base" />
           </Link>
         </div>
       </div>

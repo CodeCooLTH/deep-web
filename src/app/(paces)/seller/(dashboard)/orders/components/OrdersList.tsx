@@ -164,10 +164,14 @@ export default function OrdersList({ orders, activeStatus }: Props) {
 
   return (
     <>
-      {/* full-bleed: -mx-4 หักล้าง padding-inline 16px ของ mobile shell → เต็มขอบจอ (user req)
-          .orders-fullbleed = marker ให้ CSS :has() scope การตัด top-margin + ซ่อน footer เฉพาะ /orders
-          onTouch*: swipe ซ้าย/ขวาทั้งจอเพื่อสลับ status tab */}
-      <div className="orders-fullbleed -mx-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* phone: full-bleed (-mx-4 หักล้าง shell padding); tablet+ (md): center + max-width
+          กันการ์ดยืดเต็มกว้างบน tablet (responsive). marker .orders-fullbleed = CSS :has() scope
+          onTouch*: swipe ซ้าย/ขวาเพื่อสลับ status tab */}
+      <div
+        className="orders-fullbleed -mx-4 md:mx-auto md:max-w-2xl"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
       {/* ─── Sticky header (พื้นขาว bg-card): back + search + filter + bell + tabs ──
           z-30: Paces .btn มี position:relative z-index:10 → ปุ่มในการ์ดจะทะลุทับ header
           ตอน scroll ถ้า header z ≤ 10. ดัน z-30 ให้ชนะ (modal = z-50 ยังเหนือกว่า) */}

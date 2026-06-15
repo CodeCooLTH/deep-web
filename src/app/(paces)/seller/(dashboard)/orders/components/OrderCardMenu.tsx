@@ -67,10 +67,10 @@ export default function OrderCardMenu({ token, status, onCancelRequest }: OrderC
   return (
     // ใช้ relative + ref เพื่อ detect click outside แทน Preline JS ที่ต้องการ browser env
     <div className="relative" ref={ref}>
-      {/* min-h-11 = touch target ≥44px (impeccable product rule M3-#1) */}
+      {/* icon button ขนาด Paces .btn-icon (37px) — ตรงกับ SMS/eye ใน action bar */}
       <button
         type="button"
-        className="btn btn-sm btn-icon min-h-11 border-default-300 text-default-700 hover:bg-default-100"
+        className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="เมนูเพิ่มเติม"
