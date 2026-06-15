@@ -100,31 +100,15 @@ html[data-skin="orbit"] {
   /* CC-v6 T1: เว้นพื้นล่างกัน SellerBottomNav (fixed, 64px) ทับ content + เผื่อ safe-area iPhone */
   .seller-mobile-shell .page-content main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
 
-  /* ─── CC-v8 mobile-density: ทำให้เต็มจอ + แน่นแบบ app (ไม่ใช่ admin desktop) ───
-     ปัญหา: .wrapper.seller-mobile-shell มี margin 20px (เศษ sidebar offset) + main 16px
-     + card-body 20px → เนื้อหาเริ่มที่ 56px จากขอบ (จอ 375 = การ์ดกว้างแค่ 81%, "ไม่เต็ม").
-     แก้ด้วย scoped override (ไม่แตะ Paces component — ยังใช้ .card เดิม) */
-  /* kill wrapper margin (เศษ sidebar offset) → การ์ดชิดขอบ */
+  /* ─── CC-v8.2 authentic-Paces: คืนหน้าตา Paces แท้ให้ .card ───
+     ยกเลิก override CC-v8/v8.1 เดิม (radius 18px + เงาลอยหนา + ลบเส้นประ card-header
+     + padding 16/8px + card-title 600) ที่ทำให้ดูเป็น Vuexy/premium-app —
+     user ปฏิเสธ "เพี้ยน ไม่เหมือน Paces". รากปัญหา = mood ฝังระดับ CSS ไม่ใช่ค่าสี.
+     คงเฉพาะ structural mobile (kill sidebar offset); ปล่อย Paces .card native ทำงาน
+     เอง → radius 4px (--radius), เงา subtle (--shadow), card-header เส้นประ, body p-5.
+     page padding ใช้ 1rem จาก rule line ~98 (ไม่ override 0.5rem แล้ว). */
   .seller-mobile-shell { margin-inline: 0 !important; }
-  /* side padding 16→8px ให้เต็มขึ้น (การ์ดชิดขอบแบบ app) */
-  .seller-mobile-shell .page-content main { padding-inline: 0.5rem !important; }
-  /* card แน่นแบบ mobile: padding 16px, ตัด header divider เส้นประ desktop ออก */
-  .seller-mobile-shell .card > .card-body,
-  .seller-mobile-shell .card > .card-header { padding: 1rem !important; }
-  .seller-mobile-shell .card > .card-header { padding-bottom: 0 !important; border-bottom: 0 !important; }
-
-  /* ─── CC-v8.1 premium-mobile craft: soft depth + rounded แทน flat border ───
-     Paces .card ดิบ = flat border (admin look). modern app 2026 = การ์ดลอยนุ่ม
-     soft shadow tinted ink + rounded ใหญ่ → ดู premium (Revolut/Wise/Cash App).
-     เก็บสี/token Paces; latitude หลุด Paces ดิบเฉพาะ command center (user เคาะ) */
-  .seller-mobile-shell .card {
-    border: 0 !important;
-    border-radius: 18px !important;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 24px -10px rgba(16, 24, 40, 0.12) !important;
-  }
-  /* card title แน่นขึ้น มี hierarchy: weight + ขนาดพอดี */
-  .seller-mobile-shell .card-title { font-size: 0.9375rem; font-weight: 600; }
-  /* พื้นหลังเย็นนวลขึ้นนิด ให้การ์ดขาวเด้ง (premium contrast) */
-  .seller-mobile-shell .page-content { background: #f3f5f9; }
+  /* พื้นหลัง = Paces body-bg token (ให้การ์ดขาวเด้ง) แทน hardcode hex เดิม */
+  .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }
 
