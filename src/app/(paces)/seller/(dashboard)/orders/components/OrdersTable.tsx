@@ -32,6 +32,7 @@ import { useState } from 'react'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 import OrderActions from './OrderActions'
 import CancelOrderModal from './CancelOrderModal'
+import FilterDropdown from './FilterDropdown'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -340,79 +341,75 @@ export default function OrdersTable({ orders }: Props) {
           </div>
         </div>
 
-        {/* กลาง: กรอง: + filter (สถานะ/ประเภท/ช่วงเวลา) + page size — flex-wrap lg:flex-nowrap ตาม theme */}
+        {/* กลาง: กรอง: + Single Button Dropdown (สถานะ/ประเภท/ช่วงเวลา) + page size
+            Base: theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx (SingleButtonDropdowns)
+            ใช้ FilterDropdown (custom React + theme .dropdown-item) — ไม่ใช่ native select */}
         <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
-          {/* "กรอง:" + filter แรก group เข้าด้วยกัน (ตาม theme) */}
-          <div className="items-center gap-2.5 md:flex">
-            <span className="font-semibold text-nowrap me-2.5">กรอง:</span>
-            <div className="input-icon-group w-36">
-              <Icon icon="truck" className="input-icon" />
-              <select
-                className="form-select"
-                value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                onChange={(e) => {
-                  table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                  setPagination((p) => ({ ...p, pageIndex: 0 }))
-                }}
-              >
-                <option value="All">สถานะ</option>
-                <option value="PENDING">รอดำเนินการ</option>
-                <option value="SHIPPED">จัดส่งแล้ว</option>
-                <option value="CONFIRMED">สำเร็จ</option>
-                <option value="CANCELLED">ยกเลิก</option>
-              </select>
-            </div>
-          </div>
+          <span className="font-semibold text-nowrap">กรอง:</span>
+
+          {/* สถานะ */}
+          <FilterDropdown
+            icon="truck"
+            defaultLabel="สถานะ"
+            resetValue="All"
+            value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
+            options={[
+              { value: 'All', label: 'ทั้งหมด' },
+              { value: 'PENDING', label: 'รอดำเนินการ' },
+              { value: 'SHIPPED', label: 'จัดส่งแล้ว' },
+              { value: 'CONFIRMED', label: 'สำเร็จ' },
+              { value: 'CANCELLED', label: 'ยกเลิก' },
+            ]}
+            onChange={(v) => {
+              table.getColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
+              setPagination((p) => ({ ...p, pageIndex: 0 }))
+            }}
+          />
 
           {/* ประเภท */}
-          <div className="input-icon-group w-36">
-            <Icon icon="package" className="input-icon" />
-            <select
-              className="form-select"
-              value={(table.getColumn('orderType')?.getFilterValue() as string) ?? 'All'}
-              onChange={(e) => {
-                table.getColumn('orderType')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                setPagination((p) => ({ ...p, pageIndex: 0 }))
-              }}
-            >
-              <option value="All">ประเภท</option>
-              <option value="PHYSICAL">สินค้า</option>
-              <option value="DIGITAL">ดิจิทัล</option>
-              <option value="SERVICE">บริการ</option>
-            </select>
-          </div>
+          <FilterDropdown
+            icon="package"
+            defaultLabel="ประเภท"
+            resetValue="All"
+            value={(table.getColumn('orderType')?.getFilterValue() as string) ?? 'All'}
+            options={[
+              { value: 'All', label: 'ทั้งหมด' },
+              { value: 'PHYSICAL', label: 'สินค้า' },
+              { value: 'DIGITAL', label: 'ดิจิทัล' },
+              { value: 'SERVICE', label: 'บริการ' },
+            ]}
+            onChange={(v) => {
+              table.getColumn('orderType')?.setFilterValue(v === 'All' ? undefined : v)
+              setPagination((p) => ({ ...p, pageIndex: 0 }))
+            }}
+          />
 
           {/* ช่วงเวลา */}
-          <div className="input-icon-group w-40">
-            <Icon icon="calendar" className="input-icon" />
-            <select
-              className="form-select"
-              value={(table.getColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'}
-              onChange={(e) => {
-                table.getColumn('createdAtISO')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                setPagination((p) => ({ ...p, pageIndex: 0 }))
-              }}
-            >
-              <option value="All">ช่วงเวลา</option>
-              <option value="Today">วันนี้</option>
-              <option value="Last 7 Days">7 วันที่ผ่านมา</option>
-              <option value="Last 30 Days">30 วันที่ผ่านมา</option>
-              <option value="This Year">ปีนี้</option>
-            </select>
-          </div>
+          <FilterDropdown
+            icon="calendar"
+            defaultLabel="ช่วงเวลา"
+            resetValue="All"
+            value={(table.getColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'}
+            options={[
+              { value: 'All', label: 'ทั้งหมด' },
+              { value: 'Today', label: 'วันนี้' },
+              { value: 'Last 7 Days', label: '7 วันที่ผ่านมา' },
+              { value: 'Last 30 Days', label: '30 วันที่ผ่านมา' },
+              { value: 'This Year', label: 'ปีนี้' },
+            ]}
+            onChange={(v) => {
+              table.getColumn('createdAtISO')?.setFilterValue(v === 'All' ? undefined : v)
+              setPagination((p) => ({ ...p, pageIndex: 0 }))
+            }}
+          />
 
-          {/* page size */}
-          <div>
-            <select
-              className="form-select w-20"
-              value={pageSize}
-              onChange={(e) => table.setPageSize(Number(e.target.value))}
-            >
-              {[5, 10, 15, 20].map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-          </div>
+          {/* page size — โชว์ตัวเลขเสมอ, เปิดลงขวา กัน overflow */}
+          <FilterDropdown
+            align="right"
+            value={String(pageSize)}
+            options={[5, 10, 15, 20].map((n) => ({ value: String(n), label: String(n) }))}
+            onChange={(v) => table.setPageSize(Number(v))}
+          />
         </div>
 
         {/* ขวา: สร้างออเดอร์ */}
