@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { Fragment } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
+import { getTierLabel } from '@/lib/trust-tier'
 
 type UserProfileMenuType = {
   label: string
@@ -26,8 +27,22 @@ const userProfileMenuData: UserProfileMenuType[] = [
 const UserDropdown = () => {
   const { data: session } = useSession()
   const user = (session as any)?.user as
-    | { id: string; displayName: string; username: string; avatar: string | null; isShop?: boolean }
+    | {
+        id: string
+        displayName: string
+        username: string
+        email: string | null
+        avatar: string | null
+        isShop?: boolean
+        trustScore?: number
+      }
     | undefined
+
+  const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
+  // email ถ้ามี ไม่งั้น fallback @username (บัญชี OTP-only ไม่มี email)
+  const subline = user?.email ?? (user?.username ? `@${user.username}` : '')
+  const trustScore = user?.trustScore ?? 0
+  const tierLabel = getTierLabel(trustScore) // ชื่อ tier ตาม Tier Lists SSOT (src/lib/trust-tier.ts)
 
   const handleItemClick = (e: React.MouseEvent<HTMLAnchorElement>, item: UserProfileMenuType) => {
     if (item.action === 'sign-out') {
@@ -53,25 +68,48 @@ const UserDropdown = () => {
           <Icon icon="chevron-down" className="align-middle" />
         </div>
       </button>
-      <div className="hs-dropdown-menu min-w-48" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
-        <div className="py-2 px-3.5">
-          <h6 className="text-xs">ยินดีต้อนรับ 👋</h6>
+      <div className="hs-dropdown-menu min-w-60" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
+        {/* header: avatar + ชื่อ + email/@username */}
+        <div className="bg-primary/10 flex items-center gap-3 rounded-t px-3.5 py-3">
+          {user?.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={user.avatar} alt={displayName} className="size-9 shrink-0 rounded-full object-cover" />
+          ) : (
+            <Image src={User1} alt="user-image" className="size-9 shrink-0 rounded-full" />
+          )}
+          <div className="min-w-0">
+            <p className="text-body-color truncate text-sm font-semibold">{displayName}</p>
+            {subline && <p className="text-default-400 truncate text-xs">{subline}</p>}
+          </div>
         </div>
+        {/* tier + trust score */}
+        <div className="flex items-center justify-between gap-2 px-3.5 py-2">
+          <span className="badge bg-primary/15 text-primary">{tierLabel}</span>
+          <span className="text-default-500 text-xs">Trust Score {trustScore}/100</span>
+        </div>
+        <div className="dropdown-divider"></div>
+
+        <Link href="/shop" className="dropdown-item">
+          <Icon icon="settings" className="me-1 fs-lg align-middle" />
+          <span className="align-middle">โปรไฟล์ / ตั้งค่าร้าน</span>
+        </Link>
+
         {/* เปิดหน้าร้าน — แสดงเฉพาะเมื่อ user เป็น shop และมี username (ข้าม subdomain ใช้ <a> ธรรมดา) */}
         {user?.isShop && user?.username && (
-          <>
-            <a
-              href={`${resolveBuyerBaseUrl()}/u/${user.username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="dropdown-item"
-            >
-              <Icon icon="building-store" className="me-1 fs-lg align-middle" />
-              <span className="align-middle">เปิดหน้าร้าน</span>
-            </a>
-            <div className="dropdown-divider"></div>
-          </>
+          <a
+            href={`${resolveBuyerBaseUrl()}/u/${user.username}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="dropdown-item"
+          >
+            <Icon icon="building-store" className="me-1 fs-lg align-middle" />
+            <span className="align-middle">เปิดหน้าร้าน</span>
+            <Icon icon="external-link" className="ms-auto size-3.5 align-middle" />
+          </a>
         )}
+
+        <div className="dropdown-divider"></div>
+
         {userProfileMenuData.map((item, idx) => (
           <Fragment key={idx}>
             <Link
