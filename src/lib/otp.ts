@@ -71,7 +71,10 @@ export function storeOtp(contact: string): string {
 // 0920791649 ถูกถอดออกแล้ว (user request 2026-05-16) — ตอนนี้เป็นเบอร์ปกติ ส่ง SMS จริง
 const TEST_ACCOUNTS: Record<string, string> = process.env.NODE_ENV === 'production'
   ? {}
-  : { '0000000001': '123456' }; // seller test account — BT Premium สุขสวัสดิ์
+  : {
+      '0000000001': '123456', // seller test account — BT Premium สุขสวัสดิ์
+      '0000000009': '123456', // onboarding QA — เบอร์เปล่าสำหรับทดสอบ signup→onboarding (จำลอง SMS, ไม่มีบัญชีจริง)
+    };
 
 /**
  * ตรวจว่า contact นี้อยู่ใน TEST_ACCOUNTS หรือไม่
