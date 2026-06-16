@@ -1,6 +1,6 @@
 # Scope Baseline — Seller Auth Redesign + Onboarding
 
-> สถานะ: **P1 SIGNED-OFF · P2 ACTIVE** (2026-06-16) · P2 = Auth Pages UI (Paces auth/card, ผ่าน safepay-ux, mobile-first)
+> สถานะ: **P1 SIGNED-OFF · P2 built (split layout, live-QA visual pending) · P3 ACTIVE** (2026-06-16) · P3 = Onboarding modal stepper
 > spec: `docs/superpowers/specs/2026-06-16-seller-auth-redesign-onboarding-design.md`
 > plan (P1): `docs/superpowers/plans/2026-06-16-seller-auth-p1-foundation.md`
 
@@ -70,6 +70,24 @@
 | S-P2-6 | **layout/shared** — auth layout `(paces)/seller/auth/layout.tsx` ปรับให้รับ card variant + responsive; ลบ field/flow เดิมที่ไม่ใช้ | ทุกหน้าใช้ layout เดียว, font Anuphan, ไม่มี Vuexy bleed; QA cross-page mobile | TODO |
 
 **QA P2:** safepay-qa รัน mobile viewport (375px) ทุกหน้า + happy path signup→OTP→login + reset→new-pass. Chrome DevTools MCP.
+
+---
+
+## In-Scope (P3 — Onboarding modal stepper, ACTIVE)
+
+> modal overlay เด้งบน `/dashboard` ครั้งแรกเมื่อ `session.user.needsOnboarding` (จาก S-P1-11) · ref layout images `docs/superpowers/specs/assets/2026-06-16-onboarding-ref/` (เอา IA ตาม ref, skin Paces น้ำเงิน) · ผ่าน safepay-ux ก่อน dev (HR8) · mobile-first · pacesToast/Sweet Alerts ตาม HR9/HR8 · ห้ามม่วง.
+
+| ID | รายการ | Acceptance | สถานะ |
+|----|--------|-----------|-------|
+| S-P3-1 | Slug API routes — `GET /api/shops/check-slug?slug=` (available?) + `POST /api/shops/slug` (set, auth seller) ใช้ service `isSlugAvailable`/`setShopSlug` (S-P1-6) | check คืน `{available}` (reserved/invalid/taken→false); set ต้อง login + own shop → 200/409; guardApi CSRF+RL; tsc+test | TODO |
+| S-P3-2 | Onboarding modal shell + stepper + gate — client component mount บน dashboard, step dots/`←`/`ข้าม`/`✕`/CTA ใหญ่; gate `needsOnboarding`; ปิดแล้วยังไม่มี slug → เด้งซ้ำรอบหน้า | เด้งเมื่อ needsOnboarding; ปิดได้แต่ slug บังคับ; Base Paces modal overlay; mobile full | TODO |
+| S-P3-3 | Step Welcome — ไอคอน + "ยินดีต้อนรับสู่ Deep" + 3 การ์ดสั้น (Trust Score/ยืนยันปลอดภัย/เริ่มขายได้) (กลืน verify info) + CTA "ลุยเลย" | render การ์ด + ปุ่ม next/skip; mobile | TODO |
+| S-P3-4 | Step Category chips — chip-grid เลือก 1 จาก SHOP_CATEGORY_LABELS (ติ๊กถูกเมื่อเลือก) → บันทึก shop.category | chips 10 ตัว, เลือก 1, next/skip; save category | TODO |
+| S-P3-5 | Step Slug (บังคับ) — input + preview `deepthailand.app/{slug}` + live dedupe (S-P3-1 check) → POST set; next disabled จนกว่า slug ผ่าน | live check + set slug ผ่าน API; mobile | TODO |
+| S-P3-6 | Step First product (ข้ามได้) — input ย่อ (ชื่อ/ราคา/รูป) reuse product-create API + ปุ่ม "ข้าม" → จบ → ปิด modal เข้า dashboard | สร้างได้/ข้ามได้; reuse `/api/products` | TODO |
+| S-P3-7 | (FB user ไม่มีเบอร์) Step verify phone — step แรกสุด: เบอร์ → OTP → L1 (password-signup ข้าม) | FB user (ไม่มี phone) เห็น step นี้ก่อน; verify ผ่าน → ต่อ welcome | TODO |
+
+**QA P3:** safepay-qa mobile 375px + flow: needsOnboarding → modal เด้ง → category→slug(บังคับ)→product(ข้าม) → dashboard.
 
 ---
 
