@@ -19,7 +19,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
-import type { OrderRow, OrderStatType, OrderItemRow } from './components/data'
+import type { OrderRow, OrderStatCardData, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
 
@@ -113,20 +113,65 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     }),
   }))
 
-  // คำนวณค่า stat card จาก orders ที่ fetch มา
-  const totalCount     = orders.length
-  const pendingCount   = orders.filter((o) => o.status === 'PENDING').length
-  const activeCount    = orders.filter((o) => o.status === 'SHIPPED').length
-  const completedCount = orders.filter((o) => o.status === 'CONFIRMED').length
-  const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length
+  // คำนวณ sparkline trend + changePct ต่อ status
+  // ใช้ YYYY-MM-DD string ตัด timezone ให้ consistent (server timezone = UTC ตามค่า default Next.js/Vercel)
+  const toDateStr = (iso: string) => iso.slice(0, 10) // 'YYYY-MM-DD'
 
-  // stat card data ตาม OrderStatType (theme format)
-  const orderStatData: OrderStatType[] = [
-    { title: 'ออเดอร์ทั้งหมด', value: totalCount,     change: 0, icon: 'shopping-cart',   className: 'bg-info' },
-    { title: 'รอดำเนินการ',    value: pendingCount,   change: 0, icon: 'hourglass',       className: 'bg-warning' },
-    { title: 'จัดส่งแล้ว',    value: activeCount,    change: 0, icon: 'truck-delivery',  className: 'bg-primary' },
-    { title: 'สำเร็จแล้ว',    value: completedCount, change: 0, icon: 'check',           className: 'bg-success' },
-    { title: 'ยกเลิก',        value: cancelledCount, change: 0, icon: 'x',               className: 'bg-danger' },
+  const now = new Date()
+
+  // สร้าง array ของ 7 วันล่าสุด (index 0 = วันเก่าสุด, index 6 = วันนี้)
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now)
+    d.setUTCDate(d.getUTCDate() - (6 - i))
+    return d.toISOString().slice(0, 10)
+  })
+
+  // 7 วันก่อนหน้า (index 0 = วันที่ -13, index 6 = วันที่ -7)
+  const prev7Start = new Date(now)
+  prev7Start.setUTCDate(prev7Start.getUTCDate() - 13)
+  const prev7End = new Date(now)
+  prev7End.setUTCDate(prev7End.getUTCDate() - 7)
+  const prev7StartStr = prev7Start.toISOString().slice(0, 10)
+  const prev7EndStr   = prev7End.toISOString().slice(0, 10)
+
+  type StatusKey = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+
+  const buildStatCard = (
+    title: string,
+    status: StatusKey,
+  ): OrderStatCardData => {
+    const forStatus = orders.filter((o) => o.status === status)
+
+    // totalCount = ทุก order ของ status นี้ (ทุกช่วงเวลา)
+    const totalCount = forStatus.length
+
+    // trendSeries: จำนวน order ของ status ใน 7 วันล่าสุดแต่ละวัน (length 7)
+    const trendSeries = last7Days.map((day) =>
+      forStatus.filter((o) => toDateStr(o.createdAtISO) === day).length,
+    )
+
+    // current7 = sum(trendSeries)
+    const current7 = trendSeries.reduce((s, n) => s + n, 0)
+
+    // prev7: order ที่ createdAt อยู่ระหว่าง prev7StartStr ถึง prev7EndStr (inclusive)
+    const prev7 = forStatus.filter((o) => {
+      const d = toDateStr(o.createdAtISO)
+      return d >= prev7StartStr && d <= prev7EndStr
+    }).length
+
+    const changePct =
+      prev7 === 0
+        ? current7 > 0 ? 100 : 0
+        : Math.round(((current7 - prev7) / prev7) * 100)
+
+    return { title, status, totalCount, changePct, trendSeries }
+  }
+
+  const orderStatData: OrderStatCardData[] = [
+    buildStatCard('รอดำเนินการ', 'PENDING'),
+    buildStatCard('จัดส่งแล้ว',  'SHIPPED'),
+    buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
+    buildStatCard('ยกเลิก',      'CANCELLED'),
   ]
 
   const activeStatus = sp.status ?? 'all'
@@ -139,7 +184,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       </div>
 
       {/* Stat cards — desktop ≥lg เท่านั้น (มือถือ: ซ้ำซ้อนกับ status filter tab ที่มี count ใน OrdersList → ซ่อน) */}
-      <div className="mb-1.25 hidden gap-1.25 lg:grid lg:grid-cols-5">
+      <div className="mb-1.25 hidden gap-base lg:grid lg:grid-cols-4">
         {orderStatData.map((item, idx) => (
           <OrdersStatCard item={item} key={idx} />
         ))}
