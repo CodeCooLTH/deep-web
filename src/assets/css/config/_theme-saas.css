@@ -246,6 +246,9 @@ html[data-skin="saas"] {
     .app-header {
         margin-inline-start: calc(20px + var(--sidenav-width));
         border-radius: 10px;
+        /* sticky offset = 20px เท่ากับ .app-menu (top:20px) — กัน topbar แนบขอบบนตอน scroll
+           ในขณะที่ sidebar ลอยมี gap 20px (saas floating layout) ให้ระยะบนตรงกัน */
+        top: 20px;
 
         .topbar-menu {
             border-radius: 10px;
