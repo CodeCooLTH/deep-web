@@ -163,12 +163,15 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                       ? { ring: 'border-primary', icon: 'text-primary' }
                       : { ring: 'border-success', icon: 'text-success' }
 
-              // badge label + สี ต่อ state
+              // badge label + สี ต่อ state — pending ระบุ step ที่รอให้ชัด (รอจัดส่ง/รอยืนยัน)
               const badge =
                 item.key === 'CANCELLED'
                   ? { label: 'ยกเลิก', className: 'bg-danger/15 text-danger' }
                   : item.isPending
-                    ? { label: 'รอ', className: 'bg-default-100 text-default-400' }
+                    ? {
+                        label: item.key === 'SHIPPED' ? 'รอจัดส่ง' : item.key === 'CONFIRMED' ? 'รอยืนยัน' : 'รอ',
+                        className: 'bg-default-100 text-default-400',
+                      }
                     : item.key === 'SHIPPED'
                       ? { label: 'กำลังส่ง', className: 'bg-primary/15 text-primary' }
                       : item.key === 'PENDING'
@@ -201,9 +204,11 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                         {item.title}
                         <span className={cn('badge badge-label ms-2.5', badge.className)}>{badge.label}</span>
                       </h5>
-                      <span className={cn('text-xs whitespace-nowrap shrink-0', item.time ? 'text-default-400' : 'text-default-300')}>
-                        {item.time ?? (item.isPending ? 'รอดำเนินการ' : '')}
-                      </span>
+                      {(item.time || item.isPending) && (
+                        <span className={cn('text-xs whitespace-nowrap shrink-0', item.time ? 'text-default-400' : 'text-default-300')}>
+                          {item.time ?? 'รอดำเนินการ'}
+                        </span>
+                      )}
                     </div>
                     {/* break-words ให้ข้อความไทยยาวพันบรรทัดได้ในคอลัมน์แคบ */}
                     <p className={cn('mb-1.25 text-sm break-words', item.isPending ? 'text-default-300' : 'text-default-400')}>
