@@ -12,7 +12,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
   ColumnFiltersState,
@@ -256,14 +256,14 @@ export default function OrdersTable({ orders }: Props) {
       },
     }),
 
-    // ─ วันที่ ─
+    // ─ วันที่/เวลา ─
     columnHelper.accessor('createdAtISO', {
-      header: 'วันที่',
+      header: 'วันที่/เวลา',
       filterFn: dateRangeFilterFn,
       enableColumnFilter: true,
       cell: ({ row }) => (
         <span className="text-sm text-default-700">
-          {formatDate(row.original.createdAtISO)}
+          {formatDateTime(row.original.createdAtISO)}
         </span>
       ),
     }),
