@@ -52,18 +52,20 @@ redesign 3 หน้าเดิม + เพิ่ม 2 หน้า (reset/new 
 - Form lib: React Hook Form + Yup (ตามเดิม). dropdown category: source จาก `theme/paces/.../ui/dropdowns/page.tsx` (Hard Rule 6) — form-select.
 - toast/alert: `pacesToast` (Hard Rule 9); confirm/blocking = Sweet Alerts (Hard Rule 8) ถ้ามี.
 
-### P3 — Onboarding / Welcome Wizard
-หน้า `/onboarding` (seller) — multi-step, เข้าหลัง signup success **และ** FB-new-user (profile ยังไม่ครบ). gate: ถ้า shop ยังไม่ complete (ไม่มี slug/category หรือ FB user ไม่มี phone-verified) → redirect เข้า onboarding ก่อน `/dashboard`.
+### P3 — Onboarding (modal stepper ง่ายๆ — ref: Hero AI welcome modal)
+**รูปแบบ:** **modal overlay** เด้งบน `/dashboard` ครั้งแรก (ไม่ใช่หน้าแยก) — step dots ด้านบน, ปุ่ม `← ย้อนกลับ`, ลิงก์ `ข้าม`/`ข้ามไปก่อน` (สีจาง), CTA primary ใหญ่เต็มกว้างด้านล่าง, ปุ่ม `✕` ปิดมุมขวาบน. adapt **IA/layout จาก ref ที่ user ส่ง** (Hard Rule 6: เอา IA ตาม ref) แต่ **skin = Paces** (น้ำเงิน #236dc9, `.card`, `.btn`, chips = Paces badge/chip; CTA น้ำเงินใน ref ตรง Paces อยู่แล้ว — ห้ามใช้ม่วง Vuexy).
+**Trigger/gate:** session มี `needsOnboarding` (profile ไม่ครบ: ไม่มี `shop.slug` | FB user ยังไม่ verify phone). เข้า dashboard ครั้งแรก → เด้ง modal. ปิด/ข้ามได้ แต่ถ้ายังไม่มี slug จะเด้งซ้ำรอบถัดไปจนกว่าจะตั้ง (slug = ข้อมูลเดียวที่บังคับ).
 
-**Steps (progress checklist — ข้ามได้ตามที่ระบุ):**
-1. **ยืนยันเบอร์ (เฉพาะ FB user ที่ยังไม่มี phone)** — กรอกเบอร์ → OTP → verify (L1). password-signup ข้าม step นี้ (verify แล้ว).
-2. **ตั้ง URL ร้าน (slug)** — พิมพ์เอง, live dedupe, `a-z0-9-` 3–30 char, unique. preview `deepthailand.app/{slug}`. **บังคับ**.
-3. **ข้อมูลร้าน** — โลโก้ (optional), คำอธิบายร้าน, category (ยืนยัน/แก้จาก signup), ที่อยู่ (optional). บังคับเฉพาะที่ระบบต้องใช้.
-4. **สร้างสินค้าแรก (ข้ามได้)** — form ย่อ (ชื่อ/ราคา/รูป) reuse logic product create; ปุ่ม "ข้ามไปก่อน".
-5. **แนะนำระบบ Verify** — อธิบาย L1/L2/L3 + ประโยชน์ trust score + CTA ไป verification (อ่านอย่างเดียว ข้ามได้).
-6. **เสร็จ → `/dashboard`**.
+**Steps (≤4 — เน้น "ง่ายๆ"):**
+0. **(เฉพาะ FB user ไม่มีเบอร์) ยืนยันเบอร์** — step แรกสุด: กรอกเบอร์ → OTP → L1. password-signup **ข้าม** (verify ตั้งแต่สมัครแล้ว).
+1. **Welcome** — ไอคอนวงกลม (rocket/shield) + "ยินดีต้อนรับสู่ Deep" + subtitle + **3 การ์ดสั้น** (เช่น `Trust Score` · `ยืนยันตัวตนปลอดภัย` · `เริ่มขายได้ทันที` — แทน stat cards ของ ref และกลืนเนื้อหา "แนะนำระบบ verify" มาไว้ตรงนี้แทน step แยก) + CTA "ลุยเลย" + `ข้ามไปก่อน`.
+2. **เลือกหมวดร้าน (category)** — **chips grid** เลือก 1 (มี check เมื่อเลือก — ดู §5) + `ถัดไป` + `ข้าม`. (เหมือนภาพ 2 ของ ref)
+3. **ตั้ง URL ร้าน (slug)** — input + preview `deepthailand.app/{slug}` + live dedupe; **บังคับ** (ปุ่ม `ถัดไป` disabled จนกว่า slug ผ่าน). `a-z0-9-` 3–30 char.
+4. **สร้างสินค้าแรก (ข้ามได้)** — input ย่อ (ชื่อ/ราคา/รูป) reuse logic product-create + ปุ่ม `ข้าม`. (เหมือนภาพ 3 ของ ref) → เสร็จ → ปิด modal เข้า dashboard เต็ม.
 
-Theme source wizard: safepay-ux pin จาก Paces (form-wizard/horizontal stepper) ตอนออกแบบ P3 (Hard Rule 8 gate).
+**ตัดออกจาก onboarding ให้สั้น:** โลโก้/คำอธิบายร้าน/ที่อยู่ = ไม่บังคับ → ย้ายไปหน้า settings ภายหลัง. category + slug พอสำหรับเปิดร้าน.
+
+Theme source: safepay-ux pin Paces modal overlay + step dots + chip primitive ตอนออกแบบ P3 (Hard Rule 8 gate). **Layout reference (IA เท่านั้น — skin Paces):** `docs/superpowers/specs/assets/2026-06-16-onboarding-ref/` (`01-welcome.png` welcome+stat cards, `02-category.png` chip-grid picker, `03-first-product.png` สร้างชิ้นแรก).
 
 ## 4. Data Model Changes (Prisma)
 
@@ -79,16 +81,17 @@ model Shop {
 
 ## 5. Category Constant
 
-`src/lib/shop-categories.ts` (constant + label map ไทย) — keys:
-`fashion, beauty_health, electronics_it, home_living, food_beverage, mom_baby, sports_outdoor, games_collectibles, services_digital, other`
-ใช้ทั้ง validation (`v.picklist`), signup dropdown, onboarding, public profile, filter ภายหลัง.
+`src/lib/shop-categories.ts` (constant + label map ไทย) — keys + label (ปรับได้):
+`general`(ทั่วไป) · `fashion`(แฟชั่น-เครื่องแต่งกาย) · `beauty_health`(ความงาม-สุขภาพ) · `food_beverage`(อาหาร-เครื่องดื่ม) · `electronics_it`(อิเล็กทรอนิกส์-ไอที) · `home_living`(บ้าน-เฟอร์นิเจอร์) · `mom_baby`(แม่-เด็ก) · `agri_otop`(เกษตร-OTOP) · `services_digital`(บริการ-ดิจิทัล) · `other`(อื่นๆ)
+- ใช้ทั้ง validation (`v.picklist`), **signup dropdown** (Hard Rule 6 form-select), **onboarding chips** (Hard Rule 6: layout chip-grid ตาม ref ภาพ 2 — selected = ติ๊กถูก; skin Paces), public profile, filter ภายหลัง.
+- label set นี้ปรับ vibe จาก ref (business-vertical แบบไทย) แต่เป็นหมวด **ร้าน/ขายของ** ไม่ใช่ content-niche ของ ref — **user ยืนยัน/แก้ label ได้**.
 
 ## 6. Routing / Gate (proxy.ts)
 
 - seller unauth ที่หน้า protected → `/auth/sign-in` (เดิม).
-- seller authed แต่ **profile ยังไม่ครบ** (ไม่มี shop.slug | FB user ยังไม่ verify phone) → redirect `/onboarding` (ก่อน `/dashboard`).
-- onboarding เสร็จ (slug set + phone verified) → ปล่อยเข้า `/dashboard`.
-- session ต้องมี flag พอให้ตัดสิน (เพิ่ม `shopSlug`/`needsOnboarding` ใน session callback หรือ query DB ใน proxy — เลือกตอน plan).
+- seller authed → เข้า `/dashboard` ได้เสมอ; ถ้า **profile ไม่ครบ** (ไม่มี `shop.slug` | FB user ยังไม่ verify phone) → **เด้ง onboarding modal บน dashboard** (ไม่ redirect หน้าแยก — onboarding = modal client component, ไม่ใช่ route).
+- slug = บังคับ; ปิด modal โดยยังไม่ตั้ง slug → เด้งซ้ำรอบเข้า dashboard ถัดไป.
+- session callback เพิ่ม `needsOnboarding` (+ `shopSlug`) เพื่อให้ client ตัดสินว่าจะ mount modal ไหม — ไม่ query DB ใน proxy.
 
 ## 7. Edge Cases & Security
 
@@ -121,4 +124,4 @@ model Shop {
 
 - **P1:** migration apply, provider `seller-credentials` login ได้, signup ตั้ง password ได้, dedupe-before-OTP, set/forgot-password via OTP, FB→seller, tsc 0, security review pass.
 - **P2:** 5 หน้า redesign จาก theme (Base: line), Facebook ปุ่มแสดง, 60s countdown, QA E2E (Chrome DevTools) signup→OTP→login happy path.
-- **P3:** onboarding gate + 6 steps, slug dedupe, product skippable, QA E2E ครบ flow signup→onboarding→dashboard.
+- **P3:** onboarding **modal stepper ≤4 steps** (เด้งบน dashboard เมื่อ needsOnboarding), category chips, slug dedupe (บังคับ), product skippable, FB-user phone-verify step, QA E2E flow signup→modal→dashboard.
