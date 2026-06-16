@@ -8,7 +8,7 @@
 'use client'
 
 import Rating from '@/components/Rating'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
@@ -61,7 +61,7 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
       header: 'วันที่',
       cell: ({ row }) => (
         <span className="text-sm text-default-600">
-          {formatDate(row.original.createdAt)}
+          {formatDateTime(row.original.createdAt)}
         </span>
       ),
     }),
@@ -185,7 +185,7 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
               {/* trailing: วันที่ */}
               <div className="shrink-0">
                 <p className="text-[11px] text-default-400 leading-tight whitespace-nowrap">
-                  {formatDate(r.createdAt)}
+                  {formatDateTime(r.createdAt)}
                 </p>
               </div>
             </div>

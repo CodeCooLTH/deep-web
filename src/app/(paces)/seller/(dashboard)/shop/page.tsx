@@ -15,7 +15,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 
 export const metadata: Metadata = { title: 'ตั้งค่าร้าน' }
 
@@ -52,7 +52,7 @@ export default async function ShopSettingsPage() {
 
   const isExisting = !!shop
   const pageSubtext = isExisting
-    ? `เปิดร้านเมื่อ ${formatDate(shop.createdAt)} — ${formatShopAge(shop.createdAt)}`
+    ? `เปิดร้านเมื่อ ${formatDateTime(shop.createdAt)} — ${formatShopAge(shop.createdAt)}`
     : 'ตั้งค่าร้านค้าของคุณเพื่อเริ่มรับออเดอร์และสร้าง Trust Score'
 
   return (

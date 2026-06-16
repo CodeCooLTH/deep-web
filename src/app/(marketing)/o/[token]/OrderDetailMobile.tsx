@@ -57,7 +57,7 @@ import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
 import { getOrderTimeline, getStatusPill, isCODPayment, isHttpUrl, showSlipZone } from '@/lib/order-display'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierCover, getTierLabel } from '@/lib/trust-tier'
 
@@ -774,7 +774,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
           <Typography
             sx={{ fontSize: 11, color: '#94A3B8', ml: 'auto' }}
           >
-            #{order.publicToken.slice(0, 8)} · {formatDate(order.createdAtIso)}
+            #{order.publicToken.slice(0, 8)} · {formatDateTime(order.createdAtIso)}
           </Typography>
         </Box>
 
@@ -1104,7 +1104,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
               )}
               {/* by-line */}
               <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
-                คุณ · {formatDate(order.createdAtIso)}
+                คุณ · {formatDateTime(order.createdAtIso)}
               </Typography>
             </Box>
           </Card>

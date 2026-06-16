@@ -11,7 +11,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import { cn, toPascalCase } from '@/utils/helpers'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import {
@@ -65,7 +65,7 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
       header: 'วันที่',
       cell: ({ getValue }) => {
         // format วันที่ผ่าน util กลาง (พ.ศ., tz ไทย) — date-only, ไม่มีเวลาใน column นี้
-        return formatDate(getValue())
+        return formatDateTime(getValue())
       },
     }),
 

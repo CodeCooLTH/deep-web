@@ -11,7 +11,7 @@ import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getTrustLevel } from '@/services/trust-score.service'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
@@ -104,7 +104,7 @@ export default async function PublicProfilePage({ params }: Props) {
     profileImg: user.avatar,
     fullName: user.displayName,
     username: user.username,
-    memberSince: formatDate(user.createdAt),
+    memberSince: formatDateTime(user.createdAt),
     shopName: user.isShop && user.shop ? user.shop.shopName : null,
     trustScore: user.trustScore,
     trustLevel,

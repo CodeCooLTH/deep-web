@@ -34,7 +34,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 // Component Imports
 import CustomTextField from '@core/components/mui/TextField'
 import TablePaginationComponent from '@components/TablePaginationComponent'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -181,7 +181,7 @@ const OrderListTable = ({ orderData }: { orderData: BuyerOrderRow[] }) => {
         header: 'วันที่',
         cell: ({ row }) => (
           <Typography color='text.secondary'>
-            {formatDate(row.original.createdAt)}
+            {formatDateTime(row.original.createdAt)}
           </Typography>
         )
       }),

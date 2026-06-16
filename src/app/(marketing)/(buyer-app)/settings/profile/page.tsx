@@ -13,7 +13,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTrustLevel } from '@/services/trust-score.service'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import ProfileForm from './ProfileForm'
@@ -32,7 +32,7 @@ export default async function ProfileSettingsPage() {
   if (!user) redirect('/auth/sign-in')
 
   const trustLevel = getTrustLevel(user.trustScore)
-  const memberSince = formatDate(user.createdAt)
+  const memberSince = formatDateTime(user.createdAt)
   const badgeCount = user.userBadges.length
 
   return (

@@ -5,7 +5,7 @@ import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
 
 // Project Imports
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 
 type ReviewItem = {
   id: string
@@ -64,7 +64,7 @@ const RecentReviews = ({
                       ))}
                     </div>
                     <Typography color='text.disabled' className='text-xs'>
-                      {formatDate(r.createdAt)}
+                      {formatDateTime(r.createdAt)}
                     </Typography>
                   </div>
                   {r.itemName && (

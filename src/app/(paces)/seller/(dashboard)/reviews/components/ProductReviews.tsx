@@ -20,7 +20,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Rating from '@/components/Rating'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import Icon from '@/components/wrappers/Icon'
 import ratingsImg from '@/assets/images/ratings.svg'
 import Image from 'next/image'
@@ -100,7 +100,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
       header: 'วันที่',
       cell: ({ row }) => (
         <span className="text-default-500 text-sm">
-          {formatDate(row.original.dateISO)}
+          {formatDateTime(row.original.dateISO)}
         </span>
       ),
     }),
@@ -294,7 +294,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
               {/* trailing: วันที่ */}
               <div className="shrink-0">
                 <p className="text-[11px] text-default-400 leading-tight whitespace-nowrap">
-                  {formatDate(r.dateISO)}
+                  {formatDateTime(r.dateISO)}
                 </p>
               </div>
             </div>

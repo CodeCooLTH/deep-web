@@ -14,7 +14,7 @@
  */
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import { getTrustLevel } from '@/services/trust-score.service'
 import type { Metadata } from 'next'
@@ -23,7 +23,7 @@ import type { AdminUserRow } from './components/data'
 
 export const metadata: Metadata = { title: 'ผู้ใช้งาน' }
 
-const thDate = (d: Date): string => formatDate(d)
+const thDate = (d: Date): string => formatDateTime(d)
 
 // Resolve the buyer-facing URL for /u/{username}. Admin runs on `admin.<host>`
 // — relative path 404s because admin doesn't serve /u/*. Preference order:

@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { formatDate, formatDateTime } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import ReviewActions from './ReviewActions'
 
@@ -290,7 +290,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-default-500 text-sm">สมัครเมื่อ</dt>
                   <dd className="text-default-700 text-sm">
-                    {formatDate(record.user.createdAt)}
+                    {formatDateTime(record.user.createdAt)}
                   </dd>
                 </div>
               </dl>
