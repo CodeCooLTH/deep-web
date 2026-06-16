@@ -13,6 +13,7 @@
 
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
 
 const STATUS_LABELS: Record<string, { title: string; description: string; icon: string; done: boolean }> = {
   PENDING: {
@@ -96,8 +97,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
       icon: created.icon,
       isDone: true,
       isPending: false,
-      time: new Date(createdAtISO).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }) +
-        ' ' + new Date(createdAtISO).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+      time: formatDateTime(createdAtISO),
     })
     // CANCELLED step
     const cancelled = STATUS_LABELS['CANCELLED']
@@ -125,10 +125,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
         icon: meta.icon,
         isDone,
         isPending,
-        time: idx === 0
-          ? new Date(createdAtISO).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }) +
-            ' ' + new Date(createdAtISO).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-          : undefined,
+        time: idx === 0 ? formatDateTime(createdAtISO) : undefined,
       })
     })
   }

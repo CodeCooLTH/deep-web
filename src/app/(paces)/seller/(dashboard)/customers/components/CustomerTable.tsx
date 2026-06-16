@@ -16,6 +16,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import { formatDate } from '@/lib/format-date'
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -103,13 +104,9 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
     columnHelper.accessor('lastOrderISO', {
       header: 'ออเดอร์ล่าสุด',
       cell: ({ row }) => (
-        // แปลง ISO string → locale date ใน client — ปลอดภัยเพราะ input เป็น string ไม่ใช่ Date object
+        // แปลง ISO string → formatDate (พ.ศ., tz ไทย) — date-only, ไม่มี time ใน column นี้
         <span className="text-default-500 text-sm">
-          {new Date(row.original.lastOrderISO).toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
+          {formatDate(row.original.lastOrderISO)}
         </span>
       ),
     }),
@@ -177,11 +174,7 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
         emptyMessage="ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ"
         mobileCard={(row) => {
           const c = row.original
-          const lastDate = new Date(c.lastOrderISO).toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })
+          const lastDate = formatDate(c.lastOrderISO)
           return (
             <div className="flex items-center gap-3 px-1 py-3.5">
               {/* leading: avatar initial */}

@@ -16,6 +16,7 @@
 'use client'
 
 import Rating from '@/components/Rating'
+import { formatDateTime } from '@/lib/format-date'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
@@ -151,16 +152,8 @@ const ProductsListing = ({ products }: Props) => {
     columnHelper.accessor('createdAt', {
       header: 'วันที่เพิ่ม',
       cell: ({ row }) => {
-        // createdAt เป็น ISO string ที่แปลงแล้วที่ server boundary
-        const d = new Date(row.original.createdAt)
-        return (
-          <>
-            {d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}{' '}
-            <small className="text-default-400">
-              {d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-            </small>
-          </>
-        )
+        // createdAt เป็น ISO string ที่แปลงแล้วที่ server boundary — รวม date+time ใน cell เดียว
+        return <span>{formatDateTime(row.original.createdAt)}</span>
       },
     }),
     {

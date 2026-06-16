@@ -11,6 +11,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import { formatDate } from '@/lib/format-date'
 import { cn, toPascalCase } from '@/utils/helpers'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import {
@@ -63,9 +64,8 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
     columnHelper.accessor('createdAtISO', {
       header: 'วันที่',
       cell: ({ getValue }) => {
-        // format วันที่เป็น th-TH ที่ client (หลีกเลี่ยง hydration mismatch)
-        const d = new Date(getValue())
-        return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+        // format วันที่ผ่าน util กลาง (พ.ศ., tz ไทย) — date-only, ไม่มีเวลาใน column นี้
+        return formatDate(getValue())
       },
     }),
 

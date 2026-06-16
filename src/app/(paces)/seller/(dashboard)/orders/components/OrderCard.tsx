@@ -14,6 +14,7 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
 import { useRef, useState } from 'react'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 import OrderActions from './OrderActions'
@@ -24,19 +25,6 @@ const TYPE_LABEL: Record<string, string> = {
   SERVICE: 'บริการ',
 }
 
-// ISO → วันที่ไทย (client)
-function formatThaiDate(isoStr: string): string {
-  try {
-    const d = new Date(isoStr)
-    return (
-      d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) +
-      ' ' +
-      d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-    )
-  } catch {
-    return isoStr
-  }
-}
 
 // รูปสินค้า + fallback placeholder
 function ProductImage({ src, alt }: { src?: string; alt: string }) {
@@ -86,7 +74,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           {/* ซ้าย */}
           <div className="shrink-0">
             <p className="font-mono text-sm font-semibold text-default-700">#{displayId}</p>
-            <p className="mt-0.5 text-xs text-default-500">{formatThaiDate(order.createdAtISO)}</p>
+            <p className="mt-0.5 text-xs text-default-500">{formatDateTime(order.createdAtISO)}</p>
           </div>
           {/* ขวา */}
           <div className="min-w-0 text-right">

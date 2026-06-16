@@ -20,6 +20,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Rating from '@/components/Rating'
+import { formatDate } from '@/lib/format-date'
 import Icon from '@/components/wrappers/Icon'
 import ratingsImg from '@/assets/images/ratings.svg'
 import Image from 'next/image'
@@ -45,14 +46,6 @@ const starRatings = [5, 4, 3, 2, 1] as const
 
 const columnHelper = createColumnHelper<ReviewRow>()
 
-// format ISO string เป็นวันที่ภาษาไทย (client-side ป้องกัน hydration mismatch)
-function formatThaiDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 const ProductReviews = ({ reviews, summary }: Props) => {
   const [globalFilter, setGlobalFilter] = useState('')
@@ -107,7 +100,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
       header: 'วันที่',
       cell: ({ row }) => (
         <span className="text-default-500 text-sm">
-          {formatThaiDate(row.original.dateISO)}
+          {formatDate(row.original.dateISO)}
         </span>
       ),
     }),
@@ -301,7 +294,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
               {/* trailing: วันที่ */}
               <div className="shrink-0">
                 <p className="text-[11px] text-default-400 leading-tight whitespace-nowrap">
-                  {formatThaiDate(r.dateISO)}
+                  {formatDate(r.dateISO)}
                 </p>
               </div>
             </div>

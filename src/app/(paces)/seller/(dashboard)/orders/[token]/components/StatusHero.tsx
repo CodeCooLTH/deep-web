@@ -9,6 +9,7 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
 
 export const STATUS_META: Record<string, { label: string; cls: string; icon: string }> = {
   PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning',  icon: 'clock' },
@@ -34,15 +35,8 @@ export default function StatusHero({ publicToken, status, type, createdAtISO }: 
   const s = STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
   const t = TYPE_META[type]   ?? { label: type,   cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
 
-  const createdDate = new Date(createdAtISO).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-  const createdTime = new Date(createdAtISO).toLocaleTimeString('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  // วันที่+เวลาแสดงคู่กันบรรทัดเดียว → ยุบเป็น formatDateTime ครั้งเดียว
+  const createdDisplay = formatDateTime(createdAtISO)
 
   return (
     <div className="card">
@@ -64,11 +58,10 @@ export default function StatusHero({ publicToken, status, type, createdAtISO }: 
           <h3 className="text-lg mb-0 text-default-800">
             ออเดอร์ #{publicToken.slice(0, 8)}
           </h3>
-          {/* วันที่/เวลา */}
+          {/* วันที่/เวลา — formatDateTime รวมทั้งคู่ในฟอร์แมตเดียว */}
           <p className="text-default-400 text-sm flex items-center gap-1 mb-0">
             <Icon icon="calendar" className="align-middle" />
-            {createdDate}
-            <small className="text-default-400">{createdTime}</small>
+            {createdDisplay}
           </p>
         </div>
       </div>

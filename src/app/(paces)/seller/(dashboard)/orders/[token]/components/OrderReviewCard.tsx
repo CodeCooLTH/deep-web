@@ -13,6 +13,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import Rating from '@/components/Rating'
+import { formatDate } from '@/lib/format-date'
 
 export interface OrderReviewData {
   /** rating 1-5 จาก Review.rating */
@@ -62,11 +63,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
                   {review.reviewerLabel}
                 </h5>
                 <p className="text-default-400 text-xs mt-0.5">
-                  {new Date(review.createdAtISO).toLocaleDateString('th-TH', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+                  {formatDate(review.createdAtISO)}
                 </p>
               </div>
             </div>

@@ -12,6 +12,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import { formatDate } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
   ColumnFiltersState,
@@ -84,16 +85,6 @@ const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) =>
   }
 }
 
-// ─── format ISO → ไทย "15 มิ.ย. 2569" ───────────────────────────────────────
-function formatThaiDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('th-TH', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    })
-  } catch {
-    return iso
-  }
-}
 
 const columnHelper = createColumnHelper<OrderRow>()
 
@@ -272,7 +263,7 @@ export default function OrdersTable({ orders }: Props) {
       enableColumnFilter: true,
       cell: ({ row }) => (
         <span className="text-sm text-default-700">
-          {formatThaiDate(row.original.createdAtISO)}
+          {formatDate(row.original.createdAtISO)}
         </span>
       ),
     }),
