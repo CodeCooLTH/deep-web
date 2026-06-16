@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
 
 export async function createShop(userId: string, data: {
   shopName: string;
@@ -35,4 +36,21 @@ export async function updateShop(shopId: string, data: {
 
 export async function getShopByUserId(userId: string) {
   return prisma.shop.findUnique({ where: { userId } });
+}
+
+/** slug ใช้ได้ไหม: format ถูก + ไม่ reserved + ไม่ถูกใช้ใน DB */
+export async function isSlugAvailable(rawSlug: string): Promise<boolean> {
+  const slug = normalizeSlug(rawSlug);
+  if (!isValidSlugFormat(slug) || isReservedSlug(slug)) return false;
+  const existing = await prisma.shop.findUnique({ where: { slug } });
+  return existing === null;
+}
+
+/** ตั้ง slug ให้ shop — throw ถ้าไม่ available (กัน TOCTOU เบื้องต้น; unique index = guard ชั้นสุดท้าย) */
+export async function setShopSlug(shopId: string, rawSlug: string) {
+  const slug = normalizeSlug(rawSlug);
+  if (!(await isSlugAvailable(slug))) {
+    throw new Error("SLUG_UNAVAILABLE");
+  }
+  return prisma.shop.update({ where: { id: shopId }, data: { slug } });
 }
