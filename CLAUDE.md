@@ -37,6 +37,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
 - **UI Guideline (must-read before ANY Frontend work):** `docs/system/ui-guideline/README.md` — entry hub (universal theme-copy rule + checklist + workflow + commit rule). Role docs: `customer/`, `seller/`, `admin/` page-sourcing.md
 - **Conventions:**
   - `docs/conventions/rsc-mui-navigation.md` — RSC + MUI + next/link pattern
+  - `docs/conventions/date-format.md` — 🛑 วันที่/เวลาทั้งระบบใช้ `formatDate`/`formatDateTime` จาก `src/lib/format-date.ts` เท่านั้น (พ.ศ. `2569-06-07 10:06:13`, tz ไทย) — ห้าม `toLocaleDateString`/`Intl.DateTimeFormat` เอง
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
