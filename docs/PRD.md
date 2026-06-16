@@ -44,7 +44,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 | ID | User Story | Priority | Acceptance Criteria |
 |----|-----------|----------|-------------------|
-| U-1 | สมัครด้วย Facebook หรือ เบอร์โทร OTP | Must | สมัคร/เข้าได้ผ่าน FB หรือ Phone OTP **เท่านั้น** (ไม่มี email/password) |
+| U-1 | สมัคร/เข้าระบบ | Must | **buyer:** Facebook หรือ Phone OTP (ไม่มี password). **seller:** username+password เป็น login หลัก + Phone OTP ยืนยันเบอร์ตอนสมัคร + reset via OTP + Facebook (เพิ่ม 2026-06-16). ไม่มี **email**+password |
 | U-2 | ยืนยันตัวตน (Phone OTP, เอกสารบุคคล, เอกสารธุรกิจ) | Must | verify ได้ 3 ระดับ, L2/L3 admin review |
 | U-3 | เห็น Trust Score ของตัวเอง + เข้าใจที่มา | Must | แสดง score + ระดับ + breakdown 5 ปัจจัย + คำอธิบายเงื่อนไข rating |
 | U-4 | เห็น badges ที่ได้รับ | Must | แสดง verification + achievement + paid badge |
@@ -55,7 +55,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 | B-4 | สมัครทีหลังแล้ว history ตามมา | Must | ผูก phone (phone-OTP signup) / email (FB signup) → auto-link orders+reviews เดิม |
 | B-5 | ใช้บนมือถือสะดวก | Must | Responsive mobile-first |
 
-> **ตัดถาวร:** Email+Password login, multi-provider linking (ผูกหลาย provider ใน account หลัง signup) — ไม่อยู่ใน scope ทั้ง MVP และ Phase 2
+> **ตัดถาวร:** **Email**+Password login, multi-provider linking (ผูกหลาย provider ใน account หลัง signup) — ไม่อยู่ใน scope. (หมายเหตุ: seller มี **username**+password login ตั้งแต่ 2026-06-16 — คนละอย่างกับ email+password ที่ตัด)
 
 ### 2.2 Seller (persona หลัก, isShop = true)
 
@@ -89,7 +89,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ### FR-1: Authentication & Session
 
-ระบบ login 2 ช่องทาง: Facebook OAuth และ Phone OTP (SMS). Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี Email+Password ใน MVP หรือ Phase 2.
+ระบบ login: **buyer** = Facebook OAuth + Phone OTP (SMS). **seller** = username+password เป็น login หลัก (provider `seller-credentials`, bcrypt) + Phone OTP ยืนยันเบอร์ตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook (เพิ่ม 2026-06-16; seller signup→onboarding modal: slug/category/สินค้าแรก). **admin** = username+password. Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี **Email**+Password (seller ใช้ username ไม่ใช่ email).
 
 Priority: Must — รายละเอียด/acceptance: ดู SRS §1 FR-1
 
@@ -154,7 +154,7 @@ Priority: Must — acceptance: ดู SRS §1 FR-10
 ### ทำใน MVP
 
 - Free core: Order / Product / Order Link อย่างง่าย / Report 1 ตัว (manual ทุกขั้น)
-- Auth: Facebook + Phone OTP
+- Auth: buyer = Facebook + Phone OTP; seller = username+password + Phone OTP (signup verify) + reset-via-OTP + Facebook + onboarding modal (2026-06-16); admin = username+password
 - Verification L1 (Phone OTP) + L2 (เอกสารบุคคล) + L3 (ธุรกิจ) + admin review + self-review block
 - Trust Score (raw additive + rating floor + UX copy)
 - **Achievements system** — Badge data-driven engine (3 ประเภท; rework จาก hardcode), Seller+Buyer audience, ติดตัวถาวร, event/time-bound, icon deferred, **หน้า Badge Process** (buyer+seller `/badges`)
