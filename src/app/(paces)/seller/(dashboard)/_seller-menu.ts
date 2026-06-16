@@ -20,7 +20,8 @@ export const sellerMenuItems: MenuItemType[] = [
     children: [
       { url: '/orders', slug: 'seller:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
-      { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
+      // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
+      // { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
       { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
       { url: '/wallet', slug: 'seller:wallet', label: 'เครดิต SMS', icon: 'wallet' },
     ],
