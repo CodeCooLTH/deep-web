@@ -20,7 +20,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import type { OrderRow } from './data'
 import OrderCard from './OrderCard'
-import CancelOrderModal from './CancelOrderModal'
+import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
 
@@ -57,10 +58,6 @@ export default function OrdersList({ orders, activeStatus }: Props) {
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
   const [filterOpen,  setFilterOpen]  = useState(false)
-
-  // cancel modal
-  const [cancelToken,   setCancelToken]   = useState<string | null>(null)
-  const [cancelDisplay, setCancelDisplay] = useState<string | undefined>(undefined)
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
@@ -154,11 +151,31 @@ export default function OrdersList({ orders, activeStatus }: Props) {
     return () => io.disconnect()
   }, [hasMore, filtered.length])
 
-  // ─── cancel callbacks ─────────────────────────────────────────────────────────
-  const handleCancelRequest = (token: string) => {
+  // ─── cancel callbacks (Sweet Alerts confirm — Hard Rule safepay-ux #8) ──────────
+  const handleCancelRequest = async (token: string) => {
     const order = orders.find((o) => o.publicToken === token)
-    setCancelToken(token)
-    setCancelDisplay(order?.id.toUpperCase())
+    const label = order ? `ออเดอร์ #${order.id.toUpperCase()}` : 'ออเดอร์นี้'
+    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'ไม่ใช่ตอนนี้',
+    })
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${token}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        pacesToast.success('ยกเลิกออเดอร์แล้ว')
+        router.refresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        pacesToast.error(typeof data?.error === 'string' ? data.error : 'ยกเลิกออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+      }
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    }
   }
 
   const activeFilterCount = typeFilter ? 1 : 0
@@ -357,16 +374,6 @@ export default function OrdersList({ orders, activeStatus }: Props) {
         </div>
       )}
 
-      {/* CancelOrderModal */}
-      <CancelOrderModal
-        open={cancelToken !== null}
-        token={cancelToken}
-        displayId={cancelDisplay}
-        onClose={() => {
-          setCancelToken(null)
-          setCancelDisplay(undefined)
-        }}
-      />
     </>
   )
 }

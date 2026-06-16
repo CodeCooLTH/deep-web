@@ -11,7 +11,10 @@
  * Desktop-only (scope 2026-06-15) — mobile card ไม่มี checkbox
  *
  * Base (button/badge/card primitive): docs/system/ui-guideline/paces-component-reference.md §1/§6/§7
- * Base (confirm dialog shell): ./CancelOrderModal.tsx + ../[token]/components/SendSmsButton.tsx
+ * Base (progress dialog shell): theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
+ *   (card overlay/backdrop — controlled React state). หมายเหตุ: dialog นี้เป็น multi-phase progress
+ *   (confirm → sending + progress bar → done breakdown) ไม่ใช่ confirm/alert ธรรมดา → คงเป็น custom
+ *   card-overlay (Sweet Alerts ไม่เหมาะกับ progress loop; ดู safepay-ux Hard Rule 8 ขอบเขต = blocking alert/confirm)
  * Base (clipboard fallback): ../[token]/components/CopyLinkButton.tsx
  */
 

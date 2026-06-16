@@ -34,9 +34,11 @@ import { useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
 import OrderActions from './OrderActions'
-import CancelOrderModal from './CancelOrderModal'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
+import { useRouter } from 'next/navigation'
+import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesToast } from '@/lib/paces-toast'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -93,6 +95,7 @@ type Props = {
 }
 
 export default function OrdersTable({ orders }: Props) {
+  const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
   const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
@@ -105,13 +108,31 @@ export default function OrdersTable({ orders }: Props) {
     setBuyerBaseUrl(resolveBuyerBaseUrl())
   }, [])
 
-  // cancel modal — OrderActions (centralized) ส่ง token มาขอเปิด
-  const [cancelToken,   setCancelToken]   = useState<string | null>(null)
-  const [cancelDisplay, setCancelDisplay] = useState<string | undefined>(undefined)
-  const handleCancelRequest = (token: string) => {
+  // cancel — OrderActions (centralized) ส่ง token มาขอ; confirm ผ่าน Sweet Alerts (Hard Rule safepay-ux #8)
+  const handleCancelRequest = async (token: string) => {
     const o = orders.find((x) => x.publicToken === token)
-    setCancelToken(token)
-    setCancelDisplay(o?.id.toUpperCase())
+    const label = o ? `ออเดอร์ #${o.id.toUpperCase()}` : 'ออเดอร์นี้'
+    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'ไม่ใช่ตอนนี้',
+    })
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${token}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        pacesToast.success('ยกเลิกออเดอร์แล้ว')
+        router.refresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        pacesToast.error(typeof data?.error === 'string' ? data.error : 'ยกเลิกออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+      }
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    }
   }
 
   // ─── columns (adapt จาก theme; ปรับ field ให้ตรง OrderRow) ───────────────
@@ -446,17 +467,6 @@ export default function OrdersTable({ orders }: Props) {
         </div>
       )}
     </div>
-
-    {/* cancel modal — เปิดจาก OrderActions (⋮ → ยกเลิก) ในตาราง */}
-    <CancelOrderModal
-      open={cancelToken !== null}
-      token={cancelToken}
-      displayId={cancelDisplay}
-      onClose={() => {
-        setCancelToken(null)
-        setCancelDisplay(undefined)
-      }}
-    />
 
     {/* bulk action bubble — โผล่เมื่อเลือก checkbox ≥1 (desktop) */}
     <BulkActionBar

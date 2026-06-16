@@ -12,6 +12,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
 
 export interface CancelOrderButtonProps {
   publicToken: string
@@ -26,7 +27,11 @@ export default function CancelOrderButton({ publicToken, status }: CancelOrderBu
   if (status !== 'PENDING' && status !== 'SHIPPED') return null
 
   const handleCancel = async () => {
-    if (!confirm('ยืนยันการยกเลิกออเดอร์นี้?')) return
+    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', 'ออเดอร์จะถูกปิดทันที · ย้อนกลับไม่ได้', {
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'ไม่ใช่ตอนนี้',
+    })
+    if (!ok) return
     setLoading(true)
     try {
       const res = await fetch(`/api/orders/${publicToken}/cancel`, {

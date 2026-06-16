@@ -1,6 +1,8 @@
 # Paces Toast — toast/alert รวมศูนย์ฝั่งหลังบ้าน (Hard Rule 9)
 
-> **กฎ:** ทุก toast / notification / alert ในหน้า `(paces)/**` (seller + admin) **ต้องเรียกผ่าน `pacesToast` เท่านั้น** — ห้ามใช้ `react-toastify`, `toast()`, `window.alert()`, SweetAlert (`swal`), หรือ Preline toast ดิบ. นี่คือ component/helper เดียวที่อนุญาตให้แสดง toast ในหลังบ้าน.
+> **กฎ:** ทุก **toast / notification** (กล่องเด้งมุมจอแล้วหายเอง, non-blocking) ในหน้า `(paces)/**` (seller + admin) **ต้องเรียกผ่าน `pacesToast` เท่านั้น** — ห้ามใช้ `react-toastify`, `toast()`, `window.alert()`, หรือ Preline toast ดิบ. นี่คือ component/helper เดียวที่อนุญาตให้แสดง toast ในหลังบ้าน.
+>
+> **⚠️ ขอบเขต — toast ไม่ใช่ modal dialog:** กล่อง **blocking** ที่ต้องให้ผู้ใช้ตัดสินใจ/รับทราบก่อนทำต่อ (confirm "ยืนยันยกเลิก/ลบ?", success/error result popup, prompt) **ไม่ใช่งานของ `pacesToast`** — ต้องใช้ **Sweet Alerts (sweetalert2 `Swal`)** ตาม safepay-ux Hard Rule 8 (Base: `theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx`). เส้นแบ่ง: เด้งแล้วหายเอง = `pacesToast`; ต้องคลิกตอบ = Sweet Alerts.
 
 ที่มา: user สั่ง (2026-06-16) ให้รวมทุกจุดที่เป็น toastr มาใช้ component เดียว โดยยึด markup จาก
 `theme/paces/Admin/TS/src/app/(admin)/ui/notifications/page.tsx` (Paces Basic/Stacking toast) — กัน look-and-feel
@@ -68,8 +70,10 @@ API mirror `react-toastify` (`.success/.error/.warning` + เพิ่ม `.info
 # ต้องคืน 0 — ถ้าพบ react-toastify ใน (paces) = block merge
 rg "react-toastify" "src/app/(paces)/"
 
-# ต้องคืน 0 — ห้าม bare toast.*/alert(/swal ใน (paces)
-rg -nE "(^|[^s])toast\.(success|error|warning|info)\(|\balert\(|\bswal" "src/app/(paces)/"
+# ต้องคืน 0 — ห้าม bare toast.* / native alert|confirm|prompt ใน (paces)
+# (Sweet Alerts `Swal` = อนุญาต สำหรับ modal dialog ตาม safepay-ux Hard Rule 8)
+# หมายเหตุ: ripgrep ใช้ regex เป็น default — อย่าใส่ -E (ใน rg แปลว่า --encoding ไม่ใช่ extended-regex)
+rg -n "(^|[^s])toast\.(success|error|warning|info)\(|\bwindow\.(alert|confirm|prompt)\(|(^|[^.\w])(alert|confirm|prompt)\(" "src/app/(paces)/"
 ```
 
-ถ้าพบ → ให้แทนด้วย `pacesToast.*`.
+ถ้าพบ → toast/notification แทนด้วย `pacesToast.*`; ส่วน confirm/blocking dialog แทนด้วย Sweet Alerts (`Swal`).

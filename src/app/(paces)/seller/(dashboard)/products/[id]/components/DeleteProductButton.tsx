@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
 
 interface Props {
   productId: string
@@ -14,7 +15,10 @@ export default function DeleteProductButton({ productId }: Props) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!window.confirm('ต้องการลบสินค้านี้ใช่หรือไม่?')) return
+    const ok = await pacesConfirm.danger('ลบสินค้านี้?', 'สินค้าจะถูกลบถาวร · ย้อนกลับไม่ได้', {
+      confirmButtonText: 'ลบสินค้า',
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     try {
