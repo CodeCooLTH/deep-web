@@ -1,6 +1,6 @@
 # Scope Baseline — Seller Auth Redesign + Onboarding
 
-> สถานะ: **P1 SIGNED-OFF** (2026-06-16) · phase ถัดไป: **P2 — Auth Pages (Paces auth/card, ต้องผ่าน safepay-ux)**
+> สถานะ: **P1 SIGNED-OFF · P2 ACTIVE** (2026-06-16) · P2 = Auth Pages UI (Paces auth/card, ผ่าน safepay-ux, mobile-first)
 > spec: `docs/superpowers/specs/2026-06-16-seller-auth-redesign-onboarding-design.md`
 > plan (P1): `docs/superpowers/plans/2026-06-16-seller-auth-p1-foundation.md`
 
@@ -53,6 +53,23 @@
 | Task 11 session needsOnboarding+shopSlug | S-P1-11 |
 
 ทุก task map ได้ — ไม่มี orphan.
+
+---
+
+## In-Scope (P2 — Auth Pages UI, ACTIVE)
+
+> ทุกหน้า: copy จาก Paces `theme/paces/Admin/TS/src/app/auth/card/*` (Hard Rule 1 + Base: line) · ผ่าน safepay-ux Design Spec ก่อน dev (Hard Rule 8) · **mobile-first acceptance ทุกหน้า** (ใช้งานง่ายที่ 375px: tap target ≥44px, ไม่มี horizontal overflow, ปุ่ม/ฟอร์มเต็มกว้าง) · toast = pacesToast (HR9) · confirm = Sweet Alerts (HR8) · เป็น seller subdomain (Paces น้ำเงิน ไม่ใช่ม่วง). แทนหน้าเดิม `src/app/(paces)/seller/auth/*`.
+
+| ID | รายการ | Acceptance (ทดสอบได้, รวม mobile) | สถานะ |
+|----|--------|----------------------|-------|
+| S-P2-1 | **sign-in** (Base `auth/card/sign-in`) — username+password + ลิงก์ "ลืมรหัสผ่าน" + ปุ่ม Facebook | กรอก username+password → `signIn('seller-credentials')` → /dashboard; ผิด → error generic (pacesToast); ปุ่ม Facebook → `signIn('facebook')`; mobile 375px ใช้ได้ | TODO |
+| S-P2-2 | **sign-up** (Base `auth/card/sign-up`) — displayName, category dropdown, username (live dedupe), password+confirm, phone + ปุ่ม Facebook | submit → check-phone (`/api/users/check-phone`) + check-username → ถ้าผ่าน `/api/otp/send` → verify-otp; phone ซ้ำ → "เบอร์นี้มีบัญชีแล้ว"; password ตาม PasswordSchema; category = SHOP_CATEGORY_LABELS dropdown; mobile ok | TODO |
+| S-P2-3 | **verify-otp** (Base `auth/card/two-factor` หรือ `login-pin`) — OTP 6 หลัก + **countdown 60s resend** + masked phone | OTP input → `signIn('phone-otp',{phone,otp,mode,displayName,username,shopName,password,category})`; resend disabled จนครบ 60s; mobile ok | TODO |
+| S-P2-4 | **reset-pass** (Base `auth/card/reset-pass`) — กรอกเบอร์ → ส่ง OTP | submit เบอร์ → `/api/otp/send` → ไป verify-otp(mode=reset); mobile ok | TODO |
+| S-P2-5 | **new-pass** (Base `auth/card/new-pass`) — ตั้งรหัสใหม่ + confirm (หลัง OTP ผ่าน) | submit → `POST /api/account/set-password {phone,otp,password}` → 200 → sign-in; error map; mobile ok | TODO |
+| S-P2-6 | **layout/shared** — auth layout `(paces)/seller/auth/layout.tsx` ปรับให้รับ card variant + responsive; ลบ field/flow เดิมที่ไม่ใช้ | ทุกหน้าใช้ layout เดียว, font Anuphan, ไม่มี Vuexy bleed; QA cross-page mobile | TODO |
+
+**QA P2:** safepay-qa รัน mobile viewport (375px) ทุกหน้า + happy path signup→OTP→login + reset→new-pass. Chrome DevTools MCP.
 
 ---
 
