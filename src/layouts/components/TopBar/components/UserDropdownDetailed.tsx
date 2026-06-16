@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { Fragment } from 'react'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 
 type UserProfileMenuType = {
   label: string
@@ -25,7 +26,7 @@ const userProfileMenuData: UserProfileMenuType[] = [
 const UserDropdown = () => {
   const { data: session } = useSession()
   const user = (session as any)?.user as
-    | { id: string; displayName: string; username: string; avatar: string | null }
+    | { id: string; displayName: string; username: string; avatar: string | null; isShop?: boolean }
     | undefined
 
   const handleItemClick = (e: React.MouseEvent<HTMLAnchorElement>, item: UserProfileMenuType) => {
@@ -56,6 +57,21 @@ const UserDropdown = () => {
         <div className="py-2 px-3.5">
           <h6 className="text-xs">ยินดีต้อนรับ 👋</h6>
         </div>
+        {/* เปิดหน้าร้าน — แสดงเฉพาะเมื่อ user เป็น shop และมี username (ข้าม subdomain ใช้ <a> ธรรมดา) */}
+        {user?.isShop && user?.username && (
+          <>
+            <a
+              href={`${resolveBuyerBaseUrl()}/u/${user.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="dropdown-item"
+            >
+              <Icon icon="building-store" className="me-1 fs-lg align-middle" />
+              <span className="align-middle">เปิดหน้าร้าน</span>
+            </a>
+            <div className="dropdown-divider"></div>
+          </>
+        )}
         {userProfileMenuData.map((item, idx) => (
           <Fragment key={idx}>
             <Link
