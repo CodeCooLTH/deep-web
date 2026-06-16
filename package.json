@@ -13,7 +13,7 @@
     "test": "dotenv -e .env -- npx vitest",
     "seed:local": "dotenv -e .env -- npx tsx prisma/seed.ts",
     "seed:supabase": "dotenv -e .env.local -- npx tsx prisma/seed.ts",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/strip-vendor-charset.mjs",
     "clean": "rm -rf .next",
     "clear": "rm -rf node_modules .next"
   },
