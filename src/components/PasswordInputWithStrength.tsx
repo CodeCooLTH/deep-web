@@ -11,6 +11,8 @@ type PasswordInputProps = {
   label?: string
   labelClassName?: string
   inputClassName?: string
+  /** ซ่อน hint อังกฤษ default ของ component — ใช้เมื่อ caller render hint ของตัวเองแทน (เช่น hint ไทย) */
+  hideHint?: boolean
 }
 
 const calculatePasswordStrength = (password: string): number => {
@@ -22,7 +24,7 @@ const calculatePasswordStrength = (password: string): number => {
   return strength
 }
 
-const PasswordInputWithStrength = ({ password, setPassword, id, label, name, placeholder, showIcon, labelClassName = 'form-label', inputClassName = 'form-input' }: PasswordInputProps) => {
+const PasswordInputWithStrength = ({ password, setPassword, id, label, name, placeholder, showIcon, hideHint = false, labelClassName = 'form-label', inputClassName = 'form-input' }: PasswordInputProps) => {
   const strength = calculatePasswordStrength(password)
   const strengthBars = new Array(4).fill(0)
 
@@ -45,7 +47,9 @@ const PasswordInputWithStrength = ({ password, setPassword, id, label, name, pla
         ))}
       </div>
 
-      <p className="text-default-400 text-xs">Use 8+ characters with letters, numbers & symbols.</p>
+      {!hideHint && (
+        <p className="text-default-400 text-xs">Use 8+ characters with letters, numbers & symbols.</p>
+      )}
     </>
   )
 }

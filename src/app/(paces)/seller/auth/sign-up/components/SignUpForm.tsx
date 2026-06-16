@@ -260,7 +260,10 @@ export default function SignUpForm() {
           )}
         </div>
 
-        {/* 2. หมวดหมู่ร้านค้า — native select (Hard Rule 6 — ห้ามใช้ hs-dropdown ที่พัง re-render) */}
+        {/* 2. หมวดหมู่ร้านค้า — form-select primitive
+            Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (Default Select ~บรรทัด 249)
+            เลือก form-select ไม่ใช้ hs-dropdown เพราะ hs-dropdown เป็น action-menu widget (re-render แล้ว opacity ค้าง 0);
+            form-select field = Paces form primitive ถูกต้องสำหรับ select input ใน form */}
         <div className="mb-5">
           <label htmlFor="category" className="form-label">
             หมวดหมู่ร้านค้า<span className="text-danger">*</span>
@@ -330,9 +333,10 @@ export default function SignUpForm() {
             }}
             showIcon
             placeholder="••••••••"
+            hideHint
           />
-          {/* hint ภาษาไทย — override ข้อความ English ของ component */}
-          <p className="text-default-400 text-xs -mt-1">
+          {/* hint ภาษาไทย — แสดงแทน hint อังกฤษ default ของ component (hideHint=true ปิดบรรทัดอังกฤษแล้ว) */}
+          <p className="text-default-400 text-xs">
             ≥8 ตัว มีตัวอักษร ตัวเลข และอักขระพิเศษ
           </p>
           {errors.password && (

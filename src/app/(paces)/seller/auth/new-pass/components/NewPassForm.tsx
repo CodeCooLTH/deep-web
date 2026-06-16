@@ -143,9 +143,10 @@ export default function NewPassForm() {
           setPassword={handlePasswordChange}
           showIcon
           placeholder="••••••••"
+          hideHint
         />
-        {/* hint ภาษาไทย — override ข้อความ default ของ component (ซึ่งเป็นภาษาอังกฤษ) */}
-        <p className="text-default-400 -mt-2 text-xs">
+        {/* hint ภาษาไทย — แสดงแทน hint อังกฤษ default ของ component (hideHint=true ปิดบรรทัดอังกฤษแล้ว) */}
+        <p className="text-default-400 text-xs">
           ≥8 ตัว มีตัวอักษร ตัวเลข และอักขระพิเศษ
         </p>
         {errors.password && (
