@@ -1,15 +1,15 @@
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/page.tsx
  *
- * Re-source จาก Paces order-details (redesign 2026-06-15 — action-first/mobile-first):
- * - ใช้ 3-col grid เหมือน theme: col-span-3 (main) + col-span-1 (sidebar)
- * - Main: StatusHero (สถานะ) → OrderSummary (items + totals) → ShippingActivity (timeline)
- * - Sidebar: CustomerDetails → PaymentCard → ShippingAddress → CancelZone → OrderReviewCard
- * - T3: ลบ OrderActionPanel (action ย้ายเข้า StatusHeroV2; cancel ย้ายเข้า CancelZone)
- * - T4: เพิ่ม CancelZone (danger card) ล่าง ShippingAddress ก่อน OrderReviewCard
- * - คง: data fetching (getOrderForShop), auth guard (getServerSession), shop ownership check
+ * Re-source จาก Paces order-details (layout re-arrange 2026-06-16):
+ * - StatusHeroV2 = full-width top bar (title + action bar: primary CTA + ⋮ overflow incl. ยกเลิก)
+ * - 70/30 grid (lg:grid-cols-4): LEFT col-span-3 = CustomerDetails → OrderSummary → OrderReviewCard
+ *   RIGHT col-span-1 = ShippingAddress → PaymentCard → ShippingActivity
+ * - action/cancel ย้ายเข้า StatusHeroV2 (⋮ overflow) ทั้งหมด — ไม่มี OrderActionPanel/CancelZone card
+ * - theme-fidelity: CustomerDetails (avatar จริง), OrderSummary (thumbnail สินค้า), ShippingActivity (narrow-fix)
+ * - คง: data fetching (getOrderForShop + buyer.avatar + product.images), auth guard, shop ownership check
  * - PII: mask + neutralize raw contact ที่ server boundary ก่อนส่งข้าม RSC (S-C1) — ห้ามแตะ
- * - paymentMethod/salesChannel/slipFileId/accessUrl ไม่ใช่ PII → ส่งให้ PaymentCard ได้
+ *   (avatar/imageUrl = URL ไม่ใช่ PII; product.images resolve เป็น imageUrl ที่ server ก่อนส่ง)
  * - Date → .toISOString() ก่อนส่งข้ามขอบเขต RSC→client component
  */
 
@@ -24,10 +24,9 @@ import StatusHero from './components/StatusHero'
 import OrderSummary from './components/OrderSummary'
 import CustomerDetails from './components/CustomerDetails'
 import PaymentCard from './components/PaymentCard'
-import ShippingAddress from './components/ShippingAddress'
-import type { ShippingAddressData } from './components/ShippingAddress'
+import OrderDetails from './components/OrderDetails'
+import type { ShippingAddressData } from './components/CustomerDetails'
 import ShippingActivity from './components/ShippingActivity'
-import CancelZone from './components/CancelZone'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 
@@ -64,6 +63,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
+  const updatedAtISO = (order.updatedAt as Date).toISOString()
 
   // สร้าง review data — mask PII ที่ RSC boundary ก่อนส่งข้าม (S-C1)
   // ห้ามส่ง raw phone/email ข้ามขอบเขต RSC→client แม้แต่ฟิลด์เดียว
@@ -117,16 +117,31 @@ export default async function OrderDetailPage({ params }: PageProps) {
         trail={[{ label: 'คำสั่งซื้อ', href: '/orders' }]}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
-        {/* Main content — col-span-3 */}
+      {/* StatusHero — full-width เหนือ grid (T5: ย้ายออกจาก left column) */}
+      <StatusHero
+        publicToken={order.publicToken}
+        status={order.status}
+        type={order.type}
+        createdAtISO={createdAtISO}
+        fulfillmentMode={order.fulfillmentMode}
+      />
+
+      {/* mt-base คั่นระหว่าง top bar กับ grid — Paces spacing token (--spacing-base=20px) ห้ามใช้ mt-[20px] */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-base mt-base">
+        {/* LEFT — col-span-3 (70%): CustomerDetails → OrderSummary → OrderReviewCard */}
         <div className="space-y-base lg:col-span-3">
-          {/* StatusHero — สถานะเด่น + primary CTA ต่อ state (T3: action ย้ายเข้า StatusHeroV2 แล้ว) */}
-          <StatusHero
-            publicToken={order.publicToken}
-            status={order.status}
-            type={order.type}
-            createdAtISO={createdAtISO}
-            fulfillmentMode={order.fulfillmentMode}
+          <CustomerDetails
+            data={{
+              // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน
+              buyerContactMasked,
+              buyerDisplayName: order.buyer?.displayName ?? null,
+              buyerUsername: order.buyer?.username ?? null,
+              buyerName: order.buyerName ?? null,
+              // avatar: Facebook CDN URL หรือ null (ไม่ใช่ PII — URL สาธารณะ) — ส่งได้ตาม spec
+              avatar: order.buyer?.avatar ?? null,
+              // shippingAddr: render อิสระจาก buyer-confirmed state (seller อาจกรอกก่อน)
+              shippingAddr,
+            }}
           />
           <OrderSummary
             order={{
@@ -137,14 +152,46 @@ export default async function OrderDetailPage({ params }: PageProps) {
               vatRate: order.vatRate ?? null,
               vatAmount: order.vatAmount ?? null,
               createdAtISO,
-              items: (order.items ?? []).map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                description: item.description ?? null,
-                qty: item.qty,
-                price: item.price,
-              })),
+              items: (order.items ?? []).map((item: any) => {
+                // resolve imageUrl server-side — pattern เดียวกับ products/page.tsx L98-99
+                // images เป็น Json array of strings (full URL หรือ storage key)
+                const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
+                const firstImg: string = rawImages[0] ?? ''
+                const imageUrl: string | null = firstImg
+                  ? (firstImg.startsWith('http') ? firstImg : `/api/files/${firstImg}`)
+                  : null
+                return {
+                  id: item.id,
+                  name: item.name,
+                  description: item.description ?? null,
+                  qty: item.qty,
+                  price: item.price,
+                  imageUrl,
+                }
+              }),
             }}
+          />
+          {/* review card: compose กลับตาม retro action #4 + #9 — trust-critical info ที่ seller ต้องเห็น */}
+          <OrderReviewCard review={reviewData} />
+        </div>
+
+        {/* RIGHT — col-span-1 (30%): OrderDetails → PaymentCard → ShippingActivity */}
+        <div className="space-y-base">
+          {/* OrderDetails: วันที่สร้าง/อัปเดต/ชื่อร้าน — render เสมอ (แทน ShippingAddress slot) */}
+          <OrderDetails
+            createdAtISO={createdAtISO}
+            updatedAtISO={updatedAtISO}
+            shopName={order.shop?.shopName ?? '—'}
+          />
+          {/* PaymentCard — วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล (ไม่ใช่ PII) */}
+          <PaymentCard
+            paymentMethod={order.paymentMethod ?? null}
+            salesChannel={order.salesChannel ?? null}
+            slipFileId={order.slipFileId ?? null}
+            accessUrl={order.accessUrl ?? null}
+            fulfillmentMode={order.fulfillmentMode}
+            publicToken={order.publicToken}
+            status={order.status}
           />
           <ShippingActivity
             data={{
@@ -159,34 +206,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 : null,
             }}
           />
-        </div>
-
-        {/* Sidebar — col-span-1 */}
-        <div className="space-y-base">
-          <CustomerDetails
-            data={{
-              // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน
-              buyerContactMasked,
-              buyerDisplayName: order.buyer?.displayName ?? null,
-              buyerUsername: order.buyer?.username ?? null,
-              buyerName: order.buyerName ?? null,
-            }}
-          />
-          {/* PaymentCard — วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล (ไม่ใช่ PII) */}
-          <PaymentCard
-            paymentMethod={order.paymentMethod ?? null}
-            salesChannel={order.salesChannel ?? null}
-            slipFileId={order.slipFileId ?? null}
-            accessUrl={order.accessUrl ?? null}
-            fulfillmentMode={order.fulfillmentMode}
-            publicToken={order.publicToken}
-          />
-          {/* Phase B: ที่อยู่จัดส่ง — render เฉพาะเมื่อ order มี shippingAddress */}
-          {shippingAddr && <ShippingAddress address={shippingAddr} />}
-          {/* CancelZone — danger card สำหรับยกเลิก order (PENDING/SHIPPED เท่านั้น; terminal state คืน null) */}
-          <CancelZone publicToken={order.publicToken} status={order.status} />
-          {/* review card: compose กลับตาม retro action #4 + #9 — trust-critical info ที่ seller ต้องเห็น */}
-          <OrderReviewCard review={reviewData} />
         </div>
       </div>
     </>

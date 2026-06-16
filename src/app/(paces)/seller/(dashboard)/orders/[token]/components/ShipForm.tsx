@@ -77,7 +77,7 @@ export default function ShipForm({ publicToken }: ShipFormProps) {
         type="button"
         onClick={() => setShowShipForm((v) => !v)}
         disabled={loading}
-        className="btn bg-primary text-white hover:bg-primary-hover px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
+        className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium disabled:opacity-60 w-full"
       >
         {showShipForm ? 'ซ่อนฟอร์มจัดส่ง' : 'บันทึกการจัดส่ง'}
       </button>
@@ -85,9 +85,9 @@ export default function ShipForm({ publicToken }: ShipFormProps) {
       {showShipForm && (
         <form
           onSubmit={handleSubmit(handleShip)}
-          className="card border border-default-200 rounded-lg p-4 flex flex-col gap-3"
+          className="bg-card border border-default-300 rounded p-5 flex flex-col gap-3"
         >
-          <h4 className="text-sm font-semibold text-dark">ข้อมูลการจัดส่ง</h4>
+          <h4 className="text-sm font-semibold text-default-800">ข้อมูลการจัดส่ง</h4>
 
           <div>
             <label className="form-label text-xs mb-1 block">
@@ -135,14 +135,14 @@ export default function ShipForm({ publicToken }: ShipFormProps) {
             <button
               type="submit"
               disabled={loading}
-              className="btn bg-primary text-white hover:bg-primary-hover px-4 py-2 text-sm font-medium disabled:opacity-60 flex-1"
+              className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium disabled:opacity-60 flex-1"
             >
               {loading ? 'กำลังบันทึก...' : 'ยืนยันจัดส่ง'}
             </button>
             <button
               type="button"
               onClick={() => { setShowShipForm(false); reset() }}
-              className="btn border border-default-300 bg-card hover:bg-default-50 text-default-700 px-4 py-2 text-sm"
+              className="btn border border-default-300 bg-card hover:bg-default-50 text-default-700 text-sm"
             >
               ยกเลิก
             </button>

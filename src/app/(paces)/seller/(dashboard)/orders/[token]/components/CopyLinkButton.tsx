@@ -10,7 +10,7 @@
  * - คง fallback clipboard (execCommand) สำหรับ HTTP context
  */
 
-import { Icon } from '@iconify/react'
+import Icon from '@/components/wrappers/Icon'
 import { useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
 
@@ -80,11 +80,11 @@ export default function CopyLinkButton({
           iconOnly
             ? // icon-only → btn-icon จริง (icon centered, ไม่มี px override) ขนาด = ปุ่ม action อื่น
               `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 flex-shrink-0 transition-colors ${copied ? 'border-success text-success' : ''} ${className}`.trim()
-            : `btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs flex-shrink-0 transition-colors ${copied ? 'border-success text-success' : ''} ${className}`.trim()
+            : `btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 text-xs flex-shrink-0 transition-colors ${copied ? 'border-success text-success' : ''} ${className}`.trim()
         }
       >
         <Icon
-          icon={copied ? 'tabler:check' : 'tabler:copy'}
+          icon={copied ? 'check' : 'copy'}
           className={iconOnly ? 'text-base' : undefined}
           width={iconOnly ? undefined : 14}
           height={iconOnly ? undefined : 14}

@@ -17,9 +17,11 @@ import { pacesConfirm } from '@/lib/paces-swal'
 export interface CancelOrderButtonProps {
   publicToken: string
   status: string
+  /** className เพิ่มเติม — optional, ไม่กระทบ caller เดิม (default undefined) */
+  className?: string
 }
 
-export default function CancelOrderButton({ publicToken, status }: CancelOrderButtonProps) {
+export default function CancelOrderButton({ publicToken, status, className }: CancelOrderButtonProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
@@ -56,7 +58,7 @@ export default function CancelOrderButton({ publicToken, status }: CancelOrderBu
       type="button"
       onClick={handleCancel}
       disabled={loading}
-      className="btn border border-danger text-danger hover:bg-danger/10 px-4 py-2 text-sm font-medium disabled:opacity-60 w-full"
+      className={`btn border border-danger text-danger hover:bg-danger/15 text-sm font-medium disabled:opacity-60 w-full${className ? ` ${className}` : ''}`}
     >
       {loading ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
     </button>

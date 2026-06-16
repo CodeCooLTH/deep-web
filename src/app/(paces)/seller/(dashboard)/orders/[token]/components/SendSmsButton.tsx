@@ -14,7 +14,7 @@
  * ลบ 403-L2 error case ออก — route ไม่ return 403 L2 อีก (product decision 2026-05-17)
  */
 
-import { Icon } from '@iconify/react'
+import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
@@ -112,7 +112,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
   if (showSuccess) {
     return iconOnly ? (
       <span className="btn btn-icon border border-success/30 bg-success/10 text-success" aria-label="ส่ง SMS แล้ว">
-        <Icon icon="tabler:check" className="text-base" />
+        <Icon icon="check" className="text-base" />
       </span>
     ) : (
       <span className="text-xs text-success font-medium">ส่งแล้ว</span>
@@ -128,11 +128,11 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
         iconOnly
           ? `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 ${className}`.trim()
           : compact
-            ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 px-2 py-1 text-xs'
-            : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs'
+            ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 text-xs'
+            : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 text-xs'
       }
     >
-      <Icon icon="tabler:message" className="text-base" aria-hidden="true" />
+      <Icon icon="message" className="text-base" aria-hidden="true" />
       {!iconOnly && (compact ? 'ส่ง SMS' : 'ส่งลิงก์ทาง SMS (฿1)')}
     </button>
   )

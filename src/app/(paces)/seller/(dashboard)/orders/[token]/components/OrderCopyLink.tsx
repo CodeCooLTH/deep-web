@@ -16,9 +16,11 @@ import CopyLinkButton from './CopyLinkButton'
 
 interface OrderCopyLinkProps {
   publicToken: string
+  /** forward ไปยัง CopyLinkButton — default true (behavior เดิม; caller อื่นไม่กระทบ) */
+  showPreview?: boolean
 }
 
-export default function OrderCopyLink({ publicToken }: OrderCopyLinkProps) {
+export default function OrderCopyLink({ publicToken, showPreview = true }: OrderCopyLinkProps) {
   // SSR-safe: เริ่มด้วย relative path แล้ว hydrate เป็น full URL
   const [buyerUrl, setBuyerUrl] = useState(`/o/${publicToken}`)
 
@@ -30,7 +32,7 @@ export default function OrderCopyLink({ publicToken }: OrderCopyLinkProps) {
     <CopyLinkButton
       value={buyerUrl}
       label="คัดลอกลิงก์"
-      showPreview
+      showPreview={showPreview}
     />
   )
 }

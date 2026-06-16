@@ -1,7 +1,14 @@
 /**
  * PaymentCard — การชำระเงิน (วิธีชำระ + ช่องทาง + สลิป + ลิงก์ดิจิทัล)
+ *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/BillingDetails.tsx
- *       + CustomerDetails.tsx (icon-list pattern)
+ *       (payment-row pattern: icon container + text block + status badge — flex justify-between)
+ *
+ * เปลี่ยนจาก icon-list (CustomerDetails pattern) เป็น billing-row เดียว ตาม BillingDetails theme:
+ *   ซ้าย = icon-circle (btn-icon bg-light rounded-full) + ชื่อวิธีชำระ + sub-text ช่องทาง
+ *   ขวา  = status badge (soft bg-{semantic}/15) derive จาก status + paymentMethod + slipFileId
+ *
+ * สลิป (S-11) + ลิงก์ดิจิทัล (S-12) คง logic/state เดิมทุกอย่าง — เพิ่มแค่ divider + section label
  */
 
 'use client'
@@ -9,19 +16,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
-import { Icon } from '@iconify/react'
+// ใช้ wrapper ที่ auto-prepend tabler: — ตรงกับ convention ใน OrderCard (ห้าม import จาก @iconify/react ตรง)
+import Icon from '@/components/wrappers/Icon'
 import SlipViewer from './SlipViewer'
+// import label + icon map จาก shared data.ts แทน duplicate local copy
+import { PAYMENT_LABELS, PAYMENT_ICONS } from '../../components/data'
+import { isCODPayment } from '@/lib/order-display'
 
-// label map — เจ้าของใหม่ย้ายมาจาก CustomerDetails (Phase B)
-// sync กับ PAYMENT_OPTIONS/CHANNEL_OPTIONS ใน orders/new/components/PaymentChannelBlock.tsx
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH: 'เงินสด',
-  TRANSFER: 'โอนเงิน',
-  PROMPTPAY: 'พร้อมเพย์',
-  CARD: 'บัตรเครดิต/เดบิต',
-  COD: 'เก็บปลายทาง',
-  OTHER: 'อื่นๆ',
-}
+// CHANNEL_LABELS ยังไม่มีใน shared data.ts — keep local
 const CHANNEL_LABELS: Record<string, string> = {
   STOREFRONT: 'หน้าร้าน',
   FACEBOOK: 'Facebook',
@@ -37,6 +39,8 @@ export interface PaymentCardProps {
   accessUrl: string | null
   fulfillmentMode: string
   publicToken: string
+  /** status ของออเดอร์ — ใช้ derive status badge ฝั่งการชำระเงิน */
+  status: string
 }
 
 export default function PaymentCard({
@@ -46,9 +50,10 @@ export default function PaymentCard({
   accessUrl,
   fulfillmentMode,
   publicToken,
+  status,
 }: PaymentCardProps) {
   const router = useRouter()
-  // S-12: state สำหรับ accessUrl form (copy มาจาก OrderActions — เจ้าของใหม่)
+  // S-12: state สำหรับ accessUrl form
   const [accessUrlValue, setAccessUrlValue] = useState(accessUrl ?? '')
   const [accessUrlLoading, setAccessUrlLoading] = useState(false)
 
@@ -80,8 +85,39 @@ export default function PaymentCard({
   }
 
   const hasPaymentInfo = paymentMethod !== null || salesChannel !== null
-  // divider แสดงเมื่อมี slip หรือ NO_SHIPPING section จะตามมา
-  const hasDivider = slipFileId !== null || fulfillmentMode === 'NO_SHIPPING'
+
+  // ── derive status badge (ตาม spec task) ──────────────────────────────────────
+  // isCODPayment reuse จาก order-display.ts (canonical export S-13)
+  type BadgeConfig = { label: string; cls: string } | null
+  const paymentBadge: BadgeConfig = (() => {
+    if (status === 'CONFIRMED') {
+      return { label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success' }
+    }
+    if (status === 'CANCELLED') {
+      return { label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-400' }
+    }
+    if (isCODPayment(paymentMethod)) {
+      return { label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info' }
+    }
+    // TRANSFER / PROMPTPAY
+    if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
+      if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-warning/15 text-warning' }
+      return { label: 'รอชำระ', cls: 'badge bg-danger/15 text-danger' }
+    }
+    // วิธีอื่น (CASH/CARD/OTHER) หรือ paymentMethod null — ไม่แสดง badge
+    return null
+  })()
+
+  // icon + label สำหรับ payment row
+  const paymentIcon: string = paymentMethod ? (PAYMENT_ICONS[paymentMethod] ?? 'wallet') : 'credit-card-off'
+  const paymentLabel: string = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ไม่ระบุ'
+  const channelLabel: string | null = salesChannel ? (CHANNEL_LABELS[salesChannel] ?? salesChannel) : null
+
+  // dividers: แสดงเฉพาะเมื่อมี section ถัดไป
+  const hasSlipSection = slipFileId !== null
+  const hasAccessUrlSection = fulfillmentMode === 'NO_SHIPPING'
+  const hasDividerAfterRow = hasPaymentInfo && (hasSlipSection || hasAccessUrlSection)
+  const hasDividerAfterSlip = hasSlipSection && hasAccessUrlSection
 
   return (
     <div className="card">
@@ -89,63 +125,65 @@ export default function PaymentCard({
         <h4 className="card-title">การชำระเงิน</h4>
       </div>
       <div className="card-body">
-        {/* icon-list: วิธีชำระ + ช่องทาง — pattern จาก CustomerDetails icon-list */}
+
+        {/* ── Payment Row — BillingDetails pattern ─────────────────────────────
+            Base: BillingDetails.tsx lines 34-46 (flex justify-between + icon + badge)
+            ทำไม: เดิมเป็น icon-list 2 รายการ (วิธี + ช่องทาง) แยกกัน;
+            ปรับเป็น row เดียว (left=icon+text, right=badge) ตาม billing convention
+         ──────────────────────────────────────────────────────────────────────── */}
         {hasPaymentInfo ? (
-          <ul className="text-default-400 space-y-2.5">
-            {paymentMethod && (
-              <li>
-                <div className="flex items-center gap-2.5">
-                  <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                    <Icon icon="tabler:cash" className="text-sm" />
-                  </span>
-                  <h5 className="text-default-400 font-medium text-sm">
-                    วิธีชำระ: {PAYMENT_LABELS[paymentMethod] ?? paymentMethod}
-                  </h5>
-                </div>
-              </li>
+          <div className="flex items-center justify-between">
+            {/* LEFT: icon-circle + text */}
+            <div className="flex items-center gap-2.5">
+              <span className="btn btn-icon bg-light text-default-800 size-8! rounded-full">
+                <Icon icon={paymentIcon} className="size-4.5" />
+              </span>
+              <div>
+                <h5 className="text-default-800 font-medium text-sm">{paymentLabel}</h5>
+                {channelLabel && (
+                  <p className="text-default-400 text-xs">ช่องทาง: {channelLabel}</p>
+                )}
+              </div>
+            </div>
+            {/* RIGHT: status badge */}
+            {paymentBadge && (
+              <span className={paymentBadge.cls}>{paymentBadge.label}</span>
             )}
-            {salesChannel && (
-              <li>
-                <div className="flex items-center gap-2.5">
-                  <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                    <Icon icon="tabler:speakerphone" className="text-sm" />
-                  </span>
-                  <h5 className="text-default-400 font-medium text-sm">
-                    ช่องทาง: {CHANNEL_LABELS[salesChannel] ?? salesChannel}
-                  </h5>
-                </div>
-              </li>
-            )}
-          </ul>
+          </div>
         ) : (
           /* empty-state เมื่อไม่มีข้อมูลการชำระเงินเลย */
           <div className="flex flex-col items-center py-6 text-center">
-            <Icon icon="tabler:credit-card-off" className="text-3xl text-default-300 mb-2" />
+            <Icon icon="credit-card-off" className="text-3xl text-default-300 mb-2" />
             <p className="text-default-400 text-sm">ไม่มีข้อมูลการชำระเงิน</p>
           </div>
         )}
 
-        {/* divider — แสดงเมื่อมี section slip หรือ accessUrl ตามมา */}
-        {hasDivider && (
-          <hr className="border-t border-dashed border-default-300 my-4" />
+        {/* divider — payment row → slip */}
+        {hasDividerAfterRow && (
+          <div className="border-t border-dashed border-default-300 my-4" />
         )}
 
         {/* S-11: สลิปการโอนเงิน */}
-        {slipFileId && (
-          <div className="mb-4">
+        {hasSlipSection && (
+          <div className={hasDividerAfterSlip ? 'mb-4' : undefined}>
             <div className="flex items-center gap-2 mb-3">
-              <Icon icon="tabler:receipt" className="text-base text-default-400" />
+              <Icon icon="receipt" className="text-base text-default-400" />
               <span className="text-sm font-semibold text-default-800">สลิปการโอนเงิน</span>
             </div>
-            <SlipViewer slipFileId={slipFileId} />
+            <SlipViewer slipFileId={slipFileId!} />
           </div>
         )}
 
+        {/* divider — slip → access-url */}
+        {hasDividerAfterSlip && (
+          <div className="border-t border-dashed border-default-300 my-4" />
+        )}
+
         {/* S-12: ลิงก์ส่งมอบสินค้า/บริการดิจิทัล — เฉพาะ NO_SHIPPING */}
-        {fulfillmentMode === 'NO_SHIPPING' && (
+        {hasAccessUrlSection && (
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Icon icon="tabler:link" className="text-base text-default-400" />
+              <Icon icon="link" className="text-base text-default-400" />
               <span className="text-sm font-semibold text-default-800">ลิงก์ส่งมอบสินค้า/บริการดิจิทัล</span>
             </div>
             <p className="text-default-400 text-xs mb-3">
@@ -177,6 +215,7 @@ export default function PaymentCard({
             )}
           </div>
         )}
+
       </div>
     </div>
   )
