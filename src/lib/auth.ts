@@ -33,6 +33,8 @@ export const authOptions: NextAuthOptions = {
         // shopName ส่งมาจาก VerifyOtpForm เฉพาะ mode=signup (seller onboarding)
         // signin path จะส่ง empty string — authorize() ตรวจ mode+shopName ก่อนใช้
         shopName: { label: "ShopName", type: "text" },
+        password: { label: "Password", type: "password" },
+        category: { label: "Category", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.otp) return null;
@@ -89,8 +91,22 @@ export const authOptions: NextAuthOptions = {
             // Layout fallback ยังคงอยู่เป็น safety net สำหรับ Facebook signup / buyer ที่เปิดร้านทีหลัง
             const trimmedShopName = credentials.shopName?.trim();
             if (credentials.mode === "signup" && trimmedShopName) {
-              // server-side guard — credentials เป็น untrusted input (Yup frontend bypass ได้); ตรงสัญญา CreateShopSchema maxLength 100
               if (trimmedShopName.length > 100) return null;
+
+              // password (optional ตอน signup — FB user ตั้งทีหลังใน onboarding ได้)
+              let passwordHash: string | undefined;
+              if (credentials.password) {
+                const { isStrongPassword, hashPassword } = await import("@/lib/password");
+                if (!isStrongPassword(credentials.password)) return null; // server guard (Yup bypass ได้)
+                passwordHash = await hashPassword(credentials.password);
+              }
+              // category (optional) — ต้องเป็น key ที่รู้จัก
+              const { isShopCategory } = await import("@/lib/shop-categories");
+              const category =
+                credentials.category && isShopCategory(credentials.category)
+                  ? credentials.category
+                  : undefined;
+
               // ห่อทั้ง shop.create + user.update ใน transaction เดียว —
               // ถ้า user.update ล้มเหลว Prisma จะ rollback shop.create อัตโนมัติ
               // ป้องกัน orphan shop + isShop stuck false ซึ่ง layout fallback ไม่สามารถแก้ไขได้ (userId unique constraint)
@@ -100,11 +116,12 @@ export const authOptions: NextAuthOptions = {
                     userId: user!.id,
                     shopName: trimmedShopName,
                     businessType: "INDIVIDUAL",
+                    ...(category ? { category } : {}),
                   },
                 });
                 await tx.user.update({
                   where: { id: user!.id },
-                  data: { isShop: true },
+                  data: { isShop: true, ...(passwordHash ? { passwordHash } : {}) },
                 });
               });
             }
@@ -140,6 +157,49 @@ export const authOptions: NextAuthOptions = {
         } catch (e) {
           console.error("[auth] ensure L1 VerificationRecord failed", e);
         }
+
+        return { id: user.id, name: user.displayName, email: user.email };
+      },
+    }),
+    CredentialsProvider({
+      id: "seller-credentials",
+      name: "Seller",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) return null;
+        // bcrypt DoS guard (pattern เดียวกับ admin-credentials)
+        if (credentials.password.length > 1000) return null;
+
+        // rate-limit 5/10min ต่อ username — reuse store เดียวกับ admin (username @unique ทั้งระบบ ไม่ชน)
+        const WINDOW_MS = 10 * 60 * 1000;
+        const MAX_ATTEMPTS = 5;
+        const now = Date.now();
+        const cutoff = now - WINDOW_MS;
+        const prev = adminLoginTimestamps.get(credentials.username) ?? [];
+        const recent = prev.filter((t) => t > cutoff);
+        if (recent.length >= MAX_ATTEMPTS) {
+          adminLoginTimestamps.set(credentials.username, recent);
+          return null;
+        }
+        recent.push(now);
+        adminLoginTimestamps.set(credentials.username, recent);
+
+        const user = await prisma.user.findUnique({
+          where: { username: credentials.username },
+        });
+        if (!user) return null;
+        // seller = ไม่ใช่ admin (admin ใช้ provider แยก) + ต้องเปิดร้านแล้ว (isShop) + ตั้ง password แล้ว
+        // buyer ที่ตั้ง password แต่ยังไม่เปิดร้าน → เป็น seller ผ่าน signup/onboarding ไม่ใช่ login ตรงนี้ (S-P1-9)
+        if (user.isAdmin) return null;
+        if (!user.isShop) return null;
+        if (user.passwordHash == null) return null;
+
+        const { verifyPassword } = await import("@/lib/password");
+        const valid = await verifyPassword(credentials.password, user.passwordHash);
+        if (!valid) return null;
 
         return { id: user.id, name: user.displayName, email: user.email };
       },
@@ -280,17 +340,21 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({
           where: { id: token.userId as string },
           select: {
-            id: true,
-            displayName: true,
-            username: true,
-            avatar: true,
-            isShop: true,
-            isAdmin: true,
-            trustScore: true,
+            id: true, displayName: true, username: true, email: true,
+            avatar: true, isShop: true, isAdmin: true, trustScore: true, phone: true,
+            shop: { select: { slug: true } },
           },
         });
         if (user) {
-          (session as any).user = user;
+          const shopSlug = user.shop?.slug ?? null;
+          // ต้อง onboard เมื่อ: ยังไม่มี slug ร้าน หรือ ยังไม่มีเบอร์ (FB user)
+          const needsOnboarding = !shopSlug || !user.phone;
+          (session as any).user = {
+            id: user.id, displayName: user.displayName, username: user.username,
+            email: user.email, avatar: user.avatar, isShop: user.isShop,
+            isAdmin: user.isAdmin, trustScore: user.trustScore,
+            shopSlug, needsOnboarding,
+          };
         }
       }
       return session;
