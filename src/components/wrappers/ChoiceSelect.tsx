@@ -4,8 +4,10 @@
 // static top-level import throws on the server in Next.js App Router (even
 // in 'use client' components, the module is still evaluated during SSR).
 // Load it lazily inside useEffect so it only runs in the browser.
-
-import 'choices.js/public/assets/styles/choices.min.css'
+//
+// CSS: ไม่ import choices.min.css ที่นี่ — app.css โหลด base (choices.min.css) + Paces override
+// (plugins/_choice.css) ตามลำดับถูกต้องแล้ว. ถ้า import ซ้ำที่นี่ default css จะโหลดทับ override
+// → dropdown หลุดสไตล์ธีม (bug ที่ user เจอ 2026-06-16). ใช้ ChoiceSelect เฉพาะใต้ (paces) ที่มี app.css.
 import type Choices from 'choices.js'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 
