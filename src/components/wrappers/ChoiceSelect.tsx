@@ -5,9 +5,11 @@
 // in 'use client' components, the module is still evaluated during SSR).
 // Load it lazily inside useEffect so it only runs in the browser.
 //
-// CSS: ไม่ import choices.min.css ที่นี่ — app.css โหลด base (choices.min.css) + Paces override
-// (plugins/_choice.css) ตามลำดับถูกต้องแล้ว. ถ้า import ซ้ำที่นี่ default css จะโหลดทับ override
-// → dropdown หลุดสไตล์ธีม (bug ที่ user เจอ 2026-06-16). ใช้ ChoiceSelect เฉพาะใต้ (paces) ที่มี app.css.
+// CSS: ต้อง import base choices.min.css ที่นี่ — ให้ structural/positioning
+// (`.choices{position:relative}`, `.choices__list--dropdown{position:absolute}`) โหลดแน่นอน
+// คู่กับ component. เคยลองเอาออก (พึ่ง app.css อย่างเดียว) → บน prod base ไม่โหลด → dropdown
+// ลอยทับฟอร์ม (bug 2026-06-16). Paces override (_choice.css) ใน app.css จัด theme ต่อ.
+import 'choices.js/public/assets/styles/choices.min.css'
 import type Choices from 'choices.js'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 
