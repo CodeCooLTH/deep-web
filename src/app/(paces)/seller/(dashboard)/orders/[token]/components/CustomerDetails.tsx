@@ -10,41 +10,19 @@
  *   เหล่านี้ไม่มีข้อมูลใน schema SafePay
  * - คง: card layout, icon-list pattern สำหรับ contact info
  * - empty-state ที่สื่อความหมาย ถ้าผู้ซื้อยังไม่ยืนยัน
- * - Phase B: เพิ่ม buyerName (ชื่อที่ร้านบันทึกตอนสร้าง) + paymentMethod + salesChannel
- *   ใน icon-list เดิม (render เฉพาะเมื่อมีค่า)
+ * - payment/channel ย้ายไปอยู่ใน PaymentCard แล้ว (Batch B / B2) —
+ *   component นี้เหลือเฉพาะ identity + contact
  */
 
 import Icon from '@/components/wrappers/Icon'
-
-// label map — mirror ของ PAYMENT_OPTIONS/CHANNEL_OPTIONS ใน orders/new/components/PaymentChannelBlock.tsx
-// (display-only; เก็บ sync กับ create form — ถ้าเพิ่ม option ที่นั่นต้องเพิ่มที่นี่)
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH: 'เงินสด',
-  TRANSFER: 'โอนเงิน',
-  PROMPTPAY: 'พร้อมเพย์',
-  CARD: 'บัตรเครดิต/เดบิต',
-  COD: 'เก็บปลายทาง',
-  OTHER: 'อื่นๆ',
-}
-const CHANNEL_LABELS: Record<string, string> = {
-  STOREFRONT: 'หน้าร้าน',
-  FACEBOOK: 'Facebook',
-  LINE: 'Line',
-  TIKTOK: 'TikTok / TikTok Shop',
-  OTHER: 'อื่นๆ',
-}
 
 export type CustomerDetailsData = {
   /** เบอร์/อีเมลผู้ซื้อที่ mask แล้วจาก server (S-C1) — ห้ามส่ง raw ข้าม RSC boundary */
   buyerContactMasked: string | null
   buyerDisplayName: string | null
   buyerUsername: string | null
-  /** Phase B: ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (buyer อาจยังไม่ลงทะเบียน) */
+  /** ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (buyer อาจยังไม่ลงทะเบียน) */
   buyerName: string | null
-  /** Phase B: วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS */
-  paymentMethod: string | null
-  /** Phase B: ช่องทางการขาย (code) — map ผ่าน CHANNEL_LABELS */
-  salesChannel: string | null
 }
 
 interface CustomerDetailsProps {
@@ -52,12 +30,10 @@ interface CustomerDetailsProps {
 }
 
 const CustomerDetails = ({ data }: CustomerDetailsProps) => {
-  const { buyerContactMasked, buyerDisplayName, buyerUsername, buyerName, paymentMethod, salesChannel } = data
+  const { buyerContactMasked, buyerDisplayName, buyerUsername, buyerName } = data
   // ลำดับชื่อ: registered displayName/username > ชื่อที่ร้านบันทึก (buyerName)
   const registeredName = buyerDisplayName || buyerUsername || null
   const displayName = registeredName || buyerName || null
-  const paymentLabel = paymentMethod ? PAYMENT_LABELS[paymentMethod] ?? paymentMethod : null
-  const channelLabel = salesChannel ? CHANNEL_LABELS[salesChannel] ?? salesChannel : null
 
   return (
     <div className="card">
@@ -77,7 +53,7 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
         ) : (
           <>
             {displayName && (
-              <div className="mb-5 flex items-center">
+              <div className="mb-7.5 flex items-center">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/15 me-2.5">
                   <Icon icon="user" className="text-lg text-primary" />
                 </div>
@@ -101,30 +77,6 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
                   </h5>
                 </div>
               </li>
-              {channelLabel && (
-                <li>
-                  <div className="flex items-center gap-2.5">
-                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                      <Icon icon="speakerphone" className="text-sm" />
-                    </span>
-                    <h5 className="text-default-400 font-medium text-sm">
-                      ช่องทาง: {channelLabel}
-                    </h5>
-                  </div>
-                </li>
-              )}
-              {paymentLabel && (
-                <li>
-                  <div className="flex items-center gap-2.5">
-                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                      <Icon icon="cash" className="text-sm" />
-                    </span>
-                    <h5 className="text-default-400 font-medium text-sm">
-                      วิธีชำระ: {paymentLabel}
-                    </h5>
-                  </div>
-                </li>
-              )}
             </ul>
           </>
         )}

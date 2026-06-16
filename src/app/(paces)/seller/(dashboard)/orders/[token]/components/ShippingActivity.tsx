@@ -146,7 +146,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
             {timelineItems.map((item, idx) => (
               <div className="flex gap-x-base" key={item.key}>
                 {/* คอลัมน์เวลา */}
-                <div className="w-12 text-end sm:w-15 md:w-25">
+                <div className="w-15 text-end md:w-25">
                   {item.time ? (
                     <span className="text-default-400 text-xs">{item.time}</span>
                   ) : item.isPending ? (
@@ -166,7 +166,8 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                       // step ที่ยังไม่ถึง — วงกลมเส้นขอบ
                       <div className="size-3.5 rounded-full border-2 border-default-300 bg-white" />
                     ) : item.isDone ? (
-                      <div className="size-3.5 rounded-full bg-success" />
+                      // SHIPPED = active/in-progress → bg-primary (น้ำเงิน); CONFIRMED/อื่น done → bg-success
+                      <div className={`size-3.5 rounded-full ${item.key === 'SHIPPED' ? 'bg-primary' : 'bg-success'}`} />
                     ) : (
                       // CANCELLED
                       <div className="size-3.5 rounded-full bg-danger" />
@@ -175,11 +176,19 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                 </div>
 
                 {/* เนื้อหา */}
-                <div className={`flex-1 ${idx === timelineItems.length - 1 ? '' : 'pb-8 sm:pb-15'}`}>
+                <div className={`flex-1 ${idx === timelineItems.length - 1 ? '' : 'pb-8 sm:pb-12'}`}>
                   <h5 className={`mb-1.25 flex items-center gap-1.5 ${item.isPending ? 'text-default-400' : ''}`}>
                     <Icon
                       icon={item.icon}
-                      className={`text-sm ${item.isDone && !item.isPending ? 'text-success' : item.isPending ? 'text-default-300' : 'text-danger'}`}
+                      className={`text-sm ${
+                        item.isDone && !item.isPending
+                          ? item.key === 'SHIPPED'
+                            ? 'text-primary' // SHIPPED done → น้ำเงิน สอดคล้องกับ dot
+                            : 'text-success'
+                          : item.isPending
+                            ? 'text-default-300'
+                            : 'text-danger'
+                      }`}
                     />
                     {item.title}
                   </h5>
@@ -188,7 +197,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                   {item.key === 'SHIPPED' && shipmentTracking && (
                     <p className="text-default-400 text-xs">
                       {shipmentTracking.provider} · เลขพัสดุ:{' '}
-                      <span className="font-mono font-semibold text-default-700">
+                      <span className="badge bg-default-100 text-default-700 font-mono">
                         {shipmentTracking.trackingNo}
                       </span>
                     </p>
