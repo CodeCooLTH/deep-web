@@ -40,6 +40,7 @@ import { getRecentActivity, type ActivityItem } from '@/services/activity.servic
 // v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
 import { getBalance } from '@/services/wallet.service'
 import { getTierLabel } from '@/lib/trust-tier'
+import OnboardingModal from './components/OnboardingModal'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -66,7 +67,7 @@ const LEVEL_COLOR: Record<string, string> = {
 
 export default async function SellerDashboardPage() {
   const session = await getServerSession(authOptions)
-  const user = (session as { user?: { id?: string; trustScore?: number; name?: string } } | null)?.user
+  const user = (session as { user?: { id?: string; trustScore?: number; name?: string; needsOnboarding?: boolean; needsPhoneVerify?: boolean; displayName?: string } } | null)?.user
 
   // ─── badge + trust score data (server-side) ─────────────────────────────────
   let earnedBadges: BadgeProgress[] = []
@@ -286,6 +287,15 @@ export default async function SellerDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* OnboardingModal — client component, mount หลัง content หลัก
+          props จาก session callback (needsOnboarding / needsPhoneVerify / displayName)
+          reuse session ที่ fetch ไว้แล้ว ไม่ query ซ้ำ */}
+      <OnboardingModal
+        needsOnboarding={!!user?.needsOnboarding}
+        needsPhoneVerify={!!user?.needsPhoneVerify}
+        displayName={user?.displayName}
+      />
     </>
   )
 }
