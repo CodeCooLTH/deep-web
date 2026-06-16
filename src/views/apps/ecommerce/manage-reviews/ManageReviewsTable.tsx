@@ -34,6 +34,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 // Component Imports
 import CustomTextField from '@core/components/mui/TextField'
 import TablePaginationComponent from '@components/TablePaginationComponent'
+import { formatDate } from '@/lib/format-date'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -88,12 +89,6 @@ const DebouncedInput = ({
 
   return <CustomTextField {...props} value={value} onChange={e => setValue(e.target.value)} />
 }
-
-const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric'
-})
 
 const columnHelper = createColumnHelper<RowWithAction>()
 
@@ -203,7 +198,7 @@ const ManageReviewsTable = ({ reviewsData }: { reviewsData: BuyerReviewRow[] }) 
         header: 'วันที่',
         cell: ({ row }) => (
           <Typography color='text.secondary'>
-            {dateFmt.format(new Date(row.original.createdAt))}
+            {formatDate(row.original.createdAt)}
           </Typography>
         )
       }),

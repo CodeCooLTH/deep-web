@@ -11,6 +11,7 @@ import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getTrustLevel } from '@/services/trust-score.service'
+import { formatDate } from '@/lib/format-date'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
@@ -42,12 +43,6 @@ const TRUST_COLOR: Record<string, 'success' | 'info' | 'warning' | 'error'> = {
   C: 'warning',
   D: 'error',
 }
-
-const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-})
 
 const DEFAULT_COVER = '/images/pages/profile-banner.png'
 
@@ -109,7 +104,7 @@ export default async function PublicProfilePage({ params }: Props) {
     profileImg: user.avatar,
     fullName: user.displayName,
     username: user.username,
-    memberSince: dateFmt.format(user.createdAt),
+    memberSince: formatDate(user.createdAt),
     shopName: user.isShop && user.shop ? user.shop.shopName : null,
     trustScore: user.trustScore,
     trustLevel,
