@@ -5,12 +5,14 @@
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton.tsx
  *   (extend PulseBar pattern จาก theme/paces/Admin/TS/src/app/(admin)/ui/placeholders/page.tsx)
  */
+import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { SellerOrderCardSkeleton } from '../_shared/SellerCardSkeleton'
 
 const OrdersLoading = () => (
-  <div>
+  <>
+    <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
     <SellerOrderCardSkeleton />
-  </div>
+  </>
 )
 
 export default OrdersLoading
