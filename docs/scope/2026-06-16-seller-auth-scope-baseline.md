@@ -1,6 +1,6 @@
 # Scope Baseline — Seller Auth Redesign + Onboarding
 
-> สถานะ: ACTIVE · phase ที่ active: **P1 — Auth/Data Foundation**
+> สถานะ: **P1 SIGNED-OFF** (2026-06-16) · phase ถัดไป: **P2 — Auth Pages (Paces auth/card, ต้องผ่าน safepay-ux)**
 > spec: `docs/superpowers/specs/2026-06-16-seller-auth-redesign-onboarding-design.md`
 > plan (P1): `docs/superpowers/plans/2026-06-16-seller-auth-p1-foundation.md`
 
@@ -20,17 +20,17 @@
 
 | ID | รายการ | Acceptance (ทดสอบได้) | สถานะ |
 |----|--------|----------------------|-------|
-| S-P1-1 | Shop category constant (`src/lib/shop-categories.ts`) — 10 keys, Thai labels, `isShopCategory()` guard | Vitest 2 tests — `SHOP_CATEGORY_KEYS.length === 10`, `isShopCategory('fashion')` true, `'nope'` false | TODO |
-| S-P1-2 | Slug utilities (pure) (`src/lib/shop-slug.ts`) — `normalizeSlug`/`isValidSlugFormat`/`isReservedSlug` | Vitest 3 tests — lowercase-trim, format 3–30 a-z0-9- no lead/trail hyphen, reserved set | TODO |
-| S-P1-3 | Password utilities (`src/lib/password.ts`) — `isStrongPassword` (≥8 letter+number+special, max 1000), `hashPassword`/`verifyPassword` bcryptjs | Vitest 2 tests — strength reject/pass, hash+verify round-trip, >1000 guard | TODO |
-| S-P1-4 | Valibot schemas (`src/lib/validations.ts`) — `PasswordSchema`/`ShopSlugSchema`/`ShopCategorySchema`/`SetPasswordSchema`; `CreateShopSchema.category` → picklist | Vitest 4 tests + tsc 0 (ไม่มี caller regress) | TODO |
-| S-P1-5 | Prisma migration `Shop.slug String? @unique` | apply ไม่มี data loss (nullable); `prisma generate` ok; tsc 0; `Shop.slug` ใน client types | TODO |
-| S-P1-6 | shop.service slug fns — `isSlugAvailable()` + `setShopSlug()` | Vitest 3 tests — reserved/invalid/taken → false, free+valid → true; setShopSlug throw `SLUG_UNAVAILABLE` / update | TODO |
-| S-P1-7 | GET `/api/users/check-phone` (signup dedupe) | เบอร์มีบัญชี → `{available:false}`; เบอร์ใหม่ → `{available:true}`; format ผิด → 400; อยู่ใต้ guardApi | TODO |
-| S-P1-8 | POST `/api/account/set-password` — verify OTP → set `passwordHash` | Vitest 4 tests — 400/401/404/200; อยู่ใต้ `/api/account/*` (รับ guardApi) | TODO |
-| S-P1-9 | provider `seller-credentials` (`src/lib/auth.ts`) — username+password, reject admin/non-seller/no-hash, rate-limit 5/10min, generic null | login seller+password ผ่าน; admin/ผิด → null; >5/10min → null; tsc 0 | TODO |
-| S-P1-10 | ขยาย `phone-otp` signup (`src/lib/auth.ts`) — รับ `password`+`category` (optional), hash+set, ใส่ category ลง shop | signup+password+category → user.passwordHash non-null + shop.category set; ไม่ส่ง password → null (backward compat); tsc 0 | TODO |
-| S-P1-11 | session callback (`src/lib/auth.ts`) — `needsOnboarding` + `shopSlug` (join shop.slug; `!shopSlug \|\| !phone`) | `/api/auth/session` มี `user.shopSlug` + `user.needsOnboarding`; tsc 0 | TODO |
+| S-P1-1 | Shop category constant (`src/lib/shop-categories.ts`) — 10 keys, Thai labels, `isShopCategory()` guard | Vitest 2 tests — `SHOP_CATEGORY_KEYS.length === 10`, `isShopCategory('fashion')` true, `'nope'` false | DONE |
+| S-P1-2 | Slug utilities (pure) (`src/lib/shop-slug.ts`) — `normalizeSlug`/`isValidSlugFormat`/`isReservedSlug` | Vitest 3 tests — lowercase-trim, format 3–30 a-z0-9- no lead/trail hyphen, reserved set | DONE |
+| S-P1-3 | Password utilities (`src/lib/password.ts`) — `isStrongPassword` (≥8 letter+number+special, max 1000), `hashPassword`/`verifyPassword` bcryptjs | Vitest 2 tests — strength reject/pass, hash+verify round-trip, >1000 guard | DONE |
+| S-P1-4 | Valibot schemas (`src/lib/validations.ts`) — `PasswordSchema`/`ShopSlugSchema`/`ShopCategorySchema`/`SetPasswordSchema`; `CreateShopSchema.category` → picklist | Vitest 4 tests + tsc 0 (ไม่มี caller regress) | DONE |
+| S-P1-5 | Prisma migration `Shop.slug String? @unique` | apply ไม่มี data loss (nullable); `prisma generate` ok; tsc 0; `Shop.slug` ใน client types | DONE |
+| S-P1-6 | shop.service slug fns — `isSlugAvailable()` + `setShopSlug()` | Vitest 3 tests — reserved/invalid/taken → false, free+valid → true; setShopSlug throw `SLUG_UNAVAILABLE` / update | DONE |
+| S-P1-7 | GET `/api/users/check-phone` (signup dedupe) | เบอร์มีบัญชี → `{available:false}`; เบอร์ใหม่ → `{available:true}`; format ผิด → 400; อยู่ใต้ guardApi | DONE |
+| S-P1-8 | POST `/api/account/set-password` — verify OTP → set `passwordHash` | Vitest 4 tests — 400/401/404/200; อยู่ใต้ `/api/account/*` (รับ guardApi) | DONE |
+| S-P1-9 | provider `seller-credentials` (`src/lib/auth.ts`) — username+password, reject admin/non-seller/no-hash, rate-limit 5/10min, generic null | login seller+password ผ่าน; admin/ผิด → null; >5/10min → null; tsc 0 | DONE |
+| S-P1-10 | ขยาย `phone-otp` signup (`src/lib/auth.ts`) — รับ `password`+`category` (optional), hash+set, ใส่ category ลง shop | signup+password+category → user.passwordHash non-null + shop.category set; ไม่ส่ง password → null (backward compat); tsc 0 | DONE |
+| S-P1-11 | session callback (`src/lib/auth.ts`) — `needsOnboarding` + `shopSlug` (join shop.slug; `!shopSlug \|\| !phone`) | `/api/auth/session` มี `user.shopSlug` + `user.needsOnboarding`; tsc 0 | DONE |
 
 **หมายเหตุ:** S-P1-7..S-P1-11 แตะ `src/lib/auth.ts`/route auth (security-sensitive) → บังคับ safepay-security review ก่อน mark DONE
 
@@ -113,3 +113,4 @@
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-06-16 | baseline สร้าง (P1 active, P2/P3 deferred) | kick-off Seller Auth Redesign + Onboarding | shinobu22 |
+| 2026-06-16 | **P1 SIGNED-OFF** — S-P1-1..11 DONE, no creep/gap; migration applied Supabase; live smoke pass | Gate 2 sign-off (safepay-product) | shinobu22 |
