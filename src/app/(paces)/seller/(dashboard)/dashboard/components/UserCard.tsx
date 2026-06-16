@@ -12,6 +12,7 @@ import Icon from '@/components/wrappers/Icon'
 
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import { formatDate } from '@/lib/format-date'
 
 type UserCardProps = {
   shopName?: string
@@ -38,9 +39,8 @@ const UserCard = ({ shopName = 'ร้านค้าของคุณ', trustS
     }
 
     // set วันที่ครั้งแรก (ไม่ต้อง interval — วันไม่เปลี่ยนระหว่าง session ส่วนใหญ่)
-    setCurrentDate(
-      new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
-    )
+    // นาฬิกา live (currentTime) คงเป็นเวลาล้วน; วันที่วันนี้ใช้ format มาตรฐาน
+    setCurrentDate(formatDate(new Date()))
 
     updateTime()
     const timer = setInterval(updateTime, 1000)

@@ -1,0 +1,50 @@
+# กฎการแสดงวันที่/เวลา (Date & Time Format) — ทั้งระบบ
+
+> **SSOT** ของการ format วันที่/เวลาทุกหน้า ทุก subdomain (buyer/seller/admin) ทุกธีม (Vuexy/Paces).
+> สร้าง 2026-06-16 ตามคำสั่ง: "format วันที่ทั้งระบบ ใช้เหมือนกัน".
+
+## รูปแบบมาตรฐาน (เดียวเท่านั้น)
+
+| ฟังก์ชัน | ผลลัพธ์ | ใช้เมื่อ |
+|---|---|---|
+| `formatDateTime(d)` | `2569-06-07 10:06:13` | ต้องการวันที่ + เวลา (รายการ/รายละเอียดที่เวลามีความหมาย: ออเดอร์, รีวิว, ธุรกรรม, log) |
+| `formatDate(d)` | `2569-06-07` | ต้องการวันที่ล้วน (เช่น "เปิดร้านเมื่อ", วันสมัคร, วันรีวิวแบบย่อ) |
+
+รายละเอียดรูปแบบ:
+- **ปี = พ.ศ.** (ค.ศ. + 543)
+- `YYYY-MM-DD` / `YYYY-MM-DD HH:mm:ss` — **เติม 0 นำหน้า 2 หลัก** ทั้งเดือน/วัน/ชม./นาที/วินาที
+- เลข **ASCII** (ปฏิทินสากล) ไม่ใช่เลขไทย, ไม่ใช้ชื่อเดือนไทย
+- **24 ชั่วโมง** (00–23)
+- format ใน **timezone ไทย (Asia/Bangkok)** เสมอ — แม้ server เป็น UTC ก็ได้เวลาไทยตรง
+- ค่าไม่ valid / null → `—`
+
+## 🛑 กฎ
+
+1. **ห้าม format วันที่เองทุกกรณี** — ห้ามเรียก `toLocaleDateString` / `toLocaleTimeString` / `toLocaleString` (กับ Date) / `Intl.DateTimeFormat` / ต่อ string `getFullYear()+543` เองในไฟล์ component/page/view ใด ๆ
+2. **ใช้ `src/lib/format-date.ts` เท่านั้น** — `import { formatDate, formatDateTime } from '@/lib/format-date'`
+3. ใช้ได้ทั้ง **RSC และ client** (pure module ไม่มี import)
+4. ข้อยกเว้น (ไม่ใช่ "การแสดงวันที่ให้ผู้ใช้") — ไม่อยู่ใต้กฎนี้:
+   - `toLocaleString` ที่ใช้ format **ตัวเลข/เงิน** (เช่น `amount.toLocaleString('th-TH')`) — คนละเรื่อง
+   - คีย์ภายใน/grouping/ค่า input ของ date-picker, การคำนวณช่วงเวลา (`getFullYear()` ใน logic ไม่ใช่การแสดงผล)
+
+## Reviewer grep gate
+
+ก่อน merge ต้องคืน **0** (ยกเว้น `src/lib/format-date.ts` เอง):
+
+```bash
+rg -n "toLocaleDateString|toLocaleTimeString|Intl\.DateTimeFormat" src/ --glob '!src/lib/format-date.ts'
+# toLocaleString กับ Date (ตรวจมือ — แยกจาก number formatting):
+rg -n "Date\([^)]*\)\.toLocaleString" src/
+```
+
+## ตัวอย่าง
+
+```tsx
+import { formatDate, formatDateTime } from '@/lib/format-date'
+
+// วันที่ + เวลา
+<span>{formatDateTime(order.createdAtISO)}</span>   // 2569-06-07 10:06:13
+
+// วันที่ล้วน
+<p>เปิดร้านเมื่อ {formatDate(shop.createdAt)}</p>     // เปิดร้านเมื่อ 2569-06-07
+```
