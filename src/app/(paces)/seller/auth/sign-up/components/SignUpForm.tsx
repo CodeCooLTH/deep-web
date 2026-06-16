@@ -103,6 +103,9 @@ export default function SignUpForm() {
     },
   })
 
+  // eye toggle สำหรับ confirmPassword — password field ใช้ PasswordInputWithStrength (มี toggle ในตัวแล้ว)
+  const [showConfirm, setShowConfirm] = useState(false)
+
   // PasswordInputWithStrength ต้องการ controlled state
   const [password, setPassword] = useState('')
   const { onChange: rhfPasswordOnChange, ...rhfPasswordRest } = register('password')
@@ -349,16 +352,25 @@ export default function SignUpForm() {
           <label htmlFor="confirmPassword" className="form-label">
             ยืนยันรหัสผ่าน<span className="text-danger">*</span>
           </label>
-          <div className="input-icon-group">
+          <div className="input-icon-group relative">
             <Icon icon="lock-password" className="input-icon" />
             <input
               id="confirmPassword"
-              type="password"
+              type={showConfirm ? 'text' : 'password'}
               autoComplete="new-password"
               placeholder="••••••••"
-              className={cn('form-input', errors.confirmPassword && '!border-danger')}
+              className={cn('form-input pe-10', errors.confirmPassword && '!border-danger')}
               {...register('confirmPassword')}
             />
+            {/* eye toggle — Paces primitive: absolute ใน relative group, text-default token */}
+            <button
+              type="button"
+              onClick={() => setShowConfirm((s) => !s)}
+              aria-label={showConfirm ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              className="absolute inset-y-0 end-0 flex items-center px-3 text-default-500 hover:text-default-700"
+            >
+              <Icon icon={showConfirm ? 'eye-off' : 'eye'} className="text-base" />
+            </button>
           </div>
           {errors.confirmPassword && (
             <p className="invalid-msg mt-1 text-sm text-danger">{errors.confirmPassword.message}</p>

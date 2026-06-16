@@ -49,6 +49,8 @@ export default function NewPassForm() {
   const [draft, setDraft] = useState<ResetDraft | null>(null)
   // password state แยกออกมาเพื่อส่งให้ PasswordInputWithStrength
   const [password, setPasswordState] = useState('')
+  // toggle แสดง/ซ่อนรหัสผ่านใน confirmPassword field
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const {
     register,
@@ -161,16 +163,25 @@ export default function NewPassForm() {
           ยืนยันรหัสผ่านใหม่
           <span className="text-danger">*</span>
         </label>
-        <div className="input-icon-group">
+        <div className="input-icon-group relative">
           <Icon icon="tabler:lock-password" className="input-icon" />
           <input
             id="confirmPassword"
-            type="password"
+            type={showConfirm ? 'text' : 'password'}
             placeholder="••••••••"
             autoComplete="new-password"
-            className={cn('form-input w-full', errors.confirmPassword && '!border-danger')}
+            className={cn('form-input w-full pe-10', errors.confirmPassword && '!border-danger')}
             {...register('confirmPassword')}
           />
+          {/* eye toggle — แสดง/ซ่อน confirmPassword (password field มี toggle ในตัวผ่าน PasswordInputWithStrength แล้ว) */}
+          <button
+            type="button"
+            onClick={() => setShowConfirm((s) => !s)}
+            aria-label={showConfirm ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+            className="absolute inset-y-0 end-0 flex items-center px-3 text-default-500 hover:text-default-700"
+          >
+            <Icon icon={showConfirm ? 'tabler:eye-off' : 'tabler:eye'} className="text-base" />
+          </button>
         </div>
         {errors.confirmPassword && (
           <p className="invalid-msg mt-1 text-sm text-danger">{errors.confirmPassword.message}</p>

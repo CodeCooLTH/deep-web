@@ -25,6 +25,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
@@ -43,6 +44,7 @@ type FormValues = Yup.InferType<typeof schema>
 
 export default function SignInForm() {
   const router = useRouter()
+  const [showPw, setShowPw] = useState(false)
   const {
     register,
     handleSubmit,
@@ -132,17 +134,26 @@ export default function SignInForm() {
             รหัสผ่าน
             <span className="text-danger">*</span>
           </label>
-          <div className="input-icon-group">
+          <div className="input-icon-group relative">
             {/* Icon wrapper ใส่ tabler: อัตโนมัติ → tabler:lock-password */}
             <Icon icon="lock-password" className="input-icon" />
             <input
               id="password"
-              type="password"
+              type={showPw ? 'text' : 'password'}
               autoComplete="current-password"
               placeholder="••••••••"
-              className={cn('form-input', errors.password && '!border-danger')}
+              className={cn('form-input pe-10', errors.password && '!border-danger')}
               {...register('password')}
             />
+            {/* eye toggle — React state ไม่ใช่ Preline data-hs-toggle-password (robust กว่า) */}
+            <button
+              type="button"
+              onClick={() => setShowPw((s) => !s)}
+              aria-label={showPw ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              className="absolute inset-y-0 end-0 flex items-center px-3 text-default-500 hover:text-default-700"
+            >
+              <Icon icon={showPw ? 'eye-off' : 'eye'} className="text-base" />
+            </button>
           </div>
           {errors.password && errors.password.message && (
             <p className="invalid-msg mt-1 text-sm text-danger">{errors.password.message}</p>
