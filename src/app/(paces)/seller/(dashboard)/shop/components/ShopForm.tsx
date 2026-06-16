@@ -19,7 +19,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 
@@ -109,14 +109,14 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
       fd.append('file', file)
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       if (!res.ok) {
-        toast.error('อัปโหลดโลโก้ไม่สำเร็จ')
+        pacesToast.error('อัปโหลดโลโก้ไม่สำเร็จ')
         return
       }
       const data = await res.json()
       setLogoFileId(data.fileId ?? '')
-      toast.success('อัปโหลดโลโก้แล้ว')
+      pacesToast.success('อัปโหลดโลโก้แล้ว')
     } catch {
-      toast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
+      pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
     } finally {
       setLogoUploading(false)
     }
@@ -145,14 +145,14 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(data?.error ?? 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
         return
       }
 
-      toast.success('บันทึกแล้ว')
+      pacesToast.success('บันทึกแล้ว')
       router.refresh()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     }
   }
 

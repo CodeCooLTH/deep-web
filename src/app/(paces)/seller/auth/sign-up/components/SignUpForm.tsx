@@ -18,7 +18,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 
 const schema = Yup.object({
@@ -106,7 +106,7 @@ export default function SignUpForm() {
     // บล็อก submit ถ้า username ยังไม่ผ่าน check
     if (usernameStatus.state !== 'ok') {
       if (usernameStatus.state === 'error') {
-        toast.error(REASON_MESSAGE[usernameStatus.reason])
+        pacesToast.error(REASON_MESSAGE[usernameStatus.reason])
       }
       return
     }
@@ -117,7 +117,7 @@ export default function SignUpForm() {
         body: JSON.stringify({ contact: values.phone, type: 'PHONE' }),
       })
       if (!res.ok) {
-        toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
         return
       }
       const params = new URLSearchParams({
@@ -129,7 +129,7 @@ export default function SignUpForm() {
       })
       router.push(`/auth/verify-otp?${params.toString()}`)
     } catch {
-      toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
+      pacesToast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
     }
   }
 

@@ -18,7 +18,7 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 type Props = {
   topupId: string
@@ -57,19 +57,19 @@ export default function TopUpReviewActions({ topupId, isSelfRecord }: Props) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         if (res.status === 409) {
-          toast.error('คำขอนี้ถูกดำเนินการไปแล้ว')
+          pacesToast.error('คำขอนี้ถูกดำเนินการไปแล้ว')
         } else if (res.status === 403) {
-          toast.error('ไม่มีสิทธิ์ดำเนินการคำขอนี้')
+          pacesToast.error('ไม่มีสิทธิ์ดำเนินการคำขอนี้')
         } else {
-          toast.error((data as { error?: string })?.error ?? 'อนุมัติไม่สำเร็จ กรุณาลองใหม่')
+          pacesToast.error((data as { error?: string })?.error ?? 'อนุมัติไม่สำเร็จ กรุณาลองใหม่')
         }
         return
       }
-      toast.success('อนุมัติคำขอเติมเครดิตแล้ว')
+      pacesToast.success('อนุมัติคำขอเติมเครดิตแล้ว')
       router.push('/topups')
       router.refresh()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setSubmitting(false)
     }
@@ -79,7 +79,7 @@ export default function TopUpReviewActions({ topupId, isSelfRecord }: Props) {
     if (submitting) return
     const trimmed = reason.trim()
     if (trimmed.length < 1) {
-      toast.error('กรุณากรอกเหตุผลที่ปฏิเสธ')
+      pacesToast.error('กรุณากรอกเหตุผลที่ปฏิเสธ')
       return
     }
     setSubmitting(true)
@@ -93,19 +93,19 @@ export default function TopUpReviewActions({ topupId, isSelfRecord }: Props) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         if (res.status === 409) {
-          toast.error('คำขอนี้ถูกดำเนินการไปแล้ว')
+          pacesToast.error('คำขอนี้ถูกดำเนินการไปแล้ว')
         } else if (res.status === 403) {
-          toast.error('ไม่มีสิทธิ์ดำเนินการคำขอนี้')
+          pacesToast.error('ไม่มีสิทธิ์ดำเนินการคำขอนี้')
         } else {
-          toast.error((data as { error?: string })?.error ?? 'ปฏิเสธไม่สำเร็จ กรุณาลองใหม่')
+          pacesToast.error((data as { error?: string })?.error ?? 'ปฏิเสธไม่สำเร็จ กรุณาลองใหม่')
         }
         return
       }
-      toast.success('ปฏิเสธคำขอเติมเครดิตแล้ว')
+      pacesToast.success('ปฏิเสธคำขอเติมเครดิตแล้ว')
       router.push('/topups')
       router.refresh()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setSubmitting(false)
     }

@@ -4,7 +4,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import { yupResolver } from '@hookform/resolvers/yup'
 
@@ -153,15 +153,15 @@ function L2Form({ onDone }: { onDone: () => void }) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'ส่งเอกสารไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(data?.error ?? 'ส่งเอกสารไม่สำเร็จ กรุณาลองใหม่')
         return
       }
-      toast.success('ส่งเอกสารแล้ว รอแอดมินตรวจสอบ')
+      pacesToast.success('ส่งเอกสารแล้ว รอแอดมินตรวจสอบ')
       router.refresh()
       onDone()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-      toast.error(message)
+      pacesToast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -264,15 +264,15 @@ function L3Form({ onDone }: { onDone: () => void }) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'ส่งเอกสารไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(data?.error ?? 'ส่งเอกสารไม่สำเร็จ กรุณาลองใหม่')
         return
       }
-      toast.success('ส่งเอกสารแล้ว รอแอดมินตรวจสอบ')
+      pacesToast.success('ส่งเอกสารแล้ว รอแอดมินตรวจสอบ')
       router.refresh()
       onDone()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-      toast.error(message)
+      pacesToast.error(message)
     } finally {
       setSubmitting(false)
     }

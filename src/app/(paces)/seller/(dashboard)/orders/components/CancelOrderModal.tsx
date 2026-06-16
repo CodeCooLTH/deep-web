@@ -21,7 +21,7 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 interface CancelOrderModalProps {
   open: boolean
@@ -55,19 +55,19 @@ export default function CancelOrderModal({
         body: JSON.stringify({}),
       })
       if (res.ok) {
-        toast.success('ยกเลิกออเดอร์แล้ว')
+        pacesToast.success('ยกเลิกออเดอร์แล้ว')
         router.refresh()
         onClose()
       } else {
         // ดึงข้อความ error จาก response ก่อน fallback
         const data = await res.json().catch(() => ({}))
-        toast.error(
+        pacesToast.error(
           typeof data?.error === 'string' ? data.error : 'ยกเลิกออเดอร์ไม่สำเร็จ กรุณาลองใหม่',
         )
         // modal ค้างไว้เพื่อให้ retry
       }
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
       // modal ค้างไว้เพื่อให้ retry
     } finally {
       setIsCancelling(false)

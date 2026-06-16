@@ -8,7 +8,7 @@
  * - ลบ "Keep me signed in" checkbox + "Forgot Password" link (ไม่มี password ใน OTP flow)
  * - form state จัดการด้วย react-hook-form + Yup (แทน useState ของ base)
  * - onSubmit: POST /api/otp/send → redirect ไป /seller/auth/verify-otp (auth wiring เดิม)
- * - error แสดงผ่าน react-toastify (แทน inline error ของ base)
+ * - error แสดงผ่าน pacesToast (แทน inline error ของ base)
  * - ปุ่ม submit ใช้ Preline btn class เหมือน base แต่ข้อความภาษาไทย
  */
 
@@ -17,7 +17,7 @@
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 
 const schema = Yup.object({
@@ -47,7 +47,7 @@ export default function SignInForm() {
         body: JSON.stringify({ contact: phone, type: 'PHONE' }),
       })
       if (!res.ok) {
-        toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
         return
       }
       // redirect ไปหน้า verify-otp พร้อม mode=signin และ phone param
@@ -55,7 +55,7 @@ export default function SignInForm() {
         `/auth/verify-otp?mode=signin&phone=${encodeURIComponent(phone)}`
       )
     } catch {
-      toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
+      pacesToast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
     }
   }
 

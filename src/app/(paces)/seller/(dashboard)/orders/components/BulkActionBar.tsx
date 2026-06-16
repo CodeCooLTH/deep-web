@@ -19,7 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import type { Row as TableRow } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
 
 interface BulkActionBarProps {
@@ -57,7 +57,7 @@ export default function BulkActionBar({ selectedRows, onClear, buyerBaseUrl }: B
       document.execCommand('copy')
       document.body.removeChild(ta)
     }
-    toast.success(`คัดลอก ${selectedCount} ลิงก์แล้ว`)
+    pacesToast.success(`คัดลอก ${selectedCount} ลิงก์แล้ว`)
   }
 
   return (
@@ -208,11 +208,11 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
     setPhase('done')
 
     if (sent === total) {
-      toast.success(`ส่ง SMS แล้ว ${sent} ออเดอร์ หัก ฿${sent} จากเครดิต`)
+      pacesToast.success(`ส่ง SMS แล้ว ${sent} ออเดอร์ หัก ฿${sent} จากเครดิต`)
     } else if (sent === 0) {
-      toast.error(credit ? 'เครดิต SMS ไม่พอ' : 'ส่ง SMS ล้มเหลวทั้งหมด กรุณาลองใหม่')
+      pacesToast.error(credit ? 'เครดิต SMS ไม่พอ' : 'ส่ง SMS ล้มเหลวทั้งหมด กรุณาลองใหม่')
     } else {
-      toast.warning(`ส่ง SMS สำเร็จ ${sent}/${total} ออเดอร์`)
+      pacesToast.warning(`ส่ง SMS สำเร็จ ${sent}/${total} ออเดอร์`)
     }
   }
 

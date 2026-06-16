@@ -19,7 +19,7 @@
 import { Icon } from '@iconify/react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 // RC-8: ห้ามรับ buyerContact/phone ใดๆ — server-side ดึง buyer phone เองผ่าน DAL
 interface SendSmsButtonProps {
@@ -78,7 +78,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
       })
 
       if (res.ok) {
-        toast.success('ส่ง SMS แล้ว ฿1 ถูกหักจากเครดิต')
+        pacesToast.success('ส่ง SMS แล้ว ฿1 ถูกหักจากเครดิต')
         setDialogOpen(false)
         setShowSuccess(true)
         // reset success state หลัง SUCCESS_RESET_MS

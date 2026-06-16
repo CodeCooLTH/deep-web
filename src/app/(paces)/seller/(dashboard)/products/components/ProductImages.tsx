@@ -3,7 +3,7 @@
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import FileUploader from '@/components/FileUploader'
 
 interface ProductImagesProps {
@@ -54,7 +54,7 @@ export default function ProductImages({
         const data = (await res.json()) as { fileId: string }
         return data.fileId
       } catch {
-        toast.error(`อัปโหลดไม่สำเร็จ: ${file.name}`)
+        pacesToast.error(`อัปโหลดไม่สำเร็จ: ${file.name}`)
         return null
       } finally {
         // cleanup preview URL
@@ -76,7 +76,7 @@ export default function ProductImages({
       const slots = Math.max(0, maxFiles - value.length - uploading.length)
       const accepted = incoming.slice(0, slots)
       if (accepted.length < incoming.length) {
-        toast.error(`อัปโหลดได้สูงสุด ${maxFiles} รูป`)
+        pacesToast.error(`อัปโหลดได้สูงสุด ${maxFiles} รูป`)
       }
       if (accepted.length === 0) return
 

@@ -18,7 +18,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 // MAX_FILE_SIZE: copy จาก VerificationForm.tsx (5 MB)
@@ -120,7 +120,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
     const file = e.target.files?.[0] ?? null
     if (!file) return
     if (file.size > MAX_FILE_SIZE) {
-      toast.error('ไฟล์สลิปต้องไม่เกิน 5 MB')
+      pacesToast.error('ไฟล์สลิปต้องไม่เกิน 5 MB')
       e.target.value = ''
       return
     }
@@ -168,7 +168,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
         throw new Error(data?.error ?? 'ส่งคำขอไม่สำเร็จ')
       }
       // success: toast → onSuccess callback → ปิด modal
-      toast.success('ส่งคำขอซื้อเครดิตแล้ว Deep จะตรวจสอบและเพิ่มเครดิตให้ภายใน 24 ชั่วโมง')
+      pacesToast.success('ส่งคำขอซื้อเครดิตแล้ว Deep จะตรวจสอบและเพิ่มเครดิตให้ภายใน 24 ชั่วโมง')
       onSuccess?.()
       handleClose()
     } catch (err: unknown) {

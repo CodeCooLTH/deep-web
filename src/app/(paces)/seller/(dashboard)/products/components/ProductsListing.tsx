@@ -38,7 +38,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import type { ProductRow } from './data'
 
 const TYPE_LABELS: Record<ProductRow['type'], string> = {
@@ -230,10 +230,10 @@ const ProductsListing = ({ products }: Props) => {
       setData((prev) => prev.filter((p) => p.id !== id))
       setDeletingId(null)
       setPagination({ ...pagination, pageIndex: 0 })
-      toast.success('ลบสินค้าเรียบร้อย')
+      pacesToast.success('ลบสินค้าเรียบร้อย')
       router.refresh()
     } catch {
-      toast.error('เกิดข้อผิดพลาด ลบสินค้าไม่สำเร็จ')
+      pacesToast.error('เกิดข้อผิดพลาด ลบสินค้าไม่สำเร็จ')
     } finally {
       window.HSOverlay?.close('#confirm-delete-modal')
     }

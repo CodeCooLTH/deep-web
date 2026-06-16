@@ -3,7 +3,7 @@
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Select from '@/components/wrappers/Select'
 import ProductImages from './ProductImages'
@@ -104,15 +104,15 @@ export default function ProductForm({ shopId, product, formId }: ProductFormProp
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(data?.error ?? 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
         return
       }
 
-      toast.success('บันทึกแล้ว')
+      pacesToast.success('บันทึกแล้ว')
       router.push('/products')
       router.refresh()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     }
   }
 

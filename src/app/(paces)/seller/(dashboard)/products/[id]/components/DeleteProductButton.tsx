@@ -3,7 +3,7 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 interface Props {
   productId: string
@@ -21,13 +21,13 @@ export default function DeleteProductButton({ productId }: Props) {
       const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'ลบสินค้าไม่สำเร็จ')
+        pacesToast.error(data?.error ?? 'ลบสินค้าไม่สำเร็จ')
         return
       }
-      toast.success('ลบสินค้าแล้ว')
+      pacesToast.success('ลบสินค้าแล้ว')
       router.push('/products')
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setIsDeleting(false)
     }

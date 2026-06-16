@@ -23,7 +23,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import {
   PRODUCT_TYPE_IDS,
@@ -221,15 +221,15 @@ export default function ProductFormV2({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะคะ')
+        pacesToast.error(data?.error ?? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะคะ')
         return
       }
 
-      toast.success('บันทึกแล้ว')
+      pacesToast.success('บันทึกแล้ว')
       router.push('/products')
       router.refresh()
     } catch {
-      toast.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะคะ')
+      pacesToast.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะคะ')
     }
   }
 

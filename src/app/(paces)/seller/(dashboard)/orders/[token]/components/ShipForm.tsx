@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import { Controller, useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
@@ -59,13 +59,13 @@ export default function ShipForm({ publicToken }: ShipFormProps) {
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error || 'ไม่สามารถบันทึกการจัดส่งได้')
       }
-      toast.success('บันทึกการจัดส่งแล้ว')
+      pacesToast.success('บันทึกการจัดส่งแล้ว')
       setShowShipForm(false)
       reset()
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'ไม่สามารถบันทึกการจัดส่งได้'
-      toast.error(message)
+      pacesToast.error(message)
     } finally {
       setLoading(false)
     }

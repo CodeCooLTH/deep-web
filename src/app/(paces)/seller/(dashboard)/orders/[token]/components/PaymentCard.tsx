@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import { Icon } from '@iconify/react'
 import SlipViewer from './SlipViewer'
 
@@ -55,7 +55,7 @@ export default function PaymentCard({
   const handleSaveAccessUrl = async () => {
     const url = accessUrlValue.trim()
     if (!url) {
-      toast.error('กรุณากรอกลิงก์')
+      pacesToast.error('กรุณากรอกลิงก์')
       return
     }
     setAccessUrlLoading(true)
@@ -69,11 +69,11 @@ export default function PaymentCard({
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error || 'บันทึกลิงก์ไม่สำเร็จ')
       }
-      toast.success('บันทึกลิงก์แล้ว')
+      pacesToast.success('บันทึกลิงก์แล้ว')
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'บันทึกลิงก์ไม่สำเร็จ'
-      toast.error(message)
+      pacesToast.error(message)
     } finally {
       setAccessUrlLoading(false)
     }

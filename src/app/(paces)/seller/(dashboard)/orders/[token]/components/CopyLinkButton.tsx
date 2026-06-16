@@ -12,7 +12,7 @@
 
 import { Icon } from '@iconify/react'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 interface CopyButtonProps {
   /** ข้อความหรือ URL ที่ต้องการ copy */
@@ -56,12 +56,12 @@ export default function CopyLinkButton({
 
     try {
       await writeText()
-      toast.success('คัดลอกลิงก์แล้ว')
+      pacesToast.success('คัดลอกลิงก์แล้ว')
       setCopied(true)
       // D7: คืน icon กลับหลัง 1.2s
       setTimeout(() => setCopied(false), 1200)
     } catch {
-      toast.error('ไม่สามารถคัดลอกได้ โปรดคัดลอกด้วยตนเอง')
+      pacesToast.error('ไม่สามารถคัดลอกได้ โปรดคัดลอกด้วยตนเอง')
     }
   }
 

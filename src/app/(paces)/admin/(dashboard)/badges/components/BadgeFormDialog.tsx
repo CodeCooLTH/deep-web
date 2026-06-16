@@ -25,7 +25,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import { Icon as IconifyIcon } from '@iconify/react'
 import Icon from '@/components/wrappers/Icon'
@@ -254,11 +254,11 @@ const BadgeFormDialog = () => {
       }
       const data = (await res.json()) as { imageUrl: string }
       setImageUrl(data.imageUrl)
-      toast.success('อัปโหลดรูป badge สำเร็จ')
+      pacesToast.success('อัปโหลดรูป badge สำเร็จ')
       router.refresh()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ'
-      toast.error(msg)
+      pacesToast.error(msg)
     } finally {
       setUploadingImage(false)
     }
@@ -292,7 +292,7 @@ const BadgeFormDialog = () => {
         const body = await res.json().catch(() => ({}))
         throw new Error(body?.error ?? 'บันทึกไม่สำเร็จ')
       }
-      toast.success(editingId ? 'แก้ไข badge สำเร็จ' : 'เพิ่ม badge สำเร็จ')
+      pacesToast.success(editingId ? 'แก้ไข badge สำเร็จ' : 'เพิ่ม badge สำเร็จ')
       if (typeof window !== 'undefined') {
         window.HSOverlay?.close('#badge-form-dialog')
       }
@@ -301,7 +301,7 @@ const BadgeFormDialog = () => {
       router.refresh()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
-      toast.error(msg)
+      pacesToast.error(msg)
     } finally {
       setSubmitting(false)
     }

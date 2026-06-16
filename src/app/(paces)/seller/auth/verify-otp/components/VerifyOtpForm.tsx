@@ -12,7 +12,7 @@
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, type FormEvent } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 export default function VerifyOtpForm() {
   const router = useRouter()
@@ -94,14 +94,14 @@ export default function VerifyOtpForm() {
         body: JSON.stringify({ contact: phone, type: 'PHONE' }),
       })
       if (res.ok) {
-        toast.success('ส่งรหัสใหม่แล้ว')
+        pacesToast.success('ส่งรหัสใหม่แล้ว')
         setDigits(['', '', '', '', '', ''])
         setErrorMsg(null)
       } else {
-        toast.error('ส่งรหัสใหม่ไม่สำเร็จ')
+        pacesToast.error('ส่งรหัสใหม่ไม่สำเร็จ')
       }
     } catch {
-      toast.error('ส่งรหัสใหม่ไม่สำเร็จ')
+      pacesToast.error('ส่งรหัสใหม่ไม่สำเร็จ')
     } finally {
       setResending(false)
     }

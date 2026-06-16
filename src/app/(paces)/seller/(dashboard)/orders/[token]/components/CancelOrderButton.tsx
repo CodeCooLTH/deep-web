@@ -11,7 +11,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 export interface CancelOrderButtonProps {
   publicToken: string
@@ -36,11 +36,11 @@ export default function CancelOrderButton({ publicToken, status }: CancelOrderBu
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error || 'ไม่สามารถยกเลิกออเดอร์ได้')
       }
-      toast.success('ยกเลิกแล้ว')
+      pacesToast.success('ยกเลิกแล้ว')
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'ไม่สามารถยกเลิกออเดอร์ได้'
-      toast.error(message)
+      pacesToast.error(message)
     } finally {
       setLoading(false)
     }

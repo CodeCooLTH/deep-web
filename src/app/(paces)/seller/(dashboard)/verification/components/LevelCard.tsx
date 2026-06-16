@@ -13,7 +13,7 @@
  *   - 5MB file size limit + accept image/PDF
  *   - showForm toggle (canSubmit && level 2|3)
  *   - L2Form / L3Form conditional by level (ใน VerificationForm.tsx)
- *   - toast success/error (react-toastify)
+ *   - toast success/error (pacesToast)
  */
 
 'use client'
