@@ -1,15 +1,14 @@
 /**
- * Seller new-pass page — ตั้งรหัสผ่านใหม่หลัง reset OTP
+ * Seller new-pass — P2 rework: card → split layout (mobile เต็มจอ)
  *
- * Base: theme/paces/Admin/TS/src/app/auth/card/new-pass/page.tsx
+ * Base: theme/paces/Admin/TS/src/app/auth/split/new-pass/page.tsx
  *
  * Changes vs base:
- * - header/subtitle ภาษาไทย "ตั้งรหัสผ่านใหม่" / "กรอกรหัสผ่านใหม่ของคุณ"
- * - ตัด "Don't have a code? Resend / Call Us" link — ไม่เกี่ยวข้องกับ password reset flow
- * - ตัด "Return to Sign in" footer ที่ base มี → ย้าย link ไปใน NewPassForm แทน (spec)
- * - mobile-first: outer p-5 sm:p-8 lg:p-12.5, card-body p-6 sm:p-8 lg:p-12.5 (ตาม mobile-first rule)
- * - photo panel `hidden lg:block` คงไว้ตาม OQ-5
- * - copyright footer คงไว้เหมือน base
+ * - content ไทย: heading "ตั้งรหัสผ่านใหม่" + subtitle
+ * - ตัด "Don't have a code?" + "Return to Sign in" links ออก
+ *   (อยู่ใน NewPassForm แล้ว — NewPassForm อ่าน resetDraft จาก sessionStorage)
+ * - footer copyright: © {currentYear} {META_DATA.name}
+ * - คง split structure (form panel md:min-w-106 / photo panel hidden md:block)
  */
 
 import authCard from '@/assets/images/auth-card-bg.svg'
@@ -24,51 +23,46 @@ export const metadata: Metadata = { title: 'ตั้งรหัสผ่าน
 
 export default function SellerNewPassPage() {
   return (
-    <div className="flex min-h-screen items-center p-5 sm:p-8 lg:p-12.5">
-      <div className="container">
-        <div className="flex justify-center">
-          <div className="xl:w-5/6 w-full">
-            {/* มุมตกแต่งพื้นหลัง — copy มาจาก base theme ตรง ๆ */}
+    <div className="min-h-screen">
+      <div className="flex h-full w-full">
+        {/* form panel: mobile เต็มจอ / desktop column กว้างคงที่ */}
+        <div className="min-w-full md:min-w-106 md:max-w-118">
+          <div className="card relative flex min-h-screen flex-col justify-between rounded-none p-6 sm:p-10 md:p-12.5">
+            {/* มุมตกแต่งพื้นหลัง — copy ตรงจาก split/new-pass theme line 19-21 */}
             <div className="absolute end-0 top-0">
-              <Image src={authCard} alt="auth-card-bg" />
-            </div>
-            <div className="absolute start-0 bottom-0 rotate-180">
-              <Image src={authCard} alt="auth-card-bg" />
+              <Image src={authCard} alt="auth-card-bg" className="w-45" />
             </div>
 
-            <div className="card rounded-2xl">
-              <div className="grid grid-cols-1 lg:grid-cols-2">
-                {/* ซ้าย: form panel */}
-                <div className="card-body relative p-6 sm:p-8 lg:p-12.5">
-                  <div className="mb-7.5 flex flex-col items-center justify-center text-center">
-                    <AuthLogo />
-                    <h4 className="text-default-900 mt-7.5 mb-2 text-base font-bold">
-                      ตั้งรหัสผ่านใหม่
-                    </h4>
-                    <p className="text-default-400 mx-auto w-full lg:w-3/4">
-                      กรอกรหัสผ่านใหม่ของคุณ
-                    </p>
-                  </div>
-
-                  {/* NewPassForm อ่าน resetDraft จาก sessionStorage (กัน OTP ใน URL) */}
-                  <NewPassForm />
-
-                  <p className="text-default-400 mt-7.5 text-center text-sm">
-                    &copy; {currentYear} {META_DATA.name} - by{' '}
-                    <span>{META_DATA.author}</span>
-                  </p>
-                </div>
-
-                {/* ขวา: photo panel — hidden บน mobile, แสดงเฉพาะ lg+ ตาม OQ-5 */}
-                {/* inline style จำเป็น — backgroundImage ต้องการ dynamic URL จาก next/image src */}
-                <div
-                  className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center object-cover lg:block"
-                  style={{ backgroundImage: `url(${authImg.src})` }}
-                >
-                  <div className="absolute inset-0 flex items-end justify-center rounded-e-sm p-9 [background:linear-gradient(to_top,#313a46,rgba(49,58,70,.8),rgba(49,58,70,.5))]" />
-                </div>
-              </div>
+            <div className="mb-7.5 flex flex-col items-center justify-center text-center">
+              <AuthLogo />
             </div>
+
+            <div>
+              <h4 className="font-bold mb-2 text-default-900 text-lg text-center">
+                ตั้งรหัสผ่านใหม่
+              </h4>
+              <p className="text-default-400 mb-4 mx-auto w-full text-center lg:w-3/4">
+                กรอกรหัสผ่านใหม่ของคุณ
+              </p>
+
+              {/* NewPassForm อ่าน resetDraft จาก sessionStorage (กัน OTP ใน URL) */}
+              <NewPassForm />
+            </div>
+
+            <p className="text-default-400 mt-7.5 text-center">
+              &copy; {currentYear} {META_DATA.name}
+            </p>
+          </div>
+        </div>
+
+        {/* image panel: ซ่อน mobile, โผล่ md+ */}
+        <div className="hidden w-full md:block">
+          <div
+            className="relative h-full overflow-hidden bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url("${authImg.src}")` }}
+          >
+            {/* gradient overlay — Tailwind utility จาก split theme, ไม่ใช่ arbitrary */}
+            <div className="from-zinc-800 via-zinc-800/80 to-zinc-800/50 absolute inset-0 bg-linear-to-t p-9" />
           </div>
         </div>
       </div>
