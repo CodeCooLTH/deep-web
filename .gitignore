@@ -48,8 +48,11 @@ uploads/
 .claude/
 .env*.local
 
-# QA screenshots (re-generated on demand) — safepay-qa ต้องเขียนที่ docs/qa-screenshots/ เท่านั้น
+# QA screenshots (re-generated on demand) — safepay-qa เขียนที่ .screenshots/{YYYY}/{M}/{D}/ เท่านั้น (artifact ไม่ commit)
+.screenshots/
+# legacy/stray QA artifact dirs — กันเผลอ commit
 docs/qa-screenshots/
+qa-screenshots/
 # root-catch: กัน QA เผลอเขียน qa-*.png ที่ root (อย่า commit artifact)
 /qa-*.png
 
