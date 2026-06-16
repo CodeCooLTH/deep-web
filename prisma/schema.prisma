@@ -54,6 +54,7 @@ model Shop {
   description  String?
   logo         String?
   category     String?
+  slug         String?  @unique   // public shop URL /{slug}; nullable จนกว่าจะตั้งใน onboarding (P3)
   address      String?
   businessType String   @default("INDIVIDUAL")
   createdAt    DateTime @default(now())
