@@ -18,6 +18,7 @@
 | S-D2 | สร้าง `CancelZone.tsx` — `card border border-dashed border-danger` "โซนอันตราย"; reuse `CancelOrderButton`; render เฉพาะ PENDING/SHIPPED; null สำหรับ terminal | AC-4(c), AC-5(c), AC-8..AC-10, AC-13(b) | TODO |
 | S-D3 | ลบ `OrderActionPanel.tsx` | `rg "OrderActionPanel" src/` = 0; tsc 0 | TODO |
 | S-D4 | wire `page.tsx` — StatusHeroV2 (+fulfillmentMode) + CancelZone; ลบ import OrderActionPanel; ห้ามแตะ PII mask | StatusHeroV2 ได้ prop ครบ; CancelZone desktop=ล่าง sidebar / mobile=ล่างหน้า; S-C1 block คงครบ; tsc 0 | TODO |
+| S-D5 | re-skin `ShippingActivity.tsx` (ส่วน "ประวัติออเดอร์") — เปลี่ยน Base render layer จาก order-details timeline → **ExpandedActivity** ("Expended Activity Stream"); DROP avatar+link → actor label; badge/dot สี map ตาม state; logic derive timeline คงเดิม | AC-14: Base ชี้ ExpandedActivity.tsx; markup copy จาก theme; HR7 grep=0; font-mono เฉพาะ trackingNo; ครอบทุก state (PENDING/SHIPPED/CONFIRMED/CANCELLED/NO_SHIPPING/empty); tsc 0 | DONE (pending QA) |
 
 ## Acceptance Criteria (สรุป — ฉบับเต็มอยู่ใน design spec)
 
@@ -37,7 +38,9 @@
 
 ## Out-of-Scope (CREEP = hard block)
 
-OOS-D1..D4 Options A/B/C/E (ตัดสินใจเลือก D แล้ว) · OOS-D5 API/DB/schema ใด ๆ · OOS-D6..D15 internals ของ ShipForm/SendSmsButton/CancelOrderButton/PaymentCard/CustomerDetails/ShippingActivity/OrderSummary/OrderReviewCard/ShippingAddress/OrderCopyLink · OOS-D16 PII mask logic ใน page.tsx (S-C1) · OOS-D17 buyer `/o/[token]` · OOS-D18 SMS ledger/topup
+OOS-D1..D4 Options A/B/C/E (ตัดสินใจเลือก D แล้ว) · OOS-D5 API/DB/schema ใด ๆ · OOS-D6..D15 internals ของ ShipForm/SendSmsButton/CancelOrderButton/PaymentCard/CustomerDetails/OrderSummary/OrderReviewCard/ShippingAddress/OrderCopyLink · OOS-D16 PII mask logic ใน page.tsx (S-C1) · OOS-D17 buyer `/o/[token]` · OOS-D18 SMS ledger/topup
+
+> **หมายเหตุ:** `ShippingActivity` ถูกถอดออกจาก OOS แล้ว — ย้ายเป็น **S-D5** (in-scope) ตามที่ user สั่งตรง 2026-06-16 (ดู Change Log)
 
 ## Carry-over Note — S-C1 (mandatory ทุก commit ที่แตะ page.tsx)
 
@@ -72,3 +75,4 @@ Reviewer gate: `rg "order\.buyerContact = null" .../page.tsx` = 1 match; ห้�
 | วันที่ | การเปลี่ยน | เหตุผล |
 |--------|-----------|--------|
 | 2026-06-16 | baseline สร้าง (Option D APPROVED) | Controller อนุมัติ Option D; prior baseline 2026-06-15 SIGNED-OFF |
+| 2026-06-16 | **scope expansion: +S-D5** (re-skin ShippingActivity → ExpandedActivity); ถอด ShippingActivity ออกจาก OOS-D6..D15 | user สั่งตรง "ตรง ประวัติออเดอร์ ให้ใช้ component Expended Activity Stream" — Controller authorize; ผ่าน safepay-ux gate (HR8) + reviewer technical PASS ทุก gate |
