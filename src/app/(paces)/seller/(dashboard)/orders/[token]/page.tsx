@@ -4,7 +4,9 @@
  * Re-source จาก Paces order-details (redesign 2026-06-15 — action-first/mobile-first):
  * - ใช้ 3-col grid เหมือน theme: col-span-3 (main) + col-span-1 (sidebar)
  * - Main: StatusHero (สถานะ) → OrderSummary (items + totals) → ShippingActivity (timeline)
- * - Sidebar: OrderActionPanel (ทุก action รวม — S-13) → CustomerDetails → PaymentCard → ShippingAddress → OrderReviewCard
+ * - Sidebar: CustomerDetails → PaymentCard → ShippingAddress → CancelZone → OrderReviewCard
+ * - T3: ลบ OrderActionPanel (action ย้ายเข้า StatusHeroV2; cancel ย้ายเข้า CancelZone)
+ * - T4: เพิ่ม CancelZone (danger card) ล่าง ShippingAddress ก่อน OrderReviewCard
  * - คง: data fetching (getOrderForShop), auth guard (getServerSession), shop ownership check
  * - PII: mask + neutralize raw contact ที่ server boundary ก่อนส่งข้าม RSC (S-C1) — ห้ามแตะ
  * - paymentMethod/salesChannel/slipFileId/accessUrl ไม่ใช่ PII → ส่งให้ PaymentCard ได้
@@ -20,12 +22,12 @@ import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import StatusHero from './components/StatusHero'
 import OrderSummary from './components/OrderSummary'
-import OrderActionPanel from './components/OrderActionPanel'
 import CustomerDetails from './components/CustomerDetails'
 import PaymentCard from './components/PaymentCard'
 import ShippingAddress from './components/ShippingAddress'
 import type { ShippingAddressData } from './components/ShippingAddress'
 import ShippingActivity from './components/ShippingActivity'
+import CancelZone from './components/CancelZone'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 
@@ -118,12 +120,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
         {/* Main content — col-span-3 */}
         <div className="space-y-base lg:col-span-3">
-          {/* StatusHero — สถานะเด่น (action ย้ายไป OrderActionPanel แล้ว — S-13) */}
+          {/* StatusHero — สถานะเด่น + primary CTA ต่อ state (T3: action ย้ายเข้า StatusHeroV2 แล้ว) */}
           <StatusHero
             publicToken={order.publicToken}
             status={order.status}
             type={order.type}
             createdAtISO={createdAtISO}
+            fulfillmentMode={order.fulfillmentMode}
           />
           <OrderSummary
             order={{
@@ -160,12 +163,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
         {/* Sidebar — col-span-1 */}
         <div className="space-y-base">
-          {/* OrderActionPanel — รวมทุก action ของ order ไว้บนสุด sidebar (S-13) */}
-          <OrderActionPanel
-            publicToken={order.publicToken}
-            status={order.status}
-            fulfillmentMode={order.fulfillmentMode}
-          />
           <CustomerDetails
             data={{
               // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน
@@ -186,6 +183,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
           />
           {/* Phase B: ที่อยู่จัดส่ง — render เฉพาะเมื่อ order มี shippingAddress */}
           {shippingAddr && <ShippingAddress address={shippingAddr} />}
+          {/* CancelZone — danger card สำหรับยกเลิก order (PENDING/SHIPPED เท่านั้น; terminal state คืน null) */}
+          <CancelZone publicToken={order.publicToken} status={order.status} />
           {/* review card: compose กลับตาม retro action #4 + #9 — trust-critical info ที่ seller ต้องเห็น */}
           <OrderReviewCard review={reviewData} />
         </div>
