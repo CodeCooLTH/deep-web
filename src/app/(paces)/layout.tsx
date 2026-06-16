@@ -44,7 +44,7 @@ export default function RootLayout({
       data-topbar-color="light"
       data-menu-color="dark"
       data-theme="light"
-      data-skin="saas"
+      data-skin="default"
       data-sidenav-size="on-hover-active"
       data-layout-width="fluid"
       dir="ltr"
