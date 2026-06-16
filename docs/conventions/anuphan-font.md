@@ -7,6 +7,7 @@
 1. body text + heading ทุก element ทุก subdomain → `font-family` ต้อง resolve เป็น **Anuphan** เป็น segment แรก
 2. fallback stack ที่อนุญาต: `var(--font-anuphan), "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif` (Noto Sans Thai = fallback ลำดับสอง ไม่ใช่ primary)
 3. Anuphan ครอบ weight 100–700 (กัน faux-bold)
+4. **ห้าม `font-mono` / `font-family: monospace` บน text หรือ heading ภาษาไทย** — Anuphan ไม่มี monospace variant → browser fallback เป็น Courier/Menlo ทันที (ตัวอักษรหลุดธีมชัด, ดูเหมือน "ไม่ใช่ธีม"). `font-mono` ใช้ได้เฉพาะใน code block (ข้อยกเว้น) หรือ "ค่า" สั้น ๆ ที่ fallback รับได้ เช่น tracking-code chip — **ไม่ใช่ heading/order#/ตัวเลขทั่วไป**. บทเรียน retro 2026-06-16 (StatusHero `<h3 font-mono>ออเดอร์#</h3>` → Courier หลุดธีม, user ทักว่า "ไม่ใช่ Paces")
 
 ## ข้อยกเว้น (อนุญาตชัดแจ้ง — เท่านี้)
 
