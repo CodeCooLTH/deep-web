@@ -1,29 +1,24 @@
-// In-memory OTP store (MVP — replace with Redis in production).
-//
-// ⚠️ ต้องเป็น globalThis singleton — Next.js bundle แต่ละ route handler
-// (/api/otp/send, /api/otp/verify, /api/auth/[...nextauth]) เป็นคนละ module
-// instance → ถ้าใช้ module-level `const … = new Map()` ตรง ๆ store ที่
-// storeOtp เขียนใน route ส่ง จะมองไม่เห็นตอน verifyOtp อ่านใน route auth
-// → verify false ทุกครั้ง (real OTP login พังหมด, test-bypass เคยบังไว้).
-// pattern เดียวกับ src/lib/prisma.ts. หมายเหตุ: singleton นี้ share เฉพาะ
-// ภายใน process เดียว — prod multi-instance ยังต้องใช้ Redis (PRD Known Gap).
+// OTP store = **DB-backed** (`OtpCode` table) — shared ข้าม serverless instance.
+// เดิมเก็บ in-memory (globalThis Map) → บน Vercel serverless `send`/`verify` วิ่งคนละ lambda
+// → verifyOtp ไม่เจอ OTP → 401 ทั้งที่กรอกถูก (bug prod 2026-06-16, ยืนยันจาก Vercel logs).
+// DB shared ทุก instance → แก้ที่ต้นเหตุ. codeHash = SHA-256 (hash at rest), single-use.
+import { createHash } from "crypto";
+import { prisma } from "@/lib/prisma";
+
+// rate-limit ยังเป็น in-memory globalThis (per-instance) — บน serverless = looser (3×N instance)
+// ไม่ใช่บั๊กหลัก (signup ใช้ได้); ย้ายไป DB/Redis ทีหลังถ้าต้องเข้มจริง. PRD NFR-2.7.
 const globalForOtp = globalThis as unknown as {
-  otpStore?: Map<string, { otp: string; expiresAt: number; attempts: number }>;
   otpRequestTimestamps?: Map<string, number[]>;
 };
 
-const otpStore =
-  globalForOtp.otpStore ??
-  (globalForOtp.otpStore = new Map<
-    string,
-    { otp: string; expiresAt: number; attempts: number }
-  >());
-
-// In-memory rate-limit bucket per contact (MVP — replace with Redis/Upstash)
-// PRD NFR-2.7: "OTP rate limit: 3 ครั้ง / 10 นาที ต่อเบอร์โทร"
 const otpRequestTimestamps =
   globalForOtp.otpRequestTimestamps ??
   (globalForOtp.otpRequestTimestamps = new Map<string, number[]>());
+
+// SHA-256 ของ OTP — เก็บใน OtpCode.codeHash (ไม่เก็บ plain). fast hash พอสำหรับ OTP 6 หลัก อายุสั้น single-use
+function hashOtp(otp: string): string {
+  return createHash("sha256").update(otp).digest("hex");
+}
 
 /**
  * ตรวจว่า contact นี้ยังส่ง OTP ได้อยู่ไหม ภายใต้ quota.
@@ -55,12 +50,15 @@ export function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-export function storeOtp(contact: string): string {
+export async function storeOtp(contact: string): Promise<string> {
   const otp = generateOtp();
-  otpStore.set(contact, {
-    otp,
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
-    attempts: 0,
+  const codeHash = hashOtp(otp);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  // 1 contact = 1 active OTP → upsert (ส่งใหม่ทับของเดิม + reset attempts)
+  await prisma.otpCode.upsert({
+    where: { contact },
+    create: { contact, codeHash, expiresAt, attempts: 0 },
+    update: { codeHash, expiresAt, attempts: 0 },
   });
   return otp;
 }
@@ -145,21 +143,24 @@ export async function sendOtpViaSms(phone: string, otp: string): Promise<void> {
   }
 }
 
-export function verifyOtp(contact: string, otp: string): boolean {
+export async function verifyOtp(contact: string, otp: string): Promise<boolean> {
+  // test-account bypass (dev/QA) — ไม่แตะ DB
   if (TEST_ACCOUNTS[contact] && otp === TEST_ACCOUNTS[contact]) return true;
 
-  const stored = otpStore.get(contact);
+  const stored = await prisma.otpCode.findUnique({ where: { contact } });
   if (!stored) return false;
-  if (Date.now() > stored.expiresAt) {
-    otpStore.delete(contact);
+  if (Date.now() > stored.expiresAt.getTime()) {
+    await prisma.otpCode.delete({ where: { contact } }).catch(() => {});
     return false;
   }
   if (stored.attempts >= 3) {
-    otpStore.delete(contact);
+    await prisma.otpCode.delete({ where: { contact } }).catch(() => {});
     return false;
   }
-  stored.attempts++;
-  if (stored.otp !== otp) return false;
-  otpStore.delete(contact);
+  // นับ attempt ก่อนเทียบ (กัน brute) — ครบ 3 รอบถัดไปจะโดน guard ข้างบน
+  await prisma.otpCode.update({ where: { contact }, data: { attempts: { increment: 1 } } });
+  if (stored.codeHash !== hashOtp(otp)) return false;
+  // ถูก → single-use ลบทิ้ง
+  await prisma.otpCode.delete({ where: { contact } }).catch(() => {});
   return true;
 }

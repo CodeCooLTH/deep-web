@@ -301,3 +301,17 @@ model SmsCode {
   @@index([orderId])
   @@index([expiresAt])
 }
+
+// OtpCode — OTP signup/login/reset เก็บใน DB (shared ข้าม serverless instance)
+// เดิมเก็บ in-memory (globalThis Map) → บน Vercel serverless send/verify วิ่งคนละ lambda
+// → OTP ไม่เจอ → 401 ทั้งที่ถูก (bug prod 2026-06-16). 1 contact = 1 active OTP (upsert).
+// codeHash = SHA-256 ของ OTP (hash at rest); single-use (ลบเมื่อ verify สำเร็จ/หมดอายุ/ครบ attempts)
+model OtpCode {
+  contact   String   @id            // phone (0xxxxxxxxx) หรือ email
+  codeHash  String                  // SHA-256 hex ของ OTP 6 หลัก
+  expiresAt DateTime
+  attempts  Int      @default(0)    // กัน brute — ครบ 3 = ลบทิ้ง
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

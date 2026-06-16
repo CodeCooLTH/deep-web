@@ -40,7 +40,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.phone || !credentials?.otp) return null;
 
         const { verifyOtp } = await import("@/lib/otp");
-        if (!verifyOtp(credentials.phone, credentials.otp)) return null;
+        if (!(await verifyOtp(credentials.phone, credentials.otp))) return null;
 
         let user = await prisma.user.findFirst({
           where: { phone: credentials.phone },
