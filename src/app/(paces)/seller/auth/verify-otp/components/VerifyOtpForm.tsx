@@ -16,6 +16,7 @@
 'use client'
 
 import { pacesToast } from '@/lib/paces-toast'
+import { cn } from '@/utils/helpers'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useCallback, useState, type FormEvent } from 'react'
@@ -210,14 +211,14 @@ export default function VerifyOtpForm() {
                 value={d}
                 onChange={(e) => handleDigit(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
-                className="form-input text-center text-lg sm:text-base"
+                className={cn('form-input text-center text-lg sm:text-base', errorMsg && '!border-danger')}
                 autoFocus={i === 0}
                 autoComplete="one-time-code"
               />
             ))}
           </div>
           {errorMsg && (
-            <p className="text-danger mt-2 text-sm text-center">{errorMsg}</p>
+            <p className="invalid-msg mt-2 text-sm text-danger text-center">{errorMsg}</p>
           )}
         </div>
 

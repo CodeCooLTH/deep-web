@@ -7,25 +7,30 @@
  * - เพิ่ม Facebook button (w-full, icon bxl:facebook-circle) + dashed divider "หรือกรอกข้อมูล"
  * - ลบ Name/Email fields ของ base → แทนด้วย 6 fields ตามสเปก S-P2-2:
  *   1. displayName (tabler:user, Yup 2-50)
- *   2. category (native form-select — Hard Rule 6, ไม่ใช้ hs-dropdown)
+ *   2. category (ChoiceSelect controlled — src/components/wrappers/ChoiceSelect.tsx;
+ *      error pattern: theme/paces/Admin/TS/src/app/(admin)/form/validation/components/CustomValidation.tsx)
  *   3. username (tabler:at, debounce 400ms → GET /api/users/check-username?u=)
  *   4. password (PasswordInputWithStrength + hint ไทย)
  *   5. confirmPassword (tabler:lock-password, oneOf password)
  *   6. phone (tabler:phone, tel, inputMode=numeric, /^0[0-9]{9}$/)
  * - ลบ Terms & Policy checkbox ของ base
- * - submit flow: Yup + usernameStatus ok → check-phone → sessionStorage signupDraft → OTP → router.push
+ * - submit flow: Yup + usernameStatus ok → check-phone (inline error) → sessionStorage signupDraft → OTP → router.push
  * - sessionStorage key 'signupDraft' = { password, category } (contract กับ verify-otp)
  * - shopName=displayName ส่งใน query string (placeholder ให้ P1 phone-otp สร้าง shop; แก้ได้ใน onboarding P3)
  * - password ไม่ปรากฏใน URL (เก็บใน sessionStorage เท่านั้น — OQ-1)
- * - error แสดงผ่าน pacesToast เท่านั้น (Hard Rule 9)
+ * - field error ใช้ invalid-msg class + !border-danger ตาม CustomValidation pattern (HR7)
+ * - phone ซ้ำ → setError inline แทน pacesToast (OQ-3)
+ * - username submit-guard → return เงียบ, inline live-status แสดงอยู่แล้ว (OQ-2)
  */
 
 'use client'
 
 import PasswordInputWithStrength from '@/components/PasswordInputWithStrength'
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_KEYS, SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
+import { cn } from '@/utils/helpers'
 import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { signIn } from 'next-auth/react'
@@ -83,6 +88,8 @@ export default function SignUpForm() {
     register,
     handleSubmit,
     watch,
+    setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -141,15 +148,8 @@ export default function SignUpForm() {
   }
 
   const onSubmit = async (values: FormValues) => {
-    // บล็อก submit ถ้า username ยังไม่ผ่าน live check
+    // OQ-2: บล็อก submit ถ้า username ยังไม่ผ่าน live check — ไม่ต้อง toast เพราะ inline live-status แสดงอยู่แล้ว
     if (usernameStatus.state !== 'ok') {
-      if (usernameStatus.state === 'error') {
-        pacesToast.error(USERNAME_STATUS_MSG[usernameStatus.reason])
-      } else if (usernameStatus.state === 'checking') {
-        pacesToast.warning('กรุณารอตรวจสอบชื่อผู้ใช้')
-      } else {
-        pacesToast.warning('กรุณาให้ระบบตรวจสอบชื่อผู้ใช้ก่อน')
-      }
       return
     }
 
@@ -161,7 +161,8 @@ export default function SignUpForm() {
       if (phoneCheckRes.ok) {
         const phoneData: { available: boolean } = await phoneCheckRes.json()
         if (!phoneData.available) {
-          pacesToast.error('เบอร์นี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่าน')
+          // OQ-3: แสดง error inline ใต้ field แทน toast — ผู้ใช้เห็นทันทีโดยไม่ต้องหา notification
+          setError('phone', { message: 'เบอร์นี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่าน' })
           return
         }
       }
@@ -251,37 +252,36 @@ export default function SignUpForm() {
               type="text"
               autoComplete="name"
               placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"
-              className="form-input"
+              className={cn('form-input', errors.displayName && '!border-danger')}
               {...register('displayName')}
             />
           </div>
           {errors.displayName && (
-            <p className="text-danger mt-1 text-sm">{errors.displayName.message}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.displayName.message}</p>
           )}
         </div>
 
-        {/* 2. หมวดหมู่ร้านค้า — form-select primitive
-            Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (Default Select ~บรรทัด 249)
-            เลือก form-select ไม่ใช้ hs-dropdown เพราะ hs-dropdown เป็น action-menu widget (re-render แล้ว opacity ค้าง 0);
-            form-select field = Paces form primitive ถูกต้องสำหรับ select input ใน form */}
+        {/* 2. หมวดหมู่ร้านค้า — ChoiceSelect controlled (watch+setValue ไม่ใช้ register โดยตรง)
+            Base: src/components/wrappers/ChoiceSelect.tsx (Choices.js wrapper)
+            ref pattern: theme/paces/Admin/TS/src/app/(admin)/form/select/components/ChoiceSelect.tsx
+            error border: !border-danger ตาม theme/paces/.../form/validation/components/CustomValidation.tsx */}
         <div className="mb-5">
           <label htmlFor="category" className="form-label">
             หมวดหมู่ร้านค้า<span className="text-danger">*</span>
           </label>
-          <select
+          <ChoiceSelect
             id="category"
-            className="form-select w-full"
-            {...register('category')}
-          >
-            <option value="">-- เลือกหมวดหมู่ --</option>
-            {SHOP_CATEGORY_KEYS.map((k) => (
-              <option key={k} value={k}>
-                {SHOP_CATEGORY_LABELS[k]}
-              </option>
-            ))}
-          </select>
+            name="category"
+            placeholder="-- เลือกหมวดหมู่ --"
+            search={false}
+            sorting={false}
+            value={watch('category')}
+            onChange={(v) => setValue('category', v as string, { shouldValidate: true })}
+            options={SHOP_CATEGORY_KEYS.map((k) => ({ value: k, label: SHOP_CATEGORY_LABELS[k] }))}
+            className={cn('form-input w-full', errors.category && '!border-danger')}
+          />
           {errors.category && (
-            <p className="text-danger mt-1 text-sm">{errors.category.message}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.category.message}</p>
           )}
         </div>
 
@@ -297,21 +297,21 @@ export default function SignUpForm() {
               type="text"
               autoComplete="off"
               placeholder="a-z, 0-9, _ เท่านั้น"
-              className="form-input"
+              className={cn('form-input', errors.username && '!border-danger')}
               {...register('username')}
             />
           </div>
           {errors.username && (
-            <p className="text-danger mt-1 text-sm">{errors.username.message}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.username.message}</p>
           )}
           {!errors.username && usernameStatus.state === 'checking' && (
-            <p className="text-default-400 mt-1 text-sm">กำลังตรวจสอบ...</p>
+            <p className="invalid-msg mt-1 text-sm text-default-400">กำลังตรวจสอบ...</p>
           )}
           {!errors.username && usernameStatus.state === 'ok' && (
-            <p className="text-success mt-1 text-sm">ใช้ชื่อนี้ได้</p>
+            <p className="invalid-msg mt-1 text-sm text-success">ใช้ชื่อนี้ได้</p>
           )}
           {!errors.username && usernameStatus.state === 'error' && (
-            <p className="text-danger mt-1 text-sm">{USERNAME_STATUS_MSG[usernameStatus.reason]}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{USERNAME_STATUS_MSG[usernameStatus.reason]}</p>
           )}
         </div>
 
@@ -340,7 +340,7 @@ export default function SignUpForm() {
             ≥8 ตัว มีตัวอักษร ตัวเลข และอักขระพิเศษ
           </p>
           {errors.password && (
-            <p className="text-danger mt-1 text-sm">{errors.password.message}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.password.message}</p>
           )}
         </div>
 
@@ -356,12 +356,12 @@ export default function SignUpForm() {
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
-              className="form-input"
+              className={cn('form-input', errors.confirmPassword && '!border-danger')}
               {...register('confirmPassword')}
             />
           </div>
           {errors.confirmPassword && (
-            <p className="text-danger mt-1 text-sm">{errors.confirmPassword.message}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.confirmPassword.message}</p>
           )}
         </div>
 
@@ -378,12 +378,12 @@ export default function SignUpForm() {
               inputMode="numeric"
               autoComplete="tel"
               placeholder="08xxxxxxxx"
-              className="form-input"
+              className={cn('form-input', errors.phone && '!border-danger')}
               {...register('phone')}
             />
           </div>
           {errors.phone && (
-            <p className="text-danger mt-1 text-sm">{errors.phone.message}</p>
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.phone.message}</p>
           )}
         </div>
 

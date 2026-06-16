@@ -2,6 +2,7 @@
  * Seller sign-in form — redesign P2 S-P2-1 (username+password แทน phone-OTP)
  *
  * Base: theme/paces/Admin/TS/src/app/auth/card/sign-in/components/Form.tsx
+ * Field error style: theme/paces/Admin/TS/src/app/(admin)/form/validation/components/CustomValidation.tsx
  *
  * Changes vs base:
  * - เปลี่ยน email → username field (icon tabler:user)
@@ -11,14 +12,14 @@
  * - เพิ่ม link "ลืมรหัสผ่าน?" → /auth/reset-pass
  * - form state จัดการด้วย react-hook-form + Yup (แทน useState ของ base)
  * - onSubmit: signIn('seller-credentials') → ok router.push('/dashboard');
- *   fail → pacesToast.error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง') (generic กัน enumeration)
+ *   fail → setError('root') inline แทน toast (generic กัน enumeration)
  * - loading state: "กำลังเข้าสู่ระบบ..." + disabled
- * - error แสดงผ่าน pacesToast (Hard Rule 9 — ไม่ใช้ toast lib อื่นใน paces)
+ * - login error แสดง inline ใต้ submit (errors.root) ไม่ใช่ toast
+ * - field error style: cn('form-input', errors.x && '!border-danger') + invalid-msg
  */
 
 'use client'
 
-import { pacesToast } from '@/lib/paces-toast'
 import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { signIn } from 'next-auth/react'
@@ -27,6 +28,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
+import { cn } from '@/utils/helpers'
 
 const schema = Yup.object({
   username: Yup.string()
@@ -44,6 +46,7 @@ export default function SignInForm() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -65,7 +68,10 @@ export default function SignInForm() {
       router.push('/dashboard')
     } else {
       // generic error — ไม่บอก username/password อันไหนผิดเพื่อกัน enumeration
-      pacesToast.error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+      // ทั้ง 2 field ขึ้น border แดงโดยไม่โชว์ text ซ้อน; ข้อความรวมอยู่ที่ errors.root
+      setError('username', { type: 'server', message: '' })
+      setError('password', { type: 'server', message: '' })
+      setError('root', { message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' })
     }
   }
 
@@ -111,12 +117,12 @@ export default function SignInForm() {
               type="text"
               autoComplete="username"
               placeholder="your_username"
-              className="form-input"
+              className={cn('form-input', errors.username && '!border-danger')}
               {...register('username')}
             />
           </div>
-          {errors.username && (
-            <p className="text-danger mt-1 text-sm">{errors.username.message}</p>
+          {errors.username && errors.username.message && (
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.username.message}</p>
           )}
         </div>
 
@@ -134,12 +140,12 @@ export default function SignInForm() {
               type="password"
               autoComplete="current-password"
               placeholder="••••••••"
-              className="form-input"
+              className={cn('form-input', errors.password && '!border-danger')}
               {...register('password')}
             />
           </div>
-          {errors.password && (
-            <p className="text-danger mt-1 text-sm">{errors.password.message}</p>
+          {errors.password && errors.password.message && (
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.password.message}</p>
           )}
         </div>
 
@@ -152,6 +158,13 @@ export default function SignInForm() {
             ลืมรหัสผ่าน?
           </Link>
         </div>
+
+        {/* Login error inline — แสดงเมื่อ credential ผิด (errors.root จาก setError) */}
+        {errors.root && (
+          <div className="mb-4">
+            <p className="invalid-msg text-sm text-danger">{errors.root.message}</p>
+          </div>
+        )}
 
         {/* Submit */}
         <div>

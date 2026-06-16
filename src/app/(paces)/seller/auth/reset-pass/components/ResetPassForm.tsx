@@ -16,6 +16,7 @@
 'use client'
 
 import { pacesToast } from '@/lib/paces-toast'
+import { cn } from '@/utils/helpers'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
@@ -87,12 +88,12 @@ export default function ResetPassForm() {
             inputMode="numeric"
             autoComplete="tel"
             placeholder="08xxxxxxxx"
-            className="form-input w-full"
+            className={cn('form-input w-full', errors.phone && '!border-danger')}
             {...register('phone')}
           />
         </div>
         {errors.phone && (
-          <p className="text-danger mt-1 text-sm">{errors.phone.message}</p>
+          <p className="invalid-msg mt-1 text-sm text-danger">{errors.phone.message}</p>
         )}
       </div>
 

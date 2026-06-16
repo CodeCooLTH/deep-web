@@ -18,6 +18,7 @@
 
 import PasswordInputWithStrength from '@/components/PasswordInputWithStrength'
 import { pacesToast } from '@/lib/paces-toast'
+import { cn } from '@/utils/helpers'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { Icon } from '@iconify/react'
 import Link from 'next/link'
@@ -150,7 +151,7 @@ export default function NewPassForm() {
           ≥8 ตัว มีตัวอักษร ตัวเลข และอักขระพิเศษ
         </p>
         {errors.password && (
-          <p className="text-danger mt-1 text-sm">{errors.password.message}</p>
+          <p className="invalid-msg mt-1 text-sm text-danger">{errors.password.message}</p>
         )}
       </div>
 
@@ -167,12 +168,12 @@ export default function NewPassForm() {
             type="password"
             placeholder="••••••••"
             autoComplete="new-password"
-            className="form-input w-full"
+            className={cn('form-input w-full', errors.confirmPassword && '!border-danger')}
             {...register('confirmPassword')}
           />
         </div>
         {errors.confirmPassword && (
-          <p className="text-danger mt-1 text-sm">{errors.confirmPassword.message}</p>
+          <p className="invalid-msg mt-1 text-sm text-danger">{errors.confirmPassword.message}</p>
         )}
       </div>
 
