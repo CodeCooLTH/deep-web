@@ -7,6 +7,9 @@ import {
 } from "@/lib/product-types/registry";
 // isHttpUrl — ใช้ logic เดียวกับ render layer (S-10) เพื่อ validate accessUrl (S-3)
 import { isHttpUrl } from "@/lib/order-display";
+import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
+import { isStrongPassword } from "@/lib/password";
+import { isValidSlugFormat } from "@/lib/shop-slug";
 
 export const SendOtpSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
@@ -19,10 +22,31 @@ export const VerifyOtpSchema = v.object({
   otp: v.pipe(v.string(), v.length(6)),
 });
 
+// รหัสผ่าน seller — ผูกกฎเดียวกับ isStrongPassword (SSOT)
+export const PasswordSchema = v.pipe(
+  v.string(),
+  v.maxLength(1000),
+  v.check((s) => isStrongPassword(s), "รหัสผ่านต้องมีอย่างน้อย 8 ตัว และมีตัวอักษร ตัวเลข และอักขระพิเศษ"),
+);
+
+// slug ร้าน — format เท่านั้น (reserved + uniqueness ตรวจที่ service layer)
+export const ShopSlugSchema = v.pipe(
+  v.string(),
+  v.check((s) => isValidSlugFormat(s), "URL ร้านไม่ถูกต้อง (a-z, 0-9, - เท่านั้น 3–30 ตัว)"),
+);
+
+export const ShopCategorySchema = v.picklist(SHOP_CATEGORY_KEYS);
+
+export const SetPasswordSchema = v.object({
+  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
+  otp: v.pipe(v.string(), v.length(6)),
+  password: PasswordSchema,
+});
+
 export const CreateShopSchema = v.object({
   shopName: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
   description: v.optional(v.pipe(v.string(), v.maxLength(500))),
-  category: v.optional(v.pipe(v.string(), v.maxLength(50))),
+  category: v.optional(ShopCategorySchema),
   address: v.optional(v.pipe(v.string(), v.maxLength(200))),
   businessType: v.picklist(["INDIVIDUAL", "COMPANY"]),
   // logo: fileId จาก /api/upload — เดิมไม่อยู่ใน schema → /api/shops POST

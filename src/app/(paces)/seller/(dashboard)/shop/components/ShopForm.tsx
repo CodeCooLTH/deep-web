@@ -22,30 +22,20 @@ import { useForm } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
-
-// หมวดหมู่ร้านค้าที่รองรับใน SafePay MVP
-// เพิ่ม 'ยานยนต์' — ร้านค้าตัวอย่าง (seed) ใช้หมวดนี้; ลิสต์เดิมขาดไป
-const CATEGORIES = [
-  'อาหารและเครื่องดื่ม',
-  'แฟชั่น',
-  'ความงาม',
-  'อิเล็กทรอนิกส์',
-  'ยานยนต์',
-  'บ้านและสวน',
-  'บริการ',
-  'ดิจิทัล',
-  'สุขภาพ',
-  'อื่นๆ',
-]
+import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
 
 // Yup schema ตรง Shop model — ไม่มี field ที่ไม่มีใน schema
+// category ใช้ SHOP_CATEGORY_KEYS เป็น key (SSOT) — label ไทยแสดงจาก SHOP_CATEGORY_LABELS
+// เดิมส่ง Thai label string ตรงๆ → เปลี่ยนเป็น key เพื่อตรงกับ ShopCategorySchema (S-P1-4)
 const schema = Yup.object({
   shopName: Yup.string()
     .min(2, 'ชื่อร้านต้องมีอย่างน้อย 2 ตัวอักษร')
     .max(100, 'ชื่อร้านต้องไม่เกิน 100 ตัวอักษร')
     .required('กรุณากรอกชื่อร้าน'),
   description: Yup.string().max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร').default(''),
-  category: Yup.string().default(''),
+  // ตรวจ runtime ว่าส่งแค่ key ที่ถูกต้อง — cast เป็น string[] เพื่อไม่ให้ Yup narrow type
+  // (ถ้า narrow → FormValues.category เป็น literal union → TS reject string จาก DB defaultValues)
+  category: Yup.string().oneOf(['', ...(SHOP_CATEGORY_KEYS as string[])]).default(''),
   address: Yup.string().max(200, 'ที่อยู่ต้องไม่เกิน 200 ตัวอักษร').default(''),
   businessType: Yup.string()
     .oneOf(['INDIVIDUAL', 'COMPANY'] as const, 'กรุณาเลือกประเภทธุรกิจ')
@@ -156,14 +146,9 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
     }
   }
 
-  // สร้าง options สำหรับ category select:
-  // ถ้าค่าที่บันทึกไว้ใน DB ไม่อยู่ในลิสต์ canonical → prepend ไว้ก่อน
-  // เพื่อให้ select แสดง & รักษาค่าเดิมได้เสมอ ไม่ว่าจะเป็นค่าอะไร
-  const savedCategory = shop?.category ?? ''
-  const selectOptions =
-    savedCategory && !CATEGORIES.includes(savedCategory)
-      ? [savedCategory, ...CATEGORIES]
-      : CATEGORIES
+  // category key ที่บันทึกไว้ใน DB ถูก inject ผ่าน useForm defaultValues แล้ว
+  // ถ้า DB มีค่า Thai label เก่า (ก่อน S-P1-4) → key จะไม่ match → แสดง "-- เลือกหมวดหมู่ --"
+  // (acceptable: user เลือกใหม่ครั้งเดียว; ไม่มี data migration ที่ต้องทำ)
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -257,9 +242,9 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
                         </label>
                         <select className="form-select" {...register('category')}>
                           <option value="">-- เลือกหมวดหมู่ --</option>
-                          {selectOptions.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
+                          {SHOP_CATEGORY_KEYS.map((key) => (
+                            <option key={key} value={key}>
+                              {SHOP_CATEGORY_LABELS[key]}
                             </option>
                           ))}
                         </select>
