@@ -12,7 +12,7 @@ import Icon from '@/components/wrappers/Icon'
 
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
-import { formatDate } from '@/lib/format-date'
+import { formatDate, formatTime } from '@/lib/format-date'
 
 type UserCardProps = {
   shopName?: string
@@ -27,15 +27,7 @@ const UserCard = ({ shopName = 'ร้านค้าของคุณ', trustS
 
   useEffect(() => {
     const updateTime = () => {
-      const now = new Date()
-      setCurrentTime(
-        now.toLocaleTimeString('th-TH', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        })
-      )
+      setCurrentTime(formatTime(new Date()))
     }
 
     // set วันที่ครั้งแรก (ไม่ต้อง interval — วันไม่เปลี่ยนระหว่าง session ส่วนใหญ่)

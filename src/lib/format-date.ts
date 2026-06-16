@@ -59,3 +59,15 @@ export function formatDate(input: Date | string | number | null | undefined): st
   const year = Number(p.year) + BE_OFFSET
   return `${year}-${p.month}-${p.day}`
 }
+
+/**
+ * "10:06:13" — เวลาล้วน HH:mm:ss (timezone ไทย, 24 ชม.)
+ * ใช้เฉพาะ context ที่แสดง "เวลาล้วน" คู่กับวันที่ที่แยกแสดงอยู่แล้ว เช่น นาฬิกา live
+ * (รูปแบบตรงกับส่วนเวลาของ formatDateTime). อย่าใช้แทน formatDateTime ในการแสดง timestamp
+ */
+export function formatTime(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  return `${p.hour}:${p.minute}:${p.second}`
+}

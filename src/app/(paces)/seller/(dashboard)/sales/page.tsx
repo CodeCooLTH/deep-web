@@ -7,6 +7,7 @@
  * ข้อมูลทั้งหมดมาจาก real orders ของ shop — ไม่มี Paces demo series ใด ๆ ใน runtime.
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { formatDate } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { getShopByUserId } from '@/services/shop.service'
@@ -101,11 +102,7 @@ export default async function SalesPage({
     const completed = completedPerDay[date] ?? 0
     const revenue = revenuePerDay[date] ?? 0
     const avgOrder = completed > 0 ? revenue / completed : 0
-    const label = new Date(date).toLocaleDateString('th-TH', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
+    const label = formatDate(date)
     return { date, label, orders, completed, revenue, avgOrder }
   })
 
