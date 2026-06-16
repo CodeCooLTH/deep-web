@@ -1,6 +1,6 @@
 # Scope Baseline — Seller Auth Redesign + Onboarding
 
-> สถานะ: **P1 SIGNED-OFF · P2 built (split layout, live-QA visual pending) · P3 ACTIVE** (2026-06-16) · P3 = Onboarding modal stepper
+> สถานะ: **P1 · P2 · P3 ALL SIGNED-OFF** (2026-06-16) — Seller Auth Redesign feature complete (E2E ผ่าน real routes; visual mobile QA = carry รอ MCP)
 > spec: `docs/superpowers/specs/2026-06-16-seller-auth-redesign-onboarding-design.md`
 > plan (P1): `docs/superpowers/plans/2026-06-16-seller-auth-p1-foundation.md`
 
@@ -62,12 +62,12 @@
 
 | ID | รายการ | Acceptance (ทดสอบได้, รวม mobile) | สถานะ |
 |----|--------|----------------------|-------|
-| S-P2-1 | **sign-in** (Base `auth/card/sign-in`) — username+password + ลิงก์ "ลืมรหัสผ่าน" + ปุ่ม Facebook | กรอก username+password → `signIn('seller-credentials')` → /dashboard; ผิด → error generic (pacesToast); ปุ่ม Facebook → `signIn('facebook')`; mobile 375px ใช้ได้ | TODO |
-| S-P2-2 | **sign-up** (Base `auth/card/sign-up`) — displayName, category dropdown, username (live dedupe), password+confirm, phone + ปุ่ม Facebook | submit → check-phone (`/api/users/check-phone`) + check-username → ถ้าผ่าน `/api/otp/send` → verify-otp; phone ซ้ำ → "เบอร์นี้มีบัญชีแล้ว"; password ตาม PasswordSchema; category = SHOP_CATEGORY_LABELS dropdown; mobile ok | TODO |
-| S-P2-3 | **verify-otp** (Base `auth/card/two-factor` หรือ `login-pin`) — OTP 6 หลัก + **countdown 60s resend** + masked phone | OTP input → `signIn('phone-otp',{phone,otp,mode,displayName,username,shopName,password,category})`; resend disabled จนครบ 60s; mobile ok | TODO |
-| S-P2-4 | **reset-pass** (Base `auth/card/reset-pass`) — กรอกเบอร์ → ส่ง OTP | submit เบอร์ → `/api/otp/send` → ไป verify-otp(mode=reset); mobile ok | TODO |
-| S-P2-5 | **new-pass** (Base `auth/card/new-pass`) — ตั้งรหัสใหม่ + confirm (หลัง OTP ผ่าน) | submit → `POST /api/account/set-password {phone,otp,password}` → 200 → sign-in; error map; mobile ok | TODO |
-| S-P2-6 | **layout/shared** — auth layout `(paces)/seller/auth/layout.tsx` ปรับให้รับ card variant + responsive; ลบ field/flow เดิมที่ไม่ใช้ | ทุกหน้าใช้ layout เดียว, font Anuphan, ไม่มี Vuexy bleed; QA cross-page mobile | TODO |
+| S-P2-1 | **sign-in** (Base `auth/card/sign-in`) — username+password + ลิงก์ "ลืมรหัสผ่าน" + ปุ่ม Facebook | กรอก username+password → `signIn('seller-credentials')` → /dashboard; ผิด → error generic (pacesToast); ปุ่ม Facebook → `signIn('facebook')`; mobile 375px ใช้ได้ | DONE |
+| S-P2-2 | **sign-up** (Base `auth/card/sign-up`) — displayName, category dropdown, username (live dedupe), password+confirm, phone + ปุ่ม Facebook | submit → check-phone (`/api/users/check-phone`) + check-username → ถ้าผ่าน `/api/otp/send` → verify-otp; phone ซ้ำ → "เบอร์นี้มีบัญชีแล้ว"; password ตาม PasswordSchema; category = SHOP_CATEGORY_LABELS dropdown; mobile ok | DONE |
+| S-P2-3 | **verify-otp** (Base `auth/card/two-factor` หรือ `login-pin`) — OTP 6 หลัก + **countdown 60s resend** + masked phone | OTP input → `signIn('phone-otp',{phone,otp,mode,displayName,username,shopName,password,category})`; resend disabled จนครบ 60s; mobile ok | DONE |
+| S-P2-4 | **reset-pass** (Base `auth/card/reset-pass`) — กรอกเบอร์ → ส่ง OTP | submit เบอร์ → `/api/otp/send` → ไป verify-otp(mode=reset); mobile ok | DONE |
+| S-P2-5 | **new-pass** (Base `auth/card/new-pass`) — ตั้งรหัสใหม่ + confirm (หลัง OTP ผ่าน) | submit → `POST /api/account/set-password {phone,otp,password}` → 200 → sign-in; error map; mobile ok | DONE |
+| S-P2-6 | **layout/shared** — auth layout `(paces)/seller/auth/layout.tsx` ปรับให้รับ card variant + responsive; ลบ field/flow เดิมที่ไม่ใช้ | ทุกหน้าใช้ layout เดียว, font Anuphan, ไม่มี Vuexy bleed; QA cross-page mobile | DONE |
 
 **QA P2:** safepay-qa รัน mobile viewport (375px) ทุกหน้า + happy path signup→OTP→login + reset→new-pass. Chrome DevTools MCP.
 
@@ -79,13 +79,13 @@
 
 | ID | รายการ | Acceptance | สถานะ |
 |----|--------|-----------|-------|
-| S-P3-1 | Slug API routes — `GET /api/shops/check-slug?slug=` (available?) + `POST /api/shops/slug` (set, auth seller) ใช้ service `isSlugAvailable`/`setShopSlug` (S-P1-6) | check คืน `{available}` (reserved/invalid/taken→false); set ต้อง login + own shop → 200/409; guardApi CSRF+RL; tsc+test | TODO |
-| S-P3-2 | Onboarding modal shell + stepper + gate — client component mount บน dashboard, step dots/`←`/`ข้าม`/`✕`/CTA ใหญ่; gate `needsOnboarding`; ปิดแล้วยังไม่มี slug → เด้งซ้ำรอบหน้า | เด้งเมื่อ needsOnboarding; ปิดได้แต่ slug บังคับ; Base Paces modal overlay; mobile full | TODO |
-| S-P3-3 | Step Welcome — ไอคอน + "ยินดีต้อนรับสู่ Deep" + 3 การ์ดสั้น (Trust Score/ยืนยันปลอดภัย/เริ่มขายได้) (กลืน verify info) + CTA "ลุยเลย" | render การ์ด + ปุ่ม next/skip; mobile | TODO |
-| S-P3-4 | Step Category chips — chip-grid เลือก 1 จาก SHOP_CATEGORY_LABELS (ติ๊กถูกเมื่อเลือก) → บันทึก shop.category | chips 10 ตัว, เลือก 1, next/skip; save category | TODO |
-| S-P3-5 | Step Slug (บังคับ) — input + preview `deepthailand.app/{slug}` + live dedupe (S-P3-1 check) → POST set; next disabled จนกว่า slug ผ่าน | live check + set slug ผ่าน API; mobile | TODO |
-| S-P3-6 | Step First product (ข้ามได้) — input ย่อ (ชื่อ/ราคา/รูป) reuse product-create API + ปุ่ม "ข้าม" → จบ → ปิด modal เข้า dashboard | สร้างได้/ข้ามได้; reuse `/api/products` | TODO |
-| S-P3-7 | (FB user ไม่มีเบอร์) Step verify phone — step แรกสุด: เบอร์ → OTP → L1 (password-signup ข้าม) | FB user (ไม่มี phone) เห็น step นี้ก่อน; verify ผ่าน → ต่อ welcome | TODO |
+| S-P3-1 | Slug API routes — `GET /api/shops/check-slug?slug=` (available?) + `POST /api/shops/slug` (set, auth seller) ใช้ service `isSlugAvailable`/`setShopSlug` (S-P1-6) | check คืน `{available}` (reserved/invalid/taken→false); set ต้อง login + own shop → 200/409; guardApi CSRF+RL; tsc+test | DONE |
+| S-P3-2 | Onboarding modal shell + stepper + gate — client component mount บน dashboard, step dots/`←`/`ข้าม`/`✕`/CTA ใหญ่; gate `needsOnboarding`; ปิดแล้วยังไม่มี slug → เด้งซ้ำรอบหน้า | เด้งเมื่อ needsOnboarding; ปิดได้แต่ slug บังคับ; Base Paces modal overlay; mobile full | DONE |
+| S-P3-3 | Step Welcome — ไอคอน + "ยินดีต้อนรับสู่ Deep" + 3 การ์ดสั้น (Trust Score/ยืนยันปลอดภัย/เริ่มขายได้) (กลืน verify info) + CTA "ลุยเลย" | render การ์ด + ปุ่ม next/skip; mobile | DONE |
+| S-P3-4 | Step Category chips — chip-grid เลือก 1 จาก SHOP_CATEGORY_LABELS (ติ๊กถูกเมื่อเลือก) → บันทึก shop.category | chips 10 ตัว, เลือก 1, next/skip; save category | DONE |
+| S-P3-5 | Step Slug (บังคับ) — input + preview `deepthailand.app/{slug}` + live dedupe (S-P3-1 check) → POST set; next disabled จนกว่า slug ผ่าน | live check + set slug ผ่าน API; mobile | DONE |
+| S-P3-6 | Step First product (ข้ามได้) — input ย่อ (ชื่อ/ราคา/รูป) reuse product-create API + ปุ่ม "ข้าม" → จบ → ปิด modal เข้า dashboard | สร้างได้/ข้ามได้; reuse `/api/products` | DONE |
+| S-P3-7 | (FB user ไม่มีเบอร์) Step verify phone — step แรกสุด: เบอร์ → OTP → L1 (password-signup ข้าม) | FB user (ไม่มี phone) เห็น step นี้ก่อน; verify ผ่าน → ต่อ welcome | DONE |
 
 **QA P3:** safepay-qa mobile 375px + flow: needsOnboarding → modal เด้ง → category→slug(บังคับ)→product(ข้าม) → dashboard.
 
@@ -149,3 +149,4 @@
 |--------|-----------|--------|-----------|
 | 2026-06-16 | baseline สร้าง (P1 active, P2/P3 deferred) | kick-off Seller Auth Redesign + Onboarding | shinobu22 |
 | 2026-06-16 | **P1 SIGNED-OFF** — S-P1-1..11 DONE, no creep/gap; migration applied Supabase; live smoke pass | Gate 2 sign-off (safepay-product) | shinobu22 |
+| 2026-06-16 | **P2 + P3 SIGNED-OFF** — S-P2-1..6 + S-P3-1..7 DONE, no creep/gap; E2E real-route signup→onboarding pass (needsOnboarding flips false); layout card→split per user; HR6 clarified. Carry: visual mobile QA (MCP), PRD FR-1 doc-sync, FB prod creds | Gate 2 sign-off (safepay-product) | shinobu22 |
