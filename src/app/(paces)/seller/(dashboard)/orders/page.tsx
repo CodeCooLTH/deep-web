@@ -119,20 +119,23 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   const now = new Date()
 
-  // สร้าง array ของ 7 วันล่าสุด (index 0 = วันเก่าสุด, index 6 = วันนี้)
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
+  // หน้าต่าง trend = 30 วัน (ขยายจาก 7 วัน — ร้านออเดอร์น้อย 7 วันทำให้ sparkline โล่ง + badge แกว่ง)
+  const WINDOW = 30
+
+  // สร้าง array ของ 30 วันล่าสุด (index 0 = วันเก่าสุด, index 29 = วันนี้)
+  const lastDays = Array.from({ length: WINDOW }, (_, i) => {
     const d = new Date(now)
-    d.setUTCDate(d.getUTCDate() - (6 - i))
+    d.setUTCDate(d.getUTCDate() - (WINDOW - 1 - i))
     return d.toISOString().slice(0, 10)
   })
 
-  // 7 วันก่อนหน้า (index 0 = วันที่ -13, index 6 = วันที่ -7)
-  const prev7Start = new Date(now)
-  prev7Start.setUTCDate(prev7Start.getUTCDate() - 13)
-  const prev7End = new Date(now)
-  prev7End.setUTCDate(prev7End.getUTCDate() - 7)
-  const prev7StartStr = prev7Start.toISOString().slice(0, 10)
-  const prev7EndStr   = prev7End.toISOString().slice(0, 10)
+  // 30 วันก่อนหน้า (index 0 = วันที่ -59, index 29 = วันที่ -30) สำหรับเทียบ changePct
+  const prevStart = new Date(now)
+  prevStart.setUTCDate(prevStart.getUTCDate() - (WINDOW * 2 - 1))
+  const prevEnd = new Date(now)
+  prevEnd.setUTCDate(prevEnd.getUTCDate() - WINDOW)
+  const prevStartStr = prevStart.toISOString().slice(0, 10)
+  const prevEndStr   = prevEnd.toISOString().slice(0, 10)
 
   type StatusKey = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 
@@ -145,24 +148,24 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // totalCount = ทุก order ของ status นี้ (ทุกช่วงเวลา)
     const totalCount = forStatus.length
 
-    // trendSeries: จำนวน order ของ status ใน 7 วันล่าสุดแต่ละวัน (length 7)
-    const trendSeries = last7Days.map((day) =>
+    // trendSeries: จำนวน order ของ status ใน 30 วันล่าสุดแต่ละวัน (length 30)
+    const trendSeries = lastDays.map((day) =>
       forStatus.filter((o) => toDateStr(o.createdAtISO) === day).length,
     )
 
-    // current7 = sum(trendSeries)
-    const current7 = trendSeries.reduce((s, n) => s + n, 0)
+    // current = sum(trendSeries) = ยอด 30 วันล่าสุด
+    const current = trendSeries.reduce((s, n) => s + n, 0)
 
-    // prev7: order ที่ createdAt อยู่ระหว่าง prev7StartStr ถึง prev7EndStr (inclusive)
-    const prev7 = forStatus.filter((o) => {
+    // prev: order ที่ createdAt อยู่ระหว่าง prevStartStr ถึง prevEndStr (30 วันก่อนหน้า, inclusive)
+    const prev = forStatus.filter((o) => {
       const d = toDateStr(o.createdAtISO)
-      return d >= prev7StartStr && d <= prev7EndStr
+      return d >= prevStartStr && d <= prevEndStr
     }).length
 
     const changePct =
-      prev7 === 0
-        ? current7 > 0 ? 100 : 0
-        : Math.round(((current7 - prev7) / prev7) * 100)
+      prev === 0
+        ? current > 0 ? 100 : 0
+        : Math.round(((current - prev) / prev) * 100)
 
     return { title, status, totalCount, changePct, trendSeries }
   }
