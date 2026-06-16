@@ -348,12 +348,14 @@ export const authOptions: NextAuthOptions = {
         if (user) {
           const shopSlug = user.shop?.slug ?? null;
           // ต้อง onboard เมื่อ: ยังไม่มี slug ร้าน หรือ ยังไม่มีเบอร์ (FB user)
-          const needsOnboarding = !shopSlug || !user.phone;
+          // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session) — ให้ onboarding รู้ว่าต้องโชว์ step ยืนยันเบอร์ไหม
+          const needsPhoneVerify = !user.phone;
+          const needsOnboarding = !shopSlug || needsPhoneVerify;
           (session as any).user = {
             id: user.id, displayName: user.displayName, username: user.username,
             email: user.email, avatar: user.avatar, isShop: user.isShop,
             isAdmin: user.isAdmin, trustScore: user.trustScore,
-            shopSlug, needsOnboarding,
+            shopSlug, needsOnboarding, needsPhoneVerify,
           };
         }
       }
