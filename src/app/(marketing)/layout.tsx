@@ -1,5 +1,5 @@
 // Next Imports
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Anuphan } from 'next/font/google'
 import Script from 'next/script'
 
@@ -44,6 +44,14 @@ export const metadata: Metadata = {
   description:
     'Deep คือระบบสร้างความน่าเชื่อถือสำหรับการซื้อขายออนไลน์ ผ่านการยืนยันตัวตน Trust Score และ Badge เพื่อลดปัญหามิจฉาชีพ',
   keywords: ['Deep', 'Trust Score', 'ซื้อขายออนไลน์', 'ยืนยันตัวตน', 'มิจฉาชีพ'],
+}
+
+// ปิด pinch-zoom บนมือถือฝั่ง buyer/landing ให้สม่ำเสมอกับฝั่ง Paces
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default async function MarketingRootLayout({ children }: ChildrenType) {

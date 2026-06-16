@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Anuphan } from 'next/font/google'
 
 import { Analytics } from '@vercel/analytics/next'
@@ -28,6 +28,15 @@ export const metadata: Metadata = {
   keywords: META_DATA.keywords,
   authors: [{ name: META_DATA.author }],
   icons: { icon: pacesFavicon.src },
+}
+
+// ปิด pinch-zoom บนมือถือ — แอป seller/admin เป็น native-like (Paces) ไม่อยาก
+// ให้ผู้ใช้ซูมจนเลย์เอาต์เพี้ยน. maximumScale=1 + userScalable=false
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
