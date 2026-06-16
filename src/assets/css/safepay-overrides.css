@@ -80,10 +80,10 @@ html[data-skin="orbit"] {
     --text-2xs:  0.6875rem;/* 11px — Paces _root */
 }
 
-/* Drop the unwanted right padding paces adds inside .page-content main. */
-.page-content main {
-    padding-right: 0 !important;
-}
+/* NOTE: เดิมมี `.page-content main { padding-right: 0 !important }` ที่ฆ่า padding ขวาข้างเดียว
+   → ขอบซ้าย/ขวาไม่สมมาตร (20/0) ดู "ชิดขอบ" ผิดจาก theme. ลบทิ้งแล้ว 2026-06-16 →
+   ปล่อย base Paces `main { px-5 pb-5 }` (20px สมมาตร) ทำงานเอง = ตรง theme demo (skin default) เป๊ะ.
+   ไม่เพิ่ม custom gutter (บทเรียน: ชิดขอบมาจาก asymmetry ไม่ใช่ค่าน้อยไป — แค่ลบตัวผิดพอ) */
 
 /* ─── Seller Mobile Shell — <lg ซ่อน sidebar/header, ตัด margin และ padding สม่ำเสมอ ─── */
 /* breakpoint เส้นเดียว = lg (1024px) ตรงกับ SellerMobileHeader / CommandCenter lg:hidden    */
