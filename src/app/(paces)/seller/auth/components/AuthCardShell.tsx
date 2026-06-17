@@ -27,12 +27,12 @@ import type { ReactNode } from 'react'
 
 export default function AuthCardShell({ children }: { children: ReactNode }) {
   return (
-    // outer wrapper — centering + padding (theme: flex min-h-screen items-center p-12.5)
-    // mobile: ไม่มี padding รอบจอ (เต็มจอ) → p-12.5 เฉพาะ lg+
-    <div className="flex min-h-screen items-center lg:p-12.5">
-      {/* container + centering layer — ตรงกับ theme (container > flex justify-center) */}
-      <div className="container">
-        <div className="flex justify-center">
+    // outer wrapper — desktop: flex center + p-12.5 (theme) / mobile: block เต็มจอ
+    // 3 ชั้น centering (flex/container/justify) เป็น lg: เท่านั้น — ไม่งั้น container บีบ mobile ไม่เต็มจอ
+    <div className="min-h-screen lg:flex lg:items-center lg:p-12.5">
+      {/* container + centering layer — เฉพาะ lg+ (theme: container > flex justify-center) */}
+      <div className="lg:container">
+        <div className="lg:flex lg:justify-center">
           {/* width node = xl:w-5/6 (theme) + positioning context ของ blob */}
           <div className="relative xl:w-5/6">
             {/* มุมตกแต่งพื้นหลัง — ผูกกับ card region (theme: blob ขวาบน + ซ้ายล่าง), desktop เท่านั้น */}
