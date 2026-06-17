@@ -4,7 +4,8 @@
  * Base: theme/paces/Admin/TS/src/app/auth/card/sign-up/components/SignUpForm.tsx
  *
  * Changes vs base:
- * - เพิ่ม Facebook button (w-full, icon bxl:facebook-circle) + dashed divider "หรือกรอกข้อมูล"
+ * - ไม่มี social/OAuth บนหน้านี้ — sign-up = กรอกเองล้วน (FB อยู่หน้า sign-in เท่านั้น)
+ *   (ลบปุ่ม Facebook + dashed divider "หรือกรอกข้อมูล" ออกตามคำขอ user)
  * - ลบ Name/Email fields ของ base → แทนด้วย 6 fields ตามสเปก S-P2-2:
  *   1. displayName (tabler:user, Yup 2-50)
  *   2. category (ChoiceSelect controlled — src/components/wrappers/ChoiceSelect.tsx;
@@ -31,9 +32,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_KEYS, SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
 import { cn } from '@/utils/helpers'
-import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
-import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -146,10 +145,6 @@ export default function SignUpForm() {
     return () => clearTimeout(t)
   }, [username])
 
-  const handleFacebook = async () => {
-    await signIn('facebook', { callbackUrl: '/auth/callback/facebook' })
-  }
-
   const onSubmit = async (values: FormValues) => {
     // OQ-2: บล็อก submit ถ้า username ยังไม่ผ่าน live check — ไม่ต้อง toast เพราะ inline live-status แสดงอยู่แล้ว
     if (usernameStatus.state !== 'ok') {
@@ -216,33 +211,7 @@ export default function SignUpForm() {
     usernameStatus.state === 'error'
 
   return (
-    <>
-      {/* ปุ่ม Facebook OAuth — pattern เดียวกับ SignInForm */}
-      <button
-        type="button"
-        onClick={handleFacebook}
-        className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
-      >
-        {/* BxIcon = raw Iconify เพราะ Facebook icon อยู่ใน boxicons set (bxl:)
-            ขณะที่ Icon wrapper ของโปรเจกต์ fix prefix เป็น tabler: เท่านั้น */}
-        <BxIcon
-          icon="bxl:facebook-circle"
-          width={18}
-          height={18}
-          className="me-2 flex-shrink-0"
-          style={{ color: '#1877f2' }}
-        />
-        สมัครด้วย Facebook
-      </button>
-
-      {/* dashed divider — copy structure จาก base theme ตรง ๆ */}
-      <p className="relative my-5 text-center text-default-400 after:absolute after:start-0 after:end-0 after:top-2.75 after:h-0.75 after:border-t after:border-b after:border-dashed after:border-default-300">
-        <span className="relative z-10 bg-card font-medium px-4">
-          หรือกรอกข้อมูล
-        </span>
-      </p>
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
         {/* 1. ชื่อที่แสดง */}
         <div className="mb-5">
           <label htmlFor="displayName" className="form-label">
@@ -410,6 +379,5 @@ export default function SignUpForm() {
           </button>
         </div>
       </form>
-    </>
   )
 }

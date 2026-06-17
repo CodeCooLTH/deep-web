@@ -40,7 +40,6 @@ import { getRecentActivity, type ActivityItem } from '@/services/activity.servic
 // v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
 import { getBalance } from '@/services/wallet.service'
 import { getTierLabel } from '@/lib/trust-tier'
-import OnboardingModal from './components/OnboardingModal'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -287,15 +286,7 @@ export default async function SellerDashboardPage() {
           </div>
         </div>
       </div>
-
-      {/* OnboardingModal — client component, mount หลัง content หลัก
-          props จาก session callback (needsOnboarding / needsPhoneVerify / displayName)
-          reuse session ที่ fetch ไว้แล้ว ไม่ query ซ้ำ */}
-      <OnboardingModal
-        needsOnboarding={!!user?.needsOnboarding}
-        needsPhoneVerify={!!user?.needsPhoneVerify}
-        displayName={user?.displayName}
-      />
+      {/* onboarding ย้ายไปหน้า /onboarding (บังคับผ่าน proxy) — ไม่ใช้ modal บน dashboard แล้ว */}
     </>
   )
 }

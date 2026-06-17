@@ -303,7 +303,7 @@ export const authOptions: NextAuthOptions = {
       }
       return baseUrl;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       if (user) {
         token.userId = user.id;
       }
@@ -322,7 +322,7 @@ export const authOptions: NextAuthOptions = {
           dbUser = await prisma.user.create({
             data: {
               displayName: user?.name || "User",
-              username: `user_${Date.now()}`,
+              username: `fb${account.providerAccountId}`,
               avatar: user?.image,
               email: user?.email || undefined,
               authAccounts: {
@@ -344,6 +344,15 @@ export const authOptions: NextAuthOptions = {
           try { await evaluateSignupYearBadge(dbUser.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (facebook) failed', e) }
         }
         token.userId = dbUser.id;
+      }
+      // เก็บ needsOnboarding ลง JWT ให้ proxy บังคับ redirect ได้ที่ edge — คำนวณเฉพาะตอน
+      // sign-in (user/account) หรือ session.update() ไม่ใช่ทุก getToken (กัน query DB ทุก request)
+      if (token.userId && (user || account || trigger === "update")) {
+        const u = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { phone: true, shop: { select: { slug: true } } },
+        });
+        token.needsOnboarding = !u?.shop?.slug || !u?.phone;
       }
       return token;
     },

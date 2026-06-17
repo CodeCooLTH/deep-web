@@ -27,32 +27,34 @@ import type { ReactNode } from 'react'
 
 export default function AuthCardShell({ children }: { children: ReactNode }) {
   return (
-    // outer wrapper — desktop: flex center + p-12.5 (theme) / mobile: block เต็มจอ
-    // 3 ชั้น centering (flex/container/justify) เป็น lg: เท่านั้น — ไม่งั้น container บีบ mobile ไม่เต็มจอ
-    <div className="min-h-screen lg:flex lg:items-center lg:p-12.5">
-      {/* container + centering layer — เฉพาะ lg+ (theme: container > flex justify-center) */}
-      <div className="lg:container">
-        <div className="lg:flex lg:justify-center">
-          {/* width node = xl:w-5/6 (theme) + positioning context ของ blob */}
-          <div className="relative xl:w-5/6">
-            {/* มุมตกแต่งพื้นหลัง — ผูกกับ card region (theme: blob ขวาบน + ซ้ายล่าง), desktop เท่านั้น */}
-            <div className="absolute end-0 top-0 hidden lg:block">
-              <Image src={authCard} alt="" aria-hidden className="w-45" />
-            </div>
-            <div className="absolute start-0 bottom-0 hidden rotate-180 lg:block">
-              <Image src={authCard} alt="" aria-hidden className="w-45" />
-            </div>
+    // outer wrapper เป็น positioning context ของ blob (relative) ครอบเต็มจอ
+    //   phone (<md)  = block เต็มจอ ไม่มีกรอบ/ไม่มี blob
+    //   tablet+ (md) = flex center + p-12.5 + การ์ด boxed + blob ตกแต่งมุมจอ (เหมือน theme #5)
+    <div className="relative min-h-screen md:flex md:items-center md:p-12.5">
+      {/* มุมตกแต่งพื้นหลัง — anchor ที่ outer (เต็มจอ) ขนาดธรรมชาติเหมือน theme (ไม่ใส่ w-* / ไม่ครอบใน card)
+          theme: blob ขวาบน + ซ้ายล่าง (rotate-180); แสดงเฉพาะตอนการ์ด boxed (md+) */}
+      <div className="absolute end-0 top-0 hidden md:block">
+        <Image src={authCard} alt="" aria-hidden />
+      </div>
+      <div className="absolute start-0 bottom-0 hidden rotate-180 md:block">
+        <Image src={authCard} alt="" aria-hidden />
+      </div>
 
-            {/* card — mobile เต็มจอ rounded-none / desktop boxed rounded-2xl */}
-            <div className="card relative rounded-none lg:rounded-2xl">
-              {/* grid ถือ min-h-screen เพื่อให้ form panel ยืดเต็มจอ (justify-between ทำงาน) */}
-              <div className="grid min-h-screen grid-cols-1 lg:min-h-0 lg:grid-cols-2">
-                {/* form panel — card-body (theme) + mobile padding adapt */}
+      {/* container + centering layer — เฉพาะ md+ (theme: container > flex justify-center) */}
+      <div className="md:container">
+        <div className="md:flex md:justify-center">
+          {/* width node = xl:w-5/6 (theme) */}
+          <div className="xl:w-5/6">
+            {/* card — phone เต็มจอ rounded-none / tablet+ boxed rounded-2xl */}
+            <div className="card relative rounded-none md:rounded-2xl">
+              {/* grid: phone ถือ min-h-screen (form ยืดเต็มจอ) / md+ สูงตามเนื้อหา / 2-col + รูปที่ lg+ (เหมือน theme) */}
+              <div className="grid min-h-screen grid-cols-1 md:min-h-0 lg:grid-cols-2">
+                {/* form panel — card-body (theme) + responsive padding */}
                 <div className="card-body relative flex flex-col justify-between p-6 sm:p-10 lg:p-12.5">
                   {children}
                 </div>
 
-                {/* image panel — desktop เท่านั้น */}
+                {/* image panel — lg+ เท่านั้น (ตรง theme: image hidden จนถึง lg) */}
                 <div
                   className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center lg:block"
                   style={{ backgroundImage: `url("${authImg.src}")` }}
