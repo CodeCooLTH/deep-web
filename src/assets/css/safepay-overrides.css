@@ -127,3 +127,34 @@ html[data-skin="orbit"] {
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }
 
+/* ─── Choices.js .choices__inner → ให้ match .form-input ───────────────────────
+   อาการ: select หมวดหมู่ (sign-up) พื้นเทา + สูงกว่า input อื่น.
+   root cause: ChoiceSelect.tsx import `choices.min.css` (base) unlayered ที่ component-level
+   → bundle position ใหม่กว่า Paces `_choice.css` (unlayered app.css:124) → base
+   `background:#f9f9f9` + `min-height:44px` ชนะ theme. (_choice.css:90 ยังมี `min-height:auto`
+   ทับ min-h-9.25 ด้วยตัวเอง). safepay-overrides = ไฟล์ override ตัวท้ายสุด + !important → การันตีชนะ.
+   .form-input ref: bg-card / border-default-300 / rounded / text-sm / h-9.25 (=2.3125rem=37px).
+   scope height ที่ select-one เท่านั้น — กัน multi-select (tags) ที่ต้องสูงตาม content. */
+.choices__inner {
+  background-color: var(--color-card) !important;
+  border: 1px solid var(--color-default-300) !important;
+  border-radius: var(--radius) !important;
+  font-size: var(--text-sm) !important;
+}
+.choices[data-type*="select-one"] .choices__inner {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 2.3125rem !important; /* = .form-input h-9.25 (37px) */
+  height: 2.3125rem !important;
+  padding: 0 2.25rem 0 0.75rem !important; /* py-0 · ps-3 (px-3) · pe-9 เผื่อ chevron */
+}
+.choices[data-type*="select-one"].is-focused .choices__inner,
+.choices[data-type*="select-one"].is-open .choices__inner {
+  border-color: var(--color-default-500) !important; /* ตรง .form-input focus */
+}
+.choices.is-disabled .choices__inner {
+  background-color: var(--color-default-100) !important;
+  cursor: not-allowed !important;
+  opacity: 0.7 !important;
+}
+
