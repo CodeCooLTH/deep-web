@@ -4,11 +4,11 @@
  * /onboarding — เฟส 2 ตั้งค่าร้านครั้งแรก (setup) หลังลงทะเบียน (มีเบอร์แล้ว, ผ่าน /dashboard มาแล้ว)
  * เด้งจาก proxy เมื่อ token.needsOnboarding (ไม่มี slug).
  *
- * Layout: **หน้า seller เปล่า** (Paces card centered บน bg-default-100) — ไม่ใช้ AuthCardShell ของ auth/sign-up
- *   (user req: onboarding = อยู่ในระบบแล้ว ไม่ใช่ flow login)
- * field: component จริง Paces — ChoiceSelect / input-icon-group + Icon / form-textarea / input-group / invalid-msg
- * Flow: 1.หมวดหมู่ → 2.URL ร้าน (slug) → 3.ที่อยู่ (address) → 4.สินค้าแรก → /dashboard
- * เฟส 1 (username + เบอร์ + OTP) อยู่ที่ /register
+ * Layout: หน้า seller เปล่า (Paces card centered) — ไม่ใช้ AuthCardShell ของ auth/sign-up
+ * polish (safepay-ux): icon วงกลมต่อ step (focal point) + "ขั้นที่ x/4" + spacing กระชับ
+ *   Base icon circle: theme/paces/Admin/TS/src/app/(admin)/pages/contact-us/page.tsx (size rounded-full bg-{c}/15)
+ * field component จริง: ChoiceSelect / input-icon-group + Icon / form-textarea / input-group / invalid-msg
+ * Flow: 1.หมวดหมู่ → 2.URL (slug) → 3.ที่อยู่ (address) → 4.สินค้าแรก → /dashboard
  * spec: docs/superpowers/specs/2026-06-17-fb-onboarding-flow-diagram.html
  */
 
@@ -26,6 +26,12 @@ type Step = 'category' | 'slug' | 'address' | 'product'
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
 const CATEGORY_OPTIONS = SHOP_CATEGORY_KEYS.map((k) => ({ value: k, label: SHOP_CATEGORY_LABELS[k] }))
 const STEP_DOTS: Step[] = ['category', 'slug', 'address', 'product']
+const STEP_META: Record<Step, { icon: string; heading: string; subtitle: string }> = {
+  category: { icon: 'category', heading: 'เลือกหมวดหมู่ร้านของคุณ', subtitle: 'เลือกหมวดที่ตรงกับสินค้าของคุณมากที่สุด' },
+  slug: { icon: 'link', heading: 'ตั้ง URL ร้านของคุณ', subtitle: 'ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้' },
+  address: { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: 'ที่อยู่สำหรับจัดส่ง/ติดต่อร้าน' },
+  product: { icon: 'package', heading: 'สร้างสินค้าแรกของคุณ', subtitle: 'เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน' },
+}
 
 /** หน้า seller เปล่า — Paces card centered (ไม่ใช่ auth split-card) */
 function Shell({ children }: { children: React.ReactNode }) {
@@ -136,31 +142,42 @@ export default function OnboardingPage() {
   }
 
   const dotIdx = STEP_DOTS.indexOf(step)
+  const meta = STEP_META[step]
 
   return (
     <Shell>
       <div className="mb-6 flex justify-center"><AuthLogo /></div>
 
-      <div className="mb-5 flex justify-center gap-1.5">
-        {STEP_DOTS.map((_, i) => (
-          <div key={i} className={`size-2 rounded-full transition-colors ${i === dotIdx ? 'bg-primary' : i < dotIdx ? 'bg-primary/50' : 'bg-default-300'}`} />
-        ))}
+      {/* progress: dots + ขั้นที่ x/4 */}
+      <div className="mb-5 flex items-center justify-center gap-3">
+        <div className="flex gap-1.5">
+          {STEP_DOTS.map((_, i) => (
+            <div key={i} className={`size-2 rounded-full transition-colors ${i === dotIdx ? 'bg-primary' : i < dotIdx ? 'bg-primary/50' : 'bg-default-300'}`} />
+          ))}
+        </div>
+        <span className="text-xs text-default-500">ขั้นที่ {dotIdx + 1}/4</span>
       </div>
+
+      {/* icon วงกลมต่อ step (focal point) */}
+      <div className="mb-4 flex justify-center">
+        <div className="flex size-14 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <Icon icon={meta.icon} className="size-7" />
+        </div>
+      </div>
+
+      <h4 className="mb-1 text-center text-base font-bold text-default-900">{meta.heading}</h4>
+      <p className="text-default-400 mb-5 text-center text-sm">{meta.subtitle}</p>
 
       {step === 'category' && (
         <>
-          <h4 className="mb-1 text-center text-lg font-bold text-default-900">เลือกหมวดหมู่ร้านของคุณ</h4>
-          <p className="text-default-400 mb-5 text-center text-sm">เลือกหมวดที่ตรงกับสินค้าของคุณมากที่สุด</p>
           <label className="form-label">หมวดหมู่ร้านค้า<span className="text-danger">*</span></label>
           <ChoiceSelect options={CATEGORY_OPTIONS} placeholder="-- เลือกหมวดหมู่ --" search={false} value={category} onChange={(v) => setCategory(v as string)} />
-          <button type="button" onClick={submitCategory} disabled={catLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{catLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          <button type="button" onClick={submitCategory} disabled={catLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{catLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
         </>
       )}
 
       {step === 'slug' && (
         <>
-          <h4 className="mb-1 text-center text-lg font-bold text-default-900">ตั้ง URL ร้านของคุณ</h4>
-          <p className="text-default-400 mb-5 text-center text-sm">ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้</p>
           <label className="form-label">URL ร้านค้า<span className="text-danger">*</span></label>
           <div className="input-icon-group">
             <Icon icon="link" className="input-icon" />
@@ -169,26 +186,23 @@ export default function OnboardingPage() {
           {sStatus === 'ok' && <p className="invalid-msg mt-1 text-sm text-success">URL นี้ว่างอยู่</p>}
           {sStatus === 'taken' && <p className="invalid-msg mt-1 text-sm text-danger">URL นี้มีคนใช้แล้ว</p>}
           {sStatus === 'invalid' && <p className="invalid-msg mt-1 text-sm text-danger">ใช้ a-z, 0-9, ขีดกลาง ได้ 3-30 ตัว</p>}
+          {sStatus === 'checking' && <p className="invalid-msg mt-1 text-sm text-default-400">กำลังตรวจสอบ...</p>}
           {slug && sStatus === 'ok' && <p className="mt-3 text-sm text-primary">deepthailand.app/<span className="font-mono">{slug}</span></p>}
-          <button type="button" onClick={submitSlug} disabled={slugLoading || sStatus !== 'ok'} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{slugLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          <button type="button" onClick={submitSlug} disabled={slugLoading || sStatus !== 'ok'} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{slugLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
         </>
       )}
 
       {step === 'address' && (
         <>
-          <h4 className="mb-1 text-center text-lg font-bold text-default-900">ตั้งที่อยู่ร้าน</h4>
-          <p className="text-default-400 mb-5 text-center text-sm">ที่อยู่สำหรับจัดส่ง/ติดต่อร้าน</p>
           <label className="form-label">ที่อยู่<span className="text-danger">*</span></label>
           <textarea className="form-textarea" rows={3} placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} />
-          <button type="button" onClick={submitAddress} disabled={addrLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{addrLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          <button type="button" onClick={submitAddress} disabled={addrLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{addrLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
         </>
       )}
 
       {step === 'product' && (
         <>
-          <h4 className="mb-1 text-center text-lg font-bold text-default-900">สร้างสินค้าแรกของคุณ</h4>
-          <p className="text-default-400 mb-5 text-center text-sm">เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน</p>
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4">
             <div>
               <label className="form-label">ชื่อสินค้า</label>
               <div className="input-icon-group">
@@ -204,9 +218,9 @@ export default function OnboardingPage() {
               </div>
             </div>
           </div>
-          <div className="mt-6 flex flex-col gap-2">
+          <div className="mt-5 flex flex-col gap-2">
             <button type="button" onClick={createProduct} disabled={pLoading} className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50">{pLoading ? 'กำลังสร้าง...' : 'สร้างสินค้าเลย'}</button>
-            <button type="button" onClick={finish} disabled={pLoading} className="w-full text-center text-sm text-default-500 disabled:opacity-50">ข้ามไปก่อน เพิ่มทีหลังได้</button>
+            <button type="button" onClick={finish} disabled={pLoading} className="w-full py-1 text-center text-sm text-default-500 disabled:opacity-50">ข้ามไปก่อน เพิ่มทีหลังได้</button>
           </div>
         </>
       )}
