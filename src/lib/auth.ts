@@ -20,6 +20,18 @@ export const authOptions: NextAuthOptions = {
     FacebookProvider({
       clientId: process.env.FACEBOOK_ID || "",
       clientSecret: process.env.FACEBOOK_SECRET || "",
+      // ขอรูปโปรไฟล์ใหญ่ ~200px (default FB picture ~50px เล็กไป) — ใช้ graph picture
+      // endpoint จาก FB user id (URL เสถียร, ไม่ต้อง token) แทน picture.data.url ตัวเล็ก.
+      // override เฉพาะ profile() — คง userinfo default (appsecret_proof ไม่หาย)
+      profile(profile) {
+        const p = profile as { id: string; name?: string; email?: string };
+        return {
+          id: p.id,
+          name: p.name,
+          email: p.email ?? null,
+          image: `https://graph.facebook.com/${p.id}/picture?type=large&width=200&height=200`,
+        };
+      },
     }),
     CredentialsProvider({
       id: "phone-otp",

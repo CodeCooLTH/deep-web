@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**.fbcdn.net' },
       { protocol: 'https', hostname: 'platform-lookaside.fbsbx.com' },
+      // FB profile picture endpoint (avatar ใหญ่ ~200px จาก graph; 302 → fbcdn)
+      { protocol: 'https', hostname: 'graph.facebook.com' },
       { protocol: 'https', hostname: '*.supabase.co' },
       { protocol: 'https', hostname: '*.r2.cloudflarestorage.com' },
       { protocol: 'https', hostname: '*.s3.amazonaws.com' },

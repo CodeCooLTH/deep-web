@@ -147,7 +147,7 @@ export default function SignUpForm() {
   }, [username])
 
   const handleFacebook = async () => {
-    await signIn('facebook', { callbackUrl: '/dashboard' })
+    await signIn('facebook', { callbackUrl: '/auth/callback/facebook' })
   }
 
   const onSubmit = async (values: FormValues) => {

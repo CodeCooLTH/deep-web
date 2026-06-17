@@ -42,7 +42,30 @@
 ### 3. proxy.ts — ให้หน้า callback เป็น public
 - ตรวจ `src/proxy.ts`: path `/auth/*` ต้องไม่ถูก block ก่อน login (เหมือน sign-in). ถ้า logic เดิม allow `/auth/**` อยู่แล้ว = ไม่ต้องแก้; ถ้าไม่ → เพิ่ม `/auth/callback/facebook` ใน allowlist
 
-### 4. Env vars (user ตั้ง — นอกโค้ด)
+### 4. Profile image (avatar) — enhance ขนาดรูป
+- avatar ถูกเก็บอยู่แล้ว: `auth.ts:314` `avatar: user?.image` (ตอนสร้าง FB user) + session ส่ง `avatar` ออก
+- **ปัญหา:** default FB `picture` เล็ก ~50px → enhance `FacebookProvider` ให้ขอรูปใหญ่:
+  ```ts
+  FacebookProvider({
+    clientId: process.env.FACEBOOK_ID || "",
+    clientSecret: process.env.FACEBOOK_SECRET || "",
+    userinfo: {
+      url: "https://graph.facebook.com/me",
+      params: { fields: "id,name,email,picture.type(large)" }, // ~200px แทน 50px
+    },
+    profile(profile) {
+      return {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email ?? null,
+        image: profile.picture?.data?.url ?? null,
+      };
+    },
+  })
+  ```
+- **decision:** เซ็ต avatar ตอนสร้าง user (signup) เท่านั้น — ไม่ refresh ทุก login (เลี่ยง DB write ทุกครั้ง; user แก้รูปเองได้ใน settings ภายหลัง)
+
+### 5. Env vars (user ตั้ง — นอกโค้ด)
 - `FACEBOOK_ID`, `FACEBOOK_SECRET` ใน `.env.local` (dev) + Vercel prod (Production)
 
 ## FB App config (user ทำใน console — แอป consumer-login ใหม่)
