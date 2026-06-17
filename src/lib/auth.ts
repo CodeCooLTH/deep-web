@@ -342,6 +342,9 @@ export const authOptions: NextAuthOptions = {
           // best-effort badge evaluation — อยู่ใน if (!dbUser) branch เท่านั้น
           // (new-user only) ไม่กระทบ jwt refresh path (security must-fix Phase-3)
           try { await evaluateSignupYearBadge(dbUser.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (facebook) failed', e) }
+        } else if (user?.image && dbUser.avatar !== user.image) {
+          // refresh รูปโปรไฟล์ FB ทุก login (เผื่อเปลี่ยนรูปใน FB / user เก่าที่ avatar ยัง null หรือรูปเล็ก)
+          await prisma.user.update({ where: { id: dbUser.id }, data: { avatar: user.image } });
         }
         token.userId = dbUser.id;
       }

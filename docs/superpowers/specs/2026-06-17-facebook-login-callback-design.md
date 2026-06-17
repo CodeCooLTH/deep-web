@@ -63,7 +63,7 @@
     },
   })
   ```
-- **decision:** เซ็ต avatar ตอนสร้าง user (signup) เท่านั้น — ไม่ refresh ทุก login (เลี่ยง DB write ทุกครั้ง; user แก้รูปเองได้ใน settings ภายหลัง)
+- **decision (อัปเดต 2026-06-17):** refresh avatar **ทุก login** (jwt callback FB branch — update เฉพาะเมื่อ `dbUser.avatar !== user.image` กัน DB write เปล่า). graph URL เสถียร = โชว์รูปปัจจุบันเสมอ. + backfill FB user เดิมใน DB. user request: TopBar ต้องโชว์รูป FB ทุกครั้ง
 
 ### 5. Env vars (user ตั้ง — นอกโค้ด)
 - `FACEBOOK_ID`, `FACEBOOK_SECRET` ใน `.env.local` (dev) + Vercel prod (Production)
