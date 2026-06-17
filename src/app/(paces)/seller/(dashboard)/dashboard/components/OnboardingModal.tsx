@@ -523,19 +523,21 @@ export default function OnboardingModal({
                   </p>
                 </div>
 
-                {/* 3 mini-card — Base: badge/card primitive */}
-                <div className="grid grid-cols-3 gap-2 w-full">
+                {/* mini-card — แนวตั้ง 1 คอลัมน์ (icon ซ้าย / text ขวา) อ่านง่ายกว่า grid-cols-3 บน mobile */}
+                <div className="grid grid-cols-1 gap-2 w-full">
                   {[
                     { icon: 'shield-check', title: 'Trust Score', desc: 'สร้างความน่าเชื่อถือจากการขายจริง' },
                     { icon: 'user-check', title: 'ยืนยันตัวตน', desc: 'ปลอดภัย ซื้อขายอุ่นใจ' },
                     { icon: 'shopping-bag', title: 'เริ่มขายได้ทันที', desc: 'สร้างสินค้าแรกใน 1 นาที' },
                   ].map((item) => (
-                    <div key={item.icon} className="card border border-dashed border-default-300 p-3 text-center">
-                      <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary mx-auto mb-1.5">
+                    <div key={item.icon} className="card border border-dashed border-default-300 p-3 flex items-center gap-3 text-left">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                         <Icon icon={item.icon} className="size-4" />
                       </span>
-                      <p className="text-xs font-semibold text-default-700 leading-tight">{item.title}</p>
-                      <p className="text-2xs text-default-500 leading-tight mt-0.5">{item.desc}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-default-700 leading-tight">{item.title}</p>
+                        <p className="text-xs text-default-500 leading-tight mt-0.5">{item.desc}</p>
+                      </div>
                     </div>
                   ))}
                 </div>

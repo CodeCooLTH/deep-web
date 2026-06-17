@@ -49,7 +49,7 @@ function TileLink({ tile }: { tile: ShortcutTile }) {
         <span className={`size-12 rounded-full flex items-center justify-center ${chipClass}`}>
           <Icon icon={tile.icon} className="text-2xl" />
         </span>
-        <span className="text-xs font-medium text-default-700 text-center leading-tight">
+        <span className="text-xs font-medium text-default-700 text-center leading-tight min-h-8 flex items-start justify-center">
           {tile.label}
         </span>
       </div>
