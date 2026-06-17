@@ -42,7 +42,7 @@ export default function OrderCardMenu({ token, status, onCancelRequest }: OrderC
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100"
+        className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 min-h-11 min-w-11"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="เมนูเพิ่มเติม"

@@ -69,7 +69,7 @@ export default function ProductCapabilityCardV2({
                     />
                     <label
                       htmlFor={elemId}
-                      className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-8 rounded-full px-2.5 text-xs peer-checked:text-white"
+                      className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 rounded-full px-2.5 text-xs peer-checked:text-white"
                     >
                       {FULFILLMENT_LABEL[mode]}
                     </label>
@@ -98,7 +98,7 @@ export default function ProductCapabilityCardV2({
                     />
                     <label
                       htmlFor={elemId}
-                      className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-8 rounded-full px-2.5 text-xs peer-checked:text-white"
+                      className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 rounded-full px-2.5 text-xs peer-checked:text-white"
                     >
                       {BILLING_LABEL[mode]}
                     </label>

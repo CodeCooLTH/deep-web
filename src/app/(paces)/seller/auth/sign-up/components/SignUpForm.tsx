@@ -367,7 +367,7 @@ export default function SignUpForm() {
               type="button"
               onClick={() => setShowConfirm((s) => !s)}
               aria-label={showConfirm ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-              className="absolute inset-y-0 end-0 flex items-center px-3 text-default-500 hover:text-default-700"
+              className="absolute inset-y-0 end-0 flex min-w-11 items-center justify-center text-default-500 hover:text-default-700"
             >
               <Icon icon={showConfirm ? 'eye-off' : 'eye'} className="text-base" />
             </button>

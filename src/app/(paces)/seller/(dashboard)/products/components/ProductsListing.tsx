@@ -257,9 +257,9 @@ const ProductsListing = ({ products }: Props) => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2.5 md:flex-nowrap">
-          <div className="items-center gap-3 md:flex">
+          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:gap-3">
             <span className="font-semibold">กรอง:</span>
-            <div className="input-icon-group">
+            <div className="input-icon-group w-full">
               <Icon icon="tag" className="input-icon" />
               <Select
                 className="form-select"
@@ -324,18 +324,18 @@ const ProductsListing = ({ products }: Props) => {
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/products/${p.id}`}
-                  className="text-[14px] font-medium text-ink hover:text-primary block truncate"
+                  className="text-sm font-medium text-ink hover:text-primary block truncate"
                 >
                   {p.name}
                 </Link>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="text-[12px] text-default-500">{priceStr}</span>
-                  <span className="text-default-300 text-[10px]">·</span>
-                  <span className={cn('badge py-0 text-[10px] font-semibold leading-tight', TYPE_COLORS[p.type])}>
+                  <span className="text-xs text-default-500">{priceStr}</span>
+                  <span className="text-default-300 text-2xs">·</span>
+                  <span className={cn('badge py-0 text-2xs font-semibold leading-tight', TYPE_COLORS[p.type])}>
                     {TYPE_LABELS[p.type]}
                   </span>
                   <span className={cn(
-                    'badge py-0 text-[10px] font-semibold leading-tight',
+                    'badge py-0 text-2xs font-semibold leading-tight',
                     p.isActive ? 'bg-success/10 text-success' : 'bg-default-200 text-default-700',
                   )}>
                     {p.isActive ? 'เปิดขาย' : 'ซ่อน'}
@@ -345,7 +345,7 @@ const ProductsListing = ({ products }: Props) => {
 
               {/* trailing: ขายแล้ว + 3 action icons */}
               <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
-                <p className="text-[12px] text-default-400 leading-tight whitespace-nowrap">
+                <p className="text-xs text-default-400 leading-tight whitespace-nowrap">
                   ขายแล้ว {new Intl.NumberFormat('th-TH').format(p.totalSold)}
                 </p>
                 {/* action: แก้ไข / ลบ — touch ≥44px (ดู = แตะชื่อสินค้าไป detail แล้ว เลยตัด eye) */}

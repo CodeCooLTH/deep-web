@@ -128,7 +128,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
         iconOnly
           ? `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 ${className}`.trim()
           : compact
-            ? 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 text-xs'
+            ? `btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 text-xs min-h-11 ${className}`.trim()
             : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 text-xs'
       }
     >
