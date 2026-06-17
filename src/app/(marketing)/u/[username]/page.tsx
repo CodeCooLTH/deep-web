@@ -1,9 +1,11 @@
 // Next Imports
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import NextLink from 'next/link'
 
 // MUI Imports
 import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 
 // Service Imports
 import { prisma } from '@/lib/prisma'
@@ -149,6 +151,12 @@ export default async function PublicProfilePage({ params }: Props) {
       }}
     >
       <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
+      {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
+      <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+        <NextLink href='/privacy' style={{ textDecoration: 'none' }}>
+          <Typography variant='caption' color='text.secondary'>นโยบายความเป็นส่วนตัว</Typography>
+        </NextLink>
+      </Box>
     </Box>
   )
 }
