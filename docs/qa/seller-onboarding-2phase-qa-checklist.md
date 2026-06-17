@@ -1,165 +1,167 @@
-# Seller Onboarding 2-Phase QA Checklist
+# Seller Onboarding + Auth — QA Checklist
 
-**Feature:** 2-phase seller onboarding สำหรับ FB user และ user ที่ยังไม่ครบข้อมูล  
-**Branch:** `feat/seller-order-detail-optionD` (commit 300ce15)  
-**Subdomain:** `seller.deepth.local:4000`  
-**สร้าง:** 2026-06-17  
-**QA run:** safepay-qa (API-level E2E)  
-**Browser visual:** ยังไม่ได้ทดสอบ (MCP ไม่พร้อม — ดู section "ยังไม่ได้เทส")
+> อัพเดท: 2026-06-17 | Branch: `feat/seller-order-detail-optionD`
+> Playwright spec: `e2e/seller-onboarding-full.spec.ts` (41 tests) + `e2e/seller-onboarding-2phase.spec.ts` (3 tests)
+> Auth helper: `e2e/helpers/auth.ts` (states: fresh-fb / no-slug / no-slug-with-category / complete / manual-complete / fb-has-phone)
 
----
+## หมายเหตุ TEST_ACCOUNTS
 
-## Pre-flight Setup
+OTP bypass เบอร์ทดสอบ (dev only) ใน `src/lib/otp.ts`:
+- `0000000001` / `123456` — seller test account (มี user `btpremium_suksawat` ใน DB)
+- `0000000002-0000000006` / `123456` — QA-only (ไม่มี user real)
+- `0000000009` / `123456` — onboarding QA หลัก
 
-- [x] dev server รันที่ port 4000 (`curl http://seller.deepth.local:4000/ → 307`)
-- [x] `.env.local` ชี้ Supabase dev DB (DATABASE_URL + DIRECT_URL + NEXTAUTH_SECRET)
-- [x] Seed: สร้าง FB-like user ด้วย `prisma/qa-seed-fb-user.ts` (`dotenv -e .env.local -- npx tsx`)
-  - username=`qafbtest`, phone=null, avatar URL, AuthAccount FACEBOOK:qa-fb-99991234
-  - ไม่มี shop (หรือ shop ไม่มี slug) = phase 1 start
-- [x] JWT Token: `encode({ userId, needsRegistration:true, needsOnboarding:true })` no-salt (next-auth/jwt encode)
-  - cookie name dev http: `next-auth.session-token`
-- [x] Cleanup: ลบ user+shop+authAccount+verifications+OtpCode หลัง run เสร็จ
+Rate-limit: ยกเว้นสำหรับ TEST_ACCOUNTS ทุกตัว (แก้ใน `consumeOtpRequestQuota`)
 
 ---
 
-## Phase 1 — /register Proxy Logic
+## Section A — Facebook Login (fresh-fb → /register → /onboarding)
 
-- [x] **TC-01** `FB user / → 307 /dashboard → 307 /register` (authed + needsRegistration → proxy บังคับ)
-  - evidence: `307 /dashboard` แล้ว `/dashboard` → `307 /register`
-- [x] **TC-02** `FB user /dashboard → 307 /register` (needsRegistration block)
-  - evidence: `307 http://seller.deepth.local:4000/register`
-- [x] **TC-03** `FB user /orders → 307 /register`
-  - evidence: `307 http://seller.deepth.local:4000/register`
-- [x] **TC-04** `FB user /products → 307 /register`
-  - evidence: `307 http://seller.deepth.local:4000/register`
-- [x] **TC-05** `/register` ตรงๆ → 200 (ไม่ redirect วนลูป)
-  - evidence: `200`
-- [x] **TC-06** `/onboarding` ขณะ phase 1 → 307 /register (ไม่ให้ข้ามเฟส)
-  - evidence: `307 http://seller.deepth.local:4000/register`
-
----
-
-## Phase 1 — /register Form APIs
-
-- [x] **TC-07** `check-username?u=qafbtest_newname` → `{"available":true}`
-- [x] **TC-08** `check-username?u=qafbtest` (ชื่อที่ใช้แล้ว) → `{"available":false,"reason":"taken"}`
-- [x] **TC-09** `check-phone?phone=0000000009` (ว่าง) → `{"available":true}`
-- [x] **TC-10** `POST /api/account/shop-info` (displayName + username + category lowercase) → `{"ok":true}`
-  - หมายเหตุ: category ต้องเป็น lowercase (`general` ไม่ใช่ `GENERAL`)
-- [x] **TC-11** `POST /api/otp/send` {contact:"0000000009", type:"PHONE"} → `{"message":"OTP sent"}`
-- [x] **TC-12** `POST /api/account/set-phone` {phone:"0000000009", otp:"123456"} (bypass) → `{"ok":true}`
-- [x] **TC-12b** DB verify: user.phone=0000000009, isShop=true, Shop สร้าง (shopName+category), VerificationRecord PHONE_OTP L1 APPROVED
+| # | Test Case | Steps | Expected | Status |
+|---|---|---|---|---|
+| A-01 | fresh-fb → / เด้ง /register | loginAs(fresh-fb) → goto('/') | URL = /register, heading "สร้างบัญชีผู้ขาย" visible | - [x] PASS |
+| A-02 | fresh-fb ข้าม /onboarding ไม่ได้ | loginAs(fresh-fb) → goto('/onboarding') | เด้งกลับ /register | - [x] PASS |
+| A-03 | fresh-fb ข้าม /dashboard ไม่ได้ | loginAs(fresh-fb) → goto('/dashboard') | เด้งกลับ /register | - [x] PASS |
+| A-04 | /register renders ครบ | loginAs(fresh-fb) → goto('/register') | heading + username input + phone input + ถัดไป button | - [x] PASS |
+| A-05 | /register username validation | fill username ≤2 chars → fill valid | error: "ใช้ a-z, 0-9, _ ได้ 3-30 ตัว" → "ใช้ชื่อนี้ได้" | - [x] PASS |
+| A-06 | /register → warning step | fill username (valid) + phone → click ถัดไป | warning step visible: "ตั้งได้ครั้งเดียว", เบอร์แสดง, ปุ่มส่ง OTP | - [x] PASS |
+| A-07 | /register full flow → /onboarding | username → warning → OTP (123456) → verify → DB check | phone set + L1 APPROVED + redirect /onboarding | - [x] PASS |
+| A-08 | ChoiceSelect crash documented (REWORK-1) | category select → click ถัดไป | Application error แสดง (crash confirmed), category API succeed แล้ว crash | - [x] PASS (bug documented) |
+| A-09 | Onboarding API: slug/address/product | page.request.post API directly (bypass crash) | slug saved, address saved, product created + DB verified | - [x] PASS |
+| A-10 | Slug validation: reserved/ซ้ำ/valid | check-slug API: 'api' → false, existing → false, new → true | API returns correct availability | - [x] PASS |
+| A-11 | Address whitespace-only API | POST /api/shops/update { address: '   ' } | 200 OK (API ยอมรับ — UI-side guard เท่านั้น) | - [x] PASS |
+| A-12 | Phone immutable — set-phone ซ้ำ → 409 | loginAs(fb-has-phone) → POST set-phone | 409 error "ตั้งเบอร์แล้ว" | - [x] PASS |
 
 ---
 
-## Phase 1 — /register Negative Paths
+## Section B — Manual Signup (/auth/sign-up)
 
-- [x] **TC-13** `POST /api/account/set-phone` อีกครั้ง (phone immutable) → HTTP 409 + `{"error":"บัญชีนี้ตั้งเบอร์แล้ว ไม่สามารถเปลี่ยนได้"}`
-- [x] **TC-29** set-phone OTP ผิด (แต่ phone ซ้ำแล้ว → 409 ก่อน verify) — ควร 409 (immutable check ก่อน OTP verify ใน code)
-- [x] **TC-30** set-phone ไม่มี session → HTTP 401
-- [x] **TC-31** shop-info ไม่มี session → HTTP 401
-- [x] **TC-32** check-phone เบอร์ที่ถูกใช้แล้ว → `{"available":false}`
-
----
-
-## Phase 2 — /onboarding Proxy Logic
-
-Token ใหม่: `encode({ needsRegistration:false, needsOnboarding:true })` (มี phone ยังไม่มี slug)
-
-- [x] **TC-14** `Phase2 user / → 307 /dashboard → 307 /onboarding`
-- [x] **TC-15** `/dashboard → 307 /onboarding`
-- [x] **TC-16** `/orders → 307 /onboarding`
-- [x] **TC-17** `/register → 307 /dashboard` (มีเบอร์แล้ว ไม่ต้องลงทะเบียน → ออกไป dashboard → proxy เด้งต่อ)
-- [x] **TC-18** `/onboarding` ตรงๆ → 200 (ผ่านได้ปกติ)
+| # | Test Case | Steps | Expected | Status |
+|---|---|---|---|---|
+| B-01 | /auth/sign-up renders | goto('/auth/sign-up') | heading + displayName + category (Choices.js) + username + password + phone + acceptTerms + submit | - [x] PASS |
+| B-02 | Sign-up empty submit → errors | click submit ทันที | ≥1 error message visible (displayName/username errors) | - [x] PASS |
+| B-03 | Username live-check | fill valid username → fill 'admin' | ใช้ชื่อนี้ได้ → error message | - [x] PASS |
+| B-04 | Phone duplicate → inline error | holder สร้างไว้ → fill same phone → submit | "เบอร์นี้มีบัญชีแล้ว" inline, ไม่เด้ง | - [x] PASS |
+| B-05 | Sign-up full flow → verify-otp | fill all fields + submit | redirect /auth/verify-otp, "ส่งรหัสแล้ว", masked phone | - [x] PASS |
+| B-06 | Sign-up + OTP verify → /onboarding | fill all + submit + OTP → verify | redirect /dashboard or /onboarding, user in DB (isShop=true) | - [x] PASS |
 
 ---
 
-## Phase 2 — /onboarding Form APIs
+## Section C — Manual Sign-in (seller-credentials)
 
-- [x] **TC-19** `check-slug?slug=qafbshop2026` → `{"available":true}` (ก่อนตั้ง)
-- [x] **TC-20** `check-slug?slug=api` → `{"available":false,"reason":"reserved"}`
-- [x] **TC-21** `check-slug?slug=ab` (สั้นเกิน) → `{"available":false,"reason":"invalid"}`
-- [x] **TC-22** `POST /api/shops/slug` {slug:"qafbshop2026"} → `{"ok":true}`
-- [x] **TC-22b** DB verify: shop.slug="qafbshop2026"
-- [x] **TC-27** `POST /api/products` onboarding สร้างสินค้าแรก → 200 + product data returned
-- [x] **TC-28** `check-slug?slug=qafbshop2026` หลังตั้งแล้ว → `{"available":false,"reason":"taken"}`
-- [x] **TC-34** `check-slug?slug=` (ว่าง) → `{"available":false,"reason":"invalid"}`
-- [x] **TC-35** `POST /api/shops/slug` slug ซ้ำ → HTTP 409
-
----
-
-## Phase 2 — Complete State
-
-Token: `encode({ needsRegistration:false, needsOnboarding:false })`
-
-- [x] **TC-23** `/dashboard` → 200 (ไม่ redirect อีก)
-- [x] **TC-24** `/onboarding` → 307 /dashboard (setup เสร็จแล้ว → ออก)
-- [x] **TC-25** `/orders` → 200 (เข้าได้ปกติ)
-- [x] **TC-26** `/register` → 307 /dashboard (ลงทะเบียนแล้ว → ออก)
+| # | Test Case | Steps | Expected | Status |
+|---|---|---|---|---|
+| C-01 | /auth/sign-in renders | goto('/auth/sign-in') | heading + username + password + FB button + เข้าสู่ระบบ + ลืมรหัสผ่าน link + สมัครสมาชิก link | - [x] PASS |
+| C-02 | Wrong credentials → inline error | fill wrong username/pass → submit | "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" visible, ยังอยู่ /sign-in | - [x] PASS |
+| C-03 | Empty form → Yup validation | click submit ทันที | ≥1 error message visible | - [x] PASS |
+| C-04 | Correct credentials → /dashboard | fill manual-complete user → submit | redirect /dashboard | - [x] PASS |
+| C-05 | Complete user (cookie) → /dashboard | loginAs(complete) → goto('/dashboard') | ไม่เด้งไป /onboarding, ยังอยู่ /dashboard | - [x] PASS |
+| C-06 | ลืมรหัสผ่าน link → /auth/reset-pass | click ลืมรหัสผ่าน link | redirect /auth/reset-pass | - [x] PASS |
 
 ---
 
-## Page Render Checks (HTML/SSR)
+## Section D — Force / Guard / Negative
 
-- [x] **TC-36** `/register` page: HTTP 200, title="ผู้ขาย | Deep", Anuphan font class, data-skin="default" (Paces ไม่ใช่ saas/Vuexy)
-- [x] **TC-37** `/onboarding` page: HTTP 200
-
----
-
-## OTP Send / Validate
-
-- [x] **TC-33** otp/send ส่งซ้ำ → `{"message":"OTP sent","isNewUser":false}` (idempotent, ไม่ error)
-- [ ] **TC-33b** otp/send เกิน 3 ครั้ง / 10 นาที → HTTP 429 (rate-limit in-memory globalThis — ยังไม่ทดสอบ เพราะ restart server ล้าง state)
-
----
-
-## Cross-Cutting / Security
-
-- [x] CSRF Origin check: API mutations ต้อง Origin header (seller.deepth.local) ผ่านได้
-- [x] Session isolation: ไม่มี session → 401 ทุก API ที่ต้อง auth
-- [x] phone immutable: set-phone ครั้งที่ 2 → 409 พร้อม error message ภาษาไทย
-- [x] slug ซ้ำ: POST /api/shops/slug slug ซ้ำ → 409
-- [ ] slug เปลี่ยนไม่ได้ (ถ้า immutable) — ต้องตรวจสอบจาก `setShopSlug` service ว่ามี guard ไหม (ยังไม่ทดสอบ)
+| # | Test Case | Steps | Expected | Status |
+|---|---|---|---|---|
+| D-01 | ไม่ login → /dashboard | goto('/dashboard') without session | redirect /auth/sign-in | - [x] PASS |
+| D-02 | ไม่ login → /orders | goto('/orders') | redirect /auth/sign-in | - [x] PASS |
+| D-03 | ไม่ login → /register | goto('/register') | redirect /auth/sign-in | - [x] PASS |
+| D-04 | ไม่ login → /onboarding | goto('/onboarding') | redirect /auth/sign-in | - [x] PASS |
+| D-05 | Complete user → /register | loginAs(complete) → goto('/register') | redirect /dashboard (ผ่าน /register แล้ว) | - [x] PASS |
+| D-06 | Complete user → /onboarding | loginAs(complete) → goto('/onboarding') | redirect /dashboard (ผ่าน /onboarding แล้ว) | - [x] PASS |
+| D-07 | no-slug → /orders | loginAs(no-slug) → goto('/orders') | redirect /onboarding | - [x] PASS |
+| D-08 | no-slug → /products | loginAs(no-slug) → goto('/products') | redirect /onboarding | - [x] PASS |
+| D-09 | API set-phone ไม่มี session → 401 | POST /api/account/set-phone no cookie | 401 | - [x] PASS |
+| D-10 | API shop-info ไม่มี session → 401 | POST /api/account/shop-info no cookie | 401 | - [x] PASS |
+| D-11 | API shops/update ไม่มี session → 401 | POST /api/shops/update no cookie | 401 | - [x] PASS |
+| D-12 | API shops/slug ไม่มี session → 401 | POST /api/shops/slug no cookie | 401 | - [x] PASS |
+| D-13 | fresh-fb → /orders → /register | loginAs(fresh-fb) → goto('/orders') | redirect /register (phase 1 = register) | - [x] PASS |
+| D-14 | no-slug → /register → /onboarding | loginAs(no-slug) → goto('/register') | redirect /dashboard หรือ /onboarding | - [x] PASS |
+| D-15 | CSRF — mutation ไม่มี Origin → 403 | POST /api/shops/update ไม่มี Origin header | 403 CSRF rejection | - [x] PASS |
 
 ---
 
-## Browser Visual QA (ยังไม่ได้เทส — carry)
+## Section E — Onboarding Continuity
 
-> MCP chrome-devtools ไม่พร้อมใน session นี้ — ต้องทดสอบด้วย browser จริง
-
-- [ ] **/register welcome step**: avatar FB แสดง, badge "เข้าสู่ระบบด้วย Facebook", ปุ่ม "เริ่มเลย →" render ถูก
-- [ ] **/register info step**: form-input 4 field (displayName, ChoiceSelect category, username+realtime check, phone), ปุ่ม "ถัดไป →"
-- [ ] **/register warning step**: triangle icon, ข้อความ "ตั้งได้ครั้งเดียว", แสดงเบอร์ที่กรอก, ปุ่ม "ยืนยัน" + "← แก้ไขเบอร์"
-- [ ] **/register OTP step**: OTP 6 boxes แสดง, countdown 60 วินาที, auto-focus box ถัดไปเมื่อพิมพ์ครบ
-- [ ] **/register success step**: icon 🎉, "เข้าสู่ระบบสำเร็จ!", loading spinner → redirect /dashboard
-- [ ] **/onboarding slug step**: input slug, realtime check, preview URL "deepthailand.app/..."
-- [ ] **/onboarding product step**: ชื่อสินค้า + ราคา, ปุ่ม "สร้าง" + "ข้ามไปก่อน"
-- [ ] Font Anuphan ครบทุก element (ไม่มี Courier fallback จาก font-mono)
-- [ ] Paces skin default: primary น้ำเงิน #236dc9 (ไม่ใช่ม่วง #7367F0)
-- [ ] Mobile: AuthCardShell ขยายเต็มจอ ≤640px
-- [ ] TopBar avatar: ถ้า user มี avatar URL → แสดงรูปใน TopBar หลัง login
+| # | Test Case | Steps | Expected | Status |
+|---|---|---|---|---|
+| E-01 | no-slug → /onboarding → step 1 = category | loginAs(no-slug) → goto('/onboarding') | heading "เลือกหมวดหมู่ร้านของคุณ" visible | - [x] PASS |
+| E-02 | Onboarding API flow ครบ → /dashboard | loginAs(no-slug) → API category+slug+address → update JWT → goto('/onboarding') | redirect /dashboard (needsOnboarding=false ใน JWT) | - [x] PASS |
 
 ---
 
-## สรุปผล Run นี้
+## Regression (seller-onboarding-2phase.spec.ts)
 
-| หัวข้อ | PASS | FAIL | SKIP |
-|---|---|---|---|
-| Proxy phase 1 redirect | 6 | 0 | 0 |
-| Phase 1 form APIs | 8 | 0 | 0 |
-| Proxy phase 2 redirect | 5 | 0 | 0 |
-| Phase 2 form APIs | 8 | 0 | 0 |
-| Complete state proxy | 4 | 0 | 0 |
-| Negative/security | 5 | 0 | 0 |
-| Browser visual | 0 | 0 | 11 (carry) |
-
-**VERDICT: PASS (API-level E2E)** — browser visual carry ไป MCP session ถัดไป
+| # | Test Case | Status |
+|---|---|---|
+| 2ph-1 | FB user (ไม่มีเบอร์) → /register + block /onboarding | - [x] PASS |
+| 2ph-2 | seller มีเบอร์ ไม่มี slug → /onboarding | - [x] PASS |
+| 2ph-3 | seller ครบ → /dashboard + /onboarding เด้งออก | - [x] PASS |
 
 ---
 
-## หมายเหตุที่พบ
+## REWORK Items
 
-1. **category ต้องเป็น lowercase** — `general` ไม่ใช่ `GENERAL` (valibot ShopCategorySchema match lowercase key). Frontend ใช้ SHOP_CATEGORY_KEYS ถูกแล้ว แต่ QA ต้องระวังตอนทดสอบ curl ตรง
-2. **JWT encode ต้องไม่ระบุ `salt`** สำหรับ cookie `next-auth.session-token` ใน NextAuth v4 dev HTTP mode — salt เป็น "" (empty default) ไม่ใช่ชื่อ cookie
-3. **TC-29 status 409 (ไม่ใช่ 401)**: set-phone ครั้งที่ 2 ด้วย OTP ผิด → API ตรวจ `me.phone` ก่อน OTP verify → return 409 "immutable" ก่อนถึง OTP check — นี่คือพฤติกรรมที่ถูกต้องตาม code
-4. **`isNewUser: false`** จาก otp/send ครั้งที่ 2: บ่งชี้ว่า OTP route ตรวจ user existence ถูกต้อง
+### REWORK-1: ChoiceSelect crash (onboarding category → slug step)
+
+**อาการ**: เมื่อ click "ถัดไป" หลังเลือก category ใน `/onboarding` → API `/api/shops/update` สำเร็จ (200) → `setStep('slug')` → React unmount `ChoiceSelect` → Choices.js `destroy()` พยายาม `removeChild` nodes ที่ React ลบออกไปแล้ว → Fatal "Application error" overlay
+
+**ที่เกิด**: `src/app/(paces)/seller/onboarding/page.tsx` + `src/components/wrappers/ChoiceSelect.tsx`
+
+**Root cause**: `ChoiceSelect.tsx` ใน useEffect cleanup ไม่ wrap `destroy()` ใน try/catch ทำให้ React concurrent render + Choices.js DOM manipulation ชน
+
+**Fix แนะนำ**: ใน `ChoiceSelect.tsx` cleanup fn:
+```typescript
+return () => {
+  try { choicesRef.current?.destroy() } catch { /* ignore DOM race */ }
+}
+```
+
+**ผลกระทบ**: FB user ที่ผ่าน /register ไม่สามารถทำ onboarding ครบ 4 steps ได้ (stuck หลัง category)
+
+### REWORK-2: Address whitespace-only ไม่มี API guard
+
+**อาการ**: POST `/api/shops/update { address: '   ' }` คืน 200 OK แทนที่จะ reject
+
+**ที่เกิด**: `src/app/api/shops/update/route.ts`
+
+**Fix แนะนำ**: เพิ่ม server-side trim + validation ก่อน save
+
+---
+
+## Technical Notes
+
+### OTP Rate-Limit Fix
+
+แก้ไขใน `src/lib/otp.ts`:
+- เพิ่ม TEST_ACCOUNTS `0000000002`-`0000000006` สำหรับ QA tests
+- `consumeOtpRequestQuota` ยกเว้น TEST_ACCOUNTS (ไม่ส่ง SMS จริง ไม่ควรติด rate-limit)
+
+### Auth Bypass Pattern
+
+```typescript
+// e2e/helpers/auth.ts
+const seeded = await createSeller('fresh-fb')  // seed user
+await loginAs(context, seeded)                  // inject cookie
+// cleanup ใน finally เสมอ
+await cleanup(seeded.userId)
+```
+
+### Choices.js Timing
+
+Sign-up form: รอ `.choices__list--dropdown` attached + 800ms ก่อน click `.choices__inner`
+
+---
+
+## ยังไม่ได้เทส (carry)
+
+- [ ] **Mobile QA**: /register + /onboarding + /auth/sign-up บน viewport 375px (Playwright mobile config)
+- [ ] **Facebook OAuth real flow**: ต้อง FB app credential + production-like env (ข้าม local dev)
+- [ ] **Reset password full flow** (/auth/reset-pass → OTP → ตั้งรหัสใหม่ → sign-in)
+- [ ] **Set/change password flow** (/auth/set-pass) หลัง OTP verify
+- [ ] **Onboarding product step** (สร้างสินค้าจริง + DB verify ผ่าน UI — ติด REWORK-1 ก่อน)
+- [ ] **Address UI validation** (ป้อน address ว่าง → ปุ่ม ถัดไป block — ติด REWORK-1 ก่อนถึง address step)
+- [ ] **Concurrent registration** race condition (2 users ชิง username เดียวกัน)
+- [ ] **Session expiry handling** (JWT หมดอายุ → redirect to sign-in)
+- [ ] **Slug อักขระพิเศษ/Unicode** validation edge cases

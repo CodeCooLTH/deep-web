@@ -24,13 +24,16 @@ function hashOtp(otp: string): string {
  * ตรวจว่า contact นี้ยังส่ง OTP ได้อยู่ไหม ภายใต้ quota.
  * Return true = ผ่าน (consume 1 slot), false = เกิน quota
  *
- * ทุกเบอร์ติด rate limit เท่ากัน รวมถึง TEST_ACCOUNTS — เพราะส่ง SMS จริงทุก env
+ * TEST_ACCOUNTS ยกเว้น rate-limit เพราะไม่ส่ง SMS จริง (bypass แล้ว) — กัน QA tests ติด quota
  */
 export function consumeOtpRequestQuota(
   contact: string,
   max = 3,
   windowMs = 10 * 60 * 1000,
 ): boolean {
+  // TEST_ACCOUNTS ไม่ส่ง SMS จริง → ยกเว้น rate-limit เพื่อให้ QA tests รันซ้ำได้ใน window เดียวกัน
+  if (isTestAccount(contact)) return true;
+
   const now = Date.now();
   const cutoff = now - windowMs;
   const prev = otpRequestTimestamps.get(contact) ?? [];
@@ -71,6 +74,11 @@ const TEST_ACCOUNTS: Record<string, string> = process.env.NODE_ENV === 'producti
   ? {}
   : {
       '0000000001': '123456', // seller test account — BT Premium สุขสวัสดิ์
+      '0000000002': '123456', // QA test phone 2 — B-06 (ป้องกัน rate-limit collision กับ 0000000009)
+      '0000000003': '123456', // QA test phone 3 — B-05
+      '0000000004': '123456', // QA test phone 4 — A-07 (แยกจาก B-05/B-06)
+      '0000000005': '123456', // QA test phone 5 — A-07 (current free slot; ย้ายได้ถ้า rate-limited)
+      '0000000006': '123456', // QA test phone 6 — B-05 (fallback slot)
       '0000000009': '123456', // onboarding QA — เบอร์เปล่าสำหรับทดสอบ signup→onboarding (จำลอง SMS, ไม่มีบัญชีจริง)
     };
 

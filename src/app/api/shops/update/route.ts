@@ -8,7 +8,7 @@ import { ShopCategorySchema } from "@/lib/validations";
 
 const Body = v.object({
   category: v.optional(ShopCategorySchema),
-  address: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
+  address: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500))),
 });
 
 export async function POST(req: NextRequest) {

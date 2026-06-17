@@ -118,7 +118,8 @@ const ChoiceSelect = forwardRef<ChoiceSelectRef, ChoiceSelectProps>(function Cho
     return () => {
       cancelled = true
       el.removeEventListener('change', listener)
-      instance?.destroy()
+      // try/catch — destroy() อาจ throw ตอน React concurrent unmount (step transition) → กัน crash
+      try { instance?.destroy() } catch { /* already torn down */ }
       instanceRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
