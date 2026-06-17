@@ -26,7 +26,7 @@ export default function SellerSignUpPage() {
       </div>
 
       <div>
-        <h4 className="font-bold mb-2 text-default-900 text-lg text-center">
+        <h4 className="font-bold mb-2 text-default-900 text-base text-center">
           สร้างบัญชีผู้ขาย
         </h4>
         <p className="text-default-400 mb-4 mx-auto w-full text-center lg:w-3/4">
