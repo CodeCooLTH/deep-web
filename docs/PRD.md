@@ -147,6 +147,18 @@ Dashboard 8 metrics ครบ. User management, verification queue (self-review 
 
 Priority: Must — acceptance: ดู SRS §1 FR-10
 
+### FR-L1: Privacy Policy Page
+
+หน้า `/privacy` สาธารณะ (ไม่ต้อง login) — แสดง Privacy Policy ภาษาไทย ครอบคลุมข้อมูลที่เก็บ/ใช้/เปิดเผย และสิทธิผู้ใช้ ตามข้อกำหนดของ **Facebook Login / Meta App Review** (Privacy Policy URL). Render เป็น static Server Component, ไม่ noindex.
+
+Priority: Must (Facebook App Review requirement) — routing: ดู SRS §3.2
+
+### FR-L2: Data Deletion Instructions Page
+
+หน้า `/data-deletion` สาธารณะ (ไม่ต้อง login) — อธิบายขั้นตอนขอลบข้อมูล: ส่ง email แจ้ง username + ข้อมูลที่ต้องการลบ → ทีม Deep ดำเนินการภายใน 30 วัน ตามข้อกำหนดของ **Facebook Login / Meta App Review** (User Data Deletion URL). Render เป็น static Server Component. หมายเหตุ: เป็นหน้า Instructions URL เท่านั้น — ไม่ใช่ deletion callback (callback = Phase 2, OOS).
+
+Priority: Must (Facebook App Review requirement) — routing: ดู SRS §3.2
+
 ---
 
 ## §4 MVP Scope

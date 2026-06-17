@@ -252,6 +252,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Public Order (UUID) | `/o/{token}` |
 | Public Order (SMS short-code) | `/o/{12-char-code}` → redirect ผ่าน `/api/o/sms/{code}` → `/o/{uuid}` |
 | SMS Link Invalid / Error | `/o/link-invalid` |
+| Privacy Policy | `/privacy` — public, ไม่ต้อง login, static Server Component — Meta App Review (Privacy Policy URL) |
+| Data Deletion Instructions | `/data-deletion` — public, ไม่ต้อง login, static Server Component — Meta App Review (User Data Deletion URL); request via email, ดำเนินการภายใน 30 วัน |
 
 ### 3.3 Buyer (`deepthailand.app/...`) — ต้อง login
 
