@@ -378,7 +378,7 @@ export default function OnboardingModal({
               <button
                 type="button"
                 onClick={back}
-                className="btn text-default-600 hover:text-primary inline-flex items-center gap-1 text-sm"
+                className="btn text-default-600 hover:text-primary inline-flex items-center gap-1 text-sm min-h-11"
                 aria-label="ย้อนกลับ"
               >
                 <Icon icon="arrow-left" className="size-4" />
@@ -400,8 +400,9 @@ export default function OnboardingModal({
                   type="button"
                   aria-label="ปิด"
                   onClick={dismiss}
+                  className="btn size-11 flex items-center justify-center text-default-600 hover:text-primary"
                 >
-                  <Icon icon="x" className="text-2xl align-middle text-default-600" />
+                  <Icon icon="x" className="size-5" />
                 </button>
               )}
             </div>
@@ -473,7 +474,7 @@ export default function OnboardingModal({
                           onChange={(e) => handleOtpInput(idx, e.target.value)}
                           onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                           onPaste={idx === 0 ? handleOtpPaste : undefined}
-                          className="form-input-sm w-10 text-center font-mono text-lg"
+                          className="form-input w-11 h-11 p-0 text-center font-mono text-lg"
                           disabled={phoneLoading}
                           aria-label={`OTP หลักที่ ${idx + 1}`}
                         />
@@ -581,8 +582,8 @@ export default function OnboardingModal({
                         onClick={() => setCategory(isSelected ? null : key)}
                         className={
                           isSelected
-                            ? 'badge bg-primary text-white border border-primary rounded-full inline-flex items-center gap-1 cursor-pointer'
-                            : 'badge border border-default-300 text-default-700 rounded-full cursor-pointer hover:border-primary hover:text-primary'
+                            ? 'btn btn-sm rounded-full min-h-11 px-3.5 inline-flex items-center gap-1 bg-primary text-white border border-primary hover:bg-primary-hover cursor-pointer'
+                            : 'btn btn-sm rounded-full min-h-11 px-3.5 inline-flex items-center gap-1 border border-default-300 text-default-700 hover:border-primary hover:text-primary cursor-pointer'
                         }
                       >
                         {isSelected && <Icon icon="check" className="size-3" />}

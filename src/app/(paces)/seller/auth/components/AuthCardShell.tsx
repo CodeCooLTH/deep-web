@@ -24,36 +24,33 @@ import type { ReactNode } from 'react'
 
 export default function AuthCardShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen lg:flex lg:items-center lg:justify-center lg:bg-default-100 lg:p-12.5">
-      <div className="lg:container">
-        <div className="lg:flex lg:justify-center">
-          <div className="relative w-full xl:w-5/6">
-            {/* มุมตกแต่งพื้นหลัง — sibling ของ card (theme line 18-24), desktop เท่านั้น */}
-            <div className="absolute end-0 top-0 hidden lg:block">
-              <Image src={authCard} alt="" aria-hidden className="w-45" />
-            </div>
-            <div className="absolute start-0 bottom-0 hidden rotate-180 lg:block">
-              <Image src={authCard} alt="" aria-hidden className="w-45" />
+    <div className="relative min-h-screen lg:flex lg:items-center lg:justify-center lg:bg-default-100 lg:p-12.5">
+      {/* มุมตกแต่งพื้นหลัง — มุมจอ (เหมือน theme: blob ขวาบน + ซ้ายล่าง), desktop เท่านั้น */}
+      <div className="absolute end-0 top-0 hidden lg:block">
+        <Image src={authCard} alt="" aria-hidden className="w-45" />
+      </div>
+      <div className="absolute start-0 bottom-0 hidden rotate-180 lg:block">
+        <Image src={authCard} alt="" aria-hidden className="w-45" />
+      </div>
+
+      {/* card region — cap ที่ max-w-4xl (896px ≈ ขนาด theme card/sign-in) ไม่ให้พองตามจอ */}
+      <div className="relative w-full lg:max-w-4xl">
+        {/* card — mobile เต็มจอ rounded-none / desktop boxed rounded-2xl */}
+        <div className="card relative rounded-none lg:rounded-2xl">
+          {/* grid ถือ min-h-screen เพื่อให้ form panel ยืดเต็มจอ (justify-between ทำงาน) */}
+          <div className="grid min-h-screen grid-cols-1 lg:min-h-0 lg:grid-cols-2">
+            {/* form panel */}
+            <div className="relative flex flex-col justify-between p-6 sm:p-10 lg:p-12.5">
+              {children}
             </div>
 
-            {/* card — mobile เต็มจอ rounded-none / desktop boxed rounded-2xl */}
-            <div className="card relative rounded-none lg:rounded-2xl">
-              {/* grid ถือ min-h-screen เพื่อให้ form panel ยืดเต็มจอ (justify-between ทำงาน) */}
-              <div className="grid min-h-screen grid-cols-1 lg:min-h-0 lg:grid-cols-2">
-                {/* form panel */}
-                <div className="relative flex flex-col justify-between p-6 sm:p-10 lg:p-12.5">
-                  {children}
-                </div>
-
-                {/* image panel — desktop เท่านั้น */}
-                <div
-                  className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center lg:block"
-                  style={{ backgroundImage: `url("${authImg.src}")` }}
-                >
-                  {/* gradient overlay — bg-linear-to-t เป็น Tailwind utility ของ theme */}
-                  <div className="absolute inset-0 bg-linear-to-t from-zinc-800 via-zinc-800/80 to-zinc-800/50" />
-                </div>
-              </div>
+            {/* image panel — desktop เท่านั้น */}
+            <div
+              className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center lg:block"
+              style={{ backgroundImage: `url("${authImg.src}")` }}
+            >
+              {/* gradient overlay — bg-linear-to-t เป็น Tailwind utility ของ theme */}
+              <div className="absolute inset-0 bg-linear-to-t from-zinc-800 via-zinc-800/80 to-zinc-800/50" />
             </div>
           </div>
         </div>
