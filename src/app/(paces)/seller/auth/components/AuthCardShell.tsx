@@ -7,16 +7,14 @@
  *   > มุมตกแต่ง (absolute) + card rounded-2xl > grid lg:grid-cols-2
  *   [card-body p-12.5 (form) | image rounded-e-2xl + gradient]
  *
- * Responsive adapt:
- *   - desktop (lg+) = การ์ด landscape กว้างเหมือน theme — replicate กลไก theme เป๊ะ:
- *     container > flex justify-center > xl:w-5/6 (ขยายตามจอ, ที่ xl ≈ 1067px)
- *   - mobile (<lg)  = ฟอร์มเต็มจอ rounded-none (grid min-h-screen, image panel ซ่อน)
+ * Responsive (จุดสลับ = 1024px ตามที่ user กำหนด):
+ *   - ≤1024px (mobile + tablet) = เต็มจอ rounded-none, ไม่มีรูป/ไม่มี blob,
+ *     form อยู่กลางแนวตั้ง (justify-center) + จำกัดความกว้าง centered (max-w-md)
+ *   - >1024px (desktop)         = boxed card (theme look): container × w-5/6 +
+ *     2 คอลัมน์ (form | image) + blob ตกแต่งมุมจอ
  *
- * ทำไมรวมเป็น shell: เดิม 5 หน้า duplicate wrapper เดียวกัน.
- * บทเรียน: เคย cap ด้วย `max-w-4xl` (896px คงที่) โดยเข้าใจผิดว่า = ขนาด theme card
- *   → จริง ๆ theme ใช้ container × xl:w-5/6 (กว้างกว่า ~170px + ขยายตามจอ) → การ์ดเราแคบกว่า
- *   ("ห่างกันเกินไป"). แก้ด้วยการ replicate 3-layer ของ theme ตรง ๆ + blob ผูกกับ
- *   card region (xl:w-5/6) ไม่ใช่ viewport.
+ * ใช้ breakpoint `min-[1025px]:` (ไม่ใช่ lg=1024) เพราะ user ต้องการให้ 1024 = เต็มจอ
+ *   (lg trigger ที่ ≥1024 จะทำให้ 1024 กลายเป็น boxed).
  *
  * children = เนื้อ form panel (logo block / content block / copyright) ของแต่ละหน้า
  */
@@ -27,36 +25,35 @@ import type { ReactNode } from 'react'
 
 export default function AuthCardShell({ children }: { children: ReactNode }) {
   return (
-    // outer wrapper เป็น positioning context ของ blob (relative) ครอบเต็มจอ
-    //   phone (<md)  = block เต็มจอ ไม่มีกรอบ/ไม่มี blob
-    //   tablet+ (md) = flex center + p-12.5 + การ์ด boxed + blob ตกแต่งมุมจอ (เหมือน theme #5)
-    <div className="relative min-h-screen md:flex md:items-center md:p-12.5">
-      {/* มุมตกแต่งพื้นหลัง — anchor ที่ outer (เต็มจอ) ขนาดธรรมชาติเหมือน theme (ไม่ใส่ w-* / ไม่ครอบใน card)
-          theme: blob ขวาบน + ซ้ายล่าง (rotate-180); แสดงเฉพาะตอนการ์ด boxed (md+) */}
-      <div className="absolute end-0 top-0 hidden md:block">
+    // outer = positioning context ของ blob + จัดกึ่งกลางการ์ดบน desktop
+    <div className="relative flex min-h-screen items-center justify-center min-[1025px]:p-12.5">
+      {/* blob ตกแต่งมุมจอ — เฉพาะ desktop (boxed) ขนาดธรรมชาติเหมือน theme */}
+      <div className="absolute end-0 top-0 hidden min-[1025px]:block">
         <Image src={authCard} alt="" aria-hidden />
       </div>
-      <div className="absolute start-0 bottom-0 hidden rotate-180 md:block">
+      <div className="absolute start-0 bottom-0 hidden rotate-180 min-[1025px]:block">
         <Image src={authCard} alt="" aria-hidden />
       </div>
 
-      {/* container + centering layer — เฉพาะ md+ (theme: container > flex justify-center) */}
-      <div className="md:container">
-        <div className="md:flex md:justify-center">
-          {/* width node = xl:w-5/6 (theme) */}
-          <div className="xl:w-5/6">
-            {/* card — phone เต็มจอ rounded-none / tablet+ boxed rounded-2xl */}
-            <div className="card relative rounded-none md:rounded-2xl">
-              {/* grid: phone ถือ min-h-screen (form ยืดเต็มจอ) / md+ สูงตามเนื้อหา / 2-col + รูปที่ lg+ (เหมือน theme) */}
-              <div className="grid min-h-screen grid-cols-1 md:min-h-0 lg:grid-cols-2">
-                {/* form panel — card-body (theme) + responsive padding */}
-                <div className="card-body relative flex flex-col justify-between p-6 sm:p-10 lg:p-12.5">
-                  {children}
+      {/* container + centering — เฉพาะ >1024 (≤1024 = w-full เต็มจอ) */}
+      <div className="w-full min-[1025px]:container">
+        <div className="min-[1025px]:flex min-[1025px]:justify-center">
+          <div className="min-[1025px]:w-5/6">
+            {/* card — ≤1024 เต็มจอ rounded-none / >1024 boxed rounded-2xl */}
+            <div className="card relative rounded-none min-[1025px]:rounded-2xl">
+              {/* ≤1024 = min-h-screen เต็มจอ 1 คอลัมน์ / >1024 = สูงตามเนื้อหา + 2 คอลัมน์มีรูป */}
+              <div className="grid min-h-screen grid-cols-1 min-[1025px]:min-h-0 min-[1025px]:grid-cols-2">
+                {/* form panel — ≤1024 form อยู่กลางแนวตั้ง (justify-center) + จำกัดความกว้าง centered;
+                    >1024 ปล่อยเต็ม panel (max-w-none) */}
+                <div className="card-body relative flex flex-col justify-center p-6 sm:p-10 min-[1025px]:p-12.5">
+                  <div className="mx-auto w-full max-w-md min-[1025px]:max-w-none">
+                    {children}
+                  </div>
                 </div>
 
-                {/* image panel — lg+ เท่านั้น (ตรง theme: image hidden จนถึง lg) */}
+                {/* image panel — เฉพาะ >1024 */}
                 <div
-                  className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center lg:block"
+                  className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center min-[1025px]:block"
                   style={{ backgroundImage: `url("${authImg.src}")` }}
                 >
                   {/* gradient overlay — bg-linear-to-t เป็น Tailwind utility ของ theme */}
