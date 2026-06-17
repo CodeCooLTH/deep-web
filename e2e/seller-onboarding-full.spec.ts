@@ -867,4 +867,34 @@ test.describe('E. Onboarding continuity', () => {
       await cleanup(seeded.userId)
     }
   })
+
+  // E-03 regression: เดิน category→slug ผ่าน UI ChoiceSelect จริง (ไม่ใช่ API workaround แบบ E-02)
+  // กัน bug "removeChild ... not a child of this node" — Choices.js ยึด <select> ออกจาก DOM tree
+  // ที่ React จำ พอ unmount ตอนเปลี่ยน step → crash (ซ้ำ class REWORK-1). fix: wrapper div ใน ChoiceSelect.
+  test('E-03: category → กด ถัดไป ผ่าน ChoiceSelect UI → ถึง slug step ไม่ crash', async ({ context, page }) => {
+    const seeded = await createSeller('no-slug')
+    try {
+      await loginAs(context, seeded)
+      await page.goto('/onboarding')
+      await expect(page.getByRole('heading', { name: 'เลือกหมวดหมู่ร้านของคุณ' })).toBeVisible({ timeout: 10_000 })
+
+      // เลือกหมวดหมู่จริงผ่าน Choices dropdown (ข้าม placeholder)
+      await page.locator('.choices').click()
+      await page.waitForSelector('.choices__list--dropdown .choices__item--choice', { state: 'visible' })
+      await page.locator('.choices__list--dropdown .choices__item--choice[data-value]:not([data-value=""])').first().click()
+      await page.waitForFunction(() => {
+        const sel = document.querySelector('select')
+        return !!sel && sel.value !== ''
+      })
+      await page.getByRole('button', { name: /ถัดไป/ }).click()
+
+      // ถึง slug step (input yourshop โผล่) = transition สำเร็จ ไม่ crash
+      await expect(page.getByPlaceholder('yourshop')).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByRole('heading', { name: 'ตั้ง URL ร้านของคุณ' })).toBeVisible()
+      // ยืนยันไม่มี Next.js runtime error overlay
+      await expect(page.getByText('not a child of this node')).toHaveCount(0)
+    } finally {
+      await cleanup(seeded.userId)
+    }
+  })
 })

@@ -138,33 +138,39 @@ const ChoiceSelect = forwardRef<ChoiceSelectRef, ChoiceSelectProps>(function Cho
     }
   }, [value])
 
+  // wrapper div ครอบ <select> — Choices.js ย้าย select เข้า div.choices ที่มันสร้าง
+  // ทำให้ parent จริงของ select ต่างจากที่ React จำ → React removeChild ตอน unmount crash
+  // ("removeChild ... not a child of this node", เกิดตอนเปลี่ยน step). ครอบ div คงที่
+  // ให้ React detach แค่ wrapper (parent คงเดิม) ไม่แตะ select ที่ Choices ยึดไป.
   return (
-    <select
-      ref={selectRef}
-      id={id}
-      name={name}
-      multiple={multiple}
-      defaultValue={defaultValue}
-      aria-label={ariaLabel}
-      className={className ?? 'form-input'}
-    >
-      {placeholder && !multiple && <option value="">{placeholder}</option>}
-      {groups
-        ? groups.map((g) => (
-            <optgroup key={g.label} label={g.label} disabled={g.disabled}>
-              {g.options.map((opt) => (
-                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-                  {opt.label}
-                </option>
-              ))}
-            </optgroup>
-          ))
-        : options.map((opt) => (
-            <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-              {opt.label}
-            </option>
-          ))}
-    </select>
+    <div>
+      <select
+        ref={selectRef}
+        id={id}
+        name={name}
+        multiple={multiple}
+        defaultValue={defaultValue}
+        aria-label={ariaLabel}
+        className={className ?? 'form-input'}
+      >
+        {placeholder && !multiple && <option value="">{placeholder}</option>}
+        {groups
+          ? groups.map((g) => (
+              <optgroup key={g.label} label={g.label} disabled={g.disabled}>
+                {g.options.map((opt) => (
+                  <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                    {opt.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))
+          : options.map((opt) => (
+              <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                {opt.label}
+              </option>
+            ))}
+      </select>
+    </div>
   )
 })
 
