@@ -76,19 +76,29 @@ export async function proxy(request: NextRequest) {
       const target = isAuthed ? '/dashboard' : '/auth/sign-in'
       return NextResponse.redirect(new URL(target, request.url))
     }
-    // Dashboard + onboarding require login
-    if ((pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding')) && !isAuthed) {
+    // Dashboard + register + onboarding require login
+    if ((pathname.startsWith('/dashboard') || pathname.startsWith('/register') || pathname.startsWith('/onboarding')) && !isAuthed) {
       return NextResponse.redirect(new URL('/auth/sign-in', request.url))
     }
-    // บังคับ onboarding: authed แต่ยังไม่ครบ (needsOnboarding ใน JWT) → เด้งทุก seller route
-    // → /onboarding (ยกเว้น /onboarding เอง + /auth/* login flow). ปิด/หนีไม่ได้จนกว่าจะเสร็จ
-    const needsOnb = (token as { needsOnboarding?: boolean } | null)?.needsOnboarding
-    if (isAuthed && needsOnb && !pathname.startsWith('/onboarding') && !pathname.startsWith('/auth')) {
-      return NextResponse.redirect(new URL('/onboarding', request.url))
-    }
-    // onboarding เสร็จแล้ว → กันเข้า /onboarding ซ้ำ
-    if (isAuthed && !needsOnb && pathname.startsWith('/onboarding')) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+    // บังคับ 2 เฟส (flag ใน JWT): needsRegistration (ไม่มีเบอร์) → /register (ลงทะเบียน เหมือน sign-up);
+    // needsOnboarding (ไม่มี slug) → /onboarding (setup ครั้งแรก). ยกเว้น /auth,/api. ปิด/หนีไม่ได้จนเสร็จ
+    const t = token as { needsRegistration?: boolean; needsOnboarding?: boolean } | null
+    const isExempt = pathname.startsWith('/auth') || pathname.startsWith('/api')
+    if (isAuthed && !isExempt) {
+      if (t?.needsRegistration) {
+        // เฟส 1: ยังไม่มีเบอร์ → ต้องลงทะเบียนที่ /register ก่อน
+        if (!pathname.startsWith('/register')) return NextResponse.redirect(new URL('/register', request.url))
+      } else {
+        // ลงทะเบียนแล้ว แต่ยังค้างที่ /register → ออกไปเฟสถัดไป (/dashboard ก่อน → proxy เด้ง /onboarding ถ้ายังไม่ setup)
+        if (pathname.startsWith('/register'))
+          return NextResponse.redirect(new URL('/dashboard', request.url))
+        // เฟส 2: ไม่มี slug → ต้อง setup ที่ /onboarding
+        if (t?.needsOnboarding && !pathname.startsWith('/onboarding'))
+          return NextResponse.redirect(new URL('/onboarding', request.url))
+        // setup เสร็จแล้ว แต่ยังค้างที่ /onboarding → ออก
+        if (!t?.needsOnboarding && pathname.startsWith('/onboarding'))
+          return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
     }
     // Backward-compat: URL เก่าที่ผู้ใช้ bookmark/พิมพ์ตรงแบบ /seller/orders
     // หลัง SP-1 strip /seller prefix ออกจาก nav แล้ว — redirect ถาวรเพื่อเลิกใช้รูปแบบเก่า

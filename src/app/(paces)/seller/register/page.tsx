@@ -1,0 +1,238 @@
+'use client'
+
+/**
+ * /register — เฟส 1 ลงทะเบียนผู้ขาย (เหมือน sign-up) สำหรับ FB user / user ที่ยังไม่มีเบอร์
+ * เด้งจาก proxy เมื่อ token.needsRegistration (ไม่มีเบอร์)
+ *
+ * Base (layout): AuthCardShell · Base (logic): OnboardingModal.tsx
+ * Flow: welcome → ข้อมูลร้าน (avatar FB + displayName/category/username/phone) → warning เบอร์ → OTP
+ *   → success "เข้าสู่ระบบสำเร็จ" → /dashboard (proxy เด้งต่อ /onboarding ถ้ายังไม่ setup slug)
+ * spec: docs/superpowers/specs/2026-06-17-fb-onboarding-mandatory-page-design.md
+ */
+
+import AuthCardShell from '../auth/components/AuthCardShell'
+import Icon from '@/components/wrappers/Icon'
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
+import { pacesToast } from '@/lib/paces-toast'
+import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+
+type Step = 'welcome' | 'info' | 'warning' | 'otp' | 'success'
+type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
+const CATEGORY_OPTIONS = SHOP_CATEGORY_KEYS.map((k) => ({ value: k, label: SHOP_CATEGORY_LABELS[k] }))
+
+export default function RegisterPage() {
+  const { data: session, status, update } = useSession()
+  const router = useRouter()
+  const user = (session?.user ?? {}) as {
+    displayName?: string; username?: string; avatar?: string | null; needsPhoneVerify?: boolean
+  }
+
+  const [step, setStep] = useState<Step>('welcome')
+  const [ready, setReady] = useState(false)
+
+  const [displayName, setDisplayName] = useState('')
+  const [category, setCategory] = useState('')
+  const [username, setUsername] = useState('')
+  const [uStatus, setUStatus] = useState<Check>('idle')
+  const [phone, setPhone] = useState('')
+  const [infoLoading, setInfoLoading] = useState(false)
+  const uDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const [countdown, setCountdown] = useState(0)
+  const [otpLoading, setOtpLoading] = useState(false)
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (status === 'unauthenticated') { router.replace('/auth/sign-in'); return }
+    // มีเบอร์แล้ว → ไม่ต้องลงทะเบียน (proxy ก็กัน) → ออก
+    if (user.needsPhoneVerify === false) { router.replace('/dashboard'); return }
+    if (!ready) {
+      setDisplayName(user.displayName ?? '')
+      setUsername(user.username ?? '')
+      setReady(true)
+    }
+  }, [status, user, ready, router])
+
+  useEffect(() => {
+    if (countdown <= 0) return
+    const t = setInterval(() => setCountdown((c) => c - 1), 1000)
+    return () => clearInterval(t)
+  }, [countdown])
+
+  const onUsername = (v: string) => {
+    const cleaned = v.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30)
+    setUsername(cleaned); setUStatus('idle')
+    if (uDebounce.current) clearTimeout(uDebounce.current)
+    if (cleaned.length < 3) { setUStatus(cleaned ? 'invalid' : 'idle'); return }
+    setUStatus('checking')
+    uDebounce.current = setTimeout(async () => {
+      try { const res = await fetch(`/api/users/check-username?u=${encodeURIComponent(cleaned)}`); const d = await res.json(); setUStatus(d.available ? 'ok' : 'taken') }
+      catch { setUStatus('idle') }
+    }, 400)
+  }
+
+  const submitInfo = async () => {
+    if (!displayName.trim()) return pacesToast.error('กรุณากรอกชื่อที่แสดง')
+    if (!category) return pacesToast.error('กรุณาเลือกหมวดหมู่ร้านค้า')
+    if (uStatus !== 'ok') return pacesToast.error('กรุณาตั้งชื่อผู้ใช้ที่ใช้ได้')
+    if (!/^0[0-9]{9}$/.test(phone)) return pacesToast.error('กรุณากรอกเบอร์โทรให้ถูกต้อง')
+    setInfoLoading(true)
+    try {
+      const pRes = await fetch(`/api/users/check-phone?phone=${encodeURIComponent(phone)}`)
+      const pData = await pRes.json().catch(() => ({}))
+      if (pRes.ok && pData.available === false) { setInfoLoading(false); return pacesToast.error('เบอร์นี้มีบัญชีแล้ว') }
+      const res = await fetch('/api/account/shop-info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: displayName.trim(), username, category }) })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setInfoLoading(false); return pacesToast.error(d.error ?? 'บันทึกไม่สำเร็จ') }
+      setStep('warning')
+    } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setInfoLoading(false) }
+  }
+
+  const sendOtp = async () => {
+    setOtpLoading(true)
+    try {
+      const res = await fetch('/api/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact: phone, type: 'PHONE' }) })
+      if (res.ok) { setStep('otp'); setCountdown(60); setTimeout(() => otpRefs.current[0]?.focus(), 100) }
+      else if (res.status === 429) pacesToast.error('ขอ OTP บ่อยเกินไป กรุณารอสักครู่')
+      else pacesToast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
+    } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setOtpLoading(false) }
+  }
+
+  const onOtp = (i: number, v: string) => {
+    const d = v.replace(/\D/g, '').slice(-1); const next = [...otp]; next[i] = d; setOtp(next)
+    if (d && i < 5) otpRefs.current[i + 1]?.focus()
+  }
+
+  const verifyOtp = async () => {
+    const code = otp.join('')
+    if (code.length !== 6) return pacesToast.error('กรุณากรอก OTP ให้ครบ 6 หลัก')
+    setOtpLoading(true)
+    try {
+      const res = await fetch('/api/account/set-phone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp: code }) })
+      if (res.ok) {
+        setStep('success')
+        await update() // refresh session/JWT → needsRegistration=false
+        setTimeout(() => router.replace('/dashboard'), 1400) // โชว์ success สักครู่ → /dashboard (proxy เด้งต่อ /onboarding)
+      } else {
+        const d = await res.json().catch(() => ({})); pacesToast.error(d.error ?? 'OTP ไม่ถูกต้อง กรุณาลองใหม่')
+        setOtp(['', '', '', '', '', '']); setTimeout(() => otpRefs.current[0]?.focus(), 50)
+      }
+    } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setOtpLoading(false) }
+  }
+
+  if (!ready) {
+    return (
+      <AuthCardShell>
+        <div className="flex flex-1 items-center justify-center py-20">
+          <div className="border-primary inline-block size-10 animate-spin rounded-full border-3 border-t-transparent" role="status" />
+        </div>
+      </AuthCardShell>
+    )
+  }
+
+  return (
+    <AuthCardShell>
+      {(step === 'welcome' || step === 'info') && (
+        <div className="mb-5 flex flex-col items-center">
+          {user.avatar ? (
+            <img src={user.avatar} alt="" className="size-16 rounded-full object-cover ring-2 ring-primary/20" />
+          ) : (
+            <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">{(displayName || 'D').slice(0, 1)}</span>
+          )}
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-default-100 px-3 py-1 text-xs text-default-500">
+            <Icon icon="brand-facebook" className="size-3.5 text-info" /> เข้าสู่ระบบด้วย Facebook
+          </span>
+        </div>
+      )}
+
+      <div>
+        {step === 'welcome' && (
+          <div className="text-center">
+            <h4 className="mb-1 text-lg font-bold text-default-900">ยินดีต้อนรับสู่ Deep{displayName ? `, ${displayName}` : ''}! 🎉</h4>
+            <p className="text-default-500 mb-6 text-sm">อีกไม่กี่ขั้นตอนก็เริ่มขายได้ — กรอกข้อมูลร้านของคุณกัน</p>
+            <button type="button" onClick={() => setStep('info')} className="btn bg-primary text-white hover:bg-primary-hover w-full">เริ่มเลย →</button>
+          </div>
+        )}
+
+        {step === 'info' && (
+          <>
+            <h4 className="mb-1 text-center text-lg font-bold text-default-900">ข้อมูลร้านค้า</h4>
+            <p className="text-default-400 mb-5 text-center text-sm">กรอกข้อมูลร้านเพื่อสร้างบัญชีผู้ขาย</p>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="form-label">ชื่อที่แสดง <span className="text-danger">*</span></label>
+                <input className="form-input" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={100} />
+              </div>
+              <div>
+                <label className="form-label">หมวดหมู่ร้านค้า <span className="text-danger">*</span></label>
+                <ChoiceSelect options={CATEGORY_OPTIONS} placeholder="-- เลือกหมวดหมู่ --" search={false} value={category} onChange={(v) => setCategory(v as string)} />
+              </div>
+              <div>
+                <label className="form-label">ชื่อผู้ใช้ (username) <span className="text-danger">*</span></label>
+                <input className="form-input" placeholder="a-z, 0-9, _ เท่านั้น" value={username} onChange={(e) => onUsername(e.target.value)} autoCapitalize="none" />
+                {uStatus === 'ok' && <p className="mt-1 text-xs text-success">✓ ใช้ชื่อนี้ได้</p>}
+                {uStatus === 'taken' && <p className="mt-1 text-xs text-danger">✕ มีคนใช้แล้ว</p>}
+                {uStatus === 'invalid' && <p className="mt-1 text-xs text-danger">✕ a-z, 0-9, _ (3-30 ตัว)</p>}
+                {uStatus === 'checking' && <p className="mt-1 text-xs text-default-500">กำลังตรวจสอบ...</p>}
+              </div>
+              <div>
+                <label className="form-label">เบอร์โทรศัพท์ <span className="text-danger">*</span></label>
+                <input className="form-input" type="tel" inputMode="numeric" placeholder="08xxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} maxLength={10} />
+              </div>
+            </div>
+            <button type="button" onClick={submitInfo} disabled={infoLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{infoLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          </>
+        )}
+
+        {step === 'warning' && (
+          <>
+            <div className="mb-4 flex justify-center"><span className="flex size-16 items-center justify-center rounded-full bg-warning/15 text-warning text-3xl"><Icon icon="alert-triangle" /></span></div>
+            <h4 className="mb-1 text-center text-lg font-bold text-default-900">ยืนยันเบอร์โทรศัพท์</h4>
+            <div className="mt-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-default-700">
+              <p className="mb-1 font-semibold text-warning">โปรดตรวจสอบให้ดี</p>
+              เบอร์นี้ใช้ <b>ตั้งได้ครั้งเดียว</b> และ <b>เปลี่ยนแปลงไม่ได้</b> เนื่องจากมีผลต่อ <b>ความน่าเชื่อถือ (Trust Score)</b> ของร้านคุณ
+            </div>
+            <div className="mt-4 text-center"><div className="text-sm text-default-500">เบอร์ที่จะยืนยัน</div><div className="text-2xl font-bold tracking-wide text-default-900">{phone}</div></div>
+            <div className="mt-6 flex flex-col gap-2">
+              <button type="button" onClick={sendOtp} disabled={otpLoading} className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50">{otpLoading ? 'กำลังส่ง...' : 'ยืนยัน — ส่งรหัส OTP'}</button>
+              <button type="button" onClick={() => setStep('info')} className="btn border border-default-300 text-default-700 w-full">← แก้ไขเบอร์</button>
+            </div>
+          </>
+        )}
+
+        {step === 'otp' && (
+          <>
+            <h4 className="mb-1 text-center text-lg font-bold text-default-900">ส่งรหัสแล้ว!</h4>
+            <p className="text-default-400 mb-4 text-center text-sm">เราส่งรหัส 6 หลักไปที่ {'*'.repeat(6)}{phone.slice(-4)}</p>
+            <div className="flex justify-center gap-2">
+              {otp.map((d, i) => (
+                <input key={i} ref={(el) => { otpRefs.current[i] = el }} type="text" inputMode="numeric" maxLength={1} value={d}
+                  onChange={(e) => onOtp(i, e.target.value)} onKeyDown={(e) => { if (e.key === 'Backspace' && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus() }}
+                  className="form-input h-11 w-11 p-0 text-center font-mono text-lg" aria-label={`OTP หลักที่ ${i + 1}`} />
+              ))}
+            </div>
+            <button type="button" onClick={verifyOtp} disabled={otpLoading || otp.join('').length !== 6} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{otpLoading ? 'กำลังยืนยัน...' : 'ยืนยัน OTP'}</button>
+            {countdown > 0 ? <p className="text-default-400 mt-3 text-center text-xs">ขอ OTP ใหม่ได้ใน {countdown} วินาที</p> : <button type="button" onClick={sendOtp} className="mt-3 w-full text-center text-sm text-primary">ขอ OTP ใหม่</button>}
+          </>
+        )}
+
+        {step === 'success' && (
+          <div className="flex flex-col items-center gap-4 py-10 text-center">
+            <span className="flex size-16 items-center justify-center rounded-full bg-success/15 text-success text-4xl">🎉</span>
+            <div>
+              <h4 className="text-lg font-bold text-default-900">เข้าสู่ระบบสำเร็จ!</h4>
+              <p className="text-default-500 text-sm mt-1">กำลังเข้าสู่ระบบ...</p>
+            </div>
+            <div className="border-primary inline-block size-8 animate-spin rounded-full border-3 border-t-transparent" role="status" />
+          </div>
+        )}
+      </div>
+
+      {step !== 'success' && <p className="text-default-400 mt-7.5 text-center text-xs">© {new Date().getFullYear()} Deep</p>}
+    </AuthCardShell>
+  )
+}

@@ -20,16 +20,16 @@ export const authOptions: NextAuthOptions = {
     FacebookProvider({
       clientId: process.env.FACEBOOK_ID || "",
       clientSecret: process.env.FACEBOOK_SECRET || "",
-      // ขอรูปโปรไฟล์ใหญ่ ~200px (default FB picture ~50px เล็กไป) — ใช้ graph picture
-      // endpoint จาก FB user id (URL เสถียร, ไม่ต้อง token) แทน picture.data.url ตัวเล็ก.
-      // override เฉพาะ profile() — คง userinfo default (appsecret_proof ไม่หาย)
+      // ใช้ picture.data.url จาก OAuth userinfo (URL ที่ FB ออกให้ — ใช้งานได้จริง บน fbsbx/fbcdn).
+      // ห้ามใช้ graph.facebook.com/{providerAccountId}/picture เพราะ providerAccountId = app-scoped ID
+      // ต้องมี token ถึงจะดึงรูปได้ (ดึงตรงไม่มี token → 400 รูปไม่ขึ้น). คง userinfo default (appsecret_proof ไม่หาย)
       profile(profile) {
-        const p = profile as { id: string; name?: string; email?: string };
+        const p = profile as { id: string; name?: string; email?: string; picture?: { data?: { url?: string } } };
         return {
           id: p.id,
           name: p.name,
           email: p.email ?? null,
-          image: `https://graph.facebook.com/${p.id}/picture?type=large&width=200&height=200`,
+          image: p.picture?.data?.url ?? null,
         };
       },
     }),
@@ -355,7 +355,10 @@ export const authOptions: NextAuthOptions = {
           where: { id: token.userId as string },
           select: { phone: true, shop: { select: { slug: true } } },
         });
-        token.needsOnboarding = !u?.shop?.slug || !u?.phone;
+        // 2 เฟส: needsRegistration (ไม่มีเบอร์ = ต้องลงทะเบียน /register) แยกจาก
+        // needsOnboarding (ไม่มี slug = ต้อง setup /onboarding) — proxy ใช้บังคับคนละหน้า
+        token.needsRegistration = !u?.phone;
+        token.needsOnboarding = !u?.shop?.slug;
       }
       return token;
     },
@@ -373,8 +376,8 @@ export const authOptions: NextAuthOptions = {
           const shopSlug = user.shop?.slug ?? null;
           // ต้อง onboard เมื่อ: ยังไม่มี slug ร้าน หรือ ยังไม่มีเบอร์ (FB user)
           // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session) — ให้ onboarding รู้ว่าต้องโชว์ step ยืนยันเบอร์ไหม
-          const needsPhoneVerify = !user.phone;
-          const needsOnboarding = !shopSlug || needsPhoneVerify;
+          const needsPhoneVerify = !user.phone; // = needsRegistration (เฟส 1 /register)
+          const needsOnboarding = !shopSlug; // = ต้อง setup slug (เฟส 2 /onboarding)
           (session as any).user = {
             id: user.id, displayName: user.displayName, username: user.username,
             email: user.email, avatar: user.avatar, isShop: user.isShop,
