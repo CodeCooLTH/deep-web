@@ -14,7 +14,9 @@
  *   4. password (PasswordInputWithStrength + hint ไทย)
  *   5. confirmPassword (tabler:lock-password, oneOf password)
  *   6. phone (tabler:phone, tel, inputMode=numeric, /^0[0-9]{9}$/)
- * - ลบ Terms & Policy checkbox ของ base
+ * - consent checkbox "ยอมรับนโยบายความเป็นส่วนตัว" (required) — Base: theme auth/card/sign-up
+ *   checkbox pattern (form-checkbox form-checkbox-light size-4.5). ลิงก์ → /privacy บน buyer domain
+ *   ผ่าน resolveBuyerBaseUrl (seller subdomain rewrite /privacy → /seller/privacy = 404)
  * - submit flow: Yup + usernameStatus ok → check-phone (inline error) → sessionStorage signupDraft → OTP → router.push
  * - sessionStorage key 'signupDraft' = { password, category } (contract กับ verify-otp)
  * - shopName=displayName ส่งใน query string (placeholder ให้ P1 phone-otp สร้าง shop; แก้ได้ใน onboarding P3)
@@ -32,6 +34,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_KEYS, SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
 import { cn } from '@/utils/helpers'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -62,6 +65,9 @@ const schema = Yup.object({
   phone: Yup.string()
     .matches(/^0[0-9]{9}$/, 'เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก')
     .required('กรุณากรอกเบอร์โทร'),
+  acceptTerms: Yup.boolean()
+    .oneOf([true], 'กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนสมัคร')
+    .required('กรุณายอมรับนโยบายความเป็นส่วนตัวก่อนสมัคร'),
 })
 
 type FormValues = Yup.InferType<typeof schema>
@@ -99,11 +105,19 @@ export default function SignUpForm() {
       password: '',
       confirmPassword: '',
       phone: '',
+      acceptTerms: false,
     },
   })
 
   // eye toggle สำหรับ confirmPassword — password field ใช้ PasswordInputWithStrength (มี toggle ในตัวแล้ว)
   const [showConfirm, setShowConfirm] = useState(false)
+
+  // privacy link → buyer domain (seller subdomain rewrite /privacy → 404 จึงต้อง resolveBuyerBaseUrl)
+  // init '/privacy' กัน hydration mismatch (server ไม่มี window) แล้ว update เป็น absolute ใน effect
+  const [privacyUrl, setPrivacyUrl] = useState('/privacy')
+  useEffect(() => {
+    setPrivacyUrl(`${resolveBuyerBaseUrl()}/privacy`)
+  }, [])
 
   // PasswordInputWithStrength ต้องการ controlled state
   const [password, setPassword] = useState('')
@@ -365,6 +379,32 @@ export default function SignUpForm() {
           </div>
           {errors.phone && (
             <p className="invalid-msg mt-1 text-sm text-danger">{errors.phone.message}</p>
+          )}
+        </div>
+
+        {/* ยอมรับนโยบายความเป็นส่วนตัว — required (Base: theme auth/card/sign-up checkbox pattern) */}
+        <div className="mb-5">
+          <div className="flex items-center gap-2">
+            <input
+              id="acceptTerms"
+              type="checkbox"
+              className="form-checkbox form-checkbox-light size-4.5"
+              {...register('acceptTerms')}
+            />
+            <label htmlFor="acceptTerms" className="form-check-label">
+              ฉันยอมรับ&nbsp;
+              <a
+                href={privacyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-medium underline underline-offset-4"
+              >
+                นโยบายความเป็นส่วนตัว
+              </a>
+            </label>
+          </div>
+          {errors.acceptTerms && (
+            <p className="invalid-msg mt-1 text-sm text-danger">{errors.acceptTerms.message}</p>
           )}
         </div>
 
