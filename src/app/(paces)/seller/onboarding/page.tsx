@@ -11,6 +11,8 @@
  */
 
 import AuthCardShell from '../auth/components/AuthCardShell'
+import AuthLogo from '@/components/AuthLogo'
+import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
 import { useSession } from 'next-auth/react'
@@ -95,6 +97,9 @@ export default function OnboardingPage() {
 
   return (
     <AuthCardShell>
+      <div className="mb-6 flex justify-center">
+        <AuthLogo />
+      </div>
       <div className="mb-5 flex flex-col items-center">
         <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary text-3xl">🏪</span>
       </div>
@@ -104,11 +109,14 @@ export default function OnboardingPage() {
           <>
             <h4 className="mb-1 text-center text-lg font-bold text-default-900">ตั้ง URL ร้านของคุณ</h4>
             <p className="text-default-400 mb-5 text-center text-sm">ขั้นตอนสุดท้าย — ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้</p>
-            <label className="form-label">URL ร้านค้า <span className="text-danger">*</span></label>
-            <input className="form-input" placeholder="yourshop" value={slug} onChange={(e) => onSlug(e.target.value)} maxLength={30} autoCapitalize="none" autoComplete="off" />
-            {sStatus === 'ok' && <p className="mt-1 text-xs text-success">✓ URL นี้ว่างอยู่</p>}
-            {sStatus === 'taken' && <p className="mt-1 text-xs text-danger">✕ มีคนใช้แล้ว</p>}
-            {sStatus === 'invalid' && <p className="mt-1 text-xs text-danger">✕ a-z, 0-9, ขีดกลาง (3-30 ตัว)</p>}
+            <label className="form-label">URL ร้านค้า<span className="text-danger">*</span></label>
+            <div className="input-icon-group">
+              <Icon icon="link" className="input-icon" />
+              <input className="form-input" placeholder="yourshop" value={slug} onChange={(e) => onSlug(e.target.value)} maxLength={30} autoCapitalize="none" autoComplete="off" />
+            </div>
+            {sStatus === 'ok' && <p className="invalid-msg mt-1 text-sm text-success">URL นี้ว่างอยู่</p>}
+            {sStatus === 'taken' && <p className="invalid-msg mt-1 text-sm text-danger">URL นี้มีคนใช้แล้ว</p>}
+            {sStatus === 'invalid' && <p className="invalid-msg mt-1 text-sm text-danger">ใช้ a-z, 0-9, ขีดกลาง ได้ 3-30 ตัว</p>}
             {slug && sStatus === 'ok' && <p className="mt-3 text-sm text-primary">deepthailand.app/<span className="font-mono">{slug}</span></p>}
             <button type="button" onClick={submitSlug} disabled={slugLoading || sStatus !== 'ok'} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{slugLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
           </>
@@ -119,7 +127,13 @@ export default function OnboardingPage() {
             <h4 className="mb-1 text-center text-lg font-bold text-default-900">สร้างสินค้าแรกของคุณ</h4>
             <p className="text-default-400 mb-5 text-center text-sm">เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน</p>
             <div className="flex flex-col gap-4">
-              <div><label className="form-label">ชื่อสินค้า</label><input className="form-input" placeholder="เช่น ข้าวหอมมะลิ" value={pName} onChange={(e) => setPName(e.target.value)} /></div>
+              <div>
+                <label className="form-label">ชื่อสินค้า</label>
+                <div className="input-icon-group">
+                  <Icon icon="package" className="input-icon" />
+                  <input className="form-input" placeholder="เช่น ข้าวหอมมะลิ" value={pName} onChange={(e) => setPName(e.target.value)} />
+                </div>
+              </div>
               <div><label className="form-label">ราคา</label><div className="input-group"><span className="input-group-text">฿</span><input className="form-input" type="number" min="0.01" step="0.01" placeholder="0.00" value={pPrice} onChange={(e) => setPPrice(e.target.value)} /></div></div>
             </div>
             <div className="mt-6 flex flex-col gap-2">

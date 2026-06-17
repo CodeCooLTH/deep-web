@@ -11,6 +11,7 @@
  */
 
 import AuthCardShell from '../auth/components/AuthCardShell'
+import AuthLogo from '@/components/AuthLogo'
 import Icon from '@/components/wrappers/Icon'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import { pacesToast } from '@/lib/paces-toast'
@@ -136,6 +137,9 @@ export default function RegisterPage() {
 
   return (
     <AuthCardShell>
+      <div className="mb-6 flex justify-center">
+        <AuthLogo />
+      </div>
       {(step === 'welcome' || step === 'info') && (
         <div className="mb-5 flex flex-col items-center">
           {user.avatar ? (
@@ -162,26 +166,35 @@ export default function RegisterPage() {
           <>
             <h4 className="mb-1 text-center text-lg font-bold text-default-900">ข้อมูลร้านค้า</h4>
             <p className="text-default-400 mb-5 text-center text-sm">กรอกข้อมูลร้านเพื่อสร้างบัญชีผู้ขาย</p>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-5">
               <div>
-                <label className="form-label">ชื่อที่แสดง <span className="text-danger">*</span></label>
-                <input className="form-input" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={100} />
+                <label className="form-label">ชื่อที่แสดง<span className="text-danger">*</span></label>
+                <div className="input-icon-group">
+                  <Icon icon="user" className="input-icon" />
+                  <input className="form-input" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={100} />
+                </div>
               </div>
               <div>
-                <label className="form-label">หมวดหมู่ร้านค้า <span className="text-danger">*</span></label>
+                <label className="form-label">หมวดหมู่ร้านค้า<span className="text-danger">*</span></label>
                 <ChoiceSelect options={CATEGORY_OPTIONS} placeholder="-- เลือกหมวดหมู่ --" search={false} value={category} onChange={(v) => setCategory(v as string)} />
               </div>
               <div>
-                <label className="form-label">ชื่อผู้ใช้ (username) <span className="text-danger">*</span></label>
-                <input className="form-input" placeholder="a-z, 0-9, _ เท่านั้น" value={username} onChange={(e) => onUsername(e.target.value)} autoCapitalize="none" />
-                {uStatus === 'ok' && <p className="mt-1 text-xs text-success">✓ ใช้ชื่อนี้ได้</p>}
-                {uStatus === 'taken' && <p className="mt-1 text-xs text-danger">✕ มีคนใช้แล้ว</p>}
-                {uStatus === 'invalid' && <p className="mt-1 text-xs text-danger">✕ a-z, 0-9, _ (3-30 ตัว)</p>}
-                {uStatus === 'checking' && <p className="mt-1 text-xs text-default-500">กำลังตรวจสอบ...</p>}
+                <label className="form-label">ชื่อผู้ใช้ (username)<span className="text-danger">*</span></label>
+                <div className="input-icon-group">
+                  <Icon icon="at" className="input-icon" />
+                  <input className="form-input" placeholder="a-z, 0-9, _ เท่านั้น" value={username} onChange={(e) => onUsername(e.target.value)} autoCapitalize="none" />
+                </div>
+                {uStatus === 'ok' && <p className="invalid-msg mt-1 text-sm text-success">ใช้ชื่อนี้ได้</p>}
+                {uStatus === 'taken' && <p className="invalid-msg mt-1 text-sm text-danger">ชื่อผู้ใช้นี้มีคนใช้แล้ว</p>}
+                {uStatus === 'invalid' && <p className="invalid-msg mt-1 text-sm text-danger">ใช้ a-z, 0-9, _ ได้ 3-30 ตัว</p>}
+                {uStatus === 'checking' && <p className="invalid-msg mt-1 text-sm text-default-400">กำลังตรวจสอบ...</p>}
               </div>
               <div>
-                <label className="form-label">เบอร์โทรศัพท์ <span className="text-danger">*</span></label>
-                <input className="form-input" type="tel" inputMode="numeric" placeholder="08xxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} maxLength={10} />
+                <label className="form-label">เบอร์โทรศัพท์<span className="text-danger">*</span></label>
+                <div className="input-icon-group">
+                  <Icon icon="phone" className="input-icon" />
+                  <input className="form-input" type="tel" inputMode="numeric" placeholder="08xxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} maxLength={10} />
+                </div>
               </div>
             </div>
             <button type="button" onClick={submitInfo} disabled={infoLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{infoLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
