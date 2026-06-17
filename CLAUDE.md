@@ -56,7 +56,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - Buyer + landing + public (`(marketing)/**`) → **Vuexy** (MUI v9 + Emotion + Tailwind 4)
   - Seller + admin (`(paces)/**`) → **Paces** (Preline 4 + Tailwind 4, no MUI)
 - **Database:** PostgreSQL 16 (Supabase), Prisma ORM
-- **Auth:** NextAuth.js v4 (Facebook OAuth + Phone OTP via CredentialsProvider)
+- **Auth:** NextAuth.js v4 (`FacebookProvider` + `phone-otp` CredentialsProvider + `seller-credentials` CredentialsProvider bcrypt)
 - **Validation:** Valibot (backend/API), Yup (frontend react-hook-form)
 - **Form:** React Hook Form + `@hookform/resolvers`
 - **Icons:** `@iconify/react` (on-demand) — use tabler icon names (e.g. `tabler-phone-check`)
@@ -83,6 +83,8 @@ src/
 │   ├── (paces)/               # Paces route group (seller + admin)
 │   │   ├── layout.tsx         # Preline + Tailwind + AppProvidersWrapper
 │   │   ├── seller/            # seller dashboard, products, orders, verification, etc.
+│   │   │   ├── auth/          # sign-in, sign-up, verify-otp, reset-pass, new-pass (Paces auth/split)
+│   │   │   └── onboarding/    # mandatory onboarding page (5-step; force-redirect ถ้า needsOnboarding)
 │   │   └── admin/             # admin auth + (partial) dashboard
 │   └── api/                   # Backend — unified across subdomains
 ├── @core/, @layouts/, @menu/  # Vuexy theme engine (copied from theme/vuexy)
@@ -90,7 +92,8 @@ src/
 │   config/, context/, hooks/,
 │   layouts/, utils/
 ├── lib/                       # auth, prisma, otp, storage, subdomain, validations,
-│                              #   sms, sms-unlock-cookie, sms-consume-rl
+│                              #   sms, sms-unlock-cookie, sms-consume-rl,
+│                              #   shop-slug, shop-categories, password (seller auth 2026-06-16)
 ├── services/                  # user, shop, verification, trust-score, badge,
 │                              #   product, order, review, history-linking,
 │                              #   wallet, sms-code, topup
@@ -110,6 +113,7 @@ theme/
 4. **Simple OMS** — Seller creates order → public `/o/{token}` → buyer phone-unlock → ยืนยัน → review → trust recalc. Types: PHYSICAL / DIGITAL / SERVICE / SUBSCRIPTION
 5. **Buyer History Linking** — Buyer confirms as guest (contact) → signs up later → `linkBuyerHistory` auto-links by phone/email match. Wired in `lib/auth.ts` on phone-OTP + Facebook signup.
 6. **SMS Order Link + Seller Wallet** (paid ฿1/SMS) — Seller L2+ กดส่ง link เข้า SMS buyer; link ฝัง 12-char short-code → `/api/o/sms/{code}` consume → HMAC-signed httpOnly cookie → buyer ข้าม phone-unlock อัตโนมัติ. Credit ledger: `SellerWallet` (1:1 Shop, balance ฿ integer, DB CHECK≥0), `WalletTransaction` (TOPUP/DEDUCT), `TopUpRequest` (slip → admin approve/reject, RC-7 self-block). Services: `wallet.service` (conditional-updateMany atomic deduct), `sms-code.service` (hash-at-rest single-use), `topup.service`, `lib/sms.ts` (generic sendSms apitel), `lib/sms-unlock-cookie.ts` (HMAC NEXTAUTH_SECRET), `lib/sms-consume-rl.ts` (RC-1 per-IP 10/15min globalThis).
+7. **Seller Auth + Onboarding** (2026-06-16/17) — Seller login ด้วย username+password (provider `seller-credentials`, bcrypt, `lib/password.ts`) + Phone OTP signup + reset-via-OTP + Facebook OAuth (live prod). เบอร์โทร **immutable** (ตั้งครั้งเดียวผ่าน `/api/account/set-phone`, สร้าง L1 auto). `Shop.slug` (@unique, `src/lib/shop-slug.ts`) **บังคับ** — ไม่มี slug หรือ phone → `needsOnboarding=true` ใน JWT → `proxy.ts` force-redirect → `/onboarding` (mandatory 5-step page). Libs: `shop-categories.ts` (10 key), `shop-slug.ts` (normalize/validate/reserved), `password.ts` (bcryptjs).
 
 ## Conventions
 
@@ -143,6 +147,15 @@ theme/
 - **2026-06-07: 🚀 FIRST PROD DEPLOY** — phase-a (210 commits) merged → `origin/main` (FF) + deployed prod `deepthailand.app` (smoke-test ผ่าน: 200 ทุก subdomain, CSRF guard live 403). + pre-prod gaps ปิดเพิ่ม: shippingAddress required-when-SHIPPED (FR-6.5), admin self-review bypass fix (FR-2.6 — orphan route ลบ + service guard), menu/breadcrumb i18n, FR-9.6 tier doc-sync, brand email.
   - **Prod infra (สำคัญ — ดู memory `project_prod_deploy_setup`):** Vercel project `trust-me` reconnect จาก `trustme` → **`deep-web/main`** (prod ผูก repo นี้แล้ว). prod DB = **dev Supabase ตัวเดียวกัน** (แชร์ — ควรแยกภายหลัง). **git auto-deploy ใช้ได้** (push origin main → deploy; verified commit `867c702`); deploy สำรอง `vercel deploy --prod --yes` (CLI). หมายเหตุ Hobby = 1 concurrent build — ถ้า deploy ค้าง "Initializing" นาน → `vercel remove <url> --yes` ปลด slot. prod env: apitel added (phone-OTP/SMS ใช้ได้); **FB creds ยังขาด** (FB login ปิด — OTP ใช้แทน).
 - **2026-06-16: Seller Auth Redesign — P1+P2+P3 SIGNED-OFF** (branch `feat/seller-order-detail-optionD`, ยังไม่ merge main). seller ได้ **username+password login** (provider `seller-credentials`, bcrypt) + phone OTP ยืนยันตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook; 5 หน้า auth จาก Paces `auth/split` (mobile เต็มจอ); **onboarding modal** (welcome→category chips→slug บังคับ→สินค้าแรก ข้ามได้) เด้งเมื่อ `session.needsOnboarding`. schema: `Shop.slug @unique` (migration applied Supabase). E2E ผ่าน real route + simulated SMS (test phone `0000000009`/`123456` dev-only). **⚠️ หลัง migrate ต้อง restart dev server** (stale Prisma client → session 500). docs: spec/plan/baseline/retro `docs/{superpowers/specs,scope,retro}/2026-06-16-seller-auth-*`; QA checklist `docs/qa/seller-auth-qa-checklist.md`; memory `project_seller_auth_resume`. carry: visual mobile QA (MCP), FB prod creds, Redis hardening.
+- **2026-06-17: Facebook Login live บน prod + Mandatory Onboarding page + Mobile fixes**
+  - **Facebook OAuth live (consumer + seller):** `FACEBOOK_ID`/`FACEBOOK_SECRET` ใส่ใน Vercel prod + `.env.local`; `FacebookProvider` (lib/auth.ts) ดึง avatar `graph.facebook.com/{id}/picture?type=large` (~200px); `next.config.ts` ขาว `graph.facebook.com`; `jwt` callback อัปเดต avatar ทุก login; username เริ่มต้น = `fb{facebookId}` (เดิม `user_${ts}`); backfill FB user เดิม. **เทส FB ได้บน prod เท่านั้น** (FB App ต้องการ https; App ยัง Dev mode)
+  - **`/auth/callback/facebook`:** หน้า loading Paces spinner รอ session → redirect /dashboard (~1.5s); ปุ่ม FB ทุกหน้าชี้ `callbackUrl=/auth/callback/facebook`
+  - **Mandatory /onboarding page** (แทน OnboardingModal บน dashboard): `src/app/(paces)/seller/onboarding/page.tsx` (AuthCardShell); 5 step: phone (FB-first) → ข้อมูลร้าน (displayName/category/username) → OTP → slug → สินค้าแรก; `proxy.ts` force-redirect seller authed+`needsOnboarding` → `/onboarding` ทุก route (ยกเว้น /auth,/api); `OnboardingModal.tsx` = dead code (ลบทีหลัง)
+  - **API ใหม่:** `POST /api/account/set-phone` (phone immutable — ตั้งครั้งเดียว; 409 ถ้ามีแล้ว; สร้าง L1 PHONE_OTP auto), `POST /api/account/shop-info` (displayName/username/category), `GET /api/shops/check-slug`, `POST /api/shops/slug`
+  - **Business rules ใหม่:** เบอร์โทร **immutable** (ตั้งครั้งเดียว เปลี่ยนไม่ได้ — มีผลต่อ Trust Score); onboarding **บังคับ** (ไม่มี slug หรือ phone → เด้ง /onboarding ทุก login)
+  - **Mobile-responsive + theme fixes:** tap target ≥44px ทุกหน้า, Choices select match form-input, auth card width = theme, dashboard cosmetic
+  - **Bug fix:** OTP signup prod "รหัสไม่ถูกต้อง" = orphan AuthAccount(PHONE) จาก block test account ไม่ครบ (P2002) — แก้ด้วย data (block AuthAccount จริง)
+  - **Carry:** `OnboardingModal.tsx` dead code (ลบทีหลัง), username 30-day cooldown (edit หลัง onboarding — feature อนาคต), FB App Review `email` (เปิด public), FB App secret regenerate
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

@@ -44,7 +44,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 | ID | User Story | Priority | Acceptance Criteria |
 |----|-----------|----------|-------------------|
-| U-1 | สมัคร/เข้าระบบ | Must | **buyer:** Facebook หรือ Phone OTP (ไม่มี password). **seller:** username+password เป็น login หลัก + Phone OTP ยืนยันเบอร์ตอนสมัคร + reset via OTP + Facebook (เพิ่ม 2026-06-16). ไม่มี **email**+password |
+| U-1 | สมัคร/เข้าระบบ | Must | **buyer:** Facebook (live prod 2026-06-17) หรือ Phone OTP (ไม่มี password). **seller:** username+password เป็น login หลัก + Phone OTP ยืนยันเบอร์ตอนสมัคร + reset via OTP + Facebook (live prod 2026-06-17); seller ใหม่ผ่าน mandatory onboarding page (slug บังคับ + phone immutable). ไม่มี **email**+password |
 | U-2 | ยืนยันตัวตน (Phone OTP, เอกสารบุคคล, เอกสารธุรกิจ) | Must | verify ได้ 3 ระดับ, L2/L3 admin review |
 | U-3 | เห็น Trust Score ของตัวเอง + เข้าใจที่มา | Must | แสดง score + ระดับ + breakdown 5 ปัจจัย + คำอธิบายเงื่อนไข rating |
 | U-4 | เห็น badges ที่ได้รับ | Must | แสดง verification + achievement + paid badge |
@@ -89,7 +89,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ### FR-1: Authentication & Session
 
-ระบบ login: **buyer** = Facebook OAuth + Phone OTP (SMS). **seller** = username+password เป็น login หลัก (provider `seller-credentials`, bcrypt) + Phone OTP ยืนยันเบอร์ตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook (เพิ่ม 2026-06-16; seller signup→onboarding modal: slug/category/สินค้าแรก). **admin** = username+password. Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี **Email**+Password (seller ใช้ username ไม่ใช่ email).
+ระบบ login: **buyer** = Facebook OAuth + Phone OTP (SMS). **seller** = username+password เป็น login หลัก (provider `seller-credentials`, bcrypt) + Phone OTP ยืนยันเบอร์ตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook (live บน prod 2026-06-17); seller signup → **mandatory onboarding page** `/onboarding` (5 step: phone→ข้อมูลร้าน→OTP→slug→สินค้าแรก; proxy force-redirect ถ้า `needsOnboarding`); **เบอร์โทร immutable** (ตั้งครั้งเดียว เปลี่ยนไม่ได้). **admin** = username+password. Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี **Email**+Password (seller ใช้ username ไม่ใช่ email).
 
 Priority: Must — รายละเอียด/acceptance: ดู SRS §1 FR-1
 
@@ -154,7 +154,7 @@ Priority: Must — acceptance: ดู SRS §1 FR-10
 ### ทำใน MVP
 
 - Free core: Order / Product / Order Link อย่างง่าย / Report 1 ตัว (manual ทุกขั้น)
-- Auth: buyer = Facebook + Phone OTP; seller = username+password + Phone OTP (signup verify) + reset-via-OTP + Facebook + onboarding modal (2026-06-16); admin = username+password
+- Auth: buyer = Facebook (live prod 2026-06-17) + Phone OTP; seller = username+password + Phone OTP (signup verify) + reset-via-OTP + Facebook (live prod 2026-06-17) + mandatory onboarding page (2026-06-17; แทน modal); admin = username+password; เบอร์โทร immutable
 - Verification L1 (Phone OTP) + L2 (เอกสารบุคคล) + L3 (ธุรกิจ) + admin review + self-review block
 - Trust Score (raw additive + rating floor + UX copy)
 - **Achievements system** — Badge data-driven engine (3 ประเภท; rework จาก hardcode), Seller+Buyer audience, ติดตัวถาวร, event/time-bound, icon deferred, **หน้า Badge Process** (buyer+seller `/badges`)
@@ -244,6 +244,9 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
 | S-8 | SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 | **BUILT** — Phase 4 complete |
 | P9 | `/u/{username}` cross-platform stats จริง + follow/chat backend | Phase 2 (FR-9.10, FR-9.11) — ปัจจุบัน placeholder + disabled | OPEN (Phase 2) |
+| 13 | FB App ยัง Developer mode → login ได้เฉพาะ account ที่มี FB role | App Review `email` scope (เปิด public) | OPEN (ops carry) |
+| 14 | `OnboardingModal.tsx` dead code หลัง onboarding ย้ายเป็น page | ลบ component + mount point บน dashboard | OPEN (cleanup carry) |
+| 15 | username edit cooldown 30 วัน (หลัง onboarding) | feature อนาคต — ยังไม่มี cooldown enforcement | OPEN (Phase 2) |
 
 ### §7-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
 
