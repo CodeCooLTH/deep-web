@@ -1,6 +1,6 @@
 # Scope Baseline — FB Legal Pages (Privacy Policy + Data Deletion Instructions)
 
-- **สถานะ:** ACTIVE
+- **สถานะ:** SIGNED-OFF (2026-06-17 — ทุก S-id ครบ, carried QA-debt: visual QA + noindex curl + Meta dashboard + email reachability)
 - **phase-id:** `fb-legal-pages`
 - **วันที่:** 2026-06-17
 - **อ้างอิง:** Meta App Review requirement สำหรับ Facebook Login · SRS §3.2 (Public routing) · SRS §5 (Tech Stack)
