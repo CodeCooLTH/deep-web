@@ -159,6 +159,12 @@ Priority: Must (Facebook App Review requirement) — routing: ดู SRS §3.2
 
 Priority: Must (Facebook App Review requirement) — routing: ดู SRS §3.2
 
+### FR-L3: Terms of Service Page
+
+หน้า `/terms` สาธารณะ (ไม่ต้อง login) — ข้อกำหนดการใช้บริการภาษาไทย 10 หัวข้อ (การยอมรับ/คำอธิบายบริการ/บัญชี/ข้อห้าม/การซื้อขาย/ทรัพย์สินทางปัญญา/จำกัดความรับผิด/ระงับบัญชี/กฎหมายไทย/ติดต่อ) ระบุชัดว่า Deep เป็นตัวกลางสร้างความน่าเชื่อถือ ไม่ใช่คู่สัญญาซื้อขาย. ใช้เป็น **Terms of Service URL** ใน Meta App Review. Render เป็น static Server Component, ไม่ noindex.
+
+Priority: Should (Meta App Review — Terms of Service URL optional แต่เพิ่มความน่าเชื่อถือ) — routing: ดู SRS §3.2
+
 ---
 
 ## §4 MVP Scope

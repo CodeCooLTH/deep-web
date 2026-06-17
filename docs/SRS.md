@@ -254,6 +254,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | SMS Link Invalid / Error | `/o/link-invalid` |
 | Privacy Policy | `/privacy` — public, ไม่ต้อง login, static Server Component — Meta App Review (Privacy Policy URL) |
 | Data Deletion Instructions | `/data-deletion` — public, ไม่ต้อง login, static Server Component — Meta App Review (User Data Deletion URL); request via email, ดำเนินการภายใน 30 วัน |
+| Terms of Service | `/terms` — public, ไม่ต้อง login, static Server Component — Meta App Review (Terms of Service URL); ข้อกำหนดการใช้บริการ 10 หัวข้อ |
 
 ### 3.3 Buyer (`deepthailand.app/...`) — ต้อง login
 

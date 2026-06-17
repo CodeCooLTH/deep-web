@@ -71,6 +71,7 @@
 | S-4 | อัปเดต SRS §3.2 (Public routing) เพิ่ม 2 path | `docs/SRS.md` §3.2 มี row `/privacy` + `/data-deletion` | TODO |
 | S-5 | อัปเดต PRD §3 เพิ่ม FR-L1/FR-L2 | `docs/PRD.md` §3 มี legal pages | TODO |
 | S-6 | Footer link → Privacy ใน Landing (`/`) + Public Profile (`/u/[username]`) | footer ทั้ง 2 จุดมีลิงก์ไป `/privacy` คลิกแล้วถึงหน้า | TODO |
+| S-7 | หน้า `/terms` (Terms of Service) ที่ `src/app/(marketing)/terms/page.tsx` + footer link — รับเข้าจาก OOS-5 (2026-06-17) | `GET /terms` → HTTP 200 ไม่ redirect, heading "ข้อกำหนดการใช้บริการ", 10 หัวข้อ; footer landing มีลิงก์ `/terms`; ใช้เป็น Meta Terms of Service URL | TODO |
 
 ---
 
@@ -82,7 +83,7 @@
 | OOS-2 | Meta Data Deletion Callback endpoint (`signed_request` HMAC verify + confirmation_code) | ต้องมี OOS-1 ก่อน + ต้องการ FB App secret |
 | OOS-3 | Data Deletion status page (`/data-deletion/status?id=...`) | ผูกกับ OOS-2 |
 | OOS-4 | Cookie Consent / PDPA consent UI | ไม่ใช่ Meta requirement |
-| OOS-5 | Terms of Service page (`/terms`) | Meta ไม่ require |
+| ~~OOS-5~~ | ~~Terms of Service page (`/terms`)~~ → **รับเข้า scope เป็น S-7** (2026-06-17, user ขอเพื่อกรอก Meta Terms of Service URL) | — |
 | OOS-6 | Privacy Policy ภาษาอังกฤษ | ทีหลัง |
 | OOS-7 | Email/form system รับ data-deletion request จริง | phase นี้ทำแค่ instructions page ระบุ channel |
 
@@ -121,3 +122,4 @@
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-06-17 | baseline สร้าง + ปิด OQ ทั้ง 5 | Meta App Review requirement สำหรับ Facebook Login | user (lock decision) |
+| 2026-06-17 | รับ OOS-5 (Terms of Service `/terms`) เข้า scope เป็น S-7 | user ขอเพื่อกรอก Meta Terms of Service URL (เดิม Meta จะชี้ผิดไป /data-deletion) | user |
