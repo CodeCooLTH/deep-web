@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Deep — FB Onboarding Flow (Mermaid)</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Anuphan',system-ui,sans-serif;background:#eef1f5;color:#1f2937;margin:0;padding:32px}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:#6b7785;margin:0 0 24px}
+  .card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(20,30,50,.08);padding:24px;margin-bottom:24px}
+  .mermaid{display:flex;justify-content:center}
+  h2{font-size:18px;margin:0 0 12px;color:#236dc9}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th,td{border:1px solid #e9edf2;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#f4f6f9}
+  code{background:#f4f6f9;padding:1px 6px;border-radius:5px;font-family:ui-monospace,monospace;font-size:13px}
+  .q{background:#fff7ed;border:1px solid #f5a52455;border-radius:10px;padding:12px 16px;margin-top:8px}
+  .q b{color:#c2410c}
+</style>
+</head>
+<body>
+<h1>Deep — Facebook Onboarding Flow</h1>
+<p class="sub">เสนอ flow ตามที่คุณอธิบาย (2026-06-17) — ยืนยัน/แก้ก่อนผม implement · primary <code>#236dc9</code></p>
+
+<div class="card">
+  <div class="mermaid">
+flowchart TD
+    SignIn["🔐 /auth/sign-in"]
+    SignIn -->|"กดปุ่ม Facebook"| FBOAuth["Facebook OAuth dialog<br/>(อนุญาต)"]
+    SignIn -->|"username + password"| GateReg
+    FBOAuth --> Callback["⏳ /auth/callback/facebook<br/><b>callback loading</b> (spinner)"]
+    Callback --> GateReg{"มีเบอร์โทรแล้ว?<br/>(needsRegistration)"}
+
+    GateReg -->|"ยังไม่มี<br/>(FB user ใหม่)"| Reg1
+    GateReg -->|"มีแล้ว"| GateOnb
+
+    subgraph P1["เฟส 1 — ลงทะเบียน · /register (เหมือน sign-up)"]
+        direction TB
+        Reg1["📝 กรอก <b>username + เบอร์โทร</b><br/>(ชื่อ = จาก Facebook อัตโนมัติ)"]
+        Reg1 --> RegWarn["⚠️ เตือน: เบอร์ตั้งครั้งเดียว<br/>เปลี่ยนไม่ได้"]
+        RegWarn --> RegOTP["📲 OTP"]
+        RegOTP --> RegSubmit["✓ submit OTP<br/>→ ตั้งเบอร์ (immutable)"]
+    end
+
+    RegSubmit --> LoadIn["⏳ loading <b>'เข้าสู่ระบบ'</b>"]
+    LoadIn --> GateOnb{"ตั้งค่าร้านครบ?<br/>(needsOnboarding = มี slug?)"}
+
+    GateOnb -->|"❌ ยังไม่เคย setup"| Onb1
+    GateOnb -->|"✅ setup แล้ว"| Dash
+
+    subgraph P2["เฟส 2 — ตั้งค่าร้าน · /onboarding"]
+        direction TB
+        Onb1["🔗 1. ตั้ง URL ร้าน (slug)"]
+        Onb1 --> Onb2["📍 2. ตั้งที่อยู่ (address)"]
+        Onb2 --> Onb3["📦 3. สินค้าแรก (product)"]
+    end
+
+    Onb3 --> Dash(["🏪 /dashboard"])
+
+    classDef load fill:#dbeafe,stroke:#236dc9,color:#1e3a8a
+    classDef gate fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    classDef done fill:#dcfce7,stroke:#22a06b,color:#14532d
+    class Callback,LoadIn load
+    class GateReg,GateOnb gate
+    class Dash done
+  </div>
+</div>
+
+<div class="card">
+  <h2>สรุปต่อหน้า</h2>
+  <table>
+    <tr><th>หน้า</th><th>ทำอะไร</th><th>เด้งเมื่อ (proxy)</th></tr>
+    <tr><td><code>/auth/sign-in</code></td><td>ปุ่ม Facebook / username+password</td><td>guest</td></tr>
+    <tr><td><code>/auth/callback/facebook</code></td><td>callback loading (spinner) หลัง FB auth</td><td>หลัง FB redirect</td></tr>
+    <tr><td><code>/register</code> (เฟส 1)</td><td><b>username + เบอร์โทร</b> → ⚠️warning → OTP → submit · ชื่อจาก FB อัตโนมัติ</td><td><code>needsRegistration</code> (ไม่มีเบอร์)</td></tr>
+    <tr><td>loading "เข้าสู่ระบบ"</td><td>จังหวะรู้สึก "เข้าระบบแล้ว" หลัง OTP</td><td>หลัง submit OTP</td></tr>
+    <tr><td><code>/onboarding</code> (เฟส 2)</td><td><b>1. URL (slug) → 2. ที่อยู่ (address) → 3. สินค้าแรก</b></td><td><code>needsOnboarding</code> (ไม่มี slug)</td></tr>
+    <tr><td><code>/dashboard</code></td><td>ใช้งานปกติ (setup ครบแล้ว)</td><td>ครบทั้ง 2 เฟส</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>จุดที่ต่างจากของเดิม (ที่ผมทำผิด) + ขอ confirm</h2>
+  <table>
+    <tr><th>เรื่อง</th><th>เดิม (ผิด)</th><th>ใหม่ (ตามคุณ)</th></tr>
+    <tr><td>/register fields</td><td>welcome + displayName + <b>category</b> + username + phone</td><td><b>username + phone</b> เท่านั้น (ชื่อจาก FB)</td></tr>
+    <tr><td>/onboarding steps</td><td>slug → product</td><td><b>slug → ที่อยู่ (address) → product</b></td></tr>
+    <tr><td>welcome step</td><td>มีใน /register</td><td>ตัดออก (เข้าฟอร์มเลย)</td></tr>
+  </table>
+  <div class="q"><b>❓ ขอ confirm 2 จุด:</b><br/>
+  1. <b>หมวดหมู่ร้าน (category)</b> — ของเดิมอยู่ใน /register · คุณไม่ได้พูดถึง → ย้ายไปเป็น step ใน <b>/onboarding</b> (เพิ่มเป็น step 0 ก่อน slug) หรือ <b>ตัดทิ้ง</b>? (Shop.category มี field อยู่)<br/>
+  2. <b>warning เบอร์ตั้งครั้งเดียว</b> — เก็บไว้ใน /register (ก่อน OTP) ตามที่เคยขอ ใช่ไหม? หรือเอาออก?</div>
+</div>
+
+<p class="sub">Shop schema ที่มีให้ใช้: <code>shopName · category · slug · address · description · logo · businessType</code> — address มีแล้ว ไม่ต้อง migration ✓</p>
+</body>
+<script>mermaid.initialize({startOnLoad:true, theme:'base', themeVariables:{primaryColor:'#eaf1fb',primaryBorderColor:'#236dc9',primaryTextColor:'#1f2937',lineColor:'#6b7785',fontFamily:'Anuphan'}});</script>
+</html>
