@@ -59,3 +59,7 @@ qa-screenshots/
 # editor / tool working dirs (ไม่ใช่ source — ไม่ commit)
 .obsidian/
 .impeccable/
+
+# Playwright
+/playwright-report/
+/test-results/
