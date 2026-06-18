@@ -37,6 +37,54 @@ export const ShopSlugSchema = v.pipe(
 
 export const ShopCategorySchema = v.picklist(SHOP_CATEGORY_KEYS);
 
+// ── feature 00001 Login & Onboarding ────────────────────────────────────────
+// ช่องทางการขาย (sales channels) — enum คงที่ (Product team กำหนด, Seller เพิ่มเองไม่ได้)
+export const SALES_CHANNEL_KEYS = [
+  "facebook",
+  "offline",
+  "line",
+  "tiktok_shop",
+  "lazada",
+  "shopee",
+] as const;
+export const SALES_CHANNEL_LABELS: Record<(typeof SALES_CHANNEL_KEYS)[number], string> = {
+  facebook: "Facebook",
+  offline: "หน้าร้าน",
+  line: "LINE",
+  tiktok_shop: "TikTok Shop",
+  lazada: "Lazada",
+  shopee: "Shopee",
+};
+
+// Step 1 — sales channels (empty array = valid, ข้ามได้)
+export const SalesChannelsSchema = v.object({
+  channels: v.array(v.picklist(SALES_CHANNEL_KEYS)),
+});
+
+// Step 2 — multi-category ≤5 (submit ต้องเลือก ≥1; ข้ามได้ที่ client โดยไม่เรียก API)
+export const CategoriesSchema = v.object({
+  categories: v.pipe(
+    v.array(ShopCategorySchema),
+    v.minLength(1, "ต้องเลือกอย่างน้อย 1 หมวด"),
+    v.maxLength(5, "เลือกได้สูงสุด 5 หมวด"),
+  ),
+});
+
+// Step 3 — address + map pin (lat/lng ขอบเขตประเทศไทย; lat+lng ต้องมาคู่ — XOR check ที่ route handler)
+export const ShopUpdateWithGeoSchema = v.object({
+  category: v.optional(ShopCategorySchema),
+  address: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500))),
+  latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
+  longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
+});
+
+// Step 3 — Nominatim reverse-geocode proxy input
+export const GeoReverseSchema = v.object({
+  lat: v.pipe(v.number(), v.minValue(5), v.maxValue(21)),
+  lng: v.pipe(v.number(), v.minValue(97), v.maxValue(106)),
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const SetPasswordSchema = v.object({
   phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
   otp: v.pipe(v.string(), v.length(6)),
@@ -72,6 +120,8 @@ const CapabilityFieldsSchema = {
 
 export const CreateProductSchema = v.object({
   name: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+  // sku — รหัสสินค้า optional (feature 00001 onboarding); ≤100 chars
+  sku: v.optional(v.pipe(v.string(), v.maxLength(100))),
   // description ขยายเป็น 5000 chars ตามตกลง (DB ไม่มี length limit แล้ว)
   description: v.optional(v.pipe(v.string(), v.maxLength(5000))),
   // shortDescription ใช้แสดงในการ์ดสินค้า/ผลค้นหา — สูงสุด 200 chars
