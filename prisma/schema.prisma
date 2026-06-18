@@ -53,9 +53,13 @@ model Shop {
   shopName     String
   description  String?
   logo         String?
-  category     String?
+  category     String?          // LEGACY single-value — คงไว้ระหว่าง migration (backward-compat); SSOT ใหม่ = categories
+  categories   String[] @default([])  // multi-category ≤5 (feature 00001); GIN index ใน migration SQL
+  salesChannels String[] @default([]) // ช่องทางการขาย: facebook/offline/line/tiktok_shop/lazada/shopee; validate app layer
   slug         String?  @unique   // public shop URL /{slug}; nullable จนกว่าจะตั้งใน onboarding (P3)
   address      String?
+  latitude     Float?           // พิกัดร้าน (feature 00001 onboarding map pin); ไทย 5-21N validate app layer
+  longitude    Float?           // พิกัดร้าน; ไทย 97-106E validate app layer
   businessType String   @default("INDIVIDUAL")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -113,6 +117,7 @@ model Product {
   id               String   @id @default(uuid())
   shopId           String
   name             String
+  sku              String?           // รหัสสินค้า (optional; feature 00001 onboarding product form)
   description      String?  @db.Text
   shortDescription String?  @db.VarChar(200)
   attributes       Json     @default("{}")

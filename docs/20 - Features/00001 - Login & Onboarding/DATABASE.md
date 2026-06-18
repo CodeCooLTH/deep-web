@@ -289,8 +289,10 @@ Rollback ทันทีหลัง apply (ก่อนมี data ใหม่
 
 Migration หลัก = เพิ่ม 4 column ใน `Shop` (`categories`/`salesChannels` String[], `latitude`/`longitude` Float?) + GIN index + backfill `categories` จาก `category`. ไม่สร้าง table ใหม่ — checklist derive จาก fields. Badge SIGNUP_YEAR 2026 มีใน seed แล้ว. Product field ครบ ยกเว้น SKU
 
-**Open Questions:**
-1. **Product.sku:** เพิ่ม `sku String?` หรือเก็บใน `attributes Json`? (แนะนำเพิ่ม column)
-2. **Badge name:** rename "ปี 2026" → "สมาชิกผู้ก่อตั้ง 2026" (UX copy, ไม่กระทบ schema)?
-3. **GIN CONCURRENT:** ถ้า Shop ใหญ่ใช้ `CREATE INDEX CONCURRENTLY` (นอก transaction)?
-4. **Backfill SIGNUP_YEAR:** Seller ปี 2026 ก่อน launch — migration script หรือ lazy evaluate ใน Summary step?
+**Resolved + Applied (2026-06-18):**
+1. ✅ **Product.sku:** เพิ่ม `sku String?` (column) — applied migration `20260618035221_add_shop_onboarding_fields`
+2. ✅ **Badge name:** rename "ปี 2026" → "สมาชิกผู้ก่อตั้ง 2026" — แก้ `badge-seed-data.ts` + `updateMany` ใน DB แล้ว (1 row)
+3. ✅ **GIN:** ใช้ `CREATE INDEX` ปกติ (Shop base เล็ก ไม่ lock นาน) — applied
+4. **Backfill SIGNUP_YEAR:** lazy evaluate — `auth.ts` เรียก `evaluateSignupYearBadge` ทุก sign-in ถ้ายังไม่มี badge → Seller ปี 2026 ได้ badge ตอน login ครั้งถัดไป (ไม่ต้อง migration script)
+
+**Migration applied:** `20260618035221_add_shop_onboarding_fields` (Supabase, verified columns + backfill `categories` จาก `category`)
