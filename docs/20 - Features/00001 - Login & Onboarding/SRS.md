@@ -3,7 +3,7 @@ title: "SRS — Login & Onboarding"
 owner: shinobu22
 status: draft
 module: M00001-LoginOnboarding
-version: "1.0"
+version: "1.1"
 created: 2026-06-18
 tags: [feature, login, onboarding, seller, auth, srs, technical]
 related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]"]
@@ -11,7 +11,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]"]
 
 > **โมดูล:** M00001-LoginOnboarding
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-06-18
 > **สถานะ:** Draft
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
@@ -24,16 +24,16 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]"]
 
 ### 1.1 วัตถุประสงค์ของเอกสาร
 
-เอกสารนี้กำหนดข้อกำหนดเชิงเทคนิคสำหรับระบบ **Login & Onboarding (M00001)** ของแพลตฟอร์ม Deep ครอบคลุม (1) กลไก authentication ทั้ง 3 ช่องทาง, (2) proxy gate logic ที่ `src/proxy.ts`, (3) Onboarding Modal 5 step พร้อม state machine, (4) Nominatim reverse-geocode proxy server-side, (5) Checklist computation และ Sidebar integration, (6) validation rules ฝั่ง backend (Valibot) ทุก endpoint ใหม่, และ (7) badge evaluation ใน Summary step
+เอกสารนี้กำหนดข้อกำหนดเชิงเทคนิคสำหรับระบบ **Login & Onboarding (M00001)** ของแพลตฟอร์ม Deep ครอบคลุม (1) กลไก authentication ทั้ง 5 ช่องทาง, (2) proxy gate logic ที่ `src/proxy.ts`, (3) Onboarding Modal 5 step พร้อม state machine, (4) Nominatim reverse-geocode proxy server-side, (5) Checklist computation และ Sidebar integration, (6) validation rules ฝั่ง backend (Valibot) ทุก endpoint ใหม่, (7) badge evaluation ใน Summary step, และ (8) LINE/Instagram OAuth (FR-LO-14/FR-LO-15)
 
 ผู้อ่านเป้าหมาย: DEV ผู้ implement, QA ผู้ออกแบบ test case, safepay-database ผู้ออกแบบ schema, Controller ผู้วางแผน dispatch
 
-เอกสารนี้ trace กลับ FR-LO-01 ถึง FR-LO-13 ใน [[BRD]] และ Resolved Decisions OD-1 ถึง OD-7 ใน [[PRD]] §10.3
+เอกสารนี้ trace กลับ FR-LO-01 ถึง FR-LO-15 ใน [[BRD]] และ Resolved Decisions OD-1 ถึง OD-7 ใน [[PRD]] §10.3
 
 ### 1.2 ขอบเขตเชิงระบบ (System Scope)
 
 **ในขอบเขต:**
-- `src/lib/auth.ts` — NextAuth providers (phone-otp, seller-credentials, facebook)
+- `src/lib/auth.ts` — NextAuth providers (phone-otp, seller-credentials, facebook, line, instagram)
 - `src/proxy.ts` — proxy gate logic (slug-only, needsRegistration, needsOnboarding)
 - `src/app/(paces)/seller/` — หน้า auth (sign-in, sign-up, verify-otp, reset-pass, new-pass), onboarding page, dashboard
 - Onboarding Modal — client component 5 step (Sales Channels, Categories, Address+Map, First Product, Summary)
@@ -566,6 +566,8 @@ export const OnboardingProductSchema = v.object({
 | FR-LO-11 | TFR-012 | OnboardingModal Step5 + badge.service |
 | FR-LO-12 | TFR-013, TFR-014 | /api/account/onboarding-checklist + ChecklistSidebar |
 | FR-LO-13 | TFR-013 | onboarding-checklist computation |
+| FR-LO-14 | TFR-015 | auth.ts LineProvider + upsertOAuthUser |
+| FR-LO-15 | TFR-016 | auth.ts InstagramProvider (flag-off) |
 
 ---
 
@@ -579,3 +581,44 @@ export const OnboardingProductSchema = v.object({
 3. "isNewSeller" detection — localStorage `onboarding_modal_shown_v1` (เลือกไว้) ต้อง confirm
 4. Migration backfill SIGNUP_YEAR badge ของ Seller ปี 2026 ก่อน launch → ระบุใน [[DATABASE]]
 5. `POST /api/upload` รองรับ server-side image validation หรือไม่ — ถ้าไม่ ต้องเพิ่ม
+
+---
+
+## 13. LINE + Instagram OAuth — Technical Specification (v1.1 extension)
+
+### 13.1 Provider Configuration
+เพิ่ม `LineProvider({ clientId: process.env.LINE_CHANNEL_ID, clientSecret: process.env.LINE_CHANNEL_SECRET })` + `InstagramProvider({ clientId: process.env.INSTAGRAM_CLIENT_ID, clientSecret: process.env.INSTAGRAM_CLIENT_SECRET })` ใน `authOptions.providers` (import จาก `next-auth/providers/line` และ `next-auth/providers/instagram`).
+
+### 13.2 Environment Variables
+| Variable | Provider | Required | หมายเหตุ |
+|---|---|---|---|
+| `LINE_CHANNEL_ID` | LINE | yes (live) | LINE Developers Console Channel ID |
+| `LINE_CHANNEL_SECRET` | LINE | yes (live) | LINE Developers Console Channel Secret |
+| `INSTAGRAM_CLIENT_ID` | Instagram | no (prepared) | Meta App Dashboard |
+| `INSTAGRAM_CLIENT_SECRET` | Instagram | no (prepared) | Meta App Dashboard |
+| `NEXT_PUBLIC_ENABLE_IG_LOGIN` | Instagram | no | default off; ปุ่ม IG render เมื่อ = `"true"` |
+
+### 13.3 upsertOAuthUser Helper
+generalize จาก facebook block เดิมใน `jwt` callback เป็น `upsertOAuthUser(account, user, { providerEnum, usernamePrefix })`: (1) หา user ด้วย `(provider, providerAccountId)`; (2) ไม่พบ → `user.create({ username: "{prefix}{id}", avatar })` + `linkBuyerHistory` เฉพาะมี email + `evaluateSignupYearBadge` best-effort; (3) พบ + avatar เปลี่ยน → update; (4) set `token.userId`. `AuthAccount.provider` เป็น String column (`@@unique([provider, providerAccountId])`) — รับ `LINE`/`INSTAGRAM` โดยไม่ต้อง migration.
+
+### 13.4 Username + Avatar Scheme
+| Provider | username | avatar |
+|---|---|---|
+| Facebook | `fb{id}` | `profile.picture?.data?.url` |
+| LINE | `line{id}` | `profile.picture` |
+| Instagram | `ig{id}` | (เตรียมไว้) |
+
+### 13.5 JWT Flags (ไม่เปลี่ยน logic)
+LINE/IG user ไม่มี phone/slug → `needsRegistration = !user.phone`, `needsOnboarding = !shop.slug` เหมือน FB.
+
+### 13.6 Business Rule BR-19
+LINE login → SalesChannelPicker pre-tick `"line"` (mirror BR-07 ของ FB → `"facebook"`).
+
+### 13.7 next.config.ts remotePatterns
+เพิ่ม `{ hostname: 'profile.line-scdn.net' }` (LINE) + `{ hostname: '*.cdninstagram.com' }` (Instagram).
+
+### 13.8 Authorization Notes
+LINE OAuth ใช้ได้ทั้ง prod+dev; Instagram prepared แต่ flag-off (backend active, ปุ่มไม่ render). ทั้ง 2 ไม่ขอ email scope → `linkBuyerHistory` ข้าม.
+
+### 13.9 Out of Scope (YAGNI)
+Cross-provider account linking; LINE email scope; Instagram ใช้งานจริง (blocked by Meta verify).

@@ -38,6 +38,8 @@ related: ["[[PRD]]", "[[SRS]]", "[[DATABASE]]"]
 - ข้อมูล username + password จาก Seller (ช่องทางหลัก)
 - เบอร์โทรศัพท์ + OTP 6 หลัก (ช่องทาง Phone OTP)
 - Authorization code จาก Facebook OAuth (ช่องทาง Facebook)
+- Authorization code จาก LINE OAuth (ช่องทาง LINE — ใช้งานจริง)
+- Authorization code จาก Instagram OAuth (ช่องทาง Instagram — เมื่อ `NEXT_PUBLIC_ENABLE_IG_LOGIN = true` เท่านั้น)
 - ข้อมูลร้านค้าจาก Seller ในแต่ละ step ของ Onboarding Modal: ช่องทางการขาย, หมวดหมู่, ที่อยู่ + พิกัด (optional), ข้อมูลสินค้าแรก (optional)
 
 **ออกจากระบบ (Output):**
@@ -62,6 +64,7 @@ related: ["[[PRD]]", "[[SRS]]", "[[DATABASE]]"]
 | **Seller ใหม่ — ช่องทาง Facebook** | เพิ่งสมัครผ่าน Facebook OAuth ครั้งแรก ยังไม่มีบัญชีในระบบ | ตั้งค่าร้านผ่าน Onboarding Modal; ระบบ pre-tick "Facebook" ในช่องทางการขายให้อัตโนมัติ |
 | **Seller ใหม่ — ช่องทาง Phone OTP** | สมัครด้วยเบอร์โทรศัพท์ มี shop name + password ตั้งแต่ signup | ตั้งค่าร้านผ่าน Onboarding Modal ทุก step |
 | **Seller ใหม่ — ช่องทาง username/password** | Login ด้วย username + password ที่มีอยู่แล้ว (เช่น ตั้งรหัสผ่านตอน OTP signup) | เข้า dashboard ได้ทันทีถ้ามี slug แล้ว; ถ้าไม่มี slug → proxy เด้ง /onboarding |
+| **Seller ใหม่ — ช่องทาง LINE** | เพิ่งสมัครผ่าน LINE OAuth ครั้งแรก ยังไม่มีบัญชีในระบบ ไม่มี email | ตั้งค่าร้านผ่าน /register (บังคับตั้งเบอร์ก่อน) → /onboarding; ระบบ pre-tick "LINE" ในช่องทางการขายให้อัตโนมัติ |
 | **Seller เก่า** | มีบัญชีและ slug อยู่แล้ว แต่ข้อมูลบางส่วนยังว่าง (เช่น ยังไม่มี salesChannels, ยังไม่ได้ปักพิกัด) | เห็น Checklist ใน Sidebar; กดรายการที่ค้างเพื่อเปิด modal ทำต่อได้ |
 
 ---
@@ -113,6 +116,61 @@ related: ["[[PRD]]", "[[SRS]]", "[[DATABASE]]"]
 - [ ] **Given** Facebook user ที่มีบัญชีอยู่แล้ว **When** OAuth สำเร็จ **Then** ระบบ match ด้วย `providerAccountId` → login ด้วยบัญชีเดิม + refresh avatar ถ้า FB รูปเปลี่ยน
 - [ ] Facebook OAuth ใช้ได้เฉพาะ production (https) — `deepth.local` ใช้ไม่ได้
 - [ ] **Given** Seller login ด้วย Facebook **When** เข้า Onboarding Modal step ช่องทางการขาย **Then** ระบบ pre-tick "Facebook" ให้อัตโนมัติ (ยังเปลี่ยนได้)
+
+#### FR-LO-14: LINE OAuth Login/Signup
+
+**User Story:**
+> ในฐานะ Seller ที่ใช้ LINE เป็นหลัก ฉันต้องการเข้าสู่ระบบ Deep ด้วยบัญชี LINE ได้ทันที เพื่อไม่ต้องจำ username/password เพิ่มและไม่ต้องพึ่ง Facebook
+
+**Acceptance Criteria:**
+
+**Happy Path — LINE user ใหม่:**
+- [ ] `[FR-LO-14-AC-01]` **Given** Seller กด "เข้าสู่ระบบด้วย LINE" บนหน้า sign-in (seller หรือ buyer) **When** LINE OAuth สำเร็จ (ได้รับ authorization code จาก LINE) **Then** ระบบ redirect ไป `/auth/callback/line` → spinner รอ session → redirect ตาม proxy gate
+- [ ] `[FR-LO-14-AC-02]` **Given** LINE user ใหม่ที่ยังไม่มีบัญชีในระบบ (ไม่พบ `AuthAccount` ที่มี `provider = "LINE"` และ `providerAccountId` ตรงกัน) **When** LINE OAuth สำเร็จ **Then** ระบบสร้าง `User` ใหม่ (username = `line{providerAccountId}`, avatar จาก LINE `profile.picture`) + `AuthAccount(provider="LINE")` + `evaluateSignupYearBadge` best-effort → `needsRegistration = true` (ไม่มีเบอร์) → proxy redirect `/register`
+
+**Happy Path — LINE user เดิม:**
+- [ ] `[FR-LO-14-AC-03]` **Given** LINE user ที่มีบัญชีอยู่แล้ว (พบ `AuthAccount(provider="LINE", providerAccountId=X)`) **When** LINE OAuth สำเร็จ **Then** ระบบ login ด้วยบัญชีเดิม + refresh `avatar` ถ้า LINE รูปเปลี่ยน → redirect ตาม proxy gate (dashboard ถ้ามี slug / onboarding ถ้าไม่มี slug)
+
+**ปุ่ม LINE — placement:**
+- [ ] `[FR-LO-14-AC-04]` **Given** ผู้ใช้เข้าหน้า seller sign-in, buyer sign-in, หรือ buyer sign-up **When** หน้าโหลด **Then** ปุ่ม "เข้าสู่ระบบด้วย LINE" ปรากฏบนทุกหน้า (3 ที่ เหมือน Facebook) — สี LINE เขียว `#06C755` (brand asset, Hard Rule 6, ต้องมี comment กำกับใน code)
+
+**Callback URL:**
+- [ ] `[FR-LO-14-AC-05]` **Given** LINE OAuth สำเร็จ **When** LINE redirect กลับ **Then** callback ถูกรับที่ `/api/auth/callback/line` และ redirect ผู้ใช้ไป `/auth/callback/line` (spinner page เดิม)
+
+**LINE user ไม่มี email → gating เดิมทำงานได้:**
+- [ ] `[FR-LO-14-AC-06]` **Given** LINE user ใหม่ที่เพิ่งสร้างบัญชี (ไม่มี phone, ไม่มี slug) **When** proxy ตรวจ JWT flags **Then** `needsRegistration = true` → redirect `/register` (บังคับตั้งเบอร์ก่อน) → หลังตั้งเบอร์ → `needsOnboarding = true` → redirect `/onboarding` ตามลำดับที่กำหนด (reuse logic เดิมจาก FR-LO-05)
+
+**Pre-tick LINE ใน Sales Channels (BR-19):**
+- [ ] `[FR-LO-14-AC-07]` **Given** Seller login ผ่าน LINE ใน session ปัจจุบัน **When** Onboarding Modal เปิดที่ step 1 (ช่องทางการขาย) **Then** ระบบ pre-tick "LINE" ให้อัตโนมัติ (ยังแก้ได้); ถ้า provider ตรวจไม่ได้ → ไม่ pre-fill (fallback graceful ไม่ error)
+
+**Edge Cases:**
+- [ ] `[FR-LO-14-AC-08]` **Given** LINE OAuth ล้มเหลว (user กดยกเลิก หรือ LINE error) **When** callback ได้รับ error **Then** ระบบ redirect กลับหน้า sign-in พร้อมแสดง error message ที่เข้าใจได้ — ไม่ crash, ไม่สร้าง orphan User
+- [ ] `[FR-LO-14-AC-09]` **Given** LINE user login ซ้ำซ้อนในเวลาเดียวกัน 2 request **When** ทั้งสอง request เข้า upsertOAuthUser พร้อมกัน **Then** ระบบสร้าง User/AuthAccount เพียง 1 record (unique constraint `provider + providerAccountId` กัน race condition)
+- [ ] `[FR-LO-14-AC-10]` **Given** LINE user มีอยู่แล้ว + LINE เปลี่ยนรูปโปรไฟล์ **When** login ครั้งถัดไป **Then** `User.avatar` ถูก refresh เป็นรูปใหม่จาก LINE `profile.picture`
+
+**ข้อจำกัด:**
+- [ ] `[FR-LO-14-AC-11]` LINE login ต้องลงทะเบียน callback URL 2 รายการใน LINE Developers Console ก่อน go-live: `https://deepthailand.app/api/auth/callback/line` และ `https://seller.deepthailand.app/api/auth/callback/line` (user ทำเอง — ไม่ใช่งาน Dev)
+
+#### FR-LO-15: Instagram OAuth (เตรียมโค้ด — ปิด Feature Flag)
+
+**User Story:**
+> ในฐานะ Product team ฉันต้องการให้โค้ด Instagram OAuth พร้อม deploy แล้วแต่ซ่อนอยู่หลัง feature flag เพื่อเปิดใช้ได้ทันทีเมื่อ Meta Business Verification ผ่าน โดยไม่ต้อง deploy ใหม่
+
+**เหตุผลที่ปิด flag:**
+Instagram Basic Display API ถูก Meta ยกเลิก ธ.ค. 2024 — ปัจจุบัน Instagram login วิ่งผ่าน Meta และต้องผ่าน App Review + Business Verification ตัวเดียวกับ Facebook ซึ่งยังอยู่ระหว่างดำเนินการ
+
+**Acceptance Criteria:**
+
+**Feature Flag = OFF (default — พฤติกรรมที่คาดหวังตอนนี้):**
+- [ ] `[FR-LO-15-AC-01]` **Given** `NEXT_PUBLIC_ENABLE_IG_LOGIN` ไม่ถูกตั้งค่า หรือ = `"false"` หรือ = ค่าอื่นที่ไม่ใช่ `"true"` **When** หน้า sign-in (seller, buyer sign-in, buyer sign-up) โหลด **Then** ปุ่ม "เข้าสู่ระบบด้วย Instagram" ไม่ปรากฏใน DOM เลย (ไม่ใช่แค่ hidden — ต้องไม่ render)
+- [ ] `[FR-LO-15-AC-02]` **Given** `NEXT_PUBLIC_ENABLE_IG_LOGIN = "false"` **When** ผู้ใช้เข้า URL `/api/auth/signin/instagram` โดยตรง **Then** NextAuth ยังคง reject/redirect ตาม provider config — ไม่ crash server
+
+**Feature Flag = ON (พฤติกรรมที่คาดหวังเมื่อ Meta Verification ผ่าน — ทดสอบได้บน staging เท่านั้น):**
+- [ ] `[FR-LO-15-AC-03]` **Given** `NEXT_PUBLIC_ENABLE_IG_LOGIN = "true"` **When** หน้า sign-in โหลด **Then** ปุ่ม "เข้าสู่ระบบด้วย Instagram" ปรากฏ (3 ที่ เหมือน LINE และ Facebook)
+- [ ] `[FR-LO-15-AC-04]` **Given** Instagram user ใหม่ + flag ON **When** Instagram OAuth สำเร็จ **Then** ระบบสร้าง `User` ใหม่ (username = `ig{providerAccountId}`, avatar จาก Instagram) + `AuthAccount(provider="INSTAGRAM")` → gating เดิมทำงาน (needsRegistration → needsOnboarding)
+- [ ] `[FR-LO-15-AC-05]` **Given** Instagram user ที่มีบัญชีอยู่แล้ว + flag ON **When** OAuth สำเร็จ **Then** ระบบ match ด้วย `AuthAccount(provider="INSTAGRAM", providerAccountId=X)` → login บัญชีเดิม
+- [ ] `[FR-LO-15-AC-06]` **Given** Instagram user ใหม่ + flag ON + login สำเร็จ **When** Onboarding Modal เปิด step 1 **Then** ระบบ**ไม่** pre-tick channel ใดๆ อัตโนมัติ (Instagram ไม่มี pre-fill rule)
+- [ ] `[FR-LO-15-AC-07]` `AuthAccount.provider` สำหรับ Instagram = string `"INSTAGRAM"` เสมอ; username prefix = `ig`; callback route = `/auth/callback/instagram`
 
 #### FR-LO-04: Reset Password ผ่าน OTP
 
@@ -334,6 +392,11 @@ flowchart TD
 - ✅ Facebook login → สร้าง User ใหม่ (ถ้าไม่มี) หรือ login ด้วยบัญชีเดิม (match providerAccountId)
 - ✅ Facebook login → pre-tick "Facebook" ใน Sales Channels step อัตโนมัติ
 - ✅ Seller ที่ login ผ่าน Facebook ในปี 2026 → badge "สมาชิกผู้ก่อตั้ง 2026" ถูก evaluate best-effort ตอน signup
+- ✅ LINE login → สร้าง User ใหม่ (ถ้าไม่มี, username=`line{id}`) หรือ login ด้วยบัญชีเดิม (match providerAccountId); redirect ตาม proxy gate
+- ✅ LINE login → pre-tick "LINE" ใน Sales Channels step อัตโนมัติ (BR-19)
+- ✅ LINE user ใหม่ ไม่มี phone → `needsRegistration = true` → proxy redirect `/register` ก่อน
+- ✅ `NEXT_PUBLIC_ENABLE_IG_LOGIN = false` (default) → ปุ่ม Instagram ไม่ render ในทุกหน้า sign-in
+- ✅ `NEXT_PUBLIC_ENABLE_IG_LOGIN = true` → ปุ่ม Instagram render และ IG OAuth flow ทำงานได้
 
 ### 3.2 Proxy Gate
 
@@ -602,6 +665,7 @@ flowchart TD
 - **BR-16 Sidebar Hide Condition:** Sidebar ซ่อน Onboarding item เมื่อ **ทุก item** (รวม optional ทั้งหมด) = done เท่านั้น (OD-6)
 - **BR-17 No Auto-Modal for Existing Sellers:** Seller เก่าที่มี slug อยู่แล้ว ไม่เห็น modal pop อัตโนมัติเมื่อ login — เห็นเฉพาะ Checklist ใน Sidebar (OD-7)
 - **BR-18 Checklist Slug Always Done:** item "URL ร้าน (Slug)" นับเป็น done เสมอสำหรับ Seller ที่ผ่าน proxy gate มาแล้ว — ไม่แสดงเป็น pending
+- **BR-19 LINE Pre-fill:** ถ้า Seller login ผ่าน LINE ใน session ปัจจุบัน → ระบบ pre-tick "LINE" ใน sales channels step อัตโนมัติ ยังแก้ไขได้; ถ้าตรวจ provider ไม่ได้ → ไม่ pre-fill (fallback graceful) — mirror BR-07 ของ Facebook
 
 ---
 
@@ -629,6 +693,9 @@ flowchart TD
 | **Paces** | UI framework (Preline 4 + Tailwind 4) ที่ใช้สำหรับหน้า seller และ admin บนแพลตฟอร์ม Deep |
 | **bcrypt** | algorithm สำหรับ hash password ที่ต้านทาน brute-force — ใช้ผ่าน `bcryptjs` library |
 | **Buyer History Linking** | กระบวนการ auto-link ประวัติการซื้อที่เคยทำเป็น guest เข้ากับบัญชีใหม่ด้วย phone/email match |
+| **LINE OAuth** | ช่องทาง login ผ่าน LINE Login API (LINE Developers Console อิสระจาก Meta) — ใช้งานได้ทันที; `AuthAccount.provider = "LINE"`, username = `line{providerAccountId}` |
+| **Instagram OAuth** | ช่องทาง login ผ่าน Meta (Instagram Basic Display ยกเลิก ธ.ค. 2024) — เตรียมโค้ดไว้, ปิด feature flag; `AuthAccount.provider = "INSTAGRAM"`, username = `ig{providerAccountId}` |
+| **NEXT_PUBLIC_ENABLE_IG_LOGIN** | Feature flag (env var) ควบคุม render ปุ่ม Instagram — default `false`; ตั้ง `true` เมื่อ Meta Business Verification ผ่านแล้วเท่านั้น |
 
 ---
 

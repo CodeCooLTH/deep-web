@@ -3,7 +3,7 @@ title: "SDS — Login & Onboarding"
 owner: shinobu22
 status: draft
 module: M00001-LoginOnboarding
-version: "1.0"
+version: "1.1"
 created: 2026-06-18
 tags: [feature, login, onboarding, seller, auth, sds, system-design]
 related: ["[[SRS]]", "[[BRD]]", "[[PRD]]", "[[DATABASE]]", "[[API]]"]
@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[BRD]]", "[[PRD]]", "[[DATABASE]]", "[[API]]"]
 
 > **โมดูล:** M00001-LoginOnboarding
 > **ประเภทเอกสาร:** System Design Spec (SDS)
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-06-18
 > **สถานะ:** Draft
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
@@ -389,3 +389,56 @@ src/services/badge.service.ts, src/components/safepay/ThaiAddressSearch.tsx
 ## 14. สรุป
 
 SDS กำหนด component design, data flow, sequence, file structure จริงใน `src/`, auth rules, DB impact, implementation order. ลำดับ build: database migration → validations → API batch → client components batch → OnboardingModal → ChecklistSidebar → dashboard integration. Known risks: migration prod (additive + approve), Nominatim ล่ม (degrade warn ไม่ block), Leaflet bundle (lazy step 3)
+
+---
+
+## 15. LINE + Instagram OAuth — System Design Extension (v1.1)
+
+### 15.1 Sequence Diagram — LINE Login
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant NextAuth as NextAuth /api/auth
+    participant AuthLib as auth.ts jwt callback
+    participant DB as Prisma
+    participant Proxy as proxy.ts
+    Browser->>NextAuth: signIn('line', { callbackUrl: '/auth/callback/line' })
+    NextAuth->>NextAuth: LINE OAuth → user authorize
+    NextAuth-->>AuthLib: jwt callback (account.provider = "line")
+    AuthLib->>AuthLib: upsertOAuthUser(account, user, { providerEnum: LINE, usernamePrefix: "line" })
+    AuthLib->>DB: findFirst AuthAccount { provider: LINE, providerAccountId }
+    alt user ใหม่
+        DB-->>AuthLib: null
+        AuthLib->>DB: user.create { username: "line{id}", avatar }
+    else user เดิม + avatar เปลี่ยน
+        AuthLib->>DB: user.update { avatar }
+    end
+    AuthLib->>DB: query phone + slug → needsRegistration / needsOnboarding
+    AuthLib-->>NextAuth: token.userId
+    NextAuth-->>Browser: JWT cookie + redirect /auth/callback/line
+    Browser->>Proxy: GET /auth/callback/line (spinner → session)
+    Proxy-->>Browser: redirect /register หรือ /onboarding
+```
+
+### 15.2 Dynamic Callback Route
+สร้าง `/auth/callback/[provider]/page.tsx` (reuse spinner ของ FB เดิม) — seller (Paces) + buyer (Vuexy). ปุ่ม LINE ชี้ `callbackUrl: '/auth/callback/line'`, IG ชี้ `/auth/callback/instagram`.
+
+### 15.3 Button Placement
+| Surface | ไฟล์ | Theme | LINE | IG |
+|---|---|---|---|---|
+| seller sign-in | `(paces)/seller/auth/sign-in/...` | Paces auth/split | live | flag-gated |
+| buyer sign-in | `(marketing)/auth/sign-in/...` | Vuexy | live | flag-gated |
+| buyer sign-up | `(marketing)/auth/sign-up/...` | Vuexy | live | flag-gated |
+ปุ่ม LINE สีเขียว `#06C755` (brand asset, Hard Rule 6, comment กำกับ). ปุ่ม IG render เฉพาะ `NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true'`.
+
+### 15.4 next.config.ts
+เพิ่ม remotePatterns: `profile.line-scdn.net`, `*.cdninstagram.com`.
+
+### 15.5 Files Affected
+สร้าง: `src/app/(paces)/seller/auth/callback/[provider]/page.tsx`, `src/app/(marketing)/auth/callback/[provider]/page.tsx`
+แก้: `src/lib/auth.ts` (providers + upsertOAuthUser refactor), 3 หน้า sign-in/up (ปุ่ม), `next.config.ts`
+ไม่แก้: `src/proxy.ts`, `prisma/schema.prisma`
+
+### 15.6 Implementation Order
+1) auth.ts (upsertOAuthUser + LineProvider + InstagramProvider) → 2) next.config.ts → 3) callback [provider] route → 4) ปุ่ม LINE 3 หน้า (ผ่าน safepay-ux gate ก่อน — Hard Rule 8) → 5) IG flag-off component → 6) env + LINE console (user)

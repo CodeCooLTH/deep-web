@@ -3,7 +3,7 @@ title: "API Contract — Login & Onboarding"
 owner: shinobu22
 status: draft
 module: M00001-LoginOnboarding
-version: "1.0"
+version: "1.1"
 created: 2026-06-18
 tags: [feature, login, onboarding, seller, auth, api]
 related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 
 > **โมดูล:** M00001-LoginOnboarding
 > **ประเภทเอกสาร:** API Contract
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-06-18
 > **สถานะ:** Draft
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
@@ -368,3 +368,35 @@ API contract ครบสำหรับ DEV implement + QA วางแผน n
 2. isNewSeller detection — localStorage (เลือกไว้) vs DB field
 3. `getBadgeProgress` signature — read source จริงก่อน Summary
 4. `ThaiAddressSearch` province parse — ตรวจ composed string compare กับ Nominatim `address.state`
+
+---
+
+## 9. LINE + Instagram OAuth — API Extension (v1.1)
+
+### 9.1 NextAuth Callback Routes (auto-managed)
+NextAuth จัดการ callback ผ่าน `/api/auth/[...nextauth]` — ไม่ต้อง implement route แยก
+| Provider | NextAuth route (auto) | register ที่ |
+|---|---|---|
+| LINE | `/api/auth/callback/line` | LINE Developers Console |
+| Instagram | `/api/auth/callback/instagram` | Meta App Dashboard (prepared) |
+
+### 9.2 Callback URL ที่ต้อง register ใน LINE Console (user ทำเอง)
+```
+https://deepthailand.app/api/auth/callback/line
+https://seller.deepthailand.app/api/auth/callback/line
+```
+
+### 9.3 Environment Variables (ใหม่ v1.1)
+| Variable | Provider | Required | หมายเหตุ |
+|---|---|---|---|
+| `LINE_CHANNEL_ID` | LINE | yes (live) | LINE Developers Console Channel ID |
+| `LINE_CHANNEL_SECRET` | LINE | yes (live) | LINE Developers Console Channel Secret |
+| `INSTAGRAM_CLIENT_ID` | Instagram | no (prepared) | Meta App Dashboard |
+| `INSTAGRAM_CLIENT_SECRET` | Instagram | no (prepared) | Meta App Dashboard |
+| `NEXT_PUBLIC_ENABLE_IG_LOGIN` | Instagram | no | default off; ปุ่ม IG render เมื่อ = `"true"` |
+
+### 9.4 Traceability
+| FR | SRS TFR | Component |
+|---|---|---|
+| FR-LO-14 | TFR-015 | auth.ts LineProvider + upsertOAuthUser |
+| FR-LO-15 | TFR-016 | auth.ts InstagramProvider (flag-off) |

@@ -115,9 +115,12 @@ related: ["[[BRD]]", "[[SRS]]", "[[DATABASE]]"]
 ### 3.1 ช่องทางการสมัคร / เข้าสู่ระบบ (Login Methods)
 
 **ความต้องการ:**
-- Seller สมัครและเข้าสู่ระบบได้ 3 ช่องทาง: (1) username + password เป็นช่องทางหลัก, (2) Phone OTP, (3) Facebook OAuth
+- Seller สมัครและเข้าสู่ระบบได้ 5 ช่องทาง: (1) username + password เป็นช่องทางหลัก, (2) Phone OTP, (3) Facebook OAuth, (4) LINE OAuth (ใช้งานจริง), (5) Instagram OAuth (เตรียมโค้ดไว้ — ปิด feature flag จนกว่า Meta Business Verification ผ่าน)
 - Seller ที่ login ด้วย Facebook ครั้งแรกโดยไม่มีบัญชี → ระบบสร้างบัญชีให้อัตโนมัติ แล้วนำไปสู่ขั้นตอนตั้งค่าร้าน
 - Seller ที่ login ด้วย Facebook และมีบัญชีอยู่แล้ว (match ด้วย provider account id) → เข้าสู่ dashboard ปกติ
+- LINE login ครั้งแรกไม่มีบัญชี → สร้าง User (username `line{providerAccountId}`, avatar จาก LINE) → reuse proxy gate (needsRegistration → needsOnboarding)
+- LINE login มีบัญชีแล้ว (match providerAccountId) → เข้า dashboard + refresh avatar
+- Instagram OAuth เตรียมโค้ดไว้หลัง flag `NEXT_PUBLIC_ENABLE_IG_LOGIN` (default off) — ติด Meta Business Verification ตัวเดียวกับ Facebook
 - เบอร์โทรศัพท์ตั้งได้ครั้งเดียว เปลี่ยนไม่ได้ (phone immutable)
 - ระบบต้องรองรับ reset password ผ่าน OTP
 
@@ -266,6 +269,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[DATABASE]]"]
 | **Slug บังคับ** | `Shop.slug` ต้องมีก่อน Seller เข้าใช้ dashboard ได้ — proxy gate (`needsOnboarding`) ยังคงบังคับเฉพาะจุดนี้ |
 | **Phone Immutable** | เบอร์โทรตั้งได้ครั้งเดียว เปลี่ยนไม่ได้ เนื่องจากผูกกับ Trust Score และ Buyer History Linking |
 | **Facebook Pre-fill** | Login ด้วย Facebook → pre-tick "Facebook" ใน sales channels อัตโนมัติ |
+| **LINE Pre-fill** | Login ด้วย LINE → pre-tick "LINE" ใน sales channels อัตโนมัติ (ยังแก้ได้); ถ้าตรวจ provider ไม่ได้ → ไม่ pre-fill |
 | **Badge Engine** | Achievement ที่แสดงใน Summary Step ต้องมาจาก badge engine จริง ไม่ hardcode |
 | **Address-Map Consistency** | ถ้า Seller ปักพิกัด → ระบบ reverse-geocode เทียบกับจังหวัดในที่อยู่ที่กรอก และ warn ถ้าไม่สอดคล้อง |
 | **Skip = No Save** | การข้าม step ไม่บันทึกค่าบางส่วน — ข้อมูล step นั้นยังว่างใน DB |
@@ -297,6 +301,8 @@ related: ["[[BRD]]", "[[SRS]]", "[[DATABASE]]"]
 |--------|----------|
 | **Email + Password Login** | ตัดถาวร — ไม่อยู่ใน scope ทั้งระบบ (ดู PRD §2 User Stories) |
 | **Multi-provider Linking หลัง Signup** | ผูก provider เพิ่มหลังสมัครแล้วไม่รองรับใน MVP |
+| **Instagram OAuth ใช้งานจริง** | เตรียมโค้ดไว้แต่ปิด flag — เปิดได้เมื่อ Meta Business Verification ผ่าน |
+| **LINE + Facebook Cross-Provider Linking** | LINE/FB ที่ไม่มี email match = คนละบัญชี ไม่รวม account ใน MVP |
 | **การแสดง Sales Channels บน Public Profile** | เก็บข้อมูลใน MVP แต่การแสดงผลใน /u/{username} เป็น Phase 2 |
 | **Phone Edit หลัง Set** | เบอร์โทร immutable — ไม่มี UI เปลี่ยนเบอร์ |
 | **Paid Verified Badge** | Phase 2 (~฿299/เดือน) |
@@ -347,6 +353,9 @@ related: ["[[BRD]]", "[[SRS]]", "[[DATABASE]]"]
 | **Reverse-Geocode** | การแปลงพิกัด lat/lng กลับเป็นที่อยู่ข้อความ (ใช้ตรวจสอบความสอดคล้องกับที่อยู่ที่กรอก) |
 | **force-redirect** | พฤติกรรมของ proxy ที่เด้ง Seller ไปยังหน้าบังคับโดยอัตโนมัติก่อนให้เข้า dashboard |
 | **needsOnboarding** | JWT flag ที่ `= true` เมื่อ Seller ยังไม่มี `Shop.slug`; proxy gate ใช้ flag นี้ตัดสิน redirect |
+| **LINE OAuth** | ช่องทาง login ผ่าน LINE Login API (LINE Developers Console อิสระจาก Meta) — ใช้งานได้ทันที; `AuthAccount.provider = "LINE"`, username = `line{providerAccountId}` |
+| **Instagram OAuth** | ช่องทาง login ผ่าน Meta (Instagram Basic Display ยกเลิก ธ.ค. 2024) — เตรียมโค้ดไว้, ปิด feature flag; `AuthAccount.provider = "INSTAGRAM"`, username = `ig{providerAccountId}` |
+| **NEXT_PUBLIC_ENABLE_IG_LOGIN** | Feature flag (env var) ควบคุม render ปุ่ม Instagram — default `false`; ตั้ง `true` เมื่อ Meta Business Verification ผ่านแล้วเท่านั้น |
 
 ---
 
