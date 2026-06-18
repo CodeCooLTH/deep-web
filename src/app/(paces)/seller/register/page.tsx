@@ -21,6 +21,15 @@ import { useEffect, useRef, useState } from 'react'
 type Step = 'info' | 'warning' | 'otp' | 'success'
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
 
+// chip "เข้าสู่ระบบด้วย X" — derive provider จาก username prefix (line/ig/fb) ของ OAuth user ที่เพิ่งสมัคร
+// (ไม่ต้องเก็บ provider ใน JWT). LINE/IG สี brand = inline style (Hard Rule 6 exception); FB ใช้ token text-info เดิม
+function loginProviderChip(username: string | undefined): { icon: string; label: string; iconClassName: string; iconStyle?: { color: string } } {
+  const u = username ?? ''
+  if (u.startsWith('line')) return { icon: 'brand-line', label: 'LINE', iconClassName: 'size-3.5', iconStyle: { color: '#06C755' } }
+  if (u.startsWith('ig')) return { icon: 'brand-instagram', label: 'Instagram', iconClassName: 'size-3.5', iconStyle: { color: '#E1306C' } }
+  return { icon: 'brand-facebook', label: 'Facebook', iconClassName: 'size-3.5 text-info' }
+}
+
 export default function RegisterPage() {
   const { data: session, status, update } = useSession()
   const router = useRouter()
@@ -140,9 +149,14 @@ export default function RegisterPage() {
           ) : (
             <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">{(user.displayName || 'D').slice(0, 1)}</span>
           )}
-          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-default-100 px-3 py-1 text-xs text-default-500">
-            <Icon icon="brand-facebook" className="size-3.5 text-info" /> เข้าสู่ระบบด้วย Facebook
-          </span>
+          {(() => {
+            const p = loginProviderChip(user.username)
+            return (
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-default-100 px-3 py-1 text-xs text-default-500">
+                <Icon icon={p.icon} className={p.iconClassName} style={p.iconStyle} /> เข้าสู่ระบบด้วย {p.label}
+              </span>
+            )
+          })()}
         </div>
       )}
 
