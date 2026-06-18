@@ -34,6 +34,8 @@ type AddressLib = {
 interface Props {
   /** เรียกทุกครั้งที่ที่อยู่เปลี่ยน — string ว่าง = ยังไม่เลือก (parent ใช้ปิดปุ่มถัดไป) */
   onChange: (composed: string) => void
+  /** (optional) เรียกเมื่อเลือก/เคลียร์ที่อยู่ — ให้ parent เข้าถึง structured (เช่น province สำหรับ verify พิกัด feature 00001) */
+  onSelect?: (address: ThaiAddress | null) => void
   disabled?: boolean
 }
 
@@ -45,7 +47,7 @@ function compose(detail: string, a: ThaiAddress | null): string {
     .join(' ')
 }
 
-export default function ThaiAddressSearch({ onChange, disabled }: Props) {
+export default function ThaiAddressSearch({ onChange, onSelect, disabled }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ThaiAddress[]>([])
   const [open, setOpen] = useState(false)
@@ -130,11 +132,13 @@ export default function ThaiAddressSearch({ onChange, disabled }: Props) {
     setQuery('')
     setResults([])
     onChange(compose(detail, a))
+    onSelect?.(a)
   }
 
   const clearSelected = () => {
     setSelected(null)
     onChange('')
+    onSelect?.(null)
     // focus กลับช่องค้นหา
     setTimeout(() => searchInputRef.current?.focus(), 0)
   }
