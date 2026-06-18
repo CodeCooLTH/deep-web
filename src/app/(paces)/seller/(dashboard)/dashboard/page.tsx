@@ -35,6 +35,7 @@ import type { StatType } from './components/StatisticCard'
 import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
 import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
+import OnboardingGate from './components/OnboardingGate'
 import { PROMO_BANNER } from './_constants/command-center'
 import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
 // v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
@@ -225,6 +226,11 @@ export default async function SellerDashboardPage() {
 
   return (
     <>
+      {/* Onboarding checklist + modal (feature 00001) — ซ่อนเองเมื่อตั้งค่าครบ */}
+      <div className="mb-base">
+        <OnboardingGate />
+      </div>
+
       {/* ─── Mobile: Command Center (< lg) ─────────────────────────────────────
           แสดงเฉพาะหน้าจอ < 1024px; desktop markup ซ่อนด้วย hidden lg:block ด้านล่าง
           recentActivity = [] ตอนนี้ (T6 activity.service จะ wire จริงใน T7)

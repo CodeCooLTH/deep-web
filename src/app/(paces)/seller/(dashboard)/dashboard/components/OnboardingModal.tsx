@@ -1,760 +1,981 @@
 'use client'
 
 /**
- * OnboardingModal — modal stepper เด้งบน /dashboard เมื่อ session.user.needsOnboarding = true.
+ * OnboardingModal — feature 00001 — modal 5 step หลัก
  *
- * Base (modal shell/backdrop/controlled state):
- *   src/app/(paces)/seller/(dashboard)/orders/components/BulkActionBar.tsx → BulkSmsConfirmDialog
- *   (backdrop bg-dark/40 z-80, card, ✕, multi-phase state, footer ปุ่ม — ห้ามใช้ Preline hs-overlay)
+ * Base (modal shell / backdrop / header / footer / บานพับ open-close):
+ *   theme/paces/Admin/TS/src/app/(admin)/ui/modals/page.tsx
+ *   (backdrop bg-dark/40 fixed inset-0 z-80, card, border-default-300,
+ *    flex flex-col, header p-5, body overflow-y-auto, footer border-t p-4)
  *
- * Base (step state pattern):
- *   theme/paces/Admin/TS/src/app/(admin)/form/wizard/components/WizardWithValidation.tsx
- *   (useState(currentStep) + next/back logic; dot-only visual ไม่ใช้ wizard strip)
+ * Base (form inputs / label):
+ *   theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx
  *
- * Base (chip/pill badge, dot):
- *   theme/paces/Admin/TS/src/app/(admin)/ui/badges/page.tsx
- *   (badge rounded-full border / bg-primary text-white สำหรับ selected)
+ * Base (summary card / list):
+ *   theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx
+ *   theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx
  *
- * ทำไม controlled-React-state: Preline hs-overlay พังเมื่อ re-render (feedback_filterdropdown)
- * ทำไม dot-only stepper: wizard strip กว้างเกินใน modal (spec OQ-1)
- * ทำไม pacesToast: Hard Rule 9 — ใช้ toast lib เดียว (pacesToast) ใน (paces)/**
+ * ทำไม React-controlled overlay ไม่ใช้ hs-overlay:
+ *   Preline hs-overlay พังเมื่อ re-render (feedback_filterdropdown_reusable)
+ *
+ * ทำไม useReducer:
+ *   state หลายมิติ (5 step × หลาย field) → useReducer อ่านง่ายกว่า useState กองซ้อน
+ *
+ * ทำไม dynamic MapPicker:
+ *   Leaflet ใช้ window — ต้อง dynamic ssr:false กัน SSR crash (SDS §5.2)
  */
 
+import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
+import { useReducer, useEffect, useCallback, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import ThaiAddressSearch, { type ThaiAddress } from '@/components/safepay/ThaiAddressSearch'
 import { pacesToast } from '@/lib/paces-toast'
-import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS, type ShopCategoryKey } from '@/lib/shop-categories'
-import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
-import { signIn, useSession } from 'next-auth/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import SalesChannelPicker from './SalesChannelPicker'
+import CategoryMultiSelect from './CategoryMultiSelect'
+import ProductImageDropzone from './ProductImageDropzone'
 
-// ─── types ────────────────────────────────────────────────────────────────────
+// ─── dynamic import สำหรับ MapPicker — ห้าม SSR (Leaflet ต้องการ window) ───────
+const MapPicker = dynamic(() => import('./MapPicker'), { ssr: false })
 
-interface OnboardingModalProps {
-  needsOnboarding: boolean
-  needsPhoneVerify: boolean
-  displayName?: string
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type ModalStep = 'sales_channels' | 'categories' | 'address' | 'first_product' | 'summary'
+
+export interface OnboardingModalProps {
+  open: boolean
+  initialStep?: ModalStep
+  facebookPrefill?: boolean
+  onClose: () => void
 }
 
-// step index — เริ่มจาก 0 = verify phone (เฉพาะ needsPhoneVerify), 1 = welcome, 2 = category, 3 = slug, 4 = first product
-// ถ้าไม่ต้อง verify phone ให้เริ่มที่ step 1 (welcome) โดยตรง
-type PhoneSubPhase = 'input' | 'otp'
+// step metadata — ลำดับคงที่
+const STEPS: ModalStep[] = ['sales_channels', 'categories', 'address', 'first_product', 'summary']
 
-type SlugStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'reserved'
+// ─── State / Reducer ──────────────────────────────────────────────────────────
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+interface ModalState {
+  currentStep: ModalStep
+  // step 1
+  selectedChannels: string[]
+  // step 2
+  selectedCategories: string[]
+  // step 3
+  address: string
+  lat: number | null
+  lng: number | null
+  selectedProvince: string | null
+  showMap: boolean
+  provinceWarning: boolean
+  provinceWarningAcknowledged: boolean
+  reverseProvince: string | null
+  // step 4
+  productName: string
+  productSku: string
+  productPrice: string
+  productDescription: string
+  productImageIds: string[]
+  // step 5
+  earnedBadges: BadgeSummaryItem[]
+  nextBadge: BadgeSummaryItem | null
+  badgeLoadDone: boolean
+  // session
+  isLoading: boolean
+  completedSteps: Set<ModalStep>
+}
 
-/** dot indicator สำหรับ stepper (active / ผ่านแล้ว / ยังไม่ถึง) */
-function StepDots({ total, current }: { total: number; current: number }) {
+type BadgeSummaryItem = {
+  id: string
+  nameTH: string
+  nameEN: string
+  icon: string
+  earned: boolean
+  progressLabel: string | null
+}
+
+type ModalAction =
+  | { type: 'GO_STEP'; step: ModalStep }
+  | { type: 'SET_CHANNELS'; channels: string[] }
+  | { type: 'SET_CATEGORIES'; categories: string[] }
+  | { type: 'SET_ADDRESS'; address: string }
+  | { type: 'SET_PROVINCE'; province: string | null }
+  | { type: 'SET_LATLNG'; lat: number; lng: number }
+  | { type: 'SET_REVERSE_PROVINCE'; province: string | null }
+  | { type: 'TOGGLE_MAP' }
+  | { type: 'SHOW_PROVINCE_WARNING' }
+  | { type: 'ACK_PROVINCE_WARNING' }
+  | { type: 'SET_PRODUCT_NAME'; name: string }
+  | { type: 'SET_PRODUCT_SKU'; sku: string }
+  | { type: 'SET_PRODUCT_PRICE'; price: string }
+  | { type: 'SET_PRODUCT_DESCRIPTION'; desc: string }
+  | { type: 'SET_IMAGE_IDS'; ids: string[] }
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'MARK_STEP_DONE'; step: ModalStep }
+  | { type: 'SET_BADGES'; earned: BadgeSummaryItem[]; next: BadgeSummaryItem | null }
+  | { type: 'BADGE_LOAD_DONE' }
+
+function initState(initialStep: ModalStep, facebookPrefill: boolean): ModalState {
+  return {
+    currentStep: initialStep,
+    selectedChannels: facebookPrefill ? ['facebook'] : [],
+    selectedCategories: [],
+    address: '',
+    lat: null,
+    lng: null,
+    selectedProvince: null,
+    showMap: false,
+    provinceWarning: false,
+    provinceWarningAcknowledged: false,
+    reverseProvince: null,
+    productName: '',
+    productSku: '',
+    productPrice: '',
+    productDescription: '',
+    productImageIds: [],
+    earnedBadges: [],
+    nextBadge: null,
+    badgeLoadDone: false,
+    isLoading: false,
+    completedSteps: new Set(),
+  }
+}
+
+function reducer(state: ModalState, action: ModalAction): ModalState {
+  switch (action.type) {
+    case 'GO_STEP':
+      return { ...state, currentStep: action.step }
+    case 'SET_CHANNELS':
+      return { ...state, selectedChannels: action.channels }
+    case 'SET_CATEGORIES':
+      return { ...state, selectedCategories: action.categories }
+    case 'SET_ADDRESS':
+      return { ...state, address: action.address }
+    case 'SET_PROVINCE':
+      return { ...state, selectedProvince: action.province }
+    case 'SET_LATLNG':
+      return { ...state, lat: action.lat, lng: action.lng }
+    case 'SET_REVERSE_PROVINCE':
+      return { ...state, reverseProvince: action.province }
+    case 'TOGGLE_MAP':
+      return { ...state, showMap: !state.showMap }
+    case 'SHOW_PROVINCE_WARNING':
+      return { ...state, provinceWarning: true, provinceWarningAcknowledged: false }
+    case 'ACK_PROVINCE_WARNING':
+      return { ...state, provinceWarningAcknowledged: true, provinceWarning: false }
+    case 'SET_PRODUCT_NAME':
+      return { ...state, productName: action.name }
+    case 'SET_PRODUCT_SKU':
+      return { ...state, productSku: action.sku }
+    case 'SET_PRODUCT_PRICE':
+      return { ...state, productPrice: action.price }
+    case 'SET_PRODUCT_DESCRIPTION':
+      return { ...state, productDescription: action.desc }
+    case 'SET_IMAGE_IDS':
+      return { ...state, productImageIds: action.ids }
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.loading }
+    case 'MARK_STEP_DONE': {
+      const next = new Set(state.completedSteps)
+      next.add(action.step)
+      return { ...state, completedSteps: next }
+    }
+    case 'SET_BADGES':
+      return { ...state, earnedBadges: action.earned, nextBadge: action.next }
+    case 'BADGE_LOAD_DONE':
+      return { ...state, badgeLoadDone: true }
+    default:
+      return state
+  }
+}
+
+// ─── Progress dots ────────────────────────────────────────────────────────────
+
+/**
+ * StepDots — 5 จุดเชื่อมด้วยเส้น (done=bg-success, current=bg-primary, pending=border)
+ * Base: badge pill pattern จาก theme/paces/.../ui/badges/page.tsx
+ */
+function StepDots({ currentIndex }: { currentIndex: number }) {
+  const total = STEPS.length
   return (
-    <div className="flex justify-center gap-1.5">
-      {Array.from({ length: total }).map((_, i) => (
-        <div
-          key={i}
-          className={`size-2 rounded-full transition-colors ${
-            i === current
-              ? 'bg-primary'
-              : i < current
-                ? 'bg-primary/50'
-                : 'bg-default-300'
-          }`}
-        />
-      ))}
+    <div className="flex items-center justify-center gap-0">
+      {Array.from({ length: total }).map((_, i) => {
+        const isDone = i < currentIndex
+        const isCurrent = i === currentIndex
+        return (
+          <div key={i} className="flex items-center">
+            <div
+              className={[
+                'size-2.5 rounded-full transition-colors',
+                isDone
+                  ? 'bg-success'
+                  : isCurrent
+                    ? 'bg-primary'
+                    : 'border border-default-300 bg-card',
+              ].join(' ')}
+            />
+            {/* เส้นเชื่อมระหว่างจุด — ยกเว้นจุดสุดท้าย */}
+            {i < total - 1 && (
+              <div
+                className={[
+                  // ความกว้าง 20px ใช้ w-5 (Tailwind token = 1.25rem) ซึ่งเพียงพอแสดงเส้น
+                  'h-px w-5',
+                  i < currentIndex ? 'bg-success' : 'bg-default-200',
+                ].join(' ')}
+              />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
+// ─── Step label mapping ───────────────────────────────────────────────────────
+
+const STEP_TITLES: Record<ModalStep, string> = {
+  sales_channels: 'ช่องทางการขาย',
+  categories: 'หมวดหมู่ร้านค้า',
+  address: 'ที่อยู่ร้านและพิกัด',
+  first_product: 'สร้างสินค้าแรก',
+  summary: 'สรุปและ Achievement',
+}
+
+const STEP_SUBTITLES: Record<ModalStep, string> = {
+  sales_channels: 'เลือกช่องทางที่ใช้ขายสินค้าจริงๆ ทั้งหมด เพื่อให้ลูกค้ารู้ว่าคุณขายผ่านไหนบ้าง',
+  categories: 'เลือกหมวดหมู่ร้านได้สูงสุด 5 หมวด เพื่อช่วยให้ลูกค้าค้นหาร้านคุณได้ง่ายขึ้น',
+  address: 'กรอกที่อยู่ร้านและ (ถ้าต้องการ) ปักหมุดตำแหน่งบนแผนที่',
+  first_product: 'เพิ่มสินค้าแรกพร้อมรูปภาพเพื่อให้ลูกค้าเห็นร้านคุณตั้งแต่วันแรก',
+  summary: 'สรุปสิ่งที่ตั้งค่าในครั้งนี้ พร้อม Achievement ที่ได้รับ',
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({
-  needsOnboarding,
-  needsPhoneVerify,
-  displayName,
+  open,
+  initialStep = 'sales_channels',
+  facebookPrefill = false,
+  onClose,
 }: OnboardingModalProps) {
-  const { update: updateSession } = useSession()
-  const [open, setOpen] = useState(needsOnboarding)
-  const [dismissed, setDismissed] = useState(false)
+  const router = useRouter()
 
-  // คำนวณ step เริ่มต้น: ถ้าต้อง verify phone → step 0, ถ้าไม่ → step 1 (welcome)
-  const firstStep = needsPhoneVerify ? 0 : 1
-  const [currentStep, setCurrentStep] = useState(firstStep)
+  // ทำไม useReducer: state มีหลายมิติข้ามหลาย step — useReducer อ่านง่ายกว่า useState สิบกว่าตัว
+  const [state, dispatch] = useReducer(reducer, undefined, () =>
+    initState(initialStep, facebookPrefill)
+  )
 
-  // totalDots = step ที่แสดง (0=phone/1=welcome/2=cat/3=slug/4=product → รวม 5 ถ้ามี phone, 4 ถ้าไม่มี)
-  // ใช้ index dot เทียบกับ step จริง (step 0 = phone จะถูกแสดงถ้า needsPhoneVerify)
-  const totalDots = needsPhoneVerify ? 5 : 4
-
-  // ─── step 0: phone verify sub-phase ──────────────────────────────────────
-  const [phoneSubPhase, setPhoneSubPhase] = useState<PhoneSubPhase>('input')
-  const [phone, setPhone] = useState('')
-  const [otp, setOtp] = useState(['', '', '', '', '', ''])
-  const [countdown, setCountdown] = useState(0)
-  const [phoneLoading, setPhoneLoading] = useState(false)
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
-
-  // countdown timer สำหรับ OTP
+  // ─── sync initialStep เมื่อ parent ส่ง deep-link ใหม่ ──────────────────────
+  const prevInitialStep = useRef(initialStep)
   useEffect(() => {
-    if (countdown <= 0) return
-    const t = setInterval(() => setCountdown((c) => c - 1), 1000)
-    return () => clearInterval(t)
-  }, [countdown])
+    if (open && initialStep !== prevInitialStep.current) {
+      dispatch({ type: 'GO_STEP', step: initialStep })
+      prevInitialStep.current = initialStep
+    }
+  }, [open, initialStep])
 
-  // ─── step 2: category ────────────────────────────────────────────────────
-  const [category, setCategory] = useState<ShopCategoryKey | null>(null)
-
-  // ─── step 3: slug ────────────────────────────────────────────────────────
-  const [slug, setSlug] = useState('')
-  const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [slugLoading, setSlugLoading] = useState(false)
-
-  // ─── step 4: first product ───────────────────────────────────────────────
-  const [productName, setProductName] = useState('')
-  const [productPrice, setProductPrice] = useState('')
-  const [productImage, setProductImage] = useState<File | null>(null)
-  const [productLoading, setProductLoading] = useState(false)
-
-  // ─── dismiss ─────────────────────────────────────────────────────────────
-  // ✕ หรือ backdrop click → ปิด (เด้งซ้ำรอบ navigation ถัดไปเพราะ needsOnboarding ยังเป็น true)
-  // slug step (3) + phone step (0) ปิดยาก — ไม่ควรปิดกลางกระบวนการสำคัญ
-  const canDismiss = currentStep !== 0 && currentStep !== 3
-
-  const dismiss = useCallback(() => {
-    if (!canDismiss) return
-    setDismissed(true)
-    setOpen(false)
-  }, [canDismiss])
-
-  // Escape key
+  // ─── Escape key ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') dismiss()
+      if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, dismiss])
+  }, [open, onClose])
 
-  // ─── finish: update session + ปิด modal ──────────────────────────────────
-  const finish = useCallback(async () => {
-    // refresh session → session callback re-compute needsOnboarding=false (spec OQ-2)
-    await updateSession()
-    setOpen(false)
-  }, [updateSession])
+  // ─── โหลด badge เมื่อเข้า summary ──────────────────────────────────────────
+  useEffect(() => {
+    if (state.currentStep !== 'summary' || state.badgeLoadDone) return
 
-  // ─── step navigation ──────────────────────────────────────────────────────
-  const next = () => setCurrentStep((s) => s + 1)
-  const back = () => setCurrentStep((s) => s - 1)
+    async function loadBadges() {
+      try {
+        const res = await fetch('/api/account/badge-progress', {
+          headers: { 'Content-Type': 'application/json' },
+        })
+        if (!res.ok) {
+          dispatch({ type: 'BADGE_LOAD_DONE' })
+          return
+        }
+        // คาด response = BadgeProgress[] (getBadgeProgress จาก badge.service)
+        type BadgeProgressItem = {
+          badge: { id: string; nameTH?: string; nameEN: string; icon?: string }
+          earned: boolean
+          progressLabel: string | null
+          progressRatio: number
+        }
+        const data: BadgeProgressItem[] = await res.json()
 
-  // ─── step 0 handlers: phone verify ───────────────────────────────────────
+        const earned: BadgeSummaryItem[] = data
+          .filter((b) => b.earned)
+          .map((b) => ({
+            id: b.badge.id,
+            nameTH: b.badge.nameTH ?? b.badge.nameEN,
+            nameEN: b.badge.nameEN,
+            icon: b.badge.icon ?? 'award',
+            earned: true,
+            progressLabel: b.progressLabel,
+          }))
 
-  const handleSendOtp = async () => {
-    if (!phone || !/^0[0-9]{9}$/.test(phone)) {
-      pacesToast.error('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (0xxxxxxxxx)')
-      return
+        // next achievement = badge ที่ earned=false และ progressRatio สูงสุด
+        const notEarned = data.filter((b) => !b.earned)
+        const nextRaw = notEarned.sort((a, b) => b.progressRatio - a.progressRatio)[0]
+        const next: BadgeSummaryItem | null = nextRaw
+          ? {
+              id: nextRaw.badge.id,
+              nameTH: nextRaw.badge.nameTH ?? nextRaw.badge.nameEN,
+              nameEN: nextRaw.badge.nameEN,
+              icon: nextRaw.badge.icon ?? 'award',
+              earned: false,
+              progressLabel: nextRaw.progressLabel,
+            }
+          : null
+
+        dispatch({ type: 'SET_BADGES', earned, next })
+      } catch {
+        // degrade gracefully — ซ่อน achievement section, ไม่ทำ modal พัง (SDS §6)
+      } finally {
+        dispatch({ type: 'BADGE_LOAD_DONE' })
+      }
     }
-    setPhoneLoading(true)
+
+    loadBadges()
+  }, [state.currentStep, state.badgeLoadDone])
+
+  // ─── Navigation helpers ──────────────────────────────────────────────────────
+
+  const currentIndex = STEPS.indexOf(state.currentStep)
+  const isFirstStep = currentIndex === 0
+  const isLastStep = currentIndex === STEPS.length - 1
+
+  function goNext() {
+    if (!isLastStep) dispatch({ type: 'GO_STEP', step: STEPS[currentIndex + 1] })
+  }
+
+  function goBack() {
+    if (!isFirstStep) dispatch({ type: 'GO_STEP', step: STEPS[currentIndex - 1] })
+  }
+
+  // ─── API handlers ────────────────────────────────────────────────────────────
+
+  /** Step 1: POST /api/account/sales-channels */
+  async function handleSaveChannels() {
+    dispatch({ type: 'SET_LOADING', loading: true })
     try {
-      const res = await fetch('/api/otp/send', {
+      const res = await fetch('/api/account/sales-channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: phone, type: 'PHONE' }),
+        body: JSON.stringify({ channels: state.selectedChannels }),
       })
       if (res.ok) {
-        setPhoneSubPhase('otp')
-        setCountdown(60)
-        // focus กล่อง OTP แรก
-        setTimeout(() => otpRefs.current[0]?.focus(), 100)
+        dispatch({ type: 'MARK_STEP_DONE', step: 'sales_channels' })
+        goNext()
       } else if (res.status === 429) {
-        pacesToast.error('ขอ OTP บ่อยเกินไป กรุณารอสักครู่')
+        pacesToast.warning('คำขอบ่อยเกินไป กรุณารอสักครู่')
       } else {
-        pacesToast.error('ไม่สามารถส่ง OTP ได้ กรุณาลองใหม่')
+        const data = await res.json().catch(() => ({}))
+        pacesToast.error((data as { error?: string }).error ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่')
       }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
-      setPhoneLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }
 
-  const handleOtpInput = (idx: number, value: string) => {
-    // รับเฉพาะตัวเลข
-    const digit = value.replace(/\D/g, '').slice(-1)
-    const newOtp = [...otp]
-    newOtp[idx] = digit
-    setOtp(newOtp)
-    // เลื่อน focus ไป box ถัดไป
-    if (digit && idx < 5) {
-      otpRefs.current[idx + 1]?.focus()
-    }
-  }
-
-  const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
-      otpRefs.current[idx - 1]?.focus()
-    }
-  }
-
-  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    if (pasted.length === 6) {
-      setOtp(pasted.split(''))
-      setTimeout(() => otpRefs.current[5]?.focus(), 50)
-    }
-    e.preventDefault()
-  }
-
-  const handleVerifyOtp = async () => {
-    const code = otp.join('')
-    if (code.length !== 6) {
-      pacesToast.error('กรุณากรอก OTP ให้ครบ 6 หลัก')
+  /** Step 2: POST /api/account/categories */
+  async function handleSaveCategories() {
+    if (state.selectedCategories.length === 0) {
+      pacesToast.error('กรุณาเลือกหมวดหมู่อย่างน้อย 1 หมวด หรือกด "ข้ามไปก่อน"')
       return
     }
-    setPhoneLoading(true)
+    dispatch({ type: 'SET_LOADING', loading: true })
     try {
-      const result = await signIn('phone-otp', {
-        phone,
-        otp: code,
-        mode: 'signin',
-        redirect: false,
-      })
-      if (result?.ok) {
-        next()
-      } else {
-        pacesToast.error('OTP ไม่ถูกต้อง กรุณาลองใหม่')
-        setOtp(['', '', '', '', '', ''])
-        setTimeout(() => otpRefs.current[0]?.focus(), 50)
-      }
-    } catch {
-      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
-    } finally {
-      setPhoneLoading(false)
-    }
-  }
-
-  // ─── step 3 handler: slug check ──────────────────────────────────────────
-
-  const checkSlug = useCallback(async (value: string) => {
-    const normalized = normalizeSlug(value)
-    if (!normalized) {
-      setSlugStatus('idle')
-      return
-    }
-    if (!isValidSlugFormat(normalized)) {
-      setSlugStatus('invalid')
-      return
-    }
-    if (isReservedSlug(normalized)) {
-      setSlugStatus('reserved')
-      return
-    }
-    setSlugStatus('checking')
-    try {
-      const res = await fetch(`/api/shops/check-slug?slug=${encodeURIComponent(normalized)}`)
-      const data: { available: boolean; reason?: string } = await res.json()
-      if (data.available) {
-        setSlugStatus('available')
-      } else {
-        setSlugStatus(data.reason === 'taken' ? 'taken' : data.reason === 'reserved' ? 'reserved' : 'invalid')
-      }
-    } catch {
-      setSlugStatus('idle')
-    }
-  }, [])
-
-  const handleSlugChange = (value: string) => {
-    // normalize เฉพาะ lowercase, ห้ามใส่ _ (spec: a-z0-9-)
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-    setSlug(cleaned)
-    setSlugStatus('idle')
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (cleaned.length >= 3) {
-      debounceRef.current = setTimeout(() => checkSlug(cleaned), 400)
-    }
-  }
-
-  const handleSetSlug = async () => {
-    if (slugStatus !== 'available') return
-    setSlugLoading(true)
-    try {
-      const res = await fetch('/api/shops/slug', {
+      const res = await fetch('/api/account/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: normalizeSlug(slug), ...(category ? { category } : {}) }),
+        body: JSON.stringify({ categories: state.selectedCategories }),
       })
       if (res.ok) {
-        next()
-      } else if (res.status === 409) {
-        setSlugStatus('taken')
-        pacesToast.error('URL นี้มีคนใช้แล้ว กรุณาเลือก URL อื่น')
+        dispatch({ type: 'MARK_STEP_DONE', step: 'categories' })
+        goNext()
+      } else if (res.status === 429) {
+        pacesToast.warning('คำขอบ่อยเกินไป กรุณารอสักครู่')
       } else {
-        pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        const data = await res.json().catch(() => ({}))
+        pacesToast.error((data as { error?: string }).error ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่')
       }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
-      setSlugLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }
 
-  // ─── step 4 handler: first product ───────────────────────────────────────
+  /**
+   * Step 3: reverse-geocode แล้ว POST /api/shops/update
+   * ถ้าปักพิกัดและจังหวัดไม่ตรง → show warning ก่อน (ไม่ block)
+   */
+  async function handleSaveAddress(skipWarningCheck = false) {
+    if (!state.address.trim()) {
+      pacesToast.error('กรุณากรอกที่อยู่')
+      return
+    }
 
-  const handleCreateProduct = async () => {
-    if (!productName.trim()) {
+    // ถ้ามีพิกัด + ยังไม่ได้ acknowledge warning → ตรวจก่อน
+    if (state.lat !== null && state.lng !== null && !skipWarningCheck) {
+      dispatch({ type: 'SET_LOADING', loading: true })
+      try {
+        const geoRes = await fetch('/api/geo/reverse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: state.lat, lng: state.lng }),
+        })
+        if (geoRes.ok) {
+          const geoData: { province: string | null } = await geoRes.json()
+          dispatch({ type: 'SET_REVERSE_PROVINCE', province: geoData.province })
+
+          // เทียบระดับจังหวัด (BR-10): ไม่ตรง + ไม่ null → warn (ไม่ block)
+          if (
+            geoData.province !== null &&
+            state.selectedProvince !== null &&
+            geoData.province !== state.selectedProvince
+          ) {
+            dispatch({ type: 'SHOW_PROVINCE_WARNING' })
+            dispatch({ type: 'SET_LOADING', loading: false })
+            return // รอ user กด "ยืนยัน บันทึกต่อ" (ACK_PROVINCE_WARNING) → call ซ้ำ skipWarningCheck=true
+          }
+        }
+        // Nominatim timeout/error → degrade gracefully, บันทึกได้ (SDS §6)
+      } catch {
+        // degrade gracefully
+      }
+      dispatch({ type: 'SET_LOADING', loading: false })
+    }
+
+    // บันทึก
+    dispatch({ type: 'SET_LOADING', loading: true })
+    try {
+      const body: Record<string, unknown> = { address: state.address }
+      if (state.lat !== null && state.lng !== null) {
+        body.latitude = state.lat
+        body.longitude = state.lng
+      }
+      const res = await fetch('/api/shops/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        dispatch({ type: 'MARK_STEP_DONE', step: 'address' })
+        goNext()
+      } else if (res.status === 429) {
+        pacesToast.warning('คำขอบ่อยเกินไป กรุณารอสักครู่')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        pacesToast.error((data as { error?: string }).error ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      }
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    } finally {
+      dispatch({ type: 'SET_LOADING', loading: false })
+    }
+  }
+
+  /** Step 4: POST /api/products */
+  async function handleCreateProduct() {
+    if (!state.productName.trim()) {
       pacesToast.error('กรุณากรอกชื่อสินค้า')
       return
     }
-    const priceNum = Number(productPrice)
-    if (!productPrice || isNaN(priceNum) || priceNum < 0.01) {
+    const priceNum = Number(state.productPrice)
+    if (!state.productPrice || isNaN(priceNum) || priceNum < 0.01) {
       pacesToast.error('กรุณากรอกราคาสินค้า (ต่ำสุด ฿0.01)')
       return
     }
-    setProductLoading(true)
+    dispatch({ type: 'SET_LOADING', loading: true })
     try {
+      const body: Record<string, unknown> = {
+        name: state.productName.trim(),
+        price: priceNum,
+        type: 'PHYSICAL',
+      }
+      if (state.productSku.trim()) body.sku = state.productSku.trim()
+      if (state.productDescription.trim()) body.description = state.productDescription.trim()
+      if (state.productImageIds.length > 0) body.images = state.productImageIds
+
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: productName.trim(), price: priceNum, type: 'PHYSICAL' }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
+        dispatch({ type: 'MARK_STEP_DONE', step: 'first_product' })
         pacesToast.success('สร้างสินค้าแรกเรียบร้อย!')
-        await finish()
+        goNext()
+      } else if (res.status === 429) {
+        pacesToast.warning('คำขอบ่อยเกินไป กรุณารอสักครู่')
       } else {
         const data = await res.json().catch(() => ({}))
-        pacesToast.error(data?.error ?? 'ไม่สามารถสร้างสินค้าได้ กรุณาลองใหม่')
+        pacesToast.error((data as { error?: string }).error ?? 'ไม่สามารถสร้างสินค้าได้ กรุณาลองใหม่')
       }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
-      setProductLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }
 
-  // ─── slug status helpers ──────────────────────────────────────────────────
-
-  const slugStatusText: Record<SlugStatus, string | null> = {
-    idle: null,
-    checking: 'กำลังตรวจสอบ...',
-    available: '✓ URL นี้ว่างอยู่',
-    taken: '✕ มีคนใช้แล้ว',
-    invalid: '✕ รูปแบบไม่ถูกต้อง (a-z, 0-9, ขีดกลาง 3-30 ตัว)',
-    reserved: '✕ ไม่สามารถใช้ URL นี้ได้',
-  }
-
-  const slugStatusClass: Record<SlugStatus, string> = {
-    idle: '',
-    checking: 'text-default-500',
-    available: 'text-success',
-    taken: 'text-danger',
-    invalid: 'text-danger',
-    reserved: 'text-danger',
-  }
-
-  // dot index ที่แสดงต่อ step (เฉลี่ยกับว่ามี phone step ไหม)
-  // step 0=phone(dot0), 1=welcome(dot0 ถ้าไม่มี phone/dot1 ถ้ามี), 2=cat, 3=slug, 4=product
-  const dotIndex = needsPhoneVerify ? currentStep : currentStep - 1
-
-  if (!open || dismissed) return null
+  if (!open) return null
 
   return (
-    /* backdrop — pattern จาก BulkSmsConfirmDialog (bg-dark/40 z-80 fixed full) */
+    /* backdrop — Base: modal shell จาก theme/paces/Admin/TS/src/app/(admin)/ui/modals/page.tsx
+       (fixed start-0 top-0 z-80 size-full overflow-y-auto) + bg-dark/40 */
     <div
-      className="size-full fixed top-0 start-0 z-80 overflow-x-hidden overflow-y-auto bg-dark/40 flex items-center justify-center"
+      className="fixed inset-0 z-80 overflow-x-hidden overflow-y-auto flex items-center justify-center bg-dark/40"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="onboardingModalLabel"
+      aria-labelledby="onboarding-modal-title"
       tabIndex={-1}
       onClick={(e) => {
-        if (e.target === e.currentTarget) dismiss()
+        // ปิด modal เมื่อคลิก backdrop (ไม่ใช่ dialog เอง)
+        if (e.target === e.currentTarget) onClose()
       }}
     >
-      {/* card — w-[calc(100%-24px)] max-w-sm เป็น exception Paces (ตาม spec mobile requirement, comment กำกับ) */}
-      <div className="w-[calc(100%-24px)] max-w-sm mx-auto flex items-center ease-in-out transition-all duration-200">
-        {/* w-[calc(100%-24px)] max-w-sm = mobile-safe sizing จาก spec (กัน card ชิดขอบจอ 375px) — ไม่มี Paces token สำหรับ modal width */}
-        <div className="w-full flex flex-col card pointer-events-auto">
+      {/* dialog container — max-w-xl mobile เต็มจอ (w-full mx-3 sm:mx-auto) */}
+      {/* ทำไม w-full mx-3 sm:mx-auto max-w-xl: mobile ≤ sm เต็มความกว้าง (กัน card ชิดขอบ);
+          desktop ≤ xl (672px) — ไม่มี Paces token สำหรับ modal width constraint นี้ */}
+      <div className="w-full mx-3 sm:mx-auto sm:max-w-xl">
+        {/* card — Base: pointer-events-auto flex flex-col rounded-md border bg-white จาก modals/page.tsx */}
+        <div className="border-default-300 pointer-events-auto flex flex-col rounded-md border bg-white">
 
-          {/* ─── Header: dots + ✕ ─────────────────────────────────────────── */}
-          <div className="card-header p-4 flex items-center">
-            {/* ย้อนกลับ — ซ่อน step welcome(1) และ phone(0) */}
-            {currentStep >= 2 ? (
+          {/* ─── Header ──────────────────────────────────────────────────────── */}
+          {/* Base: border-default-300 flex items-center justify-between border-b p-5 */}
+          <div className="border-default-300 flex flex-col gap-3 border-b px-5 pt-5 pb-4">
+            {/* row: ชื่อ step + ปุ่มปิด */}
+            <div className="flex items-center justify-between">
+              <h3 id="onboarding-modal-title" className="text-base font-semibold text-default-800">
+                {STEP_TITLES[state.currentStep]}
+              </h3>
               <button
                 type="button"
-                onClick={back}
-                className="btn text-default-600 hover:text-primary inline-flex items-center gap-1 text-sm min-h-11"
-                aria-label="ย้อนกลับ"
+                aria-label="ปิด"
+                onClick={onClose}
+                className="btn size-9 flex items-center justify-center text-default-500 hover:text-primary"
               >
-                <Icon icon="arrow-left" className="size-4" />
+                <span className="sr-only">ปิด</span>
+                <Icon icon="x" className="size-5" />
+              </button>
+            </div>
+            {/* progress dots */}
+            <StepDots currentIndex={currentIndex} />
+            {/* subtitle */}
+            <p className="text-sm text-default-500">{STEP_SUBTITLES[state.currentStep]}</p>
+          </div>
+
+          {/* ─── Body (overflow-y-auto) ───────────────────────────────────────── */}
+          {/* Base: overflow-y-auto p-5 จาก modals/page.tsx; max-h จำกัดเพื่อกัน modal สูงเกินจอบน mobile */}
+          {/* max-h-[60vh] ใช้ vh unit — ไม่มี Paces token สำหรับ viewport-relative modal body height */}
+          <div className="overflow-y-auto max-h-[60vh] p-5">
+
+            {/* ── Step 1: ช่องทางการขาย ── */}
+            {state.currentStep === 'sales_channels' && (
+              <SalesChannelPicker
+                value={state.selectedChannels}
+                onChange={(channels) => dispatch({ type: 'SET_CHANNELS', channels })}
+                disabled={state.isLoading}
+              />
+            )}
+
+            {/* ── Step 2: หมวดหมู่ ── */}
+            {state.currentStep === 'categories' && (
+              <CategoryMultiSelect
+                value={state.selectedCategories}
+                onChange={(categories) => dispatch({ type: 'SET_CATEGORIES', categories })}
+                max={5}
+                disabled={state.isLoading}
+              />
+            )}
+
+            {/* ── Step 3: ที่อยู่ + แผนที่ ── */}
+            {state.currentStep === 'address' && (
+              <div className="flex flex-col gap-4">
+                {/* ThaiAddressSearch — prop contract ตาม SDS §5 */}
+                <div>
+                  <label className="form-label">ที่อยู่ร้าน</label>
+                  <ThaiAddressSearch
+                    onChange={(composed) => dispatch({ type: 'SET_ADDRESS', address: composed })}
+                    onSelect={(a: ThaiAddress | null) =>
+                      dispatch({ type: 'SET_PROVINCE', province: a?.province ?? null })
+                    }
+                    disabled={state.isLoading}
+                  />
+                </div>
+
+                {/* toggle MapPicker */}
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'TOGGLE_MAP' })}
+                  className="btn bg-light hover:bg-light-hover border border-default-300 inline-flex items-center gap-2 text-sm"
+                >
+                  <Icon icon={state.showMap ? 'map-pin-off' : 'map-pin'} className="size-4" />
+                  {state.showMap ? 'ซ่อนแผนที่' : 'ปักพิกัดบนแผนที่ (ไม่บังคับ)'}
+                </button>
+
+                {/* MapPicker — dynamic ssr:false (SDS §5.2 + Hard Rule: Leaflet ต้อง client-only) */}
+                {state.showMap && (
+                  <div className="card border border-default-300">
+                    <div className="card-body p-2">
+                      <MapPicker
+                        initialLat={state.lat}
+                        initialLng={state.lng}
+                        onLocationChange={(lat, lng) =>
+                          dispatch({ type: 'SET_LATLNG', lat, lng })
+                        }
+                      />
+                      {state.lat !== null && (
+                        <p className="mt-2 text-xs text-default-400">
+                          พิกัด: {state.lat.toFixed(5)}, {state.lng?.toFixed(5)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Province warning banner (BR-10) — bg-warning/15 Paces token */}
+                {state.provinceWarning && !state.provinceWarningAcknowledged && (
+                  <div className="flex flex-col gap-2 rounded bg-warning/15 px-3 py-2">
+                    <div className="flex items-start gap-2 text-warning text-sm">
+                      <Icon icon="alert-triangle" className="size-4 mt-0.5 shrink-0" />
+                      <span>
+                        พิกัดอาจไม่ตรงกับที่อยู่ที่กรอก — กรุณาตรวจสอบ
+                        {state.reverseProvince && state.selectedProvince
+                          ? ` (พิกัด: ${state.reverseProvince}, ที่อยู่: ${state.selectedProvince})`
+                          : ''}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dispatch({ type: 'ACK_PROVINCE_WARNING' })
+                        // บันทึกต่อหลัง acknowledge (skipWarningCheck=true)
+                        handleSaveAddress(true)
+                      }}
+                      className="btn btn-sm bg-warning text-white self-start"
+                    >
+                      ยืนยัน บันทึกต่อ
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Step 4: สร้างสินค้าแรก ── */}
+            {state.currentStep === 'first_product' && (
+              <div className="flex flex-col gap-4">
+                {/* ชื่อสินค้า (req) — Base: form-input / form-label จาก InputTextfieldType.tsx */}
+                <div>
+                  <label className="form-label" htmlFor="ob-product-name">
+                    ชื่อสินค้า <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="ob-product-name"
+                    type="text"
+                    className="form-input"
+                    placeholder="เช่น เสื้อยืดโอเวอร์ไซส์"
+                    value={state.productName}
+                    onChange={(e) => dispatch({ type: 'SET_PRODUCT_NAME', name: e.target.value })}
+                    disabled={state.isLoading}
+                  />
+                </div>
+
+                {/* SKU (optional) */}
+                <div>
+                  <label className="form-label" htmlFor="ob-product-sku">
+                    SKU <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                  </label>
+                  <input
+                    id="ob-product-sku"
+                    type="text"
+                    className="form-input"
+                    placeholder="เช่น SKU-001"
+                    value={state.productSku}
+                    onChange={(e) => dispatch({ type: 'SET_PRODUCT_SKU', sku: e.target.value })}
+                    disabled={state.isLoading}
+                  />
+                </div>
+
+                {/* ราคา (req) — input-group ฿ prefix (Base: Paces form primitive) */}
+                <div>
+                  <label className="form-label" htmlFor="ob-product-price">
+                    ราคา <span className="text-danger">*</span>
+                  </label>
+                  <div className="input-group">
+                    <span className="input-group-text">฿</span>
+                    <input
+                      id="ob-product-price"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="form-input"
+                      placeholder="0.00"
+                      value={state.productPrice}
+                      onChange={(e) =>
+                        dispatch({ type: 'SET_PRODUCT_PRICE', price: e.target.value })
+                      }
+                      disabled={state.isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* คำอธิบาย (optional) — form-textarea Base: InputTextfieldType.tsx */}
+                <div>
+                  <label className="form-label" htmlFor="ob-product-desc">
+                    คำอธิบาย <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                  </label>
+                  <textarea
+                    id="ob-product-desc"
+                    rows={3}
+                    className="form-input"
+                    placeholder="อธิบายสินค้าของคุณ..."
+                    value={state.productDescription}
+                    onChange={(e) =>
+                      dispatch({ type: 'SET_PRODUCT_DESCRIPTION', desc: e.target.value })
+                    }
+                    disabled={state.isLoading}
+                  />
+                </div>
+
+                {/* ProductImageDropzone — prop contract ล็อคแล้ว */}
+                <div>
+                  <label className="form-label">
+                    รูปสินค้า <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                  </label>
+                  <ProductImageDropzone
+                    value={state.productImageIds}
+                    onChange={(ids) => dispatch({ type: 'SET_IMAGE_IDS', ids })}
+                    disabled={state.isLoading}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── Step 5: Summary ── */}
+            {state.currentStep === 'summary' && (
+              <div className="flex flex-col gap-4">
+                {/* สรุปข้อมูล session — Base: card + list-group จาก ui/cards + ui/list-group */}
+                <div className="card border border-default-300">
+                  <div className="card-header">
+                    <h5 className="card-title text-sm">สิ่งที่ตั้งค่าในครั้งนี้</h5>
+                  </div>
+                  <ul className="list-group list-group-flush">
+                    <li className="list-group-item flex items-center justify-between gap-2 text-sm">
+                      <span className="text-default-500 shrink-0">ช่องทางการขาย</span>
+                      <span className="text-default-800 text-right">
+                        {state.completedSteps.has('sales_channels') && state.selectedChannels.length > 0
+                          ? state.selectedChannels.join(', ')
+                          : <span className="text-default-400">ข้ามไป</span>}
+                      </span>
+                    </li>
+                    <li className="list-group-item flex items-center justify-between gap-2 text-sm">
+                      <span className="text-default-500 shrink-0">หมวดหมู่</span>
+                      <span className="text-default-800 text-right">
+                        {state.completedSteps.has('categories') && state.selectedCategories.length > 0
+                          ? state.selectedCategories.join(', ')
+                          : <span className="text-default-400">ข้ามไป</span>}
+                      </span>
+                    </li>
+                    <li className="list-group-item flex items-center justify-between gap-2 text-sm">
+                      <span className="text-default-500 shrink-0">ที่อยู่</span>
+                      <span className="text-default-800 text-right truncate max-w-xs">
+                        {state.completedSteps.has('address') && state.address
+                          ? state.address
+                          : <span className="text-default-400">ข้ามไป</span>}
+                      </span>
+                    </li>
+                    <li className="list-group-item flex items-center justify-between gap-2 text-sm">
+                      <span className="text-default-500 shrink-0">สินค้าแรก</span>
+                      <span className="text-default-800">
+                        {state.completedSteps.has('first_product') && state.productName
+                          ? state.productName
+                          : <span className="text-default-400">ข้ามไป</span>}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Achievement section — degrade gracefully ถ้า badge error (SDS §6) */}
+                {state.badgeLoadDone && (
+                  <div className="flex flex-col gap-3">
+                    {/* Earned badges */}
+                    {state.earnedBadges.length > 0 && (
+                      <div className="card border border-success/30 bg-success/5">
+                        <div className="card-header">
+                          <h5 className="card-title text-sm text-success">
+                            <Icon icon="award" className="size-4 inline me-1" />
+                            Achievement ที่ได้รับ
+                          </h5>
+                        </div>
+                        <div className="card-body flex flex-col gap-2">
+                          {state.earnedBadges.map((b) => (
+                            <div key={b.id} className="flex items-center gap-2">
+                              <span className="badge bg-success/15 text-success rounded-full">
+                                <Icon icon={b.icon} className="size-3.5 me-1" />
+                                {b.nameTH}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Next achievement */}
+                    {state.nextBadge && (
+                      <div className="card border border-primary/20 bg-primary/5">
+                        <div className="card-header">
+                          <h5 className="card-title text-sm text-primary">
+                            <Icon icon="target" className="size-4 inline me-1" />
+                            Achievement ถัดไป
+                          </h5>
+                        </div>
+                        <div className="card-body">
+                          <div className="flex items-start gap-2">
+                            <Icon icon={state.nextBadge.icon} className="size-5 text-primary shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-medium text-default-700">
+                                {state.nextBadge.nameTH}
+                              </p>
+                              {state.nextBadge.progressLabel && (
+                                <p className="text-xs text-default-500 mt-0.5">
+                                  {state.nextBadge.progressLabel}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ไม่มี badge เลย — degrade gracefully ซ่อน section ทั้งหมด (SDS §6) */}
+                  </div>
+                )}
+
+                {/* loading badge indicator */}
+                {!state.badgeLoadDone && (
+                  <div className="flex items-center gap-2 text-default-400 text-sm">
+                    <Icon icon="loader-2" className="size-4 animate-spin" />
+                    กำลังโหลด Achievement...
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+          {/* ── end body ── */}
+
+          {/* ─── Footer ──────────────────────────────────────────────────────── */}
+          {/* Base: border-default-300 flex items-center justify-end border-t p-4 จาก modals/page.tsx
+              ปรับ justify-between สำหรับ layout: ย้อนกลับ ← ช่องว่าง → ข้าม + ถัดไป */}
+          <div className="border-default-300 flex items-center justify-between gap-2 border-t p-4">
+            {/* ปุ่มย้อนกลับ — แสดงตั้งแต่ step ≥ 2 (index ≥ 1) */}
+            {!isFirstStep ? (
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={state.isLoading}
+                className="btn bg-light hover:bg-light-hover disabled:pointer-events-none disabled:opacity-50"
+              >
                 ย้อนกลับ
               </button>
             ) : (
-              <div className="w-20" /* spacer เพื่อ center dots */ />
+              <div /> /* spacer เพื่อ push ปุ่มขวาไปขวา */
             )}
 
-            {/* dots — centered */}
-            <div className="flex-1 flex justify-center">
-              <StepDots total={totalDots} current={dotIndex} />
-            </div>
-
-            {/* ✕ ปิด — ซ่อนเมื่อ canDismiss=false */}
-            <div className="w-20 flex justify-end">
-              {canDismiss && (
+            {/* ปุ่ม action ขวา */}
+            <div className="flex items-center gap-2">
+              {/* "ข้ามไปก่อน" — ทุก step ยกเว้น summary */}
+              {state.currentStep !== 'summary' && (
                 <button
                   type="button"
-                  aria-label="ปิด"
-                  onClick={dismiss}
-                  className="btn size-11 flex items-center justify-center text-default-600 hover:text-primary"
+                  onClick={goNext}
+                  disabled={state.isLoading}
+                  className="btn bg-light hover:bg-light-hover text-default-600 disabled:pointer-events-none disabled:opacity-50"
                 >
-                  <Icon icon="x" className="size-5" />
+                  ข้ามไปก่อน
                 </button>
+              )}
+
+              {/* ปุ่มหลัก (ถัดไป / บันทึก / เสร็จสิ้น) */}
+              {state.currentStep === 'sales_channels' && (
+                <button
+                  type="button"
+                  onClick={handleSaveChannels}
+                  disabled={state.isLoading}
+                  className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  บันทึก
+                </button>
+              )}
+
+              {state.currentStep === 'categories' && (
+                <button
+                  type="button"
+                  onClick={handleSaveCategories}
+                  disabled={state.isLoading || state.selectedCategories.length === 0}
+                  className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  บันทึก
+                </button>
+              )}
+
+              {state.currentStep === 'address' && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveAddress(false)}
+                  disabled={state.isLoading || !state.address.trim()}
+                  className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  บันทึก
+                </button>
+              )}
+
+              {state.currentStep === 'first_product' && (
+                <button
+                  type="button"
+                  onClick={handleCreateProduct}
+                  disabled={state.isLoading}
+                  className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  สร้างสินค้า
+                </button>
+              )}
+
+              {state.currentStep === 'summary' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose()
+                      router.push('/orders/new')
+                    }}
+                    className="btn bg-light hover:bg-light-hover border border-default-300 text-sm"
+                  >
+                    ไปหน้าสร้างคำสั่งซื้อ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="btn bg-primary text-white hover:bg-primary-hover"
+                  >
+                    เสร็จสิ้น
+                  </button>
+                </>
               )}
             </div>
           </div>
-
-          {/* ─── Body ─────────────────────────────────────────────────────── */}
-          {/* card-body overflow-y-auto max-h-[85dvh] = กัน keyboard overlap บน mobile (spec) — exception ที่ Paces ไม่มี token */}
-          <div className="card-body overflow-y-auto max-h-[85dvh]">
-
-            {/* ── Step 0: Verify Phone ── */}
-            {currentStep === 0 && (
-              <div className="flex flex-col items-center gap-4">
-                <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Icon icon="phone" className="text-3xl" />
-                </span>
-                <div className="text-center">
-                  <h3 id="onboardingModalLabel" className="font-semibold text-default-800 text-base">
-                    ยืนยันเบอร์โทรศัพท์
-                  </h3>
-                  <p className="mt-1 text-sm text-default-500">
-                    เชื่อมบัญชี Facebook ของคุณกับเบอร์โทร เพื่อรับการยืนยันตัวตน
-                  </p>
-                </div>
-
-                {phoneSubPhase === 'input' && (
-                  <div className="w-full flex flex-col gap-3">
-                    <div>
-                      <label className="form-label" htmlFor="onboarding-phone">เบอร์โทรศัพท์</label>
-                      <input
-                        id="onboarding-phone"
-                        type="tel"
-                        className="form-input"
-                        placeholder="0xxxxxxxxx"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        maxLength={10}
-                        disabled={phoneLoading}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={phoneLoading || phone.length !== 10}
-                      onClick={handleSendOtp}
-                      className="btn bg-primary text-white hover:bg-primary-hover w-full inline-flex items-center justify-center gap-2 disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      {phoneLoading
-                        ? <><Icon icon="loader-2" className="size-4 animate-spin" />กำลังส่ง...</>
-                        : 'ขอ OTP'
-                      }
-                    </button>
-                  </div>
-                )}
-
-                {phoneSubPhase === 'otp' && (
-                  <div className="w-full flex flex-col gap-3">
-                    <p className="text-center text-sm text-default-600">
-                      ส่ง OTP ไปที่ <span className="font-medium text-default-800">{phone}</span>
-                    </p>
-                    {/* 6 OTP boxes */}
-                    <div className="flex justify-center gap-2">
-                      {otp.map((digit, idx) => (
-                        <input
-                          key={idx}
-                          ref={(el) => { otpRefs.current[idx] = el }}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(e) => handleOtpInput(idx, e.target.value)}
-                          onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                          onPaste={idx === 0 ? handleOtpPaste : undefined}
-                          className="form-input w-11 h-11 p-0 text-center font-mono text-lg"
-                          disabled={phoneLoading}
-                          aria-label={`OTP หลักที่ ${idx + 1}`}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      disabled={phoneLoading || otp.join('').length !== 6}
-                      onClick={handleVerifyOtp}
-                      className="btn bg-primary text-white hover:bg-primary-hover w-full inline-flex items-center justify-center gap-2 disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      {phoneLoading
-                        ? <><Icon icon="loader-2" className="size-4 animate-spin" />กำลังยืนยัน...</>
-                        : 'ยืนยัน OTP'
-                      }
-                    </button>
-                    {countdown > 0 ? (
-                      <p className="text-center text-xs text-default-500">
-                        ขอ OTP ใหม่ได้ใน {countdown} วินาที
-                      </p>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => { setPhoneSubPhase('input'); setOtp(['', '', '', '', '', '']) }}
-                        className="text-sm text-primary text-center w-full"
-                      >
-                        ขอ OTP ใหม่
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Step 1: Welcome ── */}
-            {currentStep === 1 && (
-              <div className="flex flex-col items-center gap-4">
-                <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Icon icon="rocket" className="text-3xl" />
-                </span>
-                <div className="text-center">
-                  <h3 id="onboardingModalLabel" className="font-semibold text-default-800 text-base">
-                    ยินดีต้อนรับสู่ Deep{displayName ? `, ${displayName}` : ''}!
-                  </h3>
-                  <p className="mt-1 text-sm text-default-500">
-                    เริ่มต้นร้านของคุณใน 4 ขั้นตอนง่ายๆ
-                  </p>
-                </div>
-
-                {/* mini-card — แนวตั้ง 1 คอลัมน์ (icon ซ้าย / text ขวา) อ่านง่ายกว่า grid-cols-3 บน mobile */}
-                <div className="grid grid-cols-1 gap-2 w-full">
-                  {[
-                    { icon: 'shield-check', title: 'Trust Score', desc: 'สร้างความน่าเชื่อถือจากการขายจริง' },
-                    { icon: 'user-check', title: 'ยืนยันตัวตน', desc: 'ปลอดภัย ซื้อขายอุ่นใจ' },
-                    { icon: 'shopping-bag', title: 'เริ่มขายได้ทันที', desc: 'สร้างสินค้าแรกใน 1 นาที' },
-                  ].map((item) => (
-                    <div key={item.icon} className="card border border-dashed border-default-300 p-3 flex items-center gap-3 text-left">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Icon icon={item.icon} className="size-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-default-700 leading-tight">{item.title}</p>
-                        <p className="text-xs text-default-500 leading-tight mt-0.5">{item.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* footer CTA */}
-                <div className="w-full flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={next}
-                    className="btn bg-primary text-white hover:bg-primary-hover w-full"
-                  >
-                    ลุยเลย →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={dismiss}
-                    className="text-sm text-default-500 w-full text-center"
-                  >
-                    ข้ามไปก่อน
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 2: Category Chips ── */}
-            {currentStep === 2 && (
-              <div className="flex flex-col gap-4">
-                <div className="text-center">
-                  <h3 className="font-semibold text-default-800 text-base">เลือกหมวดหมู่ร้านของคุณ</h3>
-                  <p className="mt-1 text-sm text-default-500">เลือก 1 หมวดที่ตรงกับสินค้าของคุณมากที่สุด</p>
-                </div>
-
-                {/* chip grid — Base: badge rounded-full pill จาก theme/paces/.../ui/badges/page.tsx */}
-                <div className="flex flex-wrap gap-2">
-                  {SHOP_CATEGORY_KEYS.map((key) => {
-                    const isSelected = category === key
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setCategory(isSelected ? null : key)}
-                        className={
-                          isSelected
-                            ? 'btn btn-sm rounded-full min-h-11 px-3.5 inline-flex items-center gap-1 bg-primary text-white border border-primary hover:bg-primary-hover cursor-pointer'
-                            : 'btn btn-sm rounded-full min-h-11 px-3.5 inline-flex items-center gap-1 border border-default-300 text-default-700 hover:border-primary hover:text-primary cursor-pointer'
-                        }
-                      >
-                        {isSelected && <Icon icon="check" className="size-3" />}
-                        {SHOP_CATEGORY_LABELS[key]}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={next}
-                    className="btn bg-primary text-white hover:bg-primary-hover w-full"
-                  >
-                    ถัดไป →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={next}
-                    className="text-sm text-default-500 w-full text-center"
-                  >
-                    ข้าม
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 3: Slug (บังคับ) ── */}
-            {currentStep === 3 && (
-              <div className="flex flex-col gap-4">
-                <div className="text-center">
-                  <h3 className="font-semibold text-default-800 text-base">ตั้ง URL ร้านของคุณ</h3>
-                  <p className="mt-1 text-sm text-default-500">
-                    ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้
-                  </p>
-                </div>
-
-                <div>
-                  <label className="form-label" htmlFor="onboarding-slug">URL ร้านค้า</label>
-                  <input
-                    id="onboarding-slug"
-                    type="text"
-                    className={`form-input ${slugStatus === 'available' ? 'is-valid' : ['taken', 'invalid', 'reserved'].includes(slugStatus) ? 'is-invalid' : ''}`}
-                    placeholder="yourshop"
-                    value={slug}
-                    onChange={(e) => handleSlugChange(e.target.value)}
-                    disabled={slugLoading}
-                    maxLength={30}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                  />
-                  {/* inline slug status */}
-                  {slugStatus !== 'idle' && slugStatusText[slugStatus] && (
-                    <p className={`mt-1 text-xs ${slugStatusClass[slugStatus]}`}>
-                      {slugStatus === 'checking' && (
-                        <Icon icon="loader-2" className="size-3 animate-spin inline me-1" />
-                      )}
-                      {slugStatusText[slugStatus]}
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs text-default-400">ใช้ a-z, 0-9, ขีดกลาง 3-30 ตัว</p>
-                </div>
-
-                {/* preview URL — path ใช้ font-mono (spec) */}
-                {slug && slugStatus === 'available' && (
-                  <p className="text-sm text-primary">
-                    deepthailand.app/<span className="font-mono">{slug}</span>
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleSetSlug}
-                  disabled={slugLoading || slugStatus !== 'available'}
-                  className="btn bg-primary text-white hover:bg-primary-hover w-full inline-flex items-center justify-center gap-2 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {slugLoading
-                    ? <><Icon icon="loader-2" className="size-4 animate-spin" />กำลังบันทึก...</>
-                    : 'ถัดไป →'
-                  }
-                </button>
-                {/* ไม่มีปุ่มข้าม — slug บังคับ (spec) */}
-              </div>
-            )}
-
-            {/* ── Step 4: First Product (ข้ามได้) ── */}
-            {currentStep === 4 && (
-              <div className="flex flex-col gap-4">
-                <div className="text-center">
-                  <h3 className="font-semibold text-default-800 text-base">สร้างสินค้าแรกของคุณ</h3>
-                  <p className="mt-1 text-sm text-default-500">
-                    เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้านของคุณ
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <label className="form-label" htmlFor="onboarding-product-name">ชื่อสินค้า</label>
-                    <input
-                      id="onboarding-product-name"
-                      type="text"
-                      className="form-input"
-                      placeholder="เช่น เสื้อยืดโอเวอร์ไซส์"
-                      value={productName}
-                      onChange={(e) => setProductName(e.target.value)}
-                      disabled={productLoading}
-                    />
-                  </div>
-
-                  {/* ราคา — input-group ฿ prefix (Base: Paces form primitive) */}
-                  <div>
-                    <label className="form-label" htmlFor="onboarding-product-price">ราคา</label>
-                    <div className="input-group">
-                      <span className="input-group-text">฿</span>
-                      <input
-                        id="onboarding-product-price"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        className="form-input"
-                        placeholder="0.00"
-                        value={productPrice}
-                        onChange={(e) => setProductPrice(e.target.value)}
-                        disabled={productLoading}
-                      />
-                    </div>
-                  </div>
-
-                  {/* รูปสินค้า (optional) — Base: AddCategoryModal file input pattern */}
-                  <div>
-                    <label className="form-label" htmlFor="onboarding-product-image">
-                      รูปสินค้า <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
-                    </label>
-                    <input
-                      id="onboarding-product-image"
-                      type="file"
-                      accept="image/*"
-                      className="block w-full border border-default-300 rounded disabled:opacity-50 disabled:pointer-events-none file:bg-default-100 file:border-0 file:me-4 file:py-2 file:px-3"
-                      onChange={(e) => setProductImage(e.target.files?.[0] ?? null)}
-                      disabled={productLoading}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCreateProduct}
-                    disabled={productLoading}
-                    className="btn bg-primary text-white hover:bg-primary-hover w-full inline-flex items-center justify-center gap-2 disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    {productLoading
-                      ? <><Icon icon="loader-2" className="size-4 animate-spin" />กำลังสร้าง...</>
-                      : 'สร้างสินค้าเลย'
-                    }
-                  </button>
-                  <button
-                    type="button"
-                    onClick={finish}
-                    disabled={productLoading}
-                    className="text-sm text-default-500 w-full text-center disabled:opacity-50"
-                  >
-                    ข้ามไปก่อน เพิ่มทีหลังได้
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-          {/* ── end card-body ── */}
+          {/* ── end footer ── */}
 
         </div>
       </div>
