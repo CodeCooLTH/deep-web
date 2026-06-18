@@ -468,60 +468,26 @@ flowchart TD
     L -- ไม่ --> B
 ```
 
-### 10.3 Open Decisions — ต้องตัดสินใจก่อนทำ BRD/SRS
+### 10.3 Resolved Decisions (ตัดสินใจแล้ว 2026-06-18)
 
-รายการต่อไปนี้ต้องให้ user/ทีมตัดสินใจก่อนเริ่มเขียน BRD และ SRS เพื่อหลีกเลี่ยงการ invent business rule
+การตัดสินใจทั้งหมดยืนยันโดย user แล้ว — เป็น input บังคับสำหรับ BRD/SRS/DATABASE
 
-**OD-1: Maps Provider**
+| # | เรื่อง | มติ |
+|---|------|-----|
+| **OD-1** | Maps Provider | **Leaflet + OpenStreetMap (ฟรี)** — map tiles จาก OSM, reverse-geocode ผ่าน Nominatim (เคารพ usage policy: rate-limit + User-Agent + cache). ไม่มีค่า API key |
+| **OD-2** | เกณฑ์ตรวจ พิกัด ↔ ที่อยู่ | **เทียบระดับจังหวัด (province)** — reverse-geocode พิกัดได้จังหวัดใด เทียบกับจังหวัดในที่อยู่ที่กรอก. ไม่ตรง → **warn เท่านั้น ไม่ block** การบันทึก |
+| **OD-3** | Achievement ใน Summary Step | **สร้าง achievement ใหม่แนว "first-time / founding cohort"** เช่น "สมาชิกผู้ก่อตั้ง 2026" (ได้เมื่อสมัครครั้งแรกในปี 2026). แสดงเป็น achievement แรกที่ได้ในหน้าสรุป + next achievement = badge ถัดไปที่ใกล้สุด (เช่น First Sale). **ต้องเพิ่ม badge definition ใหม่** (dependency กับ [[DATABASE]] + badge.service) — ไม่ใช่ 10 badge เดิม |
+| **OD-4** | จำนวนหมวดสูงสุด | **5 หมวด** |
+| **OD-5** | ข้อจำกัดรูปสินค้า | **≤ 5MB/รูป, ≤ 5 รูป/สินค้า, format JPG/PNG/WEBP** |
+| **OD-6** | นิยาม Checklist | **Checklist แสดง _ทุก_ step ของ onboarding รวม optional ด้วย** — item ที่ยังไม่ทำ (รวม optional ที่ยังไม่ใส่) **ยังต้องขึ้นเป็น pending**. Sidebar "Onboarding" ซ่อนเมื่อ **ทุก item (รวม optional) ครบ** เท่านั้น. รายการ checklist = ช่องทางการขาย, หมวดหมู่, ที่อยู่, ปักพิกัด, สร้างสินค้าแรก (+ slug ที่ตั้งแล้วตั้งแต่ก่อนเข้า) |
+| **OD-7** | Seller เดิม | **ไม่เด้ง modal อัตโนมัติ** — แต่ checklist ใน Sidebar แสดง item ที่ยังขาด ให้กดเข้าไปทำเองได้ |
 
-ตัวเลือก:
-- **Google Maps Platform** — API mature, geocoding แม่นยำ, มีค่าใช้จ่าย (pricing per request, ต้องตั้ง billing account)
-- **Longdo Map** — Provider ไทย, รองรับภาษาไทยดี, มี free tier (ตรวจสอบ quota)
-- **Leaflet + OpenStreetMap** — Open source ฟรี, geocoding ผ่าน Nominatim (rate-limited), แม่นยำในไทยน้อยกว่า
-
-ผลต่อ: cost ของทีม, คุณภาพ reverse-geocode, API key management, ข้อกำหนด ToS
-
-**OD-2: Reverse-Geocode Threshold (Address vs Pin Consistency)**
-
-ต้องตัดสินใจว่านิยาม "สอดคล้องกัน" ว่าอย่างไร:
-- ตัวเลือก A: เปรียบเทียบระดับจังหวัด (province) — ง่ายกว่า ยืดหยุ่นสูง
-- ตัวเลือก B: เปรียบเทียบระดับอำเภอ (amphoe) — แม่นยำกว่า
-- ตัวเลือก C: ระยะทาง (km) ระหว่างพิกัดกับ geocode ของที่อยู่ที่กรอก — ซับซ้อนกว่า ต้องการ forward-geocode ด้วย
-
-และเมื่อ "ไม่สอดคล้อง" → block หรือแค่ warn? (PRD เสนอ warn ไม่ block แต่ต้องยืนยัน)
-
-**OD-3: Achievement สำหรับ Onboarding**
-
-ต้องนิยามว่า:
-- Badge ไหนคือ "first achievement จาก onboarding" ที่แสดงใน Summary Step (ปัจจุบัน badge 10 ตัวไม่มีชิ้นที่ trigger จาก onboarding โดยตรง — "First Sale" ต้องการ order CONFIRMED จริง)
-- ต้องการ badge ใหม่สำหรับ onboarding completion หรือใช้ badge เดิมที่ใกล้เคียง?
-- Next Achievement ที่แนะนำ = คำนวณอัตโนมัติจาก progress ที่ใกล้สุด หรือ hardcode sequence?
-
-**OD-4: Multi-Category Limit**
-
-Seller เลือกหมวดหมู่ได้สูงสุดกี่หมวด? (เสนอ: 3 หมวด — ป้องกันเลือกทุกหมวดจนข้อมูลไร้ประโยชน์)
-
-**OD-5: Image Upload Constraints (First Product Step)**
-
-- ขนาดไฟล์สูงสุดต่อรูป (เสนอ: 5MB)
-- จำนวนรูปสูงสุดต่อสินค้าในขั้นตอน onboarding (เสนอ: 5 รูป — เพิ่มเติมได้ในหน้า product catalog ภายหลัง)
-- Format ที่ยอมรับ: JPG, PNG, WEBP?
-
-**OD-6: นิยาม "Onboarding ครบ" สำหรับ Checklist**
-
-Checklist ซ่อนเมื่อ item ครบ — แต่ต้องนิยามว่า item ไหน "บังคับ" (ครบแล้วซ่อน) vs "optional" (ทำหรือไม่ก็ได้ ยังแสดงสถานะ):
-
-เสนอ:
-- บังคับ: slug (มีอยู่แล้ว) + sales channels + categories
-- Optional: address, map pin, product แรก
-
-ต้องยืนยันกับ user ก่อน implement
-
-**OD-7: Seller เดิม (ผ่าน onboarding หน้าเต็มจอแล้ว) — ต้องการ Modal ซ้ำไหม?**
-
-Seller ที่ผ่าน onboarding เดิมแล้ว (มี slug, category เดิม, address เดิม) เมื่อ deploy redesign นี้:
-- ตัวเลือก A: เปิด modal onboarding ใหม่อัตโนมัติ 1 ครั้งเพื่อกรอก fields ใหม่ (salesChannels, multi-category)
-- ตัวเลือก B: ไม่เปิด modal อัตโนมัติ แต่ checklist ใน Sidebar แสดง item ที่ยังขาด
+> **ผลต่อ Business Rules ในเอกสารนี้ (override ค่าที่เป็น "Open Decision" ด้านบน):**
+> - §3.4 จำนวนหมวดสูงสุด N = **5**
+> - §3.5 เกณฑ์ตรวจ = ระดับจังหวัด, warn ไม่ block; provider = Leaflet/OSM/Nominatim
+> - §3.6 รูป ≤5MB ≤5 รูป JPG/PNG/WEBP
+> - §3.7 achievement = badge ใหม่ "founding cohort 2026"; next = badge ถัดไปที่ใกล้สุด
+> - §3.8 / §4.1 checklist รวม optional; ซ่อนเมื่อครบทุก item
 
 ---
 
