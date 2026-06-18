@@ -10,7 +10,7 @@
  * - หลัง modal ปิด → bump refreshKey เพื่อให้ ChecklistSidebar refetch
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import OnboardingModal, { type ModalStep } from './OnboardingModal'
 import ChecklistSidebar from './ChecklistSidebar'
 
@@ -20,10 +20,15 @@ export default function OnboardingGate({ facebookPrefill }: { facebookPrefill?: 
   const [open, setOpen] = useState(false)
   const [initialStep, setInitialStep] = useState<ModalStep>('sales_channels')
   const [refreshKey, setRefreshKey] = useState(0)
+  // ranRef กัน effect รันซ้ำ (React StrictMode dev double-invoke) — ถ้าใช้ cancelled flag
+  // mount แรกจะ set flag + fetch แต่ cleanup ตั้ง cancelled=true, mount สองเห็น flag แล้ว bail
+  // → fetch ไม่เคยเปิด modal. ใช้ ranRef + ไม่ cancel เพื่อให้เปิดได้จริง (component คงอยู่บน dashboard)
+  const ranRef = useRef(false)
 
   // auto-open ครั้งแรกต่อ device — เปิดเฉพาะ seller ที่ยังตั้งค่าไม่ครบ
   useEffect(() => {
-    let cancelled = false
+    if (ranRef.current) return
+    ranRef.current = true
     try {
       if (localStorage.getItem(SHOWN_FLAG)) return
       localStorage.setItem(SHOWN_FLAG, '1')
@@ -33,15 +38,12 @@ export default function OnboardingGate({ facebookPrefill }: { facebookPrefill?: 
     fetch('/api/account/onboarding-checklist')
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { isComplete?: boolean } | null) => {
-        if (!cancelled && d && d.isComplete === false) {
+        if (d && d.isComplete === false) {
           setInitialStep('sales_channels')
           setOpen(true)
         }
       })
       .catch(() => {})
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   const openAt = useCallback((s: ModalStep) => {
