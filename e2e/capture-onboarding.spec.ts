@@ -60,11 +60,19 @@ test('capture /onboarding 4 steps', async ({ context, page }) => {
     await page.waitForTimeout(700)
     await page.getByRole('button', { name: /ถัดไป/ }).click()
 
-    // step 3: address — รอ textarea โผล่
-    await page.locator('textarea').waitFor({ state: 'visible' })
+    // step 3: address — ค้นหา (single search box) → suggestion → เลือก
+    const search = page.getByPlaceholder('พิมพ์ ตำบล, อำเภอ, จังหวัด หรือรหัสไปรษณีย์...')
+    await search.waitFor({ state: 'visible' })
     await page.waitForTimeout(300)
-    await shot(page, 'onboarding-3-address')
-    await page.locator('textarea').fill('123 ถนนสุขสวัสดิ์ แขวงราษฎร์บูรณะ เขตราษฎร์บูรณะ กรุงเทพฯ 10140')
+    await shot(page, 'onboarding-3a-address-empty')
+    await search.fill('ในคลอง')
+    await page.getByRole('option').first().waitFor({ state: 'visible', timeout: 10_000 })
+    await page.waitForTimeout(200)
+    await shot(page, 'onboarding-3b-address-search')
+    await page.getByRole('option').first().click()
+    await page.getByPlaceholder(/123\/4 หมู่ 5/).waitFor({ state: 'visible' })
+    await page.waitForTimeout(200)
+    await shot(page, 'onboarding-3c-address-selected')
     await page.getByRole('button', { name: /ถัดไป/ }).click()
 
     // step 4: product — รอ input ชื่อสินค้าโผล่

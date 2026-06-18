@@ -15,6 +15,7 @@
 import AuthLogo from '@/components/AuthLogo'
 import Icon from '@/components/wrappers/Icon'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
+import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
 import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
@@ -187,16 +188,16 @@ export default function OnboardingPage() {
           {sStatus === 'taken' && <p className="invalid-msg mt-1 text-sm text-danger">URL นี้มีคนใช้แล้ว</p>}
           {sStatus === 'invalid' && <p className="invalid-msg mt-1 text-sm text-danger">ใช้ a-z, 0-9, ขีดกลาง ได้ 3-30 ตัว</p>}
           {sStatus === 'checking' && <p className="invalid-msg mt-1 text-sm text-default-400">กำลังตรวจสอบ...</p>}
-          {slug && sStatus === 'ok' && <p className="mt-3 text-sm text-primary">deepthailand.app/<span className="font-mono">{slug}</span></p>}
+          {slug && sStatus === 'ok' && <p className="mt-3 text-sm text-primary">deepthailand.app/shop/<span className="font-mono">{slug}</span></p>}
           <button type="button" onClick={submitSlug} disabled={slugLoading || sStatus !== 'ok'} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{slugLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
         </>
       )}
 
       {step === 'address' && (
         <>
-          <label className="form-label">ที่อยู่<span className="text-danger">*</span></label>
-          <textarea className="form-textarea" rows={3} placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} />
-          <button type="button" onClick={submitAddress} disabled={addrLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{addrLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          <label className="form-label">ค้นหาที่อยู่ของคุณ<span className="text-danger">*</span></label>
+          <ThaiAddressSearch onChange={setAddress} disabled={addrLoading} />
+          <button type="button" onClick={submitAddress} disabled={addrLoading || !address.trim()} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{addrLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
         </>
       )}
 

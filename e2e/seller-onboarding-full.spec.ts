@@ -181,47 +181,26 @@ test.describe('A. Facebook login (bypass + /register + /onboarding)', () => {
   // NOTE: A-08 ทดสอบ category step → ข้ามไปก่อน เพราะมี REWORK-1 (ChoiceSelect crash)
   // ใช้ state 'no-slug-with-category' (category pre-set ใน DB) เพื่อทดสอบ slug→address→product แทน
 
-  test('A-08: /onboarding (pre-category) → slug → address → product ข้าม → /dashboard', async ({ context, page }) => {
-    // WORKAROUND: ใช้ 'no-slug-with-category' เพราะ category step มี ChoiceSelect crash (REWORK-1)
-    const seeded = await createSeller('no-slug-with-category')
+  test('A-08: /onboarding full UI flow → category → slug → address(search) → product ข้าม → /dashboard', async ({ context, page }) => {
+    // full UI happy-path (ChoiceSelect crash แก้แล้ว — ไม่ต้อง workaround REWORK-1)
+    const seeded = await createSeller('no-slug')
     try {
       await loginAs(context, seeded)
       await page.goto('/onboarding')
       await expect(page).toHaveURL(/\/onboarding/, { timeout: 10_000 })
 
-      // step 1: category — ต้องผ่านก่อน (API ถูก pre-called แต่ React step ยังเริ่มที่ category)
-      // เนื่องจาก REWORK-1 ต้องข้าม category step ด้วยการ call API ตรง + reload
-      // แต่ test นี้จะทดสอบว่า category ถูก pre-set ใน DB → submit category ผ่าน API → เด้ง slug
-      // ทำ: click ChoiceSelect → เลือก general → click ถัดไป → หวังว่า slug step จะโหลดหลัง crash
+      // step 1: category — เลือกผ่าน ChoiceSelect UI → ถัดไป
       await expect(page.getByRole('heading', { name: 'เลือกหมวดหมู่ร้านของคุณ' })).toBeVisible({ timeout: 10_000 })
-      await page.waitForTimeout(1000) // รอ Choices.js init
-
-      // Select category ผ่าน click
-      await page.locator('.choices__inner').first().click()
-      await page.waitForTimeout(500)
-      await page.locator('.choices__item--choice[data-value="general"]').click()
-      await page.waitForTimeout(200)
+      await page.locator('.choices').click()
+      await page.waitForSelector('.choices__list--dropdown .choices__item--choice', { state: 'visible' })
+      await page.locator('.choices__list--dropdown .choices__item--choice[data-value]:not([data-value=""])').first().click()
+      await page.waitForFunction(() => {
+        const s = document.querySelector('select')
+        return !!s && s.value !== ''
+      })
       await page.getByRole('button', { name: /ถัดไป/ }).click()
 
-      // รอ: ถ้า crash → reload + check slug step (ไม่ผ่านหน้า category อีก เพราะ pre-set แล้ว)
-      await page.waitForTimeout(2000)
-      const hasError = await page.getByText('Application error').isVisible()
-      if (hasError) {
-        // ⚠️ REWORK-1 confirmed: reload page
-        await page.reload()
-        await page.waitForTimeout(1000)
-        // After reload, since category is pre-set in DB, onboarding still starts at step 'category'
-        // (React state, not DB-driven) — so this confirm the crash prevents further flow
-        // Test: verify DB was updated with category (category step API succeeded before crash)
-        const shop = await prisma.shop.findUnique({ where: { userId: seeded.userId } })
-        // category might have been updated by /api/shops/update before crash
-        console.log('[A-08] REWORK-1: ChoiceSelect crash detected. Shop category in DB:', shop?.category)
-        // Test PASSES because we're documenting the bug — not the expected flow
-        expect(hasError).toBe(true) // document: crash IS the current behavior (REWORK needed)
-        return
-      }
-
-      // Happy path (if crash doesn't happen) — slug step
+      // step 2: slug
       await expect(page.getByRole('heading', { name: 'ตั้ง URL ร้านของคุณ' })).toBeVisible({ timeout: 10_000 })
       const slugVal = `qas08-${Date.now().toString().slice(-6)}`
       await page.getByPlaceholder('yourshop').fill(slugVal)
@@ -229,15 +208,25 @@ test.describe('A. Facebook login (bypass + /register + /onboarding)', () => {
       await expect(page.getByRole('button', { name: /ถัดไป/ })).toBeEnabled({ timeout: 3_000 })
       await page.getByRole('button', { name: /ถัดไป/ }).click()
 
-      // address
+      // step 3: address — single search box → suggestion → เลือก
       await expect(page.getByRole('heading', { name: 'ตั้งที่อยู่ร้าน' })).toBeVisible({ timeout: 10_000 })
-      await page.locator('textarea').fill('123 ถนนทดสอบ A08')
+      await page.getByPlaceholder('พิมพ์ ตำบล, อำเภอ, จังหวัด หรือรหัสไปรษณีย์...').fill('ในคลอง')
+      await page.getByRole('option').first().waitFor({ state: 'visible', timeout: 10_000 })
+      await page.getByRole('option').first().click()
+      // เข้าสู่ selected state → ช่องรายละเอียดโผล่ + ปุ่มถัดไป enable
+      await expect(page.getByPlaceholder(/123\/4 หมู่ 5/)).toBeVisible({ timeout: 5_000 })
       await page.getByRole('button', { name: /ถัดไป/ }).click()
 
-      // product — ข้าม
+      // step 4: product — ข้าม
       await expect(page.getByRole('heading', { name: 'สร้างสินค้าแรกของคุณ' })).toBeVisible({ timeout: 10_000 })
       await page.getByText('ข้ามไปก่อน').click()
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 })
+
+      // DB persist: address compose จาก search (ต.ในคลองบางปลากด ... 10290)
+      const shop = await prisma.shop.findUnique({ where: { userId: seeded.userId } })
+      expect(shop?.slug).toBe(slugVal)
+      expect(shop?.address).toContain('ในคลองบางปลากด')
+      expect(shop?.address).toContain('10290')
     } finally {
       await cleanup(seeded.userId)
     }
