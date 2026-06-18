@@ -34,3 +34,17 @@
 ## หมายเหตุ
 - BR-19 ยังคงเป็น requirement ที่ valid ใน BRD/FR-LO-14-AC-07 — เพียงแต่ **deferred** จาก commit นี้ (สถานะ implementation = carry) เพราะ dependency (provider-in-JWT + onboarding prefill wiring) ยังไม่มี และ BR-07 ที่เป็นต้นแบบก็ยังไม่ทำงานจริง
 - ต้องแจ้ง product owner (user) รับทราบการ defer BR-19 ก่อนปิด feature
+
+---
+
+## Sub-feature: Account Linking (FR-LO-16) — เพิ่ม 2026-06-18
+
+| S-id | รายการ | Trace |
+|---|---|---|
+| **S-LINK-1** | `lib/link-intent.ts` — HMAC sign/verify cookie (pattern sms-unlock-cookie) | FR-LO-16-AC-05/06/07 |
+| **S-LINK-2** | `POST /api/account/link/start` (auth → set link_intent cookie) | FR-LO-16-AC-01/05 |
+| **S-LINK-3** | signIn callback — link ถ้าว่าง / block ถ้าถูกใช้แล้ว (no merge) | FR-LO-16-AC-01/02/03/04 |
+| **S-LINK-4** | `POST /api/account/link/remove` + OTP verify + last-method guard + ownership scope | FR-LO-16-AC-08/08b/09/10 |
+| **S-LINK-5** | Settings "บัญชีที่เชื่อมต่อ" UI (base Paces account-settings) | FR-LO-16-AC-11 |
+
+**BR:** ไม่ merge (block ถ้า provider ถูกใช้แล้ว); Disconnect ยืนยัน OTP; กันลบ login method สุดท้าย.

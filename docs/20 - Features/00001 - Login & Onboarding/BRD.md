@@ -172,6 +172,45 @@ Instagram Basic Display API ถูก Meta ยกเลิก ธ.ค. 2024 — 
 - [ ] `[FR-LO-15-AC-06]` **Given** Instagram user ใหม่ + flag ON + login สำเร็จ **When** Onboarding Modal เปิด step 1 **Then** ระบบ**ไม่** pre-tick channel ใดๆ อัตโนมัติ (Instagram ไม่มี pre-fill rule)
 - [ ] `[FR-LO-15-AC-07]` `AuthAccount.provider` สำหรับ Instagram = string `"INSTAGRAM"` เสมอ; username prefix = `ig`; callback route = `/auth/callback/instagram`
 
+#### FR-LO-16: Account Linking — เชื่อมหลาย provider เข้าบัญชีเดียว
+
+**User Story:**
+> ในฐานะผู้ใช้ที่มีทั้ง Facebook และ LINE ฉันต้องการเชื่อมทั้งสองช่องทางเข้าบัญชี Deep เดียวกัน เพื่อ login ด้วยช่องทางไหนก็เข้าบัญชีเดิม ไม่เกิดบัญชีซ้ำ
+
+**บริบทเชิงเทคนิค (ข้อจำกัด NextAuth v4):**
+NextAuth v4 (JWT strategy) **ไม่รองรับ account-linking แบบ native** — ตอน OAuth sign-in สร้าง token ใหม่จากศูนย์ (ไม่อ่าน session เดิม) → ถ้า login provider ที่ 2 ตรง ๆ จะ "สลับบัญชี" ไม่ใช่ "เชื่อม". จึงต้องทำกลไกเอง: **link-intent cookie** (HMAC-signed, ฝัง userId, TTL สั้น) set โดย endpoint ที่ auth แล้ว + ตรวจใน `signIn` callback.
+
+**Business Rule (ยืนยันโดย product owner 2026-06-18):**
+- **ไม่ merge เด็ดขาด** — ถ้า provider ที่จะเชื่อม **ถูกใช้สร้างบัญชีอื่นไปแล้ว → block** (ถือเป็น 2 บัญชีแยก ผู้ใช้เลือกเอง ระบบไม่ย้ายข้อมูลให้)
+- ทางเข้า = หน้า **Settings "บัญชีที่เชื่อมต่อ"** (manual connect/disconnect)
+
+**Acceptance Criteria:**
+
+**Connect — provider ที่ 2 ยังว่าง (happy path):**
+- [ ] `[FR-LO-16-AC-01]` **Given** ผู้ใช้ login อยู่ (provider A) เปิดหน้า Settings → "บัญชีที่เชื่อมต่อ" **When** กด "เชื่อม" provider B (ยังไม่ถูกใช้โดยใคร) **Then** ระบบ set `link_intent` cookie (signed, userId ปัจจุบัน) → `signIn(B)` → OAuth สำเร็จ → สร้าง `AuthAccount(provider=B)` ผูกเข้า **user เดิม** → กลับ Settings โดย **session ยังเป็นบัญชีเดิม** + แสดงสถานะ B = เชื่อมแล้ว
+- [ ] `[FR-LO-16-AC-02]` **Given** เชื่อม B สำเร็จแล้ว **When** logout แล้ว login ด้วย provider B **Then** เข้าบัญชีเดียวกับ provider A (match `AuthAccount(B)` → user เดิม) — ไม่เกิดบัญชีใหม่
+
+**Connect — provider ที่ 2 ถูกใช้แล้ว (block, no merge):**
+- [ ] `[FR-LO-16-AC-03]` **Given** ผู้ใช้ login อยู่ (provider A) **When** กดเชื่อม provider B ที่ **มี `AuthAccount(B)` ผูกกับ user อื่นอยู่แล้ว** **Then** ระบบ **block** (`signIn` callback return false) → redirect กลับ Settings พร้อม error "บัญชี {B} นี้ถูกใช้กับอีกบัญชีแล้ว" → **session ยังเป็นบัญชีเดิม ไม่สลับ ไม่ย้ายข้อมูล**
+- [ ] `[FR-LO-16-AC-04]` **Given** provider B ผูกกับ user ปัจจุบันอยู่แล้ว **When** กดเชื่อม B ซ้ำ **Then** idempotent — ไม่สร้างซ้ำ, ไม่ error, แสดง "เชื่อมแล้ว"
+
+**ความปลอดภัย link-intent:**
+- [ ] `[FR-LO-16-AC-05]` **Given** ผู้ใช้ **ไม่ได้ login** **When** เรียก endpoint ที่ set `link_intent` **Then** ปฏิเสธ (401) — ตั้ง intent ได้เฉพาะ session ที่ auth แล้ว
+- [ ] `[FR-LO-16-AC-06]` **Given** `link_intent` cookie ถูกปลอม/แก้ค่า userId **When** signIn callback ตรวจ **Then** ลายเซ็น HMAC ไม่ผ่าน → ปฏิเสธการเชื่อม (กัน attacker ผูก provider เข้าบัญชีเหยื่อ)
+- [ ] `[FR-LO-16-AC-07]` **Given** `link_intent` cookie หมดอายุ (TTL สั้น เช่น 5 นาที) **When** OAuth กลับมา **Then** ถือว่าไม่ใช่ link operation → ทำ flow login ปกติ (ไม่ลิงก์ผิดบัญชี)
+
+**Disconnect:**
+- [ ] `[FR-LO-16-AC-08]` **Given** ผู้ใช้มี login ≥2 ทาง **When** กด "ยกเลิกการเชื่อม" provider B **Then** ระบบขอ **ยืนยันตัวตนด้วย OTP ไปเบอร์ที่ลงทะเบียน** (reuse OTP infra เดิม) → กรอก OTP ถูก → ลบ `AuthAccount(B)` ของ user ปัจจุบัน → B กลับเป็น "ยังไม่เชื่อม"; OTP ผิด/ไม่ยืนยัน → ไม่ลบ
+- [ ] `[FR-LO-16-AC-08b]` **Given** ขั้นยืนยัน disconnect **When** ระบบส่ง OTP **Then** ใช้ rate-limit + verify เดียวกับ flow OTP อื่น (กัน spam ส่ง SMS / brute-force) — ไม่สร้าง path ใหม่ที่ข้าม guard
+- [ ] `[FR-LO-16-AC-09]` **Given** provider B เป็น **login method สุดท้าย** (ไม่มี password+phone และไม่มี provider อื่น) **When** กดยกเลิกการเชื่อม **Then** **block** + แจ้ง "ต้องเหลือวิธีเข้าสู่ระบบอย่างน้อย 1 ทาง" — กัน user ล็อกตัวเองออกจากบัญชี
+- [ ] `[FR-LO-16-AC-10]` **Given** ผู้ใช้กด disconnect provider ที่ไม่ได้เป็นของตัวเอง (ยิง API ตรง) **When** server ตรวจ **Then** ลบเฉพาะ `AuthAccount` ที่ `userId = session.userId` เท่านั้น (scope ownership — ไม่ลบของคนอื่น)
+
+**Settings UI:**
+- [ ] `[FR-LO-16-AC-11]` **Given** เปิดหน้า Settings "บัญชีที่เชื่อมต่อ" **When** หน้าโหลด **Then** แสดงทุก provider (FB/LINE + IG เมื่อ flag เปิด) พร้อมสถานะจริง (เชื่อมแล้ว = มี `AuthAccount` ของ user / ยัง) + ปุ่ม Connect หรือ Disconnect ตามสถานะ
+
+**Routes/Contract (freeze):**
+- [ ] `[FR-LO-16-AC-12]` `POST /api/account/link/start` (auth required) set `link_intent` cookie; `POST /api/account/link/remove` (auth) ลบ AuthAccount + guard; cookie `deep_link_intent` = HMAC(`NEXTAUTH_SECRET`), httpOnly, TTL 5 นาที; signIn callback อ่าน cookie ตัดสิน link/block
+
 #### FR-LO-04: Reset Password ผ่าน OTP
 
 **User Story:**

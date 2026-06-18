@@ -69,7 +69,7 @@
 
 - ❌ Instagram ใช้งานจริง (ติด Meta verify)
 - ❌ LINE email + history-link by email (ไม่ขอ scope)
-- ❌ Cross-provider account linking (LINE+FB = คนละ user ถ้าไม่มี email match — เหมือน FB เดิม)
+- ~~Cross-provider account linking~~ → **ดึงเข้า scope แล้วเป็น FR-LO-16** (ดู §10; manual link ผ่าน Settings, ไม่ merge/block ถ้า provider ถูกใช้แล้ว)
 
 ## 9. เอกสาร feature 00001 ที่ต้องอัปเดต (ownership)
 
@@ -82,3 +82,31 @@
 | API.md | safepay-planner | `/api/auth/callback/line`, provider list |
 | DATABASE.md | safepay-database | provider String รับ LINE/INSTAGRAM (no schema change) |
 | Tests/ | safepay-qa | LINE login new/existing user, IG flag-off ไม่ render |
+
+---
+
+## 10. Account Linking (FR-LO-16) — เพิ่ม 2026-06-18 (sub-feature)
+
+> **Business Rule:** ไม่ merge เด็ดขาด — provider ที่ถูกใช้สร้างบัญชีอื่นแล้ว → **block**. ทางเข้า = Settings "บัญชีที่เชื่อมต่อ". Disconnect ยืนยันด้วย **OTP**.
+
+### 10.1 ข้อจำกัด NextAuth v4 (verified ใน source)
+`core/routes/callback.js` ตอน OAuth signin สร้าง `defaultToken` ใหม่ (ไม่อ่าน session cookie เดิม) → linking native ไม่มี → ต้องใช้ link-intent cookie.
+
+### 10.2 Frozen Contract
+| ด้าน | ค่า |
+|---|---|
+| Connect API | `POST /api/account/link/start` (auth required) → set cookie `deep_link_intent` |
+| cookie | `deep_link_intent` = HMAC(`NEXTAUTH_SECRET`) ของ `{userId, provider, exp}`; httpOnly; TTL 5 นาที |
+| flow | client (Settings) กด Connect → fetch `/link/start` → ได้ ok → `signIn(provider, { callbackUrl: '/seller/settings' })` |
+| signIn callback | อ่าน `deep_link_intent` (ผ่าน `cookies()` next/headers) → verify HMAC + ยังไม่ exp → ถ้า `AuthAccount(provider,providerAccountId)` มีของ user อื่น = `return false` (block) / ว่าง = create `AuthAccount` ผูก `intent.userId` → return true; ไม่มี intent = login ปกติ |
+| ป้องกัน account-switch | เมื่อ link mode + สร้าง/พบ AuthAccount ของ intent.userId → ห้ามให้ jwt set sub เป็น provider-user คนใหม่ (คง session เดิม) |
+| Disconnect API | `POST /api/account/link/remove` (auth) — ต้องแนบ OTP ที่ verify แล้ว; guard: ต้องเหลือ login method ≥1 (อีก provider หรือ password+phone); ลบเฉพาะ `AuthAccount.userId == session.userId` |
+| Disconnect OTP | reuse `lib/otp` (`POST /api/account/link/send-otp` หรือ reuse endpoint OTP เดิม) + rate-limit เดิม |
+| Settings UI | section "บัญชีที่เชื่อมต่อ" — base `theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx` (Social section row layout) ปรับเป็น provider + สถานะ + Connect/Disconnect; Disconnect ผ่าน Sweet Alert + OTP |
+
+### 10.3 Files (คาดการณ์)
+- `src/lib/auth.ts` — signIn callback อ่าน link-intent + block/link logic
+- `src/lib/link-intent.ts` (ใหม่) — sign/verify HMAC cookie (pattern เดียวกับ `sms-unlock-cookie.ts`)
+- `src/app/api/account/link/start/route.ts`, `.../remove/route.ts`, `.../send-otp/route.ts`
+- Settings page (paces seller) + connected-accounts component
+- ไม่แตะ schema (AuthAccount มีพอ)
