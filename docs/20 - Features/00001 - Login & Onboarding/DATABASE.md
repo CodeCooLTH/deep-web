@@ -296,3 +296,55 @@ Migration หลัก = เพิ่ม 4 column ใน `Shop` (`categories`/`s
 4. **Backfill SIGNUP_YEAR:** lazy evaluate — `auth.ts` เรียก `evaluateSignupYearBadge` ทุก sign-in ถ้ายังไม่มี badge → Seller ปี 2026 ได้ badge ตอน login ครั้งถัดไป (ไม่ต้อง migration script)
 
 **Migration applied:** `20260618035221_add_shop_onboarding_fields` (Supabase, verified columns + backfill `categories` จาก `category`)
+
+---
+
+## 9. Extension: LINE + Instagram OAuth — ไม่ต้อง Migration
+
+> **อ้างอิง design:** `docs/20 - Features/00001 - Login & Onboarding/_extensions/2026-06-18-line-instagram-oauth-design.md`
+> **FR ใหม่:** FR-LO-14 (LINE OAuth, live), FR-LO-15 (Instagram OAuth, flag-off/prepared)
+> **วันที่ยืนยัน:** 2026-06-18
+
+### 9.1 ข้อสรุป: ไม่ต้องแก้ schema / ไม่ต้อง migration
+
+ตรวจสอบ `prisma/schema.prisma` (model `AuthAccount` บรรทัด 36-48) ยืนยันได้ว่า:
+
+- `AuthAccount.provider` เป็น **`String` column** ไม่ใช่ Prisma enum — รับค่าสตริงใหม่ได้ทันที
+- `@@unique([provider, providerAccountId])` — composite unique key ที่มีอยู่ครอบคลุม provider ใหม่โดยอัตโนมัติ
+- `AuthAccount.accessToken` และ `refreshToken` เป็น `String?` (nullable) — รองรับ provider ที่ไม่ส่ง refresh token (เช่น LINE basic profile)
+- `User.phone` และ `User.email` เป็น nullable — LINE/Instagram user ที่ไม่มี phone/email (ไม่ขอ scope) ไม่ละเมิด constraint ใด
+
+ผลลัพธ์: การเพิ่ม LINE + Instagram เป็น **code-only change** (แก้เฉพาะ `src/lib/auth.ts` + frontend) ไม่มี DDL ใด ๆ ที่ต้องรัน
+
+### 9.2 ชุดค่า provider ที่ใช้ในระบบ (documented set หลังงานนี้)
+
+| ค่า `AuthAccount.provider` | Provider | สถานะ | หมายเหตุ |
+|---------------------------|----------|-------|---------|
+| `PHONE` | Phone OTP (CredentialsProvider) | Live | ใช้งานจริง; buyer + seller |
+| `FACEBOOK` | Facebook OAuth | Live (prod ต้องการ FB App Review) | `fb{id}` username prefix |
+| `LINE` | LINE Login OAuth | Live (FR-LO-14) | `line{id}` username prefix; อิสระจาก Meta |
+| `INSTAGRAM` | Instagram OAuth via Meta | Prepared / flag-off (FR-LO-15) | `ig{id}` username prefix; ติด Meta Business Verification |
+
+ค่าข้างต้นเป็น string ธรรมดา — validate ที่ app layer (`src/lib/auth.ts`) ไม่มี DB constraint บังคับ
+
+### 9.3 พฤติกรรม LINE/Instagram User กับ schema ปัจจุบัน
+
+| Scenario | column | พฤติกรรม | ข้อสรุป |
+|----------|--------|----------|--------|
+| LINE user ใหม่ (ไม่มี email/phone) | `User.phone` nullable, `User.email` nullable | ได้ NULL ทั้งคู่ — ไม่ละเมิด constraint | ปลอดภัย |
+| LINE login ซ้ำ (existing user) | `@@unique([provider, providerAccountId])` | match `(LINE, {lineUserId})` → refresh avatar | ทำงานถูกต้อง |
+| IG user (flag-off — ยังไม่ render ปุ่ม) | ทุก column | ไม่มี row ถูกสร้าง | ไม่กระทบ |
+| `linkBuyerHistory` (email match) | ขึ้นอยู่กับมี `User.email` | LINE ไม่ขอ email scope → ไม่ trigger | history-link เฉพาะ FB/ช่องทางที่มี email |
+
+### 9.4 Index / Constraint ใหม่
+
+**ไม่มี** — composite unique key `@@unique([provider, providerAccountId])` ที่มีอยู่ครอบคลุมทุก provider ใหม่โดยอัตโนมัติ ไม่ต้องสร้าง index เพิ่ม
+
+### 9.5 Traceability
+
+| Field / Constraint | FR | สถานะ |
+|--------------------|-----|-------|
+| `AuthAccount.provider String` | FR-LO-14, FR-LO-15 | ไม่เปลี่ยน schema; รับค่าใหม่ได้ทันที |
+| `@@unique([provider, providerAccountId])` | FR-LO-14, FR-LO-15 | ไม่เปลี่ยน; ครอบคลุม provider ใหม่ |
+| `User.phone nullable` | FR-LO-14 (LINE ไม่ขอ phone) | ไม่เปลี่ยน; ตรง constraint เดิม |
+| `User.email nullable` | FR-LO-14, FR-LO-15 | ไม่เปลี่ยน; ตรง constraint เดิม |
