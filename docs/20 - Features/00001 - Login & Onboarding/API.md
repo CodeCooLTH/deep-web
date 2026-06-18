@@ -56,6 +56,7 @@ API ชุดนี้รองรับระบบ **Login & Onboarding (M0000
 | `POST` | `/api/geo/reverse` | Nominatim reverse-geocode proxy | seller | **ใหม่** |
 | `POST` | `/api/products` | สร้างสินค้าแรก (+sku, maxImages=5) | seller | **ขยาย schema** |
 | `GET` | `/api/account/onboarding-checklist` | Checklist computation | seller | **ใหม่** |
+| `GET` | `/api/account/badge-progress` | achievement (earned + next) สำหรับ Summary step | seller | **ใหม่** |
 | `POST` | `/api/account/set-phone` | ตั้งเบอร์ (immutable, L1 auto) | seller | มีอยู่ |
 | `POST` | `/api/account/shop-info` | displayName/username/category | seller | มีอยู่ |
 | `GET` | `/api/shops/check-slug` | ตรวจ slug ว่าง | none | มีอยู่ |
@@ -220,7 +221,27 @@ Server-side Nominatim proxy — รับพิกัด คืน province. ก
 **Errors:** 401, 404 (`"ไม่พบร้าน"`), 429
 > field ใหม่ (salesChannels/categories/latitude) ต้อง migrate ก่อน — ห้าม implement ก่อน [[DATABASE]]
 
-### 4.7–4.10 Endpoints เดิม (อ้างอิง)
+### 4.7 `GET /api/account/badge-progress` (ใหม่)
+
+achievement ของ seller สำหรับ Summary step (step 5) — เรียก `getBadgeProgress(userId, 'seller')` (audience seller+any). Trace: TFR-012 → FR-LO-11, OD-3
+
+**Request:** ไม่มี param — ใช้ `userId` จาก session
+
+**Success 200:** array ของ
+```json
+[
+  { "badge": { "id": "...", "nameTH": "สมาชิกผู้ก่อตั้ง 2026", "nameEN": "2026_BADGE", "icon": "award" },
+    "earned": true, "progressLabel": null, "progressRatio": 1 },
+  { "badge": { "id": "...", "nameTH": "เปิดหน้าร้าน", "nameEN": "First Sale", "icon": "award" },
+    "earned": false, "progressLabel": "ยังไม่มีออเดอร์", "progressRatio": 0 }
+]
+```
+- `nameTH` = `Badge.name` (ชื่อไทย); `icon` = short tabler name คงที่ ("award")
+- client: earned = filter `earned===true`; next = `earned===false` ที่ `progressRatio` สูงสุด; degrade ถ้า fetch fail (ซ่อน achievement section)
+
+**Errors:** 401; 429
+
+### 4.8–4.11 Endpoints เดิม (อ้างอิง)
 
 - **`POST /api/account/set-phone`** — `{ phone, otp }` → `{ ok: true }`; immutable (409 `"บัญชีนี้ตั้งเบอร์แล้ว..."` / เบอร์ซ้ำ `"เบอร์นี้มีบัญชีแล้ว"`); สร้าง L1 อัตโนมัติ. TFR-004 → FR-LO-04
 - **`POST /api/account/shop-info`** — `{ displayName, username, category }` → `{ ok: true }`; 409 username ซ้ำ
