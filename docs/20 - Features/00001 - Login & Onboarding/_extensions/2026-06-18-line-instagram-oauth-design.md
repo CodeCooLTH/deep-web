@@ -23,7 +23,7 @@
 
 | ด้าน | ค่า |
 |---|---|
-| **FR/BR ใหม่ (freeze)** | **FR-LO-14** = LINE OAuth (live), **FR-LO-15** = Instagram OAuth (prepared/flag-off), **BR-19** = pre-tick `"line"` ตอน LINE login |
+| **FR/BR ใหม่ (freeze)** | **FR-LO-14** = LINE OAuth (live), **FR-LO-15** = Instagram OAuth (prepared/flag-off), **BR-19** = pre-tick `"line"` ตอน LINE login ⚠️ **DEFERRED → Phase 2** (BR-07 ต้นแบบเป็น vestigial — ดู `docs/scope/2026-06-18-line-instagram-oauth-scope-baseline.md`) |
 | next-auth provider id | `line`, `instagram` (เพิ่มจาก `facebook` เดิม) |
 | `AuthAccount.provider` string | `LINE`, `INSTAGRAM` (เพิ่มจาก `FACEBOOK`, `PHONE` เดิม) |
 | username scheme | LINE = `line{providerAccountId}`, IG = `ig{providerAccountId}` (mirror `fb{id}`) |

@@ -59,6 +59,14 @@ export default function SignInForm() {
     await signIn('facebook', { callbackUrl: '/auth/callback/facebook' })
   }
 
+  const handleLine = async () => {
+    await signIn('line', { callbackUrl: '/auth/callback/line' })
+  }
+
+  const handleInstagram = async () => {
+    await signIn('instagram', { callbackUrl: '/auth/callback/instagram' })
+  }
+
   const onSubmit = async ({ username, password }: FormValues) => {
     const result = await signIn('seller-credentials', {
       username,
@@ -79,23 +87,62 @@ export default function SignInForm() {
 
   return (
     <>
-      {/* ปุ่ม Facebook OAuth */}
-      <button
-        type="button"
-        onClick={handleFacebook}
-        className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
-      >
-        {/* BxIcon = raw Iconify เพราะ Facebook icon อยู่ใน boxicons set (bxl:)
-            ขณะที่ Icon wrapper ของโปรเจกต์ fix prefix เป็น tabler: เท่านั้น */}
-        <BxIcon
-          icon="bxl:facebook-circle"
-          width={18}
-          height={18}
-          className="me-2 flex-shrink-0"
-          style={{ color: '#1877f2' }}
-        />
-        เข้าสู่ระบบด้วย Facebook
-      </button>
+      {/* กลุ่มปุ่ม Social Login — stack แนวตั้ง */}
+      <div className="flex flex-col gap-3">
+        {/* ปุ่ม Facebook OAuth */}
+        <button
+          type="button"
+          onClick={handleFacebook}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+        >
+          {/* BxIcon = raw Iconify เพราะ Facebook icon อยู่ใน boxicons set (bxl:)
+              ขณะที่ Icon wrapper ของโปรเจกต์ fix prefix เป็น tabler: เท่านั้น */}
+          <BxIcon
+            icon="bxl:facebook-circle"
+            width={18}
+            height={18}
+            className="me-2 flex-shrink-0"
+            style={{ color: '#1877f2' }}
+          />
+          เข้าสู่ระบบด้วย Facebook
+        </button>
+
+        {/* ปุ่ม LINE OAuth — mirror structure เดียวกับ FB */}
+        <button
+          type="button"
+          onClick={handleLine}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+        >
+          {/* LINE brand green #06C755 — brand asset exception จาก Paces token (Hard Rule 6) */}
+          <BxIcon
+            icon="ri:line-fill"
+            width={18}
+            height={18}
+            className="me-2 flex-shrink-0"
+            style={{ color: '#06C755' }}
+          />
+          เข้าสู่ระบบด้วย LINE
+        </button>
+
+        {/* ปุ่ม Instagram OAuth — flag-off by default (NEXT_PUBLIC_ENABLE_IG_LOGIN) */}
+        {process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true' && (
+          <button
+            type="button"
+            onClick={handleInstagram}
+            className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+          >
+            {/* Instagram brand pink #E1306C — brand asset exception จาก Paces token (Hard Rule 6) */}
+            <BxIcon
+              icon="ri:instagram-fill"
+              width={18}
+              height={18}
+              className="me-2 flex-shrink-0"
+              style={{ color: '#E1306C' }}
+            />
+            เข้าสู่ระบบด้วย Instagram
+          </button>
+        )}
+      </div>
 
       {/* dashed divider — copy structure จาก base theme ตรง ๆ */}
       <p className="relative my-5 text-center text-default-400 after:absolute after:start-0 after:end-0 after:top-2.75 after:h-0.75 after:border-t after:border-b after:border-dashed after:border-default-300">

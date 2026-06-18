@@ -1,5 +1,7 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, Account, User } from "next-auth";
 import FacebookProvider from "next-auth/providers/facebook";
+import LineProvider from "next-auth/providers/line";
+import InstagramProvider from "next-auth/providers/instagram";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
@@ -14,6 +16,75 @@ const globalForAdminAuth = globalThis as unknown as {
 const adminLoginTimestamps =
   globalForAdminAuth.adminLoginTimestamps ??
   (globalForAdminAuth.adminLoginTimestamps = new Map<string, number[]>());
+
+// upsertOAuthUser — helper รวม logic upsert สำหรับทุก OAuth provider (FB/LINE/IG)
+// แยกออกมาจาก jwt callback เพื่อให้ reuse ได้ (FR-LO-14/15) ลอจิกเหมือน FB block เดิมเป๊ะ
+async function upsertOAuthUser(
+  account: Account,
+  user: User | undefined,
+  providerEnum: "FACEBOOK" | "LINE" | "INSTAGRAM",
+  usernamePrefix: string,
+  linkEmail: boolean,
+): Promise<string> {
+  let dbUser = await prisma.user.findFirst({
+    where: {
+      authAccounts: {
+        some: {
+          provider: providerEnum,
+          providerAccountId: account.providerAccountId,
+        },
+      },
+    },
+  });
+  if (!dbUser) {
+    // linkEmail=true เฉพาะ provider ที่ email ถูก platform ยืนยัน + user consent (FB graph).
+    // LINE/IG=false: LINE email claim ไม่ verified + ไม่ขอ scope → ห้ามเก็บ/ใช้ link history
+    // (security R1 — กัน auto-link buyer history ผิดคนถ้ามีใครเพิ่ม email scope ภายหลัง)
+    const trustedEmail = linkEmail ? user?.email || undefined : undefined;
+    try {
+      dbUser = await prisma.user.create({
+        data: {
+          displayName: user?.name || "User",
+          username: `${usernamePrefix}${account.providerAccountId}`,
+          avatar: user?.image,
+          email: trustedEmail,
+          authAccounts: {
+            create: {
+              provider: providerEnum,
+              providerAccountId: account.providerAccountId,
+              accessToken: account.access_token,
+            },
+          },
+        },
+      });
+    } catch (err: unknown) {
+      // P2002 = concurrent first-login race: อีก request สร้าง AuthAccount เดียวกันไปก่อน
+      // → ดึง user ที่มีอยู่กลับมาใช้แทนปล่อย 500 (security R3 hardening)
+      if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "P2002") {
+        const existing = await prisma.user.findFirst({
+          where: { authAccounts: { some: { provider: providerEnum, providerAccountId: account.providerAccountId } } },
+        });
+        if (existing) return existing.id;
+      }
+      throw err;
+    }
+    // Auto-link guest history by email (PRD FR-8) — เฉพาะ provider ที่ email เชื่อถือได้ (linkEmail)
+    if (dbUser.email) {
+      const { linkBuyerHistory } = await import("@/services/user.service");
+      await linkBuyerHistory(dbUser.id, undefined, dbUser.email);
+    }
+    // best-effort badge evaluation — new user only (ไม่กระทบ jwt refresh path)
+    try {
+      await evaluateSignupYearBadge(dbUser.id);
+    } catch (e) {
+      console.error(`[auth] evaluateSignupYearBadge (${providerEnum.toLowerCase()}) failed`, e);
+    }
+  } else if (user?.image && dbUser.avatar !== user.image) {
+    // refresh รูปโปรไฟล์ทุก login (เผื่อเปลี่ยนรูป / user เก่าที่ avatar ยัง null)
+    await prisma.user.update({ where: { id: dbUser.id }, data: { avatar: user.image } });
+  }
+  return dbUser.id;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -32,6 +103,20 @@ export const authOptions: NextAuthOptions = {
           image: p.picture?.data?.url ?? null,
         };
       },
+    }),
+    // FR-LO-14: LINE OAuth — อิสระจาก Meta (LINE Developers Console แยกต่างหาก) → ใช้งานได้ทันทีในตลาดไทย
+    LineProvider({
+      clientId: process.env.LINE_CHANNEL_ID || "",
+      clientSecret: process.env.LINE_CHANNEL_SECRET || "",
+    }),
+    // FR-LO-15: Instagram OAuth — เตรียมโค้ดไว้ ปิด flag (ติด Meta Business Verification เหมือน FB)
+    // ใช้งานจริงได้เมื่อผ่าน App Review + business verification แล้ว
+    // ⚠️ security R2: flag NEXT_PUBLIC_ENABLE_IG_LOGIN คุมแค่การ "render ปุ่ม" เท่านั้น —
+    // provider นี้ active ที่ backend เสมอ. ตราบใดที่ INSTAGRAM_CLIENT_ID ว่าง flow จะ fail ที่ IG เอง.
+    // อย่าตั้ง INSTAGRAM_CLIENT_ID ใน prod จนกว่าจะตั้งใจเปิด IG login (ไม่งั้น endpoint ใช้ได้ทั้งที่ปุ่มซ่อน)
+    InstagramProvider({
+      clientId: process.env.INSTAGRAM_CLIENT_ID || "",
+      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
     }),
     CredentialsProvider({
       id: "phone-otp",
@@ -307,46 +392,18 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.userId = user.id;
       }
-      if (account?.provider === "facebook") {
-        let dbUser = await prisma.user.findFirst({
-          where: {
-            authAccounts: {
-              some: {
-                provider: "FACEBOOK",
-                providerAccountId: account.providerAccountId,
-              },
-            },
-          },
-        });
-        if (!dbUser) {
-          dbUser = await prisma.user.create({
-            data: {
-              displayName: user?.name || "User",
-              username: `fb${account.providerAccountId}`,
-              avatar: user?.image,
-              email: user?.email || undefined,
-              authAccounts: {
-                create: {
-                  provider: "FACEBOOK",
-                  providerAccountId: account.providerAccountId,
-                  accessToken: account.access_token,
-                },
-              },
-            },
-          });
-          // Auto-link any guest history that used this email (PRD FR-8)
-          if (dbUser.email) {
-            const { linkBuyerHistory } = await import("@/services/user.service");
-            await linkBuyerHistory(dbUser.id, undefined, dbUser.email);
-          }
-          // best-effort badge evaluation — อยู่ใน if (!dbUser) branch เท่านั้น
-          // (new-user only) ไม่กระทบ jwt refresh path (security must-fix Phase-3)
-          try { await evaluateSignupYearBadge(dbUser.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (facebook) failed', e) }
-        } else if (user?.image && dbUser.avatar !== user.image) {
-          // refresh รูปโปรไฟล์ FB ทุก login (เผื่อเปลี่ยนรูปใน FB / user เก่าที่ avatar ยัง null หรือรูปเล็ก)
-          await prisma.user.update({ where: { id: dbUser.id }, data: { avatar: user.image } });
-        }
-        token.userId = dbUser.id;
+      // รวม OAuth provider ทุกตัว (FB/LINE/IG) ไว้ใน map เดียว — เพิ่ม provider ใหม่ได้โดยแค่เพิ่ม entry
+      // key = next-auth provider id, value = [AuthAccount.provider enum, username prefix]
+      // key = next-auth provider id, value = [AuthAccount.provider enum, username prefix, linkEmail]
+      // linkEmail=true เฉพาะ FB (email ผ่าน graph + consent); LINE/IG=false (ไม่ trust email claim — security R1)
+      const oauthMap = {
+        facebook: ["FACEBOOK", "fb", true],
+        line: ["LINE", "line", false],
+        instagram: ["INSTAGRAM", "ig", false],
+      } as const;
+      if (account && account.provider in oauthMap) {
+        const [providerEnum, prefix, linkEmail] = oauthMap[account.provider as keyof typeof oauthMap];
+        token.userId = await upsertOAuthUser(account, user, providerEnum, prefix, linkEmail);
       }
       // เก็บ needsOnboarding ลง JWT ให้ proxy บังคับ redirect ได้ที่ edge — คำนวณเฉพาะตอน
       // sign-in (user/account) หรือ session.update() ไม่ใช่ทุก getToken (กัน query DB ทุก request)
