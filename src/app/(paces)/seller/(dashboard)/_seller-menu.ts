@@ -57,8 +57,9 @@ export const sellerMenuItems: MenuItemType[] = [
     label: 'STORE',
     isTitle: true,
     children: [
-      { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่า', icon: 'building-store' },
+      { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้านค้า', icon: 'building-store' },
       { url: '/wallet', slug: 'seller:wallet', label: 'เครดิต SMS', icon: 'wallet' },
+      { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
     ],
   },
 ]

@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
 import bcrypt from "bcryptjs";
+import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
 
 // Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
 // ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
@@ -372,6 +373,104 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
+    /**
+     * signIn callback — Account Linking (FR-LO-16)
+     *
+     * เมื่อ OAuth flow เสร็จ NextAuth เรียก signIn ก่อน jwt เสมอ
+     * อ่าน deep_link_intent cookie (ถ้ามี) → ถ้า valid = LINK MODE:
+     *   - AuthAccount(provider,providerAccountId) ถูกใช้โดย userId อื่น → block (AC-03) redirect error
+     *   - ว่างอยู่ → create AuthAccount ผูกกับ intent.userId (ไม่ใช่ user ที่ provider ส่งมา)
+     *   - jwt callback ถัดไปจะ findFirst เจอ AuthAccount ใหม่ → token.userId = intent.userId → session คงเดิม (AC-01/02)
+     * ถ้าไม่มี intent → return true (login ปกติ — ไม่กระทบ FB/LINE login เดิม)
+     *
+     * ⚠️ cookies() จาก next/headers ทำงานได้ใน signIn callback เพราะ NextAuth OAuth callback
+     *    รันใน App Router API route context (มี request scope) — ยืนยันจาก callback.js source
+     */
+    async signIn({ account }) {
+      // ไม่ใช่ OAuth provider → login ปกติ (Credentials provider ไม่ใช้ link flow)
+      if (!account || !["facebook", "line", "instagram"].includes(account.provider)) return true;
+
+      // oauthMap เหมือน jwt callback — ใช้ตรวจ provider ที่รองรับ linking
+      const oauthMap = {
+        facebook: "FACEBOOK",
+        line: "LINE",
+        instagram: "INSTAGRAM",
+      } as const;
+      type OAuthProvider = keyof typeof oauthMap;
+      if (!(account.provider in oauthMap)) return true;
+
+      // อ่าน link-intent cookie — ถ้าไม่มีหรือ verify ไม่ผ่าน = login ปกติ
+      let intent: { userId: string; provider: string } | null = null;
+      try {
+        const { cookies } = await import("next/headers");
+        const raw = (await cookies()).get(LINK_INTENT_COOKIE)?.value;
+        intent = raw ? verifyLinkIntent(raw) : null;
+      } catch {
+        // cookies() อาจ throw ถ้าเรียกนอก request context (edge case) → fail-open = login ปกติ
+        intent = null;
+      }
+
+      // ไม่มี intent หรือ provider ไม่ตรง = login ปกติ (ไม่ใช่ link mode)
+      if (!intent || intent.provider !== account.provider) return true;
+
+      // === LINK MODE ===
+      const providerEnum = oauthMap[account.provider as OAuthProvider];
+
+      // consume link-intent (single-use) — clear cookie ทันที กัน replay (security R3); read-only context → TTL คุมแทน
+      try {
+        const { cookies } = await import("next/headers");
+        (await cookies()).delete(LINK_INTENT_COOKIE);
+      } catch {
+        /* mutate cookie ไม่ได้ใน context นี้ → พึ่ง TTL 5 นาที + exp ใน payload */
+      }
+
+      // ตรวจว่า AuthAccount(provider,providerAccountId) นี้มีใครถืออยู่แล้วไหม
+      const existing = await prisma.authAccount.findUnique({
+        where: {
+          provider_providerAccountId: {
+            provider: providerEnum,
+            providerAccountId: account.providerAccountId,
+          },
+        },
+        select: { userId: true },
+      });
+
+      if (existing) {
+        if (existing.userId !== intent.userId) {
+          // AC-03: provider ถูกใช้โดย userId อื่นแล้ว → block ห้ามสลับบัญชี
+          return "/settings?link_error=taken";
+        }
+        // AuthAccount มีอยู่แล้วและเป็นของ intent.userId → ผูกแล้ว (idempotent) → ok
+        return "/settings?linked=" + account.provider;
+      }
+
+      // AuthAccount ว่าง → สร้างผูกกับ intent.userId (ไม่ใช่ user ที่ OAuth ส่งมา)
+      try {
+        await prisma.authAccount.create({
+          data: {
+            userId: intent.userId,
+            provider: providerEnum,
+            providerAccountId: account.providerAccountId,
+            accessToken: account.access_token ?? null,
+          },
+        });
+      } catch (err: unknown) {
+        // P2002 = race: อีก request สร้าง AuthAccount เดียวกันระหว่างนี้ (security R1) → ตรวจเจ้าของ
+        if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "P2002") {
+          const raced = await prisma.authAccount.findUnique({
+            where: { provider_providerAccountId: { provider: providerEnum, providerAccountId: account.providerAccountId } },
+            select: { userId: true },
+          });
+          // เป็นของ user อื่น → block; เป็นของ intent.userId เอง → idempotent ผ่าน
+          if (raced && raced.userId !== intent.userId) return "/settings?link_error=taken";
+        } else {
+          throw err;
+        }
+      }
+
+      return "/settings?linked=" + account.provider;
+    },
+
     // Multi-subdomain redirect: NextAuth's default redirect prefixes relative
     // URLs with NEXTAUTH_URL which doesn't fit our setup (deepth.local +
     // seller.deepth.local + admin.deepth.local share the auth config but live
