@@ -102,8 +102,9 @@ export default function ChecklistSidebar({ onOpenModal, refreshKey }: ChecklistS
   // ─── loading state → skeleton ────────────────────────────────────────────
 
   if (loading) {
+    // skeleton กลืนพื้น sidebar มืด (ไม่ใช่ bg-default-100 ขาว)
     return (
-      <div className="animate-pulse bg-default-100 h-48 rounded" aria-busy="true" aria-label="กำลังโหลด checklist" />
+      <div className="animate-pulse bg-white/10 h-44 rounded-md" aria-busy="true" aria-label="กำลังโหลด checklist" />
     )
   }
 
@@ -114,68 +115,67 @@ export default function ChecklistSidebar({ onOpenModal, refreshKey }: ChecklistS
   const pendingCount = data.items.filter((i) => !i.done).length
   const total = data.items.length
 
-  // ─── render ───────────────────────────────────────────────────────────────
+  // ─── render — section ใน sidebar มืด ──────────────────────────────────────
+  // เลิก .card ขาว (light-context ลอยแปลกบน sidebar มืด) → ใช้ token --sidenav-item-*
+  // ที่ inherit จาก <html data-menu-color="dark"> ให้กลืนกับเมนู. หมายเหตุ: .menu-link/.menu-title
+  // ถูก scope ใต้ .side-nav ใช้นอก ul นั้นไม่ได้ จึงอ้าง CSS var ตรง ๆ ผ่าน Tailwind (ไม่ hardcode hex)
 
   return (
-    <div className="card border-primary/30 border">
-      {/* card-header: icon + title + badge นับ pending */}
-      <div className="card-header">
-        <div className="flex items-center gap-2">
-          <Icon icon="clipboard-check" className="size-4.5 text-primary" />
-          <h4 className="card-title text-sm">ตั้งค่าร้านค้าให้ครบ</h4>
-        </div>
-        <span className="badge bg-primary/15 text-primary rounded-full ms-auto">
+    <div className="border-t border-white/10 pt-3">
+      {/* header สไตล์ section-title ของเมนู + badge นับ pending */}
+      <div className="mb-1 flex items-center gap-2 px-2.5">
+        <Icon icon="clipboard-check" className="text-(--sidenav-item-color) size-4 shrink-0" />
+        <span className="text-(--sidenav-item-color) text-xs font-semibold">ตั้งค่าร้านค้าให้ครบ</span>
+        <span className="badge bg-white/10 text-(--sidenav-item-hover-color) ms-auto rounded-full text-xs">
           {pendingCount}/{total}
         </span>
       </div>
 
-      {/* card-body p-0: list divide */}
-      <div className="card-body p-0">
-        <div className="divide-y divide-default-200">
-          {data.items.map((item) => {
-            const step = KEY_TO_STEP[item.key]
+      <div className="flex flex-col gap-0.5">
+        {data.items.map((item) => {
+          const step = KEY_TO_STEP[item.key]
 
-            if (item.done) {
-              // done — ไม่ clickable, muted + strikethrough
-              return (
-                <div
-                  key={item.key}
-                  className="flex items-center gap-3 px-4 py-3 text-default-400"
-                >
-                  <Icon icon="circle-check-filled" className="size-4.5 text-success shrink-0" />
-                  <span className="line-through text-sm">{item.label}</span>
-                </div>
-              )
-            }
-
-            // slug key — done เสมอตาม BR-18 แต่ป้องกัน edge case ถ้า API คืน pending
-            if (item.key === 'slug' || !step) {
-              return (
-                <div
-                  key={item.key}
-                  className="flex items-center gap-3 px-4 py-3 text-default-400"
-                >
-                  <Icon icon="circle" className="size-4.5 text-default-400 shrink-0" />
-                  <span className="text-sm">{item.label}</span>
-                </div>
-              )
-            }
-
-            // pending + มี step → clickable button (tap target ≥44px ด้วย py-3)
+          if (item.done) {
+            // done — ไม่ clickable, muted + strikethrough
             return (
-              <button
+              <div
                 key={item.key}
-                type="button"
-                className="flex w-full items-center gap-3 px-4 py-3 hover:bg-default-100 focus:bg-default-100 transition-colors"
-                onClick={() => onOpenModal(step)}
+                className="text-(--sidenav-item-color) flex items-center gap-3 rounded-md px-2.5 py-2 opacity-60"
               >
-                <Icon icon="circle" className="size-4.5 text-default-400 shrink-0" />
-                <span className="text-sm text-start">{item.label}</span>
-                <Icon icon="chevron-right" className="size-4 text-default-400 ms-auto shrink-0" />
-              </button>
+                <Icon icon="circle-check-filled" className="text-success/70 size-4 shrink-0" />
+                <span className="line-through text-sm">{item.label}</span>
+              </div>
             )
-          })}
-        </div>
+          }
+
+          // slug key — done เสมอตาม BR-18 แต่ป้องกัน edge case ถ้า API คืน pending
+          if (item.key === 'slug' || !step) {
+            return (
+              <div
+                key={item.key}
+                className="text-(--sidenav-item-color) flex items-center gap-3 rounded-md px-2.5 py-2 opacity-50"
+              >
+                <Icon icon="circle" className="size-4 shrink-0" />
+                <span className="text-sm">{item.label}</span>
+              </div>
+            )
+          }
+
+          // pending + มี step → clickable (hover ตาม token sidebar — กลืนกับ menu-link)
+          return (
+            <button
+              key={item.key}
+              type="button"
+              aria-label={`ตั้งค่า ${item.label}`}
+              className="text-(--sidenav-item-color) hover:text-(--sidenav-item-hover-color) hover:bg-(--sidenav-item-hover-bg) focus:bg-(--sidenav-item-hover-bg) flex w-full items-center gap-3 rounded-md px-2.5 py-2 transition-colors"
+              onClick={() => onOpenModal(step)}
+            >
+              <Icon icon="circle" className="size-4 shrink-0" />
+              <span className="text-sm text-start">{item.label}</span>
+              <Icon icon="chevron-right" className="ms-auto size-3.5 shrink-0" />
+            </button>
+          )
+        })}
       </div>
     </div>
   )
