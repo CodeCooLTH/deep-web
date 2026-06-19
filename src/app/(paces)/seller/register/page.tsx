@@ -14,7 +14,8 @@ import AuthCardShell from '../auth/components/AuthCardShell'
 import AuthLogo from '@/components/AuthLogo'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { useSession } from 'next-auth/react'
+import Swal from 'sweetalert2'
+import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
@@ -55,7 +56,8 @@ export default function RegisterPage() {
     if (status === 'loading') return
     if (status === 'unauthenticated') { router.replace('/auth/sign-in'); return }
     if (user.needsPhoneVerify === false) { router.replace('/dashboard'); return }
-    if (!ready) { setUsername(user.username ?? ''); setReady(true) }
+    // sanitize prefill: LINE/IG username (เช่น lineU9d... — มีตัวพิมพ์ใหญ่/ยาว >30) ต้องผ่านกติกา a-z0-9_ 3-30
+    if (!ready) { setUsername((user.username ?? '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30)); setReady(true) }
   }, [status, user, ready, router])
 
   useEffect(() => {
@@ -188,6 +190,20 @@ export default function RegisterPage() {
               </div>
             </div>
             <button type="button" onClick={submitInfo} disabled={infoLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-6 w-full disabled:opacity-50">{infoLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+            {/* ยกเลิก — เปลี่ยนใจไม่สร้างบัญชี → ออกจากระบบ กลับหน้า sign-in (Swal confirm กันกดพลาด) */}
+            <button type="button" onClick={async () => {
+              const r = await Swal.fire({
+                icon: 'warning',
+                title: 'ยกเลิกการสร้างบัญชี?',
+                text: 'คุณจะออกจากระบบและกลับไปหน้าเข้าสู่ระบบ',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่ ยกเลิก',
+                cancelButtonText: 'ไม่ใช่',
+                buttonsStyling: false,
+                customClass: { confirmButton: 'btn bg-danger text-white hover:bg-danger-hover me-2', cancelButton: 'btn bg-light text-dark hover:bg-light-hover' },
+              })
+              if (r.isConfirmed) signOut({ callbackUrl: '/auth/sign-in' })
+            }} className="btn border border-default-300 text-default-700 hover:bg-default-50 mt-2 w-full">ยกเลิก</button>
           </>
         )}
 
