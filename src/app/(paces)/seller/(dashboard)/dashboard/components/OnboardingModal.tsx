@@ -188,45 +188,81 @@ function reducer(state: ModalState, action: ModalAction): ModalState {
   }
 }
 
-// ─── Progress dots ────────────────────────────────────────────────────────────
+// ─── Step Indicator ───────────────────────────────────────────────────────────
 
 /**
- * StepDots — 5 จุดเชื่อมด้วยเส้น (done=bg-success, current=bg-primary, pending=border)
- * Base: badge pill pattern จาก theme/paces/.../ui/badges/page.tsx
+ * StepIndicator — numbered circle stepper (แทน StepDots เดิม)
+ * Base: Steps() จาก theme/paces/Admin/TS/src/app/(admin)/ui/progress/page.tsx (line 227-252)
+ * โครงสร้าง: ul flex + li flex items-center + span size-9 rounded-full + div h-0.5 flex-1
+ * 3 state: done=bg-success text-white + tabler:check, current=bg-primary text-white + เลข,
+ *          upcoming=bg-default-100 text-default-400 + เลข
+ * label ไทย text-2xs ใต้วง hidden sm:block (กัน mobile ล้น)
  */
-function StepDots({ currentIndex }: { currentIndex: number }) {
-  const total = STEPS.length
+function StepIndicator({
+  currentIndex,
+  completedSteps,
+}: {
+  currentIndex: number
+  completedSteps: Set<ModalStep>
+}) {
+  const STEP_LABELS: Record<ModalStep, string> = {
+    sales_channels: 'ช่องทาง',
+    categories: 'หมวดหมู่',
+    address: 'ที่อยู่',
+    first_product: 'สินค้า',
+    summary: 'สรุป',
+  }
+
   return (
-    <div className="flex items-center justify-center gap-0">
-      {Array.from({ length: total }).map((_, i) => {
-        const isDone = i < currentIndex
+    <ul className="flex w-full items-center justify-between">
+      {STEPS.map((step, i) => {
+        // done = completedSteps มี step นี้ หรือ index < currentIndex (กัน case ข้ามไปก่อน)
+        const isDone = completedSteps.has(step) || i < currentIndex
         const isCurrent = i === currentIndex
+        const isLast = i === STEPS.length - 1
+
         return (
-          <div key={i} className="flex items-center">
-            <div
-              className={[
-                'size-2.5 rounded-full transition-colors',
-                isDone
-                  ? 'bg-success'
-                  : isCurrent
-                    ? 'bg-primary'
-                    : 'border border-default-300 bg-card',
-              ].join(' ')}
-            />
-            {/* เส้นเชื่อมระหว่างจุด — ยกเว้นจุดสุดท้าย */}
-            {i < total - 1 && (
+          <li
+            key={step}
+            className={['flex items-center', isLast ? '' : 'w-full'].join(' ')}
+          >
+            {/* วงตัวเลข/เช็ค */}
+            <div className="flex flex-col items-center gap-1">
+              <span
+                className={[
+                  'flex size-9 shrink-0 items-center justify-center rounded-full font-medium transition-colors',
+                  isDone
+                    ? 'bg-success text-white'
+                    : isCurrent
+                      ? 'bg-primary text-white'
+                      : 'bg-default-100 text-default-400',
+                ].join(' ')}
+              >
+                {isDone ? (
+                  <Icon icon="tabler:check" className="size-4" />
+                ) : (
+                  <span>{i + 1}</span>
+                )}
+              </span>
+              {/* label ไทยใต้วง — hidden on mobile กัน overflow */}
+              <span className="hidden sm:block text-2xs text-default-500 whitespace-nowrap">
+                {STEP_LABELS[step]}
+              </span>
+            </div>
+
+            {/* connector เส้นเชื่อม — ยกเว้น step สุดท้าย */}
+            {!isLast && (
               <div
                 className={[
-                  // ความกว้าง 20px ใช้ w-5 (Tailwind token = 1.25rem) ซึ่งเพียงพอแสดงเส้น
-                  'h-px w-5',
-                  i < currentIndex ? 'bg-success' : 'bg-default-200',
+                  'h-0.5 flex-1 mx-1 mb-4',
+                  isDone ? 'bg-success' : 'bg-default-100',
                 ].join(' ')}
               />
             )}
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ul>
   )
 }
 
@@ -540,19 +576,19 @@ export default function OnboardingModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      {/* dialog container — max-w-xl mobile เต็มจอ (w-full mx-3 sm:mx-auto) */}
-      {/* ทำไม w-full mx-3 sm:mx-auto max-w-xl: mobile ≤ sm เต็มความกว้าง (กัน card ชิดขอบ);
-          desktop ≤ xl (672px) — ไม่มี Paces token สำหรับ modal width constraint นี้ */}
-      <div className="w-full mx-3 sm:mx-auto sm:max-w-xl">
+      {/* dialog container — max-w-2xl mobile เต็มจอ (w-full mx-3 sm:mx-auto) */}
+      {/* ทำไม w-full mx-3 sm:mx-auto max-w-2xl: mobile ≤ sm เต็มความกว้าง (กัน card ชิดขอบ);
+          desktop ≤ 2xl (672→768px) — ไม่มี Paces token สำหรับ modal width constraint นี้ */}
+      <div className="w-full mx-3 sm:mx-auto sm:max-w-2xl">
         {/* card — Base: pointer-events-auto flex flex-col rounded-md border bg-white จาก modals/page.tsx */}
         <div className="border-default-300 pointer-events-auto flex flex-col rounded-md border bg-white">
 
           {/* ─── Header ──────────────────────────────────────────────────────── */}
           {/* Base: border-default-300 flex items-center justify-between border-b p-5 */}
-          <div className="border-default-300 flex flex-col gap-3 border-b px-5 pt-5 pb-4">
+          <div className="border-default-300 flex flex-col gap-3 border-b px-6 pt-6 pb-5">
             {/* row: ชื่อ step + ปุ่มปิด */}
             <div className="flex items-center justify-between">
-              <h3 id="onboarding-modal-title" className="text-base font-semibold text-default-800">
+              <h3 id="onboarding-modal-title" className="text-lg font-semibold text-default-800">
                 {STEP_TITLES[state.currentStep]}
               </h3>
               <button
@@ -565,16 +601,16 @@ export default function OnboardingModal({
                 <Icon icon="x" className="size-5" />
               </button>
             </div>
-            {/* progress dots */}
-            <StepDots currentIndex={currentIndex} />
+            {/* step indicator — numbered circles (Base: Steps() progress/page.tsx) */}
+            <StepIndicator currentIndex={currentIndex} completedSteps={state.completedSteps} />
             {/* subtitle */}
             <p className="text-sm text-default-500">{STEP_SUBTITLES[state.currentStep]}</p>
           </div>
 
           {/* ─── Body (overflow-y-auto) ───────────────────────────────────────── */}
           {/* Base: overflow-y-auto p-5 จาก modals/page.tsx; max-h จำกัดเพื่อกัน modal สูงเกินจอบน mobile */}
-          {/* max-h-[60vh] ใช้ vh unit — ไม่มี Paces token สำหรับ viewport-relative modal body height */}
-          <div className="overflow-y-auto max-h-[60vh] p-5">
+          {/* max-h-[65vh] ใช้ vh unit — ไม่มี Paces token สำหรับ viewport-relative modal body height */}
+          <div className="overflow-y-auto max-h-[65vh] px-6 py-5">
 
             {/* ── Step 1: ช่องทางการขาย ── */}
             {state.currentStep === 'sales_channels' && (
@@ -671,36 +707,39 @@ export default function OnboardingModal({
             {/* ── Step 4: สร้างสินค้าแรก ── */}
             {state.currentStep === 'first_product' && (
               <div className="flex flex-col gap-4">
-                {/* ชื่อสินค้า (req) — Base: form-input / form-label จาก InputTextfieldType.tsx */}
-                <div>
-                  <label className="form-label" htmlFor="ob-product-name">
-                    ชื่อสินค้า <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    id="ob-product-name"
-                    type="text"
-                    className="form-input"
-                    placeholder="เช่น เสื้อยืดโอเวอร์ไซส์"
-                    value={state.productName}
-                    onChange={(e) => dispatch({ type: 'SET_PRODUCT_NAME', name: e.target.value })}
-                    disabled={state.isLoading}
-                  />
-                </div>
+                {/* ชื่อสินค้า + SKU — wrap ใน grid 2 column บน sm ขึ้นไป */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* ชื่อสินค้า (req) — Base: form-input / form-label จาก InputTextfieldType.tsx */}
+                  <div>
+                    <label className="form-label" htmlFor="ob-product-name">
+                      ชื่อสินค้า <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      id="ob-product-name"
+                      type="text"
+                      className="form-input"
+                      placeholder="เช่น เสื้อยืดโอเวอร์ไซส์"
+                      value={state.productName}
+                      onChange={(e) => dispatch({ type: 'SET_PRODUCT_NAME', name: e.target.value })}
+                      disabled={state.isLoading}
+                    />
+                  </div>
 
-                {/* SKU (optional) */}
-                <div>
-                  <label className="form-label" htmlFor="ob-product-sku">
-                    SKU <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
-                  </label>
-                  <input
-                    id="ob-product-sku"
-                    type="text"
-                    className="form-input"
-                    placeholder="เช่น SKU-001"
-                    value={state.productSku}
-                    onChange={(e) => dispatch({ type: 'SET_PRODUCT_SKU', sku: e.target.value })}
-                    disabled={state.isLoading}
-                  />
+                  {/* SKU (optional) */}
+                  <div>
+                    <label className="form-label" htmlFor="ob-product-sku">
+                      SKU <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                    </label>
+                    <input
+                      id="ob-product-sku"
+                      type="text"
+                      className="form-input"
+                      placeholder="เช่น SKU-001"
+                      value={state.productSku}
+                      onChange={(e) => dispatch({ type: 'SET_PRODUCT_SKU', sku: e.target.value })}
+                      disabled={state.isLoading}
+                    />
+                  </div>
                 </div>
 
                 {/* ราคา (req) — input-group ฿ prefix (Base: Paces form primitive) */}
@@ -761,41 +800,77 @@ export default function OnboardingModal({
             {/* ── Step 5: Summary ── */}
             {state.currentStep === 'summary' && (
               <div className="flex flex-col gap-4">
-                {/* สรุปข้อมูล session — Base: card + list-group จาก ui/cards + ui/list-group */}
-                <div className="card border border-default-300">
+                {/* สรุปข้อมูล session — Base: card border-s-3 จาก ui/cards/page.tsx (line 73-75) + list-group */}
+                <div className="card border-s-3 border-primary">
                   <div className="card-header">
                     <h5 className="card-title text-sm">สิ่งที่ตั้งค่าในครั้งนี้</h5>
                   </div>
                   <ul className="list-group list-group-flush">
+                    {/* ช่องทางการขาย */}
                     <li className="list-group-item flex items-center justify-between gap-2 text-sm">
-                      <span className="text-default-500 shrink-0">ช่องทางการขาย</span>
-                      <span className="text-default-800 text-right">
+                      <span className="flex items-center gap-1.5 text-default-500 shrink-0">
+                        <Icon icon="tabler:device-mobile" className="size-4" />
+                        ช่องทางการขาย
+                      </span>
+                      <span className="flex items-center gap-1.5 text-default-800 text-right">
                         {state.completedSteps.has('sales_channels') && state.selectedChannels.length > 0
-                          ? state.selectedChannels.join(', ')
+                          ? (
+                            <>
+                              {state.selectedChannels.join(', ')}
+                              <Icon icon="tabler:circle-check" className="size-4 text-success shrink-0" />
+                            </>
+                          )
                           : <span className="text-default-400">ข้ามไป</span>}
                       </span>
                     </li>
+                    {/* หมวดหมู่ */}
                     <li className="list-group-item flex items-center justify-between gap-2 text-sm">
-                      <span className="text-default-500 shrink-0">หมวดหมู่</span>
-                      <span className="text-default-800 text-right">
+                      <span className="flex items-center gap-1.5 text-default-500 shrink-0">
+                        <Icon icon="tabler:tag" className="size-4" />
+                        หมวดหมู่
+                      </span>
+                      <span className="flex items-center gap-1.5 text-default-800 text-right">
                         {state.completedSteps.has('categories') && state.selectedCategories.length > 0
-                          ? state.selectedCategories.join(', ')
+                          ? (
+                            <>
+                              {state.selectedCategories.join(', ')}
+                              <Icon icon="tabler:circle-check" className="size-4 text-success shrink-0" />
+                            </>
+                          )
                           : <span className="text-default-400">ข้ามไป</span>}
                       </span>
                     </li>
+                    {/* ที่อยู่ */}
                     <li className="list-group-item flex items-center justify-between gap-2 text-sm">
-                      <span className="text-default-500 shrink-0">ที่อยู่</span>
-                      <span className="text-default-800 text-right truncate max-w-xs">
+                      <span className="flex items-center gap-1.5 text-default-500 shrink-0">
+                        <Icon icon="tabler:map-pin" className="size-4" />
+                        ที่อยู่
+                      </span>
+                      <span className="flex items-center gap-1.5 text-default-800 text-right truncate max-w-xs">
                         {state.completedSteps.has('address') && state.address
-                          ? state.address
+                          ? (
+                            <>
+                              {state.address}
+                              <Icon icon="tabler:circle-check" className="size-4 text-success shrink-0" />
+                            </>
+                          )
                           : <span className="text-default-400">ข้ามไป</span>}
                       </span>
                     </li>
+                    {/* สินค้าแรก */}
                     <li className="list-group-item flex items-center justify-between gap-2 text-sm">
-                      <span className="text-default-500 shrink-0">สินค้าแรก</span>
-                      <span className="text-default-800">
+                      <span className="flex items-center gap-1.5 text-default-500 shrink-0">
+                        <Icon icon="tabler:package" className="size-4" />
+                        สินค้าแรก
+                      </span>
+                      <span className="flex items-center gap-1.5 text-default-800">
                         {state.completedSteps.has('first_product') && state.productName
-                          ? state.productName
+                          ? (
+                            <>
+                              {state.productName}
+                              <Icon icon="tabler:circle-check" className="size-4 text-success shrink-0" />
+                            </>
+                          )
                           : <span className="text-default-400">ข้ามไป</span>}
                       </span>
                     </li>
@@ -805,31 +880,36 @@ export default function OnboardingModal({
                 {/* Achievement section — degrade gracefully ถ้า badge error (SDS §6) */}
                 {state.badgeLoadDone && (
                   <div className="flex flex-col gap-3">
-                    {/* Earned badges */}
+                    {/* Earned badges — Base: card border-s-3 จาก ui/cards/page.tsx (line 73-75) */}
                     {state.earnedBadges.length > 0 && (
-                      <div className="card border border-success/30 bg-success/5">
+                      <div className="card border-s-3 border-success bg-success/5">
                         <div className="card-header">
                           <h5 className="card-title text-sm text-success">
                             <Icon icon="award" className="size-4 inline me-1" />
                             Achievement ที่ได้รับ
                           </h5>
                         </div>
-                        <div className="card-body flex flex-col gap-2">
-                          {state.earnedBadges.map((b) => (
-                            <div key={b.id} className="flex items-center gap-2">
-                              <span className="badge bg-success/15 text-success rounded-full">
-                                <Icon icon={b.icon} className="size-3.5 me-1" />
+                        <div className="card-body">
+                          {/* badge grid 2 cols */}
+                          <div className="grid grid-cols-2 gap-2">
+                            {state.earnedBadges.map((b) => (
+                              <span
+                                key={b.id}
+                                className="badge bg-success/15 text-success rounded-full py-1.5 text-sm inline-flex items-center gap-1"
+                              >
+                                {/* badge-achievement: py-1.5 text-sm — ไม่มี Paces badge-lg token (Hard Rule 7 exception) */}
+                                <Icon icon={b.icon} className="size-3.5" />
                                 {b.nameTH}
                               </span>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Next achievement */}
+                    {/* Next achievement — Base: card border-s-3 จาก ui/cards/page.tsx (line 73-75) */}
                     {state.nextBadge && (
-                      <div className="card border border-primary/20 bg-primary/5">
+                      <div className="card border-s-3 border-primary bg-primary/5">
                         <div className="card-header">
                           <h5 className="card-title text-sm text-primary">
                             <Icon icon="target" className="size-4 inline me-1" />
@@ -838,9 +918,9 @@ export default function OnboardingModal({
                         </div>
                         <div className="card-body">
                           <div className="flex items-start gap-2">
-                            <Icon icon={state.nextBadge.icon} className="size-5 text-primary shrink-0 mt-0.5" />
+                            <Icon icon={state.nextBadge.icon} className="size-6 text-primary shrink-0 mt-0.5" />
                             <div>
-                              <p className="text-sm font-medium text-default-700">
+                              <p className="text-base font-medium text-default-700">
                                 {state.nextBadge.nameTH}
                               </p>
                               {state.nextBadge.progressLabel && (
@@ -874,7 +954,7 @@ export default function OnboardingModal({
           {/* ─── Footer ──────────────────────────────────────────────────────── */}
           {/* Base: border-default-300 flex items-center justify-end border-t p-4 จาก modals/page.tsx
               ปรับ justify-between สำหรับ layout: ย้อนกลับ ← ช่องว่าง → ข้าม + ถัดไป */}
-          <div className="border-default-300 flex items-center justify-between gap-2 border-t p-4">
+          <div className="border-default-300 flex items-center justify-between gap-2 border-t px-6 py-4">
             {/* ปุ่มย้อนกลับ — แสดงตั้งแต่ step ≥ 2 (index ≥ 1) */}
             {!isFirstStep ? (
               <button
@@ -911,7 +991,10 @@ export default function OnboardingModal({
                   disabled={state.isLoading}
                   className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
                 >
-                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  {state.isLoading
+                    ? <Icon icon="loader-2" className="size-4 animate-spin" />
+                    : <Icon icon="tabler:check" className="size-4" />
+                  }
                   บันทึก
                 </button>
               )}
@@ -923,7 +1006,10 @@ export default function OnboardingModal({
                   disabled={state.isLoading || state.selectedCategories.length === 0}
                   className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
                 >
-                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  {state.isLoading
+                    ? <Icon icon="loader-2" className="size-4 animate-spin" />
+                    : <Icon icon="tabler:check" className="size-4" />
+                  }
                   บันทึก
                 </button>
               )}
@@ -935,7 +1021,10 @@ export default function OnboardingModal({
                   disabled={state.isLoading || !state.address.trim()}
                   className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
                 >
-                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  {state.isLoading
+                    ? <Icon icon="loader-2" className="size-4 animate-spin" />
+                    : <Icon icon="tabler:check" className="size-4" />
+                  }
                   บันทึก
                 </button>
               )}
@@ -947,28 +1036,33 @@ export default function OnboardingModal({
                   disabled={state.isLoading}
                   className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:pointer-events-none disabled:opacity-50"
                 >
-                  {state.isLoading && <Icon icon="loader-2" className="size-4 animate-spin" />}
+                  {state.isLoading
+                    ? <Icon icon="loader-2" className="size-4 animate-spin" />
+                    : <Icon icon="tabler:plus" className="size-4" />
+                  }
                   สร้างสินค้า
                 </button>
               )}
 
               {state.currentStep === 'summary' && (
                 <>
+                  {/* ปุ่มไปสร้างคำสั่งซื้อ — bg-primary/15 แทน bg-light กัน mood ผิดธีม */}
                   <button
                     type="button"
                     onClick={() => {
                       onClose()
                       router.push('/orders/new')
                     }}
-                    className="btn bg-light hover:bg-light-hover border border-default-300 text-sm"
+                    className="btn bg-primary/15 text-primary hover:bg-primary hover:text-white text-sm inline-flex items-center gap-2"
                   >
                     ไปหน้าสร้างคำสั่งซื้อ
                   </button>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="btn bg-primary text-white hover:bg-primary-hover"
+                    className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2"
                   >
+                    <Icon icon="tabler:check" className="size-4" />
                     เสร็จสิ้น
                   </button>
                 </>
