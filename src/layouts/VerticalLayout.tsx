@@ -28,9 +28,11 @@ type VerticalLayoutProps = {
   topbarSlot?: ReactNode
   /** bottom nav (fixed) render ท้าย .wrapper — ครอบ lg:hidden อัตโนมัติ; admin ไม่ส่ง → ไม่กระทบ */
   bottomNavSlot?: ReactNode
+  /** เนื้อหาใต้เมนูใน sidebar (เช่น onboarding checklist ของ seller) — admin ไม่ส่ง → ไม่กระทบ */
+  sidenavFooterSlot?: ReactNode
 }
 
-const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot, bottomNavSlot }: VerticalLayoutProps) => {
+const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot, bottomNavSlot, sidenavFooterSlot }: VerticalLayoutProps) => {
   // รวม class: "wrapper" เสมอ + shellClassName ถ้าส่งมา (admin ไม่ส่ง → ไม่เพิ่ม)
   const wrapperClass = shellClassName ? `wrapper ${shellClassName}` : 'wrapper'
 
@@ -39,7 +41,7 @@ const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot, botto
       <TopBar />
       {/* topbarSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
       {topbarSlot && <div className="lg:hidden">{topbarSlot}</div>}
-      <Sidenav items={menuItems} />
+      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} />
       <div className="page-content">
         <main>
           <div className="container-fluid">{children}</div>

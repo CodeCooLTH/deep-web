@@ -9,6 +9,7 @@ import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import { getOrderStatusCounts } from '@/services/order.service'
+import OnboardingGate from './dashboard/components/OnboardingGate'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -78,6 +79,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
       }
       bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} />}
+      sidenavFooterSlot={<OnboardingGate />}
     >
       {children}
       {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s
