@@ -56,7 +56,10 @@ export default function SignInForm() {
   })
 
   const handleFacebook = async () => {
-    await signIn('facebook', { callbackUrl: '/auth/callback/facebook' })
+    // ชี้ตรง /dashboard (ไม่ผ่านหน้า loading กลาง /auth/callback/facebook) เพื่อลด redirect chain
+    // — NextAuth set session cookie ก่อน 302, proxy อ่าน JWT เด้ง onboarding/register ถูกอยู่แล้ว.
+    //   redirect chain สั้นลงช่วยลด phishing-heuristic false-positive ของ Safe Browsing (2026-06-20)
+    await signIn('facebook', { callbackUrl: '/dashboard' })
   }
 
   const handleLine = async () => {
