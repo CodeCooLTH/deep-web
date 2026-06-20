@@ -36,6 +36,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
 - **SRS (software spec):** `docs/SRS.md` — FR ฉบับเต็ม (สูตร/acceptance/edge), state machine, routing, NFR, **data model (Prisma schema), API reference, enums/constants, authorization matrix, validation rules**. "สเปกให้ dev สร้าง". 🛑 งานที่แตะ data model/API/enum/validation/auth → อ่าน SRS ก่อน
 - **Business Rules:** `docs/10 - Business Rules/` — กฎธุรกิจที่เป็น SSOT. **🛑 เมื่อใดก็ตามที่พูดถึง/ทำงานกับ "Tier" (trust tier, tier name/cover/color/mapping) ต้องอ่าน `docs/10 - Business Rules/Tier Lists.md` ก่อนเสมอ แล้วยึดตามนั้น — ห้ามตั้ง mapping/ชื่อ tier เองที่อื่น**
 - **UI Guideline (must-read before ANY Frontend work):** `docs/system/ui-guideline/README.md` — entry hub (universal theme-copy rule + checklist + workflow + commit rule). Role docs: `customer/`, `seller/`, `admin/` page-sourcing.md
+- **Buyer App API:** `docs/buyer-app-api.md` — REST `/api/app/*` สำหรับแอปมือถือผู้ซื้อ (Deep-App): auth Bearer token, โดเมนประมูล (Auction/Bid/WatchList/Notification), Phase 2 ชนะ→Order, dev setup. 🛑 งานที่แตะ `/api/app/*` อ่านอันนี้ก่อน
 - **Conventions:**
   - `docs/conventions/rsc-mui-navigation.md` — RSC + MUI + next/link pattern
   - `docs/conventions/date-format.md` — 🛑 วันที่/เวลาทั้งระบบใช้ `formatDate`/`formatDateTime` จาก `src/lib/format-date.ts` เท่านั้น (พ.ศ. `2569-06-07 10:06:13`, tz ไทย) — ห้าม `toLocaleDateString`/`Intl.DateTimeFormat` เอง

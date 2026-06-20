@@ -9,18 +9,18 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  displayName String
-  username    String   @unique
-  avatar      String?
-  phone       String?  @unique
-  email       String?  @unique
-  trustScore  Int      @default(0)
-  isShop      Boolean  @default(false)
+  id           String   @id @default(uuid())
+  displayName  String
+  username     String   @unique
+  avatar       String?
+  phone        String?  @unique
+  email        String?  @unique
+  trustScore   Int      @default(0)
+  isShop       Boolean  @default(false)
   isAdmin      Boolean  @default(false)
   passwordHash String?
   createdAt    DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt    DateTime @updatedAt
 
   authAccounts          AuthAccount[]
   shop                  Shop?
@@ -31,6 +31,12 @@ model User {
   reviewsGiven          Review[]             @relation("ReviewerReviews")
   verificationsReviewed VerificationRecord[] @relation("ReviewedBy")
   topUpRequestsReviewed TopUpRequest[]       @relation("TopUpReviewedBy")
+
+  // --- Buyer App (auction domain — additive, mobile-only) ---
+  bids          Bid[]          @relation("UserBids")
+  watchList     WatchList[]    @relation("UserWatches")
+  notifications Notification[] @relation("UserNotifications")
+  pushTokens    PushToken[]    @relation("UserPushTokens")
 }
 
 model AuthAccount {
@@ -48,27 +54,28 @@ model AuthAccount {
 }
 
 model Shop {
-  id           String   @id @default(uuid())
-  userId       String   @unique
-  shopName     String
-  description  String?
-  logo         String?
-  category     String?          // LEGACY single-value — คงไว้ระหว่าง migration (backward-compat); SSOT ใหม่ = categories
-  categories   String[] @default([])  // multi-category ≤5 (feature 00001); GIN index ใน migration SQL
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  shopName      String
+  description   String?
+  logo          String?
+  category      String? // LEGACY single-value — คงไว้ระหว่าง migration (backward-compat); SSOT ใหม่ = categories
+  categories    String[] @default([]) // multi-category ≤5 (feature 00001); GIN index ใน migration SQL
   salesChannels String[] @default([]) // ช่องทางการขาย: facebook/offline/line/tiktok_shop/lazada/shopee; validate app layer
-  slug         String?  @unique   // public shop URL /{slug}; nullable จนกว่าจะตั้งใน onboarding (P3)
-  address      String?
-  latitude     Float?           // พิกัดร้าน (feature 00001 onboarding map pin); ไทย 5-21N validate app layer
-  longitude    Float?           // พิกัดร้าน; ไทย 97-106E validate app layer
-  businessType String   @default("INDIVIDUAL")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  slug          String?  @unique // public shop URL /{slug}; nullable จนกว่าจะตั้งใน onboarding (P3)
+  address       String?
+  latitude      Float? // พิกัดร้าน (feature 00001 onboarding map pin); ไทย 5-21N validate app layer
+  longitude     Float? // พิกัดร้าน; ไทย 97-106E validate app layer
+  businessType  String   @default("INDIVIDUAL")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products        Product[]
-  orders          Order[]
-  wallet          SellerWallet?
-  topUpRequests   TopUpRequest[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products      Product[]
+  orders        Order[]
+  wallet        SellerWallet?
+  topUpRequests TopUpRequest[]
+  auctions      Auction[]
 }
 
 model VerificationRecord {
@@ -114,24 +121,24 @@ model UserBadge {
 }
 
 model Product {
-  id               String   @id @default(uuid())
-  shopId           String
-  name             String
-  sku              String?           // รหัสสินค้า (optional; feature 00001 onboarding product form)
-  description      String?  @db.Text
-  shortDescription String?  @db.VarChar(200)
-  attributes       Json     @default("{}")
-  price            Decimal  @db.Decimal(12, 2)
-  images           Json     @default("[]")
-  type             String   @default("PHYSICAL")
+  id                String   @id @default(uuid())
+  shopId            String
+  name              String
+  sku               String? // รหัสสินค้า (optional; feature 00001 onboarding product form)
+  description       String?  @db.Text
+  shortDescription  String?  @db.VarChar(200)
+  attributes        Json     @default("{}")
+  price             Decimal  @db.Decimal(12, 2)
+  images            Json     @default("[]")
+  type              String   @default("PHYSICAL")
   // capability flags (P1 — spec 2026-05-10)
-  fulfillmentMode  String   @default("SHIPPED")
-  billingMode      String   @default("ONE_TIME")
-  billingPeriod    String?
+  fulfillmentMode   String   @default("SHIPPED")
+  billingMode       String   @default("ONE_TIME")
+  billingPeriod     String?
   billingPeriodDays Int?
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   shop       Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orderItems OrderItem[]
@@ -153,27 +160,30 @@ model Order {
   shopId          String
   buyerUserId     String?
   buyerContact    String?
-  type              String   @default("PHYSICAL")
-  totalAmount       Decimal  @db.Decimal(12, 2)
-  status            String   @default("PENDING")
-  fulfillmentMode   String   @default("SHIPPED")
-  cancelInitiator   String?
-  shippingAddress   Json?
+  type            String   @default("PHYSICAL")
+  totalAmount     Decimal  @db.Decimal(12, 2)
+  status          String   @default("PENDING")
+  fulfillmentMode String   @default("SHIPPED")
+  cancelInitiator String?
+  shippingAddress Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Phase B fields — additive, all nullable (migration order_fields_phase_b)
-  paymentMethod   String?
-  salesChannel    String?
-  internalNote    String?          @db.Text
-  buyerName       String?
-  discount        Decimal?         @db.Decimal(12, 2)
-  vatRate         Decimal?         @db.Decimal(5, 4)
-  vatAmount       Decimal?         @db.Decimal(12, 2)
+  paymentMethod String?
+  salesChannel  String?
+  internalNote  String?  @db.Text
+  buyerName     String?
+  discount      Decimal? @db.Decimal(12, 2)
+  vatRate       Decimal? @db.Decimal(5, 4)
+  vatAmount     Decimal? @db.Decimal(12, 2)
 
   // Phase 2 fields — additive, nullable (migration order_slip_access_url)
-  slipFileId      String?          // fileId ของสลิปโอนเงิน (storage); null = ยังไม่แนบ (Phase 2 OOS-1)
-  accessUrl       String?          // URL ส่งมอบ digital order; null = ยังไม่ส่งมอบ (Phase 2 OOS-2)
+  slipFileId String? // fileId ของสลิปโอนเงิน (storage); null = ยังไม่แนบ (Phase 2 OOS-1)
+  accessUrl  String? // URL ส่งมอบ digital order; null = ยังไม่ส่งมอบ (Phase 2 OOS-2)
+
+  // Buyer App — order ที่เกิดจากการชนะประมูล (additive, nullable, unique = 1 order ต่อ 1 auction)
+  auctionId String? @unique
 
   shop             Shop              @relation(fields: [shopId], references: [id])
   buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
@@ -307,15 +317,106 @@ model SmsCode {
   @@index([expiresAt])
 }
 
+// ============================================================
+// Buyer App — Auction domain (additive; mobile-only)
+// แยกจากระบบเดิมของ SafePay ทั้งหมด ไม่แก้ตารางเดิม. consume ผ่าน /api/app/*.
+// เมื่อชนะประมูล (ปิดราคา) → ผูกเข้าระบบ Order/escrow/trust ของ SafePay
+// ภายหลัง (Phase 2 — ดู memory project-scope). realtime (live) ยังไม่ทำ.
+// ============================================================
+
+model Auction {
+  id           String   @id @default(uuid())
+  shopId       String
+  // productId: ลิงก์ไปสินค้าใน catalog เดิมได้ (optional — auction สร้าง item เองก็ได้)
+  productId    String?
+  title        String
+  imageUrl     String
+  // images: รูปเพิ่มเติม (JSON array of url) — รองรับ gallery/live feed
+  images       Json     @default("[]")
+  startPrice   Decimal  @db.Decimal(12, 2)
+  currentPrice Decimal  @db.Decimal(12, 2)
+  bidIncrement Decimal  @db.Decimal(12, 2)
+  endTime      DateTime
+  // status: "live" | "ended" — ตรงกับ app type Auction.status
+  status       String   @default("live")
+  bidCount     Int      @default(0)
+  category     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shop      Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  bids      Bid[]
+  watchList WatchList[]
+
+  @@index([shopId])
+  @@index([status, endTime])
+}
+
+model Bid {
+  id        String   @id @default(uuid())
+  auctionId String
+  bidderId  String
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder  User    @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
+
+  @@index([auctionId, createdAt])
+  @@index([bidderId])
+}
+
+model WatchList {
+  id        String   @id @default(uuid())
+  userId    String
+  auctionId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation("UserWatches", fields: [userId], references: [id], onDelete: Cascade)
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, auctionId])
+  @@index([userId])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  // Expo push token (ExponentPushToken[...]) — unique กัน register ซ้ำ
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation("UserPushTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  // kind: "outbid" | "won" | "system" — ตรงกับ app type Notification.kind
+  kind      String
+  title     String
+  body      String
+  // refId: id ของ auction/order ที่เกี่ยวข้อง (deep-link ฝั่งแอป)
+  refId     String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
 // OtpCode — OTP signup/login/reset เก็บใน DB (shared ข้าม serverless instance)
 // เดิมเก็บ in-memory (globalThis Map) → บน Vercel serverless send/verify วิ่งคนละ lambda
 // → OTP ไม่เจอ → 401 ทั้งที่ถูก (bug prod 2026-06-16). 1 contact = 1 active OTP (upsert).
 // codeHash = SHA-256 ของ OTP (hash at rest); single-use (ลบเมื่อ verify สำเร็จ/หมดอายุ/ครบ attempts)
 model OtpCode {
-  contact   String   @id            // phone (0xxxxxxxxx) หรือ email
-  codeHash  String                  // SHA-256 hex ของ OTP 6 หลัก
+  contact   String   @id // phone (0xxxxxxxxx) หรือ email
+  codeHash  String // SHA-256 hex ของ OTP 6 หลัก
   expiresAt DateTime
-  attempts  Int      @default(0)    // กัน brute — ครบ 3 = ลบทิ้ง
+  attempts  Int      @default(0) // กัน brute — ครบ 3 = ลบทิ้ง
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
