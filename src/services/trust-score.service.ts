@@ -11,6 +11,26 @@ export function getTrustLevel(score: number): TrustLevel {
   return "D";
 }
 
+// Score → tier แสดงผล ตาม SSOT `docs/10 - Business Rules/Tier Lists.md`
+// (5-tier: Classic/Silver/Gold/Diamond/Star; D,C รวมเป็น Classic). ห้ามตั้ง mapping ใหม่ที่อื่น.
+const TIER_BY_LETTER: Record<TrustLevel, { tier: string; dots: number }> = {
+  "A+": { tier: "Deep Star", dots: 5 },
+  A: { tier: "Deep Diamond", dots: 4 },
+  "B+": { tier: "Deep Gold", dots: 3 },
+  B: { tier: "Deep Silver", dots: 2 },
+  C: { tier: "Deep Classic", dots: 1 },
+  D: { tier: "Deep Classic", dots: 0 },
+};
+
+export function getTierDisplay(score: number): {
+  letter: TrustLevel;
+  tier: string;
+  dots: number;
+} {
+  const letter = getTrustLevel(score);
+  return { letter, ...TIER_BY_LETTER[letter] };
+}
+
 async function calcVerificationScore(userId: string): Promise<number> {
   const approved = await prisma.verificationRecord.findMany({
     where: { userId, status: "APPROVED" },
