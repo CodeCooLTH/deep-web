@@ -157,6 +157,7 @@ model Tag {
 model Order {
   id              String   @id @default(uuid())
   publicToken     String   @unique @default(uuid())
+  shortCode       String?  @unique   // permanent 8-char short alias สำหรับ copy/share link (nullable: backfill รุ่นเก่า)
   shopId          String
   buyerUserId     String?
   buyerContact    String?

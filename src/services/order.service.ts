@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges } from "@/services/badge.service";
 
@@ -21,6 +23,17 @@ function assertTransition(currentStatus: string, newStatus: string) {
 // FR-6.5: order ที่ต้องจัดส่งต้องมีที่อยู่จัดส่ง — throw นี้ให้ route map เป็น 400
 export class ShippingAddressRequiredError extends Error {
   constructor() { super("SHIPPING_ADDRESS_REQUIRED"); this.name = "ShippingAddressRequiredError"; }
+}
+
+// charset เดียวกับ sms-code.service (ตัด 0/O/1/I) — 8 ตัว = 32^8 ≈ 1.1e12 (40-bit)
+const SHORT_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** สร้างรหัสสั้นถาวรสำหรับ copy/share link (default 8 ตัว). ดู spec §4 */
+export function genShortCode(len = 8): string {
+  const bytes = randomBytes(len);
+  let code = "";
+  for (let i = 0; i < len; i++) code += SHORT_CHARSET[bytes[i] % 32];
+  return code;
 }
 
 export async function createOrder(shopId: string, data: {
@@ -89,26 +102,39 @@ export async function createOrder(shopId: string, data: {
     if (!hasEssentials) throw new ShippingAddressRequiredError();
   }
 
-  return prisma.order.create({
-    data: {
-      shopId,
-      type: data.type,
-      totalAmount,
-      fulfillmentMode,
-      items: { create: data.items },
-      // Phase B fields — ส่งเฉพาะที่ caller ให้มา (undefined = omit จาก Prisma create)
-      buyerContact: data.buyerContact ?? undefined,
-      buyerName: data.buyerName ?? undefined,
-      paymentMethod: data.paymentMethod ?? undefined,
-      salesChannel: data.salesChannel ?? undefined,
-      internalNote: data.internalNote ?? undefined,
-      discount: data.discount ?? undefined,
-      vatRate: data.vatRate ?? undefined,
-      vatAmount: data.vatAmount ?? undefined,
-      shippingAddress: data.shippingAddress ?? undefined,
-    },
-    include: { items: true },
-  });
+  // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
+  const orderData = {
+    shopId,
+    type: data.type,
+    totalAmount,
+    fulfillmentMode,
+    items: { create: data.items },
+    buyerContact: data.buyerContact ?? undefined,
+    buyerName: data.buyerName ?? undefined,
+    paymentMethod: data.paymentMethod ?? undefined,
+    salesChannel: data.salesChannel ?? undefined,
+    internalNote: data.internalNote ?? undefined,
+    discount: data.discount ?? undefined,
+    vatRate: data.vatRate ?? undefined,
+    vatAmount: data.vatAmount ?? undefined,
+    shippingAddress: data.shippingAddress ?? undefined,
+  };
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await prisma.order.create({
+        data: { ...orderData, shortCode: genShortCode() },
+        include: { items: true },
+      });
+    } catch (e) {
+      // P2002 = unique violation (ชน shortCode) → regenerate retry; error อื่น throw ทันที
+      const isUnique =
+        e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (isUnique && attempt < 4) continue;
+      throw e;
+    }
+  }
+  throw new Error("SHORT_CODE_COLLISION"); // unreachable ในทางปฏิบัติ
 }
 
 export async function confirmOrder(publicToken: string, buyerContact: string, buyerUserId?: string) {
