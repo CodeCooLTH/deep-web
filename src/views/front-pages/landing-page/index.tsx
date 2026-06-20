@@ -10,12 +10,10 @@ import type { SystemMode } from '@core/types'
 import HeroSection from './HeroSection'
 import UsefulFeature from './UsefulFeature'
 import CustomerReviews from './CustomerReviews'
-import OurTeam from './OurTeam'
+import HowItWorks from './HowItWorks'
 import Pricing from './Pricing'
 import ProductStat from './ProductStat'
 import Faqs from './Faqs'
-import GetStarted from './GetStarted'
-import ContactUs from './ContactUs'
 import { useSettings } from '@core/hooks/useSettings'
 
 const LandingPageWrapper = ({ mode, shopCount }: { mode: SystemMode; shopCount: number }) => {
@@ -36,11 +34,9 @@ const LandingPageWrapper = ({ mode, shopCount }: { mode: SystemMode; shopCount: 
       <ProductStat shopCount={shopCount} />
       <UsefulFeature />
       <CustomerReviews />
-      <OurTeam />
+      <HowItWorks />
       <Pricing />
       <Faqs />
-      <GetStarted mode={mode} />
-      <ContactUs />
     </div>
   )
 }

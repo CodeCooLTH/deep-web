@@ -6,13 +6,18 @@
   inset-block-start: -12%;
   pointer-events: none;
   z-index: 0;
-  border-end-start-radius: 3.5rem;
-  border-end-end-radius: 3.5rem;
+  /* ไล่จางลงเนียนเป็นพื้นหน้า (paper) ที่ขอบล่าง — ไม่มีขอบตัดแข็ง */
   &.bgLight {
-    background: linear-gradient(138.18deg, #eae8fd 0%, #fce5e6 94.44%);
+    background: linear-gradient(
+      180deg,
+      #ece9fd 0%,
+      #f3ebfb 38%,
+      #fbecf1 64%,
+      var(--mui-palette-background-paper) 100%
+    );
   }
   &.bgDark {
-    background: var(--mui-palette-background-default);
+    background: linear-gradient(180deg, var(--mui-palette-background-default) 60%, var(--mui-palette-background-paper) 100%);
   }
 }
 
@@ -25,6 +30,21 @@
   inset-inline-end: 0%;
   img {
     inline-size: 100%;
+  }
+}
+
+.heroFloatCard {
+  animation: floaty 4.5s ease-in-out infinite;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-14px);
   }
 }
 

@@ -10,9 +10,13 @@ import CardContent from '@mui/material/CardContent'
 import Switch from '@mui/material/Switch'
 import Chip from '@mui/material/Chip'
 import InputLabel from '@mui/material/InputLabel'
+import Divider from '@mui/material/Divider'
 
 // Third-party Imports
 import classnames from 'classnames'
+
+// Type Imports
+import type { ThemeColor } from '@core/types'
 
 // Components Imports
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -22,53 +26,88 @@ import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import frontCommonStyles from '@views/front-pages/styles.module.css'
 import styles from './styles.module.css'
 
-const pricingPlans = [
+type PricingPlan = {
+  title: string
+  icon: string
+  color: ThemeColor
+  monthlyPay: number
+  annualPay: number
+  perYearPay: number
+  features: string[]
+  cta: string
+  current: boolean
+}
+
+const pricingPlans: PricingPlan[] = [
   {
-    title: 'เริ่มต้น',
-    img: '/images/front-pages/landing-page/pricing-basic.png',
+    title: 'Free',
+    icon: 'tabler-rocket',
+    color: 'secondary',
     monthlyPay: 0,
     annualPay: 0,
     perYearPay: 0,
     features: [
-      'ยืนยันตัวตนด้วย OTP',
-      'Trust Score พื้นฐาน',
-      'สร้าง Order ได้ 20 รายการ/เดือน',
-      'Badge ผู้เริ่มต้น',
-      'ดูประวัติย้อนหลัง 30 วัน',
-      'Email สนับสนุน'
+      'หน้าธุรกิจ 1 หน้า',
+      'ผู้ใช้งาน 1 คน',
+      'ลิ้งค์โปรไฟล์ / พอร์ต',
+      'Dashboard รายงาน (อัปเดตรายวัน)',
+      'รายงานยอดขาย',
+      'รายงานกำไร–ขาดทุนเบื้องต้น',
+      'อัปเดต Marketplace แบบ Manual'
     ],
+    cta: 'เริ่มฟรี',
     current: false
   },
   {
-    title: 'ธุรกิจ',
-    img: '/images/front-pages/landing-page/pricing-team.png',
-    monthlyPay: 290,
-    annualPay: 219,
-    perYearPay: 2628,
+    title: 'Basic',
+    icon: 'tabler-briefcase',
+    color: 'info',
+    monthlyPay: 199,
+    annualPay: 166,
+    perYearPay: 1990,
     features: [
-      'รวมทุกสิทธิ์ของแพ็กเริ่มต้น',
-      'ยืนยันเอกสารระดับ L2',
-      'Trust Score แบบละเอียด',
-      'Order ไม่จำกัด',
-      'Achievement Badge ครบชุด',
-      'รายงานยอดขายและรีวิว'
+      'รวมทุกสิทธิ์ของแพ็ก Free',
+      'ลิ้งค์สรุปคำสั่งซื้อ',
+      'ระบบจัดการคำสั่งซื้อ 3 ขั้นตอน'
     ],
+    cta: 'เริ่มใช้งาน',
+    current: false
+  },
+  {
+    title: 'Pro',
+    icon: 'tabler-crown',
+    color: 'primary',
+    monthlyPay: 299,
+    annualPay: 249,
+    perYearPay: 2990,
+    features: [
+      'รวมทุกสิทธิ์ของแพ็ก Basic',
+      'หน้าธุรกิจ 3 หน้า',
+      'ผู้ใช้งาน 3 คน',
+      '10 จังหวัดคำสั่งซื้อมากที่สุด',
+      'ระบบจัดการคำสั่งซื้อ (Full Loop)',
+      'ระบบจัดการขนส่ง (Full Loop)'
+    ],
+    cta: 'เริ่มใช้งาน',
     current: true
   },
   {
-    title: 'องค์กร',
-    img: '/images/front-pages/landing-page/pricing-enterprise.png',
-    monthlyPay: 990,
-    annualPay: 790,
-    perYearPay: 9480,
+    title: 'Business',
+    icon: 'tabler-building-skyscraper',
+    color: 'success',
+    monthlyPay: 1259,
+    annualPay: 1045,
+    perYearPay: 12540,
     features: [
-      'รวมทุกสิทธิ์ของแพ็กธุรกิจ',
-      'ยืนยันจดทะเบียนธุรกิจ L3',
-      'หลายร้านต่อบัญชี',
-      'Priority support 24/7',
-      'API integration',
-      'รายงานเชิงลึกแบบกำหนดเอง'
+      'รวมทุกสิทธิ์ของแพ็ก Pro',
+      'หน้าธุรกิจ 5 หน้า',
+      'ผู้ใช้งานไม่จำกัด',
+      'แชทระบบ พูดคุยกับลูกค้า',
+      'รายงานตามช่องทางขาย (Real Time)',
+      'สถิติระบบ',
+      'อัปเดต Marketplace อัตโนมัติ (Auto)'
     ],
+    cta: 'เริ่มใช้งาน',
     current: false
   }
 ]
@@ -127,49 +166,48 @@ const PricingPlan = () => {
           </InputLabel>
           <div className='hidden sm:flex gap-x-1 items-start mis-2 mbe-5'>
             <img src='/images/front-pages/landing-page/pricing-arrow.png' width='50' />
-            <Typography className='font-medium'>ประหยัด 25%</Typography>
+            <Typography className='font-medium'>ประหยัด 17%</Typography>
           </div>
         </div>
         <Grid container spacing={6}>
           {pricingPlans.map((plan, index) => (
-            <Grid key={index} size={{ xs: 12, lg: 4 }} className={plan.current ? 'order-first lg:order-none' : ''}>
-              <Card className={`${plan.current && 'border-2 border-[var(--mui-palette-primary-main)] shadow-xl'}`}>
-                <CardContent className='flex flex-col gap-8 p-8'>
+            <Grid key={index} size={{ xs: 12, md: 6, lg: 3 }}>
+              <Card className='bs-full flex flex-col rounded-2xl border shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-1'>
+                <CardContent className='flex flex-col gap-6 p-8 bs-full'>
                   <div className='is-full flex flex-col items-center gap-3'>
-                    <img src={plan.img} alt={plan.img} height='88' width='86' className='text-center' />
+                    <CustomAvatar variant='rounded' skin='light' color={plan.color} size={64}>
+                      <i className={classnames(plan.icon, 'text-[32px]')} />
+                    </CustomAvatar>
                   </div>
-                  <div className='flex flex-col items-center gap-y-[2px] relative'>
-                    <Typography className='text-center' variant='h4'>
+                  <div className='flex flex-col items-center gap-y-1'>
+                    <Typography className='text-center' variant='h5'>
                       {plan.title}
                     </Typography>
                     <div className='flex items-baseline gap-x-1'>
-                      <Typography variant='h2' color='primary.main' className='font-extrabold'>
-                        ฿{pricingPlan === 'monthly' ? plan.monthlyPay : plan.annualPay}
+                      <Typography variant='h3' color='text.primary' className='font-extrabold'>
+                        ฿{(pricingPlan === 'monthly' ? plan.monthlyPay : plan.annualPay).toLocaleString('th-TH')}
                       </Typography>
                       <Typography color='text.disabled' className='font-medium'>
                         /เดือน
                       </Typography>
                     </div>
-                    {pricingPlan === 'annually' && plan.perYearPay > 0 && (
-                      <Typography color='text.disabled' className='absolute block-start-[100%]'>
-                        ฿{plan.perYearPay.toLocaleString('th-TH')} / ปี
-                      </Typography>
-                    )}
+                    <Typography variant='body2' color='text.disabled' className='bs-[20px]'>
+                      {pricingPlan === 'annually' && plan.perYearPay > 0 ? `฿${plan.perYearPay.toLocaleString('th-TH')} / ปี` : ''}
+                    </Typography>
                   </div>
-                  <div>
-                    <div className='flex flex-col gap-3 mbs-3'>
-                      {plan.features.map((feature, index) => (
-                        <div key={index} className='flex items-center gap-[12px]'>
-                          <CustomAvatar color='primary' skin={plan.current ? 'filled' : 'light'} size={20}>
-                            <i className='tabler-check text-sm' />
-                          </CustomAvatar>
-                          <Typography variant='h6'>{feature}</Typography>
-                        </div>
-                      ))}
-                    </div>
+                  <Divider />
+                  <div className='flex flex-col gap-3'>
+                    {plan.features.map((feature, index) => (
+                      <div key={index} className='flex items-center gap-[12px]'>
+                        <CustomAvatar color={plan.color} skin='light' size={22}>
+                          <i className='tabler-check text-sm' />
+                        </CustomAvatar>
+                        <Typography>{feature}</Typography>
+                      </div>
+                    ))}
                   </div>
-                  <LinkButton href='#contact-us' variant={plan.current ? 'contained' : 'tonal'}>
-                    เริ่มใช้งาน
+                  <LinkButton href='/auth/sign-up' variant='contained' className='mbs-auto'>
+                    {plan.cta}
                   </LinkButton>
                 </CardContent>
               </Card>

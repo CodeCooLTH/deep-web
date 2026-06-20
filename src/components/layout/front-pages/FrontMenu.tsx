@@ -94,9 +94,8 @@ const FrontMenu = (props: Props) => {
         className={classnames('font-medium plb-3 pli-1.5 hover:text-primary', {
           'text-primary':
             !intersections.features &&
-            !intersections.team &&
+            !intersections['how-it-works'] &&
             !intersections.faq &&
-            !intersections['contact-us'] &&
             pathname === '/'
         })}
       >
@@ -125,12 +124,12 @@ const FrontMenu = (props: Props) => {
       <Typography
         color='text.primary'
         component={Link}
-        href='#team'
+        href='#how-it-works'
         className={classnames('font-medium plb-3 pli-1.5 hover:text-primary', {
-          'text-primary': intersections.team
+          'text-primary': intersections['how-it-works']
         })}
       >
-        ทีมงาน
+        วิธีใช้งาน
       </Typography>
       <Typography
         color='text.primary'
@@ -141,16 +140,6 @@ const FrontMenu = (props: Props) => {
         })}
       >
         คำถาม
-      </Typography>
-      <Typography
-        color='text.primary'
-        component={Link}
-        href='#contact-us'
-        className={classnames('font-medium plb-3 pli-1.5 hover:text-primary', {
-          'text-primary': intersections['contact-us']
-        })}
-      >
-        ติดต่อเรา
       </Typography>
       <Typography
         component={Link}
