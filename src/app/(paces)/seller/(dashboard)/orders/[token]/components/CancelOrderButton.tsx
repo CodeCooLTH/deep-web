@@ -1,0 +1,66 @@
+/**
+ * CancelOrderButton — ปุ่มยกเลิกออเดอร์ (แยกจาก OrderActions; OrderSummary เป็น RSC)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/OrderSummary.tsx
+ * (logic extract จาก OrderActions ซึ่งตัวมันเอง Base จาก theme file นี้)
+ *
+ * copy handleCancel logic จาก OrderActions:
+ *   confirm → POST /api/orders/{token}/cancel → toast.success → router.refresh; error → toast.error
+ * render เฉพาะ status=PENDING หรือ SHIPPED
+ */
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
+
+export interface CancelOrderButtonProps {
+  publicToken: string
+  status: string
+  /** className เพิ่มเติม — optional, ไม่กระทบ caller เดิม (default undefined) */
+  className?: string
+}
+
+export default function CancelOrderButton({ publicToken, status, className }: CancelOrderButtonProps) {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+
+  // แสดงเฉพาะ PENDING หรือ SHIPPED — terminal state ไม่ต้องยกเลิก
+  if (status !== 'PENDING' && status !== 'SHIPPED') return null
+
+  const handleCancel = async () => {
+    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', 'ออเดอร์จะถูกปิดทันที · ย้อนกลับไม่ได้', {
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'ไม่ใช่ตอนนี้',
+    })
+    if (!ok) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/cancel`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'ไม่สามารถยกเลิกออเดอร์ได้')
+      }
+      pacesToast.success('ยกเลิกแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ไม่สามารถยกเลิกออเดอร์ได้'
+      pacesToast.error(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCancel}
+      disabled={loading}
+      className={`btn border border-danger text-danger hover:bg-danger/15 text-sm font-medium disabled:opacity-60 w-full${className ? ` ${className}` : ''}`}
+    >
+      {loading ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
+    </button>
+  )
+}

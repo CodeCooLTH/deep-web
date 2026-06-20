@@ -79,9 +79,29 @@ export async function proxy(request: NextRequest) {
       const target = isAuthed ? '/dashboard' : '/auth/sign-in'
       return NextResponse.redirect(new URL(target, request.url))
     }
-    // Dashboard (and nested) requires login
-    if (pathname.startsWith('/dashboard') && !isAuthed) {
+    // Dashboard + register + onboarding require login
+    if ((pathname.startsWith('/dashboard') || pathname.startsWith('/register') || pathname.startsWith('/onboarding')) && !isAuthed) {
       return NextResponse.redirect(new URL('/auth/sign-in', request.url))
+    }
+    // บังคับ 2 เฟส (flag ใน JWT): needsRegistration (ไม่มีเบอร์) → /register (ลงทะเบียน เหมือน sign-up);
+    // needsOnboarding (ไม่มี slug) → /onboarding (setup ครั้งแรก). ยกเว้น /auth,/api. ปิด/หนีไม่ได้จนเสร็จ
+    const t = token as { needsRegistration?: boolean; needsOnboarding?: boolean } | null
+    const isExempt = pathname.startsWith('/auth') || pathname.startsWith('/api')
+    if (isAuthed && !isExempt) {
+      if (t?.needsRegistration) {
+        // เฟส 1: ยังไม่มีเบอร์ → ต้องลงทะเบียนที่ /register ก่อน
+        if (!pathname.startsWith('/register')) return NextResponse.redirect(new URL('/register', request.url))
+      } else {
+        // ลงทะเบียนแล้ว แต่ยังค้างที่ /register → ออกไปเฟสถัดไป (/dashboard ก่อน → proxy เด้ง /onboarding ถ้ายังไม่ setup)
+        if (pathname.startsWith('/register'))
+          return NextResponse.redirect(new URL('/dashboard', request.url))
+        // เฟส 2: ไม่มี slug → ต้อง setup ที่ /onboarding
+        if (t?.needsOnboarding && !pathname.startsWith('/onboarding'))
+          return NextResponse.redirect(new URL('/onboarding', request.url))
+        // setup เสร็จแล้ว แต่ยังค้างที่ /onboarding → ออก
+        if (!t?.needsOnboarding && pathname.startsWith('/onboarding'))
+          return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
     }
     // Backward-compat: URL เก่าที่ผู้ใช้ bookmark/พิมพ์ตรงแบบ /seller/orders
     // หลัง SP-1 strip /seller prefix ออกจาก nav แล้ว — redirect ถาวรเพื่อเลิกใช้รูปแบบเก่า

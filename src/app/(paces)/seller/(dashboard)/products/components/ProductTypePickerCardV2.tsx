@@ -70,7 +70,7 @@ export default function ProductTypePickerCardV2({
                   htmlFor={elemId}
                   aria-label={meta.ariaLabel}
                   title={meta.ariaLabel}
-                  className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-9 rounded-full px-3 text-xs peer-checked:text-white"
+                  className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 rounded-full px-3 text-xs peer-checked:text-white"
                 >
                   <span className="mr-1">{meta.emoji}</span>
                   {meta.label}

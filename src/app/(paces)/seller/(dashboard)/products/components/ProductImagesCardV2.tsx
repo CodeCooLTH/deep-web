@@ -17,7 +17,7 @@ import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 interface ProductImagesCardV2Props {
   value: string[]
@@ -60,7 +60,7 @@ export default function ProductImagesCardV2({
       const data = (await res.json()) as { fileId: string }
       return data.fileId
     } catch {
-      toast.error('ใส่รูปไม่สำเร็จ ลองใหม่อีกครั้งได้เลยค่ะ')
+      pacesToast.error('ใส่รูปไม่สำเร็จ ลองใหม่อีกครั้งได้เลยค่ะ')
       return null
     } finally {
       setUploading((prev) => {
@@ -77,7 +77,7 @@ export default function ProductImagesCardV2({
       const slots = Math.max(0, maxFiles - valueRef.current.length - uploading.length)
       const accepted = incoming.slice(0, slots)
       if (accepted.length < incoming.length) {
-        toast.error(`ใส่ได้มากที่สุด ${maxFiles} รูปค่ะ`)
+        pacesToast.error(`ใส่ได้มากที่สุด ${maxFiles} รูปค่ะ`)
       }
       if (accepted.length === 0) return
 

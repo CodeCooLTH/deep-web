@@ -9,6 +9,16 @@
  *
  * export หลายตัวจากไฟล์เดียว — loading.tsx import ตามต้องการ
  * ใช้ pulse bars จาก Paces placeholder primitive: `bg-default-300 animate-pulse rounded`
+ *
+ * ─── กฎการเลือก skeleton (skeleton ต้อง mirror หน้าจริงเสมอ) ───
+ *   1. หน้า list ที่เป็น "ตาราง" บน desktop → SellerTableSkeleton
+ *      (เช่น /products /customers /categories — ตารางล้วน)
+ *   2. หน้า list ที่ responsive (ตาราง desktop / การ์ด mobile เช่น /orders) → ใช้ทั้งคู่
+ *      ตาม breakpoint หน้าจริง: `hidden lg:block` SellerTableSkeleton
+ *      + `lg:hidden` SellerOrderCardSkeleton
+ *   3. หน้า stat / form / grid → SellerCardSkeleton / SellerChartSkeleton ตาม layout
+ *   ห้ามเลือก skeleton คนละชนิดกับ layout หน้าจริงบน breakpoint เดียวกัน (เช่น orders desktop
+ *   เป็นตาราง แต่โชว์ skeleton การ์ด = ผิด — บทเรียน 2026-06-16)
  */
 
 /** PulseBar — bar เดี่ยวสำหรับ compose skeleton */

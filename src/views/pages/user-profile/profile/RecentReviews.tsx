@@ -4,6 +4,9 @@ import CardContent from '@mui/material/CardContent'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
 
+// Project Imports
+import { formatDateTime } from '@/lib/format-date'
+
 type ReviewItem = {
   id: string
   rating: number
@@ -14,11 +17,6 @@ type ReviewItem = {
 
 // Base: composed from Vuexy ActivityTimeline card pattern (list of entries inside a Card)
 // No direct "public reviews" widget in the theme; we reuse the Card + stacked divider pattern.
-const relativeDateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-})
 
 const RecentReviews = ({
   reviews,
@@ -66,7 +64,7 @@ const RecentReviews = ({
                       ))}
                     </div>
                     <Typography color='text.disabled' className='text-xs'>
-                      {relativeDateFmt.format(new Date(r.createdAt))}
+                      {formatDateTime(r.createdAt)}
                     </Typography>
                   </div>
                   {r.itemName && (

@@ -3,7 +3,8 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
 
 interface DeleteButtonProps {
   productId: string
@@ -14,20 +15,23 @@ export default function DeleteButton({ productId }: DeleteButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!window.confirm('ลบสินค้านี้?')) return
+    const ok = await pacesConfirm.danger('ลบสินค้านี้?', 'สินค้าจะถูกลบถาวร · ย้อนกลับไม่ได้', {
+      confirmButtonText: 'ลบสินค้า',
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     try {
       const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'ลบสินค้าไม่สำเร็จ')
+        pacesToast.error(data?.error ?? 'ลบสินค้าไม่สำเร็จ')
         return
       }
-      toast.success('ลบสินค้าแล้ว')
+      pacesToast.success('ลบสินค้าแล้ว')
       router.refresh()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       setIsDeleting(false)
     }

@@ -102,6 +102,12 @@ const Footer = ({ mode }: { mode: Mode }) => {
                 <Typography component={Link} href='#contact-us' color='white' className='opacity-[0.78]'>
                   ติดต่อเรา
                 </Typography>
+                <Typography component={Link} href='/privacy' color='white' className='opacity-[0.78]'>
+                  นโยบายความเป็นส่วนตัว
+                </Typography>
+                <Typography component={Link} href='/terms' color='white' className='opacity-[0.78]'>
+                  ข้อกำหนดการใช้บริการ
+                </Typography>
               </div>
             </Grid>
             <Grid size={{ xs: 12, sm: 3, lg: 2 }}>
@@ -166,9 +172,18 @@ const Footer = ({ mode }: { mode: Mode }) => {
             frontCommonStyles.layoutSpacing
           )}
         >
-          <Typography className='text-white' variant='body2'>
-            <span>{`© ${new Date().getFullYear()} Deep — ซื้อขายออนไลน์อย่างมั่นใจ`}</span>
-          </Typography>
+          <div className='flex flex-wrap items-center gap-3'>
+            <Typography className='text-white' variant='body2'>
+              <span>{`© ${new Date().getFullYear()} Deep — ซื้อขายออนไลน์อย่างมั่นใจ`}</span>
+            </Typography>
+            {/* ลิงก์กฎหมาย standard legal footer position ที่ Meta/Facebook ต้องการ */}
+            <Typography component={Link} href='/privacy' variant='body2' color='white' className='opacity-[0.78]'>
+              นโยบายความเป็นส่วนตัว
+            </Typography>
+            <Typography component={Link} href='/terms' variant='body2' color='white' className='opacity-[0.78]'>
+              ข้อกำหนดการใช้บริการ
+            </Typography>
+          </div>
           <div className='flex gap-1.5 items-center'>
             <IconButton component={Link} size='small' href='#' target='_blank'>
               <i className='tabler-brand-facebook-filled text-white text-lg' />

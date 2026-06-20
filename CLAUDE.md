@@ -17,8 +17,12 @@
 | 5 | Font Anuphan เท่านั้น — ทุก surface ทุก subdomain ทุก skin (ยกเว้น monospace code block + icon font). ห้าม hardcode font อื่น (Inter/Public Sans/Poppins/Nunito/...) | `ui-theme-sourcing` | `docs/conventions/anuphan-font.md` |
 | 6 | Reference ที่ user ส่ง: แยก 2 ชั้น — **asset/content ใช้ตาม ref (ห้าม redesign/ทิ้งเอง)**, **layout/integration ต้องตาม theme ปัจจุบัน** (ห้ามแปะ layout ดิบจน "ดูเป็นตัวอย่าง"). ไม่ชัดส่วนไหนเป็นไหน → ถาม user ก่อน build. **ref เป็นแอปอื่น (Shopee ฯลฯ): เอา IA/layout ตาม ref แต่ skin/สี/component = theme ปัจจุบัน** (Paces น้ำเงิน ไม่ใช่ส้ม Shopee) | `ui-theme-sourcing` (reviewer gate) | `docs/conventions/reference-vs-theme-source.md` |
 | 7 | **หน้า `(paces)/**` (seller/admin) ต้องประกอบจาก Paces primitive — ห้าม arbitrary Tailwind value.** ใช้ `.card`/`.card-header`/`btn`/`badge`/`text-default-*`/`bg-primary bg-{semantic}/15`/`size-*`/`rounded-lg`/`after:border-dashed`. ห้าม `text-[NNpx]`/`bg-[rgba()]`/`shadow-[]`/`rounded-[Npx]`/hardcode hex — เว้นจำเป็นจริง (raised-FAB/safe-area ที่ Paces ไม่มี token) **เขียน comment กำกับ**. "Base: comment แต่แต่งเองด้วย arbitrary" = ละเมิด (v6/v7 บทเรียน). ม่วง #7367F0 = buyer/Vuexy เท่านั้น | `ui-theme-sourcing` (reviewer grep gate) | `docs/retro/2026-06-10-seller-cc-v8-paces-resource-retrospective.md` |
+| 8 | **ทุกงาน frontend/UI ต้องผ่าน `safepay-ux` ก่อนเสมอ (mandatory gate)** — สร้าง/แก้ page/component/layout/style ใด ๆ ต้อง invoke `safepay-ux` ออก Design Spec **ก่อน** ลงมือ. ux อิง design docs **ตาม role**: seller/admin (`(paces)/**`) → **Paces docs `theme/paces/Docs/index.html`** + `docs/system/ui-guideline/paces-component-reference.md`; buyer/landing/public (`(marketing)/**`) → **Vuexy docs `theme/vuexy/documentation.html`** + `theme/vuexy/`. ห้ามเขียน frontend ตรง ๆ ข้าม ux (บทเรียน 2026-06-15: หลงทางแก้ไป-มา เพราะข้าม ux + ไม่อิง docs → ปุ่ม/dropdown/table/spacing เพี้ยน) | `ui-theme-sourcing` | seller/admin: `theme/paces/Docs/index.html` + `docs/system/ui-guideline/paces-component-reference.md`; buyer: `theme/vuexy/documentation.html` |
+| 9 | **Toast/alert ใน `(paces)/**` (seller/admin) ใช้ `pacesToast` เท่านั้น — ห้าม `react-toastify`/`toast()`/`alert()`/swal/Preline toast ดิบ.** ทุก notification เรียกผ่าน `import { pacesToast } from '@/lib/paces-toast'`; render โดย `PacesToastContainer` (mount จุดเดียวใน `AppProvidersWrapper`) ด้วย markup Paces. **placement แยกตามแหล่งที่มา:** action/ปุ่ม → `pacesToast.success/error/warning/info` (**top-right**); chat → `pacesToast.chat.*` (**bottom-right**). `react-toastify` ยังใช้ได้เฉพาะ buyer `(marketing)/**` (Vuexy). **Reviewer grep gate:** `rg "react-toastify" "src/app/(paces)/"` ต้องคืน 0 ก่อน merge | `ui-theme-sourcing` (reviewer grep gate) | `docs/conventions/paces-toast.md` |
+| 10 | **Chart/graph ใน `(paces)/**` (seller/admin) ต้อง copy structure มาจาก `theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/` เท่านั้น** แล้วปรับ content/data — ห้าม build chart options from scratch, ห้าม source จาก Vuexy theme dir, ห้าม import `react-apexcharts`/`echarts`/`chart.js`/`recharts` โดยตรง (ต้องผ่าน `@/components/wrappers/ApexChart`). สี: `getColor('chart-*')` token เท่านั้น — ห้าม hardcode hex. Commit ต้องมี `Base:` ชี้ theme charts file (Hard Rule 3). **Reviewer grep gate:** `rg "from 'react-apexcharts'\|from 'echarts'\|from 'chart\.js'\|from 'recharts'" "src/app/(paces)/"` ต้องคืน 0 ก่อน merge | `ui-theme-sourcing` (reviewer grep gate) | `docs/conventions/paces-charts-source.md` |
+| 11 | 🛑 **Documentation-First — feature ใหม่ "ต้องทำเอกสารก่อนเขียนโค้ด" เสมอ.** ทุก feature มีโฟลเดอร์ `docs/20 - Features/<NNNNN> - <FeatureName>/` ประกอบจาก template ใน `docs/99 - Rules/Feature-Templates/` (PRD→BRD→SRS→SDS→DATABASE→API→Tests). **ห้าม implement ก่อนมี PRD+BRD (อย่างน้อย) ผ่าน user review.** Ownership → subagent: PRD/BRD=`safepay-product`, SRS/SDS/API=`safepay-planner`, DATABASE=`safepay-database`, Tests=`safepay-qa` (Controller Write+commit). diagram ทุกชนิด = **Mermaid เท่านั้น** (ห้าม ASCII/รูปภาพ) | — (Controller enforce) | `docs/99 - Rules/Feature-Docs-Ownership.md` |
 
-Subagents: `safepay-product` `safepay-planner` `safepay-ux` `safepay-database` `safepay-developer` `safepay-reviewer` `safepay-security` `safepay-qa` `safepay-docs` (ทุกตัว Sonnet; Controller = main session). `safepay-ux` = ออกแบบ UX/UI (read-only Design Spec) invoke ก่อน developer สำหรับ UI task ไม่ trivial. Feature เต็มรูป (7-phase) ดู skill `agent-team-feature`.
+Subagents: `safepay-product` `safepay-planner` `safepay-ux` `safepay-database` `safepay-developer` `safepay-reviewer` `safepay-security` `safepay-qa` `safepay-docs` (ทุกตัว Sonnet; Controller = main session). **`safepay-ux` = mandatory gate ของงาน frontend ทุกชิ้น (Hard Rule 8)** — ออกแบบ UX/UI (read-only Design Spec) อิง Paces docs `theme/paces/Docs/index.html` + `docs/system/ui-guideline/paces-component-reference.md` invoke **ก่อน developer/ก่อนแก้โค้ด frontend เสมอ** (ไม่ใช่แค่ task ไม่ trivial — ทุก task). Feature เต็มรูป (7-phase) ดู skill `agent-team-feature`.
 
 ---
 
@@ -35,6 +39,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
 - **Buyer App API:** `docs/buyer-app-api.md` — REST `/api/app/*` สำหรับแอปมือถือผู้ซื้อ (Deep-App): auth Bearer token, โดเมนประมูล (Auction/Bid/WatchList/Notification), Phase 2 ชนะ→Order, dev setup. 🛑 งานที่แตะ `/api/app/*` อ่านอันนี้ก่อน
 - **Conventions:**
   - `docs/conventions/rsc-mui-navigation.md` — RSC + MUI + next/link pattern
+  - `docs/conventions/date-format.md` — 🛑 วันที่/เวลาทั้งระบบใช้ `formatDate`/`formatDateTime` จาก `src/lib/format-date.ts` เท่านั้น (พ.ศ. `2569-06-07 10:06:13`, tz ไทย) — ห้าม `toLocaleDateString`/`Intl.DateTimeFormat` เอง
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
@@ -53,11 +58,11 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - Buyer + landing + public (`(marketing)/**`) → **Vuexy** (MUI v9 + Emotion + Tailwind 4)
   - Seller + admin (`(paces)/**`) → **Paces** (Preline 4 + Tailwind 4, no MUI)
 - **Database:** PostgreSQL 16 (Supabase), Prisma ORM
-- **Auth:** NextAuth.js v4 (Facebook OAuth + Phone OTP via CredentialsProvider)
+- **Auth:** NextAuth.js v4 (`FacebookProvider` + `phone-otp` CredentialsProvider + `seller-credentials` CredentialsProvider bcrypt)
 - **Validation:** Valibot (backend/API), Yup (frontend react-hook-form)
 - **Form:** React Hook Form + `@hookform/resolvers`
 - **Icons:** `@iconify/react` (on-demand) — use tabler icon names (e.g. `tabler-phone-check`)
-- **Charts:** ApexCharts, ECharts, Chart.js (wrappers in `src/components/wrappers/`)
+- **Charts:** ApexCharts, ECharts, Chart.js (wrappers in `src/components/wrappers/`) — **chart ใน `(paces)/**` ต้อง copy structure จาก `theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/` และผ่าน `ApexChart` wrapper เสมอ (Hard Rule 10)**
 - **Alerts:** react-toastify (mounted once in `(marketing)/ToastMount.tsx`)
 - **Testing:** Vitest
 - **Container:** Docker + Docker Compose (local Postgres); prod on Supabase
@@ -80,6 +85,8 @@ src/
 │   ├── (paces)/               # Paces route group (seller + admin)
 │   │   ├── layout.tsx         # Preline + Tailwind + AppProvidersWrapper
 │   │   ├── seller/            # seller dashboard, products, orders, verification, etc.
+│   │   │   ├── auth/          # sign-in, sign-up, verify-otp, reset-pass, new-pass (Paces auth/split)
+│   │   │   └── onboarding/    # mandatory onboarding page (5-step; force-redirect ถ้า needsOnboarding)
 │   │   └── admin/             # admin auth + (partial) dashboard
 │   └── api/                   # Backend — unified across subdomains
 ├── @core/, @layouts/, @menu/  # Vuexy theme engine (copied from theme/vuexy)
@@ -87,7 +94,8 @@ src/
 │   config/, context/, hooks/,
 │   layouts/, utils/
 ├── lib/                       # auth, prisma, otp, storage, subdomain, validations,
-│                              #   sms, sms-unlock-cookie, sms-consume-rl
+│                              #   sms, sms-unlock-cookie, sms-consume-rl,
+│                              #   shop-slug, shop-categories, password (seller auth 2026-06-16)
 ├── services/                  # user, shop, verification, trust-score, badge,
 │                              #   product, order, review, history-linking,
 │                              #   wallet, sms-code, topup
@@ -107,6 +115,7 @@ theme/
 4. **Simple OMS** — Seller creates order → public `/o/{token}` → buyer phone-unlock → ยืนยัน → review → trust recalc. Types: PHYSICAL / DIGITAL / SERVICE / SUBSCRIPTION
 5. **Buyer History Linking** — Buyer confirms as guest (contact) → signs up later → `linkBuyerHistory` auto-links by phone/email match. Wired in `lib/auth.ts` on phone-OTP + Facebook signup.
 6. **SMS Order Link + Seller Wallet** (paid ฿1/SMS) — Seller L2+ กดส่ง link เข้า SMS buyer; link ฝัง 12-char short-code → `/api/o/sms/{code}` consume → HMAC-signed httpOnly cookie → buyer ข้าม phone-unlock อัตโนมัติ. Credit ledger: `SellerWallet` (1:1 Shop, balance ฿ integer, DB CHECK≥0), `WalletTransaction` (TOPUP/DEDUCT), `TopUpRequest` (slip → admin approve/reject, RC-7 self-block). Services: `wallet.service` (conditional-updateMany atomic deduct), `sms-code.service` (hash-at-rest single-use), `topup.service`, `lib/sms.ts` (generic sendSms apitel), `lib/sms-unlock-cookie.ts` (HMAC NEXTAUTH_SECRET), `lib/sms-consume-rl.ts` (RC-1 per-IP 10/15min globalThis).
+7. **Seller Auth + Onboarding** (2026-06-16/17) — Seller login ด้วย username+password (provider `seller-credentials`, bcrypt, `lib/password.ts`) + Phone OTP signup + reset-via-OTP + Facebook OAuth (live prod). เบอร์โทร **immutable** (ตั้งครั้งเดียวผ่าน `/api/account/set-phone`, สร้าง L1 auto). `Shop.slug` (@unique, `src/lib/shop-slug.ts`) **บังคับ** — ไม่มี slug หรือ phone → `needsOnboarding=true` ใน JWT → `proxy.ts` force-redirect → `/onboarding` (mandatory 5-step page). Libs: `shop-categories.ts` (10 key), `shop-slug.ts` (normalize/validate/reserved), `password.ts` (bcryptjs).
 
 ## Conventions
 
@@ -139,6 +148,16 @@ theme/
   - **Carried debt:** Chrome-DevTools MCP visual QA (CSRF/RL, admin 8-card, order detail) — MCP หลุดทั้ง session, verify ด้วย authenticated-curl + DB-query แทน. รอ MCP กลับมาเก็บรวด.
 - **2026-06-07: 🚀 FIRST PROD DEPLOY** — phase-a (210 commits) merged → `origin/main` (FF) + deployed prod `deepthailand.app` (smoke-test ผ่าน: 200 ทุก subdomain, CSRF guard live 403). + pre-prod gaps ปิดเพิ่ม: shippingAddress required-when-SHIPPED (FR-6.5), admin self-review bypass fix (FR-2.6 — orphan route ลบ + service guard), menu/breadcrumb i18n, FR-9.6 tier doc-sync, brand email.
   - **Prod infra (สำคัญ — ดู memory `project_prod_deploy_setup`):** Vercel project `trust-me` reconnect จาก `trustme` → **`deep-web/main`** (prod ผูก repo นี้แล้ว). prod DB = **dev Supabase ตัวเดียวกัน** (แชร์ — ควรแยกภายหลัง). **git auto-deploy ใช้ได้** (push origin main → deploy; verified commit `867c702`); deploy สำรอง `vercel deploy --prod --yes` (CLI). หมายเหตุ Hobby = 1 concurrent build — ถ้า deploy ค้าง "Initializing" นาน → `vercel remove <url> --yes` ปลด slot. prod env: apitel added (phone-OTP/SMS ใช้ได้); **FB creds ยังขาด** (FB login ปิด — OTP ใช้แทน).
+- **2026-06-16: Seller Auth Redesign — P1+P2+P3 SIGNED-OFF** (branch `feat/seller-order-detail-optionD`, ยังไม่ merge main). seller ได้ **username+password login** (provider `seller-credentials`, bcrypt) + phone OTP ยืนยันตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook; 5 หน้า auth จาก Paces `auth/split` (mobile เต็มจอ); **onboarding modal** (welcome→category chips→slug บังคับ→สินค้าแรก ข้ามได้) เด้งเมื่อ `session.needsOnboarding`. schema: `Shop.slug @unique` (migration applied Supabase). E2E ผ่าน real route + simulated SMS (test phone `0000000009`/`123456` dev-only). **⚠️ หลัง migrate ต้อง restart dev server** (stale Prisma client → session 500). docs: spec/plan/baseline/retro `docs/{superpowers/specs,scope,retro}/2026-06-16-seller-auth-*`; QA checklist `docs/qa/seller-auth-qa-checklist.md`; memory `project_seller_auth_resume`. carry: visual mobile QA (MCP), FB prod creds, Redis hardening.
+- **2026-06-17: Facebook Login live บน prod + Mandatory Onboarding page + Mobile fixes**
+  - **Facebook OAuth live (consumer + seller):** `FACEBOOK_ID`/`FACEBOOK_SECRET` ใส่ใน Vercel prod + `.env.local`; `FacebookProvider` (lib/auth.ts) ดึง avatar `graph.facebook.com/{id}/picture?type=large` (~200px); `next.config.ts` ขาว `graph.facebook.com`; `jwt` callback อัปเดต avatar ทุก login; username เริ่มต้น = `fb{facebookId}` (เดิม `user_${ts}`); backfill FB user เดิม. **เทส FB ได้บน prod เท่านั้น** (FB App ต้องการ https; App ยัง Dev mode)
+  - **`/auth/callback/facebook`:** หน้า loading Paces spinner รอ session → redirect /dashboard (~1.5s); ปุ่ม FB ทุกหน้าชี้ `callbackUrl=/auth/callback/facebook`
+  - **Mandatory /onboarding page** (แทน OnboardingModal บน dashboard): `src/app/(paces)/seller/onboarding/page.tsx` (AuthCardShell); 5 step: phone (FB-first) → ข้อมูลร้าน (displayName/category/username) → OTP → slug → สินค้าแรก; `proxy.ts` force-redirect seller authed+`needsOnboarding` → `/onboarding` ทุก route (ยกเว้น /auth,/api); `OnboardingModal.tsx` = dead code (ลบทีหลัง)
+  - **API ใหม่:** `POST /api/account/set-phone` (phone immutable — ตั้งครั้งเดียว; 409 ถ้ามีแล้ว; สร้าง L1 PHONE_OTP auto), `POST /api/account/shop-info` (displayName/username/category), `GET /api/shops/check-slug`, `POST /api/shops/slug`
+  - **Business rules ใหม่:** เบอร์โทร **immutable** (ตั้งครั้งเดียว เปลี่ยนไม่ได้ — มีผลต่อ Trust Score); onboarding **บังคับ** (ไม่มี slug หรือ phone → เด้ง /onboarding ทุก login)
+  - **Mobile-responsive + theme fixes:** tap target ≥44px ทุกหน้า, Choices select match form-input, auth card width = theme, dashboard cosmetic
+  - **Bug fix:** OTP signup prod "รหัสไม่ถูกต้อง" = orphan AuthAccount(PHONE) จาก block test account ไม่ครบ (P2002) — แก้ด้วย data (block AuthAccount จริง)
+  - **Carry:** `OnboardingModal.tsx` dead code (ลบทีหลัง), username 30-day cooldown (edit หลัง onboarding — feature อนาคต), FB App Review `email` (เปิด public), FB App secret regenerate
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

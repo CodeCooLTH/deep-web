@@ -14,7 +14,7 @@
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import CustomerSelectBlock from './CustomerSelectBlock'
@@ -198,7 +198,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
       if (!a?.province?.trim()) { setError('shippingAddress.province', { message: 'กรุณากรอกจังหวัด' }); missing = true }
       if (!a?.postcode?.trim()) { setError('shippingAddress.postcode', { message: 'กรุณากรอกรหัสไปรษณีย์' }); missing = true }
       if (missing) {
-        toast.error('ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)')
+        pacesToast.error('ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)')
         return
       }
     }
@@ -251,20 +251,20 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(data?.error ?? 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
         return
       }
 
       const order = await res.json()
       const token = order?.publicToken ?? order?.order?.publicToken
-      toast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
+      pacesToast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
       if (token) {
         router.push(`/orders/${token}`)
       } else {
         router.push('/orders')
       }
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     }
   }
 

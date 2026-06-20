@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Deep — FB Onboarding Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { primary: '#236dc9', 'primary-hover': '#1d5ba8',
+    default: { 100:'#f4f6f9',200:'#e9edf2',300:'#dce1e7',400:'#9aa4b2',500:'#6b7785',600:'#4b5563',700:'#374151',800:'#1f2937',900:'#111827' },
+    success:'#22a06b', danger:'#e5484d', warning:'#f5a524', info:'#3b82f6' },
+  fontFamily: { sans: ['Anuphan','system-ui','sans-serif'] },
+}}}
+</script>
+<style>body{font-family:'Anuphan',system-ui,sans-serif;background:#eef1f5}
+.field{display:block;width:100%;height:42px;border:1px solid #dce1e7;border-radius:8px;padding:0 .75rem 0 2.4rem;font-size:14px;background:#fff;outline:none}
+.field:focus{border-color:#236dc9}
+.lbl{display:block;font-weight:600;color:#374151;margin-bottom:6px;font-size:14px}
+.ic{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:#9aa4b2}
+.req{color:#e5484d}
+.dot{width:8px;height:8px;border-radius:9999px;background:#dce1e7}
+.dot.on{background:#236dc9}.dot.done{background:#236dc9aa}
+.btn-primary{height:44px;width:100%;background:#236dc9;color:#fff;border-radius:8px;font-weight:600;border:none;cursor:pointer}
+.btn-ghost{height:44px;width:100%;background:#fff;color:#4b5563;border:1px solid #dce1e7;border-radius:8px;font-weight:500;cursor:pointer}
+.card{background:#fff;border-radius:18px;box-shadow:0 10px 40px rgba(20,30,50,.10);overflow:hidden}
+.imgpanel{background:linear-gradient(to top,#1f2937,rgba(31,41,55,.8),rgba(31,41,55,.5)),url('https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=900&q=60');background-size:cover;background-position:center;border-radius:0 18px 18px 0}
+</style>
+</head>
+<body class="p-6 md:p-10">
+
+<div class="max-w-5xl mx-auto mb-8">
+  <h1 class="text-2xl font-bold text-default-900">Deep — Facebook Onboarding <span class="text-default-400 font-normal text-base">(mockup เพื่อนำเสนอ — ไม่ใช่ของจริง)</span></h1>
+  <p class="text-default-500 mt-1">หน้า <code>/onboarding</code> บังคับ · ใช้ AuthCardShell (รูปขวา/form ซ้าย) ให้ต่อเนื่องกับ sign-up · 5 step</p>
+</div>
+
+<!-- ============ STEP 1: ข้อมูลร้าน ============ -->
+<section class="max-w-5xl mx-auto mb-10">
+  <div class="text-sm font-semibold text-primary mb-2">STEP 1 — ข้อมูลร้าน (prefill จาก Facebook)</div>
+  <div class="card grid md:grid-cols-2">
+    <div class="p-8 md:p-12">
+      <!-- dots -->
+      <div class="flex justify-center gap-1.5 mb-6"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <!-- avatar + provider -->
+      <div class="flex flex-col items-center mb-6">
+        <img src="https://i.pravatar.cc/120?img=12" class="w-16 h-16 rounded-full ring-2 ring-primary/20 object-cover" />
+        <div class="mt-2 inline-flex items-center gap-1.5 text-xs text-default-500 bg-default-100 rounded-full px-3 py-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.6-5.4-12-12-12S0 5.4 0 12c0 6 4.4 11 10.1 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2v2.9h-1.5c-1.5 0-2 .9-2 1.9V12h3.3l-.5 3.5h-2.8v8.4C19.6 23 24 18 24 12"/></svg>
+          เข้าสู่ระบบด้วย Facebook
+        </div>
+      </div>
+      <h3 class="text-center text-lg font-bold text-default-800">ตั้งค่าร้านของคุณ</h3>
+      <p class="text-center text-sm text-default-500 mb-5">กรอกข้อมูลร้านเพื่อเริ่มใช้งาน Deep</p>
+
+      <div class="space-y-4">
+        <div><label class="lbl">ชื่อที่แสดง <span class="req">*</span></label>
+          <div class="relative"><span class="ic">👤</span><input class="field" value="เสกสรร อ่อนน้อม" /></div></div>
+        <div><label class="lbl">หมวดหมู่ร้านค้า <span class="req">*</span></label>
+          <div class="relative"><span class="ic">🏷️</span><select class="field appearance-none"><option>-- เลือกหมวดหมู่ --</option><option selected>เกษตร-OTOP</option></select></div></div>
+        <div><label class="lbl">ชื่อผู้ใช้ (username) <span class="req">*</span></label>
+          <div class="relative"><span class="ic">@</span><input class="field" value="fb790388" /></div>
+          <p class="text-xs text-success mt-1">✓ ใช้ชื่อนี้ได้</p></div>
+        <div><label class="lbl">เบอร์โทรศัพท์ <span class="req">*</span></label>
+          <div class="relative"><span class="ic">📞</span><input class="field" placeholder="08xxxxxxxx" /></div></div>
+      </div>
+      <button class="btn-primary mt-6">ถัดไป →</button>
+    </div>
+    <div class="imgpanel hidden md:block"></div>
+  </div>
+</section>
+
+<!-- ============ STEP 2: WARNING เบอร์ ============ -->
+<section class="max-w-5xl mx-auto mb-10">
+  <div class="text-sm font-semibold text-primary mb-2">STEP 2 — ⚠️ ยืนยันเบอร์ (ตั้งครั้งเดียว เปลี่ยนไม่ได้)</div>
+  <div class="card grid md:grid-cols-2">
+    <div class="p-8 md:p-12">
+      <div class="flex justify-center gap-1.5 mb-6"><span class="dot done"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="flex flex-col items-center mb-4">
+        <div class="w-16 h-16 rounded-full bg-warning/15 flex items-center justify-center text-3xl">⚠️</div>
+      </div>
+      <h3 class="text-center text-lg font-bold text-default-800">ยืนยันเบอร์โทรศัพท์</h3>
+      <div class="mt-4 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-default-700">
+        <p class="font-semibold text-warning mb-1">โปรดตรวจสอบให้ดี</p>
+        เบอร์นี้ใช้ <b>ตั้งได้ครั้งเดียว</b> และ <b>เปลี่ยนแปลงไม่ได้</b> เนื่องจากมีผลต่อ
+        <b>ความน่าเชื่อถือ (Trust Score)</b> ของร้านคุณ
+      </div>
+      <div class="mt-4 text-center">
+        <div class="text-sm text-default-500">เบอร์ที่จะยืนยัน</div>
+        <div class="text-2xl font-bold tracking-wide text-default-900">092-079-1649</div>
+      </div>
+      <div class="mt-6 space-y-2">
+        <button class="btn-primary">ยืนยัน — ส่งรหัส OTP</button>
+        <button class="btn-ghost">← แก้ไขเบอร์</button>
+      </div>
+    </div>
+    <div class="imgpanel hidden md:block"></div>
+  </div>
+</section>
+
+<!-- ============ STEP 3: OTP ============ -->
+<section class="max-w-5xl mx-auto mb-10">
+  <div class="text-sm font-semibold text-primary mb-2">STEP 3 — OTP (เหมือน sign-up)</div>
+  <div class="card grid md:grid-cols-2">
+    <div class="p-8 md:p-12">
+      <div class="flex justify-center gap-1.5 mb-6"><span class="dot done"></span><span class="dot done"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+      <h3 class="text-center text-lg font-bold text-default-800">ส่งรหัสแล้ว!</h3>
+      <p class="text-center text-sm text-default-500">เราส่งรหัส 6 หลักไปที่ <b>******1649</b></p>
+      <div class="flex justify-center gap-2 mt-5">
+        <input class="w-11 h-11 text-center text-lg font-mono border rounded-lg" value="1"/>
+        <input class="w-11 h-11 text-center text-lg font-mono border rounded-lg" value="2"/>
+        <input class="w-11 h-11 text-center text-lg font-mono border rounded-lg" value="3"/>
+        <input class="w-11 h-11 text-center text-lg font-mono border rounded-lg" value=""/>
+        <input class="w-11 h-11 text-center text-lg font-mono border rounded-lg" value=""/>
+        <input class="w-11 h-11 text-center text-lg font-mono border rounded-lg" value=""/>
+      </div>
+      <button class="btn-primary mt-6">ยืนยัน OTP</button>
+      <p class="text-center text-xs text-default-400 mt-3">ขอ OTP ใหม่ได้ใน 46 วินาที</p>
+    </div>
+    <div class="imgpanel hidden md:block"></div>
+  </div>
+</section>
+
+<!-- ============ STEP 4: SLUG ============ -->
+<section class="max-w-5xl mx-auto mb-10">
+  <div class="text-sm font-semibold text-primary mb-2">STEP 4 — ตั้ง URL ร้าน (บังคับ)</div>
+  <div class="card grid md:grid-cols-2">
+    <div class="p-8 md:p-12">
+      <div class="flex justify-center gap-1.5 mb-6"><span class="dot done"></span><span class="dot done"></span><span class="dot done"></span><span class="dot on"></span><span class="dot"></span></div>
+      <h3 class="text-center text-lg font-bold text-default-800">ตั้ง URL ร้านของคุณ</h3>
+      <p class="text-center text-sm text-default-500 mb-5">ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้</p>
+      <label class="lbl">URL ร้านค้า <span class="req">*</span></label>
+      <div class="relative"><span class="ic">🔗</span><input class="field" value="seksun-shop" /></div>
+      <p class="text-xs text-success mt-1">✓ URL นี้ว่างอยู่</p>
+      <p class="text-sm text-primary mt-3">deepthailand.app/<b class="font-mono">seksun-shop</b></p>
+      <button class="btn-primary mt-6">ถัดไป →</button>
+    </div>
+    <div class="imgpanel hidden md:block"></div>
+  </div>
+</section>
+
+<!-- ============ STEP 5: product (optional) ============ -->
+<section class="max-w-5xl mx-auto mb-10">
+  <div class="text-sm font-semibold text-primary mb-2">STEP 5 — สินค้าแรก (ข้ามได้) → เสร็จเข้า /dashboard</div>
+  <div class="card grid md:grid-cols-2">
+    <div class="p-8 md:p-12">
+      <div class="flex justify-center gap-1.5 mb-6"><span class="dot done"></span><span class="dot done"></span><span class="dot done"></span><span class="dot done"></span><span class="dot on"></span></div>
+      <h3 class="text-center text-lg font-bold text-default-800">สร้างสินค้าแรกของคุณ</h3>
+      <p class="text-center text-sm text-default-500 mb-5">เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน</p>
+      <div class="space-y-4">
+        <div><label class="lbl">ชื่อสินค้า</label><div class="relative"><span class="ic">📦</span><input class="field" placeholder="เช่น ข้าวหอมมะลิ"/></div></div>
+        <div><label class="lbl">ราคา</label><div class="relative"><span class="ic">฿</span><input class="field" placeholder="0.00"/></div></div>
+      </div>
+      <div class="mt-6 space-y-2">
+        <button class="btn-primary">สร้างสินค้าเลย</button>
+        <button class="btn-ghost">ข้ามไปก่อน เพิ่มทีหลังได้</button>
+      </div>
+    </div>
+    <div class="imgpanel hidden md:block"></div>
+  </div>
+</section>
+
+<div class="max-w-5xl mx-auto text-sm text-default-500 border-t border-default-300 pt-4">
+  <b>บังคับ (force):</b> ถ้าทำไม่ครบ (ยังไม่มี slug หรือเบอร์) → ทุก login/refresh + ทุก seller page จะถูก redirect กลับ <code>/onboarding</code> เสมอ (proxy.ts) · ปิด/ข้ามไม่ได้ จนกว่าจะเสร็จ
+</div>
+
+</body>
+</html>

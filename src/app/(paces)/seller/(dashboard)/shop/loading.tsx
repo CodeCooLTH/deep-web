@@ -4,6 +4,7 @@
  *
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton.tsx
  */
+import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { SellerCardSkeleton } from '../_shared/SellerCardSkeleton'
 
 /**
@@ -43,12 +44,18 @@ const ShopFormSkeleton = () => {
 }
 
 const ShopLoading = () => (
-  <div className="space-y-base">
-    <span className="sr-only">กำลังโหลด...</span>
-    <ShopFormSkeleton />
-    {/* secondary stat card */}
-    <SellerCardSkeleton />
-  </div>
+  <>
+    <PageBreadcrumb
+      title="ตั้งค่าร้าน"
+      trail={[{ label: 'ร้านค้า', href: '/shop' }]}
+    />
+    <div className="space-y-base">
+      <span className="sr-only">กำลังโหลด...</span>
+      <ShopFormSkeleton />
+      {/* secondary stat card */}
+      <SellerCardSkeleton />
+    </div>
+  </>
 )
 
 export default ShopLoading

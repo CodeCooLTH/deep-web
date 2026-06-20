@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { contact, type, otp } = parsed.output;
-  const valid = verifyOtp(contact, otp);
+  const valid = await verifyOtp(contact, otp);
 
   if (!valid) {
     return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 401 });

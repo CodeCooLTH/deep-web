@@ -37,12 +37,19 @@ const SellerMobileHeader = (_props: Props) => {
 
   // v8: /dashboard มี SellerHeader (น้ำเงิน) ของตัวเองใน CommandCenter (page content)
   // → layout topbar คืน null กัน header ซ้อน 2 อัน (IdentityBar เก่า superseded)
-  if (pathname === '/dashboard') {
+  // /orders: หน้าเป็นเจ้าของ header เอง (search + filter + bell ใน OrdersList) → คืน null เช่นกัน
+  if (pathname === '/dashboard' || pathname === '/orders') {
     return null
   }
 
-  // sub-page mode — ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
+  // ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
   const pageTitle = getSellerPageTitle(pathname)
+
+  // แท็บหลักใน bottom nav (orders/products/shop) = top-level destination → ไม่มีปุ่ม back/noti
+  // back ไม่มีความหมายบนหน้าหลัก (สลับแท็บผ่าน bottom nav); noti เข้าได้จาก bell หน้า dashboard
+  // หน้า drill-down (order detail, product edit ฯลฯ) ยังเป็น sub-page mode มี back ปกติ
+  const PRIMARY_TABS = ['/orders', '/products', '/shop']
+  const isPrimaryTab = PRIMARY_TABS.includes(pathname)
 
   /**
    * deep-link safe back:
@@ -58,46 +65,53 @@ const SellerMobileHeader = (_props: Props) => {
   }
 
   return (
-    /* sticky top + gradient fade ด้านล่าง (80%→transparent) — v6: bg mist #F8F7FA
-       ลบ card wrapper เดิม (bg-white rounded-[20px] shadow) → flat บนพื้น mist เหมือน IdentityBar */
+    /* sticky top + gradient fade ด้านล่าง (body-bg 80%→transparent) — flat บนพื้น body ไม่มี card ครอบ
+       v8 fix: เดิม hardcode #F8F7FA (สี mist ของ Vuexy) → ใช้ var(--color-body-bg) (#f6f7fb ของ Paces) */
     <header
       className="sticky top-0 z-20"
-      style={{ background: 'linear-gradient(180deg,#F8F7FA 80%,rgba(248,247,250,0))' }}
+      style={{ background: 'linear-gradient(180deg, var(--color-body-bg) 80%, transparent)' }}
       role="banner"
     >
       {/* flat flex row — ไม่มี card ครอบ ตาม v6 */}
       <div className="flex items-center gap-3 px-4 pt-3.5 pb-2.5">
-        {/* Back button ซ้าย — w-11 h-11 = 44px touch target */}
-        <button
-          type="button"
-          className="w-11 h-11 rounded-[11px] inline-flex items-center justify-center shrink-0"
-          style={{ color: 'rgba(47,43,61,.70)' }}
-          aria-label="ย้อนกลับ"
-          onClick={handleBack}
-        >
-          {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic */}
-          <Icon icon="arrow-left" className="text-[22px]" />
-        </button>
+        {/* Back button — เฉพาะ sub-page (drill-down); แท็บหลักไม่มี. w-11 h-11 = 44px touch */}
+        {!isPrimaryTab && (
+          <button
+            type="button"
+            className="w-11 h-11 rounded-lg inline-flex items-center justify-center shrink-0 text-default-700"
+            aria-label="ย้อนกลับ"
+            onClick={handleBack}
+          >
+            {/* arrow-left ชัดกว่า chevron สำหรับ "กลับ" semantic; text-xl (20px token) */}
+            <Icon icon="arrow-left" className="text-xl" />
+          </button>
+        )}
 
-        {/* Page title กลาง — flex-1 truncate ป้องกันล้น; text-center ให้สม่ำเสมอ */}
-        <p className="flex-1 min-w-0 text-center text-[15px] font-semibold text-[#2F2B3D] truncate">
+        {/* Page title — แท็บหลัก: ชิดซ้ายตัวใหญ่ (app-style); sub-page: กึ่งกลาง (สมดุลกับ back+bell) */}
+        <p
+          className={`flex-1 min-w-0 truncate font-semibold text-default-900 ${
+            isPrimaryTab ? 'text-left text-lg' : 'text-center text-md'
+          }`}
+        >
           {pageTitle}
         </p>
 
-        {/* Bell ขวา — w-11 h-11=44px touch target; dot แดง ring mist สอดคล้องกับ IdentityBar */}
-        <button
-          type="button"
-          className="w-11 h-11 rounded-[11px] relative inline-flex items-center justify-center shrink-0"
-          style={{ color: 'rgba(47,43,61,.70)' }}
-          aria-label="การแจ้งเตือน"
-        >
-          <Icon icon="bell" className="text-[22px]" />
-          {/* dot แดง #FF4C51 มุมขวาบน — ring mist กัน dot ชนกับ icon */}
-          <span
-            className="absolute w-[7px] h-[7px] rounded-full"
-            style={{ top: '9px', right: '10px', background: '#FF4C51', boxShadow: '0 0 0 2px #F8F7FA' }}
-          />
-        </button>
+        {/* Bell — เฉพาะ sub-page; แท็บหลักไม่มี (noti เข้าได้จาก bell หน้า dashboard) */}
+        {!isPrimaryTab && (
+          <button
+            type="button"
+            className="w-11 h-11 rounded-lg relative inline-flex items-center justify-center shrink-0 text-default-700"
+            aria-label="การแจ้งเตือน"
+          >
+            <Icon icon="bell" className="text-xl" />
+            {/* dot bg-danger (token) + ring body-bg กัน dot ชน icon
+                arbitrary size/offset: ตำแหน่ง+ขนาด dot 7px ไม่มี token แทน */}
+            <span
+              className="absolute w-[7px] h-[7px] rounded-full bg-danger ring-2 ring-[var(--color-body-bg)]"
+              style={{ top: '9px', right: '10px' }}
+            />
+          </button>
+        )}
       </div>
     </header>
   )

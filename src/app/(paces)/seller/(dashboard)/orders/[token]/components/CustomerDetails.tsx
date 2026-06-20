@@ -1,37 +1,29 @@
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/CustomerDetails.tsx
  *
- * ปรับจาก Paces CustomerDetails:
- * - ลบข้อมูล mock (fake customer avatar, flag image, email/phone hardcode) ออก
- * - แทนด้วย buyerContact จริงจาก order — **mask ที่ server boundary (page.tsx) ก่อนส่ง** (S-C1)
- *   component รับ buyerContactMasked ที่ mask แล้ว ไม่เห็น raw phone (กัน RSC flight leak —
- *   seller page อยู่ใต้ client VerticalLayout → server props serialize เข้า flight payload)
- * - ลบ: avatar image, country flag, dropdown actions (Share/Edit/Block/Delete)
- *   เหล่านี้ไม่มีข้อมูลใน schema SafePay
- * - คง: card layout, icon-list pattern สำหรับ contact info
- * - empty-state ที่สื่อความหมาย ถ้าผู้ซื้อยังไม่ยืนยัน
- * - Phase B: เพิ่ม buyerName (ชื่อที่ร้านบันทึกตอนสร้าง) + paymentMethod + salesChannel
- *   ใน icon-list เดิม (render เฉพาะเมื่อมีค่า)
+ * ปรับจาก Paces CustomerDetails (theme fidelity — 2026-06-16):
+ * - เพิ่ม avatar: แสดง <Image> เมื่อมี avatar URL; fallback initial-letter circle (bg-primary/15);
+ *   fallback สุดท้าย tabler:user icon circle เมื่อไม่มีทั้งชื่อและ avatar
+ * - buyerContact mask ที่ server boundary (S-C1) — component รับ buyerContactMasked เท่านั้น
+ * - ลบ: pencil/edit btn (ไม่มี feature), ธงชาติ, "Since 20XX", kebab Share/Edit/Block/Delete,
+ *   email row, location row — ไม่มีข้อมูลเหล่านี้ใน schema SafePay
+ * - คง: card layout, icon-list pattern (btn btn-icon bg-light size-6! rounded-full),
+ *   empty-state ที่ชัดเจนเมื่อ buyerContactMasked null
+ * - 2026-06-16: inline ShippingAddressData (เดิมอยู่ใน ShippingAddress.tsx ที่ลบแล้ว) + shipping block
+ *   render ที่อยู่จัดส่งหลัง buyer section ไม่ว่าผู้ซื้อจะยืนยันแล้วหรือไม่ (shippingAddr อิสระ)
  */
 
 import Icon from '@/components/wrappers/Icon'
+import Image from 'next/image'
 
-// label map — mirror ของ PAYMENT_OPTIONS/CHANNEL_OPTIONS ใน orders/new/components/PaymentChannelBlock.tsx
-// (display-only; เก็บ sync กับ create form — ถ้าเพิ่ม option ที่นั่นต้องเพิ่มที่นี่)
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH: 'เงินสด',
-  TRANSFER: 'โอนเงิน',
-  PROMPTPAY: 'พร้อมเพย์',
-  CARD: 'บัตรเครดิต/เดบิต',
-  COD: 'เก็บปลายทาง',
-  OTHER: 'อื่นๆ',
-}
-const CHANNEL_LABELS: Record<string, string> = {
-  STOREFRONT: 'หน้าร้าน',
-  FACEBOOK: 'Facebook',
-  LINE: 'Line',
-  TIKTOK: 'TikTok / TikTok Shop',
-  OTHER: 'อื่นๆ',
+/** type ที่อยู่จัดส่ง — inline ที่นี่หลัง ShippingAddress.tsx ถูกลบ; page.tsx import จากที่นี่ */
+export type ShippingAddressData = {
+  line1?: string | null
+  subdistrict?: string | null
+  district?: string | null
+  province?: string | null
+  postcode?: string | null
+  note?: string | null
 }
 
 export type CustomerDetailsData = {
@@ -39,12 +31,12 @@ export type CustomerDetailsData = {
   buyerContactMasked: string | null
   buyerDisplayName: string | null
   buyerUsername: string | null
-  /** Phase B: ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (buyer อาจยังไม่ลงทะเบียน) */
+  /** ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (buyer อาจยังไม่ลงทะเบียน) */
   buyerName: string | null
-  /** Phase B: วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS */
-  paymentMethod: string | null
-  /** Phase B: ช่องทางการขาย (code) — map ผ่าน CHANNEL_LABELS */
-  salesChannel: string | null
+  /** avatar URL (Facebook CDN / null) — ไม่ใช่ PII เพราะเป็น URL สาธารณะ */
+  avatar: string | null
+  /** ที่อยู่จัดส่ง — render อิสระจาก buyer-confirmed state (seller อาจใส่ก่อน buyer ยืนยัน) */
+  shippingAddr: ShippingAddressData | null
 }
 
 interface CustomerDetailsProps {
@@ -52,16 +44,34 @@ interface CustomerDetailsProps {
 }
 
 const CustomerDetails = ({ data }: CustomerDetailsProps) => {
-  const { buyerContactMasked, buyerDisplayName, buyerUsername, buyerName, paymentMethod, salesChannel } = data
+  const {
+    buyerContactMasked,
+    buyerDisplayName,
+    buyerUsername,
+    buyerName,
+    avatar,
+    shippingAddr,
+  } = data
   // ลำดับชื่อ: registered displayName/username > ชื่อที่ร้านบันทึก (buyerName)
   const registeredName = buyerDisplayName || buyerUsername || null
   const displayName = registeredName || buyerName || null
-  const paymentLabel = paymentMethod ? PAYMENT_LABELS[paymentMethod] ?? paymentMethod : null
-  const channelLabel = salesChannel ? CHANNEL_LABELS[salesChannel] ?? salesChannel : null
+
+  // ประกอบบรรทัดที่อยู่ — ข้าม key ที่ว่าง
+  // บรรทัด 2: ตำบล/แขวง + อำเภอ/เขต; บรรทัด 3: จังหวัด + รหัสไปรษณีย์
+  const addrLine2 = shippingAddr
+    ? [shippingAddr.subdistrict, shippingAddr.district].filter(Boolean).join(' ')
+    : ''
+  const addrLine3 = shippingAddr
+    ? [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' ')
+    : ''
+  const addrLines = shippingAddr
+    ? [shippingAddr.line1, addrLine2, addrLine3].filter((l) => l && String(l).trim())
+    : []
 
   return (
     <div className="card">
       <div className="card-header">
+        {/* ลบ pencil/edit btn ออก — ไม่มี feature แก้ไขข้อมูลผู้ซื้อใน SafePay */}
         <h4 className="card-title">ข้อมูลผู้ซื้อ</h4>
       </div>
       <div className="card-body">
@@ -76,19 +86,46 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
           </div>
         ) : (
           <>
-            {displayName && (
-              <div className="mb-5 flex items-center">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/15 me-2.5">
-                  <Icon icon="user" className="text-lg text-primary" />
-                </div>
+            {/* avatar block — เหมือน theme: relative me-2.5 wrap รูปหรือ fallback */}
+            <div className="mb-7.5 flex items-center">
+              <div className="relative me-2.5">
+                {avatar ? (
+                  // กรณีมี avatar URL (Facebook CDN — ครอบคลุมใน next.config remotePatterns)
+                  <Image
+                    src={avatar}
+                    alt={displayName ?? 'ผู้ซื้อ'}
+                    width={44}
+                    height={44}
+                    className="size-11 rounded-full object-cover"
+                  />
+                ) : displayName ? (
+                  // fallback: initial-letter circle เมื่อมีชื่อ
+                  <div className="size-11 rounded-full bg-primary/15 flex items-center justify-center">
+                    <span className="text-primary font-semibold text-base leading-none">
+                      {displayName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                ) : (
+                  // fallback สุดท้าย: icon circle เมื่อไม่มีทั้งชื่อและ avatar
+                  <div className="size-11 rounded-full bg-primary/15 flex items-center justify-center">
+                    <Icon icon="user" className="text-lg text-primary" />
+                  </div>
+                )}
+              </div>
+              {displayName && (
                 <div>
                   <h5 className="text-default-800 text-sm font-medium mb-0.5">{displayName}</h5>
                   <p className="text-default-400 text-xs">
-                    {registeredName ? 'ผู้ซื้อที่ลงทะเบียนแล้ว' : 'ชื่อที่ร้านบันทึก'}
+                    {buyerUsername
+                      ? `@${buyerUsername}`
+                      : registeredName
+                        ? 'ผู้ซื้อที่ลงทะเบียนแล้ว'
+                        : 'ชื่อที่ร้านบันทึก'}
                   </p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+            {/* contact list — 1 row: เบอร์โทร (mask แล้ว) */}
             <ul className="text-default-400 space-y-2.5">
               <li>
                 <div className="flex items-center gap-2.5">
@@ -101,32 +138,43 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
                   </h5>
                 </div>
               </li>
-              {channelLabel && (
-                <li>
-                  <div className="flex items-center gap-2.5">
-                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                      <Icon icon="speakerphone" className="text-sm" />
-                    </span>
-                    <h5 className="text-default-400 font-medium text-sm">
-                      ช่องทาง: {channelLabel}
-                    </h5>
-                  </div>
-                </li>
-              )}
-              {paymentLabel && (
-                <li>
-                  <div className="flex items-center gap-2.5">
-                    <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                      <Icon icon="cash" className="text-sm" />
-                    </span>
-                    <h5 className="text-default-400 font-medium text-sm">
-                      วิธีชำระ: {paymentLabel}
-                    </h5>
-                  </div>
-                </li>
-              )}
             </ul>
           </>
+        )}
+
+        {/* ที่อยู่จัดส่ง — render อิสระจาก buyer-confirmed state (seller อาจกรอกก่อน buyer ยืนยัน) */}
+        {shippingAddr && (
+          <div className="border-t border-dashed border-default-300 mt-4 pt-4">
+            <p className="text-xs text-default-400 mb-2">ที่อยู่จัดส่ง</p>
+            <div className="flex items-start gap-2.5">
+              <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full shrink-0 mt-0.5">
+                <Icon icon="map-pin" className="text-sm" />
+              </span>
+              <div>
+                {addrLines.length > 0 ? (
+                  <p className="text-default-400 text-sm mb-0">
+                    {addrLines.map((l, i) => (
+                      <span key={i}>
+                        {l}
+                        {i < addrLines.length - 1 && <br />}
+                      </span>
+                    ))}
+                  </p>
+                ) : (
+                  <p className="text-default-400 text-sm mb-0">—</p>
+                )}
+              </div>
+            </div>
+            {shippingAddr.note && shippingAddr.note.trim() && (
+              <div className="bg-warning/15 rounded px-4 py-3 text-warning mt-3">
+                <h6 className="mb-2.5 text-xs flex items-center gap-1.5">
+                  <Icon icon="info-circle" className="text-sm" />
+                  หมายเหตุการจัดส่ง
+                </h6>
+                <p className="italic mb-0">{shippingAddr.note}</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

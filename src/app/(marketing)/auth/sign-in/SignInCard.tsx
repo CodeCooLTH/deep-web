@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography'
 
 // Third-party Imports
 import { yupResolver } from '@hookform/resolvers/yup'
+import { Icon } from '@iconify/react'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -106,6 +107,28 @@ export default function SignInCard() {
                 >
                   <i className='tabler-brand-facebook-filled' />
                 </IconButton>
+                {/* LINE brand green #06C755 — brand asset exception, ใช้ Iconify ri:line-fill
+                    เพราะ tabler CSS class ไม่มี LINE icon */}
+                <IconButton
+                  size='small'
+                  onClick={() => signIn('line', { callbackUrl: '/' })}
+                  aria-label='เข้าสู่ระบบด้วย LINE'
+                  sx={{ color: '#06C755' }}
+                >
+                  <Icon icon='ri:line-fill' width={20} height={20} />
+                </IconButton>
+                {/* IG flag-gated — ปิดไว้จนกว่า NEXT_PUBLIC_ENABLE_IG_LOGIN=true */}
+                {process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true' && (
+                  <IconButton
+                    size='small'
+                    onClick={() => signIn('instagram', { callbackUrl: '/' })}
+                    aria-label='เข้าสู่ระบบด้วย Instagram'
+                    sx={{ color: '#E1306C' }}
+                  >
+                    {/* Instagram brand pink #E1306C — brand asset exception (Hard Rule 6) */}
+                    <Icon icon='ri:instagram-fill' width={20} height={20} />
+                  </IconButton>
+                )}
               </div>
             </form>
 

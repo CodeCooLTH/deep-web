@@ -24,6 +24,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
   createColumnHelper,
@@ -70,12 +71,7 @@ const STATUS_META: Record<TopUpStatus, { label: string; cls: string }> = {
 const thb = (n: number): string =>
   `฿${new Intl.NumberFormat('th-TH').format(n)}`
 
-const thDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+const thDate = (iso: string): string => formatDateTime(iso)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Skeleton row — แสดงระหว่างโหลด (state: loading)

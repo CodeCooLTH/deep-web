@@ -7,6 +7,7 @@
 import Icon from '@/components/wrappers/Icon'
 import Rating from '@/components/Rating'
 import Link from 'next/link'
+import { formatDateTime } from '@/lib/format-date'
 import DeleteProductButton from './DeleteProductButton'
 import type { ProductDetailProps } from './data'
 
@@ -41,11 +42,8 @@ const ProductDetails = ({ product }: Props) => {
   const { id, name, price, rating, reviews, description, type, totalSold, createdAt } = product
   const meta = TYPE_META[type] ?? TYPE_META.PHYSICAL
 
-  const createdDate = new Date(createdAt).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  // แสดงวันที่อย่างเดียว (ไม่มีเวลา) → formatDateTime
+  const createdDate = formatDateTime(createdAt)
 
   return (
     <>

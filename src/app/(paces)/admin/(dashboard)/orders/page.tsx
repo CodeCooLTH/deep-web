@@ -16,6 +16,7 @@
  */
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import OrdersTable from './components/OrdersTable'
@@ -35,12 +36,7 @@ const VALID_STATUSES: AdminOrderStatus[] = [
   'CANCELLED',
 ]
 
-const thDate = (d: Date): string =>
-  new Intl.DateTimeFormat('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(d)
+const thDate = (d: Date): string => formatDateTime(d)
 
 // Mask a raw contact string (typically phone) to `••••1234`. Empty/short
 // values render as null → client shows "-".

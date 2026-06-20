@@ -57,6 +57,7 @@ import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
 import { getOrderTimeline, getStatusPill, isCODPayment, isHttpUrl, showSlipZone } from '@/lib/order-display'
+import { formatDateTime } from '@/lib/format-date'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierCover, getTierLabel } from '@/lib/trust-tier'
 
@@ -121,12 +122,6 @@ type Props = {
 const TL_CUR = '#2563EB'
 const TL_DONE = '#0E9F6E'
 const TL_UP = '#D5DCE6'
-
-const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-})
 
 const baht = new Intl.NumberFormat('th-TH', {
   style: 'currency',
@@ -779,7 +774,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
           <Typography
             sx={{ fontSize: 11, color: '#94A3B8', ml: 'auto' }}
           >
-            #{order.publicToken.slice(0, 8)} · {dateFmt.format(new Date(order.createdAtIso))}
+            #{order.publicToken.slice(0, 8)} · {formatDateTime(order.createdAtIso)}
           </Typography>
         </Box>
 
@@ -1109,7 +1104,7 @@ export default function OrderDetailMobile({ order, unlockedPhone, onConfirmActio
               )}
               {/* by-line */}
               <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
-                คุณ · {dateFmt.format(new Date(order.createdAtIso))}
+                คุณ · {formatDateTime(order.createdAtIso)}
               </Typography>
             </Box>
           </Card>

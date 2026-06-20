@@ -1,0 +1,131 @@
+// Base: theme/vuexy/typescript-version/full-version/src/views/front-pages/help-center/Questions.tsx
+// Adapted: ตัด Grid 2-column (sidebar, search, article list) ออก → single-column; เพิ่ม highlight callout email box
+// Stripped deps: Breadcrumbs, Link (Vuexy), DirectionalIcon, CustomTextField, InputAdornment, Grid
+// ทำไม mailto ใช้ plain <a>: next/link ไว้ navigate internal route — mailto ไม่ใช่ route
+
+import type { Metadata } from 'next'
+
+// MUI Imports
+import Typography from '@mui/material/Typography'
+import Divider from '@mui/material/Divider'
+
+// Third-party Imports
+import classnames from 'classnames'
+
+// Component Imports
+import FrontLayout from '@components/layout/front-pages'
+
+// Styles Imports
+import frontCommonStyles from '@views/front-pages/styles.module.css'
+
+// ทำไม: static metadata — หน้านี้ไม่มี dynamic segment
+// ห้าม noindex (S-3/FR-L4) — Meta crawler ต้องเข้าถึงเพื่อยืนยัน Data Deletion URL
+export const metadata: Metadata = {
+  title: 'การลบข้อมูลผู้ใช้ — Deep',
+  description:
+    'คำแนะนำการขอลบข้อมูลส่วนบุคคลของคุณออกจากแพลตฟอร์ม Deep (deepthailand.app) รวมถึงข้อมูลที่เชื่อมจากการเข้าสู่ระบบด้วย Facebook',
+}
+
+// ทำไม: Server Component — ไม่มี auth gate ไม่มี data fetch เหมาะกับ static page
+const DataDeletionPage = () => {
+  return (
+    <FrontLayout>
+      {/* section shell มาจาก Questions.tsx — คง bg-backgroundPaper + spacing pattern */}
+      <section className='flex flex-col justify-center items-center gap-4 md:plb-[100px] plb-[50px] pbs-[70px] -mbs-[70px] bg-backgroundPaper'>
+        <div className={classnames('pbs-10 md:pbs-16', frontCommonStyles.layoutSpacing)}>
+          {/* title block — pattern เดียวกับ Questions.tsx: flex-col gap-2 → Divider */}
+          <div className='flex flex-col gap-2'>
+            <Typography variant='h4'>การลบข้อมูลผู้ใช้ (User Data Deletion)</Typography>
+            <Typography variant='caption' className='text-textSecondary'>
+              อัปเดตล่าสุด 17 มิถุนายน 2569
+            </Typography>
+          </div>
+
+          <Divider className='mlb-6' />
+
+          <div className='flex flex-col gap-6'>
+            {/* คำนำ */}
+            <Typography variant='body1'>
+              หากคุณต้องการให้ Deep ลบข้อมูลส่วนบุคคลของคุณ (รวมถึงข้อมูลที่เชื่อมจากการเข้าสู่ระบบด้วย Facebook)
+              สามารถดำเนินการตามขั้นตอนด้านล่าง
+            </Typography>
+
+            {/* หัวข้อ 1: วิธีขอลบข้อมูล — highlight callout box */}
+            <div>
+              <Typography variant='h6' className='mbe-3'>
+                1. วิธีขอลบข้อมูล
+              </Typography>
+              {/* ทำไม: FR-L2 "explicit instructions" ต้องมี email เด่นชัด — callout pattern จาก Questions.tsx บรรทัด 83 (bg-actionHover rounded), ขยาย plb เพื่อเน้น */}
+              <div className='pli-5 plb-5 bg-actionHover rounded'>
+                <Typography variant='body2' className='mbe-2'>
+                  ส่งอีเมลมาที่:
+                </Typography>
+                <a href='mailto:shinobu22@outlook.com'>
+                  <Typography variant='h6' color='primary'>
+                    shinobu22@outlook.com
+                  </Typography>
+                </a>
+                <Typography variant='body2' className='mbs-2 text-textSecondary'>
+                  ระบุหัวข้ออีเมล &quot;ขอลบข้อมูล (Data Deletion Request)&quot; พร้อมแจ้งชื่อผู้ใช้ (username)
+                  และ/หรือ เบอร์โทร/อีเมลที่ใช้สมัคร
+                </Typography>
+              </div>
+            </div>
+
+            {/* หัวข้อ 2: ข้อมูลที่จะถูกลบ */}
+            <div>
+              <Typography variant='h6' className='mbe-3'>
+                2. ข้อมูลที่จะถูกลบ
+              </Typography>
+              <ul className='list-disc pli-6 flex flex-col gap-1'>
+                <li>
+                  <Typography variant='body2'>ข้อมูลบัญชีและโปรไฟล์ (ชื่อ, รูป, เบอร์โทร, อีเมล)</Typography>
+                </li>
+                <li>
+                  <Typography variant='body2'>การเชื่อมต่อ Facebook (โทเค็น OAuth)</Typography>
+                </li>
+                <li>
+                  <Typography variant='body2'>ข้อมูลร้านค้า (ถ้าเปิดร้าน)</Typography>
+                </li>
+                <li>
+                  <Typography variant='body2'>เอกสารยืนยันตัวตนที่คุณอัปโหลด</Typography>
+                </li>
+                <li>
+                  <Typography variant='body2'>ข้อมูลที่เชื่อมโยงกับบัญชีทั้งหมด</Typography>
+                </li>
+              </ul>
+              <Typography variant='body2' className='mbs-3 text-textSecondary'>
+                หมายเหตุ: ข้อมูลธุรกรรมบางอย่างที่กฎหมายกำหนดให้เก็บ อาจถูกเก็บในรูปแบบไม่ระบุตัวตนตามที่กฎหมายอนุญาต
+              </Typography>
+            </div>
+
+            {/* หัวข้อ 3: กรอบเวลา */}
+            <div>
+              <Typography variant='h6' className='mbe-3'>
+                3. กรอบเวลา
+              </Typography>
+              <Typography variant='body2'>
+                เราจะดำเนินการตามคำขอภายใน 30 วันนับจากวันที่ได้รับคำขอที่ครบถ้วน และจะยืนยันกลับทางอีเมล
+              </Typography>
+            </div>
+
+            {/* หัวข้อ 4: การติดต่อ */}
+            <div>
+              <Typography variant='h6' className='mbe-3'>
+                4. การติดต่อ
+              </Typography>
+              <Typography variant='body2'>
+                หากมีคำถามเพิ่มเติม สามารถติดต่อเราได้ที่:{' '}
+                <a href='mailto:shinobu22@outlook.com' className='text-primary'>
+                  shinobu22@outlook.com
+                </a>
+              </Typography>
+            </div>
+          </div>
+        </div>
+      </section>
+    </FrontLayout>
+  )
+}
+
+export default DataDeletionPage

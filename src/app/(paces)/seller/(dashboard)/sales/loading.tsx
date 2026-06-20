@@ -4,13 +4,15 @@
  *
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton.tsx
  */
+import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { SellerChartSkeleton } from '../_shared/SellerCardSkeleton'
 
 const SalesLoading = () => (
-  <div>
+  <>
+    <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'ภาพรวม' }]} />
     <span className="sr-only">กำลังโหลด...</span>
     <SellerChartSkeleton />
-  </div>
+  </>
 )
 
 export default SalesLoading

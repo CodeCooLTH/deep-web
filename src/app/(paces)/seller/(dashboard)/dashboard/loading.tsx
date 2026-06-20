@@ -4,28 +4,32 @@
  *
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton.tsx
  */
+import PageBreadcrumb from '@/components/PageBreadcrumb'
 import {
   SellerCardSkeleton,
   SellerChartSkeleton,
 } from '../_shared/SellerCardSkeleton'
 
 const DashboardLoading = () => (
-  <div className="space-y-base">
-    <span className="sr-only">กำลังโหลด...</span>
+  <>
+    <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
+    <div className="space-y-base">
+      <span className="sr-only">กำลังโหลด...</span>
 
-    {/* UserCard skeleton */}
-    <SellerCardSkeleton />
+      {/* UserCard skeleton */}
+      <SellerCardSkeleton />
 
-    {/* 3 stat cards (grid) */}
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-base">
-      <SellerCardSkeleton />
-      <SellerCardSkeleton />
-      <SellerCardSkeleton />
+      {/* 3 stat cards (grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-base">
+        <SellerCardSkeleton />
+        <SellerCardSkeleton />
+        <SellerCardSkeleton />
+      </div>
+
+      {/* chart area */}
+      <SellerChartSkeleton />
     </div>
-
-    {/* chart area */}
-    <SellerChartSkeleton />
-  </div>
+  </>
 )
 
 export default DashboardLoading

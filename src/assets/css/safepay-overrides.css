@@ -1,6 +1,15 @@
 /* SafePay — theme overrides */
 /* Force "Anuphan" as the primary font across every skin. */
 
+/* ซ่อน scrollbar แต่ยัง scroll ได้ (ใช้กับ status tabs ที่เลื่อนด้วยลูกศร ‹ ›) */
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
 html {
     --font-body: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-secondary: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -33,13 +42,12 @@ html[data-skin="orbit"] {
     --font-secondary: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* ─── Base size bump for Thai content ─────────────────────────────────────── */
-/* Thai glyphs read smaller than Latin at the same px size; bump the root     */
-/* font-size so every rem-based utility scales up accordingly, and override   */
-/* the paces saas literal-px --text-* vars so body text lands at 16px too.    */
+/* ─── rem base = 16px ─────────────────────────────────────────────────────── */
+/* คง html font-size 16px เพื่อให้ rem-based token ตรงกับ Paces _root            */
+/* (0.875rem = 14px ตามที่ _root.css ตั้งไว้) — saas skin เดิม set 14px ทำให้เพี้ยน */
 
 html[data-skin="saas"] {
-    font-size: 16px; /* was 14px — 1rem = 16px */
+    font-size: 16px;
 }
 
 html[data-skin="default"],
@@ -65,16 +73,17 @@ html[data-skin="aurora"],
 html[data-skin="xenon"],
 html[data-skin="matrix"],
 html[data-skin="orbit"] {
-    --text-body: 1rem;     /* 16px — was 13px (saas) / 14px (root default) */
-    --text-sm:   0.9375rem;/* 15px — was 13px (saas skin override) */
-    --text-xs:   0.875rem; /* 14px — was 13px (root default) */
-    --text-2xs:  0.75rem;  /* 12px — was 11px */
+    /* revert → ขนาด Paces _root แท้ (user req 2026-06-15: ฟอนต์ใหญ่กว่า Paces) */
+    --text-body: 0.875rem; /* 14px — Paces _root */
+    --text-sm:   0.875rem; /* 14px — Tailwind/Paces default */
+    --text-xs:   0.8125rem;/* 13px — Paces _root */
+    --text-2xs:  0.6875rem;/* 11px — Paces _root */
 }
 
-/* Drop the unwanted right padding paces adds inside .page-content main. */
-.page-content main {
-    padding-right: 0 !important;
-}
+/* NOTE: เดิมมี `.page-content main { padding-right: 0 !important }` ที่ฆ่า padding ขวาข้างเดียว
+   → ขอบซ้าย/ขวาไม่สมมาตร (20/0) ดู "ชิดขอบ" ผิดจาก theme. ลบทิ้งแล้ว 2026-06-16 →
+   ปล่อย base Paces `main { px-5 pb-5 }` (20px สมมาตร) ทำงานเอง = ตรง theme demo (skin default) เป๊ะ.
+   ไม่เพิ่ม custom gutter (บทเรียน: ชิดขอบมาจาก asymmetry ไม่ใช่ค่าน้อยไป — แค่ลบตัวผิดพอ) */
 
 /* ─── Seller Mobile Shell — <lg ซ่อน sidebar/header, ตัด margin และ padding สม่ำเสมอ ─── */
 /* breakpoint เส้นเดียว = lg (1024px) ตรงกับ SellerMobileHeader / CommandCenter lg:hidden    */
@@ -100,31 +109,65 @@ html[data-skin="orbit"] {
   /* CC-v6 T1: เว้นพื้นล่างกัน SellerBottomNav (fixed, 64px) ทับ content + เผื่อ safe-area iPhone */
   .seller-mobile-shell .page-content main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
 
-  /* ─── CC-v8 mobile-density: ทำให้เต็มจอ + แน่นแบบ app (ไม่ใช่ admin desktop) ───
-     ปัญหา: .wrapper.seller-mobile-shell มี margin 20px (เศษ sidebar offset) + main 16px
-     + card-body 20px → เนื้อหาเริ่มที่ 56px จากขอบ (จอ 375 = การ์ดกว้างแค่ 81%, "ไม่เต็ม").
-     แก้ด้วย scoped override (ไม่แตะ Paces component — ยังใช้ .card เดิม) */
-  /* kill wrapper margin (เศษ sidebar offset) → การ์ดชิดขอบ */
+  /* ─── CC-v8.2 authentic-Paces: คืนหน้าตา Paces แท้ให้ .card ───
+     ยกเลิก override CC-v8/v8.1 เดิม (radius 18px + เงาลอยหนา + ลบเส้นประ card-header
+     + padding 16/8px + card-title 600) ที่ทำให้ดูเป็น Vuexy/premium-app —
+     user ปฏิเสธ "เพี้ยน ไม่เหมือน Paces". รากปัญหา = mood ฝังระดับ CSS ไม่ใช่ค่าสี.
+     คงเฉพาะ structural mobile (kill sidebar offset); ปล่อย Paces .card native ทำงาน
+     เอง → radius 4px (--radius), เงา subtle (--shadow), card-header เส้นประ, body p-5.
+     page padding ใช้ 1rem จาก rule line ~98 (ไม่ override 0.5rem แล้ว). */
+  /* kill sidebar offset (inline) — ทุกหน้า seller mobile */
   .seller-mobile-shell { margin-inline: 0 !important; }
-  /* side padding 16→8px ให้เต็มขึ้น (การ์ดชิดขอบแบบ app) */
-  .seller-mobile-shell .page-content main { padding-inline: 0.5rem !important; }
-  /* card แน่นแบบ mobile: padding 16px, ตัด header divider เส้นประ desktop ออก */
-  .seller-mobile-shell .card > .card-body,
-  .seller-mobile-shell .card > .card-header { padding: 1rem !important; }
-  .seller-mobile-shell .card > .card-header { padding-bottom: 0 !important; border-bottom: 0 !important; }
+  /* เฉพาะ /orders (full-bleed): ตัด top margin 20px ของ .wrapper + ซ่อน footer
+     scope ด้วย :has(.orders-fullbleed) marker จาก OrdersList → ไม่กระทบหน้าอื่น
+     (เดิมใช้ margin:0 global ทำให้หน้าอื่นเพี้ยน — user รายงาน 2026-06-15) */
+  .seller-mobile-shell:has(.orders-fullbleed) { margin-top: 0 !important; }
+  .seller-mobile-shell:has(.orders-fullbleed) footer { display: none !important; }
+  /* พื้นหลัง = Paces body-bg token (ให้การ์ดขาวเด้ง) แทน hardcode hex เดิม */
+  .seller-mobile-shell .page-content { background: var(--color-body-bg); }
+}
 
-  /* ─── CC-v8.1 premium-mobile craft: soft depth + rounded แทน flat border ───
-     Paces .card ดิบ = flat border (admin look). modern app 2026 = การ์ดลอยนุ่ม
-     soft shadow tinted ink + rounded ใหญ่ → ดู premium (Revolut/Wise/Cash App).
-     เก็บสี/token Paces; latitude หลุด Paces ดิบเฉพาะ command center (user เคาะ) */
-  .seller-mobile-shell .card {
-    border: 0 !important;
-    border-radius: 18px !important;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 24px -10px rgba(16, 24, 40, 0.12) !important;
-  }
-  /* card title แน่นขึ้น มี hierarchy: weight + ขนาดพอดี */
-  .seller-mobile-shell .card-title { font-size: 0.9375rem; font-weight: 600; }
-  /* พื้นหลังเย็นนวลขึ้นนิด ให้การ์ดขาวเด้ง (premium contrast) */
-  .seller-mobile-shell .page-content { background: #f3f5f9; }
+/* ─── Choices.js .choices__inner → ให้ match .form-input ───────────────────────
+   อาการ: select หมวดหมู่ (sign-up) พื้นเทา + สูงกว่า input อื่น.
+   root cause: ChoiceSelect.tsx import `choices.min.css` (base) unlayered ที่ component-level
+   → bundle position ใหม่กว่า Paces `_choice.css` (unlayered app.css:124) → base
+   `background:#f9f9f9` + `min-height:44px` ชนะ theme. (_choice.css:90 ยังมี `min-height:auto`
+   ทับ min-h-9.25 ด้วยตัวเอง). safepay-overrides = ไฟล์ override ตัวท้ายสุด + !important → การันตีชนะ.
+   .form-input ref: bg-card / border-default-300 / rounded / text-sm / h-9.25 (=2.3125rem=37px).
+   scope height ที่ select-one เท่านั้น — กัน multi-select (tags) ที่ต้องสูงตาม content. */
+.choices__inner {
+  background-color: var(--color-card) !important;
+  border: 1px solid var(--color-default-300) !important;
+  border-radius: var(--radius) !important;
+  font-size: var(--text-sm) !important;
+}
+.choices[data-type*="select-one"] .choices__inner {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 2.3125rem !important; /* = .form-input h-9.25 (37px) */
+  height: 2.3125rem !important;
+  padding: 0 2.25rem 0 0.75rem !important; /* py-0 · ps-3 (px-3) · pe-9 เผื่อ chevron */
+}
+.choices[data-type*="select-one"].is-focused .choices__inner,
+.choices[data-type*="select-one"].is-open .choices__inner {
+  border-color: var(--color-default-500) !important; /* ตรง .form-input focus */
+}
+.choices.is-disabled .choices__inner {
+  background-color: var(--color-default-100) !important;
+  cursor: not-allowed !important;
+  opacity: 0.7 !important;
+}
+
+/* ─── Choices.js dropdown z-index ─────────────────────────────────────────────
+   อาการ: รายการ dropdown ของ select (เช่น หมวดหมู่ ในหน้า sign-up) โดนปุ่ม submit
+   หรือ field ถัดไป "ทับ" (Choices base ตั้ง .choices__list--dropdown z-index:1 ซึ่งต่ำ
+   กว่า element ที่อยู่หลังใน DOM). fix: ยก stacking ตอนเปิดให้ลอยเหนือ element อื่นในฟอร์ม. */
+.choices.is-open {
+  position: relative;
+  z-index: 40 !important;
+}
+.choices__list--dropdown,
+.choices__list[aria-expanded="true"] {
+  z-index: 40 !important;
 }
 

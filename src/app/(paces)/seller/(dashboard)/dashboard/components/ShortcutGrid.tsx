@@ -45,11 +45,11 @@ function TileLink({ tile }: { tile: ShortcutTile }) {
         title="เร็ว ๆ นี้"
         aria-disabled="true"
       >
-        {/* chip 48×48 (size-12) rounded-lg — touch area ≥44px (NF-4) */}
-        <span className={`size-12 rounded-2xl flex items-center justify-center ${chipClass}`}>
+        {/* chip 48×48 (size-12) rounded-full — touch area ≥44px (NF-4); Paces chip เป็นวงกลม */}
+        <span className={`size-12 rounded-full flex items-center justify-center ${chipClass}`}>
           <Icon icon={tile.icon} className="text-2xl" />
         </span>
-        <span className="text-xs font-medium text-default-700 text-center leading-tight">
+        <span className="text-xs font-medium text-default-700 text-center leading-tight min-h-8 flex items-start justify-center">
           {tile.label}
         </span>
       </div>
@@ -61,8 +61,8 @@ function TileLink({ tile }: { tile: ShortcutTile }) {
       href={tile.href}
       className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
     >
-      {/* chip 48×48 (size-12) rounded-lg — touch area ≥44px (NF-4) */}
-      <span className={`size-12 rounded-lg flex items-center justify-center ${chipClass}`}>
+      {/* chip 48×48 (size-12) rounded-full — touch area ≥44px (NF-4); Paces chip เป็นวงกลม */}
+      <span className={`size-12 rounded-full flex items-center justify-center ${chipClass}`}>
         <Icon icon={tile.icon} className="text-2xl" />
       </span>
       {/* text-default-700 (ไม่ใช่ default-400) — a11y contrast */}

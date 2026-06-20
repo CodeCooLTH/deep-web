@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Anuphan } from 'next/font/google'
 
 import { Analytics } from '@vercel/analytics/next'
@@ -6,6 +6,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 
 import AppProvidersWrapper from '@/components/wrappers/AppProvidersWrapper'
 import { META_DATA } from '@/config/constants'
+// favicon ของฝั่ง seller/admin = Paces theme favicon (ไม่ใช้ของ buyer/Deep ที่ root)
+import pacesFavicon from '@/assets/images/paces-favicon.ico'
 
 import '@/assets/css/app.css'
 
@@ -25,6 +27,16 @@ export const metadata: Metadata = {
   description: META_DATA.description,
   keywords: META_DATA.keywords,
   authors: [{ name: META_DATA.author }],
+  icons: { icon: pacesFavicon.src },
+}
+
+// ปิด pinch-zoom บนมือถือ — แอป seller/admin เป็น native-like (Paces) ไม่อยาก
+// ให้ผู้ใช้ซูมจนเลย์เอาต์เพี้ยน. maximumScale=1 + userScalable=false
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -41,7 +53,7 @@ export default function RootLayout({
       data-topbar-color="light"
       data-menu-color="dark"
       data-theme="light"
-      data-skin="saas"
+      data-skin="default"
       data-sidenav-size="on-hover-active"
       data-layout-width="fluid"
       dir="ltr"

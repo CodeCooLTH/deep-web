@@ -26,7 +26,7 @@ export const defaultBadges: BadgeSeed[] = [
   { name: "ขวัญใจชุมชน",       nameEN: "Community Favorite", icon: "❤️", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "UNIQUE_REVIEWERS", count: 50 } },
   // ── badge ใหม่ (Phase 3) ──────────────────────────────────────────────────────────────────────
   // icon: null — engine ใช้ fallback SVG/image แทน emoji สำหรับ badge ปี
-  { name: "ปี 2026",            nameEN: "2026_BADGE",         icon: null, type: "ACHIEVEMENT",  audience: "ANY",    criteria: { type: "SIGNUP_YEAR", year: 2026 },        imageUrl: "/images/badges/deep-2026.svg" },
+  { name: "สมาชิกผู้ก่อตั้ง 2026", nameEN: "2026_BADGE",         icon: null, type: "ACHIEVEMENT",  audience: "ANY",    criteria: { type: "SIGNUP_YEAR", year: 2026 },        imageUrl: "/images/badges/deep-2026.svg" },
   // ── P1 — 7 badge ใหม่ ฝั่ง seller, reuse engine, ไม่มี reward ──
   { name: "เริ่มมีลูกค้า",       nameEN: "Getting Started",    icon: "🌱", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 10 },                                  imageUrl: "/images/badges/seller/getting-started.svg" },
   { name: "ร้านกำลังโต",        nameEN: "Rising Seller",      icon: "📈", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ORDER_COUNT", count: 25 },                                  imageUrl: "/images/badges/seller/rising-seller.svg" },

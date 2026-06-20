@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(testPayload);
   }
 
-  const otp = storeOtp(contact);
+  const otp = await storeOtp(contact);
 
   // ส่ง SMS จริง — เฉพาะเบอร์ที่ไม่ใช่ TEST_ACCOUNTS
   try {

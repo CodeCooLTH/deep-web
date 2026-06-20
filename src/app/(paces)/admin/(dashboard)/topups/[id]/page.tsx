@@ -19,6 +19,7 @@ import { notFound, redirect } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { requireAdmin } from '@/lib/auth'
+import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import SlipImageClient from './SlipImageClient'
 import TopUpReviewActions from './TopUpReviewActions'
@@ -35,16 +36,6 @@ const STATUS_META: Record<string, { label: string; cls: string; icon: string }> 
   REJECTED: { label: 'ปฏิเสธ', cls: 'bg-danger/10 text-danger', icon: 'x' },
 }
 
-function formatDate(d: Date | string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 export default async function TopUpDetailPage({ params }: PageProps) {
   const { id } = await params
@@ -87,8 +78,8 @@ export default async function TopUpDetailPage({ params }: PageProps) {
   }
 
   // Format dates เป็น string ก่อนข้าม RSC boundary (Date object serialize ไม่ได้)
-  const createdAtStr = formatDate(record.createdAt)
-  const reviewedAtStr = record.reviewedAt ? formatDate(record.reviewedAt) : null
+  const createdAtStr = formatDateTime(record.createdAt)
+  const reviewedAtStr = record.reviewedAt ? formatDateTime(record.reviewedAt) : null
 
   return (
     <>

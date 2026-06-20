@@ -13,17 +13,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTrustLevel } from '@/services/trust-score.service'
+import { formatDateTime } from '@/lib/format-date'
 
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import ProfileForm from './ProfileForm'
 
 export const metadata: Metadata = { title: 'แก้ไขโปรไฟล์' }
-
-const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-})
 
 export default async function ProfileSettingsPage() {
   const session = await getServerSession(authOptions)
@@ -37,7 +32,7 @@ export default async function ProfileSettingsPage() {
   if (!user) redirect('/auth/sign-in')
 
   const trustLevel = getTrustLevel(user.trustScore)
-  const memberSince = dateFmt.format(user.createdAt)
+  const memberSince = formatDateTime(user.createdAt)
   const badgeCount = user.userBadges.length
 
   return (

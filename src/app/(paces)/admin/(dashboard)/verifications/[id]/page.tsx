@@ -15,6 +15,7 @@ import { notFound } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
+import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import ReviewActions from './ReviewActions'
 
@@ -59,16 +60,6 @@ function isLikelyFileId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && !v.startsWith('http') && !v.includes(' ')
 }
 
-function formatDate(d: Date | string | null | undefined): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 export default async function VerificationDetailPage({ params }: PageProps) {
   const { id } = await params
@@ -139,7 +130,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
               <div>
                 <h4 className="text-dark text-lg font-semibold">{typeLabel(record.type, record.level)}</h4>
                 <p className="text-default-400 mt-1 text-xs">
-                  ส่งเมื่อ {formatDate(record.createdAt)}
+                  ส่งเมื่อ {formatDateTime(record.createdAt)}
                 </p>
               </div>
               <span className={`badge badge-label text-2xs ${meta.cls} inline-flex items-center gap-1.5 border-transparent`}>
@@ -245,7 +236,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
               <div className="text-default-500 flex items-center gap-2 text-sm">
                 <Icon icon="info-circle" className="text-base" />
                 คำขอนี้ได้รับการตรวจสอบแล้ว
-                {record.reviewedAt && <> เมื่อ {formatDate(record.reviewedAt)}</>}
+                {record.reviewedAt && <> เมื่อ {formatDateTime(record.reviewedAt)}</>}
                 {record.reviewedBy && <> โดย {record.reviewedBy.displayName}</>}
               </div>
             </div>
@@ -299,13 +290,7 @@ export default async function VerificationDetailPage({ params }: PageProps) {
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-default-500 text-sm">สมัครเมื่อ</dt>
                   <dd className="text-default-700 text-sm">
-                    {record.user.createdAt
-                      ? new Date(record.user.createdAt).toLocaleDateString('th-TH', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : '—'}
+                    {formatDateTime(record.user.createdAt)}
                   </dd>
                 </div>
               </dl>

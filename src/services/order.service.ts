@@ -227,11 +227,16 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
   return prisma.order.findFirst({
     where: { publicToken, shopId },
     include: {
-      items: true,
+      // เพิ่ม product.images เพื่อ resolve imageUrl thumbnail → OrderSummary (theme fidelity)
+      items: {
+        include: {
+          product: { select: { images: true } },
+        },
+      },
       shop: { include: { user: { select: { id: true, displayName: true, username: true, trustScore: true, userBadges: { include: { badge: true } } } } } },
-      // buyer: registered user ที่ยืนยัน order — ใช้แสดง displayName ใน seller order detail
-      // additive include — ไม่ break caller เดิม
-      buyer: { select: { id: true, displayName: true, username: true } },
+      // buyer: เพิ่ม avatar เพื่อแสดง avatar ใน CustomerDetails (theme fidelity)
+      // additive — ไม่ break caller เดิม
+      buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
       shipmentTracking: true,
       review: true,
     },

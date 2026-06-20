@@ -2,9 +2,8 @@
 
 import { SessionProvider } from 'next-auth/react'
 import React, { useEffect } from 'react'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
 
+import PacesToastContainer from '@/components/paces/PacesToastContainer'
 import { LayoutProvider } from '@/context/useLayoutContext'
 import { preline } from '@/utils/preline'
 
@@ -16,17 +15,7 @@ const AppProvidersWrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <SessionProvider>
       <LayoutProvider>{children}</LayoutProvider>
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        theme="light"
-        toastClassName="!bg-card !text-default-700 !rounded-lg !shadow !border !border-default-200 !font-normal"
-        className="!text-sm"
-      />
+      <PacesToastContainer />
     </SessionProvider>
   )
 }

@@ -15,7 +15,7 @@
  */
 import { Icon } from '@iconify/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 interface ProductAttributesCardV2Props {
   value: Record<string, string>
@@ -175,7 +175,7 @@ export default function ProductAttributesCardV2({
     const row = rows.find((r) => r.id === id)
     if (!row) return
     if (row.values.length >= MAX_VALUES_PER_ROW) {
-      toast.error(`ใส่ค่าได้สูงสุด ${MAX_VALUES_PER_ROW} รายการต่อหัวข้อ`)
+      pacesToast.error(`ใส่ค่าได้สูงสุด ${MAX_VALUES_PER_ROW} รายการต่อหัวข้อ`)
       return
     }
     // dedupe case-insensitive ภายใน row เดียวกัน

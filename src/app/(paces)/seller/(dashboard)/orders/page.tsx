@@ -19,7 +19,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
-import type { OrderRow, OrderStatType, OrderItemRow } from './components/data'
+import type { OrderRow, OrderStatCardData, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
 
@@ -87,45 +87,107 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
     buyerName: o.buyer?.displayName ?? null,
     buyerUsername: o.buyer?.username ?? null,
+    // เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller โทรลูกค้าตัวเองได้ (user decision 2026-06-15)
+    // PII note: เปิดเบอร์จริงเข้า flight ของ seller (เจ้าของออเดอร์) — ต้อง security review ก่อน prod
+    buyerPhone: o.buyerContact ?? null,
+    paymentMethod: o.paymentMethod ?? null,
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
     items: (o.items ?? []).map((item: any): OrderItemRow => {
       const images = item.product?.images
-      const firstImageId = Array.isArray(images) && images.length > 0 ? images[0] : null
+      const firstImage = Array.isArray(images) && images.length > 0 ? images[0] : null
+      // images[] เก็บได้ทั้ง file id (อัปโหลดจริง → /api/files/{id}) และ full URL (seed/external)
+      // เดิม wrap /api/files/ ทุกกรณี → full URL กลายเป็น /api/files/https://... = 404 (รูปไม่ขึ้น)
+      const imageUrl = firstImage
+        ? firstImage.startsWith('http')
+          ? firstImage
+          : `/api/files/${firstImage}`
+        : null
       return {
         id: item.id,
         name: item.name,
         qty: item.qty,
         price: Number(item.price),
-        imageUrl: firstImageId ? `/api/files/${firstImageId}` : null,
+        imageUrl,
       }
     }),
   }))
 
-  // คำนวณค่า stat card จาก orders ที่ fetch มา
-  const totalCount     = orders.length
-  const pendingCount   = orders.filter((o) => o.status === 'PENDING').length
-  const activeCount    = orders.filter((o) => o.status === 'SHIPPED').length
-  const completedCount = orders.filter((o) => o.status === 'CONFIRMED').length
-  const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length
+  // คำนวณ sparkline trend + changePct ต่อ status
+  // ใช้ YYYY-MM-DD string ตัด timezone ให้ consistent (server timezone = UTC ตามค่า default Next.js/Vercel)
+  const toDateStr = (iso: string) => iso.slice(0, 10) // 'YYYY-MM-DD'
 
-  // stat card data ตาม OrderStatType (theme format)
-  const orderStatData: OrderStatType[] = [
-    { title: 'ออเดอร์ทั้งหมด', value: totalCount,     change: 0, icon: 'shopping-cart',   className: 'bg-info' },
-    { title: 'รอดำเนินการ',    value: pendingCount,   change: 0, icon: 'hourglass',       className: 'bg-warning' },
-    { title: 'จัดส่งแล้ว',    value: activeCount,    change: 0, icon: 'truck-delivery',  className: 'bg-primary' },
-    { title: 'สำเร็จแล้ว',    value: completedCount, change: 0, icon: 'check',           className: 'bg-success' },
-    { title: 'ยกเลิก',        value: cancelledCount, change: 0, icon: 'x',               className: 'bg-danger' },
+  const now = new Date()
+
+  // หน้าต่าง trend = 30 วัน (ขยายจาก 7 วัน — ร้านออเดอร์น้อย 7 วันทำให้ sparkline โล่ง + badge แกว่ง)
+  const WINDOW = 30
+
+  // สร้าง array ของ 30 วันล่าสุด (index 0 = วันเก่าสุด, index 29 = วันนี้)
+  const lastDays = Array.from({ length: WINDOW }, (_, i) => {
+    const d = new Date(now)
+    d.setUTCDate(d.getUTCDate() - (WINDOW - 1 - i))
+    return d.toISOString().slice(0, 10)
+  })
+
+  // 30 วันก่อนหน้า (index 0 = วันที่ -59, index 29 = วันที่ -30) สำหรับเทียบ changePct
+  const prevStart = new Date(now)
+  prevStart.setUTCDate(prevStart.getUTCDate() - (WINDOW * 2 - 1))
+  const prevEnd = new Date(now)
+  prevEnd.setUTCDate(prevEnd.getUTCDate() - WINDOW)
+  const prevStartStr = prevStart.toISOString().slice(0, 10)
+  const prevEndStr   = prevEnd.toISOString().slice(0, 10)
+
+  type StatusKey = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+
+  const buildStatCard = (
+    title: string,
+    status: StatusKey,
+  ): OrderStatCardData => {
+    const forStatus = orders.filter((o) => o.status === status)
+
+    // totalCount = ทุก order ของ status นี้ (ทุกช่วงเวลา)
+    const totalCount = forStatus.length
+
+    // trendSeries: จำนวน order ของ status ใน 30 วันล่าสุดแต่ละวัน (length 30)
+    const trendSeries = lastDays.map((day) =>
+      forStatus.filter((o) => toDateStr(o.createdAtISO) === day).length,
+    )
+
+    // current = sum(trendSeries) = ยอด 30 วันล่าสุด
+    const current = trendSeries.reduce((s, n) => s + n, 0)
+
+    // prev: order ที่ createdAt อยู่ระหว่าง prevStartStr ถึง prevEndStr (30 วันก่อนหน้า, inclusive)
+    const prev = forStatus.filter((o) => {
+      const d = toDateStr(o.createdAtISO)
+      return d >= prevStartStr && d <= prevEndStr
+    }).length
+
+    const changePct =
+      prev === 0
+        ? current > 0 ? 100 : 0
+        : Math.round(((current - prev) / prev) * 100)
+
+    return { title, status, totalCount, changePct, trendSeries }
+  }
+
+  const orderStatData: OrderStatCardData[] = [
+    buildStatCard('รอดำเนินการ', 'PENDING'),
+    buildStatCard('จัดส่งแล้ว',  'SHIPPED'),
+    buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
+    buildStatCard('ยกเลิก',      'CANCELLED'),
   ]
 
   const activeStatus = sp.status ?? 'all'
 
   return (
     <>
-      <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+      {/* breadcrumb desktop เท่านั้น — มือถือมีชื่อหน้าใน SellerMobileHeader แล้ว (กันซ้ำ) */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+      </div>
 
-      {/* Stat cards — 5 columns (theme grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-5) */}
-      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
+      {/* Stat cards — desktop ≥lg เท่านั้น (มือถือ: ซ้ำซ้อนกับ status filter tab ที่มี count ใน OrdersList → ซ่อน) */}
+      <div className="mb-1.25 hidden gap-base lg:grid lg:grid-cols-4">
         {orderStatData.map((item, idx) => (
           <OrdersStatCard item={item} key={idx} />
         ))}

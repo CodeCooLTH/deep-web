@@ -1,9 +1,12 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, Account, User } from "next-auth";
 import FacebookProvider from "next-auth/providers/facebook";
+import LineProvider from "next-auth/providers/line";
+import InstagramProvider from "next-auth/providers/instagram";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
 import bcrypt from "bcryptjs";
+import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
 
 // Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
 // ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
@@ -15,11 +18,106 @@ const adminLoginTimestamps =
   globalForAdminAuth.adminLoginTimestamps ??
   (globalForAdminAuth.adminLoginTimestamps = new Map<string, number[]>());
 
+// upsertOAuthUser — helper รวม logic upsert สำหรับทุก OAuth provider (FB/LINE/IG)
+// แยกออกมาจาก jwt callback เพื่อให้ reuse ได้ (FR-LO-14/15) ลอจิกเหมือน FB block เดิมเป๊ะ
+async function upsertOAuthUser(
+  account: Account,
+  user: User | undefined,
+  providerEnum: "FACEBOOK" | "LINE" | "INSTAGRAM",
+  usernamePrefix: string,
+  linkEmail: boolean,
+): Promise<string> {
+  let dbUser = await prisma.user.findFirst({
+    where: {
+      authAccounts: {
+        some: {
+          provider: providerEnum,
+          providerAccountId: account.providerAccountId,
+        },
+      },
+    },
+  });
+  if (!dbUser) {
+    // linkEmail=true เฉพาะ provider ที่ email ถูก platform ยืนยัน + user consent (FB graph).
+    // LINE/IG=false: LINE email claim ไม่ verified + ไม่ขอ scope → ห้ามเก็บ/ใช้ link history
+    // (security R1 — กัน auto-link buyer history ผิดคนถ้ามีใครเพิ่ม email scope ภายหลัง)
+    const trustedEmail = linkEmail ? user?.email || undefined : undefined;
+    try {
+      dbUser = await prisma.user.create({
+        data: {
+          displayName: user?.name || "User",
+          username: `${usernamePrefix}${account.providerAccountId}`,
+          avatar: user?.image,
+          email: trustedEmail,
+          authAccounts: {
+            create: {
+              provider: providerEnum,
+              providerAccountId: account.providerAccountId,
+              accessToken: account.access_token,
+            },
+          },
+        },
+      });
+    } catch (err: unknown) {
+      // P2002 = concurrent first-login race: อีก request สร้าง AuthAccount เดียวกันไปก่อน
+      // → ดึง user ที่มีอยู่กลับมาใช้แทนปล่อย 500 (security R3 hardening)
+      if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "P2002") {
+        const existing = await prisma.user.findFirst({
+          where: { authAccounts: { some: { provider: providerEnum, providerAccountId: account.providerAccountId } } },
+        });
+        if (existing) return existing.id;
+      }
+      throw err;
+    }
+    // Auto-link guest history by email (PRD FR-8) — เฉพาะ provider ที่ email เชื่อถือได้ (linkEmail)
+    if (dbUser.email) {
+      const { linkBuyerHistory } = await import("@/services/user.service");
+      await linkBuyerHistory(dbUser.id, undefined, dbUser.email);
+    }
+    // best-effort badge evaluation — new user only (ไม่กระทบ jwt refresh path)
+    try {
+      await evaluateSignupYearBadge(dbUser.id);
+    } catch (e) {
+      console.error(`[auth] evaluateSignupYearBadge (${providerEnum.toLowerCase()}) failed`, e);
+    }
+  } else if (user?.image && dbUser.avatar !== user.image) {
+    // refresh รูปโปรไฟล์ทุก login (เผื่อเปลี่ยนรูป / user เก่าที่ avatar ยัง null)
+    await prisma.user.update({ where: { id: dbUser.id }, data: { avatar: user.image } });
+  }
+  return dbUser.id;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     FacebookProvider({
       clientId: process.env.FACEBOOK_ID || "",
       clientSecret: process.env.FACEBOOK_SECRET || "",
+      // ใช้ picture.data.url จาก OAuth userinfo (URL ที่ FB ออกให้ — ใช้งานได้จริง บน fbsbx/fbcdn).
+      // ห้ามใช้ graph.facebook.com/{providerAccountId}/picture เพราะ providerAccountId = app-scoped ID
+      // ต้องมี token ถึงจะดึงรูปได้ (ดึงตรงไม่มี token → 400 รูปไม่ขึ้น). คง userinfo default (appsecret_proof ไม่หาย)
+      profile(profile) {
+        const p = profile as { id: string; name?: string; email?: string; picture?: { data?: { url?: string } } };
+        return {
+          id: p.id,
+          name: p.name,
+          email: p.email ?? null,
+          image: p.picture?.data?.url ?? null,
+        };
+      },
+    }),
+    // FR-LO-14: LINE OAuth — อิสระจาก Meta (LINE Developers Console แยกต่างหาก) → ใช้งานได้ทันทีในตลาดไทย
+    LineProvider({
+      clientId: process.env.LINE_CHANNEL_ID || "",
+      clientSecret: process.env.LINE_CHANNEL_SECRET || "",
+    }),
+    // FR-LO-15: Instagram OAuth — เตรียมโค้ดไว้ ปิด flag (ติด Meta Business Verification เหมือน FB)
+    // ใช้งานจริงได้เมื่อผ่าน App Review + business verification แล้ว
+    // ⚠️ security R2: flag NEXT_PUBLIC_ENABLE_IG_LOGIN คุมแค่การ "render ปุ่ม" เท่านั้น —
+    // provider นี้ active ที่ backend เสมอ. ตราบใดที่ INSTAGRAM_CLIENT_ID ว่าง flow จะ fail ที่ IG เอง.
+    // อย่าตั้ง INSTAGRAM_CLIENT_ID ใน prod จนกว่าจะตั้งใจเปิด IG login (ไม่งั้น endpoint ใช้ได้ทั้งที่ปุ่มซ่อน)
+    InstagramProvider({
+      clientId: process.env.INSTAGRAM_CLIENT_ID || "",
+      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
     }),
     CredentialsProvider({
       id: "phone-otp",
@@ -33,12 +131,14 @@ export const authOptions: NextAuthOptions = {
         // shopName ส่งมาจาก VerifyOtpForm เฉพาะ mode=signup (seller onboarding)
         // signin path จะส่ง empty string — authorize() ตรวจ mode+shopName ก่อนใช้
         shopName: { label: "ShopName", type: "text" },
+        password: { label: "Password", type: "password" },
+        category: { label: "Category", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.otp) return null;
 
         const { verifyOtp } = await import("@/lib/otp");
-        if (!verifyOtp(credentials.phone, credentials.otp)) return null;
+        if (!(await verifyOtp(credentials.phone, credentials.otp))) return null;
 
         let user = await prisma.user.findFirst({
           where: { phone: credentials.phone },
@@ -89,8 +189,22 @@ export const authOptions: NextAuthOptions = {
             // Layout fallback ยังคงอยู่เป็น safety net สำหรับ Facebook signup / buyer ที่เปิดร้านทีหลัง
             const trimmedShopName = credentials.shopName?.trim();
             if (credentials.mode === "signup" && trimmedShopName) {
-              // server-side guard — credentials เป็น untrusted input (Yup frontend bypass ได้); ตรงสัญญา CreateShopSchema maxLength 100
               if (trimmedShopName.length > 100) return null;
+
+              // password (optional ตอน signup — FB user ตั้งทีหลังใน onboarding ได้)
+              let passwordHash: string | undefined;
+              if (credentials.password) {
+                const { isStrongPassword, hashPassword } = await import("@/lib/password");
+                if (!isStrongPassword(credentials.password)) return null; // server guard (Yup bypass ได้)
+                passwordHash = await hashPassword(credentials.password);
+              }
+              // category (optional) — ต้องเป็น key ที่รู้จัก
+              const { isShopCategory } = await import("@/lib/shop-categories");
+              const category =
+                credentials.category && isShopCategory(credentials.category)
+                  ? credentials.category
+                  : undefined;
+
               // ห่อทั้ง shop.create + user.update ใน transaction เดียว —
               // ถ้า user.update ล้มเหลว Prisma จะ rollback shop.create อัตโนมัติ
               // ป้องกัน orphan shop + isShop stuck false ซึ่ง layout fallback ไม่สามารถแก้ไขได้ (userId unique constraint)
@@ -100,11 +214,12 @@ export const authOptions: NextAuthOptions = {
                     userId: user!.id,
                     shopName: trimmedShopName,
                     businessType: "INDIVIDUAL",
+                    ...(category ? { category } : {}),
                   },
                 });
                 await tx.user.update({
                   where: { id: user!.id },
-                  data: { isShop: true },
+                  data: { isShop: true, ...(passwordHash ? { passwordHash } : {}) },
                 });
               });
             }
@@ -140,6 +255,49 @@ export const authOptions: NextAuthOptions = {
         } catch (e) {
           console.error("[auth] ensure L1 VerificationRecord failed", e);
         }
+
+        return { id: user.id, name: user.displayName, email: user.email };
+      },
+    }),
+    CredentialsProvider({
+      id: "seller-credentials",
+      name: "Seller",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) return null;
+        // bcrypt DoS guard (pattern เดียวกับ admin-credentials)
+        if (credentials.password.length > 1000) return null;
+
+        // rate-limit 5/10min ต่อ username — reuse store เดียวกับ admin (username @unique ทั้งระบบ ไม่ชน)
+        const WINDOW_MS = 10 * 60 * 1000;
+        const MAX_ATTEMPTS = 5;
+        const now = Date.now();
+        const cutoff = now - WINDOW_MS;
+        const prev = adminLoginTimestamps.get(credentials.username) ?? [];
+        const recent = prev.filter((t) => t > cutoff);
+        if (recent.length >= MAX_ATTEMPTS) {
+          adminLoginTimestamps.set(credentials.username, recent);
+          return null;
+        }
+        recent.push(now);
+        adminLoginTimestamps.set(credentials.username, recent);
+
+        const user = await prisma.user.findUnique({
+          where: { username: credentials.username },
+        });
+        if (!user) return null;
+        // seller = ไม่ใช่ admin (admin ใช้ provider แยก) + ต้องเปิดร้านแล้ว (isShop) + ตั้ง password แล้ว
+        // buyer ที่ตั้ง password แต่ยังไม่เปิดร้าน → เป็น seller ผ่าน signup/onboarding ไม่ใช่ login ตรงนี้ (S-P1-9)
+        if (user.isAdmin) return null;
+        if (!user.isShop) return null;
+        if (user.passwordHash == null) return null;
+
+        const { verifyPassword } = await import("@/lib/password");
+        const valid = await verifyPassword(credentials.password, user.passwordHash);
+        if (!valid) return null;
 
         return { id: user.id, name: user.displayName, email: user.email };
       },
@@ -215,6 +373,104 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
+    /**
+     * signIn callback — Account Linking (FR-LO-16)
+     *
+     * เมื่อ OAuth flow เสร็จ NextAuth เรียก signIn ก่อน jwt เสมอ
+     * อ่าน deep_link_intent cookie (ถ้ามี) → ถ้า valid = LINK MODE:
+     *   - AuthAccount(provider,providerAccountId) ถูกใช้โดย userId อื่น → block (AC-03) redirect error
+     *   - ว่างอยู่ → create AuthAccount ผูกกับ intent.userId (ไม่ใช่ user ที่ provider ส่งมา)
+     *   - jwt callback ถัดไปจะ findFirst เจอ AuthAccount ใหม่ → token.userId = intent.userId → session คงเดิม (AC-01/02)
+     * ถ้าไม่มี intent → return true (login ปกติ — ไม่กระทบ FB/LINE login เดิม)
+     *
+     * ⚠️ cookies() จาก next/headers ทำงานได้ใน signIn callback เพราะ NextAuth OAuth callback
+     *    รันใน App Router API route context (มี request scope) — ยืนยันจาก callback.js source
+     */
+    async signIn({ account }) {
+      // ไม่ใช่ OAuth provider → login ปกติ (Credentials provider ไม่ใช้ link flow)
+      if (!account || !["facebook", "line", "instagram"].includes(account.provider)) return true;
+
+      // oauthMap เหมือน jwt callback — ใช้ตรวจ provider ที่รองรับ linking
+      const oauthMap = {
+        facebook: "FACEBOOK",
+        line: "LINE",
+        instagram: "INSTAGRAM",
+      } as const;
+      type OAuthProvider = keyof typeof oauthMap;
+      if (!(account.provider in oauthMap)) return true;
+
+      // อ่าน link-intent cookie — ถ้าไม่มีหรือ verify ไม่ผ่าน = login ปกติ
+      let intent: { userId: string; provider: string } | null = null;
+      try {
+        const { cookies } = await import("next/headers");
+        const raw = (await cookies()).get(LINK_INTENT_COOKIE)?.value;
+        intent = raw ? verifyLinkIntent(raw) : null;
+      } catch {
+        // cookies() อาจ throw ถ้าเรียกนอก request context (edge case) → fail-open = login ปกติ
+        intent = null;
+      }
+
+      // ไม่มี intent หรือ provider ไม่ตรง = login ปกติ (ไม่ใช่ link mode)
+      if (!intent || intent.provider !== account.provider) return true;
+
+      // === LINK MODE ===
+      const providerEnum = oauthMap[account.provider as OAuthProvider];
+
+      // consume link-intent (single-use) — clear cookie ทันที กัน replay (security R3); read-only context → TTL คุมแทน
+      try {
+        const { cookies } = await import("next/headers");
+        (await cookies()).delete(LINK_INTENT_COOKIE);
+      } catch {
+        /* mutate cookie ไม่ได้ใน context นี้ → พึ่ง TTL 5 นาที + exp ใน payload */
+      }
+
+      // ตรวจว่า AuthAccount(provider,providerAccountId) นี้มีใครถืออยู่แล้วไหม
+      const existing = await prisma.authAccount.findUnique({
+        where: {
+          provider_providerAccountId: {
+            provider: providerEnum,
+            providerAccountId: account.providerAccountId,
+          },
+        },
+        select: { userId: true },
+      });
+
+      if (existing) {
+        if (existing.userId !== intent.userId) {
+          // AC-03: provider ถูกใช้โดย userId อื่นแล้ว → block ห้ามสลับบัญชี
+          return "/settings?link_error=taken";
+        }
+        // AuthAccount มีอยู่แล้วและเป็นของ intent.userId → ผูกแล้ว (idempotent) → ok
+        return "/settings?linked=" + account.provider;
+      }
+
+      // AuthAccount ว่าง → สร้างผูกกับ intent.userId (ไม่ใช่ user ที่ OAuth ส่งมา)
+      try {
+        await prisma.authAccount.create({
+          data: {
+            userId: intent.userId,
+            provider: providerEnum,
+            providerAccountId: account.providerAccountId,
+            accessToken: account.access_token ?? null,
+          },
+        });
+      } catch (err: unknown) {
+        // P2002 = race: อีก request สร้าง AuthAccount เดียวกันระหว่างนี้ (security R1) → ตรวจเจ้าของ
+        if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "P2002") {
+          const raced = await prisma.authAccount.findUnique({
+            where: { provider_providerAccountId: { provider: providerEnum, providerAccountId: account.providerAccountId } },
+            select: { userId: true },
+          });
+          // เป็นของ user อื่น → block; เป็นของ intent.userId เอง → idempotent ผ่าน
+          if (raced && raced.userId !== intent.userId) return "/settings?link_error=taken";
+        } else {
+          throw err;
+        }
+      }
+
+      return "/settings?linked=" + account.provider;
+    },
+
     // Multi-subdomain redirect: NextAuth's default redirect prefixes relative
     // URLs with NEXTAUTH_URL which doesn't fit our setup (deepth.local +
     // seller.deepth.local + admin.deepth.local share the auth config but live
@@ -231,47 +487,34 @@ export const authOptions: NextAuthOptions = {
       }
       return baseUrl;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       if (user) {
         token.userId = user.id;
       }
-      if (account?.provider === "facebook") {
-        let dbUser = await prisma.user.findFirst({
-          where: {
-            authAccounts: {
-              some: {
-                provider: "FACEBOOK",
-                providerAccountId: account.providerAccountId,
-              },
-            },
-          },
+      // รวม OAuth provider ทุกตัว (FB/LINE/IG) ไว้ใน map เดียว — เพิ่ม provider ใหม่ได้โดยแค่เพิ่ม entry
+      // key = next-auth provider id, value = [AuthAccount.provider enum, username prefix]
+      // key = next-auth provider id, value = [AuthAccount.provider enum, username prefix, linkEmail]
+      // linkEmail=true เฉพาะ FB (email ผ่าน graph + consent); LINE/IG=false (ไม่ trust email claim — security R1)
+      const oauthMap = {
+        facebook: ["FACEBOOK", "fb", true],
+        line: ["LINE", "line", false],
+        instagram: ["INSTAGRAM", "ig", false],
+      } as const;
+      if (account && account.provider in oauthMap) {
+        const [providerEnum, prefix, linkEmail] = oauthMap[account.provider as keyof typeof oauthMap];
+        token.userId = await upsertOAuthUser(account, user, providerEnum, prefix, linkEmail);
+      }
+      // เก็บ needsOnboarding ลง JWT ให้ proxy บังคับ redirect ได้ที่ edge — คำนวณเฉพาะตอน
+      // sign-in (user/account) หรือ session.update() ไม่ใช่ทุก getToken (กัน query DB ทุก request)
+      if (token.userId && (user || account || trigger === "update")) {
+        const u = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { phone: true, shop: { select: { slug: true } } },
         });
-        if (!dbUser) {
-          dbUser = await prisma.user.create({
-            data: {
-              displayName: user?.name || "User",
-              username: `user_${Date.now()}`,
-              avatar: user?.image,
-              email: user?.email || undefined,
-              authAccounts: {
-                create: {
-                  provider: "FACEBOOK",
-                  providerAccountId: account.providerAccountId,
-                  accessToken: account.access_token,
-                },
-              },
-            },
-          });
-          // Auto-link any guest history that used this email (PRD FR-8)
-          if (dbUser.email) {
-            const { linkBuyerHistory } = await import("@/services/user.service");
-            await linkBuyerHistory(dbUser.id, undefined, dbUser.email);
-          }
-          // best-effort badge evaluation — อยู่ใน if (!dbUser) branch เท่านั้น
-          // (new-user only) ไม่กระทบ jwt refresh path (security must-fix Phase-3)
-          try { await evaluateSignupYearBadge(dbUser.id) } catch (e) { console.error('[auth] evaluateSignupYearBadge (facebook) failed', e) }
-        }
-        token.userId = dbUser.id;
+        // 2 เฟส: needsRegistration (ไม่มีเบอร์ = ต้องลงทะเบียน /register) แยกจาก
+        // needsOnboarding (ไม่มี slug = ต้อง setup /onboarding) — proxy ใช้บังคับคนละหน้า
+        token.needsRegistration = !u?.phone;
+        token.needsOnboarding = !u?.shop?.slug;
       }
       return token;
     },
@@ -280,17 +523,23 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({
           where: { id: token.userId as string },
           select: {
-            id: true,
-            displayName: true,
-            username: true,
-            avatar: true,
-            isShop: true,
-            isAdmin: true,
-            trustScore: true,
+            id: true, displayName: true, username: true, email: true,
+            avatar: true, isShop: true, isAdmin: true, trustScore: true, phone: true,
+            shop: { select: { slug: true } },
           },
         });
         if (user) {
-          (session as any).user = user;
+          const shopSlug = user.shop?.slug ?? null;
+          // ต้อง onboard เมื่อ: ยังไม่มี slug ร้าน หรือ ยังไม่มีเบอร์ (FB user)
+          // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session) — ให้ onboarding รู้ว่าต้องโชว์ step ยืนยันเบอร์ไหม
+          const needsPhoneVerify = !user.phone; // = needsRegistration (เฟส 1 /register)
+          const needsOnboarding = !shopSlug; // = ต้อง setup slug (เฟส 2 /onboarding)
+          (session as any).user = {
+            id: user.id, displayName: user.displayName, username: user.username,
+            email: user.email, avatar: user.avatar, isShop: user.isShop,
+            isAdmin: user.isAdmin, trustScore: user.trustScore,
+            shopSlug, needsOnboarding, needsPhoneVerify,
+          };
         }
       }
       return session;

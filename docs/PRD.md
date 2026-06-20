@@ -44,7 +44,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 | ID | User Story | Priority | Acceptance Criteria |
 |----|-----------|----------|-------------------|
-| U-1 | สมัครด้วย Facebook หรือ เบอร์โทร OTP | Must | สมัคร/เข้าได้ผ่าน FB หรือ Phone OTP **เท่านั้น** (ไม่มี email/password) |
+| U-1 | สมัคร/เข้าระบบ | Must | **buyer:** Facebook (live prod 2026-06-17) หรือ Phone OTP (ไม่มี password). **seller:** username+password เป็น login หลัก + Phone OTP ยืนยันเบอร์ตอนสมัคร + reset via OTP + Facebook (live prod 2026-06-17); seller ใหม่ผ่าน mandatory onboarding page (slug บังคับ + phone immutable). ไม่มี **email**+password |
 | U-2 | ยืนยันตัวตน (Phone OTP, เอกสารบุคคล, เอกสารธุรกิจ) | Must | verify ได้ 3 ระดับ, L2/L3 admin review |
 | U-3 | เห็น Trust Score ของตัวเอง + เข้าใจที่มา | Must | แสดง score + ระดับ + breakdown 5 ปัจจัย + คำอธิบายเงื่อนไข rating |
 | U-4 | เห็น badges ที่ได้รับ | Must | แสดง verification + achievement + paid badge |
@@ -55,7 +55,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 | B-4 | สมัครทีหลังแล้ว history ตามมา | Must | ผูก phone (phone-OTP signup) / email (FB signup) → auto-link orders+reviews เดิม |
 | B-5 | ใช้บนมือถือสะดวก | Must | Responsive mobile-first |
 
-> **ตัดถาวร:** Email+Password login, multi-provider linking (ผูกหลาย provider ใน account หลัง signup) — ไม่อยู่ใน scope ทั้ง MVP และ Phase 2
+> **ตัดถาวร:** **Email**+Password login, multi-provider linking (ผูกหลาย provider ใน account หลัง signup) — ไม่อยู่ใน scope. (หมายเหตุ: seller มี **username**+password login ตั้งแต่ 2026-06-16 — คนละอย่างกับ email+password ที่ตัด)
 
 ### 2.2 Seller (persona หลัก, isShop = true)
 
@@ -89,7 +89,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 
 ### FR-1: Authentication & Session
 
-ระบบ login 2 ช่องทาง: Facebook OAuth และ Phone OTP (SMS). Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี Email+Password ใน MVP หรือ Phase 2.
+ระบบ login: **buyer** = Facebook OAuth + Phone OTP (SMS). **seller** = username+password เป็น login หลัก (provider `seller-credentials`, bcrypt) + Phone OTP ยืนยันเบอร์ตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook (live บน prod 2026-06-17); seller signup → **mandatory onboarding page** `/onboarding` (5 step: phone→ข้อมูลร้าน→OTP→slug→สินค้าแรก; proxy force-redirect ถ้า `needsOnboarding`); **เบอร์โทร immutable** (ตั้งครั้งเดียว เปลี่ยนไม่ได้). **admin** = username+password. Session แยกตาม subdomain (buyer/seller/admin) — host-scoped cookie. ไม่มี **Email**+Password (seller ใช้ username ไม่ใช่ email).
 
 Priority: Must — รายละเอียด/acceptance: ดู SRS §1 FR-1
 
@@ -147,6 +147,24 @@ Dashboard 8 metrics ครบ. User management, verification queue (self-review 
 
 Priority: Must — acceptance: ดู SRS §1 FR-10
 
+### FR-L1: Privacy Policy Page
+
+หน้า `/privacy` สาธารณะ (ไม่ต้อง login) — แสดง Privacy Policy ภาษาไทย ครอบคลุมข้อมูลที่เก็บ/ใช้/เปิดเผย และสิทธิผู้ใช้ ตามข้อกำหนดของ **Facebook Login / Meta App Review** (Privacy Policy URL). Render เป็น static Server Component, ไม่ noindex.
+
+Priority: Must (Facebook App Review requirement) — routing: ดู SRS §3.2
+
+### FR-L2: Data Deletion Instructions Page
+
+หน้า `/data-deletion` สาธารณะ (ไม่ต้อง login) — อธิบายขั้นตอนขอลบข้อมูล: ส่ง email แจ้ง username + ข้อมูลที่ต้องการลบ → ทีม Deep ดำเนินการภายใน 30 วัน ตามข้อกำหนดของ **Facebook Login / Meta App Review** (User Data Deletion URL). Render เป็น static Server Component. หมายเหตุ: เป็นหน้า Instructions URL เท่านั้น — ไม่ใช่ deletion callback (callback = Phase 2, OOS).
+
+Priority: Must (Facebook App Review requirement) — routing: ดู SRS §3.2
+
+### FR-L3: Terms of Service Page
+
+หน้า `/terms` สาธารณะ (ไม่ต้อง login) — ข้อกำหนดการใช้บริการภาษาไทย 10 หัวข้อ (การยอมรับ/คำอธิบายบริการ/บัญชี/ข้อห้าม/การซื้อขาย/ทรัพย์สินทางปัญญา/จำกัดความรับผิด/ระงับบัญชี/กฎหมายไทย/ติดต่อ) ระบุชัดว่า Deep เป็นตัวกลางสร้างความน่าเชื่อถือ ไม่ใช่คู่สัญญาซื้อขาย. ใช้เป็น **Terms of Service URL** ใน Meta App Review. Render เป็น static Server Component, ไม่ noindex.
+
+Priority: Should (Meta App Review — Terms of Service URL optional แต่เพิ่มความน่าเชื่อถือ) — routing: ดู SRS §3.2
+
 ---
 
 ## §4 MVP Scope
@@ -154,7 +172,7 @@ Priority: Must — acceptance: ดู SRS §1 FR-10
 ### ทำใน MVP
 
 - Free core: Order / Product / Order Link อย่างง่าย / Report 1 ตัว (manual ทุกขั้น)
-- Auth: Facebook + Phone OTP
+- Auth: buyer = Facebook (live prod 2026-06-17) + Phone OTP; seller = username+password + Phone OTP (signup verify) + reset-via-OTP + Facebook (live prod 2026-06-17) + mandatory onboarding page (2026-06-17; แทน modal); admin = username+password; เบอร์โทร immutable
 - Verification L1 (Phone OTP) + L2 (เอกสารบุคคล) + L3 (ธุรกิจ) + admin review + self-review block
 - Trust Score (raw additive + rating floor + UX copy)
 - **Achievements system** — Badge data-driven engine (3 ประเภท; rework จาก hardcode), Seller+Buyer audience, ติดตัวถาวร, event/time-bound, icon deferred, **หน้า Badge Process** (buyer+seller `/badges`)
@@ -230,13 +248,13 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 
 | # | Gap | ต้องทำ | สถานะ |
 |---|-----|--------|-------|
-| 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | OPEN |
+| 1 | Badge evaluator hardcode ตาม nameEN — criteria JSON ไม่มีผล | rework เป็น data-driven engine (FR-4.3) | ✅ **CLOSED** (verified 2026-06-11) — `badge.service.evaluateBadges` อ่าน `badge.criteria` JSON จาก DB → `parseCriteria` → dispatch ตาม `criteria.type`; seed.ts = single source (เดิม hardcode DEFAULT_BADGES/BADGE_CHECKS ลบแล้ว) |
 | 2 | Ship guard เช็ค `type===PHYSICAL` | เปลี่ยนเป็น `fulfillmentMode===SHIPPED` (P3) | **CLOSED** (OMS stream) |
 | 3 | `shippingAddress` persist + required เมื่อ SHIPPED | ✅ CLOSED 2026-06-06 — persist (Phase B) + required guard ที่ `createOrder` service | CLOSED |
 | 4 | Admin อนุมัติ verification ตัวเองได้ (P2 retro HIGH) | self-review guard ที่ service layer `reviewVerification()` + ลบ orphan route | **CLOSED** 2026-06-06 |
 | 5 | Order state machine = CREATED/CONFIRMED/SHIPPED/COMPLETED/CANCELLED | migrate → PENDING/SHIPPED/CONFIRMED/CANCELLED + `cancelInitiator` | **CLOSED** (OMS stream) |
 | 6 | `.env.vercel` ยังชี้ `safepay.co` | seed.ts email → deepthailand.app ✅; `.env.vercel` = local untracked + gitignored | **CLOSED (code)** 2026-06-06 |
-| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (SRS §3.6) | OPEN |
+| 7 | buyer `/orders` `/reviews` `/settings/*` client-only auth | server-side guard (SRS §3.6) | ✅ **CLOSED** (verified 2026-06-11) — `(buyer-app)/layout.tsx` มี `getServerSession`+redirect ครอบทุก child; แต่ละ page เป็น server component + `getServerSession` เอง (defense-in-depth) + data fetch ผ่าน service ที่ scope ownership (`getOrdersByBuyer(userId)`) + flatten Decimal/Date กัน RSC leak |
 | 8 | seller/admin menu label อังกฤษ | แปลไทย (SRS NFR-3.1) | **CLOSED** 2026-06-06 |
 | 9 | FB user ไม่มี email → ไม่ auto-link history | หา fallback key | OPEN (edge case) |
 | 10 | 4 admin metrics ขาด (Completion Rate, Avg Rating, Active Users, Avg Trust) | ✅ CLOSED 2026-06-06 — ครบ 8 metric ใน dashboard page + api/admin/dashboard | CLOSED |
@@ -244,6 +262,9 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 12 | OTP/rate-limit store in-memory | ย้าย Redis (Phase 2) | OPEN (Phase 2) |
 | S-8 | SMS Order Link + Seller Wallet | backend B1-B4 + UI B5-B8 | **BUILT** — Phase 4 complete |
 | P9 | `/u/{username}` cross-platform stats จริง + follow/chat backend | Phase 2 (FR-9.10, FR-9.11) — ปัจจุบัน placeholder + disabled | OPEN (Phase 2) |
+| 13 | FB App ยัง Developer mode → login ได้เฉพาะ account ที่มี FB role | App Review `email` scope (เปิด public) | OPEN (ops carry) |
+| 14 | `OnboardingModal.tsx` dead code หลัง onboarding ย้ายเป็น page | ลบ component + mount point บน dashboard | OPEN (cleanup carry) |
+| 15 | username edit cooldown 30 วัน (หลัง onboarding) | feature อนาคต — ยังไม่มี cooldown enforcement | OPEN (Phase 2) |
 
 ### §7-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
 

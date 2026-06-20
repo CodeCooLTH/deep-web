@@ -1,18 +1,28 @@
 /**
- * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/ShippingActivity.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/projects/activity/components/ExpandedActivity.tsx
  *
- * ปรับจาก Paces ShippingActivity:
- * - ลบ data mock (shippingTimelineData + trackingNo + trackingBy) ออก
- * - แทนด้วย timeline ที่ derive จาก status จริงของ order SafePay
- * - SafePay ไม่มี shipping-carrier event feed → derive timeline จาก state machine
- *   (PENDING → SHIPPED → CONFIRMED ; NO_SHIPPING: PENDING → CONFIRMED ; * → CANCELLED) พร้อม createdAt ที่รู้
- * - แสดง shipmentTracking provider/trackingNo ถ้ามี (PHYSICAL orders)
- * - คง: timeline layout, dot-and-line CSS, card structure
- * - empty-state ที่ชัดเจน ถ้า status ไม่รู้จัก
+ * ปรับจาก Paces "Expended Activity Stream":
+ * - copy layout skeleton (icon-in-dashed-circle ซ้าย + เส้น dashed แนวตั้ง, title+badge, เวลาขวา, description)
+ * - DROP แถว user avatar+link ของ demo → แทนด้วย actor label ("ระบบ"/"ผู้ขาย"/"ผู้ซื้อ")
+ *   เพราะ SafePay ไม่เก็บ per-event human actor (Hard Rule 6: adapt asset เข้า data จริง ไม่ปล่อย demo ค้าง)
+ * - data ยัง derive จาก state machine จริงของ order SafePay (logic เดิมคงทั้งหมด — แก้เฉพาะ render layer):
+ *   (PENDING → SHIPPED → CONFIRMED ; NO_SHIPPING: PENDING → CONFIRMED ; * → CANCELLED)
+ * - badge สี/dot สี map ตาม state: done=success, SHIPPED active=primary(น้ำเงิน), pending=default-300, cancelled=danger
+ * - แสดง shipmentTracking provider/trackingNo ถ้ามี (PHYSICAL orders) ใต้ actor; เลขพัสดุ font-mono ได้ (latin/ตัวเลข)
+ * - คง: empty-state ที่ชัดเจน ถ้า status ไม่รู้จัก
  */
 
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTime } from '@/lib/format-date'
+
+// actor ที่รับผิดชอบแต่ละ step (SafePay ไม่มี per-event user record → label ธรรมดา)
+const STEP_ACTOR: Record<string, string> = {
+  PENDING: 'ระบบ',
+  SHIPPED: 'ผู้ขาย',
+  CONFIRMED: 'ผู้ซื้อ',
+  CANCELLED: 'ระบบ',
+}
 
 const STATUS_LABELS: Record<string, { title: string; description: string; icon: string; done: boolean }> = {
   PENDING: {
@@ -96,8 +106,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
       icon: created.icon,
       isDone: true,
       isPending: false,
-      time: new Date(createdAtISO).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }) +
-        ' ' + new Date(createdAtISO).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+      time: formatDateTime(createdAtISO),
     })
     // CANCELLED step
     const cancelled = STATUS_LABELS['CANCELLED']
@@ -125,10 +134,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
         icon: meta.icon,
         isDone,
         isPending,
-        time: idx === 0
-          ? new Date(createdAtISO).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }) +
-            ' ' + new Date(createdAtISO).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-          : undefined,
+        time: idx === 0 ? formatDateTime(createdAtISO) : undefined,
       })
     })
   }
@@ -138,64 +144,89 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
       <div className="card-header">
         <h4 className="card-title">ประวัติสถานะออเดอร์</h4>
       </div>
-      <div className="card-body p-4 sm:p-7.5">
+      <div className="card-body p-5 sm:p-7.5">
         {timelineItems.length === 0 ? (
           <p className="text-default-400 text-sm text-center py-4">ไม่มีข้อมูลสถานะ</p>
         ) : (
           <div>
-            {timelineItems.map((item, idx) => (
-              <div className="flex gap-x-base" key={item.key}>
-                {/* คอลัมน์เวลา */}
-                <div className="w-12 text-end sm:w-15 md:w-25">
-                  {item.time ? (
-                    <span className="text-default-400 text-xs">{item.time}</span>
-                  ) : item.isPending ? (
-                    <span className="text-default-300 text-xs">รอดำเนินการ</span>
-                  ) : null}
-                </div>
+            {timelineItems.map((item, idx) => {
+              const isLast = idx === timelineItems.length - 1
 
-                {/* เส้น timeline */}
-                <div
-                  className={cn(
-                    'after:border-default-300 relative after:absolute after:start-1/2 after:top-4 after:bottom-0 after:w-px after:border-e -ms-px after:border-dashed',
-                    idx === timelineItems.length - 1 ? 'after:hidden' : ''
-                  )}
-                >
-                  <div className="relative z-10 flex items-center justify-center">
-                    {item.isPending ? (
-                      // step ที่ยังไม่ถึง — วงกลมเส้นขอบ
-                      <div className="size-3.5 rounded-full border-2 border-default-300 bg-white" />
-                    ) : item.isDone ? (
-                      <div className="size-3.5 rounded-full bg-success" />
-                    ) : (
-                      // CANCELLED
-                      <div className="size-3.5 rounded-full bg-danger" />
+              // สี dashed-circle + icon ตาม state (สอดคล้องกับ badge สี)
+              // CANCELLED=danger, pending(ยังไม่ถึง)=default-300, SHIPPED active=primary(น้ำเงิน), done อื่น=success
+              const accent =
+                item.key === 'CANCELLED'
+                  ? { ring: 'border-danger', icon: 'text-danger' }
+                  : item.isPending
+                    ? { ring: 'border-default-300', icon: 'text-default-300' }
+                    : item.key === 'SHIPPED'
+                      ? { ring: 'border-primary', icon: 'text-primary' }
+                      : { ring: 'border-success', icon: 'text-success' }
+
+              // badge label + สี ต่อ state — pending ระบุ step ที่รอให้ชัด (รอจัดส่ง/รอยืนยัน)
+              const badge =
+                item.key === 'CANCELLED'
+                  ? { label: 'ยกเลิก', className: 'bg-danger/15 text-danger' }
+                  : item.isPending
+                    ? {
+                        label: item.key === 'SHIPPED' ? 'รอจัดส่ง' : item.key === 'CONFIRMED' ? 'รอยืนยัน' : 'รอ',
+                        className: 'bg-default-100 text-default-400',
+                      }
+                    : item.key === 'SHIPPED'
+                      ? { label: 'กำลังส่ง', className: 'bg-primary/15 text-primary' }
+                      : item.key === 'PENDING'
+                        ? { label: 'สร้างแล้ว', className: 'bg-success/15 text-success' }
+                        : { label: 'สำเร็จ', className: 'bg-success/15 text-success' }
+
+              // actor: แสดงเฉพาะ step ที่เกิดขึ้นแล้ว (ไม่แสดงบน step ที่ยังไม่ถึง)
+              const actor = item.isPending ? null : STEP_ACTOR[item.key]
+
+              return (
+                <div className="flex gap-x-base" key={item.key}>
+                  {/* คอลัมน์ซ้าย: icon-in-dashed-circle + เส้น dashed แนวตั้ง (ซ่อนที่ step สุดท้าย) */}
+                  <div
+                    className={cn(
+                      'after:border-default-300 relative after:absolute after:start-1/2 after:top-7 after:bottom-0 after:w-px after:border-e -ms-px after:border-dashed shrink-0',
+                      isLast ? 'after:hidden' : ''
+                    )}
+                  >
+                    <div className="relative z-10 flex items-center justify-center">
+                      <div className={cn('flex size-7.5 items-center justify-center rounded-full border border-dashed', accent.ring)}>
+                        <Icon icon={item.icon} className={cn('text-lg', accent.icon)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* คอลัมน์ขวา: title+badge / เวลา / description / actor — min-w-0 ให้ข้อความไทยพันบรรทัดได้ */}
+                  <div className={cn('flex-1 min-w-0', isLast ? '' : 'pb-5')}>
+                    <div className="flex justify-between gap-2">
+                      <h5 className={cn('mb-1.25', item.isPending ? 'text-default-400' : '')}>
+                        {item.title}
+                        <span className={cn('badge badge-label ms-2.5', badge.className)}>{badge.label}</span>
+                      </h5>
+                      {(item.time || item.isPending) && (
+                        <span className={cn('text-xs whitespace-nowrap shrink-0', item.time ? 'text-default-400' : 'text-default-300')}>
+                          {item.time ?? 'รอดำเนินการ'}
+                        </span>
+                      )}
+                    </div>
+                    {/* break-words ให้ข้อความไทยยาวพันบรรทัดได้ในคอลัมน์แคบ */}
+                    <p className={cn('mb-1.25 text-sm break-words', item.isPending ? 'text-default-300' : 'text-default-400')}>
+                      {item.description}
+                    </p>
+                    {actor && <span className="text-default-500 text-xs">{actor}</span>}
+                    {/* shipment tracking info สำหรับ SHIPPED step */}
+                    {item.key === 'SHIPPED' && shipmentTracking && (
+                      <p className="text-default-400 text-xs mt-0.5">
+                        {shipmentTracking.provider} · เลขพัสดุ:{' '}
+                        {/* font-mono เฉพาะเลขพัสดุ (latin/ตัวเลข) — ไม่กระทบ Anuphan (HR5) */}
+                        <span className="font-mono">{shipmentTracking.trackingNo}</span>
+                      </p>
                     )}
                   </div>
                 </div>
-
-                {/* เนื้อหา */}
-                <div className={`flex-1 ${idx === timelineItems.length - 1 ? '' : 'pb-8 sm:pb-15'}`}>
-                  <h5 className={`mb-1.25 flex items-center gap-1.5 ${item.isPending ? 'text-default-400' : ''}`}>
-                    <Icon
-                      icon={item.icon}
-                      className={`text-sm ${item.isDone && !item.isPending ? 'text-success' : item.isPending ? 'text-default-300' : 'text-danger'}`}
-                    />
-                    {item.title}
-                  </h5>
-                  <p className="text-default-400 mb-1.25 text-sm">{item.description}</p>
-                  {/* shipment tracking info สำหรับ SHIPPED step */}
-                  {item.key === 'SHIPPED' && shipmentTracking && (
-                    <p className="text-default-400 text-xs">
-                      {shipmentTracking.provider} · เลขพัสดุ:{' '}
-                      <span className="font-mono font-semibold text-default-700">
-                        {shipmentTracking.trackingNo}
-                      </span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

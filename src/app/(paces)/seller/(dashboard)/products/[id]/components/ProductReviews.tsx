@@ -8,6 +8,7 @@
 'use client'
 
 import Rating from '@/components/Rating'
+import { formatDateTime } from '@/lib/format-date'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
@@ -25,14 +26,6 @@ interface Props {
 
 const columnHelper = createColumnHelper<ReviewRow>()
 
-// format ISO string เป็นวันที่ภาษาไทย (client-side ป้องกัน hydration mismatch)
-function formatThaiDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: Props) => {
   const columns = [
@@ -68,11 +61,7 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
       header: 'วันที่',
       cell: ({ row }) => (
         <span className="text-sm text-default-600">
-          {new Date(row.original.createdAt).toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
+          {formatDateTime(row.original.createdAt)}
         </span>
       ),
     }),
@@ -196,7 +185,7 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
               {/* trailing: วันที่ */}
               <div className="shrink-0">
                 <p className="text-[11px] text-default-400 leading-tight whitespace-nowrap">
-                  {formatThaiDate(r.createdAt)}
+                  {formatDateTime(r.createdAt)}
                 </p>
               </div>
             </div>

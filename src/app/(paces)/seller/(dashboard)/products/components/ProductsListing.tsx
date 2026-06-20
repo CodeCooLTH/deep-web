@@ -16,6 +16,7 @@
 'use client'
 
 import Rating from '@/components/Rating'
+import { formatDateTime } from '@/lib/format-date'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
@@ -38,7 +39,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 import type { ProductRow } from './data'
 
 const TYPE_LABELS: Record<ProductRow['type'], string> = {
@@ -151,16 +152,8 @@ const ProductsListing = ({ products }: Props) => {
     columnHelper.accessor('createdAt', {
       header: 'วันที่เพิ่ม',
       cell: ({ row }) => {
-        // createdAt เป็น ISO string ที่แปลงแล้วที่ server boundary
-        const d = new Date(row.original.createdAt)
-        return (
-          <>
-            {d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}{' '}
-            <small className="text-default-400">
-              {d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-            </small>
-          </>
-        )
+        // createdAt เป็น ISO string ที่แปลงแล้วที่ server boundary — รวม date+time ใน cell เดียว
+        return <span>{formatDateTime(row.original.createdAt)}</span>
       },
     }),
     {
@@ -230,10 +223,10 @@ const ProductsListing = ({ products }: Props) => {
       setData((prev) => prev.filter((p) => p.id !== id))
       setDeletingId(null)
       setPagination({ ...pagination, pageIndex: 0 })
-      toast.success('ลบสินค้าเรียบร้อย')
+      pacesToast.success('ลบสินค้าเรียบร้อย')
       router.refresh()
     } catch {
-      toast.error('เกิดข้อผิดพลาด ลบสินค้าไม่สำเร็จ')
+      pacesToast.error('เกิดข้อผิดพลาด ลบสินค้าไม่สำเร็จ')
     } finally {
       window.HSOverlay?.close('#confirm-delete-modal')
     }
@@ -264,9 +257,9 @@ const ProductsListing = ({ products }: Props) => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2.5 md:flex-nowrap">
-          <div className="items-center gap-3 md:flex">
+          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:gap-3">
             <span className="font-semibold">กรอง:</span>
-            <div className="input-icon-group">
+            <div className="input-icon-group w-full">
               <Icon icon="tag" className="input-icon" />
               <Select
                 className="form-select"
@@ -331,18 +324,18 @@ const ProductsListing = ({ products }: Props) => {
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/products/${p.id}`}
-                  className="text-[14px] font-medium text-ink hover:text-primary block truncate"
+                  className="text-sm font-medium text-ink hover:text-primary block truncate"
                 >
                   {p.name}
                 </Link>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="text-[12px] text-default-500">{priceStr}</span>
-                  <span className="text-default-300 text-[10px]">·</span>
-                  <span className={cn('badge py-0 text-[10px] font-semibold leading-tight', TYPE_COLORS[p.type])}>
+                  <span className="text-xs text-default-500">{priceStr}</span>
+                  <span className="text-default-300 text-2xs">·</span>
+                  <span className={cn('badge py-0 text-2xs font-semibold leading-tight', TYPE_COLORS[p.type])}>
                     {TYPE_LABELS[p.type]}
                   </span>
                   <span className={cn(
-                    'badge py-0 text-[10px] font-semibold leading-tight',
+                    'badge py-0 text-2xs font-semibold leading-tight',
                     p.isActive ? 'bg-success/10 text-success' : 'bg-default-200 text-default-700',
                   )}>
                     {p.isActive ? 'เปิดขาย' : 'ซ่อน'}
@@ -352,7 +345,7 @@ const ProductsListing = ({ products }: Props) => {
 
               {/* trailing: ขายแล้ว + 3 action icons */}
               <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
-                <p className="text-[12px] text-default-400 leading-tight whitespace-nowrap">
+                <p className="text-xs text-default-400 leading-tight whitespace-nowrap">
                   ขายแล้ว {new Intl.NumberFormat('th-TH').format(p.totalSold)}
                 </p>
                 {/* action: แก้ไข / ลบ — touch ≥44px (ดู = แตะชื่อสินค้าไป detail แล้ว เลยตัด eye) */}

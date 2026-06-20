@@ -2,7 +2,7 @@
  * Approve/reject actions for a verification record (PRD FR-10.3).
  *
  * Base: src/app/(paces)/seller/(dashboard)/verification/components/VerificationForm.tsx
- *       (same paces card + fetch + react-toastify submit pattern).
+ *       (same paces card + fetch + pacesToast submit pattern).
  *
  * Calls PATCH /api/admin/verifications/[id] with { status, rejectedReason? }.
  * On success: toast + router.push('/verifications').
@@ -12,7 +12,7 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 type Props = {
   recordId: string
@@ -48,17 +48,17 @@ export default function ReviewActions({ recordId, isSelfRecord = false }: Props)
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        toast.error(data?.error ?? 'บันทึกการตรวจสอบไม่สำเร็จ')
+        pacesToast.error(data?.error ?? 'บันทึกการตรวจสอบไม่สำเร็จ')
         return
       }
-      toast.success(
+      pacesToast.success(
         body.status === 'APPROVED' ? 'อนุมัติคำขอแล้ว' : 'ปฏิเสธคำขอแล้ว',
       )
       router.push('/verifications')
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-      toast.error(message)
+      pacesToast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -73,7 +73,7 @@ export default function ReviewActions({ recordId, isSelfRecord = false }: Props)
     if (submitting) return
     const trimmed = reason.trim()
     if (trimmed.length < 4) {
-      toast.error('กรุณากรอกเหตุผลที่ปฏิเสธอย่างน้อย 4 ตัวอักษร')
+      pacesToast.error('กรุณากรอกเหตุผลที่ปฏิเสธอย่างน้อย 4 ตัวอักษร')
       return
     }
     void submit({ status: 'REJECTED', rejectedReason: trimmed })

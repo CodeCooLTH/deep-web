@@ -13,7 +13,7 @@
  */
 import { Icon } from '@iconify/react'
 import { useEffect, useRef, useState } from 'react'
-import { toast } from 'react-toastify'
+import { pacesToast } from '@/lib/paces-toast'
 
 interface ProductTagsCardV2Props {
   value: string[]
@@ -110,11 +110,11 @@ export default function ProductTagsCardV2({
     const trimmed = rawTag.trim()
     if (!trimmed) return // empty trim guard
     if (trimmed.length > MAX_TAG_LEN) {
-      toast.error(`แท็กยาวได้ไม่เกิน ${MAX_TAG_LEN} ตัวอักษร`)
+      pacesToast.error(`แท็กยาวได้ไม่เกิน ${MAX_TAG_LEN} ตัวอักษร`)
       return
     }
     if (isFull) {
-      toast.error(`เพิ่มได้สูงสุด ${maxTags} แท็ก`)
+      pacesToast.error(`เพิ่มได้สูงสุด ${maxTags} แท็ก`)
       return
     }
     // dedupe case-insensitive

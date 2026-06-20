@@ -14,6 +14,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 
 export const metadata: Metadata = { title: 'ยืนยันตัวตน — รอตรวจสอบ' }
@@ -50,15 +51,6 @@ function countDocs(documents: unknown): number {
   ).length
 }
 
-function formatDate(d: Date): string {
-  return new Date(d).toLocaleDateString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 export default async function AdminVerificationsPage({ searchParams }: PageProps) {
   const sp = await searchParams
@@ -222,7 +214,7 @@ export default async function AdminVerificationsPage({ searchParams }: PageProps
                           </span>
                         </td>
                         <td className="text-default-500 px-4 py-3 text-sm">
-                          {formatDate(r.createdAt)}
+                          {formatDateTime(r.createdAt)}
                         </td>
                         <td className="px-4 py-3 text-end">
                           <Link

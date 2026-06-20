@@ -1,0 +1,112 @@
+# Extension Design: LINE + Instagram OAuth Login
+
+> **Feature:** 00001 - Login & Onboarding
+> **วันที่:** 2026-06-18
+> **สถานะ:** Design approved (user) — รอ implement
+> **เจ้าของ design:** Controller (main session)
+> ขยาย FR-LO-03 (Facebook OAuth) ให้รองรับ provider เพิ่ม: **LINE (ใช้งานจริง)** + **Instagram (เตรียมโค้ด, ปิด flag ไว้)**
+
+---
+
+## 1. บริบท / เหตุผล
+
+- Facebook OAuth ติด **Meta Business Verification** (สถานะ Incomplete) → app ยัง go-live เต็มตัวไม่ได้
+- **Instagram login = Meta = ติด business verification ตัวเดียวกัน** (Instagram Basic Display API ยกเลิก ธ.ค. 2024; ปัจจุบันวิ่งผ่าน Meta ต้อง App Review + business verification) → ทำตอนนี้ไปก็ใช้จริงไม่ได้ → **เตรียมโค้ดไว้ ปิด flag**
+- **LINE Login = อิสระจาก Meta 100%** (LINE Developers Console แยกต่างหาก) → ใช้งานได้ทันที + เหมาะตลาดไทย
+
+## 2. หลักการออกแบบ: reuse pattern Facebook ทั้งหมด
+
+- `AuthAccount.provider` เป็น **String** + `@@unique([provider, providerAccountId])` → เพิ่มค่าใหม่ได้ **โดยไม่ต้อง migration**
+- OAuth flow ทำใน `jwt` callback (`account.provider === "facebook"`) → generalize เป็น helper เดียว
+
+## 3. Frozen Contract (ห้ามเปลี่ยนระหว่าง implement / doc-update)
+
+| ด้าน | ค่า |
+|---|---|
+| **FR/BR ใหม่ (freeze)** | **FR-LO-14** = LINE OAuth (live), **FR-LO-15** = Instagram OAuth (prepared/flag-off), **BR-19** = pre-tick `"line"` ตอน LINE login ⚠️ **DEFERRED → Phase 2** (BR-07 ต้นแบบเป็น vestigial — ดู `docs/scope/2026-06-18-line-instagram-oauth-scope-baseline.md`) |
+| next-auth provider id | `line`, `instagram` (เพิ่มจาก `facebook` เดิม) |
+| `AuthAccount.provider` string | `LINE`, `INSTAGRAM` (เพิ่มจาก `FACEBOOK`, `PHONE` เดิม) |
+| username scheme | LINE = `line{providerAccountId}`, IG = `ig{providerAccountId}` (mirror `fb{id}`) |
+| avatar source | LINE = `profile.picture`, IG = (เตรียมไว้) |
+| email scope | **ไม่ขอ** → LINE user ไม่มี email → `needsRegistration=true` → reuse `/register` + `/onboarding` gating เดิม |
+| env (LINE — จริง) | `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET` |
+| env (IG — placeholder) | `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` |
+| feature flag (IG) | `NEXT_PUBLIC_ENABLE_IG_LOGIN` (default off → ปุ่ม IG ไม่ render) |
+| auth helper | `upsertOAuthUser(account, user, { providerEnum, usernamePrefix })` |
+| callback route | `/auth/callback/[provider]` dynamic (reuse spinner page; FB ใช้ต่อได้) |
+| LINE callback API (register ใน LINE console) | `https://deepthailand.app/api/auth/callback/line` + `https://seller.deepthailand.app/api/auth/callback/line` |
+| ปุ่ม LINE placement | seller sign-in (Paces), buyer sign-in + sign-up (Vuexy) — 3 ที่เหมือน FB |
+| ปุ่ม IG placement | เตรียม component แต่ปิดหลัง flag → ไม่ render ทุกที่ |
+| pre-tick sales channel | LINE login → pre-tick `"line"` (mirror BR-07 ของ FB → `"facebook"`) |
+| LINE brand color | เขียว `#06C755` = brand asset (Hard Rule 6) → ใช้ได้พร้อม comment กำกับ |
+
+## 4. Backend — `src/lib/auth.ts`
+
+1. เพิ่ม `LineProvider({ clientId: LINE_CHANNEL_ID, clientSecret: LINE_CHANNEL_SECRET })` + `InstagramProvider({...})` พร้อม `profile()` map → `{ id, name, image, email: null }`
+2. Refactor `jwt` callback: ดึง logic `account.provider === "facebook"` block → helper `upsertOAuthUser`:
+   - match by `(provider, providerAccountId)` → ไม่เจอ → create user (`{prefix}{id}`, avatar, email ถ้ามี) + `linkBuyerHistory(email)` (เฉพาะมี email) + `evaluateSignupYearBadge` best-effort
+   - เจอ → refresh avatar ถ้าเปลี่ยน
+   - set `token.userId`
+3. map: `facebook→{FACEBOOK, "fb"}`, `line→{LINE, "line"}`, `instagram→{INSTAGRAM, "ig"}`
+4. ไม่แตะ needsRegistration/needsOnboarding logic เดิม (ทำงานต่อได้เพราะ LINE user ไม่มี phone/slug)
+
+## 5. Frontend (ผ่าน safepay-ux gate — Hard Rule 8)
+
+- ปุ่ม LINE: copy social-button pattern จาก theme (seller=Paces auth/split, buyer=Vuexy) → `signIn('line', { callbackUrl: '/auth/callback/line' })`
+- ปุ่ม IG: render เฉพาะเมื่อ `process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true'` (default ไม่ render)
+- callback `/auth/callback/[provider]/page.tsx` reuse spinner เดิมของ FB
+
+## 6. `next.config.ts`
+
+เพิ่ม remotePatterns: `profile.line-scdn.net`, `*.cdninstagram.com`
+
+## 7. Prerequisite (user ทำเอง — Claude ทำให้ไม่ได้)
+
+- สร้าง LINE Login channel ใน LINE Developers Console → Channel ID/Secret → ใส่ env (`.env.local` + Vercel prod)
+- register callback URL 2 ตัวข้างบนใน LINE console
+
+## 8. Out of scope (YAGNI)
+
+- ❌ Instagram ใช้งานจริง (ติด Meta verify)
+- ❌ LINE email + history-link by email (ไม่ขอ scope)
+- ~~Cross-provider account linking~~ → **ดึงเข้า scope แล้วเป็น FR-LO-16** (ดู §10; manual link ผ่าน Settings, ไม่ merge/block ถ้า provider ถูกใช้แล้ว)
+
+## 9. เอกสาร feature 00001 ที่ต้องอัปเดต (ownership)
+
+| Doc | Owner | เพิ่มอะไร |
+|---|---|---|
+| PRD.md | safepay-product | provider scope LINE/IG, feature overview |
+| BRD.md | safepay-product | FR-LO-* ใหม่ (LINE OAuth + IG prepared/flagged), acceptance, BR pre-tick line, scenario |
+| SRS.md | safepay-planner | provider config, `upsertOAuthUser`, auth flow, env, authz |
+| SDS.md | safepay-planner | sequence diagram, callback route, button component, feature flag |
+| API.md | safepay-planner | `/api/auth/callback/line`, provider list |
+| DATABASE.md | safepay-database | provider String รับ LINE/INSTAGRAM (no schema change) |
+| Tests/ | safepay-qa | LINE login new/existing user, IG flag-off ไม่ render |
+
+---
+
+## 10. Account Linking (FR-LO-16) — เพิ่ม 2026-06-18 (sub-feature)
+
+> **Business Rule:** ไม่ merge เด็ดขาด — provider ที่ถูกใช้สร้างบัญชีอื่นแล้ว → **block**. ทางเข้า = Settings "บัญชีที่เชื่อมต่อ". Disconnect ยืนยันด้วย **OTP**.
+
+### 10.1 ข้อจำกัด NextAuth v4 (verified ใน source)
+`core/routes/callback.js` ตอน OAuth signin สร้าง `defaultToken` ใหม่ (ไม่อ่าน session cookie เดิม) → linking native ไม่มี → ต้องใช้ link-intent cookie.
+
+### 10.2 Frozen Contract
+| ด้าน | ค่า |
+|---|---|
+| Connect API | `POST /api/account/link/start` (auth required) → set cookie `deep_link_intent` |
+| cookie | `deep_link_intent` = HMAC(`NEXTAUTH_SECRET`) ของ `{userId, provider, exp}`; httpOnly; TTL 5 นาที |
+| flow | client (Settings) กด Connect → fetch `/link/start` → ได้ ok → `signIn(provider, { callbackUrl: '/seller/settings' })` |
+| signIn callback | อ่าน `deep_link_intent` (ผ่าน `cookies()` next/headers) → verify HMAC + ยังไม่ exp → ถ้า `AuthAccount(provider,providerAccountId)` มีของ user อื่น = `return false` (block) / ว่าง = create `AuthAccount` ผูก `intent.userId` → return true; ไม่มี intent = login ปกติ |
+| ป้องกัน account-switch | เมื่อ link mode + สร้าง/พบ AuthAccount ของ intent.userId → ห้ามให้ jwt set sub เป็น provider-user คนใหม่ (คง session เดิม) |
+| Disconnect API | `POST /api/account/link/remove` (auth) — ต้องแนบ OTP ที่ verify แล้ว; guard: ต้องเหลือ login method ≥1 (อีก provider หรือ password+phone); ลบเฉพาะ `AuthAccount.userId == session.userId` |
+| Disconnect OTP | reuse `lib/otp` (`POST /api/account/link/send-otp` หรือ reuse endpoint OTP เดิม) + rate-limit เดิม |
+| Settings UI | section "บัญชีที่เชื่อมต่อ" — base `theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx` (Social section row layout) ปรับเป็น provider + สถานะ + Connect/Disconnect; Disconnect ผ่าน Sweet Alert + OTP |
+
+### 10.3 Files (คาดการณ์)
+- `src/lib/auth.ts` — signIn callback อ่าน link-intent + block/link logic
+- `src/lib/link-intent.ts` (ใหม่) — sign/verify HMAC cookie (pattern เดียวกับ `sms-unlock-cookie.ts`)
+- `src/app/api/account/link/start/route.ts`, `.../remove/route.ts`, `.../send-otp/route.ts`
+- Settings page (paces seller) + connected-accounts component
+- ไม่แตะ schema (AuthAccount มีพอ)

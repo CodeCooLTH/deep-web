@@ -1,9 +1,11 @@
 // Next Imports
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import NextLink from 'next/link'
 
 // MUI Imports
 import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 
 // Service Imports
 import { prisma } from '@/lib/prisma'
@@ -11,6 +13,7 @@ import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getTrustLevel } from '@/services/trust-score.service'
+import { formatDateTime } from '@/lib/format-date'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
@@ -42,12 +45,6 @@ const TRUST_COLOR: Record<string, 'success' | 'info' | 'warning' | 'error'> = {
   C: 'warning',
   D: 'error',
 }
-
-const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-})
 
 const DEFAULT_COVER = '/images/pages/profile-banner.png'
 
@@ -109,7 +106,7 @@ export default async function PublicProfilePage({ params }: Props) {
     profileImg: user.avatar,
     fullName: user.displayName,
     username: user.username,
-    memberSince: dateFmt.format(user.createdAt),
+    memberSince: formatDateTime(user.createdAt),
     shopName: user.isShop && user.shop ? user.shop.shopName : null,
     trustScore: user.trustScore,
     trustLevel,
@@ -154,6 +151,12 @@ export default async function PublicProfilePage({ params }: Props) {
       }}
     >
       <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
+      {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
+      <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+        <NextLink href='/privacy' style={{ textDecoration: 'none' }}>
+          <Typography variant='caption' color='text.secondary'>นโยบายความเป็นส่วนตัว</Typography>
+        </NextLink>
+      </Box>
     </Box>
   )
 }

@@ -9,7 +9,7 @@
  */
 'use client'
 
-import { Icon } from '@iconify/react'
+import Icon from '@/components/wrappers/Icon'
 import { useState } from 'react'
 
 interface SlipViewerProps {
@@ -24,8 +24,8 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
 
   if (errored) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-8 text-default-400 border border-dashed border-default-200 rounded-xl">
-        <Icon icon="tabler:photo-off" className="text-3xl" />
+      <div className="flex flex-col items-center justify-center gap-2 py-8 text-default-400 border border-dashed border-default-300 rounded-xl">
+        <Icon icon="photo-off" className="text-3xl" />
         <p className="text-xs">ไม่สามารถโหลดสลิปได้</p>
       </div>
     )
@@ -37,7 +37,7 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
       <button
         type="button"
         onClick={() => setShowFull(true)}
-        className="group relative block mx-auto overflow-hidden rounded-xl border border-default-200 hover:border-primary transition-colors"
+        className="group relative block mx-auto overflow-hidden rounded-xl border border-default-300 hover:border-primary transition-colors"
         aria-label="ดูสลิปแบบเต็ม"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -49,7 +49,7 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
         />
         <span className="absolute inset-0 flex items-center justify-center bg-dark/0 group-hover:bg-dark/20 transition-colors">
           <Icon
-            icon="tabler:zoom-in"
+            icon="zoom-in"
             className="text-white text-2xl opacity-0 group-hover:opacity-100 drop-shadow transition-opacity"
           />
         </span>
@@ -67,13 +67,13 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
             onClick={() => setShowFull(false)}
             aria-label="ปิด"
           >
-            <Icon icon="tabler:x" className="text-3xl" />
+            <Icon icon="x" className="text-3xl" />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt="สลิปโอนเงิน (เต็ม)"
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-xl"
+            className="max-h-screen max-w-screen object-contain rounded-xl shadow-lg"
             onClick={(e) => e.stopPropagation()}
             onError={() => { setErrored(true); setShowFull(false) }}
           />

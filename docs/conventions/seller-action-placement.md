@@ -40,7 +40,7 @@
 
 - **ห้ามวางติด primary** — ต้องอยู่ใน **overflow `⋯` menu** เท่านั้น
 - ในเมนู: รายการปกติด้านบน → `divider` → รายการอันตราย (`text-danger`) ด้านล่างสุด
-- กดแล้วต้องเปิด **confirm modal** (Preline overlay) — ห้าม `window.confirm()`
+- กดแล้วต้องเปิด **confirm dialog ผ่าน Sweet Alerts** (`pacesConfirm.danger(...)` จาก `@/lib/paces-swal`) — ห้าม `window.confirm()` และห้ามประดิษฐ์ card-overlay modal เอง (safepay-ux Hard Rule 8, 2026-06-16; เดิมใช้ Preline overlay → migrate เป็น Sweet Alerts แล้ว). ข้อยกเว้น: dialog ที่เป็น **multi-phase progress** (เช่น bulk-send-SMS ใน `BulkActionBar` — confirm→progress bar→done) คงเป็น custom card-overlay ได้ (Sweet Alerts ไม่เหมาะกับ progress loop)
 - `แก้ไขออเดอร์` ถือเป็น action รอง (ไม่ใช่ flow หลักของหน้า detail) → อยู่ใน `⋯` menu เช่นกัน
 
 ---

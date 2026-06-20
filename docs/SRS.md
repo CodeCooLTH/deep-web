@@ -17,12 +17,23 @@
 
 | ID | ข้อกำหนด | Priority |
 |----|---------|----------|
-| FR-1.1 | รองรับ Facebook OAuth Login | Must |
+| FR-1.1 | รองรับ Facebook OAuth Login — **buyer + seller** (`FacebookProvider` ใน `lib/auth.ts`); avatar ดึงจาก `graph.facebook.com/{id}/picture?type=large` (~200px); `next.config.ts` ขาว `graph.facebook.com`; `jwt` callback อัปเดต avatar ทุก login ถ้ารูปเปลี่ยน; username เริ่มต้น = `fb{facebookId}` | Must |
 | FR-1.2 | รองรับ Phone OTP Login (SMS) — OTP store ปัจจุบัน in-memory (Redis = Phase 2) | Must |
 | FR-1.3 | 1 user ผูก auth provider ได้ (AuthAccount) — link เฉพาะตอน signup เท่านั้น | Must |
 | FR-1.4 | Session แยกตาม subdomain (buyer / seller / admin) — host-scoped cookie ต่อ hostname | Must |
 | FR-1.5 | Login แยกแต่ละ subdomain, logout ฝั่งหนึ่งไม่กระทบอีกฝั่ง | Must |
 | FR-1.6 | **ตัดถาวร:** Email+Password, multi-provider linking หลัง signup | — |
+| FR-1.7 | **Seller login:** username+password (provider `seller-credentials`, bcrypt) + Phone OTP ยืนยันเบอร์ตอนสมัคร + ตั้ง/ลืมรหัสผ่าน via OTP + Facebook | Must |
+| FR-1.8 | **Session JWT:** มี `user.needsOnboarding` (= `!shopSlug \|\| !phone`) + `user.shopSlug`; proxy บังคับ redirect seller ที่ `needsOnboarding` → `/onboarding` ทุก route (ยกเว้น `/auth`, `/api`) | Must |
+| FR-1.9 | **Onboarding page (บังคับ):** `seller.deepthailand.app/onboarding` — 5 step: phone (FB user ที่ไม่มีเบอร์) → ข้อมูลร้าน (displayName/category/username) → OTP ยืนยันเบอร์ → slug → สินค้าแรก (ข้ามได้). เมื่อ slug ผ่านแล้ว `needsOnboarding` เปลี่ยนเป็น false — ป้องกันเข้าซ้ำ | Must |
+| FR-1.10 | **Phone immutable:** `User.phone` ตั้งครั้งเดียวผ่าน `POST /api/account/set-phone` เปลี่ยนไม่ได้ (enforce ที่ API — ถ้ามี `phone` แล้ว = 409); สร้าง L1 `PHONE_OTP` verification อัตโนมัติ; ไม่มี phone-edit ใน settings | Must |
+| FR-1.11 | **FB หน้า callback:** `/auth/callback/facebook` — Paces spinner รอ session authenticated (~1.5s) แล้ว redirect `/dashboard`; ปุ่ม FB ใน sign-in/sign-up ใช้ `callbackUrl=/auth/callback/facebook` | Must |
+
+**หมายเหตุ Facebook App:**
+- prod เท่านั้น — FB OAuth ใช้ไม่ได้บน `deepth.local` (http; FB ต้องการ https)
+- App ยังอยู่ Developer mode → login ได้เฉพาะ account ที่มี FB App role
+- App Review scope `email` = อนาคต (เปิด public — carry)
+- FB App secret regenerate pending (ops carry)
 
 ### FR-2: Verification (3 ระดับ)
 
@@ -236,10 +247,14 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Landing | `/` |
 | Pricing | `/pricing` |
 | Sign-in / Sign-up / Verify OTP | `/auth/sign-in`, `/auth/sign-up`, `/auth/verify-otp` |
+| FB OAuth callback loading page | `/auth/callback/facebook` — Paces spinner รอ session → redirect /dashboard |
 | Public Profile | `/u/{username}` |
 | Public Order (UUID) | `/o/{token}` |
 | Public Order (SMS short-code) | `/o/{12-char-code}` → redirect ผ่าน `/api/o/sms/{code}` → `/o/{uuid}` |
 | SMS Link Invalid / Error | `/o/link-invalid` |
+| Privacy Policy | `/privacy` — public, ไม่ต้อง login, static Server Component — Meta App Review (Privacy Policy URL) |
+| Data Deletion Instructions | `/data-deletion` — public, ไม่ต้อง login, static Server Component — Meta App Review (User Data Deletion URL); request via email, ดำเนินการภายใน 30 วัน |
+| Terms of Service | `/terms` — public, ไม่ต้อง login, static Server Component — Meta App Review (Terms of Service URL); ข้อกำหนดการใช้บริการ 10 หัวข้อ |
 
 ### 3.3 Buyer (`deepthailand.app/...`) — ต้อง login
 
@@ -256,6 +271,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 | เมนู | Path |
 |------|------|
+| **Onboarding (บังคับ, needsOnboarding=true)** | **`/onboarding`** |
 | Dashboard | `/dashboard` |
 | Sales (analytics) | `/sales` |
 | Products | `/products` |
@@ -268,8 +284,10 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | **เครดิต SMS (wallet)** | **`/wallet`** |
 | Shop Settings | `/shop` |
 | Verification | `/verification` |
+| Auth (sign-in/sign-up/verify-otp/reset-pass/new-pass) | `/auth/*` |
 
 > path ฝั่ง seller **ไม่มี** `/settings/` prefix (sync ตามโค้ดจริง)
+> **force-redirect:** seller authed + `needsOnboarding` → proxy redirect ทุก route → `/onboarding` (ยกเว้น `/auth/*`, `/api/*`)
 
 ### 3.5 Admin (`admin.deepthailand.app/...`) — login แยก + isAdmin
 
@@ -347,7 +365,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | UI Theme | **Dual:** buyer/marketing = Vuexy (**MUI v9** + Emotion + Tailwind 4); seller/admin = Paces (Preline 4 + Tailwind 4, no MUI) |
 | Database | PostgreSQL 16 (Supabase) |
 | ORM | Prisma |
-| Auth | NextAuth.js v4 (Facebook OAuth + Phone OTP) |
+| Auth | NextAuth.js v4 (`FacebookProvider` + `CredentialsProvider` phone-OTP + `seller-credentials` username+password) |
 | OTP / SMS | SMS Gateway provider — apitel (ใช้ทั้ง auth OTP + SMS Order Link); FB OAuth creds ยังขาด (prod login ใช้ OTP ได้แล้ว) |
 | Validation | Valibot (API) + Yup (form, react-hook-form) |
 | Charts | ApexCharts / ECharts / Chart.js |
@@ -400,7 +418,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `trustScore` | Int default 0 | คะแนน 0-100 |
 | `isShop` | Boolean default false | true เมื่อสร้างร้านสำเร็จ |
 | `isAdmin` | Boolean default false | ตั้งผ่าน DB seed เท่านั้น |
-| `passwordHash` | String? | เก็บไว้แต่ไม่ได้ใช้ (no email+password login ใน MVP) |
+| `passwordHash` | String? | bcryptjs hash — ใช้กับ seller-credentials login + admin login; buyer ไม่มี (no email+password) |
 | `createdAt` | DateTime | วันสมัคร — ใช้คำนวณ Age component trust score |
 
 **Relations:** `shop`, `authAccounts`, `verifications`, `userBadges`, `trustScoreHistory`, `ordersAsBuyer`, `reviewsGiven`, `verificationsReviewed`, `topUpRequestsReviewed`
@@ -410,8 +428,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `userId` | String FK → User | cascade delete |
-| `provider` | String | `"facebook"` หรือ `"credentials"` (phone-OTP) |
-| `providerAccountId` | String | FB user id หรือ phone number |
+| `provider` | String | `"facebook"`, `"credentials"` (phone-OTP), หรือ `"seller-credentials"` (username+password) |
+| `providerAccountId` | String | FB user id / phone number / username (ตาม provider) |
 | `accessToken` / `refreshToken` | String? | FB OAuth tokens |
 
 **Unique constraint:** `[provider, providerAccountId]`
@@ -424,9 +442,10 @@ SellerWallet (1) ── (N) WalletTransaction
 | `shopName` | String | ≤100 chars (Valibot) |
 | `description` | String? | bio ร้าน |
 | `logo` | String? | fileId จาก `/api/upload` |
-| `category` | String? | ≤50 chars |
+| `category` | String? | picklist จาก `src/lib/shop-categories.ts` (10 key) — ≤50 chars |
 | `address` | String? | ≤200 chars — แสดงบน public profile |
 | `businessType` | String default `"INDIVIDUAL"` | `"INDIVIDUAL"` หรือ `"COMPANY"` |
+| `slug` | String? `@unique` | ชื่อ URL ร้าน (3–30 a-z0-9- ไม่ขึ้น/ลงด้วย hyphen) — `src/lib/shop-slug.ts`; **บังคับตั้งตอน onboarding** ก่อน access dashboard; migration 2026-06-16 (nullable ADD COLUMN) |
 
 **Relations:** `products`, `orders`, `wallet` (SellerWallet), `topUpRequests`
 
@@ -621,7 +640,7 @@ SellerWallet (1) ── (N) WalletTransaction
 
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
-| POST | `/api/auth/[...nextauth]` | — | NextAuth.js handler (FB OAuth + credentials) | `lib/auth.ts` |
+| POST | `/api/auth/[...nextauth]` | — | NextAuth.js handler (FB OAuth + `seller-credentials` + `phone-otp` credentials) | `lib/auth.ts` |
 | POST | `/api/login` | — | Phone-OTP login (custom endpoint) | `lib/auth.ts` |
 | POST | `/api/otp/send` | Guest | ส่ง OTP SMS — rate-limit 3/10min/เบอร์; คืน `isNewUser` | `lib/otp.ts` |
 | POST | `/api/otp/verify` | Guest | ตรวจ OTP 6-digit | `lib/otp.ts` |
@@ -632,6 +651,15 @@ SellerWallet (1) ── (N) WalletTransaction
 |--------|------|------|---------|---------|
 | GET | `/api/users/me` | Buyer/Seller | ดึง profile ตัวเอง (session-scoped) | `user.service` |
 | GET | `/api/users/check-username` | Guest | ตรวจว่า username ว่างหรือไม่ | `user.service` |
+| GET | `/api/users/check-phone` | Guest | ตรวจว่าเบอร์มีบัญชีแล้วหรือไม่ → `{available:bool}` — rate-limit guardApi | `user.service` |
+
+### 7.2b Account (Seller — authed)
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| POST | `/api/account/set-password` | Guest (OTP-verify flow) | verify OTP แล้ว set `passwordHash` — ใช้ใน signup + reset-password | `lib/auth.ts` |
+| POST | `/api/account/set-phone` | Seller (authed) | ตั้งเบอร์โทร (OTP ยืนยันแล้ว) + สร้าง L1 PHONE_OTP verification — **immutable: ตั้งครั้งเดียว ถ้ามีเบอร์แล้ว → 409** | `user.service` |
+| POST | `/api/account/shop-info` | Seller (authed) | upsert displayName / username (dedupe) / category ของร้าน ตอน onboarding | `shop.service` |
 
 ### 7.3 Shops
 
@@ -640,6 +668,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | POST | `/api/shops` | Buyer | สร้างร้าน (set `isShop=true`) | `shop.service` |
 | GET | `/api/shops/[id]` | — | ดู shop detail | `shop.service` |
 | PATCH | `/api/shops/[id]` | Seller-owner | แก้ข้อมูลร้าน | `shop.service` |
+| GET | `/api/shops/check-slug` | Guest | ตรวจ slug ว่าง/ซ้ำ/reserved → `{available:bool}` | `shop.service` (isSlugAvailable) |
+| POST | `/api/shops/slug` | Seller (authed) | ตั้ง `Shop.slug` (ครั้งแรกเท่านั้น; ถ้ามีแล้ว → 409) | `shop.service` (setShopSlug) |
 
 ### 7.4 Products
 
@@ -819,6 +849,11 @@ SellerWallet (1) ── (N) WalletTransaction
 | 40–59 | C | Deep Classic | `tier_cover_1_classic.png` |
 | 0–39 | D | Deep Classic | `tier_cover_1_classic.png` |
 
+### 8.6b Shop Category Keys
+
+10 categories ใน `src/lib/shop-categories.ts` — `isShopCategory()` guard:
+`fashion`, `electronics`, `food`, `beauty`, `home`, `sports`, `books`, `automotive`, `pets`, `other`
+
 ### 8.7 ค่าคงที่สำคัญ
 
 | ค่า | ตัวเลข | ที่มา |
@@ -839,6 +874,9 @@ SellerWallet (1) ── (N) WalletTransaction
 | Trust score rating floor | ≥3 reviews (ถ้าน้อยกว่า = 0 คะแนน) | FR-3.3 |
 | API rate-limit unauth | 100 req/min/IP | `proxy.ts:24` |
 | API rate-limit auth | 30 req/min/IP | `proxy.ts:24` |
+| seller-credentials rate-limit | 5 attempts/10min/username (in-memory) | `lib/auth.ts` |
+| Shop slug length | 3–30 chars | `src/lib/shop-slug.ts` |
+| Shop category count | 10 categories | `src/lib/shop-categories.ts` |
 
 ---
 
@@ -870,6 +908,9 @@ SellerWallet (1) ── (N) WalletTransaction
 | สร้างร้าน | — | ✅ | — | — |
 | แก้ข้อมูลร้าน | — | — | ✅ | — |
 | CRUD product | — | — | ✅ | — |
+| ตั้ง slug (`POST /api/shops/slug`) | — | — | ✅ (ครั้งแรก; หลังตั้งแล้ว = 409) | — |
+| ตรวจ slug (`GET /api/shops/check-slug`) | ✅ | ✅ | ✅ | ✅ |
+| เข้า `/onboarding` | — | — | ✅ (seller authed เท่านั้น) | — |
 
 ### 9.3 Verification
 
@@ -1017,7 +1058,16 @@ SellerWallet (1) ── (N) WalletTransaction
 | MIME ที่รองรับ (ทั่วไป/slip/KYC) | image/jpeg, image/png, image/webp, application/pdf (PDF สำหรับ L3 business reg + slip) — `lib/storage/types.ts:5` (ALLOWED_TYPES) |
 | MIME — Badge image (stricter) | image/png, image/webp, image/jpeg เท่านั้น (ห้าม PDF/SVG) — `validations.ts:261` |
 
-### 10.10 หมายเหตุ
+### 10.10 Auth / Seller (2026-06-16)
+
+| Field | กฎ | Schema |
+|-------|-----|--------|
+| `password` | ≥8 chars, ต้องมี letter+number+special, max 1000 | `PasswordSchema` (`src/lib/validations.ts`) |
+| `slug` (shop) | 3-30 chars a-z0-9- ไม่ขึ้น/ลงด้วย hyphen; `src/lib/shop-slug.ts:isValidSlugFormat` | `ShopSlugSchema` |
+| `category` (shop) | picklist จาก `SHOP_CATEGORY_KEYS` (10 key) | `ShopCategorySchema` |
+| phone (set-phone) | regex `^0[0-9]{9}$` + OTP ยืนยันก่อน set | `SetPhoneSchema` |
+
+### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
 - **Yup (frontend):** ใช้กับ React Hook Form — validate ก่อน submit
@@ -1025,5 +1075,5 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
-_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-06-11. เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
+_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-06-17. เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
 _ลิงก์กลับ: `docs/PRD.md` (product-level)_

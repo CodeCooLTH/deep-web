@@ -155,6 +155,7 @@ export function serializeProduct(product: ProductWithTags): SerializedProduct {
 
 export interface CreateProductInput {
   name: string;
+  sku?: string;
   description?: string;
   shortDescription?: string;
   price: number;
@@ -193,6 +194,7 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
     data: {
       shopId,
       name: data.name,
+      sku: data.sku ?? null,
       description: data.description ?? null,
       shortDescription: data.shortDescription ?? null,
       price: data.price,

@@ -1,43 +1,94 @@
 /**
- * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersStatCard.tsx
- * Stripped: CountUp dependency (ใช้ค่าตัวเลขตรง เพราะ value เป็น integer ง่าย)
- * Adapted: className ตรงกับ SafePay stat (bg-primary, bg-warning, ฯลฯ)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/RevenueStat.tsx
+ *       theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/data.ts (chartOptions pattern บรรทัด 252-277)
+ *
+ * Adaptations:
+ * - แสดงข้อมูล 1 status ต่อ card (แทน revenue/expenses)
+ * - sparkline สีตาม status (PENDING=chart-gamma, SHIPPED=chart-primary, CONFIRMED=success, CANCELLED=chart-beta)
+ * - badge changePct แสดง 7-day vs prev-7-day
+ * - ไม่มี prefix/suffix/isReverse (ไม่ต้องการสำหรับออเดอร์)
+ * - Stripped: revenueStatisticData import (ใช้ prop แทน)
  */
 
 'use client'
 
+import ApexChart from '@/components/wrappers/ApexChart'
 import { CountUp } from '@/components/wrappers/CountUp'
-import Icon from '@/components/wrappers/Icon'
-import { cn } from '@/utils/helpers'
-import type { OrderStatType } from './data'
+import { getColor } from '@/utils/helpers'
+import type { OrderStatCardData } from './data'
 
-const OrdersStatCard = ({ item }: { item: OrderStatType }) => {
+// แมป status → chart color token
+// --color-success มีจริงใน _root.css (#02bc9c) → ใช้ได้ตรง ๆ
+const STATUS_COLOR: Record<OrderStatCardData['status'], string> = {
+  PENDING:   'chart-gamma',   // เหลือง — รอดำเนินการ
+  SHIPPED:   'chart-primary', // น้ำเงิน Paces — จัดส่งแล้ว
+  CONFIRMED: 'success',       // เขียว — สำเร็จ (--color-success ยืนยันแล้วใน _root.css)
+  CANCELLED: 'chart-beta',    // ชมพู/แดง — ยกเลิก
+}
+
+const OrdersStatCard = ({ item }: { item: OrderStatCardData }) => {
+  const colorToken = STATUS_COLOR[item.status]
+
+  // chartOptions pattern copy จาก data.ts บรรทัด 252-277 (RevenueStat "Total Revenue")
+  const getChartOptions = () => ({
+    chart: {
+      type: 'bar' as const,
+      height: 60,
+      sparkline: { enabled: true },
+    },
+    plotOptions: {
+      bar: {
+        horizontal: false,
+        columnWidth: '60%',
+        borderRadius: 4,
+      },
+    },
+    colors: [getColor(colorToken)],
+    series: [
+      {
+        name: item.title,
+        data: item.trendSeries,
+      },
+    ],
+    tooltip: {
+      x: { show: false },
+      y: { formatter: (v: number): string => String(v) + ' ออเดอร์' },
+    },
+  })
+
+  // badge class ตาม changePct (Hard Rule 7: semantic token เท่านั้น)
+  let badgeClass = 'bg-default-400/15 text-default-400'
+  let changeLabel = '0%'
+  if (item.changePct > 0) {
+    badgeClass = 'bg-success/15 text-success'
+    changeLabel = `+${item.changePct}%`
+  } else if (item.changePct < 0) {
+    badgeClass = 'bg-danger/15 text-danger'
+    changeLabel = `${item.changePct}%`
+  }
+
   return (
     <div className="card">
+      <div className="card-header flex py-3.75 px-5 border-0 justify-between items-center">
+        <h5 className="card-title mb-0">{item.title}</h5>
+        <span className={`badge ${badgeClass}`}>{changeLabel}</span>
+      </div>
       <div className="card-body">
-        <div className="mb-5 flex w-full items-center justify-between gap-3">
-          <h3 className="text-xl">
-            <CountUp
-              start={0}
-              end={item.value}
-              duration={1}
-              prefix={item.prefix}
-              suffix={item.suffix}
-              decimals={Number.isInteger(item.value) ? 0 : 2}
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="mb-1.25 font-normal text-xl">
+              <CountUp start={0} end={item.totalCount} duration={1} decimals={0} />
+            </h3>
+            <p className="text-default-400">ทั้งหมด</p>
+          </div>
+          <div className="text-end w-1/2">
+            <ApexChart
+              type="bar"
+              height={60}
+              getOptions={getChartOptions}
+              series={getChartOptions().series}
             />
-          </h3>
-          <div className={cn('size-9 flex items-center justify-center rounded-full!', item.className)}>
-            <Icon icon={item.icon} className="size-5.5 text-white" />
           </div>
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <span className="text-xs uppercase font-bold">{item.title}</span>
-          </div>
-          <span className={cn('badge ms-auto', item.change > 0 ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger')}>
-            {item.change > 0 ? '+' : ''}
-            {item.change}%
-          </span>
         </div>
       </div>
     </div>
