@@ -18,7 +18,8 @@
 
 export function resolveBuyerBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_BUYER_URL
-  if (envUrl) return envUrl.replace(/\/$/, '')
+  // .trim() กัน env ที่มี trailing newline/space (กัน URL พังกลางทาง); ตัด trailing slash ซ้ำ
+  if (envUrl) return envUrl.trim().replace(/\/+$/, '')
   if (typeof window !== 'undefined') {
     const { protocol, host } = window.location
     // Seller อยู่บน `seller.<buyerHost>` — ตัด prefix ออกเพื่อได้ buyer domain

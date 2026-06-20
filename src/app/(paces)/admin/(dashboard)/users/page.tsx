@@ -32,7 +32,8 @@ const thDate = (d: Date): string => formatDateTime(d)
 // 3. Prod default https://deepthailand.app (production brand domain)
 const resolveProfileUrl = (username: string): string => {
   const envUrl = process.env.NEXT_PUBLIC_BUYER_URL
-  if (envUrl) return `${envUrl.replace(/\/$/, '')}/u/${username}`
+  // .trim() กัน env ที่มี trailing newline/space (กัน URL พังกลางทาง); ตัด trailing slash ซ้ำ
+  if (envUrl) return `${envUrl.trim().replace(/\/+$/, '')}/u/${username}`
   const base =
     process.env.NODE_ENV !== 'production'
       ? 'http://deepth.local:4000'

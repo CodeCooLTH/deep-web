@@ -52,7 +52,8 @@ const maskContact = (c: string | null | undefined): string | null => {
 // prod default deepthailand.app
 const buyerBase = (): string => {
   const envUrl = process.env.NEXT_PUBLIC_BUYER_URL
-  if (envUrl) return envUrl.replace(/\/$/, '')
+  // .trim() กัน env ที่มี trailing newline/space (กัน URL พังกลางทาง); ตัด trailing slash ซ้ำ
+  if (envUrl) return envUrl.trim().replace(/\/+$/, '')
   return process.env.NODE_ENV !== 'production'
     ? 'http://deepth.local:4000'
     : 'https://deepthailand.app'

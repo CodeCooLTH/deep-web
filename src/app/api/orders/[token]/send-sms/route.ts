@@ -222,10 +222,15 @@ export async function POST(
   // D1: short-code path /o/{rawCode} (ไม่ใช่ UUID token)
   // domain: NEXT_PUBLIC_BUYER_URL (buyer subdomain) หรือ NEXTAUTH_URL fallback
   // ข้อความไทยสั้น 1 segment Unicode (≤70 ตัว)
-  const baseUrl =
+  // .trim() กัน env ที่มี trailing newline/space (เคยทำ SMS ขึ้นบรรทัดใหม่กลาง URL
+  // — prod NEXT_PUBLIC_BUYER_URL เคยมี "\n" ต่อท้าย); replace ตัด trailing slash ซ้ำ
+  const baseUrl = (
     process.env.NEXT_PUBLIC_BUYER_URL ||
     process.env.NEXTAUTH_URL ||
-    "https://deepthailand.app";
+    "https://deepthailand.app"
+  )
+    .trim()
+    .replace(/\/+$/, "");
   const orderLink = `${baseUrl}/o/${rawCode}`;
   const smsText = `Deep: ลิงก์คำสั่งซื้อของคุณ ${orderLink}`;
 
