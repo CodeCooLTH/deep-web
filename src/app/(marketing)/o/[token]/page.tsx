@@ -51,6 +51,9 @@ const UUID_V4_RE =
 // 12 chars * 5 bit/char = 60-bit entropy (D1 spec)
 const SMS_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}$/
 
+// permanent short-code pattern — 8 ตัว charset เดียวกับ SMS code (length-disjoint จาก SMS 12-char)
+const SHORT_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/
+
 export default async function PublicOrderPage({ params }: Props) {
   const { token } = await params
 
@@ -180,6 +183,19 @@ export default async function PublicOrderPage({ params }: Props) {
     redirect('/api/o/sms/' + token)
   }
 
-  // ── Discriminator ลำดับ 3: format ไม่ตรง → uniform error (RC-2) ─────────────────
+  // ── Discriminator ลำดับ 3: 8-char permanent short-code → resolve + redirect UUID ──
+  // หา order ด้วย shortCode แล้ว redirect เข้า flow UUID เดิม (SSOT — ไม่ duplicate logic
+  // phone-unlock). reusable + ไม่ consume + ไม่ auto-unlock (ต่างจาก SMS 12-char). spec §5
+  if (SHORT_CODE_RE.test(token)) {
+    const matched = await prisma.order.findUnique({
+      where: { shortCode: token },
+      select: { publicToken: true },
+    })
+    // ไม่เจอ → uniform error เดียวกับ format ผิด (RC-2: ไม่ leak ว่า order มีจริงไหม)
+    if (!matched) redirect('/o/link-invalid')
+    redirect('/o/' + matched.publicToken)
+  }
+
+  // ── Discriminator ลำดับ 4: format ไม่ตรง → uniform error (RC-2) ─────────────────
   redirect('/o/link-invalid')
 }
