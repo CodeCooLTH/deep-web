@@ -120,6 +120,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
       {/* StatusHero — full-width เหนือ grid (T5: ย้ายออกจาก left column) */}
       <StatusHero
         publicToken={order.publicToken}
+        shortCode={order.shortCode}
         status={order.status}
         type={order.type}
         createdAtISO={createdAtISO}

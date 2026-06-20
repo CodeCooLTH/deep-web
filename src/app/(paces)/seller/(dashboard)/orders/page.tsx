@@ -77,6 +77,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
     id: (o.publicToken ?? o.id).slice(0, 8),
     publicToken: o.publicToken ?? o.id,
+    shortCode: o.shortCode ?? null,
     buyer: maskContact(o.buyerContact),
     orderType: o.type ?? 'PHYSICAL',
     total: Number(o.totalAmount ?? 0),

@@ -1,13 +1,8 @@
 'use client'
 
 /**
- * OrderCopyLink — wrapper resolve buyer URL แล้วส่ง value ให้ CopyLinkButton
- *
- * เหตุผล: CopyLinkButton (generalized) รับ value: string โดยตรง ไม่ resolve URL เอง
- * แต่ OrderSummary เป็น server component — ใช้ window ไม่ได้
- * wrapper นี้จึงทำหน้าที่ resolve buyer base URL ฝั่ง client แล้ว forward ให้ CopyLinkButton
- *
- * resolveBuyerBaseUrl: ย้ายไป src/lib/buyer-url.ts แล้ว (canonical single source)
+ * OrderCopyLink — resolve buyer URL แล้วส่ง value ให้ CopyLinkButton.
+ * ใช้ shortCode (สั้น) ถ้ามี ไม่งั้น fallback publicToken (order เก่าก่อน backfill). spec §6
  */
 
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -16,17 +11,19 @@ import CopyLinkButton from './CopyLinkButton'
 
 interface OrderCopyLinkProps {
   publicToken: string
+  /** short-code 8 ตัว; ถ้า null/undefined → ใช้ publicToken */
+  shortCode?: string | null
   /** forward ไปยัง CopyLinkButton — default true (behavior เดิม; caller อื่นไม่กระทบ) */
   showPreview?: boolean
 }
 
-export default function OrderCopyLink({ publicToken, showPreview = true }: OrderCopyLinkProps) {
-  // SSR-safe: เริ่มด้วย relative path แล้ว hydrate เป็น full URL
-  const [buyerUrl, setBuyerUrl] = useState(`/o/${publicToken}`)
+export default function OrderCopyLink({ publicToken, shortCode, showPreview = true }: OrderCopyLinkProps) {
+  const code = shortCode || publicToken
+  const [buyerUrl, setBuyerUrl] = useState(`/o/${code}`)
 
   useEffect(() => {
-    setBuyerUrl(`${resolveBuyerBaseUrl()}/o/${publicToken}`)
-  }, [publicToken])
+    setBuyerUrl(`${resolveBuyerBaseUrl()}/o/${code}`)
+  }, [code])
 
   return (
     <CopyLinkButton

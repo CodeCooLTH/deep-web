@@ -35,11 +35,12 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   const canEdit = order.status === 'PENDING'
 
-  // resolve buyer URL runtime (กัน hydration mismatch)
-  const [url, setUrl] = useState(`/o/${order.publicToken}`)
+  // copy link: ใช้ shortCode (สั้น) fallback publicToken; ลิงก์ภายใน /orders/ คงใช้ publicToken
+  const copyCode = order.shortCode || order.publicToken
+  const [url, setUrl] = useState(`/o/${copyCode}`)
   useEffect(() => {
-    setUrl(`${resolveBuyerBaseUrl()}/o/${order.publicToken}`)
-  }, [order.publicToken])
+    setUrl(`${resolveBuyerBaseUrl()}/o/${copyCode}`)
+  }, [copyCode])
 
   // ── desktop (table): button group [ดู][แก้ไข][SMS][copy] icon-only, ไม่มี ⋮ ──
   // button group ตาม theme ui/buttons: inline-flex + rounded-*-none + -ms-px (ปุ่มเชื่อมกัน)

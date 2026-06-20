@@ -38,6 +38,8 @@ export type OrderItemRow = {
 export type OrderRow = {
   id: string            // publicToken short (8-char)
   publicToken: string
+  /** short-code 8 ตัวสำหรับ copy/share link; null = order เก่าก่อน backfill (fallback publicToken) */
+  shortCode: string | null
   buyer: string         // masked contact หรือ '—'
   orderType: string     // PHYSICAL | DIGITAL | SERVICE
   total: number

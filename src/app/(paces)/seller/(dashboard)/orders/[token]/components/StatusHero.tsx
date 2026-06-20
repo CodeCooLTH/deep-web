@@ -32,13 +32,14 @@ export const TYPE_META: Record<string, { label: string; icon: string; cls: strin
 
 export interface StatusHeroProps {
   publicToken: string
+  shortCode?: string | null
   status: string
   type: string
   createdAtISO: string
   fulfillmentMode: string
 }
 
-export default function StatusHero({ publicToken, status, createdAtISO, fulfillmentMode }: StatusHeroProps) {
+export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode }: StatusHeroProps) {
   const s = STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
 
   // วันที่+เวลาแสดงคู่กันบรรทัดเดียว → ยุบเป็น formatDateTime ครั้งเดียว
@@ -82,7 +83,7 @@ export default function StatusHero({ publicToken, status, createdAtISO, fulfillm
             {/* PENDING + needsShipping (PHYSICAL/SHIPPED) → [คัดลอกลิงก์] [ส่ง SMS] */}
             {isPending && needsShipping && (
               <div className="flex items-center gap-2 flex-wrap">
-                <OrderCopyLink publicToken={publicToken} showPreview={false} />
+                <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
                 <SendSmsButton publicToken={publicToken} compact />
               </div>
             )}
@@ -91,7 +92,7 @@ export default function StatusHero({ publicToken, status, createdAtISO, fulfillm
             {isPending && !needsShipping && (
               <div className="flex items-center gap-2 flex-wrap">
                 <SendSmsButton publicToken={publicToken} compact />
-                <OrderCopyLink publicToken={publicToken} showPreview={false} />
+                <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
               </div>
             )}
 
@@ -103,7 +104,7 @@ export default function StatusHero({ publicToken, status, createdAtISO, fulfillm
                   รอผู้ซื้อยืนยันรับสินค้า
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <OrderCopyLink publicToken={publicToken} showPreview={false} />
+                  <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
                   <SendSmsButton publicToken={publicToken} compact />
                 </div>
               </>
@@ -112,14 +113,14 @@ export default function StatusHero({ publicToken, status, createdAtISO, fulfillm
             {/* CONFIRMED → [คัดลอกลิงก์] (status badge มุมซ้ายแสดงสถานะแล้ว ไม่ซ้ำ label) */}
             {isConfirmed && (
               <div className="flex items-center gap-2 flex-wrap">
-                <OrderCopyLink publicToken={publicToken} showPreview={false} />
+                <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
               </div>
             )}
 
             {/* CANCELLED → [คัดลอกลิงก์] (status badge มุมซ้ายแสดงสถานะแล้ว ไม่ซ้ำ label) */}
             {isCancelled && (
               <div className="flex items-center gap-2 flex-wrap">
-                <OrderCopyLink publicToken={publicToken} showPreview={false} />
+                <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
               </div>
             )}
 

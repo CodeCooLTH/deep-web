@@ -45,7 +45,7 @@ export default function BulkActionBar({ selectedRows, onClear, buyerBaseUrl }: B
   const visible = selectedCount > 0
 
   const handleCopy = async () => {
-    const text = selectedRows.map((r) => `${buyerBaseUrl}/o/${r.original.publicToken}`).join('\n')
+    const text = selectedRows.map((r) => `${buyerBaseUrl}/o/${r.original.shortCode || r.original.publicToken}`).join('\n')
     try {
       await navigator.clipboard.writeText(text)
     } catch {
