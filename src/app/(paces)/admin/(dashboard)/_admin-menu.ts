@@ -18,6 +18,7 @@ export const adminMenuItems: MenuItemType[] = [
     children: [
       { url: '/users', slug: 'admin:users', label: 'ผู้ใช้งาน', icon: 'users' },
       { url: '/verifications', slug: 'admin:verifications', label: 'ยืนยันตัวตน', icon: 'shield-check' },
+      { url: '/scam-reports', slug: 'admin:scam-reports', label: 'รายงานมิจฉาชีพ', icon: 'alert-triangle' },
     ],
   },
   {

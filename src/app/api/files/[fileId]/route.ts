@@ -199,12 +199,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  // ตรวจ scam-evidence gate (PDPA): หลักฐานรายงานมิจฉาชีพ (สลิป/แชต) เป็นข้อมูลส่วนบุคคล
+  // อนุญาตเฉพาะ admin หรือผู้รายงานเจ้าของไฟล์ — ห้าม serve public (ใครมี fileId ก็เปิดดูไม่ได้)
+  let isScamEvidence = false;
+  if (!sensitiveRecord && !isSlipFile) {
+    const scam = await prisma.scamReport.findFirst({
+      where: { evidence: { array_contains: fileId } },
+      select: { reporterId: true },
+    });
+
+    if (scam) {
+      isScamEvidence = true;
+      const session = await getServerSession(authOptions);
+      const user = session?.user as { id?: string; isAdmin?: boolean } | undefined;
+
+      if (!user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      if (user.isAdmin !== true && user.id !== scam.reporterId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+  }
+
   // ไฟล์ public หรือผ่าน auth check แล้ว — serve เหมือนเดิม
   const result = await getFile(fileId);
   if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // isSensitive ครอบทั้ง KYC และ slip — ทั้งสองไม่ควร cache ที่ browser/CDN
-  const isSensitive = !!sensitiveRecord || isSlipFile;
+  // isSensitive ครอบ KYC + slip + หลักฐานมิจฉาชีพ — ทั้งหมดไม่ควร cache ที่ browser/CDN
+  const isSensitive = !!sensitiveRecord || isSlipFile || isScamEvidence;
 
   return new NextResponse(new Uint8Array(result.buffer), {
     headers: {

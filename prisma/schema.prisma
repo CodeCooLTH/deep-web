@@ -31,6 +31,8 @@ model User {
   reviewsGiven          Review[]             @relation("ReviewerReviews")
   verificationsReviewed VerificationRecord[] @relation("ReviewedBy")
   topUpRequestsReviewed TopUpRequest[]       @relation("TopUpReviewedBy")
+  scamReports           ScamReport[]         @relation("ScamReporter")
+  scamReportsReviewed   ScamReport[]         @relation("ScamReviewer")
 
   // --- Buyer App (auction domain — additive, mobile-only) ---
   bids          Bid[]          @relation("UserBids")
@@ -76,6 +78,11 @@ model Shop {
   wallet        SellerWallet?
   topUpRequests TopUpRequest[]
   auctions      Auction[]
+
+  // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
+  // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
+  @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
+  @@index([salesChannels], type: Gin, map: "Shop_salesChannels_gin_idx")
 }
 
 model VerificationRecord {
@@ -92,6 +99,43 @@ model VerificationRecord {
 
   user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy User? @relation("ReviewedBy", fields: [reviewedById], references: [id])
+}
+
+// รายงานมิจฉาชีพ (1 เคส) — spec 2026-06-20-scam-risk-check-report
+// แสดงผลแบบ "จำนวน" ไม่ตัดสิน; นับเฉพาะ status=APPROVED (admin ตรวจหลักฐานแล้ว)
+model ScamReport {
+  id             String    @id @default(uuid())
+  reporterId     String
+  status         String    @default("PENDING") // PENDING / APPROVED / REJECTED
+  scamType       String // TRANSFER_NO_DELIVERY / ITEM_NOT_AS_DESCRIBED / FAKE_INVESTMENT / OTHER
+  amountLost     Int       @default(0) // มูลค่าความเสียหาย (บาท)
+  description    String    @db.Text
+  evidence       Json      @default("[]") // fileId[] จาก /api/upload (บังคับ ≥1)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectedReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  reporter    User                   @relation("ScamReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewedBy  User?                  @relation("ScamReviewer", fields: [reviewedById], references: [id])
+  identifiers ScamReportIdentifier[]
+
+  @@index([status])
+}
+
+// ตัวระบุของรายงาน (1 รายงานมีได้หลายตัว). บัตรปชช./บัญชี เก็บ HMAC เท่านั้น (PDPA)
+model ScamReportIdentifier {
+  id          String  @id @default(uuid())
+  reportId    String
+  type        String // PHONE / NAME / NATIONAL_ID / BANK_ACCOUNT
+  valueHash   String // HMAC-SHA256 ของค่าที่ normalize แล้ว (คีย์ค้นหา exact-match)
+  valueMasked String // สำหรับแสดงผลแบบ mask — ไม่เปิดเผยค่าเต็ม
+  bankName    String? // เฉพาะ BANK_ACCOUNT
+
+  report ScamReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([type, valueHash])
 }
 
 model Badge {

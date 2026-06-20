@@ -124,6 +124,16 @@ const FrontMenu = (props: Props) => {
       <Typography
         color='text.primary'
         component={Link}
+        href='#check'
+        className={classnames('font-medium plb-3 pli-1.5 hover:text-primary', {
+          'text-primary': intersections['check']
+        })}
+      >
+        เช็กมิจฉาชีพ
+      </Typography>
+      <Typography
+        color='text.primary'
+        component={Link}
         href='#how-it-works'
         className={classnames('font-medium plb-3 pli-1.5 hover:text-primary', {
           'text-primary': intersections['how-it-works']

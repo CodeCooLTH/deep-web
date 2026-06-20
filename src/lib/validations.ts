@@ -387,3 +387,52 @@ export const SetAccessUrlSchema = v.object({
     v.check(isHttpUrl, "ลิงก์ต้องเป็น http หรือ https"),
   ),
 });
+
+// ── Scam Report (spec 2026-06-20-scam-risk-check-report) ─────────────────────
+export const ScamIdentifierTypeSchema = v.picklist([
+  "PHONE",
+  "NAME",
+  "NATIONAL_ID",
+  "BANK_ACCOUNT",
+]);
+
+export const SCAM_TYPES = [
+  "TRANSFER_NO_DELIVERY",
+  "ITEM_NOT_AS_DESCRIBED",
+  "FAKE_INVESTMENT",
+  "OTHER",
+] as const;
+
+// ตัวระบุ 1 ตัว + validate ความถูกต้องตามชนิด (เบอร์ 9-10 หลัก, บัตร 13 หลัก, บัญชี 8-15 หลัก)
+export const ScamReportIdentifierSchema = v.pipe(
+  v.object({
+    type: ScamIdentifierTypeSchema,
+    value: v.pipe(v.string(), v.trim(), v.minLength(2), v.maxLength(100)),
+    bankName: v.optional(v.pipe(v.string(), v.maxLength(50))),
+  }),
+  v.check((i) => {
+    const d = i.value.replace(/\D/g, "");
+    if (i.type === "PHONE") return d.length >= 9 && d.length <= 10;
+    if (i.type === "NATIONAL_ID") return d.length === 13;
+    if (i.type === "BANK_ACCOUNT") return d.length >= 8 && d.length <= 15;
+    return i.value.trim().length >= 2; // NAME
+  }, "ค่าตัวระบุไม่ถูกต้องตามชนิด"),
+);
+
+export const CreateScamReportSchema = v.object({
+  identifiers: v.pipe(v.array(ScamReportIdentifierSchema), v.minLength(1), v.maxLength(4)),
+  scamType: v.picklist(SCAM_TYPES),
+  amountLost: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(100_000_000)),
+  description: v.pipe(v.string(), v.trim(), v.minLength(10), v.maxLength(2000)),
+  evidence: v.pipe(v.array(v.string()), v.minLength(1, "ต้องแนบหลักฐานอย่างน้อย 1 ไฟล์"), v.maxLength(10)),
+});
+
+export const ScamSearchSchema = v.object({
+  type: ScamIdentifierTypeSchema,
+  q: v.pipe(v.string(), v.trim(), v.minLength(2), v.maxLength(100)),
+});
+
+export const ReviewScamReportSchema = v.object({
+  status: v.picklist(["APPROVED", "REJECTED"]),
+  rejectedReason: v.optional(v.pipe(v.string(), v.maxLength(500))),
+});

@@ -13,6 +13,7 @@ import CustomerReviews from './CustomerReviews'
 import HowItWorks from './HowItWorks'
 import Pricing from './Pricing'
 import ProductStat from './ProductStat'
+import ScamCheck from './ScamCheck'
 import Faqs from './Faqs'
 import { useSettings } from '@core/hooks/useSettings'
 
@@ -32,6 +33,7 @@ const LandingPageWrapper = ({ mode, shopCount }: { mode: SystemMode; shopCount: 
     <div className='bg-backgroundPaper'>
       <HeroSection mode={mode} />
       <ProductStat shopCount={shopCount} />
+      <ScamCheck />
       <UsefulFeature />
       <CustomerReviews />
       <HowItWorks />

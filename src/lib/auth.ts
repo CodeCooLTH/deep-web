@@ -559,3 +559,13 @@ export async function requireAdmin() {
   }
   return session.user as any;
 }
+
+// Helper สำหรับ route ที่ต้อง login (buyer/seller/admin คนใดก็ได้) — เช่น แจ้งมิจฉาชีพ
+export async function requireAuth() {
+  const { getServerSession } = await import("next-auth");
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return null;
+  }
+  return session.user as any;
+}
