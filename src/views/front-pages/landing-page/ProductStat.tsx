@@ -1,84 +1,74 @@
 // React Imports
-import type { ReactNode } from 'react'
+import { Fragment } from 'react'
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
-import Grid from '@mui/material/Grid'
+import Divider from '@mui/material/Divider'
 
-// SVG Imports
-import Check from '@assets/svg/front-pages/landing-page/Check'
-import User from '@assets/svg/front-pages/landing-page/User'
-import LaptopCharging from '@assets/svg/front-pages/landing-page/LaptopCharging'
-import Diamond from '@assets/svg/front-pages/landing-page/Diamond'
+// Third-party Imports
+import classnames from 'classnames'
 
 // Styles Imports
 import frontCommonStyles from '@views/front-pages/styles.module.css'
 
 // Type
 type StatData = {
-  title: string
+  label: string
   value: string
-  svg: ReactNode
+  unit: string
+  icon: string
   color: string
-  isHover: boolean
 }
 
-// Data
-const statData: StatData[] = [
-  {
-    title: 'รายการที่ยืนยันสำเร็จ',
-    value: '7.1k+',
-    svg: <LaptopCharging color='var(--mui-palette-primary-main)' />,
-    color: 'var(--mui-palette-primary-darkerOpacity)',
-    isHover: false
-  },
-  {
-    title: 'ผู้ใช้ที่ไว้วางใจ Deep',
-    value: '50k+',
-    svg: <User color='var(--mui-palette-success-main)' />,
-    color: 'var(--mui-palette-success-darkerOpacity)',
-    isHover: false
-  },
-  {
-    title: 'คะแนนรีวิวเฉลี่ย',
-    value: '4.8/5',
-    svg: <Diamond color='var(--mui-palette-info-main)' />,
-    color: 'var(--mui-palette-info-darkerOpacity)',
-    isHover: false
-  },
-  {
-    title: 'ลดเคสมิจฉาชีพได้ถึง',
-    value: '95%',
-    svg: <Check color='var(--mui-palette-warning-main)' />,
-    color: 'var(--mui-palette-warning-darkerOpacity)',
-    isHover: false
-  }
-]
+const ProductStat = ({ shopCount }: { shopCount: number }) => {
+  // Data — ตัวแรกดึงของจริงจาก DB (จำนวนร้านค้า), อีกสองตัวเป็น mock
+  const statData: StatData[] = [
+    {
+      label: 'ธุรกิจที่ใช้งานเราอยู่',
+      value: `${shopCount.toLocaleString('th-TH')}+`,
+      unit: 'บริษัท',
+      icon: 'tabler-building-store',
+      color: 'var(--mui-palette-primary-main)'
+    },
+    {
+      label: 'คำสั่งซื้อที่ยืนยันแล้ว',
+      value: '453,120+',
+      unit: 'รายการ',
+      icon: 'tabler-receipt',
+      color: 'var(--mui-palette-warning-main)'
+    },
+    {
+      // mock ที่เกี่ยวข้องกับ Deep — ป้องกันมิจฉาชีพ (ผูกกับ value prop ของแพลตฟอร์ม)
+      label: 'ป้องกันเคสมิจฉาชีพไปแล้ว',
+      value: '12,480+',
+      unit: 'เคส',
+      icon: 'tabler-shield-check',
+      color: 'var(--mui-palette-success-main)'
+    }
+  ]
 
-const ProductStat = () => {
   return (
-    <section className='plb-8 md:plb-[84px] bg-backgroundPaper'>
-      <div className={frontCommonStyles.layoutSpacing}>
-        <Grid container spacing={6}>
+    <section className='relative plb-8 md:plb-[84px] bg-backgroundPaper overflow-hidden'>
+      <div className={classnames('relative', frontCommonStyles.layoutSpacing)}>
+        <div className='flex flex-col sm:flex-row items-stretch justify-center'>
           {statData.map((stat, index) => (
-            <Grid key={index} size={{ xs: 12, sm: 6, md: 3 }}>
-              <div
-                className='flex flex-col items-center justify-center gap-y-4 border p-6 rounded min-h-[120px]'
-                style={{
-                  borderColor: stat.color
-                }}
-              >
-                {stat.svg}
-                <div className='text-center'>
-                  <Typography variant='h3' className='font-medium'>
-                    {stat.value}
-                  </Typography>
-                  <Typography className='font-medium'>{stat.title}</Typography>
-                </div>
+            <Fragment key={index}>
+              {index > 0 && <Divider flexItem orientation='vertical' className='hidden sm:block' />}
+              <div className='flex flex-1 flex-col items-center justify-start gap-y-2 text-center plb-6 sm:pli-6'>
+                <i className={classnames(stat.icon, 'text-[2.5rem]')} style={{ color: stat.color }} />
+                <Typography color='text.secondary' className='font-medium'>
+                  {stat.label}
+                </Typography>
+                <Typography variant='h2' className='font-extrabold' style={{ color: stat.color }}>
+                  {stat.value}
+                </Typography>
+                <Typography color='text.secondary' className='font-medium'>
+                  {stat.unit}
+                </Typography>
               </div>
-            </Grid>
+            </Fragment>
           ))}
-        </Grid>
+        </div>
       </div>
     </section>
   )

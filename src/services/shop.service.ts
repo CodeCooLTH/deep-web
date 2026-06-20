@@ -38,6 +38,11 @@ export async function getShopByUserId(userId: string) {
   return prisma.shop.findUnique({ where: { userId } });
 }
 
+/** จำนวนร้านค้า (ผู้ขาย) ที่ใช้งานอยู่ — ใช้โชว์สถิติหน้า landing */
+export async function getShopCount(): Promise<number> {
+  return prisma.shop.count();
+}
+
 /** slug ใช้ได้ไหม: format ถูก + ไม่ reserved + ไม่ถูกใช้ใน DB */
 export async function isSlugAvailable(rawSlug: string): Promise<boolean> {
   const slug = normalizeSlug(rawSlug);

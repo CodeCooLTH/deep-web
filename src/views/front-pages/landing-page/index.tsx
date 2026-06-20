@@ -18,7 +18,7 @@ import GetStarted from './GetStarted'
 import ContactUs from './ContactUs'
 import { useSettings } from '@core/hooks/useSettings'
 
-const LandingPageWrapper = ({ mode }: { mode: SystemMode }) => {
+const LandingPageWrapper = ({ mode, shopCount }: { mode: SystemMode; shopCount: number }) => {
   // Hooks
   const { updatePageSettings } = useSettings()
 
@@ -33,11 +33,11 @@ const LandingPageWrapper = ({ mode }: { mode: SystemMode }) => {
   return (
     <div className='bg-backgroundPaper'>
       <HeroSection mode={mode} />
+      <ProductStat shopCount={shopCount} />
       <UsefulFeature />
       <CustomerReviews />
       <OurTeam />
       <Pricing />
-      <ProductStat />
       <Faqs />
       <GetStarted mode={mode} />
       <ContactUs />
