@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, message: 'OTP sent' })
   }
 
-  const otp = storeOtp(phone)
+  const otp = await storeOtp(phone)
   try {
     await sendOtpViaSms(phone, otp)
   } catch {

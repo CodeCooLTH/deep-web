@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   const { phone, code, displayName } = parsed.output
 
-  if (!verifyOtp(phone, code)) {
+  if (!(await verifyOtp(phone, code))) {
     return NextResponse.json({ error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' }, { status: 401 })
   }
 
