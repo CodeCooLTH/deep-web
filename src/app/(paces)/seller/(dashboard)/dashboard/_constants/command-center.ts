@@ -43,6 +43,12 @@ export type CommandCenterData = {
   tierName?: string
   trustScore?: number
   avatarUrl?: string | null
+  // v10: compact hero — shop link + stats row (orders/reviews/rating)
+  // optional (?) กัน downstream tsc break ก่อน page.tsx (T7) wire field จริง
+  shopSlug?: string | null
+  orderCount?: number
+  reviewCount?: number
+  avgRating?: number
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────
@@ -56,21 +62,20 @@ export type ShortcutTile = {
 }
 
 /**
- * SHORTCUT_TILES — 8 tiles v8 (grid-cols-4 = 2 แถวละ 4)
+ * SHORTCUT_TILES — v10 carousel (4×2/หน้า = สูงสุด 8/หน้า; เกินขึ้นหน้าใหม่ + dots)
+ * icon: **Solar Duotone name (ไม่มี prefix `solar:`)** — CarouselGrid เติม `solar:` เอง
+ *   → render: <Icon icon={`solar:${tile.icon}`} /> from '@iconify/react'
  * semantic color ตาม Paces token: warning/success/info/primary/default
- * ไม่มี Blacklist/disabled (OOS Phase 2) — ทุก tile เป็น link ปกติ
- * ไม่มี /seller prefix ตาม Paces routing convention (short path)
- * color: free string รับ semantic key → ShortcutGrid map เป็น Paces class
+ * ไม่มี /seller prefix (short path). คูปอง = route ยังไม่มี → disabled "เร็ว ๆ นี้" (honest, OOS coupons)
  */
 export const SHORTCUT_TILES: ShortcutTile[] = [
-  { label: 'รีวิว',       href: '/reviews',      icon: 'star',           color: 'warning' },
-  { label: 'เติมเงิน',     href: '/wallet',       icon: 'wallet',         color: 'success' },
-  { label: 'ลูกค้า',       href: '/customers',    icon: 'users',          color: 'info'    },
-  { label: 'สินค้า',       href: '/products',     icon: 'box',            color: 'primary' },
-  { label: 'ความสำเร็จ',   href: '/badges',       icon: 'trophy',         color: 'warning' },
-  { label: 'หมวดหมู่',     href: '/categories',   icon: 'category',       color: 'info'    },
-  { label: 'การยืนยัน',    href: '/verification', icon: 'shield-check',   color: 'primary' },
-  { label: 'ตั้งค่าร้าน',  href: '/shop',         icon: 'building-store', color: 'default' },
+  { label: 'รายงาน',     href: '/sales',     icon: 'chart-2-bold-duotone',               color: 'primary' },
+  { label: 'รีวิว',       href: '/reviews',   icon: 'star-bold-duotone',                  color: 'warning' },
+  { label: 'ความสำเร็จ',  href: '/badges',    icon: 'cup-star-bold-duotone',              color: 'success' },
+  { label: 'สินค้า',      href: '/products',  icon: 'box-bold-duotone',                   color: 'info'    },
+  { label: 'ลูกค้า',      href: '/customers', icon: 'users-group-rounded-bold-duotone',   color: 'primary' },
+  { label: 'คูปอง',       href: null,         icon: 'ticket-bold-duotone',                color: 'default', disabled: true },
+  { label: 'ตั้งค่า',     href: '/settings',  icon: 'settings-bold-duotone',              color: 'default' },
 ]
 
 /**
