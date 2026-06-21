@@ -211,13 +211,17 @@ export default function OrdersList({ orders, activeStatus }: Props) {
             <Icon icon="arrow-left" className="text-xl" />
           </Link>
 
-          {/* search */}
+          {/* search — pill สีขาว (ตาม mockup Frame 3 ".search" style) */}
           <div className="relative flex-1">
-            <Icon icon="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-default-500" />
+            {/* HR7: rounded-full + bg-white = arbitrary แต่ตาม mockup v10 spec §6 "white pill input" */}
+            <Icon
+              icon="solar:magnifer-linear"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-default-400"
+            />
             <input
               type="text"
-              className="form-input w-full !pl-9"
-              placeholder="ค้นหาออเดอร์..."
+              className="form-input w-full rounded-full bg-white !pl-9"
+              placeholder="ค้นหาเลขออเดอร์ / ชื่อลูกค้า / เบอร์"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -255,9 +259,13 @@ export default function OrdersList({ orders, activeStatus }: Props) {
           </Link>
         </div>
 
-        {/* status tabs — เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
-            ตัวอักษร inactive = สีดำ (text-default-900), active = primary + underline */}
-        <div ref={tabsRef} className="no-scrollbar mt-2 flex gap-1 overflow-x-auto border-b border-default-200">
+        {/* filter chips — เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
+            เปลี่ยนจาก underline-tab → chip row ตาม mockup v10 Frame 3 ".chips" style
+            HR7: [&::-webkit-scrollbar]:hidden = arbitrary selector (Tailwind utility ไม่มี token) — ซ่อน scrollbar Safari/Chrome */}
+        <div
+          ref={tabsRef}
+          className="mt-2 flex gap-2 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+        >
           {STATUS_TABS.map((tab) => {
             const active = localStatus === tab.value
             const count  = statusCounts[tab.value] ?? 0
@@ -268,16 +276,18 @@ export default function OrdersList({ orders, activeStatus }: Props) {
                 data-active={active}
                 onClick={() => handleStatusTab(tab.value)}
                 className={cn(
-                  'relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors focus:outline-none',
+                  'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                  // HR7: rounded-full ไม่ใช่ Paces .badge default radius แต่ตาม mockup v10 chip style
+                  'rounded-full px-3.5 py-1.5 text-xs font-medium',
                   active
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-default-900',
+                    ? 'bg-primary text-white'
+                    : 'bg-default-100 text-default-500',
                 )}
               >
                 {tab.label}
-                <span className={cn('rounded-full px-1.5 text-xs', active ? 'bg-primary/15 text-primary' : 'bg-default-200 text-default-600')}>
-                  {count}
-                </span>
+                {count > 0 && (
+                  <span className="ms-1 font-semibold tabular-nums">{count}</span>
+                )}
               </button>
             )
           })}
