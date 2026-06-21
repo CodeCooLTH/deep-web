@@ -1,6 +1,6 @@
 # Scope Baseline — Seller Command Center v10 redesign build
 
-สถานะ: ACTIVE
+สถานะ: CONDITIONAL SIGNED-OFF (2026-06-21 — Gate 2; เงื่อนไข: visual QA mobile รอ dev server ขึ้น)
 อ้างอิง PRD: FR-5, S-3, S-4, S-6 (seller dashboard/orders/products/reviews) · spec: `docs/superpowers/specs/2026-06-21-seller-command-center-v10-design.md` · plan: `docs/superpowers/plans/2026-06-21-seller-command-center-v10-build.md` · mockup: `docs/superpowers/specs/2026-06-21-seller-command-center-v10-mockup.html`
 
 ---
@@ -90,3 +90,4 @@ Phase ID: `seller-command-center-v10`
 | 2026-06-21 | baseline สร้าง | Gate 0 — Scope Baseline | safepay-product |
 | 2026-06-21 | **CR-1:** S-11 filter chips 4→3 (ตัด "สินค้าหมด") | ProductRow ไม่มี `stockQty`; สินค้า SERVICE/DIGITAL ไม่มีสต็อก; เพิ่ม field = scope creep (ขัด OOS-9 no migration). chip สถานะใช้ `isActive` (เปิดขาย/ปิดการขาย) | Controller (Gate 1 decision B) |
 | 2026-06-21 | chip active style = solid `bg-primary text-white` (ทั้ง orders+products) ตาม mockup `.chip.on` (baseline S-10 text เดิม `bg-primary/15` คลาดจาก mockup) | สอดคล้องกับ visual SoT (mockup) + ข้ามหน้า | Controller |
+| 2026-06-21 | **Gate 2 CONDITIONAL SIGNED-OFF** — S-1..S-14 ครบ, no CREEP/GAP, tsc 0, reviewer+grep ผ่าน. carry: visual QA mobile (server down), pre-existing react-toastify ใน settings, OOS-5 dead-code cleanup | safepay-product sign-off | Controller |
