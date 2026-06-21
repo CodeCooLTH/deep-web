@@ -33,6 +33,7 @@ Phase ID: `seller-command-center-v10`
 | S-12 | Paces compliance ทุกหน้าที่แตะ | grep gate: (1) `#7367F0` = 0; (2) ไม่มี Tabler webfont ใน dashboard/notifications (solar แทน); (3) `react-toastify` ใน (paces) = 0; (4) ไม่มี `font-mono` บน element ข้อความไทย | T1–T10 | TODO |
 | S-13 | Arbitrary ทุกจุดมี comment HR7 | comment กำกับ: SVG hero bg/overlay, trust ring SVG, `[&::-webkit-scrollbar]:hidden`, `scroll-snap-*`, edge-to-edge negative gutter | T2–T5 | TODO |
 | S-14 | ทุก commit UI มี `Base:` line | `git log` ไม่มี commit UI ที่ไม่มี `Base:` | T1–T10 | TODO |
+| S-15 | redesign OrderCard ตรง mockup v10 .ord (CR-2) | status badge 4 สถานะ + solar duotone icons + customer/item/foot layout; คง feature เดิม (expandable/payment/PII mask/OrderActions); ไม่แตะ desktop/shared deps; tsc 0 | T11 | DONE |
 
 **S↔T map:** S-1=T1 · S-2/S-3=T2 · S-4=T3 · S-5=T4 · S-6=T5 · S-7=T6 · S-8=T7 · S-9=T8 · S-10=T9 · S-11=T10 · S-12/S-14=T1–T10 · S-13=T2–T5
 
@@ -91,4 +92,5 @@ Phase ID: `seller-command-center-v10`
 | 2026-06-21 | **CR-1:** S-11 filter chips 4→3 (ตัด "สินค้าหมด") | ProductRow ไม่มี `stockQty`; สินค้า SERVICE/DIGITAL ไม่มีสต็อก; เพิ่ม field = scope creep (ขัด OOS-9 no migration). chip สถานะใช้ `isActive` (เปิดขาย/ปิดการขาย) | Controller (Gate 1 decision B) |
 | 2026-06-21 | chip active style = solid `bg-primary text-white` (ทั้ง orders+products) ตาม mockup `.chip.on` (baseline S-10 text เดิม `bg-primary/15` คลาดจาก mockup) | สอดคล้องกับ visual SoT (mockup) + ข้ามหน้า | Controller |
 | 2026-06-21 | **Gate 2 CONDITIONAL SIGNED-OFF** — S-1..S-14 ครบ, no CREEP/GAP, tsc 0, reviewer+grep ผ่าน. carry: visual QA mobile (server down), pre-existing react-toastify ใน settings, OOS-5 dead-code cleanup | safepay-product sign-off | Controller |
+| 2026-06-21 | **CR-2:** ขยาย scope — redesign OrderCard (orders list) ให้ตรง mockup v10 .ord (status badge + solar duotone icons + visual) คงข้อมูล/logic/OrderActions. เดิม OOS-10 (orders เฉพาะ header) → ย้ายขึ้น In-Scope S-15. products row = T10 ตรง mockup แล้ว | user request "redesign card ให้ตรง mockup" | Controller |
 | 2026-06-21 | **Gate 2 → SIGNED-OFF เต็ม** — user เปิด dev server, QA visual เสร็จ: Playwright 15/15 PASS + แก้ 2 bug (BUG-2 dashboard overflow/edge-to-edge ตรง user feedback "มี padding ซ้ายขวา" → CC -mx-4; BUG-1 ปุ่มเพิ่มสินค้า tap≥44px). condition ปิด | Controller (QA + fix) |
