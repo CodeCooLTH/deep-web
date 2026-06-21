@@ -29,7 +29,7 @@ Phase ID: `seller-command-center-v10`
 | S-8 | `dashboard/page.tsx` wire ข้อมูลจริง | fetch `shopSlug`, `reviewCount`, `avgRating`, `orderCount`, `walletBalance`, `trustScore`, `recentActivity(8)`, `orderStatusCounts` ผ่าน `Promise.allSettled`; shopId resolve ที่ server; ไม่มี fake (honest-zero ถ้า count=0) | T7 | TODO |
 | S-9 | `NotificationFeed` + `/notifications` page | แสดง activity จาก `getRecentActivity(shop.id, 20)` กลุ่ม วันนี้/เมื่อวาน/ก่อนหน้า; solar icon; unread `bg-primary/5` + dot (UI-only); "อ่านทั้งหมด" คลิกได้ (UI-only); auth guard session หมด → redirect `/auth/sign-in`; ว่าง → empty state | T8 | TODO |
 | S-10 | `/orders` mobile re-skin header | mobile: search pill (solar `magnifer`), filter chips `overflow-x-auto` (active `badge bg-primary/15 text-primary`); ไม่แตะ `OrderCard`/desktop; render 360px ไม่แตก | T9 | TODO |
-| S-11 | `/products` mobile re-skin header | mobile: ปุ่ม "เพิ่มสินค้า" solar `add-square` solid primary; filter chips (ทั้งหมด/เปิดขาย/สินค้าหมด/ปิดการขาย); product row รูป 62px + ชื่อ + ราคา primary + badge สถานะ; ไม่แตะ DataTable desktop; render 360px ไม่แตก | T10 | TODO |
+| S-11 | `/products` mobile re-skin header | mobile: ปุ่ม "เพิ่มสินค้า" solar `add-square` solid primary; filter chips **3 ตัว (ทั้งหมด/เปิดขาย/ปิดการขาย)** — ตัด "สินค้าหมด" ตาม CR-1 (ProductRow ไม่มี stockQty); product row รูป 62px + ชื่อ + ราคา primary + badge สถานะ; ไม่แตะ DataTable desktop; render 360px ไม่แตก | T10 | TODO |
 | S-12 | Paces compliance ทุกหน้าที่แตะ | grep gate: (1) `#7367F0` = 0; (2) ไม่มี Tabler webfont ใน dashboard/notifications (solar แทน); (3) `react-toastify` ใน (paces) = 0; (4) ไม่มี `font-mono` บน element ข้อความไทย | T1–T10 | TODO |
 | S-13 | Arbitrary ทุกจุดมี comment HR7 | comment กำกับ: SVG hero bg/overlay, trust ring SVG, `[&::-webkit-scrollbar]:hidden`, `scroll-snap-*`, edge-to-edge negative gutter | T2–T5 | TODO |
 | S-14 | ทุก commit UI มี `Base:` line | `git log` ไม่มี commit UI ที่ไม่มี `Base:` | T1–T10 | TODO |
@@ -88,3 +88,5 @@ Phase ID: `seller-command-center-v10`
 | วันที่ | การเปลี่ยน | เหตุผล | อนุมัติ |
 |--------|-----------|--------|--------|
 | 2026-06-21 | baseline สร้าง | Gate 0 — Scope Baseline | safepay-product |
+| 2026-06-21 | **CR-1:** S-11 filter chips 4→3 (ตัด "สินค้าหมด") | ProductRow ไม่มี `stockQty`; สินค้า SERVICE/DIGITAL ไม่มีสต็อก; เพิ่ม field = scope creep (ขัด OOS-9 no migration). chip สถานะใช้ `isActive` (เปิดขาย/ปิดการขาย) | Controller (Gate 1 decision B) |
+| 2026-06-21 | chip active style = solid `bg-primary text-white` (ทั้ง orders+products) ตาม mockup `.chip.on` (baseline S-10 text เดิม `bg-primary/15` คลาดจาก mockup) | สอดคล้องกับ visual SoT (mockup) + ข้ามหน้า | Controller |
