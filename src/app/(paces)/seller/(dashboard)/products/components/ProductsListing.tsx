@@ -288,7 +288,8 @@ const ProductsListing = ({ products }: Props) => {
           {/* ปุ่มเพิ่มสินค้า mobile: btn btn-sm bg-primary text-white + icon solar:add-square-bold-duotone */}
           <Link
             href="/products/new"
-            className="btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 flex items-center gap-1.5"
+            /* min-h-11 (44px): mobile tap-target ≥44px — btn-sm สูง ~31px ไม่พอ (HR7 arbitrary: ไม่มี touch-min token) */
+            className="btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 flex items-center gap-1.5 min-h-11"
           >
             <Icon icon="solar:add-square-bold-duotone" className="size-4" />
             <span>เพิ่มสินค้า</span>

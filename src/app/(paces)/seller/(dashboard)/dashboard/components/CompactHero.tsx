@@ -47,12 +47,8 @@ export default function CompactHero({
   const dashOffset = CIRCUMFERENCE * (1 - score / 100)
 
   return (
-    /*
-     * HR7 arbitrary: full-bleed hero ยกเลิก gutter ของ `.seller-mobile-shell main`
-     * Paces กำหนด main px-5 — ใช้ negative margin -mx-5 ชดเชยออก
-     * (Paces ไม่มี full-bleed / edge-to-edge token สำหรับ hero section)
-     */
-    <div className="-mx-5 rounded-b-2xl overflow-hidden relative text-white flex-shrink-0">
+    /* edge-to-edge ทำที่ CommandCenter wrapper (-mx-4 หักล้าง gutter 16px ทั้ง CC) — hero ไม่ต้อง -mx เอง */
+    <div className="rounded-b-2xl overflow-hidden relative text-white flex-shrink-0">
       {/* ---- พื้นหลัง SVG ลำแสง xenon โทน Paces น้ำเงิน ---- */}
       {/*
        * HR7 arbitrary: SVG hero background + overlay

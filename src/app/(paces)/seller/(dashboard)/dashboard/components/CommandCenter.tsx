@@ -25,11 +25,11 @@ type Props = {
 }
 
 export default function CommandCenter({ data }: Props) {
-  // wrapper ไม่ใส่ px/pb — .seller-mobile-shell main มี padding-inline:1rem + padding-bottom:5rem
-  // ครอบอยู่แล้ว (safepay-overrides.css L98/L101); ใส่ซ้ำจะเยื้อง 32px + ล่างห่างเกิน
-  // หมายเหตุ: CompactHero ทำ full-bleed เองด้วย -mx-5 (หักล้าง gutter — ดู comment ในไฟล์นั้น)
+  // -mx-4: edge-to-edge ทั้ง CC — หักล้าง gutter `.seller-mobile-shell main { padding-inline:1rem }` (16px)
+  // ให้ทุก section (hero+cards) ชนขอบจอ ไม่มี padding ซ้าย/ขวา ตาม mockup v10 (HR7 arbitrary: ไม่มี full-bleed token)
+  // pb อยู่ที่ main แล้ว (safepay-overrides.css) — wrapper ไม่ใส่ซ้ำ
   return (
-    <div className="lg:hidden space-y-3">
+    <div className="lg:hidden space-y-3 -mx-4">
       {/* HERO — avatar + trust ring + stats + wallet + shop link (รวม header+wallet เดิม) */}
       <CompactHero
         shopName={data.shopName ?? ''}
