@@ -40,6 +40,8 @@ import { getRecentActivity, type ActivityItem } from '@/services/activity.servic
 // v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
 import { getBalance } from '@/services/wallet.service'
 import { getTierLabel } from '@/lib/trust-tier'
+// v10: review count + avg rating สำหรับ stats row ใน CompactHero (S-8)
+import { getAvgRatingByUsername } from '@/services/review.service'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -94,6 +96,10 @@ export default async function SellerDashboardPage() {
   let recentActivity: ActivityItem[] = []
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
+  // v10: CompactHero — shop link (slug) + stats row (orders/reviews/rating); honest-zero ถ้าล้ม
+  let shopSlug: string | null = null
+  let reviewCount = 0
+  let avgRating = 0
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -109,22 +115,25 @@ export default async function SellerDashboardPage() {
       // ดึงชื่อร้านค้า + id + logo + user.avatar เพื่อแสดงใน UserCard header และ Command Center
       const shop = await prisma.shop.findUnique({
         where: { userId: user.id },
-        select: { id: true, shopName: true, logo: true, user: { select: { avatar: true } } },
+        select: { id: true, shopName: true, logo: true, slug: true, user: { select: { avatar: true, username: true } } },
       })
       if (shop?.shopName) shopName = shop.shopName
       // avatarUrl: ใช้ logo ร้านก่อน → fallback user.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
       // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ user แทน; ไม่ใช่ PII sensitive
       avatarUrl = shop?.logo ?? shop?.user?.avatar ?? null
+      // v10: shop public slug สำหรับ ShopLinkButtons (resolveBuyerBaseUrl()/{slug})
+      shopSlug = shop?.slug ?? null
 
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {
-        // perf: 4 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
+        // perf: 5 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(4 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, balanceRes, activityRes, ordersRes] = await Promise.allSettled([
+        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes] = await Promise.allSettled([
           getOrderStatusCounts(shop.id),
           getBalance(shop.id),
           getRecentActivity(shop.id, 8),
           getOrdersByShop(shop.id),
+          getAvgRatingByUsername(shop.user?.username ?? ''),
         ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
@@ -134,6 +143,12 @@ export default async function SellerDashboardPage() {
         // v8: walletBalance — fallback 0 ถ้าล้ม
         if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
         else console.error('[dashboard] getBalance failed', balanceRes.reason)
+
+        // v10: review count + avg rating สำหรับ stats row — honest-zero ถ้าล้ม/ไม่มีรีวิว
+        if (ratingRes.status === 'fulfilled') {
+          reviewCount = ratingRes.value.reviewCount
+          avgRating = ratingRes.value.avgRating
+        } else console.error('[dashboard] getAvgRatingByUsername failed', ratingRes.reason)
 
         // recentActivity feed — fallback [] (service ครอบ error เองแต่กัน allSettled reject ด้วย)
         recentActivity = activityRes.status === 'fulfilled' ? activityRes.value : []
@@ -244,6 +259,11 @@ export default async function SellerDashboardPage() {
             avatarUrl,
             tierName: getTierLabel(score),
             trustScore: score,
+            // v10: stats row + shop link (S-8)
+            shopSlug,
+            orderCount,
+            reviewCount,
+            avgRating,
           }}
         />
       </div>
