@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seller Auction v1 — list / create / detail-live / detail-ended (Paces, solar duotone)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab; --primary-dark:#173f78; --primary-15:rgba(35,109,201,.12);
+    --success:#1aae6f; --success-15:rgba(26,174,111,.13);
+    --info:#0ea5e9;    --info-15:rgba(14,165,233,.13);
+    --warning:#f08c00; --warning-15:rgba(240,140,0,.13);
+    --danger:#e23744;  --danger-15:rgba(226,55,68,.12);
+    --default-900:#1e293b; --default-700:#334155; --default-500:#5b6678; --default-400:#94a3b8;
+    --default-300:#cbd2db; --default-200:#e2e8f0; --default-100:#f1f5f9;
+    --body-bg:#eef0f3; --card-bg:#ffffff; --border:#e9ecf0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#aeb4bd;font-family:'Anuphan',sans-serif;display:flex;justify-content:center;gap:26px;padding:24px;flex-wrap:wrap;align-items:flex-start}
+  .frame-label{width:390px;text-align:center;color:#1b1d22;font-weight:600;font-size:13px;margin-bottom:8px}
+  .frame-label small{display:block;font-weight:400;font-size:11px;color:#3a3d44;margin-top:2px}
+  .phone{width:390px;background:var(--body-bg);border-radius:36px;overflow:hidden;border:9px solid #1b1d22;height:844px;position:relative;display:flex;flex-direction:column}
+  iconify-icon{vertical-align:-0.125em}
+
+  /* sub-page header (back + title + action) */
+  .head{display:flex;align-items:center;gap:6px;padding:12px 10px 10px;flex-shrink:0;background:var(--body-bg)}
+  .h-back{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--default-700);font-size:24px;flex-shrink:0;cursor:pointer}
+  .h-title{flex:1;min-width:0;font-size:17px;font-weight:700;color:var(--default-900)}
+  .h-act{display:flex;align-items:center;gap:4px}
+  .h-act .ico{width:38px;height:38px;display:flex;align-items:center;justify-content:center;color:var(--default-700);font-size:21px;cursor:pointer}
+  .btn-add{background:var(--primary);color:#fff;font-size:13px;font-weight:600;padding:8px 13px;border-radius:9px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
+  .btn-add iconify-icon{font-size:17px}
+
+  /* chip filter */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 16px 10px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;font-size:12.5px;font-weight:500;color:var(--default-700);background:#fff;padding:6px 14px;border-radius:99px;white-space:nowrap;cursor:pointer}
+  .chip.on{background:var(--primary);color:#fff;font-weight:600}
+
+  .scroll{flex:1;overflow-y:auto;padding:0 0 90px}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* badge สถานะ */
+  .b{font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+  .b-draft{background:var(--default-100);color:var(--default-500)}
+  .b-sched{background:var(--info-15);color:var(--info)}
+  .b-live{background:var(--success-15);color:var(--success)}
+  .b-ended{background:var(--primary-15);color:var(--primary)}
+  .b-unsold{background:var(--warning-15);color:var(--warning)}
+  .b-cancel{background:var(--danger-15);color:var(--danger)}
+  .b-live .dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* auction list row */
+  .auc{display:flex;gap:12px;background:#fff;padding:13px 16px}
+  .auc + .auc{border-top:1px solid var(--default-100)}
+  .auc-img{width:64px;height:64px;border-radius:10px;object-fit:cover;background:var(--default-100);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--default-300);font-size:26px}
+  .auc-body{flex:1;min-width:0}
+  .auc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .auc-name{font-size:13.5px;font-weight:600;color:var(--default-900);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .auc-price{font-size:14px;font-weight:700;color:var(--primary);margin-top:4px;font-variant-numeric:tabular-nums}
+  .auc-price span{font-size:11.5px;font-weight:500;color:var(--default-500)}
+  .auc-meta{font-size:11.5px;color:var(--default-500);margin-top:3px;display:flex;align-items:center;gap:5px}
+  .auc-meta iconify-icon{font-size:13px}
+  .auc-menu{width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--default-400);font-size:18px;flex-shrink:0;cursor:pointer}
+
+  /* card */
+  .card{background:#fff;margin-top:10px;border-radius:0}
+  .card-pad{padding:14px 16px}
+  .card-t{font-size:14.5px;font-weight:600;color:var(--default-900);margin-bottom:10px}
+
+  /* detail hero */
+  .d-img{width:100%;height:210px;object-fit:cover;background:var(--default-100);display:flex;align-items:center;justify-content:center;color:var(--default-300);font-size:48px}
+  .d-name{font-size:16px;font-weight:700;color:var(--default-900);margin:10px 0 0;line-height:1.3}
+  .d-cur{font-size:11.5px;color:var(--default-500);margin-top:12px}
+  .d-price{font-size:28px;font-weight:700;color:var(--primary);font-variant-numeric:tabular-nums;line-height:1.1}
+  .d-bidn{font-size:12.5px;color:var(--default-500);float:right;margin-top:10px}
+  .d-count{display:flex;align-items:center;gap:7px;margin-top:13px;padding-top:12px;border-top:1px dashed var(--default-300)}
+  .d-count .t{font-size:13px;color:var(--default-700);font-weight:500}
+  .d-count .cd{font-size:18px;font-weight:700;color:var(--danger);font-variant-numeric:tabular-nums}
+  .d-snipe{font-size:11px;color:var(--warning);margin-top:6px;display:flex;align-items:center;gap:4px}
+
+  /* bid feed */
+  .feed-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .bid{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px dashed var(--default-200)}
+  .bid:last-child{border-bottom:none}
+  .bid .bd{width:9px;height:9px;border-radius:50%;background:var(--default-300);flex-shrink:0}
+  .bid.win .bd{background:var(--success)}
+  .bid .nm{flex:1;min-width:0;font-size:13px;color:var(--default-900)}
+  .bid.win .nm{font-weight:700}
+  .bid .am{font-size:13px;font-weight:700;color:var(--primary);font-variant-numeric:tabular-nums}
+  .bid .tm{font-size:10.5px;color:var(--default-400);white-space:nowrap;margin-left:8px}
+
+  /* key-value info */
+  .kv{display:flex;align-items:center;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px dashed var(--default-100)}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--default-500)}
+  .kv .v{color:var(--default-900);font-weight:600;font-variant-numeric:tabular-nums}
+
+  /* result card (accent border-s) */
+  .res{margin:10px 0;padding:15px 16px;border-left:3px solid;border-radius:0}
+  .res.win{background:var(--success-15);border-color:var(--success)}
+  .res.unsold{background:var(--warning-15);border-color:var(--warning)}
+  .res-t{font-size:13px;font-weight:700;margin-bottom:9px;display:inline-flex;align-items:center;gap:5px}
+  .res.win .res-t{color:var(--success)}
+  .res.unsold .res-t{color:var(--warning)}
+
+  /* buttons */
+  .btn{font-size:13.5px;font-weight:600;padding:11px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;width:100%;border:none;font-family:inherit}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-ghost{background:var(--default-100);color:var(--default-700)}
+  .btn-dangerout{background:#fff;border:1px solid var(--danger);color:var(--danger)}
+  .btn-row{display:flex;gap:8px;padding:14px 16px}
+
+  /* form */
+  .f-label{font-size:12.5px;font-weight:600;color:var(--default-700);margin-bottom:5px;display:block}
+  .f-label .req{color:var(--danger)}
+  .f-input{width:100%;border:1px solid var(--default-300);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13.5px;color:var(--default-900);background:#fff;outline:none}
+  .f-input::placeholder{color:var(--default-400)}
+  .f-grp{margin-bottom:13px}
+  .f-money{display:flex;align-items:stretch}
+  .f-money .cur{background:var(--default-100);border:1px solid var(--default-300);border-right:none;border-radius:9px 0 0 9px;padding:10px 13px;font-weight:700;color:var(--default-500);display:flex;align-items:center}
+  .f-money .f-input{border-radius:0 9px 9px 0}
+  .f-hint{font-size:11px;margin-top:4px;display:flex;align-items:flex-start;gap:5px}
+  .f-hint.info{color:var(--info)}
+  .f-dropzone{border:1.5px dashed var(--default-300);border-radius:10px;padding:24px;text-align:center;color:var(--default-400);font-size:12.5px}
+  .f-dropzone iconify-icon{font-size:34px;display:block;margin:0 auto 6px}
+  .f-radio{display:flex;gap:14px;margin-bottom:10px}
+  .f-radio label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--default-700);cursor:pointer}
+
+  /* sticky form footer */
+  .f-footer{position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);padding:11px 16px;display:flex;gap:10px;box-shadow:0 -4px 16px -10px rgba(30,41,59,.25)}
+
+  /* bottom nav */
+  .nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;box-shadow:0 -4px 16px -10px rgba(30,41,59,.25)}
+  .nav a{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--default-400);font-size:10.5px;font-weight:500;flex:1}
+  .nav a.active{color:var(--primary)}
+  .nav a iconify-icon{font-size:23px}
+  .nav .fab{position:relative;flex:0 0 auto;width:54px}
+  .nav .fab b{position:absolute;top:-26px;left:50%;transform:translateX(-50%);width:54px;height:54px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;border:3px solid #fff;box-shadow:0 6px 16px -4px rgba(35,109,201,.5)}
+  .nav .fab span{margin-top:34px;font-size:10.5px;color:var(--default-400)}
+
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:70px 30px;text-align:center}
+  .empty iconify-icon{font-size:60px;color:var(--default-300)}
+  .empty p{font-size:13.5px;color:var(--default-500)}
+</style>
+</head>
+<body>
+
+<!-- ════ FRAME 1: รายการประมูล ════ -->
+<div>
+  <div class="frame-label">รายการประมูล /seller/auctions<small>list + chip filter + status badge + countdown</small></div>
+  <div class="phone">
+    <div class="head">
+      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+      <span class="h-title">การประมูล</span>
+      <span class="h-act"><span class="ico"><iconify-icon icon="solar:magnifer-linear"></iconify-icon></span><span class="btn-add"><iconify-icon icon="solar:add-square-bold-duotone"></iconify-icon> สร้าง</span></span>
+    </div>
+    <div class="chips">
+      <span class="chip on">ทั้งหมด</span>
+      <span class="chip">ฉบับร่าง</span>
+      <span class="chip">รอเปิด</span>
+      <span class="chip">กำลังประมูล</span>
+      <span class="chip">จบแล้ว</span>
+      <span class="chip">ขายไม่ออก</span>
+      <span class="chip">ยกเลิก</span>
+    </div>
+    <div class="scroll">
+      <div class="auc">
+        <div class="auc-img"><img src="https://picsum.photos/seed/amulet/130" style="width:100%;height:100%;border-radius:10px;object-fit:cover"></div>
+        <div class="auc-body">
+          <div class="auc-top"><span class="auc-name">พระสมเด็จวัดระฆัง เนื้อผง</span><span class="b b-live"><span class="dot"></span>กำลังประมูล</span></div>
+          <div class="auc-price">฿12,500 <span>· 12 บิด</span></div>
+          <div class="auc-meta"><iconify-icon icon="solar:clock-circle-linear"></iconify-icon> เหลือ 00:14:33</div>
+        </div>
+        <span class="auc-menu"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span>
+      </div>
+      <div class="auc">
+        <div class="auc-img"><img src="https://picsum.photos/seed/watch/130" style="width:100%;height:100%;border-radius:10px;object-fit:cover"></div>
+        <div class="auc-body">
+          <div class="auc-top"><span class="auc-name">นาฬิกา Seiko วินเทจ</span><span class="b b-sched">รอเปิด</span></div>
+          <div class="auc-price">฿5,000 <span>เริ่มต้น · 0 บิด</span></div>
+          <div class="auc-meta"><iconify-icon icon="solar:calendar-linear"></iconify-icon> เปิด 2569-06-25 20:00</div>
+        </div>
+        <span class="auc-menu"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span>
+      </div>
+      <div class="auc">
+        <div class="auc-img"><img src="https://picsum.photos/seed/coin/130" style="width:100%;height:100%;border-radius:10px;object-fit:cover"></div>
+        <div class="auc-body">
+          <div class="auc-top"><span class="auc-name">เหรียญหลวงพ่อรุ่นแรก</span><span class="b b-ended">จบแล้ว</span></div>
+          <div class="auc-price">฿18,000 <span>(ชนะ) · 12 บิด</span></div>
+          <div class="auc-meta"><iconify-icon icon="solar:bag-check-linear"></iconify-icon> ดูคำสั่งซื้อ →</div>
+        </div>
+        <span class="auc-menu"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span>
+      </div>
+      <div class="auc">
+        <div class="auc-img"><iconify-icon icon="solar:gallery-bold-duotone"></iconify-icon></div>
+        <div class="auc-body">
+          <div class="auc-top"><span class="auc-name">แสตมป์เก่าชุดหายาก</span><span class="b b-unsold">ขายไม่ออก</span></div>
+          <div class="auc-price">฿3,500 <span>สูงสุด · 4 บิด</span></div>
+          <div class="auc-meta"><iconify-icon icon="solar:close-circle-linear"></iconify-icon> ราคาไม่ถึงขั้นต่ำ</div>
+        </div>
+        <span class="auc-menu"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span>
+      </div>
+      <div class="auc">
+        <div class="auc-img"><iconify-icon icon="solar:gallery-bold-duotone"></iconify-icon></div>
+        <div class="auc-body">
+          <div class="auc-top"><span class="auc-name">กล้องฟิล์ม (ฉบับร่าง)</span><span class="b b-draft">ฉบับร่าง</span></div>
+          <div class="auc-price">฿2,000 <span>เริ่มต้น</span></div>
+          <div class="auc-meta"><iconify-icon icon="solar:pen-2-linear"></iconify-icon> ยังไม่เผยแพร่</div>
+        </div>
+        <span class="auc-menu"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span>
+      </div>
+    </div>
+    <div class="nav">
+      <a href="#"><iconify-icon icon="solar:home-bold-duotone"></iconify-icon>หน้าหลัก</a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon>คำสั่งซื้อ</a>
+      <a class="fab" href="#"><b><iconify-icon icon="solar:add-circle-bold-duotone"></iconify-icon></b><span>สร้าง</span></a>
+      <a class="active" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon>ประมูล</a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon>ร้านค้า</a>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FRAME 2: สร้างประมูล ════ -->
+<div>
+  <div class="frame-label">สร้างประมูล /seller/auctions/new<small>form: ราคา/reserve/buy-now/เวลา + sticky footer</small></div>
+  <div class="phone">
+    <div class="head">
+      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+      <span class="h-title">สร้างรายการประมูล</span>
+    </div>
+    <div class="scroll" style="padding-bottom:70px">
+      <div class="card"><div class="card-pad">
+        <div class="card-t">ข้อมูลพื้นฐาน</div>
+        <div class="f-grp"><label class="f-label">ชื่อสินค้า <span class="req">*</span></label><input class="f-input" placeholder="เช่น พระสมเด็จวัดระฆัง"></div>
+        <div class="f-grp"><label class="f-label">หมวดหมู่ <span class="req">*</span></label><select class="f-input"><option>พระเครื่อง</option><option>นาฬิกา</option><option>ของสะสม</option></select></div>
+        <div class="f-grp" style="margin-bottom:0"><label class="f-label">สินค้าในร้าน (ไม่บังคับ)</label><select class="f-input"><option>— เลือกเพื่อเชื่อมโยง —</option></select></div>
+      </div></div>
+
+      <div class="card"><div class="card-pad">
+        <div class="card-t">รูปภาพ</div>
+        <div class="f-dropzone"><iconify-icon icon="solar:cloud-upload-bold-duotone"></iconify-icon>อัปโหลดรูป (อย่างน้อย 1 ใบ สูงสุด 10)</div>
+      </div></div>
+
+      <div class="card"><div class="card-pad">
+        <div class="card-t">ราคา</div>
+        <div class="f-grp"><label class="f-label">ราคาเริ่มต้น <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="5000"></div></div>
+        <div class="f-grp"><label class="f-label">ขั้นบิดขั้นต่ำ <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="500"></div></div>
+        <div class="f-grp"><label class="f-label">ราคาขั้นต่ำ (reserve)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div>
+          <div class="f-hint info"><iconify-icon icon="solar:info-circle-linear"></iconify-icon> Buyer เห็นว่ามีราคาขั้นต่ำ แต่ไม่เห็นตัวเลข</div></div>
+        <div class="f-grp" style="margin-bottom:0"><label class="f-label">ราคาซื้อทันที (buy-now)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div>
+          <div class="f-hint info"><iconify-icon icon="solar:bolt-linear"></iconify-icon> Buyer กดซื้อทันทีได้ถ้าบิดยังไม่ถึงราคานี้</div></div>
+      </div></div>
+
+      <div class="card"><div class="card-pad">
+        <div class="card-t">เวลาประมูล</div>
+        <div class="f-grp"><label class="f-label">เปิดประมูล <span class="req">*</span></label>
+          <div class="f-radio"><label><input type="radio" name="st" checked> เปิดทันที</label><label><input type="radio" name="st"> กำหนดเวลา</label></div></div>
+        <div class="f-grp" style="margin-bottom:0"><label class="f-label">ปิดประมูล <span class="req">*</span></label><input class="f-input" type="datetime-local"></div>
+      </div></div>
+    </div>
+    <div class="f-footer">
+      <button class="btn btn-ghost" style="flex:1">บันทึกร่าง</button>
+      <button class="btn btn-primary" style="flex:1">เผยแพร่</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FRAME 3: detail — LIVE ════ -->
+<div>
+  <div class="frame-label">รายละเอียด — กำลังประมูล /seller/auctions/[id]<small>realtime bid feed + countdown + anti-snipe</small></div>
+  <div class="phone">
+    <div class="head">
+      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+      <span class="h-title">รายละเอียดประมูล</span>
+    </div>
+    <div class="scroll">
+      <div class="card" style="margin-top:0">
+        <img class="d-img" src="https://picsum.photos/seed/amulet2/600">
+        <div class="card-pad" style="padding-top:0">
+          <span class="b b-live" style="margin-top:12px"><span class="dot"></span>กำลังประมูล</span>
+          <h2 class="d-name">พระสมเด็จวัดระฆัง เนื้อผง</h2>
+          <span class="d-bidn">12 บิด</span>
+          <div class="d-cur">ราคาปัจจุบัน</div>
+          <div class="d-price">฿12,500</div>
+          <div class="d-count"><iconify-icon icon="solar:clock-circle-bold-duotone" style="color:var(--danger);font-size:20px"></iconify-icon><span class="t">เหลือ</span><span class="cd">00:00:48</span></div>
+          <div class="d-snipe"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาแล้ว 2/5 ครั้ง</div>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-pad">
+        <div class="feed-h"><span class="card-t" style="margin:0">บิดล่าสุด</span><span class="b b-live"><span class="dot"></span>รับข้อมูลสด</span></div>
+        <div class="bid win"><span class="bd"></span><span class="nm">นาย ก.</span><span class="am">฿12,500</span><span class="tm">20:01:12</span></div>
+        <div class="bid"><span class="bd"></span><span class="nm">นาง ข.</span><span class="am">฿12,000</span><span class="tm">19:58:40</span></div>
+        <div class="bid"><span class="bd"></span><span class="nm">นาย ก.</span><span class="am">฿11,500</span><span class="tm">19:55:02</span></div>
+        <div class="bid"><span class="bd"></span><span class="nm">นาง ค.</span><span class="am">฿11,000</span><span class="tm">19:50:31</span></div>
+      </div></div>
+
+      <div class="card"><div class="card-pad">
+        <div class="card-t">ข้อมูลประมูล</div>
+        <div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div>
+        <div class="kv"><span class="k">ขั้นบิดขั้นต่ำ</span><span class="v">฿500</span></div>
+        <div class="kv"><span class="k">ราคาขั้นต่ำ</span><span class="v"><span class="b b-sched">มี (ไม่แสดงมูลค่า)</span></span></div>
+        <div class="kv"><span class="k">ราคาซื้อทันที</span><span class="v">฿25,000</span></div>
+        <div class="kv"><span class="k">เวลาปิด</span><span class="v">20:15 (+2 ต่อเวลา)</span></div>
+      </div></div>
+
+      <div style="padding:14px 16px;color:var(--default-400);font-size:11.5px;text-align:center">
+        <iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FRAME 4: detail — ENDED (winner) ════ -->
+<div>
+  <div class="frame-label">รายละเอียด — จบแล้ว (มีผู้ชนะ)<small>winner card + ปุ่มดูคำสั่งซื้อ + bid history</small></div>
+  <div class="phone">
+    <div class="head">
+      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+      <span class="h-title">รายละเอียดประมูล</span>
+    </div>
+    <div class="scroll">
+      <div class="card" style="margin-top:0">
+        <img class="d-img" src="https://picsum.photos/seed/coin2/600">
+        <div class="card-pad" style="padding-top:0">
+          <span class="b b-ended" style="margin-top:12px">ปิดประมูลแล้ว</span>
+          <h2 class="d-name">เหรียญหลวงพ่อรุ่นแรก ปี 2512</h2>
+        </div>
+      </div>
+
+      <div class="res win">
+        <div class="res-t"><iconify-icon icon="solar:cup-star-bold-duotone"></iconify-icon> ปิดประมูล — มีผู้ชนะ</div>
+        <div class="kv" style="border-color:rgba(26,174,111,.2)"><span class="k">ราคาสุดท้าย</span><span class="v" style="color:var(--success);font-size:17px">฿18,000</span></div>
+        <div class="kv" style="border-color:rgba(26,174,111,.2)"><span class="k">ผู้ชนะ</span><span class="v">นาย ก. (สมชาย)</span></div>
+        <div class="kv" style="border:none"><span class="k">จำนวนบิดทั้งหมด</span><span class="v">12 ครั้ง</span></div>
+        <button class="btn btn-primary" style="margin-top:10px"><iconify-icon icon="solar:bag-check-bold-duotone"></iconify-icon> ดูคำสั่งซื้อ #A1B2C3D4</button>
+      </div>
+
+      <div class="card"><div class="card-pad">
+        <div class="card-t">ประวัติการบิด</div>
+        <div class="bid win"><span class="bd"></span><span class="nm">นาย ก. (ชนะ)</span><span class="am">฿18,000</span><span class="tm">20:14</span></div>
+        <div class="bid"><span class="bd"></span><span class="nm">นาง ข.</span><span class="am">฿17,500</span><span class="tm">20:13</span></div>
+        <div class="bid"><span class="bd"></span><span class="nm">นาย ง.</span><span class="am">฿16,000</span><span class="tm">20:10</span></div>
+        <div class="bid"><span class="bd"></span><span class="nm">นาง ค.</span><span class="am">฿15,000</span><span class="tm">20:05</span></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
