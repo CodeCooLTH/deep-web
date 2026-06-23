@@ -68,8 +68,13 @@ buyer บิด live (MVP = Deep-App มือถือ; buyer web = Phase 2):
 - **buyer:** bid bar (เสนอราคา/ซื้อทันที/ติดตาม) sticky bottom
 - ทุก sticky bar: `position:absolute bottom-0` + scroll มี padding-bottom เผื่อ + safe-area
 
-## User Level (ต้องนิยาม — open question)
-bidder ทุกคนมี **User Level badge** (mockup: Lv.8👑/Lv.5💎/Lv.3🛡). **ยังต้องเคาะว่ามาจาก:** (ก) Trust tier เดิม (Deep Classic/Silver/Gold/Diamond/Star), (ข) level ใหม่จาก XP/จำนวนประมูล, (ค) อื่น ๆ → เก็บใน BRD/DATABASE
+## User Level (RESOLVED — level ใหม่จาก bid สำเร็จ)
+bidder ทุกคนมี **User Level badge** ประกบชื่อ (mockup: Lv.8👑/Lv.5,6💎/Lv.3🛡).
+**นิยาม (user เคาะ):** level ใหม่ **คำนวณจากจำนวน bid สำเร็จ — นับเฉพาะ bid ที่ไม่ "ชิ่ง" (ไม่เบี้ยว)**
+- "ชิ่ง" = ชนะแล้วไม่จ่าย/เบี้ยว (auction win → order → buyer ยกเลิก/ไม่จ่าย) → bid เหล่านั้นไม่นับ (หรือหักลบ)
+- **ต้องทำใน DATABASE/BRD:** track bidCount ต่อ user + กลไกแยก "bid สำเร็จ" vs "ชิ่ง" (ผูก auction-order status: CANCELLED-by-buyer = ชิ่ง) + threshold ต่อ level + เก็บเป็น field/computed
+- **ไม่ใช่** Trust tier เดิม (คนละระบบ — นี่คือ engagement/level ฝั่ง bidder); แสดงบน bid comment + (อาจ) profile
+- เป็น **achievement/gamification ใหม่** — เชื่อมกับ BRD §11 ได้ (criteria-based) แต่ level = numeric ladder แยกจาก badge
 
 ## Theme Source Mapping (สรุป)
 | Element | Theme source |
