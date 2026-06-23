@@ -146,6 +146,34 @@
   .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:70px 30px;text-align:center}
   .empty iconify-icon{font-size:60px;color:var(--default-300)}
   .empty p{font-size:13.5px;color:var(--default-500)}
+
+  /* ── LIVE auction detail (immersive) ── */
+  .live-hero{position:relative;width:100%;height:300px;overflow:hidden;flex-shrink:0;background:#000}
+  .live-hero>img{width:100%;height:100%;object-fit:cover}
+  .ov-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:flex-end;align-items:center;padding:12px;z-index:3}
+  .live-badge{position:absolute;top:12px;left:54px;z-index:4;display:inline-flex;align-items:center;gap:6px;background:var(--danger);color:#fff;font-size:12px;font-weight:700;padding:5px 11px;border-radius:99px;letter-spacing:.6px}
+  .live-badge .dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:pulse 1.2s infinite}
+  .watch{display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.45);color:#fff;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px}
+  .ov-bot{position:absolute;left:0;right:0;bottom:0;padding:36px 16px 14px;z-index:3;background:linear-gradient(to top,rgba(0,0,0,.85),rgba(0,0,0,.4) 60%,transparent);color:#fff}
+  .ov-name{font-size:15px;font-weight:600;line-height:1.3;opacity:.96}
+  .hud{display:flex;align-items:flex-end;justify-content:space-between;margin-top:9px;gap:10px}
+  .hud .lbl{font-size:10.5px;opacity:.82;font-weight:500;margin-bottom:2px}
+  .hud .price{font-size:31px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+  .hud .cd-wrap{text-align:right;flex-shrink:0}
+  .hud .cd{font-size:23px;font-weight:800;color:#ff5b66;font-variant-numeric:tabular-nums;line-height:1}
+  .snipe-bar{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--warning-15);color:var(--warning);font-size:12px;font-weight:600;padding:9px;flex-shrink:0}
+  .stream-h{display:flex;align-items:center;justify-content:space-between;padding:13px 16px 8px}
+  .stream-h .t{font-size:14.5px;font-weight:700;color:var(--default-900)}
+  .stream{padding:0 16px}
+  .sr{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:13px;margin-bottom:7px;background:var(--default-100)}
+  .sr.lead{background:var(--success-15);box-shadow:inset 0 0 0 1px rgba(26,174,111,.3)}
+  .sr .av{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+  .sr .info{flex:1;min-width:0}
+  .sr .nm{font-size:13px;font-weight:600;color:var(--default-900);display:flex;align-items:center}
+  .sr .tm{font-size:10.5px;color:var(--default-400);margin-top:1px}
+  .sr .am{font-size:15px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums}
+  .sr.lead .am{color:var(--success)}
+  .lead-tag{font-size:9.5px;font-weight:700;color:#fff;background:var(--success);padding:1px 7px;border-radius:99px;margin-left:6px}
 </style>
 </head>
 <body>
@@ -270,48 +298,40 @@
   </div>
 </div>
 
-<!-- ════ FRAME 3: detail — LIVE ════ -->
+<!-- ════ FRAME 3: detail — LIVE (immersive live สด) ════ -->
 <div>
-  <div class="frame-label">รายละเอียด — กำลังประมูล /seller/auctions/[id]<small>realtime bid feed + countdown + anti-snipe</small></div>
+  <div class="frame-label">รายละเอียด — กำลังประมูล (live สด)<small>immersive hero HUD + live bid stream</small></div>
   <div class="phone">
-    <div class="head">
-      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
-      <span class="h-title">รายละเอียดประมูล</span>
-    </div>
-    <div class="scroll">
-      <div class="card" style="margin-top:0">
-        <img class="d-img" src="https://picsum.photos/seed/amulet2/600">
-        <div class="card-pad" style="padding-top:0">
-          <span class="b b-live" style="margin-top:12px"><span class="dot"></span>กำลังประมูล</span>
-          <h2 class="d-name">พระสมเด็จวัดระฆัง เนื้อผง</h2>
-          <span class="d-bidn">12 บิด</span>
-          <div class="d-cur">ราคาปัจจุบัน</div>
-          <div class="d-price">฿12,500</div>
-          <div class="d-count"><iconify-icon icon="solar:clock-circle-bold-duotone" style="color:var(--danger);font-size:20px"></iconify-icon><span class="t">เหลือ</span><span class="cd">00:00:48</span></div>
-          <div class="d-snipe"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาแล้ว 2/5 ครั้ง</div>
+    <span class="h-back" style="position:absolute;top:12px;left:12px;z-index:5;color:#fff;background:rgba(0,0,0,.4);border-radius:50%;width:36px;height:36px;font-size:19px"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+    <span class="live-badge"><span class="dot"></span>LIVE</span>
+    <div class="live-hero">
+      <img src="https://picsum.photos/seed/amulet2/780/600">
+      <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
+      <div class="ov-bot">
+        <div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div>
+        <div class="hud">
+          <div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500</div></div>
+          <div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div>
         </div>
       </div>
-
-      <div class="card"><div class="card-pad">
-        <div class="feed-h"><span class="card-t" style="margin:0">บิดล่าสุด</span><span class="b b-live"><span class="dot"></span>รับข้อมูลสด</span></div>
-        <div class="bid win"><span class="bd"></span><span class="nm">นาย ก.</span><span class="am">฿12,500</span><span class="tm">20:01:12</span></div>
-        <div class="bid"><span class="bd"></span><span class="nm">นาง ข.</span><span class="am">฿12,000</span><span class="tm">19:58:40</span></div>
-        <div class="bid"><span class="bd"></span><span class="nm">นาย ก.</span><span class="am">฿11,500</span><span class="tm">19:55:02</span></div>
-        <div class="bid"><span class="bd"></span><span class="nm">นาง ค.</span><span class="am">฿11,000</span><span class="tm">19:50:31</span></div>
-      </div></div>
-
+    </div>
+    <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
+    <div class="scroll" style="padding-top:2px">
+      <div class="stream-h"><span class="t">การเสนอราคาสด</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+      <div class="stream">
+        <div class="sr lead"><div class="av">ก</div><div class="info"><div class="nm">นาย ก.<span class="lead-tag">ผู้นำ</span></div><div class="tm">12 วินาทีที่แล้ว</div></div><div class="am">฿12,500</div></div>
+        <div class="sr"><div class="av" style="background:var(--info)">ข</div><div class="info"><div class="nm">นาง ข.</div><div class="tm">2 นาทีที่แล้ว</div></div><div class="am">฿12,000</div></div>
+        <div class="sr"><div class="av">ก</div><div class="info"><div class="nm">นาย ก.</div><div class="tm">5 นาทีที่แล้ว</div></div><div class="am">฿11,500</div></div>
+        <div class="sr"><div class="av" style="background:var(--warning)">ค</div><div class="info"><div class="nm">นาง ค.</div><div class="tm">10 นาทีที่แล้ว</div></div><div class="am">฿11,000</div></div>
+      </div>
       <div class="card"><div class="card-pad">
         <div class="card-t">ข้อมูลประมูล</div>
         <div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div>
         <div class="kv"><span class="k">ขั้นบิดขั้นต่ำ</span><span class="v">฿500</span></div>
-        <div class="kv"><span class="k">ราคาขั้นต่ำ</span><span class="v"><span class="b b-sched">มี (ไม่แสดงมูลค่า)</span></span></div>
-        <div class="kv"><span class="k">ราคาซื้อทันที</span><span class="v">฿25,000</span></div>
-        <div class="kv"><span class="k">เวลาปิด</span><span class="v">20:15 (+2 ต่อเวลา)</span></div>
+        <div class="kv"><span class="k">ราคาขั้นต่ำ</span><span class="v"><span class="b b-sched">มี (ไม่แสดง)</span></span></div>
+        <div class="kv"><span class="k">ซื้อทันที</span><span class="v">฿25,000</span></div>
       </div></div>
-
-      <div style="padding:14px 16px;color:var(--default-400);font-size:11.5px;text-align:center">
-        <iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว
-      </div>
+      <div style="padding:4px 16px 14px;color:var(--default-400);font-size:11.5px;text-align:center"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว</div>
     </div>
   </div>
 </div>
