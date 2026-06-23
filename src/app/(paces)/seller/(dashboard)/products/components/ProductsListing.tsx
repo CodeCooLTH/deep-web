@@ -269,7 +269,7 @@ const ProductsListing = ({ products }: Props) => {
       {/* ===== Mobile toolbar (ซ่อนบน md ขึ้นไป) ===== */}
       {/* HR7: mobile toolbar แยกจาก desktop card-header เพื่อ re-skin ตาม spec §7
           ไม่มี Paces layout token สำหรับ mobile-specific toolbar — ใช้ flex + overflow-x-auto */}
-      <div className="md:hidden px-4 pt-3 pb-2 space-y-2.5">
+      <div className="lg:hidden px-4 pt-3 pb-2 space-y-2.5">
         {/* Row 1: search pill + ปุ่มเพิ่มสินค้า */}
         <div className="flex items-center gap-2">
           {/* search pill — icon solar:magnifer-linear ตาม spec §7 */}
@@ -319,7 +319,7 @@ const ProductsListing = ({ products }: Props) => {
       </div>
 
       {/* ===== Desktop card-header (ซ่อนบน mobile — ไม่แตะ desktop logic) ===== */}
-      <div className="card-header hidden md:flex">
+      <div className="card-header hidden lg:flex">
         <div className="flex gap-2.5">
           <div className="input-icon-group">
             <Icon icon="search" className="input-icon" />
