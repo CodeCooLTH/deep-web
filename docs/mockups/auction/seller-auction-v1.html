@@ -189,6 +189,18 @@
   .lvl-dia{background:var(--info-15);color:var(--info)}
   .lvl-sil{background:var(--default-200);color:var(--default-500)}
   .expand{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--primary);padding:11px 0 2px;cursor:pointer;margin-top:6px;border-top:1px dashed var(--default-200)}
+
+  /* ── BUYER bid bar (sticky bottom เสมอ) ── */
+  .bidbar{position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);padding:10px 14px 13px;box-shadow:0 -6px 20px -10px rgba(30,41,59,.3);z-index:6}
+  .qbid{display:flex;gap:7px;margin-bottom:9px}
+  .qbid .q{flex:1;text-align:center;font-size:12.5px;font-weight:700;color:var(--primary);background:var(--primary-15);border-radius:9px;padding:8px 0;cursor:pointer}
+  .qbid .q.kb{flex:0 0 46px;color:var(--default-500);background:var(--default-100)}
+  .bidbar-main{display:flex;gap:9px;align-items:stretch}
+  .bid-watch{width:48px;flex-shrink:0;border-radius:11px;border:1px solid var(--default-300);display:flex;align-items:center;justify-content:center;color:var(--danger);font-size:22px;cursor:pointer}
+  .bid-go{flex:1;background:var(--primary);color:#fff;border:none;font-family:inherit;border-radius:11px;padding:9px;font-size:15px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.2}
+  .bid-go small{font-size:10.5px;font-weight:500;opacity:.88;margin-top:2px}
+  .buynow{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:9px;border:1px solid var(--warning);color:var(--warning);background:#fff;border-radius:11px;padding:10px;font-size:13px;font-weight:700;cursor:pointer}
+  .buynow iconify-icon{font-size:18px}
 </style>
 </head>
 <body>
@@ -331,7 +343,7 @@
       </div>
     </div>
     <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
-    <div class="scroll" style="padding-top:8px">
+    <div class="scroll" style="padding:8px 0 76px">
       <!-- รายละเอียด (ใต้ราคา) -->
       <div class="card" style="margin-top:0"><div class="card-pad">
         <div class="card-t">รายละเอียดประมูล</div>
@@ -357,6 +369,10 @@
         </div>
         <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
       </div></div>
+    </div>
+    <!-- seller action bar (bottom เสมอ) — live+bid: cancel ล็อก เหลือแชร์ -->
+    <div class="f-footer">
+      <button class="btn btn-primary" style="flex:1"><iconify-icon icon="solar:share-linear"></iconify-icon> แชร์ลิงก์ประมูล</button>
     </div>
   </div>
 </div>
@@ -447,6 +463,58 @@
         </div>
         <div class="expand"><iconify-icon icon="solar:alt-arrow-up-linear"></iconify-icon> ย่อ</div>
       </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FRAME 6: BUYER — บิด live (bid bar bottom) ════ -->
+<div>
+  <div class="frame-label">มุม Buyer — บิด live (Deep-App)<small>immersive + bid bar bottom + quick-bid + buy-now + ติดตาม</small></div>
+  <div class="phone">
+    <span class="h-back" style="position:absolute;top:12px;left:12px;z-index:5;color:#fff;background:rgba(0,0,0,.4);border-radius:50%;width:36px;height:36px;font-size:19px"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+    <span class="live-badge"><span class="dot"></span>LIVE</span>
+    <div class="live-hero">
+      <img src="https://picsum.photos/seed/amulet2/780/600">
+      <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
+      <div class="ov-bot">
+        <div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div>
+        <div class="hud">
+          <div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500</div></div>
+          <div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
+    <div class="scroll" style="padding:8px 0 180px">
+      <div class="card" style="margin-top:0"><div class="card-pad">
+        <div class="card-t">รายละเอียดประมูล</div>
+        <div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div>
+        <div class="kv"><span class="k">ขั้นบิดขั้นต่ำ</span><span class="v">฿500</span></div>
+        <div class="kv"><span class="k">ราคาขั้นต่ำ (reserve)</span><span class="v"><span class="b b-sched">มี (ไม่แสดง)</span></span></div>
+        <div class="kv"><span class="k">ผู้ขาย</span><span class="v">BT premium <span class="b b-ended">L2 ✓</span></span></div>
+      </div></div>
+      <div class="card"><div class="card-pad">
+        <div class="stream-h" style="padding:0 0 10px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+        <div class="stream" style="padding:0">
+          <div class="cmt lead">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div></div>
+              <div class="cmt-meta">12 วินาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+        </div>
+        <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
+      </div></div>
+    </div>
+    <!-- buyer bid bar (bottom เสมอ) -->
+    <div class="bidbar">
+      <div class="qbid"><span class="q">+฿500</span><span class="q">+฿1,000</span><span class="q">+฿2,000</span><span class="q kb"><iconify-icon icon="solar:pen-2-linear"></iconify-icon></span></div>
+      <div class="bidbar-main">
+        <span class="bid-watch"><iconify-icon icon="solar:heart-linear"></iconify-icon></span>
+        <button class="bid-go">เสนอราคา ฿13,000 <small>ราคาถัดไป (+฿500)</small></button>
+      </div>
+      <button class="buynow"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> ซื้อทันที ฿25,000</button>
     </div>
   </div>
 </div>

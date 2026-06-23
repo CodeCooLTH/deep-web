@@ -57,6 +57,20 @@
 ## 5. Achievement (ไม่สร้าง UI ใหม่)
 - auction badge (gavel/trophy/podium/medal — `tabler:*`) ผสมใน badge grid เดิม (`getBadgeProgress`) ที่ profile/dashboard อัตโนมัติ (BRD §11.7)
 
+## Buyer view (Deep-App mobile) — frame 6
+buyer บิด live (MVP = Deep-App มือถือ; buyer web = Phase 2):
+- immersive hero + HUD (ราคาสูงสุดโชว์เสมอ) + bid stream FB-comment (เหมือน seller) + ผู้ขาย L2 badge
+- **bid bar sticky bottom เสมอ:** quick-bid chips (+฿500/+1,000/+2,000/กรอกเอง) + ปุ่ม **เสนอราคา ฿next** ใหญ่ + ปุ่ม **ซื้อทันที ฿buyNow** + ปุ่ม **ติดตาม (♡)**
+- buyer ไม่มี cancel/manage (เป็นผู้บิด ไม่ใช่เจ้าของ)
+
+## หลักการ mobile: action อยู่ bottom เสมอ (ทั้ง buyer + seller)
+- **seller:** create form footer (บันทึกร่าง/เผยแพร่); detail footer (live+bid → แชร์ลิงก์; draft/scheduled → แก้ไข/เผยแพร่/ยกเลิก); list → ปุ่มสร้างบน + FAB
+- **buyer:** bid bar (เสนอราคา/ซื้อทันที/ติดตาม) sticky bottom
+- ทุก sticky bar: `position:absolute bottom-0` + scroll มี padding-bottom เผื่อ + safe-area
+
+## User Level (ต้องนิยาม — open question)
+bidder ทุกคนมี **User Level badge** (mockup: Lv.8👑/Lv.5💎/Lv.3🛡). **ยังต้องเคาะว่ามาจาก:** (ก) Trust tier เดิม (Deep Classic/Silver/Gold/Diamond/Star), (ข) level ใหม่จาก XP/จำนวนประมูล, (ค) อื่น ๆ → เก็บใน BRD/DATABASE
+
 ## Theme Source Mapping (สรุป)
 | Element | Theme source |
 |---|---|
