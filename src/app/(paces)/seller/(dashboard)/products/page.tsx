@@ -171,12 +171,15 @@ export default async function ProductsPage() {
 
   return (
     <>
-      <PageBreadcrumb title="สินค้า" trail={[{ label: 'การขาย' }]} />
+      {/* breadcrumb + stat cards = desktop เท่านั้น; mobile = list สะอาดตาม mockup v10 (ไม่มี stat) */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="สินค้า" trail={[{ label: 'การขาย' }]} />
 
-      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
-        {statData.map((stat, idx) => (
-          <ProductStats key={idx} stat={stat} />
-        ))}
+        <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
+          {statData.map((stat, idx) => (
+            <ProductStats key={idx} stat={stat} />
+          ))}
+        </div>
       </div>
 
       <ProductsListing products={productRows} />
