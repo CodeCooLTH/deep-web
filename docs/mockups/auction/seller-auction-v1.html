@@ -164,16 +164,31 @@
   .snipe-bar{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--warning-15);color:var(--warning);font-size:12px;font-weight:600;padding:9px;flex-shrink:0}
   .stream-h{display:flex;align-items:center;justify-content:space-between;padding:13px 16px 8px}
   .stream-h .t{font-size:14.5px;font-weight:700;color:var(--default-900)}
-  .stream{padding:0 16px}
-  .sr{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:13px;margin-bottom:7px;background:var(--default-100)}
-  .sr.lead{background:var(--success-15);box-shadow:inset 0 0 0 1px rgba(26,174,111,.3)}
-  .sr .av{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
-  .sr .info{flex:1;min-width:0}
-  .sr .nm{font-size:13px;font-weight:600;color:var(--default-900);display:flex;align-items:center}
-  .sr .tm{font-size:10.5px;color:var(--default-400);margin-top:1px}
-  .sr .am{font-size:15px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums}
-  .sr.lead .am{color:var(--success)}
-  .lead-tag{font-size:9.5px;font-weight:700;color:#fff;background:var(--success);padding:1px 7px;border-radius:99px;margin-left:6px}
+  /* bid stream = Facebook-comment style (avatar + bubble + meta ใต้ bubble) */
+  .stream{padding:4px 16px 0}
+  .cmt{display:flex;gap:9px;margin-bottom:13px;align-items:flex-start}
+  .cmt .av{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;margin-top:2px}
+  .cmt-body{min-width:0;max-width:86%}
+  .cmt-bubble{background:var(--default-100);border-radius:16px;padding:8px 13px}
+  .cmt-bubble .nm{font-size:12.5px;font-weight:700;color:var(--default-900);line-height:1.25}
+  .cmt-bubble .txt{font-size:13px;color:var(--default-700);margin-top:1px}
+  .cmt-bubble .txt b{color:var(--primary);font-weight:800;font-size:14.5px;font-variant-numeric:tabular-nums}
+  .cmt.lead .cmt-bubble{background:var(--success-15);box-shadow:inset 0 0 0 1px rgba(26,174,111,.3)}
+  .cmt.lead .cmt-bubble .txt b{color:var(--success)}
+  .cmt-meta{font-size:10.5px;color:var(--default-400);margin-top:3px;padding-left:13px;display:flex;align-items:center;gap:9px}
+  .cmt-meta .react{display:inline-flex;align-items:center;gap:3px;font-weight:600}
+  .lead-tag{font-size:10px;font-weight:700;color:var(--success);display:inline-flex;align-items:center;gap:3px}
+  /* FB avatar (จำลอง bid ผ่าน Facebook) */
+  .cmt .av{position:relative;overflow:visible;background:var(--primary)}
+  .cmt .av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .cmt .av .fb{position:absolute;bottom:-2px;right:-3px;width:16px;height:16px;border-radius:50%;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid #fff}
+  /* User level badge ประกบชื่อ */
+  .lvl{font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:99px;display:inline-flex;align-items:center;gap:2px;vertical-align:middle}
+  .lvl iconify-icon{font-size:11px}
+  .lvl-gold{background:rgba(240,140,0,.16);color:var(--warning)}
+  .lvl-dia{background:var(--info-15);color:var(--info)}
+  .lvl-sil{background:var(--default-200);color:var(--default-500)}
+  .expand{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--primary);padding:11px 0 2px;cursor:pointer;margin-top:6px;border-top:1px dashed var(--default-200)}
 </style>
 </head>
 <body>
@@ -316,22 +331,32 @@
       </div>
     </div>
     <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
-    <div class="scroll" style="padding-top:2px">
-      <div class="stream-h"><span class="t">การเสนอราคาสด</span><span class="b b-live"><span class="dot"></span>สด</span></div>
-      <div class="stream">
-        <div class="sr lead"><div class="av">ก</div><div class="info"><div class="nm">นาย ก.<span class="lead-tag">ผู้นำ</span></div><div class="tm">12 วินาทีที่แล้ว</div></div><div class="am">฿12,500</div></div>
-        <div class="sr"><div class="av" style="background:var(--info)">ข</div><div class="info"><div class="nm">นาง ข.</div><div class="tm">2 นาทีที่แล้ว</div></div><div class="am">฿12,000</div></div>
-        <div class="sr"><div class="av">ก</div><div class="info"><div class="nm">นาย ก.</div><div class="tm">5 นาทีที่แล้ว</div></div><div class="am">฿11,500</div></div>
-        <div class="sr"><div class="av" style="background:var(--warning)">ค</div><div class="info"><div class="nm">นาง ค.</div><div class="tm">10 นาทีที่แล้ว</div></div><div class="am">฿11,000</div></div>
-      </div>
-      <div class="card"><div class="card-pad">
-        <div class="card-t">ข้อมูลประมูล</div>
+    <div class="scroll" style="padding-top:8px">
+      <!-- รายละเอียด (ใต้ราคา) -->
+      <div class="card" style="margin-top:0"><div class="card-pad">
+        <div class="card-t">รายละเอียดประมูล</div>
         <div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div>
         <div class="kv"><span class="k">ขั้นบิดขั้นต่ำ</span><span class="v">฿500</span></div>
-        <div class="kv"><span class="k">ราคาขั้นต่ำ</span><span class="v"><span class="b b-sched">มี (ไม่แสดง)</span></span></div>
+        <div class="kv"><span class="k">ราคาขั้นต่ำ (reserve)</span><span class="v"><span class="b b-sched">มี (ไม่แสดง)</span></span></div>
         <div class="kv"><span class="k">ซื้อทันที</span><span class="v">฿25,000</span></div>
+        <div class="kv"><span class="k">เวลาปิด</span><span class="v">20:15 (+2 ต่อเวลา)</span></div>
       </div></div>
-      <div style="padding:4px 16px 14px;color:var(--default-400);font-size:11.5px;text-align:center"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว</div>
+      <div style="padding:6px 16px 2px;color:var(--default-400);font-size:11.5px;text-align:center"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว</div>
+
+      <!-- การเสนอราคาสด (ล่างสุด · FB comment · collapsed · ผู้นำ/ราคาสูงสุดโชว์เสมอ) -->
+      <div class="card"><div class="card-pad">
+        <div class="stream-h" style="padding:0 0 10px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+        <div class="stream" style="padding:0">
+          <div class="cmt lead">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div></div>
+              <div class="cmt-meta">12 วินาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+        </div>
+        <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
+      </div></div>
     </div>
   </div>
 </div>
@@ -367,6 +392,60 @@
         <div class="bid"><span class="bd"></span><span class="nm">นาง ข.</span><span class="am">฿17,500</span><span class="tm">20:13</span></div>
         <div class="bid"><span class="bd"></span><span class="nm">นาย ง.</span><span class="am">฿16,000</span><span class="tm">20:10</span></div>
         <div class="bid"><span class="bd"></span><span class="nm">นาง ค.</span><span class="am">฿15,000</span><span class="tm">20:05</span></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FRAME 5: bid stream EXPANDED (FB accounts + user levels) ════ -->
+<div>
+  <div class="frame-label">การเสนอราคา — expanded<small>FB account bid + user level ทุกคน · ผู้นำ/ราคาสูงสุด pin บนสุด</small></div>
+  <div class="phone">
+    <div class="head">
+      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+      <span class="h-title">การเสนอราคา (12)</span>
+    </div>
+    <div class="scroll" style="padding-top:8px">
+      <div class="card" style="margin-top:0"><div class="card-pad">
+        <div class="stream-h" style="padding:0 0 10px"><span class="t">เรียงราคาสูงสุด</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+        <div class="stream" style="padding:0">
+          <div class="cmt lead">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div></div>
+              <div class="cmt-meta">12 วินาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+          <div class="cmt">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=45"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="txt">เสนอราคา <b>฿12,000</b></div></div>
+              <div class="cmt-meta">2 นาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+          <div class="cmt">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=33"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div><div class="txt">เสนอราคา <b>฿11,500</b></div></div>
+              <div class="cmt-meta">5 นาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+          <div class="cmt">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=21"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">วิภา สุขสันต์ <span class="lvl lvl-sil"><iconify-icon icon="solar:shield-bold"></iconify-icon> Lv.3</span></div><div class="txt">เสนอราคา <b>฿11,000</b></div></div>
+              <div class="cmt-meta">10 นาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+          <div class="cmt">
+            <div class="av"><img src="https://i.pravatar.cc/80?img=8"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+            <div class="cmt-body">
+              <div class="cmt-bubble"><div class="nm">ธนา มั่งมี <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.6</span></div><div class="txt">เสนอราคา <b>฿10,500</b></div></div>
+              <div class="cmt-meta">14 นาทีที่แล้ว · ผ่าน Facebook</div>
+            </div>
+          </div>
+        </div>
+        <div class="expand"><iconify-icon icon="solar:alt-arrow-up-linear"></iconify-icon> ย่อ</div>
       </div></div>
     </div>
   </div>

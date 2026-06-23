@@ -39,7 +39,11 @@
 
 ## 3. Detail/Manage `/seller/auctions/[id]` — 5 states
 - **hero card:** รูป + ชื่อ + status badge; live→ราคาปัจจุบันใหญ่ + bidCount
-- **LIVE (immersive "live สด"):** hero รูปเต็มจอ + HUD overlay (LIVE badge pulse มุมซ้าย + 👁 คนดู มุมขวา + gradient ล่างทับรูป: ชื่อ + ราคาปัจจุบันใหญ่ + countdown สีแดง) + แถบ anti-snipe full-width + **bid stream แบบ live-chat** (avatar + ชื่อ + ราคา, ผู้นำ highlight เขียว "ผู้นำ", newest บนสุด); `<AuctionBidFeed>` client — subscribe **Supabase Realtime** `channel(auction:{id}).on(postgres_changes UPDATE Auction)` → update currentPrice/bidCount/endTime → refetch bid list top20; pulse "รับข้อมูลสด"; countdown + **anti-snipe indicator** ("ต่อเวลาแล้ว X/5"); anti-snipe trigger → pacesToast.info "+60 วินาที"; cancel zone เฉพาะ bidCount=0
+- **LIVE (immersive "live สด"):** hero รูปเต็มจอ + HUD overlay (LIVE badge pulse + 👁 คนดู + ชื่อ + **ราคาปัจจุบัน=ราคาสูงสุด ใหญ่ โชว์เสมอ** + countdown แดง) + แถบ anti-snipe full-width
+  - **ลำดับ: รายละเอียดประมูล (kv card) อยู่ใต้ราคา** → seller note → **bid stream อยู่ล่างสุด**
+  - **bid stream = Facebook-comment style** (`.cmt`): avatar กลม + **FB badge มุม** (จำลอง bid ผ่าน Facebook) + ชื่อ + **User Level badge ประกบทุกคน** (`.lvl` gold/dia/sil + crown/diamond/shield icon) + bubble "เสนอราคา ฿X" + meta "X ที่แล้ว · ผ่าน Facebook"
+  - **collapsed:** โชว์แค่ **ผู้นำ (ราคาสูงสุด) pin บนสุด** + ปุ่ม "ดูการเสนอราคาก่อนหน้า (N) ▾"; กด expand → list เต็ม (เรียงราคาสูง→ต่ำ) + "ย่อ ▴"
+  - `<AuctionBidFeed>` client — subscribe **Supabase Realtime** `channel(auction:{id}).on(postgres_changes UPDATE Auction)` → update currentPrice/bidCount/endTime → refetch bid list top20; pulse "รับข้อมูลสด"; countdown + **anti-snipe indicator** ("ต่อเวลาแล้ว X/5"); anti-snipe trigger → pacesToast.info "+60 วินาที"; cancel zone เฉพาะ bidCount=0
 - **DRAFT/SCHEDULED:** ปุ่ม แก้ไข/เผยแพร่/ยกเลิก
 - **ENDED:** result card (success accent border-s-3) — ผู้ชนะ displayName + ราคาสุดท้าย + ปุ่ม "ดูคำสั่งซื้อ" → /seller/orders/[id] + bid history (static)
 - **UNSOLD:** result card (warning) — ราคาสูงสุดที่ได้ (แสดง) + reserve (ไม่แสดงมูลค่า) + "ไม่มีผู้ชนะ"
