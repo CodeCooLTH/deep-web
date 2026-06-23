@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center v9 — Health hero + action stack (edge-to-edge, Paces)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab; --primary-dark:#1a539b; --primary-15:rgba(35,109,201,.12);
+    --success:#1aae6f; --success-15:rgba(26,174,111,.13);
+    --info:#0ea5e9;    --info-15:rgba(14,165,233,.13);
+    --warning:#f08c00; --warning-15:rgba(240,140,0,.13);
+    --danger:#e23744;  --danger-15:rgba(226,55,68,.12);
+    --default-900:#1e293b; --default-700:#334155; --default-500:#5b6678; --default-400:#94a3b8;
+    --default-300:#cbd2db; --default-200:#e2e8f0; --default-100:#f1f5f9;
+    --body-bg:#eef0f3; --card-bg:#ffffff; --border:#e9ecf0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#aeb4bd;font-family:'Anuphan',sans-serif;display:flex;justify-content:center;gap:26px;padding:24px;flex-wrap:wrap;align-items:flex-start}
+  .frame-label{width:390px;text-align:center;color:#1b1d22;font-weight:600;font-size:13px;margin-bottom:8px}
+  .frame-label small{display:block;font-weight:400;font-size:11px;color:#3a3d44;margin-top:2px}
+  .phone{width:390px;background:var(--body-bg);border-radius:36px;overflow:hidden;border:9px solid #1b1d22;height:844px;position:relative;display:flex;flex-direction:column}
+
+  /* ── HERO (full-bleed, Paces primary, mood flat — subtle same-hue gradient ไม่ลอยแบบ Vuexy) ── */
+  /* flat + modern: สีพื้น Paces primary ทึบ (ไม่มี gradient) มุมล่างโค้งพอโมเดิร์น */
+  .hero{background:var(--primary);padding:16px 18px 18px;color:#fff;flex-shrink:0;border-radius:0 0 18px 18px}
+  .hero-top{display:flex;align-items:center;gap:12px}
+  .hero-av{width:50px;height:50px;border-radius:50%;background:#fff;color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;flex-shrink:0}
+  .hero-id{flex:1;min-width:0}
+  .hero-name{font-size:16.5px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hero-tier{display:inline-flex;align-items:center;gap:5px;margin-top:4px;background:rgba(255,255,255,.18);padding:2px 9px;border-radius:8px;font-size:12px;font-weight:600}
+  .hero-bell{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;position:relative;flex-shrink:0}
+  .hero-bell .nb{position:absolute;top:6px;right:7px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--danger);color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--primary-dark)}
+
+  /* trust + wallet — 2 mini panel frosted บน hero */
+  .hero-stats{display:grid;grid-template-columns:1.15fr 1fr;gap:10px;margin-top:14px}
+  .hs-panel{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:13px;padding:9px 12px}
+  .hs-lb{font-size:10.5px;font-weight:500;color:rgba(255,255,255,.82);display:flex;align-items:center;gap:5px}
+  .hs-trust-row{display:flex;align-items:baseline;gap:4px;margin-top:5px}
+  .hs-trust-row b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .hs-trust-row span{font-size:10.5px;color:rgba(255,255,255,.7)}
+  .hs-bar{height:5px;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden;margin-top:7px}
+  .hs-bar>i{display:block;height:100%;border-radius:99px;background:#fff;width:65%}
+  .hs-wallet-row{display:flex;align-items:center;justify-content:space-between;margin-top:5px}
+  .hs-wallet-row b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .hs-topup{background:#fff;color:var(--primary);border:none;font-family:inherit;font-size:11px;font-weight:700;padding:5px 12px;border-radius:9px;display:inline-flex;align-items:center;gap:3px;cursor:pointer;margin-top:7px;width:100%;justify-content:center}
+
+  /* ลิงก์ร้านค้า — slim frosted bar บรรทัดเดียว (seller กดคัดลอก/แชร์ ให้ buyer) */
+  .hero-link{display:flex;align-items:center;gap:9px;margin-top:10px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:11px;padding:6px 7px 6px 12px}
+  .hl-ic{color:rgba(255,255,255,.9);font-size:17px;flex-shrink:0}
+  .hl-lb{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hl-act{display:flex;gap:6px;flex-shrink:0}
+  .hl-btn{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.16);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer}
+  .hl-btn.share{background:#fff;color:var(--primary)}
+
+  /* ── SCROLL (edge-to-edge: ไม่มี padding ด้านข้าง — section เต็มกว้าง) ── */
+  .scroll{flex:1;overflow-y:auto;padding:0 0 92px}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* section band เต็มกว้าง (full-bleed) — internal padding ในการ์ดเพื่ออ่านง่าย */
+  .band{background:var(--card-bg);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:8px;padding:12px 16px}
+  .band:first-child{margin-top:9px}
+  .band-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .band-title{font-size:15px;font-weight:600;color:var(--default-900)}
+  .seelink{font-size:12.5px;font-weight:500;color:var(--primary);display:inline-flex;align-items:center;gap:1px;text-decoration:none}
+
+  /* ── ออเดอร์ที่ต้องทำ — action stack (เด่น, การ์ดใหญ่ tappable) ── */
+  .ostat{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .ostat a{display:flex;flex-direction:column;align-items:center;gap:5px;text-decoration:none;background:var(--default-100);border:1px solid var(--border);border-radius:12px;padding:10px 4px}
+  .os-ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .os-count{font-size:16px;font-weight:700;color:var(--default-900);line-height:1;font-variant-numeric:tabular-nums}
+  .os-lb{font-size:10.5px;color:var(--default-500);font-weight:500;text-align:center;line-height:1.15}
+  .ic-warning{background:var(--warning-15);color:var(--warning)}
+  .ic-info{background:var(--info-15);color:var(--info)}
+  .ic-success{background:var(--success-15);color:var(--success)}
+  .ic-default{background:var(--default-100);color:var(--default-500);border:1px solid var(--border)}
+  .ic-primary{background:var(--primary-15);color:var(--primary)}
+
+  /* ── เมนูลัด — premium icon grid 4-col ── */
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px 2px}
+  .grid a{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;padding:4px 2px}
+  .g-ic{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:21px}
+  .g-lb{font-size:11px;color:var(--default-700);font-weight:500;text-align:center;line-height:1.2}
+
+  /* ── กิจกรรมล่าสุด ── */
+  .feed{display:flex;flex-direction:column}
+  .feed-item{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px dashed var(--default-200)}
+  .feed-item:last-child{border-bottom:none;padding-bottom:0}
+  .fi-ic{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .fi-body{flex:1;min-width:0}
+  .fi-tx{font-size:13px;color:var(--default-900);font-weight:500;line-height:1.35}
+  .fi-tx b{font-weight:700}
+  .fi-tm{font-size:11px;color:var(--default-400);margin-top:2px}
+
+  /* ── BOTTOM NAV (reuse v8 — raised FAB) ── */
+  .nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 16px -10px rgba(30,41,59,.25)}
+  .nav a{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--default-400);font-size:10.5px;font-weight:500;flex:1}
+  .nav a.active{color:var(--primary)}
+  .nav a i{font-size:23px}
+  .nav .fab{position:relative;flex:0 0 auto;width:54px}
+  .nav .fab b{position:absolute;top:-26px;left:50%;transform:translateX(-50%);width:54px;height:54px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;border:3px solid #fff;box-shadow:0 6px 16px -4px rgba(35,109,201,.5)}
+  .nav .fab span{margin-top:34px;font-size:10.5px;color:var(--default-400)}
+</style>
+</head>
+<body>
+<div>
+  <div class="frame-label">Command Center v9 — Health hero + action stack<small>edge-to-edge · Paces theme (น้ำเงิน #236dc9) · mobile</small></div>
+  <div class="phone">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-top">
+        <div class="hero-av">BT</div>
+        <div class="hero-id">
+          <div class="hero-name">BT premium auto xenon</div>
+          <span class="hero-tier"><i class="ti ti-rosette-discount-check-filled"></i> Deep Silver</span>
+        </div>
+        <div class="hero-bell"><i class="ti ti-bell"></i><span class="nb">3</span></div>
+      </div>
+      <div class="hero-stats">
+        <div class="hs-panel">
+          <div class="hs-lb"><i class="ti ti-shield-check"></i> Trust Score</div>
+          <div class="hs-trust-row"><b>65</b><span>/ 100</span></div>
+          <div class="hs-bar"><i></i></div>
+        </div>
+        <div class="hs-panel">
+          <div class="hs-lb"><i class="ti ti-wallet"></i> เครดิต SMS</div>
+          <div class="hs-wallet-row"><b>฿1,250</b></div>
+          <button class="hs-topup"><i class="ti ti-plus"></i> เติมเงิน</button>
+        </div>
+      </div>
+      <div class="hero-link">
+        <i class="ti ti-link hl-ic"></i>
+        <div class="hl-lb">ลิงก์ร้านค้า</div>
+        <div class="hl-act">
+          <span class="hl-btn" title="คัดลอก"><i class="ti ti-copy"></i></span>
+          <span class="hl-btn share" title="แชร์"><i class="ti ti-share-2"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="scroll">
+
+      <!-- ออเดอร์ที่ต้องทำ -->
+      <div class="band">
+        <div class="band-head">
+          <span class="band-title">ออเดอร์ที่ต้องทำ</span>
+          <a class="seelink" href="#">ดูทั้งหมด <i class="ti ti-chevron-right"></i></a>
+        </div>
+        <div class="ostat">
+          <a href="#"><div class="os-ic ic-warning"><i class="ti ti-clock"></i></div><div class="os-count">9</div><div class="os-lb">รอดำเนินการ</div></a>
+          <a href="#"><div class="os-ic ic-info"><i class="ti ti-truck-delivery"></i></div><div class="os-count">2</div><div class="os-lb">กำลังจัดส่ง</div></a>
+          <a href="#"><div class="os-ic ic-success"><i class="ti ti-circle-check"></i></div><div class="os-count">4</div><div class="os-lb">สำเร็จ</div></a>
+          <a href="#"><div class="os-ic ic-default"><i class="ti ti-ban"></i></div><div class="os-count">2</div><div class="os-lb">ยกเลิก</div></a>
+        </div>
+      </div>
+
+      <!-- เมนูลัด -->
+      <div class="band">
+        <div class="band-head"><span class="band-title">เมนูลัด</span></div>
+        <div class="grid">
+          <a href="#"><div class="g-ic ic-primary"><i class="ti ti-layout-dashboard"></i></div><div class="g-lb">แดชบอร์ด</div></a>
+          <a href="#"><div class="g-ic ic-warning"><i class="ti ti-star"></i></div><div class="g-lb">รีวิว</div></a>
+          <a href="#"><div class="g-ic ic-success"><i class="ti ti-wallet"></i></div><div class="g-lb">เติมเงิน</div></a>
+          <a href="#"><div class="g-ic ic-info"><i class="ti ti-users"></i></div><div class="g-lb">ลูกค้า</div></a>
+          <a href="#"><div class="g-ic ic-primary"><i class="ti ti-box"></i></div><div class="g-lb">สินค้า</div></a>
+          <a href="#"><div class="g-ic ic-warning"><i class="ti ti-trophy"></i></div><div class="g-lb">ความสำเร็จ</div></a>
+          <a href="#"><div class="g-ic ic-info"><i class="ti ti-category"></i></div><div class="g-lb">หมวดหมู่</div></a>
+          <a href="#"><div class="g-ic ic-primary"><i class="ti ti-shield-check"></i></div><div class="g-lb">การยืนยัน</div></a>
+          <a href="#"><div class="g-ic ic-default"><i class="ti ti-building-store"></i></div><div class="g-lb">ตั้งค่าร้าน</div></a>
+        </div>
+      </div>
+
+      <!-- กิจกรรมล่าสุด -->
+      <div class="band">
+        <div class="band-head">
+          <span class="band-title">กิจกรรมล่าสุด</span>
+          <a class="seelink" href="#">ดูทั้งหมด <i class="ti ti-chevron-right"></i></a>
+        </div>
+        <div class="feed">
+          <div class="feed-item">
+            <div class="fi-ic ic-warning"><i class="ti ti-clock"></i></div>
+            <div class="fi-body"><div class="fi-tx">ออเดอร์ใหม่ <b>#A1B2C3D4</b> รอดำเนินการ</div><div class="fi-tm">2569-06-20 14:32</div></div>
+          </div>
+          <div class="feed-item">
+            <div class="fi-ic ic-success"><i class="ti ti-star"></i></div>
+            <div class="fi-body"><div class="fi-tx">รีวิวใหม่ <b>5 ดาว</b> จากลูกค้า</div><div class="fi-tm">2569-06-20 11:05</div></div>
+          </div>
+          <div class="feed-item">
+            <div class="fi-ic ic-info"><i class="ti ti-truck-delivery"></i></div>
+            <div class="fi-body"><div class="fi-tx">ออเดอร์ <b>#99XK20LM</b> เปลี่ยนเป็นกำลังจัดส่ง</div><div class="fi-tm">2569-06-19 18:40</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="nav">
+      <a class="active" href="#"><i class="ti ti-home-2"></i>หน้าหลัก</a>
+      <a href="#"><i class="ti ti-clipboard-list"></i>คำสั่งซื้อ</a>
+      <a class="fab" href="#"><b><i class="ti ti-plus"></i></b><span>สร้าง</span></a>
+      <a href="#"><i class="ti ti-box"></i>สินค้า</a>
+      <a href="#"><i class="ti ti-building-store"></i>ร้านค้า</a>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

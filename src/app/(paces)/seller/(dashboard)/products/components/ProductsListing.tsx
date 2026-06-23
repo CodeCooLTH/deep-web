@@ -11,6 +11,8 @@
  *   - filterFns: {} ใส่ใน useReactTable options ตาม constraint
  *   - Select wrapper แทน native select (ทำแล้วตาม original SafePay version)
  *   - UI copy ภาษาไทย
+ *   - T10 (v10): mobile toolbar (search pill + filter chips + ปุ่มเพิ่มสินค้า) + re-skin mobileCard
+ *     (icon Solar duotone, thumb 62px, badge status ตาม spec §7, isActive chip filter)
  */
 
 'use client'
@@ -123,8 +125,10 @@ const ProductsListing = ({ products }: Props) => {
     }),
     columnHelper.accessor('isActive', {
       header: 'สถานะ',
-      // filterFn + enableColumnFilter ถูกลบออก — isActive เป็น boolean,
-      // 'equalsString' จับ boolean ไม่ได้ และไม่มี filter UI ต่อ column นี้
+      // T10: เพิ่ม filterFn 'equals' + enableColumnFilter เพื่อให้ mobile chip filter ทำงานได้
+      // (boolean column ต้องใช้ 'equals' ไม่ใช่ 'equalsString')
+      filterFn: 'equals',
+      enableColumnFilter: true,
       cell: ({ row }) => (
         <span
           className={cn(
@@ -241,9 +245,81 @@ const ProductsListing = ({ products }: Props) => {
   ]
   const currentTypeFilter = (table.getColumn('type')?.getFilterValue() as string) ?? 'All'
 
+  // HR7: isActive chip filter state — ใช้ 3 ค่า (all/active/inactive)
+  // "สินค้าหมด" ไม่มี field จริงใน ProductRow (ไม่มี stockQty) → ไม่เพิ่ม chip
+  const [activeChip, setActiveChip] = useState<'all' | 'active' | 'inactive'>('all')
+
+  const handleChipChange = (chip: 'all' | 'active' | 'inactive') => {
+    setActiveChip(chip)
+    if (chip === 'all') {
+      table.getColumn('isActive')?.setFilterValue(undefined)
+    } else {
+      table.getColumn('isActive')?.setFilterValue(chip === 'active')
+    }
+  }
+
+  const MOBILE_STATUS_CHIPS = [
+    { key: 'all' as const, label: 'ทั้งหมด' },
+    { key: 'active' as const, label: 'เปิดขาย' },
+    { key: 'inactive' as const, label: 'ปิดการขาย' },
+  ]
+
   return (
     <div className="card">
-      <div className="card-header">
+      {/* ===== Mobile toolbar (ซ่อนบน md ขึ้นไป) ===== */}
+      {/* HR7: mobile toolbar แยกจาก desktop card-header เพื่อ re-skin ตาม spec §7
+          ไม่มี Paces layout token สำหรับ mobile-specific toolbar — ใช้ flex + overflow-x-auto */}
+      <div className="md:hidden px-4 pt-3 pb-2 space-y-2.5">
+        {/* Row 1: search pill + ปุ่มเพิ่มสินค้า */}
+        <div className="flex items-center gap-2">
+          {/* search pill — icon solar:magnifer-linear ตาม spec §7 */}
+          <div className="relative flex-1">
+            <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-default-400">
+              <Icon icon="solar:magnifer-linear" className="size-4" />
+            </span>
+            <input
+              value={globalFilter ?? ''}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              type="text"
+              className="form-input pl-9 rounded-full text-sm w-full"
+              placeholder="ค้นหาสินค้า..."
+            />
+          </div>
+          {/* ปุ่มเพิ่มสินค้า mobile: btn btn-sm bg-primary text-white + icon solar:add-square-bold-duotone */}
+          <Link
+            href="/products/new"
+            /* min-h-11 (44px): mobile tap-target ≥44px — btn-sm สูง ~31px ไม่พอ (HR7 arbitrary: ไม่มี touch-min token) */
+            className="btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 flex items-center gap-1.5 min-h-11"
+          >
+            <Icon icon="solar:add-square-bold-duotone" className="size-4" />
+            <span>เพิ่มสินค้า</span>
+          </Link>
+        </div>
+        {/* Row 2: filter chips เลื่อนแนวนอน (overflow-x-auto ตาม spec §7 + HR7 comment) */}
+        {/* HR7: overflow-x-auto + whitespace-nowrap = Tailwind utility — Paces ไม่มี horizontal scroll token; no-scrollbar = safepay-overrides.css */}
+        <div className="overflow-x-auto whitespace-nowrap -mx-4 px-4 no-scrollbar">
+          <div className="inline-flex gap-2">
+            {MOBILE_STATUS_CHIPS.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => handleChipChange(chip.key)}
+                className={cn(
+                  'badge text-xs font-medium px-3 py-1 rounded-full cursor-pointer border',
+                  activeChip === chip.key
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-default-100 text-default-500 border-transparent',
+                )}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Desktop card-header (ซ่อนบน mobile — ไม่แตะ desktop logic) ===== */}
+      <div className="card-header hidden md:flex">
         <div className="flex gap-2.5">
           <div className="input-icon-group">
             <Icon icon="search" className="input-icon" />
@@ -302,25 +378,26 @@ const ProductsListing = ({ products }: Props) => {
           const p = row.original
           const priceStr = `฿${new Intl.NumberFormat('th-TH').format(p.price)}`
           return (
-            <div className="flex items-center gap-3 px-1 py-3.5">
-              {/* leading: รูปสินค้า 48px หรือ placeholder */}
-              <div className="size-12 shrink-0">
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              {/* leading: รูปสินค้า 62px (HR7: size-[62px] = arbitrary เพราะ Paces ไม่มี token ขนาดนี้; spec §7 กำหนด 62px) */}
+              <div className="size-[62px] shrink-0">
                 {p.image ? (
                   <Image
                     src={p.image}
                     alt={p.name}
-                    width={48}
-                    height={48}
-                    className="size-12 rounded-lg object-cover"
+                    width={62}
+                    height={62}
+                    className="size-[62px] rounded-lg object-cover"
                   />
                 ) : (
-                  <div className="size-12 rounded-lg bg-default-100 flex items-center justify-center">
-                    <Icon icon="package" className="size-6 text-default-300" />
+                  <div className="size-[62px] rounded-lg bg-default-100 flex items-center justify-center">
+                    {/* icon solar duotone แทน package Tabler ตาม spec §7 + หลักการ §3 */}
+                    <Icon icon="solar:box-bold-duotone" className="size-7 text-default-300" />
                   </div>
                 )}
               </div>
 
-              {/* main: ชื่อ (link → detail) + meta line (ราคา · ประเภท · สถานะ) */}
+              {/* main: ชื่อ (link → detail) + ราคา (text-primary font-bold ตาม spec §7) + badge สถานะ */}
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/products/${p.id}`}
@@ -328,34 +405,36 @@ const ProductsListing = ({ products }: Props) => {
                 >
                   {p.name}
                 </Link>
+                {/* ราคา text-primary font-bold ตาม spec §7 */}
+                <p className="text-sm font-bold text-primary mt-0.5">{priceStr}</p>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="text-xs text-default-500">{priceStr}</span>
-                  <span className="text-default-300 text-2xs">·</span>
                   <span className={cn('badge py-0 text-2xs font-semibold leading-tight', TYPE_COLORS[p.type])}>
                     {TYPE_LABELS[p.type]}
                   </span>
+                  {/* badge สถานะ: เปิดขาย bg-success/15 text-success / ปิดการขาย bg-default-100 text-default-500 ตาม spec §7 */}
                   <span className={cn(
                     'badge py-0 text-2xs font-semibold leading-tight',
-                    p.isActive ? 'bg-success/10 text-success' : 'bg-default-200 text-default-700',
+                    p.isActive ? 'bg-success/15 text-success' : 'bg-default-100 text-default-500',
                   )}>
-                    {p.isActive ? 'เปิดขาย' : 'ซ่อน'}
+                    {p.isActive ? 'เปิดขาย' : 'ปิดการขาย'}
                   </span>
                 </div>
               </div>
 
-              {/* trailing: ขายแล้ว + 3 action icons */}
+              {/* trailing: ขายแล้ว + action icons */}
               <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
                 <p className="text-xs text-default-400 leading-tight whitespace-nowrap">
                   ขายแล้ว {new Intl.NumberFormat('th-TH').format(p.totalSold)}
                 </p>
-                {/* action: แก้ไข / ลบ — touch ≥44px (ดู = แตะชื่อสินค้าไป detail แล้ว เลยตัด eye) */}
+                {/* action: แก้ไข (solar:pen-2-linear ตาม spec §7) / ลบ — touch ≥44px */}
                 <div className="flex items-center gap-1.5">
                   <Link
                     href={`/products/${p.id}/edit`}
                     className="btn btn-icon border border-default-300 text-default-800 hover:border-default-400 !size-11 min-h-0"
                     aria-label="แก้ไขสินค้า"
                   >
-                    <Icon icon="pencil" className="text-base" />
+                    {/* icon solar:pen-2-linear แทน pencil Tabler ตาม spec §7 */}
+                    <Icon icon="solar:pen-2-linear" className="text-base" />
                   </Link>
                   <button
                     type="button"
@@ -368,7 +447,8 @@ const ProductsListing = ({ products }: Props) => {
                     suppressHydrationWarning
                     aria-label="ลบสินค้า"
                   >
-                    <Icon icon="trash" className="text-base" />
+                    {/* ไม่มี solar trash duotone variant ที่ชัดเจนพอสำหรับ destructive action — ใช้ solar:trash-bin-2-bold-duotone */}
+                    <Icon icon="solar:trash-bin-2-bold-duotone" className="text-base text-danger" />
                   </button>
                 </div>
               </div>
