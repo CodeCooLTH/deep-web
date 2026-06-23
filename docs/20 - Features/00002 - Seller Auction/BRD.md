@@ -633,3 +633,56 @@ flowchart TD
 สำหรับความต้องการทางธุรกิจระดับภาพรวม/personas/KPI ดู [[PRD]] ของโมดูลนี้
 สำหรับ technical specification (architecture/API/data/NFR) ดู [[SRS]] ของโมดูลนี้
 สำหรับ schema changes ดู [[DATABASE]] ของโมดูลนี้
+
+---
+
+## 11. Auction Achievements (Badge System Integration)
+
+### 11.1 ภาพรวม
+ใช้ระบบ Badge เดิม (`badge.service.ts`) pattern dispatch-on-`criteria.type` → checker fn → `awardBadge()` + `recalculateTrustScore()`. badge เพิ่มใน `prisma/badge-seed-data.ts` (single source, upsert keyed by `nameEN`). Badge สาย Auction แบ่ง 2 ฝั่ง (audience `SELLER`/`BUYER`) นับรวมในกลุ่ม Achievement 10% ของ Trust Score เดิม (ไม่แยก weight). **ไม่มี tier field** ใน Badge model (RarityTier คำนวณ runtime).
+
+### 11.2 Achievement (MVP)
+**Seller (audience SELLER):**
+| nameTH | nameEN | criteria | threshold | icon | MVP |
+|---|---|---|---|---|---|
+| นักประมูลมือใหม่ | First Auctioneer | `AUCTION_HOSTED` | ≥1 | tabler-gavel | ✅ |
+| เจ้าแห่งประมูล 10 | Auction Host 10 | `AUCTION_HOSTED` | ≥10 | tabler-gavel | ✅ |
+| ปิดดีลประมูล | First Auction Win | `AUCTION_SOLD` | ≥1 | tabler-trophy | ✅ |
+| ขายประมูลได้ 10 ดีล | Auction Closer 10 | `AUCTION_SOLD` | ≥10 | tabler-trophy | ✅ |
+| ขายประมูลได้ 50 ดีล | Auction Pro 50 | `AUCTION_SOLD` | ≥50 | tabler-award | Phase 2 |
+| นักประมูลสายเร้าใจ | Bid Magnet | `AUCTION_HIGH_BID_COUNT` | bidCount≥20/auction | tabler-flame | Phase 2 |
+
+**Buyer (audience BUYER):**
+| nameTH | nameEN | criteria | threshold | icon | MVP |
+|---|---|---|---|---|---|
+| ประมูลครั้งแรก | First Bidder | `AUCTION_BID_COUNT` | ≥1 | tabler-podium | ✅ |
+| นักประมูลตัวยง | Active Bidder | `AUCTION_BID_COUNT` | ≥50 | tabler-podium | Phase 2 |
+| ชนะประมูลครั้งแรก | First Winner | `AUCTION_WON` | ≥1 | tabler-medal | ✅ |
+| ชนะ 5 ดีล | Winner's Circle | `AUCTION_WON` | ≥5 | tabler-medal | Phase 2 |
+| ได้ของครบ 3 รายการ | Auction Completer | `AUCTION_WON_COMPLETED` | ≥3 (CONFIRMED) | tabler-certificate | Phase 2 |
+
+### 11.3 Checker functions ใหม่ (badge.service.ts — สเปก)
+- `checkAuctionHosted` — count `Auction` (shopId→Shop WHERE userId) WHERE status NOT IN [draft,cancelled]
+- `checkAuctionSold` — count `Auction` status='ended' (settle สร้าง Order แล้ว — idempotent)
+- `checkAuctionHighBidCount` — มี Auction ≥1 ที่ bidCount≥minBidCount (field มีแล้ว)
+- `checkAuctionBidCount` — count `Bid` WHERE bidderId=userId (ทุก bid รวมที่แพ้)
+- `checkAuctionWon` — count `Order` WHERE buyerUserId=userId AND auctionId IS NOT NULL
+- `checkAuctionWonCompleted` — count `Order` WHERE buyerUserId=userId AND auctionId IS NOT NULL AND status IN resolveStatuses (default CONFIRMED)
+
+### 11.4 Criteria types ใหม่ (types/badge.ts — เพิ่มใน union BadgeCriteria)
+`AUCTION_HOSTED{count}` · `AUCTION_SOLD{count}` · `AUCTION_HIGH_BID_COUNT{minBidCount}` · `AUCTION_BID_COUNT{count}` · `AUCTION_WON{count}` · `AUCTION_WON_COMPLETED{count,statuses?}`
+
+### 11.5 Seed (MVP = 8 badge ในตาราง 11.2 ที่ ✅; Phase 2 badge ที่ checker ซับซ้อน/threshold สูงค่อย seed). badge ที่ checker ยังไม่มี → hit default switch + console.warn (ไม่ throw) → seed ก่อนได้ปลอดภัย
+
+### 11.6 Trust Score
+auction badge นับรวม Badge 10% เดิม (recalculateTrustScore นับ UserBadge ทั้งหมด ไม่ filter). **Trigger เพิ่ม:** หลัง `settleAuction()` commit → `evaluateBadges(shopOwnerId,'SELLER')` + `evaluateBadges(winnerId,'BUYER')`; หลัง `placeBid()` commit → `evaluateBadges(bidderId,'BUYER')` (best-effort post-commit ไม่ block bid)
+
+### 11.7 จุดแสดง UI
+- Public profile `/u/[username]` (Vuexy): badge grid เดิม (`getBadgeProgress`) — auction badge ผสมอัตโนมัติ ไม่ต้องแก้ layout
+- Seller dashboard achievement section (Paces): `getBadgeProgress(userId,'SELLER')` — auction badge ผสม + progressLabel
+- Buyer App (Deep-App): badge section หน้า Profile — เพิ่ม `GET /api/app/profile/badges` (ระบุใน API doc)
+
+### 11.8 ข้อสังเกต (flag)
+- `evaluateBadges(audience='BUYER')` ยังไม่มี caller ใน codebase — ต้องเพิ่มใน auction.service/bid handler
+- `getBadgePaceEstimate` ต้องเพิ่ม case AUCTION_* (countable) สำหรับ "อีกกี่วันได้"
+- `Order.auctionId` (schema:231) + `Bid.bidderId` (schema:403) มีอยู่แล้ว → MVP badge ไม่ต้อง migration
