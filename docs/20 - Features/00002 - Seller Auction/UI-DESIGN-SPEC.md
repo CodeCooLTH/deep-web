@@ -1,6 +1,6 @@
 # UI Design Spec — Seller Auction (00002)
 
-> **Mockup:** `docs/mockups/auction/seller-auction-v1.html` (4 frame: list / สร้าง / detail-live / detail-ended)
+> **Mockup:** `docs/mockups/auction/seller-auction-v1.html` (mobile 6 frame + **tablet/desktop** 10 frame เพิ่ม 2026-06-25 — ดู §Tablet/Desktop ท้ายไฟล์)
 > **Design language:** สืบทอด v10 (`docs/superpowers/specs/2026-06-21-seller-command-center-v10-mockup.html`) — Paces น้ำเงิน #236dc9, **Solar Duotone** (@iconify/react), edge-to-edge mobile <1024px, flat/borderless, chip filter solid-active, bottom nav raised-FAB
 > **ออกโดย:** safepay-ux (mandatory gate Hard Rule 8) · scope: seller (Paces). buyer bidding = Deep-App mobile (Phase 2 buyer web)
 > **อ้าง:** BRD `./BRD.md` (FR-AUC + lifecycle + §11 achievements)
@@ -92,6 +92,14 @@ bidder ทุกคนมี **User Level badge** ประกบชื่อ (m
 
 ## Arbitrary (HR7 — comment ตอน build)
 - countdown = JS setInterval (ไม่มี CSS arbitrary); pulse = `animate-pulse` (Tailwind utility); Supabase client import ใน client component
+
+## Tablet / Desktop (เพิ่ม 2026-06-25)
+mobile = edge-to-edge <1024px (bottom-nav). **≥1024px = Paces shell** (sidebar ซ้าย + topbar) แทน bottom-nav; tablet (~768–1024px) = sidebar ยุบเป็น **icon-rail** (ซ่อน label).
+- **List:** mobile row-list → **DataTable** (columns: สินค้า/ราคา/บิด/สถานะ/เวลา/⋮) + toolbar (chip filter + search + ปุ่มสร้าง) + pager. Base `ecommerce/orders/OrdersList.tsx`
+- **Create:** sticky-footer → **2-column** (ซ้าย: ข้อมูล/ราคา/เวลา · ขวา sticky: รูปภาพ + การ์ดเผยแพร่). tablet ยุบ 1 คอลัมน์. Base `product-add`
+- **Detail-live / ended / bid-expanded / buyer:** **centered column** (~720px seller, ~840px buyer) ใน shell — immersive hero/HUD/bid-stream คงเดิม; seller "แชร์ลิงก์" = ปุ่มใน page-head (ไม่ลอย); buyer bid bar → **bid panel การ์ด** ใต้ hero
+- **Buyer (frame D6/T4):** buyer web = top-navbar (ไม่มี sidebar seller), คง **Deep-App น้ำเงิน** (ไม่ใช่ Vuexy ม่วง — buyer web เต็มรูป = Phase 2)
+- **Theme:** Paces น้ำเงิน #236dc9, namespace CSS ใหม่ (`.browser/.shell/.side/.panel/.tbl/.centered`) reuse atoms เดิม (`.b/.cmt/.lvl/.hud/.live-hero/.kv/.qbid`)
 
 ## Realtime approach
 subscribe **Auction row UPDATE** (ไม่ใช่ Bid table — Bid insert ไม่ broadcast by default). seller เห็น update <1s → refetch bid list. ต้อง `ALTER PUBLICATION supabase_realtime ADD TABLE "Auction"` (infra task) + RLS/anon policy

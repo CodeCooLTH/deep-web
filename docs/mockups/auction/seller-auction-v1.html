@@ -209,6 +209,113 @@
   .bid-go small{font-size:10.5px;font-weight:500;opacity:.88;margin-top:2px}
   .buynow{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:9px;border:1px solid var(--warning);color:var(--warning);background:#fff;border-radius:11px;padding:10px;font-size:13px;font-weight:700;cursor:pointer}
   .buynow iconify-icon{font-size:18px}
+
+  /* ══════════════════════════════════════════════════════════════
+     TABLET / DESKTOP frames — Paces shell (sidebar) + table + 2-col form + centered immersive
+     namespace ใหม่ (.browser/.shell/.side/.main/.panel/.tbl/.centered) กัน collide กับ class มือถือเดิม
+     ══════════════════════════════════════════════════════════════ */
+  .dt-label{width:100%;text-align:center;color:#1b1d22;font-weight:700;font-size:15px;margin:46px 0 14px}
+  .dt-label small{display:block;font-weight:400;font-size:12px;color:#3a3d44;margin-top:3px}
+  .browser{width:1440px;max-width:96vw;background:var(--body-bg);border-radius:13px;overflow:hidden;border:1px solid #c2c7cf;box-shadow:0 22px 60px -24px rgba(0,0,0,.55)}
+  .browser.tablet{width:834px}
+  /* browser chrome */
+  .bw-bar{height:40px;background:#dfe3e8;display:flex;align-items:center;gap:7px;padding:0 15px;border-bottom:1px solid #c8cdd4;flex-shrink:0}
+  .bw-dot{width:11px;height:11px;border-radius:50%}
+  .bw-url{flex:1;margin:0 12px;height:24px;background:#fff;border-radius:7px;font-size:11.5px;color:var(--default-500);display:flex;align-items:center;gap:6px;padding:0 12px}
+  .bw-url iconify-icon{font-size:13px;color:var(--default-400)}
+
+  /* Paces shell */
+  .shell{display:flex;height:792px}
+  .side{width:236px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 0}
+  .browser.tablet .side{width:70px}
+  .side-logo{display:flex;align-items:center;gap:9px;padding:6px 20px 16px;font-size:18px;font-weight:800;color:var(--primary)}
+  .side-logo iconify-icon{font-size:26px}
+  .browser.tablet .side-logo span{display:none}
+  .browser.tablet .side-logo{justify-content:center;padding:6px 0 16px}
+  .side-sec{font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--default-400);text-transform:uppercase;padding:12px 20px 6px}
+  .browser.tablet .side-sec{display:none}
+  .side a{display:flex;align-items:center;gap:13px;padding:11px 20px;color:var(--default-500);font-size:13.5px;font-weight:500;text-decoration:none}
+  .side a iconify-icon{font-size:21px;flex-shrink:0}
+  .side a.on{color:var(--primary);background:var(--primary-15);font-weight:700;box-shadow:inset 3px 0 0 var(--primary)}
+  .side a:hover:not(.on){background:var(--default-100)}
+  .browser.tablet .side a span{display:none}
+  .browser.tablet .side a{justify-content:center;padding:12px 0}
+  .browser.tablet .side a.on{box-shadow:inset 0 0 0 0;border-radius:0}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{height:60px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 24px}
+  .tb-burger{font-size:22px;color:var(--default-500);display:none}
+  .browser.tablet .tb-burger{display:block}
+  .tb-crumb{font-size:13px;color:var(--default-400)}
+  .tb-crumb b{color:var(--default-900);font-weight:700}
+  .tb-search{margin-left:auto;width:230px;height:38px;background:var(--default-100);border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 13px;color:var(--default-400);font-size:13px}
+  .browser.tablet .tb-search{width:150px}
+  .tb-ico{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--default-500);font-size:20px;background:var(--default-100)}
+  .tb-ava{width:38px;height:38px;border-radius:50%;object-fit:cover}
+
+  .content{flex:1;overflow-y:auto;background:var(--body-bg);padding:24px}
+  .content::-webkit-scrollbar{width:9px}
+  .content::-webkit-scrollbar-thumb{background:#c2c8d0;border-radius:9px;border:3px solid var(--body-bg)}
+  .pg-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:18px}
+  .pg-title{font-size:21px;font-weight:700;color:var(--default-900);line-height:1.2}
+  .pg-sub{font-size:12.5px;color:var(--default-500);margin-top:3px}
+  .pg-head .btn-add{font-size:13.5px;padding:10px 16px}
+
+  /* generic panel (แทน .card ที่มือถือ — มีขอบ+มน) */
+  .panel{background:#fff;border-radius:13px;border:1px solid var(--border);margin-bottom:16px}
+  .panel-pad{padding:18px 20px}
+  .panel-t{font-size:15px;font-weight:700;color:var(--default-900);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+
+  /* toolbar (chips + search + filter) */
+  .toolbar{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar .chip{background:var(--default-100)}
+  .toolbar .chip.on{background:var(--primary)}
+  .tb-right{margin-left:auto;display:flex;gap:9px;align-items:center}
+  .inp-search{width:240px;height:38px;border:1px solid var(--default-300);border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--default-400);font-size:13px;background:#fff}
+  .browser.tablet .inp-search{width:170px}
+
+  /* DataTable */
+  .tbl{width:100%;border-collapse:collapse}
+  .tbl th{text-align:left;font-size:11px;font-weight:700;color:var(--default-500);text-transform:uppercase;letter-spacing:.4px;padding:13px 18px;background:var(--default-100);border-bottom:1px solid var(--border);white-space:nowrap}
+  .tbl th.r,.tbl td.r{text-align:right}
+  .tbl td{padding:12px 18px;border-bottom:1px solid var(--default-100);font-size:13px;color:var(--default-700);vertical-align:middle}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl tbody tr:hover td{background:#f8fafc}
+  .cell-prod{display:flex;align-items:center;gap:12px;min-width:200px}
+  .cell-prod .ci{width:46px;height:46px;border-radius:9px;object-fit:cover;background:var(--default-100);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--default-300);font-size:22px}
+  .cell-name{font-size:13.5px;font-weight:600;color:var(--default-900)}
+  .cell-sub{font-size:11.5px;color:var(--default-400);margin-top:2px}
+  .cell-price{font-weight:700;color:var(--primary);font-variant-numeric:tabular-nums}
+  .cell-price small{font-weight:500;color:var(--default-400);font-size:11px}
+  .cd-mini{font-variant-numeric:tabular-nums;font-weight:700;color:var(--danger)}
+  .row-act{width:34px;height:34px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--default-400);font-size:18px;cursor:pointer}
+  .row-act:hover{background:var(--default-100);color:var(--default-700)}
+  .tbl-foot{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-top:1px solid var(--default-100);font-size:12.5px;color:var(--default-500)}
+  .pager{display:flex;gap:5px}
+  .pager span{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--default-100);color:var(--default-600);font-weight:600;cursor:pointer}
+  .pager span.on{background:var(--primary);color:#fff}
+
+  /* 2-col create form */
+  .form-grid{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}
+  .browser.tablet .form-grid{grid-template-columns:1fr}
+  .form-side{position:sticky;top:0}
+  .form-grid .panel{margin-bottom:0}
+  .form-grid .stack>.panel{margin-bottom:16px}
+  .form-grid .stack>.panel:last-child{margin-bottom:0}
+  .pub-card .btn{margin-top:0}
+  .pub-card .btn+.btn{margin-top:9px}
+
+  /* centered immersive (detail-live / ended / buyer) */
+  .centered{max-width:720px;margin:0 auto}
+  .centered.wide{max-width:840px}
+  .imm{border-radius:14px;overflow:hidden;border:1px solid var(--border);box-shadow:0 14px 40px -22px rgba(0,0,0,.4);position:relative;background:#000}
+  .imm .live-hero{height:360px;border-radius:0}
+  .imm .snipe-bar{border-radius:0}
+  .imm-back{position:absolute;top:14px;left:14px;z-index:5;color:#fff;background:rgba(0,0,0,.4);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer}
+  .imm-live{position:absolute;top:14px;left:62px;z-index:5}
+  /* desktop detail uses 2-up info row (เริ่ม/ขั้นบิด ฯลฯ) */
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
+  .browser.tablet .info-grid{grid-template-columns:1fr}
 </style>
 </head>
 <body>
@@ -514,6 +621,549 @@
         <button class="bid-go">เสนอราคา ฿13,000 <small>ราคาถัดไป (+฿500)</small></button>
       </div>
       <button class="buynow"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> ซื้อทันที ฿25,000</button>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════╗
+     ║  TABLET / DESKTOP FRAMES                                        ║
+     ║  desktop ×6 (list/create/detail-live/ended/bid-expanded/buyer) ║
+     ║  tablet  ×4 (list/create/detail-live/buyer)                     ║
+     ╚══════════════════════════════════════════════════════════════╝ -->
+
+<!-- ════ D1: LIST — desktop (DataTable + toolbar + sidebar shell) ════ -->
+<div class="dt-label">🖥 Desktop — รายการประมูล /seller/auctions<small>Paces shell (sidebar) + DataTable + toolbar chip + countdown</small></div>
+<div class="browser">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions</span></div>
+  <div class="shell">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <div class="side-sec">เมนู</div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+      <div class="side-sec">อื่น ๆ</div>
+      <a href="#"><iconify-icon icon="solar:wallet-money-bold-duotone"></iconify-icon><span>กระเป๋าเงิน</span></a>
+      <a href="#"><iconify-icon icon="solar:settings-bold-duotone"></iconify-icon><span>ตั้งค่า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span>
+        <div class="tb-crumb">ผู้ขาย · <b>การประมูล</b></div>
+        <div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div>
+        <span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+        <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
+      </div>
+      <div class="content">
+        <div class="pg-head">
+          <div><div class="pg-title">การประมูล</div><div class="pg-sub">จัดการรายการประมูลของร้านคุณ · 5 รายการ</div></div>
+          <span class="btn-add"><iconify-icon icon="solar:add-square-bold-duotone"></iconify-icon> สร้างรายการประมูล</span>
+        </div>
+        <div class="toolbar">
+          <span class="chip on">ทั้งหมด</span><span class="chip">ฉบับร่าง</span><span class="chip">รอเปิด</span><span class="chip">กำลังประมูล</span><span class="chip">จบแล้ว</span><span class="chip">ขายไม่ออก</span><span class="chip">ยกเลิก</span>
+          <div class="tb-right"><span class="inp-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหาชื่อสินค้า…</span></div>
+        </div>
+        <div class="panel" style="margin-bottom:0">
+          <table class="tbl">
+            <thead><tr><th>สินค้า</th><th class="r">ราคาปัจจุบัน</th><th class="r">บิด</th><th>สถานะ</th><th>เวลา</th><th class="r"></th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="cell-prod"><img class="ci" src="https://picsum.photos/seed/amulet/130"><div><div class="cell-name">พระสมเด็จวัดระฆัง เนื้อผง</div><div class="cell-sub">พระเครื่อง</div></div></div></td>
+                <td class="r cell-price">฿12,500</td>
+                <td class="r">12</td>
+                <td><span class="b b-live"><span class="dot"></span>กำลังประมูล</span></td>
+                <td><span class="cd-mini">00:14:33</span></td>
+                <td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td>
+              </tr>
+              <tr>
+                <td><div class="cell-prod"><img class="ci" src="https://picsum.photos/seed/watch/130"><div><div class="cell-name">นาฬิกา Seiko วินเทจ</div><div class="cell-sub">นาฬิกา</div></div></div></td>
+                <td class="r cell-price">฿5,000 <small>เริ่มต้น</small></td>
+                <td class="r">0</td>
+                <td><span class="b b-sched">รอเปิด</span></td>
+                <td style="font-size:12px;color:var(--default-500)">เปิด 25 มิ.ย. 20:00</td>
+                <td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td>
+              </tr>
+              <tr>
+                <td><div class="cell-prod"><img class="ci" src="https://picsum.photos/seed/coin/130"><div><div class="cell-name">เหรียญหลวงพ่อรุ่นแรก</div><div class="cell-sub">ของสะสม</div></div></div></td>
+                <td class="r cell-price">฿18,000 <small>(ชนะ)</small></td>
+                <td class="r">12</td>
+                <td><span class="b b-ended">จบแล้ว</span></td>
+                <td><a href="#" style="color:var(--primary);font-size:12px;font-weight:600;text-decoration:none">ดูคำสั่งซื้อ →</a></td>
+                <td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td>
+              </tr>
+              <tr>
+                <td><div class="cell-prod"><span class="ci"><iconify-icon icon="solar:gallery-bold-duotone"></iconify-icon></span><div><div class="cell-name">แสตมป์เก่าชุดหายาก</div><div class="cell-sub">ของสะสม</div></div></div></td>
+                <td class="r cell-price">฿3,500 <small>สูงสุด</small></td>
+                <td class="r">4</td>
+                <td><span class="b b-unsold">ขายไม่ออก</span></td>
+                <td style="font-size:12px;color:var(--default-500)">ราคาไม่ถึงขั้นต่ำ</td>
+                <td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td>
+              </tr>
+              <tr>
+                <td><div class="cell-prod"><span class="ci"><iconify-icon icon="solar:gallery-bold-duotone"></iconify-icon></span><div><div class="cell-name">กล้องฟิล์ม</div><div class="cell-sub">ฉบับร่าง</div></div></div></td>
+                <td class="r cell-price">฿2,000 <small>เริ่มต้น</small></td>
+                <td class="r">—</td>
+                <td><span class="b b-draft">ฉบับร่าง</span></td>
+                <td style="font-size:12px;color:var(--default-500)">ยังไม่เผยแพร่</td>
+                <td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="tbl-foot"><span>แสดง 1–5 จาก 5 รายการ</span><div class="pager"><span><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span><span class="on">1</span><span><iconify-icon icon="solar:alt-arrow-right-linear"></iconify-icon></span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ D2: CREATE — desktop (2-col form: main + sticky publish) ════ -->
+<div class="dt-label">🖥 Desktop — สร้างประมูล /seller/auctions/new<small>2-column form — ซ้าย: ข้อมูล/ราคา/เวลา · ขวา (sticky): รูปภาพ + เผยแพร่</small></div>
+<div class="browser">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/new</span></div>
+  <div class="shell">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <div class="side-sec">เมนู</div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span>
+        <div class="tb-crumb">ผู้ขาย · การประมูล · <b>สร้างรายการ</b></div>
+        <div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div>
+        <span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+        <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
+      </div>
+      <div class="content">
+        <div class="pg-head"><div><div class="pg-title">สร้างรายการประมูล</div><div class="pg-sub">กรอกข้อมูลสินค้า ราคา และช่วงเวลาประมูล</div></div></div>
+        <div class="form-grid">
+          <div class="stack">
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:document-text-bold-duotone" style="color:var(--primary)"></iconify-icon> ข้อมูลพื้นฐาน</div>
+              <div class="f-grp"><label class="f-label">ชื่อสินค้า <span class="req">*</span></label><input class="f-input" placeholder="เช่น พระสมเด็จวัดระฆัง"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">
+                <div class="f-grp"><label class="f-label">หมวดหมู่ <span class="req">*</span></label><select class="f-input"><option>พระเครื่อง</option><option>นาฬิกา</option><option>ของสะสม</option></select></div>
+                <div class="f-grp"><label class="f-label">สินค้าในร้าน (ไม่บังคับ)</label><select class="f-input"><option>— เลือกเพื่อเชื่อมโยง —</option></select></div>
+              </div>
+              <div class="f-grp" style="margin-bottom:0"><label class="f-label">คำอธิบาย</label><textarea class="f-input" rows="3" placeholder="รายละเอียดสภาพสินค้า ที่มา ฯลฯ"></textarea></div>
+            </div></div>
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:tag-price-bold-duotone" style="color:var(--primary)"></iconify-icon> ราคา</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">
+                <div class="f-grp"><label class="f-label">ราคาเริ่มต้น <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="5000"></div></div>
+                <div class="f-grp"><label class="f-label">ขั้นบิดขั้นต่ำ <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="500"></div></div>
+                <div class="f-grp"><label class="f-label">ราคาขั้นต่ำ (reserve)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div><div class="f-hint info"><iconify-icon icon="solar:info-circle-linear"></iconify-icon> Buyer เห็นว่ามี แต่ไม่เห็นตัวเลข</div></div>
+                <div class="f-grp"><label class="f-label">ราคาซื้อทันที (buy-now)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div><div class="f-hint info"><iconify-icon icon="solar:bolt-linear"></iconify-icon> ซื้อทันทีถ้าบิดยังไม่ถึง</div></div>
+              </div>
+            </div></div>
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:clock-circle-bold-duotone" style="color:var(--primary)"></iconify-icon> เวลาประมูล</div>
+              <div class="f-grp"><label class="f-label">เปิดประมูล <span class="req">*</span></label><div class="f-radio"><label><input type="radio" name="std" checked> เปิดทันที</label><label><input type="radio" name="std"> กำหนดเวลา</label></div></div>
+              <div class="f-grp" style="margin-bottom:0"><label class="f-label">ปิดประมูล <span class="req">*</span></label><input class="f-input" type="datetime-local"><div class="f-hint info"><iconify-icon icon="solar:info-circle-linear"></iconify-icon> อย่างน้อย 30 นาทีจากเวลาเปิด</div></div>
+            </div></div>
+          </div>
+          <div class="form-side">
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:gallery-bold-duotone" style="color:var(--primary)"></iconify-icon> รูปภาพ</div>
+              <div class="f-dropzone"><iconify-icon icon="solar:cloud-upload-bold-duotone"></iconify-icon>ลากรูปมาวาง หรือคลิกเลือก<br><span style="font-size:11px">อย่างน้อย 1 ใบ · สูงสุด 10</span></div>
+            </div></div>
+            <div class="panel pub-card"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:rocket-bold-duotone" style="color:var(--primary)"></iconify-icon> เผยแพร่</div>
+              <button class="btn btn-primary"><iconify-icon icon="solar:check-circle-bold-duotone"></iconify-icon> เผยแพร่ประมูล</button>
+              <button class="btn btn-ghost">บันทึกร่าง</button>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ D3: DETAIL — LIVE desktop (centered immersive) ════ -->
+<div class="dt-label">🖥 Desktop — รายละเอียด · กำลังประมูล (live สด)<small>centered column ~720px ใน shell — immersive hero + HUD + bid stream</small></div>
+<div class="browser">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/a1b2c3</span></div>
+  <div class="shell">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <div class="side-sec">เมนู</div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span>
+        <div class="tb-crumb">ผู้ขาย · การประมูล · <b>พระสมเด็จวัดระฆัง</b></div>
+        <div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div>
+        <span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+        <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
+      </div>
+      <div class="content">
+        <div class="centered">
+          <div class="pg-head"><div><div class="pg-title">รายละเอียดประมูล</div><div class="pg-sub">กำลังประมูลสด · มีผู้เสนอราคาแล้ว</div></div><button class="btn btn-primary" style="width:auto;padding:9px 16px"><iconify-icon icon="solar:share-linear"></iconify-icon> แชร์ลิงก์</button></div>
+          <div class="imm">
+            <span class="imm-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+            <span class="live-badge imm-live"><span class="dot"></span>LIVE</span>
+            <div class="live-hero">
+              <img src="https://picsum.photos/seed/amulet2/900/600">
+              <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
+              <div class="ov-bot">
+                <div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div>
+                <div class="hud">
+                  <div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div>
+                  <div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
+          </div>
+
+          <div class="panel" style="margin-top:16px"><div class="panel-pad">
+            <div class="panel-t"><iconify-icon icon="solar:document-text-bold-duotone" style="color:var(--primary)"></iconify-icon> รายละเอียดประมูล</div>
+            <div class="info-grid">
+              <div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div>
+              <div class="kv"><span class="k">ขั้นบิดขั้นต่ำ</span><span class="v">฿500</span></div>
+              <div class="kv"><span class="k">ราคาขั้นต่ำ (reserve)</span><span class="v">มี</span></div>
+              <div class="kv"><span class="k">ซื้อทันที (buy-now)</span><span class="v">฿25,000</span></div>
+              <div class="kv"><span class="k">เวลาปิด</span><span class="v">20:15 <span style="color:var(--warning);font-weight:600">(+2)</span></span></div>
+              <div class="kv"><span class="k">ผู้กำลังดู</span><span class="v">142</span></div>
+            </div>
+            <div style="margin-top:11px;color:var(--default-400);font-size:12px;display:flex;align-items:center;gap:5px"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว</div>
+          </div></div>
+
+          <div class="panel"><div class="panel-pad">
+            <div class="stream-h" style="padding:0 0 12px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+            <div class="stream" style="padding:0">
+              <div class="cmt lead">
+                <div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
+                <div class="cmt-body">
+                  <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div>
+                  <div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ D4: DETAIL — ENDED desktop (winner) ════ -->
+<div class="dt-label">🖥 Desktop — รายละเอียด · จบแล้ว (มีผู้ชนะ)<small>centered — hero + winner result card + bid history</small></div>
+<div class="browser">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/c0in99</span></div>
+  <div class="shell">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <div class="side-sec">เมนู</div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span>
+        <div class="tb-crumb">ผู้ขาย · การประมูล · <b>เหรียญหลวงพ่อรุ่นแรก</b></div>
+        <div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div>
+        <span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+        <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
+      </div>
+      <div class="content">
+        <div class="centered">
+          <div class="pg-head"><div><div class="pg-title">รายละเอียดประมูล</div><div class="pg-sub">ปิดประมูลแล้ว · มีผู้ชนะ</div></div></div>
+          <div class="panel" style="overflow:hidden"><img class="d-img" src="https://picsum.photos/seed/coin2/800/420" style="height:280px;border-radius:0"><div class="panel-pad"><span class="b b-ended">ปิดประมูลแล้ว</span><h2 class="d-name">เหรียญหลวงพ่อรุ่นแรก ปี 2512</h2></div></div>
+          <div class="res win" style="border-radius:12px;border-left-width:4px">
+            <div class="res-t"><iconify-icon icon="solar:cup-star-bold-duotone"></iconify-icon> ปิดประมูล — มีผู้ชนะ</div>
+            <div class="info-grid">
+              <div class="kv" style="border-color:rgba(26,174,111,.2)"><span class="k">ราคาสุดท้าย</span><span class="v" style="color:var(--success);font-size:17px">฿18,000</span></div>
+              <div class="kv" style="border-color:rgba(26,174,111,.2)"><span class="k">ผู้ชนะ</span><span class="v">นาย ก. (สมชาย)</span></div>
+              <div class="kv" style="border-color:rgba(26,174,111,.2)"><span class="k">จำนวนบิดทั้งหมด</span><span class="v">12 ครั้ง</span></div>
+              <div class="kv" style="border-color:rgba(26,174,111,.2)"><span class="k">ปิดเมื่อ</span><span class="v">20:14</span></div>
+            </div>
+            <button class="btn btn-primary" style="margin-top:13px;width:auto;padding:11px 18px"><iconify-icon icon="solar:bag-check-bold-duotone"></iconify-icon> ดูคำสั่งซื้อ #A1B2C3D4</button>
+          </div>
+          <div class="panel"><div class="panel-pad">
+            <div class="panel-t"><iconify-icon icon="solar:history-bold-duotone" style="color:var(--primary)"></iconify-icon> ประวัติการบิด</div>
+            <div class="bid win"><span class="bd"></span><span class="nm">นาย ก. (ชนะ)</span><span class="am">฿18,000</span><span class="tm">20:14</span></div>
+            <div class="bid"><span class="bd"></span><span class="nm">นาง ข.</span><span class="am">฿17,500</span><span class="tm">20:13</span></div>
+            <div class="bid"><span class="bd"></span><span class="nm">นาย ง.</span><span class="am">฿16,000</span><span class="tm">20:10</span></div>
+            <div class="bid"><span class="bd"></span><span class="nm">นาง ค.</span><span class="am">฿15,000</span><span class="tm">20:05</span></div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ D5: BID STREAM — expanded desktop ════ -->
+<div class="dt-label">🖥 Desktop — การเสนอราคา (expanded)<small>centered — FB-comment เต็ม · เรียงราคาสูง→ต่ำ · ผู้นำ pin บนสุด</small></div>
+<div class="browser">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/a1b2c3/bids</span></div>
+  <div class="shell">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <div class="side-sec">เมนู</div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span>
+        <div class="tb-crumb">ผู้ขาย · การประมูล · <b>การเสนอราคา</b></div>
+        <div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div>
+        <span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+        <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
+      </div>
+      <div class="content">
+        <div class="centered">
+          <div class="pg-head"><div><div class="pg-title">การเสนอราคา (12)</div><div class="pg-sub">พระสมเด็จวัดระฆัง · เรียงราคาสูงสุด</div></div></div>
+          <div class="panel"><div class="panel-pad">
+            <div class="stream-h" style="padding:0 0 12px"><span class="t">เรียงราคาสูงสุด</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+            <div class="stream" style="padding:0">
+              <div class="cmt lead"><div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div><div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+              <div class="cmt"><div class="av"><img src="https://i.pravatar.cc/80?img=45"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="txt">เสนอราคา <b>฿12,000</b></div></div><div class="cmt-meta">2 นาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+              <div class="cmt"><div class="av"><img src="https://i.pravatar.cc/80?img=33"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div><div class="txt">เสนอราคา <b>฿11,500</b></div></div><div class="cmt-meta">5 นาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+              <div class="cmt"><div class="av"><img src="https://i.pravatar.cc/80?img=21"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">วิภา สุขสันต์ <span class="lvl lvl-sil"><iconify-icon icon="solar:shield-bold"></iconify-icon> Lv.3</span></div><div class="txt">เสนอราคา <b>฿11,000</b></div></div><div class="cmt-meta">10 นาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+              <div class="cmt"><div class="av"><img src="https://i.pravatar.cc/80?img=8"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">ธนา มั่งมี <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.6</span></div><div class="txt">เสนอราคา <b>฿10,500</b></div></div><div class="cmt-meta">14 นาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+            </div>
+            <div class="expand"><iconify-icon icon="solar:alt-arrow-up-linear"></iconify-icon> ย่อ</div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ D6: BUYER — บิด live desktop (Deep-App web, centered) ════ -->
+<div class="dt-label">🖥 Desktop — มุม Buyer · บิด live (Deep-App web)<small>centered ~840px · hero+HUD + bid panel (quick-bid + เสนอราคา + ซื้อทันที) + bid stream</small></div>
+<div class="browser">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> deepthailand.app/auction/a1b2c3</span></div>
+  <!-- buyer top navbar (ไม่มี sidebar — buyer web) -->
+  <div style="background:#fff;border-bottom:1px solid var(--border);height:58px;display:flex;align-items:center;gap:24px;padding:0 28px">
+    <div style="display:flex;align-items:center;gap:8px;font-size:19px;font-weight:800;color:var(--primary)"><iconify-icon icon="solar:shield-check-bold-duotone" style="font-size:26px"></iconify-icon> Deep</div>
+    <a href="#" style="color:var(--default-700);font-size:13.5px;font-weight:600;text-decoration:none">หน้าแรก</a>
+    <a href="#" style="color:var(--primary);font-size:13.5px;font-weight:700;text-decoration:none">ประมูล</a>
+    <a href="#" style="color:var(--default-700);font-size:13.5px;font-weight:600;text-decoration:none">หมวดหมู่</a>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px"><span class="tb-ico"><iconify-icon icon="solar:heart-bold-duotone"></iconify-icon></span><span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span><img class="tb-ava" src="https://i.pravatar.cc/80?img=32"></div>
+  </div>
+  <div class="content" style="height:734px">
+    <div class="centered wide">
+      <div class="imm">
+        <span class="imm-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+        <span class="live-badge imm-live"><span class="dot"></span>LIVE</span>
+        <div class="live-hero">
+          <img src="https://picsum.photos/seed/amulet2/900/600">
+          <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
+          <div class="ov-bot">
+            <div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div>
+            <div class="hud">
+              <div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div>
+              <div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
+      </div>
+
+      <!-- bid panel (เด่น ใต้ hero) -->
+      <div class="panel" style="margin-top:16px;border:1.5px solid var(--primary-15)"><div class="panel-pad">
+        <div class="qbid"><span class="q">+฿500</span><span class="q">+฿1,000</span><span class="q">+฿2,000</span><span class="q kb"><iconify-icon icon="solar:pen-2-linear"></iconify-icon> กรอกเอง</span></div>
+        <div class="bidbar-main">
+          <span class="bid-watch"><iconify-icon icon="solar:heart-linear"></iconify-icon></span>
+          <button class="bid-go">เสนอราคา ฿13,000 <small>ราคาถัดไป (+฿500)</small></button>
+          <button class="buynow" style="width:auto;flex:0 0 auto;margin-top:0;padding:9px 18px"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> ซื้อทันที ฿25,000</button>
+        </div>
+      </div></div>
+
+      <div class="meta-strip" style="margin-top:0;border-radius:12px;border:1px solid var(--border)">
+        <span>เริ่ม <b>฿5,000</b></span><span>ขั้นบิด <b>฿500</b></span><span>ขั้นต่ำ <b>มี</b></span><span>ผู้ขาย <b>BT premium</b> <span class="b b-ended" style="padding:1px 7px">L2 ✓</span></span>
+      </div>
+
+      <div class="panel"><div class="panel-pad">
+        <div class="stream-h" style="padding:0 0 12px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+        <div class="stream" style="padding:0">
+          <div class="cmt lead"><div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div><div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+          <div class="cmt"><div class="av"><img src="https://i.pravatar.cc/80?img=45"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="txt">เสนอราคา <b>฿12,000</b></div></div><div class="cmt-meta">2 นาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div>
+        </div>
+        <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (10)</div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ TABLET frames (~834px · icon-rail sidebar) ════════════ -->
+
+<!-- ════ T1: LIST — tablet ════ -->
+<div class="dt-label">📱 Tablet — รายการประมูล<small>sidebar ยุบเป็น icon-rail · DataTable เต็มกว้าง</small></div>
+<div class="browser tablet">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions</span></div>
+  <div class="shell" style="height:700px">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span>
+        <div class="tb-crumb"><b>การประมูล</b></div>
+        <div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div>
+        <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
+      </div>
+      <div class="content">
+        <div class="pg-head"><div><div class="pg-title">การประมูล</div><div class="pg-sub">5 รายการ</div></div><span class="btn-add"><iconify-icon icon="solar:add-square-bold-duotone"></iconify-icon> สร้าง</span></div>
+        <div class="toolbar"><span class="chip on">ทั้งหมด</span><span class="chip">รอเปิด</span><span class="chip">กำลังประมูล</span><span class="chip">จบแล้ว</span><span class="chip">อื่น ๆ</span></div>
+        <div class="panel" style="margin-bottom:0">
+          <table class="tbl">
+            <thead><tr><th>สินค้า</th><th class="r">ราคา</th><th>สถานะ</th><th>เวลา</th><th class="r"></th></tr></thead>
+            <tbody>
+              <tr><td><div class="cell-prod"><img class="ci" src="https://picsum.photos/seed/amulet/130"><div><div class="cell-name">พระสมเด็จวัดระฆัง</div><div class="cell-sub">12 บิด</div></div></div></td><td class="r cell-price">฿12,500</td><td><span class="b b-live"><span class="dot"></span>ประมูล</span></td><td><span class="cd-mini">14:33</span></td><td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td></tr>
+              <tr><td><div class="cell-prod"><img class="ci" src="https://picsum.photos/seed/watch/130"><div><div class="cell-name">นาฬิกา Seiko วินเทจ</div><div class="cell-sub">0 บิด</div></div></div></td><td class="r cell-price">฿5,000</td><td><span class="b b-sched">รอเปิด</span></td><td style="font-size:12px;color:var(--default-500)">20:00</td><td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td></tr>
+              <tr><td><div class="cell-prod"><img class="ci" src="https://picsum.photos/seed/coin/130"><div><div class="cell-name">เหรียญหลวงพ่อรุ่นแรก</div><div class="cell-sub">12 บิด</div></div></div></td><td class="r cell-price">฿18,000</td><td><span class="b b-ended">จบแล้ว</span></td><td><a href="#" style="color:var(--primary);font-size:12px;font-weight:600;text-decoration:none">คำสั่งซื้อ →</a></td><td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td></tr>
+              <tr><td><div class="cell-prod"><span class="ci"><iconify-icon icon="solar:gallery-bold-duotone"></iconify-icon></span><div><div class="cell-name">แสตมป์เก่าชุดหายาก</div><div class="cell-sub">4 บิด</div></div></div></td><td class="r cell-price">฿3,500</td><td><span class="b b-unsold">ขายไม่ออก</span></td><td style="font-size:12px;color:var(--default-500)">ไม่ถึงขั้นต่ำ</td><td class="r"><span class="row-act"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ T2: CREATE — tablet (form-grid → 1 col) ════ -->
+<div class="dt-label">📱 Tablet — สร้างประมูล<small>form-grid ยุบเป็น 1 คอลัมน์ · รูปภาพ + เผยแพร่ ต่อท้ายด้านล่าง</small></div>
+<div class="browser tablet">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/new</span></div>
+  <div class="shell" style="height:720px">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+      <a href="#"><iconify-icon icon="solar:shop-bold-duotone"></iconify-icon><span>ร้านค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar"><span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span><div class="tb-crumb"><b>สร้างรายการ</b></div><div class="tb-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหา…</div><img class="tb-ava" src="https://i.pravatar.cc/80?img=15"></div>
+      <div class="content">
+        <div class="pg-head"><div><div class="pg-title">สร้างรายการประมูล</div></div></div>
+        <div class="form-grid">
+          <div class="stack">
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:document-text-bold-duotone" style="color:var(--primary)"></iconify-icon> ข้อมูลพื้นฐาน</div>
+              <div class="f-grp"><label class="f-label">ชื่อสินค้า <span class="req">*</span></label><input class="f-input" placeholder="เช่น พระสมเด็จวัดระฆัง"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px"><div class="f-grp" style="margin-bottom:0"><label class="f-label">หมวดหมู่ <span class="req">*</span></label><select class="f-input"><option>พระเครื่อง</option></select></div><div class="f-grp" style="margin-bottom:0"><label class="f-label">สินค้าในร้าน</label><select class="f-input"><option>— เลือก —</option></select></div></div>
+            </div></div>
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:tag-price-bold-duotone" style="color:var(--primary)"></iconify-icon> ราคา</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">
+                <div class="f-grp"><label class="f-label">ราคาเริ่มต้น <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="5000"></div></div>
+                <div class="f-grp"><label class="f-label">ขั้นบิด <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="500"></div></div>
+                <div class="f-grp" style="margin-bottom:0"><label class="f-label">reserve</label><div class="f-money"><span class="cur">฿</span><input class="f-input" placeholder="ไม่บังคับ"></div></div>
+                <div class="f-grp" style="margin-bottom:0"><label class="f-label">buy-now</label><div class="f-money"><span class="cur">฿</span><input class="f-input" placeholder="ไม่บังคับ"></div></div>
+              </div>
+            </div></div>
+          </div>
+          <div class="form-side">
+            <div class="panel"><div class="panel-pad"><div class="panel-t"><iconify-icon icon="solar:gallery-bold-duotone" style="color:var(--primary)"></iconify-icon> รูปภาพ</div><div class="f-dropzone"><iconify-icon icon="solar:cloud-upload-bold-duotone"></iconify-icon>อัปโหลดรูป (≥1 · สูงสุด 10)</div></div></div>
+            <div class="panel pub-card"><div class="panel-pad"><button class="btn btn-primary"><iconify-icon icon="solar:check-circle-bold-duotone"></iconify-icon> เผยแพร่</button><button class="btn btn-ghost">บันทึกร่าง</button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ T3: DETAIL — LIVE tablet (centered) ════ -->
+<div class="dt-label">📱 Tablet — รายละเอียด · กำลังประมูล<small>centered column · immersive hero + bid stream</small></div>
+<div class="browser tablet">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/a1b2c3</span></div>
+  <div class="shell" style="height:760px">
+    <div class="side">
+      <div class="side-logo"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon><span>Deep</span></div>
+      <a href="#"><iconify-icon icon="solar:home-smile-bold-duotone"></iconify-icon><span>หน้าหลัก</span></a>
+      <a href="#"><iconify-icon icon="solar:clipboard-list-bold-duotone"></iconify-icon><span>คำสั่งซื้อ</span></a>
+      <a class="on" href="#"><iconify-icon icon="tabler:gavel"></iconify-icon><span>การประมูล</span></a>
+      <a href="#"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon><span>สินค้า</span></a>
+    </div>
+    <div class="main">
+      <div class="topbar"><span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span><div class="tb-crumb"><b>พระสมเด็จวัดระฆัง</b></div><span class="tb-ico" style="margin-left:auto"><iconify-icon icon="solar:share-linear"></iconify-icon></span><img class="tb-ava" src="https://i.pravatar.cc/80?img=15"></div>
+      <div class="content">
+        <div class="centered">
+          <div class="imm">
+            <span class="imm-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+            <span class="live-badge imm-live"><span class="dot"></span>LIVE</span>
+            <div class="live-hero" style="height:320px">
+              <img src="https://picsum.photos/seed/amulet2/900/600">
+              <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
+              <div class="ov-bot"><div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div><div class="hud"><div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div><div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div></div></div>
+            </div>
+            <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาแล้ว 2/5</div>
+          </div>
+          <div class="panel" style="margin-top:16px"><div class="panel-pad">
+            <div class="panel-t"><iconify-icon icon="solar:document-text-bold-duotone" style="color:var(--primary)"></iconify-icon> รายละเอียดประมูล</div>
+            <div class="info-grid"><div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div><div class="kv"><span class="k">ขั้นบิด</span><span class="v">฿500</span></div><div class="kv"><span class="k">reserve</span><span class="v">มี</span></div><div class="kv"><span class="k">buy-now</span><span class="v">฿25,000</span></div></div>
+          </div></div>
+          <div class="panel"><div class="panel-pad">
+            <div class="stream-h" style="padding:0 0 12px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+            <div class="stream" style="padding:0"><div class="cmt lead"><div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div><div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div></div>
+            <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ T4: BUYER — บิด live tablet ════ -->
+<div class="dt-label">📱 Tablet — มุม Buyer · บิด live<small>centered · hero + bid panel + bid stream (top navbar)</small></div>
+<div class="browser tablet">
+  <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> deepthailand.app/auction/a1b2c3</span></div>
+  <div style="background:#fff;border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;gap:18px;padding:0 20px">
+    <div style="display:flex;align-items:center;gap:7px;font-size:18px;font-weight:800;color:var(--primary)"><iconify-icon icon="solar:shield-check-bold-duotone" style="font-size:24px"></iconify-icon> Deep</div>
+    <a href="#" style="color:var(--primary);font-size:13px;font-weight:700;text-decoration:none">ประมูล</a>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px"><span class="tb-ico"><iconify-icon icon="solar:heart-bold-duotone"></iconify-icon></span><img class="tb-ava" src="https://i.pravatar.cc/80?img=32"></div>
+  </div>
+  <div class="content" style="height:700px">
+    <div class="centered">
+      <div class="imm">
+        <span class="imm-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+        <span class="live-badge imm-live"><span class="dot"></span>LIVE</span>
+        <div class="live-hero" style="height:320px">
+          <img src="https://picsum.photos/seed/amulet2/900/600">
+          <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
+          <div class="ov-bot"><div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div><div class="hud"><div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div><div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div></div></div>
+        </div>
+        <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ต่อเวลาแล้ว 2/5</div>
+      </div>
+      <div class="panel" style="margin-top:16px;border:1.5px solid var(--primary-15)"><div class="panel-pad">
+        <div class="qbid"><span class="q">+฿500</span><span class="q">+฿1,000</span><span class="q">+฿2,000</span><span class="q kb"><iconify-icon icon="solar:pen-2-linear"></iconify-icon></span></div>
+        <div class="bidbar-main"><span class="bid-watch"><iconify-icon icon="solar:heart-linear"></iconify-icon></span><button class="bid-go">เสนอราคา ฿13,000 <small>ราคาถัดไป (+฿500)</small></button></div>
+        <button class="buynow"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> ซื้อทันที ฿25,000</button>
+      </div></div>
+      <div class="panel"><div class="panel-pad">
+        <div class="stream-h" style="padding:0 0 12px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+        <div class="stream" style="padding:0"><div class="cmt lead"><div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div><div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div></div>
+        <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
+      </div></div>
     </div>
   </div>
 </div>
