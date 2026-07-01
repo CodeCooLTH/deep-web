@@ -20,7 +20,9 @@ import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { requireAdmin } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format-date'
+import { WALLET_REASON_LABEL_TH } from '@/lib/inventory-addon'
 import { prisma } from '@/lib/prisma'
+import { getTransactions } from '@/services/wallet.service'
 import SlipImageClient from './SlipImageClient'
 import TopUpReviewActions from './TopUpReviewActions'
 
@@ -58,6 +60,8 @@ export default async function TopUpDetailPage({ params }: PageProps) {
           shopName: true,
           // userId ใช้เฉพาะ RC-7 self-block เปรียบฝั่ง server — ไม่ส่งข้าม boundary (RC-8)
           userId: true,
+          // id ใช้เรียก getTransactions/inventoryEntitlement ด้านล่าง (S-15 sidebar)
+          id: true,
         },
       },
       reviewedBy: {
@@ -70,6 +74,15 @@ export default async function TopUpDetailPage({ params }: PageProps) {
 
   // RC-7: คำนวณ boolean server-side — ส่งแค่ boolean ไป client ห้ามส่ง shop.userId ดิบ
   const isSelfRecord = !!adminId && adminId === record.shop.userId
+
+  // FR-INV-13: sidebar "รายการเครดิตล่าสุด" — read-only, admin แก้ entitlement ไม่ได้ (AC-3)
+  const [walletTx, entitlement] = await Promise.all([
+    getTransactions(record.shop.id, 10),
+    prisma.inventoryEntitlement.findUnique({
+      where: { shopId: record.shop.id },
+      select: { status: true, lockedAt: true },
+    }),
+  ])
 
   const meta = STATUS_META[record.status] ?? {
     label: record.status,
@@ -228,6 +241,42 @@ export default async function TopUpDetailPage({ params }: PageProps) {
                   </div>
                 )}
               </dl>
+            </div>
+          </div>
+
+          {/* FR-INV-13: รายการเครดิตล่าสุดของ shop — read-only ledger (admin แก้ entitlement ไม่ได้ AC-3)
+              Base: dl.divide-y card pattern เดียวกับการ์ด "ข้อมูลคำขอ" ด้านบนในไฟล์นี้
+              (ทั้งคู่ derive จาก theme/paces/.../IssueDetailModal.tsx .card/.card-header/.card-body primitive) */}
+          <div className="card">
+            <div className="card-header">
+              <h4 className="text-dark text-sm font-semibold">รายการเครดิตล่าสุด</h4>
+              {entitlement?.status === 'LOCKED' && (
+                <span className="badge bg-danger/10 text-danger text-2xs mt-1">
+                  ล็อกจากเครดิตไม่พอ
+                  {entitlement.lockedAt && ` เมื่อ ${formatDateTime(entitlement.lockedAt)}`}
+                </span>
+              )}
+            </div>
+            <div className="card-body">
+              {walletTx.length === 0 ? (
+                <p className="text-default-400 text-sm">ยังไม่มีรายการ</p>
+              ) : (
+                <dl className="divide-default-200 divide-y">
+                  {walletTx.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between py-2.5">
+                      <div>
+                        <dt className="text-default-700 text-sm font-medium">
+                          {WALLET_REASON_LABEL_TH[t.reason ?? ''] ?? t.description}
+                        </dt>
+                        <dd className="text-default-400 text-xs">{formatDateTime(t.createdAt)}</dd>
+                      </div>
+                      <span className={t.type === 'DEDUCT' ? 'text-danger text-sm' : 'text-success text-sm'}>
+                        {t.type === 'DEDUCT' ? '-' : '+'}฿{t.amount.toLocaleString('th-TH')}
+                      </span>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           </div>
         </div>
