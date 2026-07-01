@@ -2,14 +2,14 @@
 title: "DATABASE — Inventory Add-on"
 owner: shinobu22
 status: draft
-module: M00002-InventoryAddon
+module: M00003-InventoryAddon
 version: "1.0"
 created: 2026-07-01
 tags: [feature, inventory, stock, subscription, seller, add-on, database, schema]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]"]
 ---
 
-> **โมดูล:** M00002-InventoryAddon
+> **โมดูล:** M00003-InventoryAddon
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-07-01
@@ -22,7 +22,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]"]
 
 ## 1. Overview
 
-โมดูล Inventory Add-on (M00002) ต้องการเปลี่ยนแปลง schema ใน **PostgreSQL 16** (Supabase, dev/prod แชร์ตัวเดียวกัน) ผ่าน **Prisma Migrate** เพื่อรองรับ subscription lifecycle (NOT_SUBSCRIBED/ACTIVE/LOCKED) และ stock lifecycle (opt-in track/deduct/restock/hard-stop) ตาม PRD §3-4 + BRD BR-INV-01..14
+โมดูล Inventory Add-on (M00003) ต้องการเปลี่ยนแปลง schema ใน **PostgreSQL 16** (Supabase, dev/prod แชร์ตัวเดียวกัน) ผ่าน **Prisma Migrate** เพื่อรองรับ subscription lifecycle (NOT_SUBSCRIBED/ACTIVE/LOCKED) และ stock lifecycle (opt-in track/deduct/restock/hard-stop) ตาม PRD §3-4 + BRD BR-INV-01..14
 
 - **เอกสารออกแบบต้นทาง:** [[PRD]] §3.5-3.9, §9.2 (OD-2) + [[BRD]] FR-INV-01..13, BR-INV-01..14. **หมายเหตุลำดับ:** SRS/SDS ของโมดูลนี้เขียนขนานกับเอกสารนี้ — Controller ส่ง FROZEN CONTRACT (ชื่อ model/field ที่ต้องตรงกับ SRS) มาให้ยึด; `WalletTransaction.reason` เป็น field ใหม่ที่ user ยืนยันเลือกใช้ (2026-07-01) sync กับ SRS แล้ว
 - **Store ที่เกี่ยวข้อง:** PostgreSQL 16 host บน Supabase (DB เดียวสำหรับ dev + prod ในปัจจุบัน — ดู memory `project_prisma_migration_env_targets`)
@@ -202,12 +202,12 @@ PRD assumption เขียนไว้ว่า "กระทบ schema: ต้
 | 9 | `ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_stockDeducted_nonneg" CHECK (...) NOT VALID` + `VALIDATE CONSTRAINT` | เหตุผลเดียวกับข้อ 7 |
 | 10 | `ALTER TABLE "WalletTransaction" ADD COLUMN "reason" TEXT` (nullable) | additive |
 | 11 | `CREATE INDEX "WalletTransaction_reason_idx"` | |
-| 12 | Backfill (optional แต่แนะนำ): `UPDATE "WalletTransaction" SET "reason"='SMS_ORDER_LINK' WHERE "type"='DEDUCT' AND "reason" IS NULL` | ปลอดภัย 100% เพราะก่อน M00002 ไม่มี DEDUCT reason อื่นในระบบเลย (SMS Order Link เป็น paid-deduct feature เดียวที่มีอยู่ก่อนหน้า) |
+| 12 | Backfill (optional แต่แนะนำ): `UPDATE "WalletTransaction" SET "reason"='SMS_ORDER_LINK' WHERE "type"='DEDUCT' AND "reason" IS NULL` | ปลอดภัย 100% เพราะก่อน M00003 ไม่มี DEDUCT reason อื่นในระบบเลย (SMS Order Link เป็น paid-deduct feature เดียวที่มีอยู่ก่อนหน้า) |
 
 ### 5.2 Migration SQL (ร่าง)
 
 ```sql
--- Migration: add_inventory_addon_schema | Feature: M00002-InventoryAddon | 2026-07-01
+-- Migration: add_inventory_addon_schema | Feature: M00003-InventoryAddon | 2026-07-01
 -- SAFETY: additive only ทุก column ใหม่ nullable, table ใหม่ไม่กระทบ table เดิม
 -- Product/OrderItem มี row จริงบน prod แล้ว (ต่างจาก SellerWallet ตอนสร้าง) → ใช้ NOT VALID + VALIDATE CONSTRAINT
 -- ROLLBACK: ดูตาราง §5.4 ของ DATABASE.md — Product.stockQty/OrderItem.stockDeducted rollback = DATA LOSS

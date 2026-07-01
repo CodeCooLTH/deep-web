@@ -2,14 +2,14 @@
 title: "SRS — Inventory Add-on"
 owner: shinobu22
 status: draft
-module: M00002-InventoryAddon
+module: M00003-InventoryAddon
 version: "1.0"
 created: 2026-07-01
 tags: [feature, inventory, stock, subscription, seller, add-on, srs, technical]
 related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]"]
 ---
 
-> **โมดูล:** M00002-InventoryAddon
+> **โมดูล:** M00003-InventoryAddon
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-07-01
@@ -24,7 +24,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]"]
 
 ### 1.1 วัตถุประสงค์ของเอกสาร
 
-เอกสารนี้กำหนดข้อกำหนดเชิงเทคนิคสำหรับ **Inventory Add-on (M00002)** ครอบคลุม (1) entitlement lifecycle (subscribe/renew/lock/reactivate) แบบ atomic ผูกกับ `wallet.service` เดิม, (2) stock deduction/restock แบบ atomic all-or-nothing ที่ hook เข้า `order.service.createOrder`/`cancelOrder`, (3) Vercel Cron job สำหรับ renewal รายเดือน (infra ใหม่ที่ระบบไม่เคยมี), (4) menu gate + page-level server guard, (5) API contract ของ endpoint ใหม่/ที่ขยาย, (6) validation rules (Valibot), (7) backward-compatibility/short-circuit design สำหรับ Shop ที่ไม่มี entitlement ACTIVE (ความเสี่ยงสูงสุดของ feature นี้)
+เอกสารนี้กำหนดข้อกำหนดเชิงเทคนิคสำหรับ **Inventory Add-on (M00003)** ครอบคลุม (1) entitlement lifecycle (subscribe/renew/lock/reactivate) แบบ atomic ผูกกับ `wallet.service` เดิม, (2) stock deduction/restock แบบ atomic all-or-nothing ที่ hook เข้า `order.service.createOrder`/`cancelOrder`, (3) Vercel Cron job สำหรับ renewal รายเดือน (infra ใหม่ที่ระบบไม่เคยมี), (4) menu gate + page-level server guard, (5) API contract ของ endpoint ใหม่/ที่ขยาย, (6) validation rules (Valibot), (7) backward-compatibility/short-circuit design สำหรับ Shop ที่ไม่มี entitlement ACTIVE (ความเสี่ยงสูงสุดของ feature นี้)
 
 ผู้อ่านเป้าหมาย: DEV ผู้ implement, QA ผู้ออกแบบ test case, safepay-database ผู้ออกแบบ schema (รันขนาน), Controller ผู้วางแผน dispatch
 

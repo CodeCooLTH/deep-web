@@ -2,14 +2,14 @@
 title: "BRD — Inventory Add-on"
 owner: shinobu22
 status: draft
-module: M00002-InventoryAddon
+module: M00003-InventoryAddon
 version: "1.0"
 created: 2026-07-01
 tags: [feature, inventory, stock, subscription, seller, add-on, brd]
 related: ["[[PRD]]", "[[SRS]]", "[[DATABASE]]"]
 ---
 
-> **โมดูล:** M00002-InventoryAddon
+> **โมดูล:** M00003-InventoryAddon
 > **ประเภทเอกสาร:** Business Requirements Document (BRD) — NON-TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-07-01
