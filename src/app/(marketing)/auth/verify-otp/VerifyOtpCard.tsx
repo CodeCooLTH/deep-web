@@ -31,6 +31,9 @@ import styles from '@/libs/styles/inputOtp.module.css'
 // Config Imports
 import { currentYear, META_DATA } from '@/config/constants'
 
+// Utils — กัน open-redirect ก่อนใช้ ?callbackUrl= ที่ carry มาจาก sign-in/sign-up (OQ-2)
+import { getSafeCallbackUrl } from '../_lib/safe-callback-url'
+
 const Slot = (props: SlotProps) => {
   return (
     <div className={classnames(styles.slot, { [styles.slotActive]: props.isActive })}>
@@ -56,6 +59,7 @@ export default function VerifyOtpCard() {
   const mode = (params.get('mode') ?? 'signin') as 'signin' | 'signup'
   const displayName = params.get('name') ?? ''
   const username = params.get('username') ?? ''
+  const safeCallbackUrl = getSafeCallbackUrl(params.get('callbackUrl'))
 
   const [otp, setOtp] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
@@ -88,7 +92,7 @@ export default function VerifyOtpCard() {
         redirect: false,
       })
       if (result?.ok) {
-        router.push('/')
+        router.push(safeCallbackUrl)
         return
       }
       setErrorMsg('รหัสไม่ถูกต้องหรือหมดอายุ ลองอีกครั้ง')
