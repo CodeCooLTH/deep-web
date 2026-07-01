@@ -18,15 +18,22 @@
  * → ตัด Lv badge ออกจากแถว (ไม่ fake ข้อมูล) ส่วนที่เหลือ (avatar/ชื่อ/ราคา/เวลา) ครบตามสเปก
  *
  * ซ่อนไอคอน block ตาม OOS-2 (ยังไม่มีฟีเจอร์บล็อกผู้บิดใน MVP scope นี้)
+ *
+ * Batch E#12: เพิ่ม connection indicator ("● สด" / "⟳ กำลังเชื่อมต่อใหม่...") ข้าง card-title —
+ * รับ `connectionState` จาก parent (`AuctionConsoleClient` ผูก Supabase Realtime); `undefined`
+ * (auction ไม่ใช่ status live) = ไม่แสดง indicator เลย (static list เหมือนเดิม)
  */
 
 import { useState } from 'react'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { BidDTO } from '@/services/auction.service'
 
+type ConnectionState = 'live' | 'reconnecting'
+
 type Props = {
   bidHistory: BidDTO[]
   bidCount: number
+  connectionState?: ConnectionState
 }
 
 function getInitial(name: string): string {
@@ -34,7 +41,7 @@ function getInitial(name: string): string {
   return first ? first.toUpperCase() : '?'
 }
 
-export default function AuctionBidFeed({ bidHistory, bidCount }: Props) {
+export default function AuctionBidFeed({ bidHistory, bidCount, connectionState }: Props) {
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? bidHistory : bidHistory.slice(0, 5)
   const hiddenCount = bidHistory.length - visible.length
@@ -42,7 +49,15 @@ export default function AuctionBidFeed({ bidHistory, bidCount }: Props) {
   return (
     <div className="card">
       <div className="card-header justify-between">
-        <h4 className="card-title">ประวัติการเสนอราคา</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="card-title">ประวัติการเสนอราคา</h4>
+          {connectionState === 'live' && (
+            <span className="badge badge-label bg-success/15 text-success text-2xs">● สด</span>
+          )}
+          {connectionState === 'reconnecting' && (
+            <span className="badge badge-label bg-warning/15 text-warning text-2xs">⟳ กำลังเชื่อมต่อใหม่...</span>
+          )}
+        </div>
         {bidCount > bidHistory.length && (
           <span className="text-default-400 text-xs">แสดง {bidHistory.length} ล่าสุด จาก {bidCount} บิด</span>
         )}
