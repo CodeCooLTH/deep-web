@@ -58,6 +58,10 @@ export type SellerAuctionDTO = PublicAuctionDTO & {
   // feedback_rsc_pii_neutralize_at_source) แจ้ง Controller ให้ sync เอกสารต่อ
   cancelledAt: string | null // ISO string
   bidHistory: BidDTO[] // top 20, displayName only
+  // orderId (Batch E#11 — Command Console detail) — ⚠️ ค่าจริงคือ `Order.publicToken` ไม่ใช่ `Order.id`
+  // (ตั้งชื่อ orderId ตามที่ Controller ระบุ) เพราะ /seller/orders/[token] ต้องการ publicToken ใน URL
+  // มีค่า != null เฉพาะตอน status='ended' (settleAuctionCore สร้าง Order เมื่อมีผู้ชนะเท่านั้น)
+  orderId: string | null
 }
 
 /** สำหรับ GET /api/seller/auctions (list) — เบากว่า SellerAuctionDTO เต็ม */
@@ -99,13 +103,19 @@ export function toPublicAuctionDTO(a: AuctionRow): PublicAuctionDTO {
   }
 }
 
-export function toSellerAuctionDTO(a: AuctionRow, bidHistory: BidDTO[]): SellerAuctionDTO {
+/**
+ * orderId param optional (default null) — caller ส่วนใหญ่ (createAuction/updateAuction/publishAuction)
+ * ไม่มี Order เกิดขึ้นแน่นอน (auction ยังไม่ settle) จึงไม่ต้องแก้ call site เดิม; มีแค่
+ * getSellerAuctionDetail ที่ query แล้วส่งค่าจริงเข้ามา (Batch E#11)
+ */
+export function toSellerAuctionDTO(a: AuctionRow, bidHistory: BidDTO[], orderId: string | null = null): SellerAuctionDTO {
   return {
     ...toPublicAuctionDTO(a),
     reservePrice: a.reservePrice ? Number(a.reservePrice) : null,
     expectedPrice: a.expectedPrice ? Number(a.expectedPrice) : null,
     cancelledAt: a.cancelledAt ? a.cancelledAt.toISOString() : null,
     bidHistory,
+    orderId,
   }
 }
 
@@ -1014,5 +1024,15 @@ export async function getSellerAuctionDetail(
     bidder: b.bidder.displayName, // displayName เท่านั้น — ไม่มี phone/email/bidderId (SRS §5.5 ข้อ 2)
     atMs: b.createdAt.getTime(),
   }))
-  return toSellerAuctionDTO(a, history)
+
+  // orderId (Batch E#11) — Order ไม่มี @relation field กลับไปหา Auction ใน schema (มีแค่
+  // scalar `auctionId @unique`) จึง query แยกแทนการ include; จำกัดเฉพาะ status='ended' เพื่อลด
+  // query ที่ไม่จำเป็น (draft/scheduled/live/unsold/cancelled ไม่มี Order แน่นอน)
+  let orderId: string | null = null
+  if (a.status === 'ended') {
+    const order = await prisma.order.findUnique({ where: { auctionId: a.id }, select: { publicToken: true } })
+    orderId = order?.publicToken ?? null // ค่าจริงคือ publicToken (ดู comment ที่ type SellerAuctionDTO)
+  }
+
+  return toSellerAuctionDTO(a, history, orderId)
 }
