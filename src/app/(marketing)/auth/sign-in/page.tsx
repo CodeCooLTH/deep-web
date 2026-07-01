@@ -12,7 +12,9 @@ export default function SignInPage() {
       <Suspense fallback={null}>
         <OAuthErrorToast />
       </Suspense>
-      <SignInCard />
+      <Suspense fallback={null}>
+        <SignInCard />
+      </Suspense>
     </>
   )
 }

@@ -13,7 +13,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { Icon } from '@iconify/react'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { toast } from 'react-toastify'
 import * as Yup from 'yup'
@@ -28,6 +28,9 @@ import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 // Config Imports
 import { currentYear, META_DATA } from '@/config/constants'
 
+// Utils — กัน open-redirect ก่อนใช้ ?callbackUrl= (ดู Hard Rule รวมถึง OQ-2)
+import { getSafeCallbackUrl } from '../_lib/safe-callback-url'
+
 const schema = Yup.object({
   phone: Yup.string()
     .matches(/^0[0-9]{9}$/, 'เบอร์ต้องขึ้นต้นด้วย 0 และมี 10 หลัก')
@@ -38,6 +41,13 @@ type FormValues = Yup.InferType<typeof schema>
 
 export default function SignInCard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // callbackUrl ดิบจาก query — ยังไม่ sanitize ที่นี่ เพราะจุดใช้จริง (verify-otp / signIn OAuth)
+  // จะเรียก getSafeCallbackUrl() อีกทีก่อน redirect เสมอ
+  const rawCallbackUrl = searchParams.get('callbackUrl')
+  // สำหรับปุ่ม OAuth (facebook/line/instagram) ที่ redirect ทันทีจากหน้านี้ ต้อง sanitize ณ จุดนี้เลย
+  const safeCallbackUrl = getSafeCallbackUrl(rawCallbackUrl)
+
   const {
     register,
     handleSubmit,
@@ -58,7 +68,9 @@ export default function SignInCard() {
         toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
         return
       }
-      router.push(`/auth/verify-otp?mode=signin&phone=${encodeURIComponent(phone)}`)
+      const params = new URLSearchParams({ mode: 'signin', phone })
+      if (rawCallbackUrl) params.set('callbackUrl', rawCallbackUrl)
+      router.push(`/auth/verify-otp?${params.toString()}`)
     } catch {
       toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
     }
@@ -102,7 +114,7 @@ export default function SignInCard() {
                 <IconButton
                   className='text-facebook'
                   size='small'
-                  onClick={() => signIn('facebook', { callbackUrl: '/' })}
+                  onClick={() => signIn('facebook', { callbackUrl: safeCallbackUrl })}
                   aria-label='เข้าสู่ระบบด้วย Facebook'
                 >
                   <i className='tabler-brand-facebook-filled' />
@@ -111,7 +123,7 @@ export default function SignInCard() {
                     เพราะ tabler CSS class ไม่มี LINE icon */}
                 <IconButton
                   size='small'
-                  onClick={() => signIn('line', { callbackUrl: '/' })}
+                  onClick={() => signIn('line', { callbackUrl: safeCallbackUrl })}
                   aria-label='เข้าสู่ระบบด้วย LINE'
                   sx={{ color: '#06C755' }}
                 >
@@ -121,7 +133,7 @@ export default function SignInCard() {
                 {process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true' && (
                   <IconButton
                     size='small'
-                    onClick={() => signIn('instagram', { callbackUrl: '/' })}
+                    onClick={() => signIn('instagram', { callbackUrl: safeCallbackUrl })}
                     aria-label='เข้าสู่ระบบด้วย Instagram'
                     sx={{ color: '#E1306C' }}
                   >

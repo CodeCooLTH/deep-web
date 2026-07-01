@@ -13,9 +13,8 @@
  *   - scheduled → [แก้ไข] [ยกเลิก]
  *   - ended/unsold/cancelled → ไม่มี (result card ด้านล่างรับหน้าที่แทน)
  *
- * "แชร์ลิงก์": ยังไม่มีหน้า buyer web สาธารณะสำหรับ auction (buyer bidding = Deep-App mobile เท่านั้น
- * ใน MVP, buyer web = Phase 2 ตาม UI-DESIGN-SPEC "Buyer view") — ปุ่มนี้จึงแจ้ง toast แทนการ copy
- * ลิงก์ที่ยังไม่มีปลายทางจริง (กัน Hard Rule 6 "ไม่ปล่อย demo ค้าง"/ลิงก์ตาย)
+ * "แชร์ลิงก์": copy URL หน้า buyer auction สาธารณะ `${BUYER_URL}/a/{id}` (feature 00004 — เปิดตัวแล้ว 2026-07-01)
+ * .trim().replace(/\/$/) กัน trailing newline/slash ใน env (บทเรียน order-link 0e591e7)
  */
 
 import Link from 'next/link'
@@ -36,8 +35,15 @@ export default function ConsoleHead({ id, title, imageUrl, status }: Props) {
 
   const thumbSrc = imageUrl.startsWith('http') ? imageUrl : `/api/files/${imageUrl}`
 
-  const handleShare = () => {
-    pacesToast.info('ลิงก์แชร์สาธารณะจะพร้อมใช้งานเมื่อเปิดตัวหน้าประมูลบนเว็บ (เร็ว ๆ นี้)')
+  const handleShare = async () => {
+    const base = (process.env.NEXT_PUBLIC_BUYER_URL ?? '').trim().replace(/\/$/, '')
+    const url = `${base}/a/${id}`
+    try {
+      await navigator.clipboard.writeText(url)
+      pacesToast.success('คัดลอกลิงก์ประมูลแล้ว')
+    } catch {
+      pacesToast.error('คัดลอกลิงก์ไม่สำเร็จ')
+    }
   }
 
   return (

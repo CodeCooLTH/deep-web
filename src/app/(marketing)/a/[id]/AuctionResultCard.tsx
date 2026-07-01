@@ -1,0 +1,109 @@
+'use client'
+
+/**
+ * AuctionResultCard — สรุปผลเมื่อ auction จบ/ขายไม่ออก/ยกเลิก (feature 00004)
+ *
+ * Base: composed จาก MUI primitive (Card/Typography/Button) — pattern เดียวกับ status/CTA card
+ * ใน src/app/(marketing)/o/[token]/OrderDetailMobile.tsx (ink CTA button + status-color card)
+ * ไม่มี theme file "auction result" ตรงตัว (เหมือนกรณี AuctionResultCard ฝั่ง seller ที่ไม่มี
+ * theme demo ให้ copy — ประกอบจาก MUI primitive ตาม pattern เดิม)
+ *
+ * 🛑 ไม่ expose Order.publicToken — ปุ่มชนะลิงก์ไปหน้า /orders เฉย ๆ (Controller OQ sign-off)
+ */
+import Link from 'next/link'
+
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Typography from '@mui/material/Typography'
+
+import { Icon } from '@iconify/react'
+
+type Props = {
+  status: 'ended' | 'unsold' | 'cancelled'
+  currentPrice: number
+  hasReserve: boolean
+  winnerDisplayName: string | null
+  /** true เมื่อ session user ปัจจุบัน = ผู้ชนะ (เทียบ displayName — bidHistory ไม่มี bidderId ตาม PII guard) */
+  isWinner: boolean
+}
+
+export default function AuctionResultCard({ status, currentPrice, hasReserve, winnerDisplayName, isWinner }: Props) {
+  if (status === 'cancelled') {
+    return (
+      <Box sx={{ borderRadius: '12px', bgcolor: '#F8FAFC', px: '16px', py: '16px', textAlign: 'center' }}>
+        <Icon icon='tabler-ban' style={{ fontSize: 26, color: '#94A3B8' }} />
+        <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#475569', mt: '6px' }}>
+          การประมูลนี้ถูกยกเลิกโดยผู้ขาย
+        </Typography>
+      </Box>
+    )
+  }
+
+  if (status === 'unsold') {
+    return (
+      <Box sx={{ borderRadius: '12px', bgcolor: '#F8FAFC', px: '16px', py: '16px', textAlign: 'center' }}>
+        <Icon icon='tabler-mood-empty' style={{ fontSize: 26, color: '#94A3B8' }} />
+        <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#475569', mt: '6px' }}>
+          ไม่มีผู้ชนะการประมูลนี้
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: '#94A3B8', mt: '2px' }}>
+          {hasReserve ? 'ราคาสูงสุดยังไม่ถึงราคาขั้นต่ำที่ผู้ขายกำหนด' : 'ไม่มีผู้เสนอราคาก่อนหมดเวลา'}
+        </Typography>
+      </Box>
+    )
+  }
+
+  // status === 'ended'
+  if (isWinner) {
+    return (
+      <Box
+        sx={{
+          borderRadius: '12px',
+          bgcolor: '#E7F6F0',
+          border: '1px solid #A7F3D0',
+          px: '16px',
+          py: '18px',
+          textAlign: 'center',
+        }}
+      >
+        <Icon icon='tabler-trophy' style={{ fontSize: 30, color: '#059669' }} />
+        <Typography sx={{ fontSize: 16, fontWeight: 800, color: '#065F46', mt: '6px' }}>
+          คุณชนะการประมูล!
+        </Typography>
+        <Typography sx={{ fontSize: 13, color: '#047857', mt: '2px' }}>
+          ราคาสุดท้าย ฿{currentPrice.toLocaleString()}
+        </Typography>
+        <Link href='/orders' style={{ textDecoration: 'none' }}>
+          <Button
+            fullWidth
+            sx={{
+              mt: '14px',
+              height: 44,
+              bgcolor: '#0F172A',
+              color: '#fff',
+              borderRadius: '11px',
+              fontSize: 13.5,
+              fontWeight: 700,
+              textTransform: 'none',
+              '&:hover': { bgcolor: '#1E293B' },
+            }}
+          >
+            ดูคำสั่งซื้อของฉัน
+          </Button>
+        </Link>
+      </Box>
+    )
+  }
+
+  return (
+    <Box sx={{ borderRadius: '12px', bgcolor: '#F8FAFC', px: '16px', py: '16px', textAlign: 'center' }}>
+      <Icon icon='tabler-flag-check' style={{ fontSize: 26, color: '#64748B' }} />
+      <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#334155', mt: '6px' }}>
+        จบการประมูลแล้ว
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: '#94A3B8', mt: '2px' }}>
+        ผู้ชนะ {winnerDisplayName ?? 'ไม่ทราบ'} · ฿{currentPrice.toLocaleString()}
+      </Typography>
+    </Box>
+  )
+}
