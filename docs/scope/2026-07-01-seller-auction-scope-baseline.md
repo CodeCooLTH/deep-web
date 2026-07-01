@@ -96,7 +96,7 @@ Feature นี้ทำสำเร็จเมื่อ: Seller L2+ สร้�
 | OOS-7 | WebSocket Server + Redis | Supabase Realtime (broadcast-from-DB) เพียงพอสำหรับ MVP |
 | OOS-8 | Admin Auction Moderation Dashboard | Phase 2 |
 | OOS-9 | Live-Stream Auction | Phase 2 |
-| OOS-10 | Buyer Web View (ประมูลผ่าน browser) | MVP = Deep-App มือถือเท่านั้น |
+| OOS-10 | Buyer Web View (ประมูลผ่าน browser) | ~~MVP = Deep-App มือถือเท่านั้น~~ → **pulled to feature 00004 (2026-07-01)** — detail-only `/a/[id]` (view public + login-gated bid/buy-now/watch), Vuexy, session-authed routes reuse auction.service. spec: docs/superpowers/specs/2026-07-01-buyer-web-auction-design.md |
 | OOS-11 | Seller Mobile Auction Management | MVP = seller dashboard web (Paces) เท่านั้น |
 | OOS-12 | Dutch Auction / Reverse Auction | Phase 2 |
 | OOS-13 | Auction Analytics Dashboard (Seller) | Phase 2 |
