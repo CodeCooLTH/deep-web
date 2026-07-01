@@ -59,8 +59,8 @@ const UserProfileSettings = () => {
               <div className="py-2 px-3.5">
                 <h6 className="text-xs">ยินดีต้อนรับ 👋</h6>
               </div>
-              {/* เปิดหน้าร้าน — แสดงเฉพาะเมื่อ user เป็น shop และมี username (ข้าม subdomain ใช้ <a> ธรรมดา) */}
-              {user?.isShop && user?.username && (
+              {/* เปิดหน้าร้าน — แสดงเมื่อมี username (ทุก user มีหน้าโปรไฟล์สาธารณะ /u/[username] ไม่ว่าจะเปิดร้านหรือยัง; ข้าม subdomain ใช้ <a> ธรรมดา) */}
+              {user?.username && (
                 <>
                   <a
                     href={`${resolveBuyerBaseUrl()}/u/${user.username}`}

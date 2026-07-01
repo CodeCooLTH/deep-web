@@ -94,8 +94,8 @@ const UserDropdown = () => {
           <span className="align-middle">โปรไฟล์ / ตั้งค่าร้าน</span>
         </Link>
 
-        {/* เปิดหน้าร้าน — แสดงเฉพาะเมื่อ user เป็น shop และมี username (ข้าม subdomain ใช้ <a> ธรรมดา) */}
-        {user?.isShop && user?.username && (
+        {/* เปิดหน้าร้าน — แสดงเมื่อมี username (ทุก user มีหน้าโปรไฟล์สาธารณะ /u/[username] ไม่ว่าจะเปิดร้านหรือยัง; ข้าม subdomain ใช้ <a> ธรรมดา) */}
+        {user?.username && (
           <a
             href={`${resolveBuyerBaseUrl()}/u/${user.username}`}
             target="_blank"
