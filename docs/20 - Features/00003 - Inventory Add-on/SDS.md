@@ -238,7 +238,8 @@ export async function reactivateInventoryEntitlement(
     await tx.inventoryEntitlement.update({
       where: { shopId },
       data: {
-        status: 'ACTIVE', activatedAt: now, currentPeriodStart: now,
+        // ห้าม set activatedAt (DATABASE.md §3.1 — ตั้งครั้งเดียวตอน subscribe แรก, ไม่แตะตอน reactivate)
+        status: 'ACTIVE', currentPeriodStart: now,
         nextRenewalAt, lastRenewalAt: now, lockedAt: null,
       },
     })

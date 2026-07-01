@@ -367,13 +367,13 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 #### TC-INV-24: Reactivate สำเร็จ — หักเครดิตอะตอมมิก + ACTIVE ทันที + รอบใหม่เริ่มนับจากตอนนี้
 
 - **Linked to:** `[FR-INV-06-AC-01]`
-- **Precondition:** seed entitlement `status=LOCKED`, `lockedAt` = 10 วันก่อน, `SellerWallet.balance = 350`
+- **Precondition:** seed entitlement `status=LOCKED`, `lockedAt` = 10 วันก่อน, `activatedAt` = 40 วันก่อน (fixed marker), `SellerWallet.balance = 350`
 - **ประเภท:** E2E Playwright + DB verify
 - **Steps:**
   1. `loginAs` → `/inventory` (เห็น `InventoryGate` LOCKED state)
   2. กดปุ่ม `Reactivate` → ยืนยัน
   3. Query DB `inventoryEntitlement`, `walletTransaction`, `sellerWallet.balance`
-- **Expected Result:** `entitlement.status='ACTIVE'`; `entitlement.lockedAt=null`; `entitlement.currentPeriodStart≈now` (ไม่ใช่ต่อจาก `nextRenewalAt` เดิม); `entitlement.nextRenewalAt≈now+30d`; `WalletTransaction` DEDUCT ใหม่ `reason='INVENTORY_SUBSCRIPTION'`; `wallet.balance=151`
+- **Expected Result:** `entitlement.status='ACTIVE'`; `entitlement.lockedAt=null`; `entitlement.currentPeriodStart≈now` (ไม่ใช่ต่อจาก `nextRenewalAt` เดิม); `entitlement.nextRenewalAt≈now+30d`; **`entitlement.activatedAt` = 40 วันก่อน ไม่เปลี่ยน** (DATABASE.md §3.1 — marker วันสมัครเดิม ห้ามแตะตอน reactivate; regression guard สำหรับ bug ที่ SRS/SDS pseudocode เคยมี `activatedAt: now`); `WalletTransaction` DEDUCT ใหม่ `reason='INVENTORY_SUBSCRIPTION'`; `wallet.balance=151`
 
 ---
 

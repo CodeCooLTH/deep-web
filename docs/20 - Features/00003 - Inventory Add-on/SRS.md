@@ -203,7 +203,7 @@ flowchart LR
   1. `prisma.$transaction`
   2. Precondition: `tx.inventoryEntitlement.findUnique({where:{shopId}})?.status === 'LOCKED'` — ไม่ใช่ (ไม่มี row หรือ status ACTIVE) → throw `Error("ENTITLEMENT_NOT_LOCKED")`
   3. `deductCredit(shopId, 199, entitlementRefId, WALLET_DESC.REACTIVATE, WALLET_REASON.INVENTORY_SUBSCRIPTION, tx)` — INSUFFICIENT_CREDIT → rollback
-  4. `tx.inventoryEntitlement.update({ where: { shopId }, data: { status: 'ACTIVE', activatedAt: now, currentPeriodStart: now, nextRenewalAt: now + 30d, lockedAt: null } })` — รอบใหม่เริ่มนับจาก **ตอนนี้** ไม่ใช่ต่อจากรอบเดิม (BR-INV-08)
+  4. `tx.inventoryEntitlement.update({ where: { shopId }, data: { status: 'ACTIVE', currentPeriodStart: now, nextRenewalAt: now + 30d, lastRenewalAt: now, lockedAt: null } })` — รอบใหม่เริ่มนับจาก **ตอนนี้** ไม่ใช่ต่อจากรอบเดิม (BR-INV-08). **ห้ามแตะ `activatedAt`** (DATABASE.md §3.1 — ตั้งครั้งเดียวตอน subscribe แรก, marker วันสมัครเดิม)
   5. ไม่มี auto-retry: endpoint นี้ถูกเรียกจาก explicit user action (ปุ่ม "Reactivate" บนหน้า gate) เท่านั้น — cron **ไม่** เรียก endpoint นี้เลย
 - **Error / Edge cases:** 409 `ENTITLEMENT_NOT_LOCKED`; 402 `INSUFFICIENT_CREDIT`; หลัง reactivate สำเร็จ `stockQty` ทุกตัวยังเป็นค่าที่ query ตรงจาก DB (ไม่มี cache แยก — ดู TFR-005)
 
