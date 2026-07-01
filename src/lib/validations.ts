@@ -152,6 +152,8 @@ export const CreateProductSchema = v.object({
     {},
   ),
   ...CapabilityFieldsSchema,
+  // stockQty — Inventory Add-on (feature 00003): undefined=ไม่แตะ, null=untrack, ≥0=track
+  stockQty: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
 });
 
 export const UpdateProductSchema = v.object({
@@ -178,6 +180,8 @@ export const UpdateProductSchema = v.object({
   ),
   isActive: v.optional(v.boolean()),
   ...CapabilityFieldsSchema,
+  // stockQty — Inventory Add-on (feature 00003): undefined=ไม่แตะ, null=untrack, ≥0=track
+  stockQty: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
 });
 
 export const CreateOrderSchema = v.object({
