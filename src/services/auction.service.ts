@@ -1,48 +1,120 @@
 /**
- * Auction service — โดเมนประมูลของ Buyer App (แยกจากระบบเดิมของ SafePay).
+ * Auction service — โดเมนประมูลของ Buyer App + Seller Console (feature 00002 — Seller Auction)
  *
- * map Prisma row → shape ที่ฝั่งแอปคาดหวัง (ตรงกับ src/api/types.ts ใน Deep-App):
- *   Auction = { id, title, imageUrl, currentPrice, bidIncrement, endTimeMs,
- *               bidCount, shopId, status, bidHistory? }
- *   BrowsedAuction = Auction & { bidderCount }
+ * แหล่งสเปก (SSOT ต่อชั้น):
+ *   - docs/20 - Features/00002 - Seller Auction/SDS.md §6/§7 (function signature + DTO design)
+ *   - docs/20 - Features/00002 - Seller Auction/SRS.md §3 (TFR-001~017) + §8 (risk R-SRS-1~7)
+ *   - docs/20 - Features/00002 - Seller Auction/API.md §9 (DTO appendix)
  *
- * realtime (live/ws) ยังไม่ทำ — ดู memory project-scope.
+ * DTO 2 ชนิดแยกจริง (TFR-013) — ป้องกัน dev เผลอ leak `reservePrice`/`expectedPrice` ให้ buyer:
+ *   - PublicAuctionDTO  → buyer-facing (REST /api/app/auctions/** + Realtime payload subset)
+ *   - SellerAuctionDTO  → seller-facing เท่านั้น (เพิ่ม reservePrice/expectedPrice/cancelledAt/bidHistory)
+ *
+ * งานชุดนี้ (Batch B task #3) ครอบคลุมเฉพาะ "core" —
+ *   DTO/mapper, error class, placeBid (concurrency-safe), settleAuctionCore/settleAuction (2-layer),
+ *   flipScheduledToLive, endEarlyAuction, adjustSuccessfulBidCount
+ * Seller CRUD (createAuction/updateAuction/cancelAuction/publishAuction/listSellerAuctions/
+ * getSellerAuctionDetail) = task #4 แยก (type/mapper ที่ export จากไฟล์นี้ให้ #4 ใช้ต่อได้ทันที)
  */
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { pushToUser } from '@/services/app-push.service'
+import { evaluateBadges } from '@/services/badge.service'
 
 const PAGE_SIZE = 20
 
-export type AuctionDTO = {
+// ─────────────────────────────────────────────────────────────────────────────
+// DTO types (SDS §7.1 / API.md §9 — 2 type แยกจริง)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** buyer-facing (REST /api/app/auctions/** + Realtime payload subset) */
+export type PublicAuctionDTO = {
   id: string
   title: string
+  description: string | null
   imageUrl: string
+  images: string[]
   currentPrice: number
   bidIncrement: number
+  buyNowPrice: number | null
+  hasReserve: boolean // แทนค่า reservePrice จริง — ห้ามส่งตัวเลขจริงให้ buyer
+  antiSnipeCount: number
+  startTimeMs: number | null
   endTimeMs: number
   bidCount: number
   shopId: string
-  status: 'live' | 'ended'
+  status: 'draft' | 'scheduled' | 'live' | 'ended' | 'unsold' | 'cancelled'
+  category: string | null
+}
+// *** ห้ามมี key `reservePrice`/`expectedPrice` ใน type นี้เลย (ไม่ใช่ optional undefined) ***
+
+/** seller-facing เท่านั้น (GET /api/seller/auctions/[id]) */
+export type SellerAuctionDTO = PublicAuctionDTO & {
+  reservePrice: number | null
+  expectedPrice: number | null // pure display indicator, ไม่กระทบ settle logic ใด ๆ (TFR-013)
+  // หมายเหตุ: SDS §7.1 ระบุ ISO string (RSC-safe pattern) ส่วน API.md §9 เขียนเป็น epoch ms —
+  // 2 เอกสารขัดกัน — ยึด SDS (มี mapper code ชัดเจน + เหตุผล RSC-safe ผูกกับ
+  // feedback_rsc_pii_neutralize_at_source) แจ้ง Controller ให้ sync เอกสารต่อ
+  cancelledAt: string | null // ISO string
+  bidHistory: BidDTO[] // top 20, displayName only
 }
 
+/** สำหรับ GET /api/seller/auctions (list) — เบากว่า SellerAuctionDTO เต็ม */
+export type SellerAuctionListItemDTO = Pick<
+  SellerAuctionDTO,
+  'id' | 'title' | 'imageUrl' | 'status' | 'currentPrice' | 'bidCount' | 'endTimeMs' | 'startTimeMs'
+>
+
+/** ไม่มี field ใหม่ — reuse ของเดิม 100% */
 export type BidDTO = { id: string; amount: number; bidder: string; atMs: number }
+
+/** @deprecated ใช้ `PublicAuctionDTO` แทน — คง alias ไว้กัน caller เดิม (เช่น import ชื่อ type นี้ในอนาคต) ไม่พัง */
+export type AuctionDTO = PublicAuctionDTO
 
 type AuctionRow = Prisma.AuctionGetPayload<{}>
 
-/** map Auction row → app DTO. export ไว้ใช้ร่วม (app-shop ก็ใช้ตัวนี้ ไม่ map ซ้ำ) */
-export function toAuctionDTO(a: AuctionRow): AuctionDTO {
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapper (SDS §7.2) — ห้าม spread `...a` หรือ literal ที่มี reservePrice/expectedPrice ปนใน PublicAuctionDTO
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function toPublicAuctionDTO(a: AuctionRow): PublicAuctionDTO {
   return {
     id: a.id,
     title: a.title,
+    description: a.description,
     imageUrl: a.imageUrl,
+    images: (a.images as string[]) ?? [],
     currentPrice: Number(a.currentPrice),
     bidIncrement: Number(a.bidIncrement),
+    buyNowPrice: a.buyNowPrice ? Number(a.buyNowPrice) : null,
+    hasReserve: a.reservePrice != null, // ← จุดเดียวที่ "แตะ" reservePrice ใน mapper นี้ (boolean cast เท่านั้น)
+    antiSnipeCount: a.antiSnipeCount,
+    startTimeMs: a.startTime ? a.startTime.getTime() : null,
     endTimeMs: a.endTime.getTime(),
     bidCount: a.bidCount,
     shopId: a.shopId,
-    status: a.status === 'ended' ? 'ended' : 'live',
+    status: a.status as PublicAuctionDTO['status'],
+    category: a.category,
   }
+}
+
+export function toSellerAuctionDTO(a: AuctionRow, bidHistory: BidDTO[]): SellerAuctionDTO {
+  return {
+    ...toPublicAuctionDTO(a),
+    reservePrice: a.reservePrice ? Number(a.reservePrice) : null,
+    expectedPrice: a.expectedPrice ? Number(a.expectedPrice) : null,
+    cancelledAt: a.cancelledAt ? a.cancelledAt.toISOString() : null,
+    bidHistory,
+  }
+}
+
+/**
+ * @deprecated ใช้ `toPublicAuctionDTO` แทน — คง export ชื่อเดิมไว้เพราะ `app-shop.service.ts`
+ * ยัง import ตรง ๆ อยู่ (`liveAuctions.map(toAuctionDTO)`) — เป็น superset ที่เข้ากันได้
+ * (เพิ่ม field เท่านั้น ไม่มี field หายไป จึงไม่พัง caller เดิม)
+ */
+export function toAuctionDTO(a: AuctionRow): PublicAuctionDTO {
+  return toPublicAuctionDTO(a)
 }
 
 export type BrowseSort = 'bidders' | 'ending' | 'priceHigh' | 'priceLow'
@@ -66,7 +138,9 @@ export async function browseAuctions(opts: {
   sort?: BrowseSort
   category?: string | null
   page?: number
-}): Promise<{ items: (AuctionDTO & { bidderCount: number })[]; nextCursor: number | null }> {
+}): Promise<{ items: (PublicAuctionDTO & { bidderCount: number })[]; nextCursor: number | null }> {
+  // lazy sweep ก่อน query หลัก (TFR-015 ต้องมาก่อน settle เพื่อให้ scheduled ที่ถึงเวลาได้ขึ้น live ก่อนถูกกรองสถานะ)
+  await flipScheduledToLive()
   await settleEndedAuctions() // lazy: ปิดประมูลที่หมดเวลา + ออก order ให้ผู้ชนะ ก่อนแสดงผล
   const page = opts.page && opts.page > 0 ? opts.page : 1
   const where: Prisma.AuctionWhereInput = {
@@ -84,25 +158,26 @@ export async function browseAuctions(opts: {
 
   const hasNext = rows.length > PAGE_SIZE
   const pageRows = hasNext ? rows.slice(0, PAGE_SIZE) : rows
-  const items = pageRows.map((r) => ({ ...toAuctionDTO(r), bidderCount: r._count.bids }))
+  const items = pageRows.map((r) => ({ ...toPublicAuctionDTO(r), bidderCount: r._count.bids }))
   return { items, nextCursor: hasNext ? page + 1 : null }
 }
 
 /** auction ที่บิดเยอะสุด (สำหรับ section "กำลังประมูล" / Top) */
-export async function topAuctions(limit = 10): Promise<AuctionDTO[]> {
+export async function topAuctions(limit = 10): Promise<PublicAuctionDTO[]> {
+  await flipScheduledToLive()
   await settleEndedAuctions()
   const rows = await prisma.auction.findMany({
     where: { status: 'live' },
     orderBy: { bidCount: 'desc' },
     take: limit,
   })
-  return rows.map(toAuctionDTO)
+  return rows.map(toPublicAuctionDTO)
 }
 
-/** auction รายตัว + ประวัติบิดล่าสุด */
+/** auction รายตัว + ประวัติบิดล่าสุด (buyer-facing — public detail) */
 export async function getAuctionDetail(
   id: string,
-): Promise<(AuctionDTO & { bidHistory: BidDTO[] }) | null> {
+): Promise<(PublicAuctionDTO & { bidHistory: BidDTO[] }) | null> {
   const a = await prisma.auction.findUnique({
     where: { id },
     include: {
@@ -115,7 +190,7 @@ export async function getAuctionDetail(
   })
   if (!a) return null
   return {
-    ...toAuctionDTO(a),
+    ...toPublicAuctionDTO(a),
     bidHistory: a.bids.map((b) => ({
       id: b.id,
       amount: Number(b.amount),
@@ -126,7 +201,7 @@ export async function getAuctionDetail(
 }
 
 /** ค้นหา auction จาก title (live เท่านั้น) */
-export async function searchAuctions(q: string, limit = 30): Promise<AuctionDTO[]> {
+export async function searchAuctions(q: string, limit = 30): Promise<PublicAuctionDTO[]> {
   const term = q.trim()
   if (!term) return []
   const rows = await prisma.auction.findMany({
@@ -134,7 +209,7 @@ export async function searchAuctions(q: string, limit = 30): Promise<AuctionDTO[
     orderBy: { bidCount: 'desc' },
     take: limit,
   })
-  return rows.map(toAuctionDTO)
+  return rows.map(toPublicAuctionDTO)
 }
 
 // หมวดหมู่หลัก 8 อันสำหรับหน้า Home (name ต้องตรงกับ CAT_MAP ใน CategoryTile เพื่อให้ได้ไอคอน)
@@ -166,13 +241,13 @@ export async function listCategories(): Promise<{ id: string; name: string; imag
 /** auction ที่ user กด watch ไว้ → BrowsedAuction[] */
 export async function watchingAuctions(
   userId: string,
-): Promise<(AuctionDTO & { bidderCount: number })[]> {
+): Promise<(PublicAuctionDTO & { bidderCount: number })[]> {
   const rows = await prisma.watchList.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
     include: { auction: { include: { _count: { select: { bids: true } } } } },
   })
-  return rows.map((w) => ({ ...toAuctionDTO(w.auction), bidderCount: w.auction._count.bids }))
+  return rows.map((w) => ({ ...toPublicAuctionDTO(w.auction), bidderCount: w.auction._count.bids }))
 }
 
 /** ประวัติการบิดของ user → HistoryEntry[] */
@@ -194,82 +269,186 @@ export async function bidHistory(
   }))
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Error classes (SDS §11.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class BidError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
+export class AuctionOpError extends Error {
+  constructor(
+    message: string,
+    readonly status: 403 | 404 | 409,
+  ) {
+    super(message)
+  }
+}
+
+export class BelowReserveConfirmError extends Error {
+  readonly status = 409 as const
+  readonly code = 'BELOW_RESERVE_CONFIRM_REQUIRED' as const
+  constructor(
+    readonly currentPrice: number,
+    readonly hasReserve: true,
+  ) {
+    super('ต้องยืนยันก่อนจบประมูลที่ราคาต่ำกว่า reserve')
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settle (2-layer ตาม R-SRS-5 — settleAuctionCore ห้ามเปิด $transaction เอง)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** ข้อมูลที่ต้องใช้ทำ post-commit best-effort hook (push/badge/level) — ไม่ผ่าน DB ระหว่าง tx */
+type SettledInfo = {
+  orderId: string
+  winnerId: string
+  shopUserId: string
+  title: string
+  price: number
+}
+
 /**
- * Phase 2 — ปิดประมูล 1 รายการ: ถ้าหมดเวลาแล้วและยัง live →
- *  - set status='ended'
- *  - ผู้บิดสูงสุด = ผู้ชนะ → สร้าง SafePay Order (PENDING) ผูก auctionId
- * idempotent: auctionId @unique + เช็ค order เดิมก่อน. ไม่มีบิด = ปิดเฉย ๆ ไม่มี order.
+ * settleAuctionCore — ปิด auction 1 รายการ (ชั้นใน, รับ `tx` จากภายนอกเสมอ ห้ามเปิด `$transaction` เอง — R-SRS-5)
+ *  - idempotent: เช็ค Order เดิมก่อนสร้างซ้ำเสมอ (R-SRS-4 backstop 2 ชั้น คู่กับ `Order.auctionId @unique`)
+ *  - reserve check (TFR-008): currentPrice < reservePrice → unsold (ไม่สร้าง Order)
+ *  - winner = bid ORDER BY amount DESC, createdAt ASC (tiebreak ตาม BRD §8.6)
+ *  - force=true: ข้าม endTime>now() check (ใช้จาก buy-now/end-early)
+ *  - onSettled: callback sync (ไม่ await) เอาไว้ให้ caller capture ข้อมูลสำหรับ post-commit
+ *    hook (push/adjustSuccessfulBidCount/evaluateBadges) — เรียกเฉพาะตอนสร้าง Order ใหม่จริง
+ *    (ไม่ยิงซ้ำตอน idempotent-hit) ตาม NFR "post-commit best-effort ไม่ throw กระทบ write path"
  */
-export async function settleAuction(
+export async function settleAuctionCore(
+  tx: Prisma.TransactionClient,
   auctionId: string,
+  opts?: { force?: boolean; onSettled?: (info: SettledInfo) => void },
 ): Promise<{ ended: boolean; orderId: string | null }> {
-  let wonUserId: string | null = null
-  let wonTitle = ''
-  let wonPrice = 0
-  let wonOrderId = ''
-  const result = await prisma.$transaction(async (tx) => {
-    const a = await tx.auction.findUnique({
-      where: { id: auctionId },
-      include: { bids: { orderBy: { amount: 'desc' }, take: 1 } },
-    })
-    if (!a) return { ended: false, orderId: null }
+  const a = await tx.auction.findUnique({
+    where: { id: auctionId },
+    include: {
+      shop: { select: { userId: true } },
+      bids: { orderBy: [{ amount: 'desc' }, { createdAt: 'asc' }], take: 1 }, // winner + tiebreak (BRD §8.6)
+    },
+  })
+  if (!a) return { ended: false, orderId: null }
 
-    // ยังไม่ถึงเวลาปิด → ไม่ทำอะไร
-    if (a.status !== 'ended' && a.endTime.getTime() > Date.now()) {
-      return { ended: false, orderId: null }
-    }
+  // idempotent — มี Order อยู่แล้ว → คืนผลเดิม ไม่สร้างซ้ำ (เรียกซ้ำกี่ครั้งผลลัพธ์เหมือนเดิม)
+  const existing = await tx.order.findUnique({ where: { auctionId } })
+  if (existing) {
+    if (a.status === 'live') await tx.auction.update({ where: { id: auctionId }, data: { status: 'ended' } })
+    return { ended: true, orderId: existing.id }
+  }
 
-    // ปิดแล้ว — หา order เดิม (idempotent)
-    const existing = await tx.order.findUnique({ where: { auctionId } })
-    if (existing) {
-      if (a.status !== 'ended') await tx.auction.update({ where: { id: auctionId }, data: { status: 'ended' } })
-      return { ended: true, orderId: existing.id }
-    }
+  // ปิดไปแล้วเป็น terminal state โดยไม่มี order (unsold/ended จากการเรียกครั้งก่อน) → ไม่ทำซ้ำ
+  if (a.status === 'unsold' || a.status === 'ended') {
+    return { ended: true, orderId: null }
+  }
 
-    if (a.status !== 'ended') {
-      await tx.auction.update({ where: { id: auctionId }, data: { status: 'ended' } })
-    }
+  // ยังไม่ถึงเวลาปิด (เว้นแต่ force=true จาก buy-now/end-early — TFR-007/TFR-012)
+  if (!opts?.force && a.endTime.getTime() > Date.now()) {
+    return { ended: false, orderId: null }
+  }
 
-    const winner = a.bids[0]
-    if (!winner) return { ended: true, orderId: null } // ไม่มีคนบิด → ไม่มีผู้ชนะ
+  const winner = a.bids[0]
+  // reserve check (TFR-008) — ไม่มี reserve = ถือว่า met เสมอ
+  const reserveMet = a.reservePrice == null || Number(a.currentPrice) >= Number(a.reservePrice)
 
-    const order = await tx.order.create({
-      data: {
-        auctionId: a.id,
-        shopId: a.shopId,
-        buyerUserId: winner.bidderId,
-        type: 'PHYSICAL',
-        totalAmount: a.currentPrice,
-        status: 'PENDING',
-        fulfillmentMode: 'SHIPPED',
-        items: { create: [{ name: a.title, qty: 1, price: a.currentPrice }] },
-      },
-    })
+  if (!winner || !reserveMet) {
+    await tx.auction.update({ where: { id: auctionId }, data: { status: 'unsold' } })
+    return { ended: true, orderId: null }
+  }
 
-    // แจ้งเตือน "คุณชนะการประมูล" ให้ผู้ชนะ
-    await tx.notification.create({
-      data: {
-        userId: winner.bidderId,
-        kind: 'won',
-        title: 'คุณชนะการประมูล! 🎉',
-        body: `${a.title} ฿${Number(a.currentPrice).toLocaleString()} — ชำระเงินเพื่อรับสินค้า`,
-        refId: order.id,
-      },
-    })
-    wonUserId = winner.bidderId
-    wonTitle = a.title
-    wonPrice = Number(a.currentPrice)
-    wonOrderId = order.id
-    return { ended: true, orderId: order.id }
+  await tx.auction.update({ where: { id: auctionId }, data: { status: 'ended' } })
+
+  const order = await tx.order.create({
+    data: {
+      auctionId: a.id,
+      shopId: a.shopId,
+      buyerUserId: winner.bidderId,
+      type: 'PHYSICAL',
+      totalAmount: a.currentPrice,
+      status: 'PENDING',
+      fulfillmentMode: 'SHIPPED',
+      items: { create: [{ name: a.title, qty: 1, price: a.currentPrice }] },
+    },
   })
 
-  // push หลัง commit (best-effort)
-  if (wonUserId) {
-    void pushToUser(wonUserId, 'คุณชนะการประมูล! 🎉', `${wonTitle} ฿${wonPrice.toLocaleString()} — ชำระเงินเพื่อรับสินค้า`, {
-      type: 'won',
-      orderId: wonOrderId,
-    })
+  // แจ้งเตือน "คุณชนะการประมูล" ให้ผู้ชนะ (in-app, อยู่ใน tx เดียวกับ order — ต้องสำเร็จคู่กัน)
+  await tx.notification.create({
+    data: {
+      userId: winner.bidderId,
+      kind: 'won',
+      title: 'คุณชนะการประมูล! 🎉',
+      body: `${a.title} ฿${Number(a.currentPrice).toLocaleString()} — ชำระเงินเพื่อรับสินค้า`,
+      refId: order.id,
+    },
+  })
+
+  opts?.onSettled?.({
+    orderId: order.id,
+    winnerId: winner.bidderId,
+    shopUserId: a.shop.userId,
+    title: a.title,
+    price: Number(a.currentPrice),
+  })
+
+  return { ended: true, orderId: order.id }
+}
+
+/**
+ * post-commit best-effort hook — push "ชนะการประมูล" + adjustSuccessfulBidCount(+1) +
+ * evaluateBadges(seller/buyer) — เรียกหลัง transaction ที่มี settleAuctionCore commit สำเร็จแล้วเท่านั้น
+ * ห้าม throw กระทบ caller (TFR-009/016/017 — "post-commit, ไม่ throw")
+ */
+async function runPostSettleHooks(info: SettledInfo): Promise<void> {
+  try {
+    await pushToUser(
+      info.winnerId,
+      'คุณชนะการประมูล! 🎉',
+      `${info.title} ฿${info.price.toLocaleString()} — ชำระเงินเพื่อรับสินค้า`,
+      { type: 'won', orderId: info.orderId },
+    )
+  } catch (e) {
+    console.error('[settleAuctionCore] pushToUser failed', e)
   }
+  try {
+    await adjustSuccessfulBidCount(info.winnerId, 1)
+  } catch (e) {
+    console.error('[settleAuctionCore] adjustSuccessfulBidCount failed', e)
+  }
+  try {
+    await evaluateBadges(info.shopUserId, 'SELLER')
+  } catch (e) {
+    console.error('[settleAuctionCore] evaluateBadges(SELLER) failed', e)
+  }
+  try {
+    await evaluateBadges(info.winnerId, 'BUYER')
+  } catch (e) {
+    console.error('[settleAuctionCore] evaluateBadges(BUYER) failed', e)
+  }
+}
+
+/**
+ * settleAuction — wrapper เดิม (คง signature เป๊ะ — caller เดิม `settleEndedAuctions`/
+ * `/api/app/auctions/[id]/settle` ไม่ต้องแก้) เปิด `$transaction` เองแล้วเรียก `settleAuctionCore`
+ */
+export async function settleAuction(auctionId: string): Promise<{ ended: boolean; orderId: string | null }> {
+  let hook: SettledInfo | null = null
+  const result = await prisma.$transaction((tx) =>
+    settleAuctionCore(tx, auctionId, {
+      onSettled: (info) => {
+        hook = info
+      },
+    }),
+  )
+  if (hook) void runPostSettleHooks(hook)
   return result
 }
 
@@ -292,38 +471,121 @@ export async function settleEndedAuctions(): Promise<number> {
   return n
 }
 
-export class BidError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message)
+/** flipScheduledToLive (TFR-015) — scheduled ที่ถึงเวลาเปิดแล้ว → live, เรียกแบบ lazy ก่อน query หลัก */
+export async function flipScheduledToLive(): Promise<number> {
+  const due = await prisma.auction.findMany({
+    where: { status: 'scheduled', startTime: { lte: new Date() } },
+    select: { id: true },
+    take: 100,
+  })
+  let n = 0
+  for (const { id } of due) {
+    try {
+      // conditional update กัน race ถ้ามีคำขออื่น flip พร้อมกัน (currentPrice ตั้งเป็น startPrice ไว้แล้วตอน create)
+      const res = await prisma.auction.updateMany({ where: { id, status: 'scheduled' }, data: { status: 'live' } })
+      if (res.count > 0) n++
+    } catch (e) {
+      console.error('[flipScheduledToLive] failed for', id, e)
+    }
   }
+  return n
 }
 
 /**
- * วางบิด — atomic ใน transaction:
- *  - auction ต้อง live + ยังไม่หมดเวลา
- *  - amount ต้อง >= currentPrice + bidIncrement
- *  - สร้าง Bid + อัปเดต currentPrice/bidCount
- * คืน auction ที่อัปเดตแล้ว (DTO).
+ * endEarlyAuction (TFR-012) — seller สั่งจบ auction ก่อนถึง endTime
+ * ownership + status guard, below-reserve double-confirm, reuse settleAuctionCore(force:true) 100%
  */
-export async function placeBid(
+export async function endEarlyAuction(
   auctionId: string,
-  bidderId: string,
-  amount: number,
-): Promise<AuctionDTO> {
+  shopUserId: string,
+  opts: { confirmBelowReserve?: boolean } = {},
+): Promise<{ status: 'ended' | 'unsold'; orderId: string | null }> {
+  let hook: SettledInfo | null = null
+  const result = await prisma.$transaction(async (tx) => {
+    const a = await tx.auction.findUnique({
+      where: { id: auctionId },
+      include: { shop: { select: { userId: true } } },
+    })
+    if (!a) throw new AuctionOpError('ไม่พบรายการประมูล', 404)
+    if (a.shop.userId !== shopUserId) throw new AuctionOpError('ไม่มีสิทธิ์เข้าถึง', 403)
+    if (a.status !== 'live') throw new AuctionOpError('ไม่สามารถจบประมูลนี้ได้ในสถานะปัจจุบัน', 409)
+
+    // AC-03: double-confirm เมื่อราคายังไม่ถึง reserve (มีคนบิดแล้วแต่ราคาต่ำกว่า reserve)
+    const belowReserve = a.reservePrice != null && Number(a.currentPrice) < Number(a.reservePrice)
+    if (a.bidCount >= 1 && belowReserve && !opts.confirmBelowReserve) {
+      throw new BelowReserveConfirmError(Number(a.currentPrice), true)
+    }
+
+    return settleAuctionCore(tx, auctionId, {
+      force: true, // ข้าม endTime>now() check — จบก่อนเวลาได้
+      onSettled: (info) => {
+        hook = info
+      },
+    })
+  })
+
+  if (hook) void runPostSettleHooks(hook)
+  return { status: result.orderId ? 'ended' : 'unsold', orderId: result.orderId }
+}
+
+/**
+ * adjustSuccessfulBidCount (TFR-016) — ปรับ `User.successfulBidCount` (ใช้คำนวณ User Level ladder)
+ *  - +1: เรียกจาก settleAuctionCore เมื่อมี winner (post-commit best-effort)
+ *  - -1: เรียกจาก order cancel flow (order.service.ts) เมื่อ Order.auctionId != null (GREATEST(0,...) กันติดลบ)
+ */
+export async function adjustSuccessfulBidCount(userId: string, delta: 1 | -1): Promise<void> {
+  if (delta === 1) {
+    await prisma.user.update({ where: { id: userId }, data: { successfulBidCount: { increment: 1 } } })
+    return
+  }
+  // -1: ใช้ raw SQL เพราะต้อง GREATEST(0, count-1) กัน underflow ติดลบ (Prisma ไม่มี helper นี้ตรง ๆ)
+  await prisma.$executeRaw`UPDATE "User" SET "successfulBidCount" = GREATEST(0, "successfulBidCount" - 1) WHERE id = ${userId}`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Place Bid (TFR-005/006/007 — conditional-update concurrency guard, R-SRS-1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * วางบิด — atomic ใน transaction เดียว ครอบคลุม anti-snipe + buy-now instant settle:
+ *  - guard: auction live, ยังไม่หมดเวลา, ไม่ self-bid, amount >= currentPrice+bidIncrement
+ *  - conditional `updateMany` WHERE currentPrice=<snapshot> (R-SRS-1 — กัน lost-update ข้าม
+ *    concurrent transaction, pattern เดียวกับ `wallet.service.ts::deductCredit`) — count===0 → 409
+ *  - amount >= buyNowPrice → buy-now path: `settleAuctionCore(tx, id, {force:true})` ในทรานแซคชันเดียว (TFR-007)
+ *  - ไม่ใช่ buy-now → anti-snipe (endTime-now<=60s && antiSnipeCount<5 → +60s,+1 ในทรานแซคชันเดียว, TFR-006)
+ *  - post-commit best-effort: pushToUser(outbid) + evaluateBadges(bidderId,'BUYER') — ห้าม throw กระทบ response
+ */
+export async function placeBid(auctionId: string, bidderId: string, amount: number): Promise<PublicAuctionDTO> {
   let outbidUserId: string | null = null
   let outbidTitle = ''
+  let settleHook: SettledInfo | null = null
+
   const dto = await prisma.$transaction(async (tx) => {
-    const a = await tx.auction.findUnique({ where: { id: auctionId } })
+    const a = await tx.auction.findUnique({
+      where: { id: auctionId },
+      include: { shop: { select: { userId: true } } },
+    })
     if (!a) throw new BidError('ไม่พบรายการประมูล', 404)
-    if (a.status === 'ended' || a.endTime.getTime() <= Date.now()) {
+    if (a.status !== 'live' || a.endTime.getTime() <= Date.now()) {
       throw new BidError('การประมูลปิดแล้ว', 409)
+    }
+    if (a.shop.userId === bidderId) {
+      throw new BidError('ไม่สามารถเสนอราคา auction ของตัวเองได้', 403)
     }
     const minNext = Number(a.currentPrice) + Number(a.bidIncrement)
     if (amount < minNext) {
       throw new BidError(`ต้องบิดอย่างน้อย ${minNext.toLocaleString()} บาท`, 400)
+    }
+
+    // conditional update (R-SRS-1) — WHERE currentPrice ต้องยังเท่าค่าที่เพิ่งอ่าน (optimistic guard)
+    // ป้องกัน lost-update เมื่อ 2 transaction วิ่งพร้อมกันภายใต้ READ COMMITTED
+    const res = await tx.auction.updateMany({
+      where: { id: auctionId, status: 'live', currentPrice: a.currentPrice },
+      data: { currentPrice: amount, bidCount: { increment: 1 } },
+    })
+    if (res.count === 0) {
+      // มีคนแซงระหว่างที่เราอ่านค่า — ให้ client retry ด้วย currentPrice ล่าสุด (FR-AUC-05-AC-08)
+      throw new BidError('มีคนเสนอราคาก่อนคุณ กรุณาลองใหม่', 409)
     }
 
     // ผู้บิดสูงสุดก่อนหน้า (ไว้แจ้งเตือนว่าโดนแซง)
@@ -334,10 +596,27 @@ export async function placeBid(
     })
 
     await tx.bid.create({ data: { auctionId, bidderId, amount } })
-    const updated = await tx.auction.update({
-      where: { id: auctionId },
-      data: { currentPrice: amount, bidCount: { increment: 1 } },
-    })
+
+    if (a.buyNowPrice != null && amount >= Number(a.buyNowPrice)) {
+      // buy-now path (TFR-007) — settle ทันทีในทรานแซคชันเดียวกัน (reuse settleAuctionCore 100%)
+      await settleAuctionCore(tx, auctionId, {
+        force: true,
+        onSettled: (info) => {
+          settleHook = info
+        },
+      })
+    } else {
+      // anti-snipe (TFR-006) — เช็คจาก a.endTime ที่อ่านตอนต้น tx (ไม่ใช่ wall-clock เฉย ๆ) กัน race ข้าม tx (R-SRS-3)
+      if (a.endTime.getTime() - Date.now() <= 60_000 && a.antiSnipeCount < 5) {
+        await tx.auction.update({
+          where: { id: auctionId },
+          data: {
+            endTime: new Date(a.endTime.getTime() + 60_000),
+            antiSnipeCount: { increment: 1 },
+          },
+        })
+      }
+    }
 
     // แจ้งเตือน "โดนแซงราคา" ให้ผู้บิดสูงสุดเดิม (ถ้ามี และไม่ใช่คนเดิม)
     if (prevTop && prevTop.bidderId !== bidderId) {
@@ -353,15 +632,21 @@ export async function placeBid(
       outbidUserId = prevTop.bidderId
       outbidTitle = a.title
     }
-    return toAuctionDTO(updated)
+
+    // อ่านค่าล่าสุดหลังทุก branch (bid ปกติ/anti-snipe/buy-now settle) — ให้ผลถูกต้องทุกกรณีเดียวกัน
+    const updated = await tx.auction.findUniqueOrThrow({ where: { id: auctionId } })
+    return toPublicAuctionDTO(updated)
   })
 
-  // push หลัง commit (best-effort — ไม่บล็อก/rollback การบิด)
+  // post-commit best-effort — ห้ามให้ throw กระทบ response ของ placeBid (TFR-005/017)
   if (outbidUserId) {
     void pushToUser(outbidUserId, 'มีคนเสนอราคาสูงกว่า', `${outbidTitle} — ฿${amount.toLocaleString()}`, {
       type: 'outbid',
       auctionId,
     })
   }
+  if (settleHook) void runPostSettleHooks(settleHook)
+  evaluateBadges(bidderId, 'BUYER').catch((e) => console.error('[placeBid] evaluateBadges(BUYER) failed', e))
+
   return dto
 }
