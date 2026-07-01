@@ -9,18 +9,20 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  displayName  String
-  username     String   @unique
-  avatar       String?
-  phone        String?  @unique
-  email        String?  @unique
-  trustScore   Int      @default(0)
-  isShop       Boolean  @default(false)
-  isAdmin      Boolean  @default(false)
-  passwordHash String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  displayName        String
+  username           String   @unique
+  avatar             String?
+  phone              String?  @unique
+  email              String?  @unique
+  trustScore         Int      @default(0)
+  isShop             Boolean  @default(false)
+  isAdmin            Boolean  @default(false)
+  passwordHash       String?
+  // successfulBidCount: cached count "bid สำเร็จ" (ชนะ auction + Order ไม่ถูก cancel) — ใช้คำนวณ User Level ladder runtime (feature 00002)
+  successfulBidCount Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   authAccounts          AuthAccount[]
   shop                  Shop?
@@ -201,7 +203,7 @@ model Tag {
 model Order {
   id              String   @id @default(uuid())
   publicToken     String   @unique @default(uuid())
-  shortCode       String?  @unique   // permanent 8-char short alias สำหรับ copy/share link (nullable: backfill รุ่นเก่า)
+  shortCode       String?  @unique // permanent 8-char short alias สำหรับ copy/share link (nullable: backfill รุ่นเก่า)
   shopId          String
   buyerUserId     String?
   buyerContact    String?
@@ -370,24 +372,38 @@ model SmsCode {
 // ============================================================
 
 model Auction {
-  id           String   @id @default(uuid())
-  shopId       String
+  id             String    @id @default(uuid())
+  shopId         String
   // productId: ลิงก์ไปสินค้าใน catalog เดิมได้ (optional — auction สร้าง item เองก็ได้)
-  productId    String?
-  title        String
-  imageUrl     String
+  productId      String?
+  title          String
+  // description: คำอธิบายจาก create form (feature 00002 — Seller Auction)
+  description    String?   @db.Text
+  imageUrl       String
   // images: รูปเพิ่มเติม (JSON array of url) — รองรับ gallery/live feed
-  images       Json     @default("[]")
-  startPrice   Decimal  @db.Decimal(12, 2)
-  currentPrice Decimal  @db.Decimal(12, 2)
-  bidIncrement Decimal  @db.Decimal(12, 2)
-  endTime      DateTime
-  // status: "live" | "ended" — ตรงกับ app type Auction.status
-  status       String   @default("live")
-  bidCount     Int      @default(0)
-  category     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  images         Json      @default("[]")
+  startPrice     Decimal   @db.Decimal(12, 2)
+  currentPrice   Decimal   @db.Decimal(12, 2)
+  bidIncrement   Decimal   @db.Decimal(12, 2)
+  // startTime: เวลาเปิด (scheduled auction); null = live ทันทีตอนสร้าง (feature 00002)
+  startTime      DateTime?
+  endTime        DateTime
+  // reservePrice: ราคาต่ำสุดที่ยอมขาย — bid สูงสุด < reserve → unsold (feature 00002, ห้ามส่งออก buyer)
+  reservePrice   Decimal?  @db.Decimal(12, 2)
+  // buyNowPrice: ซื้อทันที; null = ไม่มีตัวเลือกนี้ (feature 00002)
+  buyNowPrice    Decimal?  @db.Decimal(12, 2)
+  // status: "draft" | "scheduled" | "live" | "ended" | "unsold" | "cancelled" — ตรงกับ app type Auction.status
+  status         String    @default("live")
+  bidCount       Int       @default(0)
+  // antiSnipeCount: จำนวนครั้งที่ต่อเวลาแล้ว (max 5) — feature 00002
+  antiSnipeCount Int       @default(0)
+  category       String?
+  // cancelledAt: timestamp เมื่อ auction ถูกยกเลิก (feature 00002)
+  cancelledAt    DateTime?
+  // expectedPrice: ราคาเป้าหมาย seller-only indicator ล้วน ไม่กระทบ settle/sold/unsold — ห้ามส่งออกฝั่ง buyer (feature 00002, FR-AUC-13)
+  expectedPrice  Decimal?  @db.Decimal(12, 2)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   shop      Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   bids      Bid[]
@@ -395,6 +411,9 @@ model Auction {
 
   @@index([shopId])
   @@index([status, endTime])
+  @@index([status])
+  @@index([shopId, status])
+  @@index([startTime])
 }
 
 model Bid {
