@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateOrderSchema } from "@/lib/validations";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError } from "@/services/order.service";
+import { OutOfStockError } from "@/services/inventory-stock.service";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -51,6 +52,14 @@ export async function POST(request: NextRequest) {
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json(
         { error: "ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)" },
+        { status: 400 },
+      );
+    }
+    // Inventory Add-on (feature 00003) — hard-stop สินค้าหมดสต็อก (FR-INV-11) → 400 พร้อมชื่อสินค้า
+    // (order.service createOrder throws OutOfStockError จาก inventory-stock.service; ตัด/สร้าง rollback แล้ว)
+    if (e instanceof OutOfStockError) {
+      return NextResponse.json(
+        { error: `สินค้าหมดสต็อก: ${e.productNames.join(", ")}` },
         { status: 400 },
       );
     }
