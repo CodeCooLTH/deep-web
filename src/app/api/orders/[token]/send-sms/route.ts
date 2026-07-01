@@ -9,6 +9,7 @@ import { issueSmsCode, markSmsCodeDelivery } from "@/services/sms-code.service";
 import { deductCredit, creditWallet } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
 import { sendSms, consumeSmsQuota } from "@/lib/sms";
+import { WALLET_REASON } from "@/lib/inventory-addon";
 
 // RC-4: daily SMS cap ต่อ shop ~200 SMS/วัน (DB-layer — นับ WalletTransaction DEDUCT วันนี้)
 // spec กำหนด: DB-layer count ที่แยกจาก in-memory hourly burst; ceiling cost-exposure
@@ -182,6 +183,7 @@ export async function POST(
         SMS_COST_BAHT,
         order.id, // refId = orderId เพื่อ audit trail
         `ส่ง SMS คำสั่งซื้อ ${token.slice(0, 8)}...`,
+        WALLET_REASON.SMS_ORDER_LINK,
         tx,
       );
 

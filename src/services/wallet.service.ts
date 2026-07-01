@@ -55,6 +55,7 @@ export async function getTransactions(
       balanceAfter: true,
       description: true,
       refId: true,
+      reason: true,
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },
@@ -77,6 +78,8 @@ export async function getTransactions(
  * @param amount   - จำนวน ฿ ที่ต้องการหัก (ต้องเป็น integer > 0)
  * @param refId    - reference id เช่น orderId หรือ SmsCode id (optional, ใช้ trace)
  * @param description - คำอธิบายธุรกรรม เช่น "ส่ง SMS order XYZ"
+ * @param reason   - เหตุผลเชิงระบบ (WALLET_REASON.* จาก @/lib/inventory-addon) เพื่อแยกประเภท
+ *                   ธุรกรรมสำหรับ admin/report (เช่น SMS_ORDER_LINK vs INVENTORY_SUBSCRIPTION)
  * @throws Error("INSUFFICIENT_CREDIT") ถ้า balance < amount (หรือไม่มี wallet)
  */
 export async function deductCredit(
@@ -84,6 +87,7 @@ export async function deductCredit(
   amount: number,
   refId: string | undefined,
   description: string,
+  reason: string | undefined,
   tx?: Prisma.TransactionClient,
 ): Promise<WalletTransaction> {
   // guard: amount ต้องเป็น integer บวก — ป้องกัน negative/zero amount ที่ทำให้
@@ -131,6 +135,7 @@ export async function deductCredit(
         balanceAfter: wallet.balance,
         description,
         refId: refId ?? null,
+        reason: reason ?? null,
       },
     });
   };
