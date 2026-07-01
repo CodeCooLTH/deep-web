@@ -58,7 +58,7 @@ export default function AuctionPriceChart({ bidHistory, expectedPrice }: Props) 
                   strokeDashArray: 6,
                   label: {
                     text: `เป้า ฿${expectedPrice.toLocaleString('th-TH')}`,
-                    style: { color: '#fff', background: getColor('chart-secondary') },
+                    style: { color: getColor('white'), background: getColor('chart-secondary') },
                   },
                 },
               ],
