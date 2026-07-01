@@ -36,6 +36,7 @@ import ProductBasicCardV2 from './ProductBasicCardV2'
 import ProductShortDescCardV2 from './ProductShortDescCardV2'
 import ProductPriceCardV2 from './ProductPriceCardV2'
 import ProductTypePickerCardV2 from './ProductTypePickerCardV2'
+import ProductStockCardV2 from './ProductStockCardV2'
 import ProductCapabilityCardV2 from './ProductCapabilityCardV2'
 import ProductBillingPeriodCardV2 from './ProductBillingPeriodCardV2'
 import ProductTagsCardV2 from './ProductTagsCardV2'
@@ -116,6 +117,12 @@ const schema = Yup.object({
       is: 'CUSTOM',
       then: (s) => s.required('ใส่จำนวนวันต่อรอบ').min(1, 'อย่างน้อย 1 วัน'),
     }),
+  // stockQty — Inventory Add-on (feature 00003): null=ไม่ติดตาม, ≥0=ติดตาม
+  stockQty: Yup.number()
+    .integer('ต้องเป็นจำนวนเต็ม')
+    .min(0, 'ห้ามติดลบ')
+    .nullable()
+    .default(null),
 })
 
 interface ProductFormV2Props {
@@ -123,6 +130,9 @@ interface ProductFormV2Props {
   formId?: string
   product?: SerializedProduct
   shopName?: string
+  // entitlementActive — Inventory Add-on (feature 00003): เปิด ProductStockCardV2
+  // เฉพาะร้านที่ subscribe active (default false = ยังไม่แสดง)
+  entitlementActive?: boolean
 }
 
 export default function ProductFormV2({
@@ -130,6 +140,7 @@ export default function ProductFormV2({
   formId,
   product,
   shopName,
+  entitlementActive = false,
 }: ProductFormV2Props) {
   const router = useRouter()
   const isEdit = !!product
@@ -169,6 +180,7 @@ export default function ProductFormV2({
       billingMode: (product?.billingMode as ProductFormV2Values['billingMode']) ?? 'ONE_TIME',
       billingPeriod: (product?.billingPeriod as ProductFormV2Values['billingPeriod']) ?? null,
       billingPeriodDays: product?.billingPeriodDays ?? null,
+      stockQty: product?.stockQty ?? null,
     },
   })
 
@@ -206,6 +218,9 @@ export default function ProductFormV2({
         billingMode: values.billingMode,
         billingPeriod: values.billingPeriod,
         billingPeriodDays: values.billingPeriodDays,
+        // stockQty ส่งเฉพาะ PHYSICAL + entitlement active — ประเภทอื่น/ไม่ active ส่ง undefined (server ไม่แตะ)
+        stockQty:
+          values.type === 'PHYSICAL' && entitlementActive ? (values.stockQty ?? null) : undefined,
       }
 
       const url = isEdit ? `/api/products/${product!.id}` : '/api/products'
@@ -315,6 +330,15 @@ export default function ProductFormV2({
               setValue={setValue}
               watch={watch}
             />
+
+            {/* ProductStockCardV2 — เฉพาะสินค้าจับต้องได้ + ร้าน subscribe Inventory Add-on active
+                (feature 00003; ยังไม่ wire entitlementActive จาก page — ดู S-14) */}
+            {watch('type') === 'PHYSICAL' && entitlementActive && (
+              <>
+                <div className="border-default-100 border-t" />
+                <ProductStockCardV2 register={register} errors={errors} setValue={setValue} watch={watch} />
+              </>
+            )}
 
             <div className="border-default-100 border-t" />
             <ProductCapabilityCardV2 register={register} errors={errors} />
