@@ -35,6 +35,7 @@ export type PublicAuctionDTO = {
   description: string | null
   imageUrl: string
   images: string[]
+  startPrice: number
   currentPrice: number
   bidIncrement: number
   buyNowPrice: number | null
@@ -89,6 +90,7 @@ export function toPublicAuctionDTO(a: AuctionRow): PublicAuctionDTO {
     description: a.description,
     imageUrl: a.imageUrl,
     images: (a.images as string[]) ?? [],
+    startPrice: Number(a.startPrice),
     currentPrice: Number(a.currentPrice),
     bidIncrement: Number(a.bidIncrement),
     buyNowPrice: a.buyNowPrice ? Number(a.buyNowPrice) : null,
