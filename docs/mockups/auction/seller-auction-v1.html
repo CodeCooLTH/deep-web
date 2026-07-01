@@ -242,7 +242,7 @@
   .browser.tablet .side a{justify-content:center;padding:12px 0}
   .browser.tablet .side a.on{box-shadow:inset 0 0 0 0;border-radius:0}
 
-  .main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
   .topbar{height:60px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 24px}
   .tb-burger{font-size:22px;color:var(--default-500);display:none}
   .browser.tablet .tb-burger{display:block}
@@ -316,6 +316,181 @@
   /* desktop detail uses 2-up info row (เริ่ม/ขั้นบิด ฯลฯ) */
   .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
   .browser.tablet .info-grid{grid-template-columns:1fr}
+
+  /* ══════════ COMMAND CENTER — stat cards / control console / monitor ══════════ */
+  /* summary stat cards (list overview · desktop/tablet) */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  .browser.tablet .stat-row{grid-template-columns:repeat(2,1fr)}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:13px;padding:15px 16px;position:relative;overflow:hidden}
+  .stat .si{position:absolute;right:13px;top:13px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:21px}
+  .stat .sl{font-size:12px;color:var(--default-500);font-weight:500}
+  .stat .sv{font-size:23px;font-weight:800;color:var(--default-900);margin-top:6px;font-variant-numeric:tabular-nums;line-height:1.12}
+  .stat .sd{font-size:11.5px;margin-top:5px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
+  .sd.up{color:var(--success)} .sd.warn{color:var(--warning)} .sd.muted{color:var(--default-400)}
+  .si.p{background:var(--primary-15);color:var(--primary)}
+  .si.s{background:var(--success-15);color:var(--success)}
+  .si.i{background:var(--info-15);color:var(--info)}
+  .si.w{background:var(--warning-15);color:var(--warning)}
+
+  /* stat cards scroll-x (mobile/tablet) */
+  .stat-scroll{display:flex;gap:10px;overflow-x:auto;padding:6px 16px 12px;scrollbar-width:none}
+  .stat-scroll::-webkit-scrollbar{display:none}
+  .stat-mini{flex:0 0 auto;min-width:116px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:11px 13px}
+  .stat-mini .sl{font-size:11px;color:var(--default-500)}
+  .stat-mini .sv{font-size:18px;font-weight:800;color:var(--default-900);margin-top:3px;font-variant-numeric:tabular-nums}
+  .stat-mini .sv small{font-size:11px;font-weight:700}
+
+  /* live-now strip (desktop list) */
+  .livestrip{display:flex;gap:13px;overflow-x:auto;padding-bottom:4px;margin-bottom:20px;scrollbar-width:none}
+  .livestrip::-webkit-scrollbar{display:none}
+  .livecard{flex:0 0 248px;background:#fff;border:1px solid var(--border);border-radius:13px;overflow:hidden}
+  .livecard .lh{position:relative;height:112px;background:#000}
+  .livecard .lh img{width:100%;height:100%;object-fit:cover;opacity:.92}
+  .livecard .lh .live-badge{position:absolute;top:8px;left:8px;font-size:10px;padding:3px 8px}
+  .livecard .lh .cdov{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.62);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:7px;font-variant-numeric:tabular-nums}
+  .livecard .lb{padding:11px 13px}
+  .livecard .lname{font-size:13px;font-weight:600;color:var(--default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .livecard .lprice{font-size:17px;font-weight:800;color:var(--primary);margin-top:4px;font-variant-numeric:tabular-nums}
+  .livecard .lmeta{font-size:11px;color:var(--default-500);margin-top:2px}
+
+  /* control console head */
+  .console-head{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--border);border-radius:13px;padding:13px 16px;margin-bottom:16px}
+  .console-head .ch-img{width:56px;height:56px;border-radius:11px;object-fit:cover;flex-shrink:0}
+  .console-head .ch-body{flex:1;min-width:0}
+  .console-head .ch-name{font-size:16px;font-weight:700;color:var(--default-900);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .console-head .ch-sub{font-size:12px;color:var(--default-500);margin-top:3px}
+  .console-acts{display:flex;gap:8px;flex-shrink:0}
+  .browser.tablet .console-acts{flex-wrap:wrap;justify-content:flex-end}
+  .cbtn{font-size:13px;font-weight:600;padding:9px 14px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:none;font-family:inherit;white-space:nowrap}
+  .cbtn iconify-icon{font-size:17px}
+  .cbtn.primary{background:var(--primary);color:#fff}
+  .cbtn.warn{background:var(--warning-15);color:var(--warning)}
+  .cbtn.ghost{background:var(--default-100);color:var(--default-700)}
+  .cbtn.danger{background:#fff;border:1px solid var(--danger);color:var(--danger)}
+  .cbtn.ico{padding:9px 11px}
+  .cbtn:disabled,.cbtn.locked{opacity:.5;cursor:not-allowed}
+
+  /* console 2-col grid */
+  .console-grid{display:grid;grid-template-columns:1fr 322px;gap:16px;align-items:start}
+  .browser.tablet .console-grid{grid-template-columns:1fr}
+  .console-grid .form-side .panel{margin-bottom:16px}
+
+  /* bid monitor log (จัดการ ไม่ใช่ social bubble) */
+  .mlog{display:flex;flex-direction:column}
+  .mlog-row{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--default-100)}
+  .mlog-row:last-child{border-bottom:none}
+  .mlog-row.lead{background:var(--success-15);border-radius:10px;padding:10px 12px;border-bottom:none;margin-bottom:3px}
+  .mlog .av{width:34px;height:34px;border-radius:50%;flex-shrink:0;position:relative;display:block}
+  .mlog .av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .mlog .av .fb{position:absolute;bottom:-2px;right:-3px;width:15px;height:15px;border-radius:50%;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;border:2px solid #fff}
+  .mlog .mn{flex:1;min-width:0}
+  .mlog .mn .nm{font-size:13px;font-weight:600;color:var(--default-900);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .mlog .mn .tm{font-size:11px;color:var(--default-400);margin-top:2px}
+  .mlog .mamt{font-size:14px;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mlog-row.lead .mamt{color:var(--success)}
+  .mblock{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--default-400);font-size:16px;cursor:pointer;flex-shrink:0}
+  .mblock:hover{background:var(--danger-15);color:var(--danger)}
+
+  /* control panel rows */
+  .cp-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--default-200);font-size:13px}
+  .cp-row:last-child{border-bottom:none}
+  .cp-row .ck{color:var(--default-500);display:flex;align-items:center;gap:7px}
+  .cp-row .ck iconify-icon{font-size:17px;color:var(--default-400)}
+  .cp-row .cv{font-weight:700;color:var(--default-900);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:8px}
+  .cp-link{font-size:11.5px;font-weight:700;color:var(--primary);cursor:pointer}
+
+  /* ── live analytics / charts (mockup = SVG/CSS; impl จริง = ApexChart HR10) ── */
+  .analytics{display:grid;grid-template-columns:1.7fr 1fr;gap:16px;margin-bottom:16px}
+  .browser.tablet .analytics{grid-template-columns:1fr}
+  .chart-card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:16px 18px}
+  .chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .chart-head .ct{font-size:14px;font-weight:700;color:var(--default-900);display:flex;align-items:center;gap:7px}
+  .chart-head .ct iconify-icon{color:var(--primary);font-size:18px}
+  .livefeed-dot{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--success)}
+  .livefeed-dot i{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;animation:pulse 1.3s infinite}
+  .spark-svg{width:100%;height:auto;display:block;overflow:visible}
+  .pulsering{animation:pulsering 1.5s ease-out infinite;transform-origin:center}
+  @keyframes pulsering{0%{r:4;opacity:.55}80%{r:13;opacity:0}100%{opacity:0}}
+  .chart-legend{display:flex;gap:15px;margin-top:10px;font-size:11px;color:var(--default-500);flex-wrap:wrap}
+  .chart-legend span{display:inline-flex;align-items:center;gap:5px}
+  .lg-dot{width:11px;height:3px;border-radius:2px;display:inline-block}
+  /* bid velocity bars */
+  .velo{margin-top:14px;padding-top:13px;border-top:1px dashed var(--default-200)}
+  .velo-h{font-size:11.5px;color:var(--default-500);margin-bottom:9px;display:flex;justify-content:space-between}
+  .velo-bars{display:flex;align-items:flex-end;gap:4px;height:46px}
+  .velo-bars span{flex:1;background:var(--primary-15);border-radius:3px 3px 0 0;min-height:3px}
+  .velo-bars span.hot{background:var(--primary)}
+  .velo-bars span.now{background:var(--danger);animation:pulse 1.2s infinite}
+  /* side metrics */
+  .metric-stack{display:flex;flex-direction:column;gap:11px}
+  .metric{display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--border);border-radius:11px}
+  .metric .mi{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .metric .ml{font-size:11.5px;color:var(--default-500)}
+  .metric .mv{font-size:17px;font-weight:800;color:var(--default-900);margin-top:1px;font-variant-numeric:tabular-nums}
+  .metric .mv small{font-size:11px;font-weight:700;color:var(--success)}
+  /* momentum */
+  .momentum{padding:13px;border:1px solid var(--border);border-radius:11px}
+  .momentum .mh{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--default-500)}
+  .momentum .mh b{font-size:13px;font-weight:800;color:var(--danger)}
+  .momentum-track{height:8px;border-radius:99px;background:var(--default-100);overflow:hidden;margin-top:9px}
+  .momentum-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--info),var(--primary),var(--danger))}
+
+  /* danger zone */
+  .danger-zone{border:1px solid var(--danger-15);border-radius:13px;padding:15px;background:rgba(226,55,68,.035)}
+  .danger-zone .dz-t{font-size:11px;font-weight:700;color:var(--danger);margin-bottom:12px;display:flex;align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.5px}
+  .dz-btn{width:100%;justify-content:center}
+  .dz-btn+.dz-btn{margin-top:9px}
+  .lockmsg{font-size:11px;color:var(--default-400);margin-top:8px;display:flex;align-items:flex-start;gap:4px}
+
+  /* live bidder บน card ราคาปัจจุบัน */
+  .stat-bidder{display:flex;align-items:center;gap:6px;margin-top:9px;font-size:11.5px;color:var(--default-700);font-weight:600}
+  .stat-bidder .ba{width:21px;height:21px;border-radius:50%;flex-shrink:0;position:relative}
+  .stat-bidder .ba img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .stat-bidder .ba .fb{position:absolute;bottom:-2px;right:-3px;width:12px;height:12px;border-radius:50%;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px;border:1.5px solid #fff}
+  .stat-bidder .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stat-bidder .live{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 1.3s infinite;flex-shrink:0;margin-left:auto}
+
+  /* ── ยอดที่คาดหวัง / target progress (gauge + bar) ── */
+  .target-panel{background:#fff;border:1px solid var(--border);border-radius:13px;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;gap:20px}
+  .browser.tablet .target-panel{gap:15px}
+  .gauge{flex-shrink:0;width:104px;height:104px;position:relative}
+  .gauge svg{transform:rotate(-90deg);transform-origin:center}
+  .gauge .gtxt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gauge .gpct{font-size:23px;font-weight:800;color:var(--primary);line-height:1;font-variant-numeric:tabular-nums}
+  .gauge .glbl{font-size:9px;color:var(--default-400);margin-top:3px}
+  .target-body{flex:1;min-width:0}
+  .target-h{font-size:14px;font-weight:700;color:var(--default-900);display:flex;align-items:center;gap:7px}
+  .target-h iconify-icon{color:var(--primary);font-size:18px}
+  .target-vals{font-size:13px;color:var(--default-600);margin-top:6px}
+  .target-vals b{color:var(--default-900);font-weight:800;font-variant-numeric:tabular-nums}
+  .target-vals b.tgt{color:var(--primary)}
+  .target-remain{font-size:12px;font-weight:700;color:var(--warning);margin-top:4px;display:flex;align-items:center;gap:4px}
+  .target-bar{margin-top:12px;height:10px;border-radius:99px;background:var(--default-100);overflow:hidden}
+  .target-bar .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--info),var(--primary))}
+  .target-foot{display:flex;justify-content:space-between;font-size:10px;color:var(--default-400);margin-top:6px}
+  /* target เป็น stat card ที่ 4 (compact ring) */
+  .stat.stat-target{display:flex;align-items:center;gap:13px}
+  .tg-ring{width:56px;height:56px;position:relative;flex-shrink:0}
+  .tg-ring svg{transform:rotate(-90deg);transform-origin:center}
+  .tg-ring .tg-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--primary)}
+
+  /* ── live notification toast (mockup · impl จริง = pacesToast top-right HR9) ── */
+  .toast-stack{position:absolute;top:14px;right:18px;z-index:30;display:flex;flex-direction:column;gap:10px;width:300px}
+  .toast{background:#fff;border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:12px;box-shadow:0 14px 34px -12px rgba(30,41,59,.4);padding:12px 13px;display:flex;gap:11px;position:relative;overflow:hidden;animation:toastin .42s cubic-bezier(.2,.8,.2,1)}
+  @keyframes toastin{from{opacity:0;transform:translateX(38px)}to{opacity:1;transform:none}}
+  .toast .tav{width:40px;height:40px;border-radius:50%;flex-shrink:0;position:relative}
+  .toast .tav img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .toast .tav .fb{position:absolute;bottom:-2px;right:-3px;width:15px;height:15px;border-radius:50%;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;border:2px solid #fff}
+  .toast .tbody{flex:1;min-width:0}
+  .toast .tt{font-size:11.5px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:5px}
+  .toast .tn{font-size:12.5px;color:var(--default-700);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .toast .tamt{font-size:17px;font-weight:800;color:var(--default-900);margin-top:3px;font-variant-numeric:tabular-nums}
+  .toast .tamt .up{color:var(--success);font-size:12px;font-weight:700}
+  .toast .tx{position:absolute;top:8px;right:9px;color:var(--default-300);font-size:16px;cursor:pointer}
+  .toast .tbar{position:absolute;left:0;bottom:0;height:3px;background:var(--primary);width:100%;animation:tbar 5s linear forwards}
+  @keyframes tbar{from{width:100%}to{width:0}}
+  .toast.info{border-left-color:var(--info)} .toast.info .tt{color:var(--info)} .toast.info .tbar{background:var(--info)}
+  .toast.warn{border-left-color:var(--warning)} .toast.warn .tt{color:var(--warning)} .toast.warn .tbar{background:var(--warning)}
 </style>
 </head>
 <body>
@@ -328,6 +503,12 @@
       <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
       <span class="h-title">การประมูล</span>
       <span class="h-act"><span class="ico"><iconify-icon icon="solar:magnifer-linear"></iconify-icon></span><span class="btn-add"><iconify-icon icon="solar:add-square-bold-duotone"></iconify-icon> สร้าง</span></span>
+    </div>
+    <div class="stat-scroll" style="padding-top:10px">
+      <div class="stat-mini"><div class="sl">กำลังประมูล</div><div class="sv" style="color:var(--success)">1</div></div>
+      <div class="stat-mini"><div class="sl">บิดวันนี้</div><div class="sv">37</div></div>
+      <div class="stat-mini"><div class="sl">ยอดประมูล (live)</div><div class="sv">฿12,500</div></div>
+      <div class="stat-mini"><div class="sl">ใกล้ปิด &lt;1ชม.</div><div class="sv" style="color:var(--warning)">1</div></div>
     </div>
     <div class="chips">
       <span class="chip on">ทั้งหมด</span>
@@ -422,8 +603,10 @@
         <div class="f-grp"><label class="f-label">ขั้นบิดขั้นต่ำ <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="500"></div></div>
         <div class="f-grp"><label class="f-label">ราคาขั้นต่ำ (reserve)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div>
           <div class="f-hint info"><iconify-icon icon="solar:info-circle-linear"></iconify-icon> Buyer เห็นว่ามีราคาขั้นต่ำ แต่ไม่เห็นตัวเลข</div></div>
-        <div class="f-grp" style="margin-bottom:0"><label class="f-label">ราคาซื้อทันที (buy-now)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div>
+        <div class="f-grp"><label class="f-label">ราคาซื้อทันที (buy-now)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div>
           <div class="f-hint info"><iconify-icon icon="solar:bolt-linear"></iconify-icon> Buyer กดซื้อทันทีได้ถ้าบิดยังไม่ถึงราคานี้</div></div>
+        <div class="f-grp" style="margin-bottom:0"><label class="f-label">ยอดที่คาดหวัง (เป้าหมาย)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="เช่น 20000"></div>
+          <div class="f-hint info"><iconify-icon icon="solar:target-linear"></iconify-icon> เป้าหมายส่วนตัว ไว้ติดตามว่าราคาถึงที่หวังไหม — buyer ไม่เห็น</div></div>
       </div></div>
 
       <div class="card"><div class="card-pad">
@@ -440,49 +623,101 @@
   </div>
 </div>
 
-<!-- ════ FRAME 3: detail — LIVE (immersive live สด) ════ -->
+<!-- ════ FRAME 3: detail — LIVE (seller CONTROL CONSOLE) ════ -->
 <div>
-  <div class="frame-label">รายละเอียด — กำลังประมูล (live สด)<small>immersive hero HUD + live bid stream</small></div>
+  <div class="frame-label">จัดการประมูล — กำลังประมูล (console)<small>stat cards + แผงควบคุม + bid monitor + ผู้บิด (เน้นจัดการ ไม่ใช่มุม buyer)</small></div>
   <div class="phone">
-    <span class="h-back" style="position:absolute;top:12px;left:12px;z-index:5;color:#fff;background:rgba(0,0,0,.4);border-radius:50%;width:36px;height:36px;font-size:19px"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
-    <span class="live-badge"><span class="dot"></span>LIVE</span>
-    <div class="live-hero">
-      <img src="https://picsum.photos/seed/amulet2/780/600">
-      <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
-      <div class="ov-bot">
-        <div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div>
-        <div class="hud">
-          <div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div>
-          <div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div>
+    <div class="head">
+      <span class="h-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
+      <span class="h-title">จัดการประมูล</span>
+      <span class="h-act"><span class="b b-live"><span class="dot"></span>LIVE</span><span class="ico"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></span>
+    </div>
+    <!-- live notification toast (impl จริง = pacesToast top-right) -->
+    <div class="toast-stack" style="top:56px;left:12px;right:12px;width:auto">
+      <div class="toast">
+        <span class="tav"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+        <div class="tbody">
+          <div class="tt"><iconify-icon icon="solar:hand-money-bold-duotone"></iconify-icon> มีผู้เสนอราคาใหม่</div>
+          <div class="tn">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div>
+          <div class="tamt">฿13,000 <span class="up">▲ +฿500</span></div>
         </div>
+        <span class="tx"><iconify-icon icon="solar:close-circle-linear"></iconify-icon></span>
+        <span class="tbar"></span>
       </div>
     </div>
-    <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
-    <div class="scroll" style="padding:8px 0 76px">
-      <!-- รายละเอียด (ใต้ราคา) -->
-      <div class="meta-strip" style="margin-top:0">
-        <span>เริ่ม <b>฿5,000</b></span><span>ขั้นบิด <b>฿500</b></span><span>ขั้นต่ำ <b>มี</b></span><span>ซื้อทันที <b>฿25,000</b></span><span>ปิด <b>20:15</b> <span style="color:var(--warning)">(+2)</span></span>
+    <div class="scroll" style="padding:0 0 78px">
+      <!-- product mini -->
+      <div style="display:flex;gap:11px;align-items:center;padding:4px 16px 10px">
+        <img src="https://picsum.photos/seed/amulet/130" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex-shrink:0">
+        <div style="min-width:0"><div style="font-size:14px;font-weight:700;color:var(--default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">พระสมเด็จวัดระฆัง เนื้อผง</div><div style="font-size:11.5px;color:var(--default-500)">รหัส a1b2c3 · ปิดอัตโนมัติ 20:15 น.</div></div>
       </div>
-      <div style="padding:6px 16px 2px;color:var(--default-400);font-size:11.5px;text-align:center"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว</div>
-
-      <!-- การเสนอราคาสด (ล่างสุด · FB comment · collapsed · ผู้นำ/ราคาสูงสุดโชว์เสมอ) -->
+      <!-- KPI stat cards scroll -->
+      <div class="stat-scroll">
+        <div class="stat-mini" style="min-width:170px"><div class="sl">ราคาปัจจุบัน</div><div class="sv">฿12,500 <small style="color:var(--success)">▲500</small></div><div class="stat-bidder" style="margin-top:6px"><span class="ba"><img src="https://i.pravatar.cc/80?img=12"></span><span class="nm">สมชาย ใจดี</span><span class="live"></span></div></div>
+        <div class="stat-mini"><div class="sl">กำลังดู</div><div class="sv">142</div></div>
+        <div class="stat-mini"><div class="sl">เหลือเวลา</div><div class="sv" style="color:var(--danger)">00:48</div></div>
+        <div class="stat-mini" style="min-width:152px"><div class="sl">ยอดที่คาดหวัง</div><div class="sv" style="font-size:16px">63% <small style="color:var(--default-400);font-weight:600">· ฿20,000</small></div><div class="target-bar" style="margin-top:8px;height:7px"><div class="fill" style="width:63%"></div></div></div>
+      </div>
+      <!-- live analytics (mockup SVG · impl ApexChart HR10) -->
       <div class="card"><div class="card-pad">
-        <div class="stream-h" style="padding:0 0 10px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
-        <div class="stream" style="padding:0">
-          <div class="cmt lead">
-            <div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
-            <div class="cmt-body">
-              <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div>
-              <div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div>
-            </div>
+        <div class="chart-head" style="margin-bottom:8px"><span class="ct" style="font-size:13.5px"><iconify-icon icon="solar:chart-2-bold-duotone"></iconify-icon> แนวโน้มราคาสด</span><span class="livefeed-dot"><i></i> สด</span></div>
+        <svg class="spark-svg" viewBox="0 0 600 140" preserveAspectRatio="none" style="height:108px">
+          <defs><linearGradient id="pg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#236dc9" stop-opacity="0.28"/><stop offset="100%" stop-color="#236dc9" stop-opacity="0"/></linearGradient></defs>
+          <line x1="0" y1="16" x2="600" y2="16" stroke="#173f78" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <text x="6" y="11" font-size="10" fill="#173f78" font-family="Anuphan">เป้าหมาย ฿20,000</text>
+          <path d="M0,122 L60,118 L120,108 L180,112 L240,92 L300,86 L360,72 L420,64 L480,48 L540,38 L585,32 L585,140 L0,140 Z" fill="url(#pg3)"/>
+          <path d="M0,122 L60,118 L120,108 L180,112 L240,92 L300,86 L360,72 L420,64 L480,48 L540,38 L585,32" fill="none" stroke="#236dc9" stroke-width="2.5" stroke-linejoin="round"/>
+          <circle class="pulsering" cx="585" cy="32" r="4" fill="#236dc9"/><circle cx="585" cy="32" r="4.5" fill="#236dc9" stroke="#fff" stroke-width="2"/>
+        </svg>
+        <div class="velo">
+          <div class="velo-h"><span>ความถี่การบิด</span><span style="color:var(--danger);font-weight:700">🔥 พุ่งช่วงท้าย</span></div>
+          <div class="velo-bars" style="height:38px"><span style="height:20%"></span><span style="height:30%"></span><span style="height:24%"></span><span style="height:44%"></span><span style="height:50%"></span><span class="hot" style="height:64%"></span><span class="hot" style="height:72%"></span><span class="hot" style="height:84%"></span><span class="now" style="height:100%"></span></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:13px;padding-top:12px;border-top:1px dashed var(--default-200)">
+          <div><div style="font-size:11px;color:var(--default-500)">คาดราคาปิด</div><div style="font-size:15px;font-weight:800;color:var(--default-900)">~฿14,500 <span style="font-size:11px;color:var(--success);font-weight:700">▲16%</span></div></div>
+          <div style="text-align:right"><div style="font-size:11px;color:var(--default-500)">โมเมนตัม</div><div style="font-size:14px;font-weight:800;color:var(--danger)">แรงมาก 🔥</div></div>
+        </div>
+      </div></div>
+      <!-- แผงควบคุม -->
+      <div class="card"><div class="card-pad">
+        <div class="card-t"><iconify-icon icon="solar:settings-bold-duotone" style="color:var(--primary);vertical-align:-3px"></iconify-icon> แผงควบคุม</div>
+        <div class="cp-row"><span class="ck"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ต่อเวลาอัตโนมัติ</span><span class="cv">2 / 5 ครั้ง</span></div>
+        <div class="cp-row"><span class="ck"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> ซื้อทันที (buy-now)</span><span class="cv">฿25,000 <span class="cp-link">แก้</span></span></div>
+        <div class="cp-row"><span class="ck"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon> ปิดอัตโนมัติ</span><span class="cv">20:15 น.</span></div>
+      </div></div>
+      <!-- bid monitor (live log + block) -->
+      <div class="card"><div class="card-pad">
+        <div class="stream-h" style="padding:0 0 8px"><span class="t" style="font-size:14px"><iconify-icon icon="solar:graph-up-bold-duotone" style="color:var(--primary);vertical-align:-3px"></iconify-icon> บิดเข้าสด</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+        <div class="mlog">
+          <div class="mlog-row lead">
+            <span class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+            <div class="mn"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="tm">12 วินาทีที่แล้ว · ผ่าน Facebook</div></div>
+            <span class="mamt">฿12,500</span>
+            <span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
+          </div>
+          <div class="mlog-row">
+            <span class="av"><img src="https://i.pravatar.cc/80?img=45"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+            <div class="mn"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="tm">2 นาทีที่แล้ว</div></div>
+            <span class="mamt">฿12,000</span>
+            <span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
           </div>
         </div>
-        <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
+        <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูบิดก่อนหน้า (10)</div>
+      </div></div>
+      <!-- ผู้บิดทั้งหมด (bidder mgmt) -->
+      <div class="card"><div class="card-pad">
+        <div class="card-t"><iconify-icon icon="solar:users-group-rounded-bold-duotone" style="color:var(--primary);vertical-align:-3px"></iconify-icon> ผู้บิดทั้งหมด (5)</div>
+        <div class="mlog">
+          <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=12"></span><div class="mn"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div><div class="tm">5 บิด · สูงสุด ฿12,500</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+          <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=45"></span><div class="mn"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="tm">3 บิด · สูงสุด ฿12,000</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+          <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=8"></span><div class="mn"><div class="nm">ธนา มั่งมี <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.6</span></div><div class="tm">2 บิด · สูงสุด ฿10,500</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+        </div>
       </div></div>
     </div>
-    <!-- seller action bar (bottom เสมอ) — live+bid: cancel ล็อก เหลือแชร์ -->
-    <div class="f-footer">
-      <button class="btn btn-primary" style="flex:1"><iconify-icon icon="solar:share-linear"></iconify-icon> แชร์ลิงก์ประมูล</button>
+    <!-- console action bar (full control) -->
+    <div class="f-footer" style="gap:8px">
+      <button class="cbtn warn" style="flex:1"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon> ต่อเวลา</button>
+      <button class="cbtn primary" style="flex:1.4"><iconify-icon icon="solar:flag-bold-duotone"></iconify-icon> จบก่อนเวลา</button>
     </div>
   </div>
 </div>
@@ -661,6 +896,25 @@
           <div><div class="pg-title">การประมูล</div><div class="pg-sub">จัดการรายการประมูลของร้านคุณ · 5 รายการ</div></div>
           <span class="btn-add"><iconify-icon icon="solar:add-square-bold-duotone"></iconify-icon> สร้างรายการประมูล</span>
         </div>
+        <!-- command center summary -->
+        <div class="stat-row">
+          <div class="stat"><span class="si s"><iconify-icon icon="tabler:gavel"></iconify-icon></span><div class="sl">กำลังประมูล</div><div class="sv">1</div><div class="sd up"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block"></span> ไลฟ์อยู่</div></div>
+          <div class="stat"><span class="si p"><iconify-icon icon="solar:hand-money-bold-duotone"></iconify-icon></span><div class="sl">บิดวันนี้</div><div class="sv">37</div><div class="sd up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon> +12 จากเมื่อวาน</div></div>
+          <div class="stat"><span class="si i"><iconify-icon icon="solar:wallet-money-bold-duotone"></iconify-icon></span><div class="sl">ยอดประมูล (live)</div><div class="sv">฿12,500</div><div class="sd muted">รวมราคาปัจจุบัน</div></div>
+          <div class="stat"><span class="si w"><iconify-icon icon="solar:alarm-bold-duotone"></iconify-icon></span><div class="sl">ใกล้ปิด &lt;1 ชม.</div><div class="sv">1</div><div class="sd warn"><iconify-icon icon="solar:clock-circle-bold"></iconify-icon> 00:14:33</div></div>
+        </div>
+        <!-- live now strip -->
+        <div style="font-size:13px;font-weight:700;color:var(--default-900);margin-bottom:11px;display:flex;align-items:center;gap:7px"><span class="b b-live"><span class="dot"></span>LIVE</span> กำลังประมูลตอนนี้</div>
+        <div class="livestrip">
+          <div class="livecard">
+            <div class="lh"><img src="https://picsum.photos/seed/amulet2/500/300"><span class="live-badge"><span class="dot"></span>LIVE</span><span class="cdov">00:14:33</span></div>
+            <div class="lb"><div class="lname">พระสมเด็จวัดระฆัง เนื้อผง</div><div class="lprice">฿12,500</div><div class="lmeta">12 บิด · 142 กำลังดู</div></div>
+          </div>
+          <div class="livecard">
+            <div class="lh"><img src="https://picsum.photos/seed/watch/500/300"><span class="b b-sched" style="position:absolute;top:8px;left:8px;font-size:10px;padding:3px 8px">เริ่มเร็ว ๆ นี้</span><span class="cdov">20:00 น.</span></div>
+            <div class="lb"><div class="lname">นาฬิกา Seiko วินเทจ</div><div class="lprice">฿5,000 <span style="font-size:11px;font-weight:500;color:var(--default-400)">เริ่มต้น</span></div><div class="lmeta">รอเปิดประมูล</div></div>
+          </div>
+        </div>
         <div class="toolbar">
           <span class="chip on">ทั้งหมด</span><span class="chip">ฉบับร่าง</span><span class="chip">รอเปิด</span><span class="chip">กำลังประมูล</span><span class="chip">จบแล้ว</span><span class="chip">ขายไม่ออก</span><span class="chip">ยกเลิก</span>
           <div class="tb-right"><span class="inp-search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon> ค้นหาชื่อสินค้า…</span></div>
@@ -760,6 +1014,7 @@
                 <div class="f-grp"><label class="f-label">ขั้นบิดขั้นต่ำ <span class="req">*</span></label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" value="500"></div></div>
                 <div class="f-grp"><label class="f-label">ราคาขั้นต่ำ (reserve)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div><div class="f-hint info"><iconify-icon icon="solar:info-circle-linear"></iconify-icon> Buyer เห็นว่ามี แต่ไม่เห็นตัวเลข</div></div>
                 <div class="f-grp"><label class="f-label">ราคาซื้อทันที (buy-now)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="ไม่บังคับ"></div><div class="f-hint info"><iconify-icon icon="solar:bolt-linear"></iconify-icon> ซื้อทันทีถ้าบิดยังไม่ถึง</div></div>
+                <div class="f-grp" style="margin-bottom:0"><label class="f-label">ยอดที่คาดหวัง (เป้าหมาย)</label><div class="f-money"><span class="cur">฿</span><input class="f-input" type="number" placeholder="เช่น 20000"></div><div class="f-hint info"><iconify-icon icon="solar:target-linear"></iconify-icon> เป้าหมายส่วนตัว ไว้ติดตามความคืบหน้า — buyer ไม่เห็น · ไม่กระทบการขาย</div></div>
               </div>
             </div></div>
             <div class="panel"><div class="panel-pad">
@@ -785,8 +1040,8 @@
   </div>
 </div>
 
-<!-- ════ D3: DETAIL — LIVE desktop (centered immersive) ════ -->
-<div class="dt-label">🖥 Desktop — รายละเอียด · กำลังประมูล (live สด)<small>centered column ~720px ใน shell — immersive hero + HUD + bid stream</small></div>
+<!-- ════ D3: DETAIL — LIVE desktop (CONTROL CONSOLE) ════ -->
+<div class="dt-label">🖥 Desktop — จัดการประมูล · กำลังประมูล (Control Console)<small>stat cards + bid monitor + ผู้บิด mgmt + แผงควบคุม (เน้นจัดการ ไม่ใช่ immersive แบบ buyer)</small></div>
 <div class="browser">
   <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/a1b2c3</span></div>
   <div class="shell">
@@ -807,52 +1062,164 @@
         <span class="tb-ico"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
         <img class="tb-ava" src="https://i.pravatar.cc/80?img=15">
       </div>
-      <div class="content">
-        <div class="centered">
-          <div class="pg-head"><div><div class="pg-title">รายละเอียดประมูล</div><div class="pg-sub">กำลังประมูลสด · มีผู้เสนอราคาแล้ว</div></div><button class="btn btn-primary" style="width:auto;padding:9px 16px"><iconify-icon icon="solar:share-linear"></iconify-icon> แชร์ลิงก์</button></div>
-          <div class="imm">
-            <span class="imm-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
-            <span class="live-badge imm-live"><span class="dot"></span>LIVE</span>
-            <div class="live-hero">
-              <img src="https://picsum.photos/seed/amulet2/900/600">
-              <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
-              <div class="ov-bot">
-                <div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div>
-                <div class="hud">
-                  <div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div>
-                  <div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div>
-                </div>
-              </div>
-            </div>
-            <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาอัตโนมัติแล้ว 2/5 ครั้ง</div>
+      <!-- live notification toast (impl จริง = pacesToast top-right · trigger Supabase Realtime new bid) -->
+      <div class="toast-stack">
+        <div class="toast">
+          <span class="tav"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+          <div class="tbody">
+            <div class="tt"><iconify-icon icon="solar:hand-money-bold-duotone"></iconify-icon> มีผู้เสนอราคาใหม่</div>
+            <div class="tn">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div>
+            <div class="tamt">฿13,000 <span class="up">▲ +฿500</span></div>
           </div>
-
-          <div class="panel" style="margin-top:16px"><div class="panel-pad">
-            <div class="panel-t"><iconify-icon icon="solar:document-text-bold-duotone" style="color:var(--primary)"></iconify-icon> รายละเอียดประมูล</div>
-            <div class="info-grid">
-              <div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div>
-              <div class="kv"><span class="k">ขั้นบิดขั้นต่ำ</span><span class="v">฿500</span></div>
-              <div class="kv"><span class="k">ราคาขั้นต่ำ (reserve)</span><span class="v">มี</span></div>
-              <div class="kv"><span class="k">ซื้อทันที (buy-now)</span><span class="v">฿25,000</span></div>
-              <div class="kv"><span class="k">เวลาปิด</span><span class="v">20:15 <span style="color:var(--warning);font-weight:600">(+2)</span></span></div>
-              <div class="kv"><span class="k">ผู้กำลังดู</span><span class="v">142</span></div>
+          <span class="tx"><iconify-icon icon="solar:close-circle-linear"></iconify-icon></span>
+          <span class="tbar"></span>
+        </div>
+        <div class="toast info">
+          <span class="tav" style="background:var(--info-15);color:var(--info);display:flex;align-items:center;justify-content:center;font-size:22px"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon></span>
+          <div class="tbody"><div class="tt"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ต่อเวลาอัตโนมัติ</div><div class="tn">มีบิดช่วงท้าย · +60 วินาที (3/5)</div></div>
+          <span class="tbar"></span>
+        </div>
+      </div>
+      <div class="content">
+        <!-- console head + action cluster -->
+        <div class="console-head">
+          <img class="ch-img" src="https://picsum.photos/seed/amulet/130">
+          <div class="ch-body">
+            <div class="ch-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่ <span class="b b-live"><span class="dot"></span>LIVE</span></div>
+            <div class="ch-sub">รหัส a1b2c3 · พระเครื่อง · ปิดอัตโนมัติ 20:15 น. · มีผู้เสนอราคาแล้ว 12 บิด</div>
+          </div>
+          <div class="console-acts">
+            <button class="cbtn warn"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon> ต่อเวลา</button>
+            <button class="cbtn primary"><iconify-icon icon="solar:flag-bold-duotone"></iconify-icon> จบก่อนเวลา</button>
+            <button class="cbtn ghost ico"><iconify-icon icon="solar:share-linear"></iconify-icon></button>
+            <button class="cbtn ghost ico"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></button>
+          </div>
+        </div>
+        <!-- KPI stat row -->
+        <div class="stat-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+          <div class="stat"><span class="si p"><iconify-icon icon="solar:tag-price-bold-duotone"></iconify-icon></span><div class="sl">ราคาปัจจุบัน</div><div class="sv">฿12,500 <span style="font-size:13px;color:var(--success);font-weight:700">▲ +฿500</span></div>
+            <div class="stat-bidder"><span class="ba"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span><span class="nm">สมชาย ใจดี</span> <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span><span class="live"></span></div>
+          </div>
+          <div class="stat"><span class="si i"><iconify-icon icon="solar:eye-bold-duotone"></iconify-icon></span><div class="sl">กำลังดู</div><div class="sv">142</div><div class="sd up">+8 / นาที</div></div>
+          <div class="stat"><span class="si w"><iconify-icon icon="solar:alarm-bold-duotone"></iconify-icon></span><div class="sl">เหลือเวลา</div><div class="sv" style="color:var(--danger)">00:48</div><div class="sd warn">โค้งสุดท้าย</div></div>
+          <div class="stat stat-target">
+            <div class="tg-ring"><svg viewBox="0 0 120 120" width="56" height="56"><circle cx="60" cy="60" r="50" fill="none" stroke="#e2e8f0" stroke-width="16"/><circle cx="60" cy="60" r="50" fill="none" stroke="#236dc9" stroke-width="16" stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="116.24"/></svg><span class="tg-pct">63%</span></div>
+            <div><div class="sl">ยอดที่คาดหวัง</div><div class="sv" style="font-size:16px">฿20,000</div><div style="font-size:11px;color:var(--default-400);margin-top:5px;font-weight:600">ปัจจุบัน ฿12,500 · เหลือ ฿7,500</div></div>
+          </div>
+        </div>
+        <!-- live analytics row (mockup SVG/CSS · impl จริง = ApexChart HR10 copy theme charts) -->
+        <div class="analytics">
+          <div class="chart-card">
+            <div class="chart-head">
+              <span class="ct"><iconify-icon icon="solar:chart-2-bold-duotone"></iconify-icon> แนวโน้มราคาสด</span>
+              <span class="livefeed-dot"><i></i> รับข้อมูลสด</span>
             </div>
-            <div style="margin-top:11px;color:var(--default-400);font-size:12px;display:flex;align-items:center;gap:5px"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว</div>
-          </div></div>
-
-          <div class="panel"><div class="panel-pad">
-            <div class="stream-h" style="padding:0 0 12px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
-            <div class="stream" style="padding:0">
-              <div class="cmt lead">
-                <div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div>
-                <div class="cmt-body">
-                  <div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div>
-                  <div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div>
-                </div>
+            <svg class="spark-svg" viewBox="0 0 600 170" preserveAspectRatio="none" style="height:150px">
+              <defs>
+                <linearGradient id="pg1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#236dc9" stop-opacity="0.28"/>
+                  <stop offset="100%" stop-color="#236dc9" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- anti-snipe markers -->
+              <line x1="500" y1="0" x2="500" y2="170" stroke="#f08c00" stroke-width="1" stroke-dasharray="3 4" opacity="0.5"/>
+              <line x1="550" y1="0" x2="550" y2="170" stroke="#f08c00" stroke-width="1" stroke-dasharray="3 4" opacity="0.5"/>
+              <text x="503" y="14" font-size="9" fill="#f08c00" font-family="Anuphan">+60s</text>
+              <!-- target line (ยอดที่คาดหวัง) -->
+              <line x1="0" y1="20" x2="600" y2="20" stroke="#173f78" stroke-width="1.5" stroke-dasharray="6 4"/>
+              <text x="6" y="15" font-size="10" fill="#173f78" font-family="Anuphan">เป้าหมาย ฿20,000</text>
+              <!-- area + line -->
+              <path d="M0,150 L50,146 L100,135 L150,138 L200,118 L250,108 L300,112 L350,90 L400,80 L450,82 L500,58 L550,46 L585,40 L585,170 L0,170 Z" fill="url(#pg1)"/>
+              <path d="M0,150 L50,146 L100,135 L150,138 L200,118 L250,108 L300,112 L350,90 L400,80 L450,82 L500,58 L550,46 L585,40" fill="none" stroke="#236dc9" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+              <!-- live end point -->
+              <circle class="pulsering" cx="585" cy="40" r="4" fill="#236dc9"/>
+              <circle cx="585" cy="40" r="4.5" fill="#236dc9" stroke="#fff" stroke-width="2"/>
+            </svg>
+            <div class="chart-legend">
+              <span><i class="lg-dot" style="background:#236dc9"></i> ราคาปัจจุบัน ฿12,500</span>
+              <span><i class="lg-dot" style="background:#173f78"></i> เป้าหมาย ฿20,000</span>
+              <span><i class="lg-dot" style="background:#f08c00"></i> ต่อเวลาอัตโนมัติ</span>
+            </div>
+            <!-- bid velocity -->
+            <div class="velo">
+              <div class="velo-h"><span>ความถี่การบิด (ต่อ 5 นาที)</span><span style="color:var(--danger);font-weight:700">🔥 พุ่งช่วงท้าย</span></div>
+              <div class="velo-bars">
+                <span style="height:18%"></span><span style="height:12%"></span><span style="height:30%"></span><span style="height:22%"></span><span style="height:40%"></span><span style="height:34%"></span><span style="height:50%"></span><span style="height:44%"></span><span class="hot" style="height:62%"></span><span class="hot" style="height:70%"></span><span class="hot" style="height:58%"></span><span class="hot" style="height:84%"></span><span class="now" style="height:100%"></span>
               </div>
             </div>
-            <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
-          </div></div>
+          </div>
+          <div class="metric-stack">
+            <div class="momentum">
+              <div class="mh"><span>โมเมนตัมการประมูล</span><b>แรงมาก</b></div>
+              <div class="momentum-track"><div class="momentum-fill" style="width:82%"></div></div>
+            </div>
+            <div class="metric"><span class="mi" style="background:var(--primary-15);color:var(--primary)"><iconify-icon icon="solar:target-bold-duotone"></iconify-icon></span><div><div class="ml">คาดราคาปิด (ประเมิน)</div><div class="mv">~฿14,500 <small>▲ 16%</small></div></div></div>
+            <div class="metric"><span class="mi" style="background:var(--warning-15);color:var(--warning)"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon></span><div><div class="ml">อัตราการบิด</div><div class="mv">3.2 <small style="color:var(--default-400);font-weight:600">บิด/นาที</small></div></div></div>
+            <div class="metric"><span class="mi" style="background:var(--info-15);color:var(--info)"><iconify-icon icon="solar:eye-bold-duotone"></iconify-icon></span><div><div class="ml">พีคผู้ชมพร้อมกัน</div><div class="mv">156 <small style="color:var(--success)">▲ now 142</small></div></div></div>
+          </div>
+        </div>
+        <!-- 2-col: monitor (left) + control (right) -->
+        <div class="console-grid">
+          <div>
+            <div class="panel"><div class="panel-pad">
+              <div class="stream-h" style="padding:0 0 10px"><span class="t"><iconify-icon icon="solar:graph-up-bold-duotone" style="color:var(--primary);vertical-align:-3px"></iconify-icon> บิดเข้าสด (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+              <div class="mlog">
+                <div class="mlog-row lead">
+                  <span class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+                  <div class="mn"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="tm">12 วินาทีที่แล้ว · ผ่าน Facebook</div></div>
+                  <span class="mamt">฿12,500</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
+                </div>
+                <div class="mlog-row">
+                  <span class="av"><img src="https://i.pravatar.cc/80?img=45"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+                  <div class="mn"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="tm">2 นาทีที่แล้ว</div></div>
+                  <span class="mamt">฿12,000</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
+                </div>
+                <div class="mlog-row">
+                  <span class="av"><img src="https://i.pravatar.cc/80?img=33"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+                  <div class="mn"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div><div class="tm">5 นาทีที่แล้ว</div></div>
+                  <span class="mamt">฿11,500</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
+                </div>
+                <div class="mlog-row">
+                  <span class="av"><img src="https://i.pravatar.cc/80?img=21"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+                  <div class="mn"><div class="nm">วิภา สุขสันต์ <span class="lvl lvl-sil"><iconify-icon icon="solar:shield-bold"></iconify-icon> Lv.3</span></div><div class="tm">10 นาทีที่แล้ว</div></div>
+                  <span class="mamt">฿11,000</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
+                </div>
+                <div class="mlog-row">
+                  <span class="av"><img src="https://i.pravatar.cc/80?img=8"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+                  <div class="mn"><div class="nm">ธนา มั่งมี <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.6</span></div><div class="tm">14 นาทีที่แล้ว</div></div>
+                  <span class="mamt">฿10,500</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span>
+                </div>
+              </div>
+              <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูบิดก่อนหน้า (7)</div>
+            </div></div>
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:users-group-rounded-bold-duotone" style="color:var(--primary)"></iconify-icon> ผู้บิดทั้งหมด (5)</div>
+              <div class="mlog">
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=12"></span><div class="mn"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div><div class="tm">5 บิด · สูงสุด ฿12,500</div></div><span class="mamt" style="color:var(--success);font-size:11px;font-weight:700">ผู้นำ</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=45"></span><div class="mn"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="tm">3 บิด · สูงสุด ฿12,000</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=8"></span><div class="mn"><div class="nm">ธนา มั่งมี <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.6</span></div><div class="tm">2 บิด · สูงสุด ฿10,500</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=21"></span><div class="mn"><div class="nm">วิภา สุขสันต์ <span class="lvl lvl-sil"><iconify-icon icon="solar:shield-bold"></iconify-icon> Lv.3</span></div><div class="tm">1 บิด · สูงสุด ฿11,000</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=5"></span><div class="mn"><div class="nm">เกียรติ ทองดี <span class="lvl lvl-sil"><iconify-icon icon="solar:shield-bold"></iconify-icon> Lv.2</span></div><div class="tm">1 บิด · สูงสุด ฿9,500</div></div><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+              </div>
+            </div></div>
+          </div>
+          <div class="form-side">
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:settings-bold-duotone" style="color:var(--primary)"></iconify-icon> แผงควบคุม</div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:tag-price-bold-duotone"></iconify-icon> ราคาเริ่มต้น</span><span class="cv">฿5,000</span></div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:sort-vertical-bold-duotone"></iconify-icon> ขั้นบิดขั้นต่ำ</span><span class="cv">฿500</span></div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> ซื้อทันที (buy-now)</span><span class="cv">฿25,000 <span class="cp-link">แก้</span></span></div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ต่อเวลาอัตโนมัติ</span><span class="cv">2 / 5 ครั้ง</span></div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon> ปิดอัตโนมัติ</span><span class="cv">20:15 <span style="color:var(--warning)">(+2)</span></span></div>
+              <button class="cbtn warn" style="width:100%;justify-content:center;margin-top:13px"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon> ต่อเวลา +5 นาที</button>
+            </div></div>
+            <div class="danger-zone">
+              <div class="dz-t"><iconify-icon icon="solar:danger-triangle-bold"></iconify-icon> โซนควบคุม</div>
+              <button class="cbtn primary dz-btn"><iconify-icon icon="solar:flag-bold-duotone"></iconify-icon> จบประมูลก่อนเวลา</button>
+              <button class="cbtn danger dz-btn locked" disabled><iconify-icon icon="solar:lock-keyhole-bold"></iconify-icon> ยกเลิกประมูล</button>
+              <div class="lockmsg"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> ยกเลิกไม่ได้ — มีผู้เสนอราคาแล้ว (12 บิด) ใช้ "จบก่อนเวลา" เพื่อปิดขายให้ผู้นำแทน</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1031,6 +1398,12 @@
       </div>
       <div class="content">
         <div class="pg-head"><div><div class="pg-title">การประมูล</div><div class="pg-sub">5 รายการ</div></div><span class="btn-add"><iconify-icon icon="solar:add-square-bold-duotone"></iconify-icon> สร้าง</span></div>
+        <div class="stat-row">
+          <div class="stat"><span class="si s"><iconify-icon icon="tabler:gavel"></iconify-icon></span><div class="sl">กำลังประมูล</div><div class="sv">1</div><div class="sd up"><span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block"></span> ไลฟ์อยู่</div></div>
+          <div class="stat"><span class="si p"><iconify-icon icon="solar:hand-money-bold-duotone"></iconify-icon></span><div class="sl">บิดวันนี้</div><div class="sv">37</div><div class="sd up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon> +12</div></div>
+          <div class="stat"><span class="si i"><iconify-icon icon="solar:wallet-money-bold-duotone"></iconify-icon></span><div class="sl">ยอดประมูล (live)</div><div class="sv">฿12,500</div><div class="sd muted">ราคาปัจจุบัน</div></div>
+          <div class="stat"><span class="si w"><iconify-icon icon="solar:alarm-bold-duotone"></iconify-icon></span><div class="sl">ใกล้ปิด &lt;1ชม.</div><div class="sv">1</div><div class="sd warn"><iconify-icon icon="solar:clock-circle-bold"></iconify-icon> 14:33</div></div>
+        </div>
         <div class="toolbar"><span class="chip on">ทั้งหมด</span><span class="chip">รอเปิด</span><span class="chip">กำลังประมูล</span><span class="chip">จบแล้ว</span><span class="chip">อื่น ๆ</span></div>
         <div class="panel" style="margin-bottom:0">
           <table class="tbl">
@@ -1092,8 +1465,8 @@
   </div>
 </div>
 
-<!-- ════ T3: DETAIL — LIVE tablet (centered) ════ -->
-<div class="dt-label">📱 Tablet — รายละเอียด · กำลังประมูล<small>centered column · immersive hero + bid stream</small></div>
+<!-- ════ T3: DETAIL — LIVE tablet (CONTROL CONSOLE) ════ -->
+<div class="dt-label">📱 Tablet — จัดการประมูล · กำลังประมูล (console)<small>stat cards + แผงควบคุม + bid monitor + ผู้บิด (1 คอลัมน์)</small></div>
 <div class="browser tablet">
   <div class="bw-bar"><span class="bw-dot" style="background:#ff5f57"></span><span class="bw-dot" style="background:#febc2e"></span><span class="bw-dot" style="background:#28c840"></span><span class="bw-url"><iconify-icon icon="solar:lock-keyhole-minimalistic-linear"></iconify-icon> seller.deepthailand.app/auctions/a1b2c3</span></div>
   <div class="shell" style="height:760px">
@@ -1106,27 +1479,82 @@
     </div>
     <div class="main">
       <div class="topbar"><span class="tb-burger"><iconify-icon icon="solar:hamburger-menu-linear"></iconify-icon></span><div class="tb-crumb"><b>พระสมเด็จวัดระฆัง</b></div><span class="tb-ico" style="margin-left:auto"><iconify-icon icon="solar:share-linear"></iconify-icon></span><img class="tb-ava" src="https://i.pravatar.cc/80?img=15"></div>
-      <div class="content">
-        <div class="centered">
-          <div class="imm">
-            <span class="imm-back"><iconify-icon icon="solar:alt-arrow-left-linear"></iconify-icon></span>
-            <span class="live-badge imm-live"><span class="dot"></span>LIVE</span>
-            <div class="live-hero" style="height:320px">
-              <img src="https://picsum.photos/seed/amulet2/900/600">
-              <div class="ov-top"><span class="watch"><iconify-icon icon="solar:eye-bold"></iconify-icon> 142 กำลังดู</span></div>
-              <div class="ov-bot"><div class="ov-name">พระสมเด็จวัดระฆัง เนื้อผง พิมพ์ใหญ่</div><div class="hud"><div><div class="lbl">ราคาปัจจุบัน · 12 บิด</div><div class="price">฿12,500 <span class="up"><iconify-icon icon="solar:alt-arrow-up-bold"></iconify-icon>฿500</span></div></div><div class="cd-wrap"><div class="lbl">เหลือเวลา</div><div class="cd">00:48</div></div></div></div>
-            </div>
-            <div class="snipe-bar"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ช่วงเวลาเข้มข้น · ต่อเวลาแล้ว 2/5</div>
+      <!-- live notification toast (impl จริง = pacesToast top-right) -->
+      <div class="toast-stack" style="width:280px;top:12px;right:14px">
+        <div class="toast">
+          <span class="tav"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span>
+          <div class="tbody">
+            <div class="tt"><iconify-icon icon="solar:hand-money-bold-duotone"></iconify-icon> มีผู้เสนอราคาใหม่</div>
+            <div class="tn">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span></div>
+            <div class="tamt">฿13,000 <span class="up">▲ +฿500</span></div>
           </div>
-          <div class="panel" style="margin-top:16px"><div class="panel-pad">
-            <div class="panel-t"><iconify-icon icon="solar:document-text-bold-duotone" style="color:var(--primary)"></iconify-icon> รายละเอียดประมูล</div>
-            <div class="info-grid"><div class="kv"><span class="k">ราคาเริ่มต้น</span><span class="v">฿5,000</span></div><div class="kv"><span class="k">ขั้นบิด</span><span class="v">฿500</span></div><div class="kv"><span class="k">reserve</span><span class="v">มี</span></div><div class="kv"><span class="k">buy-now</span><span class="v">฿25,000</span></div></div>
-          </div></div>
-          <div class="panel"><div class="panel-pad">
-            <div class="stream-h" style="padding:0 0 12px"><span class="t">การเสนอราคา (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
-            <div class="stream" style="padding:0"><div class="cmt lead"><div class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></div><div class="cmt-body"><div class="cmt-bubble"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="txt">เสนอราคา <b>฿12,500</b></div><span class="cmt-react"><span class="e">👍❤️</span> 5</span></div><div class="cmt-meta">12 วินาทีที่แล้ว · <span class="fbl">ถูกใจ</span> · <span class="fbl">ตอบกลับ</span></div></div></div></div>
-            <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูการเสนอราคาก่อนหน้า (11)</div>
-          </div></div>
+          <span class="tx"><iconify-icon icon="solar:close-circle-linear"></iconify-icon></span>
+          <span class="tbar"></span>
+        </div>
+      </div>
+      <div class="content">
+        <div class="console-head">
+          <img class="ch-img" src="https://picsum.photos/seed/amulet/130">
+          <div class="ch-body"><div class="ch-name">พระสมเด็จวัดระฆัง <span class="b b-live"><span class="dot"></span>LIVE</span></div><div class="ch-sub">ปิดอัตโนมัติ 20:15 · 12 บิด</div></div>
+          <div class="console-acts">
+            <button class="cbtn warn"><iconify-icon icon="solar:clock-circle-bold-duotone"></iconify-icon> ต่อเวลา</button>
+            <button class="cbtn primary"><iconify-icon icon="solar:flag-bold-duotone"></iconify-icon> จบก่อนเวลา</button>
+            <button class="cbtn ghost ico"><iconify-icon icon="solar:share-linear"></iconify-icon></button>
+          </div>
+        </div>
+        <div class="stat-scroll" style="padding-left:0;padding-right:0">
+          <div class="stat-mini" style="min-width:166px"><div class="sl">ราคาปัจจุบัน</div><div class="sv">฿12,500 <small style="color:var(--success)">▲500</small></div><div class="stat-bidder" style="margin-top:7px"><span class="ba"><img src="https://i.pravatar.cc/80?img=12"></span><span class="nm">สมชาย ใจดี</span><span class="live"></span></div></div>
+          <div class="stat-mini"><div class="sl">กำลังดู</div><div class="sv">142</div></div>
+          <div class="stat-mini"><div class="sl">เหลือเวลา</div><div class="sv" style="color:var(--danger)">00:48</div></div>
+          <div class="stat-mini" style="min-width:150px"><div class="sl">ยอดที่คาดหวัง</div><div class="sv" style="font-size:16px">63% <small style="color:var(--default-400);font-weight:600">· ฿20,000</small></div><div class="target-bar" style="margin-top:8px;height:7px"><div class="fill" style="width:63%"></div></div></div>
+        </div>
+        <!-- live analytics (mockup SVG · impl ApexChart HR10) -->
+        <div class="analytics">
+          <div class="chart-card">
+            <div class="chart-head"><span class="ct"><iconify-icon icon="solar:chart-2-bold-duotone"></iconify-icon> แนวโน้มราคาสด</span><span class="livefeed-dot"><i></i> สด</span></div>
+            <svg class="spark-svg" viewBox="0 0 600 150" preserveAspectRatio="none" style="height:130px">
+              <defs><linearGradient id="pg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#236dc9" stop-opacity="0.28"/><stop offset="100%" stop-color="#236dc9" stop-opacity="0"/></linearGradient></defs>
+              <line x1="0" y1="18" x2="600" y2="18" stroke="#173f78" stroke-width="1.5" stroke-dasharray="6 4"/>
+              <text x="6" y="13" font-size="10" fill="#173f78" font-family="Anuphan">เป้าหมาย ฿20,000</text>
+              <path d="M0,132 L60,128 L120,118 L180,120 L240,100 L300,94 L360,78 L420,70 L480,52 L540,42 L585,36 L585,150 L0,150 Z" fill="url(#pg2)"/>
+              <path d="M0,132 L60,128 L120,118 L180,120 L240,100 L300,94 L360,78 L420,70 L480,52 L540,42 L585,36" fill="none" stroke="#236dc9" stroke-width="2.5" stroke-linejoin="round"/>
+              <circle class="pulsering" cx="585" cy="36" r="4" fill="#236dc9"/><circle cx="585" cy="36" r="4.5" fill="#236dc9" stroke="#fff" stroke-width="2"/>
+            </svg>
+            <div class="velo">
+              <div class="velo-h"><span>ความถี่การบิด</span><span style="color:var(--danger);font-weight:700">🔥 พุ่ง</span></div>
+              <div class="velo-bars"><span style="height:20%"></span><span style="height:30%"></span><span style="height:24%"></span><span style="height:44%"></span><span style="height:50%"></span><span class="hot" style="height:64%"></span><span class="hot" style="height:72%"></span><span class="hot" style="height:84%"></span><span class="now" style="height:100%"></span></div>
+            </div>
+          </div>
+          <div class="metric-stack">
+            <div class="momentum"><div class="mh"><span>โมเมนตัม</span><b>แรงมาก</b></div><div class="momentum-track"><div class="momentum-fill" style="width:82%"></div></div></div>
+            <div class="metric"><span class="mi" style="background:var(--primary-15);color:var(--primary)"><iconify-icon icon="solar:target-bold-duotone"></iconify-icon></span><div><div class="ml">คาดราคาปิด</div><div class="mv">~฿14,500 <small>▲16%</small></div></div></div>
+            <div class="metric"><span class="mi" style="background:var(--warning-15);color:var(--warning)"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon></span><div><div class="ml">อัตราการบิด</div><div class="mv">3.2 <small style="color:var(--default-400);font-weight:600">/นาที</small></div></div></div>
+          </div>
+        </div>
+        <div class="console-grid">
+          <div>
+            <div class="panel"><div class="panel-pad">
+              <div class="stream-h" style="padding:0 0 10px"><span class="t"><iconify-icon icon="solar:graph-up-bold-duotone" style="color:var(--primary);vertical-align:-3px"></iconify-icon> บิดเข้าสด (12)</span><span class="b b-live"><span class="dot"></span>สด</span></div>
+              <div class="mlog">
+                <div class="mlog-row lead"><span class="av"><img src="https://i.pravatar.cc/80?img=12"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span><div class="mn"><div class="nm">สมชาย ใจดี <span class="lvl lvl-gold"><iconify-icon icon="solar:crown-star-bold"></iconify-icon> Lv.8</span> <span class="lead-tag"><iconify-icon icon="solar:cup-star-bold"></iconify-icon> ผู้นำ</span></div><div class="tm">12 วินาทีที่แล้ว · ผ่าน Facebook</div></div><span class="mamt">฿12,500</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=45"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span><div class="mn"><div class="nm">มานี รักษ์ไทย <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.5</span></div><div class="tm">2 นาทีที่แล้ว</div></div><span class="mamt">฿12,000</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+                <div class="mlog-row"><span class="av"><img src="https://i.pravatar.cc/80?img=8"><span class="fb"><iconify-icon icon="tabler:brand-facebook-filled"></iconify-icon></span></span><div class="mn"><div class="nm">ธนา มั่งมี <span class="lvl lvl-dia"><iconify-icon icon="solar:diamond-bold"></iconify-icon> Lv.6</span></div><div class="tm">14 นาทีที่แล้ว</div></div><span class="mamt">฿10,500</span><span class="mblock"><iconify-icon icon="solar:forbidden-circle-linear"></iconify-icon></span></div>
+              </div>
+              <div class="expand"><iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon> ดูบิดก่อนหน้า (9)</div>
+            </div></div>
+          </div>
+          <div class="form-side">
+            <div class="panel"><div class="panel-pad">
+              <div class="panel-t"><iconify-icon icon="solar:settings-bold-duotone" style="color:var(--primary)"></iconify-icon> แผงควบคุม</div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon> buy-now</span><span class="cv">฿25,000 <span class="cp-link">แก้</span></span></div>
+              <div class="cp-row"><span class="ck"><iconify-icon icon="solar:fire-bold-duotone"></iconify-icon> ต่อเวลาอัตโนมัติ</span><span class="cv">2 / 5</span></div>
+            </div></div>
+            <div class="danger-zone">
+              <div class="dz-t"><iconify-icon icon="solar:danger-triangle-bold"></iconify-icon> โซนควบคุม</div>
+              <button class="cbtn primary dz-btn"><iconify-icon icon="solar:flag-bold-duotone"></iconify-icon> จบประมูลก่อนเวลา</button>
+              <button class="cbtn danger dz-btn locked" disabled><iconify-icon icon="solar:lock-keyhole-bold"></iconify-icon> ยกเลิก (มีบิด)</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -101,6 +101,18 @@ mobile = edge-to-edge <1024px (bottom-nav). **≥1024px = Paces shell** (sidebar
 - **Buyer (frame D6/T4):** buyer web = top-navbar (ไม่มี sidebar seller), คง **Deep-App น้ำเงิน** (ไม่ใช่ Vuexy ม่วง — buyer web เต็มรูป = Phase 2)
 - **Theme:** Paces น้ำเงิน #236dc9, namespace CSS ใหม่ (`.browser/.shell/.side/.panel/.tbl/.centered`) reuse atoms เดิม (`.b/.cmt/.lvl/.hud/.live-hero/.kv/.qbid`)
 
+## Seller Command Center (เพิ่ม 2026-06-25 — เน้นจัดการ ไม่ใช่มุม buyer)
+user ขอให้ฝั่ง seller เป็น **command center/console** เน้นการควบคุม — **เลิก immersive hero แบบ buyer** สำหรับ seller (buyer frame คงเดิม)
+- **detail-live (seller) = Control Console:** console-head (thumb+ชื่อ+LIVE + action cluster) → **KPI stat cards** (ราคา/บิด/ดู/เหลือเวลา/anti-snipe used/reserve met) → 2-col: ซ้าย **bid monitor log** (`.mlog` + ปุ่ม block ราย ๆ) + **ผู้บิด mgmt list** · ขวา **แผงควบคุม** (params + ปุ่มต่อเวลา) + **danger zone** (จบก่อนเวลา / ยกเลิก=🔒ถ้ามีบิด). mobile = stat-scroll + cards + action bar (ต่อเวลา/จบก่อนเวลา)
+- **list = Command Center overview:** summary **stat-row** (กำลังประมูล/บิดวันนี้/ยอด live/ใกล้ปิด) + **live-now strip** (mini live cards + countdown) เหนือ DataTable. mobile = stat-scroll
+- **bid feed ฝั่ง seller** เปลี่ยนจาก FB-comment bubble → **monitoring log** (กระชับ เชิงจัดการ + block) แต่ยังโชว์ user level; FB-comment bubble คงไว้เฉพาะ buyer
+- **🟡 Full control = ต้องเพิ่ม FR:** จบก่อนเวลา/ต่อเวลาเอง/บล็อกผู้บิด/ปรับ buy-now/feature = `FR-AUC-10..14 (PROPOSED)` ใน BRD — **mockup รองรับแล้ว แต่รอ sign-off ก่อน implement**
+- **Live analytics (console):** แนวโน้มราคาสด (area chart + จุด pulse + มาร์ก anti-snipe) + bid velocity bars + momentum + คาดราคาปิด/อัตราบิด/พีคผู้ชม. **chart ใน impl จริง = ApexChart wrapper copy theme charts (HR10)** — ห้าม build options เอง
+- **card ราคาปัจจุบัน** โชว์ avatar+ชื่อผู้บิดสูงสุด realtime (pulse dot); ลบ card reserve/anti-snipe ออกจาก KPI (anti-snipe ไปอยู่แผงควบคุม+กราฟ; reserve ไม่โชว์หน้านี้)
+- **ยอดที่คาดหวัง (target):** create form ช่อง `expectedPrice` (optional, seller-only แยกจาก reserve) → console แสดงเป็น **stat card ที่ 4 (ring gauge %)** + **mini card** (tablet/mobile) + **เส้นเป้าหมาย dashed บนกราฟราคา** (ดูว่าถึงเป้าไหม). ไม่ทำ banner เต็มแถว (เด่นเกิน). `FR-AUC-15 (PROPOSED)` + field `Auction.expectedPrice Int?`
+- **Live bid notification:** เมื่อมีบิดใหม่ → **toast เด้ง top-right ผ่าน `pacesToast` (HR9)** (avatar+ชื่อ+Lv+amount ▲) trigger จาก Supabase Realtime; anti-snipe trigger → `pacesToast.info` "+60 วินาที"; **ห้าม react-toastify ใน (paces)**
+- CSS namespace: `.stat/.stat-mini/.livecard/.console-head/.cbtn/.console-grid/.mlog/.cp-row/.danger-zone`
+
 ## Realtime approach
 subscribe **Auction row UPDATE** (ไม่ใช่ Bid table — Bid insert ไม่ broadcast by default). seller เห็น update <1s → refetch bid list. ต้อง `ALTER PUBLICATION supabase_realtime ADD TABLE "Auction"` (infra task) + RLS/anon policy
 
