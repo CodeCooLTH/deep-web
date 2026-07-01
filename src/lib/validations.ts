@@ -583,3 +583,10 @@ export const UpdateAuctionSchema = v.object({
 export const EndEarlyAuctionSchema = v.object({
   confirmBelowReserve: v.optional(v.boolean()),
 });
+
+// feature 00004 Buyer Web Auction — session-authed bid route body { amount }
+// (เหมือน AppPlaceBidSchema ของ mobile ใน lib/app-validations.ts แต่แยกไฟล์ตาม convention
+// backend validation ของ web routes มาจาก lib/validations.ts เสมอ)
+export const PlaceBidSchema = v.object({
+  amount: v.pipe(v.number(), v.minValue(0.01)),
+});
