@@ -436,3 +436,98 @@ export const ReviewScamReportSchema = v.object({
   status: v.picklist(["APPROVED", "REJECTED"]),
   rejectedReason: v.optional(v.pipe(v.string(), v.maxLength(500))),
 });
+
+// ── feature 00002 Seller Auction (Batch B task #4) ──────────────────────────
+// SSOT ของ rule: docs/20 - Features/00002 - Seller Auction/SRS.md §5.4 (ตาราง validation)
+// + BRD.md §2.7 OQ-4 (แก้ price fields ขณะ draft/scheduled ได้) / OQ-6 (schedule startTime อดีต → reject 400)
+
+// รับ ISO datetime string จาก client แล้วแปลงเป็น Date ตรงกับ CreateAuctionInput/UpdateAuctionInput
+// (service layer ใช้ Date ล้วน) — ไม่ใช้ v.isoTimestamp() เพราะ regex เข้มกว่าที่ API.md ตัวอย่างส่งมา
+// (ต้องการ .sss + 'Z' เท่านั้น ขณะที่ตัวอย่างจริงส่ง offset "+07:00" แบบไม่มี millisecond) — ใช้
+// `new Date()` เป็น parser ตรง ๆ (ครอบคลุมกว่า, JS Date parse ISO 8601 ทุก offset รูปแบบมาตรฐานได้)
+const isValidDateString = (s: string) => !Number.isNaN(new Date(s).getTime());
+const AuctionDateTimeSchema = v.pipe(
+  v.string(),
+  v.check(isValidDateString, "รูปแบบวันที่ไม่ถูกต้อง"),
+  v.transform((s: string) => new Date(s)),
+);
+
+const AUCTION_MODES = ["draft", "publishNow", "schedule"] as const;
+
+// SRS §5.6: Min endTime lead time (create) = now + 30 นาที — ใช้ค่าเดียวกันตอน revalidate ใน UpdateAuctionSchema
+const MIN_AUCTION_END_LEAD_MS = 30 * 60 * 1000;
+
+export const CreateAuctionSchema = v.pipe(
+  v.object({
+    title: v.pipe(v.string(), v.trim(), v.minLength(1, "title และรูปภาพอย่างน้อย 1 ใบเป็นข้อมูลบังคับ")),
+    description: v.optional(v.pipe(v.string(), v.maxLength(2000))),
+    images: v.pipe(
+      v.array(v.pipe(v.string(), v.minLength(1))),
+      v.minLength(1, "title และรูปภาพอย่างน้อย 1 ใบเป็นข้อมูลบังคับ"),
+    ),
+    category: v.optional(v.string()),
+    productId: v.optional(v.string()),
+    startPrice: v.pipe(v.number(), v.gtValue(0, "startPrice ต้องมากกว่า 0")),
+    reservePrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
+    buyNowPrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
+    expectedPrice: v.optional(v.pipe(v.number(), v.gtValue(0, "expectedPrice ต้องมากกว่า 0"))),
+    bidIncrement: v.pipe(v.number(), v.gtValue(0, "bidIncrement ต้องมากกว่า 0")),
+    mode: v.picklist(AUCTION_MODES, "mode ไม่ถูกต้อง"),
+    startTime: v.optional(AuctionDateTimeSchema),
+    endTime: AuctionDateTimeSchema,
+  }),
+  v.check(
+    (d) => d.reservePrice == null || d.reservePrice >= d.startPrice,
+    "reservePrice ต้องไม่ต่ำกว่า startPrice",
+  ),
+  v.check(
+    (d) => d.buyNowPrice == null || d.buyNowPrice > (d.reservePrice ?? d.startPrice),
+    "buyNowPrice ต้องสูงกว่า reservePrice หรือ startPrice",
+  ),
+  v.check(
+    (d) => d.endTime.getTime() >= Date.now() + MIN_AUCTION_END_LEAD_MS,
+    "endTime ต้องอยู่ในอนาคตอย่างน้อย 30 นาที",
+  ),
+  // mode==='schedule' → startTime บังคับ (API.md §4.1)
+  v.check((d) => d.mode !== "schedule" || d.startTime != null, "startTime ต้องระบุเมื่อเลือกตั้งเวลาเปิดประมูล"),
+  // OQ-6: startTime อดีต/ปัจจุบัน → reject 400 ชัดเจน (ไม่ auto-fallback publishNow) + ต้องมาก่อน endTime
+  v.check(
+    (d) => d.mode !== "schedule" || d.startTime == null || d.startTime.getTime() > Date.now(),
+    "startTime ต้องอยู่ในอนาคตและก่อน endTime",
+  ),
+  v.check(
+    (d) => d.mode !== "schedule" || d.startTime == null || d.startTime.getTime() < d.endTime.getTime(),
+    "startTime ต้องอยู่ในอนาคตและก่อน endTime",
+  ),
+);
+
+// แก้ไข auction (TFR-002) — ทุก field optional (partial update); เฉพาะ status draft/scheduled เท่านั้นที่แก้ได้
+// (guard ที่ service layer) — price fields (startPrice/reservePrice/buyNowPrice/expectedPrice) แก้ได้ตาม OQ-4
+// หมายเหตุ: cross-field check (reservePrice>=startPrice ฯลฯ) ที่ merge กับค่าเดิมใน DB ทำที่ service
+// (`updateAuction`) ไม่ใช่ที่ schema นี้ — Valibot รู้แค่ field ที่ส่งมาในคำขอนี้ ไม่รู้ค่าที่ไม่ได้แก้
+export const UpdateAuctionSchema = v.object({
+  title: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
+  description: v.optional(v.pipe(v.string(), v.maxLength(2000))),
+  images: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.minLength(1))),
+  category: v.optional(v.string()),
+  productId: v.optional(v.string()),
+  startPrice: v.optional(v.pipe(v.number(), v.gtValue(0, "startPrice ต้องมากกว่า 0"))),
+  reservePrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
+  buyNowPrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
+  expectedPrice: v.optional(v.pipe(v.number(), v.gtValue(0, "expectedPrice ต้องมากกว่า 0"))),
+  bidIncrement: v.optional(v.pipe(v.number(), v.gtValue(0, "bidIncrement ต้องมากกว่า 0"))),
+  endTime: v.optional(
+    v.pipe(
+      AuctionDateTimeSchema,
+      v.check(
+        (d) => d.getTime() >= Date.now() + MIN_AUCTION_END_LEAD_MS,
+        "endTime ต้องอยู่ในอนาคตอย่างน้อย 30 นาที",
+      ),
+    ),
+  ),
+});
+
+// จบประมูลก่อนเวลา (TFR-012) — ต้องส่ง confirmBelowReserve:true ซ้ำเมื่อได้ 409 BELOW_RESERVE_CONFIRM_REQUIRED มาก่อน
+export const EndEarlyAuctionSchema = v.object({
+  confirmBelowReserve: v.optional(v.boolean()),
+});

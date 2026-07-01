@@ -650,3 +650,299 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
 
   return dto
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Seller CRUD (Batch B task #4) — createAuction/updateAuction/cancelAuction/
+// publishAuction/listSellerAuctions/getSellerAuctionDetail (SDS §6 signature เป๊ะ)
+// reuse ของ #3 100%: AuctionOpError/toSellerAuctionDTO/flipScheduledToLive — ไม่แตะ logic เดิม
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CreateAuctionInput = {
+  title: string
+  description?: string
+  images: string[]
+  category?: string
+  productId?: string
+  startPrice: number
+  reservePrice?: number
+  buyNowPrice?: number
+  expectedPrice?: number
+  bidIncrement: number
+  mode: 'draft' | 'publishNow' | 'schedule'
+  startTime?: Date
+  endTime: Date
+}
+
+/** + startPrice/reservePrice/buyNowPrice/expectedPrice แก้ได้ตาม OQ-4 (BRD §2.7 sign-off 2026-07-01) */
+export type UpdateAuctionInput = Partial<
+  Pick<
+    CreateAuctionInput,
+    | 'title'
+    | 'description'
+    | 'images'
+    | 'bidIncrement'
+    | 'endTime'
+    | 'category'
+    | 'productId'
+    | 'startPrice'
+    | 'reservePrice'
+    | 'buyNowPrice'
+    | 'expectedPrice'
+  >
+>
+
+/**
+ * AuctionValidationError — เพิ่มใหม่สำหรับ task #4 เท่านั้น (ไม่แตะ error class ของ #3)
+ * ใช้เมื่อ business validation fail หลัง "merge" ค่าที่แก้ (patch) เข้ากับ auction ปัจจุบันใน DB
+ * (เช่น `updateAuction` เช็ค reservePrice>=startPrice โดยรวมค่าที่ไม่ได้ส่งมาในคำขอนี้ด้วย) — Valibot
+ * ที่ route ชั้นบนตรวจได้แค่ field ที่ส่งมาจริง ไม่รู้ค่าที่ไม่ได้แก้ จึง merge-validate ต้องอยู่ที่ service
+ * status 400 ให้ mapping ตรงกับ "Valibot safeParse fail" ใน SDS §11.2 (response shape ต่อ client เหมือนกัน)
+ * ⚠️ หมายเหตุถึง Controller/reviewer: SDS §11.1/§11.2 ไม่ได้ list error class นี้ไว้ (เพราะ SDS §11 ออกแบบ
+ * ก่อนที่จะลง detail ว่า merge-validate ต้องทำที่ไหน) — route handler (Batch C #6) ต้องเพิ่ม
+ * `instanceof AuctionValidationError` → 400 ในการ map error ด้วย (ตาม pattern §11.3 เดิม)
+ */
+export class AuctionValidationError extends Error {
+  readonly status = 400 as const
+  constructor(message: string) {
+    super(message)
+  }
+}
+
+/** createAuction (TFR-001) — derive status จาก mode; currentPrice=startPrice เสมอตอนสร้าง */
+export async function createAuction(shopId: string, input: CreateAuctionInput): Promise<SellerAuctionDTO> {
+  // ห้ามรับ shopId จาก input object เด็ดขาด (FR-AUC-01-AC-09) — shopId มาจาก param เท่านั้น
+  // (caller/route derive จาก session แล้วก่อนเรียกฟังก์ชันนี้ — กัน seller สร้าง auction ให้ shop อื่น)
+  const status: 'draft' | 'scheduled' | 'live' =
+    input.mode === 'draft' ? 'draft' : input.mode === 'schedule' ? 'scheduled' : 'live'
+
+  const row = await prisma.auction.create({
+    data: {
+      shopId,
+      title: input.title,
+      description: input.description ?? null,
+      imageUrl: input.images[0], // รูปแรกเป็น thumbnail หลัก — images[] เก็บ gallery เต็ม (schema ไม่มี field แยก)
+      images: input.images,
+      category: input.category ?? null,
+      productId: input.productId ?? null,
+      startPrice: input.startPrice,
+      currentPrice: input.startPrice,
+      reservePrice: input.reservePrice ?? null,
+      buyNowPrice: input.buyNowPrice ?? null,
+      expectedPrice: input.expectedPrice ?? null,
+      bidIncrement: input.bidIncrement,
+      status,
+      startTime: status === 'scheduled' ? input.startTime : null,
+      endTime: input.endTime,
+      bidCount: 0,
+      antiSnipeCount: 0,
+    },
+  })
+  return toSellerAuctionDTO(row, [])
+}
+
+/**
+ * updateAuction (TFR-002) — เฉพาะ status draft/scheduled เท่านั้น; ownership guard 403/404 (findUnique
+ * + explicit check — ต่างจาก getSellerAuctionDetail เพราะ endpoint นี้ต้องคืน 403 ให้ต่างจาก 404 ตาม API.md
+ * §4.4); price fields แก้ได้ตาม OQ-4 — merge กับค่าปัจจุบันใน DB แล้ว revalidate cross-field เหมือนตอนสร้าง
+ */
+export async function updateAuction(
+  auctionId: string,
+  shopUserId: string,
+  input: UpdateAuctionInput,
+): Promise<SellerAuctionDTO> {
+  const a = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: { shop: { select: { userId: true } } },
+  })
+  if (!a) throw new AuctionOpError('ไม่พบรายการประมูล', 404)
+  if (a.shop.userId !== shopUserId) throw new AuctionOpError('ไม่มีสิทธิ์เข้าถึง', 403)
+  // re-check ที่ DB จริง ไม่เชื่อ client state (race: seller ค้างฟอร์มไว้ระหว่างที่ auction publish ไปแล้วจาก tab อื่น — TFR-002)
+  if (a.status !== 'draft' && a.status !== 'scheduled') {
+    throw new AuctionOpError('ไม่สามารถแก้ไข auction ที่เปิดรับ bid แล้ว', 409)
+  }
+
+  // merge ค่าที่แก้เข้ากับค่าปัจจุบันเพื่อ revalidate cross-field (Valibot ชั้น route รู้แค่ field ที่ส่งมาในคำขอนี้)
+  const mergedStartPrice = input.startPrice ?? Number(a.startPrice)
+  const mergedReservePrice =
+    'reservePrice' in input ? (input.reservePrice ?? null) : a.reservePrice != null ? Number(a.reservePrice) : null
+  const mergedBuyNowPrice =
+    'buyNowPrice' in input ? (input.buyNowPrice ?? null) : a.buyNowPrice != null ? Number(a.buyNowPrice) : null
+
+  if (mergedReservePrice != null && mergedReservePrice < mergedStartPrice) {
+    throw new AuctionValidationError('reservePrice ต้องไม่ต่ำกว่า startPrice')
+  }
+  if (mergedBuyNowPrice != null && mergedBuyNowPrice <= (mergedReservePrice ?? mergedStartPrice)) {
+    throw new AuctionValidationError('buyNowPrice ต้องสูงกว่า reservePrice หรือ startPrice')
+  }
+
+  if (input.endTime) {
+    if (input.endTime.getTime() < Date.now() + 30 * 60 * 1000) {
+      throw new AuctionValidationError('endTime ต้องอยู่ในอนาคตอย่างน้อย 30 นาที')
+    }
+    if (a.startTime && input.endTime.getTime() <= a.startTime.getTime()) {
+      throw new AuctionValidationError('startTime ต้องอยู่ในอนาคตและก่อน endTime')
+    }
+  }
+
+  const updated = await prisma.auction.update({
+    where: { id: auctionId },
+    data: {
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.images !== undefined ? { images: input.images, imageUrl: input.images[0] } : {}),
+      ...(input.category !== undefined ? { category: input.category } : {}),
+      ...(input.productId !== undefined ? { productId: input.productId } : {}),
+      ...(input.bidIncrement !== undefined ? { bidIncrement: input.bidIncrement } : {}),
+      ...(input.endTime !== undefined ? { endTime: input.endTime } : {}),
+      ...(input.startPrice !== undefined ? { startPrice: input.startPrice, currentPrice: input.startPrice } : {}),
+      ...('reservePrice' in input ? { reservePrice: input.reservePrice ?? null } : {}),
+      ...('buyNowPrice' in input ? { buyNowPrice: input.buyNowPrice ?? null } : {}),
+      ...('expectedPrice' in input ? { expectedPrice: input.expectedPrice ?? null } : {}),
+    },
+  })
+  return toSellerAuctionDTO(updated, [])
+}
+
+/**
+ * cancelAuction (TFR-003) — conditional update กัน race: draft/scheduled ยกเลิกได้เสมอ,
+ * live ต้อง bidCount===0; ended/unsold/cancelled = terminal (ยกเลิกไม่ได้)
+ * หมายเหตุ: SDS §6 ระบุ return type `{status:'cancelled'}` แต่ API.md §4.6 เขียนว่าคืน `SellerAuctionDTO`
+ * เต็ม — 2 เอกสารขัดกัน ยึด SDS ตามที่ Controller สั่งเป๊ะในงานนี้ (flag ให้ Controller sync เอกสารต่อ)
+ */
+export async function cancelAuction(auctionId: string, shopUserId: string): Promise<{ status: 'cancelled' }> {
+  const a = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: { shop: { select: { userId: true } } },
+  })
+  if (!a) throw new AuctionOpError('ไม่พบรายการประมูล', 404)
+  if (a.shop.userId !== shopUserId) throw new AuctionOpError('ไม่มีสิทธิ์เข้าถึง', 403)
+
+  if (a.status === 'live' && a.bidCount >= 1) {
+    throw new AuctionOpError('ไม่สามารถยกเลิก auction ที่มีผู้เสนอราคาแล้ว', 409)
+  }
+  if (a.status === 'ended' || a.status === 'unsold' || a.status === 'cancelled') {
+    throw new AuctionOpError('ไม่สามารถยกเลิก auction ในสถานะนี้ได้', 409)
+  }
+
+  // conditional update สองรูปแบบ (API.md §4.6 / TFR-003) — count===0 แปลว่า state เปลี่ยนไปแล้วระหว่างเช็ค (race)
+  const res = await prisma.auction.updateMany({
+    where: {
+      id: auctionId,
+      OR: [{ status: { in: ['draft', 'scheduled'] } }, { status: 'live', bidCount: 0 }],
+    },
+    data: { status: 'cancelled', cancelledAt: new Date() },
+  })
+  if (res.count === 0) {
+    throw new AuctionOpError('ไม่สามารถยกเลิก auction ในสถานะนี้ได้ (สถานะเปลี่ยนไปแล้ว)', 409)
+  }
+  return { status: 'cancelled' }
+}
+
+/**
+ * publishAuction (TFR-001 ต่อเนื่อง) — draft → live/scheduled เท่านั้น (409 ถ้า status!=='draft')
+ * schedule ต้องมี startTime ในอนาคตและก่อน endTime เดิม (OQ-6 — reject ชัดเจน ไม่ auto-fallback publishNow)
+ */
+export async function publishAuction(
+  auctionId: string,
+  shopUserId: string,
+  mode: 'publishNow' | 'schedule',
+  startTime?: Date,
+): Promise<SellerAuctionDTO> {
+  const a = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: { shop: { select: { userId: true } } },
+  })
+  if (!a) throw new AuctionOpError('ไม่พบรายการประมูล', 404)
+  if (a.shop.userId !== shopUserId) throw new AuctionOpError('ไม่มีสิทธิ์เข้าถึง', 403)
+  if (a.status !== 'draft') {
+    throw new AuctionOpError('ไม่สามารถเผยแพร่ auction ในสถานะปัจจุบันได้', 409)
+  }
+
+  if (mode === 'schedule') {
+    if (!startTime) throw new AuctionValidationError('startTime ต้องระบุเมื่อเลือกตั้งเวลาเปิดประมูล')
+    // OQ-6 (BRD §2.7) — startTime อดีต/ปัจจุบัน → reject ชัดเจน ไม่ auto-fallback publishNow
+    if (startTime.getTime() <= Date.now() || startTime.getTime() >= a.endTime.getTime()) {
+      throw new AuctionValidationError('startTime ต้องอยู่ในอนาคตและก่อน endTime')
+    }
+  }
+
+  const updated = await prisma.auction.update({
+    where: { id: auctionId },
+    data: {
+      status: mode === 'schedule' ? 'scheduled' : 'live',
+      startTime: mode === 'schedule' ? startTime : null,
+    },
+  })
+  return toSellerAuctionDTO(updated, [])
+}
+
+/** listSellerAuctions (TFR-004) — WHERE shopId scope เสมอ (ไม่ post-filter); flipScheduledToLive lazy ก่อน query */
+export async function listSellerAuctions(
+  shopId: string,
+  opts: { status?: string; page?: number },
+): Promise<{ items: SellerAuctionListItemDTO[]; nextCursor: number | null }> {
+  await flipScheduledToLive() // TFR-015 — seller เห็น status ล่าสุดแม้ buyer ยังไม่เคย browse
+
+  const page = opts.page && opts.page > 0 ? opts.page : 1
+  const where: Prisma.AuctionWhereInput = {
+    shopId,
+    ...(opts.status ? { status: opts.status } : {}),
+  }
+
+  const rows = await prisma.auction.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE + 1, // +1 เพื่อรู้ว่ามีหน้าถัดไปไหม
+  })
+
+  const hasNext = rows.length > PAGE_SIZE
+  const pageRows = hasNext ? rows.slice(0, PAGE_SIZE) : rows
+  const items: SellerAuctionListItemDTO[] = pageRows.map((r) => {
+    const dto = toSellerAuctionDTO(r, [])
+    return {
+      id: dto.id,
+      title: dto.title,
+      imageUrl: dto.imageUrl,
+      status: dto.status,
+      currentPrice: dto.currentPrice,
+      bidCount: dto.bidCount,
+      endTimeMs: dto.endTimeMs,
+      startTimeMs: dto.startTimeMs,
+    }
+  })
+  // หมายเหตุ: SDS §6 คืน { items, nextCursor } แต่ API.md §4.2 เขียนว่าคืน { items, hasNext } — 2 เอกสารขัดกัน
+  // ยึด SDS ตามที่ Controller สั่งเป๊ะในงานนี้ (flag ให้ Controller sync เอกสารต่อ)
+  return { items, nextCursor: hasNext ? page + 1 : null }
+}
+
+/**
+ * getSellerAuctionDetail (TFR-011) — ownership scope ที่ WHERE clause (findFirst ไม่ใช่ findUnique+post-check)
+ * กัน RSC PII leak (feedback_rsc_dal_authz) — คืน null ถ้าไม่พบ/ไม่ใช่เจ้าของ (route map เป็น 404 ทั้งคู่)
+ */
+export async function getSellerAuctionDetail(
+  auctionId: string,
+  shopUserId: string,
+): Promise<SellerAuctionDTO | null> {
+  await flipScheduledToLive() // TFR-015 — seller เห็น status ล่าสุดแม้ buyer ยังไม่เคย browse
+
+  const a = await prisma.auction.findFirst({
+    where: { id: auctionId, shop: { userId: shopUserId } }, // ownership scope ที่ WHERE (ไม่ใช่ post-check)
+    include: {
+      bids: {
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: { bidder: { select: { displayName: true } } },
+      },
+    },
+  })
+  if (!a) return null
+
+  const history: BidDTO[] = a.bids.map((b) => ({
+    id: b.id,
+    amount: Number(b.amount),
+    bidder: b.bidder.displayName, // displayName เท่านั้น — ไม่มี phone/email/bidderId (SRS §5.5 ข้อ 2)
+    atMs: b.createdAt.getTime(),
+  }))
+  return toSellerAuctionDTO(a, history)
+}
