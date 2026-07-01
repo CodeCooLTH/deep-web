@@ -46,6 +46,7 @@ Index: `@@index([auctionId, createdAt])`, `@@index([bidderId])`
 | `buyNowPrice` | Decimal(12,2) | YES | null | ซื้อทันที; null = ไม่มี |
 | `antiSnipeCount` | Int | NO | 0 | จำนวนครั้งต่อเวลา (max 5) |
 | `cancelledAt` | DateTime | YES | null | timestamp เมื่อ cancelled |
+| `expectedPrice` | Decimal(12,2) | YES | null | ราคาเป้าหมาย (FR-AUC-13, seller-only) — indicator ล้วน ไม่กระทบ settle/sold/unsold; **ห้ามส่งออกฝั่ง buyer** |
 
 **status คงเป็น String** (ตาม convention โปรเจกต์ — Order/VerificationRecord ใช้ String). valid: `draft|scheduled|live|ended|unsold|cancelled`. ค่าเดิม "live"/"ended" ยัง valid → **ไม่ต้อง backfill**
 **ไม่เพิ่ม `winnerId`/`finalPrice`** — derive จาก `Order WHERE auctionId` (buyerUserId=winner, totalAmount=final)
@@ -90,6 +91,7 @@ erDiagram
         Int bidCount
         Int antiSnipeCount "NEW default=0"
         DateTime cancelledAt_nullable "NEW"
+        Decimal expectedPrice_nullable "NEW seller-only"
     }
     Bid { String id PK
         String auctionId FK
@@ -134,6 +136,7 @@ model Auction {
   buyNowPrice    Decimal?  @db.Decimal(12, 2)
   antiSnipeCount Int       @default(0)
   cancelledAt    DateTime?
+  expectedPrice  Decimal?  @db.Decimal(12, 2)
   @@index([status])
   @@index([shopId, status])
   @@index([startTime])
@@ -213,7 +216,7 @@ UPDATE "User" u SET "successfulBidCount" = (
 ## 8. Data Integrity
 
 ### 8.1 Application-layer (validate ก่อน write)
-startPrice>0 · reservePrice≥startPrice · buyNowPrice>reservePrice (หรือ>startPrice ถ้าไม่มี reserve) · endTime≥now+30นาที · startTime<endTime · antiSnipeCount≤5 (ใน placeBid txn) · self-bid block (bidderId≠shop.userId →403) · amount≥currentPrice+bidIncrement
+startPrice>0 · reservePrice≥startPrice · buyNowPrice>reservePrice (หรือ>startPrice ถ้าไม่มี reserve) · endTime≥now+30นาที · startTime<endTime · antiSnipeCount≤5 (ใน placeBid txn) · self-bid block (bidderId≠shop.userId →403) · amount≥currentPrice+bidIncrement · expectedPrice>0 (ถ้าระบุ — optional, ไม่มีข้อผูกกับ reserve/buyNow)
 
 ### 8.2 DB CHECK (เพิ่มในมือใน migration SQL)
 ```sql
@@ -223,7 +226,8 @@ ALTER TABLE "Auction"
   ADD CONSTRAINT "Auction_bidIncrement_positive" CHECK ("bidIncrement" > 0),
   ADD CONSTRAINT "Auction_antiSnipeCount_range" CHECK ("antiSnipeCount" >= 0 AND "antiSnipeCount" <= 5),
   ADD CONSTRAINT "Auction_reservePrice_gte_startPrice" CHECK ("reservePrice" IS NULL OR "reservePrice" >= "startPrice"),
-  ADD CONSTRAINT "Auction_buyNowPrice_gt_zero" CHECK ("buyNowPrice" IS NULL OR "buyNowPrice" > 0);
+  ADD CONSTRAINT "Auction_buyNowPrice_gt_zero" CHECK ("buyNowPrice" IS NULL OR "buyNowPrice" > 0),
+  ADD CONSTRAINT "Auction_expectedPrice_gt_zero" CHECK ("expectedPrice" IS NULL OR "expectedPrice" > 0);
 ALTER TABLE "User" ADD CONSTRAINT "User_successfulBidCount_nonneg" CHECK ("successfulBidCount" >= 0);
 ```
 (`buyNowPrice>reservePrice` enforce ที่ app layer — reserve nullable)
@@ -245,7 +249,8 @@ Client (Deep-App): `supabase.channel('auction:'+id).on('postgres_changes',{event
 - `placeBid()`: เพิ่ม anti-snipe — `endTime-now<60s AND antiSnipeCount<5` → `endTime+=60s, antiSnipeCount+=1` (ใน txn) + buy-now path (ถ้า amount≥buyNowPrice → settle ทันที)
 - `browseAuctions()`: lazy `scheduled AND startTime<=now()` → flip live
 - seller list: query ใหม่ `WHERE shopId ORDER BY createdAt` (index [shopId,status])
-- **AuctionDTO เพิ่ม:** startTimeMs · `hasReserve:boolean` (ไม่ส่ง reservePrice จริงให้ buyer) · buyNowPrice · antiSnipeCount · description. **reservePrice ส่งเฉพาะ seller endpoint ของร้านตัวเอง**
+- **AuctionDTO เพิ่ม:** startTimeMs · `hasReserve:boolean` (ไม่ส่ง reservePrice จริงให้ buyer) · buyNowPrice · antiSnipeCount · description. **reservePrice + expectedPrice ส่งเฉพาะ seller endpoint ของร้านตัวเอง** (buyer DTO ต้องไม่มี 2 field นี้ — FR-AUC-13-AC-04)
+- `settleAuction()` **manual (end early, FR-AUC-12):** เพิ่ม caller ฝั่ง seller เรียก settle ก่อน endTime ที่ currentPrice — reuse logic เดิม (reserve check → ended/unsold), guard `shop.userId` + `status='live'`; ไม่ต้อง field ใหม่
 
 ---
 

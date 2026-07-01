@@ -123,6 +123,21 @@ related: ["[[PRD]]", "[[SRS]]", "[[DATABASE]]"]
 - [ ] `[FR-AUC-04-AC-02]` **Given** รายการ auction แสดงผล **When** ดู **Then** เห็น status, title, currentPrice, bidCount, endTime ของแต่ละรายการ
 - [ ] `[FR-AUC-04-AC-03]` รายการกรองตามสถานะได้ (filter: draft/scheduled/live/ended/unsold/cancelled)
 
+#### ✅ RESOLVED — Seller Command Center Controls (sign-off 2026-07-01)
+
+> ที่มา: 2026-06-25 user ขอให้ฝั่ง seller เป็น **command center เน้นการจัดการ/ควบคุม** (ไม่ใช่มุมมอง buyer). mockup `docs/mockups/auction/seller-auction-v1.html` (frame detail-live console + list overview) ออกแบบรองรับ control เหล่านี้แล้ว. บล็อก PROPOSED เดิมผ่านการ sign-off ทีละข้อโดย user เมื่อ 2026-07-01 — เลข FR ที่ ACCEPT ถูก renumber ให้ไม่ชนกับ FR ที่ approve แล้ว (10~11) ดังนี้:
+>
+> | ข้อเดิม | ชื่อ | มติ | FR ใหม่ |
+> |---|---|---|---|
+> | FR-AUC-10 (proposed) | จบประมูลก่อนเวลา (End early) | ✅ **ACCEPT → MVP** | **FR-AUC-12** (§2.5) |
+> | FR-AUC-15 (proposed) | ยอดที่คาดหวัง (expectedPrice/target) | ✅ **ACCEPT → MVP** | **FR-AUC-13** (§2.5) |
+> | FR-AUC-11 (proposed) | ต่อเวลาเอง (Manual extend) | ⏸️ **DEFER Phase 2** | — (§2.6) |
+> | FR-AUC-12 (proposed) | บล็อกผู้บิด (Block bidder) | ⏸️ **DEFER Phase 2** | — (§2.6) |
+> | FR-AUC-13 (proposed) | ปรับ buy-now ระหว่าง live | ⏸️ **DEFER Phase 2** | — (§2.6) |
+> | FR-AUC-14 (proposed) | Feature / Pin | ⏸️ **DEFER Phase 2** | — (§2.6) |
+>
+> รายละเอียด FR ที่ ACCEPT → §2.5 ด้านล่าง (หลัง FR-AUC-11) · รายการ DEFER → §2.6
+
 ### 2.2 Realtime Bidding (Buyer ผ่าน Deep-App)
 
 #### FR-AUC-05: เสนอราคา (Bid)
@@ -281,6 +296,42 @@ sequenceDiagram
 - [ ] `[FR-AUC-11-AC-03]` **Given** auction status = draft/scheduled **When** Seller ดูรายการ **Then** มีปุ่ม Edit และ Cancel
 - [ ] `[FR-AUC-11-AC-04]` **Given** auction status = live + bidCount = 0 **When** Seller ดูรายการ **Then** มีปุ่ม Cancel
 - [ ] `[FR-AUC-11-AC-05]` **Given** auction status = live + bidCount ≥ 1 **When** Seller ดูรายการ **Then** ปุ่ม Cancel ไม่แสดง (หรือ disabled พร้อม tooltip)
+
+### 2.5 Seller Command Center Controls (Approved — sign-off 2026-07-01)
+
+#### FR-AUC-12: จบประมูลก่อนเวลา (End Early / Settle Now)
+
+**User Story:**
+> ในฐานะ Seller ฉันต้องการจบ auction ที่กำลัง live ก่อนถึง endTime ได้ เพื่อปิดการขายทันทีเมื่อพอใจราคาปัจจุบัน โดยไม่ต้องรอเวลาหมด
+
+**Acceptance Criteria:**
+- [ ] `[FR-AUC-12-AC-01]` **Given** Seller เป็นเจ้าของ auction status = live **When** กด "จบประมูลตอนนี้" และยืนยันใน confirm dialog **Then** ระบบเรียก `settleAuction()` ที่ currentPrice ทันที (reuse logic FR-AUC-09)
+- [ ] `[FR-AUC-12-AC-02]` **Given** auction มี bidCount ≥ 1 และ (ไม่มี reservePrice **หรือ** currentPrice ≥ reservePrice) **When** end early **Then** ผู้บิดสูงสุดเป็น winner → สร้าง Order + notify (เหมือน FR-AUC-09) → status = ended
+- [ ] `[FR-AUC-12-AC-03]` **Given** auction มี bidCount ≥ 1 แต่ currentPrice < reservePrice **When** Seller กด end early **Then** ระบบเตือนว่า "ราคายังไม่ถึงราคาขั้นต่ำ (reserve)" และให้ยืนยันซ้ำ → ถ้ายืนยัน → จบเป็น unsold (path FR-AUC-08); ถ้าไม่ → ยกเลิกการ end early
+- [ ] `[FR-AUC-12-AC-04]` **Given** auction มี bidCount = 0 **When** Seller กด end early **Then** จบเป็น unsold (ไม่มี winner/Order) → status = unsold
+- [ ] `[FR-AUC-12-AC-05]` **Given** end early สำเร็จ **When** DB update **Then** Supabase Realtime broadcast สถานะสุดท้าย (ended/unsold) ออกไป → buyer client แสดงว่า auction จบแล้ว (สอดคล้อง FR-AUC-10-AC-04)
+- [ ] `[FR-AUC-12-AC-06]` **Given** ผู้ใช้ที่ไม่ใช่เจ้าของ shop หรือ auction status ≠ live **When** เรียก end early **Then** ระบบปฏิเสธ (403/409)
+
+#### FR-AUC-13: ยอดที่คาดหวัง (Expected Price / Target — Seller-only)
+
+**User Story:**
+> ในฐานะ Seller ฉันต้องการตั้ง "ราคาเป้าหมาย" ที่หวังจะได้จาก auction เพื่อติดตามความคืบหน้าว่าราคาบิดเข้าใกล้เป้าหรือยัง โดยข้อมูลนี้เห็นเฉพาะฉัน buyer ไม่เห็น
+
+**Acceptance Criteria:**
+- [ ] `[FR-AUC-13-AC-01]` **Given** Seller สร้าง/แก้ auction **When** กรอก expectedPrice (optional, integer > 0) **Then** ระบบบันทึกลง `Auction.expectedPrice` (field ใหม่ → DATABASE.md)
+- [ ] `[FR-AUC-13-AC-02]` **Given** expectedPrice เป็น optional **When** Seller ไม่กรอก **Then** auction ทำงานปกติ (expectedPrice = null, console ไม่แสดง gauge)
+- [ ] `[FR-AUC-13-AC-03]` **Given** auction มี expectedPrice **When** Seller เปิด detail console **Then** เห็น gauge % ความคืบหน้า (currentPrice / expectedPrice) + เส้นเป้าหมายบนกราฟราคา
+- [ ] `[FR-AUC-13-AC-04]` **Given** expectedPrice เป็นข้อมูล seller-only **When** buyer เรียก auction detail ผ่าน `/api/app/auctions/*` **Then** response **ไม่มี** field expectedPrice (ไม่รั่วออกฝั่ง buyer)
+- [ ] `[FR-AUC-13-AC-05]` **Given** expectedPrice แยกจาก reservePrice โดยสิ้นเชิง **When** auction settle **Then** expectedPrice **ไม่กระทบ** เงื่อนไข sold/unsold/settle ใด ๆ (เป็น indicator ล้วน)
+
+### 2.6 Deferred → Phase 2 (DEFER — sign-off 2026-07-01)
+
+รายการต่อไปนี้ user ตัดสิน DEFER ออกจาก MVP นี้ ไปพิจารณา Phase 2 (เหตุผลกำกับแต่ละข้อ):
+
+- ⏸️ **ต่อเวลาเอง (Manual extend +N นาที)** — anti-snipe (FR-AUC-06) จัดการเคสหลักแล้ว; manual extend เพิ่ม abuse surface (ยืดเวลาเอาเปรียบ) โดยได้ value น้อย → ถ้าทำต้องมี cap ครั้ง/นาที
+- ⏸️ **บล็อกผู้บิด (Block bidder / ลบ bid)** — ซับซ้อนสูง (audit log, revert currentPrice, แจ้งผู้ถูกบล็อก) + เสี่ยง fraud (seller ลบคู่แข่งของพวกตัวเอง) → เกินขอบเขต MVP, ต้องออกแบบ anti-abuse ให้รัดกุมก่อน
+- ⏸️ **ปรับ buy-now ระหว่าง live** — edge feature ยังไม่จำเป็นต่อ core loop; ต้องตัดสินว่าลด/ขึ้นได้แค่ไหน + broadcast Realtime
+- ⏸️ **Feature / Pin (ดันรายการให้เด่น)** — พัวพัน business model (ฟรี/เสียเงิน, กี่รายการพร้อมกัน) ควรแยกคิดเป็น decision เชิง monetization ทีหลัง
 
 ---
 
