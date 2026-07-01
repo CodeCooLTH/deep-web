@@ -49,6 +49,9 @@ export type CommandCenterData = {
   orderCount?: number
   reviewCount?: number
   avgRating?: number
+  // D#13: จำนวน auction ที่กำลัง live ของร้าน — map เป็น badgeCount ของ tile ประมูล
+  // optional กัน tsc break ถ้า caller ยังไม่ wire (fallback undefined = ไม่แสดง badge)
+  liveAuctionCount?: number
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────
@@ -59,12 +62,16 @@ export type ShortcutTile = {
   color: string
   disabled?: boolean
   showBadge?: boolean
+  // D#13: จำนวนที่แสดงบน badge (เช่น live auction count) — undefined/0 = ไม่แสดง badge
+  badgeCount?: number
 }
 
 /**
  * SHORTCUT_TILES — v10 carousel (4×2/หน้า = สูงสุด 8/หน้า; เกินขึ้นหน้าใหม่ + dots)
  * icon: **Solar Duotone name (ไม่มี prefix `solar:`)** — CarouselGrid เติม `solar:` เอง
  *   → render: <Icon icon={`solar:${tile.icon}`} /> from '@iconify/react'
+ * D#13: tile ประมูลใช้ icon เต็ม prefix (`tabler:gavel`) — CarouselGrid เช็ค `.includes(':')`
+ *   ก่อนเติม `solar:` (backward-compat กับ 7 tile เดิมที่ไม่มี prefix)
  * semantic color ตาม Paces token: warning/success/info/primary/default
  * ไม่มี /seller prefix (short path). คูปอง = route ยังไม่มี → disabled "เร็ว ๆ นี้" (honest, OOS coupons)
  */
@@ -76,6 +83,8 @@ export const SHORTCUT_TILES: ShortcutTile[] = [
   { label: 'ลูกค้า',      href: '/customers', icon: 'users-group-rounded-bold-duotone',   color: 'primary' },
   { label: 'คูปอง',       href: null,         icon: 'ticket-bold-duotone',                color: 'default', disabled: true },
   { label: 'ตั้งค่า',     href: '/settings',  icon: 'settings-bold-duotone',              color: 'default' },
+  // D#13: ประมูล — icon เต็ม prefix tabler (ไม่ใช่ solar) + badge จำนวน live auction
+  { label: 'ประมูล',     href: '/auctions',  icon: 'tabler:gavel',                       color: 'warning', showBadge: true },
 ]
 
 /**

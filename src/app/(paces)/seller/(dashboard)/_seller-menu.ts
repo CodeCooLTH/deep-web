@@ -18,6 +18,7 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/orders', slug: 'seller:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
+      { url: '/auctions', slug: 'seller:auctions', label: 'การประมูล', icon: 'gavel' },
     ],
   },
   {

@@ -25,6 +25,12 @@ type Props = {
 }
 
 export default function CommandCenter({ data }: Props) {
+  // D#13: map data.liveAuctionCount → badgeCount ของ tile ประมูล (href='/auctions')
+  // ทำที่นี่แทนใน _constants เพราะ SHORTCUT_TILES เป็น static const — data มาจาก server ต่อ request
+  const tiles = SHORTCUT_TILES.map((tile) =>
+    tile.href === '/auctions' ? { ...tile, badgeCount: data.liveAuctionCount ?? 0 } : tile,
+  )
+
   // -mx-4: edge-to-edge ทั้ง CC — หักล้าง gutter `.seller-mobile-shell main { padding-inline:1rem }` (16px)
   // ให้ทุก section (hero+cards) ชนขอบจอ ไม่มี padding ซ้าย/ขวา ตาม mockup v10 (HR7 arbitrary: ไม่มี full-bleed token)
   // pb อยู่ที่ main แล้ว (safepay-overrides.css) — wrapper ไม่ใส่ซ้ำ
@@ -45,8 +51,8 @@ export default function CommandCenter({ data }: Props) {
       {/* คำสั่งซื้อ — 4-status flat + badge (PENDING/SHIPPED) */}
       <OrderStatusBand counts={data.orderStatusCounts} />
 
-      {/* เมนูลัด — carousel 4×2/หน้า + dots */}
-      <CarouselGrid tiles={SHORTCUT_TILES} />
+      {/* เมนูลัด — carousel 4×2/หน้า + dots (D#13: tiles ผ่าน map เติม badgeCount ประมูล) */}
+      <CarouselGrid tiles={tiles} />
 
       {/* กิจกรรมล่าสุด — timeline real data */}
       <ActivityTimeline items={data.recentActivity} />

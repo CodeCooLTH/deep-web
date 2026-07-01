@@ -100,6 +100,8 @@ export default async function SellerDashboardPage() {
   let shopSlug: string | null = null
   let reviewCount = 0
   let avgRating = 0
+  // D#13: จำนวน auction สถานะ live ของร้าน — badge บน tile "ประมูล" ใน CarouselGrid
+  let liveAuctionCount = 0
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -128,12 +130,14 @@ export default async function SellerDashboardPage() {
       if (shop?.id) {
         // perf: 5 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(4 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes] = await Promise.allSettled([
+        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes] = await Promise.allSettled([
           getOrderStatusCounts(shop.id),
           getBalance(shop.id),
           getRecentActivity(shop.id, 8),
           getOrdersByShop(shop.id),
           getAvgRatingByUsername(shop.user?.username ?? ''),
+          // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
+          prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
         ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
@@ -149,6 +153,10 @@ export default async function SellerDashboardPage() {
           reviewCount = ratingRes.value.reviewCount
           avgRating = ratingRes.value.avgRating
         } else console.error('[dashboard] getAvgRatingByUsername failed', ratingRes.reason)
+
+        // D#13: liveAuctionCount — fallback 0 ถ้าล้ม (honest-zero pattern เดียวกับ field อื่น)
+        if (liveAuctionRes.status === 'fulfilled') liveAuctionCount = liveAuctionRes.value
+        else console.error('[dashboard] auction.count(live) failed', liveAuctionRes.reason)
 
         // recentActivity feed — fallback [] (service ครอบ error เองแต่กัน allSettled reject ด้วย)
         recentActivity = activityRes.status === 'fulfilled' ? activityRes.value : []
@@ -264,6 +272,8 @@ export default async function SellerDashboardPage() {
             orderCount,
             reviewCount,
             avgRating,
+            // D#13: badge จำนวน live auction บน tile "ประมูล"
+            liveAuctionCount,
           }}
         />
       </div>

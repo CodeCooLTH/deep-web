@@ -43,23 +43,45 @@ const ICON_COLOR: Record<string, string> = {
 
 // ─── TileItem ─────────────────────────────────────────────────────────────────
 
+// clamp count ≥100 → "99+" กัน badge กว้างเกิน (Base pattern: OrderStatusBand.tsx fmtBadge)
+function fmtBadge(n: number): string {
+  if (n >= 100) return '99+'
+  return String(n)
+}
+
 function TileItem({ tile }: { tile: ShortcutTile }) {
   const colorClass = ICON_COLOR[tile.color] ?? ICON_COLOR.default
 
-  // tile.icon มี "-bold-duotone" suffix ครบแล้ว (ดู _constants/command-center.ts)
-  // เติม prefix "solar:" ตรงนี้ตาม spec §4.3
-  const iconName = `solar:${tile.icon}`
+  // D#13: icon บาง tile (เช่น ประมูล) ใช้ prefix เต็ม (`tabler:gavel`) มาแล้ว — เช็ค ":"
+  // ก่อนเติม "solar:" กัน backward-compat พัง (7 tile เดิมไม่มี ":" ยังได้ solar เหมือนเดิม)
+  const iconName = tile.icon.includes(':') ? tile.icon : `solar:${tile.icon}`
+
+  // D#13: badge ตัวเลขมุมขวาบน icon — แสดงเฉพาะ showBadge=true และ badgeCount>0
+  // Base pattern: OrderStatusBand.tsx badge (bg-danger text-white rounded-full text-2xs)
+  const badgeText = tile.showBadge && tile.badgeCount && tile.badgeCount > 0 ? fmtBadge(tile.badgeCount) : null
 
   const inner = (
     <>
-      {/* icon ล้วนไม่มี circle/box/border ครอบ (flat ตาม spec §3 + mockup .g-ic) */}
-      {/* HR7: text-[30px] — arbitrary เพราะ Paces ไม่มี text-3xl ที่ให้ขนาด 30px ตรง;
-           spec กำหนด ~30px; size-* ไม่ใช้กับ icon font size */}
-      <Icon
-        icon={iconName}
-        className={`${colorClass} text-[30px] leading-none`}
-        aria-hidden="true"
-      />
+      {/* icon wrapper: relative เพื่อ position badge absolute (Base: OrderStatusBand.tsx) */}
+      <span className="relative inline-flex items-center justify-center">
+        {/* icon ล้วนไม่มี circle/box/border ครอบ (flat ตาม spec §3 + mockup .g-ic) */}
+        {/* HR7: text-[30px] — arbitrary เพราะ Paces ไม่มี text-3xl ที่ให้ขนาด 30px ตรง;
+             spec กำหนด ~30px; size-* ไม่ใช้กับ icon font size */}
+        <Icon
+          icon={iconName}
+          className={`${colorClass} text-[30px] leading-none`}
+          aria-hidden="true"
+        />
+        {badgeText !== null && (
+          /* arbitrary: -top-1.5/-right-2/min-w-[16px] — Base ตรงจาก OrderStatusBand.tsx badge
+             (Paces ไม่มี token สำหรับ negative offset ของ absolute badge overlap มุมไอคอน) — HR7 */
+          <span
+            className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center leading-none tabular-nums"
+          >
+            {badgeText}
+          </span>
+        )}
+      </span>
       {/* text-2xs = 11px (ดู _root.css); text-default-700 เพื่อ a11y contrast */}
       <span className="text-2xs text-default-700 text-center leading-tight">
         {tile.label}
