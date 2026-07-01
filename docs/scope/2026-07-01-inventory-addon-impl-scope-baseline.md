@@ -1,6 +1,6 @@
 # Scope Baseline — Inventory Add-on Implementation Phase
 
-สถานะ: ACTIVE
+สถานะ: SIGNED-OFF (2026-07-01)
 อ้างอิง PRD: `docs/20 - Features/00003 - Inventory Add-on/PRD.md` §4-5, FR-INV-01..13 (BRD) · SRS TFR-001..013 · spec: `docs/20 - Features/00003 - Inventory Add-on/SDS.md`
 phase-id: `inventory-addon-impl`
 
@@ -94,3 +94,4 @@ Low-stock alert, stock movement history, SKU variant, manual stock-adjustment pa
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-07-01 | baseline สร้าง (Gate 0); migration apply-now ยืนยัน | เริ่ม implementation phase | user |
+| 2026-07-01 | **SIGNED-OFF** — 16/16 S-id DONE, Gate 1 scope-audit PASS, QA 9/9 PASS (regression+happy+gate+admin), DoD 8/8. carries: CRON_SECRET prod env, push, QA nice-to-have | Gate 2 sign-off | safepay-product |
