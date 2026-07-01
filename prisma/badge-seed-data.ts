@@ -35,4 +35,13 @@ export const defaultBadges: BadgeSeed[] = [
   { name: "ขายดีไร้ปัญหา",      nameEN: "Spotless 100",       icon: "✨", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "ZERO_COMPLAINT", minOrders: 100 },                          imageUrl: "/images/badges/seller/spotless-100.svg" },
   { name: "เปิดร้านครบไตรมาส",  nameEN: "3 Months Strong",    icon: "📅", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "VETERAN", minDays: 90 },                                    imageUrl: "/images/badges/seller/3-months-strong.svg" },
   { name: "ส่งไวระดับเทพ",      nameEN: "Same-Day Hero",      icon: "🚀", type: "ACHIEVEMENT",  audience: "SELLER", criteria: { type: "FAST_SHIPPING", maxHours: 12, minOrders: 20 },              imageUrl: "/images/badges/seller/same-day-hero.svg" },
+  // ── Auction Achievements (feature 00002 — Seller Auction, BRD §11.2 MVP ✅ เท่านั้น) ──
+  // Phase 2 badge (Auction Pro 50/Bid Magnet/Active Bidder/Winner's Circle/Auction Completer) ไม่ seed
+  // icon: tabler name (ตาม DATABASE.md §6.1) — engine ใช้ @iconify/react เรนเดอร์ ไม่ใช่ emoji
+  { name: "นักประมูลมือใหม่",   nameEN: "First Auctioneer",   icon: "tabler-gavel",  type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "AUCTION_HOSTED", count: 1 } },
+  { name: "เจ้าแห่งประมูล 10",  nameEN: "Auction Host 10",    icon: "tabler-gavel",  type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "AUCTION_HOSTED", count: 10 } },
+  { name: "ปิดดีลประมูล",       nameEN: "First Auction Win",  icon: "tabler-trophy", type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "AUCTION_SOLD", count: 1 } },
+  { name: "ขายประมูลได้ 10 ดีล", nameEN: "Auction Closer 10", icon: "tabler-trophy", type: "ACHIEVEMENT", audience: "SELLER", criteria: { type: "AUCTION_SOLD", count: 10 } },
+  { name: "ประมูลครั้งแรก",     nameEN: "First Bidder",       icon: "tabler-podium", type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "AUCTION_BID_COUNT", count: 1 } },
+  { name: "ชนะประมูลครั้งแรก",  nameEN: "First Winner",       icon: "tabler-medal",  type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "AUCTION_WON", count: 1 } },
 ];

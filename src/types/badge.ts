@@ -43,6 +43,31 @@ export type CriteriaUniqueReviewers = { type: 'UNIQUE_REVIEWERS'; count: number 
 
 export type CriteriaSignupYear = { type: 'SIGNUP_YEAR'; year: number }
 
+// ─── Auction achievement criteria (feature 00002 — Seller Auction, BRD §11) ──
+// field ตรงกับ DATABASE.md §6.1 / SDS.md §5.1 — ห้ามเปลี่ยนชื่อ field
+
+/** seller: จำนวน Auction ที่ host แล้ว (status NOT IN [draft,cancelled]) */
+export type CriteriaAuctionHosted = { type: 'AUCTION_HOSTED'; count: number }
+
+/** seller: จำนวน Auction ที่ขายได้ (status='ended') */
+export type CriteriaAuctionSold = { type: 'AUCTION_SOLD'; count: number }
+
+/** seller: มี Auction อย่างน้อย 1 ใบที่ bidCount >= minBidCount (Phase 2) */
+export type CriteriaAuctionHighBidCount = { type: 'AUCTION_HIGH_BID_COUNT'; minBidCount: number }
+
+/** buyer: จำนวน Bid ที่วางทั้งหมด (รวมที่แพ้) */
+export type CriteriaAuctionBidCount = { type: 'AUCTION_BID_COUNT'; count: number }
+
+/** buyer: จำนวน Order ที่ชนะประมูล (Order.auctionId ไม่เป็น null) */
+export type CriteriaAuctionWon = { type: 'AUCTION_WON'; count: number }
+
+/** buyer: จำนวน Order ที่ชนะประมูล + สถานะ terminal แล้ว (default CONFIRMED, override ได้ผ่าน statuses) — Phase 2 */
+export type CriteriaAuctionWonCompleted = {
+  type: 'AUCTION_WON_COMPLETED'
+  count: number
+  statuses?: string[]
+}
+
 /** Union ครอบทุก criteria type ที่ seed ไว้ใน DB */
 export type BadgeCriteria =
   | CriteriaFirstOrder
@@ -55,6 +80,12 @@ export type BadgeCriteria =
   | CriteriaFullVerification
   | CriteriaUniqueReviewers
   | CriteriaSignupYear
+  | CriteriaAuctionHosted
+  | CriteriaAuctionSold
+  | CriteriaAuctionHighBidCount
+  | CriteriaAuctionBidCount
+  | CriteriaAuctionWon
+  | CriteriaAuctionWonCompleted
 
 // ─── Progress / result types ─────────────────────────────────────────────────
 

@@ -25,6 +25,12 @@ import { recalculateTrustScore } from "@/services/trust-score.service"
 import type {
   BadgeCriteria,
   BadgeProgress,
+  CriteriaAuctionBidCount,
+  CriteriaAuctionHighBidCount,
+  CriteriaAuctionHosted,
+  CriteriaAuctionSold,
+  CriteriaAuctionWon,
+  CriteriaAuctionWonCompleted,
   CriteriaFastShipping,
   CriteriaHighRating,
   CriteriaOrderCount,
@@ -275,6 +281,97 @@ export async function checkSignupYear(
   return { met: user.createdAt.getFullYear() === criteria.year }
 }
 
+// ─── Auction achievement handlers (feature 00002 — Seller Auction, BRD §11) ──
+// pattern เหมือนกลุ่ม order handler ด้านบน: รับ userId + criteria → { met, count }
+// seller-side handler ใช้ getShopForUser (auction ผูกกับ shop); buyer-side ใช้ userId ตรง (bidderId/buyerUserId)
+
+/**
+ * checkAuctionHosted — นับ Auction ที่ shop นี้ "host" แล้ว
+ * host = status NOT IN [draft, cancelled] (BRD §11.3) — draft ยังไม่ publish, cancelled ถูกยกเลิกก่อนเริ่ม
+ */
+export async function checkAuctionHosted(
+  userId: string,
+  criteria: CriteriaAuctionHosted,
+): Promise<{ met: boolean; count: number }> {
+  const shop = await getShopForUser(userId)
+  if (!shop) return { met: false, count: 0 }
+  const count = await prisma.auction.count({
+    where: { shopId: shop.id, status: { notIn: ['draft', 'cancelled'] } },
+  })
+  return { met: count >= criteria.count, count }
+}
+
+/**
+ * checkAuctionSold — นับ Auction ที่ขายได้ (status='ended')
+ * ทำไม status='ended' เท่านั้น: settle สร้าง Order แล้ว, ส่วน 'unsold' = reserve ไม่ถึง ไม่นับว่าขายได้
+ */
+export async function checkAuctionSold(
+  userId: string,
+  criteria: CriteriaAuctionSold,
+): Promise<{ met: boolean; count: number }> {
+  const shop = await getShopForUser(userId)
+  if (!shop) return { met: false, count: 0 }
+  const count = await prisma.auction.count({ where: { shopId: shop.id, status: 'ended' } })
+  return { met: count >= criteria.count, count }
+}
+
+/**
+ * checkAuctionHighBidCount — Phase 2: มี Auction อย่างน้อย 1 ใบที่ bidCount >= minBidCount
+ * ใช้ field Auction.bidCount ที่ denormalize ไว้แล้ว (ไม่ต้อง groupBy Bid)
+ */
+export async function checkAuctionHighBidCount(
+  userId: string,
+  criteria: CriteriaAuctionHighBidCount,
+): Promise<{ met: boolean; count: number }> {
+  const shop = await getShopForUser(userId)
+  if (!shop) return { met: false, count: 0 }
+  const count = await prisma.auction.count({
+    where: { shopId: shop.id, bidCount: { gte: criteria.minBidCount } },
+  })
+  return { met: count >= 1, count }
+}
+
+/**
+ * checkAuctionBidCount — buyer: จำนวน Bid ที่วางทั้งหมด (รวมที่แพ้)
+ * ไม่ผ่าน shop — bidderId คือ userId ตรง (buyer ไม่จำเป็นต้องมี shop)
+ */
+export async function checkAuctionBidCount(
+  userId: string,
+  criteria: CriteriaAuctionBidCount,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.bid.count({ where: { bidderId: userId } })
+  return { met: count >= criteria.count, count }
+}
+
+/**
+ * checkAuctionWon — buyer: จำนวน Order ที่ชนะประมูล (Order.auctionId ไม่เป็น null)
+ * "ชนะ" นับตอน settle สร้าง Order แล้ว ไม่สนสถานะ order ต่อจากนั้น
+ */
+export async function checkAuctionWon(
+  userId: string,
+  criteria: CriteriaAuctionWon,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.order.count({
+    where: { buyerUserId: userId, auctionId: { not: null } },
+  })
+  return { met: count >= criteria.count, count }
+}
+
+/**
+ * checkAuctionWonCompleted — Phase 2: buyer ชนะประมูล + order ถึงสถานะ terminal แล้ว
+ * statuses มาจาก resolveStatuses(criteria) ที่ caller คำนวณไว้แล้ว (default CONFIRMED)
+ */
+export async function checkAuctionWonCompleted(
+  userId: string,
+  criteria: CriteriaAuctionWonCompleted,
+  statuses: string[] = DEFAULT_TERMINAL_STATUSES,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.order.count({
+    where: { buyerUserId: userId, auctionId: { not: null }, status: { in: statuses } },
+  })
+  return { met: count >= criteria.count, count }
+}
+
 // ─── Core award helper ────────────────────────────────────────────────────────
 
 /**
@@ -393,8 +490,40 @@ export async function evaluateBadges(
           met = r.met
           break
         }
+        // ── Auction achievement (feature 00002 — Seller Auction, BRD §11) ──
+        case 'AUCTION_HOSTED': {
+          const r = await checkAuctionHosted(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'AUCTION_SOLD': {
+          const r = await checkAuctionSold(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'AUCTION_HIGH_BID_COUNT': {
+          const r = await checkAuctionHighBidCount(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'AUCTION_BID_COUNT': {
+          const r = await checkAuctionBidCount(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'AUCTION_WON': {
+          const r = await checkAuctionWon(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'AUCTION_WON_COMPLETED': {
+          const r = await checkAuctionWonCompleted(userId, criteria, statuses)
+          met = r.met
+          break
+        }
         default: {
           // ทำไม warn ไม่ throw: badge ใหม่ที่ยังไม่มี handler ไม่ควรพัง flow หลัก
+          // (bid/settle ต้องไม่ throw เพราะ badge — เรียกจาก placeBid/settleAuctionCore best-effort)
           console.warn('[badge] unknown criteria type', (criteria as { type: string }).type, badge.nameEN)
           continue
         }
