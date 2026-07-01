@@ -235,6 +235,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | Add-on | โมเดล | Phase |
 |--------|-------|-------|
 | **SMS Order Link** | ฿1/ข้อความ (ทุน ~฿0.5) — credit/top-up wallet, กดส่งลิงก์เข้ามือถือ buyer จากระบบ. Free = ส่งเอง | **MVP** |
+| **Inventory Add-on** (จัดการสต็อกสินค้า) | subscription ฿199/เดือน — หักจาก SellerWallet อัตโนมัติทุกรอบ (30 วัน rolling); เครดิตไม่พอตอน renew = ล็อกทันที (ไม่มี grace period, เตือนล่วงหน้า 3 วัน); ตัดสต็อกอัตโนมัติตอนสร้าง order (เฉพาะ PHYSICAL), คืนเมื่อ cancel, block เมื่อ stock=0. ล็อกไม่ลบข้อมูลสต็อก | **MVP** (Feature 00002 — ดู `docs/20 - Features/00002 - Inventory Add-on/`) |
 | **พิมพ์เอกสาร** (ใบเสร็จ/ใบแจ้งหนี้/อื่น ๆ) | TBD — A: pack ฿590 / 600 orders (reprint ออเดอร์เดิมได้) หรือ B: ฿199/เดือน ไม่อั้น | Phase 2 |
 | **Verified Badge** | subscription ~฿299/เดือน — badge หลังชื่อร้าน/profile (แบบ Meta/Twitter) | Phase 2 |
 
@@ -265,6 +266,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 13 | FB App ยัง Developer mode → login ได้เฉพาะ account ที่มี FB role | App Review `email` scope (เปิด public) | OPEN (ops carry) |
 | 14 | `OnboardingModal.tsx` dead code หลัง onboarding ย้ายเป็น page | ลบ component + mount point บน dashboard | OPEN (cleanup carry) |
 | 15 | username edit cooldown 30 วัน (หลัง onboarding) | feature อนาคต — ยังไม่มี cooldown enforcement | OPEN (Phase 2) |
+| S-9 | Inventory Add-on (subscription ฿199/mo — stock mgmt PHYSICAL) | PRD+BRD drafted + user-reviewed (2026-07-01) → next: SRS/SDS/DATABASE/API/Tests | OPEN (docs-first, pre-implementation) — `docs/20 - Features/00002 - Inventory Add-on/` |
 
 ### §7-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
 
