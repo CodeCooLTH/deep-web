@@ -573,20 +573,44 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
     if (a.shop.userId === bidderId) {
       throw new BidError('ไม่สามารถเสนอราคา auction ของตัวเองได้', 403)
     }
-    const minNext = Number(a.currentPrice) + Number(a.bidIncrement)
-    if (amount < minNext) {
-      throw new BidError(`ต้องบิดอย่างน้อย ${minNext.toLocaleString()} บาท`, 400)
+
+    // buy-now scenario ต้องตรวจ "ก่อน" minNext check (must-fix reviewer) — เมื่อ currentPrice ขยับใกล้
+    // buyNowPrice จน minNext=currentPrice+bidIncrement > buyNowPrice (แต่ currentPrice ยัง < buyNowPrice)
+    // buyer กด buy-now (amount=buyNowPrice) ต้องยังสำเร็จ ไม่ใช่โดน 400 "ต้องบิดอย่างน้อย X" (SDS §4.3)
+    const isBuyNow = a.buyNowPrice != null && amount >= Number(a.buyNowPrice)
+
+    if (isBuyNow) {
+      if (Number(a.currentPrice) >= Number(a.buyNowPrice)) {
+        // มีคน buy-now หรือบิดแซงไปถึง/เกิน buyNowPrice ไปแล้วก่อนหน้า — ใช้ buy-now ซ้ำไม่ได้ (409 ไม่ใช่ 400)
+        throw new BidError('ราคาสูงเกินระดับซื้อทันทีแล้ว', 409)
+      }
+      // buy-now ที่ currentPrice ยังต่ำกว่า buyNowPrice ถือว่า valid เสมอ — ข้าม minNext check
+    } else {
+      const minNext = Number(a.currentPrice) + Number(a.bidIncrement)
+      if (amount < minNext) {
+        throw new BidError(`ต้องบิดอย่างน้อย ${minNext.toLocaleString()} บาท`, 400)
+      }
     }
 
-    // conditional update (R-SRS-1) — WHERE currentPrice ต้องยังเท่าค่าที่เพิ่งอ่าน (optimistic guard)
-    // ป้องกัน lost-update เมื่อ 2 transaction วิ่งพร้อมกันภายใต้ READ COMMITTED
-    const res = await tx.auction.updateMany({
-      where: { id: auctionId, status: 'live', currentPrice: a.currentPrice },
-      data: { currentPrice: amount, bidCount: { increment: 1 } },
-    })
+    // conditional update (R-SRS-1) — atomic guard กัน lost-update ข้าม concurrent transaction (READ COMMITTED):
+    //  - buy-now: WHERE currentPrice < buyNowPrice (กัน 2 buy-now พร้อมกัน + กัน bid ปกติแซงเข้ามาก่อนหน้านี้)
+    //  - bid ปกติ: WHERE currentPrice = snapshot ที่เพิ่งอ่าน (optimistic guard เดิม)
+    const res = isBuyNow
+      ? await tx.auction.updateMany({
+          where: { id: auctionId, status: 'live', currentPrice: { lt: a.buyNowPrice! } },
+          data: { currentPrice: amount, bidCount: { increment: 1 } },
+        })
+      : await tx.auction.updateMany({
+          where: { id: auctionId, status: 'live', currentPrice: a.currentPrice },
+          data: { currentPrice: amount, bidCount: { increment: 1 } },
+        })
     if (res.count === 0) {
-      // มีคนแซงระหว่างที่เราอ่านค่า — ให้ client retry ด้วย currentPrice ล่าสุด (FR-AUC-05-AC-08)
-      throw new BidError('มีคนเสนอราคาก่อนคุณ กรุณาลองใหม่', 409)
+      // buy-now: อีกคน buy-now/บิดแซงไปก่อนในช่วงเสี้ยววินาที — ไม่ใช่ "ต้องบิดอย่างน้อย"
+      // bid ปกติ: มีคนแซงระหว่างที่เราอ่านค่า — ให้ client retry ด้วย currentPrice ล่าสุด (FR-AUC-05-AC-08)
+      throw new BidError(
+        isBuyNow ? 'การประมูลปิดแล้ว หรือราคาสูงเกินระดับซื้อทันทีแล้ว' : 'มีคนเสนอราคาก่อนคุณ กรุณาลองใหม่',
+        409,
+      )
     }
 
     // ผู้บิดสูงสุดก่อนหน้า (ไว้แจ้งเตือนว่าโดนแซง)
@@ -598,7 +622,7 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
 
     await tx.bid.create({ data: { auctionId, bidderId, amount } })
 
-    if (a.buyNowPrice != null && amount >= Number(a.buyNowPrice)) {
+    if (isBuyNow) {
       // buy-now path (TFR-007) — settle ทันทีในทรานแซคชันเดียวกัน (reuse settleAuctionCore 100%)
       await settleAuctionCore(tx, auctionId, {
         force: true,
