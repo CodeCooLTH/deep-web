@@ -4,12 +4,16 @@
 // ในโดเมนเดียวกันเท่านั้น ก่อนส่งเข้า router.push()/signIn({ callbackUrl })
 export const DEFAULT_CALLBACK_URL = '/'
 
+// origin สมมติสำหรับ resolve relative URL — ใช้ .invalid (RFC 6761 reserved, ต่อ network ไม่ได้)
+const PLACEHOLDER_ORIGIN = 'https://placeholder.invalid'
+
 /**
  * ตรวจว่า raw string ที่ได้จาก searchParams.get('callbackUrl') ปลอดภัยพอจะใช้ redirect ไหม
- * เงื่อนไขผ่าน: ต้องขึ้นต้นด้วย '/' เดี่ยว ๆ (relative path) เท่านั้น
- * ปฏิเสธ: absolute URL (http://, https://), protocol-relative ('//evil.com'),
- *         backslash trick ('/\evil.com' — browser บางตัวตีความ '\' เป็น '/'),
- *         หรือมี '://' ปนอยู่ (เผื่อ encode/พิมพ์แปลก ๆ เช่น '/http://evil.com')
+ * เงื่อนไขผ่าน: relative path ใน origin เดียวกันเท่านั้น
+ * วิธี: ใช้ WHATWG URL parser (อัลกอริทึมเดียวกับ browser) resolve เทียบ PLACEHOLDER_ORIGIN —
+ *   ถ้า origin ที่ parse ได้เปลี่ยนไป = absolute/protocol-relative/มี trick → ปฏิเสธ.
+ *   ครอบคลุม tab/newline/CR bypass ('/\t/evil.com' — URL parser strip control char แล้ว fold
+ *   เป็น '//evil.com' → absolute) ที่ manual string check พลาด (reviewer must-fix).
  */
 export function getSafeCallbackUrl(
   raw: string | null | undefined,
@@ -18,7 +22,11 @@ export function getSafeCallbackUrl(
   if (!raw) return fallback
   if (!raw.startsWith('/')) return fallback
   if (raw.startsWith('//') || raw.startsWith('/\\')) return fallback
-  if (raw.includes('://')) return fallback
-
-  return raw
+  try {
+    const u = new URL(raw, PLACEHOLDER_ORIGIN)
+    if (u.origin !== PLACEHOLDER_ORIGIN) return fallback // fold เป็น absolute = อันตราย
+    return u.pathname + u.search + u.hash // relative ที่ normalize แล้ว
+  } catch {
+    return fallback
+  }
 }

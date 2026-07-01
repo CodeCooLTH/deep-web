@@ -47,17 +47,6 @@ type Props = {
   initialWatching: boolean
 }
 
-/** shape ของ payload ที่ trigger `auction_realtime_broadcast()` ส่งมา (เหมือน seller console — 00002 API.md §6) */
-type AuctionRealtimeUpdate = {
-  id: string
-  currentPrice: number
-  bidCount: number
-  endTimeMs: number
-  status: PublicAuctionDTO['status']
-  antiSnipeCount: number
-  hasReserve: boolean
-}
-
 type ConnectionState = 'live' | 'reconnecting'
 
 export default function AuctionDetailClient({ auction, seller, isWinner, initialWatching }: Props) {
@@ -94,36 +83,32 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
     const supabase = getSupabaseBrowserClient()
     const channel = supabase
       .channel(`auction:${auction.id}`)
-      .on('broadcast', { event: 'update' }, (message) => {
-        const payload = message.payload as AuctionRealtimeUpdate
-
-        setCurrentPrice(payload.currentPrice)
-        setBidCount(payload.bidCount)
-        setEndTimeMs(payload.endTimeMs)
-        setStatus(payload.status)
-        setAntiSnipeCount(payload.antiSnipeCount)
-
-        if (payload.antiSnipeCount > antiSnipeCountRef.current) {
-          toast.info('ต่อเวลาประมูลอัตโนมัติ')
-        }
-        antiSnipeCountRef.current = payload.antiSnipeCount
-
-        // broadcast payload ไม่มี bidHistory (sanitized) → re-fetch public endpoint เดิมเพื่ออัปเดต
-        // bid feed + sparkline chart ให้ตรงกับราคา/จำนวนบิดล่าสุด
+      .on('broadcast', { event: 'update' }, () => {
+        // 🔒 security fix A (reconciliation): channel เป็น public → payload spoofable
+        // (ใครมี anon key ก็ยิง broadcast ปลอมได้) → **ไม่เชื่อ payload** ใช้เป็นแค่ "signal ว่ามีการเปลี่ยน"
+        // แล้ว re-fetch authoritative endpoint set ทุก field จาก dto จริงเท่านั้น (ค่าปลอม self-heal)
         fetch(`/api/app/auctions/${auction.id}`)
           .then((res) => (res.ok ? (res.json() as Promise<AuctionData>) : null))
           .then((dto) => {
-            if (dto) setBidHistory(dto.bidHistory)
+            if (!dto) return
+            setCurrentPrice(dto.currentPrice)
+            setBidCount(dto.bidCount)
+            setEndTimeMs(dto.endTimeMs)
+            setStatus(dto.status)
+            setBidHistory(dto.bidHistory)
+            if (dto.antiSnipeCount > antiSnipeCountRef.current) {
+              toast.info('ต่อเวลาประมูลอัตโนมัติ')
+            }
+            setAntiSnipeCount(dto.antiSnipeCount)
+            antiSnipeCountRef.current = dto.antiSnipeCount
+            // ประมูลจบจาก authoritative → refresh RSC เพื่อดึง isWinner (server-side จาก Order.buyerUserId)
+            if (dto.status === 'ended' || dto.status === 'unsold' || dto.status === 'cancelled') {
+              router.refresh()
+            }
           })
           .catch(() => {
-            // เงียบ — bidHistory จะได้ค่าล่าสุดตอน broadcast ครั้งถัดไปหรือ router.refresh()
+            // เงียบ — จะ sync อีกครั้งตอน broadcast ถัดไปหรือ router.refresh()
           })
-
-        // ประมูลจบ/ขายไม่ออก/ยกเลิกจาก broadcast (คนอื่นเปิด request trigger lazy-settle) →
-        // refresh RSC เพื่อดึง isWinner ใหม่ (คำนวณฝั่ง server จาก Order.buyerUserId)
-        if (payload.status === 'ended' || payload.status === 'unsold' || payload.status === 'cancelled') {
-          router.refresh()
-        }
       })
       .subscribe((subStatus) => {
         if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') setConnectionState('reconnecting')

@@ -50,6 +50,8 @@ export default async function AuctionDetailPage({ params }: Props) {
 
   const auction = await getAuctionDetail(id)
   if (!auction) notFound()
+  // draft = ยังไม่เผยแพร่ (seller แก้อยู่) — กันหลุด public ผ่าน direct link (security LOW, defense-in-depth)
+  if (auction.status === 'draft') notFound()
 
   const seller = await getSellerTrust(auction.shopId)
 

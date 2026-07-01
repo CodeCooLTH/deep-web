@@ -588,5 +588,6 @@ export const EndEarlyAuctionSchema = v.object({
 // (เหมือน AppPlaceBidSchema ของ mobile ใน lib/app-validations.ts แต่แยกไฟล์ตาม convention
 // backend validation ของ web routes มาจาก lib/validations.ts เสมอ)
 export const PlaceBidSchema = v.object({
-  amount: v.pipe(v.number(), v.minValue(0.01)),
+  // maxValue กัน Decimal(12,2) overflow (security LOW — defense-in-depth เหมือน CreateAuctionSchema)
+  amount: v.pipe(v.number(), v.minValue(0.01), v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด")),
 });
