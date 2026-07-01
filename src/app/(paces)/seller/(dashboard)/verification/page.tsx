@@ -187,6 +187,7 @@ export default async function VerificationPage() {
               status={status}
               rejectedReason={rec?.rejectedReason ?? null}
               canSubmit={canSubmit(level)}
+              previousApproved={getPreviousApproved(level)}
             />
           )
         })}

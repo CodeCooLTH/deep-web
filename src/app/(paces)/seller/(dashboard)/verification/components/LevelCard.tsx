@@ -33,6 +33,8 @@ interface LevelCardProps {
   status: Status | 'NOT_SUBMITTED' | 'AUTO_APPROVED'
   rejectedReason?: string | null
   canSubmit: boolean
+  // L3 มีเงื่อนไข "ต้องผ่าน Level 2 ก่อน" — สะท้อนสถานะจริงจาก parent (getPreviousApproved)
+  previousApproved?: boolean
 }
 
 // ไอคอนต่อระดับ — tabler ชื่อ (ไม่มี prefix, ส่งเข้า wrapper)
@@ -59,7 +61,7 @@ const levelFeatures: Record<number, { title: string; included: boolean }[]> = {
     { title: 'เอกสารจดทะเบียนธุรกิจ', included: true },
     { title: 'เลขที่จดทะเบียน', included: true },
     { title: 'แอดมินตรวจสอบภายใน 3–5 วัน', included: true },
-    { title: 'ต้องผ่าน Level 2 ก่อน', included: false },
+    // เงื่อนไข Level 2 = dynamic (เติมใน component จาก previousApproved) ไม่ hardcode
   ],
 }
 
@@ -78,13 +80,23 @@ export default function LevelCard({
   status,
   rejectedReason,
   canSubmit,
+  previousApproved = false,
 }: LevelCardProps) {
   // toggle แสดงฟอร์มอัปโหลด — onDone() พับกลับ (คงเดิม)
   const [showForm, setShowForm] = useState(false)
 
   const isActionable = canSubmit
   const cardHighlight = getCardHighlight(status, isActionable)
-  const features = levelFeatures[level] ?? []
+  // L3: เติม prerequisite item ตามสถานะจริงของ Level 2 (ผ่านแล้ว → ✓, ยังไม่ผ่าน → ✗)
+  const features =
+    level === 3
+      ? [
+          ...(levelFeatures[3] ?? []),
+          previousApproved
+            ? { title: 'ผ่าน Level 2 แล้ว', included: true }
+            : { title: 'ต้องผ่าน Level 2 ก่อน', included: false },
+        ]
+      : levelFeatures[level] ?? []
 
   return (
     // shell จาก pricing card: card h-full rounded-md + isPopular → !bg-primary
