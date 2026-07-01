@@ -683,6 +683,7 @@ interface PublicAuctionDTO {
   title: string
   description: string | null
   imageUrl: string
+  images: string[]             // gallery (schema Auction.images Json มีอยู่เดิม)
   currentPrice: number
   bidIncrement: number
   startTimeMs: number | null
@@ -702,7 +703,7 @@ interface PublicAuctionDTO {
 interface SellerAuctionDTO extends PublicAuctionDTO {
   reservePrice: number | null
   expectedPrice: number | null   // pure display indicator, ไม่กระทบ settle logic ใด ๆ
-  cancelledAt: number | null     // epoch ms
+  cancelledAt: string | null     // ISO string (RSC-safe — ตรงกับ impl toSellerAuctionDTO, SDS §7.2)
   bidHistory: BidDTO[]           // top 20
 }
 
@@ -710,7 +711,7 @@ interface SellerAuctionDTO extends PublicAuctionDTO {
 interface SellerAuctionListItemDTO {
   id: string
   title: string
-  thumbnail: string     // = imageUrl
+  imageUrl: string      // (impl ใช้ imageUrl ตรง SDS §6 — ไม่ใช่ thumbnail)
   status: 'draft' | 'scheduled' | 'live' | 'ended' | 'unsold' | 'cancelled'
   currentPrice: number
   bidCount: number
