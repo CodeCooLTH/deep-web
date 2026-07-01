@@ -756,7 +756,9 @@ interface BidDTO {
 
 เอกสารนี้กำหนดสัญญาการเชื่อมต่อของ **Seller Auction + Realtime Bidding (M00002)** ครบทั้ง 15 endpoint (7 seller ใหม่ + 6 buyer ขยาย/คงเดิม + 2 supporting) พร้อม authorization matrix, error table, DTO ที่แยก public/seller ชัดเจนตาม PII-equivalent rule ของ `reservePrice`/`expectedPrice`, และ Realtime channel spec ที่แก้ gap การรั่วไหลจาก [[DATABASE]] เดิม ให้ DEV implement ได้ตรงกับ [[SRS]] โดยไม่ต้องเดารูปร่าง request/response ของ endpoint ที่ SRS ยืนยันแล้ว
 
-**Open Questions / Pending confirm (ต้องเคาะก่อน dev แตะ endpoint ที่เกี่ยวข้อง):**
+**Open Questions / Pending confirm:**
+
+> **✅ อัปเดต 2026-07-01:** ข้อ scope/business เคาะแล้ว — ดู [[BRD]] §2.7 Decisions Log (SSOT): edit price = แก้ได้ (ข้อ 1), watch = รวม M00002 (ข้อ 6), schedule past = reject 400 (ข้อ 9), buyer bid = ไม่ gate MVP (ข้อ 10), Realtime = Broadcast-from-DB (ข้อ 8). ข้อ response-shape (2/3/4/5/7) = Controller technical default (BRD §2.7 Group A: publish `{mode,startTime?}`, cancel/buy-now คืน DTO+orderId, top คง `AuctionDTO`, เพิ่ม `images[]`). รายการด้านล่างคง original เพื่อ traceability.
 
 1. **`PATCH /api/seller/auctions/[id]`** — price fields (`startPrice`/`reservePrice`/`buyNowPrice`/`expectedPrice`) แก้ได้ระหว่าง draft/scheduled หรือไม่ ([[SRS]] §11 Q1 — carry-over, ยังไม่ sign-off)
 2. **`POST .../publish` request body** — [[SRS]] §4.1 ระบุแค่ path ไม่มี schema; เอกสารนี้เสนอ `{mode, startTime?}` ตาม pattern create — **ต้อง confirm ก่อน dev**

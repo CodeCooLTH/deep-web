@@ -333,6 +333,21 @@ sequenceDiagram
 - ⏸️ **ปรับ buy-now ระหว่าง live** — edge feature ยังไม่จำเป็นต่อ core loop; ต้องตัดสินว่าลด/ขึ้นได้แค่ไหน + broadcast Realtime
 - ⏸️ **Feature / Pin (ดันรายการให้เด่น)** — พัวพัน business model (ฟรี/เสียเงิน, กี่รายการพร้อมกัน) ควรแยกคิดเป็น decision เชิง monetization ทีหลัง
 
+### 2.7 Decisions Log — Open Questions Resolved (sign-off 2026-07-01)
+
+Open Questions ที่ค้างใน [[SRS]] §11 / [[SDS]] §15 / [[API]] §11 ถูก user เคาะทีละข้อ (2026-07-01) — บันทึกเป็น SSOT ที่นี่ (docs ปลายทางอ้างกลับมา):
+
+| # | ประเด็น | มติ | ผลต่อ scope/spec |
+|---|---|---|---|
+| **OQ-1** | กลไก Realtime (leak reservePrice/expectedPrice) | ✅ **Broadcast from Database (trigger)** แทน `postgres_changes` | [[DATABASE]] §9 แก้แล้ว (Migration M3); ต้อง user approve migration ก่อน apply prod + verify Supabase รองรับ `realtime.send()` |
+| **OQ-2** | Buyer verify level ก่อน bid | ✅ **ไม่ gate (MVP)** — ทุกคนที่ login Deep-App bid ได้ | shill-bidding เป็น risk ที่รับไว้ (Phase 2 ค่อยเพิ่ม gate ถ้าจำเป็น); ไม่เพิ่ม AC L-gate ฝั่ง buyer |
+| **OQ-3** | Watch/Unwatch endpoint | ✅ **รวมใน M00002** | `POST/DELETE /api/app/auctions/[id]/watch` เข้า scope (upsert `WatchList`) |
+| **OQ-4** | แก้ราคา (startPrice/reserve/buyNow/expected) ขณะ draft/scheduled | ✅ **แก้ได้** | `PATCH` รับ price fields ได้ (validation เดิมซ้ำ); FR-AUC-02 editable fields ครอบราคาด้วยเมื่อยังไม่มี bid |
+| **OQ-5** | "ผ่าน Facebook" ใน bid feed | ✅ **decorative UI copy เท่านั้น** | ไม่ integrate FB API จริง — กัน scope creep |
+| **OQ-6** | schedule ที่ startTime เป็นอดีต/ปัจจุบัน | ✅ **Reject 400** | validation ปฏิเสธชัดเจน ไม่ auto-fallback publishNow |
+
+**Group A — Controller technical defaults (ไม่ต้อง user เคาะ, ทีม dev ยึดตามนี้):** countdown=0 → `router.refresh()`+poll 5s (lazy-settle, no cron); bidHistory re-fetch หลัง broadcast → reuse `GET /api/seller/auctions/[id]`; Supabase `realtime.send()` version → dev verify หน้างานก่อน TFR-010; theme file path → dev `Glob` ก่อน copy; response shapes (publish `{mode,startTime?}` / cancel,buy-now คืน DTO+orderId / top คง `AuctionDTO` / เพิ่ม `images[]`) → ตาม planner เสนอ; Deep-App Realtime client = cross-repo, ไม่ block MVP (fallback REST polling).
+
 ---
 
 ## 3. Acceptance Criteria สรุป

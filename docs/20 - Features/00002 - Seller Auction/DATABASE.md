@@ -235,12 +235,40 @@ ALTER TABLE "User" ADD CONSTRAINT "User_successfulBidCount_nonneg" CHECK ("succe
 ---
 
 ## 9. Supabase Realtime (infra step — แยกจาก Prisma migration)
+
+> **🛑 แก้แล้ว 2026-07-01 (OQ-1 sign-off):** เปลี่ยนจาก `postgres_changes` (ALTER PUBLICATION) → **Broadcast from Database (trigger)**. เหตุผล: `postgres_changes` broadcast **แถวเต็มทั้งแถว** + โปรเจกต์ **ไม่มี RLS** → `reservePrice`/`expectedPrice` จะรั่วถึง buyer ทุกคนที่ subscribe (ขัด FR-AUC-13-AC-04) แม้ REST DTO กรองถูกแล้วก็ตาม เพราะ Realtime เป็นคนละเส้นจาก REST. ดู [[SRS]] §2.4 (Option A) + [[SDS]] §10 (Migration M3).
+
+**Migration M3 — trigger function (เลือกคอลัมน์เอง, ไม่ผ่าน publication):**
 ```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE "Auction";  -- รันใน Supabase SQL Editor
+-- รันใน Supabase SQL Editor (ต้อง user approve — แตะ prod DB เดียวกับ dev)
+CREATE OR REPLACE FUNCTION public.auction_realtime_broadcast() RETURNS trigger AS $$
+BEGIN
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'id', NEW.id,
+      'currentPrice', NEW."currentPrice",
+      'bidCount', NEW."bidCount",
+      'endTimeMs', extract(epoch from NEW."endTime") * 1000,
+      'status', NEW.status,
+      'antiSnipeCount', NEW."antiSnipeCount",
+      'hasReserve', (NEW."reservePrice" IS NOT NULL)
+      -- 🛑 ห้ามใส่ reservePrice / expectedPrice / cancelledAt (leak — FR-AUC-13-AC-04)
+    ),
+    'update', 'auction:' || NEW.id, false
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN RETURN NEW;  -- fail-safe: Realtime ล่มต้องไม่ rollback UPDATE หลัก (FR-AUC-10-AC-03)
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER auction_realtime_broadcast_trigger
+  AFTER UPDATE ON "Auction" FOR EACH ROW EXECUTE FUNCTION public.auction_realtime_broadcast();
 ```
-broadcast Auction row UPDATE (currentPrice/bidCount/endTime/status/antiSnipeCount) → client subscribe
-**RLS:** โปรเจกต์ไม่ใช้ RLS → ไม่ต้อง policy; Risk: ถ้าเปิด RLS อนาคต Realtime หยุด → ต้อง `CREATE POLICY "anon read Auction" ... USING(true)`
-Client (Deep-App): `supabase.channel('auction:'+id).on('postgres_changes',{event:'UPDATE',table:'Auction',filter:'id=eq.'+id},cb).subscribe()` — ต้องเพิ่ม `@supabase/supabase-js` + anon key
+broadcast payload = currentPrice/bidCount/endTimeMs/status/antiSnipeCount/hasReserve (sanitized) → client subscribe
+**RLS:** โปรเจกต์ไม่ใช้ RLS → `private=false` ใช้ anon key ได้; Broadcast-from-DB ไม่ผ่าน publication `supabase_realtime` (ไม่ต้อง ALTER PUBLICATION)
+**Prerequisite:** ต้องยืนยัน Supabase project รองรับ `realtime.send()` (Realtime ≥ 2.x) ก่อน apply; ถ้าไม่รองรับ → fallback Option B (แยกตาราง sensitive fields, [[SRS]] §2.4)
+Client: `supabase.channel('auction:'+id).on('broadcast',{event:'update'},cb).subscribe()` — ต้องเพิ่ม `@supabase/supabase-js` + anon key
+**Rollback:** `DROP TRIGGER auction_realtime_broadcast_trigger ON "Auction"; DROP FUNCTION public.auction_realtime_broadcast();`
 
 ---
 

@@ -705,6 +705,8 @@ erDiagram
 
 ## 11. Open Questions / Assumptions (ต้องเคาะก่อน implement)
 
+> **✅ อัปเดต 2026-07-01:** ข้อ 1 (edit price → แก้ได้), 2 (Realtime → Broadcast-from-DB), 3 (buyer bid → ไม่ gate MVP), 5 (watch → รวม M00002), 7 (schedule past → reject 400), 6 (FB copy → decorative) **เคาะแล้ว** — ดู [[BRD]] §2.7 Decisions Log (SSOT). ข้อ 4 (countdown/reconnect), 8 (Supabase version), 9 (Deep-App) = Controller technical default / dev-verify (BRD §2.7 Group A). รายการด้านล่างคง original ไว้เพื่อ traceability.
+
 1. **FR-AUC-02 AC-01 ไม่ระบุชัดว่า price fields แก้ได้ไหม** — AC ระบุ editable fields = `title/description/รูป/bidIncrement/endTime` เท่านั้น ไม่รวม `startPrice/reservePrice/buyNowPrice/expectedPrice`. SRS สมมติว่าแก้ได้ขณะ draft/scheduled (ไม่กระทบใครเพราะยังไม่มี bid) — **ต้อง user/product confirm** ก่อน implement TFR-002
 2. **Realtime delivery mechanism เปลี่ยนจาก [[DATABASE]] §9** — SRS เสนอ Broadcast from Database (trigger) แทน `ALTER PUBLICATION ... postgres_changes` ตรง ๆ เพื่อกัน reservePrice/expectedPrice รั่ว (§2.4, R-SRS-2) — **ต้อง sync กับ `safepay-database`** ก่อน migrate และ **ต้อง user approve** (แตะ prod Supabase เดียวกับ dev) เหมือนเดิม
 3. **Buyer ต้องมี verification level ขั้นต่ำก่อน bid หรือไม่** — BRD ไม่มี AC กำหนดไว้ (มีแต่ L2 guard ฝั่ง seller) แต่ [[PRD]] §6.1 ระบุความเสี่ยง "Shill Bidding" — ปัจจุบัน SRS สมมติว่า **buyer ทุกคนที่ login ผ่าน Deep-App bid ได้โดยไม่มี L2 gate** (MVP) — ถ้า product ต้องการ gate เพิ่ม ต้องเพิ่ม AC ใหม่ใน BRD ก่อน (ไม่ควร invent ที่นี่)

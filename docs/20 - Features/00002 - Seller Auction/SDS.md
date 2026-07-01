@@ -895,6 +895,8 @@ try {
 
 ## 15. Open Questions (เพิ่มเติมจาก SRS §11 — ที่พบระหว่าง design)
 
+> **✅ อัปเดต 2026-07-01:** Open Questions ระดับ scope/business (SRS §11) เคาะแล้ว — ดู [[BRD]] §2.7 Decisions Log. ข้อ design-level ด้านล่าง (bidHistory re-fetch, theme path, AuctionTimeCard) = Controller technical default (BRD §2.7 Group A): re-fetch ใช้ `GET /api/seller/auctions/[id]` เดิม, theme path ให้ dev `Glob` ก่อน copy, AuctionTimeCard ประกอบจาก Paces primitive.
+
 SRS §11 มี 9 ข้อที่ต้องเคาะอยู่แล้ว (SDS ไม่ทวนซ้ำ — Controller ต้อง sync ก่อน implement TFR ที่เกี่ยวข้อง) เพิ่มเติมจาก design-level:
 
 1. **bidHistory re-fetch หลัง Realtime broadcast** (§8.3) — payload broadcast มีแค่ `currentPrice/bidCount/...` ไม่มี bid record ใหม่เต็ม (bidder name/amount) SDS แนะนำให้ `AuctionBidFeed` re-fetch เต็ม `GET /api/seller/auctions/[id]` (reuse endpoint เดิม ไม่สร้างใหม่) ทุกครั้งที่ broadcast event เข้า — เพื่อความง่าย ไม่ over-engineer แต่มีต้นทุน 1 REST call ต่อ bid event หนึ่งครั้ง (ยอมรับได้เพราะ bid frequency ไม่สูงมาก) **ควร confirm กับ Controller/user ก่อน implement task #12**
