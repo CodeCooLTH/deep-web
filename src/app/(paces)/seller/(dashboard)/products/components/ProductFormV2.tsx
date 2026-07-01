@@ -332,7 +332,7 @@ export default function ProductFormV2({
             />
 
             {/* ProductStockCardV2 — เฉพาะสินค้าจับต้องได้ + ร้าน subscribe Inventory Add-on active
-                (feature 00003; ยังไม่ wire entitlementActive จาก page — ดู S-14) */}
+                (feature 00003; entitlementActive wire จาก new-v2/[id]/edit page แล้ว — S-14) */}
             {watch('type') === 'PHYSICAL' && entitlementActive && (
               <>
                 <div className="border-default-100 border-t" />
