@@ -1,9 +1,10 @@
 ---
 title: "PRD — Seller Auction + Realtime Bidding"
 owner: shinobu22
-status: draft
+status: approved
+approved: 2026-07-01
 module: M00002-SellerAuction
-version: "1.0"
+version: "1.1"
 created: 2026-06-23
 tags: [feature, auction, realtime, bidding, seller]
 related: ["[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
