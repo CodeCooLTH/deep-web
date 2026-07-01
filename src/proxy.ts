@@ -16,7 +16,14 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   // ยกเว้น /api/app/* — Buyer App (mobile) ไม่มี Origin header แบบ browser;
   // auth ของ /api/app ใช้ Bearer token (lib/app-auth.ts) ไม่ใช่ cookie จึงไม่มี
   // CSRF surface (CSRF อาศัย cookie ที่ browser แนบอัตโนมัติ). ยังคง rate-limit ด้านล่าง.
-  if (MUTATION_METHODS.has(request.method) && !pathname.startsWith('/api/app/')) {
+  // ยกเว้น /api/cron/* — Vercel Cron เรียกแบบ server-to-server ไม่มี Origin
+  // header เหมือน browser (TD-002); auth ของ route นี้ใช้ CRON_SECRET ที่ตัว
+  // route เองแทน ไม่ได้อาศัย cookie จึงไม่มี CSRF surface เช่นกัน. rate-limit ยัง apply ปกติ
+  if (
+    MUTATION_METHODS.has(request.method) &&
+    !pathname.startsWith('/api/app/') &&
+    !pathname.startsWith('/api/cron/')
+  ) {
     if (!isAllowedOrigin(request.headers.get('origin'))) {
       return NextResponse.json({ error: 'CSRF check failed' }, { status: 403 })
     }

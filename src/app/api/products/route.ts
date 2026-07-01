@@ -9,6 +9,7 @@ import {
   serializeProduct,
 } from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
+import { isEntitlementActive } from "@/services/inventory-entitlement.service";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -31,6 +32,16 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = v.safeParse(CreateProductSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา
+  if (parsed.output.stockQty !== undefined) {
+    if (parsed.output.type !== "PHYSICAL") {
+      return NextResponse.json({ error: "STOCK_QTY_INVALID_PRODUCT_TYPE" }, { status: 400 });
+    }
+    if (!(await isEntitlementActive(shop.id))) {
+      return NextResponse.json({ error: "INVENTORY_NOT_ACTIVE" }, { status: 403 });
+    }
+  }
 
   const product = await createProduct(shop.id, parsed.output);
   return NextResponse.json(serializeProduct(product), { status: 201 });

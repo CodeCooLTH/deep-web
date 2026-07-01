@@ -116,6 +116,8 @@ export interface SerializedProduct {
   createdAt: string;
   updatedAt: string;
   tags: { id: string; name: string; slug: string }[];
+  // stockQty — Inventory Add-on (feature 00003): null=untracked
+  stockQty: number | null;
 }
 
 type ProductWithTags = Prisma.ProductGetPayload<{ include: { tags: true } }>;
@@ -146,6 +148,7 @@ export function serializeProduct(product: ProductWithTags): SerializedProduct {
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
     tags: product.tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
+    stockQty: product.stockQty ?? null,
   };
 }
 
@@ -168,6 +171,8 @@ export interface CreateProductInput {
   billingMode?: BillingMode;
   billingPeriod?: BillingPeriod | null;
   billingPeriodDays?: number | null;
+  // stockQty — Inventory Add-on (feature 00003): undefined=ไม่แตะ, null=untrack, ≥0=track
+  stockQty?: number | null;
 }
 
 /**
@@ -201,6 +206,8 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       type: data.type,
       images: (data.images ?? []) as Prisma.InputJsonValue,
       attributes: (data.attributes ?? {}) as Prisma.InputJsonValue,
+      // stockQty — Inventory Add-on (feature 00003): omit ก็ default เป็น null (untracked)
+      stockQty: data.stockQty ?? null,
       // capability flags — derive fulfillmentMode จาก type ถ้า caller ไม่ส่งมา
       // ไม่พึ่ง client หรือ DB default: SERVICE/DIGITAL ที่ไม่ส่ง fulfillmentMode จะได้
       // SHIPPED จาก schema default → post-OMS createOrder จะ require shipping ผิด
@@ -243,6 +250,8 @@ export interface UpdateProductInput {
   billingMode?: BillingMode;
   billingPeriod?: BillingPeriod | null;
   billingPeriodDays?: number | null;
+  // stockQty — Inventory Add-on (feature 00003): omit=ไม่แตะ, null=untrack, ≥0=track
+  stockQty?: number | null;
 }
 
 /**
@@ -281,6 +290,8 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.billingMode !== undefined) scalarUpdate.billingMode = data.billingMode;
   if (data.billingPeriod !== undefined) scalarUpdate.billingPeriod = data.billingPeriod;
   if (data.billingPeriodDays !== undefined) scalarUpdate.billingPeriodDays = data.billingPeriodDays;
+  // stockQty — Inventory Add-on (feature 00003): omit=ไม่แตะ (pattern เดียวกับ field อื่นข้างบน)
+  if (data.stockQty !== undefined) scalarUpdate.stockQty = data.stockQty;
 
   // ถ้าไม่มี tags ใน payload — update ครั้งเดียว ไม่ต้อง transaction
   if (data.tags === undefined) {

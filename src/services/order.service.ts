@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges } from "@/services/badge.service";
+import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 
 // State machine ใหม่ตาม OMS redesign spec §2
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
@@ -103,12 +104,13 @@ export async function createOrder(shopId: string, data: {
   }
 
   // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
-  const orderData = {
+  // orderDataBase ไม่รวม items แล้ว (เดิมมี items: { create: data.items } ตรงนี้) —
+  // ย้ายการ build items ไปทำใน retry loop เพื่อแนบ stockDeducted ต่อ item (Inventory Add-on)
+  const orderDataBase = {
     shopId,
     type: data.type,
     totalAmount,
     fulfillmentMode,
-    items: { create: data.items },
     buyerContact: data.buyerContact ?? undefined,
     buyerName: data.buyerName ?? undefined,
     paymentMethod: data.paymentMethod ?? undefined,
@@ -120,14 +122,39 @@ export async function createOrder(shopId: string, data: {
     shippingAddress: data.shippingAddress ?? undefined,
   };
 
+  // 🛑 TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว
+  // ทำไม: ถ้า tx.order.create throw P2002 (ชน shortCode) ครั้งแรก Postgres จะ mark
+  // ทั้ง transaction เป็น aborted ("current transaction is aborted") — attempt ถัดไปที่พยายาม
+  // retry อยู่ใน tx เดิมจะ fail ทันทีด้วย aborted-transaction error ไม่ใช่ retry จริง
+  // แก้โดยเปิด $transaction ใหม่ทั้งก้อนทุก attempt (รวม stock-deduct ด้วย — ปลอดภัยเพราะ
+  // attempt ที่ fail จะ rollback หมดอัตโนมัติ, attempt ถัดไป re-read stock สดใหม่)
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      return await prisma.order.create({
-        data: { ...orderData, shortCode: genShortCode() },
-        include: { items: true },
+      return await prisma.$transaction(async (tx) => {
+        // Inventory Add-on hook — 1 indexed lookup, short-circuit สำหรับ shop ที่ไม่มี
+        // entitlement ACTIVE (ส่วนใหญ่) → ไม่ query product/stock เพิ่มเลย (zero regression)
+        const entitlement = await tx.inventoryEntitlement.findUnique({
+          where: { shopId },
+          select: { status: true },
+        });
+        const deductedIds =
+          entitlement?.status === "ACTIVE"
+            ? await deductStockForOrderItems(tx, data.items) // throw OutOfStockError = rollback attempt นี้
+            : new Set<string>();
+
+        const itemsCreateData = data.items.map((item) => ({
+          ...item,
+          stockDeducted: item.productId && deductedIds.has(item.productId) ? item.qty : null,
+        }));
+
+        return tx.order.create({
+          data: { ...orderDataBase, items: { create: itemsCreateData }, shortCode: genShortCode() },
+          include: { items: true },
+        });
       });
     } catch (e) {
-      // P2002 = unique violation (ชน shortCode) → regenerate retry; error อื่น throw ทันที
+      // P2002 = unique violation (ชน shortCode) → regenerate retry (tx ใหม่ทั้งก้อน); error อื่น
+      // (รวม OutOfStockError) throw ทันทีไม่ retry
       const isUnique =
         e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
       if (isUnique && attempt < 4) continue;
@@ -210,9 +237,16 @@ export async function cancelOrder(publicToken: string, initiator: "seller" | "bu
   if (!order) throw new Error("Order not found");
   // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
-  return prisma.order.update({
-    where: { publicToken },
-    data: { status: "CANCELLED", cancelInitiator: initiator },
+  // Inventory Add-on hook — restock ตามประวัติจริงของ order (stockDeducted != null)
+  // ไม่เช็คสถานะ entitlement ปัจจุบันเลย (BR-INV-12: order ที่ตัดสต็อกไปตอน entitlement ยัง
+  // ACTIVE ต้องได้คืนสต็อกตอน cancel แม้ entitlement จะหลุด ACTIVE ไปแล้วก็ตาม)
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({
+      where: { publicToken },
+      data: { status: "CANCELLED", cancelInitiator: initiator },
+    });
+    await restockFromCancelledOrder(tx, order.id);
+    return updated;
   });
 }
 

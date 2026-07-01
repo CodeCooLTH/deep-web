@@ -29,4 +29,7 @@ export type ProductFormV2Values = {
   // null ใน RHF state แทน undefined เพื่อให้ Yup nullable() ทำงานตรง
   billingPeriod: BillingPeriod | null;
   billingPeriodDays: number | null;
+  // stockQty — Inventory Add-on (feature 00003): null=ไม่ติดตามสต็อก, ≥0=ติดตาม
+  // แสดงเฉพาะ type===PHYSICAL && entitlementActive (ดู ProductStockCardV2)
+  stockQty: number | null;
 };

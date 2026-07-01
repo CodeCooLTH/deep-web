@@ -8,5 +8,8 @@
     "deploymentEnabled": {
       "main": true
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/inventory-renewal", "schedule": "0 19 * * *" }
+  ]
 }

@@ -74,12 +74,13 @@ model Shop {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products      Product[]
-  orders        Order[]
-  wallet        SellerWallet?
-  topUpRequests TopUpRequest[]
-  auctions      Auction[]
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products             Product[]
+  orders               Order[]
+  wallet               SellerWallet?
+  topUpRequests        TopUpRequest[]
+  auctions             Auction[]
+  inventoryEntitlement InventoryEntitlement?
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -183,12 +184,17 @@ model Product {
   billingPeriod     String?
   billingPeriodDays Int?
   isActive          Boolean  @default(true)
+  // stockQty: Inventory Add-on (feature 00003) — NULL = untracked (opt-in, BR-INV-10), non-NULL >=0 = tracked.
+  // CHECK(stockQty >= 0) enforce ใน migration SQL ด้วยมือ (NOT VALID + VALIDATE เพราะ table มี row จริง)
+  stockQty          Int?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   shop       Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orderItems OrderItem[]
   tags       Tag[]
+
+  @@index([shopId, stockQty])
 }
 
 model Tag {
@@ -244,13 +250,17 @@ model Order {
 }
 
 model OrderItem {
-  id          String  @id @default(uuid())
-  orderId     String
-  productId   String?
-  name        String
-  description String?
-  qty         Int
-  price       Decimal @db.Decimal(12, 2)
+  id            String  @id @default(uuid())
+  orderId       String
+  productId     String?
+  name          String
+  description   String?
+  qty           Int
+  price         Decimal @db.Decimal(12, 2)
+  // stockDeducted: Inventory Add-on (feature 00003) — จำนวนที่ตัดสต็อกจริงตอนสร้าง order
+  // (เท่ากับ qty เสมอ, all-or-nothing BR-INV-11); NULL = ไม่เคยตัด (untracked/entitlement ไม่ ACTIVE ตอนนั้น)
+  // ใช้คืนสต็อกถูกต้องตอน cancel (BR-INV-12). CHECK(stockDeducted >= 0) ใน migration SQL
+  stockDeducted Int?
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -315,11 +325,41 @@ model WalletTransaction {
   balanceAfter Int
   description  String
   refId        String?
+  // reason: Inventory Add-on (feature 00003) — machine-filterable label แยก DEDUCT source
+  // ("SMS_ORDER_LINK" | "INVENTORY_SUBSCRIPTION"); NULL = row เก่าก่อนฟีเจอร์นี้ (backfill migration SQL)
+  reason       String?
   createdAt    DateTime @default(now())
 
   wallet SellerWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId, createdAt])
+  @@index([reason])
+}
+
+// --- Inventory Add-on (feature 00003: paid sub ฿199/mo stock management) ---
+
+enum InventoryEntitlementStatus {
+  ACTIVE
+  LOCKED
+}
+
+// InventoryEntitlement: สิทธิ์การใช้งาน Inventory Add-on ของ 1 Shop (1:1).
+// NOT_SUBSCRIBED ไม่ใช่ enum value — คือ "ไม่มี row นี้เลย" (FROZEN CONTRACT — ดู DATABASE.md §3.1)
+model InventoryEntitlement {
+  id                 String                     @id @default(uuid())
+  shopId             String                     @unique
+  status             InventoryEntitlementStatus @default(ACTIVE)
+  activatedAt        DateTime
+  currentPeriodStart DateTime
+  nextRenewalAt      DateTime
+  lastRenewalAt      DateTime?
+  lockedAt           DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRenewalAt])
 }
 
 model TopUpRequest {

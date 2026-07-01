@@ -1,4 +1,5 @@
 import { type MenuItemType } from '@/types'
+import type { EntitlementStatus } from '@/lib/inventory-addon'
 
 export const sellerMenuItems: MenuItemType[] = [
   {
@@ -59,8 +60,42 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้านค้า', icon: 'building-store' },
+      // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
+      // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู Products
+      { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
       { url: '/wallet', slug: 'seller:wallet', label: 'เครดิต SMS', icon: 'wallet' },
       { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
     ],
   },
 ]
+
+/**
+ * applyInventoryGate — runtime transform ของ sellerMenuItems ตาม entitlement status
+ *
+ * ทำไม: sellerMenuItems ต้องคงเป็น static array (SSOT ให้ getSellerPageTitle.ts /
+ * SellerMobileHeader.tsx import ตรง ๆ — ห้าม breaking) แต่เมนู "จัดการสต็อก" ต้องแสดง
+ * badge/disable ตามสถานะ subscription แบบ dynamic ต่อ request — จึงแยกเป็น pure
+ * transform function ไม่แก้ sellerMenuItems ต้นฉบับ
+ *
+ * ACTIVE → ไม่แตะ (enabled by default)
+ * NOT_SUBSCRIBED → badge "฿199/ด." (bg-primary) + isDisabled
+ * LOCKED → badge "ถูกล็อก" (bg-danger) + isDisabled
+ *
+ * หมายเหตุ: นี่คือ UX hint เท่านั้น — enforcement จริงอยู่ที่ server-side gate
+ * ใน InventoryPage (SDS §3.8) เพราะ AppMenu.tsx render isDisabled เป็นแค่ CSS class
+ * ไม่มี preventDefault guard ใน onClick
+ */
+export function applyInventoryGate(items: MenuItemType[], status: EntitlementStatus): MenuItemType[] {
+  if (status === 'ACTIVE') return items
+
+  const badge = status === 'LOCKED'
+    ? { className: 'bg-danger', text: 'ถูกล็อก' }
+    : { className: 'bg-primary', text: '฿199/ด.' }
+
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.map((child) =>
+      child.slug === 'seller:inventory' ? { ...child, isDisabled: true, badge } : child,
+    ),
+  })
+}

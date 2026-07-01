@@ -20,6 +20,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getShopByUserId } from '@/services/shop.service'
+import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
 import { redirect, notFound } from 'next/navigation'
@@ -88,6 +89,11 @@ export default async function EditProductPage({ params }: PageProps) {
 
   const product = serializeProduct(productRaw)
 
+  // Inventory Add-on entitlement — fail-closed: error ใด ๆ ระหว่าง resolve ถือว่าไม่ active
+  // (ซ่อน field stockQty แทนที่จะเสี่ยงเปิดให้กรอกทั้งที่ยังไม่ได้ subscribe)
+  // shop.id ตรงกับ shop ของ product อยู่แล้ว เพราะ query ด้านบนกรองด้วย shopId: shop.id
+  const entitlementActive = await isEntitlementActive(shop.id).catch(() => false)
+
   return (
     <>
       {/*
@@ -110,6 +116,7 @@ export default async function EditProductPage({ params }: PageProps) {
         shopId={shop.id}
         product={product}
         formId={FORM_ID}
+        entitlementActive={entitlementActive}
       />
     </>
   )
