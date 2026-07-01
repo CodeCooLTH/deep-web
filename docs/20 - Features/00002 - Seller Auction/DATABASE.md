@@ -266,7 +266,7 @@ CREATE TRIGGER auction_realtime_broadcast_trigger
 ```
 broadcast payload = currentPrice/bidCount/endTimeMs/status/antiSnipeCount/hasReserve (sanitized) → client subscribe
 **RLS:** โปรเจกต์ไม่ใช้ RLS → `private=false` ใช้ anon key ได้; Broadcast-from-DB ไม่ผ่าน publication `supabase_realtime` (ไม่ต้อง ALTER PUBLICATION)
-**Prerequisite:** ต้องยืนยัน Supabase project รองรับ `realtime.send()` (Realtime ≥ 2.x) ก่อน apply; ถ้าไม่รองรับ → fallback Option B (แยกตาราง sensitive fields, [[SRS]] §2.4)
+**Prerequisite:** ~~ต้องยืนยัน Supabase project รองรับ `realtime.send()`~~ **✅ VERIFIED 2026-07-01** — query prod Supabase จริงพบ `realtime.send(payload jsonb, event text, topic text, private boolean)` + `realtime.broadcast_changes(...)` มีครบ (signature ตรงกับ SQL ด้านบน) → Option A ใช้ได้ ไม่ต้อง fallback Option B
 Client: `supabase.channel('auction:'+id).on('broadcast',{event:'update'},cb).subscribe()` — ต้องเพิ่ม `@supabase/supabase-js` + anon key
 **Rollback:** `DROP TRIGGER auction_realtime_broadcast_trigger ON "Auction"; DROP FUNCTION public.auction_realtime_broadcast();`
 
