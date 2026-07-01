@@ -20,6 +20,7 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { pushToUser } from '@/services/app-push.service'
 import { evaluateBadges } from '@/services/badge.service'
+import { getMaxVerificationLevel } from '@/services/verification.service'
 
 const PAGE_SIZE = 20
 
@@ -708,10 +709,29 @@ export class AuctionValidationError extends Error {
   }
 }
 
-/** createAuction (TFR-001) — derive status จาก mode; currentPrice=startPrice เสมอตอนสร้าง */
+/**
+ * createAuction (TFR-001) — derive status จาก mode; currentPrice=startPrice เสมอตอนสร้าง
+ * L2 guard (SRS §4.5/§5.4) เป็น defense-in-depth ที่ service layer — route (Batch C) เช็คด้วย
+ * แต่ service ต้องเป็น backstop เสมอ (authz อยู่ที่ service layer ตาม CLAUDE.md)
+ */
 export async function createAuction(shopId: string, input: CreateAuctionInput): Promise<SellerAuctionDTO> {
   // ห้ามรับ shopId จาก input object เด็ดขาด (FR-AUC-01-AC-09) — shopId มาจาก param เท่านั้น
   // (caller/route derive จาก session แล้วก่อนเรียกฟังก์ชันนี้ — กัน seller สร้าง auction ให้ shop อื่น)
+  const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { userId: true } })
+  if (!shop) throw new AuctionOpError('ไม่พบร้านค้า', 404)
+
+  // L2 Guard (SRS §4.5) — getMaxVerificationLevel นับเฉพาะ status==='APPROVED' อยู่แล้ว (verification.service.ts)
+  const maxLevel = await getMaxVerificationLevel(shop.userId)
+  if (maxLevel < 2) {
+    throw new AuctionOpError('ต้องยืนยันตัวตนระดับ L2 ก่อนเปิดประมูล', 403)
+  }
+
+  // productId ownership (LOW finding) — กัน cross-tenant reference (สินค้าร้านอื่นถูกอ้างอิงจาก auction นี้)
+  if (input.productId) {
+    const product = await prisma.product.findFirst({ where: { id: input.productId, shopId } })
+    if (!product) throw new AuctionValidationError('ไม่พบสินค้าในร้านนี้')
+  }
+
   const status: 'draft' | 'scheduled' | 'live' =
     input.mode === 'draft' ? 'draft' : input.mode === 'schedule' ? 'scheduled' : 'live'
 
@@ -744,6 +764,9 @@ export async function createAuction(shopId: string, input: CreateAuctionInput): 
  * updateAuction (TFR-002) — เฉพาะ status draft/scheduled เท่านั้น; ownership guard 403/404 (findUnique
  * + explicit check — ต่างจาก getSellerAuctionDetail เพราะ endpoint นี้ต้องคืน 403 ให้ต่างจาก 404 ตาม API.md
  * §4.4); price fields แก้ได้ตาม OQ-4 — merge กับค่าปัจจุบันใน DB แล้ว revalidate cross-field เหมือนตอนสร้าง
+ * TOCTOU fix: findUnique เป็นแค่ ownership/404 check — write จริงใช้ conditional `updateMany`
+ * (WHERE status IN draft/scheduled ณ เวลา write) กัน race ที่ auction publish ไปแล้วจาก tab อื่นระหว่าง
+ * ที่ฟังก์ชันนี้ validate อยู่ (pattern เดียวกับ cancelAuction)
  */
 export async function updateAuction(
   auctionId: string,
@@ -759,6 +782,12 @@ export async function updateAuction(
   // re-check ที่ DB จริง ไม่เชื่อ client state (race: seller ค้างฟอร์มไว้ระหว่างที่ auction publish ไปแล้วจาก tab อื่น — TFR-002)
   if (a.status !== 'draft' && a.status !== 'scheduled') {
     throw new AuctionOpError('ไม่สามารถแก้ไข auction ที่เปิดรับ bid แล้ว', 409)
+  }
+
+  // productId ownership (LOW finding) — กัน cross-tenant reference
+  if (input.productId) {
+    const product = await prisma.product.findFirst({ where: { id: input.productId, shopId: a.shopId } })
+    if (!product) throw new AuctionValidationError('ไม่พบสินค้าในร้านนี้')
   }
 
   // merge ค่าที่แก้เข้ากับค่าปัจจุบันเพื่อ revalidate cross-field (Valibot ชั้น route รู้แค่ field ที่ส่งมาในคำขอนี้)
@@ -784,22 +813,30 @@ export async function updateAuction(
     }
   }
 
-  const updated = await prisma.auction.update({
-    where: { id: auctionId },
-    data: {
-      ...(input.title !== undefined ? { title: input.title } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(input.images !== undefined ? { images: input.images, imageUrl: input.images[0] } : {}),
-      ...(input.category !== undefined ? { category: input.category } : {}),
-      ...(input.productId !== undefined ? { productId: input.productId } : {}),
-      ...(input.bidIncrement !== undefined ? { bidIncrement: input.bidIncrement } : {}),
-      ...(input.endTime !== undefined ? { endTime: input.endTime } : {}),
-      ...(input.startPrice !== undefined ? { startPrice: input.startPrice, currentPrice: input.startPrice } : {}),
-      ...('reservePrice' in input ? { reservePrice: input.reservePrice ?? null } : {}),
-      ...('buyNowPrice' in input ? { buyNowPrice: input.buyNowPrice ?? null } : {}),
-      ...('expectedPrice' in input ? { expectedPrice: input.expectedPrice ?? null } : {}),
-    },
+  const data: Prisma.AuctionUpdateManyMutationInput = {
+    ...(input.title !== undefined ? { title: input.title } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.images !== undefined ? { images: input.images, imageUrl: input.images[0] } : {}),
+    ...(input.category !== undefined ? { category: input.category } : {}),
+    ...(input.productId !== undefined ? { productId: input.productId } : {}),
+    ...(input.bidIncrement !== undefined ? { bidIncrement: input.bidIncrement } : {}),
+    ...(input.endTime !== undefined ? { endTime: input.endTime } : {}),
+    ...(input.startPrice !== undefined ? { startPrice: input.startPrice, currentPrice: input.startPrice } : {}),
+    ...('reservePrice' in input ? { reservePrice: input.reservePrice ?? null } : {}),
+    ...('buyNowPrice' in input ? { buyNowPrice: input.buyNowPrice ?? null } : {}),
+    ...('expectedPrice' in input ? { expectedPrice: input.expectedPrice ?? null } : {}),
+  }
+
+  // conditional updateMany (TOCTOU fix) — count===0 แปลว่า status เปลี่ยนไปแล้วระหว่างที่ validate อยู่ (race)
+  const res = await prisma.auction.updateMany({
+    where: { id: auctionId, status: { in: ['draft', 'scheduled'] } },
+    data,
   })
+  if (res.count === 0) {
+    throw new AuctionOpError('ไม่สามารถแก้ไข auction ที่เปิดรับ bid แล้ว', 409)
+  }
+
+  const updated = await prisma.auction.findUniqueOrThrow({ where: { id: auctionId } })
   return toSellerAuctionDTO(updated, [])
 }
 
@@ -841,6 +878,9 @@ export async function cancelAuction(auctionId: string, shopUserId: string): Prom
 /**
  * publishAuction (TFR-001 ต่อเนื่อง) — draft → live/scheduled เท่านั้น (409 ถ้า status!=='draft')
  * schedule ต้องมี startTime ในอนาคตและก่อน endTime เดิม (OQ-6 — reject ชัดเจน ไม่ auto-fallback publishNow)
+ * TOCTOU fix: findUnique เป็นแค่ ownership/404 check — write จริงใช้ conditional `updateMany`
+ * (WHERE status='draft' ณ เวลา write) กัน race ที่ auction ถูก publish/cancel ไปแล้วจาก tab อื่น
+ * ระหว่างที่ฟังก์ชันนี้ validate อยู่ (pattern เดียวกับ cancelAuction)
  */
 export async function publishAuction(
   auctionId: string,
@@ -866,13 +906,19 @@ export async function publishAuction(
     }
   }
 
-  const updated = await prisma.auction.update({
-    where: { id: auctionId },
+  // conditional updateMany (TOCTOU fix) — count===0 แปลว่า status เปลี่ยนไปแล้วระหว่างที่ validate อยู่ (race)
+  const res = await prisma.auction.updateMany({
+    where: { id: auctionId, status: 'draft' },
     data: {
       status: mode === 'schedule' ? 'scheduled' : 'live',
       startTime: mode === 'schedule' ? startTime : null,
     },
   })
+  if (res.count === 0) {
+    throw new AuctionOpError('ไม่สามารถเผยแพร่ auction ในสถานะปัจจุบันได้', 409)
+  }
+
+  const updated = await prisma.auction.findUniqueOrThrow({ where: { id: auctionId } })
   return toSellerAuctionDTO(updated, [])
 }
 

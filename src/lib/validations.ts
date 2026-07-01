@@ -457,21 +457,47 @@ const AUCTION_MODES = ["draft", "publishNow", "schedule"] as const;
 // SRS §5.6: Min endTime lead time (create) = now + 30 นาที — ใช้ค่าเดียวกันตอน revalidate ใน UpdateAuctionSchema
 const MIN_AUCTION_END_LEAD_MS = 30 * 60 * 1000;
 
+// เพดานราคาบน — กัน Decimal(12,2) overflow/Infinity (Prisma throw ที่ DB layer ถ้าไม่กันตั้งแต่ Valibot)
+const AUCTION_MAX_PRICE = 9_999_999_999.99;
+
 export const CreateAuctionSchema = v.pipe(
   v.object({
-    title: v.pipe(v.string(), v.trim(), v.minLength(1, "title และรูปภาพอย่างน้อย 1 ใบเป็นข้อมูลบังคับ")),
-    description: v.optional(v.pipe(v.string(), v.maxLength(2000))),
+    title: v.pipe(
+      v.string(),
+      v.trim(),
+      v.minLength(1, "title และรูปภาพอย่างน้อย 1 ใบเป็นข้อมูลบังคับ"),
+      v.maxLength(200, "title ยาวเกินไป"),
+    ),
+    description: v.optional(v.pipe(v.string(), v.maxLength(5000, "description ยาวเกินไป"))),
     images: v.pipe(
       v.array(v.pipe(v.string(), v.minLength(1))),
       v.minLength(1, "title และรูปภาพอย่างน้อย 1 ใบเป็นข้อมูลบังคับ"),
     ),
-    category: v.optional(v.string()),
+    category: v.optional(v.pipe(v.string(), v.maxLength(50, "หมวดหมู่ยาวเกินไป"))),
     productId: v.optional(v.string()),
-    startPrice: v.pipe(v.number(), v.gtValue(0, "startPrice ต้องมากกว่า 0")),
-    reservePrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
-    buyNowPrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
-    expectedPrice: v.optional(v.pipe(v.number(), v.gtValue(0, "expectedPrice ต้องมากกว่า 0"))),
-    bidIncrement: v.pipe(v.number(), v.gtValue(0, "bidIncrement ต้องมากกว่า 0")),
+    startPrice: v.pipe(
+      v.number(),
+      v.gtValue(0, "startPrice ต้องมากกว่า 0"),
+      v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด"),
+    ),
+    reservePrice: v.optional(
+      v.pipe(v.number(), v.gtValue(0, "reservePrice ต้องไม่ต่ำกว่า startPrice"), v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด")),
+    ),
+    buyNowPrice: v.optional(
+      v.pipe(
+        v.number(),
+        v.gtValue(0, "buyNowPrice ต้องสูงกว่า reservePrice หรือ startPrice"),
+        v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด"),
+      ),
+    ),
+    expectedPrice: v.optional(
+      v.pipe(v.number(), v.gtValue(0, "expectedPrice ต้องมากกว่า 0"), v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด")),
+    ),
+    bidIncrement: v.pipe(
+      v.number(),
+      v.gtValue(0, "bidIncrement ต้องมากกว่า 0"),
+      v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด"),
+    ),
     mode: v.picklist(AUCTION_MODES, "mode ไม่ถูกต้อง"),
     startTime: v.optional(AuctionDateTimeSchema),
     endTime: AuctionDateTimeSchema,
@@ -506,16 +532,38 @@ export const CreateAuctionSchema = v.pipe(
 // หมายเหตุ: cross-field check (reservePrice>=startPrice ฯลฯ) ที่ merge กับค่าเดิมใน DB ทำที่ service
 // (`updateAuction`) ไม่ใช่ที่ schema นี้ — Valibot รู้แค่ field ที่ส่งมาในคำขอนี้ ไม่รู้ค่าที่ไม่ได้แก้
 export const UpdateAuctionSchema = v.object({
-  title: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
-  description: v.optional(v.pipe(v.string(), v.maxLength(2000))),
+  title: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200, "title ยาวเกินไป"))),
+  description: v.optional(v.pipe(v.string(), v.maxLength(5000, "description ยาวเกินไป"))),
   images: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.minLength(1))),
-  category: v.optional(v.string()),
+  category: v.optional(v.pipe(v.string(), v.maxLength(50, "หมวดหมู่ยาวเกินไป"))),
   productId: v.optional(v.string()),
-  startPrice: v.optional(v.pipe(v.number(), v.gtValue(0, "startPrice ต้องมากกว่า 0"))),
-  reservePrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
-  buyNowPrice: v.optional(v.pipe(v.number(), v.gtValue(0))),
-  expectedPrice: v.optional(v.pipe(v.number(), v.gtValue(0, "expectedPrice ต้องมากกว่า 0"))),
-  bidIncrement: v.optional(v.pipe(v.number(), v.gtValue(0, "bidIncrement ต้องมากกว่า 0"))),
+  startPrice: v.optional(
+    v.pipe(
+      v.number(),
+      v.gtValue(0, "startPrice ต้องมากกว่า 0"),
+      v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด"),
+    ),
+  ),
+  reservePrice: v.optional(
+    v.pipe(v.number(), v.gtValue(0, "reservePrice ต้องไม่ต่ำกว่า startPrice"), v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด")),
+  ),
+  buyNowPrice: v.optional(
+    v.pipe(
+      v.number(),
+      v.gtValue(0, "buyNowPrice ต้องสูงกว่า reservePrice หรือ startPrice"),
+      v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด"),
+    ),
+  ),
+  expectedPrice: v.optional(
+    v.pipe(v.number(), v.gtValue(0, "expectedPrice ต้องมากกว่า 0"), v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด")),
+  ),
+  bidIncrement: v.optional(
+    v.pipe(
+      v.number(),
+      v.gtValue(0, "bidIncrement ต้องมากกว่า 0"),
+      v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด"),
+    ),
+  ),
   endTime: v.optional(
     v.pipe(
       AuctionDateTimeSchema,
