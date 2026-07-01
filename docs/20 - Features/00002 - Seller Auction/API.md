@@ -203,7 +203,7 @@ Query scope: `WHERE shopId = <derived from session>` เสมอ (ไม่ pos
 **Response — Success (200)**
 
 ```ts
-{ items: SellerAuctionListItemDTO[]; hasNext: boolean }
+{ items: SellerAuctionListItemDTO[]; nextCursor: number | null }
 ```
 
 **Response — Error**
@@ -295,7 +295,7 @@ Query scope: `WHERE shopId = <derived from session>` เสมอ (ไม่ pos
 
 **Request** — Path Param `id` เท่านั้น ไม่รับ body
 
-**Response — Success (200)**: `SellerAuctionDTO` (`status='cancelled'`, `cancelledAt` set)
+**Response — Success (200)**: `{ status: 'cancelled' }` (impl ยึด SDS §6 signature — minimal, ไม่คืน DTO เต็ม)
 
 **Response — Error**
 
