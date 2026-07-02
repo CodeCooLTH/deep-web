@@ -36,11 +36,12 @@ interface ProductPreviewPanelProps {
   fulfillmentMode?: FulfillmentMode
 }
 
-const TYPE_BADGE: Record<ProductPreviewPanelProps['type'], { emoji: string; label: string }> = {
-  PHYSICAL: { emoji: '📦', label: 'ต้องจัดส่ง' },
-  DIGITAL: { emoji: '💻', label: 'ดิจิทัล' },
-  SERVICE: { emoji: '🛠️', label: 'ให้บริการ' },
-  SUBSCRIPTION: { emoji: '🔁', label: 'สมาชิก/รอบ' },
+// icon แทน emoji (กฎ no-emoji) — tabler ผ่าน @iconify/react (colon convention เหมือน tabler:building-store ในไฟล์นี้)
+const TYPE_BADGE: Record<ProductPreviewPanelProps['type'], { icon: string; label: string }> = {
+  PHYSICAL: { icon: 'tabler:package', label: 'ต้องจัดส่ง' },
+  DIGITAL: { icon: 'tabler:device-laptop', label: 'ดิจิทัล' },
+  SERVICE: { icon: 'tabler:tools', label: 'ให้บริการ' },
+  SUBSCRIPTION: { icon: 'tabler:repeat', label: 'สมาชิก/รอบ' },
 }
 
 export default function ProductPreviewPanel({
@@ -153,7 +154,7 @@ export default function ProductPreviewPanel({
       {/* Type badge — always render */}
       <div className="mt-3">
         <span className="bg-default-100 text-default-700 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs">
-          <span aria-hidden>{typeMeta.emoji}</span>
+          <Icon icon={typeMeta.icon} className="size-3.5" aria-hidden />
           <span>{typeMeta.label}</span>
         </span>
       </div>
@@ -175,7 +176,7 @@ export default function ProductPreviewPanel({
           )}
           {billingMode === 'RECURRING' && (
             <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
-              🔁 เก็บเป็นรอบ
+              <Icon icon="tabler:repeat" className="size-3.5" aria-hidden /> เก็บเป็นรอบ
             </span>
           )}
         </div>
