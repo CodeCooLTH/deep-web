@@ -41,6 +41,7 @@ model User {
   watchList     WatchList[]    @relation("UserWatches")
   notifications Notification[] @relation("UserNotifications")
   pushTokens    PushToken[]    @relation("UserPushTokens")
+  bidReactions  BidReaction[]  @relation("UserBidReactions")
 }
 
 model AuthAccount {
@@ -463,11 +464,28 @@ model Bid {
   amount    Decimal  @db.Decimal(12, 2)
   createdAt DateTime @default(now())
 
-  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
-  bidder  User    @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
+  auction   Auction       @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder    User          @relation("UserBids", fields: [bidderId], references: [id], onDelete: Cascade)
+  reactions BidReaction[]
 
   @@index([auctionId, createdAt])
   @@index([bidderId])
+}
+
+// BidReaction — "ถูกใจ" ต่อ bid (feature 00005, reaction-only MVP)
+// toggle: 1 user : 1 bid = 1 record (unique) — count จาก aggregate, ไม่ denormalize (bid feed ≤20 แถว)
+model BidReaction {
+  id        String   @id @default(uuid())
+  bidId     String
+  userId    String
+  createdAt DateTime @default(now())
+
+  bid  Bid  @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  user User @relation("UserBidReactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([bidId, userId]) // กัน double-reaction (FR-REACT-02-AC-02)
+  @@index([bidId])
+  @@index([userId])
 }
 
 model WatchList {

@@ -13,23 +13,29 @@
  *
  * Visual ref (asset เท่านั้น): docs/mockups/auction/seller-auction-v1.html .stream/.cmt
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
+import { toast } from 'react-toastify'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 import type { BidDTO } from '@/services/auction.service'
 
 type Props = {
+  auctionId: string
   bidHistory: BidDTO[]
   bidCount: number
   /** ให้ค่าเฉพาะตอน status==='live' — undefined = ไม่ต้องโชว์ indicator (auction ไม่ live) */
   connectionState?: 'live' | 'reconnecting'
 }
+
+type ReactionState = { count: number; reacted: boolean }
 
 const VISIBLE_DEFAULT = 5
 
@@ -52,9 +58,58 @@ function relativeTimeTh(atMs: number, nowMs: number): string {
   return `${Math.floor(diffHour / 24)} วันที่แล้ว`
 }
 
-export default function AuctionBidHistory({ bidHistory, bidCount, connectionState }: Props) {
+export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, connectionState }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const router = useRouter()
+  const { status: sessionStatus } = useSession()
   const now = Date.now()
+
+  // reaction overlay (optimistic) — seed จาก props, re-sync เมื่อ parent refetch (bidHistory เปลี่ยน)
+  const [reactions, setReactions] = useState<Record<string, ReactionState>>({})
+  useEffect(() => {
+    const seed: Record<string, ReactionState> = {}
+    for (const b of bidHistory) seed[b.id] = { count: b.reactionCount, reacted: b.reactedByMe }
+    setReactions(seed)
+  }, [bidHistory])
+
+  const [pending, setPending] = useState<Set<string>>(new Set())
+
+  async function toggleReaction(bidId: string) {
+    // ยังไม่ login → เด้ง sign-in (callbackUrl กลับหน้านี้) — FR-REACT-01-AC-02
+    if (sessionStatus !== 'authenticated') {
+      router.push(`/auth/sign-in?callbackUrl=${encodeURIComponent(`/a/${auctionId}`)}`)
+      return
+    }
+    if (pending.has(bidId)) return
+    const cur = reactions[bidId] ?? { count: 0, reacted: false }
+    // optimistic toggle
+    setReactions((r) => ({ ...r, [bidId]: { count: cur.count + (cur.reacted ? -1 : 1), reacted: !cur.reacted } }))
+    setPending((p) => new Set(p).add(bidId))
+    try {
+      const res = await fetch(`/api/auctions/${auctionId}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bidId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setReactions((r) => ({ ...r, [bidId]: cur })) // revert
+        toast.error(data.error ?? 'ทำรายการไม่สำเร็จ')
+        return
+      }
+      // reconcile กับค่าจริงจาก server
+      setReactions((r) => ({ ...r, [bidId]: { count: data.reactionCount, reacted: data.reacted } }))
+    } catch {
+      setReactions((r) => ({ ...r, [bidId]: cur }))
+      toast.error('ทำรายการไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setPending((p) => {
+        const n = new Set(p)
+        n.delete(bidId)
+        return n
+      })
+    }
+  }
 
   const visible = expanded ? bidHistory : bidHistory.slice(0, VISIBLE_DEFAULT)
   const hiddenCount = bidHistory.length - visible.length
@@ -180,9 +235,39 @@ export default function AuctionBidHistory({ bidHistory, bidCount, connectionStat
                         เสนอราคา <b>฿{bid.amount.toLocaleString()}</b>
                       </Typography>
                     </Box>
-                    <Typography sx={{ fontSize: 10.5, color: '#94A3B8', mt: '3px', ml: '2px' }}>
-                      {relativeTimeTh(bid.atMs, now)}
-                    </Typography>
+                    {/* meta row: เวลา · ถูกใจ (toggle) · count (feat 00005) */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', mt: '3px', ml: '2px' }}>
+                      <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+                        {relativeTimeTh(bid.atMs, now)}
+                      </Typography>
+                      <Box
+                        component="button"
+                        type="button"
+                        onClick={() => toggleReaction(bid.id)}
+                        disabled={pending.has(bid.id)}
+                        sx={{
+                          p: 0,
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: reactions[bid.id]?.reacted ? '#E11D48' : '#94A3B8',
+                          '&:disabled': { opacity: 0.6 },
+                        }}
+                      >
+                        <Icon icon={reactions[bid.id]?.reacted ? 'tabler-heart-filled' : 'tabler-heart'} fontSize={13} />
+                        ถูกใจ
+                        {(reactions[bid.id]?.count ?? 0) > 0 && (
+                          <Box component="span" sx={{ color: '#64748B', fontWeight: 600 }}>
+                            {reactions[bid.id]?.count}
+                          </Box>
+                        )}
+                      </Box>
+                    </Box>
                   </Box>
                 </Box>
               )

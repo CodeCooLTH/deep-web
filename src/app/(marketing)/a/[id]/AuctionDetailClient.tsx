@@ -216,6 +216,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
       )}
 
       <AuctionBidHistory
+        auctionId={auction.id}
         bidHistory={bidHistory}
         bidCount={bidCount}
         connectionState={isLive ? connectionState : undefined}

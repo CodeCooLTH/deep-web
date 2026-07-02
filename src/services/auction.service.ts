@@ -17,7 +17,7 @@
  * getSellerAuctionDetail) = task #4 แยก (type/mapper ที่ export จากไฟล์นี้ให้ #4 ใช้ต่อได้ทันที)
  */
 import { prisma } from '@/lib/prisma'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { pushToUser } from '@/services/app-push.service'
 import { evaluateBadges } from '@/services/badge.service'
 import { getMaxVerificationLevel } from '@/services/verification.service'
@@ -76,7 +76,8 @@ export type SellerAuctionListItemDTO = Pick<
 // level: bidder level (ladder จาก successfulBidCount, feat 00002 TFR-016/SDS §6) — ไม่ใช่ PII (reputation)
 // avatar: รูปโปรไฟล์ bidder (null → initials fallback ที่ client) — เปิดเผยต่อสาธารณะอยู่แล้วที่ /u/[username]
 //   (PDPA: incremental risk ต่ำ). §5.5 amend: bid list = displayName + level + avatar (ยังห้าม phone/email/bidderId)
-export type BidDTO = { id: string; amount: number; bidder: string; atMs: number; level: AuctionLevel; avatar: string | null }
+// reactionCount/reactedByMe: feature 00005 reaction (count + สถานะของผู้เรียกเอง; ไม่ส่งรายชื่อ reactor — privacy OQ-6)
+export type BidDTO = { id: string; amount: number; bidder: string; atMs: number; level: AuctionLevel; avatar: string | null; reactionCount: number; reactedByMe: boolean }
 
 /** @deprecated ใช้ `PublicAuctionDTO` แทน — คง alias ไว้กัน caller เดิม (เช่น import ชื่อ type นี้ในอนาคต) ไม่พัง */
 export type AuctionDTO = PublicAuctionDTO
@@ -192,8 +193,30 @@ export async function topAuctions(limit = 10): Promise<PublicAuctionDTO[]> {
 }
 
 /** auction รายตัว + ประวัติบิดล่าสุด (buyer-facing — public detail) */
+/** reactionCount ต่อ bid + set ของ bid ที่ viewer เคย react (feature 00005) — ไม่ส่งรายชื่อ reactor (OQ-6) */
+async function loadBidReactions(
+  bidIds: string[],
+  viewerUserId?: string,
+): Promise<{ countMap: Map<string, number>; mySet: Set<string> }> {
+  if (bidIds.length === 0) return { countMap: new Map(), mySet: new Set() }
+  const [countRows, myRows] = await Promise.all([
+    prisma.bidReaction.groupBy({ by: ['bidId'], where: { bidId: { in: bidIds } }, _count: { bidId: true } }),
+    viewerUserId
+      ? prisma.bidReaction.findMany({
+          where: { bidId: { in: bidIds }, userId: viewerUserId },
+          select: { bidId: true },
+        })
+      : Promise.resolve([] as { bidId: string }[]),
+  ])
+  return {
+    countMap: new Map(countRows.map((r) => [r.bidId, r._count.bidId])),
+    mySet: new Set(myRows.map((r) => r.bidId)),
+  }
+}
+
 export async function getAuctionDetail(
   id: string,
+  viewerUserId?: string,
 ): Promise<(PublicAuctionDTO & { bidHistory: BidDTO[] }) | null> {
   const a = await prisma.auction.findUnique({
     where: { id },
@@ -206,6 +229,7 @@ export async function getAuctionDetail(
     },
   })
   if (!a) return null
+  const { countMap, mySet } = await loadBidReactions(a.bids.map((b) => b.id), viewerUserId)
   return {
     ...toPublicAuctionDTO(a),
     bidHistory: a.bids.map((b) => ({
@@ -215,8 +239,47 @@ export async function getAuctionDetail(
       atMs: b.createdAt.getTime(),
       level: getAuctionLevel(b.bidder.successfulBidCount),
       avatar: b.bidder.avatar,
+      reactionCount: countMap.get(b.id) ?? 0,
+      reactedByMe: mySet.has(b.id),
     })),
   }
+}
+
+/**
+ * toggleBidReaction (feature 00005) — กด/ยกเลิก "ถูกใจ" bid (1 user : 1 bid, FR-REACT-01/02)
+ *  - มี record → ลบ (un-react); ไม่มี → สร้าง (react)
+ *  - race (double-click concurrent): unique [bidId,userId] กัน dup — create ชน P2002 → treat as reacted
+ *  - คืน count ล่าสุด (นับหลัง toggle) สำหรับ optimistic reconcile ฝั่ง client
+ */
+export async function toggleBidReaction(
+  bidId: string,
+  userId: string,
+): Promise<{ reacted: boolean; reactionCount: number }> {
+  const bid = await prisma.bid.findUnique({ where: { id: bidId }, select: { id: true } })
+  if (!bid) throw new AuctionOpError('ไม่พบรายการเสนอราคา', 404)
+
+  const existing = await prisma.bidReaction.findUnique({
+    where: { bidId_userId: { bidId, userId } },
+    select: { id: true },
+  })
+
+  let reacted: boolean
+  if (existing) {
+    await prisma.bidReaction.delete({ where: { id: existing.id } })
+    reacted = false
+  } else {
+    try {
+      await prisma.bidReaction.create({ data: { bidId, userId } })
+      reacted = true
+    } catch (e) {
+      // P2002 unique violation = race (กดซ้อน) → ถือว่า reacted แล้ว ไม่ throw
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') reacted = true
+      else throw e
+    }
+  }
+
+  const reactionCount = await prisma.bidReaction.count({ where: { bidId } })
+  return { reacted, reactionCount }
 }
 
 /** ค้นหา auction จาก title (live เท่านั้น) */
@@ -1026,6 +1089,7 @@ export async function getSellerAuctionDetail(
   })
   if (!a) return null
 
+  const { countMap, mySet } = await loadBidReactions(a.bids.map((b) => b.id), shopUserId)
   const history: BidDTO[] = a.bids.map((b) => ({
     id: b.id,
     amount: Number(b.amount),
@@ -1033,6 +1097,8 @@ export async function getSellerAuctionDetail(
     atMs: b.createdAt.getTime(),
     level: getAuctionLevel(b.bidder.successfulBidCount), // reputation (ไม่ใช่ PII, TFR-016)
     avatar: b.bidder.avatar, // null → initials fallback ที่ client
+    reactionCount: countMap.get(b.id) ?? 0,
+    reactedByMe: mySet.has(b.id), // seller console read-only (OQ-2) แต่คำนวณไว้ครบ
   }))
 
   // orderId (Batch E#11) — Order ไม่มี @relation field กลับไปหา Auction ใน schema (มีแค่

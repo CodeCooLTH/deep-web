@@ -125,7 +125,16 @@ export default function AuctionBidFeed({ bidHistory, bidCount, connectionState }
                         </span>
                       )}
                     </p>
-                    <p className="text-default-400 mb-0 text-xs">{relativeTimeTh(bid.atMs)}</p>
+                    <p className="text-default-400 mb-0 flex items-center gap-2 text-xs">
+                      {relativeTimeTh(bid.atMs)}
+                      {/* reaction count read-only (feat 00005, OQ-2 seller ไม่กด) */}
+                      {bid.reactionCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-danger">
+                          <Icon icon="heart-filled" className="text-2xs" />
+                          {bid.reactionCount}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <span className="tabular-nums shrink-0 text-sm font-bold text-primary">
                     ฿{bid.amount.toLocaleString('th-TH')}
