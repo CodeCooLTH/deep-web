@@ -11,6 +11,8 @@
  *   .live-hero (mobile L821-831) / .imm .live-hero (desktop L1337-1347) — เอาแค่ "โครงหน้าตา"
  *   (รูป+scrim+ชื่อ) ไม่เอา viewer-count (ตัดตาม Controller OQ — ไม่มี data)
  */
+import { useEffect, useState } from 'react'
+
 import Link from 'next/link'
 
 import Box from '@mui/material/Box'
@@ -25,6 +27,21 @@ type Props = {
   title: string
   imageUrl: string
   status: PublicAuctionDTO['status']
+  /** HUD บน hero (mockup Frame6/D6): ราคาปัจจุบัน+จำนวนบิด / countdown — แสดงเฉพาะตอน live */
+  hud?: {
+    currentPrice: number
+    bidCount: number
+    endTimeMs: number
+  }
+}
+
+function formatRemain(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
 }
 
 // ป้ายสถานะ — ตัด "กำลังดู N คน" ออกตาม Controller OQ (ไม่มี viewer data จริง)
@@ -37,8 +54,18 @@ const STATUS_BADGE: Record<PublicAuctionDTO['status'], { label: string; bg: stri
   cancelled: { label: 'ยกเลิกแล้ว', bg: 'rgba(100,116,139,.85)' },
 }
 
-export default function AuctionHero({ title, imageUrl, status }: Props) {
+export default function AuctionHero({ title, imageUrl, status, hud }: Props) {
   const badge = STATUS_BADGE[status]
+
+  // countdown สำหรับ HUD (tick 1s) — pattern เดียวกับ AuctionLiveState (useState(()=>Date.now())+interval)
+  const [now, setNow] = useState<number>(() => Date.now())
+  useEffect(() => {
+    if (!hud) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [hud])
+  const remainMs = hud ? hud.endTimeMs - now : 0
+  const isUnderHour = remainMs > 0 && remainMs < 60 * 60 * 1000
 
   // imageUrl จาก DTO เป็น storage key ดิบ (เช่น "xxx.jpeg") — ต้อง prefix /api/files/ เหมือน seller
   // (AuctionRow/ConsoleHead) มิเช่นนั้น browser โหลด url สัมพัทธ์ /a/{key} → 404 → hero ดำ
@@ -135,13 +162,13 @@ export default function AuctionHero({ title, imageUrl, status }: Props) {
         {badge.label}
       </Box>
 
-      {/* ชื่อสินค้า — วางบน scrim ล่างสุด */}
+      {/* ชื่อ + HUD (ราคา/countdown) — วางบน scrim ล่างสุด (mockup .ov-bot/.hud) */}
       <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, px: '18px', pb: '16px' }}>
         <Typography
           sx={{
             color: '#fff',
-            fontSize: { xs: 17, md: 21 },
-            fontWeight: 800,
+            fontSize: { xs: 15, md: 18 },
+            fontWeight: 600,
             letterSpacing: '-0.01em',
             lineHeight: 1.3,
             textShadow: '0 1px 3px rgba(0,0,0,.35)',
@@ -149,6 +176,46 @@ export default function AuctionHero({ title, imageUrl, status }: Props) {
         >
           {title}
         </Typography>
+
+        {hud && (
+          <Box sx={{ mt: '9px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '10px' }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,.82)', fontWeight: 500, mb: '2px' }}>
+                ราคาปัจจุบัน · {hud.bidCount} บิด
+              </Typography>
+              <Typography
+                sx={{
+                  color: '#fff',
+                  fontSize: { xs: 34, md: 40 },
+                  fontWeight: 800,
+                  lineHeight: 0.95,
+                  letterSpacing: '-0.5px',
+                  fontVariantNumeric: 'tabular-nums',
+                  textShadow: '0 2px 12px rgba(0,0,0,.45)',
+                }}
+              >
+                ฿{hud.currentPrice.toLocaleString()}
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+              <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,.82)', fontWeight: 500, mb: '2px' }}>
+                เหลือเวลา
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 23,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: isUnderHour ? '#FF5B66' : '#fff',
+                  textShadow: '0 2px 12px rgba(0,0,0,.45)',
+                }}
+              >
+                {formatRemain(remainMs)}
+              </Typography>
+            </Box>
+          </Box>
+        )}
       </Box>
     </Box>
   )

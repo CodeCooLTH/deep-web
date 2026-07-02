@@ -142,6 +142,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
         endTimeMs={endTimeMs}
         startTimeMs={auction.startTimeMs}
         antiSnipeCount={antiSnipeCount}
+        heroHasCountdown={isLive}
       />
 
       {/* meta-strip — ราคาเริ่ม/ขั้นบิด/มีขั้นต่ำไหม/ผู้ขาย trust ย่อ (visual ref: mockup .meta-strip, asset เท่านั้น) */}
@@ -245,7 +246,12 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
                 boxShadow: '0 1px 2px rgba(15,23,42,.06)',
               }}
             >
-              <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
+              <AuctionHero
+                title={auction.title}
+                imageUrl={auction.imageUrl}
+                status={status}
+                hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
+              />
             </Box>
 
             {sections}
@@ -254,7 +260,12 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
       ) : (
         // xs (<600) — MobileFrame เดิม ไม่แตะ/ไม่เปลี่ยนพฤติกรรม
         <MobileFrame bg="#F3F5F8">
-          <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
+          <AuctionHero
+            title={auction.title}
+            imageUrl={auction.imageUrl}
+            status={status}
+            hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
+          />
 
           <Box sx={{ px: '16px', py: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {sections}

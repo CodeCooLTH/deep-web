@@ -27,6 +27,8 @@ type Props = {
   endTimeMs: number
   startTimeMs: number | null
   antiSnipeCount: number
+  /** true = hero มี HUD countdown แล้ว (mockup immersive) → ไม่ต้องโชว์การ์ด "เหลือเวลา" ซ้ำตอน live */
+  heroHasCountdown?: boolean
 }
 
 function formatRemain(ms: number): string {
@@ -38,7 +40,7 @@ function formatRemain(ms: number): string {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
 }
 
-export default function AuctionLiveState({ status, endTimeMs, startTimeMs, antiSnipeCount }: Props) {
+export default function AuctionLiveState({ status, endTimeMs, startTimeMs, antiSnipeCount, heroHasCountdown }: Props) {
   const router = useRouter()
   const [now, setNow] = useState<number>(() => Date.now())
 
@@ -92,31 +94,37 @@ export default function AuctionLiveState({ status, endTimeMs, startTimeMs, antiS
     )
   }
 
+  // hero มี HUD countdown แล้ว + ยังไม่เคยต่อเวลา → ไม่มีอะไรต้องโชว์ (กัน gap เปล่า)
+  if (heroHasCountdown && antiSnipeCount === 0) return null
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: '16px',
-          py: '11px',
-          bgcolor: '#F8FAFC',
-          borderRadius: '12px',
-        }}
-      >
-        <Typography sx={{ fontSize: 11.5, color: '#94A3B8', fontWeight: 700 }}>เหลือเวลา</Typography>
-        <Typography
+      {/* การ์ด "เหลือเวลา" — ซ่อนตอน hero มี HUD countdown (mockup immersive ไม่ซ้ำ) */}
+      {!heroHasCountdown && (
+        <Box
           sx={{
-            fontSize: 20,
-            fontWeight: 800,
-            fontVariantNumeric: 'tabular-nums',
-            color: isUnderHour ? '#DC2626' : '#0F172A',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            px: '16px',
+            py: '11px',
+            bgcolor: '#F8FAFC',
+            borderRadius: '12px',
           }}
         >
-          {formatRemain(remainMs)}
-        </Typography>
-      </Box>
+          <Typography sx={{ fontSize: 11.5, color: '#94A3B8', fontWeight: 700 }}>เหลือเวลา</Typography>
+          <Typography
+            sx={{
+              fontSize: 20,
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+              color: isUnderHour ? '#DC2626' : '#0F172A',
+            }}
+          >
+            {formatRemain(remainMs)}
+          </Typography>
+        </Box>
+      )}
 
       {/* snipe-bar — โชว์เฉพาะเมื่อเคยต่อเวลาแล้วอย่างน้อย 1 ครั้ง */}
       {antiSnipeCount > 0 && (
