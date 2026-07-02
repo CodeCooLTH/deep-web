@@ -68,3 +68,11 @@
 | 2026-07-02 | baseline สร้าง | - | - |
 | 2026-07-02 | **Decision #1:** signupDraft หาย → ยึด "proceed-without-password" (ตาม plan code) ไม่ redirect กลับ sign-up; แก้ design spec §7 ให้ตรง | ตรงกับพฤติกรรม seller VerifyOtpForm (หัวใจ "เหมือน seller"); user ตั้ง pw ทีหลังผ่าน reset ได้ | Controller |
 | 2026-07-02 | **Decision #2:** ดึงปุ่ม social เต็มกว้างหน้า **sign-up** เข้า scope (รวมใน S-BA-4, เพิ่ม step ใน Task 2) — เดิมจะเป็น sign-in only | buyer sign-up มีปุ่ม social อยู่แล้ว (ต่างจาก seller); ถ้า sign-in เต็มกว้างแต่ sign-up icon เล็ก = ไม่ consistent | Controller |
+| 2026-07-02 | **Accepted-risk R1:** buyer-credentials reuse rate-limit store ร่วม (in-memory) ขยาย DoS surface ไป buyer site — รับเป็น accepted-risk (deliberate, กัน provider-switch counter reset); Redis = OOS-9 Phase 2 | security PASS-with-notes | Controller |
+| 2026-07-02 | **Carry (informational):** `/api/otp/send` คืน `isNewUser` ใน body → S-BA-6 acceptance #3 ไม่ครบที่ระดับ raw-HTTP (UI ไม่ leak). endpoint นี้ shared กับ order phone-unlock flow → นอก scope Task 5 | reviewer informational | ส่ง safepay-security ตัดสิน Phase 2 |
+
+## สถานะ implementation (2026-07-02)
+- **โค้ดครบทั้ง 9 S-id** (8 commits `ac7307b`..`5c55ca3` บน branch `feat/buyer-password-auth`)
+- **Verified:** tsc 0 error (auth + marketing/auth); safepay-reviewer PASS (หลัง rework NewPass Base comment + sign-in try/catch); safepay-security PASS-with-notes (R1 accepted); safepay-product scope-audit **PASS** (ไม่มี CREEP/GAP)
+- **CARRIED QA (ต้องมี dev server รัน):** S-BA-9 E2E execution (`npm run e2e -- buyer-password-auth`) + Chrome DevTools visual QA ที่ `deepth.local:4000` — dev server ไม่ได้รันตอน dev (user รันเอง, memory feedback_qa_domains). ยังไม่ Gate 2 sign-off จนกว่า QA เขียว
+- **ยังไม่ทำ (หลัง sign-off):** PRD FR-1/U-1 doc-sync (buyer มี password login แล้ว)
