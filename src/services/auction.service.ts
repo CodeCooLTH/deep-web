@@ -259,6 +259,42 @@ export async function getAuctionDetail(
 }
 
 /**
+ * bidHistoryPaged — ประวัติการเสนอราคาของ 1 auction แบบแบ่งหน้า (public, lazy-load บนหน้า auction detail)
+ * mirror pattern `browseAuctions`/`listSellerAuctions` (page-based, PAGE_SIZE คงที่, +1 trick หา nextPage)
+ * เรียงใหม่→เก่า (createdAt desc) — ใช้ field เดียวกับ `getAuctionDetail`/`getSellerAuctionDetail` เดิม
+ * (ไม่ใช้ amount desc ซ้อน เพราะ bid ปกติราคาต้อง >= currentPrice+bidIncrement เสมอ จึงเรียงตามเวลาสร้าง
+ * ก็ได้ลำดับราคาสูงสุดอยู่บนสุดอยู่แล้ว ยกเว้น buy-now ที่กระโดดราคาแต่ก็ยังเป็นบิดล่าสุดจริง — newest ยังคือ leader)
+ */
+export async function bidHistoryPaged(
+  auctionId: string,
+  page = 1,
+  viewerUserId?: string,
+): Promise<{ items: BidDTO[]; nextPage: number | null }> {
+  const p = page > 0 ? page : 1
+  const rows = await prisma.bid.findMany({
+    where: { auctionId },
+    orderBy: { createdAt: 'desc' },
+    skip: (p - 1) * PAGE_SIZE,
+    take: PAGE_SIZE + 1, // +1 เพื่อรู้ว่ามีหน้าถัดไปไหม
+    include: { bidder: { select: { displayName: true, successfulBidCount: true, avatar: true } } },
+  })
+  const hasNext = rows.length > PAGE_SIZE
+  const pageRows = hasNext ? rows.slice(0, PAGE_SIZE) : rows
+  const { countMap, mySet } = await loadBidReactions(pageRows.map((b) => b.id), viewerUserId)
+  const items: BidDTO[] = pageRows.map((b) => ({
+    id: b.id,
+    amount: Number(b.amount),
+    bidder: b.bidder.displayName,
+    atMs: b.createdAt.getTime(),
+    level: getAuctionLevel(b.bidder.successfulBidCount),
+    avatar: b.bidder.avatar,
+    reactionCount: countMap.get(b.id) ?? 0,
+    reactedByMe: mySet.has(b.id),
+  }))
+  return { items, nextPage: hasNext ? p + 1 : null }
+}
+
+/**
  * toggleBidReaction (feature 00005) — กด/ยกเลิก "ถูกใจ" bid (1 user : 1 bid, FR-REACT-01/02)
  *  - มี record → ลบ (un-react); ไม่มี → สร้าง (react)
  *  - race (double-click concurrent): unique [bidId,userId] กัน dup — create ชน P2002 → treat as reacted
@@ -289,6 +325,11 @@ export async function toggleBidReaction(
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') reacted = true
       else throw e
     }
+  }
+
+  // trigger badge eval เฉพาะทิศ react (add) — best-effort ไม่ block response (Bid Cheerer)
+  if (reacted) {
+    void evaluateBadges(userId, 'BUYER').catch((e) => console.error('[toggleBidReaction] evaluateBadges(BUYER) failed', e))
   }
 
   const reactionCount = await prisma.bidReaction.count({ where: { bidId } })

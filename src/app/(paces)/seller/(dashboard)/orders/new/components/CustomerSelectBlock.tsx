@@ -167,7 +167,7 @@ export default function CustomerSelectBlock({ control, errors }: Props) {
         </h2>
       </div>
 
-      <div className="card-body">
+      <div className="card-body p-4 sm:p-5">
         {/* ── เลือกวิธีระบุลูกค้า ── */}
         <div className="mb-4">
           <label className="form-label">เลือกวิธีระบุลูกค้า</label>
@@ -207,8 +207,9 @@ export default function CustomerSelectBlock({ control, errors }: Props) {
 
         {/* ── Prompt ก่อนเลือก mode — copy copy จาก mockup #custPrompt ── */}
         {mode === null && (
-          <p className="rounded border border-dashed border-default-300 bg-default-100 px-4 py-6 text-center text-sm text-default-500">
-            เลือกด้านบนว่าจะ &ldquo;ค้นหาลูกค้าเดิม&rdquo; หรือ &ldquo;เพิ่มลูกค้าใหม่&rdquo;
+          <p className="flex items-center gap-2 rounded border border-dashed border-default-300 bg-default-100 px-3 py-2.5 text-xs text-default-500">
+            <Icon icon="info-circle" width={14} height={14} className="shrink-0 text-default-400" />
+            เลือกด้านบนว่าจะค้นหาลูกค้าเดิม หรือเพิ่มลูกค้าใหม่
           </p>
         )}
 

@@ -716,17 +716,17 @@ flowchart TD
 | เจ้าแห่งประมูล 10 | Auction Host 10 | `AUCTION_HOSTED` | ≥10 | tabler-gavel | ✅ |
 | ปิดดีลประมูล | First Auction Win | `AUCTION_SOLD` | ≥1 | tabler-trophy | ✅ |
 | ขายประมูลได้ 10 ดีล | Auction Closer 10 | `AUCTION_SOLD` | ≥10 | tabler-trophy | ✅ |
-| ขายประมูลได้ 50 ดีล | Auction Pro 50 | `AUCTION_SOLD` | ≥50 | tabler-award | Phase 2 |
-| นักประมูลสายเร้าใจ | Bid Magnet | `AUCTION_HIGH_BID_COUNT` | bidCount≥20/auction | tabler-flame | Phase 2 |
+| ขายประมูลได้ 50 ดีล | Auction Pro 50 | `AUCTION_SOLD` | ≥50 | tabler-award | ✅ P2 (seeded 2026-07-02) |
+| นักประมูลสายเร้าใจ | Bid Magnet | `AUCTION_HIGH_BID_COUNT` | bidCount≥20/auction | tabler-flame | ✅ P2 (seeded 2026-07-02) |
 
 **Buyer (audience BUYER):**
 | nameTH | nameEN | criteria | threshold | icon | MVP |
 |---|---|---|---|---|---|
 | ประมูลครั้งแรก | First Bidder | `AUCTION_BID_COUNT` | ≥1 | tabler-podium | ✅ |
-| นักประมูลตัวยง | Active Bidder | `AUCTION_BID_COUNT` | ≥50 | tabler-podium | Phase 2 |
+| นักประมูลตัวยง | Active Bidder | `AUCTION_BID_COUNT` | ≥50 | tabler-podium | ✅ P2 (seeded 2026-07-02) |
 | ชนะประมูลครั้งแรก | First Winner | `AUCTION_WON` | ≥1 | tabler-medal | ✅ |
-| ชนะ 5 ดีล | Winner's Circle | `AUCTION_WON` | ≥5 | tabler-medal | Phase 2 |
-| ได้ของครบ 3 รายการ | Auction Completer | `AUCTION_WON_COMPLETED` | ≥3 (CONFIRMED) | tabler-certificate | Phase 2 |
+| ชนะ 5 ดีล | Winner's Circle | `AUCTION_WON` | ≥5 | tabler-medal | ✅ P2 (seeded 2026-07-02) |
+| ได้ของครบ 3 รายการ | Auction Completer | `AUCTION_WON_COMPLETED` | ≥3 (CONFIRMED) | tabler-certificate | ✅ P2 (seeded 2026-07-02) |
 
 ### 11.3 Checker functions ใหม่ (badge.service.ts — สเปก)
 - `checkAuctionHosted` — count `Auction` (shopId→Shop WHERE userId) WHERE status NOT IN [draft,cancelled]
@@ -739,10 +739,10 @@ flowchart TD
 ### 11.4 Criteria types ใหม่ (types/badge.ts — เพิ่มใน union BadgeCriteria)
 `AUCTION_HOSTED{count}` · `AUCTION_SOLD{count}` · `AUCTION_HIGH_BID_COUNT{minBidCount}` · `AUCTION_BID_COUNT{count}` · `AUCTION_WON{count}` · `AUCTION_WON_COMPLETED{count,statuses?}`
 
-### 11.5 Seed (MVP = 8 badge ในตาราง 11.2 ที่ ✅; Phase 2 badge ที่ checker ซับซ้อน/threshold สูงค่อย seed). badge ที่ checker ยังไม่มี → hit default switch + console.warn (ไม่ throw) → seed ก่อนได้ปลอดภัย
+### 11.5 Seed (2026-07-02: seed ครบทั้ง MVP + Phase 2 = 11 badge auction). ทั้ง checker/dispatch/criteria พร้อมใน engine แล้ว. reseed แบบ non-destructive ด้วย `npm run seed:badges` (badge upsert เท่านั้น keyed by nameEN — ไม่แตะ admin/mock/UserBadge). badge ที่ checker ยังไม่มี → hit default switch + console.warn (ไม่ throw) → seed ก่อนได้ปลอดภัย
 
 ### 11.6 Trust Score
-auction badge นับรวม Badge 10% เดิม (recalculateTrustScore นับ UserBadge ทั้งหมด ไม่ filter). **Trigger เพิ่ม:** หลัง `settleAuction()` commit → `evaluateBadges(shopOwnerId,'SELLER')` + `evaluateBadges(winnerId,'BUYER')`; หลัง `placeBid()` commit → `evaluateBadges(bidderId,'BUYER')` (best-effort post-commit ไม่ block bid)
+auction badge นับรวม Badge 10% เดิม (recalculateTrustScore นับ UserBadge ทั้งหมด ไม่ filter). **Trigger (wired):** หลัง `settleAuctionCore()` commit → `evaluateBadges(shopUserId,'SELLER')` + `evaluateBadges(winnerId,'BUYER')`; หลัง `placeBid()` commit → `evaluateBadges(bidderId,'BUYER')` (best-effort post-commit ไม่ block bid); หลัง `confirmOrder()` → `evaluateBadges(buyerUserId,'BUYER')` — **จำเป็นสำหรับ Auction Completer** (`AUCTION_WON_COMPLETED` ต้อง order=CONFIRMED ซึ่งเกิดหลัง settle) เพิ่ม 2026-07-02
 
 ### 11.7 จุดแสดง UI
 - Public profile `/u/[username]` (Vuexy): badge grid เดิม (`getBadgeProgress`) — auction badge ผสมอัตโนมัติ ไม่ต้องแก้ layout
@@ -750,6 +750,6 @@ auction badge นับรวม Badge 10% เดิม (recalculateTrustScore �
 - Buyer App (Deep-App): badge section หน้า Profile — เพิ่ม `GET /api/app/profile/badges` (ระบุใน API doc)
 
 ### 11.8 ข้อสังเกต (flag)
-- `evaluateBadges(audience='BUYER')` ยังไม่มี caller ใน codebase — ต้องเพิ่มใน auction.service/bid handler
-- `getBadgePaceEstimate` ต้องเพิ่ม case AUCTION_* (countable) สำหรับ "อีกกี่วันได้"
-- `Order.auctionId` (schema:231) + `Bid.bidderId` (schema:403) มีอยู่แล้ว → MVP badge ไม่ต้อง migration
+- ✅ **RESOLVED** `evaluateBadges(audience='BUYER')` มี caller แล้ว: `placeBid` (auction.service.ts:816), `settleAuctionCore` (563), `confirmOrder` (order.service.ts, เพิ่ม 2026-07-02)
+- ⏳ `getBadgePaceEstimate` ยังไม่มี case AUCTION_* → badge สาย auction คืน `non_countable` (ไม่โชว์ "อีกกี่วันได้"). non-blocking — modal render graceful. **backlog polish**
+- `Order.auctionId` (schema:231) + `Bid.bidderId` (schema:403) มีอยู่แล้ว → badge auction ทั้ง MVP + Phase 2 ไม่ต้อง migration

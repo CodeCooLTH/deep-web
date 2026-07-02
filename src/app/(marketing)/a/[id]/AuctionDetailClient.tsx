@@ -2,21 +2,29 @@
 
 /**
  * AuctionDetailClient — root client wrapper ของหน้า public auction detail `/a/[id]` (feature 00004)
+ * Concept 1 "Live Commerce" redesign 2026-07-02 — docs/superpowers/specs/2026-07-02-buyer-auction-concept1-redesign.md
  *
  * ถือ realtime state (currentPrice/bidCount/endTimeMs/status/antiSnipeCount/bidHistory) เริ่มจาก
  * SSR props (`PublicAuctionDTO & { bidHistory }`) แล้ว subscribe Supabase Realtime broadcast channel
  * `auction:{id}` เฉพาะตอน status==='live' (draft/scheduled/ended/unsold/cancelled = static ไม่ subscribe)
+ * — ส่วนนี้คงเดิม 100% ไม่แตะ (redesign ปรับแค่ layer การแสดงผล/composition)
+ *
+ * ใหม่ (redesign): mobile (xs) = full-viewport flex column [hero flex:1][bottom bar] ไม่มี page scroll,
+ * ไม่ใช้ MobileFrame แล้ว; overlay ใหม่บน hero (AuctionSellerHeader/AuctionActionRail/AuctionLiveComment)
+ * ใช้ร่วมกันทั้ง mobile และ desktop (isWide); AuctionDetailSheet(รายละเอียด)/AuctionBidHistoryModal
+ * (ประวัติบิด lazy-load) เป็น bottom Drawer ที่ mount ครั้งเดียว ใช้ได้ทั้ง 2 breakpoint
+ *
+ * watch state (ติดตาม) ย้ายขึ้นมาจาก AuctionBidPanel เดิม — ใช้ร่วมกัน 2 จุด (หัวใจใน AuctionActionRail
+ * + หัวใจใน AuctionBidPanel) ต้องเป็น state เดียวกัน ไม่งั้นสถานะสวนทางกันระหว่าง 2 ปุ่ม
  *
  * Base (logic pattern เท่านั้น — ย้ายมาใช้ Vuexy/MUI + react-toastify ของฝั่ง buyer แทน Paces primitive):
  *   src/app/(paces)/seller/(dashboard)/auctions/[id]/components/AuctionConsoleClient.tsx
- *   (holder pattern: subscribe broadcast → merge payload → re-fetch bidHistory ผ่าน REST endpoint
- *   เดิม (ที่นี่ใช้ `/api/app/auctions/[id]` public — ไม่ใช่ seller endpoint) → router.refresh()
- *   เมื่อ auction จบ/ขายไม่ออก/ยกเลิก เพื่อให้ RSC คำนวณ isWinner ใหม่)
- * Layout frame: src/app/(marketing)/o/[token]/MobileFrame.tsx (reuse ตรง — mobile full-bleed /
- *   desktop centered "จอมือถือ" กลางจอเทา ใช้ pattern เดียวกับหน้า public order เดิม)
+ * Layout frame มือถือเดิม (MobileFrame) เลิกใช้แล้วตาม spec — full-viewport flex column แทน
+ *   (pattern flex column อ้างจาก src/app/(marketing)/o/[token]/MobileFrame.tsx เดิม)
  */
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -30,10 +38,15 @@ import type { PublicAuctionDTO, BidDTO } from '@/services/auction.service'
 import type { SellerTrust } from '@/services/app-shop.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useAuctionPresence } from '@/hooks/useAuctionPresence'
+import { formatDateTime } from '@/lib/format-date'
 
-import MobileFrame from '../../o/[token]/MobileFrame'
 import AuctionNavbar from './AuctionNavbar'
 import AuctionHero from './AuctionHero'
+import AuctionSellerHeader from './AuctionSellerHeader'
+import AuctionActionRail from './AuctionActionRail'
+import AuctionLiveComment from './AuctionLiveComment'
+import AuctionDetailSheet from './AuctionDetailSheet'
+import AuctionBidHistoryModal from './AuctionBidHistoryModal'
 import AuctionPriceChart from './AuctionPriceChart'
 import AuctionLiveState from './AuctionLiveState'
 import AuctionBidHistory from './AuctionBidHistory'
@@ -56,6 +69,7 @@ type ConnectionState = 'live' | 'reconnecting'
 
 export default function AuctionDetailClient({ auction, seller, isWinner, initialWatching }: Props) {
   const router = useRouter()
+  const { status: sessionStatus } = useSession()
   // S-A5: จอกว้าง ≥sm แสดง web layout กลางจอ (ไม่มีกรอบมือถือ) — pattern เดียวกับ
   // src/components/layout/front-pages/Header.tsx:16,41
   const isWide = useMediaQuery((theme: Theme) => theme.breakpoints.up('sm'))
@@ -80,6 +94,21 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   const prevStatusRef = useRef(auction.status)
   // feat 00007 item 6: throttle refetch ตอน broadcast รัว (auction ร้อน) — trailing debounce
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // overlay UI state ใหม่ (redesign 2026-07-02) — sheet รายละเอียด / modal ประวัติบิด
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false)
+  const [bidHistoryOpen, setBidHistoryOpen] = useState(false)
+
+  // watch state (ย้ายมาจาก AuctionBidPanel เดิม — ใช้ร่วม 2 จุด: หัวใจใน rail + หัวใจในแถบล่าง)
+  const [watching, setWatching] = useState(initialWatching)
+  const [watchLoading, setWatchLoading] = useState(false)
+
+  // origin สำหรับ absolute share URL — คำนวณหลัง mount เท่านั้น (กัน SSR อ้าง window ไม่ได้)
+  const [origin, setOrigin] = useState('')
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+  const shareUrl = `${origin}/a/${auction.id}`
 
   // re-sync ทุกครั้งที่ page.tsx (RSC) ส่ง auction prop ใหม่มา (router.refresh()) — กัน state ค้าง
   useEffect(() => {
@@ -168,18 +197,50 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   // feat 00006: จำนวนผู้ชมกำลังดู (live เท่านั้น) — Supabase Presence channel แยก
   const viewerCount = useAuctionPresence(auction.id, isLive)
 
-  // S-A5: เนื้อหาส่วนล่าง (PriceChart→LiveState→meta-strip→BidPanel/ResultCard→BidHistory)
-  // เหมือนกันทุก prop ทั้ง 2 breakpoint — ต่างกันแค่ hero wrapper กับ container ด้านนอก จึงแยก
-  // มาเป็นตัวแปรกลาง กัน prop drift ระหว่าง branch (mobile MobileFrame เดิม vs wide web layout ใหม่)
-  // AuctionBidPanel (isLive) — mobile (xs) render แยกเป็น sticky bottom bar "ตัวสุดท้าย" (inlinePanel=false)
-  // เพื่อให้เกาะล่างจริงตลอด scroll (mockup .bidbar); wide (≥sm) render in-flow ในลำดับปกติ (inlinePanel=true, ตรง mockup D6)
+  /** ยังไม่ login → เด้ง sign-in ทันที (ย้ายมาจาก AuctionBidPanel เดิม — ใช้ร่วมกับ toggleWatch ที่ยกขึ้นมา) */
+  function requireLogin(): boolean {
+    if (sessionStatus !== 'authenticated') {
+      router.push(`/auth/sign-in?callbackUrl=${encodeURIComponent(`/a/${auction.id}`)}`)
+      return true
+    }
+    return false
+  }
+
+  async function toggleWatch() {
+    if (requireLogin()) return
+    setWatchLoading(true)
+    const next = !watching
+    try {
+      const res = await fetch(`/api/auctions/${auction.id}/watch`, { method: next ? 'POST' : 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error('ทำรายการไม่สำเร็จ')
+        return
+      }
+      setWatching(!!data.watching)
+      toast.success(data.watching ? 'ติดตามการประมูลนี้แล้ว' : 'เลิกติดตามแล้ว')
+    } catch {
+      toast.error('ทำรายการไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setWatchLoading(false)
+    }
+  }
+
+  // AuctionBidPanel (isLive) — ใช้ทั้งมือถือ (sticky bottom bar) และ desktop (in-flow ปกติ, ตัวเดียวกัน)
   const bidPanel = isLive ? (
     <AuctionBidPanel
       auctionId={auction.id}
       currentPrice={currentPrice}
       bidIncrement={auction.bidIncrement}
       buyNowPrice={auction.buyNowPrice}
-      initialWatching={initialWatching}
+      bidCount={bidCount}
+      endTimeMs={endTimeMs}
+      antiSnipeCount={antiSnipeCount}
+      watching={watching}
+      watchLoading={watchLoading}
+      onToggleWatch={toggleWatch}
+      showDetailLink={!detailSheetOpen && !bidHistoryOpen}
+      onOpenDetailSheet={() => setDetailSheetOpen(true)}
       youAreHighestBidder={youAreHighestBidder}
       onBidSuccess={(next) => {
         setCurrentPrice(next.currentPrice)
@@ -196,70 +257,71 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
     />
   ) : null
 
-  const renderSections = (inlinePanel: boolean) => (
-    <>
-      <AuctionPriceChart bidHistory={bidHistory} />
-
-      <AuctionLiveState
-        status={status}
-        endTimeMs={endTimeMs}
-        startTimeMs={auction.startTimeMs}
-        antiSnipeCount={antiSnipeCount}
-        heroHasCountdown={isLive}
-      />
-
-      {/* meta-strip — ราคาเริ่ม/ขั้นบิด/มีขั้นต่ำไหม/ผู้ขาย trust ย่อ (visual ref: mockup .meta-strip, asset เท่านั้น) */}
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          columnGap: '16px',
-          rowGap: '6px',
-          px: '14px',
-          py: '10px',
-          bgcolor: '#fff',
-          borderRadius: '12px',
-          boxShadow: '0 1px 2px rgba(15,23,42,.06)',
-        }}
-      >
-        <Typography sx={{ fontSize: 12, color: '#64748B' }}>
-          เริ่ม <Box component="b" sx={{ color: '#0F172A' }}>฿{auction.startPrice.toLocaleString()}</Box>
+  // การ์ดแทนแถบบิดตอน scheduled (มือถือ+desktop bottom bar) — ไม่ใช้ AuctionLiveState component ตรง ๆ
+  // (spec: "ไม่อยู่ใน mobile flow") จึงประกอบ markup สั้น ๆ เอง (asset เดียวกัน ไม่ใช่ theme ใหม่)
+  const scheduledBar = (
+    <Box sx={{ bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', px: '16px', py: '14px' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Icon icon="tabler-clock-hour-4" style={{ color: 'var(--mui-palette-info-main)', fontSize: 18 }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary' }}>
+          {auction.startTimeMs ? `เริ่มประมูล ${formatDateTime(auction.startTimeMs)}` : 'รอเปิดประมูล'}
         </Typography>
-        <Typography sx={{ fontSize: 12, color: '#64748B' }}>
-          ขั้นบิด <Box component="b" sx={{ color: '#0F172A' }}>฿{auction.bidIncrement.toLocaleString()}</Box>
-        </Typography>
-        <Typography sx={{ fontSize: 12, color: '#64748B' }}>
-          ขั้นต่ำ <Box component="b" sx={{ color: '#0F172A' }}>{auction.hasReserve ? 'มี' : 'ไม่มี'}</Box>
-        </Typography>
-        {seller && (
-          <Typography sx={{ fontSize: 12, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            ผู้ขาย <Box component="b" sx={{ color: '#0F172A' }}>{seller.name}</Box>
-            {seller.verified && (
-              <Icon icon="tabler-rosette-discount-check-filled" style={{ color: '#2563EB', fontSize: 14 }} />
-            )}
-          </Typography>
-        )}
       </Box>
+    </Box>
+  )
 
-      {/* wide (≥sm): panel in-flow ตรงนี้ (ตาม mockup D6); mobile ไม่ render ที่นี่ (ไปเป็น sticky bottom) */}
-      {inlinePanel && bidPanel}
+  const resultBar = (
+    <Box sx={{ bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', px: '16px', py: '14px' }}>
+      <AuctionResultCard
+        status={status as 'ended' | 'unsold' | 'cancelled'}
+        currentPrice={currentPrice}
+        hasReserve={auction.hasReserve}
+        winnerDisplayName={bidHistory[0]?.bidder ?? null}
+        isWinner={isWinner}
+      />
+    </Box>
+  )
 
-      {/* status ไม่ live: ended/unsold/cancelled → การ์ดสรุปผล (AuctionResultCard ไม่รองรับ 'scheduled'/'draft'
-          ในสัญญา prop เดิม — 2 สถานะนี้ปล่อยให้ AuctionLiveState สื่อสารพอ ไม่มี panel ใด ๆ ต่อท้าย) */}
-      {isTerminal && (
-        <AuctionResultCard
-          status={status as 'ended' | 'unsold' | 'cancelled'}
-          currentPrice={currentPrice}
-          hasReserve={auction.hasReserve}
-          winnerDisplayName={bidHistory[0]?.bidder ?? null}
-          isWinner={isWinner}
+  // แถบล่างสุด (มือถือ = เกาะก้นจอ flex column, desktop = in-flow) — สลับตาม status
+  const bottomBar = isLive ? bidPanel : status === 'scheduled' ? scheduledBar : isTerminal ? resultBar : null
+
+  // overlay ชุดใหม่บน AuctionHero — ใช้ร่วมกันทั้ง mobile และ desktop (ต่างแค่ variant ของ AuctionHero เอง)
+  // edge states: scheduled → ซ่อน rail + live comment ทั้งคู่ (spec "rail hidden, no live comment")
+  const heroOverlay = (
+    <>
+      <AuctionSellerHeader seller={seller} status={status} />
+      {status !== 'scheduled' && (
+        <AuctionActionRail
+          viewerCount={isLive ? viewerCount : 0}
+          watching={watching}
+          onToggleWatch={toggleWatch}
+          bidCount={bidCount}
+          onOpenBidHistory={() => setBidHistoryOpen(true)}
+          shareUrl={shareUrl}
+          shareTitle={auction.title}
+          readOnly={isTerminal}
         />
       )}
+      {status !== 'scheduled' && <AuctionLiveComment title={auction.title} latestBid={bidHistory[0] ?? null} />}
+    </>
+  )
 
-      <AuctionBidHistory
+  // Drawer 2 ตัว mount ครั้งเดียว ใช้ร่วมทั้ง 2 breakpoint (MUI Drawer portal ไปที่ document.body อยู่แล้ว)
+  const modals = (
+    <>
+      <AuctionDetailSheet
+        open={detailSheetOpen}
+        onClose={() => setDetailSheetOpen(false)}
+        title={auction.title}
+        description={auction.description}
+      />
+      <AuctionBidHistoryModal
+        open={bidHistoryOpen}
+        onClose={() => setBidHistoryOpen(false)}
         auctionId={auction.id}
-        bidHistory={bidHistory}
         bidCount={bidCount}
+        initialBids={bidHistory}
+        latestBid={bidHistory[0] ?? null}
         connectionState={isLive ? connectionState : undefined}
       />
     </>
@@ -267,12 +329,13 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
 
   return (
     <>
-      {/* S-A4: navbar อยู่นอก MobileFrame/wide-layout ตั้งใจ — sm+ เท่านั้น (แสดง/ซ่อนคุมเองภายใน),
-          MobileFrame เดิมไม่ถูกแตะ (OOS-7) */}
+      {/* S-A4: navbar อยู่นอก layout ตั้งใจ — sm+ เท่านั้น (แสดง/ซ่อนคุมเองภายใน) */}
       <AuctionNavbar auctionId={auction.id} />
+
       {isWide ? (
-        // S-A5: ≥sm — web layout กว้าง ~840px กลางจอ (ไม่มีกรอบมือถือ/ไม่มี backdrop เทาแบบ MobileFrame)
-        <Box sx={{ bgcolor: '#F3F5F8', minHeight: '100dvh' }}>
+        // S-A5: ≥sm — web layout กว้าง ~840px กลางจอ (ไม่มีกรอบมือถือ) — เนื้อหาใต้ hero คงเดิมทุกอย่าง
+        // (spec: "below-hero sections may remain as-is on desktop only") ต่างแค่ hero มี overlay ใหม่ทับ
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100dvh' }}>
           <Box
             sx={{
               maxWidth: 840,
@@ -286,56 +349,97 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
           >
             <Box
               sx={{
+                position: 'relative',
                 borderRadius: '14px',
                 overflow: 'hidden',
                 border: '1px solid',
                 borderColor: 'divider',
-                boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+                boxShadow: (theme) => theme.customShadows.xs,
               }}
             >
-              <AuctionHero
-                title={auction.title}
-                imageUrl={auction.imageUrl}
-                images={auction.images}
-                status={status}
-                hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
-                viewerCount={isLive ? viewerCount : 0}
-              />
+              <AuctionHero imageUrl={auction.imageUrl} images={auction.images} variant="desktop">
+                {heroOverlay}
+              </AuctionHero>
             </Box>
 
-            {renderSections(true)}
+            <AuctionPriceChart bidHistory={bidHistory} />
+
+            <AuctionLiveState
+              status={status}
+              endTimeMs={endTimeMs}
+              startTimeMs={auction.startTimeMs}
+              antiSnipeCount={antiSnipeCount}
+              heroHasCountdown={isLive}
+            />
+
+            {/* meta-strip — ราคาเริ่ม/ขั้นบิด/มีขั้นต่ำไหม/ผู้ขาย trust ย่อ (visual ref: mockup .meta-strip, asset เท่านั้น) */}
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                columnGap: '16px',
+                rowGap: '6px',
+                px: '14px',
+                py: '10px',
+                bgcolor: 'background.paper',
+                borderRadius: '12px',
+                boxShadow: (theme) => theme.customShadows.xs,
+              }}
+            >
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                เริ่ม <Box component="b" sx={{ color: 'text.primary' }}>฿{auction.startPrice.toLocaleString()}</Box>
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                ขั้นบิด <Box component="b" sx={{ color: 'text.primary' }}>฿{auction.bidIncrement.toLocaleString()}</Box>
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                ขั้นต่ำ <Box component="b" sx={{ color: 'text.primary' }}>{auction.hasReserve ? 'มี' : 'ไม่มี'}</Box>
+              </Typography>
+              {seller && (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  ผู้ขาย <Box component="b" sx={{ color: 'text.primary' }}>{seller.name}</Box>
+                  {seller.verified && (
+                    <Icon icon="tabler-rosette-discount-check-filled" style={{ color: 'var(--mui-palette-primary-main)', fontSize: 14 }} />
+                  )}
+                </Typography>
+              )}
+            </Box>
+
+            {bidPanel}
+
+            {isTerminal && (
+              <AuctionResultCard
+                status={status as 'ended' | 'unsold' | 'cancelled'}
+                currentPrice={currentPrice}
+                hasReserve={auction.hasReserve}
+                winnerDisplayName={bidHistory[0]?.bidder ?? null}
+                isWinner={isWinner}
+              />
+            )}
+
+            <AuctionBidHistory
+              auctionId={auction.id}
+              bidHistory={bidHistory}
+              bidCount={bidCount}
+              connectionState={isLive ? connectionState : undefined}
+            />
           </Box>
         </Box>
       ) : (
-        // xs (<600) — MobileFrame เดิม ไม่แตะ/ไม่เปลี่ยนพฤติกรรม
-        <MobileFrame bg="#F3F5F8">
-          <AuctionHero
-            title={auction.title}
-            imageUrl={auction.imageUrl}
-                images={auction.images}
-            status={status}
-            hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
-            viewerCount={isLive ? viewerCount : 0}
-          />
+        // xs (<600) — full-viewport flex column ไม่มี page scroll (spec redesign 2026-07-02) —
+        // เลิกใช้ MobileFrame แล้ว: hero flex:1 เต็มพื้นที่เหนือแถบล่าง, ไม่ render chart/live-state/
+        // meta-strip/inline-history บน mobile default flow (ย้ายรายละเอียด → AuctionDetailSheet,
+        // ประวัติบิด → AuctionBidHistoryModal แทน)
+        <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: 'background.default' }}>
+          <AuctionHero imageUrl={auction.imageUrl} images={auction.images} variant="mobile">
+            {heroOverlay}
+          </AuctionHero>
 
-          {/* pb เผื่อ sticky bid bar (isLive) กันบังการ์ดสุดท้าย */}
-          <Box
-            sx={{
-              px: '16px',
-              py: '14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              pb: isLive ? '120px' : '14px',
-            }}
-          >
-            {renderSections(false)}
-          </Box>
-
-          {/* mobile sticky bottom bar = panel เป็น element สุดท้ายของ MobileFrame → เกาะล่างตลอด scroll */}
-          {bidPanel}
-        </MobileFrame>
+          {bottomBar}
+        </Box>
       )}
+
+      {modals}
 
       {/* feat 00007 item 5: winner announcement (เด้งเมื่อ live→ended มีผู้ชนะ, ค้างจนกดปิด) */}
       {bidHistory[0] && (

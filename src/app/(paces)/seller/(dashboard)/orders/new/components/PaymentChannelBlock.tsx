@@ -72,8 +72,8 @@ export default function PaymentChannelBlock({ control, errors }: Props) {
         </h2>
       </div>
 
-      {/* card-body: 2-col grid ตาม mockup BLOCK 2 */}
-      <div className="card-body grid gap-4 sm:grid-cols-2">
+      {/* card-body: 2-col grid ตั้งแต่ mobile (mockup A กระชับ) + padding แน่นบนมือถือ */}
+      <div className="card-body p-4 sm:p-5 grid grid-cols-2 gap-3 sm:gap-4">
 
         {/* ── ช่องทางการขาย ──────────────────────────────────────────────────── */}
         <div>
@@ -175,8 +175,8 @@ export default function PaymentChannelBlock({ control, errors }: Props) {
           )}
         </div>
 
-        {/* ── หมายเหตุภายใน — full width ─────────────────────────────────── */}
-        <div className="sm:col-span-2">
+        {/* ── หมายเหตุภายใน — full width (span 2 ทั้ง mobile+desktop) ─────── */}
+        <div className="col-span-2">
           <label htmlFor="pay-note" className="form-label">
             หมายเหตุภายใน
           </label>

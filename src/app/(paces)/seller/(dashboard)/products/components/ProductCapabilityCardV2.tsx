@@ -14,6 +14,7 @@
 
 import type { UseFormRegister, FieldErrors } from 'react-hook-form'
 import { useState } from 'react'
+import { Icon } from '@iconify/react'
 import { FULFILLMENT_MODES, BILLING_MODES } from '@/lib/product-types/registry'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 
@@ -46,7 +47,7 @@ export default function ProductCapabilityCardV2({
         aria-expanded={open}
         aria-controls="v2-capability-panel"
       >
-        <span className="text-base leading-none">⚙️</span>
+        <Icon icon="tabler:settings" className="size-4" aria-hidden />
         ตั้งค่าขั้นสูง
         <span className="text-default-400">{open ? '▾' : '▸'}</span>
       </button>

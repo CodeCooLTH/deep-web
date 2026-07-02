@@ -68,6 +68,15 @@ export type CriteriaAuctionWonCompleted = {
   statuses?: string[]
 }
 
+// ─── Engagement achievement criteria (feat 00005 Reactions + WatchList) ──
+// spec docs/superpowers/specs/2026-07-02-reaction-watchlist-achievement-design.md
+
+/** buyer: จำนวน reaction (BidReaction) ที่ active อยู่ตอนนี้ */
+export type CriteriaReactionCount = { type: 'REACTION_COUNT'; count: number }
+
+/** buyer: จำนวน auction ที่ watch (WatchList) อยู่ตอนนี้ */
+export type CriteriaWatchlistCount = { type: 'WATCHLIST_COUNT'; count: number }
+
 /** Union ครอบทุก criteria type ที่ seed ไว้ใน DB */
 export type BadgeCriteria =
   | CriteriaFirstOrder
@@ -86,6 +95,8 @@ export type BadgeCriteria =
   | CriteriaAuctionBidCount
   | CriteriaAuctionWon
   | CriteriaAuctionWonCompleted
+  | CriteriaReactionCount
+  | CriteriaWatchlistCount
 
 // ─── Progress / result types ─────────────────────────────────────────────────
 

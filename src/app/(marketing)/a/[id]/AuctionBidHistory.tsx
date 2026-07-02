@@ -39,13 +39,14 @@ type ReactionState = { count: number; reacted: boolean }
 
 const VISIBLE_DEFAULT = 5
 
-// สี badge ต่อ bidder level (ladder feat 00002 TFR-016) — buyer Vuexy (hex) — export ให้ WinnerDialog reuse (feat 00007)
+// สี badge ต่อ bidder level (ladder feat 00002 TFR-016) — buyer Vuexy theme tokens
+// export ให้ WinnerDialog reuse (feat 00007) — WinnerDialog ใช้ผ่าน sx (bgcolor/color) → token resolve ได้
 export const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
-  5: { bg: '#FEF3C7', color: '#B45309' }, // ตำนาน (gold)
-  4: { bg: '#E0F2FE', color: '#0369A1' }, // ระดับเพชร (diamond)
-  3: { bg: '#EEF2FF', color: '#4338CA' }, // เซียน
-  2: { bg: '#F1F5F9', color: '#475569' }, // นักประมูล
-  1: { bg: '#F1F5F9', color: '#94A3B8' }, // มือใหม่
+  5: { bg: 'warning.lighterOpacity', color: 'warning.main' }, // ตำนาน (gold)
+  4: { bg: 'info.lighterOpacity', color: 'info.main' }, // ระดับเพชร (diamond)
+  3: { bg: 'primary.lighterOpacity', color: 'primary.main' }, // เซียน
+  2: { bg: 'action.selected', color: 'text.secondary' }, // นักประมูล
+  1: { bg: 'action.selected', color: 'text.secondary' }, // มือใหม่
 }
 
 function relativeTimeTh(atMs: number, nowMs: number): string {
@@ -115,10 +116,17 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
   const hiddenCount = bidHistory.length - visible.length
 
   return (
-    <Box sx={{ borderRadius: '12px', boxShadow: '0 1px 2px rgba(15,23,42,.06)', bgcolor: '#fff', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        borderRadius: '12px',
+        boxShadow: (theme) => theme.customShadows.xs,
+        bgcolor: 'background.paper',
+        overflow: 'hidden',
+      }}
+    >
       {/* header — จำนวนบิด + live indicator */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', px: '16px', pt: '14px', pb: '8px' }}>
-        <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>
+        <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: 'text.primary' }}>
           การเสนอราคา ({bidCount})
         </Typography>
         {connectionState && (
@@ -133,8 +141,8 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
               borderRadius: 999,
               fontSize: 10.5,
               fontWeight: 700,
-              bgcolor: connectionState === 'live' ? '#FEE2E2' : '#F1F5F9',
-              color: connectionState === 'live' ? '#DC2626' : '#64748B',
+              bgcolor: connectionState === 'live' ? 'error.lighterOpacity' : 'action.selected',
+              color: connectionState === 'live' ? 'error.main' : 'text.secondary',
             }}
           >
             {connectionState === 'live' && (
@@ -144,7 +152,7 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  bgcolor: '#DC2626',
+                  bgcolor: 'error.main',
                   animation: 'bidHistoryPulse 1.4s ease-in-out infinite',
                   '@keyframes bidHistoryPulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
                 }}
@@ -158,7 +166,7 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
       {/* empty state */}
       {bidHistory.length === 0 ? (
         <Box sx={{ px: '16px', pb: '18px', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 12.5, color: '#94A3B8' }}>
+          <Typography sx={{ fontSize: 12.5, color: 'text.disabled' }}>
             ยังไม่มีผู้เสนอราคา — เป็นคนแรกที่เสนอราคา!
           </Typography>
         </Box>
@@ -182,7 +190,7 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                     <Box
                       sx={{
                         display: 'inline-block',
-                        bgcolor: isLeader ? '#EFF4FF' : '#F8FAFC',
+                        bgcolor: isLeader ? 'primary.lighterOpacity' : 'action.hover',
                         borderRadius: '10px',
                         px: '11px',
                         py: '7px',
@@ -190,7 +198,7 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.primary' }}>
                           {bid.bidder}
                         </Typography>
                         {/* bidder level badge (ladder จาก successfulBidCount, TFR-016) */}
@@ -217,8 +225,8 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '3px',
-                              bgcolor: '#DBEAFE',
-                              color: '#1D4ED8',
+                              bgcolor: 'primary.lighterOpacity',
+                              color: 'primary.main',
                               fontSize: 10,
                               fontWeight: 800,
                               px: '7px',
@@ -231,13 +239,13 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                           </Box>
                         )}
                       </Box>
-                      <Typography sx={{ fontSize: 13, color: '#334155', mt: '1px' }}>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: '1px' }}>
                         เสนอราคา <b>฿{bid.amount.toLocaleString()}</b>
                       </Typography>
                     </Box>
                     {/* meta row: เวลา · ถูกใจ (toggle) · count (feat 00005) */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: '10px', mt: '3px', ml: '2px' }}>
-                      <Typography sx={{ fontSize: 10.5, color: '#94A3B8' }}>
+                      <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
                         {relativeTimeTh(bid.atMs, now)}
                       </Typography>
                       <Box
@@ -255,14 +263,14 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                           gap: '4px',
                           fontSize: 11,
                           fontWeight: 700,
-                          color: reactions[bid.id]?.reacted ? '#E11D48' : '#94A3B8',
+                          color: reactions[bid.id]?.reacted ? 'error.main' : 'text.disabled',
                           '&:disabled': { opacity: 0.6 },
                         }}
                       >
                         <Icon icon={reactions[bid.id]?.reacted ? 'tabler-heart-filled' : 'tabler-heart'} fontSize={13} />
                         ถูกใจ
                         {(reactions[bid.id]?.count ?? 0) > 0 && (
-                          <Box component="span" sx={{ color: '#64748B', fontWeight: 600 }}>
+                          <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                             {reactions[bid.id]?.count}
                           </Box>
                         )}
@@ -281,12 +289,13 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
               sx={{
                 textAlign: 'center',
                 py: '11px',
-                borderTop: '1px solid #EEF2F7',
+                borderTop: '1px solid',
+                borderTopColor: 'divider',
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#2563EB',
+                color: 'primary.main',
                 cursor: 'pointer',
-                '&:hover': { bgcolor: '#F8FAFC' },
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
               <Icon icon={expanded ? 'tabler-chevron-up' : 'tabler-chevron-down'} style={{ verticalAlign: 'middle', marginRight: 4 }} />

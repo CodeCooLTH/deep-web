@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { evaluateBadges } from "@/services/badge.service";
 
 // POST /api/auctions/[id]/watch — เพิ่มเข้ารายการติดตาม (feature 00004 — buyer web, session-authed)
 // เหมือน /api/app/auctions/[id]/watch (mobile) เป๊ะ ต่างแค่ auth: session แทน HMAC Bearer
@@ -25,6 +26,8 @@ export async function POST(
     create: { userId, auctionId: id },
     update: {},
   });
+  // trigger badge eval — best-effort ไม่ block response (Auction Watcher)
+  void evaluateBadges(userId, "BUYER").catch((e) => console.error("[watch] evaluateBadges(BUYER) failed", e));
   return NextResponse.json({ watching: true });
 }
 

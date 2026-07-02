@@ -18,6 +18,7 @@
  */
 
 import type { BidDTO } from '@/services/auction.service'
+import Icon from '@/components/wrappers/Icon'
 
 type Props = {
   bidHistory: BidDTO[]
@@ -60,7 +61,7 @@ export default function AuctionBidVelocity({ bidHistory, bidCount }: Props) {
       <div className="card-header justify-between">
         <h4 className="card-title">ความถี่การบิด</h4>
         {accelerating && (
-          <span className="badge badge-label bg-danger/15 text-danger text-2xs">🔥 พุ่งช่วงท้าย</span>
+          <span className="badge badge-label bg-danger/15 text-danger text-2xs inline-flex items-center gap-1"><Icon icon="flame" className="text-2xs" /> พุ่งช่วงท้าย</span>
         )}
       </div>
       <div className="card-body">

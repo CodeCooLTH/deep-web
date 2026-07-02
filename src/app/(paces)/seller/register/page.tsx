@@ -241,7 +241,7 @@ export default function RegisterPage() {
 
         {step === 'success' && (
           <div className="flex flex-col items-center gap-4 py-10 text-center">
-            <span className="flex size-16 items-center justify-center rounded-full bg-success/15 text-success text-4xl">🎉</span>
+            <span className="flex size-16 items-center justify-center rounded-full bg-success/15 text-success"><Icon icon="check" className="size-8" /></span>
             <div><h4 className="text-lg font-bold text-default-900">เข้าสู่ระบบสำเร็จ!</h4><p className="text-default-500 text-sm mt-1">กำลังเข้าสู่ระบบ...</p></div>
             <div className="border-primary inline-block size-8 animate-spin rounded-full border-3 border-t-transparent" role="status" />
           </div>

@@ -139,7 +139,7 @@ export default function ProductImagesCardV2({
           className="bg-default-50 border-default-300 hover:border-primary hover:bg-primary/5 flex h-44 sm:h-52 lg:h-96 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed p-3 text-center transition"
         >
           <input {...heroDropzone.getInputProps()} />
-          <span className="text-2xl leading-none">📷</span>
+          <Icon icon="tabler:camera" className="size-7 text-default-400" aria-hidden />
           <p className="text-dark text-sm font-semibold">เพิ่มรูปสินค้า (แตะ/ลากมาวาง)</p>
           <span className="border-default-300 mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-lg border bg-white px-3 text-xs font-semibold shadow-sm">
             <Icon icon="tabler:plus" className="size-3.5" />

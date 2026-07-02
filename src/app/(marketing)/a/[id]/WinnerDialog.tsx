@@ -57,8 +57,11 @@ export default function WinnerDialog({
       maxWidth="xs"
     >
       <DialogContent className="flex flex-col items-center text-center" sx={{ pt: 5, px: 4 }}>
-        <Typography sx={{ fontSize: 40, lineHeight: 1, mb: 1 }}>🏆</Typography>
-        <Typography sx={{ fontSize: 17, fontWeight: 800, color: '#0F172A', mb: 2.5 }}>
+        {/* no-emoji: ถ้วยรางวัลผู้ชนะ = tabler-trophy (สีทอง warning) — ห้าม emoji (docs/conventions/no-emoji-use-icons.md) */}
+        <Box sx={{ mb: 1, lineHeight: 1 }}>
+          <Icon icon="tabler-trophy" style={{ fontSize: 44, color: 'var(--mui-palette-warning-main)' }} />
+        </Box>
+        <Typography sx={{ fontSize: 17, fontWeight: 800, color: 'text.primary', mb: 2.5 }}>
           {isWinner ? 'ยินดีด้วย! คุณชนะการประมูล' : 'การประมูลสิ้นสุดแล้ว'}
         </Typography>
 
@@ -85,9 +88,9 @@ export default function WinnerDialog({
           {winnerLevel.label}
         </Box>
 
-        <Typography sx={{ mt: 1.5, fontSize: 16, fontWeight: 700, color: '#0F172A' }}>{winnerName}</Typography>
-        <Typography sx={{ fontSize: 11, color: '#64748B', mt: 1.5 }}>ราคาปิด</Typography>
-        <Typography sx={{ fontSize: 30, fontWeight: 800, color: '#7367F0', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+        <Typography sx={{ mt: 1.5, fontSize: 16, fontWeight: 700, color: 'text.primary' }}>{winnerName}</Typography>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1.5 }}>ราคาปิด</Typography>
+        <Typography sx={{ fontSize: 30, fontWeight: 800, color: 'primary.main', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
           ฿{finalPrice.toLocaleString()}
         </Typography>
       </DialogContent>

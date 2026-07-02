@@ -74,19 +74,19 @@ export default function AuctionLiveState({ status, endTimeMs, startTimeMs, antiS
           gap: '10px',
           px: '16px',
           py: '13px',
-          bgcolor: '#EFF4FF',
+          bgcolor: 'info.lighterOpacity',
           borderRadius: '12px',
           flexWrap: 'wrap',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Icon icon='tabler-clock-hour-4' style={{ color: '#2563EB', fontSize: 18 }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#1E3A8A' }}>
+          <Icon icon='tabler-clock-hour-4' style={{ color: 'var(--mui-palette-info-main)', fontSize: 18 }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary' }}>
             {startTimeMs ? `เริ่มประมูล ${formatDateTime(startTimeMs)}` : 'รอเปิดประมูล'}
           </Typography>
         </Box>
         {startTimeMs && (
-          <Typography sx={{ fontSize: 13, fontWeight: 800, color: '#2563EB', fontVariantNumeric: 'tabular-nums' }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 800, color: 'info.main', fontVariantNumeric: 'tabular-nums' }}>
             {formatRemain(remainMs)}
           </Typography>
         )}
@@ -108,17 +108,17 @@ export default function AuctionLiveState({ status, endTimeMs, startTimeMs, antiS
             justifyContent: 'space-between',
             px: '16px',
             py: '11px',
-            bgcolor: '#F8FAFC',
+            bgcolor: 'background.default',
             borderRadius: '12px',
           }}
         >
-          <Typography sx={{ fontSize: 11.5, color: '#94A3B8', fontWeight: 700 }}>เหลือเวลา</Typography>
+          <Typography sx={{ fontSize: 11.5, color: 'text.disabled', fontWeight: 700 }}>เหลือเวลา</Typography>
           <Typography
             sx={{
               fontSize: 20,
               fontWeight: 800,
               fontVariantNumeric: 'tabular-nums',
-              color: isUnderHour ? '#DC2626' : '#0F172A',
+              color: isUnderHour ? 'error.main' : 'text.primary',
             }}
           >
             {formatRemain(remainMs)}
@@ -136,8 +136,8 @@ export default function AuctionLiveState({ status, endTimeMs, startTimeMs, antiS
             px: '14px',
             py: '9px',
             borderRadius: '10px',
-            bgcolor: '#FEF3E2',
-            color: '#B45309',
+            bgcolor: 'warning.lighterOpacity',
+            color: 'warning.main',
           }}
         >
           <Icon icon='tabler-flame' fontSize={16} />
