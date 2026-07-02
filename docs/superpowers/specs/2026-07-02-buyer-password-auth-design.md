@@ -169,7 +169,7 @@ reset:   reset-pass → otp/send → verify-otp(mode=reset) → sessionStorage.r
 
 - legacy OTP-only user (ไม่มี passwordHash): password login → null → ใช้ OTP หรือ reset-flow ตั้งรหัส
 - FB/LINE user ที่ยังไม่มี phone (needsRegistration): ใช้ reset ไม่ได้ (ต้องมี phone+OTP) → login ผ่าน social ตามเดิม
-- signupDraft หาย (refresh/direct URL): verify-otp signup ดำเนินต่อโดยไม่มี password → user ไม่มี passwordHash (ตั้งภายหลังผ่าน reset). ยอมรับได้ / หรือบังคับ redirect กลับ sign-up — **จะ implement แบบ redirect กลับ sign-up ถ้าไม่มี draft** (สอดคล้อง required password)
+- signupDraft หาย (refresh/direct URL): verify-otp signup **ดำเนินต่อโดยไม่มี password** → user ไม่มี passwordHash (ตั้งภายหลังผ่าน reset-flow ได้) — **พฤติกรรมเดียวกับ seller VerifyOtpForm** (Controller decision 2026-07-02, ดู scope baseline Change Log). ไม่ redirect กลับ sign-up
 - resetDraft หาย: new-pass redirect กลับ reset-pass
 - username ซ้ำ/phone ซ้ำ ตอน signup: inline error (pattern เดิม)
 

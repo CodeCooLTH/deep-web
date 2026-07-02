@@ -257,16 +257,37 @@ const schema = Yup.object({
 ```
 > หมายเหตุ: ใช้ `CustomTextField type='password'` (Vuexy) แทน `PasswordInputWithStrength` (Paces component) เพื่อคง markup Vuexy. ถ้าต้องการ strength bar ให้ยืนยัน component ฝั่ง Vuexy — default นี้ไม่มี strength bar
 
-- [ ] **Step 5: Type-check + verify field ขึ้น**
+- [ ] **Step 5: อัปปุ่ม social หน้า sign-up เป็นเต็มกว้างมี label** (S-BA-4 — Controller decision 2026-07-02) — แทน block IconButton เดิมด้วยปุ่มเต็มกว้าง (โครงเดียวกับ sign-in Task 3 Step 5 แต่ label = "สมัครด้วย …", callbackUrl = `/`)
+
+```tsx
+<div className='flex flex-col gap-3'>
+  <Button fullWidth variant='outlined' startIcon={<i className='tabler-brand-facebook-filled text-facebook' />}
+    onClick={() => signIn('facebook', { callbackUrl: '/' })}>
+    สมัครด้วย Facebook
+  </Button>
+  <Button fullWidth variant='outlined' onClick={() => signIn('line', { callbackUrl: '/auth/callback/line' })}
+    startIcon={<Icon icon='ri:line-fill' width={20} height={20} style={{ color: '#06C755' }} />}>
+    สมัครด้วย LINE
+  </Button>
+  {process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true' && (
+    <Button fullWidth variant='outlined' onClick={() => signIn('instagram', { callbackUrl: '/auth/callback/instagram' })}
+      startIcon={<Icon icon='ri:instagram-fill' width={20} height={20} style={{ color: '#E1306C' }} />}>
+      สมัครด้วย Instagram
+    </Button>
+  )}
+</div>
+```
+
+- [ ] **Step 6: Type-check + verify field ขึ้น**
 
 Run: `npx tsc --noEmit`
 Expected: ไม่มี error ใหม่
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add "src/app/(marketing)/auth/sign-up/SignUpCard.tsx"
-git commit -m "feat(buyer-auth): เพิ่ม password ตอน sign-up (signupDraft ไม่ผ่าน URL)
+git commit -m "feat(buyer-auth): เพิ่ม password ตอน sign-up + ปุ่ม social เต็มกว้าง (signupDraft ไม่ผ่าน URL)
 
 Base: theme/vuexy/typescript-version/full-version/src/views/pages/auth/RegisterV1.tsx
 
