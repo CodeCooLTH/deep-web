@@ -7,6 +7,8 @@ vi.mock('@/lib/prisma', () => ({
     badge: { findUnique: vi.fn(), findMany: vi.fn() },
     notification: { create: vi.fn() },
     verificationRecord: { findMany: vi.fn() },
+    bidReaction: { count: vi.fn() },
+    watchList: { count: vi.fn() },
   },
 }))
 vi.mock('@/services/app-push.service', () => ({ pushToUser: vi.fn() }))
@@ -14,7 +16,7 @@ vi.mock('@/services/trust-score.service', () => ({ recalculateTrustScore: vi.fn(
 
 import { prisma } from '@/lib/prisma'
 import { pushToUser } from '@/services/app-push.service'
-import { awardBadge, notifyBadgeEarned, evaluateBadges } from '@/services/badge.service'
+import { awardBadge, notifyBadgeEarned, evaluateBadges, checkReactionCount, checkWatchlistCount } from '@/services/badge.service'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -75,6 +77,28 @@ describe('notifyBadgeEarned — content + guards', () => {
   it('notification.create throw → ไม่ rethrow (best-effort)', async () => {
     vi.mocked(prisma.notification.create).mockRejectedValue(new Error('db down') as never)
     await expect(notifyBadgeEarned('u1', 'b1')).resolves.toBeUndefined()
+  })
+})
+
+describe('checkReactionCount', () => {
+  it('met=true เมื่อ count ถึง threshold', async () => {
+    vi.mocked(prisma.bidReaction.count).mockResolvedValue(20 as never)
+    expect(await checkReactionCount('u1', { type: 'REACTION_COUNT', count: 20 })).toEqual({ met: true, count: 20 })
+  })
+  it('met=false เมื่อยังไม่ถึง', async () => {
+    vi.mocked(prisma.bidReaction.count).mockResolvedValue(19 as never)
+    expect(await checkReactionCount('u1', { type: 'REACTION_COUNT', count: 20 })).toEqual({ met: false, count: 19 })
+  })
+})
+
+describe('checkWatchlistCount', () => {
+  it('met=true เมื่อ count ถึง threshold', async () => {
+    vi.mocked(prisma.watchList.count).mockResolvedValue(10 as never)
+    expect(await checkWatchlistCount('u1', { type: 'WATCHLIST_COUNT', count: 10 })).toEqual({ met: true, count: 10 })
+  })
+  it('met=false เมื่อยังไม่ถึง', async () => {
+    vi.mocked(prisma.watchList.count).mockResolvedValue(5 as never)
+    expect(await checkWatchlistCount('u1', { type: 'WATCHLIST_COUNT', count: 10 })).toEqual({ met: false, count: 5 })
   })
 })
 

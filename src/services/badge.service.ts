@@ -36,9 +36,11 @@ import type {
   CriteriaHighRating,
   CriteriaOrderCount,
   CriteriaPerfectRating,
+  CriteriaReactionCount,
   CriteriaSignupYear,
   CriteriaUniqueReviewers,
   CriteriaVeteran,
+  CriteriaWatchlistCount,
   CriteriaZeroComplaint,
 } from "@/types/badge"
 
@@ -373,6 +375,28 @@ export async function checkAuctionWonCompleted(
   return { met: count >= criteria.count, count }
 }
 
+// ─── Engagement handlers (feat 00005 Reactions + WatchList) ──
+// count = active row ปัจจุบัน (toggle — un-react/unwatch ลบ row); badge sticky
+// → award เมื่อถึง threshold ณ eval แล้วถาวร. userId ตรง (buyer ไม่ผ่าน shop)
+
+/** buyer: จำนวน reaction (BidReaction) ที่ active อยู่ตอนนี้ */
+export async function checkReactionCount(
+  userId: string,
+  criteria: CriteriaReactionCount,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.bidReaction.count({ where: { userId } })
+  return { met: count >= criteria.count, count }
+}
+
+/** buyer: จำนวน auction ที่ watch (WatchList) อยู่ตอนนี้ */
+export async function checkWatchlistCount(
+  userId: string,
+  criteria: CriteriaWatchlistCount,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.watchList.count({ where: { userId } })
+  return { met: count >= criteria.count, count }
+}
+
 // ─── Core award helper ────────────────────────────────────────────────────────
 
 /**
@@ -551,6 +575,17 @@ export async function evaluateBadges(
         }
         case 'AUCTION_WON_COMPLETED': {
           const r = await checkAuctionWonCompleted(userId, criteria, statuses)
+          met = r.met
+          break
+        }
+        // ── Engagement (feat 00005 Reactions + WatchList) ──
+        case 'REACTION_COUNT': {
+          const r = await checkReactionCount(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'WATCHLIST_COUNT': {
+          const r = await checkWatchlistCount(userId, criteria)
           met = r.met
           break
         }
@@ -771,6 +806,26 @@ export async function getBadgeProgress(
               const { met } = await checkSignupYear(userId, criteria)
               progressRatio = met ? 1 : 0
               progressLabel = met ? `สมัครปี ${criteria.year} แล้ว` : `badge พิเศษปี ${criteria.year}`
+            }
+            break
+          }
+          case 'REACTION_COUNT': {
+            if (!earned) {
+              const { count } = await checkReactionCount(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = criteria.count - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} ครั้ง` : `ครบ ${criteria.count} ครั้งแล้ว`
+            }
+            break
+          }
+          case 'WATCHLIST_COUNT': {
+            if (!earned) {
+              const { count } = await checkWatchlistCount(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = criteria.count - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} รายการ` : `ครบ ${criteria.count} รายการแล้ว`
             }
             break
           }

@@ -50,4 +50,7 @@ export const defaultBadges: BadgeSeed[] = [
   { name: "นักประมูลตัวยง",       nameEN: "Active Bidder",      icon: "tabler-podium",      type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "AUCTION_BID_COUNT", count: 50 } },
   { name: "ชนะ 5 ดีล",           nameEN: "Winner's Circle",    icon: "tabler-medal",       type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "AUCTION_WON", count: 5 } },
   { name: "ได้ของครบ 3 รายการ",   nameEN: "Auction Completer",  icon: "tabler-certificate", type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "AUCTION_WON_COMPLETED", count: 3 } },
+  // ── Engagement Achievements (feat 00005 Reactions + WatchList — spec 2026-07-02) ──
+  { name: "นักให้กำลังใจ",       nameEN: "Bid Cheerer",       icon: "tabler-heart", type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "REACTION_COUNT", count: 20 } },
+  { name: "นักเฝ้าประมูล",       nameEN: "Auction Watcher",   icon: "tabler-eye",   type: "ACHIEVEMENT", audience: "BUYER",  criteria: { type: "WATCHLIST_COUNT", count: 10 } },
 ];

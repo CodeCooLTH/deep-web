@@ -327,6 +327,11 @@ export async function toggleBidReaction(
     }
   }
 
+  // trigger badge eval เฉพาะทิศ react (add) — best-effort ไม่ block response (Bid Cheerer)
+  if (reacted) {
+    void evaluateBadges(userId, 'BUYER').catch((e) => console.error('[toggleBidReaction] evaluateBadges(BUYER) failed', e))
+  }
+
   const reactionCount = await prisma.bidReaction.count({ where: { bidId } })
   return { reacted, reactionCount }
 }
