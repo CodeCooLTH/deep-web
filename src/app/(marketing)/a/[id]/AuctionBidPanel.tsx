@@ -1,7 +1,8 @@
 'use client'
 
 /**
- * AuctionBidPanel — แถบเสนอราคาแบบ one-tap / ซื้อทันที (feature 00004, Concept 1 redesign 2026-07-02)
+ * AuctionBidPanel — แถบเสนอราคาแบบ one-tap / ซื้อทันที (feature 00004, Concept 1 redesign 2026-07-02
+ *   + feat 00007 item 1 block-self-outbid + item 4 price flash)
  *
  * เดิมมี quick-multiplier chips (+increment×1/×2/×4) + custom-amount TextField — ตัดออกทั้งหมดตาม
  * resolved decision #1 (mockup ล็อกแล้ว): บิด = 1 แตะ ยิงที่ currentPrice+bidIncrement ตรง ๆ เสมอ
@@ -9,13 +10,15 @@
  * (ย้าย countdown มาจาก AuctionHero.tsx เดิมที่ตัด HUD ออกแล้ว) — ปุ่มติดตาม (watching) ยกขึ้นไปเป็น
  * controlled prop จาก AuctionDetailClient (ใช้ร่วมกับหัวใจใน AuctionActionRail ต้องเป็น state เดียวกัน)
  *
- * Base (logic pattern — fetch→toast→optimistic, ปรับจาก Paces button primitive เป็น MUI/Vuexy):
- *   src/app/(paces)/seller/(dashboard)/auctions/[id]/components/useAuctionActions.ts (ของเดิมไฟล์นี้)
+ * feat 00007 item 1: youAreHighestBidder → disable ปุ่มเสนอราคา + label "คุณเป็นผู้เสนอราคาสูงสุด" (buy-now ยังกดได้)
+ * feat 00007 item 4: price flash animation ที่ตัวเลขราคา (ย้ายมาจาก hero HUD เดิม เพราะราคาอยู่แถบนี้แล้ว)
+ *
+ * Base (logic pattern — fetch→toast→optimistic): src/app/(paces)/seller/(dashboard)/auctions/[id]/components/useAuctionActions.ts
  * Visual ref (asset เท่านั้น): docs/mockups/auction/buyer-auction-concept1-flow.html .barwrap/.prow/.go
  *
  * ไม่ login → กด action ใด ๆ → router.push('/auth/sign-in?callbackUrl=/a/{id}') ทันที
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -47,6 +50,8 @@ type Props = {
   /** true = ยังไม่มี sheet/modal ไหนเปิดอยู่ — โชว์ลิงก์ pull-up (mockup: หายไปตอน sheet เปิด) */
   showDetailLink: boolean
   onOpenDetailSheet: () => void
+  /** feat 00007 item 1: viewer เป็นผู้เสนอสูงสุด → disable ปุ่มเสนอราคา (buy-now ยังกดได้) */
+  youAreHighestBidder?: boolean
   /** parent (AuctionDetailClient) อัปเดต local state จาก DTO ที่ได้กลับมาหลังบิด/ซื้อทันทีสำเร็จ */
   onBidSuccess: (auction: PublicAuctionDTO) => void
 }
@@ -73,6 +78,7 @@ export default function AuctionBidPanel({
   onToggleWatch,
   showDetailLink,
   onOpenDetailSheet,
+  youAreHighestBidder = false,
   onBidSuccess,
 }: Props) {
   const { status: sessionStatus } = useSession()
@@ -84,7 +90,7 @@ export default function AuctionBidPanel({
   const [buyNowOpen, setBuyNowOpen] = useState(false)
   const [buyNowLoading, setBuyNowLoading] = useState(false)
 
-  // countdown ticking (ย้ายมาจาก AuctionHero.tsx เดิม — ที่นี่แสดงเป็น timepill ในแถบราคาแทน HUD บนรูป)
+  // countdown ticking (ย้ายมาจาก AuctionHero.tsx เดิม — แสดงเป็น timepill ในแถบราคาแทน HUD บนรูป)
   const [now, setNow] = useState<number>(() => Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -92,6 +98,18 @@ export default function AuctionBidPanel({
   }, [])
   const remainMs = endTimeMs - now
   const isUnderHour = remainMs > 0 && remainMs < 60 * 60 * 1000
+
+  // feat 00007 item 4: flash ราคาเมื่อเปลี่ยน (skip mount แรก)
+  const [priceFlash, setPriceFlash] = useState(false)
+  const prevPriceRef = useRef(currentPrice)
+  useEffect(() => {
+    if (prevPriceRef.current !== currentPrice) {
+      setPriceFlash(true)
+      const t = setTimeout(() => setPriceFlash(false), 550)
+      prevPriceRef.current = currentPrice
+      return () => clearTimeout(t)
+    }
+  }, [currentPrice])
 
   /** ยังไม่ login → เด้ง sign-in ทันที (callbackUrl พากลับมาหน้านี้หลัง login สำเร็จ) — คืน true = ถูกเด้งแล้ว */
   function requireLogin(): boolean {
@@ -104,6 +122,7 @@ export default function AuctionBidPanel({
 
   async function handleBid() {
     if (requireLogin()) return
+    if (youAreHighestBidder) return // feat 00007 item 1: กันบิดซ้ำตัวเอง (defense-in-depth คู่กับ disable)
     setBidding(true)
     try {
       const res = await fetch(`/api/auctions/${auctionId}/bid`, {
@@ -115,7 +134,7 @@ export default function AuctionBidPanel({
       if (!res.ok) {
         toast.error(data.error ?? 'เสนอราคาไม่สำเร็จ')
         if (res.status === 409) {
-          // ราคาขยับไปแล้วจากคนอื่น (race) — sync ราคาล่าสุดจาก public endpoint กัน UI ค้างเลขเก่า
+          // ราคาขยับไปแล้วจากคนอื่น (race) — sync ราคาล่าสุดจาก public endpoint กัน UI ค้างเลขเก่า (feat 00007 item 2)
           fetch(`/api/app/auctions/${auctionId}`)
             .then((r) => (r.ok ? r.json() : null))
             .then((fresh) => {
@@ -206,7 +225,23 @@ export default function AuctionBidPanel({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '9px', gap: '10px' }}>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>ราคาปัจจุบัน · {bidCount} บิด</Typography>
-            <Typography sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: '-.5px', fontSize: 25, fontVariantNumeric: 'tabular-nums' }}>
+            <Typography
+              sx={{
+                fontWeight: 900,
+                color: 'primary.main',
+                letterSpacing: '-.5px',
+                fontSize: 25,
+                fontVariantNumeric: 'tabular-nums',
+                transformOrigin: 'left center',
+                // feat 00007 item 4: flash เมื่อราคาเปลี่ยน
+                animation: priceFlash ? 'auctionPriceFlash .55s ease-out' : 'none',
+                '@keyframes auctionPriceFlash': {
+                  '0%': { transform: 'scale(1)' },
+                  '30%': { transform: 'scale(1.12)', color: 'success.main' },
+                  '100%': { transform: 'scale(1)' },
+                },
+              }}
+            >
               ฿{currentPrice.toLocaleString()}
             </Typography>
             <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>เพิ่มครั้งละ ฿{bidIncrement.toLocaleString()}</Typography>
@@ -231,7 +266,7 @@ export default function AuctionBidPanel({
               {formatRemain(remainMs)}
             </Box>
             {antiSnipeCount > 0 && (
-              <Typography sx={{ display: 'inline-flex', alignItems: 'center', gap: '3px', mt: '3px', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
+              <Typography sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '3px', mt: '3px', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
                 <Icon icon="tabler-flame" fontSize={12} /> ต่อเวลา {antiSnipeCount} ครั้ง
               </Typography>
             )}
@@ -259,7 +294,7 @@ export default function AuctionBidPanel({
 
           <Button
             onClick={handleBid}
-            disabled={bidding}
+            disabled={bidding || youAreHighestBidder}
             variant="contained"
             color="primary"
             sx={{
@@ -272,15 +307,25 @@ export default function AuctionBidPanel({
               display: 'flex',
               flexDirection: 'column',
               lineHeight: 1.15,
+              '&.Mui-disabled': youAreHighestBidder ? { bgcolor: 'action.disabledBackground', color: 'text.disabled' } : undefined,
             }}
           >
-            <Typography component="span" sx={{ fontSize: 16, fontWeight: 800, color: 'inherit' }}>
-              {bidding ? 'กำลังส่ง...' : `บิดเลย ฿${minNext.toLocaleString()}`}
-            </Typography>
-            {!bidding && (
-              <Typography component="span" sx={{ fontSize: 10.5, fontWeight: 500, color: 'inherit', opacity: 0.82 }}>
-                แตะเพื่อยืนยัน
+            {youAreHighestBidder ? (
+              // feat 00007 item 1: เป็นผู้นำอยู่ → บล็อก self-outbid
+              <Typography component="span" sx={{ fontSize: 14, fontWeight: 700, color: 'inherit' }}>
+                คุณเป็นผู้เสนอราคาสูงสุด
               </Typography>
+            ) : (
+              <>
+                <Typography component="span" sx={{ fontSize: 16, fontWeight: 800, color: 'inherit' }}>
+                  {bidding ? 'กำลังส่ง...' : `บิดเลย ฿${minNext.toLocaleString()}`}
+                </Typography>
+                {!bidding && (
+                  <Typography component="span" sx={{ fontSize: 10.5, fontWeight: 500, color: 'inherit', opacity: 0.82 }}>
+                    แตะเพื่อยืนยัน
+                  </Typography>
+                )}
+              </>
             )}
           </Button>
 

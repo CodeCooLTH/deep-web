@@ -29,10 +29,15 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Rate-limit per-IP: unauth 100/min, auth 30/min (แยก bucket ด้วย suffix)
+  // Rate-limit per-IP แยก bucket ตาม method (feat 00007 item 6):
+  //  - mutation (POST/PUT/PATCH/DELETE เช่น bid): auth 30/unauth 100 (เข้มเท่าเดิม)
+  //  - read (GET เช่น realtime refetch auction detail): auth 120/unauth 200 —
+  //    auction ร้อน client refetch ทุกครั้งราคาเปลี่ยน; read ถูก+idempotent จึงยกเพดานได้
+  //    กันคนดูเฉยๆ โดน 429 โดยไม่ลดความเข้มของ mutation
   const token = await getToken({ req: request })
-  const limit = token ? 30 : 100
-  const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}`
+  const isMutation = MUTATION_METHODS.has(request.method)
+  const limit = isMutation ? (token ? 30 : 100) : token ? 120 : 200
+  const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}:${isMutation ? 'mut' : 'get'}`
   if (!checkApiRateLimit(key, limit, 60_000)) {
     return NextResponse.json(
       { error: 'Rate limit exceeded' },

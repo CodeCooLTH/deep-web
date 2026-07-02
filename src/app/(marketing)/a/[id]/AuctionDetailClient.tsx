@@ -52,6 +52,7 @@ import AuctionLiveState from './AuctionLiveState'
 import AuctionBidHistory from './AuctionBidHistory'
 import AuctionResultCard from './AuctionResultCard'
 import AuctionBidPanel from './AuctionBidPanel'
+import WinnerDialog from './WinnerDialog'
 
 type AuctionData = PublicAuctionDTO & { bidHistory: BidDTO[] }
 
@@ -81,9 +82,18 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   const [bidHistory, setBidHistory] = useState(auction.bidHistory)
   // subscribe เฉพาะตอน live เท่านั้น — ก่อน SUBSCRIBED ครั้งแรกถือว่า "กำลังเชื่อมต่อ"
   const [connectionState, setConnectionState] = useState<ConnectionState>('reconnecting')
+  // feat 00007 item 1: viewer เป็นผู้เสนอสูงสุดไหม → disable ปุ่มบิด กัน self-outbid
+  const [youAreHighestBidder, setYouAreHighestBidder] = useState(auction.youAreHighestBidder ?? false)
+  // feat 00007 item 5: winner dialog (เด้งเมื่อ live→ended มีผู้ชนะ)
+  const [winnerOpen, setWinnerOpen] = useState(false)
 
   // เก็บค่า antiSnipeCount ล่าสุดไว้เทียบตอนได้ broadcast ใหม่ (เทียบ "ก่อนหน้า" ไม่ใช่ state ที่อาจยังไม่ commit)
   const antiSnipeCountRef = useRef(auction.antiSnipeCount)
+  // feat 00007 item 4/5: ref เทียบค่าเก่า (skip mount แรก) สำหรับ price-toast + winner trigger
+  const prevPriceRef = useRef(auction.currentPrice)
+  const prevStatusRef = useRef(auction.status)
+  // feat 00007 item 6: throttle refetch ตอน broadcast รัว (auction ร้อน) — trailing debounce
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // overlay UI state ใหม่ (redesign 2026-07-02) — sheet รายละเอียด / modal ประวัติบิด
   const [detailSheetOpen, setDetailSheetOpen] = useState(false)
@@ -108,9 +118,28 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
     setStatus(auction.status)
     setAntiSnipeCount(auction.antiSnipeCount)
     setBidHistory(auction.bidHistory)
+    setYouAreHighestBidder(auction.youAreHighestBidder ?? false)
     antiSnipeCountRef.current = auction.antiSnipeCount
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ต้องการ trigger เมื่อ auction object เปลี่ยน (RSC re-render) เท่านั้น
   }, [auction])
+
+  // feat 00007 item 4: ราคาเปลี่ยน → toast "ราคาอัปเดตแล้ว" (เด้งทุกครั้ง รวมตอนบิดเอง; skip mount แรก)
+  useEffect(() => {
+    if (prevPriceRef.current !== currentPrice) {
+      if (currentPrice > prevPriceRef.current) {
+        toast.info(`ราคาอัปเดตแล้ว ฿${currentPrice.toLocaleString()}`)
+      }
+      prevPriceRef.current = currentPrice
+    }
+  }, [currentPrice])
+
+  // feat 00007 item 5: live→ended + มีผู้ชนะ → เด้ง winner dialog (เฉพาะ transition ระหว่างดู)
+  useEffect(() => {
+    if (prevStatusRef.current === 'live' && status === 'ended' && bidHistory[0]) {
+      setWinnerOpen(true)
+    }
+    prevStatusRef.current = status
+  }, [status, bidHistory])
 
   // Supabase Realtime broadcast — subscribe เฉพาะตอน status เป็น 'live'
   useEffect(() => {
@@ -123,28 +152,33 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
         // 🔒 security fix A (reconciliation): channel เป็น public → payload spoofable
         // (ใครมี anon key ก็ยิง broadcast ปลอมได้) → **ไม่เชื่อ payload** ใช้เป็นแค่ "signal ว่ามีการเปลี่ยน"
         // แล้ว re-fetch authoritative endpoint set ทุก field จาก dto จริงเท่านั้น (ค่าปลอม self-heal)
-        fetch(`/api/app/auctions/${auction.id}`)
-          .then((res) => (res.ok ? (res.json() as Promise<AuctionData>) : null))
-          .then((dto) => {
-            if (!dto) return
-            setCurrentPrice(dto.currentPrice)
-            setBidCount(dto.bidCount)
-            setEndTimeMs(dto.endTimeMs)
-            setStatus(dto.status)
-            setBidHistory(dto.bidHistory)
-            if (dto.antiSnipeCount > antiSnipeCountRef.current) {
-              toast.info('ต่อเวลาประมูลอัตโนมัติ')
-            }
-            setAntiSnipeCount(dto.antiSnipeCount)
-            antiSnipeCountRef.current = dto.antiSnipeCount
-            // ประมูลจบจาก authoritative → refresh RSC เพื่อดึง isWinner (server-side จาก Order.buyerUserId)
-            if (dto.status === 'ended' || dto.status === 'unsold' || dto.status === 'cancelled') {
-              router.refresh()
-            }
-          })
-          .catch(() => {
-            // เงียบ — จะ sync อีกครั้งตอน broadcast ถัดไปหรือ router.refresh()
-          })
+        // feat 00007 item 6: throttle refetch (trailing ~500ms) กัน broadcast รัวยิง GET ถล่ม (auction ร้อน)
+        if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+        refetchTimerRef.current = setTimeout(() => {
+          fetch(`/api/app/auctions/${auction.id}`)
+            .then((res) => (res.ok ? (res.json() as Promise<AuctionData>) : null))
+            .then((dto) => {
+              if (!dto) return
+              setCurrentPrice(dto.currentPrice)
+              setBidCount(dto.bidCount)
+              setEndTimeMs(dto.endTimeMs)
+              setStatus(dto.status)
+              setBidHistory(dto.bidHistory)
+              setYouAreHighestBidder(dto.youAreHighestBidder ?? false) // feat 00007 item 1
+              if (dto.antiSnipeCount > antiSnipeCountRef.current) {
+                toast.info('ต่อเวลาประมูลอัตโนมัติ')
+              }
+              setAntiSnipeCount(dto.antiSnipeCount)
+              antiSnipeCountRef.current = dto.antiSnipeCount
+              // ประมูลจบจาก authoritative → refresh RSC เพื่อดึง isWinner (server-side จาก Order.buyerUserId)
+              if (dto.status === 'ended' || dto.status === 'unsold' || dto.status === 'cancelled') {
+                router.refresh()
+              }
+            })
+            .catch(() => {
+              // เงียบ — จะ sync อีกครั้งตอน broadcast ถัดไปหรือ router.refresh()
+            })
+        }, 500)
       })
       .subscribe((subStatus) => {
         if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') setConnectionState('reconnecting')
@@ -152,6 +186,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
       })
 
     return () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
       supabase.removeChannel(channel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribe ตาม auction.id+status เท่านั้น (ไม่ resubscribe ทุกครั้งที่ currentPrice/bidCount เปลี่ยน)
@@ -206,12 +241,15 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
       onToggleWatch={toggleWatch}
       showDetailLink={!detailSheetOpen && !bidHistoryOpen}
       onOpenDetailSheet={() => setDetailSheetOpen(true)}
+      youAreHighestBidder={youAreHighestBidder}
       onBidSuccess={(next) => {
         setCurrentPrice(next.currentPrice)
         setBidCount(next.bidCount)
         setEndTimeMs(next.endTimeMs)
         setAntiSnipeCount(next.antiSnipeCount)
         setStatus(next.status)
+        // feat 00007 item 1: บิดปกติสำเร็จ = กลายเป็นผู้นำ → disable ปุ่มทันที (optimistic; reconcile จาก broadcast ถ้าโดนแซง)
+        if (next.status === 'live') setYouAreHighestBidder(true)
         // ซื้อทันที/บิดที่ trigger settle ทำให้ status พลิกเป็น terminal ทันที — refresh RSC
         // เพื่อคำนวณ isWinner ใหม่จาก session (buy-now ของ user นี้เอง = isWinner ต้องเป็น true)
         if (next.status !== 'live') router.refresh()
@@ -319,7 +357,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
                 boxShadow: (theme) => theme.customShadows.xs,
               }}
             >
-              <AuctionHero imageUrl={auction.imageUrl} variant="desktop">
+              <AuctionHero imageUrl={auction.imageUrl} images={auction.images} variant="desktop">
                 {heroOverlay}
               </AuctionHero>
             </Box>
@@ -393,7 +431,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
         // meta-strip/inline-history บน mobile default flow (ย้ายรายละเอียด → AuctionDetailSheet,
         // ประวัติบิด → AuctionBidHistoryModal แทน)
         <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: 'background.default' }}>
-          <AuctionHero imageUrl={auction.imageUrl} variant="mobile">
+          <AuctionHero imageUrl={auction.imageUrl} images={auction.images} variant="mobile">
             {heroOverlay}
           </AuctionHero>
 
@@ -402,6 +440,19 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
       )}
 
       {modals}
+
+      {/* feat 00007 item 5: winner announcement (เด้งเมื่อ live→ended มีผู้ชนะ, ค้างจนกดปิด) */}
+      {bidHistory[0] && (
+        <WinnerDialog
+          open={winnerOpen}
+          onClose={() => setWinnerOpen(false)}
+          isWinner={isWinner}
+          winnerName={bidHistory[0].bidder}
+          winnerLevel={bidHistory[0].level}
+          winnerAvatar={bidHistory[0].avatar}
+          finalPrice={currentPrice}
+        />
+      )}
     </>
   )
 }

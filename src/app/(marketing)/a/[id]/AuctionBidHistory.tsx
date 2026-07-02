@@ -40,7 +40,8 @@ type ReactionState = { count: number; reacted: boolean }
 const VISIBLE_DEFAULT = 5
 
 // สี badge ต่อ bidder level (ladder feat 00002 TFR-016) — buyer Vuexy theme tokens
-const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
+// export ให้ WinnerDialog reuse (feat 00007) — WinnerDialog ใช้ผ่าน sx (bgcolor/color) → token resolve ได้
+export const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
   5: { bg: 'warning.lighterOpacity', color: 'warning.main' }, // ตำนาน (gold)
   4: { bg: 'info.lighterOpacity', color: 'info.main' }, // ระดับเพชร (diamond)
   3: { bg: 'primary.lighterOpacity', color: 'primary.main' }, // เซียน

@@ -582,7 +582,12 @@ erDiagram
 ### 5.5 PII / Data-Exposure Rules (บังคับ — เทียบเท่า PII แม้ไม่ใช่ข้อมูลส่วนบุคคลจริง)
 
 1. **`reservePrice`** และ **`expectedPrice`** ห้ามปรากฏใน: (a) buyer REST response ใด ๆ ของ `/api/app/auctions/**`, (b) Realtime broadcast payload — ต้อง grep-gate ก่อน merge: `rg -n "reservePrice|expectedPrice" src/app/api/app/` ต้องคืน 0 (ยกเว้น comment ที่อธิบายว่าห้ามใส่)
-2. **bidder identity** ใน bid history/feed = `displayName` เท่านั้น (ไม่มี phone/email/userId เปิดเผยตรง ๆ นอกเหนือจาก id ที่จำเป็นสำหรับ React key)
+2. **bidder identity** ใน bid history/feed = `displayName` + `level` + `avatar` + `reactionCount`/`reactedByMe` เท่านั้น — **ยังห้าม** `phone`/`email`/`bidderId`/auth `provider` เปิดเผยตรง ๆ (นอกเหนือจาก id ที่จำเป็นสำหรับ React key)
+   - `level` = reputation ladder จาก `successfulBidCount` (TFR-016) — ไม่ใช่ PII
+   - `avatar` = รูปโปรไฟล์ (null → initials fallback) — เปิดเผยสาธารณะที่ `/u/[username]` อยู่แล้ว (incremental PDPA risk ต่ำ)
+   - `reactionCount`/`reactedByMe` = จำนวน + สถานะของผู้เรียกเอง — **ไม่ส่งรายชื่อ reactor** ออก API (privacy)
+   - **provider badge (FB/LINE) = ตัดออก** — เปิดเผย auth method ต่อสาธารณะ = PDPA concern; ใช้ `level` badge เป็น trust signal แทน
+   > **Amendment (2026-07-02):** เพิ่ม `avatar` + reaction fields (feat 00005 — `docs/20 - Features/00005 - Auction Bid Reactions`) + surface `level` (TFR-016). Viewer presence (feat 00006 — "กำลังดู") เป็น count แยกผ่าน Supabase Presence ไม่แตะ bid DTO identity
 3. **Seller PII** ที่ buyer เห็นในหน้า auction detail = เฉพาะ shop identity + Trust tier ผ่าน `getTierDisplay` (SSOT เดิม) — ไม่ใช่ field ใหม่จาก feature นี้ (reuse `app-shop.service::getSellerTrust`)
 4. **RSC (seller console pages):** เพจ `/seller/auctions/[id]` เป็น Server Component ที่ render ใต้ client `VerticalLayout` (Paces) — ต้อง mask/neutralize field ที่ไม่ต้องการให้หลุดไปใน flight payload **ที่ server boundary** (pattern เดียวกับ seller orders PII fix, `feedback_rsc_pii_neutralize_at_source`) แม้ `reservePrice`/`expectedPrice` จะ "ตั้งใจให้ seller เห็น" ก็ตาม เพื่อกัน dev มือใหม่ pass ทั้ง object ดิบเข้า client component โดยไม่ผ่าน DTO mapper
 
