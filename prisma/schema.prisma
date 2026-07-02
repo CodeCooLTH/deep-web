@@ -42,6 +42,9 @@ model User {
   notifications Notification[] @relation("UserNotifications")
   pushTokens    PushToken[]    @relation("UserPushTokens")
   bidReactions  BidReaction[]  @relation("UserBidReactions")
+
+  // --- Deep Stock Pro (feature 00009) ---
+  stockMovementsActedOn StockMovement[] @relation("StockMovementActor")
 }
 
 model AuthAccount {
@@ -82,6 +85,7 @@ model Shop {
   topUpRequests        TopUpRequest[]
   auctions             Auction[]
   inventoryEntitlement InventoryEntitlement?
+  stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -188,12 +192,16 @@ model Product {
   // stockQty: Inventory Add-on (feature 00003) — NULL = untracked (opt-in, BR-INV-10), non-NULL >=0 = tracked.
   // CHECK(stockQty >= 0) enforce ใน migration SQL ด้วยมือ (NOT VALID + VALIDATE เพราะ table มี row จริง)
   stockQty          Int?
+  // lowStockThreshold: Deep Stock Pro (feature 00009) — NULL=ไม่ตั้ง alert, N>=0=ตั้งค่า. PRO-only gate ที่ app layer.
+  // CHECK(lowStockThreshold IS NULL OR lowStockThreshold >= 0) enforce ใน migration SQL ด้วยมือ (NOT VALID + VALIDATE)
+  lowStockThreshold Int?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  shop       Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  orderItems OrderItem[]
-  tags       Tag[]
+  shop           Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderItems     OrderItem[]
+  tags           Tag[]
+  stockMovements StockMovement[] // Deep Stock Pro (feature 00009)
 
   @@index([shopId, stockQty])
 }
@@ -350,6 +358,8 @@ model InventoryEntitlement {
   id                 String                     @id @default(uuid())
   shopId             String                     @unique
   status             InventoryEntitlementStatus @default(ACTIVE)
+  // package: Deep Stock Pro (feature 00009) — BASIC=฿199 (M00003 เดิม), PRO=฿599 (BASIC+Alert+Audit+CSV)
+  package            InventoryPackage           @default(BASIC)
   activatedAt        DateTime
   currentPeriodStart DateTime
   nextRenewalAt      DateTime
@@ -361,6 +371,45 @@ model InventoryEntitlement {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@index([status, nextRenewalAt])
+  @@index([status, package]) // Deep Stock Pro — reporting/KPI (Pro MRR, Basic→Pro upgrade rate)
+}
+
+// --- Deep Stock Pro (feature 00009: 2-package inventory sub — BASIC ฿199 / PRO ฿599) ---
+
+enum InventoryPackage {
+  BASIC
+  PRO
+}
+
+enum StockMovementSource {
+  ORDER_DEDUCT
+  ORDER_RESTOCK
+  MANUAL_ADJUST
+}
+
+// StockMovement: audit log ทุก event ที่กระทบ Product.stockQty — record-always ทุก package (OD-C)
+// ไม่ผูก FK ตรงกับ InventoryEntitlement โดยตั้งใจ — gate การมองเห็นที่ query-time ด้วยสถานะปัจจุบัน
+// ของ entitlement ไม่ใช่ snapshot ตอนบันทึก (ดู DATABASE.md §3.2)
+model StockMovement {
+  id            String              @id @default(uuid())
+  shopId        String
+  productId     String?
+  productName   String
+  delta         Int
+  resultingQty  Int
+  source        StockMovementSource
+  refId         String?
+  note          String?
+  actorUserId   String?
+  createdAt     DateTime            @default(now())
+
+  shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  actor   User?    @relation("StockMovementActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt]) // hot path: movement history ต่อสินค้า เรียงเวลาล่าสุดก่อน
+  @@index([shopId, createdAt])    // cross-product movement list ต่อ shop
+  @@index([shopId, source])       // filter ตาม source
 }
 
 model TopUpRequest {
