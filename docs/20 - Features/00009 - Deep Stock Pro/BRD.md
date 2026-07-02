@@ -83,7 +83,7 @@ related: ["[[PRD]]", "[[00003 - Inventory Add-on/BRD]]", "[[00010 - Stock Varian
 **User Story:** ในฐานะ Seller ที่ยังไม่เคย subscribe อะไรเลย ฉันต้องการ subscribe ตรงเป็น Deep Stock Pro ได้เลยถ้าต้องการฟีเจอร์ระดับสูงตั้งแต่แรก ไม่ต้องผ่าน Basic ก่อน
 
 **Acceptance Criteria:**
-- [ ] `[FR-DSP-03-AC-01]` **Given** entitlement=NOT_SUBSCRIBED และเครดิต ≥ ฿599 **When** Seller เลือก "Subscribe Deep Stock Pro" **Then** หักเครดิต ฿599 ทันที (atomic) → WalletTransaction (DEDUCT, reason="Inventory Subscription - Deep Stock Pro") → entitlement = ACTIVE, package=PRO
+- [ ] `[FR-DSP-03-AC-01]` **Given** entitlement=NOT_SUBSCRIBED และเครดิต ≥ ฿599 **When** Seller เลือก "Subscribe Deep Stock Pro" **Then** หักเครดิต ฿599 ทันที (atomic) → WalletTransaction (DEDUCT, `reason=INVENTORY_SUBSCRIPTION_PRO` machine-key, map→label ไทยผ่าน `WALLET_REASON_LABEL_TH`) → entitlement = ACTIVE, package=PRO
 - [ ] `[FR-DSP-03-AC-02]` **Given** entitlement=NOT_SUBSCRIBED และเครดิต < ฿599 **When** กด subscribe Pro **Then** ปฏิเสธ + prompt top-up (ไม่หักบางส่วน)
 - [ ] `[FR-DSP-03-AC-03]` UI ต้องให้ Seller เลือกระหว่าง 2 package ชัดเจนตั้งแต่จุดเริ่ม ไม่ใช่บังคับผ่าน Basic ก่อนเสมอ
 
@@ -92,7 +92,7 @@ related: ["[[PRD]]", "[[00003 - Inventory Add-on/BRD]]", "[[00010 - Stock Varian
 **User Story:** ในฐานะ Seller ที่ ACTIVE บน Deep Stock ฉันต้องการ upgrade เป็น Pro ได้ทุกเมื่อกลางรอบ เพื่อได้ฟีเจอร์ระดับสูงทันทีโดยไม่ต้องรอรอบ renew
 
 **Acceptance Criteria:**
-- [ ] `[FR-DSP-04-AC-01]` **Given** entitlement ACTIVE, package=BASIC และเครดิต ≥ ฿599 **When** Seller กด "Upgrade เป็น Pro" **Then** หักเครดิตเต็ม ฿599 ทันที (atomic, ไม่ใช่ผลต่าง ฿400) → WalletTransaction (DEDUCT, reason="Inventory Subscription - Deep Stock Pro (Upgrade)") → entitlement เปลี่ยน package=PRO ทันที → renewal cycle 30 วันเริ่มนับใหม่จากวันนี้
+- [ ] `[FR-DSP-04-AC-01]` **Given** entitlement ACTIVE, package=BASIC และเครดิต ≥ ฿599 **When** Seller กด "Upgrade เป็น Pro" **Then** หักเครดิตเต็ม ฿599 ทันที (atomic, ไม่ใช่ผลต่าง ฿400) → WalletTransaction (DEDUCT, `reason=INVENTORY_SUBSCRIPTION_PRO_UPGRADE` machine-key แยก event upgrade ออกจาก subscribe ตรง — สำหรับ KPI Basic→Pro Upgrade Rate) → entitlement เปลี่ยน package=PRO ทันที → renewal cycle 30 วันเริ่มนับใหม่จากวันนี้
 - [ ] `[FR-DSP-04-AC-02]` **Given** upgrade สำเร็จ **When** เข้าเมนู Inventory **Then** เห็นฟีเจอร์ Pro (Alert/Audit/CSV) ใช้งานได้ทันที
 - [ ] `[FR-DSP-04-AC-03]` **Given** entitlement ACTIVE, package=BASIC และเครดิต < ฿599 **When** กด upgrade **Then** ปฏิเสธ + prompt top-up (ไม่หักบางส่วน)
 - [ ] `[FR-DSP-04-AC-04]` การ upgrade ไม่คืน/ไม่ credit วันที่เหลือของรอบ Basic เดิมไม่ว่ากรณีใด (ไม่มี proration)
