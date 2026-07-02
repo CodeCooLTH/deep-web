@@ -29,6 +29,7 @@ import type { SellerTrust } from '@/services/app-shop.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 import MobileFrame from '../../o/[token]/MobileFrame'
+import AuctionNavbar from './AuctionNavbar'
 import AuctionHero from './AuctionHero'
 import AuctionPriceChart from './AuctionPriceChart'
 import AuctionLiveState from './AuctionLiveState'
@@ -125,8 +126,12 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   const isTerminal = status === 'ended' || status === 'unsold' || status === 'cancelled'
 
   return (
-    <MobileFrame bg="#F3F5F8">
-      <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
+    <>
+      {/* S-A4: navbar อยู่นอก MobileFrame ตั้งใจ — sm+ เท่านั้น (แสดง/ซ่อนคุมเองภายใน),
+          MobileFrame เดิมไม่ถูกแตะ (OOS-7) */}
+      <AuctionNavbar auctionId={auction.id} />
+      <MobileFrame bg="#F3F5F8">
+        <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
 
       <Box sx={{ px: '16px', py: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <AuctionPriceChart bidHistory={bidHistory} />
@@ -209,6 +214,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
           connectionState={isLive ? connectionState : undefined}
         />
       </Box>
-    </MobileFrame>
+      </MobileFrame>
+    </>
   )
 }
