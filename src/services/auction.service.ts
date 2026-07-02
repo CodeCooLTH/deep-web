@@ -48,6 +48,8 @@ export type PublicAuctionDTO = {
   shopId: string
   status: 'draft' | 'scheduled' | 'live' | 'ended' | 'unsold' | 'cancelled'
   category: string | null
+  /** feat 00007: viewer ปัจจุบันเป็นผู้เสนอราคาสูงสุดหรือไม่ (per-viewer, set เฉพาะ getAuctionDetail live) — undefined = ไม่เกี่ยว/browse */
+  youAreHighestBidder?: boolean
 }
 // *** ห้ามมี key `reservePrice`/`expectedPrice` ใน type นี้เลย (ไม่ใช่ optional undefined) ***
 
@@ -230,8 +232,19 @@ export async function getAuctionDetail(
   })
   if (!a) return null
   const { countMap, mySet } = await loadBidReactions(a.bids.map((b) => b.id), viewerUserId)
+  // feat 00007 item 1: viewer เป็นผู้เสนอสูงสุดไหม (live เท่านั้น) → frontend disable ปุ่มบิด กัน self-outbid
+  let youAreHighestBidder = false
+  if (viewerUserId && a.status === 'live') {
+    const leader = await prisma.bid.findFirst({
+      where: { auctionId: id },
+      orderBy: [{ amount: 'desc' }, { createdAt: 'asc' }],
+      select: { bidderId: true },
+    })
+    youAreHighestBidder = leader?.bidderId === viewerUserId
+  }
   return {
     ...toPublicAuctionDTO(a),
+    youAreHighestBidder,
     bidHistory: a.bids.map((b) => ({
       id: b.id,
       amount: Number(b.amount),
@@ -667,6 +680,16 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
       }
       // buy-now ที่ currentPrice ยังต่ำกว่า buyNowPrice ถือว่า valid เสมอ — ข้าม minNext check
     } else {
+      // block self-outbid (feat 00007 item 1) — ผู้เสนอสูงสุดปัจจุบันบิดซ้ำไม่ได้
+      // (buy-now ข้ามมาไม่ถึงนี่ → leader กด buy-now ปิดดีลได้ปกติ)
+      const leader = await tx.bid.findFirst({
+        where: { auctionId },
+        orderBy: [{ amount: 'desc' }, { createdAt: 'asc' }],
+        select: { bidderId: true },
+      })
+      if (leader?.bidderId === bidderId) {
+        throw new BidError('คุณเป็นผู้เสนอราคาสูงสุดอยู่แล้ว ไม่ต้องเสนอซ้ำ', 409)
+      }
       const minNext = Number(a.currentPrice) + Number(a.bidIncrement)
       if (amount < minNext) {
         throw new BidError(`ต้องบิดอย่างน้อย ${minNext.toLocaleString()} บาท`, 400)
@@ -689,7 +712,9 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
       // buy-now: อีกคน buy-now/บิดแซงไปก่อนในช่วงเสี้ยววินาที — ไม่ใช่ "ต้องบิดอย่างน้อย"
       // bid ปกติ: มีคนแซงระหว่างที่เราอ่านค่า — ให้ client retry ด้วย currentPrice ล่าสุด (FR-AUC-05-AC-08)
       throw new BidError(
-        isBuyNow ? 'การประมูลปิดแล้ว หรือราคาสูงเกินระดับซื้อทันทีแล้ว' : 'มีคนเสนอราคาก่อนคุณ กรุณาลองใหม่',
+        isBuyNow
+          ? 'การประมูลปิดแล้ว หรือราคาสูงเกินระดับซื้อทันทีแล้ว'
+          : 'ราคาปัจจุบันเปลี่ยนแล้ว มีผู้เสนอราคาแซงก่อนคุณ', // feat 00007 item 2 — ข้อความชัดขึ้น
         409,
       )
     }
