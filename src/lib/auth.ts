@@ -151,12 +151,22 @@ export const authOptions: NextAuthOptions = {
           const username =
             credentials.username?.trim() || `user_${Date.now()}`;
 
+          // password (optional): buyer signup ก็ตั้งรหัสได้ (เดิม logic นี้อยู่เฉพาะ branch seller/shopName)
+          // ต้อง strong เสมอถ้าส่งมา — server guard กัน Yup bypass
+          let signupPasswordHash: string | undefined;
+          if (credentials.password) {
+            const { isStrongPassword, hashPassword } = await import("@/lib/password");
+            if (!isStrongPassword(credentials.password)) return null;
+            signupPasswordHash = await hashPassword(credentials.password);
+          }
+
           try {
             user = await prisma.user.create({
               data: {
                 phone: credentials.phone,
                 displayName,
                 username,
+                passwordHash: signupPasswordHash,
                 authAccounts: {
                   create: {
                     provider: "PHONE",
@@ -191,13 +201,7 @@ export const authOptions: NextAuthOptions = {
             if (credentials.mode === "signup" && trimmedShopName) {
               if (trimmedShopName.length > 100) return null;
 
-              // password (optional ตอน signup — FB user ตั้งทีหลังใน onboarding ได้)
-              let passwordHash: string | undefined;
-              if (credentials.password) {
-                const { isStrongPassword, hashPassword } = await import("@/lib/password");
-                if (!isStrongPassword(credentials.password)) return null; // server guard (Yup bypass ได้)
-                passwordHash = await hashPassword(credentials.password);
-              }
+              // password ถูกตั้งไปแล้วตอน user.create ข้างบน (signupPasswordHash) — ไม่ต้อง hash ซ้ำที่นี่
               // category (optional) — ต้องเป็น key ที่รู้จัก
               const { isShopCategory } = await import("@/lib/shop-categories");
               const category =
@@ -219,7 +223,7 @@ export const authOptions: NextAuthOptions = {
                 });
                 await tx.user.update({
                   where: { id: user!.id },
-                  data: { isShop: true, ...(passwordHash ? { passwordHash } : {}) },
+                  data: { isShop: true },
                 });
               });
             }
@@ -293,6 +297,46 @@ export const authOptions: NextAuthOptions = {
         // buyer ที่ตั้ง password แต่ยังไม่เปิดร้าน → เป็น seller ผ่าน signup/onboarding ไม่ใช่ login ตรงนี้ (S-P1-9)
         if (user.isAdmin) return null;
         if (!user.isShop) return null;
+        if (user.passwordHash == null) return null;
+
+        const { verifyPassword } = await import("@/lib/password");
+        const valid = await verifyPassword(credentials.password, user.passwordHash);
+        if (!valid) return null;
+
+        return { id: user.id, name: user.displayName, email: user.email };
+      },
+    }),
+    CredentialsProvider({
+      id: "buyer-credentials",
+      name: "Buyer",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) return null;
+        if (credentials.password.length > 1000) return null;
+
+        const WINDOW_MS = 10 * 60 * 1000;
+        const MAX_ATTEMPTS = 5;
+        const now = Date.now();
+        const cutoff = now - WINDOW_MS;
+        const prev = adminLoginTimestamps.get(credentials.username) ?? [];
+        const recent = prev.filter((t) => t > cutoff);
+        if (recent.length >= MAX_ATTEMPTS) {
+          adminLoginTimestamps.set(credentials.username, recent);
+          return null;
+        }
+        recent.push(now);
+        adminLoginTimestamps.set(credentials.username, recent);
+
+        const user = await prisma.user.findUnique({
+          where: { username: credentials.username },
+        });
+        if (!user) return null;
+        // buyer login ฝั่ง main site: ทุก user ที่ไม่ใช่ admin + ตั้ง password แล้ว
+        // (seller ก็ login ที่ main ได้ — บัญชีเดียวกัน — จึงไม่ตรวจ isShop; admin ใช้ provider แยก)
+        if (user.isAdmin) return null;
         if (user.passwordHash == null) return null;
 
         const { verifyPassword } = await import("@/lib/password");
