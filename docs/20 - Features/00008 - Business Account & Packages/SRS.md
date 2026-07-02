@@ -724,7 +724,7 @@ export const WALLET_DESC_BUSINESS = {
 | **RD-8** | `WalletTransaction.reason` รูปเต็ม/ย่อ | รูปเต็ม `BUSINESS_PACKAGE_SUBSCRIPTION` (ยืนยัน default เดิม) |
 | **RD-9** | `ShopMember` 1-owner invariant DB-level หรือ app-layer | app-layer เท่านั้น (ยืนยัน default เดิม — ไม่มี co-ownership MVP) |
 | **RD-10** | Tie-break ตอน auto-unlock บางส่วน (upgrade ไม่พอสำหรับทุกอันที่ locked) | เก่าสุด (`createdAt asc`) ปลดล็อกก่อน |
-| **RD-11** | Purge = physical DELETE จริง หรือ tombstone | **tombstone (`purgedAt`)** — เหตุผล FK `Order→Shop` restrict + `Product` cascade-delete จะทำลายข้อมูลขัด Hard Rule ห้าม drop ข้อมูล; **ถ้าต้องการ hard-delete จริง ต้องยืนยันแยกกับ user เพราะขัด Hard Rule เดิม** — ธงนี้ยกไป Controller/user ตัดสินอีกชั้น |
+| **RD-11** | Purge = physical DELETE จริง หรือ tombstone | **✅ CONFIRMED 2026-07-02 (user): tombstone (`purgedAt`)** — business หายจากทุก list/quota/switcher ถาวร (เหมือนถูกลบ 100% จากมุมผู้ใช้) ข้อมูลดิบไม่ลบจริง (FK `Order→Shop` restrict + `Product` cascade + Hard Rule ห้าม drop ข้อมูล). physical delete = Phase 2 ถ้าจำเป็น (PDPA ฯลฯ) |
 | **RD-12** | RBAC granular | **ตัดออกจาก MVP** — membership-based access เท่านั้น (decision ใหม่ 2026-07-02) |
 | **RD-13** | Timing Phase 2 cutover | ต้องเกิดก่อน/พร้อม launch FR-BIZ-06 เสมอ (ไม่ optional) — burn-in ขั้นต่ำแนะนำ 3 วัน traffic จริงหลัง Phase 1 + QA regression green (ไม่ใช่ hard requirement ทางเทคนิค เป็นข้อแนะนำ process) |
 

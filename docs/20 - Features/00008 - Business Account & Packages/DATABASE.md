@@ -689,7 +689,7 @@ CREATE INDEX "Shop_deletedAt_purgedAt_idx" ON "Shop"("deletedAt", "purgedAt");
 - **Business-count quota** (create/restore) ต้องกรอง `deletedAt: null` — soft-deleted ไม่กินโควตา
 - **`BusinessPackageSubscription` cancel** = DELETE row ทันที (grace timer อยู่ที่ `Shop.packageLockedAt` ต่อ shop ไม่ใช่ที่ subscription row) — ไม่ต้องเพิ่ม field
 
-### 12.5 🛑 RD-11 — Purge = tombstone (ต้อง user ยืนยันชั้นสุดท้าย)
+### 12.5 RD-11 — Purge = tombstone (✅ CONFIRMED 2026-07-02 by user)
 
 **คำว่า "ลบ (purge)" ในเอกสารนี้ = ตั้ง `purgedAt` marker ไม่ใช่ `DELETE FROM Shop` จริง** เพราะ:
 - FK `Order.shopId` = Restrict → physical DELETE จะ fail ถ้ามี Order ค้าง (แทบทุกกรณีจริง)
