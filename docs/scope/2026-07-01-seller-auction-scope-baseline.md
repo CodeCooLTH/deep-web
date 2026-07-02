@@ -71,8 +71,9 @@ Feature นี้ทำสำเร็จเมื่อ: Seller L2+ สร้�
 | S-18 | Migration M3 (Postgres trigger `auction_realtime_broadcast`) | DATABASE §9, OQ-1 | trigger สร้างสำเร็จ, verify `realtime.send()` รองรับจริง (prerequisite), rollback script พร้อม (`DROP TRIGGER...`); **user approve แยกจาก M1/M2** (คนละ risk ตาม SDS §12 task#2) |
 | S-15 | User Level (successfulBidCount ladder 5 ระดับ, `lib/auction-level.ts`) | TFR-016 (DATABASE §5) | increment เมื่อ winner settle สำเร็จ (Order ไม่ CANCELLED), `GREATEST(0,...)` เมื่อ order ถูก cancel ภายหลัง (ชิ่ง); label/icon ถูกตาม threshold ขอบ (2/3, 9/10, 29/30, 99/100 — TestCase#12); ไม่กระทบ Trust Score เดิม |
 | S-16 | Auction Achievement Badges — **6 badge MVP** (BRD §11.2 คอลัมน์ ✅ เท่านั้น: First Auctioneer, Auction Host 10, First Auction Win, Auction Closer 10 [seller]; First Bidder, First Winner [buyer]) | TFR-017 (DATABASE §6.1) | seed upsert by `nameEN`; `evaluateBadges('BUYER')` มี caller จริงหลัง placeBid/settle (SDS flag §7.2 ต้องปิด); ไม่ throw ถ้า criteria type ยังไม่มี checker (default switch+warn) |
+| S-19 | Auction Achievement Badges — **5 badge Phase 2** (pulled จาก OOS-16, 2026-07-02: Auction Pro 50, Bid Magnet [seller]; Active Bidder, Winner's Circle, Auction Completer [buyer]) + `confirmOrder` BUYER trigger | BRD §11.2/§11.6, TFR-017 | seed upsert by `nameEN` (`npm run seed:badges` non-destructive); criteria ตรง union `types/badge.ts` + dispatch case ครบ; **Auction Completer** (`AUCTION_WON_COMPLETED` ต้อง CONFIRMED) → `confirmOrder` เรียก `evaluateBadges(buyerUserId,'BUYER')` gate ด้วย `auctionId`; ไม่ต้อง migration |
 
-**รวม 18 S-id** ครอบ FR-AUC-01~13 ครบ, watch (OQ-3), Realtime broadcast-from-DB (OQ-1), User Level (TFR-016), Badge (TFR-017), migration (M1/M2/M3)
+**รวม 19 S-id** ครอบ FR-AUC-01~13 ครบ, watch (OQ-3), Realtime broadcast-from-DB (OQ-1), User Level (TFR-016), Badge MVP+Phase2 (TFR-017), migration (M1/M2/M3)
 
 ---
 
@@ -112,7 +113,7 @@ Feature นี้ทำสำเร็จเมื่อ: Seller L2+ สร้�
 
 | ID | รายการ |
 |----|--------|
-| OOS-16 | Auction Pro 50, Bid Magnet (seller) / Active Bidder, Winner's Circle, Auction Completer (buyer) — checker ซับซ้อน/threshold สูง ไม่ seed ใน MVP |
+| OOS-16 | ~~Auction Pro 50, Bid Magnet (seller) / Active Bidder, Winner's Circle, Auction Completer (buyer)~~ → **pulled to In-Scope เป็น S-19 (2026-07-02)** — user (shinobu22) authorize ตรง (คำขอ "เพิ่ม achievement ให้เหมาะกับฟีเจอร์ใหม่"); checker/dispatch/criteria พร้อมใน engine อยู่แล้ว (เหตุผล defer เดิม "checker ซับซ้อน" ตกไป) → cost = seed 5 row + trigger 1 จุด |
 
 ### อื่น ๆ
 
@@ -202,7 +203,7 @@ Feature ปิดได้เมื่อครบทุกข้อ:
 | **R-SRS-6** L2 guard เช็คเฉพาะตอน create | seller ถูก revoke level แต่ auction live ต่อได้ | **accepted risk MVP** (OOS-15) — ไม่ implement re-check | ระบุใน DoD ว่าเป็น known-gap |
 | **R-SRS-7** Vercel per-instance rate-limit ไม่ครอบ bid storm ข้าม instance | ไม่กระทบ correctness (DB-level guard คุ้มครอง) | known-gap เดิม, Redis = Phase 2 | ไม่ block merge |
 | **Scope: prod-shared-DB** M1/M2/M3 apply บน Supabase เดียวกับ prod | migration ผิดกระทบ prod จริง | additive/nullable columns only (§8.2 DATABASE), rollback script พร้อม, user approve **แยก** M1+M2 กับ M3 (Dependency #1/#2) | Batch A |
-| **Scope: 18 S-id กว้าง — risk creep เข้า OOS** | เผลอ implement Manual-extend/Block-bidder/Buy-now-adjust-live/Feature-Pin ระหว่างทำ end-early (S-12) หรือ buy-now (S-7) เพราะใกล้เคียงกัน | Scope Audit (Mode 3) ทุก batch เช็ค OOS-1~4 touch โดยเฉพาะ | ทุก batch |
+| **Scope: 19 S-id กว้าง — risk creep เข้า OOS** | เผลอ implement Manual-extend/Block-bidder/Buy-now-adjust-live/Feature-Pin ระหว่างทำ end-early (S-12) หรือ buy-now (S-7) เพราะใกล้เคียงกัน | Scope Audit (Mode 3) ทุก batch เช็ค OOS-1~4 touch โดยเฉพาะ | ทุก batch |
 
 ---
 
@@ -215,6 +216,7 @@ Feature ปิดได้เมื่อครบทุกข้อ:
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-07-01 | baseline สร้าง (S-1~S-18 In-Scope, OOS-1~18 freeze) | kick-off Seller Auction + Realtime Bidding หลัง PRD/BRD sign-off + OQ resolve | shinobu22 |
+| 2026-07-02 | **OOS-16 → In-Scope เป็น S-19** (seed 5 Phase-2 badge + confirmOrder BUYER trigger สำหรับ Auction Completer) | user ขอเพิ่ม achievement ให้ตรงฟีเจอร์ใหม่; engine (checker/dispatch/criteria) พร้อมอยู่แล้ว เหตุผล defer เดิมตกไป; ไม่ต้อง migration | shinobu22 |
 
 ---
 
@@ -226,6 +228,7 @@ Feature ปิดได้เมื่อครบทุกข้อ:
 | A | S-18 | FR-AUC-10 | TFR-010 | DATABASE §9 (M3), SRS §2.4 |
 | B | (foundation) | FR-AUC-05,08,09 | TFR-005,008,009 | SDS §6, §12 task#3/#4 |
 | C | S-16 | — (BRD §11) | TFR-017 | SDS §5.1, DATABASE §6 |
+| C | S-19 | — (BRD §11.2/§11.6) | TFR-017 | BRD §11 (Phase 2 badge + confirmOrder BUYER trigger) |
 | C | S-1,S-2,S-3,S-4,S-11,S-12,S-13 | FR-AUC-01,02,03,04,11,12,13 | TFR-001,002,003,004,011,012,013 | SDS §5.2, API (seller endpoints) |
 | C | S-5,S-6,S-7,S-9,S-14 | FR-AUC-05,06,07,09 + OQ-3 | TFR-005,006,007,009 | SDS §5.3, API (buyer endpoints) |
 | D | S-4,S-11 (list UI) | FR-AUC-04,11 | TFR-004,011 | SDS §8.1, UI-DESIGN-SPEC |
