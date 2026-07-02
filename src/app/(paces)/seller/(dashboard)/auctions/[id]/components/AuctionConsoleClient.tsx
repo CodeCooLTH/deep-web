@@ -24,6 +24,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/utils/helpers'
 import type { SellerAuctionDTO } from '@/services/auction.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { pacesToast } from '@/lib/paces-toast'
@@ -115,6 +116,8 @@ export default function AuctionConsoleClient({ auction }: Props) {
   }, [auction.id, status])
 
   const isTerminal = status === 'ended' || status === 'unsold' || status === 'cancelled'
+  // velocity แสดงเมื่อมี ≥2 บิด (ตรงกับ guard ใน AuctionBidVelocity) — ใช้จัด grid analytics row
+  const hasVelocity = bidHistory.length >= 2
 
   return (
     // pb บน mobile กัน sticky action bar บังการ์ดล่างสุด (bar สูง ~68px + safe-area); desktop ไม่มี bar
@@ -146,11 +149,21 @@ export default function AuctionConsoleClient({ auction }: Props) {
         />
       )}
 
-      {/* desktop 2-col: ซ้าย col-span-2 (chart + bid feed) / ขวา (control panel + info card) */}
+      {/* analytics row (mockup .analytics): กราฟราคา (กว้าง) + velocity/อัตราการบิด ข้างกันบน desktop */}
       <div className="grid grid-cols-1 gap-base lg:grid-cols-3">
-        <div className="space-y-base lg:col-span-2">
+        <div className={cn(hasVelocity ? 'lg:col-span-2' : 'lg:col-span-3')}>
           <AuctionPriceChart bidHistory={bidHistory} expectedPrice={auction.expectedPrice} />
-          <AuctionBidVelocity bidHistory={bidHistory} bidCount={bidCount} />
+        </div>
+        {hasVelocity && (
+          <div className="lg:col-span-1">
+            <AuctionBidVelocity bidHistory={bidHistory} bidCount={bidCount} />
+          </div>
+        )}
+      </div>
+
+      {/* monitor + control 2-col: ซ้าย (bid feed) / ขวา (control panel + info card) */}
+      <div className="grid grid-cols-1 gap-base lg:grid-cols-3">
+        <div className="lg:col-span-2">
           <AuctionBidFeed
             bidHistory={bidHistory}
             bidCount={bidCount}
