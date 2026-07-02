@@ -53,6 +53,11 @@ const ACTIVITY_STYLE: Record<ActivityItem['type'], ActivityStyle> = {
     icon: 'solar:wallet-bold-duotone',
     colorClass: 'text-success',
   },
+  // S-6/S-14 (00009 Deep Stock Pro) — low-stock alert (PRO only), สื่อ "เตือน" เหมือน NotificationFeed
+  LOW_STOCK_ALERT: {
+    icon: 'solar:danger-triangle-bold-duotone',
+    colorClass: 'text-danger',
+  },
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
