@@ -2,7 +2,11 @@
 
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx
- *   (card stack layout: ข้อมูล → รูปภาพ → ราคา → เวลา — 1-col card stack, bottom action bar)
+ *   (card stack layout: ข้อมูล → รูปภาพ → ราคา → เวลา — 1-col card stack, bottom action bar;
+ *   ที่มาของ responsive grid `grid grid-cols-1 lg:grid-cols-3 gap-base` + col-span-2/1 split)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/invoice/create/page.tsx
+ *   (sticky rail `lg:sticky lg:top-25` + ปุ่มเรียงแนวตั้ง `flex flex-col gap-2.5` — ที่มาของการ์ด
+ *   "เผยแพร่" ฝั่งขวา; offset ปรับเป็น top-24 ให้ตรง in-app convention ProductFormV2.tsx:386-391)
  * Base mockup: docs/mockups/auction/seller-auction-v1.html frame 2 ("สร้างประมูล /seller/auctions/new")
  *   — 4 การ์ด (ข้อมูลพื้นฐาน/รูปภาพ/ราคา/เวลาประมูล) + f-footer sticky [บันทึกร่าง][เผยแพร่]
  *   ("f-" class ใน mockup เป็น demo CSS เท่านั้น — impl จริงแทนด้วย Paces primitive .card, .form-input, .input-group)
@@ -11,7 +15,19 @@
  * ประกอบจาก AuctionBasicCard/AuctionImageCard/AuctionPriceCard/AuctionTimeCard + L2 guard banner
  * + sticky bottom footer (create: บันทึกร่าง/เผยแพร่ · edit: บันทึกการแก้ไข)
  *
- * รู้ scope: ไม่มี saveFormId ที่ FullscreenPageHeader (คำสั่ง batch นี้ — action อยู่ bottom เสมอ)
+ * Responsive ladder (S-A1, 3 breakpoints) — 5 flat grid items + order-* / col-start-* / row-start-*,
+ * ไม่ใช้ wrapper-div group (กัน mobile ลำดับเพี้ยน เพราะรูปภาพต้องอยู่ระหว่างข้อมูลพื้นฐาน/ราคา บน mobile
+ * เท่านั้น — ถ้า group รูปภาพ+เผยแพร่ไว้ด้วยกัน DOM position ท้ายสุดจะทำให้ mobile ลำดับผิด):
+ *   - mobile (<md): ไม่มี order class → DOM order เดิม (Basic→Image→Price→Time), fixed bottom bar เดิม
+ *   - tablet (md–lg): `md:order-1..5` เรียง Basic→Price→Time→Image→[การ์ดเผยแพร่] คอลัมน์เดียว ไม่มี fixed bar
+ *   - desktop (≥lg): grid 2:1 — ซ้าย col-span-2 แถว 1/2/3 (Basic/Price/Time), ขวา col-span-1 sticky
+ *     top-24 แถว 1/2 (รูปภาพ/การ์ดเผยแพร่). ใส่ `lg:row-start-*` คู่กับ `lg:col-start-*` ทุก item เพราะ
+ *     auto-placement ของ CSS Grid เดินตาม order-modified sequence แล้ววาง column-only item ต่อจาก
+ *     cursor แถวปัจจุบัน (เดินมือตาม spec แล้วพบว่าไม่ pin row จะดันรูปภาพ/การ์ดเผยแพร่ไปแถวผิด/เกิดช่องว่าง) —
+ *     เมื่อ pin ครบทั้ง 2 แกน ค่า order จึงไม่มีผลที่ breakpoint นี้ (คงไว้เผื่ออ่านง่าย ไม่กระทบ)
+ *
+ * รู้ scope: ไม่มี saveFormId ที่ FullscreenPageHeader (คำสั่ง batch นี้ — action อยู่ bottom เสมอ บน mobile;
+ * tablet/desktop ใช้การ์ด "เผยแพร่" แทน)
  *
  * known-gap (ไม่แก้ในงานนี้ — นอก scope api/service): SellerAuctionDTO (@/services/auction.service)
  * ไม่มี field `productId` ใน response เลย (มีแค่ตอน create/update input) → edit mode
@@ -244,7 +260,7 @@ export default function AuctionForm({ mode, products, hasL2 = true, auction }: A
   }
 
   return (
-    <form noValidate className="mx-auto w-full max-w-2xl pb-28">
+    <form noValidate className="mx-auto w-full max-w-2xl pb-28 md:max-w-3xl md:pb-8 lg:max-w-6xl">
       {/* L2 guard banner — create เท่านั้น (server เช็คซ้ำเสมอ นี่แค่ shortcut ฝั่ง client) */}
       {formDisabled && (
         <div className="bg-warning/15 border-warning text-warning mb-4 flex items-center gap-3 rounded-lg border p-4">
@@ -261,33 +277,105 @@ export default function AuctionForm({ mode, products, hasL2 = true, auction }: A
 
       {/* edit mode: auction ไม่ใช่ draft/scheduled แล้ว → banner แจ้งแก้ไม่ได้ (page ควรกันไม่ให้มาถึงตรงนี้
           อยู่แล้ว — เผื่อ defensive แสดงซ้ำถ้ามี prop ผิดคาด) */}
-      <fieldset disabled={formDisabled || isSubmitting} className="space-y-4">
-        <AuctionBasicCard register={register} errors={errors} products={products} disabled={formDisabled} />
+      <fieldset
+        disabled={formDisabled || isSubmitting}
+        className="grid grid-cols-1 gap-base lg:grid-cols-3 lg:items-start"
+      >
+        {/* 1. ข้อมูลพื้นฐาน — mobile: ลำดับแรกเสมอ (ไม่มี order) · tablet: order-1 · desktop: ซ้าย col1-2 แถว1 */}
+        <div className="md:order-1 lg:order-none lg:col-start-1 lg:col-span-2 lg:row-start-1">
+          <AuctionBasicCard register={register} errors={errors} products={products} disabled={formDisabled} />
+        </div>
 
-        <Controller
-          control={control}
-          name="images"
-          render={({ field }) => (
-            <AuctionImageCard value={field.value ?? []} onChange={field.onChange} error={errors.images?.message} />
-          )}
-        />
+        {/* 2. รูปภาพ — mobile: ลำดับ 2 (ตำแหน่งเดิม ระหว่าง Basic/Price) · tablet: ท้ายสุด (order-4) ·
+            desktop: รางขวา sticky แถว 1 (คู่กับการ์ดเผยแพร่ที่ row-start-2) */}
+        <div className="md:order-4 lg:order-none lg:col-start-3 lg:col-span-1 lg:row-start-1 lg:sticky lg:top-24 lg:self-start">
+          <Controller
+            control={control}
+            name="images"
+            render={({ field }) => (
+              <AuctionImageCard value={field.value ?? []} onChange={field.onChange} error={errors.images?.message} />
+            )}
+          />
+        </div>
 
-        <AuctionPriceCard control={control} errors={errors} disabled={formDisabled} />
+        {/* 3. ราคา — tablet: order-2 (ต่อจาก Basic) · desktop: ซ้าย col1-2 แถว 2 */}
+        <div className="md:order-2 lg:order-none lg:col-start-1 lg:col-span-2 lg:row-start-2">
+          <AuctionPriceCard control={control} errors={errors} disabled={formDisabled} />
+        </div>
 
-        <AuctionTimeCard
-          mode={mode}
-          register={register}
-          errors={errors}
-          watch={watch}
-          disabled={formDisabled}
-          scheduledStartLabel={
-            isEdit && auction?.startTimeMs ? formatDateTime(new Date(auction.startTimeMs)) : null
-          }
-        />
+        {/* 4. เวลาประมูล — tablet: order-3 · desktop: ซ้าย col1-2 แถว 3 */}
+        <div className="md:order-3 lg:order-none lg:col-start-1 lg:col-span-2 lg:row-start-3">
+          <AuctionTimeCard
+            mode={mode}
+            register={register}
+            errors={errors}
+            watch={watch}
+            disabled={formDisabled}
+            scheduledStartLabel={
+              isEdit && auction?.startTimeMs ? formatDateTime(new Date(auction.startTimeMs)) : null
+            }
+          />
+        </div>
+
+        {/* 5. การ์ด "เผยแพร่" — mobile: ซ่อน (ใช้ fixed bottom bar แทน) · tablet: ท้ายสุด (order-5) ·
+            desktop: รางขวา sticky แถว 2 (ใต้รูปภาพ) — ปุ่ม/handler reuse ของเดิมจาก fixed bottom bar */}
+        <div className="hidden md:order-5 md:block lg:order-none lg:col-start-3 lg:col-span-1 lg:row-start-2 lg:sticky lg:top-24 lg:self-start">
+          <div className="card">
+            <div className="card-header">
+              <h4 className="card-title flex items-center gap-2">
+                <Icon icon="rocket" className="text-primary size-5" />
+                เผยแพร่
+              </h4>
+            </div>
+            <div className="card-body flex flex-col gap-3">
+              {!isEdit ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={formDisabled || isSubmitting}
+                    onClick={handleSubmit((v) => submitCreate(v, 'publish'))}
+                    className="btn bg-primary hover:bg-primary-hover inline-flex min-h-12 w-full items-center justify-center gap-2 font-semibold text-white disabled:opacity-60"
+                  >
+                    {isSubmitting && pendingIntent === 'publish' ? (
+                      <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                      <Icon icon="circle-check-filled" className="size-4" />
+                    )}
+                    เผยแพร่ประมูล
+                  </button>
+                  <button
+                    type="button"
+                    disabled={formDisabled || isSubmitting}
+                    onClick={handleSubmit((v) => submitCreate(v, 'draft'))}
+                    className="btn border-default-300 text-default-700 hover:bg-default-50 inline-flex min-h-12 w-full items-center justify-center gap-2 font-semibold disabled:opacity-60"
+                  >
+                    {isSubmitting && pendingIntent === 'draft' ? (
+                      <span className="size-4 animate-spin rounded-full border-2 border-default-300 border-t-default-700" />
+                    ) : null}
+                    บันทึกร่าง
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handleSubmit((v) => submitEdit(v))}
+                  className="btn bg-primary hover:bg-primary-hover inline-flex min-h-12 w-full items-center justify-center gap-2 font-semibold text-white disabled:opacity-60"
+                >
+                  {isSubmitting && pendingIntent === 'edit' ? (
+                    <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : null}
+                  บันทึกการแก้ไข
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </fieldset>
 
-      {/* Sticky bottom footer — action อยู่ bottom เสมอ (ไม่ใช้ saveFormId ที่ FullscreenPageHeader) */}
-      <div className="bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3">
+      {/* Sticky bottom footer — mobile เท่านั้น (md:hidden); tablet/desktop ใช้การ์ด "เผยแพร่" ด้านบนแทน
+          (ไม่ใช้ saveFormId ที่ FullscreenPageHeader) */}
+      <div className="bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 md:hidden">
         <div className="mx-auto flex w-full max-w-2xl gap-3">
           {!isEdit ? (
             <>
