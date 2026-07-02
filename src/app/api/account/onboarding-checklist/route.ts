@@ -18,8 +18,8 @@ export async function GET() {
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const shop = await prisma.shop.findUnique({
-    where: { userId },
+  const shop = await prisma.shop.findFirst({
+    where: { userId, kind: "PERSONAL" },
     select: {
       slug: true,
       salesChannels: true,

@@ -34,8 +34,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Every seller MUST have a shop — auto-create a default one on first visit
   // so they land on a usable dashboard instead of a "create shop" CTA.
   // T3: ขยาย select เพิ่ม shopName + logo เพื่อส่งเข้า SellerMobileHeader
-  const shop = await prisma.shop.findUnique({
-    where: { userId: user.id },
+  const shop = await prisma.shop.findFirst({
+    where: { userId: user.id, kind: 'PERSONAL' },
     select: { id: true, shopName: true, logo: true },
   })
   if (!shop) {

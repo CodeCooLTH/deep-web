@@ -93,7 +93,7 @@ function resolveStatuses(criteria: unknown): string[] {
 // ─── DB helper (shared by handlers + progress) ────────────────────────────────
 
 async function getShopForUser(userId: string) {
-  return prisma.shop.findUnique({ where: { userId } })
+  return prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } })
 }
 
 // ─── Pure-ish criterion handlers ──────────────────────────────────────────────

@@ -35,8 +35,8 @@ export default async function FullscreenLayout({ children }: { children: React.R
   if (!session || !user?.id) redirect('/auth/sign-in')
 
   // Ensure seller has a shop — same invariant as (dashboard)/layout.tsx
-  const shop = await prisma.shop.findUnique({
-    where: { userId: user.id },
+  const shop = await prisma.shop.findFirst({
+    where: { userId: user.id, kind: 'PERSONAL' },
     select: { id: true },
   })
   if (!shop) {

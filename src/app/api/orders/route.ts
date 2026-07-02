@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Default: seller orders
-  const shop = await prisma.shop.findUnique({ where: { userId } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
   if (!shop) return NextResponse.json([]);
 
   const orders = await getOrdersByShop(shop.id, status);
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = (session.user as any).id;
-  const shop = await prisma.shop.findUnique({ where: { userId } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
   if (!shop) return NextResponse.json({ error: "No shop" }, { status: 404 });
 
   const body = await request.json().catch(() => null);

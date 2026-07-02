@@ -16,9 +16,11 @@ export async function GET(request: NextRequest) {
         { email: { contains: search, mode: "insensitive" } },
       ],
     } : {},
-    include: { shop: true },
+    include: { shops: { where: { kind: "PERSONAL" } } },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
-  return NextResponse.json(users);
+  // Remap shops[0] → shop เพื่อคง API response shape เดิม
+  const remapped = users.map(({ shops, ...rest }) => ({ ...rest, shop: shops[0] ?? null }));
+  return NextResponse.json(remapped);
 }

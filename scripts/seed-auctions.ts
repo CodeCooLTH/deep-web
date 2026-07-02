@@ -54,11 +54,11 @@ async function main() {
         displayName: 'ร้านประมูลตัวอย่าง',
         username: `demo_seller_${Date.now()}`,
         isShop: true,
-        shop: { create: { shopName: 'ร้านประมูลตัวอย่าง', businessType: 'INDIVIDUAL' } },
+        shops: { create: { shopName: 'ร้านประมูลตัวอย่าง', businessType: 'INDIVIDUAL' } },
       },
-      include: { shop: { select: { id: true, shopName: true } } },
+      include: { shops: { select: { id: true, shopName: true } } },
     })
-    shop = user.shop!
+    shop = user.shops[0]!
     console.log(`[seed] สร้างร้าน "${shop.shopName}"`)
   }
 

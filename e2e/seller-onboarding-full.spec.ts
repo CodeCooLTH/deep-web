@@ -223,7 +223,7 @@ test.describe('A. Facebook login (bypass + /register + /onboarding)', () => {
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 })
 
       // DB persist: address compose จาก search (ต.ในคลองบางปลากด ... 10290)
-      const shop = await prisma.shop.findUnique({ where: { userId: seeded.userId } })
+      const shop = await prisma.shop.findFirst({ where: { userId: seeded.userId, kind: 'PERSONAL' } })
       expect(shop?.slug).toBe(slugVal)
       expect(shop?.address).toContain('ในคลองบางปลากด')
       expect(shop?.address).toContain('10290')
@@ -258,7 +258,7 @@ test.describe('A. Facebook login (bypass + /register + /onboarding)', () => {
       expect(slugResp.status()).toBe(200)
 
       // ตรวจ DB: slug set
-      const shop = await prisma.shop.findUnique({ where: { userId: seeded.userId } })
+      const shop = await prisma.shop.findFirst({ where: { userId: seeded.userId, kind: 'PERSONAL' } })
       expect(shop?.slug).toBe(slugVal)
 
       // ทดสอบ address API
@@ -291,7 +291,7 @@ test.describe('A. Facebook login (bypass + /register + /onboarding)', () => {
   test('A-10: /onboarding slug validation API — reserved/ซ้ำ/valid', async ({ context, page }) => {
     const seeded = await createSeller('no-slug-with-category')
     const existing = await createSeller('complete')
-    const existingShop = await prisma.shop.findUnique({ where: { userId: existing.userId } })
+    const existingShop = await prisma.shop.findFirst({ where: { userId: existing.userId, kind: 'PERSONAL' } })
     const existingSlug = existingShop?.slug
 
     try {
@@ -833,7 +833,7 @@ test.describe('E. Onboarding continuity', () => {
       expect(addrResp.status()).toBe(200)
 
       // ตรวจ DB
-      const shop = await prisma.shop.findUnique({ where: { userId: seeded.userId } })
+      const shop = await prisma.shop.findFirst({ where: { userId: seeded.userId, kind: 'PERSONAL' } })
       expect(shop?.slug).toBe(slugVal)
       expect(shop?.category).toBe('general')
       expect(shop?.address).toContain('E-02')

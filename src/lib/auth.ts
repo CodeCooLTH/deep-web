@@ -554,12 +554,14 @@ export const authOptions: NextAuthOptions = {
       if (token.userId && (user || account || trigger === "update")) {
         const u = await prisma.user.findUnique({
           where: { id: token.userId as string },
-          select: { phone: true, shop: { select: { slug: true } } },
+          // P2-4 (feature 00008 Phase 2 cutover): User.shop (1:1) → User.shops (1:N) — needsOnboarding
+          // ยึด Personal shop เดิมเป็นฐานเสมอ (ไม่ใช่ shop แรกที่เจอ)
+          select: { phone: true, shops: { where: { kind: "PERSONAL" }, select: { slug: true } } },
         });
         // 2 เฟส: needsRegistration (ไม่มีเบอร์ = ต้องลงทะเบียน /register) แยกจาก
         // needsOnboarding (ไม่มี slug = ต้อง setup /onboarding) — proxy ใช้บังคับคนละหน้า
         token.needsRegistration = !u?.phone;
-        token.needsOnboarding = !u?.shop?.slug;
+        token.needsOnboarding = !u?.shops[0]?.slug;
 
         // activeShopId (feat 00008 TFR-012) — additive, ไม่กระทบ field เดิมด้านบน
         // trigger==='update' + client ส่ง session.activeShopId มา (AccountSwitcher) → ห้าม trust ตรง ๆ
@@ -587,11 +589,12 @@ export const authOptions: NextAuthOptions = {
           select: {
             id: true, displayName: true, username: true, email: true,
             avatar: true, isShop: true, isAdmin: true, trustScore: true, phone: true,
-            shop: { select: { id: true, slug: true } },
+            // P2-4 (feature 00008 Phase 2 cutover): User.shop (1:1) → User.shops (1:N)
+            shops: { where: { kind: "PERSONAL" }, select: { id: true, slug: true } },
           },
         });
         if (user) {
-          const shopSlug = user.shop?.slug ?? null;
+          const shopSlug = user.shops[0]?.slug ?? null;
           // ต้อง onboard เมื่อ: ยังไม่มี slug ร้าน หรือ ยังไม่มีเบอร์ (FB user)
           // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session) — ให้ onboarding รู้ว่าต้องโชว์ step ยืนยันเบอร์ไหม
           // ⚠️ ยึด Personal shop เดิมเป็นฐาน needsOnboarding เสมอ (ไม่ผูก activeShopId) —
@@ -602,7 +605,7 @@ export const authOptions: NextAuthOptions = {
           // active-shop-context (feat 00008 TFR-012) — additive; re-verify membership ทุก render
           // (ไม่ trust JWT เพียงอย่างเดียว — JWT อายุ 30 วัน, admin อาจถูก remove ระหว่างทาง)
           // fail-closed: error ใด ๆ ระหว่าง resolve → fallback Personal (ปลอดภัยกว่า fail ไป business ที่ไม่ใช่ของ user)
-          let resolvedActiveShopId: string | null = user.shop?.id ?? null; // Personal fallback
+          let resolvedActiveShopId: string | null = user.shops[0]?.id ?? null; // Personal fallback
           let activeShopRole: "OWNER" | "ADMIN" = "OWNER";
           let hasBusinessMembership = false;
           try {
@@ -624,7 +627,7 @@ export const authOptions: NextAuthOptions = {
               })) > 0;
           } catch (e) {
             console.error("[auth] session activeShopContext resolve failed — fallback Personal", e);
-            resolvedActiveShopId = user.shop?.id ?? null;
+            resolvedActiveShopId = user.shops[0]?.id ?? null;
             activeShopRole = "OWNER";
             hasBusinessMembership = false;
           }

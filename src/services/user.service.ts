@@ -17,11 +17,20 @@ export async function findOrCreateByPhone(phone: string, displayName?: string) {
   return user;
 }
 
+// P2-3 (feature 00008 Phase 2 cutover): User.shop (1:1) → User.shops (1:N) — include:{shop:true}
+// ใช้ไม่ได้อีกต่อไป เปลี่ยนเป็น shops:{where:{kind:'PERSONAL'}} แล้ว remap คง shape เดิม (`.shop`)
+// ให้ caller เดิม (u/[username], public/profile) ไม่ต้องแก้
 export async function findByUsername(username: string) {
-  return prisma.user.findUnique({
+  const u = await prisma.user.findUnique({
     where: { username },
-    include: { shop: true, userBadges: { include: { badge: true } } },
+    include: {
+      shops: { where: { kind: "PERSONAL" } },
+      userBadges: { include: { badge: true } },
+    },
   });
+  if (!u) return null;
+  const { shops, ...rest } = u;
+  return { ...rest, shop: shops[0] ?? null };
 }
 
 export async function updateProfile(userId: string, data: { displayName?: string; username?: string; avatar?: string }) {
