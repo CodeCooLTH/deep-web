@@ -33,6 +33,7 @@ import AuctionControlPanel from './AuctionControlPanel'
 import AuctionInfoCard from './AuctionInfoCard'
 import AuctionResultCard from './AuctionResultCard'
 import AuctionPriceChart from './AuctionPriceChart'
+import AuctionBidVelocity from './AuctionBidVelocity'
 import AuctionBidFeed from './AuctionBidFeed'
 
 type Props = {
@@ -147,6 +148,7 @@ export default function AuctionConsoleClient({ auction }: Props) {
       <div className="grid grid-cols-1 gap-base lg:grid-cols-3">
         <div className="space-y-base lg:col-span-2">
           <AuctionPriceChart bidHistory={bidHistory} expectedPrice={auction.expectedPrice} />
+          <AuctionBidVelocity bidHistory={bidHistory} bidCount={bidCount} />
           <AuctionBidFeed
             bidHistory={bidHistory}
             bidCount={bidCount}
