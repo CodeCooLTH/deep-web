@@ -597,8 +597,8 @@ Rollback Phase 1 ทันทีหลัง apply (ก่อนมี data จ�
 | # | หัวข้อ | สถานะ default ที่ใช้ในเอกสารนี้ | ทำไมต้อง confirm |
 |---|--------|--------------------------------|-------------------|
 | 1 | **Timing ของ Phase 2 constraint cutover** — bundle พร้อม Phase 1 ในดีพลอยเดียว หรือแยกรอบหลัง burn-in | แยกรอบ (ตาม spike guidance) | ต้องมี grep audit `user.shop` singular ทุกจุดเสร็จก่อน — ขนาดงานจริงกำหนด timeline ได้หลัง SDS สำรวจ call site ครบ |
-| 2 | **Downgrade-to-FREE เต็มรูป** (ยกเลิก package ทั้งหมด ไม่ใช่แค่ tier สูง→ต่ำ) — DELETE row `BusinessPackageSubscription` หรือเก็บไว้พร้อม `tier` value ใหม่ | DELETE row (กลับเป็น NOT_SUBSCRIBED) | PRD/BRD ไม่ได้ระบุ flow นี้ชัดเจน (FR-BIZ-17 พูดถึงแต่ downgrade tier ที่ยังเป็น paid) |
-| 3 | **ความหมาย "ลบ Business"** (PRD §3.4) — hard-delete cascade จริง หรือเทียบเท่า permanent-lock | permanent-lock (ไม่ hard-delete) | Hard Rule ห้าม drop ข้อมูลเว้นแต่สั่งชัด + FK `Order→Shop` inconsistency ที่มีอยู่ก่อนแล้ว |
+| 2 | ~~**Downgrade-to-FREE เต็มรูป**~~ | **✅ RESOLVED 2026-07-02 (ดู §12):** cancel = lock ALL business (grace-eligible, 30 วัน) + DELETE subscription row ทันที; business ที่ไม่กลับมาใน 30 วัน → auto soft-delete → retention 30 วัน → purge | — |
+| 3 | ~~**ความหมาย "ลบ Business"**~~ | **✅ RESOLVED 2026-07-02 (ดู §12):** soft-delete + 30-day retention + restore ได้; พ้น 30 วัน → purge (tombstone `purgedAt`, ไม่ physical DELETE — ดู RD-11) | — |
 | 4 | **`ShopMember` 1-OWNER-ต่อ-shop invariant** — enforce ที่ DB (partial unique เพิ่มอีกตัว) หรือ app layer เท่านั้น | app layer เท่านั้น | ไม่มี ownership-transfer/co-ownership ใน MVP (out-of-scope) risk ต่ำ พิจารณาเพิ่มถ้า Phase 2 ของ feature (co-ownership) ถูกอนุมัติ |
 | 5 | **`WalletTransaction.reason` ค่าใหม่** — ใช้รูปเต็ม `"BUSINESS_PACKAGE_SUBSCRIPTION"` หรือรูปย่อ `"BUSINESS_PACKAGE"` ตามที่ Controller เสนอไว้ตอนแรก | รูปเต็ม (เข้าชุดกับ `INVENTORY_SUBSCRIPTION`) | ต้อง sync SRS/`wallet.service.deductCredit()` call-site ให้ตรงกัน — ห้ามแก้ทีหลังโดยไม่ sync กลับมาที่เอกสารนี้ (เหมือน 00003 บทเรียน) |
 | 6 | **Grace/burn-in period ก่อน Phase 2** — ควรมี regression-test window นานเท่าไรก่อนอนุญาต cutover | ไม่ได้กำหนดตัวเลข | เป็น process decision ของทีม ไม่ใช่ data-model decision |
@@ -637,6 +637,65 @@ Migration หลักแบ่งเป็น **2 phase ที่ต้อง�
 
 **Risks ที่ flag ให้ SRS แล้ว:**
 1. Core relation change (`Shop.userId` 1:1→1:N) = ความเสี่ยงสูงสุดของ feature — จัดการด้วย 3-phase plan (§4)
+
+---
+
+## 12. Lifecycle Extension Delta (2026-07-02 — sync จาก SRS/SDS decision)
+
+> เกิดจาก user decision 3 ข้อ (soft-delete+restore, cancel→lock→purge, RBAC defer) ที่ override §9 open item #2/#3 เดิม — sync เข้า schema แล้ว. **Additive ทั้งหมด (Phase 1)** — รวมเข้า migration `add_business_account_packages` เดิมได้
+
+### 12.1 `Shop` — field lifecycle เพิ่ม (Phase 1, additive)
+
+| Column | Type | Null | Default | เหตุผล |
+|--------|------|------|---------|--------|
+| `deletedAt` | `TIMESTAMP(3)` | YES | NULL | Soft-delete marker — NULL เสมอสำหรับ PERSONAL; ตั้งเมื่อ manual delete (FR-BIZ-25) หรือ auto หลัง grace lapse (FR-BIZ-28); restore ได้ภายใน 30 วัน |
+| `deletedReason` | `TEXT` | YES | NULL | `"OWNER_DELETED"` \| `"PACKAGE_LAPSED"` — String ตาม convention |
+| `purgedAt` | `TIMESTAMP(3)` | YES | NULL | Tombstone marker หลัง retention 30 วัน — **🛑 ไม่ใช่ physical DELETE** (ดู RD-11) — row ยังอยู่ครบ แค่ exclude จากทุก list/quota ถาวร |
+
+```prisma
+model Shop {
+  // ...field เดิม (kind, packageLockedAt, packageLockReason จาก §3.2)...
+  // --- feature 00008 lifecycle extension (decision 2026-07-02) ---
+  deletedAt     DateTime? // soft-delete — NULL เสมอสำหรับ PERSONAL
+  deletedReason String?   // "OWNER_DELETED" | "PACKAGE_LAPSED"
+  purgedAt      DateTime? // tombstone หลัง 30-day retention — ไม่ลบ row จริง (FK Order restrict + Hard Rule)
+
+  @@index([kind, packageLockReason, packageLockedAt], map: "Shop_kind_lockReason_lockedAt_idx") // cron: auto-soft-delete lapsed grace
+  @@index([deletedAt, purgedAt], map: "Shop_deletedAt_purgedAt_idx") // cron: purge expired retention
+}
+```
+
+**Migration SQL (เพิ่มใน Phase 1 `add_business_account_packages`):**
+```sql
+ALTER TABLE "Shop" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Shop" ADD COLUMN "deletedReason" TEXT;
+ALTER TABLE "Shop" ADD COLUMN "purgedAt" TIMESTAMP(3);
+CREATE INDEX "Shop_kind_lockReason_lockedAt_idx" ON "Shop"("kind", "packageLockReason", "packageLockedAt");
+CREATE INDEX "Shop_deletedAt_purgedAt_idx" ON "Shop"("deletedAt", "purgedAt");
+```
+
+### 12.2 `packageLockReason` — ค่าใหม่ (additive value, ไม่มี DDL)
+
+เพิ่ม `"OWNER_CANCELLED_PACKAGE"` — รวมเป็น 4 ค่า: `RENEWAL_FAILED` \| `OWNER_CANCELLED_PACKAGE` \| `QUOTA_EXCEEDED_BUSINESS_COUNT` \| `QUOTA_EXCEEDED_ADMIN_COUNT`
+- **2 ค่าแรก = grace-eligible** (นับ 30 วัน → auto soft-delete)
+- **2 ค่าหลัง = ไม่มี grace** (ค้างจนกว่า owner แก้เอง — upgrade/ลบ admin/ลบ business)
+
+### 12.3 Lifecycle Cron (`business-package-lifecycle`) — 3 phase ใน endpoint เดียว
+
+รวม renewal (Phase 1) + auto-soft-delete-lapsed (Phase 2) + purge-tombstone (Phase 3) เป็น cron เดียว (ลดความเสี่ยง Vercel Hobby cron-count limit) — reuse `CRON_SECRET` + pattern `/api/cron/inventory-renewal`. Query ใช้ index ใหม่ §12.1
+
+### 12.4 Query semantics ที่เปลี่ยน (documented, ไม่มี schema เพิ่ม)
+
+- **Business-count quota** (create/restore) ต้องกรอง `deletedAt: null` — soft-deleted ไม่กินโควตา
+- **`BusinessPackageSubscription` cancel** = DELETE row ทันที (grace timer อยู่ที่ `Shop.packageLockedAt` ต่อ shop ไม่ใช่ที่ subscription row) — ไม่ต้องเพิ่ม field
+
+### 12.5 🛑 RD-11 — Purge = tombstone (ต้อง user ยืนยันชั้นสุดท้าย)
+
+**คำว่า "ลบ (purge)" ในเอกสารนี้ = ตั้ง `purgedAt` marker ไม่ใช่ `DELETE FROM Shop` จริง** เพราะ:
+- FK `Order.shopId` = Restrict → physical DELETE จะ fail ถ้ามี Order ค้าง (แทบทุกกรณีจริง)
+- FK `Product.shopId` = Cascade → ถ้าลบสำเร็จจะพา Product หายด้วย = ขัด Hard Rule "ห้าม drop ข้อมูลเว้นแต่สั่งชัด"
+
+**ผลลัพธ์เชิงพฤติกรรม:** business หายจากทุก list/quota/switcher ถาวร (เหมือนถูกลบ 100% จากมุมผู้ใช้) แต่ข้อมูลดิบยังอยู่ใน DB. **ถ้า user ต้องการลบข้อมูลจริง (physical/privacy)** ต้อง sign-off แยก + ออกแบบ compensating step เพิ่ม (anonymize Order ก่อน หรือยอมรับ Product loss)
 2. Prisma ไม่รองรับ partial unique index ใน DSL — ต้อง raw SQL ถาวร + ห้าม `db pull`/`migrate dev` ตลอดไปสำหรับ table นี้ (ทับซ้อนกับกฎ shared-DB-drift เดิม แต่ย้ำเฉพาะจุด)
 3. PII (`ShopInvite.invitedContact`) ต้อง neutralize-at-source ที่ RSC boundary ตั้งแต่ design แรก ไม่ใช่ patch ทีหลัง
 4. "ลบ Business" semantics ที่ยังไม่ชัด อาจชนกับ FK `Order→Shop` restrict ที่มีอยู่ก่อนแล้ว — ต้อง SRS ตัดสินใจก่อน implement ปุ่มนี้

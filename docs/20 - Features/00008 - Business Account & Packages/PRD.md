@@ -172,6 +172,8 @@ Business Account & Packages คือระบบ subscription tier ใหม่
 
 ### 3.4 RBAC — สิทธิ์ Owner vs Admin
 
+> **🛑 อัปเดต 2026-07-02 (D-9):** RBAC granular แบบ permission-matrix ราย action **เลื่อนเป็น Phase 2** — MVP ใช้ **membership-based access** (admin ที่ถูก invite เข้าถึง business ได้ระดับ operational เท่ากับ owner) + คง context isolation (security). billing/invite/create-delete-business ยังเป็น owner-only โดยธรรมชาติ (initiate จาก personal account ของ owner) ไม่ต้องมี RBAC engine. เนื้อหาด้านล่างเป็น target Phase 2
+
 **ความต้องการ:**
 - Owner ทำได้ทุกอย่างของ Business รวมถึง billing/invite/ลบ Business
 - Admin ทำได้เฉพาะงานปฏิบัติการประจำวัน — จัดการ order/product/ตอบแชท — ไม่แตะ billing/invite/ลบ business
@@ -237,6 +239,8 @@ Business Account & Packages คือระบบ subscription tier ใหม่
 - Renewal ล้มเหลว = owner ไม่มี package ที่ ACTIVE เลย จึงไม่มีโควตาเหลือให้ Business ใดทำงานได้ต่อ
 
 ### 3.9 Data Retention เมื่อ Business ถูก Lock
+
+> **🛑 อัปเดต 2026-07-02 (D-7/D-8):** เพิ่ม lifecycle **soft-delete → 30-day retention → purge** — lock (grace 30 วันสำหรับ cancel/renewal-fail) → ถ้าไม่กลับมา → soft-delete (restore ได้อีก 30 วัน) → purge (tombstone, ข้อมูลดิบไม่ลบจริง). ลบ business เอง = เข้า soft-delete path ทันที. รายละเอียดเทคนิค: SRS §4.2 (5-state machine) + DATABASE §12
 
 **ความต้องการ:**
 - Business ที่ถูกล็อก (ไม่ว่าจากเหตุผลใดใน 3.7/3.8) ต้อง**ไม่ถูกลบข้อมูล** — Product, Order เดิม, ประวัติ, สมาชิก (owner/admin) ต้องอยู่ครบ
@@ -470,6 +474,9 @@ flowchart TD
 | **D-4** | Expiry/Downgrade policy | Lock เป็น read-only (ไม่มี grace period, ไม่ลบข้อมูล) — pattern เดียวกับ Inventory Add-on (§3.7, §3.8, §3.9) |
 | **D-5** | ราคา/โควตาต่อ tier | Free ฿0(0/-) / Growth ฿159(1/1) / Pro ฿599(3/3 ต่อธุรกิจ) / Business ฿1,299(ไม่จำกัด/ไม่จำกัด) (§4.1) |
 | **D-6** | กติกาเลือก Business ที่ถูกล็อกตอน downgrade | **Owner เลือกเอง** ว่าจะเก็บ Business ไหน active ให้ครบโควตาใหม่ ส่วนที่เหลือถูกล็อก — ไม่ใช่ auto-LIFO (§3.7, §10.2) |
+| **D-7** (2026-07-02) | ความหมาย "ลบ Business" | **Soft-delete + เก็บข้อมูล 30 วัน + restore ได้** → พ้น 30 วัน → purge (tombstone, ข้อมูลดิบไม่ถูกลบจริง — ดู DATABASE §12.5). แทนที่ policy "permanent-lock" เดิม |
+| **D-8** (2026-07-02) | ยกเลิก package กลับ Free (เต็มรูป) | **Lock ทุก business ทันที + grace 30 วัน** → ถ้าไม่ reactivate/upgrade กลับมา → auto soft-delete (ตาม D-7) → retention 30 วัน → purge. รวม lifecycle สูงสุด ~60 วันจาก cancel ถึง purge |
+| **D-9** (2026-07-02) | RBAC granular (owner vs admin ราย action) | **เลื่อนเป็น Phase 2 — ตัดออกจาก MVP.** ยังมี admin/invite (แกนของ tier quota) + context isolation (security) แต่ admin เข้าถึง business ที่ถูก invite ได้ระดับ operational เท่ากับ owner (ยกเว้น billing/invite/create-delete-business ที่เป็น owner-only โดยธรรมชาติ) |
 
 **Open items ที่ยังไม่ยืนยัน (ใช้ default ตามที่ระบุ — ต้อง confirm ตอน SRS ก่อน implement):** RBAC matrix ละเอียด, Pro "3 admin ต่อธุรกิจ", Subdomain/switcher UI, Trust Score ระดับ Business (Phase 2), invite flow คนไม่มีบัญชี, refund policy (no-refund), proration ตอนอัพเกรด/ดาวน์เกรดกลางรอบ — ดู §9.2 ทั้งหมด
 

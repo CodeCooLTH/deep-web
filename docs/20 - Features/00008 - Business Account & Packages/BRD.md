@@ -69,6 +69,11 @@ related: ["[[PRD]]", "[[SRS]]", "[[DATABASE]]"]
 
 ---
 
+> **🛑 อัปเดต decision 2026-07-02 (override FR ด้านล่างบางส่วน — รายละเอียดเทคนิคใน SRS FR-BIZ-25..29):**
+> - **ลบ Business = soft-delete + 30 วัน retention + restore ได้** → พ้น 30 วัน → purge (tombstone). แทน "permanent-lock" เดิม
+> - **ยกเลิก package = lock ทุก business + grace 30 วัน → auto soft-delete → retention → purge** (ปิด open item — cancel เป็น flow เต็ม ~60 วัน)
+> - **RBAC granular เลื่อน Phase 2** — MVP membership-based access (admin operational เท่ากับ owner) + context isolation. FR-BIZ-13 ด้านล่างเป็น target Phase 2, MVP ใช้ตามหมายเหตุนี้
+
 ## 2. ความต้องการหลัก (Functional Requirements)
 
 ### 2.1 Package Subscription & Billing
