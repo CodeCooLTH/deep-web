@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import type { SellerAuctionDTO } from '@/services/auction.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { useAuctionPresence } from '@/hooks/useAuctionPresence'
 import { pacesToast } from '@/lib/paces-toast'
 import ConsoleHead from './ConsoleHead'
 import AuctionConsoleActionBar from './AuctionConsoleActionBar'
@@ -118,6 +119,8 @@ export default function AuctionConsoleClient({ auction }: Props) {
   const isTerminal = status === 'ended' || status === 'unsold' || status === 'cancelled'
   // velocity แสดงเมื่อมี ≥2 บิด (ตรงกับ guard ใน AuctionBidVelocity) — ใช้จัด grid analytics row
   const hasVelocity = bidHistory.length >= 2
+  // feat 00006: จำนวนผู้ชมกำลังดู (live เท่านั้น)
+  const viewerCount = useAuctionPresence(auction.id, status === 'live')
 
   return (
     // pb บน mobile กัน sticky action bar บังการ์ดล่างสุด (bar สูง ~68px + safe-area); desktop ไม่มี bar
@@ -127,6 +130,7 @@ export default function AuctionConsoleClient({ auction }: Props) {
         title={auction.title}
         imageUrl={auction.imageUrl}
         status={status}
+        viewerCount={viewerCount}
       />
 
       <AuctionStatCards

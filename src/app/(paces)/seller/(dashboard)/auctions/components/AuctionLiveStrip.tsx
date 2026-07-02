@@ -22,6 +22,19 @@ import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import AuctionCountdown from '../../_shared/AuctionCountdown'
 import { formatDateTime } from '@/lib/format-date'
+import { useAuctionPresence } from '@/hooks/useAuctionPresence'
+
+/** viewer count ต่อ live card (feat 00006) — presence channel ต่อ auction; แสดงเมื่อ >0 */
+function LiveCardViewers({ auctionId }: { auctionId: string }) {
+  const count = useAuctionPresence(auctionId, true)
+  if (count <= 0) return null
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <Icon icon="eye" className="text-2xs" />
+      {count.toLocaleString()} กำลังดู
+    </span>
+  )
+}
 
 export type LiveStripItem = {
   id: string
@@ -124,12 +137,19 @@ export default function AuctionLiveStrip({ items }: { items: LiveStripItem[] }) 
                   <span className="ms-1 text-xs font-medium text-default-400">เริ่มต้น</span>
                 )}
               </p>
-              <p className="mt-0.5 text-xs text-default-500">
-                {it.status === 'live'
-                  ? `${it.bidCount > 0 ? `${it.bidCount} บิด` : 'ยังไม่มีบิด'} · ${
-                      it.watchCount > 0 ? `ติดตาม ${it.watchCount}` : 'ยังไม่มีคนติดตาม'
-                    }`
-                  : 'รอเปิดประมูล'}
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-default-500">
+                {it.status === 'live' ? (
+                  <>
+                    <span>
+                      {it.bidCount > 0 ? `${it.bidCount} บิด` : 'ยังไม่มีบิด'} ·{' '}
+                      {it.watchCount > 0 ? `ติดตาม ${it.watchCount}` : 'ยังไม่มีคนติดตาม'}
+                    </span>
+                    {/* viewer count กำลังดู (feat 00006) — presence ต่อ card; render เมื่อ >0 */}
+                    <LiveCardViewers auctionId={it.id} />
+                  </>
+                ) : (
+                  'รอเปิดประมูล'
+                )}
               </p>
             </div>
           </Link>

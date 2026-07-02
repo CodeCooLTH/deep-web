@@ -29,6 +29,7 @@ import { toast } from 'react-toastify'
 import type { PublicAuctionDTO, BidDTO } from '@/services/auction.service'
 import type { SellerTrust } from '@/services/app-shop.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { useAuctionPresence } from '@/hooks/useAuctionPresence'
 
 import MobileFrame from '../../o/[token]/MobileFrame'
 import AuctionNavbar from './AuctionNavbar'
@@ -129,6 +130,8 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
 
   const isLive = status === 'live'
   const isTerminal = status === 'ended' || status === 'unsold' || status === 'cancelled'
+  // feat 00006: จำนวนผู้ชมกำลังดู (live เท่านั้น) — Supabase Presence channel แยก
+  const viewerCount = useAuctionPresence(auction.id, isLive)
 
   // S-A5: เนื้อหาส่วนล่าง (PriceChart→LiveState→meta-strip→BidPanel/ResultCard→BidHistory)
   // เหมือนกันทุก prop ทั้ง 2 breakpoint — ต่างกันแค่ hero wrapper กับ container ด้านนอก จึงแยก
@@ -257,6 +260,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
                 imageUrl={auction.imageUrl}
                 status={status}
                 hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
+                viewerCount={isLive ? viewerCount : 0}
               />
             </Box>
 
@@ -271,6 +275,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
             imageUrl={auction.imageUrl}
             status={status}
             hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
+            viewerCount={isLive ? viewerCount : 0}
           />
 
           {/* pb เผื่อ sticky bid bar (isLive) กันบังการ์ดสุดท้าย */}

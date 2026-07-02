@@ -33,6 +33,8 @@ type Props = {
     bidCount: number
     endTimeMs: number
   }
+  /** จำนวนผู้ชมกำลังดู (feat 00006) — >0 = แสดง pill "กำลังดู" (mockup .watch); 0 = ซ่อน */
+  viewerCount?: number
 }
 
 function formatRemain(ms: number): string {
@@ -44,7 +46,7 @@ function formatRemain(ms: number): string {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
 }
 
-// ป้ายสถานะ — ตัด "กำลังดู N คน" ออกตาม Controller OQ (ไม่มี viewer data จริง)
+// ป้ายสถานะ (viewer count "กำลังดู" เพิ่มกลับแล้ว — feat 00006 Supabase Presence)
 const STATUS_BADGE: Record<PublicAuctionDTO['status'], { label: string; bg: string; dot?: string }> = {
   draft: { label: 'ร่าง', bg: 'rgba(100,116,139,.85)' },
   scheduled: { label: 'เร็ว ๆ นี้', bg: 'rgba(37,99,235,.88)' },
@@ -54,7 +56,7 @@ const STATUS_BADGE: Record<PublicAuctionDTO['status'], { label: string; bg: stri
   cancelled: { label: 'ยกเลิกแล้ว', bg: 'rgba(100,116,139,.85)' },
 }
 
-export default function AuctionHero({ title, imageUrl, status, hud }: Props) {
+export default function AuctionHero({ title, imageUrl, status, hud, viewerCount = 0 }: Props) {
   const badge = STATUS_BADGE[status]
 
   // countdown สำหรับ HUD (tick 1s) — pattern เดียวกับ AuctionLiveState (useState(()=>Date.now())+interval)
@@ -161,6 +163,32 @@ export default function AuctionHero({ title, imageUrl, status, hud }: Props) {
         )}
         {badge.label}
       </Box>
+
+      {/* viewer count "กำลังดู" (feat 00006) — ใต้ status badge, แสดงเมื่อมีผู้ชม (mockup .watch) */}
+      {viewerCount > 0 && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 50,
+            right: 14,
+            zIndex: 3,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            px: '10px',
+            py: '4px',
+            borderRadius: 999,
+            bgcolor: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(4px)',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          <Icon icon='tabler-eye' fontSize={13} />
+          {viewerCount.toLocaleString()} กำลังดู
+        </Box>
+      )}
 
       {/* ชื่อ + HUD (ราคา/countdown) — วางบน scrim ล่างสุด (mockup .ov-bot/.hud) */}
       <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, px: '18px', pb: '16px' }}>

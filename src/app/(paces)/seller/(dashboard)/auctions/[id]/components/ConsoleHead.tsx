@@ -27,9 +27,11 @@ type Props = {
   title: string
   imageUrl: string
   status: AuctionStatus
+  /** จำนวนผู้ชมกำลังดู (feat 00006) — >0 = แสดง chip; live เท่านั้น (parent ส่ง 0 เมื่อไม่ live) */
+  viewerCount?: number
 }
 
-export default function ConsoleHead({ id, title, imageUrl, status }: Props) {
+export default function ConsoleHead({ id, title, imageUrl, status, viewerCount = 0 }: Props) {
   const { endEarly, endingEarly, cancel, cancelling, publish, publishing, share } = useAuctionActions(id)
 
   const thumbSrc = imageUrl.startsWith('http') ? imageUrl : `/api/files/${imageUrl}`
@@ -51,6 +53,13 @@ export default function ConsoleHead({ id, title, imageUrl, status }: Props) {
               {status === 'live' && <span className="size-1.5 animate-pulse rounded-full bg-success" />}
               {STATUS_LABEL[status]}
             </span>
+            {/* viewer count กำลังดู (feat 00006) — live เท่านั้น */}
+            {viewerCount > 0 && (
+              <span className="ms-1 inline-flex items-center gap-1 rounded-full bg-default-100 px-2 py-0.5 text-xs font-medium text-default-600">
+                <Icon icon="eye" className="text-2xs" />
+                {viewerCount.toLocaleString()} กำลังดู
+              </span>
+            )}
             <h4 className="mt-1 truncate text-base text-default-900 sm:text-lg">{title}</h4>
           </div>
         </div>
