@@ -11,6 +11,8 @@
  *              SellerMobileHeader ไม่มี lg:hidden ในตัว → ครอบที่นี่แทนเพื่อไม่กระทบ desktop ≥lg
  * - CC-v6 T1: เพิ่ม bottomNavSlot (optional) — render ท้าย .wrapper + ครอบ lg:hidden
  *   (SellerBottomNav position:fixed; ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; admin ไม่ส่ง → ไม่กระทบ)
+ * - feat 00008 P3-3: เพิ่ม hasBusinessMembership (optional, default false) — thread ผ่านไป Sidenav
+ *   → AccountSwitcher เท่านั้น admin ไม่ส่ง → ไม่กระทบ (additive)
  */
 'use client'
 import Footer from '@/layouts/components/Footer'
@@ -30,9 +32,19 @@ type VerticalLayoutProps = {
   bottomNavSlot?: ReactNode
   /** เนื้อหาใต้เมนูใน sidebar (เช่น onboarding checklist ของ seller) — admin ไม่ส่ง → ไม่กระทบ */
   sidenavFooterSlot?: ReactNode
+  /** feat 00008 P3-3 — จาก session.user.hasBusinessMembership; ไม่ส่ง = false → AccountSwitcher ซ่อน */
+  hasBusinessMembership?: boolean
 }
 
-const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot, bottomNavSlot, sidenavFooterSlot }: VerticalLayoutProps) => {
+const VerticalLayout = ({
+  children,
+  menuItems,
+  shellClassName,
+  topbarSlot,
+  bottomNavSlot,
+  sidenavFooterSlot,
+  hasBusinessMembership,
+}: VerticalLayoutProps) => {
   // รวม class: "wrapper" เสมอ + shellClassName ถ้าส่งมา (admin ไม่ส่ง → ไม่เพิ่ม)
   const wrapperClass = shellClassName ? `wrapper ${shellClassName}` : 'wrapper'
 
@@ -41,7 +53,7 @@ const VerticalLayout = ({ children, menuItems, shellClassName, topbarSlot, botto
       <TopBar />
       {/* topbarSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
       {topbarSlot && <div className="lg:hidden">{topbarSlot}</div>}
-      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} />
+      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} hasBusinessMembership={hasBusinessMembership} />
       <div className="page-content">
         <main>
           <div className="container-fluid">{children}</div>
