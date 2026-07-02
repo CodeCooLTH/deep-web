@@ -120,8 +120,8 @@ export default function AuctionListClient({ auctions, activeStatus }: Props) {
         })}
       </div>
 
-      {/* ─── Desktop (≥lg): DataTable ─── */}
-      <div className="hidden lg:block">
+      {/* ─── Tablet/Desktop (≥md): DataTable ─── */}
+      <div className="hidden md:block">
         <AuctionDataTable
           auctions={filtered}
           onPublishRequest={handlePublishRequest}
@@ -129,8 +129,8 @@ export default function AuctionListClient({ auctions, activeStatus }: Props) {
         />
       </div>
 
-      {/* ─── Mobile/Tablet (<lg): search + create + flat row list ─── */}
-      <div className="lg:hidden">
+      {/* ─── Mobile (<md): search + create + flat row list ─── */}
+      <div className="md:hidden">
         <div className="mb-3 flex items-center gap-2">
           <div className="relative flex-1">
             <Icon
