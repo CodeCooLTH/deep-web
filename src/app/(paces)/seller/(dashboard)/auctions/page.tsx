@@ -26,6 +26,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import AuctionStatStrip from './components/AuctionStatStrip'
 import AuctionListClient from './components/AuctionListClient'
+import AuctionLiveStrip, { type LiveStripItem } from './components/AuctionLiveStrip'
 import { STATUS_TABS, type AuctionStatus } from './components/data'
 
 export const metadata: Metadata = { title: 'การประมูล' }
@@ -106,6 +107,38 @@ export default async function AuctionsPage({ searchParams }: PageProps) {
   ).length
   const liveTotal = liveItems.reduce((s, a) => s + a.currentPrice, 0)
 
+  // livestrip (desktop) = live + scheduled ตาม mockup D1 — ต้องมี watchCount (COUNT WatchList)
+  // "142 กำลังดู" ใน mockup = concurrent viewer ที่ระบบไม่มี → ใช้ "ติดตาม N" (WatchList) แทน
+  const stripSource = auctions.filter((a) => a.status === 'live' || a.status === 'scheduled')
+  let watchCountMap = new Map<string, number>()
+  try {
+    if (stripSource.length > 0) {
+      const grouped = await prisma.watchList.groupBy({
+        by: ['auctionId'],
+        where: { auctionId: { in: stripSource.map((a) => a.id) } },
+        _count: { auctionId: true },
+      })
+      watchCountMap = new Map(grouped.map((g) => [g.auctionId, g._count.auctionId]))
+    }
+  } catch {
+    watchCountMap = new Map()
+  }
+  // live ก่อน แล้วตามด้วย scheduled (ตามลำดับ mockup)
+  const stripItems: LiveStripItem[] = [
+    ...stripSource.filter((a) => a.status === 'live'),
+    ...stripSource.filter((a) => a.status === 'scheduled'),
+  ].map((a) => ({
+    id: a.id,
+    title: a.title,
+    imageUrl: a.imageUrl,
+    currentPrice: a.currentPrice,
+    bidCount: a.bidCount,
+    endTimeMs: a.endTimeMs,
+    startTimeMs: a.startTimeMs,
+    status: a.status as 'live' | 'scheduled',
+    watchCount: watchCountMap.get(a.id) ?? 0,
+  }))
+
   const requestedStatus =
     sp.status && VALID_STATUSES.includes(sp.status as AuctionStatus) ? (sp.status as AuctionStatus) : undefined
   const activeStatus = requestedStatus ?? 'all'
@@ -122,6 +155,8 @@ export default async function AuctionsPage({ searchParams }: PageProps) {
         liveTotal={liveTotal}
         closingSoonCount={closingSoonCount}
       />
+
+      <AuctionLiveStrip items={stripItems} />
 
       <AuctionListClient auctions={auctions} activeStatus={activeStatus} />
     </>

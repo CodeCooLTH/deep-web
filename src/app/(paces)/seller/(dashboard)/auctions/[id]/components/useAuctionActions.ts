@@ -112,5 +112,17 @@ export function useAuctionActions(auctionId: string) {
     }
   }
 
-  return { endEarly, endingEarly, cancel, cancelling, publish, publishing }
+  /** แชร์ลิงก์ประมูลสาธารณะ (buyer /a/{id}) — copy clipboard (ย้ายจาก ConsoleHead ให้ action bar ใช้ร่วม) */
+  const share = async () => {
+    const base = (process.env.NEXT_PUBLIC_BUYER_URL ?? '').trim().replace(/\/$/, '')
+    const url = `${base}/a/${auctionId}`
+    try {
+      await navigator.clipboard.writeText(url)
+      pacesToast.success('คัดลอกลิงก์ประมูลแล้ว')
+    } catch {
+      pacesToast.error('คัดลอกลิงก์ไม่สำเร็จ')
+    }
+  }
+
+  return { endEarly, endingEarly, cancel, cancelling, publish, publishing, share }
 }

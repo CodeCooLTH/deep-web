@@ -40,6 +40,14 @@ const STATUS_BADGE: Record<PublicAuctionDTO['status'], { label: string; bg: stri
 export default function AuctionHero({ title, imageUrl, status }: Props) {
   const badge = STATUS_BADGE[status]
 
+  // imageUrl จาก DTO เป็น storage key ดิบ (เช่น "xxx.jpeg") — ต้อง prefix /api/files/ เหมือน seller
+  // (AuctionRow/ConsoleHead) มิเช่นนั้น browser โหลด url สัมพัทธ์ /a/{key} → 404 → hero ดำ
+  const resolvedImg = imageUrl
+    ? imageUrl.startsWith('http')
+      ? imageUrl
+      : `/api/files/${imageUrl}`
+    : null
+
   return (
     <Box
       sx={{
@@ -47,7 +55,7 @@ export default function AuctionHero({ title, imageUrl, status }: Props) {
         height: { xs: 300, md: 380 },
         overflow: 'hidden',
         bgcolor: '#0F172A',
-        backgroundImage: `url(${imageUrl})`,
+        backgroundImage: resolvedImg ? `url("${resolvedImg}")` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',

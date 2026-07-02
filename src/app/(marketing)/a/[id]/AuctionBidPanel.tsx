@@ -164,19 +164,21 @@ export default function AuctionBidPanel({
     <>
       <Box
         sx={{
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 5,
+          // xs: sticky bottom bar (เดิม) — sm+: การ์ด in-flow ปกติ เหมือนการ์ดพี่น้อง (meta-strip/
+          // AuctionPriceChart/AuctionBidHistory) ตาม pattern responsive-breakpoint จาก AuctionNavbar (S-A4)
+          position: { xs: 'sticky', sm: 'static' },
+          bottom: { xs: 0, sm: 'auto' },
+          zIndex: { xs: 5, sm: 'auto' },
           bgcolor: '#fff',
-          borderTop: '1px solid #EEF2F7',
-          borderRadius: '14px 14px 0 0',
-          boxShadow: '0 -4px 16px rgba(15,23,42,.08)',
-          px: '14px',
-          pt: '10px',
-          pb: '12px',
+          borderTop: { xs: '1px solid #EEF2F7', sm: 'none' },
+          borderRadius: { xs: '14px 14px 0 0', sm: '14px' },
+          boxShadow: { xs: '0 -4px 16px rgba(15,23,42,.08)', sm: '0 1px 2px rgba(15,23,42,.06)' },
+          px: { xs: '14px', sm: '20px' },
+          pt: { xs: '10px', sm: '18px' },
+          pb: { xs: '12px', sm: '18px' },
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: { xs: '8px', sm: '10px' },
         }}
       >
         {/* quick-bid chips (+increment×1/×2/×4) + toggle custom input */}
@@ -233,8 +235,9 @@ export default function AuctionBidPanel({
           />
         )}
 
-        {/* ปุ่มติดตาม (♡) + ปุ่มเสนอราคาหลัก */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* ปุ่มติดตาม (♡) + เสนอราคา + ซื้อทันที — xs/sm: wrap (ซื้อทันทีตกแถวเต็มความกว้างของตัวเอง
+            ตาม T4), md+: nowrap รวมแถวเดียว (ตาม D6) */}
+        <Box sx={{ display: 'flex', flexWrap: { xs: 'wrap', md: 'nowrap' }, alignItems: 'stretch', gap: '8px' }}>
           <IconButton
             onClick={toggleWatch}
             disabled={watchLoading}
@@ -245,13 +248,13 @@ export default function AuctionBidPanel({
               border: '1px solid #E2E8F0',
               borderRadius: '12px',
               color: watching ? '#DC2626' : '#94A3B8',
+              flexShrink: 0,
             }}
           >
             <Icon icon={watching ? 'tabler-heart-filled' : 'tabler-heart'} fontSize={20} />
           </IconButton>
 
           <Button
-            fullWidth
             onClick={handleBid}
             disabled={bidding}
             sx={{
@@ -265,6 +268,8 @@ export default function AuctionBidPanel({
               lineHeight: 1.25,
               '&:hover': { bgcolor: '#1E293B' },
               '&.Mui-disabled': { bgcolor: '#0F172A', opacity: 0.6, color: '#fff' },
+              flex: '1 1 auto',
+              minWidth: 0,
             }}
           >
             <Typography component="span" sx={{ fontSize: 13.5, fontWeight: 700, color: 'inherit' }}>
@@ -276,30 +281,32 @@ export default function AuctionBidPanel({
               </Typography>
             )}
           </Button>
-        </Box>
 
-        {buyNowPrice != null && (
-          <Button
-            fullWidth
-            onClick={() => {
-              if (requireLogin()) return
-              setBuyNowOpen(true)
-            }}
-            startIcon={<Icon icon="tabler-bolt" fontSize={16} />}
-            sx={{
-              height: 40,
-              bgcolor: '#FEF3E2',
-              color: '#B45309',
-              borderRadius: '11px',
-              textTransform: 'none',
-              fontWeight: 700,
-              fontSize: 13,
-              '&:hover': { bgcolor: '#FDE9C8' },
-            }}
-          >
-            ซื้อทันที ฿{buyNowPrice.toLocaleString()}
-          </Button>
-        )}
+          {buyNowPrice != null && (
+            <Button
+              onClick={() => {
+                if (requireLogin()) return
+                setBuyNowOpen(true)
+              }}
+              startIcon={<Icon icon="tabler-bolt" fontSize={16} />}
+              sx={{
+                height: { xs: 40, md: 'auto' },
+                bgcolor: '#FEF3E2',
+                color: '#B45309',
+                borderRadius: '11px',
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: 13,
+                '&:hover': { bgcolor: '#FDE9C8' },
+                flex: { xs: '1 1 100%', md: '0 0 auto' },
+                width: { xs: '100%', md: 'auto' },
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ซื้อทันที ฿{buyNowPrice.toLocaleString()}
+            </Button>
+          )}
+        </Box>
       </Box>
 
       <Dialog open={buyNowOpen} onClose={() => (buyNowLoading ? undefined : setBuyNowOpen(false))}>

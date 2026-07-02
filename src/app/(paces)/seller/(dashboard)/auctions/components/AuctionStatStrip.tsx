@@ -8,7 +8,7 @@
  *   ตรงกับ mockup FRAME1 `.stat-mini`/D1 `.stat` ที่ไม่มี sparkline เช่นกัน (icon+value+subtext
  *   แทน — pattern เดียวกับ dashboard/components/StatisticCard.tsx)
  *
- * responsive: mobile <lg = การ์ดเล็ก scroll-x (`.stat-mini`); desktop ≥lg = grid 4 คอลัมน์เต็ม (`.stat`)
+ * responsive: mobile <md = การ์ดเล็ก scroll-x (`.stat-mini`); tablet md = grid 2 คอลัมน์เต็ม; desktop ≥lg = grid 4 คอลัมน์เต็ม (`.stat`)
  * เป็น RSC ล้วน (ไม่มี 'use client') — CountUp เป็น client leaf component ฝังได้ปกติ (เหมือน StatisticCard.tsx)
  */
 
@@ -72,7 +72,7 @@ export default function AuctionStatStrip({ liveCount, bidsToday, liveTotal, clos
   return (
     <>
       {/* mobile: scroll-x compact stat card */}
-      <div className="mb-3 flex gap-2.5 overflow-x-auto pb-1 lg:hidden [&::-webkit-scrollbar]:hidden">
+      <div className="mb-3 flex gap-2.5 overflow-x-auto pb-1 md:hidden [&::-webkit-scrollbar]:hidden">
         {items.map((it) => (
           <div key={it.label} className="card min-w-36 shrink-0">
             <div className="card-body !p-3">
@@ -86,8 +86,8 @@ export default function AuctionStatStrip({ liveCount, bidsToday, liveTotal, clos
         ))}
       </div>
 
-      {/* desktop: grid 4 คอลัมน์ เต็มรูปแบบ (icon + value + subtext) */}
-      <div className="mb-base hidden gap-base lg:grid lg:grid-cols-4">
+      {/* tablet/desktop: grid การ์ดเต็มรูปแบบ (icon + value + subtext) — md=2 คอลัมน์, lg=4 คอลัมน์ */}
+      <div className="mb-base hidden gap-base md:grid md:grid-cols-2 lg:grid-cols-4">
         {items.map((it) => (
           <div key={it.label} className="card">
             <div className="card-body">

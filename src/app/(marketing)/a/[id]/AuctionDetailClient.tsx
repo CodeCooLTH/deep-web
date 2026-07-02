@@ -20,6 +20,8 @@ import { useRouter } from 'next/navigation'
 
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
@@ -29,6 +31,7 @@ import type { SellerTrust } from '@/services/app-shop.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 import MobileFrame from '../../o/[token]/MobileFrame'
+import AuctionNavbar from './AuctionNavbar'
 import AuctionHero from './AuctionHero'
 import AuctionPriceChart from './AuctionPriceChart'
 import AuctionLiveState from './AuctionLiveState'
@@ -51,6 +54,9 @@ type ConnectionState = 'live' | 'reconnecting'
 
 export default function AuctionDetailClient({ auction, seller, isWinner, initialWatching }: Props) {
   const router = useRouter()
+  // S-A5: จอกว้าง ≥sm แสดง web layout กลางจอ (ไม่มีกรอบมือถือ) — pattern เดียวกับ
+  // src/components/layout/front-pages/Header.tsx:16,41
+  const isWide = useMediaQuery((theme: Theme) => theme.breakpoints.up('sm'))
 
   const [currentPrice, setCurrentPrice] = useState(auction.currentPrice)
   const [bidCount, setBidCount] = useState(auction.bidCount)
@@ -124,91 +130,137 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   const isLive = status === 'live'
   const isTerminal = status === 'ended' || status === 'unsold' || status === 'cancelled'
 
-  return (
-    <MobileFrame bg="#F3F5F8">
-      <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
+  // S-A5: เนื้อหาส่วนล่าง (PriceChart→LiveState→meta-strip→BidPanel/ResultCard→BidHistory)
+  // เหมือนกันทุก prop ทั้ง 2 breakpoint — ต่างกันแค่ hero wrapper กับ container ด้านนอก จึงแยก
+  // มาเป็นตัวแปรกลาง กัน prop drift ระหว่าง branch (mobile MobileFrame เดิม vs wide web layout ใหม่)
+  const sections = (
+    <>
+      <AuctionPriceChart bidHistory={bidHistory} />
 
-      <Box sx={{ px: '16px', py: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <AuctionPriceChart bidHistory={bidHistory} />
+      <AuctionLiveState
+        status={status}
+        endTimeMs={endTimeMs}
+        startTimeMs={auction.startTimeMs}
+        antiSnipeCount={antiSnipeCount}
+      />
 
-        <AuctionLiveState
-          status={status}
-          endTimeMs={endTimeMs}
-          startTimeMs={auction.startTimeMs}
-          antiSnipeCount={antiSnipeCount}
-        />
-
-        {/* meta-strip — ราคาเริ่ม/ขั้นบิด/มีขั้นต่ำไหม/ผู้ขาย trust ย่อ (visual ref: mockup .meta-strip, asset เท่านั้น) */}
-        <Box
-          sx={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            columnGap: '16px',
-            rowGap: '6px',
-            px: '14px',
-            py: '10px',
-            bgcolor: '#fff',
-            borderRadius: '12px',
-            boxShadow: '0 1px 2px rgba(15,23,42,.06)',
-          }}
-        >
-          <Typography sx={{ fontSize: 12, color: '#64748B' }}>
-            เริ่ม <Box component="b" sx={{ color: '#0F172A' }}>฿{auction.startPrice.toLocaleString()}</Box>
+      {/* meta-strip — ราคาเริ่ม/ขั้นบิด/มีขั้นต่ำไหม/ผู้ขาย trust ย่อ (visual ref: mockup .meta-strip, asset เท่านั้น) */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          columnGap: '16px',
+          rowGap: '6px',
+          px: '14px',
+          py: '10px',
+          bgcolor: '#fff',
+          borderRadius: '12px',
+          boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+        }}
+      >
+        <Typography sx={{ fontSize: 12, color: '#64748B' }}>
+          เริ่ม <Box component="b" sx={{ color: '#0F172A' }}>฿{auction.startPrice.toLocaleString()}</Box>
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: '#64748B' }}>
+          ขั้นบิด <Box component="b" sx={{ color: '#0F172A' }}>฿{auction.bidIncrement.toLocaleString()}</Box>
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: '#64748B' }}>
+          ขั้นต่ำ <Box component="b" sx={{ color: '#0F172A' }}>{auction.hasReserve ? 'มี' : 'ไม่มี'}</Box>
+        </Typography>
+        {seller && (
+          <Typography sx={{ fontSize: 12, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            ผู้ขาย <Box component="b" sx={{ color: '#0F172A' }}>{seller.name}</Box>
+            {seller.verified && (
+              <Icon icon="tabler-rosette-discount-check-filled" style={{ color: '#2563EB', fontSize: 14 }} />
+            )}
           </Typography>
-          <Typography sx={{ fontSize: 12, color: '#64748B' }}>
-            ขั้นบิด <Box component="b" sx={{ color: '#0F172A' }}>฿{auction.bidIncrement.toLocaleString()}</Box>
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: '#64748B' }}>
-            ขั้นต่ำ <Box component="b" sx={{ color: '#0F172A' }}>{auction.hasReserve ? 'มี' : 'ไม่มี'}</Box>
-          </Typography>
-          {seller && (
-            <Typography sx={{ fontSize: 12, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              ผู้ขาย <Box component="b" sx={{ color: '#0F172A' }}>{seller.name}</Box>
-              {seller.verified && (
-                <Icon icon="tabler-rosette-discount-check-filled" style={{ color: '#2563EB', fontSize: 14 }} />
-              )}
-            </Typography>
-          )}
-        </Box>
-
-        {isLive && (
-          <AuctionBidPanel
-            auctionId={auction.id}
-            currentPrice={currentPrice}
-            bidIncrement={auction.bidIncrement}
-            buyNowPrice={auction.buyNowPrice}
-            initialWatching={initialWatching}
-            onBidSuccess={(next) => {
-              setCurrentPrice(next.currentPrice)
-              setBidCount(next.bidCount)
-              setEndTimeMs(next.endTimeMs)
-              setAntiSnipeCount(next.antiSnipeCount)
-              setStatus(next.status)
-              // ซื้อทันที/บิดที่ trigger settle ทำให้ status พลิกเป็น terminal ทันที — refresh RSC
-              // เพื่อคำนวณ isWinner ใหม่จาก session (buy-now ของ user นี้เอง = isWinner ต้องเป็น true)
-              if (next.status !== 'live') router.refresh()
-            }}
-          />
         )}
-
-        {/* status ไม่ live: ended/unsold/cancelled → การ์ดสรุปผล (AuctionResultCard ไม่รองรับ 'scheduled'/'draft'
-            ในสัญญา prop เดิม — 2 สถานะนี้ปล่อยให้ AuctionLiveState สื่อสารพอ ไม่มี panel ใด ๆ ต่อท้าย) */}
-        {isTerminal && (
-          <AuctionResultCard
-            status={status as 'ended' | 'unsold' | 'cancelled'}
-            currentPrice={currentPrice}
-            hasReserve={auction.hasReserve}
-            winnerDisplayName={bidHistory[0]?.bidder ?? null}
-            isWinner={isWinner}
-          />
-        )}
-
-        <AuctionBidHistory
-          bidHistory={bidHistory}
-          bidCount={bidCount}
-          connectionState={isLive ? connectionState : undefined}
-        />
       </Box>
-    </MobileFrame>
+
+      {isLive && (
+        <AuctionBidPanel
+          auctionId={auction.id}
+          currentPrice={currentPrice}
+          bidIncrement={auction.bidIncrement}
+          buyNowPrice={auction.buyNowPrice}
+          initialWatching={initialWatching}
+          onBidSuccess={(next) => {
+            setCurrentPrice(next.currentPrice)
+            setBidCount(next.bidCount)
+            setEndTimeMs(next.endTimeMs)
+            setAntiSnipeCount(next.antiSnipeCount)
+            setStatus(next.status)
+            // ซื้อทันที/บิดที่ trigger settle ทำให้ status พลิกเป็น terminal ทันที — refresh RSC
+            // เพื่อคำนวณ isWinner ใหม่จาก session (buy-now ของ user นี้เอง = isWinner ต้องเป็น true)
+            if (next.status !== 'live') router.refresh()
+          }}
+        />
+      )}
+
+      {/* status ไม่ live: ended/unsold/cancelled → การ์ดสรุปผล (AuctionResultCard ไม่รองรับ 'scheduled'/'draft'
+          ในสัญญา prop เดิม — 2 สถานะนี้ปล่อยให้ AuctionLiveState สื่อสารพอ ไม่มี panel ใด ๆ ต่อท้าย) */}
+      {isTerminal && (
+        <AuctionResultCard
+          status={status as 'ended' | 'unsold' | 'cancelled'}
+          currentPrice={currentPrice}
+          hasReserve={auction.hasReserve}
+          winnerDisplayName={bidHistory[0]?.bidder ?? null}
+          isWinner={isWinner}
+        />
+      )}
+
+      <AuctionBidHistory
+        bidHistory={bidHistory}
+        bidCount={bidCount}
+        connectionState={isLive ? connectionState : undefined}
+      />
+    </>
+  )
+
+  return (
+    <>
+      {/* S-A4: navbar อยู่นอก MobileFrame/wide-layout ตั้งใจ — sm+ เท่านั้น (แสดง/ซ่อนคุมเองภายใน),
+          MobileFrame เดิมไม่ถูกแตะ (OOS-7) */}
+      <AuctionNavbar auctionId={auction.id} />
+      {isWide ? (
+        // S-A5: ≥sm — web layout กว้าง ~840px กลางจอ (ไม่มีกรอบมือถือ/ไม่มี backdrop เทาแบบ MobileFrame)
+        <Box sx={{ bgcolor: '#F3F5F8', minHeight: '100dvh' }}>
+          <Box
+            sx={{
+              maxWidth: 840,
+              mx: 'auto',
+              px: { sm: '24px', md: '32px' },
+              py: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <Box
+              sx={{
+                borderRadius: '14px',
+                overflow: 'hidden',
+                border: '1px solid',
+                borderColor: 'divider',
+                boxShadow: '0 1px 2px rgba(15,23,42,.06)',
+              }}
+            >
+              <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
+            </Box>
+
+            {sections}
+          </Box>
+        </Box>
+      ) : (
+        // xs (<600) — MobileFrame เดิม ไม่แตะ/ไม่เปลี่ยนพฤติกรรม
+        <MobileFrame bg="#F3F5F8">
+          <AuctionHero title={auction.title} imageUrl={auction.imageUrl} status={status} />
+
+          <Box sx={{ px: '16px', py: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {sections}
+          </Box>
+        </MobileFrame>
+      )}
+    </>
   )
 }
