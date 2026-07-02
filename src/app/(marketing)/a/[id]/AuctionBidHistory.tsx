@@ -114,7 +114,13 @@ export default function AuctionBidHistory({ bidHistory, bidCount, connectionStat
               const isLeader = idx === 0 // bidHistory เรียง createdAt desc → รายการแรก = leader เสมอ (ราคาขึ้นทางเดียว)
               return (
                 <Box key={bid.id} sx={{ display: 'flex', gap: '10px', py: '9px' }}>
-                  <CustomAvatar size={32} skin='light' color={isLeader ? 'primary' : undefined}>
+                  {/* avatar จริง (MUI Avatar fallback children=initials อัตโนมัติเมื่อ src null/โหลดพลาด) */}
+                  <CustomAvatar
+                    size={32}
+                    skin='light'
+                    color={isLeader ? 'primary' : undefined}
+                    src={bid.avatar ? (bid.avatar.startsWith('http') ? bid.avatar : `/api/files/${bid.avatar}`) : undefined}
+                  >
                     {getInitials(bid.bidder)}
                   </CustomAvatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>

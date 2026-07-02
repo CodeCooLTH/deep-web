@@ -73,9 +73,10 @@ export type SellerAuctionListItemDTO = Pick<
 >
 
 /** ไม่มี field ใหม่ — reuse ของเดิม 100% */
-// level: bidder level (ladder จาก successfulBidCount, feat 00002 TFR-016/SDS §6) — ไม่ใช่ PII
-// (reputation ล้วน; §5.5 ห้ามแค่ phone/email/bidderId ซึ่งยังไม่มีใน DTO นี้)
-export type BidDTO = { id: string; amount: number; bidder: string; atMs: number; level: AuctionLevel }
+// level: bidder level (ladder จาก successfulBidCount, feat 00002 TFR-016/SDS §6) — ไม่ใช่ PII (reputation)
+// avatar: รูปโปรไฟล์ bidder (null → initials fallback ที่ client) — เปิดเผยต่อสาธารณะอยู่แล้วที่ /u/[username]
+//   (PDPA: incremental risk ต่ำ). §5.5 amend: bid list = displayName + level + avatar (ยังห้าม phone/email/bidderId)
+export type BidDTO = { id: string; amount: number; bidder: string; atMs: number; level: AuctionLevel; avatar: string | null }
 
 /** @deprecated ใช้ `PublicAuctionDTO` แทน — คง alias ไว้กัน caller เดิม (เช่น import ชื่อ type นี้ในอนาคต) ไม่พัง */
 export type AuctionDTO = PublicAuctionDTO
@@ -200,7 +201,7 @@ export async function getAuctionDetail(
       bids: {
         orderBy: { createdAt: 'desc' },
         take: 20,
-        include: { bidder: { select: { displayName: true, successfulBidCount: true } } },
+        include: { bidder: { select: { displayName: true, successfulBidCount: true, avatar: true } } },
       },
     },
   })
@@ -213,6 +214,7 @@ export async function getAuctionDetail(
       bidder: b.bidder.displayName,
       atMs: b.createdAt.getTime(),
       level: getAuctionLevel(b.bidder.successfulBidCount),
+      avatar: b.bidder.avatar,
     })),
   }
 }
@@ -1018,7 +1020,7 @@ export async function getSellerAuctionDetail(
       bids: {
         orderBy: { createdAt: 'desc' },
         take: 20,
-        include: { bidder: { select: { displayName: true, successfulBidCount: true } } },
+        include: { bidder: { select: { displayName: true, successfulBidCount: true, avatar: true } } },
       },
     },
   })
@@ -1027,9 +1029,10 @@ export async function getSellerAuctionDetail(
   const history: BidDTO[] = a.bids.map((b) => ({
     id: b.id,
     amount: Number(b.amount),
-    bidder: b.bidder.displayName, // displayName เท่านั้น — ไม่มี phone/email/bidderId (SRS §5.5 ข้อ 2)
+    bidder: b.bidder.displayName, // displayName + level + avatar (§5.5 amend) — ยังไม่มี phone/email/bidderId
     atMs: b.createdAt.getTime(),
-    level: getAuctionLevel(b.bidder.successfulBidCount), // level = reputation (ไม่ใช่ PII, TFR-016)
+    level: getAuctionLevel(b.bidder.successfulBidCount), // reputation (ไม่ใช่ PII, TFR-016)
+    avatar: b.bidder.avatar, // null → initials fallback ที่ client
   }))
 
   // orderId (Batch E#11) — Order ไม่มี @relation field กลับไปหา Auction ใน schema (มีแค่

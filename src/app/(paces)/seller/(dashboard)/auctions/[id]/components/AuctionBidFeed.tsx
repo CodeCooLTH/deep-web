@@ -51,6 +51,33 @@ function getInitial(name: string): string {
   return first ? first.toUpperCase() : '?'
 }
 
+/** avatar bidder (รูปจริง + fallback initials) — avatar อาจเป็น http URL (FB) หรือ storage key */
+function BidderAvatar({ avatar, name, isLeader }: { avatar: string | null; name: string; isLeader: boolean }) {
+  const [failed, setFailed] = useState(false)
+  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  if (!src || failed) {
+    return (
+      <span
+        className={`flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+          isLeader ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
+        }`}
+      >
+        {getInitial(name)}
+      </span>
+    )
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="size-9 shrink-0 rounded-full bg-default-100 object-cover"
+    />
+  )
+}
+
 export default function AuctionBidFeed({ bidHistory, bidCount, connectionState }: Props) {
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? bidHistory : bidHistory.slice(0, 5)
@@ -81,13 +108,7 @@ export default function AuctionBidFeed({ bidHistory, bidCount, connectionState }
               const isLeader = idx === 0
               return (
                 <li key={bid.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <span
-                    className={`flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                      isLeader ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
-                    }`}
-                  >
-                    {getInitial(bid.bidder)}
-                  </span>
+                  <BidderAvatar avatar={bid.avatar} name={bid.bidder} isLeader={isLeader} />
                   <div className="min-w-0 flex-1">
                     <p className="mb-0 flex items-center gap-1.5 text-sm font-medium text-default-800">
                       <span className="truncate">{bid.bidder}</span>
