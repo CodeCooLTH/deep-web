@@ -70,7 +70,7 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
   return (
     <div className="flex items-center justify-end gap-1.5">
       <CopyLinkButton value={url} label="คัดลอกลิงก์" className="min-h-11" />
-      {!isTerminal && <SendSmsButton publicToken={order.publicToken} compact className="min-h-11" />}
+      {!isTerminal && <SendSmsButton publicToken={order.publicToken} compact emphasis="primary" className="min-h-11" />}
       <OrderCardMenu
         token={order.publicToken}
         status={order.status}
