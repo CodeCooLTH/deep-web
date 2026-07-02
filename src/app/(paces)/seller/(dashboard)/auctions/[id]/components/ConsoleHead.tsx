@@ -19,7 +19,6 @@
 
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
-import { pacesToast } from '@/lib/paces-toast'
 import { STATUS_BADGE_CLASS, STATUS_LABEL, type AuctionStatus } from '../../components/data'
 import { useAuctionActions } from './useAuctionActions'
 
@@ -31,20 +30,9 @@ type Props = {
 }
 
 export default function ConsoleHead({ id, title, imageUrl, status }: Props) {
-  const { endEarly, endingEarly, cancel, cancelling, publish, publishing } = useAuctionActions(id)
+  const { endEarly, endingEarly, cancel, cancelling, publish, publishing, share } = useAuctionActions(id)
 
   const thumbSrc = imageUrl.startsWith('http') ? imageUrl : `/api/files/${imageUrl}`
-
-  const handleShare = async () => {
-    const base = (process.env.NEXT_PUBLIC_BUYER_URL ?? '').trim().replace(/\/$/, '')
-    const url = `${base}/a/${id}`
-    try {
-      await navigator.clipboard.writeText(url)
-      pacesToast.success('คัดลอกลิงก์ประมูลแล้ว')
-    } catch {
-      pacesToast.error('คัดลอกลิงก์ไม่สำเร็จ')
-    }
-  }
 
   return (
     <div className="card">
@@ -67,8 +55,8 @@ export default function ConsoleHead({ id, title, imageUrl, status }: Props) {
           </div>
         </div>
 
-        {/* action cluster ต่อ state */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {/* action cluster ต่อ state — desktop เท่านั้น (mobile ใช้ sticky bottom bar = AuctionConsoleActionBar) */}
+        <div className="hidden shrink-0 flex-wrap items-center gap-2 lg:flex">
           {status === 'live' && (
             <>
               <button
@@ -82,7 +70,7 @@ export default function ConsoleHead({ id, title, imageUrl, status }: Props) {
               </button>
               <button
                 type="button"
-                onClick={handleShare}
+                onClick={share}
                 className="btn border border-default-300 text-default-700 hover:bg-default-100 text-sm"
               >
                 <Icon icon="share" className="size-4" />

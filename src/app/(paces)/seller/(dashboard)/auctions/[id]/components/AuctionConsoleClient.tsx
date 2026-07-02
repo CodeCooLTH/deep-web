@@ -28,6 +28,7 @@ import type { SellerAuctionDTO } from '@/services/auction.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { pacesToast } from '@/lib/paces-toast'
 import ConsoleHead from './ConsoleHead'
+import AuctionConsoleActionBar from './AuctionConsoleActionBar'
 import AuctionStatCards from './AuctionStatCards'
 import AuctionControlPanel from './AuctionControlPanel'
 import AuctionInfoCard from './AuctionInfoCard'
@@ -116,7 +117,8 @@ export default function AuctionConsoleClient({ auction }: Props) {
   const isTerminal = status === 'ended' || status === 'unsold' || status === 'cancelled'
 
   return (
-    <div className="space-y-base">
+    // pb บน mobile กัน sticky action bar บังการ์ดล่างสุด (bar สูง ~68px + safe-area); desktop ไม่มี bar
+    <div className="space-y-base pb-24 lg:pb-0">
       <ConsoleHead
         id={auction.id}
         title={auction.title}
@@ -168,6 +170,9 @@ export default function AuctionConsoleClient({ auction }: Props) {
           <AuctionInfoCard auction={auction} />
         </div>
       </div>
+
+      {/* mobile sticky action bar (desktop ใช้ cluster ใน ConsoleHead แทน) */}
+      <AuctionConsoleActionBar id={auction.id} status={status} />
     </div>
   )
 }
