@@ -3,12 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // mock prisma ทั้ง module (test env ไม่มี DB) — pattern เดียวกับ activity.service.test
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    userBadge: { createMany: vi.fn(), findMany: vi.fn() },
+    userBadge: { createMany: vi.fn(), findMany: vi.fn(), groupBy: vi.fn() },
     badge: { findUnique: vi.fn(), findMany: vi.fn() },
     notification: { create: vi.fn() },
     verificationRecord: { findMany: vi.fn() },
     bidReaction: { count: vi.fn() },
     watchList: { count: vi.fn() },
+    user: { count: vi.fn() },
   },
 }))
 vi.mock('@/services/app-push.service', () => ({ pushToUser: vi.fn() }))
@@ -16,7 +17,7 @@ vi.mock('@/services/trust-score.service', () => ({ recalculateTrustScore: vi.fn(
 
 import { prisma } from '@/lib/prisma'
 import { pushToUser } from '@/services/app-push.service'
-import { awardBadge, notifyBadgeEarned, evaluateBadges, checkReactionCount, checkWatchlistCount } from '@/services/badge.service'
+import { awardBadge, notifyBadgeEarned, evaluateBadges, checkReactionCount, checkWatchlistCount, getUserBadgeRarityMap } from '@/services/badge.service'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -99,6 +100,39 @@ describe('checkWatchlistCount', () => {
   it('met=false เมื่อยังไม่ถึง', async () => {
     vi.mocked(prisma.watchList.count).mockResolvedValue(5 as never)
     expect(await checkWatchlistCount('u1', { type: 'WATCHLIST_COUNT', count: 10 })).toEqual({ met: false, count: 5 })
+  })
+})
+
+describe('getUserBadgeRarityMap', () => {
+  it('badgeIds ว่าง → Map ว่าง', async () => {
+    const m = await getUserBadgeRarityMap([])
+    expect(m.size).toBe(0)
+  })
+  it('userCount < 20 → gate: Map ว่าง (ไม่แสดง pill)', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(19 as never)
+    vi.mocked(prisma.userBadge.groupBy).mockResolvedValue([] as never)
+    const m = await getUserBadgeRarityMap(['b1'])
+    expect(m.size).toBe(0)
+  })
+  it('tier ตาม pct: 60%→COMMON, 30%→UNCOMMON, 10%→RARE, 2%→LEGENDARY', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(100 as never)
+    vi.mocked(prisma.userBadge.groupBy).mockResolvedValue([
+      { badgeId: 'bC', _count: { badgeId: 60 } },
+      { badgeId: 'bU', _count: { badgeId: 30 } },
+      { badgeId: 'bR', _count: { badgeId: 10 } },
+      { badgeId: 'bL', _count: { badgeId: 2 } },
+    ] as never)
+    const m = await getUserBadgeRarityMap(['bC', 'bU', 'bR', 'bL'])
+    expect(m.get('bC')).toBe('COMMON')
+    expect(m.get('bU')).toBe('UNCOMMON')
+    expect(m.get('bR')).toBe('RARE')
+    expect(m.get('bL')).toBe('LEGENDARY')
+  })
+  it('badge ที่ไม่มี earner (ไม่อยู่ใน groupBy) → LEGENDARY (0%)', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(100 as never)
+    vi.mocked(prisma.userBadge.groupBy).mockResolvedValue([] as never)
+    const m = await getUserBadgeRarityMap(['bNew'])
+    expect(m.get('bNew')).toBe('LEGENDARY')
   })
 })
 
