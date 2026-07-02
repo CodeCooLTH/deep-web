@@ -56,7 +56,7 @@ export default function VerifyOtpCard() {
   const params = useSearchParams()
 
   const phone = params.get('phone') ?? ''
-  const mode = (params.get('mode') ?? 'signin') as 'signin' | 'signup'
+  const mode = (params.get('mode') ?? 'signin') as 'signin' | 'signup' | 'reset'
   const displayName = params.get('name') ?? ''
   const username = params.get('username') ?? ''
   const safeCallbackUrl = getSafeCallbackUrl(params.get('callbackUrl'))
@@ -83,15 +83,33 @@ export default function VerifyOtpCard() {
     }
     setSubmitting(true)
     try {
+      if (mode === 'reset') {
+        // ไม่ consume OTP ที่นี่ (กัน double-consume) — set-password คือที่ verify จริง
+        sessionStorage.setItem('resetDraft', JSON.stringify({ phone, otp }))
+        router.push('/auth/new-pass')
+        return
+      }
+      // signin / signup
+      let password = ''
+      if (mode === 'signup') {
+        try {
+          const raw = sessionStorage.getItem('signupDraft')
+          if (raw) password = (JSON.parse(raw) as { password?: string }).password ?? ''
+        } catch {
+          /* draft เสีย → signup ต่อโดยไม่มี password (ตั้งภายหลัง reset) */
+        }
+      }
       const result = await signIn('phone-otp', {
         phone,
         otp,
         mode,
         displayName,
         username,
+        password,
         redirect: false,
       })
       if (result?.ok) {
+        if (mode === 'signup') sessionStorage.removeItem('signupDraft')
         router.push(safeCallbackUrl)
         return
       }
@@ -138,7 +156,9 @@ export default function VerifyOtpCard() {
             </div>
             <div className='flex flex-col gap-1 mbe-6'>
               <Typography variant='h4'>ยืนยันรหัส OTP 💬</Typography>
-              <Typography>กรอกรหัส 6 หลักที่ส่งไปยังเบอร์ของคุณ</Typography>
+              <Typography>
+                {mode === 'reset' ? 'ยืนยัน OTP เพื่อรีเซ็ตรหัสผ่าน' : 'กรอกรหัส 6 หลักที่ส่งไปยังเบอร์ของคุณ'}
+              </Typography>
               <Typography className='font-medium' color='text.primary'>
                 {masked}
               </Typography>

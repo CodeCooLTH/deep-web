@@ -13,6 +13,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
 import Typography from '@mui/material/Typography'
 
 // Third-party Imports
@@ -44,6 +45,15 @@ const schema = Yup.object({
   username: Yup.string()
     .matches(/^[a-zA-Z0-9_]{3,30}$/, 'ใช้ a-z, 0-9, _ ได้ 3-30 ตัว')
     .required('กรุณาตั้งชื่อผู้ใช้'),
+  password: Yup.string()
+    .min(8, 'อย่างน้อย 8 ตัวอักษร')
+    .matches(/[a-zA-Z]/, 'ต้องมีตัวอักษร')
+    .matches(/[0-9]/, 'ต้องมีตัวเลข')
+    .matches(/[\W_]/, 'ต้องมีอักขระพิเศษ')
+    .required('กรุณากรอกรหัสผ่าน'),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref('password')], 'รหัสผ่านไม่ตรงกัน')
+    .required('กรุณายืนยันรหัสผ่าน'),
 })
 
 type FormValues = Yup.InferType<typeof schema>
@@ -70,12 +80,15 @@ export default function SignUpCard() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { phone: '', displayName: '', username: '' },
+    defaultValues: { phone: '', displayName: '', username: '', password: '', confirmPassword: '' },
   })
 
   const username = watch('username')
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>({ state: 'idle' })
   const reqId = useRef(0)
+  // eye-toggle แยก field รหัสผ่าน/ยืนยันรหัสผ่าน (ตาม RegisterV1.tsx)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   useEffect(() => {
     if (!username) {
@@ -118,6 +131,8 @@ export default function SignUpCard() {
         toast.error('ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
         return
       }
+      // เก็บ password ใน sessionStorage — ไม่ผ่าน URL (กัน leak ใน history/log)
+      sessionStorage.setItem('signupDraft', JSON.stringify({ password: values.password }))
       const params = new URLSearchParams({
         mode: 'signup',
         phone: values.phone,
@@ -199,6 +214,60 @@ export default function SignUpCard() {
                   </Typography>
                 )}
               </div>
+              <CustomTextField
+                fullWidth
+                label='รหัสผ่าน'
+                placeholder='••••••••'
+                type={showPassword ? 'text' : 'password'}
+                slotProps={{
+                  htmlInput: { autoComplete: 'new-password' },
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position='end'>
+                        <IconButton
+                          edge='end'
+                          size='small'
+                          onClick={() => setShowPassword(show => !show)}
+                          onMouseDown={e => e.preventDefault()}
+                          aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                        >
+                          <i className={showPassword ? 'tabler-eye-off' : 'tabler-eye'} />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                error={!!errors.password}
+                helperText={errors.password?.message ?? '≥8 ตัว มีตัวอักษร ตัวเลข และอักขระพิเศษ'}
+                {...register('password')}
+              />
+              <CustomTextField
+                fullWidth
+                label='ยืนยันรหัสผ่าน'
+                placeholder='••••••••'
+                type={showConfirm ? 'text' : 'password'}
+                slotProps={{
+                  htmlInput: { autoComplete: 'new-password' },
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position='end'>
+                        <IconButton
+                          edge='end'
+                          size='small'
+                          onClick={() => setShowConfirm(show => !show)}
+                          onMouseDown={e => e.preventDefault()}
+                          aria-label={showConfirm ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                        >
+                          <i className={showConfirm ? 'tabler-eye-off' : 'tabler-eye'} />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                error={!!errors.confirmPassword}
+                helperText={errors.confirmPassword?.message}
+                {...register('confirmPassword')}
+              />
               <Button fullWidth variant='contained' type='submit' disabled={submitDisabled}>
                 {isSubmitting ? 'กำลังส่งรหัส…' : 'สร้างบัญชีและรับรหัส OTP'}
               </Button>
@@ -209,36 +278,36 @@ export default function SignUpCard() {
                 </Typography>
               </div>
               <Divider className='gap-2 text-textPrimary'>หรือ</Divider>
-              <div className='flex justify-center items-center gap-1.5'>
-                <IconButton
-                  className='text-facebook'
-                  size='small'
+              <div className='flex flex-col gap-3'>
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  startIcon={<i className='tabler-brand-facebook-filled text-facebook' />}
                   onClick={() => signIn('facebook', { callbackUrl: '/' })}
-                  aria-label='สมัครด้วย Facebook'
                 >
-                  <i className='tabler-brand-facebook-filled' />
-                </IconButton>
+                  สมัครด้วย Facebook
+                </Button>
                 {/* LINE brand green #06C755 — brand asset exception, ใช้ Iconify ri:line-fill
                     เพราะ tabler CSS class ไม่มี LINE icon */}
-                <IconButton
-                  size='small'
-                  onClick={() => signIn('line', { callbackUrl: '/' })}
-                  aria-label='สมัครด้วย LINE'
-                  sx={{ color: '#06C755' }}
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  onClick={() => signIn('line', { callbackUrl: '/auth/callback/line' })}
+                  startIcon={<Icon icon='ri:line-fill' width={20} height={20} style={{ color: '#06C755' }} />}
                 >
-                  <Icon icon='ri:line-fill' width={20} height={20} />
-                </IconButton>
+                  สมัครด้วย LINE
+                </Button>
                 {/* IG flag-gated — ปิดไว้จนกว่า NEXT_PUBLIC_ENABLE_IG_LOGIN=true */}
                 {process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true' && (
-                  <IconButton
-                    size='small'
-                    onClick={() => signIn('instagram', { callbackUrl: '/' })}
-                    aria-label='สมัครด้วย Instagram'
-                    sx={{ color: '#E1306C' }}
+                  <Button
+                    fullWidth
+                    variant='outlined'
+                    onClick={() => signIn('instagram', { callbackUrl: '/auth/callback/instagram' })}
+                    startIcon={<Icon icon='ri:instagram-fill' width={20} height={20} style={{ color: '#E1306C' }} />}
                   >
                     {/* Instagram brand pink #E1306C — brand asset exception (Hard Rule 6) */}
-                    <Icon icon='ri:instagram-fill' width={20} height={20} />
-                  </IconButton>
+                    สมัครด้วย Instagram
+                  </Button>
                 )}
               </div>
             </form>
