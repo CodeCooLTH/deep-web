@@ -133,7 +133,29 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   // S-A5: เนื้อหาส่วนล่าง (PriceChart→LiveState→meta-strip→BidPanel/ResultCard→BidHistory)
   // เหมือนกันทุก prop ทั้ง 2 breakpoint — ต่างกันแค่ hero wrapper กับ container ด้านนอก จึงแยก
   // มาเป็นตัวแปรกลาง กัน prop drift ระหว่าง branch (mobile MobileFrame เดิม vs wide web layout ใหม่)
-  const sections = (
+  // AuctionBidPanel (isLive) — mobile (xs) render แยกเป็น sticky bottom bar "ตัวสุดท้าย" (inlinePanel=false)
+  // เพื่อให้เกาะล่างจริงตลอด scroll (mockup .bidbar); wide (≥sm) render in-flow ในลำดับปกติ (inlinePanel=true, ตรง mockup D6)
+  const bidPanel = isLive ? (
+    <AuctionBidPanel
+      auctionId={auction.id}
+      currentPrice={currentPrice}
+      bidIncrement={auction.bidIncrement}
+      buyNowPrice={auction.buyNowPrice}
+      initialWatching={initialWatching}
+      onBidSuccess={(next) => {
+        setCurrentPrice(next.currentPrice)
+        setBidCount(next.bidCount)
+        setEndTimeMs(next.endTimeMs)
+        setAntiSnipeCount(next.antiSnipeCount)
+        setStatus(next.status)
+        // ซื้อทันที/บิดที่ trigger settle ทำให้ status พลิกเป็น terminal ทันที — refresh RSC
+        // เพื่อคำนวณ isWinner ใหม่จาก session (buy-now ของ user นี้เอง = isWinner ต้องเป็น true)
+        if (next.status !== 'live') router.refresh()
+      }}
+    />
+  ) : null
+
+  const renderSections = (inlinePanel: boolean) => (
     <>
       <AuctionPriceChart bidHistory={bidHistory} />
 
@@ -178,25 +200,8 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
         )}
       </Box>
 
-      {isLive && (
-        <AuctionBidPanel
-          auctionId={auction.id}
-          currentPrice={currentPrice}
-          bidIncrement={auction.bidIncrement}
-          buyNowPrice={auction.buyNowPrice}
-          initialWatching={initialWatching}
-          onBidSuccess={(next) => {
-            setCurrentPrice(next.currentPrice)
-            setBidCount(next.bidCount)
-            setEndTimeMs(next.endTimeMs)
-            setAntiSnipeCount(next.antiSnipeCount)
-            setStatus(next.status)
-            // ซื้อทันที/บิดที่ trigger settle ทำให้ status พลิกเป็น terminal ทันที — refresh RSC
-            // เพื่อคำนวณ isWinner ใหม่จาก session (buy-now ของ user นี้เอง = isWinner ต้องเป็น true)
-            if (next.status !== 'live') router.refresh()
-          }}
-        />
-      )}
+      {/* wide (≥sm): panel in-flow ตรงนี้ (ตาม mockup D6); mobile ไม่ render ที่นี่ (ไปเป็น sticky bottom) */}
+      {inlinePanel && bidPanel}
 
       {/* status ไม่ live: ended/unsold/cancelled → การ์ดสรุปผล (AuctionResultCard ไม่รองรับ 'scheduled'/'draft'
           ในสัญญา prop เดิม — 2 สถานะนี้ปล่อยให้ AuctionLiveState สื่อสารพอ ไม่มี panel ใด ๆ ต่อท้าย) */}
@@ -254,7 +259,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
               />
             </Box>
 
-            {sections}
+            {renderSections(true)}
           </Box>
         </Box>
       ) : (
@@ -267,9 +272,22 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
             hud={isLive ? { currentPrice, bidCount, endTimeMs } : undefined}
           />
 
-          <Box sx={{ px: '16px', py: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {sections}
+          {/* pb เผื่อ sticky bid bar (isLive) กันบังการ์ดสุดท้าย */}
+          <Box
+            sx={{
+              px: '16px',
+              py: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              pb: isLive ? '120px' : '14px',
+            }}
+          >
+            {renderSections(false)}
           </Box>
+
+          {/* mobile sticky bottom bar = panel เป็น element สุดท้ายของ MobileFrame → เกาะล่างตลอด scroll */}
+          {bidPanel}
         </MobileFrame>
       )}
     </>
