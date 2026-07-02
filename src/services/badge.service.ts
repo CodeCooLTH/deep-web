@@ -22,6 +22,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { recalculateTrustScore } from "@/services/trust-score.service"
+import { pushToUser } from "@/services/app-push.service"
 import type {
   BadgeCriteria,
   BadgeProgress,
@@ -375,15 +376,46 @@ export async function checkAuctionWonCompleted(
 // ─── Core award helper ────────────────────────────────────────────────────────
 
 /**
- * Upsert UserBadge — idempotent ด้วย @@unique([userId, badgeId])
- * ถ้า Badge ไม่มีใน DB (criteria เปลี่ยนชื่อ?) → skip silently
+ * notifyBadgeEarned — แจ้งเตือน "ได้รับ badge ใหม่" (in-app Notification + Expo push)
+ * best-effort: error ห้าม rethrow (ถูกเรียกจาก awardBadge ใน flow หลัก เช่น
+ * confirmOrder/placeBid/settle post-commit). seller ไม่มี PushToken → pushToUser
+ * no-op เอง. copy ไม่มี emoji (Hard Rule no-emoji-use-icons)
  */
-export async function awardBadge(userId: string, badgeId: string): Promise<void> {
-  await prisma.userBadge.upsert({
-    where: { userId_badgeId: { userId, badgeId } },
-    update: {},
-    create: { userId, badgeId },
+export async function notifyBadgeEarned(userId: string, badgeId: string): Promise<void> {
+  try {
+    const badge = await prisma.badge.findUnique({ where: { id: badgeId }, select: { name: true } })
+    if (!badge) return
+    const title = "ได้รับ Badge ใหม่"
+    const body = `คุณได้รับ "${badge.name}" แล้ว`
+    await prisma.notification.create({
+      data: { userId, kind: "badge_earned", title, body, refId: badgeId },
+    })
+    await pushToUser(userId, title, body, { type: "badge_earned", badgeId })
+  } catch (err) {
+    console.error("[badge] notifyBadgeEarned failed", userId, badgeId, err)
+  }
+}
+
+/**
+ * Award UserBadge — idempotent ด้วย @@unique([userId, badgeId])
+ * ใช้ createMany({skipDuplicates}) แทน upsert เพื่อ detect "award ครั้งแรก"
+ * (count===1) → notify เฉพาะตอนนั้น (กัน notify ซ้ำเมื่อ re-eval). return created
+ * opts.notify=false → ปิด notify (backfill/seed) กัน burst
+ */
+export async function awardBadge(
+  userId: string,
+  badgeId: string,
+  opts?: { notify?: boolean },
+): Promise<boolean> {
+  const result = await prisma.userBadge.createMany({
+    data: [{ userId, badgeId }],
+    skipDuplicates: true,
   })
+  const created = result.count === 1
+  if (created && opts?.notify !== false) {
+    await notifyBadgeEarned(userId, badgeId)
+  }
+  return created
 }
 
 // ─── Criteria parser (unknown → BadgeCriteria | null) ────────────────────────
@@ -409,6 +441,7 @@ function parseCriteria(raw: unknown): BadgeCriteria | null {
 export async function evaluateBadges(
   userId: string,
   audience: AudienceArg = 'seller',
+  opts?: { notify?: boolean },
 ): Promise<void> {
   const audienceValues = resolveAudienceFilter(audience)
 
@@ -534,7 +567,7 @@ export async function evaluateBadges(
     }
 
     if (met) {
-      await awardBadge(userId, badge.id)
+      await awardBadge(userId, badge.id, opts)
     }
   }
 
@@ -550,7 +583,7 @@ export async function evaluateBadges(
  * fetch createdAt จาก DB ตรงเสมอ. Batch-2 auth caller wrap ด้วย try/catch อีกชั้น.
  * Best-effort: error → warn + return (ไม่ throw ออก)
  */
-export async function evaluateSignupYearBadge(userId: string): Promise<void> {
+export async function evaluateSignupYearBadge(userId: string, opts?: { notify?: boolean }): Promise<void> {
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } })
     if (!user) {
@@ -570,8 +603,8 @@ export async function evaluateSignupYearBadge(userId: string): Promise<void> {
       const signupCriteria = criteria as CriteriaSignupYear
       if (signupCriteria.year !== year) continue
 
-      // Idempotent upsert — ถ้าได้แล้วก็ skip ผ่าน @@unique
-      await awardBadge(userId, badge.id)
+      // Idempotent — createMany skipDuplicates; notify เฉพาะ award ครั้งแรก
+      await awardBadge(userId, badge.id, opts)
     }
   } catch (err) {
     console.error('[badge] evaluateSignupYearBadge error', userId, err)
