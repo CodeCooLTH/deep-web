@@ -39,8 +39,8 @@ type ReactionState = { count: number; reacted: boolean }
 
 const VISIBLE_DEFAULT = 5
 
-// สี badge ต่อ bidder level (ladder feat 00002 TFR-016) — buyer Vuexy (hex)
-const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
+// สี badge ต่อ bidder level (ladder feat 00002 TFR-016) — buyer Vuexy (hex) — export ให้ WinnerDialog reuse (feat 00007)
+export const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
   5: { bg: '#FEF3C7', color: '#B45309' }, // ตำนาน (gold)
   4: { bg: '#E0F2FE', color: '#0369A1' }, // ระดับเพชร (diamond)
   3: { bg: '#EEF2FF', color: '#4338CA' }, // เซียน

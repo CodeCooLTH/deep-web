@@ -29,6 +29,7 @@ import type { SellerAuctionDTO } from '@/services/auction.service'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useAuctionPresence } from '@/hooks/useAuctionPresence'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesAlert } from '@/lib/paces-swal'
 import ConsoleHead from './ConsoleHead'
 import AuctionConsoleActionBar from './AuctionConsoleActionBar'
 import AuctionStatCards from './AuctionStatCards'
@@ -59,6 +60,8 @@ export default function AuctionConsoleClient({ auction }: Props) {
   // เก็บค่า antiSnipeCount ล่าสุดไว้เทียบตอนได้ broadcast ใหม่ (ต้องเทียบ "ก่อนหน้า" ไม่ใช่ state
   // ที่อาจยังไม่ commit ใน closure ของ effect เดียวกัน)
   const antiSnipeCountRef = useRef(auction.antiSnipeCount)
+  // feat 00007 item 5: กัน winner alert เด้งซ้ำ (broadcast อาจยิงหลายครั้ง)
+  const winnerShownRef = useRef(false)
 
   // re-sync ทุกครั้งที่ page.tsx (RSC) ส่ง auction prop ใหม่มา (router.refresh()) — กัน state ค้าง
   useEffect(() => {
@@ -97,6 +100,19 @@ export default function AuctionConsoleClient({ auction }: Props) {
             }
             setAntiSnipeCount(dto.antiSnipeCount)
             antiSnipeCountRef.current = dto.antiSnipeCount
+            // feat 00007 item 5: ประมูลจบมีผู้ชนะ → เด้ง winner Sweet Alert (ครั้งเดียว, ค้างจนกดปิด)
+            if (dto.status === 'ended' && dto.bidHistory[0] && !winnerShownRef.current) {
+              winnerShownRef.current = true
+              const w = dto.bidHistory[0]
+              void pacesAlert({
+                title: '🏆 ประมูลจบแล้ว มีผู้ชนะ!',
+                html: `<div style="font-size:15px;font-weight:700;color:#1e293b">${w.bidder}</div>
+                  <div style="font-size:12px;color:#5b6678;margin-top:2px">${w.level.label}</div>
+                  <div style="font-size:11px;color:#94a3b8;margin-top:10px">ราคาปิด</div>
+                  <div style="font-size:26px;font-weight:800;color:#236dc9;font-variant-numeric:tabular-nums">฿${dto.currentPrice.toLocaleString()}</div>`,
+                confirmSemantic: 'primary',
+              })
+            }
             if (dto.status === 'ended' || dto.status === 'unsold' || dto.status === 'cancelled') {
               router.refresh()
             }

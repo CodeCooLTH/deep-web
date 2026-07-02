@@ -37,6 +37,8 @@ type Props = {
   bidIncrement: number
   buyNowPrice: number | null
   initialWatching: boolean
+  /** feat 00007 item 1: viewer เป็นผู้เสนอสูงสุด → disable ปุ่มเสนอราคา (buy-now ยังกดได้) */
+  youAreHighestBidder?: boolean
   /** parent (AuctionDetailClient) อัปเดต local state จาก DTO ที่ได้กลับมาหลังบิด/ซื้อทันทีสำเร็จ */
   onBidSuccess: (auction: PublicAuctionDTO) => void
 }
@@ -49,6 +51,7 @@ export default function AuctionBidPanel({
   bidIncrement,
   buyNowPrice,
   initialWatching,
+  youAreHighestBidder = false,
   onBidSuccess,
 }: Props) {
   const { status: sessionStatus } = useSession()
@@ -256,7 +259,7 @@ export default function AuctionBidPanel({
 
           <Button
             onClick={handleBid}
-            disabled={bidding}
+            disabled={bidding || youAreHighestBidder}
             sx={{
               height: 44,
               bgcolor: '#0F172A',
@@ -272,13 +275,22 @@ export default function AuctionBidPanel({
               minWidth: 0,
             }}
           >
-            <Typography component="span" sx={{ fontSize: 13.5, fontWeight: 700, color: 'inherit' }}>
-              {bidding ? 'กำลังส่ง...' : `เสนอราคา ฿${(Number.isFinite(amount) ? amount : minNext).toLocaleString()}`}
-            </Typography>
-            {!customOpen && (
-              <Typography component="span" sx={{ fontSize: 10.5, color: 'rgba(255,255,255,.6)', fontWeight: 500 }}>
-                ราคาถัดไป (+฿{bidIncrement.toLocaleString()})
+            {youAreHighestBidder ? (
+              // feat 00007 item 1: เป็นผู้นำอยู่ → บล็อก self-outbid
+              <Typography component="span" sx={{ fontSize: 13.5, fontWeight: 700, color: 'inherit' }}>
+                คุณเป็นผู้เสนอราคาสูงสุด
               </Typography>
+            ) : (
+              <>
+                <Typography component="span" sx={{ fontSize: 13.5, fontWeight: 700, color: 'inherit' }}>
+                  {bidding ? 'กำลังส่ง...' : `เสนอราคา ฿${(Number.isFinite(amount) ? amount : minNext).toLocaleString()}`}
+                </Typography>
+                {!customOpen && (
+                  <Typography component="span" sx={{ fontSize: 10.5, color: 'rgba(255,255,255,.6)', fontWeight: 500 }}>
+                    ราคาถัดไป (+฿{bidIncrement.toLocaleString()})
+                  </Typography>
+                )}
+              </>
             )}
           </Button>
 

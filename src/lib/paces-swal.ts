@@ -71,6 +71,32 @@ const base = async (options: PacesConfirmOptions): Promise<boolean> => {
   return result.isConfirmed
 }
 
+export interface PacesAlertOptions {
+  title: string
+  text?: string
+  html?: string
+  icon?: SweetAlertIcon
+  confirmButtonText?: string
+  confirmSemantic?: ConfirmSemantic
+  /** default false — ค้างจนกดปุ่ม (result/announcement เช่น winner) */
+  allowOutsideClick?: boolean
+}
+
+/** alert/result modal — ปุ่มเดียว ไม่มี cancel (รับทราบอย่างเดียว เช่น winner announcement feat 00007) */
+export const pacesAlert = async (options: PacesAlertOptions): Promise<void> => {
+  await Swal.fire({
+    buttonsStyling: false,
+    showCancelButton: false,
+    allowOutsideClick: options.allowOutsideClick ?? false,
+    icon: options.icon,
+    title: options.title,
+    text: options.text,
+    html: options.html,
+    confirmButtonText: options.confirmButtonText ?? 'ปิด',
+    customClass: { confirmButton: CONFIRM_BTN[options.confirmSemantic ?? 'primary'] },
+  })
+}
+
 export const pacesConfirm: PacesConfirmFn = Object.assign(base, {
   danger: (title: string, text?: string, opts?: Partial<PacesConfirmOptions>) =>
     base({ confirmSemantic: 'danger', icon: 'warning', ...opts, title, text }),
