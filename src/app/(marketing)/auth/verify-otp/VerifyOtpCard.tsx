@@ -155,7 +155,7 @@ export default function VerifyOtpCard() {
               <Logo />
             </div>
             <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>ยืนยันรหัส OTP 💬</Typography>
+              <Typography variant='h4'>ยืนยันรหัส OTP</Typography>
               <Typography>
                 {mode === 'reset' ? 'ยืนยัน OTP เพื่อรีเซ็ตรหัสผ่าน' : 'กรอกรหัส 6 หลักที่ส่งไปยังเบอร์ของคุณ'}
               </Typography>
