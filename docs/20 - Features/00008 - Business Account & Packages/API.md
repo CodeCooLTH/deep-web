@@ -216,7 +216,7 @@ Trace: TFR-008. **Request:** `{ "contact": "0812345678", "contactType": "PHONE" 
 
 **Response 201:** `{ "inviteId": "uuid", "status": "PENDING" }`
 
-**Errors:** 401; 403 `NOT_OWNER`; 403 `SHOP_LOCKED`; 403 `ADMIN_QUOTA_EXCEEDED`; 409 `INVITE_ALREADY_PENDING`; 400 `VALIDATION_ERROR`
+**Errors:** 401; 403 `NOT_OWNER`; 403 `NO_ACTIVE_PACKAGE` (owner ไม่มี package ACTIVE — defensive, ปกติ shop จะ `SHOP_LOCKED` ก่อนอยู่แล้ว); 403 `SHOP_LOCKED`; 403 `ADMIN_QUOTA_EXCEEDED`; 409 `INVITE_ALREADY_PENDING`; 400 `VALIDATION_ERROR`
 
 ---
 

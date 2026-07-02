@@ -445,7 +445,7 @@ export async function createBusinessShop(ownerId: string, data: {
       if (count >= quota.maxBusinesses) throw new Error('BUSINESS_QUOTA_EXCEEDED')
     }
     const shop = await tx.shop.create({
-      data: { userId: ownerId, kind: 'BUSINESS', shopName: data.shopName, businessType: data.businessType, category: data.category },
+      data: { userId: ownerId, kind: 'BUSINESS', shopName: data.shopName, businessType: data.businessType, category: data.category, description: data.description },
     })
     await tx.shopMember.create({ data: { shopId: shop.id, userId: ownerId, role: 'OWNER' } })
     await tx.sellerWallet.create({ data: { shopId: shop.id, balance: 0 } })

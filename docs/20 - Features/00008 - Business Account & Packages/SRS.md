@@ -329,7 +329,7 @@ flowchart LR
   3. `tx.businessPackageSubscription.update({ tier: newTier, currentPeriodStart: now, nextRenewalAt: now+30d, lastRenewalAt: now })` — **reset cycle** (กัน double-charge ใกล้รอบเดิม — RD-3)
   4. `reconcileBusinessLocksAfterQuotaChange(ownerId, newTier, tx)`
 - **Postcondition:** โควตาใหม่มีผลทันที; Business/Admin ที่เคย over-quota เดิมและตอนนี้พอดี → ACTIVE อัตโนมัติ
-- **Error/Edge:** 402 INSUFFICIENT_CREDIT; 409 NOT_AN_UPGRADE; 409 SUBSCRIPTION_LOCKED (ต้อง reactivate ก่อน)
+- **Error/Edge:** 402 INSUFFICIENT_CREDIT; 409 NOT_AN_UPGRADE; 409 SUBSCRIPTION_NOT_ACTIVE (ถ้า LOCKED ต้อง reactivate ก่อน)
 
 ### TFR-015: Downgrade Package + Selective Lock (Owner-selected)
 
