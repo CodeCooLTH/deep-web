@@ -591,3 +591,35 @@ export const PlaceBidSchema = v.object({
   // maxValue กัน Decimal(12,2) overflow (security LOW — defense-in-depth เหมือน CreateAuctionSchema)
   amount: v.pipe(v.number(), v.minValue(0.01), v.maxValue(AUCTION_MAX_PRICE, "ราคาเกินขีดจำกัด")),
 });
+
+// ── feature 00008 Business Account & Packages (SRS §9) ───────────────────────
+// SSOT: docs/20 - Features/00008 - Business Account & Packages/SRS.md §9
+
+export const SubscribeBusinessPackageSchema = v.object({
+  tier: v.picklist(["GROWTH", "PRO", "BUSINESS"]),
+});
+
+export const UpgradeBusinessPackageSchema = v.object({
+  tier: v.picklist(["GROWTH", "PRO", "BUSINESS"]),
+});
+
+export const DowngradeBusinessPackageSchema = v.object({
+  tier: v.picklist(["GROWTH", "PRO", "BUSINESS"]),
+  keepShopIds: v.array(v.pipe(v.string(), v.uuid())),
+});
+
+export const CreateBusinessShopSchema = v.object({
+  shopName: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+  businessType: v.string(),
+  category: v.optional(v.string()),
+  description: v.optional(v.pipe(v.string(), v.maxLength(500))),
+});
+
+export const InviteShopMemberSchema = v.object({
+  contact: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
+  contactType: v.picklist(["PHONE", "EMAIL"]),
+});
+
+export const SwitchActiveShopSchema = v.object({
+  shopId: v.pipe(v.string(), v.uuid()),
+});
