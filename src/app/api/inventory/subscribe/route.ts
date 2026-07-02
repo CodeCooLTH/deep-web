@@ -1,20 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getShopByUserId } from "@/services/shop.service";
 import { subscribeInventoryEntitlement } from "@/services/inventory-entitlement.service";
+import { SubscribeInventorySchema } from "@/lib/validations";
 
 /**
- * POST /api/inventory/subscribe — seller สมัคร Inventory Add-on ครั้งแรก (฿199 หัก atomic)
+ * POST /api/inventory/subscribe — seller สมัคร Inventory Add-on ครั้งแรก (เลือก package BASIC/PRO — ฿ หัก atomic)
  *
  * ทำไม shop derive จาก session เท่านั้น (ไม่รับ shopId จาก body):
  * DAL ownership (S-C7 pattern — ดู src/app/api/wallet/topup/route.ts) — ถ้ารับ
  * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่อสมัคร/หักเครดิตแทนคนอื่น.
  * session.user.id เป็น single source of truth สำหรับ identity — ดู API.md §2.
  *
- * Request body: ไม่มี ({}) — API.md §4.1
+ * Request body: { package: 'BASIC' | 'PRO' } — API.md §4.1 (BREAKING feature 00009 — เดิม {})
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   // 1. auth gate — ไม่มี session = 401
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -30,9 +32,20 @@ export async function POST() {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
 
+  // 2.5 parse body — ต้องระบุ package (BASIC/PRO) ตาม API.md §4.1
+  const body = await request.json().catch(() => null);
+  if (body === null) {
+    return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
+  }
+  const parsed = v.safeParse(SubscribeInventorySchema, body);
+  if (!parsed.success) {
+    const firstIssue = parsed.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง";
+    return NextResponse.json({ error: firstIssue }, { status: 400 });
+  }
+
   // 3. เรียก service — business logic (idempotency guard + deduct + create) อยู่ใน service
   try {
-    const result = await subscribeInventoryEntitlement(shop.id);
+    const result = await subscribeInventoryEntitlement(shop.id, parsed.output.package);
     return NextResponse.json(result);
   } catch (e: unknown) {
     if (e instanceof Error && e.message === "ENTITLEMENT_ALREADY_EXISTS") {
