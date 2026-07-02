@@ -46,7 +46,7 @@ export default function AuctionStatCards({
   const showGauge = expectedPrice != null
 
   return (
-    <div className={cn('grid grid-cols-1 gap-base sm:grid-cols-3', showGauge && 'lg:grid-cols-4')}>
+    <div className={cn('grid grid-cols-1 gap-base sm:grid-cols-3', showGauge && 'md:grid-cols-4')}>
       <StatCard title="ราคาปัจจุบัน">
         <p className="mb-0 text-xl font-bold tabular-nums text-primary">
           ฿{currentPrice.toLocaleString('th-TH')}
