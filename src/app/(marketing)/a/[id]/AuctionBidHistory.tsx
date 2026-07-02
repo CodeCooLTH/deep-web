@@ -6,10 +6,12 @@
  * Base: theme/vuexy/typescript-version/full-version/src/views/apps/chat/ChatLog.tsx
  *   - bubble ต่อรายการ + avatar ซ้าย (CustomAvatar initials fallback ตาม pattern ที่ ChatLog ใช้
  *     `getInitials` + `CustomAvatar` เมื่อไม่มีรูป avatar จริง) → PublicAuctionDTO.bidHistory ไม่มี
- *     avatar url เลย (privacy) จึงใช้ initials เสมอ (ตัด FB icon overlay ตาม Controller "ตัด FB icon/level")
+ *     avatar url เลย (privacy) จึงใช้ initials เสมอ. FB icon overlay ยังตัดอยู่ (avatar/provider = privacy §5.5)
  *
- * Visual ref (asset เท่านั้น): docs/mockups/auction/seller-auction-v1.html .stream/.cmt (มี FB icon/level
- *   เป็นตัวอย่าง mockup เท่านั้น — Controller สั่งตัดออกเพราะแอปจริงไม่มี FB overlay/user level ใน DTO)
+ * bidder level badge: เพิ่มกลับแล้ว (BidDTO.level จาก successfulBidCount ladder, feat 00002 TFR-016) —
+ *   level = reputation ไม่ใช่ PII. FB icon/avatar ยังไม่ทำ (ต้อง product review §5.5 privacy)
+ *
+ * Visual ref (asset เท่านั้น): docs/mockups/auction/seller-auction-v1.html .stream/.cmt
  */
 import { useState } from 'react'
 
@@ -30,6 +32,15 @@ type Props = {
 }
 
 const VISIBLE_DEFAULT = 5
+
+// สี badge ต่อ bidder level (ladder feat 00002 TFR-016) — buyer Vuexy (hex)
+const LEVEL_STYLE: Record<number, { bg: string; color: string }> = {
+  5: { bg: '#FEF3C7', color: '#B45309' }, // ตำนาน (gold)
+  4: { bg: '#E0F2FE', color: '#0369A1' }, // ระดับเพชร (diamond)
+  3: { bg: '#EEF2FF', color: '#4338CA' }, // เซียน
+  2: { bg: '#F1F5F9', color: '#475569' }, // นักประมูล
+  1: { bg: '#F1F5F9', color: '#94A3B8' }, // มือใหม่
+}
 
 function relativeTimeTh(atMs: number, nowMs: number): string {
   const diffSec = Math.max(0, Math.floor((nowMs - atMs) / 1000))
@@ -121,6 +132,24 @@ export default function AuctionBidHistory({ bidHistory, bidCount, connectionStat
                         <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>
                           {bid.bidder}
                         </Typography>
+                        {/* bidder level badge (ladder จาก successfulBidCount, TFR-016) */}
+                        <Box
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            bgcolor: LEVEL_STYLE[bid.level.level].bg,
+                            color: LEVEL_STYLE[bid.level.level].color,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            px: '7px',
+                            py: '1px',
+                            borderRadius: 999,
+                          }}
+                        >
+                          <Icon icon={bid.level.icon} fontSize={11} />
+                          {bid.level.label}
+                        </Box>
                         {isLeader && (
                           <Box
                             sx={{

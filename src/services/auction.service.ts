@@ -21,6 +21,7 @@ import type { Prisma } from '@prisma/client'
 import { pushToUser } from '@/services/app-push.service'
 import { evaluateBadges } from '@/services/badge.service'
 import { getMaxVerificationLevel } from '@/services/verification.service'
+import { getAuctionLevel, type AuctionLevel } from '@/lib/auction-level'
 
 const PAGE_SIZE = 20
 
@@ -72,7 +73,9 @@ export type SellerAuctionListItemDTO = Pick<
 >
 
 /** ไม่มี field ใหม่ — reuse ของเดิม 100% */
-export type BidDTO = { id: string; amount: number; bidder: string; atMs: number }
+// level: bidder level (ladder จาก successfulBidCount, feat 00002 TFR-016/SDS §6) — ไม่ใช่ PII
+// (reputation ล้วน; §5.5 ห้ามแค่ phone/email/bidderId ซึ่งยังไม่มีใน DTO นี้)
+export type BidDTO = { id: string; amount: number; bidder: string; atMs: number; level: AuctionLevel }
 
 /** @deprecated ใช้ `PublicAuctionDTO` แทน — คง alias ไว้กัน caller เดิม (เช่น import ชื่อ type นี้ในอนาคต) ไม่พัง */
 export type AuctionDTO = PublicAuctionDTO
@@ -197,7 +200,7 @@ export async function getAuctionDetail(
       bids: {
         orderBy: { createdAt: 'desc' },
         take: 20,
-        include: { bidder: { select: { displayName: true } } },
+        include: { bidder: { select: { displayName: true, successfulBidCount: true } } },
       },
     },
   })
@@ -209,6 +212,7 @@ export async function getAuctionDetail(
       amount: Number(b.amount),
       bidder: b.bidder.displayName,
       atMs: b.createdAt.getTime(),
+      level: getAuctionLevel(b.bidder.successfulBidCount),
     })),
   }
 }
@@ -1014,7 +1018,7 @@ export async function getSellerAuctionDetail(
       bids: {
         orderBy: { createdAt: 'desc' },
         take: 20,
-        include: { bidder: { select: { displayName: true } } },
+        include: { bidder: { select: { displayName: true, successfulBidCount: true } } },
       },
     },
   })
@@ -1025,6 +1029,7 @@ export async function getSellerAuctionDetail(
     amount: Number(b.amount),
     bidder: b.bidder.displayName, // displayName เท่านั้น — ไม่มี phone/email/bidderId (SRS §5.5 ข้อ 2)
     atMs: b.createdAt.getTime(),
+    level: getAuctionLevel(b.bidder.successfulBidCount), // level = reputation (ไม่ใช่ PII, TFR-016)
   }))
 
   // orderId (Batch E#11) — Order ไม่มี @relation field กลับไปหา Auction ใน schema (มีแค่

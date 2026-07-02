@@ -25,10 +25,20 @@
  */
 
 import { useState } from 'react'
+import Icon from '@/components/wrappers/Icon'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { BidDTO } from '@/services/auction.service'
 
 type ConnectionState = 'live' | 'reconnecting'
+
+// สี badge ต่อ bidder level (ladder feat 00002) — Paces semantic token (HR7)
+const LEVEL_CLASS: Record<number, string> = {
+  5: 'bg-warning/15 text-warning',
+  4: 'bg-info/15 text-info',
+  3: 'bg-primary/15 text-primary',
+  2: 'bg-default-100 text-default-600',
+  1: 'bg-default-100 text-default-400',
+}
 
 type Props = {
   bidHistory: BidDTO[]
@@ -79,8 +89,15 @@ export default function AuctionBidFeed({ bidHistory, bidCount, connectionState }
                     {getInitial(bid.bidder)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="mb-0 flex items-center gap-1.5 truncate text-sm font-medium text-default-800">
-                      {bid.bidder}
+                    <p className="mb-0 flex items-center gap-1.5 text-sm font-medium text-default-800">
+                      <span className="truncate">{bid.bidder}</span>
+                      {/* bidder level badge (ladder จาก successfulBidCount, TFR-016) */}
+                      <span
+                        className={`badge badge-label inline-flex shrink-0 items-center gap-0.5 text-2xs ${LEVEL_CLASS[bid.level.level]}`}
+                      >
+                        <Icon icon={bid.level.icon.replace('tabler-', '')} className="text-2xs" />
+                        {bid.level.label}
+                      </span>
                       {isLeader && (
                         <span className="badge badge-label bg-success/15 text-success shrink-0 text-2xs">
                           ผู้นำ
