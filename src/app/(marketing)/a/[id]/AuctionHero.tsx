@@ -1,74 +1,31 @@
 'use client'
 
 /**
- * AuctionHero — รูปหลัก + scrim + ชื่อ + status badge + ปุ่มย้อนกลับ (feature 00004)
+ * AuctionHero — Concept 1 "Live Commerce" full-bleed image canvas (feature 00004, redesign 2026-07-02)
  *
  * Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
- *   - CardMedia banner (bs-[250px]) → รูป auction เต็มความกว้าง + gradient scrim ทับด้านล่างให้อ่านชื่อออก
- *   - frosted back button → pattern เดียวกับ src/app/(marketing)/o/[token]/OrderDetailMobile.tsx (banner back button)
+ *   - CardMedia banner (bs-[250px]) → รูป auction เต็มความกว้าง/สูง + gradient scrim ทับบน-ล่างให้อ่านตัวหนังสือออก
  *
- * Visual ref (asset เท่านั้น ไม่ copy layout ดิบ): docs/mockups/auction/seller-auction-v1.html
- *   .live-hero (mobile L821-831) / .imm .live-hero (desktop L1337-1347) — เอาแค่ "โครงหน้าตา"
- *   (รูป+scrim+ชื่อ) ไม่เอา viewer-count (ตัดตาม Controller OQ — ไม่มี data)
+ * เดิม (ก่อน redesign) ไฟล์นี้มี back button/status-badge/viewer-pill/title+HUD ในตัว — ย้ายออกหมดแล้ว
+ * (spec docs/superpowers/specs/2026-07-02-buyer-auction-concept1-redesign.md §Components "Changed (existing)"):
+ * ตอนนี้เป็นแค่ "ผ้าใบ" รูป + gradient บน/ล่าง ที่รับ overlay children จาก AuctionDetailClient
+ * (AuctionSellerHeader/AuctionActionRail/AuctionLiveComment) — ปรับตาม mockup .grad-t(h130)/.grad-b(h52%)
+ *
+ * Visual ref (asset เท่านั้น — ค่า gradient/สี rgba คงดิบตาม doc exception "on-image scrim"):
+ *   docs/mockups/auction/buyer-auction-concept1-flow.html .imgfull/.grad-t/.grad-b
  */
-import { useEffect, useState } from 'react'
-
-import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 import Box from '@mui/material/Box'
-import IconButton from '@mui/material/IconButton'
-import Typography from '@mui/material/Typography'
-
-import { Icon } from '@iconify/react'
-
-import type { PublicAuctionDTO } from '@/services/auction.service'
 
 type Props = {
-  title: string
   imageUrl: string
-  status: PublicAuctionDTO['status']
-  /** HUD บน hero (mockup Frame6/D6): ราคาปัจจุบัน+จำนวนบิด / countdown — แสดงเฉพาะตอน live */
-  hud?: {
-    currentPrice: number
-    bidCount: number
-    endTimeMs: number
-  }
-  /** จำนวนผู้ชมกำลังดู (feat 00006) — >0 = แสดง pill "กำลังดู" (mockup .watch); 0 = ซ่อน */
-  viewerCount?: number
+  /** mobile = เต็ม viewport (flex:1 ของ parent flex column, ไม่ scroll หน้า) / desktop = สูงคงที่ 380 (bounded layout) */
+  variant: 'mobile' | 'desktop'
+  children?: ReactNode
 }
 
-function formatRemain(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
-}
-
-// ป้ายสถานะ (viewer count "กำลังดู" เพิ่มกลับแล้ว — feat 00006 Supabase Presence)
-const STATUS_BADGE: Record<PublicAuctionDTO['status'], { label: string; bg: string; dot?: string }> = {
-  draft: { label: 'ร่าง', bg: 'rgba(100,116,139,.85)' },
-  scheduled: { label: 'เร็ว ๆ นี้', bg: 'rgba(37,99,235,.88)' },
-  live: { label: 'LIVE', bg: 'rgba(220,38,38,.9)', dot: '#fff' },
-  ended: { label: 'จบแล้ว', bg: 'rgba(15,23,42,.82)' },
-  unsold: { label: 'ไม่มีผู้ชนะ', bg: 'rgba(100,116,139,.85)' },
-  cancelled: { label: 'ยกเลิกแล้ว', bg: 'rgba(100,116,139,.85)' },
-}
-
-export default function AuctionHero({ title, imageUrl, status, hud, viewerCount = 0 }: Props) {
-  const badge = STATUS_BADGE[status]
-
-  // countdown สำหรับ HUD (tick 1s) — pattern เดียวกับ AuctionLiveState (useState(()=>Date.now())+interval)
-  const [now, setNow] = useState<number>(() => Date.now())
-  useEffect(() => {
-    if (!hud) return
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
-  }, [hud])
-  const remainMs = hud ? hud.endTimeMs - now : 0
-  const isUnderHour = remainMs > 0 && remainMs < 60 * 60 * 1000
-
+export default function AuctionHero({ imageUrl, variant, children }: Props) {
   // imageUrl จาก DTO เป็น storage key ดิบ (เช่น "xxx.jpeg") — ต้อง prefix /api/files/ เหมือน seller
   // (AuctionRow/ConsoleHead) มิเช่นนั้น browser โหลด url สัมพัทธ์ /a/{key} → 404 → hero ดำ
   const resolvedImg = imageUrl
@@ -81,170 +38,41 @@ export default function AuctionHero({ title, imageUrl, status, hud, viewerCount 
     <Box
       sx={{
         position: 'relative',
-        height: { xs: 300, md: 380 },
         overflow: 'hidden',
-        bgcolor: '#0F172A',
+        // fallback ไม่มีรูป — พื้นเข้มคงที่เสมอ (ไม่ผูก mode) ใช้ผิว Vuexy always-dark (#2F2B3D, mainColorChannels-light)
+        bgcolor: '#2F2B3D',
         backgroundImage: resolvedImg ? `url("${resolvedImg}")` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
+        ...(variant === 'mobile' ? { flex: '1 1 auto', minHeight: 0 } : { height: 380 }),
       }}
     >
-      {/* scrim gradient — ให้ตัวหนังสือขาวอ่านออกบนรูปทุกโทนสี */}
+      {/* scrim บน — ให้ header overlay (avatar/ชื่อผู้ขาย/LIVE) อ่านออก (mockup .grad-t h130) */}
       <Box
         sx={{
           position: 'absolute',
-          inset: 0,
-          background:
-            'linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,.75) 100%)',
+          left: 0,
+          right: 0,
+          top: 0,
+          height: 130,
+          background: 'linear-gradient(rgba(0,0,0,.62), transparent)',
+          zIndex: 1,
+        }}
+      />
+      {/* scrim ล่าง — ให้ rail/คอมเมนต์ล่าสุดอ่านออก (mockup .grad-b h52%) */}
+      <Box
+        sx={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '52%',
+          background: 'linear-gradient(transparent, rgba(0,0,0,.86))',
         }}
       />
 
-      {/* frosted back button — pattern เดียวกับ OrderDetailMobile banner back */}
-      <Link href='/' style={{ textDecoration: 'none' }}>
-        <IconButton
-          aria-label='กลับหน้าหลัก'
-          title='กลับหน้าหลัก'
-          sx={{
-            position: 'absolute',
-            top: 13,
-            left: 13,
-            zIndex: 3,
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            bgcolor: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.6)',
-            boxShadow: '0 2px 6px rgba(0,0,0,.12)',
-            color: '#0F172A',
-            '&:hover': { bgcolor: 'rgba(255,255,255,1)' },
-          }}
-        >
-          <Icon icon='tabler-arrow-left' fontSize={18} />
-        </IconButton>
-      </Link>
-
-      {/* status badge มุมขวาบน */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 14,
-          right: 14,
-          zIndex: 3,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          px: '11px',
-          py: '5px',
-          borderRadius: 999,
-          bgcolor: badge.bg,
-          color: '#fff',
-          fontSize: 12,
-          fontWeight: 800,
-          letterSpacing: '0.03em',
-        }}
-      >
-        {badge.dot && (
-          <Box
-            component='span'
-            sx={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              bgcolor: badge.dot,
-              animation: 'auctionLivePulse 1.4s ease-in-out infinite',
-              '@keyframes auctionLivePulse': {
-                '0%,100%': { opacity: 1 },
-                '50%': { opacity: 0.35 },
-              },
-            }}
-          />
-        )}
-        {badge.label}
-      </Box>
-
-      {/* viewer count "กำลังดู" (feat 00006) — ใต้ status badge, แสดงเมื่อมีผู้ชม (mockup .watch) */}
-      {viewerCount > 0 && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 50,
-            right: 14,
-            zIndex: 3,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px',
-            px: '10px',
-            py: '4px',
-            borderRadius: 999,
-            bgcolor: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(4px)',
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-        >
-          <Icon icon='tabler-eye' fontSize={13} />
-          {viewerCount.toLocaleString()} กำลังดู
-        </Box>
-      )}
-
-      {/* ชื่อ + HUD (ราคา/countdown) — วางบน scrim ล่างสุด (mockup .ov-bot/.hud) */}
-      <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, px: '18px', pb: '16px' }}>
-        <Typography
-          sx={{
-            color: '#fff',
-            fontSize: { xs: 15, md: 18 },
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
-            lineHeight: 1.3,
-            textShadow: '0 1px 3px rgba(0,0,0,.35)',
-          }}
-        >
-          {title}
-        </Typography>
-
-        {hud && (
-          <Box sx={{ mt: '9px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '10px' }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,.82)', fontWeight: 500, mb: '2px' }}>
-                ราคาปัจจุบัน · {hud.bidCount} บิด
-              </Typography>
-              <Typography
-                sx={{
-                  color: '#fff',
-                  fontSize: { xs: 34, md: 40 },
-                  fontWeight: 800,
-                  lineHeight: 0.95,
-                  letterSpacing: '-0.5px',
-                  fontVariantNumeric: 'tabular-nums',
-                  textShadow: '0 2px 12px rgba(0,0,0,.45)',
-                }}
-              >
-                ฿{hud.currentPrice.toLocaleString()}
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-              <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,.82)', fontWeight: 500, mb: '2px' }}>
-                เหลือเวลา
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: 23,
-                  fontWeight: 800,
-                  lineHeight: 1,
-                  fontVariantNumeric: 'tabular-nums',
-                  color: isUnderHour ? '#FF5B66' : '#fff',
-                  textShadow: '0 2px 12px rgba(0,0,0,.45)',
-                }}
-              >
-                {formatRemain(remainMs)}
-              </Typography>
-            </Box>
-          </Box>
-        )}
-      </Box>
+      {children}
     </Box>
   )
 }

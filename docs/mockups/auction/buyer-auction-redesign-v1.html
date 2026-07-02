@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Buyer Auction Detail — Redesign Mockup v1 (Deep / Vuexy)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://api.iconify.design/iconify-icon.min.js"></script>
+<style>
+  :root{
+    /* Vuexy tokens (light) */
+    --primary:#7367F0; --primary-hover:#675DD8; --primary-lo:rgba(115,103,240,.16);
+    --text-primary:rgba(47,43,61,.9); --text-secondary:rgba(47,43,61,.7); --text-disabled:rgba(47,43,61,.4);
+    --divider:rgba(47,43,61,.12);
+    --bg-default:#F8F7FA; --paper:#fff;
+    --success:#28C76F; --success-lo:rgba(40,199,111,.16);
+    --warning:#FF9F43; --warning-lo:rgba(255,159,67,.16);
+    --error:#FF4C51; --error-lo:rgba(255,76,81,.16);
+    --info:#00BAD1; --info-lo:rgba(0,186,209,.16);
+    --shadow-xs:0 2px 4px rgba(47,43,61,.10);
+    --shadow-sm:0 2px 6px rgba(47,43,61,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Anuphan',sans-serif;background:#eceaf2;color:var(--text-primary);padding:28px 16px 80px;-webkit-font-smoothing:antialiased}
+  .head{max-width:1180px;margin:0 auto 26px}
+  .head h1{font-size:24px;font-weight:800;letter-spacing:-.01em}
+  .head p{color:#5b5570;font-size:14px;margin-top:6px;max-width:760px;line-height:1.6}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:12.5px;color:#5b5570}
+  .legend b{color:var(--primary)}
+  .row{max-width:1180px;margin:0 auto;display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;justify-content:center}
+  .col{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .tag{display:inline-flex;align-items:center;gap:7px;background:var(--paper);border:1px solid var(--divider);border-radius:999px;padding:7px 15px;font-size:13px;font-weight:700}
+  .tag .n{width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .why{font-size:12px;color:#6a6480;line-height:1.55;max-width:360px;text-align:center;min-height:52px}
+  .why b{color:#3a3550}
+
+  /* ===== phone ===== */
+  .phone{width:390px;background:var(--bg-default);border-radius:34px;padding:10px;box-shadow:0 18px 44px rgba(20,16,45,.22);border:1px solid #dcd8ea}
+  .screen{background:var(--bg-default);border-radius:26px;overflow:hidden;position:relative;height:812px;display:flex;flex-direction:column}
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden}
+  .scroll::-webkit-scrollbar{width:0}
+
+  /* hero */
+  .hero{position:relative;height:230px;background:linear-gradient(150deg,#4a4668,#23203a);display:flex;align-items:flex-end}
+  .hero .top{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between}
+  .hero .back{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:#2F2B3D}
+  .hero .live{background:var(--error);color:#fff;font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px;display:inline-flex;align-items:center;gap:6px}
+  .hero .live::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .hero .watch{position:absolute;top:52px;right:12px;background:rgba(0,0,0,.45);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .hero .ovr{position:relative;z-index:2;width:100%;padding:16px 16px 14px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.72))}
+  .hero .ttl{color:#fff;font-size:16px;font-weight:600}
+  .hero .hud{display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px}
+  .hero .hud .lbl{color:rgba(255,255,255,.82);font-size:10.5px;font-weight:500;margin-bottom:2px}
+  .hero .hud .big{color:#fff;font-size:34px;font-weight:800;line-height:.95}
+  .hero .hud .time{color:#fff;font-size:22px;font-weight:800}
+
+  .body{padding:14px 14px 0;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--paper);border-radius:12px;box-shadow:var(--shadow-xs)}
+  .card.pad{padding:14px}
+
+  /* ===== NEW seller identity card ===== */
+  .seller{display:flex;align-items:center;gap:12px;padding:12px 14px}
+  .seller .av{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#8f85f3,#675dd8);color:#fff;display:grid;place-items:center;font-size:18px;font-weight:700;flex-shrink:0}
+  .seller .mid{flex:1;min-width:0}
+  .seller .nm{display:flex;align-items:center;gap:5px;font-weight:700;font-size:15px}
+  .seller .nm .vf{color:var(--primary);font-size:16px}
+  .seller .sub{display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap}
+  .seller .star{color:#FF9F43;font-size:13px;display:inline-flex;align-items:center;gap:3px;font-weight:600}
+  .seller .star small{color:var(--text-disabled);font-weight:500}
+  .seller .tier{display:inline-flex;align-items:center;gap:4px;background:var(--primary-lo);color:var(--primary);font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .seller .go{color:var(--text-disabled);font-size:20px;flex-shrink:0}
+  .seller-cap{font-size:10.5px;color:var(--text-disabled);padding:0 14px 10px;margin-top:-4px}
+
+  /* chart */
+  .chart{padding:14px 14px 6px}
+  .chart .lbl{font-size:12px;color:var(--text-disabled);font-weight:500}
+  .chart svg{display:block;width:100%;height:90px;margin-top:4px}
+
+  /* meta strip */
+  .meta{display:flex;flex-wrap:wrap;column-gap:16px;row-gap:6px;padding:11px 14px;font-size:12px;color:var(--text-secondary)}
+  .meta b{color:var(--text-primary)}
+
+  /* bids */
+  .bids .bh{display:flex;justify-content:space-between;align-items:center;padding:13px 14px 6px}
+  .bids .bh .t{font-weight:700;font-size:14.5px}
+  .bids .bh .lv{background:var(--error-lo);color:var(--error);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .bids .bh .lv::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--error)}
+  .bid{display:flex;gap:10px;padding:9px 14px}
+  .bid .ba{width:34px;height:34px;border-radius:50%;background:#2b2740;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .bid .bb{flex:1}
+  .bid .r1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .bid .nm{font-weight:600;font-size:13.5px}
+  .bid .chip{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px}
+  .bid .chip.new{background:rgba(47,43,61,.08);color:var(--text-secondary)}
+  .bid .chip.lead{background:var(--primary-lo);color:var(--primary)}
+  .bid .amt{background:var(--primary-lo);border-radius:9px;padding:5px 10px;margin-top:3px;font-size:13px;color:var(--text-secondary);display:inline-block}
+  .bid .amt b{color:var(--text-primary)}
+  .bid .r3{display:flex;gap:14px;margin-top:5px;font-size:11px;color:var(--text-disabled)}
+
+  /* ===== BID PANEL (sticky) — variants ===== */
+  .bar{background:var(--paper);border-top:1px solid var(--divider);border-radius:16px 16px 0 0;box-shadow:0 -6px 20px rgba(47,43,61,.10);padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
+  .btn{border:none;border-radius:12px;font-family:inherit;cursor:pointer;font-weight:700}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-hover)}
+  .heart{width:44px;height:44px;border:1px solid var(--divider);border-radius:12px;background:#fff;display:grid;place-items:center;color:var(--text-disabled);font-size:20px;flex-shrink:0}
+
+  /* Variant A: stepper + result presets */
+  .vA .a-lbl{font-size:11px;color:var(--text-disabled);font-weight:600;margin-bottom:6px}
+  .vA .step{display:flex;align-items:center;border:1.5px solid var(--primary);border-radius:14px;overflow:hidden;height:52px}
+  .vA .step button{width:54px;height:100%;border:none;background:var(--primary-lo);color:var(--primary);font-size:26px;font-weight:700;cursor:pointer}
+  .vA .step .val{flex:1;text-align:center}
+  .vA .step .val .p{font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .vA .step .val .h{font-size:10px;color:var(--text-disabled);font-weight:600}
+  .vA .pres{display:flex;gap:7px;margin:9px 0}
+  .vA .pres .pp{flex:1;text-align:center;padding:7px 4px;border-radius:10px;background:rgba(47,43,61,.05);cursor:pointer}
+  .vA .pres .pp .k{font-size:9.5px;color:var(--text-disabled);font-weight:600}
+  .vA .pres .pp .v{font-size:13px;font-weight:700;color:var(--text-primary)}
+  .vA .pres .pp.sel{background:var(--primary-lo);outline:1.5px solid var(--primary)}
+  .vA .pres .pp.sel .v{color:var(--primary)}
+  .vA .go{display:flex;gap:8px}
+  .vA .go .cta{flex:1;height:48px;font-size:15px}
+
+  /* Variant B: result chips */
+  .vB .chips{display:flex;gap:7px;margin-bottom:9px}
+  .vB .chips .c{flex:1;padding:9px 4px;border-radius:11px;background:rgba(47,43,61,.05);text-align:center;cursor:pointer}
+  .vB .chips .c .k{font-size:9.5px;color:var(--text-disabled);font-weight:600}
+  .vB .chips .c .v{font-size:15px;font-weight:800;color:var(--text-primary);margin-top:1px}
+  .vB .chips .c.sel{background:var(--primary);}
+  .vB .chips .c.sel .k{color:rgba(255,255,255,.75)}
+  .vB .chips .c.sel .v{color:#fff}
+  .vB .chips .c.cust{flex:.66;display:grid;place-items:center;color:var(--text-secondary)}
+  .vB .go{display:flex;gap:8px}
+  .vB .go .cta{flex:1;height:50px;font-size:16px}
+
+  /* Variant C: one-tap + expandable */
+  .vC .go{display:flex;gap:8px;align-items:stretch}
+  .vC .go .cta{flex:1;height:56px;display:flex;flex-direction:column;justify-content:center;line-height:1.2}
+  .vC .go .cta .m{font-size:16px;font-weight:800}
+  .vC .go .cta .s{font-size:11px;font-weight:500;opacity:.75}
+  .vC .adv{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:9px;color:var(--primary);font-size:12.5px;font-weight:700;cursor:pointer}
+  .vC .buynow{margin-top:8px;height:40px;width:100%;background:var(--warning-lo);color:#B45309;border-radius:11px;font-weight:700;font-size:13px;border:none;display:flex;align-items:center;justify-content:center;gap:6px}
+
+  .pick{margin-top:2px;padding:7px 16px;border-radius:999px;background:var(--primary);color:#fff;font-size:13px;font-weight:700;box-shadow:var(--shadow-sm)}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>ประมูล (Buyer) — Redesign Mockup v1</h1>
+  <p>ปรับ 3 เรื่องตาม feedback: (1) การ์ดแน่นขึ้น ดูสะอาด (2) เพิ่ม <b>การ์ดผู้ขาย</b> ชัดเจน (avatar + ชื่อ + verified + เรตติ้ง + ระดับทรัสต์) (3) <b>panel เสนอราคา</b> ออกแบบใหม่ให้เข้าใจง่าย — เลือก 1 ใน 3 แบบด้านล่าง. ทุกแบบใช้สี Vuexy ม่วง #7367F0 + ฟอนต์ Anuphan ตามธีมจริง.</p>
+  <div class="legend">
+    <span>🎯 ปัญหาเดิม: ชิป <b>+฿20/+฿40/+฿80</b> โชว์ "ส่วนเพิ่ม" ไม่ใช่ "ราคาที่จะจ่ายจริง" → ต้องเดา · ปุ่มดินสอ (custom) ไม่สื่อ · 3 แถวไม่เชื่อมกัน</span>
+  </div>
+</div>
+
+<div class="row">
+
+  <!-- ============ VARIANT A ============ -->
+  <div class="col">
+    <span class="tag"><span class="n">A</span> Stepper + ราคาจริง</span>
+    <div class="phone"><div class="screen">
+      <div class="scroll">
+        <div class="hero">
+          <div class="top"><div class="back"><iconify-icon icon="tabler:arrow-left"></iconify-icon></div><div class="live">LIVE</div></div>
+          <div class="watch"><iconify-icon icon="tabler:eye"></iconify-icon> 1 กำลังดู</div>
+          <div class="ovr"><div class="ttl">กรอบรูป</div>
+            <div class="hud"><div><div class="lbl">ราคาปัจจุบัน · 3 บิด</div><div class="big">฿460</div></div>
+            <div style="text-align:right"><div class="lbl">เหลือเวลา</div><div class="time">01:29:19</div></div></div>
+          </div>
+        </div>
+        <div class="body">
+          <!-- SELLER CARD -->
+          <div class="card">
+            <div class="seller">
+              <div class="av">S</div>
+              <div class="mid">
+                <div class="nm">Sekson Oonnom <iconify-icon class="vf" icon="tabler:rosette-discount-check-filled"></iconify-icon></div>
+                <div class="sub">
+                  <span class="star"><iconify-icon icon="tabler:star-filled"></iconify-icon> 4.8 <small>(23)</small></span>
+                  <span class="tier"><iconify-icon icon="tabler:shield-check-filled"></iconify-icon> น่าเชื่อถือ</span>
+                </div>
+              </div>
+              <iconify-icon class="go" icon="tabler:chevron-right"></iconify-icon>
+            </div>
+            <div class="seller-cap">ผู้เปิดประมูล · แตะเพื่อดูร้านและรีวิว</div>
+          </div>
+          <div class="card chart"><div class="lbl">แนวโน้มราคา</div>
+            <svg viewBox="0 0 300 90" preserveAspectRatio="none"><defs><linearGradient id="gA" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7367F0" stop-opacity=".28"/><stop offset="1" stop-color="#7367F0" stop-opacity="0"/></linearGradient></defs><path d="M0,78 C60,74 90,60 150,46 C210,32 250,16 300,10 L300,90 L0,90 Z" fill="url(#gA)"/><path d="M0,78 C60,74 90,60 150,46 C210,32 250,16 300,10" fill="none" stroke="#7367F0" stroke-width="2.5"/></svg>
+          </div>
+          <div class="card meta"><span>เริ่ม <b>฿400</b></span><span>ขั้นบิด <b>฿20</b></span><span>ขั้นต่ำ <b>ไม่มี</b></span></div>
+          <div class="card bids">
+            <div class="bh"><div class="t">การเสนอราคา (3)</div><div class="lv">สด</div></div>
+            <div class="bid"><div class="ba">PH</div><div class="bb"><div class="r1"><span class="nm">kk_phurich</span><span class="chip new">มือใหม่</span><span class="chip lead">👑 ผู้นำ</span></div><div class="amt">เสนอราคา <b>฿460</b></div><div class="r3"><span>3 นาทีที่แล้ว</span><span>♡ ถูกใจ</span></div></div></div>
+            <div class="bid"><div class="ba">PH</div><div class="bb"><div class="r1"><span class="nm">kk_phurich</span><span class="chip new">มือใหม่</span></div><div class="amt">เสนอราคา <b>฿440</b></div><div class="r3"><span>2 ชั่วโมงที่แล้ว</span><span>♡ ถูกใจ</span></div></div></div>
+          </div>
+        </div>
+      </div>
+      <!-- PANEL A -->
+      <div class="bar vA">
+        <div class="a-lbl">ราคาที่จะเสนอ</div>
+        <div class="step"><button>−</button><div class="val"><div class="p">฿480</div><div class="h">ขั้นต่ำถัดไป</div></div><button>+</button></div>
+        <div class="pres">
+          <div class="pp sel"><div class="k">ถัดไป</div><div class="v">฿480</div></div>
+          <div class="pp"><div class="k">+2 ขั้น</div><div class="v">฿500</div></div>
+          <div class="pp"><div class="k">+4 ขั้น</div><div class="v">฿540</div></div>
+        </div>
+        <div class="go"><div class="heart"><iconify-icon icon="tabler:heart"></iconify-icon></div><button class="btn btn-primary cta">ยืนยันเสนอราคา ฿480</button></div>
+      </div>
+    </div></div>
+    <div class="why"><b>Stepper กด +/− ทีละขั้น</b> เห็นราคาจริงตัวใหญ่กลางจอ · พรีเซ็ตด้านล่างโชว์ "ราคาที่จะจ่าย" ไม่ใช่ส่วนเพิ่ม · แตะเลขเพื่อพิมพ์เองได้</div>
+  </div>
+
+  <!-- ============ VARIANT B ============ -->
+  <div class="col">
+    <span class="tag"><span class="n">B</span> ชิปราคาจริง</span>
+    <div class="phone"><div class="screen">
+      <div class="scroll">
+        <div class="hero">
+          <div class="top"><div class="back"><iconify-icon icon="tabler:arrow-left"></iconify-icon></div><div class="live">LIVE</div></div>
+          <div class="watch"><iconify-icon icon="tabler:eye"></iconify-icon> 1 กำลังดู</div>
+          <div class="ovr"><div class="ttl">กรอบรูป</div>
+            <div class="hud"><div><div class="lbl">ราคาปัจจุบัน · 3 บิด</div><div class="big">฿460</div></div>
+            <div style="text-align:right"><div class="lbl">เหลือเวลา</div><div class="time">01:29:19</div></div></div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="card">
+            <div class="seller">
+              <div class="av">S</div>
+              <div class="mid">
+                <div class="nm">Sekson Oonnom <iconify-icon class="vf" icon="tabler:rosette-discount-check-filled"></iconify-icon></div>
+                <div class="sub">
+                  <span class="star"><iconify-icon icon="tabler:star-filled"></iconify-icon> 4.8 <small>(23)</small></span>
+                  <span class="tier"><iconify-icon icon="tabler:shield-check-filled"></iconify-icon> น่าเชื่อถือ</span>
+                </div>
+              </div>
+              <iconify-icon class="go" icon="tabler:chevron-right"></iconify-icon>
+            </div>
+            <div class="seller-cap">ผู้เปิดประมูล · แตะเพื่อดูร้านและรีวิว</div>
+          </div>
+          <div class="card chart"><div class="lbl">แนวโน้มราคา</div>
+            <svg viewBox="0 0 300 90" preserveAspectRatio="none"><path d="M0,78 C60,74 90,60 150,46 C210,32 250,16 300,10 L300,90 L0,90 Z" fill="url(#gA)"/><path d="M0,78 C60,74 90,60 150,46 C210,32 250,16 300,10" fill="none" stroke="#7367F0" stroke-width="2.5"/></svg>
+          </div>
+          <div class="card meta"><span>เริ่ม <b>฿400</b></span><span>ขั้นบิด <b>฿20</b></span><span>ขั้นต่ำ <b>ไม่มี</b></span></div>
+          <div class="card bids">
+            <div class="bh"><div class="t">การเสนอราคา (3)</div><div class="lv">สด</div></div>
+            <div class="bid"><div class="ba">PH</div><div class="bb"><div class="r1"><span class="nm">kk_phurich</span><span class="chip new">มือใหม่</span><span class="chip lead">👑 ผู้นำ</span></div><div class="amt">เสนอราคา <b>฿460</b></div><div class="r3"><span>3 นาทีที่แล้ว</span><span>♡ ถูกใจ</span></div></div></div>
+            <div class="bid"><div class="ba">PH</div><div class="bb"><div class="r1"><span class="nm">kk_phurich</span><span class="chip new">มือใหม่</span></div><div class="amt">เสนอราคา <b>฿440</b></div><div class="r3"><span>2 ชั่วโมงที่แล้ว</span><span>♡ ถูกใจ</span></div></div></div>
+          </div>
+        </div>
+      </div>
+      <!-- PANEL B -->
+      <div class="bar vB">
+        <div class="chips">
+          <div class="c sel"><div class="k">ถัดไป</div><div class="v">฿480</div></div>
+          <div class="c"><div class="k">+2 ขั้น</div><div class="v">฿500</div></div>
+          <div class="c"><div class="k">+4 ขั้น</div><div class="v">฿540</div></div>
+          <div class="c cust"><iconify-icon icon="tabler:pencil-plus" style="font-size:20px"></iconify-icon></div>
+        </div>
+        <div class="go"><div class="heart"><iconify-icon icon="tabler:heart"></iconify-icon></div><button class="btn btn-primary cta">เสนอราคา ฿480</button></div>
+      </div>
+    </div></div>
+    <div class="why"><b>ชิปโชว์ราคาจริง</b> (฿480/฿500/฿540) แทนส่วนเพิ่ม · เปลี่ยนจากของเดิมน้อยสุด · แตะ ✎ = พิมพ์ราคาเอง · เลือกแล้วปุ่มล่างอัปเดตตาม</div>
+  </div>
+
+  <!-- ============ VARIANT C ============ -->
+  <div class="col">
+    <span class="tag"><span class="n">C</span> แตะเดียวจบ + ขั้นสูง</span>
+    <div class="phone"><div class="screen">
+      <div class="scroll">
+        <div class="hero">
+          <div class="top"><div class="back"><iconify-icon icon="tabler:arrow-left"></iconify-icon></div><div class="live">LIVE</div></div>
+          <div class="watch"><iconify-icon icon="tabler:eye"></iconify-icon> 1 กำลังดู</div>
+          <div class="ovr"><div class="ttl">กรอบรูป</div>
+            <div class="hud"><div><div class="lbl">ราคาปัจจุบัน · 3 บิด</div><div class="big">฿460</div></div>
+            <div style="text-align:right"><div class="lbl">เหลือเวลา</div><div class="time">01:29:19</div></div></div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="card">
+            <div class="seller">
+              <div class="av">S</div>
+              <div class="mid">
+                <div class="nm">Sekson Oonnom <iconify-icon class="vf" icon="tabler:rosette-discount-check-filled"></iconify-icon></div>
+                <div class="sub">
+                  <span class="star"><iconify-icon icon="tabler:star-filled"></iconify-icon> 4.8 <small>(23)</small></span>
+                  <span class="tier"><iconify-icon icon="tabler:shield-check-filled"></iconify-icon> น่าเชื่อถือ</span>
+                </div>
+              </div>
+              <iconify-icon class="go" icon="tabler:chevron-right"></iconify-icon>
+            </div>
+            <div class="seller-cap">ผู้เปิดประมูล · แตะเพื่อดูร้านและรีวิว</div>
+          </div>
+          <div class="card chart"><div class="lbl">แนวโน้มราคา</div>
+            <svg viewBox="0 0 300 90" preserveAspectRatio="none"><path d="M0,78 C60,74 90,60 150,46 C210,32 250,16 300,10 L300,90 L0,90 Z" fill="url(#gA)"/><path d="M0,78 C60,74 90,60 150,46 C210,32 250,16 300,10" fill="none" stroke="#7367F0" stroke-width="2.5"/></svg>
+          </div>
+          <div class="card meta"><span>เริ่ม <b>฿400</b></span><span>ขั้นบิด <b>฿20</b></span><span>ขั้นต่ำ <b>ไม่มี</b></span></div>
+          <div class="card bids">
+            <div class="bh"><div class="t">การเสนอราคา (3)</div><div class="lv">สด</div></div>
+            <div class="bid"><div class="ba">PH</div><div class="bb"><div class="r1"><span class="nm">kk_phurich</span><span class="chip new">มือใหม่</span><span class="chip lead">👑 ผู้นำ</span></div><div class="amt">เสนอราคา <b>฿460</b></div><div class="r3"><span>3 นาทีที่แล้ว</span><span>♡ ถูกใจ</span></div></div></div>
+            <div class="bid"><div class="ba">PH</div><div class="bb"><div class="r1"><span class="nm">kk_phurich</span><span class="chip new">มือใหม่</span></div><div class="amt">เสนอราคา <b>฿440</b></div><div class="r3"><span>2 ชั่วโมงที่แล้ว</span><span>♡ ถูกใจ</span></div></div></div>
+          </div>
+        </div>
+      </div>
+      <!-- PANEL C -->
+      <div class="bar vC">
+        <div class="go">
+          <div class="heart"><iconify-icon icon="tabler:heart"></iconify-icon></div>
+          <button class="btn btn-primary cta"><span class="m">เสนอราคา ฿480</span><span class="s">ขั้นต่ำถัดไป · +฿20</span></button>
+        </div>
+        <div class="adv"><iconify-icon icon="tabler:adjustments-horizontal"></iconify-icon> ปรับราคาเอง / เพิ่มหลายขั้น</div>
+      </div>
+    </div></div>
+    <div class="why"><b>เคสส่วนใหญ่แตะเดียวจบ</b> — ปุ่มใหญ่ = บิดขั้นต่ำถัดไปทันที · คนที่อยากปรับเยอะกด "ปรับราคาเอง" เพื่อขยาย stepper/พิมพ์เอง · รกน้อยสุด</div>
+  </div>
+
+</div>
+
+<div style="max-width:1180px;margin:34px auto 0;text-align:center;color:#5b5570;font-size:13.5px;line-height:1.7">
+  บอกผมว่าเลือก <b style="color:#7367F0">A</b>, <b style="color:#7367F0">B</b> หรือ <b style="color:#7367F0">C</b> (ผสม/แก้ได้) แล้วผมจะทำ Design Spec (safepay-ux, map เป็น Vuexy token) → implement จริง → QA มือถือ.<br>
+  การ์ดผู้ขาย + การ์ดแน่นขึ้น เหมือนกันทั้ง 3 แบบ (ปรับได้ถ้าอยากได้ต่างจากนี้)
+</div>
+
+</body>
+</html>

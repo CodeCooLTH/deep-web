@@ -38,14 +38,14 @@ export default function AuctionPriceChart({ bidHistory }: Props) {
       <Box
         sx={{
           borderRadius: '12px',
-          boxShadow: '0 1px 2px rgba(15,23,42,.06)',
-          bgcolor: '#fff',
+          boxShadow: (theme) => theme.customShadows.xs,
+          bgcolor: 'background.paper',
           px: '16px',
           py: '20px',
           textAlign: 'center',
         }}
       >
-        <Typography sx={{ fontSize: 12.5, color: '#94A3B8' }}>ยังไม่มีข้อมูลราคา — รอผู้เสนอราคาคนแรก</Typography>
+        <Typography sx={{ fontSize: 12.5, color: 'text.disabled' }}>ยังไม่มีข้อมูลราคา — รอผู้เสนอราคาคนแรก</Typography>
       </Box>
     )
   }
@@ -88,8 +88,16 @@ export default function AuctionPriceChart({ bidHistory }: Props) {
   }
 
   return (
-    <Box sx={{ borderRadius: '12px', boxShadow: '0 1px 2px rgba(15,23,42,.06)', bgcolor: '#fff', px: '16px', pt: '14px' }}>
-      <Typography sx={{ fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#94A3B8' }}>
+    <Box
+      sx={{
+        borderRadius: '12px',
+        boxShadow: (theme) => theme.customShadows.xs,
+        bgcolor: 'background.paper',
+        px: '16px',
+        pt: '14px',
+      }}
+    >
+      <Typography sx={{ fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'text.disabled' }}>
         แนวโน้มราคา
       </Typography>
       <AppReactApexCharts type='area' height={80} width='100%' series={series} options={options} />
