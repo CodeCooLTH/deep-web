@@ -293,10 +293,10 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
       {/* grid 3 cols: left col-span-2 = 3 blocks, right col-span-1 = summary */}
       {/* (mockup create.html line 52-55)                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
 
         {/* ── LEFT COLUMN: 3 blocks stacked ────────────────────────────── */}
-        <div className="flex flex-col gap-5 lg:col-span-2">
+        <div className="flex flex-col gap-3 sm:gap-5 lg:col-span-2">
 
           {/* BLOCK 1 — ข้อมูลลูกค้า */}
           <CustomerSelectBlock control={control} errors={errors} />
