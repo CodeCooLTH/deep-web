@@ -10,12 +10,12 @@
 ## In-Scope
 | ID | Surface | Base (theme source) | Acceptance | สถานะ |
 |----|---------|---------------------|------------|-------|
-| P3-1 | `LockedStateBanner` shared component + seller menu `/business` entry (verify icon) | WalletCard.tsx:42-52 + InventoryGate LOCKED variant; AdvanceWarningBanner CTA | 2 variant (grace countdown / quota no-countdown); reviewer grep: no-emoji/no-arbitrary/pacesToast=0; menu icon มีจริง (iconify verify); tsc 0 | TODO |
-| P3-2 | Package matrix page `business/page.tsx` (RSC) + tier cards + banners + quota card | inventory/page.tsx + InventoryGate + paces pages/pricing; SubscribeButton/ReactivateButton | 4 tier cards ปุ่มตาม state matrix; quota progress; Base: line; grep gates 0; tsc 0; render บน dev server (visual QA) | TODO |
-| P3-3 | `AccountSwitcher` sidebar component | UserProfileSettings.tsx hs-dropdown + UserDropdownDetailed header | hasBusinessMembership=false→return null; switch→session.update+refresh; grep gates 0; tsc 0 | TODO |
-| P3-4 | Create Business page `business/create/page.tsx` | onboarding guard + ShopForm Step-1; products/new-v2 empty-state | gate-before-form (no package/เต็มโควตา→empty-state); 4-field single card; Base: line; grep 0; tsc 0 | TODO |
-| P3-5 | Invite management page `business/[shopId]/invites/page.tsx` | paces .table + input-icon-group; SubscribeButton Swal | isShopMember guard; PII mask server-side; 3 cards; grep 0; tsc 0 | TODO |
-| P3-6 | Cancel + Downgrade Sweet Alerts (components ใน package page) | SubscribeButton Swal + SweetAlerts.tsx dangerAlert/htmlAlert | cancel confirm+list; downgrade selection modal (keepShopIds ครบเป๊ะ); grep 0; tsc 0 | TODO |
+| P3-1 | `LockedStateBanner` shared component + seller menu `/business` entry (verify icon) | WalletCard.tsx:42-52 + InventoryGate LOCKED variant; AdvanceWarningBanner CTA | 2 variant (grace countdown / quota no-countdown); reviewer grep: no-emoji/no-arbitrary/pacesToast=0; menu icon มีจริง (iconify verify); tsc 0 | DONE |
+| P3-2 | Package matrix page `business/page.tsx` (RSC) + tier cards + banners + quota card | inventory/page.tsx + InventoryGate + paces pages/pricing; SubscribeButton/ReactivateButton | 4 tier cards ปุ่มตาม state matrix; quota progress; Base: line; grep gates 0; tsc 0; render บน dev server (visual QA) | DONE |
+| P3-3 | `AccountSwitcher` sidebar component | UserProfileSettings.tsx hs-dropdown + UserDropdownDetailed header | hasBusinessMembership=false→return null; switch→session.update+refresh; grep gates 0; tsc 0 | DONE |
+| P3-4 | Create Business page `business/create/page.tsx` | onboarding guard + ShopForm Step-1; products/new-v2 empty-state | gate-before-form (no package/เต็มโควตา→empty-state); 4-field single card; Base: line; grep 0; tsc 0 | DONE |
+| P3-5 | Invite management page `business/[shopId]/invites/page.tsx` | paces .table + input-icon-group; SubscribeButton Swal | isShopMember guard; PII mask server-side; 3 cards; grep 0; tsc 0 | DONE |
+| P3-6 | Cancel + Downgrade Sweet Alerts (components ใน package page) | SubscribeButton Swal + SweetAlerts.tsx dangerAlert/htmlAlert | cancel confirm+list; downgrade selection modal (keepShopIds ครบเป๊ะ); grep 0; tsc 0 | DONE |
 
 ## Out-of-Scope (defer)
 - Accept-invite page (`/invites/[id]/accept`) + Admin extension (`admin/topups/[id]`) — **ต้อง ux แยกรอบ** (Design Spec open item #3)
