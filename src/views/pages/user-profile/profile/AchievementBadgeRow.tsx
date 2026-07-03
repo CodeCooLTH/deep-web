@@ -7,6 +7,8 @@ import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import { Icon as IconifyIcon } from '@iconify/react'
+import { badgeIconName } from '@/lib/badge-icons'
 
 // Base: adapted from theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/ConnectionsTeams.tsx
 // Asset/content source: mockup_shop_profile.html
@@ -66,15 +68,14 @@ function BadgeCell({ item }: { item: AchievementItem }) {
               style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '50%' }}
             />
           ) : (
-            /* fallback emoji icon — item.icon เก็บ emoji ไม่ใช่ CSS class */
-            <Box
-              component='span'
-              role='img'
+            /* fallback: lucide icon ตามชื่อ badge (no-emoji — Hard Rule 12); parity กับ seller BadgeImage */
+            <IconifyIcon
+              icon={badgeIconName(item.nameEN, item.icon)}
+              width={44}
+              height={44}
               aria-label={item.name}
-              sx={{ fontSize: '2.5rem', lineHeight: 1 }}
-            >
-              {item.icon || '🏅'}
-            </Box>
+              style={{ color: '#475569' }}
+            />
           )}
         </Box>
 
