@@ -137,7 +137,9 @@ export default function InboxList({ initialItems, initialNextCursor }: Props) {
               href={`/inbox/${c.id}`}
               className="hover:bg-default-100 block w-full"
             >
-              <div className="flex items-center justify-between gap-3 px-3.75 py-3">
+              {/* row — Base ContactList.tsx:44 `flex justify-between gap-3 px-3.75 py-3` (ไม่มี
+                  items-center บน outer row — child ทั้งสองฝั่งมี items-center/items-end ของตัวเองแล้ว) */}
+              <div className="flex justify-between gap-3 px-3.75 py-3">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
                   <span className="min-w-0 overflow-hidden text-start">

@@ -9,7 +9,10 @@
  * (UX-Design-Spec-Bubble.md "Seller thread reuse")
  *
  * markup ข้อความ/composer copy ตรงจาก ChatThread.tsx (เหมือนกันทุกอย่างยกเว้นไม่มี card-header
- * ของตัวเอง + ไม่มี h-[calc(100vh-190px)] เพราะ parent panel คุมความสูงแทน)
+ * ของตัวเอง + ไม่มี h-[calc(100vh-190px)] เพราะ parent panel คุมความสูงแทน) — bubble structure
+ * ทั้งหมด (items-start/avatar สองฝั่ง/spacing) ตรงกับ Base ChatPage.tsx (ดู comment ละเอียดใน
+ * ChatThread.tsx) ย่อขนาด spacing/avatar ลงเล็กน้อยเพื่อ fit compact panel เท่านั้น
+ * (ไม่ใช้ max-w-[75%] arbitrary — ปล่อย flex-shrink จัดการ wrap เหมือน Base)
  */
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -127,11 +130,12 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
               {g.items.map((m) => {
                 const mine = m.senderRole === 'SHOP'
                 return (
-                  <div key={m.id} className={`my-2.5 flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                  // Base ChatPage.tsx:64/79 — items-start (ไม่ใช่ items-end) + avatar ทั้งสองฝั่ง
+                  <div key={m.id} className={`my-3 flex items-start gap-2 ${mine ? 'justify-end' : ''}`}>
                     {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} size="size-6" />}
-                    {/* max-w-3/4 (75%, fraction scale — ไม่ใช่ arbitrary) แทน max-w-[75%] ของ
-                        ChatThread.tsx เดิม (ห้าม arbitrary bracket ในไฟล์ใหม่ตาม HR7) */}
-                    <div className={`max-w-3/4 ${mine ? 'text-end' : ''}`}>
+                    {/* ไม่ใส่ max-w บน bubble — ปล่อย flex-shrink ของ parent row จัดการ wrap เอง
+                        เหมือน Base (max-w-3/4 เดิม/max-w-[75%] เดิมไม่ใช่ pattern ของ Base) */}
+                    <div>
                       <div className={`rounded px-3 py-2 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'IMAGE' && m.imageUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -147,12 +151,18 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
                           </p>
                         )}
                       </div>
-                      <div className="text-default-400 mt-1 flex items-center gap-1 text-2xs">
-                        {mine && <span className="grow" />}
+                      <div className={`text-default-400 mt-1 flex items-center gap-1 text-2xs ${mine ? 'justify-end' : ''}`}>
                         <Icon icon="clock" />
                         {formatTime(m.createdAt)}
                       </div>
                     </div>
+                    {/* avatar ฝั่ง SHOP — ดู comment เดียวกันใน ChatThread.tsx (ไม่มี shop avatar/ชื่อ
+                        ส่งเข้า component นี้ จึงใช้ icon ร้านค้าแทน initials) */}
+                    {mine && (
+                      <span className="bg-primary flex size-6 shrink-0 items-center justify-center rounded-full text-white">
+                        <Icon icon="building-store" className="size-3" />
+                      </span>
+                    )}
                   </div>
                 )
               })}

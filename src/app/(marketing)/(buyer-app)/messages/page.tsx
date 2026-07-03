@@ -2,11 +2,16 @@
 
 /**
  * Buyer Inbox — /messages (feature 00011 Deep Chat, S-9)
+ * REWORK (copy className verbatim จาก theme — เดิมใช้ sx ล้วนดู generic ไม่เหมือน chat demo จริง)
  *
  * Base: theme/vuexy/typescript-version/full-version/src/views/apps/chat/SidebarLeft.tsx
- *   (renderChat `<li>` L66-122) — ตัด Drawer/search-Autocomplete/UserProfileLeft ออกทั้งหมด
- *   เพราะหน้านี้เป็น standalone inbox page (ไม่ใช่ split-pane chat app) — page shell ใช้
- *   BuyerAppLayout เดียวกับ /orders (ดู (buyer-app)/layout.tsx)
+ *   (renderChat `<li>` L66-122) — copy className โครง `flex items-start gap-4 pli-3 plb-2 rounded mbe-1`
+ *   / `min-is-0 flex-auto` / `flex flex-col items-end justify-start` verbatim, สลับแค่ data source
+ *   (theme ใช้ Redux chatStore → เราใช้ ConversationListItem จาก API); ตัด Drawer/search-Autocomplete/
+ *   UserProfileLeft/isChatActive-highlight ออกทั้งหมด เพราะหน้านี้เป็น standalone inbox page (ไม่ใช่
+ *   split-pane chat app) — page shell ใช้ BuyerAppLayout เดียวกับ /orders (ดู (buyer-app)/layout.tsx)
+ *   unread indicator: theme ใช้ CustomChip นับ unseenMsgs — เราไม่มี count (มีแค่ boolean) จึงแทนด้วย
+ *   dot (bg-primary) ตามที่ปรับไว้เดิม
  * Empty-state: theme ChatContent.tsx:93-111 (CustomAvatar circular + tabler-message-2)
  * Cursor-pagination pattern: AuctionBidHistoryModal.tsx (sentinel + IntersectionObserver)
  *
@@ -20,6 +25,7 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 
+import classnames from 'classnames'
 import { Icon } from '@iconify/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -181,7 +187,7 @@ export default function BuyerMessagesPage() {
           </Box>
         </Box>
       ) : (
-        <Box component='ul' sx={{ listStyle: 'none', p: 0, m: 0 }}>
+        <ul className='p-0 m-0'>
           {items.map((item) => {
             const shopName = item.counterparty?.shopName ?? 'ร้านค้า'
             const logo = item.counterparty?.logo
@@ -194,26 +200,14 @@ export default function BuyerMessagesPage() {
             const unread = isUnread(item)
 
             return (
-              <Box component='li' key={item.id}>
-                <Link href={`/messages/${item.shopId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '14px',
-                      py: '12px',
-                      px: '4px',
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
+              <li key={item.id}>
+                <Link href={`/messages/${item.shopId}`} className='no-underline text-inherit'>
+                  <div className='flex items-start gap-4 pli-3 plb-2 cursor-pointer rounded mbe-1 hover:bg-actionHover border-be'>
                     <CustomAvatar src={logo ? `/api/files/${logo}` : undefined} skin='light' size={44}>
                       {getInitials(shopName)}
                     </CustomAvatar>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography sx={{ fontWeight: unread ? 700 : 500 }} className='truncate'>
+                    <div className='min-is-0 flex-auto'>
+                      <Typography className={classnames('truncate', { 'font-bold': unread })}>
                         {shopName}
                       </Typography>
                       <Typography
@@ -223,18 +217,20 @@ export default function BuyerMessagesPage() {
                       >
                         {preview}
                       </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                      <Typography variant='caption' color='text.disabled'>
+                    </div>
+                    <div className='flex flex-col items-end justify-start gap-1.5'>
+                      <Typography
+                        variant='body2'
+                        color={unread ? 'text.primary' : 'text.disabled'}
+                        className='truncate'
+                      >
                         {formatInboxTime(item.lastMessageAt)}
                       </Typography>
-                      {unread && (
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
-                      )}
-                    </Box>
-                  </Box>
+                      {unread && <span className='bs-2 is-2 rounded-full bg-primary' />}
+                    </div>
+                  </div>
                 </Link>
-              </Box>
+              </li>
             )
           })}
 
@@ -268,7 +264,7 @@ export default function BuyerMessagesPage() {
               )}
             </Box>
           )}
-        </Box>
+        </ul>
       )}
     </Box>
   )

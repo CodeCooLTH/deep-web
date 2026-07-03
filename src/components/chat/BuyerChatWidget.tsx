@@ -7,9 +7,12 @@
  * Base (Popper+Fade+Paper+ClickAwayListener โครง icon-button→floating panel):
  *   src/components/layout/shared/NotificationsDropdown.tsx:173-311 (Popper/Fade/Paper/ClickAway
  *   + fetch-on-mount/fetch-on-open pattern) — เพิ่ม 2-view (list/thread) + back button
- * Base (list row markup): src/app/(marketing)/(buyer-app)/messages/page.tsx (renderChat li)
- *   — เปลี่ยน Link → onClick สลับ view แทน navigate; คง isUnread/formatInboxTime logic
- * Reuse ตรง (ไม่แก้): src/app/(marketing)/(buyer-app)/messages/[shopId]/ChatThread.tsx (thread body)
+ * Base (list row markup — copy className verbatim จาก theme):
+ *   theme/vuexy/typescript-version/full-version/src/views/apps/chat/SidebarLeft.tsx (renderChat `<li>` L66-122)
+ *   — copy className โครง `flex items-start gap-4 pli-3 plb-2 rounded mbe-1` / `min-is-0 flex-auto` /
+ *   `flex flex-col items-end justify-start` verbatim (เหมือน messages/page.tsx); เปลี่ยน Link → onClick
+ *   สลับ view แทน navigate; คง isUnread/formatInboxTime logic
+ * Reuse ตรง (ไม่แก้เพิ่ม — แก้ไปแล้วรอบ rework นี้): src/app/(marketing)/(buyer-app)/messages/[shopId]/ChatThread.tsx (thread body)
  *
  * State (open/view/activeShopId) persist ข้าม open/close ตาม resolved decision OQ3 (ไม่ reset ตอนปิด)
  * Breakpoint `lg` (resolved FINDING 1) — ≥lg = bubble+panel, <lg = bubble เล็ก router.push('/messages')
@@ -30,6 +33,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 
+import classnames from 'classnames'
 import { Icon } from '@iconify/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -286,7 +290,7 @@ export default function BuyerChatWidget() {
                               </Typography>
                             </Box>
                           ) : (
-                            <Box component='ul' sx={{ listStyle: 'none', p: 0, m: 0 }}>
+                            <ul className='p-0 m-0'>
                               {items.map((item) => {
                                 const shopName = item.counterparty?.shopName ?? 'ร้านค้า'
                                 const logo = item.counterparty?.logo
@@ -299,55 +303,38 @@ export default function BuyerChatWidget() {
                                 const unread = isUnread(item)
 
                                 return (
-                                  <Box component='li' key={item.id}>
-                                    <Box
-                                      component='button'
+                                  <li key={item.id}>
+                                    <button
                                       type='button'
                                       onClick={() => handleSelectConversation(item)}
-                                      sx={{
-                                        width: '100%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '11px',
-                                        py: '11px',
-                                        px: '14px',
-                                        border: 'none',
-                                        borderBottom: '1px solid',
-                                        borderColor: 'divider',
-                                        bgcolor: 'transparent',
-                                        cursor: 'pointer',
-                                        textAlign: 'left',
-                                        font: 'inherit',
-                                        color: 'inherit',
-                                        '&:hover': { bgcolor: 'action.hover' },
-                                      }}
+                                      className='is-full flex items-start gap-4 pli-3 plb-2 cursor-pointer rounded mbe-1 border-be hover:bg-actionHover bg-transparent border-0 text-start font-inherit text-inherit'
                                     >
                                       <CustomAvatar src={logo ? `/api/files/${logo}` : undefined} skin='light' size={42}>
                                         {getInitials(shopName)}
                                       </CustomAvatar>
-                                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography sx={{ fontWeight: unread ? 700 : 500, fontSize: 14 }} className='truncate'>
+                                      <div className='min-is-0 flex-auto'>
+                                        <Typography variant='body2' className={classnames('truncate', { 'font-bold': unread })}>
                                           {shopName}
                                         </Typography>
                                         <Typography
-                                          sx={{ fontSize: 12.5 }}
+                                          variant='caption'
                                           color={unread ? 'text.primary' : 'text.secondary'}
-                                          className='truncate'
+                                          className='truncate block'
                                         >
                                           {preview}
                                         </Typography>
-                                      </Box>
-                                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                                        <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
+                                      </div>
+                                      <div className='flex flex-col items-end justify-start gap-1.5'>
+                                        <Typography variant='caption' color='text.disabled'>
                                           {formatInboxTime(item.lastMessageAt)}
                                         </Typography>
-                                        {unread && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />}
-                                      </Box>
-                                    </Box>
-                                  </Box>
+                                        {unread && <span className='bs-2 is-2 rounded-full bg-primary' />}
+                                      </div>
+                                    </button>
+                                  </li>
                                 )
                               })}
-                            </Box>
+                            </ul>
                           )}
                         </Box>
                       )}

@@ -8,9 +8,17 @@
  * (UX-Design-Spec.md §S-12) + แก้ scroll body จาก SimpleBar → plain `<div overflow-y-auto>` + ref
  * (ต้อง programmatic scroll สำหรับ preserve-scroll ตอน load-older + scroll-to-bottom ตอนส่ง)
  * bubble สี: ซ้าย=BUYER `bg-light`, ขวา=SHOP `bg-primary/15` (Base ใช้ bg-warning/15/bg-info/15 —
- * แก้ตาม spec ให้ตรง semantic ผู้ส่งจริง)
+ * แก้ตาม spec ให้ตรง semantic ผู้ส่งจริง; class อื่นทั้งหมดของ bubble copy ตรงจาก Base
+ * ChatPage.tsx:64-90 — `my-5 flex items-start gap-2.5`, avatar ทั้งสองฝั่ง, `rounded px-6 py-3`,
+ * เวลา `mt-1.5 ... text-xs` — REWORK 2026-07-03: เดิม simplify เป็น items-end/my-3/px-4 py-2.5/
+ * ตัด avatar ฝั่ง SHOP/ใช้ max-w-[75%] arbitrary (ผิด HR7) ไม่ faithful ตาม demo จริง)
  *
- * Avatar: reuse pattern BidderAvatar จาก AuctionBidFeed.tsx (ดู InboxList.tsx comment เดียวกัน)
+ * Avatar ฝั่ง SHOP (ข้อความตัวเอง): Base ใช้ initials-fallback div `bg-primary ... size-8` จาก
+ * currentUser.name — เราไม่มีชื่อ/รูป shop ส่งเข้ามาใน component นี้ (Props มีแค่ buyer) จึงใช้ icon
+ * ร้านค้า (`tabler:building-store`) แทน initials บน div ทรงเดียวกัน (verbatim size-8/bg-primary/
+ * rounded-full — สลับแค่เนื้อหาใน div จาก initials เป็น icon)
+ *
+ * Avatar ฝั่ง BUYER: reuse pattern BidderAvatar จาก AuctionBidFeed.tsx (ดู InboxList.tsx comment เดียวกัน)
  * Upload: pattern ProductImagesCardV2.tsx:54-90 (auto-upload ทันทีที่เลือกไฟล์ → preview chip)
  * Realtime: pattern AuctionDetailClient.tsx:144-179 (Supabase broadcast, signal-only ไม่เชื่อ payload)
  * Date divider group: pattern NotificationFeed.tsx (formatDate เทียบ today/yesterday, ห้าม Intl ตรง)
@@ -101,11 +109,12 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
 
   return (
     <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex flex-col">
-      {/* card-header — avatar+ชื่อผู้ซื้อ (deviate จาก Base: เพิ่ม avatar, ตัด online-status) */}
+      {/* card-header — Base ChatPage.tsx:34-56 (deviate: เพิ่ม avatar ระบุตัวตน, ตัด mobile-toggle/
+          online-status/ChatToolbar — ไม่มี call/video/presence backend ตาม omissions) */}
       <div className="card-header">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-          <h5 className="text-base mb-0">{buyerName}</h5>
+          <h5 className="text-base mb-1.25">{buyerName}</h5>
         </div>
       </div>
 
@@ -141,10 +150,13 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
               {g.items.map((m) => {
                 const mine = m.senderRole === 'SHOP'
                 return (
-                  <div key={m.id} className={`my-3 flex items-end gap-2.5 ${mine ? 'justify-end' : 'justify-start'}`}>
-                    {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} size="size-7" />}
-                    <div className={`max-w-[75%] ${mine ? 'text-end' : ''}`}>
-                      <div className={`rounded px-4 py-2.5 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
+                  // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
+                  <div key={m.id} className={`my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
+                    {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
+                    <div>
+                      {/* Base ไม่ใส่ max-w บน bubble — ปล่อยให้ flex-shrink ของ parent row จัดการ wrap เอง
+                          (ใส่ max-w-[75%] เดิม = arbitrary value ผิด HR7 และไม่ตรง Base) */}
+                      <div className={`rounded px-6 py-3 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'IMAGE' && m.imageUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -159,12 +171,20 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
                           </p>
                         )}
                       </div>
-                      <div className="text-default-400 mt-1 flex items-center gap-1 text-xs">
-                        {mine && <span className="grow" />}
+                      {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง) */}
+                      <div className={`text-default-400 mt-1.5 flex items-center gap-1 text-xs ${mine ? 'justify-end' : ''}`}>
                         <Icon icon="clock" />
                         {formatTime(m.createdAt)}
                       </div>
                     </div>
+                    {/* avatar ฝั่ง SHOP — Base แสดง avatar ทั้งสองฝั่งเสมอ (currentContact/currentUser);
+                        เราไม่มี shop avatar/ชื่อส่งเข้า component นี้ จึงใช้ icon ร้านค้าแทน initials
+                        บน div ทรงเดียวกับ Base initials-fallback (bg-primary size-8 rounded-full) */}
+                    {mine && (
+                      <span className="bg-primary flex size-8 shrink-0 items-center justify-center rounded-full text-white">
+                        <Icon icon="building-store" className="size-4" />
+                      </span>
+                    )}
                   </div>
                 )
               })}

@@ -2,15 +2,22 @@
 
 /**
  * ChatThread — client thread body ของ /messages/[shopId] (feature 00011 Deep Chat, S-10)
+ * REWORK (faithful bubble/composer — เดิม custom sx ล้วน ไม่เหมือน Vuexy chat demo จริง)
  *
- * Base (bubble structure): theme/vuexy/typescript-version/full-version/src/views/apps/chat/ChatLog.tsx
- *   — คงสี/ทิศทาง bubble (ซ้าย=SHOP bg-backgroundPaper, ขวา=BUYER bg-primary+contrastText, rounded)
- *   Adapt: ตัด PerfectScrollbar/msgGroup-consecutive-avatar → plain `<div overflow-y-auto>` + ref
- *   (ต้อง programmatic scroll: preserve-scroll ตอนโหลดข้อความเก่า + auto-scroll-bottom ตอนส่ง/รับใหม่)
- *   ตัด msgStatus (isSeen/isDelivered/isSent) ทั้งหมด — ไม่มี per-message read-receipt (SDS §5 FROZEN CONTRACT)
- * Base (composer): theme/.../apps/chat/SendMsgForm.tsx — คง TextField multiline + endAdornment icon row
- *   Adapt: ตัด emoji-mart Picker + microphone icon ทั้งหมด; attach เปลี่ยนจาก plain <input hidden> เป็น
- *   auto-upload flow (pattern ProductImagesCardV2.tsx: FormData → POST /api/upload → {fileId}) + preview Chip
+ * Base (message bubble — copy className+JSX verbatim): theme/vuexy/typescript-version/full-version/src/views/apps/chat/ChatLog.tsx
+ *   — group ข้อความต่อเนื่องของ sender เดียวกันเป็นก้อน (avatar 32px โผล่ครั้งเดียวต่อก้อน),
+ *   bubble Typography `whitespace-pre-wrap pli-4 plb-2 shadow-xs` + `bg-backgroundPaper rounded-e rounded-b`(shop)
+ *   / `bg-primary text-[var(--mui-palette-primary-contrastText)] rounded-s rounded-b`(buyer), time caption ท้ายก้อน
+ *   Adapt: groupBySender ใช้ senderRole (เรามีแค่ BUYER/SHOP ไม่มี multi-staff senderId แยก), ตัด msgStatus
+ *   (isSeen/isDelivered/isSent) ทั้งหมด — ไม่มี per-message read-receipt (SDS §5 FROZEN CONTRACT); เวลาใช้ formatTime
+ *   จริงเสมอ (ไม่มี "now" fallback แบบ demo data); เพิ่ม IMAGE bubble (ไม่มีใน theme) ด้วย token เดียวกัน
+ *   (shadow-xs/rounded-e-s+rounded-b/bg-backgroundPaper-primary) เพื่อคง visual language
+ * Base (composer — copy className verbatim): theme/.../apps/chat/SendMsgForm.tsx
+ *   — TextField multiline className='p-6' + sx fieldset:border-0 + boxShadow xs, endAdornment icon row
+ *   Adapt: ตัด emoji-mart Picker + microphone icon ทั้งหมด (ไม่มี backend); attach เปลี่ยนจาก plain
+ *   `<input hidden>` เป็น auto-upload flow (pattern ProductImagesCardV2.tsx: FormData → POST /api/upload
+ *   → {fileId}) + preview Chip; send = CustomIconButton contained icon-only (ตัด text-Button variant เพราะ
+ *   ทั้ง 2 host context — full page + widget panel — เป็น compact width เหมือน isBelowSmScreen เสมอ)
  * Realtime subscribe pattern: src/app/(marketing)/a/[id]/AuctionDetailClient.tsx:144-179
  *   (signal-only broadcast, ไม่เชื่อ payload — refetch authoritative เสมอ)
  */
@@ -24,10 +31,12 @@ import IconButton from '@mui/material/IconButton'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 
+import classnames from 'classnames'
 import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
 import CustomAvatar from '@core/components/mui/Avatar'
+import CustomIconButton from '@core/components/mui/IconButton'
 import { getInitials } from '@/utils/getInitials'
 import { formatDate, formatTime } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -77,11 +86,33 @@ function groupByDate(messages: ChatMessageView[]): { dateLabel: string; messages
   return groups
 }
 
+/** จัดกลุ่มข้อความติดกันของ sender เดียวกันเป็นก้อน (avatar โผล่ครั้งเดียวต่อก้อน) — ตาม ChatLog.tsx formatedChatData
+ *  adapt: group ด้วย senderRole (BUYER/SHOP) แทน senderId เพราะฝั่งเราไม่มี multi-staff sender แยกราย id */
+function groupBySender(messages: ChatMessageView[]): { senderRole: SenderRole; messages: ChatMessageView[] }[] {
+  const groups: { senderRole: SenderRole; messages: ChatMessageView[] }[] = []
+  for (const m of messages) {
+    const last = groups[groups.length - 1]
+    if (last && last.senderRole === m.senderRole) last.messages.push(m)
+    else groups.push({ senderRole: m.senderRole, messages: [m] })
+  }
+  return groups
+}
+
 type Props = { shopId: string; shopName: string; shopLogo: string | null }
 
 export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
   const { data: session } = useSession()
-  const myUserId = (session?.user as { id?: string } | undefined)?.id ?? null
+  const sessionUser = session?.user as
+    | { id?: string; displayName?: string; avatar?: string | null }
+    | undefined
+  const myUserId = sessionUser?.id ?? null
+  const myDisplayName = sessionUser?.displayName ?? 'ฉัน'
+  const myAvatarSrc = sessionUser?.avatar
+    ? sessionUser.avatar.startsWith('http')
+      ? sessionUser.avatar
+      : `/api/files/${sessionUser.avatar}`
+    : undefined
+  const shopAvatarSrc = shopLogo ? (shopLogo.startsWith('http') ? shopLogo : `/api/files/${shopLogo}`) : undefined
 
   const [conversation, setConversation] = useState<ConversationSummary | null>(null)
   const [convError, setConvError] = useState<'not-found' | 'generic' | null>(null)
@@ -379,11 +410,11 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
 
   if (convError) {
     return (
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 4 }}>
+      <Box className='flex flex-col flex-1 items-center justify-center gap-4 p-6 bg-backgroundChat'>
         <CustomAvatar variant='circular' size={72} color='error' skin='light'>
           <Icon icon='tabler-message-off' fontSize={36} />
         </CustomAvatar>
-        <Typography sx={{ fontWeight: 600 }}>
+        <Typography className='font-semibold'>
           {convError === 'not-found' ? 'ไม่พบร้านค้านี้' : 'ไม่มีสิทธิ์เข้าถึงบทสนทนานี้'}
         </Typography>
       </Box>
@@ -392,7 +423,7 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
 
   if (loadingConv) {
     return (
-      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box className='flex flex-1 items-center justify-center bg-backgroundChat'>
         <CircularProgress size={28} />
       </Box>
     )
@@ -401,103 +432,132 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
   const dateGroups = groupByDate(messages)
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* message list — plain div ref (ต้อง programmatic scroll: preserve-scroll ตอนโหลดเก่า/auto-scroll ตอนส่งใหม่) */}
-      <Box ref={scrollBoxRef} sx={{ flex: 1, overflowY: 'auto', px: '16px', py: '12px', bgcolor: 'background.default' }}>
+    <Box className='flex flex-col flex-1' sx={{ minHeight: 0 }}>
+      {/* message list — Base: ChatLog.tsx (ScrollWrapper adapt เป็น plain div ref เพราะต้อง programmatic
+          scroll: preserve-scroll ตอนโหลดเก่า/auto-scroll ตอนส่งใหม่) */}
+      <Box ref={scrollBoxRef} className='flex-1 overflow-y-auto overflow-x-hidden bg-backgroundChat p-0'>
         {olderCursor && (
-          <Box ref={topSentinelRef} sx={{ display: 'flex', justifyContent: 'center', py: '10px' }}>
+          <div ref={topSentinelRef} className='flex justify-center plb-2.5'>
             {olderLoadError ? (
-              <Box
-                component='button'
+              <button
                 type='button'
                 onClick={loadOlder}
-                sx={{ border: 'none', background: 'none', cursor: 'pointer', color: 'error.main', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                className='inline-flex items-center gap-1.5 border-0 bg-transparent cursor-pointer text-error text-xs font-bold'
               >
                 <Icon icon='tabler-refresh' fontSize={14} />
                 โหลดข้อความเก่าไม่สำเร็จ ลองใหม่
-              </Box>
+              </button>
             ) : (
               <CircularProgress size={16} />
             )}
-          </Box>
+          </div>
         )}
 
         {messages.length === 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px', py: 8 }}>
+          <div className='flex flex-col items-center justify-center gap-[18px] p-6'>
             <CustomAvatar variant='circular' size={72} color='primary' skin='light'>
               <Icon icon='tabler-message-2' fontSize={36} />
             </CustomAvatar>
-            <Typography color='text.secondary' sx={{ fontSize: 14 }}>
+            <Typography color='text.secondary' className='text-sm'>
               เริ่มต้นทักทาย {shopName} ได้เลย
             </Typography>
-          </Box>
+          </div>
         ) : (
-          dateGroups.map((group) => (
-            <Box key={group.dateLabel}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: '10px' }}>
-                <Box sx={{ px: '12px', py: '3px', borderRadius: 999, bgcolor: 'action.selected', fontSize: 11.5, color: 'text.secondary' }}>
-                  {group.dateLabel}
-                </Box>
-              </Box>
-              {group.messages.map((msg) => {
-                const isBuyer = msg.senderRole === 'BUYER'
-                const imgSrc = msg.imageUrl ? `/api/files/${msg.imageUrl}` : optimisticPreviews[msg.id]
+          dateGroups.map((dateGroup) => (
+            <div key={dateGroup.dateLabel}>
+              <div className='flex justify-center plb-2.5'>
+                <span className='pli-3 py-0.5 rounded-full bg-actionSelected text-textSecondary text-xs'>
+                  {dateGroup.dateLabel}
+                </span>
+              </div>
+
+              {groupBySender(dateGroup.messages).map((msgGroup, groupIndex) => {
+                const isBuyer = msgGroup.senderRole === 'BUYER'
+                const lastMsg = msgGroup.messages[msgGroup.messages.length - 1]
 
                 return (
-                  <Box key={msg.id} sx={{ display: 'flex', gap: '10px', py: '6px', flexDirection: isBuyer ? 'row-reverse' : 'row' }}>
-                    {!isBuyer && (
-                      <CustomAvatar
-                        src={shopLogo ? `/api/files/${shopLogo}` : undefined}
-                        skin='light'
-                        size={28}
-                        sx={{ flexShrink: 0 }}
-                      >
+                  <div
+                    key={`${dateGroup.dateLabel}-${groupIndex}`}
+                    className={classnames('flex gap-4 p-6', { 'flex-row-reverse': isBuyer })}
+                  >
+                    {isBuyer ? (
+                      <CustomAvatar alt={myDisplayName} src={myAvatarSrc} skin='light' size={32}>
+                        {getInitials(myDisplayName)}
+                      </CustomAvatar>
+                    ) : (
+                      <CustomAvatar alt={shopName} src={shopAvatarSrc} skin='light' size={32}>
                         {getInitials(shopName)}
                       </CustomAvatar>
                     )}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isBuyer ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
-                      <Box
-                        sx={{
-                          px: msg.type === 'IMAGE' ? '6px' : '14px',
-                          py: msg.type === 'IMAGE' ? '6px' : '9px',
-                          borderRadius: isBuyer ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-                          bgcolor: isBuyer ? 'primary.main' : 'background.paper',
-                          color: isBuyer ? 'primary.contrastText' : 'text.primary',
-                          boxShadow: 'var(--mui-customShadows-xs)',
-                        }}
-                      >
-                        {msg.type === 'IMAGE' && imgSrc && (
-                          // eslint-disable-next-line @next/next/no-img-element -- ChatMessage.imageUrl = raw fileId, render ผ่าน /api/files/{id} เสมอ (SDS §5 FROZEN CONTRACT)
-                          <img
-                            src={imgSrc}
-                            alt='รูปภาพที่ส่ง'
-                            style={{ maxWidth: 220, maxHeight: 220, borderRadius: 8, display: 'block' }}
-                          />
-                        )}
-                        {msg.body && (
+
+                    <div
+                      className={classnames('flex flex-col gap-2 max-is-[75%]', {
+                        'items-end': isBuyer,
+                      })}
+                    >
+                      {msgGroup.messages.map((msg) => {
+                        const imgSrc = msg.imageUrl ? `/api/files/${msg.imageUrl}` : optimisticPreviews[msg.id]
+
+                        if (msg.type === 'IMAGE') {
+                          return (
+                            <div
+                              key={msg.id}
+                              className={classnames('shadow-xs overflow-hidden', {
+                                'bg-backgroundPaper rounded-e rounded-b': !isBuyer,
+                                'bg-primary rounded-s rounded-b': isBuyer,
+                              })}
+                            >
+                              {imgSrc && (
+                                // eslint-disable-next-line @next/next/no-img-element -- ChatMessage.imageUrl = raw fileId, render ผ่าน /api/files/{id} เสมอ (SDS §5 FROZEN CONTRACT)
+                                <img
+                                  src={imgSrc}
+                                  alt='รูปภาพที่ส่ง'
+                                  className='block max-is-[220px] max-bs-[220px] rounded'
+                                />
+                              )}
+                              {msg.body && (
+                                <Typography
+                                  className={classnames('whitespace-pre-wrap pli-4 plb-2', {
+                                    'text-[var(--mui-palette-primary-contrastText)]': isBuyer,
+                                  })}
+                                  style={{ wordBreak: 'break-word' }}
+                                >
+                                  {msg.body}
+                                </Typography>
+                              )}
+                            </div>
+                          )
+                        }
+
+                        return (
                           <Typography
-                            sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, mt: msg.type === 'IMAGE' ? '6px' : 0 }}
+                            key={msg.id}
+                            className={classnames('whitespace-pre-wrap pli-4 plb-2 shadow-xs', {
+                              'bg-backgroundPaper rounded-e rounded-b': !isBuyer,
+                              'bg-primary text-[var(--mui-palette-primary-contrastText)] rounded-s rounded-b': isBuyer,
+                            })}
+                            style={{ wordBreak: 'break-word' }}
                           >
                             {msg.body}
                           </Typography>
-                        )}
-                      </Box>
-                      <Typography variant='caption' color='text.disabled' sx={{ mt: '2px', px: '4px' }}>
-                        {formatTime(msg.createdAt)}
+                        )
+                      })}
+                      <Typography variant='caption' color='text.disabled'>
+                        {formatTime(lastMsg.createdAt)}
                       </Typography>
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                 )
               })}
-            </Box>
+            </div>
           ))
         )}
       </Box>
 
-      {/* composer — ตัด emoji-mart + microphone ตาม UX spec */}
-      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', p: '12px', flexShrink: 0 }}>
+      {/* composer — Base: SendMsgForm.tsx (ตัด emoji-mart Picker + microphone ตาม UX spec) */}
+      <Box component='form' autoComplete='off' onSubmit={handleSend}>
         {pendingImage && (
-          <Box sx={{ mb: '8px' }}>
+          <Box className='pli-6 pbs-3'>
             <Chip
               // eslint-disable-next-line @next/next/no-img-element -- local object URL preview เท่านั้น ไม่ใช่ /api/files
               avatar={<img src={pendingImage.previewUrl} alt='ตัวอย่างรูปภาพ' style={{ borderRadius: '50%' }} />}
@@ -506,30 +566,50 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
             />
           </Box>
         )}
-        <Box component='form' onSubmit={handleSend} sx={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-          <input ref={fileInputRef} type='file' accept={IMAGE_ACCEPT} hidden onChange={handleFileChange} />
-          <IconButton onClick={handleAttachClick} disabled={sending} aria-label='แนบรูปภาพ'>
-            <Icon icon='tabler-paperclip' />
-          </IconButton>
-          <TextField
-            fullWidth
-            multiline
-            maxRows={4}
-            size='small'
-            placeholder={pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
-            value={msgText}
-            onChange={(e) => setMsgText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                handleSend(e)
-              }
-            }}
-            disabled={sending}
-          />
-          <IconButton type='submit' color='primary' disabled={sending || (!msgText.trim() && !pendingImage)} aria-label='ส่งข้อความ'>
-            <Icon icon='tabler-send' />
-          </IconButton>
-        </Box>
+        <TextField
+          fullWidth
+          multiline
+          maxRows={4}
+          placeholder={pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+          value={msgText}
+          className='p-6'
+          onChange={(e) => setMsgText(e.target.value)}
+          sx={{
+            '& fieldset': { border: '0' },
+            '& .MuiOutlinedInput-root': {
+              background: 'var(--mui-palette-background-paper)',
+              boxShadow: 'var(--mui-customShadows-xs) !important',
+            },
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              handleSend(e)
+            }
+          }}
+          size='small'
+          disabled={sending}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <div className='flex items-center gap-1'>
+                  <input ref={fileInputRef} type='file' accept={IMAGE_ACCEPT} hidden onChange={handleFileChange} />
+                  <IconButton onClick={handleAttachClick} disabled={sending} aria-label='แนบรูปภาพ'>
+                    <Icon icon='tabler-paperclip' className='text-textPrimary' />
+                  </IconButton>
+                  <CustomIconButton
+                    variant='contained'
+                    color='primary'
+                    type='submit'
+                    disabled={sending || (!msgText.trim() && !pendingImage)}
+                    aria-label='ส่งข้อความ'
+                  >
+                    <Icon icon='tabler-send' />
+                  </CustomIconButton>
+                </div>
+              ),
+            },
+          }}
+        />
       </Box>
     </Box>
   )
