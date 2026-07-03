@@ -46,6 +46,19 @@ export async function getShopCount(): Promise<number> {
   return prisma.shop.count();
 }
 
+// 00008 Phase 5 (P5-4): resolve BUSINESS shop จาก public slug สำหรับหน้า /b/[slug]
+// คืนเฉพาะ kind='BUSINESS' + deletedAt:null (soft-deleted shop ไม่โชว์ public) — PERSONAL shop ไม่ผ่าน endpoint นี้ (คนละหน้ากับ /u/[username])
+// include user.avatar สำหรับ fallback เมื่อ shop.logo เป็น null + badges join Badge (P5-2, business-scope achievement)
+export async function findShopBySlug(slug: string) {
+  return prisma.shop.findFirst({
+    where: { slug, kind: "BUSINESS", deletedAt: null },
+    include: {
+      user: { select: { avatar: true } },
+      badges: { include: { badge: true } },
+    },
+  });
+}
+
 /** slug ใช้ได้ไหม: format ถูก + ไม่ reserved + ไม่ถูกใช้ใน DB */
 export async function isSlugAvailable(rawSlug: string): Promise<boolean> {
   const slug = normalizeSlug(rawSlug);

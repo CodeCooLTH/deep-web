@@ -100,3 +100,19 @@ export async function getAvgRatingByUsername(
     reviewCount: agg._count.id,
   };
 }
+
+// 00008 Phase 5 (P5-4): เทียบ getAvgRatingByUsername แต่ scope ที่ shopId ตรง — ใช้กับ BUSINESS shop
+// (แยกจาก owner user) แทนการ derive ผ่าน user.username
+export async function getAvgRatingByShop(
+  shopId: string,
+): Promise<{ avgRating: number; reviewCount: number }> {
+  const agg = await prisma.review.aggregate({
+    _avg: { rating: true },
+    _count: { id: true },
+    where: { order: { shopId } },
+  });
+  return {
+    avgRating: agg._avg.rating ?? 0,
+    reviewCount: agg._count.id,
+  };
+}
