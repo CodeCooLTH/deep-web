@@ -1,0 +1,361 @@
+<title>Deep Chat — Bubble Widget Mockup</title>
+<style>
+  :root {
+    --page-bg: #eef0f4;
+    --page-card: #ffffff;
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --line: #e4e7ec;
+    --line-soft: #eef1f5;
+    --danger: #ef4444;
+    --accent: #236dc9;       /* seller Paces (default) */
+    --accent-strong: #1b579f;
+    --accent-tint: rgba(35,109,201,.10);
+    --bubble-bg: linear-gradient(135deg, #2e7ad6, #1b579f);
+    --app-bg: #f4f6f9;        /* Paces app ground */
+    --app-panel: #ffffff;
+    --radius: 14px;
+    --shadow: 0 18px 44px -12px rgba(20,30,55,.28), 0 4px 12px -4px rgba(20,30,55,.14);
+    font-synthesis: none;
+  }
+  :root[data-skin="buyer"] {
+    --accent: #7367F0;       /* buyer Vuexy violet */
+    --accent-strong: #6155d6;
+    --accent-tint: rgba(115,103,240,.12);
+    --bubble-bg: linear-gradient(135deg, #8a80f5, #6155d6);
+    --app-bg: #f4f5fa;       /* Vuexy app ground */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --page-bg:#14161c; --page-card:#1c1f27; --ink:#e8eaf0; --muted:#9aa2b1; --line:#2b2f3a; --line-soft:#242833; }
+  }
+  :root[data-theme="dark"] { --page-bg:#14161c; --page-card:#1c1f27; --ink:#e8eaf0; --muted:#9aa2b1; --line:#2b2f3a; --line-soft:#242833; }
+  :root[data-theme="light"] { --page-bg:#eef0f4; --page-card:#ffffff; --ink:#1f2430; --muted:#6b7280; --line:#e4e7ec; --line-soft:#eef1f5; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page-bg); color: var(--ink);
+    font-family: "Anuphan", system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif;
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+  header.top { margin-bottom: 22px; }
+  .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  h1 { font-size: clamp(22px, 3.4vw, 30px); margin: 6px 0 4px; letter-spacing: -.01em; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 15px; max-width: 60ch; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 8px; align-items: center; }
+  .seg { display: inline-flex; background: var(--page-card); border: 1px solid var(--line); border-radius: 11px; padding: 3px; gap: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 600;
+    padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: .15s;
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hint { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+  /* ── device stage ── */
+  .stage { margin-top: 18px; display: grid; gap: 26px; }
+  @media (min-width: 860px) { .stage.two { grid-template-columns: 1.55fr 1fr; align-items: start; } }
+
+  .frame-label { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
+  /* desktop browser frame */
+  .browser { background: var(--page-card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+  .browser .bar { display: flex; align-items: center; gap: 6px; padding: 11px 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--page-card) 88%, var(--line)); }
+  .browser .bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+  .browser .bar .url { margin-left: 10px; font-size: 12px; color: var(--muted); background: var(--page-bg); border-radius: 7px; padding: 4px 12px; }
+  .screen { position: relative; height: 520px; background: var(--app-bg); overflow: hidden; }
+
+  /* faux app chrome behind, to show bubble floats over content */
+  .faux { position: absolute; inset: 0; padding: 18px 20px; }
+  .faux .topbar { height: 46px; background: var(--app-panel); border-radius: 12px; display: flex; align-items: center; padding: 0 16px; gap: 12px; box-shadow: 0 1px 0 var(--line); }
+  .faux .topbar .brand { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); }
+  .faux .topbar .b { height: 10px; border-radius: 5px; background: var(--line); }
+  .faux .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 16px; }
+  .faux .tile { height: 82px; background: var(--app-panel); border-radius: 12px; box-shadow: 0 1px 0 var(--line); }
+  .faux .rows { margin-top: 14px; background: var(--app-panel); border-radius: 12px; height: 220px; box-shadow: 0 1px 0 var(--line); }
+
+  /* ── chat bubble ── */
+  .bubble {
+    position: absolute; bottom: 22px; right: 22px; z-index: 40;
+    width: 56px; height: 56px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--bubble-bg); color: #fff; display: grid; place-items: center;
+    box-shadow: 0 10px 26px -6px color-mix(in srgb, var(--accent) 60%, transparent);
+    transition: transform .16s ease;
+  }
+  .bubble:hover { transform: translateY(-2px) scale(1.04); }
+  .bubble:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .bubble svg { width: 26px; height: 26px; }
+  .bubble .count {
+    position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px;
+    background: var(--danger); color: #fff; border-radius: 999px; font-size: 11.5px; font-weight: 800;
+    display: grid; place-items: center; border: 2px solid var(--app-bg); font-variant-numeric: tabular-nums;
+  }
+
+  /* ── chat panel ── */
+  .panel {
+    position: absolute; bottom: 90px; right: 22px; z-index: 45;
+    width: 366px; max-width: calc(100% - 44px); height: 418px;
+    background: var(--app-panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden;
+    transform-origin: bottom right; opacity: 0; transform: scale(.94) translateY(8px); pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease;
+  }
+  .panel.open { opacity: 1; transform: none; pointer-events: auto; }
+  @media (prefers-reduced-motion: reduce) { .panel, .bubble { transition: none; } }
+
+  .p-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--accent); color: #fff; }
+  .p-head .title { font-weight: 700; font-size: 15px; }
+  .p-head .title small { display:block; font-weight:500; font-size:11.5px; opacity:.85; }
+  .p-head .sp { margin-left: auto; display: flex; gap: 4px; }
+  .icon-btn { width: 30px; height: 30px; border: 0; border-radius: 8px; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; display: grid; place-items: center; }
+  .icon-btn:hover { background: rgba(255,255,255,.28); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .back-btn { background: rgba(255,255,255,.16); }
+
+  .p-body { flex: 1; overflow-y: auto; }
+
+  /* inbox list */
+  .conv { display: flex; gap: 11px; padding: 11px 14px; cursor: pointer; border-bottom: 1px solid var(--line-soft); align-items: center; }
+  .conv:hover { background: var(--accent-tint); }
+  .conv .av { width: 42px; height: 42px; border-radius: 50%; background: var(--accent-tint); color: var(--accent); display: grid; place-items: center; font-weight: 800; font-size: 15px; flex: 0 0 auto; }
+  .conv .mid { min-width: 0; flex: 1; }
+  .conv .name { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+  .conv .name time { font-weight: 500; font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+  .conv .prev { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .conv.unread .prev { color: var(--ink); font-weight: 600; }
+  .conv .badge { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+
+  /* thread */
+  .thread { display: none; flex-direction: column; height: 100%; }
+  .thread.show { display: flex; }
+  .msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px; background: color-mix(in srgb, var(--app-bg) 60%, var(--app-panel)); }
+  .daychip { align-self: center; font-size: 11px; color: var(--muted); background: var(--app-panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; margin: 2px 0; }
+  .m { max-width: 76%; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.42; }
+  .m time { display: block; font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .m.them { align-self: flex-start; background: var(--app-panel); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+  .m.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
+  .m.me time { color: rgba(255,255,255,.75); }
+  .m.img { padding: 5px; }
+  .m.img .ph { width: 150px; height: 104px; border-radius: 9px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, #cbd5e1), #e2e8f0); display: grid; place-items: center; color: color-mix(in srgb, var(--accent) 70%, #334155); }
+
+  .composer { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--app-panel); }
+  .composer .field { flex: 1; background: var(--app-bg); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; font-size: 13px; color: var(--muted); }
+  .composer .clip, .composer .send { width: 36px; height: 36px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: 0 0 auto; }
+  .composer .clip { background: var(--app-bg); color: var(--muted); }
+  .composer .send { background: var(--accent); color: #fff; }
+  .composer svg { width: 18px; height: 18px; }
+
+  /* ── mobile phone ── */
+  .phone { width: 300px; margin: 0 auto; background: #0d0f14; border-radius: 34px; padding: 10px; box-shadow: var(--shadow); }
+  .phone .screen2 { background: var(--app-bg); border-radius: 26px; height: 500px; position: relative; overflow: hidden; }
+  .phone .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 96px; height: 20px; background: #0d0f14; border-radius: 0 0 12px 12px; z-index: 5; }
+  .m-top { height: 52px; background: var(--app-panel); display: flex; align-items: center; padding: 0 16px 0 18px; gap: 10px; box-shadow: 0 1px 0 var(--line); }
+  .m-top .brand { width: 24px; height: 24px; border-radius: 7px; background: var(--accent); }
+  .m-top .t { font-weight: 700; font-size: 15px; }
+  .m-content { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .m-content .card { background: var(--app-panel); border-radius: 12px; height: 70px; box-shadow: 0 1px 0 var(--line); }
+
+  /* seller bottom nav */
+  .bnav { position: absolute; left: 0; right: 0; bottom: 0; height: 62px; background: var(--app-panel); border-top: 1px solid var(--line); display: flex; align-items: stretch; padding: 0 6px; }
+  .bnav .item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); font-size: 10.5px; position: relative; }
+  .bnav .item svg { width: 21px; height: 21px; }
+  .bnav .item.active { color: var(--accent); }
+  .bnav .item.chat.active { color: var(--accent); }
+  .bnav .item .nbadge { position: absolute; top: 6px; right: calc(50% - 20px); min-width: 16px; height: 16px; padding: 0 4px; background: var(--danger); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 800; display: grid; place-items: center; border: 1.5px solid var(--app-panel); }
+  .bnav .fab { flex: 0 0 auto; align-self: center; width: 48px; height: 48px; margin: 0 4px -14px; border-radius: 50%; background: var(--bubble-bg); color: #fff; display: grid; place-items: center; box-shadow: 0 8px 18px -6px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .bnav .fab svg { width: 24px; height: 24px; }
+
+  /* buyer mobile bubble */
+  .m-bubble { position: absolute; bottom: 18px; right: 14px; width: 50px; height: 50px; border-radius: 50%; background: var(--bubble-bg); color: #fff; display: grid; place-items: center; box-shadow: 0 10px 24px -6px color-mix(in srgb, var(--accent) 60%, transparent); z-index: 6; }
+  .m-bubble svg { width: 24px; height: 24px; }
+  .m-bubble .count { position: absolute; top: -3px; right: -3px; min-width: 19px; height: 19px; padding: 0 5px; background: var(--danger); color: #fff; border-radius: 999px; font-size: 11px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--app-bg); }
+
+  .cap { color: var(--muted); font-size: 12.5px; margin-top: 10px; text-align: center; max-width: 30ch; margin-inline: auto; }
+  .notes { margin-top: 34px; background: var(--page-card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .notes h3 { margin: 0 0 10px; font-size: 15px; }
+  .notes ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+  .notes li { margin: 5px 0; }
+  .notes b { color: var(--ink); }
+  .mobiles { display: grid; gap: 26px; }
+  @media (min-width: 680px) { .mobiles { grid-template-columns: 1fr 1fr; } }
+  .hide { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Deep · feat 00011 In-App Chat</div>
+    <h1>Chat Bubble Widget — mockup</h1>
+    <p class="sub">Desktop/tablet: ฟองแชทลอยมุมขวาล่าง เปิด panel คุยได้ในตัวโดยไม่หลุดหน้าที่ทำงานอยู่ · Mobile: seller = เมนูล่าง, buyer = ฟองเล็กลิงก์หน้าแชท. reuse backend เดิมทั้งหมด (ยังไม่ build — ดูก่อนอนุมัติ)</p>
+  </header>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="เลือกฝั่ง">
+      <button data-skin="seller" aria-pressed="true">Seller · Paces (น้ำเงิน)</button>
+      <button data-skin="buyer" aria-pressed="false">Buyer · Vuexy (ม่วง)</button>
+    </div>
+    <div class="seg" role="group" aria-label="เลือก surface">
+      <button data-surface="desktop" aria-pressed="true">Desktop / Tablet</button>
+      <button data-surface="mobile" aria-pressed="false">Mobile</button>
+    </div>
+    <span class="hint">คลิกฟองแชทเพื่อเปิด · คลิกห้องเพื่อดู thread</span>
+  </div>
+
+  <!-- DESKTOP -->
+  <section id="view-desktop" class="stage">
+    <div>
+      <div class="frame-label"><span class="dot"></span> Desktop / Tablet — ฟองแชท + panel ในตัว</div>
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i><span class="url" id="url">seller.deepthailand.app/orders</span></div>
+        <div class="screen">
+          <div class="faux">
+            <div class="topbar"><span class="brand"></span><span class="b" style="width:120px"></span><span class="b" style="width:60px;margin-left:auto"></span><span class="b" style="width:28px"></span></div>
+            <div class="grid"><span class="tile"></span><span class="tile"></span><span class="tile"></span></div>
+            <div class="rows"></div>
+          </div>
+
+          <!-- bubble -->
+          <button class="bubble" id="bubble" aria-label="เปิดแชท">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span class="count">3</span>
+          </button>
+
+          <!-- panel -->
+          <div class="panel" id="panel" role="dialog" aria-label="แชท">
+            <div class="p-head">
+              <button class="icon-btn back-btn hide" id="backBtn" aria-label="กลับ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="title" id="pTitle">ข้อความ<small id="pSub">3 ยังไม่อ่าน</small></div>
+              <div class="sp">
+                <button class="icon-btn" id="expandBtn" aria-label="ขยายเต็มหน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+                <button class="icon-btn" id="closeBtn" aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+
+            <!-- list -->
+            <div class="p-body" id="listView">
+              <div class="conv unread" data-name="คุณสมชาย ใจดี">
+                <span class="av">ส</span>
+                <span class="mid"><span class="name">คุณสมชาย ใจดี <time>2 นาที</time></span><span class="prev">มีไซส์ M สีดำไหมครับ พอดีอยากได้</span></span>
+                <span class="badge"></span>
+              </div>
+              <div class="conv unread" data-name="ร้านนกน้อยช็อป">
+                <span class="av">น</span>
+                <span class="mid"><span class="name">ร้านนกน้อยช็อป <time>18 นาที</time></span><span class="prev">รบกวนเช็คสต็อกให้หน่อยค่ะ</span></span>
+                <span class="badge"></span>
+              </div>
+              <div class="conv" data-name="คุณมานี รักเรียน">
+                <span class="av">ม</span>
+                <span class="mid"><span class="name">คุณมานี รักเรียน <time>เมื่อวาน</time></span><span class="prev">คุณ: ได้เลยครับ พร้อมส่งพรุ่งนี้</span></span>
+              </div>
+              <div class="conv" data-name="คุณวิภา สดใส">
+                <span class="av">ว</span>
+                <span class="mid"><span class="name">คุณวิภา สดใส <time>2 วัน</time></span><span class="prev">[รูปภาพ]</span></span>
+              </div>
+              <div class="conv" data-name="คุณเอกชัย">
+                <span class="av">อ</span>
+                <span class="mid"><span class="name">คุณเอกชัย <time>3 วัน</time></span><span class="prev">ขอบคุณมากครับ</span></span>
+              </div>
+            </div>
+
+            <!-- thread -->
+            <div class="thread" id="threadView">
+              <div class="msgs">
+                <span class="daychip">วันนี้</span>
+                <div class="m them">สวัสดีครับ ร้านเปิดพรีออเดอร์อยู่ไหมครับ<time>14:02</time></div>
+                <div class="m them">มีไซส์ M สีดำไหมครับ พอดีอยากได้<time>14:03</time></div>
+                <div class="m me">มีค่ะ เหลือ 4 ตัว พร้อมส่งเลยค่ะ<time>14:05</time></div>
+                <div class="m me img"><span class="ph"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span></div>
+                <div class="m them">โอเคครับ เอา 1 ตัวครับ<time>14:07</time></div>
+              </div>
+              <div class="composer">
+                <button class="clip" aria-label="แนบรูป"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95L9.9 18.6a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49"/></svg></button>
+                <div class="field">พิมพ์ข้อความ...</div>
+                <button class="send" aria-label="ส่ง"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">ฟองลอยทับเนื้อหาหน้า — คลิกเปิด panel, คลิกห้อง → thread ในตัว, ปุ่มขยาย → เปิดหน้าเต็ม /inbox เดิม</p>
+    </div>
+
+    <aside class="notes">
+      <h3>สิ่งที่จะสร้าง</h3>
+      <ul>
+        <li><b>ChatWidget</b> client component — bubble + panel (list ↔ thread) ในตัว</li>
+        <li>reuse <b>/api/chat/*</b> + realtime <b>chat:{'{'}conversationId{'}'}</b> เดิม (ไม่แตะ backend)</li>
+        <li>2 skin: buyer Vuexy (ม่วง) + seller Paces (น้ำเงิน)</li>
+        <li>unread badge จริง (seller: getUnreadCountForShop)</li>
+        <li>full page /messages, /inbox คงไว้ (ปุ่มขยาย/fallback)</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- MOBILE -->
+  <section id="view-mobile" class="stage hide">
+    <div class="mobiles" style="grid-column:1/-1">
+      <div>
+        <div class="frame-label"><span class="dot"></span> Mobile — Seller: เมนูล่าง "แชท"</div>
+        <div class="phone">
+          <div class="screen2">
+            <span class="notch"></span>
+            <div class="m-top"><span class="brand"></span><span class="t">คำสั่งซื้อ</span></div>
+            <div class="m-content"><span class="card"></span><span class="card"></span><span class="card"></span><span class="card"></span></div>
+            <nav class="bnav">
+              <div class="item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>หน้าหลัก</div>
+              <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>คำสั่งซื้อ</div>
+              <div class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+              <div class="item chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>แชท<span class="nbadge">3</span></div>
+              <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M3 9l2-4h14l2 4M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9M9 13h6"/></svg>ร้านค้า</div>
+            </nav>
+          </div>
+        </div>
+        <p class="cap">เพิ่ม "แชท" เป็น slot ที่ 5 ใน bottom nav (มี unread badge) → แตะไป /inbox เต็มหน้า</p>
+      </div>
+
+      <div>
+        <div class="frame-label"><span class="dot"></span> Mobile — Buyer: ฟองเล็กลิงก์ /messages</div>
+        <div class="phone">
+          <div class="screen2">
+            <span class="notch"></span>
+            <div class="m-top"><span class="brand"></span><span class="t">ร้านนกน้อยช็อป</span></div>
+            <div class="m-content"><span class="card" style="height:150px"></span><span class="card"></span><span class="card"></span></div>
+            <div class="m-bubble"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="count">2</span></div>
+          </div>
+        </div>
+        <p class="cap">buyer ไม่มี bottom nav → ฟองเล็กมุมขวาล่าง แตะไป /messages เต็มหน้า</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const root = document.documentElement;
+  // skin toggle
+  document.querySelectorAll('[data-skin]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-skin]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    root.setAttribute('data-skin', b.dataset.skin);
+    const seller = b.dataset.skin === 'seller';
+    document.getElementById('url').textContent = seller ? 'seller.deepthailand.app/orders' : 'deepthailand.app/u/noknoi-shop';
+    // buyer avatars/labels are shops
+  }));
+  // surface toggle
+  document.querySelectorAll('[data-surface]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-surface]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    document.getElementById('view-desktop').classList.toggle('hide', b.dataset.surface !== 'desktop');
+    document.getElementById('view-mobile').classList.toggle('hide', b.dataset.surface !== 'mobile');
+  }));
+  // panel open/close
+  const panel = document.getElementById('panel'), bubble = document.getElementById('bubble');
+  const listView = document.getElementById('listView'), threadView = document.getElementById('threadView');
+  const backBtn = document.getElementById('backBtn'), pTitle = document.getElementById('pTitle'), pSub = document.getElementById('pSub');
+  function showList(){ listView.style.display='block'; threadView.classList.remove('show'); backBtn.classList.add('hide'); pTitle.childNodes[0].nodeValue='ข้อความ'; pSub.textContent='3 ยังไม่อ่าน'; pSub.style.display='block'; }
+  function showThread(name){ listView.style.display='none'; threadView.classList.add('show'); backBtn.classList.remove('hide'); pTitle.childNodes[0].nodeValue=name; pSub.style.display='none'; }
+  bubble.addEventListener('click', () => { panel.classList.toggle('open'); showList(); });
+  document.getElementById('closeBtn').addEventListener('click', () => panel.classList.remove('open'));
+  backBtn.addEventListener('click', showList);
+  document.querySelectorAll('.conv').forEach(c => c.addEventListener('click', () => showThread(c.dataset.name)));
+  // esc
+  document.addEventListener('keydown', e => { if(e.key==='Escape') panel.classList.remove('open'); });
+</script>
