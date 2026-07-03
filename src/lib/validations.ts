@@ -670,3 +670,31 @@ export const InviteShopMemberSchema = v.object({
 export const SwitchActiveShopSchema = v.object({
   shopId: v.pipe(v.string(), v.uuid()),
 });
+
+// ── feature 00011 Deep Chat (SRS §11) ────────────────────────────────────────
+// SSOT: docs/20 - Features/00011 - Deep Chat/SRS.md §11
+
+export const SendChatMessageSchema = v.object({
+  type: v.picklist(["TEXT", "IMAGE"]),
+  body: v.optional(v.pipe(v.string(), v.maxLength(2000))),
+  imageUrl: v.optional(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
+});
+// ตรวจ conditional-required ที่ route:
+//   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)
+//   type='IMAGE' → imageUrl ต้องมีจริง; body เป็น caption optional
+
+export const StartConversationSchema = v.object({
+  shopId: v.pipe(v.string(), v.uuid()),
+});
+
+export const ChatMessagesQuerySchema = v.object({
+  cursor: v.optional(v.string()), // ISO datetime ของ createdAt ข้อความเก่าสุดที่เห็น
+  take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 30),
+});
+
+export const ChatConversationsQuerySchema = v.object({
+  cursor: v.optional(v.string()), // ISO datetime ของ lastMessageAt แถวสุดท้ายที่เห็น
+  take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50)), 20),
+});
+
+export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
