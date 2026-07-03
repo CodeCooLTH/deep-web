@@ -121,7 +121,7 @@ export default function OrderSummaryPanel({ control, catalog }: Props) {
         <div className="flex items-center justify-between">
           <span className="text-default-500">
             ประเภทออเดอร์{' '}
-            <span className="text-[10px] text-default-400">(อัตโนมัติ)</span>
+            <span className="text-2xs text-default-400">(อัตโนมัติ)</span>
           </span>
           {items.length > 0 ? (
             <span className={`badge ${typeBadgeClass[derivedType] ?? 'bg-default-200 text-default-600'}`}>
