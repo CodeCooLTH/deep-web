@@ -11,8 +11,8 @@
  *              SellerMobileHeader ไม่มี lg:hidden ในตัว → ครอบที่นี่แทนเพื่อไม่กระทบ desktop ≥lg
  * - CC-v6 T1: เพิ่ม bottomNavSlot (optional) — render ท้าย .wrapper + ครอบ lg:hidden
  *   (SellerBottomNav position:fixed; ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; admin ไม่ส่ง → ไม่กระทบ)
- * - feat 00008 P3-3: เพิ่ม hasBusinessMembership (optional, default false) — thread ผ่านไป Sidenav
- *   → AccountSwitcher เท่านั้น admin ไม่ส่ง → ไม่กระทบ (additive)
+ * - feat 00008 P4-6: ลบ hasBusinessMembership prop (dead) — AccountSwitcher ย้ายไป
+ *   topbar UserDropdownDetailed แล้ว (อ่าน session ตรงเอง ไม่ต้อง thread ผ่าน Sidenav)
  */
 'use client'
 import Footer from '@/layouts/components/Footer'
@@ -32,8 +32,6 @@ type VerticalLayoutProps = {
   bottomNavSlot?: ReactNode
   /** เนื้อหาใต้เมนูใน sidebar (เช่น onboarding checklist ของ seller) — admin ไม่ส่ง → ไม่กระทบ */
   sidenavFooterSlot?: ReactNode
-  /** feat 00008 P3-3 — จาก session.user.hasBusinessMembership; ไม่ส่ง = false → AccountSwitcher ซ่อน */
-  hasBusinessMembership?: boolean
 }
 
 const VerticalLayout = ({
@@ -43,7 +41,6 @@ const VerticalLayout = ({
   topbarSlot,
   bottomNavSlot,
   sidenavFooterSlot,
-  hasBusinessMembership,
 }: VerticalLayoutProps) => {
   // รวม class: "wrapper" เสมอ + shellClassName ถ้าส่งมา (admin ไม่ส่ง → ไม่เพิ่ม)
   const wrapperClass = shellClassName ? `wrapper ${shellClassName}` : 'wrapper'
@@ -53,7 +50,7 @@ const VerticalLayout = ({
       <TopBar />
       {/* topbarSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
       {topbarSlot && <div className="lg:hidden">{topbarSlot}</div>}
-      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} hasBusinessMembership={hasBusinessMembership} />
+      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} />
       <div className="page-content">
         <main>
           <div className="container-fluid">{children}</div>

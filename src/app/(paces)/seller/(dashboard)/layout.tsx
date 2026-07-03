@@ -25,8 +25,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         isShop: boolean
         isAdmin: boolean
         trustScore: number
-        // feat 00008 P3-3 — คำนวณแล้วใน lib/auth.ts session callback (ไม่ต้อง query DB ซ้ำที่นี่)
-        hasBusinessMembership?: boolean
       }
     | undefined
   // No session OR token points to a user that no longer exists in DB (stale
@@ -83,7 +81,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <VerticalLayout
       menuItems={menuItems}
-      hasBusinessMembership={user.hasBusinessMembership ?? false}
       shellClassName="seller-mobile-shell"
       topbarSlot={
         <SellerMobileHeader
