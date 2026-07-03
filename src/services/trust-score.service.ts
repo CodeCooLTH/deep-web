@@ -33,7 +33,9 @@ export function getTierDisplay(score: number): {
 
 async function calcVerificationScore(userId: string): Promise<number> {
   const approved = await prisma.verificationRecord.findMany({
-    where: { userId, status: "APPROVED" },
+    // shopId:null = personal/user-level เท่านั้น (00008 P5-1) — ไม่นับ verification ของ Business shop
+    // เข้า personal trust score (business trust = shop-scope แยก, P5-3)
+    where: { userId, shopId: null, status: "APPROVED" },
     select: { level: true },
   });
   const maxLevel = approved.length > 0 ? Math.max(...approved.map((v) => v.level)) : 0;

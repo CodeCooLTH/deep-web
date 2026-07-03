@@ -246,7 +246,9 @@ export async function checkFullVerification(
   userId: string,
 ): Promise<{ met: boolean; levels: Set<number> }> {
   const approved = await prisma.verificationRecord.findMany({
-    where: { userId, status: 'APPROVED' },
+    // shopId:null = personal/user-level เท่านั้น (00008 P5-1) — badge full-verification ของ user
+    // ไม่ unlock จากเอกสาร Business shop (business badge = shop-scope แยก, P5-2)
+    where: { userId, shopId: null, status: 'APPROVED' },
     select: { level: true },
   })
   const levels = new Set(approved.map((v) => v.level))

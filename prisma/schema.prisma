@@ -49,8 +49,8 @@ model User {
   // --- Business Account & Packages (feature 00008, Phase 1 additive) ---
   shopMemberships             ShopMember[]
   businessPackageSubscription BusinessPackageSubscription?
-  sentShopInvites             ShopInvite[]                  @relation("ShopInviteInvitedBy")
-  acceptedShopInvites         ShopInvite[]                  @relation("ShopInviteAcceptedBy")
+  sentShopInvites             ShopInvite[]                 @relation("ShopInviteInvitedBy")
+  acceptedShopInvites         ShopInvite[]                 @relation("ShopInviteAcceptedBy")
 }
 
 model AuthAccount {
@@ -123,6 +123,7 @@ model Shop {
   stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
+  verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -137,6 +138,11 @@ model Shop {
 model VerificationRecord {
   id             String    @id @default(uuid())
   userId         String
+  // shopId: Business Reputation (feature 00008 Phase 5, P5-1) — nullable FK → Shop.
+  // NULL = user/personal-level เดิม (backward-compat, zero-regression Personal shop);
+  // non-NULL = verification ผูก Business shop โดยตรง (แยกจาก owner). ON DELETE SET NULL
+  // (ลบ shop ไม่ลบ verification — กลายเป็น orphan user-level record แทน)
+  shopId         String?
   type           String
   level          Int
   status         String    @default("PENDING")
@@ -147,7 +153,10 @@ model VerificationRecord {
   createdAt      DateTime  @default(now())
 
   user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop       Shop? @relation("ShopVerifications", fields: [shopId], references: [id], onDelete: SetNull)
   reviewedBy User? @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([shopId])
 }
 
 // รายงานมิจฉาชีพ (1 เคส) — spec 2026-06-20-scam-risk-check-report
@@ -433,25 +442,25 @@ enum StockMovementSource {
 // ไม่ผูก FK ตรงกับ InventoryEntitlement โดยตั้งใจ — gate การมองเห็นที่ query-time ด้วยสถานะปัจจุบัน
 // ของ entitlement ไม่ใช่ snapshot ตอนบันทึก (ดู DATABASE.md §3.2)
 model StockMovement {
-  id            String              @id @default(uuid())
-  shopId        String
-  productId     String?
-  productName   String
-  delta         Int
-  resultingQty  Int
-  source        StockMovementSource
-  refId         String?
-  note          String?
-  actorUserId   String?
-  createdAt     DateTime            @default(now())
+  id           String              @id @default(uuid())
+  shopId       String
+  productId    String?
+  productName  String
+  delta        Int
+  resultingQty Int
+  source       StockMovementSource
+  refId        String?
+  note         String?
+  actorUserId  String?
+  createdAt    DateTime            @default(now())
 
   shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   actor   User?    @relation("StockMovementActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([productId, createdAt]) // hot path: movement history ต่อสินค้า เรียงเวลาล่าสุดก่อน
-  @@index([shopId, createdAt])    // cross-product movement list ต่อ shop
-  @@index([shopId, source])       // filter ตาม source
+  @@index([shopId, createdAt]) // cross-product movement list ต่อ shop
+  @@index([shopId, source]) // filter ตาม source
 }
 
 // --- Business Account & Packages (feature 00008, Phase 1 additive) ---
