@@ -57,3 +57,57 @@ export async function resolveActiveShopContext(session: {
     locked: shop.packageLockedAt !== null, lockReason: shop.packageLockReason,
   };
 }
+
+type ShopRow = NonNullable<Awaited<ReturnType<typeof getPersonalShop>>>;
+
+export interface ActiveShop {
+  /** Shop row เต็ม (id/shopName/logo/slug/... ) ของ active context — ใช้แทน getShopByUserId เดิม */
+  shop: ShopRow;
+  kind: "PERSONAL" | "BUSINESS";
+  role: "OWNER" | "ADMIN";
+  /** true = Business ถูก package lock (read-only) — page/route ต้อง gate mutation */
+  locked: boolean;
+  lockReason: string | null;
+}
+
+/** requireActiveShop — Phase 4: resolve "shop ที่ active อยู่" ของ seller (Personal หรือ Business ตาม
+ *  session.user.activeShopId + verify membership) แล้วคืน Shop row เต็ม เพื่อใช้แทน `getShopByUserId(userId)` เดิม.
+ *  - active context resolve ไม่ได้ (activeShopId ชี้ shop ที่ถูกลบ/หลุด membership) → fallback Personal (fail-closed)
+ *  - ไม่มี Personal shop เลย (seller ใหม่ก่อน layout auto-create) → null (caller redirect/handle)
+ *  - คืน `locked` ให้ page/route gate การสร้าง/แก้ (Business ที่โดน package lock = read-only)
+ *  ⚠️ ใช้เฉพาะหน้า "workspace ของ seller" — billing/onboarding/public ต้องคง getPersonalShop (Phase 4 KEEP-PERSONAL)
+ */
+export async function requireActiveShop(session: {
+  user: { id: string; activeShopId?: string | null };
+}): Promise<ActiveShop | null> {
+  const ctx = await resolveActiveShopContext(session);
+  let meta = ctx;
+  if (!meta) {
+    // fallback → Personal (เช่น activeShopId ชี้ business ที่หลุด membership/ถูกลบ)
+    const personal = await getPersonalShop(session.user.id);
+    if (!personal) return null;
+    meta = { shopId: personal.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null };
+  }
+  const shop = await prisma.shop.findUnique({ where: { id: meta.shopId } });
+  if (!shop) return null;
+  return { shop, kind: meta.kind, role: meta.role, locked: meta.locked, lockReason: meta.lockReason };
+}
+
+/** ensurePersonalShop — invariant "ทุก seller มี Personal shop" (D1). resolve Personal, ถ้าไม่มี → สร้าง.
+ *  แยกจาก requireActiveShop เพื่อให้ layout เรียกก่อน (guarantee Personal มีอยู่) แล้วค่อย resolve active.
+ *  ⚠️ auto-create เฉพาะ PERSONAL — Business ไม่เคย auto-create (สร้างผ่าน createBusinessShop เท่านั้น)
+ */
+export async function ensurePersonalShop(userId: string): Promise<ShopRow> {
+  const existing = await getPersonalShop(userId);
+  if (existing) return existing;
+  // ตรง pattern auto-create เดิมของ seller layout (shopName = "ร้านของ {displayName}")
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+  return prisma.shop.create({
+    data: {
+      userId,
+      kind: "PERSONAL",
+      shopName: `ร้านของ ${user?.displayName ?? "ฉัน"}`,
+      businessType: "INDIVIDUAL",
+    },
+  });
+}
