@@ -1,6 +1,6 @@
 # Scope Baseline — feat 00009 Deep Stock Pro (Implementation Phase)
 
-สถานะ: ACTIVE
+สถานะ: **SIGNED-OFF WITH CARRIED-DEBT** (Gate 2 by safepay-product 2026-07-03) — S-1..S-21 DONE, ไม่มี CREEP/GAP, Breaking-Sync 5/5, migration applied prod สำเร็จ; S-22/S-23/S-24 = accepted carried QA-debt (user authorize "verify ที่ prod"). Retro: `docs/retro/2026-07-03-00009-deep-stock-pro.md`
 อ้างอิง: `docs/20 - Features/00009 - Deep Stock Pro/{PRD,BRD,SRS,SDS,API,DATABASE,Tests}.md` — BRD FR-DSP-01..12 · SRS TFR-DSP-01..12 · SDS TD-DSP-01..05 · Tests TC-DSP-01..109 (+ regression TC-INV-01..73 จาก 00003)
 เจ้าของ scope: `safepay-product` · commit/สถานะ: Controller
 
@@ -57,13 +57,13 @@
 | **S-11** | CSV export/import route (PRO-gate) | `src/app/api/inventory/csv/export/route.ts`, `.../csv/import/route.ts` | route | S-2,S-3 |
 | **S-12** | Products route lowStockThreshold guard | `src/app/api/products/route.ts`, `.../products/[id]/route.ts` | route | S-2,S-4 |
 | **S-13** | Menu gate package-aware | `.../seller/(dashboard)/_seller-menu.ts`, `.../layout.tsx` | route/layout | S-2 |
-| **S-14** | Activity style-map LOW_STOCK_ALERT | `.../notifications/components/NotificationFeed.tsx`, `.../dashboard/components/RecentActivityFeed.tsx` | ui-additive | S-6 |
+| **S-14** | Activity style-map LOW_STOCK_ALERT | `.../notifications/components/NotificationFeed.tsx`, `.../dashboard/components/RecentActivityFeed.tsx`, `.../dashboard/components/ActivityTimeline.tsx` (consumer ที่ 3 — sync 2026-07-03) | ui-additive | S-6 |
 | **S-15** [UI] | `PackageSelector` (ใหม่) | `.../inventory/components/PackageSelector.tsx` | ui | S-7,S-8 · ux ก่อน |
 | **S-16** [UI] | `/inventory` page 2-package gate + Pro section | `.../inventory/page.tsx` | ui | S-15,S-2 (hard) · ux ก่อน |
 | **S-17** [UI] | `ManualAdjustModal` (ใหม่) | `.../inventory/components/ManualAdjustModal.tsx` | ui | S-9 · ux ก่อน |
 | **S-18** [UI] | `CsvImportModal` (ใหม่) | `.../inventory/components/CsvImportModal.tsx` | ui | S-11 · ux ก่อน |
 | **S-19** [UI] | Movement history page (ใหม่) | `.../inventory/movements/[productId]/page.tsx` + component | ui | S-10 · ux ก่อน |
-| **S-20** [UI] | Product edit lowStockThreshold field | `.../products/[id]/edit/page.tsx`, `ProductStockCardV2.tsx` | ui | S-12 · ux ก่อน |
+| **S-20** [UI] | Product edit lowStockThreshold field | `.../products/[id]/edit/page.tsx`, `ProductStockCardV2.tsx`, `ProductFormV2.tsx`/`ProductFormV2.types.ts`, `.../products/new-v2/page.tsx` (shared-form dependency — sync 2026-07-03) | ui | S-12 · ux ก่อน |
 | **S-21** [UI] | Admin topup detail package badge | `.../admin/(dashboard)/topups/[id]/page.tsx` | ui | S-1,S-2 · ux ก่อน |
 | **S-22** | Unit + service-integration test specs | Vitest specs ใหม่ | test | S-1..S-6 |
 | **S-23** | Playwright E2E specs | `e2e/*.spec.ts` ใหม่ | test | S-15..S-21 |
@@ -117,3 +117,4 @@ Variant→00010 · Reorder/analytics · StockMovement retention job
 | วันที่ | การเปลี่ยน | เหตุผล | อนุมัติ |
 |--------|-----------|--------|---------|
 | 2026-07-02 | baseline สร้าง | - | - |
+| 2026-07-03 | Gate 2 SIGNED-OFF WITH CARRIED-DEBT; sync file-list S-14/S-20; merged→main+deployed prod | ปิด phase | safepay-product + user |
