@@ -20,6 +20,7 @@
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts } from '@/services/order.service'
 import type { Metadata } from 'next'
@@ -114,15 +115,19 @@ export default async function SellerDashboardPage() {
       // (wall time = max(badge, shop+orders) แทนผลรวม sequential)
       const progressPromise = getBadgeProgress(user.id, 'SELLER')
 
-      // ดึงชื่อร้านค้า + id + logo + user.avatar เพื่อแสดงใน UserCard header และ Command Center
-      const shop = await prisma.shop.findFirst({
-        where: { userId: user.id, kind: 'PERSONAL' },
-        select: { id: true, shopName: true, logo: true, slug: true, user: { select: { avatar: true, username: true } } },
-      })
+      // ดึง active shop (Personal หรือ Business ตาม session.activeShopId) — id/shopName/logo/slug ทุก
+      // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
+      const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+      const shop = active?.shop ?? null
       if (shop?.shopName) shopName = shop.shopName
-      // avatarUrl: ใช้ logo ร้านก่อน → fallback user.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
-      // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ user แทน; ไม่ใช่ PII sensitive
-      avatarUrl = shop?.logo ?? shop?.user?.avatar ?? null
+      // owner-at-creation user (shop.userId) — สำหรับ Business shop นี้อาจไม่ใช่ session user ปัจจุบัน
+      // (member ที่ไม่ใช่ owner) แต่ยังใช้ avatar/username ของ owner ได้ตาม pattern เดิม (public profile ผูกกับ shop.userId)
+      const owner = shop
+        ? await prisma.user.findUnique({ where: { id: shop.userId }, select: { avatar: true, username: true } })
+        : null
+      // avatarUrl: ใช้ logo ร้านก่อน → fallback owner.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
+      // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ owner แทน; ไม่ใช่ PII sensitive
+      avatarUrl = shop?.logo ?? owner?.avatar ?? null
       // v10: shop public slug สำหรับ ShopLinkButtons (resolveBuyerBaseUrl()/{slug})
       shopSlug = shop?.slug ?? null
 
@@ -135,7 +140,7 @@ export default async function SellerDashboardPage() {
           getBalance(shop.id),
           getRecentActivity(shop.id, 8),
           getOrdersByShop(shop.id),
-          getAvgRatingByUsername(shop.user?.username ?? ''),
+          getAvgRatingByUsername(owner?.username ?? ''),
           // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
           prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
         ])

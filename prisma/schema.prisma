@@ -117,6 +117,12 @@ model Shop {
   // row ยังอยู่ครบ แค่ถูก exclude จากทุก list/quota/switcher ถาวรที่ app layer
   purgedAt          DateTime?
 
+  // trustScore: Business Reputation (feature 00008 Phase 5, P5-3) — คะแนน trust ของ BUSINESS shop เอง
+  // (แยกจาก User.trustScore ของ owner). PERSONAL shop ไม่ใช้ field นี้ (คง 0 default เสมอ — personal
+  // ยังคำนวณ/แสดงผ่าน User.trustScore เดิม, service เดิมไม่แตะ field นี้). recalc โดย
+  // recalculateShopTrustScore(shopId) (P5-3b, service layer) — monotonic rule (Math.max) เหมือน user เดิม
+  trustScore        Int       @default(0)
+
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   products             Product[]
   orders               Order[]
@@ -128,6 +134,9 @@ model Shop {
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
   conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
+  verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
+  badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
+  trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -142,6 +151,11 @@ model Shop {
 model VerificationRecord {
   id             String    @id @default(uuid())
   userId         String
+  // shopId: Business Reputation (feature 00008 Phase 5, P5-1) — nullable FK → Shop.
+  // NULL = user/personal-level เดิม (backward-compat, zero-regression Personal shop);
+  // non-NULL = verification ผูก Business shop โดยตรง (แยกจาก owner). ON DELETE SET NULL
+  // (ลบ shop ไม่ลบ verification — กลายเป็น orphan user-level record แทน)
+  shopId         String?
   type           String
   level          Int
   status         String    @default("PENDING")
@@ -152,7 +166,10 @@ model VerificationRecord {
   createdAt      DateTime  @default(now())
 
   user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop       Shop? @relation("ShopVerifications", fields: [shopId], references: [id], onDelete: SetNull)
   reviewedBy User? @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([shopId])
 }
 
 // รายงานมิจฉาชีพ (1 เคส) — spec 2026-06-20-scam-risk-check-report
@@ -211,11 +228,26 @@ model UserBadge {
   userId   String
   badgeId  String
   earnedAt DateTime @default(now())
+  // shopId: NULL = user-level badge (buyer badge หรือ personal-seller badge เดิม — zero-regression);
+  // non-NULL = Business shop badge (feature 00008 Phase 5, P5-2) แยก achievement ของ shop ออกจาก user
+  shopId   String?
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  // onDelete Cascade: business shop ถูกลบ → badge ของ business นั้นไม่มีความหมายอีกต่อไป (achievement
+  // ผูกกับ shop โดยตรง ต่างจาก VerificationRecord.shopId ที่ SET NULL เพราะยังอ้างอิงกลับเป็น user-level ได้)
+  shop  Shop? @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, badgeId])
+  // 🛑 @@unique([userId, badgeId]) เดิมถูกถอดออก — เปลี่ยนเป็น partial unique index 2 ตัวแทน เพราะ nullable
+  // shopId ทำให้ Postgres treat NULL เป็น distinct (personal badge ซ้ำได้ถ้าใช้ unique เดิมตรง ๆ):
+  //   - `UserBadge_userId_badgeId_personal_key` ON ("userId","badgeId") WHERE "shopId" IS NULL (บังคับ
+  //     personal/buyer badge เดิม — 1 badge ต่อ user)
+  //   - `UserBadge_shopId_badgeId_key` ON ("shopId","badgeId") WHERE "shopId" IS NOT NULL (บังคับ
+  //     business badge — 1 badge ต่อ business shop)
+  // Prisma DSL ไม่รองรับ partial index → enforced เป็น unmanaged SQL ใน migration
+  // `20260703000100_add_userbadge_shopid` เท่านั้น ห้าม `prisma migrate dev`/`db pull` (ดู
+  // memory `project_shared_db_drift_no_migrate_dev`, precedent `Shop_userId_personal_key`)
+  @@index([shopId])
 }
 
 model Product {
@@ -353,8 +385,16 @@ model TrustScoreHistory {
   score        Int
   breakdown    Json
   calculatedAt DateTime @default(now())
+  // shopId: Business Reputation (feature 00008 Phase 5, P5-3) — nullable FK → Shop.
+  // NULL = user-level history เดิม (backward-compat, zero-regression Personal shop);
+  // non-NULL = trust score history ผูก Business shop โดยตรง (แยกจาก owner). ON DELETE CASCADE
+  // (ลบ shop → history ของ shop นั้นไม่มีความหมายอีกต่อไป เหมือน UserBadge.shopId pattern)
+  shopId       String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop? @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
 }
 
 // --- Wallet + SMS (Phase 4: Paid SMS Order Link + Seller Wallet/Credit) ---

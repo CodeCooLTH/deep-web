@@ -126,7 +126,12 @@ export async function proxy(request: NextRequest) {
     if (!pathname.startsWith('/seller')) {
       const url = request.nextUrl.clone()
       url.pathname = `/seller${pathname}`
-      return NextResponse.rewrite(url)
+      // x-pathname: ส่ง original pathname ให้ RSC layout อ่าน (feat 00008 P4-5) —
+      // ใช้ให้ (dashboard) layout รู้ว่ากำลัง render หน้า business onboarding อยู่ไหม
+      // เพื่อยกเว้น D4 force-redirect (กัน redirect loop)
+      const requestHeaders = new Headers(request.headers)
+      requestHeaders.set('x-pathname', pathname)
+      return NextResponse.rewrite(url, { request: { headers: requestHeaders } })
     }
     return NextResponse.next()
   }

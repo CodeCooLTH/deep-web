@@ -8,7 +8,7 @@
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getMaxVerificationLevel } from '@/services/verification.service'
 import { getProductsByShop } from '@/services/product.service'
 import { redirect } from 'next/navigation'
@@ -17,6 +17,7 @@ import type { Metadata } from 'next'
 import Icon from '@/components/wrappers/Icon'
 import AuctionForm from '@/app/(paces)/seller/(fullscreen)/auctions/components/AuctionForm'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
+import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
 export const metadata: Metadata = { title: 'สร้างรายการประมูล' }
 
@@ -25,14 +26,10 @@ export default async function NewAuctionPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
         <Icon icon="building-store" width={64} height={64} className="text-warning mx-auto mb-4" />
@@ -45,6 +42,21 @@ export default async function NewAuctionPage() {
           <Icon icon="plus" width={18} height={18} />
           เปิดร้าน
         </Link>
+      </div>
+    )
+  }
+
+  const shop = active.shop
+
+  // Business ถูก package lock (read-only) — ห้ามสร้างรายการประมูลใหม่
+  if (active.locked) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <LockedStateBanner
+          lockReason={active.lockReason ?? ''}
+          packageLockedAt={shop.packageLockedAt}
+          level="shop"
+        />
       </div>
     )
   }

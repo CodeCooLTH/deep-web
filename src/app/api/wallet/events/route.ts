@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
 import { getBalance } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
+import { requireActiveShop } from "@/lib/shop-context";
 
 /**
  * GET /api/wallet/events — poll หา TopUpRequest ที่ approved แต่ยังไม่แจ้ง seller
@@ -24,15 +24,14 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = (session.user as any).id as string;
-
-  // DAL: shop derive จาก session userId เท่านั้น — ไม่รับ shopId จาก query param (S-C7)
-  const shop = await getShopByUserId(userId);
+  // DAL: shop derive จาก active shop context ของ session เท่านั้น — ไม่รับ shopId จาก query param (S-C7)
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
 
   // seller ยังไม่มีร้าน → empty response (ไม่ error — poller ยังทำงานต่อ)
-  if (!shop) {
+  if (!active) {
     return NextResponse.json({ approved: [], balance: 0 });
   }
+  const shop = active.shop;
 
   try {
     // query ใช้ composite index [shopId, status, notifiedAt] ที่ migration 20260517040000 สร้าง
@@ -89,8 +88,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = (session.user as any).id as string;
-
   // parse body — ต้องมี ids: string[]
   let body: unknown;
   try {
@@ -117,12 +114,13 @@ export async function POST(request: Request) {
 
   const ids: string[] = (body as any).ids;
 
-  // DAL: shop derive จาก session userId เท่านั้น (S-C7)
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
+  // DAL: shop derive จาก active shop context ของ session เท่านั้น (S-C7)
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) {
     // ไม่มีร้าน → ไม่มี record ที่ต้อง ack; คืน ok=true (idempotent)
     return NextResponse.json({ ok: true, marked: 0 });
   }
+  const shop = active.shop;
 
   try {
     // S-C8 + S-C7 conditional updateMany:

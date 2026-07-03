@@ -7,7 +7,7 @@
  */
 
 import { getProductsByShop } from '@/services/product.service'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
@@ -15,6 +15,7 @@ import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
 import Icon from '@/components/wrappers/Icon'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
+import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
 export const metadata: Metadata = { title: 'สร้างออเดอร์' }
 
@@ -23,17 +24,12 @@ const FORM_ID = 'order-create-form'
 export default async function NewOrderPage() {
   // auth guard อยู่ใน (fullscreen)/layout.tsx แล้ว — ดึง session เพื่อใช้ userId เท่านั้น
   const session = await getServerSession(authOptions)
-  const user = (session as any)?.user as { id: string; displayName: string } | undefined
 
-  let shop: { id: string; shopName: string } | null = null
-  try {
-    shop = await getShopByUserId(user!.id)
-  } catch {
-    shop = null
-  }
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
   // ร้านถูกสร้างอัตโนมัติใน layout ถ้ายังไม่มี — กรณีนี้ไม่ควรเกิด แต่แสดง fallback เพื่อความปลอดภัย
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
         <Icon
@@ -51,6 +47,21 @@ export default async function NewOrderPage() {
           <Icon icon="plus" width={18} height={18} />
           ตั้งค่าร้านค้า
         </Link>
+      </div>
+    )
+  }
+
+  const shop = active.shop
+
+  // Business ถูก package lock (read-only) — ห้ามสร้างออเดอร์ใหม่
+  if (active.locked) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <LockedStateBanner
+          lockReason={active.lockReason ?? ''}
+          packageLockedAt={shop.packageLockedAt}
+          level="shop"
+        />
       </div>
     )
   }

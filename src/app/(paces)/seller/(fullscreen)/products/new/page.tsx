@@ -12,13 +12,14 @@
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import type { Metadata } from 'next'
 import ProductForm from '@/app/(paces)/seller/(dashboard)/products/components/ProductForm'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
+import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
 export const metadata: Metadata = { title: 'เพิ่มสินค้า' }
 
@@ -29,14 +30,10 @@ export default async function NewProductPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
         <Icon icon="tabler:building-store" width={64} height={64} className="text-warning mx-auto mb-4" />
@@ -49,6 +46,21 @@ export default async function NewProductPage() {
           <Icon icon="tabler:plus" width={18} height={18} />
           สร้างร้านค้า
         </Link>
+      </div>
+    )
+  }
+
+  const shop = active.shop
+
+  // Business ถูก package lock (read-only) — ห้ามสร้างสินค้าใหม่
+  if (active.locked) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <LockedStateBanner
+          lockReason={active.lockReason ?? ''}
+          packageLockedAt={shop.packageLockedAt}
+          level="shop"
+        />
       </div>
     )
   }

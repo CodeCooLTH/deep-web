@@ -8,7 +8,7 @@ import { mapAuctionError, requireSellerShop } from "./_shared";
 // POST /api/seller/auctions — สร้างประมูล (TFR-001)
 // L2 gate ที่ route เป็นด่านแรก (SDS §4.1) — service มี backstop ซ้ำอีกชั้น (defense-in-depth)
 export async function POST(request: NextRequest) {
-  const auth = await requireSellerShop();
+  const auth = await requireSellerShop({ mutate: true });
   if ("response" in auth) return auth.response;
   const { userId, shop } = auth;
 

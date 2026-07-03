@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
 import { subscribeInventoryEntitlement } from "@/services/inventory-entitlement.service";
+import { requireActiveShop } from "@/lib/shop-context";
 import { SubscribeInventorySchema } from "@/lib/validations";
 
 /**
@@ -23,14 +23,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // cast เหมือน pattern ที่มีอยู่ใน src/app/api/wallet/route.ts:29
-  const userId = (session.user as any).id as string;
-
-  // 2. DAL: shop derive จาก session userId เท่านั้น — ห้ามรับ shopId จาก client
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
+  // 2. DAL: shop derive จาก active shop context ของ session เท่านั้น — ห้ามรับ shopId จาก client
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
+  if (active.locked) {
+    return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
+  }
+  const shop = active.shop;
 
   // 2.5 parse body — ต้องระบุ package (BASIC/PRO) ตาม API.md §4.1
   const body = await request.json().catch(() => null);

@@ -10,6 +10,9 @@ vi.mock('@/lib/prisma', () => ({
     bidReaction: { count: vi.fn() },
     watchList: { count: vi.fn() },
     user: { count: vi.fn() },
+    // shop: evaluateBadges resolve personal shop เสมอตอนนี้ (00008 P5-2 — DRY, ดู badge.service.ts
+    // comment "ทำไม resolve personal shop ไม่ short-circuit") ต้อง mock ไว้แม้ test ไม่ใช้ seller shop
+    shop: { findFirst: vi.fn() },
   },
 }))
 vi.mock('@/services/app-push.service', () => ({ pushToUser: vi.fn() }))

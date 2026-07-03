@@ -15,7 +15,7 @@
 
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getOrderForShop } from '@/services/order.service'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -43,14 +43,10 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
-
-  if (!shop) redirect('/orders')
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/orders')
+  const shop = active.shop
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)

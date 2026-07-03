@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { SendSmsSchema } from "@/lib/validations";
-import { getShopByUserId } from "@/services/shop.service";
 import { getOrderForShop } from "@/services/order.service";
+import { requireActiveShop } from "@/lib/shop-context";
 import { issueSmsCode, markSmsCodeDelivery } from "@/services/sms-code.service";
 import { deductCredit, creditWallet } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
@@ -84,18 +84,20 @@ export async function POST(
   if (!session?.user) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
-
   // ── Step 2: DAL ownership (S-C7) ─────────────────────────────────────────
-  // resolve shop จาก session userId — ห้าม findUnique order ก่อนแล้วตรวจ owner ทีหลัง
+  // resolve shop จาก active shop context ของ session — ห้าม findUnique order ก่อนแล้วตรวจ owner ทีหลัง
   // (เหตุผล: fetch-then-check leak order data เข้า RSC flight แม้จะ 403 ทีหลัง)
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) {
     return NextResponse.json(
       { error: "ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน" },
       { status: 404 },
     );
   }
+  if (active.locked) {
+    return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
+  }
+  const shop = active.shop;
 
   // order ต้องเป็นของ shop นี้ — scope shopId ใน WHERE (S-C7 DAL pattern)
   const order = await getOrderForShop(token, shop.id);

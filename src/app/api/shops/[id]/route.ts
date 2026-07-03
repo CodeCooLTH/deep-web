@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { updateShop } from "@/services/shop.service";
 import { prisma } from "@/lib/prisma";
+import { isShopMember } from "@/lib/shop-context";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -10,7 +11,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params;
   const shop = await prisma.shop.findUnique({ where: { id } });
-  if (!shop || shop.userId !== (session.user as any).id) {
+  // membership guard (Phase 4 D5) — แทน ownership-by-userId เดิม: owner หรือ admin ของ shop นี้แก้ได้
+  // (Personal shop: owner เป็น ShopMember(OWNER) ของตัวเองอยู่แล้วจาก backfill → ผ่านเหมือนเดิม ไม่ regress)
+  if (!shop || !(await isShopMember(id, (session.user as any).id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

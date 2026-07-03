@@ -62,9 +62,8 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้านค้า', icon: 'building-store' },
-      // icon 'rocket' verified มีจริงใน tabler set (feat 00008 Design Spec §Constants safe-icons list)
-      // ใช้แทน 'building-store' เพราะ /shop ใช้ไปแล้ว (กันไอคอนซ้ำในกลุ่มเดียวกัน)
-      { url: '/business', slug: 'seller:business', label: 'แพ็กเกจธุรกิจ', icon: 'rocket' },
+      // "แพ็กเกจธุรกิจ" ย้ายไป topbar profile dropdown แล้ว (feat 00008 P4-6 — user ปฏิเสธตำแหน่ง sidebar)
+      // ดู src/layouts/components/TopBar/components/UserDropdownDetailed.tsx
       // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
       // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู Products
       { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },

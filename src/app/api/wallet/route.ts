@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
 import { getBalance, getTransactions } from "@/services/wallet.service";
+import { requireActiveShop } from "@/lib/shop-context";
 
 /**
  * GET /api/wallet — ดึง balance + transactions ของ seller ที่ login อยู่
@@ -26,15 +26,14 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = (session.user as any).id as string;
-
-  // DAL: shop derive จาก session userId เท่านั้น — ไม่รับ shopId จาก client
-  const shop = await getShopByUserId(userId);
+  // DAL: shop derive จาก active shop context ของ session เท่านั้น — ไม่รับ shopId จาก client
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
 
   // seller ยังไม่มีร้าน → คืน wallet ว่าง (ไม่ 404 เพื่อให้ UI render ได้)
-  if (!shop) {
+  if (!active) {
     return NextResponse.json({ balance: 0, transactions: [] });
   }
+  const shop = active.shop;
 
   // try/catch ตาม convention orders/route.ts (959b7cd) — ถ้า Prisma throw
   // (connection drop / timeout) ต้องไม่ปล่อย unhandled rejection (dev-mode

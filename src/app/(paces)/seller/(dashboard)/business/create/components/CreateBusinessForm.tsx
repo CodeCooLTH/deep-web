@@ -77,7 +77,8 @@ export default function CreateBusinessForm() {
 
       const data: { shopId: string } = await res.json()
       pacesToast.success('สร้างธุรกิจสำเร็จ')
-      router.push(`/business/${data.shopId}/invites`)
+      // ไป onboarding ทันที (P4-5/D4) — business ใหม่ต้อง setup slug/ข้อมูลร้านก่อนใช้งาน
+      router.push(`/business/${data.shopId}/onboarding`)
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     }

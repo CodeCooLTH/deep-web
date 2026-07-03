@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { evaluateBadges } from "@/services/badge.service";
+import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 
 export async function createReview(orderToken: string, data: {
   rating: number;
@@ -34,7 +34,12 @@ export async function createReview(orderToken: string, data: {
   // connection_limit=1) should NOT fail the review request — the review row
   // is already saved. Log the failure so it's visible, not silent.
   try {
-    await evaluateBadges(order.shop.userId);
+    // 00008 P5-2: scope เหมือน confirmOrder — business shop แยก badge ต่อร้าน, personal เดิม
+    if (order.shop.kind === "BUSINESS") {
+      await evaluateSellerBadgesForShop({ id: order.shop.id, userId: order.shop.userId, kind: order.shop.kind });
+    } else {
+      await evaluateBadges(order.shop.userId);
+    }
   } catch (err) {
     console.error(
       `[review] post-create recalc failed for shop owner ${order.shop.userId}; review ${review.id} persisted but trust score / badges may be stale. Retry via admin tool.`,
@@ -89,6 +94,22 @@ export async function getAvgRatingByUsername(
     _avg: { rating: true },
     _count: { id: true },
     where: { order: { shop: { user: { username } } } },
+  });
+  return {
+    avgRating: agg._avg.rating ?? 0,
+    reviewCount: agg._count.id,
+  };
+}
+
+// 00008 Phase 5 (P5-4): เทียบ getAvgRatingByUsername แต่ scope ที่ shopId ตรง — ใช้กับ BUSINESS shop
+// (แยกจาก owner user) แทนการ derive ผ่าน user.username
+export async function getAvgRatingByShop(
+  shopId: string,
+): Promise<{ avgRating: number; reviewCount: number }> {
+  const agg = await prisma.review.aggregate({
+    _avg: { rating: true },
+    _count: { id: true },
+    where: { order: { shopId } },
   });
   return {
     avgRating: agg._avg.rating ?? 0,

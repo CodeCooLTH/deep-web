@@ -15,7 +15,7 @@
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getTopUpsByShop } from '@/services/topup.service'
 import { getBalance, getTransactions } from '@/services/wallet.service'
 import type { Metadata } from 'next'
@@ -43,10 +43,12 @@ export default async function WalletPage() {
   // layout guard คือ primary redirect; null-return นี้เป็น fallback สำหรับ type safety
   if (!user?.id) return null
 
-  // ดึง shop — layout auto-create ให้แล้ว แต่ทำ try/catch กัน edge case
+  // ดึง active shop (Personal หรือ Business ตาม session.activeShopId) — layout auto-create Personal ให้แล้ว
+  // แต่ทำ try/catch กัน edge case; Business มี wallet แยกต่อ shop.id (คนละอันกับ billing package)
   let shop: { id: string } | null = null
   try {
-    shop = await getShopByUserId(user.id)
+    const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+    shop = active?.shop ?? null
   } catch {
     shop = null
   }

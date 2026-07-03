@@ -26,7 +26,9 @@ async function ratingFor(shopId: string): Promise<{ avg: number; count: number }
 
 async function isVerified(userId: string): Promise<boolean> {
   const n = await prisma.verificationRecord.count({
-    where: { userId, status: 'APPROVED', level: { gte: 2 } },
+    // shopId:null = personal/user-level (00008 P5-1) — verified badge ของ personal shop
+    // ไม่นับ verification ของ Business shop (คนละ entity)
+    where: { userId, shopId: null, status: 'APPROVED', level: { gte: 2 } },
   })
   return n > 0
 }
@@ -62,7 +64,8 @@ export async function listShops(
       select: { rating: true, order: { select: { shopId: true } } },
     }),
     prisma.verificationRecord.findMany({
-      where: { userId: { in: userIds }, status: 'APPROVED', level: { gte: 2 } },
+      // shopId:null = personal/user-level (00008 P5-1) — batch verified สำหรับ personal shop cards
+      where: { userId: { in: userIds }, shopId: null, status: 'APPROVED', level: { gte: 2 } },
       select: { userId: true },
     }),
   ])

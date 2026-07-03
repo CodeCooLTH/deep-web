@@ -27,7 +27,7 @@ import Link from 'next/link'
 import { Icon as IconifyIcon } from '@iconify/react'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getBalance } from '@/services/wallet.service'
 import {
@@ -58,9 +58,11 @@ export default async function InventoryPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
+  // entitlement ผูก active shop.id (Personal หรือ Business ตาม session.activeShopId)
   let shop: { id: string } | null = null
   try {
-    shop = await getShopByUserId(user.id)
+    const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+    shop = active?.shop ?? null
   } catch {
     shop = null
   }

@@ -8,7 +8,8 @@
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getUserVerifications, getMaxVerificationLevel } from '@/services/verification.service'
+import { getVerifications, getMaxVerificationLevel } from '@/services/verification.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import LevelCard from './components/LevelCard'
@@ -50,14 +51,21 @@ export default async function VerificationPage() {
   const user = (session as any)?.user
   if (!user) return null // layout redirect guard handles unauthenticated
 
+  // active shop context (P5-1): Personal → user-level เดิม (shopId null); Business → แยกต่อร้าน
+  // layout guarantee ว่า active ต้อง resolve ได้เสมอ (ensurePersonalShop รันมาก่อนแล้ว) — null คือ fallback personal
+  const active = await requireActiveShop(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  )
+  const scope = { userId: user.id as string, shopId: active?.kind === 'BUSINESS' ? active.shop.id : null }
+
   // fetch fail → SellerErrorState (ไม่โยน exception ให้ error boundary)
   let verifications: any[] = []
   let maxLevel = 0
   let fetchFailed = false
   try {
     ;[verifications, maxLevel] = await Promise.all([
-      getUserVerifications(user.id),
-      getMaxVerificationLevel(user.id),
+      getVerifications(scope),
+      getMaxVerificationLevel(scope),
     ])
   } catch {
     fetchFailed = true

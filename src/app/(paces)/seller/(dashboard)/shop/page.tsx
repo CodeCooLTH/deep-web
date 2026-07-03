@@ -4,13 +4,14 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/settings/page.tsx
  *
  * โครงสร้าง: copy จาก Paces settings/page.tsx (stepper card layout)
- * ปรับ: โหลด shop จริงของ seller ผ่าน getShopByUserId, ส่ง prop ไป ShopForm
+ * ปรับ: โหลด active shop ของ seller ผ่าน requireActiveShop (Phase 4 D5 — แทน getShopByUserId เดิม
+ *       ซึ่ง resolve Personal เสมอ; ตอนนี้ตั้งค่าได้ทั้ง Personal/Business ตาม active context), ส่ง prop ไป ShopForm
  * Strip: breadcrumb subtitle เปลี่ยนเป็นไทย, header icon คงไว้จาก version เดิม
  */
 
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
@@ -43,9 +44,12 @@ export default async function ShopSettingsPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
+  // active shop (Personal หรือ Business ตาม session.user.activeShopId, verify membership ภายใน)
+  // settings ไม่ gate ด้วย locked — package lock ล็อกเฉพาะ transaction ไม่ใช่การแก้ข้อมูลร้าน
   let shop: any = null
   try {
-    shop = await getShopByUserId(user.id)
+    const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+    shop = active?.shop ?? null
   } catch {
     shop = null
   }
