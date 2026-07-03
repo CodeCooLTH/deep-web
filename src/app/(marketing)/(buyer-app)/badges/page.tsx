@@ -12,18 +12,37 @@ import Chip from '@mui/material/Chip'
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
-import { getBadgeProgress } from '@/services/badge.service'
+import { getBadgeProgress, getUserBadgeRarityMap } from '@/services/badge.service'
+import type { RarityTier } from '@/services/badge.service'
 import type { BadgeProgress } from '@/types/badge'
 import BadgeIcon from '@/app/(marketing)/(buyer-app)/_components/BadgeIcon'
+
+// ─── Rarity pill config (safepay-ux Design Spec 2026-07-02) ──
+// label ไทย + สี MUI ต่อ tier; เลี่ยง success (ชนกับ chip "ได้รับแล้ว") + error (สื่อ error)
+const RARITY_LABEL: Record<RarityTier, string> = {
+  COMMON: 'ทั่วไป',
+  UNCOMMON: 'ไม่ทั่วไป',
+  RARE: 'หายาก',
+  LEGENDARY: 'หายากมาก',
+}
+const RARITY_COLOR: Record<RarityTier, 'secondary' | 'info' | 'warning' | 'primary'> = {
+  COMMON: 'secondary',
+  UNCOMMON: 'info',
+  RARE: 'warning',
+  LEGENDARY: 'primary',
+}
 
 /**
  * หน้า Badge Process ของ Buyer — แสดง badge ที่ได้รับแล้ว + กำลังดำเนินการ
  *
  * Base:
  *   theme/vuexy/typescript-version/full-version/src/views/pages/widget-examples/advanced/ActiveProjects.tsx
+ * Base (rarity pill): theme/vuexy/typescript-version/full-version/src/views/apps/academy/my-courses/Courses.tsx
+ *   — chipColor object pattern + <Chip variant='tonal' size='small' color={...}> (safepay-ux 2026-07-02)
  * Adapted: Card+CardHeader+CardContent+LinearProgress row structure → badge earned/in-progress
- *   sections; Chip for earned state (ref Courses.tsx); @iconify tabler-award icon (badge.icon
- *   legacy/nullable — not rendered). ตัดออก: OptionMenu, imgSrc, progressColor theme colors.
+ *   sections; Chip for earned state (ref Courses.tsx); rarity pill inline ข้างชื่อ badge (tier→color
+ *   secondary/info/warning/primary); @iconify tabler-award icon (badge.icon legacy/nullable — not
+ *   rendered). ตัดออก: OptionMenu, imgSrc, progressColor theme colors.
  */
 
 export const metadata: Metadata = { title: 'แบดจ์ของฉัน' }
@@ -37,6 +56,24 @@ export default async function BadgesPage() {
 
   const userId = (session.user as { id: string }).id
   const items = await getBadgeProgress(userId, 'BUYER')
+
+  // rarity pill — ฐาน user count (gate <20 → Map ว่าง = ไม่แสดง); badgeId ที่ไม่มีใน map = ไม่มี pill
+  const rarityMap = await getUserBadgeRarityMap(items.map(i => i.badge.id))
+
+  // ชื่อ badge + rarity pill inline (flex-wrap → pill ตกบรรทัดใหม่ถ้าชื่อยาว); ไม่มี tier = ชื่อเดี่ยว
+  const nameWithRarity = (item: BadgeProgress) => {
+    const tier = rarityMap.get(item.badge.id)
+    return (
+      <div className='flex items-center gap-2 flex-wrap'>
+        <Typography className='font-medium' color='text.primary'>
+          {item.badge.name}
+        </Typography>
+        {tier && (
+          <Chip label={RARITY_LABEL[tier]} variant='tonal' size='small' color={RARITY_COLOR[tier]} />
+        )}
+      </div>
+    )
+  }
 
   const earned: BadgeProgress[] = items.filter(i => i.earned)
   // in-progress: ยังไม่ได้รับ → เรียงตาม progressRatio มากสุดขึ้นก่อน
@@ -84,9 +121,7 @@ export default async function BadgesPage() {
                 </span>
                 <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
                   <div className='flex flex-col'>
-                    <Typography className='font-medium' color='text.primary'>
-                      {item.badge.name}
-                    </Typography>
+                    {nameWithRarity(item)}
                     {item.progressLabel && (
                       <Typography variant='body2' color='text.secondary'>
                         {item.progressLabel}
@@ -122,9 +157,7 @@ export default async function BadgesPage() {
                   </span>
                   <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
                     <div className='flex flex-col'>
-                      <Typography className='font-medium' color='text.primary'>
-                        {item.badge.name}
-                      </Typography>
+                      {nameWithRarity(item)}
                       {item.progressLabel && (
                         <Typography variant='body2' color='text.secondary'>
                           {item.progressLabel}

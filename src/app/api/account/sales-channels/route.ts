@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const parsed = v.safeParse(SalesChannelsSchema, await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
 
-  const shop = await prisma.shop.findUnique({ where: { userId }, select: { id: true } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" }, select: { id: true } });
   if (!shop) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
 
   await prisma.shop.update({ where: { id: shop.id }, data: { salesChannels: parsed.output.channels } });

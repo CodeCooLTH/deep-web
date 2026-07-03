@@ -9,7 +9,7 @@ import {
   serializeProduct,
 } from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
-import { isEntitlementActive } from "@/services/inventory-entitlement.service";
+import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -33,6 +33,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (!(await isEntitlementActive(product.shopId))) {
       return NextResponse.json({ error: "INVENTORY_NOT_ACTIVE" }, { status: 403 });
+    }
+  }
+
+  // lowStockThreshold — Deep Stock Pro (feature 00009): guard เฉพาะเมื่อ caller ส่ง field นี้มา (ต่อจาก guard stockQty ด้านบน — ห้ามแก้ของเดิม)
+  if (parsed.output.lowStockThreshold !== undefined) {
+    const effectiveType = parsed.output.type ?? product.type;
+    if (effectiveType !== "PHYSICAL") {
+      return NextResponse.json({ error: "STOCK_QTY_INVALID_PRODUCT_TYPE" }, { status: 400 });
+    }
+    // effective stockQty: parsed.output.stockQty ถ้าส่งมา, ไม่งั้น fallback product เดิม
+    const effectiveStockQty = parsed.output.stockQty !== undefined ? parsed.output.stockQty : product.stockQty;
+    if (effectiveStockQty === null || effectiveStockQty === undefined) {
+      return NextResponse.json({ error: "PRODUCT_NOT_TRACKED" }, { status: 400 });
+    }
+    if (!(await isProActive(product.shopId))) {
+      return NextResponse.json({ error: "INVENTORY_NOT_PRO" }, { status: 403 });
     }
   }
 

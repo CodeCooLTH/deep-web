@@ -54,6 +54,11 @@ const ACTIVITY_STYLE: Record<ActivityItem['type'], ActivityStyle> = {
     icon: 'coin',
     nodeClass: 'bg-success',
   },
+  // S-6/S-14 (00009 Deep Stock Pro) — low-stock alert (PRO only), bg-danger สื่อ "เตือน"
+  LOW_STOCK_ALERT: {
+    icon: 'alert-triangle',
+    nodeClass: 'bg-danger',
+  },
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────

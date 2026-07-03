@@ -80,7 +80,8 @@ export default async function TopUpDetailPage({ params }: PageProps) {
     getTransactions(record.shop.id, 10),
     prisma.inventoryEntitlement.findUnique({
       where: { shopId: record.shop.id },
-      select: { status: true, lockedAt: true },
+      // S-21 (feat 00009): package เพิ่มเข้ามาเพื่อแสดง badge แพ็กเกจปัจจุบัน
+      select: { status: true, lockedAt: true, package: true },
     }),
   ])
 
@@ -250,12 +251,30 @@ export default async function TopUpDetailPage({ params }: PageProps) {
           <div className="card">
             <div className="card-header">
               <h4 className="text-dark text-sm font-semibold">รายการเครดิตล่าสุด</h4>
-              {entitlement?.status === 'LOCKED' && (
-                <span className="badge bg-danger/10 text-danger text-2xs mt-1">
-                  ล็อกจากเครดิตไม่พอ
-                  {entitlement.lockedAt && ` เมื่อ ${formatDateTime(entitlement.lockedAt)}`}
-                </span>
-              )}
+              {/* S-21 (feat 00009): badge แพ็กเกจปัจจุบัน — read-only, admin ไม่แก้ entitlement เอง */}
+              <div className="flex flex-col gap-1 mt-1">
+                {!entitlement && (
+                  <span className="badge bg-default-100 text-default-500 text-2xs">
+                    ไม่ได้สมัคร Inventory
+                  </span>
+                )}
+                {entitlement?.package === 'BASIC' && (
+                  <span className="badge bg-primary/15 text-primary text-2xs">Deep Stock</span>
+                )}
+                {entitlement?.package === 'PRO' && (
+                  // warning token ใช้แทนสีทอง (Paces ไม่มี gold token) — HR7
+                  <span className="badge bg-warning/15 text-warning text-2xs inline-flex items-center gap-1">
+                    <Icon icon="crown" className="text-xs" />
+                    Deep Stock Pro
+                  </span>
+                )}
+                {entitlement?.status === 'LOCKED' && (
+                  <span className="badge bg-danger/10 text-danger text-2xs">
+                    ล็อกจากเครดิตไม่พอ
+                    {entitlement.lockedAt && ` เมื่อ ${formatDateTime(entitlement.lockedAt)}`}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="card-body">
               {walletTx.length === 0 ? (

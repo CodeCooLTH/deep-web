@@ -96,7 +96,7 @@ function resolveStatuses(criteria: unknown): string[] {
 // ─── DB helper (shared by handlers + progress) ────────────────────────────────
 
 async function getShopForUser(userId: string) {
-  return prisma.shop.findUnique({ where: { userId } })
+  return prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } })
 }
 
 // ─── Pure-ish criterion handlers ──────────────────────────────────────────────
@@ -872,12 +872,52 @@ export async function getBadgeRarity(badgeId: string): Promise<BadgeRarity | nul
     prisma.shop.count(),
   ])
   const pct = shopCount > 0 ? (earnedCount / shopCount) * 100 : 0
-  let tier: RarityTier
-  if (pct >= 50) tier = 'COMMON'
-  else if (pct >= 20) tier = 'UNCOMMON'
-  else if (pct >= 5) tier = 'RARE'
-  else tier = 'LEGENDARY'
-  return { pct, tier, earnedCount, shopCount }
+  return { pct, tier: tierFromPct(pct), earnedCount, shopCount }
+}
+
+/**
+ * tierFromPct — map % → RarityTier (threshold เดียวกันทั้ง seller/buyer)
+ * ≥50 COMMON / ≥20 UNCOMMON / ≥5 RARE / <5 LEGENDARY
+ */
+function tierFromPct(pct: number): RarityTier {
+  if (pct >= 50) return 'COMMON'
+  if (pct >= 20) return 'UNCOMMON'
+  if (pct >= 5) return 'RARE'
+  return 'LEGENDARY'
+}
+
+/**
+ * getUserBadgeRarityMap — rarity ของ badge สำหรับหน้า buyer (ฐาน = จำนวน user ทั้งหมด)
+ *
+ * ต่างจาก getBadgeRarity (seller, ฐาน shopCount): buyer badge ไม่ใช่ของร้าน →
+ * ใช้ user.count เป็นตัวหาร. bulk (1 user.count + 1 groupBy) แทน N call
+ *
+ * gate: userCount < 5 → คืน Map ว่าง (กัน mislabel ตอน user น้อยเกินจนไร้นัยสำคัญ).
+ * ตั้ง 5 (ไม่ใช่ 20 แบบ seller shopCount) เพราะ population buyer = user ทั้งหมด
+ * ซึ่งโตช้าช่วงแรก — 20 จะทำให้ pill dormant จนแพลตฟอร์มโต (ตัดสิน 2026-07-03)
+ * badge ที่ไม่มี earner → 0% → LEGENDARY. คืน Map<badgeId, tier> (key ที่ไม่มี = ไม่แสดง pill)
+ */
+export async function getUserBadgeRarityMap(badgeIds: string[]): Promise<Map<string, RarityTier>> {
+  const result = new Map<string, RarityTier>()
+  if (badgeIds.length === 0) return result
+
+  const userCount = await prisma.user.count()
+  if (userCount < 5) return result // gate
+
+  const grouped = await prisma.userBadge.groupBy({
+    by: ['badgeId'],
+    where: { badgeId: { in: badgeIds } },
+    _count: { badgeId: true },
+  })
+  const earnedByBadge = new Map<string, number>()
+  for (const g of grouped) earnedByBadge.set(g.badgeId, g._count.badgeId)
+
+  for (const id of badgeIds) {
+    const earnedCount = earnedByBadge.get(id) ?? 0
+    const pct = (earnedCount / userCount) * 100
+    result.set(id, tierFromPct(pct))
+  }
+  return result
 }
 
 // ─── getBadgePaceEstimate ──────────────────────────────────────────────────────

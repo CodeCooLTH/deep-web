@@ -10,6 +10,7 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/inventory-renewal", "schedule": "0 19 * * *" }
+    { "path": "/api/cron/inventory-renewal", "schedule": "0 19 * * *" },
+    { "path": "/api/cron/business-package-lifecycle", "schedule": "0 20 * * *" }
   ]
 }

@@ -115,8 +115,8 @@ export default async function SellerDashboardPage() {
       const progressPromise = getBadgeProgress(user.id, 'SELLER')
 
       // ดึงชื่อร้านค้า + id + logo + user.avatar เพื่อแสดงใน UserCard header และ Command Center
-      const shop = await prisma.shop.findUnique({
-        where: { userId: user.id },
+      const shop = await prisma.shop.findFirst({
+        where: { userId: user.id, kind: 'PERSONAL' },
         select: { id: true, shopName: true, logo: true, slug: true, user: { select: { avatar: true, username: true } } },
       })
       if (shop?.shopName) shopName = shop.shopName

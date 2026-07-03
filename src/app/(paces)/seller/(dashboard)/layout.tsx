@@ -9,8 +9,8 @@ import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import { getOrderStatusCounts } from '@/services/order.service'
-import { getEntitlementStatus } from '@/services/inventory-entitlement.service'
-import type { EntitlementStatus } from '@/lib/inventory-addon'
+import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
+import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +24,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         isShop: boolean
         isAdmin: boolean
         trustScore: number
+        // feat 00008 P3-3 — คำนวณแล้วใน lib/auth.ts session callback (ไม่ต้อง query DB ซ้ำที่นี่)
+        hasBusinessMembership?: boolean
       }
     | undefined
   // No session OR token points to a user that no longer exists in DB (stale
@@ -34,8 +36,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Every seller MUST have a shop — auto-create a default one on first visit
   // so they land on a usable dashboard instead of a "create shop" CTA.
   // T3: ขยาย select เพิ่ม shopName + logo เพื่อส่งเข้า SellerMobileHeader
-  const shop = await prisma.shop.findUnique({
-    where: { userId: user.id },
+  const shop = await prisma.shop.findFirst({
+    where: { userId: user.id, kind: 'PERSONAL' },
     select: { id: true, shopName: true, logo: true },
   })
   if (!shop) {
@@ -68,21 +70,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  // Inventory Add-on entitlement status สำหรับ menu gate (SDS §3.8)
-  // fail-closed: ถ้า query error → NOT_SUBSCRIBED (แสดง badge สมัคร) ไม่ให้ layout crash
-  let entitlementStatus: EntitlementStatus = 'NOT_SUBSCRIBED'
+  // Inventory Add-on entitlement (status+package) สำหรับ menu gate (SDS §3.9)
+  // fail-closed: ถ้า query error → NOT_SUBSCRIBED (แสดง badge เลือกแพ็กเกจ) ไม่ให้ layout crash
+  let entitlementInfo: { status: EntitlementStatus; package: InventoryPackage | null } = {
+    status: 'NOT_SUBSCRIBED',
+    package: null,
+  }
   if (shop?.id) {
     try {
-      entitlementStatus = await getEntitlementStatus(shop.id)
+      entitlementInfo = await getEntitlementInfo(shop.id)
     } catch (e) {
-      console.error('[layout] getEntitlementStatus failed, fallback NOT_SUBSCRIBED', e)
+      console.error('[layout] getEntitlementInfo failed, fallback NOT_SUBSCRIBED', e)
     }
   }
-  const menuItems = applyInventoryGate(sellerMenuItems, entitlementStatus)
+  const menuItems = applyInventoryGate(sellerMenuItems, entitlementInfo)
 
   return (
     <VerticalLayout
       menuItems={menuItems}
+      hasBusinessMembership={user.hasBusinessMembership ?? false}
       shellClassName="seller-mobile-shell"
       topbarSlot={
         <SellerMobileHeader

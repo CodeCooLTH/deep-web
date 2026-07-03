@@ -10,9 +10,13 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: (session.user as any).id },
-    include: { shop: true, userBadges: { include: { badge: true } } },
+    include: { shops: { where: { kind: "PERSONAL" } }, userBadges: { include: { badge: true } } },
   });
-  return NextResponse.json(user);
+  if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Remap shops[0] → shop เพื่อคง API response shape เดิม (consumer ยังอ่าน .shop)
+  const { shops, ...rest } = user;
+  return NextResponse.json({ ...rest, shop: shops[0] ?? null });
 }
 
 export async function PATCH(request: NextRequest) {

@@ -32,4 +32,7 @@ export type ProductFormV2Values = {
   // stockQty — Inventory Add-on (feature 00003): null=ไม่ติดตามสต็อก, ≥0=ติดตาม
   // แสดงเฉพาะ type===PHYSICAL && entitlementActive (ดู ProductStockCardV2)
   stockQty: number | null;
+  // lowStockThreshold — Deep Stock Pro (feature 00009 S-20): null=ปิดแจ้งเตือน, ≥0=ตั้งเกณฑ์
+  // แสดงเฉพาะ tracked (stockQty !== null) && isProActive (ดู ProductStockCardV2)
+  lowStockThreshold: number | null;
 };

@@ -1,5 +1,5 @@
 import { type MenuItemType } from '@/types'
-import type { EntitlementStatus } from '@/lib/inventory-addon'
+import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 
 export const sellerMenuItems: MenuItemType[] = [
   {
@@ -60,6 +60,9 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้านค้า', icon: 'building-store' },
+      // icon 'rocket' verified มีจริงใน tabler set (feat 00008 Design Spec §Constants safe-icons list)
+      // ใช้แทน 'building-store' เพราะ /shop ใช้ไปแล้ว (กันไอคอนซ้ำในกลุ่มเดียวกัน)
+      { url: '/business', slug: 'seller:business', label: 'แพ็กเกจธุรกิจ', icon: 'rocket' },
       // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
       // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู Products
       { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
@@ -70,27 +73,40 @@ export const sellerMenuItems: MenuItemType[] = [
 ]
 
 /**
- * applyInventoryGate — runtime transform ของ sellerMenuItems ตาม entitlement status
+ * applyInventoryGate — runtime transform ของ sellerMenuItems ตาม entitlement (status+package)
  *
  * ทำไม: sellerMenuItems ต้องคงเป็น static array (SSOT ให้ getSellerPageTitle.ts /
  * SellerMobileHeader.tsx import ตรง ๆ — ห้าม breaking) แต่เมนู "จัดการสต็อก" ต้องแสดง
- * badge/disable ตามสถานะ subscription แบบ dynamic ต่อ request — จึงแยกเป็น pure
+ * badge/disable ตามสถานะ subscription + package แบบ dynamic ต่อ request — จึงแยกเป็น pure
  * transform function ไม่แก้ sellerMenuItems ต้นฉบับ
  *
- * ACTIVE → ไม่แตะ (enabled by default)
- * NOT_SUBSCRIBED → badge "฿199/ด." (bg-primary) + isDisabled
- * LOCKED → badge "ถูกล็อก" (bg-danger) + isDisabled
+ * ACTIVE → ไม่ disabled; badge = PRO → {bg-primary,'Pro'} / BASIC → undefined (ไม่มี upsell hint)
+ * LOCKED → disabled + badge {bg-danger,'ถูกล็อก'}
+ * NOT_SUBSCRIBED → disabled + badge {bg-primary,'เลือกแพ็กเกจ'} (เปลี่ยนจาก "฿199/ด." เดิม
+ *   เพราะตอนนี้มี 2 แพ็กเกจให้เลือก — SDS §3.9)
  *
  * หมายเหตุ: นี่คือ UX hint เท่านั้น — enforcement จริงอยู่ที่ server-side gate
  * ใน InventoryPage (SDS §3.8) เพราะ AppMenu.tsx render isDisabled เป็นแค่ CSS class
  * ไม่มี preventDefault guard ใน onClick
  */
-export function applyInventoryGate(items: MenuItemType[], status: EntitlementStatus): MenuItemType[] {
-  if (status === 'ACTIVE') return items
+export function applyInventoryGate(
+  items: MenuItemType[],
+  entitlement: { status: EntitlementStatus; package: InventoryPackage | null },
+): MenuItemType[] {
+  if (entitlement.status === 'ACTIVE') {
+    const badge = entitlement.package === 'PRO' ? { className: 'bg-primary', text: 'Pro' } : undefined
+    // BASIC ACTIVE: ไม่ disabled, badge เป็น undefined (ไม่ upsell hint ตาม SDS §3.9)
+    return items.map((group) => !group.children ? group : {
+      ...group,
+      children: group.children.map((child) =>
+        child.slug === 'seller:inventory' ? { ...child, badge } : child,
+      ),
+    })
+  }
 
-  const badge = status === 'LOCKED'
+  const badge = entitlement.status === 'LOCKED'
     ? { className: 'bg-danger', text: 'ถูกล็อก' }
-    : { className: 'bg-primary', text: '฿199/ด.' }
+    : { className: 'bg-primary', text: 'เลือกแพ็กเกจ' } // NOT_SUBSCRIBED
 
   return items.map((group) => !group.children ? group : {
     ...group,

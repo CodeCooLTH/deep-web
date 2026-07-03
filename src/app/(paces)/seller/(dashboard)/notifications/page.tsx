@@ -38,8 +38,8 @@ export default async function NotificationsPage() {
   let items: ActivityItem[] = []
 
   try {
-    const shop = await prisma.shop.findUnique({
-      where: { userId },
+    const shop = await prisma.shop.findFirst({
+      where: { userId, kind: 'PERSONAL' },
       select: { id: true },
     })
 

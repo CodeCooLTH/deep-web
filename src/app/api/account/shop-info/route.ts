@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (taken) return NextResponse.json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว" }, { status: 409 });
 
   // shop อาจยังไม่มี — onboarding ไม่ผ่าน (dashboard) layout ที่ auto-create → upsert ที่นี่
-  const shop = await prisma.shop.findUnique({ where: { userId }, select: { id: true } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" }, select: { id: true } });
 
   try {
     await prisma.$transaction([

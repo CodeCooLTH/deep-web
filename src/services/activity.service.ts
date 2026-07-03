@@ -17,7 +17,7 @@ import { getTransactions } from '@/services/wallet.service'
 // NOTE: type นี้เป็น source of truth หลังจาก T6 re-home
 // _constants/command-center.ts import type จากที่นี่
 export type ActivityItem = {
-  type: 'ORDER_CREATED' | 'ORDER_CONFIRMED' | 'SMS_SENT' | 'REVIEW_RECEIVED' | 'TOPUP'
+  type: 'ORDER_CREATED' | 'ORDER_CONFIRMED' | 'SMS_SENT' | 'REVIEW_RECEIVED' | 'TOPUP' | 'LOW_STOCK_ALERT'
   label: string  // Thai copy, PII masked แล้วก่อนส่งออก
   at: Date
   href?: string  // short path (/orders/[token]) ถ้ามี; ไม่มี /seller prefix ตาม Paces convention
@@ -33,7 +33,7 @@ function maskBuyerPhone(phone: string): string {
 
 // ─── getRecentActivity ────────────────────────────────────────────────────────
 /**
- * Aggregate activity จาก 4 source (Order, SmsCode, Review, WalletTransaction)
+ * Aggregate activity จาก 5 source (Order, SmsCode, Review, WalletTransaction, StockMovement)
  * merge → sort desc by at → slice take
  *
  * ครอบ try/catch รอบนอกทั้งหมด → คืน [] ถ้า error ใดก็ตาม
@@ -131,12 +131,54 @@ export async function getRecentActivity(shopId: string, take = 10): Promise<Acti
         at: t.createdAt,
       }))
 
+    // ─── Source 5: StockMovement (low-stock alert, PRO only) ────────────────
+    // ทำไม gate PRO เท่านั้น: low-stock alert เป็น Deep Stock Pro feature (SDS §3.7)
+    // เช็ค entitlement ตรง prisma (ไม่ผ่าน getEntitlementInfo) — กัน circular import
+    // service↔service และเพราะ query เดียวพอ ไม่ต้องผ่าน wrapper
+    let lowStockItems: ActivityItem[] = []
+    const entitlement = await prisma.inventoryEntitlement.findUnique({
+      where: { shopId },
+      select: { status: true, package: true },
+    })
+    if (entitlement?.status === 'ACTIVE' && entitlement.package === 'PRO') {
+      // ดึง movement ที่ตัดสต็อกล่าสุด (ORDER_DEDUCT/MANUAL_ADJUST เท่านั้น — delta<0)
+      // over-fetch take*2 เพราะต้อง filter อีกชั้นด้วย lowStockThreshold ใน JS (TD-DSP-04)
+      const recentDeducts = await prisma.stockMovement.findMany({
+        where: {
+          shopId,
+          source: { in: ['ORDER_DEDUCT', 'MANUAL_ADJUST'] },
+          delta: { lt: 0 },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: take * 2,
+        select: { productId: true, productName: true, resultingQty: true, createdAt: true },
+      })
+
+      const productIds = [...new Set(recentDeducts.map((m) => m.productId).filter((id): id is string => !!id))]
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, lowStockThreshold: true },
+      })
+      const thresholdMap = new Map(products.map((p) => [p.id, p.lowStockThreshold]))
+
+      lowStockItems = recentDeducts
+        // filter เฉพาะ product ที่ตั้ง threshold ไว้ (ไม่ null) และ resultingQty ต่ำกว่า/เท่ากับ threshold
+        .filter((m) => m.productId && thresholdMap.get(m.productId) != null && m.resultingQty <= thresholdMap.get(m.productId)!)
+        .map((m) => ({
+          type: 'LOW_STOCK_ALERT' as const,
+          label: `สต็อกใกล้หมด: ${m.productName} (เหลือ ${m.resultingQty})`,
+          at: m.createdAt,
+          href: `/products/${m.productId}/edit`,
+        }))
+    }
+
     // ─── Merge + sort + slice ──────────────────────────────────────────────
     const all: ActivityItem[] = [
       ...orderItems,
       ...smsItems,
       ...reviewItems,
       ...topupItems,
+      ...lowStockItems,
     ]
 
     // sort desc by at (ใหม่สุดก่อน)

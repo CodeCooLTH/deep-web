@@ -137,20 +137,42 @@ export async function createOrder(shopId: string, data: {
           where: { shopId },
           select: { status: true },
         });
-        const deductedIds =
+        // BREAKING (00009 S-3/S-5) — deductStockForOrderItems คืน Map<productId,{qty,resultingQty,name}>
+        // แทน Set<productId> เดิม (เพื่อรู้ resultingQty ต่อ product สำหรับ insert StockMovement ด้านล่าง)
+        const deductions =
           entitlement?.status === "ACTIVE"
             ? await deductStockForOrderItems(tx, data.items) // throw OutOfStockError = rollback attempt นี้
-            : new Set<string>();
+            : new Map<string, { qty: number; resultingQty: number; name: string }>();
 
         const itemsCreateData = data.items.map((item) => ({
           ...item,
-          stockDeducted: item.productId && deductedIds.has(item.productId) ? item.qty : null,
+          stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
         }));
 
-        return tx.order.create({
+        const order = await tx.order.create({
           data: { ...orderDataBase, items: { create: itemsCreateData }, shortCode: genShortCode() },
           include: { items: true },
         });
+
+        // NEW (00009 S-5) — StockMovement record-always (ทุก package, ไม่ gate ที่นี่)
+        // insert หลัง order.create สำเร็จ เพราะต้องใช้ order.id เป็น refId
+        for (const [productId, d] of deductions) {
+          await tx.stockMovement.create({
+            data: {
+              shopId,
+              productId,
+              productName: d.name,
+              delta: -d.qty,
+              resultingQty: d.resultingQty,
+              source: "ORDER_DEDUCT",
+              refId: order.id,
+              note: null,
+              actorUserId: null,
+            },
+          });
+        }
+
+        return order;
       });
     } catch (e) {
       // P2002 = unique violation (ชน shortCode) → regenerate retry (tx ใหม่ทั้งก้อน); error อื่น
@@ -261,7 +283,8 @@ export async function cancelOrder(publicToken: string, initiator: "seller" | "bu
       where: { publicToken },
       data: { status: "CANCELLED", cancelInitiator: initiator },
     });
-    await restockFromCancelledOrder(tx, order.id);
+    // BREAKING (00009 S-3/S-5) — restockFromCancelledOrder เพิ่ม param shopId (สำหรับ StockMovement.shopId)
+    await restockFromCancelledOrder(tx, order.shopId, order.id);
     return updated;
   });
 }

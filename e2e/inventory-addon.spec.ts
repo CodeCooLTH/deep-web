@@ -36,9 +36,9 @@ async function loginAsUser(context: BrowserContext, userId: string, domain: stri
 async function getShop(username: string) {
   const user = await prisma.user.findUniqueOrThrow({
     where: { username },
-    include: { shop: true },
+    include: { shops: { where: { kind: 'PERSONAL' } } },
   })
-  return { user, shop: user.shop! }
+  return { user, shop: user.shops[0]! }
 }
 
 /**

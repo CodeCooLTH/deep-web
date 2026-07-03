@@ -59,7 +59,7 @@ async function seed() {
 
   // 4. Check admin is not linked to shop (for RC-7 self-approve test)
   // Admin should NOT be owner of shop (different userId)
-  const adminShop = await prisma.shop.findUnique({ where: { userId: ADMIN_ID } });
+  const adminShop = await prisma.shop.findFirst({ where: { userId: ADMIN_ID, kind: 'PERSONAL' } });
   console.log('Admin has shop:', adminShop !== null, '(RC-7 self-block only if admin owns shop)');
 
   await prisma.$disconnect();
