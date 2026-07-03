@@ -5,7 +5,7 @@ import * as v from "valibot";
 import { CreateOrderSchema } from "@/lib/validations";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
-import { prisma } from "@/lib/prisma";
+import { requireActiveShop } from "@/lib/shop-context";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Default: seller orders
-  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
-  if (!shop) return NextResponse.json([]);
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) return NextResponse.json([]);
 
-  const orders = await getOrdersByShop(shop.id, status);
+  const orders = await getOrdersByShop(active.shop.id, status);
   return NextResponse.json(orders);
 }
 
@@ -33,9 +33,10 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userId = (session.user as any).id;
-  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
-  if (!shop) return NextResponse.json({ error: "No shop" }, { status: 404 });
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) return NextResponse.json({ error: "No shop" }, { status: 404 });
+  if (active.locked) return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
+  const shop = active.shop;
 
   const body = await request.json().catch(() => null);
   if (body === null) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });

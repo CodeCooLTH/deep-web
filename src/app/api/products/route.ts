@@ -8,15 +8,16 @@ import {
   getProductsByShop,
   serializeProduct,
 } from "@/services/product.service";
-import { prisma } from "@/lib/prisma";
 import { isEntitlementActive } from "@/services/inventory-entitlement.service";
+import { requireActiveShop } from "@/lib/shop-context";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const shop = await prisma.shop.findFirst({ where: { userId: (session.user as any).id, kind: "PERSONAL" } });
-  if (!shop) return NextResponse.json([]);
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) return NextResponse.json([]);
+  const shop = active.shop;
 
   const products = await getProductsByShop(shop.id);
   return NextResponse.json(products.map(serializeProduct));
@@ -26,8 +27,10 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const shop = await prisma.shop.findFirst({ where: { userId: (session.user as any).id, kind: "PERSONAL" } });
-  if (!shop) return NextResponse.json({ error: "No shop" }, { status: 404 });
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) return NextResponse.json({ error: "No shop" }, { status: 404 });
+  if (active.locked) return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
+  const shop = active.shop;
 
   const body = await request.json();
   const parsed = v.safeParse(CreateProductSchema, body);

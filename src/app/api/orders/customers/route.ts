@@ -2,23 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireActiveShop } from "@/lib/shop-context";
 
 // GET /api/orders/customers?q=<term>
 // คืน list ลูกค้าที่เคยสั่งกับร้านนี้ — ใช้สำหรับ autocomplete ตอนสร้าง order ใหม่
-// session-scoped: shopId ดึงจาก session userId (ห้าม trust client)
+// session-scoped: shopId ดึงจาก active shop context ของ session (ห้าม trust client)
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
-
-  // ดึง shop จาก userId — ถ้าไม่มีร้านคืน [] (ไม่ใช่ error)
-  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
-  if (!shop) {
+  // ดึง active shop ของ session — ถ้าไม่มีร้านคืน [] (ไม่ใช่ error)
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) {
     return NextResponse.json([]);
   }
+  const shop = active.shop;
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();

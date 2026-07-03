@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { safeParse } from "valibot";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
 import { createTopUpRequest } from "@/services/topup.service";
 import { CreateTopUpRequestSchema } from "@/lib/validations";
+import { requireActiveShop } from "@/lib/shop-context";
 
 /**
  * POST /api/wallet/topup — seller ส่งคำขอเติมเครดิต SMS พร้อม slip
@@ -35,18 +35,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อน" }, { status: 401 });
   }
 
-  // cast เหมือน pattern ที่มีอยู่ใน src/app/api/wallet/route.ts:29
-  const userId = (session.user as any).id as string;
-
-  // 2. DAL: shop derive จาก session userId เท่านั้น — ห้ามรับ shopId จาก client (S-C7)
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
+  // 2. DAL: shop derive จาก active shop context ของ session เท่านั้น — ห้ามรับ shopId จาก client (S-C7)
+  // ไม่ gate locked — เติมเครดิตเข้า business ที่ locked ได้ (ใช้เพื่อ reactivate)
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
+  if (!active) {
     // seller ยังไม่มีร้าน = ไม่สามารถเติมเครดิตได้ (TopUpRequest.shopId ต้องมีจริง)
     return NextResponse.json(
       { error: "ต้องมีร้านก่อนเติมเครดิต" },
       { status: 403 },
     );
   }
+  const shop = active.shop;
 
   // 3. parse + validate body ด้วย Valibot (CreateTopUpRequestSchema)
   let body: unknown;
