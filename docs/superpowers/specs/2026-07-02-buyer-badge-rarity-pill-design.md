@@ -16,7 +16,7 @@
 
 `getBadgeRarity` เดิมใช้ตัวหาร = `shopCount` → ผิดสำหรับ buyer badge (ไม่ใช่ของร้าน). สำหรับหน้า buyer:
 - **ตัวหาร = จำนวน user ทั้งหมด** (`prisma.user.count()`)
-- **gate:** userCount < 20 → ไม่แสดง pill เลย (นัยสำคัญสถิติ กัน mislabel — เหมือน seller gate shopCount<20)
+- **gate:** userCount < 5 → ไม่แสดง pill เลย (กัน mislabel ตอน user น้อย; ลดจาก 20→5 เมื่อ 2026-07-03 เพราะ population buyer โตช้าช่วงแรก 20 ทำให้ dormant)
 - **tier threshold reuse ของเดิม:** pct≥50 COMMON / ≥20 UNCOMMON / ≥5 RARE / <5 LEGENDARY
 - **label ไทย reuse:** ทั่วไป / ไม่ทั่วไป / หายาก / หายากมาก
 

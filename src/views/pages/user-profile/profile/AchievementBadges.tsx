@@ -6,6 +6,8 @@ import CardContent from '@mui/material/CardContent'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import { useState } from 'react'
+import { Icon as IconifyIcon } from '@iconify/react'
+import { badgeIconName } from '@/lib/badge-icons'
 
 // Base: adapted from theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/ConnectionsTeams.tsx
 // (Card + chip-row layout; ไม่มี theme widget "badge chips" ตรง ๆ — ดัดแปลง chip row ของ ConnectionsTeams ให้เป็น badge row)
@@ -42,16 +44,15 @@ function BadgeChip({ item }: { item: AchievementItem }) {
             style={{ width: 24, height: 24, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
           />
         ) : (
-          /* fallback: emoji badge.icon — render เป็น text content ไม่ใช่ className
-             ทำไม: item.icon เก็บ emoji ("🌱","📈") ไม่ใช่ CSS class — <i className="🌱"> มองไม่เห็น
-             pattern เดียวกับ BadgeIcon.tsx:62 */
-          <span
-            role='img'
+          /* fallback: lucide icon ตามชื่อ badge (no-emoji — Hard Rule 12); parity กับ seller BadgeImage
+             ทำไม nameEN: badge.icon ใน DB เก็บ emoji — เลิก render, map ชื่อ → lucide แทน */
+          <IconifyIcon
+            icon={badgeIconName(item.nameEN, item.icon)}
+            width={20}
+            height={20}
             aria-label={item.name}
-            style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}
-          >
-            {item.icon || '🏅'}
-          </span>
+            style={{ flexShrink: 0 }}
+          />
         )}
         <Typography className='text-sm font-medium'>{item.name}</Typography>
       </div>
