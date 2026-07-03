@@ -15,9 +15,9 @@
  *        ตรวจ shop → auto-create ถ้า seller ยังไม่มีร้าน (invariant เดียวกับ (dashboard)/layout.tsx)
  */
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
+import { ensurePersonalShop, requireActiveShop } from '@/lib/shop-context'
 
 export default async function FullscreenLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -34,19 +34,13 @@ export default async function FullscreenLayout({ children }: { children: React.R
     | undefined
   if (!session || !user?.id) redirect('/auth/sign-in')
 
-  // Ensure seller has a shop — same invariant as (dashboard)/layout.tsx
-  const shop = await prisma.shop.findFirst({
-    where: { userId: user.id, kind: 'PERSONAL' },
-    select: { id: true },
-  })
-  if (!shop) {
-    await prisma.shop.create({
-      data: {
-        userId: user.id,
-        shopName: `ร้านของ ${user.displayName}`,
-        businessType: 'INDIVIDUAL',
-      },
-    })
+  // Ensure seller has a Personal shop — same invariant as (dashboard)/layout.tsx (D1)
+  await ensurePersonalShop(user.id)
+  // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding (หน้า onboarding อยู่ใต้
+  // (dashboard) ไม่ใช่ fullscreen → redirect ข้ามกลุ่มไม่เกิด loop)
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (active?.kind === 'BUSINESS' && !active.shop.slug) {
+    redirect(`/business/${active.shop.id}/onboarding`)
   }
 
   return (

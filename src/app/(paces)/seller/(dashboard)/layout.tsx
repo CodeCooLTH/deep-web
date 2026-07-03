@@ -1,9 +1,10 @@
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { getTierLabel } from '@/lib/trust-tier'
 import VerticalLayout from '@/layouts/VerticalLayout'
 import { getServerSession } from 'next-auth'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { ensurePersonalShop, requireActiveShop } from '@/lib/shop-context'
 import { sellerMenuItems, applyInventoryGate } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
@@ -33,29 +34,26 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // proxy rewrite ครอบ /auth/sign-in → /seller/auth/sign-in ให้อัตโนมัติบน seller subdomain
   if (!session || !user?.id) redirect('/auth/sign-in')
 
-  // Every seller MUST have a shop — auto-create a default one on first visit
-  // so they land on a usable dashboard instead of a "create shop" CTA.
-  // T3: ขยาย select เพิ่ม shopName + logo เพื่อส่งเข้า SellerMobileHeader
-  const shop = await prisma.shop.findFirst({
-    where: { userId: user.id, kind: 'PERSONAL' },
-    select: { id: true, shopName: true, logo: true },
-  })
-  if (!shop) {
-    await prisma.shop.create({
-      data: {
-        userId: user.id,
-        shopName: `ร้านของ ${user.displayName}`,
-        businessType: 'INDIVIDUAL',
-      },
-    })
-    // หลัง auto-create ไม่ refetch — ใช้ fallback ชื่อแทน (ตรงกับ shopName ที่ create)
-    // shop variable ยังเป็น null → fallback ใน topbarSlot จะใช้ `ร้านของ ${displayName}` แทน
+  // Every seller MUST have a Personal shop (invariant) — auto-create เฉพาะ PERSONAL (D1)
+  await ensurePersonalShop(user.id)
+  // resolve active shop (Personal หรือ Business ตาม session.activeShopId + verify membership)
+  // — header/badge/pendingCount/entitlement ต้องสะท้อน "workspace ที่กำลังดูอยู่" ไม่ใช่ Personal เสมอ (P4-5)
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/auth/sign-in') // ไม่ควรเกิดหลัง ensurePersonalShop
+  const shop = active.shop
+
+  // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
+  // ยกเว้นเมื่อกำลังอยู่หน้า onboarding เอง (อ่าน x-pathname จาก proxy) — กัน redirect loop
+  if (active.kind === 'BUSINESS' && !shop.slug) {
+    const onboardingPath = `/business/${shop.id}/onboarding`
+    const currentPath = (await headers()).get('x-pathname') ?? ''
+    if (currentPath !== onboardingPath) redirect(onboardingPath)
   }
 
   // คำนวณ tier label ตาม SSOT (getTierLabel) จาก trustScore session
   const tierName = getTierLabel(user.trustScore ?? 0)
-  // ชื่อร้านสำหรับ mobile header — fallback กรณี shop เพิ่ง create (shop = null ช่วง auto-create)
-  const shopNameForHeader = shop?.shopName ?? `ร้านของ ${user.displayName}`
+  // ชื่อร้านสำหรับ mobile header — active shop (Personal/Business)
+  const shopNameForHeader = shop.shopName ?? `ร้านของ ${user.displayName}`
 
   // pendingCount สำหรับ SellerBottomNav badge — ดึงเฉพาะเมื่อ shop มี id
   // (shop อาจเป็น null เมื่อเพิ่ง auto-create → skip getOrderStatusCounts กัน error ก่อน redirect ทำงาน)
