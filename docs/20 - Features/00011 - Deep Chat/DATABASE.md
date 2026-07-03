@@ -23,10 +23,11 @@ related: ["[[BRD]]", "[[../../superpowers/specs/2026-07-03-deep-chat-design]]", 
 ## 0. 🛑 สถานะการ apply (สำคัญ — อ่านก่อน)
 
 - `prisma/schema.prisma` ถูกแก้แล้ว (model `Conversation`, `ChatMessage` + back-relation) — `npx prisma validate` ผ่าน
-- Migration file เขียนแล้วที่ `prisma/migrations/20260703000300_add_deep_chat_schema/migration.sql` (hand-written, additive-only)
+- Migration 1 เขียนแล้วที่ `prisma/migrations/20260703000300_add_deep_chat_schema/migration.sql` (hand-written, additive-only — `CREATE TABLE` 2 ตัว)
+- Migration 2 เขียนแล้วที่ `prisma/migrations/20260703000400_chat_realtime_broadcast/migration.sql` (hand-written, unmanaged SQL — `CREATE FUNCTION` + `CREATE TRIGGER` บน `"ChatMessage"`, **ไม่มีใน `schema.prisma`** — ดู §10)
 - **ยังไม่รัน `prisma migrate deploy` จริง** — Supabase dev=prod แชร์กัน (`docs/conventions/prisma-shared-db-drift.md` + memory `project_shared_db_drift_no_migrate_dev`) ต้องขอ user ยืนยันก่อน apply ทุกครั้ง
 - **ห้าม `prisma migrate dev`** เด็ดขาด (DB มี orphaned migration นอก git — จะเสนอ `migrate reset` ลบข้อมูลทั้ง DB) — ใช้ `migrate deploy` เท่านั้น
-- **ห้าม `prisma db pull`** เด็ดขาด (memory `feedback_qa_agent_no_prisma_pull`)
+- **ห้าม `prisma db pull`** เด็ดขาด (memory `feedback_qa_agent_no_prisma_pull`) — **ยิ่งสำคัญขึ้นสำหรับ migration นี้:** `db pull` จะไม่เห็น trigger/function (unmanaged SQL, ไม่มีใน DSL) และเสี่ยง generate schema ที่ "ดูสมบูรณ์" ทั้งที่ trigger หายไปจาก mental model — ห้ามใช้เพื่อ "sync" schema เด็ดขาด
 
 ---
 
@@ -171,6 +172,8 @@ erDiagram
 
 รวมเป็น 1 migration file: `20260703000300_add_deep_chat_schema`
 
+**Migration ที่ 2 (แยกไฟล์ ไม่รวมกับข้างบน):** `20260703000400_chat_realtime_broadcast` — `CREATE FUNCTION`/`CREATE TRIGGER` สำหรับ realtime broadcast หลัง insert `ChatMessage` (unmanaged SQL, ไม่มีใน `schema.prisma`) — ดูรายละเอียดเต็มที่ §10 (แยกไฟล์เพราะเป็นคนละประเภทการเปลี่ยนแปลง: migration 1 = DDL ตาราง, migration 2 = function/trigger — ตาม pattern เดียวกับ auction ที่แยก `20260701000001_auction_schema_delta` ออกจาก `20260701000003_auction_realtime_broadcast`)
+
 ### 5.2 Migration SQL
 
 ดูไฟล์เต็ม `prisma/migrations/20260703000300_add_deep_chat_schema/migration.sql` (เขียนแล้ว, ตรงกับ `prisma/schema.prisma` 100% — validate ผ่าน `npx prisma validate`) สรุปสาระสำคัญ:
@@ -294,7 +297,40 @@ npx prisma generate
 
 ---
 
-## 10. สรุป (Summary)
+## 10. Realtime Broadcast Trigger (แก้ FLAG-1 — เพิ่มโดย safepay-database)
+
+**ไฟล์:** `prisma/migrations/20260703000400_chat_realtime_broadcast/migration.sql`
+
+**🛑 Unmanaged SQL — ไม่มีใน `schema.prisma`:** Prisma DSL ไม่มี syntax ประกาศ Postgres function/trigger (เหมือน partial unique index ของ `Shop.userId` และ auction realtime trigger) — trigger นี้มีอยู่แค่ในไฟล์ migration เท่านั้น ไม่ปรากฏใน `schema.prisma` และไม่ปรากฏถ้ารัน `prisma db pull`
+- **ห้าม `npx prisma migrate dev`** — จะไม่เห็น trigger นี้ใน DSL แล้วเสนอ diff ที่ "ลบ" มันออกจาก migration history หรือ drift-reset
+- **ห้าม `npx prisma db pull`** — schema ที่ pull กลับมาจะไม่มี trigger (ไม่ error แต่ "หายไปจากสายตา" — ผู้ที่ pull แล้ว migrate dev ต่อจะ drop trigger จริงโดยไม่รู้ตัว) ดู memory `feedback_qa_agent_no_prisma_pull`
+- Apply ผ่าน `prisma migrate deploy` เหมือนไฟล์ SQL อื่นทุกไฟล์ในระบบ (เดินตามลำดับ migration folder ปกติ)
+
+**Trigger:** `chat_message_realtime_broadcast_trigger` — `AFTER INSERT ON "ChatMessage" FOR EACH ROW EXECUTE FUNCTION public.chat_message_realtime_broadcast()`
+
+**Function:** `public.chat_message_realtime_broadcast()` broadcast 2 channel ต่อ 1 ข้อความที่ insert (SRS §7.1):
+
+| Channel | Event | เงื่อนไข broadcast | Payload | ผู้ subscribe |
+|---------|-------|---------------------|---------|----------------|
+| `chat:{conversationId}` | `update` | ทุกข้อความ (ทั้ง BUYER และ SHOP) | `{conversationId, messageId}` | client ที่เปิด thread นั้นอยู่ (buyer `/messages/[shopId]` หรือ seller `/inbox/[conversationId]`) |
+| `chat:shop:{shopId}` | `new_message` | เฉพาะ `NEW."senderRole" = 'BUYER'` (ข้อความจาก seller เองไม่ broadcast channel นี้ — ไม่ต้องแจ้งตัวเอง) | `{conversationId}` | seller listener mount ครั้งเดียวที่ `(dashboard)/layout.tsx` (client wrapper) — เด้ง `pacesToast.chat.*` แม้ไม่ได้เปิดหน้า `/inbox/[id]` อยู่ (FR-CHAT-11-AC-02) |
+
+**Signal-only payload (BR — ตาม SRS §7.1):** ทั้ง 2 channel ส่งแค่ `conversationId`/`messageId` — **ไม่ฝัง `body`/`imageUrl`** เพราะ Supabase Realtime broadcast channel ใช้ anon-key ไม่มี RLS คุม ใครก็ตามที่รู้ `conversationId` (เช่น buyer ที่เปิด thread ของตัวเองแล้วเดา id ห้องอื่น) สามารถ subscribe channel `chat:{conversationId}` ห้องอื่นได้ถ้ารู้ id — payload จึงต้องไม่มีเนื้อหาบทสนทนาจริงเด็ดขาด client ฝั่งรับต้อง refetch ผ่าน authenticated `GET .../messages` เสมอ (ownership guard อยู่ที่ REST endpoint ไม่ใช่ broadcast channel — เหตุผลเดียวกับ auction §7.2)
+
+**fail-safe:** `EXCEPTION WHEN OTHERS THEN RETURN NEW` — ถ้า `realtime.send()` fail (เช่น extension ปิด/error) จะไม่ rollback `INSERT INTO "ChatMessage"` หลัก (ข้อความต้องบันทึกสำเร็จเสมอแม้ realtime ล่ม — fallback client-side คือ fetch-on-focus ตาม SRS §7.1)
+
+**Rollback:**
+```sql
+DROP TRIGGER IF EXISTS chat_message_realtime_broadcast_trigger ON "ChatMessage";
+DROP FUNCTION IF EXISTS public.chat_message_realtime_broadcast();
+```
+ปลอดภัย 100% — function/trigger ไม่เก็บ state ไม่มี data loss ผลกระทบเดียวคือ client ต้องพึ่ง fallback fetch-on-focus (`visibilitychange`/`window focus`) แทน realtime push ทันที จนกว่าจะ re-apply
+
+**Traceability:** SRS §7.1 (§7.2 draft SQL), SDS §9 FLAG-1, feature 00011 planner flag — ปิด gap "DATABASE.md เดิมไม่มี trigger"
+
+---
+
+## 11. สรุป (Summary)
 
 Migration หลัก = **2 table ใหม่ทั้งหมด** (`Conversation`, `ChatMessage`) + back-relation 3 field บน `User`/`Shop` (ไม่มี DDL) — **ไม่มี DDL change ใด ๆ กับ table เดิม** (`Notification` reuse column เดิม 100%). ทั้งหมด additive-only — ไม่มี table ใดถูก drop/rename, ไม่มี column เดิมถูกแก้ type/ลบ, ไม่มี ALTER บน table ที่มี row จริง (ต่างจาก feature 00009 ที่ต้องแก้ `InventoryEntitlement`/`Product` ที่มีข้อมูลอยู่แล้ว — รอบนี้ตารางใหม่ทั้งคู่ว่างตอนสร้าง จึง apply ง่ายและปลอดภัยกว่า)
 
@@ -310,4 +346,5 @@ Migration หลัก = **2 table ใหม่ทั้งหมด** (`Convers
 **สถานะ implementation ปัจจุบัน:**
 - `prisma/schema.prisma` — แก้แล้ว, `npx prisma validate` ผ่าน
 - `prisma/migrations/20260703000300_add_deep_chat_schema/migration.sql` — เขียนแล้ว, sync กับ schema 100%
-- `npx prisma migrate deploy` — **ยังไม่รัน** รอ Controller/user ยืนยัน (touch shared dev=prod Supabase)
+- `prisma/migrations/20260703000400_chat_realtime_broadcast/migration.sql` — เขียนแล้ว (unmanaged SQL, ดู §10) — ยืนยัน timestamp ไม่ชนกับ migration อื่นแล้ว (`git log --all --name-only | grep prisma/migrations/202607` ณ 2026-07-03: ตัวถัดจาก `20260703000300` ที่มีอยู่)
+- `npx prisma migrate deploy` — **ยังไม่รัน** รอ Controller/user ยืนยัน (touch shared dev=prod Supabase) — ต้อง apply migration 1 ก่อน migration 2 เสมอ (trigger อ้าง table `"ChatMessage"` ที่ต้องมีอยู่ก่อน)
