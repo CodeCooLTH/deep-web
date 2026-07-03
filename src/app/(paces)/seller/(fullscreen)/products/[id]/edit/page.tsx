@@ -20,7 +20,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
-import { isEntitlementActive } from '@/services/inventory-entitlement.service'
+import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
 import { redirect, notFound } from 'next/navigation'
@@ -105,6 +105,9 @@ export default async function EditProductPage({ params }: PageProps) {
   // (ซ่อน field stockQty แทนที่จะเสี่ยงเปิดให้กรอกทั้งที่ยังไม่ได้ subscribe)
   // shop.id ตรงกับ shop ของ product อยู่แล้ว เพราะ query ด้านบนกรองด้วย shopId: shop.id
   const entitlementActive = await isEntitlementActive(shop.id).catch(() => false)
+  // Deep Stock Pro (feature 00009 S-20) — PRO-gate field lowStockThreshold ใน ProductStockCardV2
+  // fail-closed เหมือน entitlementActive ด้านบน
+  const proActive = await isProActive(shop.id).catch(() => false)
 
   return (
     <>
@@ -129,6 +132,7 @@ export default async function EditProductPage({ params }: PageProps) {
         product={product}
         formId={FORM_ID}
         entitlementActive={entitlementActive}
+        isProActive={proActive}
       />
     </>
   )

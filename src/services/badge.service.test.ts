@@ -108,8 +108,8 @@ describe('getUserBadgeRarityMap', () => {
     const m = await getUserBadgeRarityMap([])
     expect(m.size).toBe(0)
   })
-  it('userCount < 20 → gate: Map ว่าง (ไม่แสดง pill)', async () => {
-    vi.mocked(prisma.user.count).mockResolvedValue(19 as never)
+  it('userCount < 5 → gate: Map ว่าง (ไม่แสดง pill)', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(4 as never)
     vi.mocked(prisma.userBadge.groupBy).mockResolvedValue([] as never)
     const m = await getUserBadgeRarityMap(['b1'])
     expect(m.size).toBe(0)

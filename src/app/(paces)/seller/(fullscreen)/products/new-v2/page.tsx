@@ -14,7 +14,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
-import { isEntitlementActive } from '@/services/inventory-entitlement.service'
+import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
@@ -75,6 +75,9 @@ export default async function NewProductV2Page() {
   // Inventory Add-on entitlement — fail-closed: error ใด ๆ ระหว่าง resolve ถือว่าไม่ active
   // (ซ่อน field stockQty แทนที่จะเสี่ยงเปิดให้กรอกทั้งที่ยังไม่ได้ subscribe)
   const entitlementActive = await isEntitlementActive(shop.id).catch(() => false)
+  // Deep Stock Pro (feature 00009 S-20) — PRO-gate field lowStockThreshold ใน ProductStockCardV2
+  // fail-closed เหมือน entitlementActive ด้านบน
+  const proActive = await isProActive(shop.id).catch(() => false)
 
   return (
     <>
@@ -94,7 +97,12 @@ export default async function NewProductV2Page() {
         ตาม product-add ซ้าย = fields, ขวา = preview panel (ProductPreviewPanel)
         ดู JSDoc ใน ProductFormV2.tsx สำหรับ domain-component note
       */}
-      <ProductFormV2 shopId={shop.id} formId={FORM_ID} entitlementActive={entitlementActive} />
+      <ProductFormV2
+        shopId={shop.id}
+        formId={FORM_ID}
+        entitlementActive={entitlementActive}
+        isProActive={proActive}
+      />
     </>
   )
 }

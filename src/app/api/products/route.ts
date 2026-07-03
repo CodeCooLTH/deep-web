@@ -8,7 +8,7 @@ import {
   getProductsByShop,
   serializeProduct,
 } from "@/services/product.service";
-import { isEntitlementActive } from "@/services/inventory-entitlement.service";
+import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
 
 export async function GET() {
@@ -43,6 +43,22 @@ export async function POST(request: NextRequest) {
     }
     if (!(await isEntitlementActive(shop.id))) {
       return NextResponse.json({ error: "INVENTORY_NOT_ACTIVE" }, { status: 403 });
+    }
+  }
+
+  // lowStockThreshold — Deep Stock Pro (feature 00009): guard เฉพาะเมื่อ caller ส่ง field นี้มา (ต่อจาก guard stockQty ด้านบน — ห้ามแก้ของเดิม)
+  if (parsed.output.lowStockThreshold !== undefined) {
+    // POST ไม่มี product เดิม — effective type มาจาก parsed.output.type อย่างเดียว
+    if (parsed.output.type !== "PHYSICAL") {
+      return NextResponse.json({ error: "STOCK_QTY_INVALID_PRODUCT_TYPE" }, { status: 400 });
+    }
+    // effective stockQty มาจาก parsed.output.stockQty (POST ไม่มี product เดิมให้ fallback)
+    const effectiveStockQty = parsed.output.stockQty;
+    if (effectiveStockQty === null || effectiveStockQty === undefined) {
+      return NextResponse.json({ error: "PRODUCT_NOT_TRACKED" }, { status: 400 });
+    }
+    if (!(await isProActive(shop.id))) {
+      return NextResponse.json({ error: "INVENTORY_NOT_PRO" }, { status: 403 });
     }
   }
 

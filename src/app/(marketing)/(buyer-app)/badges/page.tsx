@@ -117,7 +117,7 @@ export default async function BadgesPage() {
               <div key={item.badge.id} className='flex items-center gap-4'>
                 {/* icon circle ขนาด w-8 h-8 — เท่ากับ theme เดิม; img แทน tabler:award ขนาด 20px เท่าเดิม */}
                 <span className='flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary flex-shrink-0'>
-                  <BadgeIcon imageUrl={item.badge.imageUrl} icon={item.badge.icon} size={20} alt={item.badge.name} />
+                  <BadgeIcon imageUrl={item.badge.imageUrl} nameEN={item.badge.nameEN} icon={item.badge.icon} size={20} alt={item.badge.name} />
                 </span>
                 <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
                   <div className='flex flex-col'>
@@ -153,7 +153,7 @@ export default async function BadgesPage() {
                 <div key={item.badge.id} className='flex items-center gap-4'>
                   {/* icon circle ขนาด w-8 h-8 — เท่ากับ theme เดิม; img แทน tabler:award ขนาด 20px เท่าเดิม */}
                   <span className='flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary flex-shrink-0'>
-                    <BadgeIcon imageUrl={item.badge.imageUrl} icon={item.badge.icon} size={20} alt={item.badge.name} />
+                    <BadgeIcon imageUrl={item.badge.imageUrl} nameEN={item.badge.nameEN} icon={item.badge.icon} size={20} alt={item.badge.name} />
                   </span>
                   <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
                     <div className='flex flex-col'>

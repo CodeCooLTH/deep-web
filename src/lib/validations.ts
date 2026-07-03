@@ -154,6 +154,8 @@ export const CreateProductSchema = v.object({
   ...CapabilityFieldsSchema,
   // stockQty — Inventory Add-on (feature 00003): undefined=ไม่แตะ, null=untrack, ≥0=track
   stockQty: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+  // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ปิด alert explicit, ≥0=ตั้งค่า
+  lowStockThreshold: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
 });
 
 export const UpdateProductSchema = v.object({
@@ -182,6 +184,51 @@ export const UpdateProductSchema = v.object({
   ...CapabilityFieldsSchema,
   // stockQty — Inventory Add-on (feature 00003): undefined=ไม่แตะ, null=untrack, ≥0=track
   stockQty: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+  // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ปิด alert explicit, ≥0=ตั้งค่า
+  lowStockThreshold: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+});
+
+// --- Deep Stock Pro (feature 00009) ---
+
+export const InventoryPackageSchema = v.picklist(["BASIC", "PRO"] as const);
+
+export const SubscribeInventorySchema = v.object({
+  package: InventoryPackageSchema,
+});
+
+export const ReactivateInventorySchema = v.object({
+  package: InventoryPackageSchema,
+});
+
+// POST /api/inventory/upgrade — ไม่มี body schema (empty POST เหมือน subscribe เดิมของ 00003)
+
+export const ManualStockAdjustSchema = v.object({
+  productId: v.pipe(v.string(), v.uuid()),
+  delta: v.pipe(v.number(), v.integer(), v.check((n) => n !== 0, "delta ห้ามเป็น 0")),
+  note: v.pipe(v.string(), v.minLength(1, "กรุณาระบุเหตุผล"), v.maxLength(200)),
+});
+
+export const CsvImportRowSchema = v.object({
+  productId: v.pipe(v.string(), v.uuid()),
+  stockQty: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+
+export const CsvImportSchema = v.object({
+  rows: v.pipe(
+    v.array(CsvImportRowSchema),
+    v.minLength(1),
+    v.maxLength(500, "นำเข้าได้สูงสุด 500 แถวต่อครั้ง"),
+  ),
+});
+
+// GET /api/inventory/movements query params (validate ผ่าน manual parse — searchParams ไม่ใช่ JSON body)
+export const MovementHistoryQuerySchema = v.object({
+  productId: v.pipe(v.string(), v.uuid()),
+  cursor: v.optional(v.pipe(v.string())), // ISO datetime ของ createdAt รายการสุดท้ายที่เห็น
+  take: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
+    20,
+  ),
 });
 
 export const CreateOrderSchema = v.object({

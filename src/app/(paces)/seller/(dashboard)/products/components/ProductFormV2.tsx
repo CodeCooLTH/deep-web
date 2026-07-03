@@ -123,6 +123,12 @@ const schema = Yup.object({
     .min(0, 'ห้ามติดลบ')
     .nullable()
     .default(null),
+  // lowStockThreshold — Deep Stock Pro (feature 00009 S-20): null=ปิดแจ้งเตือน, ≥0=ตั้งเกณฑ์
+  lowStockThreshold: Yup.number()
+    .integer('ต้องเป็นจำนวนเต็ม')
+    .min(0, 'ห้ามติดลบ')
+    .nullable()
+    .default(null),
 })
 
 interface ProductFormV2Props {
@@ -133,6 +139,9 @@ interface ProductFormV2Props {
   // entitlementActive — Inventory Add-on (feature 00003): เปิด ProductStockCardV2
   // เฉพาะร้านที่ subscribe active (default false = ยังไม่แสดง)
   entitlementActive?: boolean
+  // isProActive — Deep Stock Pro (feature 00009 S-20): PRO-gate field lowStockThreshold
+  // ภายใน ProductStockCardV2 (default false = แสดง upsell hint แทน input จริง)
+  isProActive?: boolean
 }
 
 export default function ProductFormV2({
@@ -141,6 +150,7 @@ export default function ProductFormV2({
   product,
   shopName,
   entitlementActive = false,
+  isProActive = false,
 }: ProductFormV2Props) {
   const router = useRouter()
   const isEdit = !!product
@@ -181,6 +191,7 @@ export default function ProductFormV2({
       billingPeriod: (product?.billingPeriod as ProductFormV2Values['billingPeriod']) ?? null,
       billingPeriodDays: product?.billingPeriodDays ?? null,
       stockQty: product?.stockQty ?? null,
+      lowStockThreshold: product?.lowStockThreshold ?? null,
     },
   })
 
@@ -221,6 +232,17 @@ export default function ProductFormV2({
         // stockQty ส่งเฉพาะ PHYSICAL + entitlement active — ประเภทอื่น/ไม่ active ส่ง undefined (server ไม่แตะ)
         stockQty:
           values.type === 'PHYSICAL' && entitlementActive ? (values.stockQty ?? null) : undefined,
+        // lowStockThreshold — Deep Stock Pro (feature 00009 S-20): ส่งเฉพาะ PHYSICAL + PRO active
+        // + tracked (stockQty ไม่ null) ตาม guard ฝั่ง server (api/products/[id]/route.ts:40-53)
+        // ไม่งั้นส่ง undefined (server ไม่แตะ ปลอดภัยแม้ผู้ใช้เคยตั้งค่าไว้ตอน PRO ก่อนล็อกกลับ BASIC)
+        lowStockThreshold:
+          values.type === 'PHYSICAL' &&
+          entitlementActive &&
+          isProActive &&
+          values.stockQty !== null &&
+          values.stockQty !== undefined
+            ? (values.lowStockThreshold ?? null)
+            : undefined,
       }
 
       const url = isEdit ? `/api/products/${product!.id}` : '/api/products'
@@ -336,7 +358,13 @@ export default function ProductFormV2({
             {watch('type') === 'PHYSICAL' && entitlementActive && (
               <>
                 <div className="border-default-100 border-t" />
-                <ProductStockCardV2 register={register} errors={errors} setValue={setValue} watch={watch} />
+                <ProductStockCardV2
+                  register={register}
+                  errors={errors}
+                  setValue={setValue}
+                  watch={watch}
+                  isProActive={isProActive}
+                />
               </>
             )}
 

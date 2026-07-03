@@ -118,6 +118,8 @@ export interface SerializedProduct {
   tags: { id: string; name: string; slug: string }[];
   // stockQty — Inventory Add-on (feature 00003): null=untracked
   stockQty: number | null;
+  // lowStockThreshold — Deep Stock Pro (feature 00009): null=ไม่ตั้ง alert, N>=0=ตั้งค่า
+  lowStockThreshold: number | null;
 }
 
 type ProductWithTags = Prisma.ProductGetPayload<{ include: { tags: true } }>;
@@ -149,6 +151,7 @@ export function serializeProduct(product: ProductWithTags): SerializedProduct {
     updatedAt: product.updatedAt.toISOString(),
     tags: product.tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
     stockQty: product.stockQty ?? null,
+    lowStockThreshold: product.lowStockThreshold ?? null,
   };
 }
 
@@ -173,6 +176,8 @@ export interface CreateProductInput {
   billingPeriodDays?: number | null;
   // stockQty — Inventory Add-on (feature 00003): undefined=ไม่แตะ, null=untrack, ≥0=track
   stockQty?: number | null;
+  // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ไม่ตั้ง alert, ≥0=ตั้งค่า
+  lowStockThreshold?: number | null;
 }
 
 /**
@@ -208,6 +213,8 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       attributes: (data.attributes ?? {}) as Prisma.InputJsonValue,
       // stockQty — Inventory Add-on (feature 00003): omit ก็ default เป็น null (untracked)
       stockQty: data.stockQty ?? null,
+      // lowStockThreshold — Deep Stock Pro (feature 00009): omit ก็ default เป็น null (ไม่ตั้ง alert)
+      lowStockThreshold: data.lowStockThreshold ?? null,
       // capability flags — derive fulfillmentMode จาก type ถ้า caller ไม่ส่งมา
       // ไม่พึ่ง client หรือ DB default: SERVICE/DIGITAL ที่ไม่ส่ง fulfillmentMode จะได้
       // SHIPPED จาก schema default → post-OMS createOrder จะ require shipping ผิด
@@ -252,6 +259,8 @@ export interface UpdateProductInput {
   billingPeriodDays?: number | null;
   // stockQty — Inventory Add-on (feature 00003): omit=ไม่แตะ, null=untrack, ≥0=track
   stockQty?: number | null;
+  // lowStockThreshold — Deep Stock Pro (feature 00009): omit=ไม่แตะ, null=ไม่ตั้ง alert, ≥0=ตั้งค่า
+  lowStockThreshold?: number | null;
 }
 
 /**
@@ -292,6 +301,8 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.billingPeriodDays !== undefined) scalarUpdate.billingPeriodDays = data.billingPeriodDays;
   // stockQty — Inventory Add-on (feature 00003): omit=ไม่แตะ (pattern เดียวกับ field อื่นข้างบน)
   if (data.stockQty !== undefined) scalarUpdate.stockQty = data.stockQty;
+  // lowStockThreshold — Deep Stock Pro (feature 00009): omit=ไม่แตะ (pattern เดียวกับ stockQty)
+  if (data.lowStockThreshold !== undefined) scalarUpdate.lowStockThreshold = data.lowStockThreshold;
 
   // ถ้าไม่มี tags ใน payload — update ครั้งเดียว ไม่ต้อง transaction
   if (data.tags === undefined) {

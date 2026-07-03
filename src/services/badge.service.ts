@@ -892,7 +892,9 @@ function tierFromPct(pct: number): RarityTier {
  * ต่างจาก getBadgeRarity (seller, ฐาน shopCount): buyer badge ไม่ใช่ของร้าน →
  * ใช้ user.count เป็นตัวหาร. bulk (1 user.count + 1 groupBy) แทน N call
  *
- * gate: userCount < 20 → คืน Map ว่าง (นัยสำคัญสถิติ กัน mislabel — เหมือน seller shopCount<20)
+ * gate: userCount < 5 → คืน Map ว่าง (กัน mislabel ตอน user น้อยเกินจนไร้นัยสำคัญ).
+ * ตั้ง 5 (ไม่ใช่ 20 แบบ seller shopCount) เพราะ population buyer = user ทั้งหมด
+ * ซึ่งโตช้าช่วงแรก — 20 จะทำให้ pill dormant จนแพลตฟอร์มโต (ตัดสิน 2026-07-03)
  * badge ที่ไม่มี earner → 0% → LEGENDARY. คืน Map<badgeId, tier> (key ที่ไม่มี = ไม่แสดง pill)
  */
 export async function getUserBadgeRarityMap(badgeIds: string[]): Promise<Map<string, RarityTier>> {
@@ -900,7 +902,7 @@ export async function getUserBadgeRarityMap(badgeIds: string[]): Promise<Map<str
   if (badgeIds.length === 0) return result
 
   const userCount = await prisma.user.count()
-  if (userCount < 20) return result // gate
+  if (userCount < 5) return result // gate
 
   const grouped = await prisma.userBadge.groupBy({
     by: ['badgeId'],

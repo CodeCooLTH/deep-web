@@ -39,6 +39,8 @@ const ICON_MAP: Record<ActivityItem['type'], string> = {
   SMS_SENT:         'solar:letter-bold-duotone',
   REVIEW_RECEIVED:  'solar:star-bold-duotone',
   TOPUP:            'solar:wallet-bold-duotone',
+  // S-6/S-14 (00009 Deep Stock Pro) — low-stock alert (PRO only), สี/icon สื่อ "เตือน"
+  LOW_STOCK_ALERT:  'solar:danger-triangle-bold-duotone',
 }
 
 const ICON_COLOR_MAP: Record<ActivityItem['type'], string> = {
@@ -47,6 +49,7 @@ const ICON_COLOR_MAP: Record<ActivityItem['type'], string> = {
   SMS_SENT:         'text-info',
   REVIEW_RECEIVED:  'text-warning',
   TOPUP:            'text-success',
+  LOW_STOCK_ALERT:  'text-danger',
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
