@@ -49,8 +49,12 @@ model User {
   // --- Business Account & Packages (feature 00008, Phase 1 additive) ---
   shopMemberships             ShopMember[]
   businessPackageSubscription BusinessPackageSubscription?
-  sentShopInvites             ShopInvite[]                  @relation("ShopInviteInvitedBy")
-  acceptedShopInvites         ShopInvite[]                  @relation("ShopInviteAcceptedBy")
+  sentShopInvites             ShopInvite[]                 @relation("ShopInviteInvitedBy")
+  acceptedShopInvites         ShopInvite[]                 @relation("ShopInviteAcceptedBy")
+
+  // --- Deep Chat (feature 00011, additive) ---
+  buyerConversations Conversation[] @relation("BuyerConversations") // conversation ที่ user เป็นฝั่ง buyer
+  sentChatMessages   ChatMessage[]  @relation("SentChatMessages") // ข้อความที่ user ส่ง (buyer หรือ seller)
 }
 
 model AuthAccount {
@@ -123,6 +127,7 @@ model Shop {
   stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
+  conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -433,25 +438,25 @@ enum StockMovementSource {
 // ไม่ผูก FK ตรงกับ InventoryEntitlement โดยตั้งใจ — gate การมองเห็นที่ query-time ด้วยสถานะปัจจุบัน
 // ของ entitlement ไม่ใช่ snapshot ตอนบันทึก (ดู DATABASE.md §3.2)
 model StockMovement {
-  id            String              @id @default(uuid())
-  shopId        String
-  productId     String?
-  productName   String
-  delta         Int
-  resultingQty  Int
-  source        StockMovementSource
-  refId         String?
-  note          String?
-  actorUserId   String?
-  createdAt     DateTime            @default(now())
+  id           String              @id @default(uuid())
+  shopId       String
+  productId    String?
+  productName  String
+  delta        Int
+  resultingQty Int
+  source       StockMovementSource
+  refId        String?
+  note         String?
+  actorUserId  String?
+  createdAt    DateTime            @default(now())
 
   shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   actor   User?    @relation("StockMovementActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([productId, createdAt]) // hot path: movement history ต่อสินค้า เรียงเวลาล่าสุดก่อน
-  @@index([shopId, createdAt])    // cross-product movement list ต่อ shop
-  @@index([shopId, source])       // filter ตาม source
+  @@index([shopId, createdAt]) // cross-product movement list ต่อ shop
+  @@index([shopId, source]) // filter ตาม source
 }
 
 // --- Business Account & Packages (feature 00008, Phase 1 additive) ---
@@ -720,4 +725,50 @@ model OtpCode {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+// --- Deep Chat (feature 00011, additive — ดู docs/20 - Features/00011 - Deep Chat/DATABASE.md) ---
+// Conversation: 1 ห้องต่อคู่ (buyerUserId, shopId) — shop-anchored, buyer-initiate only (BR-CHAT-02/03)
+// denorm lastMessage* บน Conversation กันหน้า inbox list ต้อง join ChatMessage ทุกครั้ง (BRD §6.1)
+model Conversation {
+  id                 String    @id @default(uuid())
+  buyerUserId        String
+  shopId             String
+  // lastMessageAt/lastMessagePreview/lastSenderRole: denormalized snapshot ของข้อความล่าสุด
+  // อัปเดตใน transaction เดียวกับ ChatMessage insert เสมอ (sendMessage — chat.service.ts) ห้ามอัปเดตแยก
+  lastMessageAt      DateTime  @default(now())
+  lastMessagePreview String? // snippet ข้อความล่าสุดสำหรับ inbox list (TEXT snippet หรือ "[รูปภาพ]" ถ้า type=IMAGE)
+  lastSenderRole     String? // "BUYER" | "SHOP" — prefix "คุณ: " ที่ inbox เมื่อผู้ใช้ปัจจุบันคือฝั่งที่ส่งล่าสุด
+  // buyerLastReadAt/shopLastReadAt: read-state ระดับ "ห้อง" (ไม่ใช่ต่อข้อความ — BR-CHAT-09)
+  // NULL = ยังไม่เคยเปิดอ่านเลย; unread = lastMessageAt > (buyer|shop)LastReadAt ของฝั่งนั้น
+  buyerLastReadAt    DateTime?
+  shopLastReadAt     DateTime?
+  createdAt          DateTime  @default(now())
+
+  buyer    User          @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  shop     Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
+  @@index([shopId, lastMessageAt]) // seller inbox (/inbox): list ของร้าน เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-09-AC-01)
+  @@index([buyerUserId, lastMessageAt]) // buyer inbox (/messages): list ของ buyer เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-07-AC-01)
+}
+
+// ChatMessage: ข้อความ 1 รายการ — TEXT หรือ IMAGE (1 รูป/ข้อความ, BR-CHAT-05) — append-only (ไม่มี updatedAt/edit/delete ใน MVP)
+model ChatMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderUserId   String
+  // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
+  senderRole     String // "BUYER" | "SHOP"
+  // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
+  type           String   @default("TEXT") // "TEXT" | "IMAGE"
+  body           String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
+  imageUrl       String? // เฉพาะ type=IMAGE — reuse lib/storage upload route เดิม
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
 }
