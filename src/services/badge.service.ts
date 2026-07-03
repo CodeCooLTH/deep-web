@@ -21,7 +21,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
-import { recalculateTrustScore } from "@/services/trust-score.service"
+import { recalculateTrustScore, recalculateShopTrustScore } from "@/services/trust-score.service"
 import { pushToUser } from "@/services/app-push.service"
 import type {
   BadgeCriteria,
@@ -639,7 +639,14 @@ async function runBadgeEvaluation(
     }
   }
 
-  await recalculateTrustScore(scope.userId)
+  // 00008 P5-3b: shopIdForAward ตั้งเมื่อ scope เป็น business (evaluateSellerBadgesForShop shop.kind
+  // === 'BUSINESS') → recalc trust score ของ business shop นั้นแยก; personal/buyer path เดิมยัง
+  // recalc User.trustScore ผ่าน recalculateTrustScore ตามเดิม (zero-regression)
+  if (scope.shopIdForAward) {
+    await recalculateShopTrustScore(scope.shopIdForAward)
+  } else {
+    await recalculateTrustScore(scope.userId)
+  }
 }
 
 /**

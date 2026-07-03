@@ -31,11 +31,20 @@ export function getTierDisplay(score: number): {
   return { letter, ...TIER_BY_LETTER[letter] };
 }
 
-async function calcVerificationScore(userId: string): Promise<number> {
+// TrustScope — scope ร่วมของ calc helper (00008 P5-3b): personal (userId, PERSONAL shop derive
+// เองเหมือนเดิม) หรือ business (shopId ตรง — ไม่ derive). ทำให้ helper เดิมนำมาใช้ซ้ำได้ทั้ง 2 flow
+// โดย personal path คงผลลัพธ์เป๊ะเดิม (zero-regression)
+type TrustScope = { kind: "personal"; userId: string } | { kind: "business"; shopId: string };
+
+async function calcVerificationScore(scope: TrustScope): Promise<number> {
+  // shopId:null = personal/user-level เท่านั้น (00008 P5-1) — ไม่นับ verification ของ Business shop
+  // เข้า personal trust score; business scope นับตรงจาก shopId (แยกจาก owner)
+  const where =
+    scope.kind === "personal"
+      ? { userId: scope.userId, shopId: null, status: "APPROVED" }
+      : { shopId: scope.shopId, status: "APPROVED" };
   const approved = await prisma.verificationRecord.findMany({
-    // shopId:null = personal/user-level เท่านั้น (00008 P5-1) — ไม่นับ verification ของ Business shop
-    // เข้า personal trust score (business trust = shop-scope แยก, P5-3)
-    where: { userId, shopId: null, status: "APPROVED" },
+    where,
     select: { level: true },
   });
   const maxLevel = approved.length > 0 ? Math.max(...approved.map((v) => v.level)) : 0;
@@ -45,22 +54,28 @@ async function calcVerificationScore(userId: string): Promise<number> {
   return 0;
 }
 
-async function calcOrderScore(userId: string): Promise<number> {
-  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
-  if (!shop) return 0;
+async function resolveOrderScopeShopId(scope: TrustScope): Promise<string | null> {
+  if (scope.kind === "business") return scope.shopId;
+  const shop = await prisma.shop.findFirst({ where: { userId: scope.userId, kind: "PERSONAL" } });
+  return shop?.id ?? null;
+}
+
+async function calcOrderScore(scope: TrustScope): Promise<number> {
+  const shopId = await resolveOrderScopeShopId(scope);
+  if (!shopId) return 0;
 
   const count = await prisma.order.count({
-    where: { shopId: shop.id, status: "CONFIRMED" },
+    where: { shopId, status: "CONFIRMED" },
   });
   return Math.min(25, Math.round(Math.sqrt(count) * 2.5));
 }
 
-async function calcRatingScore(userId: string): Promise<number> {
-  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
-  if (!shop) return 0;
+async function calcRatingScore(scope: TrustScope): Promise<number> {
+  const shopId = await resolveOrderScopeShopId(scope);
+  if (!shopId) return 0;
 
   const reviews = await prisma.review.findMany({
-    where: { order: { shopId: shop.id } },
+    where: { order: { shopId } },
     select: { rating: true },
   });
   if (reviews.length < 3) return 0;
@@ -74,8 +89,11 @@ function calcAgeScore(createdAt: Date): number {
   return Math.min(10, Math.round((daysOld / 365) * 10));
 }
 
-async function calcBadgeScore(userId: string): Promise<number> {
-  const count = await prisma.userBadge.count({ where: { userId } });
+async function calcBadgeScore(scope: TrustScope): Promise<number> {
+  // shopId:null = personal/buyer badge เดิม (00008 P5-2) — ไม่นับ badge ของ Business shop เข้า
+  // personal trust score; business scope นับตรงจาก shopId (แยกจาก owner)
+  const where = scope.kind === "personal" ? { userId: scope.userId, shopId: null } : { shopId: scope.shopId };
+  const count = await prisma.userBadge.count({ where });
   return Math.min(10, count);
 }
 
@@ -83,11 +101,12 @@ export async function recalculateTrustScore(userId: string): Promise<number> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return 0;
 
-  const verification = await calcVerificationScore(userId);
-  const orders = await calcOrderScore(userId);
-  const rating = await calcRatingScore(userId);
+  const scope: TrustScope = { kind: "personal", userId };
+  const verification = await calcVerificationScore(scope);
+  const orders = await calcOrderScore(scope);
+  const rating = await calcRatingScore(scope);
   const age = calcAgeScore(user.createdAt);
-  const badges = await calcBadgeScore(userId);
+  const badges = await calcBadgeScore(scope);
 
   const computed = verification + orders + rating + age + badges;
 
@@ -102,6 +121,48 @@ export async function recalculateTrustScore(userId: string): Promise<number> {
   await prisma.trustScoreHistory.create({
     data: {
       userId,
+      score: computed,
+      breakdown: { verification, orders, rating, age, badges },
+    },
+  });
+
+  return persisted;
+}
+
+/**
+ * recalculateShopTrustScore — คำนวณ trust score ของ BUSINESS shop เอง (00008 P5-3b)
+ *
+ * แยกจาก User.trustScore ของ owner โดยสิ้นเชิง: สูตร % เดิมเป๊ะ (verification 35% / orders 25% /
+ * rating 20% / age 10% / badges 10%) แต่ scope ทุก component ด้วย shopId ตรง (ไม่ derive จาก userId)
+ * - kind !== 'BUSINESS' → no-op (personal shop ใช้ recalculateTrustScore(userId) เดิม)
+ * - soft-deleted (deletedAt ไม่ null) → no-op (shop ที่ถูกลบไม่ต้อง recalc ต่อ)
+ * - age: shop.createdAt (แทน user.createdAt — วันที่เปิด business shop ไม่ใช่วันสมัครสมาชิก)
+ * - monotonic: Math.max(shop.trustScore, computed) เหมือน user เดิม
+ * - TrustScoreHistory.userId (required field) = shop.userId (owner) — เก็บ shopId แยกเพื่อ scope query
+ */
+export async function recalculateShopTrustScore(shopId: string): Promise<number> {
+  const shop = await prisma.shop.findUnique({ where: { id: shopId } });
+  if (!shop) return 0;
+  if (shop.kind !== "BUSINESS") return 0;
+  if (shop.deletedAt) return 0;
+
+  const scope: TrustScope = { kind: "business", shopId };
+  const verification = await calcVerificationScore(scope);
+  const orders = await calcOrderScore(scope);
+  const rating = await calcRatingScore(scope);
+  const age = calcAgeScore(shop.createdAt);
+  const badges = await calcBadgeScore(scope);
+
+  const computed = verification + orders + rating + age + badges;
+
+  // monotonic rule คงเดิม (ต่อ shop แทนต่อ user) — ดูเหตุผลใน recalculateTrustScore ด้านบน
+  const persisted = Math.max(shop.trustScore, computed);
+
+  await prisma.shop.update({ where: { id: shopId }, data: { trustScore: persisted } });
+  await prisma.trustScoreHistory.create({
+    data: {
+      userId: shop.userId,
+      shopId,
       score: computed,
       breakdown: { verification, orders, rating, age, badges },
     },

@@ -113,6 +113,12 @@ model Shop {
   // row ยังอยู่ครบ แค่ถูก exclude จากทุก list/quota/switcher ถาวรที่ app layer
   purgedAt          DateTime?
 
+  // trustScore: Business Reputation (feature 00008 Phase 5, P5-3) — คะแนน trust ของ BUSINESS shop เอง
+  // (แยกจาก User.trustScore ของ owner). PERSONAL shop ไม่ใช้ field นี้ (คง 0 default เสมอ — personal
+  // ยังคำนวณ/แสดงผ่าน User.trustScore เดิม, service เดิมไม่แตะ field นี้). recalc โดย
+  // recalculateShopTrustScore(shopId) (P5-3b, service layer) — monotonic rule (Math.max) เหมือน user เดิม
+  trustScore        Int       @default(0)
+
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   products             Product[]
   orders               Order[]
@@ -125,6 +131,7 @@ model Shop {
   invites              ShopInvite[] // NEW (feature 00008)
   verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
+  trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -373,8 +380,16 @@ model TrustScoreHistory {
   score        Int
   breakdown    Json
   calculatedAt DateTime @default(now())
+  // shopId: Business Reputation (feature 00008 Phase 5, P5-3) — nullable FK → Shop.
+  // NULL = user-level history เดิม (backward-compat, zero-regression Personal shop);
+  // non-NULL = trust score history ผูก Business shop โดยตรง (แยกจาก owner). ON DELETE CASCADE
+  // (ลบ shop → history ของ shop นั้นไม่มีความหมายอีกต่อไป เหมือน UserBadge.shopId pattern)
+  shopId       String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop? @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
 }
 
 // --- Wallet + SMS (Phase 4: Paid SMS Order Link + Seller Wallet/Credit) ---
