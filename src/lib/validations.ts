@@ -231,6 +231,20 @@ export const MovementHistoryQuerySchema = v.object({
   ),
 });
 
+// GET /api/notifications query params (manual parse — searchParams ไม่ใช่ JSON body)
+export const NotificationsQuerySchema = v.object({
+  cursor: v.optional(v.pipe(v.string())), // ISO datetime ของ createdAt รายการสุดท้ายที่เห็น
+  take: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50)),
+    20,
+  ),
+})
+
+// POST /api/notifications/read body — id ไม่ระบุ = mark ทั้งหมดอ่านแล้ว
+export const MarkNotificationReadSchema = v.object({
+  id: v.optional(v.pipe(v.string(), v.uuid())),
+})
+
 export const CreateOrderSchema = v.object({
   items: v.pipe(
     v.array(v.object({
