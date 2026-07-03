@@ -119,7 +119,7 @@ export default function SignInCard() {
               <Logo />
             </Link>
             <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>{`ยินดีต้อนรับสู่ ${META_DATA.name} 👋`}</Typography>
+              <Typography variant='h4'>{`ยินดีต้อนรับสู่ ${META_DATA.name}`}</Typography>
               <Typography>
                 {loginMode === 'password' ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน' : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
               </Typography>

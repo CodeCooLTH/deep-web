@@ -22,6 +22,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { recalculateTrustScore } from "@/services/trust-score.service"
+import { pushToUser } from "@/services/app-push.service"
 import type {
   BadgeCriteria,
   BadgeProgress,
@@ -35,9 +36,11 @@ import type {
   CriteriaHighRating,
   CriteriaOrderCount,
   CriteriaPerfectRating,
+  CriteriaReactionCount,
   CriteriaSignupYear,
   CriteriaUniqueReviewers,
   CriteriaVeteran,
+  CriteriaWatchlistCount,
   CriteriaZeroComplaint,
 } from "@/types/badge"
 
@@ -93,7 +96,7 @@ function resolveStatuses(criteria: unknown): string[] {
 // ─── DB helper (shared by handlers + progress) ────────────────────────────────
 
 async function getShopForUser(userId: string) {
-  return prisma.shop.findUnique({ where: { userId } })
+  return prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } })
 }
 
 // ─── Pure-ish criterion handlers ──────────────────────────────────────────────
@@ -372,18 +375,71 @@ export async function checkAuctionWonCompleted(
   return { met: count >= criteria.count, count }
 }
 
+// ─── Engagement handlers (feat 00005 Reactions + WatchList) ──
+// count = active row ปัจจุบัน (toggle — un-react/unwatch ลบ row); badge sticky
+// → award เมื่อถึง threshold ณ eval แล้วถาวร. userId ตรง (buyer ไม่ผ่าน shop)
+
+/** buyer: จำนวน reaction (BidReaction) ที่ active อยู่ตอนนี้ */
+export async function checkReactionCount(
+  userId: string,
+  criteria: CriteriaReactionCount,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.bidReaction.count({ where: { userId } })
+  return { met: count >= criteria.count, count }
+}
+
+/** buyer: จำนวน auction ที่ watch (WatchList) อยู่ตอนนี้ */
+export async function checkWatchlistCount(
+  userId: string,
+  criteria: CriteriaWatchlistCount,
+): Promise<{ met: boolean; count: number }> {
+  const count = await prisma.watchList.count({ where: { userId } })
+  return { met: count >= criteria.count, count }
+}
+
 // ─── Core award helper ────────────────────────────────────────────────────────
 
 /**
- * Upsert UserBadge — idempotent ด้วย @@unique([userId, badgeId])
- * ถ้า Badge ไม่มีใน DB (criteria เปลี่ยนชื่อ?) → skip silently
+ * notifyBadgeEarned — แจ้งเตือน "ได้รับ badge ใหม่" (in-app Notification + Expo push)
+ * best-effort: error ห้าม rethrow (ถูกเรียกจาก awardBadge ใน flow หลัก เช่น
+ * confirmOrder/placeBid/settle post-commit). seller ไม่มี PushToken → pushToUser
+ * no-op เอง. copy ไม่มี emoji (Hard Rule no-emoji-use-icons)
  */
-export async function awardBadge(userId: string, badgeId: string): Promise<void> {
-  await prisma.userBadge.upsert({
-    where: { userId_badgeId: { userId, badgeId } },
-    update: {},
-    create: { userId, badgeId },
+export async function notifyBadgeEarned(userId: string, badgeId: string): Promise<void> {
+  try {
+    const badge = await prisma.badge.findUnique({ where: { id: badgeId }, select: { name: true } })
+    if (!badge) return
+    const title = "ได้รับ Badge ใหม่"
+    const body = `คุณได้รับ "${badge.name}" แล้ว`
+    await prisma.notification.create({
+      data: { userId, kind: "badge_earned", title, body, refId: badgeId },
+    })
+    await pushToUser(userId, title, body, { type: "badge_earned", badgeId })
+  } catch (err) {
+    console.error("[badge] notifyBadgeEarned failed", userId, badgeId, err)
+  }
+}
+
+/**
+ * Award UserBadge — idempotent ด้วย @@unique([userId, badgeId])
+ * ใช้ createMany({skipDuplicates}) แทน upsert เพื่อ detect "award ครั้งแรก"
+ * (count===1) → notify เฉพาะตอนนั้น (กัน notify ซ้ำเมื่อ re-eval). return created
+ * opts.notify=false → ปิด notify (backfill/seed) กัน burst
+ */
+export async function awardBadge(
+  userId: string,
+  badgeId: string,
+  opts?: { notify?: boolean },
+): Promise<boolean> {
+  const result = await prisma.userBadge.createMany({
+    data: [{ userId, badgeId }],
+    skipDuplicates: true,
   })
+  const created = result.count === 1
+  if (created && opts?.notify !== false) {
+    await notifyBadgeEarned(userId, badgeId)
+  }
+  return created
 }
 
 // ─── Criteria parser (unknown → BadgeCriteria | null) ────────────────────────
@@ -409,6 +465,7 @@ function parseCriteria(raw: unknown): BadgeCriteria | null {
 export async function evaluateBadges(
   userId: string,
   audience: AudienceArg = 'seller',
+  opts?: { notify?: boolean },
 ): Promise<void> {
   const audienceValues = resolveAudienceFilter(audience)
 
@@ -521,6 +578,17 @@ export async function evaluateBadges(
           met = r.met
           break
         }
+        // ── Engagement (feat 00005 Reactions + WatchList) ──
+        case 'REACTION_COUNT': {
+          const r = await checkReactionCount(userId, criteria)
+          met = r.met
+          break
+        }
+        case 'WATCHLIST_COUNT': {
+          const r = await checkWatchlistCount(userId, criteria)
+          met = r.met
+          break
+        }
         default: {
           // ทำไม warn ไม่ throw: badge ใหม่ที่ยังไม่มี handler ไม่ควรพัง flow หลัก
           // (bid/settle ต้องไม่ throw เพราะ badge — เรียกจาก placeBid/settleAuctionCore best-effort)
@@ -534,7 +602,7 @@ export async function evaluateBadges(
     }
 
     if (met) {
-      await awardBadge(userId, badge.id)
+      await awardBadge(userId, badge.id, opts)
     }
   }
 
@@ -550,7 +618,7 @@ export async function evaluateBadges(
  * fetch createdAt จาก DB ตรงเสมอ. Batch-2 auth caller wrap ด้วย try/catch อีกชั้น.
  * Best-effort: error → warn + return (ไม่ throw ออก)
  */
-export async function evaluateSignupYearBadge(userId: string): Promise<void> {
+export async function evaluateSignupYearBadge(userId: string, opts?: { notify?: boolean }): Promise<void> {
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } })
     if (!user) {
@@ -570,8 +638,8 @@ export async function evaluateSignupYearBadge(userId: string): Promise<void> {
       const signupCriteria = criteria as CriteriaSignupYear
       if (signupCriteria.year !== year) continue
 
-      // Idempotent upsert — ถ้าได้แล้วก็ skip ผ่าน @@unique
-      await awardBadge(userId, badge.id)
+      // Idempotent — createMany skipDuplicates; notify เฉพาะ award ครั้งแรก
+      await awardBadge(userId, badge.id, opts)
     }
   } catch (err) {
     console.error('[badge] evaluateSignupYearBadge error', userId, err)
@@ -741,6 +809,26 @@ export async function getBadgeProgress(
             }
             break
           }
+          case 'REACTION_COUNT': {
+            if (!earned) {
+              const { count } = await checkReactionCount(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = criteria.count - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} ครั้ง` : `ครบ ${criteria.count} ครั้งแล้ว`
+            }
+            break
+          }
+          case 'WATCHLIST_COUNT': {
+            if (!earned) {
+              const { count } = await checkWatchlistCount(userId, criteria)
+              const threshold = criteria.count
+              progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
+              const remaining = criteria.count - count
+              progressLabel = remaining > 0 ? `อีก ${remaining} รายการ` : `ครบ ${criteria.count} รายการแล้ว`
+            }
+            break
+          }
           default: {
             console.warn('[badge] getBadgeProgress: unknown criteria type', (criteria as { type: string }).type)
           }
@@ -784,12 +872,50 @@ export async function getBadgeRarity(badgeId: string): Promise<BadgeRarity | nul
     prisma.shop.count(),
   ])
   const pct = shopCount > 0 ? (earnedCount / shopCount) * 100 : 0
-  let tier: RarityTier
-  if (pct >= 50) tier = 'COMMON'
-  else if (pct >= 20) tier = 'UNCOMMON'
-  else if (pct >= 5) tier = 'RARE'
-  else tier = 'LEGENDARY'
-  return { pct, tier, earnedCount, shopCount }
+  return { pct, tier: tierFromPct(pct), earnedCount, shopCount }
+}
+
+/**
+ * tierFromPct — map % → RarityTier (threshold เดียวกันทั้ง seller/buyer)
+ * ≥50 COMMON / ≥20 UNCOMMON / ≥5 RARE / <5 LEGENDARY
+ */
+function tierFromPct(pct: number): RarityTier {
+  if (pct >= 50) return 'COMMON'
+  if (pct >= 20) return 'UNCOMMON'
+  if (pct >= 5) return 'RARE'
+  return 'LEGENDARY'
+}
+
+/**
+ * getUserBadgeRarityMap — rarity ของ badge สำหรับหน้า buyer (ฐาน = จำนวน user ทั้งหมด)
+ *
+ * ต่างจาก getBadgeRarity (seller, ฐาน shopCount): buyer badge ไม่ใช่ของร้าน →
+ * ใช้ user.count เป็นตัวหาร. bulk (1 user.count + 1 groupBy) แทน N call
+ *
+ * gate: userCount < 20 → คืน Map ว่าง (นัยสำคัญสถิติ กัน mislabel — เหมือน seller shopCount<20)
+ * badge ที่ไม่มี earner → 0% → LEGENDARY. คืน Map<badgeId, tier> (key ที่ไม่มี = ไม่แสดง pill)
+ */
+export async function getUserBadgeRarityMap(badgeIds: string[]): Promise<Map<string, RarityTier>> {
+  const result = new Map<string, RarityTier>()
+  if (badgeIds.length === 0) return result
+
+  const userCount = await prisma.user.count()
+  if (userCount < 20) return result // gate
+
+  const grouped = await prisma.userBadge.groupBy({
+    by: ['badgeId'],
+    where: { badgeId: { in: badgeIds } },
+    _count: { badgeId: true },
+  })
+  const earnedByBadge = new Map<string, number>()
+  for (const g of grouped) earnedByBadge.set(g.badgeId, g._count.badgeId)
+
+  for (const id of badgeIds) {
+    const earnedCount = earnedByBadge.get(id) ?? 0
+    const pct = (earnedCount / userCount) * 100
+    result.set(id, tierFromPct(pct))
+  }
+  return result
 }
 
 // ─── getBadgePaceEstimate ──────────────────────────────────────────────────────

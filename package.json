@@ -15,6 +15,7 @@
     "e2e:ui": "dotenv -e .env.local -- npx playwright test --ui",
     "seed:local": "dotenv -e .env -- npx tsx prisma/seed.ts",
     "seed:supabase": "dotenv -e .env.local -- npx tsx prisma/seed.ts",
+    "seed:badges": "dotenv -e .env.local -- npx tsx prisma/seed-badges.ts",
     "postinstall": "prisma generate && node scripts/strip-vendor-charset.mjs",
     "clean": "rm -rf .next",
     "clear": "rm -rf node_modules .next"

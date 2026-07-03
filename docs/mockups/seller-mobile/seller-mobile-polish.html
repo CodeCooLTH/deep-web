@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seller Mobile Polish — Paces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Paces (seller/admin) tokens */
+  :root{
+    --primary:#236dc9; --primary-hover:#1d5aa8; --primary-lo:rgba(35,109,201,.12);
+    --ink:#1f2a3d; --muted:#5b6472; --faint:#9aa3b2; --line:#e6e9ef;
+    --bg:#f4f6fa; --card:#fff; --success:#1aa053; --success-lo:#e6f6ec; --info-lo:#e7f0fb;
+    --danger:#e5484d; --danger-lo:#fdecec; --warn:#c77700; --warn-lo:#fdf3e3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Anuphan',sans-serif;background:#e9ecf2;color:var(--ink);padding:26px 16px 80px;-webkit-font-smoothing:antialiased}
+  .head{max-width:1180px;margin:0 auto 22px}
+  .head h1{font-size:23px;font-weight:800}
+  .head p{color:#5b6472;font-size:13.5px;margin-top:6px;line-height:1.6;max-width:900px}
+  .head b{color:var(--primary)}
+  .row{max-width:1180px;margin:0 auto;display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;justify-content:center}
+  .col{display:flex;flex-direction:column;align-items:center;gap:11px;width:330px}
+  .lab{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 15px;font-size:13px;font-weight:700}
+  .lab .n{width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800}
+  .lab.reco{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .lab.reco .n{background:#fff;color:var(--primary)}
+  .why{font-size:12px;color:#6a7180;line-height:1.5;text-align:center;min-height:40px}
+  .why b{color:#3a4150}
+
+  .phone{width:330px;background:#111826;border-radius:32px;padding:8px;box-shadow:0 16px 38px rgba(20,26,45,.22)}
+  .scr{position:relative;width:314px;height:670px;background:var(--bg);border-radius:24px;overflow:hidden;display:flex;flex-direction:column}
+  .sc{flex:1;overflow:hidden;position:relative}
+  svg.i{display:block}
+  .ttl{font-weight:800}
+
+  /* fullscreen header (create order) */
+  .fhdr{display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid var(--line);padding:12px 14px}
+  .fhdr .back{width:34px;height:34px;display:grid;place-items:center;color:var(--muted);flex-shrink:0}
+  .fhdr .tt{flex:1;min-width:0}
+  .fhdr .tt h2{font-size:17px;font-weight:800;line-height:1.1}
+  .fhdr .tt .sub{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .save{background:var(--primary);color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:6px;padding:9px 15px;cursor:pointer}
+
+  .body{padding:12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .card.p{padding:12px 13px}
+  .sec-h{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:10px}
+  .sec-h .num{width:22px;height:22px;border-radius:50%;background:var(--primary-lo);color:var(--primary);display:grid;place-items:center;font-size:12px;font-weight:800}
+  .flabel{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;display:block}
+  .seg{display:flex;gap:8px}
+  .seg .s{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);border-radius:9px;padding:9px;font-size:12.5px;font-weight:600;color:var(--muted)}
+  .seg .s.on{border-color:var(--primary);background:var(--primary-lo);color:var(--primary)}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:8px}
+  .inp{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 11px;font-family:inherit;font-size:13px;color:var(--ink);display:flex;align-items:center;justify-content:space-between}
+  .inp.ph{color:var(--faint)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .igrp{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .igrp .pre{background:#f3f5f9;color:var(--muted);padding:10px 11px;font-size:13px;border-right:1px solid var(--line)}
+  .igrp input{border:none;outline:none;flex:1;padding:10px 11px;font-family:inherit;font-size:13px;background:transparent}
+  .barbtn{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px}
+  .barbtn .b{width:100%;height:48px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+
+  /* products */
+  .plist-h{padding:12px 12px 0}
+  .plist-h .t{font-size:20px;font-weight:800;margin-bottom:10px}
+  .searchrow{display:flex;gap:8px;margin-bottom:10px}
+  .search{flex:1;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;background:#fff;padding:9px 13px;color:var(--faint);font-size:13px}
+  .addbtn{background:var(--primary);color:#fff;border:none;border-radius:999px;font-family:inherit;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;padding:0 14px;cursor:pointer;min-height:42px}
+  .chips{display:flex;gap:7px;margin-bottom:10px}
+  .chip{border:none;border-radius:999px;padding:6px 14px;font-family:inherit;font-size:12.5px;font-weight:600;background:#eef1f6;color:var(--muted)}
+  .chip.on{background:var(--primary);color:#fff}
+  .prow{display:flex;gap:11px;padding:11px 12px;align-items:center;border-top:1px solid var(--line)}
+  .prow .thumb{width:56px;height:56px;border-radius:10px;flex-shrink:0;background:center/cover no-repeat #eef1f6}
+  .prow .mid{flex:1;min-width:0}
+  .prow .nm{font-size:14px;font-weight:700}
+  .prow .pr{font-size:14px;font-weight:800;color:var(--primary);margin-top:1px}
+  .prow .bdgs{display:flex;gap:6px;margin-top:4px}
+  .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px}
+  .badge.type{background:var(--info-lo);color:var(--primary)}
+  .badge.on{background:var(--success-lo);color:var(--success)}
+  .prow .act{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+  .prow .sold{font-size:11px;color:var(--faint);white-space:nowrap}
+  .prow .btns{display:flex;gap:6px}
+  .iconbtn{width:38px;height:38px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;color:var(--muted);background:#fff}
+  .iconbtn.del{color:var(--danger)}
+
+  /* orders */
+  .ohdr{display:flex;align-items:center;gap:8px;padding:12px 12px 0}
+  .ohdr .back{width:34px;height:34px;display:grid;place-items:center;color:var(--muted)}
+  .ohdr .search{flex:1}
+  .ohdr .ic{width:38px;height:38px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;color:var(--muted);background:#fff;position:relative}
+  .otabs{display:flex;gap:7px;overflow-x:auto;padding:10px 12px 6px}
+  .otab{flex-shrink:0;border:none;border-radius:999px;padding:6px 13px;font-family:inherit;font-size:12.5px;font-weight:600;background:#eef1f6;color:var(--muted);white-space:nowrap}
+  .otab.on{background:var(--primary);color:#fff}
+  .otab .c{font-weight:800;margin-left:4px}
+  .ocard{margin:0 12px 10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+  .ocard .r1{display:flex;justify-content:space-between;align-items:center}
+  .ocard .oid{font-size:15px;font-weight:800}
+  .ocard .st{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--warn-lo);color:var(--warn)}
+  .ocard .cust{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:5px}
+  .ocard .prod{display:flex;gap:9px;align-items:center;padding:9px 0;margin-top:6px;border-top:1px solid var(--line)}
+  .ocard .prod .th{width:38px;height:38px;border-radius:8px;background:#eef1f6;flex-shrink:0}
+  .ocard .prod .pn{flex:1;font-size:13px;font-weight:600}
+  .ocard .prod .pp{font-size:13px;font-weight:800}
+  .ocard .r3{display:flex;justify-content:space-between;align-items:center;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+  .ocard .tot{font-size:16px;font-weight:800}
+  .ocard .oactions{display:flex;gap:6px}
+  .obtn{border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--muted);font-family:inherit;font-size:12px;font-weight:600;padding:7px 11px;display:inline-flex;align-items:center;gap:5px}
+  .obtn.pri{background:var(--primary);color:#fff;border-color:var(--primary)}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Seller Mobile — Polish (Paces · น้ำเงิน #236dc9)</h1>
+  <p>โฟกัส <b>create-order</b> (2 แบบ A/B ให้เลือก): แก้ปุ่มบันทึกซ้ำ + กระชับ. <b>products / orders</b> ดีอยู่แล้ว เสนอ light polish (ระยะห่าง/ปุ่ม). ไม่มี emoji, ไอคอน tabler, ฟอนต์ Anuphan.</p>
+</div>
+
+<div class="row">
+
+  <!-- CREATE ORDER A -->
+  <div class="col">
+    <span class="lab reco"><span class="n">A</span> สร้างออเดอร์ · กระชับ (แนะนำ)</span>
+    <div class="phone"><div class="scr">
+      <div class="fhdr">
+        <div class="back"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l6 6M5 12l6-6"/></svg></div>
+        <div class="tt"><h2>สร้างออเดอร์</h2><div class="sub">ร้าน BT premium auto xenon สาขา...</div></div>
+        <!-- ปุ่มบันทึกบน header เอาออกบนมือถือ (เหลือ sticky ล่างที่เดียว) -->
+      </div>
+      <div class="sc"><div class="body">
+        <div class="card p">
+          <div class="sec-h"><span class="num">1</span> ข้อมูลลูกค้า</div>
+          <span class="flabel">เลือกวิธีระบุลูกค้า</span>
+          <div class="seg">
+            <div class="s on"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาเดิม</div>
+            <div class="s"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M16 11h6M19 8v6"/></svg> เพิ่มใหม่</div>
+          </div>
+          <div class="inp ph" style="margin-top:9px"><span>พิมพ์เบอร์ / ชื่อลูกค้า…</span><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg></div>
+          <div class="hint">พิมพ์อย่างน้อย 2 ตัวอักษร ระบบจะค้นให้อัตโนมัติ</div>
+        </div>
+
+        <div class="card p">
+          <div class="sec-h"><span class="num">2</span> การชำระเงิน &amp; ช่องทาง</div>
+          <div class="grid2">
+            <div><span class="flabel">ช่องทางการขาย</span><div class="inp ph">เลือก<svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div></div>
+            <div><span class="flabel">วิธีชำระเงิน</span><div class="inp ph">เลือก<svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div></div>
+            <div><span class="flabel">ส่วนลด (฿)</span><div class="igrp"><span class="pre">฿</span><input placeholder="0.00"></div></div>
+            <div><span class="flabel">VAT (%)</span><div class="igrp"><input placeholder="0"><span class="pre" style="border-right:none;border-left:1px solid var(--line)">%</span></div></div>
+          </div>
+        </div>
+
+        <div class="card p">
+          <div class="sec-h"><span class="num">3</span> รายการสินค้า</div>
+          <div class="seg"><div class="s on" style="border-style:dashed"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> เลือกสินค้า</div><div class="s"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> กำหนดเอง</div></div>
+          <div class="hint">ยังไม่มีสินค้า — ประเภทออเดอร์กำหนดจากสินค้าที่เลือกอัตโนมัติ</div>
+        </div>
+      </div></div>
+      <div class="barbtn"><button class="b"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg> บันทึกออเดอร์</button></div>
+    </div></div>
+    <div class="why"><b>บันทึกที่เดียว</b> (sticky ล่าง) · padding กระชับ · placeholder เป็น input+hint บรรทัดเดียว (ตัดกล่องเส้นประสูง ๆ) · payment รวมเป็น grid 2 คอลัมน์</div>
+  </div>
+
+  <!-- CREATE ORDER B -->
+  <div class="col">
+    <span class="lab"><span class="n">B</span> สร้างออเดอร์ · การ์ดเดียว flat</span>
+    <div class="phone"><div class="scr">
+      <div class="fhdr">
+        <div class="back"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l6 6M5 12l6-6"/></svg></div>
+        <div class="tt"><h2>สร้างออเดอร์</h2><div class="sub">ร้าน BT premium auto xenon สาขา...</div></div>
+      </div>
+      <div class="sc"><div class="body" style="gap:0;padding:0">
+        <div style="background:#fff;padding:13px">
+          <div class="sec-h" style="margin-bottom:9px"><span class="num">1</span> ลูกค้า</div>
+          <div class="seg">
+            <div class="s on"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาเดิม</div>
+            <div class="s"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M16 11h6M19 8v6"/></svg> เพิ่มใหม่</div>
+          </div>
+          <div class="inp ph" style="margin-top:9px"><span>พิมพ์เบอร์ / ชื่อลูกค้า…</span><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg></div>
+        </div>
+        <div style="height:8px;background:var(--bg)"></div>
+        <div style="background:#fff;padding:13px">
+          <div class="sec-h" style="margin-bottom:9px"><span class="num">2</span> ชำระเงิน &amp; ช่องทาง</div>
+          <div class="grid2">
+            <div><span class="flabel">ช่องทาง</span><div class="inp ph">เลือก<svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div></div>
+            <div><span class="flabel">วิธีจ่าย</span><div class="inp ph">เลือก<svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div></div>
+            <div><span class="flabel">ส่วนลด (฿)</span><div class="igrp"><span class="pre">฿</span><input placeholder="0.00"></div></div>
+            <div><span class="flabel">VAT (%)</span><div class="igrp"><input placeholder="0"><span class="pre" style="border-right:none;border-left:1px solid var(--line)">%</span></div></div>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--bg)"></div>
+        <div style="background:#fff;padding:13px">
+          <div class="sec-h" style="margin-bottom:9px"><span class="num">3</span> สินค้า</div>
+          <div class="seg"><div class="s on" style="border-style:dashed"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> เลือกสินค้า</div><div class="s"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> กำหนดเอง</div></div>
+        </div>
+      </div></div>
+      <div class="barbtn"><button class="b"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg> บันทึกออเดอร์</button></div>
+    </div></div>
+    <div class="why"><b>section เต็มกว้าง คั่นด้วยแถบเทาบาง</b> (ไม่มีกรอบการ์ด) — flat/โปร่ง สไตล์ app มือถือ · หัวข้อสั้นลง · บันทึกที่เดียว</div>
+  </div>
+
+  <!-- PRODUCTS -->
+  <div class="col">
+    <span class="lab"><span class="n">P</span> สินค้า · light polish</span>
+    <div class="phone"><div class="scr">
+      <div class="sc"><div class="plist-h">
+        <div class="t">สินค้า</div>
+        <div class="searchrow">
+          <div class="search"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาสินค้า…</div>
+          <button class="addbtn"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> เพิ่ม</button>
+        </div>
+        <div class="chips"><button class="chip on">ทั้งหมด</button><button class="chip">เปิดขาย</button><button class="chip">ปิดการขาย</button></div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--line);border-radius:12px;margin:0 12px">
+        <div class="prow" style="border-top:none">
+          <div class="thumb" style="background-image:url('https://i.pravatar.cc/120?img=5')"></div>
+          <div class="mid"><div class="nm">Conan Book EP 1</div><div class="pr">฿299</div><div class="bdgs"><span class="badge type">จับต้องได้</span><span class="badge on">เปิดขาย</span></div></div>
+          <div class="act"><span class="sold">ขายแล้ว 0</span><div class="btns">
+            <div class="iconbtn"><svg class="i" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16v4zM13.5 6.5l4 4"/></svg></div>
+            <div class="iconbtn del"><svg class="i" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>
+          </div></div>
+        </div>
+        <div class="prow">
+          <div class="thumb"></div>
+          <div class="mid"><div class="nm">ข้าวหอมมะลิ 5 กก.</div><div class="pr">฿199</div><div class="bdgs"><span class="badge type">จับต้องได้</span><span class="badge on">เปิดขาย</span></div></div>
+          <div class="act"><span class="sold">ขายแล้ว 12</span><div class="btns">
+            <div class="iconbtn"><svg class="i" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16v4zM13.5 6.5l4 4"/></svg></div>
+            <div class="iconbtn del"><svg class="i" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>
+          </div></div>
+        </div>
+      </div>
+      </div>
+    </div></div>
+    <div class="why"><b>ดีอยู่แล้ว</b> — polish: thumb 56px, action icon 38px (แตะง่าย), badge/ราคาชิดขึ้น, ปุ่มเพิ่มเป็น pill สั้น "เพิ่ม"</div>
+  </div>
+
+  <!-- ORDERS -->
+  <div class="col">
+    <span class="lab"><span class="n">O</span> คำสั่งซื้อ · light polish</span>
+    <div class="phone"><div class="scr">
+      <div class="sc">
+        <div class="ohdr">
+          <div class="back"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l6 6M5 12l6-6"/></svg></div>
+          <div class="search"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาเลข / ลูกค้า</div>
+          <div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+          <div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.5 21a1.5 1.5 0 0 0 3 0"/></svg></div>
+        </div>
+        <div class="otabs">
+          <button class="otab on">ทั้งหมด<span class="c">18</span></button>
+          <button class="otab">รอดำเนินการ<span class="c">10</span></button>
+          <button class="otab">จัดส่งแล้ว<span class="c">2</span></button>
+          <button class="otab">สำเร็จ<span class="c">6</span></button>
+        </div>
+        <div class="ocard">
+          <div class="r1"><span class="oid">#113E233B</span><span class="st">รอดำเนินการ</span></div>
+          <div class="cust"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg> ลูกค้า · โอนผ่านธนาคาร</div>
+          <div class="prod"><div class="th"></div><div class="pn">ไฟหน้า Xenon D2S 6000K (ทดสอบ)</div><div class="pp">฿1,990</div></div>
+          <div class="r3"><span class="tot">฿2,590</span><div class="oactions"><button class="obtn"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg> คัดลอก</button><button class="obtn pri"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4V5z"/></svg> ส่ง SMS</button></div></div>
+        </div>
+        <div class="ocard">
+          <div class="r1"><span class="oid">#AA000009</span><span class="st">รอดำเนินการ</span></div>
+          <div class="cust"><svg class="i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg> ลูกค้า · พร้อมเพย์</div>
+          <div class="prod"><div class="th"></div><div class="pn">ชุดไฟหน้า LED Premium</div><div class="pp">฿2,500</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="why"><b>ดีอยู่แล้ว (v8.2)</b> — polish: count ใน tab เด่นขึ้น, ปุ่ม action คู่ (คัดลอก/ส่ง SMS) ชัดขึ้น, card spacing สม่ำเสมอ</div>
+  </div>
+
+</div>
+<div style="max-width:1180px;margin:30px auto 0;text-align:center;color:#5b6472;font-size:13.5px;line-height:1.7">
+  create-order เลือก <b style="color:#236dc9">A</b> หรือ <b style="color:#236dc9">B</b> · products/orders = light polish (บอกได้ว่าเอา/ไม่เอา) → ผม build จริง (Paces primitive) → QA มือถือ
+</div>
+</body>
+</html>

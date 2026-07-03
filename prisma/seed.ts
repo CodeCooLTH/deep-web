@@ -139,8 +139,8 @@ async function main() {
   console.log(`Seeded test user 2: ${testUser2.id}`);
 
   // Seed mock data for the primary test user — skip if already seeded (idempotent)
-  const existingShop = await prisma.shop.findUnique({
-    where: { userId: testUser.id },
+  const existingShop = await prisma.shop.findFirst({
+    where: { userId: testUser.id, kind: "PERSONAL" },
   });
   if (!existingShop) {
     const shop = await prisma.shop.create({
@@ -342,8 +342,8 @@ async function main() {
 
   // ── 2nd seller test account's shop ───────────────────────────────────────
   // Skip if already seeded — separate id-space from primary testuser shop.
-  const existingShop2 = await prisma.shop.findUnique({
-    where: { userId: testUser2.id },
+  const existingShop2 = await prisma.shop.findFirst({
+    where: { userId: testUser2.id, kind: "PERSONAL" },
   });
   if (!existingShop2) {
     const shop2 = await prisma.shop.create({

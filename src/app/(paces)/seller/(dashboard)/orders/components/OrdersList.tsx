@@ -286,7 +286,7 @@ export default function OrdersList({ orders, activeStatus }: Props) {
               >
                 {tab.label}
                 {count > 0 && (
-                  <span className="ms-1 font-semibold tabular-nums">{count}</span>
+                  <span className="ms-1 font-bold tabular-nums">{count}</span>
                 )}
               </button>
             )

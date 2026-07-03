@@ -34,8 +34,11 @@ export async function updateShop(shopId: string, data: {
   return prisma.shop.update({ where: { id: shopId }, data });
 }
 
+// P2-2 (feature 00008 Phase 2 cutover): Shop.userId ตัด @unique แล้ว (1 user มีได้หลาย Shop —
+// PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) — findUnique ใช้ไม่ได้อีกต่อไป เปลี่ยนเป็น
+// findFirst({userId, kind:'PERSONAL'}) คง signature/return เดิม (Shop | null) ให้ 26 caller ไม่ต้องแก้
 export async function getShopByUserId(userId: string) {
-  return prisma.shop.findUnique({ where: { userId } });
+  return prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
 }
 
 /** จำนวนร้านค้า (ผู้ขาย) ที่ใช้งานอยู่ — ใช้โชว์สถิติหน้า landing */

@@ -28,6 +28,8 @@ interface SendSmsButtonProps {
   iconOnly?: boolean
   /** class เพิ่ม (เช่น rounded-none สำหรับ button group) — ใช้กับ iconOnly */
   className?: string
+  /** emphasis='primary' → ปุ่ม compact เป็นสีน้ำเงินเด่น (CTA หลักในการ์ดออเดอร์); default = outline เดิม (ไม่กระทบ call-site อื่น เช่น StatusHero) */
+  emphasis?: 'default' | 'primary'
 }
 
 // SUCCESS_RESET_MS: reset ปุ่มกลับ idle หลัง success (ยังใช้งานอยู่)
@@ -48,7 +50,7 @@ function smsErrorMessage(status: number): string {
   }
 }
 
-export default function SendSmsButton({ publicToken, compact = false, iconOnly = false, className = '' }: SendSmsButtonProps) {
+export default function SendSmsButton({ publicToken, compact = false, iconOnly = false, className = '', emphasis = 'default' }: SendSmsButtonProps) {
   const [showSuccess, setShowSuccess] = useState(false)
 
   // useRef เพื่อ clear timeout ได้ทั้ง on unmount และ on state change — กัน leak
@@ -128,7 +130,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
         iconOnly
           ? `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 ${className}`.trim()
           : compact
-            ? `btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1 text-xs min-h-11 ${className}`.trim()
+            ? `btn btn-sm inline-flex items-center gap-1 text-xs min-h-11 ${emphasis === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-primary' : 'border border-default-300 bg-card hover:bg-default-50 text-default-700'} ${className}`.trim()
             : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 text-xs'
       }
     >

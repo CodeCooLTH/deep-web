@@ -44,7 +44,7 @@ async function calcVerificationScore(userId: string): Promise<number> {
 }
 
 async function calcOrderScore(userId: string): Promise<number> {
-  const shop = await prisma.shop.findUnique({ where: { userId } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
   if (!shop) return 0;
 
   const count = await prisma.order.count({
@@ -54,7 +54,7 @@ async function calcOrderScore(userId: string): Promise<number> {
 }
 
 async function calcRatingScore(userId: string): Promise<number> {
-  const shop = await prisma.shop.findUnique({ where: { userId } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
   if (!shop) return 0;
 
   const reviews = await prisma.review.findMany({

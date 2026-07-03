@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const userId = (session.user as { id: string }).id;
 
   // ดึง shop จาก userId — ถ้าไม่มีร้านคืน [] (ไม่ใช่ error)
-  const shop = await prisma.shop.findUnique({ where: { userId } });
+  const shop = await prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } });
   if (!shop) {
     return NextResponse.json([]);
   }

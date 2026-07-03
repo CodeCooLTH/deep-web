@@ -94,7 +94,12 @@
 | FR-4.8 | Public profile แสดงเฉพาะ badge **ที่ได้แล้ว** หมวด seller-context (verification + seller achievement + paid, แยกหมวด paid ≠ trust). **ไม่แสดง progress; ไม่แสดง buyer-audience achievement** | Must |
 | FR-4.9 | Paid Verified Badge — Phase 2 | Phase 2 |
 
-**Achievement Badges (10):**
+**Achievement Badges — core seller (10):**
+
+> 🛑 **SSOT ของรายการ badge จริง = `prisma/badge-seed-data.ts`** (data-driven engine ดึงจาก DB, dispatch ตาม `criteria.type`). ตารางนี้เป็น core seller 10 ใบเดิม. Badge เพิ่มเติมที่ seed แล้วแต่ไม่อยู่ในตารางนี้:
+> - **Stepping-stone seller (P1, 7 ใบ):** Getting Started/Rising Seller/Well Rated/Getting Noticed/Spotless 100/3 Months Strong/Same-Day Hero (threshold ต่ำกว่า 10 ใบเดิม)
+> - **Event/time-bound:** 2026_BADGE (สมัครปี 2026)
+> - **Auction (feat 00002, ทั้ง Seller + Buyer):** สเปกเต็มที่ [00002 BRD §11.2](<20 - Features/00002 - Seller Auction/BRD.md>) — MVP 6 ใบ + Phase 2 5 ใบ (seeded 2026-07-02: Auction Pro 50/Bid Magnet/Active Bidder/Winner's Circle/Auction Completer)
 
 | #   | Badge              | ชื่อไทย         | เงื่อนไข                                                                                    |
 | --- | ------------------ | --------------- | ------------------------------------------------------------------------------------------- |

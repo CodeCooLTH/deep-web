@@ -168,7 +168,7 @@ export default function SignUpCard() {
               <Logo />
             </Link>
             <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>{`เริ่มต้นใช้งาน ${META_DATA.name} 🚀`}</Typography>
+              <Typography variant='h4'>{`เริ่มต้นใช้งาน ${META_DATA.name}`}</Typography>
               <Typography>กรอกข้อมูลด้านล่างเพื่อสร้างบัญชี</Typography>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} noValidate autoComplete='off' className='flex flex-col gap-6'>

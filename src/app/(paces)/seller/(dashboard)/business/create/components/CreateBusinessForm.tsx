@@ -1,0 +1,207 @@
+'use client'
+
+/**
+ * CreateBusinessForm — ฟอร์มสร้าง Business ใหม่ (single card, ไม่มี wizard)
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/settings/page.tsx (field group
+ *   input-text/select/textarea markup) — chase ผ่าน src/app/(paces)/seller/(dashboard)/shop/components/ShopForm.tsx
+ *   Step-1 "ข้อมูลร้านค้า" (บรรทัด 217-331): copy 4 field เป๊ะ (ชื่อ/หมวดหมู่/ประเภทธุรกิจ radio/คำอธิบาย)
+ * Strip vs ShopForm: sidebar step-nav (stepData), Step 2 (โลโก้ — ไม่มีใน CreateBusinessShopSchema),
+ *   ที่อยู่ field (ไม่มีใน schema) — เหลือ single `card > card-header + card-body + card-footer`
+ *
+ * Yup schema mirror CreateBusinessShopSchema (SRS §9 / API.md §4.7):
+ *   shopName 1-100 required, businessType INDIVIDUAL|COMPANY required (radio),
+ *   category optional (SHOP_CATEGORY_KEYS, HR6 form-select native), description optional ≤500
+ */
+
+import { yupResolver } from '@hookform/resolvers/yup'
+import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import * as Yup from 'yup'
+import Icon from '@/components/wrappers/Icon'
+import { pacesToast } from '@/lib/paces-toast'
+import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
+
+const schema = Yup.object({
+  shopName: Yup.string()
+    .min(1, 'กรุณากรอกชื่อธุรกิจ')
+    .max(100, 'ชื่อธุรกิจต้องไม่เกิน 100 ตัวอักษร')
+    .required('กรุณากรอกชื่อธุรกิจ'),
+  category: Yup.string().oneOf(['', ...(SHOP_CATEGORY_KEYS as string[])]).default(''),
+  businessType: Yup.string()
+    .oneOf(['INDIVIDUAL', 'COMPANY'] as const, 'กรุณาเลือกประเภทธุรกิจ')
+    .required('กรุณาเลือกประเภทธุรกิจ'),
+  description: Yup.string().max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร').default(''),
+})
+
+type FormValues = Yup.InferType<typeof schema>
+
+// error code จาก API.md §4.7 → ข้อความไทย
+const ERROR_MESSAGE: Record<string, string> = {
+  NO_ACTIVE_PACKAGE: 'ยังไม่มีแพ็กเกจ ACTIVE กรุณาสมัครแพ็กเกจก่อน',
+  BUSINESS_QUOTA_EXCEEDED: 'ครบโควตาจำนวนธุรกิจของแพ็กเกจนี้แล้ว',
+  VALIDATION_ERROR: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง',
+  SHOP_CREATE_BLOCKED_PENDING_PHASE2: 'ยังไม่รองรับขั้นตอนนี้ในเวอร์ชันปัจจุบัน',
+}
+
+export default function CreateBusinessForm() {
+  const router = useRouter()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: yupResolver(schema),
+    defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', description: '' },
+  })
+
+  const onSubmit = async (values: FormValues) => {
+    try {
+      const body = {
+        shopName: values.shopName,
+        businessType: values.businessType,
+        ...(values.category ? { category: values.category } : {}),
+        ...(values.description ? { description: values.description } : {}),
+      }
+      const res = await fetch('/api/business/shops', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        pacesToast.error(ERROR_MESSAGE[data?.error as string] ?? 'สร้างธุรกิจไม่สำเร็จ กรุณาลองใหม่')
+        return
+      }
+
+      const data: { shopId: string } = await res.json()
+      pacesToast.success('สร้างธุรกิจสำเร็จ')
+      router.push(`/business/${data.shopId}/invites`)
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <div className="card mx-auto max-w-2xl">
+        <div className="card-header">
+          <h4 className="card-title">ข้อมูลธุรกิจใหม่</h4>
+        </div>
+        <div className="card-body">
+          <div className="gap-base grid grid-cols-1 lg:grid-cols-2">
+            {/* ชื่อธุรกิจ */}
+            <div>
+              <label className="form-label">
+                ชื่อธุรกิจ<span className="text-danger ms-0.5">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="เช่น สาขา 2"
+                {...register('shopName')}
+              />
+              {errors.shopName && (
+                <p className="text-danger mt-1 text-sm">{errors.shopName.message}</p>
+              )}
+            </div>
+
+            {/* หมวดหมู่ — HR6 form-select native (bind RHF), ไม่ใช่ hs-dropdown */}
+            <div>
+              <label className="form-label">
+                หมวดหมู่ <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+              </label>
+              <select className="form-select" {...register('category')}>
+                <option value="">-- เลือกหมวดหมู่ --</option>
+                {SHOP_CATEGORY_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {SHOP_CATEGORY_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+              {errors.category && (
+                <p className="text-danger mt-1 text-sm">{errors.category.message}</p>
+              )}
+            </div>
+
+            {/* ประเภทธุรกิจ */}
+            <div className="lg:col-span-2">
+              <label className="form-label">
+                ประเภทธุรกิจ<span className="text-danger ms-0.5">*</span>
+              </label>
+              <div className="mt-1 flex flex-col gap-2">
+                <label className="flex cursor-pointer items-start gap-2">
+                  <input
+                    type="radio"
+                    value="INDIVIDUAL"
+                    className="mt-0.5 shrink-0"
+                    {...register('businessType')}
+                  />
+                  <div>
+                    <span className="text-dark text-sm font-medium">บุคคลธรรมดา</span>
+                    <p className="text-default-400 mt-0.5 text-xs">
+                      ขายในนามบุคคล ไม่มีการจดทะเบียน
+                    </p>
+                  </div>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2">
+                  <input
+                    type="radio"
+                    value="COMPANY"
+                    className="mt-0.5 shrink-0"
+                    {...register('businessType')}
+                  />
+                  <div>
+                    <span className="text-dark text-sm font-medium">นิติบุคคล</span>
+                    <p className="text-default-400 mt-0.5 text-xs">
+                      บริษัท ห้างหุ้นส่วน หรือกิจการที่จดทะเบียน
+                    </p>
+                  </div>
+                </label>
+              </div>
+              {errors.businessType && (
+                <p className="text-danger mt-2 text-sm">{errors.businessType.message}</p>
+              )}
+            </div>
+
+            {/* คำอธิบาย */}
+            <div className="lg:col-span-2">
+              <label className="form-label">
+                คำอธิบาย <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+              </label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder="แนะนำธุรกิจนี้ เช่น ขายอะไร มีบริการอะไรบ้าง"
+                {...register('description')}
+              />
+              {errors.description && (
+                <p className="text-danger mt-1 text-sm">{errors.description.message}</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="card-footer flex justify-end">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 disabled:opacity-60"
+          >
+            {isSubmitting ? (
+              <>
+                <Icon icon="refresh" className="animate-spin" aria-hidden="true" />
+                กำลังสร้าง...
+              </>
+            ) : (
+              <>
+                <Icon icon="plus" aria-hidden="true" />
+                สร้างธุรกิจ
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </form>
+  )
+}

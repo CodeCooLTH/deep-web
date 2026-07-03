@@ -49,7 +49,6 @@ export default async function BuyerDashboardPage() {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      shop: true,
       verifications: true,
       userBadges: { include: { badge: true } }
     }

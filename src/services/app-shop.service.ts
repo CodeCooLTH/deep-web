@@ -161,6 +161,12 @@ export type SellerTrust = {
   rating: number
   reviewCount: number
   trust: { score: number; letter: string; tier: string; dots: number }
+  // level: 1..5 ตาม Tier Lists SSOT (docs/10 - Business Rules/Tier Lists.md) — Classic=1..Star=5
+  // (derive จาก t.dots ที่มีอยู่แล้ว ห้ามตั้ง mapping ใหม่ที่นี่)
+  level: number
+  // ordersCount: order ทั้งหมดของร้านนี้ ทุกช่องทาง (ไม่กรอง status)
+  ordersCount: number
+  successfulAuctionsCount: number
 }
 
 /** ข้อมูล trust ของผู้ขาย (ไว้โชว์บนหน้า auction detail ให้ผู้ซื้อมั่นใจ — "กันโกง") */
@@ -176,7 +182,18 @@ export async function getSellerTrust(shopId: string): Promise<SellerTrust | null
     },
   })
   if (!shop) return null
-  const [{ avg, count }, verified] = await Promise.all([ratingFor(shopId), isVerified(shop.userId)])
+  const [{ avg, count }, verified, ordersCount, successfulAuctionsCount] = await Promise.all([
+    ratingFor(shopId),
+    isVerified(shop.userId),
+    // ordersCount: นับ order ทั้งหมดของร้าน ทุกช่องทาง (ไม่กรอง status) — ใช้ count ไม่ fetch array
+    prisma.order.count({ where: { shopId } }),
+    // successfulAuctionsCount: นิยาม = จำนวน order ที่เกิดจากการประมูล (Order.auctionId != null) และ
+    // status='CONFIRMED' (ผู้ซื้อกดยืนยันรับสินค้าแล้ว = fulfilled sale, ดู VALID_TRANSITIONS ที่
+    // order.service.ts). ไม่ต้อง join กับ Auction.status='ended' ซ้ำ เพราะ settleAuctionCore
+    // (auction.service.ts) สร้าง Order ให้ auction ก็ต่อเมื่อปิดแบบ 'ended' เท่านั้น (unsold ไม่สร้าง Order
+    // เลย) — Order ที่มี auctionId จึงผูกกับ auction ที่ ended เสมอ โดยไม่ต้อง query auction ซ้ำ
+    prisma.order.count({ where: { shopId, auctionId: { not: null }, status: 'CONFIRMED' } }),
+  ])
   const t = getTierDisplay(shop.user.trustScore)
   return {
     shopId: shop.id,
@@ -186,6 +203,9 @@ export async function getSellerTrust(shopId: string): Promise<SellerTrust | null
     rating: Number(avg.toFixed(1)),
     reviewCount: count,
     trust: { score: shop.user.trustScore, letter: t.letter, tier: t.tier, dots: t.dots },
+    level: Math.max(1, t.dots), // clamp min 1 (letter D → dots=0 ตาม Tier Lists SSOT แต่ level UI ต้อง 1..5)
+    ordersCount,
+    successfulAuctionsCount,
   }
 }
 

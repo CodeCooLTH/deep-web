@@ -25,7 +25,7 @@ model User {
   updatedAt          DateTime @updatedAt
 
   authAccounts          AuthAccount[]
-  shop                  Shop?
+  shops                 Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller
   verifications         VerificationRecord[]
   userBadges            UserBadge[]
   trustScoreHistory     TrustScoreHistory[]
@@ -45,6 +45,12 @@ model User {
 
   // --- Deep Stock Pro (feature 00009) ---
   stockMovementsActedOn StockMovement[] @relation("StockMovementActor")
+
+  // --- Business Account & Packages (feature 00008, Phase 1 additive) ---
+  shopMemberships             ShopMember[]
+  businessPackageSubscription BusinessPackageSubscription?
+  sentShopInvites             ShopInvite[]                  @relation("ShopInviteInvitedBy")
+  acceptedShopInvites         ShopInvite[]                  @relation("ShopInviteAcceptedBy")
 }
 
 model AuthAccount {
@@ -63,7 +69,15 @@ model AuthAccount {
 
 model Shop {
   id            String   @id @default(uuid())
-  userId        String   @unique
+  // userId: owner-at-creation (immutable). Phase 2 cutover (feature 00008 §4/§6.3) ทำแล้ว — ตัด
+  // `@unique` ออกจาก field นี้ (Prisma-managed) เพราะ 1 user ตอนนี้มีได้หลาย Shop (PERSONAL + BUSINESS
+  // หลายแถว) ความ unique จริงอยู่ที่ระดับ "PERSONAL shop ต่อ user มีได้ 1 แถว" เท่านั้น ซึ่งบังคับด้วย
+  // 🛑 partial unique index `Shop_userId_personal_key` ON "Shop"("userId") WHERE "kind" = 'PERSONAL'
+  // (migration `20260702000002_business_account_packages_owner_cutover`) — เป็น unmanaged SQL ที่
+  // Prisma DSL ประกาศไม่ได้ (ไม่รองรับ partial index) ห้าม `prisma db pull`/`migrate dev` เด็ดขาด
+  // หลัง Phase 2 apply เพราะ introspection จะไม่เห็น partial index นี้แล้วพยายาม "แก้ให้ตรง schema"
+  // ซึ่งอาจ DROP มันทิ้ง (ดู DATABASE.md feature 00008 §4/§9-1, memory project_shared_db_drift_no_migrate_dev)
+  userId        String
   shopName      String
   description   String?
   logo          String?
@@ -74,9 +88,30 @@ model Shop {
   address       String?
   latitude      Float? // พิกัดร้าน (feature 00001 onboarding map pin); ไทย 5-21N validate app layer
   longitude     Float? // พิกัดร้าน; ไทย 97-106E validate app layer
+  // businessType: LEGACY (ก่อน feature 00008) — label ประเภทนิติบุคคลสำหรับ L3 verification
+  // ("INDIVIDUAL" ฯลฯ) — ⚠️ ไม่ใช่สิ่งเดียวกับ `kind` ด้านล่าง ห้ามสับสน/reuse (ดู DATABASE.md §3.2 warning)
   businessType  String   @default("INDIVIDUAL")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  // --- feature 00008: Business Account & Packages (Phase 1, additive) ---
+  // kind: "PERSONAL" | "BUSINESS" — String (มิเรอร์ Product.type/Order.type pattern, ไม่ใช่ lifecycle-state)
+  // default PERSONAL = ทุก Shop เดิมก่อน feature นี้ถือเป็น PERSONAL อัตโนมัติ (BR-BIZ-25 zero-regression)
+  kind              String    @default("PERSONAL")
+  // packageLockedAt/packageLockReason: read-only lock state ของ BUSINESS shop เท่านั้น
+  // NULL เสมอสำหรับ PERSONAL shop — ตั้งเมื่อ owner's BusinessPackageSubscription = LOCKED_RENEWAL_FAILED
+  // หรือ quota เกิน (RENEWAL_FAILED | OWNER_CANCELLED_PACKAGE | QUOTA_EXCEEDED_BUSINESS_COUNT |
+  // QUOTA_EXCEEDED_ADMIN_COUNT — 2 ค่าแรก grace-eligible นับถอย 30 วัน, 2 ค่าหลังไม่มี grace)
+  packageLockedAt   DateTime?
+  packageLockReason String?
+  // deletedAt/deletedReason: soft-delete ("OWNER_DELETED" | "PACKAGE_LAPSED") — NULL เสมอสำหรับ PERSONAL;
+  // restore ได้ภายใน 30 วันหลัง deletedAt (grace ก่อน purge)
+  deletedAt         DateTime?
+  deletedReason     String?
+  // purgedAt: tombstone marker หลัง retention 30 วัน — 🛑 ไม่ใช่ physical DELETE (RD-11, DATABASE.md §12.5)
+  // FK Order.shopId เป็น Restrict (มี Order ค้างจะลบไม่ได้) + Hard Rule ห้าม drop ข้อมูลเว้นแต่สั่งชัด —
+  // row ยังอยู่ครบ แค่ถูก exclude จากทุก list/quota/switcher ถาวรที่ app layer
+  purgedAt          DateTime?
 
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   products             Product[]
@@ -86,11 +121,17 @@ model Shop {
   auctions             Auction[]
   inventoryEntitlement InventoryEntitlement?
   stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
+  members              ShopMember[] // NEW (feature 00008)
+  invites              ShopInvite[] // NEW (feature 00008)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
   @@index([salesChannels], type: Gin, map: "Shop_salesChannels_gin_idx")
+  @@index([userId, kind], map: "Shop_userId_kind_idx") // NEW — switcher/owner lookup ครอบคลุมทั้ง 2 kind
+  @@index([kind, packageLockedAt], map: "Shop_kind_packageLockedAt_idx") // NEW — Admin/Ops list locked business (FR-BIZ-24)
+  @@index([kind, packageLockReason, packageLockedAt], map: "Shop_kind_lockReason_lockedAt_idx") // NEW — cron: auto-soft-delete lapsed grace
+  @@index([deletedAt, purgedAt], map: "Shop_deletedAt_purgedAt_idx") // NEW — cron: purge expired retention
 }
 
 model VerificationRecord {
@@ -334,8 +375,9 @@ model WalletTransaction {
   balanceAfter Int
   description  String
   refId        String?
-  // reason: Inventory Add-on (feature 00003) — machine-filterable label แยก DEDUCT source
-  // ("SMS_ORDER_LINK" | "INVENTORY_SUBSCRIPTION"); NULL = row เก่าก่อนฟีเจอร์นี้ (backfill migration SQL)
+  // reason: machine-filterable label แยก DEDUCT source — ("SMS_ORDER_LINK" | "INVENTORY_SUBSCRIPTION"
+  // [feature 00003] | "BUSINESS_PACKAGE_SUBSCRIPTION" [feature 00008, NEW — ไม่มี DDL แค่ค่าใหม่]);
+  // NULL = row เก่าก่อนฟีเจอร์ที่ใช้ field นี้ (backfill migration SQL)
   reason       String?
   createdAt    DateTime @default(now())
 
@@ -410,6 +452,93 @@ model StockMovement {
   @@index([productId, createdAt]) // hot path: movement history ต่อสินค้า เรียงเวลาล่าสุดก่อน
   @@index([shopId, createdAt])    // cross-product movement list ต่อ shop
   @@index([shopId, source])       // filter ตาม source
+}
+
+// --- Business Account & Packages (feature 00008, Phase 1 additive) ---
+// ดู docs/20 - Features/00008 - Business Account & Packages/DATABASE.md (FROZEN CONTRACT)
+// Phase 1 เท่านั้น — ไม่แตะ Shop.userId @unique เดิม (Phase 2 constraint cutover = gated, แยก migration)
+
+// ShopMember: membership User↔Shop (role: OWNER | ADMIN) — feature 00008
+// แทนที่ FK ตรง Shop.userId 1:1 เดิม เป็น SSOT ใหม่ของ "สมาชิกร้านไหน บทบาทอะไร"
+// ทุก Shop (PERSONAL/BUSINESS) มี ShopMember(role=OWNER) เสมอ 1 แถว
+// invariant "1 OWNER ต่อ shop" enforce ที่ app layer เท่านั้น (ไม่มี DB constraint —
+// ไม่มี ownership-transfer/co-ownership ใน MVP, PRD §5 out-of-scope, risk ต่ำ)
+model ShopMember {
+  id        String   @id @default(uuid())
+  shopId    String
+  userId    String
+  // role: "OWNER" | "ADMIN" — String ตาม convention project (เทียบ Order.status/VerificationRecord.status)
+  role      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, userId])
+  @@index([userId]) // switcher query: shop ทั้งหมดที่ user คนนี้เป็นสมาชิก (FR-BIZ-14)
+  @@index([shopId, role]) // list/count admin ต่อ shop (quota enforcement FR-BIZ-12) + lookup owner
+}
+
+enum BusinessPackageStatus {
+  ACTIVE
+  LOCKED_RENEWAL_FAILED
+}
+
+// BusinessPackageSubscription: สิทธิ์ subscription ระดับ Owner (1:1 User) — feature 00008
+// ต่าง InventoryEntitlement (1:1 Shop) เพราะ 1 owner คุมโควตา Business หลายอัน (D-1)
+// ไม่มี FREE เป็น status/value — "ไม่มี row นี้เลย" = FREE (มิเรอร์ NOT_SUBSCRIBED ของ InventoryEntitlement)
+// ตั้งชื่อแยกจาก Shop.businessType เดิม (label นิติบุคคล L3 — คนละเรื่อง)
+// cancel = DELETE row ทันที (grace timer อยู่ที่ Shop.packageLockedAt ต่อ shop ไม่ใช่ที่ row นี้)
+model BusinessPackageSubscription {
+  id                 String                @id @default(uuid())
+  ownerId            String                @unique
+  // tier: "GROWTH" | "PRO" | "BUSINESS" — String (ราคา/โควตาต่อ tier hardcode app-layer เหมือน
+  // Inventory Add-on ฿199 — กัน ALTER TYPE ทุกครั้งที่ปรับราคา) ⚠️ ระวังสับสนกับ Shop.kind="BUSINESS"
+  // (คนละแกนความหมาย ชื่อชนกันโดยตั้งใจตามชื่อ tier สูงสุดของธุรกิจ)
+  tier               String
+  status             BusinessPackageStatus @default(ACTIVE)
+  activatedAt        DateTime // subscribe ครั้งแรกเท่านั้น ห้ามแตะตอน renew/upgrade/downgrade/reactivate (cohort marker)
+  currentPeriodStart DateTime
+  nextRenewalAt      DateTime
+  lastRenewalAt      DateTime?
+  lockedAt           DateTime? // reset NULL ทันทีที่ reactivate สำเร็จ
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRenewalAt]) // renewal cron: status='ACTIVE' AND nextRenewalAt<=now() + advance-warning 3 วัน
+}
+
+// ShopInvite: คำเชิญ admin เข้า Business ผ่านเบอร์โทร/อีเมล — feature 00008
+// ไม่มี @@unique([shopId, invitedContact]) โดยตั้งใจ — ไม่บล็อก invite ซ้ำหลัง CANCELLED
+// (duplicate-pending check เป็น app-layer responsibility, ดู DATABASE.md §3.4)
+model ShopInvite {
+  id               String    @id @default(uuid())
+  shopId           String
+  // invitedContact: เบอร์โทร/อีเมล ดิบ — PII เทียบเท่า Order.buyerContact/Review.reviewerContact
+  // ⚠️ ต้อง mask/neutralize ที่ RSC boundary ก่อนส่งลง client component (feedback_rsc_pii_neutralize_at_source)
+  invitedContact   String
+  // contactType: "PHONE" | "EMAIL" — จับคู่ User.phone/User.email ตอน accept (FR-BIZ-10)
+  contactType      String
+  // role: ปัจจุบันมีแค่ "ADMIN" — เก็บไว้ future-proof (Phase 2 RBAC granularity)
+  role             String    @default("ADMIN")
+  // status: "PENDING" | "ACCEPTED" | "CANCELLED" — String มิเรอร์ TopUpRequest.status
+  status           String    @default("PENDING")
+  invitedByUserId  String
+  acceptedByUserId String?
+  acceptedAt       DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  shop       Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invitedBy  User  @relation("ShopInviteInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  acceptedBy User? @relation("ShopInviteAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, status]) // list pending invite ของ shop (owner invite management page)
+  @@index([invitedContact, status]) // เช็ค invite PENDING ค้างตอน user สมัคร/login (FR-BIZ-10-AC-02)
 }
 
 model TopUpRequest {
@@ -565,7 +694,7 @@ model PushToken {
 model Notification {
   id        String   @id @default(uuid())
   userId    String
-  // kind: "outbid" | "won" | "system" — ตรงกับ app type Notification.kind
+  // kind: "outbid" | "won" | "system" | "badge_earned" — ตรงกับ app type Notification.kind
   kind      String
   title     String
   body      String

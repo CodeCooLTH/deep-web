@@ -58,16 +58,22 @@ async function upsertSeller(opts: {
       isShop: true,
     },
   })
-  const shop = await prisma.shop.upsert({
-    where: { userId: user.id },
-    update: { shopName: opts.shopName, slug: opts.slug },
-    create: {
-      userId: user.id,
-      shopName: opts.shopName,
-      slug: opts.slug,
-      businessType: 'INDIVIDUAL',
-    },
-  })
+  // userId ไม่ใช่ unique field แล้ว (feature 00008 Phase 2) — upsert ตรง ๆ ใช้ไม่ได้
+  // ต้อง findFirst (scope kind:PERSONAL) แล้ว update/create เอง
+  const existingShop = await prisma.shop.findFirst({ where: { userId: user.id, kind: 'PERSONAL' } })
+  const shop = existingShop
+    ? await prisma.shop.update({
+        where: { id: existingShop.id },
+        data: { shopName: opts.shopName, slug: opts.slug },
+      })
+    : await prisma.shop.create({
+        data: {
+          userId: user.id,
+          shopName: opts.shopName,
+          slug: opts.slug,
+          businessType: 'INDIVIDUAL',
+        },
+      })
   await prisma.sellerWallet.upsert({
     where: { shopId: shop.id },
     update: { balance: opts.balance },

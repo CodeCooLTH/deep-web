@@ -215,6 +215,22 @@ export async function confirmOrder(publicToken: string, buyerContact: string, bu
       err,
     );
   }
+  // BUYER-side badge eval — จำเป็นสำหรับ Auction Completer (AUCTION_WON_COMPLETED
+  // ต้อง order=CONFIRMED); ตอน settle order ยังไม่ CONFIRMED จึงต้อง re-eval ที่จุดนี้.
+  // gate ด้วย auctionId: BUYER-audience badge ทุกใบปัจจุบันเป็น auction badge ล้วน
+  // (First/Active Bidder, First Winner, Winner's Circle, Completer) → order ที่ไม่ใช่
+  // auction ไม่มี buyer badge ให้ประเมิน — ข้ามเพื่อไม่เพิ่ม DB round-trip บน checkout
+  // path ของ order ทั่วไป. best-effort + แยก try/catch ไม่ให้ล้มกระทบ SELLER eval
+  if (updated.buyerUserId && updated.auctionId) {
+    try {
+      await evaluateBadges(updated.buyerUserId, "BUYER");
+    } catch (err) {
+      console.error(
+        `[order] post-confirm buyer badge eval ล้มเหลวสำหรับ buyer ${updated.buyerUserId}; order ${updated.publicToken} persisted`,
+        err,
+      );
+    }
+  }
   return updated;
 }
 

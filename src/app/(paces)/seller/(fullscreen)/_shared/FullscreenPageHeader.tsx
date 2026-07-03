@@ -58,13 +58,14 @@ export default function FullscreenPageHeader({
           {subtitle && <p className="text-default-400 text-sm mt-0.5 truncate">{subtitle}</p>}
         </div>
 
-        {/* Save button ขวา — min-h-11 = 44px touch target */}
+        {/* Save button ขวา — desktop เท่านั้น (hidden lg:inline-flex): บนมือถือ (<lg) ทุกหน้าที่ส่ง saveFormId
+            (products/orders) มี sticky bottom save อยู่แล้ว → เลี่ยงปุ่มบันทึกซ้ำ 2 ที่ (mockup A). min-h-11 = 44px */}
         {saveFormId ? (
           <button
             type="submit"
             form={saveFormId}
             disabled={disableSave}
-            className="btn bg-primary px-5 py-2 font-semibold text-white hover:bg-primary-hover inline-flex items-center gap-2 min-h-11 shrink-0 disabled:opacity-60"
+            className="btn bg-primary px-5 py-2 font-semibold text-white hover:bg-primary-hover hidden lg:inline-flex items-center gap-2 min-h-11 shrink-0 disabled:opacity-60"
           >
             <Icon icon="device-floppy" className="size-4" />
             <span className="hidden sm:inline">{saveLabel}</span>

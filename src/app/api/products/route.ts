@@ -15,7 +15,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const shop = await prisma.shop.findUnique({ where: { userId: (session.user as any).id } });
+  const shop = await prisma.shop.findFirst({ where: { userId: (session.user as any).id, kind: "PERSONAL" } });
   if (!shop) return NextResponse.json([]);
 
   const products = await getProductsByShop(shop.id);
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const shop = await prisma.shop.findUnique({ where: { userId: (session.user as any).id } });
+  const shop = await prisma.shop.findFirst({ where: { userId: (session.user as any).id, kind: "PERSONAL" } });
   if (!shop) return NextResponse.json({ error: "No shop" }, { status: 404 });
 
   const body = await request.json();

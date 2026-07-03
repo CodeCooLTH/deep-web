@@ -105,8 +105,10 @@ export default function AuctionConsoleClient({ auction }: Props) {
               winnerShownRef.current = true
               const w = dto.bidHistory[0]
               void pacesAlert({
-                title: '🏆 ประมูลจบแล้ว มีผู้ชนะ!',
-                html: `<div style="font-size:15px;font-weight:700;color:#1e293b">${w.bidder}</div>
+                title: 'ประมูลจบแล้ว มีผู้ชนะ!',
+                // no-emoji: ถ้วยรางวัล = inline SVG tabler-trophy (สีทอง) — Swal html เป็น string ใช้ inline SVG (ไม่ใช่ React Icon)
+                html: `<div style="display:flex;justify-content:center;margin-bottom:8px"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21l8 0"/><path d="M12 17l0 4"/><path d="M7 4l10 0"/><path d="M17 4v8a5 5 0 0 1 -10 0v-8"/><path d="M5 9a2 2 0 0 1 -2 -2v-2a1 1 0 0 1 1 -1h3"/><path d="M19 9a2 2 0 0 0 2 -2v-2a1 1 0 0 0 -1 -1h-3"/></svg></div>
+                  <div style="font-size:15px;font-weight:700;color:#1e293b">${w.bidder}</div>
                   <div style="font-size:12px;color:#5b6678;margin-top:2px">${w.level.label}</div>
                   <div style="font-size:11px;color:#94a3b8;margin-top:10px">ราคาปิด</div>
                   <div style="font-size:26px;font-weight:800;color:#236dc9;font-variant-numeric:tabular-nums">฿${dto.currentPrice.toLocaleString()}</div>`,
