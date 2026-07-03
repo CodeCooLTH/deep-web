@@ -189,7 +189,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                         type="button"
                         onClick={() => remove(idx)}
                         aria-label="ลบรายการ"
-                        className="text-default-400 hover:text-danger shrink-0"
+                        className="btn btn-icon text-default-400 hover:text-danger hover:bg-danger/10 !size-11 min-h-0 shrink-0"
                       >
                         <Icon icon="x" className="size-4" />
                       </button>
@@ -200,7 +200,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                         <button
                           type="button"
                           onClick={() => dec(item.productId!)}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
+                          className="btn btn-icon border border-default-200 text-default-600 hover:bg-default-100 !size-11 min-h-0 shrink-0"
                           aria-label="ลดจำนวน"
                         >
                           <Icon icon="minus" width={12} height={12} />
@@ -216,7 +216,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                         <button
                           type="button"
                           onClick={() => inc(catalog.find((p) => p.id === item.productId)!)}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
+                          className="btn btn-icon border border-default-200 text-default-600 hover:bg-default-100 !size-11 min-h-0 shrink-0"
                           aria-label="เพิ่มจำนวน"
                         >
                           <Icon icon="plus" width={12} height={12} />
@@ -285,7 +285,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                         type="button"
                         onClick={() => remove(idx)}
                         aria-label="ลบรายการ"
-                        className="text-default-400 hover:text-danger shrink-0"
+                        className="btn btn-icon text-default-400 hover:text-danger hover:bg-danger/10 !size-11 min-h-0 shrink-0"
                       >
                         <Icon icon="x" className="size-4" />
                       </button>
@@ -301,7 +301,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                             if (cur > 1) update(idx, { ...item, qty: cur - 1 })
                             else remove(idx)
                           }}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
+                          className="btn btn-icon border border-default-200 text-default-600 hover:bg-default-100 !size-11 min-h-0 shrink-0"
                           aria-label="ลดจำนวน"
                         >
                           <Icon icon="minus" width={12} height={12} />
@@ -320,7 +320,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                             const cur = Number(item?.qty) || 1
                             update(idx, { ...item, qty: cur + 1 })
                           }}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-10 h-10"
+                          className="btn btn-icon border border-default-200 text-default-600 hover:bg-default-100 !size-11 min-h-0 shrink-0"
                           aria-label="เพิ่มจำนวน"
                         >
                           <Icon icon="plus" width={12} height={12} />
@@ -369,10 +369,11 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                 ที่อยู่จัดส่ง
                 <span className="badge bg-info/15 text-info">มีสินค้าที่ต้องจัดส่ง</span>
               </p>
+              <p className="text-2xs text-default-400 mb-2">* จำเป็นเมื่อออเดอร์ต้องจัดส่ง</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* ที่อยู่ / บ้านเลขที่ + ถนน */}
                 <div className="sm:col-span-2">
-                  <label className="form-label">ที่อยู่ / บ้านเลขที่ + ถนน</label>
+                  <label className="form-label">ที่อยู่ / บ้านเลขที่ + ถนน<span className="text-danger ms-0.5">*</span></label>
                   <input
                     type="text"
                     className="form-input"
@@ -402,7 +403,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                 </div>
                 {/* จังหวัด */}
                 <div>
-                  <label className="form-label">จังหวัด</label>
+                  <label className="form-label">จังหวัด<span className="text-danger ms-0.5">*</span></label>
                   <input
                     type="text"
                     className="form-input"
@@ -412,7 +413,7 @@ export default function CartBlock({ control, catalog, errors }: Props) {
                 </div>
                 {/* รหัสไปรษณีย์ — ฟิลด์ใหม่ "postcode" (ไม่ใช่ postalCode ของ OrderCreateForm เก่า) */}
                 <div>
-                  <label className="form-label">รหัสไปรษณีย์</label>
+                  <label className="form-label">รหัสไปรษณีย์<span className="text-danger ms-0.5">*</span></label>
                   <input
                     type="text"
                     inputMode="numeric"

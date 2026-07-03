@@ -30,7 +30,7 @@ export default function FullscreenBackButton() {
       type="button"
       onClick={handleBack}
       aria-label="กลับ"
-      className="w-11 h-11 rounded-xl text-[#374151] hover:bg-gray-50 inline-flex items-center justify-center shrink-0"
+      className="w-11 h-11 rounded-xl text-default-700 hover:bg-default-100 inline-flex items-center justify-center shrink-0"
     >
       {/* tabler:arrow-left ตาม convention project (raw @iconify/react — ใส่ prefix เอง) */}
       <Icon icon="tabler:arrow-left" width={22} height={22} />

@@ -57,10 +57,22 @@ export default function ProductPickerModal({ open, onClose, catalog, qtyByProduc
 
   return (
     <div className="fixed inset-0 z-[60] bg-card flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-default-200 shrink-0">
-        <h2 className="text-lg font-bold text-dark mr-auto">เลือกสินค้า</h2>
-        <div className="relative w-64">
+      {/* Header — มือถือ (<sm) 2 แถว (title+close / search เต็มแถว), sm+ กลับเป็น 1 แถวเดิม */}
+      <header className="flex flex-col gap-3 px-4 md:px-6 py-3 border-b border-default-200 shrink-0 sm:h-14 sm:flex-row sm:items-center sm:py-0">
+        {/* แถว 1 (มือถือ): title + close — sm:contents ให้ยุบรวมเป็น flex item ตรงของ header ที่ sm+ */}
+        <div className="flex items-center justify-between gap-3 sm:contents">
+          <h2 className="text-lg font-bold text-dark sm:mr-auto">เลือกสินค้า</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ปิด"
+            className="btn btn-icon border border-default-300 hover:bg-default-50 !size-11 min-h-0 flex items-center justify-center sm:order-3"
+          >
+            <Icon icon="x" className="size-5" />
+          </button>
+        </div>
+        {/* แถว 2 (มือถือ): search เต็มแถว — sm+ กลับเป็น w-64 อยู่ระหว่าง title กับ close */}
+        <div className="relative w-full sm:order-2 sm:w-64">
           <input
             type="text"
             placeholder="ค้นหา..."
@@ -73,14 +85,6 @@ export default function ProductPickerModal({ open, onClose, catalog, qtyByProduc
             className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-default-400"
           />
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="ปิด"
-          className="btn btn-icon border border-default-300 hover:bg-default-50 size-9 flex items-center justify-center"
-        >
-          <Icon icon="x" className="size-5" />
-        </button>
       </header>
 
       {/* Body */}
@@ -96,7 +100,7 @@ export default function ProductPickerModal({ open, onClose, catalog, qtyByProduc
             <p className="text-sm">ไม่พบสินค้าที่ตรงกับ &ldquo;{search}&rdquo;</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {filtered.map((product) => {
               const qty = qtyByProduct(product.id)
               return (
@@ -157,7 +161,7 @@ export default function ProductPickerModal({ open, onClose, catalog, qtyByProduc
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); dec(product.id) }}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-6 h-6"
+                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100"
                           aria-label="ลด"
                         >
                           <Icon icon="minus" width={10} height={10} />
@@ -168,7 +172,7 @@ export default function ProductPickerModal({ open, onClose, catalog, qtyByProduc
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); inc(product) }}
-                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100 w-6 h-6"
+                          className="btn btn-icon btn-sm border border-default-200 text-default-600 hover:bg-default-100"
                           aria-label="เพิ่ม"
                         >
                           <Icon icon="plus" width={10} height={10} />

@@ -277,9 +277,15 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
   return (
     <form
       id={formId}
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={handleSubmit(onSubmit, (formErrors) => {
+        // scroll ไป field ที่ error แรก — กันคีย์บอร์ดมือถือบัง error ที่มองไม่เห็น
+        const first = Object.keys(formErrors)[0]
+        if (first) {
+          document.querySelector(`[name="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })}
       noValidate
-      className="pb-20 lg:pb-0"
+      className="pb-20 lg:pb-0 scroll-pb-24"
     >
       {/* Loading indicator ระหว่าง submit */}
       {isSubmitting && (

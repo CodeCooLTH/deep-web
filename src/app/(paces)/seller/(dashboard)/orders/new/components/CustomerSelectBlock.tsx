@@ -178,7 +178,7 @@ export default function CustomerSelectBlock({ control, errors }: Props) {
               type="button"
               onClick={() => changeMode('search')}
               className={[
-                'flex cursor-pointer items-center justify-center gap-2 rounded border px-4 py-2.5 text-sm font-medium transition-all',
+                'flex cursor-pointer items-center justify-center gap-2 rounded border px-4 py-2.5 text-sm font-medium transition-all min-h-11',
                 mode === 'search'
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-default-300 text-default-700 hover:border-default-500',
@@ -193,7 +193,7 @@ export default function CustomerSelectBlock({ control, errors }: Props) {
               type="button"
               onClick={() => changeMode('new')}
               className={[
-                'flex cursor-pointer items-center justify-center gap-2 rounded border px-4 py-2.5 text-sm font-medium transition-all',
+                'flex cursor-pointer items-center justify-center gap-2 rounded border px-4 py-2.5 text-sm font-medium transition-all min-h-11',
                 mode === 'new'
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-default-300 text-default-700 hover:border-default-500',
@@ -330,7 +330,7 @@ export default function CustomerSelectBlock({ control, errors }: Props) {
             {/* ปุ่มเปลี่ยน — ล้าง selection กลับสู่ search */}
             <button
               type="button"
-              className="btn btn-sm border-default-300 text-default-700 hover:bg-card shrink-0"
+              className="btn btn-sm border-default-300 text-default-700 hover:bg-card shrink-0 min-h-11"
               onClick={clearSelection}
             >
               เปลี่ยน
