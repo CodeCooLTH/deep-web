@@ -11,7 +11,7 @@
 
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getSellerAuctionDetail } from '@/services/auction.service'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -31,13 +31,9 @@ export default async function AuctionDetailPage({ params }: PageProps) {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
-  if (!shop) redirect('/auctions')
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/auctions')
 
   // ownership scope อยู่ใน service (WHERE id AND shop.userId=shopUserId) — ไม่ใช่ post-check ที่นี่
   const auction = await getSellerAuctionDetail(id, user.id)

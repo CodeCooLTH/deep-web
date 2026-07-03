@@ -77,14 +77,20 @@ export interface ActiveShop {
  *  - คืน `locked` ให้ page/route gate การสร้าง/แก้ (Business ที่โดน package lock = read-only)
  *  ⚠️ ใช้เฉพาะหน้า "workspace ของ seller" — billing/onboarding/public ต้องคง getPersonalShop (Phase 4 KEEP-PERSONAL)
  */
-export async function requireActiveShop(session: {
-  user: { id: string; activeShopId?: string | null };
-}): Promise<ActiveShop | null> {
-  const ctx = await resolveActiveShopContext(session);
+export async function requireActiveShop(
+  // permissive: รับ Session ตรง ๆ ได้ (NextAuth Session.user ไม่ประกาศ id/activeShopId — project ไม่มี d.ts
+  // augmentation) โดยไม่ต้อง cast ที่ caller. extract แบบ null-safe ภายใน
+  session: { user?: { id?: string | null; activeShopId?: string | null } | null } | null,
+): Promise<ActiveShop | null> {
+  const userId = session?.user?.id;
+  if (!userId) return null;
+  const ctx = await resolveActiveShopContext({
+    user: { id: userId, activeShopId: session?.user?.activeShopId ?? null },
+  });
   let meta = ctx;
   if (!meta) {
     // fallback → Personal (เช่น activeShopId ชี้ business ที่หลุด membership/ถูกลบ)
-    const personal = await getPersonalShop(session.user.id);
+    const personal = await getPersonalShop(userId);
     if (!personal) return null;
     meta = { shopId: personal.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null };
   }

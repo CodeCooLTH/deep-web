@@ -12,7 +12,7 @@
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getProductsByShop } from '@/services/product.service'
 import { getOrdersByShop } from '@/services/order.service'
 import { redirect } from 'next/navigation'
@@ -51,8 +51,9 @@ export default async function CategoriesPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  const shop = await getShopByUserId(user.id)
-  if (!shop) redirect('/shop')
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/shop')
+  const shop = active.shop
 
   const [products, orders] = await Promise.all([
     getProductsByShop(shop.id).catch(() => []),

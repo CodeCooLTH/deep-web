@@ -16,7 +16,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getRecentActivity } from '@/services/activity.service'
 import type { ActivityItem } from '@/services/activity.service'
 import NotificationFeed from './components/NotificationFeed'
@@ -34,14 +34,12 @@ export default async function NotificationsPage() {
     redirect('/auth/sign-in')
   }
 
-  // ── resolve shop.id (pattern จาก dashboard page.tsx) ─────────────────────
+  // ── resolve active shop.id (Personal หรือ Business ตาม session.activeShopId) ─────
   let items: ActivityItem[] = []
 
   try {
-    const shop = await prisma.shop.findFirst({
-      where: { userId, kind: 'PERSONAL' },
-      select: { id: true },
-    })
+    const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+    const shop = active?.shop ?? null
 
     if (shop?.id) {
       // ครอบ try/catch แยก — getRecentActivity มี try/catch ใน service อยู่แล้ว

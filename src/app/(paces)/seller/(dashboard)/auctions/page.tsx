@@ -17,7 +17,7 @@
 
 import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { listSellerAuctions, type SellerAuctionListItemDTO } from '@/services/auction.service'
 import { prisma } from '@/lib/prisma'
 import Icon from '@/components/wrappers/Icon'
@@ -57,14 +57,10 @@ export default async function AuctionsPage({ searchParams }: PageProps) {
   const user = (session as any)?.user
   if (!user) return null
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
         <Icon icon="building-store" className="size-16 text-warning mx-auto mb-4" />
@@ -80,6 +76,8 @@ export default async function AuctionsPage({ searchParams }: PageProps) {
       </div>
     )
   }
+
+  const shop = active.shop
 
   let auctions: SellerAuctionListItemDTO[] = []
   try {

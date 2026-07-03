@@ -19,7 +19,7 @@
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
@@ -29,6 +29,7 @@ import type { Metadata } from 'next'
 import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/ProductFormV2'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import Icon from '@/components/wrappers/Icon'
+import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
 export const metadata: Metadata = { title: 'แก้ไขสินค้า' }
 
@@ -45,15 +46,11 @@ export default async function EditProductPage({ params }: PageProps) {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
   // ร้านยังไม่มี — ไม่มี product ให้แก้ไข → แจ้งและลิงก์ไปสร้างร้าน
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
         <Icon
@@ -75,6 +72,8 @@ export default async function EditProductPage({ params }: PageProps) {
     )
   }
 
+  const shop = active.shop
+
   // Fetch product + verify ownership (security: กัน seller แก้ product ของร้านอื่น)
   // serializeProduct แปลง Decimal/Date/Json → plain object ให้ RSC ส่งผ่าน boundary ได้
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
@@ -88,6 +87,19 @@ export default async function EditProductPage({ params }: PageProps) {
   }
 
   const product = serializeProduct(productRaw)
+
+  // Business ถูก package lock (read-only) — ห้ามแก้ไขสินค้า
+  if (active.locked) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <LockedStateBanner
+          lockReason={active.lockReason ?? ''}
+          packageLockedAt={shop.packageLockedAt}
+          level="shop"
+        />
+      </div>
+    )
+  }
 
   // Inventory Add-on entitlement — fail-closed: error ใด ๆ ระหว่าง resolve ถือว่าไม่ active
   // (ซ่อน field stockQty แทนที่จะเสี่ยงเปิดให้กรอกทั้งที่ยังไม่ได้ subscribe)

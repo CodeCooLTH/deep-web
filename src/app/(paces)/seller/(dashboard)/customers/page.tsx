@@ -9,7 +9,7 @@
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
@@ -44,14 +44,9 @@ export default async function CustomersPage() {
   const user = (session as any)?.user
   if (!user) return null
 
-  let shop: { id: string } | null = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
         <Icon icon="building-store" className="size-16 text-warning mx-auto mb-4" />
@@ -67,6 +62,8 @@ export default async function CustomersPage() {
       </div>
     )
   }
+
+  const shop = active.shop
 
   let orders: any[] = []
   try {

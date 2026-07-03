@@ -13,7 +13,7 @@
 
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
@@ -41,14 +41,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const user = (session as any)?.user
   if (!user) return null
 
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
-  if (!shop) {
+  if (!active) {
     return (
       <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
         <Icon icon="building-store" className="size-16 text-warning mx-auto mb-4" />
@@ -64,6 +59,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       </div>
     )
   }
+
+  const shop = active.shop
 
   let rawOrders: any[] = []
   try {

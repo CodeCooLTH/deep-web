@@ -7,7 +7,7 @@
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getOrdersByShop } from '@/services/order.service'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -30,8 +30,10 @@ export default async function ProductDetailPage({
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  const shop = await getShopByUserId(user.id)
-  if (!shop) redirect('/shop')
+  // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/shop')
+  const shop = active.shop
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   const product = await prisma.product.findFirst({ where: { id, shopId: shop.id } })

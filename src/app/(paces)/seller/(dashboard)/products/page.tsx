@@ -14,7 +14,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getProductsByShop } from '@/services/product.service'
 import { getOrdersByShop } from '@/services/order.service'
 import Link from 'next/link'
@@ -31,15 +31,10 @@ export default async function ProductsPage() {
   const user = (session as any)?.user
   if (!user) return null
 
-  // --- Shop guard ---
-  let shop: any = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // --- Active shop guard (Phase 4: Personal หรือ Business ตาม context ที่สลับ) ---
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
 
-  if (!shop) {
+  if (!active) {
     return (
       <>
         <PageBreadcrumb title="สินค้า" trail={[{ label: 'การขาย' }]} />
@@ -58,6 +53,8 @@ export default async function ProductsPage() {
       </>
     )
   }
+
+  const shop = active.shop
 
   // --- Fetch products + orders ---
   let products: any[] = []

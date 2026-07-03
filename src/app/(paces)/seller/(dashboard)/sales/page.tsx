@@ -10,7 +10,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
-import { getShopByUserId } from '@/services/shop.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -63,8 +63,9 @@ export default async function SalesPage({
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  const shop = await getShopByUserId(user.id)
-  if (!shop) redirect('/shop')
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/shop')
+  const shop = active.shop
 
   const { from: defFrom, to: defTo } = monthRange()
   const from = parseDate(fromStr, defFrom)
