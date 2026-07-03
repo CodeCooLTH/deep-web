@@ -124,6 +124,7 @@ model Shop {
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
   verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
+  badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -215,11 +216,26 @@ model UserBadge {
   userId   String
   badgeId  String
   earnedAt DateTime @default(now())
+  // shopId: NULL = user-level badge (buyer badge หรือ personal-seller badge เดิม — zero-regression);
+  // non-NULL = Business shop badge (feature 00008 Phase 5, P5-2) แยก achievement ของ shop ออกจาก user
+  shopId   String?
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  // onDelete Cascade: business shop ถูกลบ → badge ของ business นั้นไม่มีความหมายอีกต่อไป (achievement
+  // ผูกกับ shop โดยตรง ต่างจาก VerificationRecord.shopId ที่ SET NULL เพราะยังอ้างอิงกลับเป็น user-level ได้)
+  shop  Shop? @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, badgeId])
+  // 🛑 @@unique([userId, badgeId]) เดิมถูกถอดออก — เปลี่ยนเป็น partial unique index 2 ตัวแทน เพราะ nullable
+  // shopId ทำให้ Postgres treat NULL เป็น distinct (personal badge ซ้ำได้ถ้าใช้ unique เดิมตรง ๆ):
+  //   - `UserBadge_userId_badgeId_personal_key` ON ("userId","badgeId") WHERE "shopId" IS NULL (บังคับ
+  //     personal/buyer badge เดิม — 1 badge ต่อ user)
+  //   - `UserBadge_shopId_badgeId_key` ON ("shopId","badgeId") WHERE "shopId" IS NOT NULL (บังคับ
+  //     business badge — 1 badge ต่อ business shop)
+  // Prisma DSL ไม่รองรับ partial index → enforced เป็น unmanaged SQL ใน migration
+  // `20260703000100_add_userbadge_shopid` เท่านั้น ห้าม `prisma migrate dev`/`db pull` (ดู
+  // memory `project_shared_db_drift_no_migrate_dev`, precedent `Shop_userId_personal_key`)
+  @@index([shopId])
 }
 
 model Product {

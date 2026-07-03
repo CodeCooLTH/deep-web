@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { evaluateBadges } from "@/services/badge.service";
+import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 
 // State machine ใหม่ตาม OMS redesign spec §2
@@ -208,7 +208,13 @@ export async function confirmOrder(publicToken: string, buyerContact: string, bu
   // แล้ว). Log ให้เห็นชัดถ้าล้ม. Pattern เดียวกับ createReview
   // (ย้ายมาจาก completeOrder เดิม — terminal ใหม่คือ CONFIRMED ไม่ใช่ COMPLETED)
   try {
-    await evaluateBadges(order.shop.userId);
+    // 00008 P5-2: business shop มี seller-badge แยกต่อร้าน (shopId=order.shop.id); personal เดิม
+    // ยัง user-level (shopId NULL) — evaluateBadges คงเดิมเป๊ะ
+    if (order.shop.kind === "BUSINESS") {
+      await evaluateSellerBadgesForShop({ id: order.shop.id, userId: order.shop.userId, kind: order.shop.kind });
+    } else {
+      await evaluateBadges(order.shop.userId);
+    }
   } catch (err) {
     console.error(
       `[order] post-confirm recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${updated.publicToken} persisted but trust/badges อาจไม่ update`,

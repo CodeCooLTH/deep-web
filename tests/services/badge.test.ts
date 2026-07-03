@@ -128,31 +128,31 @@ describe("H1 — checkFirstOrder", () => {
   beforeEach(cleanDatabase);
 
   it("met=true + count≥1 เมื่อมี order COMPLETED", async () => {
-    const { user, shop } = await createUserWithShop("fo1");
+    const { shop } = await createUserWithShop("fo1");
     await createCompletedOrder(shop.id);
-    const result = await checkFirstOrder(user.id);
+    const result = await checkFirstOrder(shop);
     expect(result.met).toBe(true);
     expect(result.count).toBeGreaterThanOrEqual(1);
   });
 
   it("met=false + count=0 เมื่อไม่มี shop", async () => {
-    const user = await prisma.user.create({
+    await prisma.user.create({
       data: { displayName: "No Shop", username: "fo_noshop" },
     });
-    const result = await checkFirstOrder(user.id);
+    const result = await checkFirstOrder(null);
     expect(result.met).toBe(false);
     expect(result.count).toBe(0);
   });
 
   it("met=false เมื่อ order ยังไม่ CONFIRMED", async () => {
-    const { user, shop } = await createUserWithShop("fo2");
+    const { shop } = await createUserWithShop("fo2");
     await prisma.order.create({
       data: {
         shopId: shop.id, type: "DIGITAL", totalAmount: 100, status: "PENDING",
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
-    const result = await checkFirstOrder(user.id);
+    const result = await checkFirstOrder(shop);
     expect(result.met).toBe(false);
     expect(result.count).toBe(0);
   });
@@ -162,28 +162,28 @@ describe("H1 — checkOrderCount", () => {
   beforeEach(cleanDatabase);
 
   it("met=true เมื่อ count ถึง threshold", async () => {
-    const { user, shop } = await createUserWithShop("oc1");
+    const { shop } = await createUserWithShop("oc1");
     await createCompletedOrder(shop.id);
     await createCompletedOrder(shop.id);
     await createCompletedOrder(shop.id);
-    const result = await checkOrderCount(user.id, { type: "ORDER_COUNT", count: 3 });
+    const result = await checkOrderCount(shop, { type: "ORDER_COUNT", count: 3 });
     expect(result.met).toBe(true);
     expect(result.count).toBeGreaterThanOrEqual(3);
   });
 
   it("met=false เมื่อ count ยังไม่ถึง threshold", async () => {
-    const { user, shop } = await createUserWithShop("oc2");
+    const { shop } = await createUserWithShop("oc2");
     await createCompletedOrder(shop.id);
-    const result = await checkOrderCount(user.id, { type: "ORDER_COUNT", count: 10 });
+    const result = await checkOrderCount(shop, { type: "ORDER_COUNT", count: 10 });
     expect(result.met).toBe(false);
     expect(result.count).toBeLessThan(10);
   });
 
   it("met=false + count=0 เมื่อไม่มี shop", async () => {
-    const user = await prisma.user.create({
+    await prisma.user.create({
       data: { displayName: "No Shop", username: "oc_noshop" },
     });
-    const result = await checkOrderCount(user.id, { type: "ORDER_COUNT", count: 1 });
+    const result = await checkOrderCount(null, { type: "ORDER_COUNT", count: 1 });
     expect(result.met).toBe(false);
     expect(result.count).toBe(0);
   });
@@ -193,21 +193,21 @@ describe("H1 — checkPerfectRating", () => {
   beforeEach(cleanDatabase);
 
   it("met=true เมื่อ avg=5 และ reviewCount ถึง minReviews", async () => {
-    const { user, shop } = await createUserWithShop("pr1");
+    const { shop } = await createUserWithShop("pr1");
     for (let i = 0; i < 3; i++) {
       const order = await createCompletedOrder(shop.id);
       await prisma.review.create({
         data: { orderId: order.id, reviewerContact: `buyer${i}@test.com`, rating: 5 },
       });
     }
-    const result = await checkPerfectRating(user.id, { type: "PERFECT_RATING", minReviews: 3 });
+    const result = await checkPerfectRating(shop, { type: "PERFECT_RATING", minReviews: 3 });
     expect(result.met).toBe(true);
     expect(result.avg).toBe(5);
     expect(result.reviewCount).toBeGreaterThanOrEqual(3);
   });
 
   it("met=false เมื่อ avg ไม่ถึง 5.0", async () => {
-    const { user, shop } = await createUserWithShop("pr2");
+    const { shop } = await createUserWithShop("pr2");
     const order1 = await createCompletedOrder(shop.id);
     await prisma.review.create({
       data: { orderId: order1.id, reviewerContact: "b1@test.com", rating: 4 },
@@ -220,18 +220,18 @@ describe("H1 — checkPerfectRating", () => {
     await prisma.review.create({
       data: { orderId: order3.id, reviewerContact: "b3@test.com", rating: 5 },
     });
-    const result = await checkPerfectRating(user.id, { type: "PERFECT_RATING", minReviews: 3 });
+    const result = await checkPerfectRating(shop, { type: "PERFECT_RATING", minReviews: 3 });
     expect(result.met).toBe(false);
     expect(result.avg).toBeLessThan(5);
   });
 
   it("met=false เมื่อ reviewCount ไม่ถึง minReviews", async () => {
-    const { user, shop } = await createUserWithShop("pr3");
+    const { shop } = await createUserWithShop("pr3");
     const order = await createCompletedOrder(shop.id);
     await prisma.review.create({
       data: { orderId: order.id, reviewerContact: "b@test.com", rating: 5 },
     });
-    const result = await checkPerfectRating(user.id, { type: "PERFECT_RATING", minReviews: 5 });
+    const result = await checkPerfectRating(shop, { type: "PERFECT_RATING", minReviews: 5 });
     expect(result.met).toBe(false);
   });
 });
@@ -240,7 +240,7 @@ describe("H1 — checkHighRating", () => {
   beforeEach(cleanDatabase);
 
   it("met=true เมื่อ avg >= minRating และ reviewCount ถึง minReviews", async () => {
-    const { user, shop } = await createUserWithShop("hr1");
+    const { shop } = await createUserWithShop("hr1");
     const ratings = [4, 5, 5];
     for (let i = 0; i < ratings.length; i++) {
       const order = await createCompletedOrder(shop.id);
@@ -248,19 +248,19 @@ describe("H1 — checkHighRating", () => {
         data: { orderId: order.id, reviewerContact: `b${i}@test.com`, rating: ratings[i] },
       });
     }
-    const result = await checkHighRating(user.id, { type: "HIGH_RATING", minRating: 4.0, minReviews: 3 });
+    const result = await checkHighRating(shop, { type: "HIGH_RATING", minRating: 4.0, minReviews: 3 });
     expect(result.met).toBe(true);
   });
 
   it("met=false เมื่อ avg ต่ำกว่า minRating", async () => {
-    const { user, shop } = await createUserWithShop("hr2");
+    const { shop } = await createUserWithShop("hr2");
     for (let i = 0; i < 3; i++) {
       const order = await createCompletedOrder(shop.id);
       await prisma.review.create({
         data: { orderId: order.id, reviewerContact: `b${i}@test.com`, rating: 3 },
       });
     }
-    const result = await checkHighRating(user.id, { type: "HIGH_RATING", minRating: 4.0, minReviews: 3 });
+    const result = await checkHighRating(shop, { type: "HIGH_RATING", minRating: 4.0, minReviews: 3 });
     expect(result.met).toBe(false);
   });
 });
@@ -269,17 +269,17 @@ describe("H1 — checkZeroComplaint", () => {
   beforeEach(cleanDatabase);
 
   it("met=true เมื่อ completed >= minOrders และไม่มี CANCELLED", async () => {
-    const { user, shop } = await createUserWithShop("zc1");
+    const { shop } = await createUserWithShop("zc1");
     await createCompletedOrder(shop.id);
     await createCompletedOrder(shop.id);
-    const result = await checkZeroComplaint(user.id, { type: "ZERO_COMPLAINT", minOrders: 2 });
+    const result = await checkZeroComplaint(shop, { type: "ZERO_COMPLAINT", minOrders: 2 });
     expect(result.met).toBe(true);
     expect(result.cancelled).toBe(0);
     expect(result.completed).toBeGreaterThanOrEqual(2);
   });
 
   it("met=false เมื่อมี order CANCELLED โดย seller (นับเป็น complaint)", async () => {
-    const { user, shop } = await createUserWithShop("zc2");
+    const { shop } = await createUserWithShop("zc2");
     await createCompletedOrder(shop.id);
     await createCompletedOrder(shop.id);
     await prisma.order.create({
@@ -289,15 +289,15 @@ describe("H1 — checkZeroComplaint", () => {
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
-    const result = await checkZeroComplaint(user.id, { type: "ZERO_COMPLAINT", minOrders: 2 });
+    const result = await checkZeroComplaint(shop, { type: "ZERO_COMPLAINT", minOrders: 2 });
     expect(result.met).toBe(false);
     expect(result.cancelled).toBeGreaterThan(0);
   });
 
   it("met=false เมื่อ completed < minOrders", async () => {
-    const { user, shop } = await createUserWithShop("zc3");
+    const { shop } = await createUserWithShop("zc3");
     await createCompletedOrder(shop.id);
-    const result = await checkZeroComplaint(user.id, { type: "ZERO_COMPLAINT", minOrders: 5 });
+    const result = await checkZeroComplaint(shop, { type: "ZERO_COMPLAINT", minOrders: 5 });
     expect(result.met).toBe(false);
   });
 });
@@ -324,14 +324,14 @@ describe("H1 — checkVeteran", () => {
         items: { create: { name: "Item", qty: 1, price: 100 } },
       },
     });
-    const result = await checkVeteran(user.id, { type: "VETERAN", minDays: 365 });
+    const result = await checkVeteran(user.id, shop, { type: "VETERAN", minDays: 365 });
     expect(result.met).toBe(true);
     expect(result.daysOld).toBeGreaterThan(365);
   });
 
   it("met=false เมื่อ user ยังใหม่เกินไป", async () => {
-    const { user } = await createUserWithShop("vet2");
-    const result = await checkVeteran(user.id, { type: "VETERAN", minDays: 365 });
+    const { user, shop } = await createUserWithShop("vet2");
+    const result = await checkVeteran(user.id, shop, { type: "VETERAN", minDays: 365 });
     expect(result.met).toBe(false);
     expect(result.daysOld).toBeLessThan(365);
   });
@@ -341,7 +341,7 @@ describe("H1 — checkFastShipping", () => {
   beforeEach(cleanDatabase);
 
   it("met=true เมื่อ avgHours <= maxHours และ orders ถึง minOrders", async () => {
-    const { user, shop } = await createUserWithShop("fs1");
+    const { shop } = await createUserWithShop("fs1");
     for (let i = 0; i < 3; i++) {
       const order = await createCompletedOrder(shop.id);
       // สร้าง shipmentTracking ที่ createdAt ≈ order.createdAt + 12ชม.
@@ -350,7 +350,7 @@ describe("H1 — checkFastShipping", () => {
         data: { orderId: order.id, provider: "Kerry", trackingNo: `TRK${i}`, createdAt: shipped },
       });
     }
-    const result = await checkFastShipping(user.id, {
+    const result = await checkFastShipping(shop, {
       type: "FAST_SHIPPING", maxHours: 24, minOrders: 3,
     });
     expect(result.met).toBe(true);
@@ -359,12 +359,12 @@ describe("H1 — checkFastShipping", () => {
   });
 
   it("met=false เมื่อมี orders น้อยกว่า minOrders", async () => {
-    const { user, shop } = await createUserWithShop("fs2");
+    const { shop } = await createUserWithShop("fs2");
     const order = await createCompletedOrder(shop.id);
     await prisma.shipmentTracking.create({
       data: { orderId: order.id, provider: "Kerry", trackingNo: "TRK0" },
     });
-    const result = await checkFastShipping(user.id, {
+    const result = await checkFastShipping(shop, {
       type: "FAST_SHIPPING", maxHours: 24, minOrders: 5,
     });
     expect(result.met).toBe(false);
@@ -386,7 +386,7 @@ describe("H1 — checkFullVerification", () => {
         { userId: user.id, type: "BUSINESS_REG", level: 3, status: "APPROVED" },
       ],
     });
-    const result = await checkFullVerification(user.id);
+    const result = await checkFullVerification({ userId: user.id, shopId: null });
     expect(result.met).toBe(true);
     expect(result.levels.has(1)).toBe(true);
     expect(result.levels.has(2)).toBe(true);
@@ -403,7 +403,7 @@ describe("H1 — checkFullVerification", () => {
         { userId: user.id, type: "ID_CARD", level: 2, status: "APPROVED" },
       ],
     });
-    const result = await checkFullVerification(user.id);
+    const result = await checkFullVerification({ userId: user.id, shopId: null });
     expect(result.met).toBe(false);
     expect(result.levels.has(3)).toBe(false);
   });
@@ -412,7 +412,7 @@ describe("H1 — checkFullVerification", () => {
     const user = await prisma.user.create({
       data: { displayName: "NoVerify", username: "fv3" },
     });
-    const result = await checkFullVerification(user.id);
+    const result = await checkFullVerification({ userId: user.id, shopId: null });
     expect(result.met).toBe(false);
     expect(result.levels.size).toBe(0);
   });
@@ -422,7 +422,7 @@ describe("H1 — checkUniqueReviewers", () => {
   beforeEach(cleanDatabase);
 
   it("met=true เมื่อ unique reviewerUserId ถึง count", async () => {
-    const { user, shop } = await createUserWithShop("ur1");
+    const { shop } = await createUserWithShop("ur1");
     // สร้าง buyer users 3 คนเพื่อ review
     const buyers = await Promise.all([
       prisma.user.create({ data: { displayName: "B1", username: "urb1" } }),
@@ -435,13 +435,13 @@ describe("H1 — checkUniqueReviewers", () => {
         data: { orderId: order.id, reviewerContact: `${buyer.username}@test.com`, reviewerUserId: buyer.id, rating: 5 },
       });
     }
-    const result = await checkUniqueReviewers(user.id, { type: "UNIQUE_REVIEWERS", count: 3 });
+    const result = await checkUniqueReviewers(shop, { type: "UNIQUE_REVIEWERS", count: 3 });
     expect(result.met).toBe(true);
     expect(result.uniqueCount).toBeGreaterThanOrEqual(3);
   });
 
   it("met=false เมื่อ unique reviewers น้อยกว่า count", async () => {
-    const { user, shop } = await createUserWithShop("ur2");
+    const { shop } = await createUserWithShop("ur2");
     const buyer = await prisma.user.create({ data: { displayName: "B1", username: "urb_single" } });
     // reviewer คนเดียว review 2 ออเดอร์ — unique ยังคง 1
     for (let i = 0; i < 2; i++) {
@@ -457,15 +457,15 @@ describe("H1 — checkUniqueReviewers", () => {
         });
       }
     }
-    const result = await checkUniqueReviewers(user.id, { type: "UNIQUE_REVIEWERS", count: 5 });
+    const result = await checkUniqueReviewers(shop, { type: "UNIQUE_REVIEWERS", count: 5 });
     expect(result.met).toBe(false);
   });
 
   it("met=false เมื่อไม่มี shop", async () => {
-    const user = await prisma.user.create({
+    await prisma.user.create({
       data: { displayName: "No Shop", username: "ur_noshop" },
     });
-    const result = await checkUniqueReviewers(user.id, { type: "UNIQUE_REVIEWERS", count: 1 });
+    const result = await checkUniqueReviewers(null, { type: "UNIQUE_REVIEWERS", count: 1 });
     expect(result.met).toBe(false);
     expect(result.uniqueCount).toBe(0);
   });

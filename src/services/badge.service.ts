@@ -99,26 +99,39 @@ async function getShopForUser(userId: string) {
   return prisma.shop.findFirst({ where: { userId, kind: "PERSONAL" } })
 }
 
+/**
+ * BadgeShopContext — shop context ที่ handler seller-scope ใช้ query count (00008 P5-2)
+ * แทนที่จะ derive personal shop เองทุก handler (เดิม) ให้ evaluator resolve shop ครั้งเดียว
+ * แล้วส่งเข้า handler ตรง ๆ — ทำให้ business shop ส่ง shop context ของตัวเองแทนได้
+ * (personal path ยังใช้ getShopForUser(userId) ได้เหมือนเดิม — โครงสร้างตรงกับ Prisma Shop
+ * แบบ structural, ไม่ต้อง map)
+ */
+export interface BadgeShopContext {
+  id: string
+  userId: string
+  kind: string // 'PERSONAL' | 'BUSINESS'
+}
+
 // ─── Pure-ish criterion handlers ──────────────────────────────────────────────
-// แต่ละ fn รับ userId + criteria object → return { met: boolean; count?: number }
+// แต่ละ fn รับ shop context (null = ไม่มี shop) + criteria object → return { met: boolean; count?: number }
 // แยกเป็น export เพื่อให้ Vitest test ได้ตรง (Batch 3 H1)
+// P5-2: เปลี่ยนจากรับ userId (แล้ว derive personal shop เอง) → รับ shop context ตรง ๆ
+// เพื่อให้ personal (getShopForUser) และ business (shop ของตัวเอง) ใช้ handler เดียวกันได้
 
 export async function checkFirstOrder(
-  userId: string,
+  shop: BadgeShopContext | null,
   statuses: string[] = DEFAULT_TERMINAL_STATUSES,
 ): Promise<{ met: boolean; count: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, count: 0 }
   const count = await prisma.order.count({ where: { shopId: shop.id, status: { in: statuses } } })
   return { met: count >= 1, count }
 }
 
 export async function checkOrderCount(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaOrderCount,
   statuses: string[] = DEFAULT_TERMINAL_STATUSES,
 ): Promise<{ met: boolean; count: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, count: 0 }
   const count = await prisma.order.count({ where: { shopId: shop.id, status: { in: statuses } } })
   return { met: count >= criteria.count, count }
@@ -132,10 +145,9 @@ export async function checkOrderCount(
  * Prisma aggregate _avg.rating คำนวณเหมือน sum/count ทุก row → ผลเหมือนกัน
  */
 export async function checkPerfectRating(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaPerfectRating,
 ): Promise<{ met: boolean; reviewCount: number; avg: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, reviewCount: 0, avg: 0 }
   const agg = await prisma.review.aggregate({
     _avg: { rating: true },
@@ -153,10 +165,9 @@ export async function checkPerfectRating(
  * ทำไม: ลด network payload, ผลลัพธ์เหมือนเดิม (avg คำนวณ server-side)
  */
 export async function checkHighRating(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaHighRating,
 ): Promise<{ met: boolean; reviewCount: number; avg: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, reviewCount: 0, avg: 0 }
   const agg = await prisma.review.aggregate({
     _avg: { rating: true },
@@ -170,11 +181,10 @@ export async function checkHighRating(
 }
 
 export async function checkZeroComplaint(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaZeroComplaint,
   statuses: string[] = DEFAULT_TERMINAL_STATUSES,
 ): Promise<{ met: boolean; completed: number; cancelled: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, completed: 0, cancelled: 0 }
   const completed = await prisma.order.count({ where: { shopId: shop.id, status: { in: statuses } } })
   if (completed < criteria.minOrders) return { met: false, completed, cancelled: 0 }
@@ -185,8 +195,11 @@ export async function checkZeroComplaint(
   return { met: cancelled === 0, completed, cancelled }
 }
 
+/** checkVeteran ต้องการ userId แยกจาก shop เพราะ user.createdAt (อายุบัญชี) ไม่ผูก shop —
+ *  shop=null (ยังไม่มีร้าน) ยังคำนวณ daysOld ได้ แต่ met=false เสมอ (ไม่มี recent-order ให้เช็ค) */
 export async function checkVeteran(
   userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaVeteran,
   statuses: string[] = DEFAULT_TERMINAL_STATUSES,
 ): Promise<{ met: boolean; daysOld: number }> {
@@ -196,7 +209,6 @@ export async function checkVeteran(
   if (daysOld < criteria.minDays) return { met: false, daysOld }
 
   // ต้องมีออเดอร์ใน 30 วันล่าสุดด้วย (active shop requirement)
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, daysOld }
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const recentOrder = await prisma.order.findFirst({
@@ -211,11 +223,10 @@ export async function checkVeteran(
  * เพิ่ม select เฉพาะ field ที่ใช้จริง (createdAt ทั้งสองฝั่ง) + เพิ่ม take bound เพื่อ scale safety
  */
 export async function checkFastShipping(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaFastShipping,
   statuses: string[] = DEFAULT_TERMINAL_STATUSES,
 ): Promise<{ met: boolean; orderCount: number; avgHours: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, orderCount: 0, avgHours: 0 }
 
   const ordersWithShipment = await prisma.order.findMany({
@@ -242,13 +253,19 @@ export async function checkFastShipping(
   return { met: avgHours <= criteria.maxHours, orderCount, avgHours }
 }
 
+/**
+ * checkFullVerification — scope-aware (00008 P5-1 + P5-2)
+ * scope.shopId=null → personal/user-level เดิม (where userId,shopId:null) — zero-regression
+ * scope.shopId=<businessId> → business scope (where shopId เท่านั้น ไม่ผูก userId — เอกสารของ
+ *   business ไม่ใช่ของ member คนใดคนหนึ่ง, ตรง pattern getMaxVerificationLevel ใน verification.service)
+ */
 export async function checkFullVerification(
-  userId: string,
+  scope: { userId: string; shopId: string | null },
 ): Promise<{ met: boolean; levels: Set<number> }> {
   const approved = await prisma.verificationRecord.findMany({
-    // shopId:null = personal/user-level เท่านั้น (00008 P5-1) — badge full-verification ของ user
-    // ไม่ unlock จากเอกสาร Business shop (business badge = shop-scope แยก, P5-2)
-    where: { userId, shopId: null, status: 'APPROVED' },
+    where: scope.shopId
+      ? { shopId: scope.shopId, status: 'APPROVED' }
+      : { userId: scope.userId, shopId: null, status: 'APPROVED' },
     select: { level: true },
   })
   const levels = new Set(approved.map((v) => v.level))
@@ -263,10 +280,9 @@ export async function checkFullVerification(
  * แต่ filter + distinct ทำที่ DB ทำให้ไม่ต้องโหลด duplicate rows มา JS
  */
 export async function checkUniqueReviewers(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaUniqueReviewers,
 ): Promise<{ met: boolean; uniqueCount: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, uniqueCount: 0 }
   const distinctRows = await prisma.review.findMany({
     where: { order: { shopId: shop.id }, reviewerUserId: { not: null } },
@@ -295,10 +311,9 @@ export async function checkSignupYear(
  * host = status NOT IN [draft, cancelled] (BRD §11.3) — draft ยังไม่ publish, cancelled ถูกยกเลิกก่อนเริ่ม
  */
 export async function checkAuctionHosted(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaAuctionHosted,
 ): Promise<{ met: boolean; count: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, count: 0 }
   const count = await prisma.auction.count({
     where: { shopId: shop.id, status: { notIn: ['draft', 'cancelled'] } },
@@ -311,10 +326,9 @@ export async function checkAuctionHosted(
  * ทำไม status='ended' เท่านั้น: settle สร้าง Order แล้ว, ส่วน 'unsold' = reserve ไม่ถึง ไม่นับว่าขายได้
  */
 export async function checkAuctionSold(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaAuctionSold,
 ): Promise<{ met: boolean; count: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, count: 0 }
   const count = await prisma.auction.count({ where: { shopId: shop.id, status: 'ended' } })
   return { met: count >= criteria.count, count }
@@ -325,10 +339,9 @@ export async function checkAuctionSold(
  * ใช้ field Auction.bidCount ที่ denormalize ไว้แล้ว (ไม่ต้อง groupBy Bid)
  */
 export async function checkAuctionHighBidCount(
-  userId: string,
+  shop: BadgeShopContext | null,
   criteria: CriteriaAuctionHighBidCount,
 ): Promise<{ met: boolean; count: number }> {
-  const shop = await getShopForUser(userId)
   if (!shop) return { met: false, count: 0 }
   const count = await prisma.auction.count({
     where: { shopId: shop.id, bidCount: { gte: criteria.minBidCount } },
@@ -423,18 +436,22 @@ export async function notifyBadgeEarned(userId: string, badgeId: string): Promis
 }
 
 /**
- * Award UserBadge — idempotent ด้วย @@unique([userId, badgeId])
+ * Award UserBadge — idempotent ด้วย partial unique index 2 ตัว (personal WHERE shopId IS NULL /
+ * business WHERE shopId IS NOT NULL — 00008 P5-2, ดู schema.prisma UserBadge comment)
  * ใช้ createMany({skipDuplicates}) แทน upsert เพื่อ detect "award ครั้งแรก"
  * (count===1) → notify เฉพาะตอนนั้น (กัน notify ซ้ำเมื่อ re-eval). return created
  * opts.notify=false → ปิด notify (backfill/seed) กัน burst
+ * shopId param ใหม่ (4th, ท้ายสุด — คง signature เดิม opts เป็น 3rd ไม่ให้ caller เดิมพัง):
+ *   null (default) = personal-seller/buyer badge เดิม; ธุรกิจ business shop id = business badge
  */
 export async function awardBadge(
   userId: string,
   badgeId: string,
   opts?: { notify?: boolean },
+  shopId: string | null = null,
 ): Promise<boolean> {
   const result = await prisma.userBadge.createMany({
-    data: [{ userId, badgeId }],
+    data: [{ userId, badgeId, shopId }],
     skipDuplicates: true,
   })
   const created = result.count === 1
@@ -456,35 +473,49 @@ function parseCriteria(raw: unknown): BadgeCriteria | null {
 // ─── Main evaluator ───────────────────────────────────────────────────────────
 
 /**
- * evaluateBadges — ตรวจและ award badge ที่ user ผ่าน criteria
+ * EvalScope — พารามิเตอร์ร่วมของ core loop (runBadgeEvaluation) ใช้ทั้ง personal/buyer path
+ * (evaluateBadges) และ business path (evaluateSellerBadgesForShop) — DRY เดียวกัน 00008 P5-2
  *
- * @param userId   - user ที่ต้องการตรวจ
- * @param audience - 'SELLER'|'BUYER'|'ANY'|'seller' (default 'seller' = backward compat)
- *   'seller' (legacy 1-arg call from order/review/verification service) → SELLER+ANY
- *
- * Backward-compatible: callers ที่ส่งแค่ userId ยังใช้งานได้ → default = 'seller'
+ * userId          - เจ้าของ badge ที่จะ award (owner ของ shop หรือ buyer ตรง ๆ)
+ * shop            - shop context ที่ handler seller-scope ใช้ query count; null = ไม่มี shop
+ *                    (buyer badge ไม่ผ่าน shop เลย, seller badge ที่ยังไม่มีร้าน)
+ * shopIdForAward  - shopId ที่เขียนลง UserBadge.shopId; null = personal-seller/buyer (zero-regression),
+ *                    non-null = business shop id
  */
-export async function evaluateBadges(
-  userId: string,
-  audience: AudienceArg = 'seller',
+interface EvalScope {
+  userId: string
+  shop: BadgeShopContext | null
+  shopIdForAward: string | null
+}
+
+/**
+ * runBadgeEvaluation — core loop ประเมิน badge ทุกใบที่ตรง audienceValues สำหรับ scope ที่ให้มา
+ * แยกออกจาก evaluateBadges เดิมเพื่อให้ evaluateSellerBadgesForShop (business) ใช้ logic เดียวกัน
+ * โดยไม่ก็อปโค้ด switch ทั้งก้อน (DRY)
+ */
+async function runBadgeEvaluation(
+  scope: EvalScope,
+  audienceValues: string[],
   opts?: { notify?: boolean },
 ): Promise<void> {
-  const audienceValues = resolveAudienceFilter(audience)
-
   // ดึง badge ทั้งหมดที่ตรง audience จาก DB (single source = seed.ts)
   const badges = await prisma.badge.findMany({
     where: { audience: { in: audienceValues } },
   })
 
   // ดึง userBadge ที่ได้แล้วครั้งเดียว → ใช้ filter "skip already earned"
+  // scope by shopId เสมอ (ไม่ใช่แค่ userId) — จำเป็นตั้งแต่ business badge มี userId เดียวกับ
+  // owner แต่ shopId ต่างกัน: {userId} เฉย ๆ จะดึง badge ของทั้ง personal และ business มาปนกัน
   const existing = await prisma.userBadge.findMany({
-    where: { userId },
+    where: scope.shopIdForAward
+      ? { shopId: scope.shopIdForAward }
+      : { userId: scope.userId, shopId: null },
     select: { badgeId: true },
   })
   const earnedIds = new Set(existing.map((ub) => ub.badgeId))
 
   for (const badge of badges) {
-    // DB @@unique ทำให้ awardBadge idempotent อยู่แล้ว แต่ skip เพื่อลด DB round-trips
+    // DB unique index ทำให้ awardBadge idempotent อยู่แล้ว แต่ skip เพื่อลด DB round-trips
     if (earnedIds.has(badge.id)) continue
 
     const criteria = parseCriteria(badge.criteria)
@@ -500,94 +531,94 @@ export async function evaluateBadges(
     try {
       switch (criteria.type) {
         case 'FIRST_ORDER': {
-          const r = await checkFirstOrder(userId, statuses)
+          const r = await checkFirstOrder(scope.shop, statuses)
           met = r.met
           break
         }
         case 'ORDER_COUNT': {
-          const r = await checkOrderCount(userId, criteria, statuses)
+          const r = await checkOrderCount(scope.shop, criteria, statuses)
           met = r.met
           break
         }
         case 'PERFECT_RATING': {
-          const r = await checkPerfectRating(userId, criteria)
+          const r = await checkPerfectRating(scope.shop, criteria)
           met = r.met
           break
         }
         case 'HIGH_RATING': {
-          const r = await checkHighRating(userId, criteria)
+          const r = await checkHighRating(scope.shop, criteria)
           met = r.met
           break
         }
         case 'ZERO_COMPLAINT': {
-          const r = await checkZeroComplaint(userId, criteria, statuses)
+          const r = await checkZeroComplaint(scope.shop, criteria, statuses)
           met = r.met
           break
         }
         case 'VETERAN': {
-          const r = await checkVeteran(userId, criteria, statuses)
+          const r = await checkVeteran(scope.userId, scope.shop, criteria, statuses)
           met = r.met
           break
         }
         case 'FAST_SHIPPING': {
-          const r = await checkFastShipping(userId, criteria, statuses)
+          const r = await checkFastShipping(scope.shop, criteria, statuses)
           met = r.met
           break
         }
         case 'FULL_VERIFICATION': {
-          const r = await checkFullVerification(userId)
+          const r = await checkFullVerification({ userId: scope.userId, shopId: scope.shopIdForAward })
           met = r.met
           break
         }
         case 'UNIQUE_REVIEWERS': {
-          const r = await checkUniqueReviewers(userId, criteria)
+          const r = await checkUniqueReviewers(scope.shop, criteria)
           met = r.met
           break
         }
         case 'SIGNUP_YEAR': {
-          const r = await checkSignupYear(userId, criteria)
+          const r = await checkSignupYear(scope.userId, criteria)
           met = r.met
           break
         }
         // ── Auction achievement (feature 00002 — Seller Auction, BRD §11) ──
         case 'AUCTION_HOSTED': {
-          const r = await checkAuctionHosted(userId, criteria)
+          const r = await checkAuctionHosted(scope.shop, criteria)
           met = r.met
           break
         }
         case 'AUCTION_SOLD': {
-          const r = await checkAuctionSold(userId, criteria)
+          const r = await checkAuctionSold(scope.shop, criteria)
           met = r.met
           break
         }
         case 'AUCTION_HIGH_BID_COUNT': {
-          const r = await checkAuctionHighBidCount(userId, criteria)
+          const r = await checkAuctionHighBidCount(scope.shop, criteria)
           met = r.met
           break
         }
         case 'AUCTION_BID_COUNT': {
-          const r = await checkAuctionBidCount(userId, criteria)
+          const r = await checkAuctionBidCount(scope.userId, criteria)
           met = r.met
           break
         }
         case 'AUCTION_WON': {
-          const r = await checkAuctionWon(userId, criteria)
+          const r = await checkAuctionWon(scope.userId, criteria)
           met = r.met
           break
         }
         case 'AUCTION_WON_COMPLETED': {
-          const r = await checkAuctionWonCompleted(userId, criteria, statuses)
+          const r = await checkAuctionWonCompleted(scope.userId, criteria, statuses)
           met = r.met
           break
         }
         // ── Engagement (feat 00005 Reactions + WatchList) ──
         case 'REACTION_COUNT': {
-          const r = await checkReactionCount(userId, criteria)
+          const r = await checkReactionCount(scope.userId, criteria)
           met = r.met
           break
         }
         case 'WATCHLIST_COUNT': {
-          const r = await checkWatchlistCount(userId, criteria)
+          const r = await checkWatchlistCount(scope.userId, criteria)
           met = r.met
           break
         }
@@ -604,11 +635,52 @@ export async function evaluateBadges(
     }
 
     if (met) {
-      await awardBadge(userId, badge.id, opts)
+      await awardBadge(scope.userId, badge.id, opts, scope.shopIdForAward)
     }
   }
 
-  await recalculateTrustScore(userId)
+  await recalculateTrustScore(scope.userId)
+}
+
+/**
+ * evaluateBadges — ตรวจและ award badge ที่ user ผ่าน criteria (personal-seller + buyer path)
+ *
+ * @param userId   - user ที่ต้องการตรวจ
+ * @param audience - 'SELLER'|'BUYER'|'ANY'|'seller' (default 'seller' = backward compat)
+ *   'seller' (legacy 1-arg call from order/review/verification service) → SELLER+ANY
+ *
+ * Backward-compatible: callers ที่ส่งแค่ userId ยังใช้งานได้ → default = 'seller'
+ * shopIdForAward = null เสมอ (personal-seller/buyer — zero-regression 00008 P5-2)
+ *
+ * ทำไม resolve personal shop ไม่ short-circuit ตาม audience: เดิมแต่ละ handler derive
+ * personal shop เองไม่ว่า audience ใด (เผื่อ admin สร้าง custom badge audience=ANY/BUYER
+ * ที่ criteria เป็น seller-type) — คง behavior เป๊ะด้วยการ resolve ที่นี่เสมอ (DRY)
+ */
+export async function evaluateBadges(
+  userId: string,
+  audience: AudienceArg = 'seller',
+  opts?: { notify?: boolean },
+): Promise<void> {
+  const audienceValues = resolveAudienceFilter(audience)
+  const shop = await getShopForUser(userId)
+  await runBadgeEvaluation({ userId, shop, shopIdForAward: null }, audienceValues, opts)
+}
+
+/**
+ * evaluateSellerBadgesForShop — ประเมิน seller-badge สำหรับ shop ที่ระบุ (00008 P5-2, business path)
+ *
+ * shop.kind==='BUSINESS' → award ด้วย shopId=shop.id (แยกต่อ business, ไม่ปนกับ personal/business อื่น)
+ * shop.kind==='PERSONAL' (defensive — caller ควรเรียก evaluateBadges ตรงสำหรับ personal ตาม
+ *   trigger-scoping convention) → behave เหมือน evaluateBadges(shop.userId,'seller') เป๊ะ (shopIdForAward=null)
+ * count orders/reviews/auction จาก shop.id ที่ส่งเข้ามาเสมอ (ไม่ derive personal shop ซ้ำ)
+ */
+export async function evaluateSellerBadgesForShop(
+  shop: BadgeShopContext,
+  opts?: { notify?: boolean },
+): Promise<void> {
+  const shopIdForAward = shop.kind === 'BUSINESS' ? shop.id : null
+  const audienceValues = resolveAudienceFilter('SELLER')
+  await runBadgeEvaluation({ userId: shop.userId, shop, shopIdForAward }, audienceValues, opts)
 }
 
 // ─── evaluateSignupYearBadge (new export, Batch 2 / auth caller) ──────────────
@@ -665,13 +737,21 @@ export async function evaluateSignupYearBadge(userId: string, opts?: { notify?: 
 export async function getBadgeProgress(
   userId: string,
   audience: AudienceArg = 'seller',
+  // shopOverride: 00008 P5-2 — business profile ดู progress ของ business shop ตัวเอง
+  // undefined (default, ไม่ระบุ) = personal shop เดิม (backward-compat 100%); null = ไม่มี shop จริง ๆ
+  shopOverride?: BadgeShopContext | null,
 ): Promise<BadgeProgress[]> {
   const audienceValues = resolveAudienceFilter(audience)
   const badges = await prisma.badge.findMany({
     where: { audience: { in: audienceValues } },
   })
+
+  const shop = shopOverride !== undefined ? shopOverride : await getShopForUser(userId)
+  const shopIdForAward = shop && shop.kind === 'BUSINESS' ? shop.id : null
+
+  // scope by shopId เสมอ (เหตุผลเดียวกับ runBadgeEvaluation) — กัน business badge ปนกับ personal
   const existing = await prisma.userBadge.findMany({
-    where: { userId },
+    where: shopIdForAward ? { shopId: shopIdForAward } : { userId, shopId: null },
     select: { badgeId: true },
   })
   const earnedIds = new Set(existing.map((ub) => ub.badgeId))
@@ -694,7 +774,7 @@ export async function getBadgeProgress(
         switch (criteria.type) {
           case 'FIRST_ORDER': {
             if (!earned) {
-              const { count } = await checkFirstOrder(userId, statuses)
+              const { count } = await checkFirstOrder(shop, statuses)
               progressLabel = count >= 1 ? 'ปิดออเดอร์แรกแล้ว' : 'ยังไม่มีออเดอร์'
               progressRatio = count >= 1 ? 1 : 0
             }
@@ -702,7 +782,7 @@ export async function getBadgeProgress(
           }
           case 'ORDER_COUNT': {
             if (!earned) {
-              const { count } = await checkOrderCount(userId, criteria, statuses)
+              const { count } = await checkOrderCount(shop, criteria, statuses)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
               const threshold = criteria.count
               progressRatio = threshold > 0 ? Math.min(count / threshold, 1) : 0
@@ -714,7 +794,7 @@ export async function getBadgeProgress(
           case 'PERFECT_RATING': {
             // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
             if (!earned) {
-              const { reviewCount, avg } = await checkPerfectRating(userId, criteria)
+              const { reviewCount, avg } = await checkPerfectRating(shop, criteria)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
               const threshold = criteria.minReviews
               progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
@@ -730,7 +810,7 @@ export async function getBadgeProgress(
           case 'HIGH_RATING': {
             // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
             if (!earned) {
-              const { reviewCount, avg } = await checkHighRating(userId, criteria)
+              const { reviewCount, avg } = await checkHighRating(shop, criteria)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
               const threshold = criteria.minReviews
               progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
@@ -745,7 +825,7 @@ export async function getBadgeProgress(
           case 'ZERO_COMPLAINT': {
             // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
             if (!earned) {
-              const { completed, cancelled } = await checkZeroComplaint(userId, criteria, statuses)
+              const { completed, cancelled } = await checkZeroComplaint(shop, criteria, statuses)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
               const threshold = criteria.minOrders
               progressRatio = threshold > 0 ? Math.min(completed / threshold, 1) : 0
@@ -760,7 +840,7 @@ export async function getBadgeProgress(
           case 'VETERAN': {
             // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
             if (!earned) {
-              const { daysOld } = await checkVeteran(userId, criteria, statuses)
+              const { daysOld } = await checkVeteran(userId, shop, criteria, statuses)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minDays <= 0
               const threshold = criteria.minDays
               progressRatio = threshold > 0 ? Math.min(daysOld / threshold, 1) : 0
@@ -772,7 +852,7 @@ export async function getBadgeProgress(
           case 'FAST_SHIPPING': {
             // U1 item 4: wrap ทั้งหมดใน if(!earned) — earned badge ข้าม DB round-trip
             if (!earned) {
-              const { orderCount, avgHours } = await checkFastShipping(userId, criteria, statuses)
+              const { orderCount, avgHours } = await checkFastShipping(shop, criteria, statuses)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minOrders <= 0
               const threshold = criteria.minOrders
               progressRatio = threshold > 0 ? Math.min(orderCount / threshold, 1) : 0
@@ -786,7 +866,7 @@ export async function getBadgeProgress(
           }
           case 'FULL_VERIFICATION': {
             if (!earned) {
-              const { met } = await checkFullVerification(userId)
+              const { met } = await checkFullVerification({ userId, shopId: shopIdForAward })
               progressRatio = met ? 1 : 0
               progressLabel = met ? 'ยืนยันตัวตนครบแล้ว' : 'ยังยืนยันตัวตนไม่ครบ'
             }
@@ -794,7 +874,7 @@ export async function getBadgeProgress(
           }
           case 'UNIQUE_REVIEWERS': {
             if (!earned) {
-              const { uniqueCount } = await checkUniqueReviewers(userId, criteria)
+              const { uniqueCount } = await checkUniqueReviewers(shop, criteria)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.count <= 0
               const threshold = criteria.count
               progressRatio = threshold > 0 ? Math.min(uniqueCount / threshold, 1) : 0
@@ -947,6 +1027,8 @@ export interface BadgePaceEstimate {
 export async function getBadgePaceEstimate(
   userId: string,
   badge: BadgeProgress,
+  // shopOverride: 00008 P5-2 — เหมือน getBadgeProgress (undefined = personal shop เดิม)
+  shopOverride?: BadgeShopContext | null,
 ): Promise<BadgePaceEstimate> {
   if (badge.earned) return { estimateDays: null, ratePerDay: null, reason: 'earned' }
 
@@ -959,7 +1041,7 @@ export async function getBadgePaceEstimate(
     case 'FIRST_ORDER':
     case 'ORDER_COUNT':
     case 'ZERO_COMPLAINT': {
-      const shop = await getShopForUser(userId)
+      const shop = shopOverride !== undefined ? shopOverride : await getShopForUser(userId)
       if (!shop) return { estimateDays: null, ratePerDay: null, reason: 'no_data' }
       const statuses = resolveStatuses(criteria)
       // นับ order CONFIRMED ใน 30 วันล่าสุด — ใช้ updatedAt เพราะ order complete เมื่อ status update
@@ -988,7 +1070,7 @@ export async function getBadgePaceEstimate(
     }
 
     case 'UNIQUE_REVIEWERS': {
-      const shop = await getShopForUser(userId)
+      const shop = shopOverride !== undefined ? shopOverride : await getShopForUser(userId)
       if (!shop) return { estimateDays: null, ratePerDay: null, reason: 'no_data' }
       // distinct reviewer ใน 30 วันล่าสุด
       const recentRows = await prisma.review.findMany({

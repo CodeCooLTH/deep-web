@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { evaluateBadges } from "@/services/badge.service";
+import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 
 /** VerificationScope — Personal (shopId=null, ผูก userId) หรือ Business (shopId=active.shop.id)
  *  P5-1: verification ผูก active shop context (Personal เดิม 100% / Business แยกต่อร้าน) */
@@ -67,7 +67,20 @@ export async function reviewVerification(recordId: string, adminId: string, data
   });
 
   if (data.status === "APPROVED") {
-    await evaluateBadges(record.userId);
+    // 00008 P5-2: business verification (record.shopId ไม่ null) → seller-badge ของ business
+    // shop นั้น (FULL_VERIFICATION ใช้ verification where{shopId} ตาม P5-1); personal (shopId
+    // null) → evaluateBadges(record.userId) เดิม (user-level, zero-regression)
+    if (record.shopId) {
+      const shop = await prisma.shop.findUnique({
+        where: { id: record.shopId },
+        select: { id: true, userId: true, kind: true },
+      });
+      if (shop) {
+        await evaluateSellerBadgesForShop(shop);
+      }
+    } else {
+      await evaluateBadges(record.userId);
+    }
   }
 
   return record;

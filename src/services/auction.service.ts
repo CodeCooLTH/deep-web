@@ -19,7 +19,7 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { pushToUser } from '@/services/app-push.service'
-import { evaluateBadges } from '@/services/badge.service'
+import { evaluateBadges, evaluateSellerBadgesForShop } from '@/services/badge.service'
 import { getMaxVerificationLevel } from '@/services/verification.service'
 import { getAuctionLevel, type AuctionLevel } from '@/lib/auction-level'
 
@@ -442,11 +442,14 @@ export class BelowReserveConfirmError extends Error {
 // Settle (2-layer ตาม R-SRS-5 — settleAuctionCore ห้ามเปิด $transaction เอง)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** ข้อมูลที่ต้องใช้ทำ post-commit best-effort hook (push/badge/level) — ไม่ผ่าน DB ระหว่าง tx */
+/** ข้อมูลที่ต้องใช้ทำ post-commit best-effort hook (push/badge/level) — ไม่ผ่าน DB ระหว่าง tx
+ *  shopId/shopKind: 00008 P5-2 — เลือก evaluateBadges (personal) vs evaluateSellerBadgesForShop (business) */
 type SettledInfo = {
   orderId: string
   winnerId: string
   shopUserId: string
+  shopId: string
+  shopKind: string
   title: string
   price: number
 }
@@ -469,7 +472,7 @@ export async function settleAuctionCore(
   const a = await tx.auction.findUnique({
     where: { id: auctionId },
     include: {
-      shop: { select: { userId: true } },
+      shop: { select: { id: true, userId: true, kind: true } },
       bids: { orderBy: [{ amount: 'desc' }, { createdAt: 'asc' }], take: 1 }, // winner + tiebreak (BRD §8.6)
     },
   })
@@ -531,6 +534,8 @@ export async function settleAuctionCore(
     orderId: order.id,
     winnerId: winner.bidderId,
     shopUserId: a.shop.userId,
+    shopId: a.shop.id,
+    shopKind: a.shop.kind,
     title: a.title,
     price: Number(a.currentPrice),
   })
@@ -560,7 +565,12 @@ async function runPostSettleHooks(info: SettledInfo): Promise<void> {
     console.error('[settleAuctionCore] adjustSuccessfulBidCount failed', e)
   }
   try {
-    await evaluateBadges(info.shopUserId, 'SELLER')
+    // 00008 P5-2: auction hosted/sold badge แยกต่อ business shop, personal เดิม (scope เหมือน order)
+    if (info.shopKind === 'BUSINESS') {
+      await evaluateSellerBadgesForShop({ id: info.shopId, userId: info.shopUserId, kind: info.shopKind })
+    } else {
+      await evaluateBadges(info.shopUserId, 'SELLER')
+    }
   } catch (e) {
     console.error('[settleAuctionCore] evaluateBadges(SELLER) failed', e)
   }
