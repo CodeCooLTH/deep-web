@@ -118,7 +118,8 @@ Inbox list — role กำหนดจาก subdomain (`getSubdomain(host)`) Tr
       "lastMessageAt": "2026-07-03T10:05:00.000Z",
       "lastMessagePreview": "มีไซส์ M ไหมคะ", "lastSenderRole": "BUYER",
       "buyerLastReadAt": "2026-07-03T10:00:00.000Z", "shopLastReadAt": null,
-      "createdAt": "2026-07-03T09:00:00.000Z"
+      "createdAt": "2026-07-03T09:00:00.000Z",
+      "counterparty": { "shopName": "ร้านนกน้อย", "logo": "abc123.jpg" }
     }
   ],
   "nextCursor": "2026-07-03T09:00:00.000Z"
@@ -126,8 +127,10 @@ Inbox list — role กำหนดจาก subdomain (`getSubdomain(host)`) Tr
 ```
 
 **Behavior ตาม subdomain:**
-- `seller.*` → `shopId = getShopByUserId(session.user.id).id` (ไม่พบ shop → 404)
-- อื่น (main) → `buyerUserId = session.user.id`
+- `seller.*` → `shopId = getShopByUserId(session.user.id).id` (ไม่พบ shop → 404); `counterparty` = buyer identity `{ displayName, avatar }` (route enrich, B1)
+- อื่น (main) → `buyerUserId = session.user.id`; `counterparty` = shop identity `{ shopName, logo }` (route enrich, B1)
+
+**B1 (route enrich, additive):** `counterparty` เป็น field เสริมที่ query แยกจาก `chat.service.ts` (ไม่แตะ `ConversationSummary` FROZEN CONTRACT) — buyer role คืน `{shopName, logo}` จาก `conversation.shopId`; seller role คืน `{displayName, avatar}` จาก `conversation.buyerUserId`; ไม่พบแถวต้นทาง (กำพร้า) → `null`, UI ต้อง handle fallback
 
 **Errors:**
 | Status | เงื่อนไข | body |

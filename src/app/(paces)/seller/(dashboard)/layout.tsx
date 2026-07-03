@@ -4,12 +4,14 @@ import { getTierLabel } from '@/lib/trust-tier'
 import VerticalLayout from '@/layouts/VerticalLayout'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
-import { sellerMenuItems, applyInventoryGate } from './_seller-menu'
+import { sellerMenuItems, applyInventoryGate, applyChatBadge } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
+import ChatToastListener from './_shared/ChatToastListener'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
+import { getUnreadCountForShop } from '@/services/chat.service'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 
@@ -83,7 +85,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
       console.error('[layout] getEntitlementInfo failed, fallback NOT_SUBSCRIBED', e)
     }
   }
-  const menuItems = applyInventoryGate(sellerMenuItems, entitlementInfo)
+  // S-13 (feat 00011 Deep Chat) — unread chat count สำหรับ badge เมนู "ข้อความ"
+  // fail-closed: query error → 0 (ไม่แสดง badge) ไม่ให้ layout crash — pattern เดียวกับ pendingCount
+  let unreadChatCount = 0
+  if (shop?.id) {
+    try {
+      unreadChatCount = await getUnreadCountForShop(shop.id)
+    } catch (e) {
+      console.error('[layout] getUnreadCountForShop failed, fallback unreadChatCount=0', e)
+    }
+  }
+
+  const menuItems = applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount)
 
   return (
     <VerticalLayout
@@ -106,6 +119,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           mount ที่ layout เพื่อให้แจ้ง seller ทุก page ไม่ใช่แค่ wallet page
           'use client' component — import ตรงจาก RSC layout ได้ (Next.js 16) */}
       <TopUpCelebrationPoller />
+      {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
+          เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
+      <ChatToastListener shopId={shop?.id ?? null} />
     </VerticalLayout>
   )
 }

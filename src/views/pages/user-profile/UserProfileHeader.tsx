@@ -17,6 +17,10 @@ import { getTierCover } from '@/lib/trust-tier'
 // Next Imports
 // ทำไม: back button ใน client component — ใช้ Link ได้โดยตรง ไม่ผิด Hard Rule 2 (ซึ่งห้ามเฉพาะ component={Link} ใน MUI server component)
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+// Auth Imports — S-8 (feat 00011 Deep Chat) login-gate pattern (AuctionBidPanel.tsx:114-121)
+import { useSession } from 'next-auth/react'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
 // Asset/content source: mockup_shop_profile.html
@@ -40,6 +44,10 @@ export type ProfileHeaderData = {
   maxVerifyLevel: number
   bio?: string | null
   location?: string | null
+  // S-8 (feat 00011 Deep Chat): ร้านของ user นี้ (ถ้ามี isShop) — null = บัญชี buyer-only แชทไม่ได้
+  shopId?: string | null
+  // B3: true เมื่อ viewer (session user) เป็นเจ้าของร้านนี้เอง — self-chat ต้อง disable
+  isOwnShop?: boolean
 }
 
 // ── ProfileBanner — Trust Banner section only ──
@@ -113,6 +121,20 @@ export const ProfileLeftPanel = ({
   const displayName = data.shopName ?? data.fullName
   // D9: แสดง verify badge วงกลมเมื่อ maxVerifyLevel >= 1 เท่านั้น
   const showVerify = data.maxVerifyLevel >= 1
+
+  // S-8 (feat 00011 Deep Chat): login-gate ก่อนเข้าห้องแชท — pattern AuctionBidPanel.tsx:114-121
+  const router = useRouter()
+  const { status: sessionStatus } = useSession()
+  const chatDisabled = !data.shopId || Boolean(data.isOwnShop)
+
+  const handleChatClick = () => {
+    if (chatDisabled || !data.shopId) return
+    if (sessionStatus !== 'authenticated') {
+      router.push(`/auth/sign-in?callbackUrl=${encodeURIComponent(`/messages/${data.shopId}`)}`)
+      return
+    }
+    router.push(`/messages/${data.shopId}`)
+  }
 
   return (
     <>
@@ -290,9 +312,36 @@ export const ProfileLeftPanel = ({
             </span>
           </Tooltip>
 
-          {/* ปุ่มกลม chat icon 36px */}
-          <Tooltip title='เร็ว ๆ นี้' placement='top'>
-            <span>
+          {/* ปุ่มกลม chat icon 36px — S-8: เปิดใช้งานจริง (ลบ disabled/Tooltip "เร็ว ๆ นี้" เฉพาะปุ่มนี้)
+              disabled เหลือ 2 กรณี: ไม่มีร้าน (shopId null) / เป็นร้านของตัวเอง (B3 self-chat) */}
+          {chatDisabled ? (
+            data.isOwnShop ? (
+              <Tooltip title='นี่คือร้านค้าของคุณเอง' placement='top'>
+                <span>
+                  <Button
+                    disabled
+                    sx={{
+                      minWidth: 0,
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      bgcolor: 'white',
+                      border: '1px solid #CBD5E1',
+                      color: '#334155',
+                      p: 0,
+                      '&.Mui-disabled': {
+                        opacity: 1,
+                        bgcolor: 'white',
+                        color: '#94A3B8',
+                        border: '1px solid #E2E8F0',
+                      },
+                    }}
+                  >
+                    <Icon icon='tabler-message' fontSize={16} />
+                  </Button>
+                </span>
+              </Tooltip>
+            ) : (
               <Button
                 disabled
                 sx={{
@@ -305,7 +354,6 @@ export const ProfileLeftPanel = ({
                   color: '#334155',
                   p: 0,
                   '&.Mui-disabled': {
-                    // R6: opacity 1 — คุม color เองผ่าน sx
                     opacity: 1,
                     bgcolor: 'white',
                     color: '#94A3B8',
@@ -315,8 +363,25 @@ export const ProfileLeftPanel = ({
               >
                 <Icon icon='tabler-message' fontSize={16} />
               </Button>
-            </span>
-          </Tooltip>
+            )
+          ) : (
+            <Button
+              onClick={handleChatClick}
+              aria-label='ส่งข้อความ'
+              sx={{
+                minWidth: 0,
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                bgcolor: 'white',
+                border: '1px solid #CBD5E1',
+                color: '#334155',
+                p: 0,
+              }}
+            >
+              <Icon icon='tabler-message' fontSize={16} />
+            </Button>
+          )}
 
           {/* ปุ่ม Follow dark pill — user ขอเก็บ x-actions Follow ไว้ (ลบเฉพาะ banner-follow R14) */}
           {/* style ตาม mockup .x-follow: bg ink, white, radius 999, 14px/700 */}

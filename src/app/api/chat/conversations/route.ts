@@ -4,12 +4,57 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
 import { getShopByUserId } from "@/services/shop.service";
+import { prisma } from "@/lib/prisma";
 import {
   getOrCreateConversation,
   listConversationsForShop,
   listConversationsForBuyer,
+  type ConversationSummary,
 } from "@/services/chat.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
+
+/**
+ * B1 (route enrich, UX-Design-Spec.md resolved decision): GET /conversations เพิ่ม field เสริม
+ * `counterparty` ต่อรายการ — ไม่แตะ chat.service signature (FROZEN CONTRACT, SDS §5) เพราะ
+ * ConversationSummary ไม่มี shopName/buyer identity แต่ UI (inbox list) ต้องแสดง avatar+ชื่อคู่สนทนา
+ *
+ * buyer role (main subdomain) → เห็น shop { shopName, logo }
+ * seller role (seller subdomain) → เห็น buyer { displayName, avatar }
+ * ไม่พบ counterparty (แถวกำพร้า) → null (defensive — UI ต้อง handle fallback)
+ */
+type ConversationWithCounterparty = ConversationSummary & {
+  counterparty: { shopName: string; logo: string | null } | { displayName: string; avatar: string | null } | null;
+};
+
+async function enrichWithShopCounterparty(
+  items: ConversationSummary[],
+): Promise<ConversationWithCounterparty[]> {
+  const shopIds = [...new Set(items.map((i) => i.shopId))];
+  const shops = await prisma.shop.findMany({
+    where: { id: { in: shopIds } },
+    select: { id: true, shopName: true, logo: true },
+  });
+  const shopMap = new Map(shops.map((s) => [s.id, s]));
+  return items.map((i) => {
+    const shop = shopMap.get(i.shopId);
+    return { ...i, counterparty: shop ? { shopName: shop.shopName, logo: shop.logo } : null };
+  });
+}
+
+async function enrichWithBuyerCounterparty(
+  items: ConversationSummary[],
+): Promise<ConversationWithCounterparty[]> {
+  const buyerIds = [...new Set(items.map((i) => i.buyerUserId))];
+  const users = await prisma.user.findMany({
+    where: { id: { in: buyerIds } },
+    select: { id: true, displayName: true, avatar: true },
+  });
+  const userMap = new Map(users.map((u) => [u.id, u]));
+  return items.map((i) => {
+    const buyer = userMap.get(i.buyerUserId);
+    return { ...i, counterparty: buyer ? { displayName: buyer.displayName, avatar: buyer.avatar } : null };
+  });
+}
 
 /**
  * POST /api/chat/conversations — เริ่ม/เปิดบทสนทนาที่มีอยู่แล้ว โดย shopId (buyer surface เท่านั้น)
@@ -88,12 +133,16 @@ export async function GET(request: NextRequest) {
       cursor: parsed.output.cursor,
       take: parsed.output.take,
     });
-    return NextResponse.json(result);
+    // B1: seller เห็น counterparty = buyer identity
+    const items = await enrichWithBuyerCounterparty(result.items);
+    return NextResponse.json({ items, nextCursor: result.nextCursor });
   }
 
   const result = await listConversationsForBuyer(userId, {
     cursor: parsed.output.cursor,
     take: parsed.output.take,
   });
-  return NextResponse.json(result);
+  // B1: buyer เห็น counterparty = shop identity
+  const items = await enrichWithShopCounterparty(result.items);
+  return NextResponse.json({ items, nextCursor: result.nextCursor });
 }

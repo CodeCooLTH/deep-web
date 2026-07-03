@@ -8,7 +8,9 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 
 // Service Imports
+import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
+import { authOptions } from '@/lib/auth'
 import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
@@ -52,6 +54,12 @@ export default async function PublicProfilePage({ params }: Props) {
   const { username } = await params
   const user = await findByUsername(username)
   if (!user) notFound()
+
+  // S-8 (feat 00011 Deep Chat): ต้องรู้ว่า viewer login อยู่หรือไม่ + เป็นเจ้าของร้านนี้เองไหม (B3 self-chat guard)
+  // หน้านี้ public (ไม่ redirect ถ้าไม่ login) — ใช้แค่เพื่อคำนวณ isOwnShop, ไม่ gate การเข้าถึงหน้า
+  const session = await getServerSession(authOptions)
+  const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null
+  const isOwnShop = viewerId !== null && user.shop?.userId === viewerId
 
   // ทำไม: ตัด getReviewsByUsername ออก — ProfileTab ไม่แสดง RecentReviews อีกแล้ว
   // คง getAvgRatingByUsername + orderStats + products ที่ยังใช้งานอยู่
@@ -114,6 +122,9 @@ export default async function PublicProfilePage({ params }: Props) {
     maxVerifyLevel,
     bio: user.shop?.description ?? null,
     location: user.shop?.address ?? null,
+    // S-8 (feat 00011 Deep Chat)
+    shopId: user.shop?.id ?? null,
+    isOwnShop,
   }
 
   // --- Profile tab data (ตัด about/verification/reviews ออกแล้ว) ------------

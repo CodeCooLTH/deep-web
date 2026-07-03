@@ -148,5 +148,66 @@ export const SellerOrderCardSkeleton = () => (
   </div>
 )
 
+/**
+ * SellerInboxSkeleton — mimic ContactList row (feat 00011 Deep Chat, S-11)
+ * ใช้ใน /inbox/loading.tsx — mirror layout หน้าจริง: card > divide-y row (avatar + 2 line + time)
+ */
+const InboxRow = () => (
+  <div className="flex items-center justify-between gap-3 px-3.75 py-3 border-b border-default-100 last:border-0">
+    <div className="flex items-center gap-3 min-w-0 flex-1">
+      <PulseBar className="size-9 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <PulseBar className="h-3.5 w-28" />
+        <PulseBar className="h-3 w-40" />
+      </div>
+    </div>
+    <PulseBar className="h-3 w-10 shrink-0" />
+  </div>
+)
+
+export const SellerInboxSkeleton = () => (
+  <div className="card">
+    <div className="card-body !p-0">
+      <span className="sr-only">กำลังโหลด...</span>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <InboxRow key={i} />
+      ))}
+    </div>
+  </div>
+)
+
+/**
+ * SellerThreadSkeleton — mimic chat bubble สลับซ้ายขวา (feat 00011 Deep Chat, S-12)
+ * ใช้ใน /inbox/[conversationId]/loading.tsx
+ */
+const Bubble = ({ align }: { align: 'start' | 'end' }) => (
+  <div className={`flex items-end gap-2.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
+    {align === 'start' && <PulseBar className="size-8 shrink-0 rounded-full" />}
+    <PulseBar className={`h-10 rounded-lg ${align === 'end' ? 'w-40' : 'w-52'}`} />
+    {align === 'end' && <PulseBar className="size-8 shrink-0 rounded-full" />}
+  </div>
+)
+
+export const SellerThreadSkeleton = () => (
+  <div className="card">
+    <div className="card-header">
+      <div className="flex items-center gap-3">
+        <PulseBar className="size-9 rounded-full" />
+        <PulseBar className="h-4 w-32" />
+      </div>
+    </div>
+    <div className="card-body space-y-5 py-6">
+      <span className="sr-only">กำลังโหลด...</span>
+      <Bubble align="start" />
+      <Bubble align="end" />
+      <Bubble align="start" />
+      <Bubble align="end" />
+    </div>
+    <div className="border-t border-default-300 border-dashed px-6 py-3.75">
+      <PulseBar className="h-10 w-full rounded" />
+    </div>
+  </div>
+)
+
 // default export ชี้ไปที่ SellerCardSkeleton เพื่อ convenience import
 export default SellerCardSkeleton

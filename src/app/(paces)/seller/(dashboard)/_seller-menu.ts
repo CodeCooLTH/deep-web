@@ -41,6 +41,8 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/customers', slug: 'seller:customers', label: 'ลูกค้า', icon: 'user-circle' },
+      // S-13 (feat 00011 Deep Chat) — เมนู "ข้อความ" กลุ่ม CUSTOMERS (UX-Design-Spec.md S1)
+      { url: '/inbox', slug: 'seller:inbox', label: 'ข้อความ', icon: 'message-circle' },
     ],
   },
   {
@@ -112,6 +114,26 @@ export function applyInventoryGate(
     ...group,
     children: group.children.map((child) =>
       child.slug === 'seller:inventory' ? { ...child, isDisabled: true, badge } : child,
+    ),
+  })
+}
+
+/**
+ * applyChatBadge — S-13 (feat 00011 Deep Chat), pattern เดียวกับ applyInventoryGate
+ *
+ * unreadCount>0 → badge {className:'bg-danger', text} ที่เมนู "ข้อความ" (slug 'seller:inbox')
+ * unreadCount===0 → ไม่แก้ item (ไม่มี badge) — สี bg-danger ตาม UX-Design-Spec.md S2
+ * (match SellerBottomNav/NotificationDropdown precedent), cap ตัวเลขที่ '99+' กัน badge ยาวเกิน
+ */
+export function applyChatBadge(items: MenuItemType[], unreadCount: number): MenuItemType[] {
+  if (unreadCount <= 0) return items
+
+  const badge = { className: 'bg-danger', text: unreadCount >= 100 ? '99+' : String(unreadCount) }
+
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.map((child) =>
+      child.slug === 'seller:inbox' ? { ...child, badge } : child,
     ),
   })
 }
