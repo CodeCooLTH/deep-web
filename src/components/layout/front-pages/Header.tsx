@@ -23,6 +23,7 @@ import type { Mode } from '@core/types'
 // Component Imports
 import Logo from '@components/layout/shared/Logo'
 import ModeDropdown from '@components/layout/shared/ModeDropdown'
+import NotificationsDropdown from '@components/layout/shared/NotificationsDropdown'
 import UserDropdown from '@components/layout/shared/UserDropdown'
 import FrontMenu from './FrontMenu'
 import CustomIconButton from '@core/components/mui/IconButton'
@@ -73,10 +74,13 @@ const Header = ({ mode }: { mode: Mode }) => {
           <div className='flex items-center gap-2 sm:gap-4'>
             <ModeDropdown />
             {isAuthed ? (
-              // Authed buyer ที่กลับมาดู landing — แสดง UserDropdown (avatar +
-              // เมนูไป profile / dashboard / settings / ออกจากระบบ) แทน
-              // ปุ่ม Login/Signup
-              <UserDropdown />
+              // Authed buyer ที่กลับมาดู landing — แสดง bell notification (FLAG-3
+              // feat 00011) + UserDropdown (avatar + เมนูไป profile / dashboard /
+              // settings / ออกจากระบบ) แทนปุ่ม Login/Signup
+              <>
+                <NotificationsDropdown />
+                <UserDropdown />
+              </>
             ) : isBelowLgScreen ? (
               <CustomIconButton
                 component={Link}
