@@ -3,9 +3,13 @@
 /**
  * SellerBottomNav — fixed bottom tab bar สำหรับ seller mobile shell
  *
- * ทำไม: seller ใช้งาน mobile เป็นหลัก — bottom nav เข้าถึง 5 section หลักได้
+ * ทำไม: seller ใช้งาน mobile เป็นหลัก — bottom nav เข้าถึง 6 section หลักได้
  * ด้วยหัวแม่มือ ไม่ต้องเปิด sidebar; ปุ่มกลาง ([+] สร้าง) raised พร้อม speed-dial
  * เหมือน FAB แต่ embed อยู่ใน nav bar (pattern จาก command-center-v6.html)
+ *
+ * (ChatWidget task, feat 00011 Deep Chat) เพิ่มช่อง "แชท" เป็นช่องที่ 5 (ก่อน "ร้านค้า")
+ * → grid-cols-5 เดิม (4 item + FAB) กลายเป็น grid-cols-6 (5 item + FAB); badge unread
+ * copy pattern เดียวกับ badge "คำสั่งซื้อ" (bg-danger absolute offset จาก center icon)
  *
  * Multi-source (exception อนุมัติแล้ว — Paces ไม่มี bottom nav template ตรง):
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
@@ -43,11 +47,12 @@ const FAB_ACTIONS = [
   },
 ] as const
 
-// ─── Nav tabs (4 ช่อง ยกเว้น center) ────────────────────────────────────────
+// ─── Nav tabs (5 ช่อง ยกเว้น center) ────────────────────────────────────────
 const NAV_ITEMS = [
   { label: 'หน้าหลัก', href: '/dashboard', icon: 'home-2', exactMatch: true },
   { label: 'คำสั่งซื้อ', href: '/orders', icon: 'clipboard-list', exactMatch: false },
   // index 2 = center button (placeholder ไม่อยู่ใน array นี้)
+  { label: 'แชท', href: '/inbox', icon: 'message-circle', exactMatch: false },
   { label: 'สินค้า', href: '/products', icon: 'box', exactMatch: false },
   { label: 'ร้านค้า', href: '/shop', icon: 'building-store', exactMatch: false },
 ] as const
@@ -55,6 +60,8 @@ const NAV_ITEMS = [
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface SellerBottomNavProps {
   pendingCount: number
+  /** unread chat count — badge ช่อง "แชท" (ChatWidget task, feat 00011 Deep Chat) */
+  unreadChatCount: number
 }
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
@@ -80,7 +87,7 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
 }
 
 // ─── SellerBottomNav — main component ─────────────────────────────────────────
-export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) {
+export default function SellerBottomNav({ pendingCount, unreadChatCount }: SellerBottomNavProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
@@ -90,6 +97,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
 
   // badge clamp: แสดง "99+" เมื่อ ≥100
   const badgeText = pendingCount >= 100 ? '99+' : String(pendingCount)
+  const chatBadgeText = unreadChatCount >= 100 ? '99+' : String(unreadChatCount)
 
   // active logic — /dashboard ใช้ exact match; tab อื่น ใช้ startsWith
   function isActive(href: string, exactMatch: boolean): boolean {
@@ -171,7 +179,8 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           'border-t border-default-200',
           /* arbitrary: nav drop-shadow — Paces ไม่มี token shadow ด้านบน (shadow-md ลงล่าง) */
           'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
-          'grid grid-cols-5 items-center',
+          /* grid-cols-6 = 5 nav item + 1 center FAB cell (ChatWidget task: เพิ่ม "แชท") */
+          'grid grid-cols-6 items-center',
           /* arbitrary: safe-area iOS notch/home bar — ไม่มี token แทน */
           'pb-[env(safe-area-inset-bottom)]',
         ].join(' ')}
@@ -262,7 +271,39 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           </span>
         </div>
 
-        {/* ช่อง 4: สินค้า */}
+        {/* ช่อง 4: แชท + badge (ChatWidget task, feat 00011 Deep Chat) — copy badge markup
+            จากช่อง "คำสั่งซื้อ" ด้านบน (bg-danger absolute offset จาก center icon) */}
+        <Link
+          href="/inbox"
+          className={`relative flex h-full flex-col items-center justify-center gap-1 ${
+            isActive('/inbox', false)
+              ? 'text-primary'
+              : 'text-default-500'
+          }`}
+          aria-label={`แชท${unreadChatCount > 0 ? ` (${unreadChatCount} ข้อความยังไม่อ่าน)` : ''}`}
+          aria-current={isActive('/inbox', false) ? 'page' : undefined}
+        >
+          <Icon icon="message-circle" className="text-2xl" />
+          <span className="text-xs font-medium">แชท</span>
+          {unreadChatCount > 0 && (
+            <span
+              aria-hidden="true"
+              className={[
+                'absolute top-[-2px] left-[calc(50%+8px)]',
+                /* arbitrary: badge ตำแหน่ง offset จาก center icon — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
+                'min-w-[16px] h-[16px]',
+                /* arbitrary: badge ขนาดเล็กสุด 16px — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
+                'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
+                /* arbitrary: badge ring 2px ขาว — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
+                'shadow-[0_0_0_2px_white]',
+              ].join(' ')}
+            >
+              {chatBadgeText}
+            </span>
+          )}
+        </Link>
+
+        {/* ช่อง 5: สินค้า */}
         <Link
           href="/products"
           className={`flex h-full flex-col items-center justify-center gap-1 ${
@@ -277,7 +318,7 @@ export default function SellerBottomNav({ pendingCount }: SellerBottomNavProps) 
           <span className="text-xs font-medium">สินค้า</span>
         </Link>
 
-        {/* ช่อง 5: ร้านค้า */}
+        {/* ช่อง 6: ร้านค้า */}
         <Link
           href="/shop"
           className={`flex h-full flex-col items-center justify-center gap-1 ${

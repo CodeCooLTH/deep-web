@@ -10,6 +10,7 @@ import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import ChatToastListener from './_shared/ChatToastListener'
+import SellerChatWidget from './_shared/SellerChatWidget'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
@@ -106,7 +107,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           trustScore={user.trustScore ?? 0}
         />
       }
-      bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} />}
+      bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} unreadChatCount={unreadChatCount} />}
       sidenavFooterSlot={<OnboardingGate />}
     >
       {children}
@@ -117,6 +118,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       <ChatToastListener shopId={shop?.id ?? null} />
+      {/* SellerChatWidget (ChatWidget task, feat 00011 Deep Chat): floating bubble+panel
+          มุมขวาล่าง แสดงเฉพาะ ≥lg (mobile ใช้ SellerBottomNav "แชท" แทน) — mount ที่ layout
+          เหมือนกัน เพื่อ persist state ข้าม client-navigation (OQ3) */}
+      <SellerChatWidget initialUnreadCount={unreadChatCount} />
     </VerticalLayout>
   )
 }

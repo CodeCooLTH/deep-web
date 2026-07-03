@@ -21,6 +21,7 @@ import type { ChildrenType } from '@core/types'
 import FrontLayout from '@components/layout/front-pages'
 
 import { authOptions } from '@/lib/auth'
+import BuyerChatWidget from '@/components/chat/BuyerChatWidget'
 
 import AccountSidebar from './_components/AccountSidebar'
 
@@ -52,6 +53,8 @@ export default async function BuyerAppLayout({ children }: ChildrenType) {
           <main className='flex-1 min-w-0 flex flex-col gap-6'>{children}</main>
         </div>
       </div>
+      {/* ChatWidget floating bubble — mount เฉพาะ authed (layout นี้ redirect ไป sign-in ถ้าไม่มี session แล้วด้านบน) */}
+      <BuyerChatWidget />
     </FrontLayout>
   )
 }

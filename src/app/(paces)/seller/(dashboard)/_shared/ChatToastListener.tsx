@@ -13,12 +13,17 @@
  * Base realtime subscribe pattern: src/app/(marketing)/a/[id]/AuctionDetailClient.tsx:144-179
  * (Supabase channel .on('broadcast', ...).subscribe() + cleanup removeChannel)
  *
- * dedup (UX-Design-Spec.md S3): เทียบ conversationId จาก broadcast payload กับ pathname ปัจจุบัน —
- * ถ้า seller เปิดอยู่ที่ thread นั้นแล้ว (/inbox/{conversationId}) ไม่ toast ซ้ำ (thread เองมี realtime
- * subscribe + mark-read ของตัวเองอยู่แล้ว — ดู ChatThread.tsx)
+ * dedup (UX-Design-Spec.md S3 + UX-Design-Spec-Bubble.md OQ2): เช็ค 2 ชั้นว่า seller "กำลังดู"
+ * บทสนทนานั้นอยู่หรือไม่ —
+ *   1) pathname ตรง `/inbox/{conversationId}` (full-page thread เดิม, ChatThread.tsx มี
+ *      realtime subscribe + mark-read ของตัวเองอยู่แล้ว)
+ *   2) ChatWidget (bubble panel) เปิด thread เดียวกันอยู่ — เช็คผ่าน chatWidgetActiveThread
+ *      module-level store ที่ SellerChatWidget.tsx set ไว้ (widget อาจเปิดอยู่หน้าไหนก็ได้
+ *      ไม่จำเป็นต้องอยู่ path /inbox/*)
+ * เข้าเงื่อนไขข้อใดข้อหนึ่ง → ไม่ toast ซ้ำ
  *
  * payload มีแค่ conversationId (signal-only ตาม migration comment — ห้ามมี body/imageUrl หลุดผ่าน
- * broadcast) ใช้ id นี้เทียบ pathname เท่านั้น ไม่ใช่ trust เนื้อหาอะไรที่ sensitive
+ * broadcast) ใช้ id นี้เทียบเท่านั้น ไม่ใช่ trust เนื้อหาอะไรที่ sensitive
  *
  * guard: ไม่มี shopId (ยังไม่มีร้าน ระหว่าง auto-create ใน layout) → ไม่ subscribe
  * disconnect = เงียบ — unread badge (S-13) มาจาก DB เสมอ ไม่พึ่ง realtime
@@ -27,6 +32,7 @@ import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { pacesToast } from '@/lib/paces-toast'
+import { getChatWidgetActiveConversationId } from './chatWidgetActiveThread'
 
 type Props = {
   shopId: string | null
@@ -52,7 +58,10 @@ export default function ChatToastListener({ shopId }: Props) {
         { event: 'new_message' },
         (message: { payload?: { conversationId?: string } }) => {
           const conversationId = message.payload?.conversationId
-          if (conversationId && pathnameRef.current === `/inbox/${conversationId}`) return
+          if (conversationId) {
+            if (pathnameRef.current === `/inbox/${conversationId}`) return
+            if (getChatWidgetActiveConversationId() === conversationId) return
+          }
           pacesToast.chat.info('คุณมีข้อความใหม่เข้ามา')
         },
       )
