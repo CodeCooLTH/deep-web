@@ -82,21 +82,23 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
 
       {/* bottom: qty stepper + unit price + line total */}
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
+        {/* qty stepper — Paces idiom (input-group ปุ่มน้ำเงินทึบ ขนาบ input)
+            Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/cart/components/QuentityCounter.tsx */}
+        <div className="input-group w-36">
           <button
             type="button"
             onClick={() => setQty(qty - 1)}
             aria-label="ลดจำนวน"
-            className="btn btn-icon !size-11 min-h-0 shrink-0 border border-default-200 text-default-600 hover:bg-default-100"
+            className="btn bg-primary text-white hover:bg-primary-hover"
           >
-            <Icon icon="minus" width={12} height={12} />
+            <Icon icon="minus" className="size-4" />
           </button>
           <input
             type="number"
             inputMode="numeric"
             min={1}
             step={1}
-            className="form-input w-12 py-1 text-center text-sm"
+            className="form-input select-none text-center"
             value={qtyField.value ?? 1}
             onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
             onBlur={qtyField.onBlur}
@@ -105,9 +107,9 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
             type="button"
             onClick={() => setQty(qty + 1)}
             aria-label="เพิ่มจำนวน"
-            className="btn btn-icon !size-11 min-h-0 shrink-0 border border-default-200 text-default-600 hover:bg-default-100"
+            className="btn bg-primary text-white hover:bg-primary-hover"
           >
-            <Icon icon="plus" width={12} height={12} />
+            <Icon icon="plus" className="size-4" />
           </button>
         </div>
         <div className="flex items-center gap-2">
