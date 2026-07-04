@@ -47,8 +47,9 @@ Server Component, scope = `session.user.id`. โครงสร้าง 2 ส�
 ### ส่วน B · Stock Pro (ระดับร้าน — การ์ดต่อ 1 ร้านที่ถือ)
 - `shop.findMany({ where:{ userId, deletedAt:null }, include:{ inventoryEntitlement, wallet } })`
 - แต่ละร้าน: ชื่อร้าน + badge kind, badge แพ็กเกจ (Deep Stock/Pro/ยังไม่สมัคร/ล็อก), วันต่ออายุ, ยอดกระเป๋าร้านนั้น, `shouldWarnAdvance(entitlement, balance)`
-- Action ต่อร้าน: สมัคร/อัปเกรด Pro/ต่ออายุ (reuse `SubscribeButton`/`UpgradeToProCard`/`ReactivateButton`) + ลิงก์ "จัดการสต๊อก" → `/inventory`
-- **Decision (D-1):** ปรับ `SubscribeButton`/`UpgradeToProCard`/`ReactivateButton` ให้รับ `shopId` เป็น prop (ปัจจุบันผูก implicit กับ `session.activeShopId`) เพื่อจัดการได้ทุกร้านในหน้าเดียว. API routes ที่เกี่ยว (`/api/inventory/subscribe`, `/reactivate`, `/upgrade`) ต้องรับ/ยืนยัน `shopId` + ตรวจ ownership ที่ service layer (ห้าม trust body ดิบ)
+- Action: จัดการเฉพาะ**ร้านที่ active อยู่** (reuse `SubscribeButton`/`UpgradeToProCard`/`ReactivateButton` เดิม 100% — endpoint resolve ร้านจาก `session.activeShopId` ฝั่ง server) + ลิงก์ "จัดการสต๊อก" → `/inventory`
+- ร้านที่**ไม่ใช่ active** → แสดงสถานะ (อ่าน) + ปุ่ม "สลับมาร้านนี้" (reuse `POST /api/business/switch-context {shopId}` → verify membership → client `session.update({ activeShopId })` → `router.refresh()`; pattern เดียวกับ `BusinessOnboardingWizard`) แล้วค่อยจัดการ
+- **Decision (D-1, REVISED 2026-07-04):** **ไม่แตะ** payment endpoint/security. อ่านทุกร้าน + จัดการร้าน active เท่านั้น. เหตุผล: `SubscribeButton`/`UpgradeToProCard`/`ReactivateButton` + route `/api/inventory/{subscribe,reactivate,upgrade}` ทั้งหมด resolve ร้านจาก `session.activeShopId`/PERSONAL ฝั่ง server ล้วน (helper `requireActiveShop`/`getShopByUserId` ไม่รับ shopId) — การเพิ่ม shopId = แก้ endpoint หักเงิน + ต้องเพิ่ม IDOR guard (เสี่ยง) จึงเลี่ยงด้วยกลไกสลับร้านที่มีอยู่แล้ว
 
 > หลังย้าย lifecycle มา hub: `/inventory` เหลือ **ตารางสต๊อก**, `/business` เหลือ **โควตา/จัดการร้าน**. ยังไม่ลบส่วนจัดการเดิมทันที — ทำ hub ให้เสถียรก่อน แล้วค่อย deprecate (กัน regression)
 
@@ -108,7 +109,7 @@ src/services/subscription-overview.service.ts                    # aggregator se
 ## 8. Decisions (ยืนยันแล้ว)
 
 - D-A: แนวทาง A (hub รวม seller + admin overview แยก)
-- D-1: ปรับ 3 component Stock Pro ให้รับ `shopId` (จัดการหลายร้าน)
+- D-1 (REVISED): อ่านทุกร้าน + จัดการเฉพาะร้าน active (reuse endpoint เดิม 100% ไม่แตะ payment/security); ร้านอื่นใช้ปุ่ม "สลับมาร้านนี้" (switch-context)
 - D-2: Admin = read-only
 - D-3: route `/seller/subscriptions` ("แพ็กเกจของฉัน") + `/admin/subscriptions` ("แพ็กเกจ")
 
