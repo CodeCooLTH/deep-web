@@ -13,7 +13,8 @@ export const maxDuration = 60;
  * 3 phase ในคำขอเดียว: renewal → auto-soft-delete (grace หมดอายุ) → purge (tombstone retention หมดอายุ)
  * ดู SDS.md §3.4 / API.md §4.16 / TD-002 (proxy.ts exclude /api/cron/* จาก CSRF Origin-check)
  */
-export async function POST(request: Request) {
+// 🛑 GET: Vercel Cron ยิง GET เสมอ — export แค่ POST = 405 (cron ไม่รันจริง); export ทั้ง GET+POST alias
+export async function GET(request: Request) {
   // 🛑 SECURITY: CRON_SECRET env ต้องตั้งค่าไว้เสมอ
   // ถ้า env ว่าง/undefined ต้อง reject ทันที — ห้ามปล่อยให้ header===undefined
   // เทียบกับ `Bearer undefined` แล้วผ่าน (auth bypass เมื่อ deploy ลืมตั้ง env)
@@ -65,3 +66,6 @@ export async function POST(request: Request) {
     purge,
   });
 }
+
+// POST alias — Vercel Cron ใช้ GET; คง POST เผื่อ manual trigger
+export const POST = GET

@@ -6,12 +6,14 @@ import { renewOrLockEntitlement } from "@/services/inventory-entitlement.service
 export const maxDuration = 60;
 
 /**
- * POST /api/cron/inventory-renewal — Vercel Cron trigger รายวัน (server-to-server เท่านั้น)
+ * GET /api/cron/inventory-renewal — Vercel Cron trigger รายวัน (server-to-server เท่านั้น)
  *
- * Auth: Authorization: Bearer {CRON_SECRET} เท่านั้น — ไม่มี session/JWT
+ * 🛑 ต้องเป็น GET: Vercel Cron ยิง GET request เสมอ — ถ้า export แค่ POST จะได้ 405
+ *    (cron ไม่เคยรันจริง) จึง export ทั้ง GET (Vercel cron) + POST alias (manual trigger เผื่อ)
+ * Auth: Authorization: Bearer {CRON_SECRET} เท่านั้น — Vercel ส่ง header นี้อัตโนมัติเมื่อ CRON_SECRET ตั้งไว้
  * ดู API.md §4.3 / SDS.md §4.2 / TD-002 (proxy.ts exclude /api/cron/* จาก CSRF Origin-check)
  */
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   // 🛑 SECURITY (จาก security review S-6): CRON_SECRET env ต้องตั้งค่าไว้เสมอ
   // ถ้า env ว่าง/undefined ต้อง reject ทันที — ห้ามปล่อยให้ header===undefined
   // เทียบกับ `Bearer undefined` แล้วผ่าน (auth bypass เมื่อ deploy ลืมตั้ง env)
@@ -58,3 +60,6 @@ export async function POST(request: Request) {
     errors,
   });
 }
+
+// POST alias — Vercel Cron ใช้ GET; คง POST เผื่อ manual/backward-compat trigger
+export const POST = GET
