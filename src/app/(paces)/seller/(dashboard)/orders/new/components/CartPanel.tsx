@@ -122,7 +122,7 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
             {/* header row (desktop) — คอลัมน์ตรงกับ CartLineItem */}
             <div className="hidden items-center gap-x-2 border-b border-default-200 pb-1.5 text-2xs font-semibold text-default-400 lg:flex">
               <span className="w-14 shrink-0" />
-              <span className="min-w-36 flex-1">สินค้า / รายละเอียด</span>
+              <span className="min-w-0 flex-1">สินค้า / รายละเอียด</span>
               <span className="w-14 shrink-0 text-center">จำนวน</span>
               <span className="w-24 shrink-0 text-center">ราคา</span>
               <span className="w-20 shrink-0 text-right">รวม</span>
