@@ -17,7 +17,7 @@ import { getTrustLevel } from '@/services/trust-score.service'
 
 // Components Imports
 import Congratulations from '@views/apps/ecommerce/dashboard/Congratulations'
-import StatisticsCard from '@views/apps/ecommerce/dashboard/StatisticsCard'
+import StatCard from '@views/apps/ecommerce/dashboard/StatCard'
 import Orders, { type DashboardOrder } from '@views/apps/ecommerce/dashboard/Orders'
 import Transactions, { type DashboardReview } from '@views/apps/ecommerce/dashboard/Transactions'
 
@@ -68,6 +68,12 @@ export default async function BuyerDashboardPage() {
   const trustLevel = getTrustLevel(user.trustScore)
   const nextLevelLabel = NEXT_LEVEL_LABEL[trustLevel] ?? 'A+'
 
+  // สัญญาณความน่าเชื่อถือ (ยืนยันตัวตน) — จาก verification ที่ APPROVED เท่านั้น
+  const approvedLevels = new Set(user.verifications.filter((v) => v.status === 'APPROVED').map((v) => v.level))
+  const verifiedPhone = approvedLevels.has(1)
+  const verifiedDoc = approvedLevels.has(2)
+  const verifiedBiz = approvedLevels.has(3)
+
   // Map service types to widget-friendly shapes (decimal totalAmount → number).
   const recentOrders: DashboardOrder[] = recentOrdersRaw.map((o) => ({
     id: o.id,
@@ -96,22 +102,34 @@ export default async function BuyerDashboardPage() {
 
   return (
     <Grid container spacing={6}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      {/* แถว 1 — welcome banner เต็มความกว้าง */}
+      <Grid size={12}>
         <Congratulations
           displayName={user.displayName}
           trustScore={user.trustScore}
           trustLevel={trustLevel}
           nextLevelLabel={nextLevelLabel}
+          verifiedPhone={verifiedPhone}
+          verifiedDoc={verifiedDoc}
+          verifiedBiz={verifiedBiz}
         />
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
-        <StatisticsCard
-          totalOrders={allOrders.length}
-          completedOrders={completedOrders}
-          reviewsGiven={reviewsGivenCount}
-          badgesEarned={user.userBadges.length}
-        />
+
+      {/* แถว 2 — สถิติ 4 การ์ดเท่ากัน */}
+      <Grid size={{ xs: 6, md: 3 }}>
+        <StatCard icon='tabler-shopping-bag' stats={`${allOrders.length}`} title='คำสั่งซื้อทั้งหมด' color='primary' />
       </Grid>
+      <Grid size={{ xs: 6, md: 3 }}>
+        <StatCard icon='tabler-circle-check' stats={`${completedOrders}`} title='สำเร็จแล้ว' color='success' />
+      </Grid>
+      <Grid size={{ xs: 6, md: 3 }}>
+        <StatCard icon='tabler-star' stats={`${reviewsGivenCount}`} title='รีวิวที่ให้' color='warning' />
+      </Grid>
+      <Grid size={{ xs: 6, md: 3 }}>
+        <StatCard icon='tabler-award' stats={`${user.userBadges.length}`} title='Badge ที่ได้รับ' color='info' />
+      </Grid>
+
+      {/* แถว 3 — คำสั่งซื้อ + รีวิว (สูงเท่ากัน) */}
       <Grid size={{ xs: 12, lg: 6 }}>
         <Orders orders={recentOrders} />
       </Grid>
