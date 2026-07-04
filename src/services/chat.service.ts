@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getProductById } from '@/services/product.service'
+import { detectScamLink } from '@/lib/scam-link-detector'
 
 export type SenderRole = 'BUYER' | 'SHOP'
 export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT'
@@ -25,6 +26,7 @@ export interface ChatMessageView {
   body: string | null
   imageUrl: string | null
   productRefId: string | null // extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type='PRODUCT'
+  flaggedScam: boolean // extension #3 Scam-link Detection (FR-SCAM-03) — WARN banner เท่านั้น ไม่ block
   createdAt: Date
 }
 
@@ -172,6 +174,11 @@ export async function sendMessage(params: {
           ? `[สินค้า] ${productName}`
           : (params.body ?? '').slice(0, 100)
 
+    // extension #3 Scam-link Detection (FR-SCAM-03/BR-SCAM-04) — scan เฉพาะ type='TEXT' เท่านั้น
+    // (ไม่ IMAGE/PRODUCT — url แปะไว้ที่ caption/body ของ type อื่นไม่ scan ตาม req doc)
+    // WARN เท่านั้น (FR-SCAM-05) — ไม่ block, ไม่แตะ flow insert/denorm/Notification เดิม
+    const scamResult = params.type === 'TEXT' ? detectScamLink(params.body) : null
+
     const message = await tx.chatMessage.create({
       data: {
         conversationId: params.conversationId,
@@ -181,6 +188,8 @@ export async function sendMessage(params: {
         body: params.type === 'PRODUCT' ? null : (params.body ?? null),
         imageUrl: params.type === 'PRODUCT' ? null : (params.imageUrl ?? null),
         productRefId: params.type === 'PRODUCT' ? (params.productRefId ?? null) : null,
+        flaggedScam: scamResult?.flagged ?? false,
+        scamMatchedRules: scamResult?.flagged ? scamResult.matchedRules : undefined,
       },
     })
 
