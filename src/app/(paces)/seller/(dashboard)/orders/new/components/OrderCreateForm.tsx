@@ -379,13 +379,14 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId, inve
 
       {/* ═══ POS layout ═══ */}
       {/* Desktop/Tablet (≥md): split — ซ้าย product grid, ขวา cart panel */}
-      {/* md (tablet): flex — grid ยืด / cart w-72 คงที่. lg+ (desktop): grid 2 คอลัมน์เท่ากัน 50/50
-          (user feedback: พื้นที่สินค้าใหญ่เกินบน desktop) */}
-      <div className="hidden gap-4 md:flex md:items-start lg:grid lg:grid-cols-2 lg:items-start">
-        <div className="min-w-0 flex-1">
+      {/* md (tablet): flex. lg+ (desktop): grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก,
+          footer (ปุ่มบันทึก) ตรึงล่างเสมอไม่เลื่อน. h-[calc(100vh-9.5rem)] = HR7 exception
+          (viewport-lock: 100vh − header(~68px) − margin/padding; Paces ไม่มี token) */}
+      <div className="hidden gap-4 md:flex md:items-start lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:overflow-hidden">
+        <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>
-        <div className="w-72 shrink-0 lg:w-auto">
+        <div className="w-72 shrink-0 lg:h-full lg:w-auto">
           <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
         </div>
       </div>

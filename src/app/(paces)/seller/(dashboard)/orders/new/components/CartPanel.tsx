@@ -97,10 +97,9 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
   )
   const accBtn = 'flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-dark hover:bg-default-50'
 
-  // desktop: ล็อกสูงเท่า viewport ให้ footer (ปุ่มบันทึก) ติดล่างเสมอ — lines+accordion scroll ภายใน
-  // lg:max-h-[calc(100vh-7rem)] = HR7 exception (Paces ไม่มี token viewport-locked height; precedent ChatThread)
+  // desktop: fill พาเนล (h-full จาก parent grid ที่ล็อกสูงเท่าจอ) → footer(ปุ่มบันทึก)ตรึงล่างเสมอ, กลาง scroll
   return (
-    <div className="card flex flex-col lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]">
+    <div className="card flex flex-col lg:h-full">
       {/* header */}
       <div className="card-header flex shrink-0 items-center gap-2">
         <Icon icon="shopping-cart" className="size-5 text-primary" />
@@ -110,8 +109,8 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
 
       {/* scrollable middle — desktop: lines+accordion scroll ในนี้ (header/footer pinned) */}
       <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-      {/* lines */}
-      <div className="flex flex-col gap-2 p-3">
+      {/* lines — table-like (header row เฉพาะ desktop; rows มี divider เอง) */}
+      <div className="p-3">
         {count === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center text-default-400">
             <Icon icon="basket-off" className="size-10 opacity-50" />
@@ -119,23 +118,34 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
             <p className="text-xs">แตะสินค้าด้านซ้ายเพื่อเพิ่มลงตะกร้า</p>
           </div>
         ) : (
-          itemsCtl.fields.map((f, i) => (
-            <CartLineItem
-              key={f.id}
-              index={i}
-              item={items[i] ?? { name: '', qty: 1, price: 0 }}
-              control={control}
-              catalog={catalog}
-              itemsCtl={itemsCtl}
-              errors={errors}
-              inventoryEnabled={inventoryEnabled}
-            />
-          ))
+          <div>
+            {/* header row (desktop) — คอลัมน์ตรงกับ CartLineItem */}
+            <div className="hidden items-center gap-x-2 border-b border-default-200 pb-1.5 text-2xs font-semibold text-default-400 lg:flex">
+              <span className="w-14 shrink-0" />
+              <span className="min-w-36 flex-1">สินค้า / รายละเอียด</span>
+              <span className="w-14 shrink-0 text-center">จำนวน</span>
+              <span className="w-24 shrink-0 text-center">ราคา</span>
+              <span className="w-20 shrink-0 text-right">รวม</span>
+              <span className="w-9 shrink-0" />
+            </div>
+            {itemsCtl.fields.map((f, i) => (
+              <CartLineItem
+                key={f.id}
+                index={i}
+                item={items[i] ?? { name: '', qty: 1, price: 0 }}
+                control={control}
+                catalog={catalog}
+                itemsCtl={itemsCtl}
+                errors={errors}
+                inventoryEnabled={inventoryEnabled}
+              />
+            ))}
+          </div>
         )}
         <button
           type="button"
           onClick={itemsCtl.addCustom}
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary bg-primary/5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10"
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary bg-primary/5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10"
         >
           <Icon icon="plus" className="size-4" /> พิมพ์รายการเอง
         </button>

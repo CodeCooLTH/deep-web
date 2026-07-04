@@ -44,82 +44,72 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
   const overStock = inventoryEnabled && stock != null && qty > stock
 
   return (
-    <div className="rounded-lg border border-default-200 bg-card p-2.5">
-      {/* แถวชื่อ: thumb + (ชื่อ combobox + รายละเอียดใต้ชื่อ แบบ FlowAccount) + ลบ */}
-      <div className="flex items-start gap-2.5">
-        <ProductThumb src={thumbSrc} alt={item.name} className="size-9 rounded-lg" iconClassName="size-4" />
-        <div className="min-w-0 flex-1">
-          <ProductCombobox
-            value={{ productId: item.productId, name: item.name }}
-            catalog={catalog}
-            onPick={(p) => itemsCtl.setLineProduct(index, p)}
-            onCustom={(text) => itemsCtl.setLineCustom(index, text)}
-          />
-          {/* รายละเอียด — บรรทัดใต้ชื่อสินค้า */}
-          <input
-            type="text"
-            placeholder="รายละเอียด (ถ้ามี)"
-            value={descField.value ?? ''}
-            onChange={descField.onChange}
-            onBlur={descField.onBlur}
-            className="form-input mt-1.5 py-1 text-xs"
-          />
-          {itemErrors?.name && <p className="mt-0.5 text-xs text-danger">{itemErrors.name.message}</p>}
-        </div>
-        <button
-          type="button"
-          onClick={() => itemsCtl.remove(index)}
-          aria-label="ลบรายการ"
-          className="btn btn-icon !size-9 min-h-0 shrink-0 text-default-400 hover:bg-danger/10 hover:text-danger"
-        >
-          <Icon icon="x" className="size-4" />
-        </button>
+    <div className="flex flex-wrap items-start gap-x-2 gap-y-1.5 border-b border-default-100 py-2.5 last:border-b-0">
+      <ProductThumb src={thumbSrc} alt={item.name} className="size-14 rounded-lg" iconClassName="size-6" />
+      {/* คอลัมน์หลัก: ชื่อสินค้า (combobox) + รายละเอียดใต้ชื่อ */}
+      <div className="min-w-36 flex-1">
+        <ProductCombobox
+          value={{ productId: item.productId, name: item.name }}
+          catalog={catalog}
+          onPick={(p) => itemsCtl.setLineProduct(index, p)}
+          onCustom={(text) => itemsCtl.setLineCustom(index, text)}
+        />
+        <input
+          type="text"
+          placeholder="รายละเอียด (ถ้ามี)"
+          value={descField.value ?? ''}
+          onChange={descField.onChange}
+          onBlur={descField.onBlur}
+          className="form-input mt-1 py-1 text-xs"
+        />
+        {itemErrors?.name && <p className="mt-0.5 text-xs text-danger">{itemErrors.name.message}</p>}
+        {overStock && (
+          <p className="mt-1 flex items-center gap-1 text-xs text-danger">
+            <Icon icon="alert-triangle" className="size-3.5 shrink-0" />
+            เกินสต็อก (คงเหลือ {stock})
+          </p>
+        )}
       </div>
-
-      {/* จำนวน · ราคาต่อหน่วย · รวม — inline กระชับ แก้ตรงนั้น (indent ใต้ชื่อ) */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 ps-11">
-        <label className="flex items-center gap-1.5">
-          <span className="text-2xs text-default-500">จำนวน</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            step={1}
-            className="form-input w-16 py-1.5 text-center text-sm"
-            value={qtyField.value ?? 1}
-            onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-            onBlur={qtyField.onBlur}
-          />
-        </label>
-        <label className="flex items-center gap-1.5">
-          <span className="text-2xs text-default-500">ราคา</span>
-          <div className="input-group w-28">
-            <span className="input-group-text">฿</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.01}
-              className="form-input py-1.5 text-sm"
-              value={priceField.value ?? 0}
-              onChange={(e) => priceField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-              onBlur={priceField.onBlur}
-            />
-          </div>
-        </label>
-        <div className="ms-auto text-right">
-          <div className="text-2xs text-default-500">รวม</div>
-          <div className="text-sm font-semibold text-dark tabular-nums">{formatThb(qty * price)}</div>
-        </div>
+      {/* จำนวน */}
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        step={1}
+        aria-label="จำนวน"
+        className="form-input w-14 shrink-0 px-1 py-1.5 text-center text-sm"
+        value={qtyField.value ?? 1}
+        onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+        onBlur={qtyField.onBlur}
+      />
+      {/* ราคาต่อหน่วย */}
+      <div className="input-group w-24 shrink-0">
+        <span className="input-group-text px-2">฿</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step={0.01}
+          aria-label="ราคาต่อหน่วย"
+          className="form-input px-1.5 py-1.5 text-sm"
+          value={priceField.value ?? 0}
+          onChange={(e) => priceField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+          onBlur={priceField.onBlur}
+        />
       </div>
-      {itemErrors?.qty && <p className="mt-1 text-xs text-danger">{itemErrors.qty.message}</p>}
-      {itemErrors?.price && <p className="mt-1 text-xs text-danger">{itemErrors.price.message}</p>}
-      {overStock && (
-        <p className="mt-1 flex items-center gap-1 text-xs text-danger">
-          <Icon icon="alert-triangle" className="size-3.5 shrink-0" />
-          เกินสต็อก (คงเหลือ {stock})
-        </p>
-      )}
+      {/* รวม */}
+      <div className="w-20 shrink-0 self-center text-right text-sm font-semibold text-dark tabular-nums">
+        {formatThb(qty * price)}
+      </div>
+      {/* ลบ */}
+      <button
+        type="button"
+        onClick={() => itemsCtl.remove(index)}
+        aria-label="ลบรายการ"
+        className="btn btn-icon !size-9 min-h-0 shrink-0 text-default-400 hover:bg-danger/10 hover:text-danger"
+      >
+        <Icon icon="x" className="size-4" />
+      </button>
     </div>
   )
 }
