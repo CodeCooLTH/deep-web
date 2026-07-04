@@ -13,14 +13,16 @@
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useState } from 'react'
+import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
-import CustomerSelectBlock from './CustomerSelectBlock'
-import PaymentChannelBlock from './PaymentChannelBlock'
-import CartBlock from './CartBlock'
-import OrderSummaryPanel from './OrderSummaryPanel'
+import ProductGrid from './ProductGrid'
+import CartPanel from './CartPanel'
+
+const formatThb = (n: number) =>
+  new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +42,23 @@ interface Props {
   catalog: CatalogProduct[]
   /** HTML id assigned to the <form> element so an external submit button can use form="…" */
   formId?: string
+}
+
+// ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
+// ยก ownership useFieldArray('items') ขึ้นมาที่ form เพื่อให้ ProductGrid + CartPanel/CartLineItem ใช้ร่วมกัน
+export interface ItemsController {
+  fields: { id: string; productId?: string; name: string; description?: string; qty: number; price: number }[]
+  /** เพิ่ม line ถ้ายังไม่มี product นี้, ไม่งั้น +1 qty (ใช้โดย ProductGrid แตะการ์ด) */
+  inc: (product: CatalogProduct) => void
+  remove: (index: number) => void
+  /** append custom item ว่าง (productId undefined) */
+  addCustom: () => void
+  /** qty ปัจจุบันของ product (0 ถ้าไม่อยู่ในตะกร้า) */
+  qtyByProduct: (productId: string) => number
+  /** combobox เลือกสินค้า existing → set productId/name/price/description ของ line */
+  setLineProduct: (index: number, product: CatalogProduct) => void
+  /** combobox พิมพ์ชื่อใหม่ → set name, productId=undefined (custom item) */
+  setLineCustom: (index: number, name: string) => void
 }
 
 // ─── Locked FormValues (exported — 4 block files import CatalogProduct; B7 exports FormValues ด้วย) ──
@@ -157,6 +176,62 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
       },
     },
   })
+
+  // ── Items ownership (POS) — useFieldArray + helpers ที่แชร์ให้ ProductGrid + CartPanel ──
+  const { fields, append, update, remove } = useFieldArray({ control, name: 'items' })
+  const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
+
+  const qtyByProduct = (pid: string): number =>
+    watchedItems.find((i) => i.productId === pid)?.qty ?? 0
+
+  const inc = (product: CatalogProduct) => {
+    const idx = watchedItems.findIndex((i) => i.productId === product.id)
+    if (idx >= 0) update(idx, { ...watchedItems[idx], qty: watchedItems[idx].qty + 1 })
+    else
+      append({
+        productId: product.id,
+        name: product.name,
+        description: product.description ?? '',
+        qty: 1,
+        price: Number(product.price),
+      })
+  }
+
+  const addCustom = () =>
+    append({ productId: undefined, name: '', description: '', qty: 1, price: 0 })
+
+  const setLineProduct = (index: number, product: CatalogProduct) =>
+    update(index, {
+      ...watchedItems[index],
+      productId: product.id,
+      name: product.name,
+      description: product.description ?? '',
+      price: Number(product.price),
+    })
+
+  const setLineCustom = (index: number, name: string) =>
+    update(index, { ...watchedItems[index], productId: undefined, name })
+
+  const itemsCtl: ItemsController = {
+    fields,
+    inc,
+    remove,
+    addCustom,
+    qtyByProduct,
+    setLineProduct,
+    setLineCustom,
+  }
+
+  // ── POS mobile: bottom-sheet + floating-bar summary ────────────────────────
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const barDiscount = useWatch({ control, name: 'discount' }) as number | undefined
+  const barVatRate = useWatch({ control, name: 'vatRate' }) as number | undefined
+  const barSubtotal = watchedItems.reduce(
+    (s, i) => s + (Number(i?.qty) || 0) * (Number(i?.price) || 0),
+    0,
+  )
+  const barTotal = round2((barSubtotal - (barDiscount ?? 0)) * (1 + (barVatRate ?? 0) / 100))
+  const cartCount = watchedItems.length
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -288,7 +363,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
         }
       })}
       noValidate
-      className="pb-20 lg:pb-0 scroll-pb-24"
+      className="pb-24 md:pb-0 scroll-pb-24"
     >
       {/* Loading indicator ระหว่าง submit */}
       {isSubmitting && (
@@ -298,54 +373,58 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* grid 3 cols: left col-span-2 = 3 blocks, right col-span-1 = summary */}
-      {/* (mockup create.html line 52-55)                                    */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid gap-4 lg:grid-cols-3">
-
-        {/* ── LEFT COLUMN: 3 blocks stacked ────────────────────────────── */}
-        <div className="flex flex-col gap-3 sm:gap-5 lg:col-span-2">
-
-          {/* BLOCK 1 — ข้อมูลลูกค้า */}
-          <CustomerSelectBlock control={control} errors={errors} />
-
-          {/* BLOCK 2 — การชำระเงิน & ช่องทาง (+ ส่วนลด / VAT / หมายเหตุ) */}
-          <PaymentChannelBlock control={control} errors={errors} />
-
-          {/* BLOCK 3 — รายการสินค้า + auto shipping sub-block + ProductPickerModal */}
-          {/* CartBlock เป็น owner ของ useFieldArray('items') + ProductPickerModal */}
-          <CartBlock control={control} catalog={catalog} errors={errors} />
-
+      {/* ═══ POS layout ═══ */}
+      {/* Desktop/Tablet (≥md): split — ซ้าย product grid, ขวา cart panel */}
+      <div className="hidden gap-4 md:flex md:items-start">
+        <div className="min-w-0 flex-1">
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} />
         </div>
-
-        {/* ── RIGHT COLUMN: sticky summary panel ───────────────────────── */}
-        <div className="lg:col-span-1">
-          <OrderSummaryPanel control={control} catalog={catalog} />
+        <div className="w-72 shrink-0 lg:w-80">
+          <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} />
         </div>
-
       </div>
 
-      {/* ── Sticky bottom save bar — mobile only (M0-b) ─────────────────
-          Desktop ≥lg ใช้ FullscreenPageHeader save button (sticky top)
-          Pattern copy จาก ProductFormV2.tsx (gold-standard)
-          Base: src/app/(paces)/seller/(dashboard)/products/components/ProductFormV2.tsx */}
-      <div className="bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden">
-        <button
-          type="submit"
-          form={formId}
-          disabled={isSubmitting}
-          className="btn bg-primary hover:bg-primary-hover inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-semibold text-white disabled:opacity-60"
-        >
-          {isSubmitting ? (
-            <>
-              <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              กำลังบันทึก…
-            </>
-          ) : (
-            'บันทึกออเดอร์'
-          )}
-        </button>
+      {/* Mobile (<md): grid เต็ม + floating cart bar + bottom-sheet */}
+      <div className="md:hidden">
+        <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} />
+
+        {/* floating cart bar — SafePay domain component (Paces ไม่มี floating action bar สำเร็จรูป) */}
+        {!sheetOpen && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-xl bg-primary px-4 py-3 font-semibold text-white shadow-lg"
+          >
+            <span className="flex items-center gap-2">
+              <Icon icon="shopping-cart" className="size-5" />
+              ตะกร้า ({cartCount})
+            </span>
+            <span>{formatThb(barTotal)} ›</span>
+          </button>
+        )}
+
+        {/* bottom-sheet */}
+        {sheetOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-30 bg-dark/40"
+              onClick={() => setSheetOpen(false)}
+              aria-hidden="true"
+            />
+            {/* max-h-[85vh]: Paces ไม่มี token viewport-locked height (HR7 exception, precedent ChatThread) */}
+            <div className="fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl bg-card">
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                aria-label="ปิดตะกร้า"
+                className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-default-300"
+              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </form>
   )
