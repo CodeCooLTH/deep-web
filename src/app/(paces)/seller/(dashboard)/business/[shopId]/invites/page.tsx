@@ -20,29 +20,22 @@
 
 import { getServerSession } from 'next-auth'
 import { notFound, redirect } from 'next/navigation'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isShopMember } from '@/lib/shop-context'
-import { maskPhone } from '@/lib/phone-mask'
-import { listInvites, listMembers } from '@/services/shop-member.service'
+import { listMembers } from '@/services/shop-member.service'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from '../../components/LockedStateBanner'
-import InviteMemberForm from './components/InviteMemberForm'
-import PendingInvitesTable from './components/PendingInvitesTable'
 import CurrentMembersTable from './components/CurrentMembersTable'
 
-export const metadata: Metadata = { title: 'จัดการสมาชิกธุรกิจ' }
+export const metadata: Metadata = { title: 'สมาชิกธุรกิจ' }
 
-// mask invitedContact ที่ RSC boundary — ห้ามส่ง PHONE/EMAIL ดิบเข้า client component
-// (mirror ของ maskInviteContact ใน src/app/api/business/shops/[shopId]/invites/route.ts — ดู comment บนไฟล์)
-function maskInviteContact(contact: string, contactType: string): string {
-  if (contactType === 'PHONE') return maskPhone(contact)
-  const at = contact.indexOf('@')
-  if (at <= 1) return '***' + contact.slice(at)
-  return contact[0] + '***' + contact.slice(at)
-}
+// feature 00012: การเชิญพนักงานย้ายไปเป็น "ลิงก์เชิญ" ที่เมนู "พนักงาน" (/admins) แล้ว — เลิกใช้
+// contact-match (เบอร์/อีเมล) ตามที่ user ตัดสิน ("ลิงก์อย่างเดียว"). หน้านี้เหลือเป็น member viewer
+// ต่อ business (เข้าจากหน้า /business billing) — InviteMemberForm/PendingInvitesTable ถูกถอดออก
 
 interface InvitesPageProps {
   params: Promise<{ shopId: string }>
@@ -72,33 +65,14 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
   const isOwner = shop.userId === userId
   const isLocked = shop.packageLockedAt !== null
 
-  // 3. owner's subscription tier — resolve โควตา maxAdminsPerBusiness (fail-closed: ไม่มี/ไม่ ACTIVE = 0)
+  // 3. owner's subscription tier — tierPrice ใช้เฉพาะ LockedStateBanner
   const sub = await prisma.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } })
   const hasActivePackage = sub?.status === 'ACTIVE'
   const tier = sub?.tier as BusinessPackageTier | undefined
-  const maxAdmins = hasActivePackage && tier ? BUSINESS_PACKAGE_TIER_CONFIG[tier].maxAdminsPerBusiness : 0
   const tierPrice = hasActivePackage && tier ? BUSINESS_PACKAGE_TIER_CONFIG[tier].priceBaht : undefined
 
-  // 4. members + invites — เรียก service ตรง (ไม่ fetch HTTP เอง, RSC convention)
-  const [members, invites] = await Promise.all([listMembers(shopId), listInvites(shopId)])
-
-  const adminCount = members.filter((m) => m.role === 'ADMIN').length
-  const quotaFull = maxAdmins !== null && adminCount >= maxAdmins
-  const quotaLabel = maxAdmins === null ? `${adminCount} ใช้แล้ว` : `${adminCount}/${maxAdmins} ใช้แล้ว`
-
-  let disabledReason: string | null = null
-  if (!isOwner) disabledReason = 'เฉพาะเจ้าของร้านเท่านั้นที่เชิญผู้ดูแลได้'
-  else if (isLocked) disabledReason = 'ธุรกิจนี้ถูกล็อกอยู่ ไม่สามารถเชิญผู้ดูแลได้'
-  else if (!hasActivePackage) disabledReason = 'ไม่มีแพ็กเกจที่ใช้งานอยู่'
-  else if (quotaFull) disabledReason = 'ครบโควตาผู้ดูแลของแพ็กเกจนี้แล้ว'
-  const formDisabled = disabledReason !== null
-
-  const maskedInvites = invites.map((i) => ({
-    id: i.id,
-    invitedContact: maskInviteContact(i.invitedContact, i.contactType),
-    contactType: i.contactType as 'PHONE' | 'EMAIL',
-    createdAt: i.createdAt.toISOString(),
-  }))
+  // 4. members — เรียก service ตรง (ไม่ fetch HTTP เอง, RSC convention)
+  const members = await listMembers(shopId)
 
   const memberRows = members.map((m) => ({
     id: m.id,
@@ -121,13 +95,19 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
       )}
 
       <div className="gap-5 grid grid-cols-1">
-        <InviteMemberForm
-          shopId={shopId}
-          disabled={formDisabled}
-          disabledReason={disabledReason}
-          quotaLabel={quotaLabel}
-        />
-        <PendingInvitesTable invites={maskedInvites} shopId={shopId} canManage={isOwner} />
+        {/* feature 00012: การเชิญพนักงานย้ายไปเมนู "พนักงาน" (ลิงก์เชิญ) — แสดงเฉพาะ owner */}
+        {isOwner && (
+          <div className="card">
+            <div className="card-body flex flex-wrap items-center justify-between gap-3">
+              <p className="text-default-600 text-sm mb-0">
+                เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน
+              </p>
+              <Link href="/admins" className="btn btn-sm bg-primary text-white hover:bg-primary-hover">
+                ไปหน้าพนักงาน
+              </Link>
+            </div>
+          </div>
+        )}
         <CurrentMembersTable members={memberRows} shopId={shopId} canManage={isOwner} />
       </div>
     </>

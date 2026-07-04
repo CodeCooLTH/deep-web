@@ -52,7 +52,8 @@ export default async function VerificationPage() {
   if (!user) return null // layout redirect guard handles unauthenticated
 
   // active shop context (P5-1): Personal → user-level เดิม (shopId null); Business → แยกต่อร้าน
-  // layout guarantee ว่า active ต้อง resolve ได้เสมอ (ensurePersonalShop รันมาก่อนแล้ว) — null คือ fallback personal
+  // feature 00012 (Lazy Personal shop): active อาจเป็น null ได้แล้ว (ผู้ถูกเชิญไม่มี Personal) — โค้ด
+  // ด้านล่างใช้ active?. กันไว้แล้ว (verification เป็น user-keyed ไม่ต้องมี shop ก็ทำงานได้)
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
   )
