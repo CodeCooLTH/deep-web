@@ -689,13 +689,15 @@ export const SwitchActiveShopSchema = v.object({
 // SSOT: docs/20 - Features/00011 - Deep Chat/SRS.md §11
 
 export const SendChatMessageSchema = v.object({
-  type: v.picklist(["TEXT", "IMAGE"]),
+  type: v.picklist(["TEXT", "IMAGE", "PRODUCT"]),
   body: v.optional(v.pipe(v.string(), v.maxLength(2000))),
   imageUrl: v.optional(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
+  productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
 });
 // ตรวจ conditional-required ที่ route:
 //   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)
 //   type='IMAGE' → imageUrl ต้องมีจริง; body เป็น caption optional
+//   type='PRODUCT' → productRefId ต้องมีจริง (S-17 verify Product.shopId===conversation.shopId + idempotent-guard)
 
 export const StartConversationSchema = v.object({
   shopId: v.pipe(v.string(), v.uuid()),

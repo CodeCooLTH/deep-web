@@ -276,10 +276,11 @@ model Product {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  shop           Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  orderItems     OrderItem[]
-  tags           Tag[]
-  stockMovements StockMovement[] // Deep Stock Pro (feature 00009)
+  shop            Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+  tags            Tag[]
+  stockMovements  StockMovement[] // Deep Stock Pro (feature 00009)
+  chatMessageRefs ChatMessage[] // extension #1 Chat Product Context Card — back-relation ของ ChatMessage.productRefId
 
   @@index([shopId, stockQty])
 }
@@ -802,13 +803,17 @@ model ChatMessage {
   // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
   senderRole     String // "BUYER" | "SHOP"
   // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
-  type           String   @default("TEXT") // "TEXT" | "IMAGE"
+  type           String   @default("TEXT") // "TEXT" | "IMAGE" | "PRODUCT"
   body           String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
   imageUrl       String? // เฉพาะ type=IMAGE — reuse lib/storage upload route เดิม
+  // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
+  // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
+  productRefId   String?
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productRefId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
 }
