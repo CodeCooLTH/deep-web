@@ -42,8 +42,8 @@ export default async function BuyerAppLayout({ children }: ChildrenType) {
              src/components/layout/front-pages/styles.module.css .navbar */}
         <div
           className={[
+            // ช่วง 900–1199 fluid (ไม่ cap 852) — iPad Pro 1024 ไม่เหลือขอบข้างเยอะ; cap ที่ 1200+
             'mx-auto w-[calc(100%-48px)]',
-            'min-[900px]:max-w-[calc(900px-48px)]',
             'min-[1200px]:max-w-[calc(1200px-48px)]',
             'min-[1920px]:max-w-[calc(1440px-48px)]',
             // Vuexy remap: md=900/lg=1200 → ใช้ min-[768px]: (arbitrary) ให้ตรง 768 เป๊ะ

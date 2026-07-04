@@ -38,9 +38,7 @@
     @media (min-width: 600px) {
       padding-inline: 2rem;
     }
-    @media (min-width: 900px) {
-      max-inline-size: calc(900px - 48px);
-    }
+    /* ช่วง 900–1199 ให้ fluid (ไม่ cap 852) — iPad Pro 1024 ไม่เหลือขอบข้างเยอะ */
     @media (min-width: 1200px) {
       max-inline-size: calc(1200px - 48px);
     }

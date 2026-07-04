@@ -2,10 +2,7 @@
   margin-inline: auto;
   padding-inline: 1.5rem;
 
-  @media (min-width: 900px) {
-    max-inline-size: 900px;
-  }
-
+  /* ช่วง 900–1199 fluid (ไม่ cap 900) — footer/landing บน iPad Pro 1024 ไม่เหลือขอบข้างเยอะ */
   @media (min-width: 1200px) {
     max-inline-size: 1200px;
   }
