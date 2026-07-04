@@ -96,15 +96,19 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId }
   )
   const accBtn = 'flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-dark hover:bg-default-50'
 
+  // desktop: ล็อกสูงเท่า viewport ให้ footer (ปุ่มบันทึก) ติดล่างเสมอ — lines+accordion scroll ภายใน
+  // lg:max-h-[calc(100vh-7rem)] = HR7 exception (Paces ไม่มี token viewport-locked height; precedent ChatThread)
   return (
-    <div className="card flex flex-col lg:sticky lg:top-24">
+    <div className="card flex flex-col lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]">
       {/* header */}
-      <div className="card-header flex items-center gap-2">
+      <div className="card-header flex shrink-0 items-center gap-2">
         <Icon icon="shopping-cart" className="size-5 text-primary" />
         <h4 className="card-title font-semibold text-dark">ตะกร้า</h4>
         <span className="badge rounded-full bg-primary/15 text-primary">{count}</span>
       </div>
 
+      {/* scrollable middle — desktop: lines+accordion scroll ในนี้ (header/footer pinned) */}
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
       {/* lines */}
       <div className="flex flex-col gap-2 p-3">
         {count === 0 ? (
@@ -246,9 +250,11 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId }
           </div>
         )}
       </div>
+      </div>
+      {/* /scrollable middle */}
 
-      {/* ── footer: สรุป + บันทึก ── */}
-      <div className="space-y-2 border-t border-default-200 p-4">
+      {/* ── footer: สรุป + บันทึก (pinned ล่างเสมอ) ── */}
+      <div className="shrink-0 space-y-2 border-t border-default-200 p-4">
         <div className="flex items-center justify-between text-sm">
           <span className="text-default-600">ยอดสินค้า</span>
           <span className="font-medium text-default-700">{formatThb(subtotal)}</span>
