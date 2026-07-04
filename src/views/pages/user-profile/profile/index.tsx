@@ -2,7 +2,7 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
-import IconButton from '@mui/material/IconButton'
+import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 
 // Icon Imports
@@ -15,12 +15,16 @@ import { useSession } from 'next-auth/react'
 
 // Component Imports (BadgeChip ใช้ useState สำหรับ image error handling)
 import AchievementBadgeRow from './AchievementBadgeRow'
+import TrustScoreCard from '../TrustScoreCard'
+import type { TrustScoreCardData } from '../TrustScoreCard'
+import PlatformReputationList from '../PlatformReputationList'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
-// Rework (2026-05-23): ตัด AboutOverview, VerificationBadges, RecentReviews ออกทั้งหมด ตามคำสั่ง user
-// เปลี่ยนจาก Grid 2-คอลัมน์ → single-column ไล่ลงตาม mockup_shop_profile.html (D7 approved exception)
-// Responsive (2026-05-23): แยก named exports ProfileLeftContent + ProfileRightContent
-//   เพื่อให้ wrapper/index.tsx จัด 3-block CSS Grid บน desktop — ProfileTab คงไว้ mobile-compatible
+// Redesign (2026-07-04, hybrid FB Page × Threads spec):
+//   - Left column content: About(bio/location/joined/response-rate) + TrustScoreCard + Achievements (medal frame)
+//   - Right column content: Pinned products(slice 0-3) + All products(slice 3+) + PlatformReputationList
+//   - ProductCard ใหม่ (Base: theme .../apps/academy/my-courses/Courses.tsx bordered-card pattern) แทน ProductTile IG-edge เดิม
+//   - ตัด inline "Deep + Shopee/Lazada/TikTok" text-line เดิมออก (ย้ายไป PlatformReputationList component)
 
 // ── Type: สินค้าที่ serialize จาก RSC boundary (Decimal → string) ──
 export type SerializedProduct = {
@@ -41,24 +45,33 @@ export type ProfileTabData = {
     /** URL รูป badge; null = ใช้ emoji fallback */
     imageUrl?: string | null
   }[]
-  avgRating: number
-  /** จำนวนออเดอร์ที่สำเร็จ (status CONFIRMED) */
-  completedOrders: number
-  /** FR-9.5: true เมื่อบัญชี buyer-only (ไม่มีร้าน) */
+  /** FR-9.5: true เมื่อบัญชี buyer-only (ไม่มีร้าน) — ซ่อน products + platforms ทั้งชุด */
   openShopEmptyState?: boolean
   products: SerializedProduct[]
   totalBadgeCount: number
-  /** แสดง rating summary เฉพาะเมื่อมีรีวิวเพียงพอ (caller ส่ง true เมื่อ reviewCount >= 3) */
-  showRating: boolean
-  // S-25 (extension #2 Response-rate metric): denormalized จาก Shop.chat* fields (cron รายวัน)
-  // optional — /b/[slug] page ยังไม่ wire ให้ undefined = ซ่อนเหมือน null (FR-RESP-04 sample-gate)
-  /** อัตราการตอบ 0-100; null/undefined = ยังไม่พอ sample */
+  // ── About section (ย้ายมาจาก identity เดิมตาม redesign) ──
+  bio?: string | null
+  location?: string | null
+  /** "มิ.ย. 2568" — formatMonthYearTH() ผลลัพธ์ */
+  memberSince: string
+  // S-25 (extension #2 Response-rate metric): denormalized field จาก Shop (cron รายวัน S-24)
   chatResponseRate?: number | null
-  /** median เวลาตอบ (วินาที); null/undefined = ยังไม่พอ sample */
   chatMedianResponseSec?: number | null
-  /** จำนวน conversation ที่ใช้คำนวณรอบล่าสุด — เกต ≥3 (FR-RESP-04) */
   chatResponseSampleSize?: number | null
+  // ── TrustScoreCard data ──
+  trustScore: number
+  tierLabel: string
+  tierColor: TrustScoreCardData['tierColor']
+  nextTierLabel: string | null
+  pointsToNext: number | null
+  verifiedLevels: number[]
 }
+
+/** สินค้าปักหมุด (interim visual placeholder — ยังไม่มี pin backend จริง): 3 ชิ้นแรก / ที่เหลือ = "สินค้าทั้งหมด" */
+export const splitPinnedProducts = (products: SerializedProduct[]) => ({
+  pinned: products.slice(0, 3),
+  remaining: products.slice(3),
+})
 
 // ── FR-RESP-06: format response time เป็นข้อความไทย ──
 // <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
@@ -71,24 +84,21 @@ const formatResponseTime = (seconds: number | null | undefined): string | null =
   return '2+ วัน'
 }
 
-// ── Cross-platform platform data (hardcode placeholder ตาม D2 + D4 + D5) ──
-// ทำไม: data จริงยังไม่มี — spec กำหนดให้แสดงค่าตัวอย่าง + caption ซื่อสัตย์ (D5)
-// R8: simple-icons:lazada ไม่มีใน Iconify bundle — ใช้ null เป็น signal ให้ render Box "L" แทน
-const PLATFORMS_PLACEHOLDER: { key: string; label: string; icon: string | null; color: string; orders: string; rating: string }[] = [
-  { key: 'shopee', label: 'Shopee', icon: 'simple-icons:shopee', color: '#EE4D2D', orders: '8.5K', rating: '4.8' },
-  { key: 'lazada', label: 'Lazada', icon: null, color: '#0F146D', orders: '1.2K', rating: '4.9' },
-  { key: 'tiktok', label: 'TikTok', icon: 'simple-icons:tiktok', color: '#010101', orders: '240', rating: '4.7' },
-]
-
-// ── Product tile ──
-// S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop prop-drill จาก UserProfile → ProfileRightContent → ProductTile
-// ทำไม: ข้อมูลมีอยู่แล้วใน profileHeader (S-8 login-gate) ไม่ต้อง fetch ใหม่
-const ProductTile = ({
+// ── ProductCard ──
+// Base: theme/vuexy/typescript-version/full-version/src/views/apps/academy/my-courses/Courses.tsx
+// (bordered card: <div className='border rounded bs-full'> → image top → content padded → action button ท้ายการ์ด)
+// Adapted: แปลง Tailwind utility → MUI sx (ตาม convention ไฟล์นี้เดิม); image aspect 1/1 แทน full-width auto-height
+// S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop prop-drill จาก UserProfile → ProfileRightContent → ProductCard
+// ตัด ★rating ต่อสินค้าออก (2026-07-04 fix): Product schema ไม่มี rating รายชิ้นจริง — โชว์ shop avgRating ซ้ำทุกใบ = เลขปลอมต่อชิ้น
+// ขัด ethos เดียวกับที่ตัดผู้ติดตามทิ้ง แถวราคาจึงเหลือแค่ราคาอย่างเดียว
+const ProductCard = ({
   product,
+  pinned,
   shopId,
   isOwnShop,
 }: {
   product: SerializedProduct
+  pinned: boolean
   shopId: string | null
   isOwnShop?: boolean
 }) => {
@@ -101,9 +111,7 @@ const ProductTile = ({
   // FR-CTX-01/02/03: ปุ่ม "สอบถามสินค้านี้" — ซ่อนเมื่อ isOwnShop หรือไม่มีร้าน (shopId null)
   const showAskButton = Boolean(shopId) && !isOwnShop
 
-  const handleAskClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    e.preventDefault()
+  const handleAskClick = () => {
     if (!shopId) return
     const target = `/messages/${shopId}?productId=${product.id}`
     if (sessionStatus !== 'authenticated') {
@@ -113,49 +121,69 @@ const ProductTile = ({
     router.push(target)
   }
 
-  // Instagram-style tile: รูปเต็มช่อง edge-to-edge (object-cover), hover โชว์ชื่อ+ราคา
-  // ตาม mockup .prod-tile — ไม่มี border/มุมโค้ง/พื้นการ์ด (รูปติดกันแบบ IG)
   return (
     <Box
-      className='group'
-      sx={{ position: 'relative', aspectRatio: '1/1', overflow: 'hidden', bgcolor: '#E2E8F0' }}
+      sx={{
+        position: 'relative',
+        border: '1px solid #E2E8F0',
+        borderRadius: '14px',
+        overflow: 'hidden',
+        bgcolor: 'white',
+        transition: 'transform .18s ease, box-shadow .18s ease',
+        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(15,23,42,.10)' },
+      }}
     >
-      {product.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          loading='lazy'
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform .35s ease' }}
-          className='group-hover:scale-105'
-        />
-      ) : (
-        // ไม่มีรูป → placeholder icon กลางช่อง (รอ seller อัปรูป)
-        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
-          <Icon icon='tabler-photo' fontSize={30} />
+      {/* flag "ปักหมุด" มุมซ้ายบน (interim visual — ยังไม่มี pin backend จริง) */}
+      {pinned && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '3px',
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            fontSize: '10px',
+            fontWeight: 700,
+            borderRadius: '999px',
+            px: '8px',
+            py: '3px',
+          }}
+        >
+          <Icon icon='tabler-pin-filled' fontSize={11} />
+          ปักหมุด
         </Box>
       )}
-      <Box
-        className='opacity-0 group-hover:opacity-100'
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(180deg, transparent 60%, rgba(0,0,0,.85))',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          padding: '10px 12px',
-          transition: 'opacity .2s',
-        }}
-      >
+
+      <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: '#F1F5F9' }}>
+        {product.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            loading='lazy'
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+            <Icon icon='tabler-photo' fontSize={30} />
+          </Box>
+        )}
+      </Box>
+
+      <Box sx={{ p: '10px 12px 12px' }}>
         <Typography
+          component='p'
           sx={{
             m: 0,
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'white',
-            lineHeight: 1.2,
-            textShadow: '0 1px 2px rgba(0,0,0,.4)',
+            fontSize: '13px',
+            fontWeight: 700,
+            color: '#0F172A',
+            lineHeight: 1.35,
+            minHeight: '2.7em',
             overflow: 'hidden',
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -164,296 +192,236 @@ const ProductTile = ({
         >
           {product.name}
         </Typography>
-        {/* ── แถวราคา + ปุ่ม "สอบถามสินค้านี้" (S-19) ── */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: '2px' }}>
-          <Typography
-            sx={{
-              m: 0,
-              fontSize: '13px',
-              fontWeight: 800,
-              color: 'white',
-              letterSpacing: '-0.01em',
-              textShadow: '0 1px 2px rgba(0,0,0,.4)',
-            }}
+
+        <Typography component='p' sx={{ m: 0, mt: '6px', fontSize: '14px', fontWeight: 800, color: 'primary.main' }}>
+          {priceLabel}
+        </Typography>
+
+        {showAskButton && (
+          <Button
+            fullWidth
+            size='small'
+            variant='tonal'
+            onClick={handleAskClick}
+            startIcon={<Icon icon='tabler-message-question' fontSize={14} />}
+            sx={{ mt: '10px', fontSize: '12px', textTransform: 'none' }}
           >
-            {priceLabel}
-          </Typography>
-          {showAskButton && (
-            <IconButton
-              aria-label='สอบถามสินค้านี้'
-              title='สอบถามสินค้านี้'
-              onClick={handleAskClick}
-              sx={{
-                width: 28,
-                height: 28,
-                ml: '6px',
-                flexShrink: 0,
-                bgcolor: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.5)',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.35)' },
-              }}
-            >
-              <Icon icon='tabler-message-question' fontSize={15} />
-            </IconButton>
-          )}
-        </Box>
+            สอบถามสินค้านี้
+          </Button>
+        )}
       </Box>
     </Box>
   )
 }
 
-// ── ProfileLeftContent — Platforms + Stats (เฉพาะ seller) ──
-// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน left panel ของ grid ได้
-// mobile: ถูก render ผ่าน ProfileTab ตามลำดับเดิม — ไม่เปลี่ยน flow
+// ── ProfileLeftContent — About + TrustScoreCard + Achievements (medal frame) ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน left panel (sticky 340px) ของ grid ได้
 export const ProfileLeftContent = ({
   data,
 }: {
   data: Pick<
     ProfileTabData,
-    | 'completedOrders'
-    | 'avgRating'
-    | 'showRating'
-    | 'openShopEmptyState'
+    | 'bio'
+    | 'location'
+    | 'memberSince'
     | 'chatResponseRate'
     | 'chatMedianResponseSec'
     | 'chatResponseSampleSize'
+    | 'trustScore'
+    | 'tierLabel'
+    | 'tierColor'
+    | 'nextTierLabel'
+    | 'pointsToNext'
+    | 'verifiedLevels'
+    | 'achievements'
+    | 'totalBadgeCount'
   >
 }) => {
-  const { completedOrders, avgRating, showRating, openShopEmptyState, chatResponseRate, chatMedianResponseSec, chatResponseSampleSize } = data
+  const {
+    bio,
+    location,
+    memberSince,
+    chatResponseRate,
+    chatMedianResponseSec,
+    chatResponseSampleSize,
+    trustScore,
+    tierLabel,
+    tierColor,
+    nextTierLabel,
+    pointsToNext,
+    verifiedLevels,
+    achievements,
+    totalBadgeCount,
+  } = data
 
-  // FR-RESP-04: sample-gate ≥3 — ต่ำกว่าซ่อนทั้ง section response (ไม่โชว์เลขปลอม)
+  // FR-RESP-04: sample-gate ≥3 — ต่ำกว่าซ่อนทั้งบรรทัด response (ไม่โชว์เลขปลอม)
   const showResponse = chatResponseSampleSize != null && chatResponseSampleSize >= 3 && chatResponseRate != null
   const responseTimeLabel = formatResponseTime(chatMedianResponseSec)
 
   return (
     <>
-      {/* ── Platforms (inline text) ── */}
-      {/* ทำไม: แสดง Deep (ข้อมูลจริง) + Shopee/Lazada/TikTok (placeholder ตาม D2) ตาม mockup .platforms-section */}
-      {!openShopEmptyState && (
-        <Box sx={{ px: '24px', pt: '8px' }}>
-          <Box
-            component='p'
-            sx={{ m: 0, fontSize: '13px', color: '#64748B', lineHeight: 1.6 }}
-          >
-            {/* Deep — ข้อมูลจริง */}
-            <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', mr: '2px' }}>
-              <Box component='span' sx={{ fontWeight: 700, letterSpacing: '-0.01em', color: '#4F46E5', fontSize: '13px' }}>
-                Deep
-              </Box>
-              <Box component='span' sx={{ fontWeight: 800, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
-                {completedOrders.toLocaleString('th-TH')}
-              </Box>
-              {showRating && (
-                <Box component='span' sx={{ color: '#F59E0B', fontWeight: 600, fontSize: '12px' }}>
-                  ★{avgRating.toFixed(1)}
-                </Box>
+      {/* ── About section ── */}
+      <Box id='about' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '8px' }}>
+        <Typography
+          component='h3'
+          sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+        >
+          เกี่ยวกับร้าน
+        </Typography>
+
+        {bio && (
+          <Typography component='p' sx={{ m: 0, mb: '10px', fontSize: '14px', color: '#0F172A', lineHeight: 1.5 }}>
+            {bio}
+          </Typography>
+        )}
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#64748B' }}>
+          {location && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Icon icon='tabler-map-pin' fontSize={14} />
+              {location}
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Icon icon='tabler-calendar' fontSize={14} />
+            เข้าร่วม {memberSince}
+          </Box>
+          {/* S-25 (extension #2 Response-rate metric): ย้ายจาก stats-text เดิม → มาเป็นบรรทัดใน About */}
+          {showResponse && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <Icon icon='tabler-message' fontSize={14} />
+              ตอบกลับ <Box component='strong' sx={{ color: '#0F172A' }}>{Math.round(chatResponseRate as number)}%</Box>
+              {responseTimeLabel && (
+                <>
+                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: '#0F172A' }}>{responseTimeLabel}</Box>
+                </>
               )}
             </Box>
-
-            {/* Separator */}
-            <Box component='span' sx={{ color: '#94A3B8', mx: '2px', fontWeight: 300 }}>·</Box>
-
-            {/* Shopee/Lazada/TikTok — placeholder ตาม D2 */}
-            {PLATFORMS_PLACEHOLDER.map((p, idx) => (
-              <Box key={p.key} component='span'>
-                <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-                  {p.icon ? (
-                    <Icon icon={p.icon} style={{ color: p.color, fontSize: 15, verticalAlign: 'middle' }} aria-label={p.label} />
-                  ) : (
-                    /* R8: Lazada ไม่มี icon ใน bundle — Box วงกลม 16px bg #0F146D ตัว "L" ขาว ให้ visual weight เท่า icon อื่น */
-                    <Box component='span' sx={{ display: 'inline-flex', width: 16, height: 16, borderRadius: '50%', bgcolor: p.color, color: 'white', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800, lineHeight: 1, flexShrink: 0, verticalAlign: 'middle' }}>L</Box>
-                  )}
-                  <Box component='span' sx={{ fontWeight: 800, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
-                    {p.orders}
-                  </Box>
-                  <Box component='span' sx={{ color: '#F59E0B', fontWeight: 600, fontSize: '12px' }}>
-                    ★{p.rating}
-                  </Box>
-                </Box>
-                {idx < PLATFORMS_PLACEHOLDER.length - 1 && (
-                  <Box component='span' sx={{ color: '#94A3B8', mx: '2px', fontWeight: 300 }}>·</Box>
-                )}
-              </Box>
-            ))}
-          </Box>
+          )}
         </Box>
-      )}
+      </Box>
 
-      {/* ── Stats-text ── */}
-      {/* ทำไม: inline text แบบ mockup .stats-text — lifetime orders (จริง); on-time/replies (placeholder ตาม D4) */}
-      {!openShopEmptyState && (
-        <Box sx={{ px: '24px', pt: '8px' }}>
-          <Typography component='p' sx={{ m: 0, lineHeight: 1.45, fontSize: '13px', color: '#64748B' }}>
-            {/* R13: เปลี่ยน emoji → Iconify เพื่อ consistent ทุก OS */}
-            <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-package' style={{ fontSize: 14, color: '#64748B' }} /></Box>
-            <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
-              {completedOrders.toLocaleString('th-TH')}
-            </Box>
-            {' '}lifetime orders
-            <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
-            <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-truck-delivery' style={{ fontSize: 14, color: '#64748B' }} /></Box>
-            <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>98%</Box>
-            {' '}on-time delivery
-            {/* S-25 (extension #2 Response-rate metric): แทน "replies in ~8 min" hardcode — ค่าจริงจาก Shop.chat* (cron)
-                sample-gate FR-RESP-04: ซ่อนทั้ง section ถ้า sample < 3 */}
-            {showResponse && (
-              <>
-                <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
-                <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-message' style={{ fontSize: 14, color: '#64748B' }} /></Box>
-                ตอบกลับ{' '}
-                <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>{Math.round(chatResponseRate as number)}%</Box>
-                {responseTimeLabel && (
-                  <>
-                    <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
-                    ตอบเฉลี่ย{' '}
-                    <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>{responseTimeLabel}</Box>
-                  </>
-                )}
-              </>
-            )}
-          </Typography>
-        </Box>
-      )}
+      {/* ── Trust Score Card ── */}
+      <TrustScoreCard data={{ trustScore, tierLabel, tierColor, nextTierLabel, pointsToNext, verifiedLevels }} />
 
-      {/* R3: breathing room ท้าย left content — mobile หายใจก่อน achievements ด้านล่าง */}
-      <Box sx={{ pb: { xs: '16px', md: 0 } }} />
-    </>
-  )
-}
-
-// ── ProfileRightContent — Achievements + Shop Highlights + Chat FAB ──
-// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน right panel ของ grid ได้
-// mobile: ถูก render ผ่าน ProfileTab ตามลำดับเดิม — ไม่เปลี่ยน flow
-// responsive values ใช้ MUI sx responsive object ภายใน — ไม่ต้องรับ prop จาก wrapper
-// S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop รับแยกจาก data (มาจาก ProfileHeaderData
-// ไม่ใช่ ProfileTabData) prop-drill ต่อไปให้ ProductTile ตาม UX spec data-plumbing
-export const ProfileRightContent = ({
-  data,
-  shopId,
-  isOwnShop,
-}: {
-  data: Pick<ProfileTabData, 'achievements' | 'products' | 'openShopEmptyState' | 'totalBadgeCount'>
-  shopId?: string | null
-  isOwnShop?: boolean
-}) => {
-  const { achievements, products, openShopEmptyState, totalBadgeCount } = data
-
-  return (
-    <>
-      {/* ── Featured Achievements ── */}
-      {/* ทำไม: ใช้ AchievementBadgeRow (badge cell 78px column-center) ตาม mockup .achv-section */}
+      {/* ── Achievements (medal frame) ── */}
       {achievements.length > 0 && (
-        <Box sx={{ px: '24px', pt: '18px', pb: '12px' }}>
-          {/* section-head: flex space-between ตาม mockup .section-head */}
+        <Box id='achievements' sx={{ px: { xs: '20px', md: '24px' }, pt: '4px', pb: '20px' }}>
           <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: '10px' }}>
             <Typography
               component='h3'
-              sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.1em', textTransform: 'uppercase' }}
+              sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
             >
-              Featured Achievements
+              การรับรอง
             </Typography>
-            {/* "ดูทั้งหมด N →" — ไม่ใช่ link จริง (D3: feature ยังไม่มี) */}
             {totalBadgeCount > 0 && (
-              <Typography
-                component='span'
-                sx={{ fontSize: '12px', color: '#4F46E5', fontWeight: 600, cursor: 'default', userSelect: 'none' }}
-              >
+              <Typography component='span' sx={{ fontSize: '12px', color: 'primary.main', fontWeight: 600, cursor: 'default', userSelect: 'none' }}>
                 ดูทั้งหมด {totalBadgeCount} →
               </Typography>
             )}
           </Box>
 
-          {/* achv-row: flex wrap gap 2px ตาม mockup .achv-row */}
-          {/* ทำไม: desktop ชิดซ้าย (justifyContent: flex-start) ตาม spec — mobile ก็ flex-start เหมือนกัน */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '2px',
-              flexWrap: 'wrap',
-              justifyContent: 'flex-start',
-            }}
-          >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
             <AchievementBadgeRow items={achievements} />
           </Box>
         </Box>
       )}
-
-      {/* ── Shop Highlights (product grid) ── */}
-      {/* ทำไม: ซ่อนเมื่อ buyer-only (openShopEmptyState) — buyer ไม่มีร้าน ไม่มีสินค้า (FR-9.5) */}
-      {!openShopEmptyState && (
-        <Box sx={{ pt: '8px' }}>
-          {/* section-head — px 24 ตาม mockup .prod-section .section-head */}
-          <Box sx={{ px: '24px', pb: '14px' }}>
-            <Typography
-              component='h3'
-              sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.1em', textTransform: 'uppercase' }}
-            >
-              Shop Highlights
-            </Typography>
-          </Box>
-
-          {/* prod-grid: CSS grid gap 3px bg #E2E8F0 ชิดขอบการ์ด (ไม่มี px) ตาม mockup .prod-grid */}
-          {/* ทำไม: 3-col Instagram grid edge-to-edge ทั้ง mobile/desktop ตาม mockup .prod-grid */}
-          {products.length === 0 ? (
-            /* R10: เพิ่ม subtext + py จาก 32px → 48px เพื่อให้ empty state หายใจ */
-            <Box sx={{ px: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
-              <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
-              <Box>
-                <Typography sx={{ color: '#64748B', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
-                <Typography sx={{ color: '#94A3B8', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
-              </Box>
-            </Box>
-          ) : (
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                // Instagram grid: รูปติดกัน gap บาง 2px ไม่มีพื้นเทาคั่น (เลี่ยงบล็อกเทาตอนแถวไม่เต็ม)
-                // edge-to-edge ชิดขอบการ์ด ตาม mockup .prod-grid — รูปแสดงเต็มช่อง
-                gap: '2px',
-              }}
-            >
-              {products.map((product) => (
-                <ProductTile key={product.id} product={product} shopId={shopId ?? null} isOwnShop={isOwnShop} />
-              ))}
-            </Box>
-          )}
-        </Box>
-      )}
-
     </>
   )
 }
 
-// ── Profile Tab (single-column, mobile-compatible — ไม่มี Grid/Card ซ้อน) ──
-// ทำไม: default export ยังใช้งานได้ปกติ — mobile render ผ่าน wrapper/index.tsx ที่ใช้ ProfileLeftContent + ProfileRightContent
-// ProfileTab ยังถูก export ไว้สำหรับ backward compat แต่ปัจจุบัน wrapper/index.tsx ใช้ named exports แทน
-const ProfileTab = ({ data }: { data: ProfileTabData }) => {
-  const {
-    completedOrders,
-    avgRating,
-    showRating,
-    openShopEmptyState,
-    achievements,
-    products,
-    totalBadgeCount,
-    chatResponseRate,
-    chatMedianResponseSec,
-    chatResponseSampleSize,
-  } = data
+// ── ProfileRightContent — Pinned products + All products + Platform reputation ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน right panel ของ grid ได้
+// S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop รับแยกจาก data (มาจาก ProfileHeaderData
+// ไม่ใช่ ProfileTabData) prop-drill ต่อไปให้ ProductCard ตาม UX spec data-plumbing
+export const ProfileRightContent = ({
+  data,
+  shopId,
+  isOwnShop,
+}: {
+  data: Pick<ProfileTabData, 'products' | 'openShopEmptyState'>
+  shopId?: string | null
+  isOwnShop?: boolean
+}) => {
+  const { products, openShopEmptyState } = data
+  const { pinned, remaining } = splitPinnedProducts(products)
+
+  if (openShopEmptyState) return null
 
   return (
     <>
-      <ProfileLeftContent
-        data={{ completedOrders, avgRating, showRating, openShopEmptyState, chatResponseRate, chatMedianResponseSec, chatResponseSampleSize }}
-      />
-      <ProfileRightContent
-        data={{ achievements, products, openShopEmptyState, totalBadgeCount }}
-      />
+      {products.length === 0 ? (
+        <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
+          <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
+          <Box>
+            <Typography sx={{ color: '#64748B', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
+            <Typography sx={{ color: '#94A3B8', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
+          </Box>
+        </Box>
+      ) : (
+        <>
+          {/* ── สินค้าปักหมุด (interim visual placeholder = products.slice(0,3)) ── */}
+          <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
+            <Typography
+              component='h3'
+              sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+            >
+              สินค้าปักหมุด
+            </Typography>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                gap: '12px',
+              }}
+            >
+              {pinned.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  pinned
+                  shopId={shopId ?? null}
+                  isOwnShop={isOwnShop}
+                />
+              ))}
+            </Box>
+          </Box>
+
+          {/* ── สินค้าทั้งหมด (ซ่อนเมื่อ products <= 3) ── */}
+          {remaining.length > 0 && (
+            <Box id='all-products' sx={{ px: { xs: '20px', md: '24px' }, pb: '16px' }}>
+              <Typography
+                component='h3'
+                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+              >
+                สินค้าทั้งหมด
+              </Typography>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                  gap: '12px',
+                }}
+              >
+                {remaining.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    pinned={false}
+                    shopId={shopId ?? null}
+                    isOwnShop={isOwnShop}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+        </>
+      )}
+
+      {/* ── ชื่อเสียงแพลตฟอร์มอื่น (placeholder) ── */}
+      <PlatformReputationList />
     </>
   )
 }
 
-export default ProfileTab
+export default ProfileRightContent

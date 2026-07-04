@@ -14,6 +14,8 @@ import { badgeIconName } from '@/lib/badge-icons'
 // Asset/content source: mockup_shop_profile.html
 // (badge chip pattern) — stripped to inline row only (ไม่มี Card/header — profile/index.tsx จัดการ layout แล้ว)
 // ทำไม: แยก component นี้เพราะ image error handling ต้องการ useState ต่อ badge instance
+// Redesign (2026-07-04): ครอบ badge art ด้วย circular-medal frame (radial-gradient+border+boxShadow) ให้ดูเป็นเหรียญกลม
+// ตาม spec hybrid FB Page × Threads — D7 exception เดิม (compose จาก MUI Box primitive) ยังใช้ได้
 
 type AchievementItem = {
   id: string
@@ -45,15 +47,18 @@ function BadgeCell({ item }: { item: AchievementItem }) {
           '&:hover': { bgcolor: '#EEF2FF', transform: 'translateY(-2px)' },
         }}
       >
-        {/* badge art 60px ตาม mockup .achv-art */}
+        {/* medal frame 52px วงกลม (radial-gradient+border+boxShadow) ให้ badge ดูเป็นเหรียญ — แทน drop-shadow เดิม */}
         <Box
           sx={{
-            width: 60,
-            height: 60,
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            filter: 'drop-shadow(0 3px 6px rgba(15,23,42,.18))',
+            background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F1F5F9 55%, #E2E8F0 100%)',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 3px 8px rgba(15,23,42,.14), inset 0 1px 2px rgba(255,255,255,.8)',
           }}
         >
           {showImg ? (
@@ -61,18 +66,18 @@ function BadgeCell({ item }: { item: AchievementItem }) {
             <img
               src={item.imageUrl!}
               alt={item.name}
-              width={60}
-              height={60}
+              width={40}
+              height={40}
               loading='lazy'
               onError={() => setImgFailed(true)}
-              style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '50%' }}
+              style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: '50%' }}
             />
           ) : (
             /* fallback: lucide icon ตามชื่อ badge (no-emoji — Hard Rule 12); parity กับ seller BadgeImage */
             <IconifyIcon
               icon={badgeIconName(item.nameEN, item.icon)}
-              width={44}
-              height={44}
+              width={30}
+              height={30}
               aria-label={item.name}
               style={{ color: '#475569' }}
             />

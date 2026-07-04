@@ -627,8 +627,15 @@ export const authOptions: NextAuthOptions = {
           try {
             const tokenActiveShopId = (token as { activeShopId?: string | null }).activeShopId ?? null;
             if (tokenActiveShopId && tokenActiveShopId !== resolvedActiveShopId) {
-              const m = await prisma.shopMember.findUnique({
-                where: { shopId_userId: { shopId: tokenActiveShopId, userId: user.id } },
+              // filter shop.deletedAt/purgedAt ด้วย — กัน soft-deleted business ยัง resolve เป็น active
+              // (สอดคล้องกับ resolveActiveShopContext + hasBusinessMembership count; ป้องกัน display drift
+              // ที่ topbar/sidebar โชว์ชื่อ/โลโก้ร้านที่ถูกลบ — security review Low finding)
+              const m = await prisma.shopMember.findFirst({
+                where: {
+                  shopId: tokenActiveShopId,
+                  userId: user.id,
+                  shop: { deletedAt: null, purgedAt: null },
+                },
                 select: { role: true },
               });
               if (m) {
@@ -648,12 +655,41 @@ export const authOptions: NextAuthOptions = {
             hasBusinessMembership = false;
           }
 
+          // active shop identity (FB switcher) — query เฉพาะเมื่อ active เป็น BUSINESS
+          // (resolvedActiveShopId != Personal id). PERSONAL → null → consumer fallback avatar/displayName
+          // 🛑 ต้องอยู่ใน try/catch — query นี้รันทุก session resolve; ถ้า throw ต้อง fail-closed
+          //    (คง PERSONAL/null) ไม่ใช่ปล่อยให้ session callback พัง = session 500 ทุก seller business-active
+          const personalShopId = user.shops[0]?.id ?? null;
+          let activeShopKind: "PERSONAL" | "BUSINESS" = "PERSONAL";
+          let activeShopName: string | null = null;
+          let activeShopLogo: string | null = null;
+          try {
+            if (resolvedActiveShopId && resolvedActiveShopId !== personalShopId) {
+              const activeShop = await prisma.shop.findUnique({
+                where: { id: resolvedActiveShopId },
+                select: { shopName: true, logo: true },
+              });
+              if (activeShop) {
+                activeShopKind = "BUSINESS";
+                activeShopName = activeShop.shopName;
+                activeShopLogo = activeShop.logo;
+              }
+            }
+          } catch (e) {
+            console.error("[auth] session activeShop identity resolve failed — fallback Personal display", e);
+            activeShopKind = "PERSONAL";
+            activeShopName = null;
+            activeShopLogo = null;
+          }
+
           (session as any).user = {
             id: user.id, displayName: user.displayName, username: user.username,
             email: user.email, avatar: user.avatar, isShop: user.isShop,
             isAdmin: user.isAdmin, trustScore: user.trustScore,
             shopSlug, needsOnboarding, needsPhoneVerify,
             activeShopId: resolvedActiveShopId, activeShopRole, hasBusinessMembership,
+            // FB switcher (origin/main): active shop identity สำหรับ topbar/sidebar
+            activeShopKind, activeShopName, activeShopLogo,
             // feature 00012 (Lazy Personal shop): ให้ layout/choose-shop รู้ว่า user มีร้านของตัวเองไหม
             // (ผู้ถูกเชิญ = false แม้เป็น ADMIN business) — ใช้ตัดสิน 0-shop/invited-only state
             hasPersonalShop: !!personal,

@@ -12,9 +12,8 @@
 'use client'
 
 import bgPattern from '@/assets/images/user-bg-pattern.svg'
-import user1 from '@/assets/images/users/user-1.jpg'
+import AccountAvatar from '@/components/AccountAvatar'
 import Icon from '@/components/wrappers/Icon'
-import Image from 'next/image'
 import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -26,6 +25,9 @@ const UserProfileSettings = () => {
     | { id: string; displayName: string; username: string; avatar: string | null; isShop?: boolean }
     | undefined
 
+  // บล็อกบัญชีใน sidebar = ข้อมูลส่วนตัวเสมอ (ไม่สะท้อน business ที่ active — ตาม user 2026-07-04)
+  const dispName = user?.displayName ?? user?.username ?? 'ผู้ขาย'
+
   const handleSignOut = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
     signOut({ callbackUrl: '/auth/sign-in' })
@@ -36,15 +38,8 @@ const UserProfileSettings = () => {
       <div className="flex items-center justify-between">
         <div>
           <Link href="/dashboard" className="link-reset">
-            {user?.avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatar} alt={user.displayName} className="mb-3 size-9 rounded-full object-cover" />
-            ) : (
-              <Image src={user1} alt="user-image" className="mb-3 size-9 rounded-full" />
-            )}
-            <span className="sidenav-user-name block font-bold text-nowrap">
-              {user?.displayName ?? user?.username ?? 'ผู้ขาย'}
-            </span>
+            <AccountAvatar src={user?.avatar} kind="personal" className="mb-3 size-9" />
+            <span className="sidenav-user-name block font-bold text-nowrap">{dispName}</span>
             <span className="text-xs font-semibold" data-lang="user-role">
               ผู้ขาย
             </span>
