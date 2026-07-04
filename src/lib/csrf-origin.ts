@@ -24,5 +24,7 @@ export function isAllowedOrigin(
   const matches = (root: string) => host === root || host.endsWith('.' + root)
   if (matches(PROD_ROOT)) return true
   if (!isProd && matches(DEV_ROOT)) return true
+  // dev-only: อนุญาต localhost/127.0.0.1 (เข้า dev ผ่าน localhost:3000 ได้โดยไม่ต้องตั้ง deepth.local)
+  if (!isProd && (host === 'localhost' || host === '127.0.0.1')) return true
   return false
 }
