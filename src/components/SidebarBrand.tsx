@@ -1,7 +1,8 @@
 'use client'
 
 /**
- * Base: src/components/AppLogo.tsx (fallback ตัวเดิม + คงโครง logo-lg/logo-sm)
+ * Base: theme/paces/Admin/TS/src/components/AppLogo.tsx (Paces logo-box; โครง logo-lg/logo-sm)
+ *   — src/components/AppLogo.tsx = SafePay fork ที่ swap asset เป็นโลโก้ Deep (ใช้เป็น fallback ตัวเดิม)
  *
  * business active → โลโก้ร้าน + ชื่อร้าน; ไม่งั้น → โลโก้ Deep เดิม (<AppLogo/>)
  * 🛑 ต้อง emit ทั้ง .logo-lg และ .logo-sm — _sidenav.css toggle การแสดงผลด้วย CSS ล้วน
