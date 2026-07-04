@@ -379,7 +379,9 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
         <div className="min-w-0 flex-1">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} />
         </div>
-        <div className="w-72 shrink-0 lg:w-80">
+        {/* cart panel — กว้างขึ้นบน desktop (user feedback: right เล็กไป); xl:w-[28rem] = HR7 exception
+            (Paces max width token = w-96/24rem แคบไปสำหรับ POS cart บนจอกว้าง) */}
+        <div className="w-72 shrink-0 lg:w-96 xl:w-[28rem]">
           <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} />
         </div>
       </div>
