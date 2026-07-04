@@ -23,8 +23,25 @@ const UserProfileSettings = () => {
   // session shape เหมือน UserDropdownDetailed — cast เพื่อเข้าถึง custom fields
   const { data: session } = useSession()
   const user = (session as any)?.user as
-    | { id: string; displayName: string; username: string; avatar: string | null; isShop?: boolean }
+    | {
+        id: string
+        displayName: string
+        username: string
+        avatar: string | null
+        isShop?: boolean
+        // feat 00008 FB switcher — active account identity (จาก lib/auth.ts session callback)
+        activeShopKind?: 'PERSONAL' | 'BUSINESS'
+        activeShopName?: string | null
+        activeShopLogo?: string | null
+        activeShopRole?: 'OWNER' | 'ADMIN'
+      }
     | undefined
+
+  // สะท้อน active account: business → โลโก้ร้าน+ชื่อร้าน+บทบาท, personal → เดิม
+  const isBusiness = user?.activeShopKind === 'BUSINESS'
+  const dispName = isBusiness ? (user?.activeShopName ?? 'ร้านค้า') : (user?.displayName ?? user?.username ?? 'ผู้ขาย')
+  const dispLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
+  const dispRole = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ผู้ขาย'
 
   const handleSignOut = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -36,17 +53,19 @@ const UserProfileSettings = () => {
       <div className="flex items-center justify-between">
         <div>
           <Link href="/dashboard" className="link-reset">
-            {user?.avatar ? (
+            {dispLogo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatar} alt={user.displayName} className="mb-3 size-9 rounded-full object-cover" />
+              <img src={dispLogo} alt={dispName} className="mb-3 size-9 rounded-full object-cover" />
+            ) : isBusiness ? (
+              <span className="mb-3 size-9 rounded-full bg-primary/15 text-primary inline-flex items-center justify-center">
+                <Icon icon="building-store" className="size-5" />
+              </span>
             ) : (
               <Image src={user1} alt="user-image" className="mb-3 size-9 rounded-full" />
             )}
-            <span className="sidenav-user-name block font-bold text-nowrap">
-              {user?.displayName ?? user?.username ?? 'ผู้ขาย'}
-            </span>
+            <span className="sidenav-user-name block font-bold text-nowrap">{dispName}</span>
             <span className="text-xs font-semibold" data-lang="user-role">
-              ผู้ขาย
+              {dispRole}
             </span>
           </Link>
         </div>
