@@ -71,8 +71,9 @@ export default function AccountSwitcherSheet() {
     // guard: fetch เฉพาะเมื่อมี business membership จริง (เหมือน UserDropdownDetailed)
     if (!hasBusinessMembership) return
     let cancelled = false
-    // no-store: กัน browser/CDN/carrier cache serve response เก่า (businesses ที่เพิ่งสร้างไม่โผล่)
-    fetch('/api/business/context', { cache: 'no-store' })
+    // no-store + cache-buster query: กัน cache ทุกชั้น (browser/CDN/carrier 5G ที่ ignore no-store)
+    // serve response เก่า businesses=[] — URL unique ทุกครั้ง = cache miss เสมอ
+    fetch(`/api/business/context?_t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return
