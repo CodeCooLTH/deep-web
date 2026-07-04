@@ -123,6 +123,15 @@ model Shop {
   // recalculateShopTrustScore(shopId) (P5-3b, service layer) — monotonic rule (Math.max) เหมือน user เดิม
   trustScore        Int       @default(0)
 
+  // --- feature 00011 ext #2: Response-rate / Response-time Trust Metric (additive, nullable) ---
+  // denormalized จาก Deep Chat (Conversation/ChatMessage) เขียนโดย cron รายวัน
+  // (`/api/cron/chat-response-metrics`, S-24) — เลือกอ่านสด null จนกว่า cron รอบแรกจะรัน
+  // หรือ sample-size ไม่ถึงเกณฑ์ (FR-RESP-04, gate ≥3) ไม่ query สดตอน render public profile
+  chatResponseRate       Float?    // response rate % (0-100), FR-RESP-02; null = ยังไม่พอ sample
+  chatResponseSampleSize Int?      // denominator รอบล่าสุด (จำนวน conversation ใน window 90 วัน), FR-RESP-01
+  chatMedianResponseSec  Int?      // median เวลาตอบ (วินาที) เฉพาะ conv ที่ตอบแล้ว, FR-RESP-03
+  chatMetricsUpdatedAt   DateTime? // เวลาที่ cron เขียนล่าสุด, FR-RESP-07
+
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   products             Product[]
   orders               Order[]
