@@ -24,6 +24,7 @@ import { authOptions } from '@/lib/auth'
 import BuyerChatWidget from '@/components/chat/BuyerChatWidget'
 
 import AccountSidebar from './_components/AccountSidebar'
+import ScrollToTop from './_components/ScrollToTop'
 
 export default async function BuyerAppLayout({ children }: ChildrenType) {
   const session = await getServerSession(authOptions)
@@ -32,7 +33,8 @@ export default async function BuyerAppLayout({ children }: ChildrenType) {
   }
 
   return (
-    <FrontLayout>
+    <FrontLayout solidHeader>
+      <ScrollToTop />
       <div className='min-bs-[100dvh]'>
         {/* ความกว้างต้อง match FrontLayout Header navbar:
              100% - 48px ที่ทุก breakpoint, max-inline-size
