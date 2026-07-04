@@ -6,6 +6,12 @@ import { getPersonalShop } from "@/lib/shop-context";
 import { getSubscriptionStatus } from "@/services/business-package.service";
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from "@/lib/business-package";
 
+// per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับ
+// bug 2026-07-04: มือถือ 5G เห็น businesses เก่า (ร้านที่เพิ่งสร้างไม่โผล่ใน account switcher)
+// เพราะ default header เป็น `public` → intermediary cache serve response เก่า businesses=[]
+export const dynamic = "force-dynamic";
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
+
 /**
  * GET /api/business/context — คืนข้อมูล switcher + package summary ของ session user ปัจจุบัน
  * เรียกโดย AccountSwitcher และหน้า package matrix (preview ก่อน downgrade/cancel)
@@ -64,12 +70,15 @@ export async function GET() {
       deletedAt: m.shop.deletedAt,
     }));
 
-    return NextResponse.json({
-      personal,
-      subscription,
-      businesses,
-      hasBusinessMembership: businesses.length > 0,
-    });
+    return NextResponse.json(
+      {
+        personal,
+        subscription,
+        businesses,
+        hasBusinessMembership: businesses.length > 0,
+      },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (e: unknown) {
     console.error("[GET /api/business/context] userId:", userId, e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
