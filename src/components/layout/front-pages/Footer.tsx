@@ -59,15 +59,15 @@ const Footer = ({ mode }: { mode: Mode }) => {
         <img src={dashboardImage} alt='footer bg' className='absolute inset-0 is-full bs-full object-cover -z-[1]' />
         <div className={classnames('plb-12 text-white', frontCommonStyles.layoutSpacing)}>
           <Grid container rowSpacing={10} columnSpacing={12}>
-            <Grid size={{ xs: 12, lg: 5 }}>
+            <Grid size={{ xs: 12, md: 5 }}>
               <div className='flex flex-col items-start gap-6'>
                 <Link href='/'>
                   <Logo color='var(--mui-palette-common-white)' />
                 </Link>
-                <Typography className='md:max-is-[390px] text-white/70'>
+                <Typography className='sm:max-is-[390px] text-white/70'>
                   Deep คือระบบสร้างความน่าเชื่อถือสำหรับการซื้อขายออนไลน์ ด้วย Trust Score, Badge และการยืนยันตัวตนหลายระดับ
                 </Typography>
-                <div className='flex flex-col gap-2 is-full md:max-is-[390px]'>
+                <div className='flex flex-col gap-2 is-full sm:max-is-[390px]'>
                   <Typography className='text-white font-medium'>ติดตามข่าวสาร</Typography>
                   <div className='flex items-center gap-2 pis-4 pie-1 plb-1 rounded-lg bg-white/[0.06] border border-white/30 hover:border-white/50 focus-within:border-[var(--mui-palette-primary-main)] transition-colors duration-200'>
                     <input
@@ -82,7 +82,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
                 </div>
               </div>
             </Grid>
-            <Grid size={{ xs: 12, sm: 3, lg: 2 }}>
+            <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <Typography className='font-semibold mbe-6 text-white'>แพลตฟอร์ม</Typography>
               <div className='flex flex-col gap-4'>
                 {platformLinks.map((item, index) =>
@@ -99,7 +99,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
                 )}
               </div>
             </Grid>
-            <Grid size={{ xs: 12, sm: 3, lg: 2 }}>
+            <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <Typography className='font-semibold mbe-6 text-white'>บริการ</Typography>
               <div className='flex flex-col gap-4'>
                 {serviceLinks.map((item, index) => (
@@ -109,7 +109,7 @@ const Footer = ({ mode }: { mode: Mode }) => {
                 ))}
               </div>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <Grid size={{ xs: 12, sm: 4, md: 3 }}>
               <Typography className='font-semibold mbe-6 text-white'>ดาวน์โหลดแอป</Typography>
               <div className='flex flex-col gap-4'>
                 <Link className='bg-[#282C3E] hover:bg-[#33384e] transition-colors duration-200 bs-[56px] w-full max-w-[211px] rounded-lg'>
