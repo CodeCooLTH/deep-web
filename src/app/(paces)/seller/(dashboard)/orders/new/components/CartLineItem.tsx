@@ -38,19 +38,11 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
   const price = Number(priceField.value) || 0
   const thumbSrc = item.productId ? catalog.find((p) => p.id === item.productId)?.image : null
 
-  const setQty = (n: number) => {
-    if (n < 1) {
-      itemsCtl.remove(index)
-      return
-    }
-    qtyField.onChange(n)
-  }
-
   return (
-    <div className="rounded-lg border border-default-200 bg-card p-3">
-      {/* top: thumb + combobox + remove */}
+    <div className="rounded-lg border border-default-200 bg-card p-2.5">
+      {/* แถวชื่อ: thumb + (ชื่อ combobox + รายละเอียดใต้ชื่อ แบบ FlowAccount) + ลบ */}
       <div className="flex items-start gap-2.5">
-        <ProductThumb src={thumbSrc} alt={item.name} className="size-11 rounded-lg" iconClassName="size-5" />
+        <ProductThumb src={thumbSrc} alt={item.name} className="size-9 rounded-lg" iconClassName="size-4" />
         <div className="min-w-0 flex-1">
           <ProductCombobox
             value={{ productId: item.productId, name: item.name }}
@@ -58,78 +50,61 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
             onPick={(p) => itemsCtl.setLineProduct(index, p)}
             onCustom={(text) => itemsCtl.setLineCustom(index, text)}
           />
+          {/* รายละเอียด — บรรทัดใต้ชื่อสินค้า */}
+          <input
+            type="text"
+            placeholder="รายละเอียด (ถ้ามี)"
+            value={descField.value ?? ''}
+            onChange={descField.onChange}
+            onBlur={descField.onBlur}
+            className="form-input mt-1.5 py-1 text-xs"
+          />
           {itemErrors?.name && <p className="mt-0.5 text-xs text-danger">{itemErrors.name.message}</p>}
         </div>
         <button
           type="button"
           onClick={() => itemsCtl.remove(index)}
           aria-label="ลบรายการ"
-          className="btn btn-icon !size-11 min-h-0 shrink-0 text-default-400 hover:bg-danger/10 hover:text-danger"
+          className="btn btn-icon !size-9 min-h-0 shrink-0 text-default-400 hover:bg-danger/10 hover:text-danger"
         >
           <Icon icon="x" className="size-4" />
         </button>
       </div>
 
-      {/* description */}
-      <input
-        type="text"
-        placeholder="เพิ่มคำอธิบาย (ถ้ามี)"
-        value={descField.value ?? ''}
-        onChange={descField.onChange}
-        onBlur={descField.onBlur}
-        className="form-input mt-2 border-dashed !border-default-300 bg-default-50 text-xs"
-      />
-
-      {/* bottom: qty stepper + unit price + line total */}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        {/* qty stepper — Paces idiom (input-group ปุ่มน้ำเงินทึบ ขนาบ input)
-            Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/cart/components/QuentityCounter.tsx */}
-        <div className="input-group w-36">
-          <button
-            type="button"
-            onClick={() => setQty(qty - 1)}
-            aria-label="ลดจำนวน"
-            className="btn bg-primary text-white hover:bg-primary-hover"
-          >
-            <Icon icon="minus" className="size-4" />
-          </button>
+      {/* จำนวน · ราคาต่อหน่วย · รวม — inline กระชับ แก้ตรงนั้น (indent ใต้ชื่อ) */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 ps-11">
+        <label className="flex items-center gap-1.5">
+          <span className="text-2xs text-default-500">จำนวน</span>
           <input
             type="number"
             inputMode="numeric"
             min={1}
             step={1}
-            className="form-input select-none text-center"
+            className="form-input w-16 py-1.5 text-center text-sm"
             value={qtyField.value ?? 1}
             onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
             onBlur={qtyField.onBlur}
           />
-          <button
-            type="button"
-            onClick={() => setQty(qty + 1)}
-            aria-label="เพิ่มจำนวน"
-            className="btn bg-primary text-white hover:bg-primary-hover"
-          >
-            <Icon icon="plus" className="size-4" />
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* unit price — แก้ได้ทุก line (spec §5.2) */}
-          <div className="relative w-24">
-            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-default-400">฿</span>
+        </label>
+        <label className="flex items-center gap-1.5">
+          <span className="text-2xs text-default-500">ราคา</span>
+          <div className="input-group w-28">
+            <span className="input-group-text">฿</span>
             <input
               type="number"
               inputMode="decimal"
               min={0}
               step={0.01}
-              className="form-input w-full py-1 pl-6 text-sm"
+              className="form-input py-1.5 text-sm"
               value={priceField.value ?? 0}
               onChange={(e) => priceField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
               onBlur={priceField.onBlur}
             />
           </div>
-          <span className="min-w-16 text-right text-sm font-semibold text-dark tabular-nums">
-            {formatThb(qty * price)}
-          </span>
+        </label>
+        <div className="ms-auto text-right">
+          <div className="text-2xs text-default-500">รวม</div>
+          <div className="text-sm font-semibold text-dark tabular-nums">{formatThb(qty * price)}</div>
         </div>
       </div>
       {itemErrors?.qty && <p className="mt-1 text-xs text-danger">{itemErrors.qty.message}</p>}
