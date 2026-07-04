@@ -52,7 +52,7 @@ type Props = {
 
 const Transactions = ({ reviews }: Props) => {
   return (
-    <Card className='flex flex-col'>
+    <Card className='bs-full flex flex-col'>
       <CardHeader
         title='รีวิวที่ให้ล่าสุด'
         subheader={`คุณให้รีวิวทั้งหมด ${reviews.length} รายการ`}
@@ -69,9 +69,12 @@ const Transactions = ({ reviews }: Props) => {
       />
       <CardContent className='flex grow gap-y-[18px] lg:gap-y-5 flex-col justify-between max-sm:gap-5'>
         {reviews.length === 0 ? (
-          <Typography color='text.secondary' className='text-sm py-6 text-center'>
-            ยังไม่มีรีวิวที่ให้
-          </Typography>
+          <div className='flex flex-col items-center justify-center gap-2 grow plb-8 text-center'>
+            <CustomAvatar skin='light' variant='rounded' color='secondary' size={46}>
+              <i className='tabler-star text-[26px]' />
+            </CustomAvatar>
+            <Typography color='text.secondary'>ยังไม่มีรีวิวที่ให้</Typography>
+          </div>
         ) : (
           reviews.map((review) => {
             const seller = review.order.shop.user
