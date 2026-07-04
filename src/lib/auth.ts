@@ -632,12 +632,31 @@ export const authOptions: NextAuthOptions = {
             hasBusinessMembership = false;
           }
 
+          // active shop identity (FB switcher) — query เฉพาะเมื่อ active เป็น BUSINESS
+          // (resolvedActiveShopId != Personal id). PERSONAL → null → consumer fallback avatar/displayName
+          const personalShopId = user.shops[0]?.id ?? null;
+          let activeShopKind: "PERSONAL" | "BUSINESS" = "PERSONAL";
+          let activeShopName: string | null = null;
+          let activeShopLogo: string | null = null;
+          if (resolvedActiveShopId && resolvedActiveShopId !== personalShopId) {
+            const activeShop = await prisma.shop.findUnique({
+              where: { id: resolvedActiveShopId },
+              select: { shopName: true, logo: true },
+            });
+            if (activeShop) {
+              activeShopKind = "BUSINESS";
+              activeShopName = activeShop.shopName;
+              activeShopLogo = activeShop.logo;
+            }
+          }
+
           (session as any).user = {
             id: user.id, displayName: user.displayName, username: user.username,
             email: user.email, avatar: user.avatar, isShop: user.isShop,
             isAdmin: user.isAdmin, trustScore: user.trustScore,
             shopSlug, needsOnboarding, needsPhoneVerify,
             activeShopId: resolvedActiveShopId, activeShopRole, hasBusinessMembership,
+            activeShopKind, activeShopName, activeShopLogo,
           };
         }
       }
