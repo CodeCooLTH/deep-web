@@ -33,7 +33,7 @@ type MenuItem = {
 
 const MENU_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'หน้าหลักของฉัน', icon: 'tabler-home' },
-  { href: '/orders', label: 'การซื้อของฉัน', icon: 'tabler-shopping-bag' },
+  { href: '/orders', label: 'คำสั่งซื้อของฉัน', icon: 'tabler-shopping-bag' },
   // B2 (feat 00011 Deep Chat, UX-Design-Spec.md resolved decision) — buyer inbox entry point
   { href: '/messages', label: 'ข้อความ', icon: 'tabler-message' },
   { href: '/reviews', label: 'รีวิวที่ให้', icon: 'tabler-star' },

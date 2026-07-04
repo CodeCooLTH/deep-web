@@ -8,9 +8,6 @@ import Typography from '@mui/material/Typography'
 import classnames from 'classnames'
 import Link from 'next/link'
 
-// Type Imports
-import type { ThemeColor } from '@core/types'
-
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
@@ -38,17 +35,25 @@ export type DashboardReview = {
   }
 }
 
-const RATING_COLOR: Record<number, ThemeColor> = {
-  1: 'error',
-  2: 'error',
-  3: 'warning',
-  4: 'success',
-  5: 'success'
-}
-
 type Props = {
   reviews: DashboardReview[]
 }
+
+// ดาว 5 ดวง filled/empty — ชุดเดียวกับ reviews card list (manage-reviews/index.tsx RatingStars)
+const RatingStars = ({ value }: { value: number }) => (
+  <div className='flex items-center gap-0.5 shrink-0'>
+    {[1, 2, 3, 4, 5].map((n) => (
+      <i
+        key={n}
+        className={
+          n <= value
+            ? 'tabler-star-filled text-[16px] text-[var(--mui-palette-warning-main)]'
+            : 'tabler-star text-[16px] text-[var(--mui-palette-action-disabled)]'
+        }
+      />
+    ))}
+  </div>
+)
 
 const Transactions = ({ reviews }: Props) => {
   return (
@@ -78,7 +83,6 @@ const Transactions = ({ reviews }: Props) => {
         ) : (
           reviews.map((review) => {
             const seller = review.order.shop.user
-            const ratingColor = RATING_COLOR[review.rating] ?? 'warning'
             const SellerName = seller.username ? (
               <Link
                 href={`/u/${seller.username}`}
@@ -93,8 +97,8 @@ const Transactions = ({ reviews }: Props) => {
             )
             return (
               <div key={review.id} className='flex items-center gap-4'>
-                <CustomAvatar skin='light' variant='rounded' color={ratingColor} size={34}>
-                  <i className={classnames('tabler-star-filled', 'text-[22px]')} />
+                <CustomAvatar skin='light' variant='rounded' color='warning' size={34}>
+                  <i className={classnames('tabler-star', 'text-[22px]')} />
                 </CustomAvatar>
                 <div className='flex flex-wrap justify-between items-center gap-x-4 gap-y-1 is-full'>
                   <div className='flex flex-col min-w-0'>
@@ -109,11 +113,7 @@ const Transactions = ({ reviews }: Props) => {
                       </Typography>
                     )}
                   </div>
-                  <div className='flex items-center gap-1 text-[var(--mui-palette-warning-main)] text-sm'>
-                    {Array.from({ length: review.rating }).map((_, i) => (
-                      <i key={i} className='tabler-star-filled' />
-                    ))}
-                  </div>
+                  <RatingStars value={review.rating} />
                 </div>
               </div>
             )
