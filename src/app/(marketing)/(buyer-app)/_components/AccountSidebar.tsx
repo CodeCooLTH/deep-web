@@ -50,6 +50,15 @@ export default function AccountSidebar() {
   const displayName = user.displayName ?? ''
   const avatarUrl = user.avatar ?? undefined
 
+  // style เมนูแต่ละอัน — active = พื้นม่วงจาง + ตัวอักษร/ไอคอนม่วง; inactive = ไอคอนสีรอง + hover
+  const itemCls = (active: boolean) =>
+    classnames('flex items-center gap-3 pli-3 plb-3 rounded-lg transition-colors', {
+      'bg-[var(--mui-palette-primary-lightOpacity)] text-[var(--mui-palette-primary-main)] font-medium': active,
+      'text-[var(--mui-palette-text-primary)] hover:bg-[var(--mui-palette-action-hover)]': !active
+    })
+  const iconCls = (active: boolean) =>
+    classnames('text-xl shrink-0', { 'text-[var(--mui-palette-text-secondary)]': !active })
+
   return (
     <nav className='flex flex-col gap-4 lg:sticky lg:top-24'>
       {/* User card */}
@@ -70,21 +79,13 @@ export default function AccountSidebar() {
       </div>
 
       {/* Menu */}
-      <ul className='flex flex-col gap-1'>
+      <ul className='list-none p-0 m-0 flex flex-col gap-1'>
         {MENU_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
           return (
             <li key={item.href}>
-              <Link
-                href={item.href}
-                className={classnames(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors',
-                  active
-                    ? 'bg-[var(--mui-palette-primary-lightOpacity)] text-[var(--mui-palette-primary-main)] font-medium'
-                    : 'text-[var(--mui-palette-text-primary)] hover:bg-[var(--mui-palette-action-hover)]',
-                )}
-              >
-                <i className={`${item.icon} text-xl shrink-0`} />
+              <Link href={item.href} className={itemCls(active)}>
+                <i className={classnames(item.icon, iconCls(active))} />
                 <span className='text-sm'>{item.label}</span>
               </Link>
             </li>
@@ -94,11 +95,8 @@ export default function AccountSidebar() {
         {/* Public profile (conditional — only when username known) */}
         {user.username && (
           <li>
-            <Link
-              href={`/u/${user.username}`}
-              className='flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-[var(--mui-palette-text-primary)] hover:bg-[var(--mui-palette-action-hover)]'
-            >
-              <i className='tabler-external-link text-xl shrink-0' />
+            <Link href={`/u/${user.username}`} className={itemCls(false)}>
+              <i className={classnames('tabler-external-link', iconCls(false))} />
               <span className='text-sm'>โปรไฟล์สาธารณะ</span>
             </Link>
           </li>
@@ -108,15 +106,12 @@ export default function AccountSidebar() {
         {user.isShop && (
           <li>
             <a
-              href={
-                process.env.NEXT_PUBLIC_SELLER_URL ??
-                'https://seller.deepthailand.app/dashboard'
-              }
+              href={process.env.NEXT_PUBLIC_SELLER_URL ?? 'https://seller.deepthailand.app/dashboard'}
               target='_blank'
               rel='noopener noreferrer'
-              className='flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-[var(--mui-palette-text-primary)] hover:bg-[var(--mui-palette-action-hover)]'
+              className={itemCls(false)}
             >
-              <i className='tabler-building-store text-xl shrink-0' />
+              <i className={classnames('tabler-building-store', iconCls(false))} />
               <span className='text-sm flex-1'>ไปหน้าร้านค้า</span>
               <i className='tabler-external-link text-sm text-[var(--mui-palette-text-disabled)]' />
             </a>

@@ -98,9 +98,11 @@ export default function OrderSummaryPanel({ control, catalog }: Props) {
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  // card sticky lg:top-2 ตาม mockup line 162
+  // card sticky — parked ใต้ FullscreenPageHeader (sticky top-0, สูง ~70px + mb-6)
+  // ต้อง lg:top-24 (96px) ไม่ใช่ top-2: scroll container คือ <main overflow-y-auto>
+  // ที่ทั้ง header + panel stick ด้วยกัน → top-2 (8px) ทำให้หัวการ์ดมุดหลัง header
   return (
-    <div className="card lg:sticky lg:top-2">
+    <div className="card lg:sticky lg:top-24">
       {/* header */}
       <div className="card-header">
         <h4 className="card-title font-semibold text-dark">สรุปออเดอร์</h4>

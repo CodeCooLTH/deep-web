@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep · Profile Redesign — Hybrid (FB Page × Threads)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#7367F0; --primary-d:#5B4CE0; --primary-soft:#EEECFD;
+  --success:#28C76F; --warning:#FF9F43; --info:#00CFE8;
+  --page:#FFFFFF; --soft:#FAFAFC;
+  --ink:#1B1A24; --muted:#65636E; --faint:#A6A3AF; --line:#ECEBF1; --line2:#E2E0EA; --track:#EFEEF4;
+  --grad:linear-gradient(120deg,#5B4CE0 0%,#7367F0 52%,#9E95F5 105%);
+}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:'Anuphan',system-ui,sans-serif;background:#E7E6EE;color:var(--ink);padding:34px 20px 90px;min-height:100vh}
+.head{max-width:1340px;margin:0 auto 4px}
+.head h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
+.head p{margin:0;color:var(--muted);font-size:14px;line-height:1.6;max-width:860px}
+.devices{max-width:1340px;margin:24px auto 0;display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.device{display:flex;flex-direction:column;gap:11px}
+.device .lb{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.device .lb b{color:var(--faint);font-weight:500;text-transform:none;letter-spacing:0}
+.frame{background:#0F0E17;border-radius:32px;padding:10px;box-shadow:0 32px 66px -30px rgba(28,26,36,.5),0 9px 22px -12px rgba(28,26,36,.32)}
+.frame.d{border-radius:13px;padding:8px}
+.vp{container-type:inline-size;background:var(--page);border-radius:22px;overflow:hidden auto;height:770px}
+.frame.d .vp{border-radius:6px;height:720px}
+.vp::-webkit-scrollbar{width:0}
+.m{width:338px}.t{width:600px}.dd{width:1000px}
+svg.i{width:1em;height:1em;display:block}
+
+/* ================= HYBRID ================= */
+.wrap{min-height:100%;background:var(--page)}
+.cover{height:148px;position:relative;overflow:hidden;background:var(--grad)}
+@container (min-width:600px){.cover{height:200px}}
+@container (min-width:860px){.cover{height:240px}}
+.cover .mesh{position:absolute;inset:0;opacity:.4;background-image:radial-gradient(rgba(255,255,255,.22) 1px,transparent 1.4px);background-size:22px 22px;mask:linear-gradient(180deg,#000,transparent 88%)}
+.cover .bk{position:absolute;top:14px;left:14px;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(255,255,255,.9);border:1px solid rgba(255,255,255,.7);color:var(--ink);cursor:pointer;backdrop-filter:blur(6px)}
+
+/* header (FB structure) */
+.idbar{padding:0 18px}
+@container (min-width:860px){.idbar{padding:0 28px;max-width:1000px;margin:0 auto}}
+.idrow{display:flex;flex-direction:column;align-items:center;text-align:center}
+@container (min-width:600px){.idrow{flex-direction:row;align-items:flex-end;text-align:left;gap:20px}}
+.ava{width:112px;height:112px;border-radius:50%;border:5px solid var(--page);margin-top:-52px;flex-shrink:0;
+  background:linear-gradient(135deg,#D9D3FB,#B4A9F6);display:grid;place-items:center;font-size:42px;font-weight:800;color:#4A3CB0;
+  box-shadow:0 6px 18px -8px rgba(28,26,36,.4);overflow:hidden;position:relative}
+.ava img{width:100%;height:100%;object-fit:cover}
+.ava .vv{position:absolute;right:2px;bottom:2px;width:30px;height:30px;border-radius:50%;background:var(--primary);border:3px solid var(--page);display:grid;place-items:center;color:#fff}
+.idmain{flex:1;min-width:0;padding-top:11px}
+@container (min-width:600px){.idmain{padding-bottom:6px}}
+.nm{display:flex;align-items:center;gap:6px;justify-content:center;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+@container (min-width:600px){.nm{justify-content:flex-start}}
+.handle{margin-top:2px;font-size:14px;color:var(--muted)}
+.metric{margin-top:11px;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:13.5px;color:var(--muted)}
+@container (min-width:600px){.metric{justify-content:flex-start}}
+.metric b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+.metric .s{color:var(--warning);font-weight:700}
+.metric .tchip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 6px;border-radius:999px;font-size:12px;font-weight:700;background:var(--primary-soft);color:var(--primary-d)}
+.metric .tchip .g{width:15px;height:15px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#B7AEFB,#00CFE8);color:#3B2B8F}
+.acts{display:flex;gap:9px;justify-content:center;margin-top:15px}
+@container (min-width:600px){.acts{margin-left:auto;margin-top:0;flex-shrink:0}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:42px;padding:0 20px;border-radius:11px;font:700 14px/1 'Anuphan',sans-serif;cursor:pointer;border:1px solid transparent}
+.btn.primary{background:var(--primary);color:#fff;box-shadow:0 9px 20px -10px rgba(115,103,240,.85)}
+.btn.ghost{background:var(--page);color:var(--ink);border-color:var(--line2)}
+.btn.ghost.soon{color:var(--faint)}
+.btn.ghost .tg{font-size:10px;font-weight:600;color:var(--faint);background:var(--track);border-radius:5px;padding:1px 5px;margin-left:4px}
+
+/* tabs (Threads underline, minimal) */
+.tabs{display:flex;gap:26px;margin-top:20px;padding:0 20px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+@container (min-width:860px){.tabs{max-width:1000px;margin:22px auto 0;padding:0 28px}}
+.tabs::-webkit-scrollbar{display:none}
+.tabs span{padding:12px 1px;font-size:14px;font-weight:700;color:var(--faint);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer}
+.tabs span.on{color:var(--ink);border-color:var(--primary)}
+
+/* body: desktop 2-col (FB) / clean airy (Threads) */
+.body{padding:18px}
+@container (min-width:860px){.body{display:grid;grid-template-columns:340px 1fr;gap:26px;align-items:start;padding:22px 28px;max-width:1000px;margin:0 auto}.col-l{position:sticky;top:16px}}
+.col-l{display:flex;flex-direction:column;gap:16px}
+.col-r{display:flex;flex-direction:column;gap:24px}
+@container (max-width:859px){.col-r{margin-top:22px}}
+
+.about{font-size:14px;color:var(--muted);line-height:1.6}
+.kv{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--ink);padding:6px 0}
+.kv .ic{color:var(--faint);display:inline-flex}
+.trust{border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--soft)}
+.trust .tt{display:flex;align-items:center;gap:14px}
+.gauge{--p:86;width:64px;height:64px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--primary) calc(var(--p)*1%),var(--track) 0)}
+.gauge .gi{width:49px;height:49px;border-radius:50%;background:var(--page);display:grid;place-items:center;flex-direction:column}
+.gauge b{font-size:18px;font-weight:800;line-height:1;color:var(--primary)}
+.gauge small{font-size:8.5px;color:var(--muted)}
+.trust .tx .h{font-size:14px;font-weight:800}
+.trust .tx .p{font-size:12.5px;color:var(--muted);margin-top:2px}
+.trust .lvls{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.trust .lvls span{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--primary-soft);color:var(--primary-d);display:inline-flex;align-items:center;gap:4px}
+
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.blk-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.blk-h .t{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;letter-spacing:-.01em}
+.blk-h .t .di{color:var(--primary);display:inline-flex}
+.blk-h a{font-size:12.5px;font-weight:700;color:var(--primary);text-decoration:none}
+.blk-h .sub{font-size:12px;color:var(--faint)}
+.extag{font-size:10px;font-weight:700;color:#9A6A00;background:#FFF3DD;border:1px solid #FBE3B4;border-radius:6px;padding:2px 8px}
+
+.certs{display:flex;gap:15px;flex-wrap:wrap}
+.cert{display:flex;flex-direction:column;align-items:center;gap:7px;width:62px}
+.cert .md{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:var(--primary);background:radial-gradient(circle at 50% 34%,#fff,#F1EFFD);border:1.5px solid var(--primary-soft);box-shadow:0 5px 12px -6px rgba(115,103,240,.5)}
+.cert span{font-size:10.5px;color:var(--muted);text-align:center;line-height:1.2}
+
+.pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@container (min-width:520px){.pgrid{grid-template-columns:repeat(3,1fr)}}
+@container (min-width:860px){.col-r .pgrid{grid-template-columns:repeat(4,1fr)}}
+.pcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--page);transition:.16s}
+.pcard:hover{box-shadow:0 12px 26px -14px rgba(28,26,36,.35);transform:translateY(-2px)}
+.pcard .th2{aspect-ratio:1/1;background:#EEEDF3;overflow:hidden;position:relative}
+.pcard .th2 img{width:100%;height:100%;object-fit:cover}
+.pcard .flag{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:4px;background:var(--primary);color:#fff;font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:999px}
+.pcard .bd{padding:10px 11px 12px}
+.pcard .pn{font-size:12.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:32px}
+.pcard .row{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.pcard .pr{font-size:15px;font-weight:800;color:var(--primary);letter-spacing:-.01em}
+.pcard .rt{font-size:11px;font-weight:700;color:var(--warning)}
+
+.xlist{border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.xrow{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.xrow:last-child{border-bottom:0}
+.xrow .lg{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0}
+.xrow .p{font-size:13.5px;font-weight:700;line-height:1.1}.xrow .s{font-size:11.5px;color:var(--muted)}
+.xrow .rt{margin-left:auto;font-size:13px;font-weight:700;color:var(--warning)}
+.xcap{padding:11px 15px;font-size:10.5px;color:var(--faint);background:var(--soft)}
+.foot{padding:18px;text-align:center}.foot a{font-size:11.5px;color:var(--faint);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Deep · โปรไฟล์ร้าน <span style="color:var(--primary)">/u/shinobu22</span> — Hybrid</h1>
+  <p>ผสม <b>Facebook Page</b> (cover + avatar ทับ + เมตริก + แท็บ + desktop 2 คอลัมน์) กับ <b>Threads</b> (แท็บขีดเส้นใต้ สะอาด เว้นเยอะ การ์ดเบา) · สี Vuexy CI + trust element ของ Deep · 3 devices เต็มจอ</p>
+</div>
+<div class="devices" id="root"></div>
+
+<script>
+const I={
+  back:'<svg class="i" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  vchk:'<svg class="i" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+  vbadge:'<svg class="i" viewBox="0 0 24 24" width="19" height="19"><path d="M12 2l2.3 1.7 2.8-.2 1 2.7 2.4 1.4-.9 2.7.9 2.7-2.4 1.4-1 2.7-2.8-.2L12 22l-2.3-1.7-2.8.2-1-2.7L3.5 14l.9-2.7L3.5 8.6l2.4-1.4 1-2.7 2.8.2z" fill="#7367F0"/><path d="M9 12l2 2 4-4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  gem:'<svg class="i" viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M6 3h12l4 6-10 12L2 9z"/></svg>',
+  chat:'<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
+  bell:'<svg class="i" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>',
+  pin:'<svg class="i" viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M14 2l8 8-3 1-4 4-1 6-3-3-5 5-1-1 5-5-3-3 6-1 4-4z"/></svg>',
+  map:'<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  cal:'<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
+  chk2:'<svg class="i" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+  b1:'<svg class="i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="5"/><path d="M8 13l-2 8 6-3 6 3-2-8"/></svg>',
+  b2:'<svg class="i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>',
+  b3:'<svg class="i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6L9 17l-5-5"/><circle cx="12" cy="12" r="10"/></svg>',
+  b4:'<svg class="i" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>',
+};
+const D={name:'Shinobu Store',handle:'shinobu22',tier:'Deep Diamond',score:86,
+  bio:'ร้านสกินแคร์ & เครื่องสำอางแท้ 100% ส่งไว เก็บเงินปลายทางได้ · รีวิวจริงทุกออเดอร์',
+  loc:'กรุงเทพฯ',joined:'มิ.ย. 2568',orders:'342',rating:'4.9',ontime:'98%',followers:'1,240'};
+const PIN=[
+  {img:'1556228578-8c89e6adf883',nm:'เซรั่มวิตามินซี เข้มข้น 20%',pr:'฿390',rt:'4.9'},
+  {img:'1620916566398-39f1143ab7be',nm:'ครีมกันแดด SPF50+ กันน้ำ',pr:'฿259',rt:'4.8'},
+  {img:'1571781926291-c477ebfd024b',nm:'มาสก์หน้าใส เซต 5 แผ่น',pr:'฿150',rt:'5.0'}];
+const PROD=[
+  {img:'1598662957563-ee4965d4d72c',nm:'โทนเนอร์ผิวกระจ่างใส',pr:'฿220',rt:'4.7'},
+  {img:'1608248543803-ba4f8c70ae0b',nm:'ลิปทินท์ติดทน',pr:'฿180',rt:'4.8'},
+  {img:'1512496015851-a90fb38ba796',nm:'น้ำหอมกลิ่นอ่อน',pr:'฿450',rt:'4.9'},
+  {img:'1631730359585-38a4935cbec4',nm:'แป้งพัฟคุมมัน',pr:'฿199',rt:'4.6'},
+  {img:'1522335789203-aabd1fc54bc9',nm:'โฟมล้างหน้าอ่อนโยน',pr:'฿145',rt:'4.7'},
+  {img:'1617897903246-719242758050',nm:'ครีมบำรุงกลางคืน',pr:'฿320',rt:'4.8'}];
+const BADGE=[[I.b1,'ร้านขายดี'],[I.b2,'ส่งไว'],[I.b3,'ยืนยันตัวตน'],[I.b4,'รีวิว 5★']];
+const XP=[['S','#EE4D2D','Shopee','8,500 ออเดอร์','4.8'],['L','#0F146D','Lazada','1,200 ออเดอร์','4.9'],['T','#111','TikTok Shop','240 ออเดอร์','4.7']];
+const img=id=>`https://images.unsplash.com/photo-${id}?w=320&q=68`;
+const pcard=(p,pinned)=>`<div class="pcard"><div class="th2">${pinned?`<span class="flag">${I.pin}ปักหมุด</span>`:''}<img src="${img(p.img)}"></div><div class="bd"><div class="pn">${p.nm}</div><div class="row"><span class="pr">${p.pr}</span><span class="rt">★ ${p.rt}</span></div></div></div>`;
+const certs=()=>`<div class="certs">${BADGE.map(b=>`<div class="cert"><div class="md">${b[0]}</div><span>${b[1]}</span></div>`).join('')}</div>`;
+
+const card=()=>`<div class="wrap">
+  <div class="cover"><div class="mesh"></div><div class="bk">${I.back}</div></div>
+  <div class="idbar"><div class="idrow">
+    <div class="ava">S<div class="vv">${I.vchk}</div></div>
+    <div class="idmain">
+      <div class="nm">${D.name} <span style="color:var(--primary)">${I.vbadge}</span></div>
+      <div class="handle">@${D.handle}</div>
+      <div class="metric"><span><b>${D.followers}</b> ผู้ติดตาม</span><span><b>${D.orders}</b> ออเดอร์</span><span class="s">★ ${D.rating}</span><span>ส่งตรงเวลา <b>${D.ontime}</b></span><span class="tchip"><span class="g">${I.gem}</span>${D.tier} · ${D.score}</span></div>
+    </div>
+    <div class="acts"><button class="btn primary">${I.chat}แชท</button><button class="btn ghost soon">${I.bell}ติดตาม<span class="tg">เร็วๆนี้</span></button></div>
+  </div></div>
+  <div class="tabs"><span class="on">สินค้าปักหมุด</span><span>สินค้าทั้งหมด</span><span>การรับรอง</span><span>เกี่ยวกับ</span></div>
+  <div class="body">
+    <div class="col-l">
+      <div>
+        <div class="eyebrow" style="margin-bottom:9px">เกี่ยวกับร้าน</div>
+        <div class="about">${D.bio}</div>
+        <div style="margin-top:8px">
+          <div class="kv"><span class="ic">${I.map}</span>${D.loc}</div>
+          <div class="kv"><span class="ic">${I.cal}</span>เข้าร่วมเมื่อ ${D.joined}</div>
+        </div>
+      </div>
+      <div class="trust">
+        <div class="tt"><div class="gauge"><div class="gi"><b>${D.score}</b><small>/100</small></div></div>
+          <div class="tx"><div class="h">คะแนนความน่าเชื่อถือ</div><div class="p">ระดับ ${D.tier} · อีก 4 แต้มถึง Deep Star</div></div></div>
+        <div class="lvls"><span>${I.chk2} OTP</span><span>${I.chk2} เอกสาร</span><span>${I.chk2} จดทะเบียน</span></div>
+      </div>
+      <div><div class="eyebrow" style="margin-bottom:12px">การรับรอง</div>${certs()}</div>
+    </div>
+    <div class="col-r">
+      <div>
+        <div class="blk-h"><div class="t"><span class="di">${I.pin}</span>สินค้าปักหมุด</div><span class="sub">ร้านเลือกไว้แนะนำ</span></div>
+        <div class="pgrid">${PIN.map(p=>pcard(p,true)).join('')}</div>
+      </div>
+      <div>
+        <div class="blk-h"><div class="t">สินค้าทั้งหมด</div><a>ดูร้านค้า →</a></div>
+        <div class="pgrid">${PROD.map(p=>pcard(p,false)).join('')}</div>
+      </div>
+      <div>
+        <div class="blk-h"><div class="t">ชื่อเสียงจากแพลตฟอร์มอื่น</div><span class="extag">ตัวอย่าง</span></div>
+        <div class="xlist">${XP.map(x=>`<div class="xrow"><div class="lg" style="background:${x[1]}">${x[0]}</div><div><div class="p">${x[2]}</div><div class="s">${x[3]}</div></div><div class="rt">★ ${x[4]}</div></div>`).join('')}<div class="xcap">* ข้อมูลตัวอย่าง ไม่ใช่ยอดจริง — รอเชื่อมต่อในเฟสถัดไป</div></div>
+      </div>
+      <div class="foot"><a>นโยบายความเป็นส่วนตัว</a></div>
+    </div>
+  </div>
+</div>`;
+
+const frames=[['Mobile','338px','m'],['Tablet','600px','t'],['Desktop','1000px','dd',true]];
+const root=document.getElementById('root');
+for(const f of frames){
+  const d=document.createElement('div');d.className='device';
+  d.innerHTML=`<div class="lb">${f[0]} <b>· ${f[1]}</b></div><div class="frame ${f[3]?'d':''}"><div class="vp ${f[2]}"></div></div>`;
+  d.querySelector('.vp').innerHTML=card();
+  root.appendChild(d);
+}
+</script>
+</body>
+</html>
