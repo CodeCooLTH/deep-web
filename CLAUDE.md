@@ -42,6 +42,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - `docs/conventions/rsc-mui-navigation.md` — RSC + MUI + next/link pattern
   - `docs/conventions/date-format.md` — 🛑 วันที่/เวลาทั้งระบบใช้ `formatDate`/`formatDateTime` จาก `src/lib/format-date.ts` เท่านั้น (พ.ศ. `2569-06-07 10:06:13`, tz ไทย) — ห้าม `toLocaleDateString`/`Intl.DateTimeFormat` เอง
   - `docs/conventions/no-emoji-use-icons.md` — 🛑 ห้าม emoji ใน UI ทุกจุด (ทุก surface/subdomain/theme) ใช้ icon จริงเท่านั้น (`@iconify/react`/wrapper); จุดที่ควรมี icon แต่ mockup/spec ไม่ได้ระบุตัว → **ต้องถาม user ก่อน implement เสมอ** (ห้ามเดาเอง)
+  - `docs/conventions/impeccable-design.md` — 🛑 งาน UI **ทุกชิ้น** ยึด **Impeccable design system** เป็นหลัก (`.impeccable/design.json` + `DESIGN.md`): north star "The Trusted Counter", One Voice (ม่วง ≤10%), Verified-Means-Green (#28C76F), Ink Plum ไม่ใช่ดำสนิท, tokens เงา/motion, anti-slop. **อ่าน design.json ก่อนทำ UI เสมอ** — ควบคู่ theme-copy (Hard Rule 1/8)
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
