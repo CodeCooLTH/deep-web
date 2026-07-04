@@ -8,6 +8,7 @@ import { getOrdersByBuyer } from '@/services/order.service'
 
 import OrderList, { type BuyerOrderRow } from '@views/apps/ecommerce/orders/list'
 import PageHeader from '../_components/PageHeader'
+import SearchBox from '../_components/SearchBox'
 
 /**
  * Buyer "My Orders" list.
@@ -25,18 +26,27 @@ const VALID_STATUSES = new Set(['ALL', 'PENDING', 'SHIPPED', 'CONFIRMED', 'CANCE
 export default async function MyOrdersPage({
   searchParams
 }: {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; q?: string }>
 }) {
   const session = await getServerSession(authOptions)
 
   if (!session?.user) redirect('/auth/sign-in?callbackUrl=/orders')
 
   const userId = (session.user as { id: string }).id
-  const { status: rawStatus = 'ALL' } = await searchParams
+  const { status: rawStatus = 'ALL', q = '' } = await searchParams
   const status = VALID_STATUSES.has(rawStatus) ? rawStatus : 'ALL'
+  const query = q.trim().toLowerCase()
 
   const allOrders = await getOrdersByBuyer(userId)
-  const filtered = status === 'ALL' ? allOrders : allOrders.filter(o => o.status === status)
+  const byStatus = status === 'ALL' ? allOrders : allOrders.filter(o => o.status === status)
+  // ค้นหา (in-memory — buyer มี order ไม่มาก): ชื่อสินค้า หรือ ชื่อร้าน
+  const filtered = query
+    ? byStatus.filter(
+        o =>
+          o.items.some(it => it.name.toLowerCase().includes(query)) ||
+          o.shop.shopName.toLowerCase().includes(query)
+      )
+    : byStatus
 
   // Decimal/Date are not JSON-safe across the server/client boundary — flatten now.
   const orderData: BuyerOrderRow[] = filtered.map(o => ({
@@ -58,9 +68,13 @@ export default async function MyOrdersPage({
 
   return (
     <>
-      <PageHeader title='คำสั่งซื้อของฉัน' subtitle={`รวม ${allOrders.length} รายการ`} />
+      <PageHeader
+        title='คำสั่งซื้อของฉัน'
+        subtitle={`รวม ${allOrders.length} รายการ`}
+        action={<SearchBox placeholder='ค้นหาสินค้า / ร้านค้า' />}
+      />
 
-      <OrderList orderData={orderData} status={status} />
+      <OrderList orderData={orderData} status={status} query={q} />
     </>
   )
 }

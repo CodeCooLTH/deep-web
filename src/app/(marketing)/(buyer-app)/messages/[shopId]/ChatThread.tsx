@@ -50,7 +50,7 @@ import { toast } from 'react-toastify'
 import CustomAvatar from '@core/components/mui/Avatar'
 import CustomIconButton from '@core/components/mui/IconButton'
 import { getInitials } from '@/utils/getInitials'
-import { formatDate, formatTime } from '@/lib/format-date'
+import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 type SenderRole = 'BUYER' | 'SHOP'
@@ -106,7 +106,7 @@ function mapSendError(status: number, apiError?: string): string {
 function groupByDate(messages: ChatMessageView[]): { dateLabel: string; messages: ChatMessageView[] }[] {
   const groups: { dateLabel: string; messages: ChatMessageView[] }[] = []
   for (const m of messages) {
-    const dateLabel = formatDate(m.createdAt)
+    const dateLabel = formatDateTH(m.createdAt)
     const last = groups[groups.length - 1]
     if (last && last.dateLabel === dateLabel) last.messages.push(m)
     else groups.push({ dateLabel, messages: [m] })
@@ -760,7 +760,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                         )
                       })}
                       <Typography variant='caption' color='text.disabled'>
-                        {formatTime(lastMsg.createdAt)}
+                        {formatTimeHM(lastMsg.createdAt)}
                       </Typography>
                     </div>
                   </div>

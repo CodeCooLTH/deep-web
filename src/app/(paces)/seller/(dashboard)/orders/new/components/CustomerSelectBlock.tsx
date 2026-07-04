@@ -26,13 +26,16 @@ interface CustomerResult {
 export interface Props {
   control: Control<any>      // rhf control จาก parent useForm
   errors: FieldErrors<any>   // parent formState.errors (อ่าน buyerName / buyerContact)
+  /** 'card' = standalone card (เดิม); 'embedded' = render ใน accordion body (ตัด card/card-header) */
+  variant?: 'card' | 'embedded'
 }
 
 type Mode = 'search' | 'new' | null
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CustomerSelectBlock({ control, errors }: Props) {
+export default function CustomerSelectBlock({ control, errors, variant = 'card' }: Props) {
+  const embedded = variant === 'embedded'
   // ── RHF controllers — เชื่อม buyerName + buyerContact กับ parent form ─────
   const {
     field: buyerNameField,
@@ -154,20 +157,22 @@ export default function CustomerSelectBlock({ control, errors }: Props) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="card">
-      <div className="card-header">
-        {/* step chip + หัวข้อ — copy class pattern จาก mockup step-no + card-header */}
-        <h2 className="flex items-center gap-2 font-semibold text-dark">
-          <span
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white text-xs font-bold"
-          >
-            1
-          </span>
-          ข้อมูลลูกค้า
-        </h2>
-      </div>
+    <div className={embedded ? '' : 'card'}>
+      {!embedded && (
+        <div className="card-header">
+          {/* step chip + หัวข้อ — copy class pattern จาก mockup step-no + card-header */}
+          <h2 className="flex items-center gap-2 font-semibold text-dark">
+            <span
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white text-xs font-bold"
+            >
+              1
+            </span>
+            ข้อมูลลูกค้า
+          </h2>
+        </div>
+      )}
 
-      <div className="card-body p-4 sm:p-5">
+      <div className={embedded ? 'p-2' : 'card-body p-4 sm:p-5'}>
         {/* ── เลือกวิธีระบุลูกค้า ── */}
         <div className="mb-4">
           <label className="form-label">เลือกวิธีระบุลูกค้า</label>

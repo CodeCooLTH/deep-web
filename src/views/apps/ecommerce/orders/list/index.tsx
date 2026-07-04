@@ -14,7 +14,7 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import { LinkChip } from '@/app/(marketing)/_components/mui-link'
 
 // Utils
-import { formatDate } from '@/lib/format-date'
+import { formatDateTimeTH } from '@/lib/format-date'
 
 /**
  * Buyer "My Orders" list — server-rendered card list (เชื่อมสไตล์กับ dashboard Orders widget).
@@ -69,7 +69,22 @@ const STATUS_ICON: Record<string, string> = {
 
 const baht = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })
 
-const OrderList = ({ orderData, status }: { orderData: BuyerOrderRow[]; status: string }) => {
+const OrderList = ({
+  orderData,
+  status,
+  query = ''
+}: {
+  orderData: BuyerOrderRow[]
+  status: string
+  query?: string
+}) => {
+  // คง q ไว้ตอนสลับ chip สถานะ (search + filter ทำงานร่วมกัน)
+  const qParam = query.trim() ? `q=${encodeURIComponent(query.trim())}` : ''
+  const chipHref = (key: string) => {
+    const parts = [key === 'ALL' ? '' : `status=${key}`, qParam].filter(Boolean)
+    return parts.length ? `/orders?${parts.join('&')}` : '/orders'
+  }
+
   return (
     <div className='flex flex-col gap-6'>
       {/* ตัวกรองสถานะ */}
@@ -80,7 +95,7 @@ const OrderList = ({ orderData, status }: { orderData: BuyerOrderRow[]; status: 
           return (
             <LinkChip
               key={f.key}
-              href={f.key === 'ALL' ? '/orders' : `/orders?status=${f.key}`}
+              href={chipHref(f.key)}
               label={f.label}
               color={active ? 'primary' : 'default'}
               variant={active ? 'filled' : 'outlined'}
@@ -93,9 +108,11 @@ const OrderList = ({ orderData, status }: { orderData: BuyerOrderRow[]; status: 
         {orderData.length === 0 ? (
           <div className='flex flex-col items-center justify-center gap-3 plb-16 text-center'>
             <CustomAvatar skin='light' variant='rounded' color='secondary' size={52}>
-              <i className='tabler-package text-[30px]' />
+              <i className={`${query.trim() ? 'tabler-search-off' : 'tabler-package'} text-[30px]`} />
             </CustomAvatar>
-            <Typography color='text.secondary'>ไม่มีคำสั่งซื้อในหมวดนี้</Typography>
+            <Typography color='text.secondary'>
+              {query.trim() ? `ไม่พบคำสั่งซื้อที่ตรงกับ "${query.trim()}"` : 'ไม่มีคำสั่งซื้อในหมวดนี้'}
+            </Typography>
           </div>
         ) : (
           <div className='flex flex-col'>
@@ -125,7 +142,7 @@ const OrderList = ({ orderData, status }: { orderData: BuyerOrderRow[]; status: 
                       )}
                     </Typography>
                     <Typography variant='body2' color='text.secondary' className='truncate'>
-                      {order.shop.shopName} · {formatDate(order.createdAt)}
+                      {order.shop.shopName} · {formatDateTimeTH(order.createdAt)}
                     </Typography>
                   </div>
 

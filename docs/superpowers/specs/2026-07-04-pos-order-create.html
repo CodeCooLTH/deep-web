@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POS Order Create — Mockup (Mobile / Tablet / Desktop)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --primary-hover:#1f5fb0;
+    --primary-05:rgba(35,109,201,.05); --primary-10:rgba(35,109,201,.10); --primary-15:rgba(35,109,201,.15);
+    --success:#22c55e; --success-15:rgba(34,197,94,.15);
+    --warning:#f59e0b; --warning-15:rgba(245,158,11,.15);
+    --info:#0d94ff; --info-15:rgba(13,148,255,.15);
+    --danger:#e5384f; --danger-15:rgba(229,56,79,.12);
+    --d50:#f8fafc; --d100:#f1f3f7; --d200:#e6e9ef; --d300:#d5dae2; --d400:#8a94a6; --d500:#69707d; --d700:#3b3f45; --d800:#252a31;
+    --card:#fff; --body:#eef1f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Anuphan',system-ui,sans-serif;background:var(--body);color:var(--d800);padding:28px 16px 60px}
+  h1{font-size:20px;font-weight:700;margin:0 0 4px}
+  .lead{color:var(--d500);font-size:13px;margin:0 0 6px;max-width:760px}
+  .note{color:var(--d400);font-size:12px;margin:0 0 26px}
+  h2.sec{font-size:13px;font-weight:700;color:var(--d500);text-transform:uppercase;letter-spacing:.04em;margin:34px 0 12px;border-bottom:1px solid var(--d200);padding-bottom:6px}
+  .frames{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+  .device{background:#fff;border:1px solid var(--d200);border-radius:16px;box-shadow:0 10px 34px rgba(20,30,60,.10);overflow:hidden}
+  .device .cap{font-size:12px;font-weight:600;color:var(--d500);padding:9px 14px;border-bottom:1px solid var(--d200);background:#fafbfc;display:flex;justify-content:space-between}
+  .desktop{width:880px} .tablet{width:560px} .mobile{width:300px}
+  svg{width:1em;height:1em;flex-shrink:0}
+
+  /* app chrome */
+  .topbar{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--d200);background:#fff}
+  .topbar .title{font-weight:700;font-size:14px}
+  .topbar .spacer{flex:1}
+  .btn{border:none;border-radius:8px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:8px 14px}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-ghost{background:#fff;border:1px solid var(--d300);color:var(--d700)}
+  .btn-block{width:100%;justify-content:center;padding:12px}
+
+  /* POS split */
+  .pos{display:flex;height:560px}
+  .pos-left{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--d50)}
+  .pos-right{width:320px;flex-shrink:0;border-left:1px solid var(--d200);background:#fff;display:flex;flex-direction:column}
+  .tablet .pos-right{width:250px}
+
+  /* search */
+  .searchbar{padding:12px;border-bottom:1px solid var(--d200);background:#fff}
+  .search{position:relative}
+  .search input{width:100%;border:1px solid var(--d300);border-radius:9px;padding:9px 12px 9px 32px;font-family:inherit;font-size:13px;background:#fff}
+  .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--d400);font-size:16px}
+
+  /* product grid */
+  .grid{padding:12px;display:grid;gap:10px;grid-template-columns:repeat(3,1fr);overflow:auto}
+  .tablet .grid{grid-template-columns:repeat(2,1fr)}
+  .mobile .grid{grid-template-columns:repeat(2,1fr)}
+  .pcard{position:relative;border:1px solid var(--d200);border-radius:12px;background:#fff;overflow:hidden;cursor:pointer;transition:.12s;display:flex;flex-direction:column}
+  .pcard:hover{border-color:var(--primary);box-shadow:0 4px 14px rgba(35,109,201,.12)}
+  .pcard .thumb{aspect-ratio:1.3;background:linear-gradient(135deg,var(--d100),var(--d200));display:flex;align-items:center;justify-content:center;color:var(--d400);font-size:28px}
+  .pcard.g1 .thumb{background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#3b82f6}
+  .pcard.g2 .thumb{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706}
+  .pcard.g3 .thumb{background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a}
+  .pcard.g4 .thumb{background:linear-gradient(135deg,#fce7f3,#fbcfe8);color:#db2777}
+  .pcard .meta{padding:8px 9px 10px}
+  .pcard .nm{font-size:12.5px;font-weight:600;line-height:1.25;height:2.5em;overflow:hidden}
+  .pcard .pr{font-size:13px;font-weight:700;color:var(--primary);margin-top:3px}
+  .pcard .ship{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;margin-top:5px;padding:2px 6px;border-radius:20px}
+  .ship.yes{background:var(--info-15);color:var(--info)} .ship.no{background:var(--d100);color:var(--d500)}
+  .qbadge{position:absolute;top:7px;right:7px;background:var(--primary);color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:20px;display:flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+
+  /* cart panel */
+  .cart-h{padding:12px 14px;border-bottom:1px solid var(--d200);font-weight:700;font-size:14px;display:flex;align-items:center;gap:7px}
+  .cart-h .cnt{background:var(--primary-15);color:var(--primary);font-size:12px;border-radius:20px;padding:1px 9px;font-weight:700}
+  .cart-scroll{flex:1;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:9px}
+  .line{border:1px solid var(--d200);border-radius:11px;padding:9px;background:#fff}
+  .line .top{display:flex;gap:7px;align-items:flex-start}
+  .line .thumb-s{width:34px;height:34px;border-radius:8px;background:#dbeafe;color:#3b82f6;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .line .combo{flex:1;min-width:0}
+  .combo .field{border:1px solid var(--d300);border-radius:8px;padding:6px 8px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:6px;background:#fff}
+  .combo .field .cv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .combo .field svg{color:var(--d400)}
+  .combo .desc{border:1px dashed var(--d300);border-radius:7px;padding:4px 8px;font-size:11.5px;color:var(--d500);margin-top:5px;background:var(--d50)}
+  .line .trash{color:var(--d400);cursor:pointer;padding:3px}
+  .line .bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px}
+  .stepper{display:flex;align-items:center;border:1px solid var(--d300);border-radius:8px;overflow:hidden}
+  .stepper button{border:none;background:#fff;width:28px;height:28px;font-size:15px;color:var(--primary);cursor:pointer;font-weight:700}
+  .stepper .q{width:34px;text-align:center;font-size:13px;font-weight:700;border-left:1px solid var(--d200);border-right:1px solid var(--d200);line-height:28px}
+  .line .price{font-size:11px;color:var(--d500)} .line .price b{color:var(--d800);font-size:13.5px}
+
+  .addcustom{border:1px dashed var(--primary);color:var(--primary);border-radius:10px;padding:9px;font-size:12.5px;font-weight:600;text-align:center;cursor:pointer;background:var(--primary-05);display:flex;align-items:center;justify-content:center;gap:6px}
+
+  /* combobox open (select2) */
+  .combo-open{position:relative}
+  .combo-pop{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--d200);border-radius:10px;box-shadow:0 10px 30px rgba(20,30,60,.18);z-index:5;overflow:hidden}
+  .combo-pop .sr{padding:7px 9px;border-bottom:1px solid var(--d200)}
+  .combo-pop .sr input{width:100%;border:1px solid var(--d300);border-radius:7px;padding:5px 8px;font-size:12px;font-family:inherit}
+  .combo-pop .opt{padding:7px 10px;font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer}
+  .combo-pop .opt:hover{background:var(--primary-05)}
+  .combo-pop .opt .oi{width:26px;height:26px;border-radius:6px;background:#dcfce7;color:#16a34a;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .combo-pop .opt .on{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .combo-pop .opt .op{color:var(--primary);font-weight:700;font-size:12px}
+  .combo-pop .newrow{padding:8px 10px;font-size:12px;border-top:1px dashed var(--d300);color:var(--primary);font-weight:600;display:flex;align-items:center;gap:7px;cursor:pointer;background:var(--primary-05)}
+
+  /* accordion */
+  .acc{border-top:1px solid var(--d200)}
+  .acc-row{padding:11px 14px;display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;cursor:pointer}
+  .acc-row .ic{color:var(--d400)} .acc-row .chev{margin-left:auto;color:var(--d400);transition:.15s}
+  .acc-row.open .chev{transform:rotate(90deg)}
+  .acc-body{padding:2px 14px 12px;display:flex;flex-direction:column;gap:8px}
+  .fld label{font-size:11px;color:var(--d500);font-weight:600;display:block;margin-bottom:3px}
+  .fld input,.fld select{width:100%;border:1px solid var(--d300);border-radius:8px;padding:7px 9px;font-size:12.5px;font-family:inherit;background:#fff}
+  .frow{display:flex;gap:8px}.frow>*{flex:1}
+
+  /* pinned footer */
+  .foot{border-top:1px solid var(--d200);padding:12px 14px;background:#fff}
+  .foot .sl{display:flex;justify-content:space-between;font-size:12.5px;color:var(--d500);margin-bottom:5px}
+  .foot .sl.total{font-size:16px;font-weight:700;color:var(--d800);margin:8px 0 10px}
+  .disc{display:flex;align-items:center;gap:6px;border:1px solid var(--d300);border-radius:7px;padding:3px 7px;font-size:12px;width:88px}
+  .disc input{border:none;width:100%;font-family:inherit;font-size:12px}
+
+  /* mobile floating bar + sheet */
+  .mroot{height:560px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .fab-bar{position:absolute;left:10px;right:10px;bottom:10px;background:var(--primary);color:#fff;border-radius:12px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:13px;box-shadow:0 6px 20px rgba(35,109,201,.4);cursor:pointer}
+  .fab-bar .l{display:flex;align-items:center;gap:8px}
+  .fab-bar .cnt{background:#fff;color:var(--primary);border-radius:20px;padding:0 8px;font-size:12px;line-height:20px}
+  .sheet{position:absolute;left:0;right:0;bottom:0;top:44px;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;overflow:hidden}
+  .sheet-grab{width:38px;height:4px;border-radius:4px;background:var(--d300);margin:8px auto 2px}
+  .scrim{position:absolute;inset:0;background:rgba(20,30,50,.35)}
+  .tag{display:inline-block;font-size:11px;color:var(--d400);margin:8px 0 2px}
+</style>
+</head>
+<body>
+  <h1>POS Order Create — สร้างออเดอร์แนว POS</h1>
+  <p class="lead">ซ้าย = product grid (แตะการ์ด = +1 qty) · ขวา = cart panel (line select2 เลือก/พิมพ์เอง+description, accordion ลูกค้า/ชำระ/ที่อยู่/โน้ต, footer สรุป+บันทึก). Skin Paces น้ำเงิน #236dc9 · font Anuphan.</p>
+  <p class="note">รูปสินค้าเป็น placeholder · combobox แสดง state เปิดใน Desktop เพื่อโชว์ select2 (เลือกจากลิสต์ หรือพิมพ์ชื่อใหม่เป็น custom item)</p>
+
+  <!-- ============ DESKTOP ============ -->
+  <h2 class="sec">Desktop</h2>
+  <div class="frames">
+    <div class="device desktop">
+      <div class="cap"><span>Desktop · สร้างออเดอร์</span><span>1280px+</span></div>
+      <div class="topbar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--d500)"><path d="M15 18l-6-6 6-6"/></svg>
+        <span class="title">สร้างออเดอร์</span>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost">ยกเลิก</button>
+      </div>
+      <div class="pos">
+        <!-- LEFT: grid -->
+        <div class="pos-left">
+          <div class="searchbar"><div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+            <input placeholder="ค้นหาสินค้า..." />
+          </div></div>
+          <div class="grid">
+            <div class="pcard g1"><span class="qbadge">2</span><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div><div class="meta"><div class="nm">พร้อมชุดตัดหมอกตรงรุ่น</div><div class="pr">฿3,500</div><span class="ship yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/></svg>จัดส่ง</span></div></div>
+            <div class="pcard g2"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg></div><div class="meta"><div class="nm">หลอดไฟ LED H4 6000K</div><div class="pr">฿890</div><span class="ship yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/></svg>จัดส่ง</span></div></div>
+            <div class="pcard g3"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8"/></svg></div><div class="meta"><div class="nm">ค่าติดตั้ง (บริการ)</div><div class="pr">฿500</div><span class="ship no">ไม่จัดส่ง</span></div></div>
+            <div class="pcard g4"><span class="qbadge">1</span><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg></div><div class="meta"><div class="nm">ฟิล์มกรองแสง 60%</div><div class="pr">฿2,200</div><span class="ship yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/></svg>จัดส่ง</span></div></div>
+            <div class="pcard g1"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div><div class="meta"><div class="nm">แบตเตอรี่รถยนต์ 60Ah</div><div class="pr">฿2,800</div><span class="ship yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/></svg>จัดส่ง</span></div></div>
+            <div class="pcard g2"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/></svg></div><div class="meta"><div class="nm">น้ำมันเครื่องสังเคราะห์ 4L</div><div class="pr">฿1,290</div><span class="ship yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/></svg>จัดส่ง</span></div></div>
+          </div>
+        </div>
+        <!-- RIGHT: cart -->
+        <div class="pos-right">
+          <div class="cart-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--primary)"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M2 3h3l2 12h11l2-8H6"/></svg>ตะกร้า <span class="cnt">2</span></div>
+          <div class="cart-scroll">
+            <!-- line 1 with combobox OPEN -->
+            <div class="line">
+              <div class="top">
+                <div class="thumb-s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div>
+                <div class="combo combo-open">
+                  <div class="field"><span class="cv">พร้อมชุดตัดหมอกตรงรุ่น</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+                  <div class="combo-pop">
+                    <div class="sr"><input placeholder="ค้นหา หรือพิมพ์ชื่อสินค้าใหม่..." value="ชุดสาย" /></div>
+                    <div class="opt"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></span><span class="on">ชุดสายไฟตัดหมอก</span><span class="op">฿450</span></div>
+                    <div class="opt"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></span><span class="on">ชุดสายพ่วงแบต</span><span class="op">฿320</span></div>
+                    <div class="newrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>ใช้ "ชุดสาย" เป็นรายการใหม่ (พิมพ์เอง)</div>
+                  </div>
+                </div>
+                <span class="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></span>
+              </div>
+              <div class="desc">รับประกันหลอด 1 ปี</div>
+              <div class="bottom">
+                <div class="stepper"><button>−</button><span class="q">2</span><button>＋</button></div>
+                <div class="price">฿3,500 × 2 = <b>฿7,000</b></div>
+              </div>
+            </div>
+            <!-- line 2 -->
+            <div class="line">
+              <div class="top">
+                <div class="thumb-s" style="background:#fce7f3;color:#db2777"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg></div>
+                <div class="combo"><div class="field"><span class="cv">ฟิล์มกรองแสง 60%</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div></div>
+                <span class="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></span>
+              </div>
+              <div class="bottom">
+                <div class="stepper"><button>−</button><span class="q">1</span><button>＋</button></div>
+                <div class="price">฿2,200 × 1 = <b>฿2,200</b></div>
+              </div>
+            </div>
+            <div class="addcustom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> พิมพ์รายการเอง</div>
+          </div>
+          <!-- accordions -->
+          <div class="acc">
+            <div class="acc-row open"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg></span>ลูกค้า<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div>
+            <div class="acc-body">
+              <div class="fld"><label>ชื่อลูกค้า</label><input placeholder="เช่น คุณสมชาย" /></div>
+              <div class="fld"><label>ช่องทางติดต่อ (เบอร์/อีเมล)</label><input placeholder="0812345678" /></div>
+            </div>
+          </div>
+          <div class="acc">
+            <div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>ชำระเงิน / ช่องทางขาย<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div>
+          </div>
+          <div class="acc">
+            <div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/><circle cx="7" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg></span>ที่อยู่จัดส่ง<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div>
+          </div>
+          <div class="acc">
+            <div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v10H8l-4 4z"/></svg></span>หมายเหตุ<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div>
+          </div>
+          <!-- footer -->
+          <div class="foot">
+            <div class="sl"><span>ส่วนลด</span><span class="disc">฿ <input value="0"></span></div>
+            <div class="sl"><span>VAT 7%</span><span>฿0</span></div>
+            <div class="sl total"><span>รวมทั้งสิ้น</span><span>฿9,200</span></div>
+            <button class="btn btn-primary btn-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg> บันทึกออเดอร์</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TABLET ============ -->
+  <h2 class="sec">Tablet</h2>
+  <div class="frames">
+    <div class="device tablet">
+      <div class="cap"><span>Tablet · split (grid 2-col)</span><span>~768px</span></div>
+      <div class="topbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--d500)"><path d="M15 18l-6-6 6-6"/></svg><span class="title">สร้างออเดอร์</span></div>
+      <div class="pos">
+        <div class="pos-left">
+          <div class="searchbar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><input placeholder="ค้นหาสินค้า..." /></div></div>
+          <div class="grid">
+            <div class="pcard g1"><span class="qbadge">2</span><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div><div class="meta"><div class="nm">พร้อมชุดตัดหมอกตรงรุ่น</div><div class="pr">฿3,500</div></div></div>
+            <div class="pcard g2"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg></div><div class="meta"><div class="nm">หลอดไฟ LED H4</div><div class="pr">฿890</div></div></div>
+            <div class="pcard g3"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></div><div class="meta"><div class="nm">ค่าติดตั้ง</div><div class="pr">฿500</div></div></div>
+            <div class="pcard g4"><span class="qbadge">1</span><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg></div><div class="meta"><div class="nm">ฟิล์มกรองแสง 60%</div><div class="pr">฿2,200</div></div></div>
+          </div>
+        </div>
+        <div class="pos-right">
+          <div class="cart-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--primary)"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M2 3h3l2 12h11l2-8H6"/></svg>ตะกร้า <span class="cnt">2</span></div>
+          <div class="cart-scroll">
+            <div class="line"><div class="top"><div class="thumb-s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div><div class="combo"><div class="field"><span class="cv">พร้อมชุดตัดหมอก</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div></div></div><div class="desc">รับประกันหลอด 1 ปี</div><div class="bottom"><div class="stepper"><button>−</button><span class="q">2</span><button>＋</button></div><div class="price"><b>฿7,000</b></div></div></div>
+            <div class="addcustom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> พิมพ์รายการเอง</div>
+          </div>
+          <div class="acc"><div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg></span>ลูกค้า<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div></div>
+          <div class="acc"><div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg></span>ชำระเงิน / ช่องทาง<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div></div>
+          <div class="foot"><div class="sl total"><span>รวม</span><span>฿7,000</span></div><button class="btn btn-primary btn-block">บันทึกออเดอร์</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MOBILE ============ -->
+  <h2 class="sec">Mobile — grid (bar ล่าง) &amp; bottom-sheet เปิด</h2>
+  <div class="frames">
+    <!-- mobile A: grid + fab bar -->
+    <div class="device mobile">
+      <div class="cap"><span>Mobile · เลือกสินค้า</span><span>&lt;640px</span></div>
+      <div class="topbar" style="height:42px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--d500)"><path d="M15 18l-6-6 6-6"/></svg><span class="title" style="font-size:13px">สร้างออเดอร์</span></div>
+      <div class="mroot">
+        <div class="searchbar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><input placeholder="ค้นหาสินค้า..." /></div></div>
+        <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+          <div class="pcard g1"><span class="qbadge">2</span><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div><div class="meta"><div class="nm">พร้อมชุดตัดหมอก</div><div class="pr">฿3,500</div></div></div>
+          <div class="pcard g2"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg></div><div class="meta"><div class="nm">หลอดไฟ LED H4</div><div class="pr">฿890</div></div></div>
+          <div class="pcard g4"><span class="qbadge">1</span><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg></div><div class="meta"><div class="nm">ฟิล์มกรองแสง</div><div class="pr">฿2,200</div></div></div>
+          <div class="pcard g3"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></div><div class="meta"><div class="nm">ค่าติดตั้ง</div><div class="pr">฿500</div></div></div>
+        </div>
+        <div class="fab-bar"><span class="l"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M2 3h3l2 12h11l2-8H6"/></svg> ตะกร้า <span class="cnt">2</span></span><span>฿9,200 ›</span></div>
+      </div>
+    </div>
+
+    <!-- mobile B: sheet open -->
+    <div class="device mobile">
+      <div class="cap"><span>Mobile · ตะกร้า (sheet)</span><span>แตะ bar</span></div>
+      <div class="topbar" style="height:42px"><span class="title" style="font-size:13px;margin:0 auto">เลือกสินค้า</span></div>
+      <div class="mroot">
+        <div class="grid" style="grid-template-columns:repeat(2,1fr);opacity:.5">
+          <div class="pcard g1"><div class="thumb"></div><div class="meta"><div class="nm">พร้อมชุด</div><div class="pr">฿3,500</div></div></div>
+          <div class="pcard g2"><div class="thumb"></div><div class="meta"><div class="nm">หลอดไฟ</div><div class="pr">฿890</div></div></div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="sheet-grab"></div>
+          <div class="cart-h" style="padding-top:6px">ตะกร้า <span class="cnt">2</span></div>
+          <div class="cart-scroll">
+            <div class="line"><div class="top"><div class="thumb-s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M4 21V7l8-4 8 4v14"/></svg></div><div class="combo"><div class="field"><span class="cv">พร้อมชุดตัดหมอก</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div></div></div><div class="desc">รับประกันหลอด 1 ปี</div><div class="bottom"><div class="stepper"><button>−</button><span class="q">2</span><button>＋</button></div><div class="price"><b>฿7,000</b></div></div></div>
+            <div class="line"><div class="top"><div class="thumb-s" style="background:#fce7f3;color:#db2777"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg></div><div class="combo"><div class="field"><span class="cv">ฟิล์มกรองแสง</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div></div></div><div class="bottom"><div class="stepper"><button>−</button><span class="q">1</span><button>＋</button></div><div class="price"><b>฿2,200</b></div></div></div>
+            <div class="addcustom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> พิมพ์รายการเอง</div>
+          </div>
+          <div class="acc"><div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg></span>ลูกค้า<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div></div>
+          <div class="acc"><div class="acc-row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg></span>ชำระเงิน / ช่องทาง<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div></div>
+          <div class="foot"><div class="sl total"><span>รวมทั้งสิ้น</span><span>฿9,200</span></div><button class="btn btn-primary btn-block">บันทึกออเดอร์</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
