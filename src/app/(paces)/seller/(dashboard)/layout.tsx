@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
-import { sellerMenuItems, applyInventoryGate, applyChatBadge } from './_seller-menu'
+import { sellerMenuItems, applyInventoryGate, applyChatBadge, applyStaffMenu } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -93,7 +93,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  const menuItems = applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount)
+  // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
+  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
+  const menuItems = applyStaffMenu(
+    applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
+    { kind: active.kind, role: active.role },
+  )
 
   return (
     <VerticalLayout
