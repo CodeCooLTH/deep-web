@@ -6,8 +6,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import Typography from '@mui/material/Typography'
-
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
@@ -15,10 +13,10 @@ import { prisma } from '@/lib/prisma'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { formatDateTime } from '@/lib/format-date'
 
-import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import ProfileForm from './ProfileForm'
+import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 
-export const metadata: Metadata = { title: 'แก้ไขโปรไฟล์' }
+export const metadata: Metadata = { title: 'ตั้งค่าบัญชี' }
 
 export default async function ProfileSettingsPage() {
   const session = await getServerSession(authOptions)
@@ -37,12 +35,7 @@ export default async function ProfileSettingsPage() {
 
   return (
     <>
-      <div>
-        <Typography variant='h5'>แก้ไขโปรไฟล์</Typography>
-        <Typography color='text.secondary' className='text-sm'>
-          จัดการข้อมูลส่วนตัวของคุณ
-        </Typography>
-      </div>
+      <PageHeader title='ตั้งค่าบัญชี' subtitle='จัดการข้อมูลส่วนตัวของคุณ' />
 
       <ProfileForm
         user={{

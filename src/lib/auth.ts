@@ -556,17 +556,19 @@ export const authOptions: NextAuthOptions = {
           where: { id: token.userId as string },
           // P2-4 (feature 00008 Phase 2 cutover): User.shop (1:1) → User.shops (1:N) — needsOnboarding
           // ยึด Personal shop เดิมเป็นฐานเสมอ (ไม่ใช่ shop แรกที่เจอ)
-          select: { phone: true, shops: { where: { kind: "PERSONAL" }, select: { slug: true } } },
+          select: { phone: true, shops: { where: { kind: "PERSONAL" }, select: { id: true, slug: true } } },
         });
-        // 2 เฟส: needsRegistration (ไม่มีเบอร์ = ต้องลงทะเบียน /register) แยกจาก
-        // needsOnboarding (ไม่มี slug = ต้อง setup /onboarding) — proxy ใช้บังคับคนละหน้า
-        token.needsRegistration = !u?.phone;
-        token.needsOnboarding = !u?.shops[0]?.slug;
+        const personal = u?.shops[0] ?? null;
+        // feature 00012 (Lazy Personal shop): gate ลงทะเบียน/onboarding บังคับ "เฉพาะคนที่ตั้งใจเป็น seller"
+        // = คนที่มี Personal shop แล้ว. ผู้ถูกเชิญ (ADMIN ของ business แต่ยังไม่มี Personal) ต้องไม่โดนบังคับ
+        // /register หรือ /onboarding — ไม่งั้นเข้า business dashboard ไม่ได้ (โดน proxy เด้งวน). คนที่ยังไม่มี
+        // ร้านเลย (nobody) ก็ไม่โดนบังคับ → layout พาไป /choose-shop ให้เลือก "เปิดร้าน" เอง
+        token.needsRegistration = !!personal && !u?.phone;
+        token.needsOnboarding = !!personal && !personal.slug;
 
-        // activeShopId (feat 00008 TFR-012) — additive, ไม่กระทบ field เดิมด้านบน
-        // trigger==='update' + client ส่ง session.activeShopId มา (AccountSwitcher) → ห้าม trust ตรง ๆ
-        // ต้อง re-verify membership (หรือเป็น personal shop ของ user เอง) ก่อนเชื่อ — กัน client ปลอม shopId
-        const personal = await getPersonalShop(token.userId as string);
+        // activeShopId (feat 00008 TFR-012, ปรับ 00012) — trigger==='update' + client ส่ง activeShopId มา
+        // (AccountSwitcher / หลัง accept invite) → ห้าม trust ตรง ๆ ต้อง re-verify membership (หรือ personal
+        // ของ user เอง) ก่อนเชื่อ — กัน client ปลอม shopId
         if (trigger === "update" && (session as { activeShopId?: string } | undefined)?.activeShopId) {
           const requestedShopId = (session as { activeShopId?: string }).activeShopId as string;
           const ok =
@@ -576,8 +578,21 @@ export const authOptions: NextAuthOptions = {
             ? requestedShopId
             : ((token.activeShopId as string | undefined) ?? personal?.id ?? null);
         } else if (!token.activeShopId) {
-          // ยังไม่เคยตั้ง (sign-in แรก) → default = personal shop ของ user
-          token.activeShopId = personal?.id ?? null;
+          // sign-in แรก, ยังไม่เคยตั้ง → default = Personal; ถ้าไม่มี Personal (ผู้ถูกเชิญ 00012) →
+          // business shop แรกที่เป็นสมาชิก; ไม่มีเลย (nobody) → null → layout พาไป /choose-shop
+          let defaultActive: string | null = personal?.id ?? null;
+          if (!defaultActive) {
+            const firstBiz = await prisma.shopMember.findFirst({
+              where: {
+                userId: token.userId as string,
+                shop: { kind: "BUSINESS", deletedAt: null, purgedAt: null },
+              },
+              select: { shopId: true },
+              orderBy: { createdAt: "asc" },
+            });
+            defaultActive = firstBiz?.shopId ?? null;
+          }
+          token.activeShopId = defaultActive;
         }
       }
       return token;
@@ -594,18 +609,19 @@ export const authOptions: NextAuthOptions = {
           },
         });
         if (user) {
-          const shopSlug = user.shops[0]?.slug ?? null;
-          // ต้อง onboard เมื่อ: ยังไม่มี slug ร้าน หรือ ยังไม่มีเบอร์ (FB user)
-          // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session) — ให้ onboarding รู้ว่าต้องโชว์ step ยืนยันเบอร์ไหม
-          // ⚠️ ยึด Personal shop เดิมเป็นฐาน needsOnboarding เสมอ (ไม่ผูก activeShopId) —
-          // กัน onboarding loop ถ้า user สลับไป business context ที่ยังไม่มี slug
-          const needsPhoneVerify = !user.phone; // = needsRegistration (เฟส 1 /register)
-          const needsOnboarding = !shopSlug; // = ต้อง setup slug (เฟส 2 /onboarding)
+          const personal = user.shops[0] ?? null;
+          const shopSlug = personal?.slug ?? null;
+          // feature 00012 (Lazy Personal shop): needsPhoneVerify/needsOnboarding บังคับเฉพาะ "คนที่ตั้งใจเป็น
+          // seller" = มี Personal shop แล้ว. ผู้ถูกเชิญ (ADMIN business, ยังไม่มี Personal) / nobody ไม่โดนบังคับ
+          // — ไม่งั้น proxy เด้งไป /onboarding วน (mirror logic ใน jwt callback ด้านบน)
+          // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session)
+          const needsPhoneVerify = !!personal && !user.phone; // = needsRegistration (เฟส 1 /register)
+          const needsOnboarding = !!personal && !shopSlug; // = ต้อง setup slug (เฟส 2 /onboarding)
 
           // active-shop-context (feat 00008 TFR-012) — additive; re-verify membership ทุก render
           // (ไม่ trust JWT เพียงอย่างเดียว — JWT อายุ 30 วัน, admin อาจถูก remove ระหว่างทาง)
-          // fail-closed: error ใด ๆ ระหว่าง resolve → fallback Personal (ปลอดภัยกว่า fail ไป business ที่ไม่ใช่ของ user)
-          let resolvedActiveShopId: string | null = user.shops[0]?.id ?? null; // Personal fallback
+          // fail-closed: error ใด ๆ ระหว่าง resolve → fallback Personal (null ถ้าไม่มี Personal — ผู้ถูกเชิญ)
+          let resolvedActiveShopId: string | null = personal?.id ?? null; // Personal fallback
           let activeShopRole: "OWNER" | "ADMIN" = "OWNER";
           let hasBusinessMembership = false;
           try {
@@ -634,7 +650,7 @@ export const authOptions: NextAuthOptions = {
               })) > 0;
           } catch (e) {
             console.error("[auth] session activeShopContext resolve failed — fallback Personal", e);
-            resolvedActiveShopId = user.shops[0]?.id ?? null;
+            resolvedActiveShopId = personal?.id ?? null;
             activeShopRole = "OWNER";
             hasBusinessMembership = false;
           }
@@ -672,7 +688,11 @@ export const authOptions: NextAuthOptions = {
             isAdmin: user.isAdmin, trustScore: user.trustScore,
             shopSlug, needsOnboarding, needsPhoneVerify,
             activeShopId: resolvedActiveShopId, activeShopRole, hasBusinessMembership,
+            // FB switcher (origin/main): active shop identity สำหรับ topbar/sidebar
             activeShopKind, activeShopName, activeShopLogo,
+            // feature 00012 (Lazy Personal shop): ให้ layout/choose-shop รู้ว่า user มีร้านของตัวเองไหม
+            // (ผู้ถูกเชิญ = false แม้เป็น ADMIN business) — ใช้ตัดสิน 0-shop/invited-only state
+            hasPersonalShop: !!personal,
           };
         }
       }

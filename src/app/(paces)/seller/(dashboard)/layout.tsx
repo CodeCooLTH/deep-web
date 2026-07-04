@@ -4,8 +4,8 @@ import VerticalLayout from '@/layouts/VerticalLayout'
 import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { ensurePersonalShop, requireActiveShop } from '@/lib/shop-context'
-import { sellerMenuItems, applyInventoryGate, applyChatBadge } from './_seller-menu'
+import { requireActiveShop } from '@/lib/shop-context'
+import { sellerMenuItems, applyInventoryGate, applyChatBadge, applyStaffMenu } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -35,12 +35,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // proxy rewrite ครอบ /auth/sign-in → /seller/auth/sign-in ให้อัตโนมัติบน seller subdomain
   if (!session || !user?.id) redirect('/auth/sign-in')
 
-  // Every seller MUST have a Personal shop (invariant) — auto-create เฉพาะ PERSONAL (D1)
-  await ensurePersonalShop(user.id)
-  // resolve active shop (Personal หรือ Business ตาม session.activeShopId + verify membership)
-  // — header/badge/pendingCount/entitlement ต้องสะท้อน "workspace ที่กำลังดูอยู่" ไม่ใช่ Personal เสมอ (P4-5)
+  // feature 00012 (Lazy Personal shop): เลิก auto-create Personal shop — ผู้ถูกเชิญ (ADMIN business)
+  // เข้ามาโดยไม่มีร้านของตัวเอง. resolve active shop (Personal หรือ Business ตาม session.activeShopId +
+  // verify membership) — header/badge/pendingCount/entitlement สะท้อน "workspace ที่กำลังดูอยู่"
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
-  if (!active) redirect('/auth/sign-in') // ไม่ควรเกิดหลัง ensurePersonalShop
+  // ไม่มี active เลย (nobody: ไม่มีทั้ง Personal + business membership) → /choose-shop ให้เลือก "เปิดร้าน"
+  if (!active) redirect('/choose-shop')
   const shop = active.shop
 
   // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
@@ -93,7 +93,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  const menuItems = applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount)
+  // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
+  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
+  const menuItems = applyStaffMenu(
+    applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
+    { kind: active.kind, role: active.role },
+  )
 
   return (
     <VerticalLayout

@@ -1,16 +1,13 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import Typography from '@mui/material/Typography'
-
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { getOrdersByBuyer } from '@/services/order.service'
 
-import { LinkButton } from '@/app/(marketing)/_components/mui-link'
-import OrderList from '@views/apps/ecommerce/orders/list'
-import type { BuyerOrderRow } from '@views/apps/ecommerce/orders/list/OrderListTable'
+import OrderList, { type BuyerOrderRow } from '@views/apps/ecommerce/orders/list'
+import PageHeader from '../_components/PageHeader'
 
 /**
  * Buyer "My Orders" list.
@@ -61,14 +58,7 @@ export default async function MyOrdersPage({
 
   return (
     <>
-      <div className='flex items-center justify-between gap-3 flex-wrap'>
-        <div>
-          <Typography variant='h5'>คำสั่งซื้อของฉัน</Typography>
-          <Typography color='text.secondary' className='text-sm'>
-            รวม {allOrders.length} รายการ
-          </Typography>
-        </div>
-      </div>
+      <PageHeader title='คำสั่งซื้อของฉัน' subtitle={`รวม ${allOrders.length} รายการ`} />
 
       <OrderList orderData={orderData} status={status} />
     </>

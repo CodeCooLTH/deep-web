@@ -714,3 +714,11 @@ export const ChatConversationsQuerySchema = v.object({
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
+
+// ── feature 00012 Shop Staff Invite Link (Task 2.1) ──────────────────────────
+// SSOT: docs/superpowers/plans/2026-07-04-shop-staff-invite-link.md
+
+export const inviteLinkCreateSchema = v.object({
+  // omit ได้ — route ใช้ DEFAULT_INVITE_EXPIRY_KEY (@/lib/invite-link) แทนถ้าไม่ส่งมา
+  expiryKey: v.optional(v.picklist(["24h", "7d", "30d"])),
+});
