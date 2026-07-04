@@ -44,10 +44,10 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
   const overStock = inventoryEnabled && stock != null && qty > stock
 
   return (
-    <div className="flex flex-wrap items-start gap-x-2 gap-y-1.5 border-b border-default-100 py-2.5 last:border-b-0">
+    <div className="flex flex-wrap items-start gap-x-2 gap-y-1.5 border-b border-default-100 py-2.5 last:border-b-0 lg:flex-nowrap">
       <ProductThumb src={thumbSrc} alt={item.name} className="size-14 rounded-lg" iconClassName="size-6" />
-      {/* คอลัมน์หลัก: ชื่อสินค้า (combobox) + รายละเอียดใต้ชื่อ */}
-      <div className="min-w-36 flex-1">
+      {/* คอลัมน์หลัก: ชื่อสินค้า (combobox) + รายละเอียดใต้ชื่อ. lg:min-w-0 = ยอมหดให้คอลัมน์ตัวเลขพอดีบรรทัดเดียว */}
+      <div className="min-w-36 flex-1 lg:min-w-0">
         <ProductCombobox
           value={{ productId: item.productId, name: item.name }}
           catalog={catalog}
@@ -98,7 +98,7 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
         />
       </div>
       {/* รวม */}
-      <div className="w-20 shrink-0 self-center text-right text-sm font-semibold text-dark tabular-nums">
+      <div className="w-20 shrink-0 self-start pt-2 text-right text-sm font-semibold text-dark tabular-nums">
         {formatThb(qty * price)}
       </div>
       {/* ลบ */}
