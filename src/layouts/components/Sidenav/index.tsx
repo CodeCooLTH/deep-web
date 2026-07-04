@@ -5,7 +5,7 @@
  * - เพิ่ม items prop เพื่อรับ nav data (MenuItemType[]) จาก VerticalLayout → AppMenu
  * - AppLogo แสดงโลโก้ Deep แทน Paces logo (component เดิมที่ SafePay กำหนดไว้)
  */
-import AppLogo from '@/components/AppLogo'
+import SidebarBrand from '@/components/SidebarBrand'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import type { MenuItemType } from '@/types'
 import Link from 'next/link'
@@ -27,7 +27,7 @@ const Sidenav = ({
   return (
     <aside id="app-menu" className="app-menu">
       <Link href="/" className="logo-box min-h-(--topbar-height) sticky top-0 flex items-center justify-start px-6 backdrop-blur-xs">
-        <AppLogo />
+        <SidebarBrand />
       </Link>
 
       <OnHoverToggle />
