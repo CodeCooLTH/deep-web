@@ -12,9 +12,12 @@
 import AppLogo from '@/components/AppLogo'
 import Icon from '@/components/wrappers/Icon'
 import { useSession } from 'next-auth/react'
+import { useState } from 'react'
 
 const SidebarBrand = () => {
   const { data: session } = useSession()
+  // failed: โลโก้ร้านโหลดไม่ขึ้น (onError) → fallback icon แทนรูปแตก. useState ต้องมาก่อน early return (rules of hooks)
+  const [failed, setFailed] = useState(false)
   const user = (session as any)?.user as
     | { activeShopKind?: 'PERSONAL' | 'BUSINESS'; activeShopName?: string | null; activeShopLogo?: string | null }
     | undefined
@@ -23,6 +26,7 @@ const SidebarBrand = () => {
 
   const logo = user.activeShopLogo
   const name = user.activeShopName ?? 'ร้านค้า'
+  const showImg = !!logo && !failed
 
   const logoCircle = (
     <span className="size-7 rounded-lg bg-primary/15 text-primary inline-flex items-center justify-center shrink-0">
@@ -34,9 +38,9 @@ const SidebarBrand = () => {
     <>
       {/* logo-lg: sidebar เต็มความกว้าง */}
       <span className="logo-lg flex items-center gap-2 min-w-0">
-        {logo ? (
+        {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo} alt="" className="size-7 rounded-lg object-cover shrink-0" />
+          <img src={logo!} alt="" onError={() => setFailed(true)} className="size-7 rounded-lg object-cover shrink-0" />
         ) : (
           logoCircle
         )}
@@ -45,9 +49,9 @@ const SidebarBrand = () => {
 
       {/* logo-sm: sidebar ยุบ (condensed/on-hover) — icon-only, CSS โชว์อัตโนมัติ */}
       <span className="logo-sm hidden items-center justify-center">
-        {logo ? (
+        {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo} alt="" className="size-7 rounded-lg object-cover" />
+          <img src={logo!} alt="" onError={() => setFailed(true)} className="size-7 rounded-lg object-cover" />
         ) : (
           logoCircle
         )}

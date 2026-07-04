@@ -12,9 +12,8 @@
 'use client'
 
 import bgPattern from '@/assets/images/user-bg-pattern.svg'
-import user1 from '@/assets/images/users/user-1.jpg'
+import AccountAvatar from '@/components/AccountAvatar'
 import Icon from '@/components/wrappers/Icon'
-import Image from 'next/image'
 import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -53,16 +52,7 @@ const UserProfileSettings = () => {
       <div className="flex items-center justify-between">
         <div>
           <Link href="/dashboard" className="link-reset">
-            {dispLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={dispLogo} alt={dispName} className="mb-3 size-9 rounded-full object-cover" />
-            ) : isBusiness ? (
-              <span className="mb-3 size-9 rounded-full bg-primary/15 text-primary inline-flex items-center justify-center">
-                <Icon icon="building-store" className="size-5" />
-              </span>
-            ) : (
-              <Image src={user1} alt="user-image" className="mb-3 size-9 rounded-full" />
-            )}
+            <AccountAvatar src={dispLogo} kind={isBusiness ? 'business' : 'personal'} className="mb-3 size-9" />
             <span className="sidenav-user-name block font-bold text-nowrap">{dispName}</span>
             <span className="text-xs font-semibold" data-lang="user-role">
               {dispRole}

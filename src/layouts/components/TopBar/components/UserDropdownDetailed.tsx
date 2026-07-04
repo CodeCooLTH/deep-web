@@ -1,5 +1,6 @@
 'use client'
 
+import AccountAvatar from '@/components/AccountAvatar'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -71,17 +72,6 @@ const UserDropdown = () => {
   const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
   const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
 
-  // วงกลม avatar/logo หรือ fallback icon (business=building-store, personal=user)
-  const renderAvatar = (src: string | null | undefined, kind: 'business' | 'personal', size: string) =>
-    src ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" className={`${size} rounded-full object-cover shrink-0`} />
-    ) : (
-      <span className={`${size} rounded-full bg-primary/15 text-primary inline-flex items-center justify-center shrink-0`}>
-        <Icon icon={kind === 'business' ? 'building-store' : 'user'} className="size-1/2" />
-      </span>
-    )
-
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const [switching, setSwitching] = useState(false)
 
@@ -141,9 +131,10 @@ const UserDropdown = () => {
   }
 
   return (
+    <>
     <div className="topbar-item hs-dropdown before:bg-default-700/35 relative inline-flex before:h-4.5 before:w-px before:content-['']">
       <button className="hs-dropdown-toggle topbar-link ms-2.5 cursor-pointer items-center px-3! flex" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
-        {renderAvatar(activeLogo, isBusiness ? 'business' : 'personal', 'size-8 lg:me-3')}
+        <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-8 lg:me-3" />
         <div className="hidden lg:flex items-center gap-1.5">
           <span className="flex flex-col items-start">
             <h5 className="pro-username">{activeName}</h5>
@@ -155,7 +146,7 @@ const UserDropdown = () => {
       <div className="hs-dropdown-menu min-w-72 p-2" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
         {/* active account — กล่องไฮไลต์บนสุด (แทนกล่องน้ำเงิน FB ด้วย border-primary; ตัด tier/trust ออก) */}
         <div className="border border-primary bg-primary/5 rounded-lg flex items-center gap-3 px-3 py-2.5">
-          {renderAvatar(activeLogo, isBusiness ? 'business' : 'personal', 'size-9')}
+          <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
           <div className="min-w-0">
             <p className="text-body-color truncate text-sm font-semibold">{activeName}</p>
             <p className="text-default-400 truncate text-xs">{activeRoleLabel}</p>
@@ -178,7 +169,7 @@ const UserDropdown = () => {
                 disabled={switching}
                 className="dropdown-item w-full flex items-center gap-3 text-start disabled:opacity-50"
               >
-                {renderAvatar(user?.avatar, 'personal', 'size-7')}
+                <AccountAvatar src={user?.avatar} kind="personal" className="size-7" />
                 <span className="flex-1 truncate">{displayName}</span>
                 <span className="badge bg-default-100 text-default-500 shrink-0">ส่วนตัว</span>
               </button>
@@ -196,7 +187,7 @@ const UserDropdown = () => {
                   disabled={switching}
                   className="dropdown-item w-full flex items-center gap-3 text-start disabled:opacity-50"
                 >
-                  {renderAvatar(b.logo, 'business', 'size-7')}
+                  <AccountAvatar src={b.logo} kind="business" className="size-7" />
                   <span className="flex-1 truncate">{b.shopName}</span>
                   <span
                     className={`badge shrink-0 ${
@@ -258,6 +249,20 @@ const UserDropdown = () => {
         ))}
       </div>
     </div>
+
+    {/* overlay สลับบัญชี — spinner กลางจอบอก user ว่ากำลังเปลี่ยนบัญชี (ระหว่าง await update() session)
+        z-[1070] จำเป็น: สูงกว่า dropdown/backdrop, ต่ำกว่า toast 1080 — HR7 exception (precedent PacesToastContainer z-[1080]) */}
+    {switching && (
+      <div
+        className="fixed inset-0 z-[1070] flex items-center justify-center bg-default-900/40 backdrop-blur-xs"
+        role="status"
+        aria-live="polite"
+        aria-label="กำลังสลับบัญชี"
+      >
+        <div className="border-primary size-12 animate-spin rounded-full border-4 border-t-transparent" />
+      </div>
+    )}
+    </>
   )
 }
 
