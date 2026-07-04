@@ -31,7 +31,7 @@ import { Icon } from '@iconify/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
-import { formatDate, formatTime } from '@/lib/format-date'
+import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 
 type SenderRole = 'BUYER' | 'SHOP'
@@ -49,12 +49,12 @@ type ConversationListItem = {
 
 type ListResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
-/** เวลาแถวรายการ — วันนี้โชว์เวลา (formatTime), อื่น ๆ โชว์วันที่ (formatDate); ใช้ format-date.ts เท่านั้น
+/** เวลาแถวรายการ — วันนี้โชว์เวลา HH:mm (formatTimeHM), อื่น ๆ โชว์วันที่ไทย (formatDateTH); ใช้ format-date.ts เท่านั้น
  *  (ห้าม toLocaleDateString/Intl.DateTimeFormat เองตาม convention — Date.toDateString() ที่นี่ใช้แค่เทียบ "วันนี้ไหม") */
 function formatInboxTime(iso: string): string {
   const d = new Date(iso)
   const isToday = d.toDateString() === new Date().toDateString()
-  return isToday ? formatTime(d) : formatDate(d)
+  return isToday ? formatTimeHM(d) : formatDateTH(d)
 }
 
 function isUnread(item: ConversationListItem): boolean {
