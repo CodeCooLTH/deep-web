@@ -11,6 +11,11 @@
  * → grid-cols-5 เดิม (4 item + FAB) กลายเป็น grid-cols-6 (5 item + FAB); badge unread
  * copy pattern เดียวกับ badge "คำสั่งซื้อ" (bg-danger absolute offset จาก center icon)
  *
+ * S-2 (Seller Mobile: Account Switcher + Bottom Bar, mini-phase 2026-07-04): ตัดช่อง "สินค้า"
+ * ออก → grid-cols-6 กลับมาเหลือ grid-cols-5 (2 tab ซ้าย + FAB + 2 tab ขวา:
+ * หน้าหลัก·คำสั่งซื้อ·[+]·แชท·ร้านค้า) — /products ยังเข้าได้จากเมนูลัด dashboard
+ * (CarouselGrid tile "สินค้า" ที่ _constants/command-center.ts)
+ *
  * Multi-source (exception อนุมัติแล้ว — Paces ไม่มี bottom nav template ตรง):
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
  *       + theme/paces/Admin/TS/src/layouts/components/Customizer/index.tsx
@@ -47,13 +52,13 @@ const FAB_ACTIONS = [
   },
 ] as const
 
-// ─── Nav tabs (5 ช่อง ยกเว้น center) ────────────────────────────────────────
+// ─── Nav tabs (4 ช่อง ยกเว้น center) ────────────────────────────────────────
+// S-2: ตัด "สินค้า" ออก — /products ยังเข้าได้จากเมนูลัด dashboard (CarouselGrid)
 const NAV_ITEMS = [
   { label: 'หน้าหลัก', href: '/dashboard', icon: 'home-2', exactMatch: true },
   { label: 'คำสั่งซื้อ', href: '/orders', icon: 'clipboard-list', exactMatch: false },
   // index 2 = center button (placeholder ไม่อยู่ใน array นี้)
   { label: 'แชท', href: '/inbox', icon: 'message-circle', exactMatch: false },
-  { label: 'สินค้า', href: '/products', icon: 'box', exactMatch: false },
   { label: 'ร้านค้า', href: '/shop', icon: 'building-store', exactMatch: false },
 ] as const
 
@@ -179,8 +184,8 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount }: Selle
           'border-t border-default-200',
           /* arbitrary: nav drop-shadow — Paces ไม่มี token shadow ด้านบน (shadow-md ลงล่าง) */
           'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
-          /* grid-cols-6 = 5 nav item + 1 center FAB cell (ChatWidget task: เพิ่ม "แชท") */
-          'grid grid-cols-6 items-center',
+          /* grid-cols-5 = 4 nav item + 1 center FAB cell (S-2: ตัด "สินค้า" ออก) */
+          'grid grid-cols-5 items-center',
           /* arbitrary: safe-area iOS notch/home bar — ไม่มี token แทน */
           'pb-[env(safe-area-inset-bottom)]',
         ].join(' ')}
@@ -303,22 +308,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount }: Selle
           )}
         </Link>
 
-        {/* ช่อง 5: สินค้า */}
-        <Link
-          href="/products"
-          className={`flex h-full flex-col items-center justify-center gap-1 ${
-            isActive('/products', false)
-              ? 'text-primary'
-              : 'text-default-500'
-          }`}
-          aria-label="สินค้า"
-          aria-current={isActive('/products', false) ? 'page' : undefined}
-        >
-          <Icon icon="box" className="text-2xl" />
-          <span className="text-xs font-medium">สินค้า</span>
-        </Link>
-
-        {/* ช่อง 6: ร้านค้า */}
+        {/* ช่อง 5: ร้านค้า */}
         <Link
           href="/shop"
           className={`flex h-full flex-col items-center justify-center gap-1 ${

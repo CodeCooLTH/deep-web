@@ -7,11 +7,16 @@
  * layout: 2 แถวบนพื้นหลัง SVG ลำแสง xenon โทน Paces น้ำเงิน
  *   Row 1: avatar+trust ring + ชื่อร้าน+stats + bell
  *   Row 2: wallet + ปุ่มเติมเงิน + divider + ShopLinkButtons
+ *
+ * S-1 (mobile account switcher): avatar-block + name-block ครอบด้วย AccountSwitcherLauncher
+ * (client, อ่าน session เอง) — เปิด bottom sheet สลับบัญชีเมื่อมี business membership;
+ * bell อยู่นอก launcher เหมือนเดิม (ไม่ใช่ trigger สลับบัญชี)
  */
 
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import ShopLinkButtons from './ShopLinkButtons'
+import AccountSwitcherLauncher from './AccountSwitcherLauncher'
 
 export interface CompactHeroProps {
   shopName: string
@@ -99,6 +104,7 @@ export default function CompactHero({
 
         {/* Row 1: avatar + ชื่อร้าน+stats + bell */}
         <div className="flex items-center gap-3">
+          <AccountSwitcherLauncher>
 
           {/* Avatar + Trust Ring + Score Chip */}
           {/*
@@ -185,6 +191,8 @@ export default function CompactHero({
               </span>
             </div>
           </div>
+
+          </AccountSwitcherLauncher>
 
           {/* Bell — ใช้ next/link ตรง (RSC ห้าม component={Link}) */}
           <Link
