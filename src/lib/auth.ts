@@ -641,20 +641,29 @@ export const authOptions: NextAuthOptions = {
 
           // active shop identity (FB switcher) — query เฉพาะเมื่อ active เป็น BUSINESS
           // (resolvedActiveShopId != Personal id). PERSONAL → null → consumer fallback avatar/displayName
+          // 🛑 ต้องอยู่ใน try/catch — query นี้รันทุก session resolve; ถ้า throw ต้อง fail-closed
+          //    (คง PERSONAL/null) ไม่ใช่ปล่อยให้ session callback พัง = session 500 ทุก seller business-active
           const personalShopId = user.shops[0]?.id ?? null;
           let activeShopKind: "PERSONAL" | "BUSINESS" = "PERSONAL";
           let activeShopName: string | null = null;
           let activeShopLogo: string | null = null;
-          if (resolvedActiveShopId && resolvedActiveShopId !== personalShopId) {
-            const activeShop = await prisma.shop.findUnique({
-              where: { id: resolvedActiveShopId },
-              select: { shopName: true, logo: true },
-            });
-            if (activeShop) {
-              activeShopKind = "BUSINESS";
-              activeShopName = activeShop.shopName;
-              activeShopLogo = activeShop.logo;
+          try {
+            if (resolvedActiveShopId && resolvedActiveShopId !== personalShopId) {
+              const activeShop = await prisma.shop.findUnique({
+                where: { id: resolvedActiveShopId },
+                select: { shopName: true, logo: true },
+              });
+              if (activeShop) {
+                activeShopKind = "BUSINESS";
+                activeShopName = activeShop.shopName;
+                activeShopLogo = activeShop.logo;
+              }
             }
+          } catch (e) {
+            console.error("[auth] session activeShop identity resolve failed — fallback Personal display", e);
+            activeShopKind = "PERSONAL";
+            activeShopName = null;
+            activeShopLogo = null;
           }
 
           (session as any).user = {
