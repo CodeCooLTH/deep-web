@@ -11,6 +11,7 @@
   },
   "crons": [
     { "path": "/api/cron/inventory-renewal", "schedule": "0 19 * * *" },
-    { "path": "/api/cron/business-package-lifecycle", "schedule": "0 20 * * *" }
+    { "path": "/api/cron/business-package-lifecycle", "schedule": "0 20 * * *" },
+    { "path": "/api/cron/chat-response-metrics", "schedule": "0 21 * * *" }
   ]
 }
