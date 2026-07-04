@@ -9,6 +9,7 @@
 
 import { useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { pacesToast } from '@/lib/paces-toast'
 import ProductThumb from './ProductThumb'
 import type { CatalogProduct } from './OrderCreateForm'
 
@@ -19,9 +20,11 @@ interface Props {
   catalog: CatalogProduct[]
   qtyByProduct: (id: string) => number
   inc: (p: CatalogProduct) => void
+  /** ร้านเปิดระบบคลัง → แสดงสต็อกคงเหลือ + กันเพิ่มสินค้าที่หมด */
+  inventoryEnabled?: boolean
 }
 
-export default function ProductGrid({ catalog, qtyByProduct, inc }: Props) {
+export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false }: Props) {
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -58,19 +61,29 @@ export default function ProductGrid({ catalog, qtyByProduct, inc }: Props) {
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((product) => {
             const qty = qtyByProduct(product.id)
+            const stock = product.stockQty
+            const showStock = inventoryEnabled && stock != null
+            const outOfStock = showStock && stock === 0
+            const add = () => {
+              if (outOfStock) {
+                pacesToast.error('สินค้าหมด — เพิ่มลงตะกร้าไม่ได้')
+                return
+              }
+              inc(product)
+            }
             return (
               <div
                 key={product.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => inc(product)}
+                onClick={add}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    inc(product)
+                    add()
                   }
                 }}
-                className={`card relative flex cursor-pointer flex-col overflow-hidden rounded-xl transition hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary ${qty > 0 ? 'ring-2 ring-primary' : ''}`}
+                className={`card relative flex cursor-pointer flex-col overflow-hidden rounded-xl transition hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary ${qty > 0 ? 'ring-2 ring-primary' : ''} ${outOfStock ? 'opacity-60' : ''}`}
               >
                 {qty > 0 && (
                   <span className="badge absolute end-0 top-0 z-10 m-2 min-w-5 justify-center rounded-full bg-primary text-white">
@@ -86,15 +99,26 @@ export default function ProductGrid({ catalog, qtyByProduct, inc }: Props) {
                 <div className="flex-1 p-2.5">
                   <p className="line-clamp-2 text-sm font-medium text-dark">{product.name}</p>
                   <p className="mt-1 text-sm font-semibold text-primary">{formatThb(product.price)}</p>
-                  <span
-                    className={`mt-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
-                      product.fulfillmentMode === 'SHIPPED'
-                        ? 'bg-info/15 text-info'
-                        : 'bg-default-200 text-default-600'
-                    }`}
-                  >
-                    {product.fulfillmentMode === 'SHIPPED' ? 'จัดส่ง' : 'ไม่จัดส่ง'}
-                  </span>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    <span
+                      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
+                        product.fulfillmentMode === 'SHIPPED'
+                          ? 'bg-info/15 text-info'
+                          : 'bg-default-200 text-default-600'
+                      }`}
+                    >
+                      {product.fulfillmentMode === 'SHIPPED' ? 'จัดส่ง' : 'ไม่จัดส่ง'}
+                    </span>
+                    {showStock && (
+                      <span
+                        className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
+                          stock === 0 ? 'bg-danger/15 text-danger' : 'bg-default-100 text-default-500'
+                        }`}
+                      >
+                        {stock === 0 ? 'สินค้าหมด' : `คงเหลือ ${stock}`}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             )

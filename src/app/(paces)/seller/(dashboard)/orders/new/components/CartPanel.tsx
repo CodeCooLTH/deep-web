@@ -49,9 +49,10 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors: FieldErrors<any>
   formId?: string
+  inventoryEnabled?: boolean
 }
 
-export default function CartPanel({ control, catalog, itemsCtl, errors, formId }: Props) {
+export default function CartPanel({ control, catalog, itemsCtl, errors, formId, inventoryEnabled = false }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
 
@@ -127,6 +128,7 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId }
               catalog={catalog}
               itemsCtl={itemsCtl}
               errors={errors}
+              inventoryEnabled={inventoryEnabled}
             />
           ))
         )}

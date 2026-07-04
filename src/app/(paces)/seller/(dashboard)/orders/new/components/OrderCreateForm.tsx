@@ -35,6 +35,8 @@ export interface CatalogProduct {
   /** Product.fulfillmentMode (SHIPPED | NO_SHIPPING) — ใช้ derive ที่อยู่จัดส่ง + indicator */
   fulfillmentMode: string
   image?: string | null
+  /** Product.stockQty — NULL = untracked (ไม่โชว์สต็อก), number = tracked (โชว์เมื่อ inventoryEnabled) */
+  stockQty?: number | null
 }
 
 interface Props {
@@ -42,6 +44,8 @@ interface Props {
   catalog: CatalogProduct[]
   /** HTML id assigned to the <form> element so an external submit button can use form="…" */
   formId?: string
+  /** ร้านเปิด Inventory Add-on ไหม — ถ้าเปิด แสดงสต็อกคงเหลือ + เตือน qty เกินสต็อก */
+  inventoryEnabled?: boolean
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -146,7 +150,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Props) {
+export default function OrderCreateForm({ shopId: _shopId, catalog, formId, inventoryEnabled = false }: Props) {
   const router = useRouter()
 
   const {
@@ -379,16 +383,16 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
           (user feedback: พื้นที่สินค้าใหญ่เกินบน desktop) */}
       <div className="hidden gap-4 md:flex md:items-start lg:grid lg:grid-cols-2 lg:items-start">
         <div className="min-w-0 flex-1">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} />
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>
         <div className="w-72 shrink-0 lg:w-auto">
-          <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} />
+          <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
         </div>
       </div>
 
       {/* Mobile (<md): grid เต็ม + floating cart bar + bottom-sheet */}
       <div className="md:hidden">
-        <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} />
+        <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
 
         {/* floating cart bar — SafePay domain component (Paces ไม่มี floating action bar สำเร็จรูป) */}
         {!sheetOpen && (
@@ -422,7 +426,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
                 className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-default-300"
               />
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} />
+                <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
               </div>
             </div>
           </>

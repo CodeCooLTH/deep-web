@@ -25,9 +25,10 @@ interface Props {
   itemsCtl: ItemsController
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors?: FieldErrors<any>
+  inventoryEnabled?: boolean
 }
 
-export default function CartLineItem({ index, item, control, catalog, itemsCtl, errors }: Props) {
+export default function CartLineItem({ index, item, control, catalog, itemsCtl, errors, inventoryEnabled = false }: Props) {
   const { field: qtyField } = useController({ control, name: `items.${index}.qty`, defaultValue: 1 })
   const { field: priceField } = useController({ control, name: `items.${index}.price`, defaultValue: 0 })
   const { field: descField } = useController({ control, name: `items.${index}.description`, defaultValue: '' })
@@ -36,7 +37,11 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
   const itemErrors = (errors?.items as any)?.[index]
   const qty = Number(qtyField.value) || 0
   const price = Number(priceField.value) || 0
-  const thumbSrc = item.productId ? catalog.find((p) => p.id === item.productId)?.image : null
+  const catalogProduct = item.productId ? catalog.find((p) => p.id === item.productId) : undefined
+  const thumbSrc = catalogProduct?.image ?? null
+  // สต็อก: เตือนเมื่อ qty เกินคงเหลือ (เฉพาะร้านเปิดระบบคลัง + สินค้า tracked)
+  const stock = catalogProduct?.stockQty
+  const overStock = inventoryEnabled && stock != null && qty > stock
 
   return (
     <div className="rounded-lg border border-default-200 bg-card p-2.5">
@@ -109,6 +114,12 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
       </div>
       {itemErrors?.qty && <p className="mt-1 text-xs text-danger">{itemErrors.qty.message}</p>}
       {itemErrors?.price && <p className="mt-1 text-xs text-danger">{itemErrors.price.message}</p>}
+      {overStock && (
+        <p className="mt-1 flex items-center gap-1 text-xs text-danger">
+          <Icon icon="alert-triangle" className="size-3.5 shrink-0" />
+          เกินสต็อก (คงเหลือ {stock})
+        </p>
+      )}
     </div>
   )
 }
