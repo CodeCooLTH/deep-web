@@ -7,6 +7,7 @@
  */
 
 import { getProductsByShop } from '@/services/product.service'
+import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -66,6 +67,9 @@ export default async function NewOrderPage() {
     )
   }
 
+  // ระบบคลัง (Inventory Add-on) เปิดอยู่ไหม — ถ้าเปิด แสดงสต็อกคงเหลือใน grid/line + เตือน qty เกิน
+  const inventoryEnabled = await isEntitlementActive(shop.id).catch(() => false)
+
   let catalog: CatalogProduct[] = []
   try {
     const products = await getProductsByShop(shop.id)
@@ -77,6 +81,8 @@ export default async function NewOrderPage() {
       type: p.type,
       fulfillmentMode: p.fulfillmentMode,
       image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
+      // stockQty: NULL = untracked (ไม่โชว์สต็อก), number = tracked
+      stockQty: p.stockQty ?? null,
     }))
   } catch {
     catalog = []
@@ -93,7 +99,7 @@ export default async function NewOrderPage() {
         saveLabel="บันทึกออเดอร์"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm shopId={shop.id} catalog={catalog} formId={FORM_ID} />
+      <OrderCreateForm shopId={shop.id} catalog={catalog} formId={FORM_ID} inventoryEnabled={inventoryEnabled} />
     </>
   )
 }

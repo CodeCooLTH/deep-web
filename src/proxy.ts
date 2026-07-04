@@ -68,6 +68,13 @@ export async function proxy(request: NextRequest) {
 
   // ========== MAIN domain (buyer) ==========
   if (subdomain === 'main') {
+    // feature 00012: ลิงก์เชิญพนักงาน `deepthailand.app/i/<slug>` อยู่บน main domain (สั้น แชร์ง่าย)
+    // แต่ปลายทางคือ seller dashboard — redirect ไป seller subdomain เพื่อให้ login/accept เกิดใน
+    // seller session (session แยกตาม subdomain). host มี port ติดมาด้วย (dev deepth.local:4000) → คงไว้
+    if (pathname.startsWith('/i/')) {
+      const rootHost = host.replace(/^www\./, '')
+      return NextResponse.redirect(`${request.nextUrl.protocol}//seller.${rootHost}${pathname}${request.nextUrl.search}`)
+    }
     // Block direct access to /seller/* and /admin/* on the main domain
     if (pathname.startsWith('/seller') || pathname.startsWith('/admin')) {
       return NextResponse.redirect(new URL('/', request.url))
@@ -98,7 +105,14 @@ export async function proxy(request: NextRequest) {
     // บังคับ 2 เฟส (flag ใน JWT): needsRegistration (ไม่มีเบอร์) → /register (ลงทะเบียน เหมือน sign-up);
     // needsOnboarding (ไม่มี slug) → /onboarding (setup ครั้งแรก). ยกเว้น /auth,/api. ปิด/หนีไม่ได้จนเสร็จ
     const t = token as { needsRegistration?: boolean; needsOnboarding?: boolean } | null
-    const isExempt = pathname.startsWith('/auth') || pathname.startsWith('/api')
+    // feature 00012: /choose-shop (เลือกร้าน/เปิดร้าน) + /i (landing รับคำเชิญ) ต้องเข้าถึงได้เสมอ —
+    // ยกเว้นจาก force-redirect gate (ผู้ถูกเชิญ/nobody flags เป็น false อยู่แล้ว แต่กันเหนียวไว้)
+    const isExempt =
+      pathname.startsWith('/auth') ||
+      pathname.startsWith('/api') ||
+      pathname.startsWith('/choose-shop') ||
+      pathname.startsWith('/i/') ||
+      pathname === '/i'
     if (isAuthed && !isExempt) {
       if (t?.needsRegistration) {
         // เฟส 1: ยังไม่มีเบอร์ → ต้องลงทะเบียนที่ /register ก่อน

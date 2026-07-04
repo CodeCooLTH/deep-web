@@ -8,16 +8,13 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import Grid from '@mui/material/Grid'
-import Typography from '@mui/material/Typography'
-
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUserVerifications } from '@/services/verification.service'
 
-import { LinkButton } from '@/app/(marketing)/_components/mui-link'
+import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 import VerificationClient from './VerificationClient'
 
 export const metadata: Metadata = { title: 'ยืนยันตัวตน' }
@@ -37,12 +34,7 @@ export default async function VerificationSettingsPage() {
 
   return (
     <>
-      <div>
-        <Typography variant='h5'>ยืนยันตัวตน</Typography>
-        <Typography color='text.secondary' className='text-sm'>
-          ยิ่งยืนยันหลายระดับ ยิ่งได้ Trust Score สูงขึ้น
-        </Typography>
-      </div>
+      <PageHeader title='ยืนยันตัวตน' subtitle='ยิ่งยืนยันหลายระดับ ยิ่งได้ Trust Score สูงขึ้น' />
 
       <VerificationClient
         phoneVerified={!!user.phone}

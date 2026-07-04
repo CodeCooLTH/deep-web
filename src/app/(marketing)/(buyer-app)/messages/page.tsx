@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 import Box from '@mui/material/Box'
+import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 
@@ -30,7 +31,8 @@ import { Icon } from '@iconify/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
-import { formatDate, formatTime } from '@/lib/format-date'
+import { formatDateTH, formatTimeHM } from '@/lib/format-date'
+import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 
 type SenderRole = 'BUYER' | 'SHOP'
 
@@ -47,12 +49,12 @@ type ConversationListItem = {
 
 type ListResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
-/** เวลาแถวรายการ — วันนี้โชว์เวลา (formatTime), อื่น ๆ โชว์วันที่ (formatDate); ใช้ format-date.ts เท่านั้น
+/** เวลาแถวรายการ — วันนี้โชว์เวลา HH:mm (formatTimeHM), อื่น ๆ โชว์วันที่ไทย (formatDateTH); ใช้ format-date.ts เท่านั้น
  *  (ห้าม toLocaleDateString/Intl.DateTimeFormat เองตาม convention — Date.toDateString() ที่นี่ใช้แค่เทียบ "วันนี้ไหม") */
 function formatInboxTime(iso: string): string {
   const d = new Date(iso)
   const isToday = d.toDateString() === new Date().toDateString()
-  return isToday ? formatTime(d) : formatDate(d)
+  return isToday ? formatTimeHM(d) : formatDateTH(d)
 }
 
 function isUnread(item: ConversationListItem): boolean {
@@ -142,11 +144,10 @@ export default function BuyerMessagesPage() {
   }
 
   return (
-    <Box>
-      <Typography variant='h5' sx={{ mb: 4 }}>
-        ข้อความ
-      </Typography>
+    <>
+      <PageHeader title='ข้อความ' subtitle='ข้อความจากร้านค้าที่คุณติดต่อ' />
 
+      <Card>
       {initialLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress size={28} />
@@ -175,19 +176,19 @@ export default function BuyerMessagesPage() {
           </Box>
         </Box>
       ) : items.length === 0 ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', py: 10 }}>
-          <CustomAvatar variant='circular' size={98} color='primary' skin='light'>
-            <Icon icon='tabler-message-2' fontSize={50} />
+        <div className='flex flex-col items-center justify-center gap-3 plb-16 text-center'>
+          <CustomAvatar variant='rounded' size={52} color='secondary' skin='light'>
+            <Icon icon='tabler-message-2' fontSize={30} />
           </CustomAvatar>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography sx={{ fontWeight: 600 }}>ยังไม่มีข้อความ</Typography>
-            <Typography color='text.secondary' sx={{ fontSize: 14 }}>
+          <div>
+            <Typography className='font-medium'>ยังไม่มีข้อความ</Typography>
+            <Typography color='text.secondary' variant='body2'>
               เริ่มแชทกับร้านค้าได้จากหน้าโปรไฟล์ร้านค้า
             </Typography>
-          </Box>
-        </Box>
+          </div>
+        </div>
       ) : (
-        <ul className='p-0 m-0'>
+        <ul className='p-0 m-0 flex flex-col [&>li:last-child>a]:border-b-0'>
           {items.map((item) => {
             const shopName = item.counterparty?.shopName ?? 'ร้านค้า'
             const logo = item.counterparty?.logo
@@ -201,33 +202,34 @@ export default function BuyerMessagesPage() {
 
             return (
               <li key={item.id}>
-                <Link href={`/messages/${item.shopId}`} className='no-underline text-inherit'>
-                  <div className='flex items-start gap-4 pli-3 plb-2 cursor-pointer rounded mbe-1 hover:bg-actionHover border-be'>
-                    <CustomAvatar src={logo ? `/api/files/${logo}` : undefined} skin='light' size={44}>
-                      {getInitials(shopName)}
-                    </CustomAvatar>
-                    <div className='min-is-0 flex-auto'>
-                      <Typography className={classnames('truncate', { 'font-bold': unread })}>
-                        {shopName}
-                      </Typography>
-                      <Typography
-                        variant='body2'
-                        color={unread ? 'text.primary' : 'text.secondary'}
-                        className='truncate'
-                      >
-                        {preview}
-                      </Typography>
-                    </div>
-                    <div className='flex flex-col items-end justify-start gap-1.5'>
-                      <Typography
-                        variant='body2'
-                        color={unread ? 'text.primary' : 'text.disabled'}
-                        className='truncate'
-                      >
-                        {formatInboxTime(item.lastMessageAt)}
-                      </Typography>
-                      {unread && <span className='bs-2 is-2 rounded-full bg-primary' />}
-                    </div>
+                <Link
+                  href={`/messages/${item.shopId}`}
+                  className='flex items-start gap-4 pli-5 plb-4 no-underline text-inherit border-b border-[var(--mui-palette-divider)] hover:bg-[var(--mui-palette-action-hover)] transition-colors'
+                >
+                  <CustomAvatar src={logo ? `/api/files/${logo}` : undefined} skin='light' size={44}>
+                    {getInitials(shopName)}
+                  </CustomAvatar>
+                  <div className='min-is-0 flex-auto'>
+                    <Typography className={classnames('truncate', { 'font-bold': unread })}>
+                      {shopName}
+                    </Typography>
+                    <Typography
+                      variant='body2'
+                      color={unread ? 'text.primary' : 'text.secondary'}
+                      className='truncate'
+                    >
+                      {preview}
+                    </Typography>
+                  </div>
+                  <div className='flex flex-col items-end justify-start gap-1.5'>
+                    <Typography
+                      variant='body2'
+                      color={unread ? 'text.primary' : 'text.disabled'}
+                      className='truncate'
+                    >
+                      {formatInboxTime(item.lastMessageAt)}
+                    </Typography>
+                    {unread && <span className='bs-2 is-2 rounded-full bg-primary' />}
                   </div>
                 </Link>
               </li>
@@ -266,6 +268,7 @@ export default function BuyerMessagesPage() {
           )}
         </ul>
       )}
-    </Box>
+      </Card>
+    </>
   )
 }

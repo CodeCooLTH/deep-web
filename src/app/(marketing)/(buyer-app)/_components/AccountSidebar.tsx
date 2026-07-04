@@ -33,7 +33,7 @@ type MenuItem = {
 
 const MENU_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'หน้าหลักของฉัน', icon: 'tabler-home' },
-  { href: '/orders', label: 'การซื้อของฉัน', icon: 'tabler-shopping-bag' },
+  { href: '/orders', label: 'คำสั่งซื้อของฉัน', icon: 'tabler-shopping-bag' },
   // B2 (feat 00011 Deep Chat, UX-Design-Spec.md resolved decision) — buyer inbox entry point
   { href: '/messages', label: 'ข้อความ', icon: 'tabler-message' },
   { href: '/reviews', label: 'รีวิวที่ให้', icon: 'tabler-star' },
@@ -60,7 +60,7 @@ export default function AccountSidebar() {
     classnames('text-xl shrink-0', { 'text-[var(--mui-palette-text-secondary)]': !active })
 
   return (
-    <nav className='flex flex-col gap-4 lg:sticky lg:top-24'>
+    <nav className='flex flex-col gap-4 min-[768px]:sticky min-[768px]:top-24'>
       {/* User card */}
       <div className='flex items-center gap-3 pb-4 border-b border-[var(--mui-palette-divider)]'>
         <Avatar src={avatarUrl} sx={{ width: 56, height: 56 }}>

@@ -1,16 +1,14 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import Typography from '@mui/material/Typography'
-
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { getReviewsByBuyer } from '@/services/review.service'
 
-import { LinkButton } from '@/app/(marketing)/_components/mui-link'
-import ManageReviews from '@views/apps/ecommerce/manage-reviews'
-import type { BuyerReviewRow } from '@views/apps/ecommerce/manage-reviews/ManageReviewsTable'
+import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
+import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
+import ManageReviews, { type BuyerReviewRow } from '@views/apps/ecommerce/manage-reviews'
 
 /**
  * Buyer "My Reviews" list.
@@ -24,13 +22,32 @@ import type { BuyerReviewRow } from '@views/apps/ecommerce/manage-reviews/Manage
 
 export const metadata: Metadata = { title: 'รีวิวที่ให้' }
 
-export default async function MyReviewsPage() {
+const VALID_RATINGS = new Set(['ALL', '5', '4', '3', '2', '1'])
+
+export default async function MyReviewsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ rating?: string; q?: string }>
+}) {
   const session = await getServerSession(authOptions)
 
   if (!session?.user) redirect('/auth/sign-in?callbackUrl=/reviews')
 
   const userId = (session.user as { id: string }).id
-  const reviews = await getReviewsByBuyer(userId)
+  const { rating: rawRating = 'ALL', q = '' } = await searchParams
+  const rating = VALID_RATINGS.has(rawRating) ? rawRating : 'ALL'
+  const query = q.trim().toLowerCase()
+
+  const allReviews = await getReviewsByBuyer(userId)
+  const byRating = rating === 'ALL' ? allReviews : allReviews.filter(r => r.rating === Number(rating))
+  // ค้นหา (in-memory): ชื่อร้าน หรือ ข้อความรีวิว
+  const reviews = query
+    ? byRating.filter(
+        r =>
+          (r.comment?.toLowerCase().includes(query) ?? false) ||
+          r.order.shop.user.displayName.toLowerCase().includes(query)
+      )
+    : byRating
 
   // Date is not JSON-safe across the server/client boundary — flatten to ISO.
   const reviewsData: BuyerReviewRow[] = reviews.map(r => ({
@@ -52,16 +69,13 @@ export default async function MyReviewsPage() {
 
   return (
     <>
-      <div className='flex items-center justify-between gap-3 flex-wrap'>
-        <div>
-          <Typography variant='h5'>รีวิวที่ให้</Typography>
-          <Typography color='text.secondary' className='text-sm'>
-            รวม {reviewsData.length} รีวิว
-          </Typography>
-        </div>
-      </div>
+      <PageHeader
+        title='รีวิวที่ให้'
+        subtitle={`รวม ${allReviews.length} รีวิว`}
+        action={<SearchBox placeholder='ค้นหาร้าน / ข้อความรีวิว' />}
+      />
 
-      <ManageReviews reviewsData={reviewsData} />
+      <ManageReviews reviewsData={reviewsData} rating={rating} query={q} />
     </>
   )
 }

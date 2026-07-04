@@ -51,6 +51,7 @@ model User {
   businessPackageSubscription BusinessPackageSubscription?
   sentShopInvites             ShopInvite[]                 @relation("ShopInviteInvitedBy")
   acceptedShopInvites         ShopInvite[]                 @relation("ShopInviteAcceptedBy")
+  createdShopInviteLinks      ShopInviteLink[]             @relation("ShopInviteLinkCreatedBy") // NEW (feature 00012)
 
   // --- Deep Chat (feature 00011, additive) ---
   buyerConversations Conversation[] @relation("BuyerConversations") // conversation ที่ user เป็นฝั่ง buyer
@@ -150,6 +151,7 @@ model Shop {
   stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
+  inviteLinks          ShopInviteLink[] // NEW (feature 00012) — reusable staff invite link
   conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
   verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
@@ -609,6 +611,27 @@ model ShopInvite {
 
   @@index([shopId, status]) // list pending invite ของ shop (owner invite management page)
   @@index([invitedContact, status]) // เช็ค invite PENDING ค้างตอน user สมัคร/login (FR-BIZ-10-AC-02)
+}
+
+// ShopInviteLink: ลิงก์เชิญพนักงานแบบ reusable (`/i/<slug>`) — feature 00012
+// ต่างจาก ShopInvite (contact-match, single-use ต่อคำเชิญ) ตรงที่เป็นลิงก์แชร์ซ้ำได้จนกว่าจะหมดอายุ/ถูก revoke
+// ผู้ถูกเชิญ accept ผ่านลิงก์ (ไม่ผูก contact ล่วงหน้า) — กลายเป็น ShopMember(role=ADMIN)
+model ShopInviteLink {
+  id              String    @id @default(cuid())
+  shopId          String
+  slug            String    @unique
+  // role: ปัจจุบันมีแค่ "ADMIN" — เก็บไว้ future-proof (มิเรอร์ ShopInvite.role)
+  role            String    @default("ADMIN")
+  createdByUserId String
+  expiresAt       DateTime
+  // revokedAt: NULL = ยังใช้งานได้ (ยัง valid ถ้า expiresAt ยังไม่ถึง); non-NULL = owner สั่งปิดใช้งานเอง
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  shop      Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdBy User @relation("ShopInviteLinkCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([shopId, revokedAt]) // list ลิงก์ที่ active ของ shop (owner management page /admins)
 }
 
 model TopUpRequest {

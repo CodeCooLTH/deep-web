@@ -79,7 +79,8 @@ const UserDropdown = () => {
     // guard: fetch เฉพาะเมื่อมี business membership จริง (กันยิง request เปล่าให้ทุก seller)
     if (!hasBusinessMembership) return
     let cancelled = false
-    fetch('/api/business/context')
+    // no-store: กัน browser/CDN/carrier cache serve response เก่า (ร้านใหม่ไม่โผล่ใน switcher)
+    fetch('/api/business/context', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!cancelled && data) setContext({ personal: data.personal, businesses: data.businesses ?? [] })
