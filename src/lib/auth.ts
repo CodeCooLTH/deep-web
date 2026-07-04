@@ -611,8 +611,15 @@ export const authOptions: NextAuthOptions = {
           try {
             const tokenActiveShopId = (token as { activeShopId?: string | null }).activeShopId ?? null;
             if (tokenActiveShopId && tokenActiveShopId !== resolvedActiveShopId) {
-              const m = await prisma.shopMember.findUnique({
-                where: { shopId_userId: { shopId: tokenActiveShopId, userId: user.id } },
+              // filter shop.deletedAt/purgedAt ด้วย — กัน soft-deleted business ยัง resolve เป็น active
+              // (สอดคล้องกับ resolveActiveShopContext + hasBusinessMembership count; ป้องกัน display drift
+              // ที่ topbar/sidebar โชว์ชื่อ/โลโก้ร้านที่ถูกลบ — security review Low finding)
+              const m = await prisma.shopMember.findFirst({
+                where: {
+                  shopId: tokenActiveShopId,
+                  userId: user.id,
+                  shop: { deletedAt: null, purgedAt: null },
+                },
                 select: { role: true },
               });
               if (m) {
