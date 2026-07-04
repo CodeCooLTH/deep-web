@@ -1,7 +1,7 @@
-# Scope Baseline — 00012 Pin Products
+# Scope Baseline — 00013 Pin Products
 
 > **วันที่:** 2026-07-04 · **Owner sign-off:** user (design + PRD/BRD อนุมัติ 2026-07-04) · **Controller:** main session
-> **Docs:** `docs/20 - Features/00012 - Pin Products/{PRD,BRD,SRS,SDS,DATABASE,API,Tests}.md`
+> **Docs:** `docs/20 - Features/00013 - Pin Products/{PRD,BRD,SRS,SDS,DATABASE,API,Tests}.md`
 
 ## Goal
 Seller ปักหมุดสินค้าเด่นให้โผล่โซน "สินค้าปักหมุด" บนโปรไฟล์ร้านสาธารณะ (`/u/[username]` + `/b/[slug]`) — paid slot system (1 ฟรี + ซื้อ ฿99/slot ถาวรผ่าน SellerWallet) แทน interim "3 ชิ้นแรก"
@@ -44,4 +44,4 @@ Seller ปักหมุดสินค้าเด่นให้โผล่�
 
 ## Docs sync ปลายทาง
 - `docs/PRD.md` feature overview + เพิ่ม Pin Products
-- `docs/superpowers/specs/2026-07-04-profile-redesign-design.md` — อัปเดต "pinned interim" → "wired จริง (feature 00012)"
+- `docs/superpowers/specs/2026-07-04-profile-redesign-design.md` — อัปเดต "pinned interim" → "wired จริง (feature 00013)"

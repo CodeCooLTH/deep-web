@@ -2,14 +2,14 @@
 title: "SRS — Pin Products (ปักหมุดสินค้าเด่น)"
 owner: shinobu22
 status: draft
-module: M00012-PinProducts
+module: M00013-PinProducts
 version: "1.0"
 created: 2026-07-04
 tags: [feature, profile, monetization, seller, wallet, srs, technical]
 related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]"]
 ---
 
-> **โมดูล:** M00012-PinProducts · **ประเภท:** SRS (TECHNICAL) · **สถานะ:** Draft
+> **โมดูล:** M00013-PinProducts · **ประเภท:** SRS (TECHNICAL) · **สถานะ:** Draft
 
 # SRS: Pin Products
 

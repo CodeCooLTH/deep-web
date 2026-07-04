@@ -1,13 +1,13 @@
 ---
 title: "DATABASE — Pin Products"
-module: M00012-PinProducts
+module: M00013-PinProducts
 version: "1.0"
 created: 2026-07-04
 status: draft
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]"]
 ---
 
-> **โมดูล:** M00012-PinProducts · **เจ้าของ:** safepay-database
+> **โมดูล:** M00013-PinProducts · **เจ้าของ:** safepay-database
 > Additive only — เพิ่ม 1 column+1 CHECK บน `Shop`, 1 column+1 index บน `Product`, ไม่มี DDL บน `WalletTransaction`. ไม่ drop/rename อะไร ปลอดภัยกับ shared prod DB (pattern เดียวกับ 00003/00009)
 
 ## 1. Changes required
@@ -24,7 +24,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]"]
 
 ### `model Shop` — เพิ่มก่อน relation block
 ```prisma
-  // --- Pin Products (feature 00012, additive) ---
+  // --- Pin Products (feature 00013, additive) ---
   // pinSlots: จำนวน slot ปักหมุดที่ร้านมีสิทธิ์ใช้พร้อมกัน. ทุกร้านเริ่ม 1 (free slot, BR-PIN-01);
   // ซื้อเพิ่มถาวรทีละ 1 ที่ ฿99 ผ่าน SellerWallet (BR-PIN-02); ไม่มี downgrade ใน MVP (BR-PIN-03).
   // 🛑 invariant "count(Product.pinnedAt ไม่ null ต่อ shop) <= pinSlots" enforce ที่ service layer
@@ -35,7 +35,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]"]
 
 ### `model Product` — เพิ่มถัดจาก `lowStockThreshold` + แก้ `@@index`
 ```prisma
-  // pinnedAt: Pin Products (feature 00012) — non-NULL = สินค้าถูกปักหมุด, เรียงแสดงผล pinnedAt desc
+  // pinnedAt: Pin Products (feature 00013) — non-NULL = สินค้าถูกปักหมุด, เรียงแสดงผล pinnedAt desc
   // (BR-PIN-09 no manual reorder); NULL = ไม่ปักหมุด. Auto-unpin (กลับเป็น NULL) ต้องเกิดในธุรกรรม
   // เดียวกับตอน isActive true→false เสมอ (BR-PIN-11 — service layer, product.service deleteProduct/updateProduct).
   // จำนวนปักหมุดต่อ shop <= Shop.pinSlots (enforce service layer เท่านั้น — ไม่มี DB constraint ข้ามแถว)
@@ -43,12 +43,12 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]"]
 ```
 ```prisma
   @@index([shopId, stockQty])
-  @@index([shopId, pinnedAt]) // Pin Products (00012) — query "pinnedAt not null ORDER BY pinnedAt desc" ต่อ shop (FR-PIN-06)
+  @@index([shopId, pinnedAt]) // Pin Products (00013) — query "pinnedAt not null ORDER BY pinnedAt desc" ต่อ shop (FR-PIN-06)
 ```
 
 ### `model WalletTransaction` — แก้ comment (ไม่มี DDL)
 ```prisma
-  // reason: ... | "PIN_SLOT" [feature 00012, NEW — ซื้อ pin slot ฿99 ถาวร, ไม่มี DDL แค่ค่าใหม่]); NULL = row เก่า
+  // reason: ... | "PIN_SLOT" [feature 00013, NEW — ซื้อ pin slot ฿99 ถาวร, ไม่มี DDL แค่ค่าใหม่]); NULL = row เก่า
   reason       String?
 ```
 
@@ -80,7 +80,7 @@ erDiagram
 `prisma/migrations/<TIMESTAMP>_add_pin_products_schema/migration.sql`
 
 ```sql
--- Migration: add_pin_products_schema | Feature: M00012-PinProducts | 2026-07-04
+-- Migration: add_pin_products_schema | Feature: M00013-PinProducts | 2026-07-04
 -- SAFETY: additive only. Shop.pinSlots NOT NULL DEFAULT 1 บน table ที่มี row จริง — Postgres 11+
 --   เติม default ให้ทุก row เดิมแบบ metadata-only (ไม่ rewrite table, ไม่ lock ยาว). Product.pinnedAt
 --   nullable ไม่มี default — row เดิมได้ NULL (= ไม่ปักหมุด) อัตโนมัติ (zero-regression).

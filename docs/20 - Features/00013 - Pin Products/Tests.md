@@ -2,14 +2,14 @@
 title: "Tests — Pin Products (ปักหมุดสินค้าเด่น)"
 owner: shinobu22
 status: draft
-module: M00012-PinProducts
+module: M00013-PinProducts
 version: "1.0"
 created: 2026-07-04
 tags: [feature, profile, monetization, seller, wallet, tests, qa]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 ---
 
-> **โมดูล:** M00012-PinProducts · **ประเภทเอกสาร:** Test Plan (Tests.md) · **สถานะ:** Draft
+> **โมดูล:** M00013-PinProducts · **ประเภทเอกสาร:** Test Plan (Tests.md) · **สถานะ:** Draft
 > **เจ้าของเอกสาร:** safepay-qa (ดู [[Feature-Docs-Ownership]])
 > **หมายเหตุสำคัญ:** เอกสารนี้เป็น **test plan ล่วงหน้าก่อนมีโค้ด** — ยังไม่มี implementation ให้รัน จึง **ไม่รัน test จริงในรอบนี้**
 > เมื่อ developer implement เสร็จแล้ว ให้ QA รอบถัดไปใช้เอกสารนี้เป็น checklist รัน `vitest` + `npm run e2e` จริง แล้วอัปเดตผล PASS/FAIL

@@ -26,7 +26,7 @@ export const WALLET_REASON = {
   INVENTORY_SUBSCRIPTION_PRO: 'INVENTORY_SUBSCRIPTION_PRO',
   INVENTORY_SUBSCRIPTION_PRO_UPGRADE: 'INVENTORY_SUBSCRIPTION_PRO_UPGRADE',
   SMS_ORDER_LINK: 'SMS_ORDER_LINK', // เดิม ไม่แตะ
-  PIN_SLOT: 'PIN_SLOT', // Pin Products (feature 00012) — ซื้อ pin slot ฿99 ถาวร
+  PIN_SLOT: 'PIN_SLOT', // Pin Products (feature 00013) — ซื้อ pin slot ฿99 ถาวร
 } as const
 
 // label ไทยสำหรับ admin sidebar (FR-INV-13) — ใช้คู่กับ WALLET_REASON

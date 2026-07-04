@@ -1,4 +1,4 @@
--- Migration: add_pin_products_schema | Feature: M00012-PinProducts | 2026-07-04
+-- Migration: add_pin_products_schema | Feature: M00013-PinProducts | 2026-07-04
 -- SAFETY: additive only. Shop.pinSlots NOT NULL DEFAULT 1 บน table ที่มี row จริง — Postgres 11+
 --   เติม default ให้ทุก row เดิมแบบ metadata-only (ไม่ rewrite table, ไม่ lock ยาว). Product.pinnedAt
 --   nullable ไม่มี default — row เดิมได้ NULL (= ไม่ปักหมุด) อัตโนมัติ (zero-regression).

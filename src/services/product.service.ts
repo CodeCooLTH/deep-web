@@ -289,7 +289,7 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.images !== undefined) scalarUpdate.images = data.images as Prisma.InputJsonValue;
   if (data.attributes !== undefined) scalarUpdate.attributes = data.attributes as Prisma.InputJsonValue;
   if (data.isActive !== undefined) scalarUpdate.isActive = data.isActive;
-  // pinnedAt auto-unpin (Pin Products, feature 00012, TFR-PIN-08 / BR-PIN-11): true→false เท่านั้น
+  // pinnedAt auto-unpin (Pin Products, feature 00013, TFR-PIN-08 / BR-PIN-11): true→false เท่านั้น
   // ล้าง pinnedAt ในธุรกรรมเดียวกับ isActive — ไม่แตะเมื่อ isActive=true/undefined (reactivate ไม่ auto re-pin)
   if (data.isActive === false) scalarUpdate.pinnedAt = null;
   // ถ้าเปลี่ยน type + ไม่ได้ส่ง fulfillmentMode มาด้วย → re-derive จาก type ใหม่
@@ -356,13 +356,13 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
 }
 
 export async function deleteProduct(productId: string) {
-  // pinnedAt: null — auto-unpin (Pin Products, feature 00012, TFR-PIN-08 / BR-PIN-11) ในธุรกรรม
+  // pinnedAt: null — auto-unpin (Pin Products, feature 00013, TFR-PIN-08 / BR-PIN-11) ในธุรกรรม
   // เดียวกับ isActive:false (single UPDATE statement = atomic, unconditional/idempotent)
   return prisma.product.update({ where: { id: productId }, data: { isActive: false, pinnedAt: null } });
 }
 
 export interface GetProductsByShopOptions {
-  // excludePinned — Pin Products (feature 00012, TD-002): true = ตัดสินค้าที่ปักหมุดออกจาก
+  // excludePinned — Pin Products (feature 00013, TD-002): true = ตัดสินค้าที่ปักหมุดออกจาก
   // grid ทั่วไป (โปรไฟล์เรียกคู่กับ getPinnedProducts แยกโซน). optional param ที่ 3 ท้ายสุด
   // เพื่อ backward-compat 100% กับ call-site เดิม (ไม่ส่ง = พฤติกรรมเดิมทุกประการ)
   excludePinned?: boolean;

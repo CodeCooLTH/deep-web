@@ -4,8 +4,8 @@ import { deductCredit } from "@/services/wallet.service";
 import { WALLET_REASON } from "@/lib/inventory-addon";
 import { PIN_SLOT_PRICE } from "@/lib/pin-products";
 
-// Pin Products (feature 00012) — pin/unpin/buy business logic
-// SSOT: docs/20 - Features/00012 - Pin Products/{SRS,SDS,API}.md
+// Pin Products (feature 00013) — pin/unpin/buy business logic
+// SSOT: docs/20 - Features/00013 - Pin Products/{SRS,SDS,API}.md
 
 export class PinProductNotFoundError extends Error {
   constructor() {

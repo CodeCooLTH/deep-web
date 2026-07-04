@@ -2,14 +2,14 @@
 title: "API Contract — Pin Products (ปักหมุดสินค้าเด่น)"
 owner: shinobu22
 status: draft
-module: M00012-PinProducts
+module: M00013-PinProducts
 version: "1.0"
 created: 2026-07-04
 tags: [feature, profile, monetization, seller, wallet, api]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]"]
 ---
 
-> **โมดูล:** M00012-PinProducts · **ประเภท:** API Contract · **สถานะ:** Draft
+> **โมดูล:** M00013-PinProducts · **ประเภท:** API Contract · **สถานะ:** Draft
 
 # API Contract: Pin Products
 

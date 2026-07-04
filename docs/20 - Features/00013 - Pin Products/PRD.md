@@ -2,14 +2,14 @@
 title: "PRD — Pin Products (ปักหมุดสินค้าเด่น)"
 owner: shinobu22
 status: draft
-module: M00012-PinProducts
+module: M00013-PinProducts
 version: "1.0"
 created: 2026-07-04
 tags: [feature, profile, monetization, seller, wallet, add-on]
 related: ["[[BRD]]", "[[00009 - Deep Stock Pro/PRD]]", "[[00003 - Inventory Add-on/PRD]]"]
 ---
 
-> **โมดูล:** M00012-PinProducts
+> **โมดูล:** M00013-PinProducts
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-07-04
