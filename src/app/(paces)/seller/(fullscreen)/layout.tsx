@@ -17,7 +17,7 @@
 import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
-import { ensurePersonalShop, requireActiveShop } from '@/lib/shop-context'
+import { requireActiveShop } from '@/lib/shop-context'
 
 export default async function FullscreenLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -34,12 +34,13 @@ export default async function FullscreenLayout({ children }: { children: React.R
     | undefined
   if (!session || !user?.id) redirect('/auth/sign-in')
 
-  // Ensure seller has a Personal shop — same invariant as (dashboard)/layout.tsx (D1)
-  await ensurePersonalShop(user.id)
+  // feature 00012 (Lazy Personal shop): ไม่ auto-create Personal shop อีกต่อไป — ผู้ถูกเชิญ (ADMIN business)
+  // ไม่มีร้านของตัวเอง. resolve active shop; ถ้าไม่มีเลย (nobody, ไม่มีทั้ง Personal + membership) → /choose-shop
+  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  if (!active) redirect('/choose-shop')
   // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding (หน้า onboarding อยู่ใต้
   // (dashboard) ไม่ใช่ fullscreen → redirect ข้ามกลุ่มไม่เกิด loop)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
-  if (active?.kind === 'BUSINESS' && !active.shop.slug) {
+  if (active.kind === 'BUSINESS' && !active.shop.slug) {
     redirect(`/business/${active.shop.id}/onboarding`)
   }
 
