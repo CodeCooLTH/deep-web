@@ -83,7 +83,7 @@ type Props = {
 
 const Orders = ({ orders }: Props) => {
   return (
-    <Card className='flex flex-col'>
+    <Card className='bs-full flex flex-col'>
       <CardHeader
         title='คำสั่งซื้อล่าสุด'
         subheader={`มีทั้งหมด ${orders.length} รายการ`}
@@ -100,9 +100,12 @@ const Orders = ({ orders }: Props) => {
       />
       <CardContent className='flex grow gap-y-[18px] lg:gap-y-5 flex-col justify-between max-sm:gap-5'>
         {orders.length === 0 ? (
-          <Typography color='text.secondary' className='text-sm py-6 text-center'>
-            ยังไม่มีคำสั่งซื้อ
-          </Typography>
+          <div className='flex flex-col items-center justify-center gap-2 grow plb-8 text-center'>
+            <CustomAvatar skin='light' variant='rounded' color='secondary' size={46}>
+              <i className='tabler-shopping-bag text-[26px]' />
+            </CustomAvatar>
+            <Typography color='text.secondary'>ยังไม่มีคำสั่งซื้อ</Typography>
+          </div>
         ) : (
           orders.map((order) => {
             const firstItem = order.items[0]
