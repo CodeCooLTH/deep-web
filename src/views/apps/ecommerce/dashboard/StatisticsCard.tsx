@@ -8,13 +8,10 @@ import Grid from '@mui/material/Grid'
 // Type Imports
 import type { ThemeColor } from '@core/types'
 
-// Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
-
 /**
  * Base: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/dashboard/StatisticsCard.tsx
- * Adapted: 4 buyer stats — total orders / completed / reviews given / badges earned.
- * เขียว = "สำเร็จแล้ว" (verified-means-green); ตัวเลขรวม = primary; รีวิว = amber(ดาว); badge = info.
+ * Adapted (design.json): 4 stat "tiles" — tinted mini-cards, big number, real signal hierarchy.
+ * เขียว = "สำเร็จแล้ว" (verified-means-green); ม่วง 1 ใบเท่านั้น (One Voice).
  */
 
 type DataType = {
@@ -50,17 +47,21 @@ const StatisticsCard = ({ totalOrders, completedOrders, reviewsGiven, badgesEarn
         }
       />
       <CardContent className='flex grow items-center'>
-        <Grid container spacing={6} sx={{ inlineSize: '100%' }}>
+        <Grid container spacing={4} sx={{ inlineSize: '100%' }}>
           {data.map((item, index) => (
-            <Grid key={index} size={{ xs: 6, sm: 3 }} className='flex items-center gap-4'>
-              <CustomAvatar color={item.color} variant='rounded' size={44} skin='light'>
-                <i className={`${item.icon} text-[26px]`} />
-              </CustomAvatar>
-              <div className='flex flex-col'>
-                <Typography variant='h4' className='font-extrabold leading-tight'>
+            <Grid key={index} size={{ xs: 6, sm: 3 }}>
+              <div
+                className='flex flex-col gap-2 plb-4 pli-4 rounded-xl bs-full'
+                style={{ backgroundColor: `var(--mui-palette-${item.color}-lightOpacity)` }}
+              >
+                <i
+                  className={`${item.icon} text-[28px]`}
+                  style={{ color: `var(--mui-palette-${item.color}-main)` }}
+                />
+                <Typography variant='h3' className='font-extrabold leading-none' color='text.primary'>
                   {item.stats}
                 </Typography>
-                <Typography variant='body2' color='text.secondary'>
+                <Typography variant='body2' color='text.secondary' className='leading-tight'>
                   {item.title}
                 </Typography>
               </div>
