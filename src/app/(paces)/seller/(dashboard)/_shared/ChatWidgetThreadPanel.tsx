@@ -212,6 +212,14 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
                                 {m.body}
                               </p>
                             )}
+                            {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — copy ตรงจาก
+                                ChatThread.tsx (ดู comment ที่นั่น) เฉพาะ TEXT ที่ flaggedScam=true */}
+                            {m.type === 'TEXT' && m.flaggedScam && (
+                              <div className="bg-warning/15 text-warning mt-1.5 flex items-start gap-1 rounded px-1.5 py-1 text-2xs">
+                                <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-xs" />
+                                <span>ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก</span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>

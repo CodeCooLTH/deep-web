@@ -24,6 +24,11 @@
  * S-20 (extension #1 Chat Product Context Card, feat 00011): เพิ่ม type='PRODUCT' bubble (Base: IMAGE bubble
  * container ด้านบน — bg neutral คงที่ไม่ผูก sender ตาม UX spec) + อ่าน query ?productId ครั้งเดียวจาก
  * /u/[username] ProductTile ปุ่ม "สอบถามสินค้านี้" (S-19) → sendMessage(type=PRODUCT) → clear query
+ *
+ * S-31 (extension #3 Scam-link Detection, FR-SCAM-04/06): ข้อความ type='TEXT' ที่ `flaggedScam=true` (persist
+ * จาก S-30 backend, ตรวจเฉพาะ TEXT — BR-SCAM-04) → ห่อ Typography ด้วย container เดียวกับ IMAGE/PRODUCT bubble
+ * (bg/rounded/shadow ย้ายไป wrapper, ไม่กระทบ layout ข้อความปกติ) แล้วต่อ MUI `Alert severity='warning'` เล็ก
+ * ท้ายบับเบิลเดียวกัน — WARN เฉย ๆ ไม่ block ส่ง (FR-SCAM-05), copy เป็นกลางไม่กล่าวหา (FR-SCAM-06)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
@@ -36,6 +41,7 @@ import TextField from '@mui/material/TextField'
 import IconButton from '@mui/material/IconButton'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 import classnames from 'classnames'
 import { Icon } from '@iconify/react'
@@ -71,6 +77,9 @@ type ChatMessageView = {
   // ยังไม่ enrich, null = ลบจริงแล้ว FR-CTX-08)
   productRefId?: string | null
   productCard?: ProductCardData | null
+  // S-31 (extension #3 Scam-link Detection): persist ที่ backend เฉพาะ type='TEXT' (S-30) — ข้อความอื่น
+  // ส่ง false เสมอ (optimistic เช่นกัน เพราะ POST ไม่ enrich ค่านี้กลับจนกว่าจะ refetch/replace)
+  flaggedScam: boolean
   createdAt: string
 }
 
@@ -351,6 +360,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
       type: 'TEXT',
       body: text,
       imageUrl: null,
+      flaggedScam: false,
       createdAt: new Date().toISOString(),
     }
     setMessages((prev) => [...prev, optimisticMsg])
@@ -387,6 +397,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
       type: 'IMAGE',
       body: caption,
       imageUrl: null,
+      flaggedScam: false,
       createdAt: new Date().toISOString(),
     }
     setOptimisticPreviews((prev) => ({ ...prev, [tempId]: image.previewUrl }))
@@ -440,6 +451,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
       imageUrl: null,
       productRefId,
       productCard: undefined,
+      flaggedScam: false,
       createdAt: new Date().toISOString(),
     }
     setMessages((prev) => [...prev, optimisticMsg])
@@ -706,17 +718,45 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                           )
                         }
 
+                        // S-31 (extension #3 Scam-link Detection): flaggedScam=true (เฉพาะ TEXT — BR-SCAM-04)
+                        // → ห่อ Typography ด้วย container เดียวกับ IMAGE/PRODUCT bubble แล้วต่อ warning banner
+                        // ท้ายบับเบิลเดียวกัน (bg/rounded/shadow ย้ายมาที่ wrapper, Typography คงหน้าตาเดิม)
                         return (
-                          <Typography
+                          <div
                             key={msg.id}
-                            className={classnames('whitespace-pre-wrap pli-4 plb-2 shadow-xs', {
+                            className={classnames('overflow-hidden shadow-xs', {
                               'bg-backgroundPaper rounded-e rounded-b': !isBuyer,
-                              'bg-primary text-[var(--mui-palette-primary-contrastText)] rounded-s rounded-b': isBuyer,
+                              'bg-primary rounded-s rounded-b': isBuyer,
                             })}
-                            style={{ wordBreak: 'break-word' }}
                           >
-                            {msg.body}
-                          </Typography>
+                            <Typography
+                              className={classnames('whitespace-pre-wrap pli-4 plb-2', {
+                                'text-[var(--mui-palette-primary-contrastText)]': isBuyer,
+                              })}
+                              style={{ wordBreak: 'break-word' }}
+                            >
+                              {msg.body}
+                            </Typography>
+                            {msg.flaggedScam && (
+                              <Alert
+                                severity='warning'
+                                variant='standard'
+                                icon={<Icon icon='tabler-alert-triangle' fontSize={15} />}
+                                sx={{
+                                  py: 0.5,
+                                  px: 1.5,
+                                  gap: 1,
+                                  borderRadius: 0,
+                                  '& .MuiAlert-icon': { minInlineSize: 18, blockSize: 18, p: 0 },
+                                  '& .MuiAlert-message': { p: 0 },
+                                }}
+                              >
+                                <Typography variant='caption' component='span'>
+                                  ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก
+                                </Typography>
+                              </Alert>
+                            )}
+                          </div>
                         )
                       })}
                       <Typography variant='caption' color='text.disabled'>

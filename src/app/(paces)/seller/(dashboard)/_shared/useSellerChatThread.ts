@@ -41,6 +41,9 @@ export type ChatMessageView = {
   imageUrl: string | null
   createdAt: string
   productCard?: ChatProductCard | null
+  // extension #3 Scam-link Detection (FR-SCAM-03/04) — API GET/POST enrich ต่อข้อความ TEXT เท่านั้น
+  // (S-30 chat.service.ts ChatMessageView) ใช้แสดง warning banner ในบับเบิล ไม่ block ส่ง
+  flaggedScam?: boolean
 }
 
 type MessagesApiResponse = { items: ChatMessageView[]; nextCursor: string | null }

@@ -240,6 +240,15 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
                                 {m.body}
                               </p>
                             )}
+                            {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — warning banner เฉพาะ
+                                TEXT ที่ flaggedScam=true (BR-SCAM-04 scan เฉพาะ TEXT); WARN เท่านั้น
+                                ไม่ block ส่ง (FR-SCAM-05); token bg-warning/15 text-warning (HR7 ไม่ arbitrary) */}
+                            {m.type === 'TEXT' && m.flaggedScam && (
+                              <div className="bg-warning/15 text-warning mt-2 flex items-start gap-1.5 rounded px-2 py-1 text-2xs">
+                                <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" />
+                                <span>ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก</span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
