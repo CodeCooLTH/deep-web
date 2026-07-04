@@ -22,25 +22,11 @@ const UserProfileSettings = () => {
   // session shape เหมือน UserDropdownDetailed — cast เพื่อเข้าถึง custom fields
   const { data: session } = useSession()
   const user = (session as any)?.user as
-    | {
-        id: string
-        displayName: string
-        username: string
-        avatar: string | null
-        isShop?: boolean
-        // feat 00008 FB switcher — active account identity (จาก lib/auth.ts session callback)
-        activeShopKind?: 'PERSONAL' | 'BUSINESS'
-        activeShopName?: string | null
-        activeShopLogo?: string | null
-        activeShopRole?: 'OWNER' | 'ADMIN'
-      }
+    | { id: string; displayName: string; username: string; avatar: string | null; isShop?: boolean }
     | undefined
 
-  // สะท้อน active account: business → โลโก้ร้าน+ชื่อร้าน+บทบาท, personal → เดิม
-  const isBusiness = user?.activeShopKind === 'BUSINESS'
-  const dispName = isBusiness ? (user?.activeShopName ?? 'ร้านค้า') : (user?.displayName ?? user?.username ?? 'ผู้ขาย')
-  const dispLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
-  const dispRole = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ผู้ขาย'
+  // บล็อกบัญชีใน sidebar = ข้อมูลส่วนตัวเสมอ (ไม่สะท้อน business ที่ active — ตาม user 2026-07-04)
+  const dispName = user?.displayName ?? user?.username ?? 'ผู้ขาย'
 
   const handleSignOut = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -52,10 +38,10 @@ const UserProfileSettings = () => {
       <div className="flex items-center justify-between">
         <div>
           <Link href="/dashboard" className="link-reset">
-            <AccountAvatar src={dispLogo} kind={isBusiness ? 'business' : 'personal'} className="mb-3 size-9" />
+            <AccountAvatar src={user?.avatar} kind="personal" className="mb-3 size-9" />
             <span className="sidenav-user-name block font-bold text-nowrap">{dispName}</span>
             <span className="text-xs font-semibold" data-lang="user-role">
-              {dispRole}
+              ผู้ขาย
             </span>
           </Link>
         </div>
