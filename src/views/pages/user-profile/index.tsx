@@ -6,7 +6,7 @@ import Box from '@mui/material/Box'
 // Component Imports
 import { ProfileBanner, ProfileIdentityBar } from './UserProfileHeader'
 import type { ProfileHeaderData } from './UserProfileHeader'
-import { ProfileLeftContent, ProfileRightContent, splitPinnedProducts } from './profile'
+import { ProfileLeftContent, ProfileRightContent } from './profile'
 import type { ProfileTabData } from './profile'
 import ProfileTabsNav from './ProfileTabsNav'
 import type { ProfileTabItem } from './ProfileTabsNav'
@@ -24,15 +24,16 @@ const UserProfile = ({
   profileHeader: ProfileHeaderData
   profileTab: ProfileTabData
 }) => {
-  const { pinned, remaining } = splitPinnedProducts(profileTab.products)
-  const hasProducts = pinned.length > 0
+  // Phase 3 (feature 00013 Pin Products): pinnedProducts/otherProducts มาจากข้อมูลปักหมุดจริงแล้ว
+  // (แทน splitPinnedProducts interim slice เดิม)
+  const { pinnedProducts, otherProducts } = profileTab
   // ทำไม: right column ทั้งชุด (products+platforms) ซ่อนเมื่อ buyer-only (ไม่มีร้าน) — achievements ย้ายไป left แล้ว
   const hasRightContent = !profileTab.openShopEmptyState
 
   // tabs: ซ่อนแท็บที่ section ของมันไม่ render จริง (กันคลิกแล้วไม่มีอะไรให้ scroll ไปหา)
   const tabs: ProfileTabItem[] = [
-    ...(hasRightContent && hasProducts ? [{ id: 'pinned-products', label: 'สินค้าปักหมุด' }] : []),
-    ...(hasRightContent && remaining.length > 0 ? [{ id: 'all-products', label: 'สินค้าทั้งหมด' }] : []),
+    ...(hasRightContent && pinnedProducts.length > 0 ? [{ id: 'pinned-products', label: 'สินค้าปักหมุด' }] : []),
+    ...(hasRightContent && otherProducts.length > 0 ? [{ id: 'all-products', label: 'สินค้าทั้งหมด' }] : []),
     ...(profileTab.achievements.length > 0 ? [{ id: 'achievements', label: 'การรับรอง' }] : []),
     { id: 'about', label: 'เกี่ยวกับ' },
   ]
@@ -104,7 +105,8 @@ const UserProfile = ({
         >
           <ProfileRightContent
             data={{
-              products: profileTab.products,
+              pinnedProducts: profileTab.pinnedProducts,
+              otherProducts: profileTab.otherProducts,
               openShopEmptyState: profileTab.openShopEmptyState,
             }}
             // S-19 (extension #1 Chat Product Context Card): prop-drill shopId/isOwnShop จาก profileHeader (S-8)

@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma'
 import { findShopBySlug } from '@/services/shop.service'
 import { getAvgRatingByShop } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
+import { getPinnedProducts } from '@/services/pin.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
 
@@ -26,6 +27,7 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // (findShopBySlug แทน findByUsername) — view/layout/footer เดิมทุกอย่าง ไม่ redesign
 // Redesign (2026-07-04): sync กับ /u/[username] — tier label/color จาก trust-tier.ts SSOT, memberSince → formatMonthYearTH,
 // เพิ่ม verifiedLevels + nextTierInfo (type ProfileHeaderData/ProfileTabData เปลี่ยนร่วมกัน ต้อง sync ทั้ง 2 หน้าเสมอ)
+// Phase 3 (feature 00013 Pin Products): sync กับ /u/[username] — pinnedProducts/otherProducts แทน products เดี่ยว
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -46,7 +48,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
 
   // ทำไม: เทียบ /u/[username] เป๊ะ แต่ scope ที่ shopId ตรง (business shop แยก trust/badge/verification
   // จาก owner user เอง — 00008 Phase 5 P5-1/P5-2/P5-3)
-  const [approvedVerifications, orderStats, ratingAgg, rawProducts] = await Promise.all([
+  const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { shopId: shop.id, status: 'APPROVED' },
       select: { level: true },
@@ -57,7 +59,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       _count: { _all: true },
     }),
     getAvgRatingByShop(shop.id),
-    getProductsByShop(shop.id, 12),
+    // Phase 3 (feature 00013): pinned + other แยกคิวรี (sync /u/[username])
+    getPinnedProducts(shop.id),
+    getProductsByShop(shop.id, 12, { excludePinned: true }),
   ])
 
   const maxVerifyLevel = approvedVerifications.length
@@ -75,12 +79,15 @@ export default async function BusinessShopProfilePage({ params }: Props) {
 
   // serialize products: Decimal → string, images Json → string[] → first
   // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
-  const products: SerializedProduct[] = rawProducts.map((p) => ({
+  // Phase 3 (feature 00013): serialize แยกชุด pinned/other — ทั้งสองมาจาก Prisma row shape เดียวกัน
+  const serializeProductRow = (p: (typeof rawPinnedProducts)[number]): SerializedProduct => ({
     id: p.id,
     name: p.name,
     price: p.price.toFixed(2),
     imageUrl: (p.images as string[])[0] ?? null,
-  }))
+  })
+  const pinnedProducts: SerializedProduct[] = rawPinnedProducts.map(serializeProductRow)
+  const otherProducts: SerializedProduct[] = rawOtherProducts.map(serializeProductRow)
 
   // FR-4.8 เทียบ /u/[username]: กรอง badge เฉพาะ seller-context (SELLER|ANY)
   const businessBadges = shop.badges.filter(
@@ -115,7 +122,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     })),
     // business shop = shop เสมอ (ไม่มี buyer-only case เหมือน /u/[username])
     openShopEmptyState: false,
-    products,
+    pinnedProducts,
+    otherProducts,
     totalBadgeCount: businessBadges.length,
     bio: shop.description,
     location: shop.address,
