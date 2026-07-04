@@ -71,3 +71,21 @@ export function formatTime(input: Date | string | number | null | undefined): st
   const p = partsInBangkok(d)
   return `${p.hour}:${p.minute}:${p.second}`
 }
+
+const THAI_MONTHS_ABBR = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+]
+
+/**
+ * "มิ.ย. 2568" — เดือนย่อไทย + ปี พ.ศ. (ไม่มีวัน, timezone ไทย)
+ * ใช้แสดง "เข้าร่วมเมื่อ" ที่ไม่ต้องการความละเอียดระดับวัน (เช่น /u/[username] memberSince)
+ */
+export function formatMonthYearTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  const year = Number(p.year) + BE_OFFSET
+  const monthIdx = Number(p.month) - 1
+  return `${THAI_MONTHS_ABBR[monthIdx] ?? '—'} ${year}`
+}

@@ -4,6 +4,7 @@
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
@@ -12,7 +13,8 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 
 // Lib Imports
-import { getTierCover } from '@/lib/trust-tier'
+import { getTierGradient } from '@/lib/trust-tier'
+import type { TierChipColor } from '@/lib/trust-tier'
 
 // Next Imports
 // ทำไม: back button ใน client component — ใช้ Link ได้โดยตรง ไม่ผิด Hard Rule 2 (ซึ่งห้ามเฉพาะ component={Link} ใน MUI server component)
@@ -23,27 +25,28 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
-// Asset/content source: mockup_shop_profile.html
-// Rework: เปลี่ยนเป็น fragment/Box ไล่ลงตาม mockup_shop_profile.html (single-card — ไม่มี Card wrapper อีก)
-// D7 approved exception: trust banner + sunburst/dot overlays + progress dots compose จาก MUI Box primitive
-// Tooltip บน disabled Button ต้องการ 'use client'
-// Responsive (2026-05-23): เพิ่ม named exports ProfileBanner + ProfileLeftPanel
-//   เพื่อให้ wrapper/index.tsx จัด 3-block CSS Grid บน desktop
-//   UserProfileHeader คงเป็น default export รวม (= ProfileBanner + ProfileLeftPanel) สำหรับ mobile flow เดิม
+// Asset/content source: mockup_shop_profile.html (คงต่อเนื่องจาก D7 exception เดิม)
+// Redesign (2026-07-04, hybrid FB Page × Threads spec): เปลี่ยน cover จากรูป baked → CSS gradient ต่อ tier (getTierGradient)
+// + dot-mesh overlay (CSS ล้วน); identity bar responsive row/column; metric row แทน bio/location/joined (ย้ายไป About section
+// ใน profile/index.tsx ซ้าย); ตัดเมตริก "ผู้ติดตาม" ทิ้งทั้งหมด (ไม่มี follow system จริง)
+// คง: back-button frosted-glass, verify badge ✓ บน avatar (carve-out dingbat), chat login-gate เดิม (S-8)
 
 export type ProfileHeaderData = {
-  coverImg: string           // คง field เดิมไว้ (ไม่ใช้ render แต่ไม่ break ผู้เรียก)
   profileImg?: string | null
   fullName: string
   username: string
-  memberSince: string
   shopName?: string | null
   trustScore: number
-  trustLevel: string         // "A+"|"A"|"B+"|"B"|"C"|"D"
-  trustColor: 'success' | 'info' | 'warning' | 'error'
+  /** ชื่อ tier แสดงผล (Deep Classic/Silver/Gold/Diamond/Star) — จาก getTierLabel() (Tier Lists SSOT) */
+  tierLabel: string
+  /** สี chip ตาม Tier Lists SSOT — จาก getTierColor() */
+  tierColor: TierChipColor
   maxVerifyLevel: number
-  bio?: string | null
-  location?: string | null
+  /** จำนวนออเดอร์สำเร็จ — แสดงใน metric row */
+  completedOrders: number
+  avgRating: number
+  /** true เมื่อมีรีวิว >= 3 (เพื่อความน่าเชื่อถือ) — ซ่อน ★rating ถ้า false */
+  showRating: boolean
   // S-8 (feat 00011 Deep Chat): ร้านของ user นี้ (ถ้ามี isShop) — null = บัญชี buyer-only แชทไม่ได้
   shopId?: string | null
   // B3: true เมื่อ viewer (session user) เป็นเจ้าของร้านนี้เอง — self-chat ต้อง disable
@@ -52,16 +55,15 @@ export type ProfileHeaderData = {
 
 // ── ProfileBanner — Trust Banner section only ──
 // ทำไม: แยกออกมาเพื่อให้ desktop wrapper span ทั้ง 2 col ใน CSS Grid ได้
-// bannerHeight: responsive ผ่าน prop — mobile 160 / desktop 200 (ความสูงคงที่ตามที่ user ชอบ)
+// bannerHeight responsive ตาม spec: {xs:148, sm:200, md:240}
 export const ProfileBanner = ({
   data,
-  bannerHeight = 160,
+  bannerHeight = { xs: 148, sm: 200, md: 240 },
 }: {
   data: Pick<ProfileHeaderData, 'trustScore'>
-  /** MUI sx height — ตัวเลข / responsive object */
-  bannerHeight?: number | string | { xs?: number; md?: number }
+  bannerHeight?: number | string | { xs?: number; sm?: number; md?: number }
 }) => {
-  const cover = getTierCover(data.trustScore)
+  const gradient = getTierGradient(data.trustScore)
 
   return (
     <Box
@@ -69,17 +71,14 @@ export const ProfileBanner = ({
         height: bannerHeight,
         position: 'relative',
         overflow: 'hidden',
-        // cover image ต่อ tier (ชื่อ tier + dots baked ในรูป) — backgroundSize cover
-        // user จะปรับ crop/ขนาดของไฟล์รูปเองให้พอดี banner ความสูงคงที่
-        backgroundImage: `url(${cover})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        bgcolor: '#E2E8F0',
+        // ทำไม: dot-mesh overlay (CSS ล้วน) แทนลายจุดที่เคย baked ในรูป cover เดิม — ซ้อนบน gradient ต่อ tier
+        backgroundImage: `radial-gradient(rgba(255,255,255,.22) 1.5px, transparent 1.6px), ${gradient}`,
+        backgroundSize: '22px 22px, 100% 100%',
+        backgroundPosition: 'center, center',
+        backgroundRepeat: 'repeat, no-repeat',
       }}
     >
       {/* Back button — มุมซ้ายบน absolute; frosted glass กัน background gradient กลืน */}
-      {/* ทำไม: user ต้องการ back button ใน banner — ใช้ Link (client component ทำได้) นำทางไป home "/" */}
       <Link href='/' style={{ textDecoration: 'none' }}>
         <IconButton
           aria-label='กลับหน้าหลัก'
@@ -105,15 +104,14 @@ export const ProfileBanner = ({
           <Icon icon='tabler-arrow-left' fontSize={20} />
         </IconButton>
       </Link>
-
     </Box>
   )
 }
 
-// ── ProfileLeftPanel — X-header (avatar + actions) + Identity (name/verify/bio/meta) ──
-// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน left column ของ grid ได้
-// bio clamp: ใช้ responsive sx ภายใน — md+ clamp 4 บรรทัด ตาม spec; mobile ไม่ clamp
-export const ProfileLeftPanel = ({
+// ── ProfileIdentityBar — avatar + name/handle/metric-row + actions (แชท/ติดตาม) ──
+// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน 'identity' grid-area (span 2 col เหนือ left/right) ได้
+// responsive: xs = column จัดกลาง; sm+ = row (avatar+ชื่อชิดซ้าย, ปุ่ม ml:auto ชิดขวา)
+export const ProfileIdentityBar = ({
   data,
 }: {
   data: ProfileHeaderData
@@ -137,33 +135,27 @@ export const ProfileLeftPanel = ({
   }
 
   return (
-    <>
-      {/* ── Header: Avatar กลาง + Actions ใต้ avatar (user: ย้าย avatar มากลาง) ── */}
-      {/* mt: -68px ดึง avatar ขึ้นทับ banner; column + center จัด avatar/actions กลาง */}
+    <Box sx={{ px: { xs: '20px', md: '24px' }, pt: '12px', pb: '16px' }}>
       <Box
         sx={{
-          mt: '-68px',
-          px: '24px',
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-          position: 'relative',
-          zIndex: 2,
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'center', sm: 'flex-end' },
+          gap: { xs: '12px', sm: '16px' },
         }}
       >
-        {/* Avatar 128px + verify badge มุมขวาล่าง (user: ย้าย verify มาบน avatar) */}
-        <Box sx={{ position: 'relative', width: 128, height: 128, flexShrink: 0 }}>
+        {/* Avatar 112px overlap cover (mt ลบ) + verify badge มุมขวาล่าง */}
+        <Box sx={{ position: 'relative', width: 112, height: 112, flexShrink: 0, mt: '-56px', zIndex: 2 }}>
           <Avatar
             src={data.profileImg ?? undefined}
             alt={displayName}
             sx={{
-              width: 128,
-              height: 128,
+              width: 112,
+              height: 112,
               borderRadius: '50%',
-              border: '5px solid white',
+              border: '4px solid white',
               boxShadow: '0 6px 14px rgba(15,23,42,.18)',
-              fontSize: '3.25rem',
+              fontSize: '2.75rem',
               fontWeight: 800,
               bgcolor: '#E2E8F0',
               color: '#475569',
@@ -171,23 +163,23 @@ export const ProfileLeftPanel = ({
           >
             {displayName.slice(0, 1)}
           </Avatar>
-          {/* D9: verify badge มุมขวาล่าง — แสดงเมื่อ maxVerifyLevel >= 1; ring ขาวให้เด่นบน avatar */}
+          {/* D9: verify badge มุมขวาล่าง — carve-out dingbat ✓ (single-color typographic, ไม่ใช่ emoji) */}
           {showVerify && (
             <Box
               component='span'
               title='ยืนยันแล้ว'
               sx={{
                 position: 'absolute',
-                bottom: 6,
-                right: 6,
-                width: 30,
-                height: 30,
+                bottom: 4,
+                right: 4,
+                width: 27,
+                height: 27,
                 borderRadius: '50%',
                 bgcolor: '#1D9BF0',
                 color: 'white',
                 display: 'grid',
                 placeItems: 'center',
-                fontSize: '15px',
+                fontSize: '14px',
                 fontWeight: 900,
                 border: '3px solid white',
                 boxShadow: '0 1px 4px rgba(29,155,240,.4)',
@@ -198,222 +190,116 @@ export const ProfileLeftPanel = ({
           )}
         </Box>
 
-      </Box>
+        {/* Name / handle / metric row — sm+ ชิดซ้าย, xs จัดกลาง */}
+        <Box sx={{ flex: 1, minWidth: 0, textAlign: { xs: 'center', sm: 'left' } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'center', sm: 'flex-start' }, gap: '6px', flexWrap: 'wrap' }}>
+            <Typography
+              component='h1'
+              sx={{ m: 0, fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', color: '#0F172A', lineHeight: 1.15 }}
+            >
+              {displayName}
+            </Typography>
+            {showVerify && (
+              <Icon icon='tabler-rosette-discount-check-filled' style={{ color: '#1D9BF0', fontSize: 18 }} aria-label='ยืนยันแล้ว' />
+            )}
+          </Box>
 
-      {/* ── Identity (จัดกลางให้ coherent กับ avatar กลาง) ── */}
-      <Box sx={{ px: '24px', pt: '12px', textAlign: 'center' }}>
-        {/* name-row: ชื่อร้าน + verify badge */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          <Typography
-            component='h2'
+          <Typography component='p' sx={{ m: 0, mt: '1px', fontSize: '14px', color: '#64748B', lineHeight: 1.3 }}>
+            @{data.username}
+          </Typography>
+
+          {/* metric row: {orders} ออเดอร์ · ★{rating}(ถ้า showRating) · [tier chip]
+              ตัด "ผู้ติดตาม" ออกทั้งหมด (ไม่มี follow system จริง)
+              ตัด "ส่งตรงเวลา 98%" ออก (2026-07-04 fix): เป็น hardcode ไม่มี field จริงในระบบ โชว์ปนข้อมูลจริงโดยไม่มีป้าย "ตัวอย่าง"
+              ขัด ethos เดียวกับที่ตัด follower/per-product rating ทิ้ง */}
+          <Box
             sx={{
-              m: 0,
-              fontSize: '22px',
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              color: '#0F172A',
-              lineHeight: 1.15,
+              mt: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: { xs: 'center', sm: 'flex-start' },
+              flexWrap: 'wrap',
+              gap: '6px',
+              fontSize: '13px',
+              color: '#64748B',
             }}
           >
-            {displayName}
-          </Typography>
-        </Box>
-
-        {/* handle @username — 14px color #64748B */}
-        <Typography
-          component='p'
-          sx={{ m: 0, mt: '1px', fontSize: '14px', color: '#64748B', lineHeight: 1.3 }}
-        >
-          @{data.username}
-        </Typography>
-
-        {/* bio — ซ่อนถ้า null ตาม mockup .bio */}
-        {/* ทำไม: md+ clamp 4 บรรทัดตาม spec ด้วย responsive sx — mobile ไม่ clamp (display unset) */}
-        {data.bio && (
-          <Typography
-            component='p'
-            sx={{
-              m: 0,
-              pt: '8px',
-              fontSize: '14px',
-              color: '#0F172A',
-              lineHeight: 1.45,
-              // mobile: ไม่ clamp — แสดงเต็ม
-              // md+: clamp 4 บรรทัด
-              display: { xs: 'block', md: '-webkit-box' },
-              WebkitLineClamp: { md: 4 },
-              WebkitBoxOrient: { md: 'vertical' },
-              overflow: { md: 'hidden' },
-            }}
-          >
-            {data.bio}
-          </Typography>
-        )}
-
-        {/* meta-row: location + joined ตาม mockup .meta-row */}
-        <Box
-          sx={{
-            pt: '6px',
-            pb: '16px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: '12px',
-            fontSize: '13px',
-            color: '#64748B',
-            lineHeight: 1.3,
-          }}
-        >
-          {/* location — ซ่อนถ้า null */}
-          {data.location && (
-            <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <Icon icon='tabler-map-pin' fontSize={14} />
-              {data.location}
+            <Box component='span'>
+              <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                {data.completedOrders.toLocaleString('th-TH')}
+              </Box>{' '}
+              ออเดอร์
             </Box>
-          )}
-
-          {/* joined date */}
-          <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <Icon icon='tabler-calendar' fontSize={14} />
-            เข้าร่วม {data.memberSince}
+            {data.showRating && (
+              <>
+                <Box component='span' sx={{ color: '#CBD5E1' }}>·</Box>
+                <Box component='span' sx={{ color: '#F59E0B', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                  <Icon icon='tabler-star-filled' fontSize={13} />
+                  {data.avgRating.toFixed(1)}
+                </Box>
+              </>
+            )}
+            <Box component='span' sx={{ color: '#CBD5E1' }}>·</Box>
+            <Chip
+              size='small'
+              variant='tonal'
+              color={data.tierColor}
+              label={data.tierLabel}
+              sx={{ height: 22, fontSize: '11px', fontWeight: 700, '& .MuiChip-label': { px: '8px' } }}
+            />
           </Box>
         </Box>
 
-        {/* Action buttons: ⋯ + chat icon + Follow — ย้ายมาหลัง meta-row ตาม user feedback */}
-        {/* ทำไม: user เลือก "ใต้ identity" — actions อยู่ท้าย identity block จัดกลาง */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: '8px', pt: '12px' }}>
-          {/* ปุ่มกลม ⋯ 36px */}
-          <Tooltip title='เร็ว ๆ นี้' placement='top'>
-            <span>
-              <Button
-                disabled
-                sx={{
-                  minWidth: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  bgcolor: 'white',
-                  border: '1px solid #CBD5E1',
-                  color: '#334155',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  p: 0,
-                  '&.Mui-disabled': {
-                    // R6: opacity 1 — ดู "เร็ว ๆ นี้" ไม่ใช่ "พัง" (MUI default 0.38 ทำให้ button ดูพัง)
-                    opacity: 1,
-                    bgcolor: 'white',
-                    color: '#94A3B8',
-                    border: '1px solid #E2E8F0',
-                  },
-                }}
-              >
-                ⋯
-              </Button>
-            </span>
-          </Tooltip>
-
-          {/* ปุ่มกลม chat icon 36px — S-8: เปิดใช้งานจริง (ลบ disabled/Tooltip "เร็ว ๆ นี้" เฉพาะปุ่มนี้)
-              disabled เหลือ 2 กรณี: ไม่มีร้าน (shopId null) / เป็นร้านของตัวเอง (B3 self-chat) */}
+        {/* Actions: แชท(primary) / ติดตาม(disabled "เร็ว ๆ นี้") — sm+ ชิดขวา (ml:auto) */}
+        <Box
+          sx={{
+            display: 'flex',
+            gap: '8px',
+            ml: { sm: 'auto' },
+            mt: { xs: '4px', sm: 0 },
+            flexShrink: 0,
+          }}
+        >
           {chatDisabled ? (
-            data.isOwnShop ? (
-              <Tooltip title='นี่คือร้านค้าของคุณเอง' placement='top'>
-                <span>
-                  <Button
-                    disabled
-                    sx={{
-                      minWidth: 0,
-                      width: 36,
-                      height: 36,
-                      borderRadius: '50%',
-                      bgcolor: 'white',
-                      border: '1px solid #CBD5E1',
-                      color: '#334155',
-                      p: 0,
-                      '&.Mui-disabled': {
-                        opacity: 1,
-                        bgcolor: 'white',
-                        color: '#94A3B8',
-                        border: '1px solid #E2E8F0',
-                      },
-                    }}
-                  >
-                    <Icon icon='tabler-message' fontSize={16} />
-                  </Button>
-                </span>
-              </Tooltip>
-            ) : (
-              <Button
-                disabled
-                sx={{
-                  minWidth: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  bgcolor: 'white',
-                  border: '1px solid #CBD5E1',
-                  color: '#334155',
-                  p: 0,
-                  '&.Mui-disabled': {
-                    opacity: 1,
-                    bgcolor: 'white',
-                    color: '#94A3B8',
-                    border: '1px solid #E2E8F0',
-                  },
-                }}
-              >
-                <Icon icon='tabler-message' fontSize={16} />
-              </Button>
-            )
+            <Tooltip title={data.isOwnShop ? 'นี่คือร้านค้าของคุณเอง' : 'ยังแชทไม่ได้'} placement='top'>
+              <span>
+                <Button
+                  disabled
+                  variant='contained'
+                  startIcon={<Icon icon='tabler-message-circle-2' fontSize={16} />}
+                  sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}
+                >
+                  แชท
+                </Button>
+              </span>
+            </Tooltip>
           ) : (
             <Button
               onClick={handleChatClick}
-              aria-label='ส่งข้อความ'
-              sx={{
-                minWidth: 0,
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                bgcolor: 'white',
-                border: '1px solid #CBD5E1',
-                color: '#334155',
-                p: 0,
-              }}
+              variant='contained'
+              color='primary'
+              startIcon={<Icon icon='tabler-message-circle-2' fontSize={16} />}
+              sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}
             >
-              <Icon icon='tabler-message' fontSize={16} />
+              แชท
             </Button>
           )}
 
-          {/* ปุ่ม Follow dark pill — user ขอเก็บ x-actions Follow ไว้ (ลบเฉพาะ banner-follow R14) */}
-          {/* style ตาม mockup .x-follow: bg ink, white, radius 999, 14px/700 */}
           <Tooltip title='เร็ว ๆ นี้' placement='top'>
             <span>
               <Button
                 disabled
-                sx={{
-                  px: '22px',
-                  py: '9px',
-                  bgcolor: '#0F172A',
-                  color: 'white',
-                  borderRadius: 999,
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  lineHeight: 1.2,
-                  '&.Mui-disabled': {
-                    // R6: opacity 1 — ดู "เร็ว ๆ นี้" ไม่ใช่ disabled พัง
-                    opacity: 1,
-                    bgcolor: '#0F172A',
-                    color: 'rgba(255,255,255,0.7)',
-                  },
-                }}
+                variant='outlined'
+                color='secondary'
+                sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 700 }}
               >
-                Follow
+                ติดตาม
               </Button>
             </span>
           </Tooltip>
         </Box>
       </Box>
-    </>
+    </Box>
   )
 }
 
@@ -422,8 +308,8 @@ export const ProfileLeftPanel = ({
 const UserProfileHeader = ({ data }: { data: ProfileHeaderData }) => {
   return (
     <>
-      <ProfileBanner data={data} bannerHeight={160} />
-      <ProfileLeftPanel data={data} />
+      <ProfileBanner data={data} />
+      <ProfileIdentityBar data={data} />
     </>
   )
 }

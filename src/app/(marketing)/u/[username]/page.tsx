@@ -14,8 +14,8 @@ import { authOptions } from '@/lib/auth'
 import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
-import { getTrustLevel } from '@/services/trust-score.service'
-import { formatDateTime } from '@/lib/format-date'
+import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
+import { formatMonthYearTH } from '@/lib/format-date'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
@@ -26,6 +26,10 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // Adapted: public (no auth), data sourced from SafePay services instead of getProfileData()
 // Rework (2026-05-23): ตัด about/verification/reviews data ออก — ProfileTabData ไม่มี field เหล่านี้แล้ว
 // ตัด getReviewsByUsername call + ลด Promise.all — ไม่ต้องการ reviews array อีกต่อไป
+// Redesign (2026-07-04, hybrid FB Page × Threads spec): tier label/color มาจาก trust-tier.ts SSOT ทั้งหมด
+// (เลิกใช้ getTrustLevel()+TRUST_COLOR local map เดิม — ซ้ำซ้อนกับ Tier Lists SSOT และไม่เคยถูก render จริง)
+// memberSince เปลี่ยนจาก formatDateTime → formatMonthYearTH (เดือน-ปีล้วน ไม่ต้องละเอียดระดับวัน)
+// เพิ่ม verifiedLevels + nextTierInfo ป้อน TrustScoreCard; ตัดเมตริก "ผู้ติดตาม" ทิ้ง (ไม่มี follow system จริง)
 
 type Props = { params: Promise<{ username: string }> }
 
@@ -38,17 +42,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: user.shop?.description ?? `โปรไฟล์ความน่าเชื่อถือของ ${user.displayName} บน Deep`,
   }
 }
-
-const TRUST_COLOR: Record<string, 'success' | 'info' | 'warning' | 'error'> = {
-  'A+': 'success',
-  A: 'success',
-  'B+': 'info',
-  B: 'info',
-  C: 'warning',
-  D: 'error',
-}
-
-const DEFAULT_COVER = '/images/pages/profile-banner.png'
 
 export default async function PublicProfilePage({ params }: Props) {
   const { username } = await params
@@ -82,11 +75,14 @@ export default async function PublicProfilePage({ params }: Props) {
     user.shop ? getProductsByShop(user.shop.id, 12) : Promise.resolve([]),
   ])
 
-  const trustLevel = getTrustLevel(user.trustScore)
-  const trustColor = TRUST_COLOR[trustLevel] ?? 'info'
   const maxVerifyLevel = approvedVerifications.length
     ? Math.max(...approvedVerifications.map((v) => v.level))
     : 0
+  // เลขระดับยืนยันที่ approved แล้ว (dedupe) — ป้อน TrustScoreCard chip row (1=OTP, 2=เอกสาร, 3=จดทะเบียนธุรกิจ)
+  const verifiedLevels = [...new Set(approvedVerifications.map((v) => v.level))]
+  const tierLabel = getTierLabel(user.trustScore)
+  const tierColor = getTierColor(user.trustScore)
+  const nextTier = getNextTierInfo(user.trustScore)
 
   const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
   const completedOrders = confirmedCount
@@ -110,18 +106,17 @@ export default async function PublicProfilePage({ params }: Props) {
 
   // --- Header data -----------------------------------------------------------
   const profileHeader: ProfileHeaderData = {
-    coverImg: DEFAULT_COVER,
     profileImg: user.avatar,
     fullName: user.displayName,
     username: user.username,
-    memberSince: formatDateTime(user.createdAt),
     shopName: user.isShop && user.shop ? user.shop.shopName : null,
     trustScore: user.trustScore,
-    trustLevel,
-    trustColor,
+    tierLabel,
+    tierColor,
     maxVerifyLevel,
-    bio: user.shop?.description ?? null,
-    location: user.shop?.address ?? null,
+    completedOrders,
+    avgRating,
+    showRating: reviewCount >= 3,
     // S-8 (feat 00011 Deep Chat)
     shopId: user.shop?.id ?? null,
     isOwnShop,
@@ -137,33 +132,35 @@ export default async function PublicProfilePage({ params }: Props) {
       icon: ub.badge.icon ?? '',
       imageUrl: ub.badge.imageUrl ?? null,
     })),
-    avgRating,
-    completedOrders,
     // FR-9.5: buyer-only account → ส่ง flag เพื่อซ่อน products + platforms sections
     openShopEmptyState: !user.isShop,
     products,
     totalBadgeCount: sellerContextBadges.length,
-    // แสดง rating summary เฉพาะเมื่อมีรีวิวอย่างน้อย 3 รายการ (เพื่อความน่าเชื่อถือ)
-    showRating: reviewCount >= 3,
+    bio: user.shop?.description ?? null,
+    location: user.shop?.address ?? null,
+    memberSince: formatMonthYearTH(user.createdAt),
     // S-25 (extension #2 Response-rate metric): denormalized field จาก Shop (cron รายวัน S-24)
     // ไม่มีร้าน (buyer-only) → undefined → ProfileLeftContent ซ่อน section เอง (FR-RESP-04)
     chatResponseRate: user.shop?.chatResponseRate ?? null,
     chatMedianResponseSec: user.shop?.chatMedianResponseSec ?? null,
     chatResponseSampleSize: user.shop?.chatResponseSampleSize ?? null,
+    trustScore: user.trustScore,
+    tierLabel,
+    tierColor,
+    nextTierLabel: nextTier?.nextTierLabel ?? null,
+    pointsToNext: nextTier?.pointsToNext ?? null,
+    verifiedLevels,
   }
 
-  // ทำไม: mobile full-bleed — ไม่มี padding/frame รอบ การ์ดเต็มจอจริง (user feedback 2026-05-23)
-  // desktop (md+) คง radial-gradient bg + padding 60px 32px เหมือนเดิม
+  // ทำไม: full-bleed ทุก breakpoint ตาม mockup ที่ user อนุมัติ (2026-07-04 fix) — ไม่มี padding ข้าง/gradient frame
+  // ทั้ง mobile และ desktop (เดิม md+ เคยมีการ์ด 1024 ลอย + radial-gradient รอบ ผิด requirement เต็มจอ)
   // Box ใน RSC ได้ — ไม่มี interactivity ไม่ต้องการ 'use client'
   return (
     <Box
       sx={{
         minHeight: '100dvh',
-        p: { xs: 0, md: '0 32px 60px' },
-        background: {
-          xs: 'var(--mui-palette-background-paper)',
-          md: 'radial-gradient(ellipse at top, #DDD6FE 0%, transparent 50%), radial-gradient(ellipse at bottom, #FBCFE8 0%, transparent 50%), #F8FAFC',
-        },
+        p: 0,
+        background: 'var(--mui-palette-background-paper)',
       }}
     >
       <UserProfile profileHeader={profileHeader} profileTab={profileTab} />

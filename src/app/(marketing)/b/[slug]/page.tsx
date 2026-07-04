@@ -12,8 +12,8 @@ import { prisma } from '@/lib/prisma'
 import { findShopBySlug } from '@/services/shop.service'
 import { getAvgRatingByShop } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
-import { getTrustLevel } from '@/services/trust-score.service'
-import { formatDateTime } from '@/lib/format-date'
+import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
+import { formatMonthYearTH } from '@/lib/format-date'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
@@ -23,7 +23,9 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // Base: src/app/(marketing)/u/[username]/page.tsx (โครงเป๊ะ — reuse @views/pages/user-profile 100%)
 // เดิม Base ของหน้านั้น: theme/vuexy/typescript-version/full-version/src/app/[lang]/(dashboard)/(private)/pages/user-profile/page.tsx
 // Adapted (00008 Phase 5, P5-4): data source เปลี่ยนจาก user+personal shop → BUSINESS shop
-// (findShopBySlug แทน findByUsername) — view/layout/footer/DEFAULT_COVER เดิมทุกอย่าง ไม่ redesign
+// (findShopBySlug แทน findByUsername) — view/layout/footer เดิมทุกอย่าง ไม่ redesign
+// Redesign (2026-07-04): sync กับ /u/[username] — tier label/color จาก trust-tier.ts SSOT, memberSince → formatMonthYearTH,
+// เพิ่ม verifiedLevels + nextTierInfo (type ProfileHeaderData/ProfileTabData เปลี่ยนร่วมกัน ต้อง sync ทั้ง 2 หน้าเสมอ)
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -36,17 +38,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: shop.description ?? `โปรไฟล์ความน่าเชื่อถือของ ${shop.shopName} บน Deep`,
   }
 }
-
-const TRUST_COLOR: Record<string, 'success' | 'info' | 'warning' | 'error'> = {
-  'A+': 'success',
-  A: 'success',
-  'B+': 'info',
-  B: 'info',
-  C: 'warning',
-  D: 'error',
-}
-
-const DEFAULT_COVER = '/images/pages/profile-banner.png'
 
 export default async function BusinessShopProfilePage({ params }: Props) {
   const { slug } = await params
@@ -69,11 +60,13 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     getProductsByShop(shop.id, 12),
   ])
 
-  const trustLevel = getTrustLevel(shop.trustScore)
-  const trustColor = TRUST_COLOR[trustLevel] ?? 'info'
   const maxVerifyLevel = approvedVerifications.length
     ? Math.max(...approvedVerifications.map((v) => v.level))
     : 0
+  const verifiedLevels = [...new Set(approvedVerifications.map((v) => v.level))]
+  const tierLabel = getTierLabel(shop.trustScore)
+  const tierColor = getTierColor(shop.trustScore)
+  const nextTier = getNextTierInfo(shop.trustScore)
 
   const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
   const completedOrders = confirmedCount
@@ -96,20 +89,19 @@ export default async function BusinessShopProfilePage({ params }: Props) {
 
   // --- Header data -----------------------------------------------------------
   const profileHeader: ProfileHeaderData = {
-    coverImg: DEFAULT_COVER,
     // fallback owner avatar เมื่อ shop ไม่มี logo
     profileImg: shop.logo ?? shop.user.avatar,
     fullName: shop.shopName,
     // handle @slug — slug คือ route param ที่ query shop มา (การันตีไม่ null)
     username: slug,
-    memberSince: formatDateTime(shop.createdAt),
     shopName: shop.shopName,
     trustScore: shop.trustScore,
-    trustLevel,
-    trustColor,
+    tierLabel,
+    tierColor,
     maxVerifyLevel,
-    bio: shop.description,
-    location: shop.address,
+    completedOrders,
+    avgRating,
+    showRating: reviewCount >= 3,
   }
 
   // --- Profile tab data --------------------------------------------------------
@@ -121,28 +113,29 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       icon: ub.badge.icon ?? '',
       imageUrl: ub.badge.imageUrl ?? null,
     })),
-    avgRating,
-    completedOrders,
     // business shop = shop เสมอ (ไม่มี buyer-only case เหมือน /u/[username])
     openShopEmptyState: false,
     products,
     totalBadgeCount: businessBadges.length,
-    // แสดง rating summary เฉพาะเมื่อมีรีวิวอย่างน้อย 3 รายการ (เพื่อความน่าเชื่อถือ)
-    showRating: reviewCount >= 3,
+    bio: shop.description,
+    location: shop.address,
+    memberSince: formatMonthYearTH(shop.createdAt),
+    trustScore: shop.trustScore,
+    tierLabel,
+    tierColor,
+    nextTierLabel: nextTier?.nextTierLabel ?? null,
+    pointsToNext: nextTier?.pointsToNext ?? null,
+    verifiedLevels,
   }
 
-  // ทำไม: mobile full-bleed — ไม่มี padding/frame รอบ การ์ดเต็มจอจริง (คงเดิมตาม /u/[username])
-  // desktop (md+) คง radial-gradient bg + padding 60px 32px เหมือนเดิม
+  // ทำไม: full-bleed ทุก breakpoint ตาม mockup ที่ user อนุมัติ (2026-07-04 fix, sync กับ /u/[username]) — ไม่มี padding ข้าง/gradient frame
   // Box ใน RSC ได้ — ไม่มี interactivity ไม่ต้องการ 'use client'
   return (
     <Box
       sx={{
         minHeight: '100dvh',
-        p: { xs: 0, md: '0 32px 60px' },
-        background: {
-          xs: 'var(--mui-palette-background-paper)',
-          md: 'radial-gradient(ellipse at top, #DDD6FE 0%, transparent 50%), radial-gradient(ellipse at bottom, #FBCFE8 0%, transparent 50%), #F8FAFC',
-        },
+        p: 0,
+        background: 'var(--mui-palette-background-paper)',
       }}
     >
       <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
