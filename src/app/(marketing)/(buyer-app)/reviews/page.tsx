@@ -1,16 +1,13 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import Typography from '@mui/material/Typography'
-
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { getReviewsByBuyer } from '@/services/review.service'
 
-import { LinkButton } from '@/app/(marketing)/_components/mui-link'
-import ManageReviews from '@views/apps/ecommerce/manage-reviews'
-import type { BuyerReviewRow } from '@views/apps/ecommerce/manage-reviews/ManageReviewsTable'
+import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
+import ManageReviews, { type BuyerReviewRow } from '@views/apps/ecommerce/manage-reviews'
 
 /**
  * Buyer "My Reviews" list.
@@ -52,14 +49,7 @@ export default async function MyReviewsPage() {
 
   return (
     <>
-      <div className='flex items-center justify-between gap-3 flex-wrap'>
-        <div>
-          <Typography variant='h5'>รีวิวที่ให้</Typography>
-          <Typography color='text.secondary' className='text-sm'>
-            รวม {reviewsData.length} รีวิว
-          </Typography>
-        </div>
-      </div>
+      <PageHeader title='รีวิวที่ให้' subtitle={`รวม ${reviewsData.length} รีวิว`} />
 
       <ManageReviews reviewsData={reviewsData} />
     </>

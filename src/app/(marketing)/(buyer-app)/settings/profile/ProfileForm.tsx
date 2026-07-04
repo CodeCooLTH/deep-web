@@ -15,6 +15,7 @@ import { useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
@@ -58,9 +59,13 @@ type FormValues = Yup.InferType<typeof schema>
 
 const ProfileForm = ({ user, summary }: Props) => {
   const router = useRouter()
+  // update() = สั่ง NextAuth re-fetch session (session callback อ่าน avatar สดจาก DB)
+  // → Sidebar/navbar ที่ใช้ useSession อัปเดตรูปทันที ไม่ต้องรีเฟรชหน้า
+  const { update } = useSession()
 
   // Avatar state (carried over from R6 AccountDetails-based form)
-  const [fileInput, setFileInput] = useState<string>('')
+  // หมายเหตุ: file input เป็น uncontrolled (ห้าม value={} — React 19 โยน InvalidStateError);
+  // preview ใช้ imgSrc, reset ค่า input ผ่าน event.target.value='' หลังอัพโหลด
   const [imgSrc, setImgSrc] = useState<string>(user.avatar ?? '/images/avatars/1.png')
   const [uploading, setUploading] = useState<boolean>(false)
   const initialAvatarRef = useRef<string | null>(user.avatar)
@@ -93,7 +98,6 @@ const ProfileForm = ({ user, summary }: Props) => {
     const reader = new FileReader()
     reader.onload = () => {
       setImgSrc(reader.result as string)
-      setFileInput(reader.result as string)
     }
     reader.readAsDataURL(file)
 
@@ -122,6 +126,7 @@ const ProfileForm = ({ user, summary }: Props) => {
       initialAvatarRef.current = url
       setImgSrc(url)
       toast.success('อัพเดตรูปโปรไฟล์แล้ว')
+      await update()
       router.refresh()
     } catch {
       toast.error('อัพโหลดรูปไม่สำเร็จ')
@@ -132,7 +137,6 @@ const ProfileForm = ({ user, summary }: Props) => {
   }
 
   const handleFileInputReset = async () => {
-    setFileInput('')
     setImgSrc('/images/avatars/1.png')
     if (initialAvatarRef.current === null) return
 
@@ -149,6 +153,7 @@ const ProfileForm = ({ user, summary }: Props) => {
       }
       initialAvatarRef.current = null
       toast.success('ลบรูปแล้ว')
+      await update()
       router.refresh()
     } catch {
       toast.error('ลบรูปไม่สำเร็จ')
@@ -171,6 +176,7 @@ const ProfileForm = ({ user, summary }: Props) => {
       toast.success('บันทึกโปรไฟล์แล้ว')
       reset({ displayName: values.displayName.trim() })
       setIsEditing(false)
+      await update()
       router.refresh()
     } catch {
       toast.error('บันทึกไม่สำเร็จ')
@@ -235,7 +241,6 @@ const ProfileForm = ({ user, summary }: Props) => {
                   <input
                     hidden
                     type='file'
-                    value={fileInput}
                     accept='image/png, image/jpeg, image/webp'
                     onChange={handleFileInputChange}
                     id='account-settings-upload-image'

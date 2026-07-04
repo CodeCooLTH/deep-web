@@ -16,6 +16,7 @@ import { getBadgeProgress, getUserBadgeRarityMap } from '@/services/badge.servic
 import type { RarityTier } from '@/services/badge.service'
 import type { BadgeProgress } from '@/types/badge'
 import BadgeIcon from '@/app/(marketing)/(buyer-app)/_components/BadgeIcon'
+import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 
 // ─── Rarity pill config (safepay-ux Design Spec 2026-07-02) ──
 // label ไทย + สี MUI ต่อ tier; เลี่ยง success (ชนกับ chip "ได้รับแล้ว") + error (สื่อ error)
@@ -45,7 +46,7 @@ const RARITY_COLOR: Record<RarityTier, 'secondary' | 'info' | 'warning' | 'prima
  *   rendered). ตัดออก: OptionMenu, imgSrc, progressColor theme colors.
  */
 
-export const metadata: Metadata = { title: 'แบดจ์ของฉัน' }
+export const metadata: Metadata = { title: 'ความสำเร็จ' }
 
 export default async function BadgesPage() {
   const session = await getServerSession(authOptions)
@@ -83,19 +84,14 @@ export default async function BadgesPage() {
 
   return (
     <>
-      {/* Header block — mirrors reviews/page.tsx lines 55-61 */}
-      <div className='flex items-center justify-between gap-3 flex-wrap'>
-        <div>
-          <Typography variant='h5'>แบดจ์ของฉัน</Typography>
-          <Typography color='text.secondary' className='text-sm'>
-            ได้รับแล้ว {earned.length} ใบ · กำลังดำเนินการ {inProgress.length} ใบ
-          </Typography>
-        </div>
-      </div>
+      <PageHeader
+        title='ความสำเร็จ'
+        subtitle={`ได้รับแล้ว ${earned.length} ใบ · กำลังดำเนินการ ${inProgress.length} ใบ`}
+      />
 
       {/* Empty state เมื่อไม่มี badge เลย */}
       {items.length === 0 && (
-        <Card className='mt-4'>
+        <Card>
           <CardContent>
             <Typography color='text.secondary' className='text-center py-6'>
               ยังไม่มีแบดจ์ในระบบ — ลองกลับมาดูอีกครั้งในภายหลัง
@@ -106,7 +102,7 @@ export default async function BadgesPage() {
 
       {/* ─── ส่วนที่ได้รับแล้ว ──────────────────────────────────────── */}
       {earned.length > 0 && (
-        <Card className='mt-4'>
+        <Card>
           <CardHeader
             title='ได้รับแล้ว'
             subheader={`${earned.length} แบดจ์`}
@@ -139,7 +135,7 @@ export default async function BadgesPage() {
 
       {/* ─── ส่วนกำลังดำเนินการ ──────────────────────────────────────── */}
       {inProgress.length > 0 && (
-        <Card className='mt-4'>
+        <Card>
           <CardHeader
             title='กำลังดำเนินการ'
             subheader={`${inProgress.length} แบดจ์`}
@@ -186,7 +182,7 @@ export default async function BadgesPage() {
 
       {/* Empty state เฉพาะส่วน in-progress (มี badge แต่ได้ครบหมดแล้ว) */}
       {items.length > 0 && inProgress.length === 0 && (
-        <Card className='mt-4'>
+        <Card>
           <CardContent>
             <Typography color='text.secondary' className='text-center py-4'>
               คุณได้รับทุกแบดจ์ที่มีอยู่แล้ว — ยอดเยี่ยมมาก!

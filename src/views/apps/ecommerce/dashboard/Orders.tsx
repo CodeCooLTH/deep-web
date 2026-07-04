@@ -29,26 +29,27 @@ import { LinkButton } from '@/app/(marketing)/_components/mui-link'
  * /o/{publicToken}.
  */
 
+// enum จริง (order.service): PENDING → SHIPPED/CONFIRMED/CANCELLED; CONFIRMED = terminal "สำเร็จ"
+// (ไม่มี CREATED/COMPLETED). label/สี/ไอคอน = ชุดเดียวกับ /orders card list (OrderList/index.tsx)
 const ORDER_STATUS_LABEL: Record<string, string> = {
-  CREATED: 'รอยืนยัน',
-  CONFIRMED: 'ยืนยันแล้ว',
+  PENDING: 'รอดำเนินการ',
   SHIPPED: 'จัดส่งแล้ว',
-  COMPLETED: 'สำเร็จ',
+  CONFIRMED: 'สำเร็จ',
   CANCELLED: 'ยกเลิก'
 }
 
 const ORDER_STATUS_COLOR: Record<string, ThemeColor> = {
-  CREATED: 'warning',
-  CONFIRMED: 'info',
+  PENDING: 'warning',
   SHIPPED: 'info',
-  COMPLETED: 'success',
+  CONFIRMED: 'success',
   CANCELLED: 'error'
 }
 
-const ORDER_TYPE_ICON: Record<string, string> = {
-  PHYSICAL: 'tabler-package',
-  DIGITAL: 'tabler-download',
-  SERVICE: 'tabler-tool'
+const ORDER_STATUS_ICON: Record<string, string> = {
+  PENDING: 'tabler-clock',
+  SHIPPED: 'tabler-truck',
+  CONFIRMED: 'tabler-circle-check',
+  CANCELLED: 'tabler-x'
 }
 
 const baht = new Intl.NumberFormat('th-TH', {
@@ -110,7 +111,7 @@ const Orders = ({ orders }: Props) => {
           orders.map((order) => {
             const firstItem = order.items[0]
             const statusColor: ThemeColor = ORDER_STATUS_COLOR[order.status] ?? 'primary'
-            const icon = ORDER_TYPE_ICON[order.type] ?? 'tabler-shopping-bag'
+            const icon = ORDER_STATUS_ICON[order.status] ?? 'tabler-shopping-bag'
             return (
               <Link
                 key={order.id}
@@ -131,6 +132,7 @@ const Orders = ({ orders }: Props) => {
                   </div>
                   <Chip
                     size='small'
+                    variant='tonal'
                     color={statusColor}
                     label={ORDER_STATUS_LABEL[order.status] ?? order.status}
                   />

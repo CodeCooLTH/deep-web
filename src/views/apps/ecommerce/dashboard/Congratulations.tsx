@@ -56,7 +56,7 @@ const Congratulations = ({
             'radial-gradient(70% 130% at 100% 0%, var(--mui-palette-primary-lightOpacity) 0%, transparent 48%)'
         }}
       />
-      <CardContent className='relative flex flex-col md:flex-row md:items-stretch gap-6 md:gap-8'>
+      <CardContent className='relative flex flex-col lg:flex-row lg:items-stretch gap-6 lg:gap-8'>
         {/* ฝั่งซ้าย — ทักทาย + trust score + progress */}
         <div className='flex flex-col items-start gap-3 flex-1 min-w-0 justify-center'>
           <Chip size='small' variant='tonal' color='primary' label={`Trust ระดับ ${trustLevel}`} />
@@ -102,7 +102,7 @@ const Congratulations = ({
         </div>
 
         {/* ขีดคั่น (กลาง) */}
-        <Divider flexItem orientation='vertical' className='hidden md:block' />
+        <Divider flexItem orientation='vertical' className='hidden lg:block' />
 
         {/* ฝั่งขวา — สัญญาณความน่าเชื่อถือ (สถานะยืนยันตัวตนจริง) */}
         <div className='flex-1 min-w-0 flex flex-col justify-center gap-3'>

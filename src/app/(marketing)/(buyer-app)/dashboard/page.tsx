@@ -116,16 +116,16 @@ export default async function BuyerDashboardPage() {
       </Grid>
 
       {/* แถว 2 — สถิติ 4 การ์ดเท่ากัน */}
-      <Grid size={{ xs: 6, md: 3 }}>
+      <Grid size={{ xs: 6, lg: 3 }}>
         <StatCard icon='tabler-shopping-bag' stats={`${allOrders.length}`} title='คำสั่งซื้อทั้งหมด' color='primary' />
       </Grid>
-      <Grid size={{ xs: 6, md: 3 }}>
+      <Grid size={{ xs: 6, lg: 3 }}>
         <StatCard icon='tabler-circle-check' stats={`${completedOrders}`} title='สำเร็จแล้ว' color='success' />
       </Grid>
-      <Grid size={{ xs: 6, md: 3 }}>
+      <Grid size={{ xs: 6, lg: 3 }}>
         <StatCard icon='tabler-star' stats={`${reviewsGivenCount}`} title='รีวิวที่ให้' color='warning' />
       </Grid>
-      <Grid size={{ xs: 6, md: 3 }}>
+      <Grid size={{ xs: 6, lg: 3 }}>
         <StatCard icon='tabler-award' stats={`${user.userBadges.length}`} title='Badge ที่ได้รับ' color='info' />
       </Grid>
 
