@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // mock deps ก่อน import service
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    shop: { findMany: vi.fn(), count: vi.fn() },
+    shop: { findMany: vi.fn(), count: vi.fn(), findFirst: vi.fn() },
     inventoryEntitlement: { findUnique: vi.fn() },
   },
 }))
@@ -13,7 +13,7 @@ vi.mock('@/services/wallet.service', () => ({ getBalance: vi.fn() }))
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { getBalance } from '@/services/wallet.service'
-import { getSellerSubscriptionOverview } from './subscription-overview.service'
+import { getSellerSubscriptionOverview, getShopSubscriptionRow } from './subscription-overview.service'
 
 const anyPrisma = prisma as any
 
@@ -90,5 +90,31 @@ describe('getSellerSubscriptionOverview', () => {
     expect(p.package).toBe('PRO')
     expect(p.shortfall).toBe(0) // ไม่ ACTIVE → ไม่คิด shortfall
     expect(p.warnAdvance).toBe(false) // warn เฉพาะ ACTIVE
+  })
+})
+
+describe('getShopSubscriptionRow (S-18 — business context)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('คืน row ของร้านเดียว (ACTIVE+BASIC → shortfall คำนวณถูก)', async () => {
+    anyPrisma.shop.findFirst.mockResolvedValue({
+      id: 'shopB', shopName: 'ร้านธุรกิจ', kind: 'BUSINESS', logo: null,
+      inventoryEntitlement: { status: 'ACTIVE', package: 'BASIC', nextRenewalAt: new Date('2026-08-01') },
+    })
+    ;(getBalance as any).mockResolvedValue(120)
+
+    const row = await getShopSubscriptionRow('shopB')
+    expect(row).not.toBeNull()
+    expect(row!.shopId).toBe('shopB')
+    expect(row!.kind).toBe('BUSINESS')
+    expect(row!.entitlementStatus).toBe('ACTIVE')
+    expect(row!.package).toBe('BASIC')
+    expect(row!.shortfall).toBe(79) // 199 - 120
+  })
+
+  it('คืน null เมื่อไม่พบร้าน (ถูกลบ)', async () => {
+    anyPrisma.shop.findFirst.mockResolvedValue(null)
+    const row = await getShopSubscriptionRow('gone')
+    expect(row).toBeNull()
   })
 })
