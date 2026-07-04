@@ -184,10 +184,13 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
         : 'DIGITAL'
 
     // ── needsShipping: มี item ที่ fulfillmentMode === 'SHIPPED' หรือ custom item ──
-    const needsShipping = values.items.some((item) => {
-      if (!item.productId) return true
-      return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
-    })
+    // ยกเว้นช่องทาง "หน้าร้าน" (STOREFRONT) — รับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
+    const needsShipping =
+      values.salesChannel !== 'STOREFRONT' &&
+      values.items.some((item) => {
+        if (!item.productId) return true
+        return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
+      })
 
     // ── FR-6.5: ออเดอร์ที่ต้องจัดส่งต้องมีที่อยู่ครบขั้นต่ำ (ที่อยู่ + จังหวัด + รหัสไปรษณีย์) ──
     // server enforce ซ้ำที่ createOrder (single source) — นี่คือ UX surface ก่อน submit

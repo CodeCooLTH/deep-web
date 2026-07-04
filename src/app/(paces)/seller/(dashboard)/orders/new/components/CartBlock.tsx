@@ -53,14 +53,19 @@ export default function CartBlock({ control, catalog, errors }: Props) {
     price: number
   }> = useWatch({ control, name: 'items' }) ?? []
 
+  // watch ช่องทางการขาย — "หน้าร้าน" (STOREFRONT) รับสินค้าที่ร้าน จึงไม่ต้องมีที่อยู่จัดส่ง
+  const salesChannel: string | undefined = useWatch({ control, name: 'salesChannel' })
+
   // ── needsShipping: ถ้ามีสินค้า SHIPPED หรือ custom item → แสดง shipping block ─
+  //    ยกเว้นช่องทาง STOREFRONT (หน้าร้าน) → ซ่อน shipping block
   const needsShipping = useMemo(() => {
+    if (salesChannel === 'STOREFRONT') return false
     return watchedItems.some((item) => {
       if (!item.productId) return true // custom item → ถือว่าต้องจัดส่ง
       const prod = catalog.find((p) => p.id === item.productId)
       return prod?.fulfillmentMode === 'SHIPPED'
     })
-  }, [watchedItems, catalog])
+  }, [watchedItems, catalog, salesChannel])
 
   // ── subtotal ───────────────────────────────────────────────────────────────
   const subtotal = useMemo(() => {

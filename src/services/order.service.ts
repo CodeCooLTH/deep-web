@@ -97,7 +97,8 @@ export async function createOrder(shopId: string, data: {
 
   // FR-6.5: ออเดอร์ที่ต้องจัดส่ง (SHIPPED) ต้องมีที่อยู่ครบขั้นต่ำ (line1 + จังหวัด + รหัสไปรษณีย์)
   // enforce ที่ service layer (single source) — กัน API-direct call ที่ข้าม form
-  if (fulfillmentMode === "SHIPPED") {
+  // ยกเว้น salesChannel = STOREFRONT (ขายหน้าร้าน) — ผู้ซื้อรับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
+  if (fulfillmentMode === "SHIPPED" && data.salesChannel !== "STOREFRONT") {
     const a = data.shippingAddress;
     const hasEssentials = !!(a?.line1?.trim() && a?.province?.trim() && a?.postcode?.trim());
     if (!hasEssentials) throw new ShippingAddressRequiredError();
