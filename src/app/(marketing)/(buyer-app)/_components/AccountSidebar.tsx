@@ -10,12 +10,17 @@
  * Base: composed จาก Vuexy MUI Avatar/Typography + next/link (ไม่มี theme file
  * ตรงๆ สำหรับ Shopee-style pattern — compose จาก primitives ตามที่ user ขอ)
  */
+import { useState } from 'react'
+import type { ChangeEvent } from 'react'
+
 import Avatar from '@mui/material/Avatar'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 import classnames from 'classnames'
+import { toast } from 'react-toastify'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 type SessionUser = {
   displayName?: string
@@ -43,12 +48,55 @@ const MENU_ITEMS: MenuItem[] = [
 ]
 
 export default function AccountSidebar() {
-  const { data: session } = useSession()
+  const { data: session, update } = useSession()
   const pathname = usePathname()
+  const router = useRouter()
   const user = (session?.user ?? {}) as SessionUser
 
   const displayName = user.displayName ?? ''
   const avatarUrl = user.avatar ?? undefined
+
+  const [uploading, setUploading] = useState(false)
+
+  // อัปโหลดรูปโปรไฟล์จากการคลิก avatar (ย้ายมาจากการ์ดใน /settings/profile)
+  // อัปโหลด → บันทึก → useSession().update() ให้ avatar (sidebar+navbar) อัปเดตทันที
+  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('ไฟล์ต้องไม่เกิน 5MB')
+      e.target.value = ''
+      return
+    }
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      if (!res.ok) {
+        toast.error('อัพโหลดรูปไม่สำเร็จ')
+        return
+      }
+      const { fileId } = (await res.json()) as { fileId: string }
+      const save = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar: `/api/files/${fileId}` }),
+      })
+      if (!save.ok) {
+        toast.error('บันทึกรูปไม่สำเร็จ')
+        return
+      }
+      toast.success('อัพเดตรูปโปรไฟล์แล้ว')
+      await update()
+      router.refresh()
+    } catch {
+      toast.error('อัพโหลดรูปไม่สำเร็จ')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
 
   // style เมนูแต่ละอัน — active = พื้นม่วงจาง + ตัวอักษร/ไอคอนม่วง; inactive = ไอคอนสีรอง + hover
   const itemCls = (active: boolean) =>
@@ -63,9 +111,34 @@ export default function AccountSidebar() {
     <nav className='flex flex-col gap-4 min-[768px]:sticky min-[768px]:top-24'>
       {/* User card */}
       <div className='flex items-center gap-3 pb-4 border-b border-[var(--mui-palette-divider)]'>
-        <Avatar src={avatarUrl} sx={{ width: 56, height: 56 }}>
-          {displayName.slice(0, 1)}
-        </Avatar>
+        {/* คลิก avatar เพื่อเปลี่ยนรูปโปรไฟล์ — overlay กล้อง (hover) / spinner (uploading), tint หมึกพลัมไม่ใช่ดำ */}
+        <label htmlFor='sidebar-avatar-upload' className='relative shrink-0 cursor-pointer group' title='เปลี่ยนรูปโปรไฟล์'>
+          <Avatar src={avatarUrl} sx={{ width: 56, height: 56 }}>
+            {displayName.slice(0, 1)}
+          </Avatar>
+          <span
+            className={classnames(
+              'absolute inset-0 rounded-full flex items-center justify-center transition-opacity duration-150',
+              uploading
+                ? 'opacity-100 bg-[rgb(47_43_61_/_0.55)]'
+                : 'opacity-0 group-hover:opacity-100 bg-[rgb(47_43_61_/_0.45)]'
+            )}
+          >
+            {uploading ? (
+              <CircularProgress size={18} sx={{ color: '#fff' }} />
+            ) : (
+              <i className='tabler-camera text-white text-lg' />
+            )}
+          </span>
+          <input
+            id='sidebar-avatar-upload'
+            type='file'
+            hidden
+            accept='image/png, image/jpeg, image/webp'
+            onChange={handleAvatarChange}
+            disabled={uploading}
+          />
+        </label>
         <div className='min-w-0 flex-1'>
           <Typography className='font-semibold truncate'>{displayName || 'ผู้ใช้'}</Typography>
           <Link

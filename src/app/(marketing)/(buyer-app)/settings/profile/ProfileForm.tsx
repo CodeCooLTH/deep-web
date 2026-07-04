@@ -11,8 +11,7 @@
 // (email shows "เร็วๆ นี้" chip).
 // Dropped: Grid/CustomTextField layout from the old AccountDetails-based form.
 
-import { useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -63,13 +62,6 @@ const ProfileForm = ({ user, summary }: Props) => {
   // → Sidebar/navbar ที่ใช้ useSession อัปเดตรูปทันที ไม่ต้องรีเฟรชหน้า
   const { update } = useSession()
 
-  // Avatar state (carried over from R6 AccountDetails-based form)
-  // หมายเหตุ: file input เป็น uncontrolled (ห้าม value={} — React 19 โยน InvalidStateError);
-  // preview ใช้ imgSrc, reset ค่า input ผ่าน event.target.value='' หลังอัพโหลด
-  const [imgSrc, setImgSrc] = useState<string>(user.avatar ?? '/images/avatars/1.png')
-  const [uploading, setUploading] = useState<boolean>(false)
-  const initialAvatarRef = useRef<string | null>(user.avatar)
-
   // Page-level edit toggle (choice A)
   const [isEditing, setIsEditing] = useState<boolean>(false)
 
@@ -82,85 +74,6 @@ const ProfileForm = ({ user, summary }: Props) => {
     resolver: yupResolver(schema),
     defaultValues: { displayName: user.displayName },
   })
-
-  const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const { files } = event.target
-    if (!files || files.length === 0) return
-
-    const file = files[0]
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('ไฟล์ต้องไม่เกิน 5MB')
-      event.target.value = ''
-      return
-    }
-
-    // Optimistic preview (Vuexy pattern)
-    const reader = new FileReader()
-    reader.onload = () => {
-      setImgSrc(reader.result as string)
-    }
-    reader.readAsDataURL(file)
-
-    setUploading(true)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      if (!res.ok) {
-        toast.error('อัพโหลดรูปไม่สำเร็จ')
-        return
-      }
-      const { fileId } = (await res.json()) as { fileId: string }
-      const url = `/api/files/${fileId}`
-
-      const save = await fetch('/api/users/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ avatar: url }),
-      })
-      if (!save.ok) {
-        toast.error('บันทึกรูปไม่สำเร็จ')
-        return
-      }
-
-      initialAvatarRef.current = url
-      setImgSrc(url)
-      toast.success('อัพเดตรูปโปรไฟล์แล้ว')
-      await update()
-      router.refresh()
-    } catch {
-      toast.error('อัพโหลดรูปไม่สำเร็จ')
-    } finally {
-      setUploading(false)
-      event.target.value = ''
-    }
-  }
-
-  const handleFileInputReset = async () => {
-    setImgSrc('/images/avatars/1.png')
-    if (initialAvatarRef.current === null) return
-
-    setUploading(true)
-    try {
-      const res = await fetch('/api/users/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ avatar: null }),
-      })
-      if (!res.ok) {
-        toast.error('ลบรูปไม่สำเร็จ')
-        return
-      }
-      initialAvatarRef.current = null
-      toast.success('ลบรูปแล้ว')
-      await update()
-      router.refresh()
-    } catch {
-      toast.error('ลบรูปไม่สำเร็จ')
-    } finally {
-      setUploading(false)
-    }
-  }
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -218,52 +131,7 @@ const ProfileForm = ({ user, summary }: Props) => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className='flex flex-col gap-6'>
-      {/* Avatar card */}
-      <Card>
-        <CardContent>
-          <div className='flex max-sm:flex-col items-center gap-6'>
-            <img
-              height={100}
-              width={100}
-              className='rounded object-cover'
-              src={imgSrc}
-              alt={user.displayName}
-            />
-            <div className='flex grow flex-col gap-4'>
-              <div className='flex flex-col sm:flex-row gap-4'>
-                <Button
-                  component='label'
-                  variant='contained'
-                  htmlFor='account-settings-upload-image'
-                  disabled={uploading}
-                >
-                  {uploading ? 'กำลังอัพโหลด…' : 'เปลี่ยนรูปโปรไฟล์'}
-                  <input
-                    hidden
-                    type='file'
-                    accept='image/png, image/jpeg, image/webp'
-                    onChange={handleFileInputChange}
-                    id='account-settings-upload-image'
-                  />
-                </Button>
-                <Button
-                  variant='tonal'
-                  color='secondary'
-                  onClick={handleFileInputReset}
-                  disabled={uploading}
-                >
-                  รีเซ็ต
-                </Button>
-              </div>
-              <Typography color='text.secondary' className='text-sm'>
-                รองรับ JPG, PNG, WEBP — ขนาดไม่เกิน 5MB
-              </Typography>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* About + Overview card (AboutOverview shape) */}
+      {/* About + Overview card (AboutOverview shape) — การ์ดเปลี่ยนรูปย้ายไป AccountSidebar (คลิก avatar) */}
       <Card>
         <CardContent className='flex flex-col gap-6'>
           {/* About section */}
