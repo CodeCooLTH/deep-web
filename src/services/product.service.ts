@@ -364,3 +364,58 @@ export async function getProductsByShop(shopId: string, take?: number) {
     ...(take ? { take } : {}),
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat Product Context Card (extension #1, feat 00011) — lightweight product ref
+// ใช้ 2 ที่: chat.service.sendMessage (S-17 verify cross-shop) +
+// api/chat .../messages GET (S-18 enrich productCard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ProductRefLite {
+  id: string;
+  shopId: string;
+  name: string;
+  price: number;
+  images: string[];
+  isActive: boolean;
+}
+
+const PRODUCT_REF_SELECT = {
+  id: true,
+  shopId: true,
+  name: true,
+  price: true,
+  images: true,
+  isActive: true,
+} as const;
+
+type ProductRefRow = Prisma.ProductGetPayload<{ select: typeof PRODUCT_REF_SELECT }>;
+
+function toProductRefLite(p: ProductRefRow): ProductRefLite {
+  return {
+    id: p.id,
+    shopId: p.shopId,
+    name: p.name,
+    price: Number(p.price),
+    images: Array.isArray(p.images) ? (p.images as string[]) : [],
+    isActive: p.isActive,
+  };
+}
+
+/**
+ * getProductById — สำหรับ verify cross-shop (S-17 sendMessage) + enrich productCard (S-18 GET)
+ * คืน null ถ้าไม่พบ (ลบจริงหรือ id ผิด) — caller ตัดสินใจ error/graceful-degrade เอง (FR-CTX-07/08)
+ */
+export async function getProductById(productId: string): Promise<ProductRefLite | null> {
+  const p = await prisma.product.findUnique({ where: { id: productId }, select: PRODUCT_REF_SELECT });
+  return p ? toProductRefLite(p) : null;
+}
+
+/**
+ * getProductsByIds — batch fetch สำหรับ enrich รายการข้อความ (กัน N+1 query ใน GET messages, S-18)
+ */
+export async function getProductsByIds(productIds: string[]): Promise<ProductRefLite[]> {
+  if (productIds.length === 0) return [];
+  const rows = await prisma.product.findMany({ where: { id: { in: productIds } }, select: PRODUCT_REF_SELECT });
+  return rows.map(toProductRefLite);
+}

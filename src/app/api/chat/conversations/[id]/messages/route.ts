@@ -6,6 +6,7 @@ import { getSubdomain } from "@/lib/subdomain";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
+import { getProductsByIds } from "@/services/product.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
 import { CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS } from "@/lib/chat-constants";
 
@@ -23,6 +24,10 @@ function mapChatServiceError(e: unknown, context: string) {
   if (e instanceof Error && e.message === "SHOP_NOT_FOUND") {
     // defense เท่านั้น — ไม่ควรเกิดจริง (FK CASCADE) ดู chat.service.ts sendMessage
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
+  }
+  if (e instanceof Error && e.message === "PRODUCT_NOT_IN_SHOP") {
+    // extension #1 Chat Product Context Card — cross-shop injection guard (FR-CTX-07)
+    return NextResponse.json({ error: "ไม่พบสินค้านี้ในร้านค้านี้" }, { status: 400 });
   }
   console.error(`[${context}]`, e instanceof Error ? e.message : e);
   return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
@@ -59,14 +64,39 @@ export async function GET(
       cursor: parsed.output.cursor,
       take: parsed.output.take,
     });
-    return NextResponse.json(result);
+
+    // extension #1 Chat Product Context Card (S-18) — enrich ข้อความ type='PRODUCT' ด้วย productCard
+    // (additive เท่านั้น ไม่แตะ ChatMessageView core); batch fetch กัน N+1
+    const productIds = Array.from(
+      new Set(
+        result.items
+          .filter((m) => m.type === "PRODUCT" && m.productRefId)
+          .map((m) => m.productRefId as string),
+      ),
+    );
+    const products = productIds.length > 0 ? await getProductsByIds(productIds) : [];
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    const items = result.items.map((m) => ({
+      ...m,
+      productCard:
+        m.type === "PRODUCT" && m.productRefId && productMap.has(m.productRefId)
+          ? (() => {
+              const p = productMap.get(m.productRefId!)!;
+              // isActive=false ยัง join ได้ (FR-CTX-08 "หยุดขายแล้ว" ตัดสินใจที่ UI); ลบจริง (ไม่พบใน map) = null
+              return { id: p.id, name: p.name, price: p.price, imageFileId: p.images[0] ?? null, isActive: p.isActive };
+            })()
+          : null,
+    }));
+
+    return NextResponse.json({ items, nextCursor: result.nextCursor });
   } catch (e: unknown) {
     return mapChatServiceError(e, "GET /api/chat/conversations/[id]/messages");
   }
 }
 
 /**
- * POST /api/chat/conversations/[id]/messages — ส่งข้อความ TEXT/IMAGE
+ * POST /api/chat/conversations/[id]/messages — ส่งข้อความ TEXT/IMAGE/PRODUCT
  *
  * ทำไม senderRole derive จาก subdomain ไม่รับจาก client body:
  * route รู้ context ของตัวเองอยู่แล้ว (seller.* = SHOP, main = BUYER) — SDS §3.3.
@@ -100,14 +130,14 @@ export async function POST(
     const firstIssue = parsed.issues[0]?.message ?? "Invalid input";
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
-  const { type, body: text, imageUrl } = parsed.output;
+  const { type, body: text, imageUrl, productRefId } = parsed.output;
 
-  // conditional-required — Valibot schema เดียวไม่ครอบทั้ง 2 กรณี (SendChatMessageSchema comment)
+  // conditional-required — Valibot schema เดียวไม่ครอบทั้ง 3 กรณี (SendChatMessageSchema comment)
   if (type === "TEXT") {
     if (!text || text.trim().length === 0) {
       return NextResponse.json({ error: "กรุณากรอกข้อความ" }, { status: 400 });
     }
-  } else {
+  } else if (type === "IMAGE") {
     if (!imageUrl) {
       return NextResponse.json({ error: "กรุณาแนบรูปภาพ" }, { status: 400 });
     }
@@ -115,6 +145,11 @@ export async function POST(
     const ext = fileIdExt(imageUrl).toLowerCase();
     if (!CHAT_IMAGE_ALLOWED_EXT.includes(ext)) {
       return NextResponse.json({ error: "รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp)" }, { status: 400 });
+    }
+  } else {
+    // type === "PRODUCT" — extension #1 Chat Product Context Card (S-18)
+    if (!productRefId) {
+      return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
     }
   }
 
@@ -128,8 +163,9 @@ export async function POST(
       senderUserId: userId,
       senderRole,
       type,
-      body: text ?? null, // TEXT = ข้อความหลัก, IMAGE = caption (optional)
+      body: type === "PRODUCT" ? null : text ?? null, // TEXT = ข้อความหลัก, IMAGE = caption (optional), PRODUCT = null
       imageUrl: type === "IMAGE" ? imageUrl ?? null : null,
+      productRefId: type === "PRODUCT" ? productRefId ?? null : null,
     });
     return NextResponse.json(message);
   } catch (e: unknown) {

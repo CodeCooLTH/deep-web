@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import { getProductById } from '@/services/product.service'
 
 export type SenderRole = 'BUYER' | 'SHOP'
-export type ChatMessageType = 'TEXT' | 'IMAGE'
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT'
 
 export interface ConversationSummary {
   id: string
@@ -23,6 +24,7 @@ export interface ChatMessageView {
   type: ChatMessageType
   body: string | null
   imageUrl: string | null
+  productRefId: string | null // extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type='PRODUCT'
   createdAt: Date
 }
 
@@ -127,6 +129,7 @@ export async function sendMessage(params: {
   type: ChatMessageType
   body?: string | null
   imageUrl?: string | null
+  productRefId?: string | null // เฉพาะ type='PRODUCT' (extension #1 S-17)
 }): Promise<ChatMessageView> {
   return prisma.$transaction(async (tx) => {
     const conversation = await tx.conversation.findUnique({ where: { id: params.conversationId } })
@@ -142,7 +145,32 @@ export async function sendMessage(params: {
       : shop.userId === params.senderUserId
     if (!ownerMatch) throw new Error('FORBIDDEN')
 
-    const preview = params.type === 'IMAGE' ? '[รูปภาพ]' : (params.body ?? '').slice(0, 100)
+    // ---- PRODUCT: verify cross-shop (FR-CTX-07) + idempotent-guard (BR-CTX-02) ----
+    let productName: string | null = null
+    if (params.type === 'PRODUCT') {
+      if (!params.productRefId) throw new Error('PRODUCT_NOT_IN_SHOP') // defense — route กัน 400 แล้ว (S-18)
+      const product = await getProductById(params.productRefId)
+      if (!product || product.shopId !== conversation.shopId) {
+        throw new Error('PRODUCT_NOT_IN_SHOP')
+      }
+      productName = product.name
+
+      // idempotent-guard: ข้อความล่าสุดของ conversation เป็น PRODUCT + productRefId เดียวกัน → คืนแถวเดิม ไม่ insert ซ้ำ
+      const lastMessage = await tx.chatMessage.findFirst({
+        where: { conversationId: params.conversationId },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (lastMessage && lastMessage.type === 'PRODUCT' && lastMessage.productRefId === params.productRefId) {
+        return lastMessage as ChatMessageView
+      }
+    }
+
+    const preview =
+      params.type === 'IMAGE'
+        ? '[รูปภาพ]'
+        : params.type === 'PRODUCT'
+          ? `[สินค้า] ${productName}`
+          : (params.body ?? '').slice(0, 100)
 
     const message = await tx.chatMessage.create({
       data: {
@@ -150,8 +178,9 @@ export async function sendMessage(params: {
         senderUserId: params.senderUserId,
         senderRole: params.senderRole,
         type: params.type,
-        body: params.body ?? null,
-        imageUrl: params.imageUrl ?? null,
+        body: params.type === 'PRODUCT' ? null : (params.body ?? null),
+        imageUrl: params.type === 'PRODUCT' ? null : (params.imageUrl ?? null),
+        productRefId: params.type === 'PRODUCT' ? (params.productRefId ?? null) : null,
       },
     })
 
