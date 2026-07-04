@@ -819,6 +819,9 @@ model ChatMessage {
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
   productRefId   String?
   createdAt      DateTime @default(now())
+  // flaggedScam/scamMatchedRules: extension #3 Scam-link Detection — heuristic scam-link flag ณ เวลาส่ง (snapshot, ไม่ re-scan ย้อนหลัง BR-SCAM-05)
+  flaggedScam      Boolean @default(false)
+  scamMatchedRules Json? // rule IDs ที่ match (audit) — เช่น ["R-SHORTENER","R-KEYWORD"]
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
