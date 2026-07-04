@@ -151,14 +151,6 @@ const FrontMenu = (props: Props) => {
       >
         คำถาม
       </Typography>
-      <Typography
-        component={Link}
-        color='text.primary'
-        href='/auth/sign-in'
-        className='font-medium plb-3 pli-1.5 hover:text-primary'
-      >
-        เข้าสู่ระบบ
-      </Typography>
     </Wrapper>
   )
 }
