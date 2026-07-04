@@ -375,13 +375,13 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId }: Pr
 
       {/* ═══ POS layout ═══ */}
       {/* Desktop/Tablet (≥md): split — ซ้าย product grid, ขวา cart panel */}
-      <div className="hidden gap-4 md:flex md:items-start">
+      {/* md (tablet): flex — grid ยืด / cart w-72 คงที่. lg+ (desktop): grid 2 คอลัมน์เท่ากัน 50/50
+          (user feedback: พื้นที่สินค้าใหญ่เกินบน desktop) */}
+      <div className="hidden gap-4 md:flex md:items-start lg:grid lg:grid-cols-2 lg:items-start">
         <div className="min-w-0 flex-1">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} />
         </div>
-        {/* cart panel — กว้างขึ้นบน desktop (user feedback: right เล็กไป); xl:w-[28rem] = HR7 exception
-            (Paces max width token = w-96/24rem แคบไปสำหรับ POS cart บนจอกว้าง) */}
-        <div className="w-72 shrink-0 lg:w-96 xl:w-[28rem]">
+        <div className="w-72 shrink-0 lg:w-auto">
           <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} />
         </div>
       </div>

@@ -55,7 +55,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc }: Props) {
           <p className="text-sm">ไม่พบสินค้าที่ตรงกับ &ldquo;{search}&rdquo;</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((product) => {
             const qty = qtyByProduct(product.id)
             return (
