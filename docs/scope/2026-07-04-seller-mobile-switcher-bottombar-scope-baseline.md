@@ -9,9 +9,9 @@
 ## In-Scope
 | ID | รายการ | Acceptance | สถานะ |
 |----|--------|-----------|-------|
-| S-1 | CompactHero avatar+ชื่อ กดได้ → เปิด bottom sheet account switcher (มือถือ) — รายการ ร้านส่วนตัว+ธุรกิจที่เป็นสมาชิก, ติ๊ก active, แตะสลับ (reuse `/api/business/context` + `handleSwitch` จาก UserDropdownDetailed); ถ้าไม่มี business membership → ไม่เปิด sheet (หรือโชว์แค่ร้านตัวเอง) | มือถือ: แตะ avatar/ชื่อ ที่ dashboard → sheet เปิด แสดงทุกบัญชี, แตะร้านอื่น → session.activeShopId เปลี่ยน + refresh + toast; ไม่มี business → กดไม่มี sheet (หรือ sheet ร้านเดียว) | TODO |
-| S-2 | `SellerBottomNav.tsx` ตัด tab "สินค้า"(/products) → grid-cols-6→5 (2 tab ซ้าย + FAB + 2 tab ขวา: หน้าหลัก·คำสั่งซื้อ·[+]·แชท·ร้านค้า); คง badge (pending/unread) + tap target ≥44px | มือถือ: bottom bar เหลือ 4 tab + FAB; ไม่มี "สินค้า"; badge orders/chat ยังทำงาน; /products ยังเข้าได้จากเมนูลัด dashboard | TODO |
-| S-3 | Compliance — safepay-ux Design Spec ก่อนโค้ด, Base: line ชี้ theme (bottom-sheet Paces primitive + CompactHero/SellerBottomNav/UserDropdownDetailed), Paces primitive เท่านั้น, ไม่มี emoji, tap target ≥44px, มือถือ scope (`lg:hidden`) | grep react-toastify/emoji/arbitrary/ม่วง บนไฟล์ที่แตะ = 0; commit มี Base: | TODO |
+| S-1 | CompactHero avatar+ชื่อ กดได้ → เปิด bottom sheet account switcher (มือถือ) — รายการ ร้านส่วนตัว+ธุรกิจที่เป็นสมาชิก, ติ๊ก active, แตะสลับ (reuse `/api/business/context` + `handleSwitch` จาก UserDropdownDetailed); ถ้าไม่มี business membership → ไม่เปิด sheet (หรือโชว์แค่ร้านตัวเอง) | มือถือ: แตะ avatar/ชื่อ ที่ dashboard → sheet เปิด แสดงทุกบัญชี, แตะร้านอื่น → session.activeShopId เปลี่ยน + refresh + toast; ไม่มี business → กดไม่มี sheet (หรือ sheet ร้านเดียว) | DONE (281cf73) |
+| S-2 | `SellerBottomNav.tsx` ตัด tab "สินค้า"(/products) → grid-cols-6→5 (2 tab ซ้าย + FAB + 2 tab ขวา: หน้าหลัก·คำสั่งซื้อ·[+]·แชท·ร้านค้า); คง badge (pending/unread) + tap target ≥44px | มือถือ: bottom bar เหลือ 4 tab + FAB; ไม่มี "สินค้า"; badge orders/chat ยังทำงาน; /products ยังเข้าได้จากเมนูลัด dashboard | DONE (281cf73) |
+| S-3 | Compliance — safepay-ux Design Spec ก่อนโค้ด, Base: line ชี้ theme (bottom-sheet Paces primitive + CompactHero/SellerBottomNav/UserDropdownDetailed), Paces primitive เท่านั้น, ไม่มี emoji, tap target ≥44px, มือถือ scope (`lg:hidden`) | grep react-toastify/emoji/arbitrary/ม่วง บนไฟล์ที่แตะ = 0; commit มี Base: | DONE (281cf73) |
 
 ## Out-of-Scope
 | ID | รายการ | เหตุผล |
