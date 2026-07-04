@@ -1,14 +1,11 @@
 'use client'
 
-import User1 from '@/assets/images/users/user-1.jpg'
 import Icon from '@/components/wrappers/Icon'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { Fragment, useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import { getTierLabel } from '@/lib/trust-tier'
 import { pacesToast } from '@/lib/paces-toast'
 
 type UserProfileMenuType = {
@@ -24,6 +21,7 @@ type UserProfileMenuType = {
 interface BusinessContextItem {
   shopId: string
   shopName: string
+  logo: string | null
   role: 'OWNER' | 'ADMIN'
   locked: boolean
   lockReason: string | null
@@ -52,21 +50,37 @@ const UserDropdown = () => {
         email: string | null
         avatar: string | null
         isShop?: boolean
-        trustScore?: number
         // feat 00008 — คำนวณแล้วใน lib/auth.ts session callback
         hasBusinessMembership?: boolean
         activeShopId?: string | null
+        activeShopRole?: 'OWNER' | 'ADMIN'
+        activeShopKind?: 'PERSONAL' | 'BUSINESS'
+        activeShopName?: string | null
+        activeShopLogo?: string | null
       }
     | undefined
 
   const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
-  // email ถ้ามี ไม่งั้น fallback @username (บัญชี OTP-only ไม่มี email)
-  const subline = user?.email ?? (user?.username ? `@${user.username}` : '')
-  const trustScore = user?.trustScore ?? 0
-  const tierLabel = getTierLabel(trustScore) // ชื่อ tier ตาม Tier Lists SSOT (src/lib/trust-tier.ts)
 
   const hasBusinessMembership = user?.hasBusinessMembership === true
   const activeShopId = user?.activeShopId
+
+  // identity ที่โชว์ (topbar button + active box) — business active → ร้าน, ไม่งั้น personal
+  const isBusiness = user?.activeShopKind === 'BUSINESS'
+  const activeName = isBusiness ? (user?.activeShopName ?? 'ร้านค้า') : displayName
+  const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
+  const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
+
+  // วงกลม avatar/logo หรือ fallback icon (business=building-store, personal=user)
+  const renderAvatar = (src: string | null | undefined, kind: 'business' | 'personal', size: string) =>
+    src ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt="" className={`${size} rounded-full object-cover shrink-0`} />
+    ) : (
+      <span className={`${size} rounded-full bg-primary/15 text-primary inline-flex items-center justify-center shrink-0`}>
+        <Icon icon={kind === 'business' ? 'building-store' : 'user'} className="size-1/2" />
+      </span>
+    )
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const [switching, setSwitching] = useState(false)
@@ -129,99 +143,79 @@ const UserDropdown = () => {
   return (
     <div className="topbar-item hs-dropdown before:bg-default-700/35 relative inline-flex before:h-4.5 before:w-px before:content-['']">
       <button className="hs-dropdown-toggle topbar-link ms-2.5 cursor-pointer items-center px-3! flex" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
-        {user?.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.avatar} alt={user.displayName} className="size-8 rounded-full lg:me-3 object-cover" />
-        ) : (
-          <Image src={User1} alt="user-image" className="size-8 rounded-full lg:me-3" />
-        )}
+        {renderAvatar(activeLogo, isBusiness ? 'business' : 'personal', 'size-8 lg:me-3')}
         <div className="hidden lg:flex items-center gap-1.5">
           <span className="flex flex-col items-start">
-            <h5 className="pro-username">{user?.displayName ?? user?.username ?? 'ผู้ใช้'}</h5>
-            <span className="text-xs/none mb-0.5">{user?.username ? `@${user.username}` : ''}</span>
+            <h5 className="pro-username">{activeName}</h5>
+            <span className="text-xs/none mb-0.5">{activeRoleLabel}</span>
           </span>
           <Icon icon="chevron-down" className="align-middle" />
         </div>
       </button>
-      <div className="hs-dropdown-menu min-w-60" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
-        {/* header: avatar + ชื่อ + email/@username */}
-        <div className="bg-primary/10 flex items-center gap-3 rounded-t px-3.5 py-3">
-          {user?.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.avatar} alt={displayName} className="size-9 shrink-0 rounded-full object-cover" />
-          ) : (
-            <Image src={User1} alt="user-image" className="size-9 shrink-0 rounded-full" />
-          )}
+      <div className="hs-dropdown-menu min-w-72 p-2" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
+        {/* active account — กล่องไฮไลต์บนสุด (แทนกล่องน้ำเงิน FB ด้วย border-primary; ตัด tier/trust ออก) */}
+        <div className="border border-primary bg-primary/5 rounded-lg flex items-center gap-3 px-3 py-2.5">
+          {renderAvatar(activeLogo, isBusiness ? 'business' : 'personal', 'size-9')}
           <div className="min-w-0">
-            <p className="text-body-color truncate text-sm font-semibold">{displayName}</p>
-            {subline && <p className="text-default-400 truncate text-xs">{subline}</p>}
+            <p className="text-body-color truncate text-sm font-semibold">{activeName}</p>
+            <p className="text-default-400 truncate text-xs">{activeRoleLabel}</p>
           </div>
         </div>
-        {/* tier + trust score */}
-        <div className="flex items-center justify-between gap-2 px-3.5 py-2">
-          <span className="badge bg-primary/15 text-primary">{tierLabel}</span>
-          <span className="text-default-500 text-xs">Trust Score {trustScore}/100</span>
-        </div>
-        <div className="dropdown-divider"></div>
 
-        {/* สลับ context Personal ⇄ Business — แสดงเฉพาะ seller ที่เป็นสมาชิก business จริง
-            (feat 00008 P4-6 ย้ายมาจาก sidebar AccountSwitcher ตามที่ user ต้องการ) */}
+        {/* สลับบัญชี — เฉพาะ seller ที่มี business membership; list ไม่รวมบัญชีที่ active */}
         {hasBusinessMembership && (
           <>
-            <div className="px-3.5 pt-2 pb-1">
-              <span className="text-default-400 text-xs">กำลังทำงานในบัญชี</span>
+            <div className="px-2 pt-3 pb-1">
+              <span className="text-default-400 text-xs">สลับบัญชี</span>
             </div>
 
-            {/* Personal */}
-            {context?.personal && (
+            {/* Personal (ซ่อนถ้า personal = active) */}
+            {context?.personal && activeShopId !== context.personal.shopId && (
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => handleSwitch(context.personal!.shopId, false)}
                 disabled={switching}
-                className="dropdown-item w-full text-start disabled:opacity-50"
+                className="dropdown-item w-full flex items-center gap-3 text-start disabled:opacity-50"
               >
-                <span className="me-1 align-middle" aria-hidden="true">
-                  {activeShopId === context.personal.shopId ? '●' : '○'}
-                </span>
-                <span className="align-middle truncate">{context.personal.shopName}</span>
-                <span className="badge bg-default-100 text-default-500 ms-auto shrink-0">ส่วนตัว</span>
+                {renderAvatar(user?.avatar, 'personal', 'size-7')}
+                <span className="flex-1 truncate">{displayName}</span>
+                <span className="badge bg-default-100 text-default-500 shrink-0">ส่วนตัว</span>
               </button>
             )}
 
-            {/* Business list */}
-            {context?.businesses.map((b) => (
-              <button
-                key={b.shopId}
-                type="button"
-                role="menuitem"
-                onClick={() => handleSwitch(b.shopId, b.locked)}
-                disabled={switching}
-                className="dropdown-item w-full text-start disabled:opacity-50"
-              >
-                <span className="me-1 align-middle" aria-hidden="true">
-                  {activeShopId === b.shopId ? '●' : '○'}
-                </span>
-                <span className="align-middle truncate">{b.shopName}</span>
-                <span
-                  className={`badge ms-auto shrink-0 ${
-                    b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
-                  }`}
+            {/* Business list (ซ่อนตัวที่ = active) */}
+            {context?.businesses
+              .filter((b) => b.shopId !== activeShopId)
+              .map((b) => (
+                <button
+                  key={b.shopId}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleSwitch(b.shopId, b.locked)}
+                  disabled={switching}
+                  className="dropdown-item w-full flex items-center gap-3 text-start disabled:opacity-50"
                 >
-                  {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
-                </span>
-                {b.locked && (
-                  <span className="badge bg-danger/15 text-danger ms-1 inline-flex shrink-0 items-center gap-0.5">
-                    <Icon icon="lock" className="size-3" aria-hidden="true" />
+                  {renderAvatar(b.logo, 'business', 'size-7')}
+                  <span className="flex-1 truncate">{b.shopName}</span>
+                  <span
+                    className={`badge shrink-0 ${
+                      b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
+                    }`}
+                  >
+                    {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
                   </span>
-                )}
-              </button>
-            ))}
+                  {b.locked && (
+                    <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
+                      <Icon icon="lock" className="size-3" aria-hidden="true" />
+                    </span>
+                  )}
+                </button>
+              ))}
           </>
         )}
 
-        {/* divider นี้แสดงคู่บล็อกสลับ context เท่านั้น กันดับเบิลกับ divider ด้านบนตอนไม่มี business */}
-        {hasBusinessMembership && <div className="dropdown-divider"></div>}
+        <div className="dropdown-divider"></div>
 
         <Link href="/business" className="dropdown-item">
           <Icon icon="rocket" className="me-1 fs-lg align-middle" />
