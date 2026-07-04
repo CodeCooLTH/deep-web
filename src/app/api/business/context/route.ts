@@ -50,13 +50,14 @@ export async function GET() {
       select: {
         role: true,
         shop: {
-          select: { id: true, shopName: true, packageLockedAt: true, packageLockReason: true, deletedAt: true },
+          select: { id: true, shopName: true, logo: true, packageLockedAt: true, packageLockReason: true, deletedAt: true },
         },
       },
     });
     const businesses = memberships.map((m) => ({
       shopId: m.shop.id,
       shopName: m.shop.shopName,
+      logo: m.shop.logo,
       role: m.role,
       locked: m.shop.packageLockedAt !== null,
       lockReason: m.shop.packageLockReason,
