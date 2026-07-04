@@ -44,10 +44,12 @@ export default async function BuyerAppLayout({ children }: ChildrenType) {
             'min-[900px]:max-w-[calc(900px-48px)]',
             'min-[1200px]:max-w-[calc(1200px-48px)]',
             'min-[1920px]:max-w-[calc(1440px-48px)]',
-            'py-6 lg:py-10 flex flex-col lg:flex-row gap-6',
+            // Vuexy remap: md=900/lg=1200 → ใช้ min-[768px]: (arbitrary) ให้ตรง 768 เป๊ะ
+            // เมนูซ้ายโผล่ตั้งแต่ iPad (768+); มือถือ (<768) stacked รอจัดทีหลัง
+            'py-6 min-[768px]:py-10 flex flex-col min-[768px]:flex-row gap-6',
           ].join(' ')}
         >
-          <aside className='lg:w-60 shrink-0'>
+          <aside className='min-[768px]:w-60 shrink-0'>
             <AccountSidebar />
           </aside>
           <main className='flex-1 min-w-0 flex flex-col gap-6'>{children}</main>
