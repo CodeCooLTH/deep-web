@@ -145,6 +145,11 @@ export default async function PublicProfilePage({ params }: Props) {
     totalBadgeCount: sellerContextBadges.length,
     // แสดง rating summary เฉพาะเมื่อมีรีวิวอย่างน้อย 3 รายการ (เพื่อความน่าเชื่อถือ)
     showRating: reviewCount >= 3,
+    // S-25 (extension #2 Response-rate metric): denormalized field จาก Shop (cron รายวัน S-24)
+    // ไม่มีร้าน (buyer-only) → undefined → ProfileLeftContent ซ่อน section เอง (FR-RESP-04)
+    chatResponseRate: user.shop?.chatResponseRate ?? null,
+    chatMedianResponseSec: user.shop?.chatMedianResponseSec ?? null,
+    chatResponseSampleSize: user.shop?.chatResponseSampleSize ?? null,
   }
 
   // ทำไม: mobile full-bleed — ไม่มี padding/frame รอบ การ์ดเต็มจอจริง (user feedback 2026-05-23)

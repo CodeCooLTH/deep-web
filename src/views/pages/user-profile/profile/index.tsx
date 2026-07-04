@@ -50,6 +50,25 @@ export type ProfileTabData = {
   totalBadgeCount: number
   /** แสดง rating summary เฉพาะเมื่อมีรีวิวเพียงพอ (caller ส่ง true เมื่อ reviewCount >= 3) */
   showRating: boolean
+  // S-25 (extension #2 Response-rate metric): denormalized จาก Shop.chat* fields (cron รายวัน)
+  // optional — /b/[slug] page ยังไม่ wire ให้ undefined = ซ่อนเหมือน null (FR-RESP-04 sample-gate)
+  /** อัตราการตอบ 0-100; null/undefined = ยังไม่พอ sample */
+  chatResponseRate?: number | null
+  /** median เวลาตอบ (วินาที); null/undefined = ยังไม่พอ sample */
+  chatMedianResponseSec?: number | null
+  /** จำนวน conversation ที่ใช้คำนวณรอบล่าสุด — เกต ≥3 (FR-RESP-04) */
+  chatResponseSampleSize?: number | null
+}
+
+// ── FR-RESP-06: format response time เป็นข้อความไทย ──
+// <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
+// null → ไม่แสดงบรรทัด time (แต่บรรทัด rate ยังแสดงได้ถ้ามี)
+const formatResponseTime = (seconds: number | null | undefined): string | null => {
+  if (seconds == null) return null
+  if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))} นาที`
+  if (seconds < 86400) return `~${Math.max(1, Math.round(seconds / 3600))} ชม.`
+  if (seconds < 172800) return '~1 วัน'
+  return '2+ วัน'
 }
 
 // ── Cross-platform platform data (hardcode placeholder ตาม D2 + D4 + D5) ──
@@ -190,9 +209,22 @@ const ProductTile = ({
 export const ProfileLeftContent = ({
   data,
 }: {
-  data: Pick<ProfileTabData, 'completedOrders' | 'avgRating' | 'showRating' | 'openShopEmptyState'>
+  data: Pick<
+    ProfileTabData,
+    | 'completedOrders'
+    | 'avgRating'
+    | 'showRating'
+    | 'openShopEmptyState'
+    | 'chatResponseRate'
+    | 'chatMedianResponseSec'
+    | 'chatResponseSampleSize'
+  >
 }) => {
-  const { completedOrders, avgRating, showRating, openShopEmptyState } = data
+  const { completedOrders, avgRating, showRating, openShopEmptyState, chatResponseRate, chatMedianResponseSec, chatResponseSampleSize } = data
+
+  // FR-RESP-04: sample-gate ≥3 — ต่ำกว่าซ่อนทั้ง section response (ไม่โชว์เลขปลอม)
+  const showResponse = chatResponseSampleSize != null && chatResponseSampleSize >= 3 && chatResponseRate != null
+  const responseTimeLabel = formatResponseTime(chatMedianResponseSec)
 
   return (
     <>
@@ -263,10 +295,23 @@ export const ProfileLeftContent = ({
             <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-truck-delivery' style={{ fontSize: 14, color: '#64748B' }} /></Box>
             <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>98%</Box>
             {' '}on-time delivery
-            <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
-            <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-message' style={{ fontSize: 14, color: '#64748B' }} /></Box>
-            replies in{' '}
-            <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>~8 min</Box>
+            {/* S-25 (extension #2 Response-rate metric): แทน "replies in ~8 min" hardcode — ค่าจริงจาก Shop.chat* (cron)
+                sample-gate FR-RESP-04: ซ่อนทั้ง section ถ้า sample < 3 */}
+            {showResponse && (
+              <>
+                <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
+                <Box component='span' sx={{ mr: '3px', display: 'inline-flex', verticalAlign: 'middle' }}><Icon icon='tabler-message' style={{ fontSize: 14, color: '#64748B' }} /></Box>
+                ตอบกลับ{' '}
+                <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>{Math.round(chatResponseRate as number)}%</Box>
+                {responseTimeLabel && (
+                  <>
+                    <Box component='span' sx={{ color: '#94A3B8', mx: '6px', fontWeight: 300 }}>·</Box>
+                    ตอบเฉลี่ย{' '}
+                    <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800 }}>{responseTimeLabel}</Box>
+                  </>
+                )}
+              </>
+            )}
           </Typography>
         </Box>
       )}
@@ -386,12 +431,23 @@ export const ProfileRightContent = ({
 // ทำไม: default export ยังใช้งานได้ปกติ — mobile render ผ่าน wrapper/index.tsx ที่ใช้ ProfileLeftContent + ProfileRightContent
 // ProfileTab ยังถูก export ไว้สำหรับ backward compat แต่ปัจจุบัน wrapper/index.tsx ใช้ named exports แทน
 const ProfileTab = ({ data }: { data: ProfileTabData }) => {
-  const { completedOrders, avgRating, showRating, openShopEmptyState, achievements, products, totalBadgeCount } = data
+  const {
+    completedOrders,
+    avgRating,
+    showRating,
+    openShopEmptyState,
+    achievements,
+    products,
+    totalBadgeCount,
+    chatResponseRate,
+    chatMedianResponseSec,
+    chatResponseSampleSize,
+  } = data
 
   return (
     <>
       <ProfileLeftContent
-        data={{ completedOrders, avgRating, showRating, openShopEmptyState }}
+        data={{ completedOrders, avgRating, showRating, openShopEmptyState, chatResponseRate, chatMedianResponseSec, chatResponseSampleSize }}
       />
       <ProfileRightContent
         data={{ achievements, products, openShopEmptyState, totalBadgeCount }}

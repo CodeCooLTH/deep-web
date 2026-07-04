@@ -70,6 +70,10 @@ const UserProfile = ({
             avgRating: profileTab.avgRating,
             showRating: profileTab.showRating,
             openShopEmptyState: profileTab.openShopEmptyState,
+            // S-25 (extension #2 Response-rate metric)
+            chatResponseRate: profileTab.chatResponseRate,
+            chatMedianResponseSec: profileTab.chatMedianResponseSec,
+            chatResponseSampleSize: profileTab.chatResponseSampleSize,
           }}
         />
       </Box>
