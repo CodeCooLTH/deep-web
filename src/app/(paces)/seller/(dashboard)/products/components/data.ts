@@ -11,4 +11,6 @@ export type ProductRow = {
   rating: number
   /** ISO string — แปลงจาก Date ที่ server boundary ก่อนส่ง prop มา client */
   createdAt: string
+  /** feature 00013 Pin Products — ISO string ถ้าปักหมุดอยู่, null ถ้าไม่ได้ปักหมุด */
+  pinnedAt: string | null
 }

@@ -8,6 +8,8 @@
  *   - fetch products + orders จาก service layer (getProductsByShop, getOrdersByShop)
  *   - createdAt แปลงเป็น ISO string ที่ server boundary ก่อนส่ง props ข้าม RSC→client
  *   - UI copy ภาษาไทย
+ *   - feature 00013 Pin Products: เรียก getPinState(shop.id) พร้อมกับ products/orders (Promise.allSettled)
+ *     ส่ง pinnedAt ต่อแถว + pinSlots/pinnedCount aggregate ให้ ProductsListing
  */
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -17,6 +19,7 @@ import { getServerSession } from 'next-auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getProductsByShop } from '@/services/product.service'
 import { getOrdersByShop } from '@/services/order.service'
+import { getPinState } from '@/services/pin.service'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import ProductsListing from './components/ProductsListing'
@@ -56,19 +59,20 @@ export default async function ProductsPage() {
 
   const shop = active.shop
 
-  // --- Fetch products + orders ---
+  // --- Fetch products + orders + pin state แบบขนาน (Promise.allSettled — ล้มเหลวอันหนึ่งไม่กระทบอันอื่น) ---
   let products: any[] = []
   let orders: any[] = []
-  try {
-    products = await getProductsByShop(shop.id)
-  } catch {
-    products = []
-  }
-  try {
-    orders = await getOrdersByShop(shop.id)
-  } catch {
-    orders = []
-  }
+  // fallback ตาม Shop.pinSlots @default(1) — ร้านทุกร้านเริ่มมี 1 free slot (BR-PIN-01)
+  let pinState: { pinSlots: number; pinnedCount: number } = { pinSlots: 1, pinnedCount: 0 }
+
+  const [productsResult, ordersResult, pinStateResult] = await Promise.allSettled([
+    getProductsByShop(shop.id),
+    getOrdersByShop(shop.id),
+    getPinState(shop.id),
+  ])
+  if (productsResult.status === 'fulfilled') products = productsResult.value
+  if (ordersResult.status === 'fulfilled') orders = ordersResult.value
+  if (pinStateResult.status === 'fulfilled') pinState = pinStateResult.value
 
   // --- Derive ProductRow data ---
   // createdAt แปลงเป็น ISO string ที่ server boundary — ห้ามส่ง Date object ข้าม RSC→client
@@ -106,6 +110,8 @@ export default async function ProductsPage() {
           : 0,
       // Date → ISO string ที่ server boundary ก่อนข้าม RSC→client boundary
       createdAt: (p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt)).toISOString(),
+      // feature 00013 Pin Products — pinnedAt: Date|null จาก Prisma → ISO string|null ที่ server boundary
+      pinnedAt: p.pinnedAt ? (p.pinnedAt instanceof Date ? p.pinnedAt : new Date(p.pinnedAt)).toISOString() : null,
     }
   })
 
@@ -179,7 +185,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductsListing products={productRows} />
+      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} />
     </>
   )
 }
