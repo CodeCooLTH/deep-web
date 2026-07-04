@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — ระบบพนักงาน (Shop Staff Invite) · feature 00012</title>
+<style>
+  :root{
+    --primary:#236dc9; --primary-15:rgba(35,109,201,.12);
+    --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bg:#f4f6fa; --card:#fff;
+    --success:#16a34a; --warn:#d97706; --danger:#dc2626;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Anuphan","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  h1{font-size:22px;margin:0 0 4px}
+  .page{max-width:1400px;margin:0 auto;padding:24px}
+  .lead{color:var(--muted);margin:0 0 24px;font-size:14px}
+  .device-row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;margin-bottom:40px}
+  .device{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.06);overflow:hidden}
+  .device .bar{background:#111827;color:#fff;font-size:11px;text-align:center;padding:5px;letter-spacing:.4px}
+  .mobile{width:390px}.tablet{width:768px}.desktop{width:1160px}
+  .screen-label{font-size:13px;font-weight:600;color:var(--primary);margin:32px 0 12px;padding-left:4px;border-left:3px solid var(--primary)}
+  .screen-label span{color:var(--muted);font-weight:400}
+
+  /* app chrome */
+  .app{display:flex;min-height:520px;background:var(--bg)}
+  .sidebar{width:210px;background:#fff;border-right:1px solid var(--line);padding:14px 10px;flex-shrink:0}
+  .brand{font-weight:700;color:var(--primary);padding:6px 10px 14px;font-size:16px}
+  .nav-sec{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:12px 10px 4px}
+  .nav-i{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:13px;color:#374151;cursor:default}
+  .nav-i .ic{width:16px;height:16px;border:1.6px solid currentColor;border-radius:4px;opacity:.55}
+  .nav-i.active{background:var(--primary-15);color:var(--primary);font-weight:600}
+  .nav-i.active .ic{opacity:1}
+  .main{flex:1;padding:18px 20px;overflow:hidden}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .crumb{font-size:12px;color:var(--muted)}
+  .crumb b{color:var(--ink)}
+  .shop-pill{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 12px 4px 4px;font-size:12px}
+  .shop-pill .av{width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:16px}
+  .card-h{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .card-h h3{margin:0;font-size:15px}
+  .card-b{padding:6px 16px 14px}
+  .btn{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:#374151}
+  .btn-danger{background:#fff;border:1px solid #fecaca;color:var(--danger);font-weight:500}
+  .btn-sm{padding:5px 10px;font-size:12px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:8px 6px;border-bottom:1px solid var(--line)}
+  td{padding:10px 6px;border-bottom:1px solid #f1f3f6;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .who{display:flex;align-items:center;gap:9px}
+  .who .av{width:30px;height:30px;border-radius:50%;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px}
+  .b-owner{background:var(--primary-15);color:var(--primary)}
+  .b-admin{background:#eef2f7;color:#475569}
+
+  .linkbox{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:10px 12px;font-size:12px;color:#334155;margin-bottom:8px}
+  .linkbox code{font-family:ui-monospace,Menlo,monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--primary)}
+  .meta{font-size:11px;color:var(--muted)}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end}
+
+  /* landing / auth card */
+  .auth-wrap{min-height:520px;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#eef3fb,#f7f9fc);padding:24px}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 40px rgba(31,64,120,.08);width:100%;max-width:380px;padding:28px 26px;text-align:center}
+  .auth-card .logo{width:56px;height:56px;border-radius:16px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-weight:700;font-size:22px}
+  .auth-card h2{margin:0 0 4px;font-size:18px}
+  .auth-card p{margin:0 0 18px;color:var(--muted);font-size:13px}
+  .invite-shop{background:var(--primary-15);border-radius:10px;padding:12px;margin-bottom:18px;display:flex;align-items:center;gap:10px;text-align:left}
+  .invite-shop .av{width:38px;height:38px;border-radius:9px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600}
+  .invite-shop .n{font-weight:600;font-size:14px}
+  .invite-shop .s{font-size:11px;color:var(--muted)}
+  .social{display:flex;flex-direction:column;gap:9px}
+  .sbtn{display:flex;align-items:center;justify-content:center;gap:9px;padding:11px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid var(--line);background:#fff;cursor:pointer}
+  .sbtn .d{width:18px;height:18px;border-radius:5px;flex-shrink:0}
+  .sbtn.fb .d{background:#1877f2}.sbtn.line .d{background:#06c755}.sbtn.otp .d{background:var(--primary)}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px;margin:16px 0}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  /* choose shop */
+  .choose{min-height:520px;background:var(--bg);padding:28px;display:flex;flex-direction:column;align-items:center}
+  .choose h2{font-size:18px;margin:8px 0 4px}
+  .choose .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  .shop-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;width:100%;max-width:560px}
+  .shop-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;gap:12px;align-items:center;cursor:pointer;transition:.15s}
+  .shop-card:hover{border-color:var(--primary);box-shadow:0 4px 16px rgba(35,109,201,.1)}
+  .shop-card .av{width:44px;height:44px;border-radius:11px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+  .shop-card .n{font-weight:600;font-size:14px}
+  .shop-card .r{font-size:11px;margin-top:3px}
+  .open-own{margin-top:18px;border:1px dashed #cbd5e1;background:#fff;color:var(--primary);border-radius:12px;padding:14px 20px;font-size:13px;font-weight:600;cursor:pointer;max-width:560px;width:100%;text-align:center}
+  .note{font-size:12px;color:var(--muted);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin:10px 0 0}
+  .single-frame{overflow:auto}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ระบบ "พนักงาน" — Shop Staff Invite via Link</h1>
+  <p class="lead">feature 00012 · Paces (seller) · สีน้ำเงิน #236dc9 · Anuphan · ไม่มี emoji — mockup แสดง Mobile / Tablet / Desktop (mockup ใช้ยืนยัน layout เท่านั้น จริงต้อง source จาก Paces + ผ่าน safepay-ux)</p>
+
+  <!-- SCREEN 1: /admins list -->
+  <div class="screen-label">1 · หน้า “พนักงาน” <span>— seller.deepthailand.app/admins (เมนูซ้าย)</span></div>
+  <div class="device-row">
+
+    <!-- desktop -->
+    <div class="device desktop">
+      <div class="bar">Desktop · 1160px</div>
+      <div class="app">
+        <div class="sidebar">
+          <div class="brand">Deep</div>
+          <div class="nav-sec">Analytics</div>
+          <div class="nav-i"><span class="ic"></span>ภาพรวมร้านค้า</div>
+          <div class="nav-sec">Orders</div>
+          <div class="nav-i"><span class="ic"></span>คำสั่งซื้อ</div>
+          <div class="nav-sec">Customers</div>
+          <div class="nav-i"><span class="ic"></span>ลูกค้า</div>
+          <div class="nav-i active"><span class="ic"></span>พนักงาน</div>
+          <div class="nav-sec">Store</div>
+          <div class="nav-i"><span class="ic"></span>ตั้งค่าร้านค้า</div>
+        </div>
+        <div class="main">
+          <div class="topbar">
+            <div class="crumb">พนักงาน · <b>ร้านดีพช็อป (ธุรกิจ)</b></div>
+            <div class="shop-pill"><span class="av">ด</span> ร้านดีพช็อป · เจ้าของ</div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>ลิงก์เชิญพนักงาน</h3><button class="btn btn-primary btn-sm">+ สร้างลิงก์เชิญ</button></div>
+            <div class="card-b">
+              <div class="linkbox">
+                <code>https://deepthailand.app/i/aZ39kP2xR8mQ</code>
+                <button class="btn btn-ghost btn-sm">คัดลอก</button>
+                <button class="btn btn-danger btn-sm">ยกเลิก</button>
+              </div>
+              <div class="meta">หมดอายุ 2569-07-11 · สร้างโดย เจ้าของร้าน · ใช้ซ้ำได้จนหมดอายุ</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>สมาชิกทั้งหมด (3)</h3><span class="meta">โควตาแอดมิน 2/5 (แพ็กเกจ Growth)</span></div>
+            <div class="card-b">
+              <table>
+                <thead><tr><th>สมาชิก</th><th>บทบาท</th><th>เข้าร่วมเมื่อ</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="who"><span class="av">ด</span> คุณดี (คุณ)</div></td><td><span class="badge b-owner">เจ้าของ</span></td><td class="meta">2569-01-10</td><td></td></tr>
+                  <tr><td><div class="who"><span class="av">ส</span> สมชาย ใจดี</div></td><td><span class="badge b-admin">แอดมิน</span></td><td class="meta">2569-06-30</td><td class="row-actions"><button class="btn btn-danger btn-sm">ลบ</button></td></tr>
+                  <tr><td><div class="who"><span class="av">ก</span> กานดา ทองมา</div></td><td><span class="badge b-admin">แอดมิน</span></td><td class="meta">2569-07-02</td><td class="row-actions"><button class="btn btn-danger btn-sm">ลบ</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- tablet -->
+    <div class="device tablet">
+      <div class="bar">Tablet · 768px</div>
+      <div class="app">
+        <div class="sidebar" style="width:64px">
+          <div class="brand" style="padding:6px 4px 14px;text-align:center">D</div>
+          <div class="nav-i" style="justify-content:center"><span class="ic"></span></div>
+          <div class="nav-i" style="justify-content:center"><span class="ic"></span></div>
+          <div class="nav-i active" style="justify-content:center"><span class="ic"></span></div>
+          <div class="nav-i" style="justify-content:center"><span class="ic"></span></div>
+        </div>
+        <div class="main">
+          <div class="topbar"><div class="crumb">พนักงาน · <b>ร้านดีพช็อป</b></div><div class="shop-pill"><span class="av">ด</span> เจ้าของ</div></div>
+          <div class="card">
+            <div class="card-h"><h3>ลิงก์เชิญพนักงาน</h3><button class="btn btn-primary btn-sm">+ สร้างลิงก์</button></div>
+            <div class="card-b">
+              <div class="linkbox"><code>deepthailand.app/i/aZ39kP2xR8mQ</code><button class="btn btn-ghost btn-sm">คัดลอก</button></div>
+              <div class="meta">หมดอายุ 2569-07-11 · reusable</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>สมาชิก (3)</h3><span class="meta">2/5</span></div>
+            <div class="card-b">
+              <table>
+                <tbody>
+                  <tr><td><div class="who"><span class="av">ด</span> คุณดี</div></td><td><span class="badge b-owner">เจ้าของ</span></td><td></td></tr>
+                  <tr><td><div class="who"><span class="av">ส</span> สมชาย ใจดี</div></td><td><span class="badge b-admin">แอดมิน</span></td><td class="row-actions"><button class="btn btn-danger btn-sm">ลบ</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- mobile -->
+    <div class="device mobile">
+      <div class="bar">Mobile · 390px</div>
+      <div class="main" style="background:var(--bg);min-height:520px">
+        <div class="topbar"><div class="crumb"><b>พนักงาน</b></div><div class="shop-pill"><span class="av">ด</span> เจ้าของ</div></div>
+        <div class="card">
+          <div class="card-h"><h3 style="font-size:14px">ลิงก์เชิญ</h3></div>
+          <div class="card-b">
+            <div class="linkbox" style="flex-wrap:wrap"><code>...app/i/aZ39kP2xR8mQ</code></div>
+            <div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-ghost btn-sm" style="flex:1">คัดลอก</button><button class="btn btn-danger btn-sm" style="flex:1">ยกเลิก</button></div>
+            <div class="meta" style="margin-top:8px">หมดอายุ 2569-07-11</div>
+            <button class="btn btn-primary" style="width:100%;margin-top:10px">+ สร้างลิงก์เชิญ</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3 style="font-size:14px">สมาชิก (3)</h3><span class="meta">2/5</span></div>
+          <div class="card-b">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f3f6"><div class="who"><span class="av">ด</span> คุณดี</div><span class="badge b-owner">เจ้าของ</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0"><div class="who"><span class="av">ส</span> สมชาย</div><button class="btn btn-danger btn-sm">ลบ</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: /i/[slug] landing -->
+  <div class="screen-label">2 · หน้ารับคำเชิญ (ยังไม่ล็อกอิน) <span>— deepthailand.app/i/&lt;slug&gt; → redirect seller subdomain</span></div>
+  <div class="device-row">
+    <div class="device desktop"><div class="bar">Desktop</div>
+      <div class="auth-wrap"><div class="auth-card">
+        <div class="logo">D</div>
+        <h2>คุณได้รับคำเชิญร่วมทีม</h2>
+        <p>เข้าสู่ระบบหรือสมัครเพื่อร่วมเป็นแอดมินของร้าน</p>
+        <div class="invite-shop"><span class="av">ด</span><div><div class="n">ร้านดีพช็อป</div><div class="s">เชิญคุณเป็น “แอดมิน”</div></div></div>
+        <div class="social">
+          <button class="sbtn fb"><span class="d"></span>เข้าสู่ระบบด้วย Facebook</button>
+          <button class="sbtn line"><span class="d"></span>เข้าสู่ระบบด้วย LINE</button>
+          <button class="sbtn otp"><span class="d"></span>ใช้เบอร์โทร (OTP)</button>
+        </div>
+      </div></div>
+    </div>
+    <div class="device tablet"><div class="bar">Tablet</div>
+      <div class="auth-wrap"><div class="auth-card">
+        <div class="logo">D</div><h2>คุณได้รับคำเชิญร่วมทีม</h2><p>เข้าสู่ระบบเพื่อเป็นแอดมิน</p>
+        <div class="invite-shop"><span class="av">ด</span><div><div class="n">ร้านดีพช็อป</div><div class="s">เชิญคุณเป็น “แอดมิน”</div></div></div>
+        <div class="social"><button class="sbtn fb"><span class="d"></span>Facebook</button><button class="sbtn line"><span class="d"></span>LINE</button><button class="sbtn otp"><span class="d"></span>เบอร์โทร (OTP)</button></div>
+      </div></div>
+    </div>
+    <div class="device mobile"><div class="bar">Mobile</div>
+      <div class="auth-wrap" style="padding:16px"><div class="auth-card" style="padding:22px 18px">
+        <div class="logo">D</div><h2 style="font-size:16px">คุณได้รับคำเชิญร่วมทีม</h2><p style="font-size:12px">เข้าสู่ระบบเพื่อเป็นแอดมิน</p>
+        <div class="invite-shop"><span class="av">ด</span><div><div class="n">ร้านดีพช็อป</div><div class="s">เชิญคุณเป็น “แอดมิน”</div></div></div>
+        <div class="social"><button class="sbtn fb"><span class="d"></span>Facebook</button><button class="sbtn line"><span class="d"></span>LINE</button><button class="sbtn otp"><span class="d"></span>เบอร์โทร</button></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: choose shop -->
+  <div class="screen-label">3 · หน้าเลือกร้าน (login แล้ว มี ≥2 ร้าน) <span>— /choose-shop · 1 ร้าน = ข้ามหน้านี้ เข้าเลย</span></div>
+  <div class="device-row">
+    <div class="device desktop"><div class="bar">Desktop</div>
+      <div class="choose">
+        <h2>เลือกร้านที่จะเข้าใช้งาน</h2><div class="sub">คุณเป็นสมาชิกของหลายร้าน</div>
+        <div class="shop-grid">
+          <div class="shop-card"><span class="av">ด</span><div><div class="n">ร้านดีพช็อป</div><div class="r"><span class="badge b-admin">แอดมิน</span></div></div></div>
+          <div class="shop-card"><span class="av">เ</span><div><div class="n">เฮงเฮงสโตร์</div><div class="r"><span class="badge b-admin">แอดมิน</span></div></div></div>
+        </div>
+        <button class="open-own">+ เปิดร้านของฉันเอง (เป็น seller)</button>
+        <div class="note" style="max-width:560px">ถูกเชิญเป็นแอดมิน = ยังไม่ถือเป็น seller และไม่มีร้านของตัวเอง — เปิดร้านเองได้ทุกเมื่อ</div>
+      </div>
+    </div>
+    <div class="device tablet"><div class="bar">Tablet</div>
+      <div class="choose">
+        <h2>เลือกร้าน</h2><div class="sub">คุณเป็นสมาชิกหลายร้าน</div>
+        <div class="shop-grid">
+          <div class="shop-card"><span class="av">ด</span><div><div class="n">ร้านดีพช็อป</div><div class="r"><span class="badge b-admin">แอดมิน</span></div></div></div>
+          <div class="shop-card"><span class="av">เ</span><div><div class="n">เฮงเฮงสโตร์</div><div class="r"><span class="badge b-admin">แอดมิน</span></div></div></div>
+        </div>
+        <button class="open-own">+ เปิดร้านของฉันเอง</button>
+      </div>
+    </div>
+    <div class="device mobile"><div class="bar">Mobile</div>
+      <div class="choose" style="padding:20px 16px">
+        <h2 style="font-size:16px">เลือกร้าน</h2><div class="sub" style="font-size:12px">สมาชิกหลายร้าน</div>
+        <div class="shop-grid" style="grid-template-columns:1fr">
+          <div class="shop-card"><span class="av">ด</span><div><div class="n">ร้านดีพช็อป</div><div class="r"><span class="badge b-admin">แอดมิน</span></div></div></div>
+          <div class="shop-card"><span class="av">เ</span><div><div class="n">เฮงเฮงสโตร์</div><div class="r"><span class="badge b-admin">แอดมิน</span></div></div></div>
+        </div>
+        <button class="open-own" style="margin-top:14px">+ เปิดร้านของฉันเอง</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="lead" style="margin-top:8px">หมายเหตุ: สี/ระยะ/ปุ่มในหน้าจริงต้อง copy จาก Paces theme + ผ่าน safepay-ux (Hard Rule 8) — mockup นี้ยืนยัน IA/layout/flow เท่านั้น icon ยังต้องยืนยันกับ user (Hard Rule 12)</p>
+</div>
+</body>
+</html>
