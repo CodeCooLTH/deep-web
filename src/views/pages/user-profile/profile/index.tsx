@@ -47,7 +47,11 @@ export type ProfileTabData = {
   }[]
   /** FR-9.5: true เมื่อบัญชี buyer-only (ไม่มีร้าน) — ซ่อน products + platforms ทั้งชุด */
   openShopEmptyState?: boolean
-  products: SerializedProduct[]
+  // Phase 3 (feature 00013 Pin Products, TFR-PIN-06/07): แทน products เดี่ยว + splitPinnedProducts (interim)
+  // ด้วยข้อมูลปักหมุดจริงจาก pin.service — pinnedProducts มาจาก getPinnedProducts, otherProducts มาจาก
+  // getProductsByShop({excludePinned:true})
+  pinnedProducts: SerializedProduct[]
+  otherProducts: SerializedProduct[]
   totalBadgeCount: number
   // ── About section (ย้ายมาจาก identity เดิมตาม redesign) ──
   bio?: string | null
@@ -66,12 +70,6 @@ export type ProfileTabData = {
   pointsToNext: number | null
   verifiedLevels: number[]
 }
-
-/** สินค้าปักหมุด (interim visual placeholder — ยังไม่มี pin backend จริง): 3 ชิ้นแรก / ที่เหลือ = "สินค้าทั้งหมด" */
-export const splitPinnedProducts = (products: SerializedProduct[]) => ({
-  pinned: products.slice(0, 3),
-  remaining: products.slice(3),
-})
 
 // ── FR-RESP-06: format response time เป็นข้อความไทย ──
 // <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
@@ -133,7 +131,7 @@ const ProductCard = ({
         '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(15,23,42,.10)' },
       }}
     >
-      {/* flag "ปักหมุด" มุมซ้ายบน (interim visual — ยังไม่มี pin backend จริง) */}
+      {/* flag "ปักหมุด" มุมซ้ายบน (Phase 3: pinned=true มาจาก getPinnedProducts จริงแล้ว) */}
       {pinned && (
         <Box
           sx={{
@@ -339,18 +337,18 @@ export const ProfileRightContent = ({
   shopId,
   isOwnShop,
 }: {
-  data: Pick<ProfileTabData, 'products' | 'openShopEmptyState'>
+  data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState'>
   shopId?: string | null
   isOwnShop?: boolean
 }) => {
-  const { products, openShopEmptyState } = data
-  const { pinned, remaining } = splitPinnedProducts(products)
+  const { pinnedProducts, otherProducts, openShopEmptyState } = data
+  const hasAnyProduct = pinnedProducts.length > 0 || otherProducts.length > 0
 
   if (openShopEmptyState) return null
 
   return (
     <>
-      {products.length === 0 ? (
+      {!hasAnyProduct ? (
         <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
           <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
           <Box>
@@ -360,35 +358,37 @@ export const ProfileRightContent = ({
         </Box>
       ) : (
         <>
-          {/* ── สินค้าปักหมุด (interim visual placeholder = products.slice(0,3)) ── */}
-          <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
-            <Typography
-              component='h3'
-              sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
-            >
-              สินค้าปักหมุด
-            </Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-                gap: '12px',
-              }}
-            >
-              {pinned.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  pinned
-                  shopId={shopId ?? null}
-                  isOwnShop={isOwnShop}
-                />
-              ))}
+          {/* ── สินค้าปักหมุด (Phase 3: pinnedProducts จริงจาก getPinnedProducts — ซ่อนทั้งโซนเมื่อว่าง TFR-PIN-07) ── */}
+          {pinnedProducts.length > 0 && (
+            <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
+              <Typography
+                component='h3'
+                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+              >
+                สินค้าปักหมุด
+              </Typography>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                  gap: '12px',
+                }}
+              >
+                {pinnedProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    pinned
+                    shopId={shopId ?? null}
+                    isOwnShop={isOwnShop}
+                  />
+                ))}
+              </Box>
             </Box>
-          </Box>
+          )}
 
-          {/* ── สินค้าทั้งหมด (ซ่อนเมื่อ products <= 3) ── */}
-          {remaining.length > 0 && (
+          {/* ── สินค้าทั้งหมด (Phase 3: otherProducts = getProductsByShop excludePinned — ซ่อนเมื่อว่าง) ── */}
+          {otherProducts.length > 0 && (
             <Box id='all-products' sx={{ px: { xs: '20px', md: '24px' }, pb: '16px' }}>
               <Typography
                 component='h3'
@@ -403,7 +403,7 @@ export const ProfileRightContent = ({
                   gap: '12px',
                 }}
               >
-                {remaining.map((product) => (
+                {otherProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}

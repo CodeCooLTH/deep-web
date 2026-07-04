@@ -26,6 +26,7 @@ export const WALLET_REASON = {
   INVENTORY_SUBSCRIPTION_PRO: 'INVENTORY_SUBSCRIPTION_PRO',
   INVENTORY_SUBSCRIPTION_PRO_UPGRADE: 'INVENTORY_SUBSCRIPTION_PRO_UPGRADE',
   SMS_ORDER_LINK: 'SMS_ORDER_LINK', // เดิม ไม่แตะ
+  PIN_SLOT: 'PIN_SLOT', // Pin Products (feature 00013) — ซื้อ pin slot ฿99 ถาวร
 } as const
 
 // label ไทยสำหรับ admin sidebar (FR-INV-13) — ใช้คู่กับ WALLET_REASON
@@ -35,6 +36,7 @@ export const WALLET_REASON_LABEL_TH: Record<string, string> = {
   INVENTORY_SUBSCRIPTION_PRO: 'Deep Stock Pro',
   INVENTORY_SUBSCRIPTION_PRO_UPGRADE: 'อัพเกรดเป็น Deep Stock Pro',
   SMS_ORDER_LINK: 'SMS Order Link',
+  PIN_SLOT: 'ปักหมุดสินค้า',
 }
 
 // ⚠️ BREAKING — เดิมเป็น const string object (WALLET_DESC.SUBSCRIBE ฯลฯ) เปลี่ยนเป็น function

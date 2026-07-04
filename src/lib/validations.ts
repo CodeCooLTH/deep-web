@@ -715,6 +715,12 @@ export const ChatConversationsQuerySchema = v.object({
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
 
+// ── feature 00013 Pin Products (SRS §4 / API §4.3) ───────────────────────────
+// body ของ POST /api/seller/pin-slots/buy — ซื้อ slot ฿99 + ปักหมุด productId ในธุรกรรมเดียว
+export const BuyPinSlotSchema = v.object({
+  productId: v.pipe(v.string(), v.uuid()),
+});
+
 // ── feature 00012 Shop Staff Invite Link (Task 2.1) ──────────────────────────
 // SSOT: docs/superpowers/plans/2026-07-04-shop-staff-invite-link.md
 

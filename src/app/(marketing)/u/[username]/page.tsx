@@ -14,6 +14,7 @@ import { authOptions } from '@/lib/auth'
 import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
+import { getPinnedProducts } from '@/services/pin.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
 
@@ -30,6 +31,8 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // (เลิกใช้ getTrustLevel()+TRUST_COLOR local map เดิม — ซ้ำซ้อนกับ Tier Lists SSOT และไม่เคยถูก render จริง)
 // memberSince เปลี่ยนจาก formatDateTime → formatMonthYearTH (เดือน-ปีล้วน ไม่ต้องละเอียดระดับวัน)
 // เพิ่ม verifiedLevels + nextTierInfo ป้อน TrustScoreCard; ตัดเมตริก "ผู้ติดตาม" ทิ้ง (ไม่มี follow system จริง)
+// Phase 3 (feature 00013 Pin Products, SDS §4.4): แทน getProductsByShop(shop.id,12) เดี่ยว ด้วย
+// getPinnedProducts(shop.id) + getProductsByShop(shop.id,12,{excludePinned:true}) คู่กัน
 
 type Props = { params: Promise<{ username: string }> }
 
@@ -56,7 +59,7 @@ export default async function PublicProfilePage({ params }: Props) {
 
   // ทำไม: ตัด getReviewsByUsername ออก — ProfileTab ไม่แสดง RecentReviews อีกแล้ว
   // คง getAvgRatingByUsername + orderStats + products ที่ยังใช้งานอยู่
-  const [approvedVerifications, orderStats, ratingAgg, rawProducts] = await Promise.all([
+  const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { userId: user.id, status: 'APPROVED' },
       select: { level: true },
@@ -71,8 +74,9 @@ export default async function PublicProfilePage({ params }: Props) {
     // aggregate ทั้งหมด — ใช้แสดง rating บน platforms section
     getAvgRatingByUsername(username),
     // ดึงสินค้าเฉพาะเมื่อมีร้าน (isShop=true) — buyer-only ส่ง [] แทน
-    // เปลี่ยน 9 → 12: desktop 4-col เต็ม 3 แถว / mobile 3-col 4 แถว ตาม spec
-    user.shop ? getProductsByShop(user.shop.id, 12) : Promise.resolve([]),
+    // Phase 3 (feature 00013): pinned + other แยกคิวรี — เปลี่ยน 9 → 12: desktop 4-col เต็ม 3 แถว / mobile 3-col 4 แถว ตาม spec
+    user.shop ? getPinnedProducts(user.shop.id) : Promise.resolve([]),
+    user.shop ? getProductsByShop(user.shop.id, 12, { excludePinned: true }) : Promise.resolve([]),
   ])
 
   const maxVerifyLevel = approvedVerifications.length
@@ -92,12 +96,15 @@ export default async function PublicProfilePage({ params }: Props) {
 
   // serialize products: Decimal → string, images Json → string[] → first
   // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
-  const products: SerializedProduct[] = rawProducts.map((p) => ({
+  // Phase 3 (feature 00013): serialize แยกชุด pinned/other — ทั้งสองมาจาก Prisma row shape เดียวกัน
+  const serializeProductRow = (p: (typeof rawPinnedProducts)[number]): SerializedProduct => ({
     id: p.id,
     name: p.name,
     price: p.price.toFixed(2),
     imageUrl: (p.images as string[])[0] ?? null,
-  }))
+  })
+  const pinnedProducts: SerializedProduct[] = rawPinnedProducts.map(serializeProductRow)
+  const otherProducts: SerializedProduct[] = rawOtherProducts.map(serializeProductRow)
 
   // FR-4.8: กรอง badge ที่แสดงบน public profile — เฉพาะ seller-context (SELLER|ANY)
   const sellerContextBadges = user.userBadges.filter(
@@ -134,7 +141,8 @@ export default async function PublicProfilePage({ params }: Props) {
     })),
     // FR-9.5: buyer-only account → ส่ง flag เพื่อซ่อน products + platforms sections
     openShopEmptyState: !user.isShop,
-    products,
+    pinnedProducts,
+    otherProducts,
     totalBadgeCount: sellerContextBadges.length,
     bio: user.shop?.description ?? null,
     location: user.shop?.address ?? null,

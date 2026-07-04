@@ -124,6 +124,14 @@ model Shop {
   // recalculateShopTrustScore(shopId) (P5-3b, service layer) — monotonic rule (Math.max) เหมือน user เดิม
   trustScore        Int       @default(0)
 
+  // --- Pin Products (feature 00013, additive) ---
+  // pinSlots: จำนวน slot ปักหมุดที่ร้านมีสิทธิ์ใช้พร้อมกัน. ทุกร้านเริ่ม 1 (free slot, BR-PIN-01);
+  // ซื้อเพิ่มถาวรทีละ 1 ที่ ฿99 ผ่าน SellerWallet (BR-PIN-02); ไม่มี downgrade ใน MVP (BR-PIN-03).
+  // 🛑 invariant "count(Product.pinnedAt ไม่ null ต่อ shop) <= pinSlots" enforce ที่ service layer
+  // เท่านั้น (atomic เหมือน wallet.service) — DB ไม่มี cross-row CHECK แบบนี้.
+  // CHECK(pinSlots >= 1) enforce ด้วยมือใน migration SQL (NOT VALID+VALIDATE เพราะ Shop มี row จริงบน prod)
+  pinSlots Int @default(1)
+
   // --- feature 00011 ext #2: Response-rate / Response-time Trust Metric (additive, nullable) ---
   // denormalized จาก Deep Chat (Conversation/ChatMessage) เขียนโดย cron รายวัน
   // (`/api/cron/chat-response-metrics`, S-24) — เลือกอ่านสด null จนกว่า cron รอบแรกจะรัน
@@ -284,6 +292,11 @@ model Product {
   // lowStockThreshold: Deep Stock Pro (feature 00009) — NULL=ไม่ตั้ง alert, N>=0=ตั้งค่า. PRO-only gate ที่ app layer.
   // CHECK(lowStockThreshold IS NULL OR lowStockThreshold >= 0) enforce ใน migration SQL ด้วยมือ (NOT VALID + VALIDATE)
   lowStockThreshold Int?
+  // pinnedAt: Pin Products (feature 00013) — non-NULL = สินค้าถูกปักหมุด, เรียงแสดงผล pinnedAt desc
+  // (BR-PIN-09 no manual reorder); NULL = ไม่ปักหมุด. Auto-unpin (กลับเป็น NULL) ต้องเกิดในธุรกรรม
+  // เดียวกับตอน isActive true→false เสมอ (BR-PIN-11 — service layer, product.service deleteProduct/updateProduct).
+  // จำนวนปักหมุดต่อ shop <= Shop.pinSlots (enforce service layer เท่านั้น — ไม่มี DB constraint ข้ามแถว)
+  pinnedAt          DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -294,6 +307,7 @@ model Product {
   chatMessageRefs ChatMessage[] // extension #1 Chat Product Context Card — back-relation ของ ChatMessage.productRefId
 
   @@index([shopId, stockQty])
+  @@index([shopId, pinnedAt]) // Pin Products (00013) — query "pinnedAt not null ORDER BY pinnedAt desc" ต่อ shop (FR-PIN-06)
 }
 
 model Tag {
@@ -433,7 +447,8 @@ model WalletTransaction {
   description  String
   refId        String?
   // reason: machine-filterable label แยก DEDUCT source — ("SMS_ORDER_LINK" | "INVENTORY_SUBSCRIPTION"
-  // [feature 00003] | "BUSINESS_PACKAGE_SUBSCRIPTION" [feature 00008, NEW — ไม่มี DDL แค่ค่าใหม่]);
+  // [feature 00003] | "BUSINESS_PACKAGE_SUBSCRIPTION" [feature 00008, NEW — ไม่มี DDL แค่ค่าใหม่] |
+  // "PIN_SLOT" [feature 00013, NEW — ซื้อ pin slot ฿99 ถาวร, ไม่มี DDL แค่ค่าใหม่]);
   // NULL = row เก่าก่อนฟีเจอร์ที่ใช้ field นี้ (backfill migration SQL)
   reason       String?
   createdAt    DateTime @default(now())

@@ -13,6 +13,8 @@
  *   - UI copy ภาษาไทย
  *   - T10 (v10): mobile toolbar (search pill + filter chips + ปุ่มเพิ่มสินค้า) + re-skin mobileCard
  *     (icon Solar duotone, thumb 62px, badge status ตาม spec §7, isActive chip filter)
+ *   - feature 00013 Pin Products: คอลัมน์ "ปักหมุด" (ระหว่างสถานะ↔ขายแล้ว) + PinToggleButton
+ *     ใน mobileCard trailing action + badge indicator "ปักหมุด n/m" (desktop card-header + mobile Row 0)
  */
 
 'use client'
@@ -42,6 +44,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import PinToggleButton, { type PinChangeResult } from './PinToggleButton'
 import type { ProductRow } from './data'
 
 const TYPE_LABELS: Record<ProductRow['type'], string> = {
@@ -62,9 +65,12 @@ const columnHelper = createColumnHelper<ProductRow>()
 
 type Props = {
   products: ProductRow[]
+  /** feature 00013 Pin Products — aggregate state ต่อร้าน (seed จาก server ครั้งเดียว) */
+  pinSlots: number
+  pinnedCount: number
 }
 
-const ProductsListing = ({ products }: Props) => {
+const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
   const router = useRouter()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -72,6 +78,15 @@ const ProductsListing = ({ products }: Props) => {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // feature 00013 Pin Products — useState seed ครั้งเดียวจาก props เหมือน `data` ข้างบน (pattern เดียวกับ handleDelete)
+  const [pinState, setPinState] = useState({ pinSlots, pinnedCount })
+
+  const handlePinChange = (result: PinChangeResult) => {
+    setData((prev) =>
+      prev.map((p) => (p.id === result.productId ? { ...p, pinnedAt: result.pinnedAt } : p)),
+    )
+    setPinState({ pinSlots: result.pinSlots, pinnedCount: result.pinnedCount })
+  }
 
   const columns: ColumnDef<ProductRow, any>[] = [
     columnHelper.accessor('name', {
@@ -138,6 +153,19 @@ const ProductsListing = ({ products }: Props) => {
         >
           {row.original.isActive ? 'เปิดขาย' : 'ซ่อน'}
         </span>
+      ),
+    }),
+    columnHelper.accessor('pinnedAt', {
+      header: 'ปักหมุด',
+      cell: ({ row }) => (
+        <PinToggleButton
+          productId={row.original.id}
+          pinnedAt={row.original.pinnedAt}
+          isActive={row.original.isActive}
+          pinSlots={pinState.pinSlots}
+          pinnedCount={pinState.pinnedCount}
+          onChange={handlePinChange}
+        />
       ),
     }),
     columnHelper.accessor('totalSold', {
@@ -270,6 +298,13 @@ const ProductsListing = ({ products }: Props) => {
       {/* HR7: mobile toolbar แยกจาก desktop card-header เพื่อ re-skin ตาม spec §7
           ไม่มี Paces layout token สำหรับ mobile-specific toolbar — ใช้ flex + overflow-x-auto */}
       <div className="lg:hidden px-4 pt-3 pb-2 space-y-2.5">
+        {/* Row 0: badge indicator "ปักหมุด n/m" (feature 00013 Pin Products) */}
+        <div className="flex items-center">
+          <span className="badge bg-primary/15 text-primary inline-flex items-center gap-1">
+            <Icon icon="tabler:pin-filled" className="size-3.5" />
+            ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
+          </span>
+        </div>
         {/* Row 1: search pill + ปุ่มเพิ่มสินค้า */}
         <div className="flex items-center gap-2">
           {/* search pill — icon solar:magnifer-linear ตาม spec §7 */}
@@ -365,6 +400,11 @@ const ProductsListing = ({ products }: Props) => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {/* badge indicator "ปักหมุด n/m" (feature 00013 Pin Products) — ก่อนปุ่มเพิ่มสินค้า */}
+          <span className="badge bg-primary/15 text-primary inline-flex items-center gap-1">
+            <Icon icon="tabler:pin-filled" className="size-3.5" />
+            ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
+          </span>
           <Link href="/products/new" className="btn bg-primary text-white hover:bg-primary-hover">
             <Icon icon="plus" />
             เพิ่มสินค้า
@@ -427,8 +467,17 @@ const ProductsListing = ({ products }: Props) => {
                 <p className="text-xs text-default-400 leading-tight whitespace-nowrap">
                   ขายแล้ว {new Intl.NumberFormat('th-TH').format(p.totalSold)}
                 </p>
-                {/* action: แก้ไข (solar:pen-2-linear ตาม spec §7) / ลบ — touch ≥44px */}
+                {/* action: ปักหมุด (feature 00013) / แก้ไข (solar:pen-2-linear ตาม spec §7) / ลบ — touch ≥44px */}
                 <div className="flex items-center gap-1.5">
+                  <PinToggleButton
+                    productId={p.id}
+                    pinnedAt={p.pinnedAt}
+                    isActive={p.isActive}
+                    pinSlots={pinState.pinSlots}
+                    pinnedCount={pinState.pinnedCount}
+                    onChange={handlePinChange}
+                    variant="mobile"
+                  />
                   <Link
                     href={`/products/${p.id}/edit`}
                     className="btn btn-icon border border-default-300 text-default-800 hover:border-default-400 !size-11 min-h-0"

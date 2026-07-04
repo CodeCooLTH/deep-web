@@ -34,7 +34,9 @@ import { frontLayoutClasses } from '@layouts/utils/layoutClasses'
 // Styles Imports
 import styles from './styles.module.css'
 
-const Header = ({ mode }: { mode: Mode }) => {
+// solidHeader = บังคับให้ header เป็นพื้นทึบ+เงาทันที (ไม่ต้อง scroll) — ใช้กับหน้า buyer-app
+// ที่ไม่มี hero รองพื้น (dashboard/orders/...) ให้ header เด่นตั้งแต่โหลด; landing คงโปร่งที่ท็อป
+const Header = ({ mode, solidHeader = false }: { mode: Mode; solidHeader?: boolean }) => {
   // States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
@@ -51,7 +53,7 @@ const Header = ({ mode }: { mode: Mode }) => {
 
   return (
     <header className={classnames(frontLayoutClasses.header, styles.header)}>
-      <div className={classnames(frontLayoutClasses.navbar, styles.navbar, { [styles.headerScrolled]: trigger })}>
+      <div className={classnames(frontLayoutClasses.navbar, styles.navbar, { [styles.headerScrolled]: trigger || solidHeader })}>
         <div className={classnames(frontLayoutClasses.navbarContent, styles.navbarContent)}>
           {isBelowLgScreen ? (
             <div className='flex items-center gap-2 sm:gap-4'>
@@ -64,12 +66,16 @@ const Header = ({ mode }: { mode: Mode }) => {
               <FrontMenu mode={mode} isDrawerOpen={isDrawerOpen} setIsDrawerOpen={setIsDrawerOpen} />
             </div>
           ) : (
-            <div className='flex items-center gap-10'>
+            <>
+              {/* logo ซ้าย */}
               <Link href='/'>
                 <Logo />
               </Link>
-              <FrontMenu mode={mode} isDrawerOpen={isDrawerOpen} setIsDrawerOpen={setIsDrawerOpen} />
-            </div>
+              {/* เมนูกลาง — flex-1 เพื่อดันให้อยู่กึ่งกลางระหว่าง logo กับ actions */}
+              <div className='flex-1 flex justify-center'>
+                <FrontMenu mode={mode} isDrawerOpen={isDrawerOpen} setIsDrawerOpen={setIsDrawerOpen} />
+              </div>
+            </>
           )}
           <div className='flex items-center gap-2 sm:gap-4'>
             <ModeDropdown />

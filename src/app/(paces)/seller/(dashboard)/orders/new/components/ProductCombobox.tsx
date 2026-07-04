@@ -71,7 +71,7 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="form-input flex items-center justify-between gap-2 text-left"
+        className="form-input !flex items-center justify-between gap-2 text-left"
       >
         <span className={`truncate ${value.name ? 'text-dark' : 'text-default-400'}`}>
           {value.name || 'เลือก/พิมพ์สินค้า'}
