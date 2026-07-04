@@ -20,9 +20,15 @@
  *   ทั้ง 2 host context — full page + widget panel — เป็น compact width เหมือน isBelowSmScreen เสมอ)
  * Realtime subscribe pattern: src/app/(marketing)/a/[id]/AuctionDetailClient.tsx:144-179
  *   (signal-only broadcast, ไม่เชื่อ payload — refetch authoritative เสมอ)
+ *
+ * S-20 (extension #1 Chat Product Context Card, feat 00011): เพิ่ม type='PRODUCT' bubble (Base: IMAGE bubble
+ * container ด้านบน — bg neutral คงที่ไม่ผูก sender ตาม UX spec) + อ่าน query ?productId ครั้งเดียวจาก
+ * /u/[username] ProductTile ปุ่ม "สอบถามสินค้านี้" (S-19) → sendMessage(type=PRODUCT) → clear query
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -42,7 +48,16 @@ import { formatDate, formatTime } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 type SenderRole = 'BUYER' | 'SHOP'
-type ChatMessageType = 'TEXT' | 'IMAGE'
+type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT'
+
+// S-20: enrich เฉพาะ type='PRODUCT' — คืนจาก GET เท่านั้น (S-18); POST ไม่ enrich (ดู sendProductMessage)
+type ProductCardData = {
+  id: string
+  name: string
+  price: number
+  imageFileId: string | null
+  isActive: boolean
+}
 
 type ChatMessageView = {
   id: string
@@ -52,6 +67,10 @@ type ChatMessageView = {
   type: ChatMessageType
   body: string | null
   imageUrl: string | null
+  // เฉพาะ type='PRODUCT': productRefId = FK เดิม, productCard = enriched (undefined = ระหว่างส่ง optimistic
+  // ยังไม่ enrich, null = ลบจริงแล้ว FR-CTX-08)
+  productRefId?: string | null
+  productCard?: ProductCardData | null
   createdAt: string
 }
 
@@ -98,10 +117,17 @@ function groupBySender(messages: ChatMessageView[]): { senderRole: SenderRole; m
   return groups
 }
 
-type Props = { shopId: string; shopName: string; shopLogo: string | null }
+type Props = { shopId: string; shopName: string; shopLogo: string | null; shopUsername: string }
 
-export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
+export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }: Props) {
   const { data: session } = useSession()
+
+  // S-20: อ่าน ?productId ครั้งเดียว (FR-CTX-03) — productSentRef กัน double-send จาก React Strict Mode
+  // double-invoke effect (เช็ค+set แบบ synchronous กัน race, backend idempotent-guard BR-CTX-02 ป้องกันซ้ำอยู่แล้ว)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const productIdParam = searchParams.get('productId')
+  const productSentRef = useRef(false)
   const sessionUser = session?.user as
     | { id?: string; displayName?: string; avatar?: string | null }
     | undefined
@@ -186,6 +212,14 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
         setOlderCursor(data.nextCursor)
         markRead(conv.id)
         requestAnimationFrame(scrollToBottom)
+
+        // S-20: มี ?productId (มาจากปุ่ม "สอบถามสินค้านี้" S-19) → ส่งการ์ดสินค้าเป็นข้อความแรกอัตโนมัติ
+        // ครั้งเดียว (FR-CTX-03/04) แล้ว clear query (ไม่ resend ตอน refresh)
+        if (productIdParam && !productSentRef.current) {
+          productSentRef.current = true
+          await sendProductMessage(conv.id, productIdParam)
+          if (!cancelled) router.replace(`/messages/${shopId}`)
+        }
       } catch {
         if (!cancelled) setConvError('generic')
       } finally {
@@ -388,6 +422,58 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
     }
   }
 
+  /**
+   * S-20 — ส่งการ์ดสินค้าอัตโนมัติครั้งเดียวหลังเปิด conversation ผ่าน ?productId (FR-CTX-03)
+   * ทำไม refetch แทน map-by-tempId เหมือน sendTextMessage/sendImageMessage: POST /messages ไม่ enrich
+   * productCard (เฉพาะ GET ทำ, S-18) — optimistic ใช้ productCard: undefined (state "กำลังส่ง") แล้ว
+   * refetch ข้อความล่าสุด (pattern เดียวกับ realtime refetchNewer) มาแทนที่เพื่อได้ productCard จริง
+   */
+  async function sendProductMessage(convId: string, productRefId: string) {
+    const tempId = `temp-${Date.now()}`
+    const optimisticMsg: ChatMessageView = {
+      id: tempId,
+      conversationId: convId,
+      senderUserId: myUserId ?? '',
+      senderRole: 'BUYER',
+      type: 'PRODUCT',
+      body: null,
+      imageUrl: null,
+      productRefId,
+      productCard: undefined,
+      createdAt: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimisticMsg])
+    requestAnimationFrame(scrollToBottom)
+    setSending(true)
+    try {
+      const res = await fetch(`/api/chat/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'PRODUCT', productRefId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId))
+        toast.error(mapSendError(res.status, data.error))
+        return
+      }
+      const latest = await fetchLatest(convId)
+      const latestAsc = latest.items.slice().reverse()
+      setMessages((prev) => {
+        const withoutOptimistic = prev.filter((m) => m.id !== tempId)
+        const existingIds = new Set(withoutOptimistic.map((m) => m.id))
+        const fresh = latestAsc.filter((m) => !existingIds.has(m.id))
+        return [...withoutOptimistic, ...fresh].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      })
+      requestAnimationFrame(scrollToBottom)
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
+      toast.error('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!conversation || sending) return
@@ -524,6 +610,97 @@ export default function ChatThread({ shopId, shopName, shopLogo }: Props) {
                                 >
                                   {msg.body}
                                 </Typography>
+                              )}
+                            </div>
+                          )
+                        }
+
+                        // S-20 (extension #1 Chat Product Context Card) — bg neutral เสมอ ไม่ผูก sender
+                        // (BR-CTX-05 PRODUCT = buyer-only) คง shape/justify ตาม isBuyer เดิม
+                        if (msg.type === 'PRODUCT') {
+                          const card = msg.productCard
+                          const priceLabel = card
+                            ? `฿${card.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                            : ''
+
+                          return (
+                            <div
+                              key={msg.id}
+                              className={classnames('shadow-xs overflow-hidden bg-backgroundPaper', {
+                                'rounded-e rounded-b': !isBuyer,
+                                'rounded-s rounded-b': isBuyer,
+                              })}
+                              style={{ maxWidth: 260 }}
+                            >
+                              {card === undefined ? (
+                                // ── optimistic: ส่งแล้วรอ refetch enrich (POST ไม่ enrich productCard) ──
+                                <div className='flex items-center gap-2 pli-4 plb-3'>
+                                  <CircularProgress size={16} />
+                                  <Typography className='text-sm' color='text.secondary'>
+                                    กำลังส่งการ์ดสินค้า...
+                                  </Typography>
+                                </div>
+                              ) : card === null ? (
+                                // ── FR-CTX-08: ลบจริง — ไม่มีลิงก์/รูป ──
+                                <div className='flex items-center gap-2 pli-4 plb-3'>
+                                  <Icon icon='tabler-package-off' fontSize={20} className='text-textDisabled' />
+                                  <Typography className='text-sm' color='text.disabled'>
+                                    ไม่พบสินค้านี้แล้ว
+                                  </Typography>
+                                </div>
+                              ) : (
+                                <Link
+                                  href={`/u/${shopUsername}`}
+                                  className='flex items-center gap-3 pli-3 plb-2.5'
+                                  style={{ textDecoration: 'none' }}
+                                >
+                                  <div
+                                    className='shrink-0 overflow-hidden'
+                                    style={{ width: 56, height: 56, borderRadius: 6, background: '#E2E8F0' }}
+                                  >
+                                    {card.imageFileId ? (
+                                      // eslint-disable-next-line @next/next/no-img-element -- Product.images[0] = raw fileId, render ผ่าน /api/files/{id} เสมอ
+                                      <img
+                                        src={`/api/files/${card.imageFileId}`}
+                                        alt={card.name}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      />
+                                    ) : (
+                                      <div
+                                        className='flex items-center justify-center'
+                                        style={{ width: '100%', height: '100%' }}
+                                      >
+                                        <Icon icon='tabler-photo' fontSize={22} className='text-textDisabled' />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className='flex flex-col gap-0.5 min-is-0' style={{ maxWidth: 160 }}>
+                                    <Typography className='truncate text-sm font-semibold' color='text.primary'>
+                                      {card.name}
+                                    </Typography>
+                                    <Typography className='text-sm font-bold' color='primary'>
+                                      {priceLabel}
+                                    </Typography>
+                                    {!card.isActive && (
+                                      <Typography
+                                        component='span'
+                                        className='inline-flex items-center gap-1 text-xs'
+                                        color='text.disabled'
+                                      >
+                                        <Icon icon='tabler-ban' fontSize={13} />
+                                        หยุดขายแล้ว
+                                      </Typography>
+                                    )}
+                                    <Typography
+                                      component='span'
+                                      className='inline-flex items-center gap-1 text-xs font-semibold'
+                                      color='primary'
+                                    >
+                                      ดูสินค้า
+                                      <Icon icon='tabler-external-link' fontSize={13} />
+                                    </Typography>
+                                  </div>
+                                </Link>
                               )}
                             </div>
                           )

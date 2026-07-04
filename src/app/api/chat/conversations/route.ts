@@ -23,7 +23,10 @@ import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/val
  * ไม่พบ counterparty (แถวกำพร้า) → null (defensive — UI ต้อง handle fallback)
  */
 type ConversationWithCounterparty = ConversationSummary & {
-  counterparty: { shopName: string; logo: string | null } | { displayName: string; avatar: string | null } | null;
+  counterparty:
+    | { shopName: string; logo: string | null; username: string }
+    | { displayName: string; avatar: string | null }
+    | null;
 };
 
 async function enrichWithShopCounterparty(
@@ -32,12 +35,17 @@ async function enrichWithShopCounterparty(
   const shopIds = [...new Set(items.map((i) => i.shopId))];
   const shops = await prisma.shop.findMany({
     where: { id: { in: shopIds } },
-    select: { id: true, shopName: true, logo: true },
+    // S-20 (extension #1 Chat Product Context Card): username เพิ่มเพื่อลิงก์ "ดูสินค้า" ใน BuyerChatWidget
+    // (ChatThread ต้องการ shopUsername prop — reuse เดียวกันกับหน้า /messages/[shopId])
+    select: { id: true, shopName: true, logo: true, user: { select: { username: true } } },
   });
   const shopMap = new Map(shops.map((s) => [s.id, s]));
   return items.map((i) => {
     const shop = shopMap.get(i.shopId);
-    return { ...i, counterparty: shop ? { shopName: shop.shopName, logo: shop.logo } : null };
+    return {
+      ...i,
+      counterparty: shop ? { shopName: shop.shopName, logo: shop.logo, username: shop.user.username } : null,
+    };
   });
 }
 

@@ -21,15 +21,26 @@ import { CHAT_IMAGE_ALLOWED_TYPES } from '@/lib/chat-constants'
 // นั้นดึง driver local/s3 (fs/server-only) เข้า client bundle ด้วย (เหตุผลเดียวกับไฟล์เดิมก่อน extract)
 const CHAT_IMAGE_MAX_SIZE = 5 * 1024 * 1024
 
+// extension #1 Chat Product Context Card (S-18/S-21) — enrich payload ต่อข้อความ type='PRODUCT'
+// จาก GET .../messages (route.ts ทำ batch fetch productMap แล้วแนบเข้าแต่ละ item); null = ลบสินค้าจริง
+export type ChatProductCard = {
+  id: string
+  name: string
+  price: number
+  imageFileId: string | null
+  isActive: boolean
+}
+
 export type ChatMessageView = {
   id: string
   conversationId: string
   senderUserId: string
   senderRole: 'BUYER' | 'SHOP'
-  type: 'TEXT' | 'IMAGE'
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT'
   body: string | null
   imageUrl: string | null
   createdAt: string
+  productCard?: ChatProductCard | null
 }
 
 type MessagesApiResponse = { items: ChatMessageView[]; nextCursor: string | null }

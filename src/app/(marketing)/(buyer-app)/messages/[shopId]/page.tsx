@@ -8,6 +8,7 @@
 //
 // RSC ทำหน้าที่ fetch shop identity (แสดง header ทันทีไม่ต้องรอ client mount) แล้ว mount
 // ChatThread (client) ที่ดึงข้อความ/ส่งข้อความ/realtime เอง
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import NextLink from 'next/link'
@@ -24,6 +25,9 @@ import { getInitials } from '@/utils/getInitials'
 
 import ChatThread from './ChatThread'
 
+// S-20 (extension #1 Chat Product Context Card): ChatThread ใช้ useSearchParams (อ่าน ?productId ครั้งเดียว)
+// — ต้อง wrap Suspense ตาม convention (pattern auth/sign-in/page.tsx)
+
 type Props = { params: Promise<{ shopId: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -36,7 +40,8 @@ export default async function MessageThreadPage({ params }: Props) {
   const { shopId } = await params
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
-    select: { id: true, shopName: true, logo: true },
+    // S-20: user.username เพิ่มเพื่อลิงก์ "ดูสินค้า" ในการ์ดสินค้า → /u/[username] (ไม่มีหน้า product-detail แยก)
+    select: { id: true, shopName: true, logo: true, user: { select: { username: true } } },
   })
   if (!shop) notFound()
 
@@ -81,7 +86,9 @@ export default async function MessageThreadPage({ params }: Props) {
         </Typography>
       </Box>
 
-      <ChatThread shopId={shop.id} shopName={shop.shopName} shopLogo={shop.logo} />
+      <Suspense fallback={null}>
+        <ChatThread shopId={shop.id} shopName={shop.shopName} shopLogo={shop.logo} shopUsername={shop.user.username} />
+      </Suspense>
     </Box>
   )
 }

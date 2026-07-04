@@ -15,10 +15,12 @@
  * (ไม่ใช้ max-w-[75%] arbitrary — ปล่อย flex-shrink จัดการ wrap เหมือน Base)
  */
 import { useState } from 'react'
+import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
-import { useSellerChatThread, groupByDate } from './useSellerChatThread'
+import { useSellerChatThread, groupByDate, type ChatProductCard } from './useSellerChatThread'
 import SellerEmptyState from './SellerEmptyState'
 import SellerErrorState from './SellerErrorState'
 
@@ -52,7 +54,62 @@ function ChatAvatar({ avatar, name, size = 'size-7' }: { avatar: string | null; 
   )
 }
 
+/**
+ * ProductCardBubble — เนื้อหาข้อความ type='PRODUCT' (extension #1 Chat Product Context Card, S-21)
+ * copy ตรงจาก ChatThread.tsx (duplicate เล็ก ๆ ตาม convention เดิม — ดู comment ChatAvatar ด้านบน)
+ * ย่อ thumbnail 40px (size-10) แทน 56px ให้ fit compact panel เท่านั้น (ดู prop thumbSize)
+ */
+function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCard | null; username?: string; thumbSize: string }) {
+  if (!card) {
+    return (
+      <div className="text-default-400 flex items-center gap-2">
+        <Icon icon="package-off" className="text-lg" />
+        <span className="text-sm">ไม่พบสินค้านี้แล้ว</span>
+      </div>
+    )
+  }
+
+  const priceLabel = `฿${card.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  const href = username ? `/u/${username}` : undefined
+
+  const inner = (
+    <div className="flex items-center gap-2">
+      <span className={`${thumbSize} bg-default-100 flex shrink-0 items-center justify-center overflow-hidden rounded-lg`}>
+        {card.imageFileId ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/files/${card.imageFileId}`} alt={card.name} className="size-full object-cover" />
+        ) : (
+          <Icon icon="photo" className="text-default-400 text-lg" />
+        )}
+      </span>
+      <div className="min-w-0">
+        <p className="text-default-800 mb-0 line-clamp-1 text-sm font-semibold">{card.name}</p>
+        <p className="text-default-600 mb-0 text-sm">{priceLabel}</p>
+        {!card.isActive && (
+          <span className="text-default-400 mt-0.5 flex items-center gap-1 text-2xs">
+            <Icon icon="ban" />
+            หยุดขายแล้ว
+          </span>
+        )}
+        <span className="text-primary mt-1 flex items-center gap-1 text-sm font-semibold">
+          ดูสินค้า <Icon icon="external-link" className="text-sm" />
+        </span>
+      </div>
+    </div>
+  )
+
+  return href ? (
+    <Link href={href} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  )
+}
+
 export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyerAvatar }: Props) {
+  const { data: session } = useSession()
+  const shopUsername = (session?.user as { username?: string } | undefined)?.username
   const {
     messages,
     oldestCursor,
@@ -136,19 +193,26 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
                     {/* ไม่ใส่ max-w บน bubble — ปล่อย flex-shrink ของ parent row จัดการ wrap เอง
                         เหมือน Base (max-w-3/4 เดิม/max-w-[75%] เดิมไม่ใช่ pattern ของ Base) */}
                     <div>
-                      <div className={`rounded px-3 py-2 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
-                        {m.type === 'IMAGE' && m.imageUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={`/api/files/${m.imageUrl}`}
-                            alt="รูปภาพที่ส่ง"
-                            className="max-w-48 rounded"
-                          />
-                        )}
-                        {m.body && (
-                          <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
-                            {m.body}
-                          </p>
+                      {/* PRODUCT = buyer-only เสมอ (BR-CTX-05) → bg-light คงที่ ไม่ผูก mine/sender */}
+                      <div className={`rounded px-3 py-2 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
+                        {m.type === 'PRODUCT' ? (
+                          <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-10" />
+                        ) : (
+                          <>
+                            {m.type === 'IMAGE' && m.imageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={`/api/files/${m.imageUrl}`}
+                                alt="รูปภาพที่ส่ง"
+                                className="max-w-48 rounded"
+                              />
+                            )}
+                            {m.body && (
+                              <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
+                                {m.body}
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                       <div className={`text-default-400 mt-1 flex items-center gap-1 text-2xs ${mine ? 'justify-end' : ''}`}>

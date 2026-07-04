@@ -32,10 +32,12 @@
  * เรียกใช้ชุดเดียวกัน — ไฟล์นี้เหลือแค่ render (UX ไม่เปลี่ยนแม้แต่บรรทัดเดียว)
  */
 import Icon from '@/components/wrappers/Icon'
+import Link from 'next/link'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useState } from 'react'
-import { useSellerChatThread, groupByDate } from '../../../_shared/useSellerChatThread'
+import { useSession } from 'next-auth/react'
+import { useSellerChatThread, groupByDate, type ChatProductCard } from '../../../_shared/useSellerChatThread'
 import SellerEmptyState from '../../../_shared/SellerEmptyState'
 import SellerErrorState from '../../../_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '../../../_shared/SellerCardSkeleton'
@@ -69,7 +71,70 @@ function ChatAvatar({ avatar, name, size = 'size-9' }: { avatar: string | null; 
   )
 }
 
+/**
+ * ProductCardBubble — เนื้อหาข้อความ type='PRODUCT' (extension #1 Chat Product Context Card, S-21)
+ * ทดแทน IMAGE/text branch เดิม; อยู่ในกรอบ bubble `bg-light` เดียวกัน (PRODUCT = buyer-only เสมอ
+ * ตาม BR-CTX-05 — seller ไม่ initiate จึงไม่ต้อง handle mine=true)
+ *
+ * username สำหรับลิงก์ /u/[username]: อ่านจาก session ผู้ใช้ที่ล็อกอิน (seller เจ้าของร้านนี้เอง
+ * เพราะ PRODUCT card อ้างสินค้าในร้านตัวเอง) — component ไม่มี prop username ส่งเข้ามา (page.tsx
+ * ยังไม่ plumb เพิ่ม) จึงอ่านผ่าน useSession ตรง ๆ (pattern เดียวกับหน้าอื่นใน (paces)/** ที่ใช้
+ * useSession เช่น onboarding/page.tsx) แทนการ prop-drill ใหม่
+ */
+function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCard | null; username?: string; thumbSize: string }) {
+  if (!card) {
+    // FR-CTX-08 — สินค้าถูกลบจริง (ไม่พบใน productMap) แทนทั้งการ์ดด้วย empty state ไม่มีลิงก์/รูป
+    return (
+      <div className="text-default-400 flex items-center gap-2">
+        <Icon icon="package-off" className="text-xl" />
+        <span className="text-sm">ไม่พบสินค้านี้แล้ว</span>
+      </div>
+    )
+  }
+
+  const priceLabel = `฿${card.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  const href = username ? `/u/${username}` : undefined
+
+  const inner = (
+    <div className="flex items-center gap-3">
+      <span className={`${thumbSize} bg-default-100 flex shrink-0 items-center justify-center overflow-hidden rounded-lg`}>
+        {card.imageFileId ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/files/${card.imageFileId}`} alt={card.name} className="size-full object-cover" />
+        ) : (
+          <Icon icon="photo" className="text-default-400 text-xl" />
+        )}
+      </span>
+      <div className="min-w-0">
+        <p className="text-default-800 mb-0 line-clamp-1 text-sm font-semibold">{card.name}</p>
+        <p className="text-default-600 mb-0 text-sm">{priceLabel}</p>
+        {!card.isActive && (
+          <span className="text-default-400 mt-0.5 flex items-center gap-1 text-2xs">
+            <Icon icon="ban" />
+            หยุดขายแล้ว
+          </span>
+        )}
+        <span className="text-primary mt-1 flex items-center gap-1 text-sm font-semibold">
+          ดูสินค้า <Icon icon="external-link" className="text-sm" />
+        </span>
+      </div>
+    </div>
+  )
+
+  // คลิกทั้งก้อนได้ (tap target ใหญ่กว่า 44px) — ถ้าไม่มี username (edge case ไม่ล็อกอิน/session ยังโหลด)
+  // แสดงเนื้อหาเฉย ๆ ไม่มีลิงก์ แทนที่จะ crash
+  return href ? (
+    <Link href={href} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  )
+}
+
 export default function ChatThread({ conversationId, buyerName, buyerAvatar }: Props) {
+  const { data: session } = useSession()
+  const shopUsername = (session?.user as { username?: string } | undefined)?.username
   const {
     messages,
     oldestCursor,
@@ -156,19 +221,26 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
                     <div>
                       {/* Base ไม่ใส่ max-w บน bubble — ปล่อยให้ flex-shrink ของ parent row จัดการ wrap เอง
                           (ใส่ max-w-[75%] เดิม = arbitrary value ผิด HR7 และไม่ตรง Base) */}
-                      <div className={`rounded px-6 py-3 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
-                        {m.type === 'IMAGE' && m.imageUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={`/api/files/${m.imageUrl}`}
-                            alt="รูปภาพที่ส่ง"
-                            className="max-w-60 rounded"
-                          />
-                        )}
-                        {m.body && (
-                          <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
-                            {m.body}
-                          </p>
+                      {/* PRODUCT = buyer-only เสมอ (BR-CTX-05) → bg-light คงที่ ไม่ผูก mine/sender */}
+                      <div className={`rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
+                        {m.type === 'PRODUCT' ? (
+                          <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
+                        ) : (
+                          <>
+                            {m.type === 'IMAGE' && m.imageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={`/api/files/${m.imageUrl}`}
+                                alt="รูปภาพที่ส่ง"
+                                className="max-w-60 rounded"
+                              />
+                            )}
+                            {m.body && (
+                              <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
+                                {m.body}
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                       {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง) */}

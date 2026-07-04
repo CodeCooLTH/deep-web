@@ -93,6 +93,9 @@ const UserProfile = ({
               openShopEmptyState: profileTab.openShopEmptyState,
               totalBadgeCount: profileTab.totalBadgeCount,
             }}
+            // S-19 (extension #1 Chat Product Context Card): prop-drill shopId/isOwnShop จาก profileHeader (S-8)
+            shopId={profileHeader.shopId}
+            isOwnShop={profileHeader.isOwnShop}
           />
         </Box>
       )}

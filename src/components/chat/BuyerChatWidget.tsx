@@ -53,7 +53,8 @@ type ConversationListItem = {
   lastSenderRole: SenderRole | null
   buyerLastReadAt: string | null
   shopLastReadAt: string | null
-  counterparty: { shopName: string; logo: string | null } | null
+  // S-20 (extension #1 Chat Product Context Card): username เพิ่มจาก B1 route enrich (api/chat/conversations)
+  counterparty: { shopName: string; logo: string | null; username: string } | null
 }
 
 type ListResponse = { items: ConversationListItem[]; nextCursor: string | null }
@@ -91,6 +92,8 @@ export default function BuyerChatWidget() {
   const [activeShopId, setActiveShopId] = useState<string | null>(null)
   const [activeShopName, setActiveShopName] = useState<string>('')
   const [activeShopLogo, setActiveShopLogo] = useState<string | null>(null)
+  // S-20: ChatThread ต้องการ shopUsername (ลิงก์ "ดูสินค้า" การ์ดสินค้า → /u/[username])
+  const [activeShopUsername, setActiveShopUsername] = useState<string>('')
 
   const [items, setItems] = useState<ConversationListItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -148,6 +151,7 @@ export default function BuyerChatWidget() {
     setActiveShopId(item.shopId)
     setActiveShopName(item.counterparty?.shopName ?? 'ร้านค้า')
     setActiveShopLogo(item.counterparty?.logo ?? null)
+    setActiveShopUsername(item.counterparty?.username ?? '')
     setView('thread')
   }
 
@@ -248,7 +252,12 @@ export default function BuyerChatWidget() {
                     {/* body — list ↔ thread */}
                     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                       {view === 'thread' && activeShopId ? (
-                        <ChatThread shopId={activeShopId} shopName={activeShopName} shopLogo={activeShopLogo} />
+                        <ChatThread
+                          shopId={activeShopId}
+                          shopName={activeShopName}
+                          shopLogo={activeShopLogo}
+                          shopUsername={activeShopUsername}
+                        />
                       ) : (
                         <Box sx={{ flex: 1, overflowY: 'auto' }}>
                           {loading ? (

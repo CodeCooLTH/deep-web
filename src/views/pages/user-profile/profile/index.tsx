@@ -2,10 +2,16 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
+import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 
 // Icon Imports
 import { Icon } from '@iconify/react'
+
+// Next/Auth Imports — S-19 (extension #1 Chat Product Context Card) login-gate ปุ่ม "สอบถามสินค้านี้"
+// pattern: src/views/pages/user-profile/UserProfileHeader.tsx handleChatClick (AuctionBidPanel.tsx:114-121)
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 // Component Imports (BadgeChip ใช้ useState สำหรับ image error handling)
 import AchievementBadgeRow from './AchievementBadgeRow'
@@ -56,9 +62,37 @@ const PLATFORMS_PLACEHOLDER: { key: string; label: string; icon: string | null; 
 ]
 
 // ── Product tile ──
-const ProductTile = ({ product }: { product: SerializedProduct }) => {
+// S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop prop-drill จาก UserProfile → ProfileRightContent → ProductTile
+// ทำไม: ข้อมูลมีอยู่แล้วใน profileHeader (S-8 login-gate) ไม่ต้อง fetch ใหม่
+const ProductTile = ({
+  product,
+  shopId,
+  isOwnShop,
+}: {
+  product: SerializedProduct
+  shopId: string | null
+  isOwnShop?: boolean
+}) => {
   const price = parseFloat(product.price)
   const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+
+  const router = useRouter()
+  const { status: sessionStatus } = useSession()
+
+  // FR-CTX-01/02/03: ปุ่ม "สอบถามสินค้านี้" — ซ่อนเมื่อ isOwnShop หรือไม่มีร้าน (shopId null)
+  const showAskButton = Boolean(shopId) && !isOwnShop
+
+  const handleAskClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (!shopId) return
+    const target = `/messages/${shopId}?productId=${product.id}`
+    if (sessionStatus !== 'authenticated') {
+      router.push(`/auth/sign-in?callbackUrl=${encodeURIComponent(target)}`)
+      return
+    }
+    router.push(target)
+  }
 
   // Instagram-style tile: รูปเต็มช่อง edge-to-edge (object-cover), hover โชว์ชื่อ+ราคา
   // ตาม mockup .prod-tile — ไม่มี border/มุมโค้ง/พื้นการ์ด (รูปติดกันแบบ IG)
@@ -111,19 +145,40 @@ const ProductTile = ({ product }: { product: SerializedProduct }) => {
         >
           {product.name}
         </Typography>
-        <Typography
-          sx={{
-            m: 0,
-            mt: '2px',
-            fontSize: '13px',
-            fontWeight: 800,
-            color: 'white',
-            letterSpacing: '-0.01em',
-            textShadow: '0 1px 2px rgba(0,0,0,.4)',
-          }}
-        >
-          {priceLabel}
-        </Typography>
+        {/* ── แถวราคา + ปุ่ม "สอบถามสินค้านี้" (S-19) ── */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: '2px' }}>
+          <Typography
+            sx={{
+              m: 0,
+              fontSize: '13px',
+              fontWeight: 800,
+              color: 'white',
+              letterSpacing: '-0.01em',
+              textShadow: '0 1px 2px rgba(0,0,0,.4)',
+            }}
+          >
+            {priceLabel}
+          </Typography>
+          {showAskButton && (
+            <IconButton
+              aria-label='สอบถามสินค้านี้'
+              title='สอบถามสินค้านี้'
+              onClick={handleAskClick}
+              sx={{
+                width: 28,
+                height: 28,
+                ml: '6px',
+                flexShrink: 0,
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.5)',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.35)' },
+              }}
+            >
+              <Icon icon='tabler-message-question' fontSize={15} />
+            </IconButton>
+          )}
+        </Box>
       </Box>
     </Box>
   )
@@ -226,10 +281,16 @@ export const ProfileLeftContent = ({
 // ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน right panel ของ grid ได้
 // mobile: ถูก render ผ่าน ProfileTab ตามลำดับเดิม — ไม่เปลี่ยน flow
 // responsive values ใช้ MUI sx responsive object ภายใน — ไม่ต้องรับ prop จาก wrapper
+// S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop รับแยกจาก data (มาจาก ProfileHeaderData
+// ไม่ใช่ ProfileTabData) prop-drill ต่อไปให้ ProductTile ตาม UX spec data-plumbing
 export const ProfileRightContent = ({
   data,
+  shopId,
+  isOwnShop,
 }: {
   data: Pick<ProfileTabData, 'achievements' | 'products' | 'openShopEmptyState' | 'totalBadgeCount'>
+  shopId?: string | null
+  isOwnShop?: boolean
 }) => {
   const { achievements, products, openShopEmptyState, totalBadgeCount } = data
 
@@ -310,7 +371,7 @@ export const ProfileRightContent = ({
               }}
             >
               {products.map((product) => (
-                <ProductTile key={product.id} product={product} />
+                <ProductTile key={product.id} product={product} shopId={shopId ?? null} isOwnShop={isOwnShop} />
               ))}
             </Box>
           )}
