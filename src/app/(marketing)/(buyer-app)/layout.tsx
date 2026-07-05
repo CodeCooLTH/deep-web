@@ -35,8 +35,6 @@ export default async function BuyerAppLayout({ children }: ChildrenType) {
   return (
     <FrontLayout solidHeader>
       <ScrollToTop />
-      {/* ไม่บังคับ min-bs-[100dvh] — เดิมทำให้เกิดช่องว่างยาวก่อน footer ตอนเนื้อหาสั้น (iPad Pro);
-          footer มาต่อท้ายเนื้อหาเลย (หน้า buyer มี sidebar+เนื้อหาสูงพอ footer อยู่ล่างอยู่แล้ว) */}
       <div>
         {/* ความกว้างต้อง match FrontLayout Header navbar:
              100% - 48px ที่ทุก breakpoint, max-inline-size

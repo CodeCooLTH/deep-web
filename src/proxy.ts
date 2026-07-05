@@ -88,6 +88,32 @@ export async function proxy(request: NextRequest) {
       signIn.searchParams.set('callbackUrl', pathname)
       return NextResponse.redirect(signIn)
     }
+
+    // ── Mobile web app (แยกจาก desktop/tablet) ──
+    // มือถือ (UA) + authed → rewrite buyer path ไปหน้า /m/* (URL เดิม แต่ render แอปมือถือ).
+    // /dashboard → /m (หน้าแรก); path อื่นในลิสต์ → /m{path}
+    const ua = request.headers.get('user-agent') || ''
+    const isMobile = /Android|iPhone|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(ua)
+    if (isMobile && isAuthed && !pathname.startsWith('/m/') && pathname !== '/m') {
+      const MOBILE_PREFIXES = ['/orders', '/messages', '/reviews', '/badges', '/settings']
+      if (pathname === '/dashboard') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/m'
+        return NextResponse.rewrite(url)
+      }
+      // /check (public) — authed มือถือ → app shell /m/check (guest ไม่เข้า block นี้ → /check ปกติ)
+      if (pathname === '/check') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/m/check'
+        return NextResponse.rewrite(url)
+      }
+      if (MOBILE_PREFIXES.some(p => pathname === p || pathname.startsWith(`${p}/`))) {
+        const url = request.nextUrl.clone()
+        url.pathname = `/m${pathname}`
+        return NextResponse.rewrite(url)
+      }
+    }
+
     return NextResponse.next()
   }
 

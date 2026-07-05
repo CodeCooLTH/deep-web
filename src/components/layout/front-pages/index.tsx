@@ -11,17 +11,30 @@ import { getServerMode } from '@core/utils/serverHelpers'
 // Util Imports
 import { frontLayoutClasses } from '@layouts/utils/layoutClasses'
 
-const FrontLayout = async ({ children, solidHeader = false }: ChildrenType & { solidHeader?: boolean }) => {
+// hideChromeMobile = ซ่อน marketing header + footer บน mobile (<768) — ใช้กับ buyer-app
+// ที่ต้องการ "แอปมือถือ" เต็มจอ (top bar + bottom nav ของตัวเอง); desktop/tablet เหมือนเดิม
+const FrontLayout = async ({
+  children,
+  solidHeader = false,
+  hideChromeMobile = false
+}: ChildrenType & { solidHeader?: boolean; hideChromeMobile?: boolean }) => {
   // Vars
   const mode = await getServerMode()
 
+  // display:contents = wrapper โปร่ง (Header/Footer เป็น flex item ตรง ๆ เหมือนเดิม);
+  // mobile hidden = หายทั้ง header/footer
+  const chromeCls = hideChromeMobile ? 'hidden min-[768px]:contents' : 'contents'
+
   return (
     // sticky footer: root สูงเต็มจอ + flex column, content ยืด (flex-1) → footer ติดล่างสุดเสมอ
-    // (ไม่มีช่องว่างขาวใต้ footer แม้เนื้อหาสั้น); หน้าเนื้อหายาวก็ไหลตามปกติ
     <div className={`${frontLayoutClasses.root} flex flex-col min-bs-[100dvh]`}>
-      <Header mode={mode} solidHeader={solidHeader} />
+      <div className={chromeCls}>
+        <Header mode={mode} solidHeader={solidHeader} />
+      </div>
       <div className='flex-1'>{children}</div>
-      <Footer mode={mode} />
+      <div className={chromeCls}>
+        <Footer mode={mode} />
+      </div>
     </div>
   )
 }

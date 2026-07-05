@@ -194,6 +194,26 @@ export async function topAuctions(limit = 10): Promise<PublicAuctionDTO[]> {
   return rows.map(toPublicAuctionDTO)
 }
 
+/** ประมูลที่ปิดแล้วล่าสุด (สำหรับ home "ผลประมูลล่าสุด" — โชว์กิจกรรมประมูลแม้ไม่มี live) */
+export async function recentEndedAuctions(limit = 8): Promise<PublicAuctionDTO[]> {
+  const rows = await prisma.auction.findMany({
+    where: { status: 'ended' },
+    orderBy: { endTime: 'desc' },
+    take: limit,
+  })
+  return rows.map(toPublicAuctionDTO)
+}
+
+/** live เรียงตามใกล้จบ — ไม่รัน flip/settle (สำหรับ home ที่ topAuctions settle ให้แล้ว → ประหยัด write) */
+export async function endingSoonAuctions(limit = 8): Promise<PublicAuctionDTO[]> {
+  const rows = await prisma.auction.findMany({
+    where: { status: 'live' },
+    orderBy: { endTime: 'asc' },
+    take: limit,
+  })
+  return rows.map(toPublicAuctionDTO)
+}
+
 /** auction รายตัว + ประวัติบิดล่าสุด (buyer-facing — public detail) */
 /** reactionCount ต่อ bid + set ของ bid ที่ viewer เคย react (feature 00005) — ไม่ส่งรายชื่อ reactor (OQ-6) */
 async function loadBidReactions(

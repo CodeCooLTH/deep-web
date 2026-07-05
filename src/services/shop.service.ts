@@ -46,6 +46,33 @@ export async function getShopCount(): Promise<number> {
   return prisma.shop.count();
 }
 
+// ร้านน่าเชื่อถือ (buyer mobile home "ร้านน่าเชื่อถือ") — Profile-Centric: trust อยู่ที่ User
+// เรียงตาม trustScore มากสุด, เฉพาะ user ที่เป็นร้าน + มี shop ที่ยัง active (ไม่ถูก soft-delete)
+// link ปลายทาง = /u/{username} (trust profile). shopName/logo ดึงจาก shop แถวแรกที่ยัง active
+export async function getTrustedShops(limit = 10) {
+  return prisma.user.findMany({
+    where: {
+      isShop: true,
+      shops: { some: { deletedAt: null, purgedAt: null } },
+    },
+    orderBy: { trustScore: "desc" },
+    take: limit,
+    select: {
+      username: true,
+      displayName: true,
+      avatar: true,
+      trustScore: true,
+      verifications: { where: { status: "APPROVED" }, select: { level: true } },
+      shops: {
+        where: { deletedAt: null, purgedAt: null },
+        select: { shopName: true, logo: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+}
+
 // 00008 Phase 5 (P5-4): resolve BUSINESS shop จาก public slug สำหรับหน้า /b/[slug]
 // คืนเฉพาะ kind='BUSINESS' + deletedAt:null (soft-deleted shop ไม่โชว์ public) — PERSONAL shop ไม่ผ่าน endpoint นี้ (คนละหน้ากับ /u/[username])
 // include user.avatar สำหรับ fallback เมื่อ shop.logo เป็น null + badges join Badge (P5-2, business-scope achievement)
