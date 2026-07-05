@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTierDisplay } from '@/services/trust-score.service'
 import { getTierColor } from '@/lib/trust-tier'
-import { getTrustedShops, getShopCount } from '@/services/shop.service'
+import { getTrustedShops } from '@/services/shop.service'
 import { topAuctions, endingSoonAuctions, recentEndedAuctions, listCategories } from '@/services/auction.service'
 
 import HomeFeed, {
@@ -31,17 +31,13 @@ export default async function MobileHomePage() {
   const userId = (session.user as { id: string }).id
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
 
-  const [trustedShopsRaw, hotAuctionsRaw, endingRaw, pastRaw, categoriesRaw, shopCount, orderCount, scamCount] =
-    await Promise.all([
-      getTrustedShops(12),
-      topAuctions(8),
-      endingSoonAuctions(8),
-      recentEndedAuctions(8),
-      listCategories(),
-      getShopCount(),
-      prisma.order.count({ where: { status: 'CONFIRMED' } }),
-      prisma.scamReport.count({ where: { status: 'APPROVED' } })
-    ])
+  const [trustedShopsRaw, hotAuctionsRaw, endingRaw, pastRaw, categoriesRaw] = await Promise.all([
+    getTrustedShops(12),
+    topAuctions(8),
+    endingSoonAuctions(8),
+    recentEndedAuctions(12),
+    listCategories()
+  ])
 
   const categories: CategoryItem[] = categoriesRaw.map(c => ({ id: c.id, name: c.name }))
 
@@ -73,7 +69,6 @@ export default async function MobileHomePage() {
 
   return (
     <HomeFeed
-      stats={{ shops: shopCount, orders: orderCount, scamReports: scamCount }}
       categories={categories}
       hotAuctions={hotAuctions}
       endingAuctions={endingAuctions}
