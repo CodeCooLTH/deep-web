@@ -31,9 +31,6 @@ const THAI_MONTHS_SHORT = [
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
 ]
 
-// index ที่โชว์ label บนแกน x ของโหมดรายวัน (กันซ้อนทับ — เดือนละ ~30 แท่ง)
-const DAILY_LABEL_INDEXES = new Set([0, 4, 9, 14, 19, 24, 29])
-
 /** สร้าง ApexOptions จาก SalesSeries จริง — bar chart แท่งสีทึบต่อแท่ง (distributed) */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
   const { labels, values, futureFromIndex } = series
@@ -187,11 +184,12 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
 
   const isEmpty = !loading && !error && series.total === 0
 
-  // รายการยอดขายแต่ละ bar (เฉพาะที่มียอด > 0) — โชว์ใต้กราฟ, ใช้พื้นที่ว่างบนมือถือแนวตั้ง
+  // รายการยอดขายแต่ละ bar — โชว์ทุกวัน/เดือน (รวมที่ยอด 0 → แสดง ฿0) ใต้กราฟ, ใช้พื้นที่ว่างมือถือแนวตั้ง
   const monthAbbr = THAI_MONTHS_SHORT[month - 1]
-  const detailRows = series.labels
-    .map((label, i) => ({ label: mode === 'daily' ? `${label} ${monthAbbr}` : label, value: series.values[i] ?? 0 }))
-    .filter((r) => r.value > 0)
+  const detailRows = series.labels.map((label, i) => ({
+    label: mode === 'daily' ? `${label} ${monthAbbr}` : label,
+    value: series.values[i] ?? 0,
+  }))
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
@@ -304,8 +302,11 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               <div className="divide-y divide-default-100">
                 {detailRows.map((r) => (
                   <div key={r.label} className="flex items-center justify-between py-2.5">
-                    <span className="text-sm text-default-700">{r.label}</span>
-                    <span className="text-sm font-semibold text-dark">
+                    {/* วันที่ยอด 0 = จางลง (text-default-400) ให้วันที่มียอดเด่นกว่า */}
+                    <span className={`text-sm ${r.value > 0 ? 'text-default-700' : 'text-default-400'}`}>
+                      {r.label}
+                    </span>
+                    <span className={`text-sm font-semibold ${r.value > 0 ? 'text-dark' : 'text-default-400'}`}>
                       ฿{r.value.toLocaleString('th-TH')}
                     </span>
                   </div>
