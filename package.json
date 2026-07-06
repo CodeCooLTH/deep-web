@@ -82,6 +82,7 @@
     "next": "16.1.1",
     "next-auth": "4.24.13",
     "preline": "4.0.1",
+    "qrcode.react": "^4.2.0",
     "quill": "^2.0.3",
     "react": "19.2.3",
     "react-apexcharts": "^1.8.0",

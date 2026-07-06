@@ -129,3 +129,36 @@ export function formatTimeHM(input: Date | string | number | null | undefined): 
   const p = partsInBangkok(d)
   return `${p.hour}:${p.minute}`
 }
+
+// Bangkok = UTC+7 ตายตัว ไม่มี DST → คำนวณ "วันที่ตามปฏิทินไทย" ด้วย offset คงที่ได้ปลอดภัย
+const BKK_OFFSET_MS = 7 * 60 * 60 * 1000
+/** index ของวัน (จำนวนวันนับจาก epoch) ตามปฏิทินไทย — ใช้เทียบ "วันนี้/เมื่อวาน" */
+function bangkokDayIndex(d: Date): number {
+  return Math.floor((d.getTime() + BKK_OFFSET_MS) / 86_400_000)
+}
+
+/**
+ * "วันนี้ 16:07" / "เมื่อวาน 18:20" / "3 ก.ค. 10:15" / "3 ก.ค. 68 10:15" — เวลาย่อแบบ relative
+ * ใช้ในลิสต์ที่ต้องกวาดตาเร็ว (การ์ดออเดอร์ seller) ไม่ใช่ timestamp ทางการ (นั่นใช้ formatDateTime)
+ *  - วันเดียวกับวันนี้ (ปฏิทินไทย) → "วันนี้ HH:mm"
+ *  - เมื่อวาน → "เมื่อวาน HH:mm"
+ *  - ปีเดียวกับปัจจุบัน → "D MMM(ย่อไทย) HH:mm"
+ *  - ต่างปี → "D MMM(ย่อไทย) {ปี พ.ศ. 2 หลัก} HH:mm" (กันสับสนออเดอร์ข้ามปี)
+ * หมายเหตุ: อ้างอิง "วันนี้" จาก new Date() ตอน render — ใช้ในการ์ด list ที่ยอมรับ relative time ได้
+ */
+export function formatRelativeDayTime(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  const hm = `${p.hour}:${p.minute}`
+  const now = new Date()
+  const diffDays = bangkokDayIndex(now) - bangkokDayIndex(d)
+  if (diffDays === 0) return `วันนี้ ${hm}`
+  if (diffDays === 1) return `เมื่อวาน ${hm}`
+  const monthAbbr = THAI_MONTHS_ABBR[Number(p.month) - 1] ?? '—'
+  const dayNoPad = String(Number(p.day)) // "3 ก.ค." ไม่ใช่ "03 ก.ค."
+  const sameYear = Number(p.year) === Number(partsInBangkok(now).year)
+  if (sameYear) return `${dayNoPad} ${monthAbbr} ${hm}`
+  const beShort = String(Number(p.year) + BE_OFFSET).slice(-2) // ปี พ.ศ. 2 หลัก
+  return `${dayNoPad} ${monthAbbr} ${beShort} ${hm}`
+}

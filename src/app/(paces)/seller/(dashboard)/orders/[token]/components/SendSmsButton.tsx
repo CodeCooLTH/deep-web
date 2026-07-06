@@ -128,7 +128,8 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
       aria-label="ส่งลิงก์ทาง SMS"
       className={
         iconOnly
-          ? `btn btn-icon border border-default-300 bg-card hover:bg-default-50 text-default-700 ${className}`.trim()
+          ? // emphasis='primary' → icon-only แต่สีน้ำเงินทึบ (ปุ่มหลักในการ์ดออเดอร์ [SMS][QR][copy][⋮])
+            `btn btn-icon ${emphasis === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-primary' : 'border border-default-300 bg-card hover:bg-default-50 text-default-700'} ${className}`.trim()
           : compact
             ? `btn btn-sm inline-flex items-center gap-1 text-xs min-h-11 ${emphasis === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-primary' : 'border border-default-300 bg-card hover:bg-default-50 text-default-700'} ${className}`.trim()
             : 'btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 text-xs'

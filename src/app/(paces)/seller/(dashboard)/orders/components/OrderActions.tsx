@@ -6,8 +6,8 @@
  * จุดประสงค์: source เดียวของ order actions → เพิ่ม/แก้ปุ่มที่นี่ที่เดียว ได้ทั้ง 2 view
  *
  * variant:
- *  - 'table' (desktop) → ปุ่มชัดเรียง [ดู] [แก้ไข] [SMS] [copy] icon-only (ไม่มี ⋮ — user req 2026-06-15)
- *  - 'card'  (mobile)  → copy + SMS (icon+label) + ⋮ (ดู/แก้ไข/ยกเลิก ใน OrderCardMenu)
+ *  - 'table' (desktop) → ปุ่มชัดเรียง [ดู] [แก้ไข] [SMS] [QR] [copy] icon-only (ไม่มี ⋮ — user req 2026-06-15)
+ *  - 'card'  (mobile)  → [SMS][QR][copy][⋮] icon-only (SMS=ปุ่มหลักน้ำเงินทึบ; ⋮=ดู/แก้ไข/ยกเลิก ใน OrderCardMenu)
  *
  * action ทั้งหมดนิยามที่นี่ที่เดียว — เพิ่มปุ่มใหม่ = แก้ component นี้ ได้ทั้ง 2 view
  */
@@ -20,6 +20,7 @@ import SendSmsButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/compo
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderRow } from './data'
 import OrderCardMenu from './OrderCardMenu'
+import QrCodeButton from './QrCodeButton'
 
 export type OrderActionsVariant = 'card' | 'table'
 
@@ -60,17 +61,21 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
           {!isTerminal && (
             <SendSmsButton publicToken={order.publicToken} iconOnly className="-ms-px rounded-none" />
           )}
+          <QrCodeButton order={order} className="-ms-px rounded-none" />
           <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly className="-ms-px rounded-s-none" />
         </div>
       </div>
     )
   }
 
-  // ── mobile (card): copy + SMS (icon+label) + ⋮ overflow (ดู/แก้ไข/ยกเลิก) ──
+  // ── mobile (card): [SMS][QR][copy][⋮] icon-only — SMS=ปุ่มหลักน้ำเงินทึบ ──
   return (
     <div className="flex items-center justify-end gap-1.5">
-      <CopyLinkButton value={url} label="คัดลอกลิงก์" className="min-h-11" />
-      {!isTerminal && <SendSmsButton publicToken={order.publicToken} compact emphasis="primary" className="min-h-11" />}
+      {!isTerminal && (
+        <SendSmsButton publicToken={order.publicToken} iconOnly emphasis="primary" className="min-h-11 min-w-11" />
+      )}
+      <QrCodeButton order={order} className="min-h-11 min-w-11" />
+      <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly className="min-h-11 min-w-11" />
       <OrderCardMenu
         token={order.publicToken}
         status={order.status}

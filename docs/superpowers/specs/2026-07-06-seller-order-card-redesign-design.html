@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Order Card Redesign — Seller (Paces) · 2026-07-06</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+<style>
+  /* ── Paces default-skin tokens (จาก src/assets/css/config/_root.css) ── */
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab;
+    --success:#02bc9c; --info:#5bc3e1; --warning:#f9bf59; --danger:#f7577e;
+    --body-bg:#f6f7fb; --card:#ffffff;
+    --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+    --d500:#a1a9b1; --d700:#6c757d; --d900:#313a46;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Anuphan',sans-serif;background:#eceef4;color:var(--d900);
+    -webkit-font-smoothing:antialiased;line-height:1.45;padding:32px 16px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+  .sub{color:var(--d700);font-size:14px;margin-top:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:18px;font-size:13px;color:var(--d700)}
+  .legend b{color:var(--d900)}
+  .sect-title{font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;
+    letter-spacing:.06em;margin:44px 0 4px}
+  .sect-desc{font-size:13px;color:var(--d700);margin-bottom:18px;max-width:720px}
+
+  /* ── device shells ── */
+  .devices{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+  .device{background:var(--body-bg);border-radius:22px;padding:14px;
+    box-shadow:0 10px 34px rgba(19,23,32,.12);position:relative}
+  .device .label{position:absolute;top:-24px;left:6px;font-size:12px;font-weight:600;color:var(--d700)}
+  .device.phone{width:360px}
+  .device.tablet{width:520px}
+  .device.desktop{flex:1;min-width:560px}
+  .screen{background:var(--body-bg);border-radius:14px;overflow:hidden}
+
+  /* ── mini page header (search + chips) reused ── */
+  .top{background:var(--card);padding:14px 12px 8px;position:sticky;top:0}
+  .top-row{display:flex;align-items:center;gap:8px}
+  .icon-btn{width:38px;height:38px;flex:0 0 auto;border-radius:10px;border:1px solid var(--d300);
+    background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--d700);cursor:pointer}
+  .icon-btn.ghost{border-color:transparent;background:transparent}
+  .search{flex:1;position:relative}
+  .search iconify-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--d400);font-size:17px}
+  .search input{width:100%;height:38px;border-radius:999px;border:1px solid var(--d300);
+    background:var(--card);padding:0 14px 0 34px;font-family:inherit;font-size:13px;color:var(--d900)}
+  .chips{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+  .chip{flex:0 0 auto;border:0;border-radius:999px;padding:6px 14px;font-family:inherit;
+    font-size:12.5px;font-weight:500;background:var(--d200);color:var(--d500);cursor:pointer;white-space:nowrap}
+  .chip .n{font-weight:700;margin-left:5px}
+  .chip.active{background:var(--primary);color:#fff}
+
+  .list{padding:12px}
+  .list.tablet-list{max-width:none}
+  .list > * + *{margin-top:12px}
+
+  /* ══════════════════ THE NEW ORDER CARD ══════════════════ */
+  .ord{position:relative;background:var(--card);border-radius:12px;
+    box-shadow:0 1px 2px rgba(19,23,32,.06),0 1px 3px rgba(19,23,32,.05);
+    padding:12px 14px 12px 18px;overflow:hidden}
+  /* left status strip */
+  .ord::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:4px 0 0 4px}
+  .ord.st-pending::before{background:var(--warning)}
+  .ord.st-shipped::before{background:var(--info)}
+  .ord.st-confirmed::before{background:var(--success)}
+  .ord.st-cancelled::before{background:var(--d400)}
+
+  /* row 1: ซ้าย = อวตาร+ชื่อ+เบอร์(จับกลุ่มกัน) · ขวา = #ID(เทาเล็ก)+สถานะ */
+  .ord-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .ord-cust{display:flex;align-items:center;gap:9px;min-width:0}
+  .av-wrap{position:relative;flex:0 0 auto}
+  .avatar{width:36px;height:36px;border-radius:999px;background:var(--d200);
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--d700);overflow:hidden}
+  .avatar img{width:100%;height:100%;object-fit:cover}
+  /* channel badge ลอยมุมขวาล่างของอวตาร (โซเชียล-style) — โลโก้แบรนด์สีจริง self-host จาก src/assets/images/logos/ */
+  .av-ch{position:absolute;right:-3px;bottom:-3px;width:17px;height:17px;border-radius:999px;
+    background:#fff;box-shadow:0 0 0 1.5px #fff, 0 1px 2px rgba(19,23,32,.2);overflow:hidden;
+    display:flex;align-items:center;justify-content:center}
+  .av-ch img{width:100%;height:100%;object-fit:cover;display:block}
+  .cust-txt{min-width:0}
+  .cust-name{display:flex;align-items:center;gap:5px;font-size:14.5px;font-weight:700;color:var(--d900);
+    white-space:nowrap;overflow:hidden}
+  .cust-name .nm{overflow:hidden;text-overflow:ellipsis}
+  .cust-name .vf{color:var(--primary);font-size:15px;flex:0 0 auto}
+  /* บรรทัดใต้ชื่อ = ช่องทาง(โลโก้สี+label) · วิธีชำระ(icon+label) — แทนเบอร์โทรเดิม */
+  .cust-meta{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:2px;font-size:12px;color:var(--d500)}
+  .cust-meta .ch{display:inline-flex;align-items:center;gap:4px;font-weight:500;color:var(--d700)}
+  .cust-meta .ch img{width:14px;height:14px;border-radius:3px;display:block}
+  .cust-meta .dot{color:var(--d300)}
+  .cust-meta .pay{display:inline-flex;align-items:center;gap:3px}
+  .cust-meta .pay iconify-icon{font-size:14px;color:var(--d400)}
+  .ord-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:0 0 auto}
+  .oid{font-size:11.5px;font-weight:600;color:var(--d500)}
+  .badge{flex:0 0 auto;border-radius:999px;padding:3px 11px;font-size:11px;font-weight:600;white-space:nowrap}
+  .badge.st-pending{background:rgba(249,191,89,.18);color:#b6821f}
+  .badge.st-shipped{background:rgba(91,195,225,.18);color:#2b91b3}
+  .badge.st-confirmed{background:rgba(2,188,156,.16);color:#068a73}
+  .badge.st-cancelled{background:var(--d200);color:var(--d500)}
+
+  .dashed{border:0;border-top:1px dashed var(--d300);margin:10px 0}
+
+  /* row 3: product */
+  .ord-item{display:flex;align-items:center;gap:10px}
+  .thumb{width:40px;height:40px;flex:0 0 auto;border-radius:9px;border:1px solid var(--d200);
+    background:var(--d100);display:flex;align-items:center;justify-content:center;color:var(--d400);font-size:19px;overflow:hidden}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .item-name{flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--d900);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .item-qp{flex:0 0 auto;text-align:right}
+  .item-qp .q{font-size:11px;color:var(--d400)}
+  .item-qp .p{font-size:13px;font-weight:600;color:var(--d900)}
+  .more{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;
+    margin-top:8px;border:0;border-top:1px dashed var(--d300);background:none;padding-top:8px;
+    font-family:inherit;font-size:12px;font-weight:500;color:var(--primary);cursor:pointer}
+
+  /* row 4: footer — total + actions */
+  .ord-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+  .ord-total .amt{font-size:16px;font-weight:700;color:var(--d900)}
+  .ord-total .pay{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--d400);margin-left:6px}
+  .ord-total .time{display:block;font-size:11px;color:var(--d400);margin-top:2px}
+  .acts{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .act{width:36px;height:36px;border-radius:9px;border:1px solid var(--d300);background:var(--card);
+    display:flex;align-items:center;justify-content:center;color:var(--d700);font-size:18px;cursor:pointer;position:relative}
+  .act.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .act.primary:hover{background:var(--primary-hover)}
+
+  /* ── BEFORE card (old) for comparison ── */
+  .old{background:var(--card);border-radius:12px;box-shadow:0 1px 3px rgba(19,23,32,.08);padding:12px 14px}
+  .old .r{display:flex;align-items:center;justify-content:space-between}
+  .old .oid{font-size:14px;font-weight:700}
+  .old .b{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;background:rgba(249,191,89,.18);color:#b6821f}
+  .old .cust{font-size:12px;color:var(--d500);margin-top:6px;display:flex;gap:6px;align-items:center}
+  .old .tel{color:var(--success);font-weight:600}
+  .old .it{display:flex;gap:10px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--d300)}
+  .old .foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--d300)}
+  .old .btn{border:1px solid var(--d300);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:var(--d700);display:inline-flex;gap:5px;align-items:center}
+  .old .btn.pri{background:var(--primary);border-color:var(--primary);color:#fff}
+
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:820px}
+  .cmp .h{font-size:12px;font-weight:700;margin-bottom:10px;color:var(--d700)}
+  .cmp .h.after{color:var(--primary)}
+  @media(max-width:680px){.cmp{grid-template-columns:1fr}}
+
+  /* annotations */
+  .notes{margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;max-width:1000px}
+  .note{background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(19,23,32,.06);border-left:3px solid var(--primary)}
+  .note .k{font-size:12px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+  .note p{font-size:13px;color:var(--d700)}
+
+  /* ── QR sheet ── */
+  .sheet-demo{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}
+  .phone-frame{width:340px;background:var(--body-bg);border-radius:22px;padding:12px;
+    box-shadow:0 10px 30px rgba(19,23,32,.12);position:relative;overflow:hidden;height:560px}
+  .phone-frame .scrim{position:absolute;inset:0;background:rgba(19,23,32,.42);border-radius:14px}
+  .phone-frame .dim-list{padding:12px;filter:saturate(.85)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);
+    border-radius:20px 20px 0 0;padding:8px 20px 24px;box-shadow:0 -8px 30px rgba(19,23,32,.16)}
+  .grip{width:38px;height:4px;border-radius:999px;background:var(--d300);margin:6px auto 14px}
+  .sheet h3{font-size:16px;font-weight:700;text-align:center}
+  .sheet .cap{font-size:12.5px;color:var(--d500);text-align:center;margin-top:3px}
+  .qr-box{width:186px;height:186px;margin:18px auto 6px;border-radius:16px;border:1px solid var(--d200);
+    background:#fff;display:flex;align-items:center;justify-content:center;padding:14px}
+  .qr-box iconify-icon{font-size:150px;color:var(--d900)}
+  .qr-oid{text-align:center;font-size:12px;color:var(--d500);margin-bottom:14px}
+  .qr-oid b{color:var(--d900)}
+  .link-row{display:flex;align-items:center;gap:8px;background:var(--d100);border:1px solid var(--d200);
+    border-radius:10px;padding:9px 12px}
+  .link-row .u{flex:1;min-width:0;font-size:12.5px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .link-row .copy{flex:0 0 auto;border:0;background:var(--primary);color:#fff;border-radius:8px;
+    padding:7px 12px;font-family:inherit;font-size:12.5px;font-weight:600;display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+  .desktop-modal{width:360px;background:var(--card);border-radius:18px;padding:8px 22px 24px;
+    box-shadow:0 20px 50px rgba(19,23,32,.2);align-self:center}
+
+  .foot-note{margin-top:40px;font-size:12.5px;color:var(--d500);max-width:760px;line-height:1.6}
+  code{background:var(--d200);padding:1px 6px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Order Card Redesign — หน้าออเดอร์ (Seller · Paces)</h1>
+  <p class="sub">2026-07-06 · แก้ปัญหา “การ์ดรก อ่านลำบาก · แยกออเดอร์ยาก” · ปุ่ม icon-only + เพิ่ม QR action</p>
+  <div class="legend">
+    <span><b>แถบสีซ้าย:</b></span>
+    <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--warning);vertical-align:-1px"></span> รอดำเนินการ</span>
+    <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--info);vertical-align:-1px"></span> จัดส่งแล้ว</span>
+    <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--success);vertical-align:-1px"></span> สำเร็จ</span>
+    <span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--d400);vertical-align:-1px"></span> ยกเลิก</span>
+  </div>
+
+  <!-- ══════════ BEFORE / AFTER ══════════ -->
+  <div class="sect-title">1 · ก่อน → หลัง (การ์ดเดียว)</div>
+  <p class="sect-desc">ของเดิม #ID ตัวหนาใหญ่บนสุด (สิ่งที่ช่วย scan น้อยสุด) ส่วนชื่อลูกค้าเป็นตัวเทาแถวสอง · ปุ่มมี label กินเต็มแถว → การ์ดสูง. ของใหม่สลับลำดับสายตา + แถบสีสถานะ + ปุ่ม icon-only</p>
+  <div class="cmp">
+    <div>
+      <div class="h">ก่อน (ปัจจุบัน)</div>
+      <div class="old">
+        <div class="r"><span class="oid">#37F31198</span><span class="b">รอดำเนินการ</span></div>
+        <div class="cust"><iconify-icon icon="solar:user-linear"></iconify-icon> ลูกค้า · <span class="tel"><iconify-icon icon="solar:phone-bold-duotone"></iconify-icon> 0920791649</span></div>
+        <div class="it">
+          <span class="thumb"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon></span>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500">เวฟ 110 สีแดง</div><div style="font-size:11px;color:var(--d400)">สินค้า</div></div>
+          <div style="text-align:right"><div style="font-size:11px;color:var(--d400)">x2</div><div style="font-size:13px;font-weight:600">฿360</div></div>
+        </div>
+        <div class="foot">
+          <div><span style="font-size:15px;font-weight:700">฿720</span> <span style="font-size:11px;color:var(--d400)">เก็บปลายทาง</span><div style="font-size:11px;color:var(--d400)">2569-07-06 16:07:02</div></div>
+          <div style="display:flex;gap:6px"><span class="btn"><iconify-icon icon="solar:copy-linear"></iconify-icon> คัดลอกลิงก์</span><span class="btn pri"><iconify-icon icon="solar:chat-round-line-linear"></iconify-icon> ส่ง SMS</span><span class="btn" style="padding:8px 10px"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></span></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="h after">หลัง (ใหม่)</div>
+      <div class="ord st-pending">
+        <div class="ord-head">
+          <div class="ord-cust">
+            <span class="avatar">ส</span>
+            <span class="cust-txt">
+              <span class="cust-name"><iconify-icon class="vf" icon="solar:verified-check-bold"></iconify-icon><span class="nm">สมชาย ใจดี</span></span>
+              <span class="cust-meta">
+                <span class="ch"><img src="../../../public/images/logos/facebook.svg" alt="" />Facebook</span>
+                <span class="dot">·</span>
+                <span class="pay"><iconify-icon icon="solar:delivery-bold-duotone"></iconify-icon>เก็บปลายทาง</span>
+              </span>
+            </span>
+          </div>
+          <div class="ord-right">
+            <span class="oid">#37F31198</span>
+            <span class="badge st-pending">รอดำเนินการ</span>
+          </div>
+        </div>
+        <hr class="dashed" />
+        <div class="ord-item">
+          <span class="thumb"><iconify-icon icon="solar:box-bold-duotone"></iconify-icon></span>
+          <span class="item-name">เวฟ 110 สีแดง</span>
+          <span class="item-qp"><div class="q">x2</div><div class="p">฿360</div></span>
+        </div>
+        <button class="more">+ อีก 1 รายการ <iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon></button>
+        <hr class="dashed" />
+        <div class="ord-foot">
+          <div class="ord-total">
+            <span class="amt">฿720</span>
+            <span class="time">วันนี้ 16:07</span>
+          </div>
+          <div class="acts">
+            <button class="act primary" title="ส่ง SMS"><iconify-icon icon="solar:chat-round-line-bold"></iconify-icon></button>
+            <button class="act" title="QR code"><iconify-icon icon="solar:qr-code-linear"></iconify-icon></button>
+            <button class="act" title="คัดลอกลิงก์"><iconify-icon icon="solar:copy-linear"></iconify-icon></button>
+            <button class="act" title="เพิ่มเติม"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ 3 DEVICES ══════════ -->
+  <div class="sect-title">2 · 3 อุปกรณ์ (mobile / tablet / desktop)</div>
+  <p class="sect-desc">การ์ดแสดงบน mobile + tablet (&lt;1200px) · desktop (≥1200px) เป็นตาราง — ปุ่ม QR ถูกเพิ่มเข้า action group ของตารางด้วย. แถบสีซ้ายทำให้กวาดตาแยก “ยังไม่ทำ (เหลือง)” ออกจาก “จัดส่ง (ฟ้า)” และ “เสร็จ (เขียว)” ได้ทันที</p>
+  <div class="devices">
+
+    <!-- MOBILE -->
+    <div class="device phone">
+      <div class="label">Mobile · 360px (การ์ด full-bleed)</div>
+      <div class="screen">
+        <div class="top">
+          <div class="top-row">
+            <span class="icon-btn ghost"><iconify-icon icon="solar:arrow-left-linear"></iconify-icon></span>
+            <span class="search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon><input placeholder="ค้นหาเลขออเดอร์ / ชื่อ / เบอร์" /></span>
+            <span class="icon-btn"><iconify-icon icon="solar:tuning-2-linear"></iconify-icon></span>
+            <span class="icon-btn ghost"><iconify-icon icon="solar:bell-linear"></iconify-icon></span>
+          </div>
+          <div class="chips">
+            <button class="chip active">ทั้งหมด <span class="n">21</span></button>
+            <button class="chip">รอดำเนินการ <span class="n">13</span></button>
+            <button class="chip">จัดส่งแล้ว <span class="n">2</span></button>
+            <button class="chip">สำเร็จ <span class="n">4</span></button>
+          </div>
+        </div>
+        <div class="list" id="phone-list"></div>
+      </div>
+    </div>
+
+    <!-- TABLET -->
+    <div class="device tablet">
+      <div class="label">Tablet · 520px (การ์ด center max-w)</div>
+      <div class="screen">
+        <div class="top">
+          <div class="top-row">
+            <span class="icon-btn ghost"><iconify-icon icon="solar:arrow-left-linear"></iconify-icon></span>
+            <span class="search"><iconify-icon icon="solar:magnifer-linear"></iconify-icon><input placeholder="ค้นหาเลขออเดอร์ / ชื่อลูกค้า / เบอร์" /></span>
+            <span class="icon-btn"><iconify-icon icon="solar:tuning-2-linear"></iconify-icon></span>
+            <span class="icon-btn ghost"><iconify-icon icon="solar:bell-linear"></iconify-icon></span>
+          </div>
+          <div class="chips">
+            <button class="chip active">ทั้งหมด <span class="n">21</span></button>
+            <button class="chip">รอดำเนินการ <span class="n">13</span></button>
+            <button class="chip">จัดส่งแล้ว <span class="n">2</span></button>
+            <button class="chip">สำเร็จ <span class="n">4</span></button>
+          </div>
+        </div>
+        <div class="list tablet-list" id="tablet-list"></div>
+      </div>
+    </div>
+
+    <!-- DESKTOP -->
+    <div class="device desktop">
+      <div class="label">Desktop · ≥1200px (ตาราง — เพิ่มปุ่ม QR)</div>
+      <div class="screen" style="padding:14px">
+        <div style="background:var(--card);border-radius:12px;box-shadow:0 1px 3px rgba(19,23,32,.07);overflow:hidden">
+          <div id="table"></div>
+        </div>
+        <p style="font-size:12px;color:var(--d500);margin-top:10px">ตาราง desktop ใช้ปุ่ม icon-only เดิม + <b>เพิ่ม QR</b> เข้า group: [ดู] [แก้ไข] [SMS] <b>[QR]</b> [copy]</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ QR SHEET ══════════ -->
+  <div class="sect-title">3 · QR sheet (กด QR → เด้งขึ้นมา)</div>
+  <p class="sect-desc">มือถือ = bottom-sheet เลื่อนขึ้นจากล่าง (pattern เดียวกับ SalesChartSheet / AccountSwitcherSheet) · desktop = modal กลางจอ. เนื้อหา: QR + เลขออเดอร์ + ลิงก์ + ปุ่มคัดลอก</p>
+  <div class="sheet-demo">
+    <div class="phone-frame">
+      <div class="dim-list" id="dim-list"></div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grip"></div>
+        <h3>QR สำหรับลูกค้า</h3>
+        <p class="cap">ให้ลูกค้าสแกนเพื่อเปิดหน้าออเดอร์</p>
+        <div class="qr-box"><iconify-icon icon="solar:qr-code-bold"></iconify-icon></div>
+        <p class="qr-oid">ออเดอร์ <b>#37F31198</b> · สมชาย ใจดี · ฿720</p>
+        <div class="link-row">
+          <span class="u">deepthailand.app/o/aB3xK9mР…</span>
+          <button class="copy"><iconify-icon icon="solar:copy-linear"></iconify-icon> คัดลอก</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="desktop-modal">
+      <div class="grip"></div>
+      <h3>QR สำหรับลูกค้า</h3>
+      <p class="cap">ให้ลูกค้าสแกนเพื่อเปิดหน้าออเดอร์</p>
+      <div class="qr-box"><iconify-icon icon="solar:qr-code-bold"></iconify-icon></div>
+      <p class="qr-oid">ออเดอร์ <b>#37F31198</b> · สมชาย ใจดี · ฿720</p>
+      <div class="link-row">
+        <span class="u">deepthailand.app/o/aB3xK9m…</span>
+        <button class="copy"><iconify-icon icon="solar:copy-linear"></iconify-icon> คัดลอก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ NOTES ══════════ -->
+  <div class="sect-title">4 · จุดเปลี่ยนหลัก</div>
+  <div class="notes">
+    <div class="note"><div class="k"><iconify-icon icon="solar:user-bold"></iconify-icon> สลับลำดับสายตา</div><p>ชื่อลูกค้า = หนา บนสุด (สิ่งที่ scan ก่อน) · #ID ย้ายลงเป็น metadata เทาเล็ก</p></div>
+    <div class="note"><div class="k"><iconify-icon icon="solar:widget-bold"></iconify-icon> แถบสีซ้าย</div><p>สีตามสถานะ 4 แบบ — แยกออเดอร์ด้วยตาโดยไม่ต้องอ่าน badge</p></div>
+    <div class="note"><div class="k"><iconify-icon icon="solar:qr-code-bold"></iconify-icon> ปุ่ม icon-only + QR</div><p>[SMS ทึบ] [QR] [copy] [⋮] มุมขวาล่าง — เตี้ยลง กระชับ · QR เป็น action ใหม่</p></div>
+    <div class="note"><div class="k"><iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon> ลดความรก</div><p>ตัด label “สินค้า” ใต้ชื่อ + ย่อเวลา (วันนี้ 16:07) + เส้นประบางลง</p></div>
+  </div>
+
+  <p class="foot-note">
+    <b>หมายเหตุ implementation:</b> การ์ดใช้ Paces primitive (<code>.card</code>, token <code>bg-warning/15</code> ฯลฯ) · แถบสีซ้าย + ปุ่ม icon = ต้องมี arbitrary บางจุด (เขียน comment กำกับตาม Hard Rule 7) · QR sheet copy จาก <code>SalesChartSheet.tsx</code> · เพิ่ม lib <code>qrcode.react</code> · QR/copy เข้ารหัสลิงก์ <code>/o/{shortCode}</code> (ตัวเดียวกับปุ่มคัดลอก) · terminal order (สำเร็จ/ยกเลิก) ซ่อนปุ่ม SMS เหมือนเดิม.
+  </p>
+</div>
+
+<script>
+  // ── card template renderer ──
+  const CHDIR='../../../public/images/logos/';
+  const CH = {facebook:'facebook.svg', line:'line.svg', ig:'instagram.svg'};
+  const CHLABEL = {facebook:'Facebook', line:'LINE', ig:'Instagram'};
+  const PAY = {cod:['solar:delivery-bold-duotone','เก็บปลายทาง'], transfer:['solar:bank-bold-duotone','โอนเงิน'], promptpay:['solar:qr-code-bold-duotone','พร้อมเพย์']};
+  function card(o){
+    const term = o.st==='confirmed'||o.st==='cancelled';
+    const stLabel={pending:'รอดำเนินการ',shipped:'จัดส่งแล้ว',confirmed:'สำเร็จ',cancelled:'ยกเลิก'}[o.st];
+    const pay=PAY[o.pay];
+    const av = o.avatarImg ? `<img src="${o.avatarImg}" alt=""/>` : (o.name?o.name[0]:'<iconify-icon icon="solar:user-linear"></iconify-icon>');
+    const more = o.more ? `<button class="more">+ อีก ${o.more} รายการ <iconify-icon icon="solar:alt-arrow-down-linear"></iconify-icon></button>` : '';
+    const smsBtn = term ? '' : `<button class="act primary" title="ส่ง SMS"><iconify-icon icon="solar:chat-round-line-bold"></iconify-icon></button>`;
+    return `<div class="ord st-${o.st}">
+      <div class="ord-head">
+        <div class="ord-cust">
+          <span class="avatar">${av}</span>
+          <span class="cust-txt">
+            <span class="cust-name">${o.vf?'<iconify-icon class="vf" icon="solar:verified-check-bold"></iconify-icon>':''}<span class="nm">${o.name||'ลูกค้า'}</span></span>
+            <span class="cust-meta">
+              ${o.ch?`<span class="ch"><img src="${CHDIR}${CH[o.ch]}" alt=""/>${CHLABEL[o.ch]}</span><span class="dot">·</span>`:''}
+              <span class="pay"><iconify-icon icon="${pay[0]}"></iconify-icon>${pay[1]}</span>
+            </span>
+          </span>
+        </div>
+        <div class="ord-right"><span class="oid">#${o.id}</span><span class="badge st-${o.st}">${stLabel}</span></div>
+      </div>
+      <hr class="dashed"/>
+      <div class="ord-item"><span class="thumb">${o.img?`<img src="${o.img}"/>`:'<iconify-icon icon="solar:box-bold-duotone"></iconify-icon>'}</span>
+        <span class="item-name">${o.item}</span>
+        <span class="item-qp"><div class="q">x${o.qty}</div><div class="p">฿${o.price}</div></span></div>
+      ${more}
+      <hr class="dashed"/>
+      <div class="ord-foot">
+        <div class="ord-total"><span class="amt">฿${o.total}</span> <span class="time">${o.time}</span></div>
+        <div class="acts">
+          ${smsBtn}
+          <button class="act" title="QR code"><iconify-icon icon="solar:qr-code-linear"></iconify-icon></button>
+          <button class="act" title="คัดลอกลิงก์"><iconify-icon icon="solar:copy-linear"></iconify-icon></button>
+          <button class="act" title="เพิ่มเติม"><iconify-icon icon="solar:menu-dots-bold"></iconify-icon></button>
+        </div>
+      </div>
+    </div>`;
+  }
+  const DATA=[
+    {id:'37F31198',name:'สมชาย ใจดี',vf:true,tel:'0920791649',ch:'facebook',st:'pending',item:'เวฟ 110 สีแดง',qty:2,price:'360',more:1,total:'720',pay:'cod',time:'วันนี้ 16:07'},
+    {id:'DE781F64',name:null,tel:'0920791649',ch:'line',st:'pending',item:'เวฟ 110 สีแดง',qty:1,price:'360',total:'360',pay:'transfer',time:'วันนี้ 15:44'},
+    {id:'113E233B',name:'K.มะลิ',vf:true,tel:'0806919577',ch:'ig',st:'shipped',item:'ไฟหน้า Xenon D2S 6000K (ทดสอบ)',qty:1,price:'1,990',total:'1,990',pay:'promptpay',time:'เมื่อวาน 18:20'},
+    {id:'A0C42D71',name:'อนุชา พรมมา',tel:'0812345678',ch:'facebook',st:'confirmed',item:'โช้คหน้าคู่หน้า',qty:1,price:'2,400',total:'2,400',pay:'transfer',time:'3 ก.ค. 10:15'},
+  ];
+  const html=DATA.map(card).join('');
+  document.getElementById('phone-list').innerHTML=html;
+  document.getElementById('tablet-list').innerHTML=html;
+  document.getElementById('dim-list').innerHTML=card(DATA[0])+card(DATA[1]);
+
+  // desktop table
+  const rows=DATA.map(o=>{
+    const stLabel={pending:'รอดำเนินการ',shipped:'จัดส่งแล้ว',confirmed:'สำเร็จ'}[o.st];
+    const term=o.st==='confirmed';
+    return `<tr style="border-top:1px solid var(--d200)">
+      <td style="padding:11px 14px;font-weight:600;font-size:13px">#${o.id}</td>
+      <td style="padding:11px 14px;font-size:13px">${o.name||'ลูกค้า'}<div style="font-size:11px;color:var(--d500)">${o.tel}</div></td>
+      <td style="padding:11px 14px;font-size:13px;max-width:180px">${o.item}</td>
+      <td style="padding:11px 14px;font-weight:600;font-size:13px">฿${o.total}</td>
+      <td style="padding:11px 14px"><span class="badge st-${o.st}">${stLabel}</span></td>
+      <td style="padding:11px 14px"><div style="display:inline-flex">
+        ${['solar:eye-linear','solar:pen-linear',term?'':'solar:chat-round-line-linear','solar:qr-code-linear','solar:copy-linear'].filter(Boolean).map(i=>
+          `<span style="width:34px;height:34px;border:1px solid var(--d300);margin-left:-1px;display:inline-flex;align-items:center;justify-content:center;color:var(--d700);font-size:16px">${i==='solar:qr-code-linear'?'<iconify-icon icon="solar:qr-code-linear" style="color:var(--primary)"></iconify-icon>':`<iconify-icon icon="${i}"></iconify-icon>`}</span>`).join('')}
+      </div></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('table').innerHTML=`<table style="width:100%;border-collapse:collapse">
+    <thead><tr style="background:var(--d100);color:var(--d500);font-size:11.5px;text-align:left">
+      <th style="padding:10px 14px;font-weight:600">ออเดอร์</th><th style="padding:10px 14px;font-weight:600">ลูกค้า</th>
+      <th style="padding:10px 14px;font-weight:600">สินค้า</th><th style="padding:10px 14px;font-weight:600">ยอด</th>
+      <th style="padding:10px 14px;font-weight:600">สถานะ</th><th style="padding:10px 14px;font-weight:600">จัดการ</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+</script>
+</body>
+</html>
