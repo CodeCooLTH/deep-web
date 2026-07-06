@@ -142,12 +142,41 @@ export async function createOrder(shopId: string, data: {
         });
         // BREAKING (00009 S-3/S-5) — deductStockForOrderItems คืน Map<productId,{qty,resultingQty,name}>
         // แทน Set<productId> เดิม (เพื่อรู้ resultingQty ต่อ product สำหรับ insert StockMovement ด้านล่าง)
+        // Quick Create — custom item (พิมพ์ชื่อเอง ไม่มี productId) → auto-create Product
+        // เพื่อให้สินค้าที่พิมพ์ในออเดอร์ขึ้นในแคตตาล็อกครั้งถัดไป; dedup by shopId+name (ชื่อซ้ำ = reuse ไม่สร้างซ้ำ).
+        // sequential (ไม่ Promise.all) — Prisma interactive tx ไม่รองรับ parallel query
+        const resolvedItems: typeof data.items = [];
+        for (const item of data.items) {
+          const name = item.name.trim();
+          if (item.productId || !name) {
+            resolvedItems.push(item);
+            continue;
+          }
+          const existing = await tx.product.findFirst({ where: { shopId, name }, select: { id: true } });
+          const productId =
+            existing?.id ??
+            (
+              await tx.product.create({
+                data: {
+                  shopId,
+                  name,
+                  price: item.price,
+                  type: data.type,
+                  fulfillmentMode: data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+                  ...(item.description ? { description: item.description } : {}),
+                },
+                select: { id: true },
+              })
+            ).id;
+          resolvedItems.push({ ...item, productId });
+        }
+
         const deductions =
           entitlement?.status === "ACTIVE"
-            ? await deductStockForOrderItems(tx, data.items) // throw OutOfStockError = rollback attempt นี้
+            ? await deductStockForOrderItems(tx, resolvedItems) // throw OutOfStockError = rollback attempt นี้
             : new Map<string, { qty: number; resultingQty: number; name: string }>();
 
-        const itemsCreateData = data.items.map((item) => ({
+        const itemsCreateData = resolvedItems.map((item) => ({
           ...item,
           stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
         }));
