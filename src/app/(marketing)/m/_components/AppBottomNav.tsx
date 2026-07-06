@@ -51,10 +51,7 @@ export default function AppBottomNav() {
   const checkActive = pathname === '/check' || pathname.startsWith('/check/')
 
   return (
-    <nav
-      className='shrink-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'
-      style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) - 14px), 6px)' }}
-    >
+    <nav className='shrink-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'>
       <div className='relative flex items-stretch'>
         {LEFT.map(tabItem)}
 
