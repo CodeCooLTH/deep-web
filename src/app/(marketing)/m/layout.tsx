@@ -12,6 +12,7 @@ import { authOptions } from '@/lib/auth'
 import AppTopBar from './_components/AppTopBar'
 import AppBottomNav from './_components/AppBottomNav'
 import MScrollReset from './_components/MScrollReset'
+import MBodyBg from './_components/MBodyBg'
 
 export default async function MobileAppLayout({ children }: ChildrenType) {
   const session = await getServerSession(authOptions)
@@ -22,6 +23,7 @@ export default async function MobileAppLayout({ children }: ChildrenType) {
   return (
     <div className='fixed inset-0 flex flex-col overflow-hidden bg-[var(--mui-palette-background-paper)]'>
       <MScrollReset />
+      <MBodyBg />
       <AppTopBar />
       {/* root เป็นขาว (safe-area บนสุด = ขาวกลืน AppTopBar ไม่ดูเว้นว่าง); พื้นเทาให้เฉพาะ content */}
       {/* overscroll-contain: เลื่อนแบบเนทีฟ — bar หัว/ท้ายตรึงนิ่ง, เด้ง (rubber-band) แค่ในเนื้อหา ไม่ลามทั้งหน้า */}

@@ -129,3 +129,10 @@ ul:not([class]) {
 .marketing-body {
   font-family: var(--font-anuphan), 'Noto Sans Thai', 'Helvetica', 'Arial', sans-serif;
 }
+
+/* mobile app-shell (/m): body เป็นขาวเฉพาะตอนอยู่ในแอปมือถือ (เพิ่ม/ถอด class ผ่าน MBodyBg)
+ * → ถ้า root fixed inset-0 ไม่ถึงขอบล่างเป๊ะบน iOS, gap ใต้ bottom nav = ขาวกลืน ไม่ใช่เทาลอย.
+ * ไม่แตะ desktop/tablet buyer (body ยังเทา default ให้ card เด่น) */
+.marketing-body.m-app-shell {
+  background-color: var(--mui-palette-background-paper);
+}
