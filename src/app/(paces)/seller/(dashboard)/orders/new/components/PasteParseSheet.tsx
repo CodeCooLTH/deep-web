@@ -84,7 +84,7 @@ export default function PasteParseSheet({ open, onApply, onClose }: Props) {
               }}
               onFocus={() => setShowBubble(false)}
               placeholder={'พิมพ์/วางเอง เช่น\nเชาวลิต เอกกุล\n6ม.4 บ้านปุหรน ต.ช้างให้ตก อ.โคกโพธิ์\nจ.ปัตตานี 94120\nโทร 081-7971726'}
-              className="form-input h-full resize-none"
+              className="form-input !h-full resize-none"
             />
             {/* mini bubble กลางล่าง textarea */}
             {showBubble && (
