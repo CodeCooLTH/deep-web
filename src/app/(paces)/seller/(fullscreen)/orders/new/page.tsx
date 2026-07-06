@@ -6,7 +6,7 @@
  * ตัด Flatpickr date (ใช้ server timestamp แทน).
  */
 
-import { getProductsByShop } from '@/services/product.service'
+import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import type { Metadata } from 'next'
@@ -70,22 +70,35 @@ export default async function NewOrderPage() {
   // ระบบคลัง (Inventory Add-on) เปิดอยู่ไหม — ถ้าเปิด แสดงสต็อกคงเหลือใน grid/line + เตือน qty เกิน
   const inventoryEnabled = await isEntitlementActive(shop.id).catch(() => false)
 
+  // map Product → CatalogProduct (ใช้ร่วม catalog + bestSellers)
+  const toCatalog = (p: any): CatalogProduct => ({
+    id: p.id,
+    name: p.name,
+    description: p.description ?? null,
+    price: Number(p.price),
+    type: p.type,
+    fulfillmentMode: p.fulfillmentMode,
+    image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
+    // sku: ใช้ค้นหาใน ProductPickerSheet (ชื่อ+SKU) — optional
+    sku: p.sku ?? null,
+    // stockQty: NULL = untracked (ไม่โชว์สต็อก), number = tracked
+    stockQty: p.stockQty ?? null,
+  })
+
   let catalog: CatalogProduct[] = []
   try {
     const products = await getProductsByShop(shop.id)
-    catalog = products.map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description ?? null,
-      price: Number(p.price),
-      type: p.type,
-      fulfillmentMode: p.fulfillmentMode,
-      image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
-      // stockQty: NULL = untracked (ไม่โชว์สต็อก), number = tracked
-      stockQty: p.stockQty ?? null,
-    }))
+    catalog = products.map(toCatalog)
   } catch {
     catalog = []
+  }
+
+  // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
+  let bestSellers: CatalogProduct[] = []
+  try {
+    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalog)
+  } catch {
+    bestSellers = []
   }
 
   return (
@@ -99,7 +112,7 @@ export default async function NewOrderPage() {
         saveLabel="บันทึกออเดอร์"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm shopId={shop.id} catalog={catalog} formId={FORM_ID} inventoryEnabled={inventoryEnabled} />
+      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} />
     </>
   )
 }

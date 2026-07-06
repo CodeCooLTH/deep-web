@@ -12,8 +12,8 @@
 'use client'
 
 import { yupResolver } from '@hookform/resolvers/yup'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
@@ -35,6 +35,8 @@ export interface CatalogProduct {
   /** Product.fulfillmentMode (SHIPPED | NO_SHIPPING) — ใช้ derive ที่อยู่จัดส่ง + indicator */
   fulfillmentMode: string
   image?: string | null
+  /** Product.sku — ใช้ค้นหาใน ProductPickerSheet (ชื่อ + SKU); optional */
+  sku?: string | null
   /** Product.stockQty — NULL = untracked (ไม่โชว์สต็อก), number = tracked (โชว์เมื่อ inventoryEnabled) */
   stockQty?: number | null
 }
@@ -42,6 +44,8 @@ export interface CatalogProduct {
 interface Props {
   shopId: string
   catalog: CatalogProduct[]
+  /** สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน quick create ProductPickerSheet (< lg) */
+  bestSellers?: CatalogProduct[]
   /** HTML id assigned to the <form> element so an external submit button can use form="…" */
   formId?: string
   /** ร้านเปิด Inventory Add-on ไหม — ถ้าเปิด แสดงสต็อกคงเหลือ + เตือน qty เกินสต็อก */
@@ -150,8 +154,9 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function OrderCreateForm({ shopId: _shopId, catalog, formId, inventoryEnabled = false }: Props) {
+export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers = [], formId, inventoryEnabled = false }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const {
     control,
@@ -225,6 +230,22 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, formId, inve
     setLineProduct,
     setLineCustom,
   }
+
+  // ── Pre-add จาก deep-link ?product=<id> (Command Center "สินค้าขายดี") ──
+  // เพิ่มสินค้าลงตะกร้าครั้งเดียวตอน mount; guard ref กัน inc ซ้ำเมื่อ re-render
+  const didPreAdd = useRef(false)
+  useEffect(() => {
+    if (didPreAdd.current) return
+    const pid = searchParams.get('product')
+    if (!pid) return
+    const p = catalog.find((c) => c.id === pid)
+    if (p) {
+      inc(p)
+      didPreAdd.current = true
+    }
+    // inc/catalog อ้างผ่าน closure — guard didPreAdd กัน re-run; ตั้งใจ deps แค่ searchParams
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // ── POS mobile: bottom-sheet + floating-bar summary ────────────────────────
   const [sheetOpen, setSheetOpen] = useState(false)
