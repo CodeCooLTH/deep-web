@@ -17,36 +17,20 @@ export interface CustomerResult {
 
 interface Props {
   open: boolean
+  /** คำค้นเริ่มต้น (เบอร์/ชื่อที่พิมพ์ในฟอร์มก่อนเปิด sheet) → auto-search ทันที */
+  initialQuery?: string
   onSelect: (c: CustomerResult) => void
   onUseNew: (query: string) => void
   onClose: () => void
 }
 
-export default function CustomerSearchSheet({ open, onSelect, onUseNew, onClose }: Props) {
+export default function CustomerSearchSheet({ open, initialQuery = '', onSelect, onUseNew, onClose }: Props) {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<CustomerResult[]>([])
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestRef = useRef('')
-
-  useEffect(() => {
-    if (open) {
-      setQ('')
-      setResults([])
-      const t = setTimeout(() => inputRef.current?.focus(), 60)
-      return () => clearTimeout(t)
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onEsc)
-    return () => document.removeEventListener('keydown', onEsc)
-  }, [open, onClose])
 
   const runSearch = useCallback((v: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -70,6 +54,25 @@ export default function CustomerSearchSheet({ open, onSelect, onUseNew, onClose 
       }
     }, 300)
   }, [])
+
+  useEffect(() => {
+    if (open) {
+      setQ(initialQuery)
+      setResults([])
+      if (initialQuery.trim().length >= 2) runSearch(initialQuery)
+      const t = setTimeout(() => inputRef.current?.focus(), 60)
+      return () => clearTimeout(t)
+    }
+  }, [open, initialQuery, runSearch])
+
+  useEffect(() => {
+    if (!open) return
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onEsc)
+    return () => document.removeEventListener('keydown', onEsc)
+  }, [open, onClose])
 
   if (!open) return null
 

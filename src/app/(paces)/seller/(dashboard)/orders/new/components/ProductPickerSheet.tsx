@@ -111,27 +111,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
               <Icon icon="x" className="size-5" />
             </button>
           </div>
-          {/* search — Paces input-icon-group (paces-component-reference §5) */}
-          <div className="input-icon-group mb-3">
-            <span className="input-icon">
-              <Icon icon="search" className="size-4 text-default-400" />
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="ค้นหาชื่อ / SKU…"
-              className="form-input"
-            />
-          </div>
-        </div>
-
-        <div
-          onScroll={handleScroll}
-          className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-        >
-          {/* best-seller card slide (ยังไม่พิมพ์ + มี bestSellers) */}
+          {/* สินค้าขายดี card slide — เหนือช่องค้นหา (ซ่อนตอนพิมพ์ค้นหา) */}
           {!s && bestSellers.length > 0 && (
             <>
               <p className="mb-2 text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้าขายดี</p>
@@ -153,7 +133,26 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
               </div>
             </>
           )}
+          {/* search — Paces input-icon-group (paces-component-reference §5) */}
+          <div className="input-icon-group mb-3">
+            <span className="input-icon">
+              <Icon icon="search" className="size-4 text-default-400" />
+            </span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="ค้นหาชื่อ / SKU…"
+              className="form-input"
+            />
+          </div>
+        </div>
 
+        <div
+          onScroll={handleScroll}
+          className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        >
           {/* สินค้าทั้งหมด (ยังไม่พิมพ์) — โชว์ 10 รายการ + lazy-load เมื่อเลื่อน */}
           {!s && catalog.length > 0 && (
             <>

@@ -7,7 +7,7 @@
  * wand tool → PasteParseSheet; locality field → AddressSearchSheet; ที่อยู่แสดงเมื่อ salesChannel !== STOREFRONT
  */
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -27,7 +27,21 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [addrOpen, setAddrOpen] = useState(false)
   const [custOpen, setCustOpen] = useState(false)
+  const [custQuery, setCustQuery] = useState('')
   const [selected, setSelected] = useState<CustomerResult | null>(null)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // พิมพ์เบอร์ → debounce (เผื่อ paste) → เปิด sheet ค้นหา (ไม่เปิดตอนแค่จิ้ม)
+  const triggerCustomerSearch = (value: string) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      const t = value.trim()
+      if (t.length >= 2) {
+        setCustQuery(t)
+        setCustOpen(true)
+      }
+    }, 500)
+  }
 
   const { field: nameField } = useController({ control, name: 'buyerName', defaultValue: '' })
   const { field: contactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
@@ -47,6 +61,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
       : null
 
   const selectCustomer = (c: CustomerResult) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     setSelected(c)
     setValue('buyerContact', c.contact)
     setValue('buyerName', c.name ?? '')
@@ -55,6 +70,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
 
   // "ใช้คำที่พิมพ์เป็นลูกค้าใหม่" — เดา: ขึ้นต้นด้วยเลข = เบอร์, ไม่งั้น = ชื่อ
   const useNewCustomer = (q: string) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     setSelected(null)
     if (/^\d/.test(q)) setValue('buyerContact', q)
     else setValue('buyerName', q)
@@ -102,16 +118,6 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
         </button>
       </div>
 
-      {/* ค้นหาลูกค้าเดิม → full-screen sheet (คลิกเดียวได้ข้อมูล) */}
-      <button
-        type="button"
-        onClick={() => setCustOpen(true)}
-        className="mb-2.5 flex w-full items-center gap-2 rounded-lg border border-dashed border-default-300 bg-default-50 px-3 py-2.5 text-sm font-medium text-default-500"
-      >
-        <Icon icon="user-search" className="size-4 shrink-0 text-primary" />
-        ค้นหาลูกค้าเดิม (ชื่อ / เบอร์)
-      </button>
-
       {/* ชื่อ */}
       <div className="mb-2.5">
         <label className="form-label">ชื่อลูกค้า</label>
@@ -129,19 +135,20 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
         {errors.buyerName?.message && <p className="mt-1 text-xs text-danger">{String(errors.buyerName.message)}</p>}
       </div>
 
-      {/* เบอร์ */}
+      {/* เบอร์ — พิมพ์ (หรือ paste) → debounce → เปิด sheet ค้นหา/เพิ่มลูกค้า (รวมกรณีเปลี่ยนเบอร์หลังเลือกแล้ว) */}
       <div className="mb-2.5">
         <label className="form-label">เบอร์โทร</label>
         <input
           type="text"
           inputMode="tel"
           autoComplete="off"
-          placeholder="08xxxxxxxx"
+          placeholder="พิมพ์เบอร์ → ค้นหาลูกค้า"
           className="form-input"
           value={contactField.value ?? ''}
           onChange={(e) => {
             setSelected(null)
             contactField.onChange(e)
+            triggerCustomerSearch(e.target.value)
           }}
           onBlur={contactField.onBlur}
         />
@@ -192,6 +199,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
 
       <CustomerSearchSheet
         open={custOpen}
+        initialQuery={custQuery}
         onSelect={selectCustomer}
         onUseNew={useNewCustomer}
         onClose={() => setCustOpen(false)}
