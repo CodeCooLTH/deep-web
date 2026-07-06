@@ -416,6 +416,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
         <QuickForm
           control={control}
           errors={errors}
+          setValue={setValue}
           catalog={catalog}
           bestSellers={bestSellers}
           itemsCtl={itemsCtl}
