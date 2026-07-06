@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 // ทำไม: Server Component — ไม่มี auth gate ไม่มี data fetch เหมาะกับ static page
 const TermsPage = () => {
   return (
-    <FrontLayout>
+    <FrontLayout hideChromeMobile>
       {/* section shell มาจาก Questions.tsx — คง bg-backgroundPaper + spacing pattern */}
       <section className='flex flex-col justify-center items-center gap-4 md:plb-[100px] plb-[50px] pbs-[70px] -mbs-[70px] bg-backgroundPaper'>
         <div className={classnames('pbs-10 md:pbs-16', frontCommonStyles.layoutSpacing)}>

@@ -22,7 +22,7 @@ const ReportPage = async () => {
   }
 
   return (
-    <FrontLayout>
+    <FrontLayout hideChromeMobile>
       <ReportForm />
     </FrontLayout>
   )

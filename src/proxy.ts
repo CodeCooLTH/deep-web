@@ -100,7 +100,9 @@ export async function proxy(request: NextRequest) {
     const ua = request.headers.get('user-agent') || ''
     const isMobile = /Android|iPhone|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(ua)
     if (isMobile && isAuthed && !pathname.startsWith('/m/') && pathname !== '/m') {
-      const MOBILE_PREFIXES = ['/orders', '/messages', '/reviews', '/badges', '/settings']
+      // /u /a /o = หน้า detail (โปรไฟล์ร้าน/ประมูล/ออเดอร์) — authed มือถือ render ใน app shell /m
+      // (มี bottom nav กลับได้; guest ไม่ authed → เห็นหน้า public ปกติ)
+      const MOBILE_PREFIXES = ['/orders', '/messages', '/reviews', '/badges', '/settings', '/u', '/a', '/o']
       if (pathname === '/dashboard') {
         const url = request.nextUrl.clone()
         url.pathname = '/m'
