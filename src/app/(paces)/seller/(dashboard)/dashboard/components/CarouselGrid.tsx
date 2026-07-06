@@ -166,7 +166,10 @@ export default function CarouselGrid({ tiles }: CarouselGridProps) {
     <div className="card">
       {/* card-header: ชื่อ + optional link ทั้งหมด (spec §4.3) */}
       <div className="card-header">
-        <h4 className="card-title">เมนูลัด</h4>
+        <h4 className="card-title flex items-center gap-1.5">
+          <Icon icon="tabler:layout-grid" className="size-4 text-primary" />
+          เมนูลัด
+        </h4>
         {/* "ทั้งหมด" optional — แสดงเฉพาะ tiles มี href ทุกตัว (ปัจจุบัน = 7 tile มี disabled บางตัว) */}
       </div>
 

@@ -44,7 +44,8 @@ export default function SalesChartCard({ initialSeries }: Props) {
         <div className="card-body">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-dark">ยอดขาย</span>
+              <Icon icon="chart-bar" className="size-4 text-primary" />
+              <span className="text-sm font-bold text-dark">ยอดขาย</span>
               <span className="text-sm text-default-400">· เดือนนี้</span>
             </div>
             <Icon icon="chevron-right" className="size-4 text-default-400" />

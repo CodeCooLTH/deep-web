@@ -75,7 +75,10 @@ export default function OrderStatusBand({ counts }: OrderStatusBandProps) {
     <div className="card">
       {/* header: ชื่อ band + ลิงก์ "ดูทั้งหมด ›" (RSC-safe: Link ธรรมดา ไม่ใช้ component={Link} — Hard Rule 2) */}
       <div className="card-header flex items-center justify-between">
-        <h4 className="card-title">คำสั่งซื้อ</h4>
+        <h4 className="card-title flex items-center gap-1.5">
+          <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
+          คำสั่งซื้อ
+        </h4>
         <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
           ดูทั้งหมด
           <Icon icon="solar:alt-arrow-right-linear" className="size-4" />
