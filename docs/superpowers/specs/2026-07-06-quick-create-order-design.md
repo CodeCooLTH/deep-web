@@ -28,7 +28,7 @@
 
 ## 3. Layout quick form (`< lg`) — **inline scroll** (ไม่ใช่ hub — user ตัด hub 2026-07-06)
 
-**ลำดับ section (customer-first, user-confirmed):** **ลูกค้า → ช่องทางการขาย → การชำระเงิน → สินค้า → เพิ่มเติม(หมายเหตุ/แท็ก/ส่วนลด)**. Footer = สรุปยอด (collapsible) + บันทึก (sticky). **แต่ละ section = `.card` แยก (พื้น `bg-default-50` เทา + การ์ดขาว border/rounded/เว้นระยะ) → เห็นขอบเขตชัด ไม่กลืนกัน** (Base: Paces `.card`). Sheet ยังใช้เฉพาะ: เลือกสินค้า / แก้ราคา / ค้นหาที่อยู่ / วางจากแชท. content แต่ละ section:
+**ลำดับ section (customer-first, user-confirmed):** **ลูกค้า → ช่องทางการขาย → การชำระเงิน → สินค้า → เพิ่มเติม(หมายเหตุ/แท็ก/ส่วนลด)**. Footer = สรุปยอด (collapsible) + บันทึก (sticky). **แต่ละ section คั่นด้วยแถบเทา full-bleed (`border-bottom` หนา ~8px `bg-default-100`) — ไม่ใช้ card (เปลือง padding) → เห็นขอบเขตชัดแต่ประหยัดพื้นที่.** Sheet ยังใช้เฉพาะ: เลือกสินค้า / แก้ราคา / ค้นหาที่อยู่ / วางจากแชท. content แต่ละ section:
 
 1. **สินค้า** — โหลดครั้งแรกมี **1 บรรทัดว่าง (placeholder)** พร้อมแตะเลือกทันที. หัว section มี **"+ เพิ่มรายการ"** มุมขวา. แต่ละไลน์ (ภาพ 21): **[รูป square]** + คอลัมน์:
    - **ชื่อสินค้า** — inline-edit (ดูเหมือน text ธรรมดา, focus แล้วแก้ได้; **ไม่มี arrow**) รองรับ search **ชื่อ + SKU**.
@@ -38,8 +38,9 @@
    - **แตะช่องชื่อสินค้า / "+ เพิ่มรายการ" → product-picker bottom sheet** (ลด 1 step): ช่องค้นหา (ชื่อ/SKU) + **สินค้าขายดี = card slide** (แตะการ์ด = เลือกลงไลน์เลย) + "ใช้คำที่พิมพ์เป็นสินค้าใหม่ (custom)". *(สินค้าขายดีไม่ใช่ section แยกด้านบนแล้ว — ย้ายเข้า sheet.)*
    - **bottom sheet แก้ราคา:** `[−10][−] [input ฿] [+][+10]` + `[นำไปใช้]` → set `item.price`.
    - **หมายเหตุ:** search SKU ต้องมี `Product.sku` — ถ้าไม่มี → search ชื่ออย่างเดียว (ยืนยันตอน build).
-2. **ช่องทางการขาย** — card เลือก 1 (icon + selected): หน้าร้าน(STOREFRONT)/Facebook/Line/TikTok. default หน้าร้าน.
-3. **รูปแบบการชำระเงิน** — card: เงินสด/โอน/COD. default เงินสด.
+2. **ช่องทางการขาย + การชำระเงิน** (section เดียว, minimal) — **2 แถว selector** (label + icon+ค่าที่เลือก + chevron) แตะ → **bottom sheet** (option list icon+label + check ตัวเลือก + **★ ตั้งเป็นค่าเริ่มต้นครั้งถัดไป**). tablet แนวนอน = 2 selector เรียงข้างกัน (selgrid 2-col).
+   - channel: STOREFRONT/FACEBOOK/LINE/TIKTOK · payment: CASH/TRANSFER/COD.
+   - **★ default:** จำ default channel/payment ไว้ครั้งถัดไป — MVP เก็บ **localStorage** (client, per-device, ไม่มี migration); server-side (Shop prefs) = Phase 2.
 4. **ลูกค้า** (phone-first) — หัวข้อมี **icon เครื่องมือ (wand)** = วางข้อความจากแชท (paste-parse).
    - **เบอร์นำ:** พิมพ์เบอร์ → ค้นลูกค้าเดิม (Customer Directory dedup) → auto-fill ชื่อ/ที่อยู่ + chip "ลูกค้าเดิม · N ออเดอร์"; ใหม่ → ช่องชื่อโผล่.
    - **ที่อยู่** (เมื่อต้องจัดส่ง): บ้านเลข/หมู่/ถนน (freetext) + **locality field อันเดียว** → แตะเปิด **full-screen sheet "เลือกที่อยู่"** (พิมพ์ ตำบล/อำเภอ/จังหวัด/รหัส อย่างใดอย่างหนึ่ง → list `ตำบล > อำเภอ > จังหวัด > รหัส` จิ้มเลือก → เติม subdistrict/district/province/postcode ครบ). เลือกแล้วโชว์ในช่องเดิม, จิ้มซ้ำ = แก้ (เปิด sheet). **ข้อมูล = jquery.Thailand.js `db.json`** (bundle JSON, ทำ React typeahead เอง — ไม่ใช้ jQuery; WTFPL).

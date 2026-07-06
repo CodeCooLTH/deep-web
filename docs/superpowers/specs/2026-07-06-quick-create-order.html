@@ -27,10 +27,10 @@
   .top{height:50px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--d200);flex-shrink:0}
   .top .t{font-weight:700;font-size:15px}
   .screen{height:620px;display:flex;flex-direction:column;overflow:hidden}
-  .scroll{flex:1;overflow:auto;padding:12px;background:var(--d50)}
+  .scroll{flex:1;overflow:auto;padding:0;background:#fff}
   .lbl{font-size:12px;font-weight:700;color:var(--d400);text-transform:uppercase;letter-spacing:.03em;margin:0 0 10px}
-  /* แต่ละ section = card แยก (พื้นเทา → เห็นขอบเขตชัด ไม่กลืนกัน) */
-  .blk{background:#fff;border:1px solid var(--d200);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  /* แต่ละ section คั่นด้วยแถบเทา full-bleed (ไม่ใช่ card — ไม่กินพื้นที่) → เห็นขอบเขตชัด */
+  .blk{padding:14px;border-bottom:8px solid var(--d100)}
 
   .search{position:relative;margin-bottom:10px}
   .search input{width:100%;border:1px solid var(--d300);border-radius:10px;padding:10px 12px 10px 34px;font-family:inherit;font-size:13px}
@@ -111,6 +111,27 @@
   .chan .ch.sel{border-color:var(--primary);background:var(--p05);color:var(--primary)}
   .chan .ch.sel svg{color:var(--primary)}
 
+  /* minimal: ช่องทาง/ชำระเงิน = แถวเดียว label + icon+ค่า + chevron (แตะ→picker) */
+  /* compact: label ชิด (fixed) + value = chip เล็ก (ไม่ยืดเต็มแถว) */
+  .selrow{display:flex;align-items:center;gap:12px;padding:9px 0;cursor:pointer}
+  .selrow + .selrow{border-top:1px solid var(--d100)}
+  .selrow .sl{font-size:13px;font-weight:600;color:var(--d700);width:104px;flex-shrink:0}
+  .selrow .sv{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--d800);border:1px solid var(--d300);border-radius:8px;padding:6px 10px}
+  .selrow .sv .ic{width:17px;height:17px;color:var(--primary)}
+  .selrow .sv .chev{width:15px;height:15px;color:var(--d400)}
+  /* tablet แนวนอน: 2 selector เรียงข้างกัน (ใช้ความกว้าง) */
+  .tablet .selgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+  .tablet .selgrid .selrow + .selrow{border-top:none}
+  /* option row ใน picker sheet + ★ ตั้งค่าเริ่มต้นครั้งถัดไป */
+  .optrow{display:flex;align-items:center;gap:11px;padding:13px 2px;border-bottom:1px solid var(--d100);cursor:pointer}
+  .optrow .oic{width:36px;height:36px;border-radius:9px;background:var(--d100);color:var(--d500);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .optrow .oic svg{width:20px;height:20px}
+  .optrow.sel .oic{background:var(--p10);color:var(--primary)}
+  .optrow .onm{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--d800)}
+  .optrow .ochk{color:var(--primary);width:18px;height:18px;flex-shrink:0}
+  .optrow .ostar{color:var(--d300);width:22px;height:22px;flex-shrink:0;cursor:pointer}
+  .optrow .ostar.on{color:var(--warning)}
+
   /* customer: วางจากแชท + recognized chip + address autocomplete */
   .pastebtn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;border:1px dashed var(--primary);color:var(--primary);background:var(--p05);border-radius:10px;padding:11px;font-size:13px;font-weight:600;margin-bottom:12px;cursor:pointer}
   .pastebtn svg{width:16px;height:16px}
@@ -161,7 +182,7 @@
   .sumrow .sp b{color:var(--d800)}
 
   /* one optional row */
-  .more{display:flex;align-items:center;gap:8px;padding:14px;border:1px solid var(--d200);border-radius:14px;color:var(--d500);font-size:13px;font-weight:600;cursor:pointer;background:#fff;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .more{display:flex;align-items:center;gap:8px;padding:14px;color:var(--d500);font-size:13px;font-weight:600;cursor:pointer;background:#fff}
   .more .chev{margin-left:auto}
 
   .foot{border-top:1px solid var(--d200);background:#fff;padding:12px 14px;flex-shrink:0}
@@ -186,6 +207,47 @@
   .sheet .prow2{display:flex;gap:8px;margin-bottom:14px}
   .sheet .help{flex:1;border:1px solid var(--primary);color:var(--primary);background:var(--p05);border-radius:9px;height:42px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer}
   .sheet .apply{width:100%;background:var(--primary);color:#fff;border:none;border-radius:10px;height:48px;font-size:14.5px;font-weight:700;cursor:pointer}
+  /* paste sheet (magic → textarea + mini bubble "วางจากคลิปบอร์ด" ลอยกลางล่าง textarea) */
+  .pastewrap{position:relative}
+  .pastearea{width:100%;height:170px;border:1px solid var(--d300);border-radius:10px;padding:11px;font-family:inherit;font-size:13px;line-height:1.5;resize:none;color:var(--d700)}
+  .pastebubble{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:var(--primary);color:#fff;border:none;border-radius:20px;padding:8px 16px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;box-shadow:0 3px 10px rgba(35,109,201,.35);cursor:pointer;white-space:nowrap}
+  .pastebubble svg{width:15px;height:15px}
+
+  /* ── sales chart: การ์ด mini บน CC (แตะ→full sheet) ── */
+  .scard{cursor:pointer}
+  .scard .h1r{display:flex;align-items:center;justify-content:space-between}
+  .scard .h1r .tt{font-size:14px;font-weight:700}
+  .scard .h1r .tt .sub{font-size:11px;color:var(--d400);font-weight:400}
+  .scard .go{color:var(--d400);width:18px;height:18px}
+  .scard .amt{display:flex;align-items:baseline;gap:8px;margin:6px 0 10px}
+  .scard .amt .cur{font-size:13px;color:var(--d400);font-weight:600}
+  .scard .amt .v{font-size:22px;font-weight:700;color:var(--d800)}
+  .scard .amt .chg{font-size:12px;font-weight:600;color:var(--success);display:inline-flex;align-items:center;gap:2px}
+  .mbars{display:flex;align-items:flex-end;gap:2px;height:46px}
+  .mbars .b{flex:1;min-width:0;background:linear-gradient(180deg,var(--primary),#4b8bda);border-radius:3px 3px 0 0}
+  .mbars .b.dim{background:var(--d200)}
+  /* full-screen chart sheet (scoped .csheet) */
+  .csheet .seg{display:inline-flex;background:var(--d100);border-radius:9px;padding:3px}
+  .csheet .seg button{border:none;background:none;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--d500);padding:6px 12px;border-radius:7px;cursor:pointer}
+  .csheet .seg button.on{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(20,30,60,.12)}
+  .csheet .pnav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0}
+  .csheet .pnav .arw{width:34px;height:34px;border:1px solid var(--d200);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--d500);background:#fff}
+  .csheet .pnav .arw.dis{opacity:.4}
+  .csheet .pnav .cur{flex:1;text-align:center}
+  .csheet .pnav .cur .m{font-size:15px;font-weight:700}
+  .csheet .pnav .cur .s{font-size:11px;color:var(--d400)}
+  .csheet .tot{display:flex;align-items:baseline;gap:8px}
+  .csheet .tot .cur{font-size:14px;color:var(--d400);font-weight:600}
+  .csheet .tot .v{font-size:26px;font-weight:700}
+  .csheet .tot .chg{font-size:12px;font-weight:600;color:var(--success);display:inline-flex;align-items:center;gap:2px}
+  .csheet .totsub{font-size:11.5px;color:var(--d400);margin:2px 0 16px}
+  .csheet .chart{position:relative;height:220px;display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--d200);padding-top:8px}
+  .csheet .bar{flex:1;min-width:0;background:linear-gradient(180deg,var(--primary),#4b8bda);border-radius:5px 5px 0 0;position:relative}
+  .csheet .bar.hi{background:linear-gradient(180deg,#1b579f,var(--primary))}
+  .csheet .bar.hi::after{content:attr(data-v);position:absolute;top:-26px;left:50%;transform:translateX(-50%);background:var(--d800);color:#fff;font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;white-space:nowrap}
+  .csheet .bar.dim{background:var(--d200)}
+  .csheet .xax{display:flex;gap:4px;margin-top:6px}
+  .csheet .xax span{flex:1;text-align:center;font-size:9.5px;color:var(--d400);min-width:0}
 
   /* product-picker bottom sheet (แตะช่องชื่อ/เพิ่มรายการ → เลือกสินค้าขายดี) */
   .psearch{position:relative;margin-bottom:12px}
@@ -272,25 +334,10 @@
             </div>
           </div>
 
-          <!-- 2. ช่องทางการขาย -->
+          <!-- 2. ช่องทาง + ชำระเงิน (minimal — แถวเดียว แตะ→bottom sheet) -->
           <div class="blk">
-            <p class="lbl">ช่องทางการขาย</p>
-            <div class="chan">
-              <div class="ch sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M5 9v11h14V9M4 9h16"/></svg>หน้าร้าน</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 2h-3a5 5 0 00-5 5v3H6v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>Facebook</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.6 2 10.7c0 3.7 3.4 6.8 8 7.4.9.2.8.5.6 1.6 0 .2-.3 1.2.9.7 1.2-.5 6.4-3.8 8.7-6.5C22 11.8 22 3 12 3z"/></svg>Line</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7zM9 8V6a3 3 0 016 0v2"/></svg>Shopee</div>
-            </div>
-          </div>
-
-          <!-- 3. รูปแบบการชำระเงิน -->
-          <div class="blk">
-            <p class="lbl">รูปแบบการชำระเงิน</p>
-            <div class="chan">
-              <div class="ch sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>เงินสด</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M12 3l9 5H3zM5 8v10M19 8v10M10 8v10M14 8v10"/></svg>โอน</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/><circle cx="7" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>COD</div>
-            </div>
+            <div class="selrow"><span class="sl">ช่องทางการขาย</span><span class="sv"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M5 9v11h14V9M4 9h16"/></svg> หน้าร้าน <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></div>
+            <div class="selrow"><span class="sl">การชำระเงิน</span><span class="sv"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg> เงินสด <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></div>
           </div>
 
           <!-- 4. สินค้า (ภาพ 21) — โหลดครั้งแรกมี 1 บรรทัดว่าง -->
@@ -357,6 +404,14 @@
             <div class="wal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M16 12h.01"/></svg>
               ฿640 <span class="btn2">+ เติมเงิน</span>
+            </div>
+          </div>
+          <!-- ★ ยอดขาย mini card (เหนือคำสั่งซื้อ) — แตะ→full-screen chart sheet -->
+          <div class="sc scard">
+            <div class="h1r"><span class="tt">ยอดขาย <span class="sub">· เดือนนี้</span></span><svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div>
+            <div class="amt"><span class="cur">฿</span><span class="v">45,200</span><span class="chg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 15l6-6 6 6"/></svg>12%</span></div>
+            <div class="mbars">
+              <span class="b" style="height:30%"></span><span class="b" style="height:55%"></span><span class="b" style="height:20%"></span><span class="b" style="height:70%"></span><span class="b" style="height:45%"></span><span class="b" style="height:60%"></span><span class="b" style="height:35%"></span><span class="b" style="height:82%"></span><span class="b" style="height:50%"></span><span class="b" style="height:95%"></span><span class="b" style="height:40%"></span><span class="b" style="height:65%"></span><span class="b" style="height:25%"></span><span class="b" style="height:58%"></span><span class="b" style="height:72%"></span><span class="b" style="height:44%"></span><span class="b" style="height:60%"></span><span class="b" style="height:78%"></span><span class="b dim" style="height:15%"></span><span class="b dim" style="height:10%"></span>
             </div>
           </div>
           <div class="sc"><div class="h">คำสั่งซื้อ <a>ดูทั้งหมด ›</a></div>
@@ -469,6 +524,89 @@
         </div>
       </div>
     </div>
+
+    <!-- channel/payment picker bottom sheet (แตะ selector → เลือก + ★ ตั้ง default ครั้งถัดไป) -->
+    <div class="device mobile">
+      <div class="cap"><span>แตะช่องทาง → เลือก (sheet)</span><span>★ = default</span></div>
+      <div class="screen">
+        <div style="flex:1;position:relative;overflow:hidden;background:var(--d50)">
+          <div class="sheet-dim"></div>
+          <div class="sheet">
+            <div class="bar"></div>
+            <div class="st">ช่องทางการขาย</div>
+            <div class="ssub">แตะ ★ เพื่อตั้งเป็นค่าเริ่มต้นครั้งถัดไป</div>
+            <div class="optrow sel">
+              <span class="oic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M5 9v11h14V9M4 9h16"/></svg></span>
+              <span class="onm">หน้าร้าน</span>
+              <svg class="ochk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              <svg class="ostar on" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg>
+            </div>
+            <div class="optrow">
+              <span class="oic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 2h-3a5 5 0 00-5 5v3H6v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg></span>
+              <span class="onm">Facebook</span>
+              <svg class="ostar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg>
+            </div>
+            <div class="optrow">
+              <span class="oic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.6 2 10.7c0 3.7 3.4 6.8 8 7.4.9.2.8.5.6 1.6 0 .2-.3 1.2.9.7 1.2-.5 6.4-3.8 8.7-6.5C22 11.8 22 3 12 3z"/></svg></span>
+              <span class="onm">Line</span>
+              <svg class="ostar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg>
+            </div>
+            <div class="optrow">
+              <span class="oic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7zM9 8V6a3 3 0 016 0v2"/></svg></span>
+              <span class="onm">Shopee</span>
+              <svg class="ostar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-6.5 4 2-7L2 9h7z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- paste sheet (ปุ่ม magic wand → textarea + ปุ่มวางจากคลิปบอร์ด) -->
+    <div class="device mobile">
+      <div class="cap"><span>ปุ่ม magic → วางจากแชท (sheet)</span><span>clipboard</span></div>
+      <div class="screen">
+        <div style="flex:1;position:relative;overflow:hidden;background:var(--d50)">
+          <div class="sheet-dim"></div>
+          <div class="sheet">
+            <div class="bar"></div>
+            <div class="st">วางข้อความจากแชท</div>
+            <div class="ssub">ระบบแยก ชื่อ / เบอร์ / ที่อยู่ ให้อัตโนมัติ (ตรวจแล้วแก้ได้)</div>
+            <div class="pastewrap">
+              <textarea class="pastearea" placeholder="พิมพ์/วางเอง เช่น&#10;เชาวลิต เอกกุล&#10;6ม.4 บ้านปุหรน ต.ช้างให้ตก อ.โคกโพธิ์&#10;จ.ปัตตานี 94120&#10;โทร 081-7971726"></textarea>
+              <!-- mini bubble กลางล่าง textarea — โชว์เมื่อ detect ว่ามีข้อความใน clipboard (ไม่มี → ซ่อน) -->
+              <button class="pastebubble"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-3"/></svg> วางจากคลิปบอร์ด</button>
+            </div>
+            <button class="apply" style="margin-top:12px">แยกข้อมูล → เติมให้</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ยอดขาย → full-screen chart sheet (แตะการ์ด mini บน CC) -->
+    <div class="device mobile">
+      <div class="cap"><span>ยอดขาย → full sheet</span><span>รายวัน/รายเดือน</span></div>
+      <div class="screen" style="padding:0">
+        <div class="csheet" style="flex:1;display:flex;flex-direction:column;background:#fff;padding:16px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px;color:var(--d500)"><path d="M15 18l-6-6 6-6"/></svg>
+            <span style="font-size:16px;font-weight:700">ยอดขาย</span>
+            <span class="seg" style="margin-left:auto"><button class="on">รายวัน</button><button>รายเดือน</button></span>
+          </div>
+          <div class="pnav">
+            <span class="arw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></span>
+            <span class="cur"><div class="m">กรกฎาคม 2569</div><div class="s">1 – 31 ก.ค.</div></span>
+            <span class="arw dis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></span>
+          </div>
+          <div class="tot"><span class="cur">฿</span><span class="v">45,200</span><span class="chg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 15l6-6 6 6"/></svg>12%</span></div>
+          <div class="totsub">รวมเดือนนี้ · เทียบเดือนก่อน +12% · order ที่ไม่ยกเลิก</div>
+          <div class="chart">
+            <div class="bar" style="height:30%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:20%"></div><div class="bar" style="height:70%"></div><div class="bar" style="height:45%"></div><div class="bar" style="height:60%"></div><div class="bar" style="height:35%"></div><div class="bar" style="height:80%"></div><div class="bar" style="height:50%"></div><div class="bar hi" data-v="฿4,100" style="height:95%"></div><div class="bar" style="height:40%"></div><div class="bar" style="height:65%"></div><div class="bar" style="height:25%"></div><div class="bar" style="height:58%"></div><div class="bar" style="height:72%"></div><div class="bar" style="height:44%"></div><div class="bar" style="height:33%"></div><div class="bar" style="height:60%"></div><div class="bar" style="height:50%"></div><div class="bar" style="height:78%"></div><div class="bar" style="height:38%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:66%"></div><div class="bar" style="height:29%"></div><div class="bar" style="height:48%"></div><div class="bar" style="height:70%"></div><div class="bar" style="height:52%"></div><div class="bar" style="height:36%"></div><div class="bar" style="height:62%"></div><div class="bar dim" style="height:15%"></div><div class="bar dim" style="height:10%"></div>
+          </div>
+          <div class="xax"><span>1</span><span></span><span></span><span></span><span>5</span><span></span><span></span><span></span><span></span><span>10</span><span></span><span></span><span></span><span></span><span>15</span><span></span><span></span><span></span><span></span><span>20</span><span></span><span></span><span></span><span></span><span>25</span><span></span><span></span><span></span><span></span><span>30</span><span></span></div>
+          <p style="font-size:11.5px;color:var(--d400);margin-top:16px">แตะ ‹ › เพื่อดูเดือน/ปีย้อนหลัง · สลับ รายวัน/รายเดือน ด้านบน</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ============ TABLET ============ -->
@@ -498,24 +636,11 @@
             </div>
           </div>
 
-          <!-- 2. ช่องทางการขาย -->
+          <!-- 2. ช่องทาง + ชำระเงิน (tablet แนวนอน — 2 คอลัมน์) -->
           <div class="blk">
-            <p class="lbl">ช่องทางการขาย</p>
-            <div class="chan">
-              <div class="ch sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M5 9v11h14V9M4 9h16"/></svg>หน้าร้าน</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 2h-3a5 5 0 00-5 5v3H6v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>Facebook</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.6 2 10.7c0 3.7 3.4 6.8 8 7.4.9.2.8.5.6 1.6 0 .2-.3 1.2.9.7 1.2-.5 6.4-3.8 8.7-6.5C22 11.8 22 3 12 3z"/></svg>Line</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7zM9 8V6a3 3 0 016 0v2"/></svg>Shopee</div>
-            </div>
-          </div>
-
-          <!-- 3. รูปแบบการชำระเงิน -->
-          <div class="blk">
-            <p class="lbl">รูปแบบการชำระเงิน</p>
-            <div class="chan">
-              <div class="ch sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>เงินสด</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M12 3l9 5H3zM5 8v10M19 8v10M10 8v10M14 8v10"/></svg>โอน</div>
-              <div class="ch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h13v8H3zM16 12h3l2 3v2h-5z"/><circle cx="7" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>COD</div>
+            <div class="selgrid">
+              <div class="selrow"><span class="sl">ช่องทางการขาย</span><span class="sv"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M5 9v11h14V9M4 9h16"/></svg> หน้าร้าน <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></div>
+              <div class="selrow"><span class="sl">การชำระเงิน</span><span class="sv"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg> เงินสด <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span></div>
             </div>
           </div>
 

@@ -21,6 +21,29 @@
 
 ---
 
+## UX Micro-Rules (เงื่อนไขแสดงผล/ฟังก์ชันเล็ก ๆ ที่ dev ต้อง implement — ห้ามตกหล่น)
+
+1. **Breakpoint:** `<lg` = quick form; `≥lg` = POS split เดิม (ไม่แตะ).
+2. **สินค้า initial:** mount ครั้งแรก ถ้า `items` ว่าง → `addCustom()` 1 บรรทัด (placeholder พร้อมแตะเลือกทันที).
+3. **line ว่าง (ยังไม่เลือก product):** thumb dashed muted + ยอด `฿0`; ชื่อ = placeholder "พิมพ์ชื่อ/SKU หรือแตะเลือกสินค้า".
+4. **แตะช่องชื่อ / "+ เพิ่มรายการ":** เปิด `ProductPickerSheet` (best-seller card slide + search **ชื่อ+SKU**).
+5. **best-seller:** query sum qty desc (เฉพาะ `productId`, active). **ร้านใหม่/ไม่มียอด → ไม่โชว์ card slide** (เหลือ search + "ใช้คำที่พิมพ์เป็นสินค้าใหม่"); Command Center strip **ไม่ render ถ้าว่าง**.
+6. **จิ้มราคา/ชิ้น:** เปิด `QuickPriceSheet` (−10/−/+/+10; ค่าเริ่ม = ราคาปัจจุบัน; ราคา >0 validation).
+7. **trash line:** low-emphasis (จาง) กันลบพลาด.
+8. **ช่องทาง/ชำระเงิน:** `selrow` → `OptionPickerSheet`. **★ = ตั้ง default → localStorage → ครั้งถัดไป pre-select** (fallback STOREFRONT/CASH). **channel = STOREFRONT → ที่อยู่ซ่อน**.
+9. **ลูกค้า phone-first:** เบอร์ตรง Customer Directory (dedup) → **auto-fill ชื่อ/ที่อยู่ + chip "ลูกค้าเดิม · N ออเดอร์" + ปุ่มล้าง**; ไม่เจอ → ช่องชื่อโผล่ (ลูกค้าใหม่).
+10. **wand → `PasteParseSheet`:** **mini bubble "วางจากคลิปบอร์ด" ลอยกลางล่าง textarea** โชว์เมื่อ detect ว่า clipboard มีข้อความ (best-effort `navigator.clipboard.readText()`; ไม่รองรับ/ว่าง → ซ่อน). กด bubble = ใส่ clipboard ลง textarea แล้ว bubble หาย. **ถ้า user ไม่กด bubble แต่ไปแตะ/โฟกัส textarea (หรือเริ่มพิมพ์) → bubble หายด้วย** (onFocus/onInput hide). textarea ยังพิมพ์/วางเองได้ปกติ.
+11. **paste-parse:** เติม field ที่จับได้ (แทนค่าเดิม แล้ว seller แก้ได้); **เบอร์หลายตัว = เอาตัวแรก**; field ที่ parse ไม่เจอ = ไม่แตะ.
+12. **ที่อยู่:** แสดงเมื่อ channel ≠ STOREFRONT. **locality field** ว่าง=placeholder / เลือกแล้ว=โชว์ในช่องเดิม, **จิ้มซ้ำ = เปิด `AddressSearchSheet` แก้**. sheet: พิมพ์→filter db, **selected row เขียว + check**.
+13. **needsShipping (FR-6.5):** ต้องส่ง → ที่อยู่+จังหวัด+รหัส required (client toast + server); STOREFRONT ยกเว้น. (logic เดิมใน `onSubmit` — ไม่แตะ.)
+14. **derivedType:** PHYSICAL>SERVICE>DIGITAL (custom item = PHYSICAL). (logic เดิม.)
+15. **summary panel:** default ย่อ (`รวมทั้งสิ้น ฿X ⌄`); จิ้มแถวรวม → กาง ยอดสินค้า/ส่วนลด/VAT; ยอด real-time จาก `useWatch`.
+16. **pre-add `?product`:** จาก Command Center → `inc()` ครั้งเดียว (guard `didPreAdd`).
+17. **tablet แนวนอน:** channel/payment 2-col (`selgrid`); สินค้าขายดีผ่าน sheet เหมือนมือถือ.
+18. **submit:** ปุ่มบันทึก `type=submit form={formId}`; error → scroll ไป field แรก (logic เดิม); success → `pacesToast.success` + redirect `/orders/{token}`.
+
+---
+
 ## File Structure
 
 **สร้างใหม่ (ทั้งหมด client, ใต้ `src/app/(paces)/seller/(dashboard)/orders/new/components/`):**
@@ -28,7 +51,8 @@
 - `ProductPickerSheet.tsx` — bottom sheet เลือกสินค้า (search ชื่อ/SKU + สินค้าขายดี card slide + custom); เปิดตอนแตะช่องชื่อ/เพิ่มรายการ.
 - `QuickLineItem.tsx` — ไลน์ ภาพ 21 (รูป square + ชื่อ inline-edit + รายละเอียด + ยอดรวม + ราคา/ชิ้น + stepper + trash); แตะชื่อ→ProductPickerSheet, จิ้มราคา→QuickPriceSheet.
 - `QuickPriceSheet.tsx` — bottom sheet แก้ราคา (±1/±10 + นำไปใช้).
-- `ChannelCards.tsx` / `PaymentCards.tsx` — card เลือก `salesChannel` / `paymentMethod`.
+- `ChannelPaymentSelect.tsx` — 2 selrow (label + ค่า + chevron) แตะ→OptionPickerSheet; tablet 2-col.
+- `OptionPickerSheet.tsx` — bottom sheet เลือก channel/payment (option list + check + ★ ตั้ง default→localStorage).
 - `CustomerQuickBlock.tsx` — phone-first + wand tool (paste) + address (locality field เปิด AddressSearchSheet).
 - `AddressSearchSheet.tsx` — full-screen sheet ค้นหาที่อยู่ (thai-address.json typeahead).
 - `PasteParseSheet.tsx` — textarea วางแชท → `parseOrderMessage` → เติมฟิลด์.
@@ -291,18 +315,19 @@ Base: mockup 2026-07-06-quick-create-order.html + theme/paces order-add"
 
 ---
 
-## Task 6: ChannelCards + PaymentCards (card selector)
+## Task 6: ChannelPaymentSelect (2 selector rows) + OptionPickerSheet (+ ★ default)
 
-**Files:** Create `ChannelCards.tsx`, `PaymentCards.tsx`; Modify `QuickForm.tsx`.
+**Files:** Create `ChannelPaymentSelect.tsx`, `OptionPickerSheet.tsx`; Modify `QuickForm.tsx`.
 
-**Interfaces:** consume `control`. bind ผ่าน `useController({control, name:'salesChannel'|'paymentMethod'})`.
+**Interfaces:** consume `control`. bind `useController({control, name:'salesChannel'|'paymentMethod'})`. `OptionPickerSheet` props: `title, options: {value,label,icon}[], value, defaultValue, onSelect(v), onSetDefault(v), onClose`.
 
-- [ ] **Step 1: ChannelCards** — หัวข้อ "ช่องทางการขาย"; card เลือก 1 (icon + label + selected style `border-primary bg-primary/5 text-primary`): STOREFRONT=หน้าร้าน(`building-store`) / FACEBOOK(`brand-facebook`) / LINE(`brand-line` — ยืนยันชื่อ icon จริง) / TIKTOK(`brand-tiktok`) / OTHER=อื่นๆ(`world`). default STOREFRONT. คลิก = `field.onChange(value)`.
-- [ ] **Step 2: PaymentCards** — หัวข้อ "รูปแบบการชำระเงิน"; card: CASH=เงินสด(`cash`/`coin`) / TRANSFER=โอน(`building-bank`) / COD(`truck-delivery`). (แสดง 3 หลัก; PROMPTPAY/CARD/OTHER เข้าถึงผ่าน "อื่นๆ" ปุ่มเสริม หรือไว้ Phase 2 — ยืนยันกับ scope: รอบนี้ 3 พอ). default CASH.
-- [ ] **Step 3: QuickForm mount** (section 3–4). ถ้า STOREFRONT ที่อยู่ซ่อน (T7 อ่าน watch salesChannel).
-- [ ] **Step 4: tsc 0 + QA: เลือก card → selected ย้าย, ค่า submit ถูก.**
-- [ ] **Step 5: Commit** (`Base:` Paces card + form-select docs).
-> icon names ที่ไม่ชัด (brand-line/brand-tiktok) → ยืนยันมีใน iconify tabler ก่อน; ไม่มี → ถาม user (Hard Rule 12: ห้ามเดา icon).
+- [ ] **Step 1: ChannelPaymentSelect** — 1 section = 2 แถว `.selrow` (label ซ้าย + icon+ค่าที่เลือก + chevron ขวา). แตะ → เปิด `OptionPickerSheet` (channel หรือ payment). tablet (`sm:`) = 2 คอลัมน์ (`.selgrid`). channel: STOREFRONT=หน้าร้าน(`building-store`)/FACEBOOK(`brand-facebook`)/LINE(`brand-line`)/TIKTOK(`brand-tiktok`); payment: CASH=เงินสด(`cash`)/TRANSFER=โอน(`building-bank`)/COD(`truck-delivery`).
+  > icon `brand-line`/`brand-tiktok` — ยืนยันมีใน iconify tabler; ไม่มี → ถาม user (HR12).
+- [ ] **Step 2: OptionPickerSheet** — bottom sheet (viewport-lock comment): option list (`.optrow` icon+label + check ตัวที่เลือก + **★ toggle**). แตะ option = `onSelect`+ปิด; แตะ ★ = `onSetDefault`.
+- [ ] **Step 3: ★ default (localStorage, ไม่มี migration)** — `onSetDefault(v)` เขียน `localStorage['deep.default.salesChannel'|'deep.default.paymentMethod']=v`. ตอน mount OrderCreateForm: อ่าน localStorage → ใช้เป็น `defaultValues.salesChannel/paymentMethod` (fallback STOREFRONT/CASH). *(server-side prefs = Phase 2.)*
+- [ ] **Step 4: QuickForm mount** (section 2). ถ้า STOREFRONT → ที่อยู่ซ่อน (customer section อ่าน watch salesChannel).
+- [ ] **Step 5: tsc 0 + QA: แตะ selector → sheet เด้ง, เลือก → ค่าอัปเดต, ★ → รีเฟรชแล้ว default ติดมา.**
+- [ ] **Step 6: Commit** (`Base:` Paces list/bottom-sheet).
 
 ---
 
@@ -343,7 +368,7 @@ it('รองรับ "ชื่อผู้รับ:" + เบอร์หล
 - [ ] **Step 1: CustomerQuickBlock (phone-first)** — หัวข้อ "ลูกค้า" + **wand tool icon** (เปิด PasteParseSheet). ช่อง **เบอร์โทร** นำ (live search dedup — reuse logic `CustomerSelectBlock`; เจอ → chip "ลูกค้าเดิม" + auto-fill ชื่อ/ที่อยู่); ช่อง **ชื่อ** โผล่เมื่อไม่เจอ/ลูกค้าใหม่. bind `buyerName`/`buyerContact`.
 - [ ] **Step 2: ที่อยู่** — แสดงเมื่อ `useWatch salesChannel !== 'STOREFRONT'`. บ้านเลข/หมู่/ถนน = `shippingAddress.line1`; **locality field อันเดียว** (`.locsel` mockup) โชว์ ต/อ/จ/รหัส ที่เลือก (ว่าง = placeholder) → แตะเปิด `AddressSearchSheet`.
 - [ ] **Step 3: AddressSearchSheet** — full-screen sheet: search input (autofocus) → filter `thai-address.json` (dynamic import) ตาม district/amphoe/province/zipcode substring (จำกัด ~30 แถว) → list `ตำบล > อำเภอ > จังหวัด > รหัส`; เลือก = `onSelect` set `shippingAddress.subdistrict/district/province/postcode` + ปิด. selected แถวเดิม = สีเขียว + check.
-- [ ] **Step 4: PasteParseSheet** — sheet มี textarea + ปุ่ม "แยกข้อมูล" → `parseOrderMessage` → preview ฟิลด์ที่จับได้ → "นำไปใช้" = set buyerName/buyerContact/shippingAddress.*; seller แก้ต่อได้.
+- [ ] **Step 4: PasteParseSheet** — sheet: textarea + **mini bubble "วางจากคลิปบอร์ด" ลอยกลางล่าง textarea** (position absolute; โชว์เมื่อ `navigator.clipboard.readText()` best-effort คืนข้อความ; กด = ใส่ textarea — เลี่ยง long-press) + textarea + ปุ่ม "แยกข้อมูล → เติมให้" → `parseOrderMessage` (T7) → set buyerName/buyerContact/shippingAddress.* (field ที่จับได้; seller แก้ต่อ). clipboard ไม่รองรับ/ว่าง → ซ่อนปุ่ม (พิมพ์/วางเองได้ปกติ).
 - [ ] **Step 5: เพิ่มเติม (collapsible)** — ส่วนลด/หมายเหตุ/VAT (React toggle).
 - [ ] **Step 6: QuickSummaryPanel** — sticky ล่าง; ย่อ `รวมทั้งสิ้น {formatThb(total)} ⌄`; จิ้ม → กาง ยอดสินค้า/ส่วนลด/VAT; ปุ่ม `บันทึกออเดอร์` `type="submit" form={formId}`.
 - [ ] **Step 7: tsc 0 + QA (Task 10).**
