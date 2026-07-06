@@ -238,7 +238,8 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
         onUseNew={useNewCustomer}
         onClose={() => setCustOpen(false)}
       />
-      <PasteParseSheet open={pasteOpen} onApply={applyPaste} onClose={() => setPasteOpen(false)} />
+      {/* key={pasteOpen} → remount ทุกครั้งที่เปิด: text/showBubble เริ่มสด ไม่ต้อง setState ใน effect */}
+      <PasteParseSheet key={String(pasteOpen)} open={pasteOpen} onApply={applyPaste} onClose={() => setPasteOpen(false)} />
       <AddressSearchSheet open={addrOpen} current={locality} onSelect={applyLocality} onClose={() => setAddrOpen(false)} />
     </>
   )

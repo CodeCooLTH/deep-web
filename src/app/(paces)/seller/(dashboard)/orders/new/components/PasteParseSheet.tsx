@@ -18,41 +18,34 @@ interface Props {
 
 export default function PasteParseSheet({ open, onApply, onClose }: Props) {
   const [text, setText] = useState('')
-  const [showBubble, setShowBubble] = useState(false)
+  // bubble "วางจากคลิปบอร์ด" โชว์เสมอตอนเปิด — ไม่อ่าน clipboard ตอนเปิด
+  // (proactive readText เด้ง OS "Paste" permission popup บนมือถือ); อ่านจริงตอน user แตะ bubble = user gesture.
+  // parent ใส่ key ให้ remount ทุกครั้งที่เปิด → state เริ่มสด (text='' / showBubble=true) โดยไม่ setState ใน effect
+  const [showBubble, setShowBubble] = useState(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // เวลาที่ sheet เพิ่งเปิด — กัน "click-through": tap ปุ่มเปิด sheet แล้ว synthetic click ตกลงบน dim
+  // ที่ mount ใต้ปลายนิ้ว → onClose ทันที (มือถือ). ไม่รับ dismiss ภายใน ~350ms แรก
+  const openedAtRef = useRef(0)
 
   useEffect(() => {
     if (!open) return
-    setText('')
-    setShowBubble(false)
+    openedAtRef.current = Date.now()
     // auto-focus textarea ตอนเปิด (bubble ยังโชว์ได้—ซ่อนเมื่อพิมพ์ ไม่ใช่แค่ focus)
     const ft = setTimeout(() => textareaRef.current?.focus(), 80)
-    let cancelled = false
-    // detect ว่า clipboard มีข้อความไหม (best-effort — unsupported/denied → ไม่โชว์ bubble, ไม่ crash)
-    if (navigator.clipboard?.readText) {
-      navigator.clipboard
-        .readText()
-        .then((t) => {
-          if (!cancelled && t && t.trim()) setShowBubble(true)
-        })
-        .catch(() => {
-          // อ่านไม่ได้ (permission/insecure) → โชว์ bubble ไว้ กด→ลองอีกที
-          if (!cancelled) setShowBubble(true)
-        })
-    } else {
-      // ไม่มี Clipboard API (dev http = insecure context; ต้อง https) → โชว์ bubble ไว้ (paste ทำงานบน prod https)
-      setShowBubble(true)
-    }
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onEsc)
     return () => {
-      cancelled = true
       clearTimeout(ft)
       document.removeEventListener('keydown', onEsc)
     }
   }, [open, onClose])
+
+  // dismiss ผ่าน dim — กัน click-through ช่วง 350ms แรกหลังเปิด
+  const handleDimClose = () => {
+    if (Date.now() - openedAtRef.current > 350) onClose()
+  }
 
   const pasteFromClipboard = async () => {
     try {
@@ -69,7 +62,7 @@ export default function PasteParseSheet({ open, onApply, onClose }: Props) {
   return (
     <>
       {/* dim z-70 / sheet z-80 (reuse pattern QuickPriceSheet) */}
-      <div className="fixed inset-0 z-70 bg-dark/40" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-0 z-70 bg-dark/40" onClick={handleDimClose} aria-hidden="true" />
       {/* HR7: fixed inset-x-0 bottom-0 + h-[50dvh] = viewport-lock (Paces ไม่มี token) — sheet สูงครึ่งจอ */}
       <div
         className="fixed inset-x-0 bottom-0 z-80 flex h-[50dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card"
