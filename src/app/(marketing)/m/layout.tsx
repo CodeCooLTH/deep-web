@@ -11,18 +11,24 @@ import { authOptions } from '@/lib/auth'
 
 import AppTopBar from './_components/AppTopBar'
 import AppBottomNav from './_components/AppBottomNav'
-import ScrollToTop from '@/app/(marketing)/(buyer-app)/_components/ScrollToTop'
+import MScrollReset from './_components/MScrollReset'
 
 export default async function MobileAppLayout({ children }: ChildrenType) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/auth/sign-in')
 
+  // App-shell จริง: root สูง 100dvh, scroll เกิดใน <main> (ซ่อน scrollbar), AppBottomNav เป็น flex
+  // child ชิดล่างเสมอ (ไม่ใช่ fixed) → ไม่มีพื้นเทาลอยใต้แถบ + ไม่มี scrollbar โผล่ข้างขวา
   return (
-    <div className='flex flex-col min-bs-[100dvh] bg-[var(--mui-palette-background-default)]'>
-      <ScrollToTop />
+    <div className='flex flex-col h-[100dvh] overflow-hidden bg-[var(--mui-palette-background-default)]'>
+      <MScrollReset />
       <AppTopBar />
-      {/* pb-24 กัน content ทับ bottom nav (fixed); flex-col gap ให้ re-exported page (header+list) เว้นระยะ */}
-      <main className='flex-1 pli-4 pbs-4 pbe-24 flex flex-col gap-5'>{children}</main>
+      <main
+        id='m-scroll'
+        className='flex-1 overflow-y-auto overflow-x-hidden pli-4 pbs-4 pbe-8 flex flex-col gap-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+      >
+        {children}
+      </main>
       <AppBottomNav />
     </div>
   )

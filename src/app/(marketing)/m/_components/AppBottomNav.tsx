@@ -20,9 +20,16 @@ const RIGHT: Tab[] = [
   { href: '/settings/profile', label: 'โปรไฟล์', icon: 'tabler-user' },
 ]
 
+// หน้า sub ที่ให้ highlight tab แม่ (nav โชว์แค่ 5 tab แต่ครอบคลุมหน้าลูก)
+const GROUP: Record<string, string[]> = {
+  '/dashboard': ['/shops', '/auctions'],
+  '/settings/profile': ['/reviews', '/badges', '/settings', '/notifications']
+}
+
 export default function AppBottomNav() {
   const pathname = usePathname()
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  const matchPrefix = (p: string) => pathname === p || pathname.startsWith(`${p}/`)
+  const isActive = (href: string) => matchPrefix(href) || (GROUP[href]?.some(matchPrefix) ?? false)
 
   const tabItem = (t: Tab) => {
     const active = isActive(t.href)
@@ -45,7 +52,7 @@ export default function AppBottomNav() {
 
   return (
     <nav
-      className='fixed inset-x-0 bottom-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'
+      className='shrink-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className='relative flex items-stretch'>
