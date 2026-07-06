@@ -17,7 +17,7 @@ export default async function AppTopBar() {
       className='shrink-0 z-20 bg-[var(--mui-palette-background-paper)] shadow-[0_2px_10px_rgb(47_43_61_/_0.06)]'
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <div className='flex items-center gap-2.5 pli-4 plb-3'>
+      <div className='flex items-center gap-2.5 pli-4 pbs-2 pbe-2.5'>
         <Link href='/dashboard' aria-label='หน้าแรก' className='shrink-0 no-underline flex items-center'>
           <VuexyLogo className='text-[var(--mui-palette-primary-main)]' style={{ fontSize: '1.75rem' }} />
         </Link>

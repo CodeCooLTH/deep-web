@@ -38,7 +38,7 @@ export default function AppBottomNav() {
         key={t.href}
         href={t.href}
         className={classnames(
-          'flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1 min-h-[56px] no-underline transition-colors',
+          'flex flex-1 flex-col items-center justify-center gap-1 pt-2.5 pb-1.5 min-h-[58px] no-underline transition-colors',
           active ? 'text-[var(--mui-palette-primary-main)]' : 'text-[var(--mui-palette-text-secondary)]'
         )}
       >
@@ -53,13 +53,13 @@ export default function AppBottomNav() {
   return (
     <nav
       className='shrink-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 10px)' }}
     >
       <div className='relative flex items-stretch'>
         {LEFT.map(tabItem)}
 
         {/* ปุ่มกลาง — เช็กมิจฉาชีพ ยกลอย (signature) */}
-        <div className='flex flex-1 flex-col items-center justify-end pb-1'>
+        <div className='flex flex-1 flex-col items-center justify-end pb-1.5'>
           <Link
             href='/check'
             className={classnames(
