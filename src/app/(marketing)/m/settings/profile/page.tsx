@@ -15,8 +15,9 @@ import AvatarEditable from './AvatarEditable'
 
 export const metadata: Metadata = { title: 'บัญชีของฉัน' }
 
-// storage key → URL (avatar อาจเป็น key ดิบ)
-const resolveImg = (u: string | null) => (!u ? undefined : u.startsWith('http') ? u : `/api/files/${u}`)
+// avatar → URL. avatar ถูกเก็บเป็น path เต็ม (/api/files/<id>) จาก AvatarEditable/AccountSidebar หรือ http (FB)
+// → ปล่อยผ่านถ้าเป็น http/ขึ้นต้น '/'; prefix เฉพาะกรณี key ดิบ (กัน bug prefix ซ้ำ = /api/files//api/files/xxx)
+const resolveImg = (u: string | null) => (!u ? undefined : u.startsWith('http') || u.startsWith('/') ? u : `/api/files/${u}`)
 
 type SemColor = 'warning' | 'info' | 'success' | 'error'
 const semBg = (c: SemColor) => `var(--mui-palette-${c}-lightOpacity)`
