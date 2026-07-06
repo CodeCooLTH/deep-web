@@ -20,12 +20,13 @@ export default async function MobileAppLayout({ children }: ChildrenType) {
   // App-shell จริง: root สูง 100dvh, scroll เกิดใน <main> (ซ่อน scrollbar), AppBottomNav เป็น flex
   // child ชิดล่างเสมอ (ไม่ใช่ fixed) → ไม่มีพื้นเทาลอยใต้แถบ + ไม่มี scrollbar โผล่ข้างขวา
   return (
-    <div className='flex flex-col h-[100dvh] overflow-hidden bg-[var(--mui-palette-background-default)]'>
+    <div className='flex flex-col h-[100dvh] overflow-hidden bg-[var(--mui-palette-background-paper)]'>
       <MScrollReset />
       <AppTopBar />
+      {/* root เป็นขาว (safe-area บนสุด = ขาวกลืน AppTopBar ไม่ดูเว้นว่าง); พื้นเทาให้เฉพาะ content */}
       <main
         id='m-scroll'
-        className='flex-1 overflow-y-auto overflow-x-hidden pli-4 pbs-4 pbe-8 flex flex-col gap-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        className='flex-1 overflow-y-auto overflow-x-hidden pli-4 pbs-4 pbe-8 flex flex-col gap-5 bg-[var(--mui-palette-background-default)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
       >
         {children}
       </main>
