@@ -44,9 +44,10 @@ export const metadata: Metadata = {
   description:
     'Deep คือระบบสร้างความน่าเชื่อถือสำหรับการซื้อขายออนไลน์ ผ่านการยืนยันตัวตน Trust Score และ Badge เพื่อลดปัญหามิจฉาชีพ',
   keywords: ['Deep', 'Trust Score', 'ซื้อขายออนไลน์', 'ยืนยันตัวตน', 'มิจฉาชีพ'],
-  // PWA: iOS "เพิ่มลงหน้าจอโฮม" → เปิดเต็มจอ (standalone). ไม่ตั้ง statusBarStyle (legacy)
-  // เพื่อให้ manifest theme_color (#ffffff) คุม status bar ล้วน ๆ บน iOS 16.4+ (auto dark text)
-  appleWebApp: { capable: true, title: 'Deep' },
+  // PWA: iOS "เพิ่มลงหน้าจอโฮม" → เปิดเต็มจอ. black-translucent = status bar โปร่งใส ให้ content
+  // ของเราเอง (AppTopBar สีขาว + paddingTop safe-area, viewport-fit=cover) ทะลุขึ้นไปเติมเป็นสีขาว
+  // (ไม่พึ่ง iOS ทาสี status bar ให้ ซึ่งไม่เวิร์กบนบางเครื่อง)
+  appleWebApp: { capable: true, title: 'Deep', statusBarStyle: 'black-translucent' },
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
 }
 
