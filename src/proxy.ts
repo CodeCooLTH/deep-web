@@ -61,6 +61,11 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith('/api')) {
     return guardApi(request)
   }
+  // Static assets ใน public/ (favicon, /data/*.json, รูป ฯลฯ) — ปล่อยผ่าน ไม่ rewrite ตาม subdomain
+  // (public/ เสิร์ฟที่ root; ถ้า rewrite → /seller/data/... = 404) — bug จริง feature Quick Create address db
+  if (/\.(?:json|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map)$/i.test(pathname)) {
+    return NextResponse.next()
+  }
 
   // Cookies are per-hostname → this token is specific to this subdomain's session
   const token = await getToken({ req: request })
