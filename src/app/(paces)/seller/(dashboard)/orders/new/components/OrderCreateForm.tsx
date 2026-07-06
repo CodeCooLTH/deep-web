@@ -161,6 +161,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
     control,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,8 +170,9 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
       buyerName: '',
       buyerContact: '',
       items: [],
-      salesChannel: undefined,
-      paymentMethod: undefined,
+      // default ตรงกับ quick create ChannelPaymentSelect (STOREFRONT/CASH); localStorage override ตอน mount ด้านล่าง
+      salesChannel: 'STOREFRONT',
+      paymentMethod: 'CASH',
       internalNote: '',
       discount: undefined,
       vatRate: undefined,
@@ -245,6 +247,18 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
     // inc/catalog อ้างผ่าน closure — guard didPreAdd กัน re-run; ตั้งใจ deps แค่ searchParams
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // ── ★ default channel/payment ที่ seller ตั้งไว้ (localStorage) → override ตอน mount (client-only) ──
+  // key ตรงกับ ChannelPaymentSelect (DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY); ใส่ใน useForm defaultValues ไม่ได้ (SSR ไม่มี window)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const ch = localStorage.getItem('deep.default.salesChannel')
+    const pm = localStorage.getItem('deep.default.paymentMethod')
+    if (ch) setValue('salesChannel', ch)
+    if (pm) setValue('paymentMethod', pm)
+    // รันครั้งเดียวตอน mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── สรุปยอด (ส่งเข้า QuickForm footer < lg + CartPanel ≥ lg) ────────────────
   const barDiscount = useWatch({ control, name: 'discount' }) as number | undefined

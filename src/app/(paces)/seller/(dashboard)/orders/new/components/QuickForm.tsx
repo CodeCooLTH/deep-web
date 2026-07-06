@@ -16,6 +16,7 @@ import type { Control, FieldErrors } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import QuickLineItem from './QuickLineItem'
 import ProductPickerSheet from './ProductPickerSheet'
+import ChannelPaymentSelect from './ChannelPaymentSelect'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 
 const formatThb = (n: number) =>
@@ -70,9 +71,9 @@ export default function QuickForm({
         <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">ลูกค้า</p>
       </section>
 
-      {/* SECTION 2: ช่องทางการขาย + การชำระเงิน — T6 ChannelPaymentSelect */}
-      <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
-        <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">ช่องทาง / ชำระเงิน</p>
+      {/* SECTION 2: ช่องทางการขาย + การชำระเงิน (T6) — selrow self-labeled ไม่ต้องมี eyebrow */}
+      <section className="border-b-8 border-default-100 px-4 py-2 md:px-8">
+        <ChannelPaymentSelect control={control} />
       </section>
 
       {/* SECTION 3: สินค้า — QuickLineItem list + "+ เพิ่มรายการ" (T5) */}
