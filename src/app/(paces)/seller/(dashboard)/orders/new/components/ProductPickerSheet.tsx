@@ -58,6 +58,8 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
       (p) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s),
     )
   }, [catalog, s])
+  // ชื่อตรงเป๊ะกับสินค้าที่มีแล้ว → ซ่อน "ใช้เป็นสินค้าใหม่" (กันสร้างชื่อซ้ำ)
+  const exactNameMatch = !!s && catalog.some((p) => p.name.trim().toLowerCase() === s)
 
   // lazy-load: เลื่อนใกล้ล่าง → แสดงเพิ่ม 10 (เฉพาะ list สินค้าทั้งหมด ตอนไม่ค้นหา)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -177,12 +179,12 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
             </div>
           )}
 
-          {/* custom — ใช้คำที่พิมพ์เป็นสินค้าใหม่ */}
-          {typed && (
+          {/* custom — ใช้คำที่พิมพ์เป็นสินค้าใหม่ (blue text กลาง เหมือนค้นหาลูกค้า; ซ่อนถ้าชื่อตรงเป๊ะแล้ว กันซ้ำ) */}
+          {typed && !exactNameMatch && (
             <button
               type="button"
               onClick={() => onCustom(typed)}
-              className="mt-2 flex w-full items-center gap-2 rounded-lg border border-dashed border-primary bg-primary/5 px-3 py-3 text-left text-sm font-semibold text-primary"
+              className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-primary"
             >
               <Icon icon="plus" className="size-4 shrink-0" />
               <span className="truncate">ใช้ &ldquo;{typed}&rdquo; เป็นสินค้าใหม่</span>

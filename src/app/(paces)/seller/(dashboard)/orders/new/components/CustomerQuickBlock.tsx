@@ -29,6 +29,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
   const [custOpen, setCustOpen] = useState(false)
   const [custQuery, setCustQuery] = useState('')
   const [selected, setSelected] = useState<CustomerResult | null>(null)
+  const [isNewCustomer, setIsNewCustomer] = useState(false) // badge "ลูกค้าใหม่" (paste ไม่เจอ / ยืนยันลูกค้าใหม่)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // พิมพ์เบอร์ → debounce (เผื่อ paste) → เปิด sheet ค้นหา (ไม่เปิดตอนแค่จิ้ม)
@@ -63,6 +64,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
   const selectCustomer = (c: CustomerResult) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     setSelected(c)
+    setIsNewCustomer(false)
     setValue('buyerContact', c.contact)
     setValue('buyerName', c.name ?? '')
     setCustOpen(false)
@@ -72,6 +74,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
   const useNewCustomer = (q: string) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     setSelected(null)
+    setIsNewCustomer(true)
     if (/^\d/.test(q)) setValue('buyerContact', q)
     else setValue('buyerName', q)
     setCustOpen(false)
@@ -85,7 +88,12 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
       if (!res.ok) return
       const list: CustomerResult[] = await res.json()
       const match = list.find((c) => c.contact === phone.trim())
-      if (match) setSelected(match)
+      if (match) {
+        setSelected(match)
+        setIsNewCustomer(false)
+      } else {
+        setIsNewCustomer(true) // paste เบอร์ที่ไม่มีในระบบ → ลูกค้าใหม่
+      }
     } catch {
       /* เงียบ — เป็น enhancement */
     }
@@ -126,6 +134,12 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
             ลูกค้าเก่า · {selected.orderCount} ออเดอร์
           </span>
         )}
+        {!selected && isNewCustomer && (
+          <span className="badge badge-label bg-info/15 text-info text-2xs font-semibold">
+            <Icon icon="user-plus" className="text-xs" />
+            ลูกค้าใหม่
+          </span>
+        )}
         <button
           type="button"
           onClick={() => setPasteOpen(true)}
@@ -146,6 +160,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
           value={nameField.value ?? ''}
           onChange={(e) => {
             setSelected(null)
+            setIsNewCustomer(false)
             nameField.onChange(e)
           }}
           onBlur={nameField.onBlur}
@@ -165,6 +180,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
           value={contactField.value ?? ''}
           onChange={(e) => {
             setSelected(null)
+            setIsNewCustomer(false)
             contactField.onChange(e)
             triggerCustomerSearch(e.target.value)
           }}

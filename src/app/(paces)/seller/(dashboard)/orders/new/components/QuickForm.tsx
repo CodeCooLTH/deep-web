@@ -47,7 +47,6 @@ export default function QuickForm({
   total,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
-  const [moreOpen, setMoreOpen] = useState(false)
 
   // โหลดครั้งแรก / ลบจนเหลือ 0 → มี 1 บรรทัดว่างเสมอ (micro-rule #2)
   const lineCount = itemsCtl.fields.length
@@ -112,17 +111,14 @@ export default function QuickForm({
         )}
       </section>
 
-      {/* เพิ่มเติม (collapsible) — ส่วนลด/VAT/หมายเหตุ */}
-      <button
-        type="button"
-        onClick={() => setMoreOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-4 py-4 text-sm font-semibold text-default-500 md:px-8"
-      >
-        <Icon icon="circle-plus" className="text-lg text-default-400" />
-        เพิ่มเติม (ส่วนลด · VAT · หมายเหตุ)
-        <Icon icon={moreOpen ? 'chevron-up' : 'chevron-down'} className="ms-auto text-base text-default-400" />
-      </button>
-      {moreOpen && <MoreOptions control={control} />}
+      {/* SECTION 4: เพิ่มเติม — ส่วนลด/VAT/หมายเหตุ (ไม่ collapse; สไตล์เดียวกับ section อื่น) */}
+      <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
+        <div className="mb-3 flex items-center gap-2">
+          <Icon icon="adjustments" className="size-5 text-primary" />
+          <h2 className="text-base font-bold text-dark">เพิ่มเติม</h2>
+        </div>
+        <MoreOptions control={control} />
+      </section>
 
       {/* Footer sticky (< lg) — collapsible summary + บันทึก */}
       <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} />

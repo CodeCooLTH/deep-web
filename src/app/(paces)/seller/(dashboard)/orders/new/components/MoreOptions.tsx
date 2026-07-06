@@ -1,8 +1,9 @@
 'use client'
 
 /**
- * MoreOptions — เนื้อ "เพิ่มเติม" (collapsible) ของ quick create: ส่วนลด / VAT / หมายเหตุ
+ * MoreOptions — เนื้อ "เพิ่มเติม" ของ quick create: ส่วนลด / VAT / หมายเหตุ (ไม่ collapse — อยู่ใน section ปกติ)
  * (แท็ก = ตัดออก — FormValues ไม่มี field tag; mockup โชว์เป็นตัวอย่าง)
+ * padding อยู่ที่ <section> ใน QuickForm — wrapper นี้จัดแค่ grid
  */
 
 import { useController } from 'react-hook-form'
@@ -23,7 +24,7 @@ export default function MoreOptions({ control }: Props) {
       onChange(e.target.value === '' ? undefined : Number(e.target.value))
 
   return (
-    <div className="grid gap-3 px-4 pb-3 sm:grid-cols-2 md:px-8">
+    <div className="grid gap-3 sm:grid-cols-2">
       <div>
         <label className="form-label">ส่วนลด (บาท)</label>
         <input

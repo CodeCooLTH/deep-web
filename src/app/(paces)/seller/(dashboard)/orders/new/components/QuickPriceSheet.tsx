@@ -22,11 +22,14 @@ const stepBtn =
   'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-default-300 px-2.5 text-sm font-semibold text-primary'
 
 export default function QuickPriceSheet({ open, price, name, onApply, onClose }: Props) {
-  const [local, setLocal] = useState(price)
+  // เก็บเป็น string เพื่อคุมการพิมพ์เอง — bind number ทำให้ leading zero ค้าง (React number-input quirk: 0360)
+  // sanitize: เก็บเฉพาะเลข/จุด + ตัด 0 นำหน้าถ้ามีเลขตาม (0360→360) แต่คง 0.5
+  const [raw, setRaw] = useState('')
+  const sanitize = (s: string) => s.replace(/[^\d.]/g, '').replace(/^0+(?=\d)/, '')
 
-  // reset ค่าเริ่ม = ราคาปัจจุบัน ทุกครั้งที่เปิด
+  // reset ค่าเริ่ม = ราคาปัจจุบัน ทุกครั้งที่เปิด (0 → ว่าง โชว์ placeholder)
   useEffect(() => {
-    if (open) setLocal(price)
+    if (open) setRaw(price ? String(price) : '')
   }, [open, price])
 
   useEffect(() => {
@@ -40,7 +43,11 @@ export default function QuickPriceSheet({ open, price, name, onApply, onClose }:
 
   if (!open) return null
 
-  const step = (d: number) => setLocal((v) => clamp2((Number(v) || 0) + d))
+  const step = (d: number) =>
+    setRaw((prev) => {
+      const n = clamp2((Number(prev) || 0) + d)
+      return n ? String(n) : ''
+    })
 
   return (
     <>
@@ -67,14 +74,13 @@ export default function QuickPriceSheet({ open, price, name, onApply, onClose }:
             <div className="input-group flex-1">
               <span className="input-group-text px-2">฿</span>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min={0}
-                step={0.01}
                 aria-label="ราคาต่อหน่วย"
+                placeholder="0"
                 className="form-input text-center text-lg font-bold"
-                value={local}
-                onChange={(e) => setLocal(e.target.value === '' ? 0 : Number(e.target.value))}
+                value={raw}
+                onChange={(e) => setRaw(sanitize(e.target.value))}
               />
             </div>
             <button type="button" onClick={() => step(1)} aria-label="เพิ่ม 1" className={stepBtn}>
@@ -85,7 +91,7 @@ export default function QuickPriceSheet({ open, price, name, onApply, onClose }:
 
           <button
             type="button"
-            onClick={() => onApply(clamp2(local))}
+            onClick={() => onApply(clamp2(Number(raw) || 0))}
             className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover"
           >
             นำไปใช้
