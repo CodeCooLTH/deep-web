@@ -1,10 +1,10 @@
 'use client'
 
 /**
- * ProductPickerSheet — bottom sheet เลือกสินค้า (quick create < lg): ค้นหา ชื่อ+SKU + สินค้าขายดี card slide + custom
+ * ProductPickerSheet — bottom sheet เลือกสินค้า (quick create < lg): ค้นหา ชื่อ+SKU + สินค้าขายดี card slide + list สินค้าทั้งหมด (lazy-load) + custom
  * Base: mockup 2026-07-06-quick-create-order.html (frame "แตะชื่อสินค้า → เลือก") + ProductCombobox (filter/rows/custom) + ProductGrid (input-icon-group + card)
  * custom React state (ไม่ใช้ Preline hs-overlay — QuickForm re-render หนัก; ux spec HR-lesson 2026-06-15)
- * instance เดียวที่ QuickForm ใช้ร่วมทุก line (catalog/bestSellers หนัก) — เปิดโดยกำหนด pickerIndex
+ * เปิดมา → โชว์ list สินค้าทันที 10 รายการ, เลื่อนใกล้ล่าง → +10 (lazy-load); พิมพ์ → filtered
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react'
@@ -26,15 +26,20 @@ interface Props {
 
 export default function ProductPickerSheet({ open, catalog, bestSellers, onPick, onCustom, onClose }: Props) {
   const [q, setQ] = useState('')
+  const [visibleCount, setVisibleCount] = useState(10) // lazy-load: เริ่ม 10, เลื่อน→+10
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
       setQ('')
+      setVisibleCount(10)
       const t = setTimeout(() => inputRef.current?.focus(), 60)
       return () => clearTimeout(t)
     }
   }, [open])
+
+  // reset จำนวนที่แสดงเมื่อเปลี่ยนคำค้น
+  useEffect(() => setVisibleCount(10), [q])
 
   useEffect(() => {
     if (!open) return
@@ -53,6 +58,31 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
       (p) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s),
     )
   }, [catalog, s])
+
+  // lazy-load: เลื่อนใกล้ล่าง → แสดงเพิ่ม 10 (เฉพาะ list สินค้าทั้งหมด ตอนไม่ค้นหา)
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (s) return
+    const el = e.currentTarget
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      setVisibleCount((v) => (v < catalog.length ? v + 10 : v))
+    }
+  }
+
+  const productRow = (p: CatalogProduct) => (
+    <button
+      key={p.id}
+      type="button"
+      onClick={() => onPick(p)}
+      className="flex w-full items-center gap-3 py-2.5 text-left"
+    >
+      <ProductThumb src={p.image} alt={p.name} className="size-10 rounded-lg" iconClassName="size-5" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-dark">{p.name}</p>
+        {p.sku && <p className="truncate text-xs text-default-400">SKU: {p.sku}</p>}
+      </div>
+      <span className="shrink-0 text-sm font-semibold text-primary">{formatThb(p.price)}</span>
+    </button>
+  )
 
   if (!open) return null
 
@@ -97,12 +127,15 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div
+          onScroll={handleScroll}
+          className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        >
           {/* best-seller card slide (ยังไม่พิมพ์ + มี bestSellers) */}
           {!s && bestSellers.length > 0 && (
             <>
               <p className="mb-2 text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้าขายดี</p>
-              <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {bestSellers.map((p) => (
                   <button
                     key={p.id}
@@ -121,24 +154,24 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
             </>
           )}
 
+          {/* สินค้าทั้งหมด (ยังไม่พิมพ์) — โชว์ 10 รายการ + lazy-load เมื่อเลื่อน */}
+          {!s && catalog.length > 0 && (
+            <>
+              <p className="mb-1 text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้าทั้งหมด</p>
+              <div className="divide-y divide-default-100">{catalog.slice(0, visibleCount).map(productRow)}</div>
+              {visibleCount < catalog.length && (
+                <p className="py-3 text-center text-xs text-default-400">เลื่อนเพื่อดูเพิ่ม…</p>
+              )}
+            </>
+          )}
+          {!s && catalog.length === 0 && (
+            <p className="py-6 text-center text-sm text-default-400">ยังไม่มีสินค้าในร้าน — พิมพ์ชื่อเพื่อเพิ่มเอง</p>
+          )}
+
           {/* filtered list (เมื่อพิมพ์ค้นหา) */}
           {s && (
             <div className="divide-y divide-default-100">
-              {filtered.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => onPick(p)}
-                  className="flex w-full items-center gap-3 py-2.5 text-left"
-                >
-                  <ProductThumb src={p.image} alt={p.name} className="size-10 rounded-lg" iconClassName="size-5" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-dark">{p.name}</p>
-                    {p.sku && <p className="truncate text-xs text-default-400">SKU: {p.sku}</p>}
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold text-primary">{formatThb(p.price)}</span>
-                </button>
-              ))}
+              {filtered.map(productRow)}
               {filtered.length === 0 && (
                 <p className="py-3 text-center text-sm text-default-400">ไม่พบสินค้าในร้าน</p>
               )}
