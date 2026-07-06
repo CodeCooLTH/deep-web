@@ -13,16 +13,15 @@
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
+import QuickForm from './QuickForm'
 
-const formatThb = (n: number) =>
-  new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -247,8 +246,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
-  // ── POS mobile: bottom-sheet + floating-bar summary ────────────────────────
-  const [sheetOpen, setSheetOpen] = useState(false)
+  // ── สรุปยอด (ส่งเข้า QuickForm footer < lg + CartPanel ≥ lg) ────────────────
   const barDiscount = useWatch({ control, name: 'discount' }) as number | undefined
   const barVatRate = useWatch({ control, name: 'vatRate' }) as number | undefined
   const barSubtotal = watchedItems.reduce(
@@ -256,7 +254,6 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
     0,
   )
   const barTotal = round2((barSubtotal - (barDiscount ?? 0)) * (1 + (barVatRate ?? 0) / 100))
-  const cartCount = watchedItems.length
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -388,7 +385,7 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
         }
       })}
       noValidate
-      className="pb-24 md:pb-0 scroll-pb-24"
+      className="pb-24 lg:pb-0 scroll-pb-24"
     >
       {/* Loading indicator ระหว่าง submit */}
       {isSubmitting && (
@@ -398,61 +395,33 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
         </div>
       )}
 
-      {/* ═══ POS layout ═══ */}
-      {/* Desktop/Tablet (≥md): split — ซ้าย product grid, ขวา cart panel */}
-      {/* md (tablet): flex. lg+ (desktop): grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก,
-          footer (ปุ่มบันทึก) ตรึงล่างเสมอไม่เลื่อน. h-[calc(100vh-9.5rem)] = HR7 exception
-          (viewport-lock: 100vh − header(~68px) − margin/padding; Paces ไม่มี token) */}
-      <div className="hidden gap-4 md:flex md:items-start lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:overflow-hidden">
-        <div className="min-w-0 flex-1 lg:h-full lg:overflow-y-auto">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
-        </div>
-        <div className="w-72 shrink-0 lg:h-full lg:w-auto">
-          <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
-        </div>
+      {/* ═══ Render: < lg = QuickForm (inline), ≥ lg = POS split ═══ */}
+
+      {/* < lg (มือถือ+แท็บเล็ต): QuickForm inline scroll (T4-T8 เติมเนื้อ section) */}
+      <div className="lg:hidden">
+        <QuickForm
+          control={control}
+          errors={errors}
+          catalog={catalog}
+          bestSellers={bestSellers}
+          itemsCtl={itemsCtl}
+          formId={formId}
+          inventoryEnabled={inventoryEnabled}
+          subtotal={barSubtotal}
+          total={barTotal}
+        />
       </div>
 
-      {/* Mobile (<md): grid เต็ม + floating cart bar + bottom-sheet */}
-      <div className="md:hidden">
-        <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
-
-        {/* floating cart bar — SafePay domain component (Paces ไม่มี floating action bar สำเร็จรูป) */}
-        {!sheetOpen && (
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-xl bg-primary px-4 py-3 font-semibold text-white shadow-lg"
-          >
-            <span className="flex items-center gap-2">
-              <Icon icon="shopping-cart" className="size-5" />
-              ตะกร้า ({cartCount})
-            </span>
-            <span>{formatThb(barTotal)} ›</span>
-          </button>
-        )}
-
-        {/* bottom-sheet */}
-        {sheetOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-30 bg-dark/40"
-              onClick={() => setSheetOpen(false)}
-              aria-hidden="true"
-            />
-            {/* max-h-[85vh]: Paces ไม่มี token viewport-locked height (HR7 exception, precedent ChatThread) */}
-            <div className="fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl bg-card">
-              <button
-                type="button"
-                onClick={() => setSheetOpen(false)}
-                aria-label="ปิดตะกร้า"
-                className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-default-300"
-              />
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
-              </div>
-            </div>
-          </>
-        )}
+      {/* ≥ lg (เดสก์ท็อป): POS split — ซ้าย product grid, ขวา cart panel (เนื้อในไม่แตะ)
+          grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก, footer (ปุ่มบันทึก) ตรึงล่างเสมอ.
+          h-[calc(100vh-9.5rem)] = HR7 exception (viewport-lock: 100vh − header ~68px − margin; Paces ไม่มี token) */}
+      <div className="hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:gap-4 lg:overflow-hidden">
+        <div className="min-w-0 lg:h-full lg:overflow-y-auto">
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
+        </div>
+        <div className="lg:h-full">
+          <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
+        </div>
       </div>
     </form>
   )
