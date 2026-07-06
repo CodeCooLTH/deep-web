@@ -44,6 +44,9 @@ export const metadata: Metadata = {
   description:
     'Deep คือระบบสร้างความน่าเชื่อถือสำหรับการซื้อขายออนไลน์ ผ่านการยืนยันตัวตน Trust Score และ Badge เพื่อลดปัญหามิจฉาชีพ',
   keywords: ['Deep', 'Trust Score', 'ซื้อขายออนไลน์', 'ยืนยันตัวตน', 'มิจฉาชีพ'],
+  // PWA: iOS "เพิ่มลงหน้าจอโฮม" → เปิดเต็มจอ (standalone) ไม่มีแถบเบราว์เซอร์
+  appleWebApp: { capable: true, title: 'Deep', statusBarStyle: 'default' },
+  icons: { icon: '/icon.svg', apple: '/icon.svg' },
 }
 
 // ปิด pinch-zoom บนมือถือฝั่ง buyer/landing ให้สม่ำเสมอกับฝั่ง Paces
@@ -52,6 +55,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: '#ffffff',
 }
 
 export default async function MarketingRootLayout({ children }: ChildrenType) {
