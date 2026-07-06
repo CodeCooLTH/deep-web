@@ -77,10 +77,27 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
     setCustOpen(false)
   }
 
+  // เช็ก DB ว่าเบอร์นี้เป็นลูกค้าเก่าไหม → โชว์ badge (ใช้หลัง paste เติมเบอร์ให้)
+  const lookupExistingCustomer = async (phone: string) => {
+    if (phone.trim().length < 2) return
+    try {
+      const res = await fetch(`/api/orders/customers?q=${encodeURIComponent(phone.trim())}`)
+      if (!res.ok) return
+      const list: CustomerResult[] = await res.json()
+      const match = list.find((c) => c.contact === phone.trim())
+      if (match) setSelected(match)
+    } catch {
+      /* เงียบ — เป็น enhancement */
+    }
+  }
+
   const applyPaste = (p: ParsedOrderMessage) => {
     setSelected(null)
     if (p.name) setValue('buyerName', p.name)
-    if (p.phone) setValue('buyerContact', p.phone)
+    if (p.phone) {
+      setValue('buyerContact', p.phone)
+      void lookupExistingCustomer(p.phone) // เช็กลูกค้าเก่าจากเบอร์ที่ paste มา
+    }
     if (p.addressLine) setValue('shippingAddress.line1', p.addressLine)
     if (p.subdistrict) setValue('shippingAddress.subdistrict', p.subdistrict)
     if (p.district) setValue('shippingAddress.district', p.district)
