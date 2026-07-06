@@ -17,11 +17,10 @@ export default async function MobileAppLayout({ children }: ChildrenType) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/auth/sign-in')
 
-  // App-shell จริง: root = fixed top-0 + h-[100dvh] ตรึงติด viewport (iOS document เลื่อน/เด้งไม่ขยับ);
-  // ใช้ h-[100dvh] แทน bottom:0 เพราะ bottom:0 บน iOS ทำขอบล่างเพี้ยน (พื้นขาวลอยใต้ bottom nav).
+  // App-shell จริง: root = fixed inset-0 ตรึงติด viewport เต็มจอ (iOS document เลื่อน/เด้งไม่ขยับ);
   // scroll เกิดใน <main> อย่างเดียว (ซ่อน scrollbar). AppTopBar/AppBottomNav = flex child ตรึงหัว-ท้าย
   return (
-    <div className='fixed inset-x-0 top-0 h-[100dvh] flex flex-col overflow-hidden bg-[var(--mui-palette-background-paper)]'>
+    <div className='fixed inset-0 flex flex-col overflow-hidden bg-[var(--mui-palette-background-paper)]'>
       <MScrollReset />
       <AppTopBar />
       {/* root เป็นขาว (safe-area บนสุด = ขาวกลืน AppTopBar ไม่ดูเว้นว่าง); พื้นเทาให้เฉพาะ content */}

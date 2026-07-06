@@ -53,7 +53,7 @@ export default function AppBottomNav() {
   return (
     <nav
       className='shrink-0 z-30 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 10px)' }}
+      style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) - 14px), 6px)' }}
     >
       <div className='relative flex items-stretch'>
         {LEFT.map(tabItem)}
