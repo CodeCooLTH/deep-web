@@ -107,7 +107,7 @@ export default async function NewOrderPage() {
       <FullscreenPageHeader
         title="สร้างออเดอร์"
         subtitle={`ร้าน ${shop.shopName}`}
-        cancelHref="/orders"
+        backHref="/orders"
         saveFormId={FORM_ID}
         saveLabel="บันทึกออเดอร์"
       />

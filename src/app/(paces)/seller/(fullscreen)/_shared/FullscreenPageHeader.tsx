@@ -27,6 +27,8 @@ export type FullscreenPageHeaderProps = {
   saveLabel?: string
   saveFormId?: string
   disableSave?: boolean
+  /** ปลายทางปุ่ม back ตายตัว (เช่น "/orders") — ไม่ส่ง = history-aware (back()/dashboard fallback) */
+  backHref?: string
   /**
    * @deprecated ไม่ใช้แล้วหลัง M0-a — back button ซ้าย (history-aware) แทน "ยกเลิก" ขวา.
    * ยังรับ prop เพื่อกันพัง caller เดิมที่ยังส่งมา — ไม่ render
@@ -40,22 +42,25 @@ export default function FullscreenPageHeader({
   saveLabel = 'บันทึก',
   saveFormId,
   disableSave,
+  backHref,
   // cancelHref ยังรับแต่ไม่ใช้ — deprecated (back button ซ้ายแทน)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   cancelHref: _cancelHref,
 }: FullscreenPageHeaderProps) {
   return (
-    <div className="sticky top-0 z-10 bg-card -mx-4 px-4 md:-mx-8 md:px-8 pb-4 border-b border-default-200">
+    // fixed-feel: -mt-* ดึง header ชิด top ของ <main> (cancel container pt) → sticky top-0 ไม่กระตุก;
+    // shadow (Paces .app-header elevation) แทน border เดิม
+    <div className="sticky top-0 z-10 bg-card -mx-4 px-4 md:-mx-8 md:px-8 -mt-4 md:-mt-8 pt-4 md:pt-8 pb-4 shadow">
       {/* layout M0-a: [back ซ้าย] [title flex-1 truncate] [Save ขวา]
           SellerMobileHeader pattern — แยก navigation (ซ้าย) กับ action (ขวา) ชัดเจน */}
       <div className="flex items-center gap-3">
-        {/* Back button ซ้าย — client component (ต้องการ router.back()) */}
-        <FullscreenBackButton />
+        {/* Back button ซ้าย — client component (ต้องการ router.push/back()) */}
+        <FullscreenBackButton backHref={backHref} />
 
         {/* Title block — flex-1 min-w-0 truncate กัน overflow บน mobile */}
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-dark truncate">{title}</h1>
-          {subtitle && <p className="text-default-400 text-sm mt-0.5 truncate">{subtitle}</p>}
+          <h1 className="text-xl md:text-2xl font-bold text-dark leading-tight truncate">{title}</h1>
+          {subtitle && <p className="text-default-700 text-sm mt-0.5 truncate">{subtitle}</p>}
         </div>
 
         {/* Save button ขวา — desktop เท่านั้น (hidden lg:inline-flex): บนมือถือ (<lg) ทุกหน้าที่ส่ง saveFormId

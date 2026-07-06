@@ -13,10 +13,15 @@
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 
-export default function FullscreenBackButton() {
+export default function FullscreenBackButton({ backHref }: { backHref?: string }) {
   const router = useRouter()
 
   const handleBack = () => {
+    // backHref = ปลายทางตายตัว (เช่น orders/new → /orders เสมอ ไม่ใช่ previous)
+    if (backHref) {
+      router.push(backHref)
+      return
+    }
     // deep-link safe: ถ้าไม่มี history → ไป /dashboard แทน back() ออกแอป
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back()
@@ -30,7 +35,8 @@ export default function FullscreenBackButton() {
       type="button"
       onClick={handleBack}
       aria-label="กลับ"
-      className="w-11 h-11 rounded-xl text-default-700 hover:bg-default-100 inline-flex items-center justify-center shrink-0"
+      // bg-light resting state (ปุ่มจริง ไม่จาง) — Base: theme ui/buttons "btn bg-light"; rounded-lg = radius token
+      className="w-11 h-11 rounded-lg bg-light text-default-700 hover:bg-light-hover hover:text-dark active:scale-95 transition-transform inline-flex items-center justify-center shrink-0"
     >
       {/* tabler:arrow-left ตาม convention project (raw @iconify/react — ใส่ prefix เอง) */}
       <Icon icon="tabler:arrow-left" width={22} height={22} />
