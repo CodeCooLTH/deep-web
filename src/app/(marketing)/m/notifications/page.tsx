@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { listNotifications, markAllNotificationsRead } from '@/services/notification.service'
 import { formatDateTimeTH } from '@/lib/format-date'
+import { MPageTitle } from '../_components/ui'
 
 export const metadata: Metadata = { title: 'การแจ้งเตือน' }
 
@@ -29,7 +30,7 @@ export default async function MobileNotificationsPage() {
 
   return (
     <div className='flex flex-col gap-4'>
-      <h1 className='text-[17px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>การแจ้งเตือน</h1>
+      <MPageTitle title='การแจ้งเตือน' back='/dashboard' />
 
       {items.length === 0 ? (
         <div className='flex flex-col items-center justify-center gap-2 pbs-16 pbe-10 text-center'>
