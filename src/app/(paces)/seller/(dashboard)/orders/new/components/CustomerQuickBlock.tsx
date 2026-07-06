@@ -99,9 +99,9 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
 
   return (
     <>
-      {/* header: ลูกค้า + badge ลูกค้าเก่า (เมื่อเจอ) + wand tool */}
-      <div className="mb-2 flex items-center gap-2">
-        <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">ลูกค้า</p>
+      {/* header: ลูกค้า (title เด่น) + badge ลูกค้าเก่า + ปุ่มกระจายที่อยู่ (paste) */}
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="text-base font-bold text-dark">ลูกค้า</h2>
         {selected && (
           <span className="badge badge-label bg-success/15 text-success text-2xs font-semibold">
             <Icon icon="user-check" className="text-xs" />
@@ -111,10 +111,10 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
         <button
           type="button"
           onClick={() => setPasteOpen(true)}
-          aria-label="วางข้อความจากแชท"
-          className="ms-auto inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"
+          className="ms-auto inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
         >
-          <Icon icon="wand" className="size-5" />
+          <Icon icon="clipboard" className="size-4" />
+          กระจายที่อยู่
         </button>
       </div>
 

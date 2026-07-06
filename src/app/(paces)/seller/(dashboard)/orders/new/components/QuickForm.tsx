@@ -67,19 +67,19 @@ export default function QuickForm({
     // -mx-4 md:-mx-8: หักล้าง padding ของ (fullscreen) layout (p-4 md:p-8) → แถบเทา band bleed เต็มขอบจอ
     <div className="-mx-4 md:-mx-8">
       {/* SECTION 1: ลูกค้า (phone-first + wand paste + address) */}
-      <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
+      <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
         <CustomerQuickBlock control={control} errors={errors} setValue={setValue} />
       </section>
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
-      <section className="border-b-8 border-default-100 px-4 py-2 md:px-8">
+      <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
         <ChannelPaymentSelect control={control} />
       </section>
 
       {/* SECTION 3: สินค้า */}
-      <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
-        <div className="mb-1.5 flex items-center justify-between">
-          <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้า</p>
+      <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-bold text-dark">สินค้า</h2>
           <button
             type="button"
             onClick={handleAddClick}
@@ -113,7 +113,7 @@ export default function QuickForm({
       <button
         type="button"
         onClick={() => setMoreOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-4 py-3.5 text-sm font-semibold text-default-500 md:px-8"
+        className="flex w-full items-center gap-2 px-4 py-4 text-sm font-semibold text-default-500 md:px-8"
       >
         <Icon icon="circle-plus" className="text-lg text-default-400" />
         เพิ่มเติม (ส่วนลด · VAT · หมายเหตุ)
