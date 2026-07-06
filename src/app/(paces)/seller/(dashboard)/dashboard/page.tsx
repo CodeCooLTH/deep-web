@@ -103,7 +103,7 @@ export default async function SellerDashboardPage() {
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []
-  let bestSellers: { id: string; name: string; price: number; image: string | null }[] = []
+  let bestSellers: { id: string; name: string; price: number; image: string | null; soldCount: number }[] = []
   // v10: CompactHero — shop link (slug) + stats row (orders/reviews/rating); honest-zero ถ้าล้ม
   let shopSlug: string | null = null
   let reviewCount = 0
@@ -196,6 +196,7 @@ export default async function SellerDashboardPage() {
               name: p.name,
               price: Number(p.price),
               image: first ? (first.startsWith('http') ? first : `/api/files/${first}`) : null,
+              soldCount: p.soldCount,
             }
           })
         } else console.error('[dashboard] getBestSellerProducts failed', bestSellerRes.reason)

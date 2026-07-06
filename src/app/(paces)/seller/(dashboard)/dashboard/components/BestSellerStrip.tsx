@@ -17,6 +17,8 @@ interface Product {
   name: string
   price: number
   image: string | null
+  /** จำนวนขายรวม (sum qty) — โชว์ "ขายแล้ว X ชิ้น" */
+  soldCount: number
 }
 
 interface Props {
@@ -26,14 +28,6 @@ interface Props {
 export default function BestSellerStrip({ products }: Props) {
   const router = useRouter()
   if (!products.length) return null
-
-  // บันไดความเข้มสี warning — ยิ่งอันดับต้นยิ่งเข้ม (ไม่ hardcode ทอง/เงิน/ทองแดง; token + opacity)
-  const rankBadgeClass = (rank: number) => {
-    if (rank === 1) return 'bg-warning text-white'
-    if (rank === 2) return 'bg-warning/70 text-white'
-    if (rank === 3) return 'bg-warning/45 text-dark'
-    return 'bg-default-200 text-default-600'
-  }
 
   return (
     // px-4: คืน gutter (CommandCenter wrapper มี -mx-4 edge-to-edge)
@@ -50,42 +44,34 @@ export default function BestSellerStrip({ products }: Props) {
         className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
         style={{ scrollbarWidth: 'none' }}
       >
-        {products.map((p, i) => {
-          const rank = i + 1
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => router.push(`/orders/new?product=${p.id}`)}
-              aria-label={`อันดับ ${rank} ${p.name} ${formatThb(p.price)}`}
-              className="w-24 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95"
-            >
-              {/* กล่องภาพ (relative — รองรับ overlay badge/ปุ่ม +) */}
-              <div className="relative">
-                {p.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.image} alt={p.name} className="aspect-square w-full object-cover" />
-                ) : (
-                  <span className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-default-100 text-default-300">
-                    <Icon icon="package" className="size-8" />
-                    <span className="text-2xs">ไม่มีรูป</span>
-                  </span>
-                )}
-                {/* rank badge มุมซ้ายบน */}
-                <span
-                  className={`absolute -start-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full text-2xs font-bold shadow-sm ${rankBadgeClass(rank)}`}
-                  aria-hidden="true"
-                >
-                  {rank}
-                </span>
-              </div>
-              <div className="p-2">
-                <p className="line-clamp-2 text-xs font-medium text-dark">{p.name}</p>
-                <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
-              </div>
-            </button>
-          )
-        })}
+        {products.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => router.push(`/orders/new?product=${p.id}`)}
+            aria-label={`${p.name} ${formatThb(p.price)} ขายแล้ว ${p.soldCount} ชิ้น`}
+            className="w-24 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95"
+          >
+            {p.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.image} alt={p.name} className="aspect-square w-full object-cover" />
+            ) : (
+              <span className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-default-100 text-default-300">
+                <Icon icon="package" className="size-8" />
+                <span className="text-2xs">ไม่มีรูป</span>
+              </span>
+            )}
+            <div className="p-2">
+              <p className="line-clamp-2 text-xs font-medium text-dark">{p.name}</p>
+              <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
+              {/* จำนวนขาย — รูปกล่อง + "ขายแล้ว X ชิ้น" (แทน rank badge; ลำดับซ้าย→ขวา = ขายดีสุดก่อน) */}
+              <p className="mt-1 flex items-center gap-1 truncate text-2xs text-default-400">
+                <Icon icon="package" className="size-3 shrink-0" />
+                ขายแล้ว {p.soldCount.toLocaleString('th-TH')} ชิ้น
+              </p>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   )

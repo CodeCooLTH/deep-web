@@ -53,7 +53,7 @@ export type CommandCenterData = {
   // optional กัน tsc break ถ้า caller ยังไม่ wire (fallback undefined = ไม่แสดง badge)
   liveAuctionCount?: number
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=
-  bestSellers?: { id: string; name: string; price: number; image: string | null }[]
+  bestSellers?: { id: string; name: string; price: number; image: string | null; soldCount: number }[]
   // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวัน (เดือนปัจจุบัน) สำหรับการ์ด mini + full sheet
   // null/undefined = fetch ล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide ไม่ใช่ error state บน command center)
   salesSeries?: SalesSeries | null

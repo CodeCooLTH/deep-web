@@ -403,6 +403,8 @@ export async function getBestSellerProducts(shopId: string, take = 8) {
     .map((g) => g.productId)
     .filter((v): v is string => Boolean(v));
   if (ids.length === 0) return [];
+  // จำนวนขายรวม (sum qty) ต่อ product — แนบเป็น soldCount ให้ UI โชว์ "ขายไป X ชิ้น"
+  const qtyById = new Map(grouped.map((g) => [g.productId, g._sum.qty ?? 0]));
   const products = await prisma.product.findMany({
     where: { id: { in: ids }, shopId, isActive: true },
     include: { tags: true },
@@ -410,7 +412,10 @@ export async function getBestSellerProducts(shopId: string, take = 8) {
   // คงลำดับ best-seller (findMany อาจสลับ + product ที่ปิด/ลบ หลุดออกไป)
   const byId = new Map(products.map((p) => [p.id, p]));
   return ids
-    .map((id) => byId.get(id))
+    .map((id) => {
+      const p = byId.get(id);
+      return p ? { ...p, soldCount: qtyById.get(id) ?? 0 } : null;
+    })
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 }
 
