@@ -53,6 +53,8 @@ export type OrderRow = {
   buyerAvatar: string | null
   /** ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER) → icon ผ่าน SALES_CHANNEL_ICONS */
   salesChannel: string | null
+  /** true = order เกิดจากการชนะประมูล (มี auctionId) — แสดง badge ค้อนประมูล */
+  isFromAuction: boolean
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
    *  (user decision 2026-06-15: เปิดเบอร์จริงให้ seller โทรลูกค้าตัวเองได้) */
   buyerPhone: string | null

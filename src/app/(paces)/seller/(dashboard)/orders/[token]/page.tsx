@@ -121,6 +121,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         type={order.type}
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}
+        isFromAuction={Boolean(order.auctionId)}
       />
 
       {/* mt-base คั่นระหว่าง top bar กับ grid — Paces spacing token (--spacing-base=20px) ห้ามใช้ mt-[20px] */}

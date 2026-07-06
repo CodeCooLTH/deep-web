@@ -165,10 +165,16 @@ export default function OrdersTable({ orders }: Props) {
     columnHelper.accessor('id', {
       header: 'เลขออเดอร์',
       cell: ({ row }) => (
-        <h5 className="text-sm font-medium">
+        <h5 className="flex items-center gap-1.5 text-sm font-medium">
           <Link href={`/orders/${row.original.publicToken}`} className="hover:text-primary">
             #{row.original.id.toUpperCase()}
           </Link>
+          {row.original.isFromAuction && (
+            <span className="badge bg-warning/15 text-warning inline-flex items-center gap-0.5" title="จากการประมูล">
+              <Icon icon="gavel" className="size-3" />
+              ประมูล
+            </span>
+          )}
         </h5>
       ),
     }),

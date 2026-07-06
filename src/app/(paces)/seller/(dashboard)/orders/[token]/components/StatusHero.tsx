@@ -37,9 +37,11 @@ export interface StatusHeroProps {
   type: string
   createdAtISO: string
   fulfillmentMode: string
+  /** true = order เกิดจากการชนะประมูล (มี auctionId) → badge ค้อนประมูล */
+  isFromAuction?: boolean
 }
 
-export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode }: StatusHeroProps) {
+export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode, isFromAuction }: StatusHeroProps) {
   const s = STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
 
   // วันที่+เวลาแสดงคู่กันบรรทัดเดียว → ยุบเป็น formatDateTime ครั้งเดียว
@@ -65,6 +67,12 @@ export default function StatusHero({ publicToken, shortCode, status, createdAtIS
                 <Icon icon={s.icon} className="text-sm" />
                 {s.label}
               </span>
+              {isFromAuction && (
+                <span className="badge badge-label bg-warning/15 text-warning text-2xs font-semibold">
+                  <Icon icon="gavel" className="text-sm" />
+                  จากการประมูล
+                </span>
+              )}
             </div>
             {/* ออเดอร์ # — ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม) */}
             <h3 className="text-lg mb-0 text-default-800">

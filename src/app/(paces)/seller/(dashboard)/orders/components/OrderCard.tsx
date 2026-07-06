@@ -101,8 +101,16 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
 
         {/* ── .ord-top: #id (ซ้าย) + status badge (ขวา) — ตาม mockup v10 ── */}
         <div className="flex items-center justify-between gap-2">
-          {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
-          <span className="text-sm font-bold text-default-900">#{displayId}</span>
+          <div className="flex items-center gap-1.5">
+            {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
+            <span className="text-sm font-bold text-default-900">#{displayId}</span>
+            {order.isFromAuction && (
+              <span className="badge bg-warning/15 text-warning inline-flex items-center gap-0.5" title="จากการประมูล">
+                <Icon icon="tabler:gavel" className="size-3" />
+                ประมูล
+              </span>
+            )}
+          </div>
           {/* HR7: text-[11px] — mockup .ord-badge font-size:11px; Paces ไม่มี token ขนาดนี้ (text-xs=12px) */}
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusCfg.cls}`}>
             {statusCfg.label}
