@@ -58,9 +58,7 @@ export default function BestSellerStrip({ products }: Props) {
               type="button"
               onClick={() => router.push(`/orders/new?product=${p.id}`)}
               aria-label={`อันดับ ${rank} ${p.name} ${formatThb(p.price)}`}
-              className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
-                rank === 1 ? 'border-warning' : 'border-default-200'
-              }`}
+              className="w-24 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95"
             >
               {/* กล่องภาพ (relative — รองรับ overlay badge/ปุ่ม +) */}
               <div className="relative">
@@ -75,17 +73,10 @@ export default function BestSellerStrip({ products }: Props) {
                 )}
                 {/* rank badge มุมซ้ายบน */}
                 <span
-                  className={`absolute -start-1.5 -top-1.5 flex size-6 items-center justify-center rounded-full text-2xs font-bold shadow-sm ${rankBadgeClass(rank)}`}
+                  className={`absolute -start-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full text-2xs font-bold shadow-sm ${rankBadgeClass(rank)}`}
                   aria-hidden="true"
                 >
                   {rank}
-                </span>
-                {/* ปุ่ม + มุมขวาล่าง — affordance "เพิ่มลงออเดอร์" (ทั้งการ์ดกดได้ ปุ่มนี้ไม่ผูก onClick แยก) */}
-                <span
-                  className="absolute -bottom-1.5 -end-1.5 flex size-6 items-center justify-center rounded-full bg-primary text-white shadow-sm"
-                  aria-hidden="true"
-                >
-                  <Icon icon="plus" className="size-3.5" />
                 </span>
               </div>
               <div className="p-2">
