@@ -17,6 +17,7 @@ import type { CommandCenterData } from '../_constants/command-center'
 import { SHORTCUT_TILES } from '../_constants/command-center'
 import CompactHero from './CompactHero'
 import OrderStatusBand from './OrderStatusBand'
+import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
 import ActivityTimeline from './ActivityTimeline'
 
@@ -50,6 +51,9 @@ export default function CommandCenter({ data }: Props) {
 
       {/* คำสั่งซื้อ — 4-status flat + badge (PENDING/SHIPPED) */}
       <OrderStatusBand counts={data.orderStatusCounts} />
+
+      {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
+      <BestSellerStrip products={data.bestSellers ?? []} />
 
       {/* เมนูลัด — carousel 4×2/หน้า + dots (D#13: tiles ผ่าน map เติม badgeCount ประมูล) */}
       <CarouselGrid tiles={tiles} />

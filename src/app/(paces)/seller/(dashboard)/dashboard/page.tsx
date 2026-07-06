@@ -23,6 +23,7 @@ import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts } from '@/services/order.service'
+import { getBestSellerProducts } from '@/services/product.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import RecentOrder from './components/RecentOrder'
@@ -97,6 +98,8 @@ export default async function SellerDashboardPage() {
   let recentActivity: ActivityItem[] = []
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
+  // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []
+  let bestSellers: { id: string; name: string; price: number; image: string | null }[] = []
   // v10: CompactHero — shop link (slug) + stats row (orders/reviews/rating); honest-zero ถ้าล้ม
   let shopSlug: string | null = null
   let reviewCount = 0
@@ -135,15 +138,18 @@ export default async function SellerDashboardPage() {
       if (shop?.id) {
         // perf: 5 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(4 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes] = await Promise.allSettled([
-          getOrderStatusCounts(shop.id),
-          getBalance(shop.id),
-          getRecentActivity(shop.id, 8),
-          getOrdersByShop(shop.id),
-          getAvgRatingByUsername(owner?.username ?? ''),
-          // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
-          prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
-        ])
+        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes] =
+          await Promise.allSettled([
+            getOrderStatusCounts(shop.id),
+            getBalance(shop.id),
+            getRecentActivity(shop.id, 8),
+            getOrdersByShop(shop.id),
+            getAvgRatingByUsername(owner?.username ?? ''),
+            // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
+            prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
+            // สินค้าขายดี (top 8) สำหรับ strip บน command center
+            getBestSellerProducts(shop.id, 8),
+          ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
         if (statusRes.status === 'fulfilled') orderStatusCounts = statusRes.value
@@ -165,6 +171,20 @@ export default async function SellerDashboardPage() {
 
         // recentActivity feed — fallback [] (service ครอบ error เองแต่กัน allSettled reject ด้วย)
         recentActivity = activityRes.status === 'fulfilled' ? activityRes.value : []
+
+        // สินค้าขายดี → map เป็น shape เบา {id,name,price,image} (resolve imageUrl server-side); fallback []
+        if (bestSellerRes.status === 'fulfilled') {
+          bestSellers = bestSellerRes.value.map((p) => {
+            const imgs = Array.isArray(p.images) ? (p.images as string[]) : []
+            const first = imgs[0] ?? ''
+            return {
+              id: p.id,
+              name: p.name,
+              price: Number(p.price),
+              image: first ? (first.startsWith('http') ? first : `/api/files/${first}`) : null,
+            }
+          })
+        } else console.error('[dashboard] getBestSellerProducts failed', bestSellerRes.reason)
 
         const rawOrders = ordersRes.status === 'fulfilled' ? ordersRes.value : []
 
@@ -279,6 +299,8 @@ export default async function SellerDashboardPage() {
             avgRating,
             // D#13: badge จำนวน live auction บน tile "ประมูล"
             liveAuctionCount,
+            // สินค้าขายดี strip (feature Quick Create)
+            bestSellers,
           }}
         />
       </div>

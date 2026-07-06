@@ -52,6 +52,8 @@ export type CommandCenterData = {
   // D#13: จำนวน auction ที่กำลัง live ของร้าน — map เป็น badgeCount ของ tile ประมูล
   // optional กัน tsc break ถ้า caller ยังไม่ wire (fallback undefined = ไม่แสดง badge)
   liveAuctionCount?: number
+  // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=
+  bestSellers?: { id: string; name: string; price: number; image: string | null }[]
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────
