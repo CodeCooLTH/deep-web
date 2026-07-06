@@ -6,8 +6,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTierDisplay } from '@/services/trust-score.service'
 import { getTierColor } from '@/lib/trust-tier'
-import { getTrustedShops } from '@/services/shop.service'
-import { topAuctions, endingSoonAuctions, recentEndedAuctions, listCategories } from '@/services/auction.service'
+import { getTrustedShops, getSellerTrustByShopIds, getConfirmedOrderCountByShopIds } from '@/services/shop.service'
+import { topAuctions, recentEndedAuctions, listCategories } from '@/services/auction.service'
 
 import HomeFeed, {
   type CategoryItem,
@@ -29,49 +29,66 @@ export default async function MobileHomePage() {
   if (!session?.user) redirect('/auth/sign-in?callbackUrl=/dashboard')
 
   const userId = (session.user as { id: string }).id
-  const me = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
 
-  const [trustedShopsRaw, hotAuctionsRaw, endingRaw, pastRaw, categoriesRaw] = await Promise.all([
+  // parallel ทุก query (me รวมใน Promise.all — เดิม await แยก sequential เสีย 1 round-trip)
+  const [me, trustedShopsRaw, hotAuctionsRaw, pastRaw, categoriesRaw] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { username: true } }),
     getTrustedShops(12),
     topAuctions(8),
-    endingSoonAuctions(8),
     recentEndedAuctions(12),
     listCategories()
   ])
 
   const categories: CategoryItem[] = categoriesRaw.map(c => ({ id: c.id, name: c.name }))
 
+  // batch: จำนวนดีลสำเร็จต่อร้าน + seller trust ต่อ auction — parallel (independent จาก Promise.all แรก)
+  const trustedShopIds = trustedShopsRaw.map(s => s.shops[0]?.id).filter((id): id is string => !!id)
+  const auctionShopIds = [...new Set([...hotAuctionsRaw, ...pastRaw].map(a => a.shopId))]
+  const [shopDeals, sellerTrust] = await Promise.all([
+    getConfirmedOrderCountByShopIds(trustedShopIds),
+    getSellerTrustByShopIds(auctionShopIds)
+  ])
+
   const trustedShops: TrustedShopCard[] = trustedShopsRaw
     .filter(s => s.username !== me?.username)
-    .map(s => ({
-      username: s.username,
-      shopName: s.shops[0]?.shopName ?? s.displayName,
-      image: s.shops[0]?.logo ? resolveImg(s.shops[0].logo) : s.avatar,
-      trustScore: s.trustScore,
-      tierLabel: getTierDisplay(s.trustScore).tier,
-      tierColor: getTierColor(s.trustScore),
-      verified: s.verifications.length > 0
-    }))
+    .map(s => {
+      const disp = getTierDisplay(s.trustScore)
+      return {
+        username: s.username,
+        shopName: s.shops[0]?.shopName ?? s.displayName,
+        image: s.shops[0]?.logo ? resolveImg(s.shops[0].logo) : s.avatar,
+        trustScore: s.trustScore,
+        tierLabel: disp.tier,
+        tierColor: getTierColor(s.trustScore),
+        dots: disp.dots,
+        deals: s.shops[0]?.id ? (shopDeals.get(s.shops[0].id) ?? 0) : 0,
+        verified: s.verifications.length > 0
+      }
+    })
 
-  const toCard = (a: { id: string; title: string; imageUrl: string; currentPrice: number; bidCount: number }): AuctionCard => ({
-    id: a.id,
-    title: a.title,
-    image: a.imageUrl ? resolveImg(a.imageUrl) : '',
-    currentPrice: a.currentPrice,
-    bidCount: a.bidCount
-  })
+  const toCard = (a: { id: string; title: string; imageUrl: string; currentPrice: number; bidCount: number; shopId: string }): AuctionCard => {
+    const t = sellerTrust.get(a.shopId)
+    return {
+      id: a.id,
+      title: a.title,
+      image: a.imageUrl ? resolveImg(a.imageUrl) : '',
+      currentPrice: a.currentPrice,
+      bidCount: a.bidCount,
+      ...(t && {
+        sellerTier: getTierDisplay(t.trustScore).tier,
+        sellerTierColor: getTierColor(t.trustScore),
+        sellerVerified: t.verified
+      })
+    }
+  }
 
   const hotAuctions: AuctionCard[] = hotAuctionsRaw.map(toCard)
-  // ประมูลใกล้จบ — ตัด id ที่ซ้ำกับ "กำลังประมูล" ออก กันโชว์ซ้ำ
-  const hotIds = new Set(hotAuctions.map(a => a.id))
-  const endingAuctions: AuctionCard[] = endingRaw.filter(a => !hotIds.has(a.id)).slice(0, 8).map(toCard)
   const pastAuctions: AuctionCard[] = pastRaw.map(toCard)
 
   return (
     <HomeFeed
       categories={categories}
       hotAuctions={hotAuctions}
-      endingAuctions={endingAuctions}
       pastAuctions={pastAuctions}
       trustedShops={trustedShops}
     />

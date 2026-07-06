@@ -18,6 +18,10 @@ export type AuctionCard = {
   image: string
   currentPrice: number
   bidCount: number
+  // seller trust (โชว์บนการ์ด — buyer เห็นความน่าเชื่อถือผู้ขายตอนบิด)
+  sellerTier?: string
+  sellerTierColor?: TierChipColor
+  sellerVerified?: boolean
 }
 
 export type TierChipColor = 'secondary' | 'info' | 'warning' | 'default'
@@ -29,13 +33,14 @@ export type TrustedShopCard = {
   trustScore: number
   tierLabel: string
   tierColor: TierChipColor
+  dots: number
+  deals: number
   verified: boolean
 }
 
 type Props = {
   categories: CategoryItem[]
   hotAuctions: AuctionCard[]
-  endingAuctions: AuctionCard[]
   pastAuctions: AuctionCard[]
   trustedShops: TrustedShopCard[]
 }
@@ -94,6 +99,21 @@ const AuctionMiniCard = ({ a }: { a: AuctionCard }) => (
       </div>
       <div className='p-2.5 flex flex-col gap-1'>
         <p className='text-[13px] leading-tight line-clamp-2 m-0 text-[var(--mui-palette-text-primary)]'>{a.title}</p>
+        {/* seller trust — ความน่าเชื่อถือผู้ขาย */}
+        {a.sellerTier && a.sellerTierColor && (
+          <div className='flex items-center gap-1'>
+            <span
+              className='inline-flex items-center gap-0.5 text-[9px] font-semibold leading-none pli-1.5 plb-0.5 rounded-full'
+              style={{ background: tierBg(a.sellerTierColor), color: tierFg(a.sellerTierColor) }}
+            >
+              <i className='tabler-shield-check-filled text-[10px]' />
+              {a.sellerTier}
+            </span>
+            {a.sellerVerified && (
+              <i className='tabler-rosette-discount-check-filled text-[11px] text-[var(--mui-palette-success-main)]' />
+            )}
+          </div>
+        )}
         <div className='flex items-baseline justify-between gap-1'>
           <span className='text-[15px] font-bold text-[var(--mui-palette-primary-main)]'>{baht.format(a.currentPrice)}</span>
           <span className='text-[11px] text-[var(--mui-palette-text-disabled)]'>{a.bidCount} บิด</span>
@@ -117,11 +137,71 @@ const AuctionStrip = ({ title, href, items }: { title: string; href?: string; it
   </div>
 )
 
-const HomeFeed = ({ categories, hotAuctions, endingAuctions, pastAuctions, trustedShops }: Props) => {
+const HomeFeed = ({ categories, hotAuctions, pastAuctions, trustedShops }: Props) => {
   return (
     <div className='flex flex-col gap-6'>
       {/* ── Banner โปรโมชั่น (เลื่อนได้) ── */}
       <BannerCarousel />
+
+      {/* ── ร้านความน่าเชื่อถือ (แรกสุด — เลเวล/คะแนน/ดีลจริง) ── */}
+      {trustedShops.length > 0 && (
+        <div>
+          <div className='flex items-center justify-between mbe-0.5'>
+            <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>ร้านความน่าเชื่อถือ</h2>
+            <Link
+              href='/m/shops'
+              className='text-[13px] text-[var(--mui-palette-text-secondary)] no-underline flex items-center gap-0.5'
+            >
+              ดูทั้งหมด
+              <i className='tabler-chevron-right text-[15px]' />
+            </Link>
+          </div>
+          <p className='text-[12px] m-0 mbe-2.5 text-[var(--mui-palette-text-secondary)]'>เรียงตามเลเวล · ยืนยันตัวตน · ซื้อขายจริง</p>
+          <div className={`flex gap-2.5 overflow-x-auto -mx-4 px-4 ${NO_SCROLLBAR}`}>
+            {trustedShops.map(s => (
+              <Link key={s.username} href={`/u/${s.username}`} className='no-underline shrink-0 w-[136px]'>
+                <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3 flex flex-col items-center gap-1.5 text-center'>
+                  {/* avatar + วงแหวนสี tier + verified */}
+                  <div className='relative rounded-full p-[2.5px]' style={{ background: tierFg(s.tierColor) }}>
+                    <div className='rounded-full p-[2px] bg-[var(--mui-palette-background-paper)]'>
+                      <CustomAvatar src={s.image ?? undefined} size={48}>
+                        {s.shopName.slice(0, 1)}
+                      </CustomAvatar>
+                    </div>
+                    {s.verified && (
+                      <i className='tabler-rosette-discount-check-filled text-[16px] text-[var(--mui-palette-success-main)] absolute -bottom-0.5 -right-0.5 bg-[var(--mui-palette-background-paper)] rounded-full' />
+                    )}
+                  </div>
+                  <p className='text-[12px] font-medium truncate is-full m-0 text-[var(--mui-palette-text-primary)]'>{s.shopName}</p>
+                  {/* คะแนน + tier */}
+                  <span
+                    className='inline-flex items-center gap-1 pli-2 plb-1 rounded-full leading-none'
+                    style={{ background: tierBg(s.tierColor), color: tierFg(s.tierColor) }}
+                  >
+                    <i className='tabler-shield-check-filled text-[13px]' />
+                    <span className='text-[13px] font-extrabold'>{s.trustScore}</span>
+                    <span className='text-[9px] font-semibold'>{s.tierLabel.replace('Deep ', '')}</span>
+                  </span>
+                  {/* เลเวล (dots 1-5) */}
+                  <span className='flex items-center gap-0.5'>
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <span
+                        key={i}
+                        className='inline-block size-1.5 rounded-full'
+                        style={{ background: i <= s.dots ? tierFg(s.tierColor) : 'var(--mui-palette-action-disabledBackground)' }}
+                      />
+                    ))}
+                  </span>
+                  {/* ดีลจริง (ซื้อขายสำเร็จ) */}
+                  <span className='text-[10px] leading-none text-[var(--mui-palette-text-disabled)]'>
+                    {s.deals > 0 ? `${s.deals} ดีลสำเร็จ` : 'ร้านใหม่'}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── เช็กก่อนโอน (signature bar) ── */}
       <Link href='/check' className='no-underline block'>
@@ -164,41 +244,6 @@ const HomeFeed = ({ categories, hotAuctions, endingAuctions, pastAuctions, trust
 
       {/* ── กำลังประมูล (live) ── */}
       {hotAuctions.length > 0 && <AuctionStrip title='กำลังประมูล' href='/m/auctions' items={hotAuctions} />}
-
-      {/* ── ใกล้จบแล้ว (live) ── */}
-      {endingAuctions.length > 0 && <AuctionStrip title='ใกล้จบแล้ว' href='/m/auctions?sort=ending' items={endingAuctions} />}
-
-      {/* ── ร้านน่าเชื่อถือ ── */}
-      {trustedShops.length > 0 && (
-        <div>
-          <SectionTitle title='ร้านน่าเชื่อถือ' href='/m/shops' />
-          <div className={`flex gap-2.5 overflow-x-auto -mx-4 px-4 ${NO_SCROLLBAR}`}>
-            {trustedShops.map(s => (
-              <Link key={s.username} href={`/u/${s.username}`} className='no-underline shrink-0 w-[112px]'>
-                <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3 flex flex-col items-center gap-2 text-center'>
-                  <div className='relative'>
-                    <CustomAvatar src={s.image ?? undefined} size={48}>
-                      {s.shopName.slice(0, 1)}
-                    </CustomAvatar>
-                    {s.verified && (
-                      <i className='tabler-shield-check-filled text-[16px] text-[var(--mui-palette-success-main)] absolute -bottom-0.5 -right-0.5 bg-[var(--mui-palette-background-paper)] rounded-full' />
-                    )}
-                  </div>
-                  <p className='text-[12px] font-medium truncate is-full m-0 text-[var(--mui-palette-text-primary)]'>
-                    {s.shopName}
-                  </p>
-                  <span
-                    className='text-[10px] font-medium leading-none pli-2 plb-1 rounded-full'
-                    style={{ background: tierBg(s.tierColor), color: tierFg(s.tierColor) }}
-                  >
-                    {s.tierLabel}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── ประมูลล่าสุด (2-col feed หลัก) ── */}
       {pastAuctions.length > 0 && (

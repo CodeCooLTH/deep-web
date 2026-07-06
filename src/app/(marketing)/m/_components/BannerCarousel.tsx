@@ -23,14 +23,6 @@ const SLIDES: Slide[] = [
     icon: 'tabler-gavel',
   },
   {
-    title: 'เช็กก่อนโอน กันมิจฉาชีพ',
-    subtitle: 'ค้นเบอร์ / บัญชี / ชื่อร้าน ก่อนโอนเงิน',
-    cta: 'เช็กเลย',
-    href: '/check',
-    gradient: 'linear-gradient(120deg, #008E9E 0%, #00BAD1 55%, #4DD2E1 100%)',
-    icon: 'tabler-shield-search',
-  },
-  {
     title: 'ยืนยันตัวตน เพิ่ม Trust',
     subtitle: 'ปลดล็อกความน่าเชื่อถือ ขายดีขึ้น',
     cta: 'ยืนยันเลย',

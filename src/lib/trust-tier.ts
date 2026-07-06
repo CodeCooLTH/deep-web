@@ -50,6 +50,25 @@ export function getTierColor(trustScore: number): TierChipColor {
   }
 }
 
+/** ช่วงคะแนนของแต่ละ tier label (สำหรับ query filter ตามเลเวล) — threshold ตรงกับ letterFromScore SSOT.
+ * Star ≥90 · Diamond 80-89 · Gold 70-79 · Silver 60-69 · Classic <60 (C+D). null = ไม่ตรง tier ใด */
+export function getTierScoreRange(tierLabel: string): { gte: number; lt?: number } | null {
+  switch (tierLabel) {
+    case 'Deep Star':
+      return { gte: 90 }
+    case 'Deep Diamond':
+      return { gte: 80, lt: 90 }
+    case 'Deep Gold':
+      return { gte: 70, lt: 80 }
+    case 'Deep Silver':
+      return { gte: 60, lt: 70 }
+    case 'Deep Classic':
+      return { gte: 0, lt: 60 }
+    default:
+      return null
+  }
+}
+
 /** cover image ต่อ tier (ชื่อ tier + dots baked ในรูป) — SSOT, keyed by score */
 // ทำไม: mapping ย้ายมาที่นี่จาก UserProfileHeader.tsx เพื่อให้ Order Detail V1 ใช้ร่วมได้
 // D,C → Classic · B → Silver · B+ → Gold · A → Diamond · A+ → Star

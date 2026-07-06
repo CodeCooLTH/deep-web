@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
+import { getTierScoreRange } from "@/lib/trust-tier";
 
 export async function createShop(userId: string, data: {
   shopName: string;
@@ -65,12 +66,115 @@ export async function getTrustedShops(limit = 10) {
       verifications: { where: { status: "APPROVED" }, select: { level: true } },
       shops: {
         where: { deletedAt: null, purgedAt: null },
+        select: { id: true, shopName: true, logo: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+}
+
+// จำนวนดีลสำเร็จ (CONFIRMED orders) ต่อ shopId — batched groupBy (สัญญาณ "ซื้อขายจริง" บนการ์ดร้าน)
+export async function getConfirmedOrderCountByShopIds(shopIds: string[]): Promise<Map<string, number>> {
+  if (shopIds.length === 0) return new Map();
+  const groups = await prisma.order.groupBy({
+    by: ["shopId"],
+    where: { shopId: { in: shopIds }, status: "CONFIRMED" },
+    _count: true,
+  });
+  return new Map(groups.map((g) => [g.shopId, g._count]));
+}
+
+// seller trust ตาม shopId (buyer mobile: โชว์บนการ์ดประมูล) — map shopId → { trustScore, verified }.
+// trust = user (owner) trustScore; verified = มี verification APPROVED อย่างน้อย 1 (mirror getTrustedShops)
+export async function getSellerTrustByShopIds(
+  shopIds: string[],
+): Promise<Map<string, { trustScore: number; verified: boolean }>> {
+  if (shopIds.length === 0) return new Map();
+  const shops = await prisma.shop.findMany({
+    where: { id: { in: shopIds } },
+    select: {
+      id: true,
+      user: {
+        select: {
+          trustScore: true,
+          verifications: { where: { status: "APPROVED" }, select: { id: true }, take: 1 },
+        },
+      },
+    },
+  });
+  return new Map(
+    shops.map((s) => [s.id, { trustScore: s.user.trustScore, verified: s.user.verifications.length > 0 }]),
+  );
+}
+
+export type BrowseShopRow = {
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  trustScore: number;
+  verifications: { level: number }[];
+  shops: { shopName: string; logo: string | null }[];
+};
+
+// browse ร้านค้าแบบ scale จริง (buyer mobile discovery) — filter ตามเลเวล (tier→score range) + ค้นชื่อ,
+// เรียง trust desc, cursor pagination (id). ไม่ใช่ top-N ตายตัวเหมือน getTrustedShops
+export async function browseShops(opts: {
+  tier?: string;
+  q?: string;
+  cursor?: string;
+  take?: number;
+}): Promise<{ items: BrowseShopRow[]; nextCursor: string | null }> {
+  const take = opts.take ?? 20;
+  const range = opts.tier ? getTierScoreRange(opts.tier) : null;
+  const q = opts.q?.trim();
+
+  const rows = await prisma.user.findMany({
+    where: {
+      isShop: true,
+      shops: { some: { deletedAt: null, purgedAt: null } },
+      ...(range ? { trustScore: { gte: range.gte, ...(range.lt != null ? { lt: range.lt } : {}) } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { displayName: { contains: q, mode: "insensitive" as const } },
+              { shops: { some: { shopName: { contains: q, mode: "insensitive" as const } } } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ trustScore: "desc" }, { id: "asc" }],
+    take: take + 1,
+    ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      avatar: true,
+      trustScore: true,
+      verifications: { where: { status: "APPROVED" }, select: { level: true } },
+      shops: {
+        where: { deletedAt: null, purgedAt: null },
         select: { shopName: true, logo: true },
         orderBy: { createdAt: "asc" },
         take: 1,
       },
     },
   });
+
+  const hasMore = rows.length > take;
+  const page = hasMore ? rows.slice(0, take) : rows;
+  return {
+    items: page.map((r) => ({
+      username: r.username,
+      displayName: r.displayName,
+      avatar: r.avatar,
+      trustScore: r.trustScore,
+      verifications: r.verifications,
+      shops: r.shops,
+    })),
+    nextCursor: hasMore && page.length > 0 ? page[page.length - 1].id : null,
+  };
 }
 
 // 00008 Phase 5 (P5-4): resolve BUSINESS shop จาก public slug สำหรับหน้า /b/[slug]
