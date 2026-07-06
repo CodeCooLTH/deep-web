@@ -60,9 +60,9 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
     <>
       {/* dim: z-70 (ต่ำกว่า sheet z-80, สูงกว่า (fullscreen) layout z-50 + footer z-40) */}
       <div className="fixed inset-0 z-70 bg-dark/40" onClick={onClose} aria-hidden="true" />
-      {/* HR7: fixed inset-x-0 bottom-0 + max-h-[85vh] = viewport-lock (Paces ไม่มี token; precedent AccountSwitcherSheet) */}
+      {/* HR7: fixed inset-x-0 bottom-0 + h-[75dvh] = viewport-lock (Paces ไม่มี token) — sheet สูงคงที่ list มีที่พอ */}
       <div
-        className="fixed inset-x-0 bottom-0 z-80 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-default-300 bg-card"
+        className="fixed inset-x-0 bottom-0 z-80 flex h-[75dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card"
         role="dialog"
         aria-label="เลือกสินค้า"
       >
