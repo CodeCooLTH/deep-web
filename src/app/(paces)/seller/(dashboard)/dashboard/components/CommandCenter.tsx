@@ -20,6 +20,7 @@ import OrderStatusBand from './OrderStatusBand'
 import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
 import ActivityTimeline from './ActivityTimeline'
+import SalesChartCard from './SalesChartCard'
 
 type Props = {
   data: CommandCenterData
@@ -48,6 +49,9 @@ export default function CommandCenter({ data }: Props) {
         reviewCount={data.reviewCount ?? 0}
         avgRating={data.avgRating ?? 0}
       />
+
+      {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
+      <SalesChartCard initialSeries={data.salesSeries ?? null} />
 
       {/* คำสั่งซื้อ — 4-status flat + badge (PENDING/SHIPPED) */}
       <OrderStatusBand counts={data.orderStatusCounts} />

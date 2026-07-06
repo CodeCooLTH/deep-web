@@ -54,6 +54,26 @@ export type CommandCenterData = {
   liveAuctionCount?: number
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=
   bestSellers?: { id: string; name: string; price: number; image: string | null }[]
+  // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวัน (เดือนปัจจุบัน) สำหรับการ์ด mini + full sheet
+  // null/undefined = fetch ล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide ไม่ใช่ error state บน command center)
+  salesSeries?: SalesSeries | null
+}
+
+// ─── SalesSeries (Sales Chart) ───────────────────────────────────────────────
+// ประกาศ type ซ้ำ local แทน import จาก src/services/dashboard.service.ts — กัน service code
+// (prisma import ฯลฯ) หลุดเข้า client bundle (CommandCenter.tsx/SalesChartCard.tsx เป็น 'use client')
+// shape ต้องตรงกับ SalesSeries ใน dashboard.service.ts เสมอ (SSOT ฝั่ง service — ที่นี่แค่ mirror)
+export type SalesSeries = {
+  /** label แกน x — daily: "1".."N"; monthly: "ม.ค.".."ธ.ค." */
+  labels: string[]
+  /** ยอดขายรวมต่อ bucket (บาท) — ยาวเท่า labels */
+  values: number[]
+  /** ยอดรวมทั้งช่วง */
+  total: number
+  /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
+  prevTotal: number
+  /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง */
+  futureFromIndex: number
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────

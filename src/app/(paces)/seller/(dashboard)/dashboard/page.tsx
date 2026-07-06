@@ -44,6 +44,10 @@ import { getBalance } from '@/services/wallet.service'
 import { getTierLabel } from '@/lib/trust-tier'
 // v10: review count + avg rating สำหรับ stats row ใน CompactHero (S-8)
 import { getAvgRatingByUsername } from '@/services/review.service'
+// Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวันเดือนปัจจุบัน สำหรับการ์ด mini + full sheet
+// alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
+import { getSalesSeries } from '@/services/dashboard.service'
+import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -106,6 +110,8 @@ export default async function SellerDashboardPage() {
   let avgRating = 0
   // D#13: จำนวน auction สถานะ live ของร้าน — badge บน tile "ประมูล" ใน CarouselGrid
   let liveAuctionCount = 0
+  // Sales Chart (mobile command center) — ยอดขายรายวันเดือนปัจจุบัน; null = fetch ล้ม → การ์ดซ่อนตัวเอง
+  let mobileSalesSeries: SalesChartSeries | null = null
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -136,9 +142,15 @@ export default async function SellerDashboardPage() {
 
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {
-        // perf: 5 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
-        // wall time = max(4 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes] =
+        // เวลาไทย "ตอนนี้" — ใช้กำหนดเดือน/ปีปัจจุบันสำหรับ Sales Chart (mode='daily')
+        // (logic เดียวกับใน dashboard.service.ts getSalesSeries — คำนวณซ้ำที่นี่เพื่อ pass เป็น param)
+        const thaiNow = new Date(Date.now() + 7 * 60 * 60 * 1000)
+        const currentYear = thaiNow.getUTCFullYear()
+        const currentMonth = thaiNow.getUTCMonth() + 1
+
+        // perf: 6 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
+        // wall time = max(6 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
+        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             getBalance(shop.id),
@@ -149,6 +161,8 @@ export default async function SellerDashboardPage() {
             prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
             // สินค้าขายดี (top 8) สำหรับ strip บน command center
             getBestSellerProducts(shop.id, 8),
+            // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน
+            getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }),
           ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
@@ -185,6 +199,10 @@ export default async function SellerDashboardPage() {
             }
           })
         } else console.error('[dashboard] getBestSellerProducts failed', bestSellerRes.reason)
+
+        // Sales Chart mini card — fallback null ถ้าล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide)
+        if (salesSeriesRes.status === 'fulfilled') mobileSalesSeries = salesSeriesRes.value
+        else console.error('[dashboard] getSalesSeries failed', salesSeriesRes.reason)
 
         const rawOrders = ordersRes.status === 'fulfilled' ? ordersRes.value : []
 
@@ -301,6 +319,8 @@ export default async function SellerDashboardPage() {
             liveAuctionCount,
             // สินค้าขายดี strip (feature Quick Create)
             bestSellers,
+            // Sales Chart การ์ด mini — ยอดขายรายวันเดือนปัจจุบัน (null=ซ่อนการ์ด)
+            salesSeries: mobileSalesSeries,
           }}
         />
       </div>
