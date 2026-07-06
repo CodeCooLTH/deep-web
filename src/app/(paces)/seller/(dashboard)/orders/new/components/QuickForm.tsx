@@ -7,12 +7,15 @@
  *   — inline scroll, แต่ละ section คั่นด้วยแถบเทา full-bleed (ไม่ใช่ card); ลำดับ customer-first
  * Base: FullscreenPageHeader.tsx (-mx-4 md:-mx-8 bleed pattern) + CartPanel.tsx (collapsible trigger)
  *
- * T3 = shell เท่านั้น: วาง section slot (ลูกค้า → ช่องทาง/ชำระเงิน → สินค้า → เพิ่มเติม) + footer sticky ที่ทำงานได้จริง.
- * เนื้อแต่ละ section เติมใน T4-T8 (ProductPicker/LineItem/Channel-Payment/Customer/Summary).
+ * T3 = shell; T5 = เติม section "สินค้า" (QuickLineItem list + ProductPickerSheet).
+ * เนื้อ ลูกค้า/ช่องทาง-ชำระเงิน/เพิ่มเติม เติมใน T6-T8.
  */
 
+import { useState, useEffect } from 'react'
 import type { Control, FieldErrors } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
+import QuickLineItem from './QuickLineItem'
+import ProductPickerSheet from './ProductPickerSheet'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 
 const formatThb = (n: number) =>
@@ -31,34 +34,78 @@ interface Props {
 }
 
 export default function QuickForm({
-  // props สำหรับ T4-T8 (ยังไม่ render เนื้อ section ใน T3 shell)
-  control: _control,
-  errors: _errors,
-  catalog: _catalog,
-  bestSellers: _bestSellers,
-  itemsCtl: _itemsCtl,
+  control,
+  errors,
+  catalog,
+  bestSellers,
+  itemsCtl,
   formId,
-  inventoryEnabled: _inventoryEnabled,
-  subtotal: _subtotal,
+  inventoryEnabled = false,
+  subtotal: _subtotal, // T8 QuickSummaryPanel
   total,
 }: Props) {
+  // ProductPickerSheet เป็น instance เดียว — เปิดเล็งไปที่ line index (null = ปิด)
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null)
+
+  // โหลดครั้งแรก / ลบจนเหลือ 0 → มี 1 บรรทัดว่างเสมอ (micro-rule #2 + ux open-q #1)
+  const lineCount = itemsCtl.fields.length
+  useEffect(() => {
+    if (lineCount === 0) itemsCtl.addCustom()
+    // itemsCtl อ้างผ่าน closure; trigger จาก lineCount พอ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineCount])
+
+  // "+ เพิ่มรายการ" — append บรรทัดว่างก่อน แล้วเปิด picker เล็งไป index ใหม่ทันที
+  const handleAddClick = () => {
+    const idx = itemsCtl.fields.length
+    itemsCtl.addCustom()
+    setPickerIndex(idx)
+  }
+
   return (
     // -mx-4 md:-mx-8: หักล้าง padding ของ (fullscreen) layout (p-4 md:p-8) → แถบเทา band bleed เต็มขอบจอ
-    // (pattern เดียวกับ FullscreenPageHeader). px-4 md:px-8 คืน padding เนื้อในแต่ละ section
     <div className="-mx-4 md:-mx-8">
       {/* SECTION 1: ลูกค้า — T8 CustomerQuickBlock */}
       <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
-        <p className="text-2xs font-bold uppercase tracking-wide text-default-400">ลูกค้า</p>
+        <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">ลูกค้า</p>
       </section>
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน — T6 ChannelPaymentSelect */}
       <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
-        <p className="text-2xs font-bold uppercase tracking-wide text-default-400">ช่องทาง / ชำระเงิน</p>
+        <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">ช่องทาง / ชำระเงิน</p>
       </section>
 
-      {/* SECTION 3: สินค้า — T4 ProductPickerSheet + T5 QuickLineItem list */}
+      {/* SECTION 3: สินค้า — QuickLineItem list + "+ เพิ่มรายการ" (T5) */}
       <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
-        <p className="text-2xs font-bold uppercase tracking-wide text-default-400">สินค้า</p>
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้า</p>
+          <button
+            type="button"
+            onClick={handleAddClick}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-primary"
+          >
+            <Icon icon="plus" className="size-4" />
+            เพิ่มรายการ
+          </button>
+        </div>
+        <div>
+          {itemsCtl.fields.map((f, i) => (
+            <QuickLineItem
+              key={f.id}
+              index={i}
+              item={f as unknown as FormValues['items'][number]}
+              control={control}
+              catalog={catalog}
+              itemsCtl={itemsCtl}
+              errors={errors}
+              inventoryEnabled={inventoryEnabled}
+              onOpenPicker={() => setPickerIndex(i)}
+            />
+          ))}
+        </div>
+        {typeof (errors.items as { message?: string })?.message === 'string' && (
+          <p className="mt-1.5 text-xs text-danger">{(errors.items as { message?: string }).message}</p>
+        )}
       </section>
 
       {/* เพิ่มเติม — ไม่มีแถบ band ของตัวเอง (พึ่งเส้นด้านบน) — T8 collapsible ส่วนลด/หมายเหตุ/แท็ก */}
@@ -88,6 +135,22 @@ export default function QuickForm({
           บันทึกออเดอร์
         </button>
       </div>
+
+      {/* ProductPickerSheet — instance เดียว เปิดเล็ง line ที่ pickerIndex */}
+      <ProductPickerSheet
+        open={pickerIndex !== null}
+        catalog={catalog}
+        bestSellers={bestSellers}
+        onPick={(p) => {
+          if (pickerIndex != null) itemsCtl.setLineProduct(pickerIndex, p)
+          setPickerIndex(null)
+        }}
+        onCustom={(text) => {
+          if (pickerIndex != null) itemsCtl.setLineCustom(pickerIndex, text)
+          setPickerIndex(null)
+        }}
+        onClose={() => setPickerIndex(null)}
+      />
     </div>
   )
 }
