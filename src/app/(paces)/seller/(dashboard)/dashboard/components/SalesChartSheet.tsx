@@ -55,14 +55,10 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
       categories: labels,
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: {
-        // รายวัน: โชว์เฉพาะ index ที่กันชนกัน; รายเดือน: โชว์ทุกเดือน
-        formatter: (value, _timestamp, opts) => {
-          if (!isDaily) return String(value)
-          const idx = opts?.dataPointIndex ?? -1
-          return DAILY_LABEL_INDEXES.has(idx) ? String(value) : ''
-        },
-      },
+      // รายวัน: ~7 label กระจาย (ApexCharts thin เอง — formatter รับ index ไม่ได้ในแกน category);
+      // รายเดือน: 12 เดือนพอดี โชว์ครบ. hideOverlappingLabels กันชนกันบนจอแคบ
+      tickAmount: isDaily ? 7 : undefined,
+      labels: { hideOverlappingLabels: true, style: { fontSize: '10px' } },
     },
     yaxis: { show: false },
     grid: { show: false },
@@ -191,6 +187,12 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
 
   const isEmpty = !loading && !error && series.total === 0
 
+  // รายการยอดขายแต่ละ bar (เฉพาะที่มียอด > 0) — โชว์ใต้กราฟ, ใช้พื้นที่ว่างบนมือถือแนวตั้ง
+  const monthAbbr = THAI_MONTHS_SHORT[month - 1]
+  const detailRows = series.labels
+    .map((label, i) => ({ label: mode === 'daily' ? `${label} ${monthAbbr}` : label, value: series.values[i] ?? 0 }))
+    .filter((r) => r.value > 0)
+
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
     <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="รายงานยอดขาย">
@@ -295,9 +297,22 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             />
           )}
 
-          <p className="mt-3 text-center text-xs text-default-400">
-            แตะแท่งกราฟเพื่อดูยอดขายแต่ละ{mode === 'daily' ? 'วัน' : 'เดือน'}
-          </p>
+          {/* รายการยอดขายแต่ละวัน/เดือน — ใต้กราฟ (ใช้พื้นที่ว่างมือถือแนวตั้ง) */}
+          {!loading && !error && !isEmpty && detailRows.length > 0 && (
+            <div className="mt-5">
+              <p className="mb-1 text-xs font-semibold text-default-400">ยอดขายแต่ละ{periodWord}</p>
+              <div className="divide-y divide-default-100">
+                {detailRows.map((r) => (
+                  <div key={r.label} className="flex items-center justify-between py-2.5">
+                    <span className="text-sm text-default-700">{r.label}</span>
+                    <span className="text-sm font-semibold text-dark">
+                      ฿{r.value.toLocaleString('th-TH')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
