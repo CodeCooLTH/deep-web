@@ -138,7 +138,7 @@ export default function CustomerSearchSheet({ open, onSelect, onUseNew, onClose 
           <button
             type="button"
             onClick={() => onUseNew(typed)}
-            className="mt-2 flex w-full items-center gap-2 rounded-lg border border-dashed border-primary bg-primary/5 px-3 py-3 text-left text-sm font-semibold text-primary"
+            className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-primary"
           >
             <Icon icon="user-plus" className="size-4 shrink-0" />
             <span className="truncate">ใช้ &ldquo;{typed}&rdquo; เป็นลูกค้าใหม่</span>
