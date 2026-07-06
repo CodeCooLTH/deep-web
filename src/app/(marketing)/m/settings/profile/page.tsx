@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 
-import CustomAvatar from '@core/components/mui/Avatar'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getMaxVerificationLevel } from '@/services/verification.service'
@@ -12,6 +11,7 @@ import { getTierGradient, getNextTierInfo, getTierColor } from '@/lib/trust-tier
 import type { TierChipColor } from '@/lib/trust-tier'
 
 import SignOutButton from '@/app/(marketing)/(buyer-app)/dashboard/SignOutButton'
+import AvatarEditable from './AvatarEditable'
 
 export const metadata: Metadata = { title: 'บัญชีของฉัน' }
 
@@ -107,12 +107,10 @@ export default async function MobileAccountPage() {
       {/* ── โปรไฟล์ (สไตล์ IG) ── */}
       <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-4 flex flex-col gap-3.5'>
         <div className='flex items-center gap-4'>
-          {/* avatar + วงแหวน tier (story-ring) */}
+          {/* avatar + วงแหวน tier (story-ring) — แตะเปลี่ยนรูปได้ */}
           <div className='rounded-full p-[3px] shrink-0' style={{ background: gradient }}>
             <div className='rounded-full p-[2px] bg-[var(--mui-palette-background-paper)]'>
-              <CustomAvatar src={resolveImg(user.avatar)} size={70}>
-                {user.displayName.slice(0, 1)}
-              </CustomAvatar>
+              <AvatarEditable src={resolveImg(user.avatar)} fallback={user.displayName.slice(0, 1)} size={70} />
             </div>
           </div>
           {/* stats */}
