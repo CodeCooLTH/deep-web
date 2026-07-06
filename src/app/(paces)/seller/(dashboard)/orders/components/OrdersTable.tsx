@@ -32,7 +32,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderRow } from './data'
+import { PAYMENT_LABELS, PAYMENT_ICONS, SALES_CHANNEL_ICONS, SALES_CHANNEL_LABELS, type OrderRow } from './data'
+import BuyerAvatar from './BuyerAvatar'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -176,21 +177,25 @@ export default function OrdersTable({ orders }: Props) {
     columnHelper.accessor('buyerName', {
       header: 'ลูกค้า',
       cell: ({ row }) => {
-        const { buyerName, buyer, buyerPhone, buyerUsername } = row.original
+        const { buyerName, buyer, buyerPhone, buyerUsername, buyerAvatar, salesChannel } = row.original
         const displayName = buyerName ?? 'ลูกค้า'
+        const chIcon = salesChannel ? SALES_CHANNEL_ICONS[salesChannel] : null
         return (
           <div className="flex items-center gap-3">
-            {/* avatar placeholder — ไม่มี image ใน OrderRow จึงใช้ initial */}
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            {/* รูป buyer (User.avatar) + fallback ตัวอักษรแรก */}
+            <BuyerAvatar src={buyerAvatar} name={displayName} />
             <div className="min-w-0">
-              {/* verified check หน้าชื่อ (ตรงกับ mobile) + inline (flex กัน icon เด้งลงบรรทัด) */}
+              {/* verified check หน้าชื่อ + channel icon ท้ายชื่อ (inline flex กัน icon เด้งลงบรรทัด) */}
               <p className="flex items-center gap-1 font-medium text-default-900">
                 {buyerUsername && (
                   <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
                 )}
                 <span className="truncate">{displayName}</span>
+                {chIcon && (
+                  <span className="shrink-0" title={salesChannel ? SALES_CHANNEL_LABELS[salesChannel] : undefined}>
+                    <Icon icon={chIcon} className="text-sm text-default-400" />
+                  </span>
+                )}
               </p>
               <p className="text-xs text-default-400">
                 {/* แสดงเบอร์จริง (seller เห็นลูกค้าตัวเอง) หรือ masked contact */}

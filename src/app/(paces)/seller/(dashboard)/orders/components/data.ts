@@ -49,6 +49,10 @@ export type OrderRow = {
   // component จะ fallback เป็น masked contact / placeholder เอง (T3-T6)
   buyerName: string | null
   buyerUsername: string | null
+  /** avatar ของ registered buyer (User.avatar) — null = guest → fallback initial */
+  buyerAvatar: string | null
+  /** ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER) → icon ผ่าน SALES_CHANNEL_ICONS */
+  salesChannel: string | null
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
    *  (user decision 2026-06-15: เปิดเบอร์จริงให้ seller โทรลูกค้าตัวเองได้) */
   buyerPhone: string | null
@@ -56,6 +60,22 @@ export type OrderRow = {
   paymentMethod: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
+}
+
+// ช่องทางการขาย → icon (tabler, ผ่าน Icon wrapper) + label ไทย — order list
+export const SALES_CHANNEL_ICONS: Record<string, string> = {
+  STOREFRONT: 'building-store',
+  FACEBOOK: 'brand-facebook',
+  LINE: 'brand-line',
+  TIKTOK: 'brand-tiktok',
+  OTHER: 'world',
+}
+export const SALES_CHANNEL_LABELS: Record<string, string> = {
+  STOREFRONT: 'หน้าร้าน',
+  FACEBOOK: 'Facebook',
+  LINE: 'Line',
+  TIKTOK: 'TikTok',
+  OTHER: 'อื่นๆ',
 }
 
 // OrderStatCardData — RevenueStat layout (sparkline bar trend)

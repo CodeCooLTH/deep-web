@@ -23,7 +23,8 @@
 import { Icon } from '@iconify/react'
 import { formatDateTime } from '@/lib/format-date'
 import { useRef, useState } from 'react'
-import { PAYMENT_LABELS, type OrderRow } from './data'
+import { PAYMENT_LABELS, SALES_CHANNEL_ICONS, type OrderRow } from './data'
+import BuyerAvatar from './BuyerAvatar'
 import OrderActions from './OrderActions'
 
 // ── status badge config ตาม mockup v10 (สี Paces semantic token — ไม่ใช้ hex) ──
@@ -110,13 +111,16 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
 
         {/* ── .ord-cust: user icon + ชื่อ + เบอร์โทร inline — คง PII mask เดิม ── */}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-default-500">
-          <Icon icon="solar:user-linear" className="shrink-0 text-sm text-default-400" />
+          <BuyerAvatar src={order.buyerAvatar} name={order.buyerName ?? 'ลูกค้า'} className="size-5" />
           <span className="font-medium text-default-700">
             {isVerifiedBuyer && (
               <Icon icon="solar:verified-check-bold-duotone" className="mr-0.5 inline text-sm text-primary" />
             )}
             {order.buyerName ?? 'ลูกค้า'}
           </span>
+          {order.salesChannel && SALES_CHANNEL_ICONS[order.salesChannel] && (
+            <Icon icon={`tabler:${SALES_CHANNEL_ICONS[order.salesChannel]}`} className="shrink-0 text-sm text-default-400" />
+          )}
           {order.buyerPhone && (
             <>
               <span className="text-default-300">·</span>

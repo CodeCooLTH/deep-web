@@ -331,7 +331,7 @@ export async function getOrderByToken(publicToken: string) {
       },
       // buyer: registered user ที่ยืนยัน order — ใช้แสดง displayName ใน seller view
       // additive include — caller เดิมที่ไม่ใช้ buyer ไม่กระทบ
-      buyer: { select: { id: true, displayName: true, username: true } },
+      buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
       shipmentTracking: true,
       review: true,
     },
@@ -375,7 +375,7 @@ export async function getOrdersByShop(shopId: string, status?: string) {
       review: true,
       // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list
       // คัดลอก select เดียวกับ getOrderForShop (additive — ไม่ break caller เดิม)
-      buyer: { select: { id: true, displayName: true, username: true } },
+      buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
     },
     orderBy: { createdAt: "desc" },
   });

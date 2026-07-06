@@ -85,6 +85,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
     buyerName: o.buyer?.displayName ?? null,
     buyerUsername: o.buyer?.username ?? null,
+    buyerAvatar: o.buyer?.avatar ?? null,
+    salesChannel: o.salesChannel ?? null,
     // เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller โทรลูกค้าตัวเองได้ (user decision 2026-06-15)
     // PII note: เปิดเบอร์จริงเข้า flight ของ seller (เจ้าของออเดอร์) — ต้อง security review ก่อน prod
     buyerPhone: o.buyerContact ?? null,
