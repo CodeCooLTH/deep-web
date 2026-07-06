@@ -30,6 +30,7 @@ model User {
   userBadges            UserBadge[]
   trustScoreHistory     TrustScoreHistory[]
   ordersAsBuyer         Order[]              @relation("BuyerOrders")
+  customer              Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
   reviewsGiven          Review[]             @relation("ReviewerReviews")
   verificationsReviewed VerificationRecord[] @relation("ReviewedBy")
   topUpRequestsReviewed TopUpRequest[]       @relation("TopUpReviewedBy")
@@ -340,6 +341,9 @@ model Order {
   salesChannel  String?
   internalNote  String?  @db.Text
   buyerName     String?
+  // customerId: ผูก Customer กลาง (feat 00014) — server derive จาก buyerContact (เบอร์) ตอน createOrder;
+  // buyerName/buyerContact ยังคง denormalized ไว้ (display per-order + backward compat)
+  customerId    String?
   discount      Decimal? @db.Decimal(12, 2)
   vatRate       Decimal? @db.Decimal(5, 4)
   vatAmount     Decimal? @db.Decimal(12, 2)
@@ -353,6 +357,7 @@ model Order {
 
   shop             Shop              @relation(fields: [shopId], references: [id])
   buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+  customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items            OrderItem[]
   shipmentTracking ShipmentTracking?
   review           Review?
@@ -360,6 +365,23 @@ model Order {
 
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
+  @@index([customerId]) // feat 00014 — lookup order ต่อ customer
+}
+
+// Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
+// แยกจาก User: walk-in ไม่ต้องมี login; link User (userId) เมื่อลูกค้าสมัครเป็น buyer ทีหลัง (Phase 2).
+// phone @unique global = "ห้ามเบอร์ซ้ำ" + เบอร์เดียว = customer เดียวข้ามร้าน.
+// privacy: seller เห็นลูกค้าเฉพาะจาก order ของร้านตัวเอง (ชื่อเก็บที่ order.buyerName) — ไม่มีตาราง per-shop.
+model Customer {
+  id        String   @id @default(uuid())
+  phone     String   @unique // normalize 0xxxxxxxxx (src/lib/phone.ts) ก่อนเขียนเสมอ
+  email     String? // optional เสริม — ไม่ unique (ไม่ใช่ตัวระบุหลัก)
+  userId    String?  @unique // link → User (Phase 2); nullable ตอน MVP
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orders Order[]
 }
 
 model OrderItem {

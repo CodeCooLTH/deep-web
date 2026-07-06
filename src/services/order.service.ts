@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
+import { normalizePhone } from "@/lib/phone";
+import { findOrCreateCustomer } from "@/services/customer.service";
 
 // State machine ใหม่ตาม OMS redesign spec §2
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
@@ -150,8 +152,17 @@ export async function createOrder(shopId: string, data: {
           stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
         }));
 
+        // feat 00014 — ผูก Customer กลางด้วยเบอร์ (dedup + cross-shop identity); email/ว่าง/เบอร์ผิด → null
+        const custPhone = data.buyerContact ? normalizePhone(data.buyerContact) : null;
+        const customerId = custPhone ? await findOrCreateCustomer(tx, custPhone) : null;
+
         const order = await tx.order.create({
-          data: { ...orderDataBase, items: { create: itemsCreateData }, shortCode: genShortCode() },
+          data: {
+            ...orderDataBase,
+            customerId: customerId ?? undefined,
+            items: { create: itemsCreateData },
+            shortCode: genShortCode(),
+          },
           include: { items: true },
         });
 
