@@ -385,6 +385,35 @@ export async function getProductsByShop(
   });
 }
 
+/**
+ * getBestSellerProducts — สินค้าขายดี เรียงจากยอดขายรวม (sum OrderItem.qty) มากสุด desc
+ * ใช้บน quick-create (ProductPickerSheet) + Command Center (feature Quick Create Order).
+ * นับเฉพาะ line ที่มี productId (ไม่นับ custom item) ของ order ในร้านนี้; คืนเฉพาะ product ที่ยัง active.
+ * groupBy คืนลำดับตามยอดขาย แต่ findMany ไม่การันตีลำดับ → re-order ตาม best-seller ก่อนคืน.
+ */
+export async function getBestSellerProducts(shopId: string, take = 8) {
+  const grouped = await prisma.orderItem.groupBy({
+    by: ["productId"],
+    where: { productId: { not: null }, order: { shopId } },
+    _sum: { qty: true },
+    orderBy: { _sum: { qty: "desc" } },
+    take,
+  });
+  const ids = grouped
+    .map((g) => g.productId)
+    .filter((v): v is string => Boolean(v));
+  if (ids.length === 0) return [];
+  const products = await prisma.product.findMany({
+    where: { id: { in: ids }, shopId, isActive: true },
+    include: { tags: true },
+  });
+  // คงลำดับ best-seller (findMany อาจสลับ + product ที่ปิด/ลบ หลุดออกไป)
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Chat Product Context Card (extension #1, feat 00011) — lightweight product ref
 // ใช้ 2 ที่: chat.service.sendMessage (S-17 verify cross-shop) +
