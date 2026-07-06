@@ -133,8 +133,8 @@ export default function CustomerSearchSheet({ open, onSelect, onUseNew, onClose 
             </button>
           ))}
         </div>
-        {/* ใช้คำที่พิมพ์เป็นลูกค้าใหม่ */}
-        {typed.length >= 2 && !exactMatch && (
+        {/* ใช้คำที่พิมพ์เป็นลูกค้าใหม่ — โชว์เมื่อค้นเสร็จแล้ว (ไม่ใช่ตอน loading) */}
+        {typed.length >= 2 && !loading && !exactMatch && (
           <button
             type="button"
             onClick={() => onUseNew(typed)}
