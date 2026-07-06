@@ -50,11 +50,14 @@ export const metadata: Metadata = {
 }
 
 // ปิด pinch-zoom บนมือถือฝั่ง buyer/landing ให้สม่ำเสมอกับฝั่ง Paces
+// viewportFit 'cover': ให้ webview ยืดเต็มขอบ (เข้าไปในพื้นที่ safe-area/status bar) → env(safe-area-inset-*)
+// มีค่าจริง ทำให้ AppTopBar (ขาว, paddingTop safe-area) ไปเติม status bar เป็นสีขาวกลืน navbar
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
   themeColor: '#ffffff',
 }
 
