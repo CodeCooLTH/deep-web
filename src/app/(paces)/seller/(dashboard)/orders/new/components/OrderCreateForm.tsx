@@ -13,14 +13,14 @@
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
-import Icon from '@/components/wrappers/Icon'
 import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
 import QuickForm from './QuickForm'
+import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -157,12 +157,16 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // ── Submit status full-bleed sheet (loading/error) — แทน inline loading + toast เดิม ──
+  const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
+  const [submitError, setSubmitError] = useState<string>('')
+
   const {
     control,
     handleSubmit,
     setError,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: yupResolver(schema) as any,
@@ -356,6 +360,9 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
       ...(needsShipping && hasShippingData ? { shippingAddress: cleanShipping } : {}),
     }
 
+    // full-bleed sheet: โชว์ "กำลังสร้างคำสั่งซื้อ" ตั้งแต่เริ่มยิง POST (block ทั้งจอ กันกดซ้ำ)
+    setSubmitError('')
+    setSubmitStatus('loading')
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -365,20 +372,26 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        pacesToast.error(data?.error ?? 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+        setSubmitError(data?.error ?? 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+        setSubmitStatus('error')
         return
       }
 
       const order = await res.json()
       const token = order?.publicToken ?? order?.order?.publicToken
-      pacesToast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
+      // success: คง sheet loading ค้างจน redirect (ไม่ setStatus กลับ — กัน form โผล่แว้บก่อนเปลี่ยนหน้า)
+      // toast เฉพาะ desktop POS (≥ lg) — mobile ไม่ต้อง (redirect ไปหน้าออเดอร์อยู่แล้ว, toast ซ้ำซ้อน; user req)
+      const isDesktop =
+        typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+      if (isDesktop) pacesToast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
       if (token) {
         router.push(`/orders/${token}`)
       } else {
         router.push('/orders')
       }
     } catch {
-      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      setSubmitError('เกิดข้อผิดพลาด กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่')
+      setSubmitStatus('error')
     }
   }
 
@@ -401,13 +414,12 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
       noValidate
       className="pb-24 lg:pb-0 scroll-pb-24"
     >
-      {/* Loading indicator ระหว่าง submit */}
-      {isSubmitting && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-default-500">
-          <Icon icon="loader-2" className="animate-spin" width={16} height={16} />
-          กำลังสร้างออเดอร์...
-        </div>
-      )}
+      {/* Full-bleed status sheet: loading ระหว่าง submit / error + ปุ่มปิดกลับไปแก้ไข */}
+      <SubmitStatusSheet
+        status={submitStatus}
+        errorMessage={submitError}
+        onDismiss={() => setSubmitStatus('idle')}
+      />
 
       {/* ═══ Render: < lg = QuickForm (inline), ≥ lg = POS split ═══ */}
 
