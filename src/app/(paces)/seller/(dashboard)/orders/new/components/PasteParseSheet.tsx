@@ -6,7 +6,7 @@
  * mini bubble "วางจากคลิปบอร์ด" ลอยกลางล่าง textarea — โชว์เมื่อ clipboard มีข้อความ; กด/โฟกัส/พิมพ์ → หาย
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { parseOrderMessage, type ParsedOrderMessage } from '@/lib/parse-order-message'
 
@@ -19,11 +19,14 @@ interface Props {
 export default function PasteParseSheet({ open, onApply, onClose }: Props) {
   const [text, setText] = useState('')
   const [showBubble, setShowBubble] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!open) return
     setText('')
     setShowBubble(false)
+    // auto-focus textarea ตอนเปิด (bubble ยังโชว์ได้—ซ่อนเมื่อพิมพ์ ไม่ใช่แค่ focus)
+    const ft = setTimeout(() => textareaRef.current?.focus(), 80)
     let cancelled = false
     // detect ว่า clipboard มีข้อความไหม (best-effort — unsupported/denied → ไม่โชว์ bubble, ไม่ crash)
     if (navigator.clipboard?.readText) {
@@ -33,8 +36,12 @@ export default function PasteParseSheet({ open, onApply, onClose }: Props) {
           if (!cancelled && t && t.trim()) setShowBubble(true)
         })
         .catch(() => {
-          /* ไม่รองรับ/ปฏิเสธ permission → พิมพ์/วางเองได้ปกติ */
+          // อ่านไม่ได้ (permission/insecure) → โชว์ bubble ไว้ กด→ลองอีกที
+          if (!cancelled) setShowBubble(true)
         })
+    } else {
+      // ไม่มี Clipboard API (dev http = insecure context; ต้อง https) → โชว์ bubble ไว้ (paste ทำงานบน prod https)
+      setShowBubble(true)
     }
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -42,6 +49,7 @@ export default function PasteParseSheet({ open, onApply, onClose }: Props) {
     document.addEventListener('keydown', onEsc)
     return () => {
       cancelled = true
+      clearTimeout(ft)
       document.removeEventListener('keydown', onEsc)
     }
   }, [open, onClose])
@@ -77,12 +85,12 @@ export default function PasteParseSheet({ open, onApply, onClose }: Props) {
 
           <div className="relative min-h-0 flex-1">
             <textarea
+              ref={textareaRef}
               value={text}
               onChange={(e) => {
                 setText(e.target.value)
                 setShowBubble(false)
               }}
-              onFocus={() => setShowBubble(false)}
               placeholder={'พิมพ์/วางเอง เช่น\nเชาวลิต เอกกุล\n6ม.4 บ้านปุหรน ต.ช้างให้ตก อ.โคกโพธิ์\nจ.ปัตตานี 94120\nโทร 081-7971726'}
               className="form-input !h-full resize-none"
             />

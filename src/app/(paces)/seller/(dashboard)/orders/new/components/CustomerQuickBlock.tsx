@@ -101,6 +101,7 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
     <>
       {/* header: ลูกค้า (title เด่น) + badge ลูกค้าเก่า + ปุ่มกระจายที่อยู่ (paste) */}
       <div className="mb-3 flex items-center gap-2">
+        <Icon icon="user" className="size-5 text-primary" />
         <h2 className="text-base font-bold text-dark">ลูกค้า</h2>
         {selected && (
           <span className="badge badge-label bg-success/15 text-success text-2xs font-semibold">

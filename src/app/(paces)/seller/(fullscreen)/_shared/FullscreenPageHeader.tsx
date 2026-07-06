@@ -45,7 +45,7 @@ export default function FullscreenPageHeader({
   cancelHref: _cancelHref,
 }: FullscreenPageHeaderProps) {
   return (
-    <div className="sticky top-0 z-10 bg-card -mx-4 px-4 md:-mx-8 md:px-8 pb-4 mb-6 border-b border-default-200">
+    <div className="sticky top-0 z-10 bg-card -mx-4 px-4 md:-mx-8 md:px-8 pb-4 border-b border-default-200">
       {/* layout M0-a: [back ซ้าย] [title flex-1 truncate] [Save ขวา]
           SellerMobileHeader pattern — แยก navigation (ซ้าย) กับ action (ขวา) ชัดเจน */}
       <div className="flex items-center gap-3">

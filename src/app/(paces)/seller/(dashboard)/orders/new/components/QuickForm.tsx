@@ -79,7 +79,10 @@ export default function QuickForm({
       {/* SECTION 3: สินค้า */}
       <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-bold text-dark">สินค้า</h2>
+          <h2 className="flex items-center gap-2 text-base font-bold text-dark">
+            <Icon icon="package" className="size-5 text-primary" />
+            สินค้า
+          </h2>
           <button
             type="button"
             onClick={handleAddClick}
