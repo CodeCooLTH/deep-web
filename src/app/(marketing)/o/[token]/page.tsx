@@ -1,41 +1,35 @@
 /**
- * Public order page /o/[token] — UX ใหม่ 2026-04-18
+ * Public order page /o/[token] — feature 00015 (Order Claim & Forced Login) rebuild 2026-07-07
  *
- * Sequence 3 ขั้น:
- *   1. Lock screen — PhoneUnlock (กรอกเบอร์ตรงกับ order.buyerContact)
- *   2. Order detail — mobile-first + fixed bottom "ยืนยันคำสั่งซื้อ"
- *   3. Confirm — buyer กดปุ่ม → /api/orders/[token]/confirm → status CREATED→CONFIRMED
+ * Force-login gate (TFR-001/004-008, SDS §4.0/§4.2):
+ *   ไม่มี session → redirect ไป sign-in ทันที (ไม่มี guest phone-unlock อีกต่อไป)
+ *   มี session → resolveOrderAccess() ตัดสินว่า grant/ต้อง claim-OTP/บล็อก
  *
- * Server component fetches order + ส่งให้ PublicOrderClient จัดการ stage
- * ต่อใน client. Base layouts:
- *   - PhoneUnlock → theme/vuexy/.../views/pages/auth/TwoStepsV1.tsx
- *   - OrderDetailMobile → composed mobile-first shape (scrollable body + fixed CTA)
- *
- * T13 (Phase 4 B5 — rework): รองรับ SMS short-code (/o/{12-char-code}) นอกเหนือจาก UUID
- * Discriminator ลำดับสำคัญ (LOCKED):
- *   1. UUID v4 → flow เดิม + อ่าน signed SMS unlock cookie (server-verified)
+ * Discriminator ลำดับสำคัญ (LOCKED — คงเดิมจากเวอร์ชันก่อน feature 00015):
+ *   1. UUID v4 → flow นี้ (force-login + resolveOrderAccess)
  *   2. 12-char short-code ([CHARSET]{12}) → redirect ไป GET /api/o/sms/{code}
- *      (route handler consume + set cookie + redirect /o/{uuid})
- *   3. อื่น ๆ → redirect /o/link-invalid (RC-2 uniform)
+ *      (route handler consume + redirect prefill/expired — ไม่ set cookie อีกต่อไป)
+ *   3. 8-char permanent short-code → resolve แล้ว redirect เข้า flow UUID
+ *   4. อื่น ๆ → redirect /o/link-invalid (RC-2 uniform)
  *
- * Security fix (DESIGN-MUST-CHANGE):
- *   - ลบ ?unlocked=1 query trust ทิ้ง — client-trusted = auth bypass
- *   - ใช้ HMAC signed cookie (verifySmsUnlock) แทน — server-decided เท่านั้น
- *   - consumeSmsCode ย้ายไป route handler แล้ว (reload-safe, set cookie ได้)
+ * PII gate (NFR-Security, คงจาก S-1 เดิม): ต้อง early-return OrderAccessBlock/ClaimOtpPrompt
+ * ก่อนสร้าง PublicOrderData เสมอ — ไม่ส่ง order detail ใด ๆ ลง RSC flight ให้ user ที่ยังไม่ผ่าน grant
+ *
+ * Base: ไฟล์นี้เป็น RSC orchestrator/redirect gate ล้วน (ไม่มี JSX ของตัวเอง — delegate ทั้งหมดไป
+ * PublicOrderClient/ClaimOtpPrompt/OrderAccessBlock ซึ่งแต่ละไฟล์อ้าง Base ของตัวเองแล้ว)
  */
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { notFound } from 'next/navigation'
-import { cookies } from 'next/headers'
+import { notFound, redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { getOrderByToken } from '@/services/order.service'
-import { verifySmsUnlock, SMS_UNLOCK_COOKIE } from '@/lib/sms-unlock-cookie'
+import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.service'
 
 import PublicOrderClient from './PublicOrderClient'
 import OrderAccessBlock from './OrderAccessBlock'
+import ClaimOtpPrompt from './ClaimOtpPrompt'
 import type { PublicOrderData } from './OrderDetailMobile'
 
 type Props = { params: Promise<{ token: string }> }
@@ -54,44 +48,76 @@ const SMS_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}$/
 // permanent short-code pattern — 8 ตัว charset เดียวกับ SMS code (length-disjoint จาก SMS 12-char)
 const SHORT_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/
 
+// mask เบอร์ก่อนส่งลง client component — '*'.repeat(len-4) + last4 (pattern เดียวกับ VerifyOtpCard.tsx)
+function maskPhone(phone: string): string {
+  return `${'*'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`
+}
+
 export default async function PublicOrderPage({ params }: Props) {
   const { token } = await params
 
-  // ── Discriminator ลำดับ 1: UUID v4 → flow เดิม + cookie verify ─────────────────
+  // ── Discriminator ลำดับ 1: UUID v4 → force-login gate + resolveOrderAccess ─────────
   if (UUID_V4_RE.test(token)) {
     const order = await getOrderByToken(token)
     if (!order) notFound()
 
-    // ── Session-aware phone check (T3) ──────────────────────────────────────────
-    // session callback ใน auth.ts ไม่ include phone ใน select (id/displayName/username/
-    // avatar/isShop/isAdmin/trustScore เท่านั้น) → ต้อง resolve phone แยกด้วย findUnique
-    // รวม getServerSession + findUnique ได้ใน 1 call คู่ (acceptable overhead per spec)
     const session = await getServerSession(authOptions)
-    let sessionPhone: string | undefined
-    if (session) {
-      const me = await prisma.user.findUnique({
-        where: { id: (session.user as { id: string }).id },
-        select: { phone: true },
-      })
-      sessionPhone = me?.phone ?? undefined
+
+    // ไม่มี session เลย → บังคับ login ก่อน (TFR-001) — carry callbackUrl กลับมาหน้านี้
+    if (!session) {
+      redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
     }
 
-    // pendingUnclaimed: order ยังไม่มี buyerContact และยังเป็น PENDING
-    // → ถือว่า "ยังไม่มีเจ้าของ" ไม่ต้องบล็อกใคร (แม้แต่ logged-in user)
-    const phoneMatches = !!sessionPhone && sessionPhone === order.buyerContact
-    const pendingUnclaimed = order.buyerContact == null && order.status === 'PENDING'
-    const blockedByMismatch =
-      !!sessionPhone && !phoneMatches && !pendingUnclaimed
+    const sessionUser = session.user as { id: string; justAuthedViaPhoneOtp?: boolean }
 
-    // ⚠️ security must-fix: บล็อก "ก่อน" สร้าง PublicOrderData → ไม่ส่ง order PII ใด ๆ
-    // ลง RSC flight ไปยัง user ที่เบอร์ไม่ตรง (block UI render ฝั่ง server, ไม่มี order data)
-    if (blockedByMismatch) {
-      return <OrderAccessBlock />
+    // session callback ไม่ include phone ดิบใน session.user (PII) → resolve แยกด้วย findUnique
+    const me = await prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { phone: true },
+    })
+
+    const decision = resolveOrderAccess(
+      {
+        orderId: order.id,
+        buyerUserId: order.buyerUserId,
+        buyerContact: order.buyerContact,
+        status: order.status,
+      },
+      {
+        userId: sessionUser.id,
+        phone: me?.phone ?? null,
+        justAuthedViaPhoneOtp: !!sessionUser.justAuthedViaPhoneOtp,
+      },
+    )
+
+    // ── บล็อก/ต้อง claim-OTP ก่อน — early-return ก่อนสร้าง PublicOrderData (PII gate) ──
+    if (decision.kind === 'OTP_CLAIM_REQUIRED') {
+      return (
+        <ClaimOtpPrompt
+          token={token}
+          phone={decision.targetPhone}
+          maskedPhone={maskPhone(decision.targetPhone)}
+        />
+      )
     }
+    if (decision.kind === 'OWNER_MISMATCH') {
+      return <OrderAccessBlock reason='owner-mismatch' />
+    }
+    if (decision.kind === 'OTP_CLAIM_BLOCKED') {
+      return <OrderAccessBlock reason='phone-mismatch' />
+    }
+    if (decision.kind === 'LEGACY_NO_CLAIM') {
+      return <OrderAccessBlock reason='legacy' />
+    }
+    // NO_SESSION ไม่ควรเกิด — ถูก redirect ไปแล้วข้างบนตั้งแต่ !session; defensive fallback
+    if (decision.kind === 'NO_SESSION') {
+      redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
+    }
+
+    // ── grant: OWNER_MATCH / OPEN_CLAIM / PHONE_MATCH_AUTO_CLAIM ──────────────────────
+    await guaranteeOrderLink({ orderId: order.id, userId: sessionUser.id, phone: me?.phone ?? null })
 
     // query verificationRecord ของ shop owner หลัง order resolve
-    // shop.userId: field โดยตรงบน Shop model (ไม่ต้องไป user.id)
-    // ส่งแค่ maxVerifyLevel: number ข้าม RSC boundary — ไม่ leak PII
     const approvedVerifications = await prisma.verificationRecord.findMany({
       where: { userId: order.shop.userId, status: 'APPROVED' },
       select: { level: true },
@@ -99,12 +125,6 @@ export default async function PublicOrderPage({ params }: Props) {
     const maxVerifyLevel = approvedVerifications.length
       ? Math.max(...approvedVerifications.map((v) => v.level))
       : 0
-
-    // อ่าน signed SMS unlock cookie (server-side only — ไม่เปิดเผยสู่ client)
-    // verifySmsUnlock: fail-closed → false ทุก error; ไม่ throw
-    const cookieStore = await cookies()
-    const cookieVal = cookieStore.get(SMS_UNLOCK_COOKIE)?.value
-    const smsUnlocked = verifySmsUnlock(cookieVal, order.id)
 
     // Flatten Prisma → plain object ที่ข้าม RSC→client ได้ (Decimal/Date → plain)
     const data: PublicOrderData = {
@@ -132,7 +152,7 @@ export default async function PublicOrderPage({ params }: Props) {
           displayName: order.shop.user.displayName,
           username: order.shop.user.username,
           trustScore: order.shop.user.trustScore,
-          // เพิ่ม avatar — raw URL เหมือน /u/[username]/page.tsx:109 (S-1 T1)
+          // raw avatar URL — pattern เดียวกับ /u/[username]/page.tsx:109 (S-1 T1)
           avatar: order.shop.user.avatar ?? null,
         },
       },
@@ -142,50 +162,26 @@ export default async function PublicOrderPage({ params }: Props) {
             trackingNo: order.shipmentTracking.trackingNo,
           }
         : null,
-      // 3 fields ใหม่จาก frozen contract (T1)
       paymentMethod: order.paymentMethod ?? null,
       fulfillmentMode: order.fulfillmentMode,
       maxVerifyLevel,
       // cancelInitiator: derive copy ใน UI ว่าใครยกเลิก (S-13 T1)
       cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,
-      // Phase 2 fields (S-2) — getOrderByToken ใช้ include ไม่มี top-level select จำกัด scalar
-      // Prisma คืน slipFileId/accessUrl อัตโนมัติ หลัง migration เพิ่ม column แล้ว
       slipFileId: order.slipFileId ?? null,
       accessUrl: order.accessUrl ?? null,
     }
 
-    // ส่ง smsUnlocked ให้ client — server-decided ไม่ใช่ client-trusted
-    // initialUnlocked: ข้าม PhoneUnlock ทันที (SMS flow พิสูจน์แล้ว)
-    // smsUnlocked: บอก handleConfirm ว่าไม่ต้องส่ง contact ใน body (RC-8)
-    //
-    // canPromptAccount: S-8 — SMS-unlock แต่ยังไม่มี session → เสนอสร้างบัญชี opt-in
-    // ทำไม: buyer ที่ unlock ผ่าน SMS link และไม่ได้ login ควรได้รับโอกาสสร้างบัญชี
-    // โดยไม่บังคับ — guest flow ยังทำงานได้ถ้า dismiss
-    const canPromptAccount = smsUnlocked && !sessionPhone
-
-    return (
-      <PublicOrderClient
-        order={data}
-        initialUnlocked={smsUnlocked}
-        smsUnlocked={smsUnlocked}
-        // logged-in user เบอร์ตรง → ข้าม lock + ใช้เบอร์นี้ใน confirm (S-9 returning skip)
-        sessionUnlockedPhone={phoneMatches ? sessionPhone : undefined}
-        canPromptAccount={canPromptAccount}
-      />
-    )
+    return <PublicOrderClient order={data} />
   }
 
   // ── Discriminator ลำดับ 2: 12-char short-code → route handler consume ──────────
-  // RSC redirect ไป GET /api/o/sms/{code} ซึ่งจะ:
-  //   rate-limit (RC-1) → consume → set signed cookie → redirect /o/{uuid}
-  // แยกออกมาเป็น route handler เพราะ RSC set cookie ไม่ได้ใน Next.js 16
+  // RSC redirect ไป GET /api/o/sms/{code} ซึ่งจะ: rate-limit (RC-1) → consume →
+  // redirect prefill (/auth/sign-in?callbackUrl=...&prefillPhone=...) หรือ expired (TD-003)
   if (SMS_CODE_RE.test(token)) {
     redirect('/api/o/sms/' + token)
   }
 
   // ── Discriminator ลำดับ 3: 8-char permanent short-code → resolve + redirect UUID ──
-  // หา order ด้วย shortCode แล้ว redirect เข้า flow UUID เดิม (SSOT — ไม่ duplicate logic
-  // phone-unlock). reusable + ไม่ consume + ไม่ auto-unlock (ต่างจาก SMS 12-char). spec §5
   if (SHORT_CODE_RE.test(token)) {
     const matched = await prisma.order.findUnique({
       where: { shortCode: token },

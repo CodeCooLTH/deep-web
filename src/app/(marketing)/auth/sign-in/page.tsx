@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 
 import OAuthErrorToast from './OAuthErrorToast'
 import SignInCard from './SignInCard'
+import SmsExpiredToast from './SmsExpiredToast'
 
 export const metadata: Metadata = { title: 'เข้าสู่ระบบ' }
 
@@ -11,6 +12,9 @@ export default function SignInPage() {
     <>
       <Suspense fallback={null}>
         <OAuthErrorToast />
+      </Suspense>
+      <Suspense fallback={null}>
+        <SmsExpiredToast />
       </Suspense>
       <Suspense fallback={null}>
         <SignInCard />

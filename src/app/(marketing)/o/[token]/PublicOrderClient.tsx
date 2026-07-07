@@ -1,109 +1,38 @@
 'use client'
 
 /**
- * Orchestrator สำหรับ /o/[token] — จัดการ 2 stages:
- * 1. 'lock'   — PhoneUnlock OTP multi-step (T4+T5 rewrite)
- * 2. 'detail' — OrderDetailMobile (mobile-first + fixed bottom CTA)
+ * Orchestrator สำหรับ /o/[token] — feature 00015 (Order Claim & Forced Login) simplify
  *
- * Unlock flow ใหม่ (T4+T5, S-3, S-4, S-5, S-7, S-9):
- *   PhoneUnlock → OTP → signIn('phone-otp') → onSignedIn → router.refresh()
- *   → RSC page.tsx re-eval session → ส่ง sessionUnlockedPhone → detail
- * ไม่มี sessionStorage lock persist สำหรับ OTP path (session cookie ทำหน้าที่แทน)
+ * ทำไม (TD-004 + SDS §3): force-login gate ย้ายความรับผิดชอบ "ยืนยันตัวตน" ไปที่ page.tsx
+ * (server, resolveOrderAccess) ทั้งหมดแล้ว — ทุกคนที่มาถึง component นี้คือ session ที่ผ่าน
+ * grant decision (OWNER_MATCH/OPEN_CLAIM/PHONE_MATCH_AUTO_CLAIM) มาแล้ว จึงไม่มี stage 'lock'
+ * /PhoneUnlock/AccountPromptCard อีกต่อไป — เหลือแค่ render OrderDetailMobile
  *
- * T13 (Phase 4 B5 — rework): ลบ ?unlocked=1 query trust ออกทั้งหมด
- * Security fix: query param = client-trusted = auth bypass → ใครก็ได้ต่อ ?unlocked=1
- * แทนด้วย server-decided props (initialUnlocked / smsUnlocked) จาก parent RSC
- * ที่ verify HMAC signed cookie แล้วก่อนส่งลงมา
+ * confirm/cancel: ไม่ส่ง contact/smsUnlock ใน body อีกต่อไป — server ตรวจ session+ownership เอง
+ * (slip upload ย้าย logic ไปอยู่ที่ OrderDetailMobile.tsx โดยตรงแล้ว เพราะไม่ต้องพึ่ง phone อีก)
  *
- * UUID flow ที่ไม่มี cookie ทำงานเหมือนเดิมเป๊ะ (regression safe):
- * - initialUnlocked=false → stage='lock' → PhoneUnlock OTP → router.refresh()
- *
- * NOTE: handleUnlock (old phone-match POST /api/orders/[token]/unlock) ถูกลบออก
- * เพราะ OTP path ใช้ signIn แทน lock/unlock route ไม่ได้ถูกลบ (ยังอยู่ที่ /api/orders/[token]/unlock)
- * แค่หยุดเรียกจาก client นี้ตาม task spec
+ * Base: ไฟล์นี้เป็น client orchestrator ล้วน (ไม่มี JSX ของตัวเอง — render แค่ OrderDetailMobile.tsx
+ * ซึ่งอ้าง Base ของตัวเองแล้ว)
  */
-import { useEffect, useState } from 'react'
-
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 import { toast } from 'react-toastify'
 
-import AccountPromptCard from './AccountPromptCard'
 import OrderDetailMobile, { type PublicOrderData } from './OrderDetailMobile'
-import PhoneUnlock from './PhoneUnlock'
-
-type Stage = 'lock' | 'detail'
 
 type Props = {
   order: PublicOrderData
-  /** server-decided: true = SMS code ผ่าน HMAC verify แล้ว → ข้าม PhoneUnlock */
-  initialUnlocked?: boolean
-  /** server-decided: true = SMS flow → handleConfirm ไม่ต้องส่ง contact (RC-8) */
-  smsUnlocked?: boolean
-  /**
-   * T3: logged-in user เบอร์ตรงกับ order.buyerContact (server-resolved) → ข้าม lock screen
-   * ทันที + ใช้เบอร์นี้ใน confirm/cancel. mismatch ถูกบล็อกที่ server (page.tsx) แล้ว
-   * จึงไม่ต้องมี blockedByMismatch prop ที่นี่ (กัน order PII เข้า RSC flight)
-   */
-  sessionUnlockedPhone?: string
-  /**
-   * S-8 (T6): SMS-unlock guest ที่ยังไม่มี session → แสดง AccountPromptCard
-   * server-computed: smsUnlocked && !sessionPhone
-   * opt-in เท่านั้น — dismiss แล้ว guest flow ยังทำงานได้ปกติ
-   */
-  canPromptAccount?: boolean
 }
 
-export default function PublicOrderClient({
-  order,
-  initialUnlocked,
-  smsUnlocked,
-  sessionUnlockedPhone,
-  canPromptAccount,
-}: Props) {
-  const router = useRouter()
-  const [stage, setStage] = useState<Stage>('lock')
-  const [phone, setPhone] = useState('')
+export default function PublicOrderClient({ order }: Props) {
   const [orderState, setOrderState] = useState(order)
 
-  // S-8 (T6): SMS-path account prompt state
-  // accountPhone: เบอร์ที่ได้จาก GET /api/orders/[token]/buyer-phone → trigger OTP step
-  // promptDismissed: buyer กด "ไว้ภายหลัง" → ซ่อน card, guest flow ทำงานปกติ
-  const [accountPhone, setAccountPhone] = useState<string | null>(null)
-  const [promptDismissed, setPromptDismissed] = useState(false)
-
-  // ลอง restore unlock จาก initialUnlocked (server-decided) หรือ sessionUnlockedPhone (session path)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    // logged-in user เบอร์ตรง order (server-resolved) → ข้าม lock + ใช้เบอร์ใน confirm/cancel (S-9)
-    if (sessionUnlockedPhone) {
-      setPhone(sessionUnlockedPhone)
-      setStage('detail')
-      return
-    }
-
-    // SMS flow: server verify HMAC cookie แล้ว → ข้าม PhoneUnlock ทันที
-    // ไม่ set phone เพราะ SMS flow ไม่รู้ phone ฝั่ง client (RC-8: client ไม่ควรรู้)
-    // unlockedPhone='' ที่ส่งไป OrderDetailMobile จะ suppress "เบอร์ · ..." footer
-    if (initialUnlocked) {
-      setStage('detail')
-      return
-    }
-
-    // OTP path: ไม่มี sessionStorage restore — session cookie จาก signIn เป็น gate
-    // หลัง router.refresh() page.tsx จะ re-eval session + ส่ง sessionUnlockedPhone กลับมา
-    // ทำให้ useEffect นี้วิ่งอีกครั้งกับ sessionUnlockedPhone ที่มีค่า → detail
-  }, [order.publicToken, initialUnlocked, sessionUnlockedPhone])
-
-  // handleCancel — buyer ขอยกเลิก order (PENDING เท่านั้น)
-  // ส่ง contact = phone (เบอร์ที่ buyer unlock ไว้) ตาม schema ของ cancel route
-  // SMS flow ที่ phone='' จะไม่ถูกเรียก (canCancel guard ด้านล่างป้องกัน)
+  // handleCancel — buyer ขอยกเลิก order (PENDING เท่านั้น) — session+ownership ตรวจที่ server
   const handleCancel = async () => {
     const res = await fetch(`/api/orders/${orderState.publicToken}/cancel`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact: phone }),
+      body: JSON.stringify({}),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -122,17 +51,10 @@ export default function PublicOrderClient({
   }
 
   const handleConfirm = async () => {
-    // SMS flow (smsUnlocked): server รู้ phone จาก cookie+order.buyerContact แล้ว
-    // ส่ง smsUnlock:true เพื่อให้ route handler รู้ว่าใช้ cookie-verified path
-    // ห้ามส่ง phone/contact ใน body (RC-8: client ไม่ควรรู้/ส่ง phone)
-    //
-    // session/OTP flow: ส่ง contact ตามปกติ (phone มาจาก sessionUnlockedPhone)
-    const body = smsUnlocked ? { smsUnlock: true } : { contact: phone }
-
     const res = await fetch(`/api/orders/${order.publicToken}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({}),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -143,87 +65,14 @@ export default function PublicOrderClient({
     setOrderState((prev) => ({ ...prev, status: data.status ?? 'CONFIRMED' }))
   }
 
-  // S-8 (T6): ดึง phone จาก SMS-unlock cookie ผ่าน server → set accountPhone → render OTP step
-  // ทำไม: client ไม่รู้ phone โดยตรง (RC-8) — ต้องขอผ่าน buyer-phone endpoint ที่ gate ด้วย HMAC cookie
-  const handleStartAccount = async () => {
-    try {
-      const res = await fetch(`/api/orders/${order.publicToken}/buyer-phone`)
-      if (!res.ok) {
-        toast.error('ไม่สามารถยืนยันบัญชีได้')
-        return
-      }
-      const data = await res.json() as { phone: string; masked: string }
-      setAccountPhone(data.phone)
-    } catch {
-      toast.error('ไม่สามารถยืนยันบัญชีได้')
-    }
-  }
-
-  if (stage === 'lock') {
-    return (
-      <PhoneUnlock
-        orderHint={`#${order.publicToken.slice(0, 8)}`}
-        // onSignedIn: เรียก router.refresh() → RSC page.tsx re-eval session → ส่ง sessionUnlockedPhone
-        // → useEffect detect → setStage('detail') (retro #25 pattern: refresh ไม่ใช่ setStage ตรง)
-        onSignedIn={() => router.refresh()}
-        // ส่ง shop preview เพื่อแสดง Trust Strip ก่อน buyer กรอกเบอร์ (FR-UX-1 anti-scam)
-        // field path ตรงกับ PublicOrderData: order.shop.user.{trustScore,username}, order.maxVerifyLevel
-        shop={{
-          shopName: order.shop.shopName,
-          trustScore: order.shop.user.trustScore,
-          maxVerifyLevel: order.maxVerifyLevel,
-          username: order.shop.user.username,
-          // avatar สำหรับ V1 header ของ lock screen (field มีจาก data layer Phase 2 V1)
-          avatar: order.shop.user.avatar,
-        }}
-      />
-    )
-  }
-
-  // S-8 (T6): buyer กด "ยืนยันบัญชี" → มี accountPhone → แสดง PhoneUnlock OTP step
-  // ใช้ prefilledPhone + startAtOtpStep ที่ PhoneUnlock รองรับอยู่แล้ว
-  // หลัง signIn สำเร็จ → router.refresh() → RSC re-eval → sessionUnlockedPhone มีค่า
-  // → useEffect ด้านบนจะ set stage='detail' กับ phone = sessionUnlockedPhone → prompt หายไป
-  if (accountPhone) {
-    return (
-      <PhoneUnlock
-        orderHint={`#${order.publicToken.slice(0, 8)}`}
-        prefilledPhone={accountPhone}
-        startAtOtpStep
-        onSignedIn={() => router.refresh()}
-        shop={{
-          shopName: order.shop.shopName,
-          trustScore: order.shop.user.trustScore,
-          maxVerifyLevel: order.maxVerifyLevel,
-          username: order.shop.user.username,
-          avatar: order.shop.user.avatar,
-        }}
-      />
-    )
-  }
-
-  // canCancel: ส่ง onCancel เฉพาะเมื่อ PENDING และ (ไม่ใช่ SMS flow หรือรู้ phone แล้ว)
-  // SMS flow ที่ phone='' จะยกเลิกผ่าน buyer path ไม่ได้ (route ต้องการ contact)
-  const canCancel = orderState.status === 'PENDING' && (!smsUnlocked || !!phone)
-
-  // S-8: showPrompt = canPromptAccount + ยังไม่ dismiss + ยังไม่มี accountPhone (แสดง OTP แล้ว)
-  const showPrompt = !!canPromptAccount && !promptDismissed
+  // canCancel: PENDING เท่านั้น (parent — ownership ตรวจแล้วที่ server ก่อน render component นี้)
+  const canCancel = orderState.status === 'PENDING'
 
   return (
-    <>
-      {/* AccountPromptCard วางบน OrderDetailMobile — buyer เห็น order + โอกาสสร้างบัญชี */}
-      {showPrompt && (
-        <AccountPromptCard
-          onConfirm={handleStartAccount}
-          onDismiss={() => setPromptDismissed(true)}
-        />
-      )}
-      <OrderDetailMobile
-        order={orderState}
-        unlockedPhone={phone}
-        onConfirmAction={handleConfirm}
-        onCancel={canCancel ? handleCancel : undefined}
-      />
-    </>
+    <OrderDetailMobile
+      order={orderState}
+      onConfirmAction={handleConfirm}
+      onCancel={canCancel ? handleCancel : undefined}
+    />
   )
 }

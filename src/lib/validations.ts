@@ -259,7 +259,12 @@ export const CreateOrderSchema = v.object({
   // type — derive จาก registry (replaces hardcoded picklist)
   type: v.picklist(PRODUCT_TYPE_IDS),
   // Phase B fields — ทั้งหมด optional เพื่อ backward-compatible กับ caller เดิม
-  buyerContact: v.optional(v.string()),
+  // buyerContact — feature 00015 (Order Claim & Forced Login) TFR-009: บังคับเป็นเบอร์โทรไทย
+  // (ไม่รับอีเมล/optional อีกต่อไป) เพราะ resolveOrderAccess ต้องมีเบอร์แน่นอนเพื่อ match กับ session.phone
+  buyerContact: v.pipe(
+    v.string(),
+    v.regex(/^0[0-9]{9}$/, "buyerContact ต้องเป็นเบอร์โทรไทย 10 หลัก ขึ้นต้นด้วย 0"),
+  ),
   buyerName: v.optional(v.string()),
   paymentMethod: v.optional(v.string()),
   salesChannel: v.optional(v.string()),
@@ -280,17 +285,11 @@ export const CreateOrderSchema = v.object({
   })),
 });
 
-// ConfirmOrderSchema — OTP ถูกถอดออกตาม UX ใหม่ (2026-04-18) buyer เปิดลิงก์
-// และพิสูจน์ตัวตนด้วยการกรอกเบอร์ที่ตรงกับ order.buyerContact (ถ้า seller ใส่
-// เบอร์ไว้ตอนสร้าง order) หรือถ้า buyerContact ยังว่าง — เบอร์แรกที่กรอกจะ
-// claim order นั้น. ดูเพิ่มใน order.service.confirmOrder + /api/orders/[token]/unlock
-export const ConfirmOrderSchema = v.object({
-  contact: v.pipe(v.string(), v.minLength(1)),
-  contactType: v.optional(v.picklist(["phone", "email", "PHONE", "EMAIL"])),
-});
-
-export const UnlockOrderSchema = v.object({
-  phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
+// ClaimOrderSchema — feature 00015 (Order Claim & Forced Login) API.md §4.3
+// body ของ POST /api/orders/[token]/claim — เบอร์ resolve จาก session เอง
+// ไม่รับจาก client เลย (แค่ otp 6 หลัก)
+export const ClaimOrderSchema = v.object({
+  otp: v.pipe(v.string(), v.length(6)),
 });
 
 export const CreateReviewSchema = v.object({

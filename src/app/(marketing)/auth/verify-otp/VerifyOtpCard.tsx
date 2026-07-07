@@ -13,9 +13,6 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 
 // Third-party Imports
-import classnames from 'classnames'
-import { OTPInput } from 'input-otp'
-import type { SlotProps } from 'input-otp'
 import { signIn } from 'next-auth/react'
 import { toast } from 'react-toastify'
 
@@ -25,31 +22,14 @@ import Logo from '@components/layout/shared/Logo'
 // Styled Component Imports
 import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 
-// Style Imports
-import styles from '@/libs/styles/inputOtp.module.css'
+// Shared OTP slots (feature 00015 D5/Q5 — extracted จากไฟล์นี้ 3rd reuse site: ClaimOtpPrompt)
+import OtpSlots from '@/app/(marketing)/_components/OtpSlots'
 
 // Config Imports
 import { currentYear, META_DATA } from '@/config/constants'
 
 // Utils — กัน open-redirect ก่อนใช้ ?callbackUrl= ที่ carry มาจาก sign-in/sign-up (OQ-2)
 import { getSafeCallbackUrl } from '../_lib/safe-callback-url'
-
-const Slot = (props: SlotProps) => {
-  return (
-    <div className={classnames(styles.slot, { [styles.slotActive]: props.isActive })}>
-      {props.char !== null && <div>{props.char}</div>}
-      {props.hasFakeCaret && <FakeCaret />}
-    </div>
-  )
-}
-
-const FakeCaret = () => {
-  return (
-    <div className={styles.fakeCaret}>
-      <div className='w-px h-5 bg-textPrimary' />
-    </div>
-  )
-}
 
 export default function VerifyOtpCard() {
   const router = useRouter()
@@ -166,20 +146,7 @@ export default function VerifyOtpCard() {
             <form onSubmit={onSubmit} noValidate autoComplete='off' className='flex flex-col gap-6'>
               <div className='flex flex-col gap-2'>
                 <Typography>กรอกรหัสความปลอดภัย 6 หลัก</Typography>
-                <OTPInput
-                  onChange={setOtp}
-                  value={otp}
-                  maxLength={6}
-                  autoFocus
-                  containerClassName='flex items-center'
-                  render={({ slots }) => (
-                    <div className='flex items-center justify-between w-full gap-4'>
-                      {slots.slice(0, 6).map((slot, idx) => (
-                        <Slot key={idx} {...slot} />
-                      ))}
-                    </div>
-                  )}
-                />
+                <OtpSlots value={otp} onChange={setOtp} />
               </div>
 
               {errorMsg && (

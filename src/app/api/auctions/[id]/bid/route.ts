@@ -29,7 +29,7 @@ export async function POST(
     const auction = await placeBid(id, userId, parsed.output.amount);
     return NextResponse.json(auction);
   } catch (e) {
-    if (e instanceof BidError) return NextResponse.json({ error: e.message }, { status: e.status });
+    if (e instanceof BidError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
     console.error("[POST /api/auctions/[id]/bid] placeBid failed", e);
     return NextResponse.json({ error: "วางบิดไม่สำเร็จ" }, { status: 500 });
   }

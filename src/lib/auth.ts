@@ -19,6 +19,10 @@ const adminLoginTimestamps =
   globalForAdminAuth.adminLoginTimestamps ??
   (globalForAdminAuth.adminLoginTimestamps = new Map<string, number[]>());
 
+// feature 00015 (Order Claim & Forced Login) TD-002 — skip-window หลัง sign-in ด้วย phone-otp
+// ที่ session.user.justAuthedViaPhoneOtp ใช้ตัดสิน PHONE_MATCH_AUTO_CLAIM vs OTP_CLAIM_REQUIRED
+const PHONE_OTP_CLAIM_SKIP_WINDOW_MS = 5 * 60 * 1000;
+
 // upsertOAuthUser — helper รวม logic upsert สำหรับทุก OAuth provider (FB/LINE/IG)
 // แยกออกมาจาก jwt callback เพื่อให้ reuse ได้ (FR-LO-14/15) ลอจิกเหมือน FB block เดิมเป๊ะ
 async function upsertOAuthUser(
@@ -535,6 +539,10 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, trigger, session }) {
       if (user) {
         token.userId = user.id;
+        // feature 00015 TD-002 — จำ provider/เวลา sign-in ล่าสุดไว้ใน JWT (ไม่เพิ่ม DB round-trip)
+        // เพื่อคำนวณ justAuthedViaPhoneOtp ที่ session callback ด้านล่าง
+        token.authProvider = account?.provider ?? (token.authProvider as string | undefined);
+        token.authAt = Date.now();
       }
       // รวม OAuth provider ทุกตัว (FB/LINE/IG) ไว้ใน map เดียว — เพิ่ม provider ใหม่ได้โดยแค่เพิ่ม entry
       // key = next-auth provider id, value = [AuthAccount.provider enum, username prefix]
@@ -682,6 +690,12 @@ export const authOptions: NextAuthOptions = {
             activeShopLogo = null;
           }
 
+          // feature 00015 TD-002 — skip-window 5 นาทีหลัง sign-in ด้วย phone-otp เท่านั้น
+          // (ใช้ที่ order-access.service.ts::resolveOrderAccess ตัดสิน PHONE_MATCH_AUTO_CLAIM)
+          const justAuthedViaPhoneOtp =
+            (token as { authProvider?: string }).authProvider === "phone-otp" &&
+            Date.now() - ((token as { authAt?: number }).authAt ?? 0) < PHONE_OTP_CLAIM_SKIP_WINDOW_MS;
+
           (session as any).user = {
             id: user.id, displayName: user.displayName, username: user.username,
             email: user.email, avatar: user.avatar, isShop: user.isShop,
@@ -693,6 +707,7 @@ export const authOptions: NextAuthOptions = {
             // feature 00012 (Lazy Personal shop): ให้ layout/choose-shop รู้ว่า user มีร้านของตัวเองไหม
             // (ผู้ถูกเชิญ = false แม้เป็น ADMIN business) — ใช้ตัดสิน 0-shop/invited-only state
             hasPersonalShop: !!personal,
+            justAuthedViaPhoneOtp,
           };
         }
       }

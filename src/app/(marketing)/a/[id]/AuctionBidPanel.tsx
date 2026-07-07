@@ -35,6 +35,8 @@ import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
 import type { PublicAuctionDTO } from '@/services/auction.service'
+// feature 00015 FR-OCL-10: บัญชี FB ที่ยังไม่มีเบอร์ → backend คืน 403 PHONE_NOT_VERIFIED ก่อนวางบิด/ซื้อทันที
+import BidPhoneVerifyDialog from './BidPhoneVerifyDialog'
 
 type Props = {
   auctionId: string
@@ -90,6 +92,10 @@ export default function AuctionBidPanel({
   const [buyNowOpen, setBuyNowOpen] = useState(false)
   const [buyNowLoading, setBuyNowLoading] = useState(false)
 
+  // feature 00015 FR-OCL-10: modal ยืนยันเบอร์โทร + จำ action เดิมไว้ auto-retry หลังตั้งเบอร์สำเร็จ
+  const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<'bid' | 'buyNow' | null>(null)
+
   // countdown ticking (ย้ายมาจาก AuctionHero.tsx เดิม — แสดงเป็น timepill ในแถบราคาแทน HUD บนรูป)
   const [now, setNow] = useState<number>(() => Date.now())
   useEffect(() => {
@@ -132,6 +138,12 @@ export default function AuctionBidPanel({
       })
       const data = await res.json()
       if (!res.ok) {
+        // feature 00015 FR-OCL-10: ยังไม่มีเบอร์ verified — เปิด modal ตั้งเบอร์ก่อน toast error ทั่วไป
+        if (res.status === 403 && data.code === 'PHONE_NOT_VERIFIED') {
+          setPendingAction('bid')
+          setPhoneVerifyOpen(true)
+          return
+        }
         toast.error(data.error ?? 'เสนอราคาไม่สำเร็จ')
         if (res.status === 409) {
           // ราคาขยับไปแล้วจากคนอื่น (race) — sync ราคาล่าสุดจาก public endpoint กัน UI ค้างเลขเก่า (feat 00007 item 2)
@@ -159,6 +171,13 @@ export default function AuctionBidPanel({
       const res = await fetch(`/api/auctions/${auctionId}/buy-now`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
+        // feature 00015 FR-OCL-10: ยังไม่มีเบอร์ verified — ปิด dialog ยืนยันซื้อทันที แล้วเปิด modal ตั้งเบอร์แทน
+        if (res.status === 403 && data.code === 'PHONE_NOT_VERIFIED') {
+          setBuyNowOpen(false)
+          setPendingAction('buyNow')
+          setPhoneVerifyOpen(true)
+          return
+        }
         toast.error(data.error ?? 'ซื้อทันทีไม่สำเร็จ')
         return
       }
@@ -170,6 +189,15 @@ export default function AuctionBidPanel({
     } finally {
       setBuyNowLoading(false)
     }
+  }
+
+  // feature 00015 FR-OCL-10: ตั้งเบอร์สำเร็จแล้ว → auto-retry action เดิม (บิด/ซื้อทันที)
+  function handleVerified() {
+    setPhoneVerifyOpen(false)
+    const action = pendingAction
+    setPendingAction(null)
+    if (action === 'bid') handleBid()
+    else if (action === 'buyNow') handleBuyNow()
   }
 
   return (
@@ -380,6 +408,12 @@ export default function AuctionBidPanel({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <BidPhoneVerifyDialog
+        open={phoneVerifyOpen}
+        onClose={() => setPhoneVerifyOpen(false)}
+        onVerified={handleVerified}
+      />
     </>
   )
 }

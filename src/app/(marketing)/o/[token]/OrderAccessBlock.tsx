@@ -1,16 +1,25 @@
 'use client'
 
 /**
- * OrderAccessBlock — แสดงเมื่อ logged-in user มีเบอร์ที่ไม่ตรงกับ order.buyerContact
+ * OrderAccessBlock — Screen 3 (UX-Design-Spec §Screen 3), 3 reason variants
  *
- * ทำไม (security must-fix): page.tsx ต้อง early-return component นี้ **ก่อน** สร้าง
- * PublicOrderData → ไม่ส่ง order detail ใด ๆ ลง RSC flight (กัน PII leak ไปยัง user ผิดคน).
- * ข้อความ generic — ไม่ยืนยันรายละเอียด order (ลด oracle; token อยู่ใน URL อยู่แล้ว).
+ * ทำไม (security must-fix เดิม + feature 00015): page.tsx ต้อง early-return component นี้
+ * **ก่อน** สร้าง PublicOrderData → ไม่ส่ง order detail ใด ๆ ลง RSC flight (กัน PII leak ไปยัง
+ * user ผิดคน). Component รับแค่ `reason` — ไม่มี order data prop ใด ๆ (Q2: legacy ไม่มี shop
+ * deep-link ด้วยเหตุผลเดียวกัน)
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
- *   (ใช้ MobileFrame + โทน V1 เดียวกับ lock screen)
+ * reason:
+ *   - owner-mismatch: order.buyerUserId ตั้งเป็นบัญชีอื่นแล้ว (OWNER_MISMATCH)
+ *   - phone-mismatch: session.phone ไม่ตรงกับ order.buyerContact (OTP_CLAIM_BLOCKED)
+ *   - legacy: order เก่าไม่มีเบอร์ผูก claim ไม่ได้ (LEGACY_NO_CLAIM)
+ *
+ * Base: theme/vuexy/typescript-version/full-version/src/@core/components/mui/Avatar.tsx
+ *   (CustomAvatar skin='light' variant='rounded' — icon avatar)
+ *   + sign-in flex-center shell pattern (ไม่ใช้ AuthIllustrationWrapper — error state ไม่ใช่ branding moment)
+ *   + theme/vuexy/typescript-version/full-version/src/components/dialogs/two-factor-auth/index.tsx (Button pattern)
  */
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -19,64 +28,87 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 import { signOut } from 'next-auth/react'
 
-import MobileFrame from './MobileFrame'
+import CustomAvatar from '@core/components/mui/Avatar'
 
-export default function OrderAccessBlock() {
+export type OrderAccessBlockReason = 'owner-mismatch' | 'phone-mismatch' | 'legacy'
+
+const CONTENT: Record<
+  OrderAccessBlockReason,
+  {
+    icon: string
+    color: 'error' | 'warning' | 'secondary'
+    headline: string
+    body: string
+    action: boolean
+  }
+> = {
+  'owner-mismatch': {
+    icon: 'tabler-user-x',
+    color: 'error',
+    headline: 'ออเดอร์นี้เป็นของบัญชีอื่น',
+    body: 'บัญชีที่คุณเข้าสู่ระบบอยู่ไม่ใช่เจ้าของออเดอร์นี้',
+    action: true,
+  },
+  'phone-mismatch': {
+    icon: 'tabler-phone-x',
+    color: 'warning',
+    headline: 'เบอร์ที่ใช้เข้าสู่ระบบไม่ตรงกับออเดอร์นี้',
+    body: 'ออกจากระบบแล้วเข้าด้วยบัญชีหรือเบอร์ที่ใช้สั่งซื้อ',
+    action: true,
+  },
+  legacy: {
+    icon: 'tabler-mail-off',
+    color: 'secondary',
+    headline: 'ออเดอร์นี้ไม่มีเบอร์โทรผูกไว้',
+    body: 'เป็นออเดอร์เก่าที่ไม่มีข้อมูลเบอร์ยืนยัน — กรุณาติดต่อร้านค้าโดยตรง',
+    action: false,
+  },
+}
+
+export default function OrderAccessBlock({ reason }: { reason: OrderAccessBlockReason }) {
+  const pathname = usePathname()
+  const content = CONTENT[reason]
+
   return (
-    <MobileFrame bg='#fff'>
-      <Box
-        sx={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          px: '32px',
-          gap: '14px',
-        }}
-      >
-        <Box
-          sx={{
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            bgcolor: '#F1F5F9',
-            display: 'grid',
-            placeItems: 'center',
-            color: '#94A3B8',
-          }}
-        >
-          <Icon icon='tabler-lock-exclamation' fontSize={30} />
-        </Box>
-        <Typography sx={{ fontSize: 17, fontWeight: 800, color: '#0F172A' }}>
-          คำสั่งซื้อนี้ไม่ได้ผูกกับบัญชีนี้
-        </Typography>
-        <Typography sx={{ fontSize: 13, color: '#64748B', lineHeight: 1.5 }}>
-          บัญชีที่คุณเข้าสู่ระบบอยู่ใช้เบอร์โทรคนละเบอร์กับคำสั่งซื้อนี้ — ออกจากระบบแล้วยืนยันด้วยเบอร์ที่ใช้สั่งซื้อ
-        </Typography>
+    <Box
+      sx={{
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        px: 6,
+        gap: 3.5,
+        bgcolor: 'background.default',
+      }}
+    >
+      <CustomAvatar skin='light' variant='rounded' color={content.color} size={64}>
+        <Icon icon={content.icon} fontSize={30} />
+      </CustomAvatar>
 
+      <Box sx={{ maxWidth: 340 }}>
+        <Typography variant='h5' sx={{ mb: 1 }}>
+          {content.headline}
+        </Typography>
+        <Typography color='text.secondary'>{content.body}</Typography>
+      </Box>
+
+      {content.action && (
         <Button
           fullWidth
-          onClick={() => signOut({ callbackUrl: window.location.pathname })}
-          sx={{
-            mt: '6px',
-            minHeight: 48,
-            bgcolor: '#0F172A',
-            color: '#fff',
-            borderRadius: '13px',
-            fontSize: 14.5,
-            fontWeight: 800,
-            textTransform: 'none',
-            '&:hover': { bgcolor: '#1E293B' },
-          }}
+          variant='contained'
+          color='error'
+          sx={{ maxWidth: 340 }}
+          onClick={() => signOut({ callbackUrl: pathname ?? '/' })}
         >
           ออกจากระบบ แล้วใช้เบอร์อื่น
         </Button>
-        <Link href='/' style={{ textDecoration: 'none' }}>
-          <Typography sx={{ fontSize: 13, color: '#64748B', fontWeight: 600 }}>กลับหน้าหลัก</Typography>
-        </Link>
-      </Box>
-    </MobileFrame>
+      )}
+
+      <Typography component={Link} href='/' color='text.secondary' sx={{ fontWeight: 600, textDecoration: 'none' }}>
+        กลับหน้าหลัก
+      </Typography>
+    </Box>
   )
 }

@@ -40,7 +40,7 @@ export async function POST(
 
     return NextResponse.json({ auction: updatedAuction, orderId: order.id });
   } catch (e) {
-    if (e instanceof BidError) return NextResponse.json({ error: e.message }, { status: e.status });
+    if (e instanceof BidError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
     console.error("[POST /api/auctions/[id]/buy-now] placeBid failed", e);
     return NextResponse.json({ error: "ซื้อทันทีไม่สำเร็จ" }, { status: 500 });
   }

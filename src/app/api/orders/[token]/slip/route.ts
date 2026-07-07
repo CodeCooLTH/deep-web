@@ -1,29 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateUpload, saveFile, deleteFile } from "@/lib/storage";
 import { attachSlip } from "@/services/order.service";
-import {
-  SMS_UNLOCK_COOKIE,
-  verifySmsUnlock,
-} from "@/lib/sms-unlock-cookie";
 
 // POST /api/orders/[token]/slip
 //
+// feature 00015 (Order Claim & Forced Login) TD-004 — เลิกใช้ SMS-unlock
+// cookie / contact-parity ทั้งคู่ เหลือ path เดียว: session + ownership
+// (session.user.id === order.buyerUserId, ที่ guarantee มาก่อนแล้วโดย
+// Access Gate ของหน้า /o/[token])
+//
 // multipart/form-data fields:
-//   file    — รูปสลิปโอนเงิน (File)
-//   contact — เบอร์โทร/อีเมล (string, optional — ส่งใน UUID/PhoneUnlock flow)
-//
-// 2 paths (mirror confirm route):
-//
-// Path A — SMS unlock (cookie-proven):
-//   อ่าน o_smsunlock httpOnly cookie → verify HMAC → ใช้ order.buyerContact จาก DB
-//   client ไม่ต้องส่ง contact (RC-8: ห้าม leak phone ไปยัง client)
-//
-// Path B — UUID PhoneUnlock flow:
-//   require contact จาก formData → ส่งต่อ attachSlip (ทำ parity check เอง)
-//
-// RC-8: ห้าม log phone/cookie value/fileId
+//   file — รูปสลิปโอนเงิน (File)
 
 export async function POST(
   request: NextRequest,
@@ -31,10 +21,24 @@ export async function POST(
 ) {
   const { token } = await params;
 
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
+  }
+  const sessionUserId = (session.user as { id: string }).id;
+
+  const order = await prisma.order.findUnique({
+    where: { publicToken: token },
+    select: { buyerUserId: true },
+  });
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (order.buyerUserId !== sessionUserId) {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์แนบสลิปคำสั่งซื้อนี้" }, { status: 403 });
+  }
+
   // ── parse multipart ──────────────────────────────────────────────────────────
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
-  const contact = formData.get("contact") as string | null;
 
   if (!file) {
     return NextResponse.json(
@@ -55,53 +59,14 @@ export async function POST(
     );
   }
 
-  // ── determine effectiveContact (Path A / Path B) ─────────────────────────────
-  let effectiveContact: string | undefined;
-
-  const cookieStore = await cookies();
-  const cookieVal = cookieStore.get(SMS_UNLOCK_COOKIE)?.value;
-
-  if (cookieVal) {
-    // Path A: ตรวจ cookie ก่อน — โหลด order เพื่อ verify HMAC bind orderId
-    const orderRow = await prisma.order.findUnique({
-      where: { publicToken: token },
-      select: { id: true, buyerContact: true },
-    });
-
-    if (orderRow && verifySmsUnlock(cookieVal, orderRow.id)) {
-      if (!orderRow.buyerContact) {
-        // buyerContact ว่าง: consumeSmsCode ไม่ได้ set ไว้ → fail-safe reject
-        // (ไม่ควรเกิดใน flow ปกติ แต่ต้อง handle ไว้)
-        return NextResponse.json(
-          { error: "แนบสลิปไม่สำเร็จ กรุณาตรวจสอบและลองใหม่" },
-          { status: 400 },
-        );
-      }
-      // RC-8: ใช้ buyerContact จาก DB โดยตรง — client ไม่ได้ส่งมา
-      effectiveContact = orderRow.buyerContact;
-    }
-    // cookie มีแต่ verify ไม่ผ่าน → fall-through Path B ต่อ
-  }
-
-  if (effectiveContact === undefined) {
-    // Path B: UUID flow — ต้องการ contact จาก formData
-    if (!contact) {
-      return NextResponse.json(
-        { error: "แนบสลิปไม่สำเร็จ กรุณาตรวจสอบและลองใหม่" },
-        { status: 400 },
-      );
-    }
-    effectiveContact = contact;
-  }
-
   // ── save file → attach to order ──────────────────────────────────────────────
   const fileId = await saveFile(file);
 
   try {
-    const order = await attachSlip(token, fileId, effectiveContact);
-    return NextResponse.json({ slipFileId: order.slipFileId });
+    const updated = await attachSlip(token, fileId);
+    return NextResponse.json({ slipFileId: updated.slipFileId });
   } catch (err: unknown) {
-    // attachSlip throw เมื่อ: order ไม่พบ / contact parity ไม่ตรง / status ไม่ใช่ PENDING
+    // attachSlip throw เมื่อ: order ไม่พบ / status ไม่ใช่ PENDING
     // ลบไฟล์ที่ upload ไปแล้วเพื่อป้องกัน orphan file ค้างใน storage
     await deleteFile(fileId);
     // RC-8 + F2: ห้าม log phone/cookie/fileId — ห้าม echo err.message (oracle leak)

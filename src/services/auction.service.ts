@@ -433,6 +433,8 @@ export class BidError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    // feature 00015 TFR-010 — code เสริม เช่น 'PHONE_NOT_VERIFIED' ให้ client แยก error แบบเจาะจง
+    readonly code?: string,
   ) {
     super(message)
   }
@@ -732,6 +734,12 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
       include: { shop: { select: { userId: true } } },
     })
     if (!a) throw new BidError('ไม่พบรายการประมูล', 404)
+
+    // feature 00015 TFR-010 — phone-verified bid gate: ต้องเช็คก่อน guard อื่นทั้งหมด (fail-fast)
+    // เพื่อกันผู้ชนะ auction (Order.buyerUserId) ไม่มี phone เลย ตาม access-gate ใหม่
+    const bidder = await tx.user.findUnique({ where: { id: bidderId }, select: { phone: true } })
+    if (!bidder?.phone) throw new BidError('ต้องยืนยันเบอร์โทรก่อนวางบิด', 403, 'PHONE_NOT_VERIFIED')
+
     if (a.status !== 'live' || a.endTime.getTime() <= Date.now()) {
       throw new BidError('การประมูลปิดแล้ว', 409)
     }

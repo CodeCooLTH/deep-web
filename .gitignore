@@ -63,3 +63,7 @@ qa-screenshots/
 # Playwright
 /playwright-report/
 /test-results/
+
+# local image paste inbox
+.img-inbox/
+img

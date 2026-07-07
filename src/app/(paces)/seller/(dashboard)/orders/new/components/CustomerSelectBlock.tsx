@@ -151,10 +151,10 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card' 
             )}
           </div>
 
-          {/* เบอร์โทร / อีเมล + live search dropdown */}
+          {/* เบอร์โทร + live search dropdown (feature 00015: บังคับเป็นเบอร์โทรเท่านั้น — ตัดอีเมล) */}
           <div>
             <label htmlFor="cust-contact" className="form-label">
-              เบอร์โทร / อีเมล
+              เบอร์โทร
             </label>
             <div className="relative" ref={comboRef}>
               <Icon
@@ -164,8 +164,9 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card' 
               <input
                 id="cust-contact"
                 type="text"
+                inputMode="numeric"
                 autoComplete="off"
-                placeholder="พิมพ์เบอร์โทรหรืออีเมล…"
+                placeholder="พิมพ์เบอร์โทร…"
                 className="form-input !pl-9"
                 value={buyerContactField.value ?? ''}
                 onChange={onContactChange}
@@ -225,7 +226,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card' 
               <p className="text-danger mt-1 text-sm">{String(errors.buyerContact.message)}</p>
             ) : !selected ? (
               <p className="text-default-400 mt-1 text-xs">
-                เบอร์/อีเมลสำหรับแจ้งลิงก์ผู้ซื้อ — เบอร์เดิม = จดจำเป็นลูกค้าเดียวกัน
+                เบอร์โทรสำหรับแจ้งลิงก์ผู้ซื้อ — เบอร์เดิม = จดจำเป็นลูกค้าเดียวกัน
               </p>
             ) : null}
           </div>

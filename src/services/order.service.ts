@@ -227,22 +227,34 @@ export async function createOrder(shopId: string, data: {
   throw new Error("SHORT_CODE_COLLISION"); // unreachable ในทางปฏิบัติ
 }
 
-export async function confirmOrder(publicToken: string, buyerContact: string, buyerUserId?: string) {
+// feature 00015 (TFR-011/TD-004) — ownership authorization error เดียวสำหรับ
+// confirm/cancel/slip ทุกจุด: route แม็ปเป็น 403 (ไม่ echo ข้อความ ownership ดิบ)
+export class OrderOwnershipError extends Error {
+  constructor() {
+    super("OrderOwnershipError");
+    this.name = "OrderOwnershipError";
+  }
+}
+
+export async function confirmOrder(publicToken: string, buyerUserId: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },
     include: { shop: true },
   });
   if (!order) throw new Error("Order not found");
-  // เบอร์ต้องตรงกับที่ seller ใส่ไว้ตอนสร้าง หรือถ้า order ยังว่าง buyer
-  // รายแรกเป็นคน claim (เก็บ buyerContact ตอน transition → CONFIRMED)
-  if (order.buyerContact && order.buyerContact !== buyerContact) {
-    throw new Error("Phone ไม่ตรงกับคำสั่งซื้อนี้");
+  // TD-004: authorization ย้ายมาที่ session+ownership ล้วน — Access Gate
+  // (order-access.service.ts) รับประกันแล้วว่า order.buyerUserId ตรงกับ
+  // session ก่อนที่ buyer จะเห็นปุ่ม confirm; ไม่ใช้ phone-contact parity อีกต่อไป
+  if (order.buyerUserId !== buyerUserId) {
+    throw new OrderOwnershipError();
   }
   // CONFIRMED รับจาก PENDING หรือ SHIPPED (VALID_TRANSITIONS ครอบคลุมทั้งสอง)
   assertTransition(order.status, "CONFIRMED");
+  // ไม่เขียน buyerContact/buyerUserId ที่นี่อีกต่อไป — ทั้งคู่ถูก set ที่ต้นทาง
+  // (createOrder) หรือ claim-time (guaranteeOrderLink) แล้วก่อนหน้านี้
   const updated = await prisma.order.update({
     where: { publicToken },
-    data: { status: "CONFIRMED", buyerContact, buyerUserId },
+    data: { status: "CONFIRMED" },
   });
   // Post-confirm recalc เป็น best-effort — ถ้า dev pool timeout หรือ error
   // อื่นใน badges/trust-score ไม่ควร fail confirmation (ข้อมูลหลัก save
@@ -281,24 +293,6 @@ export async function confirmOrder(publicToken: string, buyerContact: string, bu
   return updated;
 }
 
-/**
- * Lock screen check — ตรวจเบอร์ที่ buyer กรอกว่าตรงกับ order หรือไม่
- * ไม่เปลี่ยน state. ใช้ก่อนเข้าหน้า order detail
- *
- * Return true ถ้า:
- * - order.buyerContact ตรงกับ phone ที่กรอก (กรณี confirmed แล้ว หรือ seller pre-set)
- * - order.buyerContact ยังว่าง + order status = PENDING (first-time unlock; phone จะถูก claim ตอน confirm)
- */
-export async function checkOrderPhone(publicToken: string, phone: string): Promise<boolean> {
-  const order = await prisma.order.findUnique({
-    where: { publicToken },
-    select: { buyerContact: true, status: true },
-  });
-  if (!order) return false;
-  if (order.buyerContact) return order.buyerContact === phone;
-  // สถานะ PENDING = order ยังไม่มี buyer claim → อนุญาต phone unlock ครั้งแรก
-  return order.status === "PENDING";
-}
 
 export async function shipOrder(publicToken: string, data: { provider: string; trackingNo: string }) {
   const order = await prisma.order.findUnique({ where: { publicToken } });
@@ -413,19 +407,12 @@ export async function getOrdersByShop(shopId: string, status?: string) {
 /**
  * attachSlip — buyer แนบ fileId ของสลิปโอนเงินเข้า order
  *
- * ทำไม: แยกเป็น service เพื่อให้ route handler (S-4) เรียกได้โดยไม่ต้อง
- * duplicate contact-parity guard และ status guard
- * contact param เป็น optional เพราะ SMS-unlock path ทำ auth ระดับ route แล้ว
- * (route ส่ง contact เฉพาะเมื่อ buyer กรอกเบอร์เอง ไม่ใช่ SMS-unlock)
+ * feature 00015 (TFR-011/TD-004) — ตัด contact-parity ออก ownership check
+ * (session.user.id === order.buyerUserId) ทำที่ route ก่อนเรียก service แล้ว
  */
-export async function attachSlip(publicToken: string, fileId: string, contact?: string) {
+export async function attachSlip(publicToken: string, fileId: string) {
   const order = await prisma.order.findUnique({ where: { publicToken } });
   if (!order) throw new Error("Order not found");
-  // contact parity — mirror confirmOrder lines ~107-111
-  // ทำไม: กัน buyer คนอื่นแอบแนบสลิปทับ (ถ้า order ล็อกเบอร์ไว้แล้ว)
-  if (order.buyerContact && contact && order.buyerContact !== contact) {
-    throw new Error("เบอร์ไม่ตรงกับคำสั่งซื้อนี้");
-  }
   // status guard — slip แนบได้เฉพาะ PENDING เท่านั้น (ยังรอดำเนินการ)
   // CONFIRMED/CANCELLED/SHIPPED = terminal หรือ transit ที่ไม่ต้องการสลิปแล้ว
   if (order.status !== "PENDING") {

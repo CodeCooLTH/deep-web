@@ -1,33 +1,29 @@
 /**
  * GET /api/o/sms/[code] — SMS short-code consume endpoint
  *
- * ที่เดียวที่ consume SmsCode + set signed cookie + redirect ไป UUID order URL
- * แยกออกจาก RSC page เพราะ RSC set cookie ไม่ได้ใน Next.js 16 (read-only)
+ * ที่เดียวที่ consume SmsCode แล้ว redirect ไปหน้า sign-in พร้อม prefill เบอร์
+ * (feature 00015 Order Claim & Forced Login — TFR-003: เลิก set cookie/auto-unlock,
+ *  ให้ buyer login ผ่าน force-login gate ปกติแทน — ดู SDS.md §4.3, API.md §4.2)
  *
  * Security design:
  * - RC-1: rate-limit per-IP (globalThis singleton เดิมจาก sms-consume-rl.ts)
- * - RC-2: ทุก failure mode → redirect /o/link-invalid เดียว (ไม่มี reason ใน URL)
+ * - RC-2: rate-limit/format ผิด → redirect /o/link-invalid เดียว (ไม่มี reason ใน URL, ไม่เปลี่ยน)
+ * - RC-6: consume สำเร็จ → result.order.buyerContact การันตีไม่ null
  * - RC-8: ห้าม log code/hash/phone/orderId ที่ไหนเลย
- * - Reload-safe: cookie ยังอยู่หลัง redirect → /o/{uuid} อ่าน cookie ได้ ไม่ consume ซ้ำ
+ * - ไม่มี Set-Cookie อีกต่อไปในทุก branch (TFR-003)
  */
 import { NextRequest, NextResponse } from 'next/server'
 
 import { checkSmsConsumeRateLimit } from '@/lib/sms-consume-rl'
 import { consumeSmsCode } from '@/services/sms-code.service'
-import {
-  SMS_UNLOCK_COOKIE,
-  signSmsUnlock,
-  smsUnlockCookieOpts,
-} from '@/lib/sms-unlock-cookie'
 
 // charset เป๊ะจาก sms-code.service.ts line 7 (ห้าม drift)
 const SMS_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}$/
 
 // QA bug2 fix: redirect base ต้องเป็น buyer host จริง ไม่ใช่ request.url
 // (Next.js 16 Turbopack: request.url resolve เป็น http://localhost:PORT →
-//  browser ตาม redirect ไป localhost → cookie domain=deepth.local ไม่ถูกส่ง →
-//  verifySmsUnlock=false → auto-unlock พัง). ใช้ pattern เดียวกับ
-//  send-sms/route.ts (canonical). base=env คงที่ + path static/DB UUID =
+//  browser ตาม redirect ไป localhost แทน buyer host จริง). ใช้ pattern เดียวกับ
+//  send-sms/route.ts (canonical). base=env คงที่ + path static/DB UUID/query =
 //  ไม่มี open-redirect.
 const BUYER_BASE =
   process.env.NEXT_PUBLIC_BUYER_URL ||
@@ -65,19 +61,18 @@ export async function GET(
   const result = await consumeSmsCode(code)
 
   if (!result || !result.order) {
-    // RC-2: not-found / expired / used / phone-mismatch / order-mismatch → uniform
-    return NextResponse.redirect(new URL('/o/link-invalid', BUYER_BASE))
+    // TFR-003: consume ล้มเหลว (not-found/expired/used/phone-mismatch) → sign-in เปล่า
+    // แทน /o/link-invalid — fall back เข้า flow login ปกติ ไม่ hard-error (TD-003)
+    const url = new URL('/auth/sign-in', BUYER_BASE)
+    url.searchParams.set('smsExpired', '1')
+    return NextResponse.redirect(url)
   }
 
-  // สำเร็จ: set signed cookie + redirect ไป UUID order URL (302)
-  // URL ปลายสะอาด — ไม่มี query param ใด ๆ (reload-safe: cookie persist)
-  const res = NextResponse.redirect(
-    new URL('/o/' + result.order.publicToken, BUYER_BASE),
-  )
-  res.cookies.set(
-    SMS_UNLOCK_COOKIE,
-    signSmsUnlock(result.order.id),
-    smsUnlockCookieOpts,
-  )
-  return res
+  // สำเร็จ: redirect ไปหน้า sign-in พร้อม callbackUrl กลับมา order นี้ + prefill เบอร์
+  // RC-6 การันตีว่า buyerContact ไม่ null เมื่อ consume สำเร็จ (service ปิด open-claim
+  // ใน tx เดียวกัน) — non-null assertion ปลอดภัยตาม guarantee นี้ ไม่ใช่ TS type เอง
+  const url = new URL('/auth/sign-in', BUYER_BASE)
+  url.searchParams.set('callbackUrl', '/o/' + result.order.publicToken)
+  url.searchParams.set('prefillPhone', result.order.buyerContact!)
+  return NextResponse.redirect(url)
 }

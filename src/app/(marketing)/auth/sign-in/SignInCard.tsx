@@ -59,8 +59,14 @@ export default function SignInCard() {
   // สำหรับปุ่ม OAuth (facebook/line/instagram) ที่ redirect ทันทีจากหน้านี้ ต้อง sanitize ณ จุดนี้เลย
   const safeCallbackUrl = getSafeCallbackUrl(rawCallbackUrl)
 
-  // โหมด login: password = default, otp = toggle กลับไปฟอร์มเบอร์โทรเดิม
-  const [loginMode, setLoginMode] = useState<'password' | 'otp'>('password')
+  // feature 00015 (Order Claim & Forced Login) FR-OCL-03: SMS-link ส่ง ?prefillPhone= มาช่วย
+  // เลือกโหมด OTP ให้อัตโนมัติ + เติมเบอร์ล่วงหน้า (field ยังแก้ได้ — pre-fill ไม่ใช่ approval)
+  // รูปแบบไม่ตรง ^0[0-9]{9}$ → เพิกเฉยเงียบ ๆ ตกกลับไปโหมด password ปกติ (ไม่ crash)
+  const rawPrefillPhone = searchParams.get('prefillPhone')
+  const prefillPhone = rawPrefillPhone && /^0[0-9]{9}$/.test(rawPrefillPhone) ? rawPrefillPhone : null
+
+  // โหมด login: password = default, otp = toggle กลับไปฟอร์มเบอร์โทรเดิม (หรือ default เป็น otp ถ้ามี prefillPhone ถูกต้อง)
+  const [loginMode, setLoginMode] = useState<'password' | 'otp'>(prefillPhone ? 'otp' : 'password')
   // toggle แสดง/ซ่อนรหัสผ่าน (eye icon) — consistent กับ sign-up/new-pass
   const [isPasswordShown, setIsPasswordShown] = useState(false)
 
@@ -71,7 +77,7 @@ export default function SignInCard() {
 
   const otpForm = useForm<PhoneFormValues>({
     resolver: yupResolver(phoneSchema),
-    defaultValues: { phone: '' },
+    defaultValues: { phone: prefillPhone ?? '' },
   })
 
   const onPasswordSubmit = async ({ username, password }: PwFormValues) => {

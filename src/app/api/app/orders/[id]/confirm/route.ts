@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!token) return NextResponse.json({ error: 'ไม่พบออเดอร์' }, { status: 404 })
 
   try {
-    await confirmOrder(token, auth.user.phone ?? '', auth.user.id)
+    await confirmOrder(token, auth.user.id)
     return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'ยืนยันไม่สำเร็จ'

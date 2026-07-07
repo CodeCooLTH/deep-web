@@ -110,14 +110,10 @@ const itemSchema = Yup.object({
 
 const schema = Yup.object({
   buyerName: Yup.string().required('กรุณากรอกชื่อลูกค้า'),
+  // feature 00015 (Order Claim & Forced Login) TFR-009: เบอร์โทรบังคับ — mirror CreateOrderSchema (SSOT)
   buyerContact: Yup.string()
-    .optional()
-    .test('phone-or-email', 'ต้องเป็นเบอร์ไทย (0xxxxxxxxx) หรืออีเมล', (val) => {
-      if (!val || val.trim() === '') return true
-      const phoneOk = /^0[0-9]{9}$/.test(val.trim())
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())
-      return phoneOk || emailOk
-    }),
+    .required('กรุณากรอกเบอร์โทรลูกค้า')
+    .matches(/^0[0-9]{9}$/, 'ต้องเป็นเบอร์โทร 10 หลัก ขึ้นต้นด้วย 0'),
   items: Yup.array(itemSchema).min(1, 'ต้องมีสินค้าอย่างน้อย 1 รายการ').required(),
   salesChannel: Yup.string()
     .oneOf(['STOREFRONT', 'FACEBOOK', 'LINE', 'TIKTOK', 'OTHER'])
