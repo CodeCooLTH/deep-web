@@ -11,7 +11,12 @@ import type { KeenSliderInstance } from 'keen-slider/react'
 
 import AppKeenSlider from '@/libs/styles/AppKeenSlider'
 
-type Slide = { title: string; subtitle: string; cta: string; href: string; gradient: string; icon: string }
+type Slide = { title: string; subtitle: string; cta: string; href: string; image: string; overlay: string }
+
+// overlay ไล่เฉดจากซ้าย (เข้ม→จาง) ทับภาพจริง — Ink Plum โทน brand ให้ตัวอักษรขาวอ่านชัดทุกภาพ
+const OVERLAY_PLUM = 'linear-gradient(96deg, rgba(23,18,43,.82) 0%, rgba(23,18,43,.52) 46%, rgba(23,18,43,.12) 100%)'
+const OVERLAY_GREEN = 'linear-gradient(96deg, rgba(9,38,26,.82) 0%, rgba(9,38,26,.5) 46%, rgba(9,38,26,.1) 100%)'
+const OVERLAY_GOLD = 'linear-gradient(96deg, rgba(46,30,10,.84) 0%, rgba(46,30,10,.52) 46%, rgba(46,30,10,.1) 100%)'
 
 const SLIDES: Slide[] = [
   {
@@ -19,16 +24,24 @@ const SLIDES: Slide[] = [
     subtitle: 'มั่นใจทุกดีล · ผู้ขายยืนยันตัวตน',
     cta: 'เริ่มประมูล',
     href: '/m/auctions',
-    gradient: 'linear-gradient(120deg, #6558E8 0%, #7367F0 55%, #9A8FF6 100%)',
-    icon: 'tabler-gavel',
+    image: '/images/banner/auctions.jpg',
+    overlay: OVERLAY_PLUM,
   },
   {
     title: 'ยืนยันตัวตน เพิ่ม Trust',
     subtitle: 'ปลดล็อกความน่าเชื่อถือ ขายดีขึ้น',
     cta: 'ยืนยันเลย',
-    href: '/settings/verification',
-    gradient: 'linear-gradient(120deg, #17A055 0%, #28C76F 55%, #5FD994 100%)',
-    icon: 'tabler-shield-check',
+    href: '/m/settings/verification',
+    image: '/images/banner/verify.jpg',
+    overlay: OVERLAY_GREEN,
+  },
+  {
+    title: 'ร้านน่าเชื่อถือ คัดมาให้',
+    subtitle: 'เลเวลสูง · ยืนยันตัวตน · ซื้อขายจริง',
+    cta: 'ดูร้านค้า',
+    href: '/m/shops',
+    image: '/images/banner/shops.jpg',
+    overlay: OVERLAY_GOLD,
   },
 ]
 
@@ -61,12 +74,14 @@ export default function BannerCarousel() {
           {SLIDES.map((s, i) => (
             <div key={i} className='keen-slider__slide shrink-0'>
               <Link href={s.href} className='no-underline block'>
-                <div className='relative overflow-hidden bs-[144px] p-4 flex flex-col justify-center' style={{ background: s.gradient }}>
-                  <div className='absolute -top-8 -right-8 size-28 rounded-full bg-white/10' />
-                  <i className={`${s.icon} absolute -bottom-1 right-3 text-[72px] text-white/12`} />
-                  <div className='relative flex flex-col gap-1.5 max-w-[76%]'>
-                    <p className='text-[17px] font-extrabold text-white m-0 leading-tight line-clamp-2'>{s.title}</p>
-                    <p className='text-[12.5px] text-white/85 m-0 leading-snug line-clamp-2'>{s.subtitle}</p>
+                <div className='relative overflow-hidden bs-[152px] p-4 flex flex-col justify-center'>
+                  {/* ภาพจริง (cover) + overlay ไล่เฉดให้ตัวอักษรอ่านชัด */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.image} alt={s.title} className='absolute inset-0 is-full bs-full object-cover' />
+                  <div className='absolute inset-0' style={{ background: s.overlay }} />
+                  <div className='relative flex flex-col gap-1.5 max-w-[74%]'>
+                    <p className='text-[18px] font-extrabold text-white m-0 leading-tight line-clamp-2'>{s.title}</p>
+                    <p className='text-[12.5px] text-white/90 m-0 leading-snug line-clamp-2'>{s.subtitle}</p>
                     <span className='inline-flex items-center gap-1 self-start mbs-1 bg-white text-[#2F2B3D] text-[12px] font-semibold pli-3 plb-1.5 rounded-full'>
                       {s.cta}
                       <i className='tabler-arrow-right text-[14px]' />

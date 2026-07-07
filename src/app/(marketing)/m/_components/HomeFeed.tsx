@@ -39,7 +39,17 @@ export type TrustedShopCard = {
   verified: boolean
 }
 
+// สรุป Trust ของผู้ใช้ (แถบยูทิลิตี้ใต้ banner — เทียบ Coins/Check-in bar ของ Shopee แต่เป็นความน่าเชื่อถือ)
+export type TrustSnapshot = {
+  score: number
+  tierLabel: string
+  tierColor: TierChipColor
+  verified: boolean
+  badges: number
+}
+
 type Props = {
+  trust: TrustSnapshot
   categories: CategoryItem[]
   hotAuctions: AuctionCard[]
   pastAuctions: AuctionCard[]
@@ -139,11 +149,53 @@ const AuctionStrip = ({ title, href, items }: { title: string; href?: string; it
   </div>
 )
 
-const HomeFeed = ({ categories, hotAuctions, pastAuctions, trustedShops }: Props) => {
+const HomeFeed = ({ trust, categories, hotAuctions, pastAuctions, trustedShops }: Props) => {
+  // 3 ช่องแถบ Trust (icon color = ค่า CSS พร้อมใช้) — เทียบ utility bar ของ Shopee
+  const trustCells = [
+    {
+      href: '/m/settings/profile',
+      icon: 'tabler-shield-check-filled',
+      color: tierFg(trust.tierColor),
+      main: String(trust.score),
+      sub: `${trust.tierLabel.replace('Deep ', '')} · Trust`
+    },
+    {
+      href: '/m/settings/verification',
+      icon: trust.verified ? 'tabler-rosette-discount-check-filled' : 'tabler-user-check',
+      color: trust.verified ? 'var(--mui-palette-success-main)' : 'var(--mui-palette-warning-main)',
+      main: trust.verified ? 'ยืนยันแล้ว' : 'ยืนยันตัวตน',
+      sub: trust.verified ? 'ตัวตน' : 'เพิ่ม Trust'
+    },
+    {
+      href: '/m/badges',
+      icon: 'tabler-award-filled',
+      color: 'var(--mui-palette-secondary-main)',
+      main: String(trust.badges),
+      sub: 'เหรียญตรา'
+    }
+  ]
+
   return (
     <div className='flex flex-col gap-6'>
       {/* ── Banner โปรโมชั่น (เลื่อนได้) ── */}
       <BannerCarousel />
+
+      {/* ── แถบ Trust ของฉัน (utility bar — เทียบ Coins/Check-in ของ Shopee, ของเรา = ความน่าเชื่อถือ) ── */}
+      <div className='flex items-stretch rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden -mbs-2'>
+        {trustCells.map((c, i) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 plb-2.5 pli-1 no-underline ${i > 0 ? 'border-is border-[var(--mui-palette-divider)]' : ''}`}
+          >
+            <span className='flex items-center gap-1 leading-none'>
+              <i className={`${c.icon} text-[18px]`} style={{ color: c.color }} />
+              <span className='text-[14px] font-bold text-[var(--mui-palette-text-primary)]'>{c.main}</span>
+            </span>
+            <span className='text-[10px] leading-none text-[var(--mui-palette-text-secondary)]'>{c.sub}</span>
+          </Link>
+        ))}
+      </div>
 
       {/* ── ร้านความน่าเชื่อถือ (แรกสุด — เลเวล/คะแนน/ดีลจริง) ── */}
       {trustedShops.length > 0 && (
@@ -204,22 +256,6 @@ const HomeFeed = ({ categories, hotAuctions, pastAuctions, trustedShops }: Props
           </div>
         </div>
       )}
-
-      {/* ── เช็กก่อนโอน (signature bar) ── */}
-      <Link href='/check' className='no-underline block'>
-        <div className='flex items-center gap-3 rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-3'>
-          <div className='size-9 rounded-xl bg-[var(--mui-palette-primary-main)] flex items-center justify-center shrink-0'>
-            <i className='tabler-shield-search text-[20px] text-white' />
-          </div>
-          <div className='flex-1 min-w-0'>
-            <p className='text-[14px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>เช็กก่อนโอน</p>
-            <p className='text-[12px] m-0 text-[var(--mui-palette-text-secondary)] truncate'>
-              ค้นเบอร์ / บัญชี / ชื่อ ก่อนโอนเงินให้ร้าน
-            </p>
-          </div>
-          <i className='tabler-chevron-right text-[20px] text-[var(--mui-palette-primary-main)] shrink-0' />
-        </div>
-      </Link>
 
       {/* ── หมวดหมู่สินค้า (รูปสินค้าจริง — คลิกดูรายการในหมวด) ── */}
       {categories.length > 0 && (

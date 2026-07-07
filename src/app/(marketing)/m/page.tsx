@@ -9,7 +9,7 @@ import { getTierColor } from '@/lib/trust-tier'
 import { getTrustedShops, getSellerTrustByShopIds, getConfirmedOrderCountByShopIds } from '@/services/shop.service'
 import { topAuctions, recentEndedAuctions, listCategoriesWithImage } from '@/services/auction.service'
 
-import HomeFeed, { type CategoryItem, type TrustedShopCard, type AuctionCard } from './_components/HomeFeed'
+import HomeFeed, { type CategoryItem, type TrustedShopCard, type AuctionCard, type TrustSnapshot } from './_components/HomeFeed'
 
 export const metadata: Metadata = { title: 'หน้าแรก' }
 
@@ -49,12 +49,29 @@ export default async function MobileHomePage() {
 
   // parallel ทุก query (me รวมใน Promise.all — เดิม await แยก sequential เสีย 1 round-trip)
   const [me, trustedShopsRaw, hotAuctionsRaw, pastRaw, categoriesRaw] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { username: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        username: true,
+        trustScore: true,
+        verifications: { where: { status: 'APPROVED' }, select: { id: true }, take: 1 },
+        _count: { select: { userBadges: true } }
+      }
+    }),
     getTrustedShops(12),
     topAuctions(8),
     recentEndedAuctions(12),
     listCategoriesWithImage()
   ])
+
+  // สรุป Trust ของผู้ใช้ → แถบยูทิลิตี้ใต้ banner
+  const trust: TrustSnapshot = {
+    score: me?.trustScore ?? 0,
+    tierLabel: getTierDisplay(me?.trustScore ?? 0).tier,
+    tierColor: getTierColor(me?.trustScore ?? 0),
+    verified: (me?.verifications.length ?? 0) > 0,
+    badges: me?._count.userBadges ?? 0
+  }
 
   // หมวดหมู่สินค้า + รูปสินค้าจริง — ลำดับ: listing จริงในหมวด > รูป cover curated (bundle) > ('' → ไอคอน)
   const categories: CategoryItem[] = categoriesRaw.map(c => ({
@@ -107,6 +124,6 @@ export default async function MobileHomePage() {
   const pastAuctions: AuctionCard[] = pastRaw.map(toCard)
 
   return (
-    <HomeFeed categories={categories} hotAuctions={hotAuctions} pastAuctions={pastAuctions} trustedShops={trustedShops} />
+    <HomeFeed trust={trust} categories={categories} hotAuctions={hotAuctions} pastAuctions={pastAuctions} trustedShops={trustedShops} />
   )
 }
