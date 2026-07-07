@@ -38,12 +38,12 @@ export default function AppBottomNav() {
         key={t.href}
         href={t.href}
         className={classnames(
-          'flex flex-1 flex-col items-center justify-end gap-1 pt-2 pb-1 min-h-[52px] no-underline transition-colors',
+          'flex flex-1 flex-col items-center justify-end gap-1.5 pt-2.5 pb-2 min-h-[58px] no-underline transition-colors',
           active ? 'text-[var(--mui-palette-primary-main)]' : 'text-[var(--mui-palette-text-secondary)]'
         )}
       >
         <i className={classnames(t.icon, 'text-[22px]')} />
-        <span className='text-[11px] leading-none'>{t.label}</span>
+        <span className='text-[11px] leading-none whitespace-nowrap'>{t.label}</span>
       </Link>
     )
   }
@@ -52,11 +52,11 @@ export default function AppBottomNav() {
 
   return (
     <nav className='fixed inset-x-0 bottom-0 z-40 border-t border-[var(--mui-palette-divider)] bg-[var(--mui-palette-background-paper)]'>
-      <div className='relative flex items-stretch'>
+      <div className='relative flex items-stretch gap-1 pli-2'>
         {LEFT.map(tabItem)}
 
         {/* ปุ่มกลาง — เช็กมิจฉาชีพ ยกลอย (signature) */}
-        <div className='flex flex-1 flex-col items-center justify-end pb-1'>
+        <div className='flex flex-1 flex-col items-center justify-end pb-2'>
           <Link
             href='/check'
             className={classnames(
@@ -69,7 +69,7 @@ export default function AppBottomNav() {
           </Link>
           <span
             className={classnames(
-              'text-[11px] leading-none mt-1',
+              'text-[11px] leading-none mt-1 whitespace-nowrap',
               checkActive ? 'text-[var(--mui-palette-primary-main)]' : 'text-[var(--mui-palette-text-secondary)]'
             )}
           >

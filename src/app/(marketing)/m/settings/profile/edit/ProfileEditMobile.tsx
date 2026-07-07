@@ -15,9 +15,9 @@ type Props = {
   summary: { trustScore: number; trustLevel: string; memberSince: string; badgeCount: number }
 }
 
-const ReadonlyRow = ({ icon, label, value, note }: { icon: string; label: string; value: string; note?: string }) => (
+const ReadonlyRow = ({ icon, label, value, note, accent }: { icon: string; label: string; value: string; note?: string; accent?: boolean }) => (
   <div className='flex items-center gap-3 pli-4 plb-3 border-b border-[var(--mui-palette-divider)] last:border-b-0'>
-    <i className={`${icon} text-[20px] text-[var(--mui-palette-text-secondary)] shrink-0`} />
+    <i className={`${icon} text-[20px] shrink-0 ${accent ? 'text-[var(--mui-palette-primary-main)]' : 'text-[var(--mui-palette-text-secondary)]'}`} />
     <span className='text-[13px] text-[var(--mui-palette-text-secondary)] shrink-0'>{label}</span>
     <span className='flex-1 min-w-0 text-[14px] text-[var(--mui-palette-text-primary)] text-right truncate'>{value}</span>
     {note && <span className='text-[11px] text-[var(--mui-palette-text-disabled)] shrink-0'>{note}</span>}
@@ -84,7 +84,7 @@ export default function ProfileEditMobile({ displayName, username, phone, email,
       <div className='flex flex-col gap-2'>
         <span className='text-[13px] font-semibold pli-1 text-[var(--mui-palette-text-secondary)]'>สรุป</span>
         <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden'>
-          <ReadonlyRow icon='tabler-shield-check' label='Trust Score' value={`${summary.trustScore} · ${summary.trustLevel}`} />
+          <ReadonlyRow icon='tabler-shield-check' label='Trust Score' value={`${summary.trustScore} · ${summary.trustLevel}`} accent />
           <ReadonlyRow icon='tabler-calendar' label='สมาชิกตั้งแต่' value={summary.memberSince} />
           <ReadonlyRow icon='tabler-award' label='Badge' value={`${summary.badgeCount} รายการ`} />
         </div>

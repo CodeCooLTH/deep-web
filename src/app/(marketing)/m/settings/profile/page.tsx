@@ -28,10 +28,14 @@ const tierBg = (c: TierChipColor) =>
 const tierFg = (c: TierChipColor) =>
   c === 'default' ? 'var(--mui-palette-text-secondary)' : `var(--mui-palette-${c}-main)`
 
-// stat column สไตล์ IG (ตัวเลขใหญ่ + label)
-const Stat = ({ value, label }: { value: number; label: string }) => (
+// stat column สไตล์ IG (ตัวเลขใหญ่ + label); accent = ตัวเลขม่วงแบรนด์ (ใช้กับ Trust — core identity)
+const Stat = ({ value, label, accent }: { value: number; label: string; accent?: boolean }) => (
   <div className='flex-1 flex flex-col items-center'>
-    <span className='text-[17px] font-extrabold leading-tight text-[var(--mui-palette-text-primary)]'>{value}</span>
+    <span
+      className={`text-[17px] font-extrabold leading-tight ${accent ? 'text-[var(--mui-palette-primary-main)]' : 'text-[var(--mui-palette-text-primary)]'}`}
+    >
+      {value}
+    </span>
     <span className='text-[11px] text-[var(--mui-palette-text-secondary)]'>{label}</span>
   </div>
 )
@@ -116,7 +120,7 @@ export default async function MobileAccountPage() {
           </div>
           {/* stats */}
           <div className='flex-1 flex items-center'>
-            <Stat value={user.trustScore} label='Trust' />
+            <Stat value={user.trustScore} label='Trust' accent />
             <Link href='/reviews' className='flex-1 no-underline'>
               <Stat value={reviewCount} label='รีวิว' />
             </Link>
@@ -179,7 +183,7 @@ export default async function MobileAccountPage() {
       <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] p-4'>
         <div className='flex items-center justify-between mbe-3'>
           <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>คำสั่งซื้อของฉัน</h2>
-          <Link href='/orders' className='text-[13px] text-[var(--mui-palette-text-secondary)] no-underline flex items-center gap-0.5'>
+          <Link href='/orders' className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'>
             ดูทั้งหมด
             <i className='tabler-chevron-right text-[15px]' />
           </Link>

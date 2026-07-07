@@ -92,7 +92,7 @@ const SectionTitle = ({ title, href }: { title: string; href?: string }) => (
     {href && (
       <Link
         href={href}
-        className='text-[13px] text-[var(--mui-palette-text-secondary)] no-underline flex items-center gap-0.5'
+        className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'
       >
         ดูทั้งหมด
         <i className='tabler-chevron-right text-[15px]' />
@@ -155,7 +155,7 @@ const HomeFeed = ({ trust, categories, hotAuctions, pastAuctions, trustedShops }
     {
       href: '/m/settings/profile',
       icon: 'tabler-shield-check-filled',
-      color: tierFg(trust.tierColor),
+      color: 'var(--mui-palette-primary-main)', // ม่วงแบรนด์เสมอ — Trust คือ core identity (tier บอกใน sub-label)
       main: String(trust.score),
       sub: `${trust.tierLabel.replace('Deep ', '')} · Trust`
     },
@@ -204,7 +204,7 @@ const HomeFeed = ({ trust, categories, hotAuctions, pastAuctions, trustedShops }
             <h2 className='text-[15px] font-semibold m-0 text-[var(--mui-palette-text-primary)]'>ร้านความน่าเชื่อถือ</h2>
             <Link
               href='/m/shops'
-              className='text-[13px] text-[var(--mui-palette-text-secondary)] no-underline flex items-center gap-0.5'
+              className='text-[13px] font-medium text-[var(--mui-palette-primary-main)] no-underline flex items-center gap-0.5'
             >
               ดูทั้งหมด
               <i className='tabler-chevron-right text-[15px]' />
