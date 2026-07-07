@@ -10,7 +10,8 @@ import BannerCarousel from './BannerCarousel'
  * 2-column feed + strip แนวนอน. ม่วงเป็น accent เฉพาะราคา/CTA. Server component ล้วน (raw HTML → เบา).
  */
 
-export type CategoryItem = { id: string; name: string }
+// หมวดหมู่สินค้า — imageUrl = รูปสินค้าจริง (resolved แล้ว) หรือ '' (fallback ไอคอน)
+export type CategoryItem = { name: string; imageUrl: string }
 
 export type AuctionCard = {
   id: string
@@ -50,6 +51,7 @@ const baht = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB'
 // ซ่อน native scrollbar ของ strip แนวนอน (เดิมแถบเทาโผล่ทับใต้การ์ด)
 const NO_SCROLLBAR = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
+// ไอคอน fallback ต่อหมวดสินค้า (ใช้เมื่อหมวดนั้นยังไม่มีรูปสินค้าจริง)
 const CAT_ICON: Record<string, string> = {
   พระเครื่อง: 'tabler-sparkles',
   นาฬิกา: 'tabler-clock-hour-3',
@@ -66,7 +68,7 @@ const CAT_ICON: Record<string, string> = {
   เซรามิก: 'tabler-mug',
   เครื่องดนตรี: 'tabler-music',
   ภาพถ่าย: 'tabler-photo',
-  ของโบราณ: 'tabler-building-monument',
+  ของโบราณ: 'tabler-building-monument'
 }
 
 const tierBg = (c: TierChipColor) =>
@@ -219,19 +221,25 @@ const HomeFeed = ({ categories, hotAuctions, pastAuctions, trustedShops }: Props
         </div>
       </Link>
 
-      {/* ── หมวดหมู่ (2 แถวเลื่อน) ── */}
+      {/* ── หมวดหมู่สินค้า (รูปสินค้าจริง — คลิกดูรายการในหมวด) ── */}
       {categories.length > 0 && (
         <div>
-          <SectionTitle title='หมวดหมู่' />
+          <SectionTitle title='หมวดหมู่สินค้า' href='/m/auctions' />
           <div className={`grid grid-rows-2 grid-flow-col auto-cols-max gap-x-4 gap-y-3 overflow-x-auto -mx-4 px-4 ${NO_SCROLLBAR}`}>
             {categories.map(c => (
               <Link
-                key={c.id}
+                key={c.name}
                 href={`/m/auctions?category=${encodeURIComponent(c.name)}`}
                 className='flex flex-col items-center gap-1 no-underline w-[58px]'
               >
-                <div className='size-12 rounded-2xl bg-[var(--mui-palette-primary-lightOpacity)] flex items-center justify-center'>
-                  <i className={`${CAT_ICON[c.name] ?? 'tabler-tag'} text-[22px] text-[var(--mui-palette-primary-main)]`} />
+                {/* รูปสินค้าจริงในหมวด (fallback ไอคอนถ้ายังไม่มีของ) */}
+                <div className='size-12 rounded-2xl overflow-hidden bg-[var(--mui-palette-primary-lightOpacity)] flex items-center justify-center'>
+                  {c.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.imageUrl} alt={c.name} loading='lazy' className='is-full bs-full object-cover' />
+                  ) : (
+                    <i className={`${CAT_ICON[c.name] ?? 'tabler-tag'} text-[22px] text-[var(--mui-palette-primary-main)]`} />
+                  )}
                 </div>
                 <span className='text-[11px] text-center leading-tight line-clamp-1 is-full text-[var(--mui-palette-text-secondary)]'>
                   {c.name}

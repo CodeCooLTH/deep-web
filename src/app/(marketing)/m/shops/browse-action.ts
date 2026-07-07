@@ -23,6 +23,7 @@ export type ShopItem = {
 export async function browseShopsAction(opts: {
   tier?: string
   q?: string
+  category?: string
   cursor?: string
 }): Promise<{ items: ShopItem[]; nextCursor: string | null }> {
   const { items, nextCursor } = await browseShops({ ...opts, take: 20 })

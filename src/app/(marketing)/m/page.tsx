@@ -7,18 +7,35 @@ import { prisma } from '@/lib/prisma'
 import { getTierDisplay } from '@/services/trust-score.service'
 import { getTierColor } from '@/lib/trust-tier'
 import { getTrustedShops, getSellerTrustByShopIds, getConfirmedOrderCountByShopIds } from '@/services/shop.service'
-import { topAuctions, recentEndedAuctions, listCategories } from '@/services/auction.service'
+import { topAuctions, recentEndedAuctions, listCategoriesWithImage } from '@/services/auction.service'
 
-import HomeFeed, {
-  type CategoryItem,
-  type TrustedShopCard,
-  type AuctionCard
-} from './_components/HomeFeed'
+import HomeFeed, { type CategoryItem, type TrustedShopCard, type AuctionCard } from './_components/HomeFeed'
 
 export const metadata: Metadata = { title: 'หน้าแรก' }
 
 // storage key → URL (http = external ปล่อยตรง, else prefix /api/files/)
 const resolveImg = (u: string) => (u.startsWith('http') ? u : `/api/files/${u}`)
+
+// รูป cover curated ต่อหมวด (bundle ใน /public — ใช้เป็น fallback เมื่อยังไม่มี listing จริงในหมวดนั้น)
+// ที่มา: Wikimedia Commons (CC/PD) → รับประกันทุกหมวดมีรูปสินค้าจริงตั้งแต่ DB ว่าง
+const CATEGORY_COVER: Record<string, string> = {
+  พระเครื่อง: '/images/categories/phra-krueang.jpg',
+  นาฬิกา: '/images/categories/watch.jpg',
+  ของสะสม: '/images/categories/collectibles.jpg',
+  กล้อง: '/images/categories/camera.jpg',
+  เหรียญ: '/images/categories/coin.jpg',
+  แสตมป์: '/images/categories/stamp.jpg',
+  เครื่องประดับ: '/images/categories/jewelry.jpg',
+  งานศิลปะ: '/images/categories/art.jpg',
+  เครื่องราง: '/images/categories/talisman.jpg',
+  ธนบัตร: '/images/categories/banknote.jpg',
+  ของเล่นสะสม: '/images/categories/toys.jpg',
+  หนังสือเก่า: '/images/categories/books.jpg',
+  เซรามิก: '/images/categories/ceramic.jpg',
+  เครื่องดนตรี: '/images/categories/instrument.jpg',
+  ภาพถ่าย: '/images/categories/photo.jpg',
+  ของโบราณ: '/images/categories/antique.jpg'
+}
 
 /**
  * หน้าแรก mobile web app (/m) — feed ข้อมูลคนอื่น/ระบบ (discovery):
@@ -36,10 +53,14 @@ export default async function MobileHomePage() {
     getTrustedShops(12),
     topAuctions(8),
     recentEndedAuctions(12),
-    listCategories()
+    listCategoriesWithImage()
   ])
 
-  const categories: CategoryItem[] = categoriesRaw.map(c => ({ id: c.id, name: c.name }))
+  // หมวดหมู่สินค้า + รูปสินค้าจริง — ลำดับ: listing จริงในหมวด > รูป cover curated (bundle) > ('' → ไอคอน)
+  const categories: CategoryItem[] = categoriesRaw.map(c => ({
+    name: c.name,
+    imageUrl: c.imageUrl ? resolveImg(c.imageUrl) : (CATEGORY_COVER[c.name] ?? '')
+  }))
 
   // batch: จำนวนดีลสำเร็จต่อร้าน + seller trust ต่อ auction — parallel (independent จาก Promise.all แรก)
   const trustedShopIds = trustedShopsRaw.map(s => s.shops[0]?.id).filter((id): id is string => !!id)
@@ -86,11 +107,6 @@ export default async function MobileHomePage() {
   const pastAuctions: AuctionCard[] = pastRaw.map(toCard)
 
   return (
-    <HomeFeed
-      categories={categories}
-      hotAuctions={hotAuctions}
-      pastAuctions={pastAuctions}
-      trustedShops={trustedShops}
-    />
+    <HomeFeed categories={categories} hotAuctions={hotAuctions} pastAuctions={pastAuctions} trustedShops={trustedShops} />
   )
 }

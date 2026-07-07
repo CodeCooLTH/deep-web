@@ -7,7 +7,10 @@ import Link from 'next/link'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 import type { TierChipColor } from '@/lib/trust-tier'
+import { SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
 import { browseShopsAction, type ShopItem } from './browse-action'
+
+const catLabel = (key: string) => (SHOP_CATEGORY_LABELS as Record<string, string>)[key] ?? key
 
 const TIER_FILTERS = ['ทั้งหมด', 'Deep Star', 'Deep Diamond', 'Deep Gold', 'Deep Silver', 'Deep Classic']
 
@@ -28,9 +31,10 @@ const LevelDots = ({ dots, color }: { dots: number; color: TierChipColor }) => (
   </span>
 )
 
-export default function ShopsBrowse() {
+export default function ShopsBrowse({ initialCategory }: { initialCategory?: string }) {
   const [tier, setTier] = useState('ทั้งหมด')
   const [q, setQ] = useState('')
+  const [category, setCategory] = useState(initialCategory ?? '')
   const [items, setItems] = useState<ShopItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,9 +45,10 @@ export default function ShopsBrowse() {
     (cursor?: string) => ({
       tier: tier === 'ทั้งหมด' ? undefined : tier,
       q: q.trim() || undefined,
+      category: category || undefined,
       ...(cursor ? { cursor } : {})
     }),
-    [tier, q]
+    [tier, q, category]
   )
 
   // reset + load page 1 เมื่อ tier/q เปลี่ยน (debounce ค้นหา 300ms)
@@ -102,6 +107,17 @@ export default function ShopsBrowse() {
           </button>
         )}
       </div>
+
+      {/* หมวดที่เลือก (จากหน้า home) — ลบได้ */}
+      {category && (
+        <span className='self-start inline-flex items-center gap-1.5 h-8 pli-3 rounded-full bg-[var(--mui-palette-primary-lightOpacity)] text-[var(--mui-palette-primary-main)] text-[13px] font-medium'>
+          <i className='tabler-tag text-[15px]' />
+          {catLabel(category)}
+          <button type='button' onClick={() => setCategory('')} aria-label='ล้างหมวด' className='border-0 bg-transparent cursor-pointer text-[var(--mui-palette-primary-main)] flex'>
+            <i className='tabler-x text-[15px]' />
+          </button>
+        </span>
+      )}
 
       {/* filter ตามเลเวล */}
       <div className='flex gap-2 overflow-x-auto -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>

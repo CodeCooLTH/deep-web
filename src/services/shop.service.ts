@@ -122,17 +122,20 @@ export type BrowseShopRow = {
 export async function browseShops(opts: {
   tier?: string;
   q?: string;
+  category?: string;
   cursor?: string;
   take?: number;
 }): Promise<{ items: BrowseShopRow[]; nextCursor: string | null }> {
   const take = opts.take ?? 20;
   const range = opts.tier ? getTierScoreRange(opts.tier) : null;
   const q = opts.q?.trim();
+  const category = opts.category?.trim();
 
   const rows = await prisma.user.findMany({
     where: {
       isShop: true,
-      shops: { some: { deletedAt: null, purgedAt: null } },
+      // filter หมวดร้าน (Shop.categories String[] → has); กรอง soft-delete เสมอ
+      shops: { some: { deletedAt: null, purgedAt: null, ...(category ? { categories: { has: category } } : {}) } },
       ...(range ? { trustScore: { gte: range.gte, ...(range.lt != null ? { lt: range.lt } : {}) } } : {}),
       ...(q
         ? {

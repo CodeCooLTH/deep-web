@@ -394,6 +394,20 @@ export async function listCategories(): Promise<{ id: string; name: string; imag
   return HOME_CATEGORIES.map((c) => ({ id: c, name: c, imageUrl: '' }))
 }
 
+// หมวดหมู่สินค้า + รูปสินค้าจริง 1 รูป/หมวด (auction ล่าสุดที่มีรูปในหมวดนั้น) — buyer mobile home tile.
+// distinct category → คืน ≤16 แถว (query เดียว เบา); หมวดไม่มีของ → imageUrl '' (fallback ไอคอนฝั่ง UI)
+export async function listCategoriesWithImage(): Promise<{ name: string; imageUrl: string }[]> {
+  const rows = await prisma.auction.findMany({
+    where: { category: { in: HOME_CATEGORIES as unknown as string[] }, imageUrl: { not: '' } },
+    select: { category: true, imageUrl: true },
+    distinct: ['category'],
+    orderBy: [{ category: 'asc' }, { endTime: 'desc' }],
+  })
+  const imgByCat = new Map<string, string>()
+  for (const r of rows) if (r.category) imgByCat.set(r.category, r.imageUrl)
+  return HOME_CATEGORIES.map((c) => ({ name: c, imageUrl: imgByCat.get(c) ?? '' }))
+}
+
 /** auction ที่ user กด watch ไว้ → BrowsedAuction[] */
 export async function watchingAuctions(
   userId: string,
