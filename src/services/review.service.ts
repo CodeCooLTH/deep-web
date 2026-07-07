@@ -4,8 +4,7 @@ import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.se
 export async function createReview(orderToken: string, data: {
   rating: number;
   comment?: string;
-  reviewerContact?: string;
-  reviewerUserId?: string;
+  reviewerUserId: string; // feature 00015 — review ต้องมีเจ้าของที่ login แล้ว (ปิด guest-write เดิม)
 }) {
   const order = await prisma.order.findUnique({
     where: { publicToken: orderToken },
@@ -24,7 +23,6 @@ export async function createReview(orderToken: string, data: {
       orderId: order.id,
       rating: data.rating,
       comment: data.comment,
-      reviewerContact: data.reviewerContact,
       reviewerUserId: data.reviewerUserId,
     },
   });
