@@ -54,6 +54,17 @@ describe('parseOrderMessage — heuristic แยกข้อมูลจาก�
     expect(r.province).toBe('กำแพงเพชร')
   })
 
+  it('ที่อยู่ใช้ underscore แทนจุด (ต_/อ_/จ_) — รับได้', () => {
+    const r = parseOrderMessage(
+      'เกรียงศักดิ์_ชุมภูธิมา\n1040/153โฮมกาเดนร์2\nหมู่2ต_สุระนารี\nอ_เมือง\nจ_นครราชสีมา\n30000\nT0983344300',
+    )
+    expect(r.subdistrict).toBe('สุระนารี')
+    expect(r.district).toBe('เมือง')
+    expect(r.province).toBe('นครราชสีมา')
+    expect(r.postcode).toBe('30000')
+    expect(r.phone).toBe('0983344300')
+  })
+
   it('ข้อความว่าง/ไม่มีข้อมูล → คืน object ว่าง (ไม่ throw)', () => {
     expect(parseOrderMessage('')).toEqual({})
     expect(parseOrderMessage('สวัสดีครับ')).toEqual({ name: 'สวัสดีครับ' })

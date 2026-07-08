@@ -42,9 +42,10 @@ export function parseOrderMessage(text: string): ParsedOrderMessage {
   if (zip) out.postcode = zip[0]
 
   // ── ตำบล / อำเภอ / จังหวัด ──
-  out.subdistrict = grabAfter(text, 'ตำบล|ต\\.|แขวง', 'อำเภอ|อ\\.|เขต|จังหวัด|จ\\.')
-  out.district = grabAfter(text, 'อำเภอ|อ\\.|เขต', 'จังหวัด|จ\\.')
-  out.province = grabAfter(text, 'จังหวัด|จ\\.', '')
+  // [._] = รับทั้งจุดและ underscore หลังตัวย่อ (บาง source ส่งมาเป็น ต_/อ_/จ_ แทน ต./อ./จ.)
+  out.subdistrict = grabAfter(text, 'ตำบล|ต[._]|แขวง', 'อำเภอ|อ[._]|เขต|จังหวัด|จ[._]')
+  out.district = grabAfter(text, 'อำเภอ|อ[._]|เขต', 'จังหวัด|จ[._]')
+  out.province = grabAfter(text, 'จังหวัด|จ[._]', '')
 
   // ── ชื่อ ──
   const named = text.match(/(?:ชื่อผู้รับ|ผู้รับ|ชื่อ)\s*[:：]\s*(.+)/)
@@ -63,7 +64,7 @@ export function parseOrderMessage(text: string): ParsedOrderMessage {
           (l) =>
             l &&
             !/\d/.test(l) &&
-            !/ตำบล|ต\.|แขวง|อำเภอ|อ\.|เขต|จังหวัด|จ\.|โทร|เบอร์|หมู่|ม\.|เลขที่|สรุป|ยอด/.test(l),
+            !/ตำบล|ต[._]|แขวง|อำเภอ|อ[._]|เขต|จังหวัด|จ[._]|โทร|เบอร์|หมู่|ม[._]|เลขที่|สรุป|ยอด/.test(l),
         )
       if (firstLine) out.name = firstLine
     }
@@ -75,7 +76,7 @@ export function parseOrderMessage(text: string): ParsedOrderMessage {
     if (!l || /โทร|เบอร์|ชื่อผู้รับ|สรุป|ยอด/.test(l)) continue
     l = l.replace(/^(?:ที่อยู่|บ้านเลขที่)\s*[:：]?\s*/u, '')
     if (/หมู่|ม\.?\s?\d|เลขที่|บ้าน|^\d/.test(l)) {
-      const cut = l.search(/ตำบล|ต\.|แขวง/)
+      const cut = l.search(/ตำบล|ต[._]|แขวง/)
       out.addressLine = (cut > 0 ? l.slice(0, cut) : l).trim()
       break
     }
