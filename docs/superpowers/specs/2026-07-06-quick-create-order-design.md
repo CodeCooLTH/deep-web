@@ -80,7 +80,7 @@
 - ไม่แตะ `createOrder` / customer dedup / STOREFRONT rule / validation.
 
 ## 5. Non-goals / คงเดิม
-- Desktop POS (`≥ lg`) ไม่เปลี่ยน.
+- Desktop POS (`≥ lg`) ไม่เปลี่ยน. **[UPDATE 2026-07-08] ยกเลิกแล้ว** — desktop parity ทำใน phase แยก (paste-parse/address-autocomplete/SKU-search/remember-default) ดู `docs/scope/2026-07-08-orders-new-desktop-parity-scope-baseline.md`. ตอนนี้ desktop มี 4 affordance เท่ามือถือแล้ว.
 - ไม่มี migration / ไม่แตะ payment endpoint / ไม่แตะ Customer entity (feat 00014).
 - ราคาต่อหน่วยแก้ได้บนไลน์ = รองรับ "ยอดปลายทาง" ที่ต่างจากราคาแคตตาล็อก.
 
