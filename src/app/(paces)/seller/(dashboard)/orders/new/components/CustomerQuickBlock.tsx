@@ -21,9 +21,11 @@ interface Props {
   control: Control<FormValues>
   errors: FieldErrors<FormValues>
   setValue: UseFormSetValue<FormValues>
+  /** ออเดอร์นี้ต้องจัดส่ง (มีสินค้า SHIPPED + ไม่ใช่หน้าร้าน) → เตือนให้ตั้งที่อยู่ปลายทางให้ครบ */
+  needsShipping: boolean
 }
 
-export default function CustomerQuickBlock({ control, errors, setValue }: Props) {
+export default function CustomerQuickBlock({ control, errors, setValue, needsShipping }: Props) {
   const [pasteOpen, setPasteOpen] = useState(false)
   const [addrOpen, setAddrOpen] = useState(false)
   const [custOpen, setCustOpen] = useState(false)
@@ -51,6 +53,8 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
   const channel = useWatch({ control, name: 'salesChannel' })
   const showAddress = channel !== 'STOREFRONT'
   const addr = useWatch({ control, name: 'shippingAddress' }) as FormValues['shippingAddress']
+  // ที่อยู่ครบขั้นต่ำสำหรับจัดส่ง = line1 + จังหวัด + รหัสไปรษณีย์ (ตรงกับ validation ตอน submit / server FR-6.5)
+  const addrIncomplete = !addr?.line1?.trim() || !addr?.province?.trim() || !addr?.postcode?.trim()
   const locality: SelectedLocality | null =
     addr?.subdistrict || addr?.province
       ? {
@@ -194,6 +198,15 @@ export default function CustomerQuickBlock({ control, errors, setValue }: Props)
       {/* ที่อยู่ (ไม่ใช่ STOREFRONT) */}
       {showAddress && (
         <>
+          {/* เตือนเชิงรุก: parse ที่อยู่ไม่ได้ครบ + ออเดอร์ต้องจัดส่ง → ให้ seller ตั้งที่อยู่เองก่อน save */}
+          {needsShipping && addrIncomplete && (
+            <div className="mb-2.5 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-warning">
+              <Icon icon="alert-triangle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <p className="text-xs font-medium">
+                ออเดอร์นี้ต้องจัดส่ง — กรุณาตั้งค่าที่อยู่ปลายทางให้ครบ (ที่อยู่ / จังหวัด / รหัสไปรษณีย์) ก่อนบันทึก
+              </p>
+            </div>
+          )}
           <div className="mb-2.5">
             <label className="form-label">บ้านเลขที่ / หมู่ / ถนน</label>
             <input

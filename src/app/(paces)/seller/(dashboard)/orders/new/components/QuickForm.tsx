@@ -10,7 +10,8 @@
  * ลำดับ: ลูกค้า → ช่องทาง/ชำระเงิน → สินค้า → เพิ่มเติม; footer = QuickSummaryPanel (collapsible)
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import QuickLineItem from './QuickLineItem'
@@ -48,6 +49,20 @@ export default function QuickForm({
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
+  // needsShipping (reactive) — ตรงกับ logic ตอน submit (OrderCreateForm) + CartPanel: ช่องทาง≠STOREFRONT
+  // และมีสินค้าที่ fulfillment=SHIPPED (custom item ไม่มี productId = ถือว่าต้องจัดส่ง) → ใช้เตือนที่อยู่เชิงรุก
+  const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
+  const salesChannel = useWatch({ control, name: 'salesChannel' })
+  const needsShipping = useMemo(
+    () =>
+      salesChannel !== 'STOREFRONT' &&
+      watchedItems.some((i) => {
+        if (!i?.productId) return true
+        return catalog.find((p) => p.id === i.productId)?.fulfillmentMode === 'SHIPPED'
+      }),
+    [watchedItems, catalog, salesChannel],
+  )
+
   // โหลดครั้งแรก / ลบจนเหลือ 0 → มี 1 บรรทัดว่างเสมอ (micro-rule #2)
   const lineCount = itemsCtl.fields.length
   useEffect(() => {
@@ -67,7 +82,7 @@ export default function QuickForm({
     <div className="-mx-4 md:-mx-8">
       {/* SECTION 1: ลูกค้า (phone-first + wand paste + address) */}
       <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
-        <CustomerQuickBlock control={control} errors={errors} setValue={setValue} />
+        <CustomerQuickBlock control={control} errors={errors} setValue={setValue} needsShipping={needsShipping} />
       </section>
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
