@@ -9,16 +9,21 @@
  * ที่อยู่จัดส่ง: needsShipping = salesChannel !== STOREFRONT && มีสินค้า SHIPPED (คงกฎเดิม)
  * S-2 (2026-07-08): ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ ใช้ AddressSearchPanel (search-driven picker) แทน raw input เดิม
  *   คง manual fallback เดิมไว้ใต้ toggle "กรอกเอง" (register เดิมทุกตัว ไม่ลบความสามารถ)
+ * S-4 (2026-07-08): ปุ่มดาว ตั้งค่าเริ่มต้น channel/payment บน desktop — เขียน localStorage key เดียวกับมือถือ
+ *   (import DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY จาก ChannelPaymentSelect ห้าม hardcode ซ้ำ)
+ *   Base ปุ่มดาว: OptionPickerSheet.tsx:86-96 (icon star/star-filled + aria-label pattern, มือถือ — ห้ามแก้ไฟล์นั้น)
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import Select from '@/components/wrappers/Select'
+import { pacesToast } from '@/lib/paces-toast'
 import CartLineItem from './CartLineItem'
 import CustomerSelectBlock from './CustomerSelectBlock'
 import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
+import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
 
 const formatThb = (n: number) =>
@@ -80,6 +85,39 @@ export default function CartPanel({
   const [openKey, setOpenKey] = useState<AccKey | null>(null)
   const toggle = (k: AccKey) => setOpenKey((c) => (c === k ? null : k))
   const [manualAddrOpen, setManualAddrOpen] = useState(false) // S-2: fallback "กรอกเอง" ซ่อนช่อง raw ไว้ default
+
+  // S-4: ดาวตั้งค่าเริ่มต้น channel/payment — อ่าน default จาก localStorage ตอน mount (client-only)
+  const [defaultChannel, setDefaultChannel] = useState<string | null>(null)
+  const [defaultPayment, setDefaultPayment] = useState<string | null>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setDefaultChannel(localStorage.getItem(DEFAULT_CHANNEL_KEY))
+    setDefaultPayment(localStorage.getItem(DEFAULT_PAYMENT_KEY))
+  }, [])
+  const setChannelDefault = () => {
+    const v = channelField.value
+    if (!v) return
+    try {
+      localStorage.setItem(DEFAULT_CHANNEL_KEY, v)
+    } catch {
+      // private-mode / storage เต็ม — เงียบไว้ ไม่บล็อก flow
+    }
+    setDefaultChannel(v)
+    const label = CHANNEL_OPTIONS.find((o) => o.value === v)?.label ?? v
+    pacesToast.success(`ตั้ง "${label}" เป็นค่าเริ่มต้นแล้ว`)
+  }
+  const setPaymentDefault = () => {
+    const v = paymentField.value
+    if (!v) return
+    try {
+      localStorage.setItem(DEFAULT_PAYMENT_KEY, v)
+    } catch {
+      // private-mode / storage เต็ม — เงียบไว้ ไม่บล็อก flow
+    }
+    setDefaultPayment(v)
+    const label = PAYMENT_OPTIONS.find((o) => o.value === v)?.label ?? v
+    pacesToast.success(`ตั้ง "${label}" เป็นค่าเริ่มต้นแล้ว`)
+  }
 
   // S-2: locality ปัจจุบันจาก form (ใช้เติม AddressSearchPanel current + summary)
   const shippingAddr = useWatch({ control, name: 'shippingAddress' }) as FormValues['shippingAddress'] | undefined
@@ -204,7 +242,21 @@ export default function CartPanel({
         {openKey === 'payment' && (
           <div className="flex flex-col gap-3 px-4 pb-4">
             <div>
-              <label className="form-label">ช่องทางการขาย</label>
+              <div className="flex items-center justify-between">
+                <label className="form-label">ช่องทางการขาย</label>
+                {/* S-4: ปุ่มดาวตั้งค่าเริ่มต้น — เขียน localStorage key เดียวกับมือถือ (DEFAULT_CHANNEL_KEY) */}
+                <button
+                  type="button"
+                  onClick={setChannelDefault}
+                  aria-label={defaultChannel === channelField.value ? 'ค่าเริ่มต้นปัจจุบัน' : 'ตั้งเป็นค่าเริ่มต้น'}
+                  className="btn btn-icon btn-sm"
+                >
+                  <Icon
+                    icon={defaultChannel === channelField.value ? 'star-filled' : 'star'}
+                    className={`size-4 ${defaultChannel === channelField.value ? 'text-warning' : 'text-default-300'}`}
+                  />
+                </button>
+              </div>
               <Select
                 className="select2 react-select"
                 classNamePrefix="react-select"
@@ -219,7 +271,21 @@ export default function CartPanel({
               />
             </div>
             <div>
-              <label className="form-label">วิธีชำระเงิน</label>
+              <div className="flex items-center justify-between">
+                <label className="form-label">วิธีชำระเงิน</label>
+                {/* S-4: ปุ่มดาวตั้งค่าเริ่มต้น — เขียน localStorage key เดียวกับมือถือ (DEFAULT_PAYMENT_KEY) */}
+                <button
+                  type="button"
+                  onClick={setPaymentDefault}
+                  aria-label={defaultPayment === paymentField.value ? 'ค่าเริ่มต้นปัจจุบัน' : 'ตั้งเป็นค่าเริ่มต้น'}
+                  className="btn btn-icon btn-sm"
+                >
+                  <Icon
+                    icon={defaultPayment === paymentField.value ? 'star-filled' : 'star'}
+                    className={`size-4 ${defaultPayment === paymentField.value ? 'text-warning' : 'text-default-300'}`}
+                  />
+                </button>
+              </div>
               <Select
                 className="select2 react-select"
                 classNamePrefix="react-select"
