@@ -24,7 +24,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
   if (!initialSeries) return null
 
-  const { values, total, prevTotal, futureFromIndex } = initialSeries
+  const { values, confirmedValues, unconfirmedValues, total, prevTotal, futureFromIndex } = initialSeries
   // prevTotal===0 → คำนวณ % ไม่ได้ (หาร 0) → ซ่อน chg indicator
   const chg = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null
 
@@ -76,12 +76,17 @@ export default function SalesChartCard({ initialSeries }: Props) {
             {sparkValues.map((v, i) => {
               const pct = Math.max(4, Math.round((v / max) * 100))
               const isFuture = i >= sparkFutureFrom
+              // อนาคต / ไม่มียอด → แท่งเทาว่าง; มียอด → stacked เหลือง(รอยืนยัน,บน) + ฟ้า(ยืนยันแล้ว,ล่าง)
+              // ให้ตรงกับ SalesChartSheet (chart-primary=ยืนยันแล้ว / warning=ยังไม่ยืนยัน)
+              if (isFuture || v <= 0) {
+                return <div key={i} className="flex-1 rounded-t-sm bg-default-200" style={{ height: `${pct}%` }} />
+              }
+              const uPct = Math.round(((unconfirmedValues[i] ?? 0) / v) * 100)
               return (
-                <div
-                  key={i}
-                  className={`flex-1 rounded-t-sm ${isFuture ? 'bg-default-200' : 'bg-primary'}`}
-                  style={{ height: `${pct}%` }}
-                />
+                <div key={i} className="flex flex-1 flex-col overflow-hidden rounded-t-sm" style={{ height: `${pct}%` }}>
+                  <div className="bg-warning" style={{ height: `${uPct}%` }} />
+                  <div className="flex-1 bg-primary" />
+                </div>
               )
             })}
           </div>
