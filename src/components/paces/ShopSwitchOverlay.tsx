@@ -49,7 +49,7 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
       {(targetLogo || targetName) && (
         <AccountAvatar src={targetLogo ?? null} kind={targetKind ?? 'business'} className="size-14" />
       )}
-      <div className="border-primary size-12 animate-spin rounded-full border-4 border-t-transparent" />
+      <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
       <p className="text-default-800 text-sm font-semibold">{primaryText}</p>
       <p className="text-default-500 text-xs">กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</p>
     </div>
