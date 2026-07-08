@@ -91,7 +91,7 @@ export const CreateExpenseSchema = v.object({
   "shopId": "...",
   "category": "ADVERTISING",
   "amount": 1500,
-  "expenseDate": "2569-07-08",
+  "expenseDate": "2026-07-08",
   "note": "ค่า boost โพสต์ FB",
   "createdByUserId": "...",
   "createdAt": "...",
@@ -125,7 +125,7 @@ export const CreateExpenseSchema = v.object({
 
 ```json
 [
-  { "id": "...", "shopId": "...", "category": "RENT", "amount": 8000, "expenseDate": "2569-07-01", "note": null, "createdByUserId": "...", "createdAt": "...", "updatedAt": "..." }
+  { "id": "...", "shopId": "...", "category": "RENT", "amount": 8000, "expenseDate": "2026-07-01", "note": null, "createdByUserId": "...", "createdAt": "...", "updatedAt": "..." }
 ]
 ```
 
@@ -204,7 +204,7 @@ export const PnlReportQuerySchema = v.object({
 
 ```json
 {
-  "range": { "start": "2569-07-01", "end": "2569-07-08" },
+  "range": { "start": "2026-07-01", "end": "2026-07-08" },
   "revenue": 50000,
   "cogs": 28000,
   "grossProfit": 22000,

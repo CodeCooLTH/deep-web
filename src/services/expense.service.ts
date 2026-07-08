@@ -9,7 +9,6 @@
 import { prisma } from '@/lib/prisma'
 import type { Expense } from '@prisma/client'
 import type { ExpenseCategory } from '@/lib/expense'
-import { formatDate } from '@/lib/format-date'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Serialization (RSC-safe)
@@ -20,7 +19,8 @@ export interface SerializedExpense {
   shopId: string
   category: string
   amount: number
-  // "YYYY-MM-DD" พ.ศ. (formatDate) — ตรง API.md §4.1 ตัวอย่าง response ("2569-07-08")
+  // "YYYY-MM-DD" ISO ค.ศ. (wire format คงที่ — display พ.ศ. ทำที่ presentation layer ด้วย formatDate)
+  // expenseDate เก็บเป็น UTC-midnight-of-calendar-date → slice(0,10) ได้ calendar date ตรง ไม่ off-by-one
   expenseDate: string
   note: string | null
   createdByUserId: string
@@ -34,7 +34,7 @@ export function serializeExpense(expense: Expense): SerializedExpense {
     shopId: expense.shopId,
     category: expense.category,
     amount: Number(expense.amount),
-    expenseDate: formatDate(expense.expenseDate),
+    expenseDate: expense.expenseDate.toISOString().slice(0, 10),
     note: expense.note,
     createdByUserId: expense.createdByUserId,
     createdAt: expense.createdAt.toISOString(),

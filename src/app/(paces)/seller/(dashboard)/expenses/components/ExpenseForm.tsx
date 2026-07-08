@@ -13,11 +13,8 @@
  * Design decision (UX-Design-Spec.md §A): dual-mode component เดียว (ไม่แยก modal edit) — mirror
  * ProductFormV2 ที่ทำ create/edit ในไฟล์เดียวอยู่แล้ว
  *
- * 🛑 Date format gotcha (ไม่มีใน spec ตรง ๆ — ต้อง flag): serializeExpense().expenseDate ผ่าน formatDate()
- * แล้ว = พ.ศ. ("2569-07-08") ตาม docs/conventions/date-format.md (ทุก field ที่แสดงผลต้องผ่าน formatDate) แต่
- * request body/query ของ POST/PATCH/GET expenses ทั้งหมดเป็น ค.ศ. ตรง (parseIsoDateToUtcMidnight split
- * y-m-d ตรง ไม่แปลง ปี+543 มีแค่ตอน "แสดงผล" เท่านั้น) — ตอน prefill ฟอร์ม edit ต้องแปลงปี พ.ศ.→ค.ศ. (-543)
- * ก่อนใส่ <input type="date"> ไม่งั้นได้ปี 2569 ค.ศ. (ผิด) ส่งเข้า backend
+ * expenseDate: serializeExpense คืน ISO ค.ศ. "YYYY-MM-DD" ตรง ๆ (wire format คงที่) → prefill
+ * <input type="date"> ได้เลย ไม่ต้องแปลง; display พ.ศ. ทำที่ ExpenseList ด้วย formatDate
  */
 import { useEffect } from 'react'
 import { yupResolver } from '@hookform/resolvers/yup'
@@ -28,12 +25,6 @@ import { pacesToast } from '@/lib/paces-toast'
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import { todayThaiIsoDate } from '@/lib/date-range'
 import type { SerializedExpense } from '@/services/expense.service'
-
-/** แปลง "YYYY-MM-DD" พ.ศ. (จาก serializeExpense) → ค.ศ. ISO สำหรับ <input type="date"> — ดู comment บนไฟล์ */
-function beDateToGregorianIso(beDate: string): string {
-  const [y, m, d] = beDate.split('-').map(Number)
-  return `${y - 543}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
 
 const schema = Yup.object({
   category: Yup.string()
@@ -64,7 +55,7 @@ function buildDefaultValues(mode: 'create' | 'edit', initialValues?: SerializedE
     return {
       category: initialValues.category,
       amount: initialValues.amount,
-      expenseDate: beDateToGregorianIso(initialValues.expenseDate),
+      expenseDate: initialValues.expenseDate,
       note: initialValues.note ?? '',
     }
   }

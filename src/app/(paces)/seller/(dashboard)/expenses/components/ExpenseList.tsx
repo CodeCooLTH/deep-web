@@ -17,6 +17,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { EXPENSE_CATEGORY_LABEL_TH, EXPENSE_CATEGORY_ICON, type ExpenseCategory } from '@/lib/expense'
+import { formatDate } from '@/lib/format-date'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import type { SerializedExpense } from '@/services/expense.service'
 
@@ -82,7 +83,7 @@ export default function ExpenseList({ expenses, onEdit, onDeleted }: Props) {
                 const iconName = EXPENSE_CATEGORY_ICON[category] ?? ''
                 return (
                   <tr key={expense.id}>
-                    <td>{expense.expenseDate}</td>
+                    <td>{formatDate(expense.expenseDate)}</td>
                     <td>
                       <span className="badge bg-primary/10 text-primary inline-flex items-center gap-1 py-0 text-2xs font-semibold">
                         {iconName && <Icon icon={iconName} className="size-3.5" aria-hidden="true" />}
