@@ -70,6 +70,9 @@ export function parseOrderMessage(text: string): ParsedOrderMessage {
     }
   }
 
+  // normalize ชื่อ: _ → เว้นวรรค (บาง source ใช้ _ แทนช่องว่างระหว่างชื่อ-นามสกุล เช่น "เกรียงศักดิ์_ชุมภูธิมา")
+  if (out.name) out.name = out.name.replace(/_/g, ' ').replace(/\s{2,}/g, ' ').trim()
+
   // ── addressLine: บรรทัดที่มี บ้านเลข/หมู่/ถนน — ตัด label "ที่อยู่:" + ตัดก่อน ต./ตำบล ──
   for (const raw of text.split('\n')) {
     let l = raw.trim()

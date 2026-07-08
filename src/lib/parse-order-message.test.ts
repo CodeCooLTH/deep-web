@@ -58,6 +58,7 @@ describe('parseOrderMessage — heuristic แยกข้อมูลจาก�
     const r = parseOrderMessage(
       'เกรียงศักดิ์_ชุมภูธิมา\n1040/153โฮมกาเดนร์2\nหมู่2ต_สุระนารี\nอ_เมือง\nจ_นครราชสีมา\n30000\nT0983344300',
     )
+    expect(r.name).toBe('เกรียงศักดิ์ ชุมภูธิมา') // _ → เว้นวรรค
     expect(r.subdistrict).toBe('สุระนารี')
     expect(r.district).toBe('เมือง')
     expect(r.province).toBe('นครราชสีมา')
