@@ -28,7 +28,9 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return q ? catalog.filter((p) => p.name.toLowerCase().includes(q)) : catalog
+    return q
+      ? catalog.filter((p) => p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q))
+      : catalog
   }, [catalog, search])
 
   return (
@@ -98,6 +100,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
                 />
                 <div className="flex-1 p-2.5">
                   <p className="line-clamp-2 text-sm font-medium text-dark">{product.name}</p>
+                  {product.sku && <p className="truncate text-2xs text-default-400">SKU: {product.sku}</p>}
                   <p className="mt-1 text-sm font-semibold text-primary">{formatThb(product.price)}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
                     <span

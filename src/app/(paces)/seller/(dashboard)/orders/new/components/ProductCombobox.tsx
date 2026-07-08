@@ -50,7 +50,9 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return s ? catalog.filter((p) => p.name.toLowerCase().includes(s)) : catalog
+    return s
+      ? catalog.filter((p) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s))
+      : catalog
   }, [catalog, q])
   const typed = q.trim()
 
@@ -103,7 +105,10 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
                 className="flex w-full items-center gap-3 p-2.5 text-left hover:bg-default-100"
               >
                 <ProductThumb src={p.image} alt={p.name} className="size-8 rounded" iconClassName="size-4" />
-                <span className="flex-1 truncate text-sm font-medium text-dark">{p.name}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-dark">{p.name}</span>
+                  {p.sku && <span className="block truncate text-xs text-default-400">SKU: {p.sku}</span>}
+                </div>
                 <span className="shrink-0 text-xs font-semibold text-primary">{formatThb(p.price)}</span>
               </button>
             ))}
