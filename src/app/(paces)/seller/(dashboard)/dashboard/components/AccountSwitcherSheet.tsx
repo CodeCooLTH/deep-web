@@ -22,6 +22,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface BusinessContextItem {
   shopId: string
@@ -67,6 +68,9 @@ export default function AccountSwitcherSheet() {
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
   const { switching, target, switchShop } = useShopSwitcher()
+  // mounted guard — portal ต้องมี document (client); Preline (MutationObserver บน body) re-init sheet ให้เอง
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
     // guard: fetch เฉพาะเมื่อมี business membership จริง (เหมือน UserDropdownDetailed)
@@ -120,9 +124,12 @@ export default function AccountSwitcherSheet() {
           - text-default-800: sheet render ใต้ CompactHero (text-white) → ต้องกำหนดสีเอง ไม่งั้นทั้ง modal ขาวมองไม่เห็น
           - inset-0 + h-full/w-full: เต็มจอ (ไม่ใช่ bottom sheet); slide-up ด้วย translate-y-full → open:translate-y-0
           - [--overlay-backdrop:false]: panel ทึบเต็มจอไม่ต้องมี backdrop (แก้ถาวรปัญหา Preline backdrop z ทับ ShopSwitchOverlay)
-          - pt-[env(safe-area-inset-top)]: กัน header ชนรอยบาก (HR7 arbitrary — safe-area จำเป็น) */}
-      <div
-        id="account-switcher-sheet"
+          - pt-[env(safe-area-inset-top)]: กัน header ชนรอยบาก (HR7 arbitrary — safe-area จำเป็น)
+          - portal → document.body: หลุด stacking context ของ shell content → sheet (z-80) ทับ bottom nav (z-30) ได้ */}
+      {mounted &&
+        createPortal(
+          <div
+            id="account-switcher-sheet"
         className="hs-overlay hs-overlay-open:translate-y-0 bg-card text-default-800 fixed inset-0 z-80 hidden h-full w-full translate-y-full transform flex-col pt-[env(safe-area-inset-top)] transition-all duration-300 [--overlay-backdrop:false]"
         role="dialog"
         tabIndex={-1}
@@ -220,7 +227,9 @@ export default function AccountSwitcherSheet() {
             </div>
           )}
         </div>
-      </div>
+          </div>,
+          document.body,
+        )}
 
       <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
     </>

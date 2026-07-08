@@ -41,7 +41,7 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
   // (precedent: overlay เดิมใน UserDropdownDetailed.tsx / AccountSwitcherSheet.tsx)
   const overlay = (
     <div
-      className="fixed inset-0 z-[1070] flex flex-col items-center justify-center gap-3 bg-default-900/40 backdrop-blur-xs"
+      className="fixed inset-0 z-[1070] flex flex-col items-center justify-center gap-3 bg-white"
       role="status"
       aria-live="polite"
       aria-label="กำลังสลับร้าน"
@@ -50,8 +50,8 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
         <AccountAvatar src={targetLogo ?? null} kind={targetKind ?? 'business'} className="size-14" />
       )}
       <div className="border-primary size-12 animate-spin rounded-full border-4 border-t-transparent" />
-      <p className="text-default-50 text-sm font-semibold">{primaryText}</p>
-      <p className="text-default-300 text-xs">กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</p>
+      <p className="text-default-800 text-sm font-semibold">{primaryText}</p>
+      <p className="text-default-500 text-xs">กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</p>
     </div>
   )
 
