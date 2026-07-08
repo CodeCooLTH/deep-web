@@ -17,3 +17,10 @@
 .hs-overlay-backdrop {
     @apply !bg-default-900/50;
 }
+
+/* backdrop ของ bottom sheet "สลับบัญชี": Preline ใส่ dynamic z-index สูงให้ backdrop
+   ทำให้มันทับ ShopSwitchOverlay (loading เต็มจอ z-[1070]) ตอนสลับร้าน — กด z ลงให้ต่ำกว่า
+   overlay (1070) และ sheet (z-80) เพื่อให้ overlay อยู่บนสุดเสมอ (validated โดย user) */
+#account-switcher-sheet-backdrop {
+    z-index: 70 !important;
+}

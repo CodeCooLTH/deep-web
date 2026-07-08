@@ -116,9 +116,11 @@ export default function AccountSwitcherSheet() {
         HR7 arbitrary: max-h-[80vh] — Paces ไม่มี viewport-relative max-height token
         สำหรับ bottom sheet body scroll (จำเป็นจริง กันเนื้อหายาวล้นจอมือถือ)
       */}
+      {/* text-default-800: sheet ถูก render ใต้ CompactHero (text-white) → ต้องกำหนดสีตัวอักษรเอง
+          ไม่งั้นทั้ง modal (ชื่อร้าน/หัวข้อ span ที่ไม่มี text color) จะ inherit เป็นสีขาว มองไม่เห็นบน bg-card */}
       <div
         id="account-switcher-sheet"
-        className="hs-overlay hs-overlay-open:translate-y-0 bg-card border-default-300 fixed inset-x-0 bottom-0 z-80 hidden max-h-[80vh] w-full translate-y-full transform flex-col rounded-t-2xl border-t transition-all duration-300"
+        className="hs-overlay hs-overlay-open:translate-y-0 bg-card text-default-800 border-default-300 fixed inset-x-0 bottom-0 z-80 hidden max-h-[80vh] w-full translate-y-full transform flex-col rounded-t-2xl border-t transition-all duration-300"
         role="dialog"
         tabIndex={-1}
         aria-labelledby="account-switcher-sheet-label"
