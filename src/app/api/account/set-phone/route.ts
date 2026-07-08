@@ -3,6 +3,7 @@
 // กฎ: เบอร์ตั้งครั้งเดียว เปลี่ยนไม่ได้ (immutable — มีผลต่อ Trust Score). ห้ามซ้ำ user อื่น.
 import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
+import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -37,15 +38,24 @@ export async function POST(req: NextRequest) {
   }
 
   // set phone + สร้าง L1 PHONE_OTP verification (เหมือน phone-otp authorize) atomic
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      phone,
-      verifications: {
-        create: { type: "PHONE_OTP", level: 1, status: "APPROVED", reviewedAt: new Date() },
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        phone,
+        verifications: {
+          create: { type: "PHONE_OTP", level: 1, status: "APPROVED", reviewedAt: new Date() },
+        },
       },
-    },
-  });
+    });
+  } catch (e) {
+    // TOCTOU: เบอร์ถูกจองโดย request อื่นระหว่าง dup-check → update (User.phone @unique) → P2002
+    // คืน 409 แทน 500 ที่ไม่ถูก handle (feat 00015 follow-up — bid modal ยิงเข้า endpoint นี้)
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json({ error: "เบอร์นี้มีบัญชีแล้ว" }, { status: 409 });
+    }
+    throw e;
+  }
 
   // auto-link guest history by phone (PRD FR-8) — best-effort
   try {
