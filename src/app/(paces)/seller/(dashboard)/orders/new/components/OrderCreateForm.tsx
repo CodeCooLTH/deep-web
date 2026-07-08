@@ -443,7 +443,15 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>
         <div className="lg:h-full">
-          <CartPanel control={control} catalog={catalog} itemsCtl={itemsCtl} errors={errors} formId={formId} inventoryEnabled={inventoryEnabled} />
+          <CartPanel
+            control={control}
+            catalog={catalog}
+            itemsCtl={itemsCtl}
+            errors={errors}
+            formId={formId}
+            inventoryEnabled={inventoryEnabled}
+            setValue={setValue}
+          />
         </div>
       </div>
     </form>

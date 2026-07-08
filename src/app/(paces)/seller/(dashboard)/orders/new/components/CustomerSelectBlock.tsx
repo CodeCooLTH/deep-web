@@ -6,13 +6,17 @@
  *   พิมพ์เบอร์/ชื่อ → live search ลูกค้าเดิมของร้าน (dropdown) → เลือก = fill; เจอเบอร์เดิม = แสดง "ลูกค้าเดิม".
  *   dropdown = custom React state (ไม่ใช้ Preline) — same-page pattern เดิม.
  * RHF: buyerName / buyerContact ผ่าน useController. server derive customerId จากเบอร์เอง (ไม่ส่งจาก UI).
+ * S-1 (orders-new-desktop-parity): variant embedded (desktop POS) มีปุ่ม "วางจากแชท" มุมขวาบนของ body
+ *   เปิด PasteParsePanel (custom popover) → parseOrderMessage() เติม buyerName/buyerContact/shippingAddress.*
+ *   ผ่าน setValue (prop ใหม่, optional — 'card' variant เดิมไม่ต้องส่งก็ได้ ปุ่มจะไม่โชว์)
  */
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useController } from 'react-hook-form'
-import type { Control, FieldErrors } from 'react-hook-form'
+import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
+import PasteParsePanel from './PasteParsePanel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,11 +33,14 @@ export interface Props {
   errors: FieldErrors<any>
   /** 'card' = standalone card; 'embedded' = ใน accordion body (ตัด card chrome) */
   variant?: 'card' | 'embedded'
+  /** S-1: ปุ่ม "วางจากแชท" (เฉพาะ variant embedded) ต้องใช้ setValue เติมฟิลด์จาก parseOrderMessage */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setValue?: UseFormSetValue<any>
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CustomerSelectBlock({ control, errors, variant = 'card' }: Props) {
+export default function CustomerSelectBlock({ control, errors, variant = 'card', setValue }: Props) {
   const embedded = variant === 'embedded'
   const { field: buyerNameField } = useController({ control, name: 'buyerName', defaultValue: '' })
   const { field: buyerContactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
@@ -130,6 +137,12 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card' 
       )}
 
       <div className={embedded ? 'p-2' : 'card-body p-4 sm:p-5'}>
+        {/* S-1: trigger "วางจากแชท" มุมขวาบนของ body — เฉพาะ desktop embedded variant */}
+        {embedded && setValue && (
+          <div className="mb-2 flex justify-end">
+            <PasteParsePanel setValue={setValue} />
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           {/* ชื่อลูกค้า */}
           <div>

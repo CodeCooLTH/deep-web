@@ -7,15 +7,18 @@
  *   + CustomerSelectBlock (embedded) + PaymentChannelBlock (channel/payment/discount/VAT markup) + CartBlock (shipping block)
  * accordion = Paces skin + custom React state (openKey) — ไม่ใช้ Preline hs-accordion (กัน desync บน re-render form; HR6/FilterDropdown บทเรียน)
  * ที่อยู่จัดส่ง: needsShipping = salesChannel !== STOREFRONT && มีสินค้า SHIPPED (คงกฎเดิม)
+ * S-2 (2026-07-08): ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ ใช้ AddressSearchPanel (search-driven picker) แทน raw input เดิม
+ *   คง manual fallback เดิมไว้ใต้ toggle "กรอกเอง" (register เดิมทุกตัว ไม่ลบความสามารถ)
  */
 
 import { useMemo, useState } from 'react'
 import { useController, useWatch } from 'react-hook-form'
-import type { Control, FieldErrors } from 'react-hook-form'
+import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import Select from '@/components/wrappers/Select'
 import CartLineItem from './CartLineItem'
 import CustomerSelectBlock from './CustomerSelectBlock'
+import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
 
 const formatThb = (n: number) =>
@@ -50,9 +53,20 @@ interface Props {
   errors: FieldErrors<any>
   formId?: string
   inventoryEnabled?: boolean
+  /** S-1: ส่งต่อให้ CustomerSelectBlock (embedded) ใช้เติมฟิลด์จาก paste-parse popover */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setValue?: UseFormSetValue<any>
 }
 
-export default function CartPanel({ control, catalog, itemsCtl, errors, formId, inventoryEnabled = false }: Props) {
+export default function CartPanel({
+  control,
+  catalog,
+  itemsCtl,
+  errors,
+  formId,
+  inventoryEnabled = false,
+  setValue,
+}: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
 
@@ -65,6 +79,25 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
 
   const [openKey, setOpenKey] = useState<AccKey | null>(null)
   const toggle = (k: AccKey) => setOpenKey((c) => (c === k ? null : k))
+  const [manualAddrOpen, setManualAddrOpen] = useState(false) // S-2: fallback "กรอกเอง" ซ่อนช่อง raw ไว้ default
+
+  // S-2: locality ปัจจุบันจาก form (ใช้เติม AddressSearchPanel current + summary)
+  const shippingAddr = useWatch({ control, name: 'shippingAddress' }) as FormValues['shippingAddress'] | undefined
+  const locality: SelectedLocality | null =
+    shippingAddr?.subdistrict || shippingAddr?.district || shippingAddr?.province || shippingAddr?.postcode
+      ? {
+          subdistrict: shippingAddr?.subdistrict ?? '',
+          district: shippingAddr?.district ?? '',
+          province: shippingAddr?.province ?? '',
+          postcode: shippingAddr?.postcode ?? '',
+        }
+      : null
+  const applyLocality = (loc: SelectedLocality) => {
+    setValue?.('shippingAddress.subdistrict', loc.subdistrict)
+    setValue?.('shippingAddress.district', loc.district)
+    setValue?.('shippingAddress.province', loc.province)
+    setValue?.('shippingAddress.postcode', loc.postcode)
+  }
 
   const needsShipping = useMemo(
     () =>
@@ -158,7 +191,7 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
         </button>
         {openKey === 'customer' && (
           <div className="px-2 pb-2">
-            <CustomerSelectBlock control={control} errors={errors} variant="embedded" />
+            <CustomerSelectBlock control={control} errors={errors} variant="embedded" setValue={setValue} />
           </div>
         )}
       </div>
@@ -218,22 +251,45 @@ export default function CartPanel({ control, catalog, itemsCtl, errors, formId, 
                 <label className="form-label">ที่อยู่ / บ้านเลขที่ + ถนน<span className="ms-0.5 text-danger">*</span></label>
                 <input type="text" className="form-input" placeholder="123/4 ถ.สุขุมวิท" {...register('shippingAddress.line1')} />
               </div>
-              <div>
-                <label className="form-label">ตำบล / แขวง</label>
-                <input type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.subdistrict')} />
+
+              {/* S-2: search-driven picker แทนช่อง ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ เดิม */}
+              <div className="sm:col-span-2">
+                <AddressSearchPanel current={locality} onSelect={applyLocality} />
               </div>
-              <div>
-                <label className="form-label">อำเภอ / เขต</label>
-                <input type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.district')} />
+
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => setManualAddrOpen((c) => !c)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                >
+                  หาที่อยู่ไม่เจอในระบบ? กรอกเอง
+                  <Icon icon="chevron-down" className={`size-3.5 transition ${manualAddrOpen ? 'rotate-180' : ''}`} />
+                </button>
               </div>
-              <div>
-                <label className="form-label">จังหวัด<span className="ms-0.5 text-danger">*</span></label>
-                <input type="text" className="form-input" placeholder="กรุงเทพมหานคร" {...register('shippingAddress.province')} />
-              </div>
-              <div>
-                <label className="form-label">รหัสไปรษณีย์<span className="ms-0.5 text-danger">*</span></label>
-                <input type="text" inputMode="numeric" className="form-input" placeholder="10110" {...register('shippingAddress.postcode')} />
-              </div>
+
+              {/* manual fallback — คง register เดิมทุกตัว (ไม่ลบความสามารถกรอกเอง) */}
+              {manualAddrOpen && (
+                <>
+                  <div>
+                    <label className="form-label">ตำบล / แขวง</label>
+                    <input type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.subdistrict')} />
+                  </div>
+                  <div>
+                    <label className="form-label">อำเภอ / เขต</label>
+                    <input type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.district')} />
+                  </div>
+                  <div>
+                    <label className="form-label">จังหวัด<span className="ms-0.5 text-danger">*</span></label>
+                    <input type="text" className="form-input" placeholder="กรุงเทพมหานคร" {...register('shippingAddress.province')} />
+                  </div>
+                  <div>
+                    <label className="form-label">รหัสไปรษณีย์<span className="ms-0.5 text-danger">*</span></label>
+                    <input type="text" inputMode="numeric" className="form-input" placeholder="10110" {...register('shippingAddress.postcode')} />
+                  </div>
+                </>
+              )}
+
               <div className="sm:col-span-2">
                 <label className="form-label">หมายเหตุถึงผู้ส่ง</label>
                 <input type="text" className="form-input" placeholder="เช่น ฝากไว้ที่รปภ." {...register('shippingAddress.note')} />
