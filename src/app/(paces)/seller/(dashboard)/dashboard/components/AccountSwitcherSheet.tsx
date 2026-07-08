@@ -116,22 +116,20 @@ export default function AccountSwitcherSheet() {
         HR7 arbitrary: max-h-[80vh] — Paces ไม่มี viewport-relative max-height token
         สำหรับ bottom sheet body scroll (จำเป็นจริง กันเนื้อหายาวล้นจอมือถือ)
       */}
-      {/* text-default-800: sheet ถูก render ใต้ CompactHero (text-white) → ต้องกำหนดสีตัวอักษรเอง
-          ไม่งั้นทั้ง modal (ชื่อร้าน/หัวข้อ span ที่ไม่มี text color) จะ inherit เป็นสีขาว มองไม่เห็นบน bg-card */}
+      {/* Full-screen panel (mobile + tablet) — สลับบัญชี ทับ bottom nav (z-30) + เนื้อหาทั้งหมด, อยู่บนสุด
+          - text-default-800: sheet render ใต้ CompactHero (text-white) → ต้องกำหนดสีเอง ไม่งั้นทั้ง modal ขาวมองไม่เห็น
+          - inset-0 + h-full/w-full: เต็มจอ (ไม่ใช่ bottom sheet); slide-up ด้วย translate-y-full → open:translate-y-0
+          - [--overlay-backdrop:false]: panel ทึบเต็มจอไม่ต้องมี backdrop (แก้ถาวรปัญหา Preline backdrop z ทับ ShopSwitchOverlay)
+          - pt-[env(safe-area-inset-top)]: กัน header ชนรอยบาก (HR7 arbitrary — safe-area จำเป็น) */}
       <div
         id="account-switcher-sheet"
-        className="hs-overlay hs-overlay-open:translate-y-0 bg-card text-default-800 border-default-300 fixed inset-x-0 bottom-0 z-80 hidden max-h-[80vh] w-full translate-y-full transform flex-col rounded-t-2xl border-t transition-all duration-300"
+        className="hs-overlay hs-overlay-open:translate-y-0 bg-card text-default-800 fixed inset-0 z-80 hidden h-full w-full translate-y-full transform flex-col pt-[env(safe-area-inset-top)] transition-all duration-300 [--overlay-backdrop:false]"
         role="dialog"
         tabIndex={-1}
         aria-labelledby="account-switcher-sheet-label"
       >
-        {/* drag handle */}
-        <div className="flex shrink-0 justify-center pt-3 pb-1">
-          <span className="h-1 w-10 rounded-full bg-default-300" aria-hidden="true" />
-        </div>
-
         {/* header */}
-        <div className="flex shrink-0 items-center justify-between px-5 py-3">
+        <div className="border-default-200 flex shrink-0 items-center justify-between border-b px-5 py-3">
           <h3 id="account-switcher-sheet-label" className="text-base font-semibold">
             สลับบัญชี
           </h3>
@@ -145,8 +143,8 @@ export default function AccountSwitcherSheet() {
           </button>
         </div>
 
-        {/* body — scroll เมื่อรายการยาวเกิน max-h */}
-        <div className="overflow-y-auto px-3 pb-[env(safe-area-inset-bottom)]">
+        {/* body — flex-1 เติมพื้นที่ที่เหลือของ full-screen + scroll เมื่อรายการยาว */}
+        <div className="flex-1 overflow-y-auto px-3 pt-2 pb-[env(safe-area-inset-bottom)]">
           {loading && (
             <div className="flex items-center justify-center py-8">
               <div className="border-primary size-8 animate-spin rounded-full border-4 border-t-transparent" />
