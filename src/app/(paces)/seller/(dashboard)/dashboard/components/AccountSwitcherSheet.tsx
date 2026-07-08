@@ -10,14 +10,16 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/offcanvas/page.tsx (offcanvasBottom block — id/data-hs-overlay/translate-y/close btn)
  * Logic reused from: src/layouts/components/TopBar/components/UserDropdownDetailed.tsx
- *   (fetch /api/business/context guard by hasBusinessMembership, handleSwitch → POST switch-context →
- *    session.update({activeShopId}) → router.refresh(), switching spinner overlay z-[1070])
+ *   (fetch /api/business/context guard by hasBusinessMembership) — สลับร้านจริงใช้ useShopSwitcher
+ *   ร่วมกัน (POST switch-context → session.update({activeShopId}) → hard-navigate /dashboard,
+ *   overlay z-[1070] ผ่าน ShopSwitchOverlay)
  */
 
 import AccountAvatar from '@/components/AccountAvatar'
+import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { useRouter } from 'next/navigation'
+import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 
@@ -49,8 +51,7 @@ type SessionUser = {
 }
 
 export default function AccountSwitcherSheet() {
-  const { data: session, update } = useSession()
-  const router = useRouter()
+  const { data: session } = useSession()
   const user = session?.user as SessionUser | undefined
 
   const hasBusinessMembership = user?.hasBusinessMembership === true
@@ -65,7 +66,7 @@ export default function AccountSwitcherSheet() {
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
-  const [switching, setSwitching] = useState(false)
+  const { switching, target, switchShop } = useShopSwitcher()
 
   useEffect(() => {
     // guard: fetch เฉพาะเมื่อมี business membership จริง (เหมือน UserDropdownDetailed)
@@ -89,44 +90,21 @@ export default function AccountSwitcherSheet() {
     }
   }, [hasBusinessMembership])
 
-  // handleSwitch — copy ตรงจาก UserDropdownDetailed (ตัด param locked ออก เพราะ caller
-  // กรอง locked ก่อนเรียกแล้ว — ดู handleRowClick ด้านล่าง)
-  const handleSwitch = async (shopId: string) => {
-    if (switching || shopId === activeShopId) return
-    setSwitching(true)
-    try {
-      const res = await fetch('/api/business/switch-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId }),
-      })
-      if (res.status === 403) {
-        pacesToast.error('ไม่มีสิทธิ์เข้าถึงบัญชีนี้แล้ว')
-        return
-      }
-      if (!res.ok) {
-        pacesToast.error('สลับบัญชีไม่สำเร็จ กรุณาลองใหม่')
-        return
-      }
-      // jwt callback จะ re-verify membership อีกชั้นก่อนเชื่อค่านี้จริง (API.md §4.15, 2-layer verify)
-      await update({ activeShopId: shopId })
-      router.refresh()
-    } catch {
-      pacesToast.error('สลับบัญชีไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setSwitching(false)
-    }
-  }
-
   // แถวแต่ละแถวมี 3 พฤติกรรม: active=ไม่ clickable, locked=toast อย่างเดียว (ไม่ยิง API,
-  // ไม่ปิด sheet), อื่น ๆ = สลับ + ปิด sheet ทันที (ไม่รอ fetch — flag ให้ QA ดู race กับ router.refresh)
-  function handleRowClick(shopId: string, locked: boolean, isActive: boolean) {
+  // ไม่ปิด sheet), อื่น ๆ = สลับ (useShopSwitcher) + ปิด sheet ทันที — overlay เต็มจอจะคลุม sheet
+  // ที่กำลังปิดอยู่แล้ว ไม่มี race ให้เห็น
+  function handleRowClick(
+    shopId: string,
+    locked: boolean,
+    isActive: boolean,
+    targetInfo: { name: string; kind: 'personal' | 'business'; logo: string | null },
+  ) {
     if (isActive) return
     if (locked) {
       pacesToast.error('บัญชีนี้ถูกล็อกชั่วคราว — ไม่สามารถสลับเข้าใช้งานได้')
       return
     }
-    handleSwitch(shopId)
+    switchShop(shopId, targetInfo)
     window.HSOverlay?.close('#account-switcher-sheet')
   }
 
@@ -189,7 +167,13 @@ export default function AccountSwitcherSheet() {
               {context?.personal && (
                 <button
                   type="button"
-                  onClick={() => handleRowClick(context.personal!.shopId, false, context.personal!.shopId === activeShopId)}
+                  onClick={() =>
+                    handleRowClick(context.personal!.shopId, false, context.personal!.shopId === activeShopId, {
+                      name: displayName,
+                      kind: 'personal',
+                      logo: user?.avatar ?? null,
+                    })
+                  }
                   disabled={switching || context.personal.shopId === activeShopId}
                   className="hover:bg-default-100 flex w-full items-center gap-3 rounded-lg px-2 py-3 text-start disabled:opacity-50"
                 >
@@ -209,7 +193,9 @@ export default function AccountSwitcherSheet() {
                   <button
                     key={b.shopId}
                     type="button"
-                    onClick={() => handleRowClick(b.shopId, b.locked, isActive)}
+                    onClick={() =>
+                      handleRowClick(b.shopId, b.locked, isActive, { name: b.shopName, kind: 'business', logo: b.logo })
+                    }
                     disabled={switching || isActive}
                     className="hover:bg-default-100 flex w-full items-center gap-3 rounded-lg px-2 py-3 text-start disabled:opacity-50"
                   >
@@ -236,18 +222,7 @@ export default function AccountSwitcherSheet() {
         </div>
       </div>
 
-      {/* overlay สลับบัญชี — spinner กลางจอ (copy ตรงจาก UserDropdownDetailed)
-          z-[1070] จำเป็น: สูงกว่า sheet/backdrop, ต่ำกว่า toast 1080 — HR7 exception (precedent PacesToastContainer z-[1080]) */}
-      {switching && (
-        <div
-          className="fixed inset-0 z-[1070] flex items-center justify-center bg-default-900/40 backdrop-blur-xs"
-          role="status"
-          aria-live="polite"
-          aria-label="กำลังสลับบัญชี"
-        >
-          <div className="border-primary size-12 animate-spin rounded-full border-4 border-t-transparent" />
-        </div>
-      )}
+      <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
     </>
   )
 }

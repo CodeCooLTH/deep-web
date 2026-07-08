@@ -1,13 +1,14 @@
 'use client'
 
 import AccountAvatar from '@/components/AccountAvatar'
+import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { Fragment, useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { pacesToast } from '@/lib/paces-toast'
+import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 
 type UserProfileMenuType = {
   label: string
@@ -41,8 +42,7 @@ const userProfileMenuData: UserProfileMenuType[] = [
 ]
 
 const UserDropdown = () => {
-  const { data: session, update } = useSession()
-  const router = useRouter()
+  const { data: session } = useSession()
   const user = (session as any)?.user as
     | {
         id: string
@@ -73,7 +73,7 @@ const UserDropdown = () => {
   const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
-  const [switching, setSwitching] = useState(false)
+  const { switching, target, switchShop } = useShopSwitcher()
 
   useEffect(() => {
     // guard: fetch เฉพาะเมื่อมี business membership จริง (กันยิง request เปล่าให้ทุก seller)
@@ -93,35 +93,17 @@ const UserDropdown = () => {
     }
   }, [hasBusinessMembership])
 
-  const handleSwitch = async (shopId: string, locked: boolean) => {
+  const handleSwitch = (
+    shopId: string,
+    locked: boolean,
+    targetInfo: { name: string; kind: 'personal' | 'business'; logo: string | null },
+  ) => {
     if (switching || shopId === activeShopId) return
     if (locked) {
       pacesToast.error('บัญชีนี้ถูกล็อกชั่วคราว — ไม่สามารถสลับเข้าใช้งานได้')
       return
     }
-    setSwitching(true)
-    try {
-      const res = await fetch('/api/business/switch-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId }),
-      })
-      if (res.status === 403) {
-        pacesToast.error('ไม่มีสิทธิ์เข้าถึงบัญชีนี้แล้ว')
-        return
-      }
-      if (!res.ok) {
-        pacesToast.error('สลับบัญชีไม่สำเร็จ กรุณาลองใหม่')
-        return
-      }
-      // jwt callback จะ re-verify membership อีกชั้นก่อนเชื่อค่านี้จริง (API.md §4.15, 2-layer verify)
-      await update({ activeShopId: shopId })
-      router.refresh()
-    } catch {
-      pacesToast.error('สลับบัญชีไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setSwitching(false)
-    }
+    switchShop(shopId, targetInfo)
   }
 
   const handleItemClick = (e: React.MouseEvent<HTMLAnchorElement>, item: UserProfileMenuType) => {
@@ -166,7 +148,13 @@ const UserDropdown = () => {
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => handleSwitch(context.personal!.shopId, false)}
+                onClick={() =>
+                  handleSwitch(context.personal!.shopId, false, {
+                    name: displayName,
+                    kind: 'personal',
+                    logo: user?.avatar ?? null,
+                  })
+                }
                 disabled={switching}
                 className="dropdown-item w-full flex items-center gap-3 text-start disabled:opacity-50"
               >
@@ -184,7 +172,7 @@ const UserDropdown = () => {
                   key={b.shopId}
                   type="button"
                   role="menuitem"
-                  onClick={() => handleSwitch(b.shopId, b.locked)}
+                  onClick={() => handleSwitch(b.shopId, b.locked, { name: b.shopName, kind: 'business', logo: b.logo })}
                   disabled={switching}
                   className="dropdown-item w-full flex items-center gap-3 text-start disabled:opacity-50"
                 >
@@ -251,18 +239,7 @@ const UserDropdown = () => {
       </div>
     </div>
 
-    {/* overlay สลับบัญชี — spinner กลางจอบอก user ว่ากำลังเปลี่ยนบัญชี (ระหว่าง await update() session)
-        z-[1070] จำเป็น: สูงกว่า dropdown/backdrop, ต่ำกว่า toast 1080 — HR7 exception (precedent PacesToastContainer z-[1080]) */}
-    {switching && (
-      <div
-        className="fixed inset-0 z-[1070] flex items-center justify-center bg-default-900/40 backdrop-blur-xs"
-        role="status"
-        aria-live="polite"
-        aria-label="กำลังสลับบัญชี"
-      >
-        <div className="border-primary size-12 animate-spin rounded-full border-4 border-t-transparent" />
-      </div>
-    )}
+    <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
     </>
   )
 }
