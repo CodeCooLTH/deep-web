@@ -137,8 +137,15 @@ export default async function SellerDashboardPage() {
       // avatarUrl: ใช้ logo ร้านก่อน → fallback owner.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
       // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ owner แทน; ไม่ใช่ PII sensitive
       avatarUrl = shop?.logo ?? owner?.avatar ?? null
-      // v10: shop public slug สำหรับ ShopLinkButtons (resolveBuyerBaseUrl()/{slug})
-      shopSlug = shop?.slug ?? null
+      // shopSlug (ชื่อเดิม) ตอนนี้เก็บ "path เต็ม" ของหน้าร้าน active shop สำหรับ ShopLinkButtons:
+      // BUSINESS → /b/{slug} (findShopBySlug กรอง kind=BUSINESS); PERSONAL → /u/{owner username}
+      // (owner = shop.userId — personal คือ seller เอง; business admin = username เจ้าของร้านจริง)
+      shopSlug =
+        active?.kind === 'BUSINESS' && shop?.slug
+          ? `/b/${shop.slug}`
+          : owner?.username
+            ? `/u/${owner.username}`
+            : null
 
       // ─── fetch recent orders — ใช้ service layer เดียวกับ orders list page ─────
       if (shop?.id) {

@@ -14,14 +14,16 @@ import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { pacesToast } from '@/lib/paces-toast'
 
 interface ShopLinkButtonsProps {
+  /** path เต็มของหน้าร้าน active shop (เช่น "/b/tanapat001" หรือ "/u/username") — คำนวณจาก dashboard/page.tsx */
   shopSlug: string | null
 }
 
 export default function ShopLinkButtons({ shopSlug }: ShopLinkButtonsProps) {
-  // ถ้าไม่มี slug (onboarding ยังไม่ครบ) ซ่อนปุ่มทั้งคู่
+  // ไม่มี path (onboarding ยังไม่ครบ / ไม่มี slug|username) ซ่อนปุ่มทั้งคู่
   if (!shopSlug) return null
 
-  const getUrl = () => `${resolveBuyerBaseUrl()}/${shopSlug}`
+  // shopSlug = path เต็ม (ขึ้นต้นด้วย /) แล้ว — ต่อกับ base ตรง ๆ (ไม่ใส่ / ซ้ำ)
+  const getUrl = () => `${resolveBuyerBaseUrl()}${shopSlug}`
 
   const handleCopy = async () => {
     const url = getUrl()
