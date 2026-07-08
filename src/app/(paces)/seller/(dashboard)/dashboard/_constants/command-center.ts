@@ -68,6 +68,10 @@ export type SalesSeries = {
   labels: string[]
   /** ยอดขายรวมต่อ bucket (บาท) — ยาวเท่า labels */
   values: number[]
+  /** ยอดขายส่วนที่ buyer ยืนยันแล้ว (status CONFIRMED) ต่อ bucket — ใช้แท่งสี stacked */
+  confirmedValues: number[]
+  /** ยอดขายส่วนที่ยังไม่ยืนยัน (PENDING/SHIPPED) ต่อ bucket — ใช้แท่งสี stacked */
+  unconfirmedValues: number[]
   /** ยอดรวมทั้งช่วง */
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */

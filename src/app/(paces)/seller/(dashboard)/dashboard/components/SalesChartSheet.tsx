@@ -6,8 +6,10 @@
  * Shell: copy pattern จาก orders/new/components/AddressSearchSheet.tsx
  *   (fixed inset-0 z-80 flex flex-col bg-card, header back+title, ESC ปิด, role="dialog")
  * Chart: Base: theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/FinancialOverview.tsx
- *   (plotOptions.bar structure) ผ่าน @/components/wrappers/ApexChart (HR10) — ห้าม import
- *   react-apexcharts ตรง; อ้าง in-app precedent SalesReport.tsx (ApexChart + getColor + build-options fn)
+ *   (plotOptions.bar + multi-series colors array pattern) ผ่าน @/components/wrappers/ApexChart (HR10)
+ *   — ห้าม import react-apexcharts ตรง; อ้าง in-app precedent SalesReport.tsx (ApexChart + getColor + build-options fn)
+ *   Stacked bar (ยืนยันแล้ว=น้ำเงิน / ยังไม่ยืนยัน=เหลือง): ใช้ ApexCharts `stacked: true` มาตรฐาน
+ *   บนโครง plotOptions.bar เดิมจาก FinancialOverview.tsx + สี token getColor('chart-primary')/getColor('warning')
  */
 import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -31,23 +33,26 @@ const THAI_MONTHS_SHORT = [
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
 ]
 
-/** สร้าง ApexOptions จาก SalesSeries จริง — bar chart แท่งสีทึบต่อแท่ง (distributed) */
+/**
+ * สร้าง ApexOptions จาก SalesSeries จริง — bar chart แท่ง stacked 2 สี:
+ * ยืนยันแล้ว (buyer confirm) = น้ำเงิน (chart-primary), ยังไม่ยืนยัน (PENDING/SHIPPED) = เหลือง (warning)
+ */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
-  const { labels, values, futureFromIndex } = series
-  const maxVal = values.length ? Math.max(...values) : 0
-  const maxIndex = maxVal > 0 ? values.indexOf(maxVal) : -1
+  const { labels, confirmedValues, unconfirmedValues } = series
   const isDaily = mode === 'daily'
 
   return {
-    series: [{ name: 'ยอดขาย', data: values }],
-    chart: { type: 'bar', height: 220, toolbar: { show: false } },
-    plotOptions: { bar: { columnWidth: '55%', borderRadius: 3, distributed: true } },
-    legend: { show: false },
+    series: [
+      { name: 'ยืนยันแล้ว', data: confirmedValues },
+      { name: 'ยังไม่ยืนยัน', data: unconfirmedValues },
+    ],
+    chart: { type: 'bar', height: 220, stacked: true, toolbar: { show: false } },
+    plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
+    legend: { show: true, position: 'top', fontSize: '11px' },
     dataLabels: { enabled: false },
-    // แท่งอนาคต (>=futureFromIndex) = เทา, แท่งสูงสุด = เข้ม, อื่น = primary — token ทั้งหมด (ห้าม hardcode hex)
-    colors: values.map((v, i) =>
-      i >= futureFromIndex ? getColor('chart-gray') : i === maxIndex ? getColor('chart-dark') : getColor('chart-primary'),
-    ),
+    // น้ำเงิน = ยืนยันแล้ว, เหลือง = ยังไม่ยืนยัน — token ทั้งหมด (ห้าม hardcode hex)
+    // หมายเหตุ: ไม่มี token 'chart-warning' โดยเฉพาะ ใช้ 'warning' (--color-warning เหลือง/amber) แทน
+    colors: [getColor('chart-primary'), getColor('warning')],
     xaxis: {
       categories: labels,
       axisBorder: { show: false },

@@ -24,6 +24,10 @@ export interface SalesSeries {
   labels: string[]
   /** ยอดขายรวมต่อ bucket (บาท) — ยาวเท่า labels */
   values: number[]
+  /** ยอดขายส่วนที่ buyer ยืนยันแล้ว (status CONFIRMED) ต่อ bucket — ใช้แท่งสี stacked */
+  confirmedValues: number[]
+  /** ยอดขายส่วนที่ยังไม่ยืนยัน (PENDING/SHIPPED) ต่อ bucket — ใช้แท่งสี stacked */
+  unconfirmedValues: number[]
   /** ยอดรวมทั้งช่วง */
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
@@ -85,10 +89,12 @@ export async function getSalesSeries(
   // query ช่วงปัจจุบัน + ช่วงก่อนหน้ารวมทีเดียว (prevGte..lt) แล้วแยกบัคเก็ต — ช่วงเล็ก (≤2 เดือน / 2 ปี)
   const rows = await prisma.order.findMany({
     where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte: prevGte, lt } },
-    select: { totalAmount: true, createdAt: true },
+    select: { totalAmount: true, createdAt: true, status: true },
   })
 
   const values = new Array<number>(bucketCount).fill(0)
+  const confirmedValues = new Array<number>(bucketCount).fill(0)
+  const unconfirmedValues = new Array<number>(bucketCount).fill(0)
   let total = 0
   let prevTotal = 0
 
@@ -98,12 +104,17 @@ export async function getSalesSeries(
     if (created >= gte && created < lt) {
       const shifted = new Date(created.getTime() + TZ_OFFSET_MS)
       const idx = bucketOf(shifted)
-      if (idx >= 0 && idx < bucketCount) values[idx] += amt
+      if (idx >= 0 && idx < bucketCount) {
+        values[idx] += amt
+        // แยกยอด buyer ยืนยันแล้ว vs ยังไม่ยืนยัน (PENDING/SHIPPED) สำหรับแท่งสี stacked
+        if (r.status === 'CONFIRMED') confirmedValues[idx] += amt
+        else unconfirmedValues[idx] += amt
+      }
       total += amt
     } else if (created >= prevGte && created < gte) {
       prevTotal += amt
     }
   }
 
-  return { labels, values, total, prevTotal, futureFromIndex }
+  return { labels, values, confirmedValues, unconfirmedValues, total, prevTotal, futureFromIndex }
 }
