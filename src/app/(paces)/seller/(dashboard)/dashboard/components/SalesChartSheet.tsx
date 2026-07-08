@@ -64,7 +64,27 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     },
     yaxis: { show: false },
     grid: { show: false },
-    tooltip: { y: { formatter: (v: number) => '฿' + v.toLocaleString('th-TH') } },
+    // custom tooltip: โชว์ ยืนยันแล้ว / ยังไม่ยืนยัน แยกกัน + รวม (พร้อมจุดสี token — ไม่ hardcode hex)
+    tooltip: {
+      shared: true,
+      intersect: false,
+      custom: ({ series, dataPointIndex, w }: { series: number[][]; dataPointIndex: number; w: { globals: { labels: string[] } } }) => {
+        const conf = Number(series?.[0]?.[dataPointIndex] ?? 0)
+        const unconf = Number(series?.[1]?.[dataPointIndex] ?? 0)
+        const fmt = (n: number) => '฿' + n.toLocaleString('th-TH')
+        const label = w?.globals?.labels?.[dataPointIndex] ?? ''
+        const dot = (c: string) =>
+          `<span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${c};margin-right:6px"></span>`
+        return (
+          `<div style="padding:6px 10px;font-size:12px;line-height:1.6">` +
+          `<div style="font-weight:600;margin-bottom:2px">${label}</div>` +
+          `<div>${dot(getColor('chart-primary'))}ยืนยันแล้ว ${fmt(conf)}</div>` +
+          `<div>${dot(getColor('warning'))}ยังไม่ยืนยัน ${fmt(unconf)}</div>` +
+          `<div style="font-weight:600;margin-top:4px">รวม ${fmt(conf + unconf)}</div>` +
+          `</div>`
+        )
+      },
+    },
   }
 }
 
