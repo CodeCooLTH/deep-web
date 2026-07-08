@@ -22,6 +22,7 @@ The Controller is the only role that may commit, update task state, or claim a t
 
 - **Independent tasks → parallel.** If two tasks touch different files and have no sequential dependency, dispatch both developer agents in the **same tool message** (multiple `Agent` calls).
 - **Dependent tasks → sequential.** If task B needs task A's output, run A → review → B.
+- **Trace the shared parent, not just the leaf target file (บทเรียน 2026-07-08 orders-new-desktop-parity).** ก่อนตัดสินว่า 2 task "คนละไฟล์ → parallel" ให้ถามต่อ task ว่า **"ต้องร้อย prop/state ผ่านไฟล์ไหนบ้างนอกจาก leaf target?"** ฟีเจอร์ที่ต้อง `setValue`/`control`/context ที่ owner อยู่ใน parent (เช่น form owner `OrderCreateForm` → `CartPanel` → leaf) จะแตะ parent นั้นด้วย — parent = **shared dependency ที่ซ่อนอยู่** ไฟล์ที่ต้องร้อยผ่านทั้งหมดนับเป็น target ของ task. ไฟล์ที่ ≥2 task แตะ = **ห้าม parallel** → sequential (A→review→commit→B) หรือจงใจรวมเป็น 1 task ตั้งแต่ plan (ประกาศ commit เดียวคุม ≥1 S-id). ห้าม dispatch dev หลายตัว working-tree เดียวแตะไฟล์เดียวกัน (ไม่มี worktree isolation = clobber risk); เลี่ยงไม่ได้ใช้ `isolation: worktree`.
 - **Review is never parallelized with the work it reviews.** Always developer → review, never developer alongside reviewer of the same thing.
 - **Batch size ceiling: 3 concurrent developer agents.** More than 3 overloads the Controller's integration step; break larger phases into sub-batches.
 
@@ -95,6 +96,7 @@ Type-check and code review alone do NOT prove a feature works. QA via Chrome Dev
 ### Operating rules
 
 - **The user runs the dev server themselves on port 4000.** QA agents must NOT start a server. If `curl http://deepth.local:4000/` fails, the agent reports back to the Controller instead of starting one.
+- **Controller pre-flight infra check ก่อน dispatch QA (บทเรียน 2026-07-08).** ก่อน dispatch `safepay-qa` ที่พึ่ง Chrome DevTools MCP: Controller เช็ค `ss -tlnp | grep 4000` (dev server รันไหม) + `getent hosts seller.deepth.local` (hosts มี entry ไหม) ก่อน. ไม่พร้อม → แจ้ง user เปิด dev server + hosts **ก่อน** dispatch (ไม่เสีย round QA ที่ block ทันที เพราะ Claude ห้าม start server / ห้ามแก้ hosts sudo เอง). user ไม่พร้อม/เลือก merge → บันทึก visual E2E เป็น carried debt ชัดเจนใน sign-off + retro + action item มีเจ้าภาพ (ห้ามปล่อยลอย).
 - **Always use the real dev subdomains** (`http://deepth.local:4000`, `seller.deepth.local:4000`, `admin.deepth.local:4000`) — NOT `localhost` — because `src/proxy.ts` routes by subdomain and cookies are per-host. See `feedback_qa_domains.md` memory.
 - **Seed data via direct Prisma** for complex setup (creating test sellers/products/orders). `.env.local` points to the Supabase instance the dev server uses — source it when running tsx scripts.
 - **OTP codes** are logged to the dev server stdout (`/tmp/dev.log` or wherever the user has the server writing) — tail the log to grab them.
