@@ -1,0 +1,407 @@
+---
+title: "SRS — Expense & Cost Tracking"
+owner: shinobu22
+status: draft
+module: M00016-ExpenseCostTracking
+version: "1.0"
+created: 2026-07-08
+tags: [feature, expense, cost, profit, pnl, seller, business-package, srs, technical]
+related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
+---
+
+> **โมดูล:** M00016-ExpenseCostTracking
+> **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
+> **เวอร์ชัน:** 1.0
+> **วันที่จัดทำ:** 2026-07-08
+> **สถานะ:** Draft
+> **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
+
+# SRS: Expense & Cost Tracking (Software Requirements Specification — Technical)
+
+---
+
+## 1. บทนำ (Introduction)
+
+### 1.1 วัตถุประสงค์ของเอกสาร
+
+เอกสารนี้แปลง Business Requirements ใน [[BRD]] (FR-EXP-01…11) ให้เป็นข้อกำหนดเชิงเทคนิคที่ implement ได้ตรง: data model เพิ่มเติม (`Product.cost`/`OrderItem.cost`/`Expense`/`Shop.staffCanViewFinance`), service layer design, สูตรคำนวณ P&L, **การ resolve "ownerId" ของ shop สำหรับ gate — ปิด open item เดียวที่ค้างจาก PRD §9.2/§3.7 ด้วยหลักฐานจากโค้ดจริง** (ดู TFR-009), validation 2 ชั้น (Valibot/Yup), enum/constant, และ NFR ผู้อ่านหลักคือ Developer (`safepay-developer`), QA (`safepay-qa`), Reviewer (`safepay-reviewer`), และ `safepay-database` (สำหรับ DATABASE.md ที่ต้องทำคู่ขนาน)
+
+### 1.2 ขอบเขตเชิงระบบ (System Scope)
+
+อยู่ในขอบเขต:
+- Prisma schema เพิ่มเติม (additive เท่านั้น) — `Product.cost`, `OrderItem.cost`, `Shop.staffCanViewFinance`, model ใหม่ `Expense` (รายละเอียด DDL/migration เป็นความรับผิดชอบของ `safepay-database` ผ่าน DATABASE.md — เอกสารนี้ให้แค่ **target shape**)
+- Service ใหม่: `src/services/expense.service.ts`, `src/services/pnl.service.ts`, `src/services/expense-access.service.ts`
+- Lib ใหม่: `src/lib/expense.ts` (constants), `src/lib/date-range.ts` (ช่วงเวลารายงาน)
+- Service ที่แก้ไข: `src/services/product.service.ts` (เพิ่ม field `cost`), `src/services/order.service.ts` (`createOrder` — snapshot `OrderItem.cost`)
+- Validation ที่แก้ไข/เพิ่ม: `src/lib/validations.ts`
+- API routes ใหม่: `src/app/api/expenses/route.ts`, `src/app/api/expenses/[id]/route.ts`, `src/app/api/expenses/report/route.ts`, `src/app/api/business/shops/[shopId]/finance-visibility/route.ts`
+- API routes ที่แก้ไข: `src/app/api/products/route.ts`, `src/app/api/products/[id]/route.ts` (gate field `cost`)
+- Route ใหม่ `src/app/(paces)/seller/(dashboard)/expenses/page.tsx` (**contract เท่านั้น** — pixel-level UI เป็นของ `safepay-ux`, Hard Rule 8)
+
+นอกขอบเขตเชิงระบบ (อ้างอิง PRD §5 / BRD §7):
+- Billing/paywall แยกของ feature นี้เอง — ไม่มี
+- Custom expense category, audit trail ของการแก้ไข Expense, export รายงาน, recurring expense, budget/แจ้งเตือนเกินงบ, per-order cost allocation, cross-shop P&L รวมยอด — Phase 2 ทั้งหมด
+- Migration DDL ฉบับเต็ม + index จริง — เป็นของ DATABASE.md (`safepay-database`) เอกสารนี้ระบุแค่ field/type/index **ที่ต้องมี** (requirement)
+
+### 1.3 เอกสารอ้างอิง (References)
+
+| เอกสาร | ความสัมพันธ์ |
+|--------|-------------|
+| [[PRD]] ของโมดูลนี้ | เป้าหมายธุรกิจ/KPI/personas + Decisions D-1…D-11 (§10.3) ที่มาของทุก TFR |
+| [[BRD]] ของโมดูลนี้ | FR-EXP-01…11, AC ทั้งหมด — ทุก TFR ในเอกสารนี้ trace กลับ |
+| `docs/SRS.md` §Data Model | SSOT schema ระดับระบบเดิม (Prisma) — เอกสารนี้ **เพิ่ม** field/model แบบ additive เท่านั้น ไม่แก้ของเดิม |
+| `docs/20 - Features/00008 - Business Account & Packages/{SRS,SDS,DATABASE}.md` | ที่มาของ `BusinessPackageSubscription`, `ShopMember`, `getSubscriptionStatus`, `requireActiveShop` ที่ฟีเจอร์นี้ reuse ตรง ๆ ทั้งหมด |
+| `docs/20 - Features/00012 - Shop Staff Invite Links` | ที่มาของ ShopMember(ADMIN) ผ่าน invite link (context ของ persona §2.2 ใน PRD) |
+| `docs/conventions/date-format.md` | UI แสดงวันที่ต้องผ่าน `formatDate`/`formatDateTH` เท่านั้น — คนละเรื่องกับ `src/lib/date-range.ts` ใหม่ (นั่นคือ date-math สำหรับ query ไม่ใช่ presentation) |
+
+### 1.4 นิยามและตัวย่อ (Definitions & Acronyms)
+
+| คำ/ตัวย่อ | ความหมาย |
+|-----------|----------|
+| **COGS** | Cost of Goods Sold — Σ (`OrderItem.cost` × `OrderItem.qty`) เฉพาะรายการที่ `cost` ไม่ null ของออเดอร์ CONFIRMED ในช่วงเวลา |
+| **Cost Snapshot** | การคัดลอก `Product.cost` ลง `OrderItem.cost` ณ ขณะสร้างออเดอร์ (pattern เดียวกับ `OrderItem.price`) |
+| **Access Gate (Expense)** | ขั้นตอนตัดสินสิทธิ์เข้าถึง Expense/P&L ที่ทำใน `resolveExpenseAccess()` (`expense-access.service.ts`) |
+| **ownerId** | `Shop.userId` — เจ้าของร้านตัวจริงตอนสร้าง (immutable) ใช้เป็นคีย์ของ `getSubscriptionStatus()` เสมอ **ไม่ว่า shop จะเป็น PERSONAL หรือ BUSINESS** (ดู TFR-009 สำหรับหลักฐาน) |
+| **Fixed Category** | หมวดค่าใช้จ่าย 7 ค่าคงที่ (RENT/PACKAGING/ADVERTISING/SHIPPING/SALARY/UTILITIES/OTHER) เก็บเป็น `String` (ไม่ใช่ Prisma `enum`) |
+| **staffCanViewFinance** | `Shop.staffCanViewFinance: Boolean` (default false) — toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูลการเงิน |
+
+---
+
+## 2. ภาพรวมสถาปัตยกรรม (Architecture Overview)
+
+### 2.1 บริบทระบบ (System Context)
+
+```mermaid
+flowchart LR
+    Seller[Seller Browser — seller.*] -->|GET /expenses| Page[expenses/page.tsx RSC]
+    Page -->|resolveExpenseAccess| AccessSvc[expense-access.service.ts]
+    AccessSvc --> BizSvc[business-package.service.ts getSubscriptionStatus]
+    AccessSvc --> ShopCtx[shop-context.ts requireActiveShop]
+    Page -->|GET report| ReportRoute[api/expenses/report]
+    Page -->|CRUD| ExpenseRoutes[api/expenses, api/expenses/id]
+    ReportRoute --> PnlSvc[pnl.service.ts]
+    ExpenseRoutes --> ExpSvc[expense.service.ts]
+    PnlSvc --> DB[(PostgreSQL — Order/OrderItem/Expense)]
+    ExpSvc --> DB
+    Seller -->|PATCH toggle| ToggleRoute[api/business/shops/id/finance-visibility]
+    ToggleRoute --> DB
+    Seller -->|create/edit product| ProductRoutes[api/products, api/products/id]
+    ProductRoutes -->|gate cost field| AccessSvc
+    ProductRoutes --> ProductSvc[product.service.ts]
+    OrderCreate[order.service.ts createOrder] -->|snapshot cost| DB
+```
+
+### 2.2 องค์ประกอบหลัก (Components)
+
+| Component | หน้าที่ | Submodule / Stack |
+|-----------|---------|-------------------|
+| **`expense-access.service.ts`** (ใหม่) | `resolveExpenseAccess()` — ตัดสินสิทธิ์ owner/admin+toggle/package-gate; `isCostEditAllowed()` — gate field `Product.cost` | `src/services/` |
+| **`expense.service.ts`** (ใหม่) | CRUD `Expense` scoped ด้วย `shopId`, `serializeExpense()` | `src/services/` |
+| **`pnl.service.ts`** (ใหม่) | `getPnlReport()` — คำนวณ Revenue/COGS/Gross/Expense/Net + missing-cost flag | `src/services/` |
+| **`date-range.ts`** (ใหม่) | `resolveDateRange()` — แปลง preset/custom เป็นช่วง query 2 แบบ (timestamptz vs plain date) | `src/lib/` |
+| **`expense.ts`** (ใหม่) | Constants: `EXPENSE_CATEGORIES`, `EXPENSE_CATEGORY_LABEL_TH` | `src/lib/` |
+| **`product.service.ts`** (แก้ไข) | เพิ่ม `cost` เข้า `CreateProductInput`/`UpdateProductInput`/`SerializedProduct` | `src/services/` |
+| **`order.service.ts`** (แก้ไข) | `createOrder()` — snapshot `Product.cost` → `OrderItem.cost` ในธุรกรรมเดียวกับ `price` | `src/services/` |
+| **`business-package.service.ts`** (reuse, ไม่แก้) | `getSubscriptionStatus(ownerId)` | `src/services/` |
+| **`shop-context.ts`** (reuse, ไม่แก้) | `requireActiveShop(session)` — คืน shop เต็ม + role (OWNER/ADMIN) + locked state | `src/lib/` |
+
+### 2.3 มุมมองการ Deploy (Deployment View)
+
+ไม่มีการเปลี่ยนแปลง — Vercel serverless (Next.js 16) เดิม, Postgres/Supabase เดิม (schema ต้องผ่าน migration แบบ additive — ดู §5.3 + DATABASE.md)
+
+---
+
+## 3. ข้อกำหนดเชิงฟังก์ชันเชิงเทคนิค (Technical Functional Requirements)
+
+### TFR-001: `Product.cost` — Optional Cost Field + Edit Gate
+- **Trace to:** FR-EXP-01
+- **คำอธิบายเชิงเทคนิค:** เพิ่ม `cost: Decimal(12,2)?` ที่ `Product` (nullable, additive). `CreateProductInput`/`UpdateProductInput` (`product.service.ts`) เพิ่ม `cost?: number | null` (`undefined` = ไม่แตะ, `null` = ล้างค่า, ตัวเลข = ตั้งค่า — pattern เดียวกับ `lowStockThreshold`/`stockQty`). `SerializedProduct` เพิ่ม `cost: number | null`. **Gate การแก้ไข (AC-05):** ทุก route ที่รับ field `cost` (`POST /api/products`, `PATCH /api/products/[id]`) ต้องเรียก `isCostEditAllowed(shop)` ก่อนยอมรับค่า — ถ้าไม่ ACTIVE ต้อง reject ด้วย `403 COST_REQUIRES_BUSINESS_PACKAGE` (defense-in-depth ชั้น backend คู่กับ disabled field ฝั่ง UI ที่ safepay-ux ออกแบบ)
+- **Precondition:** `shop` ที่ query มาต้องมี `userId` (สำหรับ `isCostEditAllowed`)
+- **Postcondition:** สินค้าที่ไม่เคยตั้ง `cost` ทำงานเหมือนเดิมทุกประการ (zero-regression); สินค้าที่ตั้ง `cost` ไว้ก่อนแล้ว package lapse ภายหลัง — **ค่า `cost` เดิมไม่ถูกลบ** (แค่แก้ไม่ได้อีก จนกว่า package ACTIVE อีกครั้ง — เหตุผลเดียวกับ FR-EXP-11-AC-03 ที่ไม่ลบข้อมูล Expense เมื่อ lock)
+- **Error/Edge cases:** `cost < 0` → validation reject (Valibot `minValue(0)`, ต่างจาก `price` ที่ `minValue(0.01)` เพราะ `cost` อนุญาต 0 ได้ — สินค้าแจกฟรี/ต้นทุนเป็นศูนย์เป็นไปได้จริง)
+
+### TFR-002: `OrderItem.cost` — Snapshot ที่จุดสร้างออเดอร์
+- **Trace to:** FR-EXP-02
+- **คำอธิบายเชิงเทคนิค:** เพิ่ม `cost: Decimal(12,2)?` ที่ `OrderItem` (nullable, additive) ใน `createOrder()` (`order.service.ts`) — หลังจาก `resolvedItems` ถูก resolve ครบ (รวมกรณี Quick-Create auto-create product ใหม่จาก manual line item, บรรทัด ~148-172 ของโค้ดปัจจุบัน) ให้ query `Product.cost` ของทุก `productId` ที่ปรากฏใน `resolvedItems` ภายใน **transaction เดียวกัน** แล้ว map เข้า `itemsCreateData`: `cost: item.productId ? (costMap.get(item.productId) ?? null) : null`. Auto-created product จาก Quick-Create จะไม่มี `cost` ตั้งไว้ (ไม่ส่งผ่าน `tx.product.create`) → `costMap` ได้ `null` โดยธรรมชาติ ตรงกับ AC-02/AC-03 อยู่แล้วโดยไม่ต้อง branch พิเศษ
+- **Precondition:** ต้องอยู่ใน `prisma.$transaction` เดียวกับที่สร้าง `Order`+`OrderItem` (retry-loop เดิมของ `createOrder` ครอบทั้งก้อนอยู่แล้ว — TD-001 ของ order.service.ts เดิม)
+- **Postcondition:** แก้ `Product.cost` ทีหลังไม่กระทบ `OrderItem.cost` ที่ snapshot ไปแล้ว (immutable หลังสร้าง — ไม่มี code path ใดที่ update `OrderItem.cost` ของแถวที่มีอยู่แล้ว)
+- **Error/Edge cases:** รายการที่ `productId` เป็น undefined (manual line item ที่ resolve ไม่ผ่าน Quick-Create — เช่น `name` ว่าง ตามโค้ดเดิมบรรทัด 151) → `cost: null` เสมอ
+
+### TFR-003: สร้าง Expense
+- **Trace to:** FR-EXP-03
+- **คำอธิบายเชิงเทคนิค:** `createExpense(shopId, createdByUserId, data)` (`expense.service.ts`) — `data: { category: ExpenseCategory; amount: number; expenseDate: Date; note?: string | null }`. `POST /api/expenses` (route ใหม่): auth session required → `resolveExpenseAccess(session)` → ถ้าไม่ `GRANTED` → error ตาม decision (ดู TFR-009/010/011) → validate body ผ่าน `CreateExpenseSchema` → ถ้า `expenseDate` ไม่ถูกส่งมา ใช้ `todayThaiIsoDate()` (`date-range.ts`) แปลงเป็น `Date` ผ่าน `parseIsoDateToUtcMidnight()` → เรียก service
+- **Precondition:** `resolveExpenseAccess` ต้อง `GRANTED`
+- **Postcondition:** `Expense` ผูก `shopId` ของ active shop เสมอ (server-derived, ไม่รับจาก client body)
+- **Error/Edge cases:** `amount ≤ 0` หรือ `category` ไม่อยู่ใน fixed list → `400` (Valibot reject ทั้งคู่)
+
+### TFR-004: แก้ไข/ลบ Expense (Ownership Scoping)
+- **Trace to:** FR-EXP-04
+- **คำอธิบายเชิงเทคนิค:** `updateExpense(expenseId, data)`/`deleteExpense(expenseId)` (`expense.service.ts`) เป็น "dumb" service (ไม่ตรวจสิทธิ์เอง) — ownership check ทำที่ route (`PATCH`/`DELETE /api/expenses/[id]`) ตาม pattern เดียวกับ `PATCH /api/products/[id]`: `getExpenseById(id)` → ถ้าไม่พบ **หรือ** `expense.shopId !== active.shop.id` → คืน `404` เดียวกันทั้งคู่ (ไม่ leak ว่ามี record นี้จริงหรือไม่ — ตรง AC-03 "ไม่ leak")
+- **Precondition:** `resolveExpenseAccess` ต้อง `GRANTED` ก่อนถึงขั้นตอน scope-check ของ record
+- **Postcondition:** ลบเป็น hard-delete (ไม่มี soft-delete/audit ตาม BRD §7.1)
+- **Error/Edge cases:** แก้ id ใน URL ตรง ๆ ไปเป็นของร้านอื่น (ที่ตนก็มีสิทธิ์เข้าถึงในฐานะ owner ของอีกร้าน) → ยัง 404 เพราะ scope เทียบกับ **active shop เดียว** เท่านั้น (ไม่ใช่ "ทุกร้านที่ user เป็นเจ้าของ") — ป้องกัน cross-shop edit ผ่าน shop switcher โดยไม่ได้ตั้งใจ
+
+### TFR-005: Fixed Category (String Enum-Style)
+- **Trace to:** FR-EXP-05
+- **คำอธิบายเชิงเทคนิค:** `src/lib/expense.ts`:
+  ```ts
+  export const EXPENSE_CATEGORIES = [
+    'RENT', 'PACKAGING', 'ADVERTISING', 'SHIPPING', 'SALARY', 'UTILITIES', 'OTHER',
+  ] as const
+  export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
+  export const EXPENSE_CATEGORY_LABEL_TH: Record<ExpenseCategory, string> = {
+    RENT: 'ค่าเช่า', PACKAGING: 'ค่าแพ็คเกจ/บรรจุภัณฑ์', ADVERTISING: 'ค่าโฆษณา',
+    SHIPPING: 'ค่าขนส่ง', SALARY: 'เงินเดือน', UTILITIES: 'สาธารณูปโภค', OTHER: 'อื่นๆ',
+  }
+  ```
+  `Expense.category` เป็น `String` (ไม่ใช่ Prisma `enum`) ตาม convention `Order.status`/`Shop.kind` — validate ด้วย `v.picklist(EXPENSE_CATEGORIES)` ที่ backend และ Yup `oneOf(EXPENSE_CATEGORIES)` ที่ frontend เท่านั้น ไม่มี DB CHECK constraint (เพิ่ม/แก้หมวดในอนาคต = แก้ constant array ไม่ต้อง migration)
+- **Precondition/Postcondition:** ไม่มีช่องทางใดใน API ที่รับ category นอก 7 ค่านี้
+- **Error/Edge cases:** —
+
+### TFR-006: คำนวณ Revenue + COGS
+- **Trace to:** FR-EXP-06
+- **คำอธิบายเชิงเทคนิค:** `getPnlReport(shopId, range)` (`pnl.service.ts`) — query `Order` เดียว (`findMany`) ที่ `shopId`, `status: 'CONFIRMED'`, `createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt }`, `select: { id, totalAmount, items: { select: { cost, qty } } }` (nested relation select — ใช้ implicit FK index ของ `OrderItem.orderId`) แล้ว reduce ใน JS (pattern เดียวกับ `dashboard.service.ts::getSalesSeries` — findMany ช่วงเวลาแล้ว aggregate ฝั่ง app ไม่ใช้ `groupBy`) `revenue = Σ Number(o.totalAmount)`; `cogs = Σ (Number(item.cost) × item.qty)` เฉพาะ `item.cost != null`; `grossProfit = round2(revenue - cogs)`
+- **Precondition:** —
+- **Postcondition:** ผลลัพธ์ deterministic — เรียกซ้ำด้วย state DB เดียวกันได้ผลเดิมเสมอ (ไม่มี side-effect)
+- **Error/Edge cases:** ไม่มี order ใดเข้าเงื่อนไข → `revenue = cogs = grossProfit = 0`, `orderCount = 0` (ไม่ error — เหมือน `dashboard.service.ts` เดิม)
+
+### TFR-007: Missing-Cost Warning Flag
+- **Trace to:** FR-EXP-07
+- **คำอธิบายเชิงเทคนิค:** ระหว่าง reduce ใน TFR-006 — ถ้าเจอ `item.cost == null` อย่างน้อย 1 รายการ (ของ order ที่นับเข้า Revenue) → set `hasMissingCost = true` แล้ว `continue` ข้ามรายการนั้นจาก `cogs` accumulator (ไม่ default เป็น 0 — ตรง AC-03 "exclude ไม่ใช่ถือเป็นศูนย์")
+- **Precondition:** —
+- **Postcondition:** `hasMissingCost: boolean` เป็นส่วนหนึ่งของ response `GET /api/expenses/report` เสมอ — UI (safepay-ux ออกแบบภายหลัง) render คำเตือนกำกับ Gross/Net Profit เมื่อ `true`
+- **Error/Edge cases:** ทุกรายการมี `cost` ครบ → `hasMissingCost = false`
+
+### TFR-008: Total Expense + Net Profit
+- **Trace to:** FR-EXP-08
+- **คำอธิบายเชิงเทคนิค:** `pnl.service.ts` query คู่ขนาน (`Promise.all`) กับ TFR-006: `prisma.expense.aggregate({ where: { shopId, expenseDate: { gte: range.expenseRange.gte, lt: range.expenseRange.lt } }, _sum: { amount: true } })` → `totalExpense = Number(agg._sum.amount ?? 0)`; `netProfit = round2(grossProfit - totalExpense)`. **สำคัญ:** `range.expenseRange` **ไม่ใช่** boundary เดียวกับ `range.orderRange` เพราะ `Expense.expenseDate` เป็น `@db.Date` (ปฏิทินล้วน ไม่มี timezone) ในขณะที่ `Order.createdAt` เป็น timestamptz ที่ต้อง shift เข้า Thai TZ ก่อน bucket (ดู §5.1 + `date-range.ts` design — SDS §4.0 อธิบายละเอียด)
+- **Precondition:** —
+- **Postcondition:** response มีตัวเลขทั้ง 5 ค่าคู่กันเสมอในทุก request ที่สำเร็จ (AC-04)
+- **Error/Edge cases:** ไม่มี Expense record ในช่วง → `totalExpense = 0`, `netProfit = grossProfit` (ไม่ error, ตรง AC-03)
+
+### TFR-009: Owner Access — Resolve ownerId (ปิด Open Item จาก PRD §3.7/§9.2)
+- **Trace to:** FR-EXP-09
+- **คำอธิบายเชิงเทคนิค (grounding จากโค้ดจริง — ไม่ใช่สมมติฐาน):** `Shop.userId` คือ "owner-at-creation (immutable)" (comment ใน `prisma/schema.prisma` บรรทัด 78) — field นี้ตั้งครั้งเดียวตอนสร้าง shop (`ensurePersonalShop`/`createBusinessShop`) และเป็น **ownerId เดียวกันไม่ว่า `kind` จะเป็น `PERSONAL` หรือ `BUSINESS`** ยืนยันจากทุกจุดในโค้ดจริงที่ query owner ของ BUSINESS shop:
+  - `getSellerSubscriptionOverview()` (`subscription-overview.service.ts:99-107`) — `prisma.shop.findMany({ where: { userId, ... } })` และ `prisma.shop.count({ where: { userId, kind: 'BUSINESS', ... } })` — ใช้ `userId` ตรง ๆ ทั้ง 2 kind
+  - `business-package.service.ts` (ทุกฟังก์ชัน: `subscribeBusinessPackage`/`lockAllBusinessShops`/`reconcileBusinessLocksAfterQuotaChange`) — `where: { userId: ownerId, kind: 'BUSINESS' }` เสมอ
+  - `shop-member.service.ts` (`inviteShopMember`/`removeShopMember`/`cancelInvite`) — `shop.userId !== ownerId` = throw `NOT_OWNER` (ownership check ของ BUSINESS shop ใช้ `Shop.userId` ตรง ไม่เคย query ผ่าน `ShopMember(role='OWNER')`)
+  - Comment ใน `prisma/schema.prisma` บรรทัด 557 ยืนยันเพิ่ม: "ทุก Shop (PERSONAL/BUSINESS) มี `ShopMember(role=OWNER)` เสมอ 1 แถว" — เป็น **mirror ของ `Shop.userId`** ไม่ใช่ source of truth คู่ขนาน (ไม่มี ownership-transfer ใน MVP ตาม feature 00008 §5 out-of-scope → 2 ค่านี้ไม่มีทางไม่ตรงกัน)
+
+  **สรุป:** `ownerId = shop.userId` เป็นคำตอบที่ถูกต้องและ**ไม่ต้อง**ผ่าน `ShopMember(role=OWNER)` เพิ่มเติมตามที่ PRD §3.7 ตั้งคำถามไว้ — `resolveExpenseAccess()` (`expense-access.service.ts`) ใช้ `active.shop.userId` จาก `requireActiveShop(session)` ตรง ๆ (ซึ่งตัว `requireActiveShop` เองก็ verify `ShopMember` membership ของ **ผู้เรียก** อยู่แล้วสำหรับ BUSINESS shop — คนละหน้าที่กับการ resolve "ใครคือ owner ที่ถือ subscription")
+- **Precondition:** `requireActiveShop(session)` คืนค่าไม่ null (มี active shop จริง)
+- **Postcondition:** `role === 'OWNER'` → grant เต็มสิทธิ์ทันที ไม่ขึ้นกับ `staffCanViewFinance` (AC-01); ทุก query Expense/report กรองด้วย `shopId` ของ active shop เท่านั้น server-side (AC-02 — ไม่รับ shopId จาก client body ใด ๆ)
+- **Error/Edge cases:** ไม่มี active shop (seller ใหม่ก่อน layout auto-create Personal) → `resolveExpenseAccess` คืน `{ kind: 'NO_SHOP' }` → route ตอบ `404`
+
+### TFR-010: Toggle `staffCanViewFinance` + Admin Branch
+- **Trace to:** FR-EXP-10
+- **คำอธิบายเชิงเทคนิค:** เพิ่ม `Shop.staffCanViewFinance: Boolean @default(false)` (additive) `PATCH /api/business/shops/[shopId]/finance-visibility` (route ใหม่, owner-only — mirror guard ของ `api/business/shops/[shopId]/onboarding/route.ts`: query shop ด้วย `shopId` param, เช็ค `shop.kind === 'BUSINESS'` + `shop.userId === session.user.id` มิฉะนั้น `403 NOT_OWNER`) รับ body `{ staffCanViewFinance: boolean }` → `prisma.shop.update`. ใน `resolveExpenseAccess()` — เมื่อ `active.role === 'ADMIN'` (คืนมาจาก `requireActiveShop` ที่ query `ShopMember.role` จริงอยู่แล้ว) ต้องเช็ค `active.shop.staffCanViewFinance === true` มิฉะนั้นคืน `{ kind: 'STAFF_NOT_ALLOWED' }`
+- **Precondition:** เฉพาะ owner เท่านั้นที่เรียก toggle endpoint สำเร็จ (ไม่มี endpoint ให้ admin แก้ค่านี้เอง)
+- **Postcondition:** Shop ใหม่ทุกแถว (`ensurePersonalShop`/`createBusinessShop`) ได้ `staffCanViewFinance = false` จาก column default โดยอัตโนมัติ ไม่ต้องแก้ 2 ฟังก์ชันนี้เลย (AC-01)
+- **Error/Edge cases:** `STAFF_NOT_ALLOWED` ต้อง map เป็น `403` ที่ route **และ** หน้า `/expenses` (RSC) ต้อง **ไม่ render เมนู/ลิงก์** ไปหน้านี้เลยเมื่อ resolve ได้ผลนี้ (AC-04 "มองไม่เห็นเมนู/route เลย" — เป็นความรับผิดชอบของ sidebar/menu config ที่ safepay-ux ต้องออกแบบให้เช็ค role+toggle ก่อน render item เมนู "ค่าใช้จ่าย" — noted เป็น open item ให้ safepay-ux ใน §10)
+
+### TFR-011: Business Package ACTIVE Gate (+ Shop-Lock Defense-in-Depth)
+- **Trace to:** FR-EXP-11
+- **คำอธิบายเชิงเทคนิค:** `resolveExpenseAccess()` เรียก `getSubscriptionStatus(ownerId)` (reuse ตรง, ไม่แก้ `business-package.service.ts`) — `null` หรือ `status !== 'ACTIVE'` → `{ kind: 'PACKAGE_LOCKED' }`. **ส่วนขยาย (defense-in-depth เกิน PRD ระบุตรง ๆ แต่จำเป็นเพื่อความถูกต้อง):** เช็ค `active.locked` (จาก `requireActiveShop` — true เมื่อ shop นั้นถูก `packageLockedAt` ตั้งไว้ ไม่ว่าจะด้วยเหตุผลใดใน `SHOP_LOCK_REASON`) **ก่อน** เรียก `getSubscriptionStatus` เพราะกรณี `QUOTA_EXCEEDED_ADMIN_COUNT`/`QUOTA_EXCEEDED_BUSINESS_COUNT` ทำให้ shop เฉพาะแถวนั้นถูกล็อก **ทั้งที่ subscription ของ owner ยัง `ACTIVE`** อยู่ (เช่น owner downgrade tier แล้วมี business เกินโควตา) — shop ที่ถูกล็อกลักษณะนี้ต้องถือเป็น locked สำหรับ Expense feature ด้วยเช่นกัน (สอดคล้องกับหลักการเดิมของ feature 00008 ที่ locked shop = read-only ในทุก business feature ไม่ใช่แค่ subscription tier)
+- **Build-order note (ไม่ใช่ acceptance ของ production, ตาม PRD หมายเหตุท้าย §3.7):** ระหว่าง implement core (`expense.service.ts`/`pnl.service.ts`/CRUD) อนุญาตให้ `resolveExpenseAccess()` ถูกเรียกแบบ stub (`GRANTED` เสมอ) ในจุดทดสอบชั่วคราวได้ — แต่ **routes ทุกตัวต้องผูก gate จริงก่อน sign-off** (ไม่ merge ไป production ด้วย stub)
+- **Precondition:** —
+- **Postcondition:** entitlement เปลี่ยนจาก ACTIVE → LOCKED ระหว่างที่มีข้อมูลอยู่แล้ว → ข้อมูล Expense/`Product.cost`/`OrderItem.cost` **ไม่ถูกลบ** (แค่เข้าถึงไม่ได้ผ่าน `/expenses`/API — AC-03)
+- **Error/Edge cases:** `PACKAGE_LOCKED` ต้อง map เป็น `403` (ไม่ใช่ `404` เงียบ — ต้องแจ้งชัดว่าต้องมี Business Package ตาม AC-02) ทุก route ของ Expense/report/finance-visibility (ยกเว้น toggle endpoint เอง ที่ error code เป็น `NOT_OWNER` แยกต่างหากตาม TFR-010)
+
+---
+
+## 4. ข้อกำหนดส่วนต่อประสาน (Interface / API Specification)
+
+สัญญาเต็มอยู่ใน `API.md` ของโมดูลนี้ — สรุปเฉพาะ endpoint:
+
+### 4.1 API Endpoints (สรุป)
+
+| Method | Path | คำอธิบาย | Auth |
+|--------|------|----------|------|
+| POST | `/api/expenses` | สร้าง Expense | Session — `resolveExpenseAccess` GRANTED |
+| GET | `/api/expenses` | รายการ Expense (filter ช่วงเวลา optional) | Session — GRANTED |
+| PATCH | `/api/expenses/{id}` | แก้ไข Expense | Session — GRANTED + scope shopId |
+| DELETE | `/api/expenses/{id}` | ลบ Expense | Session — GRANTED + scope shopId |
+| GET | `/api/expenses/report` | รายงาน P&L | Session — GRANTED |
+| PATCH | `/api/business/shops/{shopId}/finance-visibility` | Toggle `staffCanViewFinance` | Session — owner-only |
+| POST | `/api/products` | สร้างสินค้า (**แก้ไข** — เพิ่ม field `cost` + gate) | Session — `requireActiveShop` |
+| PATCH | `/api/products/{id}` | แก้สินค้า (**แก้ไข** — เพิ่ม field `cost` + gate) | Session — owner ของ product |
+
+### 4.2 Sequence ของ flow สำคัญ (ตัวอย่างหนึ่งเดียว — ที่เหลือดู SDS §4)
+
+```mermaid
+sequenceDiagram
+    participant S as Seller Browser
+    participant P as expenses/page.tsx (RSC)
+    participant AS as expense-access.service.ts
+    participant PN as pnl.service.ts
+    participant DB as PostgreSQL
+
+    S->>P: GET /expenses
+    P->>AS: resolveExpenseAccess(session)
+    AS->>DB: requireActiveShop → shop + role
+    AS->>DB: getSubscriptionStatus(shop.userId)
+    AS-->>P: decision
+    alt GRANTED
+        P->>PN: getPnlReport(shopId, defaultRange)
+        PN->>DB: findMany Order + Expense.aggregate
+        DB-->>PN: rows
+        PN-->>P: PnlReport
+        P-->>S: render report + expense list (200)
+    else PACKAGE_LOCKED / STAFF_NOT_ALLOWED / NO_SHOP
+        P-->>S: render locked/upsell state (ไม่ query ข้อมูลจริงเพิ่ม)
+    end
+```
+
+---
+
+## 5. ข้อกำหนดด้านข้อมูล (Data Requirements)
+
+### 5.1 Data Model / Entities (target shape — DATABASE.md คือ SSOT ของ DDL จริง)
+
+| Entity | Field ใหม่ | ประเภท | อ่าน/เขียน |
+|--------|-----------|--------|-----------|
+| **Shop** | `staffCanViewFinance` | `Boolean @default(false)` | อ่าน (access gate) + เขียน (toggle endpoint, owner-only) |
+| **Product** | `cost` | `Decimal(12,2)?` | อ่าน (order snapshot, product form) + เขียน (product create/update, gate ด้วย `isCostEditAllowed`) |
+| **OrderItem** | `cost` | `Decimal(12,2)?` | เขียนครั้งเดียวตอนสร้าง (`createOrder`), อ่านอย่างเดียวหลังจากนั้น (immutable) |
+| **Expense** (ใหม่) | ทั้ง model | — | CRUD เต็มรูป scoped ด้วย `shopId` |
+
+**`Expense` model (target shape):**
+```prisma
+model Expense {
+  id              String   @id @default(uuid())
+  shopId          String
+  category        String   // fixed list: RENT/PACKAGING/ADVERTISING/SHIPPING/SALARY/UTILITIES/OTHER
+  amount          Decimal  @db.Decimal(12, 2)
+  expenseDate     DateTime // TIMESTAMP(3) ตาม DATABASE.md (ไม่ใช่ @db.Date) — 🛑 write ต้อง normalize เป็น UTC-midnight-of-calendar-date เสมอ (parseIsoDateToUtcMidnight), ห้ามเก็บ time component (ดู SDS TD-002)
+  note            String?
+  createdByUserId String   // plain field, relation + back-relation บน User ให้ safepay-database ตัดสินใจ (pattern StockMovement.actorUserId)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, expenseDate]) // hot path: list + P&L report ต่อร้าน
+}
+```
+
+### 5.2 ความสัมพันธ์ (ERD)
+
+```mermaid
+erDiagram
+    Shop ||--o{ Product : "shopId"
+    Shop ||--o{ Order : "shopId"
+    Shop ||--o{ Expense : "shopId"
+    Order ||--o{ OrderItem : "orderId"
+    Product ||--o{ OrderItem : "productId (nullable)"
+
+    Shop {
+        string id PK
+        string userId "owner-at-creation, immutable — ownerId ของทั้ง PERSONAL/BUSINESS"
+        boolean staffCanViewFinance "NEW default false"
+    }
+    Product {
+        string id PK
+        decimal cost "NEW nullable — ราคาทุนปัจจุบัน"
+    }
+    OrderItem {
+        string id PK
+        decimal cost "NEW nullable — snapshot ณ วันขาย"
+        int qty
+    }
+    Expense {
+        string id PK
+        string shopId FK
+        string category
+        decimal amount
+        date expenseDate
+        string note
+        string createdByUserId
+    }
+```
+
+### 5.3 Migration / Data Lifecycle
+
+ทุก field เป็น **additive** ล้วน (`Decimal?`/`Boolean @default(false)`/model ใหม่) — ไม่แตะ column เดิมของ `Product`/`OrderItem`/`Shop` **🛑 ก่อน implement ต้อง dispatch `safepay-database` ร่าง DATABASE.md ก่อนเสมอ** (Hard Rule 11) ครอบคลุม:
+- DDL จริงของ `Expense` model + migration script
+- Index ที่ **ต้องเพิ่ม** สำหรับ performance ของ feature นี้: `Expense(shopId, expenseDate)` (ระบุไว้แล้วใน §5.1) **และ** `Order(shopId, status, createdAt)` — **ปัจจุบัน Order model ไม่มี composite index นี้เลย** (ยืนยันจากการอ่าน `prisma/schema.prisma` โดยตรง มีแค่ `@@index([slipFileId])`/`@@index([customerId])`) ทำให้ query ของ TFR-006 (และ `dashboard.service.ts::getSalesSeries` ที่มี pattern เดียวกันอยู่ก่อนแล้ว) ทำ full/partial scan บน shop ที่มี order เยอะ — **นี่คือ performance gap ที่มีอยู่ก่อนฟีเจอร์นี้แล้ว แต่ feature นี้ทำให้ severity สูงขึ้น** เพราะ query ถี่กว่า (ทุกครั้งที่ seller เปลี่ยนช่วงเวลาดูรายงาน)
+- ยืนยันว่า `Customer`/`ShopMember`/`BusinessPackageSubscription` **ไม่ต้องแก้เลย** (reuse 100%)
+
+---
+
+## 6. ข้อกำหนดที่ไม่ใช่ฟังก์ชัน (Non-Functional Requirements)
+
+| ด้าน | ข้อกำหนด | เป้าหมายที่วัดได้ |
+|------|----------|-------------------|
+| **Performance** | Query P&L report ของช่วง ≤ 1 ปี | ต้องมี index `Order(shopId, status, createdAt)` (ดู §5.3) — ไม่ full-scan table |
+| **Performance** | Expense list/report query | index `Expense(shopId, expenseDate)` ครอบคลุมทั้ง filter + sort |
+| **Correctness** | สูตร P&L (PRD §4.3) ตรง 100% รวม edge case cost-ขาด | Unit test (Vitest) ต่อ `pnl.service.ts` ด้วย fixture ที่มี/ไม่มี `OrderItem.cost` null ปนกัน — ไม่ mock DB สำหรับ pure-calc part ถ้าแยก reducer ออกมาได้ |
+| **Correctness** | `date-range.ts` boundary (today/7d/30d/month/custom) | Unit test ตรง edge (ข้ามเดือน/ข้ามปี/custom range) — pure function ไม่ต้อง mock (pattern เดียวกับ `resolveOrderAccess` ของ feature 00015) |
+| **Reliability** | Cost snapshot เป็นส่วนหนึ่งของ transaction เดียวกับสร้าง order | 0% ของกรณีที่ order สร้างสำเร็จแต่ cost snapshot ขาดบางส่วน (all-or-nothing) |
+| **Security** | ทุก query Expense/cost/report กรอง `shopId` server-side | ไม่มี endpoint ใดรับ `shopId` จาก client body มาตัดสิน — ใช้ `active.shop.id` จาก `requireActiveShop` เท่านั้น |
+| **Security** | ข้อมูลการเงินไม่หลุดเข้า RSC flight payload ก่อนตัดสินสิทธิ์ | `expenses/page.tsx` ต้อง query `Expense`/`getPnlReport` **หลัง** `resolveExpenseAccess()` เป็น `GRANTED` เท่านั้น (pattern เดียวกับ `inventory/page.tsx` เดิม — "ห้าม query ข้อมูลจริงก่อนเช็คสิทธิ์") |
+| **Security** | `Product.cost` gate เขียนที่ backend ไม่ใช่แค่ UI disable | `403 COST_REQUIRES_BUSINESS_PACKAGE` เมื่อพยายามส่ง `cost` โดยไม่มี package ACTIVE ผ่าน API ตรง ๆ |
+| **Maintainability** | `getPnlReport`/`resolveDateRange` เป็น pure/testable | logic คำนวณแยกจาก I/O ให้มากที่สุด (query แล้ว reduce แยก step ชัดเจน) |
+
+---
+
+## 7. ข้อจำกัดทางเทคนิคและการพึ่งพา (Technical Constraints & Dependencies)
+
+### 7.1 ข้อจำกัดทางเทคนิค
+- ห้าม introduce framework ใหม่ — Prisma/Valibot/Yup/RSC เดิมทั้งหมด
+- ห้ามสร้าง billing/wallet ใหม่ — reuse `getSubscriptionStatus`/`BusinessPackageSubscription` 100%
+- `Expense.category` เป็น `String` ไม่ใช่ Prisma `enum` (ตาม convention ทั้งระบบ — กัน `ALTER TYPE`)
+- `date-range.ts` ต้องแยก boundary 2 ชุด (timestamptz vs plain date) — ห้ามใช้ boundary เดียวกันเผลอเรอ (จะทำให้ Expense ที่บันทึกดึกในวันนั้นตกช่วงผิดถ้าใช้ TZ-shift ทั้งที่ `expenseDate` ไม่มี time component)
+
+### 7.2 การพึ่งพาภายนอก/ภายใน
+
+| Dependency | ประเภท | ความเสี่ยง |
+|------------|--------|------------|
+| **`getSubscriptionStatus` (feature 00008)** | internal | ถ้า signature เปลี่ยนในอนาคต ฟีเจอร์นี้ต้อง sync |
+| **`requireActiveShop`/`resolveActiveShopContext` (`shop-context.ts`)** | internal | ให้ role+locked state — ถ้า schema ของ return type เปลี่ยน ต้องตาม |
+| **`createOrder()` (`order.service.ts`)** | internal | จุดแตะร่วมกับ feature อื่นจำนวนมาก (Inventory Add-on, Customer Directory) — ต้องแก้แบบ additive ไม่กระทบ logic เดิม (Quick-Create/stock-deduct/customer-link) |
+| **`Order(shopId, status, createdAt)` index** | internal (DATABASE.md) | ไม่มีอยู่ตอนนี้ — ต้อง dispatch `safepay-database` ก่อน merge เพื่อไม่ให้ query ช้าบน shop ที่มี order เยอะ |
+
+### 7.3 สมมติฐานทางเทคนิค (Assumptions)
+- `Shop.userId` เป็น ownerId ที่ถูกต้องของทั้ง PERSONAL/BUSINESS shop เสมอ (grounded — §TFR-009) — ไม่มี ownership-transfer/co-ownership ใน MVP ดังนั้นไม่ต้องจัดการ multi-owner
+- `requireActiveShop()` verify `ShopMember` membership ของผู้เรียกอยู่แล้วสำหรับ BUSINESS shop (ไม่ trust JWT เพียงอย่างเดียว) — `resolveExpenseAccess()` reuse ผลลัพธ์นี้ตรง ๆ ไม่ query ซ้ำ
+
+---
+
+## 8. ความเสี่ยงเชิงสถาปัตยกรรม (Architectural Risks)
+
+| ความเสี่ยง | ผลกระทบ | แนวทางลด |
+|-----------|---------|----------|
+| **ไม่มี index `Order(shopId, status, createdAt)`** | Query P&L ช้าบนร้านที่มี order เยอะ (ทวีคูณจาก dashboard เดิมที่มี gap นี้อยู่ก่อนแล้ว) | ต้อง dispatch `safepay-database` เพิ่ม index ก่อน sign-off (§5.3/§7.2) |
+| **Boundary 2 ชุดของ `date-range.ts` สับสน/ผิด** | Expense ตกช่วงผิดวัน (off-by-one จาก TZ) → ตัวเลข Net Profit ผิด | pure-function unit test ครอบทุก preset + custom range ก่อน sign-off (§6) |
+| **`isCostEditAllowed` ถูกข้ามที่ endpoint ใดเผลอ** | seller ที่ไม่มี package แก้ `cost` ได้ผ่าน API ตรง ๆ (bypass UI disable) | Reviewer grep gate: ทุก route ที่รับ `cost` ใน body ต้องมี call `isCostEditAllowed` (คู่กับ `stockQty`/`lowStockThreshold` guard ที่มี pattern เดียวกันอยู่แล้วใน route เดิม) |
+| **Cost snapshot เพิ่ม query ใน `createOrder` transaction** | latency เพิ่มเล็กน้อยต่อการสร้างออเดอร์ (query เพิ่ม 1 ครั้งดึง `Product.cost` ของทุก productId ที่เกี่ยวข้อง) | ใช้ `findMany({ where: { id: { in: productIds } } })` ครั้งเดียว (ไม่ query ทีละ item) |
+
+---
+
+## 9. Traceability Matrix
+
+| BRD FR-ID | SRS TFR-ID | Component | สถานะ |
+|-----------|------------|-----------|-------|
+| FR-EXP-01 | TFR-001 | `product.service.ts`, `validations.ts`, `expense-access.service.ts::isCostEditAllowed` | Draft |
+| FR-EXP-02 | TFR-002 | `order.service.ts::createOrder` | Draft |
+| FR-EXP-03 | TFR-003 | `expense.service.ts::createExpense`, `api/expenses/route.ts` | Draft |
+| FR-EXP-04 | TFR-004 | `expense.service.ts::updateExpense/deleteExpense`, `api/expenses/[id]/route.ts` | Draft |
+| FR-EXP-05 | TFR-005 | `lib/expense.ts`, `validations.ts` | Draft |
+| FR-EXP-06 | TFR-006 | `pnl.service.ts::getPnlReport` | Draft |
+| FR-EXP-07 | TFR-007 | `pnl.service.ts::getPnlReport` (hasMissingCost) | Draft |
+| FR-EXP-08 | TFR-008 | `pnl.service.ts::getPnlReport` (totalExpense/netProfit) | Draft |
+| FR-EXP-09 | TFR-009 | `expense-access.service.ts::resolveExpenseAccess` | Draft |
+| FR-EXP-10 | TFR-010 | `expense-access.service.ts`, `api/business/shops/[shopId]/finance-visibility/route.ts` | Draft |
+| FR-EXP-11 | TFR-011 | `expense-access.service.ts::resolveExpenseAccess` | Draft |
+
+---
+
+## 10. สรุป (Summary)
+
+เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **Expense & Cost Tracking** ครอบคลุม data model เพิ่มเติมแบบ additive ล้วน (`Product.cost`/`OrderItem.cost`/`Expense`/`Shop.staffCanViewFinance`), cost-snapshot logic ที่ `createOrder`, P&L calculation (`pnl.service.ts`) ด้วย dual date-boundary strategy, และที่สำคัญที่สุดคือ **ปิด open item เรื่อง ownerId resolution ของ BUSINESS shop** ด้วยหลักฐานโค้ดจริง (`Shop.userId` ใช้ได้ตรงทั้ง 2 kind ไม่ต้องผ่าน `ShopMember(role=OWNER)`)
+
+**ขอบเขตที่ครอบคลุม:** 3 service ใหม่ + 2 lib ใหม่, 2 service เดิมที่แก้ (product/order), 4 API route ใหม่ + 2 route เดิมที่แก้, schema เพิ่ม 4 จุด (additive)
+
+**ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions):**
+- Index `Order(shopId, status, createdAt)` — เสนอให้เพิ่มพร้อมกันตอน migration ของฟีเจอร์นี้ (ยืนยันกับ `safepay-database`)
+- UI/visual ของหน้า `/expenses` ทั้งหมด (form, report card, locked/upsell state, warning banner) — ต้องผ่าน `safepay-ux` gate ก่อน implement (Hard Rule 8) รวมถึง **เมนู sidebar "ค่าใช้จ่าย" ต้องซ่อนเมื่อ `resolveExpenseAccess` ไม่ใช่ `GRANTED`** (TFR-010 — ระบุ requirement ไว้แล้ว แต่ implementation ของเมนูเป็นของ safepay-ux/developer)
