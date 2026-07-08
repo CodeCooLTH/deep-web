@@ -16,6 +16,12 @@
      - Verified Green #28C76F = ความเชื่อใจที่ยืนยันแล้วเท่านั้น
      - Ink Plum #2F2B3D (ไม่ใช่ดำสนิท) · Cool Mist #F8F7FA พื้น · การ์ดขาว เงาฟุ้งผสมหมึก
      - Anuphan ทุก surface · sentence case · tap target ≥44px · no emoji (SVG icon เท่านั้น)
+
+     RESPONSIVE = container queries บน .frame (container-name: app) เพื่อให้
+     ปุ่มสลับ device (Mobile/Tablet/Desktop) เปลี่ยน layout ได้จริงในกรอบเดียว
+       · Mobile  < 768cqw : stack, info card 1-up, product 2-up
+       · Tablet  768–1199 : stack, info card 2-up, product 3-up
+       · Desktop ≥ 1200   : 2-col (sidebar 340 + main), product 3-up
      ============================================================ */
   :root {
     --violet: #7367F0;
@@ -47,7 +53,7 @@
   html { scroll-behavior: smooth; }
   body {
     font-family: 'Anuphan', 'Noto Sans Thai', system-ui, sans-serif;
-    background: var(--mist);
+    background: #edecf1;
     color: var(--ink);
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
@@ -59,7 +65,7 @@
   .mock-bar {
     position: sticky; top: 0; z-index: 50;
     background: var(--ink); color: #fff;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
     padding: 10px 20px; font-size: 13px;
   }
   .mock-bar strong { font-weight: 600; letter-spacing: 0.2px; }
@@ -70,43 +76,57 @@
     font-family: inherit; font-size: 12.5px; color: rgb(255 255 255 / 0.75);
     background: transparent; border: none; padding: 5px 11px; border-radius: 6px;
     cursor: pointer; transition: all 150ms var(--ease); white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px;
   }
   .seg button.active { background: #fff; color: var(--ink); font-weight: 600; }
+  .seg button svg { width: 14px; height: 14px; }
   .mock-bar .spacer { flex: 1; }
   .mock-bar .legend-toggle {
     font-family: inherit; font-size: 12.5px; color: #fff; cursor: pointer;
     background: rgb(255 255 255 / 0.12); border: none; padding: 6px 12px; border-radius: 6px;
   }
+  .device-label { font-size: 12px; opacity: 0.6; }
 
-  /* ---------- App frame ---------- */
-  .frame { max-width: 1160px; margin: 0 auto; }
+  /* ---------- Device stage ---------- */
+  .stage { padding: 24px 16px; display: flex; justify-content: center; }
+
+  /* ---------- App frame = container query context ---------- */
+  .frame {
+    width: 100%; max-width: 1160px; margin: 0 auto;
+    container-type: inline-size; container-name: app;
+    background: var(--mist);
+  }
+  /* device sizing — จำกัดความกว้าง container → container query ยิงตามขนาด device */
+  .frame[data-device="mobile"]  { max-width: 390px; }
+  .frame[data-device="tablet"]  { max-width: 834px; }
+  .frame[data-device="desktop"] { max-width: 1160px; }
+  .frame[data-device="mobile"], .frame[data-device="tablet"] {
+    box-shadow: var(--shadow-lg); border: 1px solid var(--ink-12); border-radius: 18px; overflow: clip;
+  }
 
   /* ---------- Simulated top nav (Vuexy front header, solid) ---------- */
-  .topnav {
-    background: var(--paper); box-shadow: var(--shadow-sm);
-    position: sticky; top: 44px; z-index: 40;
-  }
-  .topnav-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; gap: 16px; padding: 12px 20px; }
+  .topnav { background: var(--paper); box-shadow: var(--shadow-sm); }
+  .topnav-inner { display: flex; align-items: center; gap: 14px; padding: 12px 20px; }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; color: var(--violet); }
   .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--violet); }
   .topnav .spacer { flex: 1; }
   .topnav .nav-link { font-size: 14px; color: var(--ink-70); padding: 8px 12px; }
+  .topnav .nav-link.hide-narrow { display: none; }
 
   /* ============================================================
      BANNER — Trust tier gradient (สีตาม Tier Lists SSOT)
      ============================================================ */
   .banner {
-    height: 180px; position: relative; overflow: hidden;
+    height: 150px; position: relative; overflow: hidden;
     display: flex; align-items: flex-start; justify-content: space-between;
-    padding: 20px 24px;
+    padding: 18px 20px;
   }
-  /* tier gradients — สีอิงจาก SSOT: Classic ส้ม / Silver เทา / Gold ทอง / Diamond ฟ้า / Star ม่วง
-     ทำแบบนุ่ม ไม่ใช่ neon (anti-slop): base tone + overlay ละเอียด */
-  .banner[data-tier="classic"] { background: linear-gradient(120deg, #FF9F43 0%, #ffb873 55%, #ffd1a3 100%); }
-  .banner[data-tier="silver"]  { background: linear-gradient(120deg, #8b93a7 0%, #aab2c4 55%, #cdd3df 100%); }
-  .banner[data-tier="gold"]    { background: linear-gradient(120deg, #d4a017 0%, #e6b93e 50%, #f2d47a 100%); }
-  .banner[data-tier="diamond"] { background: linear-gradient(120deg, #00a3b8 0%, #34c3d6 55%, #8fe0ea 100%); }
-  .banner[data-tier="star"]    { background: linear-gradient(120deg, #5a4ee0 0%, #7367F0 50%, #9389f4 100%); }
+  /* B2 fix: ค่า gradient ตรงกับ getTierGradient() ใน src/lib/trust-tier.ts (SSOT) เป๊ะ — ห้าม hardcode ค่าใหม่ */
+  .banner[data-tier="classic"] { background: linear-gradient(135deg, #C2410C 0%, #F97316 45%, #FDBA74 100%); }
+  .banner[data-tier="silver"]  { background: linear-gradient(135deg, #475569 0%, #94A3B8 45%, #E2E8F0 100%); }
+  .banner[data-tier="gold"]    { background: linear-gradient(135deg, #B45309 0%, #F59E0B 45%, #FCD34D 100%); }
+  .banner[data-tier="diamond"] { background: linear-gradient(135deg, #0284C7 0%, #0EA5E9 45%, #7DD3FC 100%); }
+  .banner[data-tier="star"]    { background: linear-gradient(135deg, #6558E8 0%, #7367F0 45%, #A79DF5 100%); }
   .banner::after {
     content: ""; position: absolute; inset: 0;
     background: radial-gradient(circle at 85% -20%, rgb(255 255 255 / 0.35), transparent 45%);
@@ -121,34 +141,32 @@
   .tier-dots { display: inline-flex; gap: 4px; }
   .tier-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgb(255 255 255 / 0.4); }
   .tier-dots i.on { background: #fff; }
-  .banner-score {
-    position: relative; z-index: 1; text-align: right; color: #fff;
-  }
-  .banner-score .num { font-size: 34px; font-weight: 700; line-height: 1; }
-  .banner-score .lbl { font-size: 12px; opacity: 0.9; }
+  /* B4 fix: chip backdrop มืดหลังตัวเลข กัน contrast ตกบน gradient จาง (silver/gold/diamond/classic ปลายสว่าง) */
+  .banner-score { position: relative; z-index: 1; text-align: right; color: #fff; background: rgb(47 43 61 / 0.30); backdrop-filter: blur(6px); padding: 8px 14px; border-radius: 14px; }
+  .banner-score .num { font-size: 32px; font-weight: 700; line-height: 1.05; }
+  .banner-score .lbl { font-size: 12px; opacity: 0.92; }
 
   /* ============================================================
      IDENTITY HEADER CARD (overlap banner)
      ============================================================ */
   .identity {
-    background: var(--paper); margin: -56px 20px 0; border-radius: var(--radius);
-    box-shadow: var(--shadow-sm); padding: 20px 24px 22px; position: relative;
+    background: var(--paper); margin: -44px 14px 0; border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 16px 18px 18px; position: relative;
   }
-  .identity-top { display: flex; gap: 18px; align-items: flex-start; }
+  .identity-top { display: flex; gap: 14px; align-items: flex-start; }
+  /* B5 fix: avatar fallback = พื้นทึบสีเดียว (ไม่ใช่ gradient ม่วงตกแต่ง) initials สีหมึก อ่านง่าย */
   .avatar {
-    width: 104px; height: 104px; border-radius: 24px; flex-shrink: 0;
-    background: linear-gradient(135deg, #b3acf8, #7367F0); color: #fff;
+    width: 84px; height: 84px; border-radius: 50%; flex-shrink: 0;
+    background: #E7E5EF; color: var(--ink);
     display: flex; align-items: center; justify-content: center;
-    font-size: 40px; font-weight: 600; border: 4px solid var(--paper);
-    box-shadow: var(--shadow-md); margin-top: -46px; object-fit: cover;
-    overflow: hidden;
+    font-size: 32px; font-weight: 600; border: 4px solid var(--paper);
+    box-shadow: var(--shadow-md); margin-top: -40px; overflow: hidden;
   }
   .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .identity-main { flex: 1; min-width: 0; padding-top: 4px; }
   .name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .display-name { font-size: 22px; font-weight: 600; color: var(--ink); }
-  .shop-name { font-size: 15px; color: var(--ink-70); margin-top: 1px; }
-  .username { font-size: 14px; color: var(--ink-55); }
+  .display-name { font-size: 20px; font-weight: 600; color: var(--ink); }
+  .username { font-size: 14px; color: var(--ink-55); margin-top: 1px; }
 
   /* verified chip — สีเดียว (green) ตาม decision. ไม่แยกสีตาม level */
   .chip-verified {
@@ -179,7 +197,7 @@
   .btn {
     font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
     border: none; border-radius: var(--radius-sm); padding: 10px 20px;
-    display: inline-flex; align-items: center; gap: 7px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px;
     transition: all 150ms var(--ease);
   }
   .btn-primary { background: var(--violet); color: #fff; box-shadow: 0 2px 6px rgb(115 103 240 / 0.30); }
@@ -191,19 +209,20 @@
   .btn .soon { font-size: 11px; opacity: 0.8; }
 
   /* ============================================================
-     BODY GRID — 2 col desktop, stack mobile
+     BODY GRID
      ============================================================ */
-  .body-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px; align-items: start; }
+  .body-grid { display: grid; grid-template-columns: 1fr; gap: 14px; padding: 14px; align-items: start; }
+  .col-left, .col-right { display: grid; gap: 14px; align-items: start; }
+  .col-right { min-width: 0; }
 
   .card {
     background: var(--paper); border-radius: var(--radius);
-    box-shadow: var(--shadow-sm); padding: 20px; margin-bottom: 20px;
+    box-shadow: var(--shadow-sm); padding: 18px;
   }
-  .card:last-child { margin-bottom: 0; }
   .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
   .card-head h3 { font-size: 16px; font-weight: 600; color: var(--ink); }
-  .card-head .hico { color: var(--violet); display: flex; }
-  .card-head .more { margin-left: auto; font-size: 13px; color: var(--violet); }
+  /* nice-to-have #1: icon หัวการ์ดเป็นเทากลาง ไม่ใช่ม่วง (ม่วง = action/link/focus เท่านั้น) */
+  .card-head .hico { color: var(--ink-55); display: flex; }
 
   /* ---- Trust Score gauge ---- */
   .gauge-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; }
@@ -221,10 +240,7 @@
   /* ---- Verification checklist ---- */
   .verify-list { display: flex; flex-direction: column; gap: 10px; }
   .verify-item { display: flex; align-items: center; gap: 12px; }
-  .verify-icon {
-    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
+  .verify-icon { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .verify-item.done .verify-icon { background: var(--green-16); color: var(--green); }
   .verify-item.todo .verify-icon { background: var(--ink-08); color: var(--ink-55); }
   .verify-text { flex: 1; }
@@ -242,11 +258,9 @@
   .stat .v .star { color: var(--amber); }
   .stat .k { font-size: 12px; color: var(--ink-55); margin-top: 2px; }
   .stat + .stat { border-left: 1px solid var(--ink-08); }
-  .resp-line {
-    display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-top: 14px;
-    border-top: 1px solid var(--ink-08); font-size: 13px; color: var(--ink-70);
-  }
-  .resp-line svg { color: var(--green); }
+  .resp-line { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ink-08); font-size: 13px; color: var(--ink-70); }
+  /* nice-to-have #2: response-rate ไม่ใช่ verified/สำเร็จ → icon เทากลาง สงวนเขียวไว้กับ verified เท่านั้น */
+  .resp-line svg { color: var(--ink-55); }
 
   /* ---- About ---- */
   .about-bio { font-size: 14px; color: var(--ink-70); line-height: 1.6; }
@@ -256,17 +270,10 @@
 
   /* ---- Platform reputation (PLACEHOLDER) ---- */
   .placeholder-card { position: relative; }
-  .ribbon {
-    position: absolute; top: 14px; right: 14px;
-    background: var(--amber-16); color: #b36700; font-size: 11px; font-weight: 600;
-    padding: 3px 9px; border-radius: 9999px;
-  }
+  .ribbon { position: absolute; top: 14px; right: 14px; background: var(--amber-16); color: #b36700; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 9999px; }
   .plat-list { display: flex; flex-direction: column; gap: 12px; }
   .plat-item { display: flex; align-items: center; gap: 12px; }
-  .plat-logo {
-    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff;
-  }
+  .plat-logo { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; }
   .plat-logo.shopee { background: #EE4D2D; }
   .plat-logo.lazada { background: #0F146D; }
   .plat-logo.tiktok { background: #010101; }
@@ -278,48 +285,32 @@
   .finePrint { font-size: 11.5px; color: var(--ink-55); margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--ink-12); line-height: 1.5; }
 
   /* ---- Products ---- */
+  .prod-section { min-width: 0; }  /* B1: wrapper ธรรมดา ไม่ใช่ card — สินค้าแต่ละใบเป็น card เดียว */
   .section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 17px; font-weight: 600; color: var(--ink); }
-  .section-title .sico { color: var(--violet); display: flex; }
+  .section-title .sico { color: var(--ink-55); display: flex; }
   .section-title .pin { color: var(--amber); }
   .section-title .cnt { margin-left: auto; font-size: 13px; font-weight: 400; color: var(--ink-55); }
-  .prod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .prod {
-    background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow-sm);
-    overflow: hidden; transition: box-shadow 200ms var(--ease), transform 200ms var(--ease);
-    display: flex; flex-direction: column;
-  }
+  .prod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .prod { background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; transition: box-shadow 200ms var(--ease), transform 200ms var(--ease); display: flex; flex-direction: column; }
   .prod:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
-  .prod-img { aspect-ratio: 1; background: linear-gradient(135deg, #eceaf5, #dedce4); position: relative; }
+  .prod-img { aspect-ratio: 1; background: var(--mist); position: relative; }
   .prod-img img { width: 100%; height: 100%; object-fit: cover; }
-  .prod-pin {
-    position: absolute; top: 8px; left: 8px; background: rgb(47 43 61 / 0.55); color: #fff;
-    width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    backdrop-filter: blur(4px);
-  }
+  .prod-pin { position: absolute; top: 8px; left: 8px; background: rgb(47 43 61 / 0.55); color: #fff; width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
   .prod-body { padding: 12px; display: flex; flex-direction: column; flex: 1; }
   .prod-name { font-size: 14px; color: var(--ink); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 39px; }
   .prod-price { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 6px; }
-  .prod-ask {
-    margin-top: 10px; width: 100%; justify-content: center; padding: 8px; font-size: 13.5px;
-    min-height: 40px; background: var(--violet-16); color: var(--violet); border: none; border-radius: var(--radius-sm);
-    font-family: inherit; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-    transition: background 150ms var(--ease);
-  }
+  /* B3 fix: tap target ≥44px */
+  .prod-ask { margin-top: 10px; width: 100%; justify-content: center; padding: 8px; font-size: 13.5px; min-height: 44px; background: var(--violet-16); color: var(--violet); border: none; border-radius: var(--radius-sm); font-family: inherit; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 150ms var(--ease); }
   .prod-ask:hover { background: var(--violet-24); }
 
   .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-55); }
   .empty-state svg { color: var(--ink-22); margin: 0 auto 12px; }
   .empty-state .t { font-size: 15px; }
 
-  /* mini footer */
   .mini-footer { text-align: center; padding: 24px 16px; border-top: 1px solid var(--ink-08); font-size: 13px; color: var(--ink-55); }
 
   /* ---------- Data legend panel ---------- */
-  .legend-panel {
-    position: fixed; right: 20px; bottom: 20px; width: 340px; max-height: 70vh; overflow-y: auto;
-    background: var(--paper); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 18px 20px;
-    z-index: 60; display: none; font-size: 13px;
-  }
+  .legend-panel { position: fixed; right: 20px; bottom: 20px; width: 340px; max-height: 70vh; overflow-y: auto; background: var(--paper); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 18px 20px; z-index: 60; display: none; font-size: 13px; }
   .legend-panel.open { display: block; }
   .legend-panel h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
   .legend-panel .close { position: absolute; top: 14px; right: 14px; cursor: pointer; color: var(--ink-55); background: none; border: none; }
@@ -333,33 +324,51 @@
   .lg-item .txt b { color: var(--ink); font-weight: 600; }
 
   /* ============================================================
-     RESPONSIVE
+     CONTAINER QUERIES — 3 device tiers (บน .frame)
      ============================================================ */
-  @media (max-width: 900px) {
-    .body-grid { grid-template-columns: 1fr; }
-    .prod-grid { grid-template-columns: repeat(3, 1fr); }
+  /* ---- TABLET: ≥768cqw ---- */
+  @container app (min-width: 768px) {
+    .topnav .nav-link.hide-narrow { display: block; }
+    .banner { height: 190px; padding: 22px 26px; }
+    .banner-score .num { font-size: 36px; }
+    .identity { margin: -52px 20px 0; padding: 20px 24px 22px; }
+    .avatar { width: 104px; height: 104px; font-size: 40px; margin-top: -46px; border-radius: 50%; }
+    .display-name { font-size: 22px; }
+    .actions { max-width: 420px; }
+    .body-grid { padding: 20px; gap: 20px; }
+    .col-left, .col-right { gap: 20px; }
+    .col-left { grid-template-columns: 1fr 1fr; }      /* info card 2-up */
+    .col-left .card.span2 { grid-column: 1 / -1; }     /* gauge เต็มแถวบน */
+    .prod-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }  /* product 3-up */
   }
-  @media (max-width: 600px) {
-    .banner { height: 150px; }
-    .identity { margin: -48px 12px 0; padding: 16px 16px 18px; }
-    .identity-top { gap: 14px; }
-    .avatar { width: 84px; height: 84px; font-size: 32px; margin-top: -40px; border-radius: 20px; }
-    .display-name { font-size: 19px; }
-    .body-grid { padding: 14px; gap: 14px; }
-    .card { margin-bottom: 14px; }
-    .prod-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .actions { flex-wrap: wrap; }
-    .actions .btn { flex: 1; justify-content: center; }
-    .topnav .nav-link { display: none; }
-    .legend-panel { left: 12px; right: 12px; width: auto; }
+  /* ---- DESKTOP: ≥1200cqw ---- */
+  @container app (min-width: 1200px) {
+    .body-grid { grid-template-columns: 340px 1fr; }   /* sidebar + main */
+    .col-left { grid-template-columns: 1fr; }           /* sidebar กลับเป็นคอลัมน์เดียว */
+    .col-left .card.span2 { grid-column: auto; }
   }
 </style>
 </head>
-<body data-page="u" data-tier="gold">
+<body data-tier="gold">
 
 <!-- ========== MOCKUP CONTROL BAR (ไม่ใช่ส่วนของดีไซน์จริง) ========== -->
 <div class="mock-bar">
   <strong>Deep · Public Profile Mockup</strong>
+  <div class="grp">
+    <span>Device</span>
+    <div class="seg" id="deviceSeg">
+      <button data-device="mobile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>Mobile
+      </button>
+      <button data-device="tablet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/></svg>Tablet
+      </button>
+      <button data-device="desktop" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Desktop
+      </button>
+    </div>
+    <span class="device-label" id="deviceLabel">1160px</span>
+  </div>
   <div class="grp">
     <span>หน้า</span>
     <div class="seg" id="pageSeg">
@@ -378,21 +387,22 @@
     </div>
   </div>
   <div class="spacer"></div>
-  <button class="legend-toggle" id="legendBtn">Data legend (live / ตัวอย่าง)</button>
+  <button class="legend-toggle" id="legendBtn">Data legend</button>
 </div>
 
-<!-- ========== simulated front nav ========== -->
-<div class="topnav">
-  <div class="topnav-inner">
-    <div class="brand"><span class="dot"></span>Deep</div>
-    <div class="spacer"></div>
-    <a class="nav-link">หน้าแรก</a>
-    <a class="nav-link">ราคา</a>
-    <a class="btn btn-tonal" style="min-height:38px;padding:7px 16px;font-size:14px;">เข้าสู่ระบบ</a>
+<div class="stage">
+<div class="frame" id="frame" data-device="desktop">
+  <!-- ========== simulated front nav ========== -->
+  <div class="topnav">
+    <div class="topnav-inner">
+      <div class="brand"><span class="dot"></span>Deep</div>
+      <div class="spacer"></div>
+      <a class="nav-link hide-narrow">หน้าแรก</a>
+      <a class="nav-link hide-narrow">ราคา</a>
+      <a class="btn btn-tonal" style="min-height:44px;padding:9px 18px;font-size:14px;">เข้าสู่ระบบ</a>
+    </div>
   </div>
-</div>
 
-<div class="frame">
   <!-- ========== BANNER (tier gradient) ========== -->
   <div class="banner" id="banner" data-tier="gold">
     <div class="banner-tier">
@@ -442,11 +452,11 @@
         </div>
 
         <div class="actions">
-          <button class="btn btn-primary">
+          <button class="btn btn-primary" style="flex:1;">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>
             แชทกับร้าน
           </button>
-          <button class="btn btn-ghost" disabled>
+          <button class="btn btn-ghost" style="flex:1;" disabled>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
             ติดตาม <span class="soon">เร็ว ๆ นี้</span>
           </button>
@@ -459,8 +469,8 @@
   <div class="body-grid">
     <!-- ===== LEFT COLUMN ===== -->
     <div class="col-left">
-      <!-- Trust Score gauge -->
-      <div class="card">
+      <!-- Trust Score gauge (span เต็มแถวบน tablet) -->
+      <div class="card span2">
         <div class="card-head">
           <span class="hico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span>
           <h3>คะแนนความน่าเชื่อถือ</h3>
@@ -566,15 +576,14 @@
 
     <!-- ===== RIGHT COLUMN ===== -->
     <div class="col-right" id="rightCol">
-      <!-- Pinned products -->
-      <div class="card">
+      <!-- Pinned products (B1 fix: ไม่ห่อ .card — สินค้าแต่ละใบเป็น card อยู่แล้ว กันการ์ดซ้อนการ์ด) -->
+      <div class="prod-section">
         <div class="section-title">
           <span class="pin"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></span>
           สินค้าปักหมุด
           <span class="cnt">3 รายการ</span>
         </div>
         <div class="prod-grid">
-          <!-- product template x3 -->
           <div class="prod">
             <div class="prod-img"><span class="prod-pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></span></div>
             <div class="prod-body">
@@ -602,8 +611,8 @@
         </div>
       </div>
 
-      <!-- All products -->
-      <div class="card">
+      <!-- All products (B1 fix: ไม่ห่อ .card) -->
+      <div class="prod-section">
         <div class="section-title">
           <span class="sico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
           สินค้าทั้งหมด
@@ -621,15 +630,15 @@
     </div>
   </div>
 
-  <!-- buyer-only empty state (ซ่อนไว้ — แสดงเมื่อ isShop=false) -->
   <div class="mini-footer">นโยบายความเป็นส่วนตัว · © Deep 2569</div>
+</div>
 </div>
 
 <!-- ========== DATA LEGEND PANEL ========== -->
 <div class="legend-panel" id="legendPanel">
   <button class="close" id="legendClose"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
   <h4>Data source — live vs ตัวอย่าง</h4>
-  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Trust banner + gauge</b> — trustScore + tier จาก <code>getTierLabel/Color</code> (SSOT Tier Lists)</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Trust banner + gauge</b> — trustScore + tier จาก getTierLabel/Color (SSOT Tier Lists)</span></div>
   <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Verified chip (สีเดียว)</b> — แสดงเมื่อ maxVerifyLevel≥1</span></div>
   <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Verification checklist</b> — ติ๊กตาม VerificationRecord APPROVED จริง (L1/L2/L3)</span></div>
   <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>ออเดอร์สำเร็จ</b> — COUNT(Order status=CONFIRMED)</span></div>
@@ -646,11 +655,12 @@
 
 <script>
   // ====== Tier data (สี/ชื่อ/dots/threshold อิง Tier Lists SSOT) ======
+  // color = mid-stop ของ getTierGradient() (SSOT) — ใช้กับ gauge stroke + tier-line
   const TIERS = {
-    classic: { name: 'Deep Classic', color: '#d98a2b', dots: 1, score: 48, next: { label: 'Deep Silver', pts: 12 } },
-    silver:  { name: 'Deep Silver',  color: '#8b93a7', dots: 2, score: 64, next: { label: 'Deep Gold', pts: 6 } },
-    gold:    { name: 'Deep Gold',    color: '#d4a017', dots: 3, score: 74, next: { label: 'Deep Diamond', pts: 6 } },
-    diamond: { name: 'Deep Diamond', color: '#00a3b8', dots: 4, score: 85, next: { label: 'Deep Star', pts: 5 } },
+    classic: { name: 'Deep Classic', color: '#F97316', dots: 1, score: 48, next: { label: 'Deep Silver', pts: 12 } },
+    silver:  { name: 'Deep Silver',  color: '#94A3B8', dots: 2, score: 64, next: { label: 'Deep Gold', pts: 6 } },
+    gold:    { name: 'Deep Gold',    color: '#F59E0B', dots: 3, score: 74, next: { label: 'Deep Diamond', pts: 6 } },
+    diamond: { name: 'Deep Diamond', color: '#0EA5E9', dots: 4, score: 85, next: { label: 'Deep Star', pts: 5 } },
     star:    { name: 'Deep Star',    color: '#7367F0', dots: 5, score: 96, next: null },
   };
   const CIRC = 2 * Math.PI * 72;
@@ -663,21 +673,17 @@
     document.getElementById('bannerScore').textContent = t.score;
     document.getElementById('gaugeScore').textContent = t.score;
     document.getElementById('gaugeTier').textContent = 'ระดับ ' + t.name;
-    // dots
+    document.getElementById('gaugeTier').style.color = t.color;
     let dots = '';
     for (let i = 0; i < 5; i++) dots += '<i class="' + (i < t.dots ? 'on' : '') + '"></i>';
     document.getElementById('tierDots').innerHTML = dots;
-    // gauge
     const prog = document.getElementById('gaugeProg');
     prog.style.stroke = t.color;
     prog.setAttribute('stroke-dasharray', CIRC);
     prog.setAttribute('stroke-dashoffset', CIRC * (1 - t.score / 100));
-    // next tier
     const nt = document.getElementById('nextTier');
     if (t.next) nt.innerHTML = 'อีก <b>' + t.next.pts + '</b> แต้มถึง <b>' + t.next.label + '</b>';
     else nt.innerHTML = '<b>ถึงระดับสูงสุดแล้ว</b>';
-    // tier line color
-    document.getElementById('gaugeTier').style.color = t.color;
   }
 
   function applyPage(page) {
@@ -686,7 +692,6 @@
     document.getElementById('bizChip').style.display = isBiz ? 'inline-flex' : 'none';
     document.getElementById('dispName').textContent = isBiz ? 'บริษัท กาญจนา เทรดดิ้ง จำกัด' : 'ร้านกาญจนาช้อป';
     document.getElementById('userAt').textContent = isBiz ? 'deepthailand.app/b/kanjana-trading' : '@kanjanashop';
-    // business มักผ่าน L3 จดทะเบียนธุรกิจ — ติ๊ก L3 ให้ done
     const l3 = document.getElementById('verifyL3');
     if (isBiz) {
       l3.className = 'verify-item done';
@@ -697,7 +702,12 @@
     }
   }
 
-  // wire segments
+  const DEVICE_W = { mobile: '390px', tablet: '834px', desktop: '1160px' };
+  function applyDevice(device) {
+    document.getElementById('frame').dataset.device = device;
+    document.getElementById('deviceLabel').textContent = DEVICE_W[device];
+  }
+
   document.getElementById('tierSeg').addEventListener('click', (e) => {
     const btn = e.target.closest('button'); if (!btn) return;
     document.querySelectorAll('#tierSeg button').forEach((b) => b.classList.remove('active'));
@@ -710,13 +720,18 @@
     btn.classList.add('active');
     applyPage(btn.dataset.page);
   });
-  // legend
+  document.getElementById('deviceSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    document.querySelectorAll('#deviceSeg button').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyDevice(btn.dataset.device);
+  });
   document.getElementById('legendBtn').addEventListener('click', () => document.getElementById('legendPanel').classList.toggle('open'));
   document.getElementById('legendClose').addEventListener('click', () => document.getElementById('legendPanel').classList.remove('open'));
 
-  // init
   applyTier('gold');
   applyPage('u');
+  applyDevice('desktop');
 </script>
 </body>
 </html>
