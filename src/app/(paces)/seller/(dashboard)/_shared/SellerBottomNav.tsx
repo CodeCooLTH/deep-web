@@ -42,7 +42,7 @@ const FAB_ACTIONS = [
   },
   {
     label: 'สร้างสินค้า',
-    href: '/products/new-v2',
+    href: '/products/new',
     icon: 'package-plus',
   },
   {

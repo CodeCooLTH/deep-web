@@ -26,7 +26,7 @@
  *   re-render opacity bug (บทเรียน OrderCardMenu 2026-06-15) แทนการเขียน raw hs-dropdown ใหม่
  * - คอลัมน์ "สถานะติดตาม" / "สถานะสต็อก": badge token ตาม Design Spec (bg-primary/15, bg-danger/15)
  * - updatedAt รับเป็น string ที่ parent format ด้วย formatDateTime แล้ว (RSC boundary — ไม่ format ซ้ำที่นี่)
- * - empty state (ไม่มี PHYSICAL product เลย): การ์ด + icon package + CTA /products/new-v2
+ * - empty state (ไม่มี PHYSICAL product เลย): การ์ด + icon package + CTA /products/new
  * - mobileCard: ผสม leading-thumbnail (ProductStockTable) เข้ากับโครง card list ของ WalletTransactionTable
  */
 
@@ -229,7 +229,7 @@ const InventoryManagementTable = ({ products, isPro = false }: Props) => {
             ยังไม่มีสินค้าประเภทจับต้องได้ — เพิ่มสินค้าก่อนเพื่อเริ่มจัดการสต็อก
           </p>
           <Link
-            href="/products/new-v2"
+            href="/products/new"
             className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-2 text-white"
           >
             <Icon icon="plus" className="text-base" />
