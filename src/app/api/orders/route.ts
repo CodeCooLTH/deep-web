@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateOrderSchema } from "@/lib/validations";
-import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError } from "@/services/order.service";
+import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
 import { requireActiveShop } from "@/lib/shop-context";
 
@@ -53,6 +53,13 @@ export async function POST(request: NextRequest) {
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json(
         { error: "ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)" },
+        { status: 400 },
+      );
+    }
+    // SECURITY: productId ที่ client ส่งมาไม่ใช่ของร้านนี้ (cross-shop) — fail-closed 400
+    if (e instanceof ProductNotInShopError) {
+      return NextResponse.json(
+        { error: "พบสินค้าที่ไม่ใช่ของร้านนี้ในคำสั่งซื้อ" },
         { status: 400 },
       );
     }

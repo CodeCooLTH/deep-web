@@ -28,6 +28,17 @@ export class ShippingAddressRequiredError extends Error {
   constructor() { super("SHIPPING_ADDRESS_REQUIRED"); this.name = "ShippingAddressRequiredError"; }
 }
 
+// SECURITY FIX (feature 00016 Unit 3 + ปิด pre-existing vuln feature 00009) —
+// productId ที่ client ส่งมาต้องเป็นของ shopId นี้เท่านั้น ไม่งั้น attacker (seller ร้านคู่แข่ง)
+// เอา productId จากหน้าร้าน public /b/[slug] ของร้านอื่นมาสร้าง order ในร้านตัวเองได้ ผลคือ
+// 1) cost snapshot ของคู่แข่งรั่วเข้า OrderItem.cost → เห็นใน P&L cogs ของ attacker (feature 00016)
+// 2) deductStockForOrderItems ตัด stock จริงของคู่แข่งได้ (feature 00009 pre-existing)
+// fail-closed: reject ทั้ง order ถ้ามี productId ใดไม่ใช่ของร้านนี้ (ไม่ silent-fallback เป็น
+// custom item เพราะ productId ผิด shop คือ malicious/malformed input ชัดเจน — UI จริงไม่เคยส่งแบบนี้)
+export class ProductNotInShopError extends Error {
+  constructor() { super("PRODUCT_NOT_IN_SHOP"); this.name = "ProductNotInShopError"; }
+}
+
 // charset เดียวกับ sms-code.service (ตัด 0/O/1/I) — 8 ตัว = 32^8 ≈ 1.1e12 (40-bit)
 const SHORT_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -86,10 +97,26 @@ export async function createOrder(shopId: string, data: {
     fulfillmentMode = "SHIPPED";
   }
 
+  // SECURITY: validate ownership ของ productId ทุกตัวที่ client ส่งมา (item.productId truthy)
+  // ต้องรันก่อน DB query ใด ๆ ที่ใช้ productId (รวม shippedProduct lookup ด้านล่าง) — กัน
+  // information oracle (fulfillmentMode ของ product ร้านอื่นรั่วผ่าน error-message ต่างกัน) และปิด
+  // cost/stock leak. read-only เลยไม่ต้องอยู่ใน tx, และเลี่ยงเช็คซ้ำทุก attempt retry.
+  // Quick-Create item ที่ไม่มี productId ข้ามจุดนี้ไปสร้างใหม่ในร้านตัวเองเหมือนเดิม (ไม่ต้อง validate)
+  if (productIds.length > 0) {
+    const ownedProducts = await prisma.product.findMany({
+      where: { id: { in: productIds }, shopId },
+      select: { id: true },
+    });
+    const ownedIds = new Set(ownedProducts.map((p) => p.id));
+    const hasForeignProduct = productIds.some((id) => !ownedIds.has(id));
+    if (hasForeignProduct) throw new ProductNotInShopError();
+  }
+
   // ตรวจ product จริงจาก DB — ถ้ามี product ใดที่ fulfillmentMode=SHIPPED → SHIPPED
+  // (ถึงจุดนี้ productIds ทุกตัวเป็นของ shopId นี้แล้ว — ผ่าน ownership validation ด้านบน)
   if (fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
     const shippedProduct = await prisma.product.findFirst({
-      where: { id: { in: productIds }, fulfillmentMode: "SHIPPED" },
+      where: { id: { in: productIds }, shopId, fulfillmentMode: "SHIPPED" },
       select: { id: true },
     });
     if (shippedProduct) {
@@ -104,6 +131,19 @@ export async function createOrder(shopId: string, data: {
     const a = data.shippingAddress;
     const hasEssentials = !!(a?.line1?.trim() && a?.province?.trim() && a?.postcode?.trim());
     if (!hasEssentials) throw new ShippingAddressRequiredError();
+  }
+
+  // SECURITY: validate ownership ของ productId ทุกตัวที่ client ส่งมา (item.productId truthy)
+  // ก่อนเข้า retry-loop — read-only เลยไม่ต้องอยู่ใน tx, และเลี่ยงเช็คซ้ำทุก attempt retry
+  // (Quick-Create item ที่ไม่มี productId ข้ามจุดนี้ไปสร้างใหม่ในร้านตัวเองเหมือนเดิม — ไม่ต้อง validate)
+  if (productIds.length > 0) {
+    const ownedProducts = await prisma.product.findMany({
+      where: { id: { in: productIds }, shopId },
+      select: { id: true },
+    });
+    const ownedIds = new Set(ownedProducts.map((p) => p.id));
+    const hasForeignProduct = productIds.some((id) => !ownedIds.has(id));
+    if (hasForeignProduct) throw new ProductNotInShopError();
   }
 
   // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
@@ -176,9 +216,28 @@ export async function createOrder(shopId: string, data: {
             ? await deductStockForOrderItems(tx, resolvedItems) // throw OutOfStockError = rollback attempt นี้
             : new Map<string, { qty: number; resultingQty: number; name: string }>();
 
+        // feat 00016 (TFR-002/TD-003) — cost snapshot: batch query Product.cost ครั้งเดียว
+        // หลัง resolve items ครบ (รวม Quick-Create auto-created product) ก่อน order.create
+        // เพื่อให้ auto-created product ที่ไม่มี cost ตั้งไว้ได้ null จาก costMap โดยธรรมชาติ
+        const costLookupProductIds = resolvedItems
+          .map((item) => item.productId)
+          .filter((id): id is string => !!id);
+        // defense-in-depth: scope ด้วย shopId แม้ pre-validation ข้างบนจะการันตีแล้วว่า
+        // client-supplied productId เป็นของร้านนี้ทั้งหมด (Quick-Create productId ก็เป็นของ
+        // shopId นี้เสมออยู่แล้วเพราะเพิ่ง tx.product.create ด้วย shopId เดียวกัน)
+        const costRows =
+          costLookupProductIds.length > 0
+            ? await tx.product.findMany({
+                where: { id: { in: costLookupProductIds }, shopId },
+                select: { id: true, cost: true },
+              })
+            : [];
+        const costMap = new Map(costRows.map((p) => [p.id, p.cost]));
+
         const itemsCreateData = resolvedItems.map((item) => ({
           ...item,
           stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
+          cost: item.productId ? (costMap.get(item.productId) ?? null) : null,
         }));
 
         // feat 00014 — ผูก Customer กลางด้วยเบอร์ (dedup + cross-shop identity); email/ว่าง/เบอร์ผิด → null
