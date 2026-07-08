@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Deep — Public Profile Redesign (Mockup 2026-07-08)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     Deep — Public Profile Redesign Mockup
+     ยึด Impeccable design.json (.impeccable/design.json) + Tier Lists SSOT
+     - north star: "The Trusted Counter" — fintech อบอุ่น เชื่อถือได้
+     - Confident Violet #7367F0 เป็น accent ของ action เท่านั้น (≤10%)
+     - Verified Green #28C76F = ความเชื่อใจที่ยืนยันแล้วเท่านั้น
+     - Ink Plum #2F2B3D (ไม่ใช่ดำสนิท) · Cool Mist #F8F7FA พื้น · การ์ดขาว เงาฟุ้งผสมหมึก
+     - Anuphan ทุก surface · sentence case · tap target ≥44px · no emoji (SVG icon เท่านั้น)
+     ============================================================ */
+  :root {
+    --violet: #7367F0;
+    --violet-hover: #675DD8;
+    --violet-16: rgb(115 103 240 / 0.16);
+    --violet-24: rgb(115 103 240 / 0.24);
+    --green: #28C76F;
+    --green-16: rgb(40 199 111 / 0.16);
+    --cyan: #00BAD1;
+    --amber: #FF9F43;
+    --amber-16: rgb(255 159 67 / 0.16);
+    --coral: #FF4C51;
+    --ink: #2F2B3D;
+    --ink-70: rgb(47 43 61 / 0.70);
+    --ink-55: rgb(47 43 61 / 0.55);
+    --ink-22: rgb(47 43 61 / 0.22);
+    --ink-12: rgb(47 43 61 / 0.12);
+    --ink-08: rgb(47 43 61 / 0.08);
+    --mist: #F8F7FA;
+    --paper: #FFFFFF;
+    --shadow-sm: 0 2px 8px rgb(47 43 61 / 0.12);
+    --shadow-md: 0 3px 12px rgb(47 43 61 / 0.14);
+    --shadow-lg: 0 4px 18px rgb(47 43 61 / 0.16);
+    --ease: cubic-bezier(0.25, 1, 0.5, 1);
+    --radius: 8px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Anuphan', 'Noto Sans Thai', system-ui, sans-serif;
+    background: var(--mist);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  svg { display: block; }
+
+  /* ---------- Mockup control bar (ไม่ใช่ส่วนของดีไซน์จริง) ---------- */
+  .mock-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--ink); color: #fff;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+    padding: 10px 20px; font-size: 13px;
+  }
+  .mock-bar strong { font-weight: 600; letter-spacing: 0.2px; }
+  .mock-bar .grp { display: flex; align-items: center; gap: 6px; }
+  .mock-bar .grp > span { opacity: 0.7; }
+  .seg { display: inline-flex; background: rgb(255 255 255 / 0.10); border-radius: 8px; padding: 3px; }
+  .seg button {
+    font-family: inherit; font-size: 12.5px; color: rgb(255 255 255 / 0.75);
+    background: transparent; border: none; padding: 5px 11px; border-radius: 6px;
+    cursor: pointer; transition: all 150ms var(--ease); white-space: nowrap;
+  }
+  .seg button.active { background: #fff; color: var(--ink); font-weight: 600; }
+  .mock-bar .spacer { flex: 1; }
+  .mock-bar .legend-toggle {
+    font-family: inherit; font-size: 12.5px; color: #fff; cursor: pointer;
+    background: rgb(255 255 255 / 0.12); border: none; padding: 6px 12px; border-radius: 6px;
+  }
+
+  /* ---------- App frame ---------- */
+  .frame { max-width: 1160px; margin: 0 auto; }
+
+  /* ---------- Simulated top nav (Vuexy front header, solid) ---------- */
+  .topnav {
+    background: var(--paper); box-shadow: var(--shadow-sm);
+    position: sticky; top: 44px; z-index: 40;
+  }
+  .topnav-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; gap: 16px; padding: 12px 20px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; color: var(--violet); }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--violet); }
+  .topnav .spacer { flex: 1; }
+  .topnav .nav-link { font-size: 14px; color: var(--ink-70); padding: 8px 12px; }
+
+  /* ============================================================
+     BANNER — Trust tier gradient (สีตาม Tier Lists SSOT)
+     ============================================================ */
+  .banner {
+    height: 180px; position: relative; overflow: hidden;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 20px 24px;
+  }
+  /* tier gradients — สีอิงจาก SSOT: Classic ส้ม / Silver เทา / Gold ทอง / Diamond ฟ้า / Star ม่วง
+     ทำแบบนุ่ม ไม่ใช่ neon (anti-slop): base tone + overlay ละเอียด */
+  .banner[data-tier="classic"] { background: linear-gradient(120deg, #FF9F43 0%, #ffb873 55%, #ffd1a3 100%); }
+  .banner[data-tier="silver"]  { background: linear-gradient(120deg, #8b93a7 0%, #aab2c4 55%, #cdd3df 100%); }
+  .banner[data-tier="gold"]    { background: linear-gradient(120deg, #d4a017 0%, #e6b93e 50%, #f2d47a 100%); }
+  .banner[data-tier="diamond"] { background: linear-gradient(120deg, #00a3b8 0%, #34c3d6 55%, #8fe0ea 100%); }
+  .banner[data-tier="star"]    { background: linear-gradient(120deg, #5a4ee0 0%, #7367F0 50%, #9389f4 100%); }
+  .banner::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 85% -20%, rgb(255 255 255 / 0.35), transparent 45%);
+    pointer-events: none;
+  }
+  .banner-tier {
+    position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 10px;
+    background: rgb(47 43 61 / 0.28); backdrop-filter: blur(6px);
+    color: #fff; padding: 8px 14px; border-radius: 9999px;
+  }
+  .banner-tier .tier-name { font-weight: 600; font-size: 15px; letter-spacing: 0.2px; }
+  .tier-dots { display: inline-flex; gap: 4px; }
+  .tier-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgb(255 255 255 / 0.4); }
+  .tier-dots i.on { background: #fff; }
+  .banner-score {
+    position: relative; z-index: 1; text-align: right; color: #fff;
+  }
+  .banner-score .num { font-size: 34px; font-weight: 700; line-height: 1; }
+  .banner-score .lbl { font-size: 12px; opacity: 0.9; }
+
+  /* ============================================================
+     IDENTITY HEADER CARD (overlap banner)
+     ============================================================ */
+  .identity {
+    background: var(--paper); margin: -56px 20px 0; border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 20px 24px 22px; position: relative;
+  }
+  .identity-top { display: flex; gap: 18px; align-items: flex-start; }
+  .avatar {
+    width: 104px; height: 104px; border-radius: 24px; flex-shrink: 0;
+    background: linear-gradient(135deg, #b3acf8, #7367F0); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; font-weight: 600; border: 4px solid var(--paper);
+    box-shadow: var(--shadow-md); margin-top: -46px; object-fit: cover;
+    overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .identity-main { flex: 1; min-width: 0; padding-top: 4px; }
+  .name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .display-name { font-size: 22px; font-weight: 600; color: var(--ink); }
+  .shop-name { font-size: 15px; color: var(--ink-70); margin-top: 1px; }
+  .username { font-size: 14px; color: var(--ink-55); }
+
+  /* verified chip — สีเดียว (green) ตาม decision. ไม่แยกสีตาม level */
+  .chip-verified {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--green-16); color: var(--green);
+    font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 9999px;
+  }
+  .chip-business {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--violet-16); color: var(--violet);
+    font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 9999px;
+  }
+
+  .meta-row { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
+  .meta-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink-70); }
+  .meta-item svg { color: var(--ink-55); }
+
+  .badges-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .badge-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--mist); border: 1px solid var(--ink-08);
+    padding: 5px 11px; border-radius: 9999px; font-size: 12.5px; color: var(--ink);
+  }
+  .badge-pill .bico { color: var(--amber); display: flex; }
+  .badge-pill.count { color: var(--ink-55); }
+
+  .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .btn {
+    font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
+    border: none; border-radius: var(--radius-sm); padding: 10px 20px;
+    display: inline-flex; align-items: center; gap: 7px; min-height: 44px;
+    transition: all 150ms var(--ease);
+  }
+  .btn-primary { background: var(--violet); color: #fff; box-shadow: 0 2px 6px rgb(115 103 240 / 0.30); }
+  .btn-primary:hover { background: var(--violet-hover); transform: translateY(-1px); }
+  .btn-tonal { background: var(--violet-16); color: var(--violet); }
+  .btn-tonal:hover { background: var(--violet-24); }
+  .btn-ghost { background: transparent; color: var(--ink-70); border: 1px solid var(--ink-22); }
+  .btn[disabled] { background: var(--ink-08); color: var(--ink-55); box-shadow: none; cursor: not-allowed; transform: none; }
+  .btn .soon { font-size: 11px; opacity: 0.8; }
+
+  /* ============================================================
+     BODY GRID — 2 col desktop, stack mobile
+     ============================================================ */
+  .body-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px; align-items: start; }
+
+  .card {
+    background: var(--paper); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 20px; margin-bottom: 20px;
+  }
+  .card:last-child { margin-bottom: 0; }
+  .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .card-head h3 { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .card-head .hico { color: var(--violet); display: flex; }
+  .card-head .more { margin-left: auto; font-size: 13px; color: var(--violet); }
+
+  /* ---- Trust Score gauge ---- */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .gauge { position: relative; width: 168px; height: 168px; }
+  .gauge svg { transform: rotate(-90deg); }
+  .gauge .track { fill: none; stroke: var(--ink-08); stroke-width: 12; }
+  .gauge .prog { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 700ms var(--ease); }
+  .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge-center .score { font-size: 44px; font-weight: 700; color: var(--ink); line-height: 1; }
+  .gauge-center .of { font-size: 13px; color: var(--ink-55); }
+  .tier-line { margin-top: 6px; font-size: 15px; font-weight: 600; }
+  .next-tier { margin-top: 4px; font-size: 13px; color: var(--ink-70); }
+  .next-tier b { font-weight: 600; }
+
+  /* ---- Verification checklist ---- */
+  .verify-list { display: flex; flex-direction: column; gap: 10px; }
+  .verify-item { display: flex; align-items: center; gap: 12px; }
+  .verify-icon {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .verify-item.done .verify-icon { background: var(--green-16); color: var(--green); }
+  .verify-item.todo .verify-icon { background: var(--ink-08); color: var(--ink-55); }
+  .verify-text { flex: 1; }
+  .verify-text .t { font-size: 14px; font-weight: 500; color: var(--ink); }
+  .verify-item.todo .verify-text .t { color: var(--ink-55); }
+  .verify-text .s { font-size: 12px; color: var(--ink-55); }
+  .verify-check { color: var(--green); }
+  .verify-item.todo .verify-check { display: none; }
+
+  /* ---- Stats grid ---- */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat { text-align: center; padding: 6px 4px; }
+  .stat .v { font-size: 24px; font-weight: 700; color: var(--ink); }
+  .stat .v.green { color: var(--green); }
+  .stat .v .star { color: var(--amber); }
+  .stat .k { font-size: 12px; color: var(--ink-55); margin-top: 2px; }
+  .stat + .stat { border-left: 1px solid var(--ink-08); }
+  .resp-line {
+    display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--ink-08); font-size: 13px; color: var(--ink-70);
+  }
+  .resp-line svg { color: var(--green); }
+
+  /* ---- About ---- */
+  .about-bio { font-size: 14px; color: var(--ink-70); line-height: 1.6; }
+  .about-meta { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .about-meta .row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-70); }
+  .about-meta .row svg { color: var(--ink-55); flex-shrink: 0; }
+
+  /* ---- Platform reputation (PLACEHOLDER) ---- */
+  .placeholder-card { position: relative; }
+  .ribbon {
+    position: absolute; top: 14px; right: 14px;
+    background: var(--amber-16); color: #b36700; font-size: 11px; font-weight: 600;
+    padding: 3px 9px; border-radius: 9999px;
+  }
+  .plat-list { display: flex; flex-direction: column; gap: 12px; }
+  .plat-item { display: flex; align-items: center; gap: 12px; }
+  .plat-logo {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .plat-logo.shopee { background: #EE4D2D; }
+  .plat-logo.lazada { background: #0F146D; }
+  .plat-logo.tiktok { background: #010101; }
+  .plat-info { flex: 1; }
+  .plat-info .n { font-size: 14px; font-weight: 500; color: var(--ink); }
+  .plat-info .d { font-size: 12px; color: var(--ink-55); }
+  .plat-rating { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-70); }
+  .plat-rating .star { color: var(--amber); }
+  .finePrint { font-size: 11.5px; color: var(--ink-55); margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--ink-12); line-height: 1.5; }
+
+  /* ---- Products ---- */
+  .section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 17px; font-weight: 600; color: var(--ink); }
+  .section-title .sico { color: var(--violet); display: flex; }
+  .section-title .pin { color: var(--amber); }
+  .section-title .cnt { margin-left: auto; font-size: 13px; font-weight: 400; color: var(--ink-55); }
+  .prod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .prod {
+    background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+    overflow: hidden; transition: box-shadow 200ms var(--ease), transform 200ms var(--ease);
+    display: flex; flex-direction: column;
+  }
+  .prod:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .prod-img { aspect-ratio: 1; background: linear-gradient(135deg, #eceaf5, #dedce4); position: relative; }
+  .prod-img img { width: 100%; height: 100%; object-fit: cover; }
+  .prod-pin {
+    position: absolute; top: 8px; left: 8px; background: rgb(47 43 61 / 0.55); color: #fff;
+    width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .prod-body { padding: 12px; display: flex; flex-direction: column; flex: 1; }
+  .prod-name { font-size: 14px; color: var(--ink); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 39px; }
+  .prod-price { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+  .prod-ask {
+    margin-top: 10px; width: 100%; justify-content: center; padding: 8px; font-size: 13.5px;
+    min-height: 40px; background: var(--violet-16); color: var(--violet); border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    transition: background 150ms var(--ease);
+  }
+  .prod-ask:hover { background: var(--violet-24); }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-55); }
+  .empty-state svg { color: var(--ink-22); margin: 0 auto 12px; }
+  .empty-state .t { font-size: 15px; }
+
+  /* mini footer */
+  .mini-footer { text-align: center; padding: 24px 16px; border-top: 1px solid var(--ink-08); font-size: 13px; color: var(--ink-55); }
+
+  /* ---------- Data legend panel ---------- */
+  .legend-panel {
+    position: fixed; right: 20px; bottom: 20px; width: 340px; max-height: 70vh; overflow-y: auto;
+    background: var(--paper); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 18px 20px;
+    z-index: 60; display: none; font-size: 13px;
+  }
+  .legend-panel.open { display: block; }
+  .legend-panel h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .legend-panel .close { position: absolute; top: 14px; right: 14px; cursor: pointer; color: var(--ink-55); background: none; border: none; }
+  .lg-item { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--ink-08); align-items: flex-start; }
+  .lg-item:last-child { border-bottom: none; }
+  .lg-tag { flex-shrink: 0; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; margin-top: 1px; }
+  .lg-tag.live { background: var(--green-16); color: var(--green); }
+  .lg-tag.ph { background: var(--amber-16); color: #b36700; }
+  .lg-tag.soon { background: var(--ink-08); color: var(--ink-55); }
+  .lg-item .txt { color: var(--ink-70); line-height: 1.45; }
+  .lg-item .txt b { color: var(--ink); font-weight: 600; }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 900px) {
+    .body-grid { grid-template-columns: 1fr; }
+    .prod-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .banner { height: 150px; }
+    .identity { margin: -48px 12px 0; padding: 16px 16px 18px; }
+    .identity-top { gap: 14px; }
+    .avatar { width: 84px; height: 84px; font-size: 32px; margin-top: -40px; border-radius: 20px; }
+    .display-name { font-size: 19px; }
+    .body-grid { padding: 14px; gap: 14px; }
+    .card { margin-bottom: 14px; }
+    .prod-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .actions { flex-wrap: wrap; }
+    .actions .btn { flex: 1; justify-content: center; }
+    .topnav .nav-link { display: none; }
+    .legend-panel { left: 12px; right: 12px; width: auto; }
+  }
+</style>
+</head>
+<body data-page="u" data-tier="gold">
+
+<!-- ========== MOCKUP CONTROL BAR (ไม่ใช่ส่วนของดีไซน์จริง) ========== -->
+<div class="mock-bar">
+  <strong>Deep · Public Profile Mockup</strong>
+  <div class="grp">
+    <span>หน้า</span>
+    <div class="seg" id="pageSeg">
+      <button data-page="u" class="active">/u/ (บุคคล·ร้าน)</button>
+      <button data-page="b">/b/ (ธุรกิจ)</button>
+    </div>
+  </div>
+  <div class="grp">
+    <span>Tier</span>
+    <div class="seg" id="tierSeg">
+      <button data-tier="classic">Classic</button>
+      <button data-tier="silver">Silver</button>
+      <button data-tier="gold" class="active">Gold</button>
+      <button data-tier="diamond">Diamond</button>
+      <button data-tier="star">Star</button>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <button class="legend-toggle" id="legendBtn">Data legend (live / ตัวอย่าง)</button>
+</div>
+
+<!-- ========== simulated front nav ========== -->
+<div class="topnav">
+  <div class="topnav-inner">
+    <div class="brand"><span class="dot"></span>Deep</div>
+    <div class="spacer"></div>
+    <a class="nav-link">หน้าแรก</a>
+    <a class="nav-link">ราคา</a>
+    <a class="btn btn-tonal" style="min-height:38px;padding:7px 16px;font-size:14px;">เข้าสู่ระบบ</a>
+  </div>
+</div>
+
+<div class="frame">
+  <!-- ========== BANNER (tier gradient) ========== -->
+  <div class="banner" id="banner" data-tier="gold">
+    <div class="banner-tier">
+      <span class="tier-name" id="tierName">Deep Gold</span>
+      <span class="tier-dots" id="tierDots"></span>
+    </div>
+    <div class="banner-score">
+      <div class="num" id="bannerScore">74</div>
+      <div class="lbl">คะแนนความน่าเชื่อถือ</div>
+    </div>
+  </div>
+
+  <!-- ========== IDENTITY HEADER ========== -->
+  <div class="identity">
+    <div class="identity-top">
+      <div class="avatar">ก</div>
+      <div class="identity-main">
+        <div class="name-row">
+          <span class="display-name" id="dispName">ร้านกาญจนาช้อป</span>
+          <span class="chip-verified">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 1.8 3-.3 1 2.9 2.5 1.7-1 2.9 1 2.9-2.5 1.7-1 2.9-3-.3L12 21l-2.5-1.8-3 .3-1-2.9L3 14.1l1-2.9-1-2.9 2.5-1.7 1-2.9 3 .3z"/><path d="M9 12l2 2 4-4"/></svg>
+            ยืนยันตัวตนแล้ว
+          </span>
+          <span class="chip-business" id="bizChip" style="display:none;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
+            ธุรกิจจดทะเบียน
+          </span>
+        </div>
+        <div class="username" id="userAt">@kanjanashop</div>
+
+        <div class="meta-row">
+          <span class="meta-item">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            กรุงเทพมหานคร
+          </span>
+          <span class="meta-item">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+            เข้าร่วมเมื่อ มี.ค. 2568
+          </span>
+        </div>
+
+        <div class="badges-row">
+          <span class="badge-pill"><span class="bico"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M8.5 12.5L7 21l5-3 5 3-1.5-8.5"/></svg></span>ผู้ขายดีเด่น</span>
+          <span class="badge-pill"><span class="bico"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4.5 12.5H11l-1 9.5 8.5-11H12z"/></svg></span>ตอบไว</span>
+          <span class="badge-pill"><span class="bico"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>ส่งตรงเวลา</span>
+          <span class="badge-pill count">+3 เหรียญ</span>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>
+            แชทกับร้าน
+          </button>
+          <button class="btn btn-ghost" disabled>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+            ติดตาม <span class="soon">เร็ว ๆ นี้</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== BODY GRID ========== -->
+  <div class="body-grid">
+    <!-- ===== LEFT COLUMN ===== -->
+    <div class="col-left">
+      <!-- Trust Score gauge -->
+      <div class="card">
+        <div class="card-head">
+          <span class="hico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span>
+          <h3>คะแนนความน่าเชื่อถือ</h3>
+        </div>
+        <div class="gauge-wrap">
+          <div class="gauge">
+            <svg width="168" height="168" viewBox="0 0 168 168">
+              <circle class="track" cx="84" cy="84" r="72"/>
+              <circle class="prog" id="gaugeProg" cx="84" cy="84" r="72"/>
+            </svg>
+            <div class="gauge-center">
+              <span class="score" id="gaugeScore">74</span>
+              <span class="of">/ 100</span>
+            </div>
+          </div>
+          <div class="tier-line" id="gaugeTier">ระดับ Deep Gold</div>
+          <div class="next-tier" id="nextTier">อีก <b>6</b> แต้มถึง <b>Deep Diamond</b></div>
+        </div>
+      </div>
+
+      <!-- Verification checklist -->
+      <div class="card">
+        <div class="card-head">
+          <span class="hico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span>
+          <h3>การยืนยันตัวตน</h3>
+        </div>
+        <div class="verify-list">
+          <div class="verify-item done">
+            <div class="verify-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></div>
+            <div class="verify-text"><div class="t">ยืนยันเบอร์โทร (OTP)</div><div class="s">ระดับ 1 · ยืนยันแล้ว</div></div>
+            <span class="verify-check"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          </div>
+          <div class="verify-item done">
+            <div class="verify-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+            <div class="verify-text"><div class="t">ยืนยันเอกสาร (บัตร ปชช.)</div><div class="s">ระดับ 2 · ยืนยันแล้ว</div></div>
+            <span class="verify-check"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          </div>
+          <div class="verify-item todo" id="verifyL3">
+            <div class="verify-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01M9 13h.01M15 9h.01M15 13h.01"/></svg></div>
+            <div class="verify-text"><div class="t">จดทะเบียนธุรกิจ</div><div class="s">ระดับ 3 · ยังไม่ยืนยัน</div></div>
+            <span class="verify-check"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats + response -->
+      <div class="card">
+        <div class="card-head">
+          <span class="hico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
+          <h3>สถิติการซื้อขาย</h3>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v">142</div><div class="k">ออเดอร์สำเร็จ</div></div>
+          <div class="stat"><div class="v green">98%</div><div class="k">อัตราสำเร็จ</div></div>
+          <div class="stat"><div class="v"><span class="star">★</span> 4.9</div><div class="k">คะแนนรีวิว</div></div>
+        </div>
+        <div class="resp-line">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          ตอบกลับ <b style="color:var(--ink);font-weight:600;">96%</b> · ตอบเฉลี่ย ~5 นาที
+        </div>
+      </div>
+
+      <!-- About -->
+      <div class="card">
+        <div class="card-head">
+          <span class="hico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+          <h3>เกี่ยวกับร้าน</h3>
+        </div>
+        <p class="about-bio">รับหิ้วสินค้าแบรนด์แท้จากญี่ปุ่นและเกาหลี ส่งไว การันตีของแท้ 100% พร้อมใบเสร็จทุกออเดอร์ ทักแชทสอบถามได้ตลอดค่ะ</p>
+        <div class="about-meta">
+          <div class="row"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg> กรุงเทพมหานคร</div>
+          <div class="row"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg> เข้าร่วมเมื่อ มี.ค. 2568</div>
+        </div>
+      </div>
+
+      <!-- Platform reputation (PLACEHOLDER) -->
+      <div class="card placeholder-card">
+        <span class="ribbon">ตัวอย่าง</span>
+        <div class="card-head">
+          <span class="hico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>
+          <h3>ชื่อเสียงจากแพลตฟอร์มอื่น</h3>
+        </div>
+        <div class="plat-list">
+          <div class="plat-item">
+            <div class="plat-logo shopee">S</div>
+            <div class="plat-info"><div class="n">Shopee</div><div class="d">1,240 ออเดอร์</div></div>
+            <div class="plat-rating"><span class="star">★</span> 4.9</div>
+          </div>
+          <div class="plat-item">
+            <div class="plat-logo lazada">L</div>
+            <div class="plat-info"><div class="n">Lazada</div><div class="d">860 ออเดอร์</div></div>
+            <div class="plat-rating"><span class="star">★</span> 4.8</div>
+          </div>
+          <div class="plat-item">
+            <div class="plat-logo tiktok">T</div>
+            <div class="plat-info"><div class="n">TikTok Shop</div><div class="d">430 ออเดอร์</div></div>
+            <div class="plat-rating"><span class="star">★</span> 5.0</div>
+          </div>
+        </div>
+        <p class="finePrint">* ข้อมูลตัวอย่าง — ยังไม่ใช่ยอดจริง ระบบเชื่อมต่อชื่อเสียงข้ามแพลตฟอร์มอยู่ในเฟสถัดไป</p>
+      </div>
+    </div>
+
+    <!-- ===== RIGHT COLUMN ===== -->
+    <div class="col-right" id="rightCol">
+      <!-- Pinned products -->
+      <div class="card">
+        <div class="section-title">
+          <span class="pin"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></span>
+          สินค้าปักหมุด
+          <span class="cnt">3 รายการ</span>
+        </div>
+        <div class="prod-grid">
+          <!-- product template x3 -->
+          <div class="prod">
+            <div class="prod-img"><span class="prod-pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></span></div>
+            <div class="prod-body">
+              <div class="prod-name">กระเป๋าแบรนด์แท้จากญี่ปุ่น รุ่นลิมิเต็ด</div>
+              <div class="prod-price">฿2,890</div>
+              <button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button>
+            </div>
+          </div>
+          <div class="prod">
+            <div class="prod-img"><span class="prod-pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></span></div>
+            <div class="prod-body">
+              <div class="prod-name">เซรั่มบำรุงผิวเกาหลี ขนาด 50ml</div>
+              <div class="prod-price">฿1,290</div>
+              <button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button>
+            </div>
+          </div>
+          <div class="prod">
+            <div class="prod-img"><span class="prod-pin"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></span></div>
+            <div class="prod-body">
+              <div class="prod-name">รองเท้าผ้าใบรุ่นใหม่ พร้อมกล่อง</div>
+              <div class="prod-price">฿3,450</div>
+              <button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- All products -->
+      <div class="card">
+        <div class="section-title">
+          <span class="sico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+          สินค้าทั้งหมด
+          <span class="cnt">9 รายการ</span>
+        </div>
+        <div class="prod-grid">
+          <div class="prod"><div class="prod-img"></div><div class="prod-body"><div class="prod-name">ครีมกันแดดนำเข้า SPF50+</div><div class="prod-price">฿590</div><button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button></div></div>
+          <div class="prod"><div class="prod-img"></div><div class="prod-body"><div class="prod-name">ลิปสติกแบรนด์ดัง สีขายดี</div><div class="prod-price">฿850</div><button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button></div></div>
+          <div class="prod"><div class="prod-img"></div><div class="prod-body"><div class="prod-name">นาฬิกาข้อมือแฟชั่น กันน้ำ</div><div class="prod-price">฿1,590</div><button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button></div></div>
+          <div class="prod"><div class="prod-img"></div><div class="prod-body"><div class="prod-name">หูฟังไร้สาย เสียงดี แบตอึด</div><div class="prod-price">฿990</div><button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button></div></div>
+          <div class="prod"><div class="prod-img"></div><div class="prod-body"><div class="prod-name">แว่นกันแดดแฟชั่น UV400</div><div class="prod-price">฿450</div><button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button></div></div>
+          <div class="prod"><div class="prod-img"></div><div class="prod-body"><div class="prod-name">กระเป๋าสตางค์หนังแท้</div><div class="prod-price">฿1,190</div><button class="prod-ask"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 20l1-5.5a8.5 8.5 0 1 1 17-3z"/></svg>สอบถามสินค้านี้</button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- buyer-only empty state (ซ่อนไว้ — แสดงเมื่อ isShop=false) -->
+  <div class="mini-footer">นโยบายความเป็นส่วนตัว · © Deep 2569</div>
+</div>
+
+<!-- ========== DATA LEGEND PANEL ========== -->
+<div class="legend-panel" id="legendPanel">
+  <button class="close" id="legendClose"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  <h4>Data source — live vs ตัวอย่าง</h4>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Trust banner + gauge</b> — trustScore + tier จาก <code>getTierLabel/Color</code> (SSOT Tier Lists)</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Verified chip (สีเดียว)</b> — แสดงเมื่อ maxVerifyLevel≥1</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Verification checklist</b> — ติ๊กตาม VerificationRecord APPROVED จริง (L1/L2/L3)</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>ออเดอร์สำเร็จ</b> — COUNT(Order status=CONFIRMED)</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>อัตราสำเร็จ (completion rate)</b> — ดึงกลับมาแสดงตาม decision (CONFIRMED ÷ ที่ปิดจบ)</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>คะแนนรีวิว</b> — avg aggregate ทั้งหมด แสดงเมื่อ reviewCount≥3</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>ตอบกลับ %/เวลา</b> — Shop.chatResponseRate ฯลฯ แสดงเมื่อ sample≥3</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>Badges</b> — เฉพาะ audience SELLER/ANY</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>สินค้าปักหมุด / ทั้งหมด</b> — Pin Products (00013) + getProductsByShop</span></div>
+  <div class="lg-item"><span class="lg-tag live">LIVE</span><span class="txt"><b>แชท / สอบถามสินค้านี้</b> — Deep Chat (00011), login-gate</span></div>
+  <div class="lg-item"><span class="lg-tag ph">ตัวอย่าง</span><span class="txt"><b>ชื่อเสียงแพลตฟอร์มอื่น</b> — hardcode + fine-print (Phase 2 เชื่อม API จริง)</span></div>
+  <div class="lg-item"><span class="lg-tag soon">เร็วๆนี้</span><span class="txt"><b>ปุ่มติดตาม</b> — disabled (ยังไม่มี follow system)</span></div>
+  <div class="lg-item"><span class="lg-tag soon">/b/</span><span class="txt"><b>ธุรกิจ</b> — route คู่ /b/[slug] ใช้ component ชุดเดียวกัน (chip "ธุรกิจจดทะเบียน")</span></div>
+</div>
+
+<script>
+  // ====== Tier data (สี/ชื่อ/dots/threshold อิง Tier Lists SSOT) ======
+  const TIERS = {
+    classic: { name: 'Deep Classic', color: '#d98a2b', dots: 1, score: 48, next: { label: 'Deep Silver', pts: 12 } },
+    silver:  { name: 'Deep Silver',  color: '#8b93a7', dots: 2, score: 64, next: { label: 'Deep Gold', pts: 6 } },
+    gold:    { name: 'Deep Gold',    color: '#d4a017', dots: 3, score: 74, next: { label: 'Deep Diamond', pts: 6 } },
+    diamond: { name: 'Deep Diamond', color: '#00a3b8', dots: 4, score: 85, next: { label: 'Deep Star', pts: 5 } },
+    star:    { name: 'Deep Star',    color: '#7367F0', dots: 5, score: 96, next: null },
+  };
+  const CIRC = 2 * Math.PI * 72;
+
+  function applyTier(tier) {
+    const t = TIERS[tier];
+    document.body.dataset.tier = tier;
+    document.getElementById('banner').dataset.tier = tier;
+    document.getElementById('tierName').textContent = t.name;
+    document.getElementById('bannerScore').textContent = t.score;
+    document.getElementById('gaugeScore').textContent = t.score;
+    document.getElementById('gaugeTier').textContent = 'ระดับ ' + t.name;
+    // dots
+    let dots = '';
+    for (let i = 0; i < 5; i++) dots += '<i class="' + (i < t.dots ? 'on' : '') + '"></i>';
+    document.getElementById('tierDots').innerHTML = dots;
+    // gauge
+    const prog = document.getElementById('gaugeProg');
+    prog.style.stroke = t.color;
+    prog.setAttribute('stroke-dasharray', CIRC);
+    prog.setAttribute('stroke-dashoffset', CIRC * (1 - t.score / 100));
+    // next tier
+    const nt = document.getElementById('nextTier');
+    if (t.next) nt.innerHTML = 'อีก <b>' + t.next.pts + '</b> แต้มถึง <b>' + t.next.label + '</b>';
+    else nt.innerHTML = '<b>ถึงระดับสูงสุดแล้ว</b>';
+    // tier line color
+    document.getElementById('gaugeTier').style.color = t.color;
+  }
+
+  function applyPage(page) {
+    document.body.dataset.page = page;
+    const isBiz = page === 'b';
+    document.getElementById('bizChip').style.display = isBiz ? 'inline-flex' : 'none';
+    document.getElementById('dispName').textContent = isBiz ? 'บริษัท กาญจนา เทรดดิ้ง จำกัด' : 'ร้านกาญจนาช้อป';
+    document.getElementById('userAt').textContent = isBiz ? 'deepthailand.app/b/kanjana-trading' : '@kanjanashop';
+    // business มักผ่าน L3 จดทะเบียนธุรกิจ — ติ๊ก L3 ให้ done
+    const l3 = document.getElementById('verifyL3');
+    if (isBiz) {
+      l3.className = 'verify-item done';
+      l3.querySelector('.s').textContent = 'ระดับ 3 · ยืนยันแล้ว';
+    } else {
+      l3.className = 'verify-item todo';
+      l3.querySelector('.s').textContent = 'ระดับ 3 · ยังไม่ยืนยัน';
+    }
+  }
+
+  // wire segments
+  document.getElementById('tierSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    document.querySelectorAll('#tierSeg button').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyTier(btn.dataset.tier);
+  });
+  document.getElementById('pageSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    document.querySelectorAll('#pageSeg button').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyPage(btn.dataset.page);
+  });
+  // legend
+  document.getElementById('legendBtn').addEventListener('click', () => document.getElementById('legendPanel').classList.toggle('open'));
+  document.getElementById('legendClose').addEventListener('click', () => document.getElementById('legendPanel').classList.remove('open'));
+
+  // init
+  applyTier('gold');
+  applyPage('u');
+</script>
+</body>
+</html>
