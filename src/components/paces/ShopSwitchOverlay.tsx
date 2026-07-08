@@ -5,12 +5,19 @@
  * mobile sheet, subscriptions "สลับมาร้านนี้") — dumb presentational component รับ props ล้วน ไม่มี
  * logic สลับร้านเอง (ดู useShopSwitcher hook)
  *
+ * ⚠️ ต้อง render ผ่าน Portal ไป document.body: mobile sheet (AccountSwitcherSheet) และ dropdown
+ * มี parent ที่ใช้ `transform` (translate-y เปิด/ปิด sheet) ซึ่งสร้าง containing block ให้
+ * position:fixed → ถ้า render overlay ไว้ข้างในจะไม่เต็ม viewport + โดน backdrop ของ sheet บัง.
+ * Portal ไป body ทำให้ fixed inset-0 z-[1070] เต็มจอจริง อยู่บนสุดทับทั้ง sheet + backdrop เสมอ.
+ *
  * Base: src/app/(paces)/seller/(dashboard)/dashboard/components/AccountSwitcherSheet.tsx
  *   (overlay เดิมบรรทัด ~239-250, z-[1070] + spinner markup) รวมกับ
  *   theme/paces/Admin/TS/src/app/(admin)/layouts/preloader/components/Preloader.tsx (full-screen loading pattern)
  */
 
 import AccountAvatar from '@/components/AccountAvatar'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   show: boolean
@@ -20,13 +27,19 @@ interface Props {
 }
 
 export default function ShopSwitchOverlay({ show, targetName, targetLogo, targetKind }: Props) {
-  if (!show) return null
+  // mounted guard — createPortal ต้องมี document (client เท่านั้น) กัน SSR/hydration mismatch
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!show || !mounted) return null
 
   const primaryText = targetName ? `กำลังสลับไปที่ร้าน "${targetName}"` : 'กำลังสลับบัญชี…'
 
-  return (
-    // z-[1070] จำเป็น: สูงกว่า sheet/dropdown/backdrop z-80, ต่ำกว่า toast z-[1080] — HR7 exception
-    // (precedent: overlay เดิมใน UserDropdownDetailed.tsx / AccountSwitcherSheet.tsx)
+  // z-[1070] จำเป็น: สูงกว่า sheet/dropdown/backdrop z-80, ต่ำกว่า toast z-[1080] — HR7 exception
+  // (precedent: overlay เดิมใน UserDropdownDetailed.tsx / AccountSwitcherSheet.tsx)
+  const overlay = (
     <div
       className="fixed inset-0 z-[1070] flex flex-col items-center justify-center gap-3 bg-default-900/40 backdrop-blur-xs"
       role="status"
@@ -41,4 +54,7 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
       <p className="text-default-300 text-xs">กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</p>
     </div>
   )
+
+  // Portal ไป body — หลุด stacking context ของ sheet/dropdown ที่มี transform
+  return createPortal(overlay, document.body)
 }
