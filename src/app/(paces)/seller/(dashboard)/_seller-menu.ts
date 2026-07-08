@@ -1,5 +1,6 @@
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
+import type { ExpenseAccessDecision } from '@/services/expense-access.service'
 
 export const sellerMenuItems: MenuItemType[] = [
   {
@@ -75,6 +76,9 @@ export const sellerMenuItems: MenuItemType[] = [
       // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู Products
       { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
       { url: '/wallet', slug: 'seller:wallet', label: 'เครดิต SMS', icon: 'wallet' },
+      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
+      // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
+      { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
       { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
     ],
   },
@@ -164,4 +168,40 @@ export function applyStaffMenu(
     ...group,
     children: group.children.filter((child) => child.slug !== 'seller:admins'),
   })
+}
+
+/**
+ * applyExpenseMenu — runtime transform ของ sellerMenuItems ตาม ExpenseAccessDecision (feature 00016
+ * Expense & Cost Tracking, Unit 5A) — pattern ผสมระหว่าง applyStaffMenu (ซ่อนทั้งเมนู) กับ
+ * applyInventoryGate (badge upsell) ตาม UX-Design-Spec.md §A "เมนู sidebar ... conditional render"
+ *
+ * - GRANTED → แสดงปกติ ไม่มี badge
+ * - PACKAGE_LOCKED → แสดงพร้อม badge "อัปเกรด" (ไม่ disabled — คลิกได้ เข้าไปเห็น upsell card เอง)
+ * - STAFF_NOT_ALLOWED หรือ NO_SHOP → กรอง child ออกจาก items ทั้งหมด (ซ่อนสนิท — AC-04 "มองไม่เห็นเมนูเลย")
+ *
+ * หมายเหตุ: นี่คือ UX hint เท่านั้น — enforcement จริงอยู่ที่ resolveExpenseAccess() ใน ExpensesPage (fail-closed)
+ */
+export function applyExpenseMenu(
+  items: MenuItemType[],
+  decision: ExpenseAccessDecision,
+): MenuItemType[] {
+  if (decision.kind === 'STAFF_NOT_ALLOWED' || decision.kind === 'NO_SHOP') {
+    return items.map((group) => !group.children ? group : {
+      ...group,
+      children: group.children.filter((child) => child.slug !== 'seller:expenses'),
+    })
+  }
+
+  if (decision.kind === 'PACKAGE_LOCKED') {
+    const badge = { className: 'bg-primary', text: 'อัปเกรด' }
+    return items.map((group) => !group.children ? group : {
+      ...group,
+      children: group.children.map((child) =>
+        child.slug === 'seller:expenses' ? { ...child, badge } : child,
+      ),
+    })
+  }
+
+  // GRANTED — ไม่มี badge, แสดงปกติ
+  return items
 }

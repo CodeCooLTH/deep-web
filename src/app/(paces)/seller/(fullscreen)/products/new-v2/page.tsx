@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
+import { isCostEditAllowed } from '@/services/expense-access.service'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
@@ -78,6 +79,9 @@ export default async function NewProductV2Page() {
   // Deep Stock Pro (feature 00009 S-20) — PRO-gate field lowStockThreshold ใน ProductStockCardV2
   // fail-closed เหมือน entitlementActive ด้านบน
   const proActive = await isProActive(shop.id).catch(() => false)
+  // Expense & Cost Tracking (feature 00016 Unit 5B) — gate field cost ใน ProductCostCardV2
+  // fail-closed เหมือน entitlementActive/proActive ด้านบน
+  const costEditAllowed = await isCostEditAllowed(shop).catch(() => false)
 
   return (
     <>
@@ -102,6 +106,7 @@ export default async function NewProductV2Page() {
         formId={FORM_ID}
         entitlementActive={entitlementActive}
         isProActive={proActive}
+        costEditAllowed={costEditAllowed}
       />
     </>
   )

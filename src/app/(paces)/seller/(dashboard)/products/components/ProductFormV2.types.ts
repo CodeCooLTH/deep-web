@@ -35,4 +35,7 @@ export type ProductFormV2Values = {
   // lowStockThreshold — Deep Stock Pro (feature 00009 S-20): null=ปิดแจ้งเตือน, ≥0=ตั้งเกณฑ์
   // แสดงเฉพาะ tracked (stockQty !== null) && isProActive (ดู ProductStockCardV2)
   lowStockThreshold: number | null;
+  // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, ≥0=ตั้งค่า
+  // field แสดงเสมอ, กรอกได้เฉพาะ costEditAllowed (ดู ProductCostCardV2)
+  cost: number | null;
 };

@@ -30,6 +30,7 @@ import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/bu
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from '../../components/LockedStateBanner'
 import CurrentMembersTable from './components/CurrentMembersTable'
+import FinanceVisibilityToggle from './components/FinanceVisibilityToggle'
 
 export const metadata: Metadata = { title: 'สมาชิกธุรกิจ' }
 
@@ -58,6 +59,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
     select: {
       id: true, shopName: true, userId: true, kind: true,
       packageLockedAt: true, packageLockReason: true, deletedAt: true,
+      staffCanViewFinance: true,
     },
   })
   if (!shop || shop.kind !== 'BUSINESS' || shop.deletedAt) notFound()
@@ -95,6 +97,10 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
       )}
 
       <div className="gap-5 grid grid-cols-1">
+        {/* feature 00016 Unit 5C: toggle staffCanViewFinance — owner-only (defense-in-depth, backend ก็ owner-only) */}
+        {isOwner && (
+          <FinanceVisibilityToggle shopId={shop.id} initial={shop.staffCanViewFinance} locked={isLocked} />
+        )}
         {/* feature 00012: การเชิญพนักงานย้ายไปเมนู "พนักงาน" (ลิงก์เชิญ) — แสดงเฉพาะ owner */}
         {isOwner && (
           <div className="card">

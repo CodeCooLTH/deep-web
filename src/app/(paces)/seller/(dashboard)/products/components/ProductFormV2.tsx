@@ -37,6 +37,7 @@ import ProductShortDescCardV2 from './ProductShortDescCardV2'
 import ProductPriceCardV2 from './ProductPriceCardV2'
 import ProductTypePickerCardV2 from './ProductTypePickerCardV2'
 import ProductStockCardV2 from './ProductStockCardV2'
+import ProductCostCardV2 from './ProductCostCardV2'
 import ProductCapabilityCardV2 from './ProductCapabilityCardV2'
 import ProductBillingPeriodCardV2 from './ProductBillingPeriodCardV2'
 import ProductTagsCardV2 from './ProductTagsCardV2'
@@ -129,6 +130,15 @@ const schema = Yup.object({
     .min(0, 'ห้ามติดลบ')
     .nullable()
     .default(null),
+  // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, ≥0=ตั้งค่า
+  // min(0) ต่าง price ที่ positive() — cost อนุญาต ฿0 (D-9)
+  cost: Yup.number()
+    .min(0, 'ห้ามติดลบ')
+    .test('decimal', 'ราคาทุนทศนิยมได้ไม่เกิน 2 ตำแหน่ง', (v) =>
+      v !== undefined && v !== null ? /^\d+(\.\d{1,2})?$/.test(String(v)) : true,
+    )
+    .nullable()
+    .default(null),
 })
 
 interface ProductFormV2Props {
@@ -142,6 +152,9 @@ interface ProductFormV2Props {
   // isProActive — Deep Stock Pro (feature 00009 S-20): PRO-gate field lowStockThreshold
   // ภายใน ProductStockCardV2 (default false = แสดง upsell hint แทน input จริง)
   isProActive?: boolean
+  // costEditAllowed — Expense & Cost Tracking (feature 00016): gate field cost
+  // ภายใน ProductCostCardV2 (default false = field disabled + badge upsell)
+  costEditAllowed?: boolean
 }
 
 export default function ProductFormV2({
@@ -151,6 +164,7 @@ export default function ProductFormV2({
   shopName,
   entitlementActive = false,
   isProActive = false,
+  costEditAllowed = false,
 }: ProductFormV2Props) {
   const router = useRouter()
   const isEdit = !!product
@@ -192,6 +206,7 @@ export default function ProductFormV2({
       billingPeriodDays: product?.billingPeriodDays ?? null,
       stockQty: product?.stockQty ?? null,
       lowStockThreshold: product?.lowStockThreshold ?? null,
+      cost: product?.cost ?? null,
     },
   })
 
@@ -243,6 +258,9 @@ export default function ProductFormV2({
           values.stockQty !== undefined
             ? (values.lowStockThreshold ?? null)
             : undefined,
+        // cost — Expense & Cost Tracking (feature 00016): ส่งเฉพาะ costEditAllowed
+        // (field disabled ตอนไม่ allowed — ไม่ควรส่งค่าที่ user แก้ไม่ได้ แม้ server guard ไว้แล้วก็ตาม)
+        cost: costEditAllowed ? (values.cost ?? null) : undefined,
       }
 
       const url = isEdit ? `/api/products/${product!.id}` : '/api/products'
@@ -344,6 +362,16 @@ export default function ProductFormV2({
 
             <div className="border-default-100 border-t" />
             <ProductPriceCardV2 register={register} errors={errors} setValue={setValue} watch={watch} />
+
+            {/* ProductCostCardV2 — Expense & Cost Tracking (feature 00016 Unit 5B): แสดงเสมอ
+                (ต่าง ProductStockCardV2 ที่ conditional render — D-9 "แสดงเสมอ ไม่ซ่อน") */}
+            <div className="border-default-100 border-t" />
+            <ProductCostCardV2
+              register={register}
+              errors={errors}
+              watch={watch}
+              costEditAllowed={costEditAllowed}
+            />
 
             <div className="border-default-100 border-t" />
             <ProductTypePickerCardV2
