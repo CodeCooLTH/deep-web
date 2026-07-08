@@ -57,6 +57,9 @@ model User {
   // --- Deep Chat (feature 00011, additive) ---
   buyerConversations Conversation[] @relation("BuyerConversations") // conversation ที่ user เป็นฝั่ง buyer
   sentChatMessages   ChatMessage[]  @relation("SentChatMessages") // ข้อความที่ user ส่ง (buyer หรือ seller)
+
+  // --- Expense & Cost Tracking (feature 00016, additive) ---
+  createdExpenses Expense[] @relation("ExpenseCreatedBy") // NEW — back-relation ของ Expense.createdByUserId (Prisma-managed, ไม่มีคอลัมน์จริงฝั่งนี้)
 }
 
 model AuthAccount {
@@ -142,6 +145,15 @@ model Shop {
   chatMedianResponseSec  Int?      // median เวลาตอบ (วินาที) เฉพาะ conv ที่ตอบแล้ว, FR-RESP-03
   chatMetricsUpdatedAt   DateTime? // เวลาที่ cron เขียนล่าสุด, FR-RESP-07
 
+  // --- Expense & Cost Tracking (feature 00016, additive) ---
+  // staffCanViewFinance: toggle owner เปิด/ปิดให้ ShopMember(role=ADMIN) เห็นข้อมูล Expense/P&L ของร้านนี้
+  // default false เสมอ (FR-EXP-10-AC-01, BR §3.6 — "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด")
+  // มีผลจริงเฉพาะ BUSINESS shop ในทางปฏิบัติ (PERSONAL shop ไม่มี ShopMember(ADMIN) อื่นอยู่แล้ว —
+  // 1 user = owner คนเดียว) แต่ประกาศไว้ทุกแถวเพื่อความสม่ำเสมอของ schema (PRD §4.2)
+  // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle+package
+  // ครบทุกครั้ง (ดู SRS สำหรับ authorization logic เต็ม)
+  staffCanViewFinance Boolean @default(false)
+
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   products             Product[]
   orders               Order[]
@@ -157,6 +169,7 @@ model Shop {
   verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
+  expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -298,6 +311,15 @@ model Product {
   // เดียวกับตอน isActive true→false เสมอ (BR-PIN-11 — service layer, product.service deleteProduct/updateProduct).
   // จำนวนปักหมุดต่อ shop <= Shop.pinSlots (enforce service layer เท่านั้น — ไม่มี DB constraint ข้ามแถว)
   pinnedAt          DateTime?
+
+  // --- Expense & Cost Tracking (feature 00016, additive) ---
+  // cost: ราคาทุนปัจจุบัน — nullable/opt-in (BR §3.1). ไม่บังคับกรอก, ไม่กระทบสินค้าเดิมที่ยังไม่ตั้ง
+  // (zero-regression). Snapshot ลง OrderItem.cost ตอนสร้างออเดอร์ทุกครั้ง — แก้ค่านี้ทีหลังไม่มีผลย้อนหลัง
+  // กับ OrderItem.cost ที่ snapshot ไปแล้ว (historical accuracy, D-5)
+  // CHECK(cost IS NULL OR cost >= 0) enforce ด้วยมือใน migration SQL (NOT VALID + VALIDATE เพราะ
+  // Product มี row จริงบน prod แล้ว — pattern เดียวกับ stockQty/lowStockThreshold feature 00003/00009)
+  cost              Decimal? @db.Decimal(12, 2)
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -366,6 +388,10 @@ model Order {
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
   @@index([customerId]) // feat 00014 — lookup order ต่อ customer
+  // NEW (feature 00016) — P&L Revenue query (FR-EXP-06-AC-01): WHERE shopId=X AND status='CONFIRMED'
+  // AND createdAt BETWEEN start,end. ครอบคลุม dashboard.service.ts เดิมไปด้วย (query pattern เดียวกัน
+  // แต่ไม่เคยมี index รองรับมาก่อน)
+  @@index([shopId, status, createdAt])
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
@@ -397,8 +423,23 @@ model OrderItem {
   // ใช้คืนสต็อกถูกต้องตอน cancel (BR-INV-12). CHECK(stockDeducted >= 0) ใน migration SQL
   stockDeducted Int?
 
+  // --- Expense & Cost Tracking (feature 00016, additive) ---
+  // cost: snapshot ต้นทุนสินค้า ณ วันขาย จาก Product.cost — เดียวกับ pattern ของ price (FR-EXP-02-AC-01)
+  // NULL เมื่อ: (a) Product.cost เป็น null ณ ขณะสร้างออเดอร์ (FR-EXP-02-AC-02), หรือ (b) custom/manual
+  // line item ที่ productId เป็น null (FR-EXP-02-AC-03) — ไม่ error, ไม่ default เป็น 0 ในทั้งสองกรณี
+  // แก้ Product.cost ทีหลังไม่มีผลย้อนหลังกับค่านี้เด็ดขาด (FR-EXP-02-AC-04, historical accuracy)
+  // CHECK(cost IS NULL OR cost >= 0) enforce ด้วยมือใน migration SQL (NOT VALID + VALIDATE เพราะ
+  // OrderItem มี row จริงบน prod แล้ว — pattern เดียวกับ stockDeducted feature 00003)
+  cost          Decimal? @db.Decimal(12, 2)
+
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // NEW (feature 00016) — orderId ไม่เคยมี index เลยตั้งแต่ init migration (Postgres ไม่ auto-index
+  // scalar FK เหมือน MySQL) ทำให้ทุก query "OrderItem WHERE orderId IN (...)" เป็น sequential scan
+  // มาตลอด. COGS calculation (FR-EXP-06-AC-02) ต้อง join OrderItem ของทุก order ที่เข้าเงื่อนไข Revenue
+  // ในช่วงเวลาที่เลือก — เป็น query pattern ใหม่ที่ hot กว่าที่เคยมี จึงต้องเพิ่ม index นี้พร้อมฟีเจอร์นี้
+  @@index([orderId])
 }
 
 model ShipmentTracking {
@@ -888,4 +929,37 @@ model ChatMessage {
   product      Product?     @relation(fields: [productRefId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
+}
+
+// --- Expense & Cost Tracking (feature 00016, additive) ---
+// ดู docs/20 - Features/00016 - Expense & Cost Tracking/DATABASE.md (FROZEN CONTRACT)
+// Expense: ค่าใช้จ่ายดำเนินธุรกิจที่ seller บันทึกเอง แยกหมวดตาม fixed list — feature 00016
+// Period-level เท่านั้น (ไม่ allocate ลงรายออเดอร์, D-10/§4.4 ของ PRD) — ผูก shopId ตรง
+// ไม่มี state machine (แก้/ลบได้ทุกเวลา, BR §3.3) ไม่มี audit trail ละเอียด (createdByUserId = audit เบา)
+model Expense {
+  id     String @id @default(uuid())
+  shopId String
+  // category: fixed list 7 ค่า — "RENT" | "PACKAGING" | "ADVERTISING" | "SHIPPING" | "SALARY" |
+  // "UTILITIES" | "OTHER". String ตาม convention project (ไม่ใช้ Prisma enum จริง — เลี่ยง ALTER TYPE
+  // ทุกครั้งที่ปรับหมวดในอนาคต, PRD §3.4 เหตุผล) ไม่มี DB CHECK ของค่า — validate ที่ Valibot เท่านั้น
+  // (มิเรอร์ Shop.kind/ShopMember.role/Order.status/TopUpRequest.status ที่ไม่มี CHECK เช่นกัน)
+  category String
+  // amount: > 0 เสมอ (BR §3.3, FR-EXP-03-AC-02) — DB CHECK ตรง (table ใหม่ ไม่มี row เก่า)
+  amount Decimal @db.Decimal(12, 2)
+  // expenseDate: วันเกิดค่าใช้จ่าย — แยกจาก createdAt รองรับ backdate (D-11). ไม่มี DB default;
+  // ถ้าไม่ระบุ service layer default เป็นวันนี้ (timezone ไทย) ก่อนเขียนลง DB (FR-EXP-03-AC-04)
+  expenseDate DateTime
+  note        String?  @db.Text
+  // createdByUserId: ผู้บันทึก (owner หรือ admin ที่ staffCanViewFinance=true) — audit เบา, ไม่มี
+  // versioning/diff history (Out of Scope PRD §5) — onDelete ไม่ระบุ = Restrict (มิเรอร์ ShopInviteLink)
+  createdByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  shop      Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdBy User @relation("ExpenseCreatedBy", fields: [createdByUserId], references: [id])
+
+  // P&L query หลัก (FR-EXP-08-AC-01): WHERE shopId=X AND expenseDate BETWEEN start,end
+  // ครอบคลุมทั้ง list view ของหน้า /expenses (เรียง expenseDate) และ Total Expense sum
+  @@index([shopId, expenseDate])
 }
