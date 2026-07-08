@@ -671,16 +671,19 @@ export const authOptions: NextAuthOptions = {
           let activeShopKind: "PERSONAL" | "BUSINESS" = "PERSONAL";
           let activeShopName: string | null = null;
           let activeShopLogo: string | null = null;
+          // active shop slug (feature: ปุ่ม "เปิดหน้าร้าน" ต้องชี้ร้านที่ switch อยู่ = /b/{slug} ไม่ใช่ /u/{ตัวเอง})
+          let activeShopSlug: string | null = null;
           try {
             if (resolvedActiveShopId && resolvedActiveShopId !== personalShopId) {
               const activeShop = await prisma.shop.findUnique({
                 where: { id: resolvedActiveShopId },
-                select: { shopName: true, logo: true },
+                select: { shopName: true, logo: true, slug: true },
               });
               if (activeShop) {
                 activeShopKind = "BUSINESS";
                 activeShopName = activeShop.shopName;
                 activeShopLogo = activeShop.logo;
+                activeShopSlug = activeShop.slug;
               }
             }
           } catch (e) {
@@ -688,6 +691,7 @@ export const authOptions: NextAuthOptions = {
             activeShopKind = "PERSONAL";
             activeShopName = null;
             activeShopLogo = null;
+            activeShopSlug = null;
           }
 
           // feature 00015 TD-002 — skip-window 5 นาทีหลัง sign-in ด้วย phone-otp เท่านั้น
@@ -703,7 +707,7 @@ export const authOptions: NextAuthOptions = {
             shopSlug, needsOnboarding, needsPhoneVerify,
             activeShopId: resolvedActiveShopId, activeShopRole, hasBusinessMembership,
             // FB switcher (origin/main): active shop identity สำหรับ topbar/sidebar
-            activeShopKind, activeShopName, activeShopLogo,
+            activeShopKind, activeShopName, activeShopLogo, activeShopSlug,
             // feature 00012 (Lazy Personal shop): ให้ layout/choose-shop รู้ว่า user มีร้านของตัวเองไหม
             // (ผู้ถูกเชิญ = false แม้เป็น ADMIN business) — ใช้ตัดสิน 0-shop/invited-only state
             hasPersonalShop: !!personal,

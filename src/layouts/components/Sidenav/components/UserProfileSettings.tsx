@@ -22,7 +22,15 @@ const UserProfileSettings = () => {
   // session shape เหมือน UserDropdownDetailed — cast เพื่อเข้าถึง custom fields
   const { data: session } = useSession()
   const user = (session as any)?.user as
-    | { id: string; displayName: string; username: string; avatar: string | null; isShop?: boolean }
+    | {
+        id: string
+        displayName: string
+        username: string
+        avatar: string | null
+        isShop?: boolean
+        activeShopKind?: 'PERSONAL' | 'BUSINESS'
+        activeShopSlug?: string | null
+      }
     | undefined
 
   // บล็อกบัญชีใน sidebar = ข้อมูลส่วนตัวเสมอ (ไม่สะท้อน business ที่ active — ตาม user 2026-07-04)
@@ -58,7 +66,11 @@ const UserProfileSettings = () => {
               {user?.username && (
                 <>
                   <a
-                    href={`${resolveBuyerBaseUrl()}/u/${user.username}`}
+                    href={
+                      user.activeShopKind === 'BUSINESS' && user.activeShopSlug
+                        ? `${resolveBuyerBaseUrl()}/b/${user.activeShopSlug}`
+                        : `${resolveBuyerBaseUrl()}/u/${user.username}`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="dropdown-item"

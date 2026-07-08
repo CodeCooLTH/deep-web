@@ -58,6 +58,7 @@ const UserDropdown = () => {
         activeShopKind?: 'PERSONAL' | 'BUSINESS'
         activeShopName?: string | null
         activeShopLogo?: string | null
+        activeShopSlug?: string | null
       }
     | undefined
 
@@ -210,7 +211,11 @@ const UserDropdown = () => {
         {/* เปิดหน้าร้าน — แสดงเมื่อมี username (ทุก user มีหน้าโปรไฟล์สาธารณะ /u/[username] ไม่ว่าจะเปิดร้านหรือยัง; ข้าม subdomain ใช้ <a> ธรรมดา) */}
         {user?.username && (
           <a
-            href={`${resolveBuyerBaseUrl()}/u/${user.username}`}
+            href={
+              user.activeShopKind === 'BUSINESS' && user.activeShopSlug
+                ? `${resolveBuyerBaseUrl()}/b/${user.activeShopSlug}`
+                : `${resolveBuyerBaseUrl()}/u/${user.username}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="dropdown-item"
