@@ -83,7 +83,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
     // Phase A Unit A: buyer identity (null = guest ยังไม่ register)
     // buyerContact ยัง mask อยู่ใน field `buyer` ด้านบน — ไม่ลด PII boundary
-    buyerName: o.buyer?.displayName ?? null,
+    // registered → displayName; guest → ชื่อที่ seller กรอกตอนสร้างออเดอร์ (o.buyerName); ไม่มีจริง ๆ → null
+    buyerName: o.buyer?.displayName ?? o.buyerName ?? null,
     buyerUsername: o.buyer?.username ?? null,
     buyerAvatar: o.buyer?.avatar ?? null,
     salesChannel: o.salesChannel ?? null,
