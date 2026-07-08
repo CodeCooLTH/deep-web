@@ -46,10 +46,18 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
       aria-live="polite"
       aria-label="กำลังสลับร้าน"
     >
-      {(targetLogo || targetName) && (
-        <AccountAvatar src={targetLogo ?? null} kind={targetKind ?? 'business'} className="size-14" />
+      {targetLogo || targetName ? (
+        <div className="relative flex items-center justify-center">
+          <AccountAvatar src={targetLogo ?? null} kind={targetKind ?? 'business'} className="size-14" />
+          {/* วงแหวน spinner บางวิ่งติดขอบรูป avatar (arc หมุนรอบขอบ) */}
+          <span
+            className="border-primary absolute -inset-0.5 animate-spin rounded-full border-2 border-t-transparent"
+            aria-hidden="true"
+          />
+        </div>
+      ) : (
+        <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
       )}
-      <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
       <p className="text-default-800 text-sm font-semibold">{primaryText}</p>
       <p className="text-default-500 text-xs">กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</p>
     </div>
