@@ -120,6 +120,8 @@ export interface SerializedProduct {
   stockQty: number | null;
   // lowStockThreshold — Deep Stock Pro (feature 00009): null=ไม่ตั้ง alert, N>=0=ตั้งค่า
   lowStockThreshold: number | null;
+  // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, N>=0=ตั้งค่า (gate ด้วย isCostEditAllowed ที่ route)
+  cost: number | null;
 }
 
 type ProductWithTags = Prisma.ProductGetPayload<{ include: { tags: true } }>;
@@ -152,6 +154,8 @@ export function serializeProduct(product: ProductWithTags): SerializedProduct {
     tags: product.tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
     stockQty: product.stockQty ?? null,
     lowStockThreshold: product.lowStockThreshold ?? null,
+    // cost — Expense & Cost Tracking (feature 00016): Decimal→number แปลงเหมือน price, null=ไม่ตั้ง
+    cost: product.cost !== null && product.cost !== undefined ? Number(product.cost) : null,
   };
 }
 
@@ -178,6 +182,8 @@ export interface CreateProductInput {
   stockQty?: number | null;
   // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ไม่ตั้ง alert, ≥0=ตั้งค่า
   lowStockThreshold?: number | null;
+  // cost — Expense & Cost Tracking (feature 00016): undefined=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (gate ที่ route ด้วย isCostEditAllowed)
+  cost?: number | null;
 }
 
 /**
@@ -215,6 +221,8 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       stockQty: data.stockQty ?? null,
       // lowStockThreshold — Deep Stock Pro (feature 00009): omit ก็ default เป็น null (ไม่ตั้ง alert)
       lowStockThreshold: data.lowStockThreshold ?? null,
+      // cost — Expense & Cost Tracking (feature 00016): omit ก็ default เป็น null (ไม่ตั้งราคาทุน)
+      cost: data.cost ?? null,
       // capability flags — derive fulfillmentMode จาก type ถ้า caller ไม่ส่งมา
       // ไม่พึ่ง client หรือ DB default: SERVICE/DIGITAL ที่ไม่ส่ง fulfillmentMode จะได้
       // SHIPPED จาก schema default → post-OMS createOrder จะ require shipping ผิด
@@ -261,6 +269,8 @@ export interface UpdateProductInput {
   stockQty?: number | null;
   // lowStockThreshold — Deep Stock Pro (feature 00009): omit=ไม่แตะ, null=ไม่ตั้ง alert, ≥0=ตั้งค่า
   lowStockThreshold?: number | null;
+  // cost — Expense & Cost Tracking (feature 00016): omit=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (gate ที่ route ด้วย isCostEditAllowed)
+  cost?: number | null;
 }
 
 /**
@@ -306,6 +316,8 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.stockQty !== undefined) scalarUpdate.stockQty = data.stockQty;
   // lowStockThreshold — Deep Stock Pro (feature 00009): omit=ไม่แตะ (pattern เดียวกับ stockQty)
   if (data.lowStockThreshold !== undefined) scalarUpdate.lowStockThreshold = data.lowStockThreshold;
+  // cost — Expense & Cost Tracking (feature 00016): omit=ไม่แตะ (pattern เดียวกับ lowStockThreshold)
+  if (data.cost !== undefined) scalarUpdate.cost = data.cost;
 
   // ถ้าไม่มี tags ใน payload — update ครั้งเดียว ไม่ต้อง transaction
   if (data.tags === undefined) {

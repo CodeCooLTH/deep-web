@@ -10,6 +10,7 @@ import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
 import { isStrongPassword } from "@/lib/password";
 import { isValidSlugFormat } from "@/lib/shop-slug";
+import { EXPENSE_CATEGORIES } from "@/lib/expense";
 
 export const SendOtpSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
@@ -156,6 +157,8 @@ export const CreateProductSchema = v.object({
   stockQty: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
   // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ปิด alert explicit, ≥0=ตั้งค่า
   lowStockThreshold: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+  // cost — Expense & Cost Tracking (feature 00016): undefined=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (min 0 ไม่ใช่ 0.01 เหมือน price — cost อนุญาต ฿0)
+  cost: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0)))),
 });
 
 export const UpdateProductSchema = v.object({
@@ -186,6 +189,8 @@ export const UpdateProductSchema = v.object({
   stockQty: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
   // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ปิด alert explicit, ≥0=ตั้งค่า
   lowStockThreshold: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))),
+  // cost — Expense & Cost Tracking (feature 00016): undefined=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (min 0 ไม่ใช่ 0.01 เหมือน price — cost อนุญาต ฿0)
+  cost: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0)))),
 });
 
 // --- Deep Stock Pro (feature 00009) ---
@@ -726,4 +731,29 @@ export const BuyPinSlotSchema = v.object({
 export const inviteLinkCreateSchema = v.object({
   // omit ได้ — route ใช้ DEFAULT_INVITE_EXPIRY_KEY (@/lib/invite-link) แทนถ้าไม่ส่งมา
   expiryKey: v.optional(v.picklist(["24h", "7d", "30d"])),
+});
+
+// ── feature 00016 Expense & Cost Tracking (SDS §4.1 / API.md §4.1/§4.3/§4.5) ─
+// SSOT: docs/20 - Features/00016 - Expense & Cost Tracking/{SDS,API}.md
+
+export const CreateExpenseSchema = v.object({
+  category: v.picklist(EXPENSE_CATEGORIES),
+  amount: v.pipe(v.number(), v.minValue(0.01)),
+  expenseDate: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+  note: v.optional(v.pipe(v.string(), v.maxLength(500))),
+});
+
+// UpdateExpenseSchema — partial update (ทุก field optional, omit = ไม่แตะ) ตาม API.md §4.3
+export const UpdateExpenseSchema = v.object({
+  category: v.optional(v.picklist(EXPENSE_CATEGORIES)),
+  amount: v.optional(v.pipe(v.number(), v.minValue(0.01))),
+  expenseDate: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+  note: v.optional(v.pipe(v.string(), v.maxLength(500))),
+});
+
+// PnlReportQuerySchema — manual parse (query params ไม่ใช่ JSON body) ตาม API.md §4.5
+export const PnlReportQuerySchema = v.object({
+  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "today"),
+  start: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+  end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
 });

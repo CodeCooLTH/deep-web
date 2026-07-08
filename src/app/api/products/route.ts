@@ -10,6 +10,7 @@ import {
 } from "@/services/product.service";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
+import { isCostEditAllowed } from "@/services/expense-access.service";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -59,6 +60,14 @@ export async function POST(request: NextRequest) {
     }
     if (!(await isProActive(shop.id))) {
       return NextResponse.json({ error: "INVENTORY_NOT_PRO" }, { status: 403 });
+    }
+  }
+
+  // cost — Expense & Cost Tracking (feature 00016): guard เฉพาะเมื่อ caller ส่ง field นี้มา
+  // (ownership check ผ่านไปแล้วโดย requireActiveShop ด้านบน — isCostEditAllowed เช็คแค่ package ACTIVE)
+  if (parsed.output.cost !== undefined) {
+    if (!(await isCostEditAllowed(shop))) {
+      return NextResponse.json({ error: "COST_REQUIRES_BUSINESS_PACKAGE" }, { status: 403 });
     }
   }
 
