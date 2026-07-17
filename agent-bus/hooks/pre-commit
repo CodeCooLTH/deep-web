@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+#
+# agent-bus secret guard (pre-commit)
+# ------------------------------------
+# บล็อก commit ถ้าเจอ token / key / password / private-key ในไฟล์บัส
+# สแกนเฉพาะ "บรรทัดที่เพิ่มใหม่" ใน agent-bus/ (ยกเว้น hooks/ กับ scripts/)
+#
+# bypass ชั่วคราว (ใช้เมื่อจำเป็นจริงและมั่นใจว่าไม่ใช่ secret):
+#   git commit --no-verify
+#
+set -u
+
+RED=$'\033[31m'; YEL=$'\033[33m'; RST=$'\033[0m'
+hits=0
+
+# ไฟล์บัสที่ staged (added/copied/modified) — ตัด hooks/ และ scripts/ ออก (เป็นโค้ด)
+files=$(git diff --cached --name-only --diff-filter=ACM \
+        | grep -E '(^|/)agent-bus/' \
+        | grep -vE '(^|/)agent-bus/(hooks|scripts)/' || true)
+
+[ -z "$files" ] && exit 0
+
+# secret patterns (case-insensitive สำหรับ assignment)
+scan() {
+  local f="$1" added
+  # เอาเฉพาะบรรทัดที่เพิ่ม (+) ไม่รวมหัว diff (+++)
+  added=$(git diff --cached -U0 -- "$f" | grep -E '^\+' | grep -vE '^\+\+\+' | sed 's/^\+//')
+  [ -z "$added" ] && return 0
+
+  local report
+  report=$(printf '%s\n' "$added" | grep -nE \
+    -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' \
+    -e 'AKIA[0-9A-Z]{16}' \
+    -e '(sk|pk|rk)-[A-Za-z0-9]{20,}' \
+    -e 'xkeysib-[A-Za-z0-9]{20,}' \
+    -e 'xox[baprs]-[A-Za-z0-9-]{10,}' \
+    -e 'gh[posur]_[A-Za-z0-9]{20,}' \
+    -e 'AIza[0-9A-Za-z_\-]{30,}' \
+    -e 'ya29\.[0-9A-Za-z_\-]{10,}' \
+    -e 'eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
+    -e '[A-Za-z0-9+/]{40,}={0,2}' )
+
+  # assignment แบบ key=value (case-insensitive) แยกจับเพื่อ log ชัด
+  local assign
+  assign=$(printf '%s\n' "$added" | grep -inE \
+    '(api[_-]?key|secret|token|password|passwd|pwd|access[_-]?key|auth)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9/+._-]{12,}' )
+
+  if [ -n "$report" ] || [ -n "$assign" ]; then
+    printf '%s  %s%s\n' "$RED" "$f" "$RST"
+    [ -n "$report" ] && printf '%s\n' "$report" | sed 's/^/      /'
+    [ -n "$assign" ] && printf '%s\n' "$assign" | sed 's/^/      [assign] /'
+    hits=1
+  fi
+}
+
+for f in $files; do
+  [ -f "$f" ] && scan "$f"
+done
+
+if [ "$hits" -ne 0 ]; then
+  echo
+  echo "${RED}✗ agent-bus secret guard: พบข้อความที่อาจเป็น secret ในไฟล์บัส${RST}"
+  echo "${YEL}  บัสถูก push ขึ้น git = ความลับรั่วถาวร (ลบทีหลังไม่พอ ต้อง rotate)${RST}"
+  echo "${YEL}  → เอาค่าลับออกจากบัส แล้วส่งให้เจ้าของตรงในแชตแทน${RST}"
+  echo "${YEL}  ถ้าแน่ใจว่าไม่ใช่ secret จริง: git commit --no-verify${RST}"
+  exit 1
+fi
+
+exit 0
