@@ -86,17 +86,33 @@ export function ChannelBadge({ channel, size = 'sm' }: ChannelBadgeProps) {
   )
 }
 
-/** overlay badge วงกลมเล็กมุมล่างขวาของ avatar — ต้องอยู่ใน wrapper ที่มี class `relative` */
-export function ChannelBadgeOverlay({ channel, size = 'sm' }: ChannelBadgeProps) {
-  const display = getChannelDisplay(channel)
+/**
+ * overlay badge วงกลมมุมล่างขวาของ avatar — ต้องอยู่ใน wrapper ที่มี class `relative`
+ *
+ * ใช้ **พื้นสีแบรนด์ทึบ + ไอคอนขาว** ไม่ใช่พื้นขาว+ไอคอนสี เพราะที่ขนาดเท่านี้ไอคอนสีบางเส้น
+ * บนพื้นขาวแยกไม่ออกด้วยการกวาดตา (feedback จาก user บน prod: "อยากให้แยกออกว่าอันไหน
+ * in-app อันไหน Facebook") — พื้นทึบให้ contrast ระดับที่รู้ทันทีว่าแถวไหนมาจากช่องทางไหน
+ *
+ * มี title + sr-only ด้วย — เดิม aria-hidden ทำให้ผู้ใช้ screen reader ไม่รู้เลยว่าเธรดนี้
+ * มาจากช่องทางไหน ทั้งที่เป็นข้อมูลสำคัญ (ตอบ Messenger มีเงื่อนไข 24 ชม. แต่ Deep ไม่มี)
+ */
+export function ChannelBadgeOverlay({ channel, size = 'md' }: ChannelBadgeProps) {
+  const key = resolveChatChannel(channel)
+  const display = CHANNEL_DISPLAY[key]
   const dim = size === 'md' ? 'size-5' : 'size-4'
   const iconDim = size === 'md' ? 12 : 10
+  // DEEP ใช้ token Paces (bg-primary) — อีกสองช่องทางเป็นสีแบรนด์ (Hard Rule 6 exception)
+  const isDeep = key === 'DEEP'
   return (
     <span
-      className={`bg-card ring-card absolute -end-0.5 -bottom-0.5 flex ${dim} items-center justify-center rounded-full ring-2`}
-      aria-hidden="true"
+      className={`ring-card absolute -end-0.5 -bottom-0.5 flex ${dim} items-center justify-center rounded-full ring-2 ${
+        isDeep ? 'bg-primary' : ''
+      }`}
+      style={isDeep ? undefined : { backgroundColor: display.iconStyle?.color }}
+      title={display.label}
     >
-      <Icon icon={display.icon} width={iconDim} height={iconDim} className={display.iconClassName} style={display.iconStyle} />
+      <Icon icon={display.icon} width={iconDim} height={iconDim} className="text-white" />
+      <span className="sr-only">{display.label}</span>
     </span>
   )
 }
