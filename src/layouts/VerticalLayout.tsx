@@ -13,8 +13,8 @@
  *   (SellerBottomNav position:fixed; ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; admin ไม่ส่ง → ไม่กระทบ)
  * - feat 00008 P4-6: ลบ hasBusinessMembership prop (dead) — AccountSwitcher ย้ายไป
  *   topbar UserDropdownDetailed แล้ว (อ่าน session ตรงเอง ไม่ต้อง thread ผ่าน Sidenav)
- * - feat 00018 T2: เพิ่ม sidenavOverride (optional) — ส่งต่อให้ Sidenav เป็น contentOverride
- *   (Chat Rail แทนที่ AppMenu ในตำแหน่ง <aside> เดิม); ไม่ส่ง → ไม่กระทบ
+ * - bug fix (feat 00018): ลบ sidenavOverride prop (dead — Sidenav ตัดสิน Chat Rail เองแล้วผ่าน
+ *   usePathname() ใน SidenavContent ไม่ต้องรับ node จาก server อีกต่อไป — ดู Sidenav/index.tsx)
  */
 'use client'
 import Footer from '@/layouts/components/Footer'
@@ -34,8 +34,6 @@ type VerticalLayoutProps = {
   bottomNavSlot?: ReactNode
   /** เนื้อหาใต้เมนูใน sidebar (เช่น onboarding checklist ของ seller) — admin ไม่ส่ง → ไม่กระทบ */
   sidenavFooterSlot?: ReactNode
-  /** feat 00018 T2: แทนที่เนื้อหาเมนูซ้ายทั้งก้อน (Chat Rail) — admin/หน้าอื่นไม่ส่ง → ไม่กระทบ */
-  sidenavOverride?: ReactNode
 }
 
 const VerticalLayout = ({
@@ -45,7 +43,6 @@ const VerticalLayout = ({
   topbarSlot,
   bottomNavSlot,
   sidenavFooterSlot,
-  sidenavOverride,
 }: VerticalLayoutProps) => {
   // รวม class: "wrapper" เสมอ + shellClassName ถ้าส่งมา (admin ไม่ส่ง → ไม่เพิ่ม)
   const wrapperClass = shellClassName ? `wrapper ${shellClassName}` : 'wrapper'
@@ -55,7 +52,7 @@ const VerticalLayout = ({
       <TopBar />
       {/* topbarSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
       {topbarSlot && <div className="lg:hidden">{topbarSlot}</div>}
-      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} contentOverride={sidenavOverride} />
+      <Sidenav items={menuItems} footerSlot={sidenavFooterSlot} />
       <div className="page-content">
         <main>
           <div className="container-fluid">{children}</div>

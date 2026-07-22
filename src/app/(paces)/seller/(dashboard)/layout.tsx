@@ -24,7 +24,6 @@ import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
-import ChatRail from './inbox/components/ChatRail'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -52,8 +51,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!active) redirect('/choose-shop')
   const shop = active.shop
 
-  // x-pathname (proxy ตั้งไว้) — ใช้ทั้งกัน redirect loop ของ onboarding (เดิม) และ
-  // feat 00018 T2: ตรวจโหมดแชท (/inbox*) เพื่อสลับเมนูซ้ายเป็น Chat Rail
+  // x-pathname (proxy ตั้งไว้) — ใช้กัน redirect loop ของ onboarding เท่านั้น
+  // (bug fix feat 00018: เดิมยังใช้คำนวณ isChatMode ที่นี่ด้วย แต่ layout server ไม่ re-render
+  // ตอน soft navigation → เมนูไม่สลับตอนกดลิงก์ "ข้อความ" — ย้ายการตัดสินใจไปที่ client
+  // (SidenavContent, usePathname()) แล้ว ดู comment หัวไฟล์ SidenavContent.tsx)
   const currentPath = (await headers()).get('x-pathname') ?? ''
 
   // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
@@ -62,10 +63,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const onboardingPath = `/business/${shop.id}/onboarding`
     if (currentPath !== onboardingPath) redirect(onboardingPath)
   }
-
-  // feat 00018 T2: desktop ≥1024px เท่านั้น (คุมด้วย CSS breakpoint ที่ safepay-overrides.css) —
-  // เมนูซ้ายเปลี่ยนเป็น Chat Rail เมื่อ path เริ่มด้วย /inbox; จอเล็กไม่ถูกกระทบ (ไม่มี .app-menu ให้เห็นอยู่แล้ว)
-  const isChatMode = currentPath.startsWith('/inbox')
 
   // คำนวณ tier label ตาม SSOT (getTierLabel) จาก trustScore session
   const tierName = getTierLabel(user.trustScore ?? 0)
@@ -143,11 +140,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <VerticalLayout
       menuItems={menuItems}
-      // seller-chat-shell: เพิ่ม marker class scoped เฉพาะโหมดแชท (ขยาย --sidenav-width เป็น
-      // 320px ที่ ≥1024px ผ่าน safepay-overrides.css) — เติมต่อจาก seller-mobile-shell เดิม
-      // ไม่แทนที่ (จอ <1024 ต้องยังทำงานเหมือนเดิมทุกประการ)
-      shellClassName={isChatMode ? 'seller-mobile-shell seller-chat-shell' : 'seller-mobile-shell'}
-      sidenavOverride={isChatMode && shop?.id ? <ChatRail shopId={shop.id} /> : undefined}
+      // seller-chat-shell (ขยาย --sidenav-width เป็น 320px โหมดแชท ≥1024px, safepay-overrides.css)
+      // ไม่ toggle ที่นี่แล้ว — bug fix feat 00018: server ไม่ re-render ตอน soft nav ทำให้ค้างค่า
+      // ย้ายไป SidenavContent (client, usePathname()) toggle class บน <html> แทน (ดู comment
+      // หัวไฟล์ SidenavContent.tsx) shellClassName เหลือแค่ marker เดิมของ mobile shell
+      shellClassName="seller-mobile-shell"
       topbarSlot={
         <SellerMobileHeader
           shopName={shopNameForHeader}
