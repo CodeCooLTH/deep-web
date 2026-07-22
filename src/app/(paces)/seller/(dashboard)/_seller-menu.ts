@@ -33,6 +33,8 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
       // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน
       { url: '/rooms', slug: 'seller:rooms', label: 'ห้องพัก', icon: 'building-cottage' },
+      // feature 00017 P2 — icon 'calendar-event' verified มีจริงใน tabler
+      { url: '/calendar', slug: 'seller:calendar', label: 'ปฏิทินการจอง', icon: 'calendar-event' },
       // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
       // { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
       { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
@@ -185,7 +187,7 @@ export function applyStaffMenu(
  * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  * เพราะไม่มี use-case ให้ประเภทหนึ่งเห็นเมนูของอีกประเภท
  */
-const LODGING_ONLY_SLUGS = ['seller:rooms']
+const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar']
 const GENERAL_ONLY_SLUGS = ['seller:products', 'seller:inventory', 'seller:auctions']
 
 export function applyVerticalMenu(
