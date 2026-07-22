@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
-import { sellerMenuItems, applyInventoryGate, applyChatBadge, applyStaffMenu } from './_seller-menu'
+import { sellerMenuItems, applyInventoryGate, applyChatBadge, applyStaffMenu, applyVerticalMenu } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -95,9 +95,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
   // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
-  const menuItems = applyStaffMenu(
-    applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
-    { kind: active.kind, role: active.role },
+  // feature 00017 — applyVerticalMenu กรองเมนูตามประเภทกิจการ (ห้องพัก vs สินค้า/สต็อก/ประมูล)
+  // ชั้นนอกสุดโดยตั้งใจ: กรองทีหลัง gate อื่นเสมอ เพื่อไม่ให้ badge/disable ของ inventory
+  // ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้วสำหรับร้านบ้านพัก
+  const menuItems = applyVerticalMenu(
+    applyStaffMenu(
+      applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
+      { kind: active.kind, role: active.role },
+    ),
+    shop.vertical,
   )
 
   return (
