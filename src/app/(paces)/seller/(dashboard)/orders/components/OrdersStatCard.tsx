@@ -16,6 +16,7 @@ import ApexChart from '@/components/wrappers/ApexChart'
 import { CountUp } from '@/components/wrappers/CountUp'
 import { getColor } from '@/utils/helpers'
 import type { OrderStatCardData } from './data'
+import { getStatChangeTone, STAT_CHANGE_TONE_CLASS } from './stat-change-tone'
 
 // แมป status → chart color token
 // --color-success มีจริงใน _root.css (#02bc9c) → ใช้ได้ตรง ๆ
@@ -56,16 +57,10 @@ const OrdersStatCard = ({ item }: { item: OrderStatCardData }) => {
     },
   })
 
-  // badge class ตาม changePct (Hard Rule 7: semantic token เท่านั้น)
-  let badgeClass = 'bg-default-400/15 text-default-400'
-  let changeLabel = '0%'
-  if (item.changePct > 0) {
-    badgeClass = 'bg-success/15 text-success'
-    changeLabel = `+${item.changePct}%`
-  } else if (item.changePct < 0) {
-    badgeClass = 'bg-danger/15 text-danger'
-    changeLabel = `${item.changePct}%`
-  }
+  // badge tone ตาม changePct — CANCELLED invert (ยอดยกเลิกเพิ่ม = แย่ ไม่ใช่ดี) (S-A1)
+  // ดู stat-change-tone.ts สำหรับตรรกะเต็ม + เหตุผลที่แยกเป็น pure function
+  const badgeClass = STAT_CHANGE_TONE_CLASS[getStatChangeTone(item.status, item.changePct)]
+  const changeLabel = item.changePct > 0 ? `+${item.changePct}%` : `${item.changePct}%`
 
   return (
     <div className="card">
