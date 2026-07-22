@@ -13,7 +13,10 @@ import { Icon } from '@iconify/react'
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/ConnectionsTeams.tsx
 // (Card+CardHeader+CardContent pattern) — revive (Desktop layout redesign, IG-style + trust data)
 // เดิมไฟล์นี้เป็น dead code รับ prop VerifyItem[] ที่ไม่ตรง data shape จริง (ProfileTabData มีแค่ verifiedLevels: number[])
-// และใช้ Tailwind class + CSS var string (`border-[var(--mui-palette-...)]`) ซึ่งไม่ตรง convention sx ของไฟล์รอบข้าง
+// และใช้ Tailwind arbitrary-value class ที่ฝัง CSS var ไว้ข้างใน ซึ่งไม่ตรง convention sx ของไฟล์รอบข้าง
+// ข้อควรระวัง: ห้ามเขียนตัวอย่าง class แบบ arbitrary value (วงเล็บเหลี่ยม) ลงในคอมเมนต์เด็ดขาด —
+// Tailwind scanner อ่านไฟล์เป็น text ล้วน ไม่ได้ parse โครง TS จึงเก็บสตริงในคอมเมนต์ไปเป็น class จริง
+// แล้ว generate CSS ที่ผิดไวยากรณ์ → build พังทั้งแอป (เคยเกิดจริง 2026-07-22 ทำ prod build ล้ม)
 // เขียนใหม่: รับ verifiedLevels ตรง ๆ, ใช้ sx + Icon (@iconify/react) แทน <i className> ให้ตรงกับ
 // TrustScoreCard.tsx ที่อยู่ใน TrustDetailSection เดียวกัน
 
