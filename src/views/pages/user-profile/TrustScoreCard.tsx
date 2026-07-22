@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 
 // Type Imports
+import { getTierAccentColor } from '@/lib/trust-tier'
 import type { TierChipColor } from '@/lib/trust-tier'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/widget-examples/advanced/AssignmentProgress.tsx
@@ -40,17 +41,15 @@ const VERIFY_LEVELS: { level: number; label: string }[] = [
   { level: 3, label: 'จดทะเบียนธุรกิจ' },
 ]
 
-// gauge accent hex ต่อ tierColor — CircularProgress ไม่รองรับ color='default' (ต่างจาก Chip ที่รองรับ) จึงแม็ปเป็น hex เอง
-const GAUGE_ACCENT: Record<TierChipColor, string> = {
-  warning: '#FF9F43',
-  default: '#808390',
-  info: '#0EA5E9',
-  secondary: '#7367F0',
-}
-
 const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
   const { trustScore, tierLabel, tierColor, nextTierLabel, pointsToNext, verifiedLevels } = data
-  const accent = GAUGE_ACCENT[tierColor]
+
+  // gauge accent — ใช้ getTierAccentColor(trustScore) แทน map เดิมที่ key ด้วย TierChipColor
+  // ทำไม: TierChipColor มีแค่ 4 ค่า แต่ tier มี 5 → Classic กับ Gold ได้ 'warning' เหมือนกัน
+  // ทำให้ gauge ของ 2 tier ที่ต่างกันเป็นสีเดียว (บั๊กที่ S-B7 ตั้งใจแก้)
+  // และ map เดิมให้ Diamond = #0EA5E9 ขณะที่ตัวเลขใน ProfileStatsBar ใช้ #00BAD1
+  // = tier เดียวกันแต่สองสีในหน้าเดียวกัน
+  const accent = getTierAccentColor(trustScore)
 
   return (
     <Card sx={{ boxShadow: 'var(--mui-customShadows-sm)' }}>

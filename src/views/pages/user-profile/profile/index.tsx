@@ -146,7 +146,7 @@ const ProductCard = ({
         </Box>
       )}
 
-      <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: '#F1F5F9' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: 'background.default' }}>
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
