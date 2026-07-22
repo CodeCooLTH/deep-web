@@ -18,6 +18,9 @@
  *
  * ความกว้าง 320px คุมที่ CSS (.seller-chat-shell scoped var — safepay-overrides.css, toggle
  * โดย SidenavContent) ไม่ใช่ที่ component นี้
+ *
+ * feat 00018 (Chat Rail topbar): ส่ง railMode ให้ InboxList — ช่องค้นหาย้ายขึ้น topbar แล้ว
+ * (ChatSearchBox.tsx ผ่าน ChatSearchContext) ไม่ให้ InboxList render ช่องค้นหาซ้ำในนี้อีก
  */
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -114,7 +117,7 @@ export default function ChatRailClient() {
           />
         </div>
       ) : (
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} />
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} railMode />
       )}
     </>
   )
