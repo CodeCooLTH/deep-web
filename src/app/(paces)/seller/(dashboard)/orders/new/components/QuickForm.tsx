@@ -63,10 +63,14 @@ export default function QuickForm({
     [watchedItems, catalog, salesChannel],
   )
 
-  // โหลดครั้งแรก / ลบจนเหลือ 0 → มี 1 บรรทัดว่างเสมอ (micro-rule #2)
+  // โหลดครั้งแรก / ลบจนเหลือ 0 → มี 1 บรรทัดว่างเสมอ (micro-rule #2) — เฉพาะมือถือ/แท็บเล็ต (< lg)
+  // QuickForm ยังคง mount อยู่บน desktop (OrderCreateForm ห่อด้วย `lg:hidden` = ซ่อนด้วย CSS ไม่ unmount)
+  // เลย effect นี้ยังรันอยู่แม้ผู้ใช้อยู่บน desktop POS (≥ lg) → ยัดแถวว่างเข้า items ที่ desktop ใช้ร่วมกัน
+  // ตรวจ isDesktop ด้วย matchMedia('(min-width: 1024px)') — ค่าเดียวกับ `lg` ที่ OrderCreateForm ใช้แบ่ง layout
   const lineCount = itemsCtl.fields.length
   useEffect(() => {
-    if (lineCount === 0) itemsCtl.addCustom()
+    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+    if (lineCount === 0 && !isDesktop) itemsCtl.addCustom()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineCount])
 

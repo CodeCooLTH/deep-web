@@ -92,9 +92,8 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
     <>
       {/* dim: z-70 (ต่ำกว่า sheet z-80, สูงกว่า (fullscreen) layout z-50 + footer z-40) */}
       <div className="fixed inset-0 z-70 bg-dark/40" onClick={onClose} aria-hidden="true" />
-      {/* HR7: fixed inset-x-0 bottom-0 + h-[75dvh] = viewport-lock (Paces ไม่มี token) — sheet สูงคงที่ list มีที่พอ */}
       <div
-        className="fixed inset-x-0 bottom-0 z-80 flex h-[75dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card"
+        className={'fixed inset-x-0 bottom-0 z-80 flex h-[75dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 + h-[75dvh] = viewport-lock, Paces ไม่มี token — sheet สูงคงที่ list มีที่พอ */}
         role="dialog"
         aria-label="เลือกสินค้า"
       >
@@ -116,7 +115,9 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
           {/* สินค้าขายดี card slide — เหนือช่องค้นหา (ซ่อนตอนพิมพ์ค้นหา) */}
           {!s && bestSellers.length > 0 && (
             <>
-              <p className="mb-2 text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้าขายดี</p>
+              {/* Impeccable: ตัด tracking-wide + ตัวพิมพ์ใหญ่บังคับเดิม — สระ/วรรณยุกต์ไทยหลุดจากพยัญชนะเมื่อ
+                  tracking กว้าง และคลาสเดิมไม่มีผลกับอักษรไทยอยู่แล้ว (เหมือน 18 จุดที่แก้ไปแล้วใน Phase A) */}
+              <p className="mb-2 text-2xs font-bold text-default-400">สินค้าขายดี</p>
               <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {bestSellers.map((p) => (
                   <button
@@ -158,7 +159,8 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
           {/* สินค้าทั้งหมด (ยังไม่พิมพ์) — โชว์ 10 รายการ + lazy-load เมื่อเลื่อน */}
           {!s && catalog.length > 0 && (
             <>
-              <p className="mb-1 text-2xs font-bold tracking-wide text-default-400 uppercase">สินค้าทั้งหมด</p>
+              {/* Impeccable: ตัด tracking-wide + ตัวพิมพ์ใหญ่บังคับเดิม (เหตุผลเดียวกับ label "สินค้าขายดี" ด้านบน) */}
+              <p className="mb-1 text-2xs font-bold text-default-400">สินค้าทั้งหมด</p>
               <div className="divide-y divide-default-100">{catalog.slice(0, visibleCount).map(productRow)}</div>
               {visibleCount < catalog.length && (
                 <p className="py-3 text-center text-xs text-default-400">เลื่อนเพื่อดูเพิ่ม…</p>

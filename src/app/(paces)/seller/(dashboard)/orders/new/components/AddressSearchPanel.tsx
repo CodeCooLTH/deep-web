@@ -11,10 +11,15 @@
  *   (ไม่ import กัน tsc infer literal 982KB + ไม่เข้า JS bundle — served static, browser cache)
  * เลือกแล้ว → เติม subdistrict/district/province/postcode พร้อมกันผ่าน onSelect
  *   (pattern เดียวกับ applyLocality ใน CustomerQuickBlock.tsx — ห้ามแก้ไฟล์นั้นเช่นกัน)
+ * bug-fix (2026-07-22): dropdown ผลค้นหา `absolute top-full` โดน clip เมื่ออยู่ใน CartPanel
+ *   (lg:overflow-y-auto) ใกล้ขอบล่าง — เปลี่ยนเป็น portal-to-body ผ่าน useAnchoredDropdown (shared hook
+ *   ร่วมกับ ProductCombobox/CustomerSelectBlock); click-outside/escape/focus-trap ย้ายเข้า hook แล้ว
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
 
 interface AddrRecord {
   district: string // ตำบล
@@ -43,25 +48,8 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
   const [db, setDb] = useState<AddrRecord[] | null>(DESKTOP_ADDR_CACHE)
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  const comboRef = useRef<HTMLDivElement>(null)
-
-  // ปิด dropdown เมื่อคลิกนอก combo (pattern เดียวกับ CustomerSelectBlock)
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (comboRef.current && !comboRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', onEsc)
-    return () => document.removeEventListener('keydown', onEsc)
-  }, [open])
+  // click-outside/scroll-close/escape/focus-trap/portal position รวมอยู่ใน hook (shared 3 จุด — ดู hook สำหรับที่มา)
+  const { anchorRef: comboRef, panelRef, style, mounted } = useAnchoredDropdown({ open, onClose: () => setOpen(false) })
 
   // โหลด db แบบ lazy ตอน focus ครั้งแรก (ไม่ fetch ตั้งแต่ page load)
   const ensureLoaded = () => {
@@ -119,7 +107,7 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
   return (
     <div>
       <label className="form-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</label>
-      <div className="relative" ref={comboRef}>
+      <div ref={comboRef}>
         <div className="input-icon-group">
           <span className="input-icon">
             <Icon icon="search" className="size-4 text-default-400" />
@@ -140,44 +128,53 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
           />
         </div>
 
-        {open && (
-          <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg">
-            {loading && (
-              <div className="flex items-center gap-2 px-4 py-3 text-sm text-default-500">
-                <Icon icon="loader-2" className="size-3.5 animate-spin" />
-                กำลังโหลดข้อมูลที่อยู่…
-              </div>
-            )}
-            {!loading && !s && (
-              <p className="px-4 py-4 text-center text-sm text-default-400">
-                พิมพ์ตำบล / อำเภอ / จังหวัด / รหัส อย่างใดอย่างหนึ่ง
-              </p>
-            )}
-            {!loading && s && results.length === 0 && (
-              <p className="px-4 py-4 text-center text-sm text-default-400">ไม่พบที่อยู่</p>
-            )}
-            {!loading &&
-              s &&
-              results.map((r, i) => {
-                const sel = isSel(r)
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => select(r)}
-                    className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-default-100"
-                  >
-                    <span className={`text-sm ${sel ? 'font-semibold text-success' : 'text-dark'}`}>
-                      {r.district} <span className="text-default-300">&gt;</span> {r.amphoe}{' '}
-                      <span className="text-default-300">&gt;</span> {r.province}{' '}
-                      <span className="text-default-300">&gt;</span> {r.zipcode}
-                    </span>
-                    {sel && <Icon icon="check" className="size-4 shrink-0 text-success" />}
-                  </button>
-                )
-              })}
-          </div>
-        )}
+        {/* portal ไป document.body — หลุด overflow ที่ตัด panel เมื่อเปิดใกล้ขอบล่าง CartPanel */}
+        {open &&
+          mounted &&
+          style &&
+          createPortal(
+            <div
+              ref={panelRef}
+              style={style}
+              className="z-30 max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg"
+            >
+              {loading && (
+                <div className="flex items-center gap-2 px-4 py-3 text-sm text-default-500">
+                  <Icon icon="loader-2" className="size-3.5 animate-spin" />
+                  กำลังโหลดข้อมูลที่อยู่…
+                </div>
+              )}
+              {!loading && !s && (
+                <p className="px-4 py-4 text-center text-sm text-default-400">
+                  พิมพ์ตำบล / อำเภอ / จังหวัด / รหัส อย่างใดอย่างหนึ่ง
+                </p>
+              )}
+              {!loading && s && results.length === 0 && (
+                <p className="px-4 py-4 text-center text-sm text-default-400">ไม่พบที่อยู่</p>
+              )}
+              {!loading &&
+                s &&
+                results.map((r, i) => {
+                  const sel = isSel(r)
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => select(r)}
+                      className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-default-100"
+                    >
+                      <span className={`text-sm ${sel ? 'font-semibold text-success' : 'text-dark'}`}>
+                        {r.district} <span className="text-default-300">&gt;</span> {r.amphoe}{' '}
+                        <span className="text-default-300">&gt;</span> {r.province}{' '}
+                        <span className="text-default-300">&gt;</span> {r.zipcode}
+                      </span>
+                      {sel && <Icon icon="check" className="size-4 shrink-0 text-success" />}
+                    </button>
+                  )
+                })}
+            </div>,
+            document.body,
+          )}
       </div>
 
       {/* สรุปที่เลือกแล้ว (Verified-Means-Green) */}
