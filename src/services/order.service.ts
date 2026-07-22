@@ -443,6 +443,8 @@ export async function getOrderByToken(publicToken: string) {
       // เพิ่ม product.images เพื่อ resolve imageUrl ต่อ item (S-1 T1)
       // pattern เดียวกับ getOrdersByShop ที่ทำ items: { include: { product: { select: { images: true } } } }
       items: { include: { product: { select: { images: true } } } },
+      // feature 00017 — relation nullable: ออเดอร์สินค้าได้ room = null ไม่กระทบอะไร
+      room: { select: { name: true } },
       shop: {
         include: {
           user: {
