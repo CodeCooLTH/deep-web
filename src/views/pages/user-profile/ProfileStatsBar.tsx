@@ -25,10 +25,10 @@ export type ProfileStatsBarData = {
   trustScore: number
   tierLabel: string
   completedOrders: number
-  /** null = ยังไม่มี order จบเลย (ร้านใหม่) → แสดง "—" ห้ามแสดง 0% */
+  /** null = ยังไม่มี order จบเลย (ร้านใหม่) → แสดง "ข้อมูลยังน้อย" ห้ามแสดง 0% (P0-2: "—" หน้าตาเหมือนบั๊ก) */
   completionRate: number | null
   avgRating: number
-  /** false = รีวิวไม่ถึงเกณฑ์ความน่าเชื่อถือ (< 3 รีวิว) → แสดง "—" ห้ามยุบคอลัมน์ */
+  /** false = รีวิวไม่ถึงเกณฑ์ความน่าเชื่อถือ (< 3 รีวิว) → แสดง "ข้อมูลยังน้อย" (P0-2) */
   showRating: boolean
 }
 
@@ -37,18 +37,21 @@ const StatCell = ({
   value,
   label,
   valueColor,
+  small,
 }: {
   value: ReactNode
   label: string
   valueColor?: string
+  /** P0-2: true = value เป็น placeholder ข้อความ (เช่น "ข้อมูลยังน้อย") ไม่ใช่ตัวเลข — ใช้ font เล็กลง (13px/700) แทน 20px/800 */
+  small?: boolean
 }) => (
   <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
     <Typography
       component='p'
       sx={{
         m: 0,
-        fontSize: '20px',
-        fontWeight: 800,
+        fontSize: small ? '13px' : '20px',
+        fontWeight: small ? 700 : 800,
         lineHeight: 1.15,
         fontVariantNumeric: 'tabular-nums',
         color: valueColor ?? 'text.primary',
@@ -69,6 +72,9 @@ const VerticalDivider = () => (
 const ProfileStatsBar = ({ data }: { data: ProfileStatsBarData }) => {
   const { trustScore, tierLabel, completedOrders, completionRate, avgRating, showRating } = data
   const accent = getTierAccentColor(trustScore)
+  // P0-2 #4: ร้านใหม่ = completionRate null และไม่มีรีวิวพร้อมกัน → ยุบ "สำเร็จ"+"รีวิว"+divider ระหว่างกัน
+  // เป็นช่องเดียว (โชว์ "ข้อมูลยังน้อย" ซ้ำ 2 ช่องติดกันดูเหมือน bug มากกว่าน่าเชื่อ)
+  const isNewShop = completionRate == null && !showRating
 
   return (
     <Box
@@ -115,24 +121,40 @@ const ProfileStatsBar = ({ data }: { data: ProfileStatsBarData }) => {
 
       <VerticalDivider />
 
-      <StatCell value={completionRate != null ? `${completionRate}%` : '—'} label='สำเร็จ' />
+      {isNewShop ? (
+        // P0-2 #4: ยุบ "สำเร็จ" + "รีวิว" เป็นช่องเดียว flex:2 — บอกตรง ๆ ว่าร้านใหม่ แทนโชว์ placeholder ซ้ำ 2 ช่อง
+        <Box sx={{ flex: 2, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+          <Typography component='p' sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: 'text.secondary' }}>
+            ร้านใหม่ · ยังไม่มีประวัติเพียงพอ
+          </Typography>
+        </Box>
+      ) : (
+        <>
+          <StatCell
+            value={completionRate != null ? `${completionRate}%` : 'ข้อมูลยังน้อย'}
+            label='สำเร็จ'
+            small={completionRate == null}
+          />
 
-      <VerticalDivider />
+          <VerticalDivider />
 
-      <StatCell
-        value={
-          showRating ? (
-            <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-              {/* warning.main = #FF9F43 canonical (design.json) — ห้าม hardcode hex ดาว (ทั้งหน้าใช้สีเดียวกัน) */}
-              <Icon icon='tabler-star-filled' fontSize={16} style={{ color: 'var(--mui-palette-warning-main)' }} />
-              {avgRating.toFixed(1)}
-            </Box>
-          ) : (
-            '—'
-          )
-        }
-        label='รีวิว'
-      />
+          <StatCell
+            value={
+              showRating ? (
+                <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  {/* warning.main = #FF9F43 canonical (design.json) — ห้าม hardcode hex ดาว (ทั้งหน้าใช้สีเดียวกัน) */}
+                  <Icon icon='tabler-star-filled' fontSize={16} style={{ color: 'var(--mui-palette-warning-main)' }} />
+                  {avgRating.toFixed(1)}
+                </Box>
+              ) : (
+                'ข้อมูลยังน้อย'
+              )
+            }
+            label='รีวิว'
+            small={!showRating}
+          />
+        </>
+      )}
     </Box>
   )
 }

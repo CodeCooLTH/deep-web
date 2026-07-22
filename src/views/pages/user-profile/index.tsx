@@ -96,6 +96,8 @@ const UserProfile = ({
             nextTierLabel: profileTab.nextTierLabel,
             pointsToNext: profileTab.pointsToNext,
             verifiedLevels: profileTab.verifiedLevels,
+            // P0-2 #3: prop-drill isOwnShop จาก profileHeader (ProfileHeaderData) — ไม่ได้อยู่ใน profileTab
+            isOwnShop: profileHeader.isOwnShop,
           },
           verifiedLevels: profileTab.verifiedLevels,
           about: {
@@ -106,6 +108,7 @@ const UserProfile = ({
             chatMedianResponseSec: profileTab.chatMedianResponseSec,
             chatResponseSampleSize: profileTab.chatResponseSampleSize,
           },
+          isOwnShop: profileHeader.isOwnShop,
         }}
       />
     </Box>

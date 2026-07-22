@@ -33,6 +33,9 @@ export type TrustScoreCardData = {
   pointsToNext: number | null
   /** verification level ที่ approved แล้ว เช่น [1,2] = ผ่าน OTP + เอกสาร (ดู VerificationClient.tsx: 1=OTP, 2=เอกสาร, 3=จดทะเบียนธุรกิจ) */
   verifiedLevels: number[]
+  /** P0-2 #3 (Impeccable critique): true = ผู้เข้าชมคือเจ้าของร้านเอง — pointsToNext แสดงเฉพาะเจ้าของร้าน
+   * ไม่ใช่ teaser ให้ buyer เห็น (buyer ไม่ควรถูกกระตุ้นด้วยตัวเลขที่ตัวเองทำอะไรไม่ได้) */
+  isOwnShop?: boolean
 }
 
 const VERIFY_LEVELS: { level: number; label: string }[] = [
@@ -42,7 +45,7 @@ const VERIFY_LEVELS: { level: number; label: string }[] = [
 ]
 
 const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
-  const { trustScore, tierLabel, tierColor, nextTierLabel, pointsToNext, verifiedLevels } = data
+  const { trustScore, tierLabel, tierColor, nextTierLabel, pointsToNext, verifiedLevels, isOwnShop } = data
 
   // gauge accent — ใช้ getTierAccentColor(trustScore) แทน map เดิมที่ key ด้วย TierChipColor
   // ทำไม: TierChipColor มีแค่ 4 ค่า แต่ tier มี 5 → Classic กับ Gold ได้ 'warning' เหมือนกัน
@@ -76,10 +79,14 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
 
       <Typography component='p' sx={{ m: 0, mt: '12px', textAlign: 'center', fontSize: '13px', color: '#2F2B3D' }}>
         ระดับ <Box component='strong' sx={{ color: '#2F2B3D' }}>{tierLabel}</Box>
-        {nextTierLabel ? (
-          <>
-            {' '}· อีก <Box component='strong' sx={{ color: '#2F2B3D' }}>{pointsToNext}</Box> แต้มถึง {nextTierLabel}
-          </>
+        {/* P0-2 #3: pointsToNext เป็น teaser ที่มีประโยชน์กับเจ้าของร้านเท่านั้น (ทำอะไรต่อได้) —
+            buyer เห็นแล้วทำอะไรไม่ได้ จึงซ่อนจาก buyer แสดงเฉพาะเจ้าของร้าน "ระดับสูงสุดแล้ว" เป็นข้อเท็จจริง แสดงทุกคน */}
+        {nextTierLabel && pointsToNext != null ? (
+          isOwnShop ? (
+            <>
+              {' '}· อีก <Box component='strong' sx={{ color: '#2F2B3D' }}>{pointsToNext}</Box> แต้มถึง {nextTierLabel}
+            </>
+          ) : null
         ) : (
           ' · ระดับสูงสุดแล้ว'
         )}
@@ -93,7 +100,8 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
               key={v.level}
               size='small'
               variant='tonal'
-              color={checked ? 'primary' : 'default'}
+              // P0-1: chip row เลิกใช้ม่วง (primary = action ไม่ใช่ status — One Voice) L2+ ถึงเป็นเขียว
+              color={!checked ? 'default' : v.level >= 2 ? 'success' : 'default'}
               icon={checked ? <Icon icon='tabler-check' fontSize={14} /> : undefined}
               label={v.label}
               sx={{ fontSize: '11px', fontWeight: 600, opacity: checked ? 1 : 0.55 }}

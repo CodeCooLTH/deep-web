@@ -30,11 +30,17 @@ import { useSession } from 'next-auth/react'
 // ใน profile/index.tsx ซ้าย); ตัดเมตริก "ผู้ติดตาม" ทิ้งทั้งหมด (ไม่มี follow system จริง)
 // คง: back-button frosted-glass, verify badge ✓ บน avatar (carve-out dingbat), chat login-gate เดิม (S-8)
 // Desktop layout redesign (IG-style + trust data): avatar 112px(มือถือ)→152px(md+) ตาม wireframe เป้าหมาย
-// (overlap มากขึ้นให้สมดุลกับ container 960px ที่กว้างขึ้น); completionRate เพิ่มใน ProfileHeaderData —
-// ใช้ที่ ProfileStatsBar เท่านั้น ไม่ใช้ในไฟล์นี้; metric row เดิม (ออเดอร์·★รีวิว·tier chip) ถูกลบออก
+// (overlap มากขึ้นให้สมดุลกับ container 960px ที่กว้างขึ้น); metric row เดิม (ออเดอร์·★รีวิว·tier chip) ถูกลบออก
 // เพราะข้อมูลชุดเดียวกันย้ายไปอยู่ที่ ProfileStatsBar ซึ่ง render อยู่ใต้บล็อกนี้ทันที — คงไว้จะซ้ำ 2 แถวติดกัน
 // known-gap: tierColor กลายเป็น prop ที่ไม่ถูกใช้ในไฟล์นี้แล้วหลังลบ metric row (field อื่นยังอ่านผ่าน
 // ProfileStatsBar จาก object เดียวกัน — ไม่ลบ field ออกจาก type เพราะ TrustScoreCard ยังใช้ tierColor ต่อ)
+//
+// P0-1/P0-2 (2026-07-22 Impeccable critique — แก้เพิ่มรอบนี้):
+// - verify badge เดิมเป็น binary เขียว (icon เปล่า ไม่มี text node ให้ screen reader อ่าน) → เปลี่ยนเป็น chip
+//   3 ระดับ (L1 OTP=เทา, L2/L3=เขียว) พร้อม text จริง; avatar corner badge ยกเงื่อนไขเป็น L2+ เท่านั้น
+// - completionRate ใน ProfileHeaderData ตอนนี้ใช้ทั้งใน ProfileStatsBar และ ProfileBanner (new-shop override —
+//   completionRate===null บังคับ banner เป็นเกรย์เทาม่วงเสมอ ไม่ว่า trustScore จะสูงแค่ไหน)
+// - back-button shadow: rgba(0,0,0,.12) (ผิด Ink-Tinted Shadow Rule) → var(--mui-customShadows-sm)
 
 export type ProfileHeaderData = {
   profileImg?: string | null
@@ -67,10 +73,19 @@ export const ProfileBanner = ({
   data,
   bannerHeight = { xs: 148, sm: 200, md: 240 },
 }: {
-  data: Pick<ProfileHeaderData, 'trustScore'>
+  // known-gap: completionRate เป็น optional (ต่างจาก Pick<> ตรง ๆ ตามสเปก) เพราะมีผู้เรียกนอกขอบเขต task นี้
+  // (OrderDetailMobile.tsx /o/[token] — PublicOrderData ไม่มี field นี้ใน contract, อยู่นอก scope งานนี้)
+  // undefined = ไม่ override (พฤติกรรมเดิม ใช้ tier gradient เสมอ) ต่างจาก null ที่ตั้งใจส่งมาเพื่อบอกว่า "ร้านใหม่"
+  data: Pick<ProfileHeaderData, 'trustScore'> & { completionRate?: ProfileHeaderData['completionRate'] }
   bannerHeight?: number | string | { xs?: number; sm?: number; md?: number }
 }) => {
-  const gradient = getTierGradient(data.trustScore)
+  // P0-2 (Impeccable critique): "ร้านใหม่" ผูกกับ completionRate === null (ต้องมีออเดอร์จบจริง >= 3)
+  // ไม่ใช่ trustScore — คะแนนถูกดันด้วยรีวิวเพื่อนได้ แต่ออเดอร์จบจริงปลอมยากกว่ามาก
+  // ไม่ว่าคะแนนจะสูงแค่ไหน ถ้ายังไม่ผ่าน 3 ออเดอร์จบ → banner เทาเสมอ (ไม่ใช้ tier gradient ที่ดูเหมือนรางวัล)
+  const isNewShop = data.completionRate === null
+  const gradient = isNewShop
+    ? 'linear-gradient(135deg, #9b98a8 0%, #bdbbc7 55%, #dedce4 100%)'
+    : getTierGradient(data.trustScore)
 
   return (
     <Box
@@ -101,7 +116,8 @@ export const ProfileBanner = ({
             bgcolor: 'rgba(255,255,255,0.9)',
             backdropFilter: 'blur(8px)',
             border: '1px solid rgba(255,255,255,0.6)',
-            boxShadow: '0 2px 6px rgba(0,0,0,.12)',
+            // P0-2 #5: rgba(0,0,0,.12) ผิด Ink-Tinted Shadow Rule → ใช้ token เงาที่ tint ด้วย ink จริง
+            boxShadow: 'var(--mui-customShadows-sm)',
             color: '#2F2B3D',
             '&:hover': {
               bgcolor: 'rgba(255,255,255,1)',
@@ -111,6 +127,32 @@ export const ProfileBanner = ({
           <Icon icon='tabler-arrow-left' fontSize={20} />
         </IconButton>
       </Link>
+
+      {/* P0-2 #2: pill "ร้านใหม่" — บอกตรง ๆ ว่ายังไม่มีประวัติเพียงพอ แทนที่จะปล่อยให้ banner เทาดูเหมือนบั๊ก */}
+      {isNewShop && (
+        <Box
+          sx={{
+            position: 'absolute',
+            left: { xs: 16, md: 24 },
+            bottom: 12,
+            zIndex: 3,
+            display: 'inline-flex',
+            alignItems: 'center',
+            bgcolor: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.6)',
+            boxShadow: '0 2px 8px rgb(47 43 61 / 0.12)',
+            borderRadius: '9999px',
+            px: '10px',
+            py: '4px',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: '#2F2B3D',
+          }}
+        >
+          ร้านใหม่ · ยังไม่มีประวัติเพียงพอ
+        </Box>
+      )}
     </Box>
   )
 }
@@ -124,8 +166,21 @@ export const ProfileIdentityBar = ({
   data: ProfileHeaderData
 }) => {
   const displayName = data.shopName ?? data.fullName
-  // D9: แสดง verify badge วงกลมเมื่อ maxVerifyLevel >= 1 เท่านั้น
-  const showVerify = data.maxVerifyLevel >= 1
+
+  // P0-1 (Impeccable critique): สัญลักษณ์ยืนยันตัวตน 3 ระดับ แทน binary เขียว
+  // L1 OTP = เทา (ซิมเติมเงินซื้อได้ที่เซเว่น — เขียวต้องสงวนให้หลักฐานที่ปลอมยาก)
+  // L2 เอกสาร / L3 ธุรกิจ = เขียวเดียวกัน (แยก 3 สีจะทำให้ความหมาย "เขียว = เชื่อได้" เฟ้อ — ต่างกันที่ข้อความพอ)
+  const verifyChip =
+    data.maxVerifyLevel >= 3
+      ? { text: 'ยืนยันธุรกิจแล้ว', icon: 'tabler-building-store' }
+      : data.maxVerifyLevel === 2
+        ? { text: 'ยืนยันเอกสารแล้ว', icon: 'tabler-file-certificate' }
+        : data.maxVerifyLevel === 1
+          ? { text: 'ยืนยันเบอร์โทรแล้ว', icon: 'tabler-phone-check' }
+          : null
+  const isGreenVerify = data.maxVerifyLevel >= 2
+  // D9: avatar corner badge (✓) แสดงเฉพาะ L2+ (เอกสาร/ธุรกิจ) — L1 OTP ไม่ใช่หลักฐานที่ปลอมยากพอจะขึ้นเครื่องหมายเขียวบนอวตาร์
+  const showAvatarBadge = data.maxVerifyLevel >= 2
 
   // S-8 (feat 00011 Deep Chat): login-gate ก่อนเข้าห้องแชท — pattern AuctionBidPanel.tsx:114-121
   const router = useRouter()
@@ -179,11 +234,12 @@ export const ProfileIdentityBar = ({
           >
             {displayName.slice(0, 1)}
           </Avatar>
-          {/* D9: verify badge มุมขวาล่าง — carve-out dingbat ✓ (single-color typographic, ไม่ใช่ emoji) */}
-          {showVerify && (
+          {/* D9: verify badge มุมขวาล่าง — carve-out dingbat ✓ (single-color typographic, ไม่ใช่ emoji)
+              decorative: accessible name มาจาก verifyChip ข้างล่างแล้ว (ไม่พึ่ง title บน element นี้อีก) */}
+          {showAvatarBadge && (
             <Box
               component='span'
-              title='ยืนยันแล้ว'
+              aria-hidden='true'
               sx={{
                 position: 'absolute',
                 bottom: 4,
@@ -215,8 +271,27 @@ export const ProfileIdentityBar = ({
             >
               {displayName}
             </Typography>
-            {showVerify && (
-              <Icon icon='tabler-rosette-discount-check-filled' style={{ color: '#28C76F', fontSize: 18 }} aria-label='ยืนยันแล้ว' />
+            {/* P0-1: chip ยืนยันตัวตน 3 ระดับ แทน bare icon เดิม — เป็น content node จริง screen reader อ่านได้เอง */}
+            {verifyChip && (
+              <Box
+                component='span'
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  bgcolor: isGreenVerify ? 'rgb(40 199 111 / 0.16)' : 'rgb(47 43 61 / 0.08)',
+                  color: isGreenVerify ? '#28C76F' : 'rgba(47,43,61,0.7)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  px: '8px',
+                  py: '3px',
+                  lineHeight: 1.3,
+                }}
+              >
+                <Icon icon={verifyChip.icon} fontSize={13} aria-hidden='true' />
+                {verifyChip.text}
+              </Box>
             )}
           </Box>
 
