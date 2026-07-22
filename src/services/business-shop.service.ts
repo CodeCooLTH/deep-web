@@ -6,7 +6,12 @@ import {
 } from "@/lib/business-package";
 
 export async function createBusinessShop(ownerId: string, data: {
-  shopName: string; businessType: string; category?: string; description?: string
+  shopName: string; businessType: string; category?: string; description?: string;
+  // feature 00017 — ประเภทกิจการ: GENERAL (สินค้าและบริการ) | LODGING (บ้านพักตากอากาศ)
+  // optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = GENERAL ตาม default ของ DB)
+  // IMPORTANT: เขียนได้ที่นี่ที่เดียวเท่านั้น — เป็น immutable หลังสร้าง (BR-LODG-30)
+  // service ที่แก้ข้อมูลร้าน (updateShop ฯลฯ) ต้องไม่รับ field นี้เข้ามาเลย
+  vertical?: string
 }) {
   return prisma.$transaction(async (tx) => {
     const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId } });
@@ -17,7 +22,11 @@ export async function createBusinessShop(ownerId: string, data: {
       if (count >= quota.maxBusinesses) throw new Error("BUSINESS_QUOTA_EXCEEDED");
     }
     const shop = await tx.shop.create({
-      data: { userId: ownerId, kind: "BUSINESS", shopName: data.shopName, businessType: data.businessType, category: data.category, description: data.description },
+      data: {
+        userId: ownerId, kind: "BUSINESS", shopName: data.shopName,
+        businessType: data.businessType, category: data.category, description: data.description,
+        ...(data.vertical ? { vertical: data.vertical } : {}),
+      },
     });
     await tx.shopMember.create({ data: { shopId: shop.id, userId: ownerId, role: "OWNER" } });
     await tx.sellerWallet.create({ data: { shopId: shop.id, balance: 0 } });

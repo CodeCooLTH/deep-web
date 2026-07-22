@@ -21,6 +21,7 @@ import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
+import { SHOP_VERTICALS, SHOP_VERTICAL_HINTS, SHOP_VERTICAL_KEYS, type ShopVertical } from '@/lib/lodging'
 
 const schema = Yup.object({
   shopName: Yup.string()
@@ -29,8 +30,12 @@ const schema = Yup.object({
     .required('กรุณากรอกชื่อธุรกิจ'),
   category: Yup.string().oneOf(['', ...(SHOP_CATEGORY_KEYS as string[])]).default(''),
   businessType: Yup.string()
-    .oneOf(['INDIVIDUAL', 'COMPANY'] as const, 'กรุณาเลือกประเภทธุรกิจ')
-    .required('กรุณาเลือกประเภทธุรกิจ'),
+    .oneOf(['INDIVIDUAL', 'COMPANY'] as const, 'กรุณาเลือกประเภทผู้ประกอบการ')
+    .required('กรุณาเลือกประเภทผู้ประกอบการ'),
+  // feature 00017 — ประเภทกิจการ ตั้งได้ครั้งเดียวตอนสร้าง เปลี่ยนภายหลังไม่ได้ (BR-LODG-30)
+  vertical: Yup.string()
+    .oneOf(SHOP_VERTICAL_KEYS, 'กรุณาเลือกประเภทกิจการ')
+    .required('กรุณาเลือกประเภทกิจการ'),
   description: Yup.string().max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร').default(''),
 })
 
@@ -49,17 +54,21 @@ export default function CreateBusinessForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', description: '' },
+    defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', vertical: 'GENERAL', description: '' },
   })
+
+  const watchVertical = watch('vertical')
 
   const onSubmit = async (values: FormValues) => {
     try {
       const body = {
         shopName: values.shopName,
         businessType: values.businessType,
+        vertical: values.vertical,
         ...(values.category ? { category: values.category } : {}),
         ...(values.description ? { description: values.description } : {}),
       }
@@ -126,11 +135,52 @@ export default function CreateBusinessForm() {
               )}
             </div>
 
-            {/* ประเภทธุรกิจ */}
+            {/* ประเภทกิจการ (feature 00017) — กำหนดว่าธุรกิจนี้จะได้ความสามารถชุดไหน */}
             <div className="lg:col-span-2">
               <label className="form-label">
-                ประเภทธุรกิจ<span className="text-danger ms-0.5">*</span>
+                ประเภทกิจการ<span className="text-danger ms-0.5">*</span>
               </label>
+              <div className="mt-1 grid grid-cols-1 gap-2 lg:grid-cols-2">
+                {SHOP_VERTICAL_KEYS.map((key: ShopVertical) => {
+                  const selected = watchVertical === key
+                  return (
+                    <label
+                      key={key}
+                      className={`flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 ${
+                        selected ? 'border-primary bg-primary/5' : 'border-default-200'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        value={key}
+                        className="mt-0.5 shrink-0"
+                        {...register('vertical')}
+                      />
+                      <div>
+                        <span className="text-dark text-sm font-medium">{SHOP_VERTICALS[key]}</span>
+                        <p className="text-default-400 mt-0.5 text-xs">{SHOP_VERTICAL_HINTS[key]}</p>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-default-500 mt-2 flex items-start gap-1 text-xs">
+                <Icon icon="tabler:info-circle" className="mt-0.5 size-3.5 shrink-0" />
+                เลือกแล้วเปลี่ยนภายหลังไม่ได้ หากต้องการประเภทอื่นให้สร้างธุรกิจใหม่
+              </p>
+              {errors.vertical && (
+                <p className="text-danger mt-2 text-sm">{errors.vertical.message}</p>
+              )}
+            </div>
+
+            {/* ประเภทผู้ประกอบการ — เดิมชื่อ "ประเภทธุรกิจ" เปลี่ยนป้ายเพื่อไม่ให้สับสนกับ
+                "ประเภทกิจการ" (Shop.vertical) ที่เพิ่มด้านบน — คนละเรื่องกันคนละ field (BR-LODG-04)
+                เปลี่ยนเฉพาะข้อความ ชื่อ field และค่าที่ส่งยังเป็น businessType/INDIVIDUAL|COMPANY เหมือนเดิม */}
+            <div className="lg:col-span-2">
+              <label className="form-label">
+                ประเภทผู้ประกอบการ<span className="text-danger ms-0.5">*</span>
+              </label>
+              <p className="text-default-400 mb-1 text-xs">ใช้สำหรับการยืนยันตัวตนระดับ 3</p>
               <div className="mt-1 flex flex-col gap-2">
                 <label className="flex cursor-pointer items-start gap-2">
                   <input

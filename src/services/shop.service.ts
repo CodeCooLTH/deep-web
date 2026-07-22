@@ -24,6 +24,9 @@ export async function createShop(userId: string, data: {
   });
 }
 
+// IMPORTANT: allowlist นี้จงใจ "ไม่มี" vertical (feature 00017) — ประเภทกิจการตั้งได้ครั้งเดียว
+// ตอนสร้างธุรกิจเท่านั้น เปลี่ยนภายหลังไม่ได้ (BR-LODG-30) เพราะการเปลี่ยนจะทำให้ห้องพัก/การจอง
+// เดิมกลายเป็นข้อมูลกำพร้าที่ไม่มีหน้าจอรองรับ ห้ามเพิ่ม vertical เข้า type นี้
 export async function updateShop(shopId: string, data: {
   shopName?: string;
   description?: string;

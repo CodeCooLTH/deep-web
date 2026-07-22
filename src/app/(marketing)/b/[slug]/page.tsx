@@ -13,6 +13,7 @@ import { findShopBySlug } from '@/services/shop.service'
 import { getAvgRatingByShop } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
+import { getPublicRooms } from '@/services/room.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
 
@@ -86,8 +87,23 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     price: p.price.toFixed(2),
     imageUrl: (p.images as string[])[0] ?? null,
   })
-  const pinnedProducts: SerializedProduct[] = rawPinnedProducts.map(serializeProductRow)
-  const otherProducts: SerializedProduct[] = rawOtherProducts.map(serializeProductRow)
+  // feature 00017 — ร้านประเภทบ้านพักแสดง "ห้องพัก" แทน "สินค้า" บนโปรไฟล์สาธารณะ (FR-LODG-07)
+  // ใช้ grid เดิมทั้งหมด แค่เปลี่ยนแหล่งข้อมูล — ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ
+  // getPublicRooms คืนเฉพาะห้อง isActive และตัด field ตั้งค่าภายใน (depositMode/Value) ออกแล้ว
+  const isLodging = shop.vertical === 'LODGING'
+  const rooms = isLodging ? await getPublicRooms(shop.id) : []
+
+  const pinnedProducts: SerializedProduct[] = isLodging
+    ? []
+    : rawPinnedProducts.map(serializeProductRow)
+  const otherProducts: SerializedProduct[] = isLodging
+    ? rooms.map((r) => ({
+        id: r.id,
+        name: r.name,
+        price: r.pricePerNight,
+        imageUrl: r.images[0] ?? null,
+      }))
+    : rawOtherProducts.map(serializeProductRow)
 
   // FR-4.8 เทียบ /u/[username]: กรอง badge เฉพาะ seller-context (SELLER|ANY)
   const businessBadges = shop.badges.filter(
@@ -124,6 +140,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     openShopEmptyState: false,
     pinnedProducts,
     otherProducts,
+    itemKind: isLodging ? ('ROOM' as const) : ('PRODUCT' as const),
     totalBadgeCount: businessBadges.length,
     bio: shop.description,
     location: shop.address,

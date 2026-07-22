@@ -54,6 +54,9 @@ export type ProfileTabData = {
   // getProductsByShop({excludePinned:true})
   pinnedProducts: SerializedProduct[]
   otherProducts: SerializedProduct[]
+  /** feature 00017 — ร้าน LODGING ใช้ grid เดียวกันแต่เนื้อหาเป็นห้องพัก
+   *  optional + default 'PRODUCT' เพื่อไม่กระทบผู้เรียกเดิม (/u/[username]) */
+  itemKind?: 'PRODUCT' | 'ROOM'
   totalBadgeCount: number
   // ── About section (ย้ายมาจาก identity เดิมตาม redesign) ──
   bio?: string | null
@@ -339,12 +342,18 @@ export const ProfileRightContent = ({
   shopId,
   isOwnShop,
 }: {
-  data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState'>
+  data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState' | 'itemKind'>
   shopId?: string | null
   isOwnShop?: boolean
 }) => {
-  const { pinnedProducts, otherProducts, openShopEmptyState } = data
+  const { pinnedProducts, otherProducts, openShopEmptyState, itemKind = 'PRODUCT' } = data
   const hasAnyProduct = pinnedProducts.length > 0 || otherProducts.length > 0
+  // ร้านบ้านพักใช้ grid เดียวกับสินค้า (ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ)
+  // เปลี่ยนเฉพาะถ้อยคำให้ตรงกับสิ่งที่ผู้ใช้เห็นจริง
+  const isRoom = itemKind === 'ROOM'
+  const L = isRoom
+    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด' }
+    : { empty: 'ร้านนี้ยังไม่มีสินค้า', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด' }
 
   if (openShopEmptyState) return null
 
@@ -354,7 +363,7 @@ export const ProfileRightContent = ({
         <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
           <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#808390' }} />
           <Box>
-            <Typography sx={{ color: '#808390', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
+            <Typography sx={{ color: '#808390', fontSize: '14px' }}>{L.empty}</Typography>
             <Typography sx={{ color: '#808390', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
           </Box>
         </Box>
@@ -367,7 +376,7 @@ export const ProfileRightContent = ({
                 component='h3'
                 sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
               >
-                สินค้าปักหมุด
+                {L.pinned}
               </Typography>
               <Box
                 sx={{
@@ -396,7 +405,7 @@ export const ProfileRightContent = ({
                 component='h3'
                 sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
               >
-                สินค้าทั้งหมด
+                {L.all}
               </Typography>
               <Box
                 sx={{

@@ -108,6 +108,7 @@ const UserProfile = ({
               pinnedProducts: profileTab.pinnedProducts,
               otherProducts: profileTab.otherProducts,
               openShopEmptyState: profileTab.openShopEmptyState,
+              itemKind: profileTab.itemKind,
             }}
             // S-19 (extension #1 Chat Product Context Card): prop-drill shopId/isOwnShop จาก profileHeader (S-8)
             shopId={profileHeader.shopId}
