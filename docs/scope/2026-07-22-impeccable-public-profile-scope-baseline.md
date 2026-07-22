@@ -63,6 +63,64 @@ Sync เอกสาร spec/mockup ให้ตรง token จริง**ก�
 
 ---
 
+## ส่วนขยาย — Desktop layout redesign (IG-style + trust data)
+
+> เพิ่ม 2026-07-22 ตามคำสั่ง user: *"เอา layout instagram มาผสมกับของเรา ผมชอบ layout ที่อยู่บน ig แต่เพิ่ม trust data เข้าไป"*
+> Design Spec ผ่าน `safepay-ux` แล้ว · **Hard Rule 6:** เอา IA/layout ตาม IG แต่ skin/สี/component = Vuexy + Deep token (ห้ามฟ้า IG, ม่วง=action, เขียว=verified เท่านั้น)
+
+### 🛑 ข้อค้นพบที่เปลี่ยนความเข้าใจพื้นฐาน (verify แล้ว 2026-07-22)
+
+**mockup/spec ชุด 2026-07-08 ไม่เคยถูก implement ลงโค้ดเลย** — commit ทั้ง 4 รอบ (`24c2eb3f` `30de1626` `7a84c2dd` `3bafd529`) เป็น `docs(profile):` ล้วน
+commit สุดท้ายที่แตะโค้ดจริงคือ `7d5d2472` (2026-07-04 "Hybrid FB Page × Threads") ซึ่งเป็น**คนละดีไซน์**
+→ ตอนตั้ง S-B1 เข้าใจผิดว่า mockup นั้นคือสเปกของหน้าที่ deploy อยู่ **ไม่จริง**
+→ งาน S-B1 ไม่เสียเปล่า (ค่า token ใช้ต่อได้) แต่ **layout ในนั้นถูกแทนที่ด้วย IG-style นี้แล้ว**
+→ สเปก mobile "tab switcher + IG grid edge-to-edge" ก็ไม่เคยถูก build เช่นกัน — โค้ดจริง <768 คือ DOM เดียวกันไหลเป็นคอลัมน์ยาว
+
+### การตัดสินใจของ user ที่ล็อกแล้ว
+
+| # | เรื่อง | ผล |
+|---|---|---|
+| 1 | ที่อยู่ของ trust data | แถบสถิติ inline ใต้ identity + การ์ดเต็ม 4 ใบใต้ product grid |
+| 2 | product grid desktop | **3 คอลัมน์ จำกัดความกว้าง** ไม่ใช่ 6 เต็มจอ |
+| 3 | เหรียญตรา | **ย่อเป็น pill เล็กใต้ชื่อร้าน** + "ดูทั้งหมด (N)" — เลิกใช้ medal-frame section |
+| 4 | แถบสถิติ | 4 ตัว: คะแนน+tier (เด่นสุด) · ออเดอร์สำเร็จ · **อัตราสำเร็จ (คำนวณเพิ่ม)** · ★รีวิว |
+| 5 | topnav | **คงแค่ปุ่มย้อนกลับ** ไม่เพิ่มแถบเมนู |
+
+### Controller ตัดสิน (ไม่รบกวน user — มีคำตอบชัดอยู่แล้ว)
+
+- breakpoint = `md` (900) ตาม convention เดิมของไฟล์ **ไม่ใช่ 1200** ตามที่เอกสารเก่าเข้าใจผิด
+- container max-width = **960px** (แทน 935 ของ IG — กลมกว่า ตาต่างไม่ออก)
+- "ดูทั้งหมด (N)" = **ข้อความเฉย ๆ ไม่ทำลิงก์** เพราะยังไม่มี route/modal ปลายทาง (ห้ามทำลิงก์ปลอม)
+- **ไม่เพิ่ม** tier dot-indicator (●●●○○) — สร้างภาษาภาพใหม่โดยไม่จำเป็น
+- `isBusiness` chip = **พักไว้** ไม่มี field จริงในระบบ (ไม่ใช่ scope นี้)
+- verify badge สีฟ้า = **แก้ไปแล้ว** ใน `a7d76c45` (S-B2) — ux อ่านโค้ดก่อน commit ลง
+
+### S-id ใหม่
+
+| ID | Priority | รายการ | Acceptance | สถานะ |
+|----|----|--------|-----------|-------|
+| S-B10 | P1 | rewrite `user-profile/index.tsx` เป็นคอลัมน์เดียวจัดกลาง — ตัด `gridTemplateAreas` / `340px 1fr` / `position:sticky` ทิ้ง, container inner `maxWidth:960, mx:auto` | `rg '340px\|gridTemplateAreas\|sticky' user-profile/index.tsx` = 0; layout เดียวตั้งแต่ 768 ขึ้นไป | TODO |
+| S-B11 | P1 | `ProfileStatsBar.tsx` ใหม่ — 4 สถิติ + `Divider orientation='vertical'`; ตัวแรก (คะแนน+tier) เด่นสุด ใช้ `getTierAccentColor()` และเป็น anchor `#trust-detail-section` | render 4 คอลัมน์; ไม่มีเลขปลอม; `avgRating` เมื่อ `!showRating` → `—` (ไม่ยุบคอลัมน์) | TODO |
+| S-B12 | P1 | เพิ่ม `completionRate` — คำนวณ `confirmed/(confirmed+cancelled)*100` จาก `orderStats` ที่ query อยู่แล้ว (ไม่ใช่ query ใหม่) ทั้ง `/u/[username]` และ `/b/[slug]` | ตัวหาร 0 → คืน `null` → UI แสดง `—` ไม่ใช่ `0%` ไม่ crash; มี unit test ครอบเคสตัวหาร 0 | TODO |
+| S-B13 | P1 | badge pill row ใต้ชื่อร้าน (3 ใบ + "ดูทั้งหมด (N)" เป็นข้อความ) แทน medal-frame section | `AchievementBadgeRow` medal-frame ไม่ถูก render ในหน้านี้อีก; pill ผูก `userBadges` จริง เรียง `earnedAt` DESC ไม่มี string ตายตัว | TODO |
+| S-B14 | P1 | `TrustDetailSection.tsx` ใหม่ — full-bleed band Cool Mist `#F8F7FA` + header `ความน่าเชื่อถือโดยละเอียด` + `id="trust-detail-section"` + Grid 2×2 (`xs:12, md:6`); revive `VerificationBadges.tsx` + `AboutOverview.tsx`; ห่อ `TrustScoreCard`/`PlatformReputationList` ด้วย `Card`+`CardHeader` | การ์ดครบ 4 ใบ; ยุบ 1 คอลัมน์ที่ <900; anchor จาก stat bar เลื่อนมาถึงจริง | TODO |
+| S-B15 | P2 | `ProfileTabsNav` items → `[สินค้าปักหมุด, สินค้าทั้งหมด, ความน่าเชื่อถือโดยละเอียด]`; product grid → `repeat(3,1fr)` คงที่ทุก breakpoint ≥768 | tab นำไปยัง section ถูกต้องครบ 3; grid 3 คอลัมน์จริง | TODO |
+
+### Out-of-scope ของส่วนขยาย
+
+| ID | รายการ | เหตุผล |
+|----|--------|--------|
+| OOS-B8 | mobile tab-switcher + IG grid edge-to-edge (<768) | สเปกเก่าไม่เคย build — layout ใหม่ปล่อย degrade ตามธรรมชาติพอ ถ้าต้องการของจริงเป็นงานแยก |
+| OOS-B9 | topnav auth-aware | **user ตัดสินแล้วว่าคงแค่ปุ่มย้อนกลับ** |
+| OOS-B10 | `isBusiness` chip, tier dot-indicator, modal "ดูเหรียญทั้งหมด" | ไม่มี field/route จริง — พักไว้ |
+
+### Risk ที่ยอมรับแล้ว
+- **trust data ต้อง scroll ถึง** (เดิม sidebar sticky เห็นตลอด) — ลดผลกระทบด้วย stat bar ที่คลิกได้ + anchor tab + section header ขนาด headline แต่**ไม่เท่าเดิม 100%** user รับ trade-off นี้แล้วตอนเลือกข้อ 1
+- หน้ายาวขึ้นชัดเจน — เป็น nature ของ IG single-column IA เลี่ยงไม่ได้
+- product grid แคบลง (3 คอลัมน์ cap 960) แต่รูปสินค้าใหญ่ขึ้น
+
+---
+
 ## ไฟล์ที่แตะ / Base guidance
 
 | ID | ไฟล์ที่แตะ | Base: |
