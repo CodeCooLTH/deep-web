@@ -53,3 +53,9 @@
 
 ## ประวัติ
 - 2026-05-23: รวมเป็น 5-tier scheme (Classic/Silver/Gold/Diamond/Star) + cover art; เลิกใช้ชื่อ 6-tier "Deep Starter/Bronze/Platinum" (เคยอยู่ใน UserProfileHeader gradient) และ letter-only ของ order page.
+- **2026-07-04: banner เลิกใช้รูป cover PNG → เปลี่ยนเป็น CSS gradient ต่อ tier** (`getTierGradient()` ใน `src/lib/trust-tier.ts`) และ **เลิก render dot indicator** — ตาราง "Cover asset" กับคอลัมน์ "Dots" ด้านบนจึงเป็นบันทึกเชิงประวัติ ไม่ใช่สิ่งที่โค้ดใช้จริงแล้ว (เอกสารกับโค้ดเคยไม่ตรงกันอยู่ช่วงหนึ่ง — พบตอน Impeccable audit 2026-07-22)
+- **2026-07-22 (Impeccable critique P0-2): แยก gradient/accent ของ C กับ D ออกจากกัน — ชื่อ tier ยังเป็น "Deep Classic" ร่วมกันเหมือนเดิม ไม่เปลี่ยน mapping**
+  - เหตุผล: คะแนน 0-39 (D) เคยได้ gradient ส้ม/ทองชุดเดียวกับ C ซึ่ง**อิ่มตัวกว่า Deep Gold ด้วยซ้ำ** คนทั่วไปอ่านว่า "ทอง = ดี" → บัญชีที่ยังไม่มีประวัติเลยหน้าตาเหมือนร้านที่พิสูจน์ตัวแล้ว ขัด Design Principle 1 ของ `PRODUCT.md`
+  - C (40-59) → อำพันจางกว่า Gold ชัดเจน · D (0-39) → เทาม่วงจาก ink ramp (สื่อ "ยังไม่มีข้อมูล" ไม่ใช่ "รางวัล")
+  - **นี่คือ presentation layer ไม่ใช่การเปลี่ยน tier mapping** — ชื่อ/threshold/การรวม D,C เป็น Classic คงเดิมทุกอย่างตามตารางหลัก
+  - เพิ่มอีกชั้น: หน้า public profile จะ override เป็น gradient เทาเสมอเมื่อร้าน**ยังมีออเดอร์จบไม่ถึง 3 รายการ** (`completionRate === null`) โดยไม่สนใจ tier จริง — เพราะ trust score ถูกดันด้วยรีวิวได้ แต่ออเดอร์จบจริงปลอมยากกว่ามาก. logic นี้อยู่ที่ `ProfileBanner` ไม่ได้อยู่ใน tier mapping

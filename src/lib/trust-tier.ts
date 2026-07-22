@@ -68,8 +68,10 @@ export function getTierAccentColor(trustScore: number): string {
       return '#FF9F43' // Deep Gold
     case 'B':
       return '#7a7689' // Deep Silver
+    case 'C':
+      return '#b36700' // Deep Classic 40-59 — มีประวัติจริงแล้ว (แต่คะแนนยังต่ำ)
     default:
-      return '#b36700' // Deep Classic (C, D)
+      return '#9b98a8' // Deep Classic 0-39 (D) — เทาม่วง = ยังไม่มีข้อมูลเพียงพอ (P0-2: แยกภาพจาก C)
   }
 }
 
@@ -118,6 +120,11 @@ export function getTierCover(trustScore: number): string {
  *   Gold    → warning-amber canonical dark/main/light (#e08400/#FF9F43/#ffd1a3 — ตรงกับ getTierAccentColor Gold #FF9F43)
  *   Diamond → signal-cyan canonical dark/main/light (#009eb2/#00BAD1/#8ee5ee — ตรงกับ getTierAccentColor Diamond #00BAD1)
  *   Star    → primary canonical dark/main/light (#5a4ee0/#7367F0/#b3acf8 — ตรงกับ getTierAccentColor/getTierColor Star)
+ *
+ * P0-2 (Impeccable critique — "ยังไม่มีประวัติ" ต้องไม่หน้าตาเหมือนรางวัล): C แยกจาก D แล้ว —
+ *   C (40-59, มีประวัติจริง) → อำพันจางกว่า Gold (#b36700/#e08400/#ffd1a3)
+ *   D (0-39, ยังไม่มีข้อมูลเพียงพอ) → เทาม่วง (#9b98a8/#bdbbc7/#dedce4) ไม่ใช้โทนทองอีกต่อไป
+ *   ชื่อ tier ("Deep Classic") ยังใช้ร่วมกันตาม SSOT — แก้แค่ decoration ไม่แตะ mapping ชื่อ
  */
 export function getTierGradient(trustScore: number): string {
   switch (letterFromScore(trustScore)) {
@@ -129,8 +136,10 @@ export function getTierGradient(trustScore: number): string {
       return 'linear-gradient(135deg, #e08400 0%, #FF9F43 45%, #ffd1a3 100%)'
     case 'B': // Deep Silver — เทาเงิน (ink tonalRamp)
       return 'linear-gradient(135deg, #454155 0%, #7a7689 45%, #bdbbc7 100%)'
-    default: // Deep Classic (C, D) — ส้ม/อำพัน (warning-amber tonalRamp เข้มกว่า Gold)
-      return 'linear-gradient(135deg, #5c3300 0%, #b36700 45%, #FF9F43 100%)'
+    case 'C': // Deep Classic 40-59 — อำพันจางกว่า Gold (มีประวัติจริงแล้ว)
+      return 'linear-gradient(135deg, #b36700 0%, #e08400 55%, #ffd1a3 100%)'
+    default: // Deep Classic 0-39 (D) — เทาม่วง = ยังไม่มีข้อมูล (P0-2: แยกภาพจาก C)
+      return 'linear-gradient(135deg, #9b98a8 0%, #bdbbc7 55%, #dedce4 100%)'
   }
 }
 

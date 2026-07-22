@@ -8,10 +8,10 @@ import { getTierColor, getTierAccentColor, getTierGradient } from './trust-tier'
 // getTierAccentColor — เคสบังคับจาก Controller
 // -------------------------------------------------------------------------
 describe('getTierAccentColor', () => {
-  it('ทั้ง 5 tier คืนค่าต่างกันครบ ไม่มีคู่ไหนซ้ำ', () => {
-    const scores = [95, 85, 75, 65, 45] // A+, A, B+, B, C (ตัวแทนแต่ละ tier)
+  it('ทั้ง 6 grade คืนค่าต่างกันครบ ไม่มีคู่ไหนซ้ำ (P0-2: C แยกจาก D แล้ว)', () => {
+    const scores = [95, 85, 75, 65, 45, 10] // A+, A, B+, B, C, D
     const colors = scores.map(getTierAccentColor)
-    expect(new Set(colors).size).toBe(5)
+    expect(new Set(colors).size).toBe(6)
   })
 
   it('bug ที่กำลังแก้: Deep Classic ต้องไม่เท่ากับ Deep Gold', () => {
@@ -20,8 +20,8 @@ describe('getTierAccentColor', () => {
     expect(classic).not.toBe(gold)
   })
 
-  it('D กับ C (ทั้งคู่ Deep Classic) ยังคืนสีเดียวกัน (rollup ตาม SSOT)', () => {
-    expect(getTierAccentColor(10)).toBe(getTierAccentColor(45))
+  it('P0-2: C กับ D ต้องต่างสีกัน (D=ยังไม่มีข้อมูลเพียงพอ ต้องไม่หน้าตาเหมือนรางวัลโทนทองแบบ C)', () => {
+    expect(getTierAccentColor(10)).not.toBe(getTierAccentColor(45))
   })
 
   // boundary ของแต่ละช่วงเกรด (ขอบล่าง/ขอบบน)
@@ -45,14 +45,14 @@ describe('getTierAccentColor', () => {
     expect(getTierAccentColor(69)).toBe('#7a7689')
   })
 
-  it('boundary C (40-59) → Deep Classic #b36700', () => {
+  it('boundary C (40-59) → Deep Classic #b36700 (มีประวัติจริงแล้ว)', () => {
     expect(getTierAccentColor(40)).toBe('#b36700')
     expect(getTierAccentColor(59)).toBe('#b36700')
   })
 
-  it('boundary D (0-39) → Deep Classic #b36700', () => {
-    expect(getTierAccentColor(0)).toBe('#b36700')
-    expect(getTierAccentColor(39)).toBe('#b36700')
+  it('boundary D (0-39) → เทาม่วง #9b98a8 (ยังไม่มีข้อมูลเพียงพอ — P0-2 แยกจาก C แล้ว)', () => {
+    expect(getTierAccentColor(0)).toBe('#9b98a8')
+    expect(getTierAccentColor(39)).toBe('#9b98a8')
   })
 })
 
@@ -95,10 +95,10 @@ describe('getTierColor (regression — ต้องไม่เปลี่ย�
 // getTierGradient — S-B9 (Impeccable remediation Phase B): sync กับ ramp ที่อนุมัติแล้ว
 // -------------------------------------------------------------------------
 describe('getTierGradient', () => {
-  it('ทั้ง 5 tier คืน gradient ต่างกันครบ ไม่มีคู่ไหนซ้ำ', () => {
-    const scores = [95, 85, 75, 65, 45] // A+, A, B+, B, C (ตัวแทนแต่ละ tier)
+  it('ทั้ง 6 grade คืน gradient ต่างกันครบ ไม่มีคู่ไหนซ้ำ (P0-2: C แยกจาก D แล้ว)', () => {
+    const scores = [95, 85, 75, 65, 45, 10] // A+, A, B+, B, C, D
     const gradients = scores.map(getTierGradient)
-    expect(new Set(gradients).size).toBe(5)
+    expect(new Set(gradients).size).toBe(6)
   })
 
   it('ไม่มี Tailwind hex เก่าหลงเหลือ (เดิม #F59E0B/#0EA5E9/#F97316/#C2410C/#B45309/#FCD34D/#FDBA74/#6558E8/#A79DF5/#0284C7/#7DD3FC)', () => {
@@ -125,8 +125,12 @@ describe('getTierGradient', () => {
     expect(getTierGradient(60)).toBe('linear-gradient(135deg, #454155 0%, #7a7689 45%, #bdbbc7 100%)')
   })
 
-  it('Deep Classic (C, D) → warning-amber tonalRamp เข้มกว่า Gold', () => {
-    expect(getTierGradient(45)).toBe('linear-gradient(135deg, #5c3300 0%, #b36700 45%, #FF9F43 100%)')
-    expect(getTierGradient(10)).toBe(getTierGradient(45))
+  it('Deep Classic C (40-59) → อำพันจางกว่า Gold (มีประวัติจริงแล้ว)', () => {
+    expect(getTierGradient(45)).toBe('linear-gradient(135deg, #b36700 0%, #e08400 55%, #ffd1a3 100%)')
+  })
+
+  it('Deep Classic D (0-39) → เทาม่วง = ยังไม่มีข้อมูลเพียงพอ (P0-2: แยกจาก C แล้ว ไม่ใช้โทนทอง)', () => {
+    expect(getTierGradient(10)).toBe('linear-gradient(135deg, #9b98a8 0%, #bdbbc7 55%, #dedce4 100%)')
+    expect(getTierGradient(10)).not.toBe(getTierGradient(45))
   })
 })

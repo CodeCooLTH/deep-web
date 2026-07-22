@@ -37,6 +37,9 @@ const VerificationBadges = ({ verifiedLevels }: VerificationBadgesProps) => {
       <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {VERIFY_LEVELS.map((item) => {
           const active = verifiedLevels.includes(item.level)
+          // P0-1 (Impeccable critique): L1 OTP ผ่านก็ไม่เขียว — ซิมเติมเงินซื้อได้ที่เซเว่น
+          // เขียวสงวนให้ L2 เอกสาร/L3 ธุรกิจเท่านั้น (Verified-Means-Green)
+          const isGreen = active && item.level >= 2
           return (
             <Box
               key={item.level}
@@ -48,20 +51,32 @@ const VerificationBadges = ({ verifiedLevels }: VerificationBadgesProps) => {
                 py: '10px',
                 borderRadius: '8px',
                 border: '1px solid',
-                borderColor: active ? 'success.main' : 'divider',
-                bgcolor: active ? 'success.lightOpacity' : 'transparent',
+                borderColor: isGreen ? 'success.main' : 'divider',
+                bgcolor: isGreen ? 'success.lightOpacity' : active ? 'rgba(47,43,61,0.04)' : 'transparent',
                 opacity: active ? 1 : 0.6,
               }}
             >
               <Icon
                 icon={item.icon}
                 fontSize={22}
-                style={{ color: active ? 'var(--mui-palette-success-main)' : 'var(--mui-palette-text-disabled)' }}
+                style={{
+                  color: isGreen
+                    ? 'var(--mui-palette-success-main)'
+                    : active
+                      ? '#2F2B3D'
+                      : 'var(--mui-palette-text-disabled)',
+                }}
               />
               <Typography component='p' sx={{ m: 0, fontSize: '13px', fontWeight: 600, color: 'text.primary', flex: 1 }}>
                 {item.label}
               </Typography>
-              {active && <Icon icon='tabler-check' fontSize={18} style={{ color: 'var(--mui-palette-success-main)' }} />}
+              {active && (
+                <Icon
+                  icon='tabler-check'
+                  fontSize={18}
+                  style={{ color: isGreen ? 'var(--mui-palette-success-main)' : '#2F2B3D' }}
+                />
+              )}
             </Box>
           )
         })}

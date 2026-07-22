@@ -27,6 +27,9 @@ export type TrustDetailSectionData = {
   trustScore: TrustScoreCardData
   verifiedLevels: number[]
   about: AboutData
+  /** P0-2 #3: prop-drill isOwnShop ต่อจาก index.tsx (ProfileHeaderData.isOwnShop) — ใช้จริงใน trustScore.isOwnShop
+   * (TrustScoreCardData) ที่ TrustScoreCard อ่าน; field นี้ประกาศไว้เพื่อสัญญาชนิดที่ชัดเจนตามสเปก */
+  isOwnShop?: boolean
 }
 
 const TrustDetailSection = ({ data }: { data: TrustDetailSectionData }) => {

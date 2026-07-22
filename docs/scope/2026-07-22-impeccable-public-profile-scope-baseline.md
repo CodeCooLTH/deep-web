@@ -135,6 +135,23 @@ Sync เอกสาร spec/mockup ให้ตรง token จริง**ก�
 
 ---
 
+## Known gaps — พบระหว่างทาง ยังไม่แก้ (ตัดสินแล้วว่าไม่ใช่รอบนี้)
+
+| # | เรื่อง | รายละเอียด |
+|---|--------|-----------|
+| KG-1 | **`reviewCount >= 3` = เกณฑ์เดียวกับที่มิจฉาชีพผ่านได้พอดี** | `safepay-ux` พบ 2026-07-22: critique ตั้งโจทย์ว่า *"มิจฉาชีพ + ซิมเติมเงิน 1 ใบ + ออเดอร์ปลอม 1 รายการ + **เพื่อน 3 คนกดรีวิว**"* — เกณฑ์ `showRating: reviewCount >= 3` (`u/[username]/page.tsx`) คือด่านที่สถานการณ์นั้นผ่านได้พอดีเป๊ะ<br>**ทำไมไม่แก้รอบนี้:** เป็น business rule ต้องให้ `safepay-product` ออกแบบ (เช่น เพิ่มเงื่อนไข "ผู้รีวิวต้องเป็นผู้ซื้อที่ยืนยันตัวตนแล้ว") — ux ออกแบบเองไม่ได้ และอยู่นอก scope P0-1/P0-2<br>**ผลกระทบที่เหลืออยู่:** ★รีวิวยังปลอมได้ด้วยต้นทุนต่ำ — แต่ P0-2 ลดความเสียหายลงบางส่วนแล้ว เพราะ banner/สถานะ "ร้านใหม่" ผูกกับ `completionRate` (ออเดอร์จบจริง ≥3) ไม่ใช่ trustScore ที่รีวิวดันได้<br>**user ตัดสิน 2026-07-22:** จดไว้ก่อน ไม่แก้รอบนี้ |
+| KG-10 | **P0-2 new-shop override ยังไม่ครอบ `/o/[token]`** | `ProfileBanner` ถูกเรียก 3 ที่: `user-profile/index.tsx` + `UserProfileHeader.tsx` (ส่ง `data` เต็ม มี `completionRate`) และ **`o/[token]/OrderDetailMobile.tsx:482`** ที่ส่งแค่ `{ trustScore }` เพราะ `PublicOrderData` ไม่มี field นี้ใน contract<br>ทำ `completionRate` เป็น optional (`undefined` = ไม่ override, คงพฤติกรรมเดิม) แทนการขยาย contract ซึ่งต้องแตะ service/RSC page นอกขอบเขต<br>**ผลที่เหลืออยู่:** ร้านใหม่ที่ผู้ซื้อเปิดหน้ายืนยันออเดอร์ `/o/[token]` จะยังเห็น banner ตาม tier (ส้ม/ทองถ้าคะแนนต่ำ) ไม่มี pill "ร้านใหม่" — **ซึ่งเป็นจังหวะที่เดิมพันสูงกว่าหน้าโปรไฟล์ด้วยซ้ำ เพราะผู้ซื้อกำลังจะกดยืนยัน**<br>แก้ได้ด้วยการเพิ่ม `completionRate` เข้า `PublicOrderData` — งานเล็กแต่แตะ backend contract |
+| KG-2 | `ProfileHeaderData.tierColor` เป็น prop ที่ไม่ถูกใช้แล้ว | หลังลบ metric row เดิมออกจาก `UserProfileHeader` — field อื่นยังถูกอ่านผ่าน `ProfileStatsBar` จาก object เดียวกัน |
+| KG-3 | dead code 3 ไฟล์ใน `user-profile/profile/` | `AchievementBadgeRow.tsx` (ยังมี `#EEF2FF`/`#F1F5F9` นอก token), `AchievementBadges.tsx`, `RecentReviews.tsx` — ไม่ถูก render แล้ว เก็บไว้เผื่อ modal อนาคต<br>**หมายเหตุจาก critique:** `RecentReviews` ตาย = หน้านี้แสดง**คะแนนเฉลี่ย**รีวิว แต่ไม่แสดง**ข้อความ**รีวิวจริงสักอัน ทั้งที่ข้อความรีวิวคือหลักฐานที่หนักที่สุดที่มี — worth ทบทวนรอบหน้า |
+| KG-4 | mobile <768 ไม่มี layout เฉพาะ | ปล่อย degrade ตามธรรมชาติ (OOS-B8) — critique คำนวณว่าแถบสถิติที่ 375px เหลือช่องละ ~74px แต่ "Deep Diamond" ยาว ~78px น่าจะตัดบรรทัด |
+| KG-5 | tap target < 44px | ปุ่ม back 38px · MUI Button size medium ≈ 38px — ต่ำกว่าเกณฑ์ที่ `PRODUCT.md` ตั้งเอง (≥44px) |
+| KG-6 | `prefers-reduced-motion` ไม่ถูก handle ทั้ง repo | แต่มี `scroll-behavior: smooth` global + `scrollIntoView({behavior:'smooth'})` ที่ `ProfileTabsNav` — ละเมิด `PRODUCT.md` §Accessibility |
+| KG-7 | heading order ผิด + `role='tablist'` ที่ไม่มี tabpanel | `h1` → `h3` (สินค้าปักหมุด) → `h2` (ความน่าเชื่อถือ) · `ProfileTabsNav` ใช้ MUI Tabs เป็น anchor nav ทำให้ screen reader ประกาศโครงสร้างที่ไม่มีจริง — ควรเป็น `<nav>` + `<a href="#…">` |
+| KG-8 | `fontWeight: 800` แต่ Anuphan โหลดถึง 700 | browser จะ synthesize faux-bold ซึ่งบนสระ/วรรณยุกต์ไทยทำให้ตัวหนาเบลอติดกัน — มีอย่างน้อย 6 จุด |
+| KG-9 | contrast ตกเกณฑ์ AA หลายคู่ | Assessment B คำนวณไว้ 12 คู่ — หนักสุดคือตัวเลข trust score ของ tier Gold (2.04) และ Diamond (2.35) บนพื้นขาว ต้องผ่าน 3:1 |
+
+---
+
 ## Change Log
 
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
