@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
-import { getChannelByExternalId } from '@/services/shop-channel.service'
-import { getContactProfile } from '@/lib/facebook/graph'
+import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
+import { getContactProfile, sendTextMessage, GraphApiError } from '@/lib/facebook/graph'
+import { decryptToken } from '@/lib/token-crypto'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
@@ -134,4 +135,76 @@ export async function ingestInboundMessage(params: {
     if ((e as { code?: string })?.code === 'P2002') return { status: 'DUPLICATE' }
     throw e
   }
+}
+
+// ส่งข้อความจาก Deep ออกไปยัง Messenger/IG (feature 00018)
+//
+// ลำดับสำคัญ: ส่งออกก่อน → ได้ mid → ค่อยเขียน DB
+// เพราะ echo webhook จะยิง mid เดียวกันกลับมา แล้ว unique constraint บน
+// externalMessageId จะ dedupe ให้เอง ถ้าเขียน DB ก่อนส่งจะได้ข้อความซ้ำ 2 แถว
+export async function sendOutboundMessage(params: {
+  conversationId: string
+  actorUserId: string
+  text: string
+}) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  if (conversation.channel === 'DEEP' || !conversation.shopChannel || !conversation.externalContact) {
+    throw new Error('NOT_EXTERNAL_CHANNEL')
+  }
+
+  const shop = await prisma.shop.findUnique({
+    where: { id: conversation.shopId },
+    select: { userId: true },
+  })
+  if (!shop) throw new Error('SHOP_NOT_FOUND')
+  if (shop.userId !== params.actorUserId) throw new Error('FORBIDDEN')
+
+  // เช็คหน้าต่าง 24 ชม. ก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว
+  if (!getWindowState(conversation.lastInboundAt).open) throw new Error('WINDOW_CLOSED')
+
+  const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+
+  let mid: string | null = null
+  let failureReason: string | null = null
+  try {
+    mid = await sendTextMessage(
+      conversation.shopChannel.externalId,
+      pageToken,
+      conversation.externalContact.externalUserId,
+      params.text,
+    )
+  } catch (e) {
+    failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
+    // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
+    if (e instanceof GraphApiError && e.code === 190) {
+      await markChannelTokenInvalid(conversation.shopChannel.id)
+    }
+  }
+
+  const preview = params.text.slice(0, 100)
+  const message = await prisma.chatMessage.create({
+    data: {
+      conversationId: conversation.id,
+      senderUserId: params.actorUserId,
+      senderRole: 'SHOP',
+      type: 'TEXT',
+      body: params.text,
+      externalMessageId: mid || null,
+      deliveryStatus: failureReason ? 'FAILED' : 'SENT',
+      failureReason,
+    },
+  })
+
+  // อัปเดต snapshot แม้ส่งไม่สำเร็จ — seller ต้องเห็นในเธรดว่าพยายามส่งแล้วพลาด
+  await prisma.conversation.update({
+    where: { id: conversation.id },
+    data: { lastMessageAt: message.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+  })
+
+  if (failureReason) throw new Error(`SEND_FAILED: ${failureReason}`)
+  return message
 }
