@@ -142,7 +142,24 @@ model Shop {
   chatMedianResponseSec  Int?      // median เวลาตอบ (วินาที) เฉพาะ conv ที่ตอบแล้ว, FR-RESP-03
   chatMetricsUpdatedAt   DateTime? // เวลาที่ cron เขียนล่าสุด, FR-RESP-07
 
+  // --- feature 00017: Lodging Vertical (Phase 1, additive) ---
+  // vertical: "GENERAL" (สินค้าและบริการ — ecommerce เดิม) | "LODGING" (บ้านพักตากอากาศ)
+  // String ตาม convention เดิม (มิเรอร์ kind/type/status) ไม่ใช่ Prisma enum
+  // default GENERAL = Shop เดิมทุกแถวก่อน feature นี้เป็น ecommerce อัตโนมัติ ไม่ต้อง backfill (BR-LODG-01/03)
+  //
+  // 🛑 คนละเรื่องกับ 3 field ที่ชื่อคล้ายกัน ห้าม reuse ห้ามเขียนค่าข้ามกัน (BR-LODG-04):
+  //   - businessType (บรรทัด ~99) = INDIVIDUAL|COMPANY ป้ายนิติบุคคลสำหรับ L3 verification
+  //   - kind         (บรรทัด ~106) = PERSONAL|BUSINESS ระดับบัญชี (feature 00008)
+  //   - category/categories        = หมวดสินค้า 10 key (src/lib/shop-categories.ts)
+  // ป้ายบนหน้าจอ: vertical = "ประเภทกิจการ", businessType = "ประเภทผู้ประกอบการ"
+  //
+  // 🛑 immutable — ตั้งครั้งเดียวตอนสร้างธุรกิจ เปลี่ยนภายหลังไม่ได้ (BR-LODG-30, D-01)
+  // บังคับที่ service layer เท่านั้น (ไม่มี DB trigger — โครงการไม่ใช้ trigger ที่ไหนเลย)
+  // service ที่แก้ข้อมูลร้านต้องไม่รับ field นี้เข้ามาเลย
+  vertical String @default("GENERAL")
+
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical = GENERAL
   products             Product[]
   orders               Order[]
   wallet               SellerWallet?
@@ -166,6 +183,49 @@ model Shop {
   @@index([kind, packageLockedAt], map: "Shop_kind_packageLockedAt_idx") // NEW — Admin/Ops list locked business (FR-BIZ-24)
   @@index([kind, packageLockReason, packageLockedAt], map: "Shop_kind_lockReason_lockedAt_idx") // NEW — cron: auto-soft-delete lapsed grace
   @@index([deletedAt, purgedAt], map: "Shop_deletedAt_purgedAt_idx") // NEW — cron: purge expired retention
+  @@index([vertical], map: "Shop_vertical_idx") // NEW (feature 00017) — กรองธุรกิจตามประเภทกิจการ
+}
+
+// Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
+// "ห้อง" = หน่วยที่ให้จอง ซึ่งอาจเป็นห้องเดี่ยวหรือทั้งหลัง
+// มีได้เฉพาะ Shop ที่ vertical = "LODGING" (บังคับที่ service layer — DB ไม่มี cross-table CHECK)
+//
+// Phase 2 จะเพิ่ม Order.roomId (FK, ON DELETE RESTRICT) → ห้ามลบห้องที่มีการจอง (BR-LODG-06)
+// ระหว่าง P1 ยังไม่มี relation นั้น แต่ห้ามเผลอเพิ่ม onDelete: Cascade ทีหลัง
+model Room {
+  id          String  @id @default(uuid())
+  shopId      String
+  name        String
+  description String? @db.Text
+  // images: array ของ fileId (จาก /api/upload) เรียงตามลำดับแสดงผล — ตัวแรก = รูปหลัก
+  // มิเรอร์ Product.images ที่เป็น Json อยู่แล้ว (ไม่แยกตาราง RoomImage เพราะมีเพดาน 10 รูป
+  // และไม่มี query ที่ต้อง join รูปเดี่ยว). เพดาน 10 บังคับที่ app layer (BR-LODG-34, D-05)
+  images      Json    @default("[]")
+  // pricePerNight: ราคาต่อคืน — Decimal(12,2) ให้ตรงกับ Order.totalAmount/Product.price เดิม
+  // CHECK(pricePerNight > 0) ใน migration SQL (BR-LODG-05)
+  pricePerNight Decimal @db.Decimal(12, 2)
+  maxGuests     Int?
+  // facilities: key สิ่งอำนวยความสะดวก (src/lib/lodging.ts ROOM_FACILITIES) validate ที่ app layer
+  // มิเรอร์ Shop.categories ที่เป็น String[] อยู่แล้ว — ไม่ทำตาราง lookup เพราะเป็นค่าคงที่ที่แอปกำหนด
+  facilities    String[] @default([])
+  // depositMode/depositValue: มัดจำเริ่มต้นของห้อง (BR-LODG-15, D-03)
+  //   FIXED   → depositValue = จำนวนบาท
+  //   PERCENT → depositValue = เปอร์เซ็นต์ของยอดรวม (0-100)
+  // depositValue = 0 หมายถึง "ไม่เก็บมัดจำ" (BR-LODG-17) → flow ข้ามขั้นแนบสลิปทั้งหมด
+  // 🛑 ค่านี้เป็นแค่ "ค่าเริ่มต้น" — ยอดจริงของแต่ละการจอง snapshot ไว้ที่ Order.depositAmount (P2)
+  //    ห้ามให้การจองอ้างอิงค่านี้สด มิฉะนั้นยอดของการจองเก่าจะขยับตามเมื่อเจ้าของแก้ห้อง (BR-LODG-18)
+  // CHECK: depositMode IN ('FIXED','PERCENT') + depositValue >= 0 + (PERCENT → <= 100)
+  depositMode   String   @default("FIXED")
+  depositValue  Decimal  @default(0) @db.Decimal(12, 2)
+  // isActive: ปิดการใช้งาน = ไม่ให้สร้างการจองใหม่ + ไม่โชว์บนโปรไฟล์สาธารณะ
+  // แต่การจองเดิมยังเปิดดูได้ครบ (BR-LODG-07) — แยก "หยุดขาย" ออกจาก "ลบประวัติ"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, isActive], map: "Room_shopId_isActive_idx") // list ห้องของร้าน + กรองเฉพาะที่เปิดใช้งาน
 }
 
 model VerificationRecord {

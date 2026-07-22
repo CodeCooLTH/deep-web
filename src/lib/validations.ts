@@ -8,6 +8,14 @@ import {
 // isHttpUrl — ใช้ logic เดียวกับ render layer (S-10) เพื่อ validate accessUrl (S-3)
 import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
+import {
+  SHOP_VERTICAL_KEYS,
+  ROOM_FACILITY_KEYS,
+  MAX_ROOM_IMAGES,
+  MAX_ROOM_NAME_LENGTH,
+  MAX_ROOM_DESCRIPTION_LENGTH,
+  MAX_ROOM_GUESTS,
+} from "@/lib/lodging";
 import { isStrongPassword } from "@/lib/password";
 import { isValidSlugFormat } from "@/lib/shop-slug";
 
@@ -673,6 +681,9 @@ export const CreateBusinessShopSchema = v.object({
   businessType: v.string(),
   category: v.optional(v.string()),
   description: v.optional(v.pipe(v.string(), v.maxLength(500))),
+  // feature 00017 — ประเภทกิจการ; optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = GENERAL)
+  // ตั้งได้ครั้งเดียวตอนสร้างเท่านั้น เปลี่ยนภายหลังไม่ได้ (BR-LODG-30)
+  vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
 });
 
 export const InviteShopMemberSchema = v.object({
@@ -726,4 +737,50 @@ export const BuyPinSlotSchema = v.object({
 export const inviteLinkCreateSchema = v.object({
   // omit ได้ — route ใช้ DEFAULT_INVITE_EXPIRY_KEY (@/lib/invite-link) แทนถ้าไม่ส่งมา
   expiryKey: v.optional(v.picklist(["24h", "7d", "30d"])),
+});
+
+// ── feature 00017 Lodging Vertical (Phase 1) ─────────────────────────────────
+// SSOT: docs/20 - Features/00017 - Lodging Vertical/{BRD,SRS,API}.md
+
+// เงินส่งมาเป็น string (เลี่ยง float) แล้วแปลงเป็น Prisma.Decimal ที่ service layer
+// ให้ตรงกับชนิด Decimal(12,2) ของ Order.totalAmount / Product.price เดิม
+const DecimalString = v.pipe(
+  v.string(),
+  v.regex(/^\d{1,10}(\.\d{1,2})?$/, "รูปแบบตัวเลขไม่ถูกต้อง"),
+);
+
+// pricePerNight ต้อง > 0 (BR-LODG-05) — เทียบเป็นตัวเลขหลัง regex ผ่านแล้ว
+const PositiveDecimalString = v.pipe(
+  DecimalString,
+  v.check((s) => Number(s) > 0, "ราคาต่อคืนต้องมากกว่า 0"),
+);
+
+const RoomBaseFields = {
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_ROOM_NAME_LENGTH)),
+  description: v.optional(v.pipe(v.string(), v.maxLength(MAX_ROOM_DESCRIPTION_LENGTH))),
+  // images = fileId จาก POST /api/upload (ไม่ใช่ URL ตรง) เรียงตามลำดับแสดงผล ตัวแรก = รูปหลัก
+  images: v.optional(
+    v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(200))), v.maxLength(MAX_ROOM_IMAGES)),
+  ),
+  pricePerNight: PositiveDecimalString,
+  maxGuests: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_ROOM_GUESTS))),
+  facilities: v.optional(v.array(v.picklist(ROOM_FACILITY_KEYS))),
+  depositMode: v.optional(v.picklist(["FIXED", "PERCENT"])),
+  depositValue: v.optional(DecimalString),
+};
+
+export const CreateRoomSchema = v.object(RoomBaseFields);
+
+// PATCH — ทุก field optional; isActive แก้ได้ (ปิดการใช้งานห้อง BR-LODG-07)
+// ไม่มี shopId ให้แก้ (ห้ามย้ายห้องข้ามร้าน) และไม่มี id
+export const UpdateRoomSchema = v.object({
+  name: v.optional(RoomBaseFields.name),
+  description: RoomBaseFields.description,
+  images: RoomBaseFields.images,
+  pricePerNight: v.optional(PositiveDecimalString),
+  maxGuests: RoomBaseFields.maxGuests,
+  facilities: RoomBaseFields.facilities,
+  depositMode: RoomBaseFields.depositMode,
+  depositValue: RoomBaseFields.depositValue,
+  isActive: v.optional(v.boolean()),
 });
