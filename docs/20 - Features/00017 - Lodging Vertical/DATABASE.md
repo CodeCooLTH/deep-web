@@ -258,6 +258,14 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_room_no_overlap"
 - `WHERE roomId IS NOT NULL` → ออเดอร์สินค้าปกติไม่ถูกแตะเลย (zero-regression, BR-LODG-27)
 - ต้องมี extension `btree_gist` เพราะ `roomId WITH =` เป็นการเทียบแบบ equality บน gist index
 
+> ✅ **ตรวจจริงแล้ว 2026-07-22** — ฐานข้อมูลเป็น PostgreSQL 17.6 และ `btree_gist` อยู่ใน `pg_available_extensions` (`default_version 1.7`, `installed_version: null` = พร้อมเปิดแต่ยังไม่เปิด) extension ที่เปิดอยู่ตอนนี้คือ `pg_stat_statements`, `pgcrypto`, `plpgsql`, `supabase_vault`, `uuid-ossp`
+>
+> คำสั่งตรวจซ้ำ (อ่านอย่างเดียว ปลอดภัย):
+> ```sql
+> SELECT name, default_version, installed_version
+> FROM pg_available_extensions WHERE name = 'btree_gist';
+> ```
+
 **🛑 Prisma DSL ประกาศ EXCLUDE constraint ไม่ได้** — เป็น unmanaged SQL เหมือน partial unique index ของ feature 00008 (`Shop_userId_personal_key`) ต้องเขียนคำเตือนกำกับใน `schema.prisma` เหนือ model `Order` ว่า:
 - constraint นี้มีอยู่จริงในฐานข้อมูลแม้ schema จะไม่แสดง
 - **ห้าม `prisma db pull` เด็ดขาด** — introspection จะไม่เห็น แล้ว migration ถัดไปอาจ DROP ทิ้ง
