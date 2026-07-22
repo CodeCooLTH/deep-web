@@ -1,54 +1,70 @@
+'use client'
+
 // MUI Imports
+import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
+import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 
-type VerifyItem = {
-  level: number
-  label: string
-  icon: string
-  active: boolean
+// Icon Imports
+import { Icon } from '@iconify/react'
+
+// Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/ConnectionsTeams.tsx
+// (Card+CardHeader+CardContent pattern) — revive S-B14 (ส่วนขยาย Desktop layout redesign, IG-style + trust data)
+// เดิมไฟล์นี้เป็น dead code รับ prop VerifyItem[] ที่ไม่ตรง data shape จริง (ProfileTabData มีแค่ verifiedLevels: number[])
+// และใช้ Tailwind class + CSS var string (`border-[var(--mui-palette-...)]`) ซึ่งไม่ตรง convention sx ของไฟล์รอบข้าง
+// เขียนใหม่: รับ verifiedLevels ตรง ๆ, ใช้ sx + Icon (@iconify/react) แทน <i className> ให้ตรงกับ
+// TrustScoreCard.tsx/PlatformReputationList.tsx ที่อยู่ใน TrustDetailSection เดียวกัน
+
+const VERIFY_LEVELS: { level: number; label: string; icon: string }[] = [
+  { level: 1, label: 'ยืนยันเบอร์โทร (OTP)', icon: 'tabler-phone-check' },
+  { level: 2, label: 'ยืนยันเอกสาร', icon: 'tabler-file-certificate' },
+  // icon ชุดนี้ user เคาะเอง 2026-07-22 (Hard Rule 12 — สเปกไม่ระบุ ห้าม dev เดา):
+  // L3 ใช้ building-store ไม่ใช่ building-bank เพราะ bank สื่อ "การเงิน" ไม่ใช่ "จดทะเบียนธุรกิจ"
+  { level: 3, label: 'จดทะเบียนธุรกิจ', icon: 'tabler-building-store' },
+]
+
+export type VerificationBadgesProps = {
+  /** ระดับที่ approved แล้ว (1=OTP, 2=เอกสาร, 3=จดทะเบียนธุรกิจ) — ตรงกับ ProfileTabData.verifiedLevels */
+  verifiedLevels: number[]
 }
 
-// Base: composed from Vuexy account-settings card primitives + UserProfileHeader icon patterns
-// Since theme user-profile has no direct "verification badges" widget, we reuse the
-// Card + icon-row pattern from AboutOverview to stay consistent with the profile tab.
-const VerificationBadges = ({ items }: { items: VerifyItem[] }) => {
+const VerificationBadges = ({ verifiedLevels }: VerificationBadgesProps) => {
   return (
-    <Card>
-      <CardContent className='flex flex-col gap-4'>
-        <Typography className='uppercase' variant='body2' color='text.disabled'>
-          การยืนยันตัวตน
-        </Typography>
-        <div className='flex flex-col sm:flex-row sm:flex-wrap gap-3'>
-          {items.map((item) => (
-            <div
+    <Card sx={{ boxShadow: 'var(--mui-customShadows-sm)' }}>
+      <CardHeader title='ยืนยันตัวตน' />
+      <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {VERIFY_LEVELS.map((item) => {
+          const active = verifiedLevels.includes(item.level)
+          return (
+            <Box
               key={item.level}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg border w-full sm:w-auto ${
-                item.active
-                  ? 'border-[var(--mui-palette-success-main)] bg-[var(--mui-palette-success-lightOpacity)]'
-                  : 'border-[var(--mui-palette-divider)] opacity-60'
-              }`}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                px: '14px',
+                py: '10px',
+                borderRadius: '8px',
+                border: '1px solid',
+                borderColor: active ? 'success.main' : 'divider',
+                bgcolor: active ? 'success.lightOpacity' : 'transparent',
+                opacity: active ? 1 : 0.6,
+              }}
             >
-              <i
-                className={`${item.icon} text-2xl ${
-                  item.active
-                    ? 'text-[var(--mui-palette-success-main)]'
-                    : 'text-[var(--mui-palette-text-disabled)]'
-                }`}
+              <Icon
+                icon={item.icon}
+                fontSize={22}
+                style={{ color: active ? 'var(--mui-palette-success-main)' : 'var(--mui-palette-text-disabled)' }}
               />
-              <div>
-                <Typography className='text-xs' color='text.secondary'>
-                  ระดับ {item.level}
-                </Typography>
-                <Typography className='text-sm font-medium'>{item.label}</Typography>
-              </div>
-              {item.active && (
-                <i className='tabler-check text-lg text-[var(--mui-palette-success-main)] ms-2' />
-              )}
-            </div>
-          ))}
-        </div>
+              <Typography component='p' sx={{ m: 0, fontSize: '13px', fontWeight: 600, color: 'text.primary', flex: 1 }}>
+                {item.label}
+              </Typography>
+              {active && <Icon icon='tabler-check' fontSize={18} style={{ color: 'var(--mui-palette-success-main)' }} />}
+            </Box>
+          )
+        })}
       </CardContent>
     </Card>
   )

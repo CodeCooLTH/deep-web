@@ -2,6 +2,9 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
+import Card from '@mui/material/Card'
+import CardHeader from '@mui/material/CardHeader'
+import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
@@ -17,6 +20,10 @@ import type { TierChipColor } from '@/lib/trust-tier'
 // (dual CircularProgress track+value gauge, label กลาง absolute-positioned)
 // Adapted: gauge เดี่ยว (ไม่ loop list) + label "{score}/100" กลาง + ข้อความ tier ใต้ gauge + chip row ระดับยืนยัน
 // สี gauge ผูกกับ tier (Tier Lists SSOT ผ่าน tierColor) แทน progress-based ThemeColor ของ Base เดิม
+// ส่วนขยาย Desktop layout redesign (2026-07-22, S-B14): ห่อด้วย Card+CardHeader (เดิมเป็น bare Box ไม่มี bg/shadow —
+// ตอนย้ายมาอยู่บนพื้น Cool Mist ของ TrustDetailSection ต้องมี elevation จริงไม่งั้นกลืนกับพื้นหลัง)
+// shadow บังคับ sm (default MuiCard override = md — ดู @core/theme/overrides/card.ts) ตาม acceptance ของ S-B14
+// ตัด id='trust-score' เดิมทิ้ง — anchor เป้าหมายย้ายไปที่ TrustDetailSection ทั้ง section (id='trust-detail-section')
 
 export type TrustScoreCardData = {
   trustScore: number
@@ -40,14 +47,9 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
   const accent = getTierAccentColor(trustScore)
 
   return (
-    <Box id='trust-score' sx={{ px: { xs: '20px', md: '24px' }, py: '20px' }}>
-      <Typography
-        component='h3'
-        sx={{ m: 0, mb: '14px', fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
-      >
-        คะแนนความน่าเชื่อถือ
-      </Typography>
-
+    <Card sx={{ boxShadow: 'var(--mui-customShadows-sm)' }}>
+      <CardHeader title='คะแนนความน่าเชื่อถือ' />
+      <CardContent>
       <Box sx={{ position: 'relative', width: 128, height: 128, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <CircularProgress variant='determinate' value={100} size={128} thickness={3.2} sx={{ position: 'absolute', color: 'action.disabledBackground' }} />
         <CircularProgress
@@ -94,7 +96,8 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
           )
         })}
       </Box>
-    </Box>
+      </CardContent>
+    </Card>
   )
 }
 

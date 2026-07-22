@@ -33,6 +33,9 @@ import { useSession } from 'next-auth/react'
 // Impeccable audit 2026-07-22 (S-B2): ลบ verify badge วงกลมบน avatar ทิ้ง — เดิมเป็นสีน้ำเงิน Twitter
 // ซึ่งไม่มีความหมาย "ยืนยันแล้ว" ในระบบ Deep เลย (เขียว #28C76F เท่านั้นที่แปลว่า verified)
 // แทนด้วย Chip tonal success ข้างชื่อจุดเดียว ตาม design-spec decision #3 — avatar ไม่มี badge ซ้อนแล้ว
+// ส่วนขยาย Desktop layout redesign (2026-07-22, IG-style + trust data): avatar 112px(มือถือ)→152px(md+)
+// ตาม wireframe เป้าหมายที่ Controller ระบุ (overlap มากขึ้นให้สมดุลกับ container 960px ที่กว้างขึ้น)
+// completionRate (S-B12) เพิ่มใน ProfileHeaderData — ใช้ที่ ProfileStatsBar เท่านั้น ไม่ใช้ในไฟล์นี้
 
 export type ProfileHeaderData = {
   profileImg?: string | null
@@ -47,6 +50,8 @@ export type ProfileHeaderData = {
   maxVerifyLevel: number
   /** จำนวนออเดอร์สำเร็จ — แสดงใน metric row */
   completedOrders: number
+  /** S-B12: % สำเร็จ (confirmed/(confirmed+cancelled)*100) — null เมื่อยังไม่มี order จบเลย (ร้านใหม่) */
+  completionRate: number | null
   avgRating: number
   /** true เมื่อมีรีวิว >= 3 (เพื่อความน่าเชื่อถือ) — ซ่อน ★rating ถ้า false */
   showRating: boolean
@@ -147,14 +152,23 @@ export const ProfileIdentityBar = ({
           gap: { xs: '12px', sm: '16px' },
         }}
       >
-        {/* Avatar 112px overlap cover (mt ลบ) + verify badge มุมขวาล่าง */}
-        <Box sx={{ position: 'relative', width: 112, height: 112, flexShrink: 0, mt: '-56px', zIndex: 2 }}>
+        {/* Avatar overlap cover (mt ลบ) — S-B10/wireframe (ส่วนขยาย IG-style): 112px มือถือ → 152px desktop(md+) */}
+        <Box
+          sx={{
+            position: 'relative',
+            width: { xs: 112, md: 152 },
+            height: { xs: 112, md: 152 },
+            flexShrink: 0,
+            mt: { xs: '-56px', md: '-76px' },
+            zIndex: 2,
+          }}
+        >
           <Avatar
             src={data.profileImg ?? undefined}
             alt={displayName}
             sx={{
-              width: 112,
-              height: 112,
+              width: { xs: 112, md: 152 },
+              height: { xs: 112, md: 152 },
               borderRadius: '50%',
               border: '4px solid white',
               boxShadow: 'var(--mui-customShadows-lg)',
@@ -219,7 +233,7 @@ export const ProfileIdentityBar = ({
             {data.showRating && (
               <>
                 <Box component='span' sx={{ color: 'text.disabled' }}>·</Box>
-                <Box component='span' sx={{ color: '#F59E0B', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                <Box component='span' sx={{ color: 'warning.main', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                   <Icon icon='tabler-star-filled' fontSize={13} />
                   {data.avgRating.toFixed(1)}
                 </Box>

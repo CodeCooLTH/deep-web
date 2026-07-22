@@ -1,87 +1,83 @@
+'use client'
+
 // MUI Imports
-import Grid from '@mui/material/Grid'
+import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
-import Typography from '@mui/material/Typography'
+import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
+import Typography from '@mui/material/Typography'
 
-export type AboutItem = {
-  property: string
-  value: string
-  icon: string
-}
-
-export type AboutOverviewData = {
-  about: AboutItem[]
-  overview: AboutItem[]
-  shopInfo?: {
-    shopName: string
-    description?: string | null
-    category?: string | null
-  } | null
-}
-
-const renderList = (list: AboutItem[]) => {
-  return (
-    list.length > 0 &&
-    list.map((item, index) => (
-      <div key={index} className='flex items-center gap-2'>
-        <i className={item.icon} />
-        <div className='flex items-center flex-wrap gap-2'>
-          <Typography className='font-medium'>{`${item.property}:`}</Typography>
-          <Typography>{item.value}</Typography>
-        </div>
-      </div>
-    ))
-  )
-}
+// Icon Imports
+import { Icon } from '@iconify/react'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/AboutOverview.tsx
-// Adapted: dropped "Contacts" + "Teams" sections (not applicable to SafePay public profile);
-// replaced with About (member since, shop) + Overview (trust level, verification) + optional Shop description.
-const AboutOverview = ({ data }: { data: AboutOverviewData }) => {
+// (Card+CardContent icon-row pattern) — revive S-B14 (ส่วนขยาย Desktop layout redesign, IG-style + trust data)
+// เดิม type AboutOverviewData ({about,overview,shopInfo}) ไม่ตรง data shape จริงของหน้านี้เลย — ProfileTabData
+// ไม่มี field about/overview/shopInfo จึงเขียน type ใหม่ AboutData รับ bio/location/memberSince/chatResponse* ตรง ๆ
+// เนื้อหา + formatResponseTime ย้ายมาจาก ProfileLeftContent เดิมใน profile/index.tsx (ยุบทิ้งแล้วตาม S-B14)
+
+export type AboutData = {
+  bio?: string | null
+  location?: string | null
+  /** "มิ.ย. 2568" — formatMonthYearTH() ผลลัพธ์ */
+  memberSince: string
+  chatResponseRate?: number | null
+  chatMedianResponseSec?: number | null
+  chatResponseSampleSize?: number | null
+}
+
+// FR-RESP-06: format response time เป็นข้อความไทย (ย้ายมาจาก profile/index.tsx เดิม — ProfileLeftContent ยุบทิ้งแล้ว)
+// <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
+const formatResponseTime = (seconds: number | null | undefined): string | null => {
+  if (seconds == null) return null
+  if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))} นาที`
+  if (seconds < 86400) return `~${Math.max(1, Math.round(seconds / 3600))} ชม.`
+  if (seconds < 172800) return '~1 วัน'
+  return '2+ วัน'
+}
+
+const AboutOverview = ({ data }: { data: AboutData }) => {
+  const { bio, location, memberSince, chatResponseRate, chatMedianResponseSec, chatResponseSampleSize } = data
+
+  // FR-RESP-04: sample-gate ≥3 — ต่ำกว่าซ่อนทั้งบรรทัด response (ไม่โชว์เลขปลอม)
+  const showResponse = chatResponseSampleSize != null && chatResponseSampleSize >= 3 && chatResponseRate != null
+  const responseTimeLabel = formatResponseTime(chatMedianResponseSec)
+
   return (
-    <Grid container spacing={6}>
-      <Grid size={{ xs: 12 }}>
-        <Card>
-          <CardContent className='flex flex-col gap-6'>
-            <div className='flex flex-col gap-4'>
-              <Typography className='uppercase' variant='body2' color='text.disabled'>
-                เกี่ยวกับ
-              </Typography>
-              {renderList(data.about)}
-            </div>
-            <div className='flex flex-col gap-4'>
-              <Typography className='uppercase' variant='body2' color='text.disabled'>
-                สรุป
-              </Typography>
-              {renderList(data.overview)}
-            </div>
-          </CardContent>
-        </Card>
-      </Grid>
-      {data.shopInfo && (
-        <Grid size={{ xs: 12 }}>
-          <Card>
-            <CardContent className='flex flex-col gap-3'>
-              <Typography className='uppercase' variant='body2' color='text.disabled'>
-                เกี่ยวกับร้าน
-              </Typography>
-              <Typography className='font-medium'>{data.shopInfo.shopName}</Typography>
-              {data.shopInfo.description && (
-                <Typography color='text.secondary' className='text-sm whitespace-pre-wrap'>
-                  {data.shopInfo.description}
-                </Typography>
+    <Card sx={{ boxShadow: 'var(--mui-customShadows-sm)' }}>
+      <CardHeader title='เกี่ยวกับร้าน' />
+      <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {bio && (
+          <Typography component='p' sx={{ m: 0, fontSize: '14px', color: 'text.primary', lineHeight: 1.5 }}>
+            {bio}
+          </Typography>
+        )}
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'text.secondary' }}>
+          {location && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon='tabler-map-pin' fontSize={16} />
+              {location}
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon='tabler-calendar' fontSize={16} />
+            เข้าร่วม {memberSince}
+          </Box>
+          {showResponse && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <Icon icon='tabler-message' fontSize={16} />
+              ตอบกลับ <Box component='strong' sx={{ color: 'text.primary' }}>{Math.round(chatResponseRate as number)}%</Box>
+              {responseTimeLabel && (
+                <>
+                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: 'text.primary' }}>{responseTimeLabel}</Box>
+                </>
               )}
-              {data.shopInfo.category && (
-                <Typography color='text.secondary' className='text-sm'>
-                  หมวดหมู่: {data.shopInfo.category}
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-    </Grid>
+            </Box>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
   )
 }
 

@@ -13,18 +13,15 @@ import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
-// Component Imports (BadgeChip ใช้ useState สำหรับ image error handling)
-import AchievementBadgeRow from './AchievementBadgeRow'
-import TrustScoreCard from '../TrustScoreCard'
+// Type Imports — TrustScoreCardData['tierColor'] ใช้ประกาศ type ProfileTabData.tierColor ด้านล่าง (type-only, ไม่ import component)
 import type { TrustScoreCardData } from '../TrustScoreCard'
-import PlatformReputationList from '../PlatformReputationList'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
-// Redesign (2026-07-04, hybrid FB Page × Threads spec):
-//   - Left column content: About(bio/location/joined/response-rate) + TrustScoreCard + Achievements (medal frame)
-//   - Right column content: Pinned products(slice 0-3) + All products(slice 3+) + PlatformReputationList
-//   - ProductCard ใหม่ (Base: theme .../apps/academy/my-courses/Courses.tsx bordered-card pattern) แทน ProductTile IG-edge เดิม
-//   - ตัด inline "Deep + Shopee/Lazada/TikTok" text-line เดิมออก (ย้ายไป PlatformReputationList component)
+// Redesign (2026-07-04, hybrid FB Page × Threads spec) — เนื้อหา left/right column เดิม
+// ส่วนขยาย Desktop layout redesign (2026-07-22, S-B14): ยุบ ProfileLeftContent ทิ้งทั้งหมด — เนื้อหากระจายไปที่
+// ProfileStatsBar/BadgePillRow (ใต้ identity bar) + TrustDetailSection (full-bleed band ใต้ product grid) แทน
+// ProfileRightContent เหลือแค่ product grid (ตัด PlatformReputationList ออก — ย้ายไปอยู่ใน TrustDetailSection แล้ว)
+// ProductCard คงเดิม (Base: theme .../apps/academy/my-courses/Courses.tsx bordered-card pattern)
 
 // ── Type: สินค้าที่ serialize จาก RSC boundary (Decimal → string) ──
 export type SerializedProduct = {
@@ -69,17 +66,6 @@ export type ProfileTabData = {
   nextTierLabel: string | null
   pointsToNext: number | null
   verifiedLevels: number[]
-}
-
-// ── FR-RESP-06: format response time เป็นข้อความไทย ──
-// <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
-// null → ไม่แสดงบรรทัด time (แต่บรรทัด rate ยังแสดงได้ถ้ามี)
-const formatResponseTime = (seconds: number | null | undefined): string | null => {
-  if (seconds == null) return null
-  if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))} นาที`
-  if (seconds < 86400) return `~${Math.max(1, Math.round(seconds / 3600))} ชม.`
-  if (seconds < 172800) return '~1 วัน'
-  return '2+ วัน'
 }
 
 // ── ProductCard ──
@@ -214,124 +200,10 @@ const ProductCard = ({
   )
 }
 
-// ── ProfileLeftContent — About + TrustScoreCard + Achievements (medal frame) ──
-// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน left panel (sticky 340px) ของ grid ได้
-export const ProfileLeftContent = ({
-  data,
-}: {
-  data: Pick<
-    ProfileTabData,
-    | 'bio'
-    | 'location'
-    | 'memberSince'
-    | 'chatResponseRate'
-    | 'chatMedianResponseSec'
-    | 'chatResponseSampleSize'
-    | 'trustScore'
-    | 'tierLabel'
-    | 'tierColor'
-    | 'nextTierLabel'
-    | 'pointsToNext'
-    | 'verifiedLevels'
-    | 'achievements'
-    | 'totalBadgeCount'
-  >
-}) => {
-  const {
-    bio,
-    location,
-    memberSince,
-    chatResponseRate,
-    chatMedianResponseSec,
-    chatResponseSampleSize,
-    trustScore,
-    tierLabel,
-    tierColor,
-    nextTierLabel,
-    pointsToNext,
-    verifiedLevels,
-    achievements,
-    totalBadgeCount,
-  } = data
-
-  // FR-RESP-04: sample-gate ≥3 — ต่ำกว่าซ่อนทั้งบรรทัด response (ไม่โชว์เลขปลอม)
-  const showResponse = chatResponseSampleSize != null && chatResponseSampleSize >= 3 && chatResponseRate != null
-  const responseTimeLabel = formatResponseTime(chatMedianResponseSec)
-
-  return (
-    <>
-      {/* ── About section ── */}
-      <Box id='about' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '8px' }}>
-        <Typography
-          component='h3'
-          sx={{ m: 0, mb: '10px', fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
-        >
-          เกี่ยวกับร้าน
-        </Typography>
-
-        {bio && (
-          <Typography component='p' sx={{ m: 0, mb: '10px', fontSize: '14px', color: 'text.primary', lineHeight: 1.5 }}>
-            {bio}
-          </Typography>
-        )}
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'text.secondary' }}>
-          {location && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Icon icon='tabler-map-pin' fontSize={14} />
-              {location}
-            </Box>
-          )}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Icon icon='tabler-calendar' fontSize={14} />
-            เข้าร่วม {memberSince}
-          </Box>
-          {/* S-25 (extension #2 Response-rate metric): ย้ายจาก stats-text เดิม → มาเป็นบรรทัดใน About */}
-          {showResponse && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <Icon icon='tabler-message' fontSize={14} />
-              ตอบกลับ <Box component='strong' sx={{ color: 'text.primary' }}>{Math.round(chatResponseRate as number)}%</Box>
-              {responseTimeLabel && (
-                <>
-                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: 'text.primary' }}>{responseTimeLabel}</Box>
-                </>
-              )}
-            </Box>
-          )}
-        </Box>
-      </Box>
-
-      {/* ── Trust Score Card ── */}
-      <TrustScoreCard data={{ trustScore, tierLabel, tierColor, nextTierLabel, pointsToNext, verifiedLevels }} />
-
-      {/* ── Achievements (medal frame) ── */}
-      {achievements.length > 0 && (
-        <Box id='achievements' sx={{ px: { xs: '20px', md: '24px' }, pt: '4px', pb: '20px' }}>
-          <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: '10px' }}>
-            <Typography
-              component='h3'
-              sx={{ m: 0, fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
-            >
-              การรับรอง
-            </Typography>
-            {totalBadgeCount > 0 && (
-              <Typography component='span' sx={{ fontSize: '12px', color: 'primary.main', fontWeight: 600, cursor: 'default', userSelect: 'none' }}>
-                ดูทั้งหมด {totalBadgeCount} →
-              </Typography>
-            )}
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-            <AchievementBadgeRow items={achievements} />
-          </Box>
-        </Box>
-      )}
-    </>
-  )
-}
-
-// ── ProfileRightContent — Pinned products + All products + Platform reputation ──
-// ทำไม: แยกออกมาเพื่อให้ desktop wrapper วางใน right panel ของ grid ได้
+// ── ProfileRightContent — Pinned products + All products (product grid เท่านั้น) ──
+// ทำไม: แยกออกมาเพื่อให้ index.tsx เรียกใช้ได้ตรง ๆ
+// S-B14 (ส่วนขยาย Desktop layout redesign): ตัด PlatformReputationList ออก — ย้ายไปอยู่ใน TrustDetailSection แล้ว
+// (ProfileLeftContent เดิม/medal-frame achievements ก็ยุบทิ้งไปพร้อมกัน — ดู ProfileStatsBar/BadgePillRow/TrustDetailSection)
 // S-19 (extension #1 Chat Product Context Card): shopId/isOwnShop รับแยกจาก data (มาจาก ProfileHeaderData
 // ไม่ใช่ ProfileTabData) prop-drill ต่อไปให้ ProductCard ตาม UX spec data-plumbing
 export const ProfileRightContent = ({
@@ -371,8 +243,9 @@ export const ProfileRightContent = ({
               </Typography>
               <Box
                 sx={{
+                  // S-B15: 3 คอลัมน์คงที่ตั้งแต่ md(900) ขึ้นไป (ไม่ไล่ 2→3→4 ตาม breakpoint เหมือนเดิม)
                   display: 'grid',
-                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
                   gap: '12px',
                 }}
               >
@@ -400,8 +273,9 @@ export const ProfileRightContent = ({
               </Typography>
               <Box
                 sx={{
+                  // S-B15: 3 คอลัมน์คงที่ตั้งแต่ md(900) ขึ้นไป (ไม่ไล่ 2→3→4 ตาม breakpoint เหมือนเดิม)
                   display: 'grid',
-                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
                   gap: '12px',
                 }}
               >
@@ -419,9 +293,6 @@ export const ProfileRightContent = ({
           )}
         </>
       )}
-
-      {/* ── ชื่อเสียงแพลตฟอร์มอื่น (placeholder) ── */}
-      <PlatformReputationList />
     </>
   )
 }

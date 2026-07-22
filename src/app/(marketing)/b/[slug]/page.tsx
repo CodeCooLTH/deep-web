@@ -15,6 +15,7 @@ import { getProductsByShop } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
+import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
 import UserProfile from '@views/pages/user-profile'
@@ -74,6 +75,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
 
   const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
   const completedOrders = confirmedCount
+  // S-B12 (ส่วนขยาย desktop layout): completionRate จาก orderStats ที่ query อยู่แล้ว (ไม่ query ใหม่)
+  const cancelledCount = orderStats.find((s) => s.status === 'CANCELLED')?._count._all ?? 0
+  const completionRate = computeCompletionRate(confirmedCount, cancelledCount)
 
   const { avgRating, reviewCount } = ratingAgg
 
@@ -107,6 +111,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     tierColor,
     maxVerifyLevel,
     completedOrders,
+    completionRate,
     avgRating,
     showRating: reviewCount >= 3,
   }
