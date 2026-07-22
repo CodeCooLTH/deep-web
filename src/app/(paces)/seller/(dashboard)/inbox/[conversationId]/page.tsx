@@ -184,10 +184,10 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         />
       </div>
       {/* feature 00018 T5 — 3 คอลัมน์ desktop (rail มาจาก layout swap คนละ task/T2 ไม่ใช่ที่นี่):
-          thread (flex-1) + Customer Panel persistent (≥1024px, w-80 มาตรฐาน Tailwind scale ไม่ใช่
-          bracket arbitrary — สเปกระบุ "340px" ใน ASCII wireframe แต่ไม่มี scale class ตรงเป๊ะ เลือก
-          w-80(320px) ใกล้สุด + สมมาตรกับความกว้าง Chat Rail 320px ของ T2 แทนการเดา bracket เอง) */}
-      <div className="flex gap-1.25">
+          thread (flex-1) + Customer Panel persistent (≥1024px)
+          w-96 (384px): user feedback บน prod ว่า w-80 เดิมแคบไป — ข้อความอธิบายและปุ่ม CTA
+          ถูกบีบจนอ่านยาก; gap-4 แทน gap-1.25 เดิมที่ชิดกันจนสองคอลัมน์ดูติดกันเป็นก้อนเดียว */}
+      <div className="flex gap-4">
         <ChatThread
           conversationId={conversation.id}
           buyerName={buyerDisplayName}
@@ -198,7 +198,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           tokenInvalid={tokenInvalid}
           customerPanelData={customerPanelData}
         />
-        <div className="hidden lg:block w-80 shrink-0">
+        <div className="hidden w-96 shrink-0 lg:block">
           <CustomerPanel data={customerPanelData} />
         </div>
       </div>

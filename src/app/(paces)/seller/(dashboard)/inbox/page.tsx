@@ -174,7 +174,20 @@ export default async function SellerInboxPage() {
   return (
     <>
       {breadcrumb}
-      <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} />
+      {/* ≥1024px: รายการแชทย้ายไปอยู่ที่ Chat Rail (เมนูซ้าย) แล้ว — ตรงกลางต้องไม่โชว์ซ้ำ
+          ไม่งั้นเห็นรายการเดียวกัน 2 ที่พร้อมกัน (user เจอจริงบน prod)
+          <1024px: ไม่มี rail (เมนูซ้ายถูกซ่อนทั้งระบบ) จึงต้องคงรายการไว้ที่นี่เหมือนเดิม */}
+      <div className="lg:hidden">
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} />
+      </div>
+      <div className="hidden lg:block">
+        <SellerEmptyState
+          compact
+          icon="message-circle"
+          title="เลือกบทสนทนา"
+          description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
+        />
+      </div>
     </>
   )
 }

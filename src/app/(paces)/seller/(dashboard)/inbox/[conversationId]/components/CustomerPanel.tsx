@@ -102,18 +102,21 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
 
   return (
     <>
-      <div className="flex items-center gap-3 border-b border-default-200 border-dashed px-4 py-3">
-        <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+      {/* p-4 + gap-3 ให้เท่ากับ .card-body ของ Paces — user feedback บน prod ว่า padding เดิม
+          (px-4 py-3) อึดอัด หัวการ์ดชิดขอบเกินไป */}
+      <div className="flex items-center gap-3 border-b border-default-200 border-dashed p-4">
+        <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
           {generateInitials(data.contactName) || '?'}
         </span>
         <div className="min-w-0">
-          <p className="text-default-900 mb-0.5 truncate text-sm font-semibold">{data.contactName}</p>
+          <p className="text-default-900 mb-1 truncate text-sm font-semibold">{data.contactName}</p>
           <ChannelBadge channel={data.channel} />
         </div>
       </div>
 
-      {/* tabs — 2 ตัวเท่านั้น (ลูกค้า / ออเดอร์|การจอง) ไม่มีแท็ก/Note/ใบเสนอราคา (นอก scope) */}
-      <nav className="nav-tabs" role="tablist" aria-label="ข้อมูลลูกค้า">
+      {/* tabs — 2 ตัวเท่านั้น (ลูกค้า / ออเดอร์|การจอง) ไม่มีแท็ก/Note/ใบเสนอราคา (นอก scope)
+          px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย */}
+      <nav className="nav-tabs px-4" role="tablist" aria-label="ข้อมูลลูกค้า">
         <button
           type="button"
           role="tab"
@@ -148,8 +151,8 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
               <p className="text-default-900 text-sm">{data.customer.phoneMasked}</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-default-500 text-sm">
+            <div className="space-y-4">
+              <p className="text-default-500 text-sm leading-relaxed">
                 ยังไม่ผูกกับลูกค้าในระบบ — ผูกอัตโนมัติเมื่อสร้างออเดอร์และกรอกเบอร์โทร
               </p>
               <Link
