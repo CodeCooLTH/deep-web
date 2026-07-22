@@ -120,6 +120,12 @@ MVP นี้ **ไม่ใช่การ build chat platform ใหม่** �
 | **FR-FBC-10** | ผูก Instagram DM อัตโนมัติ | ถ้า Page ที่เชื่อมมี IG Business Account ผูกอยู่ → สร้าง `ShopChannel` ฝั่ง IG อัตโนมัติด้วย page token เดียวกัน | Must |
 | **FR-FBC-11** | จัดการ/ถอด Page ที่เชื่อมแล้ว | หน้า `/seller/settings/channels` — ดูสถานะ token, ถอดการเชื่อม (1 Shop : N Page) | Must |
 | **FR-FBC-12** | Badge ช่องทาง + filter ใน `/inbox` | icon Messenger/IG, filter ตาม Page | Must |
+| **FR-FBC-13** | จัดระเบียบเธรด — ปักหมุด / ซ่อน / ปิดงาน | `isPinned` / `isHidden` / `resolvedAt` ต่อเธรด; ซ่อนและปิดงานไม่ตัดขาดการรับข้อความ และกลับมาแสดงอัตโนมัติเมื่อลูกค้าทักใหม่ (S-7) | Must |
+| **FR-FBC-14** | แท็ก + โน้ตภายใน + tab ออเดอร์ในแผงขวา | แท็กและโน้ตเป็นข้อมูลภายในร้าน ห้ามส่งออกไปหาลูกค้าเด็ดขาด; tab ออเดอร์แสดงเฉพาะออเดอร์จริงของ `Customer` ที่ผูกไว้ (S-8) | Must |
+
+> **FR-FBC-13/14 เพิ่มภายหลัง** จากผลตัดสิน Q-4 (design spec §8.1) เมื่อ user ส่ง layout
+> reference มา — ไม่ได้อยู่ใน PRD ฉบับร่างแรก กฎธุรกิจที่ครอบสองข้อนี้คือ `BR-FBC-14`..`BR-FBC-19`
+> ใน [[BRD]] §8.5–8.6
 
 ### 3.2 รับข้อความเข้า (Inbound Messages)
 
@@ -341,3 +347,44 @@ MVP นี้ **ไม่ใช่การ build chat platform ใหม่** �
 9. ครั้งถัดไปที่ลูกค้าคนเดิมทักมา ระบบรู้จักในฐานะลูกค้าเดิมทันที (จาก `ExternalContact.customerId` ที่ผูกไว้แล้ว)
 
 ### 10.2 Diagram ภาพรวมสถาปัตยกรรม
+
+```mermaid
+flowchart LR
+  subgraph Meta["Meta"]
+    FB["Facebook Page<br/>(Messenger)"]
+    IG["Instagram<br/>(Direct Message)"]
+  end
+
+  subgraph Deep["Deep (SafePay)"]
+    WH["Webhook route<br/>ตรวจลายเซ็น + แยกตามช่องทาง"]
+    SVC["channel-chat service<br/>+ chat service เดิม"]
+    DB[("Conversation / ChatMessage<br/>ShopChannel / ExternalContact")]
+    RT["Supabase Broadcast"]
+    UI["/inbox ของ seller"]
+    ORD["/orders/new"]
+    CUS[("Customer Directory")]
+  end
+
+  FB -- "ข้อความเข้า" --> WH
+  IG -- "ข้อความเข้า" --> WH
+  WH --> SVC
+  SVC --> DB
+  SVC --> RT
+  RT --> UI
+  UI -- "seller ตอบกลับ" --> SVC
+  SVC -- "Send API" --> FB
+  SVC -- "Send API" --> IG
+  UI -- "สร้างออเดอร์จากเธรด" --> ORD
+  ORD -- "ผูกด้วยเบอร์โทร" --> CUS
+  CUS -. "ExternalContact.customerId" .-> DB
+```
+
+**จุดที่ต้องอ่านจาก diagram นี้:**
+
+1. **webhook เป็นทางเข้าทางเดียว** ของทั้ง Messenger และ Instagram — แยกช่องทางที่ตัว
+   dispatcher ไม่ใช่แยก route ทำให้เพิ่มช่องทางใหม่ในอนาคตไม่ต้องรื้อของเดิม
+2. **ข้อความไหลเข้า `Conversation`/`ChatMessage` ชุดเดียวกับแชทในแอป** — ไม่มีตารางแยก
+   จึงได้ unread / ค้นหา / ตัวชี้วัดเวลาตอบกลับ ของเดิมมาใช้ทันที
+3. **ลูกค้าจากช่องทางนอกเข้าสู่ Customer Directory ได้ทางเดียว** คือผ่านการสร้างออเดอร์ที่
+   บังคับกรอกเบอร์ — ไม่มีทางลัดอื่น (`BR-FBC-06`)
+4. **buyer app ไม่ได้อยู่ใน diagram นี้เลย** เพราะ feature นี้ไม่แตะฝั่งผู้ซื้อแม้แต่จุดเดียว
