@@ -196,6 +196,7 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
                 ) : (
                   <p className="text-[14px] font-medium text-ink truncate">{c.displayName}</p>
                 )}
+                {/* HR7: text-[12px] — เบอร์/อีเมลผู้ติดต่อรอง ต้องเล็กกว่าชื่อ (text-[14px]); Paces ไม่มี token 12px พอดี (text-2xs=11px/text-xs=13px) */}
                 <p className="text-[12px] text-default-500 font-mono truncate">{c.contact}</p>
               </div>
               {/* trailing: จำนวนออเดอร์ + ล่าสุด */}

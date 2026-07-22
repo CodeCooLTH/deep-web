@@ -45,6 +45,12 @@ export default function AdminVerifyOtpPage() {
                   className="relative hidden h-full overflow-hidden rounded-e-2xl bg-cover bg-center object-cover lg:block"
                   style={{ backgroundImage: `url(${authImg.src})` }}
                 >
+                  {/* HR7: gradient scrim ทับรูป auth — ใช้ hex/rgba ตรง ๆ โดยตั้งใจ ห้ามเปลี่ยนเป็น var(--color-dark)
+                      เหตุผล: --color-dark เป็น theme-adaptive (#313a46 light / #4b4d5c dark ที่ _root.css:27,133)
+                      แต่ stop ที่ 2-3 เป็น rgba ของ #313a46 ที่ไม่มี var รูป rgb-triplet ให้ผสม opacity ได้
+                      → ถ้าใช้ var() เฉพาะ stop แรก พอ useLayoutContext สลับเป็น dark (รวมโหมด system ตาม OS)
+                      stop แรกจะกลายเป็น #4b4d5c ขณะที่อีก 2 stop ยังเป็นโทนเดิม = ไล่สีขาด ไม่ต่อเนื่อง
+                      scrim นี้ต้องเป็นโทนเดียวคงที่ทุกธีม จึงคง literal ไว้ (Impeccable audit 2026-07-22 S-A9: WONTFIX) */}
                   <div className="absolute inset-0 flex items-end justify-center rounded-e-sm p-9 [background:linear-gradient(to_top,#313a46,rgba(49,58,70,.8),rgba(49,58,70,.5))]"></div>
                 </div>
               </div>
