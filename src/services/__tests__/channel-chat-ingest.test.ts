@@ -85,7 +85,14 @@ describe('ingestInboundMessage', () => {
     const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: echo })
     expect(r.status).toBe('STORED')
     expect(db.chatMessage.create.mock.calls[0]![0].data.senderRole).toBe('SHOP')
-    expect(db.conversation.update.mock.calls[0]![0].data.lastInboundAt).toBeUndefined()
+    const updated = db.conversation.update.mock.calls[0]![0].data
+    // lastInboundAt ไม่ขยับ — ไม่งั้นหน้าต่าง 24 ชม. ยืดเองทุกครั้งที่ร้านตอบ
+    expect(updated.lastInboundAt).toBeUndefined()
+    // lastMessageAt ไม่ขยับ — echo = ตอบจากแอป Messenger ไปแล้ว ไม่ต้องเด้งเธรดขึ้นบนสุดให้รก
+    // (ผลตัดสิน user 2026-07-22) แต่ preview/senderRole ต้องอัปเดตให้เห็นข้อความล่าสุดจริง
+    expect(updated.lastMessageAt).toBeUndefined()
+    expect(updated.lastMessagePreview).toBe('ตอบจากมือถือ')
+    expect(updated.lastSenderRole).toBe('SHOP')
     // ต้อง upsert/lookup contact ด้วย externalUserId ของ "ลูกค้า" (recipient=PSID_1) ไม่ใช่ของเพจ
     expect(db.externalContact.findUnique.mock.calls[0]![0].where.shopChannelId_externalUserId.externalUserId).toBe(
       'PSID_1',
@@ -147,8 +154,17 @@ describe('ingestInboundMessage', () => {
       db.externalContact.findUnique.mockResolvedValue(null)
       await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
       expect(getContactProfile).toHaveBeenCalledTimes(1)
+      // ไม่ส่ง pageExternalId แล้ว — graph.ts ใช้ /me/* ซึ่ง pageToken resolve เป็นเพจให้เอง
+      // (ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id ส่งเข้า path แล้ว Meta ตอบ error)
+      expect(getContactProfile).toHaveBeenCalledWith('PSID_1', 'tok', 'MESSENGER')
       const args = db.externalContact.upsert.mock.calls[0]![0]
       expect(args.create.name).toBe('ลูกค้า ทดสอบ')
+    })
+
+    it('เธรด Instagram → ส่ง provider=INSTAGRAM ให้ Graph (คนละวิธีดึงโปรไฟล์กับ Messenger)', async () => {
+      db.externalContact.findUnique.mockResolvedValue(null)
+      await ingestInboundMessage({ provider: 'INSTAGRAM', pageExternalId: 'IG1', event: textEvent })
+      expect(getContactProfile).toHaveBeenCalledWith('PSID_1', 'tok', 'INSTAGRAM')
     })
 
     it('contact เดิมมีชื่ออยู่แล้ว → ไม่เรียก Graph ซ้ำ และไม่ส่ง name/avatarUrl ไปทับของเดิม', async () => {

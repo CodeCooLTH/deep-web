@@ -11,7 +11,7 @@
  * แก้ตาม spec ให้ตรง semantic ผู้ส่งจริง; class อื่นทั้งหมดของ bubble copy ตรงจาก Base
  * ChatPage.tsx:64-90 — `my-5 flex items-start gap-2.5`, avatar ทั้งสองฝั่ง, `rounded px-6 py-3`,
  * เวลา `mt-1.5 ... text-xs` — REWORK 2026-07-03: เดิม simplify เป็น items-end/my-3/px-4 py-2.5/
- * ตัด avatar ฝั่ง SHOP/ใช้ max-w-[75%] arbitrary (ผิด HR7) ไม่ faithful ตาม demo จริง)
+ * ตัด avatar ฝั่ง SHOP/ใช้ max-w แบบ percent bracket ซึ่งเป็น arbitrary value (ผิด HR7) ไม่ faithful ตาม demo จริง)
  *
  * Avatar ฝั่ง SHOP (ข้อความตัวเอง): Base ใช้ initials-fallback div `bg-primary ... size-8` จาก
  * currentUser.name — เราไม่มีชื่อ/รูป shop ส่งเข้ามาใน component นี้ (Props มีแค่ buyer) จึงใช้ icon
@@ -23,13 +23,29 @@
  * Realtime: pattern AuctionDetailClient.tsx:144-179 (Supabase broadcast, signal-only ไม่เชื่อ payload)
  * Date divider group: pattern NotificationFeed.tsx (formatDate เทียบ today/yesterday, ห้าม Intl ตรง)
  *
- * arbitrary value `h-[calc(100vh-190px)]`: copy ตรงจาก Base ChatPage.tsx L22 — เป็น convention ของ
+ * arbitrary value (การ์ดสูงเต็ม viewport ลบความสูง header): copy ตรงจาก Base ChatPage.tsx L22 — เป็น convention ของ
  * Paces "full-viewport app" (chat/kanban/email/file-manager ใน theme ใช้ pattern เดียวกันหมด)
  * ไม่ใช่ค่าที่เดาเอง — Paces ไม่มี token สำหรับ viewport-locked height
  *
  * (ChatWidget task) fetch/realtime/send/upload/mark-read logic ทั้งหมด extract ไปที่
  * ../../../_shared/useSellerChatThread.ts เพื่อให้ ChatWidgetThreadPanel.tsx (bubble panel)
  * เรียกใช้ชุดเดียวกัน — ไฟล์นี้เหลือแค่ render (UX ไม่เปลี่ยนแม้แต่บรรทัดเดียว)
+ *
+ * feature 00018 T4 (เพิ่มบนโครงเดิมทั้งหมด — ไม่แตะ layout/fetch logic เดิม):
+ *  - channel badge ที่ header (ChannelBadge.tsx ที่มีอยู่แล้ว)
+ *  - แบนเนอร์ 24h window (เฉพาะ channel != DEEP) 3 ระดับสี + banner แทนที่เมื่อ ShopChannel
+ *    TOKEN_INVALID — windowOpen/msRemaining/tokenInvalid คำนวณที่ server (page.tsx, getWindowState
+ *    จาก channel-chat.service.ts) ส่งลงมาเป็น prop เพื่อเลี่ยง import service (มี prisma/fs) เข้า
+ *    client bundle (feedback_verify_import_safety)
+ *  - composer disabled ทั้งชุดเมื่อ window ปิดหรือ token invalid; ปุ่มแนบรูป disabled ถาวรเมื่อ
+ *    channel != DEEP (back end คืน 400 ถ้าส่งรูปช่องทางนอก — กันที่ UI ก่อนถึง error นั้น)
+ *  - badge "ส่งไม่สำเร็จ" ใต้ bubble เมื่อ deliveryStatus='FAILED' — ChatMessageView (hook) ไม่ประกาศ
+ *    field นี้ในชนิดข้อมูล แต่ getMessages() (chat.service.ts) query แบบไม่มี select เลย คืนทุกคอลัมน์
+ *    ของ ChatMessage จริงตอน runtime (ยืนยันแล้วจาก services/chat.service.ts:135-146) จึง extend
+ *    ชนิดข้อมูลในนี้เอง (ChatMessageWithDelivery) แทนแก้ไฟล์ hook ที่นอกขอบเขต T4
+ *  - max-w บน bubble column (บั๊ก prod ภาคผนวก A-3: ข้อความยาวดันเต็มบรรทัด)
+ *  - ปุ่ม "ข้อมูลลูกค้า" + CustomerPanelSheet (<1024px) — desktop ใช้ CustomerPanel.tsx แบบ
+ *    persistent column แทน (page.tsx เป็นคนตัดสินด้วย CSS breakpoint ไม่ใช่ component นี้)
  */
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
@@ -37,15 +53,56 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { useSellerChatThread, groupByDate, type ChatProductCard } from '../../../_shared/useSellerChatThread'
+import { useSellerChatThread, groupByDate, type ChatProductCard, type ChatMessageView } from '../../../_shared/useSellerChatThread'
 import SellerEmptyState from '../../../_shared/SellerEmptyState'
 import SellerErrorState from '../../../_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '../../../_shared/SellerCardSkeleton'
+import { ChannelBadge } from '../../components/ChannelBadge'
+import CustomerPanelSheet from './CustomerPanelSheet'
+import type { CustomerPanelData } from './CustomerPanel'
 
 type Props = {
   conversationId: string
   buyerName: string
   buyerAvatar: string | null
+  /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
+  channel: string
+  /** feature 00018 — ผลลัพธ์ getWindowState() คำนวณที่ server ณ เวลา render หน้า (ไม่ live-tick) */
+  windowOpen: boolean
+  msRemaining: number
+  /** feature 00018 — ShopChannel.status === 'TOKEN_INVALID' (เฉพาะ channel != DEEP) */
+  tokenInvalid: boolean
+  /** feature 00018 T5 — ข้อมูล Customer Panel เดียวกับที่ desktop column ใช้ (สำหรับ sheet มือถือ) */
+  customerPanelData: CustomerPanelData
+}
+
+// feature 00018 — ดู comment หัวไฟล์ (badge "ส่งไม่สำเร็จ")
+type ChatMessageWithDelivery = ChatMessageView & {
+  deliveryStatus?: string | null
+  failureReason?: string | null
+}
+
+const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000
+const MINUTE_MS = 60 * 1000
+
+/** ข้อความ + สี banner 24h ตาม Content outline ของสเปก (ตัดสินเฉพาะ 2 tier ที่ "ยังไม่หมด" —
+ * tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller เพราะข้อความคงที่ ไม่ต้องคำนวณเวลา) */
+function formatWindowBanner(msRemaining: number): { cls: string; icon: string; text: string } {
+  const hours = Math.floor(msRemaining / HOUR_MS)
+  if (msRemaining > FOUR_HOURS_MS) {
+    return {
+      cls: 'bg-info/15 text-info',
+      icon: 'clock',
+      text: `ตอบได้ภายใน ${hours} ชั่วโมง นับจากข้อความล่าสุดของลูกค้า`,
+    }
+  }
+  const minutes = Math.floor((msRemaining % HOUR_MS) / MINUTE_MS)
+  return {
+    cls: 'bg-warning/15 text-warning',
+    icon: 'alert-triangle',
+    text: `ใกล้หมดเวลาตอบ — เหลือ ${hours} ชม. ${minutes} นาที`,
+  }
 }
 
 /** avatar เล็ก — รูปจริง (http URL หรือ storage fileId) + fallback initials */
@@ -132,9 +189,24 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
   )
 }
 
-export default function ChatThread({ conversationId, buyerName, buyerAvatar }: Props) {
+export default function ChatThread({
+  conversationId,
+  buyerName,
+  buyerAvatar,
+  channel,
+  windowOpen,
+  msRemaining,
+  tokenInvalid,
+  customerPanelData,
+}: Props) {
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
+  const [sheetOpen, setSheetOpen] = useState(false)
+  // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
+  // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
+  const isExternal = channel !== 'DEEP'
+  const composerDisabled = isExternal && (tokenInvalid || !windowOpen)
+  const attachDisabled = isExternal
   const {
     messages,
     oldestCursor,
@@ -173,15 +245,53 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
   const groups = groupByDate(messages)
 
   return (
-    <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex flex-col">
+    <>
+    <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex flex-col"> {/* HR7 carve-out: copy ตรงจาก Base ChatPage.tsx L22 — ดู comment หัวไฟล์ */}
       {/* card-header — Base ChatPage.tsx:34-56 (deviate: เพิ่ม avatar ระบุตัวตน, ตัด mobile-toggle/
-          online-status/ChatToolbar — ไม่มี call/video/presence backend ตาม omissions) */}
+          online-status/ChatToolbar — ไม่มี call/video/presence backend ตาม omissions; feature 00018
+          T4: เพิ่ม ChannelBadge ข้างชื่อ) */}
       <div className="card-header">
         <div className="flex items-center gap-4">
           <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-          <h5 className="text-base mb-1.25">{buyerName}</h5>
+          <div>
+            <h5 className="text-base mb-1.25">{buyerName}</h5>
+            <ChannelBadge channel={channel} />
+          </div>
         </div>
       </div>
+
+      {/* feature 00018 T4 — แบนเนอร์ 24h window / token invalid (เฉพาะ channel != DEEP) แสดงทันทีใต้
+          header เสมอเมื่อยังเปิดอยู่ ไม่ใช่แค่ตอนใกล้หมด (BRD §6.5) */}
+      {isExternal && (
+        <div className="px-4 pt-4">
+          {tokenInvalid ? (
+            <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
+              <span>
+                การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
+                <Link href="/settings/channels" className="font-semibold underline">
+                  ตั้งค่าช่องทาง
+                </Link>
+              </span>
+            </div>
+          ) : !windowOpen ? (
+            <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+              <Icon icon="message-circle-off" className="mt-0.5 shrink-0 text-lg" />
+              <span>เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่</span>
+            </div>
+          ) : (
+            (() => {
+              const banner = formatWindowBanner(msRemaining)
+              return (
+                <div className={`${banner.cls} flex items-start gap-2 rounded-lg px-3 py-2 text-sm`}>
+                  <Icon icon={banner.icon} className="mt-0.5 shrink-0 text-lg" />
+                  <span>{banner.text}</span>
+                </div>
+              )
+            })()
+          )}
+        </div>
+      )}
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto py-4">
@@ -214,13 +324,20 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
 
               {g.items.map((m) => {
                 const mine = m.senderRole === 'SHOP'
+                // feature 00018 T4 (ภาคผนวก A-3): deliveryStatus/failureReason มีจริงตอน runtime
+                // (getMessages ไม่ select เลย คืนทุกคอลัมน์ของ ChatMessage — ดู comment หัวไฟล์)
+                const mExt = m as ChatMessageWithDelivery
                 return (
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
                   <div key={m.id} className={`my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
                     {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
-                    <div>
-                      {/* Base ไม่ใส่ max-w บน bubble — ปล่อยให้ flex-shrink ของ parent row จัดการ wrap เอง
-                          (ใส่ max-w-[75%] เดิม = arbitrary value ผิด HR7 และไม่ตรง Base) */}
+                    {/* feature 00018 T4 (ภาคผนวก A-3): เดิม Base ไม่ใส่ max-w บนคอลัมน์นี้เลย ทำให้
+                        ข้อความยาว (auto-reply) ดันเต็มบรรทัด — ห้ามใส่ percent bracket (ผิด HR7 ตาม
+                        comment เดิมของไฟล์นี้) จึงใช้ Tailwind scale class มาตรฐาน (ไม่ใช่ bracket)
+                        max-w-96 (24rem) — precedent scale class เดียวกับ InboxList.tsx max-w-52 และ
+                        max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
+                        break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
+                    <div className="min-w-0 max-w-96 break-words">
                       {/* PRODUCT = buyer-only เสมอ (BR-CTX-05) → bg-light คงที่ ไม่ผูก mine/sender */}
                       <div className={`rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'PRODUCT' ? (
@@ -252,6 +369,14 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
                           </>
                         )}
                       </div>
+                      {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
+                          null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
+                      {mExt.deliveryStatus === 'FAILED' && (
+                        <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
+                          <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
+                          <span>ส่งไม่สำเร็จ — {mExt.failureReason ?? 'ไม่ทราบสาเหตุ'}</span>
+                        </div>
+                      )}
                       {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง) */}
                       <div className={`text-default-400 mt-1.5 flex items-center gap-1 text-xs ${mine ? 'justify-end' : ''}`}>
                         <Icon icon="clock" />
@@ -294,13 +419,18 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
         )}
 
         <div className="flex gap-2">
-          <label className="btn btn-icon border-default-300 shrink-0 cursor-pointer" aria-label="แนบรูปภาพ">
+          {/* feature 00018 T4 — disabled ถาวรเมื่อ channel != DEEP (backend คืน 400 ถ้าส่งรูปช่องทาง
+              นอก — กันที่ UI ก่อนถึง error นั้น) หรือ composer ปิดทั้งชุด (window/token) */}
+          <label
+            className={`btn btn-icon border-default-300 shrink-0 ${attachDisabled || composerDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+            aria-label={attachDisabled ? 'ยังไม่รองรับการส่งรูปในช่องทางนี้' : 'แนบรูปภาพ'}
+          >
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={handleFileChange}
-              disabled={uploading || sending}
+              disabled={attachDisabled || composerDisabled || uploading || sending}
             />
             <Icon icon={uploading ? 'loader-2' : 'paperclip'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
           </label>
@@ -310,7 +440,7 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
             <input
               type="text"
               className="form-input bg-light/20"
-              placeholder={pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -319,20 +449,44 @@ export default function ChatThread({ conversationId, buyerName, buyerAvatar }: P
                   handleSend()
                 }
               }}
-              disabled={sending}
+              disabled={composerDisabled || sending}
             />
           </div>
 
           <button
             type="button"
             onClick={handleSend}
-            disabled={sending || uploading || (!text.trim() && !pendingImage)}
+            disabled={composerDisabled || sending || uploading || (!text.trim() && !pendingImage)}
             className="btn bg-primary text-white hover:bg-primary-hover shrink-0 disabled:opacity-60"
           >
             ส่ง <Icon icon="send-2" className="ms-1 text-xl" />
           </button>
+
+          {/* feature 00018 T5 — เปิด Customer Panel แบบ sheet เฉพาะจอเล็ก (<1024px) ที่ desktop ใช้
+              CustomerPanel.tsx แบบ persistent column แทน (ดู page.tsx) */}
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            aria-label="ข้อมูลลูกค้า"
+            className="btn btn-icon border-default-300 shrink-0 lg:hidden"
+          >
+            <Icon icon="user-circle" className="text-lg" />
+          </button>
         </div>
+
+        {/* feature 00018 T4 — caption ถาวรเมื่อ channel != DEEP (ไม่ว่า window จะเปิดหรือปิด) */}
+        {isExternal && (
+          <p className="text-default-400 mt-2 text-2xs">
+            Messenger และ Instagram ยังส่งได้เฉพาะข้อความตัวอักษรในตอนนี้
+          </p>
+        )}
       </div>
     </div>
+
+    {/* feature 00018 T5 — sheet มือถือ/tablet (<1024px); ปุ่มเปิดอยู่ใน composer ด้านบน */}
+    {sheetOpen && (
+      <CustomerPanelSheet data={customerPanelData} onClose={() => setSheetOpen(false)} />
+    )}
+    </>
   )
 }

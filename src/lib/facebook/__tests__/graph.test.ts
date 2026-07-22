@@ -39,7 +39,7 @@ describe('graph client', () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
       okJson({ recipient_id: 'PSID_1', message_id: 'mid.out.1' }),
     )
-    await expect(sendTextMessage('PAGE1', 'tok', 'PSID_1', 'สวัสดี')).resolves.toBe('mid.out.1')
+    await expect(sendTextMessage('tok', 'PSID_1', 'สวัสดี')).resolves.toBe('mid.out.1')
   })
 
   it('error จาก Graph → โยน GraphApiError พร้อม code', async () => {
@@ -54,7 +54,7 @@ describe('graph client', () => {
       } as Response),
     )
 
-    const err = await sendTextMessage('PAGE1', 'tok', 'PSID_1', 'สาย').catch((e) => e)
+    const err = await sendTextMessage('tok', 'PSID_1', 'สาย').catch((e) => e)
     expect(err).toBeInstanceOf(GraphApiError)
     expect(err.code).toBe(10)
     expect(err.subcode).toBe(2018278)
@@ -62,7 +62,7 @@ describe('graph client', () => {
 
   it('ไม่ใส่ access token ลง query string ของ URL (กัน token หลุดเข้า log)', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockReturnValue(okJson({ message_id: 'm' }))
-    await sendTextMessage('PAGE1', 'super_secret_token', 'PSID_1', 'hi')
+    await sendTextMessage('super_secret_token', 'PSID_1', 'hi')
     const calledUrl = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string
     expect(calledUrl).not.toContain('super_secret_token')
   })

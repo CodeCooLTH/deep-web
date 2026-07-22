@@ -36,7 +36,10 @@ const MIRROR_ALLOWED_TYPES: Record<string, string> = {
 
 // bubble ต้องไม่ว่างเปล่าแม้กรณี mirror รูปไม่ผ่าน หรือ attachment เป็นชนิดที่เราไม่รองรับ (I-5)
 const MIRROR_FAILED_TEXT = '[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]'
-const UNSUPPORTED_ATTACHMENT_TEXT = '[ลูกค้าส่งไฟล์แนบ — เปิดดูใน Messenger]'
+// ข้อความแทนไฟล์แนบที่ระบบยังไม่รองรับ (เสียง/วิดีโอ/ไฟล์)
+// เขียนแบบไม่ระบุว่าใครเป็นคนส่ง เพราะ ingest ใช้ path เดียวกันทั้งข้อความของลูกค้าและ
+// echo ของฝั่งร้าน — ถ้าเขียนว่า "ลูกค้าส่ง" จะโกหกเมื่อคนส่งคือร้านเอง (เห็นจริงใน prod)
+const UNSUPPORTED_ATTACHMENT_TEXT = '[ไฟล์แนบ — เปิดดูใน Messenger]'
 
 // (S-1) allow-list ของ host ที่ยอมให้ mirrorRemoteImage ยิง fetch ออกไปได้ — เฉพาะ CDN ของ Meta
 // เท่านั้น. attachments[].payload.url มาจาก webhook payload ซึ่งถ้า FB_CHAT_APP_SECRET หลุด
@@ -166,7 +169,7 @@ export async function ingestInboundMessage(params: {
   // (Minor-5) และกัน Graph error ชั่วคราวทับชื่อจริงที่เก็บไว้แล้วเป็น null (I-2)
   const needsProfile = !existingContact || !existingContact.name
   const profile = needsProfile
-    ? await getContactProfile(contactExternalId, channel.accessToken)
+    ? await getContactProfile(contactExternalId, channel.accessToken, provider)
     : { name: null, avatarUrl: null }
 
   const contact = await prisma.externalContact.upsert({
@@ -240,12 +243,17 @@ export async function ingestInboundMessage(params: {
     await tx.conversation.update({
       where: { id: conversation.id },
       data: {
-        lastMessageAt: occurredAt,
+        // preview/senderRole อัปเดตเสมอ — seller ต้องเห็นข้อความล่าสุดจริงในรายการ
         lastMessagePreview: preview,
         lastSenderRole: senderRole,
-        // lastInboundAt ขยับเฉพาะข้อความ "ของลูกค้า" — echo คือฝั่งร้านตอบ
-        // ถ้าขยับด้วยจะทำให้ 24h window ยืดออกเองอย่างผิด ๆ
-        ...(isEcho ? {} : { lastInboundAt: occurredAt }),
+        // lastMessageAt = ลำดับในรายการแชท — echo ไม่ขยับ (ผลตัดสิน user 2026-07-22)
+        // echo คือ seller ตอบจากแอป Messenger ในมือถือ = จัดการไปแล้ว ไม่ต้องเด้งขึ้นบนสุด
+        // ให้รก; เธรดจะเด้งขึ้นเฉพาะตอนลูกค้าทักมาใหม่ หรือ seller ตอบผ่าน Deep เอง
+        // (sendOutboundMessage อัปเดต lastMessageAt แยกอยู่แล้ว)
+        //
+        // lastInboundAt ก็ไม่ขยับตอน echo ด้วยเหตุผลคนละข้อ — ถ้าขยับจะทำให้หน้าต่าง
+        // 24 ชม. ยืดออกเองอย่างผิด ๆ ทุกครั้งที่ร้านตอบ
+        ...(isEcho ? {} : { lastMessageAt: occurredAt, lastInboundAt: occurredAt }),
       },
     })
 
@@ -355,8 +363,10 @@ export async function sendOutboundMessage(params: {
   let mid: string | null = null
   let failureReason: string | null = null
   try {
+    // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
+    // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
+    // sendTextMessage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจให้เองแล้ว
     mid = await sendTextMessage(
-      conversation.shopChannel.externalId,
       pageToken,
       conversation.externalContact.externalUserId,
       params.text,

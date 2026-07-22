@@ -1,19 +1,28 @@
 /**
- * Seller Inbox — /inbox (feat 00011 Deep Chat, S-11)
+ * Seller Inbox — /inbox (feat 00011 Deep Chat, S-11; feat 00018 T3 badge/filter/search)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ContactList.tsx:44-57
  * (row markup: card > card-body divide-y row — avatar + ชื่อ + preview + timestamp/unread)
- * ตัด search + "เขียนแชทใหม่" (seller ไม่ initiate — UX-Design-Spec.md §S-11)
+ * ตัด "เขียนแชทใหม่" (seller ไม่ initiate — UX-Design-Spec.md §S-11); search กลับมาใน T3
+ * (ดู docs/superpowers/specs/2026-07-22-facebook-chat-ui-design.md §Chat Rail)
  *
  * RSC shell — fetch หน้าแรกผ่าน listConversationsForShop ตรง (ไม่ self-fetch API ของตัวเอง,
  * pattern เดียวกับ inventory/movements/[productId]/page.tsx) แล้วส่งต่อให้ InboxList (client)
- * ทำ sentinel pagination ต่อผ่าน GET /api/chat/conversations (cursor เดิม)
+ * ทำ sentinel pagination + filter refetch ต่อผ่าน GET /api/chat/conversations (cursor เดิม)
  *
- * B1 (route enrich, UX-Design-Spec.md): counterparty (identity ผู้ซื้อ) ไม่อยู่ใน
+ * B1 (route enrich, UX-Design-Spec.md): counterparty (identity คู่สนทนา) ไม่อยู่ใน
  * ConversationSummary (FROZEN CONTRACT, SDS §5) — enrich ที่นี่ด้วย batch query prisma.user
- * (ก็อปโครงเดียวกับ enrichWithBuyerCounterparty ใน src/app/api/chat/conversations/route.ts
- * เพื่อให้ shape ตรงกับที่ InboxList รับต่อจาก GET pagination — ต้องตรง field name เป๊ะ
- * {displayName, avatar} ไม่ใช่ {name, avatar})
+ * (buyer, เธรด DEEP) + prisma.externalContact (เธรดช่องทางนอก feat 00018 — ชื่อผู้ติดต่อ
+ * Messenger/Instagram; avatarUrl เป็น null เสมอ Meta ไม่ให้รูป ไม่ query มาใช้)
+ * ต้องตรง field name เป๊ะกับที่ InboxList รับต่อจาก GET pagination {displayName, avatar}
+ *
+ * T3: เพิ่ม `channel` field (ต่อ row — ใช้ทำ badge) + fetch `listChannels(shop.id)` ส่งลง
+ * เป็น option ของตัวกรอง "เพจ" (client ทำ filter/search ต่อผ่าน GET /api/chat/conversations
+ * — route มี query param channel/shopChannelId/q แล้วจาก T1 ดู .superpowers/sdd/t1-report.md)
+ * known-gap: enrichWithBuyerCounterparty (route.ts, นอกขอบเขต T3) ยัง enrich เฉพาะ buyer —
+ * เธรดช่องทางนอกที่โหลดผ่าน pagination/filter refetch (ไม่ใช่ initial SSR) จะได้ counterparty
+ * เป็น null → InboxList fallback เป็น "ผู้ติดต่อ" เสมอ (ไม่ crash แต่ไม่เห็นชื่อจริง) — ต้องแก้
+ * ที่ route.ts ใน task แยก (นอกขอบเขตไฟล์ของ T3)
  *
  * header: SellerMobileHeader (mobile, auto จาก getSellerPageTitle ผ่าน sellerMenuItems
  * '/inbox' → "ข้อความ") + PageBreadcrumb (desktop เท่านั้น) — ไม่สร้าง custom header
@@ -25,10 +34,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getShopByUserId } from '@/services/shop.service'
 import { listConversationsForShop } from '@/services/chat.service'
+import { listChannels } from '@/services/shop-channel.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import SellerEmptyState from '../_shared/SellerEmptyState'
 import SellerErrorState from '../_shared/SellerErrorState'
-import InboxList, { type ConversationListItem } from './components/InboxList'
+import { getChannelDisplay } from './components/ChannelBadge'
+import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -60,6 +71,18 @@ export default async function SellerInboxPage() {
     )
   }
 
+  // ── channels (ตัวกรอง "เพจ") — fail-closed แยกจาก conversation fetch (pattern pendingCount
+  // ของ layout.tsx) ไม่มีเพจก็ยังดู list ได้ปกติ แค่ตัวกรองว่าง ──
+  let channels: ChannelFilterOption[] = []
+  let hasAnyChannel = false
+  try {
+    const rows = await listChannels(shop.id)
+    hasAnyChannel = rows.length > 0
+    channels = rows.map((c) => ({ id: c.id, label: `${getChannelDisplay(c.provider).label} · ${c.name}` }))
+  } catch (e) {
+    console.error('[inbox/page] listChannels failed', e)
+  }
+
   // ── data fetch (try/catch แยกจาก JSX construction — react-hooks/error-boundaries) ──
   let items: ConversationListItem[] = []
   let nextCursor: string | null = null
@@ -68,7 +91,7 @@ export default async function SellerInboxPage() {
   try {
     const result = await listConversationsForShop(shop.id, { take: 20 })
 
-    // B1 enrich — batch query buyer identity (ดู comment หัวไฟล์)
+    // B1 enrich — batch query identity คู่สนทนา (ดู comment หัวไฟล์)
     // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
     const buyerIds = [...new Set(result.items.map((i) => i.buyerUserId).filter((id): id is string => id !== null))]
     const buyers =
@@ -80,20 +103,42 @@ export default async function SellerInboxPage() {
         : []
     const buyerMap = new Map(buyers.map((b) => [b.id, b]))
 
+    // T3: เธรดช่องทางนอก (feature 00018) — ชื่อผู้ติดต่อจาก ExternalContact (avatarUrl ไม่ query
+    // มาใช้ เพราะ Meta ไม่ให้รูป เป็น null เสมอตาม contract — allow-list เฉพาะ id/name)
+    const externalContactIds = [
+      ...new Set(result.items.map((i) => i.externalContactId).filter((id): id is string => id !== null)),
+    ]
+    const externalContacts =
+      externalContactIds.length > 0
+        ? await prisma.externalContact.findMany({
+            where: { id: { in: externalContactIds } },
+            select: { id: true, name: true },
+          })
+        : []
+    const contactMap = new Map(externalContacts.map((c) => [c.id, c]))
+
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
+    // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
     items = result.items.map((c) => {
       const buyer = c.buyerUserId ? buyerMap.get(c.buyerUserId) : undefined
+      const contact = c.externalContactId ? contactMap.get(c.externalContactId) : undefined
+      const counterparty = buyer
+        ? { displayName: buyer.displayName, avatar: buyer.avatar }
+        : contact
+          ? { displayName: contact.name ?? 'ผู้ติดต่อ', avatar: null }
+          : null
       return {
         id: c.id,
         buyerUserId: c.buyerUserId,
         shopId: c.shopId,
+        channel: c.channel,
         lastMessageAt: c.lastMessageAt.toISOString(),
         lastMessagePreview: c.lastMessagePreview,
         lastSenderRole: c.lastSenderRole,
         buyerLastReadAt: c.buyerLastReadAt ? c.buyerLastReadAt.toISOString() : null,
         shopLastReadAt: c.shopLastReadAt ? c.shopLastReadAt.toISOString() : null,
         createdAt: c.createdAt.toISOString(),
-        counterparty: buyer ? { displayName: buyer.displayName, avatar: buyer.avatar } : null,
+        counterparty,
       }
     })
     nextCursor = result.nextCursor
@@ -119,6 +164,8 @@ export default async function SellerInboxPage() {
           icon="message-circle"
           title="ยังไม่มีข้อความ"
           description="เมื่อลูกค้าทักแชทมาที่ร้าน จะแสดงในหน้านี้"
+          // edge state: ยังไม่เคยเชื่อมช่องทางนอกเลย — CTA รองไปเชื่อม (ดู Edge states ของสเปก)
+          action={hasAnyChannel ? undefined : { label: 'เชื่อม Facebook Page', href: '/settings/channels' }}
         />
       </>
     )
@@ -127,7 +174,41 @@ export default async function SellerInboxPage() {
   return (
     <>
       {breadcrumb}
-      <InboxList initialItems={items} initialNextCursor={nextCursor} />
+      {/* ≥1024px: รายการแชทย้ายไปอยู่ที่ Chat Rail (เมนูซ้าย) แล้ว — ตรงกลางต้องไม่โชว์ซ้ำ
+          ไม่งั้นเห็นรายการเดียวกัน 2 ที่พร้อมกัน (user เจอจริงบน prod)
+          <1024px: ไม่มี rail (เมนูซ้ายถูกซ่อนทั้งระบบ) จึงต้องคงรายการไว้ที่นี่เหมือนเดิม */}
+      <div className="lg:hidden">
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} />
+      </div>
+      {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
+          (rail คุมจาก Sidenav แยก task; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror โครง flex ของ
+          /inbox/[conversationId]/page.tsx เป๊ะ (gap-4, ขวา w-96 shrink-0) ไม่งั้นเลย์เอาต์
+          กระตุกตอนสลับหน้า — ความสูงการ์ดกลาง/ขวาคัดลอกค่าเดียวกับ ChatThread.tsx (ดู HR7
+          carve-out comment ที่ div ด้านล่าง) root card เดิมที่นั่น ใช้ค่าเดียวกันเพื่อความสูง
+          คอลัมน์ตรงกัน ไม่ใช่คิดใหม่ */}
+      <div className="hidden lg:flex gap-4">
+        {/* HR7 carve-out: h-[calc(100vh-190px)] คัดลอกค่าเดียวกับ ChatThread.tsx root card เป๊ะ
+            (ไม่ใช่ arbitrary ใหม่ — Paces ไม่มี token ความสูง "เต็มจอลบ topbar/breadcrumb"
+            ต้องใช้ค่าเดิมเพื่อให้คอลัมน์สูงเท่ากันตอนสลับ /inbox ↔ /inbox/[conversationId]) */}
+        <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex items-center justify-center"> {/* HR7 carve-out: ดู comment ด้านบน */}
+          <SellerEmptyState
+            compact
+            icon="message-circle"
+            title="เลือกบทสนทนา"
+            description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
+          />
+        </div>
+        <div className="w-96 shrink-0">
+          {/* HR7 carve-out: เหตุผลเดียวกับการ์ดกลางด้านบน */}
+          <div className="card h-[calc(100vh-190px)] flex items-center justify-center"> {/* HR7 carve-out */}
+            <SellerEmptyState
+              compact
+              icon="user-circle"
+              title="เลือกบทสนทนาเพื่อดูข้อมูลลูกค้า"
+            />
+          </div>
+        </div>
+      </div>
     </>
   )
 }

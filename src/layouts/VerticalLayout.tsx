@@ -13,6 +13,8 @@
  *   (SellerBottomNav position:fixed; ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; admin ไม่ส่ง → ไม่กระทบ)
  * - feat 00008 P4-6: ลบ hasBusinessMembership prop (dead) — AccountSwitcher ย้ายไป
  *   topbar UserDropdownDetailed แล้ว (อ่าน session ตรงเอง ไม่ต้อง thread ผ่าน Sidenav)
+ * - bug fix (feat 00018): ลบ sidenavOverride prop (dead — Sidenav ตัดสิน Chat Rail เองแล้วผ่าน
+ *   usePathname() ใน SidenavContent ไม่ต้องรับ node จาก server อีกต่อไป — ดู Sidenav/index.tsx)
  */
 'use client'
 import Footer from '@/layouts/components/Footer'

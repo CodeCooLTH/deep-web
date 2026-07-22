@@ -13,6 +13,11 @@ import {
 } from "@/services/chat.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
 
+// per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
+// (บทเรียนโปรเจกต์ 2026-07-04: default header เป็น public ทำให้ carrier cache ข้าม user)
+export const dynamic = "force-dynamic";
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
+
 /**
  * B1 (route enrich, UX-Design-Spec.md resolved decision): GET /conversations เพิ่ม field เสริม
  * `counterparty` ต่อรายการ — ไม่แตะ chat.service signature (FROZEN CONTRACT, SDS §5) เพราะ
@@ -59,9 +64,32 @@ async function enrichWithBuyerCounterparty(
     select: { id: true, displayName: true, avatar: true },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
+
+  // bug fix (Chat Rail แสดง "ผู้ติดต่อ" ทุกแถว): เดิม enrich เฉพาะ buyerUserId (User ในระบบ) —
+  // เธรดช่องทางนอก (feature 00018, buyerUserId เป็น null เสมอ) ได้ counterparty: null ทุกแถว
+  // ต้อง enrich จาก ExternalContact ด้วยเช่นเดียวกับ inbox/page.tsx (ต้นแบบ) — batch query กัน N+1
+  // เดียวกัน (allow-list id/name เท่านั้น, avatarUrl เป็น null เสมอ Meta ไม่ให้รูป ไม่ query มาใช้)
+  const externalContactIds = [
+    ...new Set(items.map((i) => i.externalContactId).filter((id): id is string => id !== null)),
+  ];
+  const contacts =
+    externalContactIds.length > 0
+      ? await prisma.externalContact.findMany({
+          where: { id: { in: externalContactIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const contactMap = new Map(contacts.map((c) => [c.id, c]));
+
   return items.map((i) => {
     const buyer = i.buyerUserId ? userMap.get(i.buyerUserId) : undefined;
-    return { ...i, counterparty: buyer ? { displayName: buyer.displayName, avatar: buyer.avatar } : null };
+    const contact = i.externalContactId ? contactMap.get(i.externalContactId) : undefined;
+    const counterparty = buyer
+      ? { displayName: buyer.displayName, avatar: buyer.avatar }
+      : contact
+        ? { displayName: contact.name ?? 'ผู้ติดต่อ', avatar: null }
+        : null;
+    return { ...i, counterparty };
   });
 }
 
@@ -123,6 +151,10 @@ export async function GET(request: NextRequest) {
   const input = {
     cursor: searchParams.get("cursor") ?? undefined,
     take: rawTake === null ? undefined : Number(rawTake),
+    // T1 (feature 00018): filter/ค้นหาฝั่ง seller เท่านั้น — buyer branch ไม่ใช้ field พวกนี้
+    channel: searchParams.get("channel") ?? undefined,
+    shopChannelId: searchParams.get("shopChannelId") ?? undefined,
+    q: searchParams.get("q") ?? undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -141,10 +173,13 @@ export async function GET(request: NextRequest) {
     const result = await listConversationsForShop(shop.id, {
       cursor: parsed.output.cursor,
       take: parsed.output.take,
+      channel: parsed.output.channel,
+      shopChannelId: parsed.output.shopChannelId,
+      q: parsed.output.q,
     });
     // B1: seller เห็น counterparty = buyer identity
     const items = await enrichWithBuyerCounterparty(result.items);
-    return NextResponse.json({ items, nextCursor: result.nextCursor });
+    return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
   }
 
   const result = await listConversationsForBuyer(userId, {
@@ -153,5 +188,5 @@ export async function GET(request: NextRequest) {
   });
   // B1: buyer เห็น counterparty = shop identity
   const items = await enrichWithShopCounterparty(result.items);
-  return NextResponse.json({ items, nextCursor: result.nextCursor });
+  return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
 }
