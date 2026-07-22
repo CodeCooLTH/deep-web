@@ -243,12 +243,17 @@ export async function ingestInboundMessage(params: {
     await tx.conversation.update({
       where: { id: conversation.id },
       data: {
-        lastMessageAt: occurredAt,
+        // preview/senderRole อัปเดตเสมอ — seller ต้องเห็นข้อความล่าสุดจริงในรายการ
         lastMessagePreview: preview,
         lastSenderRole: senderRole,
-        // lastInboundAt ขยับเฉพาะข้อความ "ของลูกค้า" — echo คือฝั่งร้านตอบ
-        // ถ้าขยับด้วยจะทำให้ 24h window ยืดออกเองอย่างผิด ๆ
-        ...(isEcho ? {} : { lastInboundAt: occurredAt }),
+        // lastMessageAt = ลำดับในรายการแชท — echo ไม่ขยับ (ผลตัดสิน user 2026-07-22)
+        // echo คือ seller ตอบจากแอป Messenger ในมือถือ = จัดการไปแล้ว ไม่ต้องเด้งขึ้นบนสุด
+        // ให้รก; เธรดจะเด้งขึ้นเฉพาะตอนลูกค้าทักมาใหม่ หรือ seller ตอบผ่าน Deep เอง
+        // (sendOutboundMessage อัปเดต lastMessageAt แยกอยู่แล้ว)
+        //
+        // lastInboundAt ก็ไม่ขยับตอน echo ด้วยเหตุผลคนละข้อ — ถ้าขยับจะทำให้หน้าต่าง
+        // 24 ชม. ยืดออกเองอย่างผิด ๆ ทุกครั้งที่ร้านตอบ
+        ...(isEcho ? {} : { lastMessageAt: occurredAt, lastInboundAt: occurredAt }),
       },
     })
 

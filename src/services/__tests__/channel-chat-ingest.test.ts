@@ -85,7 +85,14 @@ describe('ingestInboundMessage', () => {
     const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: echo })
     expect(r.status).toBe('STORED')
     expect(db.chatMessage.create.mock.calls[0]![0].data.senderRole).toBe('SHOP')
-    expect(db.conversation.update.mock.calls[0]![0].data.lastInboundAt).toBeUndefined()
+    const updated = db.conversation.update.mock.calls[0]![0].data
+    // lastInboundAt ไม่ขยับ — ไม่งั้นหน้าต่าง 24 ชม. ยืดเองทุกครั้งที่ร้านตอบ
+    expect(updated.lastInboundAt).toBeUndefined()
+    // lastMessageAt ไม่ขยับ — echo = ตอบจากแอป Messenger ไปแล้ว ไม่ต้องเด้งเธรดขึ้นบนสุดให้รก
+    // (ผลตัดสิน user 2026-07-22) แต่ preview/senderRole ต้องอัปเดตให้เห็นข้อความล่าสุดจริง
+    expect(updated.lastMessageAt).toBeUndefined()
+    expect(updated.lastMessagePreview).toBe('ตอบจากมือถือ')
+    expect(updated.lastSenderRole).toBe('SHOP')
     // ต้อง upsert/lookup contact ด้วย externalUserId ของ "ลูกค้า" (recipient=PSID_1) ไม่ใช่ของเพจ
     expect(db.externalContact.findUnique.mock.calls[0]![0].where.shopChannelId_externalUserId.externalUserId).toBe(
       'PSID_1',
