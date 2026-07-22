@@ -67,7 +67,7 @@ const UserProfile = ({
       </Box>
 
       {/* ── Tabs nav: anchor-scroll ไม่เปลี่ยน route, span 2 col บน desktop ── */}
-      <Box sx={{ gridArea: { md: 'tabs' }, borderBottom: '1px solid #E2E8F0', px: { xs: '8px', md: '16px' } }}>
+      <Box sx={{ gridArea: { md: 'tabs' }, borderBottom: '1px solid #2F2B3D1F', px: { xs: '8px', md: '16px' } }}>
         <ProfileTabsNav items={tabs} />
       </Box>
 
@@ -100,7 +100,7 @@ const UserProfile = ({
           sx={{
             gridArea: { md: 'right' },
             minHeight: { md: 200 },
-            borderLeft: { md: '1px solid #E2E8F0' },
+            borderLeft: { md: '1px solid #2F2B3D1F' },
           }}
         >
           <ProfileRightContent
@@ -108,6 +108,7 @@ const UserProfile = ({
               pinnedProducts: profileTab.pinnedProducts,
               otherProducts: profileTab.otherProducts,
               openShopEmptyState: profileTab.openShopEmptyState,
+              itemKind: profileTab.itemKind,
             }}
             // S-19 (extension #1 Chat Product Context Card): prop-drill shopId/isOwnShop จาก profileHeader (S-8)
             shopId={profileHeader.shopId}

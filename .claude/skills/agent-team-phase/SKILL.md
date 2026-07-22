@@ -12,6 +12,9 @@ phase ที่มี ≥3 tasks ห้าม build single-threaded. background:
 ## Phase-level scope gates (3 จุด — เกาะ 3-level QA cadence)
 product เป็นเจ้าของ scope ตลอด phase. Controller dispatch `safepay-product` ที่ 3 จุด:
 - **Gate 0 — Scope Baseline** (ต้น phase, **ก่อน** Planner): dispatch product (baseline mode) → ได้เนื้อ baseline → Controller Write `docs/scope/<YYYY-MM-DD>-<phase-id>-scope-baseline.md` + commit. ทุก task ต้อง map กับ `S-id` ในไฟล์นี้.
+  - **Pre-Gate-0 env/branch preflight (บังคับ ก่อน dispatch อะไรก็ตาม):**
+    1. **worktree env** — ถ้าทำงานใน git worktree ที่ไม่ใช่ main repo dir ให้เช็ค `.env.local` มีจริง (`ls -la .env.local`). ถ้าไม่มี → migration/QA/dev รันไม่ได้ (บทเรียน 00003 P4, 00009 P3 — root cause เดียวกัน `.env.local` gitignore ไม่ copy ข้าม worktree). แก้ด้วยชี้ env จาก main repo (`dotenv -e <main-repo>/.env.local ...`) หรือ symlink ก่อนเริ่ม.
+    2. **branch divergence** — `git fetch origin && git rev-list --left-right --count origin/main...HEAD`. ถ้า origin ล้ำหน้า (เลขซ้าย > 0) → sync ก่อน (บทเรียน 00009 P1: 47 commits หลุดจนตอน merge; 00012: `reset --hard` เกือบเสียงาน). ห้ามเริ่ม phase บน branch ที่ diverge โดยไม่รู้ตัว.
 - **Gate 1 — Scope-diff** (ต่อ batch, **รวมกับ batch-integration QA**): dispatch product (scope-audit mode) พร้อม baseline path + `git diff --stat` + commit messages + task list. verdict `PASS|CREEP|GAP`. **CREEP/GAP = hard block** → Controller หยุด commit batch แล้วตัดสิน: (ก) ตัดงานเกิน / (ข) รับเข้า scope → product อัปเดต baseline + Change Log แล้ว re-audit / (ค) เลื่อน Phase 2.
 - **Gate 2 — Sign-off** (ปลาย phase, **ก่อน** `phase-retro`): dispatch product (sign-off mode) พร้อม baseline + commit ทั้ง phase + ผล QA end-of-phase. ต้องได้ `SIGNED-OFF` (Controller flip สถานะใน baseline) ก่อน invoke `phase-retro`.
 

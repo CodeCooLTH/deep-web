@@ -12,7 +12,8 @@
 กฎนี้บังคับกับเอกสารทุกชิ้นใต้ `docs/20 - Features/<NNNNN> - <FeatureName>/` ได้แก่
 `PRD.md`, `BRD.md`, `SRS.md`, `SDS.md`, `API.md`, `DATABASE.md`, `Tests/<NNNNN-what-to-do>.md`
 
-- ชื่อโฟลเดอร์ feature = `<NNNNN> - <FeatureName>` (เลขนำ 5 หลัก เริ่ม `00001` ไม่ reset ไม่ใช้ซ้ำ; ลำดับถัดไป = max+1 ใน `docs/20 - Features/`)
+- ชื่อโฟลเดอร์ feature = `<NNNNN> - <FeatureName>` (เลขนำ 5 หลัก เริ่ม `00001` ไม่ reset ไม่ใช้ซ้ำ)
+- 🛑 **จองเลขถัดไปต้องเช็คทุก branch ไม่ใช่แค่ `ls`** — รัน `git log --all --name-only | grep "NNNNN -"` (หรือ `git log --all --oneline --name-only -- 'docs/20 - Features/*'`) แล้วเอา max+1. เหตุ: feature ที่ **ยังไม่ merge เข้า main** ก็จองเลขไปแล้วได้ — `ls docs/20 - Features/` บน branch ปัจจุบันมองไม่เห็น → เลขชนกัน (บทเรียน 00002 Auction ยังไม่ merge → Inventory ต้อง renumber เป็น 00003; memory `feedback_feature_number_collision`)
 - เลขนำใช้เฉพาะชื่อโฟลเดอร์ — ไม่กระทบชื่อไฟล์ภายใน
 - ไม่ครอบคลุมโค้ดใน `src/` หรือไฟล์ใน `.claude/`
 - เอกสารระบบรวม (`docs/PRD.md`, `docs/SRS.md`) ยังเป็น SSOT ระดับ product/spec ทั้งระบบ — feature docs เป็นระดับ feature และต้อง trace กลับเอกสารระบบเมื่อเกี่ยวข้อง
@@ -78,7 +79,7 @@
 
 ## 6. การสร้าง feature ใหม่ (ขั้นตอนย่อ)
 
-1. หาเลขถัดไป (`max+1` ใน `docs/20 - Features/`) → สร้างโฟลเดอร์ `<NNNNN> - <FeatureName>/`
+1. หาเลขถัดไป — `git log --all --name-only | grep "NNNNN -"` (เช็คทุก branch รวม feature ที่ยังไม่ merge) → `max+1` → สร้างโฟลเดอร์ `<NNNNN> - <FeatureName>/`. ห้ามใช้แค่ `ls docs/20 - Features/` (มองไม่เห็นเลขที่จองบน branch อื่น)
 2. `safepay-product` ร่าง **PRD** (จาก template) → Controller Write → user review
 3. `safepay-product` ร่าง **BRD** → Write → review
 4. `safepay-planner` ร่าง **SRS → SDS → API**, `safepay-database` ร่าง **DATABASE** → Write

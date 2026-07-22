@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { cancelOrder } from "@/services/order.service";
+import { cancelOrder, CancelReasonRequiredError, InvalidCancelReasonError } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
 
 // POST /api/orders/[token]/cancel
@@ -48,10 +48,21 @@ export async function POST(
   }
 
   try {
+    // feature 00017 — รับ reason จาก body (บังคับเมื่อเจ้าของยกเลิกการจอง)
+    // cancelInitiator ยัง derive จาก session เหมือนเดิม ห้ามรับจาก body (กันปลอม)
+    const body = await request.json().catch(() => null);
+    const reason = typeof body?.reason === "string" ? body.reason : undefined;
+
     // cancelOrder → assertTransition → throw ถ้า cancel-after-CONFIRMED
-    const updated = await cancelOrder(token, initiator);
+    const updated = await cancelOrder(token, initiator, reason);
     return NextResponse.json(updated);
   } catch (err: unknown) {
+    if (err instanceof CancelReasonRequiredError) {
+      return NextResponse.json({ error: "เลือกเหตุผลก่อนยกเลิกการจอง" }, { status: 400 });
+    }
+    if (err instanceof InvalidCancelReasonError) {
+      return NextResponse.json({ error: "เหตุผลที่เลือกไม่อยู่ในรายการ" }, { status: 400 });
+    }
     // assertTransition throw → 400 (invalid state transition, เช่น cancel-after-CONFIRMED)
     const message = err instanceof Error ? err.message : "Cancel failed";
     return NextResponse.json({ error: message }, { status: 400 });

@@ -17,12 +17,14 @@ import { useSession } from 'next-auth/react'
 import AchievementBadgeRow from './AchievementBadgeRow'
 import TrustScoreCard from '../TrustScoreCard'
 import type { TrustScoreCardData } from '../TrustScoreCard'
-import PlatformReputationList from '../PlatformReputationList'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
 // Redesign (2026-07-04, hybrid FB Page × Threads spec):
 //   - Left column content: About(bio/location/joined/response-rate) + TrustScoreCard + Achievements (medal frame)
-//   - Right column content: Pinned products(slice 0-3) + All products(slice 3+) + PlatformReputationList
+//   - Right column content: Pinned products(slice 0-3) + All products(slice 3+)
+//   - PlatformReputationList ถูกลบ 2026-07-22 (impeccable critique P0): เป็นตัวเลข hardcode
+//     ของ Shopee/Lazada/TikTok บนหน้าที่ใช้พิสูจน์ความน่าเชื่อถือ ขัด Design Principle #1
+//     ('ทุก element ที่อ้างความน่าเชื่อถือต้องมีข้อมูลจริงหนุนหลัง') — จะกลับมาเมื่อต่อ API จริง
 //   - ProductCard ใหม่ (Base: theme .../apps/academy/my-courses/Courses.tsx bordered-card pattern) แทน ProductTile IG-edge เดิม
 //   - ตัด inline "Deep + Shopee/Lazada/TikTok" text-line เดิมออก (ย้ายไป PlatformReputationList component)
 
@@ -52,6 +54,9 @@ export type ProfileTabData = {
   // getProductsByShop({excludePinned:true})
   pinnedProducts: SerializedProduct[]
   otherProducts: SerializedProduct[]
+  /** feature 00017 — ร้าน LODGING ใช้ grid เดียวกันแต่เนื้อหาเป็นห้องพัก
+   *  optional + default 'PRODUCT' เพื่อไม่กระทบผู้เรียกเดิม (/u/[username]) */
+  itemKind?: 'PRODUCT' | 'ROOM'
   totalBadgeCount: number
   // ── About section (ย้ายมาจาก identity เดิมตาม redesign) ──
   bio?: string | null
@@ -123,12 +128,12 @@ const ProductCard = ({
     <Box
       sx={{
         position: 'relative',
-        border: '1px solid #E2E8F0',
+        border: '1px solid #2F2B3D1F',
         borderRadius: '14px',
         overflow: 'hidden',
         bgcolor: 'white',
         transition: 'transform .18s ease, box-shadow .18s ease',
-        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(15,23,42,.10)' },
+        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(47,43,61,.10)' },
       }}
     >
       {/* flag "ปักหมุด" มุมซ้ายบน (Phase 3: pinned=true มาจาก getPinnedProducts จริงแล้ว) */}
@@ -166,7 +171,7 @@ const ProductCard = ({
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#808390' }}>
             <Icon icon='tabler-photo' fontSize={30} />
           </Box>
         )}
@@ -179,7 +184,7 @@ const ProductCard = ({
             m: 0,
             fontSize: '13px',
             fontWeight: 700,
-            color: '#0F172A',
+            color: '#2F2B3D',
             lineHeight: 1.35,
             minHeight: '2.7em',
             overflow: 'hidden',
@@ -262,18 +267,18 @@ export const ProfileLeftContent = ({
       <Box id='about' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '8px' }}>
         <Typography
           component='h3'
-          sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+          sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
         >
           เกี่ยวกับร้าน
         </Typography>
 
         {bio && (
-          <Typography component='p' sx={{ m: 0, mb: '10px', fontSize: '14px', color: '#0F172A', lineHeight: 1.5 }}>
+          <Typography component='p' sx={{ m: 0, mb: '10px', fontSize: '14px', color: '#2F2B3D', lineHeight: 1.5 }}>
             {bio}
           </Typography>
         )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#64748B' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#808390' }}>
           {location && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Icon icon='tabler-map-pin' fontSize={14} />
@@ -288,10 +293,10 @@ export const ProfileLeftContent = ({
           {showResponse && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <Icon icon='tabler-message' fontSize={14} />
-              ตอบกลับ <Box component='strong' sx={{ color: '#0F172A' }}>{Math.round(chatResponseRate as number)}%</Box>
+              ตอบกลับ <Box component='strong' sx={{ color: '#2F2B3D' }}>{Math.round(chatResponseRate as number)}%</Box>
               {responseTimeLabel && (
                 <>
-                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: '#0F172A' }}>{responseTimeLabel}</Box>
+                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: '#2F2B3D' }}>{responseTimeLabel}</Box>
                 </>
               )}
             </Box>
@@ -308,7 +313,7 @@ export const ProfileLeftContent = ({
           <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: '10px' }}>
             <Typography
               component='h3'
-              sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+              sx={{ m: 0, fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
             >
               การรับรอง
             </Typography>
@@ -337,12 +342,18 @@ export const ProfileRightContent = ({
   shopId,
   isOwnShop,
 }: {
-  data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState'>
+  data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState' | 'itemKind'>
   shopId?: string | null
   isOwnShop?: boolean
 }) => {
-  const { pinnedProducts, otherProducts, openShopEmptyState } = data
+  const { pinnedProducts, otherProducts, openShopEmptyState, itemKind = 'PRODUCT' } = data
   const hasAnyProduct = pinnedProducts.length > 0 || otherProducts.length > 0
+  // ร้านบ้านพักใช้ grid เดียวกับสินค้า (ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ)
+  // เปลี่ยนเฉพาะถ้อยคำให้ตรงกับสิ่งที่ผู้ใช้เห็นจริง
+  const isRoom = itemKind === 'ROOM'
+  const L = isRoom
+    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด' }
+    : { empty: 'ร้านนี้ยังไม่มีสินค้า', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด' }
 
   if (openShopEmptyState) return null
 
@@ -350,10 +361,10 @@ export const ProfileRightContent = ({
     <>
       {!hasAnyProduct ? (
         <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
-          <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
+          <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#808390' }} />
           <Box>
-            <Typography sx={{ color: '#64748B', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
-            <Typography sx={{ color: '#94A3B8', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
+            <Typography sx={{ color: '#808390', fontSize: '14px' }}>{L.empty}</Typography>
+            <Typography sx={{ color: '#808390', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
           </Box>
         </Box>
       ) : (
@@ -363,9 +374,9 @@ export const ProfileRightContent = ({
             <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
               <Typography
                 component='h3'
-                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
               >
-                สินค้าปักหมุด
+                {L.pinned}
               </Typography>
               <Box
                 sx={{
@@ -392,9 +403,9 @@ export const ProfileRightContent = ({
             <Box id='all-products' sx={{ px: { xs: '20px', md: '24px' }, pb: '16px' }}>
               <Typography
                 component='h3'
-                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
               >
-                สินค้าทั้งหมด
+                {L.all}
               </Typography>
               <Box
                 sx={{
@@ -419,7 +430,6 @@ export const ProfileRightContent = ({
       )}
 
       {/* ── ชื่อเสียงแพลตฟอร์มอื่น (placeholder) ── */}
-      <PlatformReputationList />
     </>
   )
 }

@@ -35,8 +35,8 @@ const VERIFY_LEVELS: { level: number; label: string }[] = [
 
 // gauge accent hex ต่อ tierColor — CircularProgress ไม่รองรับ color='default' (ต่างจาก Chip ที่รองรับ) จึงแม็ปเป็น hex เอง
 const GAUGE_ACCENT: Record<TierChipColor, string> = {
-  warning: '#F59E0B',
-  default: '#94A3B8',
+  warning: '#FF9F43',
+  default: '#808390',
   info: '#0EA5E9',
   secondary: '#7367F0',
 }
@@ -49,13 +49,13 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
     <Box id='trust-score' sx={{ px: { xs: '20px', md: '24px' }, py: '20px' }}>
       <Typography
         component='h3'
-        sx={{ m: 0, mb: '14px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+        sx={{ m: 0, mb: '14px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
       >
         คะแนนความน่าเชื่อถือ
       </Typography>
 
       <Box sx={{ position: 'relative', width: 128, height: 128, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CircularProgress variant='determinate' value={100} size={128} thickness={3.2} sx={{ position: 'absolute', color: '#E2E8F0' }} />
+        <CircularProgress variant='determinate' value={100} size={128} thickness={3.2} sx={{ position: 'absolute', color: '#2F2B3D1F' }} />
         <CircularProgress
           variant='determinate'
           value={trustScore}
@@ -64,20 +64,20 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
           sx={{ position: 'absolute', color: accent, '& .MuiCircularProgress-circle': { strokeLinecap: 'round' } }}
         />
         <Box sx={{ textAlign: 'center' }}>
-          <Typography component='p' sx={{ m: 0, fontSize: '30px', fontWeight: 800, color: '#0F172A', lineHeight: 1 }}>
+          <Typography component='p' sx={{ m: 0, fontSize: '30px', fontWeight: 800, color: '#2F2B3D', lineHeight: 1 }}>
             {trustScore}
           </Typography>
-          <Typography component='p' sx={{ m: 0, fontSize: '12px', color: '#94A3B8' }}>
+          <Typography component='p' sx={{ m: 0, fontSize: '12px', color: '#808390' }}>
             /100
           </Typography>
         </Box>
       </Box>
 
-      <Typography component='p' sx={{ m: 0, mt: '12px', textAlign: 'center', fontSize: '13px', color: '#475569' }}>
-        ระดับ <Box component='strong' sx={{ color: '#0F172A' }}>{tierLabel}</Box>
+      <Typography component='p' sx={{ m: 0, mt: '12px', textAlign: 'center', fontSize: '13px', color: '#2F2B3D' }}>
+        ระดับ <Box component='strong' sx={{ color: '#2F2B3D' }}>{tierLabel}</Box>
         {nextTierLabel ? (
           <>
-            {' '}· อีก <Box component='strong' sx={{ color: '#0F172A' }}>{pointsToNext}</Box> แต้มถึง {nextTierLabel}
+            {' '}· อีก <Box component='strong' sx={{ color: '#2F2B3D' }}>{pointsToNext}</Box> แต้มถึง {nextTierLabel}
           </>
         ) : (
           ' · ระดับสูงสุดแล้ว'
