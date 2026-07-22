@@ -34,13 +34,19 @@
  * ความสูงที่เหลือให้แล้วผ่าน flex h-dvh ที่ layout.tsx ไม่ต้องคำนวณ viewport เองอีกต่อไป)
  * _shared/* imports เปลี่ยนจาก relative (../_shared) เป็น alias เพราะย้ายข้าม route group แล้ว
  * (_shared ยังอยู่ที่ (dashboard)/_shared/ เดิม — ใช้ร่วมกับ ChatWidget ฯลฯ ที่ยังอยู่ (dashboard))
+ *
+ * bug fix (แชทไม่แยกตามร้าน, user report prod): getShopByUserId คืนร้าน PERSONAL เสมอ ไม่สนว่า
+ * session กำลัง active อยู่ร้านไหน (feature 00008 shop switcher) — สลับไปร้าน B แล้วยังเห็นแชทของ
+ * PERSONAL ค้างอยู่. เปลี่ยนเป็น resolveActiveShopContext (re-verify membership เสมอ, ห้าม trust
+ * JWT เปล่า ๆ) — resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → error state ตรง ๆ ห้าม fallback เงียบ ๆ
+ * กลับ PERSONAL (นั่นคือบั๊กเดิม)
  */
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getShopByUserId } from '@/services/shop.service'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listConversationsForShop } from '@/services/chat.service'
 import { listChannels } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -54,17 +60,22 @@ export default async function SellerInboxPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: { id: string } | null = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // bug fix: resolve ร้านที่ active จริง (Personal หรือ Business ตาม session.user.activeShopId,
+  // re-verify membership เสมอ) — ห้ามใช้ getShopByUserId (คืน PERSONAL เสมอ, คือบั๊กเดิม)
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
+  })
 
-  if (!shop) {
-    // ทุก seller ควรมีร้านอยู่แล้ว (layout.tsx auto-create) — defensive fallback เท่านั้น
-    return <SellerErrorState title="ยังไม่มีร้านค้า" message="เปิดร้านก่อนเพื่อดูข้อความจากลูกค้า" />
+  if (!activeCtx) {
+    // resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → error state ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
+    return (
+      <SellerErrorState
+        title="ไม่พบร้านที่กำลังใช้งาน"
+        message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
+      />
+    )
   }
+  const shop = { id: activeCtx.shopId }
 
   // ── channels (ตัวกรอง "เพจ") — fail-closed แยกจาก conversation fetch (pattern pendingCount
   // ของ layout.tsx) ไม่มีเพจก็ยังดู list ได้ปกติ แค่ตัวกรองว่าง ──

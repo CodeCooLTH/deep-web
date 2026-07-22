@@ -19,8 +19,9 @@
  *    (channel-chat.service.ts มี import prisma/fs — ต้องเรียกที่นี่ ไม่ใช่ client component)
  *    แล้วส่งผลลัพธ์ (boolean/number ล้วน) ลงเป็น prop ให้ ChatThread — เลี่ยง service import
  *    เข้า client bundle (feedback_verify_import_safety)
- *  - T5 (ภาคผนวก A-1): อ่าน Shop.vertical (จาก getShopByUserId ที่มีอยู่แล้ว — คืนทุกคอลัมน์ของ
- *    Shop) resolve+fallback GENERAL ด้วย isShopVertical() ก่อนส่งลง prop (ห้าม client เดาเอง)
+ *  - T5 (ภาคผนวก A-1): อ่าน Shop.vertical (bug fix ด้านล่าง: query แยกจาก resolveActiveShopContext
+ *    เพราะ context ไม่มี field นี้) resolve+fallback GENERAL ด้วย isShopVertical() ก่อนส่งลง prop
+ *    (ห้าม client เดาเอง)
  *  - T5: หา Customer ที่ผูกไว้ — channel นอก (ExternalContact.customerId) หรือ DEEP
  *    (Customer.userId === conversation.buyerUserId) แล้ว query ประวัติ Order/Booking (Booking =
  *    Order type='BOOKING' ตาม BR-LODG-08 ไม่ใช่ตารางแยก) เฉพาะเมื่อผูกแล้ว
@@ -33,13 +34,20 @@
  * (dashboard)/inbox/[conversationId]/page.tsx → (chat)/inbox/[conversationId]/page.tsx —
  * ownership guard/data fetch ทั้งหมดไม่เปลี่ยน แก้แค่ import _shared (alias แทน relative เพราะ
  * ย้ายข้าม route group) — หน้านี้ไม่มี Sidenav/TopBar ของ seller อีกต่อไป (ดู (chat)/layout.tsx)
+ *
+ * bug fix (แชทไม่แยกตามร้าน, user report prod): ownership guard เดิม WHERE{id, shopId} ใช้
+ * shopId จาก getShopByUserId ซึ่งคืนร้าน PERSONAL เสมอ — สลับไป active ร้าน B แล้วเปิดลิงก์เธรด
+ * ของร้าน A (จาก rail/list เก่า) ก็ยัง match เพราะ guard เทียบกับ PERSONAL ไม่ใช่ active จริง
+ * เปลี่ยนเป็น resolveActiveShopContext (re-verify membership เสมอ) แล้ว WHERE ยังคง scope ที่
+ * shopId ของ active context (ไม่ post-check — feedback_rsc_dal_authz) — resolve ไม่ได้ → error
+ * state ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
  */
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getShopByUserId } from '@/services/shop.service'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getWindowState } from '@/services/channel-chat.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
@@ -61,15 +69,33 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  // feature 00018 T5: เพิ่ม vertical เข้า type ประกาศ — getShopByUserId คืนทุกคอลัมน์ของ Shop จริง
-  // (Prisma ไม่มี select) แต่ตัวแปรนี้เคย narrow ไว้แค่ {id} จึงต้องขยาย type ก่อนอ่าน .vertical ได้
-  let shop: { id: string; vertical: string } | null = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
+  // bug fix: resolve ร้านที่ active จริง (Personal หรือ Business ตาม session.user.activeShopId,
+  // re-verify membership เสมอ) — ห้ามใช้ getShopByUserId (คืน PERSONAL เสมอ, คือบั๊กเดิม)
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
+  })
+  if (!activeCtx) {
+    return (
+      <SellerErrorState
+        title="ไม่พบร้านที่กำลังใช้งาน"
+        message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
+        retryHref="/inbox"
+      />
+    )
   }
-  if (!shop) redirect('/inbox')
+  // feature 00018 T5: vertical ยังต้อง query แยก (resolveActiveShopContext คืนแค่ shopId/kind/role/
+  // locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวนี้แล้ว)
+  const shopRow = await prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true } })
+  if (!shopRow) {
+    return (
+      <SellerErrorState
+        title="ไม่พบร้านที่กำลังใช้งาน"
+        message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
+        retryHref="/inbox"
+      />
+    )
+  }
+  const shop = { id: activeCtx.shopId, vertical: shopRow.vertical }
 
   // ownership scope อยู่ใน WHERE (compound id+shopId) — ไม่ใช่ post-check
   // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — include externalContact เพื่อ fallback ชื่อ

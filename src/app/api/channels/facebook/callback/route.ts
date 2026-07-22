@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { exchangeCodeForToken, listManageablePages } from '@/lib/facebook/graph'
 import { connectPages } from '@/services/shop-channel.service'
-import { getShopByUserId } from '@/services/shop.service'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
 
 // รับ code จาก Facebook แล้วเชื่อมทุก Page ที่ user มีสิทธิ์ MESSAGING+MODERATE (feature 00018)
@@ -40,12 +40,17 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   if (!code) return backToSettings(request, { status: 'no_code' })
 
-  // ต้องใช้ getShopByUserId ตัวเดียวกับที่ /inbox ใช้อ่าน (kind:"PERSONAL") — ถ้า query เองแบบไม่กรอง
-  // kind แล้ว user มีร้าน BUSINESS ด้วย (feature 00008/00012) Postgres อาจคืนแถว BUSINESS มาผูก channel
-  // ผลคือข้อความลูกค้าเข้าระบบแต่ไม่โผล่ที่ไหนเลย และกู้คืนไม่ได้เพราะ unique [provider, externalId]
-  // บล็อกการเชื่อมซ้ำ (ต้องเชื่อมกับร้านที่ผิดไปแล้วเท่านั้น)
-  const shop = await getShopByUserId(userId)
-  if (!shop) return backToSettings(request, { status: 'no_shop' })
+  // bug fix (แชทไม่แยกตามร้าน, user report prod): เดิม comment ตรงนี้บอกว่า "ต้องใช้ getShopByUserId
+  // ตัวเดียวกับที่ /inbox ใช้อ่าน (kind:'PERSONAL')" — นั่นคือตัวบั๊กเอง เพราะ getShopByUserId คืน
+  // PERSONAL เสมอ ไม่สนว่า user กำลัง active อยู่ร้านไหน (feature 00008 shop switcher) ผล: กำลังเปิด
+  // ร้าน B อยู่แล้วกด "เชื่อม Facebook Page" กลับไปผูก channel เข้า PERSONAL แทน — /inbox ของร้าน B
+  // จึงไม่เห็นข้อความ (ไปโผล่ที่ PERSONAL แทน)
+  // เปลี่ยนเป็น resolveActiveShopContext (re-verify membership เสมอ) — ผูก channel กับร้านที่กำลัง
+  // active จริง ไม่ใช่ PERSONAL เสมอไป; resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → 'no_shop' เหมือนเดิม
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
+  })
+  if (!activeCtx) return backToSettings(request, { status: 'no_shop' })
 
   try {
     const userToken = await exchangeCodeForToken(code, callbackUrl(request))
@@ -54,7 +59,7 @@ export async function GET(request: NextRequest) {
       return backToSettings(request, { status: 'no_eligible_page' })
     }
 
-    const result = await connectPages(shop.id, userId, pages)
+    const result = await connectPages(activeCtx.shopId, userId, pages)
     const res = backToSettings(request, {
       status: 'connected',
       connected: String(result.connected),

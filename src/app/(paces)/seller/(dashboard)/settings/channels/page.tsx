@@ -11,10 +11,17 @@
  *
  * หน้านี้แก้ 404 ที่ seller เจอหลัง connect Facebook Page สำเร็จ (callback redirect
  * มาที่ /settings/channels — ดู src/app/api/channels/facebook/callback/route.ts)
+ *
+ * bug fix (แชทไม่แยกตามร้าน, user report prod — พบเพิ่มนอกลิสต์เดิมของ task แต่เป็นบั๊กเดียวกัน
+ * ในฟีเจอร์แชทเป๊ะ ๆ: หน้านี้คือที่มาปุ่ม "เชื่อม Facebook Page" + list ช่องทางที่เชื่อมแล้ว):
+ * เดิมใช้ getShopByUserId ซึ่งคืนร้าน PERSONAL เสมอ ไม่สนว่ากำลัง active ร้านไหนอยู่ — สลับไปร้าน B
+ * แล้วหน้านี้ยังโชว์ช่องทางของ PERSONAL. เปลี่ยนเป็น resolveActiveShopContext (re-verify membership
+ * เสมอ) — resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → null (เดิมก็ return null defensive fallback อยู่แล้ว
+ * ไม่เปลี่ยนพฤติกรรมส่วนนี้ — auth guard เต็มอยู่ที่ (dashboard)/layout.tsx แล้ว)
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listChannels } from '@/services/shop-channel.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
@@ -25,14 +32,15 @@ export const metadata: Metadata = { title: 'ช่องทางแชท' }
 
 export default async function ChannelsSettingsPage() {
   const session = await getServerSession(authOptions)
-  const user = (session as { user?: { id: string } } | null)?.user
+  const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
   if (!user) return null
 
-  const shop = await getShopByUserId(user.id)
-  // ทุก seller ควรมีร้านอยู่แล้ว (layout.tsx auto-create) — defensive fallback เท่านั้น
-  if (!shop) return null
+  const activeCtx = await resolveActiveShopContext({ user: { id: user.id, activeShopId: user.activeShopId ?? null } })
+  // ทุก seller ควรมี active shop อยู่แล้ว (layout.tsx auto-create Personal + resolve เสมอมี fallback) —
+  // defensive fallback เท่านั้น (ร้านถูกลบ/หลุดสิทธิ์กลางอากาศ)
+  if (!activeCtx) return null
 
-  const channels = await listChannels(shop.id)
+  const channels = await listChannels(activeCtx.shopId)
 
   return (
     <>
