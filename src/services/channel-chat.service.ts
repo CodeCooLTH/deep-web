@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { getContactProfile, sendTextMessage, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
+import { saveFile } from '@/lib/storage'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
@@ -21,6 +22,41 @@ export function getWindowState(
 }
 
 export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
+
+const MIRROR_MAX_BYTES = 5 * 1024 * 1024 // ตรงกับ MAX_SIZE ของ lib/storage
+const MIRROR_ALLOWED_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
+
+// ดาวน์โหลดรูปจาก CDN ของ Meta แล้วเก็บเข้า storage ของเรา (feature 00018)
+// จำเป็นเพราะ 2 เหตุผล: URL ของ Meta หมดอายุ และ ChatMessage.imageUrl ของโปรเจกต์นี้
+// เก็บ "fileId ของ storage" ไม่ใช่ URL (ดู fileIdExt ที่ route messages ใช้ตรวจนามสกุล)
+//
+// คืน null เมื่อดึงไม่ได้ — ข้อความยังต้องถูกบันทึกอยู่ดี ห้ามทิ้งทั้งข้อความเพราะรูปพัง
+export async function mirrorRemoteImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+
+    const contentType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim()
+    const ext = MIRROR_ALLOWED_TYPES[contentType]
+    if (!ext) return null
+
+    const declaredSize = Number(res.headers.get('content-length') ?? '0')
+    if (declaredSize > MIRROR_MAX_BYTES) return null
+
+    const buffer = await res.arrayBuffer()
+    if (buffer.byteLength > MIRROR_MAX_BYTES) return null
+
+    const file = new File([buffer], `fb-${Date.now()}.${ext}`, { type: contentType })
+    return await saveFile(file)
+  } catch {
+    return null
+  }
+}
 
 export async function ingestInboundMessage(params: {
   provider: string
@@ -59,6 +95,9 @@ export async function ingestInboundMessage(params: {
   const text = event.message.text ?? null
   const firstAttachment = event.message.attachments?.[0]
   const isImage = firstAttachment?.type === 'image'
+  // ต้อง mirror ก่อนเข้า transaction — network call ในทรานแซกชันจะถือ lock DB นานเกินไป
+  const mirroredFileId =
+    isImage && firstAttachment?.payload?.url ? await mirrorRemoteImage(firstAttachment.payload.url) : null
   const type = isImage ? 'IMAGE' : 'TEXT'
   const preview = isImage ? '[รูปภาพ]' : (text ?? '').slice(0, 100)
   const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
@@ -89,8 +128,8 @@ export async function ingestInboundMessage(params: {
           type,
           body: text,
           // imageUrl ของ chat เดิมเก็บเป็น fileId ของ storage ไม่ใช่ URL —
-          // รูปจาก Meta มี URL หมดอายุ ต้อง mirror เข้า storage ก่อน (Task 12)
-          imageUrl: null,
+          // รูปจาก Meta มี URL หมดอายุ mirror เข้า storage ไว้แล้วนอก transaction ด้านบน (Task 12)
+          imageUrl: mirroredFileId,
           externalMessageId: event.message!.mid,
           deliveryStatus: 'SENT',
         },
