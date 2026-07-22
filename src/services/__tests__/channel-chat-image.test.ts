@@ -63,4 +63,14 @@ describe('mirrorRemoteImage', () => {
     })
     expect(await mirrorRemoteImage('https://evil/x')).toBeNull()
   })
+
+  it('content-type เป็น image/gif → คืน null ไม่เรียก saveFile เลย (storage/types.ts ไม่รองรับ gif — I-5)', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'content-type': 'image/gif' }),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
+    })
+    expect(await mirrorRemoteImage('https://cdn.fb/x.gif')).toBeNull()
+    expect(saveFile).not.toHaveBeenCalled()
+  })
 })

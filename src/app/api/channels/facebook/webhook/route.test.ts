@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import { createHmac } from 'crypto'
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 vi.mock('@/services/channel-chat.service', () => ({
   ingestInboundMessage: vi.fn().mockResolvedValue({ status: 'STORED', conversationId: 'conv1' }),
@@ -72,9 +73,55 @@ describe('POST (รับ event)', () => {
     expect((ingestInboundMessage as ReturnType<typeof vi.fn>).mock.calls[0]![0].provider).toBe('INSTAGRAM')
   })
 
-  it('ingest พังกลางทาง → ยังตอบ 200 (กัน Meta retry ไม่จบ)', async () => {
-    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db down'))
+  it('ingest พังจาก logic/data error (ไม่ใช่ Prisma) → ยังตอบ 200 (กัน Meta retry ไม่จบ)', async () => {
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('unexpected bug'))
     expect((await POST(postReq(body))).status).toBe(200)
+  })
+
+  it('ingest พังจาก infra (DB ต่อไม่ติด) → ตอบ non-200 ให้ Meta retry แทนที่จะทำข้อความหายถาวร (I-3)', async () => {
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Prisma.PrismaClientInitializationError('Cant reach database server', '5.x'),
+    )
+    expect((await POST(postReq(body))).status).toBe(503)
+  })
+
+  it('ingest พังจาก Prisma P1xxx (connection-level) → ตอบ non-200 เช่นกัน (I-3)', async () => {
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('timed out', {
+        code: 'P1001', clientVersion: 'test',
+      }),
+    )
+    expect((await POST(postReq(body))).status).toBe(503)
+  })
+
+  it('ingest พังจาก Prisma P2xxx (query/constraint-level ที่หลุดรอดมา) → ยังตอบ 200 ไม่ใช่ infra (I-3)', async () => {
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('record not found', {
+        code: 'P2025', clientVersion: 'test',
+      }),
+    )
+    expect((await POST(postReq(body))).status).toBe(200)
+  })
+
+  it('infra error เกิดตั้งแต่ event แรกใน batch → หยุดทันที ไม่ประมวลผล event ที่เหลือต่อ', async () => {
+    const twoEventsBody = {
+      object: 'page',
+      entry: [
+        {
+          id: 'PAGE1', time: 1,
+          messaging: [
+            { sender: { id: 'PSID_1' }, recipient: { id: 'PAGE1' }, message: { mid: 'mid.1', text: 'a' } },
+            { sender: { id: 'PSID_2' }, recipient: { id: 'PAGE1' }, message: { mid: 'mid.2', text: 'b' } },
+          ],
+        },
+      ],
+    }
+    ;(ingestInboundMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Prisma.PrismaClientInitializationError('Cant reach database server', '5.x'),
+    )
+    const res = await POST(postReq(twoEventsBody))
+    expect(res.status).toBe(503)
+    expect(ingestInboundMessage).toHaveBeenCalledTimes(1)
   })
 
   it('payload ที่ parse ไม่ผ่าน → 200 (ไม่ retry) แต่ไม่เรียก ingest', async () => {
