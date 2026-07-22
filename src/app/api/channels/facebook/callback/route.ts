@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { exchangeCodeForToken, listManageablePages } from '@/lib/facebook/graph'
 import { connectPages } from '@/services/shop-channel.service'
+import { getShopByUserId } from '@/services/shop.service'
 import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
 
 // รับ code จาก Facebook แล้วเชื่อมทุก Page ที่ user มีสิทธิ์ MESSAGING+MODERATE (feature 00018)
@@ -40,7 +40,11 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   if (!code) return backToSettings(request, { status: 'no_code' })
 
-  const shop = await prisma.shop.findFirst({ where: { userId }, select: { id: true } })
+  // ต้องใช้ getShopByUserId ตัวเดียวกับที่ /inbox ใช้อ่าน (kind:"PERSONAL") — ถ้า query เองแบบไม่กรอง
+  // kind แล้ว user มีร้าน BUSINESS ด้วย (feature 00008/00012) Postgres อาจคืนแถว BUSINESS มาผูก channel
+  // ผลคือข้อความลูกค้าเข้าระบบแต่ไม่โผล่ที่ไหนเลย และกู้คืนไม่ได้เพราะ unique [provider, externalId]
+  // บล็อกการเชื่อมซ้ำ (ต้องเชื่อมกับร้านที่ผิดไปแล้วเท่านั้น)
+  const shop = await getShopByUserId(userId)
   if (!shop) return backToSettings(request, { status: 'no_shop' })
 
   try {
@@ -55,6 +59,9 @@ export async function GET(request: NextRequest) {
       status: 'connected',
       connected: String(result.connected),
       ...(result.skipped.length ? { skipped: result.skipped.join(',') } : {}),
+      // I-4: ไม่ปล่อยให้ subscribe ล้มเหลวเงียบ ๆ — ต้องบอก seller ว่าเพจไหนเชื่อมแล้วแต่ยังไม่ได้รับ
+      // webhook จริง (ต้องกดเชื่อมใหม่หรือติดต่อ support)
+      ...(result.subscribeFailed.length ? { subscribeFailed: result.subscribeFailed.join(',') } : {}),
     })
     res.cookies.delete(OAUTH_STATE_COOKIE)
     return res
