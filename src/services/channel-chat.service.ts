@@ -169,12 +169,7 @@ export async function ingestInboundMessage(params: {
   // (Minor-5) และกัน Graph error ชั่วคราวทับชื่อจริงที่เก็บไว้แล้วเป็น null (I-2)
   const needsProfile = !existingContact || !existingContact.name
   const profile = needsProfile
-    ? await getContactProfile(
-        pageExternalId,
-        contactExternalId,
-        channel.accessToken,
-        provider === 'INSTAGRAM' ? 'instagram' : undefined,
-      )
+    ? await getContactProfile(contactExternalId, channel.accessToken, provider)
     : { name: null, avatarUrl: null }
 
   const contact = await prisma.externalContact.upsert({
@@ -363,8 +358,10 @@ export async function sendOutboundMessage(params: {
   let mid: string | null = null
   let failureReason: string | null = null
   try {
+    // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
+    // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
+    // sendTextMessage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจให้เองแล้ว
     mid = await sendTextMessage(
-      conversation.shopChannel.externalId,
       pageToken,
       conversation.externalContact.externalUserId,
       params.text,

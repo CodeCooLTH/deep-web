@@ -133,32 +133,39 @@ export async function subscribePageToApp(pageId: string, pageToken: string): Pro
   })
 }
 
-// ชื่อลูกค้าสำหรับแสดงใน inbox
+// ชื่อ/รูปลูกค้าสำหรับแสดงใน inbox — วิธีดึงต่างกันคนละช่องทาง (ทดสอบกับเพจจริงทุกเคสแล้ว)
 //
-// ทำไมไม่ยิง GET /{psid}?fields=name,profile_pic (วิธีที่ docs เก่าบอก):
-// ทดสอบกับ Page จริงแล้ว Meta ตอบ 400 "Unsupported get request... cannot be loaded due to
-// missing permissions" ทุกชุด field (name / first_name / profile_pic) — Messenger User Profile API
-// ถูกจำกัดสำหรับแอปที่ยังไม่ได้ Advanced Access จึงใช้ไม่ได้ในทางปฏิบัติ
+// **Messenger:** ยิง GET /{psid} ตรง ๆ ไม่ได้ — Meta ตอบ 400 "cannot be loaded due to missing
+// permissions" ทุกชุด field เพราะ Messenger User Profile API ถูกจำกัดสำหรับแอปที่ยังไม่มี
+// Advanced Access → ต้องใช้ /me/conversations?user_id={psid} ซึ่งคืน participants พร้อมชื่อ
+// (endpoint นี้ไม่มีรูปโปรไฟล์ → avatarUrl เป็น null, inbox แสดงตัวอักษรแรกของชื่อแทน)
 //
-// ทางที่ใช้ได้จริงคือ /{page-id}/conversations?user_id={psid} ซึ่งคืน participants พร้อมชื่อ
-// ด้วย page token ตัวเดียวกัน (ยืนยันกับ Page จริงแล้วได้ชื่อไทยครบ)
+// **Instagram:** กลับกัน — /me/conversations?platform=instagram ตอบ error 2207085 "Fatal"
+// แต่ยิง GET /{igsid} ตรงกลับได้ทั้ง name, username และ profile_pic
 //
-// ข้อแลกเปลี่ยน: endpoint นี้ไม่มีรูปโปรไฟล์ให้ → avatarUrl เป็น null เสมอ
-// (inbox แสดงตัวอักษรแรกของชื่อแทน ซึ่งยอมรับได้ ดีกว่าไม่มีชื่อเลย)
+// **ทำไมใช้ /me แทน /{page-id}:** pageToken resolve /me เป็นเพจเจ้าของ token อยู่แล้ว จึงไม่ต้อง
+// รู้ Page id — สำคัญมากเพราะ ShopChannel ของช่องทาง IG เก็บ **IG account id** ไม่ใช่ Page id
+// การส่ง IG account id เข้า path ทำให้ Meta ตอบ "(#3) Application does not have the capability"
+// (บั๊กจริงที่เจอบน prod — ทั้งการดึงชื่อและการส่งข้อความ IG พังทั้งคู่ด้วยเหตุนี้)
 export async function getContactProfile(
-  pageExternalId: string,
   externalUserId: string,
   pageToken: string,
-  platform?: 'instagram',
+  provider: string,
 ): Promise<{ name: string | null; avatarUrl: string | null }> {
   try {
-    const json = await graphFetch(`/${pageExternalId}/conversations`, pageToken, {
-      query: {
-        fields: 'participants',
-        user_id: externalUserId,
-        // IG ใช้ endpoint เดียวกันแต่ต้องระบุ platform ไม่งั้นจะค้นในกล่อง Messenger
-        ...(platform ? { platform } : {}),
-      },
+    if (provider === 'INSTAGRAM') {
+      const json = await graphFetch(`/${externalUserId}`, pageToken, {
+        query: { fields: 'name,username,profile_pic' },
+      })
+      return {
+        // บาง account ตั้งชื่อเป็นอักขระพิเศษจนอ่านไม่ออก — fallback เป็น @username ที่อ่านได้เสมอ
+        name: (json.name as string | undefined) || (json.username as string | undefined) || null,
+        avatarUrl: (json.profile_pic as string | undefined) ?? null,
+      }
+    }
+
+    const json = await graphFetch('/me/conversations', pageToken, {
+      query: { fields: 'participants', user_id: externalUserId },
     })
     const threads = (json.data ?? []) as Array<{
       participants?: { data?: Array<{ id?: string; name?: string }> }
@@ -176,13 +183,16 @@ export async function getContactProfile(
 }
 
 // ส่งข้อความ text — คืน mid สำหรับเก็บเป็น externalMessageId (กลไก dedupe echo)
+//
+// ใช้ /me/messages ไม่ใช่ /{page-id}/messages ด้วยเหตุผลเดียวกับ getContactProfile:
+// pageToken resolve /me เป็นเพจอยู่แล้ว และ ShopChannel ของ IG เก็บ IG account id ไม่ใช่ Page id
+// (ยิง IG account id เข้า path → "(#3) Application does not have the capability")
 export async function sendTextMessage(
-  pageId: string,
   pageToken: string,
   recipientId: string,
   text: string,
 ): Promise<string> {
-  const json = await graphFetch(`/${pageId}/messages`, pageToken, {
+  const json = await graphFetch('/me/messages', pageToken, {
     method: 'POST',
     body: {
       recipient: { id: recipientId },
