@@ -96,17 +96,54 @@ MVP **ไม่ใช้ message tag** เพราะมีแค่ 3 แบ�
 4. **ยังขาด subscription ที่ scope นี้ต้องใช้** — มีแค่ field `messages`
    ยังไม่มี `messaging_postbacks`, `message_reactions` และ **ไม่มี `object=instagram`**
 
-### 4.2 การตัดสินใจที่ยังค้าง
+### 4.2 App settings ของ `1570859340799126` (ตรวจ 2026-07-22)
 
-**จะใช้ 1 app หรือ 2 app?** — Meta ทำ Business Verification + App Review เป็นราย app
+| field | ค่า | หมายเหตุ |
+|---|---|---|
+| `app_domains` | **ว่าง** | ยังไม่ได้ตั้งโดเมนสำหรับ web login |
+| `privacy_policy_url` | Google Drive share link | ❌ Meta ต้องการ URL สาธารณะที่เปิดได้โดยไม่ต้อง login — ลิงก์ Drive ถูกตีตกเป็นประจำ |
+| `terms_of_service_url` | `https://www.facebook.com/` | ❌ placeholder |
+| ชื่อแอปที่ผู้ใช้เห็นตอนกดอนุญาต | "Deep Chat & LIVE" | ควรเปลี่ยนเป็นชื่อแบรนด์ "Deep" ก่อนยื่น review |
 
-- **2 app แยก** (login = `990205170388742`, chat = `1570859340799126`): ต้องยื่นรีวิว 2 รอบ
-  แต่ถ้ารีวิว messaging ตก **login ของทั้งระบบไม่กระทบ**
-- **1 app รวม**: ยื่นรอบเดียว แต่ความเสี่ยงกองรวมกัน
+ทดสอบ OAuth dialog ด้วย `redirect_uri` ของ prod: ทั้งแอปนี้และแอป login เดิมตอบเหมือนกัน
+(เด้งหน้า login ปกติ ไม่มี `Invalid App ID` / `App Not Setup`) → app ID ใช้การได้
+แต่ **การทดสอบแบบไม่ล็อกอินยืนยัน redirect-URI whitelist ไม่ได้** เพราะ Meta เช็คขั้นนั้นหลัง user login
 
-**สมมติฐานของ spec นี้:** ใช้ **2 app แยก** — env ของ chat แยกชุด (`FB_CHAT_APP_ID` /
-`FB_CHAT_APP_SECRET`) ไม่ปนกับ `FACEBOOK_ID` / `FACEBOOK_SECRET` ของ login
-ถ้าเปลี่ยนใจเป็น app เดียว แก้แค่ค่า env ไม่ต้องแก้โค้ด
+### 4.3 การตัดสินใจ: ใช้ 2 app แยก (Q-1 — ปิดแล้ว)
+
+> ⚠️ **แก้ข้อมูลที่เคยระบุผิดในร่างแรก:** Business Verification ทำที่ระดับ **Business Portfolio**
+> ไม่ใช่ราย app — แอปที่อยู่ portfolio เดียวกันใช้ผลร่วมกันได้ ต้นทุนของการมี 2 app จึงเป็นแค่
+> **App Review เพิ่มอีก 1 รอบ** ไม่ใช่ verification ซ้ำ
+
+**ข้อมูลประกอบการตัดสิน** — นับ `AuthAccount` ใน DB จริง: `PHONE 6 · LINE 4 · FACEBOOK 2 · EMAIL 1`
+มี user ที่ผูก Facebook อยู่แค่ 2 คน ดังนั้นข้อโต้แย้งที่ว่า "ย้าย login ไปแอปใหม่แล้วผู้ใช้เก่าหลุด
+เพราะ FB user ID เป็น app-scoped" (ข้อเท็จจริงที่ `src/lib/auth.ts:101` คอมเมนต์ไว้เอง)
+**มีน้ำหนักน้อยมากในทางปฏิบัติ** — จึงไม่ใช่เหตุผลหลักของการตัดสินใจ
+
+**สรุป: ใช้ 2 app แยก** — login คงอยู่ที่ `990205170388742`, chat ใช้ `1570859340799126`
+
+1. ต้นทุนที่เพิ่มคือ App Review รอบเดียว ไม่ใช่ verification ซ้ำ
+2. login ปัจจุบัน live บน prod อยู่แล้ว — ไม่มีเหตุผลให้ไปแตะของที่ทำงานอยู่
+3. แอปเดิมมี App Review เรื่อง scope `email` ค้างอยู่ ([[project_fb_login_app_review]]) — เอา
+   permission ชุด `pages_*` ไปยัดเพิ่มตอนนี้เสี่ยงกวนรอบที่ค้าง
+4. ถ้า review messaging ตก **login ของทั้งระบบไม่ล้มตาม**
+
+env ของ chat จึงแยกชุด (`FB_CHAT_APP_ID` / `FB_CHAT_APP_SECRET`) ไม่ปนกับ `FACEBOOK_ID` /
+`FACEBOOK_SECRET` ของ login — ถ้าอนาคตเปลี่ยนใจไปรวมเป็น app เดียว แก้แค่ค่า env ไม่ต้องแก้โค้ด
+
+#### ผลต่อ UX: seller จะเจอหน้าขออนุญาต 2 ครั้ง
+
+seller เห็น consent dialog ของ Facebook 2 รอบ — ตอน login รอบหนึ่ง ตอนกดเชื่อม Page อีกรอบหนึ่ง
+
+**สำคัญ: จำนวนนี้เท่ากันไม่ว่าจะใช้ 1 app หรือ 2 app** เพราะ login ขอแค่ `public_profile` +
+`email` ส่วนการเชื่อม Page ต้องขอ `pages_messaging` / `pages_show_list` / `business_management`
+เพิ่ม ซึ่ง Facebook บังคับให้ขอด้วย dialog ใหม่เสมอ (incremental authorization)
+
+🛑 **ห้ามแก้ด้วยการยกไปขอ scope ชุด `pages_*` ตั้งแต่ตอน login** — คนที่แค่มาสมัครใช้งานจะโดนขอ
+สิทธิ์จัดการเพจทั้งหมด ทำให้ conversion ตกและเป็นเหตุให้ App Review ไม่ผ่านเพราะขอเกินจำเป็น
+
+ความต่างจริงระหว่าง 1 app กับ 2 app จึงไม่ใช่จำนวน dialog แต่คือ **ชื่อแอปที่แสดงใน dialog**
+→ แก้ด้วยการตั้งชื่อ/โลโก้/Business Portfolio ให้เป็นแบรนด์เดียวกัน (§13 ข้อ 6)
 
 ## 5. สถาปัตยกรรม
 
@@ -384,15 +421,22 @@ user ยืนยันว่าอยากได้ LIVE ในอนาคต
 
 1. **ปิด/เปลี่ยน callback URL ngrok ที่ค้างอยู่** (ความเสี่ยงข้อมูลลูกค้า — §4.1 ข้อ 2)
 2. **อัปเดต `FACEBOOK_SECRET` ใน `.env.local`** ให้ FB login บน dev กลับมาใช้ได้ (§4.1 ข้อ 3)
-3. **ตัดสินใจ 1 app หรือ 2 app** (§4.2)
-4. **เปิดโฟลเดอร์ `docs/20 - Features/00017 - Facebook Chat Integration/`** แล้วออก PRD + BRD
+3. **เปิดโฟลเดอร์ `docs/20 - Features/00017 - Facebook Chat Integration/`** แล้วออก PRD + BRD
    ให้ user review — Hard Rule 11 ห้าม implement ก่อนมี PRD+BRD ผ่าน review
-5. เริ่มเตรียม Business Verification + App Review ขนานไปกับการ build
+
+**งานฝั่ง Meta dashboard ที่ทำขนานไปได้ (ไม่บล็อกการเขียนโค้ด แต่บล็อกการใช้งานจริง)** — §4.2:
+
+4. เปลี่ยน `privacy_policy_url` จากลิงก์ Google Drive → หน้าสาธารณะบนโดเมนตัวเอง
+   (มีอยู่แล้วในระบบ ใช้ซ้ำได้)
+5. เปลี่ยน `terms_of_service_url` จาก placeholder `https://www.facebook.com/` → หน้าจริง
+6. เปลี่ยนชื่อแอปจาก "Deep Chat & LIVE" → ชื่อแบรนด์ "Deep" (ผู้ใช้เห็นชื่อนี้ตอนกดอนุญาต)
+7. ตั้ง `app_domains` + Valid OAuth Redirect URIs
+8. เริ่ม Business Verification (ระดับ Business Portfolio) + ยื่น App Review permission ชุด `pages_*`
 
 ## 14. Open questions
 
 | # | คำถาม | สถานะ |
 |---|---|---|
-| Q-1 | ใช้ 1 app หรือ 2 app (login vs chat) | รอ user ตัดสิน — spec สมมติ 2 app |
+| Q-1 | ใช้ 1 app หรือ 2 app (login vs chat) | ✅ **ปิดแล้ว — 2 app แยก** (เหตุผลใน §4.3) |
 | Q-2 | Page ที่ทีมใช้ QA คือ Page ไหน (ต้องมี admin เป็น role ในแอป) | รอ user |
 | Q-3 | ถ้าลูกค้าคนเดิมทักมาทั้ง Messenger และ IG จะ merge เธรดไหม | **ไม่ merge ใน MVP** — PSID กับ IGSID ไม่มีตัวเชื่อม เว้นแต่ได้เบอร์แล้วผูก `Customer` เดียวกัน |
