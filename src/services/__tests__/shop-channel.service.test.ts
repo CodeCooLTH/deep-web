@@ -6,7 +6,7 @@ const db = vi.hoisted(() => ({
   shopChannel: {
     create: vi.fn(),
     findMany: vi.fn(),
-    findUnique: vi.fn(),
+    findFirst: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
   },
@@ -52,20 +52,37 @@ describe('shop-channel.service', () => {
 
   it('Page ที่ร้านอื่นเชื่อมไปแล้ว (P2002, shopId ต่างกัน) → นับเป็น skipped ไม่ throw และไม่ subscribe', async () => {
     db.shopChannel.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
-    db.shopChannel.findUnique.mockResolvedValue({ shopId: 'shop-other' })
+    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop-other' })
 
     const result = await connectPages('shop1', 'user1', [page])
 
     expect(result.connected).toBe(0)
     expect(result.skipped).toEqual(['ร้านทดสอบ'])
     expect(subscribePageToApp).not.toHaveBeenCalled()
+    // ต้องกรอง status <> DISCONNECTED เสมอ — ให้ตรงขอบเขตของ partial unique index จริง
+    // (ไม่งั้นอาจไปเจอแถว DISCONNECTED เก่าที่ไม่ใช่ตัวชน constraint แล้วสรุปผิด)
+    expect(db.shopChannel.findFirst.mock.calls[0]![0].where.status).toEqual({ not: 'DISCONNECTED' })
+  })
+
+  // fix: เดิม unique constraint คลุมทั้งตาราง (รวม DISCONNECTED) ทำให้ย้ายเพจไปร้านอื่นไม่ได้เลย
+  // ตอนนี้เป็น partial unique index (เฉพาะแถว active) — แถว DISCONNECTED เก่าไม่กันการ insert แถวใหม่
+  // อีกต่อไป ดังนั้น create() ควรผ่านตรง ๆ โดยไม่ชน P2002 เลย (ไม่ใช่แค่ catch แล้วจัดการถูก)
+  it('เพจที่เคย DISCONNECTED กับร้านเดิม → เชื่อมเข้าร้านใหม่สำเร็จ (สร้างแถวใหม่ ไม่ชน P2002)', async () => {
+    db.shopChannel.create.mockResolvedValue({ id: 'ch-new' })
+
+    const result = await connectPages('shop-b', 'user1', [page])
+
+    expect(result.connected).toBe(1)
+    expect(result.skipped).toEqual([])
+    expect(db.shopChannel.findFirst).not.toHaveBeenCalled() // ไม่มี P2002 ก็ไม่ต้องไปหาว่าใครยึด
+    expect(subscribePageToApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain')
   })
 
   // I-4: ร้านเดียวกันเชื่อมซ้ำ (เช่น retry หลัง subscribe รอบก่อนล้มเหลว) ต้องไม่ใช่ error —
   // ให้นับว่าสำเร็จและ subscribe ใหม่อีกครั้ง (ฝั่ง Meta idempotent)
   it('Page เดิมของร้านเดียวกันเชื่อมซ้ำ (P2002, shopId ตรงกัน) → นับเป็น connected และ subscribe อีกครั้ง', async () => {
     db.shopChannel.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
-    db.shopChannel.findUnique.mockResolvedValue({ shopId: 'shop1' })
+    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop1' })
 
     const result = await connectPages('shop1', 'user1', [page])
 
@@ -80,7 +97,7 @@ describe('shop-channel.service', () => {
     db.shopChannel.create
       .mockResolvedValueOnce({ id: 'ch-messenger' }) // MESSENGER สร้างสำเร็จ
       .mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' })) // IG ชน
-    db.shopChannel.findUnique.mockResolvedValue({ shopId: 'shop-other' })
+    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop-other' })
 
     const result = await connectPages('shop1', 'user1', [{ ...page, instagramBusinessAccountId: 'IG9' }])
 
@@ -112,19 +129,25 @@ describe('shop-channel.service', () => {
   })
 
   it('getChannelByExternalId คืน token ที่ถอดรหัสแล้ว', async () => {
-    db.shopChannel.findUnique.mockResolvedValue({
+    db.shopChannel.findFirst.mockResolvedValue({
       id: 'ch1', shopId: 'shop1', provider: 'MESSENGER',
       accessTokenEnc: encryptToken('page_token_plain'), status: 'ACTIVE',
     })
     const ch = await getChannelByExternalId('MESSENGER', 'PAGE1')
     expect(ch!.accessToken).toBe('page_token_plain')
+    // ต้อง findFirst + กรอง status ที่ระดับ query — ตรงกับขอบเขต partial unique index จริง
+    // (findUnique ใช้ไม่ได้แล้วเพราะไม่มี @@unique เต็มตารางบน provider+externalId อีกต่อไป)
+    expect(db.shopChannel.findFirst.mock.calls[0]![0].where).toEqual({
+      provider: 'MESSENGER', externalId: 'PAGE1', status: { not: 'DISCONNECTED' },
+    })
   })
 
-  it('channel ที่ DISCONNECTED → getChannelByExternalId คืน null', async () => {
-    db.shopChannel.findUnique.mockResolvedValue({
-      id: 'ch1', shopId: 'shop1', provider: 'MESSENGER',
-      accessTokenEnc: encryptToken('x'), status: 'DISCONNECTED',
-    })
+  // เดิมมีได้แค่แถวเดียวต่อ (provider, externalId) เพราะ @@unique เต็มตาราง ตอนนี้เพจเดียวย้าย
+  // ร้านได้แล้ว → อาจมีทั้งแถว DISCONNECTED เก่า (ร้าน A) และแถว active ใหม่ (ร้าน B) พร้อมกัน
+  // ฝั่ง DB (Postgres WHERE status <> 'DISCONNECTED') กรองแถว DISCONNECTED ออกให้เองอยู่แล้ว จำลอง
+  // ด้วยการคืน null ตรง ๆ แทนการ mock แถว DISCONNECTED แล้วให้ service กรองเอง (mock ผิดชั้น)
+  it('channel ที่เหลืออยู่มีแต่แถว DISCONNECTED (ไม่มีแถว active) → getChannelByExternalId คืน null', async () => {
+    db.shopChannel.findFirst.mockResolvedValue(null)
     expect(await getChannelByExternalId('MESSENGER', 'PAGE1')).toBeNull()
   })
 

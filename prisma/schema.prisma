@@ -992,7 +992,12 @@ model ShopChannel {
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
   conversations Conversation[]
 
-  @@unique([provider, externalId]) // 1 Page ผูกได้ร้านเดียวทั้งระบบ — กันสองร้านแย่ง inbox เดียวกัน
+  // เดิม @@unique([provider, externalId]) = "1 เพจ 1 ร้านตลอดกาล" แม้ถอดแล้ว (status=DISCONNECTED)
+  // ก็ยังกอด constraint ไว้ ทำให้ย้ายเพจไปร้านอื่นไม่ได้ (ชน P2002 ตลอดกาล) — แก้เป็น partial unique
+  // index ที่สร้างด้วย SQL มือ (Prisma schema ประกาศ partial index ไม่ได้): unique เฉพาะแถวที่
+  // status <> 'DISCONNECTED' ดู prisma/migrations/20260722000200_shopchannel_active_partial_unique/
+  // — กติกาใหม่ "1 เพจ ACTIVE ได้ทีละร้านเดียว" (BR-FBC-01 เปลี่ยนขอบเขต ไม่ใช่ยกเลิก)
+  @@index([provider, externalId])
   @@index([shopId, status])
 }
 
