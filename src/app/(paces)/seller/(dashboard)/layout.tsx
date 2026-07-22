@@ -24,6 +24,7 @@ import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
+import ChatRail from './inbox/components/ChatRail'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -51,13 +52,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!active) redirect('/choose-shop')
   const shop = active.shop
 
+  // x-pathname (proxy ตั้งไว้) — ใช้ทั้งกัน redirect loop ของ onboarding (เดิม) และ
+  // feat 00018 T2: ตรวจโหมดแชท (/inbox*) เพื่อสลับเมนูซ้ายเป็น Chat Rail
+  const currentPath = (await headers()).get('x-pathname') ?? ''
+
   // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
-  // ยกเว้นเมื่อกำลังอยู่หน้า onboarding เอง (อ่าน x-pathname จาก proxy) — กัน redirect loop
+  // ยกเว้นเมื่อกำลังอยู่หน้า onboarding เอง — กัน redirect loop
   if (active.kind === 'BUSINESS' && !shop.slug) {
     const onboardingPath = `/business/${shop.id}/onboarding`
-    const currentPath = (await headers()).get('x-pathname') ?? ''
     if (currentPath !== onboardingPath) redirect(onboardingPath)
   }
+
+  // feat 00018 T2: desktop ≥1024px เท่านั้น (คุมด้วย CSS breakpoint ที่ safepay-overrides.css) —
+  // เมนูซ้ายเปลี่ยนเป็น Chat Rail เมื่อ path เริ่มด้วย /inbox; จอเล็กไม่ถูกกระทบ (ไม่มี .app-menu ให้เห็นอยู่แล้ว)
+  const isChatMode = currentPath.startsWith('/inbox')
 
   // คำนวณ tier label ตาม SSOT (getTierLabel) จาก trustScore session
   const tierName = getTierLabel(user.trustScore ?? 0)
@@ -135,7 +143,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <VerticalLayout
       menuItems={menuItems}
-      shellClassName="seller-mobile-shell"
+      // seller-chat-shell: เพิ่ม marker class scoped เฉพาะโหมดแชท (ขยาย --sidenav-width เป็น
+      // 320px ที่ ≥1024px ผ่าน safepay-overrides.css) — เติมต่อจาก seller-mobile-shell เดิม
+      // ไม่แทนที่ (จอ <1024 ต้องยังทำงานเหมือนเดิมทุกประการ)
+      shellClassName={isChatMode ? 'seller-mobile-shell seller-chat-shell' : 'seller-mobile-shell'}
+      sidenavOverride={isChatMode && shop?.id ? <ChatRail shopId={shop.id} /> : undefined}
       topbarSlot={
         <SellerMobileHeader
           shopName={shopNameForHeader}
