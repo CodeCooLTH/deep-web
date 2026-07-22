@@ -2,7 +2,7 @@
 // + regression getTierColor() เดิม (ต้องไม่ถูกรื้อ)
 
 import { describe, it, expect } from 'vitest'
-import { getTierColor, getTierAccentColor } from './trust-tier'
+import { getTierColor, getTierAccentColor, getTierGradient } from './trust-tier'
 
 // -------------------------------------------------------------------------
 // getTierAccentColor — เคสบังคับจาก Controller
@@ -88,5 +88,45 @@ describe('getTierColor (regression — ต้องไม่เปลี่ย�
   it('D (0-39) → warning', () => {
     expect(getTierColor(0)).toBe('warning')
     expect(getTierColor(39)).toBe('warning')
+  })
+})
+
+// -------------------------------------------------------------------------
+// getTierGradient — S-B9 (Impeccable remediation Phase B): sync กับ ramp ที่อนุมัติแล้ว
+// -------------------------------------------------------------------------
+describe('getTierGradient', () => {
+  it('ทั้ง 5 tier คืน gradient ต่างกันครบ ไม่มีคู่ไหนซ้ำ', () => {
+    const scores = [95, 85, 75, 65, 45] // A+, A, B+, B, C (ตัวแทนแต่ละ tier)
+    const gradients = scores.map(getTierGradient)
+    expect(new Set(gradients).size).toBe(5)
+  })
+
+  it('ไม่มี Tailwind hex เก่าหลงเหลือ (เดิม #F59E0B/#0EA5E9/#F97316/#C2410C/#B45309/#FCD34D/#FDBA74/#6558E8/#A79DF5/#0284C7/#7DD3FC)', () => {
+    const oldHexPattern = /#F59E0B|#0EA5E9|#F97316|#C2410C|#B45309|#FCD34D|#FDBA74|#6558E8|#A79DF5|#0284C7|#7DD3FC/i
+    const scores = [95, 85, 75, 65, 45, 10]
+    scores.forEach((score) => {
+      expect(getTierGradient(score)).not.toMatch(oldHexPattern)
+    })
+  })
+
+  it('Deep Star (A+) → primary canonical ramp', () => {
+    expect(getTierGradient(90)).toBe('linear-gradient(135deg, #5a4ee0 0%, #7367F0 45%, #b3acf8 100%)')
+  })
+
+  it('Deep Diamond (A) → signal-cyan canonical ramp', () => {
+    expect(getTierGradient(80)).toBe('linear-gradient(135deg, #009eb2 0%, #00BAD1 45%, #8ee5ee 100%)')
+  })
+
+  it('Deep Gold (B+) → warning-amber canonical ramp', () => {
+    expect(getTierGradient(70)).toBe('linear-gradient(135deg, #e08400 0%, #FF9F43 45%, #ffd1a3 100%)')
+  })
+
+  it('Deep Silver (B) → ink tonalRamp', () => {
+    expect(getTierGradient(60)).toBe('linear-gradient(135deg, #454155 0%, #7a7689 45%, #bdbbc7 100%)')
+  })
+
+  it('Deep Classic (C, D) → warning-amber tonalRamp เข้มกว่า Gold', () => {
+    expect(getTierGradient(45)).toBe('linear-gradient(135deg, #5c3300 0%, #b36700 45%, #FF9F43 100%)')
+    expect(getTierGradient(10)).toBe(getTierGradient(45))
   })
 })
