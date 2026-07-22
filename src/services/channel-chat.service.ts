@@ -166,7 +166,12 @@ export async function ingestInboundMessage(params: {
   // (Minor-5) และกัน Graph error ชั่วคราวทับชื่อจริงที่เก็บไว้แล้วเป็น null (I-2)
   const needsProfile = !existingContact || !existingContact.name
   const profile = needsProfile
-    ? await getContactProfile(contactExternalId, channel.accessToken)
+    ? await getContactProfile(
+        pageExternalId,
+        contactExternalId,
+        channel.accessToken,
+        provider === 'INSTAGRAM' ? 'instagram' : undefined,
+      )
     : { name: null, avatarUrl: null }
 
   const contact = await prisma.externalContact.upsert({

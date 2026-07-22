@@ -133,22 +133,44 @@ export async function subscribePageToApp(pageId: string, pageToken: string): Pro
   })
 }
 
-// โปรไฟล์ลูกค้า — ใช้แสดงชื่อ/รูปใน inbox
-// ห้ามใช้ /{psid}/picture แบบ FB login เพราะ PSID เป็น page-scoped คนละ ID space
+// ชื่อลูกค้าสำหรับแสดงใน inbox
+//
+// ทำไมไม่ยิง GET /{psid}?fields=name,profile_pic (วิธีที่ docs เก่าบอก):
+// ทดสอบกับ Page จริงแล้ว Meta ตอบ 400 "Unsupported get request... cannot be loaded due to
+// missing permissions" ทุกชุด field (name / first_name / profile_pic) — Messenger User Profile API
+// ถูกจำกัดสำหรับแอปที่ยังไม่ได้ Advanced Access จึงใช้ไม่ได้ในทางปฏิบัติ
+//
+// ทางที่ใช้ได้จริงคือ /{page-id}/conversations?user_id={psid} ซึ่งคืน participants พร้อมชื่อ
+// ด้วย page token ตัวเดียวกัน (ยืนยันกับ Page จริงแล้วได้ชื่อไทยครบ)
+//
+// ข้อแลกเปลี่ยน: endpoint นี้ไม่มีรูปโปรไฟล์ให้ → avatarUrl เป็น null เสมอ
+// (inbox แสดงตัวอักษรแรกของชื่อแทน ซึ่งยอมรับได้ ดีกว่าไม่มีชื่อเลย)
 export async function getContactProfile(
+  pageExternalId: string,
   externalUserId: string,
   pageToken: string,
+  platform?: 'instagram',
 ): Promise<{ name: string | null; avatarUrl: string | null }> {
   try {
-    const json = await graphFetch(`/${externalUserId}`, pageToken, {
-      query: { fields: 'name,profile_pic' },
+    const json = await graphFetch(`/${pageExternalId}/conversations`, pageToken, {
+      query: {
+        fields: 'participants',
+        user_id: externalUserId,
+        // IG ใช้ endpoint เดียวกันแต่ต้องระบุ platform ไม่งั้นจะค้นในกล่อง Messenger
+        ...(platform ? { platform } : {}),
+      },
     })
-    return {
-      name: (json.name as string | undefined) ?? null,
-      avatarUrl: (json.profile_pic as string | undefined) ?? null,
+    const threads = (json.data ?? []) as Array<{
+      participants?: { data?: Array<{ id?: string; name?: string }> }
+    }>
+    for (const thread of threads) {
+      // participants มีทั้งลูกค้าและตัวเพจเอง — เลือกเฉพาะแถวที่ id ตรงกับ PSID ที่ถาม
+      const me = thread.participants?.data?.find((p) => p.id === externalUserId)
+      if (me?.name) return { name: me.name, avatarUrl: null }
     }
+    return { name: null, avatarUrl: null }
   } catch {
-    // โปรไฟล์ดึงไม่ได้ไม่ใช่เหตุให้ทิ้งข้อความ — เก็บข้อความไว้ก่อน ชื่อค่อยเติมทีหลัง
+    // ดึงชื่อไม่ได้ไม่ใช่เหตุให้ทิ้งข้อความ — เก็บข้อความไว้ก่อน ชื่อค่อยเติมทีหลัง
     return { name: null, avatarUrl: null }
   }
 }

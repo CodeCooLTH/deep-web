@@ -147,8 +147,17 @@ describe('ingestInboundMessage', () => {
       db.externalContact.findUnique.mockResolvedValue(null)
       await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
       expect(getContactProfile).toHaveBeenCalledTimes(1)
+      // ลำดับ argument สำคัญ: pageExternalId มาก่อน PSID เสมอ — ถ้าสลับกันจะไปถาม
+      // conversations ของ "PSID" แทน "เพจ" แล้วได้ null ทุกครั้งแบบเงียบ ๆ
+      expect(getContactProfile).toHaveBeenCalledWith('PAGE1', 'PSID_1', 'tok', undefined)
       const args = db.externalContact.upsert.mock.calls[0]![0]
       expect(args.create.name).toBe('ลูกค้า ทดสอบ')
+    })
+
+    it('เธรด Instagram → ส่ง platform=instagram ให้ Graph (คนละกล่องกับ Messenger)', async () => {
+      db.externalContact.findUnique.mockResolvedValue(null)
+      await ingestInboundMessage({ provider: 'INSTAGRAM', pageExternalId: 'IG1', event: textEvent })
+      expect(getContactProfile).toHaveBeenCalledWith('IG1', 'PSID_1', 'tok', 'instagram')
     })
 
     it('contact เดิมมีชื่ออยู่แล้ว → ไม่เรียก Graph ซ้ำ และไม่ส่ง name/avatarUrl ไปทับของเดิม', async () => {
