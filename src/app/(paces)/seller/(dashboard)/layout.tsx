@@ -6,7 +6,14 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import { sellerMenuItems, applyInventoryGate, applyChatBadge, applyStaffMenu, applyExpenseMenu } from './_seller-menu'
+import {
+  sellerMenuItems,
+  applyInventoryGate,
+  applyChatBadge,
+  applyStaffMenu,
+  applyExpenseMenu,
+  applyVerticalMenu,
+} from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -108,12 +115,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
   // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
-  const menuItems = applyExpenseMenu(
-    applyStaffMenu(
-      applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
-      { kind: active.kind, role: active.role },
+  // feature 00016 — applyExpenseMenu ซ่อน/ติด badge เมนู "ค่าใช้จ่าย" ตามสิทธิ์+แพ็กเกจ
+  // feature 00017 — applyVerticalMenu กรองเมนูตามประเภทกิจการ (ห้องพัก vs สินค้า/สต็อก/ประมูล)
+  //
+  // ลำดับสำคัญ: applyVerticalMenu อยู่ "ชั้นนอกสุด" โดยตั้งใจ — กรองหลัง gate อื่นทุกตัว
+  // เพื่อไม่ให้ badge/disable ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว
+  // (เช่น badge "เลือกแพ็กเกจ" ของสต็อก ต้องไม่โผล่ในร้านบ้านพักที่ไม่มีเมนูสต็อกเลย)
+  const menuItems = applyVerticalMenu(
+    applyExpenseMenu(
+      applyStaffMenu(
+        applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
+        { kind: active.kind, role: active.role },
+      ),
+      expenseAccessDecision,
     ),
-    expenseAccessDecision,
+    shop.vertical,
   )
 
   return (

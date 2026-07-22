@@ -76,7 +76,7 @@ const AchievementBadges = ({ items, totalCount }: AchievementBadgesProps) => {
       <CardContent className='flex flex-col gap-4'>
         {/* header row: title ซ้าย + "ดูทั้งหมด N" ขวา (ถ้ามี totalCount > 0) */}
         <div className='flex items-center justify-between'>
-          <Typography className='uppercase' variant='body2' color='text.disabled'>
+          <Typography variant='body2' color='text.disabled'>
             Badge ที่ได้รับ
           </Typography>
           {totalCount != null && totalCount > 0 && (

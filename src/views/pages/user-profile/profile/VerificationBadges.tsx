@@ -17,7 +17,7 @@ const VerificationBadges = ({ items }: { items: VerifyItem[] }) => {
   return (
     <Card>
       <CardContent className='flex flex-col gap-4'>
-        <Typography className='uppercase' variant='body2' color='text.disabled'>
+        <Typography variant='body2' color='text.disabled'>
           การยืนยันตัวตน
         </Typography>
         <div className='flex flex-col sm:flex-row sm:flex-wrap gap-3'>

@@ -30,6 +30,14 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
+      // feature 00017 — เห็นเฉพาะร้าน vertical=LODGING (กรองด้วย applyVerticalMenu ด้านล่าง)
+      // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
+      // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน
+      { url: '/rooms', slug: 'seller:rooms', label: 'ห้องพัก', icon: 'building-cottage' },
+      // feature 00017 P2 — icon 'calendar-event' verified มีจริงใน tabler
+      { url: '/calendar', slug: 'seller:calendar', label: 'ปฏิทินการจอง', icon: 'calendar-event' },
+      // feature 00017 P2 — รายการจอง (icon 'calendar-check' verified มีจริงใน tabler)
+      { url: '/bookings', slug: 'seller:bookings', label: 'การจอง', icon: 'calendar-check' },
       // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
       // { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
       { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
@@ -204,4 +212,33 @@ export function applyExpenseMenu(
 
   // GRANTED — ไม่มี badge, แสดงปกติ
   return items
+}
+
+/**
+ * applyVerticalMenu — runtime transform ตามประเภทกิจการของร้าน (feature 00017 Phase 1, FR-LODG-02)
+ *
+ * ทำไมต้องกรองสองทาง ไม่ใช่แค่ซ่อนเมนูห้องพักจากร้าน GENERAL:
+ *   - ร้าน LODGING ไม่ได้ขายสินค้า → เมนูสินค้า/สต็อก/ประมูล ไม่มีความหมายและทำให้กรอกข้อมูลผิดวิธี
+ *   - ร้าน GENERAL ไม่มีห้องพัก → เมนูห้องพักไม่มีความหมาย
+ * (BR-LODG-02: 1 ธุรกิจ = 1 ประเภท ต้องไม่เห็นเมนูของอีกฝั่งเลย)
+ *
+ * 🛑 การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-LODG-03) — ทุก route ของโดเมนบ้านพักต้องมี
+ * assertLodgingShop() ที่ทั้ง API route และ page-level server component ด้วยเสมอ
+ * ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา" ไม่ได้ทำหน้าที่ป้องกัน
+ *
+ * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
+ * เพราะไม่มี use-case ให้ประเภทหนึ่งเห็นเมนูของอีกประเภท
+ */
+const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings']
+const GENERAL_ONLY_SLUGS = ['seller:products', 'seller:inventory', 'seller:auctions']
+
+export function applyVerticalMenu(
+  items: MenuItemType[],
+  vertical: string,
+): MenuItemType[] {
+  const hidden = vertical === 'LODGING' ? GENERAL_ONLY_SLUGS : LODGING_ONLY_SLUGS
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.filter((child) => !hidden.includes(child.slug ?? '')),
+  })
 }

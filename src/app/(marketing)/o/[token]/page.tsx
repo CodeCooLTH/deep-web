@@ -31,6 +31,7 @@ import PublicOrderClient from './PublicOrderClient'
 import OrderAccessBlock from './OrderAccessBlock'
 import ClaimOtpPrompt from './ClaimOtpPrompt'
 import type { PublicOrderData } from './OrderDetailMobile'
+import BookingGuestView from './BookingGuestView'
 
 type Props = { params: Promise<{ token: string }> }
 
@@ -125,6 +126,37 @@ export default async function PublicOrderPage({ params }: Props) {
     const maxVerifyLevel = approvedVerifications.length
       ? Math.max(...approvedVerifications.map((v) => v.level))
       : 0
+
+    // ── feature 00017: การจอง (type = BOOKING) ใช้หน้าคนละแบบ ─────────────────
+    // flow ต่างจากออเดอร์สินค้าแทบทั้งหมด — ไม่มีของจัดส่ง ผู้จองยืนยันเองไม่ได้ (TFR-006)
+    // และจบด้วยใบจองแทนการรับของ จึงแยก component ไม่ยัดเงื่อนไขเข้า OrderDetailMobile
+    if (order.type === 'BOOKING') {
+      const nights =
+        order.checkIn && order.checkOut
+          ? Math.round((order.checkOut.getTime() - order.checkIn.getTime()) / 86_400_000)
+          : null
+      return (
+        <BookingGuestView
+          booking={{
+            token: order.publicToken,
+            shortCode: order.shortCode,
+            status: order.status as 'PENDING' | 'CONFIRMED' | 'CANCELLED',
+            shopName: order.shop.shopName,
+            roomName: order.room?.name ?? 'ห้องพัก',
+            guestName: order.buyerName,
+            // Date → 'YYYY-MM-DD' ที่ server boundary (Date ข้าม RSC ไม่ได้)
+            checkIn: order.checkIn ? order.checkIn.toISOString().slice(0, 10) : null,
+            checkOut: order.checkOut ? order.checkOut.toISOString().slice(0, 10) : null,
+            nights,
+            totalAmount: Number(order.totalAmount),
+            depositAmount: Number(order.depositAmount ?? 0),
+            slipFileId: order.slipFileId ?? null,
+            // ไม่ส่ง cancelReason จริงให้ผู้จอง — เป็นบันทึกภายในของร้าน (BR-LODG-23)
+            cancelReason: null,
+          }}
+        />
+      )
+    }
 
     // Flatten Prisma → plain object ที่ข้าม RSC→client ได้ (Decimal/Date → plain)
     const data: PublicOrderData = {

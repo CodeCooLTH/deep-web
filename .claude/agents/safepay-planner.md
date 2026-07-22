@@ -33,6 +33,7 @@ model: sonnet
 - **Auth/permission rules** — NextAuth session + service guard (ไม่ใช่ RLS)
 - **Database impact** — ถ้าแตะ schema ระบุให้ Controller dispatch `safepay-database` ก่อน
 - **Error handling** + **Risks** + **Implementation order**
+- 🛑 **Cross-file error-mapping (บังคับ enumerate)** — ทุก custom Error ที่ service จะ `throw` ใหม่ ต้องระบุ **route-handler catch → HTTP status** ที่ครอบมันด้วยเสมอ ในตาราง task/S-id (คนละไฟล์กับ service — `throw` ที่ service ไม่จบในตัวเอง). ถ้า route catch ปัจจุบันไม่มี branch สำหรับ Error type ใหม่ → สร้าง task/S-id เติมให้ครบ. เหตุ: 00003 P2 `OutOfStockError` ตกหล่น → route คืน 500 แทน 400 เพราะ decomposition ไม่ enumerate จุดนี้ และ Gate 1 scope-audit (negative-check) จับไม่ได้เพราะ "ไฟล์ที่ควรแตะแต่ไม่แตะ" ไม่โผล่ diff (memory `feedback_service_error_route_mapping`) — ต้องกันที่ต้นทาง (planner) ไม่ใช่หวัง QA จับปลายทาง.
 ออกแบบเรียบง่าย ตามสถาปัตยกรรมเดิม ห้าม over-engineer / ห้าม introduce framework ใหม่โดยไม่จำเป็น.
 
 ห้าม implement. ห้ามแก้ไฟล์. ส่งแผนกลับอย่างเดียว.
