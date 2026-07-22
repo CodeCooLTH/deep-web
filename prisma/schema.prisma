@@ -223,7 +223,8 @@ model Room {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orders Order[] // การจองของห้องนี้ (Phase 2) — FK ฝั่ง Order เป็น Restrict ห้ามลบห้องที่มีการจอง
 
   @@index([shopId, isActive], map: "Room_shopId_isActive_idx") // list ห้องของร้าน + กรองเฉพาะที่เปิดใช้งาน
 }
@@ -415,9 +416,24 @@ model Order {
   // Buyer App — order ที่เกิดจากการชนะประมูล (additive, nullable, unique = 1 order ต่อ 1 auction)
   auctionId String? @unique
 
+  // --- feature 00017: Lodging Vertical (Phase 2, additive nullable ทั้งหมด) ---
+  // การจอง = Order ที่ type = "BOOKING" ไม่ใช่ตารางแยก (BR-LODG-08) จึงได้ publicToken/
+  // shortCode/slipFileId/customerId/review/Trust Score/ประวัติออเดอร์ มาใช้ซ้ำทั้งหมด
+  // field กลุ่มนี้เป็น NULL เสมอสำหรับออเดอร์สินค้าปกติ (zero-regression BR-LODG-27)
+  roomId    String? // FK → Room, ON DELETE RESTRICT (ห้ามลบห้องที่มีการจอง BR-LODG-06)
+  checkIn   DateTime? @db.Date // วันเข้าพัก — รวมในช่วงที่กันคิว
+  checkOut  DateTime? @db.Date // วันเช็คเอาท์ — ไม่รวมในช่วงที่กันคิว (BR-LODG-31)
+  // depositAmount: ยอดมัดจำที่ต้องโอน — snapshot ที่คำนวณเสร็จแล้ว ไม่ใช่สูตรอ้างอิง Room
+  // ถ้าอ้างอิงสด ยอดของการจองเก่าจะขยับเองเมื่อเจ้าของแก้ค่าเริ่มต้นของห้อง = ผิด BR-LODG-18
+  depositAmount Decimal? @db.Decimal(12, 2)
+  // cancelReason: BUYER_NO_TRANSFER | BUYER_REQUESTED | SHOP_ISSUE | MUTUAL (BR-LODG-36)
+  // นับเข้าประวัติผู้จองเฉพาะ 2 ค่าแรก — ตัดสินจาก countsAgainstGuest ใน src/lib/lodging.ts
+  cancelReason String?
+
   shop             Shop              @relation(fields: [shopId], references: [id])
   buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  room             Room?             @relation(fields: [roomId], references: [id], onDelete: Restrict)
   items            OrderItem[]
   shipmentTracking ShipmentTracking?
   review           Review?
@@ -426,6 +442,19 @@ model Order {
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
   @@index([customerId]) // feat 00014 — lookup order ต่อ customer
+  @@index([roomId, checkIn], map: "Order_roomId_checkIn_idx") // feat 00017 — ปฏิทินของห้อง
+  @@index([shopId, type, checkIn], map: "Order_shopId_type_checkIn_idx") // ปฏิทินรวมทุกห้อง + list การจอง
+  @@index([customerId, status], map: "Order_customerId_status_idx") // นับประวัติการยกเลิกต่อลูกค้า
+
+  // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
+  // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
+  //   EXCLUDE USING gist (roomId WITH =, daterange(checkIn, checkOut, '[)') WITH &&)
+  //   WHERE (roomId IS NOT NULL AND status <> 'CANCELLED')
+  // เป็นกลไก "เดียว" ที่กันจองทับได้จริงแม้กดพร้อมกัน — การตรวจก่อนบันทึกที่ระดับแอป
+  // มีช่องว่างระหว่างตรวจกับเขียนเสมอ
+  // 🛑 ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspection มองไม่เห็น constraint นี้
+  // แล้วจะสร้าง migration ที่ DROP ทิ้ง (precedent เดียวกับ partial unique index ของ feat 00008)
+  // ทดสอบจริงแล้ว: Prisma โยน P2010 + meta.code '23P01' (ไม่ใช่ P2002) ดู DATABASE.md §4.2.1
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
