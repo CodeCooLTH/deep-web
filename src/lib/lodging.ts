@@ -32,6 +32,11 @@ export const SHOP_VERTICAL_HINTS: Record<ShopVertical, string> = {
 // ---------------------------------------------------------------------------
 // icon = ชื่อ tabler ที่มีจริงในชุดของ Paces (theme/paces/Admin/TS/src/app/(admin)/icons/)
 // ใช้ผ่าน @iconify/react — IMPORTANT: ห้ามใช้ emoji แทน icon ทุกกรณี (Hard Rule 12)
+//
+// verified 2026-07-22 — ทั้ง 10 ตัวมีจริงในชุด tabler (ตาม convention ของ _seller-menu.ts
+// ที่ verify ชื่อ icon ก่อนใช้เสมอ):
+//   api.iconify.design/tabler.json?icons=pool,air-conditioning,car,tools-kitchen-2,
+//   wash-machine,wifi,device-tv,bath,fridge,paw → found ครบ not_found = []
 export const ROOM_FACILITIES = {
   pool: { label: 'สระว่ายน้ำ', icon: 'tabler:pool' },
   aircon: { label: 'เครื่องปรับอากาศ', icon: 'tabler:air-conditioning' },
