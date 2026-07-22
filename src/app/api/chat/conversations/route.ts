@@ -52,14 +52,15 @@ async function enrichWithShopCounterparty(
 async function enrichWithBuyerCounterparty(
   items: ConversationSummary[],
 ): Promise<ConversationWithCounterparty[]> {
-  const buyerIds = [...new Set(items.map((i) => i.buyerUserId))];
+  // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
+  const buyerIds = [...new Set(items.map((i) => i.buyerUserId).filter((id): id is string => id !== null))];
   const users = await prisma.user.findMany({
     where: { id: { in: buyerIds } },
     select: { id: true, displayName: true, avatar: true },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
   return items.map((i) => {
-    const buyer = userMap.get(i.buyerUserId);
+    const buyer = i.buyerUserId ? userMap.get(i.buyerUserId) : undefined;
     return { ...i, counterparty: buyer ? { displayName: buyer.displayName, avatar: buyer.avatar } : null };
   });
 }

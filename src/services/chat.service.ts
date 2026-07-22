@@ -7,7 +7,7 @@ export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT'
 
 export interface ConversationSummary {
   id: string
-  buyerUserId: string
+  buyerUserId: string | null
   shopId: string
   lastMessageAt: Date
   lastMessagePreview: string | null
@@ -15,12 +15,16 @@ export interface ConversationSummary {
   buyerLastReadAt: Date | null
   shopLastReadAt: Date | null
   createdAt: Date
+  channel: string // "DEEP" | "MESSENGER" | "INSTAGRAM" — feature 00018
+  shopChannelId: string | null
+  externalContactId: string | null
+  lastInboundAt: Date | null
 }
 
 export interface ChatMessageView {
   id: string
   conversationId: string
-  senderUserId: string
+  senderUserId: string | null
   senderRole: SenderRole
   type: ChatMessageType
   body: string | null
@@ -141,9 +145,10 @@ export async function sendMessage(params: {
     if (!shop) throw new Error('SHOP_NOT_FOUND') // defense — ไม่ควรเกิดจริง (FK CASCADE)
 
     // verify role vs. truth — กัน client ปลอม senderRole (FR-CHAT-04-AC-03)
+    // เธรดช่องทางนอก (feature 00018) ไม่มี buyerUserId → ไม่มีใครอ้าง BUYER ได้เลย
     const isBuyerClaim = params.senderRole === 'BUYER'
     const ownerMatch = isBuyerClaim
-      ? conversation.buyerUserId === params.senderUserId
+      ? conversation.buyerUserId !== null && conversation.buyerUserId === params.senderUserId
       : shop.userId === params.senderUserId
     if (!ownerMatch) throw new Error('FORBIDDEN')
 
@@ -199,19 +204,23 @@ export async function sendMessage(params: {
     })
 
     // Notification เสมอ (ไม่เช็ค presence — ดู SRS TFR-CHAT-11 rationale) ผู้รับ = อีกฝ่าย
+    // feature 00018: เธรดช่องทางนอก ผู้รับคือ ExternalContact ที่ไม่มี User ใน Deep →
+    // ข้าม Notification (ลูกค้าได้รับผ่าน Messenger/IG เองอยู่แล้ว) ไม่ใช่ error
     const recipientUserId = isBuyerClaim ? shop.userId : conversation.buyerUserId
-    const senderLabel = isBuyerClaim
-      ? (await tx.user.findUnique({ where: { id: params.senderUserId }, select: { displayName: true } }))?.displayName ?? 'ผู้ซื้อ'
-      : shop.shopName
-    await tx.notification.create({
-      data: {
-        userId: recipientUserId,
-        kind: 'chat_message',
-        title: `ข้อความใหม่จาก ${senderLabel}`,
-        body: preview,
-        refId: params.conversationId,
-      },
-    })
+    if (recipientUserId) {
+      const senderLabel = isBuyerClaim
+        ? (await tx.user.findUnique({ where: { id: params.senderUserId }, select: { displayName: true } }))?.displayName ?? 'ผู้ซื้อ'
+        : shop.shopName
+      await tx.notification.create({
+        data: {
+          userId: recipientUserId,
+          kind: 'chat_message',
+          title: `ข้อความใหม่จาก ${senderLabel}`,
+          body: preview,
+          refId: params.conversationId,
+        },
+      })
+    }
 
     return message as ChatMessageView
   })

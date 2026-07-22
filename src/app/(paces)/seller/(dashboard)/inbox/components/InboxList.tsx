@@ -30,7 +30,7 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 export type ConversationListItem = {
   id: string
-  buyerUserId: string
+  buyerUserId: string | null // เธรดช่องทางนอก (feature 00018) ไม่มี User ผู้ซื้อ
   shopId: string
   lastMessageAt: string
   lastMessagePreview: string | null
