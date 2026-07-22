@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
 
@@ -66,11 +67,31 @@ export async function getOrCreateConversation(
 // ---- listConversationsForShop / listConversationsForBuyer ----
 // shopId/buyerUserId ต้อง derive จาก session ที่ route แล้ว (ownership ผ่านมาจากผู้เรียก ไม่ verify ซ้ำในนี้
 // — เหมือน pattern getStockMovementHistory(shop.id, ...) ของ 00009)
+//
+// T1 (feature 00018): เพิ่ม filter สำหรับ Chat Rail ฝั่ง seller — channel/shopChannelId/q ทั้งหมด optional
+// shopId ยังคง filter เสมอผ่าน `where` object ด้านล่าง (ANDed กับทุก filter อื่น) — ห้าม caller ข้ามได้
 export async function listConversationsForShop(
   shopId: string,
-  opts: { cursor?: string; take?: number } = {},
+  opts: { cursor?: string; take?: number; channel?: string; shopChannelId?: string; q?: string } = {},
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
-  return listConversations({ shopId }, opts)
+  return listConversations(
+    {
+      shopId,
+      ...(opts.channel ? { channel: opts.channel } : {}),
+      ...(opts.shopChannelId ? { shopChannelId: opts.shopChannelId } : {}),
+      // q: ค้นหาจาก lastMessagePreview หรือชื่อ externalContact — relation filter ปลอดภัยกับ
+      // externalContact = null (เธรด DEEP) เพราะ Prisma ไม่ match แถวที่ relation ไม่มี ไม่ throw
+      ...(opts.q
+        ? {
+            OR: [
+              { lastMessagePreview: { contains: opts.q, mode: 'insensitive' as const } },
+              { externalContact: { name: { contains: opts.q, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    },
+    opts,
+  )
 }
 
 export async function listConversationsForBuyer(
@@ -81,7 +102,7 @@ export async function listConversationsForBuyer(
 }
 
 async function listConversations(
-  where: { shopId?: string; buyerUserId?: string },
+  where: Prisma.ConversationWhereInput,
   opts: { cursor?: string; take?: number },
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const take = opts.take ?? 20

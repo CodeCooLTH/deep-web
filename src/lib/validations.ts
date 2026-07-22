@@ -724,9 +724,14 @@ export const ChatMessagesQuerySchema = v.object({
   take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 30),
 });
 
+// T1 (feature 00018): filter/ค้นหา ฝั่ง seller inbox — channel/shopChannelId/q เป็น optional ทั้งหมด
+// (buyer surface ไม่ใช้ field พวกนี้ — route derive role จาก subdomain แล้วไม่ส่งต่อให้ buyer branch)
 export const ChatConversationsQuerySchema = v.object({
   cursor: v.optional(v.string()), // ISO datetime ของ lastMessageAt แถวสุดท้ายที่เห็น
   take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50)), 20),
+  channel: v.optional(v.picklist(['DEEP', 'MESSENGER', 'INSTAGRAM'])),
+  shopChannelId: v.optional(v.pipe(v.string(), v.uuid())),
+  q: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
