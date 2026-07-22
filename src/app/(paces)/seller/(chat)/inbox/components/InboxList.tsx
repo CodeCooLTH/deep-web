@@ -41,11 +41,18 @@
  * นอก scope T3 (ตาม plan): ไม่ render ปุ่มปักหมุด/ซ่อน/ปิดงาน/kebab menu — backend (S-7)
  * ยังไม่มี service/API ใน phase นี้ — ห้ามทำปุ่มที่กดแล้วไม่เกิดอะไร
  *
- * feat 00018 (Chat Rail topbar): เพิ่ม prop `railMode` — เมื่อ true (เรียกจาก ChatRailClient,
- * desktop ≥1024) ช่องค้นหาย้ายไปอยู่ topbar แล้ว (ดู ChatSearchBox.tsx) ไม่ render ช่องค้นหาซ้ำ
+ * feat 00018 (Chat Rail topbar): เพิ่ม prop `railMode` — เมื่อ true (เรียกจาก ChatRail.tsx,
+ * desktop ≥1024) ช่องค้นหาย้ายไปอยู่ ChatHeader แล้ว (ดู ChatSearchBox.tsx) ไม่ render ช่องค้นหาซ้ำ
  * ที่นี่ + ใช้ debouncedQuery จาก ChatSearchContext แทน state ในตัว เมื่อ false/ไม่ระบุ (เรียกจาก
- * inbox/page.tsx มือถือ/แท็บเล็ต drill-down — topbar ทั้งก้อนถูกซ่อนด้วย CSS อยู่แล้วที่ <1024px
- * ไม่มีช่องค้นหาให้ใช้ร่วม) พฤติกรรมเดิมทุกประการ — local state + debounce ในตัวเอง ไม่แตะ
+ * inbox/page.tsx มือถือ/แท็บเล็ต drill-down — ChatHeader ยังโผล่อยู่ทุก breakpoint แต่ InboxList
+ * โหมดนี้เลือกไม่ผูกกับมัน คงพฤติกรรมเดิม local state + debounce ในตัวเอง ไม่แตะ)
+ *
+ * rewrite (chat-standalone): ย้ายมาจาก (dashboard)/inbox/components/InboxList.tsx — import
+ * _shared เปลี่ยนเป็น alias (ย้ายข้าม route group); channel tabs เปลี่ยนจาก .nav-tabs/.nav-link
+ * (icon+label ทุก tab) เป็น "pill ไอคอนล้วน" ตามที่ user สั่งเพิ่มวันนี้: "ทั้งหมด" ยังเป็นข้อความ,
+ * Deep/Messenger/Instagram เหลือไอคอนล้วน (title+aria-label ภาษาไทยกำกับทุกปุ่ม) อยู่บรรทัด
+ * เดียวไม่ตกบรรทัด — Base: ปุ่มวงกลม rounded-full ใช้ token เดียวกับ ChannelBadgeOverlay
+ * (ChannelBadge.tsx — bg-light พื้นเฉย/bg-primary/15 พื้น active) ไม่ใช่ arbitrary ใหม่
  */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -54,7 +61,7 @@ import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { pacesToast } from '@/lib/paces-toast'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
-import SellerEmptyState from '../../_shared/SellerEmptyState'
+import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
@@ -74,7 +81,7 @@ export type ConversationListItem = {
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
 // ต้องใช้ type เดียวกัน ไม่อยาก import ย้อนจากไฟล์นี้จนวนเป็น circular import) — re-export ไว้ที่นี่
-// เพื่อไม่ต้องแก้ import ที่ page.tsx/ChatRailClient.tsx (ยังเรียก `from './components/InboxList'` เดิม)
+// เพื่อไม่ต้องแก้ import ที่ page.tsx/ChatRail.tsx (ยังเรียก `from './components/InboxList'` เดิม)
 export type { ChannelFilterOption } from './ChannelBadge'
 
 type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
@@ -234,34 +241,46 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
           </div>
         )}
 
-        {/* channel tabs — React state ขับ active เอง ไม่ใช้ data-hs-tab (ดู comment หัวไฟล์) */}
-        <nav className="nav-tabs overflow-x-auto" aria-label="ตัวกรองช่องทาง" role="tablist">
+        {/* channel tabs — pill ไอคอนล้วน (user สั่งเพิ่ม 2026-07-22 บ่าย): "ทั้งหมด" เป็นข้อความ,
+            Deep/Messenger/Instagram เหลือไอคอนล้วน — React state ขับ active เอง ไม่ใช้
+            data-hs-tab (เหตุผลเดิม ดู comment หัวไฟล์) shrink-0 กันปุ่มบีบ + overflow-x-auto
+            กันตกบรรทัดถ้า rail แคบผิดปกติ (ปกติพอดีบรรทัดเดียวที่ 320px) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto" aria-label="ตัวกรองช่องทาง" role="tablist">
           {CHANNEL_TABS.map((tab) => {
             const active = channelTab === tab
             const display = tab === 'ALL' ? null : getChannelDisplay(tab)
+            const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
             return (
               <button
                 key={tab}
                 type="button"
                 role="tab"
                 aria-selected={active}
+                title={label}
+                aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
                 onClick={() => handleChannelTabChange(tab)}
-                className={`nav-link text-nowrap ${active ? 'border-b border-primary text-primary' : ''}`}
+                className={
+                  tab === 'ALL'
+                    ? `shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
+                        active ? 'bg-primary text-white' : 'bg-light text-default-700'
+                      }`
+                    : `flex size-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-primary/15' : 'bg-light'}`
+                }
               >
                 {display && (
                   <Icon
                     icon={display.icon}
-                    width={14}
-                    height={14}
-                    className={`me-1 inline-block align-text-bottom ${display.iconClassName ?? ''}`}
+                    width={16}
+                    height={16}
+                    className={display.iconClassName}
                     style={display.iconStyle}
                   />
                 )}
-                {tab === 'ALL' ? 'ทั้งหมด' : display!.label}
+                {tab === 'ALL' && label}
               </button>
             )
           })}
-        </nav>
+        </div>
 
         {/* ตัวกรอง "เพจ" — ซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจให้เลือก
             feat 00018 งาน 2: FilterDropdown ธรรมดา → PageFilterDropdown (search + radio + avatar) */}

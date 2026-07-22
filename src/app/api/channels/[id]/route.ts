@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
+import { resolveActiveShopContext } from "@/lib/shop-context";
 import { disconnectChannel } from "@/services/shop-channel.service";
 
 // T1 (feature 00018): ถอดการเชื่อมต่อช่องทาง — ใช้โดยหน้า /settings/channels ปุ่ม "ถอด"
@@ -20,6 +20,10 @@ const ChannelIdParamSchema = v.pipe(v.string(), v.uuid());
  *
  * ownership อยู่ใน WHERE ของ disconnectChannel(id, shopId) เอง (updateMany atomic guard) —
  * route หน้าที่แค่ resolve shopId จาก session แล้วส่งต่อ ไม่ query แยกก่อน (กัน TOCTOU/IDOR)
+ *
+ * bug fix (แชทไม่แยกตามร้าน): เดิมใช้ getShopByUserId ซึ่งคืน PERSONAL เสมอ ไม่สนว่ากำลัง active
+ * ร้านไหนอยู่ — ถอดจากหน้าร้าน B ได้จริงแต่กลับไปแก้ record ของ PERSONAL. เปลี่ยนเป็น
+ * resolveActiveShopContext; resolve ไม่ได้ → 404 ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
  */
 export async function DELETE(
   request: NextRequest,
@@ -31,9 +35,11 @@ export async function DELETE(
   }
   const userId = (session.user as { id: string }).id;
 
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
+  });
+  if (!activeCtx) {
+    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
   }
 
   const { id: rawChannelId } = await params;
@@ -43,13 +49,13 @@ export async function DELETE(
   }
 
   try {
-    await disconnectChannel(idCheck.output, shop.id);
+    await disconnectChannel(idCheck.output, activeCtx.shopId);
     return NextResponse.json({ ok: true }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     if (e instanceof Error && e.message === "CHANNEL_NOT_FOUND_OR_FORBIDDEN") {
       return NextResponse.json({ error: "ไม่พบช่องทางนี้" }, { status: 404 });
     }
-    console.error("[DELETE /api/channels/[id]] shopId:", shop.id, e instanceof Error ? e.message : e);
+    console.error("[DELETE /api/channels/[id]] shopId:", activeCtx.shopId, e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }

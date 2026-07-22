@@ -28,8 +28,8 @@
  * ไม่ใช่ค่าที่เดาเอง — Paces ไม่มี token สำหรับ viewport-locked height
  *
  * (ChatWidget task) fetch/realtime/send/upload/mark-read logic ทั้งหมด extract ไปที่
- * ../../../_shared/useSellerChatThread.ts เพื่อให้ ChatWidgetThreadPanel.tsx (bubble panel)
- * เรียกใช้ชุดเดียวกัน — ไฟล์นี้เหลือแค่ render (UX ไม่เปลี่ยนแม้แต่บรรทัดเดียว)
+ * (dashboard)/_shared/useSellerChatThread.ts เพื่อให้ ChatWidgetThreadPanel.tsx (bubble panel,
+ * ยังอยู่ (dashboard) เดิม) เรียกใช้ชุดเดียวกัน — ไฟล์นี้เหลือแค่ render (UX ไม่เปลี่ยนแม้แต่บรรทัดเดียว)
  *
  * feature 00018 T4 (เพิ่มบนโครงเดิมทั้งหมด — ไม่แตะ layout/fetch logic เดิม):
  *  - channel badge ที่ header (ChannelBadge.tsx ที่มีอยู่แล้ว)
@@ -46,6 +46,19 @@
  *  - max-w บน bubble column (บั๊ก prod ภาคผนวก A-3: ข้อความยาวดันเต็มบรรทัด)
  *  - ปุ่ม "ข้อมูลลูกค้า" + CustomerPanelSheet (<1024px) — desktop ใช้ CustomerPanel.tsx แบบ
  *    persistent column แทน (page.tsx เป็นคนตัดสินด้วย CSS breakpoint ไม่ใช่ component นี้)
+ *
+ * rewrite (chat-standalone, .superpowers/sdd/chat-standalone.md): ย้ายมาจาก
+ * (dashboard)/inbox/[conversationId]/components/ChatThread.tsx → (chat)/... เดิม — _shared/*
+ * imports เปลี่ยนเป็น alias (ย้ายข้าม route group แล้ว _shared ยังอยู่ที่ (dashboard)/_shared/
+ * เดิม ใช้ร่วมกับ ChatWidget); root card เปลี่ยนจากสูตร dvh-minus-topbar เดิมเป็น h-full
+ * เพราะ parent ((chat)/inbox/[conversationId]/page.tsx) คุมความสูงที่เหลือให้แล้ว (parent
+ * ของมันคือ (chat)/layout.tsx flex h-dvh) ไม่ต้องคำนวณ viewport เองอีกต่อไป (HR7 carve-out
+ * เดิมของบรรทัดนี้จึงหมดไปด้วย — h-full เป็น Tailwind scale ปกติ)
+ *
+ * เพิ่มปุ่ม "กลับรายการ" (มือถือ/แท็บเล็ต <1024px) ที่ card-header — เดิมพึ่ง SellerMobileHeader
+ * ของ (dashboard) layout (back button + bottom nav) เป็นทางออกจากหน้าเธรด แต่ (chat) route group
+ * ไม่มีทั้งสองอย่างแล้ว (ดู (chat)/layout.tsx) ต้องมีปุ่มกลับรายการของตัวเอง (แยกจากปุ่ม
+ * "กลับหน้าหลัก" ที่ ChatHeader.tsx — คนละปลายทาง: ปุ่มนี้ไป /inbox ไม่ใช่ /dashboard)
  */
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
@@ -53,10 +66,15 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { useSellerChatThread, groupByDate, type ChatProductCard, type ChatMessageView } from '../../../_shared/useSellerChatThread'
-import SellerEmptyState from '../../../_shared/SellerEmptyState'
-import SellerErrorState from '../../../_shared/SellerErrorState'
-import { SellerThreadSkeleton } from '../../../_shared/SellerCardSkeleton'
+import {
+  useSellerChatThread,
+  groupByDate,
+  type ChatProductCard,
+  type ChatMessageView,
+} from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
+import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
+import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
+import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import type { CustomerPanelData } from './CustomerPanel'
@@ -246,12 +264,23 @@ export default function ChatThread({
 
   return (
     <>
-    <div className="card h-[calc(100dvh-var(--topbar-height))] min-w-0 flex-1 flex flex-col"> {/* HR7 carve-out: copy ตรงจาก Base ChatPage.tsx L22 (สูตรอัปเดต feat 00018 งาน 1 — เดิม 100vh-190px นับรวม breadcrumb+page padding ที่ตัดออกไปแล้ว, ดู comment หัวไฟล์ inbox/page.tsx) */}
+    <div className="card min-w-0 h-full flex-1 flex flex-col"> {/* h-full: parent คุมความสูงที่เหลือให้แล้ว (ดู comment หัวไฟล์) */}
       {/* card-header — Base ChatPage.tsx:34-56 (deviate: เพิ่ม avatar ระบุตัวตน, ตัด mobile-toggle/
           online-status/ChatToolbar — ไม่มี call/video/presence backend ตาม omissions; feature 00018
-          T4: เพิ่ม ChannelBadge ข้างชื่อ) */}
+          T4: เพิ่ม ChannelBadge ข้างชื่อ)
+          rewrite (chat-standalone): เพิ่มปุ่ม "กลับรายการ" มือถือ/แท็บเล็ต (lg:hidden) — (chat)
+          route group ไม่มี bottom nav/back header ของ (dashboard) แล้ว ต้องมีทางออกจากหน้าเธรด
+          กลับไป /inbox ของตัวเอง (คนละปุ่มกับ "กลับหน้าหลัก" ที่ ChatHeader.tsx ซึ่งไป /dashboard) */}
       <div className="card-header">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/inbox"
+            title="กลับรายการ"
+            aria-label="กลับรายการ"
+            className="btn btn-icon border-default-300 shrink-0 lg:hidden"
+          >
+            <Icon icon="arrow-left" className="text-lg" />
+          </Link>
           <ChatAvatar avatar={buyerAvatar} name={buyerName} />
           <div>
             <h5 className="text-base mb-1.25">{buyerName}</h5>

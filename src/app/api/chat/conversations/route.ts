@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
-import { getShopByUserId } from "@/services/shop.service";
+import { resolveActiveShopContext } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
 import {
   getOrCreateConversation,
@@ -134,7 +134,8 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/chat/conversations — inbox list, role กำหนดจาก subdomain (SDS §3.3)
- * seller.* → shop ของ session user (personal shop เท่านั้น — ดู SDS §1.4 multi-shop caveat)
+ * seller.* → ร้านที่ active จริงของ session user (bug fix แชทไม่แยกตามร้าน — เดิมใช้
+ * getShopByUserId ซึ่งคืน PERSONAL เสมอ ไม่สนว่ากำลัง active ร้านไหนอยู่ — ดู resolveActiveShopContext)
  * main → buyer inbox ของ session user
  */
 export async function GET(request: NextRequest) {
@@ -166,11 +167,14 @@ export async function GET(request: NextRequest) {
   const subdomain = getSubdomain(host);
 
   if (subdomain === "seller") {
-    const shop = await getShopByUserId(userId);
-    if (!shop) {
-      return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
+    // bug fix: resolve ร้านที่ active จริง — ห้าม fallback เงียบ ๆ ไป PERSONAL (นั่นคือบั๊กเดิม)
+    const activeCtx = await resolveActiveShopContext({
+      user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
+    });
+    if (!activeCtx) {
+      return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
     }
-    const result = await listConversationsForShop(shop.id, {
+    const result = await listConversationsForShop(activeCtx.shopId, {
       cursor: parsed.output.cursor,
       take: parsed.output.take,
       channel: parsed.output.channel,

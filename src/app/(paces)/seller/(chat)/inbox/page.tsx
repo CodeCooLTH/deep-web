@@ -24,26 +24,33 @@
  * เป็น null → InboxList fallback เป็น "ผู้ติดต่อ" เสมอ (ไม่ crash แต่ไม่เห็นชื่อจริง) — ต้องแก้
  * ที่ route.ts ใน task แยก (นอกขอบเขตไฟล์ของ T3)
  *
- * header: SellerMobileHeader (mobile, auto จาก getSellerPageTitle ผ่าน sellerMenuItems
- * '/inbox' → "ข้อความ") — ไม่สร้าง custom header
+ * rewrite (chat-standalone, .superpowers/sdd/chat-standalone.md): ย้ายมาจาก
+ * (dashboard)/inbox/page.tsx → (chat)/inbox/page.tsx — หน้าแชทตอนนี้เป็นเต็มจอของตัวเอง
+ * (ไม่มี Sidenav/TopBar ของ seller อีกต่อไป, ดู (chat)/layout.tsx) header/back button/search
+ * ย้ายไป ChatHeader.tsx (mount ที่ layout); Chat Rail ย้ายไปเป็นคอลัมน์แรกที่ layout เช่นกัน
+ * (ChatRail.tsx) แทนการสลับเข้า Sidenav — หน้านี้ (children ของ layout) จึงคุมแค่คอลัมน์กลาง+ขวา
+ * เหมือนเดิมทุกประการ (ไม่เปลี่ยน logic data fetch) เปลี่ยนแค่ height strategy (ดู comment
+ * ที่ JSX ด้านล่าง — ใช้ h-full แทนสูตร dvh-minus-topbar เดิม เพราะตอนนี้พ่อแม่คุม
+ * ความสูงที่เหลือให้แล้วผ่าน flex h-dvh ที่ layout.tsx ไม่ต้องคำนวณ viewport เองอีกต่อไป)
+ * _shared/* imports เปลี่ยนจาก relative (../_shared) เป็น alias เพราะย้ายข้าม route group แล้ว
+ * (_shared ยังอยู่ที่ (dashboard)/_shared/ เดิม — ใช้ร่วมกับ ChatWidget ฯลฯ ที่ยังอยู่ (dashboard))
  *
- * feat 00018 งาน 1: ตัด PageBreadcrumb ("ข้อความ") ออกทั้งเส้น — user ยืนยัน desktop chat app
- * เป็นเต็มจอ [rail][thread][panel] ไม่มี breadcrumb/การ์ดครอบซ้อน/page-content padding (เดิม
- * breadcrumb นี้แสดงเฉพาะ `hidden lg:block` อยู่แล้ว มือถือไม่เห็นอยู่แล้วไม่กระทบ). พื้นที่เต็ม
- * ความสูงจริงคุมที่ safepay-overrides.css `.seller-chat-shell` (scoped @media min-width:1024px,
- * marker เดียวกับ Chat Rail width — SidenavContent.tsx toggle ให้อัตโนมัติเมื่อ pathname เริ่ม
- * ด้วย /inbox) ไม่แตะหน้า seller อื่นเลย เพราะ marker ผูกกับ path ไม่ใช่ global
+ * bug fix (แชทไม่แยกตามร้าน, user report prod): getShopByUserId คืนร้าน PERSONAL เสมอ ไม่สนว่า
+ * session กำลัง active อยู่ร้านไหน (feature 00008 shop switcher) — สลับไปร้าน B แล้วยังเห็นแชทของ
+ * PERSONAL ค้างอยู่. เปลี่ยนเป็น resolveActiveShopContext (re-verify membership เสมอ, ห้าม trust
+ * JWT เปล่า ๆ) — resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → error state ตรง ๆ ห้าม fallback เงียบ ๆ
+ * กลับ PERSONAL (นั่นคือบั๊กเดิม)
  */
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getShopByUserId } from '@/services/shop.service'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listConversationsForShop } from '@/services/chat.service'
 import { listChannels } from '@/services/shop-channel.service'
-import SellerEmptyState from '../_shared/SellerEmptyState'
-import SellerErrorState from '../_shared/SellerErrorState'
+import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
+import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
@@ -53,17 +60,22 @@ export default async function SellerInboxPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  let shop: { id: string } | null = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // bug fix: resolve ร้านที่ active จริง (Personal หรือ Business ตาม session.user.activeShopId,
+  // re-verify membership เสมอ) — ห้ามใช้ getShopByUserId (คืน PERSONAL เสมอ, คือบั๊กเดิม)
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
+  })
 
-  if (!shop) {
-    // ทุก seller ควรมีร้านอยู่แล้ว (layout.tsx auto-create) — defensive fallback เท่านั้น
-    return <SellerErrorState title="ยังไม่มีร้านค้า" message="เปิดร้านก่อนเพื่อดูข้อความจากลูกค้า" />
+  if (!activeCtx) {
+    // resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → error state ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
+    return (
+      <SellerErrorState
+        title="ไม่พบร้านที่กำลังใช้งาน"
+        message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
+      />
+    )
   }
+  const shop = { id: activeCtx.shopId }
 
   // ── channels (ตัวกรอง "เพจ") — fail-closed แยกจาก conversation fetch (pattern pendingCount
   // ของ layout.tsx) ไม่มีเพจก็ยังดู list ได้ปกติ แค่ตัวกรองว่าง ──
@@ -168,19 +180,15 @@ export default async function SellerInboxPage() {
         <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} />
       </div>
       {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
-          (rail คุมจาก Sidenav แยก task; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror โครง flex ของ
-          /inbox/[conversationId]/page.tsx เป๊ะ (gap-4, ขวา w-96 shrink-0) ไม่งั้นเลย์เอาต์
-          กระตุกตอนสลับหน้า — ความสูงการ์ดกลาง/ขวาคัดลอกค่าเดียวกับ ChatThread.tsx (ดู HR7
-          carve-out comment ที่ div ด้านล่าง) root card เดิมที่นั่น ใช้ค่าเดียวกันเพื่อความสูง
-          คอลัมน์ตรงกัน ไม่ใช่คิดใหม่ */}
-      <div className="hidden lg:flex gap-4">
-        {/* HR7 carve-out: h-[calc(100dvh-var(--topbar-height))] คัดลอกค่าเดียวกับ ChatThread.tsx
-            root card เป๊ะ (ไม่ใช่ arbitrary ใหม่ — --topbar-height เป็น token จริงของ Paces
-            config/_root.css, สูตรเดียวกับที่ _layout.css ใช้คำนวณ min-height ของ .page-content เอง)
-            feat 00018 งาน 1: ปรับสูตรจาก 100vh-190px (ยุคที่ยังมี breadcrumb+page padding) เป็น
-            100dvh-topbar-height เพราะตัด breadcrumb + page-content padding ออกแล้ว (ดู
-            safepay-overrides.css `.seller-chat-shell`) เหลือแค่ topbar กินพื้นที่ด้านบน */}
-        <div className="card h-[calc(100dvh-var(--topbar-height))] min-w-0 flex-1 flex items-center justify-center"> {/* HR7 carve-out: ดู comment ด้านบน */}
+          (rail อยู่ที่ (chat)/layout.tsx แล้ว — ChatRail.tsx; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror
+          โครง flex ของ /inbox/[conversationId]/page.tsx เป๊ะ (gap-4, ขวา w-96 shrink-0) ไม่งั้น
+          เลย์เอาต์กระตุกตอนสลับหน้า — h-full: parent ({'children'} slot ของ layout.tsx) เป็น
+          flex item ใน `flex min-h-0 flex-1` ที่ layout.tsx คุมความสูงที่เหลือ (100dvh ลบ header)
+          ให้แล้ว ไม่ต้องคำนวณ viewport เองที่นี่อีก (ต่างจากเดิมก่อน rewrite ที่ต้องมี HR7
+          carve-out คำนวณ dvh ลบ topbar-height เอง — ตอนนี้ h-full เป็น Tailwind scale ปกติ
+          ไม่ใช่ arbitrary value แล้ว) */}
+      <div className="hidden h-full lg:flex lg:gap-4">
+        <div className="card flex h-full min-w-0 flex-1 items-center justify-center">
           <SellerEmptyState
             compact
             icon="message-circle"
@@ -188,9 +196,8 @@ export default async function SellerInboxPage() {
             description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
           />
         </div>
-        <div className="w-96 shrink-0">
-          {/* HR7 carve-out: เหตุผลเดียวกับการ์ดกลางด้านบน */}
-          <div className="card h-[calc(100dvh-var(--topbar-height))] flex items-center justify-center"> {/* HR7 carve-out */}
+        <div className="h-full w-96 shrink-0">
+          <div className="card flex h-full items-center justify-center">
             <SellerEmptyState
               compact
               icon="user-circle"
