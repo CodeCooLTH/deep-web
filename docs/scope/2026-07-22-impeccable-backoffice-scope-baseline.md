@@ -28,7 +28,7 @@
 | S-A6 | P1 | (BO2-03) `AuctionConsoleClient.tsx:110-114` Sweet Alert hardcode hex → `getColor()` token | `rg '#ff9f43\|#1e293b\|#5b6678\|#94a3b8' AuctionConsoleClient.tsx` = 0; `getColor(` ปรากฏแทน; `#236dc9` (Paces primary จริง) ยังอยู่ไม่ถูกแตะ | TODO |
 | S-A7 | P2 | (BO2-04) `ProductDetails.tsx:29-33` badge `SERVICE` ใช้ `bg-success/15 text-success` (หมวดหมู่ ไม่ใช่สถานะ) → เปลี่ยนเป็นสีที่ไม่ใช่ success/verified-green | บรรทัด badge `SERVICE` ไม่มี token `success`; ใช้ semantic token อื่น (ดู Assumption A-2) | TODO |
 | S-A8 | P2 | (BO-05) เติม comment `HR7:` กำกับ arbitrary value ที่ขาด 6 จุด | `HR7:` ปรากฏติดกับทุก arbitrary value ที่ระบุ (6 จุด) | TODO |
-| S-A9 | P2 | (BO-06) `admin/auth/verify-otp/page.tsx:48` literal `#313a46` → `var(--color-dark)` (ค่าเดียวกันเป๊ะ — hygiene ไม่ใช่ mood bleed) | `rg '#313a46' verify-otp/page.tsx` = 0 | TODO |
+| S-A9 | P2 | ~~(BO-06) `admin/auth/verify-otp/page.tsx:48` literal `#313a46` → `var(--color-dark)`~~ → **WONTFIX** (ดู A-6) แทนด้วยการเขียน comment `HR7:` อธิบายว่าเป็น literal โดยตั้งใจ | มี comment `HR7:` ที่อธิบายเหตุผล theme-invariant กำกับบรรทัด gradient; `#313a46` **ยังอยู่โดยตั้งใจ** | **WONTFIX** |
 | S-A10 | P2 | **(doc-only)** เขียนข้อยกเว้น `border-s-3 border-{color}` ลง `DESIGN.md` ให้เอกสาร 2 ชั้นเลิกขัดกัน | `rg -n "border-s-3" DESIGN.md` มี entry อธิบายเหตุผล exception + ระบุว่ายังใช้ในโค้ดต่อ | TODO |
 
 ### S-A3 — 13 จุดเต็ม (10 ไฟล์)
@@ -45,6 +45,11 @@
 | 15 | `seller/(dashboard)/wallet/components/WalletCard.tsx` | 87 |
 | 16 | `seller/(dashboard)/verification/components/LevelCard.tsx` | 122 |
 | 17-18 | `admin/(dashboard)/scam-reports/[id]/page.tsx` | 47, 119 |
+
+> **หมายเหตุ LevelCard.tsx:122 — เกินกว่า "ลบ class" โดยตั้งใจ (user อนุมัติ 2026-07-22):**
+> จุดนี้เป็น eyebrow "LEVEL {n}" เหนือ h3 ซึ่งเป็น anti-pattern ที่ `DESIGN.md` ห้ามตรงตัว — **การลบแค่ `uppercase` ยังคงเป็น eyebrow อยู่** (แค่ไม่ ALL CAPS) จะโดน finding ซ้ำในรอบหน้า
+> user เลือก **ยุบเป็นบรรทัดเดียว** `ระดับ {level} · {title}` = ลบ `<span>` eyebrow ทั้งก้อน + แปล "Level" → "ระดับ" ตาม convention ภาษาไทย
+> → S-id นี้จึงเปลี่ยน **copy + visual hierarchy** ที่จุดนี้จุดเดียว ไม่ใช่แค่ hygiene ระดับ class (มี comment กำกับในโค้ดแล้ว)
 
 > **หมายเหตุ StatisticCard — Controller verify แล้ว (2026-07-22):** มี **สองไฟล์คนละตัว** class string เหมือนกันเป๊ะ (`text-default-400 text-sm uppercase mb-2 font-medium`) แต่ audit จับได้แค่ไฟล์เดียว
 > - `src/views/dashboards/ecommerce/StatisticCard.tsx:37` → consumer เดียว = `admin/(dashboard)/dashboard/page.tsx:115`
@@ -108,12 +113,15 @@ S-A3 เป็น hub ที่เชื่อม S-A2/S-A5/S-A7 → **ทำเ
 ## Assumptions
 
 - **A-1 (S-A3):** `StatisticCard` ทั้ง 2 ไฟล์ verify แล้วว่ามี consumer เดียวต่อไฟล์ ไม่ share ข้ามสโคป — แก้ได้โดยไม่ต้องถามใคร (Controller grep ยืนยัน 2026-07-22)
-- **A-2 (S-A7):** user บอกแค่ "ไม่ใช่ success/verified-green" ยังไม่ระบุสีปลายทาง — สมมติเป็น `info` (cyan) เพราะเป็นหมวดหมู่ ไม่ใช่สถานะยืนยัน/สำเร็จ และไม่ใช่ `primary` (สงวนไว้ action). ถ้า user ปฏิเสธ เปลี่ยนได้ที่ class เดียว
+- ~~**A-2 (S-A7):** สมมติเป็น `info` (cyan)~~ → **ยกเลิก ใช้ `secondary` แทน** — `safepay-ux` ตรวจแล้วพบว่า `info` **ใช้ไม่ได้** เพราะ `DIGITAL` ใช้ `bg-info/15 text-info` อยู่แล้วในไฟล์เดียวกัน (`ProductDetails.tsx:27`) จะทำให้ badge 2 ประเภทหน้าตาเหมือนกัน. สรุป mapping จริง: `PHYSICAL=primary` · `DIGITAL=info` · `SERVICE=secondary` (`#7b70ef`, `_root.css:17`, มี precedent ใช้เป็น "หมวดหมู่" ที่ `products/page.tsx:138`) · `SUBSCRIPTION=warning` — 4 สีแยกกันชัด ไม่มีตัวไหนแตะ `success`/`danger`
 - **A-3:** backoffice ทั้งหมดอยู่ใต้ `data-skin="default"` (Paces แท้) อยู่แล้ว — verified ที่ `src/app/(paces)/layout.tsx:56` ไม่ต้อง re-verify
 - **A-4:** ไม่มี business rule ใหม่ ยกเว้น S-A1 ที่เป็นการแก้บั๊กสีให้ตรงความหมายเดิม ไม่ใช่กฎใหม่
 - **A-5 (S-A1 — test strategy):** โปรเจกต์**ไม่มี component-test infra** — dependency มีแค่ `vitest` ไม่มี `jsdom`/`happy-dom`/`@testing-library/react` และ test ทั้ง 20 ไฟล์ที่มีอยู่เป็น pure-module test ใน `src/lib/` + `src/services/` ทั้งหมด (Controller verify 2026-07-22)
   → **ห้ามลง dev dependency ใหม่เพื่อเทสต์ component = CREEP**
   → ทางที่ยึด: extract ตรรกะสีจาก `OrdersStatCard.tsx` เป็น pure function (เช่น `getStatChangeTone(statusKey, changePct)`) ไว้ในไฟล์ `.ts` แยก แล้วเขียน Vitest ครอบ pure function นั้น — component แค่เรียกใช้ ตรงกับ convention เดิมของ repo และแก้ปัญหา testability ที่ต้นเหตุ
+- **A-6 (S-A9 — WONTFIX):** สมมติฐานเดิมว่า `var(--color-dark)` มีค่าเท่า `#313a46` เป๊ะ **ผิด** — token นี้เป็น theme-adaptive (`#313a46` light / `#4b4d5c` dark ที่ `_root.css:27,133`) และ `useLayoutContext.tsx:144` สลับ `data-theme` ตอน runtime ได้ (รวมโหมด `system` ที่อ่านจาก OS)
+  gradient จุดนี้มี 3 stop โดย stop 2-3 เป็น `rgba(49,58,70,x)` ซึ่งไม่มี CSS var รูป rgb-triplet ให้ผสม opacity → ถ้าแปลงเฉพาะ stop แรกเป็น `var()` พอธีมเป็น dark stop แรกจะกลายเป็น `#4b4d5c` ขณะที่อีก 2 stop ยังโทนเดิม = **ไล่สีขาด**
+  → การ "แก้ hygiene" ทำให้แย่ลง ไม่ใช่ดีขึ้น. ปิดเป็น WONTFIX แล้วเขียน comment `HR7:` กำกับแทน เพื่อให้ audit รอบหน้าไม่ re-flag ซ้ำ (แปลง finding เป็น documented intent — pattern เดียวกับ S-A8/S-A10)
 
 ---
 
@@ -132,3 +140,7 @@ S-A3 เป็น hub ที่เชื่อม S-A2/S-A5/S-A7 → **ทำเ
 | 2026-07-22 | S-A3 12 → 13 จุด (+ `seller/.../dashboard/components/StatisticCard.tsx:30`) และปิด open question เรื่อง shared component | Controller grep verify เอง พบ `StatisticCard` 2 ไฟล์คนละตัวมีปัญหาเดียวกัน audit จับได้แค่ไฟล์เดียว | Controller |
 | 2026-07-22 | S-A4 เพิ่มงานอัปเดต comment กำพร้าใน `SellerMobileHeader.tsx:10,15,16,39` | ลบ `IdentityBar.tsx` แล้วจะทิ้ง comment ที่อ้างถึงไฟล์ที่ไม่มีอยู่ | Controller |
 | 2026-07-22 | S-A1 เปลี่ยน test strategy — extract pure function ก่อนแล้วเทสต์ตัวนั้น (เพิ่ม Assumption A-5) | acceptance เดิมเขียนให้เทสต์ component โดยตรง ซึ่ง**ทำไม่ได้จริง** — repo ไม่มี jsdom/testing-library และไม่มี component test สักตัว การลง dep ใหม่จะเป็น CREEP | Controller |
+| 2026-07-22 | **S-A9 → WONTFIX** เปลี่ยนเป็นเขียน comment `HR7:` แทนการแปลง token (เพิ่ม Assumption A-6) | developer flag ขึ้นมาว่า `var(--color-dark)` เป็น theme-adaptive ไม่ใช่ค่าคงที่ — Controller verify แล้วพบว่าจริง และการแปลงจะทำให้ gradient ไล่สีขาดตอนธีม dark คือ "แก้แล้วแย่ลง" | Controller |
+| 2026-07-22 | **S-A7 ยกเลิก Assumption A-2** (`info`) → ใช้ `secondary` | `safepay-ux` ตรวจพบว่า `info` ชนกับ `DIGITAL` ที่ใช้อยู่แล้วในไฟล์เดียวกัน — assumption เดิมของ Controller ผิด | Controller (ตาม ux) |
+| 2026-07-22 | **S-A3 LevelCard** ขยายจาก "ลบ class" เป็น "ยุบ eyebrow รวมกับ h3 + แปลเป็นไทย" | ลบแค่ `uppercase` ยังคงเป็น eyebrow pattern ที่ DESIGN.md ห้าม จะโดน finding ซ้ำรอบหน้า | shinobu22 |
+| 2026-07-22 | บันทึกย้อนหลัง 2 รายการข้างบนหลัง reviewer ทัก | reviewer flag ว่าโค้ดไม่ตรง baseline (traceability gap) — การตัดสินใจเกิดขึ้นจริงในแชทแต่ไม่ได้เขียนกลับเข้าเอกสาร | Controller |
