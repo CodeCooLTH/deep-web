@@ -84,7 +84,7 @@ export default function WalletCard({ balance, lowBalance, hasError = false }: Wa
           {/* ─── Row 2: label + action (โครงจาก OrdersStatCard flex items-center justify-between) ─── */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase text-default-500">
+              <span className="text-xs font-bold text-default-500">
                 ยอดเครดิต SMS
               </span>
 

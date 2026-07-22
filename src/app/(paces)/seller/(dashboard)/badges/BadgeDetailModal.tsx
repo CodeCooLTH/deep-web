@@ -36,6 +36,14 @@ function rarityLabel(tier: RarityTier): string {
   }
 }
 
+/** โทนสี soft badge ตาม rarity tier — token เท่านั้น ไม่มี gradient/hex ลอย (Impeccable S-A2) */
+const RARITY_TONE: Record<RarityTier, string> = {
+  COMMON: 'bg-default-200 text-default-700',
+  UNCOMMON: 'bg-info/15 text-info',
+  RARE: 'bg-secondary/15 text-secondary',
+  LEGENDARY: 'bg-warning/15 text-warning',
+}
+
 // ─── Subtitle template ────────────────────────────────────────────────────────
 
 /** สร้าง subtitle ตาม criteria.type — แทรก % จริงถ้ามี (Controller decision #1) */
@@ -270,23 +278,8 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
 
               {/* ── ซ้าย: badge side ─────────────────────────────────────────── */}
               <div
-                className="flex flex-col items-center justify-center gap-4 p-8 border-b border-default-200 md:border-b-0 md:border-e md:border-default-200 relative overflow-hidden"
-                style={{
-                  // amber/violet gradient + dotted bg (decorative — inline style ตาม Controller decision #6)
-                  background: 'radial-gradient(ellipse at 60% 30%, rgba(139,92,246,0.12) 0%, rgba(245,158,11,0.08) 60%, transparent 100%)',
-                  backgroundSize: '400px 400px, auto',
-                }}
+                className="flex flex-col items-center justify-center gap-4 p-8 border-b border-default-200 md:border-b-0 md:border-e md:border-default-200 relative overflow-hidden bg-default-50"
               >
-                {/* dotted overlay — decorative */}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 opacity-[0.07] pointer-events-none"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, #6366f1 1px, transparent 1px)',
-                    backgroundSize: '20px 20px',
-                  }}
-                />
-
                 {/* badge image with float animation */}
                 <div
                   style={{ animation: 'badge-float 4s ease-in-out infinite' }}
@@ -309,10 +302,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                     <div className="h-6 w-20 rounded-full bg-default-200 animate-pulse" />
                   ) : showRarityPill && rarity ? (
                     <span
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white"
-                      style={{
-                        background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${RARITY_TONE[rarity.tier]}`}
                     >
                       <IconifyIcon icon="tabler-diamond" className="text-sm" />
                       {rarityLabel(rarity.tier)}
@@ -321,7 +311,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                 </div>
 
                 {/* id tag — mono style */}
-                <p className="relative z-10 font-mono text-[10px] text-default-400 tracking-widest">
+                <p className="relative z-10 font-mono text-2xs text-default-400">
                   id: {badge.badge.nameEN}
                 </p>
               </div>
@@ -331,7 +321,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
 
                 {/* category tag */}
                 {categoryLabel && (
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-default-400">
+                  <p className="text-2xs font-bold text-default-400">
                     {categoryLabel}
                   </p>
                 )}
@@ -364,7 +354,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                       border: '1px solid rgba(245,158,11,0.2)',
                     }}
                   >
-                    <p className="text-xs font-bold text-default-700 uppercase tracking-wide">
+                    <p className="text-xs font-bold text-default-700">
                       ความคืบหน้า
                     </p>
 
@@ -417,7 +407,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                 {/* ── how-section tips (ซ่อนถ้า earned / SIGNUP_YEAR) ─────────── */}
                 {!badge.earned && criteriaType !== 'SIGNUP_YEAR' && tips && tips.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-bold text-default-700 uppercase tracking-wide">
+                    <p className="text-xs font-bold text-default-700">
                       วิธีปลดล็อก
                     </p>
                     <ul className="space-y-2">

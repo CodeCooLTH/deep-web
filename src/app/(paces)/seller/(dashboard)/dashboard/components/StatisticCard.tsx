@@ -27,7 +27,7 @@ const StatisticCard = ({ stat }: { stat: StatType }) => {
       <div className="card-body">
         <div className="flex justify-between items-start">
           <div>
-            <h5 className="text-default-400 text-sm uppercase mb-2 font-medium" title={title}>
+            <h5 className="text-default-400 text-sm mb-2 font-medium" title={title}>
               {title}
             </h5>
             <h3 className="my-5 py-1.25 text-xl">
