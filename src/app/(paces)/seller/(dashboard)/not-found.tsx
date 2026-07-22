@@ -25,8 +25,8 @@ const NotFound = () => {
                     <AuthLogo />
                   </div>
                   <div className="p-6 text-center">
-                    <div className="from-primary my-4 bg-linear-to-r to-danger bg-clip-text text-7xl font-bold text-transparent">404</div>
-                    <h3 className="mb-2 text-xl font-bold uppercase">ไม่พบหน้าที่คุณค้นหา</h3>
+                    <div className="text-default-300 my-4 text-7xl font-bold">404</div>
+                    <h3 className="mb-2 text-xl font-bold">ไม่พบหน้าที่คุณค้นหา</h3>
                     <p className="text-default-400 mx-auto">หน้านี้อาจถูกย้าย ลบ หรือคุณไม่มีสิทธิ์เข้าถึง</p>
                     <div className="mt-8 flex items-center justify-center gap-1.5">
                       <Link href="/dashboard" className="btn bg-primary text-white hover:bg-primary-hover">

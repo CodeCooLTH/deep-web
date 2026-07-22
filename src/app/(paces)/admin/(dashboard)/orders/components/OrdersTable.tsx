@@ -105,6 +105,7 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
           const o = row.original
           return (
             <div className="min-w-0">
+              {/* HR7: max-w-[14rem] — คุมความยาวชื่อร้านในคอลัมน์ตาราง กันชื่อยาวดันคอลัมน์อื่น; Paces ไม่มี token max-width ระดับคอลัมน์ */}
               <div className="text-sm font-medium truncate max-w-[14rem]">
                 {o.shopName}
               </div>
@@ -130,6 +131,7 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
           if (o.buyerDisplayName) {
             return (
               <div className="min-w-0">
+                {/* HR7: max-w-[12rem] — คุมความยาวชื่อผู้ซื้อในคอลัมน์ตาราง (แคบกว่าคอลัมน์ร้านเพราะพื้นที่จำกัดกว่า); Paces ไม่มี token max-width ระดับคอลัมน์ */}
                 <div className="text-sm font-medium truncate max-w-[12rem]">
                   {o.buyerDisplayName}
                 </div>
@@ -160,6 +162,7 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
             return <span className="text-default-400">—</span>
           }
           return (
+            // HR7: max-w-[16rem] — คุมความยาวชื่อสินค้าในคอลัมน์ตาราง (กว้างสุดใน 3 คอลัมน์เพราะชื่อสินค้ามักยาว); Paces ไม่มี token max-width ระดับคอลัมน์
             <div className="min-w-0 max-w-[16rem]">
               <div className="text-sm truncate">{o.firstItemName}</div>
               {o.extraItemCount > 0 && (

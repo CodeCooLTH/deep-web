@@ -136,7 +136,7 @@ function EarnedCard({ item, onClick }: CardProps) {
 
       {/* category label — omit ทั้งบรรทัดถ้า map ไม่เจอ (spec: ถ้า map ไม่เจอ → omit) */}
       {categoryLabel && (
-        <p className="text-[10px] font-bold uppercase tracking-widest text-default-400 mb-1">
+        <p className="text-2xs font-bold text-default-400 mb-1">
           {categoryLabel}
         </p>
       )}
@@ -188,7 +188,7 @@ function LockedCard({ item, onClick }: CardProps) {
 
       {/* category label — omit ถ้า map ไม่เจอ */}
       {categoryLabel && (
-        <p className="text-[10px] font-bold uppercase tracking-widest text-default-400 mb-1">
+        <p className="text-2xs font-bold text-default-400 mb-1">
           {categoryLabel}
         </p>
       )}

@@ -50,6 +50,29 @@ export function getTierColor(trustScore: number): TierChipColor {
   }
 }
 
+/**
+ * accent hex เฉพาะของแต่ละ tier (5 ค่าต่างกันจริง) — เพิ่มควบคู่ getTierColor() เดิม ไม่แทนที่
+ * ทำไม: getTierColor() คืน 'warning' ให้ทั้ง Deep Gold (B+) และ Deep Classic (C,D) เพราะ TierChipColor
+ * มีแค่ 4 ค่า (MUI chip palette) — ไม่พอแยก 5 tier ให้ต่างกันจริงตอนวาด accent (เช่น trust gauge)
+ * ค่าทุกตัว derive จาก .impeccable/design.json tonalRamp (Impeccable remediation S-B7):
+ *   Star=primary canonical, Diamond=signal-cyan canonical, Gold=warning-amber canonical,
+ *   Silver=ink tonalRamp[3], Classic=warning-amber tonalRamp[2] (เข้มกว่า Gold เพื่อแยกออกจากกัน)
+ */
+export function getTierAccentColor(trustScore: number): string {
+  switch (letterFromScore(trustScore)) {
+    case 'A+':
+      return '#7367F0' // Deep Star
+    case 'A':
+      return '#00BAD1' // Deep Diamond
+    case 'B+':
+      return '#FF9F43' // Deep Gold
+    case 'B':
+      return '#7a7689' // Deep Silver
+    default:
+      return '#b36700' // Deep Classic (C, D)
+  }
+}
+
 /** ช่วงคะแนนของแต่ละ tier label (สำหรับ query filter ตามเลเวล) — threshold ตรงกับ letterFromScore SSOT.
  * Star ≥90 · Diamond 80-89 · Gold 70-79 · Silver 60-69 · Classic <60 (C+D). null = ไม่ตรง tier ใด */
 export function getTierScoreRange(tierLabel: string): { gte: number; lt?: number } | null {
@@ -87,19 +110,27 @@ export function getTierCover(trustScore: number): string {
  * cover เป็น CSS gradient ต่อ tier (แทนรูป baked) — ใช้ที่ /u/[username] redesign (2026-07-04)
  * โทนสีอิงตาราง "สี chip" ใน Tier Lists.md: Classic=ส้ม/อำพัน · Silver=เทาเงิน · Gold=ทอง · Diamond=ฟ้า · Star=ม่วง (Vuexy primary #7367F0)
  * คืนค่าเป็น CSS background(-image) value พร้อมใช้ตรง — ใส่ 3-stop ให้มีมิติ ไม่แบนราบ
+ *
+ * S-B9 (Impeccable remediation Phase B): sync ทุกค่ากับ ramp ที่ user อนุมัติแล้ว (mockup/spec) — เดิมยังเป็น
+ * Tailwind hex เก่าทั้งชุดทั้งที่ mockup sync ไปแล้ว ทุกค่า derive จาก .impeccable/design.json tonalRamp:
+ *   Classic → warning-amber tonalRamp dark/mid/light (#5c3300/#b36700/#FF9F43 — ตรงกับ getTierAccentColor Classic #b36700)
+ *   Silver  → ink tonalRamp dark/mid/light (#454155/#7a7689/#bdbbc7 — ตรงกับ getTierAccentColor Silver #7a7689)
+ *   Gold    → warning-amber canonical dark/main/light (#e08400/#FF9F43/#ffd1a3 — ตรงกับ getTierAccentColor Gold #FF9F43)
+ *   Diamond → signal-cyan canonical dark/main/light (#009eb2/#00BAD1/#8ee5ee — ตรงกับ getTierAccentColor Diamond #00BAD1)
+ *   Star    → primary canonical dark/main/light (#5a4ee0/#7367F0/#b3acf8 — ตรงกับ getTierAccentColor/getTierColor Star)
  */
 export function getTierGradient(trustScore: number): string {
   switch (letterFromScore(trustScore)) {
-    case 'A+': // Deep Star — ม่วง (Vuexy primary)
-      return 'linear-gradient(135deg, #6558E8 0%, #7367F0 45%, #A79DF5 100%)'
-    case 'A': // Deep Diamond — ฟ้า
-      return 'linear-gradient(135deg, #0284C7 0%, #0EA5E9 45%, #7DD3FC 100%)'
-    case 'B+': // Deep Gold — ทอง
-      return 'linear-gradient(135deg, #B45309 0%, #F59E0B 45%, #FCD34D 100%)'
-    case 'B': // Deep Silver — เทาเงิน
-      return 'linear-gradient(135deg, #475569 0%, #94A3B8 45%, #E2E8F0 100%)'
-    default: // Deep Classic (C, D) — ส้ม/อำพัน
-      return 'linear-gradient(135deg, #C2410C 0%, #F97316 45%, #FDBA74 100%)'
+    case 'A+': // Deep Star — ม่วง (primary canonical)
+      return 'linear-gradient(135deg, #5a4ee0 0%, #7367F0 45%, #b3acf8 100%)'
+    case 'A': // Deep Diamond — ฟ้า (signal-cyan canonical)
+      return 'linear-gradient(135deg, #009eb2 0%, #00BAD1 45%, #8ee5ee 100%)'
+    case 'B+': // Deep Gold — ทอง (warning-amber canonical)
+      return 'linear-gradient(135deg, #e08400 0%, #FF9F43 45%, #ffd1a3 100%)'
+    case 'B': // Deep Silver — เทาเงิน (ink tonalRamp)
+      return 'linear-gradient(135deg, #454155 0%, #7a7689 45%, #bdbbc7 100%)'
+    default: // Deep Classic (C, D) — ส้ม/อำพัน (warning-amber tonalRamp เข้มกว่า Gold)
+      return 'linear-gradient(135deg, #5c3300 0%, #b36700 45%, #FF9F43 100%)'
   }
 }
 

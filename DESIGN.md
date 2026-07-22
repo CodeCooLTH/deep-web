@@ -224,6 +224,7 @@ Deep รู้สึกเหมือนเคาน์เตอร์ร้า
 - **Don't** ทำให้ดู **องค์กร/ธนาคารเย็นชา**: ดำสนิท, ฟอร์มแข็งทื่อเหมือนเอกสารราชการ, ไร้ความอบอุ่น.
 - **Don't** ทำแบบ **crypto/web3 จัดจ้าน**: นีออนบนดำ, ไล่สีรุนแรง, copy ไฮป์, อนิเมชั่นเร่งเร้า.
 - **Don't** ใช้ `border-left`/`border-right` >1px เป็นแถบสีตกแต่งบนการ์ด/alert/list.
+  - **ข้อยกเว้นที่ยอมรับ (accepted exception):** `border-s-3 border-{semantic}` (accent card แถบสีฝั่งซ้าย) **ยกเว้นให้เฉพาะ `(paces)/**` (seller/admin)** — ไม่ถือเป็น finding. เหตุผล: เป็น pattern ที่ขึ้นทะเบียนไว้แล้วใน `docs/system/ui-guideline/paces-component-reference.md` §7 และถูกใช้แพร่หลายทั่วหลังบ้านแล้ว การรื้อออกตอนนี้จะทำลาย consistency มากกว่าจะได้. **buyer/Vuexy `(marketing)/**` ยังห้ามตามเดิม** (ไม่มีข้อยกเว้น). ที่มาการตัดสิน: Impeccable audit 2026-07-22, user decision.
 - **Don't** ใช้เขียวกับสถานะที่ยังไม่ยืนยัน — สัญญาณ trust จะเฟ้อ.
 - **Don't** ซ้อนการ์ดในการ์ด, ใช้ดำ `#000`, หรือ hardcode ฟอนต์อื่นนอกจาก Anuphan.
 - **Don't** ใช้ ALL CAPS กับข้อความไทย หรือ placeholder เทาจางที่ตก contrast.

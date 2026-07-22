@@ -117,18 +117,14 @@ export default function LevelCard({
             />
           </div>
           <div>
-            <span
-              className={cn(
-                'text-xs font-semibold uppercase tracking-wider',
-                isActionable ? 'text-white/60' : 'text-default-400',
-              )}
-            >
-              Level {level}
-            </span>
+            {/* เดิมเป็น eyebrow "LEVEL {n}" ตัวจิ๋ว uppercase เหนือ h3 — ยุบรวมเป็นบรรทัดเดียวโดยตั้งใจ
+                (Impeccable audit 2026-07-22 S-A3, user เลือก): eyebrow-เหนือ-headline เป็น anti-pattern
+                ที่ DESIGN.md ห้ามไว้ตรงตัว การลบแค่ uppercase ยังคงเป็น eyebrow อยู่ จึงต้องยุบ
+                + เปลี่ยน "Level" เป็น "ระดับ" ตาม convention ภาษาไทยของ UI copy */}
             <h3
               className={cn('text-xl font-bold leading-tight', isActionable ? 'text-white' : '')}
             >
-              {title}
+              ระดับ {level} · {title}
             </h3>
           </div>
         </div>

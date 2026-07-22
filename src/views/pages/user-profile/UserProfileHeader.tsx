@@ -4,7 +4,6 @@
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
@@ -30,6 +29,12 @@ import { useSession } from 'next-auth/react'
 // + dot-mesh overlay (CSS ล้วน); identity bar responsive row/column; metric row แทน bio/location/joined (ย้ายไป About section
 // ใน profile/index.tsx ซ้าย); ตัดเมตริก "ผู้ติดตาม" ทิ้งทั้งหมด (ไม่มี follow system จริง)
 // คง: back-button frosted-glass, verify badge ✓ บน avatar (carve-out dingbat), chat login-gate เดิม (S-8)
+// Desktop layout redesign (IG-style + trust data): avatar 112px(มือถือ)→152px(md+) ตาม wireframe เป้าหมาย
+// (overlap มากขึ้นให้สมดุลกับ container 960px ที่กว้างขึ้น); completionRate เพิ่มใน ProfileHeaderData —
+// ใช้ที่ ProfileStatsBar เท่านั้น ไม่ใช้ในไฟล์นี้; metric row เดิม (ออเดอร์·★รีวิว·tier chip) ถูกลบออก
+// เพราะข้อมูลชุดเดียวกันย้ายไปอยู่ที่ ProfileStatsBar ซึ่ง render อยู่ใต้บล็อกนี้ทันที — คงไว้จะซ้ำ 2 แถวติดกัน
+// known-gap: tierColor กลายเป็น prop ที่ไม่ถูกใช้ในไฟล์นี้แล้วหลังลบ metric row (field อื่นยังอ่านผ่าน
+// ProfileStatsBar จาก object เดียวกัน — ไม่ลบ field ออกจาก type เพราะ TrustScoreCard ยังใช้ tierColor ต่อ)
 
 export type ProfileHeaderData = {
   profileImg?: string | null
@@ -42,8 +47,10 @@ export type ProfileHeaderData = {
   /** สี chip ตาม Tier Lists SSOT — จาก getTierColor() */
   tierColor: TierChipColor
   maxVerifyLevel: number
-  /** จำนวนออเดอร์สำเร็จ — แสดงใน metric row */
+  /** จำนวนออเดอร์สำเร็จ — แสดงใน ProfileStatsBar */
   completedOrders: number
+  /** % สำเร็จ (confirmed/(confirmed+cancelled)*100) — null เมื่อยังไม่มี order จบเลย (ร้านใหม่) */
+  completionRate: number | null
   avgRating: number
   /** true เมื่อมีรีวิว >= 3 (เพื่อความน่าเชื่อถือ) — ซ่อน ★rating ถ้า false */
   showRating: boolean
@@ -144,14 +151,23 @@ export const ProfileIdentityBar = ({
           gap: { xs: '12px', sm: '16px' },
         }}
       >
-        {/* Avatar 112px overlap cover (mt ลบ) + verify badge มุมขวาล่าง */}
-        <Box sx={{ position: 'relative', width: 112, height: 112, flexShrink: 0, mt: '-56px', zIndex: 2 }}>
+        {/* Avatar overlap cover (mt ลบ) — 112px มือถือ → 152px desktop(md+) + verify badge มุมขวาล่าง */}
+        <Box
+          sx={{
+            position: 'relative',
+            width: { xs: 112, md: 152 },
+            height: { xs: 112, md: 152 },
+            flexShrink: 0,
+            mt: { xs: '-56px', md: '-76px' },
+            zIndex: 2,
+          }}
+        >
           <Avatar
             src={data.profileImg ?? undefined}
             alt={displayName}
             sx={{
-              width: 112,
-              height: 112,
+              width: { xs: 112, md: 152 },
+              height: { xs: 112, md: 152 },
               borderRadius: '50%',
               border: '4px solid white',
               boxShadow: '0 6px 14px rgba(15,23,42,.18)',
@@ -208,46 +224,9 @@ export const ProfileIdentityBar = ({
             @{data.username}
           </Typography>
 
-          {/* metric row: {orders} ออเดอร์ · ★{rating}(ถ้า showRating) · [tier chip]
-              ตัด "ผู้ติดตาม" ออกทั้งหมด (ไม่มี follow system จริง)
-              ตัด "ส่งตรงเวลา 98%" ออก (2026-07-04 fix): เป็น hardcode ไม่มี field จริงในระบบ โชว์ปนข้อมูลจริงโดยไม่มีป้าย "ตัวอย่าง"
-              ขัด ethos เดียวกับที่ตัด follower/per-product rating ทิ้ง */}
-          <Box
-            sx={{
-              mt: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: { xs: 'center', sm: 'flex-start' },
-              flexWrap: 'wrap',
-              gap: '6px',
-              fontSize: '13px',
-              color: '#808390',
-            }}
-          >
-            <Box component='span'>
-              <Box component='strong' sx={{ color: '#2F2B3D', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                {data.completedOrders.toLocaleString('th-TH')}
-              </Box>{' '}
-              ออเดอร์
-            </Box>
-            {data.showRating && (
-              <>
-                <Box component='span' sx={{ color: '#2F2B3D1F' }}>·</Box>
-                <Box component='span' sx={{ color: '#FF9F43', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  <Icon icon='tabler-star-filled' fontSize={13} />
-                  {data.avgRating.toFixed(1)}
-                </Box>
-              </>
-            )}
-            <Box component='span' sx={{ color: '#2F2B3D1F' }}>·</Box>
-            <Chip
-              size='small'
-              variant='tonal'
-              color={data.tierColor}
-              label={data.tierLabel}
-              sx={{ height: 22, fontSize: '11px', fontWeight: 700, '& .MuiChip-label': { px: '8px' } }}
-            />
-          </Box>
+          {/* metric row เดิม (ออเดอร์ · ★รีวิว · tier chip) ถูกลบออกที่นี่ — Desktop layout redesign
+              ข้อมูลชุดเดียวกันย้ายไปอยู่ที่ ProfileStatsBar ซึ่ง render อยู่ใต้บล็อกนี้ทันที
+              ถ้าคงไว้จะเห็นตัวเลขชุดเดิมซ้ำกัน 2 แถวติดกัน ขัดเจตนา layout ที่ต้องการความสะอาดแบบ IG */}
         </Box>
 
         {/* Actions: แชท(primary) / ติดตาม(disabled "เร็ว ๆ นี้") — sm+ ชิดขวา (ml:auto) */}

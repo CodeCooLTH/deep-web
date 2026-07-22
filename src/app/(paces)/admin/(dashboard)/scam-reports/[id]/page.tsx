@@ -44,7 +44,7 @@ export default async function ScamReportDetailPage({ params }: PageProps) {
               <Field label="มูลค่าความเสียหาย" value={`฿${report.amountLost.toLocaleString('th-TH')}`} />
               <Field label="ส่งเมื่อ" value={formatDateTime(report.createdAt)} />
               <div className="sm:col-span-2">
-                <p className="text-default-400 text-xs uppercase">รายละเอียดเหตุการณ์</p>
+                <p className="text-default-400 text-xs">รายละเอียดเหตุการณ์</p>
                 <p className="text-default-700 mt-1 whitespace-pre-wrap text-sm">{report.description}</p>
               </div>
             </div>
@@ -116,7 +116,7 @@ export default async function ScamReportDetailPage({ params }: PageProps) {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-default-400 text-xs uppercase">{label}</p>
+      <p className="text-default-400 text-xs">{label}</p>
       <p className="text-default-700 mt-1 text-sm font-medium">{value}</p>
     </div>
   )
