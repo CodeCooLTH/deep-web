@@ -45,13 +45,13 @@ const AboutOverview = ({ data }: { data: AboutOverviewData }) => {
         <Card>
           <CardContent className='flex flex-col gap-6'>
             <div className='flex flex-col gap-4'>
-              <Typography className='uppercase' variant='body2' color='text.disabled'>
+              <Typography variant='body2' color='text.disabled'>
                 เกี่ยวกับ
               </Typography>
               {renderList(data.about)}
             </div>
             <div className='flex flex-col gap-4'>
-              <Typography className='uppercase' variant='body2' color='text.disabled'>
+              <Typography variant='body2' color='text.disabled'>
                 สรุป
               </Typography>
               {renderList(data.overview)}
@@ -63,7 +63,7 @@ const AboutOverview = ({ data }: { data: AboutOverviewData }) => {
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent className='flex flex-col gap-3'>
-              <Typography className='uppercase' variant='body2' color='text.disabled'>
+              <Typography variant='body2' color='text.disabled'>
                 เกี่ยวกับร้าน
               </Typography>
               <Typography className='font-medium'>{data.shopInfo.shopName}</Typography>

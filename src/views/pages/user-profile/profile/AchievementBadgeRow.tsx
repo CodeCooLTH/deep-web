@@ -56,8 +56,8 @@ function BadgeCell({ item }: { item: AchievementItem }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F1F5F9 55%, #E2E8F0 100%)',
-            border: '1px solid #E2E8F0',
+            background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F1F5F9 55%, #2F2B3D1F 100%)',
+            border: '1px solid #2F2B3D1F',
             boxShadow: '0 3px 8px rgba(15,23,42,.14), inset 0 1px 2px rgba(255,255,255,.8)',
           }}
         >
@@ -79,7 +79,7 @@ function BadgeCell({ item }: { item: AchievementItem }) {
               width={30}
               height={30}
               aria-label={item.name}
-              style={{ color: '#475569' }}
+              style={{ color: '#2F2B3D' }}
             />
           )}
         </Box>
@@ -92,7 +92,7 @@ function BadgeCell({ item }: { item: AchievementItem }) {
             mt: '4px',
             fontSize: '11px',
             fontWeight: 600,
-            color: '#334155',
+            color: '#2F2B3D',
             textAlign: 'center',
             lineHeight: 1.2,
             letterSpacing: '-0.01em',

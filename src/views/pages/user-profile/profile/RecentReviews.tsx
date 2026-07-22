@@ -29,7 +29,7 @@ const RecentReviews = ({
     <Card>
       <CardContent>
         <div className='flex items-center justify-between mb-4'>
-          <Typography className='uppercase' variant='body2' color='text.disabled'>
+          <Typography variant='body2' color='text.disabled'>
             รีวิวล่าสุด
           </Typography>
           {reviews.length > 0 && (

@@ -95,7 +95,7 @@ export const ProfileBanner = ({
             backdropFilter: 'blur(8px)',
             border: '1px solid rgba(255,255,255,0.6)',
             boxShadow: '0 2px 6px rgba(0,0,0,.12)',
-            color: '#0F172A',
+            color: '#2F2B3D',
             '&:hover': {
               bgcolor: 'rgba(255,255,255,1)',
             },
@@ -157,8 +157,8 @@ export const ProfileIdentityBar = ({
               boxShadow: '0 6px 14px rgba(15,23,42,.18)',
               fontSize: '2.75rem',
               fontWeight: 800,
-              bgcolor: '#E2E8F0',
-              color: '#475569',
+              bgcolor: '#2F2B3D1F',
+              color: '#2F2B3D',
             }}
           >
             {displayName.slice(0, 1)}
@@ -175,7 +175,7 @@ export const ProfileIdentityBar = ({
                 width: 27,
                 height: 27,
                 borderRadius: '50%',
-                bgcolor: '#1D9BF0',
+                bgcolor: '#28C76F',
                 color: 'white',
                 display: 'grid',
                 placeItems: 'center',
@@ -195,16 +195,16 @@ export const ProfileIdentityBar = ({
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'center', sm: 'flex-start' }, gap: '6px', flexWrap: 'wrap' }}>
             <Typography
               component='h1'
-              sx={{ m: 0, fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', color: '#0F172A', lineHeight: 1.15 }}
+              sx={{ m: 0, fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', color: '#2F2B3D', lineHeight: 1.15 }}
             >
               {displayName}
             </Typography>
             {showVerify && (
-              <Icon icon='tabler-rosette-discount-check-filled' style={{ color: '#1D9BF0', fontSize: 18 }} aria-label='ยืนยันแล้ว' />
+              <Icon icon='tabler-rosette-discount-check-filled' style={{ color: '#28C76F', fontSize: 18 }} aria-label='ยืนยันแล้ว' />
             )}
           </Box>
 
-          <Typography component='p' sx={{ m: 0, mt: '1px', fontSize: '14px', color: '#64748B', lineHeight: 1.3 }}>
+          <Typography component='p' sx={{ m: 0, mt: '1px', fontSize: '14px', color: '#808390', lineHeight: 1.3 }}>
             @{data.username}
           </Typography>
 
@@ -221,25 +221,25 @@ export const ProfileIdentityBar = ({
               flexWrap: 'wrap',
               gap: '6px',
               fontSize: '13px',
-              color: '#64748B',
+              color: '#808390',
             }}
           >
             <Box component='span'>
-              <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+              <Box component='strong' sx={{ color: '#2F2B3D', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                 {data.completedOrders.toLocaleString('th-TH')}
               </Box>{' '}
               ออเดอร์
             </Box>
             {data.showRating && (
               <>
-                <Box component='span' sx={{ color: '#CBD5E1' }}>·</Box>
-                <Box component='span' sx={{ color: '#F59E0B', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                <Box component='span' sx={{ color: '#2F2B3D1F' }}>·</Box>
+                <Box component='span' sx={{ color: '#FF9F43', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                   <Icon icon='tabler-star-filled' fontSize={13} />
                   {data.avgRating.toFixed(1)}
                 </Box>
               </>
             )}
-            <Box component='span' sx={{ color: '#CBD5E1' }}>·</Box>
+            <Box component='span' sx={{ color: '#2F2B3D1F' }}>·</Box>
             <Chip
               size='small'
               variant='tonal'
