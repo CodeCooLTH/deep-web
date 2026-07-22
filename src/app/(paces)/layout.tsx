@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Anuphan } from 'next/font/google'
+import Script from 'next/script'
 
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
@@ -60,6 +61,17 @@ export default function RootLayout({
       className={anuphan.variable}
     >
       <body className="antialiased">
+        {/* feat 00018 (TextScaleToggler, /inbox topbar) — กันจอกระพริบตอนโหลด (flash of wrong
+            font size): ต้องอ่าน localStorage แล้วตั้ง data-text-scale ที่ <html> "ก่อน" browser
+            paint ครั้งแรก ซึ่งทำได้เฉพาะ blocking script ใน root layout เท่านั้น (useLayoutEffect
+            ใน React component ทำงานหลัง SSR HTML ถูก paint ไปแล้วรอบแรก — ไม่ทันกันกระพริบข้าม
+            hydration) strategy="beforeInteractive" ของ next/script รับประกันว่า Next ฉีด script
+            นี้เข้า <head> และรันก่อน hydrate เสมอ (pattern เดียวกับ next-themes) key ต้องตรงกับ
+            TEXT_SCALE_STORAGE_KEY ใน src/hooks/useTextScale.ts เป๊ะ (sync กันด้วยมือ อ่าน comment
+            หัวไฟล์นั้นก่อนแก้ค่านี้) */}
+        <Script id="text-scale-init" strategy="beforeInteractive">
+          {`(function(){try{var s=window.localStorage.getItem('deep-seller-text-scale');if(s==='lg'||s==='xl'){document.documentElement.setAttribute('data-text-scale',s);}}catch(e){}})();`}
+        </Script>
         <AppProvidersWrapper>{children}</AppProvidersWrapper>
         <Analytics />
         <SpeedInsights />

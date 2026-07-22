@@ -39,6 +39,12 @@
  *
  * นอก scope T3 (ตาม plan): ไม่ render ปุ่มปักหมุด/ซ่อน/ปิดงาน/kebab menu — backend (S-7)
  * ยังไม่มี service/API ใน phase นี้ — ห้ามทำปุ่มที่กดแล้วไม่เกิดอะไร
+ *
+ * feat 00018 (Chat Rail topbar): เพิ่ม prop `railMode` — เมื่อ true (เรียกจาก ChatRailClient,
+ * desktop ≥1024) ช่องค้นหาย้ายไปอยู่ topbar แล้ว (ดู ChatSearchBox.tsx) ไม่ render ช่องค้นหาซ้ำ
+ * ที่นี่ + ใช้ debouncedQuery จาก ChatSearchContext แทน state ในตัว เมื่อ false/ไม่ระบุ (เรียกจาก
+ * inbox/page.tsx มือถือ/แท็บเล็ต drill-down — topbar ทั้งก้อนถูกซ่อนด้วย CSS อยู่แล้วที่ <1024px
+ * ไม่มีช่องค้นหาให้ใช้ร่วม) พฤติกรรมเดิมทุกประการ — local state + debounce ในตัวเอง ไม่แตะ
  */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -47,6 +53,7 @@ import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { pacesToast } from '@/lib/paces-toast'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
+import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel } from './ChannelBadge'
 
@@ -104,9 +111,12 @@ type Props = {
   initialItems: ConversationListItem[]
   initialNextCursor: string | null
   channels: ChannelFilterOption[]
+  /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
+   *  ไม่ระบุ/false = มือถือ/แท็บเล็ต drill-down list (inbox/page.tsx) — พฤติกรรมเดิมทุกประการ */
+  railMode?: boolean
 }
 
-export default function InboxList({ initialItems, initialNextCursor, channels }: Props) {
+export default function InboxList({ initialItems, initialNextCursor, channels, railMode = false }: Props) {
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
@@ -115,15 +125,26 @@ export default function InboxList({ initialItems, initialNextCursor, channels }:
   // ── T3: filter/search state — ขับ tab ด้วย React state เอง (ไม่ใช้ data-hs-tab) ──
   const [channelTab, setChannelTab] = useState<ChannelTab>('ALL')
   const [pageFilter, setPageFilter] = useState('') // shopChannelId, '' = ทุกเพจ
-  const [searchInput, setSearchInput] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
+
+  // ── ช่องค้นหา ──
+  // railMode=true: query มาจาก ChatSearchContext (topbar เขียน, ที่นี่แค่อ่าน debouncedQuery —
+  //   re-render เฉพาะทุก 400ms ไม่ใช่ทุกตัวอักษร ดู comment หัวไฟล์ useChatSearchContext.tsx)
+  // railMode=false: local state + debounce ในตัวเอง (พฤติกรรมเดิมก่อน feat 00018 ทุกประการ)
+  // ต้องเรียก useChatSearchQuery() แบบไม่มีเงื่อนไข (rules-of-hooks) — ทั้ง 2 กรณีอยู่ใต้
+  // ChatSearchProvider (mount ที่ VerticalLayout.tsx) เหมือนกันอยู่แล้ว เรียกได้เสมอ
+  const chatSearchQuery = useChatSearchQuery()
+  const [localSearchInput, setLocalSearchInput] = useState('')
+  const [localDebouncedQuery, setLocalDebouncedQuery] = useState('')
   const isFirstRun = useRef(true)
 
-  // debounce ช่องค้นหา client-side ก่อนยิง ?q=
+  // debounce ช่องค้นหา client-side ก่อนยิง ?q= — เฉพาะโหมด local (railMode=false)
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(searchInput.trim()), 400)
+    if (railMode) return // topbar debounce ให้แล้วผ่าน ChatSearchContext
+    const t = setTimeout(() => setLocalDebouncedQuery(localSearchInput.trim()), 400)
     return () => clearTimeout(t)
-  }, [searchInput])
+  }, [localSearchInput, railMode])
+
+  const debouncedQuery = railMode ? chatSearchQuery.debouncedQuery : localDebouncedQuery
 
   // fetch เดียวใช้ทั้ง loadMore (append) และ refetch เมื่อ filter เปลี่ยน (replace)
   const fetchList = async (opts: { cursor?: string; append: boolean }) => {
@@ -170,7 +191,8 @@ export default function InboxList({ initialItems, initialNextCursor, channels }:
   const clearFilters = () => {
     setChannelTab('ALL')
     setPageFilter('')
-    setSearchInput('')
+    if (railMode) chatSearchQuery.setSearchInput('')
+    else setLocalSearchInput('')
   }
 
   // sentinel — re-attach ทุกครั้งที่ items เปลี่ยน (sentinel ย้ายตำแหน่ง) เหมือน NotificationFeed
@@ -194,17 +216,20 @@ export default function InboxList({ initialItems, initialNextCursor, channels }:
   return (
     <div className="card">
       <div className="card-header flex flex-col gap-3 border-dashed">
-        {/* ช่องค้นหา — Base ContactList.tsx:19-24 */}
-        <div className="input-icon-group">
-          <Icon icon="search" className="input-icon" />
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท"
-            className="form-input bg-light/30"
-          />
-        </div>
+        {/* ช่องค้นหา — Base ContactList.tsx:19-24 — railMode (desktop rail) ย้ายขึ้น topbar
+            แล้ว (ChatSearchBox.tsx) ไม่ render ซ้ำที่นี่ — มือถือ/แท็บเล็ต drill-down ยังมีเหมือนเดิม */}
+        {!railMode && (
+          <div className="input-icon-group">
+            <Icon icon="search" className="input-icon" />
+            <input
+              type="search"
+              value={localSearchInput}
+              onChange={(e) => setLocalSearchInput(e.target.value)}
+              placeholder="ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท"
+              className="form-input bg-light/30"
+            />
+          </div>
+        )}
 
         {/* channel tabs — React state ขับ active เอง ไม่ใช้ data-hs-tab (ดู comment หัวไฟล์) */}
         <nav className="nav-tabs overflow-x-auto" aria-label="ตัวกรองช่องทาง" role="tablist">
