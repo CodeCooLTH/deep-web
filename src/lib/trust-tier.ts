@@ -50,6 +50,29 @@ export function getTierColor(trustScore: number): TierChipColor {
   }
 }
 
+/**
+ * accent hex เฉพาะของแต่ละ tier (5 ค่าต่างกันจริง) — เพิ่มควบคู่ getTierColor() เดิม ไม่แทนที่
+ * ทำไม: getTierColor() คืน 'warning' ให้ทั้ง Deep Gold (B+) และ Deep Classic (C,D) เพราะ TierChipColor
+ * มีแค่ 4 ค่า (MUI chip palette) — ไม่พอแยก 5 tier ให้ต่างกันจริงตอนวาด accent (เช่น trust gauge)
+ * ค่าทุกตัว derive จาก .impeccable/design.json tonalRamp (Impeccable remediation S-B7):
+ *   Star=primary canonical, Diamond=signal-cyan canonical, Gold=warning-amber canonical,
+ *   Silver=ink tonalRamp[3], Classic=warning-amber tonalRamp[2] (เข้มกว่า Gold เพื่อแยกออกจากกัน)
+ */
+export function getTierAccentColor(trustScore: number): string {
+  switch (letterFromScore(trustScore)) {
+    case 'A+':
+      return '#7367F0' // Deep Star
+    case 'A':
+      return '#00BAD1' // Deep Diamond
+    case 'B+':
+      return '#FF9F43' // Deep Gold
+    case 'B':
+      return '#7a7689' // Deep Silver
+    default:
+      return '#b36700' // Deep Classic (C, D)
+  }
+}
+
 /** ช่วงคะแนนของแต่ละ tier label (สำหรับ query filter ตามเลเวล) — threshold ตรงกับ letterFromScore SSOT.
  * Star ≥90 · Diamond 80-89 · Gold 70-79 · Silver 60-69 · Classic <60 (C+D). null = ไม่ตรง tier ใด */
 export function getTierScoreRange(tierLabel: string): { gte: number; lt?: number } | null {
