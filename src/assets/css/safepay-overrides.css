@@ -166,6 +166,30 @@ html[data-text-scale="xl"] {
   }
 }
 
+/* ─── Chat page-content full-bleed (feat 00018 งาน 1) — desktop /inbox เต็มจอ ───────────────────
+   user ส่งภาพ theme มา: [รายการแชท][พื้นที่แชท] เต็มความสูงจริง ไม่มี breadcrumb ไม่มีการ์ดครอบซ้อน
+   ไม่มี padding ของ page-content — ต่างจากหน้า seller อื่นที่ยังต้องการ padding 20px ปกติของ Paces
+   (`main { px-5 pb-5 }` — _layout.css) scoped ด้วย .seller-chat-shell (marker เดียวกับ Chat Rail
+   width บล็อกด้านบน — ติดที่ .wrapper โดย SidenavContent.tsx เมื่อ pathname เริ่มด้วย /inbox)
+   จำกัด ≥1024px เท่านั้น — <1024px ยังเป็น drill-down เดิมทุกประการ (spec สั่งห้ามพัง, ไม่มี
+   .app-menu ให้แทนที่อยู่แล้วต่ำกว่า breakpoint นี้ จึงไม่ต้อง override อะไรที่นั่น)
+
+   ตัด px-5 pb-5 ของ main เป็น 0 — การ์ดแชท (h-[calc(100dvh-var(--topbar-height))] ที่ page.tsx/
+   ChatThread.tsx) คุมความสูง/ระยะขอบของตัวเองแทน ให้ชิดขอบจอทุกด้านตรงกับภาพ theme (ไม่ใช่ลอย
+   กลาง page-content ที่มี gutter เหมือนหน้า seller อื่น)
+
+   ซ่อน <Footer/> ท้าย .page-content ด้วย — VerticalLayout.tsx render Footer เสมอทุกหน้า seller
+   แต่ chat app เต็มจอไม่มีที่ว่างให้ (ตรงกับ Base theme apps/chat/page.tsx ที่ก็ไม่มี footer
+   ปรากฏ เพราะการ์ดคุม h-[calc(100vh-190px)] เต็มพอดีอยู่แล้ว) */
+@media (min-width: 1024px) {
+  .seller-chat-shell .page-content main {
+    padding: 0 !important;
+  }
+  .seller-chat-shell .page-content footer {
+    display: none !important;
+  }
+}
+
 /* ─── Choices.js .choices__inner → ให้ match .form-input ───────────────────────
    อาการ: select หมวดหมู่ (sign-up) พื้นเทา + สูงกว่า input อื่น.
    root cause: ChoiceSelect.tsx import `choices.min.css` (base) unlayered ที่ component-level

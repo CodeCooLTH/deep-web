@@ -246,7 +246,7 @@ export default function ChatThread({
 
   return (
     <>
-    <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex flex-col"> {/* HR7 carve-out: copy ตรงจาก Base ChatPage.tsx L22 — ดู comment หัวไฟล์ */}
+    <div className="card h-[calc(100dvh-var(--topbar-height))] min-w-0 flex-1 flex flex-col"> {/* HR7 carve-out: copy ตรงจาก Base ChatPage.tsx L22 (สูตรอัปเดต feat 00018 งาน 1 — เดิม 100vh-190px นับรวม breadcrumb+page padding ที่ตัดออกไปแล้ว, ดู comment หัวไฟล์ inbox/page.tsx) */}
       {/* card-header — Base ChatPage.tsx:34-56 (deviate: เพิ่ม avatar ระบุตัวตน, ตัด mobile-toggle/
           online-status/ChatToolbar — ไม่มี call/video/presence backend ตาม omissions; feature 00018
           T4: เพิ่ม ChannelBadge ข้างชื่อ) */}
