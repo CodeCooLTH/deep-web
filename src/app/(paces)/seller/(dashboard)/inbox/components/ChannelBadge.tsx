@@ -28,6 +28,19 @@ import Icon from '@/components/wrappers/Icon'
 
 export type ChatChannel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
 
+/**
+ * ตัวเลือกตัวกรอง "เพจ" — 1 ต่อ ShopChannel ที่เชื่อมไว้ (feat 00018 งาน 2: ย้ายมาจาก InboxList.tsx
+ * เดิม {id,label} คงเป็น field ดิบ (provider/name/avatarUrl) ไม่ประกอบ label สำเร็จรูปอีกต่อไป —
+ * PageFilterDropdown ต้องใช้ provider (ไอคอนช่องทาง) + name (ค้นหา/แสดงชื่อ) + avatarUrl (รูปเพจ)
+ * แยกกัน ไม่ใช่ string เดียวเหมือนตัวกรองแบบ FilterDropdown ทั่วไป
+ */
+export type ChannelFilterOption = {
+  id: string
+  provider: string
+  name: string
+  avatarUrl: string | null
+}
+
 type ChannelDisplay = {
   label: string
   icon: string

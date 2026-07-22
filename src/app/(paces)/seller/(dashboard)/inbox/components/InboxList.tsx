@@ -14,7 +14,8 @@
  * ของ Preline — เหตุผลเดียวกับ FilterDropdown (parent re-render บ่อยจาก fetch/search ทำให้
  * Preline inline-state พัง — ดู src/components/safepay/FilterDropdown.tsx comment หัวไฟล์)
  *
- * ตัวกรอง "เพจ": ใช้ src/components/safepay/FilterDropdown.tsx ตรง (มี Base ผูกอยู่แล้ว)
+ * ตัวกรอง "เพจ": feat 00018 งาน 2 เปลี่ยนจาก FilterDropdown ธรรมดา → PageFilterDropdown.tsx
+ * (search + radio list + avatar เพจ — ดู comment หัวไฟล์นั้น)
  * Channel badge overlay: ใช้ ChannelBadge.tsx (ChannelBadgeOverlay/getChannelDisplay) ที่มีอยู่แล้ว
  *
  * Avatar: reuse pattern BidderAvatar จาก
@@ -52,10 +53,10 @@ import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { pacesToast } from '@/lib/paces-toast'
-import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
-import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel } from './ChannelBadge'
+import PageFilterDropdown from './PageFilterDropdown'
+import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
   id: string
@@ -71,8 +72,10 @@ export type ConversationListItem = {
   counterparty: { displayName: string; avatar: string | null } | null
 }
 
-/** ตัวเลือกตัวกรอง "เพจ" — 1 ต่อ ShopChannel ที่เชื่อมไว้ (label ผสม provider ไว้แล้วที่ page.tsx) */
-export type ChannelFilterOption = { id: string; label: string }
+// ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
+// ต้องใช้ type เดียวกัน ไม่อยาก import ย้อนจากไฟล์นี้จนวนเป็น circular import) — re-export ไว้ที่นี่
+// เพื่อไม่ต้องแก้ import ที่ page.tsx/ChatRailClient.tsx (ยังเรียก `from './components/InboxList'` เดิม)
+export type { ChannelFilterOption } from './ChannelBadge'
 
 type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
@@ -211,7 +214,7 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMore ผูก closure ของ nextCursor/loading ปัจจุบันอยู่แล้ว
   }, [items.length, nextCursor])
 
-  const selectedPageLabel = channels.find((c) => c.id === pageFilter)?.label
+  const selectedPageName = channels.find((c) => c.id === pageFilter)?.name
 
   return (
     <div className="card">
@@ -260,23 +263,16 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
           })}
         </nav>
 
-        {/* ตัวกรอง "เพจ" — ซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจให้เลือก */}
+        {/* ตัวกรอง "เพจ" — ซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจให้เลือก
+            feat 00018 งาน 2: FilterDropdown ธรรมดา → PageFilterDropdown (search + radio + avatar) */}
         {channelTab !== 'DEEP' && channels.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <FilterDropdown
-              icon="filter"
-              value={pageFilter}
-              options={[{ value: '', label: 'ทุกเพจ' }, ...channels.map((c) => ({ value: c.id, label: c.label }))]}
-              onChange={setPageFilter}
-              defaultLabel="เพจ"
-              resetValue=""
-              className="btn-sm"
-            />
+            <PageFilterDropdown value={pageFilter} options={channels} onChange={setPageFilter} />
 
             {/* active-filter chip — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น */}
-            {pageFilter && selectedPageLabel && (
+            {pageFilter && selectedPageName && (
               <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-                {selectedPageLabel}
+                {selectedPageName}
                 <button
                   type="button"
                   onClick={() => setPageFilter('')}

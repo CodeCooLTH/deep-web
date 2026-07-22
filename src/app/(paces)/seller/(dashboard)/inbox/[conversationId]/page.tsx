@@ -39,7 +39,6 @@ import { getWindowState } from '@/services/channel-chat.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
-import PageBreadcrumb from '@/components/PageBreadcrumb'
 import SellerErrorState from '../../_shared/SellerErrorState'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
@@ -90,13 +89,11 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   })
 
   if (!conversation) {
+    // feat 00018 งาน 1: ตัด PageBreadcrumb ออก (ดู comment หัวไฟล์ inbox/page.tsx) — desktop chat
+    // เต็มจอไม่มี breadcrumb; retryHref="/inbox" ในปุ่ม "ลองใหม่" ของ SellerErrorState ทำหน้าที่
+    // ทางกลับแทนอยู่แล้ว
     return (
-      <>
-        <div className="hidden lg:block">
-          <PageBreadcrumb title="ข้อความ" trail={[{ label: 'ข้อความ', href: '/inbox' }]} />
-        </div>
-        <SellerErrorState title="ไม่พบบทสนทนานี้" message="บทสนทนานี้อาจถูกลบ หรือคุณไม่มีสิทธิ์เข้าถึง" retryHref="/inbox" />
-      </>
+      <SellerErrorState title="ไม่พบบทสนทนานี้" message="บทสนทนานี้อาจถูกลบ หรือคุณไม่มีสิทธิ์เข้าถึง" retryHref="/inbox" />
     )
   }
 
@@ -176,32 +173,26 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   }
 
   return (
-    <>
-      <div className="hidden lg:block">
-        <PageBreadcrumb
-          title={buyerDisplayName}
-          trail={[{ label: 'ข้อความ', href: '/inbox' }]}
-        />
+    // feat 00018 งาน 1: ตัด PageBreadcrumb ออก (เดิม `hidden lg:block` มือถือไม่เห็นอยู่แล้ว) —
+    // desktop chat เต็มจอไม่มี breadcrumb; buyerName ยังเห็นที่ ChatThread card-header อยู่แล้ว
+    // 3 คอลัมน์ desktop (rail มาจาก layout swap คนละ task/T2 ไม่ใช่ที่นี่):
+    // thread (flex-1) + Customer Panel persistent (≥1024px)
+    // w-96 (384px): user feedback บน prod ว่า w-80 เดิมแคบไป — ข้อความอธิบายและปุ่ม CTA
+    // ถูกบีบจนอ่านยาก; gap-4 แทน gap-1.25 เดิมที่ชิดกันจนสองคอลัมน์ดูติดกันเป็นก้อนเดียว
+    <div className="flex gap-4">
+      <ChatThread
+        conversationId={conversation.id}
+        buyerName={buyerDisplayName}
+        buyerAvatar={buyerAvatar}
+        channel={conversation.channel}
+        windowOpen={windowState.open}
+        msRemaining={windowState.msRemaining}
+        tokenInvalid={tokenInvalid}
+        customerPanelData={customerPanelData}
+      />
+      <div className="hidden w-96 shrink-0 lg:block">
+        <CustomerPanel data={customerPanelData} />
       </div>
-      {/* feature 00018 T5 — 3 คอลัมน์ desktop (rail มาจาก layout swap คนละ task/T2 ไม่ใช่ที่นี่):
-          thread (flex-1) + Customer Panel persistent (≥1024px)
-          w-96 (384px): user feedback บน prod ว่า w-80 เดิมแคบไป — ข้อความอธิบายและปุ่ม CTA
-          ถูกบีบจนอ่านยาก; gap-4 แทน gap-1.25 เดิมที่ชิดกันจนสองคอลัมน์ดูติดกันเป็นก้อนเดียว */}
-      <div className="flex gap-4">
-        <ChatThread
-          conversationId={conversation.id}
-          buyerName={buyerDisplayName}
-          buyerAvatar={buyerAvatar}
-          channel={conversation.channel}
-          windowOpen={windowState.open}
-          msRemaining={windowState.msRemaining}
-          tokenInvalid={tokenInvalid}
-          customerPanelData={customerPanelData}
-        />
-        <div className="hidden w-96 shrink-0 lg:block">
-          <CustomerPanel data={customerPanelData} />
-        </div>
-      </div>
-    </>
+    </div>
   )
 }

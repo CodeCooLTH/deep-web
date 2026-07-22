@@ -25,7 +25,14 @@
  * ที่ route.ts ใน task แยก (นอกขอบเขตไฟล์ของ T3)
  *
  * header: SellerMobileHeader (mobile, auto จาก getSellerPageTitle ผ่าน sellerMenuItems
- * '/inbox' → "ข้อความ") + PageBreadcrumb (desktop เท่านั้น) — ไม่สร้าง custom header
+ * '/inbox' → "ข้อความ") — ไม่สร้าง custom header
+ *
+ * feat 00018 งาน 1: ตัด PageBreadcrumb ("ข้อความ") ออกทั้งเส้น — user ยืนยัน desktop chat app
+ * เป็นเต็มจอ [rail][thread][panel] ไม่มี breadcrumb/การ์ดครอบซ้อน/page-content padding (เดิม
+ * breadcrumb นี้แสดงเฉพาะ `hidden lg:block` อยู่แล้ว มือถือไม่เห็นอยู่แล้วไม่กระทบ). พื้นที่เต็ม
+ * ความสูงจริงคุมที่ safepay-overrides.css `.seller-chat-shell` (scoped @media min-width:1024px,
+ * marker เดียวกับ Chat Rail width — SidenavContent.tsx toggle ให้อัตโนมัติเมื่อ pathname เริ่ม
+ * ด้วย /inbox) ไม่แตะหน้า seller อื่นเลย เพราะ marker ผูกกับ path ไม่ใช่ global
  */
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
@@ -35,10 +42,8 @@ import { prisma } from '@/lib/prisma'
 import { getShopByUserId } from '@/services/shop.service'
 import { listConversationsForShop } from '@/services/chat.service'
 import { listChannels } from '@/services/shop-channel.service'
-import PageBreadcrumb from '@/components/PageBreadcrumb'
 import SellerEmptyState from '../_shared/SellerEmptyState'
 import SellerErrorState from '../_shared/SellerErrorState'
-import { getChannelDisplay } from './components/ChannelBadge'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
@@ -55,30 +60,21 @@ export default async function SellerInboxPage() {
     shop = null
   }
 
-  const breadcrumb = (
-    <div className="hidden lg:block">
-      <PageBreadcrumb title="ข้อความ" />
-    </div>
-  )
-
   if (!shop) {
     // ทุก seller ควรมีร้านอยู่แล้ว (layout.tsx auto-create) — defensive fallback เท่านั้น
-    return (
-      <>
-        {breadcrumb}
-        <SellerErrorState title="ยังไม่มีร้านค้า" message="เปิดร้านก่อนเพื่อดูข้อความจากลูกค้า" />
-      </>
-    )
+    return <SellerErrorState title="ยังไม่มีร้านค้า" message="เปิดร้านก่อนเพื่อดูข้อความจากลูกค้า" />
   }
 
   // ── channels (ตัวกรอง "เพจ") — fail-closed แยกจาก conversation fetch (pattern pendingCount
   // ของ layout.tsx) ไม่มีเพจก็ยังดู list ได้ปกติ แค่ตัวกรองว่าง ──
+  // feat 00018 งาน 2: ไม่ประกอบ label สำเร็จรูปอีกต่อไป — ส่ง provider/name/avatarUrl ดิบให้
+  // PageFilterDropdown ประกอบเอง (ต้องใช้ avatarUrl ทำ avatar แถว + provider ทำ badge ไอคอน)
   let channels: ChannelFilterOption[] = []
   let hasAnyChannel = false
   try {
     const rows = await listChannels(shop.id)
     hasAnyChannel = rows.length > 0
-    channels = rows.map((c) => ({ id: c.id, label: `${getChannelDisplay(c.provider).label} · ${c.name}` }))
+    channels = rows.map((c) => ({ id: c.id, provider: c.provider, name: c.name, avatarUrl: c.avatarUrl }))
   } catch (e) {
     console.error('[inbox/page] listChannels failed', e)
   }
@@ -148,32 +144,23 @@ export default async function SellerInboxPage() {
   }
 
   if (loadFailed) {
-    return (
-      <>
-        {breadcrumb}
-        <SellerErrorState />
-      </>
-    )
+    return <SellerErrorState />
   }
 
   if (items.length === 0) {
     return (
-      <>
-        {breadcrumb}
-        <SellerEmptyState
-          icon="message-circle"
-          title="ยังไม่มีข้อความ"
-          description="เมื่อลูกค้าทักแชทมาที่ร้าน จะแสดงในหน้านี้"
-          // edge state: ยังไม่เคยเชื่อมช่องทางนอกเลย — CTA รองไปเชื่อม (ดู Edge states ของสเปก)
-          action={hasAnyChannel ? undefined : { label: 'เชื่อม Facebook Page', href: '/settings/channels' }}
-        />
-      </>
+      <SellerEmptyState
+        icon="message-circle"
+        title="ยังไม่มีข้อความ"
+        description="เมื่อลูกค้าทักแชทมาที่ร้าน จะแสดงในหน้านี้"
+        // edge state: ยังไม่เคยเชื่อมช่องทางนอกเลย — CTA รองไปเชื่อม (ดู Edge states ของสเปก)
+        action={hasAnyChannel ? undefined : { label: 'เชื่อม Facebook Page', href: '/settings/channels' }}
+      />
     )
   }
 
   return (
     <>
-      {breadcrumb}
       {/* ≥1024px: รายการแชทย้ายไปอยู่ที่ Chat Rail (เมนูซ้าย) แล้ว — ตรงกลางต้องไม่โชว์ซ้ำ
           ไม่งั้นเห็นรายการเดียวกัน 2 ที่พร้อมกัน (user เจอจริงบน prod)
           <1024px: ไม่มี rail (เมนูซ้ายถูกซ่อนทั้งระบบ) จึงต้องคงรายการไว้ที่นี่เหมือนเดิม */}
@@ -187,10 +174,13 @@ export default async function SellerInboxPage() {
           carve-out comment ที่ div ด้านล่าง) root card เดิมที่นั่น ใช้ค่าเดียวกันเพื่อความสูง
           คอลัมน์ตรงกัน ไม่ใช่คิดใหม่ */}
       <div className="hidden lg:flex gap-4">
-        {/* HR7 carve-out: h-[calc(100vh-190px)] คัดลอกค่าเดียวกับ ChatThread.tsx root card เป๊ะ
-            (ไม่ใช่ arbitrary ใหม่ — Paces ไม่มี token ความสูง "เต็มจอลบ topbar/breadcrumb"
-            ต้องใช้ค่าเดิมเพื่อให้คอลัมน์สูงเท่ากันตอนสลับ /inbox ↔ /inbox/[conversationId]) */}
-        <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex items-center justify-center"> {/* HR7 carve-out: ดู comment ด้านบน */}
+        {/* HR7 carve-out: h-[calc(100dvh-var(--topbar-height))] คัดลอกค่าเดียวกับ ChatThread.tsx
+            root card เป๊ะ (ไม่ใช่ arbitrary ใหม่ — --topbar-height เป็น token จริงของ Paces
+            config/_root.css, สูตรเดียวกับที่ _layout.css ใช้คำนวณ min-height ของ .page-content เอง)
+            feat 00018 งาน 1: ปรับสูตรจาก 100vh-190px (ยุคที่ยังมี breadcrumb+page padding) เป็น
+            100dvh-topbar-height เพราะตัด breadcrumb + page-content padding ออกแล้ว (ดู
+            safepay-overrides.css `.seller-chat-shell`) เหลือแค่ topbar กินพื้นที่ด้านบน */}
+        <div className="card h-[calc(100dvh-var(--topbar-height))] min-w-0 flex-1 flex items-center justify-center"> {/* HR7 carve-out: ดู comment ด้านบน */}
           <SellerEmptyState
             compact
             icon="message-circle"
@@ -200,7 +190,7 @@ export default async function SellerInboxPage() {
         </div>
         <div className="w-96 shrink-0">
           {/* HR7 carve-out: เหตุผลเดียวกับการ์ดกลางด้านบน */}
-          <div className="card h-[calc(100vh-190px)] flex items-center justify-center"> {/* HR7 carve-out */}
+          <div className="card h-[calc(100dvh-var(--topbar-height))] flex items-center justify-center"> {/* HR7 carve-out */}
             <SellerEmptyState
               compact
               icon="user-circle"
