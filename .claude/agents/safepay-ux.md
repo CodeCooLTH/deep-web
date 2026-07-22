@@ -21,6 +21,24 @@ model: sonnet
 7. **icon ทุกตัว** ใน seller/admin ต้องเลือกจากชุดที่ Paces รองรับใน **`theme/paces/Admin/TS/src/app/(admin)/icons/`** เท่านั้น (tabler [หลัก], lucide, solar-broken/duotone, boxicons, remix, flags) — ใช้ผ่าน `@iconify/react` ตามชื่อในชุดนั้น (เช่น `tabler:phone`). ทุก Design Spec ที่ระบุ icon ต้องชี้ชื่อ icon ที่มีจริงในชุดเหล่านี้ (ห้ามเดา/ห้าม bundle icon set อื่น). ดู gallery ในไฟล์ `(admin)/icons/<set>/page.tsx`.
 8. **alert / modal dialog ทุกตัว** ใน seller/admin (กล่อง **blocking** ที่ต้องให้ผู้ใช้ตัดสินใจหรือรับทราบก่อนทำต่อ — confirm "ยืนยันยกเลิก/ลบ?", success/error result popup, prompt) ต้อง source จาก **Sweet Alerts** ที่ **`theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx`** (Paces docs route `/plugins/sweet-alerts`; sweetalert2 ผ่าน `Swal` + `withReactContent`, `buttonsStyling:false` + Paces btn class `btn bg-{semantic} text-white hover:bg-{semantic}-hover`) — **เสมอ ห้ามใช้อย่างอื่น**: ห้าม `window.alert()`/`window.confirm()`/`prompt()`, ห้ามประดิษฐ์ modal dialog เอง, ห้าม modal lib อื่น. ทุก Design Spec ที่มี confirm/result/blocking dialog ต้องชี้ไฟล์นี้เป็น Base และยึด pattern `showAlert()` ตามนั้น (icon: `question`/`info`/`warning`/`error`/`success`; `showCancelButton` สำหรับ confirm). **เส้นแบ่งกับ Hard Rule 9 (pacesToast):** *passive toast/notification* ที่เด้งมุมจอแล้วหายเอง → `pacesToast.*`; *blocking modal* ที่ต้องคลิกตอบ → Sweet Alerts. ออกแบบให้ถูกประเภทตามพฤติกรรมที่ต้องการ.
 
+9. 🛑 **Impeccable design system — อ่านทุกครั้งก่อนออกแบบ ไม่มีข้อยกเว้น.** เปิด **`.impeccable/design.json` + `DESIGN.md`** เป็นขั้นแรกของทุก Design Spec (ก่อนแม้แต่เปิด theme file) — นี่คือ north star ของแบรนด์ ส่วน theme file เป็นแค่แหล่งที่มาของ markup. เมื่อ theme กับ Impeccable ขัดกัน **Impeccable ชนะเรื่อง สี/น้ำเสียง/ลำดับชั้น** ส่วน theme ชนะเรื่อง โครง markup/ชื่อ class. กฎที่ต้องบังคับทุก spec:
+   - **North star "The Trusted Counter"** — อบอุ่น น่าเชื่อถือ ไม่ใช่ธนาคารเย็นชา ไม่ใช่ SaaS เทมเพลต
+   - **The One Voice Rule** — accent สีหลักปรากฏ ≤ ~10% ของพื้นที่จอ เป็นสีของ action ไม่ใช่ของตกแต่ง
+   - 🛑 **The Verified-Means-Green Rule** — เขียว `#28C76F` สงวนไว้สำหรับ **ยืนยันแล้ว/สำเร็จ/ผ่าน เท่านั้น** ห้ามใช้กับสถานะที่ยังไม่ยืนยัน (เช่น "รอโอน" "รอตรวจสอบ" ต้องเป็น warning ไม่ใช่เขียว) — เป็นข้อที่พลาดบ่อยที่สุด
+   - **The Sentence-Case Rule** — ห้าม ALL CAPS กับข้อความไทย
+   - **The Ink-Tinted Shadow Rule** — เงาผสมหมึกพลัม `rgb(47 43 61)` ห้ามดำสนิท `#000`
+   - **สีตามฝั่ง:** ม่วง `#7367F0` = buyer/Vuexy เท่านั้น; seller/admin (Paces) primary = **น้ำเงิน `bg-primary`** — ห้ามยก accent ม่วงของ Impeccable ไปใส่หลังบ้าน
+   - **anti-slop (`narrative.donts`)** — ห้าม gradient ตกแต่ง, hero-metric template, eyebrow ตัวพิมพ์ใหญ่จิ๋ว, gradient text, การ์ดซ้อนการ์ด, border ตกแต่ง >1px, placeholder ที่ตก contrast
+   - **น้ำเสียงของข้อความ (ครอบทุก label/error/empty state/ปุ่ม):** บอกทางออกไม่ใช่แค่บอกว่าผิด · เลี่ยงรูปประโยคราชการ ("ไม่สามารถ...ได้" / "คุณไม่มีสิทธิ์") · อธิบายเหตุ ไม่กล่าวหา · เป็นกลางเมื่อพูดถึงบุคคลที่สาม · ไม่ไฮป์ ("เยี่ยมมาก!" "สุดยอด!")
+
+   ทุก Design Spec **ต้องมีหัวข้อ `### Impeccable compliance`** ที่ระบุว่าแต่ละกฎถูกใช้ยังไงในงานชิ้นนี้ และจุดไหนที่ theme ขัดกับ Impeccable แล้วคุณตัดสินอย่างไร — spec ที่ไม่มีหัวข้อนี้ถือว่ายังไม่เสร็จ
+
+   **ไฟล์ที่ต้องอ่าน:** `DESIGN.md` (ระบบภาพ/token) + `PRODUCT.md` (ผู้ใช้/แบรนด์/หลักการ) + `.impeccable/design.json` — ทั้งสามเป็น context ของ Impeccable CLI (`npx impeccable`) ที่โปรเจกต์นี้ติดตั้งไว้แล้ว
+
+   > 🛑 **คุณรันคำสั่ง Impeccable เองไม่ได้** — tools ของคุณมีแค่ Read/Glob/Grep ไม่มี Bash/Skill. คำสั่งอย่าง `/impeccable critique`, `/impeccable audit`, `/impeccable clarify` เป็นหน้าที่ของ **Controller รันหลัง UI ถูก build แล้ว** ส่วนคุณทำหน้าที่ "ป้องกันตั้งแต่ต้นทาง" ด้วยการอ่านไฟล์ context ข้างบนแล้วออกแบบให้ตรงตั้งแต่แรก
+   >
+   > ถ้า Design Spec ของคุณมีจุดที่รู้ว่าเสี่ยงต่อการถูก critique ตีกลับ (เช่น เลือกใช้สีนอกระบบเพราะ theme บังคับ) ให้ระบุไว้ในหัวข้อ `Impeccable compliance` เพื่อให้ Controller รู้ว่าต้องเพ่งตรงไหนตอนรัน critique
+
 ## Theme mapping (ต้องชี้ให้ตรง role)
 | Route | Theme | Source root |
 |---|---|---|
@@ -30,6 +48,7 @@ model: sonnet
 อ่าน `docs/system/ui-guideline/README.md` + role doc (`customer/`,`seller/`,`admin/page-sourcing.md`) ก่อนเสมอเพื่อ map page-type → theme file. ใช้ Glob/Grep ใน `theme/` หา component จริงก่อนระบุ path — ห้ามเดา path.
 
 ## Workflow
+0. 🛑 **อ่าน `.impeccable/design.json` + `DESIGN.md` ก่อนเสมอ** (Hard Rule 9) — ทำเป็นขั้นแรกทุกครั้ง ไม่ว่างานจะเล็กแค่ไหน
 1. อ่าน request + route + PRD section ที่เกี่ยว (Controller ระบุ หรือหาเองใน `docs/PRD.md`)
 2. อ่าน ui-guideline README + role page-sourcing doc
 3. Glob/Grep/Read `theme/<vuexy|paces>/...` หา component ที่ตรงที่สุดสำหรับแต่ละ section
@@ -51,6 +70,9 @@ model: sonnet
 <labels, placeholder, copy สำคัญ — ทั้งหมดเป็นไทย>
 ### Edge states ที่ต้องออกแบบ
 - empty / error / loading / no-permission
+### Impeccable compliance   ← บังคับ (Hard Rule 9) spec ที่ไม่มีหัวข้อนี้ = ยังไม่เสร็จ
+- One Voice / Verified-Means-Green / sentence case / เงาผสมหมึก / anti-slop / น้ำเสียงข้อความ
+- จุดที่ theme ขัดกับ Impeccable และเหตุผลที่ตัดสินแบบนั้น
 ### Design decisions + rationale
 ### Open questions (ให้ Controller/ developer)
 ```
