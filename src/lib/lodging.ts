@@ -33,28 +33,91 @@ export const SHOP_VERTICAL_HINTS: Record<ShopVertical, string> = {
 // icon = ชื่อ tabler ที่มีจริงในชุดของ Paces (theme/paces/Admin/TS/src/app/(admin)/icons/)
 // ใช้ผ่าน @iconify/react — IMPORTANT: ห้ามใช้ emoji แทน icon ทุกกรณี (Hard Rule 12)
 //
-// verified 2026-07-22 — ทั้ง 10 ตัวมีจริงในชุด tabler (ตาม convention ของ _seller-menu.ts
-// ที่ verify ชื่อ icon ก่อนใช้เสมอ):
-//   api.iconify.design/tabler.json?icons=pool,air-conditioning,car,tools-kitchen-2,
-//   wash-machine,wifi,device-tv,bath,fridge,paw → found ครบ not_found = []
-export const ROOM_FACILITIES = {
-  pool: { label: 'สระว่ายน้ำ', icon: 'tabler:pool' },
-  aircon: { label: 'เครื่องปรับอากาศ', icon: 'tabler:air-conditioning' },
-  parking: { label: 'ที่จอดรถ', icon: 'tabler:car' },
-  kitchen: { label: 'ครัว', icon: 'tabler:tools-kitchen-2' },
-  washer: { label: 'เครื่องซักผ้า', icon: 'tabler:wash-machine' },
-  wifi: { label: 'Wi-Fi', icon: 'tabler:wifi' },
-  tv: { label: 'ทีวี', icon: 'tabler:device-tv' },
-  waterHeater: { label: 'เครื่องทำน้ำอุ่น', icon: 'tabler:bath' },
-  refrigerator: { label: 'ตู้เย็น', icon: 'tabler:fridge' },
-  petFriendly: { label: 'นำสัตว์เลี้ยงได้', icon: 'tabler:paw' },
+// verified 2026-07-22 — ทุกชื่อ icon ด้านล่างมีจริงในชุด tabler (ตาม convention ของ
+// _seller-menu.ts ที่ verify ก่อนใช้เสมอ) ตรวจผ่าน api.iconify.design/tabler.json?icons=...
+// ตัวที่ตรวจแล้ว "ไม่มี" และถูกเปลี่ยนไปใช้ตัวอื่นแทน: `shower` (→ flame),
+// `billiards`/`ball-8`/`cue` (→ circle-dot), `hot-tub` (→ bath)
+//
+// ที่มาของรายการ: research บ้านพัก/พูลวิลล่าไทยจริง (Agoda, chillpainai, poolvillacity,
+// pattayapoolvillas) + amenity list มาตรฐานของ Airbnb — บ้านพักไทยมีของที่ list สากล
+// ไม่ครอบ เช่น คาราโอเกะ เตาปิ้งย่าง โต๊ะพูล สระน้ำเกลือ สไลเดอร์ เคาน์เตอร์บาร์
+// ซึ่งเป็นจุดขายหลักของพูลวิลล่าปาร์ตี้ในไทย
+export const ROOM_FACILITY_GROUPS = {
+  basics: 'พื้นฐาน',
+  outdoor: 'สระและพื้นที่กลางแจ้ง',
+  kitchen: 'ครัวและอาหาร',
+  entertainment: 'ความบันเทิง',
+  services: 'บริการและความปลอดภัย',
 } as const
+
+export type RoomFacilityGroup = keyof typeof ROOM_FACILITY_GROUPS
+
+export const ROOM_FACILITIES = {
+  // — พื้นฐาน —
+  wifi: { label: 'Wi-Fi', icon: 'tabler:wifi', group: 'basics' },
+  aircon: { label: 'เครื่องปรับอากาศ', icon: 'tabler:air-conditioning', group: 'basics' },
+  waterHeater: { label: 'เครื่องทำน้ำอุ่น', icon: 'tabler:flame', group: 'basics' },
+  tv: { label: 'สมาร์ททีวี', icon: 'tabler:device-tv', group: 'basics' },
+  washer: { label: 'เครื่องซักผ้า', icon: 'tabler:wash-machine', group: 'basics' },
+  ceilingFan: { label: 'พัดลมเพดาน', icon: 'tabler:propeller', group: 'basics' },
+  workspace: { label: 'โต๊ะทำงาน', icon: 'tabler:desk', group: 'basics' },
+
+  // — สระและพื้นที่กลางแจ้ง —
+  privatePool: { label: 'สระว่ายน้ำส่วนตัว', icon: 'tabler:pool', group: 'outdoor' },
+  saltWaterPool: { label: 'สระน้ำเกลือ', icon: 'tabler:salt', group: 'outdoor' },
+  poolSlide: { label: 'สไลเดอร์ลงสระ', icon: 'tabler:ripple', group: 'outdoor' },
+  jacuzzi: { label: 'อ่างจากุซซี่', icon: 'tabler:bath', group: 'outdoor' },
+  garden: { label: 'สวนและสนามหญ้า', icon: 'tabler:trees', group: 'outdoor' },
+  bbq: { label: 'เตาปิ้งย่าง บาร์บีคิว', icon: 'tabler:grill', group: 'outdoor' },
+  outdoorDining: { label: 'โต๊ะกินข้าวกลางแจ้ง', icon: 'tabler:umbrella', group: 'outdoor' },
+  campfire: { label: 'จุดก่อกองไฟ', icon: 'tabler:campfire', group: 'outdoor' },
+
+  // — ครัวและอาหาร —
+  kitchen: { label: 'ครัวพร้อมอุปกรณ์', icon: 'tabler:tools-kitchen-2', group: 'kitchen' },
+  refrigerator: { label: 'ตู้เย็น', icon: 'tabler:fridge', group: 'kitchen' },
+  microwave: { label: 'ไมโครเวฟ', icon: 'tabler:microwave', group: 'kitchen' },
+  riceCooker: { label: 'หม้อหุงข้าว', icon: 'tabler:soup', group: 'kitchen' },
+  waterDispenser: { label: 'เครื่องกดน้ำและถังน้ำแข็ง', icon: 'tabler:glass-full', group: 'kitchen' },
+  coffeeMaker: { label: 'เครื่องชงกาแฟ', icon: 'tabler:coffee', group: 'kitchen' },
+  bar: { label: 'เคาน์เตอร์บาร์', icon: 'tabler:glass-cocktail', group: 'kitchen' },
+
+  // — ความบันเทิง (จุดขายหลักของพูลวิลล่าปาร์ตี้ไทย) —
+  karaoke: { label: 'คาราโอเกะ', icon: 'tabler:microphone-2', group: 'entertainment' },
+  bluetoothSpeaker: { label: 'ลำโพงบลูทูธ', icon: 'tabler:device-speaker', group: 'entertainment' },
+  poolTable: { label: 'โต๊ะพูล สนุกเกอร์', icon: 'tabler:circle-dot', group: 'entertainment' },
+  boardGames: { label: 'บอร์ดเกม', icon: 'tabler:dice', group: 'entertainment' },
+  projector: { label: 'โปรเจกเตอร์', icon: 'tabler:device-projector', group: 'entertainment' },
+
+  // — บริการและความปลอดภัย —
+  parking: { label: 'ที่จอดรถ', icon: 'tabler:parking', group: 'services' },
+  petFriendly: { label: 'นำสัตว์เลี้ยงได้', icon: 'tabler:paw', group: 'services' },
+  securityCamera: { label: 'กล้องวงจรปิด', icon: 'tabler:device-cctv', group: 'services' },
+  firstAid: { label: 'ชุดปฐมพยาบาล', icon: 'tabler:first-aid-kit', group: 'services' },
+  extraBed: { label: 'เตียงเสริม', icon: 'tabler:bed', group: 'services' },
+} as const satisfies Record<string, { label: string; icon: string; group: RoomFacilityGroup }>
 
 export type RoomFacilityKey = keyof typeof ROOM_FACILITIES
 export const ROOM_FACILITY_KEYS = Object.keys(ROOM_FACILITIES) as RoomFacilityKey[]
 
 export function isRoomFacility(value: string): value is RoomFacilityKey {
   return value in ROOM_FACILITIES
+}
+
+/** จัดกลุ่มสำหรับ chip selector — 32 รายการเรียงแบน ๆ ใช้งานยาก ต้องมีหัวข้อคั่น */
+export function facilitiesByGroup(): Array<{
+  group: RoomFacilityGroup
+  label: string
+  items: Array<{ key: RoomFacilityKey; label: string; icon: string }>
+}> {
+  return (Object.keys(ROOM_FACILITY_GROUPS) as RoomFacilityGroup[]).map((group) => ({
+    group,
+    label: ROOM_FACILITY_GROUPS[group],
+    items: ROOM_FACILITY_KEYS.filter((k) => ROOM_FACILITIES[k].group === group).map((key) => ({
+      key,
+      label: ROOM_FACILITIES[key].label,
+      icon: ROOM_FACILITIES[key].icon,
+    })),
+  }))
 }
 
 // ---------------------------------------------------------------------------
