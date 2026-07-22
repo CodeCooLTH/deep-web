@@ -18,7 +18,26 @@
  *
  * seller-chat-shell class (คุมความกว้าง rail 320px ที่ safepay-overrides.css) เดิมมาจาก
  * shellClassName ที่ server คำนวณ (มีปัญหาเดียวกับข้อบน) — ย้ายมา toggle ที่นี่ด้วย
- * useLayoutEffect บน document.documentElement (sync ก่อน paint กันจอกระพริบ) แทน
+ * useLayoutEffect (sync ก่อน paint กันจอกระพริบ) แทน
+ *
+ * bug fix (Chat Rail ยังกว้าง 245px บน prod ทั้งที่ .seller-chat-shell ควรชนะ): เดิม toggle
+ * class ที่ document.documentElement (<html>) ซึ่งเป็น element เดียวกับที่ Tailwind v4 compile
+ * `@theme{ --sidenav-width: 245px }` (config/_root.css) ลงไปเป็น `:root`/`:host` — ทำให้ค่า
+ * ของ --sidenav-width บน <html> ต้องแข่ง cascade (layer/specificity/source-order) ระหว่าง 2 rule
+ * ที่ target element เดียวกัน ผลลัพธ์ไม่เสถียรข้าม build pipeline (Turbopack/postcss อาจ
+ * เรียง @layer ต่างจากที่คาด) — วัดจริงบน prod แล้วแพ้ ได้ 245px ไม่ใช่ 320px
+ *
+ * แก้โดยย้าย target ไปที่ ".wrapper" (div ที่ VerticalLayout.tsx render ครอบ <TopBar/>+<Sidenav/>+
+ * .page-content — เป็น ancestor ที่ใกล้กว่า <html> ของทั้ง <aside id="app-menu"> และ .page-content)
+ * เพราะ custom property เป็นเรื่อง "inheritance ตาม DOM tree" ไม่ใช่ specificity — เมื่อประกาศ
+ * --sidenav-width ไว้ที่ .wrapper ตรง ๆ ก็ไม่มี rule อื่นแข่ง cascade บน element นั้นเลย (ไม่มี rule
+ * ไหนใน codebase target `.wrapper` ด้วย custom property นี้อีก) การันตีชนะเสมอไม่ว่า build
+ * pipeline จะเรียง layer ยังไง — พิสูจน์ด้วย headless-browser (Playwright) ทั้งกรณีปกติและกรณี
+ * adversarial (จำลอง unlayered :root rule มาทีหลัง .wrapper rule) ได้ 320px ทั้งคู่ (ดู
+ * .superpowers/sdd/fix-rail-3.md บั๊ก 2)
+ *
+ * .wrapper มีแค่ตัวเดียวต่อหน้า (VerticalLayout/HorizontalLayout เท่านั้นที่ประกาศ class นี้ — grep
+ * แล้ว) ใช้ document.querySelector ปลอดภัย ไม่ชนกับ element อื่น
  */
 import type { MenuItemType } from '@/types'
 import type { ReactNode } from 'react'
@@ -40,14 +59,13 @@ const SidenavContent = ({
   const pathname = usePathname()
   const isChatMode = pathname?.startsWith('/inbox') ?? false
 
-  // sync ก่อน paint (useLayoutEffect) กันจอกระพริบ — toggle class บน <html> ไม่ใช่ node ในนี้
-  // เพราะ .seller-chat-shell (safepay-overrides.css) ต้อง scope ที่ .wrapper ขึ้นไป (custom
-  // property --sidenav-width ต้อง inherit ลงมาถึง .app-menu/.page-content ที่เป็น sibling
-  // ของ SidenavContent เอง) — class selector ไม่สนตำแหน่ง DOM จึงติดที่ <html> ได้เหมือนกัน
+  // sync ก่อน paint (useLayoutEffect) กันจอกระพริบ — toggle class ที่ ".wrapper" (ancestor ที่ใกล้
+  // กว่า <html>) ไม่ใช่ document.documentElement อีกต่อไป (ดู comment หัวไฟล์: bug fix cascade race)
   useLayoutEffect(() => {
-    document.documentElement.classList.toggle('seller-chat-shell', isChatMode)
+    const wrapperEl = document.querySelector<HTMLElement>('.wrapper')
+    wrapperEl?.classList.toggle('seller-chat-shell', isChatMode)
     return () => {
-      document.documentElement.classList.remove('seller-chat-shell')
+      wrapperEl?.classList.remove('seller-chat-shell')
     }
   }, [isChatMode])
 

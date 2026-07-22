@@ -58,10 +58,25 @@ export function isExclusionViolation(err: unknown): boolean {
   return /23P01|exclusion constraint/i.test(text);
 }
 
-/** ดึงช่วงวันที่ชนจาก DETAIL ของ error เพื่อบอกผู้ใช้ว่าติดวันไหน (API §5.2) */
+/**
+ * ดึงช่วงวันที่ชนจาก DETAIL ของ error เพื่อบอกผู้ใช้ว่าติดวันไหน (API §5.2)
+ *
+ * IMPORTANT: ต้องอ่านทั้ง meta.message และ err.message เพราะรูปร่าง error ต่างกันตามวิธีเรียก
+ * (วัดจริง 2026-07-22):
+ *   $executeRaw  → PrismaClientKnownRequestError, meta.code '23P01', DETAIL อยู่ใน meta.message
+ *   model call   → PrismaClientUnknownRequestError, meta = undefined, DETAIL อยู่ใน err.message
+ * ของจริงที่ createBooking ใช้คือ model call — เคยเขียนอ่านแค่ meta.message แล้วแกะไม่ออก
+ *
+ * IMPORTANT: ห้ามใช้ regex แบบ /conflicts with existing key[^[]*\[.../ เพราะข้อความมี
+ * `'[)'::text` (นิยาม bound ของ daterange) ซึ่งมี `[` อยู่ข้างใน ทำให้ [^[]* หยุดผิดที่
+ * วิธีที่ทนกว่า: เก็บช่วงวันทุกอันในข้อความ — ตัวแรกคือช่วงที่พยายามจอง ตัวที่สองคือช่วงที่มีอยู่แล้ว
+ */
 export function parseConflictRange(err: unknown): { from: string; to: string } | undefined {
-  const text = (err as { meta?: { message?: string } })?.meta?.message ?? "";
-  const m = text.match(/conflicts with existing key[^[]*\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/);
+  const meta = (err as { meta?: { message?: string } })?.meta?.message ?? "";
+  const text = `${meta} ${(err as Error)?.message ?? ""}`;
+  const all = [...text.matchAll(/\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/g)];
+  // [0] = ช่วงที่ผู้ใช้พยายามจอง, [1] = ช่วงที่มีอยู่แล้วและชน — เราต้องการตัวหลัง
+  const m = all[1] ?? all[0];
   return m ? { from: m[1]!, to: m[2]! } : undefined;
 }
 

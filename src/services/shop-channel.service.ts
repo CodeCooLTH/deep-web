@@ -17,10 +17,13 @@ export interface ChannelView {
 
 type ChannelUpsertResult = 'created' | 'existing-same-shop' | 'other-shop'
 
-// สร้างแถว ShopChannel — แยก P2002 ออกเป็น 2 ความหมาย เพราะ unique constraint คือ [provider, externalId]
-// เดี่ยว ๆ ไม่บอกว่า "ใครชน": ร้านเดียวกันเชื่อมซ้ำ (เช่น retry หลัง subscribe ล้มเหลวรอบก่อน) ต้องไม่ถือเป็น
+// สร้างแถว ShopChannel — แยก P2002 ออกเป็น 2 ความหมาย เพราะ unique constraint ตอนนี้เป็น partial
+// unique index บน (provider, externalId) WHERE status <> 'DISCONNECTED' (ดู migration
+// 20260722000200_shopchannel_active_partial_unique — ไม่ใช่ @@unique เต็มตารางอีกต่อไป เพราะแถว
+// DISCONNECTED ต้องไม่บล็อกร้านใหม่เชื่อมเพจเดิมซ้ำ) P2002 ที่โยนมาจึงชนกับแถวที่ "ยัง active อยู่"
+// เท่านั้น: ร้านเดียวกันเชื่อมซ้ำ (เช่น retry หลัง subscribe ล้มเหลวรอบก่อน) ต้องไม่ถือเป็น
 // error — ปล่อยให้ subscribePageToApp ยิงซ้ำได้ (ฝั่ง Meta idempotent) ส่วนร้านอื่นยึด externalId นี้ไปแล้ว
-// ต้องรายงาน skipped และห้ามแตะ subscribe/แถวเดิมของร้านนั้นเด็ดขาด
+// (แถว active ของร้านอื่น) ต้องรายงาน skipped และห้ามแตะ subscribe/แถวเดิมของร้านนั้นเด็ดขาด
 async function upsertChannel(params: {
   shopId: string
   userId: string
@@ -43,8 +46,11 @@ async function upsertChannel(params: {
     return 'created'
   } catch (e) {
     if ((e as { code?: string })?.code !== 'P2002') throw e
-    const existing = await prisma.shopChannel.findUnique({
-      where: { provider_externalId: { provider: params.provider, externalId: params.externalId } },
+    // findUnique ด้วย provider_externalId ใช้ไม่ได้แล้ว — ไม่มี @@unique เต็มตารางให้ประกอบเป็น
+    // compound key ต้องใช้ findFirst + กรอง status ให้ตรงกับขอบเขตของ partial unique index จริง
+    // (ถ้าไม่กรอง อาจไปเจอแถว DISCONNECTED เก่าซึ่งไม่ใช่ตัวที่ชน constraint แล้วรายงาน shopId ผิด)
+    const existing = await prisma.shopChannel.findFirst({
+      where: { provider: params.provider, externalId: params.externalId, status: { not: 'DISCONNECTED' } },
       select: { shopId: true },
     })
     return existing?.shopId === params.shopId ? 'existing-same-shop' : 'other-shop'
@@ -132,14 +138,21 @@ export async function listChannels(shopId: string): Promise<ChannelView[]> {
 }
 
 // server-only — คืน token ที่ถอดรหัสแล้ว ห้ามเรียกจาก client component
+//
+// webhook เรียกทางนี้เพื่อหา channel จาก pageId ที่ Meta ส่งมา — ต้องได้เฉพาะแถว "ยัง active อยู่"
+// (ไม่ใช่ DISCONNECTED) เดิมใช้ findUnique ด้วย provider_externalId ได้เพราะมี @@unique เต็มตาราง
+// ตอนนี้ partial unique index กันซ้ำแค่แถวที่ status <> 'DISCONNECTED' เท่านั้น จึงมีได้หลายแถวต่อ
+// (provider, externalId) ถ้านับรวม DISCONNECTED เก่าด้วย → ต้อง findFirst + กรอง status ชัดเจน
+// (ไม่ใช่กรองทีหลังด้วย if เหมือนเดิม เพราะถ้ามีแถว DISCONNECTED เก่าปนอยู่ query อาจสุ่มได้แถวนั้น
+// มาก่อนแถว active จริง)
 export async function getChannelByExternalId(
   provider: string,
   externalId: string,
 ): Promise<{ id: string; shopId: string; provider: string; accessToken: string } | null> {
-  const row = await prisma.shopChannel.findUnique({
-    where: { provider_externalId: { provider, externalId } },
+  const row = await prisma.shopChannel.findFirst({
+    where: { provider, externalId, status: { not: 'DISCONNECTED' } },
   })
-  if (!row || row.status === 'DISCONNECTED') return null
+  if (!row) return null
   return {
     id: row.id,
     shopId: row.shopId,

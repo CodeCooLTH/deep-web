@@ -64,9 +64,32 @@ async function enrichWithBuyerCounterparty(
     select: { id: true, displayName: true, avatar: true },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
+
+  // bug fix (Chat Rail แสดง "ผู้ติดต่อ" ทุกแถว): เดิม enrich เฉพาะ buyerUserId (User ในระบบ) —
+  // เธรดช่องทางนอก (feature 00018, buyerUserId เป็น null เสมอ) ได้ counterparty: null ทุกแถว
+  // ต้อง enrich จาก ExternalContact ด้วยเช่นเดียวกับ inbox/page.tsx (ต้นแบบ) — batch query กัน N+1
+  // เดียวกัน (allow-list id/name เท่านั้น, avatarUrl เป็น null เสมอ Meta ไม่ให้รูป ไม่ query มาใช้)
+  const externalContactIds = [
+    ...new Set(items.map((i) => i.externalContactId).filter((id): id is string => id !== null)),
+  ];
+  const contacts =
+    externalContactIds.length > 0
+      ? await prisma.externalContact.findMany({
+          where: { id: { in: externalContactIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const contactMap = new Map(contacts.map((c) => [c.id, c]));
+
   return items.map((i) => {
     const buyer = i.buyerUserId ? userMap.get(i.buyerUserId) : undefined;
-    return { ...i, counterparty: buyer ? { displayName: buyer.displayName, avatar: buyer.avatar } : null };
+    const contact = i.externalContactId ? contactMap.get(i.externalContactId) : undefined;
+    const counterparty = buyer
+      ? { displayName: buyer.displayName, avatar: buyer.avatar }
+      : contact
+        ? { displayName: contact.name ?? 'ผู้ติดต่อ', avatar: null }
+        : null;
+    return { ...i, counterparty };
   });
 }
 

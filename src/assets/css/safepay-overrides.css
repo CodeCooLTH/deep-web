@@ -131,11 +131,18 @@ html[data-skin="orbit"] {
    token เดิม --sidenav-width: 245px (config/_root.css) แคบเกินใส่ search+tabs+filter+preview
    ข้อความ (ดู docs/superpowers/specs/2026-07-22-facebook-chat-ui-design.md §กลไกหลัก ข้อ 3
    "ความกว้าง rail") — override เฉพาะ scoped ด้วย marker class .seller-chat-shell (ติดที่
-   .wrapper เมื่อ path เริ่มด้วย /inbox — ดู (dashboard)/layout.tsx) นี่คือ override CSS
+   .wrapper — div ที่ VerticalLayout.tsx render ครอบ <TopBar/>+<Sidenav/>+.page-content — เมื่อ
+   path เริ่มด้วย /inbox toggle โดย SidenavContent.tsx ผ่าน useLayoutEffect) นี่คือ override CSS
    custom property ที่มี token name เดิมของ Paces เอง (pattern เดียวกับ .seller-mobile-shell
    ด้านบน) ไม่ใช่ arbitrary Tailwind bracket value ใน JSX (Hard Rule 7 ห้ามเฉพาะอย่างหลัง)
    จำกัดที่ ≥1024px เท่านั้น — จอเล็กใช้ drill-down เดิม ไม่มี .app-menu ให้เห็นอยู่แล้ว จึงไม่ต้อง
-   override อะไร (ตาม Global Constraint ห้ามสร้าง breakpoint ใหม่/ห้ามแตะจอ <1024px) */
+   override อะไร (ตาม Global Constraint ห้ามสร้าง breakpoint ใหม่/ห้ามแตะจอ <1024px)
+
+   bug fix (2026-07-22): เดิม toggle class ที่ document.documentElement (<html>) ซึ่งเป็น element
+   เดียวกับที่ @theme{--sidenav-width:245px} (config/_root.css) compile ไปเป็น :root — ทำให้ 2 rule
+   แข่ง cascade บน element เดียวกัน ผลไม่เสถียร (วัดจริง prod ได้ 245px ไม่ใช่ 320px) — ย้าย target
+   ไปที่ .wrapper (ancestor ที่ใกล้กว่า) แทน ตัด competition ทิ้งไปเลยด้วย inheritance แทน cascade
+   ดู comment เต็มที่ SidenavContent.tsx + .superpowers/sdd/fix-rail-3.md บั๊ก 2 */
 @media (min-width: 1024px) {
   .seller-chat-shell {
     --sidenav-width: 320px;
