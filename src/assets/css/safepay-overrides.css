@@ -144,50 +144,53 @@ html[data-text-scale="xl"] {
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }
 
-/* ─── Chat Rail width (feat 00018 T2) — เมนูซ้ายโหมดแชท 320px บน desktop ──────────
-   token เดิม --sidenav-width: 245px (config/_root.css) แคบเกินใส่ search+tabs+filter+preview
-   ข้อความ (ดู docs/superpowers/specs/2026-07-22-facebook-chat-ui-design.md §กลไกหลัก ข้อ 3
-   "ความกว้าง rail") — override เฉพาะ scoped ด้วย marker class .seller-chat-shell (ติดที่
-   .wrapper — div ที่ VerticalLayout.tsx render ครอบ <TopBar/>+<Sidenav/>+.page-content — เมื่อ
-   path เริ่มด้วย /inbox toggle โดย SidenavContent.tsx ผ่าน useLayoutEffect) นี่คือ override CSS
-   custom property ที่มี token name เดิมของ Paces เอง (pattern เดียวกับ .seller-mobile-shell
-   ด้านบน) ไม่ใช่ arbitrary Tailwind bracket value ใน JSX (Hard Rule 7 ห้ามเฉพาะอย่างหลัง)
-   จำกัดที่ ≥1024px เท่านั้น — จอเล็กใช้ drill-down เดิม ไม่มี .app-menu ให้เห็นอยู่แล้ว จึงไม่ต้อง
-   override อะไร (ตาม Global Constraint ห้ามสร้าง breakpoint ใหม่/ห้ามแตะจอ <1024px)
+/* ─── Chat app header (rewrite, .superpowers/sdd/chat-standalone.md) ──────────────
+   /inbox* ไม่ใช้ VerticalLayout/Sidenav/TopBar ของ seller อีกต่อไป — ตัด .seller-chat-shell
+   ทั้งชุดออกแล้ว (เดิม override --sidenav-width เป็น 320px + ลบ padding ของ .page-content ผ่าน
+   marker ที่ SidenavContent.tsx toggle — component นั้นถูกลบไปแล้วเช่นกัน) หน้าแชทตอนนี้เป็น
+   shell ของตัวเอง (ChatHeader.tsx + ChatRail.tsx mount ที่ (chat)/layout.tsx) คุมความกว้าง/
+   ความสูง/padding เองทั้งหมดด้วย Tailwind scale ปกติ ไม่ต้อง override token ของ Paces เลย
 
-   bug fix (2026-07-22): เดิม toggle class ที่ document.documentElement (<html>) ซึ่งเป็น element
-   เดียวกับที่ @theme{--sidenav-width:245px} (config/_root.css) compile ไปเป็น :root — ทำให้ 2 rule
-   แข่ง cascade บน element เดียวกัน ผลไม่เสถียร (วัดจริง prod ได้ 245px ไม่ใช่ 320px) — ย้าย target
-   ไปที่ .wrapper (ancestor ที่ใกล้กว่า) แทน ตัด competition ทิ้งไปเลยด้วย inheritance แทน cascade
-   ดู comment เต็มที่ SidenavContent.tsx + .superpowers/sdd/fix-rail-3.md บั๊ก 2 */
-@media (min-width: 1024px) {
-  .seller-chat-shell {
-    --sidenav-width: 320px;
+   ThemeDropdown/TextScaleToggler (ย้ายมาอยู่ใน ChatHeader.tsx) ยังต้องพึ่ง `.topbar-item`/
+   `.topbar-link` (สี/hover/ความสูง) ที่ Paces ประกาศ scoped ไว้ใต้ `.app-header` เท่านั้น
+   (theme/paces/.../structure/_topbar.css) — เราไม่มี .app-header ในหน้าแชทแล้ว จึงคัดลอกเฉพาะ
+   selector ที่จำเป็นมาไว้ใต้ class ใหม่ `.chat-header` แทน (ไม่ใช่ arbitrary value ใหม่ เป็นการ
+   ย้าย scope ของ selector ที่มีอยู่แล้วในเอกสาร CSS ของ Paces เอง — ตัด `ms-(--sidenav-width)`/
+   `.container-fluid`/`.logo-topbar` ที่ผูกกับ sidebar ออก เพราะหน้าแชทไม่มี sidebar) */
+.chat-header {
+  background: var(--topbar-bg);
+
+  .topbar-item {
+    @apply flex h-14.5 items-center;
+  }
+
+  .topbar-link {
+    @apply flex items-center px-1.5;
+    color: var(--topbar-item-color);
+
+    &:hover,
+    &:active,
+    &:focus {
+      color: var(--topbar-item-hover-color);
+    }
   }
 }
 
-/* ─── Chat page-content full-bleed (feat 00018 งาน 1) — desktop /inbox เต็มจอ ───────────────────
-   user ส่งภาพ theme มา: [รายการแชท][พื้นที่แชท] เต็มความสูงจริง ไม่มี breadcrumb ไม่มีการ์ดครอบซ้อน
-   ไม่มี padding ของ page-content — ต่างจากหน้า seller อื่นที่ยังต้องการ padding 20px ปกติของ Paces
-   (`main { px-5 pb-5 }` — _layout.css) scoped ด้วย .seller-chat-shell (marker เดียวกับ Chat Rail
-   width บล็อกด้านบน — ติดที่ .wrapper โดย SidenavContent.tsx เมื่อ pathname เริ่มด้วย /inbox)
-   จำกัด ≥1024px เท่านั้น — <1024px ยังเป็น drill-down เดิมทุกประการ (spec สั่งห้ามพัง, ไม่มี
-   .app-menu ให้แทนที่อยู่แล้วต่ำกว่า breakpoint นี้ จึงไม่ต้อง override อะไรที่นั่น)
-
-   ตัด px-5 pb-5 ของ main เป็น 0 — การ์ดแชท (h-[calc(100dvh-var(--topbar-height))] ที่ page.tsx/
-   ChatThread.tsx) คุมความสูง/ระยะขอบของตัวเองแทน ให้ชิดขอบจอทุกด้านตรงกับภาพ theme (ไม่ใช่ลอย
-   กลาง page-content ที่มี gutter เหมือนหน้า seller อื่น)
-
-   ซ่อน <Footer/> ท้าย .page-content ด้วย — VerticalLayout.tsx render Footer เสมอทุกหน้า seller
-   แต่ chat app เต็มจอไม่มีที่ว่างให้ (ตรงกับ Base theme apps/chat/page.tsx ที่ก็ไม่มี footer
-   ปรากฏ เพราะการ์ดคุม h-[calc(100vh-190px)] เต็มพอดีอยู่แล้ว) */
-@media (min-width: 1024px) {
-  .seller-chat-shell .page-content main {
-    padding: 0 !important;
-  }
-  .seller-chat-shell .page-content footer {
-    display: none !important;
-  }
+/* โลโก้ใน ChatHeader.tsx — AppLogo.tsx มี .logo-light/.logo-dark toggle ผูก scope
+   `.app-menu .logo-box` เท่านั้น (สมมติพื้นเมนูมืดเสมอ ไม่ผูกกับ data-theme ของหน้าเว็บ — ดู
+   theme/paces/.../structure/_layout.css) ไม่ตรงกับ .chat-header ที่พื้นขาว/เข้มสลับตาม
+   data-theme จริง (ผ่าน --topbar-bg) จึงต้อง toggle เอง แยกจาก .app-menu โดยสิ้นเชิง — ค่า
+   default (ไม่ใช้ .logo-box) ไม่มีการควบคุม logo-light/logo-dark/logo-sm เลย จึงต้องกำหนดครบ
+   ที่นี่ (ใช้ token เดิม --logo-lg-height ไม่ hardcode ขนาด) */
+.chat-header-logo {
+  .logo-sm { display: none; }
+  .logo-lg img { height: var(--logo-lg-height); }
+  .logo-dark { display: block; }
+  .logo-light { display: none; }
+}
+html[data-theme="dark"] .chat-header-logo {
+  .logo-dark { display: none; }
+  .logo-light { display: block; }
 }
 
 /* ─── Choices.js .choices__inner → ให้ match .form-input ───────────────────────

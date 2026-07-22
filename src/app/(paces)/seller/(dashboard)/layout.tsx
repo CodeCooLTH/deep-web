@@ -52,9 +52,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const shop = active.shop
 
   // x-pathname (proxy ตั้งไว้) — ใช้กัน redirect loop ของ onboarding เท่านั้น
-  // (bug fix feat 00018: เดิมยังใช้คำนวณ isChatMode ที่นี่ด้วย แต่ layout server ไม่ re-render
-  // ตอน soft navigation → เมนูไม่สลับตอนกดลิงก์ "ข้อความ" — ย้ายการตัดสินใจไปที่ client
-  // (SidenavContent, usePathname()) แล้ว ดู comment หัวไฟล์ SidenavContent.tsx)
   const currentPath = (await headers()).get('x-pathname') ?? ''
 
   // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
@@ -140,10 +137,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <VerticalLayout
       menuItems={menuItems}
-      // seller-chat-shell (ขยาย --sidenav-width เป็น 320px โหมดแชท ≥1024px, safepay-overrides.css)
-      // ไม่ toggle ที่นี่แล้ว — bug fix feat 00018: server ไม่ re-render ตอน soft nav ทำให้ค้างค่า
-      // ย้ายไป SidenavContent (client, usePathname()) toggle class บน <html> แทน (ดู comment
-      // หัวไฟล์ SidenavContent.tsx) shellClassName เหลือแค่ marker เดิมของ mobile shell
       shellClassName="seller-mobile-shell"
       topbarSlot={
         <SellerMobileHeader

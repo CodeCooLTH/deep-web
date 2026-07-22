@@ -28,6 +28,11 @@
  *    อยู่ใต้ client VerticalLayout ทุก prop ถูก serialize เข้า flight payload ไม่ว่าจะ render จริงไหม
  *  - CTA "สร้างออเดอร์"/"เปิดการจอง" ลิงก์ /orders/new, /bookings/new แบบไม่มี query param —
  *    ทั้งสอง route (อ่านแล้ว) ยังไม่มี searchParams handling เลย จึงไม่ prefill (ดู t45-report.md)
+ *
+ * rewrite (chat-standalone, .superpowers/sdd/chat-standalone.md): ย้ายมาจาก
+ * (dashboard)/inbox/[conversationId]/page.tsx → (chat)/inbox/[conversationId]/page.tsx —
+ * ownership guard/data fetch ทั้งหมดไม่เปลี่ยน แก้แค่ import _shared (alias แทน relative เพราะ
+ * ย้ายข้าม route group) — หน้านี้ไม่มี Sidenav/TopBar ของ seller อีกต่อไป (ดู (chat)/layout.tsx)
  */
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
@@ -39,7 +44,7 @@ import { getWindowState } from '@/services/channel-chat.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
-import SellerErrorState from '../../_shared/SellerErrorState'
+import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
 
@@ -173,13 +178,14 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   }
 
   return (
-    // feat 00018 งาน 1: ตัด PageBreadcrumb ออก (เดิม `hidden lg:block` มือถือไม่เห็นอยู่แล้ว) —
-    // desktop chat เต็มจอไม่มี breadcrumb; buyerName ยังเห็นที่ ChatThread card-header อยู่แล้ว
-    // 3 คอลัมน์ desktop (rail มาจาก layout swap คนละ task/T2 ไม่ใช่ที่นี่):
+    // rewrite (chat-standalone): ไม่มี PageBreadcrumb (ตัดออกตั้งแต่ก่อนหน้านี้แล้ว — หน้าแชท
+    // เต็มจอไม่มี breadcrumb) — buyerName ยังเห็นที่ ChatThread card-header อยู่แล้ว
+    // 3 คอลัมน์ desktop (rail อยู่ที่ (chat)/layout.tsx แล้ว ไม่ใช่ที่นี่):
     // thread (flex-1) + Customer Panel persistent (≥1024px)
+    // h-full: parent ({'children'} slot ของ layout.tsx) คุมความสูงที่เหลือให้แล้ว (flex h-dvh)
     // w-96 (384px): user feedback บน prod ว่า w-80 เดิมแคบไป — ข้อความอธิบายและปุ่ม CTA
     // ถูกบีบจนอ่านยาก; gap-4 แทน gap-1.25 เดิมที่ชิดกันจนสองคอลัมน์ดูติดกันเป็นก้อนเดียว
-    <div className="flex gap-4">
+    <div className="flex h-full gap-4">
       <ChatThread
         conversationId={conversation.id}
         buyerName={buyerDisplayName}
@@ -190,7 +196,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         tokenInvalid={tokenInvalid}
         customerPanelData={customerPanelData}
       />
-      <div className="hidden w-96 shrink-0 lg:block">
+      <div className="hidden h-full w-96 shrink-0 lg:block">
         <CustomerPanel data={customerPanelData} />
       </div>
     </div>
