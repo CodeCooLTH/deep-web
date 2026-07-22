@@ -191,7 +191,9 @@ export async function findShopBySlug(slug: string) {
     where: { slug, kind: "BUSINESS", deletedAt: null },
     include: {
       user: { select: { avatar: true } },
-      badges: { include: { badge: true } },
+      // orderBy earnedAt desc — sync กับ user.service.ts::findByUsername: /b/[slug] ก็ใช้ BadgePillRow
+      // "3 ใบล่าสุดที่ได้รับ" เหมือนกัน ถ้าไม่เรียงตรงนี้ลำดับ pill จะขึ้นกับ insertion order ของ DB
+      badges: { include: { badge: true }, orderBy: { earnedAt: "desc" } },
     },
   });
 }

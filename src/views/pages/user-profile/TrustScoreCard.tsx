@@ -2,6 +2,9 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
+import Card from '@mui/material/Card'
+import CardHeader from '@mui/material/CardHeader'
+import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
@@ -13,9 +16,13 @@ import { Icon } from '@iconify/react'
 import type { TierChipColor } from '@/lib/trust-tier'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/widget-examples/advanced/AssignmentProgress.tsx
-// (dual CircularProgress track+value gauge, label กลาง absolute-positioned)
+// (dual CircularProgress track+value gauge, label กลาง absolute-positioned, Card+CardHeader+CardContent wrap)
 // Adapted: gauge เดี่ยว (ไม่ loop list) + label "{score}/100" กลาง + ข้อความ tier ใต้ gauge + chip row ระดับยืนยัน
 // สี gauge ผูกกับ tier (Tier Lists SSOT ผ่าน tierColor) แทน progress-based ThemeColor ของ Base เดิม
+// Desktop layout redesign (IG-style + trust data): ห่อด้วย Card+CardHeader (เดิมเป็น bare Box ไม่มี bg/shadow —
+// ตอนย้ายมาอยู่บนพื้น Cool Mist ของ TrustDetailSection ต้องมี elevation จริงไม่งั้นกลืนกับพื้นหลัง)
+// shadow บังคับ sm (default MuiCard override = md) — ตัด id='trust-score' เดิมทิ้ง (anchor ย้ายไปที่
+// TrustDetailSection ทั้ง section: id='trust-detail-section')
 
 export type TrustScoreCardData = {
   trustScore: number
@@ -46,14 +53,9 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
   const accent = GAUGE_ACCENT[tierColor]
 
   return (
-    <Box id='trust-score' sx={{ px: { xs: '20px', md: '24px' }, py: '20px' }}>
-      <Typography
-        component='h3'
-        sx={{ m: 0, mb: '14px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
-      >
-        คะแนนความน่าเชื่อถือ
-      </Typography>
-
+    <Card sx={{ boxShadow: 'var(--mui-customShadows-sm)' }}>
+      <CardHeader title='คะแนนความน่าเชื่อถือ' />
+      <CardContent>
       <Box sx={{ position: 'relative', width: 128, height: 128, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <CircularProgress variant='determinate' value={100} size={128} thickness={3.2} sx={{ position: 'absolute', color: '#2F2B3D1F' }} />
         <CircularProgress
@@ -100,7 +102,8 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
           )
         })}
       </Box>
-    </Box>
+      </CardContent>
+    </Card>
   )
 }
 

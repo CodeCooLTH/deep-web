@@ -6,16 +6,21 @@ import Box from '@mui/material/Box'
 // Component Imports
 import { ProfileBanner, ProfileIdentityBar } from './UserProfileHeader'
 import type { ProfileHeaderData } from './UserProfileHeader'
-import { ProfileLeftContent, ProfileRightContent } from './profile'
+import ProfileStatsBar from './ProfileStatsBar'
+import BadgePillRow from './BadgePillRow'
+import { ProfileRightContent } from './profile'
 import type { ProfileTabData } from './profile'
 import ProfileTabsNav from './ProfileTabsNav'
 import type { ProfileTabItem } from './ProfileTabsNav'
+import TrustDetailSection from './TrustDetailSection'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/index.tsx
-// Redesign (2026-07-04, hybrid FB Page × Threads spec): grid-template-areas ใหม่
-//   cover(span2) / identity(span2) / tabs(span2) / left(340px sticky) + right(1fr)
-// mobile/tablet (< md): display ปกติ (ไม่ใช่ grid) → children เรียงตาม DOM order เป็น single-column stack
-//   (เทคนิคเดิมจาก R9: display:{md:'grid'} ทำให้ gridArea sx ถูกมองข้ามที่ mobile โดยอัตโนมัติ)
+// Desktop layout redesign (IG-style + trust data):
+//   ตัด grid-template-areas / sidebar กว้างคงที่แบบ sticky เดิม (hybrid FB Page × Threads spec, 2026-07-04) ทิ้งทั้งหมด
+//   → คอลัมน์เดียวจัดกลาง container maxWidth 960px, mx:auto (Hard Rule 6: เอา IA/layout ตาม IG แต่สี/component = Vuexy+Deep token)
+//   breakpoint = md(900) ตาม convention เดิมของไฟล์นี้เอง (ไม่ใช่ 1200)
+// wireframe เป้าหมาย: banner(เต็มจอ, คงเดิม) → identity → stats bar(4 คอลัมน์) → badge pill row → tabs →
+//   product grid(pinned/all) → TrustDetailSection(full-bleed band Cool Mist, 3 การ์ด)
 
 const UserProfile = ({
   profileHeader,
@@ -24,85 +29,49 @@ const UserProfile = ({
   profileHeader: ProfileHeaderData
   profileTab: ProfileTabData
 }) => {
-  // Phase 3 (feature 00013 Pin Products): pinnedProducts/otherProducts มาจากข้อมูลปักหมุดจริงแล้ว
-  // (แทน splitPinnedProducts interim slice เดิม)
   const { pinnedProducts, otherProducts } = profileTab
-  // ทำไม: right column ทั้งชุด (products+platforms) ซ่อนเมื่อ buyer-only (ไม่มีร้าน) — achievements ย้ายไป left แล้ว
+  // ทำไม: product grid ทั้งชุดซ่อนเมื่อ buyer-only (ไม่มีร้าน) — TrustDetailSection ยังแสดงเสมอ (มีข้อมูลให้ดูแม้ไม่มีร้าน)
   const hasRightContent = !profileTab.openShopEmptyState
 
-  // tabs: ซ่อนแท็บที่ section ของมันไม่ render จริง (กันคลิกแล้วไม่มีอะไรให้ scroll ไปหา)
+  // tabs: ซ่อนแท็บสินค้าที่ section ของมันไม่ render จริง (กันคลิกแล้วไม่มีอะไรให้ scroll ไปหา)
+  // ความน่าเชื่อถือโดยละเอียด render เสมอ (TrustDetailSection ไม่มีเงื่อนไขว่าง) — คงแท็บนี้ไว้ตลอด
   const tabs: ProfileTabItem[] = [
     ...(hasRightContent && pinnedProducts.length > 0 ? [{ id: 'pinned-products', label: 'สินค้าปักหมุด' }] : []),
     ...(hasRightContent && otherProducts.length > 0 ? [{ id: 'all-products', label: 'สินค้าทั้งหมด' }] : []),
-    ...(profileTab.achievements.length > 0 ? [{ id: 'achievements', label: 'การรับรอง' }] : []),
-    { id: 'about', label: 'เกี่ยวกับ' },
+    { id: 'trust-detail-section', label: 'ความน่าเชื่อถือโดยละเอียด' },
   ]
 
   return (
-    <Box
-      sx={{
-        // ทำไม: full-bleed edge-to-edge ทุก breakpoint ตาม mockup ที่ user อนุมัติ (2026-07-04 fix)
-        // เดิม md+ เคยเป็นการ์ด 1024px ลอย + borderRadius + boxShadow — ผิด requirement เต็มจอไม่มี frame
-        width: '100%',
-        bgcolor: 'background.paper',
-        position: 'relative',
-        display: { md: 'grid' },
-        gridTemplateColumns: {
-          md: hasRightContent ? '340px 1fr' : '1fr',
-        },
-        gridTemplateAreas: {
-          md: hasRightContent ? '"cover cover" "identity identity" "tabs tabs" "left right"' : '"cover" "identity" "tabs" "left"',
-        },
-        alignItems: 'start',
-      }}
-    >
-      {/* ── Cover: gradient ต่อ tier, span 2 col บน desktop ── */}
-      <Box sx={{ gridArea: { md: 'cover' } }}>
-        <ProfileBanner data={profileHeader} />
-      </Box>
+    <Box sx={{ width: '100%', bgcolor: 'background.paper' }}>
+      {/* ── Cover: gradient ต่อ tier (คงเดิม ไม่แตะ) ── */}
+      <ProfileBanner data={profileHeader} />
 
-      {/* ── Identity bar: avatar + name/handle/metric-row + actions, span 2 col บน desktop ── */}
-      <Box sx={{ gridArea: { md: 'identity' } }}>
+      <Box sx={{ maxWidth: 960, mx: 'auto' }}>
+        {/* ── Identity bar: avatar + name/handle/chip + actions ── */}
         <ProfileIdentityBar data={profileHeader} />
-      </Box>
 
-      {/* ── Tabs nav: anchor-scroll ไม่เปลี่ยน route, span 2 col บน desktop ── */}
-      <Box sx={{ gridArea: { md: 'tabs' }, borderBottom: '1px solid #2F2B3D1F', px: { xs: '8px', md: '16px' } }}>
-        <ProfileTabsNav items={tabs} />
-      </Box>
-
-      {/* ── Left panel: About + TrustScoreCard + Achievements ── */}
-      {/* R9: sticky left panel บน desktop — identity ติดบนขณะ scroll (alignSelf:start ป้องกัน stretch) */}
-      <Box sx={{ gridArea: { md: 'left' }, position: { md: 'sticky' }, top: { md: 16 }, alignSelf: { md: 'start' } }}>
-        <ProfileLeftContent
+        {/* ── Stats bar: คะแนน+tier(เด่นสุด) · ออเดอร์ · อัตราสำเร็จ · รีวิว ── */}
+        <ProfileStatsBar
           data={{
-            bio: profileTab.bio,
-            location: profileTab.location,
-            memberSince: profileTab.memberSince,
-            chatResponseRate: profileTab.chatResponseRate,
-            chatMedianResponseSec: profileTab.chatMedianResponseSec,
-            chatResponseSampleSize: profileTab.chatResponseSampleSize,
-            trustScore: profileTab.trustScore,
-            tierLabel: profileTab.tierLabel,
-            tierColor: profileTab.tierColor,
-            nextTierLabel: profileTab.nextTierLabel,
-            pointsToNext: profileTab.pointsToNext,
-            verifiedLevels: profileTab.verifiedLevels,
-            achievements: profileTab.achievements,
-            totalBadgeCount: profileTab.totalBadgeCount,
+            trustScore: profileHeader.trustScore,
+            tierLabel: profileHeader.tierLabel,
+            completedOrders: profileHeader.completedOrders,
+            completionRate: profileHeader.completionRate,
+            avgRating: profileHeader.avgRating,
+            showRating: profileHeader.showRating,
           }}
         />
-      </Box>
 
-      {/* ── Right panel: Pinned/All products + Platform reputation ── */}
-      {hasRightContent && (
-        <Box
-          sx={{
-            gridArea: { md: 'right' },
-            minHeight: { md: 200 },
-            borderLeft: { md: '1px solid #2F2B3D1F' },
-          }}
-        >
+        {/* ── Badge pill row: แทน medal-frame เดิม ── */}
+        <BadgePillRow items={profileTab.achievements} totalCount={profileTab.totalBadgeCount} />
+
+        {/* ── Tabs nav: anchor-scroll ไม่เปลี่ยน route ── */}
+        <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', px: { xs: '8px', md: '16px' } }}>
+          <ProfileTabsNav items={tabs} />
+        </Box>
+
+        {/* ── Product grid: pinned + all (platform reputation ไม่มีแล้ว — ถูกลบทิ้งโดยตั้งใจ) ── */}
+        {hasRightContent && (
           <ProfileRightContent
             data={{
               pinnedProducts: profileTab.pinnedProducts,
@@ -110,12 +79,35 @@ const UserProfile = ({
               openShopEmptyState: profileTab.openShopEmptyState,
               itemKind: profileTab.itemKind,
             }}
-            // S-19 (extension #1 Chat Product Context Card): prop-drill shopId/isOwnShop จาก profileHeader (S-8)
+            // S-19 (extension #1 Chat Product Context Card): prop-drill shopId/isOwnShop จาก profileHeader
             shopId={profileHeader.shopId}
             isOwnShop={profileHeader.isOwnShop}
           />
-        </Box>
-      )}
+        )}
+      </Box>
+
+      {/* ── Trust detail section: full-bleed band Cool Mist, 3 การ์ด ── */}
+      <TrustDetailSection
+        data={{
+          trustScore: {
+            trustScore: profileTab.trustScore,
+            tierLabel: profileTab.tierLabel,
+            tierColor: profileTab.tierColor,
+            nextTierLabel: profileTab.nextTierLabel,
+            pointsToNext: profileTab.pointsToNext,
+            verifiedLevels: profileTab.verifiedLevels,
+          },
+          verifiedLevels: profileTab.verifiedLevels,
+          about: {
+            bio: profileTab.bio,
+            location: profileTab.location,
+            memberSince: profileTab.memberSince,
+            chatResponseRate: profileTab.chatResponseRate,
+            chatMedianResponseSec: profileTab.chatMedianResponseSec,
+            chatResponseSampleSize: profileTab.chatResponseSampleSize,
+          },
+        }}
+      />
     </Box>
   )
 }
