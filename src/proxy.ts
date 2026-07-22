@@ -19,10 +19,15 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   // ยกเว้น /api/cron/* — Vercel Cron เรียกแบบ server-to-server ไม่มี Origin
   // header เหมือน browser (TD-002); auth ของ route นี้ใช้ CRON_SECRET ที่ตัว
   // route เองแทน ไม่ได้อาศัย cookie จึงไม่มี CSRF surface เช่นกัน. rate-limit ยัง apply ปกติ
+  // ยกเว้น /api/channels/facebook/webhook — Meta ยิง server-to-server ไม่มี Origin
+  // header เหมือน browser; authentication ของ route นี้คือลายเซ็น X-Hub-Signature-256
+  // ที่ตัว route ตรวจเอง จึงไม่มี CSRF surface (CSRF อาศัย cookie ที่ browser แนบให้).
+  // rate-limit ยัง apply ปกติ
   if (
     MUTATION_METHODS.has(request.method) &&
     !pathname.startsWith('/api/app/') &&
-    !pathname.startsWith('/api/cron/')
+    !pathname.startsWith('/api/cron/') &&
+    pathname !== '/api/channels/facebook/webhook'
   ) {
     if (!isAllowedOrigin(request.headers.get('origin'))) {
       return NextResponse.json({ error: 'CSRF check failed' }, { status: 403 })

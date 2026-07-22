@@ -21,7 +21,10 @@ import SellerErrorState from './SellerErrorState'
 
 export type ConversationListItem = {
   id: string
-  buyerUserId: string
+  // feature 00018: เธรดจากช่องทางนอก (Messenger/IG) ไม่มี User ในระบบ → null ได้
+  // type นี้เป็น shape ของ JSON จาก /api/chat/conversations ที่ TS ตรวจข้ามฝั่งให้ไม่ได้
+  // จึงต้องแก้ตามด้วยมือให้ตรง reality ไม่งั้นเป็นระเบิดเวลาเมื่อมีคนเริ่มอ่าน field นี้
+  buyerUserId: string | null
   shopId: string
   lastMessageAt: string
   lastMessagePreview: string | null

@@ -182,6 +182,7 @@ model Shop {
   invites              ShopInvite[] // NEW (feature 00008)
   inviteLinks          ShopInviteLink[] // NEW (feature 00012) — reusable staff invite link
   conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
+  channels             ShopChannel[] // Facebook/Instagram chat integration (feature 00018) — Page/IG ที่ร้านผูกไว้
   verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
@@ -494,8 +495,9 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  orders Order[]
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orders           Order[]
+  externalContacts ExternalContact[] // Facebook/Instagram chat integration (feature 00018) — link จาก PSID/IGSID เมื่อได้เบอร์
 }
 
 model OrderItem {
@@ -969,9 +971,51 @@ model OtpCode {
 // --- Deep Chat (feature 00011, additive — ดู docs/20 - Features/00011 - Deep Chat/DATABASE.md) ---
 // Conversation: 1 ห้องต่อคู่ (buyerUserId, shopId) — shop-anchored, buyer-initiate only (BR-CHAT-02/03)
 // denorm lastMessage* บน Conversation กันหน้า inbox list ต้อง join ChatMessage ทุกครั้ง (BRD §6.1)
+
+// ShopChannel — Page/IG ที่ร้านผูกไว้ (1 Shop : N channel) — feature 00018
+model ShopChannel {
+  id                String   @id @default(uuid())
+  shopId            String
+  provider          String // "MESSENGER" | "INSTAGRAM"
+  externalId        String // Page ID หรือ IG Business Account ID
+  name              String // ชื่อ Page ณ เวลาเชื่อม — cache ไว้แสดงใน UI ไม่ re-fetch ทุกครั้ง
+  avatarUrl         String?
+  // accessTokenEnc: page access token ที่ผ่าน AES-256-GCM แล้ว (src/lib/token-crypto.ts)
+  // ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
+  accessTokenEnc    String
+  connectedByUserId String
+  status            String   @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
+  createdAt         DateTime @default(now())
+
+  shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  contacts      ExternalContact[]
+  // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
+  conversations Conversation[]
+
+  @@unique([provider, externalId]) // 1 Page ผูกได้ร้านเดียวทั้งระบบ — กันสองร้านแย่ง inbox เดียวกัน
+  @@index([shopId, status])
+}
+
+// ExternalContact — ลูกค้าจากช่องทางนอก (PSID/IGSID) — ไม่ใช่ User ของ Deep — feature 00018
+model ExternalContact {
+  id             String   @id @default(uuid())
+  shopChannelId  String
+  externalUserId String // PSID / IGSID
+  name           String?
+  avatarUrl      String?
+  customerId     String? // link → Customer (feature 00014) เมื่อได้เบอร์
+  createdAt      DateTime @default(now())
+
+  channel       ShopChannel    @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversations Conversation[]
+
+  @@unique([shopChannelId, externalUserId]) // PSID เป็น page-scoped — ห้าม dedup ข้าม Page
+}
+
 model Conversation {
   id                 String    @id @default(uuid())
-  buyerUserId        String
+  buyerUserId        String?
   shopId             String
   // lastMessageAt/lastMessagePreview/lastSenderRole: denormalized snapshot ของข้อความล่าสุด
   // อัปเดตใน transaction เดียวกับ ChatMessage insert เสมอ (sendMessage — chat.service.ts) ห้ามอัปเดตแยก
@@ -984,20 +1028,40 @@ model Conversation {
   shopLastReadAt     DateTime?
   createdAt          DateTime  @default(now())
 
-  buyer    User          @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
-  shop     Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  messages ChatMessage[]
+  // --- feature 00018 Facebook/IG chat (additive) ---
+  // channel: "DEEP" = แชทในแอป (ของเดิมทั้งหมด, default ทำให้ backfill ปลอดภัยเอง)
+  //          "MESSENGER" | "INSTAGRAM" = เธรดจากช่องทางนอก (buyerUserId เป็น null)
+  channel           String    @default("DEEP")
+  shopChannelId     String?
+  externalContactId String?
+  // lastInboundAt: เวลาที่ "ลูกค้า" ส่งข้อความล่าสุด — ฐานคำนวณ 24h messaging window ของ Meta
+  // ต่างจาก lastMessageAt ที่ขยับเมื่อฝั่งไหนส่งก็ได้
+  lastInboundAt     DateTime?
+  // S-7 (ผลตัดสิน Q-4): ปักหมุด / ซ่อน / ปิดงาน ต่อเธรด — ใส่มาพร้อมกันในไฟล์ migration
+  // เดียวเพราะ DB dev=prod แชร์กัน การ ALTER รอบสองมีต้นทุนความเสี่ยงมากกว่าการเพิ่มตอนนี้
+  // ใช้กับเธรด DEEP ได้ด้วย ไม่ผูกกับช่องทางนอกอย่างเดียว
+  isPinned          Boolean   @default(false)
+  isHidden          Boolean   @default(false)
+  resolvedAt        DateTime? // null = ยังเปิดอยู่
+
+  buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  messages        ChatMessage[]
+  shopChannel     ShopChannel?     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  externalContact ExternalContact? @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
+  @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
   @@index([shopId, lastMessageAt]) // seller inbox (/inbox): list ของร้าน เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-09-AC-01)
   @@index([buyerUserId, lastMessageAt]) // buyer inbox (/messages): list ของ buyer เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-07-AC-01)
+  @@index([shopId, isHidden, isPinned, lastMessageAt]) // inbox list กรอง "ยังเปิดอยู่ + ไม่ซ่อน" แล้วเรียงหมุดขึ้นก่อน — ครอบ query หลักของหน้า /inbox
 }
 
 // ChatMessage: ข้อความ 1 รายการ — TEXT หรือ IMAGE (1 รูป/ข้อความ, BR-CHAT-05) — append-only (ไม่มี updatedAt/edit/delete ใน MVP)
 model ChatMessage {
   id             String   @id @default(uuid())
   conversationId String
-  senderUserId   String
+  senderUserId   String?
   // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
   senderRole     String // "BUYER" | "SHOP"
   // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
@@ -1012,8 +1076,16 @@ model ChatMessage {
   flaggedScam      Boolean @default(false)
   scamMatchedRules Json? // rule IDs ที่ match (audit) — เช่น ["R-SHORTENER","R-KEYWORD"]
 
+  // --- feature 00018 (additive) ---
+  // externalMessageId: mid จาก Meta — unique เพื่อ idempotency
+  // Meta redeliver webhook ซ้ำได้ตลอด และ echo ของข้อความที่เราส่งเองก็กลับมาด้วย mid เดิม
+  // unique constraint จึงทำหน้าที่ dedupe ให้ทั้งสองกรณีโดยไม่ต้องเขียน logic แยก
+  externalMessageId String? @unique
+  deliveryStatus    String? // null = แชทในแอป (ไม่เกี่ยว) | "SENT" | "FAILED"
+  failureReason     String?
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
+  sender       User?        @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
   product      Product?     @relation(fields: [productRefId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)

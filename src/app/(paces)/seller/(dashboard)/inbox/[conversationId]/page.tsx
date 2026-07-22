@@ -46,11 +46,13 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   if (!shop) redirect('/inbox')
 
   // ownership scope อยู่ใน WHERE (compound id+shopId) — ไม่ใช่ post-check
+  // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — include externalContact เพื่อ fallback ชื่อ
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, shopId: shop.id },
     select: {
       id: true,
       buyer: { select: { id: true, displayName: true, avatar: true } },
+      externalContact: { select: { name: true } },
     },
   })
 
@@ -65,18 +67,23 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     )
   }
 
+  // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — fallback ชื่อจาก externalContact แล้วค่อย 'ลูกค้า'
+  // (null-safe ขั้นต่ำเท่านั้น — ไม่ทำ UI ใหม่สำหรับช่องทางนอก, งานนั้นอยู่แผนอื่น)
+  const buyerDisplayName = conversation.buyer?.displayName ?? conversation.externalContact?.name ?? 'ลูกค้า'
+  const buyerAvatar = conversation.buyer?.avatar ?? null
+
   return (
     <>
       <div className="hidden lg:block">
         <PageBreadcrumb
-          title={conversation.buyer.displayName}
+          title={buyerDisplayName}
           trail={[{ label: 'ข้อความ', href: '/inbox' }]}
         />
       </div>
       <ChatThread
         conversationId={conversation.id}
-        buyerName={conversation.buyer.displayName}
-        buyerAvatar={conversation.buyer.avatar}
+        buyerName={buyerDisplayName}
+        buyerAvatar={buyerAvatar}
       />
     </>
   )

@@ -5,7 +5,9 @@ import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
+import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
+import { sendOutboundMessage } from "@/services/channel-chat.service";
 import { getProductsByIds } from "@/services/product.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
 import { CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS } from "@/lib/chat-constants";
@@ -28,6 +30,30 @@ function mapChatServiceError(e: unknown, context: string) {
   if (e instanceof Error && e.message === "PRODUCT_NOT_IN_SHOP") {
     // extension #1 Chat Product Context Card — cross-shop injection guard (FR-CTX-07)
     return NextResponse.json({ error: "ไม่พบสินค้านี้ในร้านค้านี้" }, { status: 400 });
+  }
+  if (e instanceof Error && e.message === "WINDOW_CLOSED") {
+    // feature 00018: เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า — Meta ไม่ให้ส่ง
+    return NextResponse.json(
+      { error: "เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความไม่ได้จนกว่าลูกค้าจะทักมาใหม่" },
+      { status: 409 },
+    );
+  }
+  if (e instanceof Error && e.message === "NOT_EXTERNAL_CHANNEL") {
+    return NextResponse.json({ error: "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }, { status: 400 });
+  }
+  if (e instanceof Error && e.message === "CHANNEL_NOT_ACTIVE") {
+    // feature 00018 (S-4): token ตายแล้ว (ถูก markChannelTokenInvalid) หรือร้านถอดการเชื่อมต่อไปแล้ว
+    // — สาเหตุชัดเจนและแก้ได้เอง (ไปเชื่อม Page ใหม่) ไม่ใช่ generic 500
+    return NextResponse.json(
+      { error: "การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง" },
+      { status: 409 },
+    );
+  }
+  if (e instanceof Error && e.message.startsWith("SEND_FAILED")) {
+    return NextResponse.json(
+      { error: "ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่" },
+      { status: 502 },
+    );
   }
   console.error(`[${context}]`, e instanceof Error ? e.message : e);
   return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
@@ -158,6 +184,26 @@ export async function POST(
   const senderRole: SenderRole = getSubdomain(host) === "seller" ? "SHOP" : "BUYER";
 
   try {
+    // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
+    const conv = await prisma.conversation.findUnique({
+      where: { id },
+      select: { channel: true },
+    });
+    if (conv && conv.channel !== "DEEP") {
+      if (type !== "TEXT") {
+        return NextResponse.json(
+          { error: "ช่องทางนี้รองรับเฉพาะข้อความตัวอักษรในตอนนี้" },
+          { status: 400 },
+        );
+      }
+      const sent = await sendOutboundMessage({
+        conversationId: id,
+        actorUserId: userId,
+        text: text!,
+      });
+      return NextResponse.json(sent);
+    }
+
     const message = await sendMessage({
       conversationId: id,
       senderUserId: userId,

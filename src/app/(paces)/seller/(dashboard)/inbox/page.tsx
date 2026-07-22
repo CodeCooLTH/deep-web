@@ -69,7 +69,8 @@ export default async function SellerInboxPage() {
     const result = await listConversationsForShop(shop.id, { take: 20 })
 
     // B1 enrich — batch query buyer identity (ดู comment หัวไฟล์)
-    const buyerIds = [...new Set(result.items.map((i) => i.buyerUserId))]
+    // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
+    const buyerIds = [...new Set(result.items.map((i) => i.buyerUserId).filter((id): id is string => id !== null))]
     const buyers =
       buyerIds.length > 0
         ? await prisma.user.findMany({
@@ -81,7 +82,7 @@ export default async function SellerInboxPage() {
 
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     items = result.items.map((c) => {
-      const buyer = buyerMap.get(c.buyerUserId)
+      const buyer = c.buyerUserId ? buyerMap.get(c.buyerUserId) : undefined
       return {
         id: c.id,
         buyerUserId: c.buyerUserId,
