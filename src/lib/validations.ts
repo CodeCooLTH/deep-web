@@ -10,6 +10,7 @@ import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
 import {
   SHOP_VERTICAL_KEYS,
+  CANCEL_REASON_KEYS,
   ROOM_FACILITY_KEYS,
   MAX_ROOM_IMAGES,
   MAX_ROOM_NAME_LENGTH,
@@ -783,4 +784,50 @@ export const UpdateRoomSchema = v.object({
   depositMode: RoomBaseFields.depositMode,
   depositValue: RoomBaseFields.depositValue,
   isActive: v.optional(v.boolean()),
+});
+
+// ── feature 00017 Lodging Vertical (Phase 2 — การจอง) ────────────────────────
+
+// วันที่ส่งเป็น 'YYYY-MM-DD' (วันล้วน) ไม่ใช่ ISO datetime เต็ม —
+// การเข้าพักคิดเป็นวัน การส่ง datetime ทำให้เกิดปัญหาเลื่อนวันข้าม timezone
+const DateOnlyString = v.pipe(
+  v.string(),
+  v.regex(/^\d{4}-\d{2}-\d{2}$/, "รูปแบบวันที่ต้องเป็น YYYY-MM-DD"),
+);
+
+export const BookingQuoteSchema = v.object({
+  roomId: v.pipe(v.string(), v.uuid()),
+  checkIn: DateOnlyString,
+  checkOut: DateOnlyString,
+});
+
+export const CreateBookingSchema = v.object({
+  roomId: v.pipe(v.string(), v.uuid()),
+  checkIn: DateOnlyString,
+  checkOut: DateOnlyString,
+  guestName: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+  // required เสมอ — ต้องผูก Customer เพื่อเก็บสถิติผู้จอง (D-09) และเพื่อให้
+  // ผู้จองเข้าถึงการจองผ่าน Access Gate ของ feature 00015 ได้
+  guestPhone: v.pipe(v.string(), v.minLength(9), v.maxLength(20)),
+  depositAmount: v.optional(DecimalString),
+  internalNote: v.optional(v.pipe(v.string(), v.maxLength(1000))),
+});
+
+// PATCH — แก้มัดจำหรือช่วงวัน (ก่อนผู้จองแนบสลิปเท่านั้น)
+export const UpdateBookingSchema = v.object({
+  depositAmount: v.optional(DecimalString),
+  checkIn: v.optional(DateOnlyString),
+  checkOut: v.optional(DateOnlyString),
+});
+
+export const AvailabilityQuerySchema = v.object({
+  from: DateOnlyString,
+  to: DateOnlyString,
+  roomId: v.optional(v.pipe(v.string(), v.uuid())),
+});
+
+// body ของ POST /api/orders/[token]/cancel — reason บังคับเมื่อเจ้าของยกเลิกการจอง
+// (ตรวจเงื่อนไข "บังคับเมื่อไหร่" ที่ service เพราะต้องรู้ type/initiator ก่อน)
+export const CancelOrderSchema = v.object({
+  reason: v.optional(v.picklist(CANCEL_REASON_KEYS)),
 });
