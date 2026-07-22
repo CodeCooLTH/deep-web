@@ -7,13 +7,13 @@
  * แก้ด้วยย้าย topbar ขึ้น layout slot → render ครอบทุกหน้า (T3 wire ที่ VerticalLayout)
  *
  * 2 mode แยกด้วย pathname:
- *   - /dashboard → identity mode: IdentityBar (avatar + ชื่อร้าน + tier + bell)
+ *   - /dashboard, /orders → คืน null: หน้าเหล่านี้มี header ของตัวเอง
+ *     (SellerHeader ใน CommandCenter สำหรับ dashboard; search+filter+bell ใน
+ *     OrdersList สำหรับ orders) → ไม่ต้องซ้อน topbar ที่นี่
  *   - อื่น ๆ → sub-page mode: back button + page title + bell
  *
  * Base: theme/paces/Admin/TS/src/layouts/components/TopBar/components/MenuToggler.tsx
- * Adapt: เปลี่ยนจาก hamburger toggle → dual-mode topbar;
- *        identity mode delegate ไป IdentityBar (T1);
- *        sub-page mode copy markup card/shadow/gradient เดียวกับ IdentityBar
+ * Adapt: เปลี่ยนจาก hamburger toggle → dual-mode topbar (null-mode / sub-page mode)
  */
 
 import { usePathname, useRouter } from 'next/navigation'
@@ -36,7 +36,7 @@ const SellerMobileHeader = (_props: Props) => {
   const router = useRouter()
 
   // v8: /dashboard มี SellerHeader (น้ำเงิน) ของตัวเองใน CommandCenter (page content)
-  // → layout topbar คืน null กัน header ซ้อน 2 อัน (IdentityBar เก่า superseded)
+  // → layout topbar คืน null กัน header ซ้อน 2 อัน
   // /orders: หน้าเป็นเจ้าของ header เอง (search + filter + bell ใน OrdersList) → คืน null เช่นกัน
   if (pathname === '/dashboard' || pathname === '/orders') {
     return null
