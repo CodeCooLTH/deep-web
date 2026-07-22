@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as v from 'valibot'
 import { Prisma } from '@prisma/client'
+import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
 import { ingestInboundMessage } from '@/services/channel-chat.service'
@@ -19,13 +20,25 @@ import { ingestInboundMessage } from '@/services/channel-chat.service'
 
 export const dynamic = 'force-dynamic'
 
+// (S-2) เทียบ verify_token ด้วย timingSafeEqual แทน === — impact ต่ำ (เรียกครั้งเดียวตอน setup)
+// แต่ทำให้สอดคล้องกับหลักที่ประกาศไว้เองว่าลายเซ็นคือ authentication (เห็น pattern เดียวกันใน
+// signature.ts) ห้าม leak ความยาว/ค่าจริงผ่าน timing side-channel แม้ risk จะน้อยก็ตาม
+function verifyHandshakeToken(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided)
+  const expectedBuf = Buffer.from(expected)
+  // timingSafeEqual throw ถ้าความยาวไม่เท่ากัน — เช็คก่อนเพื่อคืน false แทนที่จะพัง (500)
+  if (providedBuf.length !== expectedBuf.length) return false
+  return timingSafeEqual(providedBuf, expectedBuf)
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const mode = searchParams.get('hub.mode')
   const token = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
+  const expectedToken = process.env.FB_WEBHOOK_VERIFY_TOKEN
 
-  if (mode === 'subscribe' && token && token === process.env.FB_WEBHOOK_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token && expectedToken && verifyHandshakeToken(token, expectedToken)) {
     // ต้องคืน challenge เป็น text เปล่า ๆ ไม่ใช่ JSON
     return new NextResponse(challenge ?? '', { status: 200, headers: { 'content-type': 'text/plain' } })
   }

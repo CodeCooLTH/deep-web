@@ -54,6 +54,30 @@ export interface PageInfo {
   instagramBusinessAccountId: string | null
 }
 
+// (S-3) แลก short-lived user token → long-lived (~60 วัน) ต่ออีกครั้ง — design spec §7.1 ระบุว่า
+// ต้องได้ long-lived user token; page token ที่ derive จาก short-lived user token จะหมดอายุเร็ว
+// (~1-2 ชม.) ทำให้ TOKEN_INVALID เกิดถี่ผิดปกติ และร้านต้องเชื่อมใหม่บ่อยเกินจำเป็น
+async function exchangeForLongLivedToken(shortLivedToken: string): Promise<string> {
+  const appId = process.env.FB_CHAT_APP_ID
+  const appSecret = process.env.FB_CHAT_APP_SECRET
+  if (!appId || !appSecret) return shortLivedToken
+
+  const res = await fetch(
+    `${GRAPH_BASE}/oauth/access_token?` +
+      new URLSearchParams({
+        grant_type: 'fb_exchange_token',
+        client_id: appId,
+        client_secret: appSecret,
+        fb_exchange_token: shortLivedToken,
+      }).toString(),
+  )
+  const json = (await res.json().catch(() => ({}))) as { access_token?: string }
+  // ขั้นแลก long-lived ล้มเหลว (Graph error ชั่วคราว/rate limit) — คืน short-lived แทนการโยน
+  // ใช้งานได้ชั่วคราวดีกว่าเชื่อม Page ไม่ได้เลย (ร้านจะเจอ TOKEN_INVALID เร็วขึ้นเท่านั้น ไม่ใช่เชื่อมไม่ได้)
+  if (!res.ok || !json.access_token) return shortLivedToken
+  return json.access_token
+}
+
 // แลก authorization code → long-lived user access token
 export async function exchangeCodeForToken(code: string, redirectUri: string): Promise<string> {
   const appId = process.env.FB_CHAT_APP_ID
@@ -73,7 +97,7 @@ export async function exchangeCodeForToken(code: string, redirectUri: string): P
   if (!res.ok || !json.access_token) {
     throw new GraphApiError(json.error?.message ?? 'exchange code failed', null, null, res.status)
   }
-  return json.access_token
+  return exchangeForLongLivedToken(json.access_token)
 }
 
 // Page ที่ user ดูแล — เอาเฉพาะที่มีสิทธิ์ MESSAGING + MODERATE ตามที่ Meta กำหนด

@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { listManageablePages, sendTextMessage, GraphApiError } from '@/lib/facebook/graph'
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
+import { listManageablePages, sendTextMessage, exchangeCodeForToken, GraphApiError } from '@/lib/facebook/graph'
 
 const okJson = (data: unknown) =>
   Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) } as Response)
+const failJson = (data: unknown, status = 400) =>
+  Promise.resolve({ ok: false, status, json: () => Promise.resolve(data) } as Response)
 
 describe('graph client', () => {
   beforeEach(() => {
@@ -63,5 +65,53 @@ describe('graph client', () => {
     await sendTextMessage('PAGE1', 'super_secret_token', 'PSID_1', 'hi')
     const calledUrl = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string
     expect(calledUrl).not.toContain('super_secret_token')
+  })
+})
+
+// (S-3) exchangeCodeForToken ต้องแลกต่อเป็น long-lived token เสมอ — ไม่ใช่คืน short-lived
+// จาก /oauth/access_token ตรง ๆ (spec §7.1)
+describe('exchangeCodeForToken (long-lived exchange)', () => {
+  beforeAll(() => {
+    process.env.FB_CHAT_APP_ID = 'app_id_1'
+    process.env.FB_CHAT_APP_SECRET = 'app_secret_1'
+  })
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('เรียก Graph 2 ครั้ง (แลก code ก่อน แล้วแลกต่อเป็น long-lived) และคืน token ตัวหลัง', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(okJson({ access_token: 'short_lived_1' }))
+      .mockReturnValueOnce(okJson({ access_token: 'long_lived_1' }))
+
+    const token = await exchangeCodeForToken('auth_code_1', 'https://seller.deepthailand.app/cb')
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+    const secondCallUrl = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1]![0] as string
+    expect(secondCallUrl).toContain('grant_type=fb_exchange_token')
+    expect(secondCallUrl).toContain('fb_exchange_token=short_lived_1')
+    expect(token).toBe('long_lived_1')
+  })
+
+  it('ขั้นแลก long-lived ล้มเหลว → คืน short-lived แทนการโยน (ใช้งานได้ชั่วคราวดีกว่าเชื่อมไม่ได้เลย)', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(okJson({ access_token: 'short_lived_2' }))
+      .mockReturnValueOnce(failJson({ error: { message: 'rate limited' } }, 400))
+
+    const token = await exchangeCodeForToken('auth_code_2', 'https://seller.deepthailand.app/cb')
+    expect(token).toBe('short_lived_2')
+  })
+
+  it('ขั้นแลก code แรกล้มเหลว → ยัง throw GraphApiError เหมือนเดิม (ไม่แตะพฤติกรรมนี้)', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      failJson({ error: { message: 'invalid code' } }, 400),
+    )
+    await expect(exchangeCodeForToken('bad_code', 'https://seller.deepthailand.app/cb')).rejects.toBeInstanceOf(
+      GraphApiError,
+    )
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 })

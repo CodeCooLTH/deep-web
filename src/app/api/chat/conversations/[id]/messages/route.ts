@@ -41,6 +41,14 @@ function mapChatServiceError(e: unknown, context: string) {
   if (e instanceof Error && e.message === "NOT_EXTERNAL_CHANNEL") {
     return NextResponse.json({ error: "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }, { status: 400 });
   }
+  if (e instanceof Error && e.message === "CHANNEL_NOT_ACTIVE") {
+    // feature 00018 (S-4): token ตายแล้ว (ถูก markChannelTokenInvalid) หรือร้านถอดการเชื่อมต่อไปแล้ว
+    // — สาเหตุชัดเจนและแก้ได้เอง (ไปเชื่อม Page ใหม่) ไม่ใช่ generic 500
+    return NextResponse.json(
+      { error: "การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง" },
+      { status: 409 },
+    );
+  }
   if (e instanceof Error && e.message.startsWith("SEND_FAILED")) {
     return NextResponse.json(
       { error: "ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่" },

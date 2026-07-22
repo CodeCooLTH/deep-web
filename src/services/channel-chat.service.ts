@@ -38,6 +38,57 @@ const MIRROR_ALLOWED_TYPES: Record<string, string> = {
 const MIRROR_FAILED_TEXT = '[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]'
 const UNSUPPORTED_ATTACHMENT_TEXT = '[ลูกค้าส่งไฟล์แนบ — เปิดดูใน Messenger]'
 
+// (S-1) allow-list ของ host ที่ยอมให้ mirrorRemoteImage ยิง fetch ออกไปได้ — เฉพาะ CDN ของ Meta
+// เท่านั้น. attachments[].payload.url มาจาก webhook payload ซึ่งถ้า FB_CHAT_APP_SECRET หลุด
+// ผู้โจมตีปลอม webhook ที่ผ่านลายเซ็นได้แล้วยัด url เป็น internal address (เช่น
+// http://169.254.169.254/... metadata endpoint ของ cloud) เซิร์ฟเวอร์เราจะยิง SSRF ไปแทน
+// เทียบ hostname แบบ exact หรือ suffix ที่ขึ้นต้นด้วย "." เท่านั้น (กัน "evil-fbcdn.net" ปลอมตัว
+// ผ่าน .endsWith('fbcdn.net') ตรง ๆ)
+const MIRROR_ALLOWED_HOSTS_EXACT = new Set(['graph.facebook.com', 'fbcdn.net', 'cdninstagram.com'])
+const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com']
+
+function isAllowedMirrorHost(hostname: string): boolean {
+  const h = hostname.toLowerCase()
+  if (MIRROR_ALLOWED_HOSTS_EXACT.has(h)) return true
+  return MIRROR_ALLOWED_HOST_SUFFIXES.some((suffix) => h.endsWith(suffix))
+}
+
+const MIRROR_FETCH_TIMEOUT_MS = 10_000
+
+// อ่าน response body พร้อมบังคับเพดานขนาด "ระหว่างอ่าน" ไม่ใช่หลังโหลดครบ (S-1) — content-length
+// ที่ประกาศมาเป็นแค่ header เชื่อไม่ได้ (ปลอมได้/ไม่ส่งมาก็ได้) ถ้าใช้ arrayBuffer() เฉย ๆ ไฟล์ที่โกหก
+// header หรือไม่ส่ง header เลยจะถูกโหลดเข้า memory ทั้งก้อนก่อนถึงจะรู้ว่าเกิน — เปิดช่องให้ยิงไฟล์เป็น
+// GB ถล่ม memory ได้ (DoS). ใช้ res.body reader อ่านทีละ chunk แล้วยกเลิกทันทีที่สะสมเกินเพดาน
+async function readBodyWithCap(res: Response, maxBytes: number): Promise<ArrayBuffer | null> {
+  if (!res.body) {
+    // environment ที่ fetch ไม่ให้ streaming body (ควรไม่เกิดใน runtime จริงของโปรเจกต์ — Node 22
+    // undici รองรับเสมอ) — ปฏิเสธไปเลยเพื่อความปลอดภัย ดีกว่าเสี่ยงโหลดทั้งก้อนแบบไม่จำกัด
+    return null
+  }
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) {
+      total += value.byteLength
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {})
+        return null
+      }
+      chunks.push(value)
+    }
+  }
+  const buffer = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return buffer.buffer
+}
+
 // ใช้ทั้งฝั่ง ingest (I-1) และฝั่ง outbound (I-6) — เช็คว่า error ที่โยนมาเป็น unique constraint
 // violation (P2002) บน field ที่ระบุจริงหรือเปล่า ไม่ใช่แค่ "P2002 อะไรก็ได้" (เหมารวมแบบเดิม
 // ทำให้ P2002 บนคนละ constraint ถูกตีความผิดความหมาย)
@@ -53,19 +104,31 @@ function isUniqueViolationOn(e: unknown, field: string): boolean {
 //
 // คืน null เมื่อดึงไม่ได้ — ข้อความยังต้องถูกบันทึกอยู่ดี ห้ามทิ้งทั้งข้อความเพราะรูปพัง
 export async function mirrorRemoteImage(url: string): Promise<string | null> {
+  // (S-1) เช็ค host allow-list + บังคับ https ก่อนยิง fetch เสมอ — กัน SSRF ผ่าน
+  // attachments[].payload.url ที่ปลอมมากับ webhook (ดู comment ของ MIRROR_ALLOWED_HOSTS_EXACT)
+  let parsed: URL
   try {
-    const res = await fetch(url)
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:' || !isAllowedMirrorHost(parsed.hostname)) return null
+
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(MIRROR_FETCH_TIMEOUT_MS) })
     if (!res.ok) return null
 
     const contentType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim()
     const ext = MIRROR_ALLOWED_TYPES[contentType]
     if (!ext) return null
 
+    // pre-check จาก header เร็ว ๆ ก่อน (ประหยัด round-trip ถ้าโกหกเกินขนาดชัด ๆ) แต่ตัวตัดสินจริง
+    // คือ readBodyWithCap ด้านล่างที่นับ byte สดระหว่างอ่าน — header อย่างเดียวเชื่อไม่ได้ (S-1)
     const declaredSize = Number(res.headers.get('content-length') ?? '0')
     if (declaredSize > MIRROR_MAX_BYTES) return null
 
-    const buffer = await res.arrayBuffer()
-    if (buffer.byteLength > MIRROR_MAX_BYTES) return null
+    const buffer = await readBodyWithCap(res, MIRROR_MAX_BYTES)
+    if (!buffer) return null
 
     const file = new File([buffer], `fb-${Date.now()}.${ext}`, { type: contentType })
     return await saveFile(file)

@@ -40,6 +40,20 @@ describe('GET (handshake)', () => {
     const req = new NextRequest(`${URL_BASE}?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=1`)
     expect((await GET(req)).status).toBe(403)
   })
+
+  // (S-2) timingSafeEqual throw ถ้าความยาว buffer ไม่เท่ากัน — ต้องเช็คความยาวก่อนเทียบ
+  // ไม่งั้น token ที่ความยาวต่างจาก verify_me จะทำให้ route โยน 500 แทนที่จะตอบ 403 ปกติ
+  it('verify token ความยาวสั้นกว่าตัวจริงมาก → ยังคืน 403 ไม่ throw 500', async () => {
+    const req = new NextRequest(`${URL_BASE}?hub.mode=subscribe&hub.verify_token=x&hub.challenge=1`)
+    expect((await GET(req)).status).toBe(403)
+  })
+
+  it('verify token ความยาวยาวกว่าตัวจริงมาก → ยังคืน 403 ไม่ throw 500', async () => {
+    const req = new NextRequest(
+      `${URL_BASE}?hub.mode=subscribe&hub.verify_token=${'x'.repeat(200)}&hub.challenge=1`,
+    )
+    expect((await GET(req)).status).toBe(403)
+  })
 })
 
 describe('POST (รับ event)', () => {
