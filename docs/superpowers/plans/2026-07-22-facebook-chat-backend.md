@@ -167,6 +167,12 @@ model ExternalContact {
   // lastInboundAt: เวลาที่ "ลูกค้า" ส่งข้อความล่าสุด — ฐานคำนวณ 24h messaging window ของ Meta
   // ต่างจาก lastMessageAt ที่ขยับเมื่อฝั่งไหนส่งก็ได้
   lastInboundAt     DateTime?
+  // S-7 (ผลตัดสิน Q-4): ปักหมุด / ซ่อน / ปิดงาน ต่อเธรด — ใส่มาพร้อมกันในไฟล์ migration
+  // เดียวเพราะ DB dev=prod แชร์กัน การ ALTER รอบสองมีต้นทุนความเสี่ยงมากกว่าการเพิ่มตอนนี้
+  // ใช้กับเธรด DEEP ได้ด้วย ไม่ผูกกับช่องทางนอกอย่างเดียว
+  isPinned          Boolean   @default(false)
+  isHidden          Boolean   @default(false)
+  resolvedAt        DateTime? // null = ยังเปิดอยู่
 
   shopChannel     ShopChannel?     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   externalContact ExternalContact? @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
@@ -258,6 +264,14 @@ ALTER TABLE "Conversation" ADD COLUMN "channel"           TEXT NOT NULL DEFAULT 
 ALTER TABLE "Conversation" ADD COLUMN "shopChannelId"     TEXT;
 ALTER TABLE "Conversation" ADD COLUMN "externalContactId" TEXT;
 ALTER TABLE "Conversation" ADD COLUMN "lastInboundAt"     TIMESTAMP(3);
+-- S-7: ปักหมุด / ซ่อน / ปิดงาน (ผลตัดสิน Q-4) — ใส่รอบเดียวกันเพื่อเลี่ยง ALTER ซ้ำบน DB ที่แชร์กับ prod
+ALTER TABLE "Conversation" ADD COLUMN "isPinned"   BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Conversation" ADD COLUMN "isHidden"   BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Conversation" ADD COLUMN "resolvedAt" TIMESTAMP(3);
+
+-- inbox list กรอง "ยังเปิดอยู่ + ไม่ซ่อน" แล้วเรียงหมุดขึ้นก่อน — index ครอบ query หลักของหน้า /inbox
+CREATE INDEX "Conversation_shopId_isHidden_isPinned_lastMessageAt_idx"
+  ON "Conversation"("shopId", "isHidden", "isPinned", "lastMessageAt" DESC);
 
 CREATE UNIQUE INDEX "Conversation_shopChannelId_externalContactId_key"
   ON "Conversation"("shopChannelId", "externalContactId");
