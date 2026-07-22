@@ -25,7 +25,9 @@ export async function findByUsername(username: string) {
     where: { username },
     include: {
       shops: { where: { kind: "PERSONAL" } },
-      userBadges: { include: { badge: true } },
+      // orderBy earnedAt desc — S-B13: หน้าโปรไฟล์โชว์ badge pill "3 ใบล่าสุดที่ได้รับ"
+      // ถ้าไม่เรียงตรงนี้ ลำดับจะขึ้นกับ insertion order ของ DB ซึ่งไม่มีความหมายกับผู้ใช้
+      userBadges: { include: { badge: true }, orderBy: { earnedAt: 'desc' } },
     },
   });
   if (!u) return null;

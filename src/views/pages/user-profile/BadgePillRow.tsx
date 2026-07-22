@@ -24,8 +24,16 @@ export type BadgePillItem = {
   icon: string
 }
 
+/** จำนวน pill สูงสุดที่โชว์ — decision #3 ของ user: "3 ใบล่าสุดที่ได้รับ" */
+const MAX_PILLS = 3
+
 const BadgePillRow = ({ items, totalCount }: { items: BadgePillItem[]; totalCount: number }) => {
   if (items.length === 0) return null
+
+  // ทำไม slice ที่นี่ไม่ใช่ที่ call site: กันพลาดจากทุกหน้าที่เรียกใช้ (มี 2 หน้า /u/ กับ /b/)
+  // ถ้าปล่อยให้ caller รับผิดชอบ วันหนึ่งจะมีหน้าที่ลืม แล้ว chip ล้นแถวเงียบ ๆ
+  // ลำดับ "ล่าสุดก่อน" มาจาก orderBy earnedAt desc ที่ user.service.ts (ไม่ sort ซ้ำที่นี่)
+  const visible = items.slice(0, MAX_PILLS)
 
   return (
     <Box
@@ -38,7 +46,7 @@ const BadgePillRow = ({ items, totalCount }: { items: BadgePillItem[]; totalCoun
         pb: '16px',
       }}
     >
-      {items.map((item) => (
+      {visible.map((item) => (
         <Chip
           key={item.id}
           size='small'
@@ -50,7 +58,8 @@ const BadgePillRow = ({ items, totalCount }: { items: BadgePillItem[]; totalCoun
         />
       ))}
 
-      {totalCount > 0 && (
+      {/* โชว์เฉพาะเมื่อมีมากกว่าที่เห็น — ไม่งั้นจะได้ "ดูทั้งหมด (2)" ทั้งที่โชว์ครบ 2 ใบแล้ว (ขัดแย้งในตัวเอง) */}
+      {totalCount > visible.length && (
         <Typography component='span' sx={{ fontSize: '12px', color: 'text.secondary', fontWeight: 600, cursor: 'default', userSelect: 'none' }}>
           ดูทั้งหมด ({totalCount})
         </Typography>

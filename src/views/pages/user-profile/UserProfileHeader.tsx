@@ -208,46 +208,9 @@ export const ProfileIdentityBar = ({
             @{data.username}
           </Typography>
 
-          {/* metric row: {orders} ออเดอร์ · ★{rating}(ถ้า showRating) · [tier chip]
-              ตัด "ผู้ติดตาม" ออกทั้งหมด (ไม่มี follow system จริง)
-              ตัด "ส่งตรงเวลา 98%" ออก (2026-07-04 fix): เป็น hardcode ไม่มี field จริงในระบบ โชว์ปนข้อมูลจริงโดยไม่มีป้าย "ตัวอย่าง"
-              ขัด ethos เดียวกับที่ตัด follower/per-product rating ทิ้ง */}
-          <Box
-            sx={{
-              mt: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: { xs: 'center', sm: 'flex-start' },
-              flexWrap: 'wrap',
-              gap: '6px',
-              fontSize: '13px',
-              color: 'text.secondary',
-            }}
-          >
-            <Box component='span'>
-              <Box component='strong' sx={{ color: 'text.primary', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                {data.completedOrders.toLocaleString('th-TH')}
-              </Box>{' '}
-              ออเดอร์
-            </Box>
-            {data.showRating && (
-              <>
-                <Box component='span' sx={{ color: 'text.disabled' }}>·</Box>
-                <Box component='span' sx={{ color: 'warning.main', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  <Icon icon='tabler-star-filled' fontSize={13} />
-                  {data.avgRating.toFixed(1)}
-                </Box>
-              </>
-            )}
-            <Box component='span' sx={{ color: 'text.disabled' }}>·</Box>
-            <Chip
-              size='small'
-              variant='tonal'
-              color={data.tierColor}
-              label={data.tierLabel}
-              sx={{ height: 22, fontSize: '11px', fontWeight: 700, '& .MuiChip-label': { px: '8px' } }}
-            />
-          </Box>
+          {/* metric row เดิม (ออเดอร์ · ★รีวิว · tier chip) ถูกลบออกที่นี่ — ส่วนขยาย IG-style (S-B11)
+              ข้อมูลชุดเดียวกันย้ายไปอยู่ที่ ProfileStatsBar ซึ่ง render อยู่ใต้บล็อกนี้ทันที
+              ถ้าคงไว้จะเห็นตัวเลขชุดเดิมซ้ำกัน 2 แถวติดกัน ขัดเจตนา layout ที่ต้องการความสะอาดแบบ IG */}
         </Box>
 
         {/* Actions: แชท(primary) / ติดตาม(disabled "เร็ว ๆ นี้") — sm+ ชิดขวา (ml:auto) */}
