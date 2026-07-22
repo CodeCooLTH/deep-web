@@ -123,12 +123,14 @@ const ProductCard = ({
     <Box
       sx={{
         position: 'relative',
-        border: '1px solid #E2E8F0',
+        border: '1px solid',
+        borderColor: 'divider',
         borderRadius: '14px',
         overflow: 'hidden',
         bgcolor: 'white',
         transition: 'transform .18s ease, box-shadow .18s ease',
-        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(15,23,42,.10)' },
+        // S-B4: เงา hover ink-tinted ตรงค่าที่ sync กับ mockup .prod:hover
+        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 2px 4px rgb(47 43 61 / 0.06), 0 10px 28px rgb(47 43 61 / 0.09)' },
       }}
     >
       {/* flag "ปักหมุด" มุมซ้ายบน (Phase 3: pinned=true มาจาก getPinnedProducts จริงแล้ว) */}
@@ -156,7 +158,7 @@ const ProductCard = ({
         </Box>
       )}
 
-      <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: '#F1F5F9' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: 'background.default' }}>
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -166,7 +168,7 @@ const ProductCard = ({
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.disabled' }}>
             <Icon icon='tabler-photo' fontSize={30} />
           </Box>
         )}
@@ -179,7 +181,7 @@ const ProductCard = ({
             m: 0,
             fontSize: '13px',
             fontWeight: 700,
-            color: '#0F172A',
+            color: 'text.primary',
             lineHeight: 1.35,
             minHeight: '2.7em',
             overflow: 'hidden',
@@ -262,18 +264,18 @@ export const ProfileLeftContent = ({
       <Box id='about' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '8px' }}>
         <Typography
           component='h3'
-          sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+          sx={{ m: 0, mb: '10px', fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
         >
           เกี่ยวกับร้าน
         </Typography>
 
         {bio && (
-          <Typography component='p' sx={{ m: 0, mb: '10px', fontSize: '14px', color: '#0F172A', lineHeight: 1.5 }}>
+          <Typography component='p' sx={{ m: 0, mb: '10px', fontSize: '14px', color: 'text.primary', lineHeight: 1.5 }}>
             {bio}
           </Typography>
         )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#64748B' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'text.secondary' }}>
           {location && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Icon icon='tabler-map-pin' fontSize={14} />
@@ -288,10 +290,10 @@ export const ProfileLeftContent = ({
           {showResponse && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <Icon icon='tabler-message' fontSize={14} />
-              ตอบกลับ <Box component='strong' sx={{ color: '#0F172A' }}>{Math.round(chatResponseRate as number)}%</Box>
+              ตอบกลับ <Box component='strong' sx={{ color: 'text.primary' }}>{Math.round(chatResponseRate as number)}%</Box>
               {responseTimeLabel && (
                 <>
-                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: '#0F172A' }}>{responseTimeLabel}</Box>
+                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: 'text.primary' }}>{responseTimeLabel}</Box>
                 </>
               )}
             </Box>
@@ -308,7 +310,7 @@ export const ProfileLeftContent = ({
           <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: '10px' }}>
             <Typography
               component='h3'
-              sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+              sx={{ m: 0, fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
             >
               การรับรอง
             </Typography>
@@ -350,10 +352,10 @@ export const ProfileRightContent = ({
     <>
       {!hasAnyProduct ? (
         <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
-          <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#94A3B8' }} />
+          <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: 'var(--mui-palette-text-disabled)' }} />
           <Box>
-            <Typography sx={{ color: '#64748B', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
-            <Typography sx={{ color: '#94A3B8', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
+            <Typography sx={{ color: 'text.secondary', fontSize: '14px' }}>ร้านนี้ยังไม่มีสินค้า</Typography>
+            <Typography sx={{ color: 'text.secondary', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
           </Box>
         </Box>
       ) : (
@@ -363,7 +365,7 @@ export const ProfileRightContent = ({
             <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
               <Typography
                 component='h3'
-                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+                sx={{ m: 0, mb: '12px', fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
               >
                 สินค้าปักหมุด
               </Typography>
@@ -392,7 +394,7 @@ export const ProfileRightContent = ({
             <Box id='all-products' sx={{ px: { xs: '20px', md: '24px' }, pb: '16px' }}>
               <Typography
                 component='h3'
-                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+                sx={{ m: 0, mb: '12px', fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
               >
                 สินค้าทั้งหมด
               </Typography>

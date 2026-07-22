@@ -37,13 +37,13 @@ const PlatformReputationList = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', mb: '12px' }}>
         <Typography
           component='h3'
-          sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+          sx={{ m: 0, fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
         >
           ชื่อเสียงแพลตฟอร์มอื่น
         </Typography>
         <Box
           component='span'
-          sx={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', border: '1px solid #E2E8F0', borderRadius: '999px', px: '6px', py: '1px' }}
+          sx={{ fontSize: '10px', fontWeight: 700, color: 'text.disabled', border: '1px solid', borderColor: 'divider', borderRadius: '999px', px: '6px', py: '1px' }}
         >
           ตัวอย่าง
         </Box>
@@ -56,10 +56,10 @@ const PlatformReputationList = () => {
               {p.icon ? <Icon icon={p.icon} fontSize={18} /> : 'L'}
             </CustomAvatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography component='p' sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+              <Typography component='p' sx={{ m: 0, fontSize: '13px', fontWeight: 700, color: 'text.primary' }}>
                 {p.label}
               </Typography>
-              <Typography component='p' sx={{ m: 0, fontSize: '12px', color: '#64748B' }}>
+              <Typography component='p' sx={{ m: 0, fontSize: '12px', color: 'text.secondary' }}>
                 {p.orders}
               </Typography>
             </Box>
@@ -71,7 +71,7 @@ const PlatformReputationList = () => {
         ))}
       </Box>
 
-      <Typography component='p' sx={{ m: 0, mt: '8px', fontSize: '11px', color: '#94A3B8' }}>
+      <Typography component='p' sx={{ m: 0, mt: '8px', fontSize: '11px', color: 'text.secondary' }}>
         * ข้อมูลตัวอย่าง ไม่ใช่ยอดจริง — รอเชื่อมต่อในเฟสถัดไป
       </Typography>
     </Box>

@@ -43,8 +43,9 @@ function BadgeCell({ item }: { item: AchievementItem }) {
           borderRadius: '10px',
           cursor: 'default',
           // R5: hover lift + tint — transition รองรับทั้ง bg และ transform
+          // ทำไม (S-B3): สี hover เดิมเป็น indigo-tint แต่งเองบน element ที่ไม่ใช่ action → ผิด One Voice, ใช้ action.hover token แทน
           transition: 'background .15s, transform .15s',
-          '&:hover': { bgcolor: '#EEF2FF', transform: 'translateY(-2px)' },
+          '&:hover': { bgcolor: 'action.hover', transform: 'translateY(-2px)' },
         }}
       >
         {/* medal frame 52px วงกลม (radial-gradient+border+boxShadow) ให้ badge ดูเป็นเหรียญ — แทน drop-shadow เดิม */}
@@ -56,9 +57,12 @@ function BadgeCell({ item }: { item: AchievementItem }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F1F5F9 55%, #E2E8F0 100%)',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 3px 8px rgba(15,23,42,.14), inset 0 1px 2px rgba(255,255,255,.8)',
+            // S-B3: ramp จาก design.json surface-mist tonalRamp (ขาว→หมอกเย็น→เทาเงิน) แทน Tailwind slate hex เดิม
+            background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F8F7FA 55%, #e4e3e9 100%)',
+            border: '1px solid',
+            borderColor: 'divider',
+            // S-B4: เงาหมึก ink-tinted (customShadows-sm) + คง inset ขาว (highlight ไม่ใช่เงา)
+            boxShadow: 'var(--mui-customShadows-sm), inset 0 1px 2px rgba(255,255,255,.8)',
           }}
         >
           {showImg ? (
@@ -79,7 +83,7 @@ function BadgeCell({ item }: { item: AchievementItem }) {
               width={30}
               height={30}
               aria-label={item.name}
-              style={{ color: '#475569' }}
+              style={{ color: 'var(--mui-palette-text-secondary)' }}
             />
           )}
         </Box>
@@ -92,7 +96,7 @@ function BadgeCell({ item }: { item: AchievementItem }) {
             mt: '4px',
             fontSize: '11px',
             fontWeight: 600,
-            color: '#334155',
+            color: 'text.primary',
             textAlign: 'center',
             lineHeight: 1.2,
             letterSpacing: '-0.01em',

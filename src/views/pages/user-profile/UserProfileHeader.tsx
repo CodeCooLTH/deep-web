@@ -29,7 +29,10 @@ import { useSession } from 'next-auth/react'
 // Redesign (2026-07-04, hybrid FB Page × Threads spec): เปลี่ยน cover จากรูป baked → CSS gradient ต่อ tier (getTierGradient)
 // + dot-mesh overlay (CSS ล้วน); identity bar responsive row/column; metric row แทน bio/location/joined (ย้ายไป About section
 // ใน profile/index.tsx ซ้าย); ตัดเมตริก "ผู้ติดตาม" ทิ้งทั้งหมด (ไม่มี follow system จริง)
-// คง: back-button frosted-glass, verify badge ✓ บน avatar (carve-out dingbat), chat login-gate เดิม (S-8)
+// คง: back-button frosted-glass, chat login-gate เดิม (S-8)
+// Impeccable audit 2026-07-22 (S-B2): ลบ verify badge วงกลมบน avatar ทิ้ง — เดิมเป็นสีน้ำเงิน Twitter
+// ซึ่งไม่มีความหมาย "ยืนยันแล้ว" ในระบบ Deep เลย (เขียว #28C76F เท่านั้นที่แปลว่า verified)
+// แทนด้วย Chip tonal success ข้างชื่อจุดเดียว ตาม design-spec decision #3 — avatar ไม่มี badge ซ้อนแล้ว
 
 export type ProfileHeaderData = {
   profileImg?: string | null
@@ -94,8 +97,8 @@ export const ProfileBanner = ({
             bgcolor: 'rgba(255,255,255,0.9)',
             backdropFilter: 'blur(8px)',
             border: '1px solid rgba(255,255,255,0.6)',
-            boxShadow: '0 2px 6px rgba(0,0,0,.12)',
-            color: '#0F172A',
+            boxShadow: 'var(--mui-customShadows-sm)',
+            color: 'text.primary',
             '&:hover': {
               bgcolor: 'rgba(255,255,255,1)',
             },
@@ -154,40 +157,15 @@ export const ProfileIdentityBar = ({
               height: 112,
               borderRadius: '50%',
               border: '4px solid white',
-              boxShadow: '0 6px 14px rgba(15,23,42,.18)',
+              boxShadow: 'var(--mui-customShadows-lg)',
               fontSize: '2.75rem',
               fontWeight: 800,
-              bgcolor: '#E2E8F0',
-              color: '#475569',
+              // ทำไม (S-B3): ตัด bgcolor/color fallback ทิ้ง — MuiAvatar override (overrides/avatar.ts:29-33)
+              // บังคับ text.primary + default bg #EEEDF0 อยู่แล้ว ไม่ต้อง hardcode ซ้ำ
             }}
           >
             {displayName.slice(0, 1)}
           </Avatar>
-          {/* D9: verify badge มุมขวาล่าง — carve-out dingbat ✓ (single-color typographic, ไม่ใช่ emoji) */}
-          {showVerify && (
-            <Box
-              component='span'
-              title='ยืนยันแล้ว'
-              sx={{
-                position: 'absolute',
-                bottom: 4,
-                right: 4,
-                width: 27,
-                height: 27,
-                borderRadius: '50%',
-                bgcolor: '#1D9BF0',
-                color: 'white',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: '14px',
-                fontWeight: 900,
-                border: '3px solid white',
-                boxShadow: '0 1px 4px rgba(29,155,240,.4)',
-              }}
-            >
-              ✓
-            </Box>
-          )}
         </Box>
 
         {/* Name / handle / metric row — sm+ ชิดซ้าย, xs จัดกลาง */}
@@ -195,16 +173,24 @@ export const ProfileIdentityBar = ({
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'center', sm: 'flex-start' }, gap: '6px', flexWrap: 'wrap' }}>
             <Typography
               component='h1'
-              sx={{ m: 0, fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', color: '#0F172A', lineHeight: 1.15 }}
+              sx={{ m: 0, fontSize: '21px', fontWeight: 800, letterSpacing: '-0.02em', color: 'text.primary', lineHeight: 1.15 }}
             >
               {displayName}
             </Typography>
+            {/* S-B2: เอาวงกลมน้ำเงินบน avatar ออก (ตาม spec decision #3) — เหลือ chip เขียวจุดเดียวข้างชื่อ */}
             {showVerify && (
-              <Icon icon='tabler-rosette-discount-check-filled' style={{ color: '#1D9BF0', fontSize: 18 }} aria-label='ยืนยันแล้ว' />
+              <Chip
+                size='small'
+                variant='tonal'
+                color='success'
+                icon={<Icon icon='tabler-rosette-discount-check-filled' fontSize={14} />}
+                label='ยืนยันตัวตนแล้ว'
+                sx={{ height: 22, fontSize: '12px', fontWeight: 500, '& .MuiChip-label': { px: '8px' } }}
+              />
             )}
           </Box>
 
-          <Typography component='p' sx={{ m: 0, mt: '1px', fontSize: '14px', color: '#64748B', lineHeight: 1.3 }}>
+          <Typography component='p' sx={{ m: 0, mt: '1px', fontSize: '14px', color: 'text.secondary', lineHeight: 1.3 }}>
             @{data.username}
           </Typography>
 
@@ -221,25 +207,25 @@ export const ProfileIdentityBar = ({
               flexWrap: 'wrap',
               gap: '6px',
               fontSize: '13px',
-              color: '#64748B',
+              color: 'text.secondary',
             }}
           >
             <Box component='span'>
-              <Box component='strong' sx={{ color: '#0F172A', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+              <Box component='strong' sx={{ color: 'text.primary', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                 {data.completedOrders.toLocaleString('th-TH')}
               </Box>{' '}
               ออเดอร์
             </Box>
             {data.showRating && (
               <>
-                <Box component='span' sx={{ color: '#CBD5E1' }}>·</Box>
+                <Box component='span' sx={{ color: 'text.disabled' }}>·</Box>
                 <Box component='span' sx={{ color: '#F59E0B', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                   <Icon icon='tabler-star-filled' fontSize={13} />
                   {data.avgRating.toFixed(1)}
                 </Box>
               </>
             )}
-            <Box component='span' sx={{ color: '#CBD5E1' }}>·</Box>
+            <Box component='span' sx={{ color: 'text.disabled' }}>·</Box>
             <Chip
               size='small'
               variant='tonal'

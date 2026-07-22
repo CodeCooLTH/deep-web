@@ -67,7 +67,7 @@ const UserProfile = ({
       </Box>
 
       {/* ── Tabs nav: anchor-scroll ไม่เปลี่ยน route, span 2 col บน desktop ── */}
-      <Box sx={{ gridArea: { md: 'tabs' }, borderBottom: '1px solid #E2E8F0', px: { xs: '8px', md: '16px' } }}>
+      <Box sx={{ gridArea: { md: 'tabs' }, borderBottom: '1px solid', borderColor: 'divider', px: { xs: '8px', md: '16px' } }}>
         <ProfileTabsNav items={tabs} />
       </Box>
 
@@ -100,7 +100,8 @@ const UserProfile = ({
           sx={{
             gridArea: { md: 'right' },
             minHeight: { md: 200 },
-            borderLeft: { md: '1px solid #E2E8F0' },
+            borderLeft: { md: '1px solid' },
+            borderColor: 'divider',
           }}
         >
           <ProfileRightContent

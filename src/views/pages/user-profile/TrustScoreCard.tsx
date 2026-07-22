@@ -9,7 +9,8 @@ import Typography from '@mui/material/Typography'
 // Icon Imports
 import { Icon } from '@iconify/react'
 
-// Type Imports
+// Lib Imports — S-B3: ใช้ getTierAccentColor() ตรง ๆ แทน GAUGE_ACCENT map เดิม (ลดจุด hardcode ซ้ำ)
+import { getTierAccentColor } from '@/lib/trust-tier'
 import type { TierChipColor } from '@/lib/trust-tier'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/widget-examples/advanced/AssignmentProgress.tsx
@@ -33,29 +34,22 @@ const VERIFY_LEVELS: { level: number; label: string }[] = [
   { level: 3, label: 'จดทะเบียนธุรกิจ' },
 ]
 
-// gauge accent hex ต่อ tierColor — CircularProgress ไม่รองรับ color='default' (ต่างจาก Chip ที่รองรับ) จึงแม็ปเป็น hex เอง
-const GAUGE_ACCENT: Record<TierChipColor, string> = {
-  warning: '#F59E0B',
-  default: '#94A3B8',
-  info: '#0EA5E9',
-  secondary: '#7367F0',
-}
-
 const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
   const { trustScore, tierLabel, tierColor, nextTierLabel, pointsToNext, verifiedLevels } = data
-  const accent = GAUGE_ACCENT[tierColor]
+  // S-B3: gauge accent มาจาก getTierAccentColor() (5 ค่าจริงต่าง tier) แทน GAUGE_ACCENT map เดิม (4 ค่า ผูกกับ TierChipColor)
+  const accent = getTierAccentColor(trustScore)
 
   return (
     <Box id='trust-score' sx={{ px: { xs: '20px', md: '24px' }, py: '20px' }}>
       <Typography
         component='h3'
-        sx={{ m: 0, mb: '14px', fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '.06em', textTransform: 'uppercase' }}
+        sx={{ m: 0, mb: '14px', fontSize: '15px', fontWeight: 600, color: 'text.primary', letterSpacing: '0.1px' }}
       >
         คะแนนความน่าเชื่อถือ
       </Typography>
 
       <Box sx={{ position: 'relative', width: 128, height: 128, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CircularProgress variant='determinate' value={100} size={128} thickness={3.2} sx={{ position: 'absolute', color: '#E2E8F0' }} />
+        <CircularProgress variant='determinate' value={100} size={128} thickness={3.2} sx={{ position: 'absolute', color: 'action.disabledBackground' }} />
         <CircularProgress
           variant='determinate'
           value={trustScore}
@@ -64,20 +58,20 @@ const TrustScoreCard = ({ data }: { data: TrustScoreCardData }) => {
           sx={{ position: 'absolute', color: accent, '& .MuiCircularProgress-circle': { strokeLinecap: 'round' } }}
         />
         <Box sx={{ textAlign: 'center' }}>
-          <Typography component='p' sx={{ m: 0, fontSize: '30px', fontWeight: 800, color: '#0F172A', lineHeight: 1 }}>
+          <Typography component='p' sx={{ m: 0, fontSize: '30px', fontWeight: 800, color: 'text.primary', lineHeight: 1 }}>
             {trustScore}
           </Typography>
-          <Typography component='p' sx={{ m: 0, fontSize: '12px', color: '#94A3B8' }}>
+          <Typography component='p' sx={{ m: 0, fontSize: '12px', color: 'text.disabled' }}>
             /100
           </Typography>
         </Box>
       </Box>
 
-      <Typography component='p' sx={{ m: 0, mt: '12px', textAlign: 'center', fontSize: '13px', color: '#475569' }}>
-        ระดับ <Box component='strong' sx={{ color: '#0F172A' }}>{tierLabel}</Box>
+      <Typography component='p' sx={{ m: 0, mt: '12px', textAlign: 'center', fontSize: '13px', color: 'text.secondary' }}>
+        ระดับ <Box component='strong' sx={{ color: 'text.primary' }}>{tierLabel}</Box>
         {nextTierLabel ? (
           <>
-            {' '}· อีก <Box component='strong' sx={{ color: '#0F172A' }}>{pointsToNext}</Box> แต้มถึง {nextTierLabel}
+            {' '}· อีก <Box component='strong' sx={{ color: 'text.primary' }}>{pointsToNext}</Box> แต้มถึง {nextTierLabel}
           </>
         ) : (
           ' · ระดับสูงสุดแล้ว'
