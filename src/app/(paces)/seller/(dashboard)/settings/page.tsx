@@ -48,7 +48,7 @@ export default async function SettingsPage() {
       <div className="card">
         {/* section header — Paces border-dashed pattern จาก account-settings theme */}
         <div className="card-header">
-          <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm uppercase w-full justify-center">
+          <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
             {/* icon link — Paces Icon wrapper ไม่ used ที่นี่ (server component — ใช้ svg inline แทน) */}
             <svg
               xmlns="http://www.w3.org/2000/svg"

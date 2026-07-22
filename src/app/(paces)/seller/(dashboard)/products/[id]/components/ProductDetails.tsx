@@ -29,7 +29,7 @@ const TYPE_META: Record<ProductDetailProps['type'], { icon: string; label: strin
   SERVICE: {
     icon: 'tool',
     label: 'บริการ',
-    cls: 'bg-success/15 text-success',
+    cls: 'bg-secondary/15 text-secondary',
   },
   SUBSCRIPTION: {
     icon: 'refresh',
@@ -67,19 +67,19 @@ const ProductDetails = ({ product }: Props) => {
       {/* Meta grid — field จาก Product schema จริง */}
       <div className="mb-5 grid grid-cols-2 md:mb-7.5 md:grid-cols-4 gap-x-base">
         <div>
-          <h6 className="text-default-400 text-xs mb-1.25 uppercase">ประเภท:</h6>
+          <h6 className="text-default-400 text-xs mb-1.25">ประเภท:</h6>
           <p className="font-medium">{meta.label}</p>
         </div>
         <div>
-          <h6 className="text-default-400 text-xs mb-1.25 uppercase">ขายแล้ว:</h6>
+          <h6 className="text-default-400 text-xs mb-1.25">ขายแล้ว:</h6>
           <p className="font-medium">{totalSold.toLocaleString('th-TH')} ชิ้น</p>
         </div>
         <div>
-          <h6 className="text-default-400 text-xs mb-1.25 uppercase">รีวิว:</h6>
+          <h6 className="text-default-400 text-xs mb-1.25">รีวิว:</h6>
           <p className="font-medium">{reviews.toLocaleString('th-TH')}</p>
         </div>
         <div>
-          <h6 className="text-default-400 text-xs mb-1.25 uppercase">วันที่เพิ่ม:</h6>
+          <h6 className="text-default-400 text-xs mb-1.25">วันที่เพิ่ม:</h6>
           <p className="font-medium">{createdDate}</p>
         </div>
       </div>
@@ -92,7 +92,7 @@ const ProductDetails = ({ product }: Props) => {
       </h3>
 
       {/* รายละเอียดสินค้า — empty-state ถ้าไม่มีข้อมูล */}
-      <h5 className="text-default-400 mb-2.5 text-xs uppercase">รายละเอียดสินค้า:</h5>
+      <h5 className="text-default-400 mb-2.5 text-xs">รายละเอียดสินค้า:</h5>
       {description ? (
         <p className="mb-5 whitespace-pre-line">{description}</p>
       ) : (
