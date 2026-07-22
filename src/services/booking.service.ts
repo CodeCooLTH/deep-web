@@ -334,6 +334,29 @@ export async function confirmBooking(shopId: string, token: string) {
   return prisma.order.update({ where: { id: order.id }, data: { status: "CONFIRMED" } });
 }
 
+/**
+ * listBookings — รายการจองของร้าน เรียงตามวันเข้าพัก
+ * แยกกลุ่ม "ต้องจัดการ" (PENDING) ออกมาให้เจ้าของเห็นก่อน เพราะเป็นงานค้างจริง
+ */
+export async function listBookings(shopId: string) {
+  return prisma.order.findMany({
+    where: { shopId, type: BOOKING_ORDER_TYPE },
+    include: { room: { select: { name: true } } },
+    orderBy: [{ status: "asc" }, { checkIn: "asc" }],
+    take: 200,
+  });
+}
+
+/** รายละเอียดการจอง — scope shopId ใน where ตั้งแต่ query แรก */
+export async function getBookingDetail(shopId: string, token: string) {
+  const order = await prisma.order.findFirst({
+    where: { publicToken: token, shopId, type: BOOKING_ORDER_TYPE },
+    include: { room: { select: { id: true, name: true } } },
+  });
+  if (!order) throw new BookingNotFoundError();
+  return order;
+}
+
 /** serialize สำหรับส่งข้าม RSC/JSON boundary — Decimal/Date → string */
 export function serializeBooking(o: {
   id: string; publicToken: string; shortCode: string | null; status: string;
