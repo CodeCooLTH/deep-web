@@ -436,6 +436,26 @@ user ยืนยันว่าอยากได้ LIVE ในอนาคต
 | PII ใน RSC | ชื่อ/PSID/avatar ลูกค้าต้อง neutralize ที่ server boundary ก่อนส่งเข้า flight (บทเรียน `feedback_rsc_pii_neutralize_at_source` — หน้า seller อยู่ใต้ client layout) |
 | Authorization | ทุก query filter `shopId` + เช็คสิทธิ์ staff (feature 00012) |
 | Input validation | Valibot ทุก payload ที่มาจาก webhook — ห้ามเชื่อ shape จาก Meta ตรง ๆ |
+| SSRF (mirror รูป) | host allow-list (`graph.facebook.com` / `*.fbcdn.net` / `*.cdninstagram.com`) + บังคับ https + timeout + เพดานขนาดระหว่างสตรีม |
+
+### 10.1 🔴 หนี้ความปลอดภัยที่ยังไม่ปิด (พบจาก security review 2026-07-22)
+
+**รูปในแชทถูกเสิร์ฟแบบสาธารณะ ไม่มีการตรวจสิทธิ์**
+`src/app/api/files/[fileId]/route.ts` gate เฉพาะ 4 หมวด (KYC / สลิปเติมเงิน / สลิปออเดอร์ /
+หลักฐานมิจฉาชีพ) แล้ว **fallback เสิร์ฟ fileId อื่นทั้งหมดโดยไม่ต้อง login** พร้อม
+`Cache-Control: public, max-age=86400` — `ChatMessage.imageUrl` ไม่ถูก gate เลย
+ความลับพึ่งการที่ UUID เดาไม่ได้อย่างเดียว ถ้า fileId หลุด (history / แชร์ลิงก์ / Referer)
+ใครก็เปิดดูรูปแชทได้
+
+- **เป็นช่องว่างเดิมตั้งแต่ feature 00011** ไม่ใช่ของใหม่จาก feature นี้ — แต่ feature นี้
+  **ขยายผลกระทบ** ให้ครอบรูปของลูกค้า Facebook/Instagram ที่ไม่เคยยินยอมอะไรกับ Deep โดยตรง
+- **ทำไมยังไม่แก้ในรอบนี้:** การ gate ต้อง query `ChatMessage` ด้วย `imageUrl` ซึ่ง**ไม่มี index**
+  และ route นี้เสิร์ฟรูปสินค้าทุกใบด้วย การใส่ query ที่ไม่มี index ลง hot path จะแลกช่องโหว่
+  กับปัญหา performance
+- **วิธีแก้ที่ถูกต้อง:** migration เพิ่ม index บน `ChatMessage.imageUrl` → เพิ่ม gate ที่ join
+  ไป `Conversation` แล้วอนุญาตเฉพาะ buyer ของเธรดหรือเจ้าของร้าน (เธรดช่องทางนอก `buyerUserId`
+  เป็น null → เหลือฝั่งร้านอย่างเดียว) → เปลี่ยน `Cache-Control` เป็น `private, no-cache`
+  สำหรับ fileId ที่เป็นรูปแชท
 
 ## 11. Testing
 
