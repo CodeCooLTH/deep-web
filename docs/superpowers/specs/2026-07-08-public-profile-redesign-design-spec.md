@@ -11,7 +11,9 @@
 
 **Scope:** 2 route ที่ share component tree เดียวกัน (`src/views/pages/user-profile/`) — ต้อง sync กันเสมอตาม comment เดิมในทั้ง 2 page.tsx
 
-**Design system:** Impeccable (`.impeccable/design.json`) — ค่าที่ mockup ใช้ (violet #7367F0, verified-green #28C76F, ink #2F2B3D, mist #F8F7FA, shadow ink-tinted, radius 6-8px, motion 150/200ms ease-out-quart) **ตรงกับ design.json 100%** (mockup literally เป็น implementation ของ token เหล่านั้น) — ยึด mockup CSS values ตรงตัวได้เลย ไม่ต้องตีความใหม่
+**Design system:** Impeccable (`.impeccable/design.json`) — ค่าฐาน (violet #7367F0, verified-green #28C76F, ink #2F2B3D, mist #F8F7FA, motion 150/200ms ease-out-quart) ตรงกับ design.json
+
+> **⚠️ หมายเหตุแก้ไข 2026-07-22 (Impeccable audit):** ประโยคเดิมของบรรทัดนี้เขียนว่าค่าที่ mockup ใช้ "ตรงกับ design.json 100%" และระบุ radius 6-8px — **เป็นเท็จ**: mockup ฉบับก่อนแก้ยังใช้ tier-gradient เป็น Tailwind slate/orange/sky (ไม่มีใน token เลย) และ radius การ์ด/identity เป็น 12/14/18px ไม่ใช่ 6-8px ตามที่อ้าง. ได้แก้ mockup ให้ตรง `tonalRamp` จริง + radius canonical 8px แล้วในรอบนี้ (ดู §5 gradient table ปัจจุบัน) — **ห้ามเชื่อประโยค "ตรงกับ 100%" แบบเหมารวมอีก** ยึดค่าที่ระบุใน §5 เป็นความจริงปัจจุบัน ไม่ใช่สมมติว่า mockup CSS ตรงตัวเสมอไป
 
 **Decisions ที่ยึด (จาก user, ห้ามขัด):**
 1. Redesign ใหม่หมดตาม mockup
@@ -38,7 +40,7 @@
 │ (avatar -56px)  ร้านกาญจนาช้อป ✓ยืนยันตัวตนแล้ว [ธุรกิจจดทะเบียน]│
 │                 @kanjanashop                                     │
 │                 [pin]กรุงเทพฯ  [cal]เข้าร่วม มี.ค. 2568          │
-│                 [award ผู้ขายดีเด่น][bolt ตอบไว][check ส่งตรงเวลา][+3]│
+│           [award ร้านค้าขายอดนิยม][bolt จัดส่งสายฟ้า][check ยืนยันครบถ้วน][+3]│
 │                 [ แชทกับร้าน ]  [ ติดตาม เร็วๆนี้ ]              │
 ├───────────────────────────┬─────────────────────────────────────┤
 │ col-left (340px, sticky)  │ col-right (1fr)                     │
@@ -187,17 +189,31 @@
 
 ## 5. สี/token spec
 
-จาก `getTierGradient()` (SSOT, `src/lib/trust-tier.ts`) — **ตรงกับ mockup เป๊ะ ห้าม hardcode ใหม่**:
+**⚠️ อัปเดต 2026-07-22 (Impeccable audit, S-B1 ข้อ 1):** ตารางนี้เดิมใช้ค่า Tailwind slate/orange/sky (หลุด token ทั้งชุด). แก้เป็นค่า derive จาก `.impeccable/design.json` `tonalRamp` จริงแล้ว (user อนุมัติ). **ที่มาแต่ละ tier:**
+
+| Tier | `tonalRamp` source | index [dark, mid, light] |
+|---|---|---|
+| Classic | `warning-amber.tonalRamp` | `[0, 2, 4]` |
+| Silver | `ink.tonalRamp` | `[1, 3, 5]` |
+| Gold | `warning-amber.tonalRamp` | `[3, 4, 6]` |
+| Diamond | `signal-cyan.tonalRamp` | `[3, 4, 6]` |
+| Star | `primary.tonalRamp` | `[3, 4, 6]` |
+
+**หมายเหตุ:** ตารางด้านล่างคือค่า "ปลายทาง" ที่ mockup ปรับตามแล้ว — `getTierGradient()` ใน `src/lib/trust-tier.ts` **ยังไม่ได้แก้** (ยังคืนค่า Tailwind เดิม) ต้องอัปเดตโค้ดให้ตรงตารางนี้เป็นงานแยก (S-Bx โค้ด นอก scope doc-only ของ S-B1) ก่อน implement banner จริง — ห้ามเขียนโค้ดอิงค่าเก่า:
 
 | Tier | Gradient (banner) | Mid-stop / gauge accent | Dots |
 |---|---|---|---|
-| Deep Classic | `linear-gradient(135deg, #C2410C 0%, #F97316 45%, #FDBA74 100%)` | `#F97316` | 1/5 |
-| Deep Silver | `linear-gradient(135deg, #475569 0%, #94A3B8 45%, #E2E8F0 100%)` | `#94A3B8` | 2/5 |
-| Deep Gold | `linear-gradient(135deg, #B45309 0%, #F59E0B 45%, #FCD34D 100%)` | `#F59E0B` | 3/5 |
-| Deep Diamond | `linear-gradient(135deg, #0284C7 0%, #0EA5E9 45%, #7DD3FC 100%)` | `#0EA5E9` | 4/5 |
-| Deep Star | `linear-gradient(135deg, #6558E8 0%, #7367F0 45%, #A79DF5 100%)` (accepted violet exception) | `#7367F0` | 5/5 |
+| Deep Classic | `linear-gradient(135deg, #5c3300 0%, #b36700 45%, #FF9F43 100%)` | `#b36700` | 1/5 |
+| Deep Silver | `linear-gradient(135deg, #454155 0%, #7a7689 45%, #bdbbc7 100%)` | `#7a7689` | 2/5 |
+| Deep Gold | `linear-gradient(135deg, #e08400 0%, #FF9F43 45%, #ffd1a3 100%)` | `#FF9F43` | 3/5 |
+| Deep Diamond | `linear-gradient(135deg, #009eb2 0%, #00BAD1 45%, #8ee5ee 100%)` | `#00BAD1` | 4/5 |
+| Deep Star | `linear-gradient(135deg, #5a4ee0 0%, #7367F0 45%, #b3acf8 100%)` (accepted violet exception) | `#7367F0` | 5/5 |
 
-**🐛 บั๊กที่พบใน SSOT helper ที่มีอยู่:** `TrustScoreCard.tsx`'s `GAUGE_ACCENT` map ปัจจุบัน key ด้วย `TierChipColor` (4 ค่า) แต่ `getTierColor()` คืน `'warning'` ให้ **ทั้ง Deep Classic (C/D) และ Deep Gold (B+)** → gauge accent วาด Classic เป็นสีเดียวกับ Gold ทั้งที่ mockup ต้องการ Classic=#F97316 แยกจาก Gold=#F59E0B. **5 สีต้องแยกกันหมด.** แนะนำ dev เพิ่ม `getTierAccentColor(trustScore): string` ใน `src/lib/trust-tier.ts` (parallel กับ `getTierGradient`, คืน mid-stop hex) แล้วให้ `TrustScoreCard` + banner tier-line text ใช้ getter ใหม่แทน `GAUGE_ACCENT[tierColor]` เดิม
+**🐛 บั๊กที่พบใน SSOT helper ที่มีอยู่:** `TrustScoreCard.tsx`'s `GAUGE_ACCENT` map ปัจจุบัน key ด้วย `TierChipColor` (4 ค่า) แต่ `getTierColor()` คืน `'warning'` ให้ **ทั้ง Deep Classic (C/D) และ Deep Gold (B+)** → gauge accent วาด Classic เป็นสีเดียวกับ Gold ทั้งที่ mockup ต้องการ Classic (mid-stop `#b36700`) แยกจาก Gold (mid-stop `#FF9F43`). **5 สีต้องแยกกันหมด.** แนะนำ dev เพิ่ม `getTierAccentColor(trustScore): string` ใน `src/lib/trust-tier.ts` (parallel กับ `getTierGradient`, คืน mid-stop hex) แล้วให้ `TrustScoreCard` + banner tier-line text ใช้ getter ใหม่แทน `GAUGE_ACCENT[tierColor]` เดิม
+
+**Scrim override — Gold/Diamond (B1 ข้อ 3):** `.banner-tier`/`.banner-score` ใช้ scrim พื้นหลัง `rgb(47 43 61 / 0.26)`/`0.28` ทุก tier — ยกเว้น **Gold กับ Diamond ต้องเพิ่ม override เป็น `rgb(47 43 61 / 0.34)`** (tier อื่นคงค่าเดิม, accepted inconsistency ดู scope baseline A-4). เหตุผล: contrast ตกเกณฑ์ AA จริงที่ 2 tier นี้ (Gold 4.20:1, Diamond mid-stop 3.64:1) และ tier-name 15px/600 **ไม่เข้าเกณฑ์ large text** ของ WCAG (ต้อง ≥18.66px@700) จึงต้องผ่าน 4.5:1 ไม่ใช่ 3:1 — override ด้วย descendant selector ต่อ `.banner[data-tier="gold|diamond"]` (ดู mockup CSS) ไม่รื้อโครง `.banner-tier`/`.banner-score` เดิม
+
+**ตำแหน่ง pill (B1 ข้อ 4):** pill ข้อความ (tier-name, score) **ห้ามวางบนโซน >60% ของ gradient** (โซนสว่าง/ปลาย gradient ตกเกณฑ์ AA ทุก tier แม้มี scrim) — ยึดตำแหน่งมุมบนเดิมของ mockup (tier-pill ซ้ายบน, score-pill ขวาบน) ซึ่งอยู่ในโซน 0–20% ของ gradient (dark stop) เสมอ
 
 **Token อื่น (ตรง design.json):**
 - Verified green chip: bg `rgb(40 199 111 / 0.16)`, text `#28C76F`
@@ -285,9 +301,9 @@
 | Business chip / verify ธุรกิจ | `tabler-building-bank` (closest) |
 | meta-row location | `tabler-map-pin` |
 | meta-row joined | `tabler-calendar` |
-| badge "ผู้ขายดีเด่น" | `tabler-award` |
-| badge "ตอบไว" | `tabler-bolt` |
-| badge "ส่งตรงเวลา" | `tabler-check` |
+| badge "ร้านค้าขายอดนิยม" (ตัวอย่าง) | `tabler-award` (mockup icon shape — ของจริงใช้ `badgeIconName()` helper) |
+| badge "จัดส่งสายฟ้า" (ตัวอย่าง) | `tabler-bolt` (mockup icon shape — ของจริงใช้ `badgeIconName()` helper) |
+| badge "ยืนยันครบถ้วน" (ตัวอย่าง) | `tabler-check` (mockup icon shape — ของจริงใช้ `badgeIconName()` helper) |
 | card-head คะแนน | `tabler-shield-check` |
 | card-head ยืนยันตัวตน | `tabler-circle-check` |
 | card-head สถิติ | `tabler-chart-line` (fallback `tabler-chart-histogram`) |
@@ -328,7 +344,7 @@
 1. **Topnav ใหม่:** mockup ใส่ Vuexy front header ที่หน้านี้ — ปัจจุบัน `/u`,`/b` ไม่มี nav (มีแค่ back-button บน banner ซึ่ง mockup ตัดออก). เพิ่มจริงไหม? ถ้าเพิ่ม แนะนำ `Header.tsx` จริง (auth-aware) ผ่าน `FrontLayout solidHeader`; ถ้าไม่ ต้องคง back-button
 2. **`ProfileBanner` breaking-change:** เห็นด้วยกับ optional-prop-backward-compat (ไม่กระทบ `/o/[token]`) หรือ fork banner แยก?
 3. **`isBusiness` mapping:** `/b/[slug]`=true เสมอ, `/u/[username]`=`user.shop?.kind==='BUSINESS'` ถ้ามี field — ให้ safepay-product/dev ยืนยัน field ที่ถูกความหมาย
-4. **Achievements section:** mockup ตัดการ์ด medal-frame แยก เหลือแค่ badge pills 3 ใบ + "+N" ใน identity → `AchievementBadgeRow.tsx` กลายเป็น dead code. ยืนยันตัด หรือเก็บ "ดูทั้งหมด" ใน About tab?
+4. ~~**Achievements section:** mockup ตัดการ์ด medal-frame แยก เหลือแค่ badge pills 3 ใบ + "+N" ใน identity → `AchievementBadgeRow.tsx` กลายเป็น dead code. ยืนยันตัด หรือเก็บ "ดูทั้งหมด" ใน About tab?~~ **ปิดแล้ว 2026-07-22 (Impeccable audit, S-B1 ข้อ 5):** ตัดการ์ด medal-frame แยกจริง — เหลือ badge pills 3 ใบในแถว identity (เรียง `userBadges` ตาม `earnedAt` **DESC** เอา 3 ใบล่าสุด, icon จาก `badgeIconName()` helper เดิม — **ห้าม hardcode ชื่อ/icon**) + link "ดูเหรียญทั้งหมด (N)" (`.badge-more` ใน mockup) เป็นทางเข้าดู badge ครบ (ปลายทาง route/modal ยังไม่กำหนด — TODO แยก นอก scope นี้). `AchievementBadgeRow.tsx` ยืนยันเป็น dead code ต่อไปตาม S-B8 (no-op, ไม่ลบ). ตัวอย่าง badge จริง 3 ใบที่ใช้อ้างอิงใน mockup (จาก `prisma/badge-seed-data.ts`, audience SELLER/ANY): "ร้านค้าขายอดนิยม" (Trusted Seller 50), "จัดส่งสายฟ้า" (Speed Demon), "ยืนยันครบถ้วน" (Fully Verified) — ชื่อเดิม 3 ชื่อที่ mockup เคย hardcode เป็นชื่อสมมติที่ไม่มีอยู่จริงในระบบ ถูกแก้แล้ว
 5. **Stats card — ไม่มี theme widget ตรง:** ยอมรับ MUI-primitive-compose (`Box`+`Divider`) ตาม Hard Rule 1 ข้อยกเว้น?
 6. **Tab component:** แนะนำ `CustomTabList pill` + sx override tonal, หรือ `ToggleButtonGroup`?
 7. **`/b/` username display:** mockup โชว์ `deepthailand.app/b/kanjana-trading` แทน `@slug` — เจตนาหรือ demo quirk? แนะนำ default `@{slug}` เพื่อ consistent
