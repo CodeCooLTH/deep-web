@@ -180,13 +180,34 @@ export default async function SellerInboxPage() {
       <div className="lg:hidden">
         <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} />
       </div>
-      <div className="hidden lg:block">
-        <SellerEmptyState
-          compact
-          icon="message-circle"
-          title="เลือกบทสนทนา"
-          description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
-        />
+      {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
+          (rail คุมจาก Sidenav แยก task; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror โครง flex ของ
+          /inbox/[conversationId]/page.tsx เป๊ะ (gap-4, ขวา w-96 shrink-0) ไม่งั้นเลย์เอาต์
+          กระตุกตอนสลับหน้า — ความสูงการ์ดกลาง/ขวาคัดลอกค่าเดียวกับ ChatThread.tsx (ดู HR7
+          carve-out comment ที่ div ด้านล่าง) root card เดิมที่นั่น ใช้ค่าเดียวกันเพื่อความสูง
+          คอลัมน์ตรงกัน ไม่ใช่คิดใหม่ */}
+      <div className="hidden lg:flex gap-4">
+        {/* HR7 carve-out: h-[calc(100vh-190px)] คัดลอกค่าเดียวกับ ChatThread.tsx root card เป๊ะ
+            (ไม่ใช่ arbitrary ใหม่ — Paces ไม่มี token ความสูง "เต็มจอลบ topbar/breadcrumb"
+            ต้องใช้ค่าเดิมเพื่อให้คอลัมน์สูงเท่ากันตอนสลับ /inbox ↔ /inbox/[conversationId]) */}
+        <div className="card h-[calc(100vh-190px)] min-w-0 flex-1 flex items-center justify-center"> {/* HR7 carve-out: ดู comment ด้านบน */}
+          <SellerEmptyState
+            compact
+            icon="message-circle"
+            title="เลือกบทสนทนา"
+            description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
+          />
+        </div>
+        <div className="w-96 shrink-0">
+          {/* HR7 carve-out: เหตุผลเดียวกับการ์ดกลางด้านบน */}
+          <div className="card h-[calc(100vh-190px)] flex items-center justify-center"> {/* HR7 carve-out */}
+            <SellerEmptyState
+              compact
+              icon="user-circle"
+              title="เลือกบทสนทนาเพื่อดูข้อมูลลูกค้า"
+            />
+          </div>
+        </div>
       </div>
     </>
   )
