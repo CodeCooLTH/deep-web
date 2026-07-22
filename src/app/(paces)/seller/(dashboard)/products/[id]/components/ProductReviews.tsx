@@ -174,6 +174,7 @@ const ProductReviews = ({ reviews, avgRating, totalReviews, ratingBreakdown }: P
               {/* main: ชื่อ + ดาว + comment */}
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-medium text-ink truncate">{r.reviewerLabel}</p>
+                {/* HR7: text-[13px] — แถวดาวเรตติ้ง คู่ scale กับ comment/ไม่มีความคิดเห็นด้านล่าง (ก็ text-[13px] เท่ากัน); หมายเหตุ: ตรงกับ Paces token text-xs (13px) พอดี — รายงาน Controller แยกว่าอาจแทนด้วย token ได้ (ไม่แก้เองในงานนี้) */}
                 <p className="text-[13px] text-warning leading-tight">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</p>
                 {/* line-clamp-2 ป้องกัน comment ยาวดัน layout */}
                 {r.comment ? (
