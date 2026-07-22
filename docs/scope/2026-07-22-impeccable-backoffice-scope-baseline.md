@@ -20,7 +20,7 @@
 
 | ID | Priority | รายการ | Acceptance (ทดสอบได้) | สถานะ |
 |----|----|--------|----------------------|-------|
-| S-A1 | P1 | (BO-01) แก้ตรรกะสี badge `OrdersStatCard.tsx:59-68` ให้แยกตามสถานะการ์ด — `CANCELLED` เพิ่ม→danger / ลด→success (invert) หรือ neutral เสมอ ไม่ใช้กฎ `changePct>0→success` แบบเดียวกับการ์ดอื่น | Vitest ใหม่: การ์ด `CANCELLED` + `changePct>0` → คืนคลาส `danger`; การ์ดอื่น `changePct>0` → ยังคง `success` (ไม่รีเกรส); `tsc` = 0; `npm run test` ผ่าน | TODO |
+| S-A1 | P1 | (BO-01) แก้ตรรกะสี badge `OrdersStatCard.tsx:59-68` ให้แยกตามสถานะการ์ด — `CANCELLED` เพิ่ม→danger / ลด→success (invert) หรือ neutral เสมอ ไม่ใช้กฎ `changePct>0→success` แบบเดียวกับการ์ดอื่น. **ต้อง extract ตรรกะสีออกจาก component เป็น pure function ก่อน** (ดู A-5) | Vitest ใหม่บน pure function: `CANCELLED` + `changePct>0` → `danger`; `CANCELLED` + `changePct<0` → `success`; สถานะอื่น + `changePct>0` → ยังคง `success` (ไม่รีเกรส); `tsc` = 0; `npm run test` ผ่าน | TODO |
 | S-A2 | P1 | (BO-02) `badges/BadgeDetailModal.tsx:276,285,314` — แทน gradient/hex indigo-violet นอก token ด้วย Paces token | `rg '#7c3aed\|#a855f7\|#6366f1\|rgba\(139,\s*92,\s*246' BadgeDetailModal.tsx` = 0; แทนด้วย `bg-primary` / `bg-{semantic}/15` | TODO |
 | S-A3 | P1 | (BO-03+BO2-02) ตัด `uppercase` / `tracking-wide(st)` บนข้อความไทย **13 จุด / 10 ไฟล์** (ดูตารางเต็มด้านล่าง) | `rg 'uppercase\|tracking-wide' <13 จุดที่ระบุ>` = 0; ข้อความไทย render normal case; visual diff ไม่มี layout แตก | TODO |
 | S-A4 | P1 | (BO-04) ลบไฟล์ `seller/(dashboard)/_shared/IdentityBar.tsx` (dead code พก Vuexy mood: `#F8F7FA` Cool Mist, `text-[#28C76F]`, hex ลอย 5 จุด) **+ อัปเดต comment กำพร้าใน `SellerMobileHeader.tsx:10,15,16,39`** ที่อ้างถึงไฟล์นี้ | ก่อนลบ re-verify `rg -n "from.*IdentityBar\|import IdentityBar" src` = 0; หลังลบ `tsc` = 0 ไม่มี broken import; `rg -n "IdentityBar" SellerMobileHeader.tsx` = 0 (comment อัปเดตแล้ว) | TODO |
@@ -111,6 +111,9 @@ S-A3 เป็น hub ที่เชื่อม S-A2/S-A5/S-A7 → **ทำเ
 - **A-2 (S-A7):** user บอกแค่ "ไม่ใช่ success/verified-green" ยังไม่ระบุสีปลายทาง — สมมติเป็น `info` (cyan) เพราะเป็นหมวดหมู่ ไม่ใช่สถานะยืนยัน/สำเร็จ และไม่ใช่ `primary` (สงวนไว้ action). ถ้า user ปฏิเสธ เปลี่ยนได้ที่ class เดียว
 - **A-3:** backoffice ทั้งหมดอยู่ใต้ `data-skin="default"` (Paces แท้) อยู่แล้ว — verified ที่ `src/app/(paces)/layout.tsx:56` ไม่ต้อง re-verify
 - **A-4:** ไม่มี business rule ใหม่ ยกเว้น S-A1 ที่เป็นการแก้บั๊กสีให้ตรงความหมายเดิม ไม่ใช่กฎใหม่
+- **A-5 (S-A1 — test strategy):** โปรเจกต์**ไม่มี component-test infra** — dependency มีแค่ `vitest` ไม่มี `jsdom`/`happy-dom`/`@testing-library/react` และ test ทั้ง 20 ไฟล์ที่มีอยู่เป็น pure-module test ใน `src/lib/` + `src/services/` ทั้งหมด (Controller verify 2026-07-22)
+  → **ห้ามลง dev dependency ใหม่เพื่อเทสต์ component = CREEP**
+  → ทางที่ยึด: extract ตรรกะสีจาก `OrdersStatCard.tsx` เป็น pure function (เช่น `getStatChangeTone(statusKey, changePct)`) ไว้ในไฟล์ `.ts` แยก แล้วเขียน Vitest ครอบ pure function นั้น — component แค่เรียกใช้ ตรงกับ convention เดิมของ repo และแก้ปัญหา testability ที่ต้นเหตุ
 
 ---
 
@@ -128,3 +131,4 @@ S-A3 เป็น hub ที่เชื่อม S-A2/S-A5/S-A7 → **ทำเ
 | 2026-07-22 | baseline สร้าง (DRAFT) | kick-off Impeccable remediation — backoffice phase | shinobu22 |
 | 2026-07-22 | S-A3 12 → 13 จุด (+ `seller/.../dashboard/components/StatisticCard.tsx:30`) และปิด open question เรื่อง shared component | Controller grep verify เอง พบ `StatisticCard` 2 ไฟล์คนละตัวมีปัญหาเดียวกัน audit จับได้แค่ไฟล์เดียว | Controller |
 | 2026-07-22 | S-A4 เพิ่มงานอัปเดต comment กำพร้าใน `SellerMobileHeader.tsx:10,15,16,39` | ลบ `IdentityBar.tsx` แล้วจะทิ้ง comment ที่อ้างถึงไฟล์ที่ไม่มีอยู่ | Controller |
+| 2026-07-22 | S-A1 เปลี่ยน test strategy — extract pure function ก่อนแล้วเทสต์ตัวนั้น (เพิ่ม Assumption A-5) | acceptance เดิมเขียนให้เทสต์ component โดยตรง ซึ่ง**ทำไม่ได้จริง** — repo ไม่มี jsdom/testing-library และไม่มี component test สักตัว การลง dep ใหม่จะเป็น CREEP | Controller |
