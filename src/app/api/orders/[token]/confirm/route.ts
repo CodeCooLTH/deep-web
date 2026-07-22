@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { confirmOrder, OrderOwnershipError } from "@/services/order.service";
+import { confirmOrder, OrderOwnershipError, BookingConfirmViaShopError } from "@/services/order.service";
 
 // POST /api/orders/[token]/confirm
 //
@@ -25,6 +25,13 @@ export async function POST(
     const order = await confirmOrder(token, buyerUserId);
     return NextResponse.json(order);
   } catch (err: unknown) {
+    if (err instanceof BookingConfirmViaShopError) {
+      // feature 00017 TFR-006 — ผู้จองยืนยันการจองตัวเองไม่ได้
+      return NextResponse.json(
+        { error: "เจ้าของที่พักจะยืนยันการจองให้หลังตรวจสลิปแล้ว" },
+        { status: 403 },
+      );
+    }
     if (err instanceof OrderOwnershipError) {
       return NextResponse.json({ error: "ไม่มีสิทธิ์ยืนยันคำสั่งซื้อนี้" }, { status: 403 });
     }

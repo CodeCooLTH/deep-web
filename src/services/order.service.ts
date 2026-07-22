@@ -5,6 +5,7 @@ import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.se
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
+import { isCancelReason } from "@/lib/lodging";
 
 // State machine ใหม่ตาม OMS redesign spec §2
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
@@ -21,6 +22,17 @@ function assertTransition(currentStatus: string, newStatus: string) {
   if (!allowed || !allowed.includes(newStatus)) {
     throw new Error(`Invalid transition: ${currentStatus} → ${newStatus}`);
   }
+}
+
+/**
+ * feature 00017 — การจองต้องยืนยันโดยเจ้าของที่พักเท่านั้น (TFR-006)
+ *
+ * IMPORTANT: confirmOrder เดิมอนุญาตให้ "ผู้ซื้อ" เป็นคนกดยืนยัน ถ้าไม่กัน type=BOOKING
+ * ผู้จองจะกดยืนยันการจองของตัวเองได้โดยไม่ต้องโอนเงินเลย แล้วได้ใบจองฟรี
+ * การจองยืนยันผ่าน confirmBooking() ใน booking.service เท่านั้น
+ */
+export class BookingConfirmViaShopError extends Error {
+  constructor() { super("BOOKING_CONFIRM_VIA_SHOP"); this.name = "BookingConfirmViaShopError"; }
 }
 
 // FR-6.5: order ที่ต้องจัดส่งต้องมีที่อยู่จัดส่ง — throw นี้ให้ route map เป็น 400
@@ -242,6 +254,9 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
     include: { shop: true },
   });
   if (!order) throw new Error("Order not found");
+  // feature 00017 (TFR-006): ปฏิเสธการจองเสมอ — วางก่อน ownership check เพราะ
+  // ต่อให้เป็นเจ้าของการจองจริงก็ยืนยันเองไม่ได้ ต้องให้เจ้าของที่พักตรวจสลิปก่อน
+  if (order.type === "BOOKING") throw new BookingConfirmViaShopError();
   // TD-004: authorization ย้ายมาที่ session+ownership ล้วน — Access Gate
   // (order-access.service.ts) รับประกันแล้วว่า order.buyerUserId ตรงกับ
   // session ก่อนที่ buyer จะเห็นปุ่ม confirm; ไม่ใช้ phone-contact parity อีกต่อไป
@@ -311,9 +326,41 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   });
 }
 
-export async function cancelOrder(publicToken: string, initiator: "seller" | "buyer") {
+export class CancelReasonRequiredError extends Error {
+  constructor() { super("CANCEL_REASON_REQUIRED"); this.name = "CancelReasonRequiredError"; }
+}
+export class InvalidCancelReasonError extends Error {
+  constructor() { super("INVALID_CANCEL_REASON"); this.name = "InvalidCancelReasonError"; }
+}
+
+/**
+ * cancelOrder — พารามิเตอร์ที่ 3 (reason) optional เพื่อไม่ให้ผู้เรียกเดิมพัง
+ *
+ * feature 00017 (BR-LODG-36/37) — กติกาเฉพาะการจอง:
+ *   เจ้าของกดยกเลิก → reason บังคับ (เจ้าของยกเลิกได้ทั้งกรณีผู้จองผิดและร้านผิดเอง
+ *                      ถ้าไม่ถาม ระบบแยกไม่ออกและผู้จองอาจติดประวัติทั้งที่ไม่ได้ทำอะไรผิด)
+ *   ผู้จองกดยกเลิกเอง → ระบบตั้ง BUYER_REQUESTED ให้ (initiator มาจาก session อยู่แล้ว
+ *                      จึงระบุตัวผู้ยกเลิกได้แน่นอน ไม่ต้องถามซ้ำ)
+ *   ออเดอร์ที่ไม่ใช่การจอง → ละเว้น reason ทำงานเหมือนเดิมทุกประการ
+ */
+export async function cancelOrder(
+  publicToken: string,
+  initiator: "seller" | "buyer",
+  reason?: string,
+) {
   const order = await prisma.order.findUnique({ where: { publicToken } });
   if (!order) throw new Error("Order not found");
+
+  let cancelReason: string | undefined;
+  if (order.type === "BOOKING") {
+    if (initiator === "buyer") {
+      cancelReason = "BUYER_REQUESTED";
+    } else {
+      if (!reason) throw new CancelReasonRequiredError();
+      if (!isCancelReason(reason)) throw new InvalidCancelReasonError();
+      cancelReason = reason;
+    }
+  }
   // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
   // Inventory Add-on hook — restock ตามประวัติจริงของ order (stockDeducted != null)
@@ -322,7 +369,7 @@ export async function cancelOrder(publicToken: string, initiator: "seller" | "bu
   return prisma.$transaction(async (tx) => {
     const updated = await tx.order.update({
       where: { publicToken },
-      data: { status: "CANCELLED", cancelInitiator: initiator },
+      data: { status: "CANCELLED", cancelInitiator: initiator, cancelReason },
     });
     // BREAKING (00009 S-3/S-5) — restockFromCancelledOrder เพิ่ม param shopId (สำหรับ StockMovement.shopId)
     await restockFromCancelledOrder(tx, order.shopId, order.id);
