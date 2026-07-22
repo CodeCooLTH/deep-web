@@ -115,23 +115,61 @@ flowchart TD
 
 **การจัดการ error ของ EXCLUDE constraint** (จุดที่พลาดง่ายที่สุด):
 
+✅ **รูปร่าง error ยืนยันจากการทดลองจริงบนฐานข้อมูลแล้ว 2026-07-22** (spike รันใน transaction ที่ rollback + TEMP TABLE จึงไม่เหลือร่องรอยบน prod):
+
+```jsonc
+{
+  "ctor": "PrismaClientKnownRequestError",
+  "code": "P2010",                 // ← ไม่ใช่ P2002
+  "meta": {
+    "code": "23P01",               // ← SQLSTATE อยู่ตรงนี้
+    "message": "ERROR: conflicting key value violates exclusion constraint \"Order_room_no_overlap\"\nDETAIL: Key (\"roomId\", daterange(...))=(room1, [2026-09-07,2026-09-09)) conflicts with existing key (...)=(room1, [2026-09-05,2026-09-08))."
+  }
+}
+```
+
 ```ts
 export class RoomUnavailableError extends Error {
-  constructor() { super('ROOM_UNAVAILABLE'); this.name = 'RoomUnavailableError' }
+  constructor(readonly conflict?: { from: string; to: string }) {
+    super('ROOM_UNAVAILABLE'); this.name = 'RoomUnavailableError'
+  }
 }
 
-// ใน createBooking / updateBooking
-try {
-  return await prisma.$transaction(async (tx) => { /* ... */ })
-} catch (err) {
-  // Postgres 23P01 exclusion_violation — Prisma ไม่ map เป็น P2002
-  // ต้องอ่านจาก meta/message ไม่ใช่เทียบ err.code === 'P2002'
-  if (isExclusionViolation(err)) throw new RoomUnavailableError()
-  throw err
+/**
+ * ต้องทนต่อรูปร่าง error หลายแบบ — รูปร่างข้างบนยืนยันจาก $executeRaw
+ * แต่ model call (prisma.order.create) อาจถูกห่อเป็น PrismaClientUnknownRequestError
+ * จึงเทียบทั้ง meta.code และข้อความ ไม่ผูกกับ class ใด class เดียว
+ */
+export function isExclusionViolation(err: unknown): boolean {
+  const meta = (err as { meta?: { code?: string; message?: string } })?.meta
+  if (meta?.code === '23P01') return true
+  const text = `${meta?.message ?? ''} ${(err as Error)?.message ?? ''}`
+  return /23P01|exclusion constraint/i.test(text)
+}
+
+/** ดึงช่วงวันที่ชนจาก DETAIL เพื่อบอกผู้ใช้ว่าติดวันไหน (API §5.2 {ช่วงที่ชน}) */
+export function parseConflictRange(err: unknown) {
+  const text = (err as { meta?: { message?: string } })?.meta?.message ?? ''
+  const m = text.match(/conflicts with existing key[^[]*\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/)
+  return m ? { from: m[1], to: m[2] } : undefined
 }
 ```
 
 🛑 **และ route ต้องมี catch ที่ map `RoomUnavailableError` → 409** — service โยน error ใหม่โดยที่ route ไม่ได้ครอบ = ตกเป็น 500 (บทเรียนตรงจาก feature 00003)
+
+#### 🛑 ข้อจำกัดสำคัญ: transaction ถูก poison หลัง constraint ยิง
+
+**ค้นพบจาก spike รอบแรก** — เมื่อคำสั่งใดล้มกลาง transaction ของ Postgres **ทั้ง transaction จะใช้ต่อไม่ได้ทันที** ทุกคำสั่งถัดไปได้ `25P02 current transaction is aborted`
+
+**ผลต่อการเขียนโค้ด:**
+
+| รูปแบบ | ใช้ได้ไหม |
+|--------|-----------|
+| INSERT ชน → catch → โยน `RoomUnavailableError` ออกนอก transaction | ✅ ได้ — เป็นสิ่งที่ `createBooking` ทำอยู่แล้ว (ตั้งใจจะ abort อยู่แล้ว) |
+| INSERT ชน → catch → **ลองห้องอื่น/วันอื่นต่อใน transaction เดิม** | ❌ **ไม่ได้** — transaction ตายไปแล้ว ต้องครอบด้วย `SAVEPOINT` + `ROLLBACK TO SAVEPOINT` |
+| retry ทั้งก้อนหลัง 409 | ✅ ได้ ถ้าเริ่ม transaction ใหม่ทั้งหมด |
+
+> เขียนไว้เพราะเป็นกับดักที่ผู้เขียนโค้ดคนถัดไปจะเจอแน่ถ้าพยายามใส่ logic "ลองอันถัดไป" ในธุรกรรมเดียว
 
 #### `src/services/housekeeping.service.ts` (ใหม่)
 

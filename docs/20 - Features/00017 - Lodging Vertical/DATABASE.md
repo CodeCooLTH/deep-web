@@ -270,7 +270,31 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_room_no_overlap"
 - constraint นี้มีอยู่จริงในฐานข้อมูลแม้ schema จะไม่แสดง
 - **ห้าม `prisma db pull` เด็ดขาด** — introspection จะไม่เห็น แล้ว migration ถัดไปอาจ DROP ทิ้ง
 
-**ผลต่อโค้ด:** เมื่อ constraint นี้ทำงาน Prisma จะโยน error ที่ **ไม่ใช่ P2002** (unique) แต่เป็น `P2010`/raw `23P01 exclusion_violation` — service ต้องดักรหัสนี้แล้วแปลงเป็น error ที่ route map เป็น 409 (ดู SRS §3 TFR-005 และบทเรียน `feedback_service_error_route_mapping`)
+**ผลต่อโค้ด:** เมื่อ constraint นี้ทำงาน Prisma จะโยน error ที่ **ไม่ใช่ P2002** (unique) — service ต้องดักแล้วแปลงเป็น error ที่ route map เป็น 409 (ดู SRS §3 TFR-005 และบทเรียน `feedback_service_error_route_mapping`)
+
+### 4.2.1 ✅ ผลการทดลองจริง (spike 2026-07-22)
+
+ทดลองบนฐานข้อมูลจริงโดยรันทั้งหมดใน transaction ที่ ROLLBACK + `TEMP TABLE ... ON COMMIT DROP` → **ไม่เหลือร่องรอยบน prod** (ยืนยันแล้วว่าตารางเหลือ 0 และ `btree_gist` ยังไม่ถูกติดตั้ง)
+
+| เคส | ผล |
+|-----|-----|
+| จอง 5–8 แล้วจอง 8–10 (เช็คอินวันเดียวกับเช็คเอาท์) | ✅ สำเร็จ — ยืนยัน `'[)'` ให้พฤติกรรมตาม BR-LODG-31 |
+| จอง 5–8 แล้วจอง 7–9 (ทับวันที่ 7) | ✅ ถูกปฏิเสธ |
+| ห้องอื่น ช่วงวันเดียวกัน | ✅ สำเร็จ — constraint ผูกกับ `roomId` จริง |
+| `roomId IS NULL` 2 แถว (ออเดอร์สินค้า) | ✅ สำเร็จทั้งคู่ — **zero-regression ยืนยันแล้ว** |
+| ยกเลิกแล้วจองทับช่วงเดิม | ✅ สำเร็จ — ยืนยัน BR-LODG-13 |
+| `CANCELLED` ซ้อนกันเอง | ✅ สำเร็จ |
+
+**รูปร่าง error ที่ได้จริง:**
+```jsonc
+{ "ctor": "PrismaClientKnownRequestError", "code": "P2010",
+  "meta": { "code": "23P01",
+    "message": "ERROR: conflicting key value violates exclusion constraint ...\nDETAIL: Key (...)=(room1, [2026-09-07,2026-09-09)) conflicts with existing key (...)=(room1, [2026-09-05,2026-09-08))." } }
+```
+
+> `meta.message` มี **ช่วงวันที่ชนอยู่ในข้อความ** → ดึงมาบอกผู้ใช้ได้ว่าติดวันไหน (ตรงกับ `{ช่วงที่ชน}` ใน [[API]] §5.2) — ดูฟังก์ชัน `parseConflictRange` ใน [[SDS]] §3.1
+
+🛑 **ข้อจำกัดที่ค้นพบ:** เมื่อ constraint ยิง **ทั้ง transaction ถูก poison ทันที** (`25P02 current transaction is aborted`) — จะ catch แล้วทำคำสั่งอื่นต่อในธุรกรรมเดิมไม่ได้ ต้องใช้ `SAVEPOINT` หรือเริ่มธุรกรรมใหม่ (ดู [[SDS]] §3.1)
 
 ### 4.3 CHECK constraints (สรุป)
 
