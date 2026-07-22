@@ -64,20 +64,20 @@ Node `crypto` (AES-256-GCM + HMAC-SHA256), Meta Graph API v21.0
 
 ---
 
-## Task 0: Feature docs 00017 (PRD + BRD) — GATE
+## Task 0: Feature docs 00018 (PRD + BRD) — GATE
 
 🛑 **Hard Rule 11: ห้าม implement ก่อนมี PRD + BRD ผ่าน user review** งานเขียนโค้ดทุก task
 ด้านล่างถูกบล็อกจนกว่า task นี้จะได้ sign-off จาก user
 
 **Files:**
-- Create: `docs/20 - Features/00017 - Facebook Chat Integration/PRD.md`
-- Create: `docs/20 - Features/00017 - Facebook Chat Integration/BRD.md`
+- Create: `docs/20 - Features/00018 - Facebook Chat Integration/PRD.md`
+- Create: `docs/20 - Features/00018 - Facebook Chat Integration/BRD.md`
 - Template: `docs/99 - Rules/Feature-Templates/`
 
-- [ ] **Step 1: ตรวจว่าเลข 00017 ไม่ชนกับ branch อื่น**
+- [ ] **Step 1: ตรวจว่าเลข 00018 ไม่ชนกับ branch อื่น**
 
 ```bash
-git log --all --name-only | grep -o "00017 - [A-Za-z &]*" | sort -u
+git log --all --name-only | grep -o "00018 - [A-Za-z &]*" | sort -u
 ```
 
 Expected: ไม่มีผลลัพธ์ (ถ้ามี = เลขถูกจองแล้ว ต้องขยับเป็น 00018 แล้วแก้ทุกที่ที่อ้างถึง)
@@ -90,8 +90,8 @@ diagram ทุกชนิดต้องเป็น Mermaid เท่านั
 - [ ] **Step 3: Controller commit**
 
 ```bash
-git add "docs/20 - Features/00017 - Facebook Chat Integration/"
-git commit -m "docs(00017): PRD + BRD สำหรับ Facebook/Instagram chat integration"
+git add "docs/20 - Features/00018 - Facebook Chat Integration/"
+git commit -m "docs(00018): PRD + BRD สำหรับ Facebook/Instagram chat integration"
 ```
 
 - [ ] **Step 4: ขอ user review และรอ sign-off — ห้ามข้ามไป Task 1 ก่อนได้รับอนุมัติ**
@@ -112,7 +112,7 @@ git commit -m "docs(00017): PRD + BRD สำหรับ Facebook/Instagram chat
 - [ ] **Step 1: แก้ `prisma/schema.prisma` — เพิ่ม 2 model ใหม่**
 
 ```prisma
-// ShopChannel — Page/IG ที่ร้านผูกไว้ (1 Shop : N channel) — feature 00017
+// ShopChannel — Page/IG ที่ร้านผูกไว้ (1 Shop : N channel) — feature 00018
 model ShopChannel {
   id                String   @id @default(uuid())
   shopId            String
@@ -134,7 +134,7 @@ model ShopChannel {
   @@index([shopId, status])
 }
 
-// ExternalContact — ลูกค้าจากช่องทางนอก (PSID/IGSID) — ไม่ใช่ User ของ Deep — feature 00017
+// ExternalContact — ลูกค้าจากช่องทางนอก (PSID/IGSID) — ไม่ใช่ User ของ Deep — feature 00018
 model ExternalContact {
   id             String   @id @default(uuid())
   shopChannelId  String
@@ -158,7 +158,7 @@ model ExternalContact {
 แล้วเพิ่มฟิลด์ + index (วางต่อจาก `createdAt`):
 
 ```prisma
-  // --- feature 00017 Facebook/IG chat (additive) ---
+  // --- feature 00018 Facebook/IG chat (additive) ---
   // channel: "DEEP" = แชทในแอป (ของเดิมทั้งหมด, default ทำให้ backfill ปลอดภัยเอง)
   //          "MESSENGER" | "INSTAGRAM" = เธรดจากช่องทางนอก (buyerUserId เป็น null)
   channel           String    @default("DEEP")
@@ -180,7 +180,7 @@ model ExternalContact {
 แล้วเพิ่ม:
 
 ```prisma
-  // --- feature 00017 (additive) ---
+  // --- feature 00018 (additive) ---
   // externalMessageId: mid จาก Meta — unique เพื่อ idempotency
   // Meta redeliver webhook ซ้ำได้ตลอด และ echo ของข้อความที่เราส่งเองก็กลับมาด้วย mid เดิม
   // unique constraint จึงทำหน้าที่ dedupe ให้ทั้งสองกรณีโดยไม่ต้องเขียน logic แยก
@@ -210,7 +210,7 @@ Expected: `prisma generate` สำเร็จ; `tsc` จะ **ยังไม�
 สร้าง `prisma/migrations/20260722000000_facebook_chat/migration.sql`:
 
 ```sql
--- feature 00017: Facebook/Instagram chat integration
+-- feature 00018: Facebook/Instagram chat integration
 -- additive ล้วน: ไม่ลบคอลัมน์ ไม่เปลี่ยนชนิดข้อมูลเดิม row เดิมได้ channel='DEEP' จาก DEFAULT
 
 CREATE TABLE "ShopChannel" (
@@ -314,7 +314,7 @@ Expected: `buyerUserId` → `is_nullable = YES`, มีแถว `channel` แ�
 
 ```bash
 git add prisma/schema.prisma prisma/migrations/
-git commit -m "feat(00017): schema channel-aware — ShopChannel + ExternalContact + nullable buyer/sender
+git commit -m "feat(00018): schema channel-aware — ShopChannel + ExternalContact + nullable buyer/sender
 
 Conversation.buyerUserId และ ChatMessage.senderUserId เป็น nullable เพื่อรองรับ
 เธรดจากช่องทางนอกที่ไม่มี User ใน Deep; channel default 'DEEP' ทำให้ row เดิม
@@ -416,7 +416,7 @@ Expected: FAIL — เคสแรกพังเพราะ `notification.crea
 แล้วเพิ่มฟิลด์ใหม่เข้า `ConversationSummary` (หลัง `createdAt`):
 
 ```ts
-  channel: string // "DEEP" | "MESSENGER" | "INSTAGRAM" — feature 00017
+  channel: string // "DEEP" | "MESSENGER" | "INSTAGRAM" — feature 00018
   shopChannelId: string | null
   externalContactId: string | null
   lastInboundAt: Date | null
@@ -426,7 +426,7 @@ Expected: FAIL — เคสแรกพังเพราะ `notification.crea
 
 ```ts
     // verify role vs. truth — กัน client ปลอม senderRole (FR-CHAT-04-AC-03)
-    // เธรดช่องทางนอก (feature 00017) ไม่มี buyerUserId → ไม่มีใครอ้าง BUYER ได้เลย
+    // เธรดช่องทางนอก (feature 00018) ไม่มี buyerUserId → ไม่มีใครอ้าง BUYER ได้เลย
     const isBuyerClaim = params.senderRole === 'BUYER'
     const ownerMatch = isBuyerClaim
       ? conversation.buyerUserId !== null && conversation.buyerUserId === params.senderUserId
@@ -438,7 +438,7 @@ Expected: FAIL — เคสแรกพังเพราะ `notification.crea
 
 ```ts
     // Notification เสมอ (ไม่เช็ค presence — ดู SRS TFR-CHAT-11 rationale) ผู้รับ = อีกฝ่าย
-    // feature 00017: เธรดช่องทางนอก ผู้รับคือ ExternalContact ที่ไม่มี User ใน Deep →
+    // feature 00018: เธรดช่องทางนอก ผู้รับคือ ExternalContact ที่ไม่มี User ใน Deep →
     // ข้าม Notification (ลูกค้าได้รับผ่าน Messenger/IG เองอยู่แล้ว) ไม่ใช่ error
     const recipientUserId = isBuyerClaim ? shop.userId : conversation.buyerUserId
     if (recipientUserId) {
@@ -479,7 +479,7 @@ Expected: PASS ทั้งหมด (ถ้ามี test เดิมของ
 
 ```bash
 git add src/services/chat.service.ts src/services/__tests__/chat-service-external.test.ts
-git commit -m "fix(00017): sendMessage รองรับเธรดที่ไม่มี buyer
+git commit -m "fix(00018): sendMessage รองรับเธรดที่ไม่มี buyer
 
 Notification.userId เป็น required — เดิมร้านตอบลูกค้าช่องทางนอกแล้ว Prisma throw
 เพราะ recipientUserId เป็น null ตอนนี้ข้าม Notification เมื่อผู้รับไม่ใช่ User ใน
@@ -551,7 +551,7 @@ Expected: FAIL — `Cannot find module '@/lib/token-crypto'`
 ```ts
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
-// เข้ารหัส page access token ก่อนเก็บลง ShopChannel.accessTokenEnc (feature 00017)
+// เข้ารหัส page access token ก่อนเก็บลง ShopChannel.accessTokenEnc (feature 00018)
 // AES-256-GCM: ได้ทั้งความลับและ integrity (auth tag) — ciphertext ที่ถูกแก้จะถอดไม่ผ่าน
 // รูปแบบที่เก็บ: "<ivBase64>.<tagBase64>.<cipherBase64>"
 
@@ -593,7 +593,7 @@ Expected: PASS ทั้ง 3 เคส
 - [ ] **Step 5: เพิ่ม env ใหม่ใน `.env.example`**
 
 ```
-# feature 00017 Facebook/IG chat
+# feature 00018 Facebook/IG chat
 FB_CHAT_APP_ID=
 FB_CHAT_APP_SECRET=
 FB_WEBHOOK_VERIFY_TOKEN=
@@ -614,7 +614,7 @@ openssl rand -hex 16   # → FB_WEBHOOK_VERIFY_TOKEN
 
 ```bash
 git add src/lib/token-crypto.ts src/lib/__tests__/token-crypto.test.ts .env.example
-git commit -m "feat(00017): เข้ารหัส page access token ด้วย AES-256-GCM
+git commit -m "feat(00018): เข้ารหัส page access token ด้วย AES-256-GCM
 
 เลือก GCM เพราะได้ integrity มาด้วย — ciphertext ที่ถูกแก้จะถอดไม่ผ่านแทนที่จะคืน
 ค่าขยะเงียบ ๆ IV สุ่มทุกครั้งทำให้ token เดียวกันได้ ciphertext ต่างกัน"
@@ -688,7 +688,7 @@ Expected: FAIL — `Cannot find module '@/lib/facebook/signature'`
 - [ ] **Step 3: เขียน `src/lib/facebook/constants.ts`**
 
 ```ts
-// ค่าคงที่กลางของ Facebook/Instagram integration (feature 00017)
+// ค่าคงที่กลางของ Facebook/Instagram integration (feature 00018)
 // ตรึงเวอร์ชัน Graph API ไว้ที่เดียว — ห้าม hardcode เวอร์ชันกระจายตามไฟล์
 
 export const GRAPH_VERSION = 'v21.0'
@@ -716,7 +716,7 @@ export const CONNECT_SCOPES = [
 ```ts
 import { createHmac, timingSafeEqual } from 'crypto'
 
-// ตรวจลายเซ็น webhook ของ Meta (feature 00017)
+// ตรวจลายเซ็น webhook ของ Meta (feature 00018)
 // route webhook ถูกยกเว้นจาก CSRF Origin-check ใน proxy.ts — ลายเซ็นนี้คือ
 // authentication เพียงอย่างเดียวของ route นั้น ห้ามผ่อนปรน
 export function verifyWebhookSignature(rawBody: string, header: string | null): boolean {
@@ -748,7 +748,7 @@ Expected: PASS ทั้ง 5 เคส
 
 ```bash
 git add src/lib/facebook/
-git commit -m "feat(00017): verify ลายเซ็น webhook ของ Meta (HMAC-SHA256 timing-safe)
+git commit -m "feat(00018): verify ลายเซ็น webhook ของ Meta (HMAC-SHA256 timing-safe)
 
 route webhook ไม่มี Origin header จึงถูกยกเว้นจาก CSRF guard — ลายเซ็นนี้คือ
 authentication เพียงอย่างเดียวของ route นั้น เทียบด้วย timingSafeEqual และเช็ค
@@ -856,7 +856,7 @@ Expected: FAIL — `Cannot find module '@/lib/facebook/webhook-types'`
 ```ts
 import * as v from 'valibot'
 
-// Schema ของ payload ที่ Meta ยิงเข้า webhook (feature 00017)
+// Schema ของ payload ที่ Meta ยิงเข้า webhook (feature 00018)
 // ห้ามเชื่อ shape จาก Meta ตรง ๆ — parse ก่อนใช้เสมอ ฟิลด์ที่เราไม่ใช้ปล่อยผ่านได้
 // (Valibot object ตัดฟิลด์เกินทิ้งอยู่แล้ว) แต่ฟิลด์ที่ใช้ต้องมีจริง
 
@@ -922,7 +922,7 @@ Expected: PASS ทั้ง 5 เคส
 
 ```bash
 git add src/lib/facebook/webhook-types.ts src/lib/facebook/__tests__/webhook-types.test.ts
-git commit -m "feat(00017): Valibot schema ของ webhook payload + helper แบน messaging events
+git commit -m "feat(00018): Valibot schema ของ webhook payload + helper แบน messaging events
 
 ไม่เชื่อ shape ที่ Meta ส่งมา parse ก่อนใช้เสมอ; extractMessagingEvents ยุบการวน
 2 ชั้น (entry → messaging) ให้เหลือลิสต์เดียวที่พก pageId ติดไปด้วย"
@@ -1033,7 +1033,7 @@ Expected: FAIL — `Cannot find module '@/lib/facebook/graph'`
 ```ts
 import { GRAPH_BASE, MESSENGER_SUBSCRIBED_FIELDS } from './constants'
 
-// Client บาง ๆ ของ Meta Graph API (feature 00017)
+// Client บาง ๆ ของ Meta Graph API (feature 00018)
 // หลักการ: ส่ง access token ผ่าน header Authorization เสมอ ไม่ใส่ใน query string
 // เพราะ URL มักถูก log ทั้งเส้น (Vercel log, error tracker) → token หลุดง่าย
 
@@ -1193,7 +1193,7 @@ Expected: PASS ทั้ง 4 เคส
 
 ```bash
 git add src/lib/facebook/graph.ts src/lib/facebook/__tests__/graph.test.ts
-git commit -m "feat(00017): Graph API client (exchange token, list pages, subscribe, send, profile)
+git commit -m "feat(00018): Graph API client (exchange token, list pages, subscribe, send, profile)
 
 ส่ง access token ผ่าน header Authorization ไม่ใส่ query string เพราะ URL ถูก log
 ทั้งเส้นบน Vercel/error tracker → token หลุดง่าย (มี test กันไว้)
@@ -1317,7 +1317,7 @@ import { prisma } from '@/lib/prisma'
 import { encryptToken, decryptToken } from '@/lib/token-crypto'
 import { subscribePageToApp, type PageInfo } from '@/lib/facebook/graph'
 
-// จัดการช่องทางที่ร้านผูกไว้ (feature 00017)
+// จัดการช่องทางที่ร้านผูกไว้ (feature 00018)
 // กติกาสำคัญ: accessTokenEnc ห้ามออกจากไฟล์นี้ในรูป plaintext ยกเว้นผ่าน
 // getChannelByExternalId ที่ถูกเรียกจาก server เท่านั้น
 
@@ -1427,7 +1427,7 @@ Expected: PASS ทั้ง 6 เคส
 
 ```bash
 git add src/services/shop-channel.service.ts src/services/__tests__/shop-channel.service.test.ts
-git commit -m "feat(00017): shop-channel service — connect/list/disconnect + token ถอดรหัส server-only
+git commit -m "feat(00018): shop-channel service — connect/list/disconnect + token ถอดรหัส server-only
 
 listChannels ใช้ select allow-list ไม่ใช่ดึงทั้งแถวแล้วตัด — กัน accessTokenEnc
 หลุดเมื่อมีคนเพิ่มฟิลด์ใหม่ในอนาคต (มี test กันไว้)
@@ -1579,7 +1579,7 @@ import { getChannelByExternalId } from '@/services/shop-channel.service'
 import { getContactProfile } from '@/lib/facebook/graph'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
 
-// รับ-ส่งข้อความของช่องทางนอก (feature 00017)
+// รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
 
 // หน้าต่างตอบกลับมาตรฐานของ Meta — นับจากข้อความล่าสุด "ของลูกค้า"
@@ -1733,7 +1733,7 @@ Expected: ไม่มี error
 
 ```bash
 git add src/services/channel-chat.service.ts src/services/__tests__/channel-chat-ingest.test.ts
-git commit -m "feat(00017): ingest ข้อความขาเข้าจาก Messenger/IG + คำนวณ 24h window
+git commit -m "feat(00018): ingest ข้อความขาเข้าจาก Messenger/IG + คำนวณ 24h window
 
 is_echo คือข้อความฝั่งเพจ (seller ตอบจากแอป Messenger เอง) ผู้ติดต่อจึงอยู่ที่
 recipient ไม่ใช่ sender — ถ้าอ่านผิดฝั่งจะสร้าง contact ปลอมเป็น Page ID
@@ -1867,7 +1867,7 @@ import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
 import { ingestInboundMessage } from '@/services/channel-chat.service'
 
-// Webhook ของ Messenger + Instagram (feature 00017)
+// Webhook ของ Messenger + Instagram (feature 00018)
 //
 // route นี้ถูกยกเว้นจาก CSRF Origin-check ใน proxy.ts เพราะ Meta ไม่ส่ง header Origin
 // → ลายเซ็น X-Hub-Signature-256 คือ authentication เพียงอย่างเดียวของ route นี้
@@ -1961,7 +1961,7 @@ Expected: PASS ทั้งหมด (รวม test เดิมของ csrf-
 
 ```bash
 git add src/app/api/channels/facebook/webhook/ src/proxy.ts
-git commit -m "feat(00017): webhook route ของ Messenger/IG + ยกเว้น CSRF Origin-check
+git commit -m "feat(00018): webhook route ของ Messenger/IG + ยกเว้น CSRF Origin-check
 
 อ่าน raw text ไม่ใช่ .json() เพราะลายเซ็นคำนวณจาก byte ดิบ — parse แล้ว stringify
 ใหม่จะได้ลายเซ็นไม่ตรง
@@ -2105,7 +2105,7 @@ import { sendTextMessage, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { markChannelTokenInvalid } from '@/services/shop-channel.service'
 
-// ส่งข้อความจาก Deep ออกไปยัง Messenger/IG (feature 00017)
+// ส่งข้อความจาก Deep ออกไปยัง Messenger/IG (feature 00018)
 //
 // ลำดับสำคัญ: ส่งออกก่อน → ได้ mid → ค่อยเขียน DB
 // เพราะ echo webhook จะยิง mid เดียวกันกลับมา แล้ว unique constraint บน
@@ -2199,7 +2199,7 @@ import { sendOutboundMessage } from "@/services/channel-chat.service";
 
 ```ts
   try {
-    // feature 00017: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
+    // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
     const conv = await prisma.conversation.findUnique({
       where: { id },
       select: { channel: true },
@@ -2240,7 +2240,7 @@ import { sendOutboundMessage } from "@/services/channel-chat.service";
 
 ```ts
   if (e instanceof Error && e.message === "WINDOW_CLOSED") {
-    // feature 00017: เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า — Meta ไม่ให้ส่ง
+    // feature 00018: เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า — Meta ไม่ให้ส่ง
     return NextResponse.json(
       { error: "เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความไม่ได้จนกว่าลูกค้าจะทักมาใหม่" },
       { status: 409 },
@@ -2270,7 +2270,7 @@ Expected: ไม่มี error, test PASS ทั้งหมด
 
 ```bash
 git add src/services/channel-chat.service.ts src/services/__tests__/channel-chat-outbound.test.ts "src/app/api/chat/conversations/[id]/messages/route.ts"
-git commit -m "feat(00017): ส่งข้อความออกไป Messenger/IG + บังคับ 24h window
+git commit -m "feat(00018): ส่งข้อความออกไป Messenger/IG + บังคับ 24h window
 
 ส่งออกก่อนแล้วค่อยเขียน DB เพราะ echo webhook จะยิง mid เดิมกลับมา แล้ว unique
 constraint บน externalMessageId dedupe ให้เอง — ถ้าเขียน DB ก่อนส่งจะได้ข้อความ
@@ -2357,7 +2357,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { GRAPH_VERSION, CONNECT_SCOPES } from '@/lib/facebook/constants'
 
-// เริ่ม OAuth เชื่อม Facebook Page (feature 00017)
+// เริ่ม OAuth เชื่อม Facebook Page (feature 00018)
 //
 // แยกจาก FacebookProvider ของ NextAuth โดยตั้งใจ — นั่นคือ login ของผู้ใช้ทั่วไป
 // ถ้าเอา scope จัดการเพจไปใส่ที่นั่น ผู้ใช้ทุกคนจะโดนขอสิทธิ์เกินจำเป็นตั้งแต่สมัคร
@@ -2415,7 +2415,7 @@ import { exchangeCodeForToken, listManageablePages } from '@/lib/facebook/graph'
 import { connectPages } from '@/services/shop-channel.service'
 import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
 
-// รับ code จาก Facebook แล้วเชื่อมทุก Page ที่ user มีสิทธิ์ MESSAGING+MODERATE (feature 00017)
+// รับ code จาก Facebook แล้วเชื่อมทุก Page ที่ user มีสิทธิ์ MESSAGING+MODERATE (feature 00018)
 // MVP เชื่อมให้ทั้งหมดเลย — หน้าจอให้เลือกทีละเพจอยู่ในแผน UI
 
 export const dynamic = 'force-dynamic'
@@ -2487,7 +2487,7 @@ Expected: PASS ทั้ง 2 เคส, tsc ไม่มี error
 
 ```bash
 git add src/app/api/channels/facebook/
-git commit -m "feat(00017): OAuth เชื่อม Facebook Page (connect + callback)
+git commit -m "feat(00018): OAuth เชื่อม Facebook Page (connect + callback)
 
 แยกจาก FacebookProvider ของ NextAuth โดยตั้งใจ — ถ้าเอา scope จัดการเพจไปใส่ใน
 login ผู้ใช้ทุกคนจะโดนขอสิทธิ์เกินจำเป็นตั้งแต่สมัคร และ App Review จะตกเพราะ
@@ -2605,7 +2605,7 @@ const MIRROR_ALLOWED_TYPES: Record<string, string> = {
   'image/gif': 'gif',
 }
 
-// ดาวน์โหลดรูปจาก CDN ของ Meta แล้วเก็บเข้า storage ของเรา (feature 00017)
+// ดาวน์โหลดรูปจาก CDN ของ Meta แล้วเก็บเข้า storage ของเรา (feature 00018)
 // จำเป็นเพราะ 2 เหตุผล: URL ของ Meta หมดอายุ และ ChatMessage.imageUrl ของโปรเจกต์นี้
 // เก็บ "fileId ของ storage" ไม่ใช่ URL (ดู fileIdExt ที่ route messages ใช้ตรวจนามสกุล)
 //
@@ -2661,7 +2661,7 @@ Expected: PASS ทั้งหมด (รวม test ingest เดิมขอ�
 
 ```bash
 git add src/services/channel-chat.service.ts src/services/__tests__/channel-chat-image.test.ts
-git commit -m "feat(00017): mirror รูปจาก CDN ของ Meta เข้า storage ของเรา
+git commit -m "feat(00018): mirror รูปจาก CDN ของ Meta เข้า storage ของเรา
 
 ChatMessage.imageUrl ของโปรเจกต์นี้เก็บ fileId ของ storage ไม่ใช่ URL (route
 messages ใช้ fileIdExt ตรวจนามสกุล) และ URL ที่ Meta ส่งมาหมดอายุ → ต้องดาวน์โหลด
@@ -2687,7 +2687,7 @@ messages ใช้ fileIdExt ตรวจนามสกุล) และ URL �
 
 ```ts
 /**
- * ยิง webhook ปลอมที่เซ็นลายเซ็นจริง — ใช้ทดสอบ handler โดยไม่ต้องพึ่ง Meta (feature 00017)
+ * ยิง webhook ปลอมที่เซ็นลายเซ็นจริง — ใช้ทดสอบ handler โดยไม่ต้องพึ่ง Meta (feature 00018)
  *
  * วิธีใช้:
  *   npx tsx scripts/fake-fb-webhook.ts --page PAGE_ID --psid PSID --text "สนใจครับ"
@@ -2806,7 +2806,7 @@ Expected: `HTTP 200`; query DB แล้วเห็นแถวใหม่ `se
 
 ```bash
 git add scripts/fake-fb-webhook.ts
-git commit -m "test(00017): สคริปต์ยิง webhook ปลอมที่เซ็นลายเซ็นจริง
+git commit -m "test(00018): สคริปต์ยิง webhook ปลอมที่เซ็นลายเซ็นจริง
 
 ทดสอบ handler ได้โดยไม่ต้องพึ่ง Meta และไม่ต้องเปิด ngrok — ครอบข้อความปกติ,
 is_echo, IG (--object instagram) และการยิงซ้ำเพื่อพิสูจน์ idempotency"
@@ -2817,7 +2817,7 @@ is_echo, IG (--object instagram) และการยิงซ้ำเพื�
 ## Task 14: ปิดงาน — reviewer + security + เอกสาร
 
 **Files:**
-- Modify: `docs/20 - Features/00017 - Facebook Chat Integration/` (SRS / SDS / API / DATABASE)
+- Modify: `docs/20 - Features/00018 - Facebook Chat Integration/` (SRS / SDS / API / DATABASE)
 
 - [ ] **Step 1: รัน test ทั้งชุด + type-check ครั้งสุดท้าย**
 
@@ -2855,15 +2855,15 @@ Expected: `PASS: version อยู่ที่เดียว`
 
 งานนี้แตะ auth/token/webhook → security review บังคับ
 
-- [ ] **Step 6: dispatch `safepay-docs` ให้เขียน SRS / SDS / API / DATABASE ของ 00017**
+- [ ] **Step 6: dispatch `safepay-docs` ให้เขียน SRS / SDS / API / DATABASE ของ 00018**
 
 ตาม Hard Rule 11 เอกสารต้องครบ 7 ไฟล์ (PRD/BRD ทำไปแล้วที่ Task 0)
 
 - [ ] **Step 7: Commit เอกสาร**
 
 ```bash
-git add "docs/20 - Features/00017 - Facebook Chat Integration/"
-git commit -m "docs(00017): SRS + SDS + API + DATABASE ของ Facebook chat integration"
+git add "docs/20 - Features/00018 - Facebook Chat Integration/"
+git commit -m "docs(00018): SRS + SDS + API + DATABASE ของ Facebook chat integration"
 ```
 
 - [ ] **Step 8: รายงาน user — สิ่งที่ยังทำไม่ได้จนกว่าจะเคลียร์ฝั่ง Meta**

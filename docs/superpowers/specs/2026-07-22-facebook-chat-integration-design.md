@@ -3,7 +3,7 @@
 - **วันที่:** 2026-07-22
 - **Branch:** `feat/chats-facebook`
 - **สถานะ:** DRAFT — รอ user review
-- **Feature number (จอง):** `00017 - Facebook Chat Integration`
+- **Feature number (จอง):** `00018 - Facebook Chat Integration`
 - **ต่อยอดจาก:** feature `00011 - Deep Chat` (in-app chat buyer↔seller)
 
 ---
@@ -373,7 +373,7 @@ send ผ่าน Send API → ได้ mid → insert ChatMessage พร้อ
 
 > **หมายเหตุเรื่อง HTML mockup:** ตาม convention ของโปรเจกต์ spec ที่มี UI ต้องมาคู่กับ HTML
 > mockup 3 device (mobile/tablet/desktop) — spec ฉบับนี้ **ยังไม่แนบ** เพราะ UI ทั้งหมดต้อง
-> ผ่าน `safepay-ux` ก่อนตาม Hard Rule 8 mockup จะออกในขั้น feature docs `00017` ไม่ใช่ที่นี่
+> ผ่าน `safepay-ux` ก่อนตาม Hard Rule 8 mockup จะออกในขั้น feature docs `00018` ไม่ใช่ที่นี่
 
 ## 9. รอยต่อที่เตรียมไว้สำหรับ Facebook Live (อนาคต)
 
@@ -421,7 +421,7 @@ user ยืนยันว่าอยากได้ LIVE ในอนาคต
 
 1. **ปิด/เปลี่ยน callback URL ngrok ที่ค้างอยู่** (ความเสี่ยงข้อมูลลูกค้า — §4.1 ข้อ 2)
 2. **อัปเดต `FACEBOOK_SECRET` ใน `.env.local`** ให้ FB login บน dev กลับมาใช้ได้ (§4.1 ข้อ 3)
-3. **เปิดโฟลเดอร์ `docs/20 - Features/00017 - Facebook Chat Integration/`** แล้วออก PRD + BRD
+3. **เปิดโฟลเดอร์ `docs/20 - Features/00018 - Facebook Chat Integration/`** แล้วออก PRD + BRD
    ให้ user review — Hard Rule 11 ห้าม implement ก่อนมี PRD+BRD ผ่าน review
 
 **งานฝั่ง Meta dashboard ที่ทำขนานไปได้ (ไม่บล็อกการเขียนโค้ด แต่บล็อกการใช้งานจริง)** — §4.2:
