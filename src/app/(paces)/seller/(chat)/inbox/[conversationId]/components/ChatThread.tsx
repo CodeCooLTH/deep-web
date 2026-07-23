@@ -526,6 +526,11 @@ export default function ChatThread({
                                 {m.body}
                               </p>
                             )}
+                            {/* กันบับเบิลว่าง (ข้อมูลเก่า/ข้อความไม่รองรับที่ body ว่าง) — แสดง placeholder จาง ๆ
+                                (อยู่ใน branch non-PRODUCT แล้ว จึงเช็คแค่ body/imageUrl ว่าง) */}
+                            {!m.body && !m.imageUrl && (
+                              <p className="text-default-400 mb-0 text-sm italic">ข้อความไม่รองรับ — เปิดดูใน Messenger</p>
+                            )}
                             {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — warning banner เฉพาะ
                                 TEXT ที่ flaggedScam=true (BR-SCAM-04 scan เฉพาะ TEXT); WARN เท่านั้น
                                 ไม่ block ส่ง (FR-SCAM-05); token bg-warning/15 text-warning (HR7 ไม่ arbitrary) */}
