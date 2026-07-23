@@ -434,7 +434,11 @@ export default function ChatThread({
       )}
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
-      <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto py-4">
+      {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย
+          ทำให้ด้านบนขยับตลอด"): เมื่อเลื่อนถึงหัว/ท้ายรายการข้อความ เบราว์เซอร์จะส่ง scroll ต่อไปให้
+          ancestor ที่เลื่อนได้ (scroll chaining) → คอลัมน์กลางของ (chat)/layout.tsx และหน้าเว็บ
+          ขยับตาม หัวแชทเลื่อนหนีทั้งที่ควรค้าง. overscroll-contain ตัด chain ที่ container นี้ */}
+      <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto overscroll-contain py-4">
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex justify-center py-2">
             {loadingOlder && (

@@ -70,8 +70,14 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               /inbox/[conversationId] (thread + customer panel) — overflow-y-auto กันเนื้อหา
               มือถือ (list ยาว) ล้นจอ เพราะ chat-shell ปิด overflow ที่ระดับบนสุดไปแล้ว (ต้องการ
               scroll เฉพาะโซนนี้ ไม่ใช่ทั้งหน้า แบบแอปแชทจริง) desktop ไม่มีผล (เนื้อหาพอดี h-full
-              อยู่แล้ว ChatThread จัดการ scroll ภายในของตัวเองต่างหาก) */}
-          <div className="min-w-0 flex-1 overflow-y-auto">{children}</div>
+              อยู่แล้ว ChatThread จัดการ scroll ภายในของตัวเองต่างหาก)
+              bug fix 2026-07-23 (user report prod: "scroll ในช่องแชทแล้วด้านบนขยับตลอด"):
+              บน ≥1024px คอลัมน์นี้ไม่ควรเลื่อนเองเลย — เธรดกับแผงข้อมูลลูกค้าสูง h-full และมี
+              scroll ภายในของตัวเองอยู่แล้ว การเปิด overflow-y-auto ทิ้งไว้ทำให้มี scroll ซ้อนชั้น
+              ที่รับ scroll ต่อจากรายการข้อความ (chaining) แล้วดันเนื้อหาทั้งคอลัมน์ขยับ →
+              lg:overflow-hidden. ต่ำกว่านั้น (มือถือ/แท็บเล็ต) ยังต้องเลื่อนได้เพราะรายการแชทยาว
+              จริง แต่ใส่ overscroll-contain กันไม่ให้ scroll ทะลุไปถึงหน้าเว็บ/หัวแชท */}
+          <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain lg:overflow-hidden">{children}</div>
         </div>
       </div>
     </ChatSearchProvider>

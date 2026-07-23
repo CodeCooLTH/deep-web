@@ -107,7 +107,10 @@ export default function ChatRail({ shopId }: Props) {
   }, [])
 
   return (
-    <SimpleBar className="size-full">
+    // scrollableNodeProps: SimpleBar เลื่อนจริงที่ `.simplebar-content-wrapper` ข้างใน ไม่ใช่ที่ root
+    // → ต้องยัด overscroll-contain ลงโหนดนั้นโดยตรง ไม่งั้นเลื่อนรายการแชทจนสุดแล้ว scroll จะไหลต่อ
+    // ไปหาหน้าเว็บ/หัวแชท (bug เดียวกับที่แก้ในเธรด — user report prod 2026-07-23)
+    <SimpleBar className="size-full" scrollableNodeProps={{ className: 'overscroll-contain' }}>
       {loading ? (
         <div className="px-4 pt-4 pb-4">
           <SellerInboxSkeleton />

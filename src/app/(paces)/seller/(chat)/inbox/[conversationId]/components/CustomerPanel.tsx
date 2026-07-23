@@ -160,7 +160,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           เป็นส่วนที่เลื่อน ไม่ใช่ทั้งการ์ด — หัวการ์ด (ชื่อ+ช่องทาง) กับแถบแท็บจึงค้างอยู่เสมอ
           เหมือนแผงข้อมูลของแอปแชทจริง. ในโหมด sheet (มือถือ) parent เป็น block + scroll เองอยู่แล้ว
           flex-1 จึงไม่มีผลและไม่เกิด scroll ซ้อน */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
         {tab === 'customer' ? (
           <div className="space-y-4">
             {/* feature 00018 CRM — แก้ไข tag/note/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
