@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { exchangeCodeForToken, listManageablePages } from '@/lib/facebook/graph'
 import { connectPages } from '@/services/shop-channel.service'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
+import { OAUTH_STATE_COOKIE, OAUTH_FORCE_COOKIE, callbackUrl } from '../connect/route'
 
 // รับ code จาก Facebook แล้วเชื่อมทุก Page ที่ user มีสิทธิ์ MESSAGING+MODERATE (feature 00018)
 // MVP เชื่อมให้ทั้งหมดเลย — หน้าจอให้เลือกทีละเพจอยู่ในแผน UI
@@ -59,16 +59,28 @@ export async function GET(request: NextRequest) {
       return backToSettings(request, { status: 'no_eligible_page' })
     }
 
-    const result = await connectPages(activeCtx.shopId, userId, pages)
+    // force = user ยืนยันย้ายเพจที่ติดร้านอื่นมาร้านนี้ (ผ่าน re-OAuth ที่ Facebook อนุญาตเลย
+    // เพราะเคย grant แล้ว) — ปลอดภัยเพราะ pages ที่เข้ามาถึงจุดนี้ผ่าน listManageablePages มาแล้ว
+    const force = request.cookies.get(OAUTH_FORCE_COOKIE)?.value === '1'
+    const result = await connectPages(activeCtx.shopId, userId, pages, { force })
     const res = backToSettings(request, {
       status: 'connected',
       connected: String(result.connected),
-      ...(result.skipped.length ? { skipped: result.skipped.join(',') } : {}),
+      // skipped: เพจที่ร้านอื่นเชื่อม active อยู่ — ส่ง "ชื่อเพจ (ร้านที่ถืออยู่)" ให้ UI บอก user
+      // ได้ว่าต้องไปถอดจากร้านไหนก่อน ไม่ใช่แค่ "เชื่อม 0 ช่องทาง" เฉย ๆ ที่ไม่บอกสาเหตุ
+      ...(result.skipped.length
+        ? {
+            skipped: result.skipped
+              .map((s) => (s.occupiedBy ? `${s.pageName} (ร้าน ${s.occupiedBy})` : s.pageName))
+              .join(', '),
+          }
+        : {}),
       // I-4: ไม่ปล่อยให้ subscribe ล้มเหลวเงียบ ๆ — ต้องบอก seller ว่าเพจไหนเชื่อมแล้วแต่ยังไม่ได้รับ
       // webhook จริง (ต้องกดเชื่อมใหม่หรือติดต่อ support)
       ...(result.subscribeFailed.length ? { subscribeFailed: result.subscribeFailed.join(',') } : {}),
     })
     res.cookies.delete(OAUTH_STATE_COOKIE)
+    res.cookies.delete(OAUTH_FORCE_COOKIE)
     return res
   } catch (e) {
     // ห้าม log token — log แค่ message

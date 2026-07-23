@@ -15,7 +15,11 @@ export interface ChannelView {
   status: string
 }
 
-type ChannelUpsertResult = 'created' | 'existing-same-shop' | 'other-shop'
+// 'other-shop' พก shopName ของร้านที่เพจติดอยู่มาด้วย — เพื่อให้ข้อความแจ้ง user บอกได้ว่า
+// "เพจนี้เชื่อมอยู่กับร้าน X แล้ว ถอดก่อนจึงจะย้ายมาได้" แทนที่จะเงียบ ๆ ว่า skipped เฉย ๆ
+type ChannelUpsertResult =
+  | { kind: 'created' | 'existing-same-shop' }
+  | { kind: 'other-shop'; shopName: string | null }
 
 // สร้างแถว ShopChannel — แยก P2002 ออกเป็น 2 ความหมาย เพราะ unique constraint ตอนนี้เป็น partial
 // unique index บน (provider, externalId) WHERE status <> 'DISCONNECTED' (ดู migration
@@ -31,6 +35,11 @@ async function upsertChannel(params: {
   externalId: string
   name: string
   accessToken: string
+  // force: user ยืนยันแล้วว่าต้องการย้ายเพจมาร้านนี้ (เพจติดอยู่กับร้านอื่น) → ตัดแถว active
+  // ของร้านอื่นก่อนแล้วสร้างใหม่ให้ร้านนี้ authorization: pages ที่เข้ามาถึงจุดนี้ผ่าน
+  // listManageablePages(userToken) มาแล้ว = เป็นเพจที่ user มีสิทธิ์ MESSAGING+MODERATE จริง
+  // (Meta ยืนยันตอน OAuth) การตัดการเชื่อมของร้านเดิมจึงเป็นสิทธิ์ที่ user มีอยู่แล้วโดยตัวมันเอง
+  force?: boolean
 }): Promise<ChannelUpsertResult> {
   try {
     await prisma.shopChannel.create({
@@ -43,7 +52,7 @@ async function upsertChannel(params: {
         connectedByUserId: params.userId,
       },
     })
-    return 'created'
+    return { kind: 'created' }
   } catch (e) {
     if ((e as { code?: string })?.code !== 'P2002') throw e
     // findUnique ด้วย provider_externalId ใช้ไม่ได้แล้ว — ไม่มี @@unique เต็มตารางให้ประกอบเป็น
@@ -51,9 +60,33 @@ async function upsertChannel(params: {
     // (ถ้าไม่กรอง อาจไปเจอแถว DISCONNECTED เก่าซึ่งไม่ใช่ตัวที่ชน constraint แล้วรายงาน shopId ผิด)
     const existing = await prisma.shopChannel.findFirst({
       where: { provider: params.provider, externalId: params.externalId, status: { not: 'DISCONNECTED' } },
-      select: { shopId: true },
+      select: { shopId: true, shop: { select: { shopName: true } } },
     })
-    return existing?.shopId === params.shopId ? 'existing-same-shop' : 'other-shop'
+    if (existing?.shopId === params.shopId) return { kind: 'existing-same-shop' }
+
+    if (params.force) {
+      // ย้ายเพจ: ตัดแถว active ทั้งหมดของเพจนี้ (ร้านอื่น) แล้วสร้างใหม่ให้ร้านนี้ ในทรานแซกชันเดียว
+      // — ตั้ง DISCONNECTED ไม่ลบแถว เพื่อรักษาประวัติ Conversation/Message ของร้านเดิมไว้
+      await prisma.$transaction([
+        prisma.shopChannel.updateMany({
+          where: { provider: params.provider, externalId: params.externalId, status: { not: 'DISCONNECTED' } },
+          data: { status: 'DISCONNECTED' },
+        }),
+        prisma.shopChannel.create({
+          data: {
+            shopId: params.shopId,
+            provider: params.provider,
+            externalId: params.externalId,
+            name: params.name,
+            accessTokenEnc: encryptToken(params.accessToken),
+            connectedByUserId: params.userId,
+          },
+        }),
+      ])
+      return { kind: 'created' }
+    }
+
+    return { kind: 'other-shop', shopName: existing?.shop?.shopName ?? null }
   }
 }
 
@@ -61,9 +94,15 @@ export async function connectPages(
   shopId: string,
   userId: string,
   pages: PageInfo[],
-): Promise<{ connected: number; skipped: string[]; subscribeFailed: string[] }> {
+  opts: { force?: boolean } = {},
+): Promise<{
+  connected: number
+  // skipped: เพจที่ถูกร้านอื่นเชื่อม active อยู่ — พก shopName ของร้านนั้นมาด้วยให้ UI บอก user ได้
+  skipped: { pageName: string; occupiedBy: string | null }[]
+  subscribeFailed: string[]
+}> {
   let connected = 0
-  const skipped: string[] = []
+  const skipped: { pageName: string; occupiedBy: string | null }[] = []
   const subscribeFailed: string[] = []
 
   for (const page of pages) {
@@ -74,12 +113,13 @@ export async function connectPages(
       externalId: page.id,
       name: page.name,
       accessToken: page.accessToken,
+      force: opts.force,
     })
 
-    if (messengerResult === 'other-shop') {
+    if (messengerResult.kind === 'other-shop') {
       // เพจนี้ถูกร้านอื่นเชื่อมไปแล้ว — ไม่ใช่ error ของระบบ ข้ามไปเลย ห้ามแตะ subscribe/IG
       // เพราะแถว MESSENGER ที่มีอยู่จริงเป็นของร้านอื่น ไม่ใช่ของเรา
-      skipped.push(page.name)
+      skipped.push({ pageName: page.name, occupiedBy: messengerResult.shopName })
       continue
     }
     connected++
@@ -95,6 +135,7 @@ export async function connectPages(
         externalId: page.instagramBusinessAccountId,
         name: page.name,
         accessToken: page.accessToken,
+        force: opts.force,
       })
     }
 

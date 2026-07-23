@@ -13,6 +13,9 @@ import { GRAPH_VERSION, CONNECT_SCOPES } from '@/lib/facebook/constants'
 export const dynamic = 'force-dynamic'
 
 export const OAUTH_STATE_COOKIE = 'fb_channel_oauth_state'
+// force cookie: user ยืนยันย้ายเพจที่ติดร้านอื่น → callback ตัดร้านเดิมแล้วผูกร้านนี้แทน
+// httpOnly + อายุสั้น เหมือน state cookie (รอดข้าม redirect ของ Facebook ด้วย sameSite=lax)
+export const OAUTH_FORCE_COOKIE = 'fb_channel_force'
 
 export function callbackUrl(request: NextRequest): string {
   return `${request.nextUrl.origin}/api/channels/facebook/callback`
@@ -42,12 +45,17 @@ export async function GET(request: NextRequest) {
   // ต้องระบุ status 302 ชัด ๆ — ค่า default ของ NextResponse.redirect คือ 307
   // ซึ่งเบราว์เซอร์บาง engine จะ preserve method เดิม (ปกติไม่ใช่ปัญหาสำหรับ GET แต่ 302 คือมาตรฐาน OAuth redirect)
   const res = NextResponse.redirect(authorizeUrl.toString(), 302)
-  res.cookies.set(OAUTH_STATE_COOKIE, state, {
+  const cookieOpts = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax', // ต้อง lax ไม่ใช่ strict — cookie ต้องรอดตอน Facebook redirect กลับมา
+    sameSite: 'lax' as const, // ต้อง lax ไม่ใช่ strict — cookie ต้องรอดตอน Facebook redirect กลับมา
     path: '/api/channels/facebook',
     maxAge: 600,
-  })
+  }
+  res.cookies.set(OAUTH_STATE_COOKIE, state, cookieOpts)
+  // ?force=1 มาจากปุ่ม "ย้ายมาที่นี่" ที่ user กดยืนยันใน Sweet Alert (เพจติดร้านอื่น)
+  if (request.nextUrl.searchParams.get('force') === '1') {
+    res.cookies.set(OAUTH_FORCE_COOKIE, '1', cookieOpts)
+  }
   return res
 }

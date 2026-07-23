@@ -91,8 +91,31 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
     if (!status) return
 
     if (status === 'connected') {
-      const connected = searchParams.get('connected') ?? '0'
-      pacesToast.success(`เชื่อมต่อสำเร็จ ${connected} ช่องทาง`)
+      const connected = Number(searchParams.get('connected') ?? '0')
+      const skipped = searchParams.get('skipped')
+      if (connected > 0) {
+        pacesToast.success(`เชื่อมต่อสำเร็จ ${connected} ช่องทาง`)
+      }
+      // เพจที่ถูกร้านอื่นเชื่อม active อยู่ → ถาม user ว่าจะย้ายมาร้านนี้ไหม (ตัดร้านเดิมให้เลย)
+      // user เป็นเจ้าของเพจ (Meta ยืนยันตอน OAuth) จึงย้ายได้โดยไม่ต้องไปสลับร้านเอง
+      if (skipped) {
+        router.replace('/settings/channels') // ลบ query ก่อนเปิด dialog กัน re-trigger ตอน reload
+        Swal.fire({
+          title: 'เพจนี้เชื่อมอยู่กับร้านอื่น',
+          html: `<div class="text-start">${skipped}<br/><br/>ต้องการย้ายมาที่ร้านนี้ไหม? การเชื่อมที่ร้านเดิมจะถูกตัด (ข้อความเก่ายังอยู่ครบ)</div>`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'ย้ายมาที่นี่',
+          cancelButtonText: 'ยกเลิก',
+          buttonsStyling: false,
+          customClass: { confirmButton: 'btn bg-primary text-white', cancelButton: 'btn bg-light text-default-700 ms-2' },
+        }).then((r) => {
+          // re-OAuth พร้อม force=1 — Facebook อนุญาตทันทีเพราะเคย grant แล้ว, callback ตัดร้านเดิมให้
+          if (r.isConfirmed) window.location.href = '/api/channels/facebook/connect?force=1'
+        })
+        return
+      }
+      if (connected === 0) pacesToast.info('ไม่มีเพจใหม่ที่เชื่อมเพิ่ม')
     } else {
       const message = CALLBACK_STATUS_MESSAGE[status] ?? 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่'
       pacesToast.error(message)
