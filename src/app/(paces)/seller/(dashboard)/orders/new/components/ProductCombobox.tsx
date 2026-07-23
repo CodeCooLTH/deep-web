@@ -82,7 +82,7 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
           <div
             ref={panelRef}
             style={style}
-            className="z-30 max-h-64 overflow-auto rounded border border-default-300 bg-card shadow-lg"
+            className="max-h-64 overflow-auto rounded border border-default-300 bg-card shadow-lg"
           >
             <div className="sticky top-0 border-b border-default-200 bg-card p-2">
               <input

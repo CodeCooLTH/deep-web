@@ -42,7 +42,15 @@ export interface AnchoredStyle {
   top: number
   left: number
   width: number
+  zIndex: number
 }
+
+// z-index ต้องสูงกว่า fullscreen layout wrapper ที่ห่อหน้า /orders/new
+// (src/app/(paces)/seller/(fullscreen)/layout.tsx:48 ใช้ `fixed inset-0 z-50`)
+// panel portal ไป document.body = sibling ของ wrapper นั้น ถ้า z ต่ำกว่า/เท่า 50
+// จะอยู่หลัง layer ทั้งแผ่น มองไม่เห็น + คลิกไม่โดน (เจอจริงตอน QA เบราว์เซอร์ 2026-07-23)
+// ใช้ 70 = ระดับเดียวกับ bottom-sheet ในหน้านี้ (ProductPickerSheet ฯลฯ) ที่ต้องลอยเหนือ fullscreen เช่นกัน
+const DROPDOWN_Z_INDEX = 70
 
 export function useAnchoredDropdown({ open, onClose }: UseAnchoredDropdownOptions) {
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -63,7 +71,7 @@ export function useAnchoredDropdown({ open, onClose }: UseAnchoredDropdownOption
     if (!el) return
     const r = el.getBoundingClientRect()
     // +4 = ระยะเดิมของ mt-1 (0.25rem) ระหว่าง anchor กับ panel
-    setStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: r.width })
+    setStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: r.width, zIndex: DROPDOWN_Z_INDEX })
   }, [open])
 
   // คืน focus ไป trigger ตัวแรกที่โฟกัสได้ใน anchor (ใช้ทั้งตอน Escape และปิดจาก scroll/resize)

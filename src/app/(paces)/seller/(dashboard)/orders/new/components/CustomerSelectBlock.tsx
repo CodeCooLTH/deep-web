@@ -197,7 +197,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                   <div
                     ref={panelRef}
                     style={style}
-                    className="z-30 max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg"
+                    className="max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg"
                   >
                     {isLoading && (
                       <div className="flex items-center gap-2 px-4 py-3 text-sm text-default-500">
