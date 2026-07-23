@@ -10,7 +10,7 @@
  * ลำดับ: ลูกค้า → ช่องทาง/ชำระเงิน → สินค้า → เพิ่มเติม; footer = QuickSummaryPanel (collapsible)
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -63,24 +63,6 @@ export default function QuickForm({
     [watchedItems, catalog, salesChannel],
   )
 
-  // โหลดครั้งแรก / ลบจนเหลือ 0 → มี 1 บรรทัดว่างเสมอ (micro-rule #2) — เฉพาะมือถือ/แท็บเล็ต (< lg)
-  // QuickForm ยังคง mount อยู่บน desktop (OrderCreateForm ห่อด้วย `lg:hidden` = ซ่อนด้วย CSS ไม่ unmount)
-  // เลย effect นี้ยังรันอยู่แม้ผู้ใช้อยู่บน desktop POS (≥ lg) → ยัดแถวว่างเข้า items ที่ desktop ใช้ร่วมกัน
-  // ตรวจ isDesktop ด้วย matchMedia('(min-width: 1024px)') — ค่าเดียวกับ `lg` ที่ OrderCreateForm ใช้แบ่ง layout
-  const lineCount = itemsCtl.fields.length
-  useEffect(() => {
-    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-    if (lineCount === 0 && !isDesktop) itemsCtl.addCustom()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineCount])
-
-  // "+ เพิ่มรายการ" — append บรรทัดว่างก่อน แล้วเปิด picker เล็งไป index ใหม่ทันที
-  const handleAddClick = () => {
-    const idx = itemsCtl.fields.length
-    itemsCtl.addCustom()
-    setPickerIndex(idx)
-  }
-
   return (
     // -mx-4 md:-mx-8: หักล้าง padding ของ (fullscreen) layout (p-4 md:p-8) → แถบเทา band bleed เต็มขอบจอ
     <div className="-mx-4 md:-mx-8">
@@ -94,21 +76,13 @@ export default function QuickForm({
         <ChannelPaymentSelect control={control} />
       </section>
 
-      {/* SECTION 3: สินค้า */}
+      {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
       <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
             <Icon icon="package" className="size-5 text-primary" />
             สินค้า
           </h2>
-          <button
-            type="button"
-            onClick={handleAddClick}
-            className="inline-flex items-center gap-1 text-sm font-semibold text-primary"
-          >
-            <Icon icon="plus" className="size-4" />
-            เพิ่มรายการ
-          </button>
         </div>
         <div>
           {itemsCtl.fields.map((f, i) => (

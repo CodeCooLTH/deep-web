@@ -47,6 +47,9 @@ type ChannelDisplay = {
   /** DEEP ใช้ token Paces (text-primary) — MESSENGER/INSTAGRAM ใช้ brand color inline (ดู comment หัวไฟล์) */
   iconClassName?: string
   iconStyle?: CSSProperties
+  /** โลโก้แบรนด์จริง (gradient) ใน public/ — Messenger/Instagram ใช้แทน tabler mono icon เพราะ
+   *  ที่ขนาดเล็กโลโก้จริงจำง่ายกว่ามาก (user ยืนยัน ส่งไฟล์ Messenger มาให้เอง) DEEP = in-app ใช้ tabler */
+  logoSrc?: string
 }
 
 const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
@@ -57,13 +60,13 @@ const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
   },
   MESSENGER: {
     label: 'Messenger',
-    icon: 'brand-messenger',
-    iconStyle: { color: '#0084FF' }, // Hard Rule 6 exception: Messenger brand color — brand asset ใช้ได้ตาม ref
+    icon: 'brand-messenger', // fallback ถ้า logoSrc โหลดไม่ได้ (เช่น tabs ที่ยังใช้ Icon)
+    logoSrc: '/images/logos/messenger.svg',
   },
   INSTAGRAM: {
     label: 'Instagram',
     icon: 'brand-instagram',
-    iconStyle: { color: '#E1306C' }, // Hard Rule 6 exception: Instagram brand color — ค่าเดิมที่มีอยู่แล้วใน ConnectedAccountsClient.tsx
+    logoSrc: '/images/logos/instagram.svg',
   },
 }
 
@@ -93,7 +96,13 @@ export function ChannelBadge({ channel, size = 'sm' }: ChannelBadgeProps) {
         size === 'md' ? 'text-xs' : 'text-2xs'
       }`}
     >
-      <Icon icon={display.icon} width={iconDim} height={iconDim} className={display.iconClassName} style={display.iconStyle} />
+      {display.logoSrc ? (
+        // โลโก้แบรนด์จริง — brand asset (Hard Rule 6 carve-out) ไม่ใช่ tabler icon
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={display.logoSrc} alt={display.label} width={iconDim} height={iconDim} />
+      ) : (
+        <Icon icon={display.icon} width={iconDim} height={iconDim} className={display.iconClassName} style={display.iconStyle} />
+      )}
       {display.label}
     </span>
   )
@@ -102,26 +111,34 @@ export function ChannelBadge({ channel, size = 'sm' }: ChannelBadgeProps) {
 /**
  * overlay badge วงกลมมุมล่างขวาของ avatar — ต้องอยู่ใน wrapper ที่มี class `relative`
  *
- * ใช้ **พื้นสีแบรนด์ทึบ + ไอคอนขาว** ไม่ใช่พื้นขาว+ไอคอนสี เพราะที่ขนาดเท่านี้ไอคอนสีบางเส้น
- * บนพื้นขาวแยกไม่ออกด้วยการกวาดตา (feedback จาก user บน prod: "อยากให้แยกออกว่าอันไหน
- * in-app อันไหน Facebook") — พื้นทึบให้ contrast ระดับที่รู้ทันทีว่าแถวไหนมาจากช่องทางไหน
+ * Messenger/Instagram แสดง **โลโก้แบรนด์จริง** (gradient) เต็มวงกลม + ring ขาว — จำง่ายทันที
+ * (user ยืนยัน ส่งไฟล์ Messenger มาให้เอง) โลโก้มีสี+รูปทรงในตัว ไม่ต้องมีพื้นทึบ
+ * DEEP (in-app) ยังใช้พื้น bg-primary + ไอคอน tabler ขาว เพราะไม่มีโลโก้แบรนด์
  *
- * มี title + sr-only ด้วย — เดิม aria-hidden ทำให้ผู้ใช้ screen reader ไม่รู้เลยว่าเธรดนี้
- * มาจากช่องทางไหน ทั้งที่เป็นข้อมูลสำคัญ (ตอบ Messenger มีเงื่อนไข 24 ชม. แต่ Deep ไม่มี)
+ * title + sr-only — ช่องทางเป็นข้อมูลสำคัญ (Messenger มีเงื่อนไข 24 ชม. แต่ Deep ไม่มี)
+ * ผู้ใช้ screen reader ต้องรู้ด้วย
  */
 export function ChannelBadgeOverlay({ channel, size = 'md' }: ChannelBadgeProps) {
   const key = resolveChatChannel(channel)
   const display = CHANNEL_DISPLAY[key]
   const dim = size === 'md' ? 'size-5' : 'size-4'
   const iconDim = size === 'md' ? 12 : 10
-  // DEEP ใช้ token Paces (bg-primary) — อีกสองช่องทางเป็นสีแบรนด์ (Hard Rule 6 exception)
-  const isDeep = key === 'DEEP'
+
+  if (display.logoSrc) {
+    return (
+      <span className={`ring-card absolute -end-0.5 -bottom-0.5 block ${dim} overflow-hidden rounded-full ring-2`} title={display.label}>
+        {/* โลโก้แบรนด์จริงเต็มวงกลม — brand asset (Hard Rule 6 carve-out) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={display.logoSrc} alt={display.label} className="size-full object-cover" />
+        <span className="sr-only">{display.label}</span>
+      </span>
+    )
+  }
+
+  // DEEP — พื้น bg-primary + ไอคอน tabler ขาว (ไม่มีโลโก้แบรนด์)
   return (
     <span
-      className={`ring-card absolute -end-0.5 -bottom-0.5 flex ${dim} items-center justify-center rounded-full ring-2 ${
-        isDeep ? 'bg-primary' : ''
-      }`}
-      style={isDeep ? undefined : { backgroundColor: display.iconStyle?.color }}
+      className={`ring-card bg-primary absolute -end-0.5 -bottom-0.5 flex ${dim} items-center justify-center rounded-full ring-2`}
       title={display.label}
     >
       <Icon icon={display.icon} width={iconDim} height={iconDim} className="text-white" />

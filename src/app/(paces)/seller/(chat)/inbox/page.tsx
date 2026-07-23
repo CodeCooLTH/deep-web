@@ -181,8 +181,17 @@ export default async function SellerInboxPage() {
       {/* ≥1024px: รายการแชทย้ายไปอยู่ที่ Chat Rail (เมนูซ้าย) แล้ว — ตรงกลางต้องไม่โชว์ซ้ำ
           ไม่งั้นเห็นรายการเดียวกัน 2 ที่พร้อมกัน (user เจอจริงบน prod)
           <1024px: ไม่มี rail (เมนูซ้ายถูกซ่อนทั้งระบบ) จึงต้องคงรายการไว้ที่นี่เหมือนเดิม */}
+      {/* railMode: ในเลย์เอาต์ (chat) ChatHeader แสดงช่องค้นหาให้ทุกจอแล้ว (เขียนลง ChatSearchContext)
+          → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
+          (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} shopId={shop.id} />
+        <InboxList
+          initialItems={items}
+          initialNextCursor={nextCursor}
+          channels={channels}
+          shopId={shop.id}
+          railMode
+        />
       </div>
       {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
           (rail อยู่ที่ (chat)/layout.tsx แล้ว — ChatRail.tsx; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror
