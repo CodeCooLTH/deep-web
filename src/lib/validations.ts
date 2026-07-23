@@ -741,6 +741,24 @@ export const ConversationPatchSchema = v.object({
   action: v.picklist(["pin", "unpin", "hide", "unhide", "resolve", "reopen"]),
 });
 
+// ── feature 00018 composer #2 Quick Messages (ข้อความสำเร็จรูป ระดับร้าน) ──────
+// create/update ใช้ shape เดียวกัน (update = full replace). cross-field: ต้องมี body หรือ
+// imageFileId อย่างน้อยหนึ่ง (quick message รองรับ message + image — อย่างน้อยต้องมีอะไรส่ง)
+const quickMessageObject = v.object({
+  title: v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณากรอกหัวข้อ"), v.maxLength(80)),
+  category: v.optional(v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(40)))),
+  body: v.optional(v.pipe(v.string(), v.maxLength(2000)), ""),
+  imageFileId: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(200)))),
+});
+export const QuickMessageCreateSchema = v.pipe(
+  quickMessageObject,
+  v.check(
+    (o) => (o.body?.trim().length ?? 0) > 0 || !!o.imageFileId,
+    "ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง",
+  ),
+);
+export const QuickMessageUpdateSchema = QuickMessageCreateSchema;
+
 // ── feature 00013 Pin Products (SRS §4 / API §4.3) ───────────────────────────
 // body ของ POST /api/seller/pin-slots/buy — ซื้อ slot ฿99 + ปักหมุด productId ในธุรกรรมเดียว
 export const BuyPinSlotSchema = v.object({

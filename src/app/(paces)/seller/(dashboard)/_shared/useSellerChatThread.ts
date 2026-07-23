@@ -303,6 +303,9 @@ export function useSellerChatThread(conversationId: string) {
     text,
     setText,
     pendingImage,
+    // feature 00018 composer #2 — ให้ composer แนบรูปจาก "ข้อความสำเร็จรูป" (storage fileId ที่มีอยู่แล้ว
+    // ไม่ต้อง upload ใหม่) ได้โดยตรง — set เป็น pendingImage แล้วใช้ flow handleSend เดิม
+    setPendingImage,
     scrollRef,
     topSentinelRef,
     handleFileChange,

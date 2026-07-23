@@ -75,9 +75,12 @@ import {
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
+import { pacesToast } from '@/lib/paces-toast'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
+import QuickMessageBar from './QuickMessageBar'
+import type { QuickMessage } from './QuickMessageManager'
 import type { CustomerPanelData } from './CustomerPanel'
 
 type Props = {
@@ -279,12 +282,27 @@ export default function ChatThread({
     text,
     setText,
     pendingImage,
+    setPendingImage,
     scrollRef,
     topSentinelRef,
     handleFileChange,
     handleRemoveImage,
     handleSend,
   } = useSellerChatThread(conversationId)
+
+  // composer improvement #2 — เลือกข้อความสำเร็จรูป: เติมข้อความลง composer (ต่อท้ายถ้ามีข้อความอยู่
+  // แล้ว) + แนบรูปถ้ามี. ช่องทางนอก (Messenger/IG) ยังส่งรูปไม่ได้ → ใส่เฉพาะข้อความ + แจ้งเตือน
+  function handleQuickPick(qm: QuickMessage) {
+    if (qm.imageFileId && !isExternal) {
+      setPendingImage({ fileId: qm.imageFileId, previewUrl: `/api/files/${qm.imageFileId}` })
+      if (qm.body) setText(qm.body)
+    } else {
+      if (qm.imageFileId && isExternal) {
+        pacesToast.chat.info('ช่องทางนี้ยังส่งได้เฉพาะข้อความ — แนบรูปจากสำเร็จรูปไม่ได้')
+      }
+      if (qm.body) setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
+    }
+  }
 
   // ── render ───────────────────────────────────────────────────────────
   if (errorState) {
@@ -488,6 +506,9 @@ export default function ChatThread({
 
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip */}
       <div className="border-t border-default-300 border-dashed px-4 py-3 sm:px-6 sm:py-3.75">
+        {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) เหนือช่องพิมพ์ */}
+        <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />
+
         {pendingImage && (
           <div className="mb-2 flex items-center gap-2">
             <div className="border-default-200 relative size-14 overflow-hidden rounded-lg border">
