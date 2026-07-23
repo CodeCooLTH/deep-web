@@ -404,12 +404,21 @@ export default function InboxList({
   const selectedPageName = channels.find((c) => c.id === pageFilter)?.name
 
   return (
-    <div className="card">
+    // shadow-none (user สั่ง 2026-07-23): .card ของ Paces มี shadow ในตัว (custom/_card.css) ซึ่ง
+    // เหมาะกับการ์ดที่ลอยบนพื้นหน้า dashboard — ในหน้าแชทการ์ดนี้กินเต็มคอลัมน์ rail/เต็มจอมือถือ
+    // อยู่แล้ว เงาจึงกลายเป็นเส้นคล้ำที่ขอบ ไม่ได้สื่อความลึกอะไร (ขอบ rail มี border-e ของ layout อยู่แล้ว)
+    <div className="card shadow-none">
       {/* items-stretch: `.card-header` ของ Paces เป็น `flex flex-wrap items-center justify-between`
           (custom/_card.css) — พอ override เป็น flex-col แล้ว `items-center` ที่เหลืออยู่จะบีบทุกแถว
           ให้กว้างเท่าเนื้อหาแล้วจัดกึ่งกลาง (ปุ่มลอยกลาง ไม่ตรงกับแถวรายการข้างล่างที่ชิดซ้าย +
           แถวตัวกรองไม่เต็มความกว้างจน popover ที่อ้าง inset-x-0 แคบตาม) — ต้อง stretch ทับ */}
-      <div className="card-header flex flex-col items-stretch gap-3 border-dashed">
+      {/* sticky (user สั่ง 2026-07-23): "อยากให้ panel นี้ fixed อยู่บนเสมอ ต่อให้ scroll inbox list"
+          — ค้างบนสุดของกล่อง scroll ทั้งสองโหมด: desktop = SimpleBar ใน ChatRail.tsx,
+          มือถือ/แท็บเล็ต = `<div className="overflow-y-auto">` ใน (chat)/layout.tsx
+          ต้อง bg-card ในตัวเอง (พื้นของ .card อยู่ "หลัง" แถวที่เลื่อนผ่าน — ถ้าหัวโปร่งจะเห็นแถว
+          ทะลุ) + z-10 ให้อยู่เหนือทั้งแถวและชุดปุ่มลอยตอน hover. ใช้ได้จริงเพราะ .card ไม่มี
+          overflow:hidden (custom/_card.css — มีเฉพาะ .card-collapsed) ที่จะตัด sticky ทิ้ง */}
+      <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
         {/* ช่องค้นหา — Base ContactList.tsx:19-24 — railMode (desktop rail) ย้ายขึ้น topbar
             แล้ว (ChatSearchBox.tsx) ไม่ render ซ้ำที่นี่ — มือถือ/แท็บเล็ต drill-down ยังมีเหมือนเดิม */}
         {!railMode && (
@@ -607,11 +616,19 @@ export default function InboxList({
                       >
                         {name}
                       </span>
+                      {/* "คุณ: " นำหน้าเมื่อข้อความล่าสุดเป็นของฝั่งร้าน (user สั่ง 2026-07-23:
+                          "จะได้รู้ว่าเป็นข้อความของใคร") — convention เดียวกับ Messenger/LINE
+                          ใส่เฉพาะตอนมี preview จริง (ไม่ใส่ทับ fallback "เริ่มการสนทนาแล้ว")
+                          senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
+                          — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
                       <span
                         className={`block max-w-52 truncate text-xs ${
                           unread ? 'text-default-800 font-semibold' : 'text-default-400'
                         }`}
                       >
+                        {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
+                          <span className="text-default-500 font-normal">คุณ: </span>
+                        )}
                         {preview}
                       </span>
                     </span>

@@ -258,11 +258,13 @@ export default function ChatThread({
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
-  // composer improvement #3 — แผง AI ช่วยร่างคำตอบ (Gemini)
-  const [aiOpen, setAiOpen] = useState(false)
-  // composer improvement #2 — แถบข้อความสำเร็จรูป: ซ่อนไว้ก่อน เปิดด้วยปุ่มสายฟ้าในแถวเครื่องมือ
-  // (user สั่ง 2026-07-23) — เดิมกางค้างเหนือช่องพิมพ์ตลอดเวลา กินที่ทั้งที่ไม่ได้ใช้ทุกครั้ง
-  const [quickOpen, setQuickOpen] = useState(false)
+  // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
+  // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
+  // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
+  const [activePanel, setActivePanel] = useState<'quick' | 'ai' | null>(null)
+  const aiOpen = activePanel === 'ai'
+  const quickOpen = activePanel === 'quick'
+  const togglePanel = (panel: 'quick' | 'ai') => setActivePanel((cur) => (cur === panel ? null : panel))
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -311,8 +313,8 @@ export default function ChatThread({
     } else if (qm.body) {
       setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
     }
-    // เลือกแล้วหุบแถบเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างบังช่องพิมพ์ต่อ
-    setQuickOpen(false)
+    // เลือกแล้วหุบแผงเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างดันช่องพิมพ์ต่อ
+    setActivePanel(null)
   }
 
   // ── render ───────────────────────────────────────────────────────────
@@ -555,21 +557,26 @@ export default function ChatThread({
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
-        {/* composer improvement #3 — แผง AI ช่วยร่างคำตอบ (ลอยเหนือช่องพิมพ์) */}
+        {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
+            ทั้งสองใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary) */}
         {aiOpen && (
           <AiSuggestPanel
             conversationId={conversationId}
             onPick={(t) => {
               setText(t)
-              setAiOpen(false)
+              setActivePanel(null)
             }}
-            onClose={() => setAiOpen(false)}
+            onClose={() => setActivePanel(null)}
           />
         )}
 
-        {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) — โผล่เมื่อกดปุ่มสายฟ้า
-            ในแถวเครื่องมือเท่านั้น (user สั่ง 2026-07-23) */}
-        {quickOpen && <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />}
+        {quickOpen && (
+          <QuickMessageBar
+            onPick={handleQuickPick}
+            disabled={composerDisabled}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
 
         {/* layout ตามที่ user สั่ง 2026-07-23 (ref 12Tees — HR6: เอาโครงจาก ref, skin เป็น Paces):
               [ แผง AI ]
@@ -581,12 +588,12 @@ export default function ChatThread({
           {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
           <button
             type="button"
-            onClick={() => setQuickOpen((v) => !v)}
+            onClick={() => togglePanel('quick')}
             disabled={composerDisabled}
             aria-label="ข้อความสำเร็จรูป"
             aria-expanded={quickOpen}
             title="ข้อความสำเร็จรูป"
-            className={`btn btn-icon hover:bg-default-100 shrink-0 ${quickOpen ? 'bg-default-100 text-default-900' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-primary/10 shrink-0 ${quickOpen ? 'bg-primary/10 text-primary' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="bolt" className="text-lg" />
           </button>
@@ -628,7 +635,7 @@ export default function ChatThread({
           {/* composer improvement #3 — ปุ่ม AI ช่วยร่างคำตอบ (accent เขียว success ตาม ref) */}
           <button
             type="button"
-            onClick={() => setAiOpen((v) => !v)}
+            onClick={() => togglePanel('ai')}
             disabled={composerDisabled}
             aria-label="AI ช่วยร่างคำตอบ"
             aria-expanded={aiOpen}
