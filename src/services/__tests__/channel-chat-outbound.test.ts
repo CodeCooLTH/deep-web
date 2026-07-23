@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   conversation: { findUnique: vi.fn(), update: vi.fn() },
   chatMessage: { create: vi.fn(), findUnique: vi.fn() },
   shop: { findUnique: vi.fn() },
+  shopMember: { findUnique: vi.fn() }, // canAccessShop เช็ค membership เมื่อไม่ใช่เจ้าของ
   shopChannel: { findUnique: vi.fn(), update: vi.fn() },
   $transaction: vi.fn(),
 }))
@@ -83,10 +84,20 @@ describe('sendOutboundMessage', () => {
     expect(sendTextMessage).not.toHaveBeenCalled()
   })
 
-  it('คนที่ไม่ใช่เจ้าของร้าน → FORBIDDEN', async () => {
+  it('คนที่ไม่ใช่เจ้าของร้านและไม่ใช่สมาชิก → FORBIDDEN', async () => {
+    db.shopMember.findUnique.mockResolvedValue(null) // ไม่ใช่สมาชิกร้านนี้
     await expect(
       sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'stranger', text: 'hi' }),
     ).rejects.toThrow('FORBIDDEN')
+  })
+
+  it('BUSINESS admin (สมาชิก ไม่ใช่ owner) → ตอบแชทได้ ไม่ FORBIDDEN', async () => {
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
+    db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', shopId: 'shop1' })
+    ;(sendTextMessage as ReturnType<typeof vi.fn>).mockResolvedValue('mid.out.admin')
+    const msg = await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'admin-user', text: 'สวัสดี' })
+    expect(msg.id).toBe('m1')
+    expect(sendTextMessage).toHaveBeenCalledTimes(1)
   })
 
   it('เธรด DEEP → NOT_EXTERNAL_CHANNEL (ต้องไปทาง sendMessage เดิม)', async () => {

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
+import { canAccessShop } from '@/lib/shop-context'
 import { getContactProfile, sendTextMessage, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile } from '@/lib/storage'
@@ -344,12 +345,9 @@ export async function sendOutboundMessage(params: {
     throw new Error('NOT_EXTERNAL_CHANNEL')
   }
 
-  const shop = await prisma.shop.findUnique({
-    where: { id: conversation.shopId },
-    select: { userId: true },
-  })
-  if (!shop) throw new Error('SHOP_NOT_FOUND')
-  if (shop.userId !== params.actorUserId) throw new Error('FORBIDDEN')
+  // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
+  // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
+  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
 
   // เช็คหน้าต่าง 24 ชม. ก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว
   if (!getWindowState(conversation.lastInboundAt).open) throw new Error('WINDOW_CLOSED')
