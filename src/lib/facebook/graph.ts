@@ -202,3 +202,27 @@ export async function sendTextMessage(
   })
   return (json.message_id as string | undefined) ?? ''
 }
+
+/**
+ * ส่งรูปภาพไปยัง Messenger/Instagram — feature 00018 (composer แนบรูปช่องทางนอก)
+ *
+ * imageUrl ต้องเป็น URL สาธารณะที่ Meta ดึงได้ (เราส่ง presigned URL ของ S3 อายุ 1 ชม. — /api/files
+ * ของเรา auth-gated Meta ดึงไม่ได้). Send API รับ attachment ทีละชนิด ไม่มี text ในตัว — caption
+ * ส่งเป็นข้อความตามหลังแยก (ดู sendOutboundMessage). ใช้ /me/messages เหมือน text (pageToken
+ * resolve เพจ/IG account ให้เอง — ห้ามใส่ page-id path เพราะ IG เก็บ IG account id ไม่ใช่ Page id)
+ */
+export async function sendImageMessage(
+  pageToken: string,
+  recipientId: string,
+  imageUrl: string,
+): Promise<string> {
+  const json = await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      messaging_type: 'RESPONSE',
+      message: { attachment: { type: 'image', payload: { url: imageUrl } } },
+    },
+  })
+  return (json.message_id as string | undefined) ?? ''
+}

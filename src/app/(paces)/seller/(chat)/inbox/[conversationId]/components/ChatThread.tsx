@@ -75,7 +75,6 @@ import {
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import { pacesToast } from '@/lib/paces-toast'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
@@ -277,7 +276,9 @@ export default function ChatThread({
   const liveWindowOpen = windowOpen && liveRemaining > 0
 
   const composerDisabled = isExternal && (tokenInvalid || !liveWindowOpen)
-  const attachDisabled = isExternal
+  // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
+  // ตอนส่งไม่ได้ (window ปิด/token ตาย) เท่านั้น ไม่ปิดเพราะเป็นช่องทางนอกอีกต่อไป
+  const attachDisabled = false
   const {
     messages,
     oldestCursor,
@@ -297,17 +298,14 @@ export default function ChatThread({
     handleSend,
   } = useSellerChatThread(conversationId)
 
-  // composer improvement #2 — เลือกข้อความสำเร็จรูป: เติมข้อความลง composer (ต่อท้ายถ้ามีข้อความอยู่
-  // แล้ว) + แนบรูปถ้ามี. ช่องทางนอก (Messenger/IG) ยังส่งรูปไม่ได้ → ใส่เฉพาะข้อความ + แจ้งเตือน
+  // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
+  // เติมข้อความ/caption ลง composer (รูปมี caption → ตั้งเป็นข้อความ, ไม่มีรูป → ต่อท้ายข้อความเดิม)
   function handleQuickPick(qm: QuickMessage) {
-    if (qm.imageFileId && !isExternal) {
+    if (qm.imageFileId) {
       setPendingImage({ fileId: qm.imageFileId, previewUrl: `/api/files/${qm.imageFileId}` })
       if (qm.body) setText(qm.body)
-    } else {
-      if (qm.imageFileId && isExternal) {
-        pacesToast.chat.info('ช่องทางนี้ยังส่งได้เฉพาะข้อความ — แนบรูปจากสำเร็จรูปไม่ได้')
-      }
-      if (qm.body) setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
+    } else if (qm.body) {
+      setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
     }
   }
 
@@ -632,13 +630,6 @@ export default function ChatThread({
             <Icon icon="user-circle" className="text-lg" />
           </button>
         </div>
-
-        {/* feature 00018 T4 — caption ถาวรเมื่อ channel != DEEP (ไม่ว่า window จะเปิดหรือปิด) */}
-        {isExternal && (
-          <p className="text-default-400 mt-2 text-2xs">
-            Messenger และ Instagram ยังส่งได้เฉพาะข้อความตัวอักษรในตอนนี้
-          </p>
-        )}
       </div>
     </div>
 

@@ -190,16 +190,19 @@ export async function POST(
       select: { channel: true },
     });
     if (conv && conv.channel !== "DEEP") {
-      if (type !== "TEXT") {
+      // ช่องทางนอกส่งได้ทั้งข้อความและรูป (feature 00018 — แนบรูป Messenger/IG ผ่าน presigned URL);
+      // PRODUCT (การ์ดสินค้า) ยังไม่รองรับบนช่องทางนอก
+      if (type === "PRODUCT") {
         return NextResponse.json(
-          { error: "ช่องทางนี้รองรับเฉพาะข้อความตัวอักษรในตอนนี้" },
+          { error: "ช่องทางนี้ยังไม่รองรับการ์ดสินค้า" },
           { status: 400 },
         );
       }
       const sent = await sendOutboundMessage({
         conversationId: id,
         actorUserId: userId,
-        text: text!,
+        text: text ?? undefined, // TEXT = ข้อความ, IMAGE = caption (optional)
+        imageFileId: type === "IMAGE" ? imageUrl! : undefined,
       });
       return NextResponse.json(sent);
     }
