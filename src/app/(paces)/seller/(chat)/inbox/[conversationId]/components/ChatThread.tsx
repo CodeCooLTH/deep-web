@@ -64,7 +64,7 @@ import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   useSellerChatThread,
@@ -106,20 +106,31 @@ const MINUTE_MS = 60 * 1000
 
 /** ข้อความ + สี banner 24h ตาม Content outline ของสเปก (ตัดสินเฉพาะ 2 tier ที่ "ยังไม่หมด" —
  * tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller เพราะข้อความคงที่ ไม่ต้องคำนวณเวลา) */
+const SECOND_MS = 1000
+
+/** ถอยหลังละเอียดถึงวินาที "X ชั่วโมง Y นาที Z วินาที" (ตัดชั่วโมงทิ้งเมื่อ 0 ให้อ่านง่าย) */
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / SECOND_MS))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return h > 0 ? `${h} ชั่วโมง ${m} นาที ${s} วินาที` : `${m} นาที ${s} วินาที`
+}
+
+/** สี/ไอคอน banner 24h ตาม tier ของเวลาที่เหลือ + ข้อความ countdown สด (ตัดสินเฉพาะ 2 tier ที่ยัง
+ *  ไม่หมด — tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller) */
 function formatWindowBanner(msRemaining: number): { cls: string; icon: string; text: string } {
-  const hours = Math.floor(msRemaining / HOUR_MS)
   if (msRemaining > FOUR_HOURS_MS) {
     return {
       cls: 'bg-info/15 text-info',
       icon: 'clock',
-      text: `ตอบได้ภายใน ${hours} ชั่วโมง นับจากข้อความล่าสุดของลูกค้า`,
+      text: `ตอบได้อีก ${formatCountdown(msRemaining)} นับจากข้อความล่าสุดของลูกค้า`,
     }
   }
-  const minutes = Math.floor((msRemaining % HOUR_MS) / MINUTE_MS)
   return {
     cls: 'bg-warning/15 text-warning',
     icon: 'alert-triangle',
-    text: `ใกล้หมดเวลาตอบ — เหลือ ${hours} ชม. ${minutes} นาที`,
+    text: `ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(msRemaining)}`,
   }
 }
 
@@ -223,7 +234,19 @@ export default function ChatThread({
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
-  const composerDisabled = isExternal && (tokenInvalid || !windowOpen)
+  // live 24h countdown — capture เวลาหมดอายุครั้งเดียวตอน mount (msRemaining จาก server + เวลาโหลด)
+  // แล้ว tick ทุกวินาที ให้ banner ถอยหลังจริง และ composer ปิดเองเมื่อถึง 0 ไม่ต้อง reload หน้า
+  const [expiryTs] = useState(() => Date.now() + msRemaining)
+  const [nowTs, setNowTs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isExternal || !windowOpen) return // นับเฉพาะช่องทางนอกที่ window ยังเปิดตอนโหลด
+    const t = setInterval(() => setNowTs(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [isExternal, windowOpen])
+  const liveRemaining = Math.max(0, expiryTs - nowTs)
+  const liveWindowOpen = windowOpen && liveRemaining > 0
+
+  const composerDisabled = isExternal && (tokenInvalid || !liveWindowOpen)
   const attachDisabled = isExternal
   const {
     messages,
@@ -303,14 +326,14 @@ export default function ChatThread({
                 </Link>
               </span>
             </div>
-          ) : !windowOpen ? (
+          ) : !liveWindowOpen ? (
             <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
               <Icon icon="message-circle-off" className="mt-0.5 shrink-0 text-lg" />
               <span>เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่</span>
             </div>
           ) : (
             (() => {
-              const banner = formatWindowBanner(msRemaining)
+              const banner = formatWindowBanner(liveRemaining)
               return (
                 <div className={`${banner.cls} flex items-start gap-2 rounded-lg px-3 py-2 text-sm`}>
                   <Icon icon={banner.icon} className="mt-0.5 shrink-0 text-lg" />
@@ -367,8 +390,14 @@ export default function ChatThread({
                         max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
                         break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
                     <div className="min-w-0 max-w-96 break-words">
-                      {/* PRODUCT = buyer-only เสมอ (BR-CTX-05) → bg-light คงที่ ไม่ผูก mine/sender */}
-                      <div className={`rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
+                      {/* รูปล้วน (IMAGE ไม่มี caption เช่น sticker/thumbs-up) → ไม่มีกรอบ bubble/bg/padding
+                          user: "ทำไมถึงมี border อยากให้เป็น icon ไม่ต้องมี background" — รูป/สติกเกอร์
+                          มีสี+รูปทรงในตัวอยู่แล้ว กรอบทำให้ดูเป็นกล่องรูป; รูปที่มี caption หรือ text/
+                          PRODUCT ยังคงกรอบ bubble ไว้ (bg-light คงที่สำหรับ PRODUCT ตาม BR-CTX-05) */}
+                      {(() => {
+                        const bareImage = m.type === 'IMAGE' && m.imageUrl && !m.body
+                        return (
+                          <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
                         ) : (
@@ -397,7 +426,9 @@ export default function ChatThread({
                             )}
                           </>
                         )}
-                      </div>
+                          </div>
+                        )
+                      })()}
                       {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
                           null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
                       {mExt.deliveryStatus === 'FAILED' && (
