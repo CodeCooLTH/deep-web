@@ -157,7 +157,9 @@ function BuyerAvatar({ avatar, name }: { avatar: string | null; name: string }) 
   const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
   if (!src || failed) {
     return (
-      <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+      // size-10 (40px) ไม่ใช่ size-9: user report 2026-07-23 ว่า badge ช่องทางบังจนรูปโปรไฟล์ดูเล็ก
+      // ขยาย avatar + ลด badge (ดู ChannelBadgeOverlay) ให้สัดส่วน badge ต่อ avatar ลดจาก 56% เหลือ 40%
+      <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
         {generateInitials(name) || '?'}
       </span>
     )
@@ -169,7 +171,7 @@ function BuyerAvatar({ avatar, name }: { avatar: string | null; name: string }) 
       alt={name}
       loading="lazy"
       onError={() => setFailed(true)}
-      className="size-9 shrink-0 rounded-full bg-default-100 object-cover"
+      className="size-10 shrink-0 rounded-full bg-default-100 object-cover"
     />
   )
 }
@@ -608,24 +610,14 @@ export default function InboxList({
                   c.isPinned ? 'border-warning bg-default-100/60 hover:bg-default-100' : 'border-transparent hover:bg-default-100'
                 }`}
               >
-                {/* ดาวปักหมุด — นอก <Link> (sibling) ด้วยเหตุผลเดียวกับ kebab: ปุ่มซ้อนใน anchor เป็น
-                    invalid HTML และคลิกจะ propagate ไป navigate. ปักหมุดแล้ว = ดาวทึบเหลือง,
-                    ยังไม่ปัก = ดาวโปร่งจาง ๆ กดเพื่อปักได้ทันที (ไม่ต้องเปิด kebab) */}
-                <button
-                  type="button"
-                  onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
-                  disabled={actioningId === c.id}
-                  aria-pressed={c.isPinned}
-                  aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
-                  title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
-                  className={`flex shrink-0 items-center px-3 ${
-                    c.isPinned ? 'text-warning' : 'text-default-300 hover:text-warning'
-                  } ${actioningId === c.id ? 'pointer-events-none opacity-50' : ''}`}
-                >
-                  <Icon icon={c.isPinned ? 'star-filled' : 'star'} width={18} height={18} />
-                </button>
-
-                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-0">
+                {/* ดาวปักหมุด (user สั่ง 2026-07-23: "พอไปอยู่หน้าสุดมันกินพื้นที่ อยากให้อยู่หน้าชื่อ
+                    แทน") — เดิมเป็นปุ่มคอลัมน์แยกหน้าสุด กิน ~42px ของทุกแถวตลอดเวลาเพื่อ action ที่
+                    ใช้กับไม่กี่แถว. ตอนนี้เป็น **indicator inline หน้าชื่อ** แสดงเฉพาะแถวที่ปักหมุด
+                    ส่วน *การกดปักหมุด* ย้ายไปอยู่กับ action อื่นครบชุดแล้ว: ชุดปุ่มลอยตอน hover
+                    (≥1024px) และ kebab (<1024px) — ไม่ได้หายไปไหน. เหตุที่ทำเป็น indicator ไม่ใช่
+                    ปุ่ม: ตำแหน่งหน้าชื่ออยู่ใน <Link> ปุ่มซ้อนใน anchor เป็น invalid HTML และคลิก
+                    จะ propagate ไป navigate (เหตุผลเดียวกับที่ kebab ต้องเป็น sibling) */}
+                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
@@ -635,11 +627,20 @@ export default function InboxList({
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
                       <span
-                        className={`block truncate text-sm ${
+                        className={`flex items-center gap-1 truncate text-sm ${
                           unread ? 'text-default-900 font-bold' : 'text-default-600 font-medium'
                         }`}
                       >
-                        {name}
+                        {c.isPinned && (
+                          <Icon
+                            icon="star-filled"
+                            width={14}
+                            height={14}
+                            className="text-warning shrink-0"
+                            aria-label="ปักหมุดไว้"
+                          />
+                        )}
+                        <span className="truncate">{name}</span>
                       </span>
                       {/* "คุณ: " นำหน้าเมื่อข้อความล่าสุดเป็นของฝั่งร้าน (user สั่ง 2026-07-23:
                           "จะได้รู้ว่าเป็นข้อความของใคร") — convention เดียวกับ Messenger/LINE
@@ -676,7 +677,7 @@ export default function InboxList({
                   </div>
 
                   <span className="flex shrink-0 flex-col items-end justify-center gap-1.25">
-                    {/* timestamp — สีตามสถานะอ่าน (main); ตัว indicator ปักหมุดย้ายไปเป็นดาวหน้าแถวแล้ว
+                    {/* timestamp — สีตามสถานะอ่าน (main); ตัว indicator ปักหมุดอยู่หน้าชื่อแล้ว
                         (เดิมเป็นไอคอนหมุดเล็ก ๆ นำหน้าเวลา ซึ่งมองไม่ค่อยเห็นและกดไม่ได้) */}
                     <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
                       {relativeTimeTh(new Date(c.lastMessageAt).getTime())}
@@ -711,8 +712,22 @@ export default function InboxList({
                     กินพื้นที่เกินไป ให้ปิดงาน/ซ่อน โผล่ตอน hover เป็นลอย ๆ") ปุ่มถาวรกินความกว้าง
                     ถาวรใน rail 320px ซึ่งแคบอยู่แล้ว. absolute + shadow = ลอยทับ timestamp/badge
                     เฉพาะตอน hover ไม่เบียดความกว้างของเนื้อหาแถวเลย
-                    ปักหมุดไม่อยู่ในชุดนี้ — ดาวหน้าแถวเห็นตลอดเวลาโดยตั้งใจ (เป็น indicator ด้วย) */}
+                    ปักหมุดย้ายเข้าชุดนี้ด้วย (2026-07-23) หลังจากดาวหน้าสุดถูกเปลี่ยนเป็น indicator
+                    inline หน้าชื่อ — action ต้องยังกดได้ที่เดียวกับ ปิดงาน/ซ่อน ไม่ใช่หายไป */}
                 <div className="absolute end-2 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded-lg border border-default-200 bg-card p-1 shadow lg:group-hover:flex">
+                  <button
+                    type="button"
+                    onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
+                    disabled={actioningId === c.id}
+                    aria-pressed={c.isPinned}
+                    aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
+                    title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
+                    className={`btn btn-icon btn-sm hover:bg-default-100 disabled:opacity-50 ${
+                      c.isPinned ? 'text-warning' : 'text-default-600'
+                    }`}
+                  >
+                    <Icon icon={c.isPinned ? 'star-filled' : 'star'} width={16} height={16} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleRowAction(c.id, isResolved ? 'reopen' : 'resolve')}

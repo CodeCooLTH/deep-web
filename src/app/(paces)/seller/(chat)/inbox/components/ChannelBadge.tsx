@@ -59,9 +59,12 @@ const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
     iconClassName: 'text-primary',
   },
   MESSENGER: {
+    // label ยังเป็น "Messenger" เพราะเป็นชื่อ "ช่องทาง" จริงที่ใช้ในแท็บกรอง/alt — แต่ไอคอนเปลี่ยน
+    // จากโลโก้ Messenger เป็นโลโก้ Facebook ตามที่ user สั่ง 2026-07-23: ในมุมของแอดมินร้าน
+    // เธรดพวกนี้คือ "คนทักเข้ามาที่เพจ Facebook" ไม่ใช่ "แอป Messenger" โลโก้ f จึงสื่อตรงกว่า
     label: 'Messenger',
-    icon: 'brand-messenger', // fallback ถ้า logoSrc โหลดไม่ได้ (เช่น tabs ที่ยังใช้ Icon)
-    logoSrc: '/images/logos/messenger.svg',
+    icon: 'brand-facebook', // fallback ถ้า logoSrc โหลดไม่ได้ (เช่น tabs ที่ยังใช้ Icon)
+    logoSrc: '/images/logos/facebook.svg',
   },
   INSTAGRAM: {
     label: 'Instagram',
@@ -136,8 +139,10 @@ export function ChannelBadge({ channel, size = 'sm', label }: ChannelBadgeProps)
 export function ChannelBadgeOverlay({ channel, size = 'md' }: ChannelBadgeProps) {
   const key = resolveChatChannel(channel)
   const display = CHANNEL_DISPLAY[key]
-  const dim = size === 'md' ? 'size-5' : 'size-4'
-  const iconDim = size === 'md' ? 12 : 10
+  // md ลดจาก size-5 (20px) เหลือ size-4 (16px) — user report 2026-07-23: badge ใหญ่จนบังรูปโปรไฟล์
+  // จนดูเล็กกว่าความเป็นจริง (คู่กับการขยาย avatar เป็น size-10 ที่ InboxList)
+  const dim = size === 'md' ? 'size-4' : 'size-3.5'
+  const iconDim = size === 'md' ? 10 : 9
 
   if (display.logoSrc) {
     return (

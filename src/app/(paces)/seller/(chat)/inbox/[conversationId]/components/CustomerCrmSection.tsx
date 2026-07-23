@@ -34,10 +34,13 @@ export const SALES_STATUS_META: Record<SalesStatus, { label: string; cls: string
 }
 const STATUS_ORDER: SalesStatus[] = ['UNSPECIFIED', 'INTERESTED', 'NOT_INTERESTED']
 
+/** แถวข้อมูล view-mode — label เล็กบนหัว ค่าอยู่ล่าง
+ *  text-xs (12px) ไม่ใช่ text-2xs: PRODUCT.md กำหนดว่า default ขนาดตัวอักษรต้องใหญ่กว่ามาตรฐาน
+ *  เล็กน้อยเพื่อกลุ่ม digital-literacy ต่ำ/ผู้สูงวัย — 2xs กับ label ไทยที่มีสระบน-ล่างอ่านยากเกินไป */
 function ViewRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-default-400 mb-0.5 text-2xs">{label}</p>
+      <p className="text-default-400 mb-0.5 text-xs">{label}</p>
       <div className="text-default-800 text-sm">{children}</div>
     </div>
   )
@@ -152,14 +155,16 @@ export default function CustomerCrmSection({
     if (isNote) {
       return (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-default-700 text-sm font-semibold">โน้ตภายในร้าน</span>
-            {crm.external && (
+          {/* ไม่มีหัวข้อซ้ำชื่อแท็บ (แท็บที่ active บอกอยู่แล้วว่าอยู่หน้าไหน) — เหลือแค่ปุ่มแก้ไข
+              ชิดขวา (user ทัก 2026-07-23 เรื่อง "การเน้น title"): หัวข้อ "โน้ตภายในร้าน"/"ข้อมูล
+              ลูกค้า" ที่ซ้ำกับแท็บทำให้มี 2 ระดับหัวเรื่องซ้อนกันโดยไม่เพิ่มข้อมูลอะไร */}
+          {crm.external && (
+            <div className="flex justify-end">
               <button type="button" onClick={startEdit} className="text-primary flex items-center gap-1 text-xs font-medium hover:underline">
                 <Icon icon="pencil" className="text-sm" /> แก้ไข
               </button>
-            )}
-          </div>
+            </div>
+          )}
           {crm.external ? (
             <>
               {crm.note ? (
@@ -179,8 +184,8 @@ export default function CustomerCrmSection({
 
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-default-700 text-sm font-semibold">ข้อมูลลูกค้า</span>
+        {/* หัวข้อซ้ำชื่อแท็บถูกตัดออก — ดูเหตุผลที่ variant โน้ต */}
+        <div className="flex justify-end">
           <button type="button" onClick={startEdit} className="text-primary flex items-center gap-1 text-xs font-medium hover:underline">
             <Icon icon="pencil" className="text-sm" /> แก้ไข
           </button>
