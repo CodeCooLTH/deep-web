@@ -642,7 +642,13 @@ export default function InboxList({
                     : undefined
                 }
                 className={`group relative flex items-stretch border-s-2 ${
-                  c.isPinned ? 'border-warning bg-default-100/60 hover:bg-default-100' : 'border-transparent hover:bg-default-100'
+                  c.id === activeConversationId
+                    ? // แชทที่กำลังเปิดอยู่ — เด่นชัดสุด (primary tint + แถบ primary) เพื่อให้รู้ว่าคุยห้องไหน
+                      // (user report 2026-07-23: active/pinned พื้นหลังกลืนกันแยกไม่ออก) ชนะ pinned
+                      'border-primary bg-primary/10'
+                    : c.isPinned
+                      ? 'border-warning bg-default-100/60 hover:bg-default-100'
+                      : 'border-transparent hover:bg-default-100'
                 }`}
               >
                 {/* ดาวปักหมุด (user สั่ง 2026-07-23: "พอไปอยู่หน้าสุดมันกินพื้นที่ อยากให้อยู่หน้าชื่อ

@@ -92,6 +92,40 @@ import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
+import PhotoAlbum from './PhotoAlbum'
+
+// จัดกลุ่มรูปที่ส่งติดกัน "ชุดเดียวกัน" เป็นอัลบั้ม (feat 00018, user request 2026-07-23 อ้าง FB):
+// contiguous same-sender bare IMAGE (ไม่มี caption) ที่ห่างกันไม่เกิน ALBUM_GAP_MS → รวมเป็น 1 album
+// (FB Messenger ส่งรูปหลายใบเป็นหลาย event ห่างกันไม่กี่วินาที). กลุ่มขนาด 1 = พฤติกรรมเดิม (bubble เดี่ยว)
+const ALBUM_GAP_MS = 2 * 60 * 1000
+type AlbumRow = { kind: 'single'; m: ChatMessageView } | { kind: 'album'; ms: ChatMessageView[] }
+function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
+  const rows: AlbumRow[] = []
+  let buf: ChatMessageView[] = []
+  const flush = () => {
+    if (buf.length === 1) rows.push({ kind: 'single', m: buf[0] })
+    else if (buf.length > 1) rows.push({ kind: 'album', ms: buf })
+    buf = []
+  }
+  for (const m of items) {
+    const bare = m.type === 'IMAGE' && !!m.imageUrl && !m.body
+    const prev = buf[buf.length - 1]
+    const sameGroup =
+      bare &&
+      prev &&
+      prev.senderRole === m.senderRole &&
+      new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <= ALBUM_GAP_MS
+    if (bare && (buf.length === 0 || sameGroup)) {
+      buf.push(m)
+    } else {
+      flush()
+      if (bare) buf.push(m)
+      else rows.push({ kind: 'single', m })
+    }
+  }
+  flush()
+  return rows
+}
 import type { CustomerPanelData } from './CustomerPanel'
 
 type Props = {
@@ -516,7 +550,58 @@ export default function ChatThread({
                 <span className="badge bg-default-100 text-default-500 text-2xs">{g.label}</span>
               </div>
 
-              {g.items.map((m) => {
+              {buildAlbumRows(g.items).map((row) => {
+                // อัลบั้มรูป (ชุดรูปที่ส่งติดกัน) — render grid + meta ของข้อความตัวสุดท้ายในชุด
+                if (row.kind === 'album') {
+                  const ms = row.ms
+                  const last = ms[ms.length - 1]
+                  const mine = last.senderRole === 'SHOP'
+                  const atBurstEnd = burstEndIds.has(last.id)
+                  const isLastOld = last.id === lastMsgId && nowMs - new Date(last.createdAt).getTime() >= RECENT_MS
+                  const showTime = atBurstEnd && !isLastOld
+                  return (
+                    <div key={ms[0].id} className={`my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
+                      {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
+                      <div className="min-w-0">
+                        <PhotoAlbum ms={ms} onOpen={(id) => setLightboxIndex(slideIndexByMessageId.get(id) ?? -1)} />
+                        {(showTime || (mine && (atBurstEnd || last.id === lastShopMsgId))) && (
+                          <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                            {showTime && (
+                              <span className="flex items-center gap-1">
+                                <Icon icon="clock" />
+                                {formatTime(last.createdAt)}
+                              </span>
+                            )}
+                            {mine && last.id === lastShopMsgId ? (
+                              readAtMs > 0 && new Date(last.createdAt).getTime() <= readAtMs ? (
+                                <span className="text-success flex items-center gap-0.5">
+                                  <Icon icon="checks" /> อ่านแล้ว
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5">
+                                  <Icon icon="check" /> ส่งแล้ว
+                                </span>
+                              )
+                            ) : null}
+                            {mine && atBurstEnd && (
+                              <ChatAvatar
+                                avatar={shopAvatar}
+                                name={buyerName}
+                                size="size-5"
+                                fallback={
+                                  <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+                                    <Icon icon="building-store" className="size-3" />
+                                  </span>
+                                }
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+                const m = row.m
                 const mine = m.senderRole === 'SHOP'
                 // จัดเวลาเป็นกลุ่ม — แสดงเวลาเฉพาะท้าย burst, ไม่ขณะกำลังส่ง, และข้อความล่าสุดซ่อนหลัง 1 นาที
                 const atBurstEnd = burstEndIds.has(m.id)
