@@ -41,6 +41,14 @@ async function upsertChannel(params: {
   // (Meta ยืนยันตอน OAuth) การตัดการเชื่อมของร้านเดิมจึงเป็นสิทธิ์ที่ user มีอยู่แล้วโดยตัวมันเอง
   force?: boolean
 }): Promise<ChannelUpsertResult> {
+  // รูปเพจ (avatar ฝั่งร้านในเธรด) — URL สาธารณะแบบเสถียรของ Graph (ไม่ต้อง token, ไม่หมดอายุ,
+  // redirect ไปรูปปัจจุบันเสมอ) pattern เดียวกับ avatar ผู้ใช้ FB login. เฉพาะ MESSENGER (page id
+  // เป็น public picture); IG business account id คนละ ID space endpoint นี้ไม่คืนรูป → null (fallback initials)
+  const avatarUrl =
+    params.provider === 'MESSENGER'
+      ? `https://graph.facebook.com/${params.externalId}/picture?type=large`
+      : null
+
   try {
     await prisma.shopChannel.create({
       data: {
@@ -48,6 +56,7 @@ async function upsertChannel(params: {
         provider: params.provider,
         externalId: params.externalId,
         name: params.name,
+        avatarUrl,
         accessTokenEnc: encryptToken(params.accessToken),
         connectedByUserId: params.userId,
       },
@@ -78,6 +87,7 @@ async function upsertChannel(params: {
             provider: params.provider,
             externalId: params.externalId,
             name: params.name,
+            avatarUrl,
             accessTokenEnc: encryptToken(params.accessToken),
             connectedByUserId: params.userId,
           },
