@@ -3,7 +3,7 @@ title: "API Contract — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.0"
+version: "1.1"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, api]
 related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
@@ -11,9 +11,11 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** API Contract
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-07-22
 > **สถานะ:** Draft — เอกสารตรงกับ route ที่มีอยู่จริงในโค้ดเท่านั้น ไม่มี endpoint ใดใน PRD/BRD ที่ยังไม่มี route จริง (เช่น list/disconnect channel) ถูกรวมไว้ที่นี่
+>
+> 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # API Contract: Facebook Chat Integration
@@ -25,7 +27,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint ใหม่ทั้งหมดที่ `/api/channels/facebook/**` สำหรับ webhook + OAuth เชื่อม Page และ (2) การแก้เพิ่มของ endpoint เดิม `POST /api/chat/conversations/[id]/messages` (feature 00011) ให้ dispatch ไปทาง Graph API เมื่อเธรดไม่ใช่ `channel="DEEP"`
 
 **Provider:** Next.js 16 App Router Route Handlers (nodejs runtime)
-**ผู้บริโภค:** Meta (webhook, server-to-server), seller session (OAuth connect/callback — ปัจจุบันเรียกได้ตรงผ่าน URL เท่านั้น ยังไม่มีปุ่ม UI ให้กด), client เดิมของ `/inbox` (feature 00011 — ยังไม่มี UI แยกสำหรับเธรดช่องทางนอก)
+**ผู้บริโภค:** Meta (webhook, server-to-server), seller session (OAuth connect/callback — **มีปุ่มใน `/seller/settings/channels` แล้วตั้งแต่ 2026-07-23** ไม่ต้องยิง URL เอง), client ของหน้าแชท `/inbox*` (เธรดช่องทางนอกมี UI เต็ม: badge ช่องทาง, แบนเนอร์ 24h, ตัวกรอง, แผงข้อมูลลูกค้า, เครื่องมือ composer)
 **Base URL:** `https://deepthailand.app` (buyer/webhook endpoint อยู่ domain หลัก ไม่ใช่ `seller.*`) — dev: `https://deepth.local:4000` (webhook ต้องผ่าน ngrok หรือยิงตรงด้วย `scripts/fake-fb-webhook.ts`)
 **ต้นทาง:** [[SDS]] §3-4; schema → [[DATABASE]]
 
@@ -53,15 +55,22 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `GET` | `/api/channels/facebook/connect` | เริ่ม OAuth เชื่อม Facebook Page (redirect) | seller session | ใหม่ |
 | `GET` | `/api/channels/facebook/callback` | รับ code จาก Facebook → เชื่อม Page ทั้งหมดที่มีสิทธิ์ | seller session + OAuth state | ใหม่ |
 | `POST` | `/api/chat/conversations/[id]/messages` | ส่งข้อความ — dispatch ไป Send API เมื่อ `channel != "DEEP"` | participant session | แก้ไข (feature 00011) |
+| `GET` | `/api/chat/quick-messages` | list ข้อความสำเร็จรูปของร้านที่ active | seller session | ใหม่ (2026-07-23) |
+| `POST` | `/api/chat/quick-messages` | สร้างข้อความสำเร็จรูป | seller session | ใหม่ (2026-07-23) |
+| `PATCH` | `/api/chat/quick-messages/[id]` | แก้ข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session | ใหม่ (2026-07-23) |
+| `DELETE` | `/api/chat/quick-messages/[id]` | ลบข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session | ใหม่ (2026-07-23) |
+| `POST` | `/api/chat/conversations/[id]/ai-suggest` | ขอร่างคำตอบ 3 แบบจาก AI | seller session + ownership เธรด | ใหม่ (2026-07-23) |
+| `GET`/`PATCH` | `/api/chat/conversations/[id]/crm` | อ่าน/แก้ ชื่อเรียก·โน้ต·แท็ก·สถานะการขาย·เบอร์ ของผู้ติดต่อ | seller session + ownership เธรด | ใหม่ (2026-07-23) |
 
 **ยังไม่มี route (documented เป็น gap ชัดเจน — ห้ามถือว่ามีจริง):**
 
 | Method ที่ควรมี | Path ที่ควรมี | FR ที่รองรับ | เหตุผลที่ยังไม่มี |
 |---|---|---|---|
-| `GET` | `/api/channels/facebook` (หรือเทียบเท่า) — list ช่องทางที่เชื่อมแล้ว | FR-FBC-11 | service function `listChannels()` เขียนไว้แล้ว แต่ไม่มี route เรียก — รอ UI (SDS TD-005) |
-| `DELETE`/`PATCH` | disconnect ช่องทาง | FR-FBC-11 | ไม่มีทั้ง route และ service function สำหรับ disconnect |
+| ~~`GET` list ช่องทาง~~ | ~~`/api/channels/facebook`~~ | FR-FBC-11 | **มีแล้ว (2026-07-23):** `GET /api/channels` + หน้า `/seller/settings/channels` |
+| ~~`DELETE`/`PATCH` disconnect~~ | ~~—~~ | FR-FBC-11 | **มีแล้ว (2026-07-23):** `/api/channels/[id]` + `disconnectChannel()` (soft — ตั้ง `status='DISCONNECTED'`) |
 | — | สร้างออเดอร์จาก prefill เธรด FB | FR-FBC-07 | `/orders/new` เดิมยังไม่รับ prefill จากเธรดช่องทางนอก |
 | — | ผูก `ExternalContact.customerId` | FR-FBC-08 | ไม่มี code path เขียนค่านี้เลย |
+| — | ส่ง วิดีโอ/เสียง/ไฟล์ ออกไป Messenger/IG | FR-FBC-17 | ขาเข้ารองรับแล้ว แต่ `POST .../messages` ยังปฏิเสธทุก `type` ที่ไม่ใช่ TEXT/IMAGE บนเธรดช่องทางนอก |
 
 ---
 
@@ -213,6 +222,99 @@ Error 401/403/404/429/500 เดิมของ endpoint นี้ (unauthorized
 
 ---
 
+### 4.6 `GET /api/chat/quick-messages` (ใหม่ 2026-07-23)
+
+list ข้อความสำเร็จรูปทั้งหมดของ **ร้านที่ active** Trace: SRS TFR-FBC-12 → BRD BR-FBC-23 → PRD FR-FBC-15
+
+**Request:** ไม่มี query/body — ร้านมาจาก session (`resolveActiveShopContext`) ไม่ใช่จาก client
+
+**Response — Success (200)**
+
+```json
+{ "items": [
+  { "id": "uuid", "title": "รีวิวลูกค้าเก่า", "category": null,
+    "body": "ตัวนี้ใช้ดีมากค่ะ …", "imageFileId": "abc123", "createdAt": "2026-07-23T08:00:00.000Z" }
+] }
+```
+
+เรียง `category` ขึ้น แล้ว `createdAt` ใหม่→เก่าในแต่ละหมวด; `imageFileId` ใช้ต่อกับ `GET /api/files/{fileId}` เพื่อแสดงรูป
+
+**Response — Error:** `401` ไม่มี session · `404` `{"error": "ไม่พบร้านที่กำลังใช้งาน"}` (resolve ร้าน active ไม่ได้)
+
+---
+
+### 4.7 `POST /api/chat/quick-messages` (ใหม่ 2026-07-23)
+
+**Request Body** (Valibot `QuickMessageCreateSchema`)
+
+| ฟิลด์ | ชนิด | บังคับ | กติกา |
+|-------|------|--------|------|
+| `title` | `string` | yes | trim แล้ว 1–80 ตัวอักษร |
+| `category` | `string \| null` | no | trim, ≤40 |
+| `body` | `string` | no (default `""`) | ≤2000 |
+| `imageFileId` | `string \| null` | no | ≤200 (storage fileId ที่อัปโหลดไว้แล้ว) |
+
+**เงื่อนไขข้ามฟิลด์:** ต้องมี `body` ที่ไม่ว่าง **หรือ** `imageFileId` อย่างน้อยหนึ่งอย่าง (BR-FBC-24)
+
+**Response — Success (201):** object เดียวรูปแบบเดียวกับ item ใน §4.6
+
+**Response — Error:** `400` body ไม่ใช่ JSON / validation ไม่ผ่าน (คืนข้อความ issue แรกเป็นภาษาไทย เช่น `{"error": "ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง"}`) · `401` · `404` ไม่พบร้าน active
+
+---
+
+### 4.8 `PATCH` / `DELETE /api/chat/quick-messages/[id]` (ใหม่ 2026-07-23)
+
+`PATCH` รับ body ชุดเดียวกับ §4.7 (แทนที่ทั้งรายการ ไม่ใช่ partial) · `DELETE` ไม่มี body
+
+**Ownership:** service ใช้ `updateMany`/`deleteMany` ที่มี `where: { id, shopId }` แล้วเช็ค `count === 0` — ร้านอื่นยิงด้วย `id` ที่ถูกต้องก็ได้ `404` เท่านั้น ไม่มีทางแก้/ลบข้ามร้าน และไม่ leak ว่ารายการนั้นมีอยู่จริง (BR-FBC-23)
+
+**Response:** `200` (PATCH — object ที่อัปเดตแล้ว) / `200` (DELETE — `{"ok": true}`) · `400` validation · `401` · `404` ไม่พบร้าน active หรือไม่พบรายการในร้านนี้
+
+---
+
+### 4.9 `POST /api/chat/conversations/[id]/ai-suggest` (ใหม่ 2026-07-23)
+
+ขอร่างคำตอบ 3 แบบสำหรับเธรดนั้น Trace: SRS TFR-FBC-13 → BRD BR-FBC-25/26/27 → PRD FR-FBC-16
+
+**Request:** ไม่มี body — **transcript อ่านจาก DB ฝั่งเซิร์ฟเวอร์เท่านั้น** (client ส่งบทสนทนาเข้ามาเองไม่ได้ตาม BR-FBC-27)
+
+**ลำดับการตรวจ:** session → rate-limit ต่อ user (15 ครั้ง/นาที) → resolve ร้าน active → `id` ต้องเป็น UUID → เธรดต้องเป็นของร้านนั้น
+
+**Response — Success (200)**
+
+```json
+{ "suggestions": ["ร่างที่ 1 …", "ร่างที่ 2 …", "ร่างที่ 3 …"] }
+```
+
+header: `Cache-Control: private, no-store, max-age=0, must-revalidate` (คำตอบเป็นข้อมูลต่อผู้ใช้ — ห้าม cache ร่วม; บทเรียนเดิม `feedback_auth_api_cache_control`)
+
+**Response — Error**
+
+| Status | เงื่อนไข | body |
+|--------|----------|------|
+| 400 | `id` ไม่ใช่ UUID | `{ "error": "รหัสบทสนทนาไม่ถูกต้อง" }` |
+| 400 | เธรดยังไม่มีข้อความให้ร่าง | `{ "error": "ยังไม่มีข้อความให้ AI ช่วยร่าง" }` |
+| 401 | ไม่มี session | `{ "error": "unauthorized" }` |
+| 404 | resolve ร้าน active ไม่ได้ / เธรดไม่ใช่ของร้านนี้ | `{ "error": "ไม่พบบทสนทนานี้" }` |
+| 429 | เกิน 15 ครั้ง/นาที ต่อผู้ใช้ | `{ "error": "ใช้ AI ถี่เกินไป กรุณารอสักครู่" }` + header `Retry-After: 60` |
+| 502 | Gemini ตอบผิดพลาด/parse ไม่ได้ | `{ "error": "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง", "detail": "…" }` |
+| 503 | ไม่ได้ตั้ง `GEMINI_API_KEY` | `{ "error": "ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ตั้งค่า)" }` |
+
+> `detail` ใน 502 เป็นข้อความ error จาก Gemini เพื่อ diagnose — ไม่มี secret ปนแต่ **เป็นข้อมูลเชิงระบบ**
+> ควรตัดออกเมื่อฟีเจอร์นิ่งแล้ว
+
+---
+
+### 4.10 `GET` / `PATCH /api/chat/conversations/[id]/crm` (ใหม่ 2026-07-23)
+
+อ่าน/แก้ข้อมูลภายในของผู้ติดต่อในเธรด (FR-FBC-14) — `alias` เก็บที่ `Conversation`, ที่เหลือ (`note`/`address`/`salesStatus`/`tags`/`phones`) เก็บที่ `ExternalContact` ดู [[DATABASE]] §3.6
+
+`PATCH` เป็น **partial** ตาม `ChatCrmPatchSchema` — ฟิลด์ที่ไม่ส่งมา = ไม่แตะ; ownership scope ด้วย `{conversationId, shopId}` เหมือน endpoint อื่นของเธรด
+
+> 🛑 ข้อมูลชุดนี้เป็น **ข้อมูลภายในร้าน** — ห้ามมี code path ใดส่งออกไปหาลูกค้าผ่าน Send API (BR-FBC-18)
+
+---
+
 ## 5. Error Code Summary
 
 | Error String (จาก service) | HTTP Status | Endpoint | ความหมาย |
@@ -226,6 +328,11 @@ Error 401/403/404/429/500 เดิมของ endpoint นี้ (unauthorized
 | `SEND_FAILED:*` | 502 | `POST .../messages` (เธรดช่องทางนอก) | Graph API ปฏิเสธการส่ง (ลูกค้าบล็อก/token ตาย/เหตุอื่น) |
 | `FORBIDDEN` (ownership) | 403 | `POST .../messages` (เดิม, สืบทอด) | ไม่ใช่เจ้าของร้าน |
 | `CONVERSATION_NOT_FOUND` | 404 | `POST .../messages` (เดิม, สืบทอด) | ไม่พบ conversation |
+| `QUICK_MESSAGE_NOT_FOUND` | 404 | `PATCH`/`DELETE .../quick-messages/[id]` | ไม่พบรายการ **ในร้านนี้** (รวมกรณีเป็นของร้านอื่น — ตั้งใจไม่แยกเพื่อไม่ leak) |
+| (validation issue แรกจาก Valibot) | 400 | `POST .../quick-messages`, `PATCH .../quick-messages/[id]` | เช่น "กรุณากรอกหัวข้อ" / "ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง" |
+| `GeminiNotConfiguredError` | 503 | `POST .../ai-suggest` | ไม่ได้ตั้ง `GEMINI_API_KEY` |
+| `GeminiApiError` | 502 | `POST .../ai-suggest` | Gemini ปฏิเสธ/ตอบ parse ไม่ได้ |
+| (rate-limit ต่อผู้ใช้) | 429 | `POST .../ai-suggest` | เกิน 15 ครั้ง/นาที ต่อ 1 user |
 
 ---
 

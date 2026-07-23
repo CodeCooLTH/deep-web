@@ -353,6 +353,35 @@ export async function ingestInboundMessage(params: {
 // ลำดับสำคัญ: ส่งออกก่อน → ได้ mid → ค่อยเขียน DB
 // เพราะ echo webhook จะยิง mid เดียวกันกลับมา แล้ว unique constraint บน
 // externalMessageId จะ dedupe ให้เอง ถ้าเขียน DB ก่อนส่งจะได้ข้อความซ้ำ 2 แถว
+/**
+ * ingestReadEvent — ลูกค้าอ่านข้อความของเพจ (Messenger message_reads) → เก็บ watermark ที่เธรด
+ * (feature 00018 read receipt). sender = ลูกค้า (คนอ่าน), watermark = อ่านถึง timestamp นี้.
+ * update เฉพาะเมื่อ watermark ใหม่กว่า (กัน event มาสลับลำดับ) — เธรด/เพจที่ไม่พบ = เงียบ (ตอบ 200)
+ */
+export async function ingestReadEvent(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  watermark: number
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  const contact = await prisma.externalContact.findUnique({
+    where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!contact) return
+  const readAt = new Date(params.watermark)
+  await prisma.conversation.updateMany({
+    where: {
+      shopChannelId: channel.id,
+      externalContactId: contact.id,
+      OR: [{ externalReadAt: null }, { externalReadAt: { lt: readAt } }],
+    },
+    data: { externalReadAt: readAt },
+  })
+}
+
 export async function sendOutboundMessage(params: {
   conversationId: string
   actorUserId: string

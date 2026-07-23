@@ -90,6 +90,8 @@ type Props = {
   /** feature 00018 (user request 2026-07-23) — รูปฝั่งร้าน (ข้อความ mine): รูปเพจสำหรับช่องทางนอก
    *  (http URL) หรือโลโก้ร้านสำหรับ DEEP (storage fileId); null → fallback ไอคอน building-store */
   shopAvatar: string | null
+  /** feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้ (ISO); ข้อความ SHOP ที่ createdAt <= ค่านี้ = อ่านแล้ว */
+  externalReadAt: string | null
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -245,6 +247,7 @@ export default function ChatThread({
   buyerName,
   buyerAvatar,
   shopAvatar,
+  externalReadAt,
   channel,
   channelName,
   windowOpen,
@@ -338,6 +341,12 @@ export default function ChatThread({
   }
 
   const groups = groupByDate(messages)
+
+  // read receipt (feature 00018) — ป้าย "อ่านแล้ว/ส่งแล้ว" โชว์เฉพาะข้อความ SHOP ตัวสุดท้าย (ช่องทางนอก)
+  const lastShopMsgId = isExternal
+    ? ([...messages].reverse().find((m) => m.senderRole === 'SHOP')?.id ?? null)
+    : null
+  const readAtMs = externalReadAt ? new Date(externalReadAt).getTime() : 0
 
   return (
     <>
@@ -521,7 +530,6 @@ export default function ChatThread({
                             กำลังส่ง
                           </span>
                         )}
-                        {mine && m._status === 'sent' && <Icon icon="check" className="text-success" />}
                         {mine && m._status === 'failed' && m._retry && (
                           <button
                             type="button"
@@ -531,6 +539,21 @@ export default function ChatThread({
                             <Icon icon="refresh" />
                             ลองใหม่
                           </button>
+                        )}
+                        {/* read receipt (ช่องทางนอก): ข้อความ SHOP ตัวสุดท้าย → "อ่านแล้ว" (ลูกค้าอ่านแล้ว)
+                            หรือ "ส่งแล้ว"; ข้อความ SHOP อื่นที่เพิ่งส่ง optimistic → check เฉย ๆ */}
+                        {mine && m._status !== 'sending' && m._status !== 'failed' && m.id === lastShopMsgId ? (
+                          readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
+                            <span className="text-success flex items-center gap-0.5">
+                              <Icon icon="checks" /> อ่านแล้ว
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5">
+                              <Icon icon="check" /> ส่งแล้ว
+                            </span>
+                          )
+                        ) : (
+                          mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
                         )}
                       </div>
                     </div>

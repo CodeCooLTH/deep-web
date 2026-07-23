@@ -1095,6 +1095,9 @@ model Conversation {
   resolvedAt        DateTime? // null = ยังเปิดอยู่
   // alias: ชื่อในแชท (nickname ต่อเธรดนี้) — เช่น "Wave 110" (ชื่อจริงอยู่ที่ contact/customer) feat 00018 CRM
   alias             String?
+  // externalReadAt: watermark "ลูกค้าฝั่งช่องทางนอกอ่านถึงเวลานี้" (Messenger message_reads) — ข้อความ
+  // ฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "อ่านแล้ว" (feature 00018 read receipt)
+  externalReadAt    DateTime?
 
   buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)

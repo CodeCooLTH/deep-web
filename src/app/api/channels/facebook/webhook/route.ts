@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
-import { ingestInboundMessage } from '@/services/channel-chat.service'
+import { ingestInboundMessage, ingestReadEvent } from '@/services/channel-chat.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -66,7 +66,17 @@ export async function POST(request: NextRequest) {
 
   for (const { pageId, event } of extractMessagingEvents(parsed.output)) {
     try {
-      await ingestInboundMessage({ provider, pageExternalId: pageId, event })
+      if (event.read) {
+        // read receipt (message_reads) — ลูกค้าอ่านข้อความของเพจ (feature 00018)
+        await ingestReadEvent({
+          provider,
+          pageExternalId: pageId,
+          contactExternalId: event.sender.id,
+          watermark: event.read.watermark,
+        })
+      } else {
+        await ingestInboundMessage({ provider, pageExternalId: pageId, event })
+      }
     } catch (e) {
       console.error('[fb-webhook] ingest ล้มเหลว', e instanceof Error ? e.message : e)
       // infra error (ต่อ DB ไม่ติด/pool เต็ม/ปิดกลางคัน) — ข้อความช่วงนี้ยังไม่ถูกเขียนแน่ ๆ ต้อง

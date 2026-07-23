@@ -107,6 +107,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       id: true,
       channel: true,
       lastInboundAt: true,
+      externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
       buyerUserId: true,
       buyer: { select: { id: true, displayName: true, avatar: true } },
       externalContact: {
@@ -230,6 +231,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         buyerName={buyerDisplayName}
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}
+        externalReadAt={conversation.externalReadAt ? conversation.externalReadAt.toISOString() : null}
         channel={conversation.channel}
         channelName={channelName}
         windowOpen={windowState.open}
