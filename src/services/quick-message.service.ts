@@ -10,7 +10,10 @@ export type QuickMessageView = {
   title: string
   category: string | null
   body: string
+  /** deprecated — รูปแรกของ imageFileIds (คงไว้ให้ client เก่าที่ยังอ่าน field นี้อยู่) */
   imageFileId: string | null
+  /** รูปแนบทั้งหมด ตามลำดับที่จะส่ง (feature 00018, user สั่ง 2026-07-23 "ใส่รูปได้มากกว่า 1") */
+  imageFileIds: string[]
   createdAt: string
 }
 
@@ -20,6 +23,7 @@ type QuickMessageRow = {
   category: string | null
   body: string
   imageFileId: string | null
+  imageFileIds: string[]
   createdAt: Date
 }
 
@@ -30,6 +34,9 @@ function toView(q: QuickMessageRow): QuickMessageView {
     category: q.category,
     body: q.body,
     imageFileId: q.imageFileId,
+    // แถวเก่าที่ยังไม่ถูกแก้หลัง migration (imageFileIds ว่างแต่มี imageFileId) — เติมให้ที่นี่
+    // อีกชั้น กัน edge case ที่ backfill พลาด/แถวถูกเขียนโดยโค้ดเวอร์ชันเก่าระหว่าง deploy
+    imageFileIds: q.imageFileIds.length > 0 ? q.imageFileIds : q.imageFileId ? [q.imageFileId] : [],
     createdAt: q.createdAt.toISOString(),
   }
 }
@@ -40,6 +47,7 @@ const SELECT = {
   category: true,
   body: true,
   imageFileId: true,
+  imageFileIds: true,
   createdAt: true,
 } as const
 
@@ -56,7 +64,8 @@ export type QuickMessageInput = {
   title: string
   category: string | null
   body: string
-  imageFileId: string | null
+  /** ลำดับในอาร์เรย์ = ลำดับที่จะส่ง; ว่างได้ถ้ามี body */
+  imageFileIds: string[]
 }
 
 export async function createQuickMessage(
@@ -71,7 +80,10 @@ export async function createQuickMessage(
       title: input.title,
       category: input.category,
       body: input.body,
-      imageFileId: input.imageFileId,
+      imageFileIds: input.imageFileIds,
+      // เขียนคอลัมน์เดิมด้วย (= รูปแรก) จนกว่าจะถอด field deprecated ออก — ระหว่าง deploy จะมีทั้ง
+      // โค้ดเก่า/ใหม่วิ่งพร้อมกันชั่วครู่ ถ้าเขียนแต่คอลัมน์ใหม่ ฝั่งเก่าจะเห็นข้อความนี้ "ไม่มีรูป"
+      imageFileId: input.imageFileIds[0] ?? null,
     },
     select: SELECT,
   })
@@ -90,7 +102,8 @@ export async function updateQuickMessage(
       title: input.title,
       category: input.category,
       body: input.body,
-      imageFileId: input.imageFileId,
+      imageFileIds: input.imageFileIds,
+      imageFileId: input.imageFileIds[0] ?? null, // ดู comment ที่ createQuickMessage
     },
   })
   if (result.count === 0) throw new Error('QUICK_MESSAGE_NOT_FOUND')

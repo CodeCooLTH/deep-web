@@ -752,16 +752,27 @@ export const ConversationPatchSchema = v.object({
 // ── feature 00018 composer #2 Quick Messages (ข้อความสำเร็จรูป ระดับร้าน) ──────
 // create/update ใช้ shape เดียวกัน (update = full replace). cross-field: ต้องมี body หรือ
 // imageFileId อย่างน้อยหนึ่ง (quick message รองรับ message + image — อย่างน้อยต้องมีอะไรส่ง)
+// QUICK_MESSAGE_MAX_IMAGES — user เลือก 5 รูป (2026-07-23): พอสำหรับชุดรีวิว/หลายมุมสินค้า โดยไม่หนัก
+// ตอนส่ง เพราะช่องทางนอกส่งได้ทีละรูป (Messenger ไม่รองรับหลายรูปในข้อความเดียว) = 5 request/ครั้ง
+export const QUICK_MESSAGE_MAX_IMAGES = 5;
+
 const quickMessageObject = v.object({
   title: v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณากรอกหัวข้อ"), v.maxLength(80)),
   category: v.optional(v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(40)))),
   body: v.optional(v.pipe(v.string(), v.maxLength(2000)), ""),
+  // deprecated — คงไว้รับ payload เก่า; ตัวจริงคือ imageFileIds (route รวมสองอันให้เป็นอาร์เรย์เดียว)
   imageFileId: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(200)))),
+  imageFileIds: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
+      v.maxLength(QUICK_MESSAGE_MAX_IMAGES, `แนบรูปได้สูงสุด ${QUICK_MESSAGE_MAX_IMAGES} รูป`),
+    ),
+  ),
 });
 export const QuickMessageCreateSchema = v.pipe(
   quickMessageObject,
   v.check(
-    (o) => (o.body?.trim().length ?? 0) > 0 || !!o.imageFileId,
+    (o) => (o.body?.trim().length ?? 0) > 0 || !!o.imageFileId || (o.imageFileIds?.length ?? 0) > 0,
     "ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง",
   ),
 );

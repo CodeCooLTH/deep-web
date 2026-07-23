@@ -45,7 +45,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       title: parsed.output.title,
       category: parsed.output.category ?? null,
       body: parsed.output.body ?? "",
-      imageFileId: parsed.output.imageFileId ?? null,
+      // รวม field เก่า (imageFileId เดี่ยว) กับใหม่ (imageFileIds) ให้เหลืออาร์เรย์เดียว — client เก่า
+      // ที่ยังส่ง field เดี่ยวมาต้องใช้งานได้เหมือนเดิม (feature 00018 multi-image 2026-07-23)
+      imageFileIds:
+      parsed.output.imageFileIds ?? (parsed.output.imageFileId ? [parsed.output.imageFileId] : []),
     });
     return NextResponse.json(updated, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
