@@ -3,7 +3,7 @@ title: "SDS — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.0"
+version: "1.1"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, sds]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
@@ -11,9 +11,11 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** System Design Spec (SDS)
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-07-22
 > **สถานะ:** Draft — เขียนตามโค้ด backend ที่ implement แล้ว (SSOT = โค้ดจริง ไม่ใช่แผน) UI ยังไม่เริ่ม
+>
+> 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SDS: Facebook Chat Integration (System Design Spec)
@@ -113,6 +115,12 @@ graph TD
 | **`src/app/api/channels/facebook/{webhook,connect,callback}/route.ts`** | HTTP boundary — auth gate, parse request, เรียก service, map error → HTTP status | Next.js Route Handler, NextAuth session |
 | **`src/app/api/chat/conversations/[id]/messages/route.ts`** (แก้เพิ่ม, feature 00011) | dispatch ตาม `conversation.channel` ก่อนเรียก service ที่ถูกต้อง | `chat.service.ts`, `channel-chat.service.ts` |
 | **`src/proxy.ts`** (`guardApi`, แก้เพิ่ม) | ยกเว้น webhook path จาก Origin-check (ยัง apply rate-limit) | — |
+| **`src/services/quick-message.service.ts`** (ใหม่ 2026-07-23) | CRUD ข้อความสำเร็จรูประดับร้าน — ทุก query/mutation scope ด้วย `shopId` ใน `WHERE` (atomic `updateMany`/`deleteMany`) ไม่มี logic อื่น | Prisma |
+| **`src/lib/gemini.ts`** (ใหม่ 2026-07-23) | client ของ Google Gemini + system prompt/guardrail + บังคับ `responseSchema` เป็น JSON 3 ร่าง — **server-only** (อ่าน `GEMINI_API_KEY` จาก `process.env`) ไม่มี Prisma/ไม่รู้จัก Conversation | `fetch`, env `GEMINI_API_KEY`/`GEMINI_MODEL` |
+| **`src/services/chat-crm.service.ts`** (ใหม่ 2026-07-23) | อ่าน/เขียน CRM ของผู้ติดต่อ (`alias` ที่ `Conversation`, `note`/`tags`/`phones`/`address`/`salesStatus` ที่ `ExternalContact`) scope ด้วย `{conversationId, shopId}` | Prisma |
+| **`src/app/api/chat/quick-messages/{route,[id]/route}.ts`** (ใหม่) | HTTP boundary ของข้อความสำเร็จรูป — session + `resolveActiveShopContext` + Valibot แล้วเรียก service | `quick-message.service.ts`, `validations.ts` |
+| **`src/app/api/chat/conversations/[id]/ai-suggest/route.ts`** (ใหม่) | HTTP boundary ของ AI — rate-limit ต่อ user, ownership เธรด, ประกอบ transcript จาก DB, map error ของ Gemini → HTTP | `gemini.ts`, `chat-crm.service.ts`, `api-rate-limit.ts`, Prisma |
+| **`(chat)/inbox/[conversationId]/components/{QuickMessageBar,QuickMessageManager,AiSuggestPanel,EmojiPicker}.tsx`** (ใหม่) | UI ของเครื่องมือ composer — แผงเหนือช่องพิมพ์ (สำเร็จรูป/AI ใช้โครงเดียวกันและเปิดได้ทีละแผง), modal จัดการ, ตัวเลือกอิโมจิ | `ChatThread.tsx` (state `activePanel`), Paces primitive |
 
 **เหตุผลแยก `shop-channel.service.ts` ออกจาก `channel-chat.service.ts` (ไม่รวมเป็นไฟล์เดียว):** แยกความรับผิดชอบตาม entity ที่เป็นเจ้าของ — `ShopChannel` (การเชื่อมต่อ/token) เป็นคนละ lifecycle จาก "ข้อความ" (เกิดขึ้นทุกครั้งที่มี event) `channel-chat.service.ts` เรียก `getChannelByExternalId`/`markChannelTokenInvalid` เป็น consumer ไม่ใช่เจ้าของ token — กันไม่ให้ logic ส่งข้อความไปแตะ `accessTokenEnc` ตรง ๆ โดยไม่ผ่านจุดถอดรหัสเดียว
 
@@ -289,7 +297,10 @@ sequenceDiagram
 | TFR-FBC-07/08 (OAuth connect + connectPages) | Component `graph.ts`/`shop-channel.service.ts` | Done |
 | TFR-FBC-09/10 (ส่งออก + dispatch) | Flow 4.2, TD-003 | Done (TEXT เท่านั้น) |
 | TFR-FBC-11 (ยกเว้น CSRF) | Component `src/proxy.ts` | Done |
-| FR-FBC-11 (list/disconnect channel) | TD-005 | **ไม่ implement รอบนี้** |
+| TFR-FBC-12 (ข้อความสำเร็จรูป CRUD) | Component `quick-message.service.ts` + routes `/api/chat/quick-messages*`, UI `QuickMessageBar`/`QuickMessageManager` | Done (2026-07-23) |
+| TFR-FBC-13 (AI ช่วยร่างคำตอบ) | Component `gemini.ts` + route `ai-suggest`, UI `AiSuggestPanel` | Done (2026-07-23) — ต่อยอดบริบทที่ feature 00019 |
+| TFR-FBC-14 (ไฟล์แนบ วิดีโอ/เสียง/ไฟล์ ขาเข้า) | Component `channel-chat.service.ts` (map attachment type + mirror), UI `ChatThread.tsx` | Done (2026-07-23) — inbound-only |
+| FR-FBC-11 (list/disconnect channel) | TD-005 | **Done หลังจากนั้น** — มีหน้า `/seller/settings/channels` (`page.tsx` + `ChannelsClient.tsx`), `GET /api/channels`, `/api/channels/[id]` และ `disconnectChannel()` (soft: ตั้ง `status='DISCONNECTED'` ไม่ลบแถว) แล้ว → **TD-005 ล้าสมัย** |
 
 ---
 
@@ -299,9 +310,10 @@ sequenceDiagram
 
 **ลำดับการ build ที่ทำไปแล้ว:** schema (Task 1) → กัน `sendMessage` พังกับ buyer null (Task 2) → token-crypto (Task 3) → signature (Task 4) → webhook payload schema (Task 5) → Graph API client (Task 6) → shop-channel service (Task 7) → ingest inbound (Task 8) → webhook route (Task 9) → outbound send + dispatch (Task 10) → OAuth connect/callback (Task 11) → CSRF exclusion (ผนวกในงานเดียวกัน) → mirror รูปภาพ (Task 12) → fake-webhook script (Task 13)
 
-**Open Items สำหรับแผนถัดไป (ไม่ใช่ของเอกสารนี้):**
-- หน้า `/seller/settings/channels` + route list/disconnect channel (ปิด TD-005)
-- badge ช่องทาง + filter + แบนเนอร์ 24h ใน `/inbox`
-- ส่งรูปภาพออกจาก Deep ไป Messenger/IG
-- ปุ่มสร้างออเดอร์จากเธรด + ผูก `Customer`
-- S-7 (ปักหมุด/ซ่อน/ปิดงาน) และ S-8 (แท็ก/โน้ต/tab ออเดอร์) — รอ OQ-FBC-02/03 ใน [[BRD]] §11 ปิดก่อน
+**Open Items สำหรับแผนถัดไป (ไม่ใช่ของเอกสารนี้) — สถานะอัปเดต 2026-07-23:**
+- ~~หน้า `/seller/settings/channels` + route list/disconnect channel~~ → **Done** (ดู §7)
+- ~~badge ช่องทาง + filter + แบนเนอร์ 24h ใน `/inbox`~~ → **Done** (T3/T4)
+- ~~ส่งรูปภาพออกจาก Deep ไป Messenger/IG~~ → **Done** (ส่งผ่าน presigned URL แล้ว — ข้อจำกัดเหลือเฉพาะ `PRODUCT`/วิดีโอ/เสียง/ไฟล์ ที่ยังส่งออกไม่ได้)
+- ~~S-7 (ปักหมุด/ซ่อน/ปิดงาน) และ S-8 (แท็ก/โน้ต/tab ออเดอร์)~~ → **Done** (S-7 ครบ; S-8 มี CRM `alias`/`note`/`tags`/`phones`/`salesStatus` + tab ออเดอร์)
+- **ยังค้างจริง:** ปุ่มสร้างออเดอร์จากเธรด + เขียน `ExternalContact.customerId` (FR-FBC-07/08 — ยังไม่มี code path ใดเขียนค่านี้), ส่ง วิดีโอ/เสียง/ไฟล์ ออกจาก Deep, Messenger `profile_pic` (บล็อกโดย App Review)
+- **test-debt:** `quick-message.service` / `gemini.ts` / route `ai-suggest` และ `quick-messages` ยังไม่มี unit test และยังไม่มี Playwright E2E ของหน้าแชท (ดู [[TestCase]] §3)
