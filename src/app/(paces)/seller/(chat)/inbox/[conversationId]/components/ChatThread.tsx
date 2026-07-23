@@ -559,18 +559,6 @@ export default function ChatThread({
                             m.id === lastShopMsgId ||
                             m._status === 'sent'))) && (
                         <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
-                          {mine && atBurstEnd && (
-                            <ChatAvatar
-                              avatar={shopAvatar}
-                              name={buyerName}
-                              size="size-5"
-                              fallback={
-                                <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
-                                  <Icon icon="building-store" className="size-3" />
-                                </span>
-                              }
-                            />
-                          )}
                           {showTime && (
                             <span className="flex items-center gap-1">
                               <Icon icon="clock" />
@@ -605,6 +593,22 @@ export default function ChatThread({
                             )
                           ) : (
                             mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
+                          )}
+                          {/* avatar เพจ/ร้าน = ตัวสุดท้ายของแถวเสมอ (user สั่ง 2026-07-23: "เวลาต้อง
+                              อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
+                              พอ avatar เป็น child สุดท้ายจึงชิดขอบขวาของคอลัมน์ข้อความ ส่วนเวลา/สถานะ
+                              ไหลไปทางซ้ายของมัน (เดิม avatar เป็น child ตัวแรก = ไปอยู่ซ้ายสุดของกลุ่ม) */}
+                          {mine && atBurstEnd && (
+                            <ChatAvatar
+                              avatar={shopAvatar}
+                              name={buyerName}
+                              size="size-5"
+                              fallback={
+                                <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+                                  <Icon icon="building-store" className="size-3" />
+                                </span>
+                              }
+                            />
                           )}
                         </div>
                       )}
