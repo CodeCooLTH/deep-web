@@ -19,6 +19,7 @@ import {
   nightsBetween,
   BookingNotFoundError,
 } from '@/services/booking.service'
+import { listHousekeepers } from '@/services/housekeeping.service'
 import BookingDetail from './components/BookingDetail'
 
 export const metadata: Metadata = { title: 'รายละเอียดการจอง' }
@@ -60,6 +61,9 @@ export default async function BookingDetailPage({
   const publicHost = host.replace(/^seller\./, '')
   const publicUrl = `${proto}://${publicHost}/o/${b.publicToken}`
 
+  // แม่บ้านที่ active — ไปทำ dropdown มอบหมาย (P3)
+  const housekeepers = await listHousekeepers(active.shop.id, { activeOnly: true })
+
   return (
     <>
       <PageBreadcrumb title="รายละเอียดการจอง" subtitle="การจอง" />
@@ -83,7 +87,10 @@ export default async function BookingDetailPage({
           cancelReason: b.cancelReason,
           internalNote: b.internalNote,
           publicUrl,
+          housekeeperId: b.housekeeperId,
+          housekeepingStatus: b.housekeepingStatus,
         }}
+        housekeepers={housekeepers.map((h) => ({ id: h.id, name: h.name }))}
       />
     </>
   )

@@ -35,7 +35,12 @@ export type BookingDetailData = {
   cancelReason: string | null
   internalNote: string | null
   publicUrl: string
+  // feature 00017 P3 — งานแม่บ้าน
+  housekeeperId: string | null
+  housekeepingStatus: string | null
 }
+
+export type HousekeeperOption = { id: string; name: string }
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   // "รอยืนยัน" ต้องไม่เป็นเขียว — ยังไม่ได้รับเงิน (Verified-Means-Green)
@@ -48,10 +53,51 @@ function baht(v: string): string {
   return Number(v).toLocaleString('th-TH', { maximumFractionDigits: 0 })
 }
 
-export default function BookingDetail({ booking }: { booking: BookingDetailData }) {
+export default function BookingDetail({
+  booking,
+  housekeepers,
+}: {
+  booking: BookingDetailData
+  housekeepers: HousekeeperOption[]
+}) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [showSlip, setShowSlip] = useState(false)
+  const [hkId, setHkId] = useState(booking.housekeeperId ?? '')
+  const [hkStatus, setHkStatus] = useState(booking.housekeepingStatus)
+
+  async function assignHk(id: string) {
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/shops/current/bookings/${booking.token}/housekeeping`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ housekeeperId: id || null }),
+        cache: 'no-store',
+      })
+      if (!r.ok) { pacesToast.error('มอบหมายไม่สำเร็จ ลองอีกครั้ง'); return }
+      const d = (await r.json()) as { housekeeperId: string | null; housekeepingStatus: string | null }
+      setHkId(d.housekeeperId ?? '')
+      setHkStatus(d.housekeepingStatus)
+      pacesToast.success(id ? 'มอบหมายแม่บ้านแล้ว' : 'ยกเลิกการมอบหมายแล้ว')
+    } catch { pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง') } finally { setBusy(false) }
+  }
+
+  async function toggleHkStatus() {
+    const next = hkStatus === 'DONE' ? 'PENDING' : 'DONE'
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/shops/current/bookings/${booking.token}/housekeeping`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next }),
+        cache: 'no-store',
+      })
+      if (!r.ok) { pacesToast.error('อัปเดตไม่สำเร็จ ลองอีกครั้ง'); return }
+      const d = (await r.json()) as { housekeepingStatus: string | null }
+      setHkStatus(d.housekeepingStatus)
+    } catch { pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง') } finally { setBusy(false) }
+  }
 
   const deposit = Number(booking.depositAmount ?? 0)
   const remaining = Number(booking.totalAmount) - deposit
@@ -275,6 +321,60 @@ export default function BookingDetail({ booking }: { booking: BookingDetailData 
           )}
         </div>
       </div>
+
+      {booking.status !== 'CANCELLED' && (
+        <div className="card">
+          <div className="card-header">
+            <h4 className="card-title">งานแม่บ้าน</h4>
+          </div>
+          <div className="card-body">
+            <div className="gap-base grid grid-cols-1 lg:grid-cols-2">
+              <div>
+                <label className="form-label">มอบหมายแม่บ้าน</label>
+                {/* HR6: field ที่ bind state ใช้ form-select native */}
+                <select
+                  className="form-select"
+                  value={hkId}
+                  disabled={busy}
+                  onChange={(e) => assignHk(e.target.value)}
+                >
+                  <option value="">ยังไม่มอบหมาย</option>
+                  {housekeepers.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {hkId && (
+                <div>
+                  <label className="form-label">สถานะงาน</label>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`badge ${
+                        hkStatus === 'DONE'
+                          ? 'bg-success/15 text-success'
+                          : 'bg-warning/15 text-warning'
+                      }`}
+                    >
+                      {hkStatus === 'DONE' ? 'เสร็จแล้ว' : 'รอทำ'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleHkStatus}
+                      disabled={busy}
+                      className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 px-3 text-sm"
+                    >
+                      {hkStatus === 'DONE' ? 'ทำเครื่องหมายว่ายังไม่เสร็จ' : 'ทำเครื่องหมายว่าเสร็จแล้ว'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">
