@@ -453,7 +453,11 @@ export default function InboxList({
             Deep/Messenger/Instagram เหลือไอคอนล้วน — React state ขับ active เอง ไม่ใช้
             data-hs-tab (เหตุผลเดิม ดู comment หัวไฟล์) shrink-0 กันปุ่มบีบ + overflow-x-auto
             กันตกบรรทัดถ้า rail แคบผิดปกติ (ปกติพอดีบรรทัดเดียวที่ 320px) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto" aria-label="ตัวกรองช่องทาง" role="tablist">
+        {/* channel tabs + ตัวกรอง + เพจ รวมเป็นแถวเดียว flex-wrap (user request 2026-07-23: mobile
+            filter กระชับ) — ไหลลงบรรทัดใหม่เองเมื่อแคบ ไม่ใช่ 2 แถวตายตัว. relative สำหรับ popover
+            (InboxFilterPanel/PageFilterDropdown) ที่ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
+        <div className="relative flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5" aria-label="ตัวกรองช่องทาง" role="tablist">
           {CHANNEL_TABS.map((tab) => {
             const active = channelTab === tab
             const display = tab === 'ALL' ? null : getChannelDisplay(tab)
@@ -488,14 +492,9 @@ export default function InboxList({
               </button>
             )
           })}
-        </div>
-
-        {/* แถวตัวกรอง — S-7: ปุ่ม "ตัวกรอง" (สถานะ/ผูกลูกค้า/ที่ซ่อน) แสดงเสมอ (ใช้ได้ทุกช่องทาง);
-            ตัวกรอง "เพจ" ยังซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจ */}
-        {/* relative ที่ "แถว" ไม่ใช่ที่ปุ่ม — popover ของทั้งสองตัวใช้ inset-x-0 อ้างอิงแถวนี้ จึงกว้าง
-            เท่าแถวพอดีเสมอ ไม่ล้นออกนอก Chat Rail (320px)/ขอบจอมือถือ (bug จริงบน prod: ล้นแล้ว
-            ancestor scroll แนวนอน ทั้งรายการเลื่อนซ้ายค้าง เลื่อนกลับไม่ได้เพราะ scrollbar ถูกซ่อน) */}
-        <div className="relative flex flex-wrap items-center gap-2">
+          </div>
+          {/* ตัวกรอง/เพจ อยู่ในแถวเดียวกับ channel tabs แล้ว (flex-wrap ของ container ด้านนอก) —
+              S-7: ปุ่ม "ตัวกรอง" แสดงเสมอ; "เพจ" ซ่อนเมื่อ tab=Deep/ไม่มีเพจ */}
           <InboxFilterPanel
             value={filter}
             onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
@@ -577,7 +576,8 @@ export default function InboxList({
           )}
         </div>
       ) : (
-        <div className="card-body divide-y divide-default-200 !p-0">
+        // card-body: เส้นประเทาบางๆ (divide-dashed) แบ่งระหว่างแชท — user request 2026-07-23 เดิมดูไม่ออก
+        <div className="card-body divide-y divide-dashed divide-default-300 !p-0">
           {items.map((c) => {
             // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
             const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
