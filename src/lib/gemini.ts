@@ -125,6 +125,24 @@ function buildTranscript(turns: SuggestTurn[]): string {
 }
 
 /**
+ * extractJsonObject — ดึงตัว JSON ออกจากข้อความที่โมเดลตอบมา
+ *
+ * ถึงจะสั่ง responseMimeType: application/json แล้ว โมเดลบางรุ่นก็ยังห่อด้วย markdown fence
+ * (```json ... ```) หรือมีข้อความนำหน้า/ต่อท้าย — JSON.parse ตรง ๆ จะพังทั้งที่เนื้อหาถูกต้อง
+ * ลำดับ: ลอกรั้ว fence ก่อน แล้วค่อยตัดเอาช่วง { ... } นอกสุดถ้ายังมีอะไรเกินมา
+ */
+function extractJsonObject(raw: string): string {
+  let text = raw.trim()
+  const fence = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
+  if (fence?.[1]) text = fence[1].trim()
+  if (text.startsWith('{')) return text
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start !== -1 && end > start) return text.slice(start, end + 1)
+  return text
+}
+
+/**
  * generateReplySuggestions — คืนข้อความร่าง 3 แบบสำหรับให้แอดมินเลือก/แก้ก่อนส่ง
  * throw GeminiNotConfiguredError ถ้าไม่มี key, GeminiApiError ถ้า Gemini ตอบผิดพลาด/parse ไม่ได้
  */
@@ -146,7 +164,10 @@ export async function generateReplySuggestions(
         required: ['suggestions'],
       },
       temperature: 0.8,
-      maxOutputTokens: 1024,
+      // 4096 ไม่ใช่ 1024: โมเดลรุ่นใหม่ (gemini-3.x) เป็น thinking model — token ที่ใช้ "คิด"
+      // กินโควตา maxOutputTokens ก้อนเดียวกับคำตอบ ถ้าตั้งต่ำ JSON จะถูกตัดกลางคัน แล้วโผล่มาเป็น
+      // `invalid json from gemini` ทั้งที่ HTTP 200 (บั๊กจริง prod 2026-07-23)
+      maxOutputTokens: 4096,
     },
   }
 
@@ -184,16 +205,32 @@ export async function generateReplySuggestions(
   if (!res) throw new GeminiApiError(lastError || 'no usable gemini model')
 
   const data = (await res.json().catch(() => null)) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[]
+    candidates?: {
+      // thought: true = ส่วน "ความคิด" ของ thinking model ไม่ใช่คำตอบ ต้องข้าม
+      content?: { parts?: { text?: string; thought?: boolean }[] }
+      finishReason?: string
+    }[]
   } | null
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!raw) throw new GeminiApiError('empty response')
+
+  const candidate = data?.candidates?.[0]
+  // ต่อ text ของทุก part ที่ไม่ใช่ thought — ห้ามอ่านแค่ parts[0] เหมือนเดิม: โมเดลรุ่นใหม่แบ่ง
+  // คำตอบเป็นหลาย part ได้ และ part แรกอาจเป็นความคิด ทำให้ JSON.parse พังทั้งที่คำตอบมาครบ
+  const raw = (candidate?.content?.parts ?? [])
+    .filter((part) => part.thought !== true)
+    .map((part) => part.text ?? '')
+    .join('')
+    .trim()
+
+  const finish = candidate?.finishReason ? ` finishReason=${candidate.finishReason}` : ''
+  if (!raw) throw new GeminiApiError(`empty response${finish}`)
 
   let parsed: { suggestions?: unknown }
   try {
-    parsed = JSON.parse(raw)
+    parsed = JSON.parse(extractJsonObject(raw))
   } catch {
-    throw new GeminiApiError('invalid json from gemini')
+    // แนบตัวอย่างสิ่งที่ได้รับจริงมาด้วย — ของเดิมบอกแค่ 'invalid json' ซึ่งวินิจฉัยอะไรไม่ได้เลย
+    // ไม่มี secret ในนี้ (เป็นข้อความที่โมเดลสร้าง key อยู่ใน query string ของ request เท่านั้น)
+    throw new GeminiApiError(`invalid json from gemini${finish} — got: ${raw.slice(0, 300)}`)
   }
   const list = Array.isArray(parsed.suggestions) ? parsed.suggestions : []
   const cleaned = list

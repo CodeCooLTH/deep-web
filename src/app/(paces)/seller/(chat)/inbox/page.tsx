@@ -202,13 +202,13 @@ export default async function SellerInboxPage() {
       </div>
       {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
           (rail อยู่ที่ (chat)/layout.tsx แล้ว — ChatRail.tsx; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror
-          โครง flex ของ /inbox/[conversationId]/page.tsx เป๊ะ (gap-4, ขวา w-96 shrink-0) ไม่งั้น
+          โครง flex ของ /inbox/[conversationId]/page.tsx เป๊ะ (ไม่มี gap, ขวา w-96 shrink-0) ไม่งั้น
           เลย์เอาต์กระตุกตอนสลับหน้า — h-full: parent ({'children'} slot ของ layout.tsx) เป็น
           flex item ใน `flex min-h-0 flex-1` ที่ layout.tsx คุมความสูงที่เหลือ (100dvh ลบ header)
           ให้แล้ว ไม่ต้องคำนวณ viewport เองที่นี่อีก (ต่างจากเดิมก่อน rewrite ที่ต้องมี HR7
           carve-out คำนวณ dvh ลบ topbar-height เอง — ตอนนี้ h-full เป็น Tailwind scale ปกติ
           ไม่ใช่ arbitrary value แล้ว) */}
-      <div className="hidden h-full lg:flex lg:gap-4">
+      <div className="hidden h-full lg:flex">
         <div className="card flex h-full min-w-0 flex-1 items-center justify-center">
           <SellerEmptyState
             compact

@@ -3,7 +3,7 @@ title: "SRS — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.0"
+version: "1.1"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, srs, technical]
 related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]"]
@@ -11,9 +11,11 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]"]
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-07-22
 > **สถานะ:** Draft — เขียนย้อนหลังจากโค้ดที่ implement แล้ว (backend pipeline เท่านั้น) เอกสารนี้เป็น SSOT ของ "สิ่งที่มีจริงในโค้ด" ไม่ใช่แผนที่ยังไม่ทำ — ดู §1.2 สำหรับสิ่งที่ยังไม่ implement
+>
+> 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SRS: Facebook Chat Integration (Software Requirements Specification — Technical)
@@ -227,6 +229,36 @@ flowchart LR
 - **Postcondition:** rate-limit ปกติ (per-IP) ยัง apply กับ path นี้เหมือนเดิม — **ยกเว้นเฉพาะ Origin-check เท่านั้น** ไม่ใช่ยกเว้นทั้ง guard
 - **Authentication ทดแทน:** signature `X-Hub-Signature-256` (TFR-FBC-01) เป็น authentication เพียงอย่างเดียวของ route นี้
 
+### TFR-FBC-12: ข้อความสำเร็จรูป — CRUD ระดับร้าน
+
+- **Trace:** FR-FBC-15, BR-FBC-23, BR-FBC-24
+- **คำอธิบาย:** service `src/services/quick-message.service.ts` (`listQuickMessages` / `createQuickMessage` / `updateQuickMessage` / `deleteQuickMessage`) + route `/api/chat/quick-messages` (GET, POST) และ `/api/chat/quick-messages/[id]` (PATCH, DELETE)
+- **Ownership:** ทุกฟังก์ชันรับ `shopId` ที่ route resolve มาแล้วด้วย `resolveActiveShopContext` (re-verify membership เสมอ ห้าม trust JWT เปล่า) — update/delete ใช้ `updateMany`/`deleteMany` ที่มี `where: { id, shopId }` แล้วเช็ค `count === 0` → `QUICK_MESSAGE_NOT_FOUND` (atomic; ไม่ใช่ `findUnique` แล้วค่อย post-check ซึ่งเปิดช่องแก้ข้ามร้าน)
+- **Validation (Valibot, `src/lib/validations.ts`):** `QuickMessageCreateSchema` / `QuickMessageUpdateSchema` — `title` 1–80 ตัวอักษร (บังคับ), `category` ≤40 (optional/nullable), `body` ≤2000 (default `""`), `imageFileId` ≤200 (optional/nullable) + `v.check` ว่าต้องมี `body` ที่ไม่ว่าง **หรือ** `imageFileId` อย่างน้อยหนึ่งอย่าง
+- **การเรียงลำดับ:** `orderBy: [{ category: 'asc' }, { createdAt: 'desc' }]` — จัดกลุ่มตามหมวดแล้วใหม่ก่อนในแต่ละหมวด
+- **รูปแนบ:** เก็บเป็น `imageFileId` (storage fileId) เท่านั้น — แสดงผลผ่าน `/api/files/{fileId}` เหมือนรูปในแชท ไม่เก็บ URL ภายนอก
+- **Postcondition ฝั่ง UI:** เลือกแล้ว "เติมลงช่องพิมพ์" (ถ้ามีรูป → ตั้งเป็นรูปแนบที่รอส่ง) — ไม่ส่งออกทันที
+
+### TFR-FBC-13: AI ช่วยร่างคำตอบ (Gemini)
+
+- **Trace:** FR-FBC-16, BR-FBC-25, BR-FBC-26, BR-FBC-27
+- **Endpoint:** `POST /api/chat/conversations/[id]/ai-suggest` (`export const dynamic = "force-dynamic"`, ตอบพร้อม `Cache-Control: private, no-store` — คำตอบเป็นข้อมูลต่อผู้ใช้ ห้ามถูก cache ร่วม)
+- **ลำดับการตรวจ:** session → rate-limit ต่อผู้ใช้ (`checkApiRateLimit('ai-suggest:{userId}', 15, 60_000)` → `429` + `Retry-After: 60`) → `resolveActiveShopContext` → validate `id` เป็น UUID → `conversation.findFirst({ where: { id, shopId } })` ไม่พบ = `404` (ไม่แยกกรณี "ไม่มี" กับ "ไม่ใช่ของร้านนี้")
+- **บริบทที่ส่งให้ AI:** ชื่อร้าน + `vertical` (`GENERAL`/`LODGING`) + ชื่อ/โน้ตที่แอดมินจดไว้ (`getConversationCrm`) + **ข้อความล่าสุด 15 รายการ** เรียงเก่า→ใหม่ โดยแทน `IMAGE`/`PRODUCT` ด้วย placeholder ข้อความ (`[ส่งรูปภาพ]`/`[ส่งการ์ดสินค้า]`) และตัด turn ที่ว่างทิ้ง — **อ่านจาก DB ฝั่งเซิร์ฟเวอร์ทั้งหมด ไม่รับ transcript จาก client**
+- **ไม่มีข้อความให้ร่าง** (turn เหลือ 0) → `400`
+- **lib:** `src/lib/gemini.ts` — server-only, อ่าน `GEMINI_API_KEY` จาก `process.env` (ห้าม `NEXT_PUBLIC_`), `responseSchema` บังคับให้ตอบเป็น JSON 3 ร่าง, `temperature: 0.8`, `maxOutputTokens: 1024`, ลองหลายโมเดลตามลำดับ (override ได้ด้วย `GEMINI_MODEL`)
+- **Error mapping:** `GeminiNotConfiguredError` → `503` "ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ตั้งค่า)", `GeminiApiError` → `502`, อื่น ๆ → `500`
+- **Guardrail (system prompt):** ห้ามแต่งราคา/สต็อก/เงื่อนไข, ห้ามสัญญาสิ่งที่ยืนยันไม่ได้, ห้ามขอ OTP/รหัสผ่าน/ข้อมูลบัตร, ต้องเสนอ 3 ทางเลือกที่ต่างกันจริง, ใช้โน้ตภายในเป็นบริบทได้แต่ห้ามอ้างถึงว่าเป็นโน้ต
+- **ต่อยอด:** การเติมบริบทสินค้า/ราคา/AI Prompt ของร้าน อยู่ที่ feature [[../00019 - AI Reply Assistant/SRS]] — ไม่ใช่ขอบเขตของ TFR นี้
+
+### TFR-FBC-14: ไฟล์แนบชนิด วิดีโอ/เสียง/ไฟล์ (ขาเข้า)
+
+- **Trace:** FR-FBC-17
+- **คำอธิบาย:** `channel-chat.service.ts` map `attachment.type` ของ Meta เป็น `ChatMessage.type` ผ่านตาราง `{ image: 'IMAGE', video: 'VIDEO', audio: 'AUDIO', file: 'FILE' }` แล้ว mirror ไฟล์เข้า storage ของ Deep เอง (URL ของ Meta หมดอายุ — เหตุผลเดียวกับ TFR-FBC-04)
+- **การแสดงผล:** เธรดเลือก element ตามชนิด — `<video controls>` / `<audio controls>` / ลิงก์ดาวน์โหลด โดยทุกชนิด serve ผ่าน `/api/files/{fileId}`
+- **ขาออกยังไม่รองรับ:** ร้านส่งได้เฉพาะ TEXT/IMAGE (ดู TFR-FBC-10) — ชนิดอื่นเป็น inbound-only
+- **หมายเหตุ contract:** comment ของ `ChatMessage.type` ใน `prisma/schema.prisma` เขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` — ค่าใช้จริงตอนนี้มี `VIDEO`/`AUDIO`/`FILE` เพิ่ม (คอลัมน์เป็น `String` ไม่ใช่ enum จึงไม่ต้อง migrate) ดู [[DATABASE]] §3.4
+
 ---
 
 ## 4. Interface / API Specification (สรุป — รายละเอียดเต็มดู [[API]])
@@ -238,6 +270,10 @@ flowchart LR
 | `GET` | `/api/channels/facebook/connect` | เริ่ม OAuth เชื่อม Page | seller session |
 | `GET` | `/api/channels/facebook/callback` | รับ code → เชื่อม Page | seller session + OAuth state cookie |
 | `POST` | `/api/chat/conversations/[id]/messages` (แก้เพิ่ม) | ส่งข้อความ — dispatch ตาม `channel` | participant session (เดิม) |
+| `GET`/`POST` | `/api/chat/quick-messages` | list / สร้างข้อความสำเร็จรูปของร้าน | seller session + active shop |
+| `PATCH`/`DELETE` | `/api/chat/quick-messages/[id]` | แก้ / ลบข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session + active shop |
+| `POST` | `/api/chat/conversations/[id]/ai-suggest` | ขอร่างคำตอบ 3 แบบจาก AI | seller session + ownership เธรด |
+| `GET`/`PATCH` | `/api/chat/conversations/[id]/crm` | อ่าน/แก้ ชื่อเรียก-โน้ต-แท็ก-สถานะการขาย ของผู้ติดต่อ (FR-FBC-14) | seller session + ownership เธรด |
 
 ---
 

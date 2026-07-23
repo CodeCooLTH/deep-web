@@ -3,7 +3,7 @@ title: "Test Case — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.0"
+version: "1.1"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, test]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[SDS]]"]
@@ -11,9 +11,11 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[SDS]]"]
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** Test Case
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-07-22
 > **สถานะ:** Draft — **ยังไม่มีการรันชุดทดสอบ manual/E2E ใด ๆ ในเอกสารนี้** (dev server ไม่ได้รันระหว่างจัดทำเอกสาร) เอกสารนี้คือ**แผนการทดสอบ** ไม่ใช่รายงานผลทดสอบ
+>
+> 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** QA (ดู [[Feature-Docs-Ownership]])
 
 # Test Case: Facebook Chat Integration (Messenger + Instagram DM)
@@ -84,12 +86,20 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[SDS]]"]
 | BR-FBC-13 (idempotency ที่ route-level) | webhook batch: infra error หยุดทันที vs logic error ไปต่อ event ถัดไป, Prisma P1xxx vs P2xxx | `src/app/api/channels/facebook/webhook/route.test.ts` (I-3 cases) | ✅ ครอบแล้ว |
 | FR-FBC-07/08 (สร้างออเดอร์/ผูก Customer) | — | ไม่มี | ❌ **ยังไม่ implement เลย — ไม่มีอะไรให้ครอบ** |
 | FR-FBC-12 (badge/filter) | — | ไม่มี | ❌ **ยังไม่ implement เลย** |
-| FR-FBC-13, BR-FBC-14/15/16 (pin/hide/resolve) | — | ไม่มี | ❌ **DB มีคอลัมน์ ไม่มี logic ให้ test** |
-| FR-FBC-14, BR-FBC-17/18/19 (tag/note) | — | ไม่มี | ❌ **ไม่มี model เลย** |
+| FR-FBC-13, BR-FBC-14/15/16 (pin/hide/resolve) | `updateConversationState`, auto-unhide/reopen, pin-first cursor | ไม่มีไฟล์ test | ❌ **implement แล้ว (2026-07-23) แต่ยังไม่มี unit test — test-debt** |
+| FR-FBC-14, BR-FBC-17/18/19 (tag/note) | `chat-crm.service.ts` + route `crm` | ไม่มีไฟล์ test | ❌ **implement แล้ว (2026-07-23) แต่ยังไม่มี unit test — test-debt** |
+| **FR-FBC-15, BR-FBC-23/24** (ข้อความสำเร็จรูป) | scope `shopId` ทุก query, `updateMany/deleteMany` count=0 → NOT_FOUND, validation "ต้องมีข้อความหรือรูป" | ไม่มีไฟล์ test | ❌ **test-debt — เคสสำคัญคือ cross-shop (ร้าน B แก้ของร้าน A ต้องได้ 404)** |
+| **FR-FBC-16, BR-FBC-25/26/27** (AI ช่วยร่าง) | ownership เธรด → 404, rate-limit → 429, ไม่มี key → 503, Gemini error → 502, transcript อ่านจาก DB ไม่รับจาก client | ไม่มีไฟล์ test | ❌ **test-debt — mock `fetch` ของ Gemini ได้ ไม่ต้องยิงจริง** |
+| **FR-FBC-17** (ไฟล์แนบ วิดีโอ/เสียง/ไฟล์ ขาเข้า) | map `attachment.type` → `ChatMessage.type`, mirror เข้า storage | ไม่มีไฟล์ test (มีของ `mirrorRemoteImage` เดิมเท่านั้น) | ❌ **test-debt** |
 | BR-FBC-21 (neutralize PII ที่ RSC) | — | ไม่มี (ต้องพิสูจน์ที่ระดับ page component เมื่อมี UI) | ❌ **ยังไม่มี UI ให้ทดสอบ — ดู TC-SEC-01 §4 กลุ่ม I สำหรับแผนเมื่อ UI มา** |
 | ยกเว้น webhook จาก CSRF (BR-FBC-22 ส่วน `guardApi`) | `src/proxy.ts` เพิ่มเงื่อนไข path | ไม่มี unit test ตรง (ไม่มีไฟล์ test ของ `proxy.ts` เดิม) | ⚠️ **ยังไม่ครอบด้วย unit — พิสูจน์ทางอ้อมได้จาก TC-WH-* ที่ยิง webhook ตรงไม่ผ่าน browser (ไม่มี Origin header) แล้วไม่โดน 403 จาก Origin-check** |
 
 **สรุป §3:** backend pipeline หลัก (signature verify → parse → dedupe → ingest → 24h window → send → encrypt token → connectPages) มี unit test ครอบละเอียดมาก (รวม ≈75 test cases ใน 11 ไฟล์) **ยกเว้น 2 จุดที่ยังไม่มี unit test เลย**: (1) `callback` route ทั้งเส้น (2) `guardApi`/`proxy.ts` ส่วนยกเว้น Origin-check — ทั้งสองต้องพิสูจน์ผ่าน manual/E2E ใน §4
+
+> ⚠️ **test-debt ที่โตขึ้นหลัง 2026-07-23:** ทุกอย่างที่ทำหลังรอบ backend แรก (S-7 pin/hide/resolve,
+> CRM, ข้อความสำเร็จรูป, AI ช่วยร่าง, ไฟล์แนบชนิดใหม่) **ขึ้น prod โดยไม่มี unit test และไม่มี
+> Playwright E2E** — สวนกับกติกาโปรเจกต์ที่ให้ E2E เป็นของบังคับ ต้องตามเก็บเป็นงานแยก
+> (ดูรายการเคสที่ควรมีในตารางข้างบน + §4 กลุ่ม J)
 
 ---
 
@@ -330,6 +340,59 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[SDS]]"]
 - **Precondition:** ต่อจาก TC-IN-08
 - **Steps:** เหมือน TC-OUT-01 แต่ในเธรด IG
 - **Expected Result:** เหมือน TC-OUT-01 — ข้อความถึงลูกค้าจริงในแอป Instagram, `Conversation.channel=INSTAGRAM` ตลอด ไม่มีการ merge กับเธรด Messenger ของคนเดียวกัน (BR-FBC-08 — ตรวจว่ายังเห็น 2 เธรดแยกกันใน `/inbox` แม้ลูกค้าเป็นคนเดียวกันจริง)
+
+---
+
+### กลุ่ม J — เครื่องมือช่วยตอบใน composer (FR-FBC-15/16/17 — เพิ่ม 2026-07-23)
+
+> ทั้งกลุ่มนี้ยังไม่เคยรันเป็นทางการ (โค้ดขึ้น prod ก่อน) — ทดสอบบน prod ได้เพราะไม่มีผลข้างเคียงกับลูกค้า
+> ยกเว้นเคสที่ต้อง "กดส่งจริง" ให้ใช้เธรดทดสอบของทีมเท่านั้น
+
+#### TC-QM-01: สร้าง/แก้/ลบ ข้อความสำเร็จรูป
+- **Linked to:** FR-FBC-15, BR-FBC-24
+- **Steps:** เปิดเธรดใดก็ได้ → กดปุ่มสายฟ้าในแถวเครื่องมือ → "จัดการ" → สร้างรายการที่มีทั้งหัวข้อ+ข้อความ, รายการที่มีแต่รูป, รายการที่มีทั้งข้อความ+รูป → แก้ 1 รายการ → ลบ 1 รายการ
+- **Expected Result:** ทุกกรณีบันทึกได้และแผงอัปเดตทันทีหลังปิด modal; รายการที่ "ไม่กรอกทั้งข้อความและรูป" ต้องบันทึกไม่ผ่านพร้อมข้อความ "ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง"
+
+#### TC-QM-02: รูปที่แนบต้องเห็นเป็นรูปจริงในแผงเลือก
+- **Linked to:** FR-FBC-15
+- **Steps:** เปิดแผงข้อความสำเร็จรูปที่มีรายการซึ่งแนบรูปไว้
+- **Expected Result:** เห็น thumbnail รูปจริงในแถวนั้น (ไม่ใช่แค่ไอคอนบอกว่ามีรูป) — คลิกแล้วรูปไปอยู่เป็นรูปที่รอส่งในช่องพิมพ์ พร้อมข้อความ (ถ้ามี)
+
+#### TC-QM-03 (**สำคัญ — ความปลอดภัย**): ร้านอื่นแก้/ลบข้ามร้านไม่ได้
+- **Linked to:** BR-FBC-23
+- **Steps:** login ร้าน A จด `id` ของข้อความสำเร็จรูปจาก `GET /api/chat/quick-messages` → login ร้าน B (คนละร้าน) ยิง `PATCH` และ `DELETE /api/chat/quick-messages/{id ของร้าน A}` ตรง
+- **Expected Result:** ทั้งสองคำขอได้ `404` และข้อมูลของร้าน A **ไม่เปลี่ยนแปลง** (ตรวจซ้ำด้วย `GET` ในร้าน A)
+
+#### TC-AI-01: ขอร่างคำตอบแล้วได้ 3 แบบที่ต่างกัน
+- **Linked to:** FR-FBC-16, BR-FBC-25
+- **Precondition:** `GEMINI_API_KEY` ตั้งค่าแล้วใน env ของ environment ที่ทดสอบ; เธรดต้องมีข้อความอย่างน้อย 1 ข้อความ
+- **Steps:** เปิดเธรด → กดปุ่มประกาย (AI ช่วยร่างคำตอบ)
+- **Expected Result:** ได้ร่าง 3 อันที่เนื้อหาต่างกันจริง (ไม่ใช่ประโยคเดียวกันสลับคำ); คลิก 1 อัน → ข้อความไปอยู่ใน **ช่องพิมพ์** (แก้ได้) และ**ไม่ถูกส่งออกเอง**; มีข้อความกำกับว่าเป็นคำแนะนำจาก AI ให้ตรวจทานก่อนส่ง
+
+#### TC-AI-02: เธรดของร้านอื่น
+- **Linked to:** BR-FBC-27
+- **Steps:** ยิง `POST /api/chat/conversations/{id ของเธรดร้านอื่น}/ai-suggest` ด้วย session ของร้านตัวเอง
+- **Expected Result:** `404` — ไม่มีข้อมูลเธรดนั้นรั่วออกมาใน response ไม่ว่ารูปแบบใด
+
+#### TC-AI-03: rate-limit และกรณีไม่ได้ตั้งค่า
+- **Linked to:** PRD §6.2 (ต้นทุน/โควตา)
+- **Steps:** (ก) กดปุ่ม AI ซ้ำ ๆ เกิน 15 ครั้งภายใน 1 นาที (ข) ถ้าทดสอบบน environment ที่ไม่มี `GEMINI_API_KEY` ให้กด 1 ครั้ง
+- **Expected Result:** (ก) ครั้งที่เกินได้ `429` + ข้อความ "ใช้ AI ถี่เกินไป" ไม่ยิงต่อไปที่ Gemini (ข) เห็นข้อความว่าระบบ AI ยังไม่พร้อมใช้งาน (`503`) โดยหน้าไม่พังและปุ่มอื่นในช่องพิมพ์ยังใช้ได้
+
+#### TC-AI-04: guardrail ห้ามแต่งราคา
+- **Linked to:** BR-FBC-26
+- **Steps:** ในเธรดทดสอบ ให้ลูกค้า (หรือ seed ข้อความ) ถามว่า "ตัวนี้ราคาเท่าไร" โดยที่บทสนทนาไม่เคยระบุราคามาก่อน → กดขอร่าง
+- **Expected Result:** ร่างที่ได้ต้อง **ไม่มีตัวเลขราคาที่ระบบไม่รู้จริง** — ควรเป็นการถามกลับ/ขอข้อมูลเพิ่มอย่างสุภาพ (ถ้าพบว่า AI แต่งราคา = FAIL และต้องรายงานทันที เพราะเป็นความเสี่ยงทางธุรกิจตาม PRD §6.2)
+
+#### TC-CM-01: แผงสองอันเปิดพร้อมกันไม่ได้
+- **Linked to:** FR-FBC-15/16 (UX)
+- **Steps:** กดปุ่มข้อความสำเร็จรูป → จากนั้นกดปุ่ม AI (โดยไม่ปิดแผงแรก) → สลับกลับ
+- **Expected Result:** เปิดได้ทีละแผงเสมอ ไม่มีการกางซ้อนกัน และแผงที่เปิดอยู่ไม่บังพื้นที่อ่านข้อความจนใช้งานไม่ได้
+
+#### TC-AT-01: ไฟล์แนบ วิดีโอ/เสียง/ไฟล์ จากลูกค้า
+- **Linked to:** FR-FBC-17
+- **Steps:** ส่งวิดีโอ, ไฟล์เสียง (voice clip) และไฟล์เอกสาร จากบัญชีลูกค้าทดสอบเข้ามาทาง Messenger
+- **Expected Result:** ทั้ง 3 ชนิดปรากฏในเธรด Deep และเปิดเล่น/ดาวน์โหลดได้ในระบบเอง (ไม่ต้องเปิดแอป Messenger) — ตรวจ `ChatMessage.type` ใน DB เป็น `VIDEO`/`AUDIO`/`FILE` ตามลำดับ และไฟล์ถูก mirror เข้า storage ของ Deep (ไม่ใช่ลิงก์ตรงของ Meta ที่หมดอายุ)
 
 ---
 

@@ -3,7 +3,7 @@ title: "DATABASE — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.0"
+version: "1.1"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, database, schema]
 related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[../../superpowers/specs/2026-07-22-facebook-chat-integration-design]]"]
@@ -11,9 +11,16 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[../../superpowers/specs/2026-07-22
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** DATABASE Design
-> **เวอร์ชัน:** 1.0
+> **เวอร์ชัน:** 1.1
 > **วันที่จัดทำ:** 2026-07-22
 > **สถานะ:** Draft — `prisma/schema.prisma` แก้แล้วและ `prisma/migrations/20260722000000_facebook_chat/migration.sql` เขียนแล้ว ตรงกันกับ schema 100%; เอกสารนี้เขียนตามไฟล์ที่มีอยู่จริงในโค้ด — **สถานะการ apply จริงบน Supabase (dev/prod แชร์กัน) ไม่ได้ยืนยันจากเอกสารนี้** ต้อง `SELECT * FROM "_prisma_migrations"` หรือเทียบคอลัมน์จริงก่อนเชื่อว่า apply แล้ว
+>
+> **สถานะการ apply (2026-07-23):** migration ทั้ง 3 ไฟล์ของฟีเจอร์นี้ (`20260722000000_facebook_chat`,
+> `20260723000100_quick_message`, `20260723000200_chat_crm`) apply บน Supabase แล้ว — พิสูจน์ทางอ้อมจาก
+> ฟีเจอร์ที่ใช้ table/คอลัมน์เหล่านี้ทำงานได้จริงบน prod; ถ้าต้องการยืนยันตรง ๆ ให้เทียบกับ
+> `SELECT migration_name FROM "_prisma_migrations"`
+>
+> 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** SA/Database Agent (ดู [[Feature-Docs-Ownership]])
 
 # DATABASE: Facebook Chat Integration
@@ -48,14 +55,17 @@ Facebook Chat Integration (M00018) ต่อยอด `Conversation`/`ChatMessag
 | `ChatMessage` (มีอยู่แล้ว, feature 00011) | `senderUserId` → nullable; เพิ่ม `externalMessageId` (unique), `deliveryStatus`, `failureReason` | Additive + nullable-relax |
 | `Shop` (มีอยู่แล้ว) | เพิ่ม back-relation `channels ShopChannel[]` | Additive (relation only, ไม่มี DDL) |
 | `Customer` (มีอยู่แล้ว, feature 00014) | เพิ่ม back-relation `externalContacts ExternalContact[]` | Additive (relation only, ไม่มี DDL) |
+| `QuickMessage` (ใหม่ 2026-07-23) | table ใหม่ — ข้อความสำเร็จรูประดับร้าน (FR-FBC-15) migration `20260723000100_quick_message` | New |
+| `ExternalContact` (รอบสอง 2026-07-23) | เพิ่ม `note`, `address`, `salesStatus`, `tags[]`, `phones[]` (CRM ต่อผู้ติดต่อ, FR-FBC-14) migration `20260723000200_chat_crm` | Additive |
+| `Conversation` (รอบสอง 2026-07-23) | เพิ่ม `alias` (ชื่อที่แอดมินตั้งเรียกคู่สนทนาในเธรดนี้) migration เดียวกัน | Additive |
 
 ### สิ่งที่ตรวจสอบแล้วว่าไม่ต้องสร้าง table ใหม่เพิ่ม (ในรอบนี้)
 
 | ความต้องการ | Derivation |
 |-------------|-----------|
 | แจ้งเตือน seller เมื่อมีข้อความ FB/IG เข้าใหม่ | reuse `Notification` เดิม 100% — `kind='chat_message'`, `refId=conversationId` เหมือน feature 00011 ทุกประการ ไม่มี column ใหม่ |
-| ปักหมุด/ซ่อน/ปิดงานเธรด (S-7) | เพิ่มเป็น 3 คอลัมน์บน `Conversation` ที่มีอยู่แล้ว (`isPinned`/`isHidden`/`resolvedAt`) — **คอลัมน์มีจริงในรอบ migration นี้ แต่ไม่มี service/API ใดอ่าน-เขียนค่าเหล่านี้เลย** (ดู §8 Open Questions และ [[SRS]] §1.2) |
-| แท็ก/โน้ตภายใน (S-8) | **ไม่มี table ใดรองรับ** — ไม่มี DDL ของฟีเจอร์นี้ในรอบ migration นี้เลย ต้องออกแบบ table ใหม่เมื่อ scope ปิด (OQ-FBC-02 ใน [[BRD]] §11) |
+| ปักหมุด/ซ่อน/ปิดงานเธรด (S-7) | เพิ่มเป็น 3 คอลัมน์บน `Conversation` ที่มีอยู่แล้ว (`isPinned`/`isHidden`/`resolvedAt`) — **อัปเดต 2026-07-23: ใช้งานจริงแล้ว** ผ่าน `updateConversationState` + `PATCH /api/chat/conversations/[id]` |
+| แท็ก/โน้ตภายใน (S-8) | **อัปเดต 2026-07-23: ไม่ต้องมี table ใหม่** — เก็บเป็นคอลัมน์บน `ExternalContact` (`note`/`address`/`salesStatus`/`tags[]`/`phones[]`) + `Conversation.alias` แทน (ดู §3.6) เพราะทุกฟิลด์เป็น 1:1 กับผู้ติดต่อ/เธรด ไม่มี query ที่ต้อง join/aggregate แท็กข้ามผู้ติดต่อใน MVP |
 
 ---
 
@@ -63,6 +73,7 @@ Facebook Chat Integration (M00018) ต่อยอด `Conversation`/`ChatMessag
 
 ```mermaid
 erDiagram
+    Shop ||--o{ QuickMessage : "ข้อความสำเร็จรูปของร้าน (shopId, CASCADE)"
     Shop ||--o{ ShopChannel : "เชื่อม Page/IG (shopId, CASCADE)"
     ShopChannel ||--o{ ExternalContact : "มีผู้ติดต่อ (shopChannelId, CASCADE)"
     Customer ||--o| ExternalContact : "ผูกเมื่อได้เบอร์ (customerId, SET NULL, ยังไม่มี code path เขียน)"
@@ -100,9 +111,21 @@ erDiagram
         string shopChannelId FK "nullable — เฉพาะ MESSENGER/INSTAGRAM"
         string externalContactId FK "nullable — เฉพาะ MESSENGER/INSTAGRAM"
         datetime lastInboundAt "nullable — เวลาที่ลูกค้าทักล่าสุด, ฐาน 24h window"
-        boolean isPinned "default false — ยังไม่มี logic ใช้งาน"
-        boolean isHidden "default false — ยังไม่มี logic ใช้งาน"
-        datetime resolvedAt "nullable — ยังไม่มี logic ใช้งาน"
+        boolean isPinned "default false — ปักหมุดเธรด (S-7)"
+        boolean isHidden "default false — ซ่อนเธรด (S-7, auto-unhide เมื่อมีข้อความใหม่)"
+        datetime resolvedAt "nullable — ปิดงาน (S-7, auto-reopen เมื่อลูกค้าทักใหม่)"
+        string alias "nullable — ชื่อที่แอดมินตั้งเรียกคู่สนทนา (S-8)"
+    }
+    QuickMessage {
+        string id PK "uuid"
+        string shopId FK "Shop — CASCADE (ownership = ร้าน ไม่ใช่ผู้ใช้)"
+        string title "หัวข้อที่แสดงในแผงเลือก"
+        string category "nullable — หมวดสำหรับจัดกลุ่ม"
+        string body "เนื้อหา (ว่างได้ถ้ามีรูป)"
+        string imageFileId "nullable — storage fileId ของรูปแนบ"
+        string createdByUserId "audit เบา — ไม่ใช่ ownership"
+        datetime createdAt
+        datetime updatedAt
     }
     ChatMessage {
         string id PK "uuid — เดิม feature 00011"
@@ -166,9 +189,10 @@ Page/IG หนึ่งช่องทางที่ร้านเชื่อ
 | `shopChannelId` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | FK, UNIQUE(composite) | อ้าง `ShopChannel.id`; `ON DELETE CASCADE`; มีค่าเฉพาะเธรดช่องทางนอก |
 | `externalContactId` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | FK, UNIQUE(composite) | อ้าง `ExternalContact.id`; `ON DELETE CASCADE`; มีค่าเฉพาะเธรดช่องทางนอก |
 | `lastInboundAt` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | — | เวลาที่ "ลูกค้า" ส่งข้อความล่าสุด (ไม่ขยับเมื่อ echo/SHOP ตอบ) — ฐานคำนวณ 24h Messaging Window; ต่างจาก `lastMessageAt` เดิมที่ขยับได้ทั้ง 2 ฝั่ง |
-| `isPinned` (ใหม่) | เพิ่มคอลัมน์ | NO | `false` | INDEX(composite) | S-7 — **มีคอลัมน์แต่ไม่มี service/API อ่าน-เขียนค่านี้เลยในรอบนี้** (ทุกแถวคงค่า `false` ถาวร) |
-| `isHidden` (ใหม่) | เพิ่มคอลัมน์ | NO | `false` | INDEX(composite) | S-7 — เหมือน `isPinned` |
-| `resolvedAt` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | — | S-7 — เหมือน `isPinned`, ยังไม่มี code path เขียนค่านี้ |
+| `isPinned` (ใหม่) | เพิ่มคอลัมน์ | NO | `false` | INDEX(composite) | S-7 — **ใช้งานจริงแล้ว (2026-07-23)**: `updateConversationState` + `PATCH /api/chat/conversations/[id]` (action `pin`/`unpin`) และ `listConversationsForShop` เรียงหมุดขึ้นก่อนด้วย composite keyset cursor |
+| `isHidden` (ใหม่) | เพิ่มคอลัมน์ | NO | `false` | INDEX(composite) | S-7 — ใช้งานจริงแล้ว (action `hide`/`unhide`); auto-unhide เมื่อมีข้อความใหม่เข้ามา (BR-FBC-15) |
+| `resolvedAt` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | — | S-7 — ใช้งานจริงแล้ว (action `resolve`/`reopen`); auto-reopen เมื่อลูกค้าทักใหม่ (BR-FBC-16) |
+| `alias` (ใหม่ 2026-07-23) | เพิ่มคอลัมน์ | YES | NULL | — | FR-FBC-14 — ชื่อที่แอดมิน "ตั้งเรียก" คู่สนทนาในเธรดนี้ (ทับชื่อจาก Meta ในการแสดงผล); ใช้เป็นบริบทให้ AI ด้วย (BR-FBC-27) — migration `20260723000200_chat_crm` |
 
 **ทำไม `@@unique([buyerUserId, shopId])` เดิมยังใช้ได้แม้ `buyerUserId` เป็น nullable:** PostgreSQL ไม่บังคับ unique กับค่า `NULL` (ตาม SQL standard — `NULL` ไม่เท่ากับ `NULL` เอง) เธรด FB ทุกแถวมี `buyerUserId = NULL` จึงไม่ชนกันเองแม้จะมีหลายแถว — ไม่ต้องแก้ constraint นี้เลย
 
@@ -183,7 +207,39 @@ Page/IG หนึ่งช่องทางที่ร้านเชื่อ
 | `deliveryStatus` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | — | `NULL` = ข้อความในแอปเดิม (`channel="DEEP"`, ไม่เกี่ยวกับ field นี้เลย) \| `"SENT"` (ส่งออกสำเร็จผ่าน Graph API) \| `"FAILED"` (ส่งไม่สำเร็จ — ยังบันทึกแถวไว้ให้เห็นในเธรด ไม่ fail เงียบ) |
 | `failureReason` (ใหม่) | เพิ่มคอลัมน์ | YES | NULL | — | ข้อความ error ดิบจาก `GraphApiError`/exception เมื่อ `deliveryStatus="FAILED"` |
 
+**ค่าที่ `type` รับจริง (อัปเดต 2026-07-23):** คอลัมน์ `type` เป็น `String` ไม่ใช่ enum (convention เดิมของโปรเจกต์ — validate ที่ Valibot) comment ใน `prisma/schema.prisma` ยังเขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` แต่ค่าใช้จริงตอนนี้เพิ่ม **`"VIDEO"` / `"AUDIO"` / `"FILE"`** จากไฟล์แนบขาเข้าของ Messenger/IG (FR-FBC-17, SRS TFR-FBC-14) — ไม่ต้อง migrate เพราะเป็น `String` แต่ **comment ใน schema ยังไม่ตรงกับความจริง = doc-debt ที่ควรตามเก็บ**
+
 **ทำไม `externalMessageId` เป็น `String? @unique` ไม่ใช่ `String @unique`:** ข้อความของเธรด `channel="DEEP"` (feature 00011 เดิม) ไม่มีแนวคิดเรื่อง `mid` เลย — ถ้าบังคับ `NOT NULL` จะต้องมีค่า placeholder ปลอมสำหรับทุกแถวเดิม (data pollution) `NULL` + unique (Postgres อนุญาตหลาย `NULL` ใน unique column) จึงตรงกับความจริงว่า "field นี้มีความหมายเฉพาะข้อความช่องทางนอกเท่านั้น"
+
+### 3.5 `QuickMessage` (PostgreSQL 16, Supabase — ใหม่ 2026-07-23)
+
+ข้อความสำเร็จรูประดับร้าน (FR-FBC-15) — migration `20260723000100_quick_message`
+
+| Column | Type | Null | Default | Key | หมายเหตุ |
+|--------|------|------|---------|-----|---------|
+| `id` | `TEXT` | NO | `uuid()` (Prisma) | PK | |
+| `shopId` | `TEXT` | NO | — | FK, INDEX(composite) | อ้าง `Shop.id`; `ON DELETE CASCADE` — **ownership อยู่ที่ร้าน ไม่ใช่ผู้ใช้** (BR-FBC-23) |
+| `title` | `TEXT` | NO | — | — | หัวข้อสั้นที่แสดงในแผงเลือก (1–80 ตัวอักษร, validate ที่ Valibot) |
+| `category` | `TEXT` | YES | NULL | INDEX(composite) | หมวดสำหรับจัดกลุ่มในหน้าจัดการ (≤40) |
+| `body` | `TEXT` | NO | — | — | เนื้อหาข้อความ (≤2000) — **ว่างได้ถ้ามี `imageFileId`** (BR-FBC-24) |
+| `imageFileId` | `TEXT` | YES | NULL | — | รูปแนบ (storage fileId) — แสดงผลผ่าน `/api/files/{fileId}` เหมือนรูปในแชท ไม่ใช่ URL ภายนอก |
+| `createdByUserId` | `TEXT` | NO | — | — | audit เบา ๆ ว่าใครสร้าง — **ไม่ใช่ ownership** (ownership = `shopId`) จึงไม่มี FK constraint ไป `User` |
+| `createdAt` | `TIMESTAMP(3)` | NO | `CURRENT_TIMESTAMP` | — | |
+| `updatedAt` | `TIMESTAMP(3)` | NO | (Prisma `@updatedAt`) | — | |
+
+**ทำไมไม่มี unique บน `(shopId, title)`:** ร้านตั้งชื่อซ้ำได้โดยตั้งใจ (เช่น "ทักทาย" หลายเวอร์ชันคนละหมวด) — การบังคับ unique จะทำให้บันทึกไม่ผ่านโดยไม่มีเหตุผลทางธุรกิจรองรับ
+
+### 3.6 CRM ต่อผู้ติดต่อ — คอลัมน์เพิ่มบน `ExternalContact` (ใหม่ 2026-07-23)
+
+FR-FBC-14 (แท็ก/โน้ตภายใน) — migration `20260723000200_chat_crm`, additive ล้วน ทุกคอลัมน์มี default
+
+| Column | Type | Null | Default | หมายเหตุ |
+|--------|------|------|---------|---------|
+| `note` | `TEXT` | YES | NULL | โน้ตภายในร้าน — **ห้ามส่งออกหาลูกค้าทุกกรณี** (BR-FBC-18); ใช้เป็นบริบทให้ AI ได้แต่ AI ต้องไม่อ้างถึงว่าเป็นโน้ต (BR-FBC-27) |
+| `address` | `TEXT` | YES | NULL | ที่อยู่ที่แอดมินจดไว้ (ยังไม่ใช่ `Customer` เต็มรูป — ผูกเข้า Customer Directory เมื่อได้เบอร์จริงตาม FR-FBC-08) |
+| `salesStatus` | `TEXT` | NO | `'UNSPECIFIED'` | `UNSPECIFIED` \| `INTERESTED` \| `NOT_INTERESTED` — สถานะการขายของผู้ติดต่อรายนี้ |
+| `tags` | `TEXT[]` | NO | `ARRAY[]::TEXT[]` | แท็กภายในร้าน (array คอลัมน์เดียว ไม่ทำ table แยก — MVP ไม่มี query "หาแท็กที่ใช้บ่อย" ที่ต้องการ normalize) |
+| `phones` | `TEXT[]` | NO | `ARRAY[]::TEXT[]` | เบอร์ที่แอดมินจดไว้จากในแชท (ยังไม่ผูก `Customer` — คนละเรื่องกับ `customerId`) |
 
 ---
 
@@ -197,6 +253,7 @@ Page/IG หนึ่งช่องทางที่ร้านเชื่อ
 | `Conversation` | `(shopChannelId, externalContactId)` | UNIQUE composite | "1 เธรดต่อคู่ (Page, PSID)" — get-or-create ทุกข้อความขาเข้าใช้ lookup นี้ก่อนสร้างเธรดใหม่ (กัน race แบบเดียวกับ `@@unique([buyerUserId, shopId])` เดิม) |
 | `Conversation` | `(shopId, isHidden, isPinned, lastMessageAt DESC)` | BTREE composite | ออกแบบไว้ล่วงหน้าสำหรับ query หลักของหน้า `/inbox` ("ยังเปิดอยู่ + ไม่ซ่อน" เรียงหมุดขึ้นก่อน) — **ยังไม่มี query จริงใช้ index นี้ในโค้ดปัจจุบัน** (S-7 logic ยังไม่ implement) ใส่มาพร้อม migration เดียวกันเพื่อเลี่ยง `ALTER`/`CREATE INDEX` รอบสองบน DB ที่แชร์กับ prod |
 | `ChatMessage` | `(externalMessageId)` | UNIQUE | BR-FBC-13 — idempotency (ดู §3.4) |
+| `QuickMessage` | `(shopId, category, createdAt)` | BTREE composite | `listQuickMessages(shopId)`: filter ด้วย `shopId` แล้วเรียง `category asc, createdAt desc` — index เดียวครอบทั้ง filter และ sort ของ query เดียวที่ table นี้มี |
 
 **หมายเหตุ:** ไม่มี index ใหม่บน `lastInboundAt` เดี่ยว ๆ — `getWindowState` อ่านค่านี้จากแถวที่ query ด้วย `conversationId` (PK lookup) อยู่แล้ว ไม่มี query pattern ที่ filter/sort ด้วย `lastInboundAt` โดยตรงในโค้ดปัจจุบัน
 
@@ -224,6 +281,18 @@ Page/IG หนึ่งช่องทางที่ร้านเชื่อ
 | 14 | `CREATE UNIQUE INDEX` `(externalMessageId)` บน `ChatMessage` | ทุกแถวเดิมเป็น `NULL` — ไม่มีความเสี่ยง violation |
 
 รวมเป็น 1 migration file: `prisma/migrations/20260722000000_facebook_chat/migration.sql`
+
+**migration เพิ่มเติมหลังจากนั้น (2026-07-23 — additive ล้วนทั้งคู่, apply บน prod แล้ว):**
+
+| ลำดับ | ไฟล์ | การเปลี่ยนแปลง | ความเสี่ยง |
+|-------|------|----------------|-----------|
+| 15 | `20260722000200_shopchannel_active_partial_unique` | partial unique index บน `ShopChannel(provider, externalId)` เฉพาะแถวที่ยัง active — ให้ Page ที่ `DISCONNECTED` แล้วถูกเชื่อมใหม่ได้ (BR-FBC-01 ยังคงอยู่กับแถว active) | ต่ำ — index เพิ่ม ไม่แตะข้อมูล |
+| 16 | `20260723000100_quick_message` | `CREATE TABLE "QuickMessage"` + index `(shopId, category, createdAt)` + FK → `Shop` (CASCADE) | ไม่มี — table ใหม่ว่าง |
+| 17 | `20260723000200_chat_crm` | `ALTER TABLE "ExternalContact" ADD COLUMN` `note`/`address`/`salesStatus`/`tags`/`phones` + `ALTER TABLE "Conversation" ADD COLUMN "alias"` | ต่ำ — เพิ่มคอลัมน์ nullable หรือมี default คงที่ = metadata-only บน Postgres ≥11 |
+
+> ทั้งสองไฟล์เขียน SQL เองด้วยมือ (hand-written) ตามกฎ DB ที่ dev=prod แชร์กัน — **ห้าม `prisma migrate dev`**
+> (จะ reset ฐานจริง) ใช้ `migrate deploy -e .env.local` หลังขอ user ยืนยันเท่านั้น ดู §0 และ
+> `docs/conventions/prisma-shared-db-drift.md`
 
 ### 5.2 Migration SQL
 
