@@ -146,6 +146,36 @@ function bangkokDayIndex(d: Date): number {
  *  - ต่างปี → "D MMM(ย่อไทย) {ปี พ.ศ. 2 หลัก} HH:mm" (กันสับสนออเดอร์ข้ามปี)
  * หมายเหตุ: อ้างอิง "วันนี้" จาก new Date() ตอน render — ใช้ในการ์ด list ที่ยอมรับ relative time ได้
  */
+/**
+ * เวลาแบบสั้นที่สุดสำหรับ "รายการแชท" — user สั่ง 2026-07-23: "18 นาทีที่แล้ว กินพื้นที่ไปหน่อย
+ * ให้แสดงแค่ 18 น., 18 ชม., 1 วัน, เกิน 7 วันแสดง 16 ก.ค. และถ้าไม่ใช่ปีปัจจุบันแสดง 16 ก.ค. 68"
+ *
+ *  <1 นาที → "เมื่อกี้" · <60 นาที → "18 น." · <24 ชม. → "18 ชม." · ≤7 วัน → "1 วัน"
+ *  >7 วัน ปีนี้ → "16 ก.ค." · ต่างปี → "16 ก.ค. 68" (พ.ศ. 2 หลัก)
+ *
+ * นับ "วัน" ด้วยวันตามปฏิทินไทย (bangkokDayIndex) ไม่ใช่ 24 ชม.เป๊ะ — ข้อความเมื่อคืนควรอ่านว่า
+ * "1 วัน" ไม่ใช่ "13 ชม." ตามที่คนไทยเข้าใจ. อยู่ในไฟล์นี้เพราะเป็น SSOT ของการ format วันที่
+ * ทั้งระบบ (docs/conventions/date-format.md — ห้ามเรียก Intl/toLocaleDateString เองที่ component)
+ */
+export function formatChatListTime(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const now = new Date()
+  const diffMs = Math.max(0, now.getTime() - d.getTime())
+  const min = Math.floor(diffMs / 60_000)
+  if (min < 1) return 'เมื่อกี้'
+  if (min < 60) return `${min} น.`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} ชม.`
+  const diffDays = bangkokDayIndex(now) - bangkokDayIndex(d)
+  if (diffDays <= 7) return `${Math.max(1, diffDays)} วัน`
+  const p = partsInBangkok(d)
+  const monthAbbr = THAI_MONTHS_ABBR[Number(p.month) - 1] ?? '—'
+  const dayNoPad = String(Number(p.day)) // "16 ก.ค." ไม่ใช่ "16 ก.ค." แบบเติมศูนย์
+  if (Number(p.year) === Number(partsInBangkok(now).year)) return `${dayNoPad} ${monthAbbr}`
+  return `${dayNoPad} ${monthAbbr} ${String(Number(p.year) + BE_OFFSET).slice(-2)}`
+}
+
 export function formatRelativeDayTime(input: Date | string | number | null | undefined): string {
   const d = toValidDate(input)
   if (!d) return '—'
