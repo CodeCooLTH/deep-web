@@ -33,7 +33,11 @@ type PickerProduct = {
   isActive: boolean
   /** null = ร้านไม่ได้ track สต็อก (ไม่มี Inventory add-on หรือไม่ได้เปิด track ต่อสินค้า) */
   stockQty: number | null
+  /** จำนวนขายรวม — มาจาก `?sort=best` (0 = ยังไม่เคยขาย) */
+  soldCount?: number
 }
+
+const formatThb = (n: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
 
 /** เนื้อหาที่จะเติมลงช่องพิมพ์ — text และ/หรือ รูปแนบ */
 export type ProductPickPayload = { text?: string; imageFileId?: string }
@@ -65,7 +69,8 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
     setLoading(true)
     setFailed(false)
     try {
-      const res = await fetch('/api/products', { cache: 'no-store' })
+      // ?sort=best — ขายดีก่อน (user สั่ง 2026-07-23) แล้วต่อด้วยตัวที่ยังไม่เคยขาย + แนบ soldCount
+      const res = await fetch('/api/products?sort=best', { cache: 'no-store' })
       if (!res.ok) {
         setFailed(true)
         return
@@ -192,11 +197,19 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
             />
           </div>
 
-          <div className="flex max-h-64 flex-col gap-2 overflow-y-auto overscroll-contain">
+          {/* สไลด์แนวนอน เรียงขายดีก่อน (user สั่ง 2026-07-23 + ส่งภาพ "สินค้าขายดี" บน command center
+              มาให้เป็นแบบ) — Base: (dashboard)/dashboard/components/BestSellerStrip.tsx ทั้งการ์ด
+              (w-24 / aspect-square / line-clamp-2 / ราคา bold primary / บรรทัดที่ 3 เป็น meta) และ
+              พฤติกรรม scroll-snap + ซ่อน scrollbar. ต่างจากต้นแบบแค่ปลายทางของการกด: ที่นั่น
+              navigate ไป /orders/new ที่นี่เปิดหน้าเลือกรูปแบบการส่ง */}
+          <div
+            className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: 'none' }}
+          >
             {loading ? (
               <>
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="bg-default-100 h-14 animate-pulse rounded-lg" role="status" aria-label="กำลังโหลดสินค้า" />
+                  <div key={i} className="bg-default-100 h-36 w-24 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลดสินค้า" />
                 ))}
               </>
             ) : failed ? (
@@ -219,26 +232,37 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
                     type="button"
                     onClick={() => setSelected(p)}
                     disabled={disabled}
-                    className={`bg-card border-default-200 hover:border-info text-default-800 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                    aria-label={`${p.name} ${formatThb(p.price)}`}
+                    className={`w-24 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
                       disabled ? 'pointer-events-none opacity-50' : ''
                     }`}
                   >
                     {src ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" loading="lazy" className="bg-default-100 size-10 shrink-0 rounded object-cover" />
+                      <img src={src} alt={p.name} loading="lazy" className="aspect-square w-full object-cover" />
                     ) : (
-                      <span className="bg-default-100 text-default-500 flex size-10 shrink-0 items-center justify-center rounded">
-                        <Icon icon="package" className="text-base" />
+                      <span className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-default-100 text-default-300">
+                        <Icon icon="package" className="size-8" />
+                        <span className="text-2xs">ไม่มีรูป</span>
                       </span>
                     )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{p.name}</span>
-                      <span className="text-default-700 block text-xs">
-                        {priceText(p.price)}
-                        {p.stockQty !== null && ` · คงเหลือ ${p.stockQty}`}
-                      </span>
-                    </span>
-                    <Icon icon="chevron-right" className="text-default-500 shrink-0 text-base" />
+                    <div className="p-2">
+                      <p className="line-clamp-2 text-xs font-medium text-dark">{p.name}</p>
+                      <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
+                      {/* บรรทัดที่ 3 ตาม BestSellerStrip — แต่สลับเป็น "คงเหลือ" เมื่อร้าน track สต็อก
+                          เพราะในบริบทแชท สิ่งที่แม่ค้าต้องรู้ก่อนตอบลูกค้าคือ "ของยังมีไหม" */}
+                      {p.stockQty !== null ? (
+                        <p className="text-default-700 mt-1 flex items-center gap-1 truncate text-2xs">
+                          <Icon icon="stack-2" className="size-3 shrink-0" />
+                          คงเหลือ {p.stockQty.toLocaleString('th-TH')}
+                        </p>
+                      ) : (
+                        <p className="text-default-700 mt-1 flex items-center gap-1 truncate text-2xs">
+                          <Icon icon="package" className="size-3 shrink-0" />
+                          ขายแล้ว {(p.soldCount ?? 0).toLocaleString('th-TH')} ชิ้น
+                        </p>
+                      )}
+                    </div>
                   </button>
                 )
               })
