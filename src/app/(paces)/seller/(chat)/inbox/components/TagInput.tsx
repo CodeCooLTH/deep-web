@@ -17,25 +17,38 @@ type Props = {
   placeholder?: string
 }
 
-// cache ต่อ session — ไม่ยิงซ้ำทุกครั้งที่ mount TagInput (context menu สร้างใหม่บ่อย)
+// cache ต่อ session — ใช้เป็น "ค่าเริ่มต้นระหว่างรอ" ไม่ใช่คำตอบสุดท้าย (stale-while-revalidate)
+// bug fix 2026-07-23: ของเดิม `if (cachedTags) return` แล้วข้ามการ fetch — แต่ `[]` เป็น truthy
+// ใน JS ร้านที่เปิดหน้าตอนยังไม่มีแท็กเลยจะติด cache ว่างถาวรทั้ง session แท็กที่เพิ่มทีหลัง
+// (หรือที่คนอื่นในร้านเพิ่ม) ไม่มีวันโผล่จนกว่าจะรีเฟรชทั้งหน้า
 let cachedTags: string[] | null = null
 
 export default function TagInput({ selected, onAdd, placeholder = 'เพิ่มแท็ก' }: Props) {
   const [input, setInput] = useState('')
   const [allTags, setAllTags] = useState<string[]>(cachedTags ?? [])
+  const [loading, setLoading] = useState(cachedTags === null)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (cachedTags) return
+    let cancelled = false
+    // ยิงทุกครั้งที่ mount แต่แสดง cache เดิมไปพลางก่อน — context menu สร้าง component ใหม่บ่อย
+    // ก็จริง แต่ endpoint นี้เบามาก (distinct tag ของร้าน) แลกกับข้อมูลที่ไม่ค้างคุ้มกว่า
     fetch('/api/chat/tags', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : { tags: [] }))
       .then((d) => {
+        if (cancelled) return
         const tags: string[] = Array.isArray(d.tags) ? d.tags : []
         cachedTags = tags
         setAllTags(tags)
       })
       .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -101,7 +114,10 @@ export default function TagInput({ selected, onAdd, placeholder = 'เพิ่�
         </button>
       </div>
 
-      {open && (suggestions.length > 0 || showCreate) && (
+      {/* เปิดแล้วต้องเห็นอะไรบางอย่างเสมอ (bug fix 2026-07-23: user จิ้มช่องแล้วไม่เห็นอะไรเลย
+          จนแยกไม่ออกว่าระบบพังหรือแค่ยังไม่มีแท็ก) — เดิมซ่อนทั้งกล่องเมื่อไม่มี suggestion และ
+          ยังไม่ได้พิมพ์ ซึ่งเป็นเคสปกติของร้านที่เพิ่งเริ่มใช้แท็ก */}
+      {open && (
         <div className="border-default-300 bg-card absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border shadow-lg">
           {suggestions.map((t) => (
             <button key={t} type="button" onClick={() => add(t)} className="dropdown-item text-sm">
@@ -114,6 +130,15 @@ export default function TagInput({ selected, onAdd, placeholder = 'เพิ่�
               <Icon icon="plus" className="size-4" />
               เพิ่ม “{q}”
             </button>
+          )}
+          {suggestions.length === 0 && !showCreate && (
+            <p className="text-default-400 px-3 py-2.5 text-xs">
+              {loading
+                ? 'กำลังโหลดแท็ก...'
+                : allTags.length === 0
+                  ? 'ยังไม่มีแท็กที่เคยใช้ — พิมพ์ชื่อแท็กแล้วกด + เพื่อสร้างใหม่'
+                  : 'แท็กที่มีถูกใช้กับแชทนี้ครบแล้ว — พิมพ์เพื่อสร้างแท็กใหม่'}
+            </p>
           )}
         </div>
       )}
