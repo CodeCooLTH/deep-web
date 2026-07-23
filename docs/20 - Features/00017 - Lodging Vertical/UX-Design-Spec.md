@@ -1,7 +1,7 @@
 ---
 title: "UX Design Spec — 00017 Lodging Vertical (Phase 1)"
 owner: shinobu22
-status: draft
+status: implemented
 created: 2026-07-22
 tags: [feature, ux, design-spec, paces, lodging]
 related: ["[[BRD]]", "[[SDS]]", "[[API]]"]

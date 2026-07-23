@@ -1,7 +1,7 @@
 ---
 title: "SRS — 00017 Lodging Vertical"
 owner: shinobu22
-status: draft
+status: implemented
 created: 2026-07-22
 tags: [feature, srs, technical, lodging, booking]
 related: ["[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
@@ -11,7 +11,7 @@ related: ["[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 > **ประเภทเอกสาร:** Software Requirements Specification (Technical)
 > **เวอร์ชัน:** 0.1
 > **วันที่จัดทำ:** 2026-07-22
-> **สถานะ:** Draft
+> **สถานะ:** Implemented — deployed prod 2026-07-23 (migration M1+M2+M3 applied)
 
 # SRS: ประเภทกิจการบ้านพักตากอากาศ (Technical)
 

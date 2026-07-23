@@ -1,7 +1,7 @@
 ---
 title: "SDS — 00017 Lodging Vertical"
 owner: shinobu22
-status: draft
+status: implemented
 created: 2026-07-22
 tags: [feature, sds, design, lodging, booking]
 related: ["[[SRS]]", "[[API]]", "[[DATABASE]]", "[[BRD]]"]
@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[API]]", "[[DATABASE]]", "[[BRD]]"]
 > **ประเภทเอกสาร:** System Design Spec
 > **เวอร์ชัน:** 0.1
 > **วันที่จัดทำ:** 2026-07-22
-> **สถานะ:** Draft
+> **สถานะ:** Implemented — deployed prod 2026-07-23 (migration M1+M2+M3 applied)
 
 # SDS: ประเภทกิจการบ้านพักตากอากาศ
 
