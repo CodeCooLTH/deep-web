@@ -87,8 +87,7 @@ export const SellerChartSkeleton = () => (
       <PulseBar className="h-8 w-28 rounded-full" />
     </div>
     <div className="card-body">
-      {/* chart area block */}
-      <PulseBar className="h-[360px] w-full rounded" />
+      <PulseBar className="h-[360px] w-full rounded" /> {/* HR7 carve-out (เดิม): พื้นที่กราฟ — ApexChart กำหนดความสูงเป็น px ผ่าน prop `height` ไม่มี Paces token ให้ใช้ */}
       <span className="sr-only">กำลังโหลด...</span>
     </div>
   </div>
@@ -188,8 +187,12 @@ const Bubble = ({ align }: { align: 'start' | 'end' }) => (
   </div>
 )
 
-export const SellerThreadSkeleton = () => (
-  <div className="card">
+/** className: ต่อท้าย `.card` ให้ caller คุมเรขาคณิตได้ (เช่น `min-w-0 h-full flex-1` ให้ตรงกับ
+ *  การ์ดเธรดจริงใน ChatThread.tsx เป๊ะ) — ไม่ส่ง = พฤติกรรมเดิมทุกประการ (h-fit เต็มความกว้าง)
+ *  `.card` เป็น `flex flex-col` อยู่แล้ว (custom/_card.css) และ `.card-body` เป็น `flex-auto`
+ *  → พอสูงเต็ม แถบ composer จะถูกดันไปติดล่างเองเหมือนหน้าจริง ไม่ต้องใส่ mt-auto */
+export const SellerThreadSkeleton = ({ className }: { className?: string } = {}) => (
+  <div className={`card ${className ?? ''}`}>
     <div className="card-header">
       <div className="flex items-center gap-3">
         <PulseBar className="size-9 rounded-full" />

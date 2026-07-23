@@ -114,15 +114,27 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                 onClick={() => !disabled && onPick(qm)}
                 disabled={disabled}
                 title={qm.body || qm.title}
-                className={`bg-card border-default-200 hover:border-primary text-default-800 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                className={`bg-card border-default-200 hover:border-primary text-default-800 flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
                   disabled ? 'pointer-events-none opacity-50' : ''
                 }`}
               >
-                <span className="flex items-center gap-1.5 font-medium">
-                  {qm.imageFileId && <Icon icon="photo" className="text-default-400 shrink-0 text-sm" />}
-                  <span className="truncate">{qm.title}</span>
+                {/* thumbnail รูปที่แนบไว้ (user สั่ง 2026-07-23: "ถ้ามีการแนบรูปมา ต้องโชว์ด้วย
+                    ตอนนี้มันไม่เห็นรูปที่แนบคู่ไว้") — เดิมมีแค่ไอคอน photo เล็ก ๆ บอกว่า "มีรูป"
+                    ซึ่งบอกไม่ได้ว่ารูปไหน ต้องเปิดหน้าจัดการดูเอง. serve ผ่าน /api/files/{fileId}
+                    เหมือนที่ QuickMessageManager preview ใช้ (storage ไม่ได้ public URL) */}
+                {qm.imageFileId && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/files/${qm.imageFileId}`}
+                    alt=""
+                    loading="lazy"
+                    className="bg-default-100 size-12 shrink-0 rounded object-cover"
+                  />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{qm.title}</span>
+                  {qm.body && <span className="text-default-500 mt-0.5 line-clamp-2 block text-xs">{qm.body}</span>}
                 </span>
-                {qm.body && <span className="text-default-500 mt-0.5 line-clamp-2 block text-xs">{qm.body}</span>}
               </button>
             ))
           )}
