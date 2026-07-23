@@ -55,6 +55,14 @@
  * ของมันคือ (chat)/layout.tsx flex h-dvh) ไม่ต้องคำนวณ viewport เองอีกต่อไป (HR7 carve-out
  * เดิมของบรรทัดนี้จึงหมดไปด้วย — h-full เป็น Tailwind scale ปกติ)
  *
+ * ดูรูปเต็มจอ (user request 2026-07-23 "คลิกที่รูป เพื่อดูรูปแบบ Full-screen"): คลิกรูปในบับเบิล
+ * → เปิด Lightbox เต็มจอ เลื่อนดูรูปอื่นในเธรดเดียวกันได้ (ซ้าย/ขวา, ปัดบนมือถือ)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/pages/gallery/components/Gallery.tsx:100 —
+ * `<Lightbox slides open index close controller={{closeOnBackdropClick:true}} />` verbatim
+ * (slides เปลี่ยนจาก photo album ของ demo เป็นรูปในเธรด); เพิ่ม plugin Zoom ของไลบรารีเดียวกัน
+ * เพราะรูปในแชทส่วนใหญ่เป็นสลิปโอนเงิน/ใบเสร็จที่ต้องซูมอ่านตัวเลข (plugin นี้ไม่มี css แยก
+ * — styles.css ที่ src/assets/css/app.css:36 import อยู่แล้วครอบให้ทั้งหมด)
+ *
  * เพิ่มปุ่ม "กลับรายการ" (มือถือ/แท็บเล็ต <1024px) ที่ card-header — เดิมพึ่ง SellerMobileHeader
  * ของ (dashboard) layout (back button + bottom nav) เป็นทางออกจากหน้าเธรด แต่ (chat) route group
  * ไม่มีทั้งสองอย่างแล้ว (ดู (chat)/layout.tsx) ต้องมีปุ่มกลับรายการของตัวเอง (แยกจากปุ่ม
@@ -62,6 +70,8 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
+import Lightbox from 'yet-another-react-lightbox'
+import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useState, useEffect } from 'react'
@@ -261,6 +271,9 @@ export default function ChatThread({
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
   const [sheetOpen, setSheetOpen] = useState(false)
+  // ดูรูปเต็มจอ — index ของรูปที่เปิดอยู่ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
+  // (ต้องประกาศตรงนี้กับ hook ตัวอื่น ห้ามย้ายลงไปหลัง early return ของ errorState/loadingInitial)
+  const [lightboxIndex, setLightboxIndex] = useState(-1)
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -375,6 +388,18 @@ export default function ChatThread({
     ? ([...messages].reverse().find((m) => m.senderRole === 'SHOP')?.id ?? null)
     : null
   const readAtMs = externalReadAt ? new Date(externalReadAt).getTime() : 0
+
+  // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
+  // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
+  // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
+  const imageSlides: { src: string }[] = []
+  const slideIndexByMessageId = new Map<string, number>()
+  for (const m of messages) {
+    if (m.type === 'IMAGE' && m.imageUrl) {
+      slideIndexByMessageId.set(m.id, imageSlides.length)
+      imageSlides.push({ src: `/api/files/${m.imageUrl}` })
+    }
+  }
 
   return (
     <>
@@ -503,12 +528,22 @@ export default function ChatThread({
                         ) : (
                           <>
                             {m.type === 'IMAGE' && m.imageUrl && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={`/api/files/${m.imageUrl}`}
-                                alt="รูปภาพที่ส่ง"
-                                className="max-w-60 rounded"
-                              />
+                              // คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
+                              // ครอบแทนใส่ onClick บน <img> เพื่อให้โฟกัส/คีย์บอร์ด/screen reader ใช้ได้จริง
+                              // (block + w-fit กันปุ่มยืดเต็มความกว้างบับเบิลจนกดโดนที่ว่างข้างรูป)
+                              <button
+                                type="button"
+                                onClick={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
+                                aria-label="ดูรูปเต็มจอ"
+                                className="block w-fit cursor-zoom-in"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={`/api/files/${m.imageUrl}`}
+                                  alt="รูปภาพที่ส่ง"
+                                  className="max-w-60 rounded"
+                                />
+                              </button>
                             )}
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
@@ -803,6 +838,17 @@ export default function ChatThread({
     {sheetOpen && (
       <CustomerPanelSheet data={customerPanelData} onClose={() => setSheetOpen(false)} />
     )}
+
+    {/* ดูรูปเต็มจอ — Base Gallery.tsx:100 (เพิ่ม plugin Zoom + แปลป้าย a11y เป็นไทย) */}
+    <Lightbox
+      slides={imageSlides}
+      open={lightboxIndex >= 0}
+      index={lightboxIndex}
+      close={() => setLightboxIndex(-1)}
+      controller={{ closeOnBackdropClick: true }}
+      plugins={[Zoom]}
+      labels={{ Previous: 'รูปก่อนหน้า', Next: 'รูปถัดไป', Close: 'ปิด', 'Zoom in': 'ขยาย', 'Zoom out': 'ย่อ' }}
+    />
     </>
   )
 }
