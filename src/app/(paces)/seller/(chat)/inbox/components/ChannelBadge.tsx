@@ -84,26 +84,41 @@ export type ChannelBadgeProps = {
   /** 'DEEP' | 'MESSENGER' | 'INSTAGRAM' — ค่าอื่น fallback เป็น DEEP */
   channel: string
   size?: 'sm' | 'md'
+  /** ข้อความบน pill แทนชื่อช่องทาง — ใช้ใส่ "ชื่อเพจ" (user request 2026-07-23: ร้านที่มีหลายเพจ
+   *  ต้องรู้ว่าลูกค้าคนนี้ทักมาจากเพจไหน คำว่า "Messenger" ซ้ำกันทุกเธรดจนไม่ให้ข้อมูลอะไร)
+   *  โลโก้แบรนด์ยังอยู่เหมือนเดิม (บอกช่องทาง) — null/ไม่ส่ง = ใช้ชื่อช่องทางเหมือนเดิม (เธรด Deep) */
+  label?: string | null
 }
 
 /** inline pill badge (icon + label) — ใช้ข้าง header เธรด / ชื่อลูกค้าใน Customer Panel */
-export function ChannelBadge({ channel, size = 'sm' }: ChannelBadgeProps) {
+export function ChannelBadge({ channel, size = 'sm', label }: ChannelBadgeProps) {
   const display = getChannelDisplay(channel)
   const iconDim = size === 'md' ? 16 : 14
+  const text = label?.trim() || display.label
   return (
+    // max-w-56 + truncate: ชื่อเพจยาวได้ไม่จำกัด (ต่างจากชื่อช่องทางที่สั้นเสมอ) — กันดัน layout
+    // header/Customer Panel พัง; title ให้ hover เห็นชื่อเต็ม
     <span
-      className={`badge bg-default-100 text-default-700 inline-flex items-center gap-1 ${
+      className={`badge bg-default-100 text-default-700 inline-flex max-w-56 items-center gap-1 ${
         size === 'md' ? 'text-xs' : 'text-2xs'
       }`}
+      title={text}
     >
       {display.logoSrc ? (
         // โลโก้แบรนด์จริง — brand asset (Hard Rule 6 carve-out) ไม่ใช่ tabler icon
+        // alt ยังเป็นชื่อช่องทาง (โลโก้สื่อถึงช่องทาง ไม่ใช่เพจ) — ข้อความข้าง ๆ บอกชื่อเพจอยู่แล้ว
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={display.logoSrc} alt={display.label} width={iconDim} height={iconDim} />
+        <img src={display.logoSrc} alt={display.label} width={iconDim} height={iconDim} className="shrink-0" />
       ) : (
-        <Icon icon={display.icon} width={iconDim} height={iconDim} className={display.iconClassName} style={display.iconStyle} />
+        <Icon
+          icon={display.icon}
+          width={iconDim}
+          height={iconDim}
+          className={`shrink-0 ${display.iconClassName ?? ''}`}
+          style={display.iconStyle}
+        />
       )}
-      {display.label}
+      <span className="truncate">{text}</span>
     </span>
   )
 }

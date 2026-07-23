@@ -115,7 +115,9 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           customer: { select: { id: true, phone: true } },
         },
       },
-      shopChannel: { select: { status: true } },
+      // name: ชื่อเพจ — badge ที่ header เธรด/Customer Panel แสดงชื่อเพจแทนคำว่า "Messenger"
+      // (user request 2026-07-23: ร้านมีหลายเพจ ต้องรู้ว่าลูกค้าทักมาจากเพจไหน)
+      shopChannel: { select: { status: true, name: true } },
     },
   })
 
@@ -141,6 +143,9 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // ไม่งั้นเธรดของเพจที่ถอดไปแล้วจะเปิดช่องพิมพ์ให้ แล้วไปเด้ง error ตอนกดส่ง
   const tokenInvalid =
     conversation.channel !== 'DEEP' && (conversation.shopChannel?.status ?? 'ACTIVE') !== 'ACTIVE'
+
+  // ชื่อเพจที่เธรดนี้ผูกอยู่ (null = เธรด Deep / ไม่มี ShopChannel) — badge ใช้แทนชื่อช่องทาง
+  const channelName = conversation.shopChannel?.name ?? null
 
   // T5 — ประเภทกิจการ (fallback GENERAL เมื่อค่าไม่รู้จัก ห้าม crash/ซ่อน CTA — ภาคผนวก A-1)
   const vertical = isShopVertical(shop.vertical) ? shop.vertical : DEFAULT_SHOP_VERTICAL
@@ -198,6 +203,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   const customerPanelData: CustomerPanelData = {
     contactName: buyerDisplayName,
     channel: conversation.channel,
+    channelName,
     vertical,
     customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
     orders: panelOrders,
@@ -217,6 +223,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         buyerName={buyerDisplayName}
         buyerAvatar={buyerAvatar}
         channel={conversation.channel}
+        channelName={channelName}
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
         tokenInvalid={tokenInvalid}

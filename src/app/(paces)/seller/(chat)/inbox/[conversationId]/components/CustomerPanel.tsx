@@ -56,6 +56,8 @@ export type CustomerPanelOrder = {
 export type CustomerPanelData = {
   contactName: string
   channel: string // 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
+  /** ชื่อเพจที่เธรดผูกอยู่ — badge แสดงชื่อเพจแทนชื่อช่องทาง (ให้ตรงกับ header เธรด) null = Deep */
+  channelName: string | null
   vertical: ShopVertical
   /** null = ยังไม่ผูก Customer — phoneMasked ผ่าน maskPhone() มาแล้วเสมอ (ห้ามส่งเบอร์เต็ม) */
   customer: { id: string; phoneMasked: string } | null
@@ -110,7 +112,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         </span>
         <div className="min-w-0">
           <p className="text-default-900 mb-1 truncate text-sm font-semibold">{data.contactName}</p>
-          <ChannelBadge channel={data.channel} />
+          <ChannelBadge channel={data.channel} label={data.channelName} />
         </div>
       </div>
 
