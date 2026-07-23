@@ -866,3 +866,24 @@ export const AvailabilityQuerySchema = v.object({
 export const CancelOrderSchema = v.object({
   reason: v.optional(v.picklist(CANCEL_REASON_KEYS)),
 });
+
+// ── feature 00017 Lodging Vertical (Phase 3 — แม่บ้าน) ───────────────────────
+export const CreateHousekeeperSchema = v.object({
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+  phone: v.pipe(v.string(), v.minLength(9), v.maxLength(20)),
+});
+
+export const UpdateHousekeeperSchema = v.object({
+  name: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(100))),
+  phone: v.optional(v.pipe(v.string(), v.minLength(9), v.maxLength(20))),
+  isActive: v.optional(v.boolean()),
+});
+
+// มอบหมายแม่บ้าน — housekeeperId เป็น null ได้ (ยกเลิกมอบหมาย)
+export const AssignHousekeeperSchema = v.object({
+  housekeeperId: v.nullable(v.pipe(v.string(), v.uuid())),
+});
+
+export const SetHousekeepingStatusSchema = v.object({
+  status: v.picklist(["PENDING", "DONE"]),
+});
