@@ -97,6 +97,8 @@ type Props = {
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
    *  (user request 2026-07-23) null = เธรด Deep หรือหาเพจไม่เจอ → badge กลับไปใช้ชื่อช่องทาง */
   channelName: string | null
+  /** รูปเพจ (ShopChannel.avatarUrl) — badge ช่องทางใช้รูปเพจแทนโลโก้ Facebook ถ้ามี (user 2026-07-23) */
+  channelAvatarUrl: string | null
   /** feature 00018 — ผลลัพธ์ getWindowState() คำนวณที่ server ณ เวลา render หน้า (ไม่ live-tick) */
   windowOpen: boolean
   msRemaining: number
@@ -250,6 +252,7 @@ export default function ChatThread({
   externalReadAt,
   channel,
   channelName,
+  channelAvatarUrl,
   windowOpen,
   msRemaining,
   tokenInvalid,
@@ -395,7 +398,7 @@ export default function ChatThread({
           <ChatAvatar avatar={buyerAvatar} name={buyerName} />
           <div>
             <h5 className="text-base mb-1.25">{buyerName}</h5>
-            <ChannelBadge channel={channel} label={channelName} />
+            <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
           </div>
         </div>
       </div>

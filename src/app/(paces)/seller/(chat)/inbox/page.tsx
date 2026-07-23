@@ -144,6 +144,8 @@ export default async function SellerInboxPage() {
         buyerUserId: c.buyerUserId,
         shopId: c.shopId,
         channel: c.channel,
+        // shopChannelId: ใช้หา "รูปเพจ" ฝั่ง client จาก channels ที่ส่งไปด้วยกัน (ไม่ query เพิ่ม)
+        shopChannelId: c.shopChannelId,
         lastMessageAt: c.lastMessageAt.toISOString(),
         lastMessagePreview: c.lastMessagePreview,
         lastSenderRole: c.lastSenderRole,
