@@ -75,7 +75,8 @@ export default function ConversationRowMenu({ isPinned, isResolved, hiddenContex
         >
           <div className="space-y-0.5 p-1">
             <button type="button" className="dropdown-item text-sm" role="menuitem" onClick={() => pick(isPinned ? 'unpin' : 'pin')}>
-              <Icon icon={isPinned ? 'pinned-off' : 'pin'} className="size-4" />
+              {/* ดาว ไม่ใช่หมุด — ให้ตรงกับปุ่มดาวหน้าแถว (user สั่ง 2026-07-23) */}
+              <Icon icon={isPinned ? 'star-off' : 'star'} className="size-4" />
               {isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
             </button>
             <button type="button" className="dropdown-item text-sm" role="menuitem" onClick={() => pick(isResolved ? 'reopen' : 'resolve')}>
