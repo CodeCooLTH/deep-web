@@ -77,6 +77,7 @@ import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErr
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerPanelSheet from './CustomerPanelSheet'
+import EmojiPicker from './EmojiPicker'
 import type { CustomerPanelData } from './CustomerPanel'
 
 type Props = {
@@ -247,6 +248,9 @@ export default function ChatThread({
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
   const [sheetOpen, setSheetOpen] = useState(false)
+  // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
+  // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
+  const [emojiOpen, setEmojiOpen] = useState(false)
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -517,6 +521,24 @@ export default function ChatThread({
             />
             <Icon icon={uploading ? 'loader-2' : 'paperclip'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
           </label>
+
+          {/* composer improvement #1 — ปุ่ม emoji + popover (emoji เป็น Unicode text ธรรมดา ส่งได้ทุก
+              ช่องทางรวม Messenger/IG); disabled เฉพาะเมื่อส่งไม่ได้ (window ปิด/token ตาย) */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setEmojiOpen((v) => !v)}
+              disabled={composerDisabled}
+              aria-label="เลือกอิโมจิ"
+              aria-expanded={emojiOpen}
+              className={`btn btn-icon border-default-300 ${emojiOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            >
+              <Icon icon="mood-smile" className="text-lg" />
+            </button>
+            {emojiOpen && (
+              <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
+            )}
+          </div>
 
           <div className="input-icon-group grow">
             <Icon icon="message" className="input-icon" />
