@@ -2,9 +2,9 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, sendTextMessage, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, sendTextMessage, sendImageMessage, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
-import { saveFile } from '@/lib/storage'
+import { saveFile, getFileUrl } from '@/lib/storage'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
@@ -340,7 +340,9 @@ export async function ingestInboundMessage(params: {
 export async function sendOutboundMessage(params: {
   conversationId: string
   actorUserId: string
-  text: string
+  // text = ข้อความ (หรือ caption ของรูป); imageFileId = ส่งรูป (storage fileId) — อย่างน้อยต้องมีอย่างหนึ่ง
+  text?: string
+  imageFileId?: string
 }) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
@@ -363,18 +365,28 @@ export async function sendOutboundMessage(params: {
   if (conversation.shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_NOT_ACTIVE')
 
   const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+  const recipientId = conversation.externalContact.externalUserId
+  const isImage = !!params.imageFileId
+  const bodyText = params.text ?? ''
 
   let mid: string | null = null
   let failureReason: string | null = null
   try {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
-    // sendTextMessage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจให้เองแล้ว
-    mid = await sendTextMessage(
-      pageToken,
-      conversation.externalContact.externalUserId,
-      params.text,
-    )
+    // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
+    if (isImage) {
+      // presigned URL อายุ 1 ชม. — Meta ดึงรูปไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
+      const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
+      mid = await sendImageMessage(pageToken, recipientId, imageUrl)
+      // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
+      // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
+      if (bodyText.trim()) {
+        await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
+      }
+    } else {
+      mid = await sendTextMessage(pageToken, recipientId, bodyText)
+    }
   } catch (e) {
     failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
     // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
@@ -383,7 +395,7 @@ export async function sendOutboundMessage(params: {
     }
   }
 
-  const preview = params.text.slice(0, 100)
+  const preview = isImage ? '[รูปภาพ]' : bodyText.slice(0, 100)
 
   let message
   try {
@@ -395,8 +407,10 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: 'TEXT',
-          body: params.text,
+          type: isImage ? 'IMAGE' : 'TEXT',
+          // รูป: body=null (caption ส่งแยกเป็นข้อความ echo มาเอง), imageUrl=fileId; ข้อความ: body=text
+          body: isImage ? null : bodyText,
+          imageUrl: isImage ? params.imageFileId! : null,
           externalMessageId: mid || null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
           failureReason,

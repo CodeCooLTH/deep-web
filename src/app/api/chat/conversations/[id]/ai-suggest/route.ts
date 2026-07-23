@@ -103,7 +103,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (e instanceof GeminiApiError) {
       console.error("[ai-suggest] gemini:", e.message);
-      return NextResponse.json({ error: "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง" }, { status: 502 });
+      // detail: surface สาเหตุจริงจาก Gemini ชั่วคราวเพื่อ diagnose (ไม่มี secret — ดู comment ใน gemini.ts)
+      return NextResponse.json(
+        { error: "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง", detail: e.message },
+        { status: 502 },
+      );
     }
     console.error("[POST /api/chat/conversations/[id]/ai-suggest]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
