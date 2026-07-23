@@ -10,7 +10,7 @@
  * ปัญหาคือ "เรขาคณิตคนละอัน": ของเดิมที่นี่เป็น `.card` เปล่า (h-fit, เต็มความกว้าง ไม่มีคอลัมน์
  * ข้อมูลลูกค้า) พอ RSC เสร็จ skeleton ตัวที่ 2 โผล่แบบแคบลง (flex-1 ข้าง CustomerPanel w-96) และ
  * สูงเต็มจอ → เห็นเป็น skeleton คนละก้อนซ้อนกัน 2 รอบ. แก้ด้วยการ mirror โครงของ page.tsx ตรง ๆ
- * (flex h-full gap-4 + คอลัมน์ข้อมูลลูกค้า ≥1024px) และให้การ์ดสูงเต็มเท่ากัน → ทั้ง 2 ช่วงทับกัน
+ * (flex h-full + คอลัมน์ข้อมูลลูกค้า ≥1024px) และให้การ์ดสูงเต็มเท่ากัน → ทั้ง 2 ช่วงทับกัน
  * พอดีจนดูเป็น skeleton ก้อนเดียวที่ค้างอยู่จนข้อความมาจริง
  *
  * Base: src/app/(paces)/seller/(dashboard)/auctions/[id]/loading.tsx (structure pattern)
@@ -19,7 +19,7 @@ import { SellerThreadSkeleton, SellerCardSkeleton } from '@/app/(paces)/seller/(
 
 const InboxThreadLoading = () => (
   // โครงเดียวกับ page.tsx เป๊ะ (thread flex-1 + ข้อมูลลูกค้า w-96 เฉพาะ ≥1024px)
-  <div className="flex h-full gap-4">
+  <div className="flex h-full">
     <SellerThreadSkeleton className="min-w-0 h-full flex-1" />
     <div className="hidden h-full w-96 shrink-0 lg:block">
       <SellerCardSkeleton />
