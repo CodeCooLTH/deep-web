@@ -260,6 +260,9 @@ export default function ChatThread({
   const [emojiOpen, setEmojiOpen] = useState(false)
   // composer improvement #3 — แผง AI ช่วยร่างคำตอบ (Gemini)
   const [aiOpen, setAiOpen] = useState(false)
+  // composer improvement #2 — แถบข้อความสำเร็จรูป: ซ่อนไว้ก่อน เปิดด้วยปุ่มสายฟ้าในแถวเครื่องมือ
+  // (user สั่ง 2026-07-23) — เดิมกางค้างเหนือช่องพิมพ์ตลอดเวลา กินที่ทั้งที่ไม่ได้ใช้ทุกครั้ง
+  const [quickOpen, setQuickOpen] = useState(false)
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -308,6 +311,8 @@ export default function ChatThread({
     } else if (qm.body) {
       setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
     }
+    // เลือกแล้วหุบแถบเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างบังช่องพิมพ์ต่อ
+    setQuickOpen(false)
   }
 
   // ── render ───────────────────────────────────────────────────────────
@@ -543,15 +548,34 @@ export default function ChatThread({
           />
         )}
 
-        {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) เหนือช่องพิมพ์ */}
-        <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />
+        {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) — โผล่เมื่อกดปุ่มสายฟ้า
+            ในแถวเครื่องมือเท่านั้น (user สั่ง 2026-07-23) */}
+        {quickOpen && <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />}
 
-        {/* items-end: ช่องพิมพ์สูงได้ (เมื่อมีรูปแนบข้างใน) ปุ่มยังอยู่แถวล่างชิดกับช่องพิมพ์ */}
-        <div className="flex items-end gap-2">
+        {/* layout ตามที่ user สั่ง 2026-07-23 (ref 12Tees — HR6: เอาโครงจาก ref, skin เป็น Paces):
+              [ แผง AI ]
+              [ แถวปุ่มเครื่องมือ ]
+              [ ช่องพิมพ์ ][ ปุ่มส่ง ]
+            เดิมทุกอย่างอยู่แถวเดียวกันหมด (ปุ่ม 4 ตัว + input + ส่ง) — บนมือถือ/rail แคบ ๆ ช่องพิมพ์
+            ถูกบีบจนพิมพ์ยาว ๆ ไม่เห็นข้อความตัวเอง แยกแถวแล้วช่องพิมพ์ได้ความกว้างเต็ม */}
+        <div className="mb-2 flex items-center gap-1">
+          {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
+          <button
+            type="button"
+            onClick={() => setQuickOpen((v) => !v)}
+            disabled={composerDisabled}
+            aria-label="ข้อความสำเร็จรูป"
+            aria-expanded={quickOpen}
+            title="ข้อความสำเร็จรูป"
+            className={`btn btn-icon hover:bg-default-100 shrink-0 ${quickOpen ? 'bg-default-100 text-default-900' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            <Icon icon="bolt" className="text-lg" />
+          </button>
+
           {/* feature 00018 T4 — disabled ถาวรเมื่อ channel != DEEP (backend คืน 400 ถ้าส่งรูปช่องทาง
               นอก — กันที่ UI ก่อนถึง error นั้น) หรือ composer ปิดทั้งชุด (window/token) */}
           <label
-            className={`btn btn-icon border-default-300 shrink-0 ${attachDisabled || composerDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+            className={`btn btn-icon text-default-600 hover:bg-default-100 shrink-0 ${attachDisabled || composerDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
             aria-label={attachDisabled ? 'ยังไม่รองรับการส่งรูปในช่องทางนี้' : 'แนบรูปภาพ'}
           >
             <input
@@ -573,7 +597,7 @@ export default function ChatThread({
               disabled={composerDisabled}
               aria-label="เลือกอิโมจิ"
               aria-expanded={emojiOpen}
-              className={`btn btn-icon border-default-300 ${emojiOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+              className={`btn btn-icon text-default-600 hover:bg-default-100 ${emojiOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
             >
               <Icon icon="mood-smile" className="text-lg" />
             </button>
@@ -590,13 +614,37 @@ export default function ChatThread({
             aria-label="AI ช่วยร่างคำตอบ"
             aria-expanded={aiOpen}
             title="AI ช่วยร่างคำตอบ"
-            className={`btn btn-icon border-default-300 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="sparkles" className="text-lg" />
           </button>
 
-          {/* ช่องพิมพ์แบบกล่องเดียว — รูปที่แนบอยู่ "ข้างในช่องพิมพ์" (user request 2026-07-23) ให้รู้สึก
-              ว่ารูปติดกับข้อความนี้ (เหมือน Messenger); caption พิมพ์ต่อในแถวเดียวกันด้านล่างรูป */}
+          {/* feature 00018 T5 — เปิด Customer Panel แบบ sheet เฉพาะจอเล็ก (<1024px) ที่ desktop ใช้
+              CustomerPanel.tsx แบบ persistent column แทน (ดู page.tsx)
+              ms-auto: ดันไปชิดขวาสุดของแถวเครื่องมือ — คนละกลุ่มกับปุ่มแต่งข้อความ 3 ตัวทางซ้าย */}
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            aria-label="ข้อมูลลูกค้า"
+            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 lg:hidden"
+          >
+            <Icon icon="user-circle" className="text-lg" />
+          </button>
+        </div>
+
+        {/* แถวช่องพิมพ์ + ปุ่มส่ง — textarea (ไม่ใช่ input) เพราะต้อง "สูงขึ้นตอนโฟกัส" ตามที่สั่ง
+            Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx:93
+            (`<textarea rows className="form-textarea">`) — ต้องใช้ .form-textarea ไม่ใช่ .form-input
+            เพราะ .form-input ล็อก h-9.25 + py-0 ไว้สำหรับบรรทัดเดียว ส่วน .form-textarea เป็น h-auto!
+            (custom/_forms.css:56) จึงยืดได้จริง
+            min-h-11 ปกติ (tap target 44px) → focus:min-h-20 (Tailwind scale ปกติ ไม่ใช่ arbitrary — HR7)
+            resize-none: ห้ามลากขยายเอง (จะพัง layout การ์ด); Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่
+            (พฤติกรรมเดิมของ input ที่ต้องคงไว้ — textarea จะขึ้นบรรทัดใหม่เองถ้าไม่ preventDefault)
+            items-end: ปุ่มส่งชิดล่างเสมอเวลา textarea ยืด ไม่ลอยกลาง */}
+        <div className="flex items-end gap-2">
+          {/* ช่องพิมพ์แบบกล่องเดียว — รูปที่แนบแสดง "ในช่องพิมพ์" (user request 2026-07-23) ให้รู้สึกว่า
+              รูปติดกับข้อความนี้ (เหมือน Messenger); textarea ข้างในไร้ขอบ (กล่องนอกเป็นคนวาดขอบ) แต่ยัง
+              ยืดตอนโฟกัสได้เหมือนเดิม (min-h-11 → focus:min-h-20). border ของกล่อง = focus-within:border-primary */}
           <div
             className={`grow overflow-hidden rounded-lg border bg-light/20 ${
               composerDisabled ? 'border-default-300 opacity-60' : 'border-default-300 focus-within:border-primary'
@@ -618,23 +666,20 @@ export default function ChatThread({
                 </div>
               </div>
             )}
-            <div className="flex items-center">
-              <Icon icon="message" className="text-default-400 ms-3 shrink-0 text-lg" />
-              <input
-                type="text"
-                className="grow border-0 bg-transparent px-2 py-2.5 text-sm outline-none focus:ring-0"
-                placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSend()
-                  }
-                }}
-                disabled={composerDisabled}
-              />
-            </div>
+            <textarea
+              rows={1}
+              className="min-h-11 block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none transition-all focus:min-h-20 focus:ring-0"
+              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              disabled={composerDisabled}
+            />
           </div>
 
           <button
@@ -644,17 +689,6 @@ export default function ChatThread({
             className="btn bg-primary text-white hover:bg-primary-hover shrink-0 disabled:opacity-60"
           >
             ส่ง <Icon icon="send-2" className="ms-1 text-xl" />
-          </button>
-
-          {/* feature 00018 T5 — เปิด Customer Panel แบบ sheet เฉพาะจอเล็ก (<1024px) ที่ desktop ใช้
-              CustomerPanel.tsx แบบ persistent column แทน (ดู page.tsx) */}
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            aria-label="ข้อมูลลูกค้า"
-            className="btn btn-icon border-default-300 shrink-0 lg:hidden"
-          >
-            <Icon icon="user-circle" className="text-lg" />
           </button>
         </div>
       </div>

@@ -4,7 +4,14 @@ import 'server-only'
 // ห้าม import ฝั่ง client: GEMINI_API_KEY เป็น secret อ่านจาก process.env เท่านั้น ไม่ส่งออก client
 // เรียก REST ตรง (ไม่พึ่ง SDK) — payload/response ชัดเจน คุม dependency ไม่เพิ่ม
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash'
+// รายชื่อโมเดลที่จะลองตามลำดับ — Google ปลดระวางโมเดลเป็นระยะแล้วคืน 404 ทันที (บั๊กจริง prod
+// 2026-07-23: gemini-2.0-flash ถูกปิด "no longer available" ทั้งฟีเจอร์ AI ตายทันทีโดยไม่มี fallback)
+// ตั้ง GEMINI_MODEL ใน env = บังคับใช้ตัวเดียวไม่ต้อง fallback (เช่นเวลาต้องล็อกรุ่น/ต้นทุน)
+// ลำดับ default: รุ่นใหม่ก่อน แล้วถอยไปรุ่นเสถียรที่ถูกกว่า — อ้างอิงรายชื่อโมเดลปัจจุบันจาก
+// https://ai.google.dev/gemini-api/docs/models (ตรวจ 2026-07-23; 2.0-flash/2.0-flash-lite ตายแล้ว)
+const MODEL_CANDIDATES: string[] = process.env.GEMINI_MODEL
+  ? [process.env.GEMINI_MODEL]
+  : ['gemini-3.6-flash', 'gemini-2.5-flash']
 const GEMINI_ENDPOINT = (model: string, key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
 
@@ -82,24 +89,38 @@ export async function generateReplySuggestions(
     },
   }
 
-  let res: Response
-  try {
-    res = await fetch(GEMINI_ENDPOINT(GEMINI_MODEL, key), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
-  } catch (e) {
-    throw new GeminiApiError(`fetch failed: ${e instanceof Error ? e.message : 'unknown'}`)
-  }
+  // ไล่ลองทีละโมเดล — ถอยไปตัวถัดไปเฉพาะ 404 (โมเดลถูกปลดระวาง/โปรเจกต์ไม่มีสิทธิ์ใช้รุ่นนั้น)
+  // เท่านั้น; error อื่น (401 key ผิด, 429 โควตาหมด, 400 payload ผิด) ถอยไปก็เจอเหมือนเดิม
+  // ต้องโยนทันทีเพื่อให้เห็นสาเหตุจริง ไม่ใช่ไล่ยิงซ้ำเปล่า ๆ
+  let res: Response | null = null
+  let lastError = ''
+  for (const model of MODEL_CANDIDATES) {
+    let attempt: Response
+    try {
+      attempt = await fetch(GEMINI_ENDPOINT(model, key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+    } catch (e) {
+      throw new GeminiApiError(`fetch failed (${model}): ${e instanceof Error ? e.message : 'unknown'}`)
+    }
 
-  if (!res.ok) {
+    if (attempt.ok) {
+      res = attempt
+      break
+    }
+
     // เก็บ error body ของ Gemini ด้วย (มี message อธิบายสาเหตุจริง เช่น model ไม่มี/สิทธิ์ไม่พอ/
     // API ยังไม่เปิดใช้) — ไม่มี key ใน body (key อยู่ query string เท่านั้น) จึงปลอดภัยพอจะ surface
-    const errBody = await res.text().catch(() => '')
-    throw new GeminiApiError(`gemini responded ${res.status}: ${errBody.slice(0, 400)}`)
+    const errBody = await attempt.text().catch(() => '')
+    lastError = `gemini responded ${attempt.status} (${model}): ${errBody.slice(0, 400)}`
+    if (attempt.status !== 404) throw new GeminiApiError(lastError)
+    console.warn(`[gemini] model ${model} ใช้ไม่ได้ (404) — ลองตัวถัดไป`)
   }
+
+  if (!res) throw new GeminiApiError(lastError || 'no usable gemini model')
 
   const data = (await res.json().catch(() => null)) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[]

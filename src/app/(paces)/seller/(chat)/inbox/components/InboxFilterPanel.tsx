@@ -49,6 +49,10 @@ type Props = {
   value: ChatFilterState
   onChange: (patch: Partial<ChatFilterState>) => void
   onClear: () => void
+  /** controlled open — state อยู่ที่ InboxList เพื่อให้ popover ตัวกรองเปิดได้ทีละตัว
+   *  (bug: เดิมต่างคนต่างถือ state เปิดพร้อมกันแล้วทับกันเอง) */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 function RadioRow({ selected, label, onClick }: { selected: boolean; label: string; onClick: () => void }) {
@@ -66,17 +70,16 @@ function RadioRow({ selected, label, onClick }: { selected: boolean; label: stri
   )
 }
 
-export default function InboxFilterPanel({ value, onChange, onClear }: Props) {
-  const [open, setOpen] = useState(false)
+export default function InboxFilterPanel({ value, onChange, onClear, open, onOpenChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const activeCount = countActiveFilters(value)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) onOpenChange(false)
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') onOpenChange(false)
     }
     if (open) {
       document.addEventListener('mousedown', handleClickOutside)
@@ -86,13 +89,15 @@ export default function InboxFilterPanel({ value, onChange, onClear }: Props) {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, onOpenChange])
 
   return (
-    <div className="relative" ref={ref}>
+    // ไม่มี `relative` ที่ root โดยตั้งใจ — popover อ้างอิง "แถวตัวกรอง" (relative ที่ InboxList)
+    // ไม่ใช่ปุ่ม เพื่อให้กว้างเท่าแถวพอดี ไม่ล้น Chat Rail/ขอบจอ (ดู comment ที่ popover)
+    <div ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((p) => !p)}
+        onClick={() => onOpenChange(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
         className={`btn btn-sm inline-flex items-center gap-1.5 ${
@@ -108,14 +113,16 @@ export default function InboxFilterPanel({ value, onChange, onClear }: Props) {
       </button>
 
       {open && (
+        // inset-x-0 (ไม่ใช่ start-0 + w-72/w-80): กว้างเท่า "แถวตัวกรอง" พอดีเสมอ ไม่ล้นออกนอก
+        // Chat Rail (320px) / ขอบจอมือถือ — ดู comment เดียวกันที่ PageFilterDropdown.tsx
         <div
-          className="absolute top-full start-0 z-30 mt-1 w-72 overflow-hidden rounded border border-default-300 bg-card shadow-lg sm:w-80"
+          className="absolute top-full inset-x-0 z-30 mt-1 overflow-hidden rounded-lg border border-default-300 bg-card shadow-lg"
           role="menu"
         >
           {/* header */}
           <div className="flex items-center justify-between border-b border-default-200 px-3 py-2">
             <span className="text-default-800 text-sm font-semibold">ตัวกรอง</span>
-            <button type="button" onClick={() => setOpen(false)} className="text-default-500 hover:text-default-800 flex size-6 items-center justify-center rounded" aria-label="ปิด">
+            <button type="button" onClick={() => onOpenChange(false)} className="text-default-500 hover:text-default-800 flex size-6 items-center justify-center rounded" aria-label="ปิด">
               <Icon icon="x" className="size-4" />
             </button>
           </div>
@@ -162,7 +169,7 @@ export default function InboxFilterPanel({ value, onChange, onClear }: Props) {
             >
               ล้างตัวกรอง
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="btn btn-sm bg-primary text-white hover:bg-primary-hover">
+            <button type="button" onClick={() => onOpenChange(false)} className="btn btn-sm bg-primary text-white hover:bg-primary-hover">
               เสร็จสิ้น
             </button>
           </div>

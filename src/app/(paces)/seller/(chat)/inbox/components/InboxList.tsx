@@ -192,6 +192,8 @@ export default function InboxList({
   const [pageFilter, setPageFilter] = useState('') // shopChannelId, '' = ทุกเพจ
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
   const [filter, setFilter] = useState<ChatFilterState>(DEFAULT_CHAT_FILTER)
+  // popover ตัวกรองเปิดได้ทีละตัว — state อยู่ที่นี่ (bug: เดิมสองตัวถือ state เอง เปิดพร้อมกันแล้วทับกัน)
+  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
 
   // ── ช่องค้นหา ──
@@ -257,7 +259,12 @@ export default function InboxList({
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
     setChannelTab(tab)
-    if (tab === 'DEEP') setPageFilter('')
+    if (tab === 'DEEP') {
+      setPageFilter('')
+      // ตัวกรอง "เพจ" ถูกซ่อนเมื่อ tab=Deep — ถ้า popover ของมันเปิดค้างอยู่ต้องเคลียร์ state ด้วย
+      // ไม่งั้น openPanel ค้างเป็น 'page' ทั้งที่ component ถูก unmount ไปแล้ว
+      setOpenPanel((p) => (p === 'page' ? null : p))
+    }
   }
 
   const clearFilters = () => {
@@ -398,7 +405,11 @@ export default function InboxList({
 
   return (
     <div className="card">
-      <div className="card-header flex flex-col gap-3 border-dashed">
+      {/* items-stretch: `.card-header` ของ Paces เป็น `flex flex-wrap items-center justify-between`
+          (custom/_card.css) — พอ override เป็น flex-col แล้ว `items-center` ที่เหลืออยู่จะบีบทุกแถว
+          ให้กว้างเท่าเนื้อหาแล้วจัดกึ่งกลาง (ปุ่มลอยกลาง ไม่ตรงกับแถวรายการข้างล่างที่ชิดซ้าย +
+          แถวตัวกรองไม่เต็มความกว้างจน popover ที่อ้าง inset-x-0 แคบตาม) — ต้อง stretch ทับ */}
+      <div className="card-header flex flex-col items-stretch gap-3 border-dashed">
         {/* ช่องค้นหา — Base ContactList.tsx:19-24 — railMode (desktop rail) ย้ายขึ้น topbar
             แล้ว (ChatSearchBox.tsx) ไม่ render ซ้ำที่นี่ — มือถือ/แท็บเล็ต drill-down ยังมีเหมือนเดิม */}
         {!railMode && (
@@ -457,15 +468,26 @@ export default function InboxList({
 
         {/* แถวตัวกรอง — S-7: ปุ่ม "ตัวกรอง" (สถานะ/ผูกลูกค้า/ที่ซ่อน) แสดงเสมอ (ใช้ได้ทุกช่องทาง);
             ตัวกรอง "เพจ" ยังซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจ */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* relative ที่ "แถว" ไม่ใช่ที่ปุ่ม — popover ของทั้งสองตัวใช้ inset-x-0 อ้างอิงแถวนี้ จึงกว้าง
+            เท่าแถวพอดีเสมอ ไม่ล้นออกนอก Chat Rail (320px)/ขอบจอมือถือ (bug จริงบน prod: ล้นแล้ว
+            ancestor scroll แนวนอน ทั้งรายการเลื่อนซ้ายค้าง เลื่อนกลับไม่ได้เพราะ scrollbar ถูกซ่อน) */}
+        <div className="relative flex flex-wrap items-center gap-2">
           <InboxFilterPanel
             value={filter}
             onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
             onClear={() => setFilter(DEFAULT_CHAT_FILTER)}
+            open={openPanel === 'filter'}
+            onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
           />
 
           {channelTab !== 'DEEP' && channels.length > 0 && (
-            <PageFilterDropdown value={pageFilter} options={channels} onChange={setPageFilter} />
+            <PageFilterDropdown
+              value={pageFilter}
+              options={channels}
+              onChange={setPageFilter}
+              open={openPanel === 'page'}
+              onOpenChange={(o) => setOpenPanel(o ? 'page' : null)}
+            />
           )}
 
           {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น */}
