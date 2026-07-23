@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext } from "@/lib/shop-context";
-import { listChannels } from "@/services/shop-channel.service";
+import { listChannels, resubscribeShopChannels } from "@/services/shop-channel.service";
 
 // T1 (feature 00018): list ช่องทาง (ShopChannel) ของร้าน — ใช้โดย Chat Rail filter "เพจ" +
 // หน้า /settings/channels
@@ -44,6 +44,39 @@ export async function GET() {
     return NextResponse.json({ items: channels }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     console.error("[GET /api/channels] shopId:", activeCtx.shopId, e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/channels — ซิงก์ subscription ของทุกเพจในร้าน (subscribed_fields ชุดล่าสุด)
+ *
+ * ทำไมต้องมี (user report 2026-07-23 "อ่านแล้วแต่ไม่ขึ้นว่าอ่านแล้ว"): Meta ล็อก `subscribed_fields`
+ * ไว้ตั้งแต่ตอนกดเชื่อมเพจครั้งแรก — เพจที่เชื่อมก่อนเราเพิ่ม field `message_reads` (read receipt)
+ * จะไม่ได้รับ event นั้นเลยตลอดไป ทั้งที่ webhook handler ฝั่งเรารองรับแล้ว. เดิมทางแก้เดียวคือ
+ * ถอดเพจแล้วเชื่อมใหม่ผ่าน OAuth ทั้งชุด — หนักเกินเหตุสำหรับการเรียก API เดียวที่ Meta idempotent
+ *
+ * ไม่รับ body ใด ๆ (ไม่มีอะไรให้ตั้งค่า) — ทำกับ "ร้านที่ active ของผู้เรียก" เท่านั้น
+ */
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const userId = (session.user as { id: string }).id;
+
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
+  });
+  if (!activeCtx) {
+    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+  }
+
+  try {
+    const result = await resubscribeShopChannels(activeCtx.shopId);
+    return NextResponse.json(result, { headers: NO_STORE_HEADERS });
+  } catch (e: unknown) {
+    console.error("[POST /api/channels] shopId:", activeCtx.shopId, e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }

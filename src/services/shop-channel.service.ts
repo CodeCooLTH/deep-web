@@ -244,6 +244,37 @@ export async function getChannelByExternalId(
   }
 }
 
+/**
+ * resubscribeChannel — สั่ง Meta subscribe webhook ของเพจนี้ใหม่ด้วย field ชุดล่าสุด
+ *
+ * ทำไมต้องมี: `subscribed_fields` ถูกล็อกไว้ตั้งแต่ตอนกดเชื่อมเพจครั้งแรก — เพจที่เชื่อมก่อนเรา
+ * เพิ่ม field ใหม่ (เช่น `message_reads` ของ read receipt) จะ **ไม่ได้รับ event นั้นเลยตลอดไป**
+ * ทั้งที่โค้ดฝั่งเรารองรับแล้ว (user report 2026-07-23: "อ่านแล้วแต่ไม่ขึ้นว่าอ่านแล้ว")
+ * เดิมทางเดียวที่แก้ได้คือถอดเพจแล้วเชื่อมใหม่ผ่าน OAuth ทั้งชุด — หนักเกินความจำเป็น
+ *
+ * ฝั่ง Meta เป็น idempotent (เรียกซ้ำได้) — ownership อยู่ใน WHERE {id, shopId} ตามแบบเดียวกับ
+ * disconnectChannel; token ถอดรหัสแล้วอยู่ในฟังก์ชันนี้เท่านั้น ไม่คืนออกไป
+ */
+export async function resubscribeShopChannels(shopId: string): Promise<{ ok: number; failed: number }> {
+  // subscribe ที่ระดับ **Page** เท่านั้น — event ของ Instagram ก็วิ่งผ่าน subscription ของ Page
+  // ที่ผูก IG account นั้น (Meta ไม่มี subscribed_apps แยกของ IG) จึงไม่ต้องวนแถว INSTAGRAM
+  const pages = await prisma.shopChannel.findMany({
+    where: { shopId, provider: 'MESSENGER', status: { not: 'DISCONNECTED' } },
+  })
+  let ok = 0
+  let failed = 0
+  for (const row of pages) {
+    try {
+      await subscribePageToApp(row.externalId, decryptToken(row.accessTokenEnc))
+      ok++
+    } catch (e) {
+      failed++
+      console.error('[shop-channel] resubscribe ล้มเหลว', row.externalId, e instanceof Error ? e.message : e)
+    }
+  }
+  return { ok, failed }
+}
+
 export async function markChannelTokenInvalid(channelId: string): Promise<void> {
   await prisma.shopChannel.update({ where: { id: channelId }, data: { status: 'TOKEN_INVALID' } })
 }

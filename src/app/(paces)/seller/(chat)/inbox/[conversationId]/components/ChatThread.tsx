@@ -260,7 +260,7 @@ export default function ChatThread({
   buyerName,
   buyerAvatar,
   shopAvatar,
-  externalReadAt,
+  externalReadAt: externalReadAtInitial,
   channel,
   channelName,
   channelAvatarUrl,
@@ -330,6 +330,7 @@ export default function ChatThread({
     handleRemoveImage,
     handleSend,
     retryMessage,
+    externalReadAt: externalReadAtLive,
   } = useSellerChatThread(conversationId)
 
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
@@ -401,7 +402,10 @@ export default function ChatThread({
   const lastShopMsgId = isExternal
     ? ([...messages].reverse().find((m) => m.senderRole === 'SHOP')?.id ?? null)
     : null
-  const readAtMs = externalReadAt ? new Date(externalReadAt).getTime() : 0
+  // ค่าจาก hook (สดจาก GET ล่าสุด) มาก่อน prop ของ server (อ่านครั้งเดียวตอน render หน้า) — read
+  // event ของ Meta มาทีหลังและไม่ทริกเกอร์ realtime จึงต้องพึ่ง refetch รอบถัดไป (bug fix 2026-07-23)
+  const readAt = externalReadAtLive ?? externalReadAtInitial
+  const readAtMs = readAt ? new Date(readAt).getTime() : 0
 
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ

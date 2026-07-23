@@ -55,7 +55,13 @@ export type ChatMessageView = {
   _retry?: OutgoingRetry
 }
 
-type MessagesApiResponse = { items: ChatMessageView[]; nextCursor: string | null }
+type MessagesApiResponse = {
+  items: ChatMessageView[]
+  nextCursor: string | null
+  /** watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt) — มากับทุก GET เพื่อให้ป้าย
+   *  "ส่งแล้ว → อ่านแล้ว" อัปเดตได้เองโดยไม่ต้องรีโหลดหน้า (read event ไม่ทริกเกอร์ realtime) */
+  externalReadAt?: string | null
+}
 
 export type PendingImage = { fileId: string; previewUrl: string }
 
@@ -78,6 +84,7 @@ export function useSellerChatThread(conversationId: string) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
+  const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [uploading, setUploading] = useState(false)
   // optimistic send: composer ไม่ block ระหว่างส่งอีกต่อไป (แต่ละบับเบิลมี _status ของตัวเอง) —
@@ -127,6 +134,7 @@ export function useSellerChatThread(conversationId: string) {
         if (cancelled) return
         setMessages([...data.items].reverse())
         setOldestCursor(data.nextCursor)
+        if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
         scrollToBottom()
         // mark-read ทันทีตอนเปิด thread (ไม่ debounce รอบแรก)
         fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
@@ -195,6 +203,7 @@ export function useSellerChatThread(conversationId: string) {
       const res = await fetch(`/api/chat/conversations/${conversationId}/messages?take=30`)
       if (!res.ok) return
       const data: MessagesApiResponse = await res.json()
+      if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
       setMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]))
         for (const m of data.items) map.set(m.id, m)
@@ -234,6 +243,18 @@ export function useSellerChatThread(conversationId: string) {
       document.removeEventListener('visibilitychange', handler)
       window.removeEventListener('focus', handler)
     }
+  }, [refetchNewer])
+
+  // poll เบา ๆ ระหว่างเปิดเธรดอยู่ — read receipt ของ Meta มาทาง webhook โดย **ไม่ insert
+  // ChatMessage** จึงไม่มี realtime broadcast ให้เกาะ (ต่างจากข้อความใหม่) ถ้าไม่ poll ป้าย
+  // "ส่งแล้ว → อ่านแล้ว" จะไม่ขยับเลยจนกว่าผู้ใช้จะสลับแท็บกลับมาหรือมีข้อความใหม่เข้า
+  // (user report 2026-07-23). หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') refetchNewer()
+    }
+    const t = setInterval(tick, 20_000)
+    return () => clearInterval(t)
   }, [refetchNewer])
 
   // ── load-older: sentinel บนสุด + preserve scroll position ──────────────
@@ -405,5 +426,8 @@ export function useSellerChatThread(conversationId: string) {
     handleSend,
     // optimistic send — resend เมื่อบับเบิล _status='failed'
     retryMessage,
+    /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
+     *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
+    externalReadAt,
   }
 }
