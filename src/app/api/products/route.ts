@@ -6,13 +6,14 @@ import { CreateProductSchema } from "@/lib/validations";
 import {
   createProduct,
   getProductsByShop,
+  getBestSellerProducts,
   serializeProduct,
 } from "@/services/product.service";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
 import { isCostEditAllowed } from "@/services/expense-access.service";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -21,6 +22,22 @@ export async function GET() {
   const shop = active.shop;
 
   const products = await getProductsByShop(shop.id);
+
+  // ?sort=best — เรียงขายดีก่อน (feature 00018: แถบเลือกสินค้าในช่องพิมพ์ user สั่ง 2026-07-23)
+  // คืน "สินค้าทั้งหมด" เหมือนเดิม แค่สลับลำดับ: ตัวที่เคยขายได้เรียงตามยอดขายรวม desc แล้วต่อด้วย
+  // ตัวที่ยังไม่เคยขาย (คงลำดับ createdAt desc เดิม) — client จึงค้นหาได้ครบทั้งแคตตาล็อกเหมือนเดิม
+  if (request.nextUrl.searchParams.get("sort") === "best") {
+    const best = await getBestSellerProducts(shop.id, 50);
+    const rank = new Map(best.map((p, i) => [p.id, i]));
+    const soldById = new Map(best.map((p) => [p.id, p.soldCount]));
+    const ranked = products.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+    const rest = products.filter((p) => !rank.has(p.id));
+    // แนบ soldCount ("ขายแล้ว X ชิ้น") ให้ UI แสดงแบบเดียวกับ BestSellerStrip บน command center
+    return NextResponse.json(
+      [...ranked, ...rest].map((p) => ({ ...serializeProduct(p), soldCount: soldById.get(p.id) ?? 0 })),
+    );
+  }
+
   return NextResponse.json(products.map(serializeProduct));
 }
 

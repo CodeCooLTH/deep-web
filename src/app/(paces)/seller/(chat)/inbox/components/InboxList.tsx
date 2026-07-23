@@ -80,7 +80,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
-import { relativeTimeTh } from '@/lib/relative-time-th'
+import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
@@ -721,7 +721,7 @@ export default function InboxList({
                     {/* timestamp — สีตามสถานะอ่าน (main); ตัว indicator ปักหมุดอยู่หน้าชื่อแล้ว
                         (เดิมเป็นไอคอนหมุดเล็ก ๆ นำหน้าเวลา ซึ่งมองไม่ค่อยเห็นและกดไม่ได้) */}
                     <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
-                      {relativeTimeTh(new Date(c.lastMessageAt).getTime())}
+                      {formatChatListTime(c.lastMessageAt)}
                     </span>
                     {/* resolved กับ unread ไม่โชว์พร้อมกัน (เธรดปิดงานแล้วไม่มี unread ตาม flow) —
                         resolved = badge "ปิดงานแล้ว" (S-7), ไม่งั้น badge จำนวนที่ยังไม่อ่าน (99+, main) */}

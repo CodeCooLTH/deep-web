@@ -706,8 +706,12 @@ export const SwitchActiveShopSchema = v.object({
 
 export const SendChatMessageSchema = v.object({
   type: v.picklist(["TEXT", "IMAGE", "PRODUCT"]),
-  body: v.optional(v.pipe(v.string(), v.maxLength(2000))),
-  imageUrl: v.optional(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
+  // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
+  // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
+  // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
+  // (bug prod 2026-07-23) route เช็ค conditional-required ต่ออยู่แล้ว null จึงปลอดภัย
+  body: v.nullish(v.pipe(v.string(), v.maxLength(2000))),
+  imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
 });
 // ตรวจ conditional-required ที่ route:
