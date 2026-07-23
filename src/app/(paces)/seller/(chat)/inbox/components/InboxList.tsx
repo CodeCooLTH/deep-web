@@ -88,8 +88,9 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
-import ConversationRowMenu, { type RowAction } from './ConversationRowMenu'
+import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu from './ChatContextMenu'
+import SwipeableRow from './SwipeableRow'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
@@ -601,8 +602,42 @@ export default function InboxList({
               // (สีเดียวกับดาว) — แถวปกติใส่ border-transparent ความหนาเท่ากันไว้ด้วย ไม่งั้นเนื้อหา
               // ขยับ 2px ตอนกด/เลิกปักหมุด. ลำดับ "ปักหมุดขึ้นบนสุด" backend จัดให้แล้ว (S-7
               // pin-first keyset cursor) ฝั่งนี้ไม่ต้องเรียงซ้ำ
-              <div
+              <SwipeableRow
                 key={c.id}
+                actionsWidth={168}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
+                      disabled={actioningId === c.id}
+                      className="bg-warning text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={c.isPinned ? 'star-off' : 'star'} width={18} height={18} />
+                      {c.isPinned ? 'เลิกปัก' : 'ปักหมุด'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, isResolved ? 'reopen' : 'resolve')}
+                      disabled={actioningId === c.id}
+                      className="bg-success text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={isResolved ? 'arrow-back-up' : 'circle-check'} width={18} height={18} />
+                      {isResolved ? 'เปิดใหม่' : 'ปิดงาน'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, filter.hidden ? 'unhide' : 'hide')}
+                      disabled={actioningId === c.id}
+                      className="bg-default-500 text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={filter.hidden ? 'eye' : 'eye-off'} width={18} height={18} />
+                      {filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
+                    </button>
+                  </>
+                }
+              >
+              <div
                 onContextMenu={
                   c.channel !== 'DEEP'
                     ? (e) => {
@@ -707,17 +742,7 @@ export default function InboxList({
                   </span>
                 </Link>
 
-                {/* kebab actions — นอก Link (sibling) — เหลือเฉพาะ <1024px: จอสัมผัสไม่มี hover
-                    จึงต้องมีทางเข้าถึง action แบบกดได้จริง (ชุดปุ่มลอยด้านล่างใช้ไม่ได้บนจอสัมผัส) */}
-                <div className="flex items-center pe-2 lg:hidden">
-                  <ConversationRowMenu
-                    isPinned={c.isPinned}
-                    isResolved={isResolved}
-                    hiddenContext={filter.hidden}
-                    busy={actioningId === c.id}
-                    onAction={(a) => handleRowAction(c.id, a)}
-                  />
-                </div>
+                {/* mobile (<1024px): ปุ่ม ⋮ ถูกแทนด้วย "ปัดซ้าย" (SwipeableRow) — user request 2026-07-23 */}
 
                 {/* ชุดปุ่มลอย (≥1024px) — โผล่เมื่อ hover แถวนั้น (user สั่ง 2026-07-23: "ปุ่ม action
                     กินพื้นที่เกินไป ให้ปิดงาน/ซ่อน โผล่ตอน hover เป็นลอย ๆ") ปุ่มถาวรกินความกว้าง
@@ -761,6 +786,7 @@ export default function InboxList({
                   </button>
                 </div>
               </div>
+              </SwipeableRow>
             )
           })}
 
