@@ -35,13 +35,13 @@
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
 import Link from 'next/link'
-import { useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { formatDate } from '@/lib/format-date'
 import type { ShopVertical } from '@/lib/lodging'
 import { ChannelBadge } from '../../components/ChannelBadge'
-import CustomerCrmSection from './CustomerCrmSection'
+import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 
 export type CustomerPanelOrder = {
   id: string
@@ -99,8 +99,19 @@ type Tab = 'customer' | 'orders' | 'note'
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'customer', label: 'ข้อมูลลูกค้า', icon: 'user-circle' },
   { key: 'orders', label: '', icon: 'shopping-cart' },
-  { key: 'note', label: 'โน๊ต', icon: 'notes' },
+  { key: 'note', label: 'โน้ต', icon: 'notes' }, // สะกด "โน้ต" ให้ตรงกับเนื้อหาในแท็บ (user ยืนยัน 2026-07-23)
 ]
+
+/** สรุปประวัติจากออเดอร์จริงที่ page.tsx query มาแล้ว (ไม่ต้อง query เพิ่ม) — impeccable critique P1-C:
+ *  ผู้ขายเปิดวันละหลายสิบเธรดและต้องการคำตอบเดียวใน 1 วินาที ("เคยซื้อกี่ครั้ง จ่ายครบไหม")
+ *  แต่เดิมต้องคลิกแท็บ → อ่านเอง → บวกเลขในหัว. ยอดรวมไม่นับออเดอร์ที่ยกเลิก */
+function summarize(orders: CustomerPanelOrder[]) {
+  const done = orders.filter((o) => o.status === 'CONFIRMED').length
+  const total = orders
+    .filter((o) => o.status !== 'CANCELLED')
+    .reduce((sum, o) => sum + Number(o.totalAmount), 0)
+  return { count: orders.length, done, total, latest: orders[0]?.createdAt ?? null }
+}
 
 /**
  * CustomerPanelBody — เนื้อหาจริง (header + tabs + tab content) แชร์ระหว่าง CustomerPanel
@@ -110,6 +121,69 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
   const [tab, setTab] = useState<Tab>('customer')
   const cta = VERTICAL_CTA[data.vertical]
   const orderHref = (token: string) => (data.vertical === 'LODGING' ? `/bookings/${token}` : `/orders/${token}`)
+  const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
+  const summary = summarize(data.orders)
+
+  // ── CRM: fetch ครั้งเดียวที่นี่ แล้วส่งลงทั้งแท็บ "ข้อมูลลูกค้า" และ "โน้ต" ──
+  // (เดิมแต่ละแท็บ fetch เอง + unmount ทุกครั้งที่สลับ → draft หาย, skeleton กระพริบ, fail แล้วเงียบ)
+  const [crm, setCrm] = useState<ConversationCrm | null>(null)
+  const [crmLoading, setCrmLoading] = useState(true)
+  const [crmFailed, setCrmFailed] = useState(false)
+
+  const loadCrm = useCallback(async () => {
+    setCrmLoading(true)
+    setCrmFailed(false)
+    try {
+      const res = await fetch(`/api/chat/conversations/${data.conversationId}/crm`, { cache: 'no-store' })
+      if (!res.ok) {
+        setCrmFailed(true)
+        return
+      }
+      setCrm(await res.json())
+    } catch {
+      setCrmFailed(true)
+    } finally {
+      setCrmLoading(false)
+    }
+  }, [data.conversationId])
+
+  useEffect(() => {
+    loadCrm()
+  }, [loadCrm])
+
+  /** เนื้อหา CRM ของแต่ละแท็บ — กันเคส "แท็บว่างเปล่าสนิท" ตอนโหลดไม่สำเร็จ (critique P0-1) */
+  const crmSlot = (variant: 'profile' | 'note') => {
+    if (crmLoading) return <div className="bg-default-100 h-40 animate-pulse rounded-lg" role="status" aria-label="กำลังโหลดข้อมูลลูกค้า" />
+    if (crmFailed || !crm)
+      return (
+        <div className="space-y-3 py-2 text-center">
+          <p className="text-default-700 mb-0 text-sm">โหลดข้อมูลลูกค้าไม่สำเร็จ</p>
+          <button type="button" onClick={loadCrm} className="btn border-default-300 min-h-11">
+            <Icon icon="refresh" className="me-1" /> ลองใหม่
+          </button>
+        </div>
+      )
+    return (
+      <CustomerCrmSection
+        conversationId={data.conversationId}
+        variant={variant}
+        crm={crm}
+        onSaved={setCrm}
+      />
+    )
+  }
+
+  /** arrow-key navigation ของ tablist ตาม ARIA tabs pattern (critique P2 — เดิมประกาศ role ไว้
+   *  แต่ไม่มี keyboard support และไม่มี roving tabIndex) */
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const i = TABS.findIndex((t) => t.key === tab)
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault()
+      const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]!
+      setTab(next.key)
+      document.getElementById(`${uid}-tab-${next.key}`)?.focus()
+    }
+  }
 
   return (
     <>
@@ -125,17 +199,39 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         </div>
       </div>
 
+      {/* สรุปประวัติ 1 บรรทัด — คำตอบที่ผู้ขายต้องการใน 1 วินาที ("เคยซื้อกี่ครั้ง จ่ายครบไหม")
+          คำนวณจากออเดอร์จริงที่ page.tsx ส่งมาแล้ว ไม่มีตัวเลขปลอมสักตัว (PRODUCT.md: trust ต้องมา
+          จากสัญญาณจริง show-don't-tell). ลูกค้าที่ยังไม่ผูก = บอกตรง ๆ ว่ายังไม่มีประวัติในระบบ */}
+      <div className="border-b border-default-200 border-dashed px-4 py-2.5 text-xs">
+        {data.customer ? (
+          <p className="text-default-800 mb-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-success inline-flex items-center gap-1 font-semibold">
+              <Icon icon="circle-check" className="text-sm" />
+              ซื้อ {summary.count} ครั้ง
+            </span>
+            {summary.done > 0 && <span className="text-default-700">สำเร็จ {summary.done}</span>}
+            <span className="text-default-700">รวม ฿{summary.total.toLocaleString('th-TH')}</span>
+            {summary.latest && <span className="text-default-700">ล่าสุด {formatDate(summary.latest)}</span>}
+          </p>
+        ) : (
+          <p className="text-default-700 mb-0">ยังไม่มีประวัติซื้อในระบบ — ลูกค้าใหม่</p>
+        )}
+      </div>
+
       {/* tabs — 3 ตัว (user สั่ง 2026-07-23): ข้อมูลลูกค้า / คำสั่งซื้อ|การจอง / โน๊ต พร้อมไอคอน
           (ไอคอน user เลือกเอง: user-circle / shopping-cart / notes — ไม่ได้เดา ตาม convention
           docs/conventions/no-emoji-use-icons.md ที่ห้าม emoji และห้ามเดา icon ที่ spec ไม่ระบุ)
           px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย
           text-sm + gap-1.5: 3 แท็บพร้อมไอคอนต้องพอดีความกว้าง 384px ของคอลัมน์นี้โดยไม่ตกบรรทัด */}
-      {/* my-0/me-0: `.nav-tabs` ของ Paces มี `-my-3.75 -me-3` ในตัว (ออกแบบมาให้ฝังใน .card-header
-          ที่มี py-3.75 อยู่แล้ว) — พอเอามาใช้เป็นแถบเดี่ยวแบบนี้ margin ติดลบดันแถบขึ้นจนเส้น
-          border-b ของแท็บที่ active ไปตกในพื้นที่เนื้อหา เห็นเป็นเส้นลอยเหนือหัวข้อ (user เจอจริง)
-          ล้าง margin แล้วให้ตัว nav ถือเส้น rail เอง + แท็บ active วางทับเส้นด้วย -mb-px */}
+      {/* `.nav-tabs` ของ Paces ถูกออกแบบมาให้ฝังใน `.card-header` (สูงคงที่ py-3.75) จึงมี 3 อย่าง
+          ที่พังทันทีเมื่อเอามาใช้เป็นแถบเดี่ยวในการ์ดที่สูงเต็มคอลัมน์ — ต้องล้างทั้งสาม:
+          1) `-my-3.75 -me-3` margin ติดลบ ดันแถบขึ้นจนเส้น border-b ของแท็บ active ไปตกในพื้นที่
+             เนื้อหา (เห็นเป็นเส้นลอยเหนือหัวข้อ) → `my-0 me-0`
+          2) `h-full` (!) — พออยู่ใน flex column ที่มีความสูงจริง แถบแท็บจะยืดกินความสูงทั้งการ์ด
+             ดันแท็บไปลอยกลางจอและดันเนื้อหาตกไปล่างสุด (user เจอจริง 2026-07-23) → `h-auto`
+          3) ไม่มีเส้น rail ของตัวเอง → ใส่ border-b ที่ nav แล้วให้แท็บ active วางทับด้วย -mb-px */}
       <nav
-        className="nav-tabs border-default-200 my-0 me-0 border-b px-4"
+        className="nav-tabs border-default-200 my-0 me-0 h-auto border-b px-4"
         role="tablist"
         aria-label="ข้อมูลลูกค้า"
       >
@@ -144,14 +240,22 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
             key={t.key}
             type="button"
             role="tab"
+            id={`${uid}-tab-${t.key}`}
             aria-selected={tab === t.key}
+            aria-controls={`${uid}-panel-${t.key}`}
+            tabIndex={tab === t.key ? 0 : -1}
+            onKeyDown={onTabKeyDown}
             onClick={() => setTab(t.key)}
             className={`nav-link -mb-px inline-flex items-center gap-1.5 px-3 py-3 text-sm ${
-              tab === t.key ? 'border-b-2 border-primary text-primary font-semibold' : 'border-b-2 border-transparent'
+              tab === t.key ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent'
             }`}
           >
             <Icon icon={t.icon} className="text-base" />
             {t.key === 'orders' ? cta.tabLabel : t.label}
+            {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C) */}
+            {t.key === 'orders' && data.customer && summary.count > 0 && (
+              <span className="badge bg-default-100 text-default-700 text-2xs">{summary.count}</span>
+            )}
           </button>
         ))}
       </nav>
@@ -160,34 +264,71 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           เป็นส่วนที่เลื่อน ไม่ใช่ทั้งการ์ด — หัวการ์ด (ชื่อ+ช่องทาง) กับแถบแท็บจึงค้างอยู่เสมอ
           เหมือนแผงข้อมูลของแอปแชทจริง. ในโหมด sheet (มือถือ) parent เป็น block + scroll เองอยู่แล้ว
           flex-1 จึงไม่มีผลและไม่เกิด scroll ซ้อน */}
+      {/* ทุกแท็บ mount ค้างไว้ ซ่อนด้วย `hidden` (ไม่ใช่ conditional render) — ไม่งั้นสลับแท็บแล้ว
+          CustomerCrmSection ถูก unmount: โน้ตที่พิมพ์ค้างหายเงียบ ๆ + re-fetch + skeleton กระพริบ
+          ทุกครั้ง (critique P0-1) */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
-        {tab === 'customer' ? (
-          <div className="space-y-4">
-            {/* feature 00018 CRM — แก้ไข tag/note/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
-            <CustomerCrmSection conversationId={data.conversationId} />
-            {/* รหัสลูกค้า — user สั่ง 2026-07-23: "ก็แค่ขึ้นว่าเค้ามีรหัสลูกค้าหรือยัง"
-                เดิมสถานะ "ยังไม่ผูก" กินพื้นที่เป็นย่อหน้าอธิบายกลไก + ปุ่มสร้างออเดอร์ ซึ่ง
-                (ก) อธิบายกลไกภายในระบบให้คนที่ไม่ได้ถาม (ข) ปุ่มไม่ prefill อะไรเลย จึงไม่ได้
-                ช่วยงานตรงจุดนี้ — เหลือเป็นแถวข้อมูลแถวเดียวรูปแบบเดียวกับฟิลด์อื่นใน
-                CustomerCrmSection (label + ค่า / "—" เมื่อยังไม่มี) ปุ่มสร้างออเดอร์ยังอยู่
-                ในแท็บออเดอร์ซึ่งเป็นบริบทที่ตรงกว่า */}
-            <div>
-              <p className="text-default-400 mb-0.5 text-xs">รหัสลูกค้า</p>
-              <div className="text-default-800 text-sm">
-                {data.customer ? (
-                  <span className="font-mono font-semibold">#{data.customer.id.slice(0, 8).toUpperCase()}</span>
-                ) : (
-                  <span className="text-default-400">—</span>
-                )}
-              </div>
-            </div>
+        <div
+          role="tabpanel"
+          id={`${uid}-panel-customer`}
+          aria-labelledby={`${uid}-tab-customer`}
+          className={tab === 'customer' ? 'space-y-4' : 'hidden'}
+        >
+          {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
+          {crmSlot('profile')}
+          {/* สถานะการผูกลูกค้า — เดิมเป็นแถว "รหัสลูกค้า #A3F19C22 / —" ซึ่ง (ก) โชว์ id ดิบของ DB
+              ให้แม่ค้า (ข) ขัดกับแถว "เบอร์โทร" ที่อยู่เหนือมัน 40px เพราะเบอร์ที่กรอกใน CRM เก็บที่
+              ExternalContact.phones ซึ่ง *ไม่เกี่ยวกับ* customerId ที่เป็นตัวตัดสินรหัสลูกค้าเลย →
+              กรอกเบอร์ กดบันทึก ได้ toast สำเร็จ แต่รหัสยังเป็น "—" (critique P0-2)
+              ตอนนี้พูดเป็นสถานะภาษาคน + บอกวิธีทำให้เกิดขึ้นจริง; id ยังดูได้จาก title */}
+          <div>
+            <p className="text-default-700 mb-0.5 text-xs">การเชื่อมกับลูกค้าในระบบ</p>
+            {data.customer ? (
+              <p
+                className="text-default-800 mb-0 flex items-center gap-1.5 text-sm"
+                title={`รหัสลูกค้า ${data.customer.id}`}
+              >
+                <Icon icon="link" className="text-success text-base" />
+                เชื่อมแล้ว · {data.customer.phoneMasked}
+              </p>
+            ) : (
+              <p className="text-default-800 mb-0 text-sm">
+                ยังไม่เชื่อม — จะเชื่อมอัตโนมัติเมื่อสร้าง{cta.tabLabel}ด้วยเบอร์ของลูกค้ารายนี้
+              </p>
+            )}
           </div>
-        ) : tab === 'note' ? (
-          /* แท็บโน๊ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */
-          <CustomerCrmSection conversationId={data.conversationId} variant="note" />
-        ) : data.customer ? (
+        </div>
+
+        {/* แท็บโน้ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */}
+        <div
+          role="tabpanel"
+          id={`${uid}-panel-note`}
+          aria-labelledby={`${uid}-tab-note`}
+          className={tab === 'note' ? '' : 'hidden'}
+        >
+          {crmSlot('note')}
+        </div>
+
+        <div
+          role="tabpanel"
+          id={`${uid}-panel-orders`}
+          aria-labelledby={`${uid}-tab-orders`}
+          className={tab === 'orders' ? '' : 'hidden'}
+        >
+        {data.customer ? (
           data.orders.length === 0 ? (
-            <p className="text-default-400 text-sm">{cta.emptyLabel}</p>
+            /* ผูกแล้วแต่ยังไม่มีออเดอร์ = เคสที่ "พร้อมสร้างที่สุด" — เดิมกลับเป็นเคสเดียวที่ไม่มีปุ่ม
+               ส่วนเคสที่ยังผูกไม่ได้กลับมีปุ่ม (critique P1-C: empty state กลับด้าน) */
+            <div className="space-y-3">
+              <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
+              <Link
+                href={cta.href}
+                className="btn bg-primary text-white hover:bg-primary-hover flex min-h-11 w-full items-center justify-center gap-1.5"
+              >
+                <Icon icon={cta.icon} className="text-lg" />
+                {cta.label}
+              </Link>
+            </div>
           ) : (
             <div className="space-y-2">
               {data.orders.map((o) => {
@@ -210,7 +351,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
                       </p>
                     )}
                     <div className="mt-1 flex items-center justify-between">
-                      <span className="text-default-400 text-xs">{formatDate(o.createdAt)}</span>
+                      <span className="text-default-700 text-xs">{formatDate(o.createdAt)}</span>
                       <span className="text-default-900 text-sm font-semibold">
                         ฿{Number(o.totalAmount).toLocaleString('th-TH')}
                       </span>
@@ -222,16 +363,19 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           )
         ) : (
           <div className="space-y-3">
-            <p className="text-default-500 text-sm">ผูกลูกค้าก่อนเพื่อดูประวัติออเดอร์</p>
+            <p className="text-default-700 mb-0 text-sm">
+              ยังไม่เชื่อมกับลูกค้าในระบบ จึงยังไม่มีประวัติให้ดู — สร้าง{cta.tabLabel}ด้วยเบอร์ของลูกค้ารายนี้แล้วระบบจะเชื่อมให้เอง
+            </p>
             <Link
               href={cta.href}
-              className="btn bg-primary text-white hover:bg-primary-hover flex w-full items-center justify-center gap-1.5"
+              className="btn bg-primary text-white hover:bg-primary-hover flex min-h-11 w-full items-center justify-center gap-1.5"
             >
               <Icon icon={cta.icon} className="text-lg" />
               {cta.label}
             </Link>
           </div>
         )}
+        </div>
       </div>
     </>
   )

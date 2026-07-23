@@ -90,6 +90,7 @@ import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
+import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import type { CustomerPanelData } from './CustomerPanel'
 
@@ -280,10 +281,12 @@ export default function ChatThread({
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
   // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
-  const [activePanel, setActivePanel] = useState<'quick' | 'ai' | null>(null)
+  const [activePanel, setActivePanel] = useState<'quick' | 'ai' | 'product' | null>(null)
   const aiOpen = activePanel === 'ai'
   const quickOpen = activePanel === 'quick'
-  const togglePanel = (panel: 'quick' | 'ai') => setActivePanel((cur) => (cur === panel ? null : panel))
+  const productOpen = activePanel === 'product'
+  const togglePanel = (panel: 'quick' | 'ai' | 'product') =>
+    setActivePanel((cur) => (cur === panel ? null : panel))
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -339,6 +342,17 @@ export default function ChatThread({
       setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
     }
     // เลือกแล้วหุบแผงเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างดันช่องพิมพ์ต่อ
+    setActivePanel(null)
+  }
+
+  // composer improvement #4 — เลือกสินค้า: ทุกโหมดเติมลงช่องพิมพ์ (คนตรวจก่อนกดส่งเสมอ) ไม่ส่งเอง
+  // รูปสินค้าที่เป็น URL เต็ม (seed เก่า) แนบไม่ได้ — pendingImage รับเฉพาะ storage fileId ที่ backend
+  // ตรวจนามสกุลได้ (route คืน 400 ถ้าไม่ใช่ไฟล์รูป) จึงข้ามรูปแล้วเติมเฉพาะข้อความแทนการส่งค่าที่พัง
+  function handleProductPick(payload: ProductPickPayload) {
+    if (payload.imageFileId && !payload.imageFileId.startsWith('http')) {
+      setPendingImage({ fileId: payload.imageFileId, previewUrl: `/api/files/${payload.imageFileId}` })
+    }
+    if (payload.text) setText((prev) => (prev.trim() ? `${prev}\n${payload.text}` : payload.text!))
     setActivePanel(null)
   }
 
@@ -466,7 +480,15 @@ export default function ChatThread({
           ทำให้ด้านบนขยับตลอด"): เมื่อเลื่อนถึงหัว/ท้ายรายการข้อความ เบราว์เซอร์จะส่ง scroll ต่อไปให้
           ancestor ที่เลื่อนได้ (scroll chaining) → คอลัมน์กลางของ (chat)/layout.tsx และหน้าเว็บ
           ขยับตาม หัวแชทเลื่อนหนีทั้งที่ควรค้าง. overscroll-contain ตัด chain ที่ container นี้ */}
-      <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto overscroll-contain py-4">
+      {/* pb-0 + last:mb-1 (user สั่ง 2026-07-23: "ข้อความสุดท้ายห่างจากช่องพิมพ์มากเกินไป เปลืองพื้นที่"):
+          ระยะห่างเดิมเป็นผลรวม 3 ชั้น — `my-5` ของแถวสุดท้าย (20px) + `py-4` ของกล่อง scroll (16px)
+          + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
+          "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
+          ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      <div
+        ref={scrollRef}
+        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
+      >
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex justify-center py-2">
             {loadingOlder && (
@@ -672,7 +694,8 @@ export default function ChatThread({
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
         {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
-            ทั้งสองใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary) */}
+            ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
+            เลือกสินค้า = info) */}
         {aiOpen && (
           <AiSuggestPanel
             conversationId={conversationId}
@@ -687,6 +710,14 @@ export default function ChatThread({
         {quickOpen && (
           <QuickMessageBar
             onPick={handleQuickPick}
+            disabled={composerDisabled}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
+
+        {productOpen && (
+          <ProductPickerPanel
+            onPick={handleProductPick}
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}
           />
@@ -710,6 +741,20 @@ export default function ChatThread({
             className={`btn btn-icon hover:bg-primary/10 shrink-0 ${quickOpen ? 'bg-primary/10 text-primary' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="bolt" className="text-lg" />
+          </button>
+
+          {/* เลือกสินค้า (composer improvement #4, user สั่ง 2026-07-23) — ไอคอน package ที่ user
+              เลือกเอง (ไม่ซ้ำกับ shopping-cart ที่เป็นแท็บ "คำสั่งซื้อ" ในแผงขวา) */}
+          <button
+            type="button"
+            onClick={() => togglePanel('product')}
+            disabled={composerDisabled}
+            aria-label="เลือกสินค้า"
+            aria-expanded={productOpen}
+            title="เลือกสินค้า"
+            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            <Icon icon="package" className="text-lg" />
           </button>
 
           {/* feature 00018 T4 — disabled ถาวรเมื่อ channel != DEEP (backend คืน 400 ถ้าส่งรูปช่องทาง

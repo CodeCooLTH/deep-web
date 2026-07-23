@@ -58,30 +58,21 @@ export default function ChatHeader() {
         <AppLogo />
       </Link>
 
-      {/* ปุ่มกลับหน้าหลัก — explicit ตามคำสั่ง user ปลายทางตายตัว /dashboard เสมอ (ไม่ history-aware
-          ต่างจาก FullscreenBackButton ที่ back() ก่อน) เพราะจุดประสงค์คือ "ทางออกจากโหมดแชท" ไม่ใช่
-          "ย้อนกลับหน้าก่อนหน้า" — 2 ปุ่มแยกกันตาม breakpoint (label เต็ม ≥sm / ไอคอนล้วน <sm กันแถวล้น) */}
-      <Link
-        href="/dashboard"
-        title="กลับหน้าหลัก"
-        aria-label="กลับหน้าหลัก"
-        className="btn bg-light text-dark btn-sm hidden shrink-0 items-center gap-1.5 sm:inline-flex"
-      >
-        <Icon icon="arrow-left" className="text-base" />
-        <span>กลับหน้าหลัก</span>
-      </Link>
-      <Link
-        href="/dashboard"
-        title="กลับหน้าหลัก"
-        aria-label="กลับหน้าหลัก"
-        className="btn btn-icon bg-light text-dark inline-flex size-11 shrink-0 items-center justify-center sm:hidden"
-      >
-        <Icon icon="arrow-left" className="text-lg" />
-      </Link>
-
+      {/* ปุ่ม back ← เดิมถูกตัดออก (user request 2026-07-23: "ซ่อนปุ่ม Back บนสุดไปเลย ให้กดที่
+          icon กลับ") — โลโก้ (คลิกได้ ↑) + ปุ่ม storefront ข้างช่องค้นหา (↓) คือทางกลับหน้าหลักแทน */}
       <div className="min-w-0 flex-1">
         <ChatSearchBox />
       </div>
+
+      {/* icon ร้านค้า ข้างช่องค้นหา — กลับหน้าหลัก (dashboard) เช่นกัน (user request 2026-07-23) */}
+      <Link
+        href="/dashboard"
+        title="กลับหน้าหลัก"
+        aria-label="กลับหน้าหลัก"
+        className="btn btn-icon bg-light text-dark inline-flex size-11 shrink-0 items-center justify-center"
+      >
+        <Icon icon="building-store" className="text-lg" />
+      </Link>
 
       <div className="flex shrink-0 items-center gap-1">
         <ThemeDropdown />

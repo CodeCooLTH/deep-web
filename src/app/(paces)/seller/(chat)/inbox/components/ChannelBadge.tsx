@@ -71,7 +71,10 @@ const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
   INSTAGRAM: {
     label: 'Instagram',
     icon: 'brand-instagram',
-    logoSrc: '/images/logos/instagram.svg',
+    // โลโก้ทรงกลม (user ส่งภาพมาให้ 2026-07-23) แทนทรงสี่เหลี่ยมมนของ instagram.svg เดิม —
+    // ในรายการแชท badge ทุกช่องทางเป็นวงกลม (Messenger/Deep) ทรงสี่เหลี่ยมของ IG จึงเป็นตัวเดียว
+    // ที่หลุดจังหวะ. ไล่สี = gradient แบรนด์ชุดเดียวกับไฟล์เดิม ไม่ได้คิดสีขึ้นเอง
+    logoSrc: '/images/logos/instagram-circle.svg',
   },
 }
 

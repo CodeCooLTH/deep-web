@@ -84,6 +84,9 @@ export default function TagInput({ selected, onAdd, placeholder = 'เพิ่�
 
   return (
     <div className="relative" ref={ref}>
+      {/* ไม่มีปุ่ม [+] ท้ายช่อง (user สั่ง 2026-07-23: "ไม่จำเป็นละ") — Enter เพิ่มแท็กได้อยู่แล้ว
+          และรายการ suggestion ด้านล่างมีแถว "เพิ่ม …" ให้กดอยู่แล้ว ปุ่มจึงเป็นทางที่ 3 ที่ซ้ำซ้อน
+          และกินความกว้างของช่องพิมพ์ในคอลัมน์ที่แคบอยู่แล้ว */}
       <div className="flex gap-2">
         <input
           type="text"
@@ -104,14 +107,6 @@ export default function TagInput({ selected, onAdd, placeholder = 'เพิ่�
             }
           }}
         />
-        <button
-          type="button"
-          onClick={() => add(q || suggestions[0] || '')}
-          className="btn btn-icon border-default-300 shrink-0"
-          aria-label="เพิ่มแท็ก"
-        >
-          <Icon icon="plus" />
-        </button>
       </div>
 
       {/* เปิดแล้วต้องเห็นอะไรบางอย่างเสมอ (bug fix 2026-07-23: user จิ้มช่องแล้วไม่เห็นอะไรเลย

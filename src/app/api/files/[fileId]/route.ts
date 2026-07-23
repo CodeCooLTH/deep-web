@@ -16,6 +16,7 @@ const MIME: Record<string, string> = {
   aac: "audio/aac",
   ogg: "audio/ogg",
   webm: "audio/webm",
+  pdf: "application/pdf", // feature 00018 — ไฟล์แนบ PDF จาก Messenger เปิดดูใน browser ได้
 };
 
 // ---------------------------------------------------------------------------

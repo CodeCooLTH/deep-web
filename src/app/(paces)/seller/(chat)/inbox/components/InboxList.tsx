@@ -88,8 +88,9 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
-import ConversationRowMenu, { type RowAction } from './ConversationRowMenu'
+import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu from './ChatContextMenu'
+import SwipeableRow from './SwipeableRow'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
@@ -419,7 +420,6 @@ export default function InboxList({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMore ผูก closure ของ nextCursor/loading ปัจจุบันอยู่แล้ว
   }, [items.length, nextCursor])
 
-  const selectedPageName = channels.find((c) => c.id === pageFilter)?.name
   // id เพจ → รูปเพจ (จาก prop channels ที่โหลดมาแล้ว) — ใช้ทำ badge รูปเพจต่อแถว
   const channelAvatarById = new Map(channels.map((c) => [c.id, c.avatarUrl]))
 
@@ -458,7 +458,11 @@ export default function InboxList({
             Deep/Messenger/Instagram เหลือไอคอนล้วน — React state ขับ active เอง ไม่ใช้
             data-hs-tab (เหตุผลเดิม ดู comment หัวไฟล์) shrink-0 กันปุ่มบีบ + overflow-x-auto
             กันตกบรรทัดถ้า rail แคบผิดปกติ (ปกติพอดีบรรทัดเดียวที่ 320px) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto" aria-label="ตัวกรองช่องทาง" role="tablist">
+        {/* channel tabs + ตัวกรอง + เพจ รวมเป็นแถวเดียว flex-wrap (user request 2026-07-23: mobile
+            filter กระชับ) — ไหลลงบรรทัดใหม่เองเมื่อแคบ ไม่ใช่ 2 แถวตายตัว. relative สำหรับ popover
+            (InboxFilterPanel/PageFilterDropdown) ที่ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
+        <div className="relative flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5" aria-label="ตัวกรองช่องทาง" role="tablist">
           {CHANNEL_TABS.map((tab) => {
             const active = channelTab === tab
             const display = tab === 'ALL' ? null : getChannelDisplay(tab)
@@ -493,14 +497,9 @@ export default function InboxList({
               </button>
             )
           })}
-        </div>
-
-        {/* แถวตัวกรอง — S-7: ปุ่ม "ตัวกรอง" (สถานะ/ผูกลูกค้า/ที่ซ่อน) แสดงเสมอ (ใช้ได้ทุกช่องทาง);
-            ตัวกรอง "เพจ" ยังซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจ */}
-        {/* relative ที่ "แถว" ไม่ใช่ที่ปุ่ม — popover ของทั้งสองตัวใช้ inset-x-0 อ้างอิงแถวนี้ จึงกว้าง
-            เท่าแถวพอดีเสมอ ไม่ล้นออกนอก Chat Rail (320px)/ขอบจอมือถือ (bug จริงบน prod: ล้นแล้ว
-            ancestor scroll แนวนอน ทั้งรายการเลื่อนซ้ายค้าง เลื่อนกลับไม่ได้เพราะ scrollbar ถูกซ่อน) */}
-        <div className="relative flex flex-wrap items-center gap-2">
+          </div>
+          {/* ตัวกรอง/เพจ อยู่ในแถวเดียวกับ channel tabs แล้ว (flex-wrap ของ container ด้านนอก) —
+              S-7: ปุ่ม "ตัวกรอง" แสดงเสมอ; "เพจ" ซ่อนเมื่อ tab=Deep/ไม่มีเพจ */}
           <InboxFilterPanel
             value={filter}
             onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
@@ -519,15 +518,11 @@ export default function InboxList({
             />
           )}
 
-          {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น */}
-          {pageFilter && selectedPageName && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              {selectedPageName}
-              <button type="button" onClick={() => setPageFilter('')} aria-label="ล้างตัวกรองเพจ" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
+          {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
+              ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก
+              อยู่บนตัวปุ่มเองแล้ว chip ด้านล่างจึงเป็นชื่อเดียวกันซ้ำสองบรรทัดติดกัน — ล้างตัวกรอง
+              ยังทำได้จากในดรอปดาวน์ (ตัวเลือก "ทุกเพจ") ต่างจากตัวกรองสถานะ/ผูกลูกค้า/ซ่อน ที่ปุ่ม
+              "ตัวกรอง" ไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม chip จึงยังจำเป็น */}
           {filter.status !== 'open' && (
             <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
               สถานะ: {filter.status === 'resolved' ? 'ปิดงานแล้ว' : 'ทั้งหมด'}
@@ -582,7 +577,8 @@ export default function InboxList({
           )}
         </div>
       ) : (
-        <div className="card-body divide-y divide-default-200 !p-0">
+        // card-body: เส้นประเทาบางๆ (divide-dashed) แบ่งระหว่างแชท — user request 2026-07-23 เดิมดูไม่ออก
+        <div className="card-body divide-y divide-dashed divide-default-300 !p-0">
           {items.map((c) => {
             // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
             const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
@@ -601,8 +597,42 @@ export default function InboxList({
               // (สีเดียวกับดาว) — แถวปกติใส่ border-transparent ความหนาเท่ากันไว้ด้วย ไม่งั้นเนื้อหา
               // ขยับ 2px ตอนกด/เลิกปักหมุด. ลำดับ "ปักหมุดขึ้นบนสุด" backend จัดให้แล้ว (S-7
               // pin-first keyset cursor) ฝั่งนี้ไม่ต้องเรียงซ้ำ
-              <div
+              <SwipeableRow
                 key={c.id}
+                actionsWidth={168}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
+                      disabled={actioningId === c.id}
+                      className="bg-warning text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={c.isPinned ? 'star-off' : 'star'} width={18} height={18} />
+                      {c.isPinned ? 'เลิกปัก' : 'ปักหมุด'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, isResolved ? 'reopen' : 'resolve')}
+                      disabled={actioningId === c.id}
+                      className="bg-success text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={isResolved ? 'arrow-back-up' : 'circle-check'} width={18} height={18} />
+                      {isResolved ? 'เปิดใหม่' : 'ปิดงาน'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, filter.hidden ? 'unhide' : 'hide')}
+                      disabled={actioningId === c.id}
+                      className="bg-default-500 text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={filter.hidden ? 'eye' : 'eye-off'} width={18} height={18} />
+                      {filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
+                    </button>
+                  </>
+                }
+              >
+              <div
                 onContextMenu={
                   c.channel !== 'DEEP'
                     ? (e) => {
@@ -707,17 +737,7 @@ export default function InboxList({
                   </span>
                 </Link>
 
-                {/* kebab actions — นอก Link (sibling) — เหลือเฉพาะ <1024px: จอสัมผัสไม่มี hover
-                    จึงต้องมีทางเข้าถึง action แบบกดได้จริง (ชุดปุ่มลอยด้านล่างใช้ไม่ได้บนจอสัมผัส) */}
-                <div className="flex items-center pe-2 lg:hidden">
-                  <ConversationRowMenu
-                    isPinned={c.isPinned}
-                    isResolved={isResolved}
-                    hiddenContext={filter.hidden}
-                    busy={actioningId === c.id}
-                    onAction={(a) => handleRowAction(c.id, a)}
-                  />
-                </div>
+                {/* mobile (<1024px): ปุ่ม ⋮ ถูกแทนด้วย "ปัดซ้าย" (SwipeableRow) — user request 2026-07-23 */}
 
                 {/* ชุดปุ่มลอย (≥1024px) — โผล่เมื่อ hover แถวนั้น (user สั่ง 2026-07-23: "ปุ่ม action
                     กินพื้นที่เกินไป ให้ปิดงาน/ซ่อน โผล่ตอน hover เป็นลอย ๆ") ปุ่มถาวรกินความกว้าง
@@ -761,6 +781,7 @@ export default function InboxList({
                   </button>
                 </div>
               </div>
+              </SwipeableRow>
             )
           })}
 

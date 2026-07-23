@@ -90,11 +90,16 @@ export function useSellerChatThread(conversationId: string) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
   const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didInitialScrollRef = useRef(false)
 
   const scrollToBottom = useCallback(() => {
+    // double rAF — เฟรมแรก React commit DOM, เฟรมสอง layout เสร็จ แล้วค่อยเลื่อน (single rAF เดิม
+    // เลื่อนก่อน paint บ่อย → ไม่ถึงล่างสุด, user report 2026-07-23)
     requestAnimationFrame(() => {
-      const el = scrollRef.current
-      if (el) el.scrollTop = el.scrollHeight
+      requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (el) el.scrollTop = el.scrollHeight
+      })
     })
   }, [])
 
@@ -108,6 +113,7 @@ export function useSellerChatThread(conversationId: string) {
   // ── initial load + mark-read on mount ──────────────────────────────────
   useEffect(() => {
     let cancelled = false
+    didInitialScrollRef.current = false // เปลี่ยนเธรด → ให้เลื่อนลงล่างสุดใหม่อีกรอบ
     async function loadInitial() {
       setLoadingInitial(true)
       try {
@@ -135,6 +141,17 @@ export function useSellerChatThread(conversationId: string) {
       cancelled = true
     }
   }, [conversationId, scrollToBottom])
+
+  // เลื่อนลงล่างสุดตอนเปิดเธรด (user request 2026-07-23 "เหมือน Facebook เข้าแล้วอยู่ล่างสุด") — ทำใน
+  // effect หลัง messages ชุดแรก render จริง (ไม่ใช่ใน async loadInitial ที่ยังไม่ paint) + retry เผื่อ
+  // รูปโหลดช้าแล้วดันความสูงเพิ่ม (150/400/800ms) ทำครั้งเดียวต่อเธรด (didInitialScrollRef)
+  useEffect(() => {
+    if (loadingInitial || messages.length === 0 || didInitialScrollRef.current) return
+    didInitialScrollRef.current = true
+    scrollToBottom()
+    const timers = [150, 400, 800].map((ms) => setTimeout(scrollToBottom, ms))
+    return () => timers.forEach(clearTimeout)
+  }, [loadingInitial, messages.length, scrollToBottom])
 
   // ── refetch "newer" — signal-only realtime (ไม่เชื่อ payload, GET หน้าแรกเสมอแล้ว merge) ──
   const refetchNewer = useCallback(async () => {
