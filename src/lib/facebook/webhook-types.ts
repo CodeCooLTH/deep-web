@@ -23,6 +23,9 @@ const MessagingEventSchema = v.object({
   recipient: v.object({ id: v.string() }),
   timestamp: v.optional(v.number()),
   message: v.optional(MessageSchema),
+  // read: event ที่ลูกค้าอ่านข้อความของเพจ (message_reads) — watermark = อ่านถึง timestamp นี้
+  // feature 00018 read receipt. sender = ลูกค้า (คนอ่าน), recipient = เพจ
+  read: v.optional(v.object({ watermark: v.number() })),
 })
 
 const EntrySchema = v.object({

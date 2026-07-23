@@ -18,6 +18,9 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
   'messaging_postbacks',
   'message_reactions',
   'message_echoes',
+  // message_reads: event ที่ลูกค้า "อ่าน" ข้อความของเพจ (มี read.watermark) — feature 00018 read receipt
+  // ต้อง subscribe field นี้ ไม่งั้น Messenger ไม่ส่ง read event เข้ามาเลย (แสดง "อ่านแล้ว" ไม่ได้)
+  'message_reads',
 ] as const
 
 // scope ที่ขอตอนเชื่อม Page — business_management เป็น dependency บังคับของ
