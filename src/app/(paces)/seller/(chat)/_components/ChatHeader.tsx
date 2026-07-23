@@ -29,6 +29,7 @@
  * `.chat-header-logo` (safepay-overrides.css) — ดูรายละเอียดที่ comment ของ CSS นั้น
  */
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import AppLogo from '@/components/AppLogo'
 import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
@@ -36,8 +37,21 @@ import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleTo
 import ThemeDropdown from '@/layouts/components/TopBar/components/ThemeDropdown'
 
 export default function ChatHeader() {
+  // มือถือ/แท็บเล็ต (<1024px) ตอนเปิดอ่านแชท: ซ่อน header นี้ให้เธรดกินเต็มจอแบบแอปแชทจริง
+  // (user request 2026-07-23 "เหมือน Facebook ที่จะไม่มี logo แล้ว") — จอเล็กเป็น drill-down
+  // list→thread เต็มจอ พื้นที่มีค่ามาก โลโก้/ช่องค้นหา/ปุ่มกลับหน้าหลักไม่มีประโยชน์ในหน้าเธรด
+  // และ ChatThread มีหัวเธรดของตัวเอง (avatar + ชื่อ + ปุ่มย้อนกลับไป /inbox) อยู่แล้ว ทางออก
+  // "กลับหน้าหลัก" ยังอยู่ที่หน้า /inbox ซึ่งเป็นที่ที่ย้อนกลับไปเจอ — ไม่มีทางตัน
+  // ≥1024px ไม่ซ่อน: เป็นเลย์เอาต์ 3 คอลัมน์ที่ rail/เธรดอยู่บนจอเดียวกัน header เป็นแถบร่วมของทั้งหน้า
+  const pathname = usePathname()
+  const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '')
+
   return (
-    <header className="chat-header flex min-h-(--topbar-height) shrink-0 items-center gap-3 border-b border-default-200 px-4 shadow sm:px-5">
+    <header
+      className={`chat-header min-h-(--topbar-height) shrink-0 items-center gap-3 border-b border-default-200 px-4 shadow sm:px-5 ${
+        isThreadPage ? 'hidden lg:flex' : 'flex'
+      }`}
+    >
       {/* โลโก้ — คลิกกลับหน้าหลักได้เหมือนทุกแอป แต่ยังต้องมีปุ่มข้อความ "กลับหน้าหลัก" แยกต่างหาก
           (ด้านล่าง) ตามที่ user สั่งชัดว่าต้อง "หาเจอง่าย" ไม่ใช่พึ่งแค่คลิกโลโก้เฉย ๆ */}
       <Link href="/dashboard" className="chat-header-logo shrink-0" aria-label="กลับหน้าหลัก">
