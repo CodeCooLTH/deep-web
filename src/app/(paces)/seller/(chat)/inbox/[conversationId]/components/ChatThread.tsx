@@ -55,6 +55,14 @@
  * ของมันคือ (chat)/layout.tsx flex h-dvh) ไม่ต้องคำนวณ viewport เองอีกต่อไป (HR7 carve-out
  * เดิมของบรรทัดนี้จึงหมดไปด้วย — h-full เป็น Tailwind scale ปกติ)
  *
+ * ดูรูปเต็มจอ (user request 2026-07-23 "คลิกที่รูป เพื่อดูรูปแบบ Full-screen"): คลิกรูปในบับเบิล
+ * → เปิด Lightbox เต็มจอ เลื่อนดูรูปอื่นในเธรดเดียวกันได้ (ซ้าย/ขวา, ปัดบนมือถือ)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/pages/gallery/components/Gallery.tsx:100 —
+ * `<Lightbox slides open index close controller={{closeOnBackdropClick:true}} />` verbatim
+ * (slides เปลี่ยนจาก photo album ของ demo เป็นรูปในเธรด); เพิ่ม plugin Zoom ของไลบรารีเดียวกัน
+ * เพราะรูปในแชทส่วนใหญ่เป็นสลิปโอนเงิน/ใบเสร็จที่ต้องซูมอ่านตัวเลข (plugin นี้ไม่มี css แยก
+ * — styles.css ที่ src/assets/css/app.css:36 import อยู่แล้วครอบให้ทั้งหมด)
+ *
  * เพิ่มปุ่ม "กลับรายการ" (มือถือ/แท็บเล็ต <1024px) ที่ card-header — เดิมพึ่ง SellerMobileHeader
  * ของ (dashboard) layout (back button + bottom nav) เป็นทางออกจากหน้าเธรด แต่ (chat) route group
  * ไม่มีทั้งสองอย่างแล้ว (ดู (chat)/layout.tsx) ต้องมีปุ่มกลับรายการของตัวเอง (แยกจากปุ่ม
@@ -62,6 +70,8 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
+import Lightbox from 'yet-another-react-lightbox'
+import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useState, useEffect } from 'react'
@@ -80,6 +90,7 @@ import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
+import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import type { CustomerPanelData } from './CustomerPanel'
 
@@ -261,16 +272,21 @@ export default function ChatThread({
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
   const [sheetOpen, setSheetOpen] = useState(false)
+  // ดูรูปเต็มจอ — index ของรูปที่เปิดอยู่ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
+  // (ต้องประกาศตรงนี้กับ hook ตัวอื่น ห้ามย้ายลงไปหลัง early return ของ errorState/loadingInitial)
+  const [lightboxIndex, setLightboxIndex] = useState(-1)
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
   // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
-  const [activePanel, setActivePanel] = useState<'quick' | 'ai' | null>(null)
+  const [activePanel, setActivePanel] = useState<'quick' | 'ai' | 'product' | null>(null)
   const aiOpen = activePanel === 'ai'
   const quickOpen = activePanel === 'quick'
-  const togglePanel = (panel: 'quick' | 'ai') => setActivePanel((cur) => (cur === panel ? null : panel))
+  const productOpen = activePanel === 'product'
+  const togglePanel = (panel: 'quick' | 'ai' | 'product') =>
+    setActivePanel((cur) => (cur === panel ? null : panel))
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -329,6 +345,17 @@ export default function ChatThread({
     setActivePanel(null)
   }
 
+  // composer improvement #4 — เลือกสินค้า: ทุกโหมดเติมลงช่องพิมพ์ (คนตรวจก่อนกดส่งเสมอ) ไม่ส่งเอง
+  // รูปสินค้าที่เป็น URL เต็ม (seed เก่า) แนบไม่ได้ — pendingImage รับเฉพาะ storage fileId ที่ backend
+  // ตรวจนามสกุลได้ (route คืน 400 ถ้าไม่ใช่ไฟล์รูป) จึงข้ามรูปแล้วเติมเฉพาะข้อความแทนการส่งค่าที่พัง
+  function handleProductPick(payload: ProductPickPayload) {
+    if (payload.imageFileId && !payload.imageFileId.startsWith('http')) {
+      setPendingImage({ fileId: payload.imageFileId, previewUrl: `/api/files/${payload.imageFileId}` })
+    }
+    if (payload.text) setText((prev) => (prev.trim() ? `${prev}\n${payload.text}` : payload.text!))
+    setActivePanel(null)
+  }
+
   // ── render ───────────────────────────────────────────────────────────
   if (errorState) {
     // reuse SellerErrorState แทนเขียนการ์ด error ใหม่ (Link ใช้ next/link ได้ปกติในนี้ — ไฟล์นี้เป็น
@@ -375,6 +402,18 @@ export default function ChatThread({
     ? ([...messages].reverse().find((m) => m.senderRole === 'SHOP')?.id ?? null)
     : null
   const readAtMs = externalReadAt ? new Date(externalReadAt).getTime() : 0
+
+  // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
+  // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
+  // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
+  const imageSlides: { src: string }[] = []
+  const slideIndexByMessageId = new Map<string, number>()
+  for (const m of messages) {
+    if (m.type === 'IMAGE' && m.imageUrl) {
+      slideIndexByMessageId.set(m.id, imageSlides.length)
+      imageSlides.push({ src: `/api/files/${m.imageUrl}` })
+    }
+  }
 
   return (
     <>
@@ -511,12 +550,22 @@ export default function ChatThread({
                         ) : (
                           <>
                             {m.type === 'IMAGE' && m.imageUrl && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={`/api/files/${m.imageUrl}`}
-                                alt="รูปภาพที่ส่ง"
-                                className="max-w-60 rounded"
-                              />
+                              // คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
+                              // ครอบแทนใส่ onClick บน <img> เพื่อให้โฟกัส/คีย์บอร์ด/screen reader ใช้ได้จริง
+                              // (block + w-fit กันปุ่มยืดเต็มความกว้างบับเบิลจนกดโดนที่ว่างข้างรูป)
+                              <button
+                                type="button"
+                                onClick={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
+                                aria-label="ดูรูปเต็มจอ"
+                                className="block w-fit cursor-zoom-in"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={`/api/files/${m.imageUrl}`}
+                                  alt="รูปภาพที่ส่ง"
+                                  className="max-w-60 rounded"
+                                />
+                              </button>
                             )}
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
@@ -645,7 +694,8 @@ export default function ChatThread({
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
         {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
-            ทั้งสองใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary) */}
+            ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
+            เลือกสินค้า = info) */}
         {aiOpen && (
           <AiSuggestPanel
             conversationId={conversationId}
@@ -660,6 +710,14 @@ export default function ChatThread({
         {quickOpen && (
           <QuickMessageBar
             onPick={handleQuickPick}
+            disabled={composerDisabled}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
+
+        {productOpen && (
+          <ProductPickerPanel
+            onPick={handleProductPick}
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}
           />
@@ -683,6 +741,20 @@ export default function ChatThread({
             className={`btn btn-icon hover:bg-primary/10 shrink-0 ${quickOpen ? 'bg-primary/10 text-primary' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="bolt" className="text-lg" />
+          </button>
+
+          {/* เลือกสินค้า (composer improvement #4, user สั่ง 2026-07-23) — ไอคอน package ที่ user
+              เลือกเอง (ไม่ซ้ำกับ shopping-cart ที่เป็นแท็บ "คำสั่งซื้อ" ในแผงขวา) */}
+          <button
+            type="button"
+            onClick={() => togglePanel('product')}
+            disabled={composerDisabled}
+            aria-label="เลือกสินค้า"
+            aria-expanded={productOpen}
+            title="เลือกสินค้า"
+            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            <Icon icon="package" className="text-lg" />
           </button>
 
           {/* feature 00018 T4 — disabled ถาวรเมื่อ channel != DEEP (backend คืน 400 ถ้าส่งรูปช่องทาง
@@ -811,6 +883,17 @@ export default function ChatThread({
     {sheetOpen && (
       <CustomerPanelSheet data={customerPanelData} onClose={() => setSheetOpen(false)} />
     )}
+
+    {/* ดูรูปเต็มจอ — Base Gallery.tsx:100 (เพิ่ม plugin Zoom + แปลป้าย a11y เป็นไทย) */}
+    <Lightbox
+      slides={imageSlides}
+      open={lightboxIndex >= 0}
+      index={lightboxIndex}
+      close={() => setLightboxIndex(-1)}
+      controller={{ closeOnBackdropClick: true }}
+      plugins={[Zoom]}
+      labels={{ Previous: 'รูปก่อนหน้า', Next: 'รูปถัดไป', Close: 'ปิด', 'Zoom in': 'ขยาย', 'Zoom out': 'ย่อ' }}
+    />
     </>
   )
 }
