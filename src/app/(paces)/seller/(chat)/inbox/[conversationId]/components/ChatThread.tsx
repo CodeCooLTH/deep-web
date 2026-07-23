@@ -331,7 +331,10 @@ export default function ChatThread({
   }
 
   if (loadingInitial) {
-    return <SellerThreadSkeleton />
+    // เรขาคณิตต้องตรงกับการ์ดเธรดจริงข้างล่าง (min-w-0 h-full flex-1) และตรงกับ loading.tsx ของ
+    // route ด้วย — ไม่งั้นผู้ใช้เห็น skeleton 2 ก้อนคนละขนาดต่อกัน (bug user report 2026-07-23:
+    // "preload ซ้อนกัน 2 อัน") ดู comment เต็มที่ loading.tsx
+    return <SellerThreadSkeleton className="min-w-0 h-full flex-1" />
   }
 
   const groups = groupByDate(messages)
