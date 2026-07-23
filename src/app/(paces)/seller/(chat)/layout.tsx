@@ -34,13 +34,22 @@ import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 import ChatHeader from './_components/ChatHeader'
 import ChatRail from './_components/ChatRail'
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
-  const user = (session as any)?.user as { id: string } | undefined
+  const user = (session as any)?.user as { id: string; activeShopId?: string | null } | undefined
   if (!session || !user?.id) redirect('/auth/sign-in')
+
+  // resolve ร้านที่ active เพื่อส่ง shopId ให้ ChatRail → InboxList subscribe realtime
+  // `chat:shop:{shopId}` (bug fix: รายการแชทไม่อัปเดตเมื่อมีข้อความใหม่ — ดู comment หัว InboxList.tsx)
+  // fail-soft: resolve ไม่ได้ = null (แค่ไม่มี realtime, list/หน้าอื่นยังทำงานปกติและมี error state
+  // ของตัวเองที่ inbox/page.tsx อยู่แล้ว) — ห้าม redirect/throw ที่ layout เพราะจะพังทั้งหน้าแชท
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id, activeShopId: user.activeShopId ?? null },
+  })
 
   return (
     <ChatSearchProvider>
@@ -53,7 +62,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               ที่ inbox/page.tsx) เป็น duplication ที่ตั้งใจ — คนละ mode คนละ fetch (rail=client
               fetch ของตัวเอง, mobile list=SSR ของ page.tsx) ไม่ใช่ component เดียวกันที่ถูกซ่อน/โชว์ */}
           <div className="hidden shrink-0 flex-col border-e border-default-200 lg:flex lg:w-80">
-            <ChatRail />
+            <ChatRail shopId={activeCtx?.shopId ?? null} />
           </div>
 
           {/* children: /inbox (empty-state 2 คอลัมน์ desktop / list เต็มจอมือถือ) หรือ

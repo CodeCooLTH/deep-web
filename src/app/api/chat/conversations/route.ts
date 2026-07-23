@@ -9,6 +9,7 @@ import {
   getOrCreateConversation,
   listConversationsForShop,
   listConversationsForBuyer,
+  countUnreadByConversation,
   type ConversationSummary,
 } from "@/services/chat.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
@@ -190,7 +191,11 @@ export async function GET(request: NextRequest) {
       hidden: parsed.output.hidden,
     });
     // B1: seller เห็น counterparty = buyer identity
-    const items = await enrichWithBuyerCounterparty(result.items);
+    const enriched = await enrichWithBuyerCounterparty(result.items);
+    // unreadCount — badge ตัวเลข "จำนวนข้อความที่ยังไม่ได้อ่าน" ใน inbox list (user request 2026-07-23)
+    // enrichment แยกเหมือน counterparty ไม่แตะ ConversationSummary (FROZEN CONTRACT)
+    const unreadMap = await countUnreadByConversation(enriched.map((i) => i.id));
+    const items = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
     return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
   }
 

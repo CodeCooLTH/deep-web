@@ -46,7 +46,13 @@ type ChannelsApiResponse = {
 }
 type ConversationsApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
-export default function ChatRail() {
+type Props = {
+  /** ร้านที่ active (resolve ที่ (chat)/layout.tsx) — ส่งต่อให้ InboxList ใช้ subscribe realtime
+   *  `chat:shop:{shopId}`; null = resolve ไม่ได้ (ไม่มีร้าน/หลุดสิทธิ์) → ไม่ subscribe เฉย ๆ */
+  shopId: string | null
+}
+
+export default function ChatRail({ shopId }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [items, setItems] = useState<ConversationListItem[]>([])
@@ -120,7 +126,7 @@ export default function ChatRail() {
           />
         </div>
       ) : (
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} railMode />
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} shopId={shopId} railMode />
       )}
     </SimpleBar>
   )

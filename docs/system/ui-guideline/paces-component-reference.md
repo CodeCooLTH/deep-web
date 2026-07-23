@@ -95,6 +95,12 @@ Base: theme `SingleButtonDropdowns` (§3) + click-outside จาก `OrderCardMe
 - validation: `is-invalid` / `is-valid`
 - checkbox/radio/switch: `form-checkbox` / `form-radio` / `form-switch` (+ `-sm`/`-lg`); checked → `bg-primary border-primary`
 
+> ⚠️ **`.form-input` มี `width:100%` และ `_forms.css` ไม่ห่อ `@layer`** — เป็นไฟล์เดียวในชุด Paces ที่ unlayered (ต่างจาก `_buttons/_badge/_card/_dropdown` ที่ห่อ `@layer components`). Tailwind v4: unlayered ชนะทุก `@layer` เสมอ → **width utility (`w-14`/`w-32`/…) บน `.form-input` ไม่มีผลทั้งระบบ** เขียนยังไงก็ไม่ชนะ `width:100%`. ต้องคุมความกว้างในแถว flex → ห่อ `.input-group` (มี `> .form-input{width:1%; flex:1 1 auto}` unlayered specificity สูงกว่า) แล้วใส่ width utility ที่ `<div className="input-group w-14">` แทน. บทเรียน 2026-07-23 (POS cart qty field กว้างเต็มแถวจนช่องสินค้าเหลือ 0px).
+
+> ⚠️ **`.input-icon-group` ห้ามแทรก element คั่นระหว่าง `.input-icon` กับ `.form-input`** — CSS ใช้ adjacent sibling `.input-icon:first-child + .form-input{!ps-10}` เพื่อเว้น padding ให้ไอคอน. ถ้าแทรก `<label>`/element ใด ๆ คั่น (เช่นเพื่อ a11y) selector จะไม่ match → input ไม่ได้ padding → **ตัวอักษรทับไอคอน**. a11y ใช้ `aria-label` บน input แทน `<label>` element. บทเรียน 2026-07-23 (POS ช่องค้นหาสินค้า).
+
+> ⚠️ **ห้ามเขียนตัวอย่าง arbitrary-value class (วงเล็บเหลี่ยม) ลงในคอมเมนต์** — โดยเฉพาะที่มี `...` ข้างใน `var()` เช่น `` `border-[var(--mui-palette-...)]` ``. Tailwind scanner อ่านไฟล์เป็น **text ล้วน ไม่ parse โครง TS** → เก็บสตริงในคอมเมนต์เป็น class candidate → generate CSS ผิดไวยากรณ์ → **build ล้มทั้งแอป**. `tsc --noEmit` ไม่แตะ CSS pipeline (ผ่าน tsc ≠ build ผ่าน) — งานที่กระทบ Tailwind ควรรัน `build` จริงก่อน push. บทเรียน 2026-07-23 (คอมเมนต์ใน VerificationBadges ทำ prod build พัง).
+
 ## 5. Table — `_table.css`
 ```tsx
 <div className="table-wrapper">  {/* overflow-x-auto */}

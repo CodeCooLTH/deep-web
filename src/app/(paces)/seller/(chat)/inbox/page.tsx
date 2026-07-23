@@ -47,7 +47,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { listConversationsForShop } from '@/services/chat.service'
+import { listConversationsForShop, countUnreadByConversation } from '@/services/chat.service'
 import { listChannels } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
@@ -125,6 +125,10 @@ export default async function SellerInboxPage() {
         : []
     const contactMap = new Map(externalContacts.map((c) => [c.id, c]))
 
+    // unreadCount — badge ตัวเลขใน inbox list (user request 2026-07-23) นับสดจาก ChatMessage
+    // (data model เก็บ read-state ระดับห้องเท่านั้น — ดู comment ที่ countUnreadByConversation)
+    const unreadMap = await countUnreadByConversation(result.items.map((c) => c.id))
+
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
     items = result.items.map((c) => {
@@ -150,6 +154,7 @@ export default async function SellerInboxPage() {
         isPinned: c.isPinned,
         resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,
         counterparty,
+        unreadCount: unreadMap.get(c.id) ?? 0,
       }
     })
     nextCursor = result.nextCursor
@@ -183,7 +188,13 @@ export default async function SellerInboxPage() {
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} railMode />
+        <InboxList
+          initialItems={items}
+          initialNextCursor={nextCursor}
+          channels={channels}
+          shopId={shop.id}
+          railMode
+        />
       </div>
       {/* bug fix: ≥1024px ต้องเป็น 3 คอลัมน์ตั้งแต่หน้าแรก [rail][กลาง][ขวา] — เดิมมีแค่ 2
           (rail อยู่ที่ (chat)/layout.tsx แล้ว — ChatRail.tsx; ที่นี่คุมแค่กลาง+ขวา) ต้อง mirror

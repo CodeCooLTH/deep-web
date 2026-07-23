@@ -102,18 +102,20 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
   return (
     <div ref={anchorRef}>
       <div className="input-icon-group">
+        {/* ห้ามแทรก element (เช่น <label>) คั่นระหว่าง .input-icon กับ .form-input —
+            CSS .input-icon-group ใช้ adjacent sibling `.input-icon:first-child + .form-input { !ps-10 }`
+            เพื่อเว้น padding ซ้ายให้ไอคอน ถ้ามี element คั่น selector จะไม่ match → ตัวอักษรทับไอคอน
+            (เจอ prod 2026-07-23) → a11y ใช้ aria-label บน input แทน <label> element */}
         <span className="input-icon">
           <Icon icon="search" className="size-4 text-default-400" />
         </span>
-        <label htmlFor={inputId} className="sr-only">
-          ชื่อสินค้า
-        </label>
         <input
           id={inputId}
           ref={inputRef}
           type="text"
           autoComplete="off"
           role="combobox"
+          aria-label="ชื่อสินค้า"
           aria-expanded={open}
           aria-controls={listboxId}
           aria-autocomplete="list"

@@ -53,9 +53,13 @@ PRD/BRD, Design Spec, QA) ซึ่งจนถึงตอนนี้ได้
 apply M1/M2/M3 บน prod โดยตรง (ปลอดภัยเพราะ additive + ทดสอบก่อน) และ smoke test สร้าง/ลบ
 ข้อมูลบน prod ต้องเก็บกวาดเองทุกครั้ง มีความเสี่ยงถ้าลืม cleanup
 
-### P4 — Chrome MCP ต่อไม่ได้ → UI ไม่เคยถูกดูด้วยตา
-เบราว์เซอร์เปิดค้าง profile เดียวกัน ตรวจได้แค่ HTTP/payload/DB (ทำงานถูก) ไม่ได้ตรวจ
-visual quality — critique รอบเต็มยังทำไม่ได้
+### P4 — Chrome MCP flaky (แก้ได้ visual QA เสร็จแล้ว)
+รอบแรกต่อไม่ได้ (Chrome ที่ MCP เปิดค้างเมื่อวานถือ SingletonLock ของ profile เฉพาะ MCP)
+แก้ด้วยการ kill Chrome ตัวที่ถือ lock (ยืนยัน `chrome-devtools-mcp/chrome-profile` ก่อน —
+ไม่แตะ Chrome ของ user) + ลบ Singleton* แล้ว `new_page` ใหม่ได้ แต่ยัง flaky ระหว่างทาง
+(มี MCP server หลาย instance ต้อง kill+clear ซ้ำ 1 รอบ)
+**visual QA เสร็จ 5/5 หน้า (2026-07-23):** /rooms, /calendar, /bookings/[token], /housekeepers
+(Paces) + /o/[token] (Vuexy) — 0 ข้อบกพร่อง visual
 
 ### P5 — node_modules symlink ข้าม worktree ทับ Prisma client
 worktree `feat-chats-facebook` symlink `node_modules` มาที่โปรเจกต์นี้ → `prisma generate`
@@ -97,5 +101,6 @@ regex ต้องไม่พึ่งโครงประโยครอบ �
       `prisma generate` ก่อนเชื่อ tsc/dev ในแต่ละ worktree (P5)
 - [ ] (debt) `react-toastify` ตกค้างใน `(paces)` 2 ไฟล์ (settings, inventory) = ละเมิด HR9 — เก็บเป็น task แยก
 - [ ] (debt) font-size 16 จุด + radius 1 ในหน้าโปรไฟล์สาธารณะ = type-ramp refactor คนละก้อน
-- [ ] (visual) เมื่อ Chrome MCP ว่าง — ถ่ายภาพทุกหน้า + `/impeccable critique` รอบเต็ม
+- [x] (visual) ~~ถ่ายภาพทุกหน้า~~ เสร็จ 2026-07-23 (5 หน้า, 0 defect) — `/impeccable critique` รอบเต็ม
+      (browser inspection + scoring) ยังเป็น nice-to-have; detector ผ่านทุก commit แล้ว
 - [ ] promote C1/C2 เข้า memory (มีค่ากับทุก feature ที่ใช้ DB constraint)

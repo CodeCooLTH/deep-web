@@ -144,6 +144,36 @@ export async function listConversationsForShop(
   )
 }
 
+/**
+ * countUnreadByConversation — จำนวนข้อความ "ที่ฝั่งร้านยังไม่ได้อ่าน" ต่อบทสนทนา
+ *
+ * data model นี้เก็บ read-state ระดับ "ห้อง" (shopLastReadAt) ไม่ได้เก็บ read ต่อข้อความ
+ * (BR-CHAT-09) — จำนวนที่ยังไม่อ่านจึงต้องนับสด: ข้อความจากลูกค้า (senderRole='BUYER') ที่ใหม่กว่า
+ * shopLastReadAt ของห้องนั้น (ยังไม่เคยเปิดอ่านเลย = นับทั้งหมด)
+ *
+ * ทำไม raw SQL: เกณฑ์ cutoff (shopLastReadAt) ต่างกันรายบทสนทนา — `groupBy` ของ Prisma ใส่
+ * เงื่อนไขที่อ้าง column ของอีกตารางต่อแถวไม่ได้ ต้อง JOIN เอง. query เดียวจบ ไม่ N+1 และวิ่งบน
+ * index ที่มีอยู่แล้ว `ChatMessage(conversationId, createdAt)`
+ *
+ * ไม่ได้แก้ ConversationSummary (FROZEN CONTRACT, SDS §5) — เป็น enrichment แยกเหมือน
+ * counterparty (ดู comment หัว api/chat/conversations/route.ts) caller ประกอบเองที่ชั้น route/page
+ *
+ * COUNT(*) ของ Postgres คืน bigint → แปลงเป็น number ก่อนส่งออก (JSON.stringify ตาย bigint)
+ */
+export async function countUnreadByConversation(conversationIds: string[]): Promise<Map<string, number>> {
+  if (conversationIds.length === 0) return new Map()
+  const rows = await prisma.$queryRaw<{ conversationId: string; count: bigint }[]>`
+    SELECT m."conversationId" AS "conversationId", COUNT(*) AS count
+    FROM "ChatMessage" m
+    JOIN "Conversation" c ON c.id = m."conversationId"
+    WHERE m."conversationId" IN (${Prisma.join(conversationIds)})
+      AND m."senderRole" = 'BUYER'
+      AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
+    GROUP BY m."conversationId"
+  `
+  return new Map(rows.map((r) => [r.conversationId, Number(r.count)]))
+}
+
 export async function listConversationsForBuyer(
   buyerUserId: string,
   opts: { cursor?: string; take?: number } = {},
