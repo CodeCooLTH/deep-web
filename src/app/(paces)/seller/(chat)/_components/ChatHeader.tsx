@@ -30,11 +30,13 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import AppLogo from '@/components/AppLogo'
 import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
 import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleToggler'
 import ThemeDropdown from '@/layouts/components/TopBar/components/ThemeDropdown'
+import { CHAT_SOUND_EVENT, isChatSoundMuted, primeChatSound, setChatSoundMuted } from '@/lib/chat-sound'
 
 export default function ChatHeader() {
   // มือถือ/แท็บเล็ต (<1024px) ตอนเปิดอ่านแชท: ซ่อน header นี้ให้เธรดกินเต็มจอแบบแอปแชทจริง
@@ -45,6 +47,22 @@ export default function ChatHeader() {
   // ≥1024px ไม่ซ่อน: เป็นเลย์เอาต์ 3 คอลัมน์ที่ rail/เธรดอยู่บนจอเดียวกัน header เป็นแถบร่วมของทั้งหน้า
   const pathname = usePathname()
   const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '')
+
+  // เสียงเตือนข้อความใหม่ (user สั่ง 2026-07-23) — ปุ่มนี้คือสวิตช์ "ระดับแอป" ปิดแล้วเงียบทุกเธรด
+  // (ปิดรายเธรดอยู่ที่หัวเธรดใน ChatThread) ค่าอ่านหลัง mount เท่านั้น: localStorage ไม่มีบน server
+  // ถ้าอ่านตอน render แรกจะ hydration mismatch
+  const [muted, setMuted] = useState(false)
+  useEffect(() => {
+    setMuted(isChatSoundMuted())
+    const sync = () => setMuted(isChatSoundMuted())
+    window.addEventListener(CHAT_SOUND_EVENT, sync)
+    // ปลดล็อก AudioContext ตอน gesture แรก — เบราว์เซอร์ห้ามเล่นเสียงก่อนผู้ใช้ interact
+    const stopPriming = primeChatSound()
+    return () => {
+      window.removeEventListener(CHAT_SOUND_EVENT, sync)
+      stopPriming()
+    }
+  }, [])
 
   return (
     <header
@@ -75,6 +93,18 @@ export default function ChatHeader() {
       </Link>
 
       <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setChatSoundMuted(!muted)}
+          aria-pressed={muted}
+          title={muted ? 'เปิดเสียงแจ้งเตือนข้อความใหม่' : 'ปิดเสียงแจ้งเตือนข้อความใหม่'}
+          aria-label={muted ? 'เปิดเสียงแจ้งเตือนข้อความใหม่' : 'ปิดเสียงแจ้งเตือนข้อความใหม่'}
+          className={`btn btn-icon inline-flex size-11 items-center justify-center ${
+            muted ? 'text-default-500' : 'text-dark'
+          }`}
+        >
+          <Icon icon={muted ? 'volume-off' : 'volume'} className="text-lg" />
+        </button>
         <ThemeDropdown />
         <TextScaleToggler />
       </div>

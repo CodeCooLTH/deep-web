@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { CHAT_IMAGE_ALLOWED_TYPES } from '@/lib/chat-constants'
+import { playChatBeep } from '@/lib/chat-sound'
 
 // duplicate literal ของ lib/storage MAX_SIZE — ไม่ import '@/lib/storage' ฝั่ง client เพราะ barrel
 // นั้นดึง driver local/s3 (fs/server-only) เข้า client bundle ด้วย (เหตุผลเดียวกับไฟล์เดิมก่อน extract)
@@ -210,7 +211,11 @@ export function useSellerChatThread(conversationId: string) {
       if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
       setMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]))
+        // เสียงเตือน (user สั่ง 2026-07-23) — ดังเฉพาะข้อความ "ใหม่จริง" ของฝั่งลูกค้า: ต้องไม่เคย
+        // มีใน state มาก่อน (กัน refetch ซ้ำแล้วดังซ้ำ) และไม่ใช่ข้อความที่ร้านส่งเอง/echo จากแอป
+        const hasNewFromBuyer = data.items.some((m) => m.senderRole === 'BUYER' && !map.has(m.id))
         for (const m of data.items) map.set(m.id, m)
+        if (hasNewFromBuyer) playChatBeep(conversationId)
         return Array.from(map.values()).sort(
           (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         )

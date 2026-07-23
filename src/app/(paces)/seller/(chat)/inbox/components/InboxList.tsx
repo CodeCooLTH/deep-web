@@ -83,6 +83,7 @@ import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
+import { playChatBeep } from '@/lib/chat-sound'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -355,6 +356,16 @@ export default function InboxList({
       const data: ApiResponse = await res.json()
       setItems((prev) => {
         const freshIds = new Set(data.items.map((i) => i.id))
+        // เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เทียบกับ state เดิม: เธรดใหม่ทั้งห้อง
+        // หรือเธรดเดิมที่ lastMessageAt ขยับ **และ** ข้อความล่าสุดมาจากลูกค้า (ไม่ใช่ที่ร้านเพิ่งส่งเอง)
+        // playChatBeep throttle ให้เองแล้วเมื่อหน้าเธรดดังพร้อมกัน (ดู comment ใน chat-sound.ts)
+        const prevById = new Map(prev.map((p) => [p.id, p]))
+        const beepFor = data.items.find((it) => {
+          if (it.lastSenderRole !== 'BUYER') return false
+          const before = prevById.get(it.id)
+          return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
+        })
+        if (beepFor) playChatBeep(beepFor.id)
         // หน้าแรกเรียงล่าสุดก่อนอยู่แล้ว (lastMessageAt desc) — วางไว้บนสุดแล้วต่อด้วยของเก่าที่ไม่ซ้ำ
         return [...data.items, ...prev.filter((p) => !freshIds.has(p.id))]
       })
