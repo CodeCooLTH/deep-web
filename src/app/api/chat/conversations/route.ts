@@ -174,6 +174,9 @@ export async function GET(request: NextRequest) {
     status: searchParams.get("status") ?? undefined,
     customerLinked: searchParams.get("customerLinked") ?? undefined,
     hidden: searchParams.get("hidden") === "true" ? true : undefined,
+    // feature 00018: กรองแท็บกลุ่ม + อ่านแล้ว/ยังไม่อ่าน
+    chatGroupId: searchParams.get("chatGroupId") ?? undefined,
+    readState: searchParams.get("readState") ?? undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -201,6 +204,8 @@ export async function GET(request: NextRequest) {
       status: parsed.output.status,
       customerLinked: parsed.output.customerLinked,
       hidden: parsed.output.hidden,
+      chatGroupId: parsed.output.chatGroupId,
+      readState: parsed.output.readState,
     });
     // B1: seller เห็น counterparty = buyer identity
     const enriched = await enrichWithBuyerCounterparty(result.items);

@@ -740,6 +740,9 @@ export const ChatConversationsQuerySchema = v.object({
   status: v.optional(v.picklist(['open', 'resolved', 'all'])),
   customerLinked: v.optional(v.picklist(['all', 'linked', 'unlinked'])),
   hidden: v.optional(v.boolean()),
+  // feature 00018: แท็บกลุ่ม + อ่านแล้ว/ยังไม่อ่าน
+  chatGroupId: v.optional(v.pipe(v.string(), v.uuid())),
+  readState: v.optional(v.picklist(['unread', 'read'])),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership

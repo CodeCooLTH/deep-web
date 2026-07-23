@@ -37,7 +37,7 @@ import { useEffect, useState } from 'react'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import InboxList, { type ConversationListItem, type ChannelFilterOption } from '../inbox/components/InboxList'
+import InboxList, { type ConversationListItem, type ChannelFilterOption, type ChatGroupTab } from '../inbox/components/InboxList'
 
 // feat 00018 งาน 2: เก็บ field ดิบ (provider/name/avatarUrl) แทน label สำเร็จรูป — ตรงกับ
 // ChannelView ที่ GET /api/channels คืนมาอยู่แล้ว (allow-list ที่ shop-channel.service.ts)
@@ -58,6 +58,7 @@ export default function ChatRail({ shopId }: Props) {
   const [items, setItems] = useState<ConversationListItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [channels, setChannels] = useState<ChannelFilterOption[]>([])
+  const [groups, setGroups] = useState<ChatGroupTab[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -66,7 +67,7 @@ export default function ChatRail({ shopId }: Props) {
       setLoading(true)
       setLoadFailed(false)
       try {
-        // 2 endpoint แยกกัน — ตัวกรอง "เพจ" ไม่ควรทำให้ list ล่มถ้าโหลดไม่สำเร็จ
+        // endpoint แยกกัน — ตัวกรอง "เพจ"/กลุ่ม ไม่ควรทำให้ list ล่มถ้าโหลดไม่สำเร็จ
         let channelOptions: ChannelFilterOption[] = []
         try {
           const channelsRes = await fetch('/api/channels')
@@ -83,12 +84,25 @@ export default function ChatRail({ shopId }: Props) {
           console.error('[ChatRail] load channels failed', e)
         }
 
+        // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — non-fatal เหมือน channels
+        let groupOptions: ChatGroupTab[] = []
+        try {
+          const groupsRes = await fetch('/api/chat/groups')
+          if (groupsRes.ok) {
+            const groupsData: { items: ChatGroupTab[] } = await groupsRes.json()
+            groupOptions = groupsData.items
+          }
+        } catch (e) {
+          console.error('[ChatRail] load groups failed', e)
+        }
+
         const conversationsRes = await fetch('/api/chat/conversations?take=20')
         if (!conversationsRes.ok) throw new Error('load conversations failed')
         const conversationsData: ConversationsApiResponse = await conversationsRes.json()
 
         if (cancelled) return
         setChannels(channelOptions)
+        setGroups(groupOptions)
         setItems(conversationsData.items)
         setNextCursor(conversationsData.nextCursor)
       } catch (e) {
@@ -129,7 +143,7 @@ export default function ChatRail({ shopId }: Props) {
           />
         </div>
       ) : (
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} shopId={shopId} railMode />
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} railMode />
       )}
     </SimpleBar>
   )

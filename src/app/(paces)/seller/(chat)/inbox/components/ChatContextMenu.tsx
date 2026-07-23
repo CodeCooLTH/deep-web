@@ -25,11 +25,23 @@ type Props = {
   conversationId: string
   salesStatus: string
   tags: string[]
+  groups: { id: string; name: string }[]
+  onMoveToGroup: (groupId: string | null) => void
   onClose: () => void
   onUpdated: () => void
 }
 
-export default function ChatContextMenu({ x, y, conversationId, salesStatus, tags, onClose, onUpdated }: Props) {
+export default function ChatContextMenu({
+  x,
+  y,
+  conversationId,
+  salesStatus,
+  tags,
+  groups,
+  onMoveToGroup,
+  onClose,
+  onUpdated,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   // clamp ไม่ให้ล้นขอบขวา/ล่างของจอ (เมนูกว้าง ~208px สูง ~ประมาณ)
@@ -80,7 +92,7 @@ export default function ChatContextMenu({ x, y, conversationId, salesStatus, tag
       ref={ref}
       role="menu"
       style={{ top, left }}
-      className="border-default-300 bg-card fixed z-50 w-52 overflow-hidden rounded-lg border shadow-lg"
+      className="border-default-300 bg-card fixed z-50 max-h-96 w-52 overflow-y-auto rounded-lg border shadow-lg"
     >
       <p className="text-default-400 px-3 pt-2 pb-1 text-2xs font-medium">สถานะการขาย</p>
       {STATUS_OPTIONS.map((o) => (
@@ -96,6 +108,37 @@ export default function ChatContextMenu({ x, y, conversationId, salesStatus, tag
           <span className={o.cls}>{o.label}</span>
         </button>
       ))}
+
+      <hr className="dropdown-divider" />
+
+      <p className="text-default-400 px-3 pt-1 pb-1 text-2xs font-medium">ย้ายไปกลุ่ม</p>
+      {groups.length === 0 ? (
+        <p className="text-default-400 px-3 pb-1.5 text-2xs">ยังไม่มีกลุ่ม — กด “+” ที่แถบกลุ่มด้านบนเพื่อสร้าง</p>
+      ) : (
+        <>
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              role="menuitem"
+              onClick={() => onMoveToGroup(g.id)}
+              className="dropdown-item text-sm"
+            >
+              <Icon icon="folder" className="text-default-500 size-4" />
+              <span>{g.name}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => onMoveToGroup(null)}
+            className="dropdown-item text-default-500 text-sm"
+          >
+            <Icon icon="folder-off" className="size-4" />
+            <span>เอาออกจากกลุ่ม</span>
+          </button>
+        </>
+      )}
 
       <hr className="dropdown-divider" />
 

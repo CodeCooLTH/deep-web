@@ -180,10 +180,15 @@ function BuyerAvatar({ avatar, name }: { avatar: string | null; name: string }) 
   )
 }
 
+// กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — type-only (ไม่ import จาก service ที่ผูก prisma เข้ามาใน client)
+export type ChatGroupTab = { id: string; name: string; sortOrder: number }
+
 type Props = {
   initialItems: ConversationListItem[]
   initialNextCursor: string | null
   channels: ChannelFilterOption[]
+  /** กลุ่ม/แท็บจัดหมวดแชทของร้าน (feature 00018) — SSR ส่งมา, client จัดการเพิ่ม/ลบต่อ */
+  initialGroups?: ChatGroupTab[]
   /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
    *  ไม่ระบุ/false = มือถือ/แท็บเล็ต drill-down list (inbox/page.tsx) — พฤติกรรมเดิมทุกประการ */
   railMode?: boolean
@@ -196,6 +201,7 @@ export default function InboxList({
   initialItems,
   initialNextCursor,
   channels,
+  initialGroups = [],
   railMode = false,
   shopId = null,
 }: Props) {
@@ -207,6 +213,12 @@ export default function InboxList({
   // ── T3: filter/search state — ขับ tab ด้วย React state เอง (ไม่ใช้ data-hs-tab) ──
   const [channelTab, setChannelTab] = useState<ChannelTab>('ALL')
   const [pageFilter, setPageFilter] = useState('') // shopChannelId, '' = ทุกเพจ
+  // feature 00018 กลุ่ม/แท็บจัดหมวดแชท + ตัวกรองอ่านแล้ว/ยังไม่อ่าน
+  const [groups, setGroups] = useState<ChatGroupTab[]>(initialGroups)
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null) // null = แท็บ "ทั้งหมด"
+  const [readFilter, setReadFilter] = useState<'unread' | 'read' | null>(null) // null = ไม่กรอง (default)
+  const [addingGroup, setAddingGroup] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
   const [filter, setFilter] = useState<ChatFilterState>(DEFAULT_CHAT_FILTER)
   // popover ตัวกรองเปิดได้ทีละตัว — state อยู่ที่นี่ (bug: เดิมสองตัวถือ state เอง เปิดพร้อมกันแล้วทับกัน)
@@ -248,6 +260,8 @@ export default function InboxList({
       if (filter.status !== 'open') params.set('status', filter.status)
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
+      if (activeGroupId) params.set('chatGroupId', activeGroupId)
+      if (readFilter) params.set('readState', readFilter)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!res.ok) throw new Error('load failed')
       const data: ApiResponse = await res.json()
@@ -273,7 +287,7 @@ export default function InboxList({
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, activeGroupId, readFilter])
 
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
@@ -333,6 +347,74 @@ export default function InboxList({
     }
   }
 
+  // ── feature 00018 กลุ่ม/แท็บจัดหมวดแชท ──
+  // สร้างกลุ่มใหม่ (inline "+") — POST แล้วเพิ่มเข้า state + สลับไปแท็บนั้นเลย
+  const handleCreateGroup = async () => {
+    const name = newGroupName.trim()
+    if (!name) {
+      setAddingGroup(false)
+      return
+    }
+    try {
+      const res = await fetch('/api/chat/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        pacesToast.chat.error(data?.error ?? 'สร้างกลุ่มไม่สำเร็จ')
+        return
+      }
+      setGroups((g) => [...g, data as ChatGroupTab])
+      setActiveGroupId(data.id)
+      setNewGroupName('')
+      setAddingGroup(false)
+    } catch {
+      pacesToast.chat.error('สร้างกลุ่มไม่สำเร็จ ลองใหม่อีกครั้ง')
+    }
+  }
+
+  // ลบกลุ่ม (คลิกขวาที่แท็บ) — เธรดในกลุ่มกลับไป "ทั้งหมด" เอง (FK SetNull)
+  const handleDeleteGroup = async (g: ChatGroupTab) => {
+    const ok = await pacesConfirm.danger(`ลบกลุ่ม "${g.name}"?`, 'แชทในกลุ่มนี้จะกลับไปอยู่ "ทั้งหมด" (ไม่ถูกลบ)', {
+      confirmButtonText: 'ลบกลุ่ม',
+    })
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/chat/groups/${g.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        pacesToast.chat.error('ลบกลุ่มไม่สำเร็จ')
+        return
+      }
+      setGroups((prev) => prev.filter((x) => x.id !== g.id))
+      setActiveGroupId((cur) => (cur === g.id ? null : cur))
+      pacesToast.chat.success('ลบกลุ่มแล้ว')
+    } catch {
+      pacesToast.chat.error('ลบกลุ่มไม่สำเร็จ ลองใหม่อีกครั้ง')
+    }
+  }
+
+  // ย้ายเธรดเข้ากลุ่ม/เอาออก (คลิกขวาเธรด → เลือกกลุ่ม) — PATCH action 'set-group'
+  const handleMoveToGroup = async (conversationId: string, chatGroupId: string | null) => {
+    try {
+      const res = await fetch(`/api/chat/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-group', chatGroupId }),
+      })
+      if (!res.ok) {
+        pacesToast.chat.error('ย้ายกลุ่มไม่สำเร็จ')
+        return
+      }
+      pacesToast.chat.success(chatGroupId ? 'ย้ายเข้ากลุ่มแล้ว' : 'เอาออกจากกลุ่มแล้ว')
+      // ถ้ากำลังดูแท็บกลุ่มอยู่ แล้วย้ายออก → refetch ให้แถวหาย; อยู่แท็บ "ทั้งหมด" ก็ refetch เฉย ๆ
+      await fetchList({ append: false })
+    } catch {
+      pacesToast.chat.error('ย้ายกลุ่มไม่สำเร็จ ลองใหม่อีกครั้ง')
+    }
+  }
+
   // ── realtime refresh (bug fix: รายการไม่อัปเดตเมื่อมีข้อความใหม่ — ดู comment หัวไฟล์) ──
   // refresh = ดึง "หน้าแรก" ตาม filter ปัจจุบันแล้ว merge ทับของเดิม (ไม่ replace ทั้งก้อน) —
   // แถวที่โหลดมาจาก loadMore หน้าถัด ๆ ไปต้องไม่หายไปกลางคัน และ nextCursor ต้องไม่ถูกรีเซ็ต
@@ -350,6 +432,8 @@ export default function InboxList({
       if (filter.status !== 'open') params.set('status', filter.status)
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
+      if (activeGroupId) params.set('chatGroupId', activeGroupId)
+      if (readFilter) params.set('readState', readFilter)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) return
       const data: ApiResponse = await res.json()
@@ -547,6 +631,95 @@ export default function InboxList({
               </button>
             </span>
           )}
+        </div>
+
+        {/* แถวกลุ่ม/แท็บจัดหมวดแชท + ตัวกรองอ่านแล้ว/ยังไม่อ่าน (feature 00018, user request 2026-07-23)
+            กลุ่ม: ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline; ชิดขวา = อ่าน/ยังไม่อ่าน (toggle, default ปิด) */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="กลุ่มแชท">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeGroupId === null}
+              onClick={() => setActiveGroupId(null)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
+                activeGroupId === null ? 'bg-primary text-white' : 'bg-light text-default-700'
+              }`}
+            >
+              ทั้งหมด
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                role="tab"
+                aria-selected={activeGroupId === g.id}
+                onClick={() => setActiveGroupId(g.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  handleDeleteGroup(g)
+                }}
+                title="คลิกขวาเพื่อลบกลุ่ม"
+                className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
+                  activeGroupId === g.id ? 'bg-primary text-white' : 'bg-light text-default-700'
+                }`}
+              >
+                {g.name}
+              </button>
+            ))}
+            {addingGroup ? (
+              <input
+                autoFocus
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateGroup()
+                  else if (e.key === 'Escape') {
+                    setAddingGroup(false)
+                    setNewGroupName('')
+                  }
+                }}
+                onBlur={handleCreateGroup}
+                maxLength={40}
+                placeholder="ชื่อกลุ่ม"
+                aria-label="ชื่อกลุ่มใหม่"
+                className="text-default-800 w-28 shrink-0 rounded-full bg-light px-3 py-1.5 text-sm outline-none"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingGroup(true)}
+                aria-label="เพิ่มกลุ่ม"
+                title="เพิ่มกลุ่ม"
+                className="text-default-600 flex size-8 shrink-0 items-center justify-center rounded-full bg-light"
+              >
+                <Icon icon="plus" width={16} height={16} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5" aria-label="ตัวกรองการอ่าน">
+            <button
+              type="button"
+              aria-pressed={readFilter === 'unread'}
+              onClick={() => setReadFilter((r) => (r === 'unread' ? null : 'unread'))}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+                readFilter === 'unread' ? 'bg-primary text-white' : 'bg-light text-default-600'
+              }`}
+            >
+              ยังไม่อ่าน
+            </button>
+            <button
+              type="button"
+              aria-pressed={readFilter === 'read'}
+              onClick={() => setReadFilter((r) => (r === 'read' ? null : 'read'))}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+                readFilter === 'read' ? 'bg-primary text-white' : 'bg-light text-default-600'
+              }`}
+            >
+              อ่านแล้ว
+            </button>
+          </div>
         </div>
       </div>
 
@@ -813,6 +986,11 @@ export default function InboxList({
           conversationId={ctxMenu.id}
           salesStatus={ctxMenu.salesStatus}
           tags={ctxMenu.tags}
+          groups={groups}
+          onMoveToGroup={(gid) => {
+            handleMoveToGroup(ctxMenu.id, gid)
+            setCtxMenu(null)
+          }}
           onClose={() => setCtxMenu(null)}
           onUpdated={() => {
             fetchList({ append: false })

@@ -49,6 +49,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listConversationsForShop, countUnreadByConversation } from '@/services/chat.service'
 import { listChannels } from '@/services/shop-channel.service'
+import { listChatGroups } from '@/services/chat-group.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
@@ -89,6 +90,14 @@ export default async function SellerInboxPage() {
     channels = rows.map((c) => ({ id: c.id, provider: c.provider, name: c.name, avatarUrl: c.avatarUrl }))
   } catch (e) {
     console.error('[inbox/page] listChannels failed', e)
+  }
+
+  // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — non-fatal (list ยังแสดงได้แม้โหลดกลุ่มพลาด)
+  let groups: { id: string; name: string; sortOrder: number }[] = []
+  try {
+    groups = await listChatGroups(shop.id)
+  } catch (e) {
+    console.error('[inbox/page] listChatGroups failed', e)
   }
 
   // ── data fetch (try/catch แยกจาก JSX construction — react-hooks/error-boundaries) ──
@@ -199,6 +208,7 @@ export default async function SellerInboxPage() {
           initialItems={items}
           initialNextCursor={nextCursor}
           channels={channels}
+          initialGroups={groups}
           shopId={shop.id}
           railMode
         />
