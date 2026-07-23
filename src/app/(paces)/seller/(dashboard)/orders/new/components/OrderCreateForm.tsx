@@ -214,9 +214,23 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
   // แถวเปล่า = ไม่มี productId และ name ว่าง (fresh addCustom row)
   // วางที่นี่ (form owner) ไม่ใช่ QuickForm — เพราะ mobile+desktop render พร้อมกัน กฎใน component
   // เฉพาะ platform จะรั่วข้ามฝั่ง (bug 3, 2026-07-23)
+  //
+  // pendingAppend guard (bug พบ prod 2026-07-23): useWatch อัปเดต watchedItems แบบ async —
+  // ตอน mount append แถวแรกไปแล้ว แต่ effect ยิงซ้ำอีกรอบก่อน watchedItems ทันสะท้อนค่าที่เพิ่ง
+  // append (ยังเห็นเป็น stale/ว่าง) → เข้าใจผิดว่ายังไม่มีแถวว่าง → append ซ้ำเป็น 2 แถว.
+  // ref นี้กันไม่ให้ effect รอบถัดไป (ที่มาจาก append ของตัวเอง) เติมซ้ำ — ถ้าลบออกจะกลับไปเป็นบั๊ก 2 แถวอีก
+  const pendingAppend = useRef(false)
   useEffect(() => {
+    if (pendingAppend.current) {
+      // watchedItems สะท้อน append ที่เพิ่งทำแล้ว — เคลียร์ flag ไม่เติมซ้ำ
+      pendingAppend.current = false
+      return
+    }
     const hasEmpty = watchedItems.some((it) => !it.productId && !(it.name ?? '').trim())
-    if (!hasEmpty) addCustom()
+    if (!hasEmpty) {
+      pendingAppend.current = true
+      addCustom()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedItems])
 
