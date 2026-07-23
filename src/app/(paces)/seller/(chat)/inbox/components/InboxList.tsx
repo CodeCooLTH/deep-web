@@ -214,7 +214,7 @@ export default function InboxList({
   const [openPanel, setOpenPanel] = useState<'filter' | 'page' | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
   // feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) เฉพาะเธรดช่องทางนอก
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string; salesStatus: string; tags: string[] } | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null)
 
   // ── ช่องค้นหา ──
   // railMode=true: query มาจาก ChatSearchContext (topbar เขียน, ที่นี่แค่อ่าน debouncedQuery —
@@ -644,14 +644,13 @@ export default function InboxList({
                 }
               >
               <div
-                onContextMenu={
-                  c.channel !== 'DEEP'
-                    ? (e) => {
-                        e.preventDefault()
-                        setCtxMenu({ x: e.clientX, y: e.clientY, id: c.id, salesStatus, tags: contactTags })
-                      }
-                    : undefined
-                }
+                onContextMenu={(e) => {
+                  // เปิดได้ทุกเธรดแล้ว (user สั่ง 2026-07-23: action ประจำแถวต้องอยู่ในคลิกขวาด้วย) —
+                  // เดิมเปิดเฉพาะช่องทางนอกเพราะเมนูมีแต่ฟิลด์ CRM; ตอนนี้ DEEP ก็มี ปักหมุด/ปิดงาน/
+                  // ซ่อน/เสียง ให้ใช้ (เมนูซ่อนเฉพาะส่วน CRM เอง)
+                  e.preventDefault()
+                  setCtxMenu({ x: e.clientX, y: e.clientY, id: c.id })
+                }}
                 className={`group relative flex items-stretch border-s-2 ${
                   c.id === activeConversationId
                     ? // แชทที่กำลังเปิดอยู่ — เด่นชัดสุด (primary tint + แถบ primary) เพื่อให้รู้ว่าคุยห้องไหน
@@ -817,20 +816,33 @@ export default function InboxList({
       )}
 
       {/* feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) */}
-      {ctxMenu && (
-        <ChatContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          conversationId={ctxMenu.id}
-          salesStatus={ctxMenu.salesStatus}
-          tags={ctxMenu.tags}
-          onClose={() => setCtxMenu(null)}
-          onUpdated={() => {
-            fetchList({ append: false })
-            setCtxMenu(null)
-          }}
-        />
-      )}
+      {ctxMenu &&
+        (() => {
+          // อ่านสถานะจาก items ตอน render (ไม่ snapshot ลง state ตอนคลิกขวา) — หลัง action + refetch
+          // เมนูที่ยังเปิดอยู่จะได้ label ที่ตรงความจริง ไม่ค้างเป็น "ปักหมุด" ทั้งที่ปักไปแล้ว
+          const row = items.find((i) => i.id === ctxMenu.id)
+          if (!row) return null
+          return (
+            <ChatContextMenu
+              x={ctxMenu.x}
+              y={ctxMenu.y}
+              conversationId={row.id}
+              external={row.channel !== 'DEEP'}
+              salesStatus={row.contactSalesStatus ?? 'UNSPECIFIED'}
+              tags={row.contactTags ?? []}
+              isPinned={row.isPinned}
+              isResolved={row.resolvedAt !== null}
+              hiddenContext={filter.hidden}
+              busyAction={actioningId === row.id}
+              onAction={(a) => handleRowAction(row.id, a)}
+              onClose={() => setCtxMenu(null)}
+              onUpdated={() => {
+                fetchList({ append: false })
+                setCtxMenu(null)
+              }}
+            />
+          )
+        })()}
     </div>
   )
 }
