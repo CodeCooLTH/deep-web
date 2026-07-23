@@ -79,6 +79,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
+import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
 import type { QuickMessage } from './QuickMessageManager'
 import type { CustomerPanelData } from './CustomerPanel'
@@ -254,6 +255,8 @@ export default function ChatThread({
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  // composer improvement #3 — แผง AI ช่วยร่างคำตอบ (Gemini)
+  const [aiOpen, setAiOpen] = useState(false)
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -504,8 +507,21 @@ export default function ChatThread({
         )}
       </div>
 
-      {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip */}
-      <div className="border-t border-default-300 border-dashed px-4 py-3 sm:px-6 sm:py-3.75">
+      {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
+          relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
+      <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
+        {/* composer improvement #3 — แผง AI ช่วยร่างคำตอบ (ลอยเหนือช่องพิมพ์) */}
+        {aiOpen && (
+          <AiSuggestPanel
+            conversationId={conversationId}
+            onPick={(t) => {
+              setText(t)
+              setAiOpen(false)
+            }}
+            onClose={() => setAiOpen(false)}
+          />
+        )}
+
         {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) เหนือช่องพิมพ์ */}
         <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />
 
@@ -560,6 +576,19 @@ export default function ChatThread({
               <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
             )}
           </div>
+
+          {/* composer improvement #3 — ปุ่ม AI ช่วยร่างคำตอบ (accent เขียว success ตาม ref) */}
+          <button
+            type="button"
+            onClick={() => setAiOpen((v) => !v)}
+            disabled={composerDisabled}
+            aria-label="AI ช่วยร่างคำตอบ"
+            aria-expanded={aiOpen}
+            title="AI ช่วยร่างคำตอบ"
+            className={`btn btn-icon border-default-300 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            <Icon icon="sparkles" className="text-lg" />
+          </button>
 
           <div className="input-icon-group grow">
             <Icon icon="message" className="input-icon" />
