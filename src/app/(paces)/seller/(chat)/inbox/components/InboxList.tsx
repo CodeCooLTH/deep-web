@@ -404,7 +404,10 @@ export default function InboxList({
   const selectedPageName = channels.find((c) => c.id === pageFilter)?.name
 
   return (
-    <div className="card">
+    // shadow-none (user สั่ง 2026-07-23): .card ของ Paces มี shadow ในตัว (custom/_card.css) ซึ่ง
+    // เหมาะกับการ์ดที่ลอยบนพื้นหน้า dashboard — ในหน้าแชทการ์ดนี้กินเต็มคอลัมน์ rail/เต็มจอมือถือ
+    // อยู่แล้ว เงาจึงกลายเป็นเส้นคล้ำที่ขอบ ไม่ได้สื่อความลึกอะไร (ขอบ rail มี border-e ของ layout อยู่แล้ว)
+    <div className="card shadow-none">
       {/* items-stretch: `.card-header` ของ Paces เป็น `flex flex-wrap items-center justify-between`
           (custom/_card.css) — พอ override เป็น flex-col แล้ว `items-center` ที่เหลืออยู่จะบีบทุกแถว
           ให้กว้างเท่าเนื้อหาแล้วจัดกึ่งกลาง (ปุ่มลอยกลาง ไม่ตรงกับแถวรายการข้างล่างที่ชิดซ้าย +
