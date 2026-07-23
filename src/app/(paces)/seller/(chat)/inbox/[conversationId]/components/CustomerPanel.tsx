@@ -41,6 +41,7 @@ import { generateInitials } from '@/utils/helpers'
 import { formatDate } from '@/lib/format-date'
 import type { ShopVertical } from '@/lib/lodging'
 import { ChannelBadge } from '../../components/ChannelBadge'
+import CustomerCrmSection from './CustomerCrmSection'
 
 export type CustomerPanelOrder = {
   id: string
@@ -54,6 +55,7 @@ export type CustomerPanelOrder = {
 }
 
 export type CustomerPanelData = {
+  conversationId: string // feature 00018 CRM — ใช้เรียก /api/chat/conversations/[id]/crm
   contactName: string
   channel: string // 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
   /** ชื่อเพจที่เธรดผูกอยู่ — badge แสดงชื่อเพจแทนชื่อช่องทาง (ให้ตรงกับ header เธรด) null = Deep */
@@ -141,7 +143,10 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
 
       <div className="p-4">
         {tab === 'customer' ? (
-          data.customer ? (
+          <div className="space-y-4">
+            {/* feature 00018 CRM — แก้ไข tag/note/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
+            <CustomerCrmSection conversationId={data.conversationId} />
+            {data.customer ? (
             <div className="bg-light/40 rounded-lg p-3">
               <p className="text-default-400 text-2xs">รหัสลูกค้า</p>
               <p className="text-default-900 mb-2 font-mono text-sm font-semibold">
@@ -165,7 +170,8 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
                 {cta.label}
               </Link>
             </div>
-          )
+          )}
+          </div>
         ) : data.customer ? (
           data.orders.length === 0 ? (
             <p className="text-default-400 text-sm">{cta.emptyLabel}</p>
