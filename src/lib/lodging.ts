@@ -165,3 +165,17 @@ export const MAX_ROOM_IMAGES = 10 // BR-LODG-34 (D-05)
 export const MAX_ROOM_NAME_LENGTH = 100
 export const MAX_ROOM_DESCRIPTION_LENGTH = 1000
 export const MAX_ROOM_GUESTS = 50
+
+// ---------------------------------------------------------------------------
+// สถานะงานแม่บ้าน (Order.housekeepingStatus) — feature 00017 Phase 3
+// ---------------------------------------------------------------------------
+export const HOUSEKEEPING_STATUS = {
+  PENDING: 'รอทำ',
+  DONE: 'เสร็จแล้ว',
+} as const
+
+export type HousekeepingStatus = keyof typeof HOUSEKEEPING_STATUS
+
+export function isHousekeepingStatus(value: string): value is HousekeepingStatus {
+  return value in HOUSEKEEPING_STATUS
+}
