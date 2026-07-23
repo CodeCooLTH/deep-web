@@ -70,18 +70,23 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
           </p>
         )}
       </div>
-      {/* จำนวน */}
-      <input
-        type="number"
-        inputMode="numeric"
-        min={1}
-        step={1}
-        aria-label="จำนวน"
-        className="form-input w-14 shrink-0 px-1 py-1.5 text-center text-sm"
-        value={qtyField.value ?? 1}
-        onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-        onBlur={qtyField.onBlur}
-      />
+      {/* จำนวน — ห่อ .input-group (มี `> .form-input { width: 1%; flex: 1 1 auto }` unlayered ที่ _forms.css:256-262
+          ชนะ .form-input ตัวเปล่า ๆ ได้) แทนใส่ w-14 ตรงที่ input เพราะ _forms.css เป็นไฟล์เดียวที่ไม่ห่อ @layer
+          → unlayered ชนะ @layer utilities เสมอใน Tailwind v4 ทำให้ w-14 บน .form-input ไม่มีผล (บีบเหลือ 0px)
+          w-14/shrink-0 ย้ายมาอยู่ที่ wrapper (div ธรรมดา ไม่ชนกับ unlayered rule) แทน — ห้ามย้ายกลับไปที่ input ตรง ๆ */}
+      <div className="input-group w-14 shrink-0">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          step={1}
+          aria-label="จำนวน"
+          className="form-input px-1 py-1.5 text-center text-sm"
+          value={qtyField.value ?? 1}
+          onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+          onBlur={qtyField.onBlur}
+        />
+      </div>
       {/* ราคาต่อหน่วย */}
       <div className="input-group w-24 shrink-0">
         <span className="input-group-text px-2">฿</span>

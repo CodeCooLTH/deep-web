@@ -4,12 +4,17 @@
  * ProductCombobox — select2 ต่อ cart line: ค้นหา/เลือกสินค้า existing หรือพิมพ์ชื่อใหม่ = custom item
  * custom React state — ห้ามใช้ Preline hs-dropdown (กัน opacity ค้าง; feedback project_filterdropdown_reusable)
  * Base: src/app/(paces)/seller/(dashboard)/orders/new/components/CustomerSelectBlock.tsx (click-outside + popup markup)
- * known-gap (MVP): popup เปิดลง (top-full) เสมอ — ยังไม่ smart-flip เมื่อใกล้ขอบล่าง scroll container
+ * known-gap (MVP): ไม่มี arrow-key nav ใน list (มีมาตั้งแต่ก่อนหน้านี้ — ไม่ใช่ regression ใหม่)
+ * bug-fix (2026-07-22): panel เดิม `absolute top-full` โดน clip เมื่ออยู่ใน CartPanel (lg:overflow-y-auto)
+ *   ใกล้ขอบล่าง — เปลี่ยนเป็น portal-to-body ผ่าน useAnchoredDropdown (shared hook, ดู hook สำหรับ
+ *   เหตุผล/precedent เต็ม) แทน absolute positioning; click-outside/escape/focus-trap ย้ายเข้า hook แล้ว
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from './ProductThumb'
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
 import type { CatalogProduct } from './OrderCreateForm'
 
 const formatThb = (n: number) =>
@@ -25,24 +30,9 @@ interface Props {
 export default function ProductCombobox({ value, catalog, onPick, onCustom }: Props) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onEsc)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onEsc)
-    }
-  }, [open])
+  // click-outside/scroll-close/focus-trap/portal position รวมอยู่ใน hook (shared 3 จุด — ดู hook สำหรับที่มา)
+  const { anchorRef, panelRef, style, mounted } = useAnchoredDropdown({ open, onClose: () => setOpen(false) })
 
   useEffect(() => {
     if (open) inputRef.current?.focus()
@@ -69,7 +59,7 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div ref={anchorRef}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -84,48 +74,57 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
         />
       </button>
 
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-auto rounded border border-default-300 bg-card shadow-lg">
-          <div className="sticky top-0 border-b border-default-200 bg-card p-2">
-            <input
-              ref={inputRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="ค้นหา หรือพิมพ์ชื่อสินค้าใหม่..."
-              className="form-input text-sm"
-            />
-          </div>
+      {/* portal ไป document.body — หลุด overflow ที่ตัด panel เมื่อเปิดใกล้ขอบล่าง CartPanel */}
+      {open &&
+        mounted &&
+        style &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={style}
+            className="z-30 max-h-64 overflow-auto rounded border border-default-300 bg-card shadow-lg"
+          >
+            <div className="sticky top-0 border-b border-default-200 bg-card p-2">
+              <input
+                ref={inputRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="ค้นหา หรือพิมพ์ชื่อสินค้าใหม่..."
+                className="form-input text-sm"
+              />
+            </div>
 
-          <div className="divide-y divide-default-200">
-            {filtered.map((p) => (
+            <div className="divide-y divide-default-200">
+              {filtered.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => pick(p)}
+                  className="flex w-full items-center gap-3 p-2.5 text-left hover:bg-default-100"
+                >
+                  <ProductThumb src={p.image} alt={p.name} className="size-8 rounded" iconClassName="size-4" />
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-dark">{p.name}</span>
+                    {p.sku && <span className="block truncate text-xs text-default-400">SKU: {p.sku}</span>}
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold text-primary">{formatThb(p.price)}</span>
+                </button>
+              ))}
+            </div>
+
+            {typed && (
               <button
-                key={p.id}
                 type="button"
-                onClick={() => pick(p)}
-                className="flex w-full items-center gap-3 p-2.5 text-left hover:bg-default-100"
+                onClick={custom}
+                className="flex w-full items-center gap-2 border-t border-dashed border-default-300 bg-primary/5 px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/10"
               >
-                <ProductThumb src={p.image} alt={p.name} className="size-8 rounded" iconClassName="size-4" />
-                <div className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-dark">{p.name}</span>
-                  {p.sku && <span className="block truncate text-xs text-default-400">SKU: {p.sku}</span>}
-                </div>
-                <span className="shrink-0 text-xs font-semibold text-primary">{formatThb(p.price)}</span>
+                <Icon icon="plus" className="size-4 shrink-0" />
+                <span className="truncate">ใช้ &ldquo;{typed}&rdquo; เป็นรายการใหม่</span>
               </button>
-            ))}
-          </div>
-
-          {typed && (
-            <button
-              type="button"
-              onClick={custom}
-              className="flex w-full items-center gap-2 border-t border-dashed border-default-300 bg-primary/5 px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/10"
-            >
-              <Icon icon="plus" className="size-4 shrink-0" />
-              <span className="truncate">ใช้ &ldquo;{typed}&rdquo; เป็นรายการใหม่</span>
-            </button>
-          )}
-        </div>
-      )}
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

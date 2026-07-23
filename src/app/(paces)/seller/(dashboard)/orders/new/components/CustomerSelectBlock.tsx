@@ -9,14 +9,19 @@
  * S-1 (orders-new-desktop-parity): variant embedded (desktop POS) มีปุ่ม "วางจากแชท" มุมขวาบนของ body
  *   เปิด PasteParsePanel (custom popover) → parseOrderMessage() เติม buyerName/buyerContact/shippingAddress.*
  *   ผ่าน setValue (prop ใหม่, optional — 'card' variant เดิมไม่ต้องส่งก็ได้ ปุ่มจะไม่โชว์)
+ * bug-fix (2026-07-22): dropdown ผลค้นหาลูกค้าเดิม `absolute top-full` โดน clip เมื่ออยู่ใน CartPanel
+ *   (lg:overflow-y-auto) ใกล้ขอบล่าง — เปลี่ยนเป็น portal-to-body ผ่าน useAnchoredDropdown (shared hook
+ *   ร่วมกับ ProductCombobox/AddressSearchPanel); click-outside/escape/focus-trap ย้ายเข้า hook แล้ว
  */
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useController } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import PasteParsePanel from './PasteParsePanel'
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,16 +59,11 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestQueryRef = useRef<string>('')
-  const comboRef = useRef<HTMLDivElement>(null)
-
-  // ── ปิด dropdown เมื่อคลิกนอก combo ───────────────────────────────────────
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (comboRef.current && !comboRef.current.contains(e.target as Node)) setIsDropdownOpen(false)
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [])
+  // click-outside/scroll-close/focus-trap/portal position รวมอยู่ใน hook (shared 3 จุด — ดู hook สำหรับที่มา)
+  const { anchorRef: comboRef, panelRef, style, mounted } = useAnchoredDropdown({
+    open: isDropdownOpen,
+    onClose: () => setIsDropdownOpen(false),
+  })
 
   // ── Debounced search (q>=2) — ค้นลูกค้าของร้านตัวเอง (ชื่อ/เบอร์) ──────────
   const runSearch = useCallback((value: string) => {
@@ -169,7 +169,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
             <label htmlFor="cust-contact" className="form-label">
               เบอร์โทร
             </label>
-            <div className="relative" ref={comboRef}>
+            <div ref={comboRef} className="relative">
               <Icon
                 icon="search"
                 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-default-400"
@@ -189,43 +189,52 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                 }}
               />
 
-              {isDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg">
-                  {isLoading && (
-                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-default-500">
-                      <Icon icon="loader-2" className="size-3.5 animate-spin" />
-                      กำลังค้นหา…
-                    </div>
-                  )}
-                  {!isLoading && fetchError && <div className="px-4 py-3 text-sm text-danger">{fetchError}</div>}
-                  {!isLoading && !fetchError && results.length === 0 && (
-                    <div className="px-4 py-4 text-center text-sm text-default-500">
-                      ไม่พบลูกค้าเดิม — พิมพ์ต่อเพื่อบันทึกเป็นลูกค้าใหม่
-                    </div>
-                  )}
-                  {!isLoading &&
-                    !fetchError &&
-                    results.map((c, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className="flex w-full items-center gap-3 p-3 text-left hover:bg-default-100"
-                        onClick={() => selectCustomer(c)}
-                      >
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-                          {avatarChar(c)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-dark">{c.name ?? c.contact}</p>
-                          <p className="text-xs text-default-500">
-                            {maskContact(c.contact)} · ลูกค้าเดิม {c.orderCount} ออเดอร์
-                          </p>
-                        </div>
-                        <Icon icon="chevron-right" className="size-3.5 shrink-0 text-default-400" />
-                      </button>
-                    ))}
-                </div>
-              )}
+              {/* portal ไป document.body — หลุด overflow ที่ตัด panel เมื่อเปิดใกล้ขอบล่าง CartPanel */}
+              {isDropdownOpen &&
+                mounted &&
+                style &&
+                createPortal(
+                  <div
+                    ref={panelRef}
+                    style={style}
+                    className="z-30 max-h-64 divide-y divide-default-200 overflow-auto rounded border border-default-300 bg-card shadow-lg"
+                  >
+                    {isLoading && (
+                      <div className="flex items-center gap-2 px-4 py-3 text-sm text-default-500">
+                        <Icon icon="loader-2" className="size-3.5 animate-spin" />
+                        กำลังค้นหา…
+                      </div>
+                    )}
+                    {!isLoading && fetchError && <div className="px-4 py-3 text-sm text-danger">{fetchError}</div>}
+                    {!isLoading && !fetchError && results.length === 0 && (
+                      <div className="px-4 py-4 text-center text-sm text-default-500">
+                        ไม่พบลูกค้าเดิม — พิมพ์ต่อเพื่อบันทึกเป็นลูกค้าใหม่
+                      </div>
+                    )}
+                    {!isLoading &&
+                      !fetchError &&
+                      results.map((c, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className="flex w-full items-center gap-3 p-3 text-left hover:bg-default-100"
+                          onClick={() => selectCustomer(c)}
+                        >
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+                            {avatarChar(c)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-dark">{c.name ?? c.contact}</p>
+                            <p className="text-xs text-default-500">
+                              {maskContact(c.contact)} · ลูกค้าเดิม {c.orderCount} ออเดอร์
+                            </p>
+                          </div>
+                          <Icon icon="chevron-right" className="size-3.5 shrink-0 text-default-400" />
+                        </button>
+                      ))}
+                  </div>,
+                  document.body,
+                )}
             </div>
 
             {/* recognize ลูกค้าเดิม */}
