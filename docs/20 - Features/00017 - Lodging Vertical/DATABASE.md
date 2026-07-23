@@ -1,7 +1,7 @@
 ---
 title: "DATABASE — 00017 Lodging Vertical"
 owner: shinobu22
-status: draft
+status: implemented
 created: 2026-07-22
 tags: [feature, database, prisma, postgres, lodging]
 related: ["[[SRS]]", "[[SDS]]", "[[BRD]]"]
@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[BRD]]"]
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 0.1
 > **วันที่จัดทำ:** 2026-07-22
-> **สถานะ:** Draft
+> **สถานะ:** Implemented — deployed prod 2026-07-23 (migration M1+M2+M3 applied)
 
 # DATABASE: ประเภทกิจการบ้านพักตากอากาศ
 
@@ -312,6 +312,13 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_room_no_overlap"
 ---
 
 ## 5. Migration Plan
+
+> ✅ **สถานะ apply จริง (2026-07-23):** M1 `20260722000000_lodging_vertical_and_room`,
+> M2 `20260722000100_booking_fields_and_overlap`, M3 `20260723000000_housekeeper` —
+> **apply ลง prod ครบทั้ง 3 ตัวแล้ว** (dev = prod Supabase ตัวเดียวกัน) ด้วย `migrate deploy`
+> ทุกตัว additive ล้วน ยืนยัน zero-regression: ออเดอร์เดิม (58→59 แถวระหว่างทาง) ไม่ถูกแตะสักแถว,
+> Shop เดิม 16 แถวได้ `vertical='GENERAL'` อัตโนมัติ. EXCLUDE + CHECK ทดสอบบนตาราง `Order` จริง
+> ผ่านทุกเคส (ดู TestCase.md §5). btree_gist ติดตั้งสำเร็จบน PostgreSQL 17.6.
 
 ### 5.1 ลำดับการ Migrate
 

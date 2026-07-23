@@ -1,7 +1,7 @@
 ---
 title: "TestCase — 00017 Lodging Vertical"
 owner: shinobu22
-status: draft
+status: implemented
 created: 2026-07-22
 tags: [feature, test, qa, playwright, vitest, lodging]
 related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
@@ -11,7 +11,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 0.1
 > **วันที่จัดทำ:** 2026-07-22
-> **สถานะ:** Draft — ยังไม่รัน
+> **สถานะ:** Implemented — deployed prod 2026-07-23 (migration M1+M2+M3 applied); constraint+API smoke ผ่าน, E2E Playwright + visual ยังไม่ทำ
 
 # Test Case: ประเภทกิจการบ้านพักตากอากาศ
 
@@ -361,7 +361,15 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 
 | รอบ | วันที่ | ผ่าน | ไม่ผ่าน | หมายเหตุ |
 |-----|--------|------|---------|----------|
-| — | — | — | — | ยังไม่เริ่มพัฒนา — ยังไม่มีการรันเทส |
+| Constraint (spike + M1/M2/M3 บน DB จริง) | 2026-07-22/23 | 15/15 | 0 | EXCLUDE 6 เคส + CHECK ของ Room 8 เคส + zero-regression ทุก migration |
+| API smoke (P2 ผ่าน HTTP จริง, authenticated) | 2026-07-23 | 5/5 | 0 | ผู้จองยืนยันเอง→403, จองทับ→409, ต่อคิววันเช็คเอาท์→201, ยกเลิกไม่มีเหตุผล→400, quote 30% ถูก |
+| API smoke (P3 แม่บ้าน) | 2026-07-23 | 5/5 | 0 | เพิ่ม/มอบหมาย→PENDING/DONE/มอบหมายการจองยกเลิก→409/Order.status ไม่ถูกกระทบ |
+| **บั๊กที่ QA จับได้** | 2026-07-23 | — | — | TC-013 ได้ 409 ถูก แต่ไม่มี `conflict` วันที่ชน — `parseConflictRange` แกะ model-call error ไม่ออก (fix `d0bb9dc6`) |
+| Visual (Chrome DevTools MCP) | — | — | — | **ยังไม่ได้ทำ** — MCP ต่อไม่ได้ (เบราว์เซอร์เปิดค้าง profile เดียวกัน) |
+
+> หมายเหตุ: การทดสอบทั้งหมดใช้ **dev = prod DB เดียวกัน** — ข้อมูลทดสอบถูกสร้างแล้วเก็บกวาดในสคริปต์
+> เดียวกันทุกครั้ง (verify count กลับเท่าเดิม). E2E Playwright ตาม §2 ยังไม่ได้เขียนเป็น spec รันได้
+> — ที่ทำคือ smoke test ผ่าน authenticated curl + ตรวจ DB (สำรองเมื่อ MCP ไม่พร้อม)
 
 ---
 
