@@ -73,7 +73,7 @@ const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
     label: 'สร้างออเดอร์',
     href: '/orders/new',
     icon: 'shopping-cart-plus',
-    tabLabel: 'ออเดอร์',
+    tabLabel: 'คำสั่งซื้อ', // user สั่ง 2026-07-23 (เดิม "ออเดอร์")
     emptyLabel: 'ยังไม่มีประวัติออเดอร์',
   },
   LODGING: {
@@ -93,7 +93,14 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   CANCELLED: { label: 'ยกเลิก', cls: 'bg-default-100 text-default-500' },
 }
 
-type Tab = 'customer' | 'orders'
+type Tab = 'customer' | 'orders' | 'note'
+
+/** แท็บของ right panel — label ของ 'orders' มาจาก vertical (คำสั่งซื้อ/การจอง) จึงเว้นว่างไว้ */
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'customer', label: 'ข้อมูลลูกค้า', icon: 'user-circle' },
+  { key: 'orders', label: '', icon: 'shopping-cart' },
+  { key: 'note', label: 'โน๊ต', icon: 'notes' },
+]
 
 /**
  * CustomerPanelBody — เนื้อหาจริง (header + tabs + tab content) แชร์ระหว่าง CustomerPanel
@@ -118,27 +125,27 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         </div>
       </div>
 
-      {/* tabs — 2 ตัวเท่านั้น (ลูกค้า / ออเดอร์|การจอง) ไม่มีแท็ก/Note/ใบเสนอราคา (นอก scope)
-          px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย */}
+      {/* tabs — 3 ตัว (user สั่ง 2026-07-23): ข้อมูลลูกค้า / คำสั่งซื้อ|การจอง / โน๊ต พร้อมไอคอน
+          (ไอคอน user เลือกเอง: user-circle / shopping-cart / notes — ไม่ได้เดา ตาม convention
+          docs/conventions/no-emoji-use-icons.md ที่ห้าม emoji และห้ามเดา icon ที่ spec ไม่ระบุ)
+          px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย
+          text-sm + gap-1.5: 3 แท็บพร้อมไอคอนต้องพอดีความกว้าง 384px ของคอลัมน์นี้โดยไม่ตกบรรทัด */}
       <nav className="nav-tabs px-4" role="tablist" aria-label="ข้อมูลลูกค้า">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'customer'}
-          onClick={() => setTab('customer')}
-          className={`nav-link ${tab === 'customer' ? 'border-b border-primary text-primary' : ''}`}
-        >
-          ลูกค้า
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'orders'}
-          onClick={() => setTab('orders')}
-          className={`nav-link ${tab === 'orders' ? 'border-b border-primary text-primary' : ''}`}
-        >
-          {cta.tabLabel}
-        </button>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`nav-link inline-flex items-center gap-1.5 px-3 text-sm ${
+              tab === t.key ? 'border-b border-primary text-primary' : ''
+            }`}
+          >
+            <Icon icon={t.icon} className="text-base" />
+            {t.key === 'orders' ? cta.tabLabel : t.label}
+          </button>
+        ))}
       </nav>
 
       <div className="p-4">
@@ -146,32 +153,26 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           <div className="space-y-4">
             {/* feature 00018 CRM — แก้ไข tag/note/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
             <CustomerCrmSection conversationId={data.conversationId} />
-            {data.customer ? (
-            <div className="bg-light/40 rounded-lg p-3">
-              <p className="text-default-400 text-2xs">รหัสลูกค้า</p>
-              <p className="text-default-900 mb-2 font-mono text-sm font-semibold">
-                #{data.customer.id.slice(0, 8).toUpperCase()}
-              </p>
-              <p className="text-default-400 text-2xs">ชื่อผู้ติดต่อ</p>
-              <p className="text-default-900 mb-2 text-sm">{data.contactName}</p>
-              <p className="text-default-400 text-2xs">เบอร์โทร</p>
-              <p className="text-default-900 text-sm">{data.customer.phoneMasked}</p>
+            {/* รหัสลูกค้า — user สั่ง 2026-07-23: "ก็แค่ขึ้นว่าเค้ามีรหัสลูกค้าหรือยัง"
+                เดิมสถานะ "ยังไม่ผูก" กินพื้นที่เป็นย่อหน้าอธิบายกลไก + ปุ่มสร้างออเดอร์ ซึ่ง
+                (ก) อธิบายกลไกภายในระบบให้คนที่ไม่ได้ถาม (ข) ปุ่มไม่ prefill อะไรเลย จึงไม่ได้
+                ช่วยงานตรงจุดนี้ — เหลือเป็นแถวข้อมูลแถวเดียวรูปแบบเดียวกับฟิลด์อื่นใน
+                CustomerCrmSection (label 2xs + ค่า / "—" เมื่อยังไม่มี) ปุ่มสร้างออเดอร์ยังอยู่
+                ในแท็บออเดอร์ซึ่งเป็นบริบทที่ตรงกว่า */}
+            <div>
+              <p className="text-default-400 mb-0.5 text-2xs">รหัสลูกค้า</p>
+              <div className="text-default-800 text-sm">
+                {data.customer ? (
+                  <span className="font-mono font-semibold">#{data.customer.id.slice(0, 8).toUpperCase()}</span>
+                ) : (
+                  <span className="text-default-400">—</span>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-default-500 text-sm leading-relaxed">
-                ยังไม่ผูกกับลูกค้าในระบบ — ผูกอัตโนมัติเมื่อสร้างออเดอร์และกรอกเบอร์โทร
-              </p>
-              <Link
-                href={cta.href}
-                className="btn bg-primary text-white hover:bg-primary-hover flex w-full items-center justify-center gap-1.5"
-              >
-                <Icon icon={cta.icon} className="text-lg" />
-                {cta.label}
-              </Link>
-            </div>
-          )}
           </div>
+        ) : tab === 'note' ? (
+          /* แท็บโน๊ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */
+          <CustomerCrmSection conversationId={data.conversationId} variant="note" />
         ) : data.customer ? (
           data.orders.length === 0 ? (
             <p className="text-default-400 text-sm">{cta.emptyLabel}</p>

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import TagInput from '../../components/TagInput'
 
 type SalesStatus = 'UNSPECIFIED' | 'INTERESTED' | 'NOT_INTERESTED'
 
@@ -42,7 +43,20 @@ function ViewRow({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-export default function CustomerCrmSection({ conversationId }: { conversationId: string }) {
+/** variant — right panel แยกเป็น 3 แท็บ (user สั่ง 2026-07-23: ข้อมูลลูกค้า / คำสั่งซื้อ / โน๊ต)
+ *  จึงต้องแบ่งฟิลด์ของ CRM ชุดเดียวกันออกเป็น 2 แท็บ: 'profile' = ทุกฟิลด์ยกเว้นโน้ต,
+ *  'note' = โน้ตอย่างเดียว. ใช้ component เดียวกันเพื่อไม่ให้ logic fetch/save/PATCH แตกเป็น 2 ชุด
+ *  (PATCH เป็น partial อยู่แล้ว — ส่งเฉพาะฟิลด์ของ variant นั้น ฟิลด์ที่ไม่ส่ง = ไม่ถูกแตะ) */
+type CrmVariant = 'profile' | 'note'
+
+export default function CustomerCrmSection({
+  conversationId,
+  variant = 'profile',
+}: {
+  conversationId: string
+  variant?: CrmVariant
+}) {
+  const isNote = variant === 'note'
   const [crm, setCrm] = useState<Crm | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -54,7 +68,6 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
   const [address, setAddress] = useState('')
   const [salesStatus, setSalesStatus] = useState<SalesStatus>('UNSPECIFIED')
   const [tags, setTags] = useState<string[]>([])
-  const [tagInput, setTagInput] = useState('')
   const [phones, setPhones] = useState<string[]>([])
 
   const load = useCallback(async () => {
@@ -83,32 +96,28 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
     setSalesStatus(crm.salesStatus)
     setTags(crm.tags)
     setPhones(crm.phones)
-    setTagInput('')
     setEditing(true)
-  }
-
-  function addTag() {
-    const t = tagInput.trim()
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t])
-    setTagInput('')
   }
 
   async function save() {
     if (saving) return
     setSaving(true)
     try {
-      const body = {
-        alias: alias.trim() || null,
-        ...(crm?.external
-          ? {
-              note: note.trim() || null,
-              address: address.trim() || null,
-              salesStatus,
-              tags,
-              phones: phones.map((p) => p.trim()).filter(Boolean),
-            }
-          : {}),
-      }
+      // PATCH เป็น partial — ส่งเฉพาะฟิลด์ของแท็บที่กำลังแก้ (แท็บโน้ตส่งแค่ note, แท็บข้อมูล
+      // ลูกค้าไม่ส่ง note เลย) ฟิลด์ที่ไม่ส่ง = ไม่ถูกแตะ จึงแก้คนละแท็บพร้อมกันได้ไม่ทับกัน
+      const body = isNote
+        ? { note: note.trim() || null }
+        : {
+            alias: alias.trim() || null,
+            ...(crm?.external
+              ? {
+                  address: address.trim() || null,
+                  salesStatus,
+                  tags,
+                  phones: phones.map((p) => p.trim()).filter(Boolean),
+                }
+              : {}),
+          }
       const res = await fetch(`/api/chat/conversations/${conversationId}/crm`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -122,7 +131,7 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
       const data: Crm = await res.json()
       setCrm(data)
       setEditing(false)
-      pacesToast.chat.success('บันทึกข้อมูลลูกค้าแล้ว')
+      pacesToast.chat.success(isNote ? 'บันทึกโน้ตแล้ว' : 'บันทึกข้อมูลลูกค้าแล้ว')
     } catch {
       pacesToast.chat.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง')
     } finally {
@@ -138,6 +147,36 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
   // ── VIEW MODE ──
   if (!editing) {
     const status = SALES_STATUS_META[crm.salesStatus]
+
+    // แท็บ "โน๊ต" — โน้ตอย่างเดียว (ใช้ได้เฉพาะแชทช่องทางภายนอก เหมือนฟิลด์ CRM อื่น)
+    if (isNote) {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-default-700 text-sm font-semibold">โน้ตภายในร้าน</span>
+            {crm.external && (
+              <button type="button" onClick={startEdit} className="text-primary flex items-center gap-1 text-xs font-medium hover:underline">
+                <Icon icon="pencil" className="text-sm" /> แก้ไข
+              </button>
+            )}
+          </div>
+          {crm.external ? (
+            <>
+              {crm.note ? (
+                <p className="text-default-800 mb-0 text-sm whitespace-pre-wrap">{crm.note}</p>
+              ) : (
+                <p className="text-default-400 mb-0 text-sm">ยังไม่มีโน้ต</p>
+              )}
+              {/* บอกผลลัพธ์ที่ผู้ใช้ได้ ไม่ใช่กลไกภายใน: โน้ตนี้ถูกส่งเป็นบริบทให้ AI ตอนช่วยร่างคำตอบ */}
+              <p className="text-default-400 mb-0 text-2xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
+            </>
+          ) : (
+            <p className="text-default-400 mb-0 text-2xs">โน้ตใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -174,12 +213,10 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
               )}
             </ViewRow>
             <ViewRow label="ที่อยู่">{crm.address || <span className="text-default-400">—</span>}</ViewRow>
-            <ViewRow label="โน้ต (AI ใช้ประกอบการตอบ)">
-              {crm.note ? <span className="whitespace-pre-wrap">{crm.note}</span> : <span className="text-default-400">—</span>}
-            </ViewRow>
+            {/* โน้ตย้ายไปแท็บ "โน๊ต" แล้ว (user สั่ง 2026-07-23) — ไม่แสดงซ้ำที่นี่ */}
           </>
         ) : (
-          <p className="text-default-400 text-2xs">แท็ก/โน้ต/สถานะ ใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
+          <p className="text-default-400 text-2xs">แท็ก/สถานะการขาย ใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
         )}
       </div>
     )
@@ -189,15 +226,23 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-default-700 text-sm font-semibold">แก้ไขข้อมูลลูกค้า</span>
+        <span className="text-default-700 text-sm font-semibold">{isNote ? 'แก้ไขโน้ต' : 'แก้ไขข้อมูลลูกค้า'}</span>
       </div>
 
-      <div>
-        <label className="form-label">ชื่อในแชท</label>
-        <input type="text" className="form-input" placeholder="เช่น Wave 110" value={alias} maxLength={80} onChange={(e) => setAlias(e.target.value)} />
-      </div>
+      {isNote ? (
+        <div>
+          <label className="form-label">โน้ต</label>
+          <textarea className="form-input min-h-32" placeholder="ข้อมูลที่ควรจำเกี่ยวกับลูกค้าคนนี้..." value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
+          <p className="text-default-400 mt-1 mb-0 text-2xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
+        </div>
+      ) : (
+        <div>
+          <label className="form-label">ชื่อในแชท</label>
+          <input type="text" className="form-input" placeholder="เช่น Wave 110" value={alias} maxLength={80} onChange={(e) => setAlias(e.target.value)} />
+        </div>
+      )}
 
-      {crm.external && (
+      {!isNote && crm.external && (
         <>
           <div>
             <label className="form-label">สถานะการขาย</label>
@@ -229,25 +274,7 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="form-input"
-                placeholder="พิมพ์แท็กแล้วกด +"
-                value={tagInput}
-                maxLength={30}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addTag()
-                  }
-                }}
-              />
-              <button type="button" onClick={addTag} className="btn btn-icon border-default-300 shrink-0" aria-label="เพิ่มแท็ก">
-                <Icon icon="plus" />
-              </button>
-            </div>
+            <TagInput selected={tags} onAdd={(t) => setTags((prev) => [...prev, t])} />
           </div>
 
           <div>
@@ -278,11 +305,7 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
             <label className="form-label">ที่อยู่</label>
             <input type="text" className="form-input" placeholder="ที่อยู่จัดส่ง" value={address} maxLength={500} onChange={(e) => setAddress(e.target.value)} />
           </div>
-
-          <div>
-            <label className="form-label">โน้ต (AI ใช้ประกอบการตอบ)</label>
-            <textarea className="form-input min-h-20" placeholder="ข้อมูลที่ควรจำเกี่ยวกับลูกค้าคนนี้..." value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
-          </div>
+          {/* ช่องโน้ตอยู่ในแท็บ "โน๊ต" แล้ว — ไม่ซ้ำที่นี่ */}
         </>
       )}
 

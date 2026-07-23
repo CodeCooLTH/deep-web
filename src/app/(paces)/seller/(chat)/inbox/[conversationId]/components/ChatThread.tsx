@@ -282,6 +282,12 @@ export default function ChatThread({
   }, [isExternal, windowOpen])
   const liveRemaining = Math.max(0, expiryTs - nowTs)
   const liveWindowOpen = windowOpen && liveRemaining > 0
+  // tick หยาบ ๆ (ทุก 15 วิ) ให้เวลาข้อความล่าสุด "หายไปเอง" หลังส่งเกิน 1 นาที (user request 2026-07-23)
+  const [, setMetaTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setMetaTick((x) => x + 1), 15000)
+    return () => clearInterval(t)
+  }, [])
 
   const composerDisabled = isExternal && (tokenInvalid || !liveWindowOpen)
   // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
@@ -341,6 +347,25 @@ export default function ChatThread({
   }
 
   const groups = groupByDate(messages)
+
+  // จัดเวลาเป็นกลุ่ม (user request 2026-07-23) — แสดงเวลาเฉพาะ "ท้าย burst" (ก่อนเว้นช่วง > 5 นาที
+  // หรือสลับผู้ส่ง หรือข้อความสุดท้าย) ไม่ใช่ทุกข้อความ; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที
+  const GROUP_GAP_MS = 5 * 60 * 1000
+  const RECENT_MS = 60 * 1000
+  const nowMs = Date.now()
+  const lastMsgId = messages[messages.length - 1]?.id ?? null
+  const burstEndIds = new Set<string>()
+  for (let i = 0; i < messages.length; i++) {
+    const cur = messages[i]
+    const nxt = messages[i + 1]
+    if (
+      !nxt ||
+      nxt.senderRole !== cur.senderRole ||
+      new Date(nxt.createdAt).getTime() - new Date(cur.createdAt).getTime() > GROUP_GAP_MS
+    ) {
+      burstEndIds.add(cur.id)
+    }
+  }
 
   // read receipt (feature 00018) — ป้าย "อ่านแล้ว/ส่งแล้ว" โชว์เฉพาะข้อความ SHOP ตัวสุดท้าย (ช่องทางนอก)
   const lastShopMsgId = isExternal
@@ -439,6 +464,10 @@ export default function ChatThread({
 
               {g.items.map((m) => {
                 const mine = m.senderRole === 'SHOP'
+                // จัดเวลาเป็นกลุ่ม — แสดงเวลาเฉพาะท้าย burst, ไม่ขณะกำลังส่ง, และข้อความล่าสุดซ่อนหลัง 1 นาที
+                const atBurstEnd = burstEndIds.has(m.id)
+                const isLastOld = m.id === lastMsgId && nowMs - new Date(m.createdAt).getTime() >= RECENT_MS
+                const showTime = atBurstEnd && m._status !== 'sending' && !isLastOld
                 // feature 00018 T4 (ภาคผนวก A-3): deliveryStatus/failureReason มีจริงตอน runtime
                 // (getMessages ไม่ select เลย คืนทุกคอลัมน์ของ ChatMessage — ดู comment หัวไฟล์)
                 const mExt = m as ChatMessageWithDelivery
@@ -519,59 +548,67 @@ export default function ChatThread({
                           <span>ส่งไม่สำเร็จ — {mExt.failureReason ?? 'ไม่ทราบสาเหตุ'}</span>
                         </div>
                       )}
-                      {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง)
-                          optimistic send status (mine): spinner กำลังส่ง / check ส่งแล้ว / refresh แดง ลองใหม่ */}
-                      <div className={`text-default-400 mt-1.5 flex items-center gap-1 text-xs ${mine ? 'justify-end' : ''}`}>
-                        <Icon icon="clock" />
-                        {formatTime(m.createdAt)}
-                        {mine && m._status === 'sending' && (
-                          <span className="flex items-center gap-1">
-                            <Icon icon="loader-2" className="animate-spin" />
-                            กำลังส่ง
-                          </span>
-                        )}
-                        {mine && m._status === 'failed' && m._retry && (
-                          <button
-                            type="button"
-                            onClick={() => retryMessage(m.id, m._retry!)}
-                            className="text-danger flex items-center gap-1 font-medium hover:underline"
-                          >
-                            <Icon icon="refresh" />
-                            ลองใหม่
-                          </button>
-                        )}
-                        {/* read receipt (ช่องทางนอก): ข้อความ SHOP ตัวสุดท้าย → "อ่านแล้ว" (ลูกค้าอ่านแล้ว)
-                            หรือ "ส่งแล้ว"; ข้อความ SHOP อื่นที่เพิ่งส่ง optimistic → check เฉย ๆ */}
-                        {mine && m._status !== 'sending' && m._status !== 'failed' && m.id === lastShopMsgId ? (
-                          readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
-                            <span className="text-success flex items-center gap-0.5">
-                              <Icon icon="checks" /> อ่านแล้ว
+                      {/* meta row (user request 2026-07-23): เวลาเป็นกลุ่ม (ท้าย burst, ไม่ทุกข้อความ) +
+                          avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
+                          กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}
+                      {(showTime ||
+                        (mine &&
+                          (atBurstEnd ||
+                            m._status === 'sending' ||
+                            (m._status === 'failed' && m._retry) ||
+                            m.id === lastShopMsgId ||
+                            m._status === 'sent'))) && (
+                        <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          {mine && atBurstEnd && (
+                            <ChatAvatar
+                              avatar={shopAvatar}
+                              name={buyerName}
+                              size="size-5"
+                              fallback={
+                                <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+                                  <Icon icon="building-store" className="size-3" />
+                                </span>
+                              }
+                            />
+                          )}
+                          {showTime && (
+                            <span className="flex items-center gap-1">
+                              <Icon icon="clock" />
+                              {formatTime(m.createdAt)}
                             </span>
+                          )}
+                          {mine && m._status === 'sending' && (
+                            <span className="flex items-center gap-1">
+                              <Icon icon="loader-2" className="animate-spin" />
+                              กำลังส่ง
+                            </span>
+                          )}
+                          {mine && m._status === 'failed' && m._retry && (
+                            <button
+                              type="button"
+                              onClick={() => retryMessage(m.id, m._retry!)}
+                              className="text-danger flex items-center gap-1 font-medium hover:underline"
+                            >
+                              <Icon icon="refresh" />
+                              ลองใหม่
+                            </button>
+                          )}
+                          {mine && m._status !== 'sending' && m._status !== 'failed' && m.id === lastShopMsgId ? (
+                            readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
+                              <span className="text-success flex items-center gap-0.5">
+                                <Icon icon="checks" /> อ่านแล้ว
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-0.5">
+                                <Icon icon="check" /> ส่งแล้ว
+                              </span>
+                            )
                           ) : (
-                            <span className="flex items-center gap-0.5">
-                              <Icon icon="check" /> ส่งแล้ว
-                            </span>
-                          )
-                        ) : (
-                          mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
-                        )}
-                      </div>
+                            mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {/* avatar ฝั่ง SHOP (ข้อความ mine) — feature 00018 (user request 2026-07-23): แสดง
-                        "รูปเพจนั้น ๆ" (ช่องทางนอก) หรือโลโก้ร้าน (DEEP) ผ่าน shopAvatar; ไม่มีรูป/โหลด
-                        พลาด → fallback ไอคอน building-store บน div ทรงเดียวกับ Base initials-fallback */}
-                    {mine && (
-                      <ChatAvatar
-                        avatar={shopAvatar}
-                        name={buyerName}
-                        size="size-8"
-                        fallback={
-                          <span className="bg-primary flex size-8 shrink-0 items-center justify-center rounded-full text-white">
-                            <Icon icon="building-store" className="size-4" />
-                          </span>
-                        }
-                      />
-                    )}
                   </div>
                 )
               })}

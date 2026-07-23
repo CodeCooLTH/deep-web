@@ -7,6 +7,17 @@ import { prisma } from '@/lib/prisma'
 
 export type SalesStatus = 'UNSPECIFIED' | 'INTERESTED' | 'NOT_INTERESTED'
 
+/** getShopTags — รวม tag ทั้งหมดที่เคยใช้ในร้าน (distinct) สำหรับ autocomplete ตอนเพิ่ม tag */
+export async function getShopTags(shopId: string): Promise<string[]> {
+  const contacts = await prisma.externalContact.findMany({
+    where: { channel: { shopId } },
+    select: { tags: true },
+  })
+  const set = new Set<string>()
+  for (const c of contacts) for (const t of c.tags) set.add(t)
+  return [...set].sort((a, b) => a.localeCompare(b, 'th'))
+}
+
 export type ConversationCrm = {
   alias: string | null
   // realName: ชื่อจริงจาก contact/buyer (view-only — ต่างจาก alias ที่ตั้งเองต่อแชท)
