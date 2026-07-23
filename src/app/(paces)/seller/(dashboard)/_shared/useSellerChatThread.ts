@@ -142,15 +142,51 @@ export function useSellerChatThread(conversationId: string) {
     }
   }, [conversationId, scrollToBottom])
 
-  // เลื่อนลงล่างสุดตอนเปิดเธรด (user request 2026-07-23 "เหมือน Facebook เข้าแล้วอยู่ล่างสุด") — ทำใน
-  // effect หลัง messages ชุดแรก render จริง (ไม่ใช่ใน async loadInitial ที่ยังไม่ paint) + retry เผื่อ
-  // รูปโหลดช้าแล้วดันความสูงเพิ่ม (150/400/800ms) ทำครั้งเดียวต่อเธรด (didInitialScrollRef)
+  // เลื่อนลงล่างสุดตอนเปิดเธรด (user request 2026-07-23 "เหมือน Facebook เข้าแล้วอยู่ล่างสุด")
+  //
+  // bug fix 2026-07-23 (user report: "ใน web เข้าแชทแล้วไม่เลื่อนไปข้อความล่าสุด"): เดิมยิง
+  // scrollToBottom ตามเวลาตายตัว (150/400/800ms) ซึ่งเดาว่า "เนื้อหาสูงคงที่แล้ว" — บนเดสก์ท็อป
+  // รูปในเธรดใหญ่กว่ามือถือมากและ `loading="lazy"` ทำให้ก่อนโหลดเสร็จรูปสูง ~0px พอโหลดจริงหลัง
+  // 800ms (เน็ตช้า/รูปเยอะ/หลายรูปพร้อมกัน) ความสูงกระโดดขึ้นแต่ไม่มีใครเลื่อนตามแล้ว → ค้างกลางเธรด
+  //
+  // แก้เป็น "ปักหมุดล่างสุด" ด้วย ResizeObserver: ทุกครั้งที่ความสูงเนื้อหาเปลี่ยน (รูปโหลดเสร็จ,
+  // วิดีโอได้ metadata, ฟอนต์ไทย reflow) เลื่อนลงล่างสุดซ้ำ — จนกว่าจะครบ 4 วินาที หรือผู้ใช้เลื่อน
+  // ขึ้นเองก่อน (เคารพเจตนาผู้ใช้ทันที ไม่กระชากกลับ)
   useEffect(() => {
     if (loadingInitial || messages.length === 0 || didInitialScrollRef.current) return
     didInitialScrollRef.current = true
+
+    const root = scrollRef.current
     scrollToBottom()
-    const timers = [150, 400, 800].map((ms) => setTimeout(scrollToBottom, ms))
-    return () => timers.forEach(clearTimeout)
+    if (!root) return
+
+    let pinned = true
+    const unpin = () => {
+      pinned = false
+    }
+    // ผู้ใช้เลื่อนขึ้นเอง (ห่างจากล่างสุดเกิน 80px) = เลิกปักหมุด
+    const onScroll = () => {
+      if (root.scrollHeight - root.scrollTop - root.clientHeight > 80) unpin()
+    }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    root.addEventListener('wheel', unpin, { passive: true })
+    root.addEventListener('touchmove', unpin, { passive: true })
+
+    const observer = new ResizeObserver(() => {
+      if (pinned) root.scrollTop = root.scrollHeight
+    })
+    // สังเกตทั้ง container และเนื้อหาข้างใน — รูปที่โหลดเสร็จดันความสูงของ "เนื้อหา" ไม่ใช่ container
+    observer.observe(root)
+    for (const child of Array.from(root.children)) observer.observe(child)
+
+    const stop = setTimeout(unpin, 4000)
+    return () => {
+      clearTimeout(stop)
+      observer.disconnect()
+      root.removeEventListener('scroll', onScroll)
+      root.removeEventListener('wheel', unpin)
+      root.removeEventListener('touchmove', unpin)
+    }
   }, [loadingInitial, messages.length, scrollToBottom])
 
   // ── refetch "newer" — signal-only realtime (ไม่เชื่อ payload, GET หน้าแรกเสมอแล้ว merge) ──
