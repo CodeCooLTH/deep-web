@@ -49,55 +49,87 @@ async function upsertChannel(params: {
       ? `https://graph.facebook.com/${params.externalId}/picture?type=large`
       : null
 
-  try {
-    await prisma.shopChannel.create({
-      data: {
-        shopId: params.shopId,
-        provider: params.provider,
-        externalId: params.externalId,
-        name: params.name,
-        avatarUrl,
-        accessTokenEnc: encryptToken(params.accessToken),
-        connectedByUserId: params.userId,
-      },
-    })
-    return { kind: 'created' }
-  } catch (e) {
-    if ((e as { code?: string })?.code !== 'P2002') throw e
-    // findUnique ด้วย provider_externalId ใช้ไม่ได้แล้ว — ไม่มี @@unique เต็มตารางให้ประกอบเป็น
-    // compound key ต้องใช้ findFirst + กรอง status ให้ตรงกับขอบเขตของ partial unique index จริง
-    // (ถ้าไม่กรอง อาจไปเจอแถว DISCONNECTED เก่าซึ่งไม่ใช่ตัวที่ชน constraint แล้วรายงาน shopId ผิด)
-    const existing = await prisma.shopChannel.findFirst({
-      where: { provider: params.provider, externalId: params.externalId, status: { not: 'DISCONNECTED' } },
-      select: { shopId: true, shop: { select: { shopName: true } } },
-    })
-    if (existing?.shopId === params.shopId) return { kind: 'existing-same-shop' }
+  // เพจนี้ "active" (status != DISCONNECTED) อยู่กับร้านอื่นหรือไม่ — partial unique scope เดียวกับ
+  // index จริง (20260722000200_shopchannel_active_partial_unique)
+  const activeElsewhere = await prisma.shopChannel.findFirst({
+    where: {
+      provider: params.provider,
+      externalId: params.externalId,
+      status: { not: 'DISCONNECTED' },
+      shopId: { not: params.shopId },
+    },
+    select: { shopId: true, shop: { select: { shopName: true } } },
+  })
+  if (activeElsewhere && !params.force) {
+    return { kind: 'other-shop', shopName: activeElsewhere.shop?.shopName ?? null }
+  }
 
-    if (params.force) {
-      // ย้ายเพจ: ตัดแถว active ทั้งหมดของเพจนี้ (ร้านอื่น) แล้วสร้างใหม่ให้ร้านนี้ ในทรานแซกชันเดียว
-      // — ตั้ง DISCONNECTED ไม่ลบแถว เพื่อรักษาประวัติ Conversation/Message ของร้านเดิมไว้
-      await prisma.$transaction([
-        prisma.shopChannel.updateMany({
-          where: { provider: params.provider, externalId: params.externalId, status: { not: 'DISCONNECTED' } },
-          data: { status: 'DISCONNECTED' },
-        }),
-        prisma.shopChannel.create({
-          data: {
-            shopId: params.shopId,
-            provider: params.provider,
-            externalId: params.externalId,
-            name: params.name,
-            avatarUrl,
-            accessTokenEnc: encryptToken(params.accessToken),
-            connectedByUserId: params.userId,
-          },
-        }),
-      ])
-      return { kind: 'created' }
+  // REUSE แถวเดิมของ "ร้านนี้" แทนการ create ใหม่ทุกครั้ง (บั๊ก prod 2026-07-23):
+  // เดิม reconnect สร้าง ShopChannel id ใหม่เสมอ แล้วตั้งแถวเก่า DISCONNECTED — แต่ Conversation เก่า
+  // ยังชี้ shopChannelId เก่า → เธรดอ่าน status=DISCONNECTED เด้ง banner "เชื่อมต่อมีปัญหา" ทั้งที่
+  // settings โชว์ "เชื่อมแล้ว" (คนละแถว). reconnect ร้านเดิม = id เดิม → เธรดไม่ orphan
+  // เลือกแถวที่มี contact มากสุด = แถวที่เธรดผูกอยู่จริง (reactivate ตัวนั้น ไม่ใช่แถวว่างที่เพิ่งสร้าง)
+  const ownRows = await prisma.shopChannel.findMany({
+    where: { provider: params.provider, externalId: params.externalId, shopId: params.shopId },
+    select: { id: true, _count: { select: { contacts: true } } },
+  })
+  ownRows.sort((a, b) => b._count.contacts - a._count.contacts)
+  const canonical = ownRows[0]
+
+  await prisma.$transaction(async (tx) => {
+    // force ย้ายเพจข้ามร้าน: ตัด active ของร้านอื่นก่อน (ในทรานแซกชันเดียว) — DISCONNECTED ไม่ลบแถว
+    // เพื่อรักษาประวัติ Conversation/Message ของร้านเดิม
+    if (params.force && activeElsewhere) {
+      await tx.shopChannel.updateMany({
+        where: {
+          provider: params.provider,
+          externalId: params.externalId,
+          status: { not: 'DISCONNECTED' },
+          shopId: { not: params.shopId },
+        },
+        data: { status: 'DISCONNECTED' },
+      })
     }
 
-    return { kind: 'other-shop', shopName: existing?.shop?.shopName ?? null }
-  }
+    if (canonical) {
+      // กันชน partial unique: ถ้าร้านนี้มีหลายแถว (จากบั๊กเดิม) ตัดตัวอื่นที่ยัง active ให้เหลือ canonical
+      // ตัวเดียวเป็น ACTIVE
+      await tx.shopChannel.updateMany({
+        where: {
+          provider: params.provider,
+          externalId: params.externalId,
+          shopId: params.shopId,
+          id: { not: canonical.id },
+          status: { not: 'DISCONNECTED' },
+        },
+        data: { status: 'DISCONNECTED' },
+      })
+      await tx.shopChannel.update({
+        where: { id: canonical.id },
+        data: {
+          status: 'ACTIVE',
+          accessTokenEnc: encryptToken(params.accessToken), // refresh token ทุก reconnect
+          name: params.name,
+          avatarUrl,
+          connectedByUserId: params.userId,
+        },
+      })
+    } else {
+      await tx.shopChannel.create({
+        data: {
+          shopId: params.shopId,
+          provider: params.provider,
+          externalId: params.externalId,
+          name: params.name,
+          avatarUrl,
+          accessTokenEnc: encryptToken(params.accessToken),
+          connectedByUserId: params.userId,
+        },
+      })
+    }
+  })
+
+  return { kind: canonical ? 'existing-same-shop' : 'created' }
 }
 
 export async function connectPages(
