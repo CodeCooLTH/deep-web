@@ -9,7 +9,7 @@
  *
  * Base: theme/paces form/elements (form-input/form-textarea/form-label) + badge (chip) — Paces primitive (HR7)
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useId, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import TagInput from '../../components/TagInput'
@@ -40,9 +40,27 @@ const STATUS_ORDER: SalesStatus[] = ['UNSPECIFIED', 'INTERESTED', 'NOT_INTERESTE
 function ViewRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-default-400 mb-0.5 text-xs">{label}</p>
+      <p className="text-default-700 mb-0.5 text-xs">{label}</p>
       <div className="text-default-800 text-sm">{children}</div>
     </div>
+  )
+}
+
+/** ค่าว่าง — เดิมใช้ text-default-400 ซึ่งวัดได้ 2.46:1 บนการ์ดขาว (ตก AA ที่ต้อง 4.5:1) ทั้งที่
+ *  PRODUCT.md ผูกมัด AA + "เข้าถึงพิเศษ" สำหรับผู้สูงวัย — default-600 อ่านออกกว่าโดยยังดูเป็นค่าว่าง */
+const EmptyValue = () => <span className="text-default-600">—</span>
+
+/** ปุ่ม "แก้ไข" — hit area ≥44px (เดิมเป็นลิงก์ข้อความสูง ~18px) โดยที่หน้าตายังเป็นลิงก์ข้อความ
+ *  ตามเดิม: padding อยู่ใน element ไม่ใช่กรอบที่มองเห็น (impeccable critique P1-A) */
+function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-primary hover:bg-primary/10 -me-2 flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-medium"
+    >
+      <Icon icon="pencil" className="text-sm" /> แก้ไข
+    </button>
   )
 }
 
@@ -52,16 +70,30 @@ function ViewRow({ label, children }: { label: string; children: React.ReactNode
  *  (PATCH เป็น partial อยู่แล้ว — ส่งเฉพาะฟิลด์ของ variant นั้น ฟิลด์ที่ไม่ส่ง = ไม่ถูกแตะ) */
 type CrmVariant = 'profile' | 'note'
 
+/** CRM state ถูกยกไปไว้ที่ CustomerPanelBody (parent) แล้ว — เหตุผล (impeccable critique P0-1):
+ *  1) เดิม fetch อยู่ในนี้ และ component ถูก unmount ทุกครั้งที่สลับแท็บ → โน้ตที่พิมพ์ค้างหายเงียบ ๆ
+ *     + ยิง GET ใหม่ + skeleton กระพริบทุกครั้ง (แม่ค้าเปิดวันละหลายสิบเธรด = กระพริบหลายร้อยครั้ง)
+ *  2) เดิม fetch fail แล้ว `return` เฉย ๆ → crm ค้าง null → `if (!crm) return null` → **แท็บว่างเปล่า
+ *     สนิท** ไม่มีข้อความ ไม่มีปุ่มลองใหม่ (comment เดิมที่ว่า "CRM เป็นส่วนเสริม" ไม่จริงแล้ว
+ *     ตั้งแต่ CRM กลายเป็นทั้งแท็บ)
+ *  ตอนนี้ parent fetch ครั้งเดียว ถือ error state เอง และ panel ทุกแท็บ mount ค้างไว้ (ซ่อนด้วย
+ *  `hidden`) → draft อยู่รอดข้ามแท็บ */
+export type { Crm as ConversationCrm }
+
 export default function CustomerCrmSection({
   conversationId,
   variant = 'profile',
+  crm,
+  onSaved,
 }: {
   conversationId: string
   variant?: CrmVariant
+  crm: Crm
+  /** parent เก็บ crm ที่อัปเดตแล้วต่อ (แชร์ระหว่างแท็บ) */
+  onSaved: (next: Crm) => void
 }) {
   const isNote = variant === 'note'
-  const [crm, setCrm] = useState<Crm | null>(null)
-  const [loading, setLoading] = useState(true)
+  const fieldId = useId()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -72,24 +104,6 @@ export default function CustomerCrmSection({
   const [salesStatus, setSalesStatus] = useState<SalesStatus>('UNSPECIFIED')
   const [tags, setTags] = useState<string[]>([])
   const [phones, setPhones] = useState<string[]>([])
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/chat/conversations/${conversationId}/crm`, { cache: 'no-store' })
-      if (!res.ok) return
-      const data: Crm = await res.json()
-      setCrm(data)
-    } catch {
-      // เงียบ — CRM เป็นส่วนเสริมของ panel
-    } finally {
-      setLoading(false)
-    }
-  }, [conversationId])
-
-  useEffect(() => {
-    load()
-  }, [load])
 
   function startEdit() {
     if (!crm) return
@@ -132,7 +146,7 @@ export default function CustomerCrmSection({
         return
       }
       const data: Crm = await res.json()
-      setCrm(data)
+      onSaved(data)
       setEditing(false)
       pacesToast.chat.success(isNote ? 'บันทึกโน้ตแล้ว' : 'บันทึกข้อมูลลูกค้าแล้ว')
     } catch {
@@ -141,11 +155,6 @@ export default function CustomerCrmSection({
       setSaving(false)
     }
   }
-
-  if (loading) {
-    return <div className="bg-default-100 h-40 animate-pulse rounded-lg" />
-  }
-  if (!crm) return null
 
   // ── VIEW MODE ──
   if (!editing) {
@@ -160,9 +169,7 @@ export default function CustomerCrmSection({
               ลูกค้า" ที่ซ้ำกับแท็บทำให้มี 2 ระดับหัวเรื่องซ้อนกันโดยไม่เพิ่มข้อมูลอะไร */}
           {crm.external && (
             <div className="flex justify-end">
-              <button type="button" onClick={startEdit} className="text-primary flex items-center gap-1 text-xs font-medium hover:underline">
-                <Icon icon="pencil" className="text-sm" /> แก้ไข
-              </button>
+              <EditButton onClick={startEdit} />
             </div>
           )}
           {crm.external ? (
@@ -170,13 +177,13 @@ export default function CustomerCrmSection({
               {crm.note ? (
                 <p className="text-default-800 mb-0 text-sm whitespace-pre-wrap">{crm.note}</p>
               ) : (
-                <p className="text-default-400 mb-0 text-sm">ยังไม่มีโน้ต</p>
+                <p className="text-default-600 mb-0 text-sm">ยังไม่มีโน้ต</p>
               )}
               {/* บอกผลลัพธ์ที่ผู้ใช้ได้ ไม่ใช่กลไกภายใน: โน้ตนี้ถูกส่งเป็นบริบทให้ AI ตอนช่วยร่างคำตอบ */}
-              <p className="text-default-400 mb-0 text-2xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
+              <p className="text-default-700 mb-0 text-xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
             </>
           ) : (
-            <p className="text-default-400 mb-0 text-2xs">โน้ตใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
+            <p className="text-default-700 mb-0 text-xs">โน้ตใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
           )}
         </div>
       )
@@ -186,13 +193,11 @@ export default function CustomerCrmSection({
       <div className="space-y-3">
         {/* หัวข้อซ้ำชื่อแท็บถูกตัดออก — ดูเหตุผลที่ variant โน้ต */}
         <div className="flex justify-end">
-          <button type="button" onClick={startEdit} className="text-primary flex items-center gap-1 text-xs font-medium hover:underline">
-            <Icon icon="pencil" className="text-sm" /> แก้ไข
-          </button>
+          <EditButton onClick={startEdit} />
         </div>
 
         {crm.alias && <ViewRow label="ชื่อในแชท">{crm.alias}</ViewRow>}
-        <ViewRow label="ชื่อจริง">{crm.realName || <span className="text-default-400">—</span>}</ViewRow>
+        <ViewRow label="ชื่อจริง">{crm.realName || <EmptyValue />}</ViewRow>
 
         {crm.external ? (
           <>
@@ -203,25 +208,25 @@ export default function CustomerCrmSection({
               {crm.tags.length ? (
                 <div className="flex flex-wrap gap-1">
                   {crm.tags.map((t) => (
-                    <span key={t} className="badge bg-primary/15 text-primary text-2xs">{t}</span>
+                    <span key={t} className="badge bg-primary/15 text-primary text-xs">{t}</span>
                   ))}
                 </div>
               ) : (
-                <span className="text-default-400">—</span>
+                <EmptyValue />
               )}
             </ViewRow>
             <ViewRow label="เบอร์โทร">
               {crm.phones.length ? (
                 <div className="space-y-0.5">{crm.phones.map((p) => <p key={p} className="mb-0">{p}</p>)}</div>
               ) : (
-                <span className="text-default-400">—</span>
+                <EmptyValue />
               )}
             </ViewRow>
-            <ViewRow label="ที่อยู่">{crm.address || <span className="text-default-400">—</span>}</ViewRow>
-            {/* โน้ตย้ายไปแท็บ "โน๊ต" แล้ว (user สั่ง 2026-07-23) — ไม่แสดงซ้ำที่นี่ */}
+            <ViewRow label="ที่อยู่">{crm.address || <EmptyValue />}</ViewRow>
+            {/* โน้ตย้ายไปแท็บ "โน้ต" แล้ว (user สั่ง 2026-07-23) — ไม่แสดงซ้ำที่นี่ */}
           </>
         ) : (
-          <p className="text-default-400 text-2xs">แท็ก/สถานะการขาย ใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
+          <p className="text-default-700 text-xs">แท็ก/สถานะการขาย ใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
         )}
       </div>
     )
@@ -230,34 +235,40 @@ export default function CustomerCrmSection({
   // ── EDIT MODE ──
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-default-700 text-sm font-semibold">{isNote ? 'แก้ไขโน้ต' : 'แก้ไขข้อมูลลูกค้า'}</span>
-      </div>
-
+      {/* ไม่มีหัวข้อ "แก้ไข…" — โหมดสื่อผ่านปุ่ม (ดินสอ ↔ บันทึก/ยกเลิก) ซึ่งชัดกว่าอยู่แล้ว และ
+          การมีหัวข้อเฉพาะตอน edit ทำให้เนื้อหากระโดดลง ~24px ทุกครั้งที่สลับโหมด (critique P2-2) */}
       {isNote ? (
         <div>
-          <label className="form-label">โน้ต</label>
-          <textarea className="form-input min-h-32" placeholder="ข้อมูลที่ควรจำเกี่ยวกับลูกค้าคนนี้..." value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
-          <p className="text-default-400 mt-1 mb-0 text-2xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
+          <label className="form-label" htmlFor={`${fieldId}-note`}>โน้ต</label>
+          <textarea id={`${fieldId}-note`} className="form-input min-h-32" placeholder="ข้อมูลที่ควรจำเกี่ยวกับลูกค้าคนนี้..." value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
+          <p className="text-default-700 mt-1 mb-0 text-xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
         </div>
       ) : (
         <div>
-          <label className="form-label">ชื่อในแชท</label>
-          <input type="text" className="form-input" placeholder="เช่น Wave 110" value={alias} maxLength={80} onChange={(e) => setAlias(e.target.value)} />
+          <label className="form-label" htmlFor={`${fieldId}-alias`}>ชื่อในแชท</label>
+          <input id={`${fieldId}-alias`} type="text" className="form-input" placeholder="เช่น Wave 110" value={alias} maxLength={80} onChange={(e) => setAlias(e.target.value)} />
         </div>
       )}
 
       {!isNote && crm.external && (
         <>
           <div>
-            <label className="form-label">สถานะการขาย</label>
-            <div className="flex flex-wrap gap-1.5">
+            <span className="form-label" id={`${fieldId}-status-label`}>สถานะการขาย</span>
+            {/* chip เลือกได้: ตอน selected ใช้ primary + ring สีเดียวกันทุกสถานะ — เดิม "ยังไม่ระบุ"
+                ตอน selected ใช้สไตล์เดียวกับ unselected เป๊ะ (ต่างแค่ ring เทา) จนมองไม่ออกว่าเลือกอยู่
+                (critique P2-1) และ min-h-11 ให้ hit area ผ่านเกณฑ์ ≥44px */}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`${fieldId}-status-label`}>
               {STATUS_ORDER.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setSalesStatus(s)}
-                  className={`badge text-xs ${salesStatus === s ? SALES_STATUS_META[s].cls + ' ring-1 ring-current' : 'bg-default-100 text-default-500'}`}
+                  aria-pressed={salesStatus === s}
+                  className={`badge inline-flex min-h-11 items-center px-3 text-xs ${
+                    salesStatus === s
+                      ? 'bg-primary/15 text-primary ring-1 ring-primary'
+                      : 'bg-default-100 text-default-700'
+                  }`}
                 >
                   {SALES_STATUS_META[s].label}
                 </button>
@@ -266,14 +277,21 @@ export default function CustomerCrmSection({
           </div>
 
           <div>
-            <label className="form-label">แท็ก</label>
+            <span className="form-label">แท็ก</span>
             {tags.length > 0 && (
               <div className="mb-1.5 flex flex-wrap gap-1">
                 {tags.map((t) => (
-                  <span key={t} className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+                  <span key={t} className="badge bg-primary/15 text-primary inline-flex items-center gap-0.5 ps-3 pe-0.5 text-xs">
                     {t}
-                    <button type="button" onClick={() => setTags((prev) => prev.filter((x) => x !== t))} aria-label={`ลบแท็ก ${t}`}>
-                      <Icon icon="x" width={11} height={11} />
+                    {/* ปุ่มลบแท็กเดิมเป็นไอคอน 11px เปล่า ๆ (เล็กกว่าเกณฑ์ ≥44px เกือบ 4 เท่า —
+                        critique P1-A) ตอนนี้ hit area size-9 + ไอคอนคงขนาดเดิมเพื่อไม่ให้ chip บวม */}
+                    <button
+                      type="button"
+                      onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
+                      aria-label={`ลบแท็ก ${t}`}
+                      className="hover:bg-primary/15 flex size-9 items-center justify-center rounded-full"
+                    >
+                      <Icon icon="x" width={12} height={12} />
                     </button>
                   </span>
                 ))}
@@ -283,7 +301,7 @@ export default function CustomerCrmSection({
           </div>
 
           <div>
-            <label className="form-label">เบอร์โทร (เพิ่มได้หลายเบอร์)</label>
+            <span className="form-label">เบอร์โทร (เพิ่มได้หลายเบอร์)</span>
             <div className="space-y-1.5">
               {phones.map((p, i) => (
                 <div key={i} className="flex gap-2">
@@ -291,34 +309,37 @@ export default function CustomerCrmSection({
                     type="tel"
                     className="form-input"
                     placeholder="เบอร์โทร"
+                    aria-label={`เบอร์โทรที่ ${i + 1}`}
                     value={p}
                     maxLength={20}
                     onChange={(e) => setPhones((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
                   />
-                  <button type="button" onClick={() => setPhones((prev) => prev.filter((_, j) => j !== i))} className="btn btn-icon border-default-300 shrink-0" aria-label="ลบเบอร์">
+                  <button type="button" onClick={() => setPhones((prev) => prev.filter((_, j) => j !== i))} className="btn btn-icon border-default-300 size-11 shrink-0" aria-label={`ลบเบอร์ที่ ${i + 1}`}>
                     <Icon icon="trash" />
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={() => setPhones((prev) => [...prev, ''])} className="text-primary text-xs font-medium hover:underline">
-                + เพิ่มเบอร์
+              <button type="button" onClick={() => setPhones((prev) => [...prev, ''])} className="text-primary hover:bg-primary/10 -ms-2 flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-medium">
+                <Icon icon="plus" className="text-sm" /> เพิ่มเบอร์
               </button>
             </div>
           </div>
 
           <div>
-            <label className="form-label">ที่อยู่</label>
-            <input type="text" className="form-input" placeholder="ที่อยู่จัดส่ง" value={address} maxLength={500} onChange={(e) => setAddress(e.target.value)} />
+            <label className="form-label" htmlFor={`${fieldId}-address`}>ที่อยู่</label>
+            <input id={`${fieldId}-address`} type="text" className="form-input" placeholder="ที่อยู่จัดส่ง" value={address} maxLength={500} onChange={(e) => setAddress(e.target.value)} />
           </div>
-          {/* ช่องโน้ตอยู่ในแท็บ "โน๊ต" แล้ว — ไม่ซ้ำที่นี่ */}
+          {/* ช่องโน้ตอยู่ในแท็บ "โน้ต" แล้ว — ไม่ซ้ำที่นี่ */}
         </>
       )}
 
+      {/* ปุ่มหลักของแผงเดิมเป็น .btn-sm สูง ~26px (เล็กที่สุดในแผงทั้งที่สำคัญที่สุด — critique P1-A)
+          → .btn ปกติ + min-h-11 ให้ผ่านเกณฑ์ ≥44px ของ PRODUCT.md */}
       <div className="flex gap-2 pt-1">
-        <button type="button" onClick={save} disabled={saving} className="btn btn-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-60">
+        <button type="button" onClick={save} disabled={saving} className="btn bg-primary text-white hover:bg-primary-hover min-h-11 disabled:opacity-60">
           <Icon icon={saving ? 'loader-2' : 'check'} className={`me-1 ${saving ? 'animate-spin' : ''}`} /> บันทึก
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="btn btn-sm border-default-300">
+        <button type="button" onClick={() => setEditing(false)} className="btn border-default-300 min-h-11">
           ยกเลิก
         </button>
       </div>

@@ -420,7 +420,6 @@ export default function InboxList({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMore ผูก closure ของ nextCursor/loading ปัจจุบันอยู่แล้ว
   }, [items.length, nextCursor])
 
-  const selectedPageName = channels.find((c) => c.id === pageFilter)?.name
   // id เพจ → รูปเพจ (จาก prop channels ที่โหลดมาแล้ว) — ใช้ทำ badge รูปเพจต่อแถว
   const channelAvatarById = new Map(channels.map((c) => [c.id, c.avatarUrl]))
 
@@ -519,15 +518,11 @@ export default function InboxList({
             />
           )}
 
-          {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น */}
-          {pageFilter && selectedPageName && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              {selectedPageName}
-              <button type="button" onClick={() => setPageFilter('')} aria-label="ล้างตัวกรองเพจ" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
+          {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
+              ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก
+              อยู่บนตัวปุ่มเองแล้ว chip ด้านล่างจึงเป็นชื่อเดียวกันซ้ำสองบรรทัดติดกัน — ล้างตัวกรอง
+              ยังทำได้จากในดรอปดาวน์ (ตัวเลือก "ทุกเพจ") ต่างจากตัวกรองสถานะ/ผูกลูกค้า/ซ่อน ที่ปุ่ม
+              "ตัวกรอง" ไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม chip จึงยังจำเป็น */}
           {filter.status !== 'open' && (
             <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
               สถานะ: {filter.status === 'resolved' ? 'ปิดงานแล้ว' : 'ทั้งหมด'}
