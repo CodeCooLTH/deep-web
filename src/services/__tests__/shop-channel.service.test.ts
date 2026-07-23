@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
     update: vi.fn(),
     updateMany: vi.fn(),
   },
+  $transaction: vi.fn(),
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 vi.mock('@/lib/facebook/graph', () => ({ subscribePageToApp: vi.fn().mockResolvedValue(undefined) }))
@@ -52,12 +53,13 @@ describe('shop-channel.service', () => {
 
   it('Page ที่ร้านอื่นเชื่อมไปแล้ว (P2002, shopId ต่างกัน) → นับเป็น skipped ไม่ throw และไม่ subscribe', async () => {
     db.shopChannel.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
-    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop-other' })
+    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop-other', shop: { shopName: 'ร้านอื่น' } })
 
     const result = await connectPages('shop1', 'user1', [page])
 
     expect(result.connected).toBe(0)
-    expect(result.skipped).toEqual(['ร้านทดสอบ'])
+    // skipped พก occupiedBy = ชื่อร้านที่ยึดอยู่ ให้ UI แจ้ง user ได้ว่าติดร้านไหน
+    expect(result.skipped).toEqual([{ pageName: 'ร้านทดสอบ', occupiedBy: 'ร้านอื่น' }])
     expect(subscribePageToApp).not.toHaveBeenCalled()
     // ต้องกรอง status <> DISCONNECTED เสมอ — ให้ตรงขอบเขตของ partial unique index จริง
     // (ไม่งั้นอาจไปเจอแถว DISCONNECTED เก่าที่ไม่ใช่ตัวชน constraint แล้วสรุปผิด)
@@ -82,12 +84,32 @@ describe('shop-channel.service', () => {
   // ให้นับว่าสำเร็จและ subscribe ใหม่อีกครั้ง (ฝั่ง Meta idempotent)
   it('Page เดิมของร้านเดียวกันเชื่อมซ้ำ (P2002, shopId ตรงกัน) → นับเป็น connected และ subscribe อีกครั้ง', async () => {
     db.shopChannel.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
-    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop1' })
+    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop1', shop: { shopName: 'ร้านทดสอบ' } })
 
     const result = await connectPages('shop1', 'user1', [page])
 
     expect(result.connected).toBe(1)
     expect(result.skipped).toEqual([])
+    expect(subscribePageToApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain')
+  })
+
+  // force move: user ยืนยันย้ายเพจที่ติดร้านอื่น → ตัดร้านเดิม (DISCONNECTED) แล้วสร้างใหม่ให้ร้านนี้
+  // ในทรานแซกชันเดียว นับเป็น connected (ไม่ใช่ skipped) และ subscribe ต่อ
+  it('force=true + เพจติดร้านอื่น → ตัดร้านเดิมแล้วย้ายมาร้านนี้ นับ connected', async () => {
+    // create แรกชน P2002 (มีร้านอื่นถืออยู่) → เข้า force branch: transaction updateMany+create
+    db.shopChannel.create.mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }))
+    db.shopChannel.findFirst.mockResolvedValue({ shopId: 'shop-other', shop: { shopName: 'ร้านอื่น' } })
+    db.$transaction.mockResolvedValue([{ count: 1 }, { id: 'ch-moved' }])
+    // IG upsert (force เหมือนกัน) — ให้ผ่านตรง ๆ
+    db.shopChannel.create.mockResolvedValue({ id: 'ch-ig' })
+
+    const result = await connectPages('shop1', 'user1', [page], { force: true })
+
+    expect(result.connected).toBe(1)
+    expect(result.skipped).toEqual([])
+    // ต้องตัดแถว active ของเพจนี้ทั้งหมด (ไม่ผูก shopId — ครอบร้านอื่น) แล้วค่อยสร้างใหม่
+    const txArg = db.$transaction.mock.calls[0]![0]
+    expect(Array.isArray(txArg)).toBe(true)
     expect(subscribePageToApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain')
   })
 
