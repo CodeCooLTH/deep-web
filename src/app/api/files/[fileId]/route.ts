@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 const MIME: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg",
   png: "image/png", webp: "image/webp",
+  gif: "image/gif", // feature 00018 — mirror รูป/สติกเกอร์เคลื่อนไหวจาก Messenger/IG ต้อง serve inline
 };
 
 // ---------------------------------------------------------------------------

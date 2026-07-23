@@ -6,6 +6,10 @@ export const ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  // image/gif: รองรับเพื่อ mirror รูป/สติกเกอร์เคลื่อนไหวจาก Messenger/IG (feature 00018) —
+  // เก็บ raw bytes ไม่ re-encode จึงคง animation ไว้. seller upload ฝั่ง chat ยัง gate ด้วย
+  // CHAT_IMAGE_ALLOWED_EXT (route messages) แยกต่างหาก จึงไม่เปิดให้ seller ส่ง gif โดยไม่ตั้งใจ
+  "image/gif",
   "application/pdf",
 ];
 

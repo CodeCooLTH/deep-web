@@ -26,13 +26,16 @@ export function getWindowState(
 export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
 
 const MIRROR_MAX_BYTES = 5 * 1024 * 1024 // ตรงกับ MAX_SIZE ของ lib/storage
-// ต้องตรงกับ ALLOWED_TYPES ใน src/lib/storage/types.ts เป๊ะ ๆ — เดิมมี 'image/gif' อยู่ในนี้
-// ทั้งที่ storage ฝั่ง validateUpload() ไม่รองรับ gif เลย ทำให้ saveFile() throw ทุกครั้งที่ลูกค้า
-// ส่ง gif มา (ถูก catch เงียบ ๆ คืน null ทำให้ดูเหมือนแค่ "โหลดพลาด" แต่จริง ๆ พังทุกครั้ง) (I-5)
+// ต้องตรงกับ ALLOWED_TYPES ใน src/lib/storage/types.ts เป๊ะ ๆ — ก่อนหน้านี้ 'image/gif' ถูกตัดออก
+// เพราะ storage ฝั่ง validateUpload() ไม่รองรับ ทำให้ saveFile() throw ทุกครั้งที่ลูกค้าส่ง gif
+// (ถูก catch เงียบ ๆ คืน null → ตกไปที่ MIRROR_FAILED_TEXT ดูเหมือน "โหลดพลาด" แต่จริง ๆ พังทุกครั้ง).
+// ตอนนี้เพิ่ม 'image/gif' เข้า storage ALLOWED_TYPES แล้ว (เก็บ raw bytes ไม่ re-encode คง animation)
+// จึง mirror gif/สติกเกอร์เคลื่อนไหวจาก Messenger/IG ได้จริง (bug report ลูกค้า 2026-07-23) (I-5)
 const MIRROR_ALLOWED_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+  'image/gif': 'gif',
 }
 
 // bubble ต้องไม่ว่างเปล่าแม้กรณี mirror รูปไม่ผ่าน หรือ attachment เป็นชนิดที่เราไม่รองรับ (I-5)
@@ -254,7 +257,10 @@ export async function ingestInboundMessage(params: {
         //
         // lastInboundAt ก็ไม่ขยับตอน echo ด้วยเหตุผลคนละข้อ — ถ้าขยับจะทำให้หน้าต่าง
         // 24 ชม. ยืดออกเองอย่างผิด ๆ ทุกครั้งที่ร้านตอบ
-        ...(isEcho ? {} : { lastMessageAt: occurredAt, lastInboundAt: occurredAt }),
+        //
+        // isHidden/resolvedAt: BR-FBC-15/16 (S-7) — ลูกค้าทักมาใหม่ในเธรดที่ร้านซ่อน/ปิดงานไว้
+        // → เด้งกลับให้เห็นอัตโนมัติ กันร้านพลาดข้อความ; echo (ร้านตอบเอง) ไม่ trigger
+        ...(isEcho ? {} : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
       },
     })
 

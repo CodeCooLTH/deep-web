@@ -736,6 +736,11 @@ export const ChatConversationsQuerySchema = v.object({
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
 
+// S-7 (ตัวกรองแชท + ปักหมุด/ซ่อน/ปิดงาน): body ของ PATCH /api/chat/conversations/{id}
+export const ConversationPatchSchema = v.object({
+  action: v.picklist(["pin", "unpin", "hide", "unhide", "resolve", "reopen"]),
+});
+
 // ── feature 00013 Pin Products (SRS §4 / API §4.3) ───────────────────────────
 // body ของ POST /api/seller/pin-slots/buy — ซื้อ slot ฿99 + ปักหมุด productId ในธุรกรรมเดียว
 export const BuyPinSlotSchema = v.object({

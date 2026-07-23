@@ -141,6 +141,28 @@ describe('ingestInboundMessage', () => {
     expect(r.status).toBe('NO_CHANNEL')
   })
 
+  describe('auto-unhide/reopen เมื่อลูกค้าทักใหม่ (BR-FBC-15/16, S-7)', () => {
+    it('ข้อความจากลูกค้า (ไม่ใช่ echo) → conversation.update มี isHidden:false, resolvedAt:null', async () => {
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
+      const data = db.conversation.update.mock.calls[0]![0].data
+      expect(data.isHidden).toBe(false)
+      expect(data.resolvedAt).toBeNull()
+    })
+
+    it('echo (ร้านตอบเอง) → ไม่แตะ isHidden/resolvedAt เลย (ไม่ trigger auto-unhide)', async () => {
+      const echo = {
+        sender: { id: 'PAGE1' },
+        recipient: { id: 'PSID_1' },
+        timestamp: 1750000000000,
+        message: { mid: 'mid.echo.2', text: 'ตอบจากมือถือ', is_echo: true },
+      }
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: echo })
+      const data = db.conversation.update.mock.calls[0]![0].data
+      expect(data).not.toHaveProperty('isHidden')
+      expect(data).not.toHaveProperty('resolvedAt')
+    })
+  })
+
   it('event ที่ไม่มี message (เช่น delivery receipt) → IGNORED', async () => {
     const r = await ingestInboundMessage({
       provider: 'MESSENGER', pageExternalId: 'PAGE1',

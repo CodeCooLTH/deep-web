@@ -10,39 +10,42 @@ vi.mock('@/services/product.service', () => ({ getProductById: vi.fn() }))
 
 import { listConversationsForShop, listConversationsForBuyer } from '@/services/chat.service'
 
-describe('listConversationsForShop — T1 filter/ค้นหา (feature 00018)', () => {
+describe('listConversationsForShop — T1 filter/ค้นหา (feature 00018) + S-7 status/hidden/pinned', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     db.conversation.findMany.mockResolvedValue([])
   })
 
-  it('ไม่ใส่ filter เพิ่ม → where มีแค่ shopId', async () => {
+  // S-7: default status='open' (resolvedAt:null) + hidden=false (isHidden:false) — ต้องกรองเสมอ
+  // แม้ไม่ส่ง opts อะไรมาเลย ไม่งั้นเธรดปิดงาน/ซ่อนจะโผล่ในรายการปกติ
+  it('ไม่ใส่ filter เพิ่ม → where มี shopId + default status=open (resolvedAt:null) + hidden=false', async () => {
     await listConversationsForShop('shop1')
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ shopId: 'shop1' })
+    expect(where).toEqual({ shopId: 'shop1', resolvedAt: null, isHidden: false })
   })
 
-  it('filter ตาม channel → where มี shopId + channel', async () => {
+  it('filter ตาม channel → where มี shopId + channel (+ default status/hidden)', async () => {
     await listConversationsForShop('shop1', { channel: 'MESSENGER' })
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ shopId: 'shop1', channel: 'MESSENGER' })
+    expect(where).toEqual({ shopId: 'shop1', channel: 'MESSENGER', resolvedAt: null, isHidden: false })
   })
 
-  it('filter ตาม shopChannelId → where มี shopId + shopChannelId', async () => {
+  it('filter ตาม shopChannelId → where มี shopId + shopChannelId (+ default status/hidden)', async () => {
     await listConversationsForShop('shop1', { shopChannelId: 'ch1' })
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ shopId: 'shop1', shopChannelId: 'ch1' })
+    expect(where).toEqual({ shopId: 'shop1', shopChannelId: 'ch1', resolvedAt: null, isHidden: false })
   })
 
-  it('ค้นหา q → where มี shopId + OR ของ lastMessagePreview/externalContact.name (case-insensitive)', async () => {
+  it('ค้นหา q → OR ของ lastMessagePreview/externalContact.name ห่อใน AND (กันชนกับ OR อื่น)', async () => {
     await listConversationsForShop('shop1', { q: 'สมชาย' })
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
     expect(where.shopId).toBe('shop1')
-    expect(where.OR).toEqual([
+    expect(where.AND).toHaveLength(1)
+    expect(where.AND[0].OR).toEqual([
       { lastMessagePreview: { contains: 'สมชาย', mode: 'insensitive' } },
       { externalContact: { name: { contains: 'สมชาย', mode: 'insensitive' } } },
     ])
@@ -55,7 +58,7 @@ describe('listConversationsForShop — T1 filter/ค้นหา (feature 00018)
     expect(where.shopId).toBe('shop1')
     expect(where.channel).toBe('INSTAGRAM')
     expect(where.shopChannelId).toBe('ch2')
-    expect(where.OR).toHaveLength(2)
+    expect(where.AND[0].OR).toHaveLength(2)
   })
 
   // เคสสำคัญที่สุด — filter/search ต้องไม่ทำให้เธรดของร้านอื่นหลุดเข้ามา ไม่ว่าจะส่ง filter
@@ -97,6 +100,131 @@ describe('listConversationsForShop — T1 filter/ค้นหา (feature 00018)
 
     await expect(listConversationsForShop('shop1', { q: 'test' })).resolves.toBeDefined()
   })
+
+  describe('S-7 — status filter', () => {
+    it("status ไม่ส่ง (default) → resolvedAt: null (เห็นเฉพาะที่ยังเปิดอยู่)", async () => {
+      await listConversationsForShop('shop1')
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.resolvedAt).toBeNull()
+    })
+
+    it("status='open' → resolvedAt: null เหมือน default", async () => {
+      await listConversationsForShop('shop1', { status: 'open' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.resolvedAt).toBeNull()
+    })
+
+    it("status='resolved' → resolvedAt: {not: null} (เฉพาะที่ปิดงานแล้ว)", async () => {
+      await listConversationsForShop('shop1', { status: 'resolved' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.resolvedAt).toEqual({ not: null })
+    })
+
+    it("status='all' → ไม่มี resolvedAt ใน where เลย (ไม่กรอง)", async () => {
+      await listConversationsForShop('shop1', { status: 'all' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where).not.toHaveProperty('resolvedAt')
+    })
+  })
+
+  describe('S-7 — hidden filter', () => {
+    it('hidden ไม่ส่ง (default) → isHidden: false (ไม่โชว์เธรดที่ซ่อนในรายการปกติ)', async () => {
+      await listConversationsForShop('shop1')
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.isHidden).toBe(false)
+    })
+
+    it('hidden=true → isHidden: true (ดูเฉพาะที่ซ่อน)', async () => {
+      await listConversationsForShop('shop1', { hidden: true })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.isHidden).toBe(true)
+    })
+  })
+
+  describe('S-7 — customerLinked filter', () => {
+    it("customerLinked ไม่ส่ง/'all' → ไม่มี AND ของ customerLinked", async () => {
+      await listConversationsForShop('shop1', { customerLinked: 'all' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.AND).toBeUndefined()
+    })
+
+    it("customerLinked='linked' → AND มี OR ของ buyer.customer/externalContact.customerId ไม่ null", async () => {
+      await listConversationsForShop('shop1', { customerLinked: 'linked' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.AND).toContainEqual({
+        OR: [
+          { buyerUserId: { not: null }, buyer: { customer: { isNot: null } } },
+          { externalContactId: { not: null }, externalContact: { customerId: { not: null } } },
+        ],
+      })
+    })
+
+    it("customerLinked='unlinked' → AND มี OR ของ buyer.customer/externalContact.customerId เป็น null", async () => {
+      await listConversationsForShop('shop1', { customerLinked: 'unlinked' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.AND).toContainEqual({
+        OR: [
+          { buyerUserId: { not: null }, buyer: { customer: null } },
+          { externalContactId: { not: null }, externalContact: { customerId: null } },
+        ],
+      })
+    })
+
+    it('customerLinked + q พร้อมกัน → ทั้งคู่อยู่ใน AND array ไม่ทับกัน (กัน OR key ชนกัน)', async () => {
+      await listConversationsForShop('shop1', { customerLinked: 'linked', q: 'test' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.AND).toHaveLength(2)
+    })
+  })
+
+  describe('S-7 — pinned เรียงขึ้นก่อนเสมอ', () => {
+    it('orderBy = [{isPinned:desc}, {lastMessageAt:desc}] เสมอสำหรับ shop listing', async () => {
+      await listConversationsForShop('shop1')
+      const orderBy = db.conversation.findMany.mock.calls[0]![0].orderBy
+      expect(orderBy).toEqual([{ isPinned: 'desc' }, { lastMessageAt: 'desc' }])
+    })
+
+    it('มี cursor ธรรมดา (ไม่ได้เข้ารหัส isPinned) → ตีความเป็น cursorPinned=false', async () => {
+      await listConversationsForShop('shop1', { cursor: '2026-07-01T00:00:00.000Z' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      // cursorCond spread ตรงกับ where เลย (ไม่มี q/customerLinked active รอบนี้ = ไม่มี AND)
+      expect(where.isPinned).toBe(false)
+      expect(where.lastMessageAt).toEqual({ lt: new Date('2026-07-01T00:00:00.000Z') })
+    })
+
+    it('cursor encode "1|<ISO>" (แถวสุดท้ายของหน้าก่อนปักหมุดอยู่) → หน้าถัดไปยังเห็นเธรดไม่ปักหมุดทั้งหมด + ปักหมุดที่เหลือที่เก่ากว่า', async () => {
+      await listConversationsForShop('shop1', { cursor: '1|2026-07-01T00:00:00.000Z' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.OR).toEqual([
+        { isPinned: false },
+        { isPinned: true, lastMessageAt: { lt: new Date('2026-07-01T00:00:00.000Z') } },
+      ])
+    })
+
+    it('customerLinked + cursor encode "1|<ISO>" พร้อมกัน → cursor OR (top-level) ไม่ชนกับ customerLinked OR (ห่อใน AND แล้ว)', async () => {
+      await listConversationsForShop('shop1', { customerLinked: 'linked', cursor: '1|2026-07-01T00:00:00.000Z' })
+      const where = db.conversation.findMany.mock.calls[0]![0].where
+      expect(where.AND).toHaveLength(1) // customerLinked OR ยังอยู่ครบ ไม่หาย
+      expect(where.OR).toEqual([
+        { isPinned: false },
+        { isPinned: true, lastMessageAt: { lt: new Date('2026-07-01T00:00:00.000Z') } },
+      ])
+    })
+
+    it('nextCursor เข้ารหัส isPinned ของแถวสุดท้ายที่เห็น (hasMore=true)', async () => {
+      const rows = Array.from({ length: 21 }, (_, i) => ({
+        id: `c${i}`,
+        shopId: 'shop1',
+        isPinned: i === 20, // แถวสุดท้ายที่ตัดออก (index 20) ปักหมุดอยู่ — ไม่ควรถูกใช้เป็น cursor
+        lastMessageAt: new Date(`2026-07-${String(21 - i).padStart(2, '0')}T00:00:00.000Z`),
+      }))
+      db.conversation.findMany.mockResolvedValue(rows)
+
+      const result = await listConversationsForShop('shop1', { take: 20 })
+      // page[19] (index 19, item แถวที่ 20 ที่โชว์จริง) ต้องเป็นตัวกำหนด cursor ไม่ใช่ rows[20] ที่ถูกตัดทิ้ง
+      expect(result.nextCursor).toBe(`${rows[19]!.isPinned ? '1' : '0'}|${rows[19]!.lastMessageAt.toISOString()}`)
+    })
+  })
 })
 
 describe('listConversationsForBuyer — ไม่มี filter ใหม่ (regression guard)', () => {
@@ -108,7 +236,9 @@ describe('listConversationsForBuyer — ไม่มี filter ใหม่ (reg
   it('where มีแค่ buyerUserId — ไม่มี field ของ seller filter หลุดเข้ามา', async () => {
     await listConversationsForBuyer('buyer1')
 
-    const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ buyerUserId: 'buyer1' })
+    const call = db.conversation.findMany.mock.calls[0]![0]
+    expect(call.where).toEqual({ buyerUserId: 'buyer1' })
+    // buyer listing ไม่ pin-sort — orderBy ยังเป็น object เดี่ยวเหมือนเดิม ไม่ใช่ array
+    expect(call.orderBy).toEqual({ lastMessageAt: 'desc' })
   })
 })
