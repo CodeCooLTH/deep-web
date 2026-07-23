@@ -8,8 +8,10 @@
  * เฉพาะเธรดช่องทางนอก (external) — DEEP ไม่มี CRM ฟิลด์ (ดู chat-crm.service)
  */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import TagInput from './TagInput'
 
 const STATUS_OPTIONS: { value: string; label: string; cls: string }[] = [
   { value: 'UNSPECIFIED', label: 'ยังไม่ระบุ', cls: 'text-default-500' },
@@ -30,7 +32,6 @@ type Props = {
 export default function ChatContextMenu({ x, y, conversationId, salesStatus, tags, onClose, onUpdated }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
-  const [tagInput, setTagInput] = useState('')
   // clamp ไม่ให้ล้นขอบขวา/ล่างของจอ (เมนูกว้าง ~208px สูง ~ประมาณ)
   const left = Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : x) - 220)
   const top = Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : y) - 280)
@@ -72,18 +73,9 @@ export default function ChatContextMenu({ x, y, conversationId, salesStatus, tag
     }
   }
 
-  function addTag() {
-    const t = tagInput.trim()
-    if (!t) return
-    if (tags.includes(t)) {
-      setTagInput('')
-      return
-    }
-    patch({ tags: [...tags, t] }, `เพิ่มแท็ก "${t}" แล้ว`)
-    setTagInput('')
-  }
-
-  return (
+  // render ผ่าน portal ที่ document.body — หลุดจาก Chat Rail/การ์ดที่มี overflow/transform ซึ่ง clip
+  // ตัว fixed จนแสดงไม่เต็ม (user report 2026-07-23). document.body มีเสมอ (menu โผล่หลังคลิกฝั่ง client)
+  return createPortal(
     <div
       ref={ref}
       role="menu"
@@ -125,26 +117,13 @@ export default function ChatContextMenu({ x, y, conversationId, salesStatus, tag
           ))}
         </div>
       )}
-      <div className="flex gap-1.5 px-3 pb-2.5 pt-1">
-        <input
-          type="text"
-          className="form-input h-8 text-sm"
-          placeholder="เพิ่มแท็ก"
-          value={tagInput}
-          maxLength={30}
-          disabled={busy}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              addTag()
-            }
-          }}
+      <div className="px-3 pb-2.5 pt-1">
+        <TagInput
+          selected={tags}
+          onAdd={(t) => patch({ tags: [...tags, t] }, `เพิ่มแท็ก "${t}" แล้ว`)}
         />
-        <button type="button" onClick={addTag} disabled={busy} className="btn btn-sm btn-icon border-default-300 shrink-0" aria-label="เพิ่มแท็ก">
-          <Icon icon="plus" />
-        </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

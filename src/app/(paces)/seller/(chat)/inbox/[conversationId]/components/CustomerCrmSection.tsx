@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import TagInput from '../../components/TagInput'
 
 type SalesStatus = 'UNSPECIFIED' | 'INTERESTED' | 'NOT_INTERESTED'
 
@@ -54,7 +55,6 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
   const [address, setAddress] = useState('')
   const [salesStatus, setSalesStatus] = useState<SalesStatus>('UNSPECIFIED')
   const [tags, setTags] = useState<string[]>([])
-  const [tagInput, setTagInput] = useState('')
   const [phones, setPhones] = useState<string[]>([])
 
   const load = useCallback(async () => {
@@ -83,14 +83,7 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
     setSalesStatus(crm.salesStatus)
     setTags(crm.tags)
     setPhones(crm.phones)
-    setTagInput('')
     setEditing(true)
-  }
-
-  function addTag() {
-    const t = tagInput.trim()
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t])
-    setTagInput('')
   }
 
   async function save() {
@@ -229,25 +222,7 @@ export default function CustomerCrmSection({ conversationId }: { conversationId:
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="form-input"
-                placeholder="พิมพ์แท็กแล้วกด +"
-                value={tagInput}
-                maxLength={30}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addTag()
-                  }
-                }}
-              />
-              <button type="button" onClick={addTag} className="btn btn-icon border-default-300 shrink-0" aria-label="เพิ่มแท็ก">
-                <Icon icon="plus" />
-              </button>
-            </div>
+            <TagInput selected={tags} onAdd={(t) => setTags((prev) => [...prev, t])} />
           </div>
 
           <div>
