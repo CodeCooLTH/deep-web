@@ -90,6 +90,8 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
       { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
+      // feature 00019 — ตั้งค่าผู้ช่วยร่างคำตอบ AI (คำสั่งประจำร้าน + สวิตช์บริบทสินค้า/ลูกค้า)
+      { url: '/settings/ai', slug: 'seller:settings-ai', label: 'ผู้ช่วยร่างคำตอบ AI', icon: 'sparkles' },
     ],
   },
 ]

@@ -925,3 +925,12 @@ export const AssignHousekeeperSchema = v.object({
 export const SetHousekeepingStatusSchema = v.object({
   status: v.picklist(["PENDING", "DONE"]),
 });
+
+// ── feature 00019 AI Reply Assistant ─────────────────────────────────────────
+// body ของ PUT /api/shops/ai-settings — full replace ไม่ใช่ partial patch (API.md §4.2)
+// instruction ≤2000 ตัวอักษร (BR-AI-03) ส่งค่าว่างเพื่อล้างคำสั่งได้
+export const ShopAiSettingSchema = v.object({
+  instruction: v.pipe(v.string(), v.maxLength(2000, "คำสั่งประจำร้านต้องไม่เกิน 2,000 ตัวอักษร")),
+  includeProductContext: v.boolean(),
+  includeCustomerContext: v.boolean(),
+});

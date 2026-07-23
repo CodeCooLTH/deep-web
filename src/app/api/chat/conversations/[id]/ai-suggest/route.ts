@@ -12,6 +12,13 @@ import {
   GeminiApiError,
   type SuggestTurn,
 } from "@/lib/gemini";
+import { getAiSetting } from "@/services/ai-setting.service";
+import {
+  resolveProductCards,
+  buildProductBlock,
+  buildCustomerBlock,
+  composeContextBlock,
+} from "@/services/ai-context.service";
 import { getConversationCrm } from "@/services/chat-crm.service";
 
 // feature 00018 composer improvement #3 — AI ช่วยร่างคำตอบ (Gemini)
@@ -56,7 +63,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // ownership อยู่ใน WHERE {id, shopId} — เธรดไม่ใช่ของร้านที่ active = 404 (ไม่ leak)
   const conversation = await prisma.conversation.findFirst({
     where: { id: idCheck.output, shopId: activeCtx.shopId },
-    select: { id: true },
+    // feature 00019: ต้องได้ buyerUserId/externalContactId ไปหา Customer ที่ผูกกับเธรด (TFR-005)
+    select: { id: true, buyerUserId: true, externalContactId: true },
   });
   if (!conversation) {
     return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
@@ -78,16 +86,46 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     where: { conversationId: conversation.id },
     orderBy: { createdAt: "desc" },
     take: RECENT_LIMIT,
-    select: { senderRole: true, type: true, body: true },
+    // feature 00019: productRefId ใช้แปลงการ์ดสินค้าเป็นชื่อ+ราคาจริง (TFR-003)
+    select: { senderRole: true, type: true, body: true, productRefId: true },
   });
-  const turns: SuggestTurn[] = rows
-    .reverse()
+  const ordered = rows.reverse();
+
+  // feature 00019 — การตั้งค่า AI ของร้าน (fail-soft: อ่านไม่ได้ = ใช้ค่าเริ่มต้น, TFR-009/AC-010-03)
+  const aiSetting = await getAiSetting(activeCtx.shopId);
+
+  // การ์ดสินค้า → ชื่อ+ราคาจริง (TFR-003) — batch query ครั้งเดียว ไม่ N+1
+  // ปิดบริบทสินค้า = คงข้อความ placeholder เดิมทุกประการ (AC-004-03)
+  let productCards = new Map<string, { name: string; price: string; isActive: boolean }>();
+  if (aiSetting.includeProductContext) {
+    try {
+      productCards = await resolveProductCards(
+        activeCtx.shopId,
+        ordered.map((m) => m.productRefId).filter((id): id is string => id !== null),
+      );
+    } catch (e) {
+      console.error("[ai-suggest] resolveProductCards failed", e instanceof Error ? e.message : e);
+    }
+  }
+
+  const turns: SuggestTurn[] = ordered
     .map((m) => {
       const role: "BUYER" | "SHOP" = m.senderRole === "SHOP" ? "SHOP" : "BUYER";
       // แทนชนิดที่ไม่ใช่ TEXT ด้วย placeholder ข้อความ (AI ไม่เห็นรูปจริง)
       let text = m.body ?? "";
       if (m.type === "IMAGE") text = m.body ? `[รูปภาพ] ${m.body}` : "[ส่งรูปภาพ]";
-      else if (m.type === "PRODUCT") text = "[ส่งการ์ดสินค้า]";
+      else if (m.type === "PRODUCT") {
+        const card = m.productRefId ? productCards.get(m.productRefId) : undefined;
+        if (card) {
+          const state = card.isActive ? "เปิดขาย" : "ปิดขายแล้ว";
+          text = `[ส่งการ์ดสินค้า: ${card.name} — ${card.price} บาท (${state})]`;
+        } else if (aiSetting.includeProductContext && m.productRefId) {
+          // หาไม่เจอ = สินค้าถูกลบ — ต้องไม่ throw และต้องบอก AI ตรง ๆ ว่าอ้างอิงราคาไม่ได้ (AC-004-02)
+          text = "[ส่งการ์ดสินค้า: สินค้าถูกลบแล้ว]";
+        } else {
+          text = "[ส่งการ์ดสินค้า]";
+        }
+      }
       return { role, text: text.trim() };
     })
     .filter((t) => t.text.length > 0);
@@ -96,10 +134,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "ยังไม่มีข้อความให้ AI ช่วยร่าง" }, { status: 400 });
   }
 
+  // feature 00019 — บริบทสินค้า/ลูกค้า ดึงแบบขนานและ fail-soft ทีละก้อน (TFR-009):
+  // ก้อนใดล้มเหลวต้องไม่ทำให้ทั้งคำขอพัง แค่ขาดบริบทก้อนนั้นไป (AC-010-01/02)
+  const buyerTexts = turns.filter((t) => t.role === "BUYER").slice(-3).map((t) => t.text);
+  const [productResult, customerResult] = await Promise.allSettled([
+    aiSetting.includeProductContext ? buildProductBlock(activeCtx.shopId, buyerTexts) : Promise.resolve(""),
+    aiSetting.includeCustomerContext
+      ? buildCustomerBlock(activeCtx.shopId, {
+          buyerUserId: conversation.buyerUserId,
+          externalContactId: conversation.externalContactId,
+        })
+      : Promise.resolve(""),
+  ]);
+  if (productResult.status === "rejected") {
+    console.error("[ai-suggest] buildProductBlock failed", productResult.reason);
+  }
+  if (customerResult.status === "rejected") {
+    console.error("[ai-suggest] buildCustomerBlock failed", customerResult.reason);
+  }
+  const contextBlock = composeContextBlock(
+    productResult.status === "fulfilled" ? productResult.value : "",
+    customerResult.status === "fulfilled" ? customerResult.value : "",
+  );
+
   try {
     const suggestions = await generateReplySuggestions(turns, {
       shopName: shop?.shopName ?? "ร้านค้า",
       vertical,
+      instruction: aiSetting.instruction,
+      contextBlock,
       customerName,
       customerNote: crm?.note ?? null,
     });

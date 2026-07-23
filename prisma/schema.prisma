@@ -60,6 +60,7 @@ model User {
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
   createdExpenses Expense[] @relation("ExpenseCreatedBy") // NEW — back-relation ของ Expense.createdByUserId (Prisma-managed, ไม่มีคอลัมน์จริงฝั่งนี้)
+  aiSettingUpdates ShopAiSetting[] // NEW (feature 00019) — การตั้งค่า AI ที่ผู้ใช้นี้แก้ล่าสุด
 }
 
 model AuthAccount {
@@ -189,6 +190,7 @@ model Shop {
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
   expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
+  aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -1195,4 +1197,27 @@ model Expense {
   // P&L query หลัก (FR-EXP-08-AC-01): WHERE shopId=X AND expenseDate BETWEEN start,end
   // ครอบคลุมทั้ง list view ของหน้า /expenses (เรียง expenseDate) และ Total Expense sum
   @@index([shopId, expenseDate])
+}
+
+// ── feature 00019 AI Reply Assistant ────────────────────────────────────────
+// ตั้งค่าผู้ช่วยร่างคำตอบ AI ต่อร้าน (SSOT: docs/20 - Features/00019 - AI Reply Assistant/DATABASE.md)
+// ทำไมแยกตารางแทนเพิ่มคอลัมน์ใน Shop (SDS TD-001): Shop ถูกอ่านแทบทุก request (session/layout/proxy)
+// การพก instruction ขนาดถึง 2KB ไปกับทุก query ที่ไม่ได้ใช้เป็นการเปลืองเปล่า ๆ —
+// ตารางนี้ถูกอ่านเฉพาะตอนขอร่างคำตอบและตอนเปิดหน้าตั้งค่าเท่านั้น
+model ShopAiSetting {
+  id String @id @default(uuid())
+  // shopId @unique = บังคับความสัมพันธ์ 1:1 ที่ระดับ DB ไม่พึ่งวินัยของโค้ด และเป็น index ของ query หลักไปในตัว
+  shopId String @unique
+  // instruction: คำสั่งประจำร้านที่เจ้าของร้านเขียนเอง — เพดาน 2,000 ตัวอักษรบังคับที่ Valibot
+  // (ไม่ใช่ที่ DB) แล้วตัดซ้ำอีกครั้งตอนประกอบ prompt กันข้อมูลเก่าที่ยาวเกิน (defense-in-depth)
+  instruction            String?
+  includeProductContext  Boolean @default(true)
+  includeCustomerContext Boolean @default(true)
+  // updatedByUserId: SetNull — ลบผู้ใช้ต้องไม่ลบการตั้งค่าของร้านทิ้ง
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  updatedBy User? @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
 }
