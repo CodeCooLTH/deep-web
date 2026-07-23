@@ -8,6 +8,13 @@
  *
  * accent เขียว (success token) ตาม reference ผู้ใช้ (Hard Rule 6 — asset/สีตาม ref) — ไม่ hardcode hex
  * ใช้ text-success/bg-success token. Paces primitive เท่านั้น (HR7). Base: theme/paces card + list rows.
+ *
+ * layout (user สั่ง 2026-07-23): "ไม่อยากให้เป็น panel ลอย ๆ ไม่มี shadow ไม่ให้ดูเป็น popover"
+ * เดิมเป็น `absolute bottom-full ... rounded-lg border shadow-lg` = การ์ดลอยทับพื้นที่ข้อความ
+ * ตอนนี้เป็น **แถบในสายเลย์เอาต์** (in-flow) ของ composer: full-bleed ด้วย -mx/-mt ลบ padding ของ
+ * composer ออกแล้วใส่กลับเอง → เต็มความกว้างชนขอบการ์ด, ไม่มี shadow/z-index/rounded, คั่นด้วย
+ * เส้นประ border-dashed ชุดเดียวกับที่การ์ดนี้ใช้อยู่ (border-default-300) พื้น bg-success/5 บาง ๆ
+ * พอให้รู้ว่าเป็นโซน AI. ผลพลอยได้: ไม่บังข้อความอีกต่อไป (ดันเนื้อหาขึ้นแทนการทับ)
  */
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -56,9 +63,9 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
   }, [onClose])
 
   return (
-    <div className="bg-card border-success/30 absolute bottom-full left-0 right-0 z-20 mb-2 rounded-lg border shadow-lg">
-      {/* header */}
-      <div className="border-success/20 flex items-center justify-between border-b px-4 py-2.5">
+    <div className="border-default-300 bg-success/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6">
+      {/* header — ไม่มีเส้นคั่นในตัวแล้ว (แถบทั้งก้อนถูกคั่นจาก composer ด้วยเส้นประด้านล่างพอ) */}
+      <div className="flex items-center justify-between pb-1.5">
         <span className="text-success flex items-center gap-2 text-sm font-semibold">
           <Icon icon="sparkles" className="text-base" />
           AI ช่วยร่างคำตอบ
@@ -85,8 +92,9 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
         </div>
       </div>
 
-      {/* body */}
-      <div className="flex flex-col gap-2 p-3">
+      {/* body — max-h กันร่างยาว ๆ 3 อันดันช่องข้อความหายไปทั้งจอ (แถบนี้อยู่ในสายเลย์เอาต์แล้ว
+          ความสูงของมันกินพื้นที่เธรดจริง ต่างจากตอนเป็น popover ลอย) */}
+      <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
         {loading ? (
           <>
             {[0, 1, 2].map((i) => (
@@ -107,7 +115,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
               key={i}
               type="button"
               onClick={() => onPick(s)}
-              className="border-default-200 hover:border-success hover:bg-success/5 rounded-lg border px-3 py-2.5 text-left text-sm text-default-800 transition-colors"
+              className="bg-card border-default-200 hover:border-success rounded-lg border px-3 py-2.5 text-left text-sm text-default-800 transition-colors"
             >
               {s}
             </button>
@@ -115,8 +123,8 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
         )}
       </div>
 
-      {/* footer disclaimer */}
-      <div className="border-default-200 text-default-400 border-t px-4 py-2 text-2xs">
+      {/* footer disclaimer — ไม่มีเส้นคั่นในตัว (ดูเหตุผลที่ header) */}
+      <div className="text-default-400 pt-1.5 text-2xs">
         AI สร้างคำแนะนำ — ตรวจทานก่อนส่งทุกครั้ง
       </div>
     </div>

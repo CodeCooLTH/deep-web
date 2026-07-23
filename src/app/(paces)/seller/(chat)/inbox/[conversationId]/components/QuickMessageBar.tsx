@@ -3,7 +3,7 @@
 /**
  * QuickMessageBar — แถบ "ข้อความสำเร็จรูป" เหนือช่องพิมพ์ (feature 00018 composer improvement #2)
  *
- * pill แนวนอน scroll ได้ (คลิก → เติมข้อความ/แนบรูปลง composer ผ่าน onPick) + ปุ่มจัดการ (เฟือง)
+ * pill แนวนอน scroll ได้ (คลิก → เติมข้อความ/แนบรูปลง composer ผ่าน onPick) + ลิงก์ "จัดการ" มุมขวา
  * เปิด QuickMessageManager (modal CRUD). โหลดรายการเองตอน mount + refetch หลังแก้ใน manager.
  *
  * Base: chip/pill = theme/paces `.badge` + horizontal scroll (pattern เดียวกับ chips กรองใน
@@ -41,19 +41,22 @@ export default function QuickMessageBar({ onPick, disabled }: Props) {
 
   return (
     <>
-      <div className="mb-2 flex items-center gap-2">
-        {/* ปุ่มจัดการ (เฟือง) — คงที่ ซ้ายสุด ไม่เลื่อนหาย */}
-        <button
-          type="button"
-          onClick={() => setManagerOpen(true)}
-          className="btn btn-sm btn-icon border-default-300 shrink-0"
-          aria-label="จัดการข้อความสำเร็จรูป"
-          title="จัดการข้อความสำเร็จรูป"
-        >
-          {/* เฟือง ไม่ใช่สายฟ้า — สายฟ้าเป็นปุ่ม "เปิดแถบข้อความสำเร็จรูป" ในแถวเครื่องมือของ
-              composer แล้ว (ChatThread.tsx) ถ้าใช้ไอคอนเดียวกันสองความหมายจะสับสน */}
-          <Icon icon="settings" className="text-base" />
-        </button>
+      {/* กล่องแยกชัดจาก composer (user สั่ง 2026-07-23: "ดูกลืนกับ panel input เกินไป ต้องดูออกว่า
+          โผล่ขึ้นมา") — พื้น bg-light + เส้นขอบ + หัวข้อกำกับ ทำให้อ่านออกว่าเป็นแผงที่เพิ่งกางออก
+          ไม่ใช่แถวเครื่องมืออีกแถวของ composer. ไม่ใส่ shadow (ยึดแนวเดียวกับแผง AI ที่ user สั่งให้
+          เลิกดูลอย) — ความต่างมาจากพื้น+ขอบ ไม่ใช่เงา */}
+      <div className="border-default-300 bg-light mb-2 rounded-lg border p-2.5">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-default-600 text-xs font-semibold">ข้อความสำเร็จรูป</span>
+          {/* "จัดการ" เป็นข้อความมุมขวาตามที่สั่ง (เดิมเป็นปุ่มเฟืองซ้ายสุด) */}
+          <button
+            type="button"
+            onClick={() => setManagerOpen(true)}
+            className="text-primary shrink-0 text-xs font-medium hover:underline"
+          >
+            จัดการ
+          </button>
+        </div>
 
         {items.length === 0 ? (
           <button
@@ -64,7 +67,7 @@ export default function QuickMessageBar({ onPick, disabled }: Props) {
             + เพิ่มข้อความสำเร็จรูป
           </button>
         ) : (
-          <div className="flex grow gap-1.5 overflow-x-auto">
+          <div className="flex gap-1.5 overflow-x-auto">
             {items.map((qm) => (
               <button
                 key={qm.id}
@@ -72,7 +75,7 @@ export default function QuickMessageBar({ onPick, disabled }: Props) {
                 onClick={() => !disabled && onPick(qm)}
                 disabled={disabled}
                 title={qm.body || qm.title}
-                className={`badge bg-default-100 text-default-700 hover:bg-default-200 inline-flex shrink-0 items-center gap-1 ${
+                className={`badge bg-card text-default-700 hover:bg-default-100 border-default-200 inline-flex shrink-0 items-center gap-1 border ${
                   disabled ? 'pointer-events-none opacity-50' : ''
                 }`}
               >
