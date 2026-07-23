@@ -34,9 +34,30 @@
  * เฉพาะ buyer ไม่ enrich ExternalContact — รายการที่โหลดผ่าน loadMore/filter refetch (ไม่ใช่
  * initial SSR) ของเธรดช่องทางนอกจะ fallback ชื่อเป็น "ผู้ติดต่อ" เสมอแม้มีชื่อจริงใน DB
  *
- * Unread: `badge bg-danger text-white text-2xs` (UX-Design-Spec.md S2) เมื่อ
- * shopLastReadAt===null || lastMessageAt>shopLastReadAt — badge แสดง "ใหม่" (ไม่มี unread
- * message COUNT ต่อ conversation ใน data model นี้ มีแค่ read-state ระดับห้อง — BR-CHAT-09)
+ * Unread: `badge bg-danger text-white text-2xs` (UX-Design-Spec.md S2) — เดิมแสดงคำว่า "ใหม่"
+ * เพราะ data model เก็บ read-state ระดับห้องเท่านั้น (BR-CHAT-09) ไม่มี COUNT ต่อ conversation.
+ * ตอนนี้ (user request 2026-07-23) แสดง "จำนวนข้อความที่ยังไม่ได้อ่าน" แทน — นับสดที่ server ด้วย
+ * countUnreadByConversation (chat.service.ts, JOIN + GROUP BY ครั้งเดียวต่อหน้า ไม่ N+1) แล้ว
+ * enrich เข้ามาเป็น field `unreadCount` ทั้งทาง SSR (inbox/page.tsx) และ GET /api/chat/conversations
+ * bug fix (user report prod 2026-07-23): badge อย่างเดียวไม่พอ — แถวที่ยังไม่อ่านกับอ่านแล้ว
+ * ใช้ typography เดียวกันเป๊ะจนแยกไม่ออกตอนกวาดตา. เพิ่ม "น้ำหนัก/สีตัวอักษรตามสถานะอ่าน"
+ * (convention แอปแชททั่วไป): ยังไม่อ่าน = ชื่อ text-default-900 font-bold + ข้อความย่อ
+ * text-default-800 font-semibold + เวลา text-default-700; อ่านแล้ว = เทาลงทั้งแถว
+ * (text-default-600 / text-default-400 เหมือนเดิม) — token Paces ล้วน ไม่มี arbitrary value (HR7)
+ *
+ * Realtime (bug fix เดียวกัน): เดิมรายการนี้ fetch ครั้งเดียวตอน mount แล้วนิ่งตลอด — ข้อความที่
+ * webhook (Messenger/Instagram) หรือผู้ซื้อ Deep ส่งเข้ามาไม่โผล่จนกว่าจะรีเฟรชหน้าเอง ทั้งที่ DB
+ * trigger ยิง broadcast `chat:shop:{shopId}` event `new_message` อยู่แล้ว (migration
+ * 20260703000400_chat_realtime_broadcast) — มีแต่ ChatToastListener (mount ที่ (dashboard)/layout)
+ * ที่ฟัง ซึ่ง "ไม่ได้ mount ในหน้าแชท" ((chat)/layout.tsx ไม่มี VerticalLayout). แก้ด้วย 3 ชั้น:
+ *   1) subscribe `chat:shop:{shopId}` ผ่าน subscribeShopChat (shared channel — ดู
+ *      src/lib/chat-shop-realtime.ts ว่าทำไมต้องแชร์) → refresh หน้าแรกแบบ merge (debounce 400ms)
+ *   2) fallback refresh เมื่อ tab กลับมา focus/visible (pattern เดียวกับ useSellerChatThread.ts:163)
+ *      — ครอบเคสที่ broadcast ไม่มา เช่น ข้อความ senderRole='SHOP' (echo จากแอป Messenger ของร้าน)
+ *      ที่ trigger ไม่ส่งเข้า channel นี้ตามดีไซน์ หรือ WebSocket หลุดเงียบ
+ *   3) mark-read เชิงบวกฝั่ง client เมื่อเปิดบทสนทนา (localReadAt) — บน desktop rail component นี้
+ *      ไม่ unmount ตอน soft-navigate ไป /inbox/{id} รอ shopLastReadAt จาก server รอบถัดไปไม่ทัน
+ *      แถวที่เพิ่งกดอ่านจะยังหนาดำค้างอยู่
  *
  * นอก scope T3 (ตาม plan): ไม่ render ปุ่มปักหมุด/ซ่อน/ปิดงาน/kebab menu — backend (S-7)
  * ยังไม่มี service/API ใน phase นี้ — ห้ามทำปุ่มที่กดแล้วไม่เกิดอะไร
@@ -54,12 +75,14 @@
  * เดียวไม่ตกบรรทัด — Base: ปุ่มวงกลม rounded-full ใช้ token เดียวกับ ChannelBadgeOverlay
  * (ChannelBadge.tsx — bg-light พื้นเฉย/bg-primary/15 พื้น active) ไม่ใช่ arbitrary ใหม่
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { pacesToast } from '@/lib/paces-toast'
+import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
@@ -77,6 +100,9 @@ export type ConversationListItem = {
   shopLastReadAt: string | null
   createdAt: string
   counterparty: { displayName: string; avatar: string | null } | null
+  /** จำนวนข้อความจากลูกค้าที่ร้านยังไม่ได้อ่าน (enrich ที่ route/page ด้วย countUnreadByConversation)
+   *  optional เผื่อ payload เก่าที่ยังไม่มี field นี้ → fallback เป็น read-mark เดิม */
+  unreadCount?: number
 }
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
@@ -90,8 +116,22 @@ type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 type ChannelTab = 'ALL' | ChatChannel
 const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
 
-function isUnread(c: ConversationListItem): boolean {
-  return c.shopLastReadAt === null || new Date(c.lastMessageAt) > new Date(c.shopLastReadAt)
+/** จำนวนข้อความที่ยังไม่ได้อ่านของแถวนี้ (0 = อ่านแล้ว → ไม่ขึ้น badge, ตัวหนังสือเทา)
+ *
+ *  ปกติใช้ unreadCount ที่ server นับมาให้ (เฉพาะข้อความจากลูกค้า) — ดีกว่าเกณฑ์เดิม
+ *  `lastMessageAt > shopLastReadAt` ที่นับข้อความ "ที่ร้านเพิ่งพิมพ์เอง" เป็นยังไม่อ่านด้วย
+ *  fallback (payload ไม่มี field): เกณฑ์ read-mark เดิม → 1/0 (มีแค่ read-state ระดับห้อง BR-CHAT-09)
+ *
+ *  localReadAt = mark-read เชิงบวกฝั่ง client (เวลาที่กดเปิดบทสนทนาในรอบนี้) — ถ้าอ่านหลังข้อความ
+ *  ล่าสุดแล้วถือว่าเคลียร์หมด ไม่ต้องรอ server refetch (บน desktop rail ไม่ unmount ตอน navigate)
+ */
+function unreadCountOf(c: ConversationListItem, localReadAt?: string): number {
+  const count =
+    c.unreadCount ??
+    (c.shopLastReadAt === null || new Date(c.lastMessageAt) > new Date(c.shopLastReadAt) ? 1 : 0)
+  if (count === 0) return 0
+  if (localReadAt && new Date(localReadAt).getTime() >= new Date(c.lastMessageAt).getTime()) return 0
+  return count
 }
 
 /** avatar คู่สนทนา — รูปจริง (http URL หรือ storage fileId) + fallback initials */
@@ -124,9 +164,18 @@ type Props = {
   /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
    *  ไม่ระบุ/false = มือถือ/แท็บเล็ต drill-down list (inbox/page.tsx) — พฤติกรรมเดิมทุกประการ */
   railMode?: boolean
+  /** ร้านที่ active — ใช้ subscribe realtime `chat:shop:{shopId}`; null = ไม่ subscribe
+   *  (ยัง fallback refresh ตอน focus ได้ปกติ) */
+  shopId?: string | null
 }
 
-export default function InboxList({ initialItems, initialNextCursor, channels, railMode = false }: Props) {
+export default function InboxList({
+  initialItems,
+  initialNextCursor,
+  channels,
+  railMode = false,
+  shopId = null,
+}: Props) {
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
@@ -204,6 +253,73 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
     if (railMode) chatSearchQuery.setSearchInput('')
     else setLocalSearchInput('')
   }
+
+  // ── realtime refresh (bug fix: รายการไม่อัปเดตเมื่อมีข้อความใหม่ — ดู comment หัวไฟล์) ──
+  // refresh = ดึง "หน้าแรก" ตาม filter ปัจจุบันแล้ว merge ทับของเดิม (ไม่ replace ทั้งก้อน) —
+  // แถวที่โหลดมาจาก loadMore หน้าถัด ๆ ไปต้องไม่หายไปกลางคัน และ nextCursor ต้องไม่ถูกรีเซ็ต
+  // ไม่แตะ loading state — เป็นการรีเฟรชเบื้องหลัง ห้ามให้ spinner กระพริบใส่ผู้ใช้
+  const refreshRef = useRef<() => void>(() => {})
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const refreshFirstPage = async () => {
+    try {
+      const params = new URLSearchParams({ take: '20' })
+      if (channelTab !== 'ALL') params.set('channel', channelTab)
+      if (pageFilter) params.set('shopChannelId', pageFilter)
+      if (debouncedQuery) params.set('q', debouncedQuery)
+      const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const data: ApiResponse = await res.json()
+      setItems((prev) => {
+        const freshIds = new Set(data.items.map((i) => i.id))
+        // หน้าแรกเรียงล่าสุดก่อนอยู่แล้ว (lastMessageAt desc) — วางไว้บนสุดแล้วต่อด้วยของเก่าที่ไม่ซ้ำ
+        return [...data.items, ...prev.filter((p) => !freshIds.has(p.id))]
+      })
+    } catch {
+      // เงียบ — รอ broadcast/focus รอบถัดไป (เหมือน refetchNewer ของ useSellerChatThread)
+    }
+  }
+
+  useEffect(() => {
+    refreshRef.current = refreshFirstPage
+  })
+
+  /** debounce กันกรณีข้อความรัวหลายห้องพร้อมกัน → refresh ทีเดียว */
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => refreshRef.current(), 400)
+  }, [])
+
+  useEffect(() => {
+    if (!shopId) return
+    return subscribeShopChat(shopId, scheduleRefresh)
+  }, [shopId, scheduleRefresh])
+
+  // fallback: refresh เมื่อ tab กลับมา visible/focus — ครอบ broadcast ที่ไม่มา (ข้อความ senderRole
+  // ='SHOP' เช่น echo จากแอป Messenger ของร้าน ซึ่ง trigger ไม่ส่งเข้า channel นี้) + socket หลุดเงียบ
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }
+    document.addEventListener('visibilitychange', handler)
+    window.addEventListener('focus', handler)
+    return () => {
+      document.removeEventListener('visibilitychange', handler)
+      window.removeEventListener('focus', handler)
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    }
+  }, [scheduleRefresh])
+
+  // ── read-state ฝั่ง client — บทสนทนาที่เปิดอยู่/เพิ่งเปิดในรอบนี้ต้องเป็น "อ่านแล้ว" ทันที ──
+  // (server mark-read ผ่าน POST .../read ที่ ChatThread อยู่แล้ว แต่ list นี้ไม่ได้ refetch ตาม)
+  const pathname = usePathname()
+  const activeConversationId = pathname?.startsWith('/inbox/') ? pathname.slice('/inbox/'.length).split('/')[0] : null
+  const [localReadAt, setLocalReadAt] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!activeConversationId) return
+    setLocalReadAt((prev) => ({ ...prev, [activeConversationId]: new Date().toISOString() }))
+  }, [activeConversationId])
 
   // sentinel — re-attach ทุกครั้งที่ items เปลี่ยน (sentinel ย้ายตำแหน่ง) เหมือน NotificationFeed
   useEffect(() => {
@@ -323,7 +439,9 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
       ) : (
         <div className="card-body divide-y divide-default-200 !p-0">
           {items.map((c) => {
-            const unread = isUnread(c)
+            // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
+            const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
+            const unread = unreadCount > 0
             const name = c.counterparty?.displayName ?? (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
             const preview = c.lastMessagePreview ?? 'เริ่มการสนทนาแล้ว'
             return (
@@ -340,18 +458,36 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
                       <ChannelBadgeOverlay channel={c.channel} />
                     </span>
+                    {/* น้ำหนัก/สีตัวอักษรตามสถานะอ่าน — ยังไม่อ่าน = เข้ม+หนา, อ่านแล้ว = เทาลง
+                        (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
-                      <span className="text-default-900 block truncate text-sm font-semibold">{name}</span>
-                      <span className="text-default-400 block max-w-52 truncate text-xs">{preview}</span>
+                      <span
+                        className={`block truncate text-sm ${
+                          unread ? 'text-default-900 font-bold' : 'text-default-600 font-medium'
+                        }`}
+                      >
+                        {name}
+                      </span>
+                      <span
+                        className={`block max-w-52 truncate text-xs ${
+                          unread ? 'text-default-800 font-semibold' : 'text-default-400'
+                        }`}
+                      >
+                        {preview}
+                      </span>
                     </span>
                   </div>
 
                   <span className="flex shrink-0 flex-col items-end justify-center gap-1.25">
-                    <span className="text-default-400 text-xs">
+                    <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
                       {relativeTimeTh(new Date(c.lastMessageAt).getTime())}
                     </span>
+                    {/* badge = จำนวนข้อความที่ยังไม่ได้อ่าน (user request 2026-07-23 — เดิมเป็นคำว่า
+                        "ใหม่" ซึ่งบอกได้แค่ "มี/ไม่มี") เกิน 99 ตัดเป็น 99+ กันแถวยืด */}
                     {unread && (
-                      <span className="badge text-2xs bg-danger text-white">ใหม่</span>
+                      <span className="badge text-2xs bg-danger text-white">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
                     )}
                   </span>
                 </div>
