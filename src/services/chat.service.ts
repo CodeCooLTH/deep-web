@@ -25,6 +25,8 @@ export interface ConversationSummary {
   // ประกาศเพิ่มเพื่อให้ UI ใช้ทำ pin indicator + badge "ปิดงานแล้ว" (route spread ...i ส่งต่อเอง)
   isPinned: boolean
   resolvedAt: Date | null
+  // feature 00018 CRM — alias (ชื่อในแชท) findMany คืนคอลัมน์นี้ runtime อยู่แล้ว
+  alias: string | null
 }
 
 export interface ChatMessageView {

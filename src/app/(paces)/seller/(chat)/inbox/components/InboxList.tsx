@@ -89,6 +89,7 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
 import ConversationRowMenu, { type RowAction } from './ConversationRowMenu'
+import ChatContextMenu from './ChatContextMenu'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
@@ -109,6 +110,10 @@ export type ConversationListItem = {
   /** จำนวนข้อความจากลูกค้าที่ร้านยังไม่ได้อ่าน (enrich ที่ route/page ด้วย countUnreadByConversation)
    *  optional เผื่อ payload เก่าที่ยังไม่มี field นี้ → fallback เป็น read-mark เดิม */
   unreadCount?: number
+  // feature 00018 CRM — ชื่อในแชท (alias) + tag/สถานะขาย (badge ในแถว) — optional เผื่อ payload เก่า
+  alias?: string | null
+  contactTags?: string[]
+  contactSalesStatus?: string
 }
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
@@ -121,6 +126,12 @@ type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 /** tab ตัวกรองช่องทาง — 'ALL' ไม่ใช่ ChatChannel จริง จึงแยก union เพิ่ม */
 type ChannelTab = 'ALL' | ChatChannel
 const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
+
+// feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
+const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
+  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
+  NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
+}
 
 /** จำนวนข้อความที่ยังไม่ได้อ่านของแถวนี้ (0 = อ่านแล้ว → ไม่ขึ้น badge, ตัวหนังสือเทา)
  *
@@ -195,6 +206,8 @@ export default function InboxList({
   // popover ตัวกรองเปิดได้ทีละตัว — state อยู่ที่นี่ (bug: เดิมสองตัวถือ state เอง เปิดพร้อมกันแล้วทับกัน)
   const [openPanel, setOpenPanel] = useState<'filter' | 'page' | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
+  // feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) เฉพาะเธรดช่องทางนอก
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string; salesStatus: string; tags: string[] } | null>(null)
 
   // ── ช่องค้นหา ──
   // railMode=true: query มาจาก ChatSearchContext (topbar เขียน, ที่นี่แค่อ่าน debouncedQuery —
@@ -567,9 +580,13 @@ export default function InboxList({
             // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
             const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
             const unread = unreadCount > 0
-            const name = c.counterparty?.displayName ?? (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
+            // feature 00018 CRM — ชื่อในแชท (alias) มาก่อนชื่อจริง ถ้าตั้งไว้ (user: "Wave 110")
+            const name =
+              c.alias?.trim() || c.counterparty?.displayName || (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
             const preview = c.lastMessagePreview ?? 'เริ่มการสนทนาแล้ว'
             const isResolved = c.resolvedAt !== null
+            const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
+            const contactTags = c.contactTags ?? []
             return (
               // S-7: แยก <Link> (เนื้อหาแถว) ออกจาก kebab (sibling) — nested button ใน anchor เป็น
               // invalid HTML + คลิก kebab จะ propagate ไป navigate. outer div รับ hover ทั้งแถว
@@ -579,6 +596,14 @@ export default function InboxList({
               // pin-first keyset cursor) ฝั่งนี้ไม่ต้องเรียงซ้ำ
               <div
                 key={c.id}
+                onContextMenu={
+                  c.channel !== 'DEEP'
+                    ? (e) => {
+                        e.preventDefault()
+                        setCtxMenu({ x: e.clientX, y: e.clientY, id: c.id, salesStatus, tags: contactTags })
+                      }
+                    : undefined
+                }
                 className={`group relative flex items-stretch border-s-2 ${
                   c.isPinned ? 'border-warning bg-default-100/60 hover:bg-default-100' : 'border-transparent hover:bg-default-100'
                 }`}
@@ -631,6 +656,22 @@ export default function InboxList({
                         )}
                         {preview}
                       </span>
+                      {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว */}
+                      {(salesStatus !== 'UNSPECIFIED' || contactTags.length > 0) && (
+                        <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {salesStatus !== 'UNSPECIFIED' && (
+                            <span className={`badge text-2xs ${SALES_STATUS_META[salesStatus]?.cls ?? ''}`}>
+                              {SALES_STATUS_META[salesStatus]?.label ?? salesStatus}
+                            </span>
+                          )}
+                          {contactTags.slice(0, 2).map((t) => (
+                            <span key={t} className="badge bg-primary/15 text-primary text-2xs">{t}</span>
+                          ))}
+                          {contactTags.length > 2 && (
+                            <span className="badge bg-default-100 text-default-500 text-2xs">+{contactTags.length - 2}</span>
+                          )}
+                        </span>
+                      )}
                     </span>
                   </div>
 
@@ -709,6 +750,22 @@ export default function InboxList({
             </div>
           )}
         </div>
+      )}
+
+      {/* feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) */}
+      {ctxMenu && (
+        <ChatContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          conversationId={ctxMenu.id}
+          salesStatus={ctxMenu.salesStatus}
+          tags={ctxMenu.tags}
+          onClose={() => setCtxMenu(null)}
+          onUpdated={() => {
+            fetchList({ append: false })
+            setCtxMenu(null)
+          }}
+        />
       )}
     </div>
   )

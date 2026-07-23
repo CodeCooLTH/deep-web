@@ -33,6 +33,9 @@ type ConversationWithCounterparty = ConversationSummary & {
     | { shopName: string; logo: string | null; username: string }
     | { displayName: string; avatar: string | null }
     | null;
+  // feature 00018 CRM — tag + สถานะการขายของผู้ติดต่อ (external) เพื่อโชว์ badge ใน InboxList
+  contactTags: string[];
+  contactSalesStatus: string;
 };
 
 async function enrichWithShopCounterparty(
@@ -51,6 +54,9 @@ async function enrichWithShopCounterparty(
     return {
       ...i,
       counterparty: shop ? { shopName: shop.shopName, logo: shop.logo, username: shop.user.username } : null,
+      // buyer branch (main subdomain) ไม่มี external contact → ไม่มี tag/สถานะขาย
+      contactTags: [],
+      contactSalesStatus: 'UNSPECIFIED',
     };
   });
 }
@@ -77,7 +83,7 @@ async function enrichWithBuyerCounterparty(
     externalContactIds.length > 0
       ? await prisma.externalContact.findMany({
           where: { id: { in: externalContactIds } },
-          select: { id: true, name: true },
+          select: { id: true, name: true, tags: true, salesStatus: true },
         })
       : [];
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
@@ -90,7 +96,12 @@ async function enrichWithBuyerCounterparty(
       : contact
         ? { displayName: contact.name ?? 'ผู้ติดต่อ', avatar: null }
         : null;
-    return { ...i, counterparty };
+    return {
+      ...i,
+      counterparty,
+      contactTags: contact?.tags ?? [],
+      contactSalesStatus: contact?.salesStatus ?? 'UNSPECIFIED',
+    };
   });
 }
 
