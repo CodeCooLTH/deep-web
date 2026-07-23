@@ -763,6 +763,17 @@ export const QuickMessageCreateSchema = v.pipe(
 );
 export const QuickMessageUpdateSchema = QuickMessageCreateSchema;
 
+// ── feature 00018 CRM/tag ต่อผู้ติดต่อ ─────────────────────────────────────────
+// PATCH partial — ทุกฟิลด์ optional (omit = ไม่แตะ). alias→Conversation, ที่เหลือ→ExternalContact
+export const ChatCrmPatchSchema = v.object({
+  alias: v.optional(v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(80)))),
+  note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(2000)))),
+  address: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+  salesStatus: v.optional(v.picklist(["UNSPECIFIED", "INTERESTED", "NOT_INTERESTED"])),
+  tags: v.optional(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(30)))),
+  phones: v.optional(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(20)))),
+});
+
 // ── feature 00013 Pin Products (SRS §4 / API §4.3) ───────────────────────────
 // body ของ POST /api/seller/pin-slots/buy — ซื้อ slot ฿99 + ปักหมุด productId ในธุรกรรมเดียว
 export const BuyPinSlotSchema = v.object({

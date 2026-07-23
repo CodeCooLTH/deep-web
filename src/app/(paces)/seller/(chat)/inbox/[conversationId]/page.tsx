@@ -207,6 +207,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
 
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
   const customerPanelData: CustomerPanelData = {
+    conversationId: conversation.id,
     contactName: buyerDisplayName,
     channel: conversation.channel,
     channelName,

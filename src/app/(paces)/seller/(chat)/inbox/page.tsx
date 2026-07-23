@@ -120,7 +120,7 @@ export default async function SellerInboxPage() {
       externalContactIds.length > 0
         ? await prisma.externalContact.findMany({
             where: { id: { in: externalContactIds } },
-            select: { id: true, name: true },
+            select: { id: true, name: true, tags: true, salesStatus: true },
           })
         : []
     const contactMap = new Map(externalContacts.map((c) => [c.id, c]))
@@ -153,6 +153,10 @@ export default async function SellerInboxPage() {
         // S-7 (ตัวกรอง/จัดการเธรด) — pin indicator + badge "ปิดงานแล้ว"
         isPinned: c.isPinned,
         resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,
+        // feature 00018 CRM — alias (ชื่อในแชท) + tag/สถานะขาย ของผู้ติดต่อ (badge ใน list)
+        alias: c.alias,
+        contactTags: contact?.tags ?? [],
+        contactSalesStatus: contact?.salesStatus ?? 'UNSPECIFIED',
         counterparty,
         unreadCount: unreadMap.get(c.id) ?? 0,
       }

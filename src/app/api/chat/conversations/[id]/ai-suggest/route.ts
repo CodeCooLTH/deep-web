@@ -19,6 +19,7 @@ import {
   buildCustomerBlock,
   composeContextBlock,
 } from "@/services/ai-context.service";
+import { getConversationCrm } from "@/services/chat-crm.service";
 
 // feature 00018 composer improvement #3 — AI ช่วยร่างคำตอบ (Gemini)
 export const dynamic = "force-dynamic";
@@ -75,6 +76,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
   const rawVertical = shop?.vertical ?? "";
   const vertical = isShopVertical(rawVertical) ? rawVertical : DEFAULT_SHOP_VERTICAL;
+
+  // CRM (feature 00018) — โน้ต/ชื่อที่แอดมินจดไว้ ให้ AI ใช้ประกอบการร่าง (ตอบตรงคน/บริบทมากขึ้น)
+  const crm = await getConversationCrm(conversation.id, activeCtx.shopId);
+  const customerName = crm?.alias ?? crm?.realName ?? null;
 
   // ข้อความล่าสุด (ใหม่→เก่า) แล้ว reverse ให้เป็นเก่า→ใหม่สำหรับ transcript
   const rows = await prisma.chatMessage.findMany({
@@ -158,6 +163,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       vertical,
       instruction: aiSetting.instruction,
       contextBlock,
+      customerName,
+      customerNote: crm?.note ?? null,
     });
     return NextResponse.json({ suggestions }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {

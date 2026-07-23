@@ -1047,6 +1047,13 @@ model ExternalContact {
   name           String?
   avatarUrl      String?
   customerId     String? // link → Customer (feature 00014) เมื่อได้เบอร์
+  // --- CRM ต่อผู้ติดต่อ (feature 00018 tag/CRM) — ตามคนข้ามแชทของ contact นี้ ---
+  // cross-channel merge (Messenger+IG+DEEP → โปรไฟล์เดียว) = Phase 2 (ต้อง resolve Customer ด้วยเบอร์)
+  note        String? // โน้ตอิสระที่ต้องจดจำ — AI ใช้ประกอบการร่างคำตอบด้วย
+  address     String?
+  salesStatus String   @default("UNSPECIFIED") // "UNSPECIFIED" | "INTERESTED" | "NOT_INTERESTED"
+  tags        String[] @default([])
+  phones      String[] @default([]) // เพิ่มได้หลายเบอร์ (CRM — คนละเรื่องกับ Customer.phone ที่ @unique)
   createdAt      DateTime @default(now())
 
   channel       ShopChannel    @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
@@ -1086,6 +1093,8 @@ model Conversation {
   isPinned          Boolean   @default(false)
   isHidden          Boolean   @default(false)
   resolvedAt        DateTime? // null = ยังเปิดอยู่
+  // alias: ชื่อในแชท (nickname ต่อเธรดนี้) — เช่น "Wave 110" (ชื่อจริงอยู่ที่ contact/customer) feat 00018 CRM
+  alias             String?
 
   buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
