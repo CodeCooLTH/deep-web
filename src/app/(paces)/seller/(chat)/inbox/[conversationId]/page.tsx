@@ -113,6 +113,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       externalContact: {
         select: {
           name: true,
+          avatarUrl: true, // IG profile_pic (Messenger=null) — header avatar ลูกค้า
           customer: { select: { id: true, phone: true } },
         },
       },
@@ -134,7 +135,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — fallback ชื่อจาก externalContact แล้วค่อย 'ลูกค้า'
   // (null-safe ขั้นต่ำเท่านั้น — ไม่ทำ UI ใหม่สำหรับช่องทางนอก, งานนั้นอยู่แผนอื่น)
   const buyerDisplayName = conversation.buyer?.displayName ?? conversation.externalContact?.name ?? 'ลูกค้า'
-  const buyerAvatar = conversation.buyer?.avatar ?? null
+  const buyerAvatar = conversation.buyer?.avatar ?? conversation.externalContact?.avatarUrl ?? null
 
   // feature 00018 (user request 2026-07-23): avatar ฝั่งร้าน (ข้อความ mine) แสดง "รูปเพจนั้น ๆ" แทน
   // ไอคอน building-store ทั่วไป — ช่องทางนอกใช้รูป Page ที่เชื่อม (ShopChannel.avatarUrl, เป็น http URL

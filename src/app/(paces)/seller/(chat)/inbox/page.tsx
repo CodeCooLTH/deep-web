@@ -111,8 +111,9 @@ export default async function SellerInboxPage() {
         : []
     const buyerMap = new Map(buyers.map((b) => [b.id, b]))
 
-    // T3: เธรดช่องทางนอก (feature 00018) — ชื่อผู้ติดต่อจาก ExternalContact (avatarUrl ไม่ query
-    // มาใช้ เพราะ Meta ไม่ให้รูป เป็น null เสมอตาม contract — allow-list เฉพาะ id/name)
+    // T3: เธรดช่องทางนอก (feature 00018) — ชื่อ/รูปผู้ติดต่อจาก ExternalContact
+    // avatarUrl: IG คืน profile_pic จริง (เก็บ URL cdninstagram) — Messenger เป็น null (App Review
+    // block profile_pic) → BuyerAvatar ตกไป initials เอง. allow-list: id/name/avatarUrl/tags/salesStatus
     const externalContactIds = [
       ...new Set(result.items.map((i) => i.externalContactId).filter((id): id is string => id !== null)),
     ]
@@ -120,7 +121,7 @@ export default async function SellerInboxPage() {
       externalContactIds.length > 0
         ? await prisma.externalContact.findMany({
             where: { id: { in: externalContactIds } },
-            select: { id: true, name: true, tags: true, salesStatus: true },
+            select: { id: true, name: true, avatarUrl: true, tags: true, salesStatus: true },
           })
         : []
     const contactMap = new Map(externalContacts.map((c) => [c.id, c]))
@@ -137,7 +138,7 @@ export default async function SellerInboxPage() {
       const counterparty = buyer
         ? { displayName: buyer.displayName, avatar: buyer.avatar }
         : contact
-          ? { displayName: contact.name ?? 'ผู้ติดต่อ', avatar: null }
+          ? { displayName: contact.name ?? 'ผู้ติดต่อ', avatar: contact.avatarUrl ?? null }
           : null
       return {
         id: c.id,

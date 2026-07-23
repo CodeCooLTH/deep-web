@@ -21,8 +21,8 @@
  * Avatar: reuse pattern BidderAvatar จาก
  * src/app/(paces)/seller/(dashboard)/auctions/[id]/components/AuctionBidFeed.tsx:55-79
  * (รูปจริง http URL หรือ storage fileId + fallback initials `generateInitials` จาก
- * src/utils/helpers.ts) — เธรดช่องทางนอก (feat 00018) avatarUrl เป็น null เสมอ (Meta ไม่ให้รูป)
- * จึงตกไป fallback initials เสมอ (ไม่ต้องแยก branch พิเศษ)
+ * src/utils/helpers.ts) — เธรดช่องทางนอก (feat 00018): IG มี avatarUrl จริง (profile_pic) โชว์รูปได้,
+ * Messenger avatarUrl=null (App Review block profile_pic) → ตกไป initials. img onError ก็ fallback เอง
  *
  * Pagination: sentinel + IntersectionObserver — pattern
  * src/app/(paces)/seller/(dashboard)/notifications/components/NotificationFeed.tsx:242-252
