@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * ChannelBadge — badge ช่องทางแชท (Deep / Messenger / Instagram) feat 00018 (T3)
  *
@@ -23,7 +25,7 @@
  * ใช้ซ้ำที่: InboxList.tsx (overlay บน avatar แถวรายการ + icon บน channel tabs), และ
  * agent T4/T5 จะ import ไปใช้ที่ header เธรด (ChatThread.tsx) และ Customer Panel
  */
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import Icon from '@/components/wrappers/Icon'
 
 export type ChatChannel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
@@ -87,14 +89,51 @@ export type ChannelBadgeProps = {
   /** 'DEEP' | 'MESSENGER' | 'INSTAGRAM' — ค่าอื่น fallback เป็น DEEP */
   channel: string
   size?: 'sm' | 'md'
+  /** รูปเพจจริงที่เธรดนี้ผูกอยู่ (ShopChannel.avatarUrl) — user สั่ง 2026-07-23: "ถ้า page มีรูป
+   *  ให้ใช้รูป page แทน facebook.svg ถ้าไม่มีค่อย fallback" ร้านที่มีหลายเพจจะแยกออกทันทีว่า
+   *  ลูกค้าทักมาจากเพจไหนโดยไม่ต้องอ่านตัวหนังสือ; โหลดรูปไม่สำเร็จ (URL ของ Meta หมดอายุ)
+   *  → ถอยไปโลโก้ช่องทางเองอัตโนมัติ */
+  imageUrl?: string | null
   /** ข้อความบน pill แทนชื่อช่องทาง — ใช้ใส่ "ชื่อเพจ" (user request 2026-07-23: ร้านที่มีหลายเพจ
    *  ต้องรู้ว่าลูกค้าคนนี้ทักมาจากเพจไหน คำว่า "Messenger" ซ้ำกันทุกเธรดจนไม่ให้ข้อมูลอะไร)
    *  โลโก้แบรนด์ยังอยู่เหมือนเดิม (บอกช่องทาง) — null/ไม่ส่ง = ใช้ชื่อช่องทางเหมือนเดิม (เธรด Deep) */
   label?: string | null
 }
 
+/** รูปเพจ + fallback เป็นโลโก้ช่องทางเมื่อโหลดไม่สำเร็จ (URL รูปเพจของ Meta หมดอายุได้) */
+function BadgeImage({
+  imageUrl,
+  logoSrc,
+  alt,
+  className,
+  width,
+  height,
+}: {
+  imageUrl?: string | null
+  logoSrc?: string
+  alt: string
+  className: string
+  width?: number
+  height?: number
+}) {
+  const [failed, setFailed] = useState(false)
+  const src = !failed && imageUrl ? imageUrl : logoSrc
+  if (!src) return null
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 /** inline pill badge (icon + label) — ใช้ข้าง header เธรด / ชื่อลูกค้าใน Customer Panel */
-export function ChannelBadge({ channel, size = 'sm', label }: ChannelBadgeProps) {
+export function ChannelBadge({ channel, size = 'sm', label, imageUrl }: ChannelBadgeProps) {
   const display = getChannelDisplay(channel)
   const iconDim = size === 'md' ? 16 : 14
   const text = label?.trim() || display.label
@@ -107,11 +146,17 @@ export function ChannelBadge({ channel, size = 'sm', label }: ChannelBadgeProps)
       }`}
       title={text}
     >
-      {display.logoSrc ? (
-        // โลโก้แบรนด์จริง — brand asset (Hard Rule 6 carve-out) ไม่ใช่ tabler icon
-        // alt ยังเป็นชื่อช่องทาง (โลโก้สื่อถึงช่องทาง ไม่ใช่เพจ) — ข้อความข้าง ๆ บอกชื่อเพจอยู่แล้ว
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={display.logoSrc} alt={display.label} width={iconDim} height={iconDim} className="shrink-0" />
+      {imageUrl || display.logoSrc ? (
+        // รูปเพจจริงถ้ามี ไม่งั้นโลโก้แบรนด์ (brand asset — Hard Rule 6 carve-out)
+        // rounded-full เพราะรูปเพจเป็นสี่เหลี่ยม ต้องครอปเป็นวงกลมให้เข้าชุดกับโลโก้ที่กลมอยู่แล้ว
+        <BadgeImage
+          imageUrl={imageUrl}
+          logoSrc={display.logoSrc}
+          alt={display.label}
+          width={iconDim}
+          height={iconDim}
+          className="shrink-0 rounded-full object-cover"
+        />
       ) : (
         <Icon
           icon={display.icon}
@@ -136,7 +181,7 @@ export function ChannelBadge({ channel, size = 'sm', label }: ChannelBadgeProps)
  * title + sr-only — ช่องทางเป็นข้อมูลสำคัญ (Messenger มีเงื่อนไข 24 ชม. แต่ Deep ไม่มี)
  * ผู้ใช้ screen reader ต้องรู้ด้วย
  */
-export function ChannelBadgeOverlay({ channel, size = 'md' }: ChannelBadgeProps) {
+export function ChannelBadgeOverlay({ channel, size = 'md', imageUrl }: ChannelBadgeProps) {
   const key = resolveChatChannel(channel)
   const display = CHANNEL_DISPLAY[key]
   // md ลดจาก size-5 (20px) เหลือ size-4 (16px) — user report 2026-07-23: badge ใหญ่จนบังรูปโปรไฟล์
@@ -144,12 +189,16 @@ export function ChannelBadgeOverlay({ channel, size = 'md' }: ChannelBadgeProps)
   const dim = size === 'md' ? 'size-4' : 'size-3.5'
   const iconDim = size === 'md' ? 10 : 9
 
-  if (display.logoSrc) {
+  if (imageUrl || display.logoSrc) {
     return (
       <span className={`ring-card absolute -end-0.5 -bottom-0.5 block ${dim} overflow-hidden rounded-full ring-2`} title={display.label}>
-        {/* โลโก้แบรนด์จริงเต็มวงกลม — brand asset (Hard Rule 6 carve-out) */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={display.logoSrc} alt={display.label} className="size-full object-cover" />
+        {/* รูปเพจจริงถ้ามี ไม่งั้นโลโก้แบรนด์เต็มวงกลม (brand asset — Hard Rule 6 carve-out) */}
+        <BadgeImage
+          imageUrl={imageUrl}
+          logoSrc={display.logoSrc}
+          alt={display.label}
+          className="size-full object-cover"
+        />
         <span className="sr-only">{display.label}</span>
       </span>
     )

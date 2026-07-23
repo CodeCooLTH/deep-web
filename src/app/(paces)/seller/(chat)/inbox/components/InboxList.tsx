@@ -97,6 +97,9 @@ export type ConversationListItem = {
   buyerUserId: string | null // เธรดช่องทางนอก (feature 00018) ไม่มี User ผู้ซื้อ
   shopId: string
   channel: string // 'DEEP' | 'MESSENGER' | 'INSTAGRAM' — feature 00018 (T3: ใช้ทำ badge)
+  /** เพจที่เธรดนี้ผูกอยู่ — ใช้หา "รูปเพจ" จาก prop `channels` ที่มี avatarUrl อยู่แล้ว
+   *  (ไม่ต้อง query เพิ่ม); null = เธรด Deep */
+  shopChannelId?: string | null
   lastMessageAt: string
   lastMessagePreview: string | null
   lastSenderRole: 'BUYER' | 'SHOP' | null
@@ -417,6 +420,8 @@ export default function InboxList({
   }, [items.length, nextCursor])
 
   const selectedPageName = channels.find((c) => c.id === pageFilter)?.name
+  // id เพจ → รูปเพจ (จาก prop channels ที่โหลดมาแล้ว) — ใช้ทำ badge รูปเพจต่อแถว
+  const channelAvatarById = new Map(channels.map((c) => [c.id, c.avatarUrl]))
 
   return (
     // shadow-none (user สั่ง 2026-07-23): .card ของ Paces มี shadow ในตัว (custom/_card.css) ซึ่ง
@@ -621,7 +626,13 @@ export default function InboxList({
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
-                      <ChannelBadgeOverlay channel={c.channel} />
+                      {/* รูปเพจจริงถ้าเพจนั้นมี (user สั่ง 2026-07-23) — หาได้จาก channels prop ที่
+                          มี avatarUrl ต่อเพจอยู่แล้ว ไม่ต้องเพิ่ม query ต่อแถว; ไม่มีรูป/ไม่มีเพจ
+                          → ChannelBadgeOverlay ถอยไปโลโก้ช่องทางเอง */}
+                      <ChannelBadgeOverlay
+                        channel={c.channel}
+                        imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
+                      />
                     </span>
                     {/* น้ำหนัก/สีตัวอักษรตามสถานะอ่าน — ยังไม่อ่าน = เข้ม+หนา, อ่านแล้ว = เทาลง
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}

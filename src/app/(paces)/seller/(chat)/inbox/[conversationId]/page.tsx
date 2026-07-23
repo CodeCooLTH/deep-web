@@ -153,6 +153,8 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
 
   // ชื่อเพจที่เธรดนี้ผูกอยู่ (null = เธรด Deep / ไม่มี ShopChannel) — badge ใช้แทนชื่อช่องทาง
   const channelName = conversation.shopChannel?.name ?? null
+  // รูปเพจสำหรับ badge ช่องทางที่หัวเธรด (user สั่ง 2026-07-23) — select avatarUrl มาแล้วข้างบน
+  const channelAvatarUrl = conversation.shopChannel?.avatarUrl ?? null
 
   // T5 — ประเภทกิจการ (fallback GENERAL เมื่อค่าไม่รู้จัก ห้าม crash/ซ่อน CTA — ภาคผนวก A-1)
   const vertical = isShopVertical(shop.vertical) ? shop.vertical : DEFAULT_SHOP_VERTICAL
@@ -236,6 +238,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         externalReadAt={conversation.externalReadAt ? conversation.externalReadAt.toISOString() : null}
         channel={conversation.channel}
         channelName={channelName}
+        channelAvatarUrl={channelAvatarUrl}
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
         tokenInvalid={tokenInvalid}
