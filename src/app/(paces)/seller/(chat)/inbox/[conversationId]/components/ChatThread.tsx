@@ -296,6 +296,7 @@ export default function ChatThread({
     handleFileChange,
     handleRemoveImage,
     handleSend,
+    retryMessage,
   } = useSellerChatThread(conversationId)
 
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
@@ -480,10 +481,28 @@ export default function ChatThread({
                           <span>ส่งไม่สำเร็จ — {mExt.failureReason ?? 'ไม่ทราบสาเหตุ'}</span>
                         </div>
                       )}
-                      {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง) */}
+                      {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง)
+                          optimistic send status (mine): spinner กำลังส่ง / check ส่งแล้ว / refresh แดง ลองใหม่ */}
                       <div className={`text-default-400 mt-1.5 flex items-center gap-1 text-xs ${mine ? 'justify-end' : ''}`}>
                         <Icon icon="clock" />
                         {formatTime(m.createdAt)}
+                        {mine && m._status === 'sending' && (
+                          <span className="flex items-center gap-1">
+                            <Icon icon="loader-2" className="animate-spin" />
+                            กำลังส่ง
+                          </span>
+                        )}
+                        {mine && m._status === 'sent' && <Icon icon="check" className="text-success" />}
+                        {mine && m._status === 'failed' && m._retry && (
+                          <button
+                            type="button"
+                            onClick={() => retryMessage(m.id, m._retry!)}
+                            className="text-danger flex items-center gap-1 font-medium hover:underline"
+                          >
+                            <Icon icon="refresh" />
+                            ลองใหม่
+                          </button>
+                        )}
                       </div>
                     </div>
                     {/* avatar ฝั่ง SHOP (ข้อความ mine) — feature 00018 (user request 2026-07-23): แสดง
@@ -527,24 +546,8 @@ export default function ChatThread({
         {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) เหนือช่องพิมพ์ */}
         <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />
 
-        {pendingImage && (
-          <div className="mb-2 flex items-center gap-2">
-            <div className="border-default-200 relative size-14 overflow-hidden rounded-lg border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pendingImage.previewUrl} alt="ตัวอย่างรูปที่จะส่ง" className="size-full object-cover" />
-            </div>
-            <button
-              type="button"
-              onClick={handleRemoveImage}
-              className="btn btn-sm btn-icon border-default-300"
-              aria-label="ลบรูป"
-            >
-              <Icon icon="x" className="text-base" />
-            </button>
-          </div>
-        )}
-
-        <div className="flex gap-2">
+        {/* items-end: ช่องพิมพ์สูงได้ (เมื่อมีรูปแนบข้างใน) ปุ่มยังอยู่แถวล่างชิดกับช่องพิมพ์ */}
+        <div className="flex items-end gap-2">
           {/* feature 00018 T4 — disabled ถาวรเมื่อ channel != DEEP (backend คืน 400 ถ้าส่งรูปช่องทาง
               นอก — กันที่ UI ก่อนถึง error นั้น) หรือ composer ปิดทั้งชุด (window/token) */}
           <label
@@ -592,22 +595,46 @@ export default function ChatThread({
             <Icon icon="sparkles" className="text-lg" />
           </button>
 
-          <div className="input-icon-group grow">
-            <Icon icon="message" className="input-icon" />
-            <input
-              type="text"
-              className="form-input bg-light/20"
-              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSend()
-                }
-              }}
-              disabled={composerDisabled || sending}
-            />
+          {/* ช่องพิมพ์แบบกล่องเดียว — รูปที่แนบอยู่ "ข้างในช่องพิมพ์" (user request 2026-07-23) ให้รู้สึก
+              ว่ารูปติดกับข้อความนี้ (เหมือน Messenger); caption พิมพ์ต่อในแถวเดียวกันด้านล่างรูป */}
+          <div
+            className={`grow overflow-hidden rounded-lg border bg-light/20 ${
+              composerDisabled ? 'border-default-300 opacity-60' : 'border-default-300 focus-within:border-primary'
+            }`}
+          >
+            {pendingImage && (
+              <div className="p-2 pb-0">
+                <div className="relative inline-block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={pendingImage.previewUrl} alt="รูปที่จะส่ง" className="max-h-28 max-w-full rounded-lg object-contain" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    aria-label="ลบรูป"
+                    className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                  >
+                    <Icon icon="x" className="text-sm" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center">
+              <Icon icon="message" className="text-default-400 ms-3 shrink-0 text-lg" />
+              <input
+                type="text"
+                className="grow border-0 bg-transparent px-2 py-2.5 text-sm outline-none focus:ring-0"
+                placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSend()
+                  }
+                }}
+                disabled={composerDisabled}
+              />
+            </div>
           </div>
 
           <button
