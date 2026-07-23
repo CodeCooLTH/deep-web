@@ -38,6 +38,8 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/calendar', slug: 'seller:calendar', label: 'ปฏิทินการจอง', icon: 'calendar-event' },
       // feature 00017 P2 — รายการจอง (icon 'calendar-check' verified มีจริงใน tabler)
       { url: '/bookings', slug: 'seller:bookings', label: 'การจอง', icon: 'calendar-check' },
+      // feature 00017 P3 — icon 'users' verified มีจริงใน tabler
+      { url: '/housekeepers', slug: 'seller:housekeepers', label: 'แม่บ้าน', icon: 'users' },
       // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
       // { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
       { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
@@ -229,7 +231,7 @@ export function applyExpenseMenu(
  * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  * เพราะไม่มี use-case ให้ประเภทหนึ่งเห็นเมนูของอีกประเภท
  */
-const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings']
+const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']
 const GENERAL_ONLY_SLUGS = ['seller:products', 'seller:inventory', 'seller:auctions']
 
 export function applyVerticalMenu(

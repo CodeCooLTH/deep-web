@@ -171,6 +171,7 @@ model Shop {
 
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical = GENERAL
+  housekeepers         Housekeeper[] // NEW (feature 00017 P3) — รายชื่อแม่บ้าน; ว่างเสมอสำหรับ GENERAL
   products             Product[]
   orders               Order[]
   wallet               SellerWallet?
@@ -240,6 +241,30 @@ model Room {
   orders Order[] // การจองของห้องนี้ (Phase 2) — FK ฝั่ง Order เป็น Restrict ห้ามลบห้องที่มีการจอง
 
   @@index([shopId, isActive], map: "Room_shopId_isActive_idx") // list ห้องของร้าน + กรองเฉพาะที่เปิดใช้งาน
+}
+
+// Housekeeper — แม่บ้าน/ผู้ดูแลความสะอาด (feature 00017 Lodging Vertical, Phase 3)
+//
+// 🛑 ไม่ใช่ผู้ใช้ในระบบ (BR-LODG-24) — ไม่มี userId, ไม่มี relation ไป User โดยเจตนา
+// การเพิ่ม FK ไป User จะเปิดช่องให้เข้าใจผิดว่าต่อไปจะให้แม่บ้านล็อกอินได้
+// เป็นเพียง "รายชื่อ" ที่เจ้าของบันทึกไว้เพื่อมอบหมายงาน — ไม่มีหน้าจอ ไม่มีสิทธิ์เข้าถึงใด ๆ
+//
+// 🛑 name/phone เป็น PII ของบุคคลที่สาม — ห้ามส่งข้ามไปฝั่งผู้จองทุกกรณี (BR-LODG-23)
+// ตัดที่ server boundary ก่อน serialize ไม่ใช่แค่ไม่แสดงผล
+model Housekeeper {
+  id        String   @id @default(uuid())
+  shopId    String
+  name      String
+  // phone ไม่ unique — ไม่ใช่ตัวระบุตัวตนกลาง เป็นข้อมูลติดต่อภายในร้าน คนละคนใช้เบอร์เดียวกันได้
+  phone     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orders Order[] // การจองที่มอบหมายให้แม่บ้านคนนี้ — FK ฝั่ง Order เป็น SET NULL
+
+  @@index([shopId, isActive], map: "Housekeeper_shopId_isActive_idx") // list แม่บ้านของร้าน
 }
 
 model VerificationRecord {
@@ -452,10 +477,19 @@ model Order {
   // นับเข้าประวัติผู้จองเฉพาะ 2 ค่าแรก — ตัดสินจาก countsAgainstGuest ใน src/lib/lodging.ts
   cancelReason String?
 
+  // --- feature 00017 Lodging Vertical (Phase 3: แม่บ้าน, additive nullable) ---
+  // housekeeperId: แม่บ้านที่รับผิดชอบทำความสะอาดรอบเข้าพักนี้ (BR-LODG-20) — NULL = ยังไม่มอบหมาย
+  // ON DELETE SET NULL: ลบแม่บ้านออกจากรายชื่อได้ การจองเดิมยังอยู่ครบ แค่ไม่มีผู้รับผิดชอบผูก
+  housekeeperId      String?
+  // housekeepingStatus: PENDING | DONE — NULL = ยังไม่มอบหมาย (BR-LODG-26)
+  // แยกจาก Order.status โดยสิ้นเชิง — งานแม่บ้านไม่กระทบสถานะการจองและ Trust Score
+  housekeepingStatus String?
+
   shop             Shop              @relation(fields: [shopId], references: [id])
   buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   room             Room?             @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  housekeeper      Housekeeper?      @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
   items            OrderItem[]
   shipmentTracking ShipmentTracking?
   review           Review?
@@ -471,6 +505,7 @@ model Order {
   @@index([roomId, checkIn], map: "Order_roomId_checkIn_idx") // feat 00017 — ปฏิทินของห้อง
   @@index([shopId, type, checkIn], map: "Order_shopId_type_checkIn_idx") // ปฏิทินรวมทุกห้อง + list การจอง
   @@index([customerId, status], map: "Order_customerId_status_idx") // นับประวัติการยกเลิกต่อลูกค้า
+  @@index([housekeeperId, housekeepingStatus], map: "Order_housekeeperId_status_idx") // feat 00017 P3 — หน้ารวมงานแม่บ้านที่ค้าง
 
   // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
   // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
