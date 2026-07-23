@@ -90,6 +90,12 @@ import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
+import {
+  CHAT_SOUND_EVENT,
+  isChatSoundMuted,
+  isConversationMuted,
+  setConversationMuted,
+} from '@/lib/chat-sound'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
@@ -342,6 +348,20 @@ export default function ChatThread({
     return () => clearInterval(t)
   }, [])
 
+  // เสียงแจ้งเตือน: สถานะปิดเสียง (ระดับแอป/รายเธรด) อ่านหลัง mount เท่านั้น — localStorage ไม่มี
+  // ฝั่ง server ถ้าอ่านตอน render แรกจะ hydration mismatch
+  const [appSoundMuted, setAppSoundMuted] = useState(false)
+  const [threadMuted, setThreadMuted] = useState(false)
+  useEffect(() => {
+    const sync = () => {
+      setAppSoundMuted(isChatSoundMuted())
+      setThreadMuted(isConversationMuted(conversationId))
+    }
+    sync()
+    window.addEventListener(CHAT_SOUND_EVENT, sync)
+    return () => window.removeEventListener(CHAT_SOUND_EVENT, sync)
+  }, [conversationId])
+
   const composerDisabled = isExternal && (tokenInvalid || !liveWindowOpen)
   // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
   // ตอนส่งไม่ได้ (window ปิด/token ตาย) เท่านั้น ไม่ปิดเพราะเป็นช่องทางนอกอีกต่อไป
@@ -482,6 +502,22 @@ export default function ChatThread({
             <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
           </div>
         </div>
+
+        {/* ปิดเสียงเฉพาะเธรดนี้ (user สั่ง 2026-07-23) — ซ่อนเมื่อปิดเสียงระดับแอปอยู่แล้ว เพราะปุ่ม
+            นี้จะไม่มีผลอะไรและทำให้เข้าใจผิดว่า "เปิดอยู่" ทั้งที่ทั้งแอปเงียบ (สวิตช์ระดับแอปอยู่ที่
+            ChatHeader) */}
+        {!appSoundMuted && (
+          <button
+            type="button"
+            onClick={() => setConversationMuted(conversationId, !threadMuted)}
+            aria-pressed={threadMuted}
+            title={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
+            aria-label={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
+            className={`btn btn-icon hover:bg-default-100 shrink-0 ${threadMuted ? 'text-default-500' : 'text-default-700'}`}
+          >
+            <Icon icon={threadMuted ? 'bell-off' : 'bell'} className="text-lg" />
+          </button>
+        )}
       </div>
 
       {/* feature 00018 T4 — แบนเนอร์ 24h window / token invalid (เฉพาะ channel != DEEP) แสดงทันทีใต้

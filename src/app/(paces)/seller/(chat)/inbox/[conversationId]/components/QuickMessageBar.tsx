@@ -13,9 +13,15 @@
  * ตาม Paces primary — ห้ามใช้ม่วง Vuexy). ตัวเลือกแสดงเป็นแถวการ์ดเต็มความกว้างชุดเดียวกับร่าง AI
  * (เดิมเป็น pill scroll แนวนอน อ่านเนื้อความไม่ออก) — Paces primitive เท่านั้น (HR7)
  *
+ * เนื้อหาในแผง (user สั่ง 2026-07-23 รอบสอง): "ให้แสดงผลเหมือนเลือกสินค้า — การ์ด ค้นหาได้ ถ้ามี
+ * เยอะก็ slide" → ยกโครง body จาก ProductPickerPanel.tsx ทั้งชุด (ช่องค้นหา + สไลด์การ์ดแนวนอน
+ * snap-x + ซ่อน scrollbar). การ์ดกว้าง w-32 (ของสินค้า w-24) เพราะเนื้อหาหลักคือข้อความไม่ใช่รูป
+ * และการ์ดที่ "ไม่มีรูป" ใช้ช่องรูปแสดงเนื้อความแทน placeholder — ข้อความสำเร็จรูปแบบไม่มีรูปเป็น
+ * เคสปกติ ไม่ใช่ข้อมูลขาดเหมือนสินค้าที่ยังไม่ได้ใส่รูป
+ *
  * การเปิดแผงคุมจาก ChatThread ด้วย state เดียว (activePanel) → เปิดได้ทีละแผงเท่านั้น ไม่ซ้อนกัน
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import QuickMessageManager, { type QuickMessage } from './QuickMessageManager'
 
@@ -32,6 +38,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
   const [items, setItems] = useState<QuickMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [managerOpen, setManagerOpen] = useState(false)
+  const [q, setQ] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -59,6 +66,14 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose, managerOpen])
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return items
+    return items.filter(
+      (qm) => qm.title.toLowerCase().includes(needle) || qm.body.toLowerCase().includes(needle),
+    )
+  }, [items, q])
 
   return (
     <>
@@ -90,71 +105,83 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
           </div>
         </div>
 
-        {/* body — max-h เท่าแผง AI กันรายการเยอะดันเธรดหายทั้งจอ */}
-        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+        {/* ค้นหา + สไลด์การ์ด — user สั่ง 2026-07-23: "แสดงผลเหมือนเลือกสินค้า (การ์ด ค้นหาได้
+            ถ้ามีเยอะก็ slide)" จึงยกโครงจาก ProductPickerPanel.tsx มาทั้งชุด: input-icon-group
+            ด้านบน + แถบการ์ดเลื่อนแนวนอน snap-x + ซ่อน scrollbar
+            การ์ดกว้างกว่าของสินค้า (w-32 vs w-24) เพราะเนื้อหาหลักคือ "ข้อความ" ไม่ใช่รูป */}
+        <div className="input-icon-group mb-2">
+          <Icon icon="search" className="input-icon" />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="ค้นหาข้อความสำเร็จรูป"
+            aria-label="ค้นหาข้อความสำเร็จรูป"
+            className="form-input bg-card"
+          />
+        </div>
+
+        <div
+          className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
+          style={{ scrollbarWidth: 'none' }}
+        >
           {loading ? (
             <>
               {[0, 1, 2].map((i) => (
-                <div key={i} className="bg-default-100 h-11 animate-pulse rounded-lg" />
+                <div key={i} className="bg-default-100 h-36 w-32 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลด" />
               ))}
             </>
           ) : items.length === 0 ? (
-            <div className="text-default-500 flex flex-col items-center gap-2 py-4 text-center text-sm">
-              <Icon icon="message-plus" className="text-default-400 text-2xl" />
+            <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
+              <Icon icon="message-plus" className="text-default-500 text-2xl" />
               <span>ยังไม่มีข้อความสำเร็จรูป</span>
-              <button type="button" onClick={() => setManagerOpen(true)} className="btn btn-sm border-default-300">
+              <button type="button" onClick={() => setManagerOpen(true)} className="btn border-default-300 min-h-11">
                 <Icon icon="plus" className="me-1" /> เพิ่มข้อความ
               </button>
             </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-default-700 mb-0 w-full py-4 text-center text-sm">ไม่พบข้อความที่ค้นหา</p>
           ) : (
-            items.map((qm) => (
-              <button
-                key={qm.id}
-                type="button"
-                onClick={() => !disabled && onPick(qm)}
-                disabled={disabled}
-                title={qm.body || qm.title}
-                className={`bg-card border-default-200 hover:border-primary text-default-800 flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-                  disabled ? 'pointer-events-none opacity-50' : ''
-                }`}
-              >
-                {/* thumbnail รูปที่แนบไว้ (user สั่ง 2026-07-23: "ถ้ามีการแนบรูปมา ต้องโชว์ด้วย
-                    ตอนนี้มันไม่เห็นรูปที่แนบคู่ไว้") — เดิมมีแค่ไอคอน photo เล็ก ๆ บอกว่า "มีรูป"
-                    ซึ่งบอกไม่ได้ว่ารูปไหน ต้องเปิดหน้าจัดการดูเอง. serve ผ่าน /api/files/{fileId}
-                    เหมือนที่ QuickMessageManager preview ใช้ (storage ไม่ได้ public URL) */}
-                {(() => {
-                  // หลายรูปได้ (user สั่ง 2026-07-23) — โชว์รูปแรกพร้อมป้ายจำนวนที่เหลือ ไม่เรียงทุกใบ
-                  // เพราะแถวในแผงต้องสูงคงที่ กวาดตาหาข้อความได้เร็ว
-                  const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
-                  if (imgs.length === 0) return null
-                  return (
-                    <span className="relative shrink-0">
+            filtered.map((qm) => {
+              // หลายรูปได้ — โชว์รูปแรก + ป้ายจำนวนที่เหลือ (การ์ดต้องสูงเท่ากันทุกใบ กวาดตาได้เร็ว)
+              const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
+              return (
+                <button
+                  key={qm.id}
+                  type="button"
+                  onClick={() => !disabled && onPick(qm)}
+                  disabled={disabled}
+                  title={qm.body || qm.title}
+                  className={`w-32 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
+                    disabled ? 'pointer-events-none opacity-50' : ''
+                  }`}
+                >
+                  {imgs.length > 0 ? (
+                    <span className="relative block">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/api/files/${imgs[0]}`}
-                        alt=""
-                        loading="lazy"
-                        className="bg-default-100 size-12 rounded object-cover"
-                      />
+                      <img src={`/api/files/${imgs[0]}`} alt="" loading="lazy" className="aspect-square w-full object-cover" />
                       {imgs.length > 1 && (
-                        <span className="bg-default-900/70 absolute end-0 bottom-0 rounded-ss px-1 text-2xs text-white">
+                        <span className="bg-default-900/70 absolute end-1 bottom-1 rounded px-1 text-2xs text-white">
                           +{imgs.length - 1}
                         </span>
                       )}
                     </span>
-                  )
-                })()}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{qm.title}</span>
-                  {qm.body && <span className="text-default-500 mt-0.5 line-clamp-2 block text-xs">{qm.body}</span>}
-                </span>
-              </button>
-            ))
+                  ) : (
+                    // ไม่มีรูป → โชว์ข้อความแทนที่ช่องรูป (ต่างจากการ์ดสินค้าที่ขึ้น "ไม่มีรูป" เฉย ๆ
+                    // เพราะข้อความสำเร็จรูปแบบไม่มีรูปเป็นเคสปกติ ไม่ใช่ข้อมูลขาด)
+                    <span className="bg-light text-default-700 flex aspect-square w-full items-center p-2 text-2xs">
+                      <span className="line-clamp-5">{qm.body || qm.title}</span>
+                    </span>
+                  )}
+                  <div className="p-2">
+                    <p className="line-clamp-2 text-xs font-medium text-dark">{qm.title}</p>
+                    {qm.body && <p className="text-default-700 mt-0.5 line-clamp-2 text-2xs">{qm.body}</p>}
+                  </div>
+                </button>
+              )
+            })
           )}
         </div>
-
-        {/* footer — ตำแหน่งเดียวกับ disclaimer ของแผง AI */}
-        <div className="text-default-400 pt-1.5 text-2xs">คลิกเพื่อเติมลงช่องพิมพ์ — แก้ไขก่อนส่งได้</div>
       </div>
 
       {managerOpen && (
