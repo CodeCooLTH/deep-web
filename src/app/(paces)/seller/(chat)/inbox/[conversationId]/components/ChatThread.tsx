@@ -441,7 +441,15 @@ export default function ChatThread({
           ทำให้ด้านบนขยับตลอด"): เมื่อเลื่อนถึงหัว/ท้ายรายการข้อความ เบราว์เซอร์จะส่ง scroll ต่อไปให้
           ancestor ที่เลื่อนได้ (scroll chaining) → คอลัมน์กลางของ (chat)/layout.tsx และหน้าเว็บ
           ขยับตาม หัวแชทเลื่อนหนีทั้งที่ควรค้าง. overscroll-contain ตัด chain ที่ container นี้ */}
-      <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto overscroll-contain py-4">
+      {/* pb-0 + last:mb-1 (user สั่ง 2026-07-23: "ข้อความสุดท้ายห่างจากช่องพิมพ์มากเกินไป เปลืองพื้นที่"):
+          ระยะห่างเดิมเป็นผลรวม 3 ชั้น — `my-5` ของแถวสุดท้าย (20px) + `py-4` ของกล่อง scroll (16px)
+          + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
+          "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
+          ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      <div
+        ref={scrollRef}
+        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
+      >
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex justify-center py-2">
             {loadingOlder && (
