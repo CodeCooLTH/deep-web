@@ -83,6 +83,9 @@ type Props = {
   conversationId: string
   buyerName: string
   buyerAvatar: string | null
+  /** feature 00018 (user request 2026-07-23) — รูปฝั่งร้าน (ข้อความ mine): รูปเพจสำหรับช่องทางนอก
+   *  (http URL) หรือโลโก้ร้านสำหรับ DEEP (storage fileId); null → fallback ไอคอน building-store */
+  shopAvatar: string | null
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** feature 00018 — ผลลัพธ์ getWindowState() คำนวณที่ server ณ เวลา render หน้า (ไม่ live-tick) */
@@ -134,11 +137,23 @@ function formatWindowBanner(msRemaining: number): { cls: string; icon: string; t
   }
 }
 
-/** avatar เล็ก — รูปจริง (http URL หรือ storage fileId) + fallback initials */
-function ChatAvatar({ avatar, name, size = 'size-9' }: { avatar: string | null; name: string; size?: string }) {
+/** avatar เล็ก — รูปจริง (http URL หรือ storage fileId) + fallback (default = initials; ส่ง fallback
+ *  node เองได้ เช่น ฝั่งร้านใช้ไอคอน building-store แทน initials ของชื่อลูกค้าที่ไม่เกี่ยวข้อง) */
+function ChatAvatar({
+  avatar,
+  name,
+  size = 'size-9',
+  fallback,
+}: {
+  avatar: string | null
+  name: string
+  size?: string
+  fallback?: React.ReactNode
+}) {
   const [failed, setFailed] = useState(false)
   const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
   if (!src || failed) {
+    if (fallback !== undefined) return <>{fallback}</>
     return (
       <span className={`bg-primary/10 text-primary flex ${size} shrink-0 items-center justify-center rounded-full text-sm font-semibold`}>
         {generateInitials(name) || '?'}
@@ -222,6 +237,7 @@ export default function ChatThread({
   conversationId,
   buyerName,
   buyerAvatar,
+  shopAvatar,
   channel,
   windowOpen,
   msRemaining,
@@ -443,13 +459,20 @@ export default function ChatThread({
                         {formatTime(m.createdAt)}
                       </div>
                     </div>
-                    {/* avatar ฝั่ง SHOP — Base แสดง avatar ทั้งสองฝั่งเสมอ (currentContact/currentUser);
-                        เราไม่มี shop avatar/ชื่อส่งเข้า component นี้ จึงใช้ icon ร้านค้าแทน initials
-                        บน div ทรงเดียวกับ Base initials-fallback (bg-primary size-8 rounded-full) */}
+                    {/* avatar ฝั่ง SHOP (ข้อความ mine) — feature 00018 (user request 2026-07-23): แสดง
+                        "รูปเพจนั้น ๆ" (ช่องทางนอก) หรือโลโก้ร้าน (DEEP) ผ่าน shopAvatar; ไม่มีรูป/โหลด
+                        พลาด → fallback ไอคอน building-store บน div ทรงเดียวกับ Base initials-fallback */}
                     {mine && (
-                      <span className="bg-primary flex size-8 shrink-0 items-center justify-center rounded-full text-white">
-                        <Icon icon="building-store" className="size-4" />
-                      </span>
+                      <ChatAvatar
+                        avatar={shopAvatar}
+                        name={buyerName}
+                        size="size-8"
+                        fallback={
+                          <span className="bg-primary flex size-8 shrink-0 items-center justify-center rounded-full text-white">
+                            <Icon icon="building-store" className="size-4" />
+                          </span>
+                        }
+                      />
                     )}
                   </div>
                 )

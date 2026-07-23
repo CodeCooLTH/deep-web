@@ -85,7 +85,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   }
   // feature 00018 T5: vertical ยังต้อง query แยก (resolveActiveShopContext คืนแค่ shopId/kind/role/
   // locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวนี้แล้ว)
-  const shopRow = await prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true } })
+  const shopRow = await prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true, logo: true } })
   if (!shopRow) {
     return (
       <SellerErrorState
@@ -115,7 +115,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           customer: { select: { id: true, phone: true } },
         },
       },
-      shopChannel: { select: { status: true } },
+      shopChannel: { select: { status: true, avatarUrl: true } },
     },
   })
 
@@ -132,6 +132,12 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // (null-safe ขั้นต่ำเท่านั้น — ไม่ทำ UI ใหม่สำหรับช่องทางนอก, งานนั้นอยู่แผนอื่น)
   const buyerDisplayName = conversation.buyer?.displayName ?? conversation.externalContact?.name ?? 'ลูกค้า'
   const buyerAvatar = conversation.buyer?.avatar ?? null
+
+  // feature 00018 (user request 2026-07-23): avatar ฝั่งร้าน (ข้อความ mine) แสดง "รูปเพจนั้น ๆ" แทน
+  // ไอคอน building-store ทั่วไป — ช่องทางนอกใช้รูป Page ที่เชื่อม (ShopChannel.avatarUrl, เป็น http URL
+  // ของ Meta CDN), DEEP ใช้โลโก้ร้าน (Shop.logo = storage fileId). null → ChatThread fallback ไอคอนร้าน
+  const shopAvatar =
+    conversation.channel !== 'DEEP' ? conversation.shopChannel?.avatarUrl ?? null : shopRow.logo ?? null
 
   // T4 — 24h messaging window (เฉพาะความหมายสำหรับ channel != DEEP; DEEP ก็คำนวณได้แต่ ChatThread
   // จะไม่ใช้เพราะ isExternal=false) + token invalid ของเพจที่ผูกเธรดนี้
@@ -216,6 +222,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         conversationId={conversation.id}
         buyerName={buyerDisplayName}
         buyerAvatar={buyerAvatar}
+        shopAvatar={shopAvatar}
         channel={conversation.channel}
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
