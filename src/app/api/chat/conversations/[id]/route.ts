@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext } from "@/lib/shop-context";
 import { updateConversationState } from "@/services/chat.service";
+import { setConversationGroup } from "@/services/chat-group.service";
 import { ConversationPatchSchema } from "@/lib/validations";
 
 // S-7 (ตัวกรองแชท + ปักหมุด/ซ่อน/ปิดงาน) — feature 00018
@@ -57,11 +58,16 @@ export async function PATCH(
   }
 
   try {
-    await updateConversationState(idCheck.output, activeCtx.shopId, parsed.output.action);
+    if (parsed.output.action === "set-group") {
+      // ย้ายเธรดเข้ากลุ่ม/เอาออก — chatGroupId undefined ให้ถือเป็น null (เอาออกจากกลุ่ม)
+      await setConversationGroup(idCheck.output, activeCtx.shopId, parsed.output.chatGroupId ?? null);
+    } else {
+      await updateConversationState(idCheck.output, activeCtx.shopId, parsed.output.action);
+    }
     return NextResponse.json({ ok: true }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
-    if (e instanceof Error && e.message === "CONVERSATION_NOT_FOUND_OR_FORBIDDEN") {
-      return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
+    if (e instanceof Error && (e.message === "CONVERSATION_NOT_FOUND_OR_FORBIDDEN" || e.message === "GROUP_NOT_FOUND")) {
+      return NextResponse.json({ error: "ไม่พบบทสนทนาหรือกลุ่มนี้" }, { status: 404 });
     }
     console.error("[PATCH /api/chat/conversations/[id]]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });

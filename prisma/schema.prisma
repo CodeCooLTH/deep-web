@@ -186,6 +186,7 @@ model Shop {
   conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
   channels             ShopChannel[] // Facebook/Instagram chat integration (feature 00018) — Page/IG ที่ร้านผูกไว้
   quickMessages        QuickMessage[] // ข้อความสำเร็จรูป (feature 00018 composer #2) — ระดับร้าน ทุกคนในร้านใช้ร่วมกัน
+  chatGroups           ChatGroup[] // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — ร้านตั้งเอง เช่น ทั่วไป/ร้านอะไหล่/ไม่สนใจ
   verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
@@ -1098,18 +1099,39 @@ model Conversation {
   // externalReadAt: watermark "ลูกค้าฝั่งช่องทางนอกอ่านถึงเวลานี้" (Messenger message_reads) — ข้อความ
   // ฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "อ่านแล้ว" (feature 00018 read receipt)
   externalReadAt    DateTime?
+  // chatGroupId: กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (feature 00018) — null = ยังไม่จัดกลุ่ม (แท็บ "ทั้งหมด")
+  // ต่อ conversation (ไม่ใช่ต่อลูกค้า) เพื่อให้ใช้ได้ทุกช่องทางรวม DEEP; ลบกลุ่ม → SetNull (เธรดกลับ "ทั้งหมด")
+  chatGroupId       String?
 
   buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
   messages        ChatMessage[]
   shopChannel     ShopChannel?     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   externalContact ExternalContact? @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
+  chatGroup       ChatGroup?       @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
   @@index([shopId, lastMessageAt]) // seller inbox (/inbox): list ของร้าน เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-09-AC-01)
   @@index([buyerUserId, lastMessageAt]) // buyer inbox (/messages): list ของ buyer เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-07-AC-01)
   @@index([shopId, isHidden, isPinned, lastMessageAt]) // inbox list กรอง "ยังเปิดอยู่ + ไม่ซ่อน" แล้วเรียงหมุดขึ้นก่อน — ครอบ query หลักของหน้า /inbox
+  @@index([chatGroupId]) // กรองแท็บกลุ่ม (feature 00018)
+}
+
+// ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
+// เช่น "ทั่วไป", "ร้านอะไหล่", "ไม่สนใจ" — seller กด "+" เพิ่มเองในหน้า inbox, คลิกขวาเธรดเพื่อย้ายเข้ากลุ่ม
+model ChatGroup {
+  id        String   @id @default(uuid())
+  shopId    String
+  name      String
+  sortOrder Int      @default(0) // ลำดับแท็บ (ตามลำดับที่สร้าง)
+  createdAt DateTime @default(now())
+
+  shop          Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([shopId, name]) // ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน
+  @@index([shopId, sortOrder])
 }
 
 // ChatMessage: ข้อความ 1 รายการ — TEXT หรือ IMAGE (1 รูป/ข้อความ, BR-CHAT-05) — append-only (ไม่มี updatedAt/edit/delete ใน MVP)

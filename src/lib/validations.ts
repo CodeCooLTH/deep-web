@@ -744,10 +744,19 @@ export const ChatConversationsQuerySchema = v.object({
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
 
-// S-7 (ตัวกรองแชท + ปักหมุด/ซ่อน/ปิดงาน): body ของ PATCH /api/chat/conversations/{id}
+// S-7 (ตัวกรองแชท + ปักหมุด/ซ่อน/ปิดงาน) + set-group (ย้ายเข้ากลุ่ม feature 00018):
+// body ของ PATCH /api/chat/conversations/{id}
+// action='set-group' → ใช้ chatGroupId (string=ย้ายเข้ากลุ่มนั้น, null=เอาออก); action อื่นไม่ต้องมี chatGroupId
 export const ConversationPatchSchema = v.object({
-  action: v.picklist(["pin", "unpin", "hide", "unhide", "resolve", "reopen"]),
+  action: v.picklist(["pin", "unpin", "hide", "unhide", "resolve", "reopen", "set-group"]),
+  chatGroupId: v.optional(v.nullable(v.pipe(v.string(), v.uuid()))),
 });
+
+// ── feature 00018: กลุ่ม/แท็บจัดหมวดแชท (ChatGroup) ──────
+export const ChatGroupCreateSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณาระบุชื่อกลุ่ม"), v.maxLength(40, "ชื่อกลุ่มยาวเกินไป")),
+});
+export const ChatGroupRenameSchema = ChatGroupCreateSchema;
 
 // ── feature 00018 composer #2 Quick Messages (ข้อความสำเร็จรูป ระดับร้าน) ──────
 // create/update ใช้ shape เดียวกัน (update = full replace). cross-field: ต้องมี body หรือ

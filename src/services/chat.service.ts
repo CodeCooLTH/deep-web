@@ -111,6 +111,10 @@ export async function listConversationsForShop(
     // hidden default false — ไม่โชว์เธรดที่ซ่อนในรายการปกติ, true = ดูเฉพาะที่ซ่อน (เมนู "ซ่อนอยู่")
     hidden?: boolean
     customerLinked?: 'all' | 'linked' | 'unlinked'
+    // chatGroupId: กรองแท็บกลุ่ม (feature 00018) — undefined = ทุกกลุ่ม (แท็บ "ทั้งหมด"), string = เฉพาะกลุ่มนั้น
+    chatGroupId?: string
+    // readState: กรองอ่านแล้ว/ยังไม่อ่าน (feature 00018) — undefined = ทั้งหมด (default ไม่กรอง)
+    readState?: 'unread' | 'read'
   } = {},
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const status = opts.status ?? 'open'
@@ -133,11 +137,21 @@ export async function listConversationsForShop(
     orParts.push(customerLinkedWhere(opts.customerLinked))
   }
 
+  // อ่านแล้ว/ยังไม่อ่าน — เทียบ column-vs-column ทำใน where ตรง ๆ ไม่ได้ จึงดึง id ที่ยังไม่อ่านมาก่อน
+  // แล้วกรองด้วย id in/notIn (unread=in, read=notIn). ทำเฉพาะเมื่อมีตัวกรอง (default ไม่ query เพิ่ม)
+  let readIdFilter: Prisma.ConversationWhereInput | null = null
+  if (opts.readState) {
+    const unreadIds = await unreadConversationIdsForShop(shopId)
+    readIdFilter = opts.readState === 'unread' ? { id: { in: unreadIds } } : { id: { notIn: unreadIds } }
+  }
+
   return listConversations(
     {
       shopId,
       ...(opts.channel ? { channel: opts.channel } : {}),
       ...(opts.shopChannelId ? { shopChannelId: opts.shopChannelId } : {}),
+      ...(opts.chatGroupId ? { chatGroupId: opts.chatGroupId } : {}),
+      ...(readIdFilter ?? {}),
       ...(status === 'open' ? { resolvedAt: null } : status === 'resolved' ? { resolvedAt: { not: null } } : {}),
       isHidden: hidden,
       ...(orParts.length > 0 ? { AND: orParts } : {}),
@@ -174,6 +188,25 @@ export async function countUnreadByConversation(conversationIds: string[]): Prom
     GROUP BY m."conversationId"
   `
   return new Map(rows.map((r) => [r.conversationId, Number(r.count)]))
+}
+
+/**
+ * unreadConversationIdsForShop — id ของเธรดที่ "ฝั่งร้านยังไม่ได้อ่าน" (feature 00018 ตัวกรอง unread/read)
+ *
+ * เกณฑ์เดียวกับ badge unread: ข้อความล่าสุดมาจากลูกค้า (lastSenderRole='BUYER') และห้องยังไม่เคยอ่าน
+ * (shopLastReadAt IS NULL) หรือมีข้อความใหม่กว่าเวลาที่อ่านล่าสุด (lastMessageAt > shopLastReadAt).
+ * ต้องใช้ raw SQL เพราะเทียบสองคอลัมน์ในตารางเดียวกัน (lastMessageAt vs shopLastReadAt) — Prisma where
+ * ทำ column-vs-column ไม่ได้. วิ่งบน index Conversation(shopId, ...) ที่มีอยู่แล้ว
+ */
+export async function unreadConversationIdsForShop(shopId: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT c.id AS id
+    FROM "Conversation" c
+    WHERE c."shopId" = ${shopId}
+      AND c."lastSenderRole" = 'BUYER'
+      AND (c."shopLastReadAt" IS NULL OR c."lastMessageAt" > c."shopLastReadAt")
+  `
+  return rows.map((r) => r.id)
 }
 
 export async function listConversationsForBuyer(
