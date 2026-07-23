@@ -202,8 +202,11 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
       {/* สรุปประวัติ 1 บรรทัด — คำตอบที่ผู้ขายต้องการใน 1 วินาที ("เคยซื้อกี่ครั้ง จ่ายครบไหม")
           คำนวณจากออเดอร์จริงที่ page.tsx ส่งมาแล้ว ไม่มีตัวเลขปลอมสักตัว (PRODUCT.md: trust ต้องมา
           จากสัญญาณจริง show-don't-tell). ลูกค้าที่ยังไม่ผูก = บอกตรง ๆ ว่ายังไม่มีประวัติในระบบ */}
-      <div className="border-b border-default-200 border-dashed px-4 py-2.5 text-xs">
-        {data.customer ? (
+      {/* แสดงเฉพาะเมื่อ "มีประวัติจริง" (user สั่ง 2026-07-23: เอาบรรทัด "ยังไม่มีประวัติซื้อในระบบ —
+          ลูกค้าใหม่" ออก) — แถบสรุปมีไว้ตอบว่า "ลูกค้าคนนี้ซื้ออะไรมาบ้าง" การกินไปทั้งแถบเพื่อบอกว่า
+          "ไม่มีอะไรจะบอก" คือ noise ล้วน ๆ และแท็บข้อมูลลูกค้ามีแถวสถานะการเชื่อมบอกอยู่แล้ว */}
+      {data.customer && summary.count > 0 && (
+        <div className="border-b border-default-200 border-dashed px-4 py-2.5 text-xs">
           <p className="text-default-800 mb-0 flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-success inline-flex items-center gap-1 font-semibold">
               <Icon icon="circle-check" className="text-sm" />
@@ -213,10 +216,8 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
             <span className="text-default-700">รวม ฿{summary.total.toLocaleString('th-TH')}</span>
             {summary.latest && <span className="text-default-700">ล่าสุด {formatDate(summary.latest)}</span>}
           </p>
-        ) : (
-          <p className="text-default-700 mb-0">ยังไม่มีประวัติซื้อในระบบ — ลูกค้าใหม่</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* tabs — 3 ตัว (user สั่ง 2026-07-23): ข้อมูลลูกค้า / คำสั่งซื้อ|การจอง / โน๊ต พร้อมไอคอน
           (ไอคอน user เลือกเอง: user-circle / shopping-cart / notes — ไม่ได้เดา ตาม convention
