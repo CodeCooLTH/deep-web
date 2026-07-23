@@ -564,8 +564,34 @@ export default function InboxList({
             return (
               // S-7: แยก <Link> (เนื้อหาแถว) ออกจาก kebab (sibling) — nested button ใน anchor เป็น
               // invalid HTML + คลิก kebab จะ propagate ไป navigate. outer div รับ hover ทั้งแถว
-              <div key={c.id} className="hover:bg-default-100 flex items-stretch">
-                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 px-3.75 py-3">
+              // ปักหมุด (user สั่ง 2026-07-23): แถวที่ปักหมุดพื้นเทาจาง + แถบ accent เหลืองด้านซ้าย
+              // (สีเดียวกับดาว) — แถวปกติใส่ border-transparent ความหนาเท่ากันไว้ด้วย ไม่งั้นเนื้อหา
+              // ขยับ 2px ตอนกด/เลิกปักหมุด. ลำดับ "ปักหมุดขึ้นบนสุด" backend จัดให้แล้ว (S-7
+              // pin-first keyset cursor) ฝั่งนี้ไม่ต้องเรียงซ้ำ
+              <div
+                key={c.id}
+                className={`group relative flex items-stretch border-s-2 ${
+                  c.isPinned ? 'border-warning bg-default-100/60 hover:bg-default-100' : 'border-transparent hover:bg-default-100'
+                }`}
+              >
+                {/* ดาวปักหมุด — นอก <Link> (sibling) ด้วยเหตุผลเดียวกับ kebab: ปุ่มซ้อนใน anchor เป็น
+                    invalid HTML และคลิกจะ propagate ไป navigate. ปักหมุดแล้ว = ดาวทึบเหลือง,
+                    ยังไม่ปัก = ดาวโปร่งจาง ๆ กดเพื่อปักได้ทันที (ไม่ต้องเปิด kebab) */}
+                <button
+                  type="button"
+                  onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
+                  disabled={actioningId === c.id}
+                  aria-pressed={c.isPinned}
+                  aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
+                  title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
+                  className={`flex shrink-0 items-center px-3 ${
+                    c.isPinned ? 'text-warning' : 'text-default-300 hover:text-warning'
+                  } ${actioningId === c.id ? 'pointer-events-none opacity-50' : ''}`}
+                >
+                  <Icon icon={c.isPinned ? 'star-filled' : 'star'} width={18} height={18} />
+                </button>
+
+                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-0">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
@@ -592,9 +618,9 @@ export default function InboxList({
                   </div>
 
                   <span className="flex shrink-0 flex-col items-end justify-center gap-1.25">
-                    {/* timestamp — สีตามสถานะอ่าน (main) + pin indicator นำหน้า (S-7) */}
-                    <span className={`flex items-center gap-1 text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
-                      {c.isPinned && <Icon icon="pinned-filled" width={12} height={12} className="text-primary" />}
+                    {/* timestamp — สีตามสถานะอ่าน (main); ตัว indicator ปักหมุดย้ายไปเป็นดาวหน้าแถวแล้ว
+                        (เดิมเป็นไอคอนหมุดเล็ก ๆ นำหน้าเวลา ซึ่งมองไม่ค่อยเห็นและกดไม่ได้) */}
+                    <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
                       {relativeTimeTh(new Date(c.lastMessageAt).getTime())}
                     </span>
                     {/* resolved กับ unread ไม่โชว์พร้อมกัน (เธรดปิดงานแล้วไม่มี unread ตาม flow) —
@@ -611,8 +637,9 @@ export default function InboxList({
                   </span>
                 </Link>
 
-                {/* kebab actions — นอก Link (sibling) */}
-                <div className="flex items-center pe-2">
+                {/* kebab actions — นอก Link (sibling) — เหลือเฉพาะ <1024px: จอสัมผัสไม่มี hover
+                    จึงต้องมีทางเข้าถึง action แบบกดได้จริง (ชุดปุ่มลอยด้านล่างใช้ไม่ได้บนจอสัมผัส) */}
+                <div className="flex items-center pe-2 lg:hidden">
                   <ConversationRowMenu
                     isPinned={c.isPinned}
                     isResolved={isResolved}
@@ -620,6 +647,34 @@ export default function InboxList({
                     busy={actioningId === c.id}
                     onAction={(a) => handleRowAction(c.id, a)}
                   />
+                </div>
+
+                {/* ชุดปุ่มลอย (≥1024px) — โผล่เมื่อ hover แถวนั้น (user สั่ง 2026-07-23: "ปุ่ม action
+                    กินพื้นที่เกินไป ให้ปิดงาน/ซ่อน โผล่ตอน hover เป็นลอย ๆ") ปุ่มถาวรกินความกว้าง
+                    ถาวรใน rail 320px ซึ่งแคบอยู่แล้ว. absolute + shadow = ลอยทับ timestamp/badge
+                    เฉพาะตอน hover ไม่เบียดความกว้างของเนื้อหาแถวเลย
+                    ปักหมุดไม่อยู่ในชุดนี้ — ดาวหน้าแถวเห็นตลอดเวลาโดยตั้งใจ (เป็น indicator ด้วย) */}
+                <div className="absolute end-2 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded-lg border border-default-200 bg-card p-1 shadow lg:group-hover:flex">
+                  <button
+                    type="button"
+                    onClick={() => handleRowAction(c.id, isResolved ? 'reopen' : 'resolve')}
+                    disabled={actioningId === c.id}
+                    aria-label={isResolved ? 'เปิดบทสนทนานี้ใหม่' : 'ปิดงานบทสนทนานี้'}
+                    title={isResolved ? 'เปิดใหม่' : 'ปิดงาน'}
+                    className="btn btn-icon btn-sm text-default-600 hover:bg-default-100 disabled:opacity-50"
+                  >
+                    <Icon icon={isResolved ? 'arrow-back-up' : 'circle-check'} width={16} height={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRowAction(c.id, filter.hidden ? 'unhide' : 'hide')}
+                    disabled={actioningId === c.id}
+                    aria-label={filter.hidden ? 'เลิกซ่อนบทสนทนานี้' : 'ซ่อนบทสนทนานี้'}
+                    title={filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
+                    className="btn btn-icon btn-sm text-default-600 hover:bg-default-100 disabled:opacity-50"
+                  >
+                    <Icon icon={filter.hidden ? 'eye' : 'eye-off'} width={16} height={16} />
+                  </button>
                 </div>
               </div>
             )
