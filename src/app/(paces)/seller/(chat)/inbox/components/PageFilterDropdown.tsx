@@ -35,6 +35,10 @@ type Props = {
   value: string
   options: ChannelFilterOption[]
   onChange: (value: string) => void
+  /** controlled open — state อยู่ที่ InboxList เพื่อให้ popover ตัวกรองเปิดได้ทีละตัว
+   *  (bug: เดิมต่างคนต่างถือ state เปิดพร้อมกันแล้วทับกันเอง) */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 /** avatar เพจ — รูปจริง (ShopChannel.avatarUrl) + fallback ตัวอักษรแรกของชื่อเพจเมื่อไม่มีรูป/โหลดพัง */
@@ -59,19 +63,19 @@ function PageAvatar({ avatarUrl, name }: { avatarUrl: string | null; name: strin
   )
 }
 
-export default function PageFilterDropdown({ value, options, onChange }: Props) {
-  const [open, setOpen] = useState(false)
+export default function PageFilterDropdown({ value, options, onChange, open, onOpenChange }: Props) {
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   // click-outside + Escape — คัดลอกกลไกจาก FilterDropdown.tsx ตรง ๆ (ดู comment หัวไฟล์)
   useEffect(() => {
     if (!open) return
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) onOpenChange(false)
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') onOpenChange(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKey)
@@ -79,12 +83,24 @@ export default function PageFilterDropdown({ value, options, onChange }: Props) 
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleKey)
     }
-  }, [open])
+  }, [open, onOpenChange])
 
   // ปิดเมนู → เคลียร์คำค้นหา กันเปิดใหม่ครั้งถัดไปแล้วเจอผลกรองเก่าค้าง
   useEffect(() => {
     if (!open) setSearch('')
   }, [open])
+
+  // WARNING: focus ต้องเป็น preventScroll เสมอ — ห้ามกลับไปใช้ autoFocus (bug จริงบน prod 2026-07-23):
+  // autoFocus/focus() ปกติทำให้เบราว์เซอร์ scroll ancestor ที่ scroll ได้ (SimpleBar ของ Chat Rail
+  // = .simplebar-content-wrapper overflow:auto) เพื่อให้ input โผล่ → ทั้งรายการเลื่อนไปทางซ้าย
+  // และเลื่อนกลับเองไม่ได้เพราะ scrollbar ถูกซ่อน (scrollbar-width:none)
+  useEffect(() => {
+    if (open) searchRef.current?.focus({ preventScroll: true })
+  }, [open])
+
+  /** ช่องค้นหาโผล่เมื่อเพจเยอะพอที่จะหาเองไม่ไหว — ร้านทั่วไป 1-3 เพจ ไม่ต้องมี (และคีย์บอร์ด
+   *  มือถือจะเด้งทับรายการทันทีที่เปิด ทั้งที่กวาดตาเห็นครบอยู่แล้ว) */
+  const showSearch = options.length > 6
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -97,12 +113,14 @@ export default function PageFilterDropdown({ value, options, onChange }: Props) 
   const triggerLabel = isActive ? (selected?.name ?? 'เพจ') : 'ทุกเพจ'
 
   return (
-    <div className="relative inline-flex" ref={ref}>
+    // ไม่มี `relative` ที่ root โดยตั้งใจ — popover ต้องอ้างอิง "แถวตัวกรอง" (relative ที่ InboxList)
+    // ไม่ใช่ปุ่ม เพื่อให้กว้างเท่าแถวพอดี ไม่ล้นออกนอก Chat Rail (ดู comment ที่ popover ด้านล่าง)
+    <div className="inline-flex" ref={ref}>
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((p) => !p)}
+        onClick={() => onOpenChange(!open)}
         className={`btn btn-sm text-nowrap ${
           isActive ? 'bg-primary/15 text-primary hover:bg-primary hover:text-white' : 'bg-light text-dark'
         }`}
@@ -113,23 +131,30 @@ export default function PageFilterDropdown({ value, options, onChange }: Props) 
       </button>
 
       {open && (
+        // inset-x-0 (ไม่ใช่ start-0 + w-72): popover กว้างเท่า "แถวตัวกรอง" พอดีเสมอ ไม่ล้นออกนอก
+        // Chat Rail (320px) / ขอบจอมือถือ — bug จริงบน prod 2026-07-23: w-72 ที่ start-0 ของปุ่ม
+        // ล้นคอนเทนเนอร์ → SimpleBar/ancestor scroll แนวนอน ทั้งรายการเลื่อนซ้ายแล้วเลื่อนกลับไม่ได้
         <div
           role="menu"
           aria-label="เลือกเพจ"
-          className="bg-card border-default-300 absolute start-0 top-full z-30 mt-1 w-72 rounded border p-2 shadow-lg"
+          className="bg-card border-default-300 absolute inset-x-0 top-full z-30 mt-1 rounded-lg border p-2 shadow-lg"
         >
-          {/* ช่องค้นหา — Base ContactList.tsx:19-24, กรอง client-side (ไม่ยิง API) */}
-          <div className="input-icon-group mb-2">
-            <Icon icon="search" className="input-icon" />
-            <input
-              type="search"
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="ค้นหาเพจ"
-              className="form-input bg-light/30"
-            />
-          </div>
+          {/* ช่องค้นหา — Base ContactList.tsx:19-24, กรอง client-side (ไม่ยิง API)
+              แสดงเฉพาะเมื่อเพจเยอะพอที่จะต้องค้นหาจริง: ร้านทั่วไปมี 1-3 เพจ การโชว์ช่องค้นหา
+              (+ โฟกัสอัตโนมัติ = คีย์บอร์ดมือถือเด้งทับรายการ) เป็นภาระเปล่า ๆ */}
+          {showSearch && (
+            <div className="input-icon-group mb-2">
+              <Icon icon="search" className="input-icon" />
+              <input
+                ref={searchRef}
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ค้นหาเพจ"
+                className="form-input bg-light/30"
+              />
+            </div>
+          )}
 
           <div className="max-h-72 space-y-0.5 overflow-y-auto">
             {/* "ทุกเพจ" — ค่า default ปักไว้บนสุดเสมอ ไม่ผ่านตัวกรองค้นหา (ไม่ใช่ชื่อเพจจริง) */}
@@ -139,7 +164,7 @@ export default function PageFilterDropdown({ value, options, onChange }: Props) 
               aria-checked={value === ''}
               onClick={() => {
                 onChange('')
-                setOpen(false)
+                onOpenChange(false)
               }}
               className={`dropdown-item w-full text-start ${value === '' ? 'active' : ''}`}
             >
@@ -171,7 +196,7 @@ export default function PageFilterDropdown({ value, options, onChange }: Props) 
                     aria-checked={active}
                     onClick={() => {
                       onChange(c.id)
-                      setOpen(false)
+                      onOpenChange(false)
                     }}
                     className={`dropdown-item w-full text-start ${active ? 'active' : ''}`}
                   >
