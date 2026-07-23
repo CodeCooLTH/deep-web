@@ -146,6 +146,9 @@ export default async function SellerInboxPage() {
         buyerLastReadAt: c.buyerLastReadAt ? c.buyerLastReadAt.toISOString() : null,
         shopLastReadAt: c.shopLastReadAt ? c.shopLastReadAt.toISOString() : null,
         createdAt: c.createdAt.toISOString(),
+        // S-7 (ตัวกรอง/จัดการเธรด) — pin indicator + badge "ปิดงานแล้ว"
+        isPinned: c.isPinned,
+        resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,
         counterparty,
       }
     })

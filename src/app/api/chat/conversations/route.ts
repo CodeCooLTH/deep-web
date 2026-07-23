@@ -156,6 +156,11 @@ export async function GET(request: NextRequest) {
     channel: searchParams.get("channel") ?? undefined,
     shopChannelId: searchParams.get("shopChannelId") ?? undefined,
     q: searchParams.get("q") ?? undefined,
+    // S-7 (ตัวกรองแชท): status/customerLinked เป็น picklist string; hidden เป็น query string
+    // "true"/"false" → แปลงเป็น boolean ก่อน valibot (query param ไม่มี type boolean เอง)
+    status: searchParams.get("status") ?? undefined,
+    customerLinked: searchParams.get("customerLinked") ?? undefined,
+    hidden: searchParams.get("hidden") === "true" ? true : undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -180,6 +185,9 @@ export async function GET(request: NextRequest) {
       channel: parsed.output.channel,
       shopChannelId: parsed.output.shopChannelId,
       q: parsed.output.q,
+      status: parsed.output.status,
+      customerLinked: parsed.output.customerLinked,
+      hidden: parsed.output.hidden,
     });
     // B1: seller เห็น counterparty = buyer identity
     const items = await enrichWithBuyerCounterparty(result.items);

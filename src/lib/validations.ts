@@ -732,6 +732,10 @@ export const ChatConversationsQuerySchema = v.object({
   channel: v.optional(v.picklist(['DEEP', 'MESSENGER', 'INSTAGRAM'])),
   shopChannelId: v.optional(v.pipe(v.string(), v.uuid())),
   q: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),
+  // S-7 (ตัวกรองแชท) — seller เท่านั้น (buyer branch ไม่ใช้). hidden แปลงเป็น boolean ที่ route แล้ว
+  status: v.optional(v.picklist(['open', 'resolved', 'all'])),
+  customerLinked: v.optional(v.picklist(['all', 'linked', 'unlinked'])),
+  hidden: v.optional(v.boolean()),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership

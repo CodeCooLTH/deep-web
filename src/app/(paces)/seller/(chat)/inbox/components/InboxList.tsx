@@ -61,8 +61,11 @@ import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { pacesToast } from '@/lib/paces-toast'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
+import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
+import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
+import ConversationRowMenu, { type RowAction } from './ConversationRowMenu'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
@@ -76,6 +79,9 @@ export type ConversationListItem = {
   buyerLastReadAt: string | null
   shopLastReadAt: string | null
   createdAt: string
+  // S-7 (ตัวกรอง/จัดการเธรด) — pin indicator + badge "ปิดงานแล้ว" + ตัดสิน action ใน kebab
+  isPinned: boolean
+  resolvedAt: string | null
   counterparty: { displayName: string; avatar: string | null } | null
 }
 
@@ -135,6 +141,9 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
   // ── T3: filter/search state — ขับ tab ด้วย React state เอง (ไม่ใช้ data-hs-tab) ──
   const [channelTab, setChannelTab] = useState<ChannelTab>('ALL')
   const [pageFilter, setPageFilter] = useState('') // shopChannelId, '' = ทุกเพจ
+  // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
+  const [filter, setFilter] = useState<ChatFilterState>(DEFAULT_CHAT_FILTER)
+  const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
 
   // ── ช่องค้นหา ──
   // railMode=true: query มาจาก ChatSearchContext (topbar เขียน, ที่นี่แค่อ่าน debouncedQuery —
@@ -165,6 +174,10 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
       if (channelTab !== 'ALL') params.set('channel', channelTab)
       if (pageFilter) params.set('shopChannelId', pageFilter)
       if (debouncedQuery) params.set('q', debouncedQuery)
+      // S-7 ตัวกรอง — ส่งเฉพาะที่ไม่ใช่ default (ลด query param ที่ไม่จำเป็น; backend default = open/false)
+      if (filter.status !== 'open') params.set('status', filter.status)
+      if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
+      if (filter.hidden) params.set('hidden', 'true')
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!res.ok) throw new Error('load failed')
       const data: ApiResponse = await res.json()
@@ -190,7 +203,7 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden])
 
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
@@ -201,8 +214,48 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
   const clearFilters = () => {
     setChannelTab('ALL')
     setPageFilter('')
+    setFilter(DEFAULT_CHAT_FILTER)
     if (railMode) chatSearchQuery.setSearchInput('')
     else setLocalSearchInput('')
+  }
+
+  // S-7: ปักหมุด/ซ่อน/ปิดงาน — PATCH แล้ว refetch list (append:false) + toast; "ซ่อน" ยืนยันก่อน
+  const handleRowAction = async (id: string, action: RowAction) => {
+    if (actioningId) return
+    if (action === 'hide') {
+      const ok = await pacesConfirm.question(
+        'ซ่อนบทสนทนานี้?',
+        'จะไม่แสดงในรายการหลัก ดูอีกครั้งได้จากตัวกรอง "เมนูที่ซ่อนอยู่"',
+        { confirmButtonText: 'ซ่อน' },
+      )
+      if (!ok) return
+    }
+    setActioningId(id)
+    try {
+      const res = await fetch(`/api/chat/conversations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) {
+        pacesToast.chat.error('ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง')
+        return
+      }
+      const TOAST: Record<RowAction, string> = {
+        pin: 'ปักหมุดบทสนทนาแล้ว',
+        unpin: 'เลิกปักหมุดแล้ว',
+        hide: 'ซ่อนบทสนทนาแล้ว',
+        unhide: 'เลิกซ่อนแล้ว',
+        resolve: 'ปิดงานแล้ว — ดูได้จากตัวกรองสถานะ "ปิดงานแล้ว"',
+        reopen: 'เปิดบทสนทนาใหม่แล้ว',
+      }
+      pacesToast.chat.success(TOAST[action])
+      await fetchList({ append: false })
+    } catch {
+      pacesToast.chat.error('ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setActioningId(null)
+    }
   }
 
   // sentinel — re-attach ทุกครั้งที่ items เปลี่ยน (sentinel ย้ายตำแหน่ง) เหมือน NotificationFeed
@@ -282,43 +335,80 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
           })}
         </div>
 
-        {/* ตัวกรอง "เพจ" — ซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจให้เลือก
-            feat 00018 งาน 2: FilterDropdown ธรรมดา → PageFilterDropdown (search + radio + avatar) */}
-        {channelTab !== 'DEEP' && channels.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <PageFilterDropdown value={pageFilter} options={channels} onChange={setPageFilter} />
+        {/* แถวตัวกรอง — S-7: ปุ่ม "ตัวกรอง" (สถานะ/ผูกลูกค้า/ที่ซ่อน) แสดงเสมอ (ใช้ได้ทุกช่องทาง);
+            ตัวกรอง "เพจ" ยังซ่อนเมื่อ tab=Deep (filter ไม่ apply) หรือไม่มีเพจ */}
+        <div className="flex flex-wrap items-center gap-2">
+          <InboxFilterPanel
+            value={filter}
+            onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
+            onClear={() => setFilter(DEFAULT_CHAT_FILTER)}
+          />
 
-            {/* active-filter chip — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น */}
-            {pageFilter && selectedPageName && (
-              <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-                {selectedPageName}
-                <button
-                  type="button"
-                  onClick={() => setPageFilter('')}
-                  aria-label="ล้างตัวกรองเพจ"
-                  className="inline-flex items-center"
-                >
-                  <Icon icon="x" width={12} height={12} />
-                </button>
-              </span>
-            )}
-          </div>
-        )}
+          {channelTab !== 'DEEP' && channels.length > 0 && (
+            <PageFilterDropdown value={pageFilter} options={channels} onChange={setPageFilter} />
+          )}
+
+          {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น */}
+          {pageFilter && selectedPageName && (
+            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              {selectedPageName}
+              <button type="button" onClick={() => setPageFilter('')} aria-label="ล้างตัวกรองเพจ" className="inline-flex items-center">
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          )}
+          {filter.status !== 'open' && (
+            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              สถานะ: {filter.status === 'resolved' ? 'ปิดงานแล้ว' : 'ทั้งหมด'}
+              <button type="button" onClick={() => setFilter((f) => ({ ...f, status: 'open' }))} aria-label="ล้างตัวกรองสถานะ" className="inline-flex items-center">
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          )}
+          {filter.customerLinked !== 'all' && (
+            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              {filter.customerLinked === 'linked' ? 'ผูกลูกค้าแล้ว' : 'ยังไม่ผูกลูกค้า'}
+              <button type="button" onClick={() => setFilter((f) => ({ ...f, customerLinked: 'all' }))} aria-label="ล้างตัวกรองผูกลูกค้า" className="inline-flex items-center">
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          )}
+          {filter.hidden && (
+            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              กำลังดูที่ซ่อนอยู่
+              <button type="button" onClick={() => setFilter((f) => ({ ...f, hidden: false }))} aria-label="เลิกดูที่ซ่อนอยู่" className="inline-flex items-center">
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          )}
+        </div>
       </div>
 
       {items.length === 0 ? (
         <div className="card-body">
-          <SellerEmptyState
-            compact
-            icon="filter"
-            title="ไม่พบบทสนทนาตามที่กรอง"
-            description="ลองเปลี่ยนคำค้นหาหรือล้างตัวกรองแล้วลองใหม่"
-          />
-          <div className="flex justify-center pb-4">
-            <button type="button" onClick={clearFilters} className="btn bg-light text-dark btn-sm">
-              ล้างตัวกรอง
-            </button>
-          </div>
+          {filter.hidden ? (
+            // edge state เฉพาะโหมด "ที่ซ่อนอยู่" — ไม่เด่นปุ่มล้างตัวกรอง (ผู้ใช้ตั้งใจเข้ามาดูโหมดนี้)
+            <SellerEmptyState
+              compact
+              icon="eye-off"
+              title="ยังไม่มีบทสนทนาที่ซ่อนไว้"
+              description="กดเมนู (⋮) ที่บทสนทนาแล้วเลือก “ซ่อน” เพื่อย้ายมาไว้ที่นี่"
+            />
+          ) : (
+            <>
+              <SellerEmptyState
+                compact
+                icon="filter"
+                title="ไม่พบบทสนทนาตามที่กรอง"
+                description="ลองเปลี่ยนคำค้นหาหรือล้างตัวกรองแล้วลองใหม่"
+              />
+              <div className="flex justify-center pb-4">
+                <button type="button" onClick={clearFilters} className="btn bg-light text-dark btn-sm">
+                  ล้างตัวกรอง
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="card-body divide-y divide-default-200 !p-0">
@@ -326,15 +416,12 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
             const unread = isUnread(c)
             const name = c.counterparty?.displayName ?? (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
             const preview = c.lastMessagePreview ?? 'เริ่มการสนทนาแล้ว'
+            const isResolved = c.resolvedAt !== null
             return (
-              <Link
-                key={c.id}
-                href={`/inbox/${c.id}`}
-                className="hover:bg-default-100 block w-full"
-              >
-                {/* row — Base ContactList.tsx:44 `flex justify-between gap-3 px-3.75 py-3` (ไม่มี
-                    items-center บน outer row — child ทั้งสองฝั่งมี items-center/items-end ของตัวเองแล้ว) */}
-                <div className="flex justify-between gap-3 px-3.75 py-3">
+              // S-7: แยก <Link> (เนื้อหาแถว) ออกจาก kebab (sibling) — nested button ใน anchor เป็น
+              // invalid HTML + คลิก kebab จะ propagate ไป navigate. outer div รับ hover ทั้งแถว
+              <div key={c.id} className="hover:bg-default-100 flex items-stretch">
+                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 px-3.75 py-3">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
@@ -347,15 +434,30 @@ export default function InboxList({ initialItems, initialNextCursor, channels, r
                   </div>
 
                   <span className="flex shrink-0 flex-col items-end justify-center gap-1.25">
-                    <span className="text-default-400 text-xs">
+                    <span className="text-default-400 flex items-center gap-1 text-xs">
+                      {c.isPinned && <Icon icon="pinned-filled" width={12} height={12} className="text-primary" />}
                       {relativeTimeTh(new Date(c.lastMessageAt).getTime())}
                     </span>
-                    {unread && (
-                      <span className="badge text-2xs bg-danger text-white">ใหม่</span>
+                    {/* resolved กับ unread ไม่โชว์พร้อมกัน (เธรดปิดงานแล้วไม่มี unread ตาม flow) */}
+                    {isResolved ? (
+                      <span className="badge text-2xs bg-success/15 text-success">ปิดงานแล้ว</span>
+                    ) : (
+                      unread && <span className="badge text-2xs bg-danger text-white">ใหม่</span>
                     )}
                   </span>
+                </Link>
+
+                {/* kebab actions — นอก Link (sibling) */}
+                <div className="flex items-center pe-2">
+                  <ConversationRowMenu
+                    isPinned={c.isPinned}
+                    isResolved={isResolved}
+                    hiddenContext={filter.hidden}
+                    busy={actioningId === c.id}
+                    onAction={(a) => handleRowAction(c.id, a)}
+                  />
                 </div>
-              </Link>
+              </div>
             )
           })}
 

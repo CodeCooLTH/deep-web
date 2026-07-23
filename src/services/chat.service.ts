@@ -21,6 +21,10 @@ export interface ConversationSummary {
   shopChannelId: string | null
   externalContactId: string | null
   lastInboundAt: Date | null
+  // S-7 (ตัวกรอง/จัดการเธรด) — findMany ไม่มี select จึงคืนทุกคอลัมน์จริงตอน runtime (cast ปลอดภัย);
+  // ประกาศเพิ่มเพื่อให้ UI ใช้ทำ pin indicator + badge "ปิดงานแล้ว" (route spread ...i ส่งต่อเอง)
+  isPinned: boolean
+  resolvedAt: Date | null
 }
 
 export interface ChatMessageView {
