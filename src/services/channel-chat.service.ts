@@ -218,9 +218,13 @@ export async function ingestInboundMessage(params: {
         ? 'IMAGE' // รูปที่ mirror ไม่ผ่าน → คง type IMAGE (imageUrl null + placeholder) ตามพฤติกรรมเดิม (I-5)
         : 'TEXT' // วิดีโอ/เสียง/ไฟล์ที่ mirror ไม่ผ่าน (เกินขนาด/ชนิดไม่รองรับ) → TEXT + placeholder
   const hasAttachment = !!firstAttachment
+  const hasText = !!text && text.trim().length > 0
   // placeholder แยกภาพ vs อื่น ๆ (I-5) — ต้องมี body/preview ที่สื่อความหมายเสมอ ไม่งั้น bubble ว่าง
   const attachmentFailedText = attType === 'image' ? MIRROR_FAILED_TEXT : UNSUPPORTED_ATTACHMENT_TEXT
-  const body = mirroredFileId ? text : hasAttachment ? attachmentFailedText : text
+  // ข้อความที่ไม่มีทั้ง text และ attachment (สติกเกอร์/reaction/ชนิดพิเศษที่ Messenger ส่ง message มา
+  // แต่ไม่มีเนื้อหาที่เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
+  const emptyMessageText = '[ข้อความไม่รองรับ — เปิดดูใน Messenger]'
+  const body = mirroredFileId ? text : hasAttachment ? attachmentFailedText : hasText ? text : emptyMessageText
   const previewByType: Record<string, string> = {
     IMAGE: '[รูปภาพ]',
     VIDEO: '[วิดีโอ]',
@@ -231,7 +235,9 @@ export async function ingestInboundMessage(params: {
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
     : hasAttachment
       ? attachmentFailedText
-      : (text ?? '').slice(0, 100)
+      : hasText
+        ? text!.slice(0, 100)
+        : emptyMessageText
   const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
   const mid = event.message.mid
 

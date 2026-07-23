@@ -130,7 +130,15 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           docs/conventions/no-emoji-use-icons.md ที่ห้าม emoji และห้ามเดา icon ที่ spec ไม่ระบุ)
           px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย
           text-sm + gap-1.5: 3 แท็บพร้อมไอคอนต้องพอดีความกว้าง 384px ของคอลัมน์นี้โดยไม่ตกบรรทัด */}
-      <nav className="nav-tabs px-4" role="tablist" aria-label="ข้อมูลลูกค้า">
+      {/* my-0/me-0: `.nav-tabs` ของ Paces มี `-my-3.75 -me-3` ในตัว (ออกแบบมาให้ฝังใน .card-header
+          ที่มี py-3.75 อยู่แล้ว) — พอเอามาใช้เป็นแถบเดี่ยวแบบนี้ margin ติดลบดันแถบขึ้นจนเส้น
+          border-b ของแท็บที่ active ไปตกในพื้นที่เนื้อหา เห็นเป็นเส้นลอยเหนือหัวข้อ (user เจอจริง)
+          ล้าง margin แล้วให้ตัว nav ถือเส้น rail เอง + แท็บ active วางทับเส้นด้วย -mb-px */}
+      <nav
+        className="nav-tabs border-default-200 my-0 me-0 border-b px-4"
+        role="tablist"
+        aria-label="ข้อมูลลูกค้า"
+      >
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -138,8 +146,8 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`nav-link inline-flex items-center gap-1.5 px-3 text-sm ${
-              tab === t.key ? 'border-b border-primary text-primary' : ''
+            className={`nav-link -mb-px inline-flex items-center gap-1.5 px-3 py-3 text-sm ${
+              tab === t.key ? 'border-b-2 border-primary text-primary font-semibold' : 'border-b-2 border-transparent'
             }`}
           >
             <Icon icon={t.icon} className="text-base" />
@@ -148,7 +156,11 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         ))}
       </nav>
 
-      <div className="p-4">
+      {/* min-h-0 + flex-1 + overflow-y-auto: การ์ดสูงเต็มคอลัมน์ (ดู shell ด้านล่าง) แล้วให้ "เนื้อหา"
+          เป็นส่วนที่เลื่อน ไม่ใช่ทั้งการ์ด — หัวการ์ด (ชื่อ+ช่องทาง) กับแถบแท็บจึงค้างอยู่เสมอ
+          เหมือนแผงข้อมูลของแอปแชทจริง. ในโหมด sheet (มือถือ) parent เป็น block + scroll เองอยู่แล้ว
+          flex-1 จึงไม่มีผลและไม่เกิด scroll ซ้อน */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
         {tab === 'customer' ? (
           <div className="space-y-4">
             {/* feature 00018 CRM — แก้ไข tag/note/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
@@ -157,10 +169,10 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
                 เดิมสถานะ "ยังไม่ผูก" กินพื้นที่เป็นย่อหน้าอธิบายกลไก + ปุ่มสร้างออเดอร์ ซึ่ง
                 (ก) อธิบายกลไกภายในระบบให้คนที่ไม่ได้ถาม (ข) ปุ่มไม่ prefill อะไรเลย จึงไม่ได้
                 ช่วยงานตรงจุดนี้ — เหลือเป็นแถวข้อมูลแถวเดียวรูปแบบเดียวกับฟิลด์อื่นใน
-                CustomerCrmSection (label 2xs + ค่า / "—" เมื่อยังไม่มี) ปุ่มสร้างออเดอร์ยังอยู่
+                CustomerCrmSection (label + ค่า / "—" เมื่อยังไม่มี) ปุ่มสร้างออเดอร์ยังอยู่
                 ในแท็บออเดอร์ซึ่งเป็นบริบทที่ตรงกว่า */}
             <div>
-              <p className="text-default-400 mb-0.5 text-2xs">รหัสลูกค้า</p>
+              <p className="text-default-400 mb-0.5 text-xs">รหัสลูกค้า</p>
               <div className="text-default-800 text-sm">
                 {data.customer ? (
                   <span className="font-mono font-semibold">#{data.customer.id.slice(0, 8).toUpperCase()}</span>
@@ -229,7 +241,10 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
  * scale, ไม่ใช่ bracket arbitrary — ดู comment page.tsx ส่วน CustomerPanel wrapper) */
 export default function CustomerPanel({ data }: { data: CustomerPanelData }) {
   return (
-    <div className="card">
+    // h-full + flex-col: การ์ดสูงเต็มคอลัมน์ที่ page.tsx จองไว้ (เดิมการ์ดสูงเท่าเนื้อหาแล้วเหลือ
+    // พื้นที่ว่างครึ่งจอด้านล่าง — เห็นชัดมากหลังตัด gap ระหว่างคอลัมน์ออก) ส่วนที่เลื่อนคือเนื้อหา
+    // ในแท็บ ไม่ใช่ทั้งการ์ด (ดู comment ที่ CustomerPanelBody)
+    <div className="card flex h-full flex-col">
       <CustomerPanelBody data={data} />
     </div>
   )

@@ -437,7 +437,11 @@ export default function ChatThread({
       )}
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
-      <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto py-4">
+      {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย
+          ทำให้ด้านบนขยับตลอด"): เมื่อเลื่อนถึงหัว/ท้ายรายการข้อความ เบราว์เซอร์จะส่ง scroll ต่อไปให้
+          ancestor ที่เลื่อนได้ (scroll chaining) → คอลัมน์กลางของ (chat)/layout.tsx และหน้าเว็บ
+          ขยับตาม หัวแชทเลื่อนหนีทั้งที่ควรค้าง. overscroll-contain ตัด chain ที่ container นี้ */}
+      <div ref={scrollRef} className="card-body min-h-0 grow overflow-y-auto overscroll-contain py-4">
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex justify-center py-2">
             {loadingOlder && (
@@ -528,6 +532,11 @@ export default function ChatThread({
                               <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
                                 {m.body}
                               </p>
+                            )}
+                            {/* กันบับเบิลว่าง (ข้อมูลเก่า/ข้อความไม่รองรับที่ body ว่าง) — แสดง placeholder จาง ๆ
+                                (อยู่ใน branch non-PRODUCT แล้ว จึงเช็คแค่ body/imageUrl ว่าง) */}
+                            {!m.body && !m.imageUrl && (
+                              <p className="text-default-400 mb-0 text-sm italic">ข้อความไม่รองรับ — เปิดดูใน Messenger</p>
                             )}
                             {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — warning banner เฉพาะ
                                 TEXT ที่ flaggedScam=true (BR-SCAM-04 scan เฉพาะ TEXT); WARN เท่านั้น
