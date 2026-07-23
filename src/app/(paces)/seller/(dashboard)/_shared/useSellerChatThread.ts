@@ -31,12 +31,17 @@ export type ChatProductCard = {
   isActive: boolean
 }
 
+// optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"
+// imageUrl optional (ไม่ใส่เลยสำหรับ TEXT) — SendChatMessageSchema.imageUrl ไม่รับ null รับแค่ string/undefined
+export type OutgoingRetry = { type: 'TEXT' | 'IMAGE'; body: string | null; imageUrl?: string }
+
 export type ChatMessageView = {
   id: string
   conversationId: string
   senderUserId: string
   senderRole: 'BUYER' | 'SHOP'
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT'
+  // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE'
   body: string | null
   imageUrl: string | null
   createdAt: string
@@ -44,6 +49,10 @@ export type ChatMessageView = {
   // extension #3 Scam-link Detection (FR-SCAM-03/04) — API GET/POST enrich ต่อข้อความ TEXT เท่านั้น
   // (S-30 chat.service.ts ChatMessageView) ใช้แสดง warning banner ในบับเบิล ไม่ block ส่ง
   flaggedScam?: boolean
+  // optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'sent'=check, 'failed'=refresh แดง
+  _status?: 'sending' | 'sent' | 'failed'
+  // payload สำหรับ resend เมื่อ _status='failed' (เก็บเฉพาะข้อความ optimistic ที่ยังไม่สำเร็จ)
+  _retry?: OutgoingRetry
 }
 
 type MessagesApiResponse = { items: ChatMessageView[]; nextCursor: string | null }
@@ -70,8 +79,10 @@ export function useSellerChatThread(conversationId: string) {
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [loadingOlder, setLoadingOlder] = useState(false)
-  const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // optimistic send: composer ไม่ block ระหว่างส่งอีกต่อไป (แต่ละบับเบิลมี _status ของตัวเอง) —
+  // คง prop `sending` ไว้ให้ ChatWidgetThreadPanel เดิม (bubble widget) ที่ยังอ้างถึง = false เสมอ
+  const sending = false
   const [errorState, setErrorState] = useState(false)
   const [text, setText] = useState('')
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
@@ -251,46 +262,74 @@ export function useSellerChatThread(conversationId: string) {
     setPendingImage(null)
   }
 
-  // ── ส่งข้อความ ───────────────────────────────────────────────────────
-  const handleSend = async () => {
-    if (sending) return
+  // ── ส่งข้อความ (optimistic) ───────────────────────────────────────────
+  // กด send → แสดงบับเบิลทันที (_status='sending' spinner) + เคลียร์ช่องพิมพ์ → POST เบื้องหลัง
+  // สำเร็จ → แทนด้วยแถวจริง (_status='sent' check) / ล้มเหลว → _status='failed' (refresh แดง กดลองใหม่)
+  const localIdRef = useRef(0)
+
+  const postMessage = useCallback(
+    async (localId: string, payload: OutgoingRetry) => {
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) {
+          if (res.status === 429) pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+          setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
+          return
+        }
+        const real: ChatMessageView = await res.json()
+        // แทน optimistic ด้วยแถวจริง + กันซ้ำถ้า realtime ดึงแถวจริง (id เดียวกัน) มาก่อนแล้ว
+        setMessages((prev) => {
+          const deduped = prev.filter((m) => m.id !== real.id)
+          return deduped.map((m) => (m.id === localId ? { ...real, _status: 'sent' as const } : m))
+        })
+      } catch {
+        setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
+      }
+    },
+    [conversationId],
+  )
+
+  const handleSend = () => {
     const trimmed = text.trim()
     if (!pendingImage && trimmed.length === 0) return
 
-    setSending(true)
-    try {
-      const payload = pendingImage
-        ? { type: 'IMAGE' as const, imageUrl: pendingImage.fileId, body: trimmed || null }
-        : { type: 'TEXT' as const, body: trimmed }
+    const payload: OutgoingRetry = pendingImage
+      ? { type: 'IMAGE', imageUrl: pendingImage.fileId, body: trimmed || null }
+      : { type: 'TEXT', body: trimmed }
 
-      const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (res.status === 429) {
-        pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
-        return
-      }
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        pacesToast.error(data?.error ?? 'ส่งข้อความไม่สำเร็จ ลองใหม่อีกครั้ง')
-        return
-      }
-
-      const message: ChatMessageView = await res.json()
-      setMessages((prev) => [...prev, message])
-      setText('')
-      if (pendingImage) URL.revokeObjectURL(pendingImage.previewUrl)
-      setPendingImage(null)
-      scrollToBottom()
-    } catch {
-      pacesToast.error('ส่งข้อความไม่สำเร็จ ลองใหม่อีกครั้ง')
-    } finally {
-      setSending(false)
+    const localId = `local-${localIdRef.current++}-${Date.now()}`
+    const optimistic: ChatMessageView = {
+      id: localId,
+      conversationId,
+      senderUserId: '',
+      senderRole: 'SHOP',
+      type: payload.type,
+      body: payload.body,
+      imageUrl: payload.imageUrl ?? null,
+      createdAt: new Date().toISOString(),
+      _status: 'sending',
+      _retry: payload,
     }
+    setMessages((prev) => [...prev, optimistic])
+    setText('')
+    // บับเบิล optimistic render รูปจาก /api/files/{fileId} (อัปโหลดแล้วตอนแนบ) — revoke preview ได้เลย
+    if (pendingImage) URL.revokeObjectURL(pendingImage.previewUrl)
+    setPendingImage(null)
+    scrollToBottom()
+    postMessage(localId, payload)
   }
+
+  const retryMessage = useCallback(
+    (localId: string, payload: OutgoingRetry) => {
+      setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'sending' as const } : m)))
+      postMessage(localId, payload)
+    },
+    [postMessage],
+  )
 
   return {
     messages,
@@ -311,5 +350,7 @@ export function useSellerChatThread(conversationId: string) {
     handleFileChange,
     handleRemoveImage,
     handleSend,
+    // optimistic send — resend เมื่อบับเบิล _status='failed'
+    retryMessage,
   }
 }

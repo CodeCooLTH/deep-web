@@ -258,11 +258,13 @@ export default function ChatThread({
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
-  // composer improvement #3 — แผง AI ช่วยร่างคำตอบ (Gemini)
-  const [aiOpen, setAiOpen] = useState(false)
-  // composer improvement #2 — แถบข้อความสำเร็จรูป: ซ่อนไว้ก่อน เปิดด้วยปุ่มสายฟ้าในแถวเครื่องมือ
-  // (user สั่ง 2026-07-23) — เดิมกางค้างเหนือช่องพิมพ์ตลอดเวลา กินที่ทั้งที่ไม่ได้ใช้ทุกครั้ง
-  const [quickOpen, setQuickOpen] = useState(false)
+  // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
+  // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
+  // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
+  const [activePanel, setActivePanel] = useState<'quick' | 'ai' | null>(null)
+  const aiOpen = activePanel === 'ai'
+  const quickOpen = activePanel === 'quick'
+  const togglePanel = (panel: 'quick' | 'ai') => setActivePanel((cur) => (cur === panel ? null : panel))
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
   // ส่งข้อความไม่ได้ (window ปิด/token ตาย) — ดู comment หัวไฟล์
   const isExternal = channel !== 'DEEP'
@@ -299,6 +301,7 @@ export default function ChatThread({
     handleFileChange,
     handleRemoveImage,
     handleSend,
+    retryMessage,
   } = useSellerChatThread(conversationId)
 
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
@@ -310,8 +313,8 @@ export default function ChatThread({
     } else if (qm.body) {
       setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
     }
-    // เลือกแล้วหุบแถบเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างบังช่องพิมพ์ต่อ
-    setQuickOpen(false)
+    // เลือกแล้วหุบแผงเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างดันช่องพิมพ์ต่อ
+    setActivePanel(null)
   }
 
   // ── render ───────────────────────────────────────────────────────────
@@ -443,7 +446,8 @@ export default function ChatThread({
                           มีสี+รูปทรงในตัวอยู่แล้ว กรอบทำให้ดูเป็นกล่องรูป; รูปที่มี caption หรือ text/
                           PRODUCT ยังคงกรอบ bubble ไว้ (bg-light คงที่สำหรับ PRODUCT ตาม BR-CTX-05) */}
                       {(() => {
-                        const bareImage = m.type === 'IMAGE' && m.imageUrl && !m.body
+                        // รูป/วิดีโอล้วน (ไม่มี caption) → ไม่มีกรอบ bubble (มีสี+รูปทรงในตัว); เสียง/ไฟล์คงกรอบ
+                        const bareImage = (m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'PRODUCT' ? (
@@ -457,6 +461,24 @@ export default function ChatThread({
                                 alt="รูปภาพที่ส่ง"
                                 className="max-w-60 rounded"
                               />
+                            )}
+                            {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
+                            {m.type === 'VIDEO' && m.imageUrl && (
+                              <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                            )}
+                            {m.type === 'AUDIO' && m.imageUrl && (
+                              <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                            )}
+                            {m.type === 'FILE' && m.imageUrl && (
+                              <a
+                                href={`/api/files/${m.imageUrl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary flex items-center gap-2 text-sm font-medium hover:underline"
+                              >
+                                <Icon icon="file-download" className="text-lg" />
+                                เปิดไฟล์แนบ
+                              </a>
                             )}
                             {m.body && (
                               <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
@@ -485,10 +507,28 @@ export default function ChatThread({
                           <span>ส่งไม่สำเร็จ — {mExt.failureReason ?? 'ไม่ทราบสาเหตุ'}</span>
                         </div>
                       )}
-                      {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง) */}
+                      {/* Base ChatPage.tsx:72/83 — `mt-1.5 ... text-xs` (+ justify-end ฝั่งตัวเอง)
+                          optimistic send status (mine): spinner กำลังส่ง / check ส่งแล้ว / refresh แดง ลองใหม่ */}
                       <div className={`text-default-400 mt-1.5 flex items-center gap-1 text-xs ${mine ? 'justify-end' : ''}`}>
                         <Icon icon="clock" />
                         {formatTime(m.createdAt)}
+                        {mine && m._status === 'sending' && (
+                          <span className="flex items-center gap-1">
+                            <Icon icon="loader-2" className="animate-spin" />
+                            กำลังส่ง
+                          </span>
+                        )}
+                        {mine && m._status === 'sent' && <Icon icon="check" className="text-success" />}
+                        {mine && m._status === 'failed' && m._retry && (
+                          <button
+                            type="button"
+                            onClick={() => retryMessage(m.id, m._retry!)}
+                            className="text-danger flex items-center gap-1 font-medium hover:underline"
+                          >
+                            <Icon icon="refresh" />
+                            ลองใหม่
+                          </button>
+                        )}
                       </div>
                     </div>
                     {/* avatar ฝั่ง SHOP (ข้อความ mine) — feature 00018 (user request 2026-07-23): แสดง
@@ -517,37 +557,25 @@ export default function ChatThread({
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
-        {/* composer improvement #3 — แผง AI ช่วยร่างคำตอบ (ลอยเหนือช่องพิมพ์) */}
+        {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
+            ทั้งสองใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary) */}
         {aiOpen && (
           <AiSuggestPanel
             conversationId={conversationId}
             onPick={(t) => {
               setText(t)
-              setAiOpen(false)
+              setActivePanel(null)
             }}
-            onClose={() => setAiOpen(false)}
+            onClose={() => setActivePanel(null)}
           />
         )}
 
-        {/* composer improvement #2 — แถบข้อความสำเร็จรูป (pill + จัดการ) — โผล่เมื่อกดปุ่มสายฟ้า
-            ในแถวเครื่องมือเท่านั้น (user สั่ง 2026-07-23) */}
-        {quickOpen && <QuickMessageBar onPick={handleQuickPick} disabled={composerDisabled} />}
-
-        {pendingImage && (
-          <div className="mb-2 flex items-center gap-2">
-            <div className="border-default-200 relative size-14 overflow-hidden rounded-lg border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pendingImage.previewUrl} alt="ตัวอย่างรูปที่จะส่ง" className="size-full object-cover" />
-            </div>
-            <button
-              type="button"
-              onClick={handleRemoveImage}
-              className="btn btn-sm btn-icon border-default-300"
-              aria-label="ลบรูป"
-            >
-              <Icon icon="x" className="text-base" />
-            </button>
-          </div>
+        {quickOpen && (
+          <QuickMessageBar
+            onPick={handleQuickPick}
+            disabled={composerDisabled}
+            onClose={() => setActivePanel(null)}
+          />
         )}
 
         {/* layout ตามที่ user สั่ง 2026-07-23 (ref 12Tees — HR6: เอาโครงจาก ref, skin เป็น Paces):
@@ -560,12 +588,12 @@ export default function ChatThread({
           {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
           <button
             type="button"
-            onClick={() => setQuickOpen((v) => !v)}
+            onClick={() => togglePanel('quick')}
             disabled={composerDisabled}
             aria-label="ข้อความสำเร็จรูป"
             aria-expanded={quickOpen}
             title="ข้อความสำเร็จรูป"
-            className={`btn btn-icon hover:bg-default-100 shrink-0 ${quickOpen ? 'bg-default-100 text-default-900' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-primary/10 shrink-0 ${quickOpen ? 'bg-primary/10 text-primary' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="bolt" className="text-lg" />
           </button>
@@ -607,7 +635,7 @@ export default function ChatThread({
           {/* composer improvement #3 — ปุ่ม AI ช่วยร่างคำตอบ (accent เขียว success ตาม ref) */}
           <button
             type="button"
-            onClick={() => setAiOpen((v) => !v)}
+            onClick={() => togglePanel('ai')}
             disabled={composerDisabled}
             aria-label="AI ช่วยร่างคำตอบ"
             aria-expanded={aiOpen}
@@ -640,20 +668,45 @@ export default function ChatThread({
             (พฤติกรรมเดิมของ input ที่ต้องคงไว้ — textarea จะขึ้นบรรทัดใหม่เองถ้าไม่ preventDefault)
             items-end: ปุ่มส่งชิดล่างเสมอเวลา textarea ยืด ไม่ลอยกลาง */}
         <div className="flex items-end gap-2">
-          <textarea
-            rows={1}
-            className="form-textarea bg-light/20 min-h-11 grow resize-none transition-all focus:min-h-20"
-            placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-            disabled={composerDisabled || sending}
-          />
+          {/* ช่องพิมพ์แบบกล่องเดียว — รูปที่แนบแสดง "ในช่องพิมพ์" (user request 2026-07-23) ให้รู้สึกว่า
+              รูปติดกับข้อความนี้ (เหมือน Messenger); textarea ข้างในไร้ขอบ (กล่องนอกเป็นคนวาดขอบ) แต่ยัง
+              ยืดตอนโฟกัสได้เหมือนเดิม (min-h-11 → focus:min-h-20). border ของกล่อง = focus-within:border-primary */}
+          <div
+            className={`grow overflow-hidden rounded-lg border bg-light/20 ${
+              composerDisabled ? 'border-default-300 opacity-60' : 'border-default-300 focus-within:border-primary'
+            }`}
+          >
+            {pendingImage && (
+              <div className="p-2 pb-0">
+                <div className="relative inline-block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={pendingImage.previewUrl} alt="รูปที่จะส่ง" className="max-h-28 max-w-full rounded-lg object-contain" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    aria-label="ลบรูป"
+                    className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                  >
+                    <Icon icon="x" className="text-sm" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <textarea
+              rows={1}
+              className="min-h-11 block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none transition-all focus:min-h-20 focus:ring-0"
+              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              disabled={composerDisabled}
+            />
+          </div>
 
           <button
             type="button"

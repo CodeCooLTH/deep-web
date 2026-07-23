@@ -10,6 +10,15 @@ export const ALLOWED_TYPES = [
   // เก็บ raw bytes ไม่ re-encode จึงคง animation ไว้. seller upload ฝั่ง chat ยัง gate ด้วย
   // CHAT_IMAGE_ALLOWED_EXT (route messages) แยกต่างหาก จึงไม่เปิดให้ seller ส่ง gif โดยไม่ตั้งใจ
   "image/gif",
+  // วิดีโอ/เสียง: mirror ไฟล์แนบ (วิดีโอสั้น/ข้อความเสียง) จาก Messenger/IG (feature 00018) —
+  // seller upload ปกติไม่แตะชนิดพวกนี้ (gate ด้วย CHAT_IMAGE_ALLOWED_EXT); ขนาดยัง cap ที่ MAX_SIZE
+  // (วิดีโอใหญ่เกินจะ mirror ไม่ผ่าน → ตกไป placeholder ตามเดิม)
+  "video/mp4",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/aac",
+  "audio/ogg",
+  "audio/webm",
   "application/pdf",
 ];
 

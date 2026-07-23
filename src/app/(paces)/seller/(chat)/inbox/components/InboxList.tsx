@@ -409,7 +409,13 @@ export default function InboxList({
           (custom/_card.css) — พอ override เป็น flex-col แล้ว `items-center` ที่เหลืออยู่จะบีบทุกแถว
           ให้กว้างเท่าเนื้อหาแล้วจัดกึ่งกลาง (ปุ่มลอยกลาง ไม่ตรงกับแถวรายการข้างล่างที่ชิดซ้าย +
           แถวตัวกรองไม่เต็มความกว้างจน popover ที่อ้าง inset-x-0 แคบตาม) — ต้อง stretch ทับ */}
-      <div className="card-header flex flex-col items-stretch gap-3 border-dashed">
+      {/* sticky (user สั่ง 2026-07-23): "อยากให้ panel นี้ fixed อยู่บนเสมอ ต่อให้ scroll inbox list"
+          — ค้างบนสุดของกล่อง scroll ทั้งสองโหมด: desktop = SimpleBar ใน ChatRail.tsx,
+          มือถือ/แท็บเล็ต = `<div className="overflow-y-auto">` ใน (chat)/layout.tsx
+          ต้อง bg-card ในตัวเอง (พื้นของ .card อยู่ "หลัง" แถวที่เลื่อนผ่าน — ถ้าหัวโปร่งจะเห็นแถว
+          ทะลุ) + z-10 ให้อยู่เหนือทั้งแถวและชุดปุ่มลอยตอน hover. ใช้ได้จริงเพราะ .card ไม่มี
+          overflow:hidden (custom/_card.css — มีเฉพาะ .card-collapsed) ที่จะตัด sticky ทิ้ง */}
+      <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
         {/* ช่องค้นหา — Base ContactList.tsx:19-24 — railMode (desktop rail) ย้ายขึ้น topbar
             แล้ว (ChatSearchBox.tsx) ไม่ render ซ้ำที่นี่ — มือถือ/แท็บเล็ต drill-down ยังมีเหมือนเดิม */}
         {!railMode && (

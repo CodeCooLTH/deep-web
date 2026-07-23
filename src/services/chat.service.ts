@@ -5,7 +5,7 @@ import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
 
 export type SenderRole = 'BUYER' | 'SHOP'
-export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT'
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE'
 
 export interface ConversationSummary {
   id: string

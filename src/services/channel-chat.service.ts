@@ -36,6 +36,13 @@ const MIRROR_ALLOWED_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
+  // วิดีโอ/เสียง (ไฟล์แนบ Messenger/IG) — ต้องตรงกับ storage ALLOWED_TYPES (feature 00018)
+  'video/mp4': 'mp4',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'audio/ogg': 'ogg',
+  'audio/webm': 'webm',
 }
 
 // bubble ต้องไม่ว่างเปล่าแม้กรณี mirror รูปไม่ผ่าน หรือ attachment เป็นชนิดที่เราไม่รองรับ (I-5)
@@ -51,8 +58,10 @@ const UNSUPPORTED_ATTACHMENT_TEXT = '[ไฟล์แนบ — เปิดด�
 // http://169.254.169.254/... metadata endpoint ของ cloud) เซิร์ฟเวอร์เราจะยิง SSRF ไปแทน
 // เทียบ hostname แบบ exact หรือ suffix ที่ขึ้นต้นด้วย "." เท่านั้น (กัน "evil-fbcdn.net" ปลอมตัว
 // ผ่าน .endsWith('fbcdn.net') ตรง ๆ)
-const MIRROR_ALLOWED_HOSTS_EXACT = new Set(['graph.facebook.com', 'fbcdn.net', 'cdninstagram.com'])
-const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com']
+// fbsbx.com: CDN ของ "ไฟล์แนบ" Messenger (วิดีโอ/เสียง/ไฟล์ มักอยู่ lookaside.fbsbx.com/cdn.fbsbx.com
+// ไม่ใช่ fbcdn.net เหมือนรูป) — feature 00018 mirror ไฟล์แนบ
+const MIRROR_ALLOWED_HOSTS_EXACT = new Set(['graph.facebook.com', 'fbcdn.net', 'cdninstagram.com', 'fbsbx.com'])
+const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com', '.fbsbx.com']
 
 function isAllowedMirrorHost(hostname: string): boolean {
   const h = hostname.toLowerCase()
@@ -193,28 +202,35 @@ export async function ingestInboundMessage(params: {
 
   const text = event.message.text ?? null
   const firstAttachment = event.message.attachments?.[0]
-  const isImage = firstAttachment?.type === 'image'
-  const hasUnsupportedAttachment = !!firstAttachment && !isImage
+  const attType = firstAttachment?.type // 'image'|'video'|'audio'|'file'|'location'|'fallback'|...
+  // ชนิดที่มีไฟล์จริงให้ mirror (payload.url) — image/video/audio/file; location/fallback/template ไม่มี
+  const MIRRORABLE = new Set(['image', 'video', 'audio', 'file'])
+  const isMirrorable = !!attType && MIRRORABLE.has(attType)
   // ต้อง mirror ก่อนเข้า transaction — network call ในทรานแซกชันจะถือ lock DB นานเกินไป
   const mirroredFileId =
-    isImage && firstAttachment?.payload?.url ? await mirrorRemoteImage(firstAttachment.payload.url) : null
-  const type = isImage ? 'IMAGE' : 'TEXT'
-  // ต้องมี body/preview ที่สื่อความหมายเสมอ ไม่งั้น bubble ในหน้า inbox ว่างเปล่า (I-5):
-  // - รูปที่ mirror ไม่ผ่าน (ชนิดไฟล์ storage ไม่รองรับ/โหลดพัง) → placeholder แทนรูป
-  // - attachment ที่ไม่ใช่รูป (วิดีโอ/เสียง/ไฟล์) → placeholder ชวนเปิดใน Messenger
-  const body = isImage
-    ? mirroredFileId
-      ? text
-      : MIRROR_FAILED_TEXT
-    : hasUnsupportedAttachment
-      ? UNSUPPORTED_ATTACHMENT_TEXT
-      : text
-  const preview = isImage
-    ? mirroredFileId
-      ? '[รูปภาพ]'
-      : MIRROR_FAILED_TEXT
-    : hasUnsupportedAttachment
-      ? UNSUPPORTED_ATTACHMENT_TEXT
+    isMirrorable && firstAttachment?.payload?.url ? await mirrorRemoteImage(firstAttachment.payload.url) : null
+  // map attachment.type → ChatMessage.type (String, ไม่ใช่ enum)
+  const MSG_TYPE: Record<string, string> = { image: 'IMAGE', video: 'VIDEO', audio: 'AUDIO', file: 'FILE' }
+  const type =
+    mirroredFileId && attType && MSG_TYPE[attType]
+      ? MSG_TYPE[attType]
+      : attType === 'image'
+        ? 'IMAGE' // รูปที่ mirror ไม่ผ่าน → คง type IMAGE (imageUrl null + placeholder) ตามพฤติกรรมเดิม (I-5)
+        : 'TEXT' // วิดีโอ/เสียง/ไฟล์ที่ mirror ไม่ผ่าน (เกินขนาด/ชนิดไม่รองรับ) → TEXT + placeholder
+  const hasAttachment = !!firstAttachment
+  // placeholder แยกภาพ vs อื่น ๆ (I-5) — ต้องมี body/preview ที่สื่อความหมายเสมอ ไม่งั้น bubble ว่าง
+  const attachmentFailedText = attType === 'image' ? MIRROR_FAILED_TEXT : UNSUPPORTED_ATTACHMENT_TEXT
+  const body = mirroredFileId ? text : hasAttachment ? attachmentFailedText : text
+  const previewByType: Record<string, string> = {
+    IMAGE: '[รูปภาพ]',
+    VIDEO: '[วิดีโอ]',
+    AUDIO: '[ข้อความเสียง]',
+    FILE: '[ไฟล์แนบ]',
+  }
+  const preview = mirroredFileId
+    ? (previewByType[type] ?? '[ไฟล์แนบ]')
+    : hasAttachment
+      ? attachmentFailedText
       : (text ?? '').slice(0, 100)
   const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
   const mid = event.message.mid
