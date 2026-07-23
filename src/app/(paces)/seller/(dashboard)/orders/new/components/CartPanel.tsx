@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * CartPanel — ขวามือ POS: header ตะกร้า(n) + lines (CartLineItem) + "พิมพ์รายการเอง"
+ * CartPanel — ขวามือ POS: header ตะกร้า(n) + lines (CartLineItem — แถวเปล่ารอเสมอ, จัดการที่ OrderCreateForm)
  *   + accordion (ลูกค้า / ชำระเงิน-ช่องทาง / ที่อยู่จัดส่ง / หมายเหตุ) + footer สรุป+บันทึก
  * Base: OrderSummaryPanel.tsx (header/sticky/footer breakdown, LOCKED math) + theme ui/accordions (visual skin)
  *   + CustomerSelectBlock (embedded) + PaymentChannelBlock (channel/payment/discount/VAT markup) + CartBlock (shipping block)
@@ -213,13 +213,6 @@ export default function CartPanel({
             ))}
           </div>
         )}
-        <button
-          type="button"
-          onClick={itemsCtl.addCustom}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary bg-primary/5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10"
-        >
-          <Icon icon="plus" className="size-4" /> พิมพ์รายการเอง
-        </button>
       </div>
 
       {/* ── accordion: ลูกค้า ── */}
