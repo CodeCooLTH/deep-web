@@ -130,12 +130,15 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           docs/conventions/no-emoji-use-icons.md ที่ห้าม emoji และห้ามเดา icon ที่ spec ไม่ระบุ)
           px-4 ให้ tab แรกเริ่มตรงกับ padding ของหัวการ์ดและเนื้อหา ไม่ชิดขอบซ้าย
           text-sm + gap-1.5: 3 แท็บพร้อมไอคอนต้องพอดีความกว้าง 384px ของคอลัมน์นี้โดยไม่ตกบรรทัด */}
-      {/* my-0/me-0: `.nav-tabs` ของ Paces มี `-my-3.75 -me-3` ในตัว (ออกแบบมาให้ฝังใน .card-header
-          ที่มี py-3.75 อยู่แล้ว) — พอเอามาใช้เป็นแถบเดี่ยวแบบนี้ margin ติดลบดันแถบขึ้นจนเส้น
-          border-b ของแท็บที่ active ไปตกในพื้นที่เนื้อหา เห็นเป็นเส้นลอยเหนือหัวข้อ (user เจอจริง)
-          ล้าง margin แล้วให้ตัว nav ถือเส้น rail เอง + แท็บ active วางทับเส้นด้วย -mb-px */}
+      {/* `.nav-tabs` ของ Paces ถูกออกแบบมาให้ฝังใน `.card-header` (สูงคงที่ py-3.75) จึงมี 3 อย่าง
+          ที่พังทันทีเมื่อเอามาใช้เป็นแถบเดี่ยวในการ์ดที่สูงเต็มคอลัมน์ — ต้องล้างทั้งสาม:
+          1) `-my-3.75 -me-3` margin ติดลบ ดันแถบขึ้นจนเส้น border-b ของแท็บ active ไปตกในพื้นที่
+             เนื้อหา (เห็นเป็นเส้นลอยเหนือหัวข้อ) → `my-0 me-0`
+          2) `h-full` (!) — พออยู่ใน flex column ที่มีความสูงจริง แถบแท็บจะยืดกินความสูงทั้งการ์ด
+             ดันแท็บไปลอยกลางจอและดันเนื้อหาตกไปล่างสุด (user เจอจริง 2026-07-23) → `h-auto`
+          3) ไม่มีเส้น rail ของตัวเอง → ใส่ border-b ที่ nav แล้วให้แท็บ active วางทับด้วย -mb-px */}
       <nav
-        className="nav-tabs border-default-200 my-0 me-0 border-b px-4"
+        className="nav-tabs border-default-200 my-0 me-0 h-auto border-b px-4"
         role="tablist"
         aria-label="ข้อมูลลูกค้า"
       >
