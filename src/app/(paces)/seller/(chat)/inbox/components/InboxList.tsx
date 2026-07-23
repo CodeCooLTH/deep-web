@@ -613,11 +613,19 @@ export default function InboxList({
                       >
                         {name}
                       </span>
+                      {/* "คุณ: " นำหน้าเมื่อข้อความล่าสุดเป็นของฝั่งร้าน (user สั่ง 2026-07-23:
+                          "จะได้รู้ว่าเป็นข้อความของใคร") — convention เดียวกับ Messenger/LINE
+                          ใส่เฉพาะตอนมี preview จริง (ไม่ใส่ทับ fallback "เริ่มการสนทนาแล้ว")
+                          senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
+                          — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
                       <span
                         className={`block max-w-52 truncate text-xs ${
                           unread ? 'text-default-800 font-semibold' : 'text-default-400'
                         }`}
                       >
+                        {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
+                          <span className="text-default-500 font-normal">คุณ: </span>
+                        )}
                         {preview}
                       </span>
                     </span>
