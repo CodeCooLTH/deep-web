@@ -210,6 +210,16 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
   const addCustom = () =>
     append({ productId: undefined, name: '', description: '', qty: 1, price: 0 })
 
+  // แถวเปล่ารอเสมอ (spreadsheet pattern — user decision): ถ้าไม่มีแถวเปล่าเลย append 1 แถว
+  // แถวเปล่า = ไม่มี productId และ name ว่าง (fresh addCustom row)
+  // วางที่นี่ (form owner) ไม่ใช่ QuickForm — เพราะ mobile+desktop render พร้อมกัน กฎใน component
+  // เฉพาะ platform จะรั่วข้ามฝั่ง (bug 3, 2026-07-23)
+  useEffect(() => {
+    const hasEmpty = watchedItems.some((it) => !it.productId && !(it.name ?? '').trim())
+    if (!hasEmpty) addCustom()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedItems])
+
   const setLineProduct = (index: number, product: CatalogProduct) =>
     update(index, {
       ...watchedItems[index],
@@ -435,10 +445,8 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
         />
       </div>
 
-      {/* ≥ lg (เดสก์ท็อป): POS split — ซ้าย product grid, ขวา cart panel (เนื้อในไม่แตะ)
-          grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก, footer (ปุ่มบันทึก) ตรึงล่างเสมอ.
-          h-[calc(100vh-9.5rem)] = HR7 exception (viewport-lock: 100vh − header ~68px − margin; Paces ไม่มี token) */}
-      <div className="hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:gap-4 lg:overflow-hidden">
+      {/* ≥ lg (เดสก์ท็อป): POS split — ซ้าย product grid, ขวา cart panel (เนื้อในไม่แตะ) grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก, footer (ปุ่มบันทึก) ตรึงล่างเสมอ. HR7 exception: viewport-lock calc height, Paces ไม่มี token */}
+      <div className="hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:gap-4 lg:overflow-hidden"> {/* HR7 exception: viewport-lock, Paces ไม่มี token (pre-existing, ไม่ได้แก้ในงานนี้) */}
         <div className="min-w-0 lg:h-full lg:overflow-y-auto">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>
