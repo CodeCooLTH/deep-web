@@ -43,6 +43,8 @@ const MIRROR_ALLOWED_TYPES: Record<string, string> = {
   'audio/aac': 'aac',
   'audio/ogg': 'ogg',
   'audio/webm': 'webm',
+  // ไฟล์เอกสาร (แนบผ่าน Messenger) — PDF พบบ่อยสุด (storage ALLOWED_TYPES มี application/pdf อยู่แล้ว)
+  'application/pdf': 'pdf',
 }
 
 // bubble ต้องไม่ว่างเปล่าแม้กรณี mirror รูปไม่ผ่าน หรือ attachment เป็นชนิดที่เราไม่รองรับ (I-5)
@@ -218,6 +220,18 @@ export async function ingestInboundMessage(params: {
         ? 'IMAGE' // รูปที่ mirror ไม่ผ่าน → คง type IMAGE (imageUrl null + placeholder) ตามพฤติกรรมเดิม (I-5)
         : 'TEXT' // วิดีโอ/เสียง/ไฟล์ที่ mirror ไม่ผ่าน (เกินขนาด/ชนิดไม่รองรับ) → TEXT + placeholder
   const hasAttachment = !!firstAttachment
+  // diagnostic: ไฟล์แนบ non-image ที่ mirror ไม่ผ่าน — log ชนิด+host ไว้ดูว่าทำไม (content-type ไม่รองรับ/
+  // host นอก allow-list/ขนาดเกิน) เพื่อ support type ที่ขาดในอนาคต (user ถาม 2026-07-23 ทำไมโหลดไม่ได้)
+  if (hasAttachment && !mirroredFileId && attType && attType !== 'image') {
+    let host = '(no url)'
+    const u = firstAttachment?.payload?.url
+    try {
+      if (u) host = new URL(u).hostname
+    } catch {
+      host = '(invalid url)'
+    }
+    console.warn('[fb-ingest] attachment mirror failed', { attType, host, hasUrl: !!u })
+  }
   const hasText = !!text && text.trim().length > 0
   // placeholder แยกภาพ vs อื่น ๆ (I-5) — ต้องมี body/preview ที่สื่อความหมายเสมอ ไม่งั้น bubble ว่าง
   const attachmentFailedText = attType === 'image' ? MIRROR_FAILED_TEXT : UNSUPPORTED_ATTACHMENT_TEXT
