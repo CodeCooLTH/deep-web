@@ -444,7 +444,8 @@ export default function ChatThread({
                           มีสี+รูปทรงในตัวอยู่แล้ว กรอบทำให้ดูเป็นกล่องรูป; รูปที่มี caption หรือ text/
                           PRODUCT ยังคงกรอบ bubble ไว้ (bg-light คงที่สำหรับ PRODUCT ตาม BR-CTX-05) */}
                       {(() => {
-                        const bareImage = m.type === 'IMAGE' && m.imageUrl && !m.body
+                        // รูป/วิดีโอล้วน (ไม่มี caption) → ไม่มีกรอบ bubble (มีสี+รูปทรงในตัว); เสียง/ไฟล์คงกรอบ
+                        const bareImage = (m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'PRODUCT' ? (
@@ -458,6 +459,24 @@ export default function ChatThread({
                                 alt="รูปภาพที่ส่ง"
                                 className="max-w-60 rounded"
                               />
+                            )}
+                            {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
+                            {m.type === 'VIDEO' && m.imageUrl && (
+                              <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                            )}
+                            {m.type === 'AUDIO' && m.imageUrl && (
+                              <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                            )}
+                            {m.type === 'FILE' && m.imageUrl && (
+                              <a
+                                href={`/api/files/${m.imageUrl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary flex items-center gap-2 text-sm font-medium hover:underline"
+                              >
+                                <Icon icon="file-download" className="text-lg" />
+                                เปิดไฟล์แนบ
+                              </a>
                             )}
                             {m.body && (
                               <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>

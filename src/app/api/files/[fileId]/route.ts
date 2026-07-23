@@ -9,6 +9,13 @@ const MIME: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg",
   png: "image/png", webp: "image/webp",
   gif: "image/gif", // feature 00018 — mirror รูป/สติกเกอร์เคลื่อนไหวจาก Messenger/IG ต้อง serve inline
+  // feature 00018 — ไฟล์แนบ (วิดีโอ/เสียง) จาก Messenger/IG ต้อง serve ให้ player เล่นได้
+  mp4: "video/mp4",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  ogg: "audio/ogg",
+  webm: "audio/webm",
 };
 
 // ---------------------------------------------------------------------------

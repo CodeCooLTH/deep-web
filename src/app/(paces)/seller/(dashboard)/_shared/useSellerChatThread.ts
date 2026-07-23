@@ -40,7 +40,8 @@ export type ChatMessageView = {
   conversationId: string
   senderUserId: string
   senderRole: 'BUYER' | 'SHOP'
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT'
+  // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE'
   body: string | null
   imageUrl: string | null
   createdAt: string
