@@ -17,6 +17,18 @@ export async function isShopMember(shopId: string, userId: string): Promise<bool
   return m !== null;
 }
 
+/** canAccessShop — user เข้าถึงร้านนี้ได้ไหม: เป็นเจ้าของ (PERSONAL/BUSINESS owner ที่อาจไม่มีแถว
+ *  ShopMember) หรือเป็นสมาชิก (BUSINESS admin/staff) — ครอบทั้งสองกรณีในที่เดียว
+ *  ใช้เป็น ownership guard ของฟีเจอร์แชท (feature 00018): เดิม assertParticipant/sendOutboundMessage
+ *  เช็คแค่ shop.userId === actorUserId = "เจ้าของเท่านั้น" → BUSINESS admin (ไม่ใช่ owner) เปิด/ตอบ
+ *  แชทของร้านตัวเองไม่ได้ (bug จริงบน prod: เพจถูกย้ายไปร้าน BUSINESS แล้ว user เป็น ADMIN) */
+export async function canAccessShop(shopId: string, userId: string): Promise<boolean> {
+  const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { userId: true } });
+  if (!shop) return false;
+  if (shop.userId === userId) return true; // เจ้าของร้าน (PERSONAL หรือ BUSINESS owner)
+  return isShopMember(shopId, userId); // BUSINESS admin/staff
+}
+
 export interface ActiveShopContext {
   shopId: string;
   kind: "PERSONAL" | "BUSINESS";
@@ -75,7 +87,7 @@ export interface ActiveShop {
  *  - active context resolve ไม่ได้ (activeShopId ชี้ shop ที่ถูกลบ/หลุด membership) → fallback Personal (fail-closed)
  *  - ไม่มี Personal shop เลย (seller ใหม่ก่อน layout auto-create) → null (caller redirect/handle)
  *  - คืน `locked` ให้ page/route gate การสร้าง/แก้ (Business ที่โดน package lock = read-only)
- *  ⚠️ ใช้เฉพาะหน้า "workspace ของ seller" — billing/onboarding/public ต้องคง getPersonalShop (Phase 4 KEEP-PERSONAL)
+ *  หมายเหตุ: ใช้เฉพาะหน้า "workspace ของ seller" — billing/onboarding/public ต้องคง getPersonalShop (Phase 4 KEEP-PERSONAL)
  */
 export async function requireActiveShop(
   // permissive: รับ Session ตรง ๆ ได้ (NextAuth Session.user ไม่ประกาศ id/activeShopId — project ไม่มี d.ts
@@ -101,7 +113,7 @@ export async function requireActiveShop(
 
 /** ensurePersonalShop — invariant "ทุก seller มี Personal shop" (D1). resolve Personal, ถ้าไม่มี → สร้าง.
  *  แยกจาก requireActiveShop เพื่อให้ layout เรียกก่อน (guarantee Personal มีอยู่) แล้วค่อย resolve active.
- *  ⚠️ auto-create เฉพาะ PERSONAL — Business ไม่เคย auto-create (สร้างผ่าน createBusinessShop เท่านั้น)
+ *  หมายเหตุ: auto-create เฉพาะ PERSONAL — Business ไม่เคย auto-create (สร้างผ่าน createBusinessShop เท่านั้น)
  */
 export async function ensurePersonalShop(userId: string): Promise<ShopRow> {
   const existing = await getPersonalShop(userId);

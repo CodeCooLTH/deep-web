@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { canAccessShop } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
@@ -280,7 +281,9 @@ async function assertParticipant(conversationId: string, actorUserId: string) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } })
   if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
   if (conversation.buyerUserId === actorUserId) return conversation
-  const shop = await prisma.shop.findUnique({ where: { id: conversation.shopId }, select: { userId: true } })
-  if (shop?.userId === actorUserId) return conversation
+  // ฝั่งร้าน: ต้องเช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่ shop.userId === actorUserId
+  // เดิมเช็คแค่เจ้าของ → BUSINESS admin (ไม่ใช่ owner) เปิดแชทของร้านตัวเองไม่ได้ ขึ้น 'ไม่พบบทสนทนา'
+  // (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
+  if (await canAccessShop(conversation.shopId, actorUserId)) return conversation
   throw new Error('FORBIDDEN')
 }
