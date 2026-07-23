@@ -95,8 +95,10 @@ export async function generateReplySuggestions(
   }
 
   if (!res.ok) {
-    // ไม่ log body ทั้งก้อน (อาจมี echo ของ prompt) — เก็บแค่ status
-    throw new GeminiApiError(`gemini responded ${res.status}`)
+    // เก็บ error body ของ Gemini ด้วย (มี message อธิบายสาเหตุจริง เช่น model ไม่มี/สิทธิ์ไม่พอ/
+    // API ยังไม่เปิดใช้) — ไม่มี key ใน body (key อยู่ query string เท่านั้น) จึงปลอดภัยพอจะ surface
+    const errBody = await res.text().catch(() => '')
+    throw new GeminiApiError(`gemini responded ${res.status}: ${errBody.slice(0, 400)}`)
   }
 
   const data = (await res.json().catch(() => null)) as {
