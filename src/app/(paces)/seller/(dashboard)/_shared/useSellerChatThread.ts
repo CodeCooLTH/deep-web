@@ -55,7 +55,13 @@ export type ChatMessageView = {
   _retry?: OutgoingRetry
 }
 
-type MessagesApiResponse = { items: ChatMessageView[]; nextCursor: string | null }
+type MessagesApiResponse = {
+  items: ChatMessageView[]
+  nextCursor: string | null
+  /** watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt) — มากับทุก GET เพื่อให้ป้าย
+   *  "ส่งแล้ว → อ่านแล้ว" อัปเดตได้เองโดยไม่ต้องรีโหลดหน้า (read event ไม่ทริกเกอร์ realtime) */
+  externalReadAt?: string | null
+}
 
 export type PendingImage = { fileId: string; previewUrl: string }
 
@@ -78,6 +84,7 @@ export function useSellerChatThread(conversationId: string) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
+  const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [uploading, setUploading] = useState(false)
   // optimistic send: composer ไม่ block ระหว่างส่งอีกต่อไป (แต่ละบับเบิลมี _status ของตัวเอง) —
@@ -85,7 +92,11 @@ export function useSellerChatThread(conversationId: string) {
   const sending = false
   const [errorState, setErrorState] = useState(false)
   const [text, setText] = useState('')
-  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
+  // multi-image (user สั่ง 2026-07-23 "ข้อความสำเร็จรูปใส่รูปได้มากกว่า 1"): เก็บเป็นคิวของรูปที่
+  // "รอส่ง" — ช่องทางนอก (Messenger/IG) ส่งได้ทีละรูปต่อข้อความ ระบบจึงทยอยส่งเป็นหลายข้อความให้เอง
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  // alias ตัวเดียว — ChatWidgetThreadPanel (bubble widget) ยังใช้ contract เดิม ไม่ต้องแก้ตาม
+  const pendingImage = pendingImages[0] ?? null
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
@@ -127,6 +138,7 @@ export function useSellerChatThread(conversationId: string) {
         if (cancelled) return
         setMessages([...data.items].reverse())
         setOldestCursor(data.nextCursor)
+        if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
         scrollToBottom()
         // mark-read ทันทีตอนเปิด thread (ไม่ debounce รอบแรก)
         fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
@@ -195,6 +207,7 @@ export function useSellerChatThread(conversationId: string) {
       const res = await fetch(`/api/chat/conversations/${conversationId}/messages?take=30`)
       if (!res.ok) return
       const data: MessagesApiResponse = await res.json()
+      if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
       setMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]))
         for (const m of data.items) map.set(m.id, m)
@@ -234,6 +247,18 @@ export function useSellerChatThread(conversationId: string) {
       document.removeEventListener('visibilitychange', handler)
       window.removeEventListener('focus', handler)
     }
+  }, [refetchNewer])
+
+  // poll เบา ๆ ระหว่างเปิดเธรดอยู่ — read receipt ของ Meta มาทาง webhook โดย **ไม่ insert
+  // ChatMessage** จึงไม่มี realtime broadcast ให้เกาะ (ต่างจากข้อความใหม่) ถ้าไม่ poll ป้าย
+  // "ส่งแล้ว → อ่านแล้ว" จะไม่ขยับเลยจนกว่าผู้ใช้จะสลับแท็บกลับมาหรือมีข้อความใหม่เข้า
+  // (user report 2026-07-23). หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') refetchNewer()
+    }
+    const t = setInterval(tick, 20_000)
+    return () => clearInterval(t)
   }, [refetchNewer])
 
   // ── load-older: sentinel บนสุด + preserve scroll position ──────────────
@@ -301,7 +326,7 @@ export function useSellerChatThread(conversationId: string) {
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('upload failed')
       const data: { fileId: string } = await res.json()
-      setPendingImage({ fileId: data.fileId, previewUrl })
+      setPendingImages((prev) => [...prev, { fileId: data.fileId, previewUrl }])
     } catch {
       pacesToast.error('อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้ง')
       URL.revokeObjectURL(previewUrl)
@@ -310,9 +335,13 @@ export function useSellerChatThread(conversationId: string) {
     }
   }
 
-  const handleRemoveImage = () => {
-    if (pendingImage) URL.revokeObjectURL(pendingImage.previewUrl)
-    setPendingImage(null)
+  /** ไม่ระบุ fileId = ล้างทั้งคิว (ปุ่มเดิมของ ChatWidgetThreadPanel ที่มีรูปได้ทีละใบ) */
+  const handleRemoveImage = (fileId?: string) => {
+    setPendingImages((prev) => {
+      const removed = fileId ? prev.filter((p) => p.fileId === fileId) : prev
+      for (const img of removed) URL.revokeObjectURL(img.previewUrl)
+      return fileId ? prev.filter((p) => p.fileId !== fileId) : []
+    })
   }
 
   // ── ส่งข้อความ (optimistic) ───────────────────────────────────────────
@@ -348,32 +377,56 @@ export function useSellerChatThread(conversationId: string) {
 
   const handleSend = () => {
     const trimmed = text.trim()
-    if (!pendingImage && trimmed.length === 0) return
+    if (pendingImages.length === 0 && trimmed.length === 0) return
 
-    const payload: OutgoingRetry = pendingImage
-      ? { type: 'IMAGE', imageUrl: pendingImage.fileId, body: trimmed || null }
-      : { type: 'TEXT', body: trimmed }
+    // รูปหลายรูป = หลายข้อความ (Messenger/IG ไม่รองรับหลายรูปในข้อความเดียว) — caption ติดไปกับ
+    // รูปแรกเท่านั้น ไม่งั้นลูกค้าจะเห็นข้อความเดิมซ้ำทุกใบ
+    const payloads: OutgoingRetry[] =
+      pendingImages.length > 0
+        ? pendingImages.map((img, i) => ({
+            type: 'IMAGE' as const,
+            imageUrl: img.fileId,
+            body: i === 0 ? trimmed || null : null,
+          }))
+        : [{ type: 'TEXT' as const, body: trimmed }]
 
-    const localId = `local-${localIdRef.current++}-${Date.now()}`
-    const optimistic: ChatMessageView = {
-      id: localId,
-      conversationId,
-      senderUserId: '',
-      senderRole: 'SHOP',
-      type: payload.type,
-      body: payload.body,
-      imageUrl: payload.imageUrl ?? null,
-      createdAt: new Date().toISOString(),
-      _status: 'sending',
-      _retry: payload,
-    }
-    setMessages((prev) => [...prev, optimistic])
+    const queued = payloads.map((payload) => {
+      const localId = `local-${localIdRef.current++}-${Date.now()}`
+      const optimistic: ChatMessageView = {
+        id: localId,
+        conversationId,
+        senderUserId: '',
+        senderRole: 'SHOP',
+        type: payload.type,
+        body: payload.body,
+        imageUrl: payload.imageUrl ?? null,
+        createdAt: new Date().toISOString(),
+        _status: 'sending',
+        _retry: payload,
+      }
+      return { localId, payload, optimistic }
+    })
+
+    setMessages((prev) => [...prev, ...queued.map((q) => q.optimistic)])
     setText('')
     // บับเบิล optimistic render รูปจาก /api/files/{fileId} (อัปโหลดแล้วตอนแนบ) — revoke preview ได้เลย
-    if (pendingImage) URL.revokeObjectURL(pendingImage.previewUrl)
-    setPendingImage(null)
+    for (const img of pendingImages) URL.revokeObjectURL(img.previewUrl)
+    setPendingImages([])
     scrollToBottom()
-    postMessage(localId, payload)
+    // ส่งเรียงทีละใบ (ไม่ Promise.all) — ให้ลำดับข้อความฝั่งลูกค้าตรงกับลำดับรูปที่แนบ และไม่ยิง
+    // Graph API พร้อมกันจนโดน rate limit
+    void (async () => {
+      for (const q of queued) await postMessage(q.localId, q.payload)
+    })()
+  }
+
+  /** compat setter — caller เดิมส่งรูปเดี่ยว/null; ภายในเก็บเป็นคิว (แทนที่ทั้งคิว ไม่ต่อท้าย
+   *  เพื่อคงพฤติกรรมเดิมของปุ่มแนบรูปทีละใบ) */
+  const setPendingImage = (img: PendingImage | null) => {
+    setPendingImages((prev) => {
+      for (const p of prev) URL.revokeObjectURL(p.previewUrl)
+      return img ? [img] : []
+    })
   }
 
   const retryMessage = useCallback(
@@ -395,9 +448,11 @@ export function useSellerChatThread(conversationId: string) {
     text,
     setText,
     pendingImage,
-    // feature 00018 composer #2 — ให้ composer แนบรูปจาก "ข้อความสำเร็จรูป" (storage fileId ที่มีอยู่แล้ว
-    // ไม่ต้อง upload ใหม่) ได้โดยตรง — set เป็น pendingImage แล้วใช้ flow handleSend เดิม
+    // feature 00018 composer #2 — ให้ composer แนบรูปจาก "ข้อความสำเร็จรูป"/สินค้า (storage fileId
+    // ที่มีอยู่แล้ว ไม่ต้อง upload ใหม่) ได้โดยตรง — set เป็นคิวรูปแล้วใช้ flow handleSend เดิม
     setPendingImage,
+    pendingImages,
+    setPendingImages,
     scrollRef,
     topSentinelRef,
     handleFileChange,
@@ -405,5 +460,8 @@ export function useSellerChatThread(conversationId: string) {
     handleSend,
     // optimistic send — resend เมื่อบับเบิล _status='failed'
     retryMessage,
+    /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
+     *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
+    externalReadAt,
   }
 }

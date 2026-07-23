@@ -122,15 +122,28 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                     ตอนนี้มันไม่เห็นรูปที่แนบคู่ไว้") — เดิมมีแค่ไอคอน photo เล็ก ๆ บอกว่า "มีรูป"
                     ซึ่งบอกไม่ได้ว่ารูปไหน ต้องเปิดหน้าจัดการดูเอง. serve ผ่าน /api/files/{fileId}
                     เหมือนที่ QuickMessageManager preview ใช้ (storage ไม่ได้ public URL) */}
-                {qm.imageFileId && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/files/${qm.imageFileId}`}
-                    alt=""
-                    loading="lazy"
-                    className="bg-default-100 size-12 shrink-0 rounded object-cover"
-                  />
-                )}
+                {(() => {
+                  // หลายรูปได้ (user สั่ง 2026-07-23) — โชว์รูปแรกพร้อมป้ายจำนวนที่เหลือ ไม่เรียงทุกใบ
+                  // เพราะแถวในแผงต้องสูงคงที่ กวาดตาหาข้อความได้เร็ว
+                  const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
+                  if (imgs.length === 0) return null
+                  return (
+                    <span className="relative shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/files/${imgs[0]}`}
+                        alt=""
+                        loading="lazy"
+                        className="bg-default-100 size-12 rounded object-cover"
+                      />
+                      {imgs.length > 1 && (
+                        <span className="bg-default-900/70 absolute end-0 bottom-0 rounded-ss px-1 text-2xs text-white">
+                          +{imgs.length - 1}
+                        </span>
+                      )}
+                    </span>
+                  )
+                })()}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{qm.title}</span>
                   {qm.body && <span className="text-default-500 mt-0.5 line-clamp-2 block text-xs">{qm.body}</span>}

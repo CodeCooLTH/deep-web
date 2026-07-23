@@ -115,7 +115,21 @@ export async function GET(
           : null,
     }));
 
-    return NextResponse.json({ items, nextCursor: result.nextCursor });
+    // externalReadAt — watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt)
+    // bug fix 2026-07-23 (user report: "อ่านแล้วแต่ไม่ขึ้นว่าอ่านแล้ว"): ค่านี้เดิมส่งลง UI ทาง
+    // server prop ของ page.tsx เท่านั้น = อ่านครั้งเดียวตอนเปิดหน้า. read event ของ Meta มาทีหลัง
+    // ทาง webhook และ **ไม่ได้ insert ChatMessage** จึงไม่ทริกเกอร์ realtime broadcast → client
+    // ไม่มีทางรู้เลยจนกว่าจะรีโหลดหน้าเอง. ส่งมากับ GET นี้ด้วยเพื่อให้ refetch รอบถัดไป (realtime/
+    // focus/poll) อัปเดตป้าย "ส่งแล้ว → อ่านแล้ว" ได้เอง
+    const conv = await prisma.conversation.findUnique({
+      where: { id },
+      select: { externalReadAt: true },
+    });
+    return NextResponse.json({
+      items,
+      nextCursor: result.nextCursor,
+      externalReadAt: conv?.externalReadAt ? conv.externalReadAt.toISOString() : null,
+    });
   } catch (e: unknown) {
     return mapChatServiceError(e, "GET /api/chat/conversations/[id]/messages");
   }

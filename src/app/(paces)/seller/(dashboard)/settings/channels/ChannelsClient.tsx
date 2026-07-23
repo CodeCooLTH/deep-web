@@ -82,6 +82,7 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
 
   const [channels, setChannels] = useState<ChannelRow[]>(initialChannels)
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
+  const [resyncing, setResyncing] = useState(false)
 
   // ─── อ่าน query params จาก OAuth callback ──────────────────────────────────
   // ทำไม useEffect: searchParams read หลัง mount เท่านั้น (client-only) — pattern เดียวกับ
@@ -125,6 +126,31 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
   }, [searchParams, router])
 
   // ─── Disconnect handler ─────────────────────────────────────────────────────
+  // ซิงก์ subscription ของทุกเพจในร้าน — Meta ล็อกชุด event ไว้ตั้งแต่ตอนเชื่อมครั้งแรก เพจเก่า
+  // จึงไม่ได้รับ event ที่เพิ่มมาทีหลัง (read receipt "อ่านแล้ว" — user report 2026-07-23)
+  // idempotent ฝั่ง Meta กดซ้ำได้ ไม่กระทบข้อความ/การเชื่อมต่อเดิม จึงไม่ต้องมี Swal ยืนยัน
+  async function handleResync() {
+    if (resyncing) return
+    setResyncing(true)
+    try {
+      const res = await fetch('/api/channels', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        pacesToast.error(body?.error ?? 'ซิงก์ไม่สำเร็จ กรุณาลองใหม่')
+        return
+      }
+      if (body?.failed > 0) {
+        pacesToast.warning(`ซิงก์สำเร็จ ${body.ok} เพจ · ไม่สำเร็จ ${body.failed} เพจ (ลองเชื่อมเพจนั้นใหม่)`)
+      } else {
+        pacesToast.success(`ซิงก์การแจ้งเตือนสำเร็จ ${body?.ok ?? 0} เพจ`)
+      }
+    } catch {
+      pacesToast.error('ซิงก์ไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setResyncing(false)
+    }
+  }
+
   async function handleDisconnect(channel: ChannelRow) {
     const providerLabel = providerConfig(channel.provider).label
 
@@ -178,13 +204,33 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
         </p>
         {/* endpoint นี้ตอบ 302 redirect ไป Facebook OAuth ตรง ๆ — ต้องเป็น <a> ธรรมดา
             ห้าม fetch/onClick (จุดที่พลาดง่าย #1 ของ T6) */}
-        <a
-          href="/api/channels/facebook/connect"
-          className="btn bg-primary text-white hover:bg-primary-hover shrink-0 inline-flex items-center gap-2"
-        >
-          <Icon icon="tabler:brand-facebook" className="text-base" aria-hidden="true" />
-          เชื่อม Facebook Page
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* ซิงก์การแจ้งเตือน — Meta ล็อกชุด event ที่ส่งมาให้เราไว้ตั้งแต่ตอนกดเชื่อมเพจครั้งแรก
+              เพจที่เชื่อมไว้นานแล้วจึงไม่ได้รับ event ที่เพิ่มมาทีหลัง (เช่น "ลูกค้าอ่านข้อความแล้ว")
+              ปุ่มนี้สั่ง subscribe ใหม่ด้วยชุดล่าสุด — ปลอดภัย กดซ้ำได้ ไม่กระทบข้อความเดิม */}
+          {channels.length > 0 && (
+            <button
+              type="button"
+              onClick={handleResync}
+              disabled={resyncing}
+              className="btn border-default-300 inline-flex items-center gap-2 disabled:opacity-60"
+            >
+              <Icon
+                icon={resyncing ? 'tabler:loader-2' : 'tabler:refresh'}
+                className={`text-base ${resyncing ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+              ซิงก์การแจ้งเตือน
+            </button>
+          )}
+          <a
+            href="/api/channels/facebook/connect"
+            className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2"
+          >
+            <Icon icon="tabler:brand-facebook" className="text-base" aria-hidden="true" />
+            เชื่อม Facebook Page
+          </a>
+        </div>
       </div>
 
       {allTokenInvalid && (

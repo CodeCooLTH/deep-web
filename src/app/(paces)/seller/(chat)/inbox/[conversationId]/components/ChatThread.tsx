@@ -294,7 +294,7 @@ export default function ChatThread({
   buyerName,
   buyerAvatar,
   shopAvatar,
-  externalReadAt,
+  externalReadAt: externalReadAtInitial,
   channel,
   channelName,
   channelAvatarUrl,
@@ -356,21 +356,26 @@ export default function ChatThread({
     errorState,
     text,
     setText,
-    pendingImage,
+    pendingImages,
     setPendingImage,
+    setPendingImages,
     scrollRef,
     topSentinelRef,
     handleFileChange,
     handleRemoveImage,
     handleSend,
     retryMessage,
+    externalReadAt: externalReadAtLive,
   } = useSellerChatThread(conversationId)
 
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
   // เติมข้อความ/caption ลง composer (รูปมี caption → ตั้งเป็นข้อความ, ไม่มีรูป → ต่อท้ายข้อความเดิม)
   function handleQuickPick(qm: QuickMessage) {
-    if (qm.imageFileId) {
-      setPendingImage({ fileId: qm.imageFileId, previewUrl: `/api/files/${qm.imageFileId}` })
+    // รูปหลายใบ (user สั่ง 2026-07-23) — แนบทั้งหมดลงคิว กดส่งครั้งเดียว ระบบทยอยส่งให้เอง
+    // fallback imageFileId เดี่ยว: payload จาก API เวอร์ชันเก่าระหว่าง deploy
+    const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
+    if (imgs.length > 0) {
+      setPendingImages(imgs.map((fileId) => ({ fileId, previewUrl: `/api/files/${fileId}` })))
       if (qm.body) setText(qm.body)
     } else if (qm.body) {
       setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
@@ -435,7 +440,10 @@ export default function ChatThread({
   const lastShopMsgId = isExternal
     ? ([...messages].reverse().find((m) => m.senderRole === 'SHOP')?.id ?? null)
     : null
-  const readAtMs = externalReadAt ? new Date(externalReadAt).getTime() : 0
+  // ค่าจาก hook (สดจาก GET ล่าสุด) มาก่อน prop ของ server (อ่านครั้งเดียวตอน render หน้า) — read
+  // event ของ Meta มาทีหลังและไม่ทริกเกอร์ realtime จึงต้องพึ่ง refetch รอบถัดไป (bug fix 2026-07-23)
+  const readAt = externalReadAtLive ?? externalReadAtInitial
+  const readAtMs = readAt ? new Date(readAt).getTime() : 0
 
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
@@ -920,26 +928,30 @@ export default function ChatThread({
               composerDisabled ? 'border-default-300 opacity-60' : 'border-default-300 focus-within:border-primary'
             }`}
           >
-            {pendingImage && (
-              <div className="p-2 pb-0">
-                <div className="relative inline-block">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={pendingImage.previewUrl} alt="รูปที่จะส่ง" className="max-h-28 max-w-full rounded-lg object-contain" />
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    aria-label="ลบรูป"
-                    className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
-                  >
-                    <Icon icon="x" className="text-sm" />
-                  </button>
-                </div>
+            {/* คิวรูปที่รอส่ง — หลายรูปได้ (ข้อความสำเร็จรูปที่มีหลายรูป, user สั่ง 2026-07-23)
+                เลื่อนแนวนอนเมื่อเกินความกว้าง; ลบได้ทีละใบ */}
+            {pendingImages.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto p-2 pb-0">
+                {pendingImages.map((img, i) => (
+                  <div key={img.fileId} className="relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.previewUrl} alt={`รูปที่จะส่ง ${i + 1}`} className="max-h-28 rounded-lg object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(img.fileId)}
+                      aria-label={`ลบรูปที่ ${i + 1}`}
+                      className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                    >
+                      <Icon icon="x" className="text-sm" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
             <textarea
               rows={1}
               className="min-h-11 block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none transition-all focus:min-h-20 focus:ring-0"
-              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -955,7 +967,7 @@ export default function ChatThread({
           <button
             type="button"
             onClick={handleSend}
-            disabled={composerDisabled || sending || uploading || (!text.trim() && !pendingImage)}
+            disabled={composerDisabled || sending || uploading || (!text.trim() && pendingImages.length === 0)}
             className="btn bg-primary text-white hover:bg-primary-hover shrink-0 disabled:opacity-60"
           >
             ส่ง <Icon icon="send-2" className="ms-1 text-xl" />

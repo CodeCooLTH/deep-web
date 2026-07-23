@@ -1156,7 +1156,11 @@ model QuickMessage {
   title           String // หัวข้อสั้น ๆ ใช้แสดงบน pill/list (เช่น "ทักทาย", "แจ้งเลขพัสดุ")
   category        String? // หมวด (optional) — จัดกลุ่มใน modal จัดการ
   body            String // เนื้อหาข้อความ (ว่างได้ถ้ามีแต่รูป)
-  imageFileId     String? // รูปแนบ (storage fileId) — quick message แบบรูป/รูป+ข้อความ
+  imageFileId     String? // deprecated (2026-07-23) — รูปแรกของ imageFileIds, คงไว้ให้ payload/โค้ดเก่าอ่านได้
+  // รูปแนบหลายรูป (storage fileId) — user สั่ง 2026-07-23 "ใส่รูปได้มากกว่า 1"; จำกัด 5 รูปที่ Valibot
+  // TEXT[] คอลัมน์เดียว (ไม่ทำ table แยก) — ลำดับในอาร์เรย์ = ลำดับที่ส่ง และไม่มี query ที่ต้อง
+  // join/aggregate รายรูป (แบบเดียวกับ ExternalContact.tags/phones)
+  imageFileIds    String[] @default([])
   createdByUserId String // audit เบา — ใครสร้าง (ไม่ใช่ ownership; ownership = shopId)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

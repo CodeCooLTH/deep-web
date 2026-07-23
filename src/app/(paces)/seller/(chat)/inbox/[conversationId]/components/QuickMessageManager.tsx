@@ -23,9 +23,15 @@ export type QuickMessage = {
   title: string
   category: string | null
   body: string
+  /** deprecated — รูปแรกของ imageFileIds (ยังส่งมาจาก API เพื่อ backward-compat) */
   imageFileId: string | null
+  /** รูปแนบทั้งหมด ตามลำดับที่จะส่ง (user สั่ง 2026-07-23 "ใส่รูปได้มากกว่า 1") */
+  imageFileIds?: string[]
   createdAt: string
 }
+
+/** ต้องตรงกับ QUICK_MESSAGE_MAX_IMAGES ใน validations.ts (backend เป็นคนบังคับจริง) */
+const MAX_IMAGES = 5
 
 type Props = {
   items: QuickMessage[]
@@ -41,8 +47,7 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [body, setBody] = useState('')
-  const [imageFileId, setImageFileId] = useState<string | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFileIds, setImageFileIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -55,15 +60,14 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
   }, [onClose])
 
   const isEditing = editingId !== null
-  const canSave = title.trim().length > 0 && (body.trim().length > 0 || imageFileId !== null)
+  const canSave = title.trim().length > 0 && (body.trim().length > 0 || imageFileIds.length > 0)
 
   function resetForm() {
     setEditingId(null)
     setTitle('')
     setCategory('')
     setBody('')
-    setImageFileId(null)
-    setImagePreview(null)
+    setImageFileIds([])
   }
 
   function startEdit(qm: QuickMessage) {
@@ -71,33 +75,45 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
     setTitle(qm.title)
     setCategory(qm.category ?? '')
     setBody(qm.body)
-    setImageFileId(qm.imageFileId)
-    setImagePreview(qm.imageFileId ? `/api/files/${qm.imageFileId}` : null)
+    // แถวเก่าที่ API ยังไม่ได้ส่ง imageFileIds (deploy คร่อมเวอร์ชัน) → fallback รูปเดี่ยว
+    setImageFileIds(qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : [])
   }
 
+  // อัปโหลดได้ทีละหลายไฟล์ (multiple) — ทยอยยิงทีละไฟล์ตามลำดับที่เลือก เพื่อให้ลำดับรูปที่บันทึก
+  // ตรงกับที่ผู้ใช้เห็นตอนเลือก (Promise.all จะได้ลำดับไม่แน่นอนเมื่อไฟล์ขนาดต่างกัน)
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
-    if (!IMAGE_ACCEPT.split(',').includes(file.type)) {
-      pacesToast.error('รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp, gif)')
+    if (files.length === 0) return
+
+    const room = MAX_IMAGES - imageFileIds.length
+    if (room <= 0) {
+      pacesToast.warning(`แนบรูปได้สูงสุด ${MAX_IMAGES} รูป`)
       return
     }
-    if (file.size > IMAGE_MAX) {
-      pacesToast.error('ไฟล์รูปต้องไม่เกิน 5MB')
-      return
-    }
+    if (files.length > room) pacesToast.warning(`เพิ่มได้อีก ${room} รูป (สูงสุด ${MAX_IMAGES} รูป)`)
+
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('upload failed')
-      const data: { fileId: string } = await res.json()
-      setImageFileId(data.fileId)
-      setImagePreview(`/api/files/${data.fileId}`)
-    } catch {
-      pacesToast.error('อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้ง')
+      for (const file of files.slice(0, room)) {
+        if (!IMAGE_ACCEPT.split(',').includes(file.type)) {
+          pacesToast.error(`${file.name}: รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp, gif)`)
+          continue
+        }
+        if (file.size > IMAGE_MAX) {
+          pacesToast.error(`${file.name}: ไฟล์รูปต้องไม่เกิน 5MB`)
+          continue
+        }
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', body: fd })
+        if (!res.ok) {
+          pacesToast.error(`${file.name}: อัปโหลดไม่สำเร็จ`)
+          continue
+        }
+        const data: { fileId: string } = await res.json()
+        setImageFileIds((prev) => (prev.length >= MAX_IMAGES ? prev : [...prev, data.fileId]))
+      }
     } finally {
       setUploading(false)
     }
@@ -111,7 +127,7 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
         title: title.trim(),
         category: category.trim() || null,
         body: body,
-        imageFileId,
+        imageFileIds,
       }
       const url = isEditing ? `/api/chat/quick-messages/${editingId}` : '/api/chat/quick-messages'
       const res = await fetch(url, {
@@ -216,33 +232,41 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
               />
             </div>
 
-            {/* รูปแนบ (ไม่บังคับ) */}
+            {/* รูปแนบ — ได้สูงสุด MAX_IMAGES รูป (user สั่ง 2026-07-23) เรียงตามลำดับที่จะส่งจริง */}
             <div className="mb-3">
-              <label className="form-label">รูปแนบ (ไม่บังคับ)</label>
-              {imagePreview ? (
-                <div className="flex items-center gap-2">
-                  <div className="border-default-200 relative size-16 overflow-hidden rounded-lg border">
+              <span className="form-label">รูปแนบ (ไม่บังคับ · สูงสุด {MAX_IMAGES} รูป)</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {imageFileIds.map((fileId, i) => (
+                  <div key={fileId} className="border-default-200 relative size-16 shrink-0 overflow-hidden rounded-lg border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imagePreview} alt="รูปแนบ" className="size-full object-cover" />
+                    <img src={`/api/files/${fileId}`} alt={`รูปแนบที่ ${i + 1}`} className="size-full object-cover" />
+                    {/* ปุ่มลบมุมขวาบน — hit area 28px บนรูป 64px (เล็กกว่า 44px โดยตั้งใจ ไม่งั้นทับรูปทั้งใบ
+                        จนดูรูปไม่ออก) ปุ่มนี้เป็น action รองที่มีทางอื่นทดแทน: ลบทั้งชุดแล้วเลือกใหม่ */}
+                    <button
+                      type="button"
+                      onClick={() => setImageFileIds((prev) => prev.filter((x) => x !== fileId))}
+                      aria-label={`ลบรูปที่ ${i + 1}`}
+                      className="bg-default-900/60 absolute end-0.5 top-0.5 flex size-7 items-center justify-center rounded-full text-white"
+                    >
+                      <Icon icon="x" width={14} height={14} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageFileId(null)
-                      setImagePreview(null)
-                    }}
-                    className="btn btn-sm border-default-300"
-                  >
-                    <Icon icon="trash" className="me-1" /> ลบรูป
-                  </button>
-                </div>
-              ) : (
-                <label className="btn btn-sm border-default-300 cursor-pointer">
-                  <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={handleUpload} disabled={uploading} />
-                  <Icon icon={uploading ? 'loader-2' : 'photo-plus'} className={`me-1 ${uploading ? 'animate-spin' : ''}`} />
-                  {uploading ? 'กำลังอัปโหลด...' : 'เพิ่มรูป'}
-                </label>
-              )}
+                ))}
+                {imageFileIds.length < MAX_IMAGES && (
+                  <label className="btn border-default-300 min-h-11 cursor-pointer">
+                    <input
+                      type="file"
+                      accept={IMAGE_ACCEPT}
+                      multiple
+                      className="hidden"
+                      onChange={handleUpload}
+                      disabled={uploading}
+                    />
+                    <Icon icon={uploading ? 'loader-2' : 'photo-plus'} className={`me-1 ${uploading ? 'animate-spin' : ''}`} />
+                    {uploading ? 'กำลังอัปโหลด...' : 'เพิ่มรูป'}
+                  </label>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -273,12 +297,22 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
             <ul className="flex flex-col gap-2">
               {items.map((qm) => (
                 <li key={qm.id} className="border-default-200 flex items-start gap-3 rounded-lg border p-3">
-                  {qm.imageFileId && (
-                    <div className="border-default-200 size-10 shrink-0 overflow-hidden rounded border">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/files/${qm.imageFileId}`} alt="" className="size-full object-cover" />
-                    </div>
-                  )}
+                  {(() => {
+                    const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
+                    if (imgs.length === 0) return null
+                    return (
+                      <div className="border-default-200 relative size-10 shrink-0 overflow-hidden rounded border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
+                        {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากลิสต์โดยไม่ต้องกดเข้าไปแก้) */}
+                        {imgs.length > 1 && (
+                          <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
+                            +{imgs.length - 1}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })()}
                   <div className="min-w-0 grow">
                     <div className="flex items-center gap-2">
                       <p className="text-default-800 mb-0 truncate text-sm font-semibold">{qm.title}</p>

@@ -253,7 +253,7 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
             </div>
             <button
               type="button"
-              onClick={handleRemoveImage}
+              onClick={() => handleRemoveImage()}
               className="btn btn-sm btn-icon border-default-300"
               aria-label="ลบรูป"
             >
