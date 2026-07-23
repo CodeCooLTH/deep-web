@@ -365,11 +365,16 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | API smoke (P2 ผ่าน HTTP จริง, authenticated) | 2026-07-23 | 5/5 | 0 | ผู้จองยืนยันเอง→403, จองทับ→409, ต่อคิววันเช็คเอาท์→201, ยกเลิกไม่มีเหตุผล→400, quote 30% ถูก |
 | API smoke (P3 แม่บ้าน) | 2026-07-23 | 5/5 | 0 | เพิ่ม/มอบหมาย→PENDING/DONE/มอบหมายการจองยกเลิก→409/Order.status ไม่ถูกกระทบ |
 | **บั๊กที่ QA จับได้** | 2026-07-23 | — | — | TC-013 ได้ 409 ถูก แต่ไม่มี `conflict` วันที่ชน — `parseConflictRange` แกะ model-call error ไม่ออก (fix `d0bb9dc6`) |
-| Visual (Chrome DevTools MCP) | — | — | — | **ยังไม่ได้ทำ** — MCP ต่อไม่ได้ (เบราว์เซอร์เปิดค้าง profile เดียวกัน) |
+| Visual (Chrome DevTools MCP) | 2026-07-23 | 5/5 | 0 | ถ่ายภาพ 5 หน้าจากของจริง: /rooms, /calendar, /bookings/[token], /housekeepers (Paces) + /o/[token] (Vuexy) — 0 ข้อบกพร่อง visual |
 
 > หมายเหตุ: การทดสอบทั้งหมดใช้ **dev = prod DB เดียวกัน** — ข้อมูลทดสอบถูกสร้างแล้วเก็บกวาดในสคริปต์
 > เดียวกันทุกครั้ง (verify count กลับเท่าเดิม). E2E Playwright ตาม §2 ยังไม่ได้เขียนเป็น spec รันได้
-> — ที่ทำคือ smoke test ผ่าน authenticated curl + ตรวจ DB (สำรองเมื่อ MCP ไม่พร้อม)
+> — ที่ทำคือ smoke test ผ่าน authenticated curl + ตรวจ DB + visual QA ผ่าน Chrome DevTools MCP
+>
+> **Visual QA พิสูจน์สิ่งที่โค้ด/DB บอกไม่ได้:** การแยกสีแบรนด์ 2 ฝั่งทำงานจริง (Paces น้ำเงิน /
+> Vuexy ม่วง), Verified-Means-Green บังคับจริงทั้งสองฝั่ง (รอยืนยัน = เหลือง/ส้ม ไม่เขียว),
+> `[checkIn, checkOut)` เรนเดอร์บนปฏิทินถูก (จอง 23–25 จบก่อน 26 — วันเช็คเอาท์ว่าง), PII mask
+> ถึงระดับ pixel (เบอร์ `••••••1649` ฝั่ง seller, ไม่มีเบอร์/แม่บ้าน/เหตุผลยกเลิกหลุดฝั่งผู้จอง)
 
 ---
 
