@@ -50,7 +50,9 @@ export default function QuickMessageBar({ onPick, disabled }: Props) {
           aria-label="จัดการข้อความสำเร็จรูป"
           title="จัดการข้อความสำเร็จรูป"
         >
-          <Icon icon="message-2-bolt" className="text-base" />
+          {/* เฟือง ไม่ใช่สายฟ้า — สายฟ้าเป็นปุ่ม "เปิดแถบข้อความสำเร็จรูป" ในแถวเครื่องมือของ
+              composer แล้ว (ChatThread.tsx) ถ้าใช้ไอคอนเดียวกันสองความหมายจะสับสน */}
+          <Icon icon="settings" className="text-base" />
         </button>
 
         {items.length === 0 ? (
