@@ -49,6 +49,13 @@ interface Props {
   formId?: string
   /** ร้านเปิด Inventory Add-on ไหม — ถ้าเปิด แสดงสต็อกคงเหลือ + เตือน qty เกินสต็อก */
   inventoryEnabled?: boolean
+  // feature 00018: prefill + callback เมื่อใช้ในโมดัลสร้างคำสั่งซื้อจากหน้าแชท (reuse ฟอร์มเดิม)
+  /** prefill ชื่อลูกค้าจากแชท */
+  initialBuyerName?: string
+  /** prefill เบอร์/ช่องทางติดต่อจากแชท */
+  initialBuyerContact?: string
+  /** เรียกเมื่อสร้างสำเร็จ — ถ้ามี จะไม่ router.push (โมดัลจัดการปิด+refresh เอง); ไม่มี = behavior เดิม (/orders/new) */
+  onSuccess?: (token: string | null) => void
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -149,7 +156,16 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers = [], formId, inventoryEnabled = false }: Props) {
+export default function OrderCreateForm({
+  shopId: _shopId,
+  catalog,
+  bestSellers = [],
+  formId,
+  inventoryEnabled = false,
+  initialBuyerName,
+  initialBuyerContact,
+  onSuccess,
+}: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -167,8 +183,8 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: yupResolver(schema) as any,
     defaultValues: {
-      buyerName: '',
-      buyerContact: '',
+      buyerName: initialBuyerName ?? '',
+      buyerContact: initialBuyerContact ?? '',
       items: [],
       // default ตรงกับ quick create ChannelPaymentSelect (STOREFRONT/CASH); localStorage override ตอน mount ด้านล่าง
       salesChannel: 'STOREFRONT',
@@ -404,6 +420,11 @@ export default function OrderCreateForm({ shopId: _shopId, catalog, bestSellers 
       const isDesktop =
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
       if (isDesktop) pacesToast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
+      // โมดัลสร้างคำสั่งซื้อจากแชท (feature 00018): ไม่ navigate ออก — ให้ manager ปิด draft + refresh เอง
+      if (onSuccess) {
+        onSuccess(token ?? null)
+        return
+      }
       if (token) {
         router.push(`/orders/${token}`)
       } else {

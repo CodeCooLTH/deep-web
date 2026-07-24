@@ -177,7 +177,7 @@ export async function createOrder(shopId: string, data: {
     shippingAddress: data.shippingAddress ?? undefined,
   };
 
-  // 🛑 TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว
+  // [!] TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว
   // ทำไม: ถ้า tx.order.create throw P2002 (ชน shortCode) ครั้งแรก Postgres จะ mark
   // ทั้ง transaction เป็น aborted ("current transaction is aborted") — attempt ถัดไปที่พยายาม
   // retry อยู่ใน tx เดิมจะ fail ทันทีด้วย aborted-transaction error ไม่ใช่ retry จริง
@@ -510,6 +510,67 @@ export async function getOrdersByShop(shopId: string, status?: string) {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/**
+ * getOrdersByCustomer — ออเดอร์ของลูกค้าคนหนึ่งในร้าน แบบแบ่งหน้า (feature 00018 orders tab + lazy load)
+ * cursor = createdAt ISO ของแถวสุดท้ายที่เห็น (keyset createdAt desc — ออเดอร์ต่อลูกค้ามีไม่มาก).
+ * serialize Decimal/Date ก่อนคืน (ข้าม RSC/JSON boundary) — ตรง shape CustomerPanelOrder เป๊ะ
+ */
+export async function getOrdersByCustomer(
+  shopId: string,
+  customerId: string,
+  opts: { cursor?: string; take?: number; bookingOnly?: boolean } = {},
+): Promise<{
+  items: {
+    id: string;
+    token: string;
+    status: string;
+    fulfillmentMode: string;
+    totalAmount: string;
+    createdAt: string;
+    checkIn: string | null;
+    checkOut: string | null;
+  }[];
+  nextCursor: string | null;
+}> {
+  const take = Math.min(opts.take ?? 20, 50);
+  const rows = await prisma.order.findMany({
+    where: {
+      shopId,
+      customerId,
+      ...(opts.bookingOnly ? { type: "BOOKING" } : {}),
+      ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: take + 1, // +1 เพื่อรู้ว่ามีหน้าถัดไปไหม
+    select: {
+      id: true,
+      publicToken: true,
+      status: true,
+      fulfillmentMode: true,
+      totalAmount: true,
+      createdAt: true,
+      checkIn: true,
+      checkOut: true,
+    },
+  });
+  const hasMore = rows.length > take;
+  const items = hasMore ? rows.slice(0, take) : rows;
+  const nextCursor = hasMore ? items[items.length - 1].createdAt.toISOString() : null;
+  return {
+    items: items.map((o) => ({
+      id: o.id,
+      token: o.publicToken,
+      status: o.status,
+      fulfillmentMode: o.fulfillmentMode,
+      totalAmount: o.totalAmount.toString(),
+      createdAt: o.createdAt.toISOString(),
+      checkIn: o.checkIn ? o.checkIn.toISOString() : null,
+      checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+    })),
+    nextCursor,
+  };
 }
 
 /**

@@ -1094,6 +1094,10 @@ model Conversation {
   isPinned          Boolean   @default(false)
   isHidden          Boolean   @default(false)
   resolvedAt        DateTime? // null = ยังเปิดอยู่
+  // isSpam: เธรดสแปม (feature 00018, user สั่ง 2026-07-24) — คล้าย hide แต่ "ลูกค้าทักมาใหม่ไม่เด้งกลับ"
+  // (ต่างจาก isHidden ที่ auto-unhide) และ webhook ไม่ส่ง Notification/beep; ยังรับ+เก็บข้อความปกติ
+  // (Meta ส่ง webhook ระดับเพจ หยุดรายเธรดไม่ได้) — เปิดดูได้จากตัวกรอง "ดูสแปม"
+  isSpam            Boolean   @default(false)
   // alias: ชื่อในแชท (nickname ต่อเธรดนี้) — เช่น "Wave 110" (ชื่อจริงอยู่ที่ contact/customer) feat 00018 CRM
   alias             String?
   // externalReadAt: watermark "ลูกค้าฝั่งช่องทางนอกอ่านถึงเวลานี้" (Messenger message_reads) — ข้อความ

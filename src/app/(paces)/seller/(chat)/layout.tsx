@@ -35,8 +35,26 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
 import { resolveActiveShopContext } from '@/lib/shop-context'
+import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
+import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
 import ChatRail from './_components/ChatRail'
+import DraftOrderProvider from './_components/DraftOrderProvider'
+import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+
+// map Product → CatalogProduct (เหมือน (fullscreen)/orders/new/page.tsx) — สำหรับโมดัลสร้างคำสั่งซื้อในแชท
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toCatalog = (p: any): CatalogProduct => ({
+  id: p.id,
+  name: p.name,
+  description: p.description ?? null,
+  price: Number(p.price),
+  type: p.type,
+  fulfillmentMode: p.fulfillmentMode,
+  image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
+  sku: p.sku ?? null,
+  stockQty: p.stockQty ?? null,
+})
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -51,7 +69,21 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     user: { id: user.id, activeShopId: user.activeShopId ?? null },
   })
 
-  return (
+  // catalog สำหรับโมดัลสร้างคำสั่งซื้อในแชท (feature 00018) — fetch ครั้งเดียวที่ layout, แชร์ทุก draft
+  // fail-soft: ล้มก็ยังเปิดหน้าแชทได้ (แค่ modal ไม่มีสินค้าให้เลือก จนกว่าจะรีเฟรช)
+  let catalog: CatalogProduct[] = []
+  let bestSellers: CatalogProduct[] = []
+  let inventoryEnabled = false
+  if (activeCtx?.shopId) {
+    const shopId = activeCtx.shopId
+    ;[catalog, bestSellers, inventoryEnabled] = await Promise.all([
+      getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
+      getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
+      isEntitlementActive(shopId).catch(() => false),
+    ])
+  }
+
+  const shell = (
     <ChatSearchProvider>
       <div className="chat-shell flex h-dvh flex-col overflow-hidden bg-card">
         <ChatHeader />
@@ -81,5 +113,19 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         </div>
       </div>
     </ChatSearchProvider>
+  )
+
+  // ห่อด้วย DraftOrderProvider เมื่อมีร้าน active — โมดัลสร้างคำสั่งซื้อ (feature 00018) ค้างข้ามแชทได้
+  // เพราะ provider อยู่เหนือ {children} (route content). ไม่มีร้าน = ไม่ต้องมีโมดัล (ไม่มี catalog/shopId)
+  if (!activeCtx?.shopId) return shell
+  return (
+    <DraftOrderProvider
+      shopId={activeCtx.shopId}
+      catalog={catalog}
+      bestSellers={bestSellers}
+      inventoryEnabled={inventoryEnabled}
+    >
+      {shell}
+    </DraftOrderProvider>
   )
 }

@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -282,24 +282,41 @@ export async function ingestInboundMessage(params: {
     console.warn('[fb-ingest] media mirror failed', { attType, host, hasUrl: !!attUrl })
   }
   const hasText = !!text && text.trim().length > 0
-  // placeholder แยกรูป/สติกเกอร์ vs อื่น ๆ (I-5) — ต้องมี body/preview ที่สื่อความหมายเสมอ ไม่งั้น bubble ว่าง
-  const attachmentFailedText = isImageLike ? MIRROR_FAILED_TEXT : UNSUPPORTED_ATTACHMENT_TEXT
+  // enrich (user 2026-07-24 "ต้องรองรับทุกอย่าง"): attachment ที่ Meta สังเคราะห์ "ข้อความสรุป" ไว้แต่
+  // ไม่ส่ง text มากับ webhook — template (คำสั่งซื้อ/คำขอชำระเงิน เช่น "You requested ฿590..."), story —
+  // ดึงข้อความที่ render แล้วจาก Graph มาแสดงแทน placeholder ลอย ๆ. เฉพาะเคสไม่มี text จริง + ไม่ใช่สื่อที่
+  // mirror ได้ (isMedia) + ไม่ใช่ลิงก์แชร์ (มี linkText จาก payload อยู่แล้ว) — exception path (ไม่บ่อย)
+  let renderedText: string | null = null
+  if (!hasText && !isLink && hasAttachment && !mirroredFileId && attType && !isMedia && event.message.mid) {
+    renderedText = await fetchMessageText(event.message.mid, channel.accessToken)
+  }
+  // ลำดับข้อความที่จะแสดง: text จริง > ลิงก์แชร์ (title+url จาก payload) > ข้อความ render จาก Graph
+  const displayText = hasText ? text : isLink ? linkText : renderedText
+  const hasDisplayText = !!displayText && displayText.trim().length > 0
+  // placeholder เฉพาะชนิด (I-5, user 2026-07-24) — ไม่ใช่ "[ไฟล์แนบ]" รวมทุกชนิด. ใช้เมื่อไม่มี text จริง
+  // และดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก. sticker/reel/ig_reel/
+  // post/ig_post = alias ของ image/video/fallback ตามลำดับ (feature 00018 attachment types เต็มชุด)
+  const FAILED_TEXT_BY_TYPE: Record<string, string> = {
+    image: MIRROR_FAILED_TEXT,
+    sticker: MIRROR_FAILED_TEXT,
+    video: '[วิดีโอ — เปิดดูใน Messenger]',
+    reel: '[วิดีโอ — เปิดดูใน Messenger]',
+    ig_reel: '[วิดีโอ — เปิดดูใน Messenger]',
+    audio: '[ข้อความเสียง — เปิดดูใน Messenger]',
+    file: '[ไฟล์แนบ — เปิดดูใน Messenger]',
+    location: '[ตำแหน่งที่ตั้ง — เปิดดูใน Messenger]',
+    fallback: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
+    post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
+    ig_post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
+    template: '[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน Messenger]',
+  }
+  const attachmentFailedText = (attType && FAILED_TEXT_BY_TYPE[attType]) ?? UNSUPPORTED_ATTACHMENT_TEXT
   // ข้อความที่ไม่มีทั้ง text และ attachment (reaction/ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มี
-  // เนื้อหาที่เราแสดงได้ เช่น template/appointment_booking/location) → placeholder แทน body/preview ว่าง
+  // เนื้อหาที่เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
   const emptyMessageText = '[ข้อความไม่รองรับ — เปิดดูใน Messenger]'
-  // ลำดับ: mirror สำเร็จ → caption(text); ลิงก์แชร์ → linkText(+text); attachment mirror ไม่ผ่าน →
-  // placeholder; มีแต่ text → text; ไม่มีอะไรเลย → emptyMessageText
-  const body = mirroredFileId
-    ? text
-    : isLink
-      ? hasText
-        ? `${text}\n${linkText}`
-        : linkText
-      : hasAttachment
-        ? attachmentFailedText
-        : hasText
-          ? text
-          : emptyMessageText
+  // ข้อความจริง/สรุปจาก Graph มาก่อน placeholder แนบไฟล์เสมอ (bug prod 2026-07-24: template/order ที่มี
+  // ข้อความถูกทับด้วย "[ไฟล์แนบ]" ทิ้งเนื้อหาจริง) — placeholder เฉพาะตอน "ไม่มีข้อความให้แสดงจริง ๆ"
+  const body = mirroredFileId ? text : hasDisplayText ? displayText : hasAttachment ? attachmentFailedText : emptyMessageText
   const previewByType: Record<string, string> = {
     IMAGE: '[รูปภาพ]',
     VIDEO: '[วิดีโอ]',
@@ -308,13 +325,11 @@ export async function ingestInboundMessage(params: {
   }
   const preview = mirroredFileId
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
-    : isLink
-      ? (linkText ?? '').slice(0, 100)
+    : hasDisplayText
+      ? displayText!.slice(0, 100)
       : hasAttachment
         ? attachmentFailedText
-        : hasText
-          ? text!.slice(0, 100)
-          : emptyMessageText
+        : emptyMessageText
   const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
   const mid = event.message.mid
 
@@ -327,7 +342,7 @@ export async function ingestInboundMessage(params: {
   // ต้องเป็น arrow function (ไม่ใช่ `function` ประกาศแยก) ไม่งั้น TS จะรีเซ็ต narrowing ของ
   // `channel` (ที่เช็ค !channel ไปแล้วด้านบน) เพราะ function declaration แบบ hoisted ถูกมองว่า
   // เรียกได้จากที่ไหนก็ได้ ทำให้ TS มองว่า channel เป็น null ได้อีก
-  const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string }) => {
+  const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string; isSpam: boolean }) => {
     await tx.chatMessage.create({
       data: {
         conversationId: conversation.id,
@@ -359,12 +374,20 @@ export async function ingestInboundMessage(params: {
         //
         // isHidden/resolvedAt: BR-FBC-15/16 (S-7) — ลูกค้าทักมาใหม่ในเธรดที่ร้านซ่อน/ปิดงานไว้
         // → เด้งกลับให้เห็นอัตโนมัติ กันร้านพลาดข้อความ; echo (ร้านตอบเอง) ไม่ trigger
-        ...(isEcho ? {} : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
+        //
+        // สแปม (feature 00018, user สั่ง 2026-07-24): เธรดสแปม "ลูกค้าทักมาใหม่ไม่เด้งกลับ" (ต่างจาก
+        // hide/resolve) — อัปเดต lastMessageAt/lastInboundAt (ลำดับในถังสแปม + 24h window) แต่ไม่รีเซ็ต
+        // isHidden/resolvedAt และไม่แตะ isSpam → เธรดอยู่ในสแปมต่อ; ไม่ส่ง Notification ด้านล่างด้วย
+        ...(isEcho
+          ? {}
+          : conversation.isSpam
+            ? { lastMessageAt: occurredAt, lastInboundAt: occurredAt }
+            : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
       },
     })
 
-    // แจ้งเตือนเจ้าของร้านเฉพาะข้อความจากลูกค้า (echo คือร้านตอบเอง ไม่ต้องเตือน)
-    if (!isEcho) {
+    // แจ้งเตือนเจ้าของร้านเฉพาะข้อความจากลูกค้า (echo คือร้านตอบเอง ไม่ต้องเตือน); สแปม = เงียบ
+    if (!isEcho && !conversation.isSpam) {
       const shop = await tx.shop.findUnique({
         where: { id: channel.shopId },
         select: { userId: true },

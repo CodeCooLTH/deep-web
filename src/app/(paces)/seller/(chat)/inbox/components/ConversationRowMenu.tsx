@@ -15,7 +15,7 @@
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 
-export type RowAction = 'pin' | 'unpin' | 'hide' | 'unhide' | 'resolve' | 'reopen'
+export type RowAction = 'pin' | 'unpin' | 'hide' | 'unhide' | 'resolve' | 'reopen' | 'spam' | 'unspam'
 
 type Props = {
   isPinned: boolean

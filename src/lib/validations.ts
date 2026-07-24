@@ -743,6 +743,7 @@ export const ChatConversationsQuerySchema = v.object({
   // feature 00018: แท็บกลุ่ม + อ่านแล้ว/ยังไม่อ่าน
   chatGroupId: v.optional(v.pipe(v.string(), v.uuid())),
   readState: v.optional(v.picklist(['unread', 'read'])),
+  spam: v.optional(v.boolean()), // feature 00018: true = ดูเฉพาะสแปม (user สั่ง 2026-07-24)
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
@@ -751,7 +752,7 @@ export const MarkChatReadSchema = v.object({}); // empty body — conversationId
 // body ของ PATCH /api/chat/conversations/{id}
 // action='set-group' → ใช้ chatGroupId (string=ย้ายเข้ากลุ่มนั้น, null=เอาออก); action อื่นไม่ต้องมี chatGroupId
 export const ConversationPatchSchema = v.object({
-  action: v.picklist(["pin", "unpin", "hide", "unhide", "resolve", "reopen", "set-group"]),
+  action: v.picklist(["pin", "unpin", "hide", "unhide", "resolve", "reopen", "spam", "unspam", "set-group"]),
   chatGroupId: v.optional(v.nullable(v.pipe(v.string(), v.uuid()))),
 });
 
