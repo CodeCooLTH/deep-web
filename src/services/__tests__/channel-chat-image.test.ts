@@ -52,8 +52,8 @@ describe('mirrorRemoteImage', () => {
     expect(saveFile).not.toHaveBeenCalled()
   })
 
-  it('ไฟล์ใหญ่เกิน 5MB (จริง ไม่ใช่แค่ header โกหก) → ยกเลิกกลางทางระหว่างอ่าน คืน null ไม่อัปโหลด', async () => {
-    const big = new Uint8Array(6 * 1024 * 1024)
+  it('ไฟล์ใหญ่เกิน 25MB (จริง ไม่ใช่แค่ header โกหก) → ยกเลิกกลางทางระหว่างอ่าน คืน null ไม่อัปโหลด', async () => {
+    const big = new Uint8Array(26 * 1024 * 1024)
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       fakeFbResponse(big, { contentType: 'image/jpeg' }),
     )
@@ -61,19 +61,24 @@ describe('mirrorRemoteImage', () => {
     expect(saveFile).not.toHaveBeenCalled()
   })
 
-  it('content-type ไม่ใช่รูป → คืน null', async () => {
+  // "รองรับทุกอย่าง" (user 2026-07-24): จาก Meta CDN (host allow-list ผ่านแล้ว) content-type ใดก็เก็บได้
+  // ไม่มี allow-list ชนิดไฟล์แล้ว — ชนิดแปลกได้ generic ext, serve เป็น attachment (ปลอดภัยด้วย nosniff)
+  it('content-type แปลก (text/html) → ยังเก็บได้ด้วย generic ext + skipValidation (จาก Meta CDN ปลอดภัย)', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       fakeFbResponse(new Uint8Array(8), { contentType: 'text/html' }),
     )
-    expect(await mirrorRemoteImage('https://graph.facebook.com/x')).toBeNull()
+    saveFile.mockResolvedValue('chat/x.html')
+    expect(await mirrorRemoteImage('https://graph.facebook.com/x')).toBe('chat/x.html')
+    expect(saveFile).toHaveBeenCalledWith(expect.anything(), { skipValidation: true })
   })
 
-  it('content-type เป็น image/gif → คืน null ไม่เรียก saveFile เลย (storage/types.ts ไม่รองรับ gif — I-5)', async () => {
+  it('content-type image/gif → mirror สำเร็จ (รองรับ GIF/สติกเกอร์เคลื่อนไหว)', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       fakeFbResponse(new Uint8Array(8), { contentType: 'image/gif' }),
     )
-    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/x.gif')).toBeNull()
-    expect(saveFile).not.toHaveBeenCalled()
+    saveFile.mockResolvedValue('chat/x.gif')
+    expect(await mirrorRemoteImage('https://scontent.fbcdn.net/x.gif')).toBe('chat/x.gif')
+    expect(saveFile).toHaveBeenCalledWith(expect.anything(), { skipValidation: true })
   })
 
   // (S-1) SSRF guard — host นอก allow-list ต้องไม่ยิง fetch ออกไปเลย

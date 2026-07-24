@@ -27,8 +27,15 @@ export type GetFileUrlOptions = {
   expiresIn?: number;
 };
 
+export type SaveFileOptions = {
+  /** ข้าม validateUpload (ชนิด/ขนาดของ seller upload) — ใช้เฉพาะ path ที่ทำ validation เองแล้ว
+   *  เช่น mirror ไฟล์แนบจาก Messenger/IG (มี host allow-list + streaming size cap ของตัวเอง).
+   *  ext มาจาก file.name ตามเดิม (caller ตั้ง .ext ที่ถูกต้องมาแล้ว) */
+  skipValidation?: boolean;
+};
+
 export interface Storage {
-  saveFile(file: File): Promise<string>;
+  saveFile(file: File, opts?: SaveFileOptions): Promise<string>;
   getFile(fileId: string): Promise<{ buffer: Buffer; ext: string } | null>;
   getFileUrl(fileId: string, opts?: GetFileUrlOptions): Promise<string>;
   deleteFile(fileId: string): Promise<void>;

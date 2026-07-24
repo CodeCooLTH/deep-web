@@ -34,8 +34,8 @@ function getBucket(): string {
   return requireEnv("S3_BUCKET");
 }
 
-export const saveFile: Storage["saveFile"] = async (file) => {
-  validateUpload(file);
+export const saveFile: Storage["saveFile"] = async (file, opts) => {
+  if (!opts?.skipValidation) validateUpload(file);
 
   const ext = file.name.split(".").pop() || "bin";
   const fileId = `${uuid()}.${ext}`;
