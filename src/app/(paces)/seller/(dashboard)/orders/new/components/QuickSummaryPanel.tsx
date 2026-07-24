@@ -20,16 +20,25 @@ interface Props {
   subtotal: number
   total: number
   formId?: string
+  /** compact = ใช้ในโมดัลสร้างคำสั่งซื้อ (feature 00018): footer ติดล่างของโมดัล (sticky ในกล่อง scroll)
+   *  แทน fixed viewport-bottom + แสดงทุกขนาดจอ (ไม่ lg:hidden) เพราะโมดัลบังคับ layout มือถือทุกจอ */
+  compact?: boolean
 }
 
-export default function QuickSummaryPanel({ control, subtotal, total, formId }: Props) {
+export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false }: Props) {
   const [expanded, setExpanded] = useState(false)
   const discount = (useWatch({ control, name: 'discount' }) as number | undefined) ?? 0
   const vatRate = (useWatch({ control, name: 'vatRate' }) as number | undefined) ?? 0
   const vatAmount = vatRate > 0 ? Math.round((subtotal - discount) * (vatRate / 100) * 100) / 100 : 0
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-default-200 bg-card p-3 lg:hidden">
+    <div
+      className={
+        compact
+          ? 'bg-card sticky bottom-0 z-40 border-t border-default-200 p-3'
+          : 'fixed inset-x-0 bottom-0 z-40 border-t border-default-200 bg-card p-3 lg:hidden'
+      }
+    >
       {expanded && (
         <div className="mb-2 space-y-1 border-b border-default-100 pb-2 text-sm">
           <div className="flex justify-between text-default-500">

@@ -99,6 +99,17 @@ import {
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
+import { pacesToast } from '@/lib/paces-toast'
+
+// คัดลอกข้อความ (feature 00018, user request 2026-07-24: hover ข้อความ desktop มี icon copy)
+async function copyMessageText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    pacesToast.success('คัดลอกข้อความแล้ว')
+  } catch {
+    pacesToast.error('คัดลอกไม่สำเร็จ')
+  }
+}
 
 // จัดกลุ่มรูปที่ส่งติดกัน "ชุดเดียวกัน" เป็นอัลบั้ม (feat 00018, user request 2026-07-23 อ้าง FB):
 // contiguous same-sender bare IMAGE (ไม่มี caption) ที่ห่างกันไม่เกิน ALBUM_GAP_MS → รวมเป็น 1 album
@@ -664,10 +675,24 @@ export default function ChatThread({
                 // feature 00018 T4 (ภาคผนวก A-3): deliveryStatus/failureReason มีจริงตอน runtime
                 // (getMessages ไม่ select เลย คืนทุกคอลัมน์ของ ChatMessage — ดู comment หัวไฟล์)
                 const mExt = m as ChatMessageWithDelivery
+                // ปุ่มคัดลอกข้อความ — โผล่ตอน hover เฉพาะ desktop (lg:group-hover) และเฉพาะข้อความที่มี text
+                // (user request 2026-07-24) วางข้างบับเบิล: ฝั่งเรา=ซ้าย, ฝั่งลูกค้า=ขวา
+                const copyBtn = m.body ? (
+                  <button
+                    type="button"
+                    onClick={() => copyMessageText(m.body!)}
+                    aria-label="คัดลอกข้อความ"
+                    title="คัดลอกข้อความ"
+                    className="text-default-400 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full lg:group-hover:flex"
+                  >
+                    <Icon icon="copy" className="size-4" />
+                  </button>
+                ) : null
                 return (
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
-                  <div key={m.id} className={`my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
+                  <div key={m.id} className={`group my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
                     {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
+                    {mine && copyBtn}
                     {/* feature 00018 T4 (ภาคผนวก A-3): เดิม Base ไม่ใส่ max-w บนคอลัมน์นี้เลย ทำให้
                         ข้อความยาว (auto-reply) ดันเต็มบรรทัด — ห้ามใส่ percent bracket (ผิด HR7 ตาม
                         comment เดิมของไฟล์นี้) จึงใช้ Tailwind scale class มาตรฐาน (ไม่ใช่ bracket)
@@ -821,6 +846,7 @@ export default function ChatThread({
                         </div>
                       )}
                     </div>
+                    {!mine && copyBtn}
                   </div>
                 )
               })}

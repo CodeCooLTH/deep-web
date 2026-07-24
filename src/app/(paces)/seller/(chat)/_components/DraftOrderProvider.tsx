@@ -15,21 +15,48 @@
 import { createContext, useCallback, useContext, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { generateInitials } from '@/utils/helpers'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
-const CHANNEL_LABEL: Record<string, string> = { DEEP: 'Deep', MESSENGER: 'Messenger', INSTAGRAM: 'Instagram' }
 
-export type OpenDraftInput = { conversationId: string; customerName: string; channel: Channel }
+export type OpenDraftInput = {
+  conversationId: string
+  customerName: string
+  channel: Channel
+  /** รูปโปรไฟล์ลูกค้า (http URL หรือ storage fileId) — โชว์ใน chip ตอนพับ (user request 2026-07-24) */
+  customerAvatar?: string | null
+}
 
 type OrderDraft = {
   id: string
   conversationId: string
   customerName: string
-  channelLabel: string
+  customerAvatar: string | null
+  channel: string
   state: 'expanded' | 'minimized'
+}
+
+/** avatar เล็กของลูกค้า + ไอคอนช่องทาง (chip/หัวโมดัล) — src เดียวกับ ChatAvatar (http URL / fileId / initials) */
+function DraftAvatar({ avatar, name, channel }: { avatar: string | null; name: string; channel: string }) {
+  const [failed, setFailed] = useState(false)
+  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  return (
+    <span className="relative shrink-0">
+      {!src || failed ? (
+        <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-full text-xs font-semibold">
+          {generateInitials(name) || '?'}
+        </span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={name} className="bg-default-100 size-9 rounded-full object-cover" onError={() => setFailed(true)} />
+      )}
+      {channel !== 'DEEP' && <ChannelBadgeOverlay channel={channel} size="sm" />}
+    </span>
+  )
 }
 
 type DraftOrderContextValue = { openDraft: (input: OpenDraftInput) => void }
@@ -67,7 +94,8 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
         id: (globalThis.crypto?.randomUUID?.() ?? `d${Date.now()}${prev.length}`),
         conversationId: input.conversationId,
         customerName: input.customerName,
-        channelLabel: CHANNEL_LABEL[input.channel] ?? 'แชท',
+        customerAvatar: input.customerAvatar ?? null,
+        channel: input.channel,
         state: 'expanded',
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
@@ -117,21 +145,20 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
           aria-label={`สร้างคำสั่งซื้อ ${d.customerName}`}
           aria-hidden={d.state !== 'expanded'}
           // z-80 = viewport overlay (Paces ไม่มี token; precedent CustomerPanelSheet/OrderQrSheet — HR7 carve-out)
-          // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ ตาม design); มือถือเต็มจอ (inset-0), desktop inset-6
+          // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ). มือถือเต็มจอ (inset-0); desktop = หน้าต่างขนาดมือถือ
+          // (w-96) dock ขวา (user request 2026-07-24: ให้เล็กเท่ามือถือ จะได้อ่านแชทที่อยู่ข้างหลังได้)
           className={
             d.state === 'expanded'
-              ? 'bg-card fixed inset-0 z-80 flex flex-col overflow-hidden shadow-lg lg:inset-6 lg:rounded-lg'
+              ? 'bg-card fixed inset-0 z-80 flex flex-col overflow-hidden shadow-lg lg:inset-y-4 lg:left-auto lg:right-4 lg:w-96 lg:rounded-lg'
               : 'hidden'
           }
         >
           {/* title-bar สีทึบ (ไม่ใช่ .card-header ขาว+dashed มาตรฐาน — เป็นแถบหัวหน้าต่าง action) */}
           <div className="bg-primary flex items-center gap-3 px-4 py-3 text-white">
-            <Icon icon="shopping-cart-plus" className="size-5 shrink-0" />
+            <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
             <div className="min-w-0 flex-1">
-              <p className="mb-0 truncate text-sm font-semibold">สร้างคำสั่งซื้อใหม่</p>
-              <p className="mb-0 truncate text-xs text-white/80">
-                {d.customerName} · {d.channelLabel}
-              </p>
+              <p className="mb-0 truncate text-sm font-semibold">คำสั่งซื้อใหม่ · {d.customerName}</p>
+              <p className="mb-0 truncate text-xs text-white/80">{getChannelDisplay(d.channel).label}</p>
             </div>
             <button
               type="button"
@@ -151,16 +178,21 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
             </button>
           </div>
 
+          {/* compact = บังคับ layout มือถือ (QuickForm) ทุกจอ — POS 3-col เดสก์ท็อปแน่นเกินในโมดัล
+              (user report 2026-07-24). max-w-2xl กันฟอร์มคอลัมน์เดียวยืดกว้างเกินบนจอใหญ่ */}
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <OrderCreateForm
-              shopId={shopId}
-              catalog={catalog}
-              bestSellers={bestSellers}
-              inventoryEnabled={inventoryEnabled}
-              formId={`draft-order-form-${d.id}`}
-              initialBuyerName={d.customerName}
-              onSuccess={() => handleSuccess(d)}
-            />
+            <div className="mx-auto w-full max-w-2xl">
+              <OrderCreateForm
+                shopId={shopId}
+                catalog={catalog}
+                bestSellers={bestSellers}
+                inventoryEnabled={inventoryEnabled}
+                formId={`draft-order-form-${d.id}`}
+                initialBuyerName={d.customerName}
+                onSuccess={() => handleSuccess(d)}
+                compact
+              />
+            </div>
           </div>
         </div>
       ))}
@@ -174,9 +206,10 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               className="border-default-300 bg-card flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg"
             >
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
-                <Icon icon="shopping-cart-plus" className="text-primary size-4 shrink-0" />
-                <span className="text-default-800 truncate text-sm font-medium">
-                  คำสั่งซื้อใหม่ · {d.customerName}
+                <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
+                <span className="flex min-w-0 flex-col text-start">
+                  <span className="text-default-500 text-2xs">คำสั่งซื้อใหม่</span>
+                  <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
               </button>
               <button
