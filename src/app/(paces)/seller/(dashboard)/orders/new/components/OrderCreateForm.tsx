@@ -54,6 +54,8 @@ interface Props {
   initialBuyerName?: string
   /** prefill เบอร์/ช่องทางติดต่อจากแชท */
   initialBuyerContact?: string
+  /** prefill ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK) จากช่องทางแชท — ชนะ localStorage default */
+  initialSalesChannel?: string
   /** เรียกเมื่อสร้างสำเร็จ — ถ้ามี จะไม่ router.push (โมดัลจัดการปิด+refresh เอง); ไม่มี = behavior เดิม (/orders/new) */
   onSuccess?: (token: string | null) => void
   /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
@@ -167,6 +169,7 @@ export default function OrderCreateForm({
   inventoryEnabled = false,
   initialBuyerName,
   initialBuyerContact,
+  initialSalesChannel,
   onSuccess,
   compact = false,
 }: Props) {
@@ -191,7 +194,8 @@ export default function OrderCreateForm({
       buyerContact: initialBuyerContact ?? '',
       items: [],
       // default ตรงกับ quick create ChannelPaymentSelect (STOREFRONT/CASH); localStorage override ตอน mount ด้านล่าง
-      salesChannel: 'STOREFRONT',
+      // initialSalesChannel (จากช่องทางแชท) ชนะ default ถ้ามี
+      salesChannel: initialSalesChannel ?? 'STOREFRONT',
       paymentMethod: 'CASH',
       internalNote: '',
       discount: undefined,
@@ -298,7 +302,8 @@ export default function OrderCreateForm({
     if (typeof window === 'undefined') return
     const ch = localStorage.getItem('deep.default.salesChannel')
     const pm = localStorage.getItem('deep.default.paymentMethod')
-    if (ch) setValue('salesChannel', ch)
+    // ช่องทางจากแชท (initialSalesChannel) ชนะ localStorage default — ไม่ override ทับ
+    if (ch && !initialSalesChannel) setValue('salesChannel', ch)
     if (pm) setValue('paymentMethod', pm)
     // รันครั้งเดียวตอน mount
     // eslint-disable-next-line react-hooks/exhaustive-deps

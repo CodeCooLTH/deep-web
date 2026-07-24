@@ -23,6 +23,13 @@ import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dash
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
 
+// map ช่องทางแชท → ช่องทางการขาย ของฟอร์มออเดอร์ (STOREFRONT|FACEBOOK|LINE|TIKTOK)
+// Messenger/Instagram = Meta → FACEBOOK; DEEP = แอปในระบบ → undefined (ใช้ default STOREFRONT)
+function chatChannelToSalesChannel(channel: string): string | undefined {
+  if (channel === 'MESSENGER' || channel === 'INSTAGRAM') return 'FACEBOOK'
+  return undefined
+}
+
 export type OpenDraftInput = {
   conversationId: string
   customerName: string
@@ -189,6 +196,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
                 inventoryEnabled={inventoryEnabled}
                 formId={`draft-order-form-${d.id}`}
                 initialBuyerName={d.customerName}
+                initialSalesChannel={chatChannelToSalesChannel(d.channel)}
                 onSuccess={() => handleSuccess(d)}
                 compact
               />

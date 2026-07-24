@@ -174,6 +174,8 @@ import type { CustomerPanelData } from './CustomerPanel'
 
 type Props = {
   conversationId: string
+  /** ร้านที่ active — ใช้เป็น key throttle เสียงแจ้งเตือนรายร้าน (ต่างร้านไม่แข่งกันดัง, user 2026-07-24) */
+  shopId: string | null
   buyerName: string
   buyerAvatar: string | null
   /** feature 00018 (user request 2026-07-23) — รูปฝั่งร้าน (ข้อความ mine): รูปเพจสำหรับช่องทางนอก
@@ -338,6 +340,7 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
 
 export default function ChatThread({
   conversationId,
+  shopId,
   buyerName,
   buyerAvatar,
   shopAvatar,
@@ -428,7 +431,7 @@ export default function ChatThread({
     handleSend,
     retryMessage,
     externalReadAt: externalReadAtLive,
-  } = useSellerChatThread(conversationId)
+  } = useSellerChatThread(conversationId, shopId)
 
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
   // เติมข้อความ/caption ลง composer (รูปมี caption → ตั้งเป็นข้อความ, ไม่มีรูป → ต่อท้ายข้อความเดิม)

@@ -62,22 +62,49 @@ function getAudio(): HTMLAudioElement | null {
   return audioEl
 }
 
-/** กันเสียงซ้ำซ้อน: หน้าแชทมีทั้งรายการ (InboxList) และเธรดที่ subscribe realtime คนละ channel
- *  ข้อความใหม่ 1 ข้อความจึงอาจทริกเกอร์ 2 ที่พร้อมกัน — throttle ที่ระดับ module ให้ดังครั้งเดียว */
-let lastPlayedAt = 0
+// กันเสียงซ้ำซ้อน — throttle "รายร้าน" (user สั่ง 2026-07-24: หลายร้านต้องไม่แข่งกันดัง)
+// หน้าแชทมีทั้งรายการ (InboxList) และเธรด (thread) subscribe realtime คนละ channel — ข้อความเดียว
+// ทริกเกอร์หลายที่พร้อมกัน จึง throttle. key = shopId เพื่อให้ต่างร้านมี rate-limit ของตัวเอง
+// (ในแท็บเดียว รายการ+เธรดของร้านเดียวกันใช้ key เดียว = dedup กันเอง ยังทำงาน)
 const MIN_GAP_MS = 1200
+const GLOBAL_THROTTLE_KEY = '__all__' // ใช้เมื่อไม่รู้ shopId (เช่น ChatWidget) — ยัง throttle แต่ไม่แยกร้าน
+const lastPlayedByShop = new Map<string, number>()
+
+// ── ประสานข้ามแท็บ (user report 2026-07-24: เปิดหลายแท็บ เสียงดังซ้อนกัน) ──
+// แต่ละแท็บเป็น process แยก เบราว์เซอร์ไม่ dedup ให้เอง — ใช้ BroadcastChannel ให้แท็บที่กำลังจะเล่น
+// "ประกาศ" (พร้อม shopId) แล้วทุกแท็บ (รวมตัวเอง) ยึด throttle รายร้านเดียวกัน → ข้อความของร้านหนึ่ง
+// ดังครั้งเดียวทั้ง browser แต่ **ต่างร้านไม่กลบกัน**. race window = latency ของ message (~ไม่กี่ ms)
+// << MIN_GAP_MS (1.2s) จึง dedup ได้แทบทุกกรณี ไม่ต้องทำ leader-election
+let soundChannel: BroadcastChannel | null = null
+function getSoundChannel(): BroadcastChannel | null {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null
+  if (!soundChannel) {
+    soundChannel = new BroadcastChannel('deep-chat-sound')
+    soundChannel.onmessage = (e: MessageEvent) => {
+      // แท็บอื่นเพิ่งเล่นของร้านนี้ → ดัน throttle ของร้านนั้นในแท็บนี้ตามไป กันเล่นซ้ำ
+      const at = typeof e.data?.playedAt === 'number' ? e.data.playedAt : 0
+      const key = typeof e.data?.shopKey === 'string' ? e.data.shopKey : GLOBAL_THROTTLE_KEY
+      if (at > (lastPlayedByShop.get(key) ?? 0)) lastPlayedByShop.set(key, at)
+    }
+  }
+  return soundChannel
+}
 
 /**
  * playChatBeep — เล่นไฟล์เสียงแจ้งเตือนข้อความใหม่
- * conversationId: ถ้าส่งมา จะเช็ค mute รายเธรดด้วย
+ * opts.shopId — key ของ throttle (ต่างร้านไม่แข่งกันดัง); ไม่ระบุ = throttle รวม (ChatWidget)
+ * opts.conversationId — เช็ค mute รายเธรด
  */
-export function playChatBeep(conversationId?: string): void {
+export function playChatBeep(opts: { shopId?: string | null; conversationId?: string } = {}): void {
   if (isChatSoundMuted()) return
-  if (conversationId && isConversationMuted(conversationId)) return
+  if (opts.conversationId && isConversationMuted(opts.conversationId)) return
 
+  const key = opts.shopId ?? GLOBAL_THROTTLE_KEY
   const now = Date.now()
-  if (now - lastPlayedAt < MIN_GAP_MS) return
-  lastPlayedAt = now
+  if (now - (lastPlayedByShop.get(key) ?? 0) < MIN_GAP_MS) return // throttle รายร้าน (ในแท็บ + ข้ามแท็บ)
+  lastPlayedByShop.set(key, now)
+  // ประกาศให้แท็บอื่นก่อนเล่น — แท็บที่ประกาศทีหลังภายใน 1.2s (ร้านเดียวกัน) จะเงียบ; ต่างร้านไม่เกี่ยว
+  getSoundChannel()?.postMessage({ playedAt: now, shopKey: key })
 
   const el = getAudio()
   if (!el) return

@@ -456,7 +456,7 @@ export default function InboxList({
           const before = prevById.get(it.id)
           return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
         })
-        if (beepFor) playChatBeep(beepFor.id)
+        if (beepFor) playChatBeep({ shopId, conversationId: beepFor.id })
         // หน้าแรกเรียงล่าสุดก่อนอยู่แล้ว (lastMessageAt desc) — วางไว้บนสุดแล้วต่อด้วยของเก่าที่ไม่ซ้ำ
         return [...data.items, ...prev.filter((p) => !freshIds.has(p.id))]
       })
