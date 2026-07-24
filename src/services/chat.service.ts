@@ -193,18 +193,27 @@ export async function countUnreadByConversation(conversationIds: string[]): Prom
 /**
  * unreadConversationIdsForShop — id ของเธรดที่ "ฝั่งร้านยังไม่ได้อ่าน" (feature 00018 ตัวกรอง unread/read)
  *
- * เกณฑ์เดียวกับ badge unread: ข้อความล่าสุดมาจากลูกค้า (lastSenderRole='BUYER') และห้องยังไม่เคยอ่าน
- * (shopLastReadAt IS NULL) หรือมีข้อความใหม่กว่าเวลาที่อ่านล่าสุด (lastMessageAt > shopLastReadAt).
- * ต้องใช้ raw SQL เพราะเทียบสองคอลัมน์ในตารางเดียวกัน (lastMessageAt vs shopLastReadAt) — Prisma where
- * ทำ column-vs-column ไม่ได้. วิ่งบน index Conversation(shopId, ...) ที่มีอยู่แล้ว
+ * ต้องใช้เกณฑ์ "เดียวกันเป๊ะ" กับ badge unread (countUnreadByConversation): มีข้อความจากลูกค้า
+ * (senderRole='BUYER') ที่ใหม่กว่า shopLastReadAt (ห้องยังไม่เคยอ่าน = นับทั้งหมด). ต้อง JOIN
+ * ChatMessage เหมือนกัน — ไม่ใช่เช็ค lastSenderRole ระดับห้อง
+ *
+ * บั๊กเดิม (user report 2026-07-24: "filter เจอแชทเดียวทั้งที่มีหลายแชทยังไม่อ่าน"): เดิมเช็ค
+ * c."lastSenderRole" = 'BUYER' (ข้อความ *ล่าสุด* ต้องมาจากลูกค้า) ซึ่งไม่ตรงกับ badge. เคสที่หลุด =
+ * IG/Messenger ที่ร้านตอบผ่าน Facebook/IG โดยตรง (ไม่ผ่าน Deep) → echo เข้ามาเป็น lastSenderRole='SHOP'
+ * โดย shopLastReadAt ไม่อัปเดต → badge ยังนับ unread (ข้อความลูกค้าก่อนหน้ายังใหม่กว่า read) แต่ filter
+ * ตัดทิ้งเพราะข้อความล่าสุดเป็นของร้าน. JOIN ChatMessage ทำให้ทั้งสองเห็นตรงกัน
+ *
+ * DISTINCT — เธรดหนึ่งมีได้หลายข้อความลูกค้าที่ยังไม่อ่าน คืน id เดียว. วิ่งบน index
+ * ChatMessage(conversationId, createdAt) ที่มีอยู่แล้ว (เหมือน countUnreadByConversation)
  */
 export async function unreadConversationIdsForShop(shopId: string): Promise<string[]> {
   const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT c.id AS id
+    SELECT DISTINCT c.id AS id
     FROM "Conversation" c
+    JOIN "ChatMessage" m ON m."conversationId" = c.id
     WHERE c."shopId" = ${shopId}
-      AND c."lastSenderRole" = 'BUYER'
-      AND (c."shopLastReadAt" IS NULL OR c."lastMessageAt" > c."shopLastReadAt")
+      AND m."senderRole" = 'BUYER'
+      AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
   `
   return rows.map((r) => r.id)
 }
@@ -454,12 +463,12 @@ export async function updateConversationState(
 }
 
 // ---- getUnreadCountForShop ----
+// นับ "จำนวนเธรดที่ยังไม่อ่าน" ให้ตรงกับ per-row badge + ตัวกรอง unread (user report 2026-07-24)
+// เดิมใช้ lastSenderRole='BUYER' ระดับห้อง → under-count เคส IG/Messenger ที่ร้านตอบนอก Deep
+// (ดู comment เต็มที่ unreadConversationIdsForShop). reuse ฟังก์ชันเดียวกันเป็น SSOT ของนิยาม "unread"
 export async function getUnreadCountForShop(shopId: string): Promise<number> {
-  const rows = await prisma.conversation.findMany({
-    where: { shopId, lastSenderRole: 'BUYER' },
-    select: { shopLastReadAt: true, lastMessageAt: true },
-  })
-  return rows.filter((r) => r.shopLastReadAt === null || r.lastMessageAt > r.shopLastReadAt).length
+  const ids = await unreadConversationIdsForShop(shopId)
+  return ids.length
 }
 
 // ---- internal: ownership guard ----

@@ -57,6 +57,10 @@ export type CustomerPanelOrder = {
 export type CustomerPanelData = {
   conversationId: string // feature 00018 CRM — ใช้เรียก /api/chat/conversations/[id]/crm
   contactName: string
+  /** รูปโปรไฟล์ลูกค้า (user report 2026-07-24: right panel ไม่มีรูป) — http URL (IG profile_pic)
+   *  หรือ storage fileId (avatar buyer Deep); null → fallback initials. ค่าเดียวกับ buyerAvatar
+   *  ที่ ChatThread header ใช้ (page.tsx ส่งชุดเดียวกัน) */
+  avatar: string | null
   channel: string // 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
   /** ชื่อเพจที่เธรดผูกอยู่ — badge แสดงชื่อเพจแทนชื่อช่องทาง (ให้ตรงกับ header เธรด) null = Deep */
   channelName: string | null
@@ -64,6 +68,30 @@ export type CustomerPanelData = {
   /** null = ยังไม่ผูก Customer — phoneMasked ผ่าน maskPhone() มาแล้วเสมอ (ห้ามส่งเบอร์เต็ม) */
   customer: { id: string; phoneMasked: string } | null
   orders: CustomerPanelOrder[]
+}
+
+/** avatar หัวแผงลูกค้า — รูปจริง (http URL หรือ storage fileId) + fallback initials ถ้าไม่มี/โหลดพลาด
+ *  (user report 2026-07-24: right panel ไม่มีรูป). ตรรกะ src เดียวกับ ChatAvatar ใน ChatThread.tsx */
+function PanelAvatar({ avatar, name }: { avatar: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  if (!src || failed) {
+    return (
+      <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        {generateInitials(name) || '?'}
+      </span>
+    )
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="bg-default-100 size-10 shrink-0 rounded-full object-cover"
+    />
+  )
 }
 
 type VerticalCta = { label: string; href: string; icon: string; tabLabel: string; emptyLabel: string }
@@ -190,9 +218,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
       {/* p-4 + gap-3 ให้เท่ากับ .card-body ของ Paces — user feedback บน prod ว่า padding เดิม
           (px-4 py-3) อึดอัด หัวการ์ดชิดขอบเกินไป */}
       <div className="flex items-center gap-3 border-b border-default-200 border-dashed p-4">
-        <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
-          {generateInitials(data.contactName) || '?'}
-        </span>
+        <PanelAvatar avatar={data.avatar} name={data.contactName} />
         <div className="min-w-0">
           <p className="text-default-900 mb-1 truncate text-sm font-semibold">{data.contactName}</p>
           <ChannelBadge channel={data.channel} label={data.channelName} />

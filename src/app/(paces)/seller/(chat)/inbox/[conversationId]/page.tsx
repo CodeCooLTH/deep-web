@@ -213,6 +213,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
     contactName: buyerDisplayName,
+    avatar: buyerAvatar, // user report 2026-07-24: right panel ไม่มีรูป — ส่งชุดเดียวกับ ChatThread header
     channel: conversation.channel,
     channelName,
     vertical,
