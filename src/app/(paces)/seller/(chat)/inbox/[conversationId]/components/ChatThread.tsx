@@ -74,7 +74,7 @@ import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   useSellerChatThread,
@@ -99,16 +99,43 @@ import {
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
-import { pacesToast } from '@/lib/paces-toast'
-
-// คัดลอกข้อความ (feature 00018, user request 2026-07-24: hover ข้อความ desktop มี icon copy)
-async function copyMessageText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    pacesToast.success('คัดลอกข้อความแล้ว')
-  } catch {
-    pacesToast.error('คัดลอกไม่สำเร็จ')
+/**
+ * CopyMessageButton — ปุ่มคัดลอกข้อความข้างบับเบิล (feature 00018)
+ * user request 2026-07-24: ไม่ต้องขึ้น toast — เปลี่ยน icon copy เป็นเช็คถูก (พร้อม animation) ตรงปุ่มเลย
+ * แล้วคืนสภาพเป็น copy หลัง ~1.5 วิ. state คัดลอกอยู่ในตัวปุ่มเอง (แต่ละข้อความมีปุ่มของตัวเอง)
+ */
+function CopyMessageButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // เงียบ — ไม่มี toast ตามคำสั่ง user (ปุ่มยังคง icon copy เดิม)
+    }
   }
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
+      title={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
+      className={`mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex ${
+        copied ? 'text-success' : 'text-default-400 hover:bg-default-100 hover:text-default-700'
+      }`}
+    >
+      {/* icon สลับ copy → check พร้อม pop (scale) — key เปลี่ยนเพื่อ retrigger transition ทุกครั้งที่คัดลอก */}
+      <Icon
+        key={copied ? 'check' : 'copy'}
+        icon={copied ? 'check' : 'copy'}
+        className={`size-4 transition-transform duration-200 ${copied ? 'scale-125' : 'scale-100'}`}
+      />
+    </button>
+  )
 }
 
 // จัดกลุ่มรูปที่ส่งติดกัน "ชุดเดียวกัน" เป็นอัลบั้ม (feat 00018, user request 2026-07-23 อ้าง FB):
@@ -677,17 +704,7 @@ export default function ChatThread({
                 const mExt = m as ChatMessageWithDelivery
                 // ปุ่มคัดลอกข้อความ — โผล่ตอน hover เฉพาะ desktop (lg:group-hover) และเฉพาะข้อความที่มี text
                 // (user request 2026-07-24) วางข้างบับเบิล: ฝั่งเรา=ซ้าย, ฝั่งลูกค้า=ขวา
-                const copyBtn = m.body ? (
-                  <button
-                    type="button"
-                    onClick={() => copyMessageText(m.body!)}
-                    aria-label="คัดลอกข้อความ"
-                    title="คัดลอกข้อความ"
-                    className="text-default-400 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full lg:group-hover:flex"
-                  >
-                    <Icon icon="copy" className="size-4" />
-                  </button>
-                ) : null
+                const copyBtn = m.body ? <CopyMessageButton text={m.body} /> : null
                 return (
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
                   <div key={m.id} className={`group my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
