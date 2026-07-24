@@ -35,13 +35,14 @@
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
 import Link from 'next/link'
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { formatDate } from '@/lib/format-date'
 import type { ShopVertical } from '@/lib/lodging'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
+import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 
 export type CustomerPanelOrder = {
   id: string
@@ -113,6 +114,95 @@ function summarize(orders: CustomerPanelOrder[]) {
   return { count: orders.length, done, total, latest: orders[0]?.createdAt ?? null }
 }
 
+const orderHref = (vertical: ShopVertical, token: string) =>
+  vertical === 'LODGING' ? `/bookings/${token}` : `/orders/${token}`
+
+/** การ์ดออเดอร์ 1 ใบ — markup เดิม (เลข/สถานะ/วันที่/ยอด) แยกเป็น component เพื่อ reuse ใน OrdersList */
+function OrderCard({ o, vertical }: { o: CustomerPanelOrder; vertical: ShopVertical }) {
+  const badge = STATUS_BADGE[o.status] ?? STATUS_BADGE.PENDING!
+  return (
+    <Link
+      href={orderHref(vertical, o.token)}
+      className="hover:bg-default-100 block rounded-lg border border-default-200 p-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-default-900 font-mono text-xs font-semibold">#{o.token.slice(0, 8).toUpperCase()}</span>
+        <span className={`badge text-2xs ${badge.cls}`}>{badge.label}</span>
+      </div>
+      {vertical === 'LODGING' && o.checkIn && o.checkOut && (
+        <p className="text-default-500 mt-1 text-xs">
+          {formatDate(o.checkIn)} – {formatDate(o.checkOut)}
+        </p>
+      )}
+      <div className="mt-1 flex items-center justify-between">
+        <span className="text-default-700 text-xs">{formatDate(o.createdAt)}</span>
+        <span className="text-default-900 text-sm font-semibold">฿{Number(o.totalAmount).toLocaleString('th-TH')}</span>
+      </div>
+    </Link>
+  )
+}
+
+/**
+ * OrdersList — card list + lazy load (feature 00018). เริ่มจากออเดอร์ที่ SSR ส่งมา (≤20) แล้ว
+ * lazy-load เพิ่มเมื่อ scroll ถึง sentinel ผ่าน GET /api/chat/conversations/[id]/orders?cursor=
+ * (keyset createdAt). ถ้า SSR ส่งมาครบ 20 ถือว่า "อาจมีเพิ่ม" → ตั้ง cursor เริ่มจากตัวสุดท้าย
+ */
+function OrdersList({
+  conversationId,
+  vertical,
+  initial,
+}: {
+  conversationId: string
+  vertical: ShopVertical
+  initial: CustomerPanelOrder[]
+}) {
+  const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
+  const [cursor, setCursor] = useState<string | null>(
+    initial.length >= 20 ? initial[initial.length - 1].createdAt : null,
+  )
+  const [loading, setLoading] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  const loadMore = useCallback(async () => {
+    if (!cursor || loading) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/chat/conversations/${conversationId}/orders?cursor=${encodeURIComponent(cursor)}`)
+      if (res.ok) {
+        const data: { items: CustomerPanelOrder[]; nextCursor: string | null } = await res.json()
+        setOrders((prev) => [...prev, ...data.items])
+        setCursor(data.nextCursor)
+      }
+    } catch {
+      // เงียบ — sentinel ยังอยู่ ลอง observe รอบถัดไปได้
+    } finally {
+      setLoading(false)
+    }
+  }, [cursor, loading, conversationId])
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const ob = new IntersectionObserver((entries) => entries[0]?.isIntersecting && loadMore(), { rootMargin: '120px' })
+    ob.observe(el)
+    return () => ob.disconnect()
+  }, [loadMore])
+
+  return (
+    <div className="space-y-2">
+      {orders.map((o) => (
+        <OrderCard key={o.id} o={o} vertical={vertical} />
+      ))}
+      {cursor && (
+        <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
+          <span className="border-primary size-4 animate-spin rounded-full border-2 border-t-transparent" />
+          <span className="text-default-400 text-xs">กำลังโหลด...</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * CustomerPanelBody — เนื้อหาจริง (header + tabs + tab content) แชร์ระหว่าง CustomerPanel
  * (desktop persistent column) และ CustomerPanelSheet (มือถือ/tablet <1024px) กันโค้ดซ้ำ 2 จุด
@@ -120,7 +210,11 @@ function summarize(orders: CustomerPanelOrder[]) {
 export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
   const [tab, setTab] = useState<Tab>('customer')
   const cta = VERTICAL_CTA[data.vertical]
-  const orderHref = (token: string) => (data.vertical === 'LODGING' ? `/bookings/${token}` : `/orders/${token}`)
+  const { openDraft } = useDraftOrders()
+  // เปิดโมดัลสร้างคำสั่งซื้อ (พับได้/ค้างข้ามแชท) แทนการ navigate ไป /orders/new (user request 2026-07-24)
+  const startCreateOrder = () =>
+    openDraft({ conversationId: data.conversationId, customerName: data.contactName, channel: data.channel })
+  // orderHref ย้ายไป module-level (ใช้ใน OrderCard) — CustomerPanelBody ไม่อ้างตรง ๆ แล้ว
   const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
   const summary = summarize(data.orders)
 
@@ -316,65 +410,30 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           aria-labelledby={`${uid}-tab-orders`}
           className={tab === 'orders' ? '' : 'hidden'}
         >
+        {/* header ในแท็บ (user request 2026-07-24): "รายการคำสั่งซื้อ" + ปุ่มสร้าง — ปุ่มแสดงเสมอ
+            (ไม่ผูกกับ empty-state) เปิดโมดัลพับได้แทน navigate ออกจากแชท */}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-default-900 mb-0 text-sm font-semibold">รายการ{cta.tabLabel}</p>
+          <button
+            type="button"
+            onClick={startCreateOrder}
+            className="btn btn-sm bg-primary text-white hover:bg-primary-hover inline-flex shrink-0 items-center gap-1 text-nowrap"
+          >
+            <Icon icon={cta.icon} className="size-4" />
+            สร้าง{cta.tabLabel}
+          </button>
+        </div>
+
         {data.customer ? (
           data.orders.length === 0 ? (
-            /* ผูกแล้วแต่ยังไม่มีออเดอร์ = เคสที่ "พร้อมสร้างที่สุด" — เดิมกลับเป็นเคสเดียวที่ไม่มีปุ่ม
-               ส่วนเคสที่ยังผูกไม่ได้กลับมีปุ่ม (critique P1-C: empty state กลับด้าน) */
-            <div className="space-y-3">
-              <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
-              <Link
-                href={cta.href}
-                className="btn bg-primary text-white hover:bg-primary-hover flex min-h-11 w-full items-center justify-center gap-1.5"
-              >
-                <Icon icon={cta.icon} className="text-lg" />
-                {cta.label}
-              </Link>
-            </div>
+            <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
           ) : (
-            <div className="space-y-2">
-              {data.orders.map((o) => {
-                const badge = STATUS_BADGE[o.status] ?? STATUS_BADGE.PENDING!
-                return (
-                  <Link
-                    key={o.id}
-                    href={orderHref(o.token)}
-                    className="hover:bg-default-100 block rounded-lg border border-default-200 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-default-900 font-mono text-xs font-semibold">
-                        #{o.token.slice(0, 8).toUpperCase()}
-                      </span>
-                      <span className={`badge text-2xs ${badge.cls}`}>{badge.label}</span>
-                    </div>
-                    {data.vertical === 'LODGING' && o.checkIn && o.checkOut && (
-                      <p className="text-default-500 mt-1 text-xs">
-                        {formatDate(o.checkIn)} – {formatDate(o.checkOut)}
-                      </p>
-                    )}
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-default-700 text-xs">{formatDate(o.createdAt)}</span>
-                      <span className="text-default-900 text-sm font-semibold">
-                        ฿{Number(o.totalAmount).toLocaleString('th-TH')}
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
+            <OrdersList conversationId={data.conversationId} vertical={data.vertical} initial={data.orders} />
           )
         ) : (
-          <div className="space-y-3">
-            <p className="text-default-700 mb-0 text-sm">
-              ยังไม่เชื่อมกับลูกค้าในระบบ จึงยังไม่มีประวัติให้ดู — สร้าง{cta.tabLabel}ด้วยเบอร์ของลูกค้ารายนี้แล้วระบบจะเชื่อมให้เอง
-            </p>
-            <Link
-              href={cta.href}
-              className="btn bg-primary text-white hover:bg-primary-hover flex min-h-11 w-full items-center justify-center gap-1.5"
-            >
-              <Icon icon={cta.icon} className="text-lg" />
-              {cta.label}
-            </Link>
-          </div>
+          <p className="text-default-700 mb-0 text-sm">
+            ยังไม่เชื่อมกับลูกค้าในระบบ จึงยังไม่มีประวัติให้ดู — สร้าง{cta.tabLabel}ด้วยเบอร์ของลูกค้ารายนี้แล้วระบบจะเชื่อมให้เอง
+          </p>
         )}
         </div>
       </div>
