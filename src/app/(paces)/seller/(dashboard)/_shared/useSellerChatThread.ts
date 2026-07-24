@@ -384,15 +384,27 @@ export function useSellerChatThread(conversationId: string) {
     const trimmed = text.trim()
     if (pendingImages.length === 0 && trimmed.length === 0) return
 
-    // รูปหลายรูป = หลายข้อความ (Messenger/IG ไม่รองรับหลายรูปในข้อความเดียว) — caption ติดไปกับ
-    // รูปแรกเท่านั้น ไม่งั้นลูกค้าจะเห็นข้อความเดิมซ้ำทุกใบ
+    // รูปหลายรูป = หลายข้อความ (Messenger/IG ไม่รองรับหลายรูปในข้อความเดียว)
+    //
+    // ลำดับ: **รูปทั้งหมดก่อน แล้วค่อยข้อความปิดท้าย** (user สั่ง 2026-07-23)
+    // เดิม caption ติดไปกับรูปใบแรก (body: i===0) ซึ่งฝั่ง Messenger จะกลายเป็น
+    // [รูป1] [ข้อความ] [รูป2] [รูป3] เพราะ sendOutboundMessage ส่ง caption เป็นข้อความตามหลังรูป
+    // ทันที (attachment ของ Meta ไม่มี text ในตัว — channel-chat.service.ts) ข้อความจึงไปคั่นกลาง
+    // ทำให้ Messenger จัดรูปเป็นอัลบั้มเกาะกลุ่มไม่ได้. ย้าย caption ออกมาเป็นข้อความ TEXT ใบสุดท้าย
+    // แทน → [รูป1][รูป2][รูป3][ข้อความ] รูปเกาะกลุ่มกันตามที่ต้องการ
+    //
+    // ผลข้างเคียงที่ตั้งใจ: เธรดในแอป (DEEP) เดิมรูป+caption อยู่บับเบิลเดียวกัน ตอนนี้แยกเป็น
+    // บับเบิลรูปกับบับเบิลข้อความ — ยอมแลกเพื่อให้ลำดับ/หน้าตาตรงกันทุกช่องทาง
     const payloads: OutgoingRetry[] =
       pendingImages.length > 0
-        ? pendingImages.map((img, i) => ({
-            type: 'IMAGE' as const,
-            imageUrl: img.fileId,
-            body: i === 0 ? trimmed || null : null,
-          }))
+        ? [
+            ...pendingImages.map((img) => ({
+              type: 'IMAGE' as const,
+              imageUrl: img.fileId,
+              body: null,
+            })),
+            ...(trimmed ? [{ type: 'TEXT' as const, body: trimmed }] : []),
+          ]
         : [{ type: 'TEXT' as const, body: trimmed }]
 
     const queued = payloads.map((payload) => {
