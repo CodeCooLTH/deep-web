@@ -2,9 +2,10 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, sendTextMessage, sendImageMessage, fetchMessageText, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
+import { contentTypeToExt } from '@/lib/attachment-mime'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
@@ -23,29 +24,55 @@ export function getWindowState(
   return { open: msRemaining > 0, expiresAt, msRemaining: Math.max(0, msRemaining) }
 }
 
+/**
+ * syncInboundWindowFromMeta — lazy check เวลาลูกค้าทักล่าสุดจริงจาก Meta เมื่อหน้าต่างของเรา "ดูปิด"
+ * (feature 00018, user report 2026-07-24)
+ *
+ * เรียกเฉพาะตอน getWindowState(lastInboundAt ที่เก็บไว้) = ปิด (NULL หรือหมดอายุ) — ครอบเคสร้าน
+ * เชื่อมเพจช้ากว่าที่ลูกค้าทัก (ไม่เคยได้ webhook ของข้อความก่อนหน้า) หรือ webhook หลุด. ถ้า Meta
+ * บอกว่าลูกค้าทักมาใหม่กว่าที่เราเก็บ → อัปเดต lastInboundAt ลง DB (persist ให้ครั้งถัด ๆ ไม่ต้อง
+ * เรียก Meta ซ้ำจนกว่าจะหมดอายุอีกครั้ง)
+ *
+ * คืน lastInboundAt ที่ "ควรใช้จริง" (ค่าใหม่จาก Meta ถ้ามี ไม่งั้นค่าเดิม) — caller เอาไปเข้า
+ * getWindowState ต่อ. ไม่ throw: เรียก Meta ไม่ได้ = คืนค่าเดิม (fail-safe ไปทาง "ปิด" ตามเดิม)
+ */
+export async function syncInboundWindowFromMeta(conversationId: string): Promise<Date | null> {
+  const conv = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conv || conv.channel === 'DEEP' || !conv.shopChannel || !conv.externalContact) {
+    return conv?.lastInboundAt ?? null
+  }
+  // เรียก Meta ต่อเมื่อ token ยังใช้ได้ (ACTIVE) — token ตาย/ถอดเพจแล้วเรียกไปก็ error
+  if (conv.shopChannel.status !== 'ACTIVE') return conv.lastInboundAt
+
+  // ข้ามถ้าหน้าต่างเปิดอยู่แล้ว (ไม่ต้องถาม Meta) — caller ควรกันชั้นนี้อยู่แล้ว แต่กันซ้ำที่นี่ด้วย
+  if (getWindowState(conv.lastInboundAt).open) return conv.lastInboundAt
+
+  const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
+  const realLast = await getLastInboundTime(conv.externalContact.externalUserId, pageToken, conv.channel)
+  if (!realLast) return conv.lastInboundAt
+
+  // อัปเดตเฉพาะเมื่อ Meta ให้เวลาที่ใหม่กว่าที่เราเก็บ (กัน regress ค่า)
+  if (conv.lastInboundAt && realLast.getTime() <= conv.lastInboundAt.getTime()) {
+    return conv.lastInboundAt
+  }
+  await prisma.conversation.update({
+    where: { id: conv.id },
+    data: { lastInboundAt: realLast },
+  })
+  return realLast
+}
+
 export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
 
-const MIRROR_MAX_BYTES = 5 * 1024 * 1024 // ตรงกับ MAX_SIZE ของ lib/storage
-// ต้องตรงกับ ALLOWED_TYPES ใน src/lib/storage/types.ts เป๊ะ ๆ — ก่อนหน้านี้ 'image/gif' ถูกตัดออก
-// เพราะ storage ฝั่ง validateUpload() ไม่รองรับ ทำให้ saveFile() throw ทุกครั้งที่ลูกค้าส่ง gif
-// (ถูก catch เงียบ ๆ คืน null → ตกไปที่ MIRROR_FAILED_TEXT ดูเหมือน "โหลดพลาด" แต่จริง ๆ พังทุกครั้ง).
-// ตอนนี้เพิ่ม 'image/gif' เข้า storage ALLOWED_TYPES แล้ว (เก็บ raw bytes ไม่ re-encode คง animation)
-// จึง mirror gif/สติกเกอร์เคลื่อนไหวจาก Messenger/IG ได้จริง (bug report ลูกค้า 2026-07-23) (I-5)
-const MIRROR_ALLOWED_TYPES: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-  // วิดีโอ/เสียง (ไฟล์แนบ Messenger/IG) — ต้องตรงกับ storage ALLOWED_TYPES (feature 00018)
-  'video/mp4': 'mp4',
-  'audio/mpeg': 'mp3',
-  'audio/mp4': 'm4a',
-  'audio/aac': 'aac',
-  'audio/ogg': 'ogg',
-  'audio/webm': 'webm',
-  // ไฟล์เอกสาร (แนบผ่าน Messenger) — PDF พบบ่อยสุด (storage ALLOWED_TYPES มี application/pdf อยู่แล้ว)
-  'application/pdf': 'pdf',
-}
+// เพดานขนาดไฟล์แนบที่ mirror (feature 00018 — user request 2026-07-24 "รองรับทุกอย่าง"):
+// 25MB = เพดานไฟล์แนบสูงสุดของ Messenger เอง (เดิม 5MB ทำให้ GIF/วิดีโอ/รูปความละเอียดสูงส่วนใหญ่
+// เกิน → mirror ล้ม → ขึ้น placeholder ที่เปิดดูไม่ได้). ไม่ผูกกับ MAX_SIZE ของ seller upload อีก
+// ต่อไป — mirror ใช้ saveFile(skipValidation) เพราะทำ validation เอง (host allow-list + streaming
+// size cap ด้านล่าง) การกัน DoS ที่แท้จริงคือ readBodyWithCap ที่นับ byte สดระหว่างอ่าน ไม่ใช่ตัวเลขนี้
+const MIRROR_MAX_BYTES = 25 * 1024 * 1024
 
 // bubble ต้องไม่ว่างเปล่าแม้กรณี mirror รูปไม่ผ่าน หรือ attachment เป็นชนิดที่เราไม่รองรับ (I-5)
 const MIRROR_FAILED_TEXT = '[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]'
@@ -137,8 +164,10 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
     if (!res.ok) return null
 
     const contentType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim()
-    const ext = MIRROR_ALLOWED_TYPES[contentType]
-    if (!ext) return null
+    // "รองรับทุกอย่าง" (user 2026-07-24): ชนิดที่รู้จัก → ext ตรง; ชนิดแปลก → generic ext (ยังเก็บได้
+    // ให้ดาวน์โหลด ไม่ตายเป็น placeholder). ไม่มี allow-list ชนิดไฟล์อีกต่อไป — ความปลอดภัยมาจาก
+    // host allow-list (Meta CDN เท่านั้น) + streaming size cap ไม่ใช่การจำกัดชนิด
+    const ext = contentTypeToExt(contentType)
 
     // pre-check จาก header เร็ว ๆ ก่อน (ประหยัด round-trip ถ้าโกหกเกินขนาดชัด ๆ) แต่ตัวตัดสินจริง
     // คือ readBodyWithCap ด้านล่างที่นับ byte สดระหว่างอ่าน — header อย่างเดียวเชื่อไม่ได้ (S-1)
@@ -148,8 +177,10 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
     const buffer = await readBodyWithCap(res, MIRROR_MAX_BYTES)
     if (!buffer) return null
 
+    // skipValidation: mirror ทำ validation เองแล้ว (host + size + content-type→ext) — ไม่ต้องผ่าน
+    // gate ชนิด/ขนาดของ seller upload (validateUpload) ที่แคบกว่าและ cap แค่ 5MB
     const file = new File([buffer], `fb-${Date.now()}.${ext}`, { type: contentType })
-    return await saveFile(file)
+    return await saveFile(file, { skipValidation: true })
   } catch {
     return null
   }
@@ -205,58 +236,83 @@ export async function ingestInboundMessage(params: {
   const text = event.message.text ?? null
   const firstAttachment = event.message.attachments?.[0]
   const attType = firstAttachment?.type // 'image'|'video'|'audio'|'file'|'location'|'fallback'|...
-  // ชนิดที่มีไฟล์จริงให้ mirror (payload.url) — image/video/audio/file; location/fallback/template ไม่มี
-  const MIRRORABLE = new Set(['image', 'video', 'audio', 'file'])
-  const isMirrorable = !!attType && MIRRORABLE.has(attType)
+  // attachment.type → ChatMessage.type (feature 00018, user request 2026-07-24 "รองรับทุกอย่าง")
+  // Meta attachment types เต็มชุด (จาก docs): media = มี asset จริงบน Meta CDN ให้ mirror ได้;
+  // sticker เป็นรูป (มี url) — เดิมตกเป็น placeholder ทั้งที่พบบ่อยสุด; reel/ig_reel เป็นวิดีโอ
+  const MEDIA_TYPE: Record<string, string> = {
+    image: 'IMAGE',
+    sticker: 'IMAGE',
+    video: 'VIDEO',
+    reel: 'VIDEO',
+    ig_reel: 'VIDEO',
+    audio: 'AUDIO',
+    file: 'FILE',
+  }
+  // ลิงก์/โพสต์ที่ลูกค้าแชร์ — payload.url เป็น URL ภายนอก (ไม่ใช่ asset บน Meta CDN) mirror ไม่ได้
+  // และไม่ควร (host allow-list บล็อกอยู่แล้ว) → แสดง title + url เป็นข้อความ ให้ร้านเห็นว่าลูกค้าแชร์อะไร
+  const LINK_TYPES = new Set(['fallback', 'post', 'ig_post'])
+
+  const attUrl = firstAttachment?.payload?.url
+  const attTitle = firstAttachment?.payload?.title
+  const isMedia = !!attType && !!MEDIA_TYPE[attType]
+  const isLink = !!attType && LINK_TYPES.has(attType) && !!attUrl
+  const isImageLike = attType === 'image' || attType === 'sticker'
+
   // ต้อง mirror ก่อนเข้า transaction — network call ในทรานแซกชันจะถือ lock DB นานเกินไป
-  const mirroredFileId =
-    isMirrorable && firstAttachment?.payload?.url ? await mirrorRemoteImage(firstAttachment.payload.url) : null
-  // map attachment.type → ChatMessage.type (String, ไม่ใช่ enum)
-  const MSG_TYPE: Record<string, string> = { image: 'IMAGE', video: 'VIDEO', audio: 'AUDIO', file: 'FILE' }
+  const mirroredFileId = isMedia && attUrl ? await mirrorRemoteImage(attUrl) : null
+  // ข้อความลิงก์ที่แชร์ (fallback/post/ig_post) — ประกอบ title + url เป็น text
+  const linkText = isLink ? (attTitle ? `${attTitle}\n${attUrl}` : attUrl!) : null
+
   const type =
-    mirroredFileId && attType && MSG_TYPE[attType]
-      ? MSG_TYPE[attType]
-      : attType === 'image'
-        ? 'IMAGE' // รูปที่ mirror ไม่ผ่าน → คง type IMAGE (imageUrl null + placeholder) ตามพฤติกรรมเดิม (I-5)
-        : 'TEXT' // วิดีโอ/เสียง/ไฟล์ที่ mirror ไม่ผ่าน (เกินขนาด/ชนิดไม่รองรับ) → TEXT + placeholder
+    mirroredFileId && attType && MEDIA_TYPE[attType]
+      ? MEDIA_TYPE[attType]
+      : isImageLike
+        ? 'IMAGE' // รูป/สติกเกอร์ที่ mirror ไม่ผ่าน → คง IMAGE (imageUrl null + placeholder)
+        : 'TEXT' // media อื่นที่ mirror ไม่ผ่าน / ลิงก์ / ชนิดที่ไม่มี asset → TEXT
   const hasAttachment = !!firstAttachment
-  // diagnostic: ไฟล์แนบ non-image ที่ mirror ไม่ผ่าน — log ชนิด+host ไว้ดูว่าทำไม (content-type ไม่รองรับ/
-  // host นอก allow-list/ขนาดเกิน) เพื่อ support type ที่ขาดในอนาคต (user ถาม 2026-07-23 ทำไมโหลดไม่ได้)
-  if (hasAttachment && !mirroredFileId && attType && attType !== 'image') {
+  // diagnostic: media ที่ mirror ไม่ผ่าน — log ชนิด+host ไว้ดูว่าทำไม (host นอก allow-list/ขนาดเกิน 25MB/
+  // fetch error) เพื่อไล่เก็บเคสที่เหลือ (ตอนนี้รองรับทุก content-type แล้ว เหลือแค่ 3 สาเหตุนี้)
+  if (isMedia && !mirroredFileId) {
     let host = '(no url)'
-    const u = firstAttachment?.payload?.url
     try {
-      if (u) host = new URL(u).hostname
+      if (attUrl) host = new URL(attUrl).hostname
     } catch {
       host = '(invalid url)'
     }
-    console.warn('[fb-ingest] attachment mirror failed', { attType, host, hasUrl: !!u })
+    console.warn('[fb-ingest] media mirror failed', { attType, host, hasUrl: !!attUrl })
   }
   const hasText = !!text && text.trim().length > 0
   // enrich (user 2026-07-24 "ต้องรองรับทุกอย่าง"): attachment ที่ Meta สังเคราะห์ "ข้อความสรุป" ไว้แต่
-  // ไม่ส่ง text มากับ webhook — template (คำสั่งซื้อ/คำขอชำระเงิน เช่น "You requested ฿590..."),
-  // fallback/แชร์ลิงก์-โพสต์, story — ดึงข้อความที่ render แล้วจาก Graph มาแสดงแทน placeholder ลอย ๆ.
-  // เฉพาะเคสไม่มี text จริง + ไม่ใช่สื่อที่ mirror ได้ (image/video/audio/file) — เป็น exception path (ไม่บ่อย)
+  // ไม่ส่ง text มากับ webhook — template (คำสั่งซื้อ/คำขอชำระเงิน เช่น "You requested ฿590..."), story —
+  // ดึงข้อความที่ render แล้วจาก Graph มาแสดงแทน placeholder ลอย ๆ. เฉพาะเคสไม่มี text จริง + ไม่ใช่สื่อที่
+  // mirror ได้ (isMedia) + ไม่ใช่ลิงก์แชร์ (มี linkText จาก payload อยู่แล้ว) — exception path (ไม่บ่อย)
   let renderedText: string | null = null
-  if (!hasText && hasAttachment && !mirroredFileId && attType && !MIRRORABLE.has(attType) && event.message.mid) {
+  if (!hasText && !isLink && hasAttachment && !mirroredFileId && attType && !isMedia && event.message.mid) {
     renderedText = await fetchMessageText(event.message.mid, channel.accessToken)
   }
-  const displayText = hasText ? text : renderedText
+  // ลำดับข้อความที่จะแสดง: text จริง > ลิงก์แชร์ (title+url จาก payload) > ข้อความ render จาก Graph
+  const displayText = hasText ? text : isLink ? linkText : renderedText
   const hasDisplayText = !!displayText && displayText.trim().length > 0
   // placeholder เฉพาะชนิด (I-5, user 2026-07-24) — ไม่ใช่ "[ไฟล์แนบ]" รวมทุกชนิด. ใช้เมื่อไม่มี text จริง
-  // และดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก
+  // และดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก. sticker/reel/ig_reel/
+  // post/ig_post = alias ของ image/video/fallback ตามลำดับ (feature 00018 attachment types เต็มชุด)
   const FAILED_TEXT_BY_TYPE: Record<string, string> = {
     image: MIRROR_FAILED_TEXT,
+    sticker: MIRROR_FAILED_TEXT,
     video: '[วิดีโอ — เปิดดูใน Messenger]',
+    reel: '[วิดีโอ — เปิดดูใน Messenger]',
+    ig_reel: '[วิดีโอ — เปิดดูใน Messenger]',
     audio: '[ข้อความเสียง — เปิดดูใน Messenger]',
     file: '[ไฟล์แนบ — เปิดดูใน Messenger]',
     location: '[ตำแหน่งที่ตั้ง — เปิดดูใน Messenger]',
     fallback: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
+    post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
+    ig_post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
     template: '[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน Messenger]',
   }
   const attachmentFailedText = (attType && FAILED_TEXT_BY_TYPE[attType]) ?? UNSUPPORTED_ATTACHMENT_TEXT
-  // ข้อความที่ไม่มีทั้ง text และ attachment (สติกเกอร์/reaction/ชนิดพิเศษที่ Messenger ส่ง message มา
-  // แต่ไม่มีเนื้อหาที่เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
+  // ข้อความที่ไม่มีทั้ง text และ attachment (reaction/ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มี
+  // เนื้อหาที่เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
   const emptyMessageText = '[ข้อความไม่รองรับ — เปิดดูใน Messenger]'
   // ข้อความจริง/สรุปจาก Graph มาก่อน placeholder แนบไฟล์เสมอ (bug prod 2026-07-24: template/order ที่มี
   // ข้อความถูกทับด้วย "[ไฟล์แนบ]" ทิ้งเนื้อหาจริง) — placeholder เฉพาะตอน "ไม่มีข้อความให้แสดงจริง ๆ"

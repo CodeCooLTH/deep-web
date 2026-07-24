@@ -6,8 +6,8 @@ import { validateUpload, fileIdExt, type Storage } from "./types";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
-export const saveFile: Storage["saveFile"] = async (file) => {
-  validateUpload(file);
+export const saveFile: Storage["saveFile"] = async (file, opts) => {
+  if (!opts?.skipValidation) validateUpload(file);
   if (!existsSync(UPLOAD_DIR)) await mkdir(UPLOAD_DIR, { recursive: true });
 
   const ext = file.name.split(".").pop() || "bin";

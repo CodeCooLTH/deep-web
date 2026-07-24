@@ -249,6 +249,39 @@ describe('ingestInboundMessage', () => {
       expect(data.body).toContain('Messenger')
       expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toContain('Messenger')
     })
+
+    // feature 00018 (user 2026-07-24 "รองรับทุกอย่าง")
+    it('sticker → จัดเป็นรูป (IMAGE) ไม่ใช่ "ไฟล์แนบ" — แม้ mirror ไม่ผ่านก็คง type IMAGE', async () => {
+      // host cdn.fb นอก allow-list → mirror คืน null (ไม่ยิง fetch) แต่ sticker ต้องถูกจัดเป็น image-like
+      const stickerEvent = {
+        sender: { id: 'PSID_1' },
+        recipient: { id: 'PAGE1' },
+        timestamp: 1750000000000,
+        message: { mid: 'mid.stk.1', attachments: [{ type: 'sticker', payload: { url: 'https://cdn.fb/s.png' } }] },
+      }
+      const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: stickerEvent })
+      expect(r.status).toBe('STORED')
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.type).toBe('IMAGE') // เดิม sticker ตกเป็น TEXT+"ไฟล์แนบ"
+    })
+
+    it('fallback (ลูกค้าแชร์ลิงก์) → TEXT พร้อม url ให้ร้านเห็นว่าแชร์อะไร ไม่ใช่ placeholder เปิดไม่ได้', async () => {
+      const linkEvent = {
+        sender: { id: 'PSID_1' },
+        recipient: { id: 'PAGE1' },
+        timestamp: 1750000000000,
+        message: {
+          mid: 'mid.link.1',
+          attachments: [{ type: 'fallback', payload: { url: 'https://example.com/deal', title: 'โปรโมชัน' } }],
+        },
+      }
+      const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: linkEvent })
+      expect(r.status).toBe('STORED')
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.type).toBe('TEXT')
+      expect(data.body).toContain('https://example.com/deal')
+      expect(data.body).toContain('โปรโมชัน')
+    })
   })
 })
 

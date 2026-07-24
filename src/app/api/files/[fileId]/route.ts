@@ -4,20 +4,12 @@ import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { getFile } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
+import { EXT_TO_MIME, isInlineExt } from "@/lib/attachment-mime";
 
-const MIME: Record<string, string> = {
-  jpg: "image/jpeg", jpeg: "image/jpeg",
-  png: "image/png", webp: "image/webp",
-  gif: "image/gif", // feature 00018 — mirror รูป/สติกเกอร์เคลื่อนไหวจาก Messenger/IG ต้อง serve inline
-  // feature 00018 — ไฟล์แนบ (วิดีโอ/เสียง) จาก Messenger/IG ต้อง serve ให้ player เล่นได้
-  mp4: "video/mp4",
-  mp3: "audio/mpeg",
-  m4a: "audio/mp4",
-  aac: "audio/aac",
-  ogg: "audio/ogg",
-  webm: "audio/webm",
-  pdf: "application/pdf", // feature 00018 — ไฟล์แนบ PDF จาก Messenger เปิดดูใน browser ได้
-};
+// feature 00018 (user request 2026-07-24 "รองรับทุกอย่าง"): ตาราง ext→content-type ย้ายไป
+// src/lib/attachment-mime.ts (SSOT ร่วมกับ mirror ฝั่ง channel-chat.service). ไฟล์ที่ browser
+// เรนเดอร์ inline ไม่ได้ (docx/zip/…) serve เป็น octet-stream + Content-Disposition attachment
+// ให้ดาวน์โหลดพร้อมชื่อไฟล์ แทนการเปิดแล้วเป็นหน้าขาว/พยายามเรนเดอร์ผิด
 
 // ---------------------------------------------------------------------------
 // Module-level TTL cache สำหรับ KYC file lookup
@@ -238,9 +230,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // isSensitive ครอบ KYC + slip + หลักฐานมิจฉาชีพ — ทั้งหมดไม่ควร cache ที่ browser/CDN
   const isSensitive = !!sensitiveRecord || isSlipFile || isScamEvidence;
 
+  const ext = result.ext.toLowerCase();
+  const contentType = EXT_TO_MIME[ext] || "application/octet-stream";
+  // ไฟล์ที่เรนเดอร์ inline ไม่ได้ (เอกสาร/zip/ชนิดแปลก) → บังคับดาวน์โหลดพร้อมชื่อไฟล์
+  const disposition = isInlineExt(ext) ? "inline" : `attachment; filename="${fileId}"`;
+
   return new NextResponse(new Uint8Array(result.buffer), {
     headers: {
-      "Content-Type": MIME[result.ext] || "application/octet-stream",
+      "Content-Type": contentType,
+      "Content-Disposition": disposition,
       // ไฟล์ KYC/slip ไม่ควร cache ที่ browser/CDN นาน (อาจถูก revoke)
       // ไฟล์ทั่วไป (product image) ยังคง public, max-age=86400 เหมือนเดิม
       "Cache-Control": isSensitive

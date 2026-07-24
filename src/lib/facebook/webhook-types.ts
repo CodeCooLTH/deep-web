@@ -5,8 +5,11 @@ import * as v from 'valibot'
 // (Valibot object ตัดฟิลด์เกินทิ้งอยู่แล้ว) แต่ฟิลด์ที่ใช้ต้องมีจริง
 
 const AttachmentSchema = v.object({
-  type: v.string(), // "image" | "video" | "audio" | "file" | "fallback" | ...
-  payload: v.optional(v.object({ url: v.optional(v.string()) })),
+  // "image"|"sticker"|"video"|"reel"|"ig_reel"|"audio"|"file"|"fallback"|"post"|"ig_post"|
+  // "template"|"appointment_booking"|"location"|... (feature 00018 — Meta attachment types เต็มชุด)
+  type: v.string(),
+  // title: fallback/post/ig_post ใช้เป็นชื่อลิงก์/โพสต์ที่แชร์ (แสดงเป็นข้อความแทน mirror)
+  payload: v.optional(v.object({ url: v.optional(v.string()), title: v.optional(v.string()) })),
 })
 
 const MessageSchema = v.object({

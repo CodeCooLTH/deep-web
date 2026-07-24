@@ -48,7 +48,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { getWindowState } from '@/services/channel-chat.service'
+import { getWindowState, syncInboundWindowFromMeta } from '@/services/channel-chat.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
@@ -145,12 +145,22 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
 
   // T4 — 24h messaging window (เฉพาะความหมายสำหรับ channel != DEEP; DEEP ก็คำนวณได้แต่ ChatThread
   // จะไม่ใช้เพราะ isExternal=false) + token invalid ของเพจที่ผูกเธรดนี้
-  const windowState = getWindowState(conversation.lastInboundAt)
+  // lazy check (user report 2026-07-24): ถ้าหน้าต่างของเรา "ดูปิด" (lastInboundAt ที่เก็บจาก webhook
+  // เป็น NULL/หมดอายุ) อาจเป็นเพราะร้านเชื่อมเพจช้ากว่าที่ลูกค้าทัก → ถาม Meta หาเวลาจริง แล้ว persist.
+  // เรียกเฉพาะช่องทางนอกที่ดูปิดเท่านั้น (DEEP/หน้าต่างเปิดอยู่ = ไม่แตะ Meta) เพื่อไม่ให้กระทบ latency
+  // ของเธรดปกติ. sync คืนค่าเดิมถ้าเรียก Meta ไม่ได้ (fail-safe ไปทางปิดตามเดิม)
+  let effectiveLastInbound = conversation.lastInboundAt
+  if (conversation.channel !== 'DEEP' && !getWindowState(effectiveLastInbound).open) {
+    effectiveLastInbound = await syncInboundWindowFromMeta(conversation.id)
+  }
+
+  const windowState = getWindowState(effectiveLastInbound)
   // แยกเคส "ลูกค้ายังไม่เคยทักเข้ามาเลย" (lastInboundAt=NULL) ออกจาก "ทักแล้วแต่เกิน 24 ชม."
   // (user report 2026-07-24) — ทั้งคู่ทำ window ปิดเหมือนกัน แต่ข้อความต่างกัน: เธรดที่ร้าน initiate
   // จาก Facebook เอง (echo เข้ามาเป็น SHOP ล้วน) จะไม่มี inbound เลย → banner ต้องบอกว่า "รอลูกค้า
   // ทักเข้ามาก่อน" ไม่ใช่ "เกิน 24 ชม.นับจากข้อความล่าสุดของลูกค้า" ที่สื่อว่าเคยทักแล้ว
-  const neverInbound = conversation.lastInboundAt === null
+  // (หลัง sync แล้ว: ถ้า Meta ยืนยันว่ายังไม่มีข้อความลูกค้าเลย ก็ยังเป็น neverInbound จริง ๆ)
+  const neverInbound = effectiveLastInbound === null
   // เช็ค "ไม่ใช่ ACTIVE" ไม่ใช่เช็คแค่ TOKEN_INVALID — ครอบ DISCONNECTED (ร้านถอดเพจเอง) ด้วย
   // ต้องตรงกับ guard ฝั่ง service (sendOutboundMessage โยน CHANNEL_NOT_ACTIVE เมื่อ status !== 'ACTIVE')
   // ไม่งั้นเธรดของเพจที่ถอดไปแล้วจะเปิดช่องพิมพ์ให้ แล้วไปเด้ง error ตอนกดส่ง
