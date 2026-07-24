@@ -13,9 +13,7 @@ import { GRAPH_VERSION, CONNECT_SCOPES } from '@/lib/facebook/constants'
 export const dynamic = 'force-dynamic'
 
 export const OAUTH_STATE_COOKIE = 'fb_channel_oauth_state'
-// force cookie: user ยืนยันย้ายเพจที่ติดร้านอื่น → callback ตัดร้านเดิมแล้วผูกร้านนี้แทน
-// httpOnly + อายุสั้น เหมือน state cookie (รอดข้าม redirect ของ Facebook ด้วย sameSite=lax)
-export const OAUTH_FORCE_COOKIE = 'fb_channel_force'
+// user token ที่พักไว้ระหว่างรอ user เลือกเพจ อยู่ที่ src/lib/facebook/pending-connect.ts
 
 export function callbackUrl(request: NextRequest): string {
   return `${request.nextUrl.origin}/api/channels/facebook/callback`
@@ -53,9 +51,7 @@ export async function GET(request: NextRequest) {
     maxAge: 600,
   }
   res.cookies.set(OAUTH_STATE_COOKIE, state, cookieOpts)
-  // ?force=1 มาจากปุ่ม "ย้ายมาที่นี่" ที่ user กดยืนยันใน Sweet Alert (เพจติดร้านอื่น)
-  if (request.nextUrl.searchParams.get('force') === '1') {
-    res.cookies.set(OAUTH_FORCE_COOKIE, '1', cookieOpts)
-  }
+  // หมายเหตุ: เดิมมี cookie `force` (ย้ายเพจข้ามร้าน "ทั้งชุด") ถูกถอดออกแล้ว — การย้ายเป็นการ
+  // ตัดสินใจ "รายเพจ" ในหน้าเลือกเพจ แล้วส่งมาเป็น forceIds ตอนกดยืนยันแทน
   return res
 }
