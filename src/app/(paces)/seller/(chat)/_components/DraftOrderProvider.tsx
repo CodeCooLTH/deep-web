@@ -208,7 +208,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
 
       {/* dock — chip ของ draft ที่ย่อไว้ (แสดงเมื่อไม่มีตัวไหนขยายอยู่ เพราะโมดัลขยายกินเกือบเต็มจอ) */}
       {!expanded && minimized.length > 0 && (
-        <div className="fixed bottom-4 end-4 z-80 flex flex-col-reverse items-end gap-2">
+        <div className="fixed bottom-4 start-4 z-80 flex flex-col-reverse items-start gap-2">
           {minimized.map((d) => (
             <div
               key={d.id}
