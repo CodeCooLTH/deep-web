@@ -155,6 +155,9 @@ type Props = {
   msRemaining: number
   /** feature 00018 — ShopChannel.status === 'TOKEN_INVALID' (เฉพาะ channel != DEEP) */
   tokenInvalid: boolean
+  /** ลูกค้ายังไม่เคยทักเข้ามาเลย (lastInboundAt=NULL) — เธรดที่ร้าน initiate จาก Facebook เอง
+   *  (user report 2026-07-24). แยก banner จาก "เกิน 24 ชม." ที่สื่อว่าลูกค้าเคยทักแล้ว */
+  neverInbound: boolean
   /** feature 00018 T5 — ข้อมูล Customer Panel เดียวกับที่ desktop column ใช้ (สำหรับ sheet มือถือ) */
   customerPanelData: CustomerPanelData
 }
@@ -307,6 +310,7 @@ export default function ChatThread({
   windowOpen,
   msRemaining,
   tokenInvalid,
+  neverInbound,
   customerPanelData,
 }: Props) {
   const { data: session } = useSession()
@@ -535,9 +539,15 @@ export default function ChatThread({
               </span>
             </div>
           ) : !liveWindowOpen ? (
+            // แยก 2 เคส (user report 2026-07-24): ลูกค้ายังไม่เคยทัก vs ทักแล้วเกิน 24 ชม.
+            // ทั้งคู่ส่งไม่ได้เหมือนกัน แต่ข้อความต่างกันไม่ให้ผู้ขายเข้าใจผิดว่า "เกิน 24 ชม.ของใคร"
             <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
               <Icon icon="message-circle-off" className="mt-0.5 shrink-0 text-lg" />
-              <span>เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่</span>
+              <span>
+                {neverInbound
+                  ? 'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
+                  : 'เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'}
+              </span>
             </div>
           ) : (
             (() => {
