@@ -67,6 +67,25 @@ function getAudio(): HTMLAudioElement | null {
 let lastPlayedAt = 0
 const MIN_GAP_MS = 1200
 
+// ── ประสานข้ามแท็บ (user report 2026-07-24: เปิดหลายแท็บ เสียงดังซ้อนกัน) ──
+// แต่ละแท็บเป็น process แยก เบราว์เซอร์ไม่ dedup ให้เอง — ใช้ BroadcastChannel ให้แท็บที่กำลังจะเล่น
+// "ประกาศ" เวลาที่เล่น แล้วทุกแท็บ (รวมตัวเอง) ยึด throttle เดียวกัน → ข้อความเดียวดังครั้งเดียวทั้ง
+// browser. race window = เวลาที่ message เดินทาง (~ไม่กี่ ms) << MIN_GAP_MS (1.2s) และ realtime event
+// ถึงแต่ละแท็บไม่พร้อมกันเป๊ะอยู่แล้ว จึง dedup ได้แทบทุกกรณี ไม่ต้องทำ leader-election ที่ซับซ้อน
+let soundChannel: BroadcastChannel | null = null
+function getSoundChannel(): BroadcastChannel | null {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null
+  if (!soundChannel) {
+    soundChannel = new BroadcastChannel('deep-chat-sound')
+    soundChannel.onmessage = (e: MessageEvent) => {
+      // แท็บอื่นเพิ่งเล่น → ดัน throttle ของแท็บนี้ตามไป (ยึดค่าล่าสุด) กันเล่นซ้ำ
+      const at = typeof e.data?.playedAt === 'number' ? e.data.playedAt : 0
+      if (at > lastPlayedAt) lastPlayedAt = at
+    }
+  }
+  return soundChannel
+}
+
 /**
  * playChatBeep — เล่นไฟล์เสียงแจ้งเตือนข้อความใหม่
  * conversationId: ถ้าส่งมา จะเช็ค mute รายเธรดด้วย
@@ -76,8 +95,10 @@ export function playChatBeep(conversationId?: string): void {
   if (conversationId && isConversationMuted(conversationId)) return
 
   const now = Date.now()
-  if (now - lastPlayedAt < MIN_GAP_MS) return
+  if (now - lastPlayedAt < MIN_GAP_MS) return // ครอบทั้ง throttle ในแท็บ + ข้ามแท็บ (ดู BroadcastChannel)
   lastPlayedAt = now
+  // ประกาศให้แท็บอื่นก่อนเล่น — แท็บที่ประกาศทีหลังภายใน 1.2s จะเงียบ
+  getSoundChannel()?.postMessage({ playedAt: now })
 
   const el = getAudio()
   if (!el) return
