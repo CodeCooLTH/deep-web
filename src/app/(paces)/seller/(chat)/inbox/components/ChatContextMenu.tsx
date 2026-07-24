@@ -36,6 +36,7 @@ type Props = {
   onMoveToGroup: (groupId: string | null) => void
   isPinned: boolean
   isResolved: boolean
+  isSpam: boolean
   /** กำลังดูโหมด "ที่ซ่อนอยู่" → เมนูต้องเป็น "เลิกซ่อน" ไม่ใช่ "ซ่อน" */
   hiddenContext: boolean
   busyAction: boolean
@@ -55,6 +56,7 @@ export default function ChatContextMenu({
   onMoveToGroup,
   isPinned,
   isResolved,
+  isSpam,
   hiddenContext,
   busyAction,
   onAction,
@@ -133,6 +135,7 @@ export default function ChatContextMenu({
           { action: (isPinned ? 'unpin' : 'pin') as RowAction, icon: isPinned ? 'star-off' : 'star', label: isPinned ? 'เลิกปักหมุด' : 'ปักหมุด' },
           { action: (isResolved ? 'reopen' : 'resolve') as RowAction, icon: isResolved ? 'arrow-back-up' : 'circle-check', label: isResolved ? 'เปิดบทสนทนาใหม่' : 'ปิดงาน' },
           { action: (hiddenContext ? 'unhide' : 'hide') as RowAction, icon: hiddenContext ? 'eye' : 'eye-off', label: hiddenContext ? 'เลิกซ่อน' : 'ซ่อน' },
+          { action: (isSpam ? 'unspam' : 'spam') as RowAction, icon: isSpam ? 'inbox' : 'alert-octagon', label: isSpam ? 'ไม่ใช่สแปม' : 'ย้ายเข้าสแปม' },
         ] as const
       ).map((item) => (
         <button

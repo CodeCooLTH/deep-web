@@ -177,6 +177,7 @@ export async function GET(request: NextRequest) {
     // feature 00018: กรองแท็บกลุ่ม + อ่านแล้ว/ยังไม่อ่าน
     chatGroupId: searchParams.get("chatGroupId") ?? undefined,
     readState: searchParams.get("readState") ?? undefined,
+    spam: searchParams.get("spam") === "true" ? true : undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -206,6 +207,7 @@ export async function GET(request: NextRequest) {
       hidden: parsed.output.hidden,
       chatGroupId: parsed.output.chatGroupId,
       readState: parsed.output.readState,
+      spam: parsed.output.spam,
     });
     // B1: seller เห็น counterparty = buyer identity
     const enriched = await enrichWithBuyerCounterparty(result.items);

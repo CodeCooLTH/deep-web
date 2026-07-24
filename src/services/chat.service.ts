@@ -29,6 +29,8 @@ export interface ConversationSummary {
   alias: string | null
   // feature 00018 — กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (null = แท็บ "ทั้งหมด"); findMany คืน runtime อยู่แล้ว
   chatGroupId: string | null
+  // feature 00018 — สแปม (user สั่ง 2026-07-24); findMany คืน runtime อยู่แล้ว
+  isSpam: boolean
 }
 
 export interface ChatMessageView {
@@ -117,6 +119,8 @@ export async function listConversationsForShop(
     chatGroupId?: string
     // readState: กรองอ่านแล้ว/ยังไม่อ่าน (feature 00018) — undefined = ทั้งหมด (default ไม่กรอง)
     readState?: 'unread' | 'read'
+    // spam (feature 00018): false/undefined = รายการปกติ (ตัดสแปมออก), true = ดูเฉพาะสแปม
+    spam?: boolean
   } = {},
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const status = opts.status ?? 'open'
@@ -155,7 +159,9 @@ export async function listConversationsForShop(
       ...(opts.chatGroupId ? { chatGroupId: opts.chatGroupId } : {}),
       ...(readIdFilter ?? {}),
       ...(status === 'open' ? { resolvedAt: null } : status === 'resolved' ? { resolvedAt: { not: null } } : {}),
-      isHidden: hidden,
+      // สแปม (feature 00018): มุมมองปกติตัดสแปมออก (isSpam:false); มุมมอง "ดูสแปม" โชว์เฉพาะสแปม
+      // และไม่กรอง isHidden (สแปมเป็นถังแยก — ดูทั้งหมดในนั้น) เพื่อไม่ให้เธรดสแปมหายไปด้วย 2 เงื่อนไข
+      ...(opts.spam ? { isSpam: true } : { isSpam: false, isHidden: hidden }),
       ...(orParts.length > 0 ? { AND: orParts } : {}),
     },
     { ...opts, pinnedFirst: true },
@@ -433,8 +439,16 @@ export async function markRead(
   void conversation // ใช้แค่ยืนยัน ownership ผ่านแล้วเท่านั้น
 }
 
-// ---- updateConversationState (S-7: ปักหมุด/ซ่อน/ปิดงาน) ----
-export type ConversationPatchAction = 'pin' | 'unpin' | 'hide' | 'unhide' | 'resolve' | 'reopen'
+// ---- updateConversationState (S-7: ปักหมุด/ซ่อน/ปิดงาน + spam feature 00018) ----
+export type ConversationPatchAction =
+  | 'pin'
+  | 'unpin'
+  | 'hide'
+  | 'unhide'
+  | 'resolve'
+  | 'reopen'
+  | 'spam'
+  | 'unspam'
 
 // ownership guard แบบ atomic เดียวกับ disconnectChannel (shop-channel.service.ts) —
 // updateMany({where:{id, shopId}}) กันร้านหนึ่งแก้ state เธรดของอีกร้าน (IDOR) โดยไม่ query
@@ -455,7 +469,14 @@ export async function updateConversationState(
             ? { isHidden: false }
             : action === 'resolve'
               ? { resolvedAt: new Date() }
-              : { resolvedAt: null } // reopen
+              : action === 'reopen'
+                ? { resolvedAt: null }
+                : action === 'spam'
+                  ? // ย้ายเข้าสแปม + เลิกปักหมุด (สแปมกรองด้วย isSpam อยู่แล้ว — เธรดที่มี chatGroupId
+                    // ก็ไม่โผล่ในแท็บกลุ่ม เพราะ query กลุ่มกรอง isSpam:false อยู่แล้ว ไม่ต้องล้างกลุ่มซ้ำ
+                    // ซึ่ง updateMany เขียน FK scalar ตรง ๆ ไม่ได้)
+                    { isSpam: true, isPinned: false }
+                  : { isSpam: false } // unspam — กลับเข้ารายการหลัก
 
   const result = await prisma.conversation.updateMany({
     where: { id: conversationId, shopId },

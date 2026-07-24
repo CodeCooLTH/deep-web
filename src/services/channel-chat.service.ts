@@ -286,7 +286,7 @@ export async function ingestInboundMessage(params: {
   // ต้องเป็น arrow function (ไม่ใช่ `function` ประกาศแยก) ไม่งั้น TS จะรีเซ็ต narrowing ของ
   // `channel` (ที่เช็ค !channel ไปแล้วด้านบน) เพราะ function declaration แบบ hoisted ถูกมองว่า
   // เรียกได้จากที่ไหนก็ได้ ทำให้ TS มองว่า channel เป็น null ได้อีก
-  const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string }) => {
+  const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string; isSpam: boolean }) => {
     await tx.chatMessage.create({
       data: {
         conversationId: conversation.id,
@@ -318,12 +318,20 @@ export async function ingestInboundMessage(params: {
         //
         // isHidden/resolvedAt: BR-FBC-15/16 (S-7) — ลูกค้าทักมาใหม่ในเธรดที่ร้านซ่อน/ปิดงานไว้
         // → เด้งกลับให้เห็นอัตโนมัติ กันร้านพลาดข้อความ; echo (ร้านตอบเอง) ไม่ trigger
-        ...(isEcho ? {} : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
+        //
+        // สแปม (feature 00018, user สั่ง 2026-07-24): เธรดสแปม "ลูกค้าทักมาใหม่ไม่เด้งกลับ" (ต่างจาก
+        // hide/resolve) — อัปเดต lastMessageAt/lastInboundAt (ลำดับในถังสแปม + 24h window) แต่ไม่รีเซ็ต
+        // isHidden/resolvedAt และไม่แตะ isSpam → เธรดอยู่ในสแปมต่อ; ไม่ส่ง Notification ด้านล่างด้วย
+        ...(isEcho
+          ? {}
+          : conversation.isSpam
+            ? { lastMessageAt: occurredAt, lastInboundAt: occurredAt }
+            : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
       },
     })
 
-    // แจ้งเตือนเจ้าของร้านเฉพาะข้อความจากลูกค้า (echo คือร้านตอบเอง ไม่ต้องเตือน)
-    if (!isEcho) {
+    // แจ้งเตือนเจ้าของร้านเฉพาะข้อความจากลูกค้า (echo คือร้านตอบเอง ไม่ต้องเตือน); สแปม = เงียบ
+    if (!isEcho && !conversation.isSpam) {
       const shop = await tx.shop.findUnique({
         where: { id: channel.shopId },
         select: { userId: true },

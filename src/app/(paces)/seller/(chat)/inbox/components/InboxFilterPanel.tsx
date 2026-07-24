@@ -23,6 +23,8 @@ export type ChatFilterState = {
   hidden: boolean
   // การอ่าน — ย้ายมาจากปุ่มแยกในแถวกลุ่ม (user สั่ง 2026-07-24: แถวนั้นแน่นเกินไป)
   readState: 'all' | 'unread' | 'read'
+  // spam — ดูเฉพาะเธรดสแปม (user สั่ง 2026-07-24) เหมือน "เมนูที่ซ่อนอยู่"
+  spam: boolean
 }
 
 export const DEFAULT_CHAT_FILTER: ChatFilterState = {
@@ -30,6 +32,7 @@ export const DEFAULT_CHAT_FILTER: ChatFilterState = {
   customerLinked: 'all',
   hidden: false,
   readState: 'all',
+  spam: false,
 }
 
 /** จำนวนกลุ่มที่ไม่ใช่ default — โชว์เป็น badge บนปุ่ม (ไม่นับ channel tab/เพจ คนละแกน) */
@@ -39,6 +42,7 @@ export function countActiveFilters(f: ChatFilterState): number {
   if (f.customerLinked !== DEFAULT_CHAT_FILTER.customerLinked) n++
   if (f.hidden !== DEFAULT_CHAT_FILTER.hidden) n++
   if (f.readState !== DEFAULT_CHAT_FILTER.readState) n++
+  if (f.spam !== DEFAULT_CHAT_FILTER.spam) n++
   return n
 }
 
@@ -176,6 +180,20 @@ export default function InboxFilterPanel({ value, onChange, onClear, open, onOpe
                 className="form-switch shrink-0"
                 checked={value.hidden}
                 onChange={(e) => onChange({ hidden: e.target.checked })}
+              />
+            </label>
+
+            {/* ดูสแปม (feature 00018, user สั่ง 2026-07-24) */}
+            <label className="flex cursor-pointer items-center justify-between gap-3 px-2 py-2">
+              <span className="min-w-0">
+                <span className="text-default-800 block text-sm">ดูสแปม</span>
+                <span className="text-default-400 block text-2xs">ดูเฉพาะเธรดที่ย้ายเข้าสแปม (ยังรับข้อความอยู่ แต่เงียบ)</span>
+              </span>
+              <input
+                type="checkbox"
+                className="form-switch shrink-0"
+                checked={value.spam}
+                onChange={(e) => onChange({ spam: e.target.checked })}
               />
             </label>
           </div>
