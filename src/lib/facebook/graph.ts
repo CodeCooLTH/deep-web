@@ -182,6 +182,56 @@ export async function getContactProfile(
   }
 }
 
+/**
+ * getLastInboundTime — เวลาที่ "ลูกค้าทักเข้าเพจล่าสุดจริง" ตาม Meta (feature 00018, user report
+ * 2026-07-24) — ไม่ขึ้นกับว่าเรารับ webhook ตอนไหน
+ *
+ * ทำไมต้องมี: หน้าต่าง 24 ชม.นับจากข้อความล่าสุดของลูกค้า แต่เดิมเราเซ็ต lastInboundAt จาก webhook
+ * เท่านั้น — ถ้าร้านเชื่อมเพจ "หลัง" ลูกค้าทักมาแล้ว เราไม่เคยได้ webhook ของข้อความก่อนหน้า →
+ * lastInboundAt=NULL ทั้งที่ลูกค้าอาจเพิ่งทัก 3 ชม.ก่อน. Conversations API ให้เวลาจริงจาก Meta
+ *
+ * Messenger: /me/conversations?user_id={psid}&fields=messages{from,created_time} — pattern เดียวกับ
+ * getContactProfile (prod-tested). เลือกข้อความใบล่าสุดที่ from.id === psid (ของลูกค้า ไม่ใช่เพจ) —
+ * updated_time เพียว ๆ ใช้ไม่ได้เพราะขยับตอนเพจส่งด้วย. Meta ให้เข้าถึง 20 ข้อความล่าสุด/บทสนทนา
+ * (พอสำหรับหาใบล่าสุดของลูกค้า)
+ *
+ * Instagram: /me/conversations?platform=instagram เคยตอบ error 2207085 "Fatal" บน prod (ดู comment
+ * getContactProfile) — ลองแล้ว catch คืน null เงียบ ๆ (ไม่ throw) ให้ระบบ fallback ไปใช้ค่าที่มี
+ *
+ * คืน Date ของข้อความลูกค้าล่าสุด หรือ null ถ้าไม่พบ/เรียกไม่ได้ (caller ตัดสินใจต่อ)
+ */
+export async function getLastInboundTime(
+  externalUserId: string,
+  pageToken: string,
+  provider: string,
+): Promise<Date | null> {
+  try {
+    const query: Record<string, string> = { fields: 'messages{from,created_time}' }
+    // Messenger ใช้ user_id filter ได้; IG ต้องใส่ platform=instagram (แต่ prod เคย fatal — เผื่อ Meta แก้แล้ว)
+    if (provider === 'INSTAGRAM') query.platform = 'instagram'
+    query.user_id = externalUserId
+
+    const json = await graphFetch('/me/conversations', pageToken, { query })
+    const threads = (json.data ?? []) as Array<{
+      messages?: { data?: Array<{ created_time?: string; from?: { id?: string } }> }
+    }>
+
+    let latest: number | null = null
+    for (const thread of threads) {
+      for (const m of thread.messages?.data ?? []) {
+        // นับเฉพาะข้อความ "จากลูกค้า" (from.id === psid) — ข้อความจากเพจไม่ต่ออายุหน้าต่าง 24 ชม.
+        if (m.from?.id !== externalUserId || !m.created_time) continue
+        const t = new Date(m.created_time).getTime()
+        if (!Number.isNaN(t) && (latest === null || t > latest)) latest = t
+      }
+    }
+    return latest === null ? null : new Date(latest)
+  } catch {
+    // เรียกไม่ได้ (IG fatal / token / rate limit) — ไม่ใช่เหตุให้ล้ม; caller ใช้ค่าที่มีอยู่แทน
+    return null
+  }
+}
+
 // ส่งข้อความ text — คืน mid สำหรับเก็บเป็น externalMessageId (กลไก dedupe echo)
 //
 // ใช้ /me/messages ไม่ใช่ /{page-id}/messages ด้วยเหตุผลเดียวกับ getContactProfile:

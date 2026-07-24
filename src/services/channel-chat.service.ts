@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, sendTextMessage, sendImageMessage, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
@@ -21,6 +21,47 @@ export function getWindowState(
   const expiresAt = new Date(lastInboundAt.getTime() + MESSAGING_WINDOW_MS)
   const msRemaining = expiresAt.getTime() - now.getTime()
   return { open: msRemaining > 0, expiresAt, msRemaining: Math.max(0, msRemaining) }
+}
+
+/**
+ * syncInboundWindowFromMeta — lazy check เวลาลูกค้าทักล่าสุดจริงจาก Meta เมื่อหน้าต่างของเรา "ดูปิด"
+ * (feature 00018, user report 2026-07-24)
+ *
+ * เรียกเฉพาะตอน getWindowState(lastInboundAt ที่เก็บไว้) = ปิด (NULL หรือหมดอายุ) — ครอบเคสร้าน
+ * เชื่อมเพจช้ากว่าที่ลูกค้าทัก (ไม่เคยได้ webhook ของข้อความก่อนหน้า) หรือ webhook หลุด. ถ้า Meta
+ * บอกว่าลูกค้าทักมาใหม่กว่าที่เราเก็บ → อัปเดต lastInboundAt ลง DB (persist ให้ครั้งถัด ๆ ไม่ต้อง
+ * เรียก Meta ซ้ำจนกว่าจะหมดอายุอีกครั้ง)
+ *
+ * คืน lastInboundAt ที่ "ควรใช้จริง" (ค่าใหม่จาก Meta ถ้ามี ไม่งั้นค่าเดิม) — caller เอาไปเข้า
+ * getWindowState ต่อ. ไม่ throw: เรียก Meta ไม่ได้ = คืนค่าเดิม (fail-safe ไปทาง "ปิด" ตามเดิม)
+ */
+export async function syncInboundWindowFromMeta(conversationId: string): Promise<Date | null> {
+  const conv = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conv || conv.channel === 'DEEP' || !conv.shopChannel || !conv.externalContact) {
+    return conv?.lastInboundAt ?? null
+  }
+  // เรียก Meta ต่อเมื่อ token ยังใช้ได้ (ACTIVE) — token ตาย/ถอดเพจแล้วเรียกไปก็ error
+  if (conv.shopChannel.status !== 'ACTIVE') return conv.lastInboundAt
+
+  // ข้ามถ้าหน้าต่างเปิดอยู่แล้ว (ไม่ต้องถาม Meta) — caller ควรกันชั้นนี้อยู่แล้ว แต่กันซ้ำที่นี่ด้วย
+  if (getWindowState(conv.lastInboundAt).open) return conv.lastInboundAt
+
+  const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
+  const realLast = await getLastInboundTime(conv.externalContact.externalUserId, pageToken, conv.channel)
+  if (!realLast) return conv.lastInboundAt
+
+  // อัปเดตเฉพาะเมื่อ Meta ให้เวลาที่ใหม่กว่าที่เราเก็บ (กัน regress ค่า)
+  if (conv.lastInboundAt && realLast.getTime() <= conv.lastInboundAt.getTime()) {
+    return conv.lastInboundAt
+  }
+  await prisma.conversation.update({
+    where: { id: conv.id },
+    data: { lastInboundAt: realLast },
+  })
+  return realLast
 }
 
 export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
