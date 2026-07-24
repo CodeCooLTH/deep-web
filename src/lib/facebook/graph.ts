@@ -182,6 +182,25 @@ export async function getContactProfile(
   }
 }
 
+// ดึง "ข้อความที่ Meta render แล้ว" ของ message id หนึ่ง (feature 00018, user 2026-07-24) — ใช้กับ
+// attachment ที่ Meta สังเคราะห์ text ไว้แต่ไม่ส่งมากับ webhook: template (คำสั่งซื้อ/คำขอชำระเงิน เช่น
+// "You requested ฿590.00..."), fallback/แชร์ลิงก์-โพสต์, story reply. คืน null ถ้าไม่มี/ผิดพลาด/หมดเวลา
+// timeout เอง (graphFetch ไม่มี) — อยู่ใน hot path ของ webhook ห้ามค้าง (Meta retry ถ้า webhook ช้า)
+export async function fetchMessageText(messageId: string, pageToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${messageId}?fields=message`, {
+      headers: { Authorization: `Bearer ${pageToken}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return null
+    const json = (await res.json().catch(() => ({}))) as { message?: string }
+    const t = json.message ?? null
+    return t && t.trim().length > 0 ? t : null
+  } catch {
+    return null
+  }
+}
+
 // ส่งข้อความ text — คืน mid สำหรับเก็บเป็น externalMessageId (กลไก dedupe echo)
 //
 // ใช้ /me/messages ไม่ใช่ /{page-id}/messages ด้วยเหตุผลเดียวกับ getContactProfile:
