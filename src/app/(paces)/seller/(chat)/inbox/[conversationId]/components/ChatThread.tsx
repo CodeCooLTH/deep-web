@@ -770,7 +770,10 @@ export default function ChatThread({
                               </a>
                             )}
                             {m.body && (
-                              <p className={`text-default-800 text-sm ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
+                              // whitespace-pre-wrap: คงการเว้นบรรทัด (\n) ที่ลูกค้า/เพจพิมพ์มา — ไม่งั้น
+                              // เบราว์เซอร์ยุบเป็นช่องว่างเดียว เลข list/ย่อหน้าติดกันเป็นพรืดอ่านยาก
+                              // (เดียวกับ note ใน CustomerCrmSection ที่ใช้ pattern นี้อยู่แล้ว)
+                              <p className={`text-default-800 text-sm whitespace-pre-wrap ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
                                 {m.body}
                               </p>
                             )}
