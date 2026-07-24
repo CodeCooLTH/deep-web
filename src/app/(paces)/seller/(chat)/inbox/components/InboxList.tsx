@@ -644,14 +644,9 @@ export default function InboxList({
               </button>
             </span>
           )}
-          {filter.readState !== 'all' && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              {filter.readState === 'unread' ? 'ยังไม่อ่าน' : 'อ่านแล้ว'}
-              <button type="button" onClick={() => setFilter((f) => ({ ...f, readState: 'all' }))} aria-label="ล้างตัวกรองการอ่าน" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
+          {/* ไม่มี chip ของ "การอ่าน" (user สั่ง 2026-07-24: ปุ่มตัวกรองขึ้น badge (1) อยู่แล้ว = ซ้ำซ้อน)
+              — ล้างได้จากในดรอปดาวน์ (radio "ทั้งหมด") ต่างจาก chip สถานะ/ผูกลูกค้า/ซ่อน ที่เก็บไว้
+              เพราะบอก "ค่าที่เลือกคืออะไร" ซึ่ง badge ตัวเลขบอกไม่ได้ */}
         </div>
 
         {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
