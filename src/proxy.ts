@@ -66,9 +66,11 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith('/api')) {
     return guardApi(request)
   }
-  // Static assets ใน public/ (favicon, /data/*.json, รูป ฯลฯ) — ปล่อยผ่าน ไม่ rewrite ตาม subdomain
+  // Static assets ใน public/ (favicon, /data/*.json, รูป, เสียง ฯลฯ) — ปล่อยผ่าน ไม่ rewrite ตาม subdomain
   // (public/ เสิร์ฟที่ root; ถ้า rewrite → /seller/data/... = 404) — bug จริง feature Quick Create address db
-  if (/\.(?:json|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map)$/i.test(pathname)) {
+  // เพิ่มนามสกุลเสียง (m4a/mp3/wav/ogg/aac) 2026-07-24: เสียงแจ้งเตือนแชท /sounds/*.m4a อยู่บน
+  // seller subdomain → เดิม regex ไม่ครอบ → โดน rewrite เป็น /seller/sounds/... = 404 (user report ไม่มีเสียง)
+  if (/\.(?:json|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map|m4a|mp3|wav|ogg|aac)$/i.test(pathname)) {
     return NextResponse.next()
   }
 
