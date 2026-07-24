@@ -154,9 +154,12 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
           // z-80 = viewport overlay (Paces ไม่มี token; precedent CustomerPanelSheet/OrderQrSheet — HR7 carve-out)
           // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ). มือถือเต็มจอ (inset-0); desktop = หน้าต่างขนาดมือถือ
           // (w-96) dock ขวา (user request 2026-07-24: ให้เล็กเท่ามือถือ จะได้อ่านแชทที่อยู่ข้างหลังได้)
+          // transform-gpu: ทำให้ลูก position:fixed (bottom-sheet ~11 ตัวของฟอร์ม POS) ยึดกับ "โมดัล" แทน
+          // viewport (พฤติกรรม CSS: ancestor ที่มี transform เป็น containing block ของ fixed descendant) →
+          // sheet ถูก contain ในโมดัลแทนกินเต็มจอ โดยไม่ต้องแก้ทีละ sheet (user report 2026-07-24)
           className={
             d.state === 'expanded'
-              ? 'bg-card fixed inset-0 z-80 flex flex-col overflow-hidden shadow-lg lg:inset-y-4 lg:left-auto lg:right-4 lg:w-96 lg:rounded-lg'
+              ? 'bg-card fixed inset-0 z-80 flex transform-gpu flex-col overflow-hidden shadow-lg lg:inset-y-4 lg:left-auto lg:right-4 lg:w-96 lg:rounded-lg'
               : 'hidden'
           }
         >
@@ -185,22 +188,20 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
             </button>
           </div>
 
-          {/* compact = บังคับ layout มือถือ (QuickForm) ทุกจอ — POS 3-col เดสก์ท็อปแน่นเกินในโมดัล
-              (user report 2026-07-24). max-w-2xl กันฟอร์มคอลัมน์เดียวยืดกว้างเกินบนจอใหญ่ */}
+          {/* compact = บังคับ layout มือถือ (QuickForm คอลัมน์เดียว) ทุกจอ — POS 3-col เดสก์ท็อปแน่นเกินในโมดัล
+              (user report 2026-07-24). โมดัลแคบ (w-96) อยู่แล้วจึงไม่ต้อง max-w ครอบเพิ่ม */}
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-2xl">
-              <OrderCreateForm
-                shopId={shopId}
-                catalog={catalog}
-                bestSellers={bestSellers}
-                inventoryEnabled={inventoryEnabled}
-                formId={`draft-order-form-${d.id}`}
-                initialBuyerName={d.customerName}
-                initialSalesChannel={chatChannelToSalesChannel(d.channel)}
-                onSuccess={() => handleSuccess(d)}
-                compact
-              />
-            </div>
+            <OrderCreateForm
+              shopId={shopId}
+              catalog={catalog}
+              bestSellers={bestSellers}
+              inventoryEnabled={inventoryEnabled}
+              formId={`draft-order-form-${d.id}`}
+              initialBuyerName={d.customerName}
+              initialSalesChannel={chatChannelToSalesChannel(d.channel)}
+              onSuccess={() => handleSuccess(d)}
+              compact
+            />
           </div>
         </div>
       ))}
