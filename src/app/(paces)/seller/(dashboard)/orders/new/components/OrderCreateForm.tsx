@@ -126,7 +126,19 @@ const schema = Yup.object({
   buyerContact: Yup.string()
     .required('กรุณากรอกเบอร์โทรลูกค้า')
     .matches(/^0[0-9]{9}$/, 'ต้องเป็นเบอร์โทร 10 หลัก ขึ้นต้นด้วย 0'),
-  items: Yup.array(itemSchema).min(1, 'ต้องมีสินค้าอย่างน้อย 1 รายการ').required(),
+  // แถวเปล่าท้ายลิสต์ (spreadsheet pattern — รอเติมสินค้าใหม่เสมอ) ต้องไม่ถูก validate/ส่งไป backend
+  // transform กรองแถวเปล่า (ไม่มี productId + ชื่อว่าง) ออกก่อน itemSchema ตรวจแต่ละแถว → itemSchema
+  // เจอเฉพาะแถวที่กรอกจริง; ถ้าเหลือ 0 แถว → min(1) เด้ง "ต้องมีสินค้าอย่างน้อย 1 รายการ"
+  // (bug user report 2026-07-24: แถวเปล่าโดน validate ห้ามบันทึก + เพิ่มไม่จบ). แถวเปล่าอยู่ท้ายเสมอ
+  // → index ของแถวที่กรอกจริงไม่ขยับ error path จึง map กับแถวที่ render ถูก
+  items: Yup.array(itemSchema)
+    .transform((value) =>
+      Array.isArray(value)
+        ? value.filter((it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '')
+        : value,
+    )
+    .min(1, 'ต้องมีสินค้าอย่างน้อย 1 รายการ')
+    .required(),
   salesChannel: Yup.string()
     .oneOf(['STOREFRONT', 'FACEBOOK', 'LINE', 'TIKTOK', 'OTHER'])
     .optional(),
@@ -321,21 +333,28 @@ export default function OrderCreateForm({
   // ── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = async (values: FormValues) => {
+    // แถวเปล่าท้ายลิสต์ต้องไม่หลุดเข้าการคำนวณ/payload — กรองซ้ำที่นี่ (defense) เผื่อค่า transform
+    // ของ yupResolver ไม่ propagate ถึง handler: แถวเปล่าไม่มี productId ทำให้ derivedType เพี้ยนเป็น
+    // PHYSICAL เสมอ (item.productId ว่าง → hasPhysical=true) + needsShipping ผิด
+    const items = values.items.filter(
+      (it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '',
+    )
+
     // ── คำนวณ subtotal ──────────────────────────────────────────────────────
-    const subtotal = values.items.reduce((sum, item) => {
+    const subtotal = items.reduce((sum, item) => {
       return sum + (Number(item.qty) || 0) * (Number(item.price) || 0)
     }, 0)
 
     // ── derivedType: PHYSICAL > SERVICE > DIGITAL ──────────────────────────
     // ถ้ามี item ที่ไม่มี productId (custom) หรือ catalog type === 'PHYSICAL' → PHYSICAL
     // else ถ้ามี SERVICE → SERVICE; else DIGITAL
-    const hasPhysical = values.items.some((item) => {
+    const hasPhysical = items.some((item) => {
       if (!item.productId) return true
       return catalog.find((p) => p.id === item.productId)?.type === 'PHYSICAL'
     })
     const derivedType: string = hasPhysical
       ? 'PHYSICAL'
-      : values.items.some(
+      : items.some(
             (item) =>
               item.productId &&
               catalog.find((p) => p.id === item.productId)?.type === 'SERVICE',
@@ -347,7 +366,7 @@ export default function OrderCreateForm({
     // ยกเว้นช่องทาง "หน้าร้าน" (STOREFRONT) — รับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
     const needsShipping =
       values.salesChannel !== 'STOREFRONT' &&
-      values.items.some((item) => {
+      items.some((item) => {
         if (!item.productId) return true
         return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
       })
@@ -386,7 +405,7 @@ export default function OrderCreateForm({
     const hasShippingData = Object.keys(cleanShipping).length > 0
     const body = {
       type: derivedType,
-      items: values.items.map((item) => ({
+      items: items.map((item) => ({
         ...(item.productId ? { productId: item.productId } : {}),
         name: item.name,
         ...(item.description ? { description: item.description } : {}),

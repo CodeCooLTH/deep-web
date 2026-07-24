@@ -32,9 +32,15 @@ export const DEFAULT_PAYMENT_KEY = 'deep.default.paymentMethod'
 
 interface Props {
   control: Control<FormValues>
+  /**
+   * compact = อยู่ในโมดัลสร้างออเดอร์ในแชท (w-96 แคบ) — บังคับ single column ทุก viewport
+   * เดิม sm:grid-cols-2 อิง viewport 640px ไม่รู้ว่าโมดัลแคบ → บน desktop บีบ 2 คอลัมน์จน chip
+   * "เก็บเงินปลายทาง" ล้นขอบ + label ทับ chip (user report 2026-07-24)
+   */
+  compact?: boolean
 }
 
-export default function ChannelPaymentSelect({ control }: Props) {
+export default function ChannelPaymentSelect({ control, compact = false }: Props) {
   const [openSheet, setOpenSheet] = useState<'channel' | 'payment' | null>(null)
   const [defaults, setDefaults] = useState<{ channel: string | null; payment: string | null }>({
     channel: null,
@@ -63,7 +69,13 @@ export default function ChannelPaymentSelect({ control }: Props) {
 
   return (
     <>
-      <div className="divide-y divide-default-100 sm:grid sm:grid-cols-2 sm:gap-x-5 sm:divide-y-0">
+      <div
+        className={
+          compact
+            ? 'divide-y divide-default-100' // โมดัลแคบ: single column เสมอ (ไม่พึ่ง viewport sm:)
+            : 'divide-y divide-default-100 sm:grid sm:grid-cols-2 sm:gap-x-5 sm:divide-y-0'
+        }
+      >
         {/* ช่องทางการขาย */}
         <button
           type="button"
