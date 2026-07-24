@@ -39,6 +39,7 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { formatDate } from '@/lib/format-date'
+import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { ShopVertical } from '@/lib/lodging'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
@@ -63,6 +64,9 @@ export type CustomerPanelData = {
   vertical: ShopVertical
   /** null = ยังไม่ผูก Customer — phoneMasked ผ่าน maskPhone() มาแล้วเสมอ (ห้ามส่งเบอร์เต็ม) */
   customer: { id: string; phoneMasked: string } | null
+  /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
+   *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
+  customerStats: { orderCount: number; totalSpent: string; since: string } | null
   orders: CustomerPanelOrder[]
 }
 
@@ -93,6 +97,17 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   CANCELLED: { label: 'ยกเลิก', cls: 'bg-default-100 text-default-500' },
 }
 
+/** แถวสถิติลูกค้า — label ซ้าย ค่าขวา (ตามภาพที่ user ส่ง 2026-07-24) เส้นคั่นบาง ๆ ระหว่างแถว
+ *  ค่าใช้ font-semibold ให้เด่นกว่า label (ค่าคือสิ่งที่ผู้ขายอยากอ่าน) — token Paces ล้วน (HR7) */
+function StatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-default-200 py-2.5 text-sm last:border-0">
+      <span className="text-default-700">{label}</span>
+      <span className="text-default-900 font-semibold">{value}</span>
+    </div>
+  )
+}
+
 type Tab = 'customer' | 'orders' | 'note'
 
 /** แท็บของ right panel — label ของ 'orders' มาจาก vertical (คำสั่งซื้อ/การจอง) จึงเว้นว่างไว้ */
@@ -102,27 +117,18 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'note', label: 'โน้ต', icon: 'notes' }, // สะกด "โน้ต" ให้ตรงกับเนื้อหาในแท็บ (user ยืนยัน 2026-07-23)
 ]
 
-/** สรุปประวัติจากออเดอร์จริงที่ page.tsx query มาแล้ว (ไม่ต้อง query เพิ่ม) — impeccable critique P1-C:
- *  ผู้ขายเปิดวันละหลายสิบเธรดและต้องการคำตอบเดียวใน 1 วินาที ("เคยซื้อกี่ครั้ง จ่ายครบไหม")
- *  แต่เดิมต้องคลิกแท็บ → อ่านเอง → บวกเลขในหัว. ยอดรวมไม่นับออเดอร์ที่ยกเลิก */
-function summarize(orders: CustomerPanelOrder[]) {
-  const done = orders.filter((o) => o.status === 'CONFIRMED').length
-  const total = orders
-    .filter((o) => o.status !== 'CANCELLED')
-    .reduce((sum, o) => sum + Number(o.totalAmount), 0)
-  return { count: orders.length, done, total, latest: orders[0]?.createdAt ?? null }
-}
-
 /**
  * CustomerPanelBody — เนื้อหาจริง (header + tabs + tab content) แชร์ระหว่าง CustomerPanel
  * (desktop persistent column) และ CustomerPanelSheet (มือถือ/tablet <1024px) กันโค้ดซ้ำ 2 จุด
+ *
+ * สถิติลูกค้า (count/total/since) มาจาก page.tsx aggregate แล้ว (data.customerStats) ไม่คำนวณ
+ * ฝั่ง client อีกต่อไป — เดิม summarize() นับจาก orders 20 แถวที่ list ใช้ ซึ่งเพี้ยนถ้าลูกค้าซื้อเกิน 20
  */
 export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
   const [tab, setTab] = useState<Tab>('customer')
   const cta = VERTICAL_CTA[data.vertical]
   const orderHref = (token: string) => (data.vertical === 'LODGING' ? `/bookings/${token}` : `/orders/${token}`)
   const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
-  const summary = summarize(data.orders)
 
   // ── CRM: fetch ครั้งเดียวที่นี่ แล้วส่งลงทั้งแท็บ "ข้อมูลลูกค้า" และ "โน้ต" ──
   // (เดิมแต่ละแท็บ fetch เอง + unmount ทุกครั้งที่สลับ → draft หาย, skeleton กระพริบ, fail แล้วเงียบ)
@@ -199,25 +205,9 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         </div>
       </div>
 
-      {/* สรุปประวัติ 1 บรรทัด — คำตอบที่ผู้ขายต้องการใน 1 วินาที ("เคยซื้อกี่ครั้ง จ่ายครบไหม")
-          คำนวณจากออเดอร์จริงที่ page.tsx ส่งมาแล้ว ไม่มีตัวเลขปลอมสักตัว (PRODUCT.md: trust ต้องมา
-          จากสัญญาณจริง show-don't-tell). ลูกค้าที่ยังไม่ผูก = บอกตรง ๆ ว่ายังไม่มีประวัติในระบบ */}
-      {/* แสดงเฉพาะเมื่อ "มีประวัติจริง" (user สั่ง 2026-07-23: เอาบรรทัด "ยังไม่มีประวัติซื้อในระบบ —
-          ลูกค้าใหม่" ออก) — แถบสรุปมีไว้ตอบว่า "ลูกค้าคนนี้ซื้ออะไรมาบ้าง" การกินไปทั้งแถบเพื่อบอกว่า
-          "ไม่มีอะไรจะบอก" คือ noise ล้วน ๆ และแท็บข้อมูลลูกค้ามีแถวสถานะการเชื่อมบอกอยู่แล้ว */}
-      {data.customer && summary.count > 0 && (
-        <div className="border-b border-default-200 border-dashed px-4 py-2.5 text-xs">
-          <p className="text-default-800 mb-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-success inline-flex items-center gap-1 font-semibold">
-              <Icon icon="circle-check" className="text-sm" />
-              ซื้อ {summary.count} ครั้ง
-            </span>
-            {summary.done > 0 && <span className="text-default-700">สำเร็จ {summary.done}</span>}
-            <span className="text-default-700">รวม ฿{summary.total.toLocaleString('th-TH')}</span>
-            {summary.latest && <span className="text-default-700">ล่าสุด {formatDate(summary.latest)}</span>}
-          </p>
-        </div>
-      )}
+      {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
+          ส่งภาพรูปแบบ label-ซ้าย/ค่า-ขวามาให้) — เดิมโชว์ count+total เหนือแท็บ ซึ่งจะซ้ำกับแถวใหม่
+          ถ้าเก็บไว้ทั้งคู่ (ตัวเลขเดียวกันโผล่ 2 ที่ในกรอบ 384px = สิ่งที่ critique เคยเตือน) */}
 
       {/* tabs — 3 ตัว (user สั่ง 2026-07-23): ข้อมูลลูกค้า / คำสั่งซื้อ|การจอง / โน๊ต พร้อมไอคอน
           (ไอคอน user เลือกเอง: user-circle / shopping-cart / notes — ไม่ได้เดา ตาม convention
@@ -253,9 +243,10 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           >
             <Icon icon={t.icon} className="text-base" />
             {t.key === 'orders' ? cta.tabLabel : t.label}
-            {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C) */}
-            {t.key === 'orders' && data.customer && summary.count > 0 && (
-              <span className="badge bg-default-100 text-default-700 text-2xs">{summary.count}</span>
+            {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C)
+                ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
+            {t.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (
+              <span className="badge bg-default-100 text-default-700 text-2xs">{data.customerStats!.orderCount}</span>
             )}
           </button>
         ))}
@@ -277,6 +268,23 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         >
           {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
           {crmSlot('profile')}
+
+          {/* สถิติลูกค้า (user สั่ง 2026-07-24) — label-ซ้าย/ค่า-ขวา ตามภาพที่ส่งมา; เฉพาะลูกค้าที่ผูก
+              ในระบบแล้ว (มี customerStats) — คนที่ยังไม่ผูก แถว "การเชื่อมกับลูกค้าในระบบ" ด้านล่าง
+              อธิบายอยู่แล้ว ตัวเลขมาจาก aggregate จริงทั้งหมด (ไม่ใช่ 20 แถวของ list) — show don't tell */}
+          {data.customerStats && (
+            <div>
+              <StatRow label="จำนวนออเดอร์" value={data.customerStats.orderCount.toLocaleString('th-TH')} />
+              <StatRow
+                label="รวมยอดซื้อ"
+                value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
+              />
+              <StatRow
+                label="เป็นลูกค้ามา"
+                value={relativeTimeTh(new Date(data.customerStats.since).getTime())}
+              />
+            </div>
+          )}
           {/* สถานะการผูกลูกค้า — เดิมเป็นแถว "รหัสลูกค้า #A3F19C22 / —" ซึ่ง (ก) โชว์ id ดิบของ DB
               ให้แม่ค้า (ข) ขัดกับแถว "เบอร์โทร" ที่อยู่เหนือมัน 40px เพราะเบอร์ที่กรอกใน CRM เก็บที่
               ExternalContact.phones ซึ่ง *ไม่เกี่ยวกับ* customerId ที่เป็นตัวตัดสินรหัสลูกค้าเลย →
