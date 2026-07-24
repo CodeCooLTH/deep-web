@@ -965,3 +965,17 @@ export const ShopAiSettingSchema = v.object({
   // optional + default true — client เวอร์ชันเก่าที่ยังไม่ส่ง field นี้ต้องบันทึกได้ (ไม่ 400)
   includeMediaContext: v.optional(v.boolean(), true),
 });
+
+// ── feature 00018 — ยืนยันเลือกเพจที่จะเชื่อม (POST /api/channels/facebook/confirm) ──────
+// pageIds: เพจที่ user ติ๊กเลือกในหน้า /settings/channels/select
+// forceIds: subset ของ pageIds ที่ user "ยืนยันย้ายข้ามร้าน" ทีละเพจ (ไม่ใช่ทั้งชุด) — route ตรวจ
+//   ต่อว่าเป็น subset จริง และตรวจว่าทุก id อยู่ในเพจที่ token นี้จัดการได้ (authorization ที่ Meta)
+// id เพจของ Meta เป็นตัวเลขล้วนความยาวไม่แน่นอน — ไม่ใช่ uuid จึงตรวจแค่ string ไม่ว่าง + จำกัดจำนวน
+export const ConfirmChannelPagesSchema = v.object({
+  pageIds: v.pipe(
+    v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64))),
+    v.minLength(1, "กรุณาเลือกอย่างน้อย 1 เพจ"),
+    v.maxLength(50),
+  ),
+  forceIds: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64))), v.maxLength(50))),
+});

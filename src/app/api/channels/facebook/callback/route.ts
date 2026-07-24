@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { exchangeCodeForToken, listManageablePages } from '@/lib/facebook/graph'
-import { connectPages } from '@/services/shop-channel.service'
+import { encryptToken } from '@/lib/token-crypto'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { OAUTH_STATE_COOKIE, OAUTH_FORCE_COOKIE, callbackUrl } from '../connect/route'
+import { OAUTH_USER_TOKEN_COOKIE, PENDING_TOKEN_COOKIE_OPTIONS } from '@/lib/facebook/pending-connect'
+import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
 
-// รับ code จาก Facebook แล้วเชื่อมทุก Page ที่ user มีสิทธิ์ MESSAGING+MODERATE (feature 00018)
-// MVP เชื่อมให้ทั้งหมดเลย — หน้าจอให้เลือกทีละเพจอยู่ในแผน UI
+// รับ code จาก Facebook (feature 00018)
+//
+// เดิม callback นี้ "เชื่อมทุกเพจที่ user มีสิทธิ์" เข้าร้านที่ active อยู่ทันที — เป็นบั๊กเชิงพฤติกรรม
+// ที่อันตราย: user คนหนึ่งมักดูแลเพจของตัวเองหลายเพจ พอเข้ามาเชื่อมเพจของร้าน เพจส่วนตัวที่เหลือ
+// ถูกลากเข้าร้านนั้นไปด้วยทั้งหมด (ถูก subscribe webhook + ข้อความไหลเข้า inbox ที่พนักงานคนอื่นเห็น)
+//
+// ตอนนี้ callback แค่ "พก token ไปต่อ" แล้วพา user ไปหน้าเลือกเพจ — ไม่แตะ DB ไม่ subscribe อะไรเลย
+// การเชื่อมจริงเกิดที่ POST /api/channels/facebook/confirm หลัง user ติ๊กเลือกเอง
 
 export const dynamic = 'force-dynamic'
 
@@ -40,13 +47,13 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   if (!code) return backToSettings(request, { status: 'no_code' })
 
-  // bug fix (แชทไม่แยกตามร้าน, user report prod): เดิม comment ตรงนี้บอกว่า "ต้องใช้ getShopByUserId
-  // ตัวเดียวกับที่ /inbox ใช้อ่าน (kind:'PERSONAL')" — นั่นคือตัวบั๊กเอง เพราะ getShopByUserId คืน
-  // PERSONAL เสมอ ไม่สนว่า user กำลัง active อยู่ร้านไหน (feature 00008 shop switcher) ผล: กำลังเปิด
-  // ร้าน B อยู่แล้วกด "เชื่อม Facebook Page" กลับไปผูก channel เข้า PERSONAL แทน — /inbox ของร้าน B
-  // จึงไม่เห็นข้อความ (ไปโผล่ที่ PERSONAL แทน)
-  // เปลี่ยนเป็น resolveActiveShopContext (re-verify membership เสมอ) — ผูก channel กับร้านที่กำลัง
-  // active จริง ไม่ใช่ PERSONAL เสมอไป; resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → 'no_shop' เหมือนเดิม
+  // bug fix (แชทไม่แยกตามร้าน, user report prod): เดิมใช้ getShopByUserId ซึ่งคืน PERSONAL เสมอ
+  // ไม่สนว่า user กำลัง active อยู่ร้านไหน (feature 00008 shop switcher) ผล: กำลังเปิดร้าน B อยู่
+  // แล้วกด "เชื่อม Facebook Page" กลับไปผูก channel เข้า PERSONAL แทน — /inbox ของร้าน B ไม่เห็นข้อความ
+  // resolveActiveShopContext re-verify membership เสมอ; resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → 'no_shop'
+  //
+  // ยังต้อง resolve ตรงนี้แม้จะไม่เขียน DB แล้ว — เพื่อฟันธงตั้งแต่ต้นทางว่า user มีร้านให้เชื่อมจริง
+  // (ไม่งั้นจะไปเด้ง error เอาตอนกดยืนยันหลังเลือกเพจไปแล้ว = เสียเที่ยว)
   const activeCtx = await resolveActiveShopContext({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
   })
@@ -54,33 +61,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const userToken = await exchangeCodeForToken(code, callbackUrl(request))
+    // ยิง listManageablePages ตรงนี้เพื่อ "คัดกรองล่วงหน้า" อย่างเดียว — ถ้าไม่มีเพจที่มีสิทธิ์เลย
+    // ต้องบอกที่หน้าตั้งค่าเลย ไม่ใช่พาไปหน้าเลือกเพจว่าง ๆ (รายการจริงดึงใหม่ที่หน้านั้นอีกที)
     const pages = await listManageablePages(userToken)
     if (pages.length === 0) {
       return backToSettings(request, { status: 'no_eligible_page' })
     }
 
-    // force = user ยืนยันย้ายเพจที่ติดร้านอื่นมาร้านนี้ (ผ่าน re-OAuth ที่ Facebook อนุญาตเลย
-    // เพราะเคย grant แล้ว) — ปลอดภัยเพราะ pages ที่เข้ามาถึงจุดนี้ผ่าน listManageablePages มาแล้ว
-    const force = request.cookies.get(OAUTH_FORCE_COOKIE)?.value === '1'
-    const result = await connectPages(activeCtx.shopId, userId, pages, { force })
-    const res = backToSettings(request, {
-      status: 'connected',
-      connected: String(result.connected),
-      // skipped: เพจที่ร้านอื่นเชื่อม active อยู่ — ส่ง "ชื่อเพจ (ร้านที่ถืออยู่)" ให้ UI บอก user
-      // ได้ว่าต้องไปถอดจากร้านไหนก่อน ไม่ใช่แค่ "เชื่อม 0 ช่องทาง" เฉย ๆ ที่ไม่บอกสาเหตุ
-      ...(result.skipped.length
-        ? {
-            skipped: result.skipped
-              .map((s) => (s.occupiedBy ? `${s.pageName} (ร้าน ${s.occupiedBy})` : s.pageName))
-              .join(', '),
-          }
-        : {}),
-      // I-4: ไม่ปล่อยให้ subscribe ล้มเหลวเงียบ ๆ — ต้องบอก seller ว่าเพจไหนเชื่อมแล้วแต่ยังไม่ได้รับ
-      // webhook จริง (ต้องกดเชื่อมใหม่หรือติดต่อ support)
-      ...(result.subscribeFailed.length ? { subscribeFailed: result.subscribeFailed.join(',') } : {}),
-    })
+    // ไปหน้าเลือกเพจ พร้อมพา user token (เข้ารหัส) ไปใน cookie httpOnly อายุสั้น
+    const res = NextResponse.redirect(new URL('/settings/channels/select', request.nextUrl.origin).toString(), 302)
+    res.cookies.set(OAUTH_USER_TOKEN_COOKIE, encryptToken(userToken), PENDING_TOKEN_COOKIE_OPTIONS)
     res.cookies.delete(OAUTH_STATE_COOKIE)
-    res.cookies.delete(OAUTH_FORCE_COOKIE)
     return res
   } catch (e) {
     // ห้าม log token — log แค่ message

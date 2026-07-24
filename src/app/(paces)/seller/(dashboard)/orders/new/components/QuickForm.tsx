@@ -79,7 +79,7 @@ export default function QuickForm({
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
       <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
-        <ChannelPaymentSelect control={control} />
+        <ChannelPaymentSelect control={control} compact={compact} />
       </section>
 
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
