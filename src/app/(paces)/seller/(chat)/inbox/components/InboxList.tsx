@@ -122,6 +122,7 @@ export type ConversationListItem = {
   // feature 00018 — กลุ่ม/แท็บที่เธรดนี้ถูกจัดไว้ (null = แท็บ "ทั้งหมด") — ใช้โชว์ชิปโฟลเดอร์ในแถว
   // ตอนอยู่แท็บ "ทั้งหมด" ให้รู้ว่าเธรดนี้อยู่กลุ่มไหน (user สั่ง 2026-07-24)
   chatGroupId?: string | null
+  isSpam?: boolean // feature 00018 — เธรดสแปม (user สั่ง 2026-07-24); ตัดสิน action spam/unspam ใน mini-action
 }
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
@@ -263,6 +264,7 @@ export default function InboxList({
       if (filter.status !== 'open') params.set('status', filter.status)
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
+      if (filter.spam) params.set('spam', 'true')
       if (activeGroupId) params.set('chatGroupId', activeGroupId)
       if (filter.readState !== 'all') params.set('readState', filter.readState)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
@@ -290,7 +292,7 @@ export default function InboxList({
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, activeGroupId])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, activeGroupId])
 
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
@@ -340,6 +342,8 @@ export default function InboxList({
         unhide: 'เลิกซ่อนแล้ว',
         resolve: 'ปิดงานแล้ว — ดูได้จากตัวกรองสถานะ "ปิดงานแล้ว"',
         reopen: 'เปิดบทสนทนาใหม่แล้ว',
+        spam: 'ย้ายเข้าสแปมแล้ว — ดูได้จากตัวกรอง "ดูสแปม"',
+        unspam: 'เอาออกจากสแปมแล้ว',
       }
       pacesToast.chat.success(TOAST[action])
       await fetchList({ append: false })
@@ -435,6 +439,7 @@ export default function InboxList({
       if (filter.status !== 'open') params.set('status', filter.status)
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
+      if (filter.spam) params.set('spam', 'true')
       if (activeGroupId) params.set('chatGroupId', activeGroupId)
       if (filter.readState !== 'all') params.set('readState', filter.readState)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
@@ -644,8 +649,16 @@ export default function InboxList({
               </button>
             </span>
           )}
+          {filter.spam && (
+            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              กำลังดูสแปม
+              <button type="button" onClick={() => setFilter((f) => ({ ...f, spam: false }))} aria-label="เลิกดูสแปม" className="inline-flex items-center">
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          )}
           {/* ไม่มี chip ของ "การอ่าน" (user สั่ง 2026-07-24: ปุ่มตัวกรองขึ้น badge (1) อยู่แล้ว = ซ้ำซ้อน)
-              — ล้างได้จากในดรอปดาวน์ (radio "ทั้งหมด") ต่างจาก chip สถานะ/ผูกลูกค้า/ซ่อน ที่เก็บไว้
+              — ล้างได้จากในดรอปดาวน์ (radio "ทั้งหมด") ต่างจาก chip สถานะ/ผูกลูกค้า/ซ่อน/สแปม ที่เก็บไว้
               เพราะบอก "ค่าที่เลือกคืออะไร" ซึ่ง badge ตัวเลขบอกไม่ได้ */}
         </div>
 
@@ -769,7 +782,7 @@ export default function InboxList({
               // pin-first keyset cursor) ฝั่งนี้ไม่ต้องเรียงซ้ำ
               <SwipeableRow
                 key={c.id}
-                actionsWidth={168}
+                actionsWidth={224}
                 actions={
                   <>
                     <button
@@ -798,6 +811,16 @@ export default function InboxList({
                     >
                       <Icon icon={filter.hidden ? 'eye' : 'eye-off'} width={18} height={18} />
                       {filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
+                    </button>
+                    {/* สแปม (user สั่ง 2026-07-24) — ในถังสแปมปุ่มนี้กลายเป็น "ไม่ใช่สแปม" */}
+                    <button
+                      type="button"
+                      onClick={() => handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')}
+                      disabled={actioningId === c.id}
+                      className="bg-danger text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                    >
+                      <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} width={18} height={18} />
+                      {c.isSpam ? 'ไม่ใช่สแปม' : 'สแปม'}
                     </button>
                   </>
                 }
@@ -874,16 +897,9 @@ export default function InboxList({
                         {preview}
                       </span>
                       {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว */}
-                      {(groupChip || salesStatus !== 'UNSPECIFIED' || contactTags.length > 0) && (
+                      {(salesStatus !== 'UNSPECIFIED' || contactTags.length > 0) && (
                         <span className="mt-1 flex flex-wrap items-center gap-1">
-                          {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (user สั่ง 2026-07-24) — โชว์เฉพาะแท็บ
-                              "ทั้งหมด" (groupChip = null เมื่ออยู่ในแท็บกลุ่มนั้นเองอยู่แล้ว ไม่ต้องย้ำ) */}
-                          {groupChip && (
-                            <span className="badge bg-default-100 text-default-600 text-2xs inline-flex items-center gap-1">
-                              <Icon icon="folder" width={11} height={11} />
-                              <span className="max-w-24 truncate">{groupChip}</span>
-                            </span>
-                          )}
+                          {/* ชิปโฟลเดอร์ย้ายไปมุมขวาล่าง (ใต้เวลา) แล้ว — user สั่ง 2026-07-24 */}
                           {salesStatus !== 'UNSPECIFIED' && (
                             <span className={`badge text-2xs ${SALES_STATUS_META[salesStatus]?.cls ?? ''}`}>
                               {SALES_STATUS_META[salesStatus]?.label ?? salesStatus}
@@ -900,22 +916,33 @@ export default function InboxList({
                     </span>
                   </div>
 
-                  <span className="flex shrink-0 flex-col items-end justify-center gap-1.25">
-                    {/* timestamp — สีตามสถานะอ่าน (main); ตัว indicator ปักหมุดอยู่หน้าชื่อแล้ว
-                        (เดิมเป็นไอคอนหมุดเล็ก ๆ นำหน้าเวลา ซึ่งมองไม่ค่อยเห็นและกดไม่ได้) */}
-                    <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
-                      {formatChatListTime(c.lastMessageAt)}
+                  {/* คอลัมน์ขวา (user สั่ง 2026-07-24): เวลา+badge อยู่ "บนขวา", ชิปโฟลเดอร์ "ล่างขวา"
+                      (ใต้เวลา). self-stretch + justify-between ดันสองก้อนไปหัว-ท้ายของความสูงแถว —
+                      แถวไหนไม่มีกลุ่มก็ไม่โชว์ชิป (เวลายังอยู่บนขวาเหมือนเดิม) */}
+                  <span className="flex shrink-0 flex-col items-end justify-between self-stretch py-0.5">
+                    <span className="flex flex-col items-end gap-1.25">
+                      {/* timestamp — สีตามสถานะอ่าน (main); indicator ปักหมุดอยู่หน้าชื่อแล้ว */}
+                      <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
+                        {formatChatListTime(c.lastMessageAt)}
+                      </span>
+                      {/* resolved กับ unread ไม่โชว์พร้อมกัน — resolved = badge "ปิดงานแล้ว" (S-7),
+                          ไม่งั้น badge จำนวนที่ยังไม่อ่าน (99+, main) */}
+                      {isResolved ? (
+                        <span className="badge text-2xs bg-success/15 text-success">ปิดงานแล้ว</span>
+                      ) : (
+                        unread && (
+                          <span className="badge text-2xs bg-danger text-white">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )
+                      )}
                     </span>
-                    {/* resolved กับ unread ไม่โชว์พร้อมกัน (เธรดปิดงานแล้วไม่มี unread ตาม flow) —
-                        resolved = badge "ปิดงานแล้ว" (S-7), ไม่งั้น badge จำนวนที่ยังไม่อ่าน (99+, main) */}
-                    {isResolved ? (
-                      <span className="badge text-2xs bg-success/15 text-success">ปิดงานแล้ว</span>
-                    ) : (
-                      unread && (
-                        <span className="badge text-2xs bg-danger text-white">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )
+                    {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (แท็บ "ทั้งหมด" เท่านั้น; ในแท็บกลุ่มเองไม่ย้ำ) */}
+                    {groupChip && (
+                      <span className="badge bg-default-100 text-default-600 text-2xs inline-flex max-w-28 items-center gap-1">
+                        <Icon icon="folder" width={11} height={11} className="shrink-0" />
+                        <span className="truncate">{groupChip}</span>
+                      </span>
                     )}
                   </span>
                 </Link>
@@ -962,6 +989,18 @@ export default function InboxList({
                   >
                     <Icon icon={filter.hidden ? 'eye' : 'eye-off'} width={16} height={16} />
                   </button>
+                  {/* สแปม (user สั่ง 2026-07-24) — accent แดง (danger) แยกจาก action อื่นเพราะเป็น
+                      การ "ตีตราสแปม" ไม่ใช่แค่จัดระเบียบ; ในถังสแปมกลายเป็น "ไม่ใช่สแปม" */}
+                  <button
+                    type="button"
+                    onClick={() => handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')}
+                    disabled={actioningId === c.id}
+                    aria-label={c.isSpam ? 'เอาออกจากสแปม' : 'ย้ายเข้าสแปม'}
+                    title={c.isSpam ? 'ไม่ใช่สแปม' : 'สแปม'}
+                    className={`btn btn-icon btn-sm hover:bg-danger/10 disabled:opacity-50 ${c.isSpam ? 'text-default-600' : 'text-danger'}`}
+                  >
+                    <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} width={16} height={16} />
+                  </button>
                 </div>
               </div>
               </SwipeableRow>
@@ -1004,6 +1043,7 @@ export default function InboxList({
               }}
               isPinned={row.isPinned}
               isResolved={row.resolvedAt !== null}
+              isSpam={row.isSpam ?? false}
               hiddenContext={filter.hidden}
               busyAction={actioningId === row.id}
               onAction={(a) => handleRowAction(row.id, a)}

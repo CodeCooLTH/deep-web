@@ -48,15 +48,18 @@ export const setConversationMuted = (conversationId: string, muted: boolean) =>
   writeFlag(CONV_PREFIX + conversationId, muted)
 
 // ── เสียง ────────────────────────────────────────────────────────────────────
-let ctx: AudioContext | null = null
+// user สั่ง 2026-07-24: ใช้ไฟล์เสียง public/sounds/sound-new-chat-msg.m4a แทน beep สังเคราะห์
+const SOUND_SRC = '/sounds/sound-new-chat-msg.m4a'
 
-function getCtx(): AudioContext | null {
+let audioEl: HTMLAudioElement | null = null
+
+function getAudio(): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null
-  const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-  if (!Ctor) return null
-  if (!ctx) ctx = new Ctor()
-  if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
-  return ctx
+  if (!audioEl) {
+    audioEl = new Audio(SOUND_SRC)
+    audioEl.preload = 'auto'
+  }
+  return audioEl
 }
 
 /** กันเสียงซ้ำซ้อน: หน้าแชทมีทั้งรายการ (InboxList) และเธรดที่ subscribe realtime คนละ channel
@@ -65,7 +68,7 @@ let lastPlayedAt = 0
 const MIN_GAP_MS = 1200
 
 /**
- * playChatBeep — ดัง 2 โน้ตสั้น ๆ (ขึ้นเสียง) ดังพอรู้ตัวแต่ไม่รบกวนคนรอบข้าง
+ * playChatBeep — เล่นไฟล์เสียงแจ้งเตือนข้อความใหม่
  * conversationId: ถ้าส่งมา จะเช็ค mute รายเธรดด้วย
  */
 export function playChatBeep(conversationId?: string): void {
@@ -76,31 +79,36 @@ export function playChatBeep(conversationId?: string): void {
   if (now - lastPlayedAt < MIN_GAP_MS) return
   lastPlayedAt = now
 
-  const audio = getCtx()
-  if (!audio || audio.state !== 'running') return // ยังไม่เคย interact กับหน้า → เงียบตามกติกาเบราว์เซอร์
-
-  const t0 = audio.currentTime
-  for (const [i, freq] of [880, 1170].entries()) {
-    const osc = audio.createOscillator()
-    const gain = audio.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = freq
-    // envelope สั้น ๆ กัน "ป๊อก" ตอนเริ่ม/จบ (ตัดคลื่นดิบ ๆ จะได้ยินเป็นเสียงกระแทก)
-    const start = t0 + i * 0.09
-    gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(0.09, start + 0.012)
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.085)
-    osc.connect(gain).connect(audio.destination)
-    osc.start(start)
-    osc.stop(start + 0.09)
-  }
+  const el = getAudio()
+  if (!el) return
+  el.currentTime = 0 // reset ให้เล่นซ้ำได้ทันทีแม้เสียงก่อนยังไม่จบ
+  // play() reject ถ้าเบราว์เซอร์บล็อก (ยังไม่ interact) หรือไฟล์โหลดไม่ได้ — เงียบตามกติกา ไม่ throw
+  void el.play().catch(() => {})
 }
 
-/** ปลดล็อกเสียงตอน gesture แรกของผู้ใช้ (คลิก/แตะ/กดคีย์) — เรียกครั้งเดียวจาก ChatHeader */
+/** ปลดล็อกเสียงตอน gesture แรกของผู้ใช้ (คลิก/แตะ/กดคีย์) — เรียกครั้งเดียวจาก ChatHeader
+ *  เล่นเงียบ (volume 0) 1 ครั้งเพื่อให้เบราว์เซอร์อนุญาต play() ครั้งถัดไปโดยไม่ต้องมี gesture ตรงจังหวะ */
 export function primeChatSound(): () => void {
   if (typeof window === 'undefined') return () => {}
+  let primed = false
   const unlock = () => {
-    getCtx()
+    if (primed) return
+    const el = getAudio()
+    if (!el) return
+    primed = true
+    const prevVol = el.volume
+    el.volume = 0
+    void el
+      .play()
+      .then(() => {
+        el.pause()
+        el.currentTime = 0
+        el.volume = prevVol
+      })
+      .catch(() => {
+        el.volume = prevVol
+        primed = false // ยังไม่สำเร็จ → ลองใหม่ gesture หน้า
+      })
   }
   const opts = { passive: true } as const
   window.addEventListener('pointerdown', unlock, opts)
