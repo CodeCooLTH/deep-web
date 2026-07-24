@@ -32,6 +32,10 @@ const CONTENT_TYPE_TO_EXT: Record<string, string> = {
   'audio/mp4': 'm4a',
   'audio/aac': 'aac',
   'audio/ogg': 'ogg',
+  // Messenger voice message = Opus codec (mime_type audio/opus) — เป็น opus-in-ogg เล่นเป็น audio/ogg
+  // ได้ใน browser. ถ้าปล่อยให้ generic fallback จะได้ ext 'opus' ที่ browser ส่วนใหญ่เล่น inline ไม่ได้
+  // (bug จริง 2026-07-24: ข้อความเสียงขึ้น "[ข้อความเสียง — เปิดดูใน Messenger]") → map เป็น ogg
+  'audio/opus': 'ogg',
   'audio/webm': 'weba',
   'audio/wav': 'wav',
   'audio/x-wav': 'wav',
