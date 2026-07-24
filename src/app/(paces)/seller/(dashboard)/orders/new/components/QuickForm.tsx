@@ -66,21 +66,24 @@ export default function QuickForm({
     [watchedItems, catalog, salesChannel],
   )
 
+  // compact (โมดัลในแชท): ไม่ bleed ขอบ (ไม่มี fullscreen layout p-4/p-8 ให้หักล้าง) + padding คงที่ px-4
+  // (ไม่ใช้ md:px-8 ที่อิง viewport เพราะโมดัลแคบแต่ viewport กว้าง จะได้ padding เดสก์ท็อปผิด — user report 2026-07-24)
+  const rootCls = compact ? '' : '-mx-4 md:-mx-8'
+  const secX = compact ? 'px-4' : 'px-4 md:px-8'
   return (
-    // -mx-4 md:-mx-8: หักล้าง padding ของ (fullscreen) layout (p-4 md:p-8) → แถบเทา band bleed เต็มขอบจอ
-    <div className="-mx-4 md:-mx-8">
+    <div className={rootCls}>
       {/* SECTION 1: ลูกค้า (phone-first + wand paste + address) */}
-      <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
+      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
         <CustomerQuickBlock control={control} errors={errors} setValue={setValue} needsShipping={needsShipping} />
       </section>
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
-      <section className="border-b-8 border-default-100 px-4 py-3.5 md:px-8">
+      <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
         <ChannelPaymentSelect control={control} />
       </section>
 
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
-      <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
+      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
             <Icon icon="package" className="size-5 text-primary" />
@@ -108,7 +111,7 @@ export default function QuickForm({
       </section>
 
       {/* SECTION 4: เพิ่มเติม — ส่วนลด/VAT/หมายเหตุ (ไม่ collapse; สไตล์เดียวกับ section อื่น) */}
-      <section className="border-b-8 border-default-100 px-4 py-4 md:px-8">
+      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
         <div className="mb-3 flex items-center gap-2">
           <Icon icon="adjustments" className="size-5 text-primary" />
           <h2 className="text-base font-bold text-dark">เพิ่มเติม</h2>

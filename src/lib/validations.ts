@@ -961,6 +961,9 @@ export const ShopAiSettingSchema = v.object({
   instruction: v.pipe(v.string(), v.maxLength(2000, "คำสั่งประจำร้านต้องไม่เกิน 2,000 ตัวอักษร")),
   includeProductContext: v.boolean(),
   includeCustomerContext: v.boolean(),
+  // feature 00019 ext (user 2026-07-24): ให้ AI อ่านรูป/ฟังข้อความเสียงในแชท
+  // optional + default true — client เวอร์ชันเก่าที่ยังไม่ส่ง field นี้ต้องบันทึกได้ (ไม่ 400)
+  includeMediaContext: v.optional(v.boolean(), true),
 });
 
 // ── feature 00018 — ยืนยันเลือกเพจที่จะเชื่อม (POST /api/channels/facebook/confirm) ──────

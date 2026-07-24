@@ -1243,6 +1243,11 @@ model ShopAiSetting {
   instruction            String?
   includeProductContext  Boolean @default(true)
   includeCustomerContext Boolean @default(true)
+  // includeMediaContext: ส่ง "รูป/ข้อความเสียง" ในแชทเข้า AI ด้วย (feature 00019 ext, user 2026-07-24)
+  // เพื่อให้ AI อ่านรูป (สลิป/ป้ายที่อยู่/รูปสินค้า) และถอดเสียงมาใช้ร่างคำตอบได้
+  // ⚠ เปิด = ไฟล์จากลูกค้าถูกส่งเข้า Gemini ทั้งไฟล์ ซึ่งอาจมี PII (เบอร์/ที่อยู่ในรูป) — ต่างจาก
+  // บริบทข้อความที่เรากรอง PII ออกก่อน จึงแยกเป็นสวิตช์ให้ร้านปิดได้ (default เปิดตามที่ user เลือก)
+  includeMediaContext    Boolean @default(true)
   // updatedByUserId: SetNull — ลบผู้ใช้ต้องไม่ลบการตั้งค่าของร้านทิ้ง
   updatedByUserId String?
   createdAt       DateTime @default(now())

@@ -47,6 +47,7 @@ export async function GET() {
       instruction: setting.instruction,
       includeProductContext: setting.includeProductContext,
       includeCustomerContext: setting.includeCustomerContext,
+      includeMediaContext: setting.includeMediaContext,
       // canEdit ส่งไปให้ UI ตัดสินโหมดอ่านอย่างเดียวเท่านั้น — ฝั่ง PUT ตรวจ role ซ้ำเสมอ
       // ไม่เชื่อค่านี้ที่ client ส่งกลับมา (API.md §2)
       canEdit: ctx.canEdit,
@@ -79,6 +80,7 @@ export async function PUT(request: NextRequest) {
         instruction: setting.instruction,
         includeProductContext: setting.includeProductContext,
         includeCustomerContext: setting.includeCustomerContext,
+        includeMediaContext: setting.includeMediaContext,
         canEdit: true,
         updatedAt: setting.updatedAt ? setting.updatedAt.toISOString() : null,
       },
