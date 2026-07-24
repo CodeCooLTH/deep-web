@@ -263,6 +263,22 @@ export async function ingestInboundMessage(params: {
   // ข้อความลิงก์ที่แชร์ (fallback/post/ig_post) — ประกอบ title + url เป็น text
   const linkText = isLink ? (attTitle ? `${attTitle}\n${attUrl}` : attUrl!) : null
 
+  // หลายรูป/สื่อในหนึ่ง event: Messenger ส่งหลายรูปพร้อมกัน = attachments[] หลายตัวใน event เดียว —
+  // เดิมเก็บแค่ attachments[0] → web app เห็นรูปเดียว (user report 2026-07-24). mirror ตัวที่ 2 เป็นต้นไป
+  // แล้วสร้าง ChatMessage เพิ่มต่อรูป (album UI จะจับกลุ่มเป็นอัลบั้มเอง). externalMessageId ต่อท้าย #i กัน
+  // ชน unique (mid เดียวทั้ง event) — redelivery ชนตัวแรก tx abort → DUPLICATE เหมือนเดิม
+  const allAttachments = event.message.attachments ?? []
+  const extraMedia: { fileId: string; type: string }[] = []
+  for (let i = 1; i < allAttachments.length; i++) {
+    const a = allAttachments[i]
+    const t = a?.type
+    const url = a?.payload?.url
+    if (t && MEDIA_TYPE[t] && url) {
+      const fid = await mirrorRemoteImage(url)
+      if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
+    }
+  }
+
   const type =
     mirroredFileId && attType && MEDIA_TYPE[attType]
       ? MEDIA_TYPE[attType]
@@ -323,13 +339,16 @@ export async function ingestInboundMessage(params: {
     AUDIO: '[ข้อความเสียง]',
     FILE: '[ไฟล์แนบ]',
   }
-  const preview = mirroredFileId
+  const singlePreview = mirroredFileId
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
     : hasDisplayText
       ? displayText!.slice(0, 100)
       : hasAttachment
         ? attachmentFailedText
         : emptyMessageText
+  // หลายรูป → preview บอกจำนวน "[N รูป]" (นับตัวแรก + extra) แทน "[รูปภาพ]" เดี่ยว
+  const mediaCount = (mirroredFileId ? 1 : 0) + extraMedia.length
+  const preview = mediaCount > 1 ? `[${mediaCount} รูป]` : singlePreview
   const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
   const mid = event.message.mid
 
@@ -357,6 +376,23 @@ export async function ingestInboundMessage(params: {
         deliveryStatus: 'SENT',
       },
     })
+
+    // รูป/สื่อที่ 2 เป็นต้นไปในหนึ่ง event (multi-image send) — 1 ChatMessage ต่อรูป, bare (body=null)
+    // externalMessageId = `${mid}#${i}` กันชน unique (mid เดียวทั้ง event) — album UI จับกลุ่มเอง
+    for (let i = 0; i < extraMedia.length; i++) {
+      await tx.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          senderUserId: null,
+          senderRole,
+          type: extraMedia[i].type,
+          body: null,
+          imageUrl: extraMedia[i].fileId,
+          externalMessageId: mid ? `${mid}#${i + 1}` : null,
+          deliveryStatus: 'SENT',
+        },
+      })
+    }
 
     await tx.conversation.update({
       where: { id: conversation.id },
