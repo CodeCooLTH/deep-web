@@ -270,6 +270,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     <div className="flex h-full">
       <ChatThread
         conversationId={conversation.id}
+        shopId={shop.id}
         buyerName={buyerDisplayName}
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}

@@ -81,7 +81,7 @@ export function groupByDate(messages: ChatMessageView[]) {
   return groups
 }
 
-export function useSellerChatThread(conversationId: string) {
+export function useSellerChatThread(conversationId: string, shopId?: string | null) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
@@ -215,7 +215,7 @@ export function useSellerChatThread(conversationId: string) {
         // มีใน state มาก่อน (กัน refetch ซ้ำแล้วดังซ้ำ) และไม่ใช่ข้อความที่ร้านส่งเอง/echo จากแอป
         const hasNewFromBuyer = data.items.some((m) => m.senderRole === 'BUYER' && !map.has(m.id))
         for (const m of data.items) map.set(m.id, m)
-        if (hasNewFromBuyer) playChatBeep(conversationId)
+        if (hasNewFromBuyer) playChatBeep({ shopId, conversationId })
         return Array.from(map.values()).sort(
           (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         )
