@@ -56,6 +56,9 @@ interface Props {
   initialBuyerContact?: string
   /** เรียกเมื่อสร้างสำเร็จ — ถ้ามี จะไม่ router.push (โมดัลจัดการปิด+refresh เอง); ไม่มี = behavior เดิม (/orders/new) */
   onSuccess?: (token: string | null) => void
+  /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
+   *  (POS 3-col เดสก์ท็อปแน่นเกินไปในโมดัล user report 2026-07-24); footer submit sticky ในโมดัล */
+  compact?: boolean
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -165,6 +168,7 @@ export default function OrderCreateForm({
   initialBuyerName,
   initialBuyerContact,
   onSuccess,
+  compact = false,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -453,7 +457,7 @@ export default function OrderCreateForm({
         }
       })}
       noValidate
-      className="pb-24 lg:pb-0 scroll-pb-24"
+      className={compact ? '' : 'pb-24 lg:pb-0 scroll-pb-24'}
     >
       {/* Full-bleed status sheet: loading ระหว่าง submit / error + ปุ่มปิดกลับไปแก้ไข */}
       <SubmitStatusSheet
@@ -464,8 +468,9 @@ export default function OrderCreateForm({
 
       {/* ═══ Render: < lg = QuickForm (inline), ≥ lg = POS split ═══ */}
 
-      {/* < lg (มือถือ+แท็บเล็ต): QuickForm inline scroll (T4-T8 เติมเนื้อ section) */}
-      <div className="lg:hidden">
+      {/* < lg (มือถือ+แท็บเล็ต): QuickForm inline scroll (T4-T8 เติมเนื้อ section)
+          compact (โมดัลในแชท): บังคับ QuickForm ทุกขนาดจอ — เดสก์ท็อป 3-col แน่นเกินในโมดัล */}
+      <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
           control={control}
           errors={errors}
@@ -477,11 +482,12 @@ export default function OrderCreateForm({
           inventoryEnabled={inventoryEnabled}
           subtotal={barSubtotal}
           total={barTotal}
+          compact={compact}
         />
       </div>
 
-      {/* ≥ lg (เดสก์ท็อป): POS split — ซ้าย product grid, ขวา cart panel (เนื้อในไม่แตะ) grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก, footer (ปุ่มบันทึก) ตรึงล่างเสมอ. HR7 exception: viewport-lock calc height, Paces ไม่มี token */}
-      <div className="hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:gap-4 lg:overflow-hidden"> {/* HR7 exception: viewport-lock, Paces ไม่มี token (pre-existing, ไม่ได้แก้ในงานนี้) */}
+      {/* ≥ lg (เดสก์ท็อป): POS split — ซ้าย product grid, ขวา cart panel (เนื้อในไม่แตะ) grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก, footer (ปุ่มบันทึก) ตรึงล่างเสมอ. HR7 exception: viewport-lock calc height, Paces ไม่มี token. compact = ซ่อนทุกจอ (ใช้ QuickForm แทน) */}
+      <div className={compact ? 'hidden' : 'hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:gap-4 lg:overflow-hidden'}> {/* HR7 exception: viewport-lock, Paces ไม่มี token (pre-existing, ไม่ได้แก้ในงานนี้) */}
         <div className="min-w-0 lg:h-full lg:overflow-y-auto">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>

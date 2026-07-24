@@ -248,7 +248,12 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
   const { openDraft } = useDraftOrders()
   // เปิดโมดัลสร้างคำสั่งซื้อ (พับได้/ค้างข้ามแชท) แทนการ navigate ไป /orders/new (user request 2026-07-24)
   const startCreateOrder = () =>
-    openDraft({ conversationId: data.conversationId, customerName: data.contactName, channel: data.channel })
+    openDraft({
+      conversationId: data.conversationId,
+      customerName: data.contactName,
+      channel: data.channel,
+      customerAvatar: data.avatar,
+    })
   // orderHref ย้ายไป module-level (ใช้ใน OrderCard) — CustomerPanelBody ไม่อ้างตรง ๆ แล้ว
   const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
 

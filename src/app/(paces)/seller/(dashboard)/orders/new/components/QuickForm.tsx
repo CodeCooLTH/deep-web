@@ -33,6 +33,8 @@ interface Props {
   inventoryEnabled?: boolean
   subtotal: number
   total: number
+  /** compact = render ในโมดัลสร้างคำสั่งซื้อ (feature 00018) — footer sticky ในโมดัลแทน fixed viewport */
+  compact?: boolean
 }
 
 export default function QuickForm({
@@ -46,6 +48,7 @@ export default function QuickForm({
   inventoryEnabled = false,
   subtotal,
   total,
+  compact = false,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -114,7 +117,7 @@ export default function QuickForm({
       </section>
 
       {/* Footer sticky (< lg) — collapsible summary + บันทึก */}
-      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} />
+      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} />
 
       {/* ProductPickerSheet — instance เดียว เปิดเล็ง line ที่ pickerIndex */}
       <ProductPickerSheet
