@@ -27,6 +27,8 @@ export interface ConversationSummary {
   resolvedAt: Date | null
   // feature 00018 CRM — alias (ชื่อในแชท) findMany คืนคอลัมน์นี้ runtime อยู่แล้ว
   alias: string | null
+  // feature 00018 — กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (null = แท็บ "ทั้งหมด"); findMany คืน runtime อยู่แล้ว
+  chatGroupId: string | null
 }
 
 export interface ChatMessageView {

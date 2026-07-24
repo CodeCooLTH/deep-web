@@ -21,9 +21,16 @@ export type ChatFilterState = {
   status: 'open' | 'resolved' | 'all'
   customerLinked: 'all' | 'linked' | 'unlinked'
   hidden: boolean
+  // การอ่าน — ย้ายมาจากปุ่มแยกในแถวกลุ่ม (user สั่ง 2026-07-24: แถวนั้นแน่นเกินไป)
+  readState: 'all' | 'unread' | 'read'
 }
 
-export const DEFAULT_CHAT_FILTER: ChatFilterState = { status: 'open', customerLinked: 'all', hidden: false }
+export const DEFAULT_CHAT_FILTER: ChatFilterState = {
+  status: 'open',
+  customerLinked: 'all',
+  hidden: false,
+  readState: 'all',
+}
 
 /** จำนวนกลุ่มที่ไม่ใช่ default — โชว์เป็น badge บนปุ่ม (ไม่นับ channel tab/เพจ คนละแกน) */
 export function countActiveFilters(f: ChatFilterState): number {
@@ -31,6 +38,7 @@ export function countActiveFilters(f: ChatFilterState): number {
   if (f.status !== DEFAULT_CHAT_FILTER.status) n++
   if (f.customerLinked !== DEFAULT_CHAT_FILTER.customerLinked) n++
   if (f.hidden !== DEFAULT_CHAT_FILTER.hidden) n++
+  if (f.readState !== DEFAULT_CHAT_FILTER.readState) n++
   return n
 }
 
@@ -43,6 +51,11 @@ const LINKED_OPTIONS: { value: ChatFilterState['customerLinked']; label: string 
   { value: 'all', label: 'ทั้งหมด' },
   { value: 'linked', label: 'ผูกลูกค้าแล้ว' },
   { value: 'unlinked', label: 'ยังไม่ผูกลูกค้า' },
+]
+const READ_OPTIONS: { value: ChatFilterState['readState']; label: string }[] = [
+  { value: 'all', label: 'ทั้งหมด' },
+  { value: 'unread', label: 'ยังไม่อ่าน' },
+  { value: 'read', label: 'อ่านแล้ว' },
 ]
 
 type Props = {
@@ -140,6 +153,14 @@ export default function InboxFilterPanel({ value, onChange, onClear, open, onOpe
             <p className="text-default-500 px-2 pt-2 pb-1 text-xs font-medium">ผูกลูกค้า</p>
             {LINKED_OPTIONS.map((o) => (
               <RadioRow key={o.value} selected={value.customerLinked === o.value} label={o.label} onClick={() => onChange({ customerLinked: o.value })} />
+            ))}
+
+            <hr className="dropdown-divider" />
+
+            {/* การอ่าน (ย้ายมาจากปุ่มแยกในแถวกลุ่ม — user สั่ง 2026-07-24) */}
+            <p className="text-default-500 px-2 pt-2 pb-1 text-xs font-medium">การอ่าน</p>
+            {READ_OPTIONS.map((o) => (
+              <RadioRow key={o.value} selected={value.readState === o.value} label={o.label} onClick={() => onChange({ readState: o.value })} />
             ))}
 
             <hr className="dropdown-divider" />

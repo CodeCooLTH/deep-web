@@ -119,6 +119,9 @@ export type ConversationListItem = {
   alias?: string | null
   contactTags?: string[]
   contactSalesStatus?: string
+  // feature 00018 — กลุ่ม/แท็บที่เธรดนี้ถูกจัดไว้ (null = แท็บ "ทั้งหมด") — ใช้โชว์ชิปโฟลเดอร์ในแถว
+  // ตอนอยู่แท็บ "ทั้งหมด" ให้รู้ว่าเธรดนี้อยู่กลุ่มไหน (user สั่ง 2026-07-24)
+  chatGroupId?: string | null
 }
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
@@ -214,10 +217,9 @@ export default function InboxList({
   // ── T3: filter/search state — ขับ tab ด้วย React state เอง (ไม่ใช้ data-hs-tab) ──
   const [channelTab, setChannelTab] = useState<ChannelTab>('ALL')
   const [pageFilter, setPageFilter] = useState('') // shopChannelId, '' = ทุกเพจ
-  // feature 00018 กลุ่ม/แท็บจัดหมวดแชท + ตัวกรองอ่านแล้ว/ยังไม่อ่าน
+  // feature 00018 กลุ่ม/แท็บจัดหมวดแชท (ตัวกรองอ่านแล้ว/ยังไม่อ่าน ย้ายเข้า filter.readState แล้ว)
   const [groups, setGroups] = useState<ChatGroupTab[]>(initialGroups)
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null) // null = แท็บ "ทั้งหมด"
-  const [readFilter, setReadFilter] = useState<'unread' | 'read' | null>(null) // null = ไม่กรอง (default)
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
@@ -262,7 +264,7 @@ export default function InboxList({
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
       if (activeGroupId) params.set('chatGroupId', activeGroupId)
-      if (readFilter) params.set('readState', readFilter)
+      if (filter.readState !== 'all') params.set('readState', filter.readState)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!res.ok) throw new Error('load failed')
       const data: ApiResponse = await res.json()
@@ -288,7 +290,7 @@ export default function InboxList({
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, activeGroupId, readFilter])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, activeGroupId])
 
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
@@ -434,7 +436,7 @@ export default function InboxList({
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
       if (activeGroupId) params.set('chatGroupId', activeGroupId)
-      if (readFilter) params.set('readState', readFilter)
+      if (filter.readState !== 'all') params.set('readState', filter.readState)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) return
       const data: ApiResponse = await res.json()
@@ -642,10 +644,18 @@ export default function InboxList({
               </button>
             </span>
           )}
+          {filter.readState !== 'all' && (
+            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              {filter.readState === 'unread' ? 'ยังไม่อ่าน' : 'อ่านแล้ว'}
+              <button type="button" onClick={() => setFilter((f) => ({ ...f, readState: 'all' }))} aria-label="ล้างตัวกรองการอ่าน" className="inline-flex items-center">
+                <Icon icon="x" width={12} height={12} />
+              </button>
+            </span>
+          )}
         </div>
 
-        {/* แถวกลุ่ม/แท็บจัดหมวดแชท + ตัวกรองอ่านแล้ว/ยังไม่อ่าน (feature 00018, user request 2026-07-23)
-            กลุ่ม: ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline; ชิดขวา = อ่าน/ยังไม่อ่าน (toggle, default ปิด) */}
+        {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
+            ตัวกรองอ่านแล้ว/ยังไม่อ่านย้ายเข้าปุ่ม "ตัวกรอง" แล้ว (user สั่ง 2026-07-24: แถวนี้แน่นเกินไป) */}
         <div className="flex flex-wrap items-center gap-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="กลุ่มแชท">
             <button
@@ -708,29 +718,6 @@ export default function InboxList({
               </button>
             )}
           </div>
-
-          <div className="flex shrink-0 items-center gap-1.5" aria-label="ตัวกรองการอ่าน">
-            <button
-              type="button"
-              aria-pressed={readFilter === 'unread'}
-              onClick={() => setReadFilter((r) => (r === 'unread' ? null : 'unread'))}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-                readFilter === 'unread' ? 'bg-primary text-white' : 'bg-light text-default-600'
-              }`}
-            >
-              ยังไม่อ่าน
-            </button>
-            <button
-              type="button"
-              aria-pressed={readFilter === 'read'}
-              onClick={() => setReadFilter((r) => (r === 'read' ? null : 'read'))}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-                readFilter === 'read' ? 'bg-primary text-white' : 'bg-light text-default-600'
-              }`}
-            >
-              อ่านแล้ว
-            </button>
-          </div>
         </div>
       </div>
 
@@ -774,6 +761,10 @@ export default function InboxList({
             const isResolved = c.resolvedAt !== null
             const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
             const contactTags = c.contactTags ?? []
+            // ชื่อกลุ่มที่เธรดนี้อยู่ — โชว์เฉพาะแท็บ "ทั้งหมด" (activeGroupId===null); ในแท็บกลุ่มเองไม่ต้อง
+            // ย้ำ. หาจาก groups ที่โหลดมาแล้ว (ไม่ query เพิ่ม) — กลุ่มถูกลบ = หาไม่เจอ → ไม่โชว์ชิป
+            const groupChip =
+              activeGroupId === null && c.chatGroupId ? (groups.find((g) => g.id === c.chatGroupId)?.name ?? null) : null
             return (
               // S-7: แยก <Link> (เนื้อหาแถว) ออกจาก kebab (sibling) — nested button ใน anchor เป็น
               // invalid HTML + คลิก kebab จะ propagate ไป navigate. outer div รับ hover ทั้งแถว
@@ -888,8 +879,16 @@ export default function InboxList({
                         {preview}
                       </span>
                       {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว */}
-                      {(salesStatus !== 'UNSPECIFIED' || contactTags.length > 0) && (
+                      {(groupChip || salesStatus !== 'UNSPECIFIED' || contactTags.length > 0) && (
                         <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (user สั่ง 2026-07-24) — โชว์เฉพาะแท็บ
+                              "ทั้งหมด" (groupChip = null เมื่ออยู่ในแท็บกลุ่มนั้นเองอยู่แล้ว ไม่ต้องย้ำ) */}
+                          {groupChip && (
+                            <span className="badge bg-default-100 text-default-600 text-2xs inline-flex items-center gap-1">
+                              <Icon icon="folder" width={11} height={11} />
+                              <span className="max-w-24 truncate">{groupChip}</span>
+                            </span>
+                          )}
                           {salesStatus !== 'UNSPECIFIED' && (
                             <span className={`badge text-2xs ${SALES_STATUS_META[salesStatus]?.cls ?? ''}`}>
                               {SALES_STATUS_META[salesStatus]?.label ?? salesStatus}
