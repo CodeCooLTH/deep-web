@@ -297,6 +297,9 @@ export const CreateOrderSchema = v.object({
     postcode: v.optional(v.string()),
     note: v.optional(v.string()),
   })),
+  // feature 00018 (user 2026-07-24): สร้างจากเธรดแชท → ผูก ExternalContact กับ Customer ทันที
+  // ownership ตรวจซ้ำที่ service (WHERE {id, shopId}) — client ปลอม id ร้านอื่นมาก็ผูกไม่ได้
+  conversationId: v.optional(v.pipe(v.string(), v.uuid())),
 });
 
 // ClaimOrderSchema — feature 00015 (Order Claim & Forced Login) API.md §4.3
