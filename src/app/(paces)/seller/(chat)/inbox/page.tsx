@@ -165,6 +165,7 @@ export default async function SellerInboxPage() {
         // S-7 (ตัวกรอง/จัดการเธรด) — pin indicator + badge "ปิดงานแล้ว"
         isPinned: c.isPinned,
         resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,
+        chatGroupId: c.chatGroupId, // โชว์ชิปโฟลเดอร์ในแถวตอนอยู่แท็บ "ทั้งหมด" (user สั่ง 2026-07-24)
         // feature 00018 CRM — alias (ชื่อในแชท) + tag/สถานะขาย ของผู้ติดต่อ (badge ใน list)
         alias: c.alias,
         contactTags: contact?.tags ?? [],

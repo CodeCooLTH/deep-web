@@ -114,7 +114,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         select: {
           name: true,
           avatarUrl: true, // IG profile_pic (Messenger=null) — header avatar ลูกค้า
-          customer: { select: { id: true, phone: true } },
+          customer: { select: { id: true, phone: true, createdAt: true } },
         },
       },
       // avatarUrl: รูปเพจ (avatar ฝั่งร้าน mine) + name: ชื่อเพจ (badge แสดงชื่อเพจแทน "Messenger")
@@ -146,6 +146,11 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // T4 — 24h messaging window (เฉพาะความหมายสำหรับ channel != DEEP; DEEP ก็คำนวณได้แต่ ChatThread
   // จะไม่ใช้เพราะ isExternal=false) + token invalid ของเพจที่ผูกเธรดนี้
   const windowState = getWindowState(conversation.lastInboundAt)
+  // แยกเคส "ลูกค้ายังไม่เคยทักเข้ามาเลย" (lastInboundAt=NULL) ออกจาก "ทักแล้วแต่เกิน 24 ชม."
+  // (user report 2026-07-24) — ทั้งคู่ทำ window ปิดเหมือนกัน แต่ข้อความต่างกัน: เธรดที่ร้าน initiate
+  // จาก Facebook เอง (echo เข้ามาเป็น SHOP ล้วน) จะไม่มี inbound เลย → banner ต้องบอกว่า "รอลูกค้า
+  // ทักเข้ามาก่อน" ไม่ใช่ "เกิน 24 ชม.นับจากข้อความล่าสุดของลูกค้า" ที่สื่อว่าเคยทักแล้ว
+  const neverInbound = conversation.lastInboundAt === null
   // เช็ค "ไม่ใช่ ACTIVE" ไม่ใช่เช็คแค่ TOKEN_INVALID — ครอบ DISCONNECTED (ร้านถอดเพจเอง) ด้วย
   // ต้องตรงกับ guard ฝั่ง service (sendOutboundMessage โยน CHANNEL_NOT_ACTIVE เมื่อ status !== 'ACTIVE')
   // ไม่งั้นเธรดของเพจที่ถอดไปแล้วจะเปิดช่องพิมพ์ให้ แล้วไปเด้ง error ตอนกดส่ง
@@ -162,7 +167,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
 
   // T5 — หา Customer ที่ผูกไว้: ช่องทางนอกผูกผ่าน ExternalContact.customerId, DEEP ผูกผ่าน
   // Customer.userId (Phase 2 link — ดู schema.prisma Customer model comment)
-  let linkedCustomer: { id: string; phone: string } | null = null
+  let linkedCustomer: { id: string; phone: string; createdAt: Date } | null = null
   if (conversation.channel !== 'DEEP') {
     if (conversation.externalContact?.customer) {
       linkedCustomer = conversation.externalContact.customer
@@ -170,7 +175,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   } else if (conversation.buyerUserId) {
     linkedCustomer = await prisma.customer.findUnique({
       where: { userId: conversation.buyerUserId },
-      select: { id: true, phone: true },
+      select: { id: true, phone: true, createdAt: true },
     })
   }
 
@@ -209,14 +214,36 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     checkOut: o.checkOut ? o.checkOut.toISOString() : null,
   }))
 
+  // สถิติลูกค้า (user สั่ง 2026-07-24: แถว จำนวนออเดอร์/รวมยอดซื้อ/เป็นลูกค้ามา ในแท็บข้อมูลลูกค้า)
+  // — aggregate จริงทั้งหมด ไม่ใช่ 20 แถวที่ list ใช้ (panelOrders cap 20) จึงถูกต้องแม้ลูกค้าซื้อเยอะ
+  //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
+  const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
+  let customerStats: { orderCount: number; totalSpent: string; since: string } | null = null
+  if (linkedCustomer) {
+    const [orderCount, spentAgg] = await Promise.all([
+      prisma.order.count({ where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter } }),
+      prisma.order.aggregate({
+        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, status: { not: 'CANCELLED' } },
+        _sum: { totalAmount: true },
+      }),
+    ])
+    customerStats = {
+      orderCount,
+      totalSpent: spentAgg._sum.totalAmount ? spentAgg._sum.totalAmount.toFixed(2) : '0.00',
+      since: linkedCustomer.createdAt.toISOString(),
+    }
+  }
+
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
     contactName: buyerDisplayName,
+    avatar: buyerAvatar, // user report 2026-07-24: right panel ไม่มีรูป — ส่งชุดเดียวกับ ChatThread header
     channel: conversation.channel,
     channelName,
     vertical,
     customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
+    customerStats,
     orders: panelOrders,
   }
 
@@ -243,6 +270,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
         tokenInvalid={tokenInvalid}
+        neverInbound={neverInbound}
         customerPanelData={customerPanelData}
       />
       <div className="hidden h-full w-96 shrink-0 lg:block">
