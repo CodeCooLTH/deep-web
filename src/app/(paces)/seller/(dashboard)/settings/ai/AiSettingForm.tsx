@@ -31,6 +31,7 @@ type Setting = {
   instruction: string
   includeProductContext: boolean
   includeCustomerContext: boolean
+  includeMediaContext: boolean
 }
 
 type Props = {
@@ -43,6 +44,7 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
   const [instruction, setInstruction] = useState(initial.instruction)
   const [includeProductContext, setIncludeProductContext] = useState(initial.includeProductContext)
   const [includeCustomerContext, setIncludeCustomerContext] = useState(initial.includeCustomerContext)
+  const [includeMediaContext, setIncludeMediaContext] = useState(initial.includeMediaContext)
   const [saving, setSaving] = useState(false)
 
   const overLimit = instruction.length > INSTRUCTION_MAX
@@ -54,7 +56,7 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
       const res = await fetch('/api/shops/ai-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction, includeProductContext, includeCustomerContext }),
+        body: JSON.stringify({ instruction, includeProductContext, includeCustomerContext, includeMediaContext }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
@@ -135,7 +137,7 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
             <span className="text-default-800 block text-sm font-medium">ให้ AI เห็นประวัติลูกค้า</span>
             <span className="text-default-500 block text-xs">
               AI จะเห็นออเดอร์ล่าสุดของลูกค้ารายนั้นกับร้านนี้ (สถานะ ยอด วันที่) เพื่อตอบคำถาม
-              &ldquo;ของถึงไหนแล้ว&rdquo; ได้ — เบอร์โทร อีเมล และที่อยู่ไม่ถูกส่งไปไม่ว่ากรณีใด
+              &ldquo;ของถึงไหนแล้ว&rdquo; ได้ — เบอร์โทร อีเมล และที่อยู่ที่เก็บในระบบไม่ถูกส่งไปไม่ว่ากรณีใด
             </span>
           </span>
           <input
@@ -143,6 +145,29 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
             className="form-switch shrink-0"
             checked={includeCustomerContext}
             onChange={(e) => setIncludeCustomerContext(e.target.checked)}
+            disabled={!canEdit || saving}
+          />
+        </label>
+
+        {/* feature 00019 ext (user 2026-07-24) — ให้ AI อ่านรูป/ฟังเสียง
+            คำอธิบายต้องบอกผลด้าน PII ตรง ๆ: ต่างจากบริบทข้อความที่เรากรองเบอร์/ที่อยู่ออกก่อน
+            ไฟล์จากลูกค้าถูกส่งทั้งไฟล์ ถ้าในรูปมีที่อยู่/เบอร์ AI ก็เห็น — ร้านต้องรู้ก่อนเปิด */}
+        <label className="border-default-200 flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3">
+          <span className="min-w-0">
+            <span className="text-default-800 block text-sm font-medium">ให้ AI อ่านรูปและฟังข้อความเสียง</span>
+            <span className="text-default-500 block text-xs">
+              AI จะเปิดดูรูป (สลิปโอนเงิน รูปสินค้า ที่อยู่จัดส่ง) และถอดข้อความเสียงที่ลูกค้าส่งมา
+              เพื่อร่างคำตอบให้ตรงเรื่อง — ปิดไว้ AI จะเห็นแค่ว่า &ldquo;ลูกค้าส่งรูป/เสียงมา&rdquo;
+            </span>
+            <span className="text-warning mt-1 block text-xs">
+              เปิดแล้วไฟล์จะถูกส่งเข้าระบบ AI ทั้งไฟล์ — ถ้าในรูปหรือเสียงมีเบอร์โทร/ที่อยู่ AI จะเห็นด้วย
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            className="form-switch shrink-0"
+            checked={includeMediaContext}
+            onChange={(e) => setIncludeMediaContext(e.target.checked)}
             disabled={!canEdit || saving}
           />
         </label>

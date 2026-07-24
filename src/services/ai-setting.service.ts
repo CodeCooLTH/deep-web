@@ -20,6 +20,8 @@ export type ShopAiSetting = {
   instruction: string
   includeProductContext: boolean
   includeCustomerContext: boolean
+  /** ส่งรูป/ข้อความเสียงในแชทเข้า AI ด้วย (feature 00019 ext, user 2026-07-24) — ดู comment ใน schema */
+  includeMediaContext: boolean
   updatedAt: Date | null
 }
 
@@ -28,6 +30,7 @@ export const DEFAULT_AI_SETTING: ShopAiSetting = {
   instruction: '',
   includeProductContext: true,
   includeCustomerContext: true,
+  includeMediaContext: true,
   updatedAt: null,
 }
 
@@ -45,6 +48,7 @@ export async function getAiSetting(shopId: string): Promise<ShopAiSetting> {
         instruction: true,
         includeProductContext: true,
         includeCustomerContext: true,
+        includeMediaContext: true,
         updatedAt: true,
       },
     })
@@ -53,6 +57,7 @@ export async function getAiSetting(shopId: string): Promise<ShopAiSetting> {
       instruction: row.instruction ?? '',
       includeProductContext: row.includeProductContext,
       includeCustomerContext: row.includeCustomerContext,
+      includeMediaContext: row.includeMediaContext,
       updatedAt: row.updatedAt,
     }
   } catch (e) {
@@ -70,13 +75,19 @@ export async function getAiSetting(shopId: string): Promise<ShopAiSetting> {
 export async function upsertAiSetting(
   shopId: string,
   updatedByUserId: string,
-  input: { instruction: string; includeProductContext: boolean; includeCustomerContext: boolean },
+  input: {
+    instruction: string
+    includeProductContext: boolean
+    includeCustomerContext: boolean
+    includeMediaContext: boolean
+  },
 ): Promise<ShopAiSetting> {
   const instruction = input.instruction.trim().slice(0, AI_INSTRUCTION_MAX_LENGTH)
   const data = {
     instruction: instruction === '' ? null : instruction,
     includeProductContext: input.includeProductContext,
     includeCustomerContext: input.includeCustomerContext,
+    includeMediaContext: input.includeMediaContext,
     updatedByUserId,
   }
   const row = await prisma.shopAiSetting.upsert({
@@ -87,6 +98,7 @@ export async function upsertAiSetting(
       instruction: true,
       includeProductContext: true,
       includeCustomerContext: true,
+      includeMediaContext: true,
       updatedAt: true,
     },
   })
@@ -94,6 +106,7 @@ export async function upsertAiSetting(
     instruction: row.instruction ?? '',
     includeProductContext: row.includeProductContext,
     includeCustomerContext: row.includeCustomerContext,
+    includeMediaContext: row.includeMediaContext,
     updatedAt: row.updatedAt,
   }
 }

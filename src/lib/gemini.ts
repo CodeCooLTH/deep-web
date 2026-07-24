@@ -16,6 +16,9 @@ const GEMINI_ENDPOINT = (model: string, key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
 
 const REQUEST_TIMEOUT_MS = 15_000
+// ไฟล์แนบ (รูป/เสียง) ต้องอัปโหลด + ให้โมเดลประมวลผลนานกว่าข้อความล้วนมาก — 15 วิ ไม่พอ
+// (feature 00019 ext 2026-07-24) ใช้เฉพาะคำขอที่มี media จริง ไม่กระทบเส้นทางข้อความล้วน
+const REQUEST_TIMEOUT_MEDIA_MS = 45_000
 
 export class GeminiNotConfiguredError extends Error {
   constructor() {
@@ -32,6 +35,16 @@ export class GeminiApiError extends Error {
 
 export type SuggestTurn = { role: 'BUYER' | 'SHOP'; text: string }
 
+/**
+ * ไฟล์แนบที่ส่งเข้า Gemini แบบ inline (feature 00019 ext, user request 2026-07-24)
+ * label = คำอธิบายว่าไฟล์นี้มาจากข้อความไหน/ใครส่ง เพื่อให้โมเดลอ้างอิงถูกลำดับในบทสนทนา
+ * ชนิดที่ Gemini รองรับ (ตรวจกับ ai.google.dev 2026-07-24):
+ *   รูป — image/png, image/jpeg, image/webp, image/heic, image/heif
+ *   เสียง — audio/wav, audio/mp3, audio/aiff, audio/aac, audio/ogg, audio/flac
+ * เพดาน inline ทั้ง request = 20MB (caller เป็นผู้คุมงบขนาดก่อนส่งเข้ามา)
+ */
+export type SuggestMedia = { label: string; mimeType: string; dataBase64: string }
+
 // บริบทร้านที่ช่วยให้คำตอบตรงธุรกิจ (feature 00019 — SRS TFR-006)
 // เดิมมีแค่ชื่อร้าน + ประเภทกิจการ ซึ่งแทบไม่ช่วยอะไร: prompt สั่งห้ามแต่งราคา แต่ AI ไม่มีข้อมูล
 // ราคาเลย ผลจึงวนอยู่กับ "ขอข้อมูลเพิ่มครับ" — instruction/contextBlock คือส่วนที่เติมเข้ามา
@@ -45,6 +58,8 @@ export type SuggestContext = {
   // CRM (feature 00018) — note/ชื่อที่แอดมินจดไว้ ให้ AI ใช้ประกอบการร่าง (ตอบตรงคน/บริบทมากขึ้น)
   customerName?: string | null
   customerNote?: string | null
+  /** มีไฟล์แนบ (รูป/เสียง) ส่งไปด้วยหรือไม่ — เพิ่มกติกาให้โมเดลใช้เนื้อหาในไฟล์จริง (00019 ext) */
+  hasMedia?: boolean
 }
 
 /** เพดานความยาวคำสั่งประจำร้าน — ตัดซ้ำที่นี่อีกชั้น (defense-in-depth) เผื่อข้อมูลเก่าใน DB
@@ -80,6 +95,17 @@ function buildSystemPrompt(ctx: SuggestContext): string {
     '- ห้ามสัญญาสิ่งที่ยืนยันไม่ได้ ห้ามขอ OTP/รหัสผ่าน/ข้อมูลบัตร',
     '- เสนอ 3 ทางเลือกที่ "ต่างกันจริง" (เช่น สั้น-ยาว, โทนต่างกัน, หรือมุมต่างกัน) ไม่ใช่ประโยคเดียวกันแค่สลับคำ',
   )
+
+  // ไฟล์แนบ (feature 00019 ext) — บอกโมเดลว่าต้องใช้เนื้อหาในไฟล์จริง ไม่ใช่เดาจาก placeholder
+  if (ctx.hasMedia) {
+    lines.push(
+      '- มีรูปและ/หรือข้อความเสียงจากบทสนทนาแนบมาด้วย ให้ "ดูรูป/ฟังเสียงจริง" แล้วใช้เนื้อหาในนั้นร่างคำตอบ',
+      '  เช่น สลิปโอนเงิน (อ่านยอด/วันเวลา/ธนาคาร), ที่อยู่จัดส่ง (ทวนให้ลูกค้ายืนยัน), รูปสินค้า (ระบุรุ่น/อาการเสีย),',
+      '  ข้อความเสียง (ถอดความแล้วตอบตามที่ลูกค้าพูด)',
+      '- ห้ามเดาสิ่งที่มองไม่ชัด/ฟังไม่ชัด ให้ร่างเป็นการขอให้ลูกค้ายืนยันแทน',
+      '- ห้ามอ่านเลขบัตรประชาชน/เลขบัตรเครดิต/OTP ที่เห็นในรูปออกมาในคำตอบเด็ดขาด',
+    )
+  }
 
   const instruction = (ctx.instruction ?? '').trim().slice(0, INSTRUCTION_MAX)
   if (instruction) {
@@ -149,13 +175,24 @@ function extractJsonObject(raw: string): string {
 export async function generateReplySuggestions(
   turns: SuggestTurn[],
   ctx: SuggestContext,
+  media: SuggestMedia[] = [],
 ): Promise<string[]> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new GeminiNotConfiguredError()
 
+  // parts ของ user message: transcript ก่อน แล้วต่อด้วยไฟล์แนบเป็นคู่ (label + inline_data)
+  // label นำหน้าทุกไฟล์เพื่อให้โมเดลรู้ว่าไฟล์นี้เป็นของข้อความไหน/ใครส่ง (ลำดับ = ตามบทสนทนา)
+  // ใช้ snake_case `inline_data`/`mime_type` ตาม REST generateContent (v1beta)
+  type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } }
+  const parts: GeminiPart[] = [{ text: buildTranscript(turns) }]
+  for (const m of media) {
+    parts.push({ text: m.label })
+    parts.push({ inline_data: { mime_type: m.mimeType, data: m.dataBase64 } })
+  }
+
   const requestBody = {
-    system_instruction: { parts: [{ text: buildSystemPrompt(ctx) }] },
-    contents: [{ role: 'user', parts: [{ text: buildTranscript(turns) }] }],
+    system_instruction: { parts: [{ text: buildSystemPrompt({ ...ctx, hasMedia: media.length > 0 }) }] },
+    contents: [{ role: 'user', parts }],
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: {
@@ -183,7 +220,7 @@ export async function generateReplySuggestions(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(media.length > 0 ? REQUEST_TIMEOUT_MEDIA_MS : REQUEST_TIMEOUT_MS),
       })
     } catch (e) {
       throw new GeminiApiError(`fetch failed (${model}): ${e instanceof Error ? e.message : 'unknown'}`)
