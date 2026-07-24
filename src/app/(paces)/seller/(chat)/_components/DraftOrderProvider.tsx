@@ -145,10 +145,11 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
           aria-label={`สร้างคำสั่งซื้อ ${d.customerName}`}
           aria-hidden={d.state !== 'expanded'}
           // z-80 = viewport overlay (Paces ไม่มี token; precedent CustomerPanelSheet/OrderQrSheet — HR7 carve-out)
-          // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ ตาม design); มือถือเต็มจอ (inset-0), desktop inset-6
+          // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ). มือถือเต็มจอ (inset-0); desktop = หน้าต่างขนาดมือถือ
+          // (w-96) dock ขวา (user request 2026-07-24: ให้เล็กเท่ามือถือ จะได้อ่านแชทที่อยู่ข้างหลังได้)
           className={
             d.state === 'expanded'
-              ? 'bg-card fixed inset-0 z-80 flex flex-col overflow-hidden shadow-lg lg:inset-6 lg:rounded-lg'
+              ? 'bg-card fixed inset-0 z-80 flex flex-col overflow-hidden shadow-lg lg:inset-y-4 lg:left-auto lg:right-4 lg:w-96 lg:rounded-lg'
               : 'hidden'
           }
         >
