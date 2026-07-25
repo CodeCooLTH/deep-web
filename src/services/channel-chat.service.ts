@@ -364,11 +364,16 @@ export async function ingestInboundMessage(params: {
   if (!hasText && !isLink && !structuredText && hasAttachment && !mirroredFileId && attType && !isMedia && event.message.mid) {
     renderedText = await fetchMessageText(event.message.mid, channel.accessToken)
   }
-  // diagnostic: attachment ที่ยังแสดงเนื้อหาไม่ได้เลย (ไม่ใช่ media/link/template ที่ประกอบได้) — log
-  // ชนิด + keys ของ payload ดิบไว้ finalize schema เพิ่ม (agent research 2026-07-25: story_reply/commands/
-  // media/product template ยังไม่ยืนยัน payload จริง) — ไม่ log ค่า (กัน PII) log แค่ key
-  if (hasAttachment && !isMedia && !isLink && !structuredText && !renderedText && attType && attType !== 'template') {
-    console.warn('[fb-ingest] unhandled attachment', { attType, payloadKeys: Object.keys(firstAttachment?.payload ?? {}) })
+  // diagnostic: attachment ที่ยังแสดงเนื้อหาไม่ได้เลย (ประกอบเองไม่ได้ + Graph render ว่าง) — log
+  // ชนิด + keys ของ payload ดิบ + isEcho ไว้ finalize schema เพิ่ม. รวม template ด้วย (user 2026-07-25:
+  // "[ข้อความจากระบบ (ออเดอร์/ชำระเงิน)]" 19/21 เป็น echo ฝั่งเพจ, Graph คืน message ว่าง+ไม่มี attachment
+  // → ต้องดูว่า webhook payload ดิบมี field อะไรให้ดึงได้ไหม) — ไม่ log ค่า (กัน PII) log แค่ key
+  if (hasAttachment && !isMedia && !isLink && !structuredText && !renderedText && attType) {
+    console.warn('[fb-ingest] unhandled attachment', {
+      attType,
+      isEcho,
+      payloadKeys: Object.keys(firstAttachment?.payload ?? {}),
+    })
   }
   // ลำดับข้อความที่จะแสดง: text จริง > ลิงก์แชร์ > ข้อความสรุปที่ประกอบเอง (template/location) > Graph render
   const displayText = hasText ? text : isLink ? linkText : (structuredText ?? renderedText)
