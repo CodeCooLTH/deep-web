@@ -83,7 +83,6 @@ import {
   type ChatOrderCard,
   type ChatMessageView,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
-import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -341,54 +340,73 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
 }
 
 /**
- * OrderCardBubble — เนื้อหาข้อความ type='ORDER' (การ์ดออเดอร์/ใบเสนอราคาในแชท, user request 2026-07-24)
- * style: Paces token น้ำเงิน (ไม่ใช้เขียวตาม ref — user สั่ง 2026-07-24 ให้ตาม theme token); การ์ด
- * self-contained (ไม่มีกรอบ bubble ครอบ). ปุ่ม "ดูรายละเอียด" ลิงก์ /o/{token} หน้า order สาธารณะ
- * (ยังไม่ทำ PDF จริง — user เลือกลิงก์ก่อน). buyer เห็นการ์ดเดียวกัน (ทั้ง 2 ฝั่งใช้ GET messages ร่วม)
+ * OrderCardBubble — เนื้อหาข้อความ type='ORDER' (การ์ดคำสั่งซื้อในแชท)
+ * user request 2026-07-25: หัว "คำสั่งซื้อ · #เลข", มีรายการสินค้าข้างใน (ชื่อ/จำนวน/ราคา), จำนวนรวม,
+ * ยอดสุทธิ, ปุ่มล่างเปิดออเดอร์ "ฝั่ง seller" (/orders/{token}). style Paces token น้ำเงิน (ไม่ใช้เขียว
+ * ตาม ref — HR7). buyer เห็นการ์ดเดียวกันแต่ปุ่มไป /o/{token} (ฝั่ง buyer — คนละ component)
  */
 function OrderCardBubble({ card }: { card: ChatOrderCard | null }) {
   if (!card) {
     return (
       <div className="text-default-400 flex items-center gap-2">
         <Icon icon="receipt-off" className="text-xl" />
-        <span className="text-sm">ไม่พบออเดอร์นี้แล้ว</span>
+        <span className="text-sm">ไม่พบคำสั่งซื้อนี้แล้ว</span>
       </div>
     )
   }
-  const orderUrl = `${resolveBuyerBaseUrl()}/o/${card.token}`
+  const title = card.items[0]?.name ?? 'คำสั่งซื้อ'
+  const displayNo = card.token.slice(0, 8).toUpperCase()
   const priceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
   return (
     <div className="border-default-200 w-64 overflow-hidden rounded-lg border">
-      {/* หัวการ์ด — Paces primary (น้ำเงิน) */}
+      {/* หัวการ์ด — Paces primary (น้ำเงิน) + เลขคำสั่งซื้อ */}
       <div className="bg-primary flex items-center gap-2.5 px-4 py-3 text-white">
         <Icon icon="receipt-2" className="shrink-0 text-2xl" />
         <div className="min-w-0">
-          <p className="mb-0 truncate text-sm font-semibold">{card.title}</p>
-          <p className="mb-0 truncate text-2xs opacity-90">ใบเสนอราคา · #{card.token.slice(0, 8).toUpperCase()}</p>
+          <p className="mb-0 truncate text-sm font-semibold">{title}</p>
+          <p className="mb-0 truncate text-2xs opacity-90">คำสั่งซื้อ · #{displayNo}</p>
         </div>
       </div>
-      {/* เนื้อหา — จำนวนรายการ + ยอดสุทธิ */}
-      <div className="bg-card space-y-2 px-4 py-3">
+      {/* เนื้อหา — รายการสินค้า + จำนวนรวม + ยอดสุทธิ */}
+      <div className="bg-card px-4 py-3">
+        <div className="space-y-2">
+          {card.items.map((it, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm">
+              {/* รูปสินค้า (user 2026-07-25) — มี productId → รูปจริง, custom line → ไอคอน placeholder */}
+              <span className="bg-default-100 flex size-9 shrink-0 items-center justify-center overflow-hidden rounded">
+                {it.imageFileId ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/api/files/${it.imageFileId}`} alt={it.name} className="size-full object-cover" />
+                ) : (
+                  <Icon icon="photo" className="text-default-400 text-base" />
+                )}
+              </span>
+              <span className="text-default-700 min-w-0 flex-1 truncate">{it.name}</span>
+              <span className="text-default-400 shrink-0 text-2xs">x{it.qty}</span>
+              <span className="text-default-800 shrink-0 font-medium">
+                ฿{Number(it.price).toLocaleString('th-TH')}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="border-default-200 my-2.5 border-t border-dashed" />
         <div className="flex items-center justify-between text-sm">
           <span className="text-default-500">รายการ</span>
-          <span className="text-default-800 font-semibold">{card.itemCount} รายการ</span>
+          <span className="text-default-800 font-semibold">{card.items.length} รายการ</span>
         </div>
-        <div className="border-default-200 border-t border-dashed" />
-        <div className="flex items-center justify-between text-sm">
+        <div className="mt-1.5 flex items-center justify-between text-sm">
           <span className="text-default-500">ยอดสุทธิ</span>
           <span className="text-primary font-bold">{priceLabel}</span>
         </div>
       </div>
-      {/* footer — ลิงก์หน้า order สาธารณะ */}
-      <a
-        href={orderUrl}
-        target="_blank"
-        rel="noopener noreferrer"
+      {/* footer — เปิดออเดอร์ฝั่ง seller (user 2026-07-25) */}
+      <Link
+        href={`/orders/${card.token}`}
         className="bg-primary/5 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold"
       >
         <Icon icon="external-link" className="text-base" />
-        ดูรายละเอียด
-      </a>
+        ดูคำสั่งซื้อ
+      </Link>
     </div>
   )
 }

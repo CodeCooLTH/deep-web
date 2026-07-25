@@ -578,6 +578,9 @@ export async function sendOutboundMessage(params: {
   // text = ข้อความ (หรือ caption ของรูป); imageFileId = ส่งรูป (storage fileId) — อย่างน้อยต้องมีอย่างหนึ่ง
   text?: string
   imageFileId?: string
+  // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
+  // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
+  orderRefToken?: string
 }) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
@@ -630,7 +633,10 @@ export async function sendOutboundMessage(params: {
     }
   }
 
-  const preview = isImage ? '[รูปภาพ]' : bodyText.slice(0, 100)
+  // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
+  // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
+  const isOrder = !!params.orderRefToken
+  const preview = isOrder ? '[คำสั่งซื้อ]' : isImage ? '[รูปภาพ]' : bodyText.slice(0, 100)
 
   let message
   try {
@@ -642,10 +648,11 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isImage ? 'IMAGE' : 'TEXT',
-          // รูป: body=null (caption ส่งแยกเป็นข้อความ echo มาเอง), imageUrl=fileId; ข้อความ: body=text
-          body: isImage ? null : bodyText,
+          type: isOrder ? 'ORDER' : isImage ? 'IMAGE' : 'TEXT',
+          // ORDER: เก็บ orderRefToken (การ์ด live-join); รูป: body=null, imageUrl=fileId; ข้อความ: body=text
+          body: isOrder || isImage ? null : bodyText,
           imageUrl: isImage ? params.imageFileId! : null,
+          orderRefToken: isOrder ? params.orderRefToken! : null,
           externalMessageId: mid || null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
           failureReason,

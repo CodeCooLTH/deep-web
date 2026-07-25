@@ -66,13 +66,12 @@ type ProductCardData = {
   isActive: boolean
 }
 
-// enrich เฉพาะ type='ORDER' — คืนจาก GET (route.ts orderMap); การ์ดใบเสนอราคา/ออเดอร์ที่ร้านส่ง
+// enrich เฉพาะ type='ORDER' — คืนจาก GET (route.ts orderMap); การ์ดคำสั่งซื้อที่ร้านส่ง
 type OrderCardData = {
   token: string
-  title: string
-  itemCount: number
-  totalAmount: string
   status: string
+  totalAmount: string
+  items: { name: string; qty: number; price: string; imageFileId: string | null }[]
 }
 
 type ChatMessageView = {
@@ -731,8 +730,8 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                           )
                         }
 
-                        // ORDER (user 2026-07-24) — การ์ดใบเสนอราคา/ออเดอร์ที่ร้านส่งให้ (Vuexy, primary
-                        // ไม่ใช่เขียวตาม ref — theme token); "ดูรายละเอียด" ลิงก์ /o/{token} หน้า order สาธารณะ
+                        // ORDER (user 2026-07-24/25) — การ์ดคำสั่งซื้อที่ร้านส่งให้ (Vuexy, primary ไม่ใช่
+                        // เขียวตาม ref); หัว "คำสั่งซื้อ · #เลข" + รายการสินค้าข้างใน + ยอดสุทธิ; ปุ่ม → /o/{token}
                         if (msg.type === 'ORDER') {
                           const card = msg.orderCard
                           if (!card) {
@@ -744,11 +743,12 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                               >
                                 <Icon icon='tabler-receipt-off' fontSize={20} className='text-textDisabled' />
                                 <Typography className='text-sm' color='text.disabled'>
-                                  ไม่พบออเดอร์นี้แล้ว
+                                  ไม่พบคำสั่งซื้อนี้แล้ว
                                 </Typography>
                               </div>
                             )
                           }
+                          const orderTitle = card.items[0]?.name ?? 'คำสั่งซื้อ'
                           const orderPriceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
                           return (
                             <div
@@ -766,22 +766,55 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                 <Icon icon='tabler-receipt-2' fontSize={26} />
                                 <div className='min-is-0'>
                                   <Typography className='truncate text-sm font-semibold' style={{ color: 'inherit' }}>
-                                    {card.title}
+                                    {orderTitle}
                                   </Typography>
                                   <Typography className='truncate text-xs' style={{ color: 'inherit', opacity: 0.9 }}>
-                                    ใบเสนอราคา · #{card.token.slice(0, 8).toUpperCase()}
+                                    คำสั่งซื้อ · #{card.token.slice(0, 8).toUpperCase()}
                                   </Typography>
                                 </div>
                               </div>
-                              <div className='bg-backgroundPaper flex flex-col gap-2 pli-4 plb-3'>
+                              <div className='bg-backgroundPaper pli-4 plb-3'>
+                                <div className='flex flex-col gap-2'>
+                                  {card.items.map((it, i) => (
+                                    <div key={i} className='flex items-center gap-2'>
+                                      {/* รูปสินค้า (user 2026-07-25) */}
+                                      <div
+                                        className='shrink-0 overflow-hidden flex items-center justify-center'
+                                        style={{ width: 36, height: 36, borderRadius: 6, background: '#E2E8F0' }}
+                                      >
+                                        {it.imageFileId ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img
+                                            src={`/api/files/${it.imageFileId}`}
+                                            alt={it.name}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          />
+                                        ) : (
+                                          <Icon icon='tabler-photo' fontSize={16} className='text-textDisabled' />
+                                        )}
+                                      </div>
+                                      <Typography className='truncate text-sm min-is-0 flex-1' color='text.secondary'>
+                                        {it.name}
+                                      </Typography>
+                                      <Typography className='text-xs shrink-0' color='text.disabled'>
+                                        x{it.qty}
+                                      </Typography>
+                                      <Typography className='text-sm font-medium shrink-0'>
+                                        ฿{Number(it.price).toLocaleString('th-TH')}
+                                      </Typography>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div
+                                  style={{ borderTop: '1px dashed var(--mui-palette-divider)', margin: '10px 0' }}
+                                />
                                 <div className='flex items-center justify-between'>
                                   <Typography className='text-sm' color='text.secondary'>
                                     รายการ
                                   </Typography>
-                                  <Typography className='text-sm font-semibold'>{card.itemCount} รายการ</Typography>
+                                  <Typography className='text-sm font-semibold'>{card.items.length} รายการ</Typography>
                                 </div>
-                                <div style={{ borderTop: '1px dashed var(--mui-palette-divider)' }} />
-                                <div className='flex items-center justify-between'>
+                                <div className='flex items-center justify-between' style={{ marginTop: 6 }}>
                                   <Typography className='text-sm' color='text.secondary'>
                                     ยอดสุทธิ
                                   </Typography>
@@ -798,7 +831,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                               >
                                 <Icon icon='tabler-external-link' fontSize={16} className='text-primary' />
                                 <Typography className='text-sm font-semibold' color='primary'>
-                                  ดูรายละเอียด
+                                  ดูคำสั่งซื้อ
                                 </Typography>
                               </Link>
                             </div>

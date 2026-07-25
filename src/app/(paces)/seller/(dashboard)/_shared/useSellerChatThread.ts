@@ -36,10 +36,10 @@ export type ChatProductCard = {
 // (route.ts batch fetch orderMap แล้วแนบเข้าแต่ละ item); null = order ถูกลบจริง
 export type ChatOrderCard = {
   token: string
-  title: string
-  itemCount: number
-  totalAmount: string // "1234.00" — Decimal serialize เป็น string
   status: string
+  totalAmount: string // "1234.00" — Decimal serialize เป็น string
+  // รายการสินค้าในออเดอร์ (user 2026-07-25) — name/qty/ราคาต่อชิ้น + รูป (null = custom line ไม่มีสินค้า)
+  items: { name: string; qty: number; price: string; imageFileId: string | null }[]
 }
 
 // optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"
