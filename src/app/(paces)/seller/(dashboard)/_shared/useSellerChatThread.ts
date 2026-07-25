@@ -326,11 +326,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   }, [oldestCursor, messages.length])
 
   // ── แนบรูป (auto-upload ทันที — pattern ProductImagesCardV2.tsx) ────
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = '' // reset — เลือกไฟล์เดิมซ้ำได้
-    if (!file) return
-
+  // upload รูป 1 ไฟล์ → คิว pendingImages (แชร์ทั้งปุ่มแนบไฟล์และวางรูป paste)
+  const uploadFile = async (file: File) => {
     if (!(CHAT_IMAGE_ALLOWED_TYPES as readonly string[]).includes(file.type)) {
       pacesToast.error('รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp)')
       return
@@ -339,7 +336,6 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
       pacesToast.error('รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp) ขนาดไม่เกิน 5MB')
       return
     }
-
     const previewUrl = URL.createObjectURL(file)
     setUploading(true)
     try {
@@ -355,6 +351,25 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     } finally {
       setUploading(false)
     }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // reset — เลือกไฟล์เดิมซ้ำได้
+    if (!file) return
+    await uploadFile(file)
+  }
+
+  // วางรูปจากคลิปบอร์ด (user request 2026-07-25: paste จาก screenshot/Line/Ctrl+C ลงช่องพิมพ์ได้เลย)
+  // แนบทุกรูปในคลิปบอร์ด (บางเคสมีหลายรูป); ถ้ามีรูป → preventDefault กันวางเป็น path/ข้อความในช่อง
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+      .map((it) => it.getAsFile())
+      .filter((f): f is File => f !== null)
+    if (files.length === 0) return // ไม่มีรูป → ปล่อยวางข้อความปกติ
+    e.preventDefault()
+    for (const f of files) await uploadFile(f)
   }
 
   /** ไม่ระบุ fileId = ล้างทั้งคิว (ปุ่มเดิมของ ChatWidgetThreadPanel ที่มีรูปได้ทีละใบ) */
@@ -490,6 +505,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     scrollRef,
     topSentinelRef,
     handleFileChange,
+    handlePaste, // วางรูปจากคลิปบอร์ดลงช่องพิมพ์ (user 2026-07-25)
     handleRemoveImage,
     handleSend,
     // optimistic send — resend เมื่อบับเบิล _status='failed'

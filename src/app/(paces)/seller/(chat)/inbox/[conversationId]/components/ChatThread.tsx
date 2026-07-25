@@ -469,6 +469,7 @@ export default function ChatThread({
     scrollRef,
     topSentinelRef,
     handleFileChange,
+    handlePaste,
     handleRemoveImage,
     handleSend,
     retryMessage,
@@ -1138,6 +1139,7 @@ export default function ChatThread({
               placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()

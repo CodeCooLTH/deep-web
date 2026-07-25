@@ -124,6 +124,7 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
     scrollRef,
     topSentinelRef,
     handleFileChange,
+    handlePaste,
     handleRemoveImage,
     handleSend,
   } = useSellerChatThread(conversationId)
@@ -287,6 +288,7 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
               placeholder={pendingImage ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={handlePaste}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
