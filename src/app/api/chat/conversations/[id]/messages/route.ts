@@ -112,7 +112,15 @@ export async function GET(
     const orderRows = orderTokens.length > 0
       ? await prisma.order.findMany({
           where: { publicToken: { in: orderTokens } },
-          select: { publicToken: true, status: true, totalAmount: true, items: { select: { name: true } } },
+          // user 2026-07-25: การ์ดต้องมีรายการสินค้าข้างใน (ชื่อ/จำนวน/ราคา/รูป) + จำนวนรวม + ยอดสุทธิ
+          select: {
+            publicToken: true,
+            status: true,
+            totalAmount: true,
+            items: {
+              select: { name: true, qty: true, price: true, product: { select: { images: true } } },
+            },
+          },
         })
       : [];
     const orderMap = new Map(
@@ -120,10 +128,15 @@ export async function GET(
         o.publicToken,
         {
           token: o.publicToken,
-          title: o.items[0]?.name ?? "คำสั่งซื้อ",
-          itemCount: o.items.length,
-          totalAmount: o.totalAmount.toFixed(2),
           status: o.status,
+          totalAmount: o.totalAmount.toFixed(2),
+          items: o.items.map((it) => ({
+            name: it.name,
+            qty: it.qty,
+            price: it.price.toFixed(2),
+            // Product.images = Json (array of fileId) → cast; custom line (productId null) = null
+            imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
+          })),
         },
       ]),
     );
@@ -256,17 +269,34 @@ export async function POST(
     // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
     const conv = await prisma.conversation.findUnique({
       where: { id },
-      select: { channel: true },
+      select: { channel: true, shopId: true },
     });
     if (conv && conv.channel !== "DEEP") {
-      // ช่องทางนอกส่งได้ทั้งข้อความและรูป (feature 00018 — แนบรูป Messenger/IG ผ่าน presigned URL);
-      // PRODUCT/ORDER (การ์ด) ยังไม่รองรับบนช่องทางนอก — Meta ไม่ render การ์ดในแอปเรา
-      // (ฝั่ง UI ส่งเป็นลิงก์ TEXT แทนสำหรับช่องทางนอกอยู่แล้ว — นี่คือ defense)
-      if (type === "PRODUCT" || type === "ORDER") {
-        return NextResponse.json(
-          { error: "ช่องทางนี้ยังไม่รองรับการ์ด — ส่งเป็นลิงก์แทน" },
-          { status: 400 },
-        );
+      // PRODUCT (การ์ดสินค้า) ยังไม่รองรับบนช่องทางนอก
+      if (type === "PRODUCT") {
+        return NextResponse.json({ error: "ช่องทางนี้ยังไม่รองรับการ์ดสินค้า" }, { status: 400 });
+      }
+      // ORDER (การ์ดคำสั่งซื้อ, user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" ผ่าน Meta แต่ฝั่งเรา
+      // เก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด). verify order-in-shop ที่นี่
+      if (type === "ORDER") {
+        const order = await prisma.order.findFirst({
+          where: { publicToken: orderRefToken!, shopId: conv.shopId },
+          select: { totalAmount: true, items: { select: { name: true }, take: 1 } },
+        });
+        if (!order) {
+          return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }, { status: 400 });
+        }
+        const base = (process.env.NEXT_PUBLIC_BUYER_URL || "https://deepthailand.app").replace(/\/+$/, "");
+        const orderTitle = order.items[0]?.name ?? "คำสั่งซื้อ";
+        const orderTotal = `฿${Number(order.totalAmount).toLocaleString("th-TH")}`;
+        const linkText = `คำสั่งซื้อ: ${orderTitle}\nยอดสุทธิ ${orderTotal}\n${base}/o/${orderRefToken}`;
+        const sent = await sendOutboundMessage({
+          conversationId: id,
+          actorUserId: userId,
+          text: linkText, // ลูกค้าได้ลิงก์นี้
+          orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด
+        });
+        return NextResponse.json(sent);
       }
       const sent = await sendOutboundMessage({
         conversationId: id,

@@ -46,7 +46,6 @@ import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
-import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 
 export type CustomerPanelOrder = {
   id: string
@@ -161,12 +160,10 @@ const orderHref = (vertical: ShopVertical, token: string) =>
 function OrderCard({
   o,
   vertical,
-  channel,
   conversationId,
 }: {
   o: CustomerPanelOrder
   vertical: ShopVertical
-  channel: string
   conversationId: string
 }) {
   const badge = STATUS_BADGE[o.status] ?? STATUS_BADGE.PENDING!
@@ -177,24 +174,18 @@ function OrderCard({
     e.preventDefault()
     e.stopPropagation()
     if (sending) return
-    const ok = await pacesConfirm.question('ส่งใบเสนอราคานี้เข้าแชท?', 'ลูกค้าจะได้รับข้อมูลออเดอร์นี้ในแชท', {
+    const ok = await pacesConfirm.question('ส่งคำสั่งซื้อนี้เข้าแชท?', 'ลูกค้าจะได้รับข้อมูลคำสั่งซื้อนี้ในแชท', {
       confirmButtonText: 'ส่งเลย',
     })
     if (!ok) return
     setSending(true)
     try {
-      // DEEP (ลูกค้าอยู่ในระบบเรา) → การ์ดออเดอร์; ช่องทางนอก → ลิงก์ /o/{token} เป็นข้อความ (Meta ไม่ render การ์ด)
-      const payload =
-        channel === 'DEEP'
-          ? { type: 'ORDER', orderRefToken: o.token }
-          : {
-              type: 'TEXT',
-              body: `ใบเสนอราคา: ${o.title}${o.itemCount > 1 ? ` (+${o.itemCount - 1} รายการ)` : ''}\nยอดสุทธิ ${priceLabel}\n${resolveBuyerBaseUrl()}/o/${o.token}`,
-            }
+      // ส่ง type=ORDER เสมอ — route ตัดสินตามช่องทาง: DEEP ลูกค้าเห็นการ์ด; Messenger/IG ลูกค้าได้ลิงก์
+      // แต่ "ร้าน" เห็นเป็นการ์ดทั้งสองกรณี (user 2026-07-25: ร้านอยู่ในระบบเรา = การ์ด)
       const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ type: 'ORDER', orderRefToken: o.token }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -209,42 +200,42 @@ function OrderCard({
     }
   }
 
+  // impeccable critique (user 2026-07-25): ปุ่ม send เดิม hover-only (มือถือมองไม่เห็น ขัด mobile-first)
+  // + size 32px < tap 44px + floating ทับ meta. แก้เป็น stretched-link pattern: Link คลุมทั้งการ์ด
+  // (absolute inset-0) ให้แตะการ์ดได้ทั้งใบ, ปุ่ม "ส่งเข้าแชท" เป็น action มองเห็นเสมอที่แถวล่าง (z-10
+  // เหนือ stretched link) — ไม่ nested button-in-anchor (valid HTML), ไม่ทับ badge/ยอด, ใช้ได้ทั้ง touch
   return (
-    <div className="group relative">
-      <Link
-        href={orderHref(vertical, o.token)}
-        className="hover:bg-default-100 block rounded-lg border border-default-200 p-3"
-      >
-        {/* หัว: ชื่อสินค้า (เด่น) + สถานะ */}
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-default-900 mb-0 line-clamp-1 text-sm font-semibold">{o.title}</p>
-          <span className={`badge shrink-0 text-2xs ${badge.cls}`}>{badge.label}</span>
-        </div>
-        {/* meta: เลขออเดอร์ · จำนวนรายการ · วันที่ (LODGING เพิ่มช่วงเข้าพัก) */}
-        <p className="text-default-500 mb-0 mt-0.5 text-xs">
-          #{o.token.slice(0, 8).toUpperCase()} · {o.itemCount} รายการ · {formatDate(o.createdAt)}
+    <div className="hover:bg-default-100 relative rounded-lg border border-default-200 p-3 transition-colors">
+      {/* stretched link — คลิกการ์ดได้ทั้งใบ (ปุ่มด้านล่าง z สูงกว่า จึงกดปุ่มไม่โดน link) */}
+      <Link href={orderHref(vertical, o.token)} className="absolute inset-0 rounded-lg" aria-label={`ดูคำสั่งซื้อ ${o.title}`} />
+      {/* หัว: ชื่อสินค้า (เด่น) + สถานะ */}
+      <div className="relative flex items-start justify-between gap-2">
+        <p className="text-default-900 mb-0 line-clamp-1 text-sm font-semibold">{o.title}</p>
+        <span className={`badge shrink-0 text-2xs ${badge.cls}`}>{badge.label}</span>
+      </div>
+      {/* meta: เลขออเดอร์ · จำนวนรายการ · วันที่ (LODGING เพิ่มช่วงเข้าพัก) */}
+      <p className="text-default-500 relative mb-0 mt-0.5 text-xs">
+        #{o.token.slice(0, 8).toUpperCase()} · {o.itemCount} รายการ · {formatDate(o.createdAt)}
+      </p>
+      {vertical === 'LODGING' && o.checkIn && o.checkOut && (
+        <p className="text-default-500 relative mb-0 mt-0.5 text-xs">
+          {formatDate(o.checkIn)} – {formatDate(o.checkOut)}
         </p>
-        {vertical === 'LODGING' && o.checkIn && o.checkOut && (
-          <p className="text-default-500 mb-0 mt-0.5 text-xs">
-            {formatDate(o.checkIn)} – {formatDate(o.checkOut)}
-          </p>
-        )}
-        {/* ยอดสุทธิ */}
-        <div className="mt-1.5 text-right">
-          <span className="text-default-900 text-sm font-bold">{priceLabel}</span>
-        </div>
-      </Link>
-      {/* ปุ่ม hover ส่งเข้าแชท — โผล่ตอน hover (desktop) / โฟกัส (a11y); แยกจาก Link ไม่ให้กดโดน navigate */}
-      <button
-        type="button"
-        onClick={sendToChat}
-        disabled={sending}
-        title="ส่งเข้าแชท"
-        aria-label="ส่งใบเสนอราคานี้เข้าแชท"
-        className="bg-primary text-white hover:bg-primary-hover absolute end-2 top-2 flex size-7 items-center justify-center rounded-full opacity-0 shadow transition-opacity group-hover:opacity-100 focus:opacity-100 disabled:opacity-60"
-      >
-        <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
-      </button>
+      )}
+      {/* แถวล่าง: ปุ่มส่งเข้าแชท (ซ้าย, z-10 เหนือ stretched link) + ยอดสุทธิ (ขวา) — ไม่ทับกัน */}
+      <div className="relative z-10 mt-2 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={sendToChat}
+          disabled={sending}
+          aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
+          className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 gap-1 disabled:opacity-60"
+        >
+          <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
+          ส่งเข้าแชท
+        </button>
+        <span className="text-default-900 text-sm font-bold">{priceLabel}</span>
+      </div>
     </div>
   )
 }
@@ -257,12 +248,10 @@ function OrderCard({
 function OrdersList({
   conversationId,
   vertical,
-  channel,
   initial,
 }: {
   conversationId: string
   vertical: ShopVertical
-  channel: string
   initial: CustomerPanelOrder[]
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
@@ -300,7 +289,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} vertical={vertical} channel={channel} conversationId={conversationId} />
+        <OrderCard key={o.id} o={o} vertical={vertical} conversationId={conversationId} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -544,7 +533,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           data.orders.length === 0 ? (
             <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
           ) : (
-            <OrdersList conversationId={data.conversationId} vertical={data.vertical} channel={data.channel} initial={data.orders} />
+            <OrdersList conversationId={data.conversationId} vertical={data.vertical} initial={data.orders} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">
