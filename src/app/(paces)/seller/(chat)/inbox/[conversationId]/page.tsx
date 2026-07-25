@@ -108,6 +108,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       channel: true,
       lastInboundAt: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
+      referralAdTitle: true, // feature 00018 Phase 2 — ลูกค้าทักจากโฆษณา (badge บนหัวเธรด)
       buyerUserId: true,
       buyer: { select: { id: true, displayName: true, avatar: true } },
       externalContact: {
@@ -281,6 +282,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}
+        referralAdTitle={conversation.referralAdTitle}
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
         tokenInvalid={tokenInvalid}

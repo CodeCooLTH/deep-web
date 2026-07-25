@@ -192,6 +192,8 @@ type Props = {
   channelName: string | null
   /** รูปเพจ (ShopChannel.avatarUrl) — badge ช่องทางใช้รูปเพจแทนโลโก้ Facebook ถ้ามี (user 2026-07-23) */
   channelAvatarUrl: string | null
+  /** feature 00018 Phase 2 — ลูกค้าทักมาจากโฆษณาชื่อนี้ (messaging_referrals) — badge บนหัวเธรด; null=ไม่ใช่ */
+  referralAdTitle: string | null
   /** feature 00018 — ผลลัพธ์ getWindowState() คำนวณที่ server ณ เวลา render หน้า (ไม่ live-tick) */
   windowOpen: boolean
   msRemaining: number
@@ -403,6 +405,7 @@ export default function ChatThread({
   channel,
   channelName,
   channelAvatarUrl,
+  referralAdTitle,
   windowOpen,
   msRemaining,
   tokenInvalid,
@@ -597,9 +600,18 @@ export default function ChatThread({
             <Icon icon="arrow-left" className="text-lg" />
           </Link>
           <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-          <div>
+          <div className="min-w-0">
             <h5 className="text-base mb-1.25">{buyerName}</h5>
-            <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
+              {/* ทักมาจากโฆษณา (feature 00018 Phase 2, messaging_referrals) — context แรกเข้าให้ร้านตอบตรงจุด */}
+              {referralAdTitle && (
+                <span className="badge bg-info/15 text-info text-2xs inline-flex max-w-56 items-center gap-1" title={referralAdTitle}>
+                  <Icon icon="speakerphone" className="size-3 shrink-0" />
+                  <span className="truncate">ทักจากโฆษณา: {referralAdTitle}</span>
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -855,6 +867,15 @@ export default function ChatThread({
                           </div>
                         )
                       })()}
+                      {/* reaction (feature 00018 Phase 2, message_reactions) — emoji ที่ react บนข้อความนี้
+                          ชิปเล็ก ๆ เกยขอบล่างบับเบิล (FB-style); ฝั่งเรา justify-end, ฝั่งลูกค้า justify-start */}
+                      {m.reactionEmoji && (
+                        <div className={`-mt-1.5 flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                          <span className="bg-card border-default-200 rounded-full border px-1.5 py-0.5 text-xs shadow-sm">
+                            {m.reactionEmoji}
+                          </span>
+                        </div>
+                      )}
                       {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
                           null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
                       {mExt.deliveryStatus === 'FAILED' && (

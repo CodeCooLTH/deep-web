@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
-import { ingestInboundMessage, ingestReadEvent } from '@/services/channel-chat.service'
+import { ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -73,6 +73,15 @@ export async function POST(request: NextRequest) {
           pageExternalId: pageId,
           contactExternalId: event.sender.id,
           watermark: event.read.watermark,
+        })
+      } else if (event.reaction) {
+        // reaction (message_reactions) — react/unreact บนข้อความ (feature 00018 Phase 2)
+        await ingestReactionEvent({
+          provider,
+          pageExternalId: pageId,
+          mid: event.reaction.mid,
+          action: event.reaction.action,
+          emoji: event.reaction.emoji,
         })
       } else {
         await ingestInboundMessage({ provider, pageExternalId: pageId, event })

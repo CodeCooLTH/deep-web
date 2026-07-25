@@ -494,12 +494,17 @@ export async function ingestInboundMessage(params: {
     return await prisma.$transaction(async (tx) => {
       let conversation = await tx.conversation.findUnique({ where: conversationWhere })
       if (!conversation) {
+        // referral (feature 00018 Phase 2): ลูกค้าคลิกโฆษณา/ลิงก์แล้วทัก — เก็บ context แรกเข้าตอนสร้างเธรด
+        const referral = event.message?.referral ?? event.referral
         conversation = await tx.conversation.create({
           data: {
             shopId: channel.shopId,
             channel: provider,
             shopChannelId: channel.id,
             externalContactId: contact.id,
+            ...(referral
+              ? { referralSource: referral.source ?? null, referralAdTitle: referral.ads_context_data?.ad_title ?? null }
+              : {}),
           },
         })
       }
@@ -569,6 +574,23 @@ export async function ingestReadEvent(params: {
       OR: [{ externalReadAt: null }, { externalReadAt: { lt: readAt } }],
     },
     data: { externalReadAt: readAt },
+  })
+}
+
+// reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
+// เก็บ emoji ล่าสุดบน ChatMessage.reactionEmoji (unreact = null). scope ด้วย channel กันข้ามร้าน
+export async function ingestReactionEvent(params: {
+  provider: string
+  pageExternalId: string
+  mid: string
+  action: string // "react" | "unreact"
+  emoji?: string
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  await prisma.chatMessage.updateMany({
+    where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
+    data: { reactionEmoji: params.action === 'unreact' ? null : (params.emoji ?? null) },
   })
 }
 
