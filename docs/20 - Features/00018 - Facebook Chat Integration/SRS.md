@@ -3,17 +3,25 @@ title: "SRS — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.1"
+version: "1.2"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, srs, technical]
-related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]"]
+related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]", "[[EXTENSIONS-2026-07-25]]"]
 ---
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
-> **เวอร์ชัน:** 1.1
+> **เวอร์ชัน:** 1.2
 > **วันที่จัดทำ:** 2026-07-22
 > **สถานะ:** Draft — เขียนย้อนหลังจากโค้ดที่ implement แล้ว (backend pipeline เท่านั้น) เอกสารนี้เป็น SSOT ของ "สิ่งที่มีจริงในโค้ด" ไม่ใช่แผนที่ยังไม่ทำ — ดู §1.2 สำหรับสิ่งที่ยังไม่ implement
+>
+> 🔄 **v1.2 (2026-07-25) — doc-sync ตามของจริงบน prod (Phase 2/3 extensions):** §1.2 เดิมระบุว่า
+> "S-7 ปักหมุด/ซ่อน/ปิดงาน" และ UI ทั้งหมดยังไม่ implement — **ไม่ตรงกับโค้ดปัจจุบันแล้ว** (S-7 logic+API
+> ทำเสร็จตั้งแต่ 2026-07-23, มี UI `/inbox` เต็มรูปตั้งแต่ก่อนหน้านั้น) แก้ไขให้ตรง + เพิ่มรายการ
+> requirement ใหม่ที่ implement ต่อเนื่อง: กลุ่ม/แท็บจัดหมวดแชท + สแปม (E5), read receipt ช่องทางนอก (E6),
+> reaction บนข้อความ (E7), referral/context โฆษณา-ลิงก์ (E8), reply+unsend (E9) — รายละเอียด
+> requirement/business rule/design เต็มของ Phase 2/3 เหล่านี้อยู่ที่ [[EXTENSIONS-2026-07-25]] (ไม่ซ้ำเขียน
+> เป็น TFR แยกในเอกสารนี้เพื่อกัน drift 2 จุด — SRS นี้อ้างอิงกลับไปแทน)
 >
 > 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
@@ -42,14 +50,18 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]"]
 - `src/app/api/chat/conversations/[id]/messages/route.ts` (แก้เพิ่ม) — dispatch เธรดที่ `channel !== "DEEP"` ไปทาง `sendOutboundMessage` แทน `sendMessage` เดิม
 - `src/proxy.ts` (แก้เพิ่ม) — ยกเว้น `/api/channels/facebook/webhook` จาก CSRF Origin-check (ยัง apply rate-limit ปกติ)
 
+**อัปเดต (v1.2, 2026-07-25) — รายการด้านล่างที่เคยอยู่ "นอกขอบเขต" ตอน v1.1 ตอนนี้ implement แล้ว:**
+S-7 ปักหมุด/ซ่อน/ปิดงาน/สแปม (logic+API ครบ), UI ทั้งหมด (`/inbox` + `/seller/settings/channels`), API
+จัดการช่องทาง (list/disconnect), ผูก `ExternalContact.customerId`, filter ตาม channel/Page/กลุ่ม/อ่านแล้ว
+ใน `/inbox`, กลุ่มแชท, read receipt, reaction ขาเข้า, referral, reply+unsend ขาเข้า — ดูรายละเอียดที่
+[[EXTENSIONS-2026-07-25]] (E1, E3, E5-E9) และ [[API]]/[[DATABASE]] ที่ sync แล้ว รายการที่ยังเหลือจริง ๆ
+อยู่ด้านล่างนี้:
+
 **นอกขอบเขตของเอกสารนี้ (ยังไม่ implement — ดู PRD/BRD สำหรับแผนเต็ม):**
-- **UI ทั้งหมด** — ไม่มีหน้า `/seller/settings/channels` (เชื่อม/ถอด/ดูสถานะ Page), ไม่มี badge ช่องทาง/filter ตาม Page/แบนเนอร์ 24h ใน `/inbox`, ไม่มีปุ่มสร้างออเดอร์จากเธรด FB (FR-FBC-11, FR-FBC-12, FR-FBC-07 ฝั่ง UI)
-- **API endpoint สำหรับจัดการช่องทาง** — `listChannels`/`markChannelTokenInvalid` เป็น service function ที่มีแล้ว แต่**ไม่มี API route ใดเรียกใช้** (ไม่มี `GET /api/channels/facebook`, ไม่มี disconnect endpoint) — FR-FBC-11 ยังไม่มีทางเข้าถึงจาก client เลย
-- **ส่งรูปภาพออกจาก Deep ไป Messenger/IG** (FR-FBC-04 ฝั่งรูป) — เธรดช่องทางนอกรองรับเฉพาะ `type=TEXT`; ถ้าส่ง `type=IMAGE`/`PRODUCT` เข้าเธรดนอก route คืน 400 (ดู [[API]] §4.4)
-- **ผูก `ExternalContact.customerId` กับ Customer Directory** (FR-FBC-08) — ไม่มี code path ใดเขียนค่านี้ (ต้องรอ UI สร้างออเดอร์จากเธรดก่อน)
-- **filter ตาม Page ใน `/inbox`, channel query param** (FR-FBC-12) — `ChatConversationsQuerySchema` ไม่มี field กรอง channel/shopChannelId
-- **S-7 ปักหมุด/ซ่อน/ปิดงาน (`isPinned`/`isHidden`/`resolvedAt`)** — คอลัมน์มีจริงใน DB (migration เดียวกัน) แต่**ไม่มี service function หรือ API ใดอ่าน/เขียนค่าเหล่านี้เลย** — ค่า default (`false`/`false`/`null`) คงที่ทุกแถวถาวรจนกว่าจะมีโค้ดต่อ
-- **S-8 แท็ก/โน้ตภายใน/tab ออเดอร์ในแผงขวา** — ไม่มี model แท็ก/โน้ตใน schema เลย (ไม่มี DDL รองรับ)
+- **ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG** — `sendOutboundMessage` รองรับแค่ `text`/`imageFileId`; ไม่มี parameter สำหรับ VIDEO/AUDIO/FILE. **TEXT และ IMAGE ส่งออกได้แล้ว** (แก้จาก v1.1 ที่เขียนผิดว่า "รองรับเฉพาะ TEXT") — ยังบล็อกเฉพาะ `type=PRODUCT` บนเธรดช่องทางนอก (ดู [[API]] §4.5)
+- **Reply/Unsend/Reaction ขาออก** — ร้านตอบทับ/ลบ/react ข้อความของตัวเองจาก Deep ยังไม่มี code path (inbound-only ทั้งชุด E7/E9 — ดู [[EXTENSIONS-2026-07-25]] Carry)
+- **`messaging_referrals` subscribe field ขาด** — เพจที่เชื่อมก่อน 2026-07-25 ต้อง reconnect ถึงจะได้ pure-referral event เต็มรูป (ดู [[EXTENSIONS-2026-07-25]] E8.3)
+- **S-8 tab ใบเสนอราคา** — แก้ปัญหาด้วยการ์ดออเดอร์ในแชท (E1, `type=ORDER`) แทน ไม่ใช่ tab แยกตามที่ BRD เดิมคิดไว้ — เป็น design decision ที่ implement แล้วในรูปแบบต่าง
 - **Facebook Live** — นอก scope ทั้ง feature (PRD §5)
 
 ### 1.3 เอกสารอ้างอิง
@@ -116,14 +128,18 @@ flowchart LR
 | `src/lib/facebook/webhook-types.ts` | Valibot schema ของ webhook payload + `extractMessagingEvents` (แบน entry→messaging) | ใหม่ — implement แล้ว |
 | `src/lib/facebook/graph.ts` | Graph API client: `exchangeCodeForToken`, `listManageablePages`, `subscribePageToApp`, `getContactProfile`, `sendTextMessage` | ใหม่ — implement แล้ว |
 | `src/lib/token-crypto.ts` | `encryptToken`/`decryptToken` (AES-256-GCM) | ใหม่ — implement แล้ว |
-| `shop-channel.service.ts` | `connectPages`, `listChannels` (ไม่มี route เรียก), `getChannelByExternalId`, `markChannelTokenInvalid` | ใหม่ — implement แล้ว (บางฟังก์ชันยังไม่มี consumer) |
-| `channel-chat.service.ts` | `ingestInboundMessage`, `mirrorRemoteImage`, `getWindowState`, `sendOutboundMessage` | ใหม่ — implement แล้ว |
-| `GET/POST /api/channels/facebook/webhook` | handshake + รับ event จริง | ใหม่ — implement แล้ว |
+| `shop-channel.service.ts` | `connectPages(forceIds)`, `listChannels`, `describePageStates`, `disconnectChannel`, `getChannelByExternalId`, `markChannelTokenInvalid` | ใหม่ — implement แล้ว (รวม list/disconnect endpoint ตั้งแต่ 2026-07-23 — แก้จาก v1.1 ที่บันทึกว่า "ยังไม่มี consumer") |
+| `channel-chat.service.ts` | `ingestInboundMessage`, `ingestReadEvent` (E6), `ingestReactionEvent` (E7), `mirrorRemoteImage`, `getWindowState`, `syncInboundWindowFromMeta` (E4), `sendOutboundMessage` | ใหม่ — implement แล้ว |
+| `chat-group.service.ts` (ใหม่, E5) | `listChatGroups`, `createChatGroup`, `renameChatGroup`, `deleteChatGroup`, `setConversationGroup` | ใหม่ — implement แล้ว |
+| `chat.service.ts` (feature 00011, แก้เพิ่ม) | `updateConversationState` (pin/hide/resolve/spam), `unreadConversationIdsForShop`, `countUnreadByConversation` | ใหม่ — implement แล้ว |
+| `GET/POST /api/channels/facebook/webhook` | handshake + รับ event จริง (ข้อความ/read/reaction) | ใหม่ — implement แล้ว |
 | `GET /api/channels/facebook/connect` | เริ่ม OAuth (redirect ไป Facebook) | ใหม่ — implement แล้ว |
-| `GET /api/channels/facebook/callback` | รับ code → เชื่อม Page ทั้งหมดที่มีสิทธิ์ | ใหม่ — implement แล้ว |
+| `GET /api/channels/facebook/callback`, `pages`, `confirm` | รับ code → หน้าเลือกเพจ → เชื่อมเฉพาะเพจที่เลือก (2026-07-24, แก้จากพฤติกรรมเดิม "เชื่อมทุกเพจ") | ใหม่ — implement แล้ว |
+| `GET /api/channels`, `DELETE /api/channels/[id]` | list/disconnect channel (FR-FBC-11) | ใหม่ — implement แล้ว 2026-07-23 (แก้จาก v1.1 ที่ยังไม่มี) |
+| `PATCH /api/chat/conversations/[id]`, `GET/POST /api/chat/groups`, `PATCH/DELETE /api/chat/groups/[id]`, `GET .../conversations/[id]/orders` | S-7 + กลุ่มแชท + ประวัติออเดอร์ในแชท | ใหม่ — implement แล้ว |
 | `POST /api/chat/conversations/[id]/messages` (feature 00011) | แก้เพิ่ม branch `channel !== "DEEP"` → เรียก `sendOutboundMessage` | แก้ไข |
 | `src/proxy.ts` (`guardApi`) | เพิ่มเงื่อนไขยกเว้น webhook path จาก Origin-check | แก้ไข |
-| หน้า `/seller/settings/channels`, badge/filter ใน `/inbox`, ปุ่มสร้างออเดอร์จากเธรด | UI ทั้งหมด | **ยังไม่ implement** |
+| หน้า `/seller/settings/channels`, `/inbox` (badge ช่องทาง/filter/แบนเนอร์ 24h/แผงลูกค้า/composer) | UI ทั้งหมด | **implement แล้ว** — แก้จาก v1.1 ที่บันทึกว่า "ยังไม่ implement" |
 
 ---
 
@@ -207,7 +223,7 @@ flowchart LR
   1. โหลด `Conversation` พร้อม `include: {shopChannel, externalContact}` — ไม่พบ → `CONVERSATION_NOT_FOUND`; `channel==='DEEP'` หรือไม่มี `shopChannel`/`externalContact` → `NOT_EXTERNAL_CHANNEL`
   2. ownership: `shop.userId !== actorUserId` → `FORBIDDEN`
   3. **window check ก่อนยิง Graph API เสมอ:** `!getWindowState(conversation.lastInboundAt).open` → throw `WINDOW_CLOSED` (กันเปลือง quota + กัน error ที่คาดเดาได้อยู่แล้ว) — **ไม่มีการยิง Graph API เลยถ้า window ปิด**
-  4. `decryptToken(shopChannel.accessTokenEnc)` → `sendTextMessage(pageId, token, PSID, text)` → ได้ `mid`
+  4. `decryptToken(shopChannel.accessTokenEnc)` → **`params.imageFileId` มีค่า** → `getFileUrl(imageFileId, {signed, expiresIn:3600})` แล้ว `sendImageMessage(token, PSID, imageUrl)` (+ caption แยกเป็น `sendTextMessage` ถ้ามี `text`, best-effort ไม่ throw ถ้าพลาด) — **ไม่มี** `imageFileId` → `sendTextMessage(pageId, token, PSID, text)` → ได้ `mid` ทั้งสองกรณี (แก้จาก v1.1 ที่เขียนว่ารองรับแค่ TEXT)
   5. **ลำดับสำคัญ:** ส่งออกก่อน (`try/catch`) แล้วค่อย `chatMessage.create` เสมอ — ถ้า Graph ตอบ error, `mid = null`, `failureReason = e.message`, ถ้า `GraphApiError.code === 190` (token ตาย) → `markChannelTokenInvalid(shopChannel.id)`
   6. `chatMessage.create({senderRole:'SHOP', externalMessageId: mid || null, deliveryStatus: failureReason ? 'FAILED' : 'SENT', failureReason})` แล้วอัปเดต `Conversation` snapshot **แม้ส่งไม่สำเร็จ** (seller ต้องเห็นในเธรดว่าพยายามส่งแล้วพลาด)
 - **Postcondition:** สำเร็จ → คืน `ChatMessage` ที่สร้าง; ล้มเหลว → **throw `SEND_FAILED: <reason>`** (แม้จะ insert ChatMessage ไปแล้วก็ตาม — caller/route ต้อง map เป็น error response ที่เหมาะสม ไม่ใช่ 200)
@@ -217,10 +233,11 @@ flowchart LR
 
 - **Trace:** FR-FBC-04, BR-FBC-11
 - **คำอธิบาย:** `POST /api/chat/conversations/[id]/messages` เดิม (feature 00011) แก้เพิ่ม: ก่อนเรียก `sendMessage()` เดิม ให้ query `conversation.channel` ก่อน — ถ้า `channel !== 'DEEP'`:
-  - `type !== 'TEXT'` → คืน `400` ทันที (ยังไม่รองรับ IMAGE/PRODUCT ออกช่องทางนอก)
-  - `type === 'TEXT'` → เรียก `sendOutboundMessage` แทน `sendMessage`
+  - `type === 'PRODUCT'` → คืน `400` ทันที (ยังไม่รองรับการ์ดสินค้าออกช่องทางนอก)
+  - `type === 'ORDER'` → verify `orderRefToken` เป็นของร้านนี้จริงก่อน แล้วประกอบข้อความลิงก์ `/o/{token}` เรียก `sendOutboundMessage({text: linkText, orderRefToken})` — ลูกค้าได้ลิงก์ (ไม่ใช่การ์ด) แต่ฝั่งเราเก็บเป็นการ์ด (E1)
+  - `type === 'TEXT'` หรือ `'IMAGE'` → เรียก `sendOutboundMessage({text, imageFileId})` แทน `sendMessage` — **แก้จาก v1.1 ที่เขียนผิดว่ารองรับแค่ TEXT** (`sendOutboundMessage` มี branch `isImage` เรียก `sendImageMessage` จริง)
   - `channel === 'DEEP'` (หรือ conversation ไม่พบ — ปล่อยให้ `sendMessage` เดิม throw `CONVERSATION_NOT_FOUND`) → เดินทาง `sendMessage` เดิมเหมือนก่อนมี feature นี้ (**zero-regression**)
-- **Error mapping ใหม่ที่ route:** `WINDOW_CLOSED` → `409`, `NOT_EXTERNAL_CHANNEL` → `400`, `SEND_FAILED:*` (prefix match) → `502` — ดู [[API]] §5
+- **Error mapping ใหม่ที่ route:** `WINDOW_CLOSED` → `409`, `CHANNEL_NOT_ACTIVE` → `409`, `NOT_EXTERNAL_CHANNEL` → `400`, `SEND_FAILED:*` (prefix match) → `502` — ดู [[API]] §5
 
 ### TFR-FBC-11: ยกเว้น webhook จาก CSRF Origin-check
 
@@ -298,11 +315,15 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> ACTIVE: connectPages สำเร็จ
     ACTIVE --> TOKEN_INVALID: sendOutboundMessage เจอ GraphApiError.code=190
-    TOKEN_INVALID --> [*]: ยังไม่มี flow เชื่อมใหม่ (UI ยังไม่ implement)
-    ACTIVE --> DISCONNECTED: ยังไม่มี code path ใดตั้งค่านี้ (ไม่มี disconnect endpoint)
+    TOKEN_INVALID --> ACTIVE: reconnect เพจเดิม (connectPages, partial unique index รองรับแถวเดิมที่ไม่ active)
+    ACTIVE --> DISCONNECTED: DELETE /api/channels/[id] (disconnectChannel, ใหม่ 2026-07-23)
+    DISCONNECTED --> ACTIVE: reconnect เพจเดิม (partial unique index อนุญาต — ดู DATABASE §3.1)
 ```
 
-หมายเหตุ: `getChannelByExternalId` เช็ค `status === 'DISCONNECTED'` แล้วคืน `null` — schema/service รองรับสถานะนี้แล้ว แต่**ไม่มีทางเข้าถึงจาก client** เพื่อ set ค่านี้ในปัจจุบัน
+หมายเหตุ (แก้จาก v1.1): `getChannelByExternalId` เช็ค `status === 'DISCONNECTED'` แล้วคืน `null` (webhook
+มองเป็น "ไม่มีร้านเชื่อม") — **มีทางเข้าถึงจาก client แล้ว** ตั้งแต่ 2026-07-23 ผ่าน `DELETE /api/channels/[id]`
+(soft — ไม่ลบแถว) และ reconnect ได้ผ่าน OAuth flow ปกติ (partial unique index `ShopChannel(provider,
+externalId)` บังคับ unique เฉพาะแถว active เท่านั้น — ดู [[DATABASE]] §3.1)
 
 ---
 
@@ -408,17 +429,22 @@ export const WebhookBodySchema = v.object({
 | รับ IMAGE เข้า `/inbox` (backend) | FR-FBC-02 | §7.2 | TFR-FBC-04 | Implemented (backend) |
 | `is_echo` | FR-FBC-03, BR-FBC-09/10 | §7.2 | TFR-FBC-05 | Implemented |
 | ตอบกลับออกไปจริง (TEXT) | FR-FBC-04, BR-FBC-11/12 | §7.3 | TFR-FBC-09/10 | Implemented (TEXT เท่านั้น) |
-| ตอบกลับออกไปจริง (IMAGE) | FR-FBC-04 | §7.3 | TFR-FBC-10 (block 400) | **ยังไม่ implement** |
-| 24h window guard (logic) | FR-FBC-05, BR-FBC-11 | §7.3 | TFR-FBC-06, TFR-FBC-09 | Implemented (logic); UI แบนเนอร์ยังไม่มี |
-| แสดงสถานะส่งไม่สำเร็จ (data) | FR-FBC-06, BR-FBC-12 | §7.3 | TFR-FBC-09 | Implemented (data); UI แสดงผลยังไม่มี |
-| สร้างออเดอร์จากเธรด | FR-FBC-07 | §8 | — | **ยังไม่ implement** |
-| ผูก Customer Directory | FR-FBC-08, BR-FBC-06 | §3.4 | — | **ยังไม่ implement** |
-| เชื่อม Facebook Page (OAuth) | FR-FBC-09, BR-FBC-01/02/03/20 | §7.1 | TFR-FBC-07, 08 | Implemented (backend, ไม่มี UI) |
+| ตอบกลับออกไปจริง (IMAGE) | FR-FBC-04 | §7.3 | TFR-FBC-09/10 | **Implemented** (แก้จาก v1.1 ที่บันทึกผิดว่า "ยังไม่ implement" — `sendOutboundMessage` รองรับ `imageFileId` จริง เหลือแค่ VIDEO/AUDIO/FILE ที่ยังไม่มี parameter, ดู [[API]] §4.5) |
+| 24h window guard (logic + UI) | FR-FBC-05, BR-FBC-11 | §7.3 | TFR-FBC-06, TFR-FBC-09 | Implemented — logic + UI แบนเนอร์ + lazy sync จาก Meta (E4, [[EXTENSIONS-2026-07-25]]) |
+| แสดงสถานะส่งไม่สำเร็จ (data + UI) | FR-FBC-06, BR-FBC-12 | §7.3 | TFR-FBC-09 | Implemented |
+| สร้างออเดอร์จากเธรด | FR-FBC-07 | §8 | — | **Implemented** (E3, [[EXTENSIONS-2026-07-25]]) — โมดัลในแชท reuse POS/`CreateOrderSchema` |
+| ผูก Customer Directory | FR-FBC-08, BR-FBC-06 | §3.4 | — | **Implemented** (E3) — atomic ในทรานแซกชันเดียวกับสร้างออเดอร์ |
+| เชื่อม Facebook Page (OAuth) | FR-FBC-09, BR-FBC-01/02/03/20 | §7.1 | TFR-FBC-07, 08 | Implemented (backend + UI หน้าเลือกเพจ `/settings/channels/select`) |
 | ผูก Instagram อัตโนมัติ | FR-FBC-10, BR-FBC-04 | §7.1 | TFR-FBC-08 | Implemented |
-| จัดการ/ถอด Page ที่เชื่อมแล้ว | FR-FBC-11, BR-FBC-05 | §8 | — | **ยังไม่ implement (ไม่มี API route)** |
-| Badge ช่องทาง + filter | FR-FBC-12 | §8 | — | **ยังไม่ implement** |
-| ปักหมุด/ซ่อน/ปิดงาน (S-7) | BR-FBC-14/15/16 | §8.1 | — | คอลัมน์ DB มีแล้ว, **logic/API ยังไม่ implement** |
-| แท็ก/โน้ต/tab ออเดอร์ (S-8) | BR-FBC-17/18/19 | §8.1 | — | **ยังไม่ implement (ไม่มี DDL)** |
+| จัดการ/ถอด Page ที่เชื่อมแล้ว | FR-FBC-11, BR-FBC-05 | §8 | — | **Implemented** (2026-07-23) — `GET /api/channels` + `DELETE /api/channels/[id]` + หน้า `/seller/settings/channels` |
+| Badge ช่องทาง + filter | FR-FBC-12 | §8 | — | **Implemented** — `ChatConversationsQuerySchema` มี `channel`/`shopChannelId`/`chatGroupId`/`readState`/`spam` |
+| ปักหมุด/ซ่อน/ปิดงาน/สแปม (S-7) | BR-FBC-14/15/16 | §8.1 | — | **Implemented** (2026-07-23/24) — `updateConversationState` + `PATCH /api/chat/conversations/[id]` (แก้จาก v1.1 ที่บันทึกผิดว่า "logic ยังไม่ implement") |
+| กลุ่ม/แท็บจัดหมวดแชท (E5) | ผลตัดสิน user 2026-07-23 | — | — | Implemented — `ChatGroup` + `chat-group.service.ts` |
+| Read receipt ช่องทางนอก (E6) | ผลตัดสิน user | — | — | Implemented — `Conversation.externalReadAt` + `ingestReadEvent` |
+| Reaction บนข้อความ (E7) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.reactionEmoji` + `ingestReactionEvent` |
+| Referral/context โฆษณา-ลิงก์ (E8) | ผลตัดสิน user | — | — | Implemented (บางส่วน — pure-referral event ของเพจเก่าไม่ครอบ, ดู E8.3) |
+| Reply/Unsend (E9) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.replyToMid`/`isDeleted` |
+| แท็ก/โน้ตภายใน (S-8) | BR-FBC-17/18/19 | §8.1 | — | **Implemented** (2026-07-23 — เก็บที่คอลัมน์ `ExternalContact`/`Conversation.alias` ไม่ใช่ table แยกตามที่ BRD เดิมคิดไว้; tab ใบเสนอราคาแก้ด้วยการ์ดออเดอร์ในแชท E1 แทน) |
 | ยกเว้น webhook จาก CSRF | BR-FBC-22 | §7.2 | TFR-FBC-11 | Implemented |
 | เข้ารหัส token | BR-FBC-20 | §10 | §6.1 | Implemented |
 
@@ -426,8 +452,8 @@ export const WebhookBodySchema = v.object({
 
 ## 12. สรุป (Summary)
 
-เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **backend pipeline** ที่ implement จริงแล้วของ Facebook/Instagram Chat Integration: webhook ขาเข้า (verify signature → parse → dedupe → บันทึก, รวม `is_echo` และ mirror รูปภาพ), 24-hour window guard (logic คำนวณ), ส่งข้อความ TEXT ออกจริงผ่าน Send API พร้อม error handling ที่ไม่ fail เงียบ, และ OAuth เชื่อม Facebook Page แยกจาก login เดิมพร้อม auto-link Instagram
+เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **backend pipeline** ของ Facebook/Instagram Chat Integration: webhook ขาเข้า (verify signature → parse → dedupe → บันทึก, รวม `is_echo`, mirror ไฟล์แนบทุกชนิด, read receipt, reaction, referral, reply/unsend), 24-hour window guard (logic + lazy sync จาก Meta), ส่งข้อความ TEXT ออกจริงผ่าน Send API พร้อม error handling ที่ไม่ fail เงียบ, OAuth เชื่อม Facebook Page (หน้าเลือกเพจ) พร้อม auto-link Instagram, จัดการช่องทาง (list/disconnect), ปักหมุด/ซ่อน/ปิดงาน/สแปม/กลุ่มแชท, สร้างออเดอร์จากเธรด+ผูก Customer, และ CRM ผู้ติดต่อ — ครบทั้ง backend และ UI (ต่างจาก v1.0/1.1 ที่ยังเป็น backend-only)
 
-**ขอบเขตที่ครอบคลุม:** `src/lib/facebook/**`, `src/lib/token-crypto.ts`, `src/services/{shop-channel,channel-chat}.service.ts`, `src/app/api/channels/facebook/**`, ส่วนที่แก้ของ `src/services/chat.service.ts` และ `src/app/api/chat/conversations/[id]/messages/route.ts`, `src/proxy.ts`
+**ขอบเขตที่ครอบคลุม:** `src/lib/facebook/**`, `src/lib/token-crypto.ts`, `src/services/{shop-channel,channel-chat,chat-group}.service.ts`, `src/app/api/channels/facebook/**`, `src/app/api/chat/**`, ส่วนที่แก้ของ `src/services/chat.service.ts`, `src/proxy.ts`
 
-**ประเด็นที่ยังไม่ implement (ห้ามถือว่ามีจริง จนกว่าจะมีแผนถัดไป):** UI ทั้งหมด (`/seller/settings/channels`, badge/filter/แบนเนอร์ใน `/inbox`), API สำหรับ list/disconnect channel, ส่งรูปภาพออก, สร้างออเดอร์จากเธรด + ผูก Customer, S-7 (ปักหมุด/ซ่อน/ปิดงาน — DB มีคอลัมน์แต่ไม่มี logic), S-8 (แท็ก/โน้ต — ไม่มี DDL เลย)
+**ประเด็นที่ยังไม่ implement จริง (คงเหลือหลัง v1.2 — ห้ามถือว่ามีจริง):** ส่งวิดีโอ/เสียง/ไฟล์ออกช่องทางนอก (TEXT/IMAGE ส่งออกได้แล้ว), reply/unsend/reaction ขาออก, `messaging_referrals` subscribe field ของเพจที่เชื่อมก่อน 2026-07-25 — รายละเอียดเต็มที่ [[EXTENSIONS-2026-07-25]] "Carry / หนี้ที่เหลือ"

@@ -251,6 +251,26 @@ export async function fetchMessageText(messageId: string, pageToken: string): Pr
   }
 }
 
+// ดึง file_url สดของ attachment แรกของ message id หนึ่ง (feature 00018, user report 2026-07-25) —
+// ใช้เป็น fallback เมื่อ webhook ไม่ส่ง payload.url มา (Messenger voice message/บาง attachment) หรือ
+// url ใน webhook หมดอายุ/ยิงไม่ได้. Graph คืน url สดที่ยัง fetch ได้ (host fbsbx/fbcdn). null ถ้าไม่มี/error
+export async function fetchAttachmentUrl(messageId: string, pageToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${messageId}?fields=attachments{file_url}`, {
+      headers: { Authorization: `Bearer ${pageToken}` },
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) return null
+    const json = (await res.json().catch(() => ({}))) as {
+      attachments?: { data?: Array<{ file_url?: string }> }
+    }
+    const url = json.attachments?.data?.[0]?.file_url
+    return typeof url === 'string' && url.length > 0 ? url : null
+  } catch {
+    return null
+  }
+}
+
 // ส่งข้อความ text — คืน mid สำหรับเก็บเป็น externalMessageId (กลไก dedupe echo)
 //
 // ใช้ /me/messages ไม่ใช่ /{page-id}/messages ด้วยเหตุผลเดียวกับ getContactProfile:

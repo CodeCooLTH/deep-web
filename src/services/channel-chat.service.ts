@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -309,7 +309,14 @@ export async function ingestInboundMessage(params: {
   const isImageLike = attType === 'image' || attType === 'sticker'
 
   // ต้อง mirror ก่อนเข้า transaction — network call ในทรานแซกชันจะถือ lock DB นานเกินไป
-  const mirroredFileId = isMedia && attUrl ? await mirrorRemoteImage(attUrl) : null
+  let mirroredFileId = isMedia && attUrl ? await mirrorRemoteImage(attUrl) : null
+  // fallback (user report 2026-07-25: ข้อความเสียง Messenger ยัง mirror ไม่ผ่าน): media ที่ webhook
+  // ไม่ส่ง payload.url มา หรือ url นั้น fetch ไม่ได้/หมดอายุ → ดึง file_url สดจาก Graph ด้วย mid แล้ว mirror
+  // (Messenger voice message เจอเคส payload.url หายบ่อย — Graph คืน url สดที่ยังโหลดได้ host fbsbx)
+  if (isMedia && !mirroredFileId && event.message.mid) {
+    const graphUrl = await fetchAttachmentUrl(event.message.mid, channel.accessToken)
+    if (graphUrl) mirroredFileId = await mirrorRemoteImage(graphUrl)
+  }
   // ข้อความลิงก์ที่แชร์ (fallback/post/ig_post) — ประกอบ title + url เป็น text
   const linkText = isLink ? (attTitle ? `${attTitle}\n${attUrl}` : attUrl!) : null
 

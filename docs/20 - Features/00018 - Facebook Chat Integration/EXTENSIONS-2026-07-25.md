@@ -1,14 +1,19 @@
 # 00018 — Extensions (2026-07-24 → 25)
 
 > เอกสาร back-fill (doc-first debt) ของ extension ชุดที่พัฒนาต่อยอดจาก Facebook Chat Integration
-> ในช่วง 2026-07-24 → 25 ตามคำสั่ง user "ลุยเลย" แล้วกลับมาทำเอกสารให้ครบ. รวม 4 extension:
+> ในช่วง 2026-07-24 → 25 ตามคำสั่ง user "ลุยเลย" แล้วกลับมาทำเอกสารให้ครบ. รวม 9 extension:
 >
 > | # | Extension | สรุป |
 > |---|---|---|
 > | E1 | การ์ดออเดอร์/ใบเสนอราคาในแชท (`type=ORDER`) | ร้านส่งการ์ดออเดอร์เข้าแชท — DEEP=การ์ด, ช่องทางนอก=ลิงก์ |
-> | E2 | รองรับไฟล์แนบทุกชนิด | GIF/สติกเกอร์/วิดีโอ/เสียง Opus/ไฟล์ — เลิก placeholder "เปิดดูใน Messenger" |
+> | E2 | รองรับไฟล์แนบทุกชนิด | GIF/สติกเกอร์/วิดีโอ/เสียง Opus/ไฟล์/ตำแหน่งที่ตั้ง/template/หลายรูป — เลิก placeholder "เปิดดูใน Messenger" |
 > | E3 | ผูกออเดอร์จากแชทกับลูกค้าทันที | สร้างออเดอร์จากแชท → ผูก ExternalContact↔Customer atomically |
 > | E4 | เช็คหน้าต่าง 24 ชม.จาก Meta | lazy check เวลาลูกค้าทักล่าสุดจริง เมื่อ webhook พลาด/เชื่อมเพจช้า |
+> | E5 | กลุ่ม/แท็บจัดหมวดแชท + สแปม (S-7 ต่อยอด) | `ChatGroup` ระดับร้าน + ปักหมุด/ซ่อน/ปิดงาน/สแปม ครบ logic+API |
+> | E6 | Read receipt ช่องทางนอก | `message_reads` → `Conversation.externalReadAt` (watermark) |
+> | E7 | Reaction บนข้อความ | `message_reactions` → `ChatMessage.reactionEmoji` (react/unreact) |
+> | E8 | Referral/context โฆษณา-ลิงก์ | `messaging_referrals`/`message.referral` → badge "ทักจากไหน" บนหัวเธรด |
+> | E9 | Reply (ตอบทับ) + Unsend | `message.reply_to`/`message.is_deleted` → quote + "ข้อความถูกลบ" |
 >
 > ที่เกี่ยวกับ AI (ให้ AI อ่านรูป/ฟังเสียง) แยกไปที่ `00019 - AI Reply Assistant/EXTENSIONS-2026-07-25.md`
 
@@ -184,6 +189,33 @@ sequenceDiagram
 | sticker | จัดเป็น IMAGE (ไม่ใช่ "ไฟล์แนบ") |
 | fallback (แชร์ลิงก์) | TEXT พร้อม url+title |
 
+### E2.5 อัปเดต 2026-07-25 — attachment type ครบชุด + template/location + หลายรูปในข้อความเดียว
+
+**Problem:** attachment เดิม (E2.1-E2.4) mirror ได้แต่รูป/ไฟล์เดี่ยว — order/payment template (receipt/button/
+generic), ตำแหน่งที่ตั้ง (location), story mention (IG), และข้อความที่แนบ**หลายรูปพร้อมกัน**ยังตกไป
+placeholder ทั่วไป "[ไฟล์แนบ — เปิดดูใน Messenger]" ทั้งที่เนื้อหามากับ webhook payload อยู่แล้ว
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-ATT-06 | `AttachmentPayloadSchema` (`webhook-types.ts`) parse field เพิ่ม: `template_type`, `text`, `order_number`, `summary{total_cost,...}`, `elements[]{title,...}`, `coordinates{lat,long}` — เดิม parse แค่ `url`/`title` แล้ว Valibot ตัดฟิลด์เกินทิ้ง |
+| FR-ATT-07 | `composeStructuredText(attType, payload)` ประกอบ "ข้อความสรุป" จาก field ที่ parse มาแล้ว โดยไม่ต้องยิง Graph fetch: `location` → ลิงก์ Google Maps จากพิกัด; `template.receipt` → "สรุปคำสั่งซื้อ #… — ยอดรวม ฿…"; `template` (button) → ใช้ `payload.text` ตรง ๆ ถ้ามี; `template` (generic/carousel) → ชื่อรายการแรก + "และอีก N รายการ" |
+| FR-ATT-08 | ลำดับการเลือกข้อความที่แสดง: **text จริงของลูกค้า > ลิงก์แชร์ (fallback/post/ig_post) > ข้อความสรุปที่ประกอบเอง (`composeStructuredText`) > ข้อความที่ render จาก Graph (`fetchMessageText`, เฉพาะกรณีที่ประกอบเองไม่ได้) > placeholder เฉพาะชนิด** — bug fix 2026-07-24/25: เดิม placeholder "[ไฟล์แนบ]" ทับข้อความจริงที่ parse ได้อยู่แล้ว |
+| FR-ATT-09 | Messenger ส่ง**หลายรูปในข้อความเดียว** (`message.attachments[]` มากกว่า 1 ตัว) → mirror ทุกตัว, ตัวแรกแนบกับ `ChatMessage` หลัก (มี `body`), ตัวที่ 2 เป็นต้นไปสร้าง `ChatMessage` แยกต่อรูป (`body=null`, `externalMessageId = "{mid}#{i}"` กันชน unique constraint) — album UI ฝั่งหน้าจับกลุ่มเรียงติดกันเป็นอัลบั้มเอง; preview เธรดแสดง `"[N รูป]"` แทน `"[รูปภาพ]"` เดี่ยวเมื่อ N>1 |
+
+**Business Rules:**
+- **BR-ATT-04** placeholder เป็น **เฉพาะชนิด** ไม่ใช่ข้อความรวม (`FAILED_TEXT_BY_TYPE` map ต่อ `attType`) — วิดีโอ/เสียง/ไฟล์/ตำแหน่ง/ลิงก์/template มีข้อความอธิบายของตัวเอง ไม่ใช้ "[ไฟล์แนบ]" กว้าง ๆ ทุกกรณีเหมือนก่อนหน้า
+- **BR-ATT-05** ข้อความที่ไม่มีทั้ง `text` และ attachment ที่แสดงได้เลย (เช่น event พิเศษที่ Meta ส่ง `message` มาแต่ไม่มีเนื้อหา) → `body`/`preview` เป็น placeholder คงที่ `"[ข้อความไม่รองรับ — เปิดดูใน Messenger]"` — กัน bubble ว่างเปล่า (บั๊กจริง prod 2026-07-23)
+- diagnostic logging (ไม่ log ค่า PII — เฉพาะ `attType` + payload keys) สำหรับ attachment ที่ยังจับไม่ได้เลย (`story_reply`, IG commands, `product` template) — รอ diagnose payload จริงเพิ่มก่อน finalize schema (ดู Carry ท้ายไฟล์)
+
+**Test Cases เพิ่ม:**
+
+| TC | สถานการณ์ | คาดหวัง |
+|---|---|---|
+| TC-ATT-06 | ลูกค้าส่งตำแหน่งที่ตั้ง (`location`) | ข้อความ `[ตำแหน่งที่ตั้ง] เปิดใน Google Maps: https://maps.google.com/?q=…` |
+| TC-ATT-07 | echo ระบบ order/payment (`template.receipt`) | ข้อความ "สรุปคำสั่งซื้อ #… — ยอดรวม ฿…" (ไม่ตกเป็น placeholder) |
+| TC-ATT-08 | ลูกค้าส่ง 3 รูปพร้อมกัน | 3 `ChatMessage` (mid, mid#1, mid#2); preview เธรด = `[3 รูป]` |
+| TC-ATT-09 | attachment ชนิดที่ยังไม่รู้จัก (ไม่ใช่ media/link/template) | placeholder ทั่วไป + log diagnostic (ไม่ throw) |
+
 ---
 
 ## E3 — ผูกออเดอร์จากแชทกับลูกค้าทันที
@@ -231,6 +263,188 @@ sequenceDiagram
 
 ---
 
+## E5 — กลุ่ม/แท็บจัดหมวดแชท + สแปม (ต่อยอด S-7)
+
+### E5.1 Requirement
+
+**Goal:** S-7 เดิม (SRS v1.1) มีแค่ปักหมุด/ซ่อน/ปิดงานที่คอลัมน์มีแต่ "ไม่มี logic" — ผลตัดสิน user
+2026-07-23/24 ขยายเป็นชุดเต็ม: กลุ่ม/แท็บที่ร้านตั้งเอง + ถังสแปมแยก **และ implement logic+API ครบแล้ว**
+(ไม่ใช่แค่คอลัมน์ DB เหมือน SRS v1.1 เขียนไว้ — SRS.md/SDS.md เดิมมี debt ตรงนี้ ปรับในรอบนี้)
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-GRP-01 | ร้านสร้างกลุ่ม/แท็บเองได้ไม่จำกัด (เพดาน 30 กลุ่ม/ร้าน) — ชื่อไม่ซ้ำในร้านเดียวกัน (`@@unique[shopId,name]`) |
+| FR-GRP-02 | ย้ายเธรดเข้า/ออกกลุ่มทีละเธรด (`action=set-group` บน `PATCH /api/chat/conversations/[id]`) — `chatGroupId=null` = เอาออก (กลับแท็บ "ทั้งหมด") |
+| FR-GRP-03 | ลบกลุ่ม → เธรดที่เคยอยู่กลุ่มนั้น `chatGroupId` กลับเป็น `null` อัตโนมัติ (FK `ON DELETE SET NULL`) ไม่ต้องมี cleanup logic แยก |
+| FR-SPAM-01 | ทำเครื่องหมายเธรดเป็นสแปม (`action=spam`/`unspam`) — แยกถังจากรายการหลักสนิท (ตัวกรอง `spam=true`) |
+| FR-SPAM-02 | เธรดสแปม: ลูกค้าทักมาใหม่**ไม่เด้งกลับ**รายการหลัก (ต่างจาก hide/resolve ที่ auto-unhide/auto-reopen) และ**ไม่ส่ง Notification** — Meta ส่ง webhook ระดับเพจ หยุดรายเธรดไม่ได้ ระบบยังรับ+เก็บข้อความปกติ แค่เงียบ |
+| FR-UNREAD-01 | ตัวกรอง `readState=unread\|read` — เกณฑ์เดียวกับ badge ตัวเลขนับ unread (JOIN `ChatMessage` จริง ไม่ใช่แค่ `lastSenderRole` ระดับห้อง — บั๊ก 2026-07-24 ที่แก้แล้ว) |
+
+### E5.2 Business Rules
+
+- **BR-GRP-01** `set-group` ตรวจว่ากลุ่มเป็นของร้านเดียวกันก่อนย้าย (`GROUP_NOT_FOUND` ถ้าไม่ใช่ — กันย้ายเข้ากลุ่มร้านอื่น)
+- **BR-SPAM-01** `action=spam` เคลียร์ `isPinned=false` พร้อมกัน (เธรดสแปมไม่ควรปักหมุดค้าง) — `updateMany` ครั้งเดียว
+- **BR-SPAM-02** query "ดูสแปม" ไม่กรอง `isHidden` ซ้ำ (สแปมเป็นถังแยกอยู่แล้ว เห็นทุกเธรดในถังนั้นไม่ว่าจะเคย hidden หรือไม่)
+- **BR-UNREAD-01** เกณฑ์ "ยังไม่อ่าน" = มีข้อความ `senderRole='BUYER'` ใหม่กว่า `Conversation.shopLastReadAt` (ห้องไม่เคยอ่าน = นับทั้งหมด) — ใช้ราก SSOT เดียวกันทั้ง badge ตัวเลขและตัวกรอง (ก่อนแก้บั๊ก 2026-07-24 สองจุดนี้เกณฑ์ไม่ตรงกัน)
+
+### E5.3 Data Model
+
+`ChatGroup` (table ใหม่) — migration `20260723130000_chat_group`:
+
+```prisma
+model ChatGroup {
+  id        String   @id @default(uuid())
+  shopId    String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  shop          Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([shopId, name])
+  @@index([shopId, sortOrder])
+}
+```
+
+`Conversation` เพิ่ม (migration เดียวกัน + ตัวก่อนหน้า `20260722000200_shopchannel_active_partial_unique`
+ไม่เกี่ยว): `chatGroupId String?` (FK `ChatGroup`, `ON DELETE SET NULL`), `isSpam Boolean @default(false)`
+(migration แยกก่อนหน้า — apply พร้อมชุด S-7 เดิม), `externalReadAt DateTime?` (ดู E6)
+
+### E5.4 API
+
+| Method | Path | หมายเหตุ |
+|---|---|---|
+| `GET` | `/api/chat/groups` | list กลุ่มของร้าน active เรียง `sortOrder` |
+| `POST` | `/api/chat/groups` | สร้างกลุ่ม `{name}` — `409` ชื่อซ้ำ, `400` เกิน 30 กลุ่ม/ชื่อว่าง/ยาวเกิน 40 |
+| `PATCH` | `/api/chat/groups/{id}` | เปลี่ยนชื่อ `{name}` |
+| `DELETE` | `/api/chat/groups/{id}` | ลบกลุ่ม (เธรดในกลุ่ม → `chatGroupId=null` อัตโนมัติ) |
+| `PATCH` | `/api/chat/conversations/{id}` | `{action: 'pin'\|'unpin'\|'hide'\|'unhide'\|'resolve'\|'reopen'\|'spam'\|'unspam'\|'set-group', chatGroupId?}` — ownership atomic `updateMany({id, shopId})` |
+| `GET` | `/api/chat/conversations` | เพิ่ม query: `chatGroupId` (กรองแท็บ), `readState` (`unread`\|`read`), `spam` (`true`=ดูเฉพาะสแปม) |
+
+ทุก endpoint: seller session + `resolveActiveShopContext`; `Cache-Control: private, no-store` (per-user
+authenticated data — บทเรียน `feedback_auth_api_cache_control`)
+
+### E5.5 Test Cases
+
+| TC | สถานการณ์ | คาดหวัง |
+|---|---|---|
+| TC-GRP-01 | สร้างกลุ่มชื่อซ้ำในร้านเดียวกัน | `409 GROUP_NAME_TAKEN` |
+| TC-GRP-02 | ย้ายเธรดเข้ากลุ่มร้านอื่น | `404` (ownership guard) |
+| TC-GRP-03 | ลบกลุ่มที่มีเธรดอยู่ | เธรดกลับแท็บ "ทั้งหมด" (`chatGroupId=null`) ไม่หายไปไหน |
+| TC-SPAM-01 | ทำเครื่องหมายสแปม แล้วลูกค้าทักใหม่ | เธรดยังอยู่ถังสแปม ไม่เด้งกลับรายการหลัก ไม่มี Notification |
+| TC-SPAM-02 | เธรดปักหมุดอยู่ → กด spam | `isPinned` ถูกล้างพร้อมกัน |
+| TC-UNREAD-01 | ร้านตอบผ่าน Messenger ตรง (echo, ไม่ผ่าน Deep) แล้วลูกค้าทักใหม่ | badge unread + filter `readState=unread` เห็นตรงกัน (regression บั๊ก 2026-07-24) |
+
+---
+
+## E6 — Read Receipt ช่องทางนอก (`message_reads`)
+
+### E6.1 Requirement
+
+**Goal:** แสดงว่าลูกค้าอ่านข้อความของร้านถึงจุดไหนแล้ว (เหมือน DEEP เดิมที่มี `buyerLastReadAt`/
+`shopLastReadAt` อยู่แล้ว) — ช่องทางนอกไม่มีแนวคิด "ห้อง" แบบเดียวกัน ต้องอาศัย watermark จาก Meta
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-READ-01 | webhook event `message_reads` (`{sender, read: {watermark}}`) → `Conversation.externalReadAt = watermark` เฉพาะเมื่อใหม่กว่าค่าที่เก็บไว้ (กัน event มาสลับลำดับ) |
+| FR-READ-02 | ข้อความฝั่งร้าน (`senderRole='SHOP'`) ที่ `createdAt <= externalReadAt` = ถือว่า "อ่านแล้ว" — คำนวณที่ UI (ไม่มีคอลัมน์ read ต่อข้อความ) |
+
+### E6.2 Data / Code
+
+- `Conversation.externalReadAt DateTime?` — migration ก่อนหน้าชุด S-7 (ไม่ใช่ของ 2026-07-25 แต่ระบุ
+  ที่นี่เพราะ SRS/SDS เดิมไม่เคยพูดถึง)
+- `ingestReadEvent({provider, pageExternalId, contactExternalId, watermark})` (`channel-chat.service.ts`)
+  — resolve `ShopChannel` + `ExternalContact` แล้ว `updateMany` เฉพาะ `externalReadAt IS NULL OR < watermark`
+- webhook route: `event.read` มา → เรียก `ingestReadEvent` แทน `ingestInboundMessage` (แยก branch ตาม
+  field ที่มาก่อน `event.message`)
+- Page ที่ไม่มีร้านเชื่อม/contact ไม่พบ → เงียบ (ไม่ throw, ตอบ 200 ปกติ)
+
+---
+
+## E7 — Reaction บนข้อความ (`message_reactions`)
+
+### E7.1 Requirement
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-REACT-01 | ลูกค้า react อีโมจิบนข้อความ (Messenger/IG) → `ChatMessage.reactionEmoji` = อีโมจิล่าสุด แสดงมุมล่างบับเบิลในเธรด |
+| FR-REACT-02 | unreact (`action='unreact'`) → `reactionEmoji = null` |
+| FR-REACT-03 | unsend ข้อความ (E9) ล้าง `reactionEmoji` ไปด้วย (ข้อความถูกลบไม่ควรมี reaction ค้าง) |
+
+### E7.2 Data / Code
+
+- `ChatMessage.reactionEmoji String?` — migration `20260725100000_chat_reaction_referral`
+- `webhook-types.ts`: `ReactionSchema {reaction, emoji, action, mid}` — `emoji` = Unicode จริงที่ลูกค้ากด, `reaction` = semantic label ของ Meta (ไม่ใช้แสดงผล)
+- `ingestReactionEvent({provider, pageExternalId, mid, action, emoji})` — `updateMany({externalMessageId: mid, conversation: {shopChannelId}})` scope กันข้ามร้าน; เก็บ emoji ตรง ๆ ไม่ normalize
+- webhook route: `event.reaction` มา → เรียกฟังก์ชันนี้ (ก่อน branch ข้อความปกติ)
+
+---
+
+## E8 — Referral / context โฆษณา-ลิงก์ (`messaging_referrals`)
+
+### E8.1 Requirement
+
+**Goal:** แสดง badge บนหัวเธรดว่าลูกค้าทักมาจากไหน (โฆษณา/ลิงก์แชร์) — ช่วย seller ประเมินคุณภาพลูกค้า/
+แคมเปญ ไม่ต้องเดา
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-REF-01 | `referral` มาได้ 2 ทาง — top-level `event.referral` (`messaging_referrals` webhook field) หรือ `message.referral` (ผูกกับข้อความแรกของเธรด) — ทั้งคู่ schema เดียวกัน |
+| FR-REF-02 | เก็บ context เฉพาะ**ตอนสร้างเธรดใหม่ครั้งแรกเท่านั้น** (`Conversation.referralSource`/`referralAdTitle`) — ไม่อัปเดตซ้ำภายหลัง (เป็น "context แรกเข้า" ไม่ใช่ log ทุกครั้ง) |
+| FR-REF-03 | `referralSource` = `"ADS"` \| `"SHORTLINK"` (ค่าจาก Meta); `referralAdTitle` = `ads_context_data.ad_title` เฉพาะกรณีมาจากโฆษณา |
+
+### E8.2 Data / Code
+
+- `Conversation.referralSource String?` / `referralAdTitle String?` — migration `20260725100000_chat_reaction_referral`
+- `webhook-types.ts`: `ReferralSchema {ref, source, type, ad_id, ads_context_data{ad_title}}`
+- `ingestInboundMessage`: ตอน `create` เธรดใหม่ (ไม่ใช่ตอน `findUnique` เจอของเดิม) → `const referral = event.message?.referral ?? event.referral` แล้วเซ็ต 2 คอลัมน์ถ้ามี — ไม่มี code path ใดเขียนซ้ำหลังจากนั้น
+
+### E8.3 Known Gap
+
+- **Subscribe field `messaging_referrals`:** `MESSENGER_SUBSCRIBED_FIELDS` (`src/lib/facebook/constants.ts`)
+  ที่ `SRS.md §8` ระบุไว้ (`['messages', 'messaging_postbacks', 'message_reactions']`) **ไม่มี**
+  `messaging_referrals` — เพจที่เชื่อมไปแล้วก่อนรอบนี้ (subscribe fields เดิม) จะไม่ได้ event referral
+  แบบ top-level (`event.referral`) จนกว่าจะ reconnect เพจใหม่ (subscribe fields ปัจจุบันของเพจนั้นถูก
+  fix ค้างตอน subscribe ครั้งแรก) — **ยังทำงานได้บางส่วน** ผ่าน `message.referral` (มากับ event ข้อความ
+  ปกติที่ subscribe ด้วย `messages` field อยู่แล้ว) แต่ referral ที่มาแบบ "pure referral" (ลูกค้าคลิก
+  แต่ยังไม่พิมพ์อะไร) จะไม่ถูกจับสำหรับเพจเก่า
+
+---
+
+## E9 — Reply (ตอบทับข้อความ) + Unsend
+
+### E9.1 Requirement
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-REPLY-01 | ลูกค้า/ร้าน "ตอบทับ" ข้อความหนึ่ง (`message.reply_to.mid`) → เก็บ `ChatMessage.replyToMid` = mid ของข้อความต้นทาง — UI ดึงมาแสดงเป็น quote เหนือข้อความ |
+| FR-UNSEND-01 | ผู้ส่ง unsend ข้อความ (`message.is_deleted=true`, `mid`=ข้อความที่ถูกลบ) → `ChatMessage.isDeleted=true` **บนข้อความเดิม** (ไม่สร้างแถวใหม่) + ล้าง `body`/`imageUrl`/`reactionEmoji` เป็น `null` — ไม่เก็บเนื้อหาที่ถูกลบไว้เลย |
+| FR-UNSEND-02 | UI แสดง "ข้อความถูกลบ" แทนเนื้อหาเดิมสำหรับข้อความที่ `isDeleted=true` |
+
+### E9.2 Business Rules
+
+- **BR-REPLY-01** `replyToMid` เก็บแค่ `mid` ดิบ — ไม่ resolve เป็น `ChatMessage.id` ภายใน (ไม่มี FK จริง เพราะข้อความต้นทางอาจยังไม่ถึงหรือถูกลบไปแล้ว) UI ต้อง lookup เอง (`findFirst` ด้วย `externalMessageId`) ตอน render — ไม่พบ = แสดง "ข้อความต้นฉบับไม่พบ" แทน crash
+- **BR-UNSEND-01** unsend scope ด้วย `conversation: {shopChannelId: channel.id}` กันข้ามร้าน (ข้อความ mid เดียวกันในเธรดร้านอื่นไม่ถูกกระทบ — ในทางทฤษฎีไม่ชนกันอยู่แล้วเพราะ `externalMessageId` unique ทั้งระบบ แต่ scope ไว้เป็น defense-in-depth)
+- **BR-UNSEND-02** unsend ไม่ลบแถว `ChatMessage` ทิ้ง (soft — `isDeleted=true`) เพื่อรักษาลำดับ/จำนวนข้อความในเธรดให้ต่อเนื่อง เหมือนพฤติกรรมจริงของ Messenger/IG app
+
+### E9.3 Data / Code
+
+- `ChatMessage.replyToMid String?` / `isDeleted Boolean @default(false)` — migration `20260725110000_chat_reply_unsend`
+- `webhook-types.ts` `MessageSchema` เพิ่ม `reply_to: {mid?}` / `is_deleted?: boolean`
+- `ingestInboundMessage`: เช็ค `event.message.is_deleted` **ก่อน**ทุกอย่าง (ก่อนแม้แต่ resolve contact/profile) → `updateMany` แล้ว `return` ทันที ไม่ไหลต่อไป insert ข้อความใหม่; ข้อความปกติ (ไม่ใช่ unsend) แนบ `replyToMid: event.message?.reply_to?.mid ?? null` ตอน `create`
+- ขาออก (ร้านตอบทับ/unsend เอง) — **ยังไม่ implement** (ดู Carry)
+
+### E9.4 Test Cases
+
+| TC | สถานการณ์ | คาดหวัง |
+|---|---|---|
+| TC-REPLY-01 | ลูกค้าตอบทับข้อความเก่า | `ChatMessage.replyToMid` = mid ข้อความเก่า |
+| TC-UNSEND-01 | ลูกค้า unsend ข้อความที่เคยมีรูป+reaction | `body`/`imageUrl`/`reactionEmoji` เป็น `null`, `isDeleted=true`, แถวยังอยู่ (ไม่หาย) |
+| TC-UNSEND-02 | unsend ข้อความที่ mid ไม่ตรงกับเธรดในร้านนี้ (defense) | ไม่มีแถวไหนถูกแก้ (`updateMany` scope ผิดร้าน = 0 rows) |
+
+---
+
 ## Carry / หนี้ที่เหลือ
 
 - **PDF ใบเสนอราคาจริง** — ตอนนี้ลิงก์หน้า `/o/{token}` แทน (user เลือกลิงก์ก่อน)
@@ -238,3 +452,14 @@ sequenceDiagram
   Chrome-DevTools E2E (worktree ไม่มี dev server) — user เทสบน prod
 - **ข้อความเก่าที่ mirror ล้มไปแล้ว** (E2) ยังเป็น placeholder — mirror ย้อนหลังไม่ได้ (asset URL Meta
   หมดอายุ) เว้นทำ backfill re-mirror แยก
+- **`messaging_referrals` subscribe field ขาด** (E8.3) — เพจที่เชื่อมก่อนรอบนี้ต้อง reconnect ถึงจะได้
+  pure-referral event เต็มรูป
+- **Reply/Unsend ขาออก** (E9.3) — ร้านตอบทับ/ลบข้อความของตัวเองจาก Deep ยังทำไม่ได้ (inbound-only เหมือน
+  reaction ขาออกที่ยังไม่มี)
+- **ไม่แสดงชื่อ staff ที่ส่งข้อความฝั่งร้าน** — ข้อความที่ Deep ส่งเอง (`sendOutboundMessage`) มี
+  `senderUserId` จริง (รู้ว่า staff คนไหนกด) แต่ echo จากแอป Messenger/IG โดยตรง (`is_echo`) Meta ไม่บอกว่า
+  พนักงานคนไหนพิมพ์ — `senderUserId=null` เสมอสำหรับ echo จึงแสดงได้แค่ "ร้าน" รวม ๆ ไม่ระบุตัวบุคคลได้
+  ครบทุกเคส (ยังไม่มี UI ทำ mapping ส่วนที่ทำได้ด้วยซ้ำ)
+- **Attachment ที่ยังไม่ยืนยัน payload จริง** — `story_reply`, IG-specific commands, `template_type=media`/`product`
+  ยังอยู่ระหว่าง diagnose (log `attType` + payload keys ไว้ใน `console.warn('[fb-ingest] unhandled attachment')`
+  แล้วรอเคสจริงจาก prod ก่อนเขียน handler เฉพาะ — ไม่เดา schema ล่วงหน้า)
