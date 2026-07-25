@@ -31,6 +31,7 @@ import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
 
+import { signIn } from 'next-auth/react'
 import { toast } from 'react-toastify'
 
 import CustomTextField from '@core/components/mui/TextField'
@@ -51,8 +52,11 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
   const [sending, setSending] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // ข้อความอธิบายยาวสำหรับเคสที่ไปต่อในหน้านี้ไม่ได้ (เบอร์มีบัญชีอื่นถืออยู่ ฯลฯ)
+  // ข้อความอธิบายยาวสำหรับเคสที่ไปต่อในหน้านี้ไม่ได้ (บัญชีต้นทางมีข้อมูลแล้ว ฯลฯ)
   const [blocked, setBlocked] = useState<string | null>(null)
+  // ticket เชื่อมบัญชี — มีค่าเมื่อเบอร์ที่ยืนยันเป็นของบัญชีเดิมที่เคยสมัครไว้ (S-5)
+  const [linkTicket, setLinkTicket] = useState<string | null>(null)
+  const [linking, setLinking] = useState(false)
 
   const phoneValid = /^0[0-9]{9}$/.test(phone)
 
@@ -86,6 +90,48 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
     }
   }
 
+  // ย้าย provider ที่ล็อกอินอยู่ไปผูกกับบัญชีเดิม แล้ว signIn ซ้ำเพื่อให้ session กลายเป็น
+  // บัญชีเดิม (JWT ปัจจุบันยังชี้บัญชีที่เพิ่งถูกย้าย provider ออกไป จึงต้อง re-auth เสมอ)
+  const handleLink = async () => {
+    if (!linkTicket) return
+    setLinking(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/orders/${token}/link-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket: linkTicket }),
+      })
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; provider?: string; error?: string; code?: string }
+        | null
+
+      if (res.ok && data?.provider) {
+        await signIn(data.provider, { callbackUrl: `/o/${token}` })
+        return
+      }
+      if (data?.code === 'SOURCE_HAS_DATA') {
+        setLinkTicket(null)
+        setBlocked(
+          'บัญชีที่คุณใช้อยู่มีประวัติการใช้งานแล้ว จึงเชื่อมอัตโนมัติไม่ได้ กรุณาติดต่อแอดมินเพื่อรวมบัญชีให้',
+        )
+        return
+      }
+      if (data?.code === 'ALREADY_LINKED') {
+        setLinkTicket(null)
+        setBlocked(
+          'บัญชีเดิมของคุณเชื่อมช่องทางนี้ไว้อยู่แล้ว กรุณาออกจากระบบแล้วเข้าสู่ระบบด้วยบัญชีเดิมโดยตรง',
+        )
+        return
+      }
+      setError(data?.error ?? 'เชื่อมบัญชีไม่สำเร็จ กรุณาลองใหม่')
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
+    } finally {
+      setLinking(false)
+    }
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -106,8 +152,16 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
         router.refresh()
         return
       }
-      const data = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; code?: string; linkTicket?: string }
+        | null
 
+      // เบอร์นี้เป็นของบัญชีเดิมที่เคยสมัครไว้ → เสนอเชื่อมบัญชีให้เลย (S-5)
+      // linkTicket = ผลการพิสูจน์ OTP ที่เพิ่งผ่าน ส่งต่อข้ามคำขอโดยไม่ต้องขอ OTP ซ้ำ
+      if (data?.code === 'ACCOUNT_EXISTS' && data.linkTicket) {
+        setLinkTicket(data.linkTicket)
+        return
+      }
       if (data?.code === 'ACCOUNT_EXISTS') {
         setBlocked(
           'เบอร์นี้มีบัญชีอยู่แล้ว — ออกจากระบบแล้วเข้าสู่ระบบใหม่ด้วยเบอร์นี้และรหัส OTP จากนั้นเปิดลิงก์คำสั่งซื้ออีกครั้ง',
@@ -141,7 +195,46 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
               <Typography>กรอกเบอร์โทรที่แจ้งไว้กับร้าน เพื่อยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อนี้</Typography>
             </div>
 
-            {blocked ? (
+            {linkTicket ? (
+              /* เบอร์ตรงกับบัญชีเดิมที่เคยสมัครไว้ — เสนอเชื่อมให้จบในปุ่มเดียว
+                 ต้องอธิบายให้ชัดว่าเชื่อมแล้วได้อะไร ไม่ใช่แค่บอกว่ามีบัญชีอยู่แล้ว */
+              <div className='flex flex-col gap-6'>
+                <Alert severity='info'>
+                  <Typography className='font-medium' color='text.primary'>
+                    เบอร์นี้เคยสมัคร {META_DATA.name} ไว้แล้ว
+                  </Typography>
+                  <Typography variant='body2'>
+                    เชื่อมบัญชีที่คุณเพิ่งเข้าสู่ระบบเข้ากับบัญชีเดิมได้เลย
+                    ประวัติการสั่งซื้อและคะแนนความน่าเชื่อถือทั้งหมดจะอยู่ที่เดียวกัน
+                    ครั้งต่อไปเข้าสู่ระบบด้วยช่องทางไหนก็ได้
+                  </Typography>
+                </Alert>
+
+                {error && (
+                  <Typography color='error.main' className='text-center text-sm'>
+                    {error}
+                  </Typography>
+                )}
+
+                <Button fullWidth variant='contained' onClick={handleLink} disabled={linking}>
+                  {linking ? 'กำลังเชื่อมบัญชี…' : 'เชื่อมกับบัญชีเดิม'}
+                </Button>
+
+                <Typography
+                  component='button'
+                  type='button'
+                  onClick={() => {
+                    setLinkTicket(null)
+                    setStage('phone')
+                  }}
+                  color='text.secondary'
+                  className='text-center text-sm'
+                  sx={{ background: 'none', border: 0, cursor: 'pointer' }}
+                >
+                  ใช้เบอร์อื่นแทน
+                </Typography>
+              </div>
+            ) : blocked ? (
               <div className='flex flex-col gap-6'>
                 <Alert severity='warning'>{blocked}</Alert>
                 <Button fullWidth variant='contained' onClick={() => router.refresh()}>

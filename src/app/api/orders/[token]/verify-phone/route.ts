@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
 import { verifyOtp } from "@/lib/otp";
 import { guaranteeOrderLink } from "@/services/order-access.service";
+import { signAccountMergeTicket } from "@/lib/account-merge-ticket";
 
 const Body = v.object({
   phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
@@ -87,11 +88,22 @@ export async function POST(
   });
 
   if (phoneOwner && phoneOwner.id !== sessionUserId) {
-    // เบอร์นี้เป็นของบัญชีอื่นที่มีอยู่แล้ว (ผู้ซื้อเคยสมัครด้วย OTP มาก่อน แล้วรอบนี้ล็อกอิน
-    // ด้วย Facebook จึงได้บัญชีใหม่คนละใบ) — การเชื่อมสองบัญชีเข้าด้วยกันเป็นงานของ S-5
-    // ระหว่างนี้ยังไปต่อได้จริงด้วยการกลับไปล็อกอินด้วยเบอร์นี้ (UI อธิบายให้)
+    // เบอร์นี้เป็นของบัญชีอื่นที่มีอยู่แล้ว — ผู้ซื้อเคยสมัครด้วย OTP มาก่อน แล้วรอบนี้ล็อกอิน
+    // ด้วย Facebook จึงได้บัญชีใหม่คนละใบ ตามหลัก "เบอร์ = single source of truth" บัญชีที่
+    // ถือเบอร์คือเจ้าของตัวจริง จึงเสนอให้ย้าย Facebook ไปผูกกับบัญชีเดิม (S-5)
+    //
+    // ผู้ใช้เพิ่งพิสูจน์ด้วย OTP ไปแล้วว่าคุมเบอร์นี้จริง จึงส่งผลการพิสูจน์นั้นต่อเป็น ticket
+    // ที่ลงลายเซ็น แทนที่จะบังคับขอ OTP ใหม่อีกรอบเพื่อพิสูจน์สิ่งเดิมซ้ำสอง
     return NextResponse.json(
-      { error: "เบอร์นี้มีบัญชีอยู่แล้ว", code: "ACCOUNT_EXISTS" },
+      {
+        error: "เบอร์นี้มีบัญชีอยู่แล้ว",
+        code: "ACCOUNT_EXISTS",
+        linkTicket: signAccountMergeTicket({
+          fromUserId: sessionUserId,
+          toUserId: phoneOwner.id,
+          orderId: order.id,
+        }),
+      },
       { status: 409 },
     );
   }
