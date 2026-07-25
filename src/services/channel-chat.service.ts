@@ -2,26 +2,49 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, fetchMessageText } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
-import { saveFile, getFileUrl } from '@/lib/storage'
+import { saveFile } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 import type { MessagingEvent } from '@/lib/facebook/webhook-types'
+import { getChannelProvider, resolveWindowState, type WindowState } from '@/lib/channel-providers'
+import { META_WINDOW_MS, isMetaMirrorAllowedHost } from '@/lib/channel-providers/meta'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
+//
+// feature 00020 Phase 2: การส่งออก/กฎหน้าต่างเวลา/การตีความ token ตาย ย้ายไปอยู่หลัง
+// ChannelProvider (src/lib/channel-providers/) แล้ว — ฟังก์ชันในไฟล์นี้ที่ยังผูกกับ Meta ตรง ๆ
+// คือ **เส้นทางขาเข้า** (ingestInboundMessage / syncInboundWindowFromMeta) ซึ่งจะย้ายใน Phase 3
+// เมื่อรู้รูป payload จริงของ TikTok (OQ-TTC-02/03) — ย้ายก่อนรู้รูปจริงจะได้ abstraction ที่เดาเอา
 
 // หน้าต่างตอบกลับมาตรฐานของ Meta — นับจากข้อความล่าสุด "ของลูกค้า"
-export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000
+// คง export ไว้เพื่อความเข้ากันได้ย้อนหลัง (UI/เทสเดิมอ้างค่านี้อยู่); ค่าจริงเป็นของ Meta provider
+// โค้ดใหม่ควรอ่านจาก provider.capabilities.windowMs ไม่ใช่ค่าคงที่นี้ เพราะแต่ละช่องทางไม่เท่ากัน
+export const MESSAGING_WINDOW_MS = META_WINDOW_MS
 
-export function getWindowState(
+/**
+ * หน้าต่างเวลาแบบ Meta (24 ชม.) — คงลายเซ็นเดิม `(lastInboundAt, now)` ไว้ไม่เปลี่ยน
+ * เพราะ caller เดิมส่ง `now` เป็น argument ที่สอง (เทสเดิมด้วย) การเปลี่ยนเป็น provider ที่ตำแหน่งนี้
+ * จะพังของเดิมเงียบ ๆ — ช่องทางอื่นให้ใช้ getWindowStateForChannel() แทน
+ */
+export function getWindowState(lastInboundAt: Date | null, now: Date = new Date()): WindowState {
+  return resolveWindowState({ windowMs: META_WINDOW_MS }, lastInboundAt, now)
+}
+
+/**
+ * หน้าต่างเวลาตามกฎของช่องทางนั้นจริง ๆ (BR-TTC-19 "กฎการส่งขึ้นกับช่องทาง")
+ * - ช่องทางที่ไม่มีหน้าต่างเวลา (เช่น TikTok Shop) → เปิดตลอด, `expiresAt = null`
+ * - ช่องทางที่ registry ไม่รู้จัก / เธรด DEEP → ปิด (ไม่มีทางส่งออกได้อยู่แล้ว)
+ */
+export function getWindowStateForChannel(
+  channel: string | null | undefined,
   lastInboundAt: Date | null,
   now: Date = new Date(),
-): { open: boolean; expiresAt: Date | null; msRemaining: number } {
-  if (!lastInboundAt) return { open: false, expiresAt: null, msRemaining: 0 }
-  const expiresAt = new Date(lastInboundAt.getTime() + MESSAGING_WINDOW_MS)
-  const msRemaining = expiresAt.getTime() - now.getTime()
-  return { open: msRemaining > 0, expiresAt, msRemaining: Math.max(0, msRemaining) }
+): WindowState {
+  const provider = getChannelProvider(channel)
+  if (!provider) return { open: false, expiresAt: null, msRemaining: 0 }
+  return resolveWindowState(provider.capabilities, lastInboundAt, now)
 }
 
 /**
@@ -81,22 +104,9 @@ const MIRROR_FAILED_TEXT = '[ลูกค้าส่งรูปภาพ — �
 // echo ของฝั่งร้าน — ถ้าเขียนว่า "ลูกค้าส่ง" จะโกหกเมื่อคนส่งคือร้านเอง (เห็นจริงใน prod)
 const UNSUPPORTED_ATTACHMENT_TEXT = '[ไฟล์แนบ — เปิดดูใน Messenger]'
 
-// (S-1) allow-list ของ host ที่ยอมให้ mirrorRemoteImage ยิง fetch ออกไปได้ — เฉพาะ CDN ของ Meta
-// เท่านั้น. attachments[].payload.url มาจาก webhook payload ซึ่งถ้า FB_CHAT_APP_SECRET หลุด
-// ผู้โจมตีปลอม webhook ที่ผ่านลายเซ็นได้แล้วยัด url เป็น internal address (เช่น
-// http://169.254.169.254/... metadata endpoint ของ cloud) เซิร์ฟเวอร์เราจะยิง SSRF ไปแทน
-// เทียบ hostname แบบ exact หรือ suffix ที่ขึ้นต้นด้วย "." เท่านั้น (กัน "evil-fbcdn.net" ปลอมตัว
-// ผ่าน .endsWith('fbcdn.net') ตรง ๆ)
-// fbsbx.com: CDN ของ "ไฟล์แนบ" Messenger (วิดีโอ/เสียง/ไฟล์ มักอยู่ lookaside.fbsbx.com/cdn.fbsbx.com
-// ไม่ใช่ fbcdn.net เหมือนรูป) — feature 00018 mirror ไฟล์แนบ
-const MIRROR_ALLOWED_HOSTS_EXACT = new Set(['graph.facebook.com', 'fbcdn.net', 'cdninstagram.com', 'fbsbx.com'])
-const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com', '.fbsbx.com']
-
-function isAllowedMirrorHost(hostname: string): boolean {
-  const h = hostname.toLowerCase()
-  if (MIRROR_ALLOWED_HOSTS_EXACT.has(h)) return true
-  return MIRROR_ALLOWED_HOST_SUFFIXES.some((suffix) => h.endsWith(suffix))
-}
+// (S-1) allow-list ของ host ที่ยอมให้ mirror ยิง fetch ออกไปได้ — ย้ายไปอยู่กับ provider แล้ว
+// (feature 00020 Phase 2) เพราะ CDN ที่ปลอดภัยต่างกันตามช่องทาง: Meta ใช้ fbcdn/cdninstagram/fbsbx,
+// TikTok จะมีชุดของตัวเอง. เหตุผลเชิงความปลอดภัยและกฎการเทียบ suffix อยู่ใน channel-providers/meta.ts
 
 const MIRROR_FETCH_TIMEOUT_MS = 10_000
 
@@ -148,16 +158,22 @@ function isUniqueViolationOn(e: unknown, field: string): boolean {
 // เก็บ "fileId ของ storage" ไม่ใช่ URL (ดู fileIdExt ที่ route messages ใช้ตรวจนามสกุล)
 //
 // คืน null เมื่อดึงไม่ได้ — ข้อความยังต้องถูกบันทึกอยู่ดี ห้ามทิ้งทั้งข้อความเพราะรูปพัง
-export async function mirrorRemoteImage(url: string): Promise<string | null> {
+//
+// `isAllowedHost` default เป็น allow-list ของ Meta เพื่อคงพฤติกรรมเดิมของ caller ทั้งหมด
+// (feature 00020 Phase 2 — ช่องทางใหม่ส่ง predicate ของตัวเองเข้ามาแทนใน Phase 3)
+export async function mirrorRemoteImage(
+  url: string,
+  isAllowedHost: (hostname: string) => boolean = isMetaMirrorAllowedHost,
+): Promise<string | null> {
   // (S-1) เช็ค host allow-list + บังคับ https ก่อนยิง fetch เสมอ — กัน SSRF ผ่าน
-  // attachments[].payload.url ที่ปลอมมากับ webhook (ดู comment ของ MIRROR_ALLOWED_HOSTS_EXACT)
+  // attachments[].payload.url ที่ปลอมมากับ webhook (ดู channel-providers/meta.ts)
   let parsed: URL
   try {
     parsed = new URL(url)
   } catch {
     return null
   }
-  if (parsed.protocol !== 'https:' || !isAllowedMirrorHost(parsed.hostname)) return null
+  if (parsed.protocol !== 'https:' || !isAllowedHost(parsed.hostname)) return null
 
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(MIRROR_FETCH_TIMEOUT_MS) })
@@ -588,44 +604,49 @@ export async function sendOutboundMessage(params: {
     throw new Error('NOT_EXTERNAL_CHANNEL')
   }
 
+  // provider ของช่องทางนี้ (feature 00020 Phase 2) — ค่า channel ใน DB เป็น String อิสระ
+  // แถวที่มาจากช่องทางที่ registry ไม่รู้จักถือว่าส่งออกไม่ได้ เหมือนเธรด DEEP
+  const provider = getChannelProvider(conversation.channel)
+  if (!provider) throw new Error('NOT_EXTERNAL_CHANNEL')
+
   // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
   // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
   if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
 
-  // เช็คหน้าต่าง 24 ชม. ก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว
-  if (!getWindowState(conversation.lastInboundAt).open) throw new Error('WINDOW_CLOSED')
+  // เช็คหน้าต่างเวลา "ตามกฎของช่องทางนั้น" ก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว
+  // (Meta = 24 ชม.; ช่องทางที่ไม่มีหน้าต่างเวลาจะได้ open = true เสมอ — BR-TTC-19/20)
+  if (!resolveWindowState(provider.capabilities, conversation.lastInboundAt).open) {
+    throw new Error('WINDOW_CLOSED')
+  }
 
   // เช็คสถานะ channel ก่อนยิง Send API — token ตายแล้ว (ถูก markChannelTokenInvalid ไว้) หรือ
   // ร้านถอดการเชื่อมต่อไปแล้ว ยิงไปก็ error 190 ซ้ำแน่ ๆ ไม่ต้องเสีย round-trip ไป Graph (M-6)
   if (conversation.shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_NOT_ACTIVE')
 
-  const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
-  const recipientId = conversation.externalContact.externalUserId
   const isImage = !!params.imageFileId
   const bodyText = params.text ?? ''
 
+  // token ถอดรหัสตรงนี้แล้วส่งเข้า provider — provider ไม่แตะ DB/ไม่รู้จัก Prisma
+  // (ห้าม log ค่านี้ ห้ามส่งกลับ client — BR-TTC-05)
+  const target = {
+    accessToken: decryptToken(conversation.shopChannel.accessTokenEnc),
+    recipientExternalId: conversation.externalContact.externalUserId,
+    channelExternalId: conversation.shopChannel.externalId,
+  }
+
+  // หมายเหตุขอบเขต Phase 2: **ยังไม่บังคับ** capabilities.textLimit / maxConsecutiveOutbound ที่นี่
+  // เพราะของเดิมไม่เคยเช็ค — เพิ่มตอนนี้จะเป็นการเปลี่ยนพฤติกรรมของ Messenger ที่ใช้จริงบน prod
+  // (ขัด BR-TTC-35) ทั้งสองข้อบังคับใช้พร้อมช่องทางที่ต้องใช้จริง (BR-TTC-21/22, Phase 3/5)
   let mid: string | null = null
   let failureReason: string | null = null
   try {
-    // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
-    // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
-    // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
-    if (isImage) {
-      // presigned URL อายุ 1 ชม. — Meta ดึงรูปไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
-      const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-      mid = await sendImageMessage(pageToken, recipientId, imageUrl)
-      // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
-      // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
-      if (bodyText.trim()) {
-        await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
-      }
-    } else {
-      mid = await sendTextMessage(pageToken, recipientId, bodyText)
-    }
+    mid = isImage
+      ? await provider.sendImage(target, params.imageFileId!, bodyText)
+      : await provider.sendText(target, bodyText)
   } catch (e) {
     failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
-    // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
-    if (e instanceof GraphApiError && e.code === 190) {
+    // การเชื่อมต่อใช้ไม่ได้แล้ว (Meta = code 190; เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
+    if (provider.isTokenDeadError(e)) {
       await markChannelTokenInvalid(conversation.shopChannel.id)
     }
   }
