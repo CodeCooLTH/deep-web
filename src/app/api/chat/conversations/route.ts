@@ -5,7 +5,6 @@ import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
 import { resolveActiveShopContext } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import {
   getOrCreateConversation,
   listConversationsForShop,
@@ -108,30 +107,18 @@ async function enrichWithBuyerCounterparty(
 }
 
 /**
- * enrichWithLatestOrder (user request 2026-07-25) — โชว์ "เลขคำสั่งซื้อ" ในแถว inbox ฝั่ง seller
- * ถ้าลูกค้าของเธรดนั้นมีออเดอร์แล้ว. enrichment แยกไม่แตะ ConversationSummary (FROZEN CONTRACT, SDS §5)
- * เหมือน counterparty/unread
+ * enrichWithOrderCount (user request 2026-07-25) — จำนวนออเดอร์ของลูกค้าเธรดนั้น เพื่อโชว์ไอคอน
+ * ตะกร้า + จำนวน ในแถว inbox ฝั่ง seller (กดแล้วเปิด right panel รายการคำสั่งซื้อ). enrichment แยก
+ * ไม่แตะ ConversationSummary (FROZEN CONTRACT, SDS §5) เหมือน counterparty/unread
  *
  * เส้นเชื่อม conversation → Customer: เธรดช่องทางนอก = ExternalContact.customerId,
  * เธรด DEEP = User.customer (back-relation Customer.userId) — ตรงกับ orders route (S-7)
  *
- * กัน N+1: resolve customerId ทั้งหน้าเป็น 2 batch query แล้ว
- *  - latest order ต่อ customer = DISTINCT ON (Postgres) เรียง createdAt DESC (bounded 1 แถว/customer)
- *  - จำนวนออเดอร์ต่อ customer = groupBy count
- * รวมทุกชนิดออเดอร์ (BOOKING ก็คือ Order) — ล่าสุดจริงตามเวลาสั่ง, สถานะสื่อด้วยสี pill ฝั่ง UI
+ * กัน N+1: resolve customerId ทั้งหน้า แล้วนับด้วย groupBy count query เดียว (รวมทุกชนิดออเดอร์)
  */
-type LatestOrderInfo = {
-  publicToken: string;
-  shortCode: string | null;
-  status: string;
-};
-
-async function enrichWithLatestOrder<
+async function enrichWithOrderCount<
   T extends { externalContactId: string | null; buyerUserId: string | null },
->(
-  items: T[],
-  shopId: string,
-): Promise<(T & { latestOrder: LatestOrderInfo | null; orderCount: number })[]> {
+>(items: T[], shopId: string): Promise<(T & { orderCount: number })[]> {
   const externalContactIds = [
     ...new Set(items.map((i) => i.externalContactId).filter((x): x is string => x !== null)),
   ];
@@ -165,44 +152,19 @@ async function enrichWithLatestOrder<
 
   const customerIds = [...new Set(items.map(customerIdOf).filter((x): x is string => x !== null))];
   if (customerIds.length === 0) {
-    return items.map((i) => ({ ...i, latestOrder: null, orderCount: 0 }));
+    return items.map((i) => ({ ...i, orderCount: 0 }));
   }
 
-  const [latestRows, countRows] = await Promise.all([
-    prisma.$queryRaw<
-      Array<LatestOrderInfo & { customerId: string }>
-    >`
-      SELECT DISTINCT ON ("customerId")
-        "customerId", "publicToken", "shortCode", "status"
-      FROM "Order"
-      WHERE "shopId" = ${shopId} AND "customerId" IN (${Prisma.join(customerIds)})
-      ORDER BY "customerId", "createdAt" DESC
-    `,
-    prisma.order.groupBy({
-      by: ["customerId"],
-      where: { shopId, customerId: { in: customerIds } },
-      _count: { _all: true },
-    }),
-  ]);
-  const latestMap = new Map(latestRows.map((r) => [r.customerId, r]));
-  const countMap = new Map(
-    countRows.map((r) => [r.customerId as string, r._count._all]),
-  );
+  const countRows = await prisma.order.groupBy({
+    by: ["customerId"],
+    where: { shopId, customerId: { in: customerIds } },
+    _count: { _all: true },
+  });
+  const countMap = new Map(countRows.map((r) => [r.customerId as string, r._count._all]));
 
   return items.map((i) => {
     const cid = customerIdOf(i);
-    const latest = cid ? latestMap.get(cid) : undefined;
-    return {
-      ...i,
-      latestOrder: latest
-        ? {
-            publicToken: latest.publicToken,
-            shortCode: latest.shortCode,
-            status: latest.status,
-          }
-        : null,
-      orderCount: cid ? countMap.get(cid) ?? 0 : 0,
-    };
+    return { ...i, orderCount: cid ? countMap.get(cid) ?? 0 : 0 };
   });
 }
 
@@ -315,8 +277,8 @@ export async function GET(request: NextRequest) {
     // enrichment แยกเหมือน counterparty ไม่แตะ ConversationSummary (FROZEN CONTRACT)
     const unreadMap = await countUnreadByConversation(enriched.map((i) => i.id));
     const withUnread = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
-    // เลขคำสั่งซื้อในแถว (user request 2026-07-25) — เฉพาะ seller inbox
-    const items = await enrichWithLatestOrder(withUnread, activeCtx.shopId);
+    // จำนวนออเดอร์ในแถว (user request 2026-07-25) — ไอคอนตะกร้า + จำนวน, เฉพาะ seller inbox
+    const items = await enrichWithOrderCount(withUnread, activeCtx.shopId);
     return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
   }
 

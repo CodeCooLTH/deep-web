@@ -79,7 +79,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
-import { ORDER_STATUS_META } from '@/lib/order-display'
 import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
@@ -124,9 +123,8 @@ export type ConversationListItem = {
   // ตอนอยู่แท็บ "ทั้งหมด" ให้รู้ว่าเธรดนี้อยู่กลุ่มไหน (user สั่ง 2026-07-24)
   chatGroupId?: string | null
   isSpam?: boolean // feature 00018 — เธรดสแปม (user สั่ง 2026-07-24); ตัดสิน action spam/unspam ใน mini-action
-  // user request 2026-07-25 — ออเดอร์ล่าสุดของลูกค้าเธรดนี้ (ถ้ามี) โชว์เป็นชิปเลขคำสั่งซื้อกดได้
-  // enrich ที่ route (/api/chat/conversations seller) — optional เผื่อ payload เก่า/ลูกค้าไม่มีออเดอร์
-  latestOrder?: { publicToken: string; shortCode: string | null; status: string } | null
+  // user request 2026-07-25 — จำนวนออเดอร์ของลูกค้าเธรดนี้ โชว์ไอคอนตะกร้า + จำนวน (กดเปิด right panel
+  // รายการคำสั่งซื้อ) — enrich ที่ route (/api/chat/conversations seller); optional เผื่อ payload เก่า
   orderCount?: number
 }
 
@@ -919,41 +917,30 @@ export default function InboxList({
                           )}
                         </span>
                       )}
-                      {/* user request 2026-07-25 — เลขคำสั่งซื้อล่าสุดของลูกค้า (ถ้ามี) กดเปิด order detail
-                          สี/label/icon = ORDER_STATUS_META (SSOT เดียวกับหน้า /orders/[token]) → สถานะตรงกัน
-                          ข้ามหน้า. เป็น <span role="link"> ไม่ใช่ <a>/<button> เพราะทั้งแถวอยู่ใน <Link>
-                          แล้ว — nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่ (precedent เดียวกับ
-                          ดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
-                      {c.latestOrder && (() => {
-                        const lo = c.latestOrder
-                        const s =
-                          ORDER_STATUS_META[lo.status] ??
-                          { label: lo.status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
-                        const code = lo.shortCode ?? lo.publicToken.slice(0, 8)
-                        const extra = (c.orderCount ?? 1) - 1
-                        const goToOrder = (e: React.SyntheticEvent) => {
+                      {/* user request 2026-07-25 — ไอคอนตะกร้า + จำนวนออเดอร์ของลูกค้า (ถ้ามี ≥1) กดแล้ว
+                          เปิด right panel รายการคำสั่งซื้อ (นำไป /inbox/{id}?panel=orders → CustomerPanel
+                          เปิดแท็บออเดอร์; มือถือเด้ง sheet). เป็น <span role="link"> ไม่ใช่ <a>/<button>
+                          เพราะทั้งแถวอยู่ใน <Link> — nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่
+                          (precedent เดียวกับดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
+                      {(c.orderCount ?? 0) > 0 && (() => {
+                        const openOrders = (e: React.SyntheticEvent) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          router.push(`/orders/${lo.publicToken}`)
+                          router.push(`/inbox/${c.id}?panel=orders`)
                         }
                         return (
-                          <span className="mt-1 flex items-center gap-1 overflow-hidden">
-                            <span
-                              role="link"
-                              tabIndex={0}
-                              onClick={goToOrder}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') goToOrder(e)
-                              }}
-                              aria-label={`ดูออเดอร์ ${code} สถานะ ${s.label}`}
-                              className={`badge text-2xs inline-flex max-w-44 shrink-0 cursor-pointer items-center gap-1 truncate hover:opacity-80 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-2 ${s.cls}`}
-                            >
-                              <Icon icon={s.icon} width={12} height={12} className="shrink-0" />
-                              <span className="truncate">#{code} · {s.label}</span>
-                            </span>
-                            {extra > 0 && (
-                              <span className="text-default-400 text-2xs shrink-0">+{extra}</span>
-                            )}
+                          <span
+                            role="link"
+                            tabIndex={0}
+                            onClick={openOrders}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') openOrders(e)
+                            }}
+                            aria-label={`ดูรายการคำสั่งซื้อ ${c.orderCount} รายการ`}
+                            className="badge bg-primary/15 text-primary text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 hover:bg-primary/25 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-2"
+                          >
+                            <Icon icon="shopping-cart" width={13} height={13} className="shrink-0" />
+                            {c.orderCount}
                           </span>
                         )
                       })()}
