@@ -32,10 +32,6 @@ import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 // Config Imports
 import { currentYear, META_DATA } from '@/config/constants'
 
-// Utils — เลขคำสั่งซื้ออ่านง่าย + วันที่แบบไทย (SSOT เดียวกับที่หน้าออเดอร์ใช้)
-import { formatOrderNo } from '@/lib/order-no'
-import { formatDateTimeTH } from '@/lib/format-date'
-
 // Utils — กัน open-redirect ก่อนใช้ ?callbackUrl= (ดู Hard Rule รวมถึง OQ-2)
 import { getSafeCallbackUrl } from '../_lib/safe-callback-url'
 
@@ -55,12 +51,9 @@ const phoneSchema = Yup.object({
 type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 
 /** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
-export type SignInOrderContext = {
-  publicToken: string
-  shopName: string
-  totalAmount: number
-  createdAtIso: string
-}
+import OrderLinkShell, { type OrderLinkShopContext } from './OrderLinkShell'
+
+export type SignInOrderContext = OrderLinkShopContext
 
 export default function SignInCard({ orderContext = null }: { orderContext?: SignInOrderContext | null }) {
   const router = useRouter()
@@ -134,53 +127,24 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
     }
   }
 
-  return (
-    <div className='flex min-bs-[100dvh] justify-center items-center p-6'>
-      <AuthIllustrationWrapper>
-        <Card className='flex flex-col sm:is-[450px]'>
-          <CardContent className='sm:!p-12'>
-            <Link href='/' className='flex justify-center mbe-6'>
-              <Logo />
-            </Link>
+  // เนื้อหาส่วนฟอร์ม/ปุ่ม — ใช้ร่วมกันทั้งเชลล์ปกติและเชลล์ลิงก์ออเดอร์ เพื่อไม่ให้ handler
+  // การ login (OAuth / OTP / password) ถูก duplicate สองชุด
+  const body = (
+    <>
+      <div className='flex flex-col gap-1 mbe-6'>
+        <Typography variant='h4'>
+          {orderContext ? 'ยืนยันตัวตนเพื่อดูคำสั่งซื้อ' : `ยินดีต้อนรับสู่ ${META_DATA.name}`}
+        </Typography>
+        <Typography>
+          {loginMode === 'channels'
+            ? 'เลือกช่องทางที่สะดวก ใช้เวลาไม่ถึงหนึ่งนาที'
+            : loginMode === 'password'
+              ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน'
+              : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
+        </Typography>
+      </div>
 
-            {/* บล็อกสรุปออเดอร์ — โผล่เฉพาะตอนถูก redirect มาจากลิงก์ออเดอร์ เพื่อให้ผู้ซื้อเห็นว่า
-                กำลังจะเข้าถึงคำสั่งซื้อใบไหนก่อนตัดสินใจล็อกอิน (ยอด/วันที่/ร้าน/เลขที่ เท่านั้น —
-                ไม่มี PII ของคน ดู getOrderSummaryForSignIn)
-                Base: theme/vuexy/typescript-version/full-version/src/views/pages/wizard-examples/checkout/StepCart.tsx:173
-                      (div.rounded.bg-actionHover.p-6.flex.flex-col.gap-2) */}
-            {orderContext && (
-              <div className='rounded bg-actionHover p-6 flex flex-col gap-2 mbe-6'>
-                <div className='flex justify-between items-center gap-2'>
-                  <Typography color='text.primary' className='font-medium'>
-                    {orderContext.shopName}
-                  </Typography>
-                  <Typography color='text.primary' className='font-medium'>
-                    {`฿${orderContext.totalAmount.toLocaleString('th-TH')}`}
-                  </Typography>
-                </div>
-                <Typography variant='body2' color='text.secondary'>
-                  {formatOrderNo(orderContext.publicToken, orderContext.createdAtIso)}
-                </Typography>
-                <Typography variant='body2' color='text.secondary'>
-                  {formatDateTimeTH(orderContext.createdAtIso)}
-                </Typography>
-              </div>
-            )}
-
-            <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>
-                {orderContext ? 'เข้าสู่ระบบเพื่อดูคำสั่งซื้อ' : `ยินดีต้อนรับสู่ ${META_DATA.name}`}
-              </Typography>
-              <Typography>
-                {loginMode === 'channels'
-                  ? 'เลือกช่องทางที่สะดวก เพื่อยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อนี้'
-                  : loginMode === 'password'
-                    ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน'
-                    : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
-              </Typography>
-            </div>
-
-            {loginMode === 'channels' ? (
+      {loginMode === 'channels' ? (
               /* หน้าเลือกช่องทาง — ทุกทางเข้าอยู่เหนือ fold บนจอมือถือใน in-app browser
                  (Messenger กิน chrome บน-ล่างเหลือพื้นที่จริง ~570px) */
               <div className='flex flex-col gap-3'>
@@ -387,9 +351,42 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
               </div>
             </div>
 
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
-              &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
-            </Typography>
+      {/* บรรทัดความปลอดภัย — วางติดปุ่มโดยตั้งใจ เพราะจุดที่ผู้ใช้ลังเลคือตอนกำลังจะกด
+          ไม่ใช่ตอนอ่านหัวหน้า (ดู research 2026-07-25 เรื่อง trust signal placement) */}
+      {orderContext && loginMode === 'channels' && (
+        <Typography variant='caption' color='text.disabled' className='block text-center mbs-3'>
+          ใช้ยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อเท่านั้น
+        </Typography>
+      )}
+
+      {!orderContext && (
+        <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+          &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
+        </Typography>
+      )}
+    </>
+  )
+
+  // เชลล์ "หน้าร้าน" — ใช้เมื่อมาจากลิงก์คำสั่งซื้อ (ภาพร้านเป็นภาพนำก่อนขอให้ล็อกอิน)
+  // compact: ขั้นที่เป็นฟอร์มยุบ hero ลงเพื่อคืนพื้นที่ให้ช่องกรอก
+  if (orderContext) {
+    return (
+      <OrderLinkShell ctx={orderContext} compact={loginMode !== 'channels'}>
+        {body}
+      </OrderLinkShell>
+    )
+  }
+
+  // เชลล์เดิมของหน้า sign-in ปกติ — ไม่เปลี่ยนแปลง
+  return (
+    <div className='flex min-bs-[100dvh] justify-center items-center p-6'>
+      <AuthIllustrationWrapper>
+        <Card className='flex flex-col sm:is-[450px]'>
+          <CardContent className='sm:!p-12'>
+            <Link href='/' className='flex justify-center mbe-6'>
+              <Logo />
+            </Link>
+            {body}
           </CardContent>
         </Card>
       </AuthIllustrationWrapper>

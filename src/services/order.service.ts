@@ -846,15 +846,94 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
       publicToken: true,
       totalAmount: true,
       createdAt: true,
-      shop: { select: { shopName: true } },
+      shop: {
+        select: {
+          id: true,
+          shopName: true,
+          logo: true,
+          coverImage: true,
+          createdAt: true,
+          user: { select: { id: true, username: true, trustScore: true } },
+          // ช่องทางที่ร้านเชื่อมไว้ — ผู้ซื้อเพิ่งคุยกับเพจนี้อยู่ในแชทเมื่อครู่
+          // เอาเฉพาะ ACTIVE: เพจที่ถอดออกแล้วไม่ใช่หลักฐานว่าติดต่อร้านได้
+          channels: {
+            where: { status: "ACTIVE" },
+            select: { provider: true, name: true, avatarUrl: true },
+          },
+        },
+      },
     },
   });
   if (!order) return null;
 
+  const shopId = order.shop.id;
+  const ownerId = order.shop.user.id;
+
+  const [orderStats, ratingAgg, approvedVerifications, latestReview] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["status"],
+      where: { shopId },
+      _count: { _all: true },
+    }),
+    prisma.review.aggregate({
+      where: { order: { shopId } },
+      _avg: { rating: true },
+      _count: { _all: true },
+    }),
+    prisma.verificationRecord.findMany({
+      where: { userId: ownerId, status: "APPROVED" },
+      select: { level: true },
+    }),
+    // รีวิวล่าสุดที่ "มีข้อความจริง" — ข้อความจากคนซื้อจริงหนึ่งอันน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
+    // ไม่มีรีวิวที่เขียนข้อความ → null → UI ซ่อนบล็อกไปเลย ไม่แต่งคำชมขึ้นมาเอง
+    prisma.review.findFirst({
+      where: { order: { shopId }, comment: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { rating: true, comment: true, createdAt: true },
+    }),
+  ]);
+
+  const confirmedCount = orderStats.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
+  const cancelledCount = orderStats.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
+  const settled = confirmedCount + cancelledCount;
+  const completionRate = settled > 0 ? Math.round((confirmedCount / settled) * 100) : null;
+
+  const maxVerifyLevel = approvedVerifications.length
+    ? Math.max(...approvedVerifications.map((v) => v.level))
+    : 0;
+
   return {
     publicToken: order.publicToken,
-    shopName: order.shop.shopName,
     totalAmount: Number(order.totalAmount),
     createdAtIso: order.createdAt.toISOString(),
+
+    shopName: order.shop.shopName,
+    shopUsername: order.shop.user.username,
+    logo: order.shop.logo,
+    coverImage: order.shop.coverImage,
+    shopCreatedAtIso: order.shop.createdAt.toISOString(),
+    trustScore: order.shop.user.trustScore,
+    maxVerifyLevel,
+
+    // สถิติ: ส่ง null เมื่อยังไม่มีประวัติ ให้ UI ซ่อนทั้งแถบแทนการโชว์เลขศูนย์
+    // การโชว์ "0 ออเดอร์" หรือแต่งตัวเลขให้ดูดีคือสิ่งที่ระบบนี้ตั้งใจกำจัด
+    completedOrders: confirmedCount > 0 ? confirmedCount : null,
+    completionRate,
+    avgRating: ratingAgg._count._all > 0 ? Number(ratingAgg._avg.rating?.toFixed(1)) : null,
+    reviewCount: ratingAgg._count._all,
+
+    channels: order.shop.channels.map((c) => ({
+      provider: c.provider,
+      name: c.name,
+      avatarUrl: c.avatarUrl,
+    })),
+
+    latestReview: latestReview
+      ? {
+          rating: latestReview.rating,
+          comment: latestReview.comment as string,
+          createdAtIso: latestReview.createdAt.toISOString(),
+        }
+      : null,
   };
 }

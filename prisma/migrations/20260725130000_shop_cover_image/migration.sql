@@ -1,0 +1,12 @@
+-- Shop.coverImage — ภาพหน้าปกร้าน (user 2026-07-25)
+--
+-- ใช้เป็นภาพนำของหน้าลิงก์คำสั่งซื้อ /o/[token] ที่ผู้ซื้อเปิดจากแชทภายนอก ซึ่งเป็นจุดที่ต้อง
+-- พิสูจน์ว่าร้านมีตัวตนจริงก่อนจะขอให้ล็อกอิน เดิมหน้านั้นไม่มีภาพอะไรเลยจึงดูเหมือนหน้าหลอกลวง
+--
+-- nullable + ไม่มี default โดยตั้งใจ: ร้านที่มีอยู่แล้วทั้งหมดจะได้ NULL แล้ว UI จะ fallback ไปใช้
+-- logo ขยายเบลอเป็นพื้นหลังแทน จึงไม่ต้อง backfill และไม่มีผลกับข้อมูลเดิม
+--
+-- เขียนด้วยมือ (ไม่ใช่ prisma migrate dev) ตาม docs/conventions/prisma-shared-db-drift.md —
+-- DB dev/prod ใช้ตัวเดียวกันและมี unmanaged SQL (partial unique index, EXCLUDE constraint) ที่
+-- introspection มองไม่เห็นแล้วจะสร้าง migration ที่ DROP ทิ้ง
+ALTER TABLE "Shop" ADD COLUMN "coverImage" TEXT;
