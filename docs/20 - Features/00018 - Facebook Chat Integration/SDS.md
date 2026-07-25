@@ -3,17 +3,22 @@ title: "SDS — Facebook Chat Integration"
 owner: shinobu22
 status: draft
 module: M00018-FacebookChatIntegration
-version: "1.1"
+version: "1.2"
 created: 2026-07-22
 tags: [feature, chat, messaging, facebook, instagram, seller, integration, sds]
-related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
+related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]", "[[EXTENSIONS-2026-07-25]]"]
 ---
 
 > **โมดูล:** M00018-FacebookChatIntegration
 > **ประเภทเอกสาร:** System Design Spec (SDS)
-> **เวอร์ชัน:** 1.1
+> **เวอร์ชัน:** 1.2
 > **วันที่จัดทำ:** 2026-07-22
-> **สถานะ:** Draft — เขียนตามโค้ด backend ที่ implement แล้ว (SSOT = โค้ดจริง ไม่ใช่แผน) UI ยังไม่เริ่ม
+> **สถานะ:** Draft — เขียนตามโค้ดที่ implement แล้ว (SSOT = โค้ดจริง ไม่ใช่แผน) — **UI เริ่มและเสร็จไปแล้วตั้งแต่ก่อน v1.1** (§1.2 เดิมเขียนผิดว่า "UI ยังไม่เริ่ม" — แก้ใน v1.2)
+>
+> 🔄 **v1.2 (2026-07-25) — doc-sync ตามของจริงบน prod (Phase 2/3 extensions):** แก้ §1.2 ที่ระบุผิดว่า
+> "UI ยังไม่เริ่ม" / S-7/S-8 "โครง DB มีแต่ logic ไม่มี" — implement ครบแล้วทั้งคู่ตั้งแต่ 2026-07-23 เพิ่ม
+> design ของกลุ่มแชท (E5), read receipt (E6), reaction (E7), referral (E8), reply/unsend (E9) — รายละเอียด
+> เต็มอยู่ที่ [[EXTENSIONS-2026-07-25]] (ไม่ซ้ำเขียน sequence diagram แยกในเอกสารนี้ทุกอัน เพื่อกัน drift)
 >
 > 🔄 **v1.1 (2026-07-23) — doc-sync ตามของจริงบน prod:** เพิ่ม FR-FBC-15/16/17 (ข้อความสำเร็จรูป, AI ช่วยร่างคำตอบ, เครื่องมือ composer + ไฟล์แนบวิดีโอ/เสียง/ไฟล์), BR-FBC-23..27, TFR-FBC-12..14, table `QuickMessage` + คอลัมน์ CRM, endpoint quick-messages/ai-suggest/crm และปรับสถานะรายการที่ implement ไปแล้ว (S-7/S-8/หน้า channels). **โค้ดขึ้น prod ก่อนเอกสาร = หนี้ Hard Rule 11 ที่ back-fill ในรอบนี้**
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
@@ -30,9 +35,9 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
 
 ### 1.2 ขอบเขตการออกแบบ
 
-**อยู่ในขอบเขต:** webhook ingest, Graph API client, token encryption, OAuth connect, outbound send + 24h window guard, การต่อ route ส่งข้อความเดิมให้ dispatch ตาม channel, การยกเว้น CSRF ของ webhook route
+**อยู่ในขอบเขต:** webhook ingest (ข้อความทุกชนิด/read/reaction/referral/unsend), Graph API client, token encryption, OAuth connect (หน้าเลือกเพจ), outbound send + 24h window guard (+ lazy sync จาก Meta), การต่อ route ส่งข้อความเดิมให้ dispatch ตาม channel, การยกเว้น CSRF ของ webhook route, การจัดการ channel (list/disconnect), S-7 (ปักหมุด/ซ่อน/ปิดงาน/สแปม), กลุ่มแชท, CRM ผู้ติดต่อ, สร้างออเดอร์จากเธรด+ผูก Customer, UI ทั้งหมดของ `/inbox` + `/seller/settings/channels`
 
-**นอกขอบเขต (ไม่ได้ออกแบบในเอกสารนี้ เพราะยังไม่ implement):** ทุกหน้า UI, การจัดการ channel ผ่าน API (list/disconnect), การผูก Customer Directory, S-7/S-8 (โครง DB มีแต่ logic ไม่มี) — ดู [[SRS]] §1.2 สำหรับรายการเต็ม
+**นอกขอบเขต (ยังไม่ implement จริง ณ 2026-07-25):** ส่งวิดีโอ/เสียง/ไฟล์ออกช่องทางนอก (TEXT/IMAGE ส่งออกได้แล้วผ่าน `sendOutboundMessage`), reply/unsend/reaction ขาออก, `messaging_referrals` subscribe field ของเพจที่เชื่อมก่อน 2026-07-25 — ดู [[SRS]] §1.2 และ [[EXTENSIONS-2026-07-25]] "Carry / หนี้ที่เหลือ" สำหรับรายการเต็ม
 
 ### 1.3 เอกสารอ้างอิง
 
@@ -133,6 +138,13 @@ graph TD
 | **`src/app/api/chat/quick-messages/{route,[id]/route}.ts`** (ใหม่) | HTTP boundary ของข้อความสำเร็จรูป — session + `resolveActiveShopContext` + Valibot แล้วเรียก service | `quick-message.service.ts`, `validations.ts` |
 | **`src/app/api/chat/conversations/[id]/ai-suggest/route.ts`** (ใหม่) | HTTP boundary ของ AI — rate-limit ต่อ user, ownership เธรด, ประกอบ transcript จาก DB, map error ของ Gemini → HTTP | `gemini.ts`, `chat-crm.service.ts`, `api-rate-limit.ts`, Prisma |
 | **`(chat)/inbox/[conversationId]/components/{QuickMessageBar,QuickMessageManager,AiSuggestPanel,EmojiPicker}.tsx`** (ใหม่) | UI ของเครื่องมือ composer — แผงเหนือช่องพิมพ์ (สำเร็จรูป/AI ใช้โครงเดียวกันและเปิดได้ทีละแผง), modal จัดการ, ตัวเลือกอิโมจิ | `ChatThread.tsx` (state `activePanel`), Paces primitive |
+| **`src/services/chat-group.service.ts`** (ใหม่ 2026-07-23, E5) | CRUD `ChatGroup` + ย้ายเธรดเข้า/ออกกลุ่ม (`setConversationGroup`) — ทุก query/mutation scope ด้วย `shopId` (atomic `updateMany`) | Prisma |
+| **`src/services/chat.service.ts`** (feature 00011, แก้เพิ่ม 2026-07-23) | เพิ่ม `updateConversationState` (pin/hide/resolve/spam toggle, atomic `updateMany`), `unreadConversationIdsForShop`/`countUnreadByConversation` (raw SQL JOIN `ChatMessage`) | Prisma |
+| **`src/services/channel-chat.service.ts`** (แก้เพิ่ม 2026-07-24/25) | เพิ่ม `syncInboundWindowFromMeta` (E4, เรียก Meta Conversations API), `ingestReadEvent` (E6), `ingestReactionEvent` (E7), `composeStructuredText` (E2.5 — ประกอบข้อความจาก template/location payload) | Prisma, `graph.ts` |
+| **`src/app/api/chat/conversations/[id]/route.ts`** (ใหม่ 2026-07-23) | `PATCH` — HTTP boundary ของ pin/hide/resolve/spam/set-group | `chat.service.ts`, `chat-group.service.ts` |
+| **`src/app/api/chat/groups/{route,[id]/route}.ts`** (ใหม่ 2026-07-23) | HTTP boundary ของกลุ่มแชท | `chat-group.service.ts` |
+| **`src/app/api/chat/conversations/[id]/orders/route.ts`** (ใหม่ 2026-07-24) | `GET` — resolve `Customer` จากเธรด (DEEP ผ่าน `buyerUserId`, ช่องทางนอกผ่าน `externalContact.customer`) แล้ว lazy-load ประวัติออเดอร์ | `order.service.ts` (`getOrdersByCustomer`), Prisma |
+| **`src/lib/facebook/webhook-types.ts`** (แก้เพิ่ม 2026-07-25) | เพิ่ม `ReactionSchema`, `ReferralSchema`, `reply_to`/`is_deleted` บน `MessageSchema`, `read.watermark` บน `MessagingEventSchema`, parse field เต็มของ `AttachmentPayloadSchema` (template/location) | Valibot |
 
 **เหตุผลแยก `shop-channel.service.ts` ออกจาก `channel-chat.service.ts` (ไม่รวมเป็นไฟล์เดียว):** แยกความรับผิดชอบตาม entity ที่เป็นเจ้าของ — `ShopChannel` (การเชื่อมต่อ/token) เป็นคนละ lifecycle จาก "ข้อความ" (เกิดขึ้นทุกครั้งที่มี event) `channel-chat.service.ts` เรียก `getChannelByExternalId`/`markChannelTokenInvalid` เป็น consumer ไม่ใช่เจ้าของ token — กันไม่ให้ logic ส่งข้อความไปแตะ `accessTokenEnc` ตรง ๆ โดยไม่ผ่านจุดถอดรหัสเดียว
 
