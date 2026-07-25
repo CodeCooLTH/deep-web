@@ -1040,6 +1040,23 @@ model ShopChannel {
   status            String   @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
   createdAt         DateTime @default(now())
 
+  // --- feature 00020 TikTok: token lifecycle (additive, nullable ทั้งหมด) ---
+  // ทำไมต้องเพิ่ม: Facebook page token เป็น long-lived ไม่ต้องต่ออายุ → โครงเดิม (00018) จึงมีแต่
+  // accessTokenEnc. TikTok Shop access token มีวันหมดและต่ออายุด้วย refresh token ที่
+  // auth.tiktok-shops.com/api/v2/token/refresh — ถ้าไม่เก็บ 2 ฟิลด์นี้ ช่องทางจะตายเองเงียบ ๆ
+  // แล้วร้านจะรู้ตอนตอบลูกค้าไปแล้วข้อความไม่ถึง (FR-TTC-09 / BR-TTC-26..28)
+  //
+  // refreshTokenEnc: ผ่าน AES-256-GCM แล้วเหมือน accessTokenEnc (src/lib/token-crypto.ts)
+  // ห้าม plaintext ห้าม log ห้ามส่งกลับ client (BR-TTC-05)
+  refreshTokenEnc   String?
+  // tokenExpiresAt: ให้ cron รู้ว่าต้องต่ออายุเมื่อไรโดยไม่ต้องรอ error จากการยิงจริง
+  // ช่องทางที่ token ไม่มีวันหมด (Meta) ปล่อยเป็น NULL
+  tokenExpiresAt    DateTime?
+  // externalMeta: ค่าเฉพาะ provider ที่ต้องแนบทุก request — TikTok Shop ใช้ shop_cipher ต่อร้าน
+  // (ได้จาก GET /authorization/202309/shops ตอนเชื่อม) เก็บเป็นก้อน JSONB แทนการเพิ่มคอลัมน์
+  // ทีละ provider. 🛑 ห้ามเก็บ secret ในนี้ — JSONB ไม่ได้เข้ารหัส (secret ไปที่ *TokenEnc เท่านั้น)
+  externalMeta      Json?
+
   shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts      ExternalContact[]
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
@@ -1052,6 +1069,10 @@ model ShopChannel {
   // — กติกาใหม่ "1 เพจ ACTIVE ได้ทีละร้านเดียว" (BR-FBC-01 เปลี่ยนขอบเขต ไม่ใช่ยกเลิก)
   @@index([provider, externalId])
   @@index([shopId, status])
+  // feature 00020: cron ต่ออายุ token หาแถว "ยังใช้งานอยู่ + ใกล้หมดอายุ" ทั้งระบบ (ไม่ scope
+  // ต่อร้าน) — index เดิม (shopId, status) ใช้ไม่ได้เพราะ query นี้ไม่มี shopId ในเงื่อนไข
+  // ใส่มาพร้อม migration เดียวกันเพื่อเลี่ยง ALTER รอบสองบน DB ที่แชร์กับ prod
+  @@index([status, tokenExpiresAt])
 }
 
 // ExternalContact — ลูกค้าจากช่องทางนอก (PSID/IGSID) — ไม่ใช่ User ของ Deep — feature 00018
