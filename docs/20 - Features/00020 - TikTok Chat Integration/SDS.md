@@ -190,6 +190,48 @@ topic-specific payload schema."*
 จาก **shape ของ payload** ไม่ใช่จากตัวเลข — และ log ตัวเลขที่ไม่รู้จักไว้เก็บเคส (pattern เดียวกับ
 `console.warn('[fb-ingest] unhandled attachment')` ของ 00018)
 
+### TD-009 — 🛑 `isTokenDeadError(): boolean` **ไม่พอ** ต้องเป็น 3 ผลลัพธ์
+
+จากหน้า common-errors (ทางการ) การตีความ error ของ TikTok ซับซ้อนกว่า Meta มาก:
+
+| Code | message keyword | ความหมายจริง | ต้องทำ |
+|---|---|---|---|
+| `105002` | Expired credentials | access token **หมดอายุ** | **refresh แล้ว retry** ไม่ใช่ให้ร้านเชื่อมใหม่ |
+| `36009004` | `x-tts-access-token header is invalid` | token ใช้ไม่ได้จริง | `TOKEN_INVALID` + ให้ร้านเชื่อมใหม่ |
+| `36009004` | `Invalid timestamp ...` | **นาฬิกา instance เพี้ยน** | retry — **ห้าม** แตะสถานะช่องทาง |
+| `36009004` | `Invalid app_key` / `Missing credentials, signature` | config/บั๊กเราเอง | log + FAILED — **ห้าม** แตะสถานะช่องทาง |
+| `106001` | invalid sign | **ลายเซ็นเราผิด** | บั๊กเรา — ห้ามแตะสถานะช่องทาง |
+| `105005` | Access denied (scope) | scope ไม่ได้รับอนุมัติ | ปัญหา config ระดับ app — เชื่อมใหม่ไม่ช่วย |
+| `36009033` | IP not in allow list | app เปิด IP allow list ไว้ | **ห้ามเปิดฟีเจอร์นี้** — Vercel egress IP ไม่คงที่จะพังทั้งระบบ |
+| `36009002` / HTTP 429 | Too many requests | rate limit | backoff + respect `Retry-After` |
+
+เอกสารเตือนเองว่า **`36009004` ถูกใช้ซ้ำหลายกรณี** และ *"Do not use the numeric code alone for
+programmatic branching. Combine it with the response message keyword"*
+
+**การตัดสินใจ:** เปลี่ยนสัญญาเป็น `classifyError(e): 'REFRESH' | 'DEAD' | 'TRANSIENT' | 'FAILED'`
+(ยังไม่แก้ interface จนถึง Phase 3 — ตอนนี้ `isTokenDeadError` ยังใช้กับ Meta ได้ถูกต้อง)
+
+**กฎความปลอดภัยของการ classify (สำคัญกว่าความแม่น):** เมื่อไม่ชัด **ให้เลือกไม่ mark ช่องทางตาย**
+เพราะการ mark ตายผิดพลาด = ร้านตอบลูกค้าไม่ได้ทั้งร้าน ส่วนการไม่ mark ตายเมื่อควร mark = ข้อความ
+ถัดไปก็ fail แล้วรู้อีกที (เสียหายน้อยกว่ามาก) — และยังมี `SELLER_DEAUTHORIZATION` webhook เป็น
+ตัวจับกรณีจริงอยู่แล้ว (TD-004)
+
+**การ match keyword ต้องทน:** ใช้ substring ที่เจาะจง (`x-tts-access-token` + `invalid`)
+**ห้ามพึ่งโครงประโยคทั้งประโยค** (บทเรียน `feedback_spike_must_match_production_path`)
+
+### TD-010 — สองโดเมนแชทที่ชื่อคล้ายกันจนหยิบผิดได้
+
+TikTok Shop มี API แชท 2 ชุดที่ไม่เกี่ยวกัน (ดู [[API]] §6.3): `customer_service/202309`
+(**buyer ↔ seller — ของเรา**) กับ `affiliate_seller/202412+` (**creator ↔ seller**)
+
+**การตัดสินใจ:** adapter ของเรารองรับ **customer_service เท่านั้น** และ **ไม่ subscribe**
+`NEW_MESSAGE_LISTENER` เพราะเป็น event ของโดเมน affiliate — ถ้า subscribe จะได้เธรดที่ตอบไม่ได้
+โผล่ในอินบ็อกซ์ (ต้องใช้ scope `seller.affiliate_messages.write` + API อีกชุด)
+
+จุดที่หยิบผิดง่าย: ชื่อ endpoint คล้ายกัน (`Send IM Message` vs `Send Message`), field ชนิดข้อความ
+ต่างกัน (`msg_type` vs `type`), และชุด affiliate ถูก version ใหม่กว่า (202412/202508/202511)
+จึงมักโผล่มาก่อนในผลค้นหา
+
 ### TD-006 — signing: stringify body ครั้งเดียว
 
 `sign` คำนวณจาก **body string** ที่ส่งออกจริง ถ้า `JSON.stringify` สองครั้งแล้วลำดับ key ต่างกัน

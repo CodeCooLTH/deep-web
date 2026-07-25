@@ -178,7 +178,22 @@ sign = HMAC_SHA256( app_secret + path + concat(sorted k+v) + body + app_secret ,
 
 1. ตรวจ session + `canAccessShop(shopId, userId)` — ไม่ผ่าน → `401`/`403`
 2. สร้าง `state` แบบสุ่ม (32 bytes hex) → set cookie `tiktok_channel_oauth_state` (httpOnly, SameSite=Lax, อายุ 10 นาที) — **ต้องผูก shopId ไว้ใน cookie ด้วย** กันกรณีผู้ใช้สลับร้านกลางทาง แล้วช่องทางไปโผล่ผิดร้าน
-3. `302` ไป `https://auth.tiktok-shops.com/oauth/authorize?app_key={TIKTOK_SHOP_APP_KEY}&state={state}`
+3. `302` ไป authorize URL ของ **seller** ตามตลาด (ดูตารางล่าง)
+
+> 🛑 **แก้ v1.1 — authorize URL ที่เคยเขียนไว้ผิด** ฉบับแรกเขียน
+> `https://auth.tiktok-shops.com/oauth/authorize?app_key={app_key}` ตาม SDK ชุมชน
+> **นั่นไม่ใช่ทางของ seller** เอกสารทางการ (หน้า Get Access Token / "Authorization domains by
+> market") ระบุชัดว่า seller ใช้ host คนละตัวและใช้ **`service_id` ไม่ใช่ `app_key`**
+
+| ประเภทผู้ให้สิทธิ์ | US | **ROW (รวมไทย)** |
+|---|---|---|
+| **Seller (ที่เราต้องใช้)** | `https://services.us.tiktokshop.com/open/authorize?service_id={service_id}` | **`https://services.tiktokshop.com/open/authorize?service_id={service_id}`** |
+| Partner (TAP) | `partner.us.tiktokshop.com/open/authorize?service_id=` | `partner.tiktokshop.com/open/authorize?service_id=` |
+| Creator | `shop.tiktok.com/alliance/creator/auth?app_key={app_key}&state={state}` | เหมือน US |
+| Token endpoints | `auth.tiktok-shops.com/api/v2/token/{get,refresh}` | เหมือน US |
+
+**ต้องมี env ใหม่:** `TIKTOK_SHOP_SERVICE_ID` (คนละค่ากับ `TIKTOK_SHOP_APP_KEY` — ทั้งคู่อยู่ในหน้า
+App details ของ Partner Center; `service_id` คือ OAuth client id ของแอปที่ลงทะเบียนไว้)
 
 **Response:** `302` Location = authorize URL ของ TikTok
 
@@ -186,7 +201,7 @@ sign = HMAC_SHA256( app_secret + path + concat(sorted k+v) + body + app_secret ,
 |---|---|
 | 401 | ไม่มี session |
 | 403 | ไม่มีสิทธิ์ในร้านนั้น |
-| 500 | env `TIKTOK_SHOP_APP_KEY` ไม่ได้ตั้ง (fail-closed — ห้าม redirect ไปด้วย app_key ว่าง) |
+| 500 | env `TIKTOK_SHOP_SERVICE_ID` ไม่ได้ตั้ง (fail-closed — ห้าม redirect ด้วยค่าว่าง) |
 
 ---
 
@@ -199,9 +214,20 @@ Trace: FR-TTC-01 / BR-TTC-01, BR-TTC-02, BR-TTC-05
 
 | ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
 |---|---|---|---|---|
-| Query | `code` | `string` | yes | auth code จาก TikTok (ชื่อ param ต้อง verify — SDK เรียกว่า `auth_code` ตอนส่งเข้า token endpoint) |
+| Query | `code` | `string` | yes | auth code — redirect จริงคือ `{redirect_url}?code=...&state=...` (**ยืนยันแล้ว**); ส่งเข้า token endpoint ในชื่อ param `auth_code`. **อายุ 30 นาที ใช้ได้ครั้งเดียว** → แลก token ทันที |
 | Query | `state` | `string` | yes | ต้องตรงกับ cookie `tiktok_channel_oauth_state` |
 | Cookie | `tiktok_channel_oauth_state` | `string` | yes | httpOnly — ไม่ตรง/หมดอายุ → `403` |
+
+**อายุ token (ยืนยันจากเอกสาร — ปิด OQ-TTC-14):**
+
+| ค่าที่ได้จาก `token/get` | ความหมาย |
+|---|---|
+| `access_token_expire_in` | **unix timestamp สัมบูรณ์** (ไม่ใช่จำนวนวินาที) — default อายุ **7 วัน** → เก็บเป็น `tokenExpiresAt = new Date(value * 1000)` |
+| `refresh_token` | ใช้ต่ออายุ access token |
+| `refresh_token_expire_in` | unix timestamp — **เท่ากับระยะเวลาที่ร้านให้สิทธิ์** (authorization duration) หมดแล้วต้องให้ร้าน authorize ใหม่ ไม่ใช่ refresh |
+
+🛑 **ห้าม hardcode 7 วัน** — อ่านจาก response เสมอ (ค่า default เปลี่ยนได้ และ refresh token
+อายุขึ้นกับที่ร้านอนุมัติ) → access token 7 วันหมายความว่า cron วันละครั้งเพียงพอ (ต่อเมื่อเหลือ < 2 วัน)
 
 **พฤติกรรม**
 
@@ -312,7 +338,7 @@ Trace: FR-TTC-01 / BR-TTC-01, BR-TTC-02, BR-TTC-05
 
 | กลุ่ม | Method | URL / Path | ใช้ทำอะไร |
 |---|---|---|---|
-| Auth | `GET` (redirect) | `https://auth.tiktok-shops.com/oauth/authorize?app_key=&state=` | พาผู้ใช้ไปอนุญาตสิทธิ์ |
+| Auth | `GET` (redirect) | **`https://services.tiktokshop.com/open/authorize?service_id=&state=`** (ROW/ไทย) | พา seller ไปอนุญาตสิทธิ์ — **ใช้ `service_id` ไม่ใช่ `app_key`** (ดู §4.1) |
 | Auth | `POST` | `https://auth.tiktok-shops.com/api/v2/token/get` | แลก `auth_code` → token (`grant_type=authorized_code`) |
 | Auth | `POST` | `https://auth.tiktok-shops.com/api/v2/token/refresh` | ต่ออายุ (`grant_type=refresh_token`) |
 | Shop | `GET` | `/authorization/202309/shops` | ได้ `shop_id` + **`shop_cipher`** |
@@ -377,9 +403,9 @@ interface** แต่ provider ต้องอ่านขนาดรูปจ�
 
 | event_type | ทำไมต้อง subscribe |
 |---|---|
-| `NEW_MESSAGE` | ข้อความใหม่ในเธรด — หัวใจของ FR-TTC-02/03 |
+| `NEW_MESSAGE` | ข้อความใหม่ในเธรด customer service — หัวใจของ FR-TTC-02/03 |
 | `NEW_CONVERSATION` | agent เข้า/ออกเธรด |
-| `NEW_MESSAGE_LISTENER` | creator ทักร้าน |
+| ~~`NEW_MESSAGE_LISTENER`~~ | 🛑 **อย่า subscribe ในรอบนี้** — "creator ส่งข้อความถึง seller" เป็นของโดเมน **affiliate** (ดู §6.3) ซึ่งต้องตอบด้วย API อีกชุด ถ้า subscribe ไว้จะได้เธรดที่ **ตอบไม่ได้** โผล่ในอินบ็อกซ์ |
 | **`SELLER_DEAUTHORIZATION`** | ร้านถอนสิทธิ์ — เอกสารบอกให้ใช้ event นี้ "stop API calls and clean up local connection state" **Meta ไม่มี event แบบนี้** |
 | **`UPCOMING_AUTHORIZATION_EXPIRATION`** | สิทธิ์จะหมดอายุ — ส่ง **ล่วงหน้า 30 วัน** แล้วทุกวัน 00:00 จนกว่าจะ reauthorize |
 
@@ -389,6 +415,22 @@ payload (ดู [[SDS]] TD-005)
 
 เอกสารเตือนด้วยว่า *"Do not rely on webhooks as the only source of truth"* — ควรมี reconcile ด้วย
 การ poll `GET conversations` เป็นระยะในอนาคต (ยังไม่อยู่ใน scope รอบนี้)
+
+### 6.3 🛑 TikTok Shop มี API แชท **2 ชุดที่ไม่เกี่ยวกัน** — อย่าสลับ
+
+| | **Customer service (ของเรา)** | Affiliate / creator (ไม่ใช่ของเรา) |
+|---|---|---|
+| คุยกับใคร | **buyer ↔ seller** | **creator/affiliate ↔ seller** |
+| Path | `/customer_service/202309/conversations/{id}/messages` | `/affiliate_seller/202412/conversations/{id}/messages` |
+| Scope | `seller.customer_service` | `seller.affiliate_messages.write` |
+| ชื่อ field ชนิดข้อความ | **`type`** | **`msg_type`** |
+| enum ที่รับ | TEXT, IMAGE, VIDEO, PRODUCT_CARD, ORDER_CARD, RETURN_REFUND_CARD, COUPON_CARD, LOGISTICS_CARD | TEXT, PRODUCT_CARD, TARGET_COLLABORATION_CARD, FREE_SAMPLE_CARD, IMAGE |
+| อัปโหลดรูป | `customer_service/.../images/upload` (Upload **Buyer** Messages Image) | `Upload Message Image` (202511) |
+| error เฉพาะตัว | `45101004` โควตา 10,000/วัน | `16030100` โควตาต่อ creator, `16030101` **shop level ไม่ถึงเกณฑ์ GMV** |
+
+**ทำไมต้องเขียนไว้:** ชุด affiliate ถูก version ใหม่กว่า (202412/202508/202511) จึงมักโผล่มาก่อนใน
+ผลค้นหา และชื่อ endpoint คล้ายกันมาก (`Send IM Message` vs `Send Message`) — หยิบผิดชุดแล้วจะได้
+`105005 Access denied` เพราะ scope ไม่ตรง หรือส่งด้วย field ชื่อผิด (`msg_type` vs `type`)
 
 ---
 
