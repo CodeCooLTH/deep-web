@@ -26,7 +26,12 @@ export type OrderAccessDecision =
   | { kind: "OWNER_MISMATCH" }
   | { kind: "PHONE_MATCH_AUTO_CLAIM" }
   | { kind: "OTP_CLAIM_REQUIRED"; targetPhone: string }
-  | { kind: "OTP_CLAIM_BLOCKED" }
+  // PHONE_VERIFY_REQUIRED (แทน OTP_CLAIM_BLOCKED เดิม): บัญชีที่ล็อกอินอยู่ยังพิสูจน์ไม่ได้ว่า
+  // เป็นเจ้าของออเดอร์ เพราะไม่มีเบอร์ผูกบัญชี หรือเบอร์ที่ผูกไว้คนละเบอร์กับที่ร้านคีย์
+  // เดิมเคสนี้เป็น "ทางตัน" (มีแต่ปุ่มออกจากระบบ) ซึ่งกระทบผู้ซื้อที่ล็อกอินด้วย Facebook
+  // เป็นหลัก เพราะ FB ไม่ให้เบอร์มา บัญชีที่เพิ่งสร้างจึงไม่มีเบอร์เสมอ
+  // ตอนนี้ให้ไปต่อได้ด้วยการยืนยันเบอร์ที่ใช้สั่งซื้อผ่าน OTP (ดู PhoneVerifyPrompt)
+  | { kind: "PHONE_VERIFY_REQUIRED" }
   | { kind: "LEGACY_NO_CLAIM" };
 
 export function resolveOrderAccess(
@@ -59,7 +64,7 @@ export function resolveOrderAccess(
   if (!contactPhone) return { kind: "LEGACY_NO_CLAIM" }; // อีเมล/รูปแบบไม่ใช่เบอร์
 
   if (!session.phone || session.phone !== contactPhone) {
-    return { kind: "OTP_CLAIM_BLOCKED" };
+    return { kind: "PHONE_VERIFY_REQUIRED" };
   }
 
   return session.justAuthedViaPhoneOtp

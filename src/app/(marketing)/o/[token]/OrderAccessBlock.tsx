@@ -10,8 +10,10 @@
  *
  * reason:
  *   - owner-mismatch: order.buyerUserId ตั้งเป็นบัญชีอื่นแล้ว (OWNER_MISMATCH)
- *   - phone-mismatch: session.phone ไม่ตรงกับ order.buyerContact (OTP_CLAIM_BLOCKED)
  *   - legacy: order เก่าไม่มีเบอร์ผูก claim ไม่ได้ (LEGACY_NO_CLAIM)
+ *
+ * เดิมมี variant 'phone-mismatch' สำหรับ decision OTP_CLAIM_BLOCKED ด้วย — ถูกถอดออกใน S-2
+ * เพราะเคสนั้นไม่ใช่ทางตันอีกแล้ว ผู้ใช้ไปต่อได้ที่ PhoneVerifyPrompt (ยืนยันเบอร์ด้วย OTP)
  *
  * Base: theme/vuexy/typescript-version/full-version/src/@core/components/mui/Avatar.tsx
  *   (CustomAvatar skin='light' variant='rounded' — icon avatar)
@@ -30,7 +32,7 @@ import { signOut } from 'next-auth/react'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 
-export type OrderAccessBlockReason = 'owner-mismatch' | 'phone-mismatch' | 'legacy'
+export type OrderAccessBlockReason = 'owner-mismatch' | 'legacy'
 
 const CONTENT: Record<
   OrderAccessBlockReason,
@@ -47,13 +49,6 @@ const CONTENT: Record<
     color: 'error',
     headline: 'ออเดอร์นี้เป็นของบัญชีอื่น',
     body: 'บัญชีที่คุณเข้าสู่ระบบอยู่ไม่ใช่เจ้าของออเดอร์นี้',
-    action: true,
-  },
-  'phone-mismatch': {
-    icon: 'tabler-phone-x',
-    color: 'warning',
-    headline: 'เบอร์ที่ใช้เข้าสู่ระบบไม่ตรงกับออเดอร์นี้',
-    body: 'ออกจากระบบแล้วเข้าด้วยบัญชีหรือเบอร์ที่ใช้สั่งซื้อ',
     action: true,
   },
   legacy: {

@@ -71,20 +71,22 @@ describe("resolveOrderAccess", () => {
     expect(decision).toEqual({ kind: "LEGACY_NO_CLAIM" });
   });
 
-  it("OTP_CLAIM_BLOCKED — session ไม่มีเบอร์เลย", () => {
+  // S-2: เดิมเป็น OTP_CLAIM_BLOCKED (ทางตัน มีแต่ปุ่มออกจากระบบ) — เคสหลักคือผู้ซื้อที่ล็อกอิน
+  // ด้วย Facebook เพราะ FB ไม่ให้เบอร์มา ตอนนี้ให้ยืนยันเบอร์ด้วย OTP ต่อได้
+  it("PHONE_VERIFY_REQUIRED — session ไม่มีเบอร์เลย (เช่น ล็อกอินด้วย Facebook)", () => {
     const decision = resolveOrderAccess(
       baseOrder({ buyerUserId: null, buyerContact: "0812345678" }),
       baseSession({ phone: null }),
     );
-    expect(decision).toEqual({ kind: "OTP_CLAIM_BLOCKED" });
+    expect(decision).toEqual({ kind: "PHONE_VERIFY_REQUIRED" });
   });
 
-  it("OTP_CLAIM_BLOCKED — session มีเบอร์แต่ไม่ตรงกับ buyerContact", () => {
+  it("PHONE_VERIFY_REQUIRED — session มีเบอร์แต่ไม่ตรงกับ buyerContact", () => {
     const decision = resolveOrderAccess(
       baseOrder({ buyerUserId: null, buyerContact: "0812345678" }),
       baseSession({ phone: "0899999999" }),
     );
-    expect(decision).toEqual({ kind: "OTP_CLAIM_BLOCKED" });
+    expect(decision).toEqual({ kind: "PHONE_VERIFY_REQUIRED" });
   });
 
   it("PHONE_MATCH_AUTO_CLAIM — เบอร์ตรงและอยู่ใน skip-window", () => {

@@ -30,6 +30,7 @@ import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.
 import PublicOrderClient from './PublicOrderClient'
 import OrderAccessBlock from './OrderAccessBlock'
 import ClaimOtpPrompt from './ClaimOtpPrompt'
+import PhoneVerifyPrompt from './PhoneVerifyPrompt'
 import type { PublicOrderData } from './OrderDetailMobile'
 import BookingGuestView from './BookingGuestView'
 
@@ -104,8 +105,11 @@ export default async function PublicOrderPage({ params }: Props) {
     if (decision.kind === 'OWNER_MISMATCH') {
       return <OrderAccessBlock reason='owner-mismatch' />
     }
-    if (decision.kind === 'OTP_CLAIM_BLOCKED') {
-      return <OrderAccessBlock reason='phone-mismatch' />
+    // บัญชียังพิสูจน์ความเป็นเจ้าของไม่ได้ (ไม่มีเบอร์ผูก/เบอร์คนละตัว) — เดิมเป็นทางตัน
+    // ตอนนี้ให้ยืนยันเบอร์ที่ใช้สั่งซื้อด้วย OTP ต่อได้ (S-2). ไม่ส่ง order data ใด ๆ ลงไป
+    // เพราะยังไม่ผ่าน grant — component รับแค่ token ไว้ยิง API
+    if (decision.kind === 'PHONE_VERIFY_REQUIRED') {
+      return <PhoneVerifyPrompt token={token} />
     }
     if (decision.kind === 'LEGACY_NO_CLAIM') {
       return <OrderAccessBlock reason='legacy' />
