@@ -256,15 +256,33 @@ export async function fetchMessageText(messageId: string, pageToken: string): Pr
 // url ใน webhook หมดอายุ/ยิงไม่ได้. Graph คืน url สดที่ยัง fetch ได้ (host fbsbx/fbcdn). null ถ้าไม่มี/error
 export async function fetchAttachmentUrl(messageId: string, pageToken: string): Promise<string | null> {
   try {
-    const res = await fetch(`${GRAPH_BASE}/${messageId}?fields=attachments{file_url}`, {
-      headers: { Authorization: `Bearer ${pageToken}` },
-      signal: AbortSignal.timeout(5000),
-    })
+    // file_url = ไฟล์อัปโหลด (image/video/audio/file); image_data = สติกเกอร์/GIF; video_data = reel/วิดีโอ
+    // สติกเกอร์กับ GIF ของ Messenger ไม่มี file_url แต่มี image_data.url — เดิม fallback อ่านแค่ file_url
+    // จึงตกหล่น (user report 2026-07-25 "gif/sticker บางอย่างไม่รองรับ")
+    const res = await fetch(
+      `${GRAPH_BASE}/${messageId}?fields=attachments{file_url,image_data,video_data}`,
+      {
+        headers: { Authorization: `Bearer ${pageToken}` },
+        signal: AbortSignal.timeout(5000),
+      }
+    )
     if (!res.ok) return null
     const json = (await res.json().catch(() => ({}))) as {
-      attachments?: { data?: Array<{ file_url?: string }> }
+      attachments?: {
+        data?: Array<{
+          file_url?: string
+          image_data?: { url?: string; preview_url?: string }
+          video_data?: { url?: string; preview_url?: string }
+        }>
+      }
     }
-    const url = json.attachments?.data?.[0]?.file_url
+    const a = json.attachments?.data?.[0]
+    const url =
+      a?.file_url ||
+      a?.image_data?.url ||
+      a?.video_data?.url ||
+      a?.image_data?.preview_url ||
+      a?.video_data?.preview_url
     return typeof url === 'string' && url.length > 0 ? url : null
   } catch {
     return null
