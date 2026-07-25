@@ -238,6 +238,16 @@ export async function ingestInboundMessage(params: {
   // Page ที่ไม่มีร้านไหนเชื่อม — ตอบ 200 ให้ Meta เสมอ ไม่งั้นจะ retry ไม่จบ
   if (!channel) return { status: 'NO_CHANNEL' }
 
+  // unsend (feature 00018 Phase 3): ผู้ส่งลบข้อความ — mark isDeleted บนข้อความเดิม (ไม่สร้างใหม่)
+  // ล้าง body/imageUrl (ไม่เก็บเนื้อหาที่ถูกลบ). scope channel กันข้ามร้าน. mid = ข้อความที่ถูกลบ
+  if (event.message.is_deleted) {
+    await prisma.chatMessage.updateMany({
+      where: { externalMessageId: event.message.mid, conversation: { shopChannelId: channel.id } },
+      data: { isDeleted: true, body: null, imageUrl: null, reactionEmoji: null },
+    })
+    return { status: 'STORED' as const }
+  }
+
   // is_echo = ข้อความจากฝั่งเพจ (seller ตอบจากแอป Messenger เอง หรือ echo ของที่เราส่ง)
   // ผู้ติดต่อคือ "อีกฝั่ง" เสมอ → echo ใช้ recipient, ไม่ใช่ sender
   const isEcho = event.message.is_echo === true
@@ -421,6 +431,8 @@ export async function ingestInboundMessage(params: {
         // รูปจาก Meta มี URL หมดอายุ mirror เข้า storage ไว้แล้วนอก transaction ด้านบน (Task 12)
         imageUrl: mirroredFileId,
         externalMessageId: mid,
+        // reply (Phase 3): externalMessageId ของข้อความที่ตอบทับ — UI ดึง quote มาแสดง
+        replyToMid: event.message?.reply_to?.mid ?? null,
         deliveryStatus: 'SENT',
       },
     })
@@ -494,12 +506,17 @@ export async function ingestInboundMessage(params: {
     return await prisma.$transaction(async (tx) => {
       let conversation = await tx.conversation.findUnique({ where: conversationWhere })
       if (!conversation) {
+        // referral (feature 00018 Phase 2): ลูกค้าคลิกโฆษณา/ลิงก์แล้วทัก — เก็บ context แรกเข้าตอนสร้างเธรด
+        const referral = event.message?.referral ?? event.referral
         conversation = await tx.conversation.create({
           data: {
             shopId: channel.shopId,
             channel: provider,
             shopChannelId: channel.id,
             externalContactId: contact.id,
+            ...(referral
+              ? { referralSource: referral.source ?? null, referralAdTitle: referral.ads_context_data?.ad_title ?? null }
+              : {}),
           },
         })
       }
@@ -569,6 +586,23 @@ export async function ingestReadEvent(params: {
       OR: [{ externalReadAt: null }, { externalReadAt: { lt: readAt } }],
     },
     data: { externalReadAt: readAt },
+  })
+}
+
+// reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
+// เก็บ emoji ล่าสุดบน ChatMessage.reactionEmoji (unreact = null). scope ด้วย channel กันข้ามร้าน
+export async function ingestReactionEvent(params: {
+  provider: string
+  pageExternalId: string
+  mid: string
+  action: string // "react" | "unreact"
+  emoji?: string
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  await prisma.chatMessage.updateMany({
+    where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
+    data: { reactionEmoji: params.action === 'unreact' ? null : (params.emoji ?? null) },
   })
 }
 

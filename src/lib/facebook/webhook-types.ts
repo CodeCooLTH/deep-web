@@ -47,6 +47,24 @@ const AttachmentSchema = v.object({
   payload: v.optional(AttachmentPayloadSchema),
 })
 
+// referral (feature 00018 Phase 2) — ลูกค้าทักมาจากโฆษณา/ลิงก์ (มาได้ 2 ทาง: top-level event.referral
+// หรือ message.referral ของข้อความแรก). ads_context_data.ad_title = ชื่อโฆษณาที่คลิกมา
+const ReferralSchema = v.object({
+  ref: v.optional(v.string()),
+  source: v.optional(v.string()), // "ADS" | "SHORTLINK"
+  type: v.optional(v.string()),
+  ad_id: v.optional(v.string()),
+  ads_context_data: v.optional(v.object({ ad_title: v.optional(v.string()) })),
+})
+
+// reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid
+const ReactionSchema = v.object({
+  reaction: v.optional(v.string()), // "like"|"love"|"smile"|... (semantic ของ Meta)
+  emoji: v.optional(v.string()), // emoji จริงที่ลูกค้ากด (Unicode)
+  action: v.string(), // "react" | "unreact"
+  mid: v.string(), // ข้อความที่ถูก react
+})
+
 const MessageSchema = v.object({
   mid: v.string(),
   text: v.optional(v.string()),
@@ -54,6 +72,10 @@ const MessageSchema = v.object({
   // หรือเป็น echo ของข้อความที่ระบบเราส่งออกไปเอง
   is_echo: v.optional(v.boolean()),
   attachments: v.optional(v.array(AttachmentSchema)),
+  referral: v.optional(ReferralSchema), // ลูกค้าคลิกโฆษณาแล้วทักในข้อความแรก
+  // feature 00018 Phase 3 — reply/unsend
+  reply_to: v.optional(v.object({ mid: v.optional(v.string()) })), // ตอบทับข้อความ mid นี้
+  is_deleted: v.optional(v.boolean()), // ผู้ส่ง unsend ข้อความ (mid = ข้อความที่ถูกลบ)
 })
 
 const MessagingEventSchema = v.object({
@@ -64,6 +86,9 @@ const MessagingEventSchema = v.object({
   // read: event ที่ลูกค้าอ่านข้อความของเพจ (message_reads) — watermark = อ่านถึง timestamp นี้
   // feature 00018 read receipt. sender = ลูกค้า (คนอ่าน), recipient = เพจ
   read: v.optional(v.object({ watermark: v.number() })),
+  // reaction (message_reactions) + referral (messaging_referrals) — feature 00018 Phase 2
+  reaction: v.optional(ReactionSchema),
+  referral: v.optional(ReferralSchema),
 })
 
 const EntrySchema = v.object({

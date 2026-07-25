@@ -1120,6 +1120,10 @@ model Conversation {
   // chatGroupId: กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (feature 00018) — null = ยังไม่จัดกลุ่ม (แท็บ "ทั้งหมด")
   // ต่อ conversation (ไม่ใช่ต่อลูกค้า) เพื่อให้ใช้ได้ทุกช่องทางรวม DEEP; ลบกลุ่ม → SetNull (เธรดกลับ "ทั้งหมด")
   chatGroupId       String?
+  // feature 00018 Phase 2 — ลูกค้าทักมาจากโฆษณา/ลิงก์ (messaging_referrals หรือ message.referral) —
+  // context "แรกเข้า" ของเธรด (เซ็ตครั้งเดียวตอนสร้างเธรด) แสดง badge บนหัวเธรดว่าลูกค้ามาจากไหน
+  referralSource    String? // "ADS" | "SHORTLINK"
+  referralAdTitle   String? // ads_context_data.ad_title (ถ้ามาจากโฆษณา)
 
   buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -1174,6 +1178,12 @@ model ChatMessage {
   // flaggedScam/scamMatchedRules: extension #3 Scam-link Detection — heuristic scam-link flag ณ เวลาส่ง (snapshot, ไม่ re-scan ย้อนหลัง BR-SCAM-05)
   flaggedScam      Boolean @default(false)
   scamMatchedRules Json? // rule IDs ที่ match (audit) — เช่น ["R-SHORTENER","R-KEYWORD"]
+  // feature 00018 Phase 2 — reaction บนข้อความนี้ (message_reactions webhook): emoji ล่าสุดจากลูกค้า/ร้าน
+  // null = ไม่มี/ถูก unreact. เก็บ emoji ตรง ๆ (ไม่ normalize) แสดงมุมล่างบับเบิลในเธรด
+  reactionEmoji    String?
+  // feature 00018 Phase 3 — reply/unsend
+  replyToMid       String? // externalMessageId ของข้อความที่ "ตอบทับ" (message.reply_to.mid) — แสดง quote
+  isDeleted        Boolean @default(false) // ผู้ส่ง unsend ข้อความ (message.is_deleted) — แสดง "ข้อความถูกลบ"
 
   // --- feature 00018 (additive) ---
   // externalMessageId: mid จาก Meta — unique เพื่อ idempotency

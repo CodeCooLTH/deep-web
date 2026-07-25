@@ -141,8 +141,32 @@ export async function GET(
       ]),
     );
 
+    // reply quote (feature 00018 Phase 3) — ดึง body/ผู้ส่งของข้อความที่ถูกตอบทับ (replyToMid =
+    // externalMessageId) มาแสดง quote. batch fetch กัน N+1, scope conversationId เดียวกัน
+    const replyMids = Array.from(
+      new Set(
+        result.items
+          .map((m) => (m as { replyToMid?: string | null }).replyToMid)
+          .filter((x): x is string => !!x),
+      ),
+    );
+    const repliedRows =
+      replyMids.length > 0
+        ? await prisma.chatMessage.findMany({
+            where: { externalMessageId: { in: replyMids }, conversationId: id },
+            select: { externalMessageId: true, body: true, senderRole: true },
+          })
+        : [];
+    const repliedMap = new Map(
+      repliedRows.map((r) => [r.externalMessageId as string, { body: r.body, senderRole: r.senderRole as "BUYER" | "SHOP" }]),
+    );
+
     const items = result.items.map((m) => ({
       ...m,
+      replyTo: (() => {
+        const rmid = (m as { replyToMid?: string | null }).replyToMid;
+        return rmid ? repliedMap.get(rmid) ?? null : null;
+      })(),
       productCard:
         m.type === "PRODUCT" && m.productRefId && productMap.has(m.productRefId)
           ? (() => {
