@@ -45,12 +45,14 @@ describe("resolveOrderAccess", () => {
     expect(decision).toEqual({ kind: "OWNER_MISMATCH" });
   });
 
-  it("OPEN_CLAIM — buyerUserId ว่าง, buyerContact ว่าง, status PENDING", () => {
+  // เดิมเคสนี้คืน OPEN_CLAIM (ใครล็อกอินแล้วถือลิงก์ก็ยึดออเดอร์ได้) — ปิดช่องโหว่แล้ว
+  // ไม่มีเบอร์ให้เทียบ = พิสูจน์ความเป็นเจ้าของไม่ได้ → บล็อกเหมือนออเดอร์ legacy อื่น
+  it("LEGACY_NO_CLAIM — buyerContact ว่าง แม้ status PENDING ก็ยึดออเดอร์ไม่ได้", () => {
     const decision = resolveOrderAccess(
       baseOrder({ buyerUserId: null, buyerContact: null, status: "PENDING" }),
       baseSession(),
     );
-    expect(decision).toEqual({ kind: "OPEN_CLAIM" });
+    expect(decision).toEqual({ kind: "LEGACY_NO_CLAIM" });
   });
 
   it("LEGACY_NO_CLAIM — buyerContact เป็นอีเมล (normalizePhone ล้มเหลว)", () => {

@@ -24,7 +24,6 @@ export type OrderAccessDecision =
   | { kind: "NO_SESSION" }
   | { kind: "OWNER_MATCH" }
   | { kind: "OWNER_MISMATCH" }
-  | { kind: "OPEN_CLAIM" }
   | { kind: "PHONE_MATCH_AUTO_CLAIM" }
   | { kind: "OTP_CLAIM_REQUIRED"; targetPhone: string }
   | { kind: "OTP_CLAIM_BLOCKED" }
@@ -42,10 +41,18 @@ export function resolveOrderAccess(
       : { kind: "OWNER_MISMATCH" };
   }
 
+  // ออเดอร์ที่ไม่มีเบอร์ผูก = ออเดอร์เก่าก่อน feature 00015 เท่านั้น — ของใหม่เป็นไปไม่ได้
+  // แล้วเพราะ TFR-009 บังคับ buyerContact ทั้ง frontend (OrderCreateForm.tsx Yup) และ
+  // backend (validations.ts CreateOrderSchema) ส่วนการจองก็เซ็ตเสมอที่ booking.service.ts
+  //
+  // เดิมเคสนี้คืน OPEN_CLAIM = ใครก็ได้ที่ล็อกอินแล้วถือลิงก์ เข้าดูออเดอร์ได้เต็ม ๆ แล้ว
+  // guaranteeOrderLink() จะเซ็ต buyerUserId ให้ทันที → ลิงก์ที่ถูก forward เข้ากลุ่มแชท
+  // "ใครเปิดก่อนได้เป็นเจ้าของถาวร" และเจ้าของตัวจริงจะเจอ OWNER_MISMATCH ตลอดไป
+  //
+  // ตามหลัก "เบอร์โทร = single source of truth ของตัวตน" เมื่อไม่มีเบอร์ให้เทียบก็พิสูจน์
+  // ความเป็นเจ้าของไม่ได้ จึงบล็อกทุกกรณี ให้ไปยืนยันกับร้านโดยตรงแทน
   if (order.buyerContact == null) {
-    return order.status === "PENDING"
-      ? { kind: "OPEN_CLAIM" }
-      : { kind: "LEGACY_NO_CLAIM" }; // defensive — ไม่ควรเกิดตาม state machine ปัจจุบัน
+    return { kind: "LEGACY_NO_CLAIM" };
   }
 
   const contactPhone = normalizePhone(order.buyerContact);
