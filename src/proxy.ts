@@ -107,9 +107,14 @@ export async function proxy(request: NextRequest) {
     const ua = request.headers.get('user-agent') || ''
     const isMobile = /Android|iPhone|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(ua)
     if (isMobile && isAuthed && !pathname.startsWith('/m/') && pathname !== '/m') {
-      // /u /a /o = หน้า detail (โปรไฟล์ร้าน/ประมูล/ออเดอร์) — authed มือถือ render ใน app shell /m
+      // /u /a = หน้า detail (โปรไฟล์ร้าน/ประมูล) — authed มือถือ render ใน app shell /m
       // (มี bottom nav กลับได้; guest ไม่ authed → เห็นหน้า public ปกติ)
-      const MOBILE_PREFIXES = ['/orders', '/messages', '/reviews', '/badges', '/settings', '/u', '/a', '/o']
+      //
+      // NOTE: /o (ลิงก์ออเดอร์) ไม่อยู่ในลิสต์โดยเจตนา — เป็นหน้า public standalone ที่ผู้ซื้อเปิดจาก
+      // ลิงก์ในแชทภายนอก (Messenger/LINE/SMS) ไม่ใช่หน้าในแอป การครอบ app shell ทำให้มี
+      // bottom nav + แถบค้นหาโผล่มาทับ CTA "ยืนยันคำสั่งซื้อ" และทำให้ผู้ซื้อสับสนว่ากำลังอยู่ในแอป
+      // (เดิมเคยอยู่ในลิสต์ พอ feature 00015 บังคับ login ทุกคนเลยกลายเป็น authed → โดน shell ครอบหมด)
+      const MOBILE_PREFIXES = ['/orders', '/messages', '/reviews', '/badges', '/settings', '/u', '/a']
       if (pathname === '/dashboard') {
         const url = request.nextUrl.clone()
         url.pathname = '/m'
