@@ -34,16 +34,15 @@
  * ก่อนส่งลง prop นี้ — RSC PII rule: หน้า seller อยู่ใต้ client VerticalLayout ทุก prop ที่ผ่านลงมา
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
-import Link from 'next/link'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
-import { formatDate } from '@/lib/format-date'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { ShopVertical } from '@/lib/lodging'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
+import OrderCardView from '../../../_components/OrderCardView'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 
@@ -56,9 +55,8 @@ export type CustomerPanelOrder = {
   createdAt: string // ISO
   checkIn: string | null // ISO date — เฉพาะออเดอร์ vertical=LODGING (type=BOOKING)
   checkOut: string | null
-  // ข้อมูลเบื้องต้นบนการ์ด (user request 2026-07-24): ชื่อสินค้าแรก + จำนวนรายการ
-  title: string // ชื่อสินค้ารายการแรก (fallback "คำสั่งซื้อ")
-  itemCount: number
+  // รายการสินค้า (user 2026-07-25: การ์ด right panel แสดงเหมือนในแชท — ชื่อ/จำนวน/ราคา/รูป)
+  items: { name: string; qty: number; price: string; imageFileId: string | null }[]
 }
 
 export type CustomerPanelData = {
@@ -123,14 +121,6 @@ const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
   },
 }
 
-// precedent: OrderCard.tsx:34-37 (seller /orders list) — reuse token mapping เดียวกันเป๊ะ
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning' },
-  SHIPPED: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info' },
-  CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success' },
-  CANCELLED: { label: 'ยกเลิก', cls: 'bg-default-100 text-default-500' },
-}
-
 /** แถวสถิติลูกค้า — label ซ้าย ค่าขวา (ตามภาพที่ user ส่ง 2026-07-24) เส้นคั่นบาง ๆ ระหว่างแถว
  *  ค่าใช้ font-semibold ให้เด่นกว่า label (ค่าคือสิ่งที่ผู้ขายอยากอ่าน) — token Paces ล้วน (HR7) */
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -151,31 +141,25 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'note', label: 'โน้ต', icon: 'notes' }, // สะกด "โน้ต" ให้ตรงกับเนื้อหาในแท็บ (user ยืนยัน 2026-07-23)
 ]
 
-const orderHref = (vertical: ShopVertical, token: string) =>
-  vertical === 'LODGING' ? `/bookings/${token}` : `/orders/${token}`
 
 /** การ์ดออเดอร์ 1 ใบ (user request 2026-07-24: ข้อมูลเบื้องต้น = ชื่อสินค้า/จำนวนรายการ/ยอด/สถานะ)
  *  + ปุ่ม hover "ส่งเข้าแชท": DEEP → ส่งการ์ดออเดอร์ (type=ORDER); ช่องทางนอก → ส่งลิงก์ /o/{token} (TEXT)
  *  ถามยืนยันก่อนส่ง (Swal) เพราะเป็น outward-facing (ข้อความไปถึงลูกค้าจริง) */
 function OrderCard({
   o,
-  vertical,
   conversationId,
   contactName,
   channel,
   customerAvatar,
 }: {
   o: CustomerPanelOrder
-  vertical: ShopVertical
   conversationId: string
   contactName: string
   channel: string
   customerAvatar: string | null
 }) {
   const { openDraft } = useDraftOrders()
-  const badge = STATUS_BADGE[o.status] ?? STATUS_BADGE.PENDING!
   const [sending, setSending] = useState(false)
-  const priceLabel = `฿${Number(o.totalAmount).toLocaleString('th-TH')}`
 
   // แตะการ์ด → เปิดโมดัลแก้ไขคำสั่งซื้อ (user 2026-07-25: ไม่เปิด tab ใหม่ ให้แก้ในโมดัลเดิม ไม่ต้องสลับจอ)
   function openEdit() {
@@ -212,48 +196,27 @@ function OrderCard({
     }
   }
 
-  // แตะการ์ด (ทั้งใบ) → เปิดโมดัลแก้ไข (user 2026-07-25 ไม่เปิด tab ใหม่); ปุ่ม "ส่งเข้าแชท" แยก (z-10 +
-  // stopPropagation ไม่ให้เปิดโมดัลตาม). การ์ดเป็น role=button + keyboard (a11y) แทน Link เดิม
+  // การ์ดเดียวกับในแชท (user 2026-07-25) — OrderCardView shared; แตะ = เปิดโมดัลแก้ไข; footer = ส่งเข้าแชท
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={openEdit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit() }
-      }}
-      aria-label={`แก้ไขคำสั่งซื้อ ${o.title}`}
-      className="hover:bg-default-100 focus:ring-primary/40 relative cursor-pointer rounded-lg border border-default-200 p-3 transition-colors focus:outline-none focus:ring-2"
-    >
-      {/* หัว: ชื่อสินค้า (เด่น) + สถานะ */}
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-default-900 mb-0 line-clamp-1 text-sm font-semibold">{o.title}</p>
-        <span className={`badge shrink-0 text-2xs ${badge.cls}`}>{badge.label}</span>
-      </div>
-      {/* meta: เลขออเดอร์ · จำนวนรายการ · วันที่ (LODGING เพิ่มช่วงเข้าพัก) */}
-      <p className="text-default-500 mb-0 mt-0.5 text-xs">
-        #{o.token.slice(0, 8).toUpperCase()} · {o.itemCount} รายการ · {formatDate(o.createdAt)}
-      </p>
-      {vertical === 'LODGING' && o.checkIn && o.checkOut && (
-        <p className="text-default-500 mb-0 mt-0.5 text-xs">
-          {formatDate(o.checkIn)} – {formatDate(o.checkOut)}
-        </p>
-      )}
-      {/* แถวล่าง: ปุ่มส่งเข้าแชท (ซ้าย) + ยอดสุทธิ (ขวา) */}
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={sendToChat}
-          disabled={sending}
-          aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
-          className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 gap-1 disabled:opacity-60"
-        >
-          <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
-          ส่งเข้าแชท
-        </button>
-        <span className="text-default-900 text-sm font-bold">{priceLabel}</span>
-      </div>
-    </div>
+    <OrderCardView
+      data={{ token: o.token, status: o.status, totalAmount: o.totalAmount, items: o.items }}
+      onEdit={openEdit}
+      className="w-full"
+      footer={
+        <div className="border-default-200 border-t p-2">
+          <button
+            type="button"
+            onClick={sendToChat}
+            disabled={sending}
+            aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 w-full gap-1 disabled:opacity-60"
+          >
+            <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
+            ส่งเข้าแชท
+          </button>
+        </div>
+      }
+    />
   )
 }
 
@@ -264,14 +227,12 @@ function OrderCard({
  */
 function OrdersList({
   conversationId,
-  vertical,
   initial,
   contactName,
   channel,
   customerAvatar,
 }: {
   conversationId: string
-  vertical: ShopVertical
   initial: CustomerPanelOrder[]
   contactName: string
   channel: string
@@ -312,7 +273,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} vertical={vertical} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} />
+        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -556,7 +517,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           data.orders.length === 0 ? (
             <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
           ) : (
-            <OrdersList conversationId={data.conversationId} vertical={data.vertical} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} />
+            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">

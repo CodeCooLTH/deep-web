@@ -87,6 +87,8 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import { ChannelBadge } from '../../components/ChannelBadge'
+import OrderCardView from '../../../_components/OrderCardView'
+import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker from './EmojiPicker'
 import AiSuggestPanel from './AiSuggestPanel'
@@ -342,12 +344,11 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
 }
 
 /**
- * OrderCardBubble — เนื้อหาข้อความ type='ORDER' (การ์ดคำสั่งซื้อในแชท)
- * user request 2026-07-25: หัว "คำสั่งซื้อ · #เลข", มีรายการสินค้าข้างใน (ชื่อ/จำนวน/ราคา), จำนวนรวม,
- * ยอดสุทธิ, ปุ่มล่างเปิดออเดอร์ "ฝั่ง seller" (/orders/{token}). style Paces token น้ำเงิน (ไม่ใช้เขียว
- * ตาม ref — HR7). buyer เห็นการ์ดเดียวกันแต่ปุ่มไป /o/{token} (ฝั่ง buyer — คนละ component)
+ * OrderCardBubble — เนื้อหาข้อความ type='ORDER' (การ์ดคำสั่งซื้อในแชท ฝั่ง seller)
+ * user request 2026-07-25: ใช้ OrderCardView shared (การ์ดเดียวกับแท็บคำสั่งซื้อ) — แตะการ์ด → เปิด
+ * โมดัลแก้ไข (onEdit); footer "ดูคำสั่งซื้อ" → /orders/{token}. buyer มี component แยก (Vuexy)
  */
-function OrderCardBubble({ card }: { card: ChatOrderCard | null }) {
+function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit: (token: string) => void }) {
   if (!card) {
     return (
       <div className="text-default-400 flex items-center gap-2">
@@ -356,60 +357,21 @@ function OrderCardBubble({ card }: { card: ChatOrderCard | null }) {
       </div>
     )
   }
-  const title = card.items[0]?.name ?? 'คำสั่งซื้อ'
-  const displayNo = card.token.slice(0, 8).toUpperCase()
-  const priceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
   return (
-    <div className="border-default-200 w-64 overflow-hidden rounded-lg border">
-      {/* หัวการ์ด — Paces primary (น้ำเงิน) + เลขคำสั่งซื้อ */}
-      <div className="bg-primary flex items-center gap-2.5 px-4 py-3 text-white">
-        <Icon icon="receipt-2" className="shrink-0 text-2xl" />
-        <div className="min-w-0">
-          <p className="mb-0 truncate text-sm font-semibold">{title}</p>
-          <p className="mb-0 truncate text-2xs opacity-90">คำสั่งซื้อ · #{displayNo}</p>
-        </div>
-      </div>
-      {/* เนื้อหา — รายการสินค้า + จำนวนรวม + ยอดสุทธิ */}
-      <div className="bg-card px-4 py-3">
-        <div className="space-y-2">
-          {card.items.map((it, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              {/* รูปสินค้า (user 2026-07-25) — มี productId → รูปจริง, custom line → ไอคอน placeholder */}
-              <span className="bg-default-100 flex size-9 shrink-0 items-center justify-center overflow-hidden rounded">
-                {it.imageFileId ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`/api/files/${it.imageFileId}`} alt={it.name} className="size-full object-cover" />
-                ) : (
-                  <Icon icon="photo" className="text-default-400 text-base" />
-                )}
-              </span>
-              <span className="text-default-700 min-w-0 flex-1 truncate">{it.name}</span>
-              <span className="text-default-400 shrink-0 text-2xs">x{it.qty}</span>
-              <span className="text-default-800 shrink-0 font-medium">
-                ฿{Number(it.price).toLocaleString('th-TH')}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="border-default-200 my-2.5 border-t border-dashed" />
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-default-500">รายการ</span>
-          <span className="text-default-800 font-semibold">{card.items.length} รายการ</span>
-        </div>
-        <div className="mt-1.5 flex items-center justify-between text-sm">
-          <span className="text-default-500">ยอดสุทธิ</span>
-          <span className="text-primary font-bold">{priceLabel}</span>
-        </div>
-      </div>
-      {/* footer — เปิดออเดอร์ฝั่ง seller (user 2026-07-25) */}
-      <Link
-        href={`/orders/${card.token}`}
-        className="bg-primary/5 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold"
-      >
-        <Icon icon="external-link" className="text-base" />
-        ดูคำสั่งซื้อ
-      </Link>
-    </div>
+    <OrderCardView
+      data={card}
+      onEdit={() => onEdit(card.token)}
+      className="w-64"
+      footer={
+        <Link
+          href={`/orders/${card.token}`}
+          className="bg-primary/5 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5 border-default-200 border-t px-4 py-2.5 text-sm font-semibold"
+        >
+          <Icon icon="external-link" className="text-base" />
+          ดูคำสั่งซื้อ
+        </Link>
+      }
+    />
   )
 }
 
@@ -432,6 +394,10 @@ export default function ChatThread({
 }: Props) {
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
+  // แตะการ์ดคำสั่งซื้อในแชท → เปิดโมดัลแก้ไข (user 2026-07-25: เหมือนแตะการ์ดใน right panel)
+  const { openDraft } = useDraftOrders()
+  const openEditOrder = (token: string) =>
+    openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, editOrderToken: token })
   const [sheetOpen, setSheetOpen] = useState(false)
   // ดูรูปเต็มจอ — index ของรูปที่เปิดอยู่ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
   // (ต้องประกาศตรงนี้กับ hook ตัวอื่น ห้ามย้ายลงไปหลัง early return ของ errorState/loadingInitial)
@@ -842,7 +808,7 @@ export default function ChatThread({
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary text-white' : 'bg-light'}`}>
                         {m.type === 'ORDER' ? (
-                          <OrderCardBubble card={m.orderCard ?? null} />
+                          <OrderCardBubble card={m.orderCard ?? null} onEdit={openEditOrder} />
                         ) : m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
                         ) : (

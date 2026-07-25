@@ -686,8 +686,7 @@ export async function getOrdersByCustomer(
     createdAt: string;
     checkIn: string | null;
     checkOut: string | null;
-    title: string;
-    itemCount: number;
+    items: { name: string; qty: number; price: string; imageFileId: string | null }[];
   }[];
   nextCursor: string | null;
 }> {
@@ -710,7 +709,8 @@ export async function getOrdersByCustomer(
       createdAt: true,
       checkIn: true,
       checkOut: true,
-      items: { select: { name: true } }, // ข้อมูลเบื้องต้นบนการ์ด (user 2026-07-24)
+      // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
+      items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
     },
   });
   const hasMore = rows.length > take;
@@ -726,8 +726,12 @@ export async function getOrdersByCustomer(
       createdAt: o.createdAt.toISOString(),
       checkIn: o.checkIn ? o.checkIn.toISOString() : null,
       checkOut: o.checkOut ? o.checkOut.toISOString() : null,
-      title: o.items[0]?.name ?? "คำสั่งซื้อ",
-      itemCount: o.items.length,
+      items: o.items.map((it) => ({
+        name: it.name,
+        qty: it.qty,
+        price: it.price.toFixed(2),
+        imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
+      })),
     })),
     nextCursor,
   };

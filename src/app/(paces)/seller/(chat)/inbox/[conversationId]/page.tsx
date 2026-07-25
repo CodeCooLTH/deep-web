@@ -210,7 +210,8 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           createdAt: true,
           checkIn: true,
           checkOut: true,
-          items: { select: { name: true } }, // ข้อมูลเบื้องต้นบนการ์ด (user 2026-07-24): ชื่อ+จำนวน
+          // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
+          items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
         },
       })
     : []
@@ -224,8 +225,12 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     createdAt: o.createdAt.toISOString(),
     checkIn: o.checkIn ? o.checkIn.toISOString() : null,
     checkOut: o.checkOut ? o.checkOut.toISOString() : null,
-    title: o.items[0]?.name ?? 'คำสั่งซื้อ',
-    itemCount: o.items.length,
+    items: o.items.map((it) => ({
+      name: it.name,
+      qty: it.qty,
+      price: it.price.toFixed(2),
+      imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
+    })),
   }))
 
   // สถิติลูกค้า (user สั่ง 2026-07-24: แถว จำนวนออเดอร์/รวมยอดซื้อ/เป็นลูกค้ามา ในแท็บข้อมูลลูกค้า)
