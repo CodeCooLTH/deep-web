@@ -59,15 +59,18 @@ graph TD
     WHRoute["route: GET/POST<br/>/api/channels/facebook/webhook"]
     ConnectRoute["route: GET<br/>/api/channels/facebook/connect"]
     CallbackRoute["route: GET<br/>/api/channels/facebook/callback"]
+    PagesRoute["route: GET<br/>/api/channels/facebook/pages<br/>(ใหม่ 2026-07-24)"]
+    ConfirmRoute["route: POST<br/>/api/channels/facebook/confirm<br/>(ใหม่ 2026-07-24)"]
     MsgRoute["route: POST<br/>/api/chat/conversations/[id]/messages<br/>(feature 00011, แก้เพิ่ม)"]
 
     SigLib["lib: signature.ts"]
     TypesLib["lib: webhook-types.ts (Valibot)"]
     GraphLib["lib: graph.ts (Graph API client)"]
     CryptoLib["lib: token-crypto.ts (AES-256-GCM)"]
+    PendingLib["lib: pending-connect.ts<br/>(user token cookie, ใหม่ 2026-07-24)"]
 
     ChanChatSvc["service: channel-chat.service.ts<br/>ingestInboundMessage / sendOutboundMessage / getWindowState"]
-    ShopChanSvc["service: shop-channel.service.ts<br/>connectPages / listChannels(unused) / getChannelByExternalId"]
+    ShopChanSvc["service: shop-channel.service.ts<br/>connectPages(forceIds) / describePageStates / listChannels / getChannelByExternalId"]
     ChatSvc["service: chat.service.ts (feature 00011, แก้เพิ่ม)<br/>sendMessage — nullable buyerUserId"]
 
     DB[(PostgreSQL 16 / Supabase<br/>ShopChannel, ExternalContact,<br/>Conversation, ChatMessage)]
@@ -86,7 +89,15 @@ graph TD
 
     ConnectRoute -.-> CryptoLib
     CallbackRoute --> GraphLib
-    CallbackRoute --> ShopChanSvc
+    CallbackRoute --> PendingLib
+    CallbackRoute -->|redirect| PagesRoute
+    PagesRoute --> PendingLib
+    PagesRoute --> GraphLib
+    PagesRoute --> ShopChanSvc
+    ConfirmRoute --> PendingLib
+    ConfirmRoute --> GraphLib
+    ConfirmRoute --> ShopChanSvc
+    PendingLib --> CryptoLib
     ShopChanSvc --> CryptoLib
     ShopChanSvc --> DB
 
@@ -110,9 +121,10 @@ graph TD
 | **`src/lib/facebook/webhook-types.ts`** | นิยาม Valibot schema ของ payload webhook + แบน `entry[].messaging[]` เป็น list เดียว | Valibot |
 | **`src/lib/facebook/graph.ts`** | client บางของ Meta Graph API v21.0 — ไม่มี business logic (ไม่ตัดสินใจว่าจะทำอะไรกับผลลัพธ์) แค่เรียก+parse response/error | `fetch` (native) |
 | **`src/lib/token-crypto.ts`** | encrypt/decrypt page token ด้วย AES-256-GCM — pure crypto utility ไม่รู้จัก `ShopChannel` เลย | Node `crypto`, env `CHANNEL_TOKEN_KEY` |
-| **`src/services/shop-channel.service.ts`** | เจ้าของ lifecycle ของ `ShopChannel` (create/list/get-decrypted/mark-invalid) — จุดเดียวที่แตะ `accessTokenEnc` โดยตรง | Prisma, `token-crypto.ts`, `graph.ts` (subscribe) |
+| **`src/lib/facebook/pending-connect.ts`** (ใหม่ 2026-07-24) | พก user access token จาก `callback` ไปถึงตอนกดยืนยันเลือกเพจ — set/read cookie `fb_channel_user_token` (เข้ารหัสด้วย `token-crypto`), read คืน `null` เมื่อหมดอายุ/ถอดไม่ผ่าน (ไม่ throw) | `token-crypto.ts`, `next/server` cookies |
+| **`src/services/shop-channel.service.ts`** | เจ้าของ lifecycle ของ `ShopChannel` (create/list/get-decrypted/mark-invalid) — จุดเดียวที่แตะ `accessTokenEnc` โดยตรง; `connectPages(forceIds)` ย้ายเพจข้ามร้านรายเพจ + `describePageStates()` แยกสถานะเพจให้หน้าเลือกเพจ | Prisma, `token-crypto.ts`, `graph.ts` (subscribe) |
 | **`src/services/channel-chat.service.ts`** | เจ้าของ business logic ของ "ข้อความช่องทางนอก" — ingest ขาเข้า, ส่งขาออก, คำนวณ window; **ไม่แตะ `accessTokenEnc` โดยตรง** (เรียกผ่าน `shop-channel.service.ts` เสมอ) | Prisma, `shop-channel.service.ts`, `graph.ts`, `lib/storage` |
-| **`src/app/api/channels/facebook/{webhook,connect,callback}/route.ts`** | HTTP boundary — auth gate, parse request, เรียก service, map error → HTTP status | Next.js Route Handler, NextAuth session |
+| **`src/app/api/channels/facebook/{webhook,connect,callback,pages,confirm}/route.ts`** | HTTP boundary — auth gate, parse request, เรียก service, map error → HTTP status (`pages`/`confirm` ใหม่ 2026-07-24 — ดู TD-006) | Next.js Route Handler, NextAuth session |
 | **`src/app/api/chat/conversations/[id]/messages/route.ts`** (แก้เพิ่ม, feature 00011) | dispatch ตาม `conversation.channel` ก่อนเรียก service ที่ถูกต้อง | `chat.service.ts`, `channel-chat.service.ts` |
 | **`src/proxy.ts`** (`guardApi`, แก้เพิ่ม) | ยกเว้น webhook path จาก Origin-check (ยัง apply rate-limit) | — |
 | **`src/services/quick-message.service.ts`** (ใหม่ 2026-07-23) | CRUD ข้อความสำเร็จรูประดับร้าน — ทุก query/mutation scope ด้วย `shopId` ใน `WHERE` (atomic `updateMany`/`deleteMany`) ไม่มี logic อื่น | Prisma |
@@ -285,6 +297,14 @@ sequenceDiagram
 - **ทางเลือกที่ตัดทิ้ง:** ทำ API route ให้ครบตั้งแต่รอบนี้ — เกินขอบเขตที่วางแผนไว้ของ backend-only phase
 - **ผลกระทบ:** FR-FBC-11 (จัดการ/ถอด Page ที่เชื่อมแล้ว) **ยังใช้งานไม่ได้เลยจนกว่าจะมี route + UI** — ต้อง flag ให้ Controller ก่อน sign-off ว่า pipeline พร้อมแต่ endpoint การจัดการยังไม่มี
 
+### TD-006: หน้าเลือกเพจคั่นก่อนเชื่อม + ย้ายเพจข้ามร้าน "รายเพจ" (2026-07-24)
+
+- **ปัญหา:** `callback` เดิมเชื่อม "ทุก Page ที่มีสิทธิ์" เข้าร้านที่ active ทันที — admin มักดูแลเพจของตัวเองหลายเพจ พอเข้ามาเชื่อมเพจของร้าน เพจส่วนตัวที่เหลือถูกลากเข้าร้านนั้นทั้งหมด (subscribe webhook + ข้อความไหลเข้า inbox ที่พนักงานคนอื่นเห็น)
+- **ตัดสินใจ:** callback ไม่เชื่อมทันที — เก็บ user token (เข้ารหัส AES-256-GCM ผ่าน `src/lib/facebook/pending-connect.ts`, httpOnly cookie `fb_channel_user_token`, `path=/api/channels/facebook`, 10 นาที) แล้วพาไปหน้า `/settings/channels/select`. หน้านั้นเรียก `GET /pages` (`describePageStates()` แยกสถานะ available/connected-here/other-shop) → user ติ๊กเลือก → `POST /confirm` เชื่อมเฉพาะที่เลือก
+- **ย้ายรายเพจ:** `connectPages` เปลี่ยนจาก `force` (สวิตช์ทั้งชุด) เป็น `forceIds: string[]` — เพจที่ user ยืนยันย้ายเท่านั้นที่ตัดร้านเดิม (`DISCONNECTED` เก็บประวัติ), เพจที่ไม่ยืนยันยัง `skipped`. `confirm` re-verify กับ Meta (`listManageablePages`) รับเฉพาะ id ที่อยู่ในสิทธิ์จริง + `forceIds` ต้อง subset ของที่เลือก (กัน IDOR)
+- **ทางเลือกที่ตัดทิ้ง:** เก็บ page token ทั้งชุดใน cookie (ทะลุลิมิต 4KB + ค้างไม่ได้ใช้), เก็บใน DB/ตาราง (ต้อง migration + cleanup แถวขยะเพื่อข้อมูลอายุ 10 นาที)
+- **ผลกระทบ:** cookie `fb_channel_force` ถูกถอด; Swal `?force=1` ใน `ChannelsClient` ถูกลบ; unit test `shop-channel.service.test.ts` เขียนใหม่ 17/17 (ล็อก reconnect reuse-id + forceIds รายเพจ + describePageStates)
+
 ---
 
 ## 7. Traceability
@@ -294,7 +314,7 @@ sequenceDiagram
 | TFR-FBC-01/02 (signature + parse) | Flow 4.1, Component `signature.ts`/`webhook-types.ts` | Done |
 | TFR-FBC-03/04/05 (ingest TEXT/IMAGE/echo) | Flow 4.1, Component `channel-chat.service.ts` | Done |
 | TFR-FBC-06 (window calc) | TD-003 บริบท, Component `channel-chat.service.ts` | Done |
-| TFR-FBC-07/08 (OAuth connect + connectPages) | Component `graph.ts`/`shop-channel.service.ts` | Done |
+| TFR-FBC-07/08 (OAuth connect + connectPages) | Component `graph.ts`/`shop-channel.service.ts`; TD-006 (หน้าเลือกเพจ + `pending-connect.ts` + `pages`/`confirm` + `forceIds` รายเพจ) | Done (แก้พฤติกรรม 2026-07-24) |
 | TFR-FBC-09/10 (ส่งออก + dispatch) | Flow 4.2, TD-003 | Done (TEXT เท่านั้น) |
 | TFR-FBC-11 (ยกเว้น CSRF) | Component `src/proxy.ts` | Done |
 | TFR-FBC-12 (ข้อความสำเร็จรูป CRUD) | Component `quick-message.service.ts` + routes `/api/chat/quick-messages*`, UI `QuickMessageBar`/`QuickMessageManager` | Done (2026-07-23) |
