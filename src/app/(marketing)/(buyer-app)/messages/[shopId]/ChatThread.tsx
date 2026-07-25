@@ -69,6 +69,7 @@ type ProductCardData = {
 // enrich เฉพาะ type='ORDER' — คืนจาก GET (route.ts orderMap); การ์ดคำสั่งซื้อที่ร้านส่ง
 type OrderCardData = {
   token: string
+  orderNo?: string | null // เลขคำสั่งซื้อ DP… (user 2026-07-25)
   status: string
   totalAmount: string
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
@@ -769,7 +770,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                     {orderTitle}
                                   </Typography>
                                   <Typography className='truncate text-xs' style={{ color: 'inherit', opacity: 0.9 }}>
-                                    คำสั่งซื้อ · #{card.token.slice(0, 8).toUpperCase()}
+                                    คำสั่งซื้อ · {card.orderNo || card.token.slice(0, 8).toUpperCase()}
                                   </Typography>
                                 </div>
                               </div>

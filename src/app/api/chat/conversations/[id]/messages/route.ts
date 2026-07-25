@@ -115,6 +115,7 @@ export async function GET(
           // user 2026-07-25: การ์ดต้องมีรายการสินค้าข้างใน (ชื่อ/จำนวน/ราคา/รูป) + จำนวนรวม + ยอดสุทธิ
           select: {
             publicToken: true,
+            orderNo: true,
             status: true,
             totalAmount: true,
             items: {
@@ -128,6 +129,7 @@ export async function GET(
         o.publicToken,
         {
           token: o.publicToken,
+          orderNo: o.orderNo, // เลขคำสั่งซื้อ DP… (user 2026-07-25)
           status: o.status,
           totalAmount: o.totalAmount.toFixed(2),
           items: o.items.map((it) => ({

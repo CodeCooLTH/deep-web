@@ -17,6 +17,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import Icon from '@/components/wrappers/Icon'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import type { OrderRow } from './data'
+import { formatOrderNo } from '@/lib/order-no'
 
 interface Props {
   order: OrderRow
@@ -35,8 +36,8 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // ใช้ publicToken 8 ตัวแรกเป็น display ID (ตรงกับหน้าการ์ด)
-  const cardId = order.publicToken.slice(0, 8).toUpperCase()
+  // เลขคำสั่งซื้อ DP… (user 2026-07-25) — ตรงกับหน้าการ์ด/ตาราง
+  const cardId = formatOrderNo(order.publicToken, order.createdAtISO)
 
   return (
     // HR7: z-80 = viewport overlay lock (Paces ไม่มี token; precedent SalesChartSheet/AccountSwitcherSheet)
@@ -86,7 +87,7 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
 
         {/* สรุปออเดอร์ */}
         <p className="mt-3 text-center text-xs text-default-500">
-          ออเดอร์ <span className="font-semibold text-default-900">#{cardId}</span>
+          ออเดอร์ <span className="font-semibold text-default-900">{cardId}</span>
           {' · '}
           {order.buyerName ?? 'ลูกค้า'}
           {' · '}

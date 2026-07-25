@@ -46,6 +46,7 @@ import type { ThemeColor } from '@core/types'
 
 import { getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone } from '@/lib/order-display'
 import { formatDateTimeTH } from '@/lib/format-date'
+import { formatOrderNo } from '@/lib/order-no'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
@@ -565,7 +566,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Chip size='small' variant='tonal' color={STATUS_COLOR[order.status]} label={STATUS_LABEL[order.status]} />
           <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto' }}>
-            #{order.publicToken.slice(0, 8)} · {formatDateTimeTH(order.createdAtIso)}
+            {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
           </Typography>
         </Box>
 

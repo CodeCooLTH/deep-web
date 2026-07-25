@@ -33,6 +33,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { PAYMENT_LABELS, PAYMENT_ICONS, SALES_CHANNEL_ICONS, SALES_CHANNEL_LABELS, type OrderRow } from './data'
+import { formatOrderNo } from '@/lib/order-no'
 import BuyerAvatar from './BuyerAvatar'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
@@ -112,7 +113,7 @@ export default function OrdersTable({ orders }: Props) {
   // cancel — OrderActions (centralized) ส่ง token มาขอ; confirm ผ่าน Sweet Alerts (Hard Rule safepay-ux #8)
   const handleCancelRequest = async (token: string) => {
     const o = orders.find((x) => x.publicToken === token)
-    const label = o ? `ออเดอร์ #${o.id.toUpperCase()}` : 'ออเดอร์นี้'
+    const label = o ? `ออเดอร์ ${formatOrderNo(o.publicToken, o.createdAtISO)}` : 'ออเดอร์นี้'
     const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
@@ -167,7 +168,7 @@ export default function OrdersTable({ orders }: Props) {
       cell: ({ row }) => (
         <h5 className="flex items-center gap-1.5 text-sm font-medium">
           <Link href={`/orders/${row.original.publicToken}`} className="hover:text-primary">
-            #{row.original.id.toUpperCase()}
+            {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
           </Link>
           {row.original.isFromAuction && (
             <span className="badge bg-warning/15 text-warning inline-flex items-center gap-0.5" title="จากการประมูล">

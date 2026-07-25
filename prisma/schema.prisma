@@ -450,6 +450,10 @@ model Order {
   id              String   @id @default(uuid())
   publicToken     String   @unique @default(uuid())
   shortCode       String?  @unique // permanent 8-char short alias สำหรับ copy/share link (nullable: backfill รุ่นเก่า)
+  // orderNo (user 2026-07-25): เลขคำสั่งซื้ออ่านง่าย `DP` + ปีพ.ศ. + เดือน + publicToken 8 หลัก
+  // deterministic (ไม่ใช่ running counter → ไม่มี race/reset/scale cost) — ดู src/lib/order-no.ts
+  // index ธรรมดา (ไม่ unique): เป็นป้าย/ค้นหา ไม่ใช่ identity (publicToken ยังเป็น key จริง)
+  orderNo         String?
   shopId          String
   buyerUserId     String?
   buyerContact    String?
@@ -516,6 +520,7 @@ model Order {
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
   @@index([customerId]) // feat 00014 — lookup order ต่อ customer
+  @@index([orderNo]) // user 2026-07-25 — ค้นหา/อ้างอิงด้วยเลขคำสั่งซื้อ (ไม่ unique — เป็นป้าย ไม่ใช่ identity)
   // NEW (feature 00016) — P&L Revenue query (FR-EXP-06-AC-01): WHERE shopId=X AND status='CONFIRMED'
   // AND createdAt BETWEEN start,end. ครอบคลุม dashboard.service.ts เดิมไปด้วย (query pattern เดียวกัน
   // แต่ไม่เคยมี index รองรับมาก่อน)

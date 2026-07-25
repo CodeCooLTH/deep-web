@@ -12,6 +12,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
+import { formatOrderNo } from '@/lib/order-no'
 import ShipForm from './ShipForm'
 import SendSmsButton from './SendSmsButton'
 import OrderCopyLink from './OrderCopyLink'
@@ -74,9 +75,9 @@ export default function StatusHero({ publicToken, shortCode, status, createdAtIS
                 </span>
               )}
             </div>
-            {/* ออเดอร์ # — ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม) */}
+            {/* เลขคำสั่งซื้อ DP… (user 2026-07-25) — ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม) */}
             <h3 className="text-lg mb-0 text-default-800">
-              ออเดอร์ #{publicToken.slice(0, 8)}
+              {formatOrderNo(publicToken, createdAtISO)}
             </h3>
             {/* วันที่/เวลา — formatDateTime รวมทั้งคู่ในฟอร์แมตเดียว */}
             <p className="text-default-400 text-sm flex items-center gap-1 mb-0">

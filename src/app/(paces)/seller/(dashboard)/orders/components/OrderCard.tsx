@@ -18,6 +18,7 @@
 
 import { Icon } from '@iconify/react'
 import { formatRelativeDayTime } from '@/lib/format-date'
+import { formatOrderNo } from '@/lib/order-no'
 import { useRef, useState } from 'react'
 import {
   PAYMENT_ICONS,
@@ -115,8 +116,8 @@ interface OrderCardProps {
 export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
 
-  // ใช้ 8 ตัวแรกของ publicToken เป็น display ID (เดิม)
-  const displayId = order.publicToken.slice(0, 8).toUpperCase()
+  // เลขคำสั่งซื้อ DP… (user 2026-07-25) — derive จาก publicToken+createdAt (ตรงกับ orderNo ใน DB)
+  const displayId = formatOrderNo(order.publicToken, order.createdAtISO)
   const isVerifiedBuyer = Boolean(order.buyerUsername)
 
   const itemCount = order.items.length
@@ -169,8 +170,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           {/* ขวา: #ID เทาเล็ก เหนือ status badge */}
           <div className="flex shrink-0 flex-col items-end gap-1">
             {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
-            {/* HR7: text-[11px] — #ID เป็น metadata เล็ก; Paces ไม่มี token ขนาดนี้ (text-xs=12px) */}
-            <span className="text-[11px] font-semibold text-default-500">#{displayId}</span>
+            <span className="text-2xs font-semibold text-default-500">{displayId}</span>
             <span className={`badge rounded-full ${statusCfg.cls}`}>{statusCfg.label}</span>
           </div>
         </div>
@@ -185,8 +185,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
                   <p className="line-clamp-2 text-xs font-medium text-default-900">{item.name}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  {/* HR7: text-[11px] — qty label ขนาด mockup; Paces ไม่มี token */}
-                  <p className="text-[11px] text-default-400">x{item.qty}</p>
+                  <p className="text-2xs text-default-400">x{item.qty}</p>
                   <p className="text-xs font-semibold tabular-nums text-default-900">
                     ฿{item.price.toLocaleString('th-TH')}
                   </p>
@@ -214,12 +213,10 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
         {/* ── footer: ฿ยอดรวม + เวลาย่อ (ซ้าย) + OrderActions icon-only (ขวา) ── */}
         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-dashed border-default-200 pt-2.5">
           <div className="min-w-0">
-            {/* HR7: text-[15px] — mockup .ord-total; Paces text-base=16px ใหญ่ไป, text-sm=14px เล็กไป */}
-            <span className="text-[15px] font-bold tabular-nums text-default-900">
+            <span className="text-base font-bold tabular-nums text-default-900">
               ฿{order.total.toLocaleString('th-TH')}
             </span>
-            {/* HR7: text-[11px] — timestamp ย่อ relative ("วันนี้ 16:07") */}
-            <p className="mt-0.5 text-[11px] text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>
+            <p className="mt-0.5 text-2xs text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>
           </div>
 
           {/* ขวา: OrderActions icon-only [SMS][QR][copy][⋮] */}

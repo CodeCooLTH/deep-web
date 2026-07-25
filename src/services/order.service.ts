@@ -6,6 +6,7 @@ import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
+import { formatOrderNo } from "@/lib/order-no";
 
 // State machine ใหม่ตาม OMS redesign spec §2
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
@@ -269,6 +270,12 @@ export async function createOrder(shopId: string, data: {
           },
           include: { items: true },
         });
+
+        // orderNo (user 2026-07-25): เลขคำสั่งซื้ออ่านง่าย = DP + ปีพ.ศ. + เดือน + publicToken 8 หลัก
+        // set หลัง create เพราะต้องใช้ publicToken/createdAt ที่ DB สร้าง (deterministic — ไม่ retry/lock)
+        const orderNo = formatOrderNo(order.publicToken, order.createdAt);
+        await tx.order.update({ where: { id: order.id }, data: { orderNo } });
+        order.orderNo = orderNo;
 
         // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
         // เงื่อนไข: มี conversationId + ได้ customerId (มีเบอร์) เท่านั้น. scope ownership ด้วย shopId ใน

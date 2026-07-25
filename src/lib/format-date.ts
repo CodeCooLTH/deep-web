@@ -75,6 +75,19 @@ export function formatTime(input: Date | string | number | null | undefined): st
   return `${p.hour}:${p.minute}:${p.second}`
 }
 
+/**
+ * "256907" — ปี พ.ศ. (4 หลัก) + เดือน (2 หลัก) ติดกัน, timezone ไทย
+ * ใช้ประกอบเลขคำสั่งซื้อ (orderNo: `DP` + period + โค้ด 8 หลักของ publicToken) — ดู src/lib/order-no.ts
+ * คืน '' ถ้า parse ไม่ได้ (caller ต้องกันเอง — เลขคำสั่งซื้อไม่ควรเกิดจากวันที่ invalid)
+ */
+export function orderPeriodTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return ''
+  const p = partsInBangkok(d)
+  const year = Number(p.year) + BE_OFFSET
+  return `${year}${p.month}`
+}
+
 const THAI_MONTHS_ABBR = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',

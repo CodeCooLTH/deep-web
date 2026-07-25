@@ -49,6 +49,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 export type CustomerPanelOrder = {
   id: string
   token: string
+  orderNo?: string | null // เลขคำสั่งซื้อ DP… (user 2026-07-25)
   status: string
   fulfillmentMode: string
   totalAmount: string // "1234.00" — Decimal serialize เป็น string ก่อนข้าม RSC boundary
@@ -199,7 +200,7 @@ function OrderCard({
   // การ์ดเดียวกับในแชท (user 2026-07-25) — OrderCardView shared; แตะ = เปิดโมดัลแก้ไข; footer = ส่งเข้าแชท
   return (
     <OrderCardView
-      data={{ token: o.token, status: o.status, totalAmount: o.totalAmount, items: o.items }}
+      data={{ token: o.token, orderNo: o.orderNo, status: o.status, totalAmount: o.totalAmount, items: o.items }}
       onEdit={openEdit}
       className="w-full"
       footer={

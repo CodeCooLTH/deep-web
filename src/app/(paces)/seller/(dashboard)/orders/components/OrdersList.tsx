@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import type { OrderRow } from './data'
+import { formatOrderNo } from '@/lib/order-no'
 import OrderCard from './OrderCard'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -154,7 +155,7 @@ export default function OrdersList({ orders, activeStatus }: Props) {
   // ─── cancel callbacks (Sweet Alerts confirm — Hard Rule safepay-ux #8) ──────────
   const handleCancelRequest = async (token: string) => {
     const order = orders.find((o) => o.publicToken === token)
-    const label = order ? `ออเดอร์ #${order.id.toUpperCase()}` : 'ออเดอร์นี้'
+    const label = order ? `ออเดอร์ ${formatOrderNo(order.publicToken, order.createdAtISO)}` : 'ออเดอร์นี้'
     const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',

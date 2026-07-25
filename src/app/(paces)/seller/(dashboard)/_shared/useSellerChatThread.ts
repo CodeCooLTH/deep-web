@@ -36,6 +36,7 @@ export type ChatProductCard = {
 // (route.ts batch fetch orderMap แล้วแนบเข้าแต่ละ item); null = order ถูกลบจริง
 export type ChatOrderCard = {
   token: string
+  orderNo?: string | null // เลขคำสั่งซื้อ DP… (user 2026-07-25)
   status: string
   totalAmount: string // "1234.00" — Decimal serialize เป็น string
   // รายการสินค้าในออเดอร์ (user 2026-07-25) — name/qty/ราคาต่อชิ้น + รูป (null = custom line ไม่มีสินค้า)

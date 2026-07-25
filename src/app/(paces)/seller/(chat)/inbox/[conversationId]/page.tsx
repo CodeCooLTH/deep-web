@@ -204,6 +204,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         select: {
           id: true,
           publicToken: true,
+          orderNo: true,
           status: true,
           fulfillmentMode: true,
           totalAmount: true,
@@ -219,6 +220,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   const panelOrders: CustomerPanelOrder[] = orderRows.map((o) => ({
     id: o.id,
     token: o.publicToken,
+    orderNo: o.orderNo,
     status: o.status,
     fulfillmentMode: o.fulfillmentMode,
     totalAmount: o.totalAmount.toFixed(2),

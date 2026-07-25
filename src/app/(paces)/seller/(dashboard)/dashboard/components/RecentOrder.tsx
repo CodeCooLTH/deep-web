@@ -12,6 +12,7 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
+import { formatOrderNo } from '@/lib/order-no'
 import { cn, toPascalCase } from '@/utils/helpers'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import {
@@ -47,9 +48,10 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
   const columns = [
     columnHelper.accessor('token', {
       header: 'รหัส',
-      cell: ({ getValue }) => (
-        <span className="font-mono text-xs text-default-500">
-          {getValue().slice(0, 8).toUpperCase()}
+      // เลขคำสั่งซื้อ DP… (user 2026-07-25); ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม)
+      cell: ({ row }) => (
+        <span className="text-xs text-default-500">
+          {formatOrderNo(row.original.token, row.original.createdAtISO)}
         </span>
       ),
     }),

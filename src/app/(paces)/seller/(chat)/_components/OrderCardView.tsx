@@ -13,6 +13,7 @@ import Icon from '@/components/wrappers/Icon'
 
 export type OrderCardViewData = {
   token: string
+  orderNo?: string | null // เลขคำสั่งซื้ออ่านง่าย DP… (user 2026-07-25) — null สำหรับข้อมูลเก่าก่อน backfill
   status: string
   totalAmount: string // "1234.00"
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
@@ -32,7 +33,8 @@ export default function OrderCardView({
   className?: string
 }) {
   const title = data.items[0]?.name ?? 'คำสั่งซื้อ'
-  const displayNo = data.token.slice(0, 8).toUpperCase()
+  // เลขคำสั่งซื้อ DP… (fallback โค้ด 8 หลักของ token สำหรับข้อมูลเก่าที่ยังไม่ backfill)
+  const displayNo = data.orderNo || data.token.slice(0, 8).toUpperCase()
   const priceLabel = `฿${Number(data.totalAmount).toLocaleString('th-TH')}`
 
   const body = (
@@ -42,7 +44,7 @@ export default function OrderCardView({
         <Icon icon="receipt-2" className="shrink-0 text-2xl" />
         <div className="min-w-0">
           <p className="mb-0 truncate text-sm font-semibold">{title}</p>
-          <p className="mb-0 truncate text-2xs opacity-90">คำสั่งซื้อ · #{displayNo}</p>
+          <p className="mb-0 truncate text-2xs opacity-90">คำสั่งซื้อ · {displayNo}</p>
         </div>
       </div>
       {/* รายการสินค้า + รวม + ยอดสุทธิ */}
