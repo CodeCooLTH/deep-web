@@ -787,13 +787,18 @@ export default function ChatThread({
                         max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
                         break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
                     <div className="min-w-0 max-w-96 break-words">
-                      {/* reply quote (feature 00018 Phase 3) — snippet ข้อความที่ถูกตอบทับ เหนือบับเบิล */}
+                      {/* reply quote (feature 00018 Phase 3) — กล่องจาง ๆ เยื้องเหนือบับเบิล ให้เห็นชัดว่าเป็น
+                          quote คนละก้อนกับข้อความตอบ (user report 2026-07-25: ดูยาก) */}
                       {m.replyTo && (
-                        <div className={`border-default-300 mb-1 border-s-2 ps-2 ${mine ? 'text-end' : ''}`}>
-                          <p className="text-default-400 mb-0 text-2xs">
-                            ตอบกลับ{m.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
-                          </p>
-                          <p className="text-default-500 mb-0 truncate text-xs">{m.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}</p>
+                        <div className={`mb-1 flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                          <div className="border-default-300 bg-default-100/70 max-w-full rounded-lg border-s-2 px-2.5 py-1">
+                            <p className="text-default-500 mb-0 text-2xs font-medium">
+                              ตอบกลับ{m.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+                            </p>
+                            <p className="text-default-500 mb-0 line-clamp-2 text-xs opacity-90">
+                              {m.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}
+                            </p>
+                          </div>
                         </div>
                       )}
                       {/* รูปล้วน (IMAGE ไม่มี caption เช่น sticker/thumbs-up) → ไม่มีกรอบ bubble/bg/padding
@@ -817,7 +822,7 @@ export default function ChatThread({
                         const bareImage =
                           m.type === 'ORDER' || ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
                         return (
-                          <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
+                          <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary text-white' : 'bg-light'}`}>
                         {m.type === 'ORDER' ? (
                           <OrderCardBubble card={m.orderCard ?? null} />
                         ) : m.type === 'PRODUCT' ? (
@@ -864,7 +869,7 @@ export default function ChatThread({
                               // whitespace-pre-wrap: คงการเว้นบรรทัด (\n) ที่ลูกค้า/เพจพิมพ์มา — ไม่งั้น
                               // เบราว์เซอร์ยุบเป็นช่องว่างเดียว เลข list/ย่อหน้าติดกันเป็นพรืดอ่านยาก
                               // (เดียวกับ note ใน CustomerCrmSection ที่ใช้ pattern นี้อยู่แล้ว)
-                              <p className={`text-default-800 text-sm whitespace-pre-wrap ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
+                              <p className={`text-sm whitespace-pre-wrap ${mine ? 'text-white' : 'text-default-800'} ${m.type === 'IMAGE' ? 'mt-2' : ''} mb-0`}>
                                 {m.body}
                               </p>
                             )}
