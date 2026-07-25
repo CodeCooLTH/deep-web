@@ -503,7 +503,8 @@ export default function ChatThread({
     setReplyingTo,
     retryMessage,
     externalReadAt: externalReadAtLive,
-  } = useSellerChatThread(conversationId, shopId)
+    // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
+  } = useSellerChatThread(conversationId, shopId, false)
 
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
   // เติมข้อความ/caption ลง composer (รูปมี caption → ตั้งเป็นข้อความ, ไม่มีรูป → ต่อท้ายข้อความเดิม)
