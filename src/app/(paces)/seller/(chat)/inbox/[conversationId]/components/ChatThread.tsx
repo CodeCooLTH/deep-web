@@ -794,7 +794,8 @@ export default function ChatThread({
                 const canReply = !m.isDeleted && !m._status && !m.id.startsWith('local-')
                 const actionCluster =
                   canReply || copyBtn ? (
-                    <div className="flex flex-col items-center">
+                    // ปุ่มตอบกลับ + คัดลอก เรียง "ข้างกัน" (user 2026-07-25) ไม่ใช่บน-ล่าง
+                    <div className="flex items-start gap-0.5">
                       {canReply && <ReplyMessageButton onReply={() => setReplyingTo(m)} />}
                       {copyBtn}
                     </div>
