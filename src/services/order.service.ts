@@ -552,6 +552,8 @@ export async function getOrdersByCustomer(
     createdAt: string;
     checkIn: string | null;
     checkOut: string | null;
+    title: string;
+    itemCount: number;
   }[];
   nextCursor: string | null;
 }> {
@@ -574,6 +576,7 @@ export async function getOrdersByCustomer(
       createdAt: true,
       checkIn: true,
       checkOut: true,
+      items: { select: { name: true } }, // ข้อมูลเบื้องต้นบนการ์ด (user 2026-07-24)
     },
   });
   const hasMore = rows.length > take;
@@ -589,6 +592,8 @@ export async function getOrdersByCustomer(
       createdAt: o.createdAt.toISOString(),
       checkIn: o.checkIn ? o.checkIn.toISOString() : null,
       checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+      title: o.items[0]?.name ?? "คำสั่งซื้อ",
+      itemCount: o.items.length,
     })),
     nextCursor,
   };

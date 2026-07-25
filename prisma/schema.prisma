@@ -1166,6 +1166,10 @@ model ChatMessage {
   // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
   productRefId   String?
+  // orderRefToken: การ์ดออเดอร์/ใบเสนอราคาในแชท (user request 2026-07-24) — เฉพาะ type=ORDER (แชท DEEP)
+  // เก็บ Order.publicToken (live-join enrich ตอน GET เหมือน PRODUCT) ไม่ FK — order ลบไม่ลบข้อความ
+  // ช่องทางนอก (Messenger/IG) ไม่ใช้ type=ORDER — ส่งเป็นลิงก์ TEXT แทน (Meta ไม่ render การ์ดในแอปเรา)
+  orderRefToken  String?
   createdAt      DateTime @default(now())
   // flaggedScam/scamMatchedRules: extension #3 Scam-link Detection — heuristic scam-link flag ณ เวลาส่ง (snapshot, ไม่ re-scan ย้อนหลัง BR-SCAM-05)
   flaggedScam      Boolean @default(false)

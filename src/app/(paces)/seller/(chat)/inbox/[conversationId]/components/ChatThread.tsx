@@ -80,8 +80,10 @@ import {
   useSellerChatThread,
   groupByDate,
   type ChatProductCard,
+  type ChatOrderCard,
   type ChatMessageView,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -335,6 +337,59 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
     </Link>
   ) : (
     inner
+  )
+}
+
+/**
+ * OrderCardBubble — เนื้อหาข้อความ type='ORDER' (การ์ดออเดอร์/ใบเสนอราคาในแชท, user request 2026-07-24)
+ * style: Paces token น้ำเงิน (ไม่ใช้เขียวตาม ref — user สั่ง 2026-07-24 ให้ตาม theme token); การ์ด
+ * self-contained (ไม่มีกรอบ bubble ครอบ). ปุ่ม "ดูรายละเอียด" ลิงก์ /o/{token} หน้า order สาธารณะ
+ * (ยังไม่ทำ PDF จริง — user เลือกลิงก์ก่อน). buyer เห็นการ์ดเดียวกัน (ทั้ง 2 ฝั่งใช้ GET messages ร่วม)
+ */
+function OrderCardBubble({ card }: { card: ChatOrderCard | null }) {
+  if (!card) {
+    return (
+      <div className="text-default-400 flex items-center gap-2">
+        <Icon icon="receipt-off" className="text-xl" />
+        <span className="text-sm">ไม่พบออเดอร์นี้แล้ว</span>
+      </div>
+    )
+  }
+  const orderUrl = `${resolveBuyerBaseUrl()}/o/${card.token}`
+  const priceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
+  return (
+    <div className="border-default-200 w-64 overflow-hidden rounded-lg border">
+      {/* หัวการ์ด — Paces primary (น้ำเงิน) */}
+      <div className="bg-primary flex items-center gap-2.5 px-4 py-3 text-white">
+        <Icon icon="receipt-2" className="shrink-0 text-2xl" />
+        <div className="min-w-0">
+          <p className="mb-0 truncate text-sm font-semibold">{card.title}</p>
+          <p className="mb-0 truncate text-2xs opacity-90">ใบเสนอราคา · #{card.token.slice(0, 8).toUpperCase()}</p>
+        </div>
+      </div>
+      {/* เนื้อหา — จำนวนรายการ + ยอดสุทธิ */}
+      <div className="bg-card space-y-2 px-4 py-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-default-500">รายการ</span>
+          <span className="text-default-800 font-semibold">{card.itemCount} รายการ</span>
+        </div>
+        <div className="border-default-200 border-t border-dashed" />
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-default-500">ยอดสุทธิ</span>
+          <span className="text-primary font-bold">{priceLabel}</span>
+        </div>
+      </div>
+      {/* footer — ลิงก์หน้า order สาธารณะ */}
+      <a
+        href={orderUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-primary/5 text-primary hover:bg-primary/10 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold"
+      >
+        <Icon icon="external-link" className="text-base" />
+        ดูรายละเอียด
+      </a>
+    </div>
   )
 }
 
@@ -726,10 +781,14 @@ export default function ChatThread({
                           PRODUCT ยังคงกรอบ bubble ไว้ (bg-light คงที่สำหรับ PRODUCT ตาม BR-CTX-05) */}
                       {(() => {
                         // รูป/วิดีโอล้วน (ไม่มี caption) → ไม่มีกรอบ bubble (มีสี+รูปทรงในตัว); เสียง/ไฟล์คงกรอบ
-                        const bareImage = (m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body
+                        // ORDER = การ์ด self-contained เช่นกัน (มีกรอบ/สีในตัว) → ไม่ต้องกรอบ bubble ครอบ
+                        const bareImage =
+                          m.type === 'ORDER' || ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
-                        {m.type === 'PRODUCT' ? (
+                        {m.type === 'ORDER' ? (
+                          <OrderCardBubble card={m.orderCard ?? null} />
+                        ) : m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
                         ) : (
                           <>

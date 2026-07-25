@@ -708,7 +708,8 @@ export const SwitchActiveShopSchema = v.object({
 // SSOT: docs/20 - Features/00011 - Deep Chat/SRS.md §11
 
 export const SendChatMessageSchema = v.object({
-  type: v.picklist(["TEXT", "IMAGE", "PRODUCT"]),
+  // ORDER = การ์ดออเดอร์/ใบเสนอราคาในแชท DEEP (user 2026-07-24) — อ้าง Order.publicToken
+  type: v.picklist(["TEXT", "IMAGE", "PRODUCT", "ORDER"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
@@ -716,6 +717,7 @@ export const SendChatMessageSchema = v.object({
   body: v.nullish(v.pipe(v.string(), v.maxLength(2000))),
   imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
+  orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
 });
 // ตรวจ conditional-required ที่ route:
 //   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)
