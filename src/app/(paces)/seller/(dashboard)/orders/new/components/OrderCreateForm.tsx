@@ -61,6 +61,9 @@ interface Props {
   /** feature 00018 (user 2026-07-24): เธรดแชทที่สร้างออเดอร์นี้ — ส่งไป API เพื่อผูก ExternalContact
    *  กับ Customer ทันที (แชทเห็นออเดอร์เลยไม่ต้องรอ buyer login) */
   conversationId?: string
+  /** feature (user 2026-07-25): แก้ไขคำสั่งซื้อเดิม — โหลดข้อมูล order นี้เข้าฟอร์มแล้ว submit เป็น PATCH
+   *  (แทน POST สร้างใหม่). ใช้ในโมดัลแก้ไขคำสั่งซื้อจากแท็บคำสั่งซื้อในแชท */
+  editOrderToken?: string
   /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
    *  (POS 3-col เดสก์ท็อปแน่นเกินไปในโมดัล user report 2026-07-24); footer submit sticky ในโมดัล */
   compact?: boolean
@@ -187,6 +190,7 @@ export default function OrderCreateForm({
   initialSalesChannel,
   onSuccess,
   conversationId,
+  editOrderToken,
   compact = false,
 }: Props) {
   const router = useRouter()
@@ -201,6 +205,7 @@ export default function OrderCreateForm({
     handleSubmit,
     setError,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,6 +231,53 @@ export default function OrderCreateForm({
       },
     },
   })
+
+  // ── แก้ไขคำสั่งซื้อ (user 2026-07-25): โหลดข้อมูล order เดิมเข้าฟอร์ม (reset) เมื่อมี editOrderToken ──
+  // editLoaded กันไม่ให้ effect "แถวเปล่ารอเสมอ" เติมแถวก่อน prefill เสร็จ (แล้ว reset ทับ)
+  const [editLoaded, setEditLoaded] = useState(!editOrderToken)
+  useEffect(() => {
+    if (!editOrderToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/orders/${editOrderToken}`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('load failed')
+        const o = await res.json()
+        if (cancelled) return
+        reset({
+          buyerName: o.buyerName ?? '',
+          buyerContact: o.buyerContact ?? '',
+          items: (o.items ?? []).map((it: { productId: string | null; name: string; description: string | null; qty: number; price: number }) => ({
+            productId: it.productId ?? undefined,
+            name: it.name,
+            description: it.description ?? '',
+            qty: it.qty,
+            price: it.price,
+          })),
+          salesChannel: o.salesChannel ?? 'STOREFRONT',
+          paymentMethod: o.paymentMethod ?? 'CASH',
+          internalNote: o.internalNote ?? '',
+          discount: o.discount ?? undefined,
+          // DB เก็บ vatRate เป็น decimal 0..1 — ฟอร์มใช้ % → คูณ 100
+          vatRate: o.vatRate != null ? Math.round(o.vatRate * 100) : undefined,
+          shippingAddress: {
+            line1: o.shippingAddress?.line1 ?? '',
+            subdistrict: o.shippingAddress?.subdistrict ?? '',
+            district: o.shippingAddress?.district ?? '',
+            province: o.shippingAddress?.province ?? '',
+            postcode: o.shippingAddress?.postcode ?? '',
+            note: o.shippingAddress?.note ?? '',
+          },
+        })
+      } catch {
+        if (!cancelled) setSubmitError('โหลดข้อมูลคำสั่งซื้อไม่สำเร็จ')
+      } finally {
+        if (!cancelled) setEditLoaded(true)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOrderToken])
 
   // ── Items ownership (POS) — useFieldArray + helpers ที่แชร์ให้ ProductGrid + CartPanel ──
   const { fields, append, update, remove } = useFieldArray({ control, name: 'items' })
@@ -261,6 +313,7 @@ export default function OrderCreateForm({
   // ref นี้กันไม่ให้ effect รอบถัดไป (ที่มาจาก append ของตัวเอง) เติมซ้ำ — ถ้าลบออกจะกลับไปเป็นบั๊ก 2 แถวอีก
   const pendingAppend = useRef(false)
   useEffect(() => {
+    if (!editLoaded) return // แก้ไข: รอ prefill (reset) เสร็จก่อน ไม่งั้น append แถวเปล่าก่อนโหลดข้อมูล
     if (pendingAppend.current) {
       // watchedItems สะท้อน append ที่เพิ่งทำแล้ว — เคลียร์ flag ไม่เติมซ้ำ
       pendingAppend.current = false
@@ -316,6 +369,7 @@ export default function OrderCreateForm({
   // key ตรงกับ ChannelPaymentSelect (DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY); ใส่ใน useForm defaultValues ไม่ได้ (SSR ไม่มี window)
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (editOrderToken) return // แก้ไข: ใช้ค่าจาก order เดิม ไม่ override ด้วย default ของ seller
     const ch = localStorage.getItem('deep.default.salesChannel')
     const pm = localStorage.getItem('deep.default.paymentMethod')
     // ช่องทางจากแชท (initialSalesChannel) ชนะ localStorage default — ไม่ override ทับ
@@ -434,15 +488,22 @@ export default function OrderCreateForm({
     setSubmitError('')
     setSubmitStatus('loading')
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      // แก้ไข (user 2026-07-25): PATCH order เดิม; สร้างใหม่: POST. body shape เดียวกัน (CreateOrderSchema)
+      const res = editOrderToken
+        ? await fetch(`/api/orders/${editOrderToken}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setSubmitError(data?.error ?? 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+        setSubmitError(data?.error ?? (editOrderToken ? 'แก้ไขคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่' : 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่'))
         setSubmitStatus('error')
         return
       }

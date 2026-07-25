@@ -36,6 +36,8 @@ export type OpenDraftInput = {
   channel: Channel
   /** รูปโปรไฟล์ลูกค้า (http URL หรือ storage fileId) — โชว์ใน chip ตอนพับ (user request 2026-07-24) */
   customerAvatar?: string | null
+  /** แก้ไขคำสั่งซื้อเดิม (user 2026-07-25) — มีค่า = โหลด order นี้เข้าฟอร์ม + submit PATCH; ไม่มี = สร้างใหม่ */
+  editOrderToken?: string | null
 }
 
 type OrderDraft = {
@@ -44,6 +46,7 @@ type OrderDraft = {
   customerName: string
   customerAvatar: string | null
   channel: string
+  editOrderToken: string | null // null = สร้างใหม่; มีค่า = แก้ไขออเดอร์นั้น
   state: 'expanded' | 'minimized'
 }
 
@@ -89,10 +92,14 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
   const pathname = usePathname()
 
   const openDraft = useCallback((input: OpenDraftInput) => {
+    const editToken = input.editOrderToken ?? null
     setDrafts((prev) => {
-      const existing = prev.find((d) => d.conversationId === input.conversationId)
+      // dedup: แก้ไข → key ด้วย editOrderToken (แก้คนละออเดอร์ = คนละร่าง); สร้างใหม่ → key ด้วย conversationId
+      const existing = prev.find((d) =>
+        editToken ? d.editOrderToken === editToken : !d.editOrderToken && d.conversationId === input.conversationId,
+      )
       if (existing) {
-        // มีร่างของเธรดนี้อยู่แล้ว → ขยายตัวเดิม, ตัวอื่นที่ขยายอยู่ให้ย่อ (expanded ได้ทีละ 1)
+        // มีร่างนี้อยู่แล้ว → ขยายตัวเดิม, ตัวอื่นที่ขยายอยู่ให้ย่อ (expanded ได้ทีละ 1)
         return prev.map((d) =>
           d.id === existing.id ? { ...d, state: 'expanded' } : d.state === 'expanded' ? { ...d, state: 'minimized' } : d,
         )
@@ -103,6 +110,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
         customerName: input.customerName,
         customerAvatar: input.customerAvatar ?? null,
         channel: input.channel,
+        editOrderToken: editToken,
         state: 'expanded',
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
@@ -130,7 +138,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
   const handleSuccess = useCallback(
     (draft: OrderDraft) => {
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id))
-      pacesToast.success('สร้างคำสั่งซื้อแล้ว')
+      pacesToast.success(draft.editOrderToken ? 'แก้ไขคำสั่งซื้อแล้ว' : 'สร้างคำสั่งซื้อแล้ว')
       // ถ้ากำลังเปิดแชทของ draft นี้อยู่ → refresh ให้แท็บคำสั่งซื้อเห็นออเดอร์ใหม่ทันที
       if (pathname === `/inbox/${draft.conversationId}`) router.refresh()
     },
@@ -167,7 +175,9 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
           <div className="bg-primary flex items-center gap-3 px-4 py-3 text-white">
             <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
             <div className="min-w-0 flex-1">
-              <p className="mb-0 truncate text-sm font-semibold">คำสั่งซื้อใหม่ · {d.customerName}</p>
+              <p className="mb-0 truncate text-sm font-semibold">
+                {d.editOrderToken ? 'แก้ไขคำสั่งซื้อ' : 'คำสั่งซื้อใหม่'} · {d.customerName}
+              </p>
               <p className="mb-0 truncate text-xs text-white/80">{getChannelDisplay(d.channel).label}</p>
             </div>
             <button
@@ -200,6 +210,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               initialBuyerName={d.customerName}
               initialSalesChannel={chatChannelToSalesChannel(d.channel)}
               conversationId={d.conversationId}
+              editOrderToken={d.editOrderToken ?? undefined}
               onSuccess={() => handleSuccess(d)}
               compact
             />
@@ -218,7 +229,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
                 <span className="flex min-w-0 flex-col text-start">
-                  <span className="text-default-500 text-2xs">คำสั่งซื้อใหม่</span>
+                  <span className="text-default-500 text-2xs">{d.editOrderToken ? 'แก้ไขคำสั่งซื้อ' : 'คำสั่งซื้อใหม่'}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
               </button>

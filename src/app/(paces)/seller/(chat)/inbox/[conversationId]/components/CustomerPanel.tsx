@@ -161,14 +161,26 @@ function OrderCard({
   o,
   vertical,
   conversationId,
+  contactName,
+  channel,
+  customerAvatar,
 }: {
   o: CustomerPanelOrder
   vertical: ShopVertical
   conversationId: string
+  contactName: string
+  channel: string
+  customerAvatar: string | null
 }) {
+  const { openDraft } = useDraftOrders()
   const badge = STATUS_BADGE[o.status] ?? STATUS_BADGE.PENDING!
   const [sending, setSending] = useState(false)
   const priceLabel = `฿${Number(o.totalAmount).toLocaleString('th-TH')}`
+
+  // แตะการ์ด → เปิดโมดัลแก้ไขคำสั่งซื้อ (user 2026-07-25: ไม่เปิด tab ใหม่ ให้แก้ในโมดัลเดิม ไม่ต้องสลับจอ)
+  function openEdit() {
+    openDraft({ conversationId, customerName: contactName, channel, customerAvatar, editOrderToken: o.token })
+  }
 
   async function sendToChat(e: React.MouseEvent) {
     e.preventDefault()
@@ -200,30 +212,35 @@ function OrderCard({
     }
   }
 
-  // impeccable critique (user 2026-07-25): ปุ่ม send เดิม hover-only (มือถือมองไม่เห็น ขัด mobile-first)
-  // + size 32px < tap 44px + floating ทับ meta. แก้เป็น stretched-link pattern: Link คลุมทั้งการ์ด
-  // (absolute inset-0) ให้แตะการ์ดได้ทั้งใบ, ปุ่ม "ส่งเข้าแชท" เป็น action มองเห็นเสมอที่แถวล่าง (z-10
-  // เหนือ stretched link) — ไม่ nested button-in-anchor (valid HTML), ไม่ทับ badge/ยอด, ใช้ได้ทั้ง touch
+  // แตะการ์ด (ทั้งใบ) → เปิดโมดัลแก้ไข (user 2026-07-25 ไม่เปิด tab ใหม่); ปุ่ม "ส่งเข้าแชท" แยก (z-10 +
+  // stopPropagation ไม่ให้เปิดโมดัลตาม). การ์ดเป็น role=button + keyboard (a11y) แทน Link เดิม
   return (
-    <div className="hover:bg-default-100 relative rounded-lg border border-default-200 p-3 transition-colors">
-      {/* stretched link — คลิกการ์ดได้ทั้งใบ (ปุ่มด้านล่าง z สูงกว่า จึงกดปุ่มไม่โดน link) */}
-      <Link href={orderHref(vertical, o.token)} className="absolute inset-0 rounded-lg" aria-label={`ดูคำสั่งซื้อ ${o.title}`} />
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={openEdit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit() }
+      }}
+      aria-label={`แก้ไขคำสั่งซื้อ ${o.title}`}
+      className="hover:bg-default-100 focus:ring-primary/40 relative cursor-pointer rounded-lg border border-default-200 p-3 transition-colors focus:outline-none focus:ring-2"
+    >
       {/* หัว: ชื่อสินค้า (เด่น) + สถานะ */}
-      <div className="relative flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <p className="text-default-900 mb-0 line-clamp-1 text-sm font-semibold">{o.title}</p>
         <span className={`badge shrink-0 text-2xs ${badge.cls}`}>{badge.label}</span>
       </div>
       {/* meta: เลขออเดอร์ · จำนวนรายการ · วันที่ (LODGING เพิ่มช่วงเข้าพัก) */}
-      <p className="text-default-500 relative mb-0 mt-0.5 text-xs">
+      <p className="text-default-500 mb-0 mt-0.5 text-xs">
         #{o.token.slice(0, 8).toUpperCase()} · {o.itemCount} รายการ · {formatDate(o.createdAt)}
       </p>
       {vertical === 'LODGING' && o.checkIn && o.checkOut && (
-        <p className="text-default-500 relative mb-0 mt-0.5 text-xs">
+        <p className="text-default-500 mb-0 mt-0.5 text-xs">
           {formatDate(o.checkIn)} – {formatDate(o.checkOut)}
         </p>
       )}
-      {/* แถวล่าง: ปุ่มส่งเข้าแชท (ซ้าย, z-10 เหนือ stretched link) + ยอดสุทธิ (ขวา) — ไม่ทับกัน */}
-      <div className="relative z-10 mt-2 flex items-center justify-between gap-2">
+      {/* แถวล่าง: ปุ่มส่งเข้าแชท (ซ้าย) + ยอดสุทธิ (ขวา) */}
+      <div className="mt-2 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={sendToChat}
@@ -249,10 +266,16 @@ function OrdersList({
   conversationId,
   vertical,
   initial,
+  contactName,
+  channel,
+  customerAvatar,
 }: {
   conversationId: string
   vertical: ShopVertical
   initial: CustomerPanelOrder[]
+  contactName: string
+  channel: string
+  customerAvatar: string | null
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
   const [cursor, setCursor] = useState<string | null>(
@@ -289,7 +312,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} vertical={vertical} conversationId={conversationId} />
+        <OrderCard key={o.id} o={o} vertical={vertical} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -533,7 +556,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           data.orders.length === 0 ? (
             <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
           ) : (
-            <OrdersList conversationId={data.conversationId} vertical={data.vertical} initial={data.orders} />
+            <OrdersList conversationId={data.conversationId} vertical={data.vertical} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">

@@ -319,6 +319,140 @@ export async function createOrder(shopId: string, data: {
   throw new Error("SHORT_CODE_COLLISION"); // unreachable ในทางปฏิบัติ
 }
 
+// แก้ไขคำสั่งซื้อไม่พบ / แก้ไม่ได้ (user request 2026-07-25 — edit order ใน modal)
+export class OrderNotFoundError extends Error {
+  constructor() { super("OrderNotFoundError"); this.name = "OrderNotFoundError"; }
+}
+export class OrderNotEditableError extends Error {
+  constructor() { super("OrderNotEditableError"); this.name = "OrderNotEditableError"; }
+}
+
+/**
+ * updateOrder — แก้ไขคำสั่งซื้อเต็มรูป (user request 2026-07-25: แก้ใน modal ไม่ต้องสลับจอ)
+ *
+ * mirror createOrder ทั้งการคำนวณ (subtotal/total/fulfillmentMode), validation (ownership productId,
+ * shipping-required), resolve items (Quick-Create auto-product), stock (deduct), cost snapshot,
+ * customer link — บวก "reverse สต็อกของ items เดิม" ก่อน (restockFromCancelledOrder) แล้วลบ+สร้างใหม่
+ *
+ * ⚠ stock-sensitive: reverse+deduct อยู่ใน transaction เดียว — ถ้า deduct ใหม่ OutOfStock → rollback
+ * ทั้งก้อน (reverse ถูก undo ด้วย). แก้ CANCELLED ไม่ได้ (สต็อกคืนไปแล้ว — แก้=งง)
+ */
+export async function updateOrder(shopId: string, publicToken: string, data: Parameters<typeof createOrder>[1]) {
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
+  const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
+
+  const productIds = data.items.map((i) => i.productId).filter((id): id is string => !!id);
+
+  // fulfillmentMode (เหมือน createOrder)
+  let fulfillmentMode = "NO_SHIPPING";
+  if (data.items.some((i) => !i.productId && data.type === "PHYSICAL")) fulfillmentMode = "SHIPPED";
+
+  // ownership ของ productId (read-only, นอก tx)
+  if (productIds.length > 0) {
+    const owned = await prisma.product.findMany({ where: { id: { in: productIds }, shopId }, select: { id: true } });
+    const ownedIds = new Set(owned.map((p) => p.id));
+    if (productIds.some((id) => !ownedIds.has(id))) throw new ProductNotInShopError();
+  }
+  if (fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
+    const shipped = await prisma.product.findFirst({
+      where: { id: { in: productIds }, shopId, fulfillmentMode: "SHIPPED" },
+      select: { id: true },
+    });
+    if (shipped) fulfillmentMode = "SHIPPED";
+  }
+  // FR-6.5 shipping required (เหมือน createOrder)
+  if (fulfillmentMode === "SHIPPED" && data.salesChannel !== "STOREFRONT") {
+    const a = data.shippingAddress;
+    if (!(a?.line1?.trim() && a?.province?.trim() && a?.postcode?.trim())) throw new ShippingAddressRequiredError();
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findFirst({ where: { publicToken, shopId }, select: { id: true, status: true } });
+    if (!existing) throw new OrderNotFoundError();
+    if (existing.status === "CANCELLED") throw new OrderNotEditableError();
+
+    const entitlement = await tx.inventoryEntitlement.findUnique({ where: { shopId }, select: { status: true } });
+    const inventoryActive = entitlement?.status === "ACTIVE";
+
+    // 1) reverse สต็อกของ items เดิม (เฉพาะที่เคยตัด) — คืนก่อนลบ item ทิ้ง
+    if (inventoryActive) await restockFromCancelledOrder(tx, shopId, existing.id);
+    // 2) ลบ items เดิมทั้งหมด (จะสร้างชุดใหม่)
+    await tx.orderItem.deleteMany({ where: { orderId: existing.id } });
+
+    // 3) resolve items (Quick-Create) — เหมือน createOrder
+    const resolvedItems: typeof data.items = [];
+    for (const item of data.items) {
+      const name = item.name.trim();
+      if (item.productId || !name) { resolvedItems.push(item); continue; }
+      const found = await tx.product.findFirst({ where: { shopId, name }, select: { id: true } });
+      const pid = found?.id ?? (await tx.product.create({
+        data: {
+          shopId, name, price: item.price, type: data.type,
+          fulfillmentMode: data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+          ...(item.description ? { description: item.description } : {}),
+        },
+        select: { id: true },
+      })).id;
+      resolvedItems.push({ ...item, productId: pid });
+    }
+
+    // 4) deduct สต็อกใหม่ (throw OutOfStock = rollback ทั้งก้อน รวม reverse ข้างบน)
+    const deductions = inventoryActive
+      ? await deductStockForOrderItems(tx, resolvedItems)
+      : new Map<string, { qty: number; resultingQty: number; name: string }>();
+
+    // 5) cost snapshot (เหมือน createOrder)
+    const costIds = resolvedItems.map((i) => i.productId).filter((id): id is string => !!id);
+    const costRows = costIds.length > 0
+      ? await tx.product.findMany({ where: { id: { in: costIds }, shopId }, select: { id: true, cost: true } })
+      : [];
+    const costMap = new Map(costRows.map((p) => [p.id, p.cost]));
+    const itemsCreateData = resolvedItems.map((item) => ({
+      ...item,
+      stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
+      cost: item.productId ? (costMap.get(item.productId) ?? null) : null,
+    }));
+
+    // 6) customer link — relink เฉพาะเมื่อมีเบอร์ (ไม่มีเบอร์ = ไม่แตะ customerId เดิม กัน unlink ไม่ตั้งใจ)
+    const custPhone = data.buyerContact ? normalizePhone(data.buyerContact) : null;
+    const customerId = custPhone ? await findOrCreateCustomer(tx, custPhone) : null;
+
+    // 7) update order + สร้าง items ชุดใหม่
+    const order = await tx.order.update({
+      where: { id: existing.id },
+      data: {
+        type: data.type,
+        totalAmount,
+        fulfillmentMode,
+        buyerContact: data.buyerContact ?? null,
+        buyerName: data.buyerName ?? null,
+        paymentMethod: data.paymentMethod ?? null,
+        salesChannel: data.salesChannel ?? null,
+        internalNote: data.internalNote ?? null,
+        discount: data.discount ?? null,
+        vatRate: data.vatRate ?? null,
+        vatAmount: data.vatAmount ?? null,
+        shippingAddress: data.shippingAddress ?? Prisma.DbNull,
+        ...(custPhone ? { customerId } : {}),
+        items: { create: itemsCreateData },
+      },
+      include: { items: true },
+    });
+
+    // 8) StockMovement ของ deduction ใหม่ (เหมือน createOrder)
+    for (const [productId, d] of deductions) {
+      await tx.stockMovement.create({
+        data: {
+          shopId, productId, productName: d.name, delta: -d.qty, resultingQty: d.resultingQty,
+          source: "ORDER_DEDUCT", refId: order.id, note: null, actorUserId: null,
+        },
+      });
+    }
+    return order;
+  });
+}
+
 // feature 00015 (TFR-011/TD-004) — ownership authorization error เดียวสำหรับ
 // confirm/cancel/slip ทุกจุด: route แม็ปเป็น 403 (ไม่ echo ข้อความ ownership ดิบ)
 export class OrderOwnershipError extends Error {
