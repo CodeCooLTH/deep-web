@@ -3,17 +3,21 @@ import { existsSync } from "fs";
 import path from "path";
 import { v4 as uuid } from "uuid";
 import { validateUpload, fileIdExt, type Storage } from "./types";
+import { uploadDatePrefix } from "@/lib/format-date";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
 export const saveFile: Storage["saveFile"] = async (file, opts) => {
   if (!opts?.skipValidation) validateUpload(file);
-  if (!existsSync(UPLOAD_DIR)) await mkdir(UPLOAD_DIR, { recursive: true });
 
   const ext = file.name.split(".").pop() || "bin";
-  const fileId = `${uuid()}.${ext}`;
+  // ชาร์ดเป็น YYYY/MM/DD/ (user 2026-07-25) — fileId = path relative (มี slash); mkdir โฟลเดอร์วันนั้นก่อน
+  const fileId = `${uploadDatePrefix(new Date())}/${uuid()}.${ext}`;
+  const filePath = path.join(UPLOAD_DIR, fileId);
+  await mkdir(path.dirname(filePath), { recursive: true });
+
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, fileId), buffer);
+  await writeFile(filePath, buffer);
 
   return fileId;
 };

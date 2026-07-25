@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuid } from "uuid";
 import { validateUpload, fileIdExt, type Storage } from "./types";
+import { uploadDatePrefix } from "@/lib/format-date";
 
 function requireEnv(key: string): string {
   const value = process.env[key];
@@ -38,7 +39,9 @@ export const saveFile: Storage["saveFile"] = async (file, opts) => {
   if (!opts?.skipValidation) validateUpload(file);
 
   const ext = file.name.split(".").pop() || "bin";
-  const fileId = `${uuid()}.${ext}`;
+  // ชาร์ดเป็น YYYY/MM/DD/ (user 2026-07-25) — กันไฟล์กองรวม root ของ bucket. fileId = Key เต็ม
+  // (มี slash) เก็บลง DB ตามเดิม; getFile/getFileUrl/deleteFile ใช้ fileId เป็น Key ตรง ๆ → ยังตรงกัน
+  const fileId = `${uploadDatePrefix(new Date())}/${uuid()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   await getClient().send(

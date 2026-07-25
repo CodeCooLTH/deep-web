@@ -88,6 +88,18 @@ export function orderPeriodTH(input: Date | string | number | null | undefined):
   return `${year}${p.month}`
 }
 
+/**
+ * "2026/07/25" — เส้นทางโฟลเดอร์ชาร์ดไฟล์อัปโหลด ปี ค.ศ./เดือน/วัน (timezone ไทย)
+ * NOTE: ใช้ ค.ศ. (Gregorian) ไม่ใช่ พ.ศ. — path เก็บไฟล์ควรเป็นปีสากล; กันไฟล์กองรวมโฟลเดอร์เดียว
+ * (storage: uploads/YYYY/MM/DD/uuid.ext). caller ส่ง `new Date()` เข้ามา (runtime — pure ที่นี่)
+ */
+export function uploadDatePrefix(input: Date | string | number): string {
+  const d = toValidDate(input)
+  if (!d) return '' // ไม่ควรเกิด (caller ส่ง new Date() ที่ valid เสมอ)
+  const p = partsInBangkok(d)
+  return `${p.year}/${p.month}/${p.day}`
+}
+
 const THAI_MONTHS_ABBR = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',

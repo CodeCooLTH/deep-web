@@ -107,8 +107,10 @@ async function findVerificationRecordByFileId(
   return { id: entry.recordId, userId: entry.userId };
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
-  const { fileId } = await params;
+export async function GET(request: NextRequest, { params }: { params: Promise<{ fileId: string[] }> }) {
+  // catch-all (user 2026-07-25): fileId ชาร์ดเป็น YYYY/MM/DD/uuid.ext (มี slash) → รับเป็น segment array
+  // แล้วต่อกลับด้วย "/" ให้ตรงกับ Key/path ที่ saveFile คืน. ไฟล์เก่า (flat "uuid.ext") = array 1 ตัว → เหมือนเดิม
+  const fileId = (await params).fileId.join("/");
 
   // ตรวจก่อนว่าไฟล์นี้อยู่ใน VerificationRecord หรือไม่
   const sensitiveRecord = await findVerificationRecordByFileId(fileId);
@@ -233,7 +235,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const ext = result.ext.toLowerCase();
   const contentType = EXT_TO_MIME[ext] || "application/octet-stream";
   // ไฟล์ที่เรนเดอร์ inline ไม่ได้ (เอกสาร/zip/ชนิดแปลก) → บังคับดาวน์โหลดพร้อมชื่อไฟล์
-  const disposition = isInlineExt(ext) ? "inline" : `attachment; filename="${fileId}"`;
+  // basename เท่านั้น (fileId ชาร์ดมี slash — filename ต้องไม่มี path)
+  const baseName = fileId.split("/").pop() || fileId;
+  const disposition = isInlineExt(ext) ? "inline" : `attachment; filename="${baseName}"`;
 
   return new NextResponse(new Uint8Array(result.buffer), {
     headers: {
