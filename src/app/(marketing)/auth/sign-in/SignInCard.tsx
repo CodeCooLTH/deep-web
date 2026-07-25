@@ -32,6 +32,10 @@ import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 // Config Imports
 import { currentYear, META_DATA } from '@/config/constants'
 
+// Utils — เลขคำสั่งซื้ออ่านง่าย + วันที่แบบไทย (SSOT เดียวกับที่หน้าออเดอร์ใช้)
+import { formatOrderNo } from '@/lib/order-no'
+import { formatDateTimeTH } from '@/lib/format-date'
+
 // Utils — กัน open-redirect ก่อนใช้ ?callbackUrl= (ดู Hard Rule รวมถึง OQ-2)
 import { getSafeCallbackUrl } from '../_lib/safe-callback-url'
 
@@ -50,7 +54,15 @@ const phoneSchema = Yup.object({
 })
 type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 
-export default function SignInCard() {
+/** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
+export type SignInOrderContext = {
+  publicToken: string
+  shopName: string
+  totalAmount: number
+  createdAtIso: string
+}
+
+export default function SignInCard({ orderContext = null }: { orderContext?: SignInOrderContext | null }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // callbackUrl ดิบจาก query — ยังไม่ sanitize ที่นี่ เพราะจุดใช้จริง (verify-otp / signIn OAuth)
@@ -65,8 +77,14 @@ export default function SignInCard() {
   const rawPrefillPhone = searchParams.get('prefillPhone')
   const prefillPhone = rawPrefillPhone && /^0[0-9]{9}$/.test(rawPrefillPhone) ? rawPrefillPhone : null
 
-  // โหมด login: password = default, otp = toggle กลับไปฟอร์มเบอร์โทรเดิม (หรือ default เป็น otp ถ้ามี prefillPhone ถูกต้อง)
-  const [loginMode, setLoginMode] = useState<'password' | 'otp'>(prefillPhone ? 'otp' : 'password')
+  // โหมด login:
+  //   channels = หน้าเลือกช่องทาง (ใช้เฉพาะตอนมาจากลิงก์ออเดอร์) — ผู้ซื้อจากแชทส่วนใหญ่ยังไม่มี
+  //     บัญชี Deep การเอาฟอร์ม username/password ขึ้นก่อนทำให้ดูเหมือนทางตัน จึงให้เลือกช่องทางก่อน
+  //   password = default เดิมของหน้า sign-in ปกติ
+  //   otp = ฟอร์มเบอร์โทร (default ถ้ามี prefillPhone ถูกต้อง — มาจาก SMS link)
+  const [loginMode, setLoginMode] = useState<'channels' | 'password' | 'otp'>(
+    prefillPhone ? 'otp' : orderContext ? 'channels' : 'password',
+  )
   // toggle แสดง/ซ่อนรหัสผ่าน (eye icon) — consistent กับ sign-up/new-pass
   const [isPasswordShown, setIsPasswordShown] = useState(false)
 
@@ -124,14 +142,87 @@ export default function SignInCard() {
             <Link href='/' className='flex justify-center mbe-6'>
               <Logo />
             </Link>
+
+            {/* บล็อกสรุปออเดอร์ — โผล่เฉพาะตอนถูก redirect มาจากลิงก์ออเดอร์ เพื่อให้ผู้ซื้อเห็นว่า
+                กำลังจะเข้าถึงคำสั่งซื้อใบไหนก่อนตัดสินใจล็อกอิน (ยอด/วันที่/ร้าน/เลขที่ เท่านั้น —
+                ไม่มี PII ของคน ดู getOrderSummaryForSignIn)
+                Base: theme/vuexy/typescript-version/full-version/src/views/pages/wizard-examples/checkout/StepCart.tsx:173
+                      (div.rounded.bg-actionHover.p-6.flex.flex-col.gap-2) */}
+            {orderContext && (
+              <div className='rounded bg-actionHover p-6 flex flex-col gap-2 mbe-6'>
+                <div className='flex justify-between items-center gap-2'>
+                  <Typography color='text.primary' className='font-medium'>
+                    {orderContext.shopName}
+                  </Typography>
+                  <Typography color='text.primary' className='font-medium'>
+                    {`฿${orderContext.totalAmount.toLocaleString('th-TH')}`}
+                  </Typography>
+                </div>
+                <Typography variant='body2' color='text.secondary'>
+                  {formatOrderNo(orderContext.publicToken, orderContext.createdAtIso)}
+                </Typography>
+                <Typography variant='body2' color='text.secondary'>
+                  {formatDateTimeTH(orderContext.createdAtIso)}
+                </Typography>
+              </div>
+            )}
+
             <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>{`ยินดีต้อนรับสู่ ${META_DATA.name}`}</Typography>
+              <Typography variant='h4'>
+                {orderContext ? 'เข้าสู่ระบบเพื่อดูคำสั่งซื้อ' : `ยินดีต้อนรับสู่ ${META_DATA.name}`}
+              </Typography>
               <Typography>
-                {loginMode === 'password' ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน' : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
+                {loginMode === 'channels'
+                  ? 'เลือกช่องทางที่สะดวก เพื่อยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อนี้'
+                  : loginMode === 'password'
+                    ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน'
+                    : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
               </Typography>
             </div>
 
-            {loginMode === 'password' ? (
+            {loginMode === 'channels' ? (
+              /* หน้าเลือกช่องทาง — ทุกทางเข้าอยู่เหนือ fold บนจอมือถือใน in-app browser
+                 (Messenger กิน chrome บน-ล่างเหลือพื้นที่จริง ~570px) */
+              <div className='flex flex-col gap-3'>
+                <Button
+                  fullWidth
+                  variant='contained'
+                  startIcon={<i className='tabler-brand-facebook-filled' />}
+                  onClick={() => signIn('facebook', { callbackUrl: safeCallbackUrl })}
+                >
+                  ดำเนินการต่อด้วย Facebook
+                </Button>
+                {/* LINE brand green #06C755 — brand asset exception (Hard Rule 6) */}
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
+                  startIcon={<Icon icon='ri:line-fill' width={20} height={20} style={{ color: '#06C755' }} />}
+                  onClick={() => signIn('line', { callbackUrl: '/auth/callback/line' })}
+                >
+                  ดำเนินการต่อด้วย LINE
+                </Button>
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
+                  startIcon={<i className='tabler-device-mobile' />}
+                  onClick={() => setLoginMode('otp')}
+                >
+                  ใช้เบอร์โทรและรหัส OTP
+                </Button>
+                <Typography
+                  component='button'
+                  type='button'
+                  onClick={() => setLoginMode('password')}
+                  color='primary.main'
+                  className='text-center mbs-3'
+                  sx={{ background: 'none', border: 0, cursor: 'pointer' }}
+                >
+                  เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน
+                </Typography>
+              </div>
+            ) : loginMode === 'password' ? (
               <form
                 onSubmit={pwForm.handleSubmit(onPasswordSubmit)}
                 noValidate
@@ -230,8 +321,26 @@ export default function SignInCard() {
               </form>
             )}
 
-            {/* signup link + divider + ปุ่ม social — ใช้ร่วมกันทั้ง 2 โหมด (ไม่ใช่ส่วนหนึ่งของ form submit) */}
-            <div className='flex flex-col gap-6 mbs-6'>
+            {/* ปุ่มกลับไปหน้าเลือกช่องทาง — เฉพาะตอนมาจากลิงก์ออเดอร์แล้วผู้ใช้กดเข้าฟอร์มใดฟอร์มหนึ่ง
+                กัน dead-end: เลือกช่องทางผิดแล้วต้องย้อนกลับได้โดยไม่ต้องกด back ของเบราว์เซอร์
+                (in-app browser ของ Messenger ปุ่ม back อยู่ไกลมือ) */}
+            {orderContext && loginMode !== 'channels' && (
+              <div className='flex justify-center mbs-6'>
+                <Typography
+                  component='button'
+                  type='button'
+                  onClick={() => setLoginMode('channels')}
+                  color='primary.main'
+                  sx={{ background: 'none', border: 0, cursor: 'pointer' }}
+                >
+                  เลือกช่องทางอื่น
+                </Typography>
+              </div>
+            )}
+
+            {/* signup link + divider + ปุ่ม social — ซ่อนในโหมด channels เพราะปุ่ม social เป็นเนื้อหาหลัก
+                ของโหมดนั้นอยู่แล้ว (ไม่งั้นจะมีปุ่ม Facebook/LINE ซ้ำสองชุดในจอเดียว) */}
+            <div className={`flex flex-col gap-6 mbs-6 ${loginMode === 'channels' ? 'hidden' : ''}`}>
               <div className='flex justify-center items-center flex-wrap gap-2'>
                 <Typography>ยังไม่มีบัญชี?</Typography>
                 <Typography component={Link} href='/auth/sign-up' color='primary.main'>
@@ -240,9 +349,12 @@ export default function SignInCard() {
               </div>
               <Divider className='gap-2 text-textPrimary'>หรือ</Divider>
               <div className='flex flex-col gap-3'>
+                {/* color='secondary': ปุ่ม social ไม่ใช่ CTA หลักของหน้า — ปล่อยให้ม่วง primary
+                    อยู่ที่ปุ่ม submit ปุ่มเดียว ตาม One Voice (ม่วง ≤10% ของพื้นที่) */}
                 <Button
                   fullWidth
                   variant='outlined'
+                  color='secondary'
                   startIcon={<i className='tabler-brand-facebook-filled text-facebook' />}
                   onClick={() => signIn('facebook', { callbackUrl: safeCallbackUrl })}
                 >
@@ -253,6 +365,7 @@ export default function SignInCard() {
                 <Button
                   fullWidth
                   variant='outlined'
+                  color='secondary'
                   startIcon={<Icon icon='ri:line-fill' width={20} height={20} style={{ color: '#06C755' }} />}
                   onClick={() => signIn('line', { callbackUrl: '/auth/callback/line' })}
                 >
@@ -263,6 +376,7 @@ export default function SignInCard() {
                   <Button
                     fullWidth
                     variant='outlined'
+                    color='secondary'
                     startIcon={<Icon icon='ri:instagram-fill' width={20} height={20} style={{ color: '#E1306C' }} />}
                     onClick={() => signIn('instagram', { callbackUrl: '/auth/callback/instagram' })}
                   >

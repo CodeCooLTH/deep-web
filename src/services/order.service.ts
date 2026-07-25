@@ -823,3 +823,38 @@ export async function getOrdersByBuyer(userId: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+/**
+ * สรุปออเดอร์แบบ "ปลอดภัยพอจะโชว์ก่อน login" — ใช้ที่หน้า /auth/sign-in เมื่อผู้ซื้อถูก
+ * redirect มาจากลิงก์ออเดอร์ เพื่อให้เห็นว่ากำลังจะเข้าถึงคำสั่งซื้อใบไหน จากร้านไหน
+ * ก่อนตัดสินใจเลือกช่องทางเข้าสู่ระบบ
+ *
+ * ขอบเขตข้อมูล (user ตัดสิน 2026-07-25 — ตัวเลือก "ข"): ชื่อร้าน + เลขออเดอร์ + ยอดรวม
+ * + วันที่เท่านั้น
+ *
+ * ห้ามเพิ่ม field ที่เป็น PII ของคนเด็ดขาด (buyerName/buyerContact/shippingAddress) และ
+ * ห้ามเพิ่มรายการสินค้า — ผู้เรียกคือผู้ใช้ที่ "ยังไม่ผ่านการยืนยันตัวตน" เป็นเพียงคนที่ถือ
+ * ลิงก์อยู่ในมือ ซึ่งอาจเป็นคนที่ได้ลิงก์ต่อมาก็ได้
+ *
+ * ข้อแลกเปลี่ยนที่รับไว้แล้ว: การคืนค่า (ไม่ใช่ null) เท่ากับยืนยันกลาย ๆ ว่า token นี้มี
+ * ออเดอร์จริง — แลกกับการที่ผู้ซื้อมั่นใจว่ากดลิงก์ถูกใบก่อนยอมล็อกอิน
+ */
+export async function getOrderSummaryForSignIn(publicToken: string) {
+  const order = await prisma.order.findUnique({
+    where: { publicToken },
+    select: {
+      publicToken: true,
+      totalAmount: true,
+      createdAt: true,
+      shop: { select: { shopName: true } },
+    },
+  });
+  if (!order) return null;
+
+  return {
+    publicToken: order.publicToken,
+    shopName: order.shop.shopName,
+    totalAmount: Number(order.totalAmount),
+    createdAtIso: order.createdAt.toISOString(),
+  };
+}
