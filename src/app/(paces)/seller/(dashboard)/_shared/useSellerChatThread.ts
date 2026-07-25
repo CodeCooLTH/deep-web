@@ -124,6 +124,9 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const topSentinelRef = useRef<HTMLDivElement>(null)
   const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didInitialScrollRef = useRef(false)
+  // user อยู่ล่างสุด (ภายใน 120px) หรือเปล่า — ตัดสินว่าจะ auto-scroll ตอนข้อความใหม่เข้ามาไหม
+  // (persistent ต่างจาก pinned ใน effect initial ที่อยู่แค่ 4 วิ) default true = เปิดเธรดมาอยู่ล่างสุด
+  const atBottomRef = useRef(true)
 
   const scrollToBottom = useCallback(() => {
     // double rAF — เฟรมแรก React commit DOM, เฟรมสอง layout เสร็จ แล้วค่อยเลื่อน (single rAF เดิม
@@ -222,6 +225,30 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
       root.removeEventListener('touchmove', unpin)
     }
   }, [loadingInitial, messages.length, scrollToBottom])
+
+  // ── ติดตามว่า user อยู่ล่างสุดหรือเปล่า (persistent — คงอยู่ตลอดที่เปิดเธรด) ──
+  // ต่างจาก listener ใน effect initial ที่อยู่แค่ 4 วิ; ตัวนี้อัปเดต atBottomRef ทุกครั้งที่ user เลื่อน
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root) return
+    const update = () => {
+      atBottomRef.current = root.scrollHeight - root.scrollTop - root.clientHeight < 120
+    }
+    update()
+    root.addEventListener('scroll', update, { passive: true })
+    return () => root.removeEventListener('scroll', update)
+  }, [loadingInitial])
+
+  // ── auto-scroll เมื่อมีข้อความใหม่ (realtime/poll/ส่งเอง) ถ้า user อยู่ล่างสุดอยู่แล้ว ──
+  // bug fix (user report 2026-07-25 "เปิดแชทค้างไว้ตอนคุยกันอยู่ ข้อความใหม่มาแล้วไม่เลื่อนตาม ต้อง
+  // scroll เอง"): refetchNewer append ข้อความแต่ไม่เคยเลื่อน + effect initial ทำงานครั้งเดียว
+  // (didInitialScrollRef). key ที่ id ข้อความล่าสุด → เลื่อนเมื่อมีตัวใหม่ต่อท้าย (ไม่ยิงตอน load-older
+  // เพราะ prepend หัว id ล่าสุดไม่เปลี่ยน). ถ้า user เลื่อนขึ้นอ่านของเก่า (atBottomRef=false) ไม่กระชากลง
+  const lastMsgId = messages.length > 0 ? messages[messages.length - 1]!.id : null
+  useEffect(() => {
+    if (!didInitialScrollRef.current) return // ครั้งแรก/สลับเธรด → effect initial จัดการ scroll เอง
+    if (atBottomRef.current) scrollToBottom()
+  }, [lastMsgId, scrollToBottom])
 
   // ── refetch "newer" — signal-only realtime (ไม่เชื่อ payload, GET หน้าแรกเสมอแล้ว merge) ──
   const refetchNewer = useCallback(async () => {
