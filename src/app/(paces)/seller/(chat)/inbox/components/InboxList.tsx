@@ -155,6 +155,10 @@ const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
  *  ล่าสุดแล้วถือว่าเคลียร์หมด ไม่ต้องรอ server refetch (บน desktop rail ไม่ unmount ตอน navigate)
  */
 function unreadCountOf(c: ConversationListItem, localReadAt?: string): number {
+  // user request 2026-07-25: ข้อความล่าสุดเป็นฝั่งเรา (SHOP — ตอบจาก Deep/admin คนอื่น/echo จากเพจตรง)
+  // = ถือว่าอ่านแล้ว → ไม่ขึ้น badge, ตัวหนังสือเทา (backend ก็ตัดออกแล้วที่ countUnreadByConversation
+  // แต่กันไว้ที่นี่ด้วยเผื่อ payload เก่า/เกณฑ์ fallback ที่นับข้อความร้านเอง)
+  if (c.lastSenderRole === 'SHOP') return 0
   const count =
     c.unreadCount ??
     (c.shopLastReadAt === null || new Date(c.lastMessageAt) > new Date(c.shopLastReadAt) ? 1 : 0)
