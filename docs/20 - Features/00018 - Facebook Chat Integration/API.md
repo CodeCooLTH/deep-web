@@ -27,7 +27,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint ใหม่ทั้งหมดที่ `/api/channels/facebook/**` สำหรับ webhook + OAuth เชื่อม Page และ (2) การแก้เพิ่มของ endpoint เดิม `POST /api/chat/conversations/[id]/messages` (feature 00011) ให้ dispatch ไปทาง Graph API เมื่อเธรดไม่ใช่ `channel="DEEP"`
 
 **Provider:** Next.js 16 App Router Route Handlers (nodejs runtime)
-**ผู้บริโภค:** Meta (webhook, server-to-server), seller session (OAuth connect/callback — **มีปุ่มใน `/seller/settings/channels` แล้วตั้งแต่ 2026-07-23** ไม่ต้องยิง URL เอง), client ของหน้าแชท `/inbox*` (เธรดช่องทางนอกมี UI เต็ม: badge ช่องทาง, แบนเนอร์ 24h, ตัวกรอง, แผงข้อมูลลูกค้า, เครื่องมือ composer)
+**ผู้บริโภค:** Meta (webhook, server-to-server), seller session (OAuth connect/callback — **มีปุ่มใน `/seller/settings/channels` แล้วตั้งแต่ 2026-07-23**; **2026-07-24 เพิ่มหน้าเลือกเพจ `/settings/channels/select` คั่นก่อนเชื่อม** — เรียก `GET /pages` + `POST /confirm`), client ของหน้าแชท `/inbox*` (เธรดช่องทางนอกมี UI เต็ม: badge ช่องทาง, แบนเนอร์ 24h, ตัวกรอง, แผงข้อมูลลูกค้า, เครื่องมือ composer)
 **Base URL:** `https://deepthailand.app` (buyer/webhook endpoint อยู่ domain หลัก ไม่ใช่ `seller.*`) — dev: `https://deepth.local:4000` (webhook ต้องผ่าน ngrok หรือยิงตรงด้วย `scripts/fake-fb-webhook.ts`)
 **ต้นทาง:** [[SDS]] §3-4; schema → [[DATABASE]]
 
@@ -40,6 +40,8 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `GET/POST /api/channels/facebook/webhook` | **ไม่มี NextAuth session** — `GET`: เทียบ `hub.verify_token` กับ env `FB_WEBHOOK_VERIFY_TOKEN`; `POST`: HMAC-SHA256 `X-Hub-Signature-256` timing-safe compare (env `FB_CHAT_APP_SECRET`) | ยกเว้นจาก CSRF Origin-check ของ `guardApi` (`src/proxy.ts`) เพราะ Meta ไม่ส่ง header `Origin` — **ยัง apply rate-limit ปกติ** |
 | `GET /api/channels/facebook/connect` | NextAuth session (`getServerSession`) — ต้อง login เป็น seller | ไม่มี session → `401` |
 | `GET /api/channels/facebook/callback` | NextAuth session + OAuth `state` cookie (`fb_channel_oauth_state`, httpOnly) ต้องตรงกับ query param `state` | ป้องกัน CSRF ของ OAuth flow เอง — แยกจาก `guardApi` |
+| `GET /api/channels/facebook/pages` (ใหม่ 2026-07-24) | NextAuth session + cookie `fb_channel_user_token` (user access token ที่เข้ารหัสไว้ตอน callback) | ไม่มี cookie/หมดอายุ → `410 session_expired` |
+| `POST /api/channels/facebook/confirm` (ใหม่ 2026-07-24) | NextAuth session + cookie `fb_channel_user_token` | โดน CSRF Origin-check ของ `guardApi` ตามปกติ (mutation); ไม่มี cookie → `410` |
 | `POST /api/chat/conversations/[id]/messages` (ส่วนที่แก้เพิ่ม) | เหมือนเดิม (feature 00011) — NextAuth session + ownership check ที่ service | ดู [[../00011 - Deep Chat/API]] สำหรับ contract เดิมของ endpoint นี้ |
 
 ไม่มี auth mechanism ใหม่ (ไม่มี Bearer token/API key) — endpoint ใหม่ทั้งหมดใช้ NextAuth session (routes ที่ seller เรียก) หรือ signature ของ Meta เอง (webhook)
@@ -53,7 +55,9 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `GET` | `/api/channels/facebook/webhook` | Webhook handshake (subscribe verification) | `hub.verify_token` | ใหม่ |
 | `POST` | `/api/channels/facebook/webhook` | รับ event ข้อความจาก Meta | `X-Hub-Signature-256` | ใหม่ |
 | `GET` | `/api/channels/facebook/connect` | เริ่ม OAuth เชื่อม Facebook Page (redirect) | seller session | ใหม่ |
-| `GET` | `/api/channels/facebook/callback` | รับ code จาก Facebook → เชื่อม Page ทั้งหมดที่มีสิทธิ์ | seller session + OAuth state | ใหม่ |
+| `GET` | `/api/channels/facebook/callback` | รับ code จาก Facebook → **พา user ไปหน้าเลือกเพจ** (ไม่เชื่อมทันที) | seller session + OAuth state | ใหม่ (แก้พฤติกรรม 2026-07-24) |
+| `GET` | `/api/channels/facebook/pages` | รายการ Page + สถานะ (ว่าง/เชื่อมร้านนี้/ติดร้านอื่น) ให้หน้าเลือกเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
+| `POST` | `/api/channels/facebook/confirm` | เชื่อมเฉพาะ Page ที่ user ติ๊กเลือก + ย้ายรายเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/chat/conversations/[id]/messages` | ส่งข้อความ — dispatch ไป Send API เมื่อ `channel != "DEEP"` | participant session | แก้ไข (feature 00011) |
 | `GET` | `/api/chat/quick-messages` | list ข้อความสำเร็จรูปของร้านที่ active | seller session | ใหม่ (2026-07-23) |
 | `POST` | `/api/chat/quick-messages` | สร้างข้อความสำเร็จรูป | seller session | ใหม่ (2026-07-23) |
@@ -164,9 +168,11 @@ Body เป็น **plain text** (ไม่ใช่ JSON) — คืนค่�
 
 ---
 
-### 4.4 `GET /api/channels/facebook/callback` (ใหม่)
+### 4.4 `GET /api/channels/facebook/callback` (ใหม่ — แก้พฤติกรรม 2026-07-24)
 
-รับ `code` จาก Facebook หลัง user อนุมัติ → แลก token → ดึงรายการ Page → เชื่อมทั้งหมดที่มีสิทธิ์ `MESSAGING`+`MODERATE` Trace: SRS TFR-FBC-07/08 → BRD BR-FBC-01/02/04/20
+รับ `code` จาก Facebook หลัง user อนุมัติ → แลก long-lived user token → **ไม่เชื่อม Page ทันทีอีกต่อไป** แต่เก็บ user token (เข้ารหัส) ไว้ใน cookie แล้วพา user ไปหน้าเลือกเพจ Trace: SRS TFR-FBC-07/08 → BRD BR-FBC-01/02/04/20
+
+> **เหตุที่แก้ (2026-07-24):** ของเดิมเชื่อม "ทุก Page ที่มีสิทธิ์" เข้าร้านที่ active ทันที — บั๊กเชิงพฤติกรรม: admin มักดูแลเพจของตัวเองหลายเพจ พอเข้ามาเชื่อมเพจของร้าน เพจส่วนตัวที่เหลือถูกลากเข้าร้านนั้นทั้งหมด (subscribe webhook + ข้อความไหลเข้า inbox ที่พนักงานคนอื่นเห็น) การเลือกเพจ + การยืนยันย้ายจึงถูกยกไปทำที่หน้า `/settings/channels/select` (§4.4a/4.4b)
 
 **Request**
 
@@ -178,7 +184,7 @@ Body เป็น **plain text** (ไม่ใช่ JSON) — คืนค่�
 
 **Response — Success**
 
-`302 Redirect` ไป `/settings/channels?status=connected&connected=<N>&skipped=<ชื่อPageที่ข้าม,คั่นด้วยจุลภาค>` (path `/settings/channels` **ยังไม่มีหน้าจริง** — เป็น redirect target ที่รอ UI แผนถัดไป) — cookie `fb_channel_oauth_state` ถูกลบหลัง sync สำเร็จ
+`302 Redirect` ไป `/settings/channels/select` พร้อม `Set-Cookie: fb_channel_user_token=<AES-256-GCM ciphertext>` (httpOnly, `secure` prod, `sameSite=lax`, `path=/api/channels/facebook`, `maxAge=600`) — cookie `fb_channel_oauth_state` ถูกลบ. **ยังไม่แตะ DB / ไม่ subscribe อะไร**
 
 **Response — Error (ทั้งหมด redirect กลับ ไม่ throw HTTP error code ยกเว้น 401)**
 
@@ -188,11 +194,78 @@ Body เป็น **plain text** (ไม่ใช่ JSON) — คืนค่�
 | 302 | user กด "ยกเลิก" (`?error=`) | `status=cancelled` |
 | 302 | `state` ไม่ตรงกับ cookie | `status=state_mismatch` |
 | 302 | ไม่มี `code` | `status=no_code` |
-| 302 | ไม่พบ `Shop` ของ user (`findFirst({userId})`) | `status=no_shop` |
+| 302 | resolve active shop ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) | `status=no_shop` |
 | 302 | ไม่มี Page ที่ผ่านเงื่อนไขสิทธิ์ `MESSAGING`+`MODERATE` เลย | `status=no_eligible_page` |
-| 302 | exception ระหว่าง exchange token / list pages / connect (network, Graph API error) | `status=error` (log เฉพาะ `message`, **ไม่ log token**) |
+| 302 | exception ระหว่าง exchange token / list pages (network, Graph API error) | `status=error` (log เฉพาะ `message`, **ไม่ log token**) |
 
-**Side-effects:** สร้าง `ShopChannel` (provider `MESSENGER` และ `INSTAGRAM` ถ้ามี IG ผูก Page นั้นอยู่) ต่อ Page ที่ผ่านเงื่อนไข, เรียก `subscribePageToApp` (Graph API) หลังสร้าง DB สำเร็จ, token เข้ารหัสก่อนเก็บเสมอ
+**Side-effects:** ไม่มีการเขียน DB — เก็บแค่ user token ใน cookie เข้ารหัส (`src/lib/facebook/pending-connect.ts`) อายุ 10 นาที
+
+---
+
+### 4.4a `GET /api/channels/facebook/pages` (ใหม่ 2026-07-24)
+
+รายการ Page ที่ user จัดการได้ + สถานะเทียบกับร้านที่กำลังเชื่อม — ให้หน้า `/settings/channels/select` แสดง Trace: SRS TFR-FBC-07 → BRD BR-FBC-02/20
+
+**Request** — ไม่มี body/param; อ่าน NextAuth session + cookie `fb_channel_user_token`
+
+**Response — Success** `200` (header `cache-control: private, no-store` — ผูกกับ user+ร้าน ห้าม shared cache)
+
+```json
+{
+  "shopName": "ร้านธนภัทร",
+  "pages": [
+    { "id": "1029...", "name": "เพจร้าน", "avatarUrl": "https://graph.facebook.com/1029.../picture?type=large",
+      "hasInstagram": true, "state": "available", "occupiedBy": null },
+    { "id": "2288...", "name": "เพจส่วนตัว", "avatarUrl": "...",
+      "hasInstagram": false, "state": "other-shop", "occupiedBy": "ร้านอื่น" }
+  ]
+}
+```
+
+`state` = `available` (ว่าง) | `connected-here` (เชื่อมกับร้านนี้อยู่แล้ว) | `other-shop` (ติดร้านอื่น — `occupiedBy` = ชื่อร้าน). คำนวณจาก `describePageStates()` (นับเฉพาะแถว `status <> DISCONNECTED`, ระดับ Page). **ไม่คืน access token**
+
+**Response — Error**
+
+| Status | เงื่อนไข | body |
+|--------|----------|------|
+| 401 | ไม่มี session | `{ "error": "unauthorized" }` |
+| 400 | resolve active shop ไม่ได้ | `{ "error": "no_shop" }` |
+| 410 | ไม่มี cookie `fb_channel_user_token` / หมดอายุ / ถอดรหัสไม่ผ่าน | `{ "error": "session_expired" }` |
+| 502 | Graph API error | `{ "error": "graph_error" }` |
+
+---
+
+### 4.4b `POST /api/channels/facebook/confirm` (ใหม่ 2026-07-24)
+
+เชื่อมเฉพาะ Page ที่ user ติ๊กเลือก + ย้ายเพจข้ามร้าน "รายเพจ" Trace: SRS TFR-FBC-07/08 → BRD BR-FBC-01/02/04/20
+
+**Request** — `Content-Type: application/json` (Valibot `ConfirmChannelPagesSchema`)
+
+| ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+|-------|------|--------|----------|
+| `pageIds` | `string[]` | yes | Page ที่เลือก (1–50 ตัว, แต่ละตัว string 1–64 อักขระ) |
+| `forceIds` | `string[]` | no | subset ของ `pageIds` ที่ user ยืนยัน "ย้ายข้ามร้าน" (ตัดร้านเดิมออก) |
+
+**Authorization:** re-verify กับ Meta ทุกครั้ง — ดึงรายการ Page ใหม่จาก user token แล้วรับเฉพาะ id ที่อยู่ในรายการนั้น (`listManageablePages`); id ที่ยัดมาเองเกินสิทธิ์ถูกทิ้งเงียบ. `forceIds` ถูกกรองให้เป็น subset ของที่เลือกจริงอีกชั้น (กัน IDOR)
+
+**Response — Success** `200`
+
+```json
+{ "connected": 2, "skipped": [{ "pageName": "เพจส่วนตัว", "occupiedBy": "ร้านอื่น" }], "subscribeFailed": [] }
+```
+
+`skipped` = เพจติดร้านอื่นที่ user ไม่ได้ยืนยันย้าย; `subscribeFailed` = เพจที่เชื่อมสำเร็จแต่ subscribe webhook ล้มเหลว. cookie `fb_channel_user_token` ถูกลบทันทีหลังยืนยัน (กดซ้ำต้องเริ่ม OAuth ใหม่)
+
+**Response — Error**
+
+| Status | เงื่อนไข | body |
+|--------|----------|------|
+| 401 | ไม่มี session | `{ "error": "unauthorized" }` |
+| 400 | resolve active shop ไม่ได้ / body ไม่ผ่าน schema / ไม่พบเพจที่เลือกในรายการ Meta | `{ "error": "<ข้อความ>" }` |
+| 410 | cookie token หมดอายุ | `{ "error": "session_expired" }` |
+| 502 | Graph API error | `{ "error": "เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่" }` |
+
+**Side-effects:** `connectPages(shopId, userId, selected, { forceIds })` — สร้าง/reactivate `ShopChannel` (MESSENGER + INSTAGRAM ถ้ามี IG) เฉพาะเพจที่เลือก, `forceIds` ตัดแถว active ของร้านเดิม (soft — `DISCONNECTED` เก็บประวัติ) เป็น**รายเพจ**, เรียก `subscribePageToApp` ทุกเพจที่ผ่าน, token เข้ารหัสก่อนเก็บเสมอ
 
 ---
 
@@ -320,7 +393,10 @@ header: `Cache-Control: private, no-store, max-age=0, must-revalidate` (คำ�
 | Error String (จาก service) | HTTP Status | Endpoint | ความหมาย |
 |---|---|---|---|
 | (signature verify fail) | 401 | `POST .../webhook` | ลายเซ็นไม่ตรง — payload อาจถูกปลอม |
-| `unauthorized` | 401 | `connect`, `callback` | ไม่มี NextAuth session |
+| `unauthorized` | 401 | `connect`, `callback`, `pages`, `confirm` | ไม่มี NextAuth session |
+| `session_expired` | 410 | `pages`, `confirm` | cookie `fb_channel_user_token` หมดอายุ/ไม่มี/ถอดรหัสไม่ผ่าน — ให้เริ่มเชื่อมใหม่ |
+| `no_shop` | 400 | `pages`, `confirm` | resolve active shop ไม่ได้ |
+| `graph_error` | 502 | `pages` | Graph API error ตอนดึงรายการ Page |
 | `forbidden` (hub handshake) | 403 | `GET .../webhook` | `hub.verify_token` ไม่ตรง |
 | `WINDOW_CLOSED` | 409 | `POST .../messages` (เธรดช่องทางนอก) | เกิน 24h นับจากข้อความล่าสุดของลูกค้า |
 | `NOT_EXTERNAL_CHANNEL` | 400 | `POST .../messages` | defense — conversation ไม่ใช่ช่องทางนอกจริง |
@@ -348,7 +424,9 @@ flow ของ webhook ingest และ outbound send ถูกวาดคร�
 |----------|--------------------------|--------|
 | `GET/POST /api/channels/facebook/webhook` | Component `signature.ts`/`webhook-types.ts`, Flow 4.1 | FR-FBC-01/02/03 |
 | `GET /api/channels/facebook/connect` | Flow (SDS §2.1) | FR-FBC-09 |
-| `GET /api/channels/facebook/callback` | Component `shop-channel.service.ts`, TD-005 | FR-FBC-09/10 |
+| `GET /api/channels/facebook/callback` | Component `pending-connect.ts`, `shop-channel.service.ts`, TD-005 | FR-FBC-09/10 |
+| `GET /api/channels/facebook/pages` | Component `describePageStates()` (`shop-channel.service.ts`) | FR-FBC-09/10 |
+| `POST /api/channels/facebook/confirm` | Component `connectPages(forceIds)` (`shop-channel.service.ts`), TD-005 | FR-FBC-09/10 |
 | `POST /api/chat/conversations/[id]/messages` (branch ใหม่) | Flow 4.2, TD-003 | FR-FBC-04/05/06 |
 | (ยังไม่มี) list/disconnect channel | TD-005 | FR-FBC-11 |
 
@@ -356,7 +434,9 @@ flow ของ webhook ingest และ outbound send ถูกวาดคร�
 
 ## 8. สรุป (Summary)
 
-เอกสาร API Contract นี้กำหนดสัญญาของ 4 endpoint ที่มีอยู่จริงในโค้ด (webhook ×2 methods, connect, callback) บวกกับ error mapping ใหม่ 3 แบบที่เพิ่มเข้า endpoint เดิม (`WINDOW_CLOSED` → 409, `NOT_EXTERNAL_CHANNEL` → 400, `SEND_FAILED` → 502) — ทุก endpoint trace กลับ [[SDS]] และ [[SRS]] ได้ครบ
+เอกสาร API Contract นี้กำหนดสัญญาของ endpoint ที่มีอยู่จริงในโค้ด: webhook (×2 methods), OAuth `connect`/`callback`, **หน้าเลือกเพจ `pages`/`confirm` (ใหม่ 2026-07-24)** บวกกับ error mapping ใหม่ที่เพิ่มเข้า endpoint เดิม (`WINDOW_CLOSED` → 409, `NOT_EXTERNAL_CHANNEL` → 400, `SEND_FAILED` → 502) — ทุก endpoint trace กลับ [[SDS]] และ [[SRS]] ได้ครบ
+
+**2026-07-24 — เปลี่ยนพฤติกรรมเชื่อมเพจ:** `callback` เลิกเชื่อม "ทุกเพจ" ทันที → พาไปหน้าเลือกเพจ (`select`) ให้ติ๊กเลือกเอง + ย้ายเพจข้ามร้าน "รายเพจ" (`forceIds`) ป้องกันเพจส่วนตัวของ admin ถูกลากเข้าร้านโดยไม่ตั้งใจ. cookie `fb_channel_force` (force ทั้งชุด) ถูกถอด แทนด้วย cookie `fb_channel_user_token` (พก user token เข้ารหัสไปหน้าเลือกเพจ)
 
 **Open Questions:**
 - FR-FBC-11 (จัดการ/ถอด Page) ยังไม่มี route ให้เรียก — ต้องออกแบบ contract ใหม่เมื่อเริ่มแผน UI (list response shape ควรอิง `ChannelView` ที่ `shop-channel.service.ts` มีอยู่แล้ว: `{id, provider, externalId, name, avatarUrl, status}`)

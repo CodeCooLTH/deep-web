@@ -11,7 +11,10 @@ import {
   GeminiNotConfiguredError,
   GeminiApiError,
   type SuggestTurn,
+  type SuggestMedia,
 } from "@/lib/gemini";
+import { getFile } from "@/lib/storage";
+import { EXT_TO_MIME } from "@/lib/attachment-mime";
 import { getAiSetting } from "@/services/ai-setting.service";
 import {
   resolveProductCards,
@@ -31,6 +34,21 @@ const RECENT_LIMIT = 15;
 // AI call มีต้นทุน — จำกัดต่อผู้ใช้ (แยกจาก global per-IP ของ proxy.ts) กันกดรัว
 const AI_RATE_LIMIT_MAX = 15;
 const AI_RATE_LIMIT_WINDOW_MS = 60_000;
+
+// ── ไฟล์แนบเข้า AI (feature 00019 ext, user request 2026-07-24) ────────────────
+// Gemini จำกัด inline ทั้ง request ที่ 20MB (ตรวจกับ ai.google.dev 2026-07-24) — คุมงบให้ต่ำกว่ามาก
+// เพราะ base64 พองขึ้น ~33% และยังมี prompt/บริบทอื่นในก้อนเดียวกัน + ยิ่งใหญ่ยิ่งช้า/แพง
+const MEDIA_TOTAL_BUDGET_BYTES = 8 * 1024 * 1024; // งบรวมของไฟล์ดิบก่อน base64
+const MEDIA_PER_FILE_MAX_BYTES = 4 * 1024 * 1024; // ไฟล์เดี่ยวใหญ่กว่านี้ข้าม (mirror รับได้ถึง 25MB)
+const MEDIA_MAX_COUNT = 5; // เอาเฉพาะไฟล์ล่าสุด — บทสนทนายาวไม่ต้องส่งทั้งหมด
+
+// ชนิดที่ Gemini รับ inline ได้จริง (ai.google.dev 2026-07-24) — นอกลิสต์นี้ข้ามไป ไม่ต้องเสีย
+// bandwidth ยิงไปให้ถูกปฏิเสธ. หมายเหตุ: ข้อความเสียง Messenger เป็น Opus ที่เราเก็บเป็น .ogg
+// (audio/ogg) ซึ่งอยู่ในลิสต์ที่รองรับ — ถ้า Gemini ปฏิเสธ ogg-opus จริง จะ fail-soft (ดู catch)
+const GEMINI_INLINE_MIME = new Set([
+  "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif",
+  "audio/wav", "audio/mp3", "audio/mpeg", "audio/aiff", "audio/aac", "audio/ogg", "audio/flac",
+]);
 
 /**
  * POST /api/chat/conversations/{id}/ai-suggest — คืนข้อความร่าง 3 แบบจาก Gemini
@@ -87,7 +105,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     orderBy: { createdAt: "desc" },
     take: RECENT_LIMIT,
     // feature 00019: productRefId ใช้แปลงการ์ดสินค้าเป็นชื่อ+ราคาจริง (TFR-003)
-    select: { senderRole: true, type: true, body: true, productRefId: true },
+    // imageUrl (= storage fileId ของ IMAGE/AUDIO/VIDEO/FILE): ใช้ดึงไฟล์จริงส่งให้ AI ดู/ฟัง (00019 ext)
+    select: { senderRole: true, type: true, body: true, productRefId: true, imageUrl: true },
   });
   const ordered = rows.reverse();
 
@@ -111,9 +130,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const turns: SuggestTurn[] = ordered
     .map((m) => {
       const role: "BUYER" | "SHOP" = m.senderRole === "SHOP" ? "SHOP" : "BUYER";
-      // แทนชนิดที่ไม่ใช่ TEXT ด้วย placeholder ข้อความ (AI ไม่เห็นรูปจริง)
+      // placeholder ข้อความสำหรับ transcript — ไฟล์จริงส่งแยกเป็น inline media (ถ้าเปิดสวิตช์)
       let text = m.body ?? "";
       if (m.type === "IMAGE") text = m.body ? `[รูปภาพ] ${m.body}` : "[ส่งรูปภาพ]";
+      else if (m.type === "AUDIO") text = m.body ? `[ข้อความเสียง] ${m.body}` : "[ส่งข้อความเสียง]";
       else if (m.type === "PRODUCT") {
         const card = m.productRefId ? productCards.get(m.productRefId) : undefined;
         if (card) {
@@ -157,6 +177,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     customerResult.status === "fulfilled" ? customerResult.value : "",
   );
 
+  // ── ไฟล์แนบเข้า AI (feature 00019 ext, user request 2026-07-24) ──────────────
+  // ดึงรูป/เสียงจริงจาก storage ส่งให้ Gemini อ่าน/ถอดเสียง แทนที่จะเห็นแค่ "[ส่งรูปภาพ]"
+  // เปิด/ปิดต่อร้านด้วย includeMediaContext (สวิตช์ในหน้าตั้งค่า AI) — ปิด = พฤติกรรมเดิมทุกประการ
+  // เอาเฉพาะไฟล์ "ล่าสุด" ก่อน (reverse) เพราะบริบทที่สำคัญคือของใหม่ แล้วค่อยเรียงกลับตามบทสนทนา
+  const media: SuggestMedia[] = [];
+  if (aiSetting.includeMediaContext) {
+    let budget = MEDIA_TOTAL_BUDGET_BYTES;
+    const picked: { idx: number; item: SuggestMedia }[] = [];
+    for (let i = ordered.length - 1; i >= 0 && picked.length < MEDIA_MAX_COUNT; i--) {
+      const m = ordered[i]!;
+      if ((m.type !== "IMAGE" && m.type !== "AUDIO") || !m.imageUrl) continue;
+      try {
+        const file = await getFile(m.imageUrl);
+        if (!file) continue;
+        const mime = EXT_TO_MIME[file.ext.toLowerCase()];
+        if (!mime || !GEMINI_INLINE_MIME.has(mime)) continue;
+        if (file.buffer.byteLength > MEDIA_PER_FILE_MAX_BYTES || file.buffer.byteLength > budget) continue;
+        budget -= file.buffer.byteLength;
+        const who = m.senderRole === "SHOP" ? "ร้าน" : "ลูกค้า";
+        const kind = m.type === "IMAGE" ? "รูปภาพ" : "ข้อความเสียง";
+        picked.push({
+          idx: i,
+          item: {
+            label: `${kind}ที่${who}ส่ง (ข้อความลำดับที่ ${i + 1} ในบทสนทนาด้านบน)`,
+            mimeType: mime,
+            dataBase64: file.buffer.toString("base64"),
+          },
+        });
+      } catch (e) {
+        // อ่านไฟล์ไม่ได้ (ถูกลบ/storage ล่ม) — ข้ามไฟล์นั้น ไม่ทำให้ทั้งคำขอพัง (fail-soft TFR-009)
+        console.error("[ai-suggest] read media failed", e instanceof Error ? e.message : e);
+      }
+    }
+    // เรียงกลับตามลำดับบทสนทนา (เก่า→ใหม่) ให้ label ที่อ้าง "ลำดับที่ N" ตรงกับที่โมเดลเห็น
+    picked.sort((a, b) => a.idx - b.idx);
+    media.push(...picked.map((p) => p.item));
+  }
+
   try {
     const suggestions = await generateReplySuggestions(turns, {
       shopName: shop?.shopName ?? "ร้านค้า",
@@ -165,7 +223,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       contextBlock,
       customerName,
       customerNote: crm?.note ?? null,
-    });
+    }, media);
     return NextResponse.json({ suggestions }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     if (e instanceof GeminiNotConfiguredError) {
@@ -173,6 +231,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (e instanceof GeminiApiError) {
       console.error("[ai-suggest] gemini:", e.message);
+      // fail-soft ไฟล์แนบ (00019 ext): ถ้าพลาดตอนที่ "มีไฟล์แนบ" ให้ลองใหม่แบบข้อความล้วนก่อนยอมแพ้
+      // — ครอบเคสที่ Gemini ไม่รับไฟล์บางชนิด (เช่น ogg-opus ของข้อความเสียง Messenger) หรือ
+      // request ใหญ่/ช้าเกิน ผู้ใช้ควรได้ร่างคำตอบจากข้อความอยู่ดี ดีกว่าเห็น error เปล่า ๆ
+      if (media.length > 0) {
+        try {
+          const suggestions = await generateReplySuggestions(turns, {
+            shopName: shop?.shopName ?? "ร้านค้า",
+            vertical,
+            instruction: aiSetting.instruction,
+            contextBlock,
+            customerName,
+            customerNote: crm?.note ?? null,
+          });
+          console.warn("[ai-suggest] ถอยไปโหมดข้อความล้วน (ไฟล์แนบใช้ไม่ได้)");
+          return NextResponse.json({ suggestions, mediaSkipped: true }, { headers: NO_STORE_HEADERS });
+        } catch (retryErr) {
+          console.error("[ai-suggest] retry ไม่มีไฟล์แนบก็ยังพลาด", retryErr instanceof Error ? retryErr.message : retryErr);
+        }
+      }
       // detail: surface สาเหตุจริงจาก Gemini ชั่วคราวเพื่อ diagnose (ไม่มี secret — ดู comment ใน gemini.ts)
       return NextResponse.json(
         { error: "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง", detail: e.message },

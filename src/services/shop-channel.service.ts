@@ -132,11 +132,52 @@ async function upsertChannel(params: {
   return { kind: canonical ? 'existing-same-shop' : 'created' }
 }
 
+/**
+ * describePageStates — บอกสถานะของแต่ละเพจเทียบกับ "ร้านที่กำลังเชื่อม" ให้หน้าเลือกเพจ
+ * (feature 00018 — หน้า /settings/channels/select คั่นหลัง OAuth)
+ *
+ * ทำไมดูแค่ provider MESSENGER: การจอง externalId เกิดที่ระดับ Page — แถว INSTAGRAM เป็นผลพลอยได้
+ * ที่ upsert ตามเพจเดียวกันเสมอ ถ้านับ IG ด้วยจะได้สถานะซ้ำของสิ่งเดียวกัน
+ *
+ * scope เดียวกับ partial unique index: นับเฉพาะแถวที่ status <> 'DISCONNECTED' — เพจที่เคยเชื่อม
+ * แล้วถอดไปแล้วต้องขึ้นว่า 'available' ไม่ใช่ค้างว่าติดร้านเดิม
+ */
+export type PageConnectionState = 'available' | 'connected-here' | 'other-shop'
+
+export async function describePageStates(
+  shopId: string,
+  pageIds: string[],
+): Promise<Record<string, { state: PageConnectionState; occupiedBy: string | null }>> {
+  if (pageIds.length === 0) return {}
+
+  const rows = await prisma.shopChannel.findMany({
+    where: {
+      provider: 'MESSENGER',
+      externalId: { in: pageIds },
+      status: { not: 'DISCONNECTED' },
+    },
+    select: { externalId: true, shopId: true, shop: { select: { shopName: true } } },
+  })
+
+  const byPage = new Map(rows.map((r) => [r.externalId, r]))
+  const out: Record<string, { state: PageConnectionState; occupiedBy: string | null }> = {}
+  for (const id of pageIds) {
+    const row = byPage.get(id)
+    if (!row) out[id] = { state: 'available', occupiedBy: null }
+    else if (row.shopId === shopId) out[id] = { state: 'connected-here', occupiedBy: null }
+    else out[id] = { state: 'other-shop', occupiedBy: row.shop?.shopName ?? null }
+  }
+  return out
+}
+
 export async function connectPages(
   shopId: string,
   userId: string,
   pages: PageInfo[],
-  opts: { force?: boolean } = {},
+  // forceIds: ย้ายเพจข้ามร้าน "รายเพจ" — user ติ๊กยืนยันทีละเพจในหน้าเลือกเพจ (ไม่ใช่ทั้งชุด)
+  // เดิมมีแต่ force แบบทั้งชุดซึ่งอันตราย: กดยืนยันเพจเดียวแต่เพจอื่นของ user ที่ติดร้านอื่นอยู่
+  // โดนถอนตามไปด้วยทั้งหมด (opts.force ยังคงไว้ให้ caller เดิม/เทสต์ที่ตั้งใจย้ายทั้งชุดจริง ๆ)
+  opts: { force?: boolean; forceIds?: string[] } = {},
 ): Promise<{
   connected: number
   // skipped: เพจที่ถูกร้านอื่นเชื่อม active อยู่ — พก shopName ของร้านนั้นมาด้วยให้ UI บอก user ได้
@@ -148,6 +189,8 @@ export async function connectPages(
   const subscribeFailed: string[] = []
 
   for (const page of pages) {
+    // force รายเพจ — เพจที่ user ไม่ได้ยืนยันย้าย จะยัง skipped ตามเดิมแม้เพจอื่นในชุดเดียวกันจะยืนยันแล้ว
+    const forced = opts.force === true || (opts.forceIds?.includes(page.id) ?? false)
     const messengerResult = await upsertChannel({
       shopId,
       userId,
@@ -155,7 +198,7 @@ export async function connectPages(
       externalId: page.id,
       name: page.name,
       accessToken: page.accessToken,
-      force: opts.force,
+      force: forced,
     })
 
     if (messengerResult.kind === 'other-shop') {
@@ -177,7 +220,7 @@ export async function connectPages(
         externalId: page.instagramBusinessAccountId,
         name: page.name,
         accessToken: page.accessToken,
-        force: opts.force,
+        force: forced, // IG ต้องใช้การยืนยันเดียวกับ Page แม่ ไม่งั้นย้าย Page ได้แต่ IG ค้างร้านเดิม
       })
     }
 

@@ -25,6 +25,7 @@ model User {
   updatedAt          DateTime @updatedAt
 
   authAccounts          AuthAccount[]
+  mobileAuthTickets     MobileAuthTicket[]
   shops                 Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller
   verifications         VerificationRecord[]
   userBadges            UserBadge[]
@@ -75,6 +76,19 @@ model AuthAccount {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+}
+
+model MobileAuthTicket {
+  id        String    @id @default(uuid())
+  userId    String
+  purpose   String // 'enter' | 'exchange'
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model Shop {
@@ -1152,6 +1166,10 @@ model ChatMessage {
   // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
   productRefId   String?
+  // orderRefToken: การ์ดออเดอร์/ใบเสนอราคาในแชท (user request 2026-07-24) — เฉพาะ type=ORDER (แชท DEEP)
+  // เก็บ Order.publicToken (live-join enrich ตอน GET เหมือน PRODUCT) ไม่ FK — order ลบไม่ลบข้อความ
+  // ช่องทางนอก (Messenger/IG) ไม่ใช้ type=ORDER — ส่งเป็นลิงก์ TEXT แทน (Meta ไม่ render การ์ดในแอปเรา)
+  orderRefToken  String?
   createdAt      DateTime @default(now())
   // flaggedScam/scamMatchedRules: extension #3 Scam-link Detection — heuristic scam-link flag ณ เวลาส่ง (snapshot, ไม่ re-scan ย้อนหลัง BR-SCAM-05)
   flaggedScam      Boolean @default(false)
@@ -1243,6 +1261,11 @@ model ShopAiSetting {
   instruction            String?
   includeProductContext  Boolean @default(true)
   includeCustomerContext Boolean @default(true)
+  // includeMediaContext: ส่ง "รูป/ข้อความเสียง" ในแชทเข้า AI ด้วย (feature 00019 ext, user 2026-07-24)
+  // เพื่อให้ AI อ่านรูป (สลิป/ป้ายที่อยู่/รูปสินค้า) และถอดเสียงมาใช้ร่างคำตอบได้
+  // ⚠ เปิด = ไฟล์จากลูกค้าถูกส่งเข้า Gemini ทั้งไฟล์ ซึ่งอาจมี PII (เบอร์/ที่อยู่ในรูป) — ต่างจาก
+  // บริบทข้อความที่เรากรอง PII ออกก่อน จึงแยกเป็นสวิตช์ให้ร้านปิดได้ (default เปิดตามที่ user เลือก)
+  includeMediaContext    Boolean @default(true)
   // updatedByUserId: SetNull — ลบผู้ใช้ต้องไม่ลบการตั้งค่าของร้านทิ้ง
   updatedByUserId String?
   createdAt       DateTime @default(now())

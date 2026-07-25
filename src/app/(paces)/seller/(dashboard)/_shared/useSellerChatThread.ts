@@ -32,6 +32,16 @@ export type ChatProductCard = {
   isActive: boolean
 }
 
+// การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24) — enrich ต่อข้อความ type='ORDER' จาก GET .../messages
+// (route.ts batch fetch orderMap แล้วแนบเข้าแต่ละ item); null = order ถูกลบจริง
+export type ChatOrderCard = {
+  token: string
+  title: string
+  itemCount: number
+  totalAmount: string // "1234.00" — Decimal serialize เป็น string
+  status: string
+}
+
 // optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"
 // imageUrl optional (ไม่ใส่เลยสำหรับ TEXT) — SendChatMessageSchema.imageUrl ไม่รับ null รับแค่ string/undefined
 export type OutgoingRetry = { type: 'TEXT' | 'IMAGE'; body: string | null; imageUrl?: string }
@@ -42,11 +52,13 @@ export type ChatMessageView = {
   senderUserId: string
   senderRole: 'BUYER' | 'SHOP'
   // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE'
+  // ORDER = การ์ดออเดอร์/ใบเสนอราคา (user 2026-07-24) — enrich orderCard จาก GET
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
   body: string | null
   imageUrl: string | null
   createdAt: string
   productCard?: ChatProductCard | null
+  orderCard?: ChatOrderCard | null
   // extension #3 Scam-link Detection (FR-SCAM-03/04) — API GET/POST enrich ต่อข้อความ TEXT เท่านั้น
   // (S-30 chat.service.ts ChatMessageView) ใช้แสดง warning banner ในบับเบิล ไม่ block ส่ง
   flaggedScam?: boolean

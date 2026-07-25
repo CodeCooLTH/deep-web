@@ -197,6 +197,12 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
                       <div className={`rounded px-3 py-2 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary/15' : 'bg-light'}`}>
                         {m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-10" />
+                        ) : m.type === 'ORDER' ? (
+                          // การ์ดออเดอร์ (user 2026-07-24) — widget เล็ก แสดงบรรทัดสรุป (การ์ดเต็มอยู่หน้า inbox)
+                          <p className="text-default-800 mb-0 flex items-center gap-1.5 text-sm">
+                            <Icon icon="receipt-2" className="text-primary shrink-0 text-base" />
+                            {m.orderCard ? `ใบเสนอราคา: ${m.orderCard.title} · ฿${Number(m.orderCard.totalAmount).toLocaleString('th-TH')}` : 'ใบเสนอราคา'}
+                          </p>
                         ) : (
                           <>
                             {m.type === 'IMAGE' && m.imageUrl && (

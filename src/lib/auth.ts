@@ -416,6 +416,26 @@ export const authOptions: NextAuthOptions = {
         return { id: user.id, name: user.displayName, email: user.email };
       },
     }),
+    CredentialsProvider({
+      id: "mobile-ticket",
+      name: "Mobile Ticket",
+      credentials: {
+        ticket: { label: "Ticket", type: "text" },
+      },
+      // แอปมือถือส่ง single-use ticket (จาก /api/app/session-handoff) → เผา ticket แล้ว
+      // คืน user ให้ NextAuth ตั้ง session cookie เอง (jwt callback ด้านล่างจัดการ userId/
+      // activeShopId/needsRegistration/needsOnboarding ครบ — ไม่ mint JWT เองเพื่อกัน flag หลุด)
+      async authorize(credentials) {
+        if (!credentials?.ticket) return null;
+        const { burnMobileTicket } = await import("@/lib/mobile-ticket");
+        const uid = await burnMobileTicket(credentials.ticket, "enter");
+        if (!uid) return null;
+        const user = await prisma.user.findUnique({ where: { id: uid } });
+        if (!user) return null;
+        // shape เดียวกับ phone-otp/admin-credentials — jwt callback อ่าน user.id → token.userId
+        return { id: user.id, name: user.displayName, email: user.email };
+      },
+    }),
   ],
   session: {
     strategy: "jwt",

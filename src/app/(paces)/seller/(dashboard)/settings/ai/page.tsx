@@ -58,6 +58,7 @@ export default async function AiSettingsPage() {
             instruction: setting.instruction,
             includeProductContext: setting.includeProductContext,
             includeCustomerContext: setting.includeCustomerContext,
+            includeMediaContext: setting.includeMediaContext,
           }}
           canEdit={canEdit}
         />

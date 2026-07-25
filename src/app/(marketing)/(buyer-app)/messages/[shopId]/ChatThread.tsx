@@ -54,7 +54,8 @@ import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 type SenderRole = 'BUYER' | 'SHOP'
-type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT'
+// ORDER = การ์ดออเดอร์/ใบเสนอราคาที่ร้านส่งให้ (user 2026-07-24) — buyer เห็นการ์ดเดียวกับฝั่ง seller
+type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'ORDER'
 
 // S-20: enrich เฉพาะ type='PRODUCT' — คืนจาก GET เท่านั้น (S-18); POST ไม่ enrich (ดู sendProductMessage)
 type ProductCardData = {
@@ -63,6 +64,15 @@ type ProductCardData = {
   price: number
   imageFileId: string | null
   isActive: boolean
+}
+
+// enrich เฉพาะ type='ORDER' — คืนจาก GET (route.ts orderMap); การ์ดใบเสนอราคา/ออเดอร์ที่ร้านส่ง
+type OrderCardData = {
+  token: string
+  title: string
+  itemCount: number
+  totalAmount: string
+  status: string
 }
 
 type ChatMessageView = {
@@ -77,6 +87,9 @@ type ChatMessageView = {
   // ยังไม่ enrich, null = ลบจริงแล้ว FR-CTX-08)
   productRefId?: string | null
   productCard?: ProductCardData | null
+  // เฉพาะ type='ORDER' — enrich จาก GET (การ์ดใบเสนอราคา/ออเดอร์)
+  orderRefToken?: string | null
+  orderCard?: OrderCardData | null
   // S-31 (extension #3 Scam-link Detection): persist ที่ backend เฉพาะ type='TEXT' (S-30) — ข้อความอื่น
   // ส่ง false เสมอ (optimistic เช่นกัน เพราะ POST ไม่ enrich ค่านี้กลับจนกว่าจะ refetch/replace)
   flaggedScam: boolean
@@ -714,6 +727,80 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                   </div>
                                 </Link>
                               )}
+                            </div>
+                          )
+                        }
+
+                        // ORDER (user 2026-07-24) — การ์ดใบเสนอราคา/ออเดอร์ที่ร้านส่งให้ (Vuexy, primary
+                        // ไม่ใช่เขียวตาม ref — theme token); "ดูรายละเอียด" ลิงก์ /o/{token} หน้า order สาธารณะ
+                        if (msg.type === 'ORDER') {
+                          const card = msg.orderCard
+                          if (!card) {
+                            return (
+                              <div
+                                key={msg.id}
+                                className='shadow-xs overflow-hidden bg-backgroundPaper flex items-center gap-2 pli-4 plb-3'
+                                style={{ maxWidth: 260, borderRadius: 8 }}
+                              >
+                                <Icon icon='tabler-receipt-off' fontSize={20} className='text-textDisabled' />
+                                <Typography className='text-sm' color='text.disabled'>
+                                  ไม่พบออเดอร์นี้แล้ว
+                                </Typography>
+                              </div>
+                            )
+                          }
+                          const orderPriceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
+                          return (
+                            <div
+                              key={msg.id}
+                              className='shadow-xs overflow-hidden'
+                              style={{ maxWidth: 260, borderRadius: 8, border: '1px solid var(--mui-palette-divider)' }}
+                            >
+                              <div
+                                className='flex items-center gap-2 pli-4 plb-3'
+                                style={{
+                                  background: 'var(--mui-palette-primary-main)',
+                                  color: 'var(--mui-palette-primary-contrastText)',
+                                }}
+                              >
+                                <Icon icon='tabler-receipt-2' fontSize={26} />
+                                <div className='min-is-0'>
+                                  <Typography className='truncate text-sm font-semibold' style={{ color: 'inherit' }}>
+                                    {card.title}
+                                  </Typography>
+                                  <Typography className='truncate text-xs' style={{ color: 'inherit', opacity: 0.9 }}>
+                                    ใบเสนอราคา · #{card.token.slice(0, 8).toUpperCase()}
+                                  </Typography>
+                                </div>
+                              </div>
+                              <div className='bg-backgroundPaper flex flex-col gap-2 pli-4 plb-3'>
+                                <div className='flex items-center justify-between'>
+                                  <Typography className='text-sm' color='text.secondary'>
+                                    รายการ
+                                  </Typography>
+                                  <Typography className='text-sm font-semibold'>{card.itemCount} รายการ</Typography>
+                                </div>
+                                <div style={{ borderTop: '1px dashed var(--mui-palette-divider)' }} />
+                                <div className='flex items-center justify-between'>
+                                  <Typography className='text-sm' color='text.secondary'>
+                                    ยอดสุทธิ
+                                  </Typography>
+                                  <Typography className='text-sm font-bold' color='primary'>
+                                    {orderPriceLabel}
+                                  </Typography>
+                                </div>
+                              </div>
+                              <Link
+                                href={`/o/${card.token}`}
+                                target='_blank'
+                                className='bg-backgroundPaper flex items-center justify-center gap-1 plb-2.5'
+                                style={{ textDecoration: 'none', borderTop: '1px solid var(--mui-palette-divider)' }}
+                              >
+                                <Icon icon='tabler-external-link' fontSize={16} className='text-primary' />
+                                <Typography className='text-sm font-semibold' color='primary'>
+                                  ดูรายละเอียด
+                                </Typography>
+                              </Link>
                             </div>
                           )
                         }

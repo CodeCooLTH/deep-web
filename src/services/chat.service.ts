@@ -5,7 +5,7 @@ import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
 
 export type SenderRole = 'BUYER' | 'SHOP'
-export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE'
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
 
 export interface ConversationSummary {
   id: string
@@ -42,6 +42,7 @@ export interface ChatMessageView {
   body: string | null
   imageUrl: string | null
   productRefId: string | null // extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type='PRODUCT'
+  orderRefToken: string | null // การ์ดออเดอร์ในแชท (user 2026-07-24) — เฉพาะ type='ORDER' (Order.publicToken)
   flaggedScam: boolean // extension #3 Scam-link Detection (FR-SCAM-03) — WARN banner เท่านั้น ไม่ block
   createdAt: Date
 }
@@ -323,6 +324,7 @@ export async function sendMessage(params: {
   body?: string | null
   imageUrl?: string | null
   productRefId?: string | null // เฉพาะ type='PRODUCT' (extension #1 S-17)
+  orderRefToken?: string | null // เฉพาะ type='ORDER' (การ์ดออเดอร์ในแชท, user 2026-07-24)
 }): Promise<ChatMessageView> {
   return prisma.$transaction(async (tx) => {
     const conversation = await tx.conversation.findUnique({ where: { id: params.conversationId } })
@@ -359,12 +361,24 @@ export async function sendMessage(params: {
       }
     }
 
+    // ---- ORDER: การ์ดออเดอร์ในแชท (user 2026-07-24) — verify order เป็นของร้านนี้ (กัน cross-shop) ----
+    if (params.type === 'ORDER') {
+      if (!params.orderRefToken) throw new Error('ORDER_NOT_IN_SHOP') // defense — route กัน 400 แล้ว
+      const order = await tx.order.findUnique({
+        where: { publicToken: params.orderRefToken },
+        select: { shopId: true },
+      })
+      if (!order || order.shopId !== conversation.shopId) throw new Error('ORDER_NOT_IN_SHOP')
+    }
+
     const preview =
       params.type === 'IMAGE'
         ? '[รูปภาพ]'
         : params.type === 'PRODUCT'
           ? `[สินค้า] ${productName}`
-          : (params.body ?? '').slice(0, 100)
+          : params.type === 'ORDER'
+            ? '[ใบเสนอราคา]'
+            : (params.body ?? '').slice(0, 100)
 
     // extension #3 Scam-link Detection (FR-SCAM-03/BR-SCAM-04) — scan เฉพาะ type='TEXT' เท่านั้น
     // (ไม่ IMAGE/PRODUCT — url แปะไว้ที่ caption/body ของ type อื่นไม่ scan ตาม req doc)
@@ -377,9 +391,10 @@ export async function sendMessage(params: {
         senderUserId: params.senderUserId,
         senderRole: params.senderRole,
         type: params.type,
-        body: params.type === 'PRODUCT' ? null : (params.body ?? null),
-        imageUrl: params.type === 'PRODUCT' ? null : (params.imageUrl ?? null),
+        body: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.body ?? null),
+        imageUrl: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.imageUrl ?? null),
         productRefId: params.type === 'PRODUCT' ? (params.productRefId ?? null) : null,
+        orderRefToken: params.type === 'ORDER' ? (params.orderRefToken ?? null) : null,
         flaggedScam: scamResult?.flagged ?? false,
         scamMatchedRules: scamResult?.flagged ? scamResult.matchedRules : undefined,
       },

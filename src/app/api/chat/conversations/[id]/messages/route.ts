@@ -103,6 +103,31 @@ export async function GET(
     const products = productIds.length > 0 ? await getProductsByIds(productIds) : [];
     const productMap = new Map(products.map((p) => [p.id, p]));
 
+    // การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24) — enrich ข้อความ type='ORDER' ด้วย orderCard
+    // (additive เหมือน productCard). token ถูก verify ตอนส่งแล้วว่าเป็นของร้านในเธรดนี้ (sendMessage
+    // ORDER guard) จึง live-join ตาม token ได้ตรง ๆ; ลบ order จริง → ไม่พบใน map = null (แสดง empty)
+    const orderTokens = Array.from(
+      new Set(result.items.filter((m) => m.type === "ORDER" && m.orderRefToken).map((m) => m.orderRefToken as string)),
+    );
+    const orderRows = orderTokens.length > 0
+      ? await prisma.order.findMany({
+          where: { publicToken: { in: orderTokens } },
+          select: { publicToken: true, status: true, totalAmount: true, items: { select: { name: true } } },
+        })
+      : [];
+    const orderMap = new Map(
+      orderRows.map((o) => [
+        o.publicToken,
+        {
+          token: o.publicToken,
+          title: o.items[0]?.name ?? "คำสั่งซื้อ",
+          itemCount: o.items.length,
+          totalAmount: o.totalAmount.toFixed(2),
+          status: o.status,
+        },
+      ]),
+    );
+
     const items = result.items.map((m) => ({
       ...m,
       productCard:
@@ -113,6 +138,7 @@ export async function GET(
               return { id: p.id, name: p.name, price: p.price, imageFileId: p.images[0] ?? null, isActive: p.isActive };
             })()
           : null,
+      orderCard: m.type === "ORDER" && m.orderRefToken ? orderMap.get(m.orderRefToken) ?? null : null,
     }));
 
     // externalReadAt — watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt)
@@ -170,9 +196,9 @@ export async function POST(
     const firstIssue = parsed.issues[0]?.message ?? "Invalid input";
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
-  const { type, body: text, imageUrl, productRefId } = parsed.output;
+  const { type, body: text, imageUrl, productRefId, orderRefToken } = parsed.output;
 
-  // conditional-required — Valibot schema เดียวไม่ครอบทั้ง 3 กรณี (SendChatMessageSchema comment)
+  // conditional-required — Valibot schema เดียวไม่ครอบทุกกรณี (SendChatMessageSchema comment)
   if (type === "TEXT") {
     if (!text || text.trim().length === 0) {
       return NextResponse.json({ error: "กรุณากรอกข้อความ" }, { status: 400 });
@@ -186,10 +212,15 @@ export async function POST(
     if (!CHAT_IMAGE_ALLOWED_EXT.includes(ext)) {
       return NextResponse.json({ error: "รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp)" }, { status: 400 });
     }
-  } else {
-    // type === "PRODUCT" — extension #1 Chat Product Context Card (S-18)
+  } else if (type === "PRODUCT") {
+    // extension #1 Chat Product Context Card (S-18)
     if (!productRefId) {
       return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
+    }
+  } else {
+    // type === "ORDER" — การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
+    if (!orderRefToken) {
+      return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
     }
   }
 
@@ -205,10 +236,11 @@ export async function POST(
     });
     if (conv && conv.channel !== "DEEP") {
       // ช่องทางนอกส่งได้ทั้งข้อความและรูป (feature 00018 — แนบรูป Messenger/IG ผ่าน presigned URL);
-      // PRODUCT (การ์ดสินค้า) ยังไม่รองรับบนช่องทางนอก
-      if (type === "PRODUCT") {
+      // PRODUCT/ORDER (การ์ด) ยังไม่รองรับบนช่องทางนอก — Meta ไม่ render การ์ดในแอปเรา
+      // (ฝั่ง UI ส่งเป็นลิงก์ TEXT แทนสำหรับช่องทางนอกอยู่แล้ว — นี่คือ defense)
+      if (type === "PRODUCT" || type === "ORDER") {
         return NextResponse.json(
-          { error: "ช่องทางนี้ยังไม่รองรับการ์ดสินค้า" },
+          { error: "ช่องทางนี้ยังไม่รองรับการ์ด — ส่งเป็นลิงก์แทน" },
           { status: 400 },
         );
       }
@@ -226,9 +258,10 @@ export async function POST(
       senderUserId: userId,
       senderRole,
       type,
-      body: type === "PRODUCT" ? null : text ?? null, // TEXT = ข้อความหลัก, IMAGE = caption (optional), PRODUCT = null
+      body: type === "PRODUCT" || type === "ORDER" ? null : text ?? null, // TEXT = ข้อความหลัก, IMAGE = caption, PRODUCT/ORDER = null
       imageUrl: type === "IMAGE" ? imageUrl ?? null : null,
       productRefId: type === "PRODUCT" ? productRefId ?? null : null,
+      orderRefToken: type === "ORDER" ? orderRefToken ?? null : null,
     });
     return NextResponse.json(message);
   } catch (e: unknown) {

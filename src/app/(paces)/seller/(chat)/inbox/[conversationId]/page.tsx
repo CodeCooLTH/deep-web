@@ -209,6 +209,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           createdAt: true,
           checkIn: true,
           checkOut: true,
+          items: { select: { name: true } }, // ข้อมูลเบื้องต้นบนการ์ด (user 2026-07-24): ชื่อ+จำนวน
         },
       })
     : []
@@ -222,6 +223,8 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     createdAt: o.createdAt.toISOString(),
     checkIn: o.checkIn ? o.checkIn.toISOString() : null,
     checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+    title: o.items[0]?.name ?? 'คำสั่งซื้อ',
+    itemCount: o.items.length,
   }))
 
   // สถิติลูกค้า (user สั่ง 2026-07-24: แถว จำนวนออเดอร์/รวมยอดซื้อ/เป็นลูกค้ามา ในแท็บข้อมูลลูกค้า)

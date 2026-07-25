@@ -297,6 +297,9 @@ export const CreateOrderSchema = v.object({
     postcode: v.optional(v.string()),
     note: v.optional(v.string()),
   })),
+  // feature 00018 (user 2026-07-24): สร้างจากเธรดแชท → ผูก ExternalContact กับ Customer ทันที
+  // ownership ตรวจซ้ำที่ service (WHERE {id, shopId}) — client ปลอม id ร้านอื่นมาก็ผูกไม่ได้
+  conversationId: v.optional(v.pipe(v.string(), v.uuid())),
 });
 
 // ClaimOrderSchema — feature 00015 (Order Claim & Forced Login) API.md §4.3
@@ -705,7 +708,8 @@ export const SwitchActiveShopSchema = v.object({
 // SSOT: docs/20 - Features/00011 - Deep Chat/SRS.md §11
 
 export const SendChatMessageSchema = v.object({
-  type: v.picklist(["TEXT", "IMAGE", "PRODUCT"]),
+  // ORDER = การ์ดออเดอร์/ใบเสนอราคาในแชท DEEP (user 2026-07-24) — อ้าง Order.publicToken
+  type: v.picklist(["TEXT", "IMAGE", "PRODUCT", "ORDER"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
@@ -713,6 +717,7 @@ export const SendChatMessageSchema = v.object({
   body: v.nullish(v.pipe(v.string(), v.maxLength(2000))),
   imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
+  orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
 });
 // ตรวจ conditional-required ที่ route:
 //   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)
@@ -961,4 +966,21 @@ export const ShopAiSettingSchema = v.object({
   instruction: v.pipe(v.string(), v.maxLength(2000, "คำสั่งประจำร้านต้องไม่เกิน 2,000 ตัวอักษร")),
   includeProductContext: v.boolean(),
   includeCustomerContext: v.boolean(),
+  // feature 00019 ext (user 2026-07-24): ให้ AI อ่านรูป/ฟังข้อความเสียงในแชท
+  // optional + default true — client เวอร์ชันเก่าที่ยังไม่ส่ง field นี้ต้องบันทึกได้ (ไม่ 400)
+  includeMediaContext: v.optional(v.boolean(), true),
+});
+
+// ── feature 00018 — ยืนยันเลือกเพจที่จะเชื่อม (POST /api/channels/facebook/confirm) ──────
+// pageIds: เพจที่ user ติ๊กเลือกในหน้า /settings/channels/select
+// forceIds: subset ของ pageIds ที่ user "ยืนยันย้ายข้ามร้าน" ทีละเพจ (ไม่ใช่ทั้งชุด) — route ตรวจ
+//   ต่อว่าเป็น subset จริง และตรวจว่าทุก id อยู่ในเพจที่ token นี้จัดการได้ (authorization ที่ Meta)
+// id เพจของ Meta เป็นตัวเลขล้วนความยาวไม่แน่นอน — ไม่ใช่ uuid จึงตรวจแค่ string ไม่ว่าง + จำกัดจำนวน
+export const ConfirmChannelPagesSchema = v.object({
+  pageIds: v.pipe(
+    v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64))),
+    v.minLength(1, "กรุณาเลือกอย่างน้อย 1 เพจ"),
+    v.maxLength(50),
+  ),
+  forceIds: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64))), v.maxLength(50))),
 });

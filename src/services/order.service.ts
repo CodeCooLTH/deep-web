@@ -82,6 +82,10 @@ export async function createOrder(shopId: string, data: {
     postcode?: string;
     note?: string;
   };
+  // feature 00018 (user request 2026-07-24): ถ้าออเดอร์นี้สร้างจากเธรดแชท ให้ผูก ExternalContact
+  // ของเธรดเข้ากับ Customer (walk-in ที่ match จากเบอร์) ทันที — แชท/แท็บคำสั่งซื้อจะเห็นออเดอร์เลย
+  // ไม่ต้องรอ buyer login. link ระดับ walk-in Customer นี้ upgrade เป็น full customer ตอน login ต่อได้
+  conversationId?: string;
 }) {
   // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
   // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
@@ -265,6 +269,23 @@ export async function createOrder(shopId: string, data: {
           },
           include: { items: true },
         });
+
+        // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
+        // เงื่อนไข: มี conversationId + ได้ customerId (มีเบอร์) เท่านั้น. scope ownership ด้วย shopId ใน
+        // WHERE (กันผูกเธรดของร้านอื่น) + updateMany เฉพาะแถวที่ externalContact ยังไม่ผูก (customerId=null)
+        // — ไม่ทับของเดิมถ้า buyer login แล้ว upgrade ไป full customer ไว้ก่อนหน้า (login ชนะ manual)
+        if (data.conversationId && customerId) {
+          const conv = await tx.conversation.findFirst({
+            where: { id: data.conversationId, shopId },
+            select: { externalContactId: true },
+          });
+          if (conv?.externalContactId) {
+            await tx.externalContact.updateMany({
+              where: { id: conv.externalContactId, customerId: null },
+              data: { customerId },
+            });
+          }
+        }
 
         // NEW (00009 S-5) — StockMovement record-always (ทุก package, ไม่ gate ที่นี่)
         // insert หลัง order.create สำเร็จ เพราะต้องใช้ order.id เป็น refId
@@ -531,6 +552,8 @@ export async function getOrdersByCustomer(
     createdAt: string;
     checkIn: string | null;
     checkOut: string | null;
+    title: string;
+    itemCount: number;
   }[];
   nextCursor: string | null;
 }> {
@@ -553,6 +576,7 @@ export async function getOrdersByCustomer(
       createdAt: true,
       checkIn: true,
       checkOut: true,
+      items: { select: { name: true } }, // ข้อมูลเบื้องต้นบนการ์ด (user 2026-07-24)
     },
   });
   const hasMore = rows.length > take;
@@ -568,6 +592,8 @@ export async function getOrdersByCustomer(
       createdAt: o.createdAt.toISOString(),
       checkIn: o.checkIn ? o.checkIn.toISOString() : null,
       checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+      title: o.items[0]?.name ?? "คำสั่งซื้อ",
+      itemCount: o.items.length,
     })),
     nextCursor,
   };
