@@ -58,6 +58,9 @@ interface Props {
   initialSalesChannel?: string
   /** เรียกเมื่อสร้างสำเร็จ — ถ้ามี จะไม่ router.push (โมดัลจัดการปิด+refresh เอง); ไม่มี = behavior เดิม (/orders/new) */
   onSuccess?: (token: string | null) => void
+  /** feature 00018 (user 2026-07-24): เธรดแชทที่สร้างออเดอร์นี้ — ส่งไป API เพื่อผูก ExternalContact
+   *  กับ Customer ทันที (แชทเห็นออเดอร์เลยไม่ต้องรอ buyer login) */
+  conversationId?: string
   /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
    *  (POS 3-col เดสก์ท็อปแน่นเกินไปในโมดัล user report 2026-07-24); footer submit sticky ในโมดัล */
   compact?: boolean
@@ -183,6 +186,7 @@ export default function OrderCreateForm({
   initialBuyerContact,
   initialSalesChannel,
   onSuccess,
+  conversationId,
   compact = false,
 }: Props) {
   const router = useRouter()
@@ -422,6 +426,8 @@ export default function OrderCreateForm({
       ...(vatRate != null && vatRate > 0 ? { vatRate: vatRate / 100 } : {}),
       ...(vatAmount != null ? { vatAmount } : {}),
       ...(needsShipping && hasShippingData ? { shippingAddress: cleanShipping } : {}),
+      // feature 00018 (user 2026-07-24): สร้างจากแชท → ผูก ExternalContact กับ Customer ทันที
+      ...(conversationId ? { conversationId } : {}),
     }
 
     // full-bleed sheet: โชว์ "กำลังสร้างคำสั่งซื้อ" ตั้งแต่เริ่มยิง POST (block ทั้งจอ กันกดซ้ำ)

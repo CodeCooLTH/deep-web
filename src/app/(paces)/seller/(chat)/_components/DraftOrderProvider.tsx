@@ -199,6 +199,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               formId={`draft-order-form-${d.id}`}
               initialBuyerName={d.customerName}
               initialSalesChannel={chatChannelToSalesChannel(d.channel)}
+              conversationId={d.conversationId}
               onSuccess={() => handleSuccess(d)}
               compact
             />
