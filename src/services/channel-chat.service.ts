@@ -186,6 +186,44 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
   }
 }
 
+// ประกอบ "ข้อความสรุป" จาก field ของ template/location ที่ parse มาแล้ว (feature 00018, user 2026-07-25
+// "รองรับทุกอัน") — order/payment/receipt/generic มี text/summary/elements มากับ webhook เอง ไม่ต้องพึ่ง
+// Graph fetch (ซึ่งคืน message ว่างเมื่อ template ไม่มี text). แก้เคส user report: "[ข้อความจากระบบ
+// (ออเดอร์/ชำระเงิน)]" ตกไป placeholder ทั้งที่เนื้อห (ยอด/รายการ) มากับ webhook แล้ว
+type AttPayloadStructured = {
+  text?: string
+  template_type?: string
+  order_number?: string
+  summary?: { total_cost?: number }
+  elements?: { title?: string }[]
+  coordinates?: { lat: number; long: number }
+}
+function composeStructuredText(attType: string | undefined, payload: AttPayloadStructured | undefined): string | null {
+  if (!attType || !payload) return null
+  if (attType === 'location' && payload.coordinates) {
+    const { lat, long } = payload.coordinates
+    return `[ตำแหน่งที่ตั้ง] เปิดใน Google Maps: https://maps.google.com/?q=${lat},${long}`
+  }
+  if (attType === 'template') {
+    // receipt = ใบสรุปคำสั่งซื้อเต็มรูป
+    if (payload.template_type === 'receipt') {
+      const total = payload.summary?.total_cost
+      const num = payload.order_number ? ` #${payload.order_number}` : ''
+      const amt = typeof total === 'number' ? ` — ยอดรวม ฿${total.toLocaleString('th-TH')}` : ''
+      return `สรุปคำสั่งซื้อ${num}${amt}`
+    }
+    // button template (คำขอชำระเงิน/ดูออเดอร์) มี text สรุปในตัว เช่น "You requested ฿590..."
+    if (payload.text && payload.text.trim().length > 0) return payload.text
+    // generic/carousel → ชื่อรายการแรก + จำนวนที่เหลือ
+    const els = payload.elements
+    if (els && els.length > 0 && els[0]?.title) {
+      const more = els.length > 1 ? ` และอีก ${els.length - 1} รายการ` : ''
+      return `${els[0].title}${more}`
+    }
+  }
+  return null
+}
+
 export async function ingestInboundMessage(params: {
   provider: string
   pageExternalId: string
@@ -247,6 +285,8 @@ export async function ingestInboundMessage(params: {
     ig_reel: 'VIDEO',
     audio: 'AUDIO',
     file: 'FILE',
+    // story_mention (IG): รูป/วิดีโอสตอรี่ที่ลูกค้า mention เพจ — URL หมดอายุเมื่อสตอรี่หมด mirror best-effort
+    story_mention: 'IMAGE',
   }
   // ลิงก์/โพสต์ที่ลูกค้าแชร์ — payload.url เป็น URL ภายนอก (ไม่ใช่ asset บน Meta CDN) mirror ไม่ได้
   // และไม่ควร (host allow-list บล็อกอยู่แล้ว) → แสดง title + url เป็นข้อความ ให้ร้านเห็นว่าลูกค้าแชร์อะไร
@@ -298,16 +338,23 @@ export async function ingestInboundMessage(params: {
     console.warn('[fb-ingest] media mirror failed', { attType, host, hasUrl: !!attUrl })
   }
   const hasText = !!text && text.trim().length > 0
-  // enrich (user 2026-07-24 "ต้องรองรับทุกอย่าง"): attachment ที่ Meta สังเคราะห์ "ข้อความสรุป" ไว้แต่
-  // ไม่ส่ง text มากับ webhook — template (คำสั่งซื้อ/คำขอชำระเงิน เช่น "You requested ฿590..."), story —
-  // ดึงข้อความที่ render แล้วจาก Graph มาแสดงแทน placeholder ลอย ๆ. เฉพาะเคสไม่มี text จริง + ไม่ใช่สื่อที่
-  // mirror ได้ (isMedia) + ไม่ใช่ลิงก์แชร์ (มี linkText จาก payload อยู่แล้ว) — exception path (ไม่บ่อย)
+  // ประกอบข้อความสรุปจาก field ที่ parse มาแล้ว (template order/payment/receipt/generic + location) —
+  // มาก่อน Graph fetch: ถ้าประกอบเองได้ไม่ต้องยิง Graph เลย (fix เคส user 2026-07-25 "รองรับทุกอัน")
+  const structuredText = composeStructuredText(attType, firstAttachment?.payload)
+  // enrich (user 2026-07-24): attachment ที่ Meta สังเคราะห์ "ข้อความสรุป" แต่เราประกอบเองไม่ได้ + ไม่มี
+  // text/link/media → ดึงข้อความที่ render แล้วจาก Graph. skip ถ้าประกอบเอง (structuredText) ได้แล้ว
   let renderedText: string | null = null
-  if (!hasText && !isLink && hasAttachment && !mirroredFileId && attType && !isMedia && event.message.mid) {
+  if (!hasText && !isLink && !structuredText && hasAttachment && !mirroredFileId && attType && !isMedia && event.message.mid) {
     renderedText = await fetchMessageText(event.message.mid, channel.accessToken)
   }
-  // ลำดับข้อความที่จะแสดง: text จริง > ลิงก์แชร์ (title+url จาก payload) > ข้อความ render จาก Graph
-  const displayText = hasText ? text : isLink ? linkText : renderedText
+  // diagnostic: attachment ที่ยังแสดงเนื้อหาไม่ได้เลย (ไม่ใช่ media/link/template ที่ประกอบได้) — log
+  // ชนิด + keys ของ payload ดิบไว้ finalize schema เพิ่ม (agent research 2026-07-25: story_reply/commands/
+  // media/product template ยังไม่ยืนยัน payload จริง) — ไม่ log ค่า (กัน PII) log แค่ key
+  if (hasAttachment && !isMedia && !isLink && !structuredText && !renderedText && attType && attType !== 'template') {
+    console.warn('[fb-ingest] unhandled attachment', { attType, payloadKeys: Object.keys(firstAttachment?.payload ?? {}) })
+  }
+  // ลำดับข้อความที่จะแสดง: text จริง > ลิงก์แชร์ > ข้อความสรุปที่ประกอบเอง (template/location) > Graph render
+  const displayText = hasText ? text : isLink ? linkText : (structuredText ?? renderedText)
   const hasDisplayText = !!displayText && displayText.trim().length > 0
   // placeholder เฉพาะชนิด (I-5, user 2026-07-24) — ไม่ใช่ "[ไฟล์แนบ]" รวมทุกชนิด. ใช้เมื่อไม่มี text จริง
   // และดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก. sticker/reel/ig_reel/
@@ -325,6 +372,7 @@ export async function ingestInboundMessage(params: {
     post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
     ig_post: '[ลิงก์/โพสต์ที่แชร์ — เปิดดูใน Messenger]',
     template: '[ข้อความจากระบบ (ออเดอร์/ชำระเงิน) — เปิดดูใน Messenger]',
+    story_mention: '[กล่าวถึงในสตอรี่ — เปิดดูใน Instagram]',
   }
   const attachmentFailedText = (attType && FAILED_TEXT_BY_TYPE[attType]) ?? UNSUPPORTED_ATTACHMENT_TEXT
   // ข้อความที่ไม่มีทั้ง text และ attachment (reaction/ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มี
