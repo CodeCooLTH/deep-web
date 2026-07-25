@@ -4,12 +4,47 @@ import * as v from 'valibot'
 // ห้ามเชื่อ shape จาก Meta ตรง ๆ — parse ก่อนใช้เสมอ ฟิลด์ที่เราไม่ใช้ปล่อยผ่านได้
 // (Valibot object ตัดฟิลด์เกินทิ้งอยู่แล้ว) แต่ฟิลด์ที่ใช้ต้องมีจริง
 
+// payload ของ attachment — parse field ให้ครบ (feature 00018, user 2026-07-25 "รองรับทุกอัน")
+// เดิม parse แค่ url/title → Valibot ตัด field เกินทิ้ง ทำให้ template_type/text/elements/coordinates
+// ของ order/payment/location หายตั้งแต่ parse layer → ตกไป placeholder ทั้งที่เนื้อหามากับ webhook แล้ว
+const AttachmentPayloadSchema = v.object({
+  url: v.optional(v.string()),
+  title: v.optional(v.string()),
+  // template (order/payment/receipt/generic/button) — echo ฝั่งร้านจากเครื่องมือ order/payment
+  template_type: v.optional(v.string()), // "button"|"generic"|"receipt"|"media"|"product"|...
+  text: v.optional(v.string()), // button template: ข้อความสรุป เช่น "You requested ฿590..."
+  order_number: v.optional(v.string()), // receipt
+  currency: v.optional(v.string()),
+  summary: v.optional(
+    v.object({
+      subtotal: v.optional(v.number()),
+      shipping_cost: v.optional(v.number()),
+      total_tax: v.optional(v.number()),
+      total_cost: v.optional(v.number()),
+    }),
+  ),
+  elements: v.optional(
+    v.array(
+      v.object({
+        title: v.optional(v.string()),
+        subtitle: v.optional(v.string()),
+        quantity: v.optional(v.number()),
+        price: v.optional(v.number()),
+        currency: v.optional(v.string()),
+        image_url: v.optional(v.string()),
+      }),
+    ),
+  ),
+  // location: พิกัดมากับ webhook ตรง ๆ (ไม่ต้อง Graph fetch)
+  coordinates: v.optional(v.object({ lat: v.number(), long: v.number() })),
+  sticker_id: v.optional(v.number()),
+})
+
 const AttachmentSchema = v.object({
   // "image"|"sticker"|"video"|"reel"|"ig_reel"|"audio"|"file"|"fallback"|"post"|"ig_post"|
-  // "template"|"appointment_booking"|"location"|... (feature 00018 — Meta attachment types เต็มชุด)
+  // "template"|"appointment_booking"|"location"|"story_mention"|... (Meta attachment types เต็มชุด)
   type: v.string(),
-  // title: fallback/post/ig_post ใช้เป็นชื่อลิงก์/โพสต์ที่แชร์ (แสดงเป็นข้อความแทน mirror)
-  payload: v.optional(v.object({ url: v.optional(v.string()), title: v.optional(v.string()) })),
+  payload: v.optional(AttachmentPayloadSchema),
 })
 
 const MessageSchema = v.object({
