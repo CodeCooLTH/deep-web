@@ -502,6 +502,17 @@ export default function InboxList({
     }
   }, [scheduleRefresh])
 
+  // poll เบา ๆ ระหว่างเปิดหน้าแชทอยู่ (user report 2026-07-25 "list ซ้ายไม่ขึ้นข้อความล่าสุดตอนคุยกันอยู่"):
+  // เดิม list refresh เฉพาะตอน broadcast 'new_message' มา หรือ focus — ถ้า realtime หลุด/ไม่มา list จะค้าง
+  // ต่างจาก thread ที่มี poll 20s อยู่แล้ว → เพิ่ม poll คู่กันให้ list อัปเดต preview/ลำดับ ≤20s เสมอ
+  // หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู (pattern เดียวกับ useSellerChatThread)
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }, 20_000)
+    return () => clearInterval(t)
+  }, [scheduleRefresh])
+
   // ── read-state ฝั่ง client — บทสนทนาที่เปิดอยู่/เพิ่งเปิดในรอบนี้ต้องเป็น "อ่านแล้ว" ทันที ──
   // (server mark-read ผ่าน POST .../read ที่ ChatThread อยู่แล้ว แต่ list นี้ไม่ได้ refetch ตาม)
   const pathname = usePathname()

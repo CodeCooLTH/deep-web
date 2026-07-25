@@ -5,7 +5,7 @@
  *
  * ทำไม (TD-004 + SDS §3): force-login gate ย้ายความรับผิดชอบ "ยืนยันตัวตน" ไปที่ page.tsx
  * (server, resolveOrderAccess) ทั้งหมดแล้ว — ทุกคนที่มาถึง component นี้คือ session ที่ผ่าน
- * grant decision (OWNER_MATCH/OPEN_CLAIM/PHONE_MATCH_AUTO_CLAIM) มาแล้ว จึงไม่มี stage 'lock'
+ * grant decision (OWNER_MATCH/PHONE_MATCH_AUTO_CLAIM) มาแล้ว จึงไม่มี stage 'lock'
  * /PhoneUnlock/AccountPromptCard อีกต่อไป — เหลือแค่ render OrderDetailMobile
  *
  * confirm/cancel: ไม่ส่ง contact/smsUnlock ใน body อีกต่อไป — server ตรวจ session+ownership เอง

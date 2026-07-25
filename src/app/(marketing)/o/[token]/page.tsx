@@ -115,7 +115,7 @@ export default async function PublicOrderPage({ params }: Props) {
       redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
     }
 
-    // ── grant: OWNER_MATCH / OPEN_CLAIM / PHONE_MATCH_AUTO_CLAIM ──────────────────────
+    // ── grant: OWNER_MATCH / PHONE_MATCH_AUTO_CLAIM ───────────────────────────────────
     await guaranteeOrderLink({ orderId: order.id, userId: sessionUser.id, phone: me?.phone ?? null })
 
     // query verificationRecord ของ shop owner หลัง order resolve
