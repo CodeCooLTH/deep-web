@@ -187,12 +187,17 @@ export async function listConversationsForShop(
  */
 export async function countUnreadByConversation(conversationIds: string[]): Promise<Map<string, number>> {
   if (conversationIds.length === 0) return new Map()
+  // user request 2026-07-25: ข้อความ *ล่าสุด* เป็นฝั่งเรา (SHOP — ตอบจาก Deep/admin คนอื่น/echo จาก
+  // เพจโดยตรง) = ถือว่าอ่านหมดแล้ว (การตอบ = ได้อ่านสิ่งที่ลูกค้าส่งก่อนหน้าแล้ว) → ไม่นับ unread.
+  // ต้องใส่เงื่อนไข lastSenderRole ที่ "ทั้ง badge และ filter" (unreadConversationIdsForShop) เหมือนกัน
+  // เป๊ะ — ครั้งก่อนใส่ข้างเดียวทำให้ 2 ตัวไม่ตรงกัน (บั๊ก 2026-07-24). IS DISTINCT FROM กัน NULL
   const rows = await prisma.$queryRaw<{ conversationId: string; count: bigint }[]>`
     SELECT m."conversationId" AS "conversationId", COUNT(*) AS count
     FROM "ChatMessage" m
     JOIN "Conversation" c ON c.id = m."conversationId"
     WHERE m."conversationId" IN (${Prisma.join(conversationIds)})
       AND m."senderRole" = 'BUYER'
+      AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
       AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
     GROUP BY m."conversationId"
   `
@@ -203,14 +208,15 @@ export async function countUnreadByConversation(conversationIds: string[]): Prom
  * unreadConversationIdsForShop — id ของเธรดที่ "ฝั่งร้านยังไม่ได้อ่าน" (feature 00018 ตัวกรอง unread/read)
  *
  * ต้องใช้เกณฑ์ "เดียวกันเป๊ะ" กับ badge unread (countUnreadByConversation): มีข้อความจากลูกค้า
- * (senderRole='BUYER') ที่ใหม่กว่า shopLastReadAt (ห้องยังไม่เคยอ่าน = นับทั้งหมด). ต้อง JOIN
- * ChatMessage เหมือนกัน — ไม่ใช่เช็ค lastSenderRole ระดับห้อง
+ * (senderRole='BUYER') ที่ใหม่กว่า shopLastReadAt (ห้องยังไม่เคยอ่าน = นับทั้งหมด) + ข้อความล่าสุด
+ * ต้องไม่ใช่ฝั่งเรา (lastSenderRole IS DISTINCT FROM 'SHOP'). ต้อง JOIN ChatMessage เหมือนกัน
  *
- * บั๊กเดิม (user report 2026-07-24: "filter เจอแชทเดียวทั้งที่มีหลายแชทยังไม่อ่าน"): เดิมเช็ค
- * c."lastSenderRole" = 'BUYER' (ข้อความ *ล่าสุด* ต้องมาจากลูกค้า) ซึ่งไม่ตรงกับ badge. เคสที่หลุด =
- * IG/Messenger ที่ร้านตอบผ่าน Facebook/IG โดยตรง (ไม่ผ่าน Deep) → echo เข้ามาเป็น lastSenderRole='SHOP'
- * โดย shopLastReadAt ไม่อัปเดต → badge ยังนับ unread (ข้อความลูกค้าก่อนหน้ายังใหม่กว่า read) แต่ filter
- * ตัดทิ้งเพราะข้อความล่าสุดเป็นของร้าน. JOIN ChatMessage ทำให้ทั้งสองเห็นตรงกัน
+ * ประวัติ:
+ *  - 2026-07-24: เดิม filter เช็ค c."lastSenderRole"='BUYER' ข้างเดียว แต่ badge ไม่เช็ค → 2 ตัวไม่ตรงกัน
+ *    (badge นับ unread แต่ filter ตัดทิ้ง) จึงถอดเงื่อนไข lastSenderRole ออกจาก filter ให้ตรง badge
+ *  - 2026-07-25 (user request): ข้อความล่าสุดเป็นฝั่งเรา (ตอบจาก Deep/admin คนอื่น/echo จากเพจตรง) =
+ *    ถือว่าอ่านแล้ว → ใส่เงื่อนไข lastSenderRole กลับเข้ามา แต่คราวนี้ใส่ "ทั้ง badge และ filter"
+ *    (countUnreadByConversation ด้วย) ให้ตรงกันเป๊ะ — บทเรียนเดิมคือต้อง sync ไม่ใช่ห้ามใช้เงื่อนไขนี้
  *
  * DISTINCT — เธรดหนึ่งมีได้หลายข้อความลูกค้าที่ยังไม่อ่าน คืน id เดียว. วิ่งบน index
  * ChatMessage(conversationId, createdAt) ที่มีอยู่แล้ว (เหมือน countUnreadByConversation)
@@ -222,6 +228,7 @@ export async function unreadConversationIdsForShop(shopId: string): Promise<stri
     JOIN "ChatMessage" m ON m."conversationId" = c.id
     WHERE c."shopId" = ${shopId}
       AND m."senderRole" = 'BUYER'
+      AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
       AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
   `
   return rows.map((r) => r.id)
