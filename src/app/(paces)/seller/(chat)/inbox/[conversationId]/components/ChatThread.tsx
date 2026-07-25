@@ -141,6 +141,24 @@ function CopyMessageButton({ text }: { text: string }) {
   )
 }
 
+/**
+ * ปุ่ม "ตอบกลับ" (reply/quote, user 2026-07-25) — โผล่ตอน hover เฉพาะ desktop (lg:group-hover)
+ * เหมือน CopyMessageButton; ใช้กับข้อความทุกชนิด (text/รูป/การ์ด — ตอบทับได้หมด)
+ */
+function ReplyMessageButton({ onReply }: { onReply: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onReply}
+      aria-label="ตอบกลับข้อความนี้"
+      title="ตอบกลับ"
+      className="text-default-400 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+    >
+      <Icon icon="arrow-back-up" className="size-4" />
+    </button>
+  )
+}
+
 // จัดกลุ่มรูปที่ส่งติดกัน "ชุดเดียวกัน" เป็นอัลบั้ม (feat 00018, user request 2026-07-23 อ้าง FB):
 // contiguous same-sender bare IMAGE (ไม่มี caption) ที่ห่างกันไม่เกิน ALBUM_GAP_MS → รวมเป็น 1 album
 // (FB Messenger ส่งรูปหลายใบเป็นหลาย event ห่างกันไม่กี่วินาที). กลุ่มขนาด 1 = พฤติกรรมเดิม (bubble เดี่ยว)
@@ -472,6 +490,8 @@ export default function ChatThread({
     handlePaste,
     handleRemoveImage,
     handleSend,
+    replyingTo,
+    setReplyingTo,
     retryMessage,
     externalReadAt: externalReadAtLive,
   } = useSellerChatThread(conversationId, shopId)
@@ -760,11 +780,21 @@ export default function ChatThread({
                 // ปุ่มคัดลอกข้อความ — โผล่ตอน hover เฉพาะ desktop (lg:group-hover) และเฉพาะข้อความที่มี text
                 // (user request 2026-07-24) วางข้างบับเบิล: ฝั่งเรา=ซ้าย, ฝั่งลูกค้า=ขวา
                 const copyBtn = m.body ? <CopyMessageButton text={m.body} /> : null
+                // action cluster (hover) — ตอบกลับ (ทุกชนิด) + คัดลอก (เฉพาะข้อความมี text). ตอบกลับไม่ได้ถ้า:
+                // ข้อความถูกลบ, หรือยังเป็น optimistic (id ยังไม่ใช่ uuid จริง — route.replyToMessageId ต้องเป็น uuid)
+                const canReply = !m.isDeleted && !m._status && !m.id.startsWith('local-')
+                const actionCluster =
+                  canReply || copyBtn ? (
+                    <div className="flex flex-col items-center">
+                      {canReply && <ReplyMessageButton onReply={() => setReplyingTo(m)} />}
+                      {copyBtn}
+                    </div>
+                  ) : null
                 return (
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
                   <div key={m.id} className={`group my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
                     {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
-                    {mine && copyBtn}
+                    {mine && actionCluster}
                     {/* feature 00018 T4 (ภาคผนวก A-3): เดิม Base ไม่ใส่ max-w บนคอลัมน์นี้เลย ทำให้
                         ข้อความยาว (auto-reply) ดันเต็มบรรทัด — ห้ามใส่ percent bracket (ผิด HR7 ตาม
                         comment เดิมของไฟล์นี้) จึงใช้ Tailwind scale class มาตรฐาน (ไม่ใช่ bracket)
@@ -959,7 +989,7 @@ export default function ChatThread({
                         </div>
                       )}
                     </div>
-                    {!mine && copyBtn}
+                    {!mine && actionCluster}
                   </div>
                 )
               })}
@@ -1104,6 +1134,36 @@ export default function ChatThread({
             resize-none: ห้ามลากขยายเอง (จะพัง layout การ์ด); Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่
             (พฤติกรรมเดิมของ input ที่ต้องคงไว้ — textarea จะขึ้นบรรทัดใหม่เองถ้าไม่ preventDefault)
             items-end: ปุ่มส่งชิดล่างเสมอเวลา textarea ยืด ไม่ลอยกลาง */}
+        {/* reply/quote (user 2026-07-25) — แถบ preview ข้อความที่กำลังตอบทับ เหนือช่องพิมพ์ (เหมือน Messenger);
+            แถบสี primary ด้านซ้าย + ปุ่มกากบาทยกเลิก */}
+        {replyingTo && (
+          <div className="border-primary bg-primary/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
+            <Icon icon="arrow-back-up" className="text-primary mt-0.5 shrink-0 text-base" />
+            <div className="min-w-0 grow">
+              <p className="text-primary mb-0 text-2xs font-semibold">
+                ตอบกลับ{replyingTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+              </p>
+              <p className="text-default-600 mb-0 line-clamp-2 text-xs">
+                {replyingTo.body ??
+                  (replyingTo.type === 'IMAGE'
+                    ? '[รูปภาพ]'
+                    : replyingTo.type === 'ORDER'
+                      ? '[คำสั่งซื้อ]'
+                      : replyingTo.type === 'PRODUCT'
+                        ? '[สินค้า]'
+                        : '[สื่อ/ไฟล์แนบ]')}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              aria-label="ยกเลิกการตอบกลับ"
+              className="text-default-400 hover:bg-default-100 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+            >
+              <Icon icon="x" className="text-sm" />
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           {/* ช่องพิมพ์แบบกล่องเดียว — รูปที่แนบแสดง "ในช่องพิมพ์" (user request 2026-07-23) ให้รู้สึกว่า
               รูปติดกับข้อความนี้ (เหมือน Messenger); textarea ข้างในไร้ขอบ (กล่องนอกเป็นคนวาดขอบ) แต่ยัง

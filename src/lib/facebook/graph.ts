@@ -280,6 +280,9 @@ export async function sendTextMessage(
   pageToken: string,
   recipientId: string,
   text: string,
+  // reply/quote (user 2026-07-25): ตอบทับข้อความ mid นี้ — Messenger รองรับ reply_to:{mid} (Send API);
+  // IG ไม่ยืนยัน → ถ้า Meta ปฏิเสธ caller จับ error เอง (ยังส่งข้อความปกติได้)
+  replyToMid?: string | null,
 ): Promise<string> {
   const json = await graphFetch('/me/messages', pageToken, {
     method: 'POST',
@@ -287,6 +290,7 @@ export async function sendTextMessage(
       recipient: { id: recipientId },
       messaging_type: 'RESPONSE',
       message: { text },
+      ...(replyToMid ? { reply_to: { mid: replyToMid } } : {}),
     },
   })
   return (json.message_id as string | undefined) ?? ''
@@ -304,6 +308,7 @@ export async function sendImageMessage(
   pageToken: string,
   recipientId: string,
   imageUrl: string,
+  replyToMid?: string | null,
 ): Promise<string> {
   const json = await graphFetch('/me/messages', pageToken, {
     method: 'POST',
@@ -311,6 +316,7 @@ export async function sendImageMessage(
       recipient: { id: recipientId },
       messaging_type: 'RESPONSE',
       message: { attachment: { type: 'image', payload: { url: imageUrl } } },
+      ...(replyToMid ? { reply_to: { mid: replyToMid } } : {}),
     },
   })
   return (json.message_id as string | undefined) ?? ''

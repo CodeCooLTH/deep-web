@@ -718,6 +718,7 @@ export const SendChatMessageSchema = v.object({
   imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
   orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
+  replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)
 });
 // ตรวจ conditional-required ที่ route:
 //   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)

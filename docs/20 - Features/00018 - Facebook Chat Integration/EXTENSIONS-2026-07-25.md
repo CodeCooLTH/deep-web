@@ -433,7 +433,7 @@ authenticated data — บทเรียน `feedback_auth_api_cache_control`)
 - `ChatMessage.replyToMid String?` / `isDeleted Boolean @default(false)` — migration `20260725110000_chat_reply_unsend`
 - `webhook-types.ts` `MessageSchema` เพิ่ม `reply_to: {mid?}` / `is_deleted?: boolean`
 - `ingestInboundMessage`: เช็ค `event.message.is_deleted` **ก่อน**ทุกอย่าง (ก่อนแม้แต่ resolve contact/profile) → `updateMany` แล้ว `return` ทันที ไม่ไหลต่อไป insert ข้อความใหม่; ข้อความปกติ (ไม่ใช่ unsend) แนบ `replyToMid: event.message?.reply_to?.mid ?? null` ตอน `create`
-- ขาออก (ร้านตอบทับ/unsend เอง) — **ยังไม่ implement** (ดู Carry)
+- ขาออก **ตอบทับ (reply/quote) — implement แล้วใน E10**; unsend ขาออกยังไม่ทำ (ดู Carry)
 
 ### E9.4 Test Cases
 
@@ -442,6 +442,43 @@ authenticated data — บทเรียน `feedback_auth_api_cache_control`)
 | TC-REPLY-01 | ลูกค้าตอบทับข้อความเก่า | `ChatMessage.replyToMid` = mid ข้อความเก่า |
 | TC-UNSEND-01 | ลูกค้า unsend ข้อความที่เคยมีรูป+reaction | `body`/`imageUrl`/`reactionEmoji` เป็น `null`, `isDeleted=true`, แถวยังอยู่ (ไม่หาย) |
 | TC-UNSEND-02 | unsend ข้อความที่ mid ไม่ตรงกับเธรดในร้านนี้ (defense) | ไม่มีแถวไหนถูกแก้ (`updateMany` scope ผิดร้าน = 0 rows) |
+
+---
+
+## E10 — Reply/Quote ขาออก (ร้านตอบทับข้อความ)
+
+### E10.1 Requirement
+
+| FR | ข้อกำหนด |
+|---|---|
+| FR-REPLY-OUT-01 | ร้านเลือก "ตอบกลับ" ข้อความหนึ่งในเธรด (ของลูกค้า หรือของร้านเอง) → composer แสดงแถบ quote เหนือช่องพิมพ์ + ส่งข้อความที่ผูกกับข้อความต้นทาง |
+| FR-REPLY-OUT-02 | ช่องทางนอก (Messenger): ส่ง `reply_to: { mid }` ผ่าน Send API — ลูกค้าเห็น bubble ตอบทับใน Messenger จริง. IG best-effort (ไม่ยืนยัน parity) |
+| FR-REPLY-OUT-03 | ตอบทับได้ทุกชนิดข้อความ (text/รูป/การ์ด); quote แสดงทันที (optimistic) บนบับเบิลที่ส่ง |
+
+### E10.2 Business Rules
+
+- **BR-REPLY-OUT-01** ผูก reply กับข้อความ "ใบแรก" ที่ส่งต่อครั้ง (เช่นแนบหลายรูป+ข้อความ → reply ติดที่รูปใบแรก) — ตอบทับหนึ่งครั้งต่อการกดส่ง
+- **BR-REPLY-OUT-02** ช่องทางนอกใช้ `externalMessageId` (Meta mid) เป็นเป้า reply_to — ต้องมี mid จริงจึงจะ reply บน Meta ได้; DEEP (ในแอป) ไม่มี mid → เก็บ `replyToMid = ChatMessage.id` ภายในแทน แล้ว enrich match ทั้ง `externalMessageId` และ `id`
+- **BR-REPLY-OUT-03** graceful degrade: ยิงพร้อม `reply_to` แล้ว Meta ปฏิเสธ (IG ไม่รองรับ / mid หมดอายุ) → retry ยิงซ้ำแบบไม่มี `reply_to` เพื่อให้ข้อความยังส่งออกได้ (quote ฝั่งเรายังแสดงอยู่)
+- **BR-REPLY-OUT-04** ตอบทับข้อความ optimistic (ยังส่งไม่เสร็จ, id ยังไม่ใช่ uuid) หรือข้อความที่ถูกลบไม่ได้ — ปุ่ม reply ซ่อนไว้
+
+### E10.3 Data / Code
+
+- `graph.ts` `sendTextMessage`/`sendImageMessage` เพิ่ม param `replyToMid?` → แนบ `reply_to: { mid }` ใน body ของ `/me/messages`
+- `channel-chat.service.ts` `sendOutboundMessage` เพิ่ม `replyToMid?` → ส่งผ่าน graph + เก็บ `ChatMessage.replyToMid`; catch เพิ่ม retry-ไม่มี-reply_to (BR-REPLY-OUT-03)
+- `chat.service.ts` `sendMessage` (DEEP) เพิ่ม `replyToMid?` → เก็บ `id` ของข้อความต้นทาง
+- `route POST` เพิ่ม `replyToMessageId` (uuid) → resolve เป็น mid (นอก) / id (DEEP) แล้วส่งต่อ; `route GET` enrich `replyTo` match `externalMessageId OR id` + label สื่อ (`[รูปภาพ]`/`[คำสั่งซื้อ]`/`[สินค้า]`)
+- `validations.ts` `SendChatMessageSchema` เพิ่ม `replyToMessageId` (optional uuid)
+- `useSellerChatThread.ts` state `replyingTo`/`setReplyingTo`; `handleSend` ผูก `replyToMessageId` กับ payload ใบแรก + optimistic quote
+- `ChatThread.tsx` `ReplyMessageButton` (hover cluster เคียง copy) + แถบ preview quote เหนือ composer (ปุ่มยกเลิก)
+
+### E10.4 Test Cases
+
+| TC | สถานการณ์ | คาดหวัง |
+|---|---|---|
+| TC-REPLY-OUT-01 | ร้านตอบทับข้อความลูกค้า (Messenger) | ลูกค้าเห็น bubble ตอบทับใน Messenger; `ChatMessage.replyToMid` = mid ข้อความลูกค้า; quote แสดงในเธรด |
+| TC-REPLY-OUT-02 | ตอบทับใน DEEP (ในแอป) | `replyToMid` = id ข้อความต้นทาง; enrich แสดง quote ถูกต้อง |
+| TC-REPLY-OUT-03 | ตอบทับบน IG แล้ว Meta ปฏิเสธ reply_to | ข้อความยังส่งออก (retry ไม่มี reply_to); quote ฝั่งเรายังแสดง |
 
 ---
 
@@ -454,8 +491,10 @@ authenticated data — บทเรียน `feedback_auth_api_cache_control`)
   หมดอายุ) เว้นทำ backfill re-mirror แยก
 - **`messaging_referrals` subscribe field ขาด** (E8.3) — เพจที่เชื่อมก่อนรอบนี้ต้อง reconnect ถึงจะได้
   pure-referral event เต็มรูป
-- **Reply/Unsend ขาออก** (E9.3) — ร้านตอบทับ/ลบข้อความของตัวเองจาก Deep ยังทำไม่ได้ (inbound-only เหมือน
-  reaction ขาออกที่ยังไม่มี)
+- **Reply ขาออก — ทำแล้ว (E10)**; **Unsend ขาออก** ยังไม่ได้ (ร้านลบข้อความของตัวเองจาก Deep ยังทำไม่ได้ —
+  inbound-only เหมือน reaction ขาออกที่ยังไม่มี)
+- **IG reply_to parity** — Messenger ยืนยันรองรับ `reply_to`; IG ยังไม่ยืนยันจาก docs → E10 ใช้ best-effort +
+  graceful degrade (retry ไม่มี reply_to) — รอ verify เคสจริงบน prod
 - **ไม่แสดงชื่อ staff ที่ส่งข้อความฝั่งร้าน** — ข้อความที่ Deep ส่งเอง (`sendOutboundMessage`) มี
   `senderUserId` จริง (รู้ว่า staff คนไหนกด) แต่ echo จากแอป Messenger/IG โดยตรง (`is_echo`) Meta ไม่บอกว่า
   พนักงานคนไหนพิมพ์ — `senderUserId=null` เสมอสำหรับ echo จึงแสดงได้แค่ "ร้าน" รวม ๆ ไม่ระบุตัวบุคคลได้

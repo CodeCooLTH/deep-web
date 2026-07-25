@@ -44,7 +44,8 @@ export type ChatOrderCard = {
 
 // optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"
 // imageUrl optional (ไม่ใส่เลยสำหรับ TEXT) — SendChatMessageSchema.imageUrl ไม่รับ null รับแค่ string/undefined
-export type OutgoingRetry = { type: 'TEXT' | 'IMAGE'; body: string | null; imageUrl?: string }
+// replyToMessageId (user 2026-07-25): ตอบทับข้อความ id นี้ — route resolve → reply_to:{mid} ให้ Meta
+export type OutgoingRetry = { type: 'TEXT' | 'IMAGE'; body: string | null; imageUrl?: string; replyToMessageId?: string }
 
 export type ChatMessageView = {
   id: string
@@ -110,6 +111,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const sending = false
   const [errorState, setErrorState] = useState(false)
   const [text, setText] = useState('')
+  // reply/quote (user 2026-07-25): ข้อความที่กำลังจะ "ตอบทับ" — แสดง preview เหนือ composer, เคลียร์เมื่อส่ง/ยกเลิก
+  const [replyingTo, setReplyingTo] = useState<ChatMessageView | null>(null)
   // multi-image (user สั่ง 2026-07-23 "ข้อความสำเร็จรูปใส่รูปได้มากกว่า 1"): เก็บเป็นคิวของรูปที่
   // "รอส่ง" — ช่องทางนอก (Messenger/IG) ส่งได้ทีละรูปต่อข้อความ ระบบจึงทยอยส่งเป็นหลายข้อความให้เอง
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
@@ -439,7 +442,26 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           ]
         : [{ type: 'TEXT' as const, body: trimmed }]
 
-    const queued = payloads.map((payload) => {
+    // reply/quote: ผูก replyToMessageId กับข้อความ "ใบแรก" ที่ส่ง (ตอบทับครั้งเดียวต่อการส่ง)
+    const replyTargetId = replyingTo?.id
+    const replyQuote = replyingTo
+      ? {
+          body:
+            replyingTo.body ??
+            (replyingTo.type === 'IMAGE'
+              ? '[รูปภาพ]'
+              : replyingTo.type === 'ORDER'
+                ? '[คำสั่งซื้อ]'
+                : replyingTo.type === 'PRODUCT'
+                  ? '[สินค้า]'
+                  : '[สื่อ/ไฟล์แนบ]'),
+          senderRole: replyingTo.senderRole,
+        }
+      : null
+    if (replyTargetId && payloads[0]) payloads[0] = { ...payloads[0], replyToMessageId: replyTargetId }
+    setReplyingTo(null)
+
+    const queued = payloads.map((payload, i) => {
       const localId = `local-${localIdRef.current++}-${Date.now()}`
       const optimistic: ChatMessageView = {
         id: localId,
@@ -450,6 +472,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         body: payload.body,
         imageUrl: payload.imageUrl ?? null,
         createdAt: new Date().toISOString(),
+        // quote แสดงทันทีบนบับเบิลใบแรก (i===0) ก่อน GET enrich รอบถัดไป
+        replyTo: i === 0 ? replyQuote : null,
         _status: 'sending',
         _retry: payload,
       }
@@ -508,6 +532,9 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     handlePaste, // วางรูปจากคลิปบอร์ดลงช่องพิมพ์ (user 2026-07-25)
     handleRemoveImage,
     handleSend,
+    // reply/quote (user 2026-07-25) — ข้อความที่กำลังตอบทับ + setter (composer preview + ปุ่ม reply บนบับเบิล)
+    replyingTo,
+    setReplyingTo,
     // optimistic send — resend เมื่อบับเบิล _status='failed'
     retryMessage,
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า

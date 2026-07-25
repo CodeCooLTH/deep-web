@@ -141,8 +141,9 @@ export async function GET(
       ]),
     );
 
-    // reply quote (feature 00018 Phase 3) — ดึง body/ผู้ส่งของข้อความที่ถูกตอบทับ (replyToMid =
-    // externalMessageId) มาแสดง quote. batch fetch กัน N+1, scope conversationId เดียวกัน
+    // reply quote (feature 00018 Phase 3) — ดึง body/ผู้ส่งของข้อความที่ถูกตอบทับมาแสดง quote.
+    // replyToMid: ช่องทางนอก = externalMessageId (Meta mid); DEEP = id ภายใน (ไม่มี mid) → match ทั้งคู่.
+    // batch fetch กัน N+1, scope conversationId เดียวกัน
     const replyMids = Array.from(
       new Set(
         result.items
@@ -153,13 +154,23 @@ export async function GET(
     const repliedRows =
       replyMids.length > 0
         ? await prisma.chatMessage.findMany({
-            where: { externalMessageId: { in: replyMids }, conversationId: id },
-            select: { externalMessageId: true, body: true, senderRole: true },
+            where: {
+              conversationId: id,
+              OR: [{ externalMessageId: { in: replyMids } }, { id: { in: replyMids } }],
+            },
+            select: { id: true, externalMessageId: true, body: true, type: true, senderRole: true },
           })
         : [];
-    const repliedMap = new Map(
-      repliedRows.map((r) => [r.externalMessageId as string, { body: r.body, senderRole: r.senderRole as "BUYER" | "SHOP" }]),
-    );
+    const repliedMap = new Map<string, { body: string | null; senderRole: "BUYER" | "SHOP" }>();
+    for (const r of repliedRows) {
+      // ข้อความสื่อ/การ์ด (body=null) → แสดง label แทนช่องว่างใน quote
+      const label =
+        r.body ??
+        (r.type === "IMAGE" ? "[รูปภาพ]" : r.type === "ORDER" ? "[คำสั่งซื้อ]" : r.type === "PRODUCT" ? "[สินค้า]" : null);
+      const entry = { body: label, senderRole: r.senderRole as "BUYER" | "SHOP" };
+      if (r.externalMessageId) repliedMap.set(r.externalMessageId, entry);
+      repliedMap.set(r.id, entry);
+    }
 
     const items = result.items.map((m) => ({
       ...m,
@@ -233,7 +244,7 @@ export async function POST(
     const firstIssue = parsed.issues[0]?.message ?? "Invalid input";
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
-  const { type, body: text, imageUrl, productRefId, orderRefToken } = parsed.output;
+  const { type, body: text, imageUrl, productRefId, orderRefToken, replyToMessageId } = parsed.output;
 
   // conditional-required — Valibot schema เดียวไม่ครอบทุกกรณี (SendChatMessageSchema comment)
   if (type === "TEXT") {
@@ -271,6 +282,21 @@ export async function POST(
       where: { id },
       select: { channel: true, shopId: true },
     });
+
+    // reply/quote (user 2026-07-25): resolve ข้อความที่ตอบทับ → replyToMid ที่จะเก็บ/ส่ง.
+    // ช่องทางนอก = externalMessageId (Meta mid, ต้องมีจึง reply_to ได้); DEEP = id ภายใน (ไม่มี mid).
+    let replyToMid: string | null = null;
+    if (replyToMessageId) {
+      const replied = await prisma.chatMessage.findFirst({
+        where: { id: replyToMessageId, conversationId: id },
+        select: { id: true, externalMessageId: true },
+      });
+      if (replied) {
+        replyToMid =
+          conv && conv.channel !== "DEEP" ? (replied.externalMessageId ?? null) : replied.id;
+      }
+    }
+
     if (conv && conv.channel !== "DEEP") {
       // PRODUCT (การ์ดสินค้า) ยังไม่รองรับบนช่องทางนอก
       if (type === "PRODUCT") {
@@ -303,6 +329,7 @@ export async function POST(
         actorUserId: userId,
         text: text ?? undefined, // TEXT = ข้อความ, IMAGE = caption (optional)
         imageFileId: type === "IMAGE" ? imageUrl! : undefined,
+        replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
       return NextResponse.json(sent);
     }
@@ -316,6 +343,7 @@ export async function POST(
       imageUrl: type === "IMAGE" ? imageUrl ?? null : null,
       productRefId: type === "PRODUCT" ? productRefId ?? null : null,
       orderRefToken: type === "ORDER" ? orderRefToken ?? null : null,
+      replyToMid, // reply/quote (DEEP) — id ของข้อความที่ตอบทับ
     });
     return NextResponse.json(message);
   } catch (e: unknown) {

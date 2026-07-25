@@ -325,6 +325,7 @@ export async function sendMessage(params: {
   imageUrl?: string | null
   productRefId?: string | null // เฉพาะ type='PRODUCT' (extension #1 S-17)
   orderRefToken?: string | null // เฉพาะ type='ORDER' (การ์ดออเดอร์ในแชท, user 2026-07-24)
+  replyToMid?: string | null // reply/quote (user 2026-07-25) — DEEP เก็บ id ของข้อความที่ตอบทับ; enrich match id/externalMessageId
 }): Promise<ChatMessageView> {
   return prisma.$transaction(async (tx) => {
     const conversation = await tx.conversation.findUnique({ where: { id: params.conversationId } })
@@ -395,6 +396,7 @@ export async function sendMessage(params: {
         imageUrl: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.imageUrl ?? null),
         productRefId: params.type === 'PRODUCT' ? (params.productRefId ?? null) : null,
         orderRefToken: params.type === 'ORDER' ? (params.orderRefToken ?? null) : null,
+        replyToMid: params.replyToMid ?? null,
         flaggedScam: scamResult?.flagged ?? false,
         scamMatchedRules: scamResult?.flagged ? scamResult.matchedRules : undefined,
       },

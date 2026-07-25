@@ -639,6 +639,9 @@ export async function sendOutboundMessage(params: {
   // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
   // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
   orderRefToken?: string
+  // reply/quote (user 2026-07-25): externalMessageId (mid) ของข้อความที่ตอบทับ — ส่ง reply_to:{mid}
+  // ให้ Meta (Messenger รองรับ; IG best-effort) + เก็บ replyToMid ฝั่งเราเพื่อ render quote
+  replyToMid?: string | null
 }) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
@@ -674,20 +677,37 @@ export async function sendOutboundMessage(params: {
     if (isImage) {
       // presigned URL อายุ 1 ชม. — Meta ดึงรูปไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-      mid = await sendImageMessage(pageToken, recipientId, imageUrl)
+      mid = await sendImageMessage(pageToken, recipientId, imageUrl, params.replyToMid)
       // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
       // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
       if (bodyText.trim()) {
         await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
       }
     } else {
-      mid = await sendTextMessage(pageToken, recipientId, bodyText)
+      mid = await sendTextMessage(pageToken, recipientId, bodyText, params.replyToMid)
     }
   } catch (e) {
-    failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
-    // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
-    if (e instanceof GraphApiError && e.code === 190) {
-      await markChannelTokenInvalid(conversation.shopChannel.id)
+    // reply/quote best-effort: ถ้ายิงพร้อม reply_to แล้ว Meta ปฏิเสธ (IG ไม่รองรับ / mid หมดอายุ) —
+    // ลองใหม่แบบไม่มี reply_to เพื่อให้ข้อความยังส่งออกได้ (quote ฝั่งเราแสดงอยู่ดี)
+    if (params.replyToMid && !mid) {
+      try {
+        if (isImage) {
+          const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
+          mid = await sendImageMessage(pageToken, recipientId, imageUrl)
+          if (bodyText.trim()) await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
+        } else {
+          mid = await sendTextMessage(pageToken, recipientId, bodyText)
+        }
+      } catch {
+        /* ยังส่งไม่ได้จริง — ตกลงไป failureReason ด้านล่าง */
+      }
+    }
+    if (!mid) {
+      failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
+      // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
+      if (e instanceof GraphApiError && e.code === 190) {
+        await markChannelTokenInvalid(conversation.shopChannel.id)
+      }
     }
   }
 
@@ -711,6 +731,7 @@ export async function sendOutboundMessage(params: {
           body: isOrder || isImage ? null : bodyText,
           imageUrl: isImage ? params.imageFileId! : null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
+          replyToMid: params.replyToMid ?? null,
           externalMessageId: mid || null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
           failureReason,
