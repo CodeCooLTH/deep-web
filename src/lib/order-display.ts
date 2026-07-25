@@ -63,6 +63,24 @@ export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
 export type TimelineStep = { label: string; state: TimelineState }
 export type StatusPill = { label: string; bg: string; text: string; dot: string }
 
+/**
+ * ORDER_STATUS_META — badge สถานะออเดอร์แบบ Paces token (bg-{semantic}/15 text-{semantic}) + icon
+ * เป็น SSOT เดียวสำหรับ badge สถานะฝั่ง seller: หน้า order detail (StatusHero) และชิปเลขออเดอร์ใน
+ * inbox list ใช้ชุดนี้ร่วมกัน → label/สีตรงกันข้ามหน้า (กด #เลข จาก inbox ไป detail เห็นสถานะเดียวกัน)
+ *
+ * ต่างจาก getStatusPill (hex, buyer-facing pill ใน /o/[token]) — อันนั้นแยก PENDING ตาม
+ * fulfillment/payment เป็น 3 label ส่วนอันนี้ยึด status ตรง ๆ 4 ค่า ตาม UI หลังบ้าน
+ */
+export const ORDER_STATUS_META: Record<
+  string,
+  { label: string; cls: string; icon: string }
+> = {
+  PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning', icon: 'clock' },
+  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-info/15 text-info', icon: 'truck' },
+  CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
+  CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger', icon: 'circle-x' },
+}
+
 // Palette tokens ตาม spec §2 — ห้ามแก้ค่าสีที่นี่โดยไม่ sync กับ mockup
 const PALETTE = {
   pend: { bg: '#FEF3E2', text: '#92400E', dot: '#D97706' },
