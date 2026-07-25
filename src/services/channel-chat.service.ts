@@ -324,16 +324,31 @@ export async function ingestInboundMessage(params: {
   // เดิมเก็บแค่ attachments[0] → web app เห็นรูปเดียว (user report 2026-07-24). mirror ตัวที่ 2 เป็นต้นไป
   // แล้วสร้าง ChatMessage เพิ่มต่อรูป (album UI จะจับกลุ่มเป็นอัลบั้มเอง). externalMessageId ต่อท้าย #i กัน
   // ชน unique (mid เดียวทั้ง event) — redelivery ชนตัวแรก tx abort → DUPLICATE เหมือนเดิม
+  //
+  // dedup (user report 2026-07-25: สติกเกอร์ส่งครั้งเดียวขึ้น 2 อัน): Messenger ส่งสติกเกอร์บางตัวเป็น
+  // attachment ซ้ำ 2 ชิ้น (sticker_id/url เดียวกัน) ใน event เดียว → loop นี้เคย mirror ตัวซ้ำเป็นข้อความ
+  // ที่ 2. กันด้วย key = sticker_id (ถ้ามี) ไม่งั้น url — ต่างจากส่งหลายรูปจริงที่ url ต่างกันทุกใบ (ยังขึ้นครบ)
   const allAttachments = event.message.attachments ?? []
+  const attKey = (a: (typeof allAttachments)[number] | undefined): string | null =>
+    a?.payload?.sticker_id != null
+      ? `s:${a.payload.sticker_id}`
+      : a?.payload?.url
+        ? `u:${a.payload.url}`
+        : null
+  const seenAttKeys = new Set<string>()
+  const firstKey = attKey(firstAttachment)
+  if (firstKey) seenAttKeys.add(firstKey)
   const extraMedia: { fileId: string; type: string }[] = []
   for (let i = 1; i < allAttachments.length; i++) {
     const a = allAttachments[i]
     const t = a?.type
     const url = a?.payload?.url
-    if (t && MEDIA_TYPE[t] && url) {
-      const fid = await mirrorRemoteImage(url)
-      if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
-    }
+    if (!t || !MEDIA_TYPE[t] || !url) continue
+    const key = attKey(a)
+    if (key && seenAttKeys.has(key)) continue // attachment ซ้ำ (สติกเกอร์เดียวกัน) — ข้าม ไม่สร้างข้อความซ้ำ
+    if (key) seenAttKeys.add(key)
+    const fid = await mirrorRemoteImage(url)
+    if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
   }
 
   const type =
