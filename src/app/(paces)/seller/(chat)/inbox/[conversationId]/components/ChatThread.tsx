@@ -787,11 +787,31 @@ export default function ChatThread({
                         max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
                         break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
                     <div className="min-w-0 max-w-96 break-words">
+                      {/* reply quote (feature 00018 Phase 3) — snippet ข้อความที่ถูกตอบทับ เหนือบับเบิล */}
+                      {m.replyTo && (
+                        <div className={`border-default-300 mb-1 border-s-2 ps-2 ${mine ? 'text-end' : ''}`}>
+                          <p className="text-default-400 mb-0 text-2xs">
+                            ตอบกลับ{m.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+                          </p>
+                          <p className="text-default-500 mb-0 truncate text-xs">{m.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}</p>
+                        </div>
+                      )}
                       {/* รูปล้วน (IMAGE ไม่มี caption เช่น sticker/thumbs-up) → ไม่มีกรอบ bubble/bg/padding
                           user: "ทำไมถึงมี border อยากให้เป็น icon ไม่ต้องมี background" — รูป/สติกเกอร์
                           มีสี+รูปทรงในตัวอยู่แล้ว กรอบทำให้ดูเป็นกล่องรูป; รูปที่มี caption หรือ text/
                           PRODUCT ยังคงกรอบ bubble ไว้ (bg-light คงที่สำหรับ PRODUCT ตาม BR-CTX-05) */}
                       {(() => {
+                        // unsend (Phase 3): ผู้ส่งลบข้อความ → แสดง "ข้อความถูกลบ" จาง ๆ แทนเนื้อหา (ที่ถูกล้างแล้ว)
+                        if (m.isDeleted) {
+                          return (
+                            <div className={`rounded px-6 py-3 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
+                              <p className="text-default-400 mb-0 flex items-center gap-1 text-sm italic">
+                                <Icon icon="ban" className="text-sm" />
+                                ข้อความถูกลบ
+                              </p>
+                            </div>
+                          )
+                        }
                         // รูป/วิดีโอล้วน (ไม่มี caption) → ไม่มีกรอบ bubble (มีสี+รูปทรงในตัว); เสียง/ไฟล์คงกรอบ
                         // ORDER = การ์ด self-contained เช่นกัน (มีกรอบ/สีในตัว) → ไม่ต้องกรอบ bubble ครอบ
                         const bareImage =

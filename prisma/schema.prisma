@@ -1181,6 +1181,9 @@ model ChatMessage {
   // feature 00018 Phase 2 — reaction บนข้อความนี้ (message_reactions webhook): emoji ล่าสุดจากลูกค้า/ร้าน
   // null = ไม่มี/ถูก unreact. เก็บ emoji ตรง ๆ (ไม่ normalize) แสดงมุมล่างบับเบิลในเธรด
   reactionEmoji    String?
+  // feature 00018 Phase 3 — reply/unsend
+  replyToMid       String? // externalMessageId ของข้อความที่ "ตอบทับ" (message.reply_to.mid) — แสดง quote
+  isDeleted        Boolean @default(false) // ผู้ส่ง unsend ข้อความ (message.is_deleted) — แสดง "ข้อความถูกลบ"
 
   // --- feature 00018 (additive) ---
   // externalMessageId: mid จาก Meta — unique เพื่อ idempotency

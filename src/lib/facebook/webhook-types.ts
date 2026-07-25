@@ -73,6 +73,9 @@ const MessageSchema = v.object({
   is_echo: v.optional(v.boolean()),
   attachments: v.optional(v.array(AttachmentSchema)),
   referral: v.optional(ReferralSchema), // ลูกค้าคลิกโฆษณาแล้วทักในข้อความแรก
+  // feature 00018 Phase 3 — reply/unsend
+  reply_to: v.optional(v.object({ mid: v.optional(v.string()) })), // ตอบทับข้อความ mid นี้
+  is_deleted: v.optional(v.boolean()), // ผู้ส่ง unsend ข้อความ (mid = ข้อความที่ถูกลบ)
 })
 
 const MessagingEventSchema = v.object({
