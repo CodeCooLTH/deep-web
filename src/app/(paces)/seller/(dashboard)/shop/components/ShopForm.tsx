@@ -50,6 +50,7 @@ interface ShopFormProps {
     shopName: string
     description: string | null
     logo: string | null
+    coverImage: string | null
     category: string | null
     address: string | null
     businessType: string
@@ -72,6 +73,8 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
   // logoFileId เก็บ fileId ที่ได้จาก POST /api/upload แยกจาก react-hook-form
   const [logoFileId, setLogoFileId] = useState<string>(shop?.logo ?? '')
   const [logoUploading, setLogoUploading] = useState(false)
+  const [coverFileId, setCoverFileId] = useState<string>(shop?.coverImage ?? '')
+  const [coverUploading, setCoverUploading] = useState(false)
 
   const {
     register,
@@ -87,6 +90,31 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
       businessType: (shop?.businessType as FormValues['businessType']) ?? 'INDIVIDUAL',
     },
   })
+
+  // อัปโหลดภาพหน้าปกร้าน — pattern เดียวกับโลโก้ทุกอย่าง ต่างแค่ field ปลายทาง
+  // ใช้เป็นภาพนำของหน้าลิงก์คำสั่งซื้อที่ผู้ซื้อเปิดจากแชท (จุดที่ต้องพิสูจน์ว่าร้านมีตัวตนจริง)
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setCoverUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        pacesToast.error('อัปโหลดภาพหน้าปกไม่สำเร็จ')
+        return
+      }
+      const data = await res.json()
+      setCoverFileId(data.fileId ?? '')
+      pacesToast.success('อัปโหลดภาพหน้าปกแล้ว')
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
+    } finally {
+      setCoverUploading(false)
+    }
+  }
 
   // อัปโหลดโลโก้ผ่าน POST /api/upload → ได้ fileId → บันทึกใน state
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,6 +153,7 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
         address: values.address ?? '',
         businessType: values.businessType,
         ...(logoFileId ? { logo: logoFileId } : {}),
+        ...(coverFileId ? { coverImage: coverFileId } : {}),
       }
 
       const res = await fetch(url, {
@@ -363,6 +392,45 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
                               src={`/api/files/${logoFileId}`}
                               alt="โลโก้ร้านค้า"
                               className="h-20 w-20 rounded-lg object-cover border border-default-200"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ภาพหน้าปกร้าน — Shop.coverImage (2026-07-25)
+                          ใช้เป็นภาพนำของหน้าลิงก์คำสั่งซื้อที่ผู้ซื้อเปิดจากแชท ไม่ใส่ก็ได้
+                          ระบบจะใช้โลโก้ขยายเบลอแทน แต่จะไม่สวยเท่ารูปที่ร้านเลือกเอง */}
+                      <div>
+                        <label className="form-label">ภาพหน้าปกร้าน</label>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="form-input"
+                          onChange={handleCoverUpload}
+                          disabled={coverUploading}
+                        />
+                        <p className="text-default-400 mt-1 text-sm">
+                          แสดงเป็นภาพใหญ่ด้านบนสุดของหน้าคำสั่งซื้อที่ลูกค้าเปิดจากแชท แนะนำภาพแนวนอน
+                        </p>
+                        {coverUploading && (
+                          <p className="text-default-400 mt-1 text-sm flex items-center gap-1">
+                            <Icon icon="loader-2" className="animate-spin text-base" />
+                            กำลังอัปโหลด...
+                          </p>
+                        )}
+                        {coverFileId && !coverUploading && (
+                          <p className="text-success mt-1 text-sm flex items-center gap-1">
+                            <Icon icon="circle-check" className="text-base" />
+                            อัปโหลดแล้ว
+                          </p>
+                        )}
+                        {coverFileId && (
+                          <div className="mt-3">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/files/${coverFileId}`}
+                              alt="ภาพหน้าปกร้าน"
+                              className="h-28 w-full rounded-lg object-cover border border-default-200"
                             />
                           </div>
                         )}

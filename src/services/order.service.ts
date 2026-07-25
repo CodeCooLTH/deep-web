@@ -839,6 +839,18 @@ export async function getOrdersByBuyer(userId: string) {
  * ข้อแลกเปลี่ยนที่รับไว้แล้ว: การคืนค่า (ไม่ใช่ null) เท่ากับยืนยันกลาย ๆ ว่า token นี้มี
  * ออเดอร์จริง — แลกกับการที่ผู้ซื้อมั่นใจว่ากดลิงก์ถูกใบก่อนยอมล็อกอิน
  */
+/**
+ * แปลงค่ารูปที่เก็บใน DB ให้เป็น URL ที่ <img> ใช้ได้จริง
+ *
+ * ค่าที่เก็บมีสองแบบปนกัน: storage key จาก saveFile (เช่น "2026/07/25/uuid.png" หรือ
+ * "uuid.png" ของไฟล์เก่าก่อนชาร์ดโฟลเดอร์) กับ URL เต็มจาก seed/CDN/OAuth avatar
+ * guard ด้วย startsWith('http') แบบเดียวกับ InviteLandingClient.tsx:39 และ products/page.tsx:100
+ */
+function toFileUrl(v: string | null): string | null {
+  if (!v) return null;
+  return v.startsWith("http") ? v : `/api/files/${v}`;
+}
+
 export async function getOrderSummaryForSignIn(publicToken: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },
@@ -909,8 +921,8 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
 
     shopName: order.shop.shopName,
     shopUsername: order.shop.user.username,
-    logo: order.shop.logo,
-    coverImage: order.shop.coverImage,
+    logo: toFileUrl(order.shop.logo),
+    coverImage: toFileUrl(order.shop.coverImage),
     shopCreatedAtIso: order.shop.createdAt.toISOString(),
     trustScore: order.shop.user.trustScore,
     maxVerifyLevel,
@@ -925,7 +937,9 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
     channels: order.shop.channels.map((c) => ({
       provider: c.provider,
       name: c.name,
-      avatarUrl: c.avatarUrl,
+      // avatarUrl ของเพจมาจาก Graph API เป็น URL เต็มอยู่แล้ว แต่ผ่าน toFileUrl ไว้กันกรณี
+      // ถูกมิเรอร์ลง storage ภายหลัง
+      avatarUrl: toFileUrl(c.avatarUrl),
     })),
 
     latestReview: latestReview
