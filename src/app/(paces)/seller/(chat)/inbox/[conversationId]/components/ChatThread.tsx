@@ -75,6 +75,7 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
   useSellerChatThread,
@@ -417,6 +418,14 @@ export default function ChatThread({
   const openEditOrder = (token: string) =>
     openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, editOrderToken: token })
   const [sheetOpen, setSheetOpen] = useState(false)
+  // user request 2026-07-25 — กดไอคอนตะกร้าใน inbox (?panel=orders) บนจอเล็ก (<1024px) → เด้ง sheet
+  // ข้อมูลลูกค้า (แท็บออเดอร์เปิดเองใน CustomerPanelBody). เดสก์ท็อปมี panel persistent ไม่ต้องเปิด sheet
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('panel') === 'orders' && window.matchMedia('(max-width: 1023px)').matches) {
+      setSheetOpen(true)
+    }
+  }, [searchParams])
   // ดูรูปเต็มจอ — index ของรูปที่เปิดอยู่ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
   // (ต้องประกาศตรงนี้กับ hook ตัวอื่น ห้ามย้ายลงไปหลัง early return ของ errorState/loadingInitial)
   const [lightboxIndex, setLightboxIndex] = useState(-1)

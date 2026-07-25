@@ -77,7 +77,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
@@ -123,6 +123,9 @@ export type ConversationListItem = {
   // ตอนอยู่แท็บ "ทั้งหมด" ให้รู้ว่าเธรดนี้อยู่กลุ่มไหน (user สั่ง 2026-07-24)
   chatGroupId?: string | null
   isSpam?: boolean // feature 00018 — เธรดสแปม (user สั่ง 2026-07-24); ตัดสิน action spam/unspam ใน mini-action
+  // user request 2026-07-25 — จำนวนออเดอร์ของลูกค้าเธรดนี้ โชว์ไอคอนตะกร้า + จำนวน (กดเปิด right panel
+  // รายการคำสั่งซื้อ) — enrich ที่ route (/api/chat/conversations seller); optional เผื่อ payload เก่า
+  orderCount?: number
 }
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
@@ -498,6 +501,7 @@ export default function InboxList({
   // ── read-state ฝั่ง client — บทสนทนาที่เปิดอยู่/เพิ่งเปิดในรอบนี้ต้องเป็น "อ่านแล้ว" ทันที ──
   // (server mark-read ผ่าน POST .../read ที่ ChatThread อยู่แล้ว แต่ list นี้ไม่ได้ refetch ตาม)
   const pathname = usePathname()
+  const router = useRouter()
   const activeConversationId = pathname?.startsWith('/inbox/') ? pathname.slice('/inbox/'.length).split('/')[0] : null
   const [localReadAt, setLocalReadAt] = useState<Record<string, string>>({})
 
@@ -913,6 +917,33 @@ export default function InboxList({
                           )}
                         </span>
                       )}
+                      {/* user request 2026-07-25 — ไอคอนตะกร้า + จำนวนออเดอร์ของลูกค้า (ถ้ามี ≥1) กดแล้ว
+                          เปิด right panel รายการคำสั่งซื้อ (นำไป /inbox/{id}?panel=orders → CustomerPanel
+                          เปิดแท็บออเดอร์; มือถือเด้ง sheet). เป็น <span role="link"> ไม่ใช่ <a>/<button>
+                          เพราะทั้งแถวอยู่ใน <Link> — nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่
+                          (precedent เดียวกับดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
+                      {(c.orderCount ?? 0) > 0 && (() => {
+                        const openOrders = (e: React.SyntheticEvent) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          router.push(`/inbox/${c.id}?panel=orders`)
+                        }
+                        return (
+                          <span
+                            role="link"
+                            tabIndex={0}
+                            onClick={openOrders}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') openOrders(e)
+                            }}
+                            aria-label={`ดูรายการคำสั่งซื้อ ${c.orderCount} รายการ`}
+                            className="badge bg-primary/15 text-primary text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 hover:bg-primary/25 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-2"
+                          >
+                            <Icon icon="shopping-cart" width={13} height={13} className="shrink-0" />
+                            {c.orderCount}
+                          </span>
+                        )
+                      })()}
                     </span>
                   </div>
 

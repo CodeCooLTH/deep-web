@@ -107,6 +107,68 @@ async function enrichWithBuyerCounterparty(
 }
 
 /**
+ * enrichWithOrderCount (user request 2026-07-25) — จำนวนออเดอร์ของลูกค้าเธรดนั้น เพื่อโชว์ไอคอน
+ * ตะกร้า + จำนวน ในแถว inbox ฝั่ง seller (กดแล้วเปิด right panel รายการคำสั่งซื้อ). enrichment แยก
+ * ไม่แตะ ConversationSummary (FROZEN CONTRACT, SDS §5) เหมือน counterparty/unread
+ *
+ * เส้นเชื่อม conversation → Customer: เธรดช่องทางนอก = ExternalContact.customerId,
+ * เธรด DEEP = User.customer (back-relation Customer.userId) — ตรงกับ orders route (S-7)
+ *
+ * กัน N+1: resolve customerId ทั้งหน้า แล้วนับด้วย groupBy count query เดียว (รวมทุกชนิดออเดอร์)
+ */
+async function enrichWithOrderCount<
+  T extends { externalContactId: string | null; buyerUserId: string | null },
+>(items: T[], shopId: string): Promise<(T & { orderCount: number })[]> {
+  const externalContactIds = [
+    ...new Set(items.map((i) => i.externalContactId).filter((x): x is string => x !== null)),
+  ];
+  const buyerUserIds = [
+    ...new Set(items.map((i) => i.buyerUserId).filter((x): x is string => x !== null)),
+  ];
+
+  const [contacts, users] = await Promise.all([
+    externalContactIds.length
+      ? prisma.externalContact.findMany({
+          where: { id: { in: externalContactIds } },
+          select: { id: true, customerId: true },
+        })
+      : Promise.resolve([] as { id: string; customerId: string | null }[]),
+    buyerUserIds.length
+      ? prisma.user.findMany({
+          where: { id: { in: buyerUserIds } },
+          select: { id: true, customer: { select: { id: true } } },
+        })
+      : Promise.resolve([] as { id: string; customer: { id: string } | null }[]),
+  ]);
+  const contactCustomer = new Map(contacts.map((c) => [c.id, c.customerId]));
+  const userCustomer = new Map(users.map((u) => [u.id, u.customer?.id ?? null]));
+
+  const customerIdOf = (i: T): string | null =>
+    i.externalContactId
+      ? contactCustomer.get(i.externalContactId) ?? null
+      : i.buyerUserId
+        ? userCustomer.get(i.buyerUserId) ?? null
+        : null;
+
+  const customerIds = [...new Set(items.map(customerIdOf).filter((x): x is string => x !== null))];
+  if (customerIds.length === 0) {
+    return items.map((i) => ({ ...i, orderCount: 0 }));
+  }
+
+  const countRows = await prisma.order.groupBy({
+    by: ["customerId"],
+    where: { shopId, customerId: { in: customerIds } },
+    _count: { _all: true },
+  });
+  const countMap = new Map(countRows.map((r) => [r.customerId as string, r._count._all]));
+
+  return items.map((i) => {
+    const cid = customerIdOf(i);
+    return { ...i, orderCount: cid ? countMap.get(cid) ?? 0 : 0 };
+  });
+}
+
+/**
  * POST /api/chat/conversations — เริ่ม/เปิดบทสนทนาที่มีอยู่แล้ว โดย shopId (buyer surface เท่านั้น)
  *
  * ทำไม buyerUserId derive จาก session เท่านั้น (ไม่รับจาก client body):
@@ -214,7 +276,9 @@ export async function GET(request: NextRequest) {
     // unreadCount — badge ตัวเลข "จำนวนข้อความที่ยังไม่ได้อ่าน" ใน inbox list (user request 2026-07-23)
     // enrichment แยกเหมือน counterparty ไม่แตะ ConversationSummary (FROZEN CONTRACT)
     const unreadMap = await countUnreadByConversation(enriched.map((i) => i.id));
-    const items = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
+    const withUnread = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
+    // จำนวนออเดอร์ในแถว (user request 2026-07-25) — ไอคอนตะกร้า + จำนวน, เฉพาะ seller inbox
+    const items = await enrichWithOrderCount(withUnread, activeCtx.shopId);
     return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
   }
 

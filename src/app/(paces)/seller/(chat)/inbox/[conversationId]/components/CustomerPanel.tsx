@@ -35,6 +35,7 @@
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
@@ -294,7 +295,16 @@ function OrdersList({
  * ฝั่ง client อีกต่อไป — เดิม summarize() นับจาก orders 20 แถวที่ list ใช้ ซึ่งเพี้ยนถ้าลูกค้าซื้อเกิน 20
  */
 export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
-  const [tab, setTab] = useState<Tab>('customer')
+  // user request 2026-07-25 — เปิดจากไอคอนตะกร้าใน inbox (?panel=orders) → เด้งแท็บออเดอร์ทันที
+  // ใช้ useEffect sync ตาม param (ไม่พึ่ง useState initializer อย่างเดียว) เพราะ App Router อาจ reuse
+  // component ตอนสลับเธรด (ไม่ remount) — initializer จะไม่ถูกเรียกซ้ำ. effect ยิงเมื่อ param เปลี่ยน:
+  // มี panel=orders → orders, ไม่มี → customer (การกดแท็บเองไม่ทำ param เปลี่ยน จึงไม่โดน effect ทับ)
+  const searchParams = useSearchParams()
+  const wantOrders = searchParams.get('panel') === 'orders'
+  const [tab, setTab] = useState<Tab>(wantOrders ? 'orders' : 'customer')
+  useEffect(() => {
+    setTab(wantOrders ? 'orders' : 'customer')
+  }, [wantOrders])
   const cta = VERTICAL_CTA[data.vertical]
   const { openDraft } = useDraftOrders()
   // เปิดโมดัลสร้างคำสั่งซื้อ (พับได้/ค้างข้ามแชท) แทนการ navigate ไป /orders/new (user request 2026-07-24)

@@ -13,17 +13,15 @@
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
+import { ORDER_STATUS_META } from '@/lib/order-display'
 import ShipForm from './ShipForm'
 import SendSmsButton from './SendSmsButton'
 import OrderCopyLink from './OrderCopyLink'
 import CancelOrderButton from './CancelOrderButton'
 
-export const STATUS_META: Record<string, { label: string; cls: string; icon: string }> = {
-  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning',  icon: 'clock' },
-  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/15 text-info',        icon: 'truck' },
-  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/15 text-success',  icon: 'circle-check-filled' },
-  CANCELLED: { label: 'ยกเลิก',      cls: 'bg-danger/15 text-danger',    icon: 'circle-x' },
-}
+// SSOT ย้ายไป src/lib/order-display.ts (ORDER_STATUS_META) — ชิปเลขออเดอร์ใน inbox ใช้ชุดเดียวกัน
+// re-export ชื่อเดิมไว้ กัน import ที่อื่นพัง (ปัจจุบันใช้เฉพาะในไฟล์นี้)
+export const STATUS_META = ORDER_STATUS_META
 
 export const TYPE_META: Record<string, { label: string; icon: string; cls: string }> = {
   PHYSICAL: { label: 'สินค้าจับต้องได้', icon: 'package',        cls: 'bg-primary/15 text-primary' },
