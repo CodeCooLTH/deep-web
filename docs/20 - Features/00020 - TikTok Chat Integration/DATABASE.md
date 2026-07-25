@@ -189,7 +189,13 @@ npx prisma generate
   - `ExternalContact.name`/`avatarUrl`, `ChatMessage.body`/`imageUrl` — ตัวตน/เนื้อหาลูกค้าจริง ต้อง neutralize-at-source ก่อน serialize เข้า RSC flight (BR-TTC-34)
   - **ห้ามส่งเบอร์/อีเมล/ที่อยู่เข้า AI** (BR-TTC-31, สืบทอดจาก 00019) — คอลัมน์ที่เกี่ยวคือ `ExternalContact.phones`/`address` และ `Customer.phone`
 - **Ownership scope ที่ WHERE clause เสมอ:** ไม่มี RLS — ทุก query `ShopChannel` ต้อง filter `shopId` เทียบสิทธิ์ (BR-TTC-30) และสิทธิ์คือ `canAccessShop` = เจ้าของ **หรือ** พนักงาน (BR-TTC-29)
-- **Consistency ข้าม store:** token ใน DB กับสถานะจริงฝั่ง TikTok desync ได้ — ไม่มี webhook แจ้ง "token ถูก revoke" ระบบรู้ก็ตอนยิงแล้ว error (เหมือน Meta) จึงต้องมี `tokenExpiresAt` + cron เชิงรุก ไม่รอเชิงรับ
+- **Consistency ข้าม store:** token ใน DB กับสถานะจริงฝั่ง TikTok desync ได้ — แต่ **TikTok มี webhook แจ้งให้** ต่างจาก Meta:
+  - `SELLER_DEAUTHORIZATION` → ร้านถอนสิทธิ์ ให้หยุดยิง API + เคลียร์สถานะการเชื่อมต่อทันที
+  - `UPCOMING_AUTHORIZATION_EXPIRATION` → เตือนล่วงหน้า 30 วัน แล้วทุกวัน 00:00
+
+  > 🔄 **แก้ข้อความเดิม (2026-07-25):** ฉบับแรกเขียนว่า "ไม่มี webhook แจ้งเหตุการณ์นี้โดยตรง (เหมือน Meta)" — **จริงกับ Meta แต่ผิดกับ TikTok** ยืนยันจากเอกสาร Webhooks overview
+
+  ยังต้องมี `tokenExpiresAt` + cron อยู่ เพราะ 2 event ข้างบนพูดถึง **authorization** (สิทธิ์ที่ร้านให้ อายุยาว) ไม่ใช่ **access token** (อายุสั้น refresh เองได้) — และเอกสารเตือนเองว่า *"Do not rely on webhooks as the only source of truth"*
 - **บทเรียนจริงจาก session 2026-07-25:** ระหว่าง QA พบว่าการเชื่อมเพจเดียวกันเข้าอีกร้านทำให้ token ของแถวเดิมใช้ไม่ได้ → ระบบ mark `TOKEN_INVALID` (ถูกต้อง) แต่ **หน้า `/settings/channels` ไม่มีปุ่มเชื่อมใหม่** ร้านจึงกู้เองไม่ได้ — เป็น gap ของ 00018 ที่ควรแก้ก่อนเปิด TikTok ให้ร้านใช้จริง (ไม่งั้นจะเจอปัญหาเดียวกันแต่กับ TikTok)
 
 ---

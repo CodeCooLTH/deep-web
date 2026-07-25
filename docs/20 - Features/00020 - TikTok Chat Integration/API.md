@@ -24,19 +24,37 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[../00018 - Facebook Chat Inte
 
 ## 0. 🛑 ที่มาของข้อมูล และสิ่งที่ยังไม่ยืนยัน
 
-หน้าเอกสารทางการของ TikTok (`partner.tiktokshop.com/docv2/**`) เป็นหน้าที่ต้องรัน JavaScript
-**ดึงอัตโนมัติไม่ได้** (WebFetch ได้แต่ title ว่าง) — endpoint ในเอกสารนี้จึงสกัดจาก
-**SDK ที่ใช้งานจริงในวงกว้าง** [`EcomPHP/tiktokshop-php`](https://github.com/EcomPHP/tiktokshop-php)
-(`src/Auth.php`, `src/Webhook.php`, `src/Client.php`, `src/Resources/{Authorization,CustomerService,Event}.php`)
+หน้าเอกสารของ TikTok Shop (`partner.tiktokshop.com/docv2/**`) เป็น **JS-rendered** — HTTP client
+ธรรมดา (WebFetch/curl) ดึงได้แต่ title ว่าง **แต่อ่านผ่าน browser ได้ปกติ** (Chrome DevTools MCP
+รัน JavaScript ให้ และไม่ต้อง login)
 
-| สิ่งที่ยืนยันแล้ว (จาก SDK) | สิ่งที่ **ยังไม่ยืนยัน** — ห้ามถือเป็นข้อเท็จจริง |
-|---|---|
-| authorize / token get / token refresh URL + ชื่อ param | **OQ-TTC-02:** `type` และ `content` ของ `POST conversations/{id}/messages` รับค่าอะไรได้บ้าง |
-| สูตร verify ลายเซ็น webhook (OQ-TTC-03 — **ปิดแล้ว**) | อายุจริงของ access/refresh token (ต้องอ่านจาก response ไม่ hardcode) |
-| path ของ Customer Service API + ชื่อ event webhook | host ของ sandbox (SDK บอกว่า sandbox host ถูกยกเลิกตั้งแต่ v202309 แต่ Partner Center ยังให้สร้าง sandbox ได้ — OQ-TTC-11) |
-| กลไก signing ของ API request (HMAC-SHA256) | rate limit ของ Customer Service API (OQ-TTC-10) |
+> 🔄 **v1.1 (2026-07-25) — แก้ที่มาของข้อมูล:** ฉบับแรกสกัดจาก SDK ชุมชน
+> [`EcomPHP/tiktokshop-php`](https://github.com/EcomPHP/tiktokshop-php) เพราะเข้าใจผิดว่าเอกสาร
+> อ่านไม่ได้เลย — SDK ให้ข้อมูล**ไม่ครบและมีจุดที่ทำให้เข้าใจผิด** ตอนนี้ทุกข้อยืนยันกับเอกสาร
+> ทางการแล้ว (ดูตารางล่าง) สิ่งที่ SDK ไม่บอกและเกือบทำให้ implement ผิด:
+> `content` ต้องเป็น **JSON serialized string** ไม่ใช่ object · IMAGE ต้องมี **width/height** ·
+> มี event **`SELLER_DEAUTHORIZATION`** และ **`UPCOMING_AUTHORIZATION_EXPIRATION`** ที่ Meta ไม่มี
 
-**ทุกข้อในคอลัมน์ขวาต้อง verify ตอน implement** — ห้ามเขียน route รับข้อความก่อนทดสอบสูตรลายเซ็นกับ payload จริง (บทเรียน `feedback_spike_must_match_production_path`: การทดลองต้องตรงกับเส้นทางที่ใช้จริง)
+**หน้าที่อ่านแล้ว (ยืนยันด้วยเอกสารทางการ):**
+
+| หน้า | URL | ให้อะไร |
+|---|---|---|
+| Send Message | `/docv2/page/send-message-202309` | **ปิด OQ-TTC-02** — `type` enum ครบ, shape ของ `content` ทุกแบบ, error code, envelope |
+| Sign your API request | `/docv2/page/sign-your-api-request` | สูตรลายเซ็น + code sample Go/Java — **ตรงกับที่ implement ไว้** |
+| Common parameters | `/docv2/page/678e3a4278f4c20311b8b57e` | param บังคับ + **timestamp window** `[now-5min, now+30s]` (error `36009004`) |
+| Webhooks overview | `/docv2/page/tts-webhooks-overview` | event_type ครบทุก topic + คำเตือนห้าม branch ด้วย numeric `type` |
+
+**ยังไม่ยืนยัน (อ่านต่อได้จาก browser — ไม่ต้องรอ TikTok ตอบ):**
+
+| # | เรื่อง | อ่านได้จาก |
+|---|---|---|
+| OQ-TTC-11 | sandbox ใช้ host แยกหรือ production host + sandbox shop | Developer tools / Seller Center development shops |
+| OQ-TTC-12 | error code ตัวไหน = "token/สิทธิ์ตาย" (สำหรับ allow-list) | `/docv2/page/common-errors` |
+| OQ-TTC-13 | payload จริงของ `NEW_MESSAGE` (ชื่อ field) | topic page ของ NEW_MESSAGE |
+| OQ-TTC-14 | อายุจริงของ access token / authorization | Get Access Token page — **และต้องอ่านจาก response จริง ไม่ hardcode** |
+
+**สูตรลายเซ็น webhook (OQ-TTC-03) ยังมาจาก SDK** — เอกสารทางการที่อ่านแล้วยังไม่ครอบข้อนี้
+ต้อง verify ด้วย payload จริงก่อนเชื่อ (`feedback_spike_must_match_production_path`)
 
 ---
 
@@ -301,7 +319,7 @@ Trace: FR-TTC-01 / BR-TTC-01, BR-TTC-02, BR-TTC-05
 | Chat | `GET` | `/customer_service/202309/conversations` | list เธรด |
 | Chat | `POST` | `/customer_service/202309/conversations` | เปิดเธรดใหม่ (`buyer_user_id`) — FR-TTC-14 |
 | Chat | `GET` | `/customer_service/202309/conversations/{id}/messages` | ดึงข้อความ |
-| Chat | `POST` | `/customer_service/202309/conversations/{id}/messages` | **ส่งข้อความ** (`type`, `content` — OQ-TTC-02) |
+| Chat | `POST` | `/customer_service/202309/conversations/{id}/messages` | **ส่งข้อความ** — ดู §6.1 (ยืนยันจากเอกสารแล้ว) |
 | Chat | `POST` | `/customer_service/202309/conversations/{id}/messages/read` | mark read — FR-TTC-13 |
 | Chat | `POST` | `/customer_service/202309/images/upload` | อัปโหลดรูปก่อนส่ง — **ต่างจาก Meta ที่ส่ง URL ให้ไปดึงเอง** |
 | Webhook | `GET`/`PUT`/`DELETE` | `/event/202309/webhooks` | จัดการ subscription (`event_type` + `webhook_url`) |
@@ -309,10 +327,68 @@ Trace: FR-TTC-01 / BR-TTC-01, BR-TTC-02, BR-TTC-05
 **Host:** `https://open-api.tiktokglobalshop.com` (ทุก path ที่ไม่ใช่ auth)
 **Webhook event ที่ต้อง subscribe:** `NEW_MESSAGE` (ข้อความใหม่), `NEW_CONVERSATION` (agent เข้า/ออก), `NEW_MESSAGE_LISTENER` (creator ทักร้าน)
 
+### 6.1 `POST conversations/{id}/messages` — spec เต็ม (ยืนยันจากเอกสารทางการ)
+
+**Required scope:** `seller.customer_service`
+**Headers:** `content-type: application/json` + `x-tts-access-token`
+**Query (บังคับทั้งหมด):** `app_key`, `sign`, `timestamp`, `shop_cipher`
+
+**Body:** `{ "type": <enum>, "content": <JSON serialized string> }`
+
+🛑 **`content` เป็น string ที่ JSON.stringify มาแล้ว ไม่ใช่ object** — ตัวอย่างทางการ:
+
+```
+-d '{ "type": "TEXT", "content": "{\"content\": \"test\"}" }'
+```
+
+| `type` | `content` (ชั้นใน) | หมายเหตุ |
+|---|---|---|
+| `TEXT` | `{"content":"..."}` | **สูงสุด 2000 ตัวอักษร** ห้ามคำที่ผิดนโยบาย TikTok |
+| `IMAGE` | `{"url":"...","width":N,"height":N}` | `url` ต้องได้จาก `images/upload` — **ต้องรู้ขนาดรูป** |
+| `VIDEO` | `{"vid":"..."}` | |
+| `PRODUCT_CARD` | `{"product_id":"..."}` | ตรงกับการ์ดสินค้าที่ Deep มีอยู่แล้ว |
+| `ORDER_CARD` | `{"order_id":"..."}` | ตรงกับการ์ดออเดอร์ที่ Deep มีอยู่แล้ว |
+| `LOGISTICS_CARD` | `{"order_id":"...","package_id":"..."}` | `package_id` optional |
+| `RETURN_REFUND_CARD` | `{"order_id":"...","sku_id":"..."}` | ต้องผ่านเงื่อนไข after-sale |
+| `COUPON_CARD` | `{"coupon_id":"..."}` | คูปองต้องเข้าเงื่อนไข 4 ข้อ |
+
+**Response:** `{ "code": 0, "message": "Success", "request_id": "...", "data": { "message_id": "..." } }`
+→ `data.message_id` ใช้เป็น `ChatMessage.externalMessageId` (กลไก idempotency)
+
+**Error code ของ endpoint นี้:**
+
+| Code | ความหมาย | ต้องทำอะไร |
+|---|---|---|
+| `45101001` / `36009003` | internal error | retry ได้ — บันทึก FAILED ถ้ายังไม่สำเร็จ |
+| `45101002` | invalid params (เช่น RETURN_REFUND_CARD ไม่เข้าเงื่อนไข) | FAILED — **ห้าม** mark channel invalid |
+| `45101003` | record not found | FAILED |
+| `45101004` | **โควตาเต็ม 10,000 request/วัน** | FAILED + ข้อความบอกร้านว่าโควตาวันนี้เต็ม — **ห้าม** mark channel invalid |
+| `45101006` | ข้อความมีเนื้อหาที่ผิดนโยบาย | FAILED + บอกร้านให้แก้ข้อความ |
+| `45102007` | ไม่มีสิทธิ์เข้าถึงเธรดนี้ | FAILED — เป็นเรื่องเธรด **ไม่ใช่** token |
+| `36009004` | invalid timestamp (นอกช่วง `[now-5min, now+30s]`) | สงสัยนาฬิกา instance ก่อนสงสัยสูตรลายเซ็น |
+
 **⚠️ การส่งรูปต่างจาก Meta อย่างมีนัยสำคัญ:** Meta รับ **URL** แล้วไปดึงรูปเอง (เราส่ง presigned URL
-อายุ 1 ชม.) แต่ TikTok มี `images/upload` = ต้อง**อัปโหลดไบต์ขึ้นไปก่อน**แล้วส่งด้วย id ที่ได้ —
-`ChannelProvider.sendImage()` ที่ Phase 2 ออกแบบไว้รับ `imageFileId` แล้วให้ provider ตัดสินเอง
-**จึงรองรับความต่างนี้ได้โดยไม่ต้องแก้ interface** (ดู comment ใน `src/lib/channel-providers/types.ts`)
+อายุ 1 ชม.) แต่ TikTok ต้อง **อัปโหลดไบต์ขึ้นไปก่อน** ผ่าน `images/upload` แล้วส่ง `url` ที่ได้
+**พร้อม `width`/`height`** — `ChannelProvider.sendImage(target, imageFileId, caption?)` ที่ Phase 2
+ออกแบบไว้ให้ provider ตัดสินเองว่าจะแปลง fileId เป็นอะไร **จึงรองรับ 2 ขั้นตอนนี้ได้โดยไม่ต้องแก้
+interface** แต่ provider ต้องอ่านขนาดรูปจากไฟล์เอง (ดู [[SDS]] TD-003)
+
+### 6.2 Webhook event ที่ต้อง subscribe
+
+| event_type | ทำไมต้อง subscribe |
+|---|---|
+| `NEW_MESSAGE` | ข้อความใหม่ในเธรด — หัวใจของ FR-TTC-02/03 |
+| `NEW_CONVERSATION` | agent เข้า/ออกเธรด |
+| `NEW_MESSAGE_LISTENER` | creator ทักร้าน |
+| **`SELLER_DEAUTHORIZATION`** | ร้านถอนสิทธิ์ — เอกสารบอกให้ใช้ event นี้ "stop API calls and clean up local connection state" **Meta ไม่มี event แบบนี้** |
+| **`UPCOMING_AUTHORIZATION_EXPIRATION`** | สิทธิ์จะหมดอายุ — ส่ง **ล่วงหน้า 30 วัน** แล้วทุกวัน 00:00 จนกว่าจะ reauthorize |
+
+🛑 **payload มี field `type` เป็นตัวเลข แต่เอกสารสั่งห้าม branch ด้วยตัวเลขนั้น** ("does not publish a
+complete numeric type mapping for every topic") — ให้ยึด `event_type` ที่ subscribe ไว้ + shape ของ
+payload (ดู [[SDS]] TD-005)
+
+เอกสารเตือนด้วยว่า *"Do not rely on webhooks as the only source of truth"* — ควรมี reconcile ด้วย
+การ poll `GET conversations` เป็นระยะในอนาคต (ยังไม่อยู่ใน scope รอบนี้)
 
 ---
 
