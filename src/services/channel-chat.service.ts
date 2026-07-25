@@ -404,12 +404,29 @@ export async function ingestInboundMessage(params: {
     AUDIO: '[ข้อความเสียง]',
     FILE: '[ไฟล์แนบ]',
   }
+  // preview ใน list (left menu) ต้อง "สั้นเสมอ" แม้ mirror ล้ม (user report 2026-07-25: ขึ้น
+  // "[ข้อความเสียง — เปิดดูใน Messenger]" ยาวใน list) — ใช้ label สั้นตาม attType ไม่ใช้ placeholder ยาว
+  // (placeholder ยาวคง body ในบับเบิลไว้เป็นคำแนะนำตอนเปิดไม่ได้ แต่ list ต้องกระชับ)
+  const SHORT_PREVIEW_BY_ATTTYPE: Record<string, string> = {
+    image: '[รูปภาพ]',
+    sticker: '[รูปภาพ]',
+    video: '[วิดีโอ]',
+    reel: '[วิดีโอ]',
+    ig_reel: '[วิดีโอ]',
+    audio: '[ข้อความเสียง]',
+    file: '[ไฟล์แนบ]',
+    location: '[ตำแหน่งที่ตั้ง]',
+    fallback: '[ลิงก์ที่แชร์]',
+    post: '[ลิงก์ที่แชร์]',
+    ig_post: '[ลิงก์ที่แชร์]',
+    template: '[ข้อความจากระบบ]',
+  }
   const singlePreview = mirroredFileId
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
     : hasDisplayText
       ? displayText!.slice(0, 100)
       : hasAttachment
-        ? attachmentFailedText
+        ? ((attType && SHORT_PREVIEW_BY_ATTTYPE[attType]) ?? '[ไฟล์แนบ]')
         : emptyMessageText
   // หลายรูป → preview บอกจำนวน "[N รูป]" (นับตัวแรก + extra) แทน "[รูปภาพ]" เดี่ยว
   const mediaCount = (mirroredFileId ? 1 : 0) + extraMedia.length
