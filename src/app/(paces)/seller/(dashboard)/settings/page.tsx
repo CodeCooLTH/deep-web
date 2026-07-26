@@ -14,6 +14,9 @@ import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
 import { ConnectedAccountsClient } from './ConnectedAccountsClient'
+import Link from 'next/link'
+import { resolveActiveShopContext } from '@/lib/shop-context'
+import { getConnection } from '@/services/iship.service'
 
 export const metadata: Metadata = { title: 'บัญชีที่เชื่อมต่อ' }
 
@@ -41,9 +44,65 @@ export default async function SettingsPage() {
   // ทำไม Set: O(1) lookup ตอน render provider rows ข้างล่าง
   const linkedProviders = new Set(accounts.map((a) => a.provider))
 
+  // feature 00022 — การ์ดทางเข้าหน้าตั้งค่าการจัดส่ง
+  // แสดงเฉพาะร้าน vertical = GENERAL: ร้านบ้านพักไม่มีพัสดุให้ส่ง การมีเมนูค้างอยู่
+  // คือความรกที่ทำให้เจ้าของที่พักสงสัยว่าต้องไปตั้งค่าอะไรหรือเปล่า (BR-ISHIP-01)
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id, activeShopId: (user as { activeShopId?: string | null }).activeShopId ?? null },
+  })
+  const shop = activeCtx
+    ? await prisma.shop.findUnique({
+        where: { id: activeCtx.shopId },
+        select: { vertical: true },
+      })
+    : null
+  const showShipping = shop?.vertical === 'GENERAL'
+  const shipping = showShipping && activeCtx ? await getConnection(activeCtx.shopId) : null
+
   return (
     <>
       <PageBreadcrumb title="บัญชีที่เชื่อมต่อ" trail={[{ label: 'ภาพรวม' }]} />
+
+      {showShipping && (
+        <div className="card mb-4">
+          <div className="card-header">
+            <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
+              การจัดส่ง
+            </h5>
+          </div>
+          <div className="card-body">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-default-800">เชื่อมต่อ iShip</p>
+                <p className="text-default-500 text-sm mt-0.5">
+                  เปิดพัสดุจากคำสั่งซื้อและพิมพ์ใบปะหน้าได้จากที่นี่
+                </p>
+                <span
+                  className={
+                    shipping?.connected && shipping.status === 'ACTIVE'
+                      ? 'inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded mt-1'
+                      : shipping?.status === 'TOKEN_INVALID'
+                        ? 'inline-flex items-center gap-1 text-xs font-medium text-warning bg-warning/15 px-2 py-0.5 rounded mt-1'
+                        : 'inline-flex items-center gap-1 text-xs font-medium text-default-500 bg-default-200/50 px-2 py-0.5 rounded mt-1'
+                  }
+                >
+                  {shipping?.connected && shipping.status === 'ACTIVE'
+                    ? 'เชื่อมต่อแล้ว'
+                    : shipping?.status === 'TOKEN_INVALID'
+                      ? 'ต้องต่ออายุ Token'
+                      : 'ยังไม่ได้เชื่อมต่อ'}
+                </span>
+              </div>
+              <Link
+                href="/settings/shipping"
+                className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1.5 shrink-0"
+              >
+                {shipping?.connected ? 'จัดการ' : 'เชื่อมต่อ'}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         {/* section header — Paces border-dashed pattern จาก account-settings theme */}

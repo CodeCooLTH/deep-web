@@ -145,9 +145,10 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
       </div>
 
       {loginMode === 'channels' ? (
-              /* หน้าเลือกช่องทาง — ทุกทางเข้าอยู่เหนือ fold บนจอมือถือใน in-app browser
-                 (Messenger กิน chrome บน-ล่างเหลือพื้นที่จริง ~570px) */
-              <div className='flex flex-col gap-3'>
+              /* หน้าเลือกช่องทาง — ทุกทางเข้าต้องอยู่เหนือ fold ใน in-app browser ของ Messenger
+                 minBlockSize 46: ปุ่ม MUI ปกติสูง 38px ซึ่งต่ำกว่าเกณฑ์เป้าแตะ 44px (วัดจริงแล้ว)
+                 ตัวเลขนี้จึงบังคับไว้ ไม่ปล่อยตาม default ของธีม */
+              <div className='flex flex-col gap-2.5 [&_.MuiButton-root]:min-bs-[46px]'>
                 <Button
                   fullWidth
                   variant='contained'

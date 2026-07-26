@@ -47,3 +47,67 @@ export async function requireLodgingShop(): Promise<GuardResult> {
   }
   return { shopId: ctx.shopId };
 }
+
+type GeneralGuardResult =
+  | { error: NextResponse }
+  | { shopId: string; userId: string; role: "OWNER" | "ADMIN" };
+
+/**
+ * ต้องเป็นสมาชิกร้าน + ร้านต้องเป็นประเภทสินค้าและบริการ (feature 00022)
+ *
+ * ฝาแฝดของ requireLodgingShop ด้านบน แต่กลับข้าง — ใช้กับโดเมนที่ "ร้านบ้านพักไม่มี"
+ * เช่นการเชื่อมต่อขนส่ง (BR-ISHIP-01/02): การจองที่พักไม่มีพัสดุให้ส่ง
+ *
+ * IMPORTANT: การซ่อนเมนูไม่ใช่การควบคุมสิทธิ์ — ร้าน LODGING ที่ยิงตรงต้องได้ 403
+ * ทุก endpoint ของโดเมนขนส่งต้องผ่านด่านนี้ก่อนตรรกะอื่นเสมอ
+ *
+ * ownerOnly: คำสั่งกลุ่มตั้งค่า/วาง token เป็นสิทธิ์ของเจ้าของร้านเท่านั้น (BR-ISHIP-03)
+ * พนักงานร้านใช้งานประจำวันได้ (เปิดพัสดุ/พิมพ์ใบปะหน้า) แต่แตะ token ไม่ได้และไม่เห็นค่า
+ */
+export async function requireGeneralShop(opts?: {
+  ownerOnly?: boolean;
+}): Promise<GeneralGuardResult> {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  if (!session?.user || !userId) {
+    return { error: jsonNoStore({ error: { code: "UNAUTHORIZED" } }, { status: 401 }) };
+  }
+
+  const active = await requireActiveShop(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  );
+  if (!active) {
+    return { error: jsonNoStore({ error: { code: "FORBIDDEN" } }, { status: 403 }) };
+  }
+
+  // vertical มาจาก Shop row ที่ requireActiveShop ดึงมาแล้ว — ไม่ต้อง query ซ้ำ
+  if (active.shop.vertical !== "GENERAL") {
+    return {
+      error: jsonNoStore(
+        {
+          error: {
+            code: "NOT_ELIGIBLE",
+            message: "ร้านประเภทบ้านพักไม่รองรับการเชื่อมต่อระบบขนส่ง",
+          },
+        },
+        { status: 403 },
+      ),
+    };
+  }
+
+  if (opts?.ownerOnly && active.role !== "OWNER") {
+    return {
+      error: jsonNoStore(
+        {
+          error: {
+            code: "OWNER_ONLY",
+            message: "เฉพาะเจ้าของร้านเท่านั้นที่ตั้งค่าการเชื่อมต่อขนส่งได้",
+          },
+        },
+        { status: 403 },
+      ),
+    };
+  }
+
+  return { shopId: active.shop.id, userId, role: active.role };
+}

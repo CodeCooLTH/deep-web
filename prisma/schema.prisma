@@ -201,6 +201,7 @@ model Shop {
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
   inviteLinks          ShopInviteLink[] // NEW (feature 00012) — reusable staff invite link
+  videos               ShopVideo[] // คลิปที่ร้านเลือกโชว์บนหน้าร้านสาธารณะ (2026-07-26)
   conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
   channels             ShopChannel[] // Facebook/Instagram chat integration (feature 00018) — Page/IG ที่ร้านผูกไว้
   quickMessages        QuickMessage[] // ข้อความสำเร็จรูป (feature 00018 composer #2) — ระดับร้าน ทุกคนในร้านใช้ร่วมกัน
@@ -210,6 +211,9 @@ model Shop {
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
   expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
   aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
+  shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=GENERAL)
+  orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
+  shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -520,6 +524,9 @@ model Order {
   shipmentTracking ShipmentTracking?
   review           Review?
   smsCodes         SmsCode[]
+  // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ใบเดียว บังคับด้วย partial
+  // unique index `OrderShipment_active_order_key` — unmanaged SQL ดู DATABASE.md §4)
+  shipments        OrderShipment[]
 
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
@@ -1129,10 +1136,17 @@ model Conversation {
   // chatGroupId: กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (feature 00018) — null = ยังไม่จัดกลุ่ม (แท็บ "ทั้งหมด")
   // ต่อ conversation (ไม่ใช่ต่อลูกค้า) เพื่อให้ใช้ได้ทุกช่องทางรวม DEEP; ลบกลุ่ม → SetNull (เธรดกลับ "ทั้งหมด")
   chatGroupId       String?
-  // feature 00018 Phase 2 — ลูกค้าทักมาจากโฆษณา/ลิงก์ (messaging_referrals หรือ message.referral) —
-  // context "แรกเข้า" ของเธรด (เซ็ตครั้งเดียวตอนสร้างเธรด) แสดง badge บนหัวเธรดว่าลูกค้ามาจากไหน
-  referralSource    String? // "ADS" | "SHORTLINK"
-  referralAdTitle   String? // ads_context_data.ad_title (ถ้ามาจากโฆษณา)
+  // feature 00018 Phase 2 — ลูกค้าทักมาจากโฆษณา/ลิงก์ (messaging_referrals หรือ message.referral)
+  //
+  // E5 (2026-07-26): เปลี่ยนความหมายจาก "แรกเข้า" เป็น **ล่าสุด** — เดิมเซ็ตครั้งเดียวตอนสร้างเธรด
+  // ลูกค้าเก่าที่กดโฆษณาตัวใหม่แล้วทักซ้ำจึงยังโชว์โฆษณาตัวแรกอยู่ ซึ่งผิดกับสิ่งที่ผู้ขายต้องรู้
+  // (ลูกค้าคนนี้ "รอบนี้" มาจากโฆษณาไหน). ประวัติทั้งหมดยังอยู่ครบที่ ConversationAdReferral
+  referralSource       String? // "ADS" | "SHORTLINK"
+  referralAdTitle      String? // ads_context_data.ad_title = **ชื่อ ad ใน Ads Manager** ("video v3") ไม่ใช่ข้อความโฆษณา
+  referralAdBody       String? // ข้อความโฆษณาจริงที่ลูกค้าเห็น (ดึงจากโพสต์ด้วย post_id) — ตัวที่แสดงบนแบนเนอร์
+  referralAdPermalink  String? // ลิงก์โพสต์โฆษณา — ปุ่ม "ดูโฆษณา" บนแบนเนอร์
+  referralAdId         String? // referral.ad_id — คีย์ไปเทียบใน Ads Manager / Marketing API (Phase 2)
+  referralPhotoFileId  String? // รูปโฆษณาที่ mirror เข้า storage เราแล้ว (ไม่ hotlink CDN Meta ที่หมดอายุ)
 
   buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -1140,6 +1154,7 @@ model Conversation {
   shopChannel     ShopChannel?     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   externalContact ExternalContact? @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
   chatGroup       ChatGroup?       @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
+  adReferrals     ConversationAdReferral[]
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
@@ -1151,6 +1166,36 @@ model Conversation {
 
 // ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
 // เช่น "ทั่วไป", "ร้านอะไหล่", "ไม่สนใจ" — seller กด "+" เพิ่มเองในหน้า inbox, คลิกขวาเธรดเพื่อย้ายเข้ากลุ่ม
+// ConversationAdReferral — ประวัติ "ที่มาจากโฆษณา" ของเธรด (feature 00018 E5, 2026-07-26)
+//
+// 1 แถวต่อการคลิกโฆษณา 1 ครั้ง ไม่ทับของเดิม เพราะ Meta ส่ง referral มาทาง webhook รอบเดียวและ
+// **ไม่มี Graph API ให้อ่านย้อนหลัง** (Conversation node มีแค่ id/is_owner/messages/participants/
+// updated_time) — ถ้าเก็บแค่ค่าล่าสุดแบบทับทิ้ง ข้อมูลหายถาวร เอาคืนไม่ได้
+//
+// ค่าล่าสุดยัง denormalize ไว้ที่ Conversation.referral* ด้วย (แบนเนอร์อ่านจากตรงนั้น ไม่ต้อง join
+// และเธรดเก่าที่มีข้อมูลอยู่ก่อน E5 ยังแสดงได้) — ตารางนี้คือข้อมูลดิบสำหรับรายงาน Phase 2
+model ConversationAdReferral {
+  id             String   @id @default(uuid())
+  conversationId String
+  source         String? // "ADS" | "SHORTLINK" — แบนเนอร์แสดงเฉพาะ ADS
+  adId           String?
+  adTitle        String? // ชื่อ ad ใน Ads Manager (ไม่ใช่ข้อความโฆษณา)
+  adBody         String? // ข้อความโฆษณาจริง — ดึงจากโพสต์ {pageId}_{postId} ตอนรับ webhook
+  adPermalink    String? // ลิงก์โพสต์โฆษณา (permalink_url)
+  photoFileId    String? // รูปโฆษณาที่ mirror เข้า storage แล้ว
+  photoUrl       String? // URL ต้นทางจาก Meta — เก็บไว้ debug/mirror ซ้ำ (หมดอายุได้)
+  videoUrl       String?
+  postId         String?
+  productId      String?
+  flowId         String?
+  refPayload     String? // referral.ref — ข้อความที่ร้านฝังไว้เองในโฆษณา
+  receivedAt     DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, receivedAt]) // "referral ล่าสุด/ทั้งหมดของเธรดนี้"
+}
+
 model ChatGroup {
   id        String   @id @default(uuid())
   shopId    String
@@ -1292,4 +1337,231 @@ model ShopAiSetting {
 
   shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
   updatedBy User? @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+// ============================================================================
+// feature 00022 — iShip Shipping Integration
+// ร้านผูกบัญชีขนส่ง iShip ด้วย token ที่วางเอง แล้วเปิดพัสดุจากคำสั่งซื้อ +
+// พิมพ์ใบปะหน้า A6 ได้จากหน้าเรา — ดู docs/20 - Features/00022 .../DATABASE.md
+//
+// 🛑 ใช้ได้เฉพาะร้าน Shop.vertical = "GENERAL" — ร้าน "LODGING" (บ้านพัก) ไม่มีฟีเจอร์นี้
+//    (BR-ISHIP-01/02) บังคับที่ service layer — DB ไม่มี cross-table CHECK
+// 🛑 ไม่แตะตาราง Order/Shop แม้แต่คอลัมน์เดียว — ได้แค่ back-relation (ไม่สร้างคอลัมน์จริง)
+// ============================================================================
+
+// ShopShippingAccount — การเชื่อมต่อ iShip ของร้าน + ค่าตั้งต้นทั้งหมดในตารางเดียว
+// ไม่แยกตาราง settings เพราะค่าเหล่านี้ไม่มีความหมายถ้าไม่มีการเชื่อมต่อ และเป็น 1:1 กับ Shop อยู่แล้ว
+model ShopShippingAccount {
+  id String @id @default(uuid())
+  // shopId @unique = 1 ร้าน 1 บัญชีขนส่ง (BR-ISHIP-10) บังคับที่ DB ไม่พึ่งวินัยของโค้ด
+  shopId   String @unique
+  provider String @default("ISHIP") // เผื่อผู้ให้บริการรายอื่นในอนาคต ไม่ต้อง migrate ซ้ำ
+  // accessTokenEnc: token ที่ร้านวางเอง ผ่าน AES-256-GCM แล้ว (src/lib/token-crypto.ts ตัวเดียวกับ
+  // ShopChannel ของ feature 00018) 🛑 ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
+  accessTokenEnc String
+  tokenLast4     String? // 4 ตัวท้ายไว้ให้ร้านยืนยันว่าใช่ใบที่ตั้งใจ (BR-ISHIP-13)
+  status         String  @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
+  // createMode: พฤติกรรมเมื่อสร้างคำสั่งซื้อ — "AUTO" | "ASK" | "OFF"
+  // 🛑 default ASK ตั้งใจ (BR-ISHIP-20): การเปิดพัสดุ = ค่าใช้จ่ายจริง ระบบต้องไม่ทำแทนโดยร้านไม่ได้สั่ง
+  createMode String @default("ASK")
+
+  // --- ที่อยู่ผู้ส่ง (บังคับครบก่อนเปิดใช้งาน BR-ISHIP-30 — nullable ใน DB เพราะกรอกทีหลังได้) ---
+  senderName    String?
+  senderPhone   String?
+  senderAddress String?
+  // 🛑 BR-ISHIP-31 — ชื่อฟิลด์กลับหัวกับ iShip ห้ามจับคู่ตามชื่อ:
+  //    senderSubdistrict (ตำบล/แขวง) → ส่งไปช่อง `src_district` ของ iShip
+  //    senderDistrict    (อำเภอ/เขต) → ส่งไปช่อง `src_amphure`  ของ iShip
+  senderSubdistrict String?
+  senderDistrict    String?
+  senderProvince    String?
+  senderPostcode    String?
+
+  // --- ค่าตั้งต้นของพัสดุ (แก้รายออเดอร์ได้ก่อนยืนยัน) ---
+  defaultCourierCode String?
+  defaultWeight      Decimal? @db.Decimal(6, 2) // กิโลกรัม
+  defaultWidth       Int? // เซนติเมตร
+  defaultLength      Int?
+  defaultHeight      Int?
+  defaultCategoryId  Int? // 0-11, 99 ตามที่ iShip กำหนด
+  // 🛑 default false ตั้งใจ (BR-ISHIP-27) — เผลอเปิด COD = เงินจริงที่ร้านจะได้รับผิดจำนวน
+  defaultCodEnabled Boolean  @default(false)
+  optOnTime         Boolean  @default(false) // ส่งตรงเวลา
+  optBoxShield      Boolean  @default(false) // ประกันกล่อง
+  optIsInsured      Boolean  @default(false) // ประกันสินค้า
+  optProductValue   Decimal? @db.Decimal(12, 2) // มูลค่าที่เอาประกัน (ใช้เมื่อ optIsInsured)
+  optServiceType    Int? // 1=เข้ารับ 2=นำไปส่งเอง; null = ตามตั้งค่าฝั่ง iShip
+  defaultRemark     String?
+
+  lastVerifiedAt    DateTime? // ทดสอบ token ผ่านล่าสุดเมื่อไหร่
+  lastVerifyError   String? // สาเหตุที่ทดสอบไม่ผ่านครั้งล่าสุด
+  connectedByUserId String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // 🛑 ไม่มีคอลัมน์ยอดเงินคงเหลือของบัญชี iShip โดยเจตนา (BR-ISHIP-53) — เก็บแล้วจะสื่อผิดว่า
+  //    Deep เป็นผู้ดูแลเงินก้อนนั้น ทั้งที่เป็นความสัมพันธ์ระหว่างร้านกับ iShip โดยตรง
+  @@index([status])
+}
+
+// OrderShipment — พัสดุ 1 ใบที่เปิดกับขนส่ง ผูกกับคำสั่งซื้อ 1 รายการ
+model OrderShipment {
+  id       String @id @default(uuid())
+  orderId  String
+  shopId   String // denormalized — query ระดับร้าน (หน้ารายการ/พิมพ์หลายใบ) โดยไม่ต้อง join Order
+  provider String @default("ISHIP")
+  // status: "PENDING" (กำลังสร้าง) | "CREATED" (สำเร็จ) | "CANCELLED" | "FAILED"
+  status      String  @default("PENDING")
+  courierCode String?
+  courierName String? // ชื่อที่แสดง ณ เวลาสร้าง — cache ไว้ ไม่ re-fetch ทุกครั้ง
+  trackingNo  String?
+  refCode     String? // data.ref ที่ iShip คืนมา
+  externalId  String? // data.id ฝั่ง iShip
+  // idempotencyKey: "<orderId>:<attemptGroup>" — ส่งไปเป็น custom_order_id ของ iShip ด้วย (BR-ISHIP-25)
+  // 🛑 retry จากใบ FAILED ต้องใช้คีย์เดิม เพื่อว่าถ้าคำขอเดิมสำเร็จฝั่ง iShip แต่ response หายระหว่างทาง
+  //    การยิงซ้ำจะไม่เกิดพัสดุใบที่สอง (BR-ISHIP-26). attemptGroup +1 เมื่อยกเลิกใบเดิมเท่านั้น
+  idempotencyKey String @unique
+
+  codAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  weight     Decimal? @db.Decimal(6, 2)
+  width      Int?
+  length     Int?
+  height     Int?
+  categoryId Int?
+
+  // snapshot: freeze ค่าที่ส่งไปจริง ไม่อ้างอิงสด — ถ้าอ้างอิงสด แล้วร้านแก้ค่าตั้งต้นทีหลัง
+  // ประวัติพัสดุเก่าจะเปลี่ยนตาม = อธิบายกับขนส่งไม่ได้ (บทเรียนเดียวกับ Order.depositAmount feat 00017)
+  senderSnapshot   Json?
+  receiverSnapshot Json?
+  optionsSnapshot  Json?
+
+  // สถานะฝั่งขนส่ง — 🛑 คนละชุดกับ Order.status และห้ามไปเปลี่ยน Order.status เอง (BR-ISHIP-40/41)
+  carrierStatus     String? // "order_success" | "picked_up" | "delivered" | ...
+  carrierStatusText String? // ข้อความไทยที่แสดงต่อผู้ใช้
+  carrierStatusAt   DateTime?
+  isOverSize        Boolean   @default(false) // ขนส่งวัดได้เกินที่ร้านแจ้ง (จาก webhook)
+  isOverWeight      Boolean   @default(false)
+  carrierPrice      Decimal?  @db.Decimal(12, 2) // ค่าส่งที่ขนส่งคิดจริง — แสดงเฉย ๆ ไม่ใช่ยอดที่ Deep เก็บ
+
+  labelPrintedAt  DateTime?
+  labelPrintCount Int       @default(0)
+  // isDryRun: พัสดุจำลองจากโหมดทดสอบ (BR-ISHIP-60/61) — ต้องมีเครื่องหมายบนหน้าจอ
+  // และต้องกรองออกจากสถิติทุกชนิด ไม่งั้น KPI เพี้ยนเพราะนับพัสดุที่ไม่มีอยู่จริง
+  isDryRun Boolean @default(false)
+
+  lastErrorCode String? // รหัสที่จับกลุ่มแล้วของเรา (TOKEN_INVALID / ADDRESS_INVALID / ...)
+  // lastErrorMessage: ข้อความดิบจาก iShip ไว้ให้ทีมงานตรวจสอบ 🛑 ห้ามแสดงตรงต่อผู้ใช้
+  // และต้อง redact token ออกก่อนบันทึกทุกครั้ง
+  lastErrorMessage String? @db.Text
+  attemptCount     Int     @default(0)
+
+  createdByUserId   String? // null = ระบบสร้างเองในโหมด AUTO (BR-ISHIP-28)
+  cancelledByUserId String?
+  cancelledAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shop   Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  events ShipmentEvent[]
+
+  // 🛑 partial unique index ที่ Prisma DSL ประกาศไม่ได้ — สร้างด้วย SQL มือใน migration
+  //    (unmanaged SQL: `prisma db pull` จะมองไม่เห็นแล้ว DROP ทิ้ง — ห้ามรันเด็ดขาด):
+  //    1) OrderShipment_active_order_key  ON ("orderId")    WHERE status <> 'CANCELLED'
+  //       = 1 ออเดอร์มีพัสดุที่ยังใช้งานอยู่ได้ใบเดียว แต่ยกเลิกแล้วเปิดใหม่ได้ (BR-ISHIP-22)
+  //    2) OrderShipment_trackingNo_key    ON ("trackingNo") WHERE trackingNo IS NOT NULL
+  //       = เลขติดตามห้ามซ้ำ แต่ใบที่ยังไม่สำเร็จมี trackingNo null ได้หลายใบ
+  @@index([orderId])
+  @@index([shopId, status])
+}
+
+// ShipmentEvent — ประวัติการเดินทางของพัสดุ (จาก webhook หรือจากการ poll traces)
+model ShipmentEvent {
+  id         String  @id @default(uuid())
+  shipmentId String
+  status     String // รหัสสถานะจากขนส่ง
+  statusText String? // ข้อความไทยสั้น
+  statusDesc String? @db.Text // คำอธิบายเต็มจากขนส่ง
+  location   String?
+  // occurredAt: เวลาที่เกิดเหตุการณ์จริงฝั่งขนส่ง ไม่ใช่เวลาที่เราบันทึก
+  occurredAt DateTime
+  source     String   @default("WEBHOOK") // "WEBHOOK" | "POLL"
+  // dedupeKey: "<status>:<occurredAt epoch>" — กัน webhook ยิงซ้ำแล้วไทม์ไลน์บวม (FR-ISHIP-041)
+  dedupeKey String
+  payload   Json? // ข้อมูลดิบไว้ตรวจสอบ (redact ข้อมูลอ่อนไหวก่อนบันทึก)
+  createdAt DateTime @default(now())
+
+  shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, dedupeKey])
+  @@index([shipmentId, occurredAt])
+}
+
+// ShipmentPickup — คำขอเรียกรถเข้ารับพัสดุ
+// 🛑 ระดับร้าน ไม่ใช่ระดับออเดอร์ (FR-ISHIP-051) — รถมารับครั้งเดียวได้หลายกล่อง
+model ShipmentPickup {
+  id             String  @id @default(uuid())
+  shopId         String
+  provider       String  @default("ISHIP")
+  courierCode    String
+  ticketPickupId String? // หมายเลขคำขอฝั่ง iShip
+  parcelCount    Int     @default(1)
+  pickupAddress  String? // snapshot ที่อยู่ที่ใช้เรียก ณ เวลานั้น
+  remark         String?
+  // status: "REQUESTED" | "ACCEPTED" | "CLOSED" | "CANCELLED" | "FAILED"
+  status        String  @default("REQUESTED")
+  staffName     String?
+  staffPhone    String?
+  timeoutAtText String? // ช่วงเวลาที่จะเข้ารับ — ข้อความตามที่ขนส่งส่งมา ไม่ parse เป็น date
+  ticketMessage String? @db.Text
+
+  isDryRun         Boolean @default(false)
+  lastErrorMessage String? @db.Text
+
+  createdByUserId String
+  acceptedAt      DateTime?
+  closedAt        DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, status])
+}
+
+/// คลิปที่ร้านเลือกมาแสดงบนหน้าร้านสาธารณะ (2026-07-26)
+///
+/// ร้านไม่ได้ "วาง URL" เอง แต่เชื่อมบัญชีแล้วเลือกจากคลิปของตัวเองที่ระบบดึงมาให้ —
+/// จึงการันตีความเป็นเจ้าของโดยอัตโนมัติ เพราะเลือกได้เฉพาะคลิปในบัญชีที่ผ่าน OAuth มาแล้ว
+/// (ถ้าให้วาง URL อิสระ ร้านจะเอาคลิปคนอื่นมาอ้างเป็นของตัวเองได้)
+model ShopVideo {
+  id        String @id @default(uuid())
+  shopId    String
+  /// "INSTAGRAM" | "TIKTOK" | "YOUTUBE" — String ตาม convention เดิมของ repo (มิเรอร์ provider ของ ShopChannel)
+  provider  String
+  /// id/shortcode ของคลิปบนแพลตฟอร์มนั้น ใช้ประกอบ URL ฝังเอง ไม่เก็บ URL ดิบที่ผู้ใช้กำหนด
+  videoId   String
+  caption   String? @db.Text
+  /// รูปปกที่แพลตฟอร์มให้มา — เก็บไว้แสดงก่อนผู้ชมกดเล่น จะได้ไม่ต้องโหลด iframe ทุกอัน
+  thumbnailUrl String?
+  /// ชื่อบัญชีต้นทาง (เช่น @oilssm) — บอกผู้ชมว่าคลิปมาจากช่องไหน ไม่ใช่แค่แพลตฟอร์มอะไร
+  accountName String?
+  /// ยอด ณ เวลาที่ร้านกดเลือก — เป็น snapshot ไม่ใช่ค่าสด เพราะการยิง API ทุกครั้งที่มีคน
+  /// เปิดหน้าร้านจะช้าและชนลิมิตของแพลตฟอร์ม ค่าจะอัปเดตเมื่อร้านกดบันทึกใหม่
+  likeCount    Int?
+  commentCount Int?
+  /// ยอดวิว — ยังเป็น null เสมอสำหรับ Instagram เพราะต้องใช้ scope instagram_manage_insights
+  /// ที่ยังไม่ได้ขอ (ทดสอบจริงแล้วได้ error #10) เผื่อไว้ให้ TikTok ที่ video.list ให้ view มาด้วย
+  viewCount    Int?
+  sortOrder Int    @default(0)
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  /// กันเลือกคลิปเดิมซ้ำในร้านเดียวกัน
+  @@unique([shopId, provider, videoId])
+  @@index([shopId, sortOrder])
 }

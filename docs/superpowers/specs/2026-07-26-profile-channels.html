@@ -1,0 +1,190 @@
+<title>Public Profile C — ช่องทางที่เชื่อมไว้</title>
+<style>
+  :root{
+    --violet:#7367F0;--violet-soft:#efedfe;--green:#28C76F;--green-soft:#e3f8ec;
+    --amber:#FF9F43;--amber-soft:#fff1e2;--gold:#C99A2E;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef;
+    --sh:0 2px 6px rgb(47 43 61/.10),0 18px 44px rgb(47 43 61/.16);
+  }
+  @media (prefers-color-scheme:dark){:root{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}}
+  :root[data-theme="dark"]{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}
+  :root[data-theme="light"]{--violet-soft:#efedfe;--green-soft:#e3f8ec;--amber-soft:#fff1e2;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;--mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    font-family:'Anuphan','IBM Plex Sans Thai','Noto Sans Thai',-apple-system,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:40px 20px 90px}
+  h1{font-size:29px;margin:0 0 8px;letter-spacing:-.02em}
+  .lede{margin:0;color:var(--ink-2);max-width:70ch}
+  .note{margin-top:16px;padding:13px 15px;border-radius:11px;background:var(--amber-soft);
+    font-size:13.5px;border-inline-start:3px solid var(--amber)}
+  .cols{display:flex;gap:30px;overflow-x:auto;padding:32px 0 16px;align-items:flex-start}
+  .col{flex:0 0 auto;width:430px}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--violet);
+    background:var(--violet-soft);padding:4px 10px;border-radius:20px;display:inline-block}
+  .col h2{font-size:19px;margin:11px 0 5px;letter-spacing:-.015em}
+  .col .desc{font-size:13.5px;color:var(--ink-2);margin:0 0 16px;min-height:88px}
+  .screen{border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--sh);background:var(--card)}
+  .verdict{margin-top:14px;font-size:12.5px;padding:11px 13px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+  .verdict b{display:block;margin-bottom:3px}
+  .tnum{font-variant-numeric:tabular-nums}
+  .ph{background:radial-gradient(at 30% 25%,#ff9f43 0,transparent 55%),
+    radial-gradient(at 75% 70%,#7367F0 0,transparent 52%),linear-gradient(140deg,#4339b5,#2F2B3D)}
+  .grad{background:linear-gradient(135deg,#f0b429 0%,#FF9F43 55%,#ffd79a 100%)}
+  .topbar{position:absolute;inset-inline:0;top:0;display:flex;justify-content:space-between;padding:14px 16px;z-index:2}
+  .ic{width:36px;height:36px;border-radius:50%;background:rgb(255 255 255/.92);display:grid;place-items:center;
+    font-size:15px;color:var(--ink);box-shadow:0 1px 4px rgb(0 0 0/.14)}
+  .ic-grp{display:flex;gap:8px}
+  .vchk{width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:grid;
+    place-items:center;font-size:10px;font-weight:700}
+  .tscore{display:inline-flex;align-items:center;gap:4px;background:#2F2B3D;color:#ffd45e;
+    padding:3px 9px;border-radius:20px;font-size:12.5px;font-weight:800}
+  .chip{background:var(--mist);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink-2)}
+  .c-cover{height:104px}
+  .c-wrap{text-align:center;padding:0 18px 12px;margin-top:-42px;position:relative}
+  .c-wrap .av{width:84px;height:84px;border-radius:50%;border:4px solid var(--card);margin:0 auto 10px;overflow:hidden}
+  .c-wrap h3{margin:0;font-size:20px;letter-spacing:-.02em}
+  .c-nl{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+  .c-wrap .sub{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+  .medrow{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;padding:2px 18px 14px}
+  .med{width:38px;height:38px;border-radius:50%;background:var(--gold-soft);display:grid;place-items:center;
+    font-size:16px;border:1px solid rgb(201 154 46/.28)}
+  .med.more{background:var(--mist);border-color:var(--line);font-size:12px;font-weight:700;color:var(--ink-3)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
+  .st .v{font-size:22px;font-weight:800;letter-spacing:-.025em;display:block;line-height:1.15}
+  .st .l{font-size:11.5px;color:var(--ink-3)}
+  .rate{padding:13px 18px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:9px}
+  .rate .big{font-size:32px;font-weight:800;letter-spacing:-.03em;color:var(--green);line-height:1}
+  .rate .cap{font-size:12.5px;color:var(--ink-2)}
+  .cta{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:13px;
+    background:var(--violet);color:#fff;font-size:15.5px;font-weight:700;border:0;width:100%;
+    box-shadow:0 4px 14px rgb(115 103 240/.34);font-family:inherit;cursor:pointer}
+  .pad{padding:16px 18px 18px}
+
+  /* ── ช่องทาง แบบแถวมีชื่อ ── */
+  .chsec{padding:14px 18px;border-top:1px solid var(--line)}
+  .eyeb{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:10px}
+  .chrow{display:flex;align-items:center;gap:11px;padding:7px 0;min-width:0}
+  .chav{width:34px;height:34px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;
+    color:#fff;font-size:15px;font-weight:800;position:relative;overflow:hidden}
+  .chav .vb{position:absolute;inset-block-end:-2px;inset-inline-end:-2px;width:15px;height:15px;border-radius:50%;
+    background:var(--green);border:2px solid var(--card);display:grid;place-items:center;font-size:8px}
+  .chtx{min-width:0;flex:1}
+  .chn{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chs{font-size:11.5px;color:var(--ink-3)}
+  .fb{background:#1877F2}.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}.tt{background:#010101}
+
+  /* ── ช่องทาง แบบเม็ดกลม ── */
+  .pillrow{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding:0 18px 14px}
+  .pill{display:inline-flex;align-items:center;gap:7px;background:var(--mist);border:1px solid var(--line);
+    border-radius:20px;padding:5px 12px 5px 6px;max-width:100%}
+  .pill .d{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;flex:0 0 auto}
+  .pill .t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .foot{margin-top:52px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .foot h2{margin:0 0 12px;font-size:18px}
+  .foot ul{margin:0;padding-inline-start:20px;color:var(--ink-2)}.foot li{margin-bottom:9px}
+  .foot b{color:var(--ink)}
+  code{background:var(--mist);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>ช่องทางที่เชื่อมไว้จะแสดงอย่างไร</h1>
+  <p class="lede">ทั้งสองแบบใช้โครง C พร้อมแถวเหรียญใต้ชื่อตามที่เลือกไว้ ต่างกันที่น้ำหนักของช่องทาง ชื่อเพจที่แสดงเป็นชื่อจริงที่ดึงมาตอนร้านเชื่อมช่องทาง ไม่ใช่ชื่อที่ร้านพิมพ์เอง</p>
+  <div class="note">
+    ระบบตอนนี้เชื่อมได้จริงเฉพาะ Facebook Page และ Instagram ส่วน TikTok ยังไม่เสร็จ (ติดเรื่องขอสิทธิ์เข้าถึงจากแพลตฟอร์ม) ในภาพใส่ TikTok ไว้ให้เห็นว่าโครงรองรับ แต่ของจริงจะขึ้นเฉพาะช่องทางที่ร้านเชื่อมสำเร็จและยังใช้งานอยู่
+  </div>
+
+  <div class="cols">
+
+    <div class="col">
+      <span class="tag">แบบ ก</span>
+      <h2>แถวเต็ม มีชื่อเพจจริง</h2>
+      <p class="desc">แต่ละช่องทางเป็นแถวของตัวเอง มีรูปโปรไฟล์เพจจริง ชื่อเพจเต็ม และบอกว่าเป็นแพลตฟอร์มอะไร ผู้ซื้อที่เคยเห็นเพจนี้ในฟีดจะจำได้ทันทีว่าเป็นร้านเดียวกัน</p>
+      <div class="screen">
+        <div style="position:relative">
+          <div class="c-cover grad"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+        </div>
+        <div class="c-wrap">
+          <div class="av ph"></div>
+          <h3>ธนภัทร อะไหล่ยนต์</h3>
+          <div class="c-nl"><span class="vchk">&#10003;</span><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+          <div class="sub">@thanaphat-parts &middot; อะไหล่ยานยนต์</div>
+        </div>
+        <div class="medrow">
+          <span class="med">&#128737;</span><span class="med">&#127942;</span><span class="med">&#9889;</span>
+          <span class="med">&#10084;</span><span class="med more">+5</span>
+        </div>
+        <div class="stats">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="chsec">
+          <div class="eyeb">ช่องทางของร้านนี้</div>
+          <div class="chrow"><span class="chav fb">f<span class="vb">&#10003;</span></span>
+            <span class="chtx"><span class="chn">ธนภัทร อะไหล่ยนต์ — อะไหล่แต่งเวฟ</span><span class="chs">Facebook Page</span></span></div>
+          <div class="chrow"><span class="chav ig">&#9673;<span class="vb">&#10003;</span></span>
+            <span class="chtx"><span class="chn">@thanaphat.parts</span><span class="chs">Instagram</span></span></div>
+          <div class="chrow"><span class="chav tt">&#9834;<span class="vb">&#10003;</span></span>
+            <span class="chtx"><span class="chn">@thanaphatparts</span><span class="chs">TikTok</span></span></div>
+        </div>
+        <div class="pad"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>พิสูจน์ตัวตนได้ดีที่สุด</b>ชื่อเพจเต็มคือสิ่งที่ผู้ซื้อจำได้จริง แลกกับพื้นที่สามแถวและดันปุ่มแชทลงไปอีก</div>
+    </div>
+
+    <div class="col">
+      <span class="tag">แบบ ข</span>
+      <h2>เม็ดกลม อยู่ใต้ชื่อ</h2>
+      <p class="desc">ยุบเหลือเม็ดกลมเรียงกลางหน้า ใต้แถวเหรียญ แสดงไอคอนแพลตฟอร์มคู่ชื่อสั้น ประหยัดพื้นที่มาก ทำให้ตัวเลขและปุ่มแชทขึ้นมาอยู่สูงกว่าเดิม</p>
+      <div class="screen">
+        <div style="position:relative">
+          <div class="c-cover grad"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+        </div>
+        <div class="c-wrap">
+          <div class="av ph"></div>
+          <h3>ธนภัทร อะไหล่ยนต์</h3>
+          <div class="c-nl"><span class="vchk">&#10003;</span><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+          <div class="sub">@thanaphat-parts &middot; อะไหล่ยานยนต์</div>
+        </div>
+        <div class="medrow">
+          <span class="med">&#128737;</span><span class="med">&#127942;</span><span class="med">&#9889;</span>
+          <span class="med">&#10084;</span><span class="med more">+5</span>
+        </div>
+        <div class="pillrow">
+          <span class="pill"><span class="d fb">f</span><span class="t">ธนภัทร อะไหล่ยนต์</span></span>
+          <span class="pill"><span class="d ig">&#9673;</span><span class="t">@thanaphat.parts</span></span>
+          <span class="pill"><span class="d tt">&#9834;</span><span class="t">@thanaphatparts</span></span>
+        </div>
+        <div class="stats">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="pad"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>กระชับ ปุ่มแชทอยู่สูงขึ้น</b>แต่ชื่อเพจยาวจะถูกตัด และช่องทางกลายเป็นของประดับข้าง ๆ เหรียญ น้ำหนักน้อยกว่าที่ควรได้</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <h2>สิ่งที่ต้องตัดสิน</h2>
+    <ul>
+      <li><b>กดแล้วเปิดไปที่เพจจริงไหม</b> — ถ้าเปิดออกไปได้ ผู้ซื้อไปตรวจสอบเพจเองต่อได้ซึ่งช่วยเรื่องความเชื่อถือ แต่ก็พาคนออกจากระบบตรงจุดที่กำลังจะตัดสินใจ ถ้าไม่เปิด ชื่อเพจก็ยังทำหน้าที่ยืนยันตัวตนได้อยู่ ผมเอนไปทางเปิดได้ แต่ให้เปิดแท็บใหม่</li>
+      <li><b>ชื่อที่แสดงมาจากไหน</b> — ดึงมาจากแพลตฟอร์มตอนเชื่อมช่องทาง ไม่ใช่ชื่อที่ร้านพิมพ์เอง จุดนี้สำคัญเพราะถ้าให้ร้านพิมพ์เองจะปลอมได้ทันทีและเสียความหมายทั้งหมด</li>
+      <li><b>ชื่อเพจเปลี่ยนภายหลัง</b> — ชื่อถูกเก็บไว้ตอนเชื่อม ถ้าร้านเปลี่ยนชื่อเพจทีหลัง ของเราจะยังเป็นชื่อเก่า ควรมีการดึงมาอัปเดตเป็นระยะ ยังไม่มีในระบบ</li>
+      <li><b>ช่องทางที่ถอดออกแล้วหรือโทเคนหมดอายุ</b> — ต้องไม่แสดง เพราะไม่ใช่หลักฐานว่าติดต่อร้านได้จริงอีกต่อไป</li>
+      <li><b>ผมแนะนำแบบ ก</b> ช่องทางเป็นหลักฐานคนละชั้นกับเหรียญ ไม่ควรถูกยุบเป็นของประดับ ผู้ซื้อจำเพจได้ก่อนจำ Deep ได้ และนั่นคือสิ่งที่ทำให้เขาเชื่อว่ามาถูกที่</li>
+    </ul>
+  </div>
+</div>

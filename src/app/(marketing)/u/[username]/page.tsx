@@ -15,12 +15,17 @@ import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
-import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
+import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/lib/trust-tier'
+import { getShopProfileStats } from '@/services/shop.service'
+import { getShopVideos } from '@/services/shop-video.service'
+import { toFileUrl } from '@/lib/file-url'
+import { getReviewsByUsername } from '@/services/review.service'
+import { getPublicRooms, getShopAvailability } from '@/services/room.service'
+import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
-import UserProfile from '@views/pages/user-profile'
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
 import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 
@@ -60,6 +65,25 @@ export default async function PublicProfilePage({ params }: Props) {
 
   // ทำไม: ตัด getReviewsByUsername ออก — ProfileTab ไม่แสดง RecentReviews อีกแล้ว
   // คง getAvgRatingByUsername + orderStats + products ที่ยังใช้งานอยู่
+  // redesign 2026-07-26: สถิติ/ช่องทาง/การกระจายดาว ของหน้าโฉมใหม่ รวมอยู่ใน service เดียว
+  // buyer-only (ไม่มีร้าน) → null ทั้งก้อน แล้ว UI ซ่อน block ที่เกี่ยวข้องเอง
+  const profileStats = user.shop ? await getShopProfileStats(user.shop.id) : null
+  const recentReviews = await getReviewsByUsername(username, 10)
+  const shopVideos = user.shop ? await getShopVideos(user.shop.id) : []
+
+  // ประเภทกิจการกำหนดชุดแท็บ (feat 00017) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า
+  const isLodging = user.shop?.vertical === 'LODGING'
+  const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id) : []
+  // ปฏิทินวันว่าง — เฉพาะร้านที่พัก ร้านทั่วไปไม่ต้องคิวรี
+  const availability = isLodging && user.shop ? await getShopAvailability(user.shop.id, 3) : null
+  const publicRooms = rawRooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    capacity: r.maxGuests,
+    basePrice: Number(r.pricePerNight),
+    imageUrl: r.images[0] ?? null,
+  }))
+
   const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { userId: user.id, status: 'APPROVED' },
@@ -176,7 +200,65 @@ export default async function PublicProfilePage({ params }: Props) {
         background: 'var(--mui-palette-background-paper)',
       }}
     >
-      <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
+      {/* redesign 2026-07-26 (ทิศทาง C) — ใช้ ShopProfile ร่วมกับ /b/[slug]
+          ของเดิม (UserProfile) ยังอยู่ในโค้ดเบสจนกว่า user จะรับงาน แล้วค่อยลบทีเดียว */}
+      <ShopProfile
+        data={{
+          hero: {
+            shopName: profileHeader.shopName ?? profileHeader.fullName,
+            username: profileHeader.username,
+            avatar: toFileUrl(user.shop?.logo) ?? profileHeader.profileImg ?? null,
+            coverImage: toFileUrl(user.shop?.coverImage),
+            tierGradient: getTierGradient(user.trustScore),
+            trustScore: user.trustScore,
+            tierLabel,
+            maxVerifyLevel,
+            category: user.shop?.category ?? null,
+            memberSince: formatMonthYearTH(user.createdAt),
+            badges: sellerContextBadges.map((ub) => ({
+              id: ub.id,
+              name: ub.badge.name,
+              nameEN: ub.badge.nameEN,
+              icon: ub.badge.icon ?? '',
+            })),
+            totalBadgeCount: sellerContextBadges.length,
+            completedOrders: profileStats?.completedOrders ?? null,
+            customerCount: profileStats?.customerCount ?? null,
+            repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
+            completionRate: profileStats?.completionRate ?? null,
+            canChat: !!user.shop && !isOwnShop,
+            isLodging,
+          },
+          isLodging,
+          rooms: publicRooms,
+          availability,
+          pinnedProducts,
+          otherProducts,
+          about: {
+            bio: profileTab.bio,
+            location: profileTab.location,
+            memberSince: profileTab.memberSince,
+            chatResponseRate: profileTab.chatResponseRate,
+            chatMedianResponseSec: profileTab.chatMedianResponseSec,
+            chatResponseSampleSize: profileTab.chatResponseSampleSize,
+          },
+          channels: profileStats?.channels ?? [],
+          videos: shopVideos,
+          reviews: recentReviews.map((r) => ({
+            id: r.id,
+            rating: r.rating,
+            comment: r.comment,
+            createdAtIso: r.createdAt.toISOString(),
+          })),
+          avgRating: profileStats?.avgRating ?? null,
+          reviewCount: profileStats?.reviewCount ?? 0,
+          ratingDistribution: profileStats?.ratingDistribution ?? null,
+          shopId: profileHeader.shopId ?? null,
+          isOwnShop,
+          itemKind: profileTab.itemKind,
+        }}
+      />
+
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
         <NextLink href='/privacy' style={{ textDecoration: 'none' }}>

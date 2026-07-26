@@ -14,6 +14,7 @@
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { requireActiveShop } from '@/lib/shop-context'
+import { getConnection } from '@/services/iship.service'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
@@ -61,6 +62,15 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   }
 
   const shop = active.shop
+
+  // feature 00022 — ปุ่มพิมพ์ใบปะหน้าหลายใบใน bulk bar
+  // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะไม่เห็นปุ่มนี้เลย (BR-ISHIP-01)
+  const ishipEnabled =
+    shop.vertical === 'GENERAL'
+      ? await getConnection(shop.id)
+          .then((c) => c.connected && c.status === 'ACTIVE')
+          .catch(() => false)
+      : false
 
   let rawOrders: any[] = []
   try {
@@ -195,7 +205,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <OrdersList orders={orders} activeStatus={activeStatus} />
+      <OrdersList orders={orders} activeStatus={activeStatus} ishipEnabled={ishipEnabled} />
     </>
   )
 }

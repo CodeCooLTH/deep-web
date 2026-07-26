@@ -77,6 +77,9 @@ export type CustomerPanelData = {
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent: string; since: string } | null
+  /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
+   *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
+  adReferralId: string | null
   orders: CustomerPanelOrder[]
 }
 
@@ -162,6 +165,78 @@ function OrderCard({
 }) {
   const { openDraft } = useDraftOrders()
   const [sending, setSending] = useState(false)
+  const [shipping, setShipping] = useState(false)
+
+  /**
+   * สร้างพัสดุ + แจ้งเลขติดตามในแชทรวดเดียว (feature 00022, user request 2026-07-26)
+   *
+   * เหตุผลที่ต้องมีที่นี่: ร้านคุยกับลูกค้าอยู่ในห้องนี้ พอตกลงกันเรื่องที่อยู่เสร็จ
+   * ก็ควรเปิดพัสดุแล้วบอกเลขได้เลย ไม่ต้องสลับไปหน้าคำสั่งซื้อแล้วกลับมาพิมพ์เลขเอง
+   * — การให้คนคัดลอกเลขข้ามหน้าคือจุดที่เลขตกหล่นและพิมพ์ผิดบ่อยที่สุด
+   */
+  async function createShipmentAndNotify(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (shipping) return
+
+    const ok = await pacesConfirm.question(
+      'สร้างพัสดุแล้วแจ้งเลขในแชท?',
+      'ระบบจะเปิดพัสดุกับขนส่งตามค่าที่ตั้งไว้ แล้วส่งเลขติดตามให้ลูกค้าในห้องนี้ — มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน',
+      { confirmButtonText: 'สร้างและแจ้งเลข' },
+    )
+    if (!ok) return
+
+    setShipping(true)
+    try {
+      const res = await fetch('/api/seller/iship/shipments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderToken: o.token }),
+        cache: 'no-store',
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        status?: string
+        trackingNo?: string | null
+        courierName?: string | null
+        lastErrorMessage?: string | null
+        error?: { message?: string }
+      }
+
+      if (!res.ok) {
+        pacesToast.error(data.error?.message ?? 'สร้างพัสดุไม่สำเร็จ')
+        return
+      }
+      if (data.status !== 'CREATED' || !data.trackingNo) {
+        pacesToast.error(data.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ')
+        return
+      }
+
+      // แจ้งเลขเป็นข้อความธรรมดา — ใช้ได้ทุกช่องทาง (Messenger/IG ไม่รองรับการ์ดของเรา)
+      const text = data.courierName
+        ? `จัดส่งด้วย ${data.courierName}\nเลขติดตามพัสดุ: ${data.trackingNo}`
+        : `เลขติดตามพัสดุ: ${data.trackingNo}`
+
+      const msgRes = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'TEXT', body: text }),
+      })
+
+      // พัสดุถูกเปิดไปแล้วจริง ๆ ต่อให้ส่งข้อความไม่ผ่าน — ต้องไม่บอกว่า "ล้มเหลว" ลอย ๆ
+      // ไม่งั้นร้านจะกดซ้ำแล้วนึกว่าไม่มีอะไรเกิดขึ้น (จริง ๆ กันซ้ำไว้แล้วแต่ก็สับสนอยู่ดี)
+      if (!msgRes.ok) {
+        pacesToast.warning(
+          `สร้างพัสดุแล้ว (${data.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
+        )
+        return
+      }
+      pacesToast.success('สร้างพัสดุและแจ้งเลขติดตามแล้ว')
+    } catch {
+      pacesToast.error('สร้างพัสดุไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setShipping(false)
+    }
+  }
 
   // แตะการ์ด → เปิดโมดัลแก้ไขคำสั่งซื้อ (user 2026-07-25: ไม่เปิด tab ใหม่ ให้แก้ในโมดัลเดิม ไม่ต้องสลับจอ)
   function openEdit() {
@@ -205,16 +280,30 @@ function OrderCard({
       onEdit={openEdit}
       className="w-full"
       footer={
-        <div className="border-default-200 border-t p-2">
+        <div className="border-default-200 flex gap-2 border-t p-2">
           <button
             type="button"
             onClick={sendToChat}
             disabled={sending}
             aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
-            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 w-full gap-1 disabled:opacity-60"
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
           >
             <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
             ส่งเข้าแชท
+          </button>
+          {/* feature 00022 — เปิดพัสดุแล้วแจ้งเลขในห้องนี้เลย ไม่ต้องสลับหน้า */}
+          <button
+            type="button"
+            onClick={createShipmentAndNotify}
+            disabled={shipping}
+            aria-label="สร้างพัสดุแล้วแจ้งเลขติดตามในแชท"
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+          >
+            <Icon
+              icon={shipping ? 'loader-2' : 'truck-delivery'}
+              className={`text-sm ${shipping ? 'animate-spin' : ''}`}
+            />
+            สร้างพัสดุ
           </button>
         </div>
       }
@@ -454,6 +543,28 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         >
           {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
           {crmSlot('profile')}
+
+          {/* feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติจาก Meta แบบ Business
+              Suite: บอกว่าลูกค้าคนนี้มาจากโฆษณาไหน. แยกจาก tag ของ CRM ด้านบนชัดเจนเพราะอันนี้
+              **ระบบเติมให้เอง แก้ไม่ได้** — ไม่มีปุ่ม X เหมือน tag ที่ร้านตั้งเอง */}
+          {data.adReferralId && (
+            <div>
+              <p className="text-default-700 mb-1 text-xs">ป้ายกำกับจาก Meta</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className="badge bg-default-100 text-default-700 text-2xs inline-flex max-w-full items-center gap-1"
+                  title={`ad_id.${data.adReferralId}`}
+                >
+                  <Icon icon="brand-meta" className="size-3.5 shrink-0" />
+                  <span className="truncate">ad_id.{data.adReferralId}</span>
+                </span>
+                <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                  <Icon icon="brand-meta" className="size-3.5 shrink-0" />
+                  {data.channel === 'INSTAGRAM' ? 'instagram_ads' : 'messenger_ads'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* สถิติลูกค้า (user สั่ง 2026-07-24) — label-ซ้าย/ค่า-ขวา ตามภาพที่ส่งมา; เฉพาะลูกค้าที่ผูก
               ในระบบแล้ว (มี customerStats) — คนที่ยังไม่ผูก แถว "การเชื่อมกับลูกค้าในระบบ" ด้านล่าง

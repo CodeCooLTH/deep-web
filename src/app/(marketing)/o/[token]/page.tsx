@@ -192,12 +192,21 @@ export default async function PublicOrderPage({ params }: Props) {
           avatar: order.shop.user.avatar ?? null,
         },
       },
+      // feature 00022 — ลำดับความสำคัญ: สิ่งที่ร้าน "แจ้งเอง" มาก่อนเสมอ
+      // แล้วค่อย fallback เป็นพัสดุ iShip ที่เปิดไว้ ผู้ซื้อจะได้เห็นเลขติดตาม
+      // ตั้งแต่ร้านเปิดพัสดุ ไม่ต้องรอจนร้านกดแจ้งจัดส่งอีกที
       shipmentTracking: order.shipmentTracking
         ? {
             provider: order.shipmentTracking.provider,
             trackingNo: order.shipmentTracking.trackingNo,
           }
-        : null,
+        : order.shipments?.[0]?.trackingNo
+          ? {
+              provider:
+                order.shipments[0].courierName ?? order.shipments[0].courierCode ?? 'ขนส่ง',
+              trackingNo: order.shipments[0].trackingNo,
+            }
+          : null,
       paymentMethod: order.paymentMethod ?? null,
       fulfillmentMode: order.fulfillmentMode,
       maxVerifyLevel,

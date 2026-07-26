@@ -22,6 +22,9 @@ export const LUCIDE_FOR_BADGE: Record<string, string> = {
   'Spotless 100':        'lucide:sparkles',
   '3 Months Strong':     'lucide:calendar-check',
   'Same-Day Hero':       'lucide:rocket',
+  // badge เดียวที่ icon ใน DB เป็น null (มีแต่ imageUrl) — ถ้าไม่ map ไว้จะตกไปที่ award กลาง ๆ
+  // เหมือน badge ที่หาไม่เจอ ทำให้แยกไม่ออกว่าเป็นเหรียญผู้ก่อตั้งหรือเหรียญทั่วไป
+  '2026_BADGE':          'lucide:flag',
 }
 
 export const FALLBACK_LUCIDE = 'lucide:award'

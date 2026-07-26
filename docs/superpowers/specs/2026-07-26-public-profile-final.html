@@ -1,0 +1,248 @@
+<title>Public Profile — หน้าเต็ม (แบบ C)</title>
+<style>
+  :root{
+    --violet:#7367F0;--violet-soft:#efedfe;--green:#28C76F;--green-soft:#e3f8ec;
+    --amber:#FF9F43;--amber-soft:#fff1e2;--gold:#C99A2E;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef;
+    --sh:0 2px 6px rgb(47 43 61/.10),0 18px 44px rgb(47 43 61/.16);
+  }
+  @media (prefers-color-scheme:dark){:root{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}}
+  :root[data-theme="dark"]{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}
+  :root[data-theme="light"]{--violet-soft:#efedfe;--green-soft:#e3f8ec;--amber-soft:#fff1e2;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;--mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    font-family:'Anuphan','IBM Plex Sans Thai','Noto Sans Thai',-apple-system,sans-serif}
+  .wrap{max-width:1400px;margin:0 auto;padding:40px 20px 90px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}
+  .lede{margin:0;color:var(--ink-2);max-width:70ch}
+  .note{margin-top:16px;padding:13px 15px;border-radius:11px;background:var(--amber-soft);
+    font-size:13.5px;border-inline-start:3px solid var(--amber)}
+  .devices{display:flex;gap:28px;overflow-x:auto;padding:32px 0 16px;align-items:flex-start}
+  .device{flex:0 0 auto}
+  .dlab{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px;font-weight:600}
+  .screen{border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--sh);background:var(--card)}
+  .m .screen{width:430px}.t .screen{width:640px}.d .screen{width:980px}
+  .tnum{font-variant-numeric:tabular-nums}
+  .ph{background:radial-gradient(at 30% 25%,#ff9f43 0,transparent 55%),
+    radial-gradient(at 75% 70%,#7367F0 0,transparent 52%),linear-gradient(140deg,#4339b5,#2F2B3D)}
+  .ph2{background:radial-gradient(at 25% 30%,#5c5870 0,transparent 55%),
+    radial-gradient(at 75% 70%,#8b8799 0,transparent 50%),linear-gradient(160deg,#3a3648,#22202e)}
+  .grad{background:linear-gradient(135deg,#f0b429 0%,#FF9F43 55%,#ffd79a 100%)}
+
+  .topbar{position:absolute;inset-inline:0;top:0;display:flex;justify-content:space-between;padding:14px 16px;z-index:2}
+  .ic{width:36px;height:36px;border-radius:50%;background:rgb(255 255 255/.92);display:grid;place-items:center;
+    font-size:15px;color:var(--ink);box-shadow:0 1px 4px rgb(0 0 0/.14)}
+  .ic-grp{display:flex;gap:8px}
+  .cover{height:104px}
+  .idw{text-align:center;padding:0 18px 12px;margin-top:-42px;position:relative}
+  .idw .av{width:84px;height:84px;border-radius:50%;border:4px solid var(--card);margin:0 auto 10px;overflow:hidden}
+  .idw h2{margin:0;font-size:20px;letter-spacing:-.02em}
+  .nl{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+  .vchk{width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:grid;
+    place-items:center;font-size:10px;font-weight:700}
+  .tscore{display:inline-flex;align-items:center;gap:4px;background:#2F2B3D;color:#ffd45e;
+    padding:3px 9px;border-radius:20px;font-size:12.5px;font-weight:800}
+  .chip{background:var(--mist);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink-2)}
+  .idw .sub{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+
+  .medrow{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;padding:2px 18px 14px}
+  .med{width:38px;height:38px;border-radius:50%;background:var(--gold-soft);display:grid;place-items:center;
+    font-size:16px;border:1px solid rgb(201 154 46/.28)}
+  .med.more{background:var(--mist);border-color:var(--line);font-size:12px;font-weight:700;color:var(--ink-3)}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
+  .st .v{font-size:22px;font-weight:800;letter-spacing:-.025em;display:block;line-height:1.15}
+  .st .l{font-size:11.5px;color:var(--ink-3)}
+  .rate{padding:13px 18px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:9px}
+  .rate .big{font-size:32px;font-weight:800;letter-spacing:-.03em;color:var(--green);line-height:1}
+  .rate .cap{font-size:12.5px;color:var(--ink-2)}
+  .cta{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:13px;
+    background:var(--violet);color:#fff;font-size:15.5px;font-weight:700;border:0;width:100%;
+    box-shadow:0 4px 14px rgb(115 103 240/.34);font-family:inherit;cursor:pointer}
+  .cta:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .pad{padding:16px 18px 18px}
+
+  .tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);padding:0 18px;overflow-x:auto}
+  .tab{padding:12px 0;font-size:14.5px;font-weight:600;color:var(--ink-3);position:relative;white-space:nowrap;
+    background:none;border:0;font-family:inherit;cursor:pointer}
+  .tab[aria-selected="true"]{color:var(--ink)}
+  .tab[aria-selected="true"]::after{content:"";position:absolute;inset-inline:0;bottom:-1px;height:2.5px;
+    background:var(--violet);border-radius:2px}
+  .tab:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+  .panel{padding:16px 18px 22px}
+  .panel[hidden]{display:none}
+
+  .item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+  .item:last-child{border:0}
+  .thumb{width:74px;height:74px;border-radius:11px;flex:0 0 auto}
+  .itx{min-width:0;flex:1}
+  .itx .nm{font-size:14.5px;font-weight:600;line-height:1.4;margin-bottom:5px}
+  .meta{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-3);flex-wrap:wrap}
+  .price{font-weight:800;font-size:15px;color:var(--ink)}
+  .kind{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--violet-soft);color:var(--violet)}
+  .kind.svc{background:var(--green-soft);color:#17904c}
+  @media (prefers-color-scheme:dark){.kind.svc{color:#4fd68d}}
+
+  .chrow{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line);min-width:0}
+  .chrow:last-child{border:0}
+  .chav{width:38px;height:38px;border-radius:12px;flex:0 0 auto;display:grid;place-items:center;
+    color:#fff;font-size:16px;font-weight:800;position:relative}
+  .chav .vb{position:absolute;inset-block-end:-2px;inset-inline-end:-2px;width:16px;height:16px;border-radius:50%;
+    background:var(--green);border:2px solid var(--card);display:grid;place-items:center;font-size:8px}
+  .chtx{min-width:0;flex:1}
+  .chn{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chs{font-size:11.5px;color:var(--ink-3)}
+  .go{font-size:12.5px;color:var(--violet);font-weight:600;flex:0 0 auto}
+  .fb{background:#1877F2}.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}.tt{background:#010101}
+
+  /* สรุปคะแนนหัวแท็บรีวิว — ตัวเลขเดียวตอบว่า "ได้เรตเท่าไหร่" แล้วแท่งบอกว่ากระจายตัวยังไง
+     (คะแนน 4.9 ที่มาจากรีวิว 5 ดาวล้วน กับที่มาจาก 5 ดาวปนกับ 1 ดาว ความหมายต่างกัน) */
+  .ratehead{display:flex;gap:18px;align-items:center;padding:4px 0 16px;border-bottom:1px solid var(--line);margin-bottom:6px}
+  .rscore{text-align:center;flex:0 0 auto;min-width:96px}
+  .rnum{font-size:42px;font-weight:800;letter-spacing:-.035em;line-height:1}
+  .rscore .stars{margin-top:3px}
+  .rcount{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .rbars{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+  .rbar{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}
+  .rbar .lb{width:9px;text-align:end;flex:0 0 auto}
+  .rbar .track{flex:1;height:7px;border-radius:4px;background:var(--mist);overflow:hidden;min-width:0}
+  .rbar .fill{display:block;height:100%;background:var(--amber);border-radius:4px}
+  .rbar .ct{width:24px;text-align:end;flex:0 0 auto}
+
+  .rev{padding:13px 0;border-bottom:1px solid var(--line)}
+  .rev:last-child{border:0}
+  .rtop{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .stars{color:var(--amber);font-size:13px;letter-spacing:1px}
+  .vtag{font-size:10.5px;font-weight:700;color:#17904c;background:var(--green-soft);padding:2px 7px;border-radius:5px}
+  @media (prefers-color-scheme:dark){.vtag{color:#4fd68d}}
+  .who{font-size:11.5px;color:var(--ink-3);margin-top:4px}
+
+  .foot{margin-top:52px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .foot h2{margin:0 0 12px;font-size:18px}
+  .foot ul{margin:0;padding-inline-start:20px;color:var(--ink-2)}.foot li{margin-bottom:9px}
+  .foot b{color:var(--ink)}
+  code{background:var(--mist);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>หน้าร้านสาธารณะ — ฉบับประกอบเต็ม</h1>
+  <p class="lede">รวมทุกอย่างที่ตกลงกันไว้ หัวแบบกลางหน้าสมมาตร แถวเหรียญใต้ชื่อ ตัวเลขใหญ่เป็นอัตราความสำเร็จ และช่องทาง Official ย้ายเข้าไปอยู่ในแท็บ <b>กดแท็บได้จริงในหน้านี้</b></p>
+  <div class="note">
+    ช่องทางที่อยู่ในแท็บทำให้ไม่ต้องแย่งพื้นที่กับปุ่มแชทอีกต่อไป จึงแสดงได้เต็มรูปแบบทั้งรูปเพจ ชื่อจริง และแพลตฟอร์ม — TikTok ใส่ไว้ให้เห็นโครง แต่ของจริงยังเชื่อมไม่ได้จนกว่าฟีเจอร์นั้นจะเสร็จ
+  </div>
+
+  <div class="devices"></div>
+
+  <div class="foot">
+    <h2>กติกาที่ฝังไว้ในดีไซน์นี้</h2>
+    <ul>
+      <li><b>ไม่มีข้อมูลก็ซ่อน ไม่โชว์ศูนย์</b> — ร้านใหม่ที่ยังไม่มีออเดอร์ให้ซ่อนแถบสถิติและตัวเลขใหญ่ ร้านที่ยังไม่มีเหรียญให้ซ่อนแถวเหรียญ ร้านที่ยังไม่เชื่อมช่องทางให้ซ่อนแท็บนั้นทั้งแท็บ ไม่แสดงกรอบว่างหรือข้อความว่ายังไม่มี</li>
+      <li><b>สีป้ายคะแนนมาจากระดับจริง</b> — ไม่ได้ตายตัวเป็นเหลือง ยึดตามเอกสารระดับความน่าเชื่อถือ และต้องเรียกใช้ตัวช่วยเดิม ห้ามเขียนการจับคู่ใหม่</li>
+      <li><b>ชื่อช่องทางมาจากแพลตฟอร์มเท่านั้น</b> — ไม่ใช่ชื่อที่ร้านพิมพ์เอง มิฉะนั้นปลอมได้ทันทีและเสียความหมายทั้งหมด และแสดงเฉพาะช่องทางที่ยังใช้งานได้จริง</li>
+      <li><b>ปุ่มแชทเป็นสีหลักเพียงจุดเดียวในหน้า</b> — ตามกฎสัดส่วนสีของระบบ</li>
+      <li><b>ยังไม่ทำในรอบนี้</b> — ดาวรายชิ้นทำไม่ได้เพราะรีวิวผูกกับออเดอร์ ไม่ได้ผูกกับสินค้า และที่ให้ร้านเลือกว่าจะโชว์รายการไหนยังไม่มีในระบบ ต้องทำเพิ่มฝั่งหลังร้าน</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const page = (id) => `
+    <div style="position:relative">
+      <div class="cover grad"></div>
+      <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+    </div>
+    <div class="idw">
+      <div class="av ph"></div>
+      <h2>ธนภัทร อะไหล่ยนต์</h2>
+      <div class="nl"><span class="vchk">&#10003;</span><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+      <div class="sub">@thanaphat-parts &middot; อะไหล่ยานยนต์ &middot; เปิดร้านตั้งแต่ ก.พ. 2568</div>
+    </div>
+    <div class="medrow">
+      <span class="med" title="ไร้ข้อร้องเรียน">&#128737;</span>
+      <span class="med" title="ร้านค้าเก่าแก่">&#127942;</span>
+      <span class="med" title="จัดส่งสายฟ้า">&#9889;</span>
+      <span class="med" title="ขวัญใจชุมชน">&#10084;</span>
+      <span class="med more">+5</span>
+    </div>
+    <div class="stats">
+      <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+      <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+      <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+    </div>
+    <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จจากออเดอร์ทั้งหมดบน Deep</span></div>
+    <div class="pad"><button class="cta">&#9993; แชทกับร้าน</button></div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-t="${id}-a">สินค้าและบริการ</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="${id}-b">ช่องทาง Official</button>
+      <button class="tab" role="tab" aria-selected="false" data-t="${id}-c">รีวิว</button>
+    </div>
+
+    <div class="panel" id="${id}-a" role="tabpanel">
+      <div class="item"><span class="thumb ph2"></span><span class="itx">
+        <span class="nm">โช้คหลังคู่ เวฟ 110 สีดำ พร้อมติดตั้ง</span>
+        <span class="meta"><span class="price tnum">฿360</span><span class="kind">สินค้า</span><span class="tnum">ขายแล้ว 71</span></span></span></div>
+      <div class="item"><span class="thumb ph2"></span><span class="itx">
+        <span class="nm">บริการเปลี่ยนถ่ายน้ำมันเครื่อง ถึงบ้าน</span>
+        <span class="meta"><span class="price tnum">฿590</span><span class="kind svc">บริการ</span><span class="tnum">ขายแล้ว 14</span></span></span></div>
+      <div class="item"><span class="thumb ph2"></span><span class="itx">
+        <span class="nm">หลอดไฟซีนอน HID 6000K คู่หน้า</span>
+        <span class="meta"><span class="price tnum">฿1,250</span><span class="kind">สินค้า</span><span class="tnum">ขายแล้ว 12</span></span></span></div>
+    </div>
+
+    <div class="panel" id="${id}-b" role="tabpanel" hidden>
+      <div class="chrow"><span class="chav fb">f<span class="vb">&#10003;</span></span>
+        <span class="chtx"><span class="chn">ธนภัทร อะไหล่ยนต์ — อะไหล่แต่งเวฟ</span><span class="chs">Facebook Page</span></span>
+        <span class="go">เปิด &#8599;</span></div>
+      <div class="chrow"><span class="chav ig">&#9673;<span class="vb">&#10003;</span></span>
+        <span class="chtx"><span class="chn">@thanaphat.parts</span><span class="chs">Instagram</span></span>
+        <span class="go">เปิด &#8599;</span></div>
+      <div class="chrow"><span class="chav tt">&#9834;<span class="vb">&#10003;</span></span>
+        <span class="chtx"><span class="chn">@thanaphatparts</span><span class="chs">TikTok</span></span>
+        <span class="go">เปิด &#8599;</span></div>
+    </div>
+
+    <div class="panel" id="${id}-c" role="tabpanel" hidden>
+      <div class="ratehead">
+        <div class="rscore">
+          <div class="rnum tnum">4.9</div>
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <div class="rcount tnum">จาก 96 รีวิว</div>
+        </div>
+        <div class="rbars">
+          <div class="rbar"><span class="lb tnum">5</span><span class="track"><span class="fill" style="inline-size:89%"></span></span><span class="ct tnum">85</span></div>
+          <div class="rbar"><span class="lb tnum">4</span><span class="track"><span class="fill" style="inline-size:9%"></span></span><span class="ct tnum">9</span></div>
+          <div class="rbar"><span class="lb tnum">3</span><span class="track"><span class="fill" style="inline-size:2%"></span></span><span class="ct tnum">2</span></div>
+          <div class="rbar"><span class="lb tnum">2</span><span class="track"><span class="fill" style="inline-size:0%"></span></span><span class="ct tnum">0</span></div>
+          <div class="rbar"><span class="lb tnum">1</span><span class="track"><span class="fill" style="inline-size:0%"></span></span><span class="ct tnum">0</span></div>
+        </div>
+      </div>
+      <div class="rev"><div class="rtop"><span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span class="vtag">ซื้อจริง</span></div>
+        <div>ของตรงปก ส่งไว ทักไปถามตอบเร็วมาก แนะนำเลยครับ</div><div class="who">คุณ ก. &middot; 3 วันที่แล้ว</div></div>
+      <div class="rev"><div class="rtop"><span class="stars">&#9733;&#9733;&#9733;&#9733;</span><span class="vtag">ซื้อจริง</span></div>
+        <div>สินค้าดี แพ็คมาแน่นหนา</div><div class="who">คุณ ส. &middot; 1 สัปดาห์ที่แล้ว</div></div>
+      <div class="rev"><div class="rtop"><span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span class="vtag">ซื้อจริง</span></div>
+        <div>ราคาดีกว่าที่อื่น ติดตั้งให้ด้วย</div><div class="who">คุณ พ. &middot; 2 สัปดาห์ที่แล้ว</div></div>
+    </div>`;
+
+  const DEV=[{c:'m',l:'Mobile 430 — iPhone 14 Pro Max'},{c:'t',l:'Tablet 640'},{c:'d',l:'Desktop 980'}];
+  const host=document.querySelector('.devices');
+  host.innerHTML=DEV.map((d,i)=>`<div class="device ${d.c}"><div class="dlab">${d.l}</div>
+    <div class="screen">${page('p'+i)}</div></div>`).join('');
+
+  host.addEventListener('click', e => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    const list = tab.closest('.tabs');
+    list.querySelectorAll('.tab').forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      document.getElementById(t.dataset.t).hidden = !on;
+    });
+  });
+</script>

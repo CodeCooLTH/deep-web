@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { toFileUrl } from "@/lib/file-url";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 import { normalizePhone } from "@/lib/phone";
@@ -626,6 +627,17 @@ export async function getOrderByToken(publicToken: string) {
       // additive include — caller เดิมที่ไม่ใช้ buyer ไม่กระทบ
       buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
       shipmentTracking: true,
+      // feature 00022 — พัสดุ iShip ที่ยังใช้งานอยู่ (ถ้ามี) ใช้เป็น fallback ของเลขติดตาม
+      // เมื่อร้านยังไม่ได้กด "แจ้งจัดส่ง" ด้วยตัวเอง — ผู้ซื้อจะได้ไม่ต้องรอ
+      // ห้ามเขียนลง ShipmentTracking แทน: orderId เป็น unique และ shipOrder() สร้างแถวนั้น
+      // พร้อมเปลี่ยนสถานะออเดอร์ในทรานแซกชันเดียว ถ้าเราชิงสร้างไว้ก่อน ปุ่มแจ้งจัดส่ง
+      // ของร้านจะชน P2002 ใช้ไม่ได้อีกเลย
+      shipments: {
+        where: { status: 'CREATED' },
+        select: { trackingNo: true, courierName: true, courierCode: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       review: true,
     },
   });
@@ -839,18 +851,6 @@ export async function getOrdersByBuyer(userId: string) {
  * ข้อแลกเปลี่ยนที่รับไว้แล้ว: การคืนค่า (ไม่ใช่ null) เท่ากับยืนยันกลาย ๆ ว่า token นี้มี
  * ออเดอร์จริง — แลกกับการที่ผู้ซื้อมั่นใจว่ากดลิงก์ถูกใบก่อนยอมล็อกอิน
  */
-/**
- * แปลงค่ารูปที่เก็บใน DB ให้เป็น URL ที่ <img> ใช้ได้จริง
- *
- * ค่าที่เก็บมีสองแบบปนกัน: storage key จาก saveFile (เช่น "2026/07/25/uuid.png" หรือ
- * "uuid.png" ของไฟล์เก่าก่อนชาร์ดโฟลเดอร์) กับ URL เต็มจาก seed/CDN/OAuth avatar
- * guard ด้วย startsWith('http') แบบเดียวกับ InviteLandingClient.tsx:39 และ products/page.tsx:100
- */
-function toFileUrl(v: string | null): string | null {
-  if (!v) return null;
-  return v.startsWith("http") ? v : `/api/files/${v}`;
-}
-
 export async function getOrderSummaryForSignIn(publicToken: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },
