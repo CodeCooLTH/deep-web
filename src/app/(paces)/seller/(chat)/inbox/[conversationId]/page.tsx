@@ -272,6 +272,9 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     vertical,
     customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
     customerStats,
+    // feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติแบบ Business Suite
+    // (`ad_id.…` / `messenger_ads`) ให้ร้านแมพได้ว่าลูกค้าคนนี้มาจากโฆษณาไหน
+    adReferralId: conversation.referralSource === 'ADS' ? conversation.referralAdId : null,
     orders: panelOrders,
   }
 

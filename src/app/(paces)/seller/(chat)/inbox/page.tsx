@@ -173,6 +173,8 @@ export default async function SellerInboxPage() {
         contactSalesStatus: contact?.salesStatus ?? 'UNSPECIFIED',
         counterparty,
         unreadCount: unreadMap.get(c.id) ?? 0,
+        // feature 00018 E5 — ชิป `ad_id.…` ในแถว (ร้านดูได้ว่าโฆษณาไหนพาลูกค้าคนนี้มา)
+        referralAdId: c.referralAdId,
       }
     })
     nextCursor = result.nextCursor

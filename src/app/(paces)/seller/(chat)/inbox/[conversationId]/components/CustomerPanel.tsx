@@ -77,6 +77,9 @@ export type CustomerPanelData = {
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent: string; since: string } | null
+  /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
+   *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
+  adReferralId: string | null
   orders: CustomerPanelOrder[]
 }
 
@@ -454,6 +457,28 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
         >
           {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
           {crmSlot('profile')}
+
+          {/* feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติจาก Meta แบบ Business
+              Suite: บอกว่าลูกค้าคนนี้มาจากโฆษณาไหน. แยกจาก tag ของ CRM ด้านบนชัดเจนเพราะอันนี้
+              **ระบบเติมให้เอง แก้ไม่ได้** — ไม่มีปุ่ม X เหมือน tag ที่ร้านตั้งเอง */}
+          {data.adReferralId && (
+            <div>
+              <p className="text-default-700 mb-1 text-xs">ป้ายกำกับจาก Meta</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className="badge bg-default-100 text-default-700 text-2xs inline-flex max-w-full items-center gap-1"
+                  title={`ad_id.${data.adReferralId}`}
+                >
+                  <Icon icon="brand-meta" className="size-3.5 shrink-0" />
+                  <span className="truncate">ad_id.{data.adReferralId}</span>
+                </span>
+                <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                  <Icon icon="brand-meta" className="size-3.5 shrink-0" />
+                  {data.channel === 'INSTAGRAM' ? 'instagram_ads' : 'messenger_ads'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* สถิติลูกค้า (user สั่ง 2026-07-24) — label-ซ้าย/ค่า-ขวา ตามภาพที่ส่งมา; เฉพาะลูกค้าที่ผูก
               ในระบบแล้ว (มี customerStats) — คนที่ยังไม่ผูก แถว "การเชื่อมกับลูกค้าในระบบ" ด้านล่าง
