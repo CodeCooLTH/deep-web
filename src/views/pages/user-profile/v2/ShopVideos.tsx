@@ -37,14 +37,21 @@ export type ShopVideoItem = {
   viewCount: number | null
 }
 
-/** ไอคอน + สีแบรนด์ต่อแพลตฟอร์ม — สีแบรนด์เป็น carve-out ที่อนุญาต (Hard Rule 6) */
-// ใช้ simple-icons = โลโก้แบรนด์จริง ไม่ใช่ไอคอนเส้นที่วาดเลียนแบบ (user ขอ 2026-07-26)
-// ผู้ชมจำโลโก้จริงได้ทันทีโดยไม่ต้องอ่าน ส่วนไอคอนเส้นต้องเพ่งถึงจะรู้ว่าแพลตฟอร์มไหน
-const PROVIDER_UI: Record<VideoProvider, { icon: string; color: string; label: string }> = {
-  INSTAGRAM: { icon: 'simple-icons:instagram', color: '#E1306C', label: 'Instagram' },
-  FACEBOOK: { icon: 'simple-icons:facebook', color: '#1877F2', label: 'Facebook' },
-  TIKTOK: { icon: 'simple-icons:tiktok', color: '#010101', label: 'TikTok' },
-  YOUTUBE: { icon: 'simple-icons:youtube', color: '#FF0000', label: 'YouTube' },
+/**
+ * โลโก้แบรนด์ต่อแพลตฟอร์ม — ไฟล์ชุดเดียวกับที่หน้าแชทใช้ (public/images/logos/)
+ *
+ * user ทัก 2026-07-26 ว่าไอคอนในระบบเป็นคนละชุดกัน เดิมที่นี่วาดวงกลมสีแบรนด์แล้ววาง glyph
+ * สีขาวทับ ซึ่งไม่ใช่โลโก้จริง — IG ที่เป็นวงกลมไล่สีกลายเป็นวงชมพูทึบ ตอนนี้ใช้ไฟล์โลโก้จริง
+ * ที่มีทั้งสีและรูปทรงในตัว จึงไม่ต้องมีพื้นวงกลมรองอีกชั้น (แนวเดียวกับ ChannelBadgeOverlay)
+ *
+ * brand asset เป็น carve-out ของ Hard Rule 6
+ * TikTok/YouTube ยังไม่มีไฟล์ในโปรเจกต์ (ยังเชื่อมบัญชีไม่ได้) — เผื่อ label ไว้ก่อน
+ */
+const PROVIDER_UI: Record<VideoProvider, { logo: string | null; label: string }> = {
+  INSTAGRAM: { logo: '/images/logos/instagram-circle.svg', label: 'Instagram' },
+  FACEBOOK: { logo: '/images/logos/facebook.svg', label: 'Facebook' },
+  TIKTOK: { logo: null, label: 'TikTok' },
+  YOUTUBE: { logo: null, label: 'YouTube' },
 }
 
 /**
@@ -114,14 +121,13 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
         style={{ background: 'linear-gradient(180deg,rgb(0 0 0/.28) 0%,transparent 32%,transparent 52%,rgb(0 0 0/.72) 100%)' }}
       />
 
-      {/* ไอคอนแพลตฟอร์ม มุมบน — บอกทันทีว่าคลิปมาจากที่ไหน */}
-      <span
-        className='absolute top-2 inline-end-2 is-6 bs-6 rounded-full flex items-center justify-center text-white'
-        style={{ background: ui.color }}
-        title={ui.label}
-      >
-        <Icon icon={ui.icon} width={13} />
-      </span>
+      {/* โลโก้แพลตฟอร์ม มุมบน — บอกทันทีว่าคลิปมาจากที่ไหน */}
+      {ui.logo && (
+        <span className='absolute top-2 inline-end-2 is-5 bs-5 rounded-full overflow-hidden' title={ui.label}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/ */}
+          <img src={ui.logo} alt={ui.label} className='is-full bs-full' />
+        </span>
+      )}
 
       <span className='absolute inset-block-start-0 flex items-center justify-center is-full bs-full pointer-events-none'>
         <span className='is-11 bs-11 rounded-full bg-black/45 text-white flex items-center justify-center'>

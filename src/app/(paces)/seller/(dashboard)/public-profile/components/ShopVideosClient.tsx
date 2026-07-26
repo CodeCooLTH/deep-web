@@ -33,13 +33,29 @@ interface AvailableVideo {
   viewCount: number | null
 }
 
-/** ป้ายบอกแหล่งที่มาบนการ์ดที่ให้เลือก */
-// simple-icons = โลโก้แบรนด์จริง ไม่ใช่ไอคอนเส้นที่วาดเลียนแบบ
-// ต้องใส่ prefix เสมอเพราะไฟล์นี้ใช้ @iconify/react ตรง ๆ ไม่ใช่ Icon wrapper ที่เติม tabler: ให้
-// (ชื่อไม่มี prefix จะไม่ render อะไรเลยและไม่มี error — เจอจริงตอน user ทักว่าไอคอนหาย)
-const SOURCE: Record<string, { icon: string; label: string; className: string }> = {
-  FACEBOOK: { icon: 'simple-icons:facebook', label: 'Facebook', className: 'bg-info text-white' },
-  INSTAGRAM: { icon: 'simple-icons:instagram', label: 'Instagram', className: 'bg-danger text-white' },
+/**
+ * ป้ายบอกแหล่งที่มาบนการ์ดที่ให้เลือก
+ *
+ * ใช้ไฟล์โลโก้แบรนด์จริงชุดเดียวกับหน้าแชท (ChannelBadge) — user ทัก 2026-07-26 ว่าไอคอนคนละชุด
+ * กับที่อื่นในระบบ ก่อนหน้านี้ที่นี่วาดเป็นวงกลมสี Paces (bg-info/bg-danger) แล้วใส่ glyph สีขาว
+ * ทับ ซึ่งไม่ใช่โลโก้จริงของแพลตฟอร์ม และ IG ที่จริงเป็นวงกลมไล่สีก็กลายเป็นวงแดงทึบ
+ *
+ * โลโก้พวกนี้มีทั้งสีและรูปทรงในตัวอยู่แล้ว จึงไม่ต้องมีพื้นวงกลมรองอีกชั้น (เหตุผลเดียวกับ
+ * ChannelBadgeOverlay) — brand asset เป็น carve-out ของ Hard Rule 6
+ */
+const SOURCE: Record<string, { logo: string; label: string }> = {
+  FACEBOOK: { logo: '/images/logos/facebook.svg', label: 'Facebook' },
+  INSTAGRAM: { logo: '/images/logos/instagram-circle.svg', label: 'Instagram' },
+}
+
+/** โลโก้ช่องทาง — ถอยไปไอคอนกลางเมื่อเจอ provider ที่ยังไม่มีไฟล์โลโก้ (เช่น TikTok ที่รออนุมัติ) */
+function SourceLogo({ provider, size }: { provider: string; size: number }) {
+  const src = SOURCE[provider]
+  if (!src) return <Icon icon="tabler:video" className="text-default-400" width={size} />
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/ ไม่ต้องผ่าน optimizer
+    <img src={src.logo} alt={src.label} width={size} height={size} className="shrink-0 rounded-full" />
+  )
 }
 
 /** key ของช่องทาง = provider + ชื่อบัญชี — ร้านเดียวมีได้หลายเพจ จึงแยกทีละเพจ ไม่ใช่ทีละแพลตฟอร์ม */
@@ -240,9 +256,7 @@ export default function ShopVideosClient() {
                         : 'text-default-600 hover:text-primary border-transparent'
                     }`}
                   >
-                    <span className={`flex size-4 items-center justify-center rounded-full ${SOURCE[src.provider]?.className ?? 'bg-default-200'}`}>
-                      <Icon icon={SOURCE[src.provider]?.icon ?? 'tabler:video'} className="text-xs" />
-                    </span>
+                    <SourceLogo provider={src.provider} size={18} />
                     <span className="max-w-40 truncate">{src.label}</span>
                     <span className="text-default-400">{src.count}</span>
                     {picked > 0 && <span className="badge bg-primary/15 text-primary">{picked}</span>}
@@ -290,9 +304,7 @@ export default function ShopVideosClient() {
                         </span>
                       )}
                       <span className="flex items-center gap-1.5">
-                        <span className={`flex size-4 items-center justify-center rounded-full ${SOURCE[v.provider]?.className ?? 'bg-default-200'}`}>
-                          <Icon icon={SOURCE[v.provider]?.icon ?? 'tabler:video'} className="text-xs" />
-                        </span>
+                        <SourceLogo provider={v.provider} size={14} />
                         <span className="text-default-500 truncate text-xs">{v.accountName ?? SOURCE[v.provider]?.label}</span>
                       </span>
                       {(v.viewCount != null || v.likeCount != null) && (
