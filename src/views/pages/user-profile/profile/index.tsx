@@ -13,8 +13,9 @@ import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
-// Type Imports — TrustScoreCardData['tierColor'] ใช้ประกาศ type ProfileTabData.tierColor ด้านล่าง (type-only, ไม่ import component)
-import type { TrustScoreCardData } from '../TrustScoreCard'
+// อ้าง TierChipColor จาก SSOT ของระบบ tier โดยตรง (เดิมอ้างผ่าน TrustScoreCardData ซึ่งเป็นการ
+// อ้อมผ่าน component ที่ถูกลบไปพร้อมโปรไฟล์ชุดเดิม — ชี้ที่ต้นทางตรง ๆ ตรงกว่าและไม่ผูกกับ UI)
+import type { TierChipColor } from '@/lib/trust-tier'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
 // Redesign (2026-07-04, hybrid FB Page × Threads spec) — เนื้อหา left/right column เดิม
@@ -66,7 +67,7 @@ export type ProfileTabData = {
   // ── TrustScoreCard data ──
   trustScore: number
   tierLabel: string
-  tierColor: TrustScoreCardData['tierColor']
+  tierColor: TierChipColor
   nextTierLabel: string | null
   pointsToNext: number | null
   verifiedLevels: number[]
