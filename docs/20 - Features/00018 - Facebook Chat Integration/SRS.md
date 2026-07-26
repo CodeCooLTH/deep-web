@@ -60,7 +60,7 @@ S-7 ปักหมุด/ซ่อน/ปิดงาน/สแปม (logic+AP
 **นอกขอบเขตของเอกสารนี้ (ยังไม่ implement — ดู PRD/BRD สำหรับแผนเต็ม):**
 - **ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG** — `sendOutboundMessage` รองรับแค่ `text`/`imageFileId`; ไม่มี parameter สำหรับ VIDEO/AUDIO/FILE. **TEXT และ IMAGE ส่งออกได้แล้ว** (แก้จาก v1.1 ที่เขียนผิดว่า "รองรับเฉพาะ TEXT") — ยังบล็อกเฉพาะ `type=PRODUCT` บนเธรดช่องทางนอก (ดู [[API]] §4.5)
 - **Reply/Unsend/Reaction ขาออก** — ร้านตอบทับ/ลบ/react ข้อความของตัวเองจาก Deep ยังไม่มี code path (inbound-only ทั้งชุด E7/E9 — ดู [[EXTENSIONS-2026-07-25]] Carry)
-- **`messaging_referrals` subscribe field ขาด** — เพจที่เชื่อมก่อน 2026-07-25 ต้อง reconnect ถึงจะได้ pure-referral event เต็มรูป (ดู [[EXTENSIONS-2026-07-25]] E8.3)
+- **`messaging_referrals` มีใน subscribe field แล้ว** — แต่ Meta ล็อกชุด field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 ต้อง re-sync (`POST /api/channels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - **S-8 tab ใบเสนอราคา** — แก้ปัญหาด้วยการ์ดออเดอร์ในแชท (E1, `type=ORDER`) แทน ไม่ใช่ tab แยกตามที่ BRD เดิมคิดไว้ — เป็น design decision ที่ implement แล้วในรูปแบบต่าง
 - **Facebook Live** — นอก scope ทั้ง feature (PRD §5)
 
@@ -442,7 +442,7 @@ export const WebhookBodySchema = v.object({
 | กลุ่ม/แท็บจัดหมวดแชท (E5) | ผลตัดสิน user 2026-07-23 | — | — | Implemented — `ChatGroup` + `chat-group.service.ts` |
 | Read receipt ช่องทางนอก (E6) | ผลตัดสิน user | — | — | Implemented — `Conversation.externalReadAt` + `ingestReadEvent` |
 | Reaction บนข้อความ (E7) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.reactionEmoji` + `ingestReactionEvent` |
-| Referral/context โฆษณา-ลิงก์ (E8) | ผลตัดสิน user | — | — | Implemented (บางส่วน — pure-referral event ของเพจเก่าไม่ครอบ, ดู E8.3) |
+| Referral/context โฆษณา-ลิงก์ (E8 → E5 2026-07-26) | ผลตัดสิน user | — | — | Implemented — แบนเนอร์รูป+ชื่อโฆษณา, ค่าล่าสุด, เก็บประวัติ (ดู [[EXTENSIONS-2026-07-26]] E5). คงเหลือ: เพจเก่าต้อง re-sync, แชทเก่าไม่มีรูป, IG ยังไม่ทดสอบจริง |
 | Reply/Unsend (E9) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.replyToMid`/`isDeleted` |
 | แท็ก/โน้ตภายใน (S-8) | BR-FBC-17/18/19 | §8.1 | — | **Implemented** (2026-07-23 — เก็บที่คอลัมน์ `ExternalContact`/`Conversation.alias` ไม่ใช่ table แยกตามที่ BRD เดิมคิดไว้; tab ใบเสนอราคาแก้ด้วยการ์ดออเดอร์ในแชท E1 แทน) |
 | ยกเว้น webhook จาก CSRF | BR-FBC-22 | §7.2 | TFR-FBC-11 | Implemented |
