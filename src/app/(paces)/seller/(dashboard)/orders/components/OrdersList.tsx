@@ -48,9 +48,11 @@ const PAGE = 8 // จำนวนต่อรอบ lazy-load
 type Props = {
   orders: OrderRow[]
   activeStatus: string
+  /** ร้านเชื่อมต่อ iShip + เป็นร้านสินค้าและบริการ (feature 00022) */
+  ishipEnabled?: boolean
 }
 
-export default function OrdersList({ orders, activeStatus }: Props) {
+export default function OrdersList({ orders, activeStatus, ishipEnabled = false }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -185,7 +187,7 @@ export default function OrdersList({ orders, activeStatus }: Props) {
     <>
       {/* ─── Desktop (≥lg): DataTable แบบ Paces theme ──────────────────────── */}
       <div className="hidden lg:block">
-        <OrdersTable orders={orders} />
+        <OrdersTable orders={orders} ishipEnabled={ishipEnabled} />
       </div>
 
       {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}

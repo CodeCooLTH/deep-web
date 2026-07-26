@@ -11,7 +11,7 @@ import * as v from "valibot";
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipBulkLabelSchema } from "@/lib/validations";
 import { ishipError, mapIShipError, NO_STORE } from "@/lib/iship/route-helpers";
-import { getLabelPdf } from "@/services/iship.service";
+import { getLabelPdf, getLabelPdfForOrders } from "@/services/iship.service";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +35,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // รับได้ 2 แบบ: shipmentIds (จากหน้าที่รู้จักพัสดุอยู่แล้ว) หรือ orderTokens
+  // (จากหน้ารายการคำสั่งซื้อ ซึ่งรู้จักแค่ token) — ต้องมีอย่างใดอย่างหนึ่ง
+  const { shipmentIds, orderTokens } = parsed.output;
+  if (!shipmentIds?.length && !orderTokens?.length) {
+    return ishipError("INVALID_INPUT", "กรุณาเลือกอย่างน้อย 1 รายการ", 400);
+  }
+
   try {
-    const { pdf, skipped } = await getLabelPdf(guard.shopId, parsed.output.shipmentIds);
+    const { pdf, skipped } = shipmentIds?.length
+      ? await getLabelPdf(guard.shopId, shipmentIds)
+      : await getLabelPdfForOrders(guard.shopId, orderTokens!);
+    const count = shipmentIds?.length ?? orderTokens!.length;
     return new Response(pdf, {
       headers: {
         ...NO_STORE,
         "content-type": "application/pdf",
-        "content-disposition": `inline; filename="labels-${parsed.output.shipmentIds.length}.pdf"`,
+        "content-disposition": `inline; filename="labels-${count}.pdf"`,
         "x-skipped-count": String(skipped.length),
         // รายละเอียดว่าข้ามใบไหนเพราะอะไร — encode เพราะ header เก็บภาษาไทยตรง ๆ ไม่ได้
         "x-skipped-detail": encodeURIComponent(JSON.stringify(skipped)),

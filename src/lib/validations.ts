@@ -1060,10 +1060,21 @@ export const IShipCreateShipmentSchema = v.object({
 
 // พิมพ์หลายใบ — เพดาน 50 ใบต่อครั้ง (เกินแล้วต้องบอกจำนวนสูงสุด ไม่ใช่ตัดทิ้งเงียบ FR-ISHIP-031)
 export const IShipBulkLabelSchema = v.object({
-  shipmentIds: v.pipe(
-    v.array(v.pipe(v.string(), v.uuid())),
-    v.minLength(1, "กรุณาเลือกอย่างน้อย 1 รายการ"),
-    v.maxLength(50, "พิมพ์ได้สูงสุดครั้งละ 50 ใบ"),
+  shipmentIds: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.uuid())),
+      v.minLength(1, "กรุณาเลือกอย่างน้อย 1 รายการ"),
+      v.maxLength(50, "พิมพ์ได้สูงสุดครั้งละ 50 ใบ"),
+    ),
+  ),
+  // orderTokens: ทางเลือกสำหรับหน้ารายการคำสั่งซื้อ ซึ่งรู้จักแค่ publicToken/shortCode
+  // ไม่รู้จัก id ของพัสดุ — เซิร์ฟเวอร์แปลงให้เอง (ดู getLabelPdfForOrders)
+  orderTokens: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
+      v.minLength(1, "กรุณาเลือกอย่างน้อย 1 รายการ"),
+      v.maxLength(50, "พิมพ์ได้สูงสุดครั้งละ 50 ใบ"),
+    ),
   ),
 });
 

@@ -807,6 +807,68 @@ export async function getLabelPdf(
   return { pdf, skipped };
 }
 
+/**
+ * getLabelPdfForOrders — พิมพ์ใบปะหน้าจาก "รหัสคำสั่งซื้อ" แทน id ของพัสดุ
+ *
+ * หน้ารายการคำสั่งซื้อรู้จักแค่ publicToken/shortCode ไม่รู้จัก id ของพัสดุ
+ * ถ้าจะให้ UI ไปหา id เองต้องยัด field เพิ่มเข้าไปในตารางทั้งตาราง เพียงเพื่อใช้ตอนพิมพ์
+ * — แปลง token เป็นพัสดุที่ฝั่งเซิร์ฟเวอร์แทน ตารางจึงไม่ต้องรู้เรื่องพัสดุเลย
+ */
+export async function getLabelPdfForOrders(
+  shopId: string,
+  orderTokens: string[],
+): Promise<{ pdf: ArrayBuffer; skipped: SkippedLabel[] }> {
+  const orders = await prisma.order.findMany({
+    where: {
+      shopId,
+      OR: [{ publicToken: { in: orderTokens } }, { shortCode: { in: orderTokens } }],
+    },
+    select: {
+      publicToken: true,
+      shortCode: true,
+      shipments: {
+        where: { status: { not: "CANCELLED" } },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  const byToken = new Map<string, string | null>();
+  for (const o of orders) {
+    const shipmentId = o.shipments[0]?.id ?? null;
+    byToken.set(o.publicToken, shipmentId);
+    if (o.shortCode) byToken.set(o.shortCode, shipmentId);
+  }
+
+  const shipmentIds: string[] = [];
+  const skipped: SkippedLabel[] = [];
+  // ไล่ตามลำดับที่ผู้ใช้เลือก — ใบปะหน้าจะได้เรียงตรงกับที่เห็นบนหน้าจอ
+  for (const token of orderTokens) {
+    if (!byToken.has(token)) {
+      skipped.push({ shipmentId: token, reason: "ไม่พบคำสั่งซื้อนี้ในร้านของคุณ" });
+      continue;
+    }
+    const id = byToken.get(token);
+    if (!id) {
+      skipped.push({ shipmentId: token, reason: "ยังไม่ได้สร้างพัสดุสำหรับคำสั่งซื้อนี้" });
+      continue;
+    }
+    shipmentIds.push(id);
+  }
+
+  if (shipmentIds.length === 0) {
+    throw new IShipServiceError(
+      "INVALID_STATE",
+      "ไม่มีคำสั่งซื้อที่พิมพ์ใบปะหน้าได้ในรายการที่เลือก",
+    );
+  }
+
+  const result = await getLabelPdf(shopId, shipmentIds);
+  return { pdf: result.pdf, skipped: [...skipped, ...result.skipped] };
+}
+
 // ─── ประวัติการเดินทาง ──────────────────────────────────────────────────────
 
 export async function getTraces(shopId: string, shipmentId: string) {
