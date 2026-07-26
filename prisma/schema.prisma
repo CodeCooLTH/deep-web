@@ -1310,6 +1310,15 @@ model ShopVideo {
   caption   String? @db.Text
   /// รูปปกที่แพลตฟอร์มให้มา — เก็บไว้แสดงก่อนผู้ชมกดเล่น จะได้ไม่ต้องโหลด iframe ทุกอัน
   thumbnailUrl String?
+  /// ชื่อบัญชีต้นทาง (เช่น @oilssm) — บอกผู้ชมว่าคลิปมาจากช่องไหน ไม่ใช่แค่แพลตฟอร์มอะไร
+  accountName String?
+  /// ยอด ณ เวลาที่ร้านกดเลือก — เป็น snapshot ไม่ใช่ค่าสด เพราะการยิง API ทุกครั้งที่มีคน
+  /// เปิดหน้าร้านจะช้าและชนลิมิตของแพลตฟอร์ม ค่าจะอัปเดตเมื่อร้านกดบันทึกใหม่
+  likeCount    Int?
+  commentCount Int?
+  /// ยอดวิว — ยังเป็น null เสมอสำหรับ Instagram เพราะต้องใช้ scope instagram_manage_insights
+  /// ที่ยังไม่ได้ขอ (ทดสอบจริงแล้วได้ error #10) เผื่อไว้ให้ TikTok ที่ video.list ให้ view มาด้วย
+  viewCount    Int?
   sortOrder Int    @default(0)
   createdAt DateTime @default(now())
 

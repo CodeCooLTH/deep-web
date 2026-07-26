@@ -23,6 +23,10 @@ export type IgMediaItem = {
   caption: string | null;
   thumbnailUrl: string | null;
   permalink: string;
+  /** ชื่อบัญชีต้นทาง เช่น "oilssm" — บอกผู้ชมว่าคลิปมาจากช่องไหน ไม่ใช่แค่แพลตฟอร์มอะไร */
+  accountName: string | null;
+  likeCount: number | null;
+  commentCount: number | null;
 };
 
 /**
@@ -41,7 +45,9 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
   const token = decryptToken(channel.accessTokenEnc);
   const url =
     `${GRAPH_BASE}/${channel.externalId}/media` +
-    `?fields=id,media_type,media_product_type,caption,thumbnail_url,media_url,permalink` +
+    // like_count/comments_count ใช้ได้กับ token ที่มีอยู่ (ทดสอบกับบัญชีจริงแล้ว)
+    // ส่วนยอดวิวต้องเรียก insights ซึ่งต้องการ scope instagram_manage_insights ที่ยังไม่ได้ขอ
+    `?fields=id,media_type,media_product_type,caption,thumbnail_url,media_url,permalink,like_count,comments_count` +
     `&limit=50&access_token=${encodeURIComponent(token)}`;
 
   const res = await fetch(url, { cache: "no-store" });
@@ -60,8 +66,13 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
       thumbnail_url?: string;
       media_url?: string;
       permalink?: string;
+      like_count?: number;
+      comments_count?: number;
     }>;
   };
+
+  // ชื่อบัญชีดึงครั้งเดียวต่อการเรียก ไม่ใช่ต่อคลิป
+  const accountName = await fetchIgUsername(channel.externalId, token);
 
   return (
     (json.data ?? [])
@@ -85,10 +96,28 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
           // วิดีโอบน IG ให้ thumbnail_url มา ส่วน media_url เป็นไฟล์วิดีโอจริง
           thumbnailUrl: m.thumbnail_url ?? null,
           permalink: m.permalink!,
+          accountName,
+          likeCount: m.like_count ?? null,
+          commentCount: m.comments_count ?? null,
         };
       })
       .filter((x): x is IgMediaItem => x !== null)
   );
+}
+
+/** ชื่อบัญชี IG — แยกฟังก์ชันเพราะเรียกครั้งเดียวต่อการดึงคลิปทั้งชุด ไม่ใช่ต่อคลิป */
+async function fetchIgUsername(igUserId: string, token: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${GRAPH_BASE}/${igUserId}?fields=username&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const j = (await res.json()) as { username?: string };
+    return j.username ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** คลิปที่ร้านเลือกไว้แล้ว — ใช้ทั้งหน้าตั้งค่าและหน้าร้านสาธารณะ */
@@ -102,6 +131,10 @@ export async function getShopVideos(shopId: string) {
       videoId: true,
       caption: true,
       thumbnailUrl: true,
+      accountName: true,
+      likeCount: true,
+      commentCount: true,
+      viewCount: true,
       sortOrder: true,
     },
   });
@@ -118,7 +151,15 @@ export async function getShopVideos(shopId: string) {
  */
 export async function replaceShopVideos(
   shopId: string,
-  items: Array<{ provider: string; videoId: string; caption?: string | null; thumbnailUrl?: string | null }>,
+  items: Array<{
+    provider: string;
+    videoId: string;
+    caption?: string | null;
+    thumbnailUrl?: string | null;
+    accountName?: string | null;
+    likeCount?: number | null;
+    commentCount?: number | null;
+  }>,
 ) {
   const capped = items.slice(0, MAX_SHOP_VIDEOS);
 
@@ -132,6 +173,9 @@ export async function replaceShopVideos(
         videoId: it.videoId,
         caption: it.caption ?? null,
         thumbnailUrl: it.thumbnailUrl ?? null,
+        accountName: it.accountName ?? null,
+        likeCount: it.likeCount ?? null,
+        commentCount: it.commentCount ?? null,
         sortOrder: i,
       })),
     });

@@ -1,17 +1,23 @@
 'use client'
 
 /**
- * ShopVideos — คลิปที่ร้านเลือกโชว์บนหน้าร้านสาธารณะ (2026-07-26)
+ * ShopVideos — แท็บ "ปักหมุด" ของหน้าร้านสาธารณะ (2026-07-26)
  *
- * ฝัง iframe ตามที่ user เลือก แต่ **โหลดเมื่อกดเท่านั้น** ไม่ใช่โหลดทุกอันตั้งแต่เปิดหน้า
- * เหตุผล: หน้านี้เพิ่งถูกจูนให้เบาและมีหน้าที่สร้างความน่าเชื่อถือ ถ้าฝัง iframe หกอันพร้อมกัน
- * จะดึงสคริปต์ของแพลตฟอร์มมาหลายเมกะไบต์ตั้งแต่วินาทีแรก และแพลตฟอร์มจะเห็นทันทีว่าใคร
- * เปิดหน้าร้านนี้ทั้งที่ผู้ชมยังไม่ได้เลือกดูคลิปสักอัน — แสดงรูปปกก่อนแล้วค่อยโหลดเมื่อกด
- * ได้ทั้งความเร็วและความเป็นส่วนตัว โดยยังเป็นการฝังจริงตามที่ต้องการ
+ * เป็นแท็บแรกเสมอเมื่อร้านปักคลิปไว้ ตามที่ user กำหนด — คลิปคือสิ่งที่ร้านตั้งใจให้เห็นก่อน
  *
- * URL ที่ใช้ฝังประกอบขึ้นใหม่จากรหัสคลิปเสมอ (buildEmbedUrl) ไม่ใช้ค่าที่ผู้ใช้กำหนด
+ * เรียงแบบกริดชิดกันไม่มีช่องว่าง สัดส่วน 9:16 ตามมาตรฐานคลิปสั้นของทุกแพลตฟอร์ม
+ * (ผู้ชมคุ้นกับผังนี้จากแอปที่ใช้อยู่แล้ว การเว้นช่องว่างจะทำให้อ่านเป็นการ์ดสินค้าแทนที่จะเป็น
+ * แผงคลิป)
  *
- * Base: src/views/pages/user-profile/v2/PublicRoomList.tsx (grid การ์ด 2 คอลัมน์)
+ * ฝัง iframe จริงตามที่ user เลือก แต่โหลดเมื่อกดเท่านั้น — ถ้าฝังทุกอันตั้งแต่เปิดหน้าจะดึง
+ * สคริปต์ของแพลตฟอร์มหลายเมกะไบต์ทันที และแพลตฟอร์มจะเห็นว่าใครเปิดหน้าร้านนี้ทั้งที่ผู้ชม
+ * ยังไม่ได้เลือกดูสักอัน แสดงรูปปกก่อนแล้วโหลดเมื่อกดได้ทั้งความเร็วและความเป็นส่วนตัว
+ *
+ * ยอดไลก์เป็น snapshot ณ เวลาที่ร้านกดเลือก ไม่ใช่ค่าสด (ดู service ว่าทำไม)
+ * ยอดวิวยังไม่มีสำหรับ Instagram — ต้องใช้ scope instagram_manage_insights ที่ยังไม่ได้ขอ
+ * ช่องนี้จึงถูกซ่อนเมื่อไม่มีค่า ไม่ใช่แสดง 0
+ *
+ * Base: src/views/pages/user-profile/v2/PublicRoomList.tsx (กริดการ์ด) ปรับเป็นชิดขอบไม่มี gap
  */
 import { useState } from 'react'
 
@@ -19,7 +25,7 @@ import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 
-import { buildEmbedUrl, buildWatchUrl, VIDEO_PROVIDER_LABEL, type VideoProvider } from '@/lib/shop-video'
+import { buildEmbedUrl, buildWatchUrl, type VideoProvider } from '@/lib/shop-video'
 
 export type ShopVideoItem = {
   id: string
@@ -27,90 +33,150 @@ export type ShopVideoItem = {
   videoId: string
   caption: string | null
   thumbnailUrl: string | null
+  accountName: string | null
+  likeCount: number | null
+  commentCount: number | null
+  viewCount: number | null
 }
 
-function VideoCard({ item }: { item: ShopVideoItem }) {
+/** ไอคอน + สีแบรนด์ต่อแพลตฟอร์ม — สีแบรนด์เป็น carve-out ที่อนุญาต (Hard Rule 6) */
+const PROVIDER_UI: Record<VideoProvider, { icon: string; color: string; label: string }> = {
+  INSTAGRAM: { icon: 'lucide:instagram', color: '#E1306C', label: 'Instagram' },
+  TIKTOK: { icon: 'simple-icons:tiktok', color: '#010101', label: 'TikTok' },
+  YOUTUBE: { icon: 'lucide:youtube', color: '#FF0000', label: 'YouTube' },
+}
+
+/** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ — 12,300 → 12.3K */
+function compact(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
+  return `${(n / 1_000_000).toFixed(1)}M`
+}
+
+function VideoCell({ item }: { item: ShopVideoItem }) {
   const [playing, setPlaying] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
 
-  const parsed = { provider: item.provider as VideoProvider, videoId: item.videoId }
-  const embedUrl = buildEmbedUrl(parsed)
-  const watchUrl = buildWatchUrl(parsed)
+  const provider = item.provider as VideoProvider
+  const ui = PROVIDER_UI[provider]
+  const parsed = { provider, videoId: item.videoId }
+
+  if (playing) {
+    return (
+      <div className='relative aspect-[9/16] bg-black'>
+        <iframe
+          src={buildEmbedUrl(parsed)}
+          title={item.caption ?? `คลิปจาก ${ui.label}`}
+          className='absolute inset-0 is-full bs-full'
+          style={{ border: 0 }}
+          allow='accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture'
+          allowFullScreen
+          // sandbox แน่นที่สุดเท่าที่ยังเล่นได้ — ไม่ให้ iframe พาหน้าเราไปที่อื่นเอง
+          sandbox='allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
+          referrerPolicy='strict-origin-when-cross-origin'
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className='rounded-xl overflow-hidden border'>
-      <div className='relative bs-[240px] bg-[var(--mui-palette-action-hover)]'>
-        {playing ? (
-          <iframe
-            src={embedUrl}
-            title={item.caption ?? 'คลิปจากร้าน'}
-            className='is-full bs-full'
-            style={{ border: 0 }}
-            allow='accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture'
-            allowFullScreen
-            // sandbox แน่นที่สุดเท่าที่ยังเล่นได้ — ไม่ให้ iframe พาหน้าเราไปที่อื่นเอง
-            sandbox='allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
-            referrerPolicy='strict-origin-when-cross-origin'
-            loading='lazy'
-          />
-        ) : (
-          <button
-            type='button'
-            onClick={() => setPlaying(true)}
-            className='is-full bs-full relative flex items-center justify-center cursor-pointer bg-transparent border-0 p-0'
-            aria-label={`เล่นคลิป${item.caption ? ` ${item.caption}` : ''}`}
-          >
-            {item.thumbnailUrl && !imgFailed ? (
-              // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก CDN ของแพลตฟอร์ม
-              <img
-                src={item.thumbnailUrl}
-                alt=''
-                className='absolute inset-0 is-full bs-full object-cover'
-                onError={() => setImgFailed(true)}
-                loading='lazy'
-              />
-            ) : null}
-            <span className='relative is-14 bs-14 rounded-full bg-black/55 text-white flex items-center justify-center'>
-              <Icon icon='lucide:play' width={26} />
-            </span>
-          </button>
-        )}
-      </div>
+    <button
+      type='button'
+      onClick={() => setPlaying(true)}
+      aria-label={`เล่นคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
+      className='relative aspect-[9/16] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full'
+    >
+      {item.thumbnailUrl && !imgFailed && (
+        // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก CDN ของแพลตฟอร์ม
+        <img
+          src={item.thumbnailUrl}
+          alt=''
+          className='absolute inset-0 is-full bs-full object-cover'
+          onError={() => setImgFailed(true)}
+          loading='lazy'
+        />
+      )}
 
-      <div className='p-3'>
-        {item.caption && (
-          <Typography variant='body2' className='line-clamp-2'>
-            {item.caption}
-          </Typography>
+      {/* ไล่เงาล่าง — ให้ตัวหนังสือขาวอ่านออกไม่ว่ารูปปกจะสว่างแค่ไหน */}
+      <span
+        className='absolute inset-0'
+        style={{ background: 'linear-gradient(180deg,rgb(0 0 0/.28) 0%,transparent 32%,transparent 52%,rgb(0 0 0/.72) 100%)' }}
+      />
+
+      {/* ไอคอนแพลตฟอร์ม มุมบน — บอกทันทีว่าคลิปมาจากที่ไหน */}
+      <span
+        className='absolute top-2 inline-end-2 is-6 bs-6 rounded-full flex items-center justify-center text-white'
+        style={{ background: ui.color }}
+        title={ui.label}
+      >
+        <Icon icon={ui.icon} width={13} />
+      </span>
+
+      <span className='absolute inset-block-start-0 flex items-center justify-center is-full bs-full pointer-events-none'>
+        <span className='is-11 bs-11 rounded-full bg-black/45 text-white flex items-center justify-center'>
+          <Icon icon='lucide:play' width={20} />
+        </span>
+      </span>
+
+      {/* ชื่อบัญชี + ยอด — ซ่อนช่องที่ไม่มีค่า ไม่แสดงศูนย์ */}
+      <span className='absolute bottom-0 inline-start-0 inline-end-0 p-2 text-white text-start'>
+        {item.accountName && (
+          <span className='block text-[11px] font-semibold truncate'>{`@${item.accountName}`}</span>
         )}
-        <a
-          href={watchUrl}
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[12.5px] font-semibold text-primary no-underline flex items-center gap-1 mbs-1.5'
-        >
-          {`ดูบน ${VIDEO_PROVIDER_LABEL[parsed.provider]}`}
-          <Icon icon='lucide:external-link' width={12} />
-        </a>
-      </div>
-    </div>
+        <span className='flex items-center gap-2.5 text-[11px] mbs-0.5'>
+          {item.viewCount != null && (
+            <span className='flex items-center gap-1'>
+              <Icon icon='lucide:play' width={11} />
+              {compact(item.viewCount)}
+            </span>
+          )}
+          {item.likeCount != null && (
+            <span className='flex items-center gap-1'>
+              <Icon icon='lucide:heart' width={11} />
+              {compact(item.likeCount)}
+            </span>
+          )}
+          {item.commentCount != null && item.commentCount > 0 && (
+            <span className='flex items-center gap-1'>
+              <Icon icon='lucide:message-circle' width={11} />
+              {compact(item.commentCount)}
+            </span>
+          )}
+        </span>
+      </span>
+    </button>
   )
 }
 
 export default function ShopVideos({ items }: { items: ShopVideoItem[] }) {
   if (items.length === 0) return null
 
+  const first = items[0]
+  const watchUrl = buildWatchUrl({ provider: first.provider as VideoProvider, videoId: first.videoId })
+
   return (
     <div>
-      <Typography className='font-semibold mbe-1'>คลิปจากร้าน</Typography>
-      <Typography variant='caption' color='text.disabled' className='block mbe-3'>
-        คลิปเหล่านี้มาจากบัญชีที่ร้านยืนยันความเป็นเจ้าของแล้ว
-      </Typography>
-      <div className='grid grid-cols-2 gap-4'>
+      {/* กริดชิดกันไม่มีช่องว่าง — ผังเดียวกับที่ผู้ชมคุ้นจากแอปคลิปสั้น
+          -mli ดึงออกนอก padding ของ tab panel ให้ชนขอบจอจริง */}
+      <div className='grid grid-cols-3 gap-0 -mli-5'>
         {items.map((v) => (
-          <VideoCard key={v.id} item={v} />
+          <VideoCell key={v.id} item={v} />
         ))}
       </div>
+
+      <Typography variant='caption' color='text.disabled' className='block mbs-3'>
+        คลิปจากบัญชีที่ร้านยืนยันความเป็นเจ้าของแล้ว
+      </Typography>
+
+      <a
+        href={watchUrl}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='text-[12.5px] font-semibold text-primary no-underline inline-flex items-center gap-1'
+      >
+        {`ดูบน ${PROVIDER_UI[first.provider as VideoProvider].label}`}
+        <Icon icon='lucide:external-link' width={12} />
+      </a>
     </div>
   )
 }

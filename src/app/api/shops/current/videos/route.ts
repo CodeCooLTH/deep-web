@@ -84,6 +84,9 @@ export async function PUT(request: NextRequest) {
         videoId: it.videoId,
         caption: m.caption,
         thumbnailUrl: m.thumbnailUrl,
+        accountName: m.accountName,
+        likeCount: m.likeCount,
+        commentCount: m.commentCount,
       };
     }),
   );

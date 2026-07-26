@@ -12,8 +12,9 @@
  * ที่นี่จึงรับข้อมูลรูปแบบเดียว แล้วหน้าไหนจะดึงจากที่ไหนก็เป็นเรื่องของหน้านั้น
  *
  * ชุดแท็บขึ้นกับประเภทกิจการ (user กำหนด 2026-07-26)
- *   ร้านทั่วไป  สินค้าและบริการ / เกี่ยวกับร้าน / รีวิว {คะแนน}
- *   ร้านที่พัก   บ้านพัก / ปฏิทิน / เกี่ยวกับ / รีวิว {คะแนน}
+ *   ร้านทั่วไป  ปักหมุด / สินค้าและบริการ / เกี่ยวกับร้าน / รีวิว {คะแนน}
+ *   ร้านที่พัก   ปักหมุด / ห้องพัก / ปฏิทิน / เกี่ยวกับร้าน / รีวิว {คะแนน}
+ * แท็บปักหมุดโผล่เฉพาะเมื่อร้านปักคลิปไว้
  */
 import ProfileHero, { type ProfileHeroData } from './ProfileHero'
 import ProfileTabs from './ProfileTabs'
@@ -56,8 +57,13 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
       <ProfileTabs
         tabs={[
           // แท็บที่ไม่มีข้อมูลไม่ถูกสร้างเป็นตัวเลือกเลย ไม่ใช่สร้างแล้วโชว์หน้าเปล่า
+          // "ปักหมุด" มาก่อนเสมอเมื่อร้านปักคลิปไว้ (user กำหนด 2026-07-26) — คลิปคือสิ่งที่
+          // ร้านตั้งใจให้เห็นก่อนสิ่งอื่น
+          ...(data.videos.length > 0
+            ? [{ key: 'pinned', label: 'ปักหมุด', content: <ShopVideos items={data.videos} /> }]
+            : []),
           ...(data.isLodging && data.rooms.length > 0
-            ? [{ key: 'rooms', label: 'บ้านพัก', content: <PublicRoomList rooms={data.rooms} /> }]
+            ? [{ key: 'rooms', label: 'ห้องพัก', content: <PublicRoomList rooms={data.rooms} /> }]
             : []),
           ...(data.isLodging && data.availability
             ? [
@@ -92,12 +98,11 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
             // ช่องทาง Official อยู่ในแท็บนี้ ไม่แยกเป็นแท็บของตัวเอง — เป็นข้อมูล "ติดต่อร้านนี้
             // ได้ทางไหน" ซึ่งเป็นเรื่องเดียวกับการแนะนำร้าน และทำให้จำนวนแท็บอยู่ตามที่กำหนด
             key: 'about',
-            label: data.isLodging ? 'เกี่ยวกับ' : 'เกี่ยวกับร้าน',
+            label: 'เกี่ยวกับร้าน',
             content: (
               <div className='flex flex-col gap-5'>
                 <AboutOverview data={data.about} />
                 {data.channels.length > 0 && <OfficialChannels channels={data.channels} />}
-                <ShopVideos items={data.videos} />
               </div>
             ),
           },
