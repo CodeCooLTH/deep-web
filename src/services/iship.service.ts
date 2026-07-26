@@ -355,26 +355,6 @@ export type {
   EligibilityResult,
 } from "@/lib/iship/eligibility";
 
-// ─── พัสดุ ──────────────────────────────────────────────────────────────────
-
-export interface ShipmentOverride {
-  courierCode?: string;
-  weight?: number;
-  width?: number;
-  length?: number;
-  height?: number;
-  categoryId?: number;
-  codAmount?: number;
-  remark?: string | null;
-  options?: {
-    onTime?: boolean;
-    boxShield?: boolean;
-    isInsured?: boolean;
-    productValue?: number | null;
-    serviceType?: number | null;
-  };
-}
-
 function toShipmentView(s: {
   id: string;
   orderId: string;
@@ -420,6 +400,89 @@ const SHIPMENT_SELECT = {
   lastErrorCode: true,
   createdAt: true,
 } as const;
+
+/**
+ * getShipmentPanel — ข้อมูลทั้งหมดที่ส่วน "การจัดส่ง" ในหน้าออเดอร์ต้องใช้
+ *
+ * รวมไว้ที่เดียวเพราะหน้าออเดอร์ต้องตัดสิน 4 สถานะในครั้งเดียว (มีพัสดุ / ยังไม่มีแต่พร้อม /
+ * ยังไม่มีและข้อมูลขาด / ล้มเหลว) การให้ page ประกอบเองจะทำให้ตรรกะเดียวกันไปอยู่ 2 ที่
+ *
+ * คืน null เมื่อร้านไม่ได้เชื่อมต่อหรือออเดอร์ไม่เกี่ยวกับการส่งของ — page จะได้ไม่ต้อง
+ * render ส่วนนี้เลย (ไม่ใช่ render กล่องเปล่า)
+ */
+export async function getShipmentPanel(
+  shopId: string,
+  orderId: string,
+): Promise<{
+  createMode: string;
+  shipment: ShipmentView | null;
+  missing: MissingAddressField[];
+} | null> {
+  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  if (!account || account.status === "DISCONNECTED") return null;
+
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, shopId },
+    select: {
+      type: true,
+      fulfillmentMode: true,
+      buyerName: true,
+      buyerContact: true,
+      shippingAddress: true,
+    },
+  });
+  if (!order) return null;
+
+  const eligibility = evaluateEligibility(
+    {
+      type: order.type,
+      fulfillmentMode: order.fulfillmentMode,
+      buyerName: order.buyerName,
+      buyerContact: order.buyerContact,
+      shippingAddress: order.shippingAddress as DeepAddress | null,
+    },
+    { senderAddress: senderOf(account) },
+  );
+
+  // ออเดอร์ที่ไม่เกี่ยวกับการส่งของ (รับเอง/ดิจิทัล/บริการ/การจอง) — ไม่แสดงส่วนนี้เลย
+  if (!eligibility.eligible && eligibility.kind === "SKIP_SILENT") return null;
+
+  const shipment = await prisma.orderShipment.findFirst({
+    where: { orderId, status: { not: "CANCELLED" } },
+    select: SHIPMENT_SELECT,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return {
+    createMode: account.createMode,
+    shipment: shipment ? toShipmentView(shipment) : null,
+    missing:
+      !eligibility.eligible && eligibility.kind === "NEEDS_FIX"
+        ? eligibility.missing
+        : [],
+  };
+}
+
+// ─── พัสดุ ──────────────────────────────────────────────────────────────────
+
+export interface ShipmentOverride {
+  courierCode?: string;
+  weight?: number;
+  width?: number;
+  length?: number;
+  height?: number;
+  categoryId?: number;
+  codAmount?: number;
+  remark?: string | null;
+  options?: {
+    onTime?: boolean;
+    boxShield?: boolean;
+    isInsured?: boolean;
+    productValue?: number | null;
+    serviceType?: number | null;
+  };
+}
+
 
 /**
  * createShipment — เปิดพัสดุจากคำสั่งซื้อ
