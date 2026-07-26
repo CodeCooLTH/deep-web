@@ -39,12 +39,18 @@ export async function GET() {
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (!active?.shop) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
 
-  const [selected, available] = await Promise.all([
+  const [selected, pickable] = await Promise.all([
     getShopVideos(active.shop.id),
     listPickableVideos(active.shop.id),
   ]);
 
-  return NextResponse.json({ selected, available, max: MAX_SHOP_VIDEOS });
+  return NextResponse.json({
+    selected,
+    available: pickable.items,
+    // บอก UI ว่ารายการที่เห็นอาจไม่ครบเพราะถามแพลตฟอร์มไม่สำเร็จ ไม่ใช่เพราะร้านไม่มีคลิป
+    partial: pickable.failed,
+    max: MAX_SHOP_VIDEOS,
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -62,8 +68,17 @@ export async function PUT(request: NextRequest) {
 
   // ── ยืนยันความเป็นเจ้าของ: id ที่ส่งมาต้องอยู่ในคลิปของบัญชีที่ร้านเชื่อมไว้จริง ──
   const owned = await listPickableVideos(active.shop.id);
+
+  // ตรวจไม่สำเร็จ ไม่เท่ากับ ไม่ใช่เจ้าของ — ถ้าเหมารวมกันจะขึ้นข้อความว่าคลิปไม่ใช่ของร้าน
+  // ทั้งที่ความจริงคือเราถามแพลตฟอร์มไม่สำเร็จ ซึ่งทำให้ร้านงงและคิดว่าตัวเองทำผิด
+  if (owned.failed) {
+    return NextResponse.json(
+      { error: "ตรวจสอบกับแพลตฟอร์มไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", code: "VERIFY_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
   // key ด้วย provider+id — คลิปคนละแพลตฟอร์มมี id ชนกันได้ในทางทฤษฎี
-  const ownedByKey = new Map(owned.map((m) => [`${m.provider}:${m.videoId}`, m]));
+  const ownedByKey = new Map(owned.items.map((m) => [`${m.provider}:${m.videoId}`, m]));
 
   const verified = parsed.output.items.filter((it) => ownedByKey.has(`${it.provider}:${it.videoId}`));
 

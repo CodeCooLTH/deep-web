@@ -74,7 +74,12 @@ export default function ShopVideosClient() {
       const data = (await res.json()) as {
         selected: SelectedVideo[]
         available: AvailableVideo[]
+        partial?: boolean
         max: number
+      }
+      // รายการอาจไม่ครบเพราะถามแพลตฟอร์มไม่สำเร็จ ต้องบอกร้าน ไม่ปล่อยให้เข้าใจว่าคลิปหาย
+      if (data.partial) {
+        pacesToast.warning('บางช่องทางดึงคลิปไม่สำเร็จ รายการที่เห็นอาจไม่ครบ')
       }
       setAvailable(data.available)
       setMax(data.max)
@@ -121,6 +126,11 @@ export default function ShopVideosClient() {
         return
       }
       const data = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
+      // แยกข้อความ: ตรวจไม่สำเร็จ = ลองใหม่ได้ / ไม่ใช่เจ้าของ = ต้องเลือกใหม่
+      if (data?.code === 'VERIFY_UNAVAILABLE') {
+        pacesToast.warning(data.error ?? 'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่')
+        return
+      }
       pacesToast.error(data?.error ?? 'บันทึกไม่สำเร็จ')
     } catch {
       pacesToast.error('เกิดข้อผิดพลาดขณะบันทึก')

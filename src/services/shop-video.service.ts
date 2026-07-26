@@ -48,12 +48,15 @@ export type IgMediaItem = {
  * คืน [] เมื่อร้านยังไม่ได้เชื่อม IG — ผู้เรียกเอาไปแสดงสถานะ "ยังไม่ได้เชื่อมบัญชี" เอง
  * ไม่ throw เพราะการที่ร้านยังไม่เชื่อมไม่ใช่ error
  */
-export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]> {
+export async function listInstagramVideos(
+  shopId: string,
+): Promise<{ items: IgMediaItem[]; failed: boolean }> {
   const channel = await prisma.shopChannel.findFirst({
     where: { shopId, provider: "INSTAGRAM", status: "ACTIVE" },
     select: { externalId: true, accessTokenEnc: true },
   });
-  if (!channel) return [];
+  // ไม่ได้เชื่อม IG = ไม่ใช่ความล้มเหลว แค่ไม่มีคลิปจากช่องทางนี้
+  if (!channel) return { items: [], failed: false };
 
   const token = decryptToken(channel.accessTokenEnc);
   const url =
@@ -67,7 +70,8 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
   if (!res.ok) {
     // token หมดอายุ/สิทธิ์ถูกถอน — ไม่ให้ล้มทั้งหน้า ให้ผู้เรียกแสดงว่ายังไม่มีคลิปให้เลือก
     console.error("[shop-video] ดึงคลิป Instagram ไม่สำเร็จ", { shopId, status: res.status });
-    return [];
+    // failed = true: ผู้เรียกต้องไม่ตีความว่า "ร้านไม่มีคลิป" เพราะเราแค่ถามไม่สำเร็จ
+    return { items: [], failed: true };
   }
 
   const json = (await res.json()) as {
@@ -87,7 +91,7 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
   // ชื่อบัญชีดึงครั้งเดียวต่อการเรียก ไม่ใช่ต่อคลิป
   const accountName = await fetchIgUsername(channel.externalId, token);
 
-  return (
+  const items = (
     (json.data ?? [])
       // เอาเฉพาะวิดีโอ/Reels — รูปนิ่งไม่ใช่สิ่งที่ฟีเจอร์นี้ต้องการ
       .filter((m) => m.media_type === "VIDEO" || m.media_product_type === "REELS")
@@ -116,6 +120,8 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
       })
       .filter((x): x is IgMediaItem => x !== null)
   );
+
+  return { items, failed: false };
 }
 
 /**
@@ -126,7 +132,9 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
  *
  * ร้านเดียวมีได้หลายเพจ จึงรวมคลิปจากทุกเพจที่ ACTIVE
  */
-export async function listFacebookVideos(shopId: string): Promise<PickableVideo[]> {
+export async function listFacebookVideos(
+  shopId: string,
+): Promise<{ items: PickableVideo[]; failed: boolean }> {
   const channels = await prisma.shopChannel.findMany({
     where: { shopId, provider: "MESSENGER", status: "ACTIVE" },
     select: { externalId: true, accessTokenEnc: true, name: true },
@@ -141,7 +149,10 @@ export async function listFacebookVideos(shopId: string): Promise<PickableVideo[
           `?fields=id,description,permalink_url,picture,views,likes.summary(true),comments.summary(true)` +
           `&limit=25&access_token=${encodeURIComponent(token)}`;
         const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) return [];
+        if (!res.ok) {
+          console.error("[shop-video] ดึง reels ของเพจไม่สำเร็จ", { shopId, status: res.status });
+          return null; // null = ถามไม่สำเร็จ ต่างจาก [] ที่แปลว่าเพจนี้ไม่มีคลิป
+        }
 
         const json = (await res.json()) as {
           data?: Array<{
@@ -171,20 +182,25 @@ export async function listFacebookVideos(shopId: string): Promise<PickableVideo[
             viewCount: v.views ?? null,
           }));
       } catch {
-        return [];
+        return null;
       }
     }),
   );
 
-  return perPage.flat();
+  return {
+    items: perPage.filter((x): x is PickableVideo[] => x !== null).flat(),
+    failed: perPage.some((x) => x === null),
+  };
 }
 
 /** คลิปทั้งหมดที่ร้านเลือกได้ จากทุกช่องทางที่เชื่อมไว้ */
-export async function listPickableVideos(shopId: string): Promise<PickableVideo[]> {
+export async function listPickableVideos(
+  shopId: string,
+): Promise<{ items: PickableVideo[]; failed: boolean }> {
   const [ig, fb] = await Promise.all([listInstagramVideos(shopId), listFacebookVideos(shopId)]);
-  return [
-    ...fb,
-    ...ig.map<PickableVideo>((m) => ({
+  const items = [
+    ...fb.items,
+    ...ig.items.map<PickableVideo>((m) => ({
       provider: "INSTAGRAM",
       videoId: m.videoId,
       caption: m.caption,
@@ -197,6 +213,7 @@ export async function listPickableVideos(shopId: string): Promise<PickableVideo[
       viewCount: null,
     })),
   ];
+  return { items, failed: ig.failed || fb.failed };
 }
 
 /** ชื่อบัญชี IG — แยกฟังก์ชันเพราะเรียกครั้งเดียวต่อการดึงคลิปทั้งชุด ไม่ใช่ต่อคลิป */
