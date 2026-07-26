@@ -75,6 +75,6 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[TestCase]]"]
 
 ## 4. ข้อจำกัดที่รู้อยู่
 
-- Instagram ยังไม่มียอดวิว จนกว่าร้านจะเชื่อมบัญชีใหม่เพื่อให้ token มี scope `instagram_manage_insights`
+- Instagram ยังไม่มียอดวิว และยังแก้ไม่ได้ด้วยการให้ร้านเชื่อมใหม่ — scope `instagram_manage_insights` ต้องผ่าน App Review ของ Meta ก่อน
 - TikTok / YouTube ยังเชื่อมบัญชีไม่ได้
 - ยอดที่แสดงเป็นค่า ณ เวลาบันทึก

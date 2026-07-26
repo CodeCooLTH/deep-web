@@ -226,8 +226,9 @@ export async function listPickableVideos(
       accountName: m.accountName,
       likeCount: m.likeCount,
       commentCount: m.commentCount,
-      // มีค่าเมื่อ token มี scope instagram_manage_insights — ร้านที่เชื่อมไว้ก่อนเพิ่ม scope
-      // จะได้ null จนกว่าจะกดเชื่อมใหม่ UI ซ่อนช่องนี้เมื่อไม่มีค่า ไม่แสดง 0
+      // ตอนนี้เป็น null เสมอ — ต้องใช้ scope instagram_manage_insights ซึ่งยัง "ขอไม่ได้"
+      // (ใส่ใน scope แล้ว Meta ตีกลับจนเชื่อมเพจไม่ได้ทั้งกระบวนการ ต้องผ่าน App Review ก่อน
+      // ดู comment ใน lib/facebook/constants.ts) UI ซ่อนช่องนี้เมื่อไม่มีค่า ไม่แสดง 0
       viewCount: m.viewCount,
     })),
   ];
@@ -239,7 +240,7 @@ export async function listPickableVideos(
  *
  * แยกเป็นการเรียกต่างหาก ไม่รวมเข้าไปใน fields ของ /media โดยตั้งใจ: ถ้ารวมแล้ว token ไม่มี
  * scope นี้ Graph จะตอบ error ทั้ง request ทำให้ "ดึงรายการคลิปไม่ได้เลย" ทั้งที่แค่ยอดวิวขาด
- * ร้านที่เชื่อมไว้ก่อนเพิ่ม scope ทุกร้านจะพังทันที การแยกออกมาทำให้กรณีแย่ที่สุดคือไม่มีตัวเลข
+ * ซึ่งตอนนี้คือทุกร้าน (ยังขอ scope ไม่ได้) การแยกออกมาทำให้กรณีแย่ที่สุดคือไม่มีตัวเลข
  *
  * ชื่อ metric ของ Meta เปลี่ยนไปมาตามเวอร์ชัน (plays → views) จึงลองไล่จนกว่าจะได้
  * ทุก error คืน null เงียบ ๆ — ไม่มียอดวิวไม่ใช่เรื่องที่ต้องหยุดทั้งฟีเจอร์

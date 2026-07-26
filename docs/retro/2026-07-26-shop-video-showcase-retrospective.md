@@ -77,7 +77,7 @@ Instagram `GET /media` คืน `id` ที่ดูเหมือนใช้
 |---|---|
 | Integration test 6 เคส (`NOT_OWNED` / `VERIFY_UNAVAILABLE` / เกิน 6 / replace / ข้ามร้าน / ไม่มี session) | ยังไม่เขียน — ระบุไว้ใน TestCase.md |
 | E2E Playwright 6 เคส | ยังไม่เขียน |
-| ยอดวิว Instagram | ต้องให้ร้านกดเชื่อมใหม่หลังเพิ่ม scope `instagram_manage_insights` |
+| ยอดวิว Instagram | ติดที่ App Review ของ Meta — ใส่ scope `instagram_manage_insights` เฉย ๆ ไม่ได้ Meta ตีกลับจนเชื่อมเพจไม่ได้ทั้งกระบวนการ (เจอบน prod วันเดียวกัน) |
 | TikTok | รอ TikTok อนุมัติแอป |
 
 ---

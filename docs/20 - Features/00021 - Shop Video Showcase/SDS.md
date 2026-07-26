@@ -82,5 +82,5 @@ flowchart TD
 ## 5. สิ่งที่ยังไม่ได้ทำ
 
 - TikTok — รอแอปอนุมัติ โครง `provider` รองรับแล้ว
-- ยอดวิว Instagram — ต้องให้ร้านเชื่อมใหม่หลังเพิ่ม scope `instagram_manage_insights`
+- ยอดวิว Instagram — ติดที่ scope `instagram_manage_insights` ซึ่งต้องผ่าน App Review ของ Meta ก่อนถึงจะขอผ่าน OAuth ได้ (ลำดับที่ถูก: เปิดใน App Dashboard → App Review ผ่าน → ใส่ scope กลับ → ร้านกดเชื่อมใหม่)
 - ยังไม่มีการรีเฟรชยอดอัตโนมัติ

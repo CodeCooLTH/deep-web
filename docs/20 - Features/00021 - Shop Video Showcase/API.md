@@ -84,4 +84,4 @@ related: ["[[SRS]]", "[[SDS]]"]
 |---|---|---|
 | `GET /{page-id}/video_reels` | รายการ reels ของเพจ + `views` + `likes.summary` + `thumbnails` | มีอยู่แล้วจากการเชื่อมช่องทางแชท |
 | `GET /{ig-user-id}/media` | รายการโพสต์ IG (คัดเฉพาะ `VIDEO`/`REELS`) + `permalink` + `like_count` | `instagram_basic` (มีอยู่แล้ว) |
-| `GET /{ig-media-id}/insights` | ยอดวิว IG | `instagram_manage_insights` — **เพิ่มเข้าไปแล้วแต่ร้านที่เชื่อมก่อนหน้าต้องเชื่อมใหม่** |
+| `GET /{ig-media-id}/insights` | ยอดวิว IG | `instagram_manage_insights` — **ยังขอไม่ได้** ต้องเปิดใน App Dashboard + ผ่าน App Review ก่อน ใส่ใน scope เฉย ๆ ทำให้เชื่อมเพจไม่ได้ทั้งกระบวนการ |
