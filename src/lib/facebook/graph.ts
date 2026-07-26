@@ -251,6 +251,52 @@ export async function fetchMessageText(messageId: string, pageToken: string): Pr
   }
 }
 
+/**
+ * ดึงเนื้อหาโพสต์ของโฆษณา (feature 00018 E5) — ข้อความจริงที่ลูกค้าเห็นในโฆษณา + รูปโพสต์
+ *
+ * ทำไมต้องมี: `ads_context_data.ad_title` ที่มากับ webhook คือ **ชื่อ ad ที่ร้านตั้งไว้ใน Ads
+ * Manager** (เช่น "video v3", "โพสแนวตั้ง") ไม่ใช่ข้อความโฆษณา — เอามาโชว์แล้วผู้ขายอ่านไม่รู้เรื่อง
+ * ว่าเป็นโฆษณาชิ้นไหน. ข้อความจริงอยู่ที่โพสต์ ต้องดึงเพิ่มเอง (ทดสอบกับเพจจริงแล้ว ได้ข้อความ
+ * ตรงกับที่แอป Messenger แสดงในแบนเนอร์ "This is a reply to an ad")
+ *
+ * สำคัญ: ต้องยิงด้วย `{pageId}_{postId}` — ใช้ `postId` เปล่า ๆ Meta ตอบ 400 code 12
+ * "singular statuses API is deprecated for versions v2.4 and higher"
+ *
+ * `full_picture` ใช้ได้กับโฆษณาวิดีโอด้วย (คืน thumbnail) — จึงเป็นแหล่งรูปที่ครอบคลุมกว่า
+ * `ads_context_data.photo_url` ที่เป็น null เมื่อโฆษณาเป็นวิดีโอ
+ *
+ * คืน null ทุกช่อง (ไม่ throw) เมื่อดึงไม่ได้ — อยู่ใน hot path ของ webhook ห้ามค้าง/ห้ามพัง
+ */
+export async function fetchAdPostContent(
+  pageId: string,
+  postId: string,
+  pageToken: string,
+): Promise<{ message: string | null; fullPicture: string | null; permalink: string | null }> {
+  const empty = { message: null, fullPicture: null, permalink: null }
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${pageId}_${postId}?fields=message,full_picture,permalink_url`, {
+      headers: { Authorization: `Bearer ${pageToken}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return empty
+    const json = (await res.json().catch(() => ({}))) as {
+      message?: string
+      full_picture?: string
+      permalink_url?: string
+    }
+    const message = json.message?.trim()
+    return {
+      message: message && message.length > 0 ? message : null,
+      fullPicture: json.full_picture ?? null,
+      // ลิงก์โพสต์จริง — ใช้ทำปุ่ม "ดูโฆษณา" (เลือกอันนี้แทน deep link ของ Ads Manager เพราะเปิดได้
+      // เสมอ ไม่ต้องมีสิทธิ์ ad account และไม่ต้องเดา business context ที่ถูกต้อง)
+      permalink: json.permalink_url ?? null,
+    }
+  } catch {
+    return empty
+  }
+}
+
 // ดึง file_url สดของ attachment แรกของ message id หนึ่ง (feature 00018, user report 2026-07-25) —
 // ใช้เป็น fallback เมื่อ webhook ไม่ส่ง payload.url มา (Messenger voice message/บาง attachment) หรือ
 // url ใน webhook หมดอายุ/ยิงไม่ได้. Graph คืน url สดที่ยัง fetch ได้ (host fbsbx/fbcdn). null ถ้าไม่มี/error

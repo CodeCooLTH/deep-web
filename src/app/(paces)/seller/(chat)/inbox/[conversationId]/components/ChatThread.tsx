@@ -213,8 +213,15 @@ type Props = {
   /** รูปเพจ (ShopChannel.avatarUrl) — badge ช่องทางใช้รูปเพจแทนโลโก้ Facebook ถ้ามี (user 2026-07-23) */
   channelAvatarUrl: string | null
   /** feature 00018 E5 — โฆษณาที่ลูกค้ากดเข้ามา "ครั้งล่าสุด" (null = ไม่ได้มาจากโฆษณา)
-   *  server กรอง source='ADS' + "ต้องมี adTitle หรือ adId" มาให้แล้ว */
-  adReferral: { adId: string | null; adTitle: string | null; photoFileId: string | null } | null
+   *  server กรอง source='ADS' + "ต้องมีอย่างน้อย adBody/adTitle/adId" มาให้แล้ว
+   *  adBody = ข้อความโฆษณาจริง (ตัวที่ควรแสดง), adTitle = ชื่อ ad ใน Ads Manager (fallback) */
+  adReferral: {
+    adId: string | null
+    adTitle: string | null
+    adBody: string | null
+    permalink: string | null
+    photoFileId: string | null
+  } | null
   /** feature 00018 — ผลลัพธ์ getWindowState() คำนวณที่ server ณ เวลา render หน้า (ไม่ live-tick) */
   windowOpen: boolean
   msRemaining: number
@@ -668,39 +675,54 @@ export default function ChatThread({
           24 ชม.ด้านล่าง เพื่อไม่ให้ผู้ขายอ่านผิดว่าเป็นสิ่งที่ต้องรีบจัดการ
           Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (DismissingAlert) */}
       {showAdBanner && adReferral && (
-        <div className="px-4 pt-4">
-          <div className="bg-default-100 flex items-center gap-3 rounded-lg px-3 py-2" role="note">
-            {adReferral.photoFileId ? (
-              // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`/api/files/${adReferral.photoFileId}`}
-                alt=""
-                className="size-10 shrink-0 rounded-md object-cover"
-              />
-            ) : (
-              <span className="bg-default-200 text-default-500 flex size-10 shrink-0 items-center justify-center rounded-md">
-                <Icon icon="speakerphone" className="text-lg" />
+        // แถวเต็มความกว้าง "ติด" กับหัวแชท (border-b คั่น) ไม่ใช่การ์ดลอยมี padding รอบ —
+        // user report 2026-07-26: การ์ดลอยทำให้มีช่องว่างคั่นระหว่างหัวแชทกับแบนเนอร์ ผิดจาก ref
+        <div className="border-default-200 flex items-center gap-3 border-b px-4 py-2.5" role="note">
+          {adReferral.photoFileId ? (
+            // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/files/${adReferral.photoFileId}`}
+              alt=""
+              className="size-10 shrink-0 rounded-md object-cover"
+            />
+          ) : (
+            <span className="bg-default-100 text-default-500 flex size-10 shrink-0 items-center justify-center rounded-md">
+              <Icon icon="speakerphone" className="text-lg" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-default-800 text-sm font-semibold">แชทนี้ตอบกลับจากโฆษณาของคุณ</p>
+            <div className="flex min-w-0 items-center gap-2">
+              {/* ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา
+                  (adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน) */}
+              <span
+                className="text-default-500 truncate text-sm"
+                title={adReferral.adBody ?? adReferral.adTitle ?? undefined}
+              >
+                {adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
               </span>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-default-700 text-xs font-semibold">ตอบกลับจากโฆษณา</p>
-              {/* adTitle ว่างได้ (server การันตีแค่ว่ามี adTitle หรือ adId อย่างใดอย่างหนึ่ง) —
-                  fallback เป็นรหัสโฆษณาเพื่อให้ผู้ขายยังเอาไปเทียบใน Ads Manager ได้ */}
-              <p className="text-default-500 truncate text-sm" title={adReferral.adTitle ?? undefined}>
-                {adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
-              </p>
+              {adReferral.permalink && (
+                <a
+                  href={adReferral.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary shrink-0 text-sm font-medium hover:underline"
+                >
+                  ดูโฆษณา
+                </a>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={dismissAdBanner}
-              title="ปิดป้ายที่มาของโฆษณา"
-              aria-label="ปิดป้ายที่มาของโฆษณา"
-              className="btn btn-icon text-default-500 hover:bg-default-200 shrink-0"
-            >
-              <Icon icon="x" className="text-lg" />
-            </button>
           </div>
+          <button
+            type="button"
+            onClick={dismissAdBanner}
+            title="ปิดป้ายที่มาของโฆษณา"
+            aria-label="ปิดป้ายที่มาของโฆษณา"
+            className="btn btn-icon text-default-500 hover:bg-default-100 shrink-0"
+          >
+            <Icon icon="x" className="text-lg" />
+          </button>
         </div>
       )}
 

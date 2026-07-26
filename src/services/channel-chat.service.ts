@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -412,12 +412,30 @@ export async function ingestInboundMessage(params: {
     story_mention: '[กล่าวถึงในสตอรี่ — เปิดดูใน Instagram]',
   }
   const attachmentFailedText = (attType && FAILED_TEXT_BY_TYPE[attType]) ?? UNSUPPORTED_ATTACHMENT_TEXT
-  // ข้อความที่ไม่มีทั้ง text และ attachment (reaction/ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มี
-  // เนื้อหาที่เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
-  const emptyMessageText = '[ข้อความไม่รองรับ — เปิดดูใน Messenger]'
+  // ข้อความที่ไม่มีทั้ง text และ attachment (ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มีเนื้อหาที่
+  // เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
+  //
+  // เคสที่ยืนยันแล้วว่าตกมาที่นี่ (user report 2026-07-26): ลูกค้ากด "Call me in Messenger"
+  // — การ์ดขอโทรกลับ. ทั้ง webhook และ Graph (`GET /{mid}?fields=message,attachments`) คืน
+  // `message: ""` ไม่มี attachments เลย → เนื้อหาการ์ดไม่ได้มาทางข้อความ ต้องเป็น webhook field
+  // อื่นที่ยังไม่ได้ subscribe (ยังไม่รู้ว่าอันไหน — ดู console.warn ด้านล่างที่เก็บ payload ไว้สืบ)
+  //
+  // ถ้อยคำจึงบอก "เคสที่พบบ่อยสุด" โดยไม่ฟันธงว่าเป็นการโทรเสมอ — เขียนว่า "ไม่รองรับการโทรกลับ"
+  // ตรง ๆ จะโกหกเมื่อเจอชนิดอื่นที่ตกมาทางเดียวกัน
+  const emptyMessageText = '[ข้อความพิเศษ เช่น คำขอโทรกลับ — ระบบยังไม่รองรับ เปิดดูใน Messenger]'
   // ข้อความจริง/สรุปจาก Graph มาก่อน placeholder แนบไฟล์เสมอ (bug prod 2026-07-24: template/order ที่มี
   // ข้อความถูกทับด้วย "[ไฟล์แนบ]" ทิ้งเนื้อหาจริง) — placeholder เฉพาะตอน "ไม่มีข้อความให้แสดงจริง ๆ"
   const body = mirroredFileId ? text : hasDisplayText ? displayText : hasAttachment ? attachmentFailedText : emptyMessageText
+  // diagnostic (2026-07-26): ข้อความที่ไม่มีทั้ง text และ attachment — ตอนนี้รู้แค่ว่าเคสหนึ่งคือ
+  // การ์ด "ขอโทรกลับ" แต่ยังระบุไม่ได้ว่ามาทาง field ไหน. log "คีย์" ของ message + ของ event
+  // (ไม่ log ค่า — กัน PII) ไว้ให้ครั้งหน้าที่เกิด จะได้รู้ว่ามีอะไรติดมาบ้างที่เรายังไม่ได้ parse
+  if (!hasDisplayText && !hasAttachment) {
+    console.warn('[fb-ingest] empty message (ไม่มี text/attachment)', {
+      messageKeys: Object.keys(event.message ?? {}),
+      eventKeys: Object.keys(event),
+      isEcho,
+    })
+  }
   const previewByType: Record<string, string> = {
     IMAGE: '[รูปภาพ]',
     VIDEO: '[วิดีโอ]',
@@ -672,9 +690,22 @@ export async function ingestAdReferral(params: {
   if (!conversation) return
 
   const ctx = referral.ads_context_data
-  // mirror รูปโฆษณาเข้า storage เรา — URL ของ Meta หมดอายุ ถ้า hotlink ไว้แบนเนอร์จะรูปแตกภายหลัง
+
+  // ข้อความโฆษณาจริง: `ad_title` ที่มากับ webhook คือ **ชื่อ ad ใน Ads Manager** ("video v3",
+  // "โพสแนวตั้ง") ผู้ขายอ่านแล้วไม่รู้ว่าเป็นโฆษณาชิ้นไหน (user report prod 2026-07-26) — ข้อความที่
+  // ลูกค้าเห็นจริงอยู่ที่โพสต์ ต้องดึงเพิ่มด้วย post_id. best-effort: ดึงไม่ได้ก็ตกไปใช้ ad_title
+  const post = ctx?.post_id
+    ? await fetchAdPostContent(params.pageExternalId, ctx.post_id, channel.accessToken)
+    : { message: null, fullPicture: null, permalink: null }
+
+  // เลือกรูปตามลำดับที่ "มีของจริง" มากสุด:
+  //   full_picture ของโพสต์ > photo_url > video_url
+  // โฆษณาวิดีโอ (เคสที่ user เจอ) ส่ง photo_url = null มาเสมอ ให้ thumbnail มาทาง video_url แทน —
+  // ถ้าดูแค่ photo_url แบนเนอร์จะไม่มีรูปทั้งที่ Meta ส่ง thumbnail มาให้แล้ว
+  const imageUrl = post.fullPicture ?? ctx?.photo_url ?? ctx?.video_url ?? null
+  // mirror เข้า storage เรา — URL ของ Meta หมดอายุ ถ้า hotlink ไว้แบนเนอร์จะรูปแตกภายหลัง
   // (คืน null เองเมื่อโฮสต์ไม่อยู่ allow-list / timeout / ไฟล์ใหญ่เกิน → แบนเนอร์แสดงแบบไม่มีรูป)
-  const photoFileId = ctx?.photo_url ? await mirrorRemoteImage(ctx.photo_url) : null
+  const photoFileId = imageUrl ? await mirrorRemoteImage(imageUrl) : null
 
   await prisma.$transaction([
     prisma.conversationAdReferral.create({
@@ -683,6 +714,8 @@ export async function ingestAdReferral(params: {
         source: referral.source ?? null,
         adId: referral.ad_id ?? null,
         adTitle: ctx?.ad_title ?? null,
+        adBody: post.message,
+        adPermalink: post.permalink,
         photoFileId,
         photoUrl: ctx?.photo_url ?? null,
         videoUrl: ctx?.video_url ?? null,
@@ -697,6 +730,8 @@ export async function ingestAdReferral(params: {
       data: {
         referralSource: referral.source ?? null,
         referralAdTitle: ctx?.ad_title ?? null,
+        referralAdBody: post.message,
+        referralAdPermalink: post.permalink,
         referralAdId: referral.ad_id ?? null,
         referralPhotoFileId: photoFileId,
       },
