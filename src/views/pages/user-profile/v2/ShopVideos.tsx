@@ -21,11 +21,9 @@
  */
 import { useState } from 'react'
 
-import Typography from '@mui/material/Typography'
-
 import { Icon } from '@iconify/react'
 
-import { buildEmbedUrl, buildWatchUrl, type VideoProvider } from '@/lib/shop-video'
+import { buildEmbedUrl, type VideoProvider } from '@/lib/shop-video'
 
 export type ShopVideoItem = {
   id: string
@@ -165,32 +163,19 @@ export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
   const items = raw.filter(isRenderable)
   if (items.length === 0) return null
 
-  const first = items[0]
-  const watchUrl = buildWatchUrl({ provider: first.provider as VideoProvider, videoId: first.videoId })
-
+  // เหลือแค่กริดรูปล้วน (user 2026-07-26) — ตัดคำอธิบายใต้กริดกับลิงก์ "ดูบน..." ออก
+  // ทั้งสองอันเป็นข้อความรอบ ๆ ที่แย่งความสนใจจากตัวคลิป และข้อมูลที่จำเป็นจริง (แพลตฟอร์ม
+  // ชื่อบัญชี ยอดวิว/ไลก์) อยู่บนรูปแต่ละใบอยู่แล้ว ส่วนทางไปดูบนแพลตฟอร์มมีในตัวคลิปที่ฝัง
   return (
     <div>
       {/* กริดชิดกันไม่มีช่องว่าง — ผังเดียวกับที่ผู้ชมคุ้นจากแอปคลิปสั้น
-          -mli ดึงออกนอก padding ของ tab panel ให้ชนขอบจอจริง */}
-      <div className='grid grid-cols-3 gap-0 -mli-5'>
+          -mli ดึงออกนอก padding ของ tab panel ให้ชนขอบจอจริง
+          มือถือ 3 ต่อแถวเท่าแอปคลิปสั้นทั่วไป เดสก์ท็อป 5 ต่อแถว (user กำหนด 2026-07-26) */}
+      <div className='grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0 -mli-5'>
         {items.map((v) => (
           <VideoCell key={v.id} item={v} />
         ))}
       </div>
-
-      <Typography variant='caption' color='text.disabled' className='block mbs-3'>
-        คลิปจากบัญชีที่ร้านยืนยันความเป็นเจ้าของแล้ว
-      </Typography>
-
-      <a
-        href={watchUrl}
-        target='_blank'
-        rel='noopener noreferrer'
-        className='text-[12.5px] font-semibold text-primary no-underline inline-flex items-center gap-1'
-      >
-        {`ดูบน ${PROVIDER_UI[first.provider as VideoProvider].label}`}
-        <Icon icon='lucide:external-link' width={12} />
-      </a>
     </div>
   )
 }
