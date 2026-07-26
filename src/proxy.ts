@@ -181,6 +181,18 @@ export async function proxy(request: NextRequest) {
       const target = stripped + request.nextUrl.search
       return NextResponse.redirect(new URL(target, request.url), 301)
     }
+    // หน้าสาธารณะของร้าน (/b/{slug}, /u/{username}, /o/{token}) อยู่บนโดเมนหลัก ไม่ใช่ subdomain นี้
+    // ถ้าไม่ดักไว้ จะถูก rewrite เป็น /seller/b/... แล้ว 404 ทั้งที่ URL ดู "เกือบถูก" ซึ่งงงมาก
+    // สำหรับผู้ใช้ (เจอจริง: ปุ่มดูหน้าร้านเคยใส่ href เป็น path เปล่า เบราว์เซอร์เลยต่อกับ host นี้)
+    const PUBLIC_ON_ROOT = ['/b/', '/u/', '/o/']
+    if (PUBLIC_ON_ROOT.some(p => pathname.startsWith(p))) {
+      const rootHost = host.replace(/^seller\./, '')
+      return NextResponse.redirect(
+        `${request.nextUrl.protocol}//${rootHost}${pathname}${request.nextUrl.search}`,
+        308,
+      )
+    }
+
     // Everything else: rewrite to the internal /seller/* path tree
     if (!pathname.startsWith('/seller')) {
       const url = request.nextUrl.clone()

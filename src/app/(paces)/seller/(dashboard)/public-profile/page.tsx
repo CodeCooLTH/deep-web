@@ -10,6 +10,7 @@
  * Server component — auth guard อยู่ที่ (dashboard)/layout.tsx แล้ว
  */
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
@@ -27,9 +28,16 @@ export default async function PublicProfileSettingsPage() {
   )
   if (!active?.shop) return null
 
-  // ลิงก์ดูหน้าจริง — ร้านแบบธุรกิจใช้ /b/{slug} ส่วนร้านส่วนตัวใช้ /u/{username}
-  // (สองหน้านี้ใช้ตัวประกอบเดียวกันแล้ว ต่างแค่แหล่งข้อมูล)
-  const publicPath = active.shop.slug ? `/b/${active.shop.slug}` : null
+  // ลิงก์ดูหน้าจริง — ต้องเป็น URL เต็มที่ชี้ไปโดเมนหลัก ไม่ใช่ path เปล่า
+  //
+  // หน้านี้อยู่บน subdomain seller ซึ่ง proxy เติม /seller นำหน้าทุก path (proxy.ts "Everything
+  // else: rewrite to the internal /seller/* path tree") ถ้าใส่ href เป็น /b/{slug} เบราว์เซอร์
+  // จะต่อกับ host เดิมได้ seller.<domain>/b/{slug} → โดน rewrite เป็น /seller/b/{slug} → 404
+  // (บั๊กจริงที่ user เจอตอนกดปุ่มนี้)
+  const host = (await headers()).get('host') ?? ''
+  const rootHost = host.replace(/^seller\./, '')
+  const proto = host.startsWith('localhost') || host.includes('.local') ? 'http' : 'https'
+  const publicUrl = active.shop.slug ? `${proto}://${rootHost}/b/${active.shop.slug}` : null
 
   return (
     <>
@@ -48,10 +56,10 @@ export default async function PublicProfileSettingsPage() {
             <a className="btn bg-default-100 text-default-900 hover:bg-default-200" href="/shop">
               ตั้งค่าร้านค้า
             </a>
-            {publicPath && (
+            {publicUrl && (
               <a
                 className="btn bg-primary text-white hover:bg-primary-hover"
-                href={publicPath}
+                href={publicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
