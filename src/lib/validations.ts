@@ -1034,7 +1034,10 @@ export const IShipSettingsSchema = v.object({
 
 // override รายออเดอร์ — ทุก field optional เพราะไม่ส่งมา = ใช้ค่าตั้งต้นของร้าน
 export const IShipCreateShipmentSchema = v.object({
-  orderId: v.pipe(v.string(), v.uuid()),
+  // รับได้ 2 แบบ: orderId (uuid) จากหน้ารายละเอียดคำสั่งซื้อ หรือ orderToken
+  // (publicToken/shortCode) จากการ์ดในแชท ซึ่งรู้จักแค่ token — เซิร์ฟเวอร์แปลงให้เอง
+  orderId: v.optional(v.pipe(v.string(), v.uuid())),
+  orderToken: v.optional(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
   /** ข้อมูลผู้รับที่ร้านกรอกเพิ่มตอนสร้าง — จะถูกเขียนกลับเข้าออเดอร์ก่อนเปิดพัสดุ */
   receiver: v.optional(
     v.object({

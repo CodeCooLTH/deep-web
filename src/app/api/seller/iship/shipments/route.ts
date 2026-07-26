@@ -8,7 +8,7 @@ import * as v from "valibot";
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipCreateShipmentSchema } from "@/lib/validations";
 import { ishipError, ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
-import { createShipment } from "@/services/iship.service";
+import { createShipment, resolveOrderIdByToken } from "@/services/iship.service";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +26,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const { orderId: rawId, orderToken } = parsed.output;
+  if (!rawId && !orderToken) {
+    return ishipError("INVALID_INPUT", "ต้องระบุคำสั่งซื้อ", 400);
+  }
+
   try {
+    const orderId = rawId ?? (await resolveOrderIdByToken(guard.shopId, orderToken!));
     const shipment = await createShipment(
       guard.shopId,
       guard.userId,
-      parsed.output.orderId,
+      orderId,
       parsed.output.override,
       parsed.output.receiver,
     );

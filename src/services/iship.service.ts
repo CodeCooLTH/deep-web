@@ -402,6 +402,27 @@ const SHIPMENT_SELECT = {
 } as const;
 
 /**
+ * resolveOrderIdByToken — แปลง publicToken/shortCode เป็น id ของคำสั่งซื้อ
+ *
+ * หน้าจอที่ทำงานกับคำสั่งซื้อในบริบทอื่น (การ์ดในแชท, รายการคำสั่งซื้อ) รู้จักแค่ token
+ * ไม่รู้จัก id — แปลงที่เซิร์ฟเวอร์ดีกว่าให้แต่ละหน้าไปหา id เอง เพราะ id ไม่ใช่สิ่งที่
+ * หน้าเหล่านั้นควรต้องรู้ และการยัดเพิ่มเข้าไปในทุก payload คือหนี้ที่ไม่จำเป็น
+ *
+ * มี shopId ใน where ตั้งแต่ query แรก — token ของร้านอื่นจะหาไม่เจอ ไม่ใช่เจอแล้วค่อยปฏิเสธ
+ */
+export async function resolveOrderIdByToken(
+  shopId: string,
+  token: string,
+): Promise<string> {
+  const order = await prisma.order.findFirst({
+    where: { shopId, OR: [{ publicToken: token }, { shortCode: token }] },
+    select: { id: true },
+  });
+  if (!order) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำสั่งซื้อนี้");
+  return order.id;
+}
+
+/**
  * getShipmentPanel — ข้อมูลทั้งหมดที่ส่วน "การจัดส่ง" ในหน้าออเดอร์ต้องใช้
  *
  * รวมไว้ที่เดียวเพราะหน้าออเดอร์ต้องตัดสิน 4 สถานะในครั้งเดียว (มีพัสดุ / ยังไม่มีแต่พร้อม /
