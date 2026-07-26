@@ -1,0 +1,189 @@
+<title>Public Profile — 3 ทางวางหัวโปรไฟล์</title>
+<style>
+  :root{
+    --violet:#7367F0;--violet-soft:#efedfe;--green:#28C76F;--green-soft:#e3f8ec;
+    --amber:#FF9F43;--amber-soft:#fff1e2;--ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef;
+    --sh:0 2px 6px rgb(47 43 61/.10),0 18px 44px rgb(47 43 61/.16);
+  }
+  @media (prefers-color-scheme:dark){:root{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}}
+  :root[data-theme="dark"]{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}
+  :root[data-theme="light"]{--violet-soft:#efedfe;--green-soft:#e3f8ec;--amber-soft:#fff1e2;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;--mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    font-family:'Anuphan','IBM Plex Sans Thai','Noto Sans Thai',-apple-system,sans-serif}
+  .wrap{max-width:1400px;margin:0 auto;padding:40px 20px 90px}
+  h1{font-size:29px;margin:0 0 8px;letter-spacing:-.02em}
+  .lede{margin:0;color:var(--ink-2);max-width:70ch}
+  .cols{display:flex;gap:30px;overflow-x:auto;padding:32px 0 16px;align-items:flex-start}
+  .col{flex:0 0 auto;width:430px}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--violet);
+    background:var(--violet-soft);padding:4px 10px;border-radius:20px;display:inline-block}
+  .col h2{font-size:19px;margin:11px 0 5px;letter-spacing:-.015em}
+  .col .desc{font-size:13.5px;color:var(--ink-2);margin:0 0 16px;min-height:96px}
+  .screen{border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--sh);background:var(--card)}
+  .verdict{margin-top:14px;font-size:12.5px;padding:11px 13px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+  .verdict b{display:block;margin-bottom:3px}
+  .tnum{font-variant-numeric:tabular-nums}
+  .ph{background:radial-gradient(at 30% 25%,#ff9f43 0,transparent 55%),
+    radial-gradient(at 75% 70%,#7367F0 0,transparent 52%),linear-gradient(140deg,#4339b5,#2F2B3D)}
+  .grad{background:linear-gradient(135deg,#f0b429 0%,#FF9F43 55%,#ffd79a 100%)}
+
+  .topbar{position:absolute;inset-inline:0;top:0;display:flex;justify-content:space-between;padding:14px 16px;z-index:2}
+  .ic{width:36px;height:36px;border-radius:50%;background:rgb(255 255 255/.92);display:grid;place-items:center;
+    font-size:15px;color:var(--ink);box-shadow:0 1px 4px rgb(0 0 0/.14)}
+  .ic-grp{display:flex;gap:8px}
+  .vchk{width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:grid;
+    place-items:center;font-size:10px;font-weight:700;flex:0 0 auto}
+  .tscore{display:inline-flex;align-items:center;gap:4px;background:#2F2B3D;color:#ffd45e;
+    padding:3px 9px;border-radius:20px;font-size:12.5px;font-weight:800}
+  .chip{background:var(--mist);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink-2)}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:16px 18px;border-top:1px solid var(--line)}
+  .st .v{font-size:22px;font-weight:800;letter-spacing:-.025em;display:block;line-height:1.15}
+  .st .l{font-size:11.5px;color:var(--ink-3)}
+  .cta{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:13px;
+    background:var(--violet);color:#fff;font-size:15.5px;font-weight:700;border:0;width:100%;
+    box-shadow:0 4px 14px rgb(115 103 240/.34);font-family:inherit;cursor:pointer}
+  .pad{padding:0 18px 18px}
+  .rate{padding:14px 18px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:9px}
+  .rate .big{font-size:34px;font-weight:800;letter-spacing:-.03em;color:var(--green);line-height:1}
+  .rate .cap{font-size:12.5px;color:var(--ink-2)}
+
+  /* ─ A: แบนเนอร์เต็ม ชื่อทับบนภาพ ─ */
+  .a-hero{position:relative;min-height:230px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+  .a-hero .bg{position:absolute;inset:0}
+  .a-hero .sc{position:absolute;inset:0;background:linear-gradient(180deg,rgb(15 12 22/.15) 0%,rgb(15 12 22/.55) 55%,rgb(15 12 22/.9) 100%)}
+  .a-hero .tx{position:relative;padding:18px;color:#fff}
+  .a-hero .av{width:64px;height:64px;border-radius:20px;border:3px solid rgb(255 255 255/.92);margin-bottom:11px;overflow:hidden}
+  .a-hero h3{margin:0;font-size:22px;letter-spacing:-.02em;line-height:1.2}
+  .a-nl{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .a-hero .sub{font-size:12.5px;opacity:.86;margin-top:3px}
+
+  /* ─ B: การ์ดลอยคร่อมขอบ ─ */
+  .b-cover{height:120px}
+  .b-card{margin:-40px 16px 0;background:var(--card);border-radius:18px;box-shadow:var(--sh);
+    padding:16px;position:relative;display:flex;gap:13px;align-items:flex-start}
+  .b-card .av{width:60px;height:60px;border-radius:16px;flex:0 0 auto;overflow:hidden;border:2px solid var(--card)}
+  .b-tx{min-width:0;flex:1}
+  .b-tx h3{margin:0;font-size:18px;letter-spacing:-.015em;line-height:1.25}
+  .b-tx .sub{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+
+  /* ─ C: กลางหน้า สมมาตร ─ */
+  .c-cover{height:104px}
+  .c-wrap{text-align:center;padding:0 18px 16px;margin-top:-42px;position:relative}
+  .c-wrap .av{width:84px;height:84px;border-radius:50%;border:4px solid var(--card);margin:0 auto 10px;overflow:hidden}
+  .c-wrap h3{margin:0;font-size:20px;letter-spacing:-.02em}
+  .c-nl{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+  .c-wrap .sub{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+
+  .foot{margin-top:52px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .foot h2{margin:0 0 12px;font-size:18px}
+  .foot ul{margin:0;padding-inline-start:20px;color:var(--ink-2)}.foot li{margin-bottom:9px}
+  .foot b{color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>หัวโปรไฟล์ — 3 ทางเลือก</h1>
+  <p class="lede">ทั้งสามเลิกใช้การวางชื่อซ้ายคู่รูปขวาแบบต้นแบบ และ<b>จัดการมุมใหม่หมด</b> ไม่มีแผ่นขาวมุมโค้งเสียบทับแถบสีจนเกิดรอยบากอีกแล้ว เนื้อหาส่วนล่างเหมือนกันทั้งสามเพื่อให้เทียบเฉพาะหัว</p>
+
+  <div class="cols">
+
+    <div class="col">
+      <span class="tag">ทาง A</span>
+      <h2>แบนเนอร์เต็ม ชื่อทับบนภาพ</h2>
+      <p class="desc">ภาพร้านกินเต็มความกว้างแล้ววางโลโก้ ชื่อ และป้ายทับลงบนภาพโดยตรง ไม่มีขอบโค้งมาคั่นเลย ได้ภาพใหญ่ที่สุดในสามแบบ และเป็นภาษาเดียวกับหน้าลิงก์คำสั่งซื้อที่เพิ่งทำเสร็จ ทำให้สองหน้ารู้สึกเป็นระบบเดียวกัน</p>
+      <div class="screen">
+        <div class="a-hero">
+          <div class="bg ph"></div><div class="sc"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+          <div class="tx">
+            <div class="av ph"></div>
+            <div class="a-nl"><h3>ธนภัทร อะไหล่ยนต์</h3><span class="vchk">&#10003;</span></div>
+            <div class="a-nl" style="margin-top:7px"><span class="tscore">&#9670; 72</span><span class="chip" style="background:rgb(255 255 255/.9);color:#2F2B3D">Deep Classic</span><span class="chip" style="background:rgb(255 255 255/.9);color:#2F2B3D">อะไหล่ยานยนต์</span></div>
+            <div class="sub">@thanaphat-parts &middot; เปิดร้านตั้งแต่ ก.พ. 2568</div>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="pad" style="padding-top:16px"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>ภาพเด่นสุด และเข้าชุดกับหน้าลิงก์คำสั่งซื้อ</b>แต่ต้องพึ่งคุณภาพรูปของร้าน ถ้าร้านไม่มีปกดี ๆ จะโล่ง</div>
+    </div>
+
+    <div class="col">
+      <span class="tag">ทาง B</span>
+      <h2>การ์ดลอยคร่อมขอบ</h2>
+      <p class="desc">แถบสีบาง ๆ ด้านบนแล้วมีการ์ดข้อมูลร้านลอยขึ้นมาคร่อมขอบ ตัวการ์ดมีมุมโค้งครบทั้งสี่ด้านและมีเงา จึงอ่านเป็นวัตถุชิ้นเดียวชัดเจน ไม่ใช่แผ่นที่ถูกเฉือนมุมเหมือนเดิม</p>
+      <div class="screen">
+        <div style="position:relative">
+          <div class="b-cover grad"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+        </div>
+        <div class="b-card">
+          <div class="av ph"></div>
+          <div class="b-tx">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h3>ธนภัทร อะไหล่ยนต์</h3><span class="vchk">&#10003;</span></div>
+            <div class="sub">@thanaphat-parts</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+          </div>
+        </div>
+        <div style="padding:14px 18px 0"><span class="chip">อะไหล่ยานยนต์</span></div>
+        <div class="stats" style="margin-top:14px">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="pad" style="padding-top:16px"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>แก้เรื่องมุมได้ตรงจุดที่สุด</b>การ์ดเป็นวัตถุครบสี่มุม ไม่มีรอยบาก และไม่พึ่งรูปปกเลย ร้านไม่มีรูปก็ยังดูดี</div>
+    </div>
+
+    <div class="col">
+      <span class="tag">ทาง C</span>
+      <h2>กลางหน้า สมมาตร</h2>
+      <p class="desc">โลโก้วงกลมอยู่กึ่งกลาง ชื่อและป้ายเรียงลงมาเป็นแกนกลาง ต่างจากต้นแบบชัดเจนที่สุดเพราะเปลี่ยนแกนการอ่านจากซ้าย-ขวาเป็นบน-ล่าง ให้ความรู้สึกเป็นหน้าแนะนำตัวมากกว่าหน้ารายการ</p>
+      <div class="screen">
+        <div style="position:relative">
+          <div class="c-cover grad"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+        </div>
+        <div class="c-wrap">
+          <div class="av ph"></div>
+          <h3>ธนภัทร อะไหล่ยนต์</h3>
+          <div class="c-nl"><span class="vchk">&#10003;</span><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+          <div class="sub">@thanaphat-parts &middot; อะไหล่ยานยนต์</div>
+        </div>
+        <div class="stats">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="pad" style="padding-top:16px"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>ต่างจากต้นแบบมากที่สุด</b>อ่านง่ายและสมดุล แต่เป็นทรงที่พบได้ทั่วไปในหลายแอป จึงมีเอกลักษณ์น้อยกว่าอีกสองแบบ</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <h2>เรื่องมุมโค้งที่ไม่ชอบ แก้อย่างไรในแต่ละแบบ</h2>
+    <ul>
+      <li><b>ต้นเหตุเดิม</b> — แผ่นขาวมุมโค้งด้านบนถูกดึงขึ้นไปทับแถบสี ทำให้เกิดรอยบากสองข้างที่อ่านเป็นความบังเอิญมากกว่าการออกแบบ</li>
+      <li><b>ทาง A</b> ตัดปัญหาทิ้งทั้งหมด เพราะไม่มีแผ่นขาวมาคั่น เนื้อหาอยู่บนภาพตรง ๆ แล้วไล่ระดับความมืดรับกับพื้นขาวด้านล่าง</li>
+      <li><b>ทาง B</b> เปลี่ยนแผ่นที่ถูกเฉือนให้กลายเป็นการ์ดลอยที่มีมุมครบสี่ด้านและมีเงา สายตาจึงอ่านว่าเป็นวัตถุที่ตั้งใจวาง</li>
+      <li><b>ทาง C</b> ให้แถบสีจบด้วยขอบตรง แล้วใช้โลโก้วงกลมเป็นตัวคร่อมรอยต่อแทนมุมโค้ง</li>
+      <li><b>ผมแนะนำ B</b> เพราะแก้ตรงสิ่งที่คุณไม่ชอบโดยตรง ไม่พึ่งรูปปกที่ร้านส่วนใหญ่ยังไม่มี และวางโปรไฟล์ต่างจากต้นแบบชัดเจน ส่วน A เก็บไว้ได้ถ้าอยากให้เข้าชุดกับหน้าลิงก์คำสั่งซื้อเป็นหลัก</li>
+    </ul>
+  </div>
+</div>
