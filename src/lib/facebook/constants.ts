@@ -36,4 +36,10 @@ export const CONNECT_SCOPES = [
   'business_management',
   'instagram_basic',
   'instagram_manage_messages',
+  // instagram_manage_insights (2026-07-26): ต้องใช้ดึงยอดวิวของ Reels — instagram_basic ให้แค่
+  // like_count/comments_count ส่วน insights ตอบ #10 Application does not have permission
+  //
+  // ผลข้างเคียงที่ต้องรู้: ร้านที่เชื่อม IG ไว้ก่อนหน้านี้ token จะไม่มี scope นี้ ต้องกดเชื่อมใหม่
+  // ถึงจะได้ยอดวิว — โค้ดจึงต้องทนกับ token ที่ไม่มี scope นี้เสมอ ไม่ใช่สมมติว่ามี
+  'instagram_manage_insights',
 ].join(',')

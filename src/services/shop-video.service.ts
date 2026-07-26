@@ -33,6 +33,8 @@ export type PickableVideo = {
 
 export type IgMediaItem = {
   videoId: string;
+  /** media id ของ Graph — ใช้เรียก insights เท่านั้น ไม่ใช่ค่าที่เอาไปประกอบ URL ฝัง */
+  mediaId: string;
   caption: string | null;
   thumbnailUrl: string | null;
   permalink: string;
@@ -40,6 +42,7 @@ export type IgMediaItem = {
   accountName: string | null;
   likeCount: number | null;
   commentCount: number | null;
+  viewCount: number | null;
 };
 
 /**
@@ -109,6 +112,7 @@ export async function listInstagramVideos(
 
         return {
           videoId: parsed.videoId,
+          mediaId: m.id,
           caption: m.caption ?? null,
           // วิดีโอบน IG ให้ thumbnail_url มา ส่วน media_url เป็นไฟล์วิดีโอจริง
           thumbnailUrl: m.thumbnail_url ?? null,
@@ -121,7 +125,13 @@ export async function listInstagramVideos(
       .filter((x): x is IgMediaItem => x !== null)
   );
 
-  return { items, failed: false };
+  // ยอดวิวดึงแบบ best-effort ขนานกัน — token ที่ไม่มี scope จะได้ null ทุกตัวโดยไม่ล้ม
+  const views = await Promise.all(items.map((it) => fetchIgViewCount(it.mediaId, token)));
+
+  return {
+    items: items.map((it, i) => ({ ...it, viewCount: views[i] })),
+    failed: false,
+  };
 }
 
 /**
@@ -209,11 +219,40 @@ export async function listPickableVideos(
       accountName: m.accountName,
       likeCount: m.likeCount,
       commentCount: m.commentCount,
-      // Instagram ให้ยอดวิวไม่ได้ด้วย scope ที่มี — null แล้ว UI ซ่อนช่องนี้ ไม่แสดง 0
-      viewCount: null,
+      // มีค่าเมื่อ token มี scope instagram_manage_insights — ร้านที่เชื่อมไว้ก่อนเพิ่ม scope
+      // จะได้ null จนกว่าจะกดเชื่อมใหม่ UI ซ่อนช่องนี้เมื่อไม่มีค่า ไม่แสดง 0
+      viewCount: m.viewCount,
     })),
   ];
   return { items, failed: ig.failed || fb.failed };
+}
+
+/**
+ * ยอดวิวของ Reels บน Instagram — ต้องใช้ scope instagram_manage_insights
+ *
+ * แยกเป็นการเรียกต่างหาก ไม่รวมเข้าไปใน fields ของ /media โดยตั้งใจ: ถ้ารวมแล้ว token ไม่มี
+ * scope นี้ Graph จะตอบ error ทั้ง request ทำให้ "ดึงรายการคลิปไม่ได้เลย" ทั้งที่แค่ยอดวิวขาด
+ * ร้านที่เชื่อมไว้ก่อนเพิ่ม scope ทุกร้านจะพังทันที การแยกออกมาทำให้กรณีแย่ที่สุดคือไม่มีตัวเลข
+ *
+ * ชื่อ metric ของ Meta เปลี่ยนไปมาตามเวอร์ชัน (plays → views) จึงลองไล่จนกว่าจะได้
+ * ทุก error คืน null เงียบ ๆ — ไม่มียอดวิวไม่ใช่เรื่องที่ต้องหยุดทั้งฟีเจอร์
+ */
+async function fetchIgViewCount(mediaId: string, token: string): Promise<number | null> {
+  for (const metric of ["views", "plays"]) {
+    try {
+      const res = await fetch(
+        `${GRAPH_BASE}/${mediaId}/insights?metric=${metric}&access_token=${encodeURIComponent(token)}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) continue;
+      const j = (await res.json()) as { data?: Array<{ values?: Array<{ value?: number }> }> };
+      const v = j.data?.[0]?.values?.[0]?.value;
+      if (typeof v === "number") return v;
+    } catch {
+      // ลอง metric ถัดไป
+    }
+  }
+  return null;
 }
 
 /** ชื่อบัญชี IG — แยกฟังก์ชันเพราะเรียกครั้งเดียวต่อการดึงคลิปทั้งชุด ไม่ใช่ต่อคลิป */
