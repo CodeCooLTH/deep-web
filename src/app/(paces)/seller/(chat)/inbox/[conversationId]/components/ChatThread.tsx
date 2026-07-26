@@ -212,8 +212,9 @@ type Props = {
   channelName: string | null
   /** รูปเพจ (ShopChannel.avatarUrl) — badge ช่องทางใช้รูปเพจแทนโลโก้ Facebook ถ้ามี (user 2026-07-23) */
   channelAvatarUrl: string | null
-  /** feature 00018 Phase 2 — ลูกค้าทักมาจากโฆษณาชื่อนี้ (messaging_referrals) — badge บนหัวเธรด; null=ไม่ใช่ */
-  referralAdTitle: string | null
+  /** feature 00018 E5 — โฆษณาที่ลูกค้ากดเข้ามา "ครั้งล่าสุด" (null = ไม่ได้มาจากโฆษณา)
+   *  server กรอง source='ADS' + "ต้องมี adTitle หรือ adId" มาให้แล้ว */
+  adReferral: { adId: string | null; adTitle: string | null; photoFileId: string | null } | null
   /** feature 00018 — ผลลัพธ์ getWindowState() คำนวณที่ server ณ เวลา render หน้า (ไม่ live-tick) */
   windowOpen: boolean
   msRemaining: number
@@ -249,16 +250,10 @@ function formatCountdown(ms: number): string {
   return h > 0 ? `${h} ชั่วโมง ${m} นาที ${s} วินาที` : `${m} นาที ${s} วินาที`
 }
 
-/** สี/ไอคอน banner 24h ตาม tier ของเวลาที่เหลือ + ข้อความ countdown สด (ตัดสินเฉพาะ 2 tier ที่ยัง
- *  ไม่หมด — tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller) */
+/** สี/ไอคอน banner 24h ของ tier "ใกล้หมด" (≤ 4 ชม.) + ข้อความ countdown สด — tier "เหลือเยอะ"
+ *  ไม่แสดง banner เลย (user สั่ง 2026-07-26: ลดความเข้มข้นของการเตือน 24 ชม. ให้เหลือเฉพาะตอน
+ *  ต่ำกว่า 4 ชม.), tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller เพราะข้อความคงที่ ไม่ต้องคำนวณเวลา */
 function formatWindowBanner(msRemaining: number): { cls: string; icon: string; text: string } {
-  if (msRemaining > FOUR_HOURS_MS) {
-    return {
-      cls: 'bg-info/15 text-info',
-      icon: 'clock',
-      text: `ตอบได้อีก ${formatCountdown(msRemaining)} นับจากข้อความล่าสุดของลูกค้า`,
-    }
-  }
   return {
     cls: 'bg-warning/15 text-warning',
     icon: 'alert-triangle',
@@ -404,7 +399,7 @@ export default function ChatThread({
   channel,
   channelName,
   channelAvatarUrl,
-  referralAdTitle,
+  adReferral,
   windowOpen,
   msRemaining,
   tokenInvalid,
@@ -461,6 +456,33 @@ export default function ChatThread({
     const t = setInterval(() => setMetaTick((x) => x + 1), 15000)
     return () => clearInterval(t)
   }, [])
+
+  // E5 — แบนเนอร์ "ตอบกลับจากโฆษณา" ปิดได้แบบ Messenger. เก็บสถานะที่ localStorage ต่อเธรด
+  // (ความชอบระดับอุปกรณ์เหมือน mute รายเธรด ไม่ใช่ข้อมูลร้าน — พนักงานคนอื่นยังเห็นแบนเนอร์อยู่)
+  // เก็บ "รหัสโฆษณาที่ปิดไป" ไม่ใช่ boolean เพื่อให้โฆษณา *ตัวใหม่* เด้งกลับมาเองโดยไม่ต้องเคลียร์ค่า
+  const adKey = adReferral?.adId ?? adReferral?.adTitle ?? null
+  // อ่านหลัง mount เท่านั้น (localStorage ไม่มีฝั่ง server) และเริ่มที่ "ยังไม่รู้" แทน "ยังไม่ได้ปิด"
+  // เพื่อไม่ให้แบนเนอร์ที่ผู้ขายปิดไปแล้วแวบขึ้นมาก่อนแล้วค่อยหาย
+  const [adDismissChecked, setAdDismissChecked] = useState(false)
+  const [adDismissedKey, setAdDismissedKey] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      setAdDismissedKey(localStorage.getItem(`deep:ad-referral-dismissed:${conversationId}`))
+    } catch {
+      // localStorage ปิด (โหมดส่วนตัวบางเบราว์เซอร์) — ถือว่ายังไม่เคยปิด แบนเนอร์แสดงตามปกติ
+    }
+    setAdDismissChecked(true)
+  }, [conversationId])
+  const dismissAdBanner = () => {
+    if (!adKey) return
+    setAdDismissedKey(adKey)
+    try {
+      localStorage.setItem(`deep:ad-referral-dismissed:${conversationId}`, adKey)
+    } catch {
+      // เขียนไม่ได้ = ปิดได้แค่รอบนี้ (เปิดเธรดใหม่จะกลับมา) ดีกว่าปุ่มกดแล้วไม่มีอะไรเกิดขึ้น
+    }
+  }
+  const showAdBanner = !!adReferral && !!adKey && adDismissChecked && adDismissedKey !== adKey
 
   // เสียงแจ้งเตือน: สถานะปิดเสียง (ระดับแอป/รายเธรด) อ่านหลัง mount เท่านั้น — localStorage ไม่มี
   // ฝั่ง server ถ้าอ่านตอน render แรกจะ hydration mismatch
@@ -619,13 +641,6 @@ export default function ChatThread({
             <h5 className="text-base mb-1.25">{buyerName}</h5>
             <div className="flex flex-wrap items-center gap-1.5">
               <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
-              {/* ทักมาจากโฆษณา (feature 00018 Phase 2, messaging_referrals) — context แรกเข้าให้ร้านตอบตรงจุด */}
-              {referralAdTitle && (
-                <span className="badge bg-info/15 text-info text-2xs inline-flex max-w-56 items-center gap-1" title={referralAdTitle}>
-                  <Icon icon="speakerphone" className="size-3 shrink-0" />
-                  <span className="truncate">ทักจากโฆษณา: {referralAdTitle}</span>
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -647,9 +662,53 @@ export default function ChatThread({
         )}
       </div>
 
-      {/* feature 00018 T4 — แบนเนอร์ 24h window / token invalid (เฉพาะ channel != DEEP) แสดงทันทีใต้
-          header เสมอเมื่อยังเปิดอยู่ ไม่ใช่แค่ตอนใกล้หมด (BRD §6.5) */}
-      {isExternal && (
+      {/* feature 00018 E5 — ที่มาจากโฆษณา: รูปโฆษณา + "ตอบกลับจากโฆษณา" + ชื่อโฆษณา (เลิกใช้ badge
+          เล็กบนหัวเธรดแบบเดิม ซึ่งชื่อโฆษณายาว ๆ ถูกตัดจนอ่านไม่ออกและไม่เห็นว่าเป็นโฆษณาชิ้นไหน)
+          เป็น *ข้อมูลบริบท* ไม่ใช่คำเตือน → โทน default-100 กลาง ๆ ไม่ใช่ warning/danger ของแบนเนอร์
+          24 ชม.ด้านล่าง เพื่อไม่ให้ผู้ขายอ่านผิดว่าเป็นสิ่งที่ต้องรีบจัดการ
+          Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (DismissingAlert) */}
+      {showAdBanner && adReferral && (
+        <div className="px-4 pt-4">
+          <div className="bg-default-100 flex items-center gap-3 rounded-lg px-3 py-2" role="note">
+            {adReferral.photoFileId ? (
+              // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/files/${adReferral.photoFileId}`}
+                alt=""
+                className="size-10 shrink-0 rounded-md object-cover"
+              />
+            ) : (
+              <span className="bg-default-200 text-default-500 flex size-10 shrink-0 items-center justify-center rounded-md">
+                <Icon icon="speakerphone" className="text-lg" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-default-700 text-xs font-semibold">ตอบกลับจากโฆษณา</p>
+              {/* adTitle ว่างได้ (server การันตีแค่ว่ามี adTitle หรือ adId อย่างใดอย่างหนึ่ง) —
+                  fallback เป็นรหัสโฆษณาเพื่อให้ผู้ขายยังเอาไปเทียบใน Ads Manager ได้ */}
+              <p className="text-default-500 truncate text-sm" title={adReferral.adTitle ?? undefined}>
+                {adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={dismissAdBanner}
+              title="ปิดป้ายที่มาของโฆษณา"
+              aria-label="ปิดป้ายที่มาของโฆษณา"
+              className="btn btn-icon text-default-500 hover:bg-default-200 shrink-0"
+            >
+              <Icon icon="x" className="text-lg" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* feature 00018 T4 — แบนเนอร์ 24h window / token invalid (เฉพาะ channel != DEEP)
+          user สั่ง 2026-07-26 ให้ลดความเข้มข้นของการเตือน: window เปิดและเหลือ > 4 ชม. = ไม่แสดงอะไรเลย
+          (เดิม BRD §6.5 ให้แสดงแถบฟ้าตลอดเวลา — รบกวนสายตาโดยไม่จำเป็นเพราะเคสปกติเหลือเวลาเยอะอยู่แล้ว)
+          เตือนเฉพาะตอนที่ผู้ขายต้องรีบจริง: ≤ 4 ชม. (warning) / หมดแล้ว (danger) / token เสีย (danger) */}
+      {isExternal && (tokenInvalid || !liveWindowOpen || liveRemaining <= FOUR_HOURS_MS) && (
         <div className="px-4 pt-4">
           {tokenInvalid ? (
             <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">

@@ -6,7 +6,7 @@ import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessag
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
-import type { MessagingEvent } from '@/lib/facebook/webhook-types'
+import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
@@ -554,17 +554,15 @@ export async function ingestInboundMessage(params: {
     return await prisma.$transaction(async (tx) => {
       let conversation = await tx.conversation.findUnique({ where: conversationWhere })
       if (!conversation) {
-        // referral (feature 00018 Phase 2): ลูกค้าคลิกโฆษณา/ลิงก์แล้วทัก — เก็บ context แรกเข้าตอนสร้างเธรด
-        const referral = event.message?.referral ?? event.referral
+        // referral ไม่เขียนตรงนี้แล้ว (E5 2026-07-26) — ย้ายไป ingestAdReferral ที่เรียกหลัง ingest
+        // เสร็จ เพื่อให้ลูกค้า "เก่า" ที่กดโฆษณาตัวใหม่แล้วทักซ้ำอัปเดตด้วย ไม่ใช่แค่ตอนสร้างเธรด
+        // (และเพื่อ mirror รูปโฆษณาได้ — network call ห้ามอยู่ในทรานแซกชัน)
         conversation = await tx.conversation.create({
           data: {
             shopId: channel.shopId,
             channel: provider,
             shopChannelId: channel.id,
             externalContactId: contact.id,
-            ...(referral
-              ? { referralSource: referral.source ?? null, referralAdTitle: referral.ads_context_data?.ad_title ?? null }
-              : {}),
           },
         })
       }
@@ -639,6 +637,73 @@ export async function ingestReadEvent(params: {
 
 // reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
 // เก็บ emoji ล่าสุดบน ChatMessage.reactionEmoji (unreact = null). scope ด้วย channel กันข้ามร้าน
+/**
+ * ingestAdReferral — บันทึก "ที่มา" ของเธรด: ลูกค้าทักมาจากโฆษณา/ลิงก์ m.me อันไหน (E5 2026-07-26)
+ *
+ * เขียน 2 ที่:
+ *  1. ตารางประวัติ ConversationAdReferral — แถวใหม่ทุกครั้ง ไม่ทับของเดิม เพราะ Meta ไม่มี Graph API
+ *     ให้อ่าน referral ย้อนหลัง ถ้าทับทิ้งคือหายถาวร (ข้อมูลดิบของรายงาน "ads ตัวไหนพาลูกค้ามา")
+ *  2. Conversation.referral* — ค่า "ล่าสุด" ที่แบนเนอร์บนหัวเธรดอ่าน (ไม่ต้อง join ทุกครั้งที่เปิดเธรด)
+ *
+ * ต้องเรียก **หลัง** ingest ข้อความเสร็จเสมอ — เธรดต้องมีอยู่แล้ว และ mirror รูป (network call)
+ * ห้ามอยู่ในทรานแซกชันเดียวกับการเขียนข้อความ
+ *
+ * ห้าม throw ในเส้นทางปกติ: referral คือข้อมูลเสริม ถ้าพังต้องไม่ทำให้ข้อความหาย เธรด/เพจที่หา
+ * ไม่เจอ = เงียบ (เหมือน ingestReadEvent)
+ */
+export async function ingestAdReferral(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  referral: Referral
+}): Promise<void> {
+  const { referral } = params
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  const contact = await prisma.externalContact.findUnique({
+    where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!contact) return
+  const conversation = await prisma.conversation.findUnique({
+    where: { shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id } },
+    select: { id: true },
+  })
+  if (!conversation) return
+
+  const ctx = referral.ads_context_data
+  // mirror รูปโฆษณาเข้า storage เรา — URL ของ Meta หมดอายุ ถ้า hotlink ไว้แบนเนอร์จะรูปแตกภายหลัง
+  // (คืน null เองเมื่อโฮสต์ไม่อยู่ allow-list / timeout / ไฟล์ใหญ่เกิน → แบนเนอร์แสดงแบบไม่มีรูป)
+  const photoFileId = ctx?.photo_url ? await mirrorRemoteImage(ctx.photo_url) : null
+
+  await prisma.$transaction([
+    prisma.conversationAdReferral.create({
+      data: {
+        conversationId: conversation.id,
+        source: referral.source ?? null,
+        adId: referral.ad_id ?? null,
+        adTitle: ctx?.ad_title ?? null,
+        photoFileId,
+        photoUrl: ctx?.photo_url ?? null,
+        videoUrl: ctx?.video_url ?? null,
+        postId: ctx?.post_id ?? null,
+        productId: ctx?.product_id ?? null,
+        flowId: ctx?.flow_id ?? null,
+        refPayload: referral.ref ?? null,
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        referralSource: referral.source ?? null,
+        referralAdTitle: ctx?.ad_title ?? null,
+        referralAdId: referral.ad_id ?? null,
+        referralPhotoFileId: photoFileId,
+      },
+    }),
+  ])
+}
+
 export async function ingestReactionEvent(params: {
   provider: string
   pageExternalId: string

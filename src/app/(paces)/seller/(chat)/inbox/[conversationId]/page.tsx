@@ -108,7 +108,12 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       channel: true,
       lastInboundAt: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
-      referralAdTitle: true, // feature 00018 Phase 2 — ลูกค้าทักจากโฆษณา (badge บนหัวเธรด)
+      // feature 00018 E5 — ลูกค้าทักจากโฆษณา (แบนเนอร์บนหัวเธรด: รูป + ชื่อโฆษณา)
+      // ค่าเหล่านี้เป็น "ครั้งล่าสุด" ที่ลูกค้ากดโฆษณาเข้ามา (ประวัติเต็มอยู่ที่ ConversationAdReferral)
+      referralSource: true,
+      referralAdTitle: true,
+      referralAdId: true,
+      referralPhotoFileId: true,
       buyerUserId: true,
       buyer: { select: { id: true, displayName: true, avatar: true } },
       externalContact: {
@@ -289,7 +294,17 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}
-        referralAdTitle={conversation.referralAdTitle}
+        adReferral={
+          // แสดงเฉพาะที่มาจาก "โฆษณา" จริง — SHORTLINK (ลิงก์ m.me) ไม่ใช่โฆษณา จึงไม่ขึ้นแบนเนอร์
+          // ต้องมีอย่างน้อยชื่อหรือรหัสโฆษณา ไม่งั้นแบนเนอร์จะว่างเปล่าไม่มีประโยชน์
+          conversation.referralSource === 'ADS' && (conversation.referralAdTitle || conversation.referralAdId)
+            ? {
+                adId: conversation.referralAdId,
+                adTitle: conversation.referralAdTitle,
+                photoFileId: conversation.referralPhotoFileId,
+              }
+            : null
+        }
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
         tokenInvalid={tokenInvalid}

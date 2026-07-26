@@ -49,13 +49,28 @@ const AttachmentSchema = v.object({
 
 // referral (feature 00018 Phase 2) — ลูกค้าทักมาจากโฆษณา/ลิงก์ (มาได้ 2 ทาง: top-level event.referral
 // หรือ message.referral ของข้อความแรก). ads_context_data.ad_title = ชื่อโฆษณาที่คลิกมา
+//
+// E5 (2026-07-26): parse ads_context_data ให้ครบทุก field ที่ Meta ส่งมา — เดิมรับแค่ ad_title
+// ทำให้ photo_url (รูปโฆษณาที่แบนเนอร์ต้องใช้) ถูก Valibot ตัดทิ้งตั้งแต่ parse layer
+// บทเรียนเดียวกับ AttachmentPayloadSchema ด้านบน: field ที่ไม่ประกาศ = หายก่อนถึง service
 const ReferralSchema = v.object({
   ref: v.optional(v.string()),
   source: v.optional(v.string()), // "ADS" | "SHORTLINK"
   type: v.optional(v.string()),
   ad_id: v.optional(v.string()),
-  ads_context_data: v.optional(v.object({ ad_title: v.optional(v.string()) })),
+  ads_context_data: v.optional(
+    v.object({
+      ad_title: v.optional(v.string()),
+      photo_url: v.optional(v.string()), // รูปจากโฆษณาที่ลูกค้าสนใจ — mirror เข้า storage เรา
+      video_url: v.optional(v.string()), // thumbnail ของโฆษณาวิดีโอ
+      post_id: v.optional(v.string()),
+      product_id: v.optional(v.string()), // dynamic ads
+      flow_id: v.optional(v.string()), // welcome message flow ของ partner app
+    }),
+  ),
 })
+
+export type Referral = v.InferOutput<typeof ReferralSchema>
 
 // reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid
 const ReactionSchema = v.object({
