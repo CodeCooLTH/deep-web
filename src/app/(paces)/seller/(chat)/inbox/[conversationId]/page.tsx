@@ -112,6 +112,8 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       // ค่าเหล่านี้เป็น "ครั้งล่าสุด" ที่ลูกค้ากดโฆษณาเข้ามา (ประวัติเต็มอยู่ที่ ConversationAdReferral)
       referralSource: true,
       referralAdTitle: true,
+      referralAdBody: true,
+      referralAdPermalink: true,
       referralAdId: true,
       referralPhotoFileId: true,
       buyerUserId: true,
@@ -297,10 +299,13 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         adReferral={
           // แสดงเฉพาะที่มาจาก "โฆษณา" จริง — SHORTLINK (ลิงก์ m.me) ไม่ใช่โฆษณา จึงไม่ขึ้นแบนเนอร์
           // ต้องมีอย่างน้อยชื่อหรือรหัสโฆษณา ไม่งั้นแบนเนอร์จะว่างเปล่าไม่มีประโยชน์
-          conversation.referralSource === 'ADS' && (conversation.referralAdTitle || conversation.referralAdId)
+          conversation.referralSource === 'ADS' &&
+          (conversation.referralAdBody || conversation.referralAdTitle || conversation.referralAdId)
             ? {
                 adId: conversation.referralAdId,
                 adTitle: conversation.referralAdTitle,
+                adBody: conversation.referralAdBody,
+                permalink: conversation.referralAdPermalink,
                 photoFileId: conversation.referralPhotoFileId,
               }
             : null

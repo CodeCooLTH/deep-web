@@ -1136,7 +1136,9 @@ model Conversation {
   // ลูกค้าเก่าที่กดโฆษณาตัวใหม่แล้วทักซ้ำจึงยังโชว์โฆษณาตัวแรกอยู่ ซึ่งผิดกับสิ่งที่ผู้ขายต้องรู้
   // (ลูกค้าคนนี้ "รอบนี้" มาจากโฆษณาไหน). ประวัติทั้งหมดยังอยู่ครบที่ ConversationAdReferral
   referralSource       String? // "ADS" | "SHORTLINK"
-  referralAdTitle      String? // ads_context_data.ad_title (ถ้ามาจากโฆษณา)
+  referralAdTitle      String? // ads_context_data.ad_title = **ชื่อ ad ใน Ads Manager** ("video v3") ไม่ใช่ข้อความโฆษณา
+  referralAdBody       String? // ข้อความโฆษณาจริงที่ลูกค้าเห็น (ดึงจากโพสต์ด้วย post_id) — ตัวที่แสดงบนแบนเนอร์
+  referralAdPermalink  String? // ลิงก์โพสต์โฆษณา — ปุ่ม "ดูโฆษณา" บนแบนเนอร์
   referralAdId         String? // referral.ad_id — คีย์ไปเทียบใน Ads Manager / Marketing API (Phase 2)
   referralPhotoFileId  String? // รูปโฆษณาที่ mirror เข้า storage เราแล้ว (ไม่ hotlink CDN Meta ที่หมดอายุ)
 
@@ -1171,7 +1173,9 @@ model ConversationAdReferral {
   conversationId String
   source         String? // "ADS" | "SHORTLINK" — แบนเนอร์แสดงเฉพาะ ADS
   adId           String?
-  adTitle        String?
+  adTitle        String? // ชื่อ ad ใน Ads Manager (ไม่ใช่ข้อความโฆษณา)
+  adBody         String? // ข้อความโฆษณาจริง — ดึงจากโพสต์ {pageId}_{postId} ตอนรับ webhook
+  adPermalink    String? // ลิงก์โพสต์โฆษณา (permalink_url)
   photoFileId    String? // รูปโฆษณาที่ mirror เข้า storage แล้ว
   photoUrl       String? // URL ต้นทางจาก Meta — เก็บไว้ debug/mirror ซ้ำ (หมดอายุได้)
   videoUrl       String?
