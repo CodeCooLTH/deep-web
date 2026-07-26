@@ -1035,6 +1035,19 @@ export const IShipSettingsSchema = v.object({
 // override รายออเดอร์ — ทุก field optional เพราะไม่ส่งมา = ใช้ค่าตั้งต้นของร้าน
 export const IShipCreateShipmentSchema = v.object({
   orderId: v.pipe(v.string(), v.uuid()),
+  /** ข้อมูลผู้รับที่ร้านกรอกเพิ่มตอนสร้าง — จะถูกเขียนกลับเข้าออเดอร์ก่อนเปิดพัสดุ */
+  receiver: v.optional(
+    v.object({
+      name: v.nullish(shortText(120)),
+      phone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
+      line1: v.nullish(shortText(255)),
+      subdistrict: v.nullish(shortText(100)),
+      district: v.nullish(shortText(100)),
+      province: v.nullish(shortText(100)),
+      postcode: v.nullish(thaiPostcode),
+      note: v.nullish(shortText(255)),
+    }),
+  ),
   override: v.optional(
     v.object({
       courierCode: v.optional(shortText(50)),
@@ -1056,6 +1069,20 @@ export const IShipCreateShipmentSchema = v.object({
       ),
     }),
   ),
+});
+
+// ข้อมูลผู้รับที่ร้านกรอกเพิ่ม ณ ตอนกดสร้างพัสดุ (user feedback 2026-07-26)
+// ทุกช่อง optional — ส่งมาเฉพาะช่องที่กรอก ช่องที่ไม่ส่งจะคงค่าเดิมในออเดอร์ไว้
+// subdistrict = ตำบล/แขวง, district = อำเภอ/เขต (BR-ISHIP-31 — คนละความหมายกับของ iShip)
+export const IShipReceiverPatchSchema = v.object({
+  name: v.nullish(shortText(120)),
+  phone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
+  line1: v.nullish(shortText(255)),
+  subdistrict: v.nullish(shortText(100)),
+  district: v.nullish(shortText(100)),
+  province: v.nullish(shortText(100)),
+  postcode: v.nullish(thaiPostcode),
+  note: v.nullish(shortText(255)),
 });
 
 // พิมพ์หลายใบ — เพดาน 50 ใบต่อครั้ง (เกินแล้วต้องบอกจำนวนสูงสุด ไม่ใช่ตัดทิ้งเงียบ FR-ISHIP-031)

@@ -417,6 +417,16 @@ export async function getShipmentPanel(
   createMode: string;
   shipment: ShipmentView | null;
   missing: MissingAddressField[];
+  /** ค่าผู้รับที่มีอยู่ตอนนี้ — ใช้เติมฟอร์มแก้ไขในหน้าออเดอร์ (ไม่ต้องพิมพ์ใหม่ทั้งหมด) */
+  receiver: {
+    name: string | null;
+    phone: string | null;
+    line1: string | null;
+    subdistrict: string | null;
+    district: string | null;
+    province: string | null;
+    postcode: string | null;
+  };
 } | null> {
   const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
   if (!account || account.status === "DISCONNECTED") return null;
@@ -453,6 +463,8 @@ export async function getShipmentPanel(
     orderBy: { createdAt: "desc" },
   });
 
+  const addr = (order.shippingAddress as DeepAddress | null) ?? {};
+
   return {
     createMode: account.createMode,
     shipment: shipment ? toShipmentView(shipment) : null,
@@ -460,10 +472,82 @@ export async function getShipmentPanel(
       !eligibility.eligible && eligibility.kind === "NEEDS_FIX"
         ? eligibility.missing
         : [],
+    receiver: {
+      name: order.buyerName,
+      phone: order.buyerContact,
+      line1: addr.line1 ?? null,
+      subdistrict: addr.subdistrict ?? null,
+      district: addr.district ?? null,
+      province: addr.province ?? null,
+      postcode: addr.postcode ?? null,
+    },
   };
 }
 
 // ─── พัสดุ ──────────────────────────────────────────────────────────────────
+
+/**
+ * ข้อมูลผู้รับที่ร้านกรอกเพิ่ม ณ ตอนกดสร้างพัสดุ
+ *
+ * เดิมออกแบบให้ "ไปแก้ที่อื่นแล้วกลับมา" ซึ่งเป็นการโยนงานกลับไปให้ร้านเดินอ้อม
+ * ทั้งที่ฟีเจอร์นี้มีไว้กำจัดการเดินอ้อมพอดี (user feedback 2026-07-26)
+ */
+export interface ReceiverPatch {
+  name?: string | null;
+  phone?: string | null;
+  line1?: string | null;
+  subdistrict?: string | null; // ตำบล
+  district?: string | null; // อำเภอ
+  province?: string | null;
+  postcode?: string | null;
+  note?: string | null;
+}
+
+/**
+ * applyReceiverPatch — เขียนข้อมูลผู้รับกลับเข้าคำสั่งซื้อ
+ *
+ * ต้องเขียนกลับ ไม่ใช่เก็บไว้แค่ใน snapshot ของพัสดุ เพราะ:
+ *   - ออเดอร์คือแหล่งความจริง — ถ้าไม่เขียน ออเดอร์จะยัง "ข้อมูลไม่ครบ" อยู่เหมือนเดิม
+ *   - ผู้ซื้อเปิดลิงก์ออเดอร์ต้องเห็นที่อยู่ตรงกับที่ส่งจริง
+ *   - ยกเลิกพัสดุแล้วเปิดใหม่ต้องไม่ถามซ้ำ
+ *
+ * ข้อควรระวัง: ห้ามใช้ updateOrder() ของ order.service ที่นี่ — ตัวนั้นเป็นการเขียนทับ
+ * ทั้งใบ (ลบ item เดิม คืนสต็อก สร้างใหม่) เอามาแก้แค่ที่อยู่จะพังสต็อกและรายการสินค้า
+ * จึงเขียนเฉพาะ 3 คอลัมน์ที่เกี่ยวข้องจริง ๆ เท่านั้น
+ */
+async function applyReceiverPatch(
+  shopId: string,
+  orderId: string,
+  patch: ReceiverPatch,
+): Promise<void> {
+  const current = await prisma.order.findFirst({
+    where: { id: orderId, shopId },
+    select: { shippingAddress: true, buyerName: true, buyerContact: true },
+  });
+  if (!current) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำสั่งซื้อนี้");
+
+  const addr = (current.shippingAddress as DeepAddress | null) ?? {};
+  const pick = (next: string | null | undefined, prev: string | null | undefined) => {
+    const v = next?.trim();
+    return v ? v : (prev ?? null);
+  };
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      buyerName: pick(patch.name, current.buyerName),
+      buyerContact: pick(patch.phone, current.buyerContact),
+      shippingAddress: {
+        line1: pick(patch.line1, addr.line1),
+        subdistrict: pick(patch.subdistrict, addr.subdistrict), // ตำบล
+        district: pick(patch.district, addr.district), // อำเภอ
+        province: pick(patch.province, addr.province),
+        postcode: pick(patch.postcode, addr.postcode),
+        note: pick(patch.note, addr.note),
+      } as object,
+    },
+  });
+}
 
 export interface ShipmentOverride {
   courierCode?: string;
@@ -496,8 +580,13 @@ export async function createShipment(
   userId: string,
   orderId: string,
   override?: ShipmentOverride,
+  receiverPatch?: ReceiverPatch,
 ): Promise<ShipmentView> {
   const { account, token } = await loadAccount(shopId);
+
+  // เขียนข้อมูลผู้รับที่ร้านกรอกเพิ่มกลับเข้าออเดอร์ "ก่อน" ตรวจเงื่อนไข
+  // ลำดับนี้สำคัญ: ตรวจก่อนเขียนจะทำให้ร้านที่เพิ่งกรอกครบยังโดนปฏิเสธอยู่ดี
+  if (receiverPatch) await applyReceiverPatch(shopId, orderId, receiverPatch);
 
   const order = await prisma.order.findFirst({
     // scope ownership ใน where — ไม่ใช่ findUnique แล้วค่อยเช็คทีหลัง
@@ -616,11 +705,12 @@ export async function retryShipment(
   shopId: string,
   userId: string,
   shipmentId: string,
+  receiverPatch?: ReceiverPatch,
 ): Promise<ShipmentView> {
   const { token } = await loadAccount(shopId);
   const existing = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, orderId: true },
   });
   if (!existing) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (existing.status !== "FAILED") {
@@ -629,6 +719,26 @@ export async function retryShipment(
       "พัสดุนี้ไม่ได้อยู่ในสถานะที่ลองใหม่ได้",
     );
   }
+  // ใบที่ล้มเพราะที่อยู่ไม่ผ่าน — ร้านแก้แล้วกดลองใหม่ได้ในที่เดียว
+  // ต้องอัปเดต snapshot ของใบเดิมด้วย ไม่งั้นจะยิงค่าที่อยู่ชุดเก่าซ้ำแล้วล้มเหมือนเดิม
+  if (receiverPatch) {
+    await applyReceiverPatch(shopId, existing.orderId, receiverPatch);
+    const order = await prisma.order.findFirstOrThrow({
+      where: { id: existing.orderId, shopId },
+      select: { buyerName: true, buyerContact: true, shippingAddress: true },
+    });
+    await prisma.orderShipment.update({
+      where: { id: shipmentId },
+      data: {
+        receiverSnapshot: {
+          name: order.buyerName,
+          phone: order.buyerContact,
+          ...((order.shippingAddress as DeepAddress | null) ?? {}),
+        } as object,
+      },
+    });
+  }
+
   await prisma.orderShipment.update({
     where: { id: shipmentId },
     data: { status: "PENDING", createdByUserId: userId },

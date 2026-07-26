@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       guard.userId,
       parsed.output.orderId,
       parsed.output.override,
+      parsed.output.receiver,
     );
     // status = FAILED ยังตอบ 201 เพราะ "แถวพัสดุถูกสร้างแล้ว" และ UI ต้องได้ shipmentId
     // ไปแสดงปุ่มลองใหม่ — ความล้มเหลวอยู่ใน payload ไม่ใช่ใน HTTP status

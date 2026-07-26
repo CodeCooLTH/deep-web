@@ -205,6 +205,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
             <ShipmentPanel
               orderId={order.id}
               missing={shipmentPanel.missing}
+              receiver={shipmentPanel.receiver}
               shipment={
                 shipmentPanel.shipment
                   ? {

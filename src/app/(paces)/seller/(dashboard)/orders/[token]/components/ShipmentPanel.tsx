@@ -22,6 +22,9 @@ import { Icon } from '@iconify/react'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime } from '@/lib/format-date'
+import AddressSearchPanel, {
+  type SelectedLocality,
+} from '../../new/components/AddressSearchPanel'
 
 interface ShipmentData {
   id: string
@@ -46,11 +49,23 @@ interface TraceEvent {
   occurredAt: string
 }
 
+interface ReceiverData {
+  name: string | null
+  phone: string | null
+  line1: string | null
+  subdistrict: string | null
+  district: string | null
+  province: string | null
+  postcode: string | null
+}
+
 interface Props {
   orderId: string
   shipment: ShipmentData | null
   /** ช่องข้อมูลที่ยังขาด — ว่าง = พร้อมสร้างพัสดุ */
   missing: string[]
+  /** ค่าผู้รับปัจจุบัน — เติมลงฟอร์มแก้ไข ร้านจะได้ไม่ต้องพิมพ์ใหม่ทั้งหมด */
+  receiver: ReceiverData
 }
 
 async function readError(res: Response): Promise<string> {
@@ -62,9 +77,14 @@ async function readError(res: Response): Promise<string> {
   }
 }
 
-export default function ShipmentPanel({ orderId, shipment, missing }: Props) {
+export default function ShipmentPanel({ orderId, shipment, missing, receiver }: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+  // ฟอร์มแก้ข้อมูลผู้รับ "ตรงจุดที่จะสร้างพัสดุ" — เดิมบอกให้ไปแก้ที่อื่นแล้วกลับมา
+  // ซึ่งเป็นการโยนงานกลับไปให้ร้านเดินอ้อม ทั้งที่ฟีเจอร์นี้มีไว้กำจัดการเดินอ้อม
+  const [form, setForm] = useState<ReceiverData>(receiver)
+  const setField = (k: keyof ReceiverData, v: string) =>
+    setForm((f) => ({ ...f, [k]: v }))
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [loadingTraces, setLoadingTraces] = useState(false)
 
@@ -94,7 +114,7 @@ export default function ShipmentPanel({ orderId, shipment, missing }: Props) {
       const res = await fetch('/api/seller/iship/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId, receiver: form }),
         cache: 'no-store',
       })
       if (!res.ok) {
@@ -207,17 +227,75 @@ export default function ShipmentPanel({ orderId, shipment, missing }: Props) {
       </div>
 
       <div className="card-body">
-        {/* สถานะ 2 — ข้อมูลขาด: บอกเป็นข้อ ๆ ว่าขาดอะไร ไม่ใช่ปุ่มที่กดไม่ได้เฉย ๆ */}
+        {/* สถานะ 2 — ข้อมูลขาด: กรอกตรงนี้แล้วสร้างต่อได้เลย ไม่ต้องเดินอ้อมไปแก้ที่อื่น */}
         {!shipment && missing.length > 0 && (
-          <div>
+          <div className="flex flex-col gap-3">
             <p className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-warning/15 text-warning text-sm">
               <Icon icon="tabler:alert-triangle" className="text-base shrink-0 mt-0.5" aria-hidden="true" />
-              <span>
-                สร้างพัสดุไม่ได้ — ยังไม่มี {missing.join(', ')}
-              </span>
+              <span>ยังขาด {missing.join(', ')} — กรอกด้านล่างแล้วสร้างพัสดุได้เลย</span>
             </p>
-            <p className="text-xs text-default-400 mt-2">
-              เติมข้อมูลที่ขาดแล้วกลับมาหน้านี้อีกครั้ง ปุ่มสร้างพัสดุจะขึ้นให้เอง
+
+            <div>
+              <label className="form-label" htmlFor="rcv-name">ชื่อผู้รับ</label>
+              <input id="rcv-name" type="text" className="form-input"
+                value={form.name ?? ''} onChange={(e) => setField('name', e.target.value)} />
+            </div>
+            <div>
+              <label className="form-label" htmlFor="rcv-phone">เบอร์โทรผู้รับ</label>
+              <input id="rcv-phone" type="tel" inputMode="numeric" className="form-input"
+                value={form.phone ?? ''} onChange={(e) => setField('phone', e.target.value)} />
+            </div>
+            <div>
+              <label className="form-label" htmlFor="rcv-line1">ที่อยู่ (บ้านเลขที่ / ถนน)</label>
+              <input id="rcv-line1" type="text" className="form-input"
+                value={form.line1 ?? ''} onChange={(e) => setField('line1', e.target.value)} />
+            </div>
+
+            {/*
+              ใช้ช่องค้นหาที่อยู่ตัวเดียวกับหน้าเปิดออเดอร์ — เติมตำบล/อำเภอ/จังหวัด/รหัส
+              พร้อมกันจากชุดข้อมูลมาตรฐาน ไม่ให้ร้านพิมพ์เอง เพราะการสลับตำบลกับอำเภอ
+              คือความผิดพลาดที่ไม่มีอะไรฟ้องจนกว่าพัสดุจะไปผิดที่ (BR-ISHIP-31)
+            */}
+            <div>
+              <label className="form-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</label>
+              <AddressSearchPanel
+                current={
+                  form.subdistrict || form.district || form.province || form.postcode
+                    ? {
+                        subdistrict: form.subdistrict ?? '',
+                        district: form.district ?? '',
+                        province: form.province ?? '',
+                        postcode: form.postcode ?? '',
+                      }
+                    : null
+                }
+                onSelect={(loc: SelectedLocality) =>
+                  setForm((f) => ({
+                    ...f,
+                    subdistrict: loc.subdistrict,
+                    district: loc.district,
+                    province: loc.province,
+                    postcode: loc.postcode,
+                  }))
+                }
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={busy}
+              className="btn bg-primary text-white hover:bg-primary-hover inline-flex w-full items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {busy ? (
+                <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+              ) : (
+                <Icon icon="tabler:package-export" className="text-base" aria-hidden="true" />
+              )}
+              บันทึกและสร้างพัสดุ
+            </button>
+            <p className="text-xs text-default-400">
+              ข้อมูลที่กรอกจะถูกบันทึกลงคำสั่งซื้อด้วย ไม่ใช่ใช้แค่กับพัสดุใบนี้
             </p>
           </div>
         )}
