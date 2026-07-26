@@ -206,8 +206,10 @@ export function buildCreateOrderPayload(
 
   // products[] — iShip ระบุว่าใช้ "กรณีเก็บเงินปลายทาง" แต่ส่งไปด้วยเสมอเมื่อมีข้อมูล
   // เพราะเป็นหลักฐานว่าในกล่องมีอะไร ใช้ตอนเคลมประกันได้ และไม่มีผลเสียเมื่อไม่ใช่ COD
-  if (input.items?.length) {
-    payload.products = input.items.map((it) => ({
+  const items = input.items;
+  if (items?.length) {
+    const qtyTotal = Math.max(1, totalQty(items));
+    payload.products = items.map((it) => ({
       product_name: it.name,
       // ขนาดรายชิ้น: เราไม่ได้เก็บขนาดต่อสินค้า จึงใช้ขนาดกล่องเป็นตัวแทน
       // ส่ง "0" จะทำให้ข้อมูลดูเหมือนของไม่มีมิติ ซึ่งชวนให้ขนส่งตีความผิดกว่า
@@ -215,10 +217,7 @@ export function buildCreateOrderPayload(
       product_width: String(parcel.width),
       product_height: String(parcel.height),
       // น้ำหนักต่อชิ้น = น้ำหนักรวม ÷ จำนวนชิ้นทั้งหมด (ประมาณการ — เราไม่เก็บรายชิ้น)
-      product_weight: roundTo(
-        parcel.weight / Math.max(1, totalQty(input.items)),
-        3,
-      ),
+      product_weight: roundTo(parcel.weight / qtyTotal, 3),
       product_qty: it.qty,
       product_price: it.price,
     }));
