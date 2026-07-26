@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/token-crypto";
 import { GRAPH_BASE } from "@/lib/facebook/constants";
+import { parseVideoUrl } from "@/lib/shop-video";
 
 /** จำนวนคลิปสูงสุดที่ร้านโชว์ได้ — กันหน้าร้านยาวจนเนื้อหาสำคัญตกจอ และกันโหลด iframe เกินจำเป็น */
 export const MAX_SHOP_VIDEOS = 6;
@@ -62,16 +63,32 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
     }>;
   };
 
-  return (json.data ?? [])
-    // เอาเฉพาะวิดีโอ/Reels — รูปนิ่งไม่ใช่สิ่งที่ฟีเจอร์นี้ต้องการ
-    .filter((m) => m.media_type === "VIDEO" || m.media_product_type === "REELS")
-    .map((m) => ({
-      videoId: m.id,
-      caption: m.caption ?? null,
-      // วิดีโอบน IG ให้ thumbnail_url มา ส่วน media_url เป็นไฟล์วิดีโอจริง
-      thumbnailUrl: m.thumbnail_url ?? null,
-      permalink: m.permalink ?? "",
-    }));
+  return (
+    (json.data ?? [])
+      // เอาเฉพาะวิดีโอ/Reels — รูปนิ่งไม่ใช่สิ่งที่ฟีเจอร์นี้ต้องการ
+      .filter((m) => m.media_type === "VIDEO" || m.media_product_type === "REELS")
+      .map((m) => {
+        // สำคัญ: videoId ต้องเป็น "shortcode" จาก permalink ไม่ใช่ m.id
+        //
+        // Graph API คืน id เป็นเลขยาว (เช่น 18094374814967865) ส่วน URL ฝังของ Instagram
+        // ใช้ shortcode (เช่น DZEzXG8Sr_f) คนละค่ากันคนละรูปแบบ ถ้าเก็บ m.id ไปประกอบ URL
+        // จะได้ instagram.com/reel/18094374814967865/embed ซึ่งขึ้นหน้าเปล่าทุกคลิป
+        // (พบตอนยิง API จริงกับบัญชีที่เชื่อมไว้ — เอกสารไม่ได้เตือนเรื่องนี้)
+        //
+        // ใช้ parseVideoUrl แกะ permalink แทนการ split เอง เพราะได้ตรวจโดเมนไปในตัวด้วย
+        const parsed = m.permalink ? parseVideoUrl(m.permalink) : null;
+        if (!parsed || parsed.provider !== "INSTAGRAM") return null;
+
+        return {
+          videoId: parsed.videoId,
+          caption: m.caption ?? null,
+          // วิดีโอบน IG ให้ thumbnail_url มา ส่วน media_url เป็นไฟล์วิดีโอจริง
+          thumbnailUrl: m.thumbnail_url ?? null,
+          permalink: m.permalink!,
+        };
+      })
+      .filter((x): x is IgMediaItem => x !== null)
+  );
 }
 
 /** คลิปที่ร้านเลือกไว้แล้ว — ใช้ทั้งหน้าตั้งค่าและหน้าร้านสาธารณะ */
