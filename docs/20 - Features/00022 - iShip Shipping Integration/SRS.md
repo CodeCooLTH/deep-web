@@ -261,6 +261,14 @@ sequenceDiagram
 
 ## 11. การประมวลผล webhook
 
+> 🛑 **เลื่อนออกจากเวอร์ชันแรก (2026-07-26)** — ไม่ตั้ง `ISHIP_WEBHOOK_SECRET` บน production
+> route ตอบ 404 ทุกคำขอ. เนื้อหาหัวข้อนี้ยังเป็นสเปกที่ถูกต้องสำหรับตอนเปิดใช้
+>
+> ผลที่ตามมาที่ต้องรู้: `OrderShipment.carrierStatus` ถูกอัปเดตจาก **การกดดูการเดินทาง**
+> (`getTraces` sync สถานะล่าสุดลงด้วย) แทนที่จะมาจาก webhook — สองทางนี้เขียนช่องเดียวกัน
+> โดยไม่ตีกันเมื่อเปิด webhook ภายหลัง เพราะต่างเขียน "สถานะล่าสุดที่รู้" ทับลงไป
+> และ `ShipmentEvent.dedupeKey` กันบันทึกซ้ำอยู่แล้ว
+
 ```mermaid
 flowchart TD
     A[POST /api/webhooks/iship/:secret] --> B{secret ตรง?}
