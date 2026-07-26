@@ -13,8 +13,10 @@ import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
-// Type Imports — TrustScoreCardData['tierColor'] ใช้ประกาศ type ProfileTabData.tierColor ด้านล่าง (type-only, ไม่ import component)
-import type { TrustScoreCardData } from '../TrustScoreCard'
+// อ้าง TierChipColor จาก SSOT ของระบบ tier โดยตรง (เดิมอ้างผ่าน TrustScoreCardData ซึ่งเป็นการ
+// อ้อมผ่าน component ที่ถูกลบไปพร้อมโปรไฟล์ชุดเดิม — ชี้ที่ต้นทางตรง ๆ ตรงกว่าและไม่ผูกกับ UI)
+import type { TierChipColor } from '@/lib/trust-tier'
+import { toFileUrl } from '@/lib/file-url'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
 // Redesign (2026-07-04, hybrid FB Page × Threads spec) — เนื้อหา left/right column เดิม
@@ -66,7 +68,7 @@ export type ProfileTabData = {
   // ── TrustScoreCard data ──
   trustScore: number
   tierLabel: string
-  tierColor: TrustScoreCardData['tierColor']
+  tierColor: TierChipColor
   nextTierLabel: string | null
   pointsToNext: number | null
   verifiedLevels: number[]
@@ -93,6 +95,10 @@ const ProductCard = ({
   const price = parseFloat(product.price)
   const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 
+  // ค่ารูปที่เก็บใน DB มีสองแบบปนกัน — storage key กับ URL เต็ม ต้องแปลงก่อนใช้เสมอ
+  // (แปลงในการ์ดเหมือนที่ PublicRoomList ทำกับรูปห้องพัก ไม่ใช่แปลงที่หน้า จะได้ไม่ต้องไล่แก้ทุกหน้าที่เรียก)
+  const imageSrc = toFileUrl(product.imageUrl)
+
   const router = useRouter()
   const { status: sessionStatus } = useSession()
 
@@ -109,26 +115,77 @@ const ProductCard = ({
     router.push(target)
   }
 
+  // ทั้งไทล์เป็นปุ่มเดียว ไม่ซ้อนปุ่มข้างใน — overlay ตอน hover เป็นแค่ภาพบอกว่ากดแล้วได้อะไร
+  // (ปุ่มซ้อนปุ่มทำให้ keyboard/screen reader เจอสองเป้าหมายที่ทำงานเหมือนกัน และ HTML ไม่ให้ทำ)
+  const clickable = showAskButton
+
   return (
     <Box
+      component={clickable ? 'button' : 'div'}
+      type={clickable ? 'button' : undefined}
+      onClick={clickable ? handleAskClick : undefined}
+      aria-label={clickable ? `สอบถาม ${product.name} ราคา ${priceLabel}` : product.name}
+      title={product.name}
       sx={{
         position: 'relative',
-        border: '1px solid #2F2B3D1F',
-        borderRadius: '14px',
+        aspectRatio: '1/1',
+        display: 'block',
+        inlineSize: '100%',
         overflow: 'hidden',
-        bgcolor: 'white',
-        transition: 'transform .18s ease, box-shadow .18s ease',
-        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(47,43,61,.10)' },
+        border: 0,
+        padding: 0,
+        margin: 0,
+        // <button> ไม่สืบทอด font จาก body (UA stylesheet ตั้ง Arial ให้ form control ทุกตัว)
+        fontFamily: 'inherit',
+        bgcolor: 'background.default',
+        cursor: clickable ? 'pointer' : 'default',
+        '&:hover .askOverlay': { opacity: 1 },
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
       }}
     >
-      {/* flag "ปักหมุด" มุมซ้ายบน (Phase 3: pinned=true มาจาก getPinnedProducts จริงแล้ว) */}
+      {imageSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageSrc}
+          alt=''
+          loading='lazy'
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      ) : (
+        // กริดชิดกันแบบ IG ใช้ได้เพราะทุกช่องเป็นรูปที่ขอบตัดกันเอง — สินค้าที่ไม่มีรูปเป็นพื้นเรียบ
+        // สีเดียว วางติดกันหลายช่องแล้วกลายเป็นแผ่นเทาผืนเดียว แยกไม่ออกว่ามีกี่ชิ้น จึงตีเส้นในตัว
+        // เฉพาะช่องที่ไม่มีรูป (ช่องที่มีรูปไม่ต้อง เดี๋ยวจะเป็นตารางกรอบซึ่งขัดกับที่ตั้งใจ)
+        <Box
+          sx={{
+            inlineSize: '100%',
+            blockSize: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#808390',
+            boxShadow: 'inset 0 0 0 1px rgb(47 43 61 / .12)',
+          }}
+        >
+          <Icon icon='tabler-photo' fontSize={30} />
+        </Box>
+      )}
+
+      {/* ไล่เงาล่าง — ให้ราคาสีขาวอ่านออกไม่ว่ารูปสินค้าจะสว่างแค่ไหน (แบบเดียวกับไทล์คลิป) */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(180deg,rgb(0 0 0/.26) 0%,transparent 30%,transparent 55%,rgb(0 0 0/.72) 100%)',
+          pointerEvents: 'none',
+        }}
+      />
+
       {pinned && (
         <Box
           sx={{
             position: 'absolute',
             top: 8,
-            left: 8,
-            zIndex: 2,
+            insetInlineStart: 8,
             display: 'flex',
             alignItems: 'center',
             gap: '3px',
@@ -146,58 +203,61 @@ const ProductCard = ({
         </Box>
       )}
 
-      <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: 'background.default' }}>
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            loading='lazy'
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-        ) : (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#808390' }}>
-            <Icon icon='tabler-photo' fontSize={30} />
-          </Box>
-        )}
+      {/* ราคาลอยบนรูป — ข้อมูลเดียวที่ผู้ซื้อต้องเห็นก่อนตัดสินใจกด ชื่อสินค้าอยู่ใน title/aria-label */}
+      <Box
+        sx={{
+          position: 'absolute',
+          insetBlockEnd: 0,
+          insetInlineStart: 0,
+          insetInlineEnd: 0,
+          p: '8px 10px',
+          color: 'white',
+          fontSize: '14px',
+          fontWeight: 800,
+          textAlign: 'start',
+          pointerEvents: 'none',
+        }}
+      >
+        {priceLabel}
       </Box>
 
-      <Box sx={{ p: '10px 12px 12px' }}>
-        <Typography
-          component='p'
+      {/* โผล่ตอน hover เท่านั้น (user ขอ 2026-07-26) — จำกัดด้วย hover:hover เพราะบนจอสัมผัส
+          สถานะ hover จะค้างหลังแตะ กลายเป็นแผ่นดำทับรูปที่ปิดไม่ได้ */}
+      {clickable && (
+        <Box
+          className='askOverlay'
           sx={{
-            m: 0,
-            fontSize: '13px',
-            fontWeight: 700,
-            color: '#2F2B3D',
-            lineHeight: 1.35,
-            minHeight: '2.7em',
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
+            position: 'absolute',
+            inset: 0,
+            display: 'none',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'rgb(0 0 0/.42)',
+            opacity: 0,
+            transition: 'opacity .16s ease',
+            pointerEvents: 'none',
+            '@media (hover: hover)': { display: 'flex' },
           }}
         >
-          {product.name}
-        </Typography>
-
-        <Typography component='p' sx={{ m: 0, mt: '6px', fontSize: '14px', fontWeight: 800, color: 'primary.main' }}>
-          {priceLabel}
-        </Typography>
-
-        {showAskButton && (
-          <Button
-            fullWidth
-            size='small'
-            variant='tonal'
-            onClick={handleAskClick}
-            startIcon={<Icon icon='tabler-message-question' fontSize={14} />}
-            sx={{ mt: '10px', fontSize: '12px', textTransform: 'none' }}
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              bgcolor: 'white',
+              color: '#2F2B3D',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              borderRadius: '999px',
+              px: '14px',
+              py: '7px',
+            }}
           >
+            <Icon icon='tabler-message-circle' fontSize={14} />
             สอบถามสินค้านี้
-          </Button>
-        )}
-      </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   )
 }
@@ -245,16 +305,18 @@ export const ProfileRightContent = ({
             <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
               <Typography
                 component='h3'
-                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
+                sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
               >
                 {L.pinned}
               </Typography>
               <Box
                 sx={{
                   display: 'grid',
-                  // 3 คอลัมน์คงที่ตั้งแต่ md(900) ขึ้นไป (ไม่ไล่ 2→3→4 ตาม breakpoint เหมือนเดิม)
-                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-                  gap: '12px',
+                  // ผังเดียวกับแท็บปักหมุด (user 2026-07-26 "เน้นรูป เหมือน IG") — ชิดกันไม่มีช่องว่าง
+                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว; ดึงออกนอก padding ให้ชนขอบคอนเทนเนอร์จริง
+                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+                  gap: 0,
+                  mx: { xs: '-20px', md: '-24px' },
                 }}
               >
                 {pinnedProducts.map((product) => (
@@ -275,16 +337,18 @@ export const ProfileRightContent = ({
             <Box id='all-products' sx={{ px: { xs: '20px', md: '24px' }, pb: '16px' }}>
               <Typography
                 component='h3'
-                sx={{ m: 0, mb: '12px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
+                sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
               >
                 {L.all}
               </Typography>
               <Box
                 sx={{
                   display: 'grid',
-                  // 3 คอลัมน์คงที่ตั้งแต่ md(900) ขึ้นไป (ไม่ไล่ 2→3→4 ตาม breakpoint เหมือนเดิม)
-                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-                  gap: '12px',
+                  // ผังเดียวกับแท็บปักหมุด (user 2026-07-26 "เน้นรูป เหมือน IG") — ชิดกันไม่มีช่องว่าง
+                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว; ดึงออกนอก padding ให้ชนขอบคอนเทนเนอร์จริง
+                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+                  gap: 0,
+                  mx: { xs: '-20px', md: '-24px' },
                 }}
               >
                 {otherProducts.map((product) => (
