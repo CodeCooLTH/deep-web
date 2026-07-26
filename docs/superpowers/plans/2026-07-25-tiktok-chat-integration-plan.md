@@ -1,7 +1,7 @@
 ---
 title: "PLAN — TikTok Chat Integration (feat 00020)"
 owner: shinobu22
-status: draft — รอ user เลือกทิศทาง (§2) ก่อนเข้า Phase 1
+status: "paused 2026-07-25 — Phase 1-2 เสร็จ, Phase 3 บางส่วน; 🛑 อ่าน [[2026-07-25-tiktok-chat-RESUME]] ก่อนทำต่อ"
 created: 2026-07-25
 module: M00020-TikTokChatIntegration
 branch: feature/tiktok-chat
@@ -14,6 +14,15 @@ related:
 ---
 
 # แผน: เชื่อม TikTok Chat เข้า Deep Omnichannel Inbox
+
+> 🛑 **หยุดพัก 2026-07-25 — เอกสารนี้เป็นแผนตั้งต้น ไม่ใช่สถานะปัจจุบัน**
+> สถานะจริง / blocker / บทเรียนที่ค้นมาแล้ว (ห้าม re-derive) อยู่ที่
+> **[[2026-07-25-tiktok-chat-RESUME]]** — อ่านไฟล์นั้นก่อนเสมอ
+>
+> สิ่งที่เปลี่ยนไปจากแผนนี้หลังลงมือจริง: authorize URL ที่เขียนใน §Phase 3 **ผิด** (ของจริงใช้
+> `services.tiktokshop.com/open/authorize?service_id=` ไม่ใช่ `auth.tiktok-shops.com`) · Gate 2
+> ปรับเกณฑ์เพราะ baseline ไม่เขียว · P2-3 ปรับเพราะลายเซ็นฟังก์ชันเดิมห้ามแตะ · และพบว่า
+> Customer Service เป็น **custom scope ที่ต้องยื่นขอ** ซึ่งกลายเป็น blocker หลักของ feature
 
 > **เลข feature:** `00020` — ตรวจ collision แล้วด้วย `git log --all --name-only | grep -oE '000[0-9]{2} - '` ครอบทุก branch
 > (00007 / 00010 เป็นช่องว่างเดิมที่ไม่มีใครใช้ — ไม่ reuse เพื่อไม่ให้ลำดับเวลาสับสน)
