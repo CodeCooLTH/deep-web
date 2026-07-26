@@ -823,3 +823,131 @@ export async function getOrdersByBuyer(userId: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+/**
+ * สรุปออเดอร์แบบ "ปลอดภัยพอจะโชว์ก่อน login" — ใช้ที่หน้า /auth/sign-in เมื่อผู้ซื้อถูก
+ * redirect มาจากลิงก์ออเดอร์ เพื่อให้เห็นว่ากำลังจะเข้าถึงคำสั่งซื้อใบไหน จากร้านไหน
+ * ก่อนตัดสินใจเลือกช่องทางเข้าสู่ระบบ
+ *
+ * ขอบเขตข้อมูล (user ตัดสิน 2026-07-25 — ตัวเลือก "ข"): ชื่อร้าน + เลขออเดอร์ + ยอดรวม
+ * + วันที่เท่านั้น
+ *
+ * ห้ามเพิ่ม field ที่เป็น PII ของคนเด็ดขาด (buyerName/buyerContact/shippingAddress) และ
+ * ห้ามเพิ่มรายการสินค้า — ผู้เรียกคือผู้ใช้ที่ "ยังไม่ผ่านการยืนยันตัวตน" เป็นเพียงคนที่ถือ
+ * ลิงก์อยู่ในมือ ซึ่งอาจเป็นคนที่ได้ลิงก์ต่อมาก็ได้
+ *
+ * ข้อแลกเปลี่ยนที่รับไว้แล้ว: การคืนค่า (ไม่ใช่ null) เท่ากับยืนยันกลาย ๆ ว่า token นี้มี
+ * ออเดอร์จริง — แลกกับการที่ผู้ซื้อมั่นใจว่ากดลิงก์ถูกใบก่อนยอมล็อกอิน
+ */
+/**
+ * แปลงค่ารูปที่เก็บใน DB ให้เป็น URL ที่ <img> ใช้ได้จริง
+ *
+ * ค่าที่เก็บมีสองแบบปนกัน: storage key จาก saveFile (เช่น "2026/07/25/uuid.png" หรือ
+ * "uuid.png" ของไฟล์เก่าก่อนชาร์ดโฟลเดอร์) กับ URL เต็มจาก seed/CDN/OAuth avatar
+ * guard ด้วย startsWith('http') แบบเดียวกับ InviteLandingClient.tsx:39 และ products/page.tsx:100
+ */
+function toFileUrl(v: string | null): string | null {
+  if (!v) return null;
+  return v.startsWith("http") ? v : `/api/files/${v}`;
+}
+
+export async function getOrderSummaryForSignIn(publicToken: string) {
+  const order = await prisma.order.findUnique({
+    where: { publicToken },
+    select: {
+      publicToken: true,
+      totalAmount: true,
+      createdAt: true,
+      shop: {
+        select: {
+          id: true,
+          shopName: true,
+          logo: true,
+          coverImage: true,
+          createdAt: true,
+          user: { select: { id: true, username: true, trustScore: true } },
+          // ช่องทางที่ร้านเชื่อมไว้ — ผู้ซื้อเพิ่งคุยกับเพจนี้อยู่ในแชทเมื่อครู่
+          // เอาเฉพาะ ACTIVE: เพจที่ถอดออกแล้วไม่ใช่หลักฐานว่าติดต่อร้านได้
+          channels: {
+            where: { status: "ACTIVE" },
+            select: { provider: true, name: true, avatarUrl: true },
+          },
+        },
+      },
+    },
+  });
+  if (!order) return null;
+
+  const shopId = order.shop.id;
+  const ownerId = order.shop.user.id;
+
+  const [orderStats, ratingAgg, approvedVerifications, latestReview] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["status"],
+      where: { shopId },
+      _count: { _all: true },
+    }),
+    prisma.review.aggregate({
+      where: { order: { shopId } },
+      _avg: { rating: true },
+      _count: { _all: true },
+    }),
+    prisma.verificationRecord.findMany({
+      where: { userId: ownerId, status: "APPROVED" },
+      select: { level: true },
+    }),
+    // รีวิวล่าสุดที่ "มีข้อความจริง" — ข้อความจากคนซื้อจริงหนึ่งอันน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
+    // ไม่มีรีวิวที่เขียนข้อความ → null → UI ซ่อนบล็อกไปเลย ไม่แต่งคำชมขึ้นมาเอง
+    prisma.review.findFirst({
+      where: { order: { shopId }, comment: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { rating: true, comment: true, createdAt: true },
+    }),
+  ]);
+
+  const confirmedCount = orderStats.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
+  const cancelledCount = orderStats.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
+  const settled = confirmedCount + cancelledCount;
+  const completionRate = settled > 0 ? Math.round((confirmedCount / settled) * 100) : null;
+
+  const maxVerifyLevel = approvedVerifications.length
+    ? Math.max(...approvedVerifications.map((v) => v.level))
+    : 0;
+
+  return {
+    publicToken: order.publicToken,
+    totalAmount: Number(order.totalAmount),
+    createdAtIso: order.createdAt.toISOString(),
+
+    shopName: order.shop.shopName,
+    shopUsername: order.shop.user.username,
+    logo: toFileUrl(order.shop.logo),
+    coverImage: toFileUrl(order.shop.coverImage),
+    shopCreatedAtIso: order.shop.createdAt.toISOString(),
+    trustScore: order.shop.user.trustScore,
+    maxVerifyLevel,
+
+    // สถิติ: ส่ง null เมื่อยังไม่มีประวัติ ให้ UI ซ่อนทั้งแถบแทนการโชว์เลขศูนย์
+    // การโชว์ "0 ออเดอร์" หรือแต่งตัวเลขให้ดูดีคือสิ่งที่ระบบนี้ตั้งใจกำจัด
+    completedOrders: confirmedCount > 0 ? confirmedCount : null,
+    completionRate,
+    avgRating: ratingAgg._count._all > 0 ? Number(ratingAgg._avg.rating?.toFixed(1)) : null,
+    reviewCount: ratingAgg._count._all,
+
+    channels: order.shop.channels.map((c) => ({
+      provider: c.provider,
+      name: c.name,
+      // avatarUrl ของเพจมาจาก Graph API เป็น URL เต็มอยู่แล้ว แต่ผ่าน toFileUrl ไว้กันกรณี
+      // ถูกมิเรอร์ลง storage ภายหลัง
+      avatarUrl: toFileUrl(c.avatarUrl),
+    })),
+
+    latestReview: latestReview
+      ? {
+          rating: latestReview.rating,
+          comment: latestReview.comment as string,
+          createdAtIso: latestReview.createdAt.toISOString(),
+        }
+      : null,
+  };
+}

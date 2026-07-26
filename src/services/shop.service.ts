@@ -27,15 +27,32 @@ export async function createShop(userId: string, data: {
 // IMPORTANT: allowlist นี้จงใจ "ไม่มี" vertical (feature 00017) — ประเภทกิจการตั้งได้ครั้งเดียว
 // ตอนสร้างธุรกิจเท่านั้น เปลี่ยนภายหลังไม่ได้ (BR-LODG-30) เพราะการเปลี่ยนจะทำให้ห้องพัก/การจอง
 // เดิมกลายเป็นข้อมูลกำพร้าที่ไม่มีหน้าจอรองรับ ห้ามเพิ่ม vertical เข้า type นี้
-export async function updateShop(shopId: string, data: {
-  shopName?: string;
-  description?: string;
-  logo?: string;
-  category?: string;
-  address?: string;
-  businessType?: string;
-}) {
-  return prisma.shop.update({ where: { id: shopId }, data });
+/** field ที่แก้ผ่าน updateShop ได้ — whitelist ระดับ runtime ไม่ใช่แค่ type
+ *
+ *  ทำไมต้องมี: PATCH /api/shops/[id] ส่ง body ที่ parse จาก request.json() (ชนิด any) เข้ามาตรง ๆ
+ *  TypeScript จึงไม่ช่วยอะไรเลยที่ขอบเขตนั้น ถ้าปล่อยเข้า prisma.update ทั้งก้อน ผู้ที่เป็นสมาชิก
+ *  ร้านจะเขียนทับคอลัมน์ไหนก็ได้ที่มีในตาราง เช่น userId (ย้ายเจ้าของ), kind, slug, deletedAt
+ *  การ pick เฉพาะคีย์ที่อนุญาตปิดช่องนี้โดยไม่ต้องแก้ทุก caller
+ */
+const SHOP_UPDATABLE_FIELDS = [
+  "shopName",
+  "description",
+  "logo",
+  "coverImage",
+  "category",
+  "address",
+  "businessType",
+] as const;
+
+type ShopUpdatableField = (typeof SHOP_UPDATABLE_FIELDS)[number];
+
+export async function updateShop(shopId: string, data: Partial<Record<ShopUpdatableField, string>>) {
+  const safe: Partial<Record<ShopUpdatableField, string>> = {};
+  for (const key of SHOP_UPDATABLE_FIELDS) {
+    const value = (data as Record<string, unknown>)?.[key];
+    if (typeof value === "string") safe[key] = value;
+  }
+  return prisma.shop.update({ where: { id: shopId }, data: safe });
 }
 
 // P2-2 (feature 00008 Phase 2 cutover): Shop.userId ตัด @unique แล้ว (1 user มีได้หลาย Shop —

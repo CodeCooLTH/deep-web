@@ -50,7 +50,12 @@ const phoneSchema = Yup.object({
 })
 type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 
-export default function SignInCard() {
+/** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
+import OrderLinkShell, { type OrderLinkShopContext } from './OrderLinkShell'
+
+export type SignInOrderContext = OrderLinkShopContext
+
+export default function SignInCard({ orderContext = null }: { orderContext?: SignInOrderContext | null }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // callbackUrl ดิบจาก query — ยังไม่ sanitize ที่นี่ เพราะจุดใช้จริง (verify-otp / signIn OAuth)
@@ -65,8 +70,14 @@ export default function SignInCard() {
   const rawPrefillPhone = searchParams.get('prefillPhone')
   const prefillPhone = rawPrefillPhone && /^0[0-9]{9}$/.test(rawPrefillPhone) ? rawPrefillPhone : null
 
-  // โหมด login: password = default, otp = toggle กลับไปฟอร์มเบอร์โทรเดิม (หรือ default เป็น otp ถ้ามี prefillPhone ถูกต้อง)
-  const [loginMode, setLoginMode] = useState<'password' | 'otp'>(prefillPhone ? 'otp' : 'password')
+  // โหมด login:
+  //   channels = หน้าเลือกช่องทาง (ใช้เฉพาะตอนมาจากลิงก์ออเดอร์) — ผู้ซื้อจากแชทส่วนใหญ่ยังไม่มี
+  //     บัญชี Deep การเอาฟอร์ม username/password ขึ้นก่อนทำให้ดูเหมือนทางตัน จึงให้เลือกช่องทางก่อน
+  //   password = default เดิมของหน้า sign-in ปกติ
+  //   otp = ฟอร์มเบอร์โทร (default ถ้ามี prefillPhone ถูกต้อง — มาจาก SMS link)
+  const [loginMode, setLoginMode] = useState<'channels' | 'password' | 'otp'>(
+    prefillPhone ? 'otp' : orderContext ? 'channels' : 'password',
+  )
   // toggle แสดง/ซ่อนรหัสผ่าน (eye icon) — consistent กับ sign-up/new-pass
   const [isPasswordShown, setIsPasswordShown] = useState(false)
 
@@ -116,22 +127,66 @@ export default function SignInCard() {
     }
   }
 
-  return (
-    <div className='flex min-bs-[100dvh] justify-center items-center p-6'>
-      <AuthIllustrationWrapper>
-        <Card className='flex flex-col sm:is-[450px]'>
-          <CardContent className='sm:!p-12'>
-            <Link href='/' className='flex justify-center mbe-6'>
-              <Logo />
-            </Link>
-            <div className='flex flex-col gap-1 mbe-6'>
-              <Typography variant='h4'>{`ยินดีต้อนรับสู่ ${META_DATA.name}`}</Typography>
-              <Typography>
-                {loginMode === 'password' ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน' : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
-              </Typography>
-            </div>
+  // เนื้อหาส่วนฟอร์ม/ปุ่ม — ใช้ร่วมกันทั้งเชลล์ปกติและเชลล์ลิงก์ออเดอร์ เพื่อไม่ให้ handler
+  // การ login (OAuth / OTP / password) ถูก duplicate สองชุด
+  const body = (
+    <>
+      <div className='flex flex-col gap-1 mbe-6'>
+        <Typography variant='h4'>
+          {orderContext ? 'ยืนยันตัวตนเพื่อดูคำสั่งซื้อ' : `ยินดีต้อนรับสู่ ${META_DATA.name}`}
+        </Typography>
+        <Typography>
+          {loginMode === 'channels'
+            ? 'เลือกช่องทางที่สะดวก ใช้เวลาไม่ถึงหนึ่งนาที'
+            : loginMode === 'password'
+              ? 'เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน'
+              : 'กรอกเบอร์โทรเพื่อรับรหัส OTP เข้าสู่ระบบ'}
+        </Typography>
+      </div>
 
-            {loginMode === 'password' ? (
+      {loginMode === 'channels' ? (
+              /* หน้าเลือกช่องทาง — ทุกทางเข้าอยู่เหนือ fold บนจอมือถือใน in-app browser
+                 (Messenger กิน chrome บน-ล่างเหลือพื้นที่จริง ~570px) */
+              <div className='flex flex-col gap-3'>
+                <Button
+                  fullWidth
+                  variant='contained'
+                  startIcon={<i className='tabler-brand-facebook-filled' />}
+                  onClick={() => signIn('facebook', { callbackUrl: safeCallbackUrl })}
+                >
+                  ดำเนินการต่อด้วย Facebook
+                </Button>
+                {/* LINE brand green #06C755 — brand asset exception (Hard Rule 6) */}
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
+                  startIcon={<Icon icon='ri:line-fill' width={20} height={20} style={{ color: '#06C755' }} />}
+                  onClick={() => signIn('line', { callbackUrl: '/auth/callback/line' })}
+                >
+                  ดำเนินการต่อด้วย LINE
+                </Button>
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
+                  startIcon={<i className='tabler-device-mobile' />}
+                  onClick={() => setLoginMode('otp')}
+                >
+                  ใช้เบอร์โทรและรหัส OTP
+                </Button>
+                <Typography
+                  component='button'
+                  type='button'
+                  onClick={() => setLoginMode('password')}
+                  color='primary.main'
+                  className='text-center mbs-3'
+                  sx={{ background: 'none', border: 0, cursor: 'pointer' }}
+                >
+                  เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน
+                </Typography>
+              </div>
+            ) : loginMode === 'password' ? (
               <form
                 onSubmit={pwForm.handleSubmit(onPasswordSubmit)}
                 noValidate
@@ -230,8 +285,26 @@ export default function SignInCard() {
               </form>
             )}
 
-            {/* signup link + divider + ปุ่ม social — ใช้ร่วมกันทั้ง 2 โหมด (ไม่ใช่ส่วนหนึ่งของ form submit) */}
-            <div className='flex flex-col gap-6 mbs-6'>
+            {/* ปุ่มกลับไปหน้าเลือกช่องทาง — เฉพาะตอนมาจากลิงก์ออเดอร์แล้วผู้ใช้กดเข้าฟอร์มใดฟอร์มหนึ่ง
+                กัน dead-end: เลือกช่องทางผิดแล้วต้องย้อนกลับได้โดยไม่ต้องกด back ของเบราว์เซอร์
+                (in-app browser ของ Messenger ปุ่ม back อยู่ไกลมือ) */}
+            {orderContext && loginMode !== 'channels' && (
+              <div className='flex justify-center mbs-6'>
+                <Typography
+                  component='button'
+                  type='button'
+                  onClick={() => setLoginMode('channels')}
+                  color='primary.main'
+                  sx={{ background: 'none', border: 0, cursor: 'pointer' }}
+                >
+                  เลือกช่องทางอื่น
+                </Typography>
+              </div>
+            )}
+
+            {/* signup link + divider + ปุ่ม social — ซ่อนในโหมด channels เพราะปุ่ม social เป็นเนื้อหาหลัก
+                ของโหมดนั้นอยู่แล้ว (ไม่งั้นจะมีปุ่ม Facebook/LINE ซ้ำสองชุดในจอเดียว) */}
+            <div className={`flex flex-col gap-6 mbs-6 ${loginMode === 'channels' ? 'hidden' : ''}`}>
               <div className='flex justify-center items-center flex-wrap gap-2'>
                 <Typography>ยังไม่มีบัญชี?</Typography>
                 <Typography component={Link} href='/auth/sign-up' color='primary.main'>
@@ -240,9 +313,12 @@ export default function SignInCard() {
               </div>
               <Divider className='gap-2 text-textPrimary'>หรือ</Divider>
               <div className='flex flex-col gap-3'>
+                {/* color='secondary': ปุ่ม social ไม่ใช่ CTA หลักของหน้า — ปล่อยให้ม่วง primary
+                    อยู่ที่ปุ่ม submit ปุ่มเดียว ตาม One Voice (ม่วง ≤10% ของพื้นที่) */}
                 <Button
                   fullWidth
                   variant='outlined'
+                  color='secondary'
                   startIcon={<i className='tabler-brand-facebook-filled text-facebook' />}
                   onClick={() => signIn('facebook', { callbackUrl: safeCallbackUrl })}
                 >
@@ -253,6 +329,7 @@ export default function SignInCard() {
                 <Button
                   fullWidth
                   variant='outlined'
+                  color='secondary'
                   startIcon={<Icon icon='ri:line-fill' width={20} height={20} style={{ color: '#06C755' }} />}
                   onClick={() => signIn('line', { callbackUrl: '/auth/callback/line' })}
                 >
@@ -263,6 +340,7 @@ export default function SignInCard() {
                   <Button
                     fullWidth
                     variant='outlined'
+                    color='secondary'
                     startIcon={<Icon icon='ri:instagram-fill' width={20} height={20} style={{ color: '#E1306C' }} />}
                     onClick={() => signIn('instagram', { callbackUrl: '/auth/callback/instagram' })}
                   >
@@ -273,9 +351,42 @@ export default function SignInCard() {
               </div>
             </div>
 
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
-              &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
-            </Typography>
+      {/* บรรทัดความปลอดภัย — วางติดปุ่มโดยตั้งใจ เพราะจุดที่ผู้ใช้ลังเลคือตอนกำลังจะกด
+          ไม่ใช่ตอนอ่านหัวหน้า (ดู research 2026-07-25 เรื่อง trust signal placement) */}
+      {orderContext && loginMode === 'channels' && (
+        <Typography variant='caption' color='text.disabled' className='block text-center mbs-3'>
+          ใช้ยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อเท่านั้น
+        </Typography>
+      )}
+
+      {!orderContext && (
+        <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+          &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
+        </Typography>
+      )}
+    </>
+  )
+
+  // เชลล์ "หน้าร้าน" — ใช้เมื่อมาจากลิงก์คำสั่งซื้อ (ภาพร้านเป็นภาพนำก่อนขอให้ล็อกอิน)
+  // compact: ขั้นที่เป็นฟอร์มยุบ hero ลงเพื่อคืนพื้นที่ให้ช่องกรอก
+  if (orderContext) {
+    return (
+      <OrderLinkShell ctx={orderContext} compact={loginMode !== 'channels'}>
+        {body}
+      </OrderLinkShell>
+    )
+  }
+
+  // เชลล์เดิมของหน้า sign-in ปกติ — ไม่เปลี่ยนแปลง
+  return (
+    <div className='flex min-bs-[100dvh] justify-center items-center p-6'>
+      <AuthIllustrationWrapper>
+        <Card className='flex flex-col sm:is-[450px]'>
+          <CardContent className='sm:!p-12'>
+            <Link href='/' className='flex justify-center mbe-6'>
+              <Logo />
+            </Link>
+            {body}
           </CardContent>
         </Card>
       </AuthIllustrationWrapper>

@@ -1,0 +1,302 @@
+<title>Order Link — ทิศทาง C (หน้าร้าน) ครบทุกขั้นตอน</title>
+<style>
+  :root{
+    --violet:#7367F0;--violet-soft:#efedfe;--green:#28C76F;--green-soft:#e3f8ec;
+    --amber:#FF9F43;--amber-soft:#fff1e2;--coral:#FF4C51;--coral-soft:#ffe6e7;
+    --gold:#C99A2E;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef;
+    --sh:0 2px 6px rgb(47 43 61/.10),0 18px 44px rgb(47 43 61/.16);
+  }
+  @media (prefers-color-scheme:dark){:root{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;
+    --coral-soft:#3a1417;--gold-soft:#332912;--ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;
+    --mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}}
+  :root[data-theme="dark"]{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;
+    --coral-soft:#3a1417;--gold-soft:#332912;--ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;
+    --mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}
+  :root[data-theme="light"]{--violet-soft:#efedfe;--green-soft:#e3f8ec;--amber-soft:#fff1e2;
+    --coral-soft:#ffe6e7;--gold-soft:#fbf1dc;--ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    font-family:'Anuphan','IBM Plex Sans Thai','Noto Sans Thai',-apple-system,sans-serif}
+  .wrap{max-width:1320px;margin:0 auto;padding:40px 20px 90px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}
+  .lede{margin:0;color:var(--ink-2);max-width:66ch}
+  .note{margin-top:16px;padding:13px 15px;border-radius:11px;background:var(--amber-soft);
+    font-size:13.5px;border-inline-start:3px solid var(--amber)}
+  .step{margin-top:58px}
+  .shead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:5px}
+  .snum{font-size:11.5px;font-weight:700;letter-spacing:.09em;color:var(--violet);
+    background:var(--violet-soft);padding:3px 10px;border-radius:20px}
+  .shead h2{font-size:20px;margin:0;letter-spacing:-.015em}
+  .why{color:var(--ink-2);font-size:14px;margin:0 0 20px;max-width:72ch}
+  .devices{display:flex;gap:26px;overflow-x:auto;padding-bottom:14px;align-items:flex-start}
+  .device{flex:0 0 auto}
+  .dlab{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px;font-weight:600}
+  .screen{border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--sh);background:var(--card)}
+  .m .screen{width:390px}.t .screen{width:600px}.d .screen{width:960px}
+  .chrome{background:#000;color:#fff;padding:9px 14px;font-size:12px;display:flex;justify-content:space-between}
+  .chrome b{font-weight:600}.chrome span{color:#9b98a8}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  .ph-shop{background:radial-gradient(at 18% 22%,#ff9f43 0,transparent 55%),
+    radial-gradient(at 82% 18%,#7367F0 0,transparent 52%),
+    radial-gradient(at 50% 88%,#00BAD1 0,transparent 58%),linear-gradient(140deg,#4339b5,#2F2B3D)}
+  .ph-prod{background:radial-gradient(at 25% 30%,#5c5870 0,transparent 55%),
+    radial-gradient(at 75% 70%,#8b8799 0,transparent 50%),linear-gradient(160deg,#3a3648,#22202e)}
+
+  /* ══ HERO ══ */
+  .stage{position:relative}
+  .d .stage{display:grid;grid-template-columns:1fr 1fr;min-height:560px}
+  .hero{position:relative;height:280px;overflow:hidden}
+  .hero.slim{height:150px}
+  .d .hero{height:auto}
+  .hero .bg{position:absolute;inset:0}
+  .hero .sc{position:absolute;inset:0;
+    background:linear-gradient(180deg,rgb(15 12 22/.12) 0%,rgb(15 12 22/.5) 52%,rgb(15 12 22/.88) 100%)}
+  .d .hero .sc{background:linear-gradient(180deg,rgb(15 12 22/.3) 0%,rgb(15 12 22/.72) 100%)}
+  .hero .txt{position:absolute;inset-block-end:0;inset-inline:0;padding:20px;color:#fff}
+  .d .hero .txt{inset-block-end:0}
+  .hero .av{width:62px;height:62px;border-radius:18px;border:3px solid rgb(255 255 255/.9);
+    display:grid;place-items:center;font-weight:800;font-size:25px;margin-bottom:11px;position:relative}
+  .hero .av .v{position:absolute;inset-block-end:-6px;inset-inline-end:-6px;width:24px;height:24px;
+    border-radius:50%;background:var(--green);border:3px solid #17151f;display:grid;place-items:center;font-size:12px}
+  .hero h3{margin:0;font-size:25px;letter-spacing:-.025em;line-height:1.2;text-shadow:0 1px 12px rgb(0 0 0/.45)}
+  .hero .sub{font-size:12.5px;opacity:.86;margin-top:3px}
+  /* บรรทัดต่อเนื่องจากแชท — element เดียวที่หยิบมาจากทิศทาง A */
+  .fromchat{display:inline-flex;align-items:center;gap:6px;background:rgb(255 255 255/.16);
+    backdrop-filter:blur(8px);border:1px solid rgb(255 255 255/.22);border-radius:20px;
+    padding:5px 11px;font-size:11.5px;margin-top:9px}
+  .hstats{display:flex;gap:18px;margin-top:13px;font-size:11.5px}
+  .hstats b{display:block;font-size:18px;font-weight:800;letter-spacing:-.02em}
+
+  /* ══ SHEET ══ */
+  .sheet{background:var(--card);border-radius:22px 22px 0 0;margin-top:-22px;position:relative;
+    padding:18px 18px 22px}
+  .d .sheet{margin-top:0;border-radius:0;padding:30px;display:flex;flex-direction:column;justify-content:center}
+  .grab{width:38px;height:4px;border-radius:4px;background:var(--line);margin:0 auto 15px}
+  .d .grab{display:none}
+  .bdgs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:13px}
+  .bdg{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:7px;display:inline-flex;gap:4px;align-items:center}
+  .b-gold{background:var(--gold-soft);color:var(--gold)}.b-green{background:var(--green-soft);color:#17904c}
+  @media (prefers-color-scheme:dark){.b-gold{color:#e0b551}.b-green{color:#4fd68d}}
+  :root[data-theme="dark"] .b-gold{color:#e0b551}:root[data-theme="dark"] .b-green{color:#4fd68d}
+
+  .chs{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .ch{display:flex;align-items:center;gap:9px;min-width:0}
+  .ch-av{width:26px;height:26px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;
+    color:#fff;font-size:12px;font-weight:700}
+  .ch-n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .ch-s{font-size:10.5px;color:var(--ink-3)}
+
+  .amtrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+  .amtrow .n{font-size:29px;font-weight:800;letter-spacing:-.03em}
+  .meta{font-size:11.5px;color:var(--ink-3);margin-bottom:15px}
+
+  .flow{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);margin-bottom:16px}
+  .flow .n{width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--ink-2);
+    display:grid;place-items:center;font-size:10px;font-weight:700;flex:0 0 auto}
+  .flow .n.on{background:var(--violet);color:#fff}.flow .n.ok{background:var(--green);color:#fff}
+  .flow .ln{flex:1;height:1px;background:var(--line)}
+
+  .stack{display:flex;flex-direction:column;gap:9px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:9px;min-height:50px;border-radius:12px;
+    font-size:15.5px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    font-family:inherit;cursor:pointer;width:100%}
+  .btn:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+  .btn-p{background:var(--violet);border-color:var(--violet);color:#fff;box-shadow:0 4px 14px rgb(115 103 240/.34)}
+  .btn-g{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 4px 14px rgb(40 199 111/.3)}
+  .btn-ghost{border:0;background:none;color:var(--ink-3);min-height:40px;font-weight:500;font-size:14px}
+  .safe{text-align:center;font-size:11.5px;color:var(--ink-3);margin-top:11px;
+    display:flex;align-items:center;justify-content:center;gap:6px}
+
+  .ask{margin-bottom:14px}
+  .ask h4{margin:0 0 3px;font-size:18px;letter-spacing:-.015em}
+  .ask p{margin:0;font-size:13.5px;color:var(--ink-2)}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:9px}
+  .field label{font-size:13px;font-weight:600}
+  .input{min-height:50px;border:1px solid var(--line);border-radius:12px;padding:0 14px;display:flex;
+    align-items:center;font-size:16px;background:var(--card)}
+  .input.ph{color:var(--ink-3)}
+  .inline{font-size:11.5px;color:var(--ink-3);display:flex;gap:6px;margin-bottom:14px}
+  .alert{border-radius:12px;padding:13px 15px;font-size:13px;border-inline-start:3px solid;margin-bottom:14px}
+  .alert b{display:block;margin-bottom:2px;font-size:13.5px}
+  .a-amber{background:var(--amber-soft);border-color:var(--amber)}
+  .a-coral{background:var(--coral-soft);border-color:var(--coral)}
+  .a-green{background:var(--green-soft);border-color:var(--green)}
+  .check{display:flex;gap:10px;font-size:14px;margin-bottom:16px}
+  .box{width:22px;height:22px;border-radius:6px;border:2px solid var(--ink-3);flex:0 0 auto}
+  .box.on{background:var(--violet);border-color:var(--violet);color:#fff;display:grid;place-items:center;font-size:13px}
+  .otp{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+  .otp i{width:46px;height:56px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;
+    font-size:22px;font-weight:800;font-style:normal}
+  .otp i.f{border-color:var(--violet);border-width:2px}
+  .prodrow{display:flex;gap:11px;align-items:center;padding:12px 0;border-block:1px solid var(--line);margin-bottom:15px}
+  .prodimg{width:54px;height:54px;border-radius:11px;flex:0 0 auto}
+  .rev{padding:12px 13px;border-radius:11px;background:var(--mist);margin-bottom:15px}
+  .rev .t{display:flex;gap:8px;align-items:center;margin-bottom:5px}
+  .stars{color:var(--amber);font-size:12px;letter-spacing:1px}
+  .vtag{font-size:10px;font-weight:700;color:#17904c;background:var(--green-soft);padding:2px 6px;border-radius:5px}
+  @media (prefers-color-scheme:dark){.vtag{color:#4fd68d}}
+  :root[data-theme="dark"] .vtag{color:#4fd68d}
+  .rev p{margin:0;font-size:13px;color:var(--ink-2)}
+  .rev .who{font-size:11px;color:var(--ink-3);margin-top:4px}
+
+  .variants{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+  .variant{flex:1 1 310px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .variant h5{margin:0 0 11px;font-size:14px}
+  .foot{margin-top:58px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .foot h2{margin:0 0 12px;font-size:18px}
+  .foot ul{margin:0;padding-inline-start:20px;color:var(--ink-2)}.foot li{margin-bottom:8px}
+  .foot b{color:var(--ink)}
+  code{background:var(--mist);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>Order Link — ทิศทาง C “หน้าร้าน”</h1>
+  <p class="lede">ภาพร้านเป็นพระเอกเต็มจอ แผ่นข้อมูลเลื่อนขึ้นทับแบบ bottom sheet ของแอปจริง เมื่อผ่านการยืนยันแล้ว ภาพร้านจะยุบลงเหลือแถบบางเพื่อคืนพื้นที่ให้เนื้อหา แต่ยังคงบริบทว่ากำลังทำรายการกับร้านไหนอยู่</p>
+  <div class="note">
+    พื้นผิวรูปเป็นภาพจำลอง เพราะหน้านี้โหลดรูปจากภายนอกไม่ได้ ของจริงคือ <code>Shop.logo</code>, <code>ShopChannel.avatarUrl</code>, <code>Product.images[0]</code> — บนเดสก์ท็อป ภาพร้านย้ายไปเป็นคอลัมน์ซ้ายเต็มความสูงแทน bottom sheet เพราะจอกว้างแล้วเรียงลงยาวจะดันปุ่มตกใต้ fold โดยไม่จำเป็น
+  </div>
+
+  <div class="step">
+    <div class="shead"><span class="snum">STEP 1</span><h2>เปิดลิงก์</h2></div>
+    <p class="why">ภาพร้าน 280px เต็มความกว้างเปิดหน้า ชื่อร้านและสถิติวางทับบนภาพเลย ไม่ต้องรอเลื่อน ป้าย “เพจที่คุณเพิ่งคุยด้วย” คือชิ้นเดียวที่หยิบมาจากทิศทาง A แสดงเฉพาะเมื่อผู้ซื้อมาจากช่องทางที่ร้านเชื่อมไว้จริง</p>
+    <div class="devices" data-s="1"></div>
+  </div>
+
+  <div class="step">
+    <div class="shead"><span class="snum">STEP 2</span><h2>ยืนยันเบอร์ที่ใช้สั่งซื้อ</h2></div>
+    <p class="why">ภาพร้านยุบเหลือ 150px คืนพื้นที่ให้ฟอร์ม คำอธิบายว่าเบอร์นี้เอาไปทำอะไรวางชิดช่องกรอก ส่วนคำเตือนเรื่องเบอร์ผูกถาวรต้องติ๊กก่อนจึงกดต่อได้</p>
+    <div class="devices" data-s="2"></div>
+  </div>
+
+  <div class="step">
+    <div class="shead"><span class="snum">STEP 3</span><h2>กรอกรหัส OTP</h2></div>
+    <p class="why">ขั้นสั้นที่สุด เหลือช่องรหัสเป็นศูนย์กลาง พร้อมทางออกสองทางที่คนต้องใช้จริง คือแก้เบอร์ที่พิมพ์ผิด กับขอรหัสใหม่</p>
+    <div class="devices" data-s="3"></div>
+  </div>
+
+  <div class="step">
+    <div class="shead"><span class="snum">STEP 4</span><h2>ยืนยันคำสั่งซื้อ</h2></div>
+    <p class="why">ผ่านการยืนยันแล้ว รูปสินค้าจึงขึ้นได้ ปุ่มยืนยันเป็นเขียวตามหลัก Verified-Means-Green ไม่ใช่ม่วง เพราะเป็นการยืนยันความสำเร็จ ไม่ใช่การกระทำหลักของแบรนด์</p>
+    <div class="devices" data-s="4"></div>
+  </div>
+
+  <div class="step">
+    <div class="shead"><span class="snum">STATES</span><h2>กรณีที่ไปต่อไม่ได้</h2></div>
+    <p class="why">ทุกกรณีบอกว่าเกิดอะไรขึ้นและทำอะไรต่อได้ ไม่จบด้วยปุ่มออกจากระบบเพียงอย่างเดียวแบบเดิม</p>
+    <div class="variants">
+      <div class="variant"><h5>เบอร์ไม่ตรงกับที่ร้านบันทึกไว้</h5>
+        <div class="alert a-coral"><b>เบอร์นี้ไม่ตรงกับคำสั่งซื้อ</b>ลองเบอร์อื่นที่อาจแจ้งร้านไว้ หรือทักแชทถามร้านว่าบันทึกเบอร์ไหน</div>
+        <button class="btn">ลองเบอร์อื่น</button></div>
+      <div class="variant"><h5>เบอร์นี้มีบัญชีอยู่แล้ว</h5>
+        <div class="alert a-amber"><b>เบอร์นี้เคยสมัคร Deep ไว้แล้ว</b>เชื่อม Facebook เข้ากับบัญชีเดิมได้เลย ประวัติทั้งหมดจะอยู่ที่เดียวกัน</div>
+        <button class="btn btn-p">เชื่อมกับบัญชีเดิม</button></div>
+      <div class="variant"><h5>ร้านใหม่ยังไม่มีประวัติ</h5>
+        <div class="alert a-amber"><b>ร้านใหม่บน Deep</b>ยังไม่มีออเดอร์สำเร็จ ตรวจสอบให้แน่ใจก่อนโอนเงิน</div>
+        <p style="font-size:12.5px;color:var(--ink-2);margin:0">ซ่อนแถบสถิติทั้งแถบ ไม่แสดงเลขศูนย์ ไม่แต่งตัวเลขให้ดูดี</p></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <h2>ที่ต้องตัดสินก่อนลงโค้ด</h2>
+    <ul>
+      <li><b><code>Shop.coverImage</code></b> — ยังไม่มีในฐานข้อมูล ทิศทางนี้พึ่งภาพเต็ม ๆ ถ้าไม่เพิ่ม ต้องใช้โลโก้ขยายเบลอแทน ซึ่งได้ผลดีเมื่อโลโก้เป็นรูปถ่าย แต่จะจืดถ้าโลโก้เป็นตัวอักษรบนพื้นเรียบ การเพิ่มคือ migration หนึ่งช่อง บวกที่อัปโหลดในหน้าตั้งค่าร้าน</li>
+      <li><b>ป้าย “เพจที่คุณเพิ่งคุยด้วย”</b> — ต้องรู้ว่าผู้ซื้อมาจากช่องทางไหน วันนี้ยังไม่มีตัวเชื่อมระหว่างคำสั่งซื้อกับบทสนทนา ทางที่ถูกที่สุดคือใส่พารามิเตอร์ในลิงก์ตอนร้านกดส่งจากหน้าแชท ถ้าไม่มีพารามิเตอร์ก็ซ่อนป้ายไป</li>
+      <li><b>รูปสินค้า</b> — ยังยึดขอบเขตเดิม คือขึ้นเฉพาะหลังยืนยันตัวตนแล้วที่ STEP 4 ส่วนภาพร้านและโปรไฟล์แสดงได้ตั้งแต่ STEP 1</li>
+      <li><b>รีวิวจริง</b> ต้องมีข้อความ ถ้าร้านยังไม่มีรีวิวที่เขียนข้อความ ให้ซ่อนบล็อกทิ้ง ไม่แต่งคำชมขึ้นมาเอง</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const hero=(slim,step)=>`
+    <div class="hero${slim?' slim':''}">
+      <div class="bg ph-shop"></div><div class="sc"></div>
+      <div class="txt">
+        ${slim?'':`<div class="av ph-shop">ธ<span class="v" style="color:#fff">&#10003;</span></div>`}
+        <h3 style="${slim?'font-size:19px':''}">ธนภัทร อะไหล่ยนต์</h3>
+        <div class="sub">@thanaphat.parts${slim?' &middot; ฿360':' &middot; เปิดร้านตั้งแต่ ก.พ. 2568'}</div>
+        ${slim?'':`<div class="fromchat"><span style="color:#4ade80">&#9679;</span>เพจที่คุณเพิ่งคุยด้วย</div>
+        <div class="hstats">
+          <span><b class="tnum">128</b>ออเดอร์สำเร็จ</span>
+          <span><b class="tnum">4.8</b>จาก 96 รีวิว</span>
+          <span><b class="tnum">98%</b>อัตราสำเร็จ</span>
+        </div>`}
+      </div>
+    </div>`;
+
+  const flow=n=>`<div class="flow">
+    <span class="n ${n>1?'ok':'on'}">${n>1?'&#10003;':'1'}</span><span>ยืนยันตัวตน</span><span class="ln"></span>
+    <span class="n ${n>2?'ok':n===2?'on':''}">2</span><span>ตรวจคำสั่งซื้อ</span><span class="ln"></span>
+    <span class="n ${n>3?'ok':n===3?'on':''}">3</span><span>ยืนยันรับของ</span></div>`;
+
+  const S={
+    1:`<div class="stage">${hero(false,1)}
+      <div class="sheet"><div class="grab"></div>
+        <div class="bdgs"><span class="bdg b-gold">&#9670; จดทะเบียนธุรกิจ</span><span class="bdg b-green">&#10003; ยืนยันตัวตน</span></div>
+        <div class="chs">
+          <div class="ch"><span class="ch-av" style="background:#1877F2">f</span>
+            <span style="min-width:0"><span class="ch-n">ธนภัทร อะไหล่ยนต์ — อะไหล่แต่งเวฟ</span><span class="ch-s">Facebook Page</span></span></div>
+          <div class="ch"><span class="ch-av" style="background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)">&#9673;</span>
+            <span style="min-width:0"><span class="ch-n">@thanaphat.parts</span><span class="ch-s">Instagram</span></span></div>
+        </div>
+        <div class="rev"><div class="t"><span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span class="vtag">ซื้อจริง</span></div>
+          <p>ของตรงปก ส่งไว ทักไปถามตอบเร็วมาก</p><div class="who">คุณ ก. &middot; 3 วันที่แล้ว</div></div>
+        <div class="amtrow"><span style="font-size:13px;color:var(--ink-3)">ยอดที่ต้องชำระ</span><span class="n tnum">฿360</span></div>
+        <div class="meta tnum">DP256907C724554C &middot; 24 ก.ค. 2569 11:35</div>
+        ${flow(1)}
+        <div class="stack">
+          <button class="btn btn-p"><span>f</span>ดำเนินการต่อด้วย Facebook</button>
+          <button class="btn">ใช้เบอร์โทรและรหัส OTP</button>
+          <button class="btn btn-ghost">ช่องทางอื่น</button>
+        </div>
+        <div class="safe"><span style="color:var(--green)">&#9679;</span>ใช้ยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อเท่านั้น</div>
+      </div></div>`,
+
+    2:`<div class="stage">${hero(true,2)}
+      <div class="sheet"><div class="grab"></div>${flow(1)}
+        <div class="ask"><h4>ยืนยันเบอร์ที่ใช้สั่งซื้อ</h4><p>กรอกเบอร์ที่คุณแจ้งไว้กับร้าน</p></div>
+        <div class="field"><label>เบอร์โทรศัพท์</label><div class="input ph tnum">08x-xxx-xxxx</div></div>
+        <div class="inline"><span style="color:var(--green)">&#9679;</span><span>ใช้ยืนยันตัวตนเท่านั้น ไม่แสดงต่อผู้อื่น ไม่ใช้ส่งโฆษณา</span></div>
+        <div class="alert a-amber"><b>เบอร์นี้จะผูกกับบัญชีถาวร เปลี่ยนเองภายหลังไม่ได้</b>ตรวจสอบให้แน่ใจว่าเป็นเบอร์ที่ใช้สั่งซื้อกับร้านจริง</div>
+        <div class="check"><span class="box on">&#10003;</span><span>ตรวจสอบแล้ว เบอร์นี้ถูกต้อง</span></div>
+        <div class="stack"><button class="btn btn-p">ส่งรหัส OTP</button></div>
+      </div></div>`,
+
+    3:`<div class="stage">${hero(true,3)}
+      <div class="sheet"><div class="grab"></div>${flow(1)}
+        <div class="ask"><h4>กรอกรหัสยืนยัน</h4><p>ส่งรหัส 6 หลักไปที่ 081-234-5678 แล้ว</p></div>
+        <div class="otp"><i class="f tnum">4</i><i class="f tnum">8</i><i class="f tnum">2</i><i>&nbsp;</i><i>&nbsp;</i><i>&nbsp;</i></div>
+        <div class="stack"><button class="btn btn-p" style="opacity:.45">ยืนยัน</button></div>
+        <div style="display:flex;justify-content:center;gap:16px;margin-top:14px;font-size:13.5px;color:var(--violet);font-weight:500">
+          <span>แก้เบอร์</span><span style="color:var(--ink-3)">|</span><span>ส่งรหัสอีกครั้ง</span></div>
+      </div></div>`,
+
+    4:`<div class="stage">${hero(true,4)}
+      <div class="sheet"><div class="grab"></div>${flow(3)}
+        <div class="alert a-green"><b>ยืนยันตัวตนแล้ว</b>คุณคือเจ้าของคำสั่งซื้อนี้</div>
+        <div class="prodrow"><span class="prodimg ph-prod"></span>
+          <span><span style="display:block;font-weight:600;font-size:14px">โช้คหลังคู่ เวฟ 110 สีดำ</span>
+          <span style="font-size:12px;color:var(--ink-3)" class="tnum">1 ชิ้น &times; ฿360</span></span></div>
+        <div class="amtrow"><span style="font-size:13px;color:var(--ink-3)">ยอดที่ต้องชำระ</span><span class="n tnum">฿360</span></div>
+        <div class="meta tnum">DP256907C724554C &middot; 24 ก.ค. 2569 11:35</div>
+        <div class="stack">
+          <button class="btn btn-g">ยืนยันว่าได้รับสินค้าแล้ว</button>
+          <button class="btn btn-ghost" style="color:var(--coral)">ยกเลิกคำสั่งซื้อ</button>
+        </div>
+        <div class="safe">กดยืนยันเมื่อได้รับสินค้าครบถ้วนแล้วเท่านั้น</div>
+      </div></div>`,
+  };
+
+  const DEV=[{c:'m',l:'Mobile 390 — ใน Messenger',ch:1},{c:'t',l:'Tablet 600',ch:0},{c:'d',l:'Desktop 960',ch:0}];
+  document.querySelectorAll('.devices').forEach(h=>{
+    const html=S[h.dataset.s];
+    h.innerHTML=DEV.map(d=>`<div class="device ${d.c}"><div class="dlab">${d.l}</div>
+      <div class="screen">${d.ch?'<div class="chrome"><span>&#10005;</span><b>deepthailand.app</b><span>&hellip;</span></div>':''}
+      ${html}</div></div>`).join('');
+  });
+</script>

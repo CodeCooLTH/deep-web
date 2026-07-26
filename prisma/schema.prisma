@@ -105,6 +105,10 @@ model Shop {
   shopName      String
   description   String?
   logo          String?
+  // coverImage (user 2026-07-25): ภาพหน้าปกร้าน — ใช้เป็นภาพนำของหน้าลิงก์คำสั่งซื้อ /o/[token]
+  // ที่ผู้ซื้อเปิดจากแชท (จุดที่ต้องพิสูจน์ว่าร้านมีตัวตนจริงก่อนขอให้ล็อกอิน)
+  // null = ยังไม่ได้อัปโหลด → UI fallback ไปใช้ logo ขยายเบลอแทน ไม่ปล่อยพื้นที่ว่าง
+  coverImage    String?
   category      String? // LEGACY single-value — คงไว้ระหว่าง migration (backward-compat); SSOT ใหม่ = categories
   categories    String[] @default([]) // multi-category ≤5 (feature 00001); GIN index ใน migration SQL
   salesChannels String[] @default([]) // ช่องทางการขาย: facebook/offline/line/tiktok_shop/lazada/shopee; validate app layer

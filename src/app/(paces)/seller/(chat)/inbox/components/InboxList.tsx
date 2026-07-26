@@ -461,6 +461,11 @@ export default function InboxList({
         const beepFor = data.items.find((it) => {
           if (it.lastSenderRole !== 'BUYER') return false
           const before = prevById.get(it.id)
+          // beep เฉพาะ "เริ่มเทิร์นใหม่ที่ยังไม่ตอบ" — เธรดเพิ่งเปลี่ยนจากฝั่งเราตอบล่าสุด (หรือเธรดใหม่)
+          // มาเป็นลูกค้าทัก. ถ้าก่อนหน้าลูกค้าทักอยู่แล้ว (before.lastSenderRole==='BUYER') = spam ต่อเนื่อง
+          // ในเทิร์นเดิม → ไม่ดังซ้ำ (user report 2026-07-26: ลูกค้า spam รัวๆ เสียงดังรัวๆ — ควรดังครั้งเดียว
+          // ต่อเทิร์น, reset เมื่อร้าน/echo ตอบ ซึ่งทำให้ lastSenderRole กลับเป็น SHOP)
+          if (before && before.lastSenderRole === 'BUYER') return false
           return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
         })
         if (beepFor) playChatBeep({ shopId, conversationId: beepFor.id })

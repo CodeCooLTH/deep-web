@@ -100,7 +100,12 @@ export function groupByDate(messages: ChatMessageView[]) {
   return groups
 }
 
-export function useSellerChatThread(conversationId: string, shopId?: string | null) {
+// beepEnabled (user report 2026-07-25 "เสียงเตือนเบิ้ล 2 ครั้ง ทั้งที่ noti เดียว"): หน้า inbox มีทั้ง
+// ChatThread (hook นี้) และ InboxList subscribe realtime คนละ channel — ข้อความเดียวยิง beep 2 ที่, time
+// throttle 1.2s ไม่พอเมื่อ fetch latency ต่างกัน. deterministic fix: ให้ InboxList เป็นเจ้าของ beep
+// หน้า inbox (mount อยู่เสมอ) แล้ว ChatThread ปิด beep (beepEnabled=false); SellerChatWidget บนหน้า
+// dashboard ไม่มี list → คงเปิด beep (default true)
+export function useSellerChatThread(conversationId: string, shopId?: string | null, beepEnabled = true) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
@@ -263,7 +268,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         // มีใน state มาก่อน (กัน refetch ซ้ำแล้วดังซ้ำ) และไม่ใช่ข้อความที่ร้านส่งเอง/echo จากแอป
         const hasNewFromBuyer = data.items.some((m) => m.senderRole === 'BUYER' && !map.has(m.id))
         for (const m of data.items) map.set(m.id, m)
-        if (hasNewFromBuyer) playChatBeep({ shopId, conversationId })
+        // beepEnabled=false บนหน้า inbox — ปล่อยให้ InboxList เป็นเจ้าของ beep (กันเสียงเบิ้ล 2 ครั้ง)
+        if (hasNewFromBuyer && beepEnabled) playChatBeep({ shopId, conversationId })
         return Array.from(map.values()).sort(
           (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         )
@@ -271,7 +277,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     } catch {
       // เงียบ — รอ broadcast ถัดไป/focus fallback
     }
-  }, [conversationId])
+  }, [conversationId, shopId, beepEnabled])
 
   // ── realtime subscribe: chat:{conversationId} ──────────────────────────
   useEffect(() => {

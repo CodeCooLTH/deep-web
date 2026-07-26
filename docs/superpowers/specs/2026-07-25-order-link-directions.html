@@ -1,0 +1,238 @@
+<title>Order Link — 3 ทิศทางการออกแบบ</title>
+<style>
+  :root{
+    --violet:#7367F0;--violet-2:#4339b5;--violet-soft:#efedfe;
+    --green:#28C76F;--green-soft:#e3f8ec;--amber:#FF9F43;--amber-soft:#fff1e2;
+    --coral:#FF4C51;--gold:#C99A2E;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef;
+    --sh:0 2px 6px rgb(47 43 61/.10),0 18px 44px rgb(47 43 61/.16);
+  }
+  @media (prefers-color-scheme:dark){:root{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}}
+  :root[data-theme="dark"]{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}
+  :root[data-theme="light"]{--violet-soft:#efedfe;--green-soft:#e3f8ec;--amber-soft:#fff1e2;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;--mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    font-family:'Anuphan','IBM Plex Sans Thai','Noto Sans Thai',-apple-system,sans-serif}
+  .wrap{max-width:1300px;margin:0 auto;padding:40px 20px 90px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}
+  .lede{margin:0 0 6px;color:var(--ink-2);max-width:66ch}
+  .cols{display:flex;gap:30px;overflow-x:auto;padding:34px 0 16px;align-items:flex-start}
+  .col{flex:0 0 auto;width:390px}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--violet);background:var(--violet-soft);padding:4px 10px;border-radius:20px;display:inline-block}
+  .col h2{font-size:19px;margin:11px 0 5px;letter-spacing:-.015em}
+  .col .desc{font-size:13.5px;color:var(--ink-2);margin:0 0 16px;min-height:80px}
+  .screen{border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--sh);background:var(--card)}
+  .chrome{background:#000;color:#fff;padding:9px 14px;font-size:12px;display:flex;justify-content:space-between}
+  .chrome b{font-weight:600}.chrome span{color:#9b98a8}
+  .verdict{margin-top:14px;font-size:12.5px;padding:11px 13px;border-radius:10px;background:var(--card);
+    border:1px solid var(--line)}
+  .verdict b{display:block;margin-bottom:3px}
+  .ph-shop{background:radial-gradient(at 18% 22%,#ff9f43 0,transparent 55%),
+    radial-gradient(at 82% 18%,#7367F0 0,transparent 52%),
+    radial-gradient(at 50% 88%,#00BAD1 0,transparent 58%),linear-gradient(140deg,#4339b5,#2F2B3D)}
+  .btn{display:flex;align-items:center;justify-content:center;gap:9px;min-height:50px;border-radius:12px;
+    font-size:15.5px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    font-family:inherit;cursor:pointer;width:100%}
+  .btn:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+  .btn-p{background:var(--violet);border-color:var(--violet);color:#fff;box-shadow:0 4px 14px rgb(115 103 240/.34)}
+  .stack{display:flex;flex-direction:column;gap:9px}
+  .bdg{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:7px;display:inline-flex;gap:4px;align-items:center}
+  .b-gold{background:var(--gold-soft);color:var(--gold)}.b-green{background:var(--green-soft);color:#17904c}
+  @media (prefers-color-scheme:dark){.b-gold{color:#e0b551}.b-green{color:#4fd68d}}
+  :root[data-theme="dark"] .b-gold{color:#e0b551}:root[data-theme="dark"] .b-green{color:#4fd68d}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* ─── A: ต่อจากแชท ─── */
+  .a-head{display:flex;align-items:center;gap:11px;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--card)}
+  .a-head .av{width:38px;height:38px;border-radius:50%;flex:0 0 auto;position:relative;display:grid;place-items:center;color:#fff;font-weight:800}
+  .a-head .av .v{position:absolute;inset-block-end:-2px;inset-inline-end:-2px;width:15px;height:15px;border-radius:50%;
+    background:var(--green);border:2px solid var(--card);display:grid;place-items:center;font-size:8px}
+  .a-body{padding:18px 15px 20px;background:var(--mist);min-height:300px}
+  .bubble{background:var(--card);border-radius:18px 18px 18px 5px;padding:14px;box-shadow:0 1px 3px rgb(47 43 61/.09);
+    max-width:88%;margin-bottom:9px}
+  .bubble .lbl{font-size:11px;color:var(--ink-3);margin-bottom:7px}
+  .bubble .amt{font-size:27px;font-weight:800;letter-spacing:-.025em;line-height:1.1}
+  .bubble .meta{font-size:11.5px;color:var(--ink-3);margin-top:5px}
+  .trustpill{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
+    border-radius:20px;padding:6px 12px;font-size:12px;margin-bottom:14px}
+  .a-cta{padding:14px 15px 18px;background:var(--card);border-top:1px solid var(--line)}
+  .sysline{text-align:center;font-size:11px;color:var(--ink-3);margin:14px 0}
+
+  /* ─── B: ใบรับของ ─── */
+  .slip{margin:0;background:var(--card);position:relative;padding:0 0 4px}
+  .perf{height:12px;background:repeating-linear-gradient(90deg,var(--card) 0 8px,transparent 8px 16px);
+    position:relative;margin-top:-6px}
+  .slip-top{background:var(--mist);padding:16px 20px;text-align:center;border-bottom:1px dashed var(--line)}
+  .slip-top .k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+  .slip-top .shop{font-size:18px;font-weight:700;margin-top:5px;letter-spacing:-.01em}
+  .slip-rows{padding:14px 20px}
+  .srow{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;padding:6px 0;
+    border-bottom:1px dotted var(--line)}
+  .srow:last-child{border:0}
+  .srow .k{color:var(--ink-3)}
+  .slip-total{display:flex;justify-content:space-between;align-items:baseline;padding:12px 20px;
+    border-block:2px solid var(--ink);margin:6px 0 0}
+  .slip-total .amt{font-size:26px;font-weight:800;letter-spacing:-.025em}
+  .stamp{margin:16px auto 0;width:max-content;border:2px solid var(--amber);color:var(--amber);
+    border-radius:8px;padding:5px 13px;font-size:12.5px;font-weight:800;letter-spacing:.06em;
+    transform:rotate(-4deg)}
+  .slip-cta{padding:18px 20px 20px}
+
+  /* ─── C: หน้าร้าน ─── */
+  .c-hero{position:relative;height:280px;overflow:hidden}
+  .c-hero .bg{position:absolute;inset:0}
+  .c-hero .sc{position:absolute;inset:0;background:linear-gradient(180deg,rgb(15 12 22/.15) 0%,rgb(15 12 22/.55) 55%,rgb(15 12 22/.88) 100%)}
+  .c-hero .txt{position:absolute;inset-block-end:0;inset-inline:0;padding:20px;color:#fff}
+  .c-hero .av{width:60px;height:60px;border-radius:18px;border:3px solid rgb(255 255 255/.9);display:grid;
+    place-items:center;font-weight:800;font-size:24px;margin-bottom:11px;backdrop-filter:blur(6px)}
+  .c-hero h3{margin:0;font-size:25px;letter-spacing:-.025em;line-height:1.2;text-shadow:0 1px 12px rgb(0 0 0/.4)}
+  .c-hero .sub{font-size:12.5px;opacity:.85;margin-top:3px}
+  .c-stats{display:flex;gap:16px;margin-top:12px;font-size:12px}
+  .c-stats b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em}
+  .c-sheet{background:var(--card);border-radius:22px 22px 0 0;margin-top:-22px;position:relative;padding:20px 18px 22px}
+  .c-grab{width:38px;height:4px;border-radius:4px;background:var(--line);margin:0 auto 16px}
+  .c-amt{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .c-amt .n{font-size:28px;font-weight:800;letter-spacing:-.03em}
+  .c-meta{font-size:11.5px;color:var(--ink-3);margin-bottom:16px}
+
+  .foot{margin-top:56px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .foot h2{margin:0 0 12px;font-size:18px}
+  .foot ul{margin:0;padding-inline-start:20px;color:var(--ink-2)}.foot li{margin-bottom:8px}
+  .foot b{color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>Order Link — 3 ทิศทาง</h1>
+  <p class="lede">ทั้งสามใช้ token ชุดเดียวกันของ Deep และแสดงหลักฐานความน่าเชื่อถือชุดเดียวกัน ต่างกันที่ <b>ท่าที</b> ว่าหน้านี้กำลังพูดกับผู้ซื้อในฐานะอะไร เลือกมาหนึ่งทางแล้วผมจะขยายให้ครบทุกขั้นตอน</p>
+
+  <div class="cols">
+
+    <!-- ══ A ══ -->
+    <div class="col">
+      <span class="tag">ทิศทาง A</span>
+      <h2>ต่อจากแชท</h2>
+      <p class="desc">หน้าเว็บทำตัวเป็นความต่อเนื่องของบทสนทนา ไม่ใช่เว็บแปลกหน้า หัวหน้าเป็นแถบเพจเหมือน thread ที่เพิ่งคุย คำสั่งซื้อมาในรูปฟองข้อความจากร้าน ผู้ซื้อจึงรู้สึกว่ายังอยู่ในบทสนทนาเดิม ไม่ได้ถูกพาไปที่แปลก ๆ</p>
+      <div class="screen">
+        <div class="chrome"><span>&#10005;</span><b>deepthailand.app</b><span>&hellip;</span></div>
+        <div class="a-head">
+          <span class="av ph-shop">ธ<span class="v" style="color:#fff">&#10003;</span></span>
+          <span style="min-width:0">
+            <span style="display:block;font-weight:700;font-size:14.5px">ธนภัทร อะไหล่ยนต์</span>
+            <span style="display:block;font-size:11.5px;color:var(--ink-3)">เพจที่คุณเพิ่งคุยด้วย &middot; ตอบภายใน 5 นาที</span>
+          </span>
+        </div>
+        <div class="a-body">
+          <div class="sysline">— คำสั่งซื้อจากร้าน —</div>
+          <div class="bubble">
+            <div class="lbl">คำสั่งซื้อ DP256907C724554C</div>
+            <div class="amt tnum">฿360</div>
+            <div class="meta tnum">24 ก.ค. 2569 11:35</div>
+          </div>
+          <div class="trustpill">
+            <span class="bdg b-gold">&#9670; จดทะเบียนธุรกิจ</span>
+            <span style="color:var(--ink-2)" class="tnum">128 ออเดอร์ &middot; 4.8&#9733;</span>
+          </div>
+        </div>
+        <div class="a-cta">
+          <div class="stack">
+            <button class="btn btn-p"><span>f</span>ดำเนินการต่อด้วย Facebook</button>
+            <button class="btn">ใช้เบอร์โทรและรหัส OTP</button>
+          </div>
+          <div style="text-align:center;font-size:11.5px;color:var(--ink-3);margin-top:11px">ยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อนี้</div>
+        </div>
+      </div>
+      <div class="verdict"><b>แข็งที่สุดเรื่องความต่อเนื่อง</b>ผู้ซื้อไม่รู้สึกว่าโดนพาออกจากแชท ซึ่งเป็นจุดที่คนกลัวโดนหลอกมากที่สุด แต่หน้าตาไม่เหมือนแบรนด์ Deep นัก และเสี่ยงถูกมองว่าเลียนแบบ Messenger</div>
+    </div>
+
+    <!-- ══ B ══ -->
+    <div class="col">
+      <span class="tag">ทิศทาง B</span>
+      <h2>ใบรับของ</h2>
+      <p class="desc">ยืมภาษาของใบเสร็จกระดาษที่คนไทยคุ้นมือ ขอบฉีก เส้นประ ตัวเลขเรียงคอลัมน์ และตราประทับสถานะ ให้ความรู้สึกเป็นเอกสารที่มีผลจริง ไม่ใช่หน้าเว็บที่ใครก็ทำขึ้นมาได้</p>
+      <div class="screen">
+        <div class="chrome"><span>&#10005;</span><b>deepthailand.app</b><span>&hellip;</span></div>
+        <div class="slip">
+          <div class="slip-top">
+            <div class="k">คำสั่งซื้อจาก</div>
+            <div class="shop">ธนภัทร อะไหล่ยนต์</div>
+            <div style="display:flex;justify-content:center;gap:5px;margin-top:8px">
+              <span class="bdg b-gold">&#9670; จดทะเบียนธุรกิจ</span>
+              <span class="bdg b-green">&#10003; ยืนยันตัวตน</span>
+            </div>
+          </div>
+          <div class="perf"></div>
+          <div class="slip-rows">
+            <div class="srow"><span class="k">เลขที่</span><span class="tnum">DP256907C724554C</span></div>
+            <div class="srow"><span class="k">วันที่</span><span class="tnum">24 ก.ค. 2569 11:35</span></div>
+            <div class="srow"><span class="k">ประวัติร้าน</span><span class="tnum">128 สำเร็จ &middot; 98%</span></div>
+            <div class="srow"><span class="k">คะแนน</span><span class="tnum">4.8 จาก 96 รีวิว</span></div>
+          </div>
+          <div class="slip-total"><span style="font-size:13px;color:var(--ink-3)">ยอดที่ต้องชำระ</span><span class="amt tnum">฿360</span></div>
+          <div class="stamp">รอการยืนยัน</div>
+          <div class="slip-cta">
+            <div class="stack">
+              <button class="btn btn-p"><span>f</span>ดำเนินการต่อด้วย Facebook</button>
+              <button class="btn">ใช้เบอร์โทรและรหัส OTP</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>แข็งที่สุดเรื่องความเป็นทางการ</b>อ่านง่าย ตัวเลขชัด เหมาะกับคนที่กำลังจะโอนเงินจริง แต่ให้พื้นที่รูปภาพน้อยที่สุดในสามแบบ ซึ่งสวนทางกับที่คุณอยากเน้นรูป</div>
+    </div>
+
+    <!-- ══ C ══ -->
+    <div class="col">
+      <span class="tag">ทิศทาง C</span>
+      <h2>หน้าร้าน</h2>
+      <p class="desc">ปล่อยภาพร้านเต็มจอเป็นพระเอก แล้วให้แผ่นข้อมูลเลื่อนขึ้นมาทับแบบ bottom sheet ของแอปจริง ร้านดูมีตัวตนและมีระดับที่สุดในสามแบบ เหมาะถ้าอยากให้ Deep รู้สึกเป็นแพลตฟอร์มที่ร้านภูมิใจจะอยู่</p>
+      <div class="screen">
+        <div class="chrome"><span>&#10005;</span><b>deepthailand.app</b><span>&hellip;</span></div>
+        <div class="c-hero">
+          <div class="bg ph-shop"></div><div class="sc"></div>
+          <div class="txt">
+            <div class="av ph-shop">ธ</div>
+            <h3>ธนภัทร อะไหล่ยนต์</h3>
+            <div class="sub">@thanaphat.parts &middot; เปิดร้านตั้งแต่ ก.พ. 2568</div>
+            <div class="c-stats">
+              <span><b class="tnum">128</b>ออเดอร์สำเร็จ</span>
+              <span><b class="tnum">4.8</b>จาก 96 รีวิว</span>
+              <span><b class="tnum">98%</b>อัตราสำเร็จ</span>
+            </div>
+          </div>
+        </div>
+        <div class="c-sheet">
+          <div class="c-grab"></div>
+          <div style="display:flex;gap:5px;margin-bottom:12px">
+            <span class="bdg b-gold">&#9670; จดทะเบียนธุรกิจ</span>
+            <span class="bdg b-green">&#10003; ยืนยันตัวตน</span>
+          </div>
+          <div class="c-amt"><span style="font-size:13px;color:var(--ink-3)">ยอดที่ต้องชำระ</span><span class="n tnum">฿360</span></div>
+          <div class="c-meta tnum">DP256907C724554C &middot; 24 ก.ค. 2569 11:35</div>
+          <div class="stack">
+            <button class="btn btn-p"><span>f</span>ดำเนินการต่อด้วย Facebook</button>
+            <button class="btn">ใช้เบอร์โทรและรหัส OTP</button>
+          </div>
+          <div style="text-align:center;font-size:11.5px;color:var(--ink-3);margin-top:11px">ยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อนี้</div>
+        </div>
+      </div>
+      <div class="verdict"><b>แข็งที่สุดเรื่องภาพและแบรนด์</b>ตรงกับที่คุณขอให้เน้นรูปมากที่สุด แต่พึ่งคุณภาพรูปของร้านเต็ม ๆ ถ้าร้านไม่มีโลโก้ดี ๆ หน้าจะดูโล่ง จึงควรมาคู่กับการเพิ่มช่องอัปโหลด cover</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <h2>ผมแนะนำอะไร</h2>
+    <ul>
+      <li><b>ถ้าเลือกได้ทางเดียว เอา C</b> — ตรงกับโจทย์ที่คุณย้ำสองครั้งว่าให้เน้นรูปและให้ดูน่าเชื่อถือ และเป็นทางเดียวที่ทำให้ Deep ดูเป็นแพลตฟอร์มมากกว่าหน้าฟอร์ม</li>
+      <li><b>แต่ทางที่ดีที่สุดคือ C ผสม A</b> — ใช้โครงของ C ทั้งหมด แล้วหยิบบรรทัดเดียวจาก A มาใส่ใต้ชื่อร้านว่า “เพจที่คุณเพิ่งคุยด้วย” เมื่อผู้ซื้อมาจาก Messenger จริง บรรทัดนี้ราคาถูกมากในเชิงงานพัฒนาแต่ปิดความกลัวโดนหลอกได้ตรงจุดที่สุด เพราะมันเชื่อมสิ่งที่เห็นตรงหน้ากับสิ่งที่เพิ่งทำเมื่อครู่</li>
+      <li><b>B เก็บไว้ใช้ที่อื่น</b> — ภาษาใบเสร็จเหมาะกับหน้าหลังยืนยันเสร็จแล้ว หรือหน้าที่ผู้ซื้อเปิดย้อนดูภายหลัง มากกว่าหน้าแรกที่ต้องสร้างความประทับใจ</li>
+      <li><b>สิ่งที่ต้องเพิ่มในฐานข้อมูลถ้าเลือก C</b> — <code>Shop.coverImage</code> พร้อมที่อัปโหลดในหน้าตั้งค่าร้าน ระหว่างที่ยังไม่มี ใช้โลโก้ขยายเบลอไปก่อนได้ แต่จะสวยจริงต่อเมื่อร้านใส่รูปเอง</li>
+    </ul>
+  </div>
+</div>

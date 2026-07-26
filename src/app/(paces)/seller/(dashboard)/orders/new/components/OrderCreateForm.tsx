@@ -205,6 +205,7 @@ export default function OrderCreateForm({
     handleSubmit,
     setError,
     setValue,
+    getValues,
     reset,
     formState: { errors },
   } = useForm<FormValues>({
@@ -278,6 +279,39 @@ export default function OrderCreateForm({
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editOrderToken])
+
+  // ── prefill เบอร์ + ที่อยู่ล่าสุดของลูกค้า เมื่อสร้างออเดอร์จากแชทที่ผูกลูกค้าแล้ว (user 2026-07-25) ──
+  // เฉพาะโหมดสร้างจากแชท (มี conversationId + ไม่ใช่แก้ไข). setValue เฉพาะเบอร์+ที่อยู่ ไม่แตะชื่อ/ช่องทาง
+  // (prefill จาก defaultValues แล้ว). guard ด้วย getValues: ทับเฉพาะช่องที่ยังว่าง — ถ้า user พิมพ์แล้ว
+  // (fetch ช้า) ไม่ล้างของที่พิมพ์. "ลูกค้าเปลี่ยนค่อยแก้" = ค่าเริ่มเป็นของเดิม แก้ทับได้ปกติ
+  useEffect(() => {
+    if (!conversationId || editOrderToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/customer-prefill`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled || !data?.linked) return
+        if (data.phone && !getValues('buyerContact')) setValue('buyerContact', data.phone)
+        const a = data.shippingAddress
+        if (a && !getValues('shippingAddress.line1')) {
+          setValue('shippingAddress', {
+            line1: a.line1 ?? '',
+            subdistrict: a.subdistrict ?? '',
+            district: a.district ?? '',
+            province: a.province ?? '',
+            postcode: a.postcode ?? '',
+            note: a.note ?? '',
+          })
+        }
+      } catch {
+        // เงียบ — prefill เป็น nice-to-have ไม่ควรบล็อกการสร้างออเดอร์
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, editOrderToken])
 
   // ── Items ownership (POS) — useFieldArray + helpers ที่แชร์ให้ ProductGrid + CartPanel ──
   const { fields, append, update, remove } = useFieldArray({ control, name: 'items' })
