@@ -909,6 +909,29 @@ export async function getTraces(shopId: string, shipmentId: string) {
     });
   }
 
+  // sync สถานะล่าสุดลง OrderShipment ด้วย ไม่ใช่บันทึกแค่ไทม์ไลน์
+  //
+  // เดิมออกแบบให้ webhook เป็นคนอัปเดตช่องนี้ แต่ webhook ต้องรอประสานกับผู้ให้บริการ
+  // (แจ้ง URL ให้เขา) จึงไม่พร้อมพร้อมกับส่วนอื่น ถ้าไม่ sync ตรงนี้ ช่อง "สถานะพัสดุ"
+  // จะว่างตลอดกาลทั้งที่ไทม์ไลน์มีข้อมูลครบ — ร้านจะเห็นสองอย่างขัดกันเองในการ์ดเดียว
+  //
+  // เมื่อ webhook เปิดใช้ภายหลัง สองทางนี้เขียนช่องเดียวกันโดยไม่ตีกัน เพราะต่างก็เขียน
+  // "สถานะล่าสุดที่รู้" ทับลงไป และ ShipmentEvent มี dedupeKey กันบันทึกซ้ำอยู่แล้ว
+  const latest = routes.at(-1);
+  if (latest) {
+    const occurredAt = new Date(latest.timestamp.replace(" ", "T"));
+    if (!Number.isNaN(occurredAt.getTime())) {
+      await prisma.orderShipment.update({
+        where: { id: row.id },
+        data: {
+          carrierStatus: latest.status,
+          carrierStatusText: describeCarrierStatus(latest.status).text,
+          carrierStatusAt: occurredAt,
+        },
+      });
+    }
+  }
+
   return prisma.shipmentEvent.findMany({
     where: { shipmentId: row.id },
     orderBy: { occurredAt: "asc" },
