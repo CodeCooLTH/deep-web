@@ -66,7 +66,11 @@ function getAudio(): HTMLAudioElement | null {
 // หน้าแชทมีทั้งรายการ (InboxList) และเธรด (thread) subscribe realtime คนละ channel — ข้อความเดียว
 // ทริกเกอร์หลายที่พร้อมกัน จึง throttle. key = shopId เพื่อให้ต่างร้านมี rate-limit ของตัวเอง
 // (ในแท็บเดียว รายการ+เธรดของร้านเดียวกันใช้ key เดียว = dedup กันเอง ยังทำงาน)
-const MIN_GAP_MS = 1200
+//
+// 400ms (user report 2026-07-26: ลูกค้าพิมพ์รัว ๆ แล้วบางข้อความเงียบ) — เดิม 1200ms กว้างเกิน
+// กลบข้อความจริงที่ห่างกัน < 1.2 วิ. list+thread+แท็บ ยิงข้อความ "เดียวกัน" ห่างกันแค่ ~ไม่กี่ ms
+// จึง 400ms ยัง dedup ซ้ำได้ครบ แต่ข้อความ "คนละอัน" ที่ห่างกัน ≥ 400ms จะมีเสียงของตัวเอง
+const MIN_GAP_MS = 400
 const GLOBAL_THROTTLE_KEY = '__all__' // ใช้เมื่อไม่รู้ shopId (เช่น ChatWidget) — ยัง throttle แต่ไม่แยกร้าน
 const lastPlayedByShop = new Map<string, number>()
 
