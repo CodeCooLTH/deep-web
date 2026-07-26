@@ -1,0 +1,453 @@
+// feature 00022 — HTTP client ของ iShip Open API
+//
+// ชั้นนี้รู้เรื่องเดียว: คุยกับ iShip แล้วคืนข้อมูลที่ typed แล้ว หรือโยน IShipError
+// ไม่รู้จัก Prisma ไม่รู้จัก session ไม่รู้จักกฎธุรกิจ — service layer เป็นคนประกอบ
+//
+// สเปกอ้างอิง: Postman collection จริงของ iShip (docs/20 - Features/00022 .../API.md §B)
+// หน้าเอกสารเว็บ api-docs.iship.cloud เป็น Postman documenter ที่ render ด้วย JS
+// อ่านตรงไม่ได้ — ห้ามเดา endpoint ที่ไม่มีในเอกสารนั้น
+//
+// ข้อควรระวัง: ทุกฟังก์ชันในไฟล์นี้เป็น server-only (ถือ token ของร้าน)
+// ห้าม import จาก client component เด็ดขาด
+
+import { IShipError, classifyUpstream, redactToken } from "./errors";
+
+const DEFAULT_BASE_URL = "https://app.iship.cloud";
+
+/** timeout ต่อประเภทงาน — งานที่ก่อค่าใช้จ่ายให้เวลานานกว่างานอ่านเฉย ๆ */
+const TIMEOUT_MS = {
+  read: 10_000, // courier_code, boxes, traces, get_order
+  price: 12_000, // check-price
+  write: 20_000, // create_order, cancel_order, request_courier
+  label: 30_000, // download/pdf — ไฟล์ PDF ใหญ่กว่าและ generate ช้ากว่า
+} as const;
+
+export function ishipBaseUrl(): string {
+  return process.env.ISHIP_BASE_URL?.replace(/\/+$/, "") || DEFAULT_BASE_URL;
+}
+
+/**
+ * isDryRun — โหมดจำลอง (BR-ISHIP-60)
+ *
+ * เปิดได้เฉพาะเมื่อ ISHIP_DRY_RUN=1 **และไม่ใช่ production**
+ * เงื่อนไข NODE_ENV เป็นตัวกันชั้นที่สอง: ต่อให้ใครเผลอตั้ง env ผิดบน prod
+ * ก็ยังไม่มีทางเข้าโหมดจำลองได้ — เพราะโหมดนี้คืน tracking ปลอม ถ้าหลุดขึ้น prod
+ * ร้านจะได้เลขพัสดุที่ไม่มีอยู่จริงไปแปะกล่อง
+ */
+export function isDryRun(): boolean {
+  return process.env.ISHIP_DRY_RUN === "1" && process.env.NODE_ENV !== "production";
+}
+
+// ─── ชนิดข้อมูลที่ iShip คืนกลับมา ───────────────────────────────────────────
+
+export interface IShipCourier {
+  code: string;
+  name: string;
+}
+
+export interface IShipBox {
+  id: number;
+  name: string;
+  width: number;
+  length: number;
+  height: number;
+  unit: string;
+}
+
+export interface IShipPrice {
+  courier_code: string;
+  weight: number;
+  weight_unit: string;
+  remote_area: string | number;
+  price: number;
+  total_price: number;
+}
+
+export interface IShipCreateOrderResult {
+  ref: string;
+  tracking_number: string;
+  sortCode?: string;
+  sortingLineCode?: string;
+  dstStoreName?: string;
+  id?: number;
+}
+
+export interface IShipTraceRoute {
+  status: string;
+  status_text: string;
+  status_desc: string;
+  current_location: string;
+  timestamp: string;
+}
+
+export interface IShipPickupResult {
+  ticketPickupId?: number | string;
+  staffInfoName?: string | null;
+  staffInfoPhone?: string | null;
+  timeoutAtText?: string | null;
+  ticketMessage?: string | null;
+}
+
+/** payload ที่ส่งไป create_order — ชื่อ field ตรงตามที่ iShip กำหนดเป๊ะ */
+export interface IShipCreateOrderPayload {
+  platform_name: string;
+  courier_code: string;
+  custom_order_id: string;
+  src_name: string;
+  src_phone: string;
+  src_address: string;
+  src_district: string; // ตำบล/แขวง ของผู้ส่ง
+  src_amphure: string; // อำเภอ/เขต ของผู้ส่ง
+  src_province: string;
+  src_zipcode: string;
+  dst_name: string;
+  dst_phone: string;
+  dst_address: string;
+  dst_district: string; // ตำบล/แขวง ของผู้รับ
+  dst_amphure: string; // อำเภอ/เขต ของผู้รับ
+  dst_province: string;
+  dst_zipcode: string;
+  weight: number;
+  width: number;
+  length: number;
+  height: number;
+  cod_amount: number;
+  category_id: number;
+  remark?: string;
+  on_time?: number;
+  box_shield?: number;
+  service_type?: number;
+  is_insured?: number;
+  product_value?: number;
+  products?: {
+    product_name: string;
+    product_length: string;
+    product_width: string;
+    product_height: string;
+    product_weight: number;
+    product_qty: number;
+    product_color?: string;
+    product_price: number;
+  }[];
+}
+
+// ─── แกนกลางการเรียก ────────────────────────────────────────────────────────
+
+/**
+ * unwrap — แกะ envelope ของ iShip ให้เหลือ data
+ *
+ * iShip ตอบมาไม่เป็นรูปเดียวกันทุก endpoint:
+ *   { status: true,  code: "0000", message: "success", data: ... }
+ *   { status: true,  code: "0000", msg: "success",     data: ... }   ← msg ไม่ใช่ message
+ *   { status: 1,     code: "0000", message: ..., data: null }        ← status เป็นตัวเลข
+ *   [ ... ]                                                          ← boxes คืน array เปล่า ๆ
+ *
+ * helper นี้จึงต้องทนทุกรูป และ "ห้ามพึ่งโครงประโยคของข้อความ" ในการตัดสินสำเร็จ/ล้มเหลว
+ * (บทเรียน feedback_spike_must_match_production_path)
+ */
+function unwrap<T>(body: unknown, httpStatus: number, token: string): T {
+  // รูป array เปล่า ๆ (เช่น /api/boxes) — ถือว่าสำเร็จตรง ๆ
+  if (Array.isArray(body)) return body as T;
+
+  if (body === null || typeof body !== "object") {
+    throw new IShipError("UPSTREAM_ERROR", { httpStatus });
+  }
+
+  const env = body as Record<string, unknown>;
+  const rawMessage =
+    typeof env.message === "string"
+      ? env.message
+      : typeof env.msg === "string"
+        ? env.msg
+        : undefined;
+
+  // status: true | 1 = สำเร็จ, false | 0 | undefined = ล้มเหลว
+  const ok = env.status === true || env.status === 1;
+  if (!ok) {
+    throw new IShipError(classifyUpstream(httpStatus, rawMessage), {
+      upstreamMessage: rawMessage ? redactToken(rawMessage, token) : undefined,
+      httpStatus,
+    });
+  }
+
+  return env.data as T;
+}
+
+interface CallOptions {
+  method?: "GET" | "POST";
+  body?: unknown;
+  timeoutMs?: number;
+  /** query string ที่ต่อท้าย path (ต่อมาแล้ว encode มาเรียบร้อย) */
+  query?: string;
+}
+
+/**
+ * call — เรียก iShip 1 ครั้ง แล้วคืน data ที่แกะ envelope แล้ว
+ *
+ * ทุก error ที่ออกจากฟังก์ชันนี้เป็น IShipError เสมอ — caller ไม่ต้องเดารูป
+ */
+async function call<T>(
+  token: string,
+  path: string,
+  opts: CallOptions = {},
+): Promise<T> {
+  const { method = "GET", body, timeoutMs = TIMEOUT_MS.read, query } = opts;
+  const url = `${ishipBaseUrl()}${path}${query ? `?${query}` : ""}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+      // ห้าม cache คำตอบของ API ที่ผูกกับ token ของร้าน
+      cache: "no-store",
+    });
+  } catch (err) {
+    // AbortError = เราเป็นฝ่ายตัดเอง → แยกจาก network error จริง เพราะการกระทำต่อไปต่างกัน:
+    // timeout อาจแปลว่า "iShip สร้างพัสดุสำเร็จแล้วแต่คำตอบมาไม่ทัน" → retry ต้องใช้ idempotencyKey เดิม
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new IShipError("UPSTREAM_TIMEOUT");
+    }
+    throw new IShipError("UPSTREAM_ERROR", {
+      upstreamMessage: redactToken(
+        err instanceof Error ? err.message : String(err),
+        token,
+      ),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const text = await res.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // ตอบมาไม่ใช่ JSON (หน้า error ของ gateway / HTML) — จัดเป็น upstream error
+    throw new IShipError(classifyUpstream(res.status, text.slice(0, 200)), {
+      upstreamMessage: redactToken(text.slice(0, 500), token),
+      httpStatus: res.status,
+    });
+  }
+
+  return unwrap<T>(parsed, res.status, token);
+}
+
+// ─── การเรียกที่ "อ่านอย่างเดียว" — ไม่ก่อค่าใช้จ่าย ยิงจริงเสมอแม้ในโหมดจำลอง ──
+
+/** รายชื่อขนส่งที่บัญชีนี้ใช้ได้ — ใช้เป็นตัวทดสอบ token ด้วย (FR-ISHIP-001) */
+export function listCouriers(token: string): Promise<IShipCourier[]> {
+  return call<IShipCourier[]>(token, "/api/courier_code");
+}
+
+/** กล่องมาตรฐาน — ให้ร้านเลือกแทนการกรอกขนาดเอง */
+export function listBoxes(token: string): Promise<IShipBox[]> {
+  return call<IShipBox[]>(token, "/api/boxes");
+}
+
+/** ราคาโดยประมาณ — ค่าที่ได้เป็นการประเมินจากขนาด/น้ำหนักที่ร้านแจ้ง (BR-ISHIP-34) */
+export function checkPrice(
+  token: string,
+  payload: {
+    courier_code: string;
+    src_zipcode: string;
+    src_province: string;
+    src_amphure: string;
+    src_district: string;
+    dst_zipcode: string;
+    dst_province: string;
+    dst_amphure: string;
+    dst_district: string;
+    weight: string | number;
+    width: string | number;
+    length: string | number;
+    height: string | number;
+  },
+): Promise<IShipPrice> {
+  return call<IShipPrice>(token, "/api/v2/check-price", {
+    method: "POST",
+    body: payload,
+    timeoutMs: TIMEOUT_MS.price,
+  });
+}
+
+/** ประวัติการเดินทางของพัสดุ */
+export async function getTraces(
+  token: string,
+  trackNo: string,
+): Promise<IShipTraceRoute[]> {
+  const data = await call<{ trace_routes?: IShipTraceRoute[] }>(
+    token,
+    "/api/traces",
+    { method: "POST", body: { track_no: trackNo } },
+  );
+  return data?.trace_routes ?? [];
+}
+
+/** รายละเอียดพัสดุฝั่ง iShip — ใช้ยืนยันสถานะกลับ ไม่เชื่อ webhook อย่างเดียว */
+export function getOrder(
+  token: string,
+  trackNo: string,
+): Promise<Record<string, unknown>> {
+  return call<Record<string, unknown>>(
+    token,
+    `/api/get_order/${encodeURIComponent(trackNo)}`,
+  );
+}
+
+/**
+ * downloadLabel — ใบปะหน้า A6 (PDF)
+ *
+ * ข้อควรระวัง: FR-ISHIP-030 — ต้องเรียกจากฝั่งเซิร์ฟเวอร์เท่านั้น แล้วส่งไฟล์ต่อให้เบราว์เซอร์
+ * ห้ามให้เบราว์เซอร์ยิง URL นี้เอง เพราะจะต้องถือ token ของร้านไปด้วย
+ *
+ * endpoint นี้คืน PDF ดิบ ไม่ใช่ JSON envelope จึงไม่ผ่าน call()/unwrap()
+ * รองรับหลาย tracking ในครั้งเดียว (คั่นด้วย comma) = การพิมพ์หลายใบ (FR-ISHIP-031)
+ */
+export async function downloadLabel(
+  token: string,
+  trackNos: string[],
+): Promise<ArrayBuffer> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS.label);
+
+  try {
+    const res = await fetch(
+      `${ishipBaseUrl()}/api/download/pdf?tracks=${encodeURIComponent(trackNos.join(","))}`,
+      {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/pdf" },
+        signal: controller.signal,
+        cache: "no-store",
+      },
+    );
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new IShipError(classifyUpstream(res.status, detail.slice(0, 200)), {
+        upstreamMessage: redactToken(detail.slice(0, 500), token),
+        httpStatus: res.status,
+      });
+    }
+
+    const buf = await res.arrayBuffer();
+    // กันกรณี iShip ตอบ 200 แต่เนื้อหาเป็นหน้า error ไม่ใช่ PDF —
+    // PDF ทุกไฟล์ขึ้นต้นด้วย "%PDF" เสมอ ตรวจ magic bytes ถูกกว่าเชื่อ content-type
+    const head = new TextDecoder().decode(buf.slice(0, 4));
+    if (head !== "%PDF") {
+      throw new IShipError("UPSTREAM_ERROR", {
+        upstreamMessage: "ไฟล์ที่ได้กลับมาไม่ใช่ PDF",
+        httpStatus: res.status,
+      });
+    }
+    return buf;
+  } catch (err) {
+    if (err instanceof IShipError) throw err;
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new IShipError("UPSTREAM_TIMEOUT");
+    }
+    throw new IShipError("UPSTREAM_ERROR", {
+      upstreamMessage: redactToken(
+        err instanceof Error ? err.message : String(err),
+        token,
+      ),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── การเรียกที่ "ก่อค่าใช้จ่ายจริง" — โหมดจำลองจะไม่ยิงออกไป ────────────────
+
+/**
+ * createOrder — เปิดพัสดุจริงกับขนส่ง
+ *
+ * ข้อควรระวัง: ทุกครั้งที่สำเร็จ = พัสดุจริง + ค่าใช้จ่ายจริงของร้าน
+ * ในโหมดจำลองจะไม่ยิงออกไปเลย แต่คืนผลลัพธ์รูปเดียวกันเพื่อให้ทดสอบเส้นทางได้ครบ
+ * (BR-ISHIP-60/61 — ผู้ให้บริการไม่มีระบบทดสอบแยกให้ใช้)
+ */
+export async function createOrder(
+  token: string,
+  payload: IShipCreateOrderPayload,
+): Promise<{ result: IShipCreateOrderResult; dryRun: boolean }> {
+  if (isDryRun()) {
+    // เลขจำลองมี prefix ที่มองแล้วรู้ทันทีว่าไม่ใช่ของจริง — กันสับสนตอนดูฐานข้อมูล
+    const stamp = Date.now().toString(36).toUpperCase();
+    return {
+      result: {
+        ref: `DRYRUN-${payload.custom_order_id}`,
+        tracking_number: `DRYRUN${stamp}`,
+        dstStoreName: "DRY RUN (ไม่ได้ส่งออกไปจริง)",
+      },
+      dryRun: true,
+    };
+  }
+
+  const result = await call<IShipCreateOrderResult>(token, "/api/create_order", {
+    method: "POST",
+    body: payload,
+    timeoutMs: TIMEOUT_MS.write,
+  });
+  return { result, dryRun: false };
+}
+
+/** ยกเลิกพัสดุ — ทำได้เฉพาะตอนที่ขนส่งยังไม่รับของเข้าระบบ */
+export async function cancelOrder(token: string, trackNo: string): Promise<void> {
+  if (isDryRun()) return;
+  await call<unknown>(token, "/api/cancel_order", {
+    method: "POST",
+    body: { track_no: trackNo },
+    timeoutMs: TIMEOUT_MS.write,
+  });
+}
+
+/** เรียกรถเข้ารับพัสดุ — ระดับร้าน ไม่ใช่ระดับออเดอร์ (FR-ISHIP-051) */
+export async function requestPickup(
+  token: string,
+  payload: {
+    courier_code: string;
+    pickup_address: string;
+    name: string;
+    phone: string;
+    parcel: number;
+    remark?: string;
+  },
+): Promise<{ result: IShipPickupResult; dryRun: boolean }> {
+  if (isDryRun()) {
+    return {
+      result: {
+        ticketPickupId: `DRYRUN-${Date.now().toString(36).toUpperCase()}`,
+        ticketMessage: "DRY RUN (ไม่ได้เรียกรถจริง)",
+      },
+      dryRun: true,
+    };
+  }
+
+  const result = await call<IShipPickupResult>(token, "/api/request_courier", {
+    method: "POST",
+    body: payload,
+    timeoutMs: TIMEOUT_MS.write,
+  });
+  return { result, dryRun: false };
+}
+
+/** ยกเลิกคำขอเรียกรถเข้ารับ */
+export async function cancelPickup(
+  token: string,
+  ticketPickupId: string,
+): Promise<void> {
+  if (isDryRun()) return;
+  await call<unknown>(
+    token,
+    `/api/cancel-notify/${encodeURIComponent(ticketPickupId)}`,
+    { timeoutMs: TIMEOUT_MS.write },
+  );
+}
