@@ -33,9 +33,17 @@ export default function ReviewSummary({
         <div className='text-[42px] font-extrabold tabular-nums leading-none' style={{ letterSpacing: '-0.035em' }}>
           {avgRating}
         </div>
+        {/* ดาวต้องเป็นทึบ/โปร่งเพื่อสื่อคะแนน — lucide:star เป็นไอคอนเส้นล้วน ถ้าใช้ตัวเดียวกัน
+            ทั้งเต็มและว่างจะได้ดาวโครงห้าดวงเหมือนกันหมด อ่านคะแนนไม่ได้เลย (เจอตอน QA จริง)
+            จึงใช้ tabler ที่มีคู่ filled/outline ครบ */}
         <div className='flex justify-center gap-0.5 mbs-1 text-warning'>
           {[1, 2, 3, 4, 5].map((i) => (
-            <Icon key={i} icon={i <= Math.round(avgRating) ? 'lucide:star' : 'lucide:star-off'} width={13} />
+            <Icon
+              key={i}
+              icon={i <= Math.round(avgRating) ? 'tabler:star-filled' : 'tabler:star'}
+              width={13}
+              className={i <= Math.round(avgRating) ? '' : 'opacity-35'}
+            />
           ))}
         </div>
         <Typography variant='caption' color='text.disabled' className='block mbs-1 tabular-nums'>

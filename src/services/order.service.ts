@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { toFileUrl } from "@/lib/file-url";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 import { normalizePhone } from "@/lib/phone";
@@ -839,18 +840,6 @@ export async function getOrdersByBuyer(userId: string) {
  * ข้อแลกเปลี่ยนที่รับไว้แล้ว: การคืนค่า (ไม่ใช่ null) เท่ากับยืนยันกลาย ๆ ว่า token นี้มี
  * ออเดอร์จริง — แลกกับการที่ผู้ซื้อมั่นใจว่ากดลิงก์ถูกใบก่อนยอมล็อกอิน
  */
-/**
- * แปลงค่ารูปที่เก็บใน DB ให้เป็น URL ที่ <img> ใช้ได้จริง
- *
- * ค่าที่เก็บมีสองแบบปนกัน: storage key จาก saveFile (เช่น "2026/07/25/uuid.png" หรือ
- * "uuid.png" ของไฟล์เก่าก่อนชาร์ดโฟลเดอร์) กับ URL เต็มจาก seed/CDN/OAuth avatar
- * guard ด้วย startsWith('http') แบบเดียวกับ InviteLandingClient.tsx:39 และ products/page.tsx:100
- */
-function toFileUrl(v: string | null): string | null {
-  if (!v) return null;
-  return v.startsWith("http") ? v : `/api/files/${v}`;
-}
-
 export async function getOrderSummaryForSignIn(publicToken: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },

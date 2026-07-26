@@ -15,7 +15,16 @@ import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
-import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
+import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/lib/trust-tier'
+import { getShopProfileStats } from '@/services/shop.service'
+import { toFileUrl } from '@/lib/file-url'
+import { getReviewsByUsername } from '@/services/review.service'
+import ProfileHero from '@views/pages/user-profile/v2/ProfileHero'
+import ProfileTabs from '@views/pages/user-profile/v2/ProfileTabs'
+import OfficialChannels from '@views/pages/user-profile/v2/OfficialChannels'
+import ReviewSummary from '@views/pages/user-profile/v2/ReviewSummary'
+import RecentReviews from '@views/pages/user-profile/profile/RecentReviews'
+import { ProfileRightContent } from '@views/pages/user-profile/profile'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
@@ -60,6 +69,11 @@ export default async function PublicProfilePage({ params }: Props) {
 
   // ทำไม: ตัด getReviewsByUsername ออก — ProfileTab ไม่แสดง RecentReviews อีกแล้ว
   // คง getAvgRatingByUsername + orderStats + products ที่ยังใช้งานอยู่
+  // redesign 2026-07-26: สถิติ/ช่องทาง/การกระจายดาว ของหน้าโฉมใหม่ รวมอยู่ใน service เดียว
+  // buyer-only (ไม่มีร้าน) → null ทั้งก้อน แล้ว UI ซ่อน block ที่เกี่ยวข้องเอง
+  const profileStats = user.shop ? await getShopProfileStats(user.shop.id) : null
+  const recentReviews = await getReviewsByUsername(username, 10)
+
   const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { userId: user.id, status: 'APPROVED' },
@@ -176,7 +190,101 @@ export default async function PublicProfilePage({ params }: Props) {
         background: 'var(--mui-palette-background-paper)',
       }}
     >
-      <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
+      {/* redesign 2026-07-26 (ทิศทาง C) — ชุด v2 แทน UserProfile เดิม
+          ของเดิมยังอยู่ในโค้ดเบสจนกว่า user จะรับงาน แล้วค่อยลบทีเดียว */}
+      <div className='mli-auto max-is-[960px]'>
+        <ProfileHero
+          data={{
+            shopName: profileHeader.shopName ?? profileHeader.fullName,
+            username: profileHeader.username,
+            // โลโก้ร้านมาก่อนรูปโปรไฟล์ส่วนตัว — หน้านี้คือหน้า "ร้าน" ผู้ซื้อจำโลโก้ร้านได้
+            // ไม่ใช่รูปส่วนตัวของเจ้าของ (ร้านที่มีโลโก้แต่เจ้าของไม่มี avatar เคยขึ้นเป็นตัวอักษรย่อ)
+            avatar: toFileUrl(user.shop?.logo) ?? profileHeader.profileImg ?? null,
+            coverImage: toFileUrl(user.shop?.coverImage),
+            tierGradient: getTierGradient(user.trustScore),
+            trustScore: user.trustScore,
+            tierLabel,
+            maxVerifyLevel,
+            category: user.shop?.category ?? null,
+            memberSince: formatMonthYearTH(user.createdAt),
+            badges: sellerContextBadges.map((ub) => ({
+              id: ub.id,
+              name: ub.badge.name,
+              nameEN: ub.badge.nameEN,
+              icon: ub.badge.icon ?? '',
+            })),
+            totalBadgeCount: sellerContextBadges.length,
+            completedOrders: profileStats?.completedOrders ?? null,
+            customerCount: profileStats?.customerCount ?? null,
+            repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
+            completionRate: profileStats?.completionRate ?? null,
+            // ปุ่มแชทไม่ขึ้นบนร้านตัวเอง — คุยกับตัวเองไม่มีความหมาย (guard เดียวกับ B3 feat 00011)
+            canChat: !!user.shop && !isOwnShop,
+          }}
+        />
+
+        <ProfileTabs
+          tabs={[
+            // แท็บที่ไม่มีข้อมูลไม่ถูกสร้างเป็นตัวเลือกเลย ไม่ใช่สร้างแล้วโชว์หน้าเปล่า
+            ...(pinnedProducts.length + otherProducts.length > 0
+              ? [
+                  {
+                    key: 'items',
+                    label: 'สินค้าและบริการ',
+                    content: (
+                      <ProfileRightContent
+                        data={{
+                          pinnedProducts,
+                          otherProducts,
+                          openShopEmptyState: profileTab.openShopEmptyState,
+                          itemKind: profileTab.itemKind,
+                        }}
+                        shopId={profileHeader.shopId}
+                        isOwnShop={isOwnShop}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+            ...(profileStats && profileStats.channels.length > 0
+              ? [
+                  {
+                    key: 'channels',
+                    label: 'ช่องทาง Official',
+                    content: <OfficialChannels channels={profileStats.channels} />,
+                  },
+                ]
+              : []),
+            ...(profileStats?.ratingDistribution && profileStats.avgRating != null
+              ? [
+                  {
+                    key: 'reviews',
+                    label: 'รีวิว',
+                    content: (
+                      <>
+                        <ReviewSummary
+                          avgRating={profileStats.avgRating}
+                          reviewCount={profileStats.reviewCount}
+                          distribution={profileStats.ratingDistribution}
+                        />
+                        <RecentReviews
+                          avgRating={profileStats.avgRating}
+                          reviews={recentReviews.map((r) => ({
+                            id: r.id,
+                            rating: r.rating,
+                            comment: r.comment,
+                            createdAt: r.createdAt.toISOString(),
+                            itemName: null,
+                          }))}
+                        />
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
+      </div>
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
         <NextLink href='/privacy' style={{ textDecoration: 'none' }}>

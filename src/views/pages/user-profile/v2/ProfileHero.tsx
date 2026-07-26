@@ -134,10 +134,12 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
       )}
 
       {/* ── ตัวเลขธุรกรรม: ซ่อนทั้งแถบถ้าไม่มีข้อมูลสักตัว ── */}
+      {/* ใช้ flex กระจายกลาง ไม่ใช่ grid 3 คอลัมน์ตายตัว — ร้านที่มีสถิติไม่ครบสามตัว (เช่นออเดอร์
+          เก่าที่ยังไม่ผูก Customer) จะเหลือช่องเดียวแล้วเบี้ยวไปชิดซ้าย ดูเหมือนหน้าพัง (เจอตอน QA จริง) */}
       {stats.length > 0 && (
-        <div className='grid grid-cols-3 gap-2 pli-5 plb-3.5 border-bs'>
+        <div className='flex justify-around gap-2 pli-5 plb-3.5 border-bs'>
           {stats.map((s) => (
-            <div key={s.label} className='text-center'>
+            <div key={s.label} className='text-center min-is-[84px]'>
               <div className='text-[22px] font-extrabold tabular-nums leading-tight' style={{ letterSpacing: '-0.025em' }}>
                 {s.value}
               </div>
