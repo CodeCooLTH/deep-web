@@ -83,8 +83,25 @@ export default function ShopVideosClient() {
       }
       setAvailable(data.available)
       setMax(data.max)
-      // เรียงตาม sortOrder ที่บันทึกไว้ ไม่ใช่ลำดับที่ API คืนมา
-      setChosen([...data.selected].sort((a, b) => a.sortOrder - b.sortOrder).map((s) => `${s.provider}:${s.videoId}`))
+
+      // ติ๊กไว้ล่วงหน้าเฉพาะคลิปที่ยังอยู่ในบัญชีจริง ณ ตอนนี้
+      //
+      // ถ้าเอาของที่บันทึกไว้มาติ๊กดื้อ ๆ คลิปที่ร้านลบไปจากแพลตฟอร์มแล้ว (หรือแถวเก่าที่บันทึก
+      // ด้วยโค้ดรุ่นก่อนแก้บั๊ก) จะติดไปกับ payload ทุกครั้งที่กดบันทึก แล้วโดนปฏิเสธทั้งชุด
+      // ทำให้ร้านบันทึกอะไรไม่ได้เลยและไม่รู้ว่าเพราะอะไร (เจอจริง — user รายงานสองรอบ)
+      const availableKeys = new Set(data.available.map((v) => `${v.provider}:${v.videoId}`))
+      const saved = [...data.selected]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((s) => `${s.provider}:${s.videoId}`)
+      const stillValid = saved.filter((k) => availableKeys.has(k))
+      setChosen(stillValid)
+
+      // ไม่เตือนเมื่อดึงมาไม่ครบ เพราะที่หายอาจแค่ยังไม่ได้โหลด ไม่ใช่ถูกลบจริง
+      if (!data.partial && stillValid.length < saved.length) {
+        pacesToast.warning(
+          `มี ${saved.length - stillValid.length} คลิปที่ไม่พบในบัญชีแล้ว (อาจถูกลบไป) จึงเอาออกจากรายการที่เลือกไว้`,
+        )
+      }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาดขณะโหลด')
     } finally {

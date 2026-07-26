@@ -40,11 +40,23 @@ export type ShopVideoItem = {
 }
 
 /** ไอคอน + สีแบรนด์ต่อแพลตฟอร์ม — สีแบรนด์เป็น carve-out ที่อนุญาต (Hard Rule 6) */
+// ใช้ simple-icons = โลโก้แบรนด์จริง ไม่ใช่ไอคอนเส้นที่วาดเลียนแบบ (user ขอ 2026-07-26)
+// ผู้ชมจำโลโก้จริงได้ทันทีโดยไม่ต้องอ่าน ส่วนไอคอนเส้นต้องเพ่งถึงจะรู้ว่าแพลตฟอร์มไหน
 const PROVIDER_UI: Record<VideoProvider, { icon: string; color: string; label: string }> = {
-  INSTAGRAM: { icon: 'lucide:instagram', color: '#E1306C', label: 'Instagram' },
-  FACEBOOK: { icon: 'lucide:facebook', color: '#1877F2', label: 'Facebook' },
+  INSTAGRAM: { icon: 'simple-icons:instagram', color: '#E1306C', label: 'Instagram' },
+  FACEBOOK: { icon: 'simple-icons:facebook', color: '#1877F2', label: 'Facebook' },
   TIKTOK: { icon: 'simple-icons:tiktok', color: '#010101', label: 'TikTok' },
-  YOUTUBE: { icon: 'lucide:youtube', color: '#FF0000', label: 'YouTube' },
+  YOUTUBE: { icon: 'simple-icons:youtube', color: '#FF0000', label: 'YouTube' },
+}
+
+/**
+ * แถวที่บันทึกไว้ด้วยโค้ดรุ่นก่อนแก้บั๊ก shortcode จะเก็บ media id (ตัวเลขล้วน) แทน shortcode
+ * ของ Instagram ซึ่งประกอบ URL ฝังแล้วเปิดไม่ขึ้น — คัดออกดีกว่าปล่อยให้ผู้ชมกดแล้วเจอหน้าเปล่า
+ * โดยไม่มีอะไรอธิบาย (ร้านต้องกดบันทึกใหม่ในหน้าตั้งค่าเพื่อให้ได้ค่าที่ถูก)
+ */
+function isRenderable(item: ShopVideoItem): boolean {
+  if (item.provider === 'INSTAGRAM') return !/^[0-9]+$/.test(item.videoId)
+  return true
 }
 
 /** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ — 12,300 → 12.3K */
@@ -149,7 +161,8 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
   )
 }
 
-export default function ShopVideos({ items }: { items: ShopVideoItem[] }) {
+export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
+  const items = raw.filter(isRenderable)
   if (items.length === 0) return null
 
   const first = items[0]
