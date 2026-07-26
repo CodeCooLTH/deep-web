@@ -22,10 +22,28 @@ import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 interface AvailableVideo {
+  provider: string
   videoId: string
   caption: string | null
   thumbnailUrl: string | null
   permalink: string
+  accountName: string | null
+  likeCount: number | null
+  commentCount: number | null
+  viewCount: number | null
+}
+
+/** ป้ายบอกแหล่งที่มาบนการ์ดที่ให้เลือก */
+const SOURCE: Record<string, { icon: string; label: string; className: string }> = {
+  FACEBOOK: { icon: 'brand-facebook', label: 'Facebook', className: 'bg-info text-white' },
+  INSTAGRAM: { icon: 'brand-instagram', label: 'Instagram', className: 'bg-danger text-white' },
+}
+
+/** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ */
+function compact(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
+  return `${(n / 1_000_000).toFixed(1)}M`
 }
 
 interface SelectedVideo {
@@ -41,6 +59,7 @@ export default function ShopVideosClient() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [available, setAvailable] = useState<AvailableVideo[]>([])
+  // key = PROVIDER:videoId — id คนละแพลตฟอร์มชนกันได้ในทางทฤษฎี
   const [chosen, setChosen] = useState<string[]>([])
   const [max, setMax] = useState(6)
 
@@ -60,7 +79,7 @@ export default function ShopVideosClient() {
       setAvailable(data.available)
       setMax(data.max)
       // เรียงตาม sortOrder ที่บันทึกไว้ ไม่ใช่ลำดับที่ API คืนมา
-      setChosen([...data.selected].sort((a, b) => a.sortOrder - b.sortOrder).map((s) => s.videoId))
+      setChosen([...data.selected].sort((a, b) => a.sortOrder - b.sortOrder).map((s) => `${s.provider}:${s.videoId}`))
     } catch {
       pacesToast.error('เกิดข้อผิดพลาดขณะโหลด')
     } finally {
@@ -91,7 +110,10 @@ export default function ShopVideosClient() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: chosen.map((videoId) => ({ provider: 'INSTAGRAM', videoId })),
+          items: chosen.map((k) => {
+            const [provider, ...rest] = k.split(':')
+            return { provider, videoId: rest.join(':') }
+          }),
         }),
       })
       if (res.ok) {
@@ -130,9 +152,9 @@ export default function ShopVideosClient() {
       <div className="card-body">
         {available.length === 0 ? (
           <SellerEmptyState
-            icon="brand-instagram"
+            icon="video"
             title="ยังไม่มีคลิปให้เลือก"
-            description="คลิปจะดึงมาจากบัญชี Instagram ที่เชื่อมไว้กับร้าน หากยังไม่ได้เชื่อม ให้ไปเชื่อมที่หน้าช่องทางแชทก่อน"
+            description="คลิปจะดึงมาจากเพจ Facebook และบัญชี Instagram ที่เชื่อมไว้กับร้าน หากยังไม่ได้เชื่อม ให้ไปเชื่อมที่หน้าช่องทางแชทก่อน"
             action={{ label: 'ไปหน้าช่องทางแชท', href: '/settings/channels' }}
             compact
           />
@@ -140,13 +162,14 @@ export default function ShopVideosClient() {
           <>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {available.map((v) => {
-                const order = chosen.indexOf(v.videoId)
+                const key = `${v.provider}:${v.videoId}`
+                const order = chosen.indexOf(key)
                 const picked = order >= 0
                 return (
                   <button
-                    key={v.videoId}
+                    key={key}
                     type="button"
-                    onClick={() => toggle(v.videoId)}
+                    onClick={() => toggle(key)}
                     aria-pressed={picked}
                     className={`border-default-200 relative overflow-hidden rounded-lg border text-start ${
                       picked ? 'border-primary' : ''
@@ -167,9 +190,33 @@ export default function ShopVideosClient() {
                       </span>
                     )}
 
-                    {v.caption && (
-                      <span className="text-default-600 block truncate p-2 text-xs">{v.caption}</span>
-                    )}
+                    <span className="block p-2">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`flex size-4 items-center justify-center rounded-full ${SOURCE[v.provider]?.className ?? 'bg-default-200'}`}>
+                          <Icon icon={SOURCE[v.provider]?.icon ?? 'video'} className="text-xs" />
+                        </span>
+                        <span className="text-default-500 truncate text-xs">{v.accountName ?? SOURCE[v.provider]?.label}</span>
+                      </span>
+                      {(v.viewCount != null || v.likeCount != null) && (
+                        <span className="text-default-500 mt-1 flex items-center gap-2 text-xs">
+                          {v.viewCount != null && (
+                            <span className="flex items-center gap-1">
+                              <Icon icon="player-play" className="text-xs" />
+                              {compact(v.viewCount)}
+                            </span>
+                          )}
+                          {v.likeCount != null && (
+                            <span className="flex items-center gap-1">
+                              <Icon icon="heart" className="text-xs" />
+                              {compact(v.likeCount)}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {v.caption && (
+                        <span className="text-default-600 mt-1 block truncate text-xs">{v.caption}</span>
+                      )}
+                    </span>
                   </button>
                 )
               })}

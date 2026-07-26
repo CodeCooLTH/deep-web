@@ -16,7 +16,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { requireActiveShop } from "@/lib/shop-context";
 import {
-  listInstagramVideos,
+  listPickableVideos,
   getShopVideos,
   replaceShopVideos,
   MAX_SHOP_VIDEOS,
@@ -25,7 +25,7 @@ import {
 const Body = v.object({
   items: v.array(
     v.object({
-      provider: v.picklist(["INSTAGRAM", "TIKTOK", "YOUTUBE"]),
+      provider: v.picklist(["INSTAGRAM", "FACEBOOK", "TIKTOK", "YOUTUBE"]),
       videoId: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
   ),
@@ -41,7 +41,7 @@ export async function GET() {
 
   const [selected, available] = await Promise.all([
     getShopVideos(active.shop.id),
-    listInstagramVideos(active.shop.id),
+    listPickableVideos(active.shop.id),
   ]);
 
   return NextResponse.json({ selected, available, max: MAX_SHOP_VIDEOS });
@@ -61,12 +61,11 @@ export async function PUT(request: NextRequest) {
   }
 
   // ── ยืนยันความเป็นเจ้าของ: id ที่ส่งมาต้องอยู่ในคลิปของบัญชีที่ร้านเชื่อมไว้จริง ──
-  const owned = await listInstagramVideos(active.shop.id);
-  const ownedById = new Map(owned.map((m) => [m.videoId, m]));
+  const owned = await listPickableVideos(active.shop.id);
+  // key ด้วย provider+id — คลิปคนละแพลตฟอร์มมี id ชนกันได้ในทางทฤษฎี
+  const ownedByKey = new Map(owned.map((m) => [`${m.provider}:${m.videoId}`, m]));
 
-  const verified = parsed.output.items.filter(
-    (it) => it.provider === "INSTAGRAM" && ownedById.has(it.videoId),
-  );
+  const verified = parsed.output.items.filter((it) => ownedByKey.has(`${it.provider}:${it.videoId}`));
 
   if (verified.length !== parsed.output.items.length) {
     return NextResponse.json(
@@ -78,7 +77,7 @@ export async function PUT(request: NextRequest) {
   await replaceShopVideos(
     active.shop.id,
     verified.map((it) => {
-      const m = ownedById.get(it.videoId)!;
+      const m = ownedByKey.get(`${it.provider}:${it.videoId}`)!;
       return {
         provider: it.provider,
         videoId: it.videoId,
@@ -87,6 +86,7 @@ export async function PUT(request: NextRequest) {
         accountName: m.accountName,
         likeCount: m.likeCount,
         commentCount: m.commentCount,
+        viewCount: m.viewCount,
       };
     }),
   );

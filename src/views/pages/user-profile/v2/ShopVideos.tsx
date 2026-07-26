@@ -42,6 +42,7 @@ export type ShopVideoItem = {
 /** ไอคอน + สีแบรนด์ต่อแพลตฟอร์ม — สีแบรนด์เป็น carve-out ที่อนุญาต (Hard Rule 6) */
 const PROVIDER_UI: Record<VideoProvider, { icon: string; color: string; label: string }> = {
   INSTAGRAM: { icon: 'lucide:instagram', color: '#E1306C', label: 'Instagram' },
+  FACEBOOK: { icon: 'lucide:facebook', color: '#1877F2', label: 'Facebook' },
   TIKTOK: { icon: 'simple-icons:tiktok', color: '#010101', label: 'TikTok' },
   YOUTUBE: { icon: 'lucide:youtube', color: '#FF0000', label: 'YouTube' },
 }

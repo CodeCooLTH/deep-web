@@ -14,7 +14,7 @@
  * เอา URL เต็มมาวางแทน ปลอดภัยกว่าและอธิบายให้เข้าใจได้
  */
 
-export type VideoProvider = "YOUTUBE" | "TIKTOK" | "INSTAGRAM";
+export type VideoProvider = "YOUTUBE" | "TIKTOK" | "INSTAGRAM" | "FACEBOOK";
 
 export type ParsedVideo = {
   provider: VideoProvider;
@@ -26,6 +26,7 @@ export type ParsedVideo = {
 const YT_ID = /^[A-Za-z0-9_-]{6,20}$/;
 const TT_ID = /^[0-9]{5,30}$/;
 const IG_CODE = /^[A-Za-z0-9_-]{5,30}$/;
+const FB_ID = /^[0-9]{5,30}$/;
 
 function hostOf(u: URL): string {
   return u.hostname.replace(/^www\./, "").toLowerCase();
@@ -72,6 +73,24 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
     return id && TT_ID.test(id) ? { provider: "TIKTOK", videoId: id } : null;
   }
 
+  // ── Facebook: /reel/{id} · /{page}/videos/{id} · /watch?v={id} ──
+  // ไม่รับ /share/r/{code} เพราะเป็นลิงก์ย่อที่ต้องยิงตามไปถึงจะรู้ปลายทาง (SSRF เหมือน vm.tiktok.com)
+  // ในทางปฏิบัติร้านไม่ต้องวางลิงก์อยู่แล้ว — ระบบดึงรายการ reels ของเพจมาให้เลือกโดยตรง
+  if (host === "facebook.com" || host === "m.facebook.com" || host === "fb.watch") {
+    if (seg[0] === "reel" && seg[1] && FB_ID.test(seg[1])) {
+      return { provider: "FACEBOOK", videoId: seg[1] };
+    }
+    const vi = seg.indexOf("videos");
+    if (vi >= 0 && seg[vi + 1] && FB_ID.test(seg[vi + 1])) {
+      return { provider: "FACEBOOK", videoId: seg[vi + 1] };
+    }
+    if (seg[0] === "watch") {
+      const vid = u.searchParams.get("v");
+      if (vid && FB_ID.test(vid)) return { provider: "FACEBOOK", videoId: vid };
+    }
+    return null;
+  }
+
   // ── Instagram: /reel/{code} · /reels/{code} · /p/{code} ──
   if (host === "instagram.com") {
     const kind = seg[0];
@@ -100,6 +119,11 @@ export function buildEmbedUrl(v: ParsedVideo): string {
       return `https://www.tiktok.com/embed/v2/${v.videoId}`;
     case "INSTAGRAM":
       return `https://www.instagram.com/reel/${v.videoId}/embed`;
+    case "FACEBOOK":
+      // ปลั๊กอินวิดีโอของ Facebook รับ href เป็น URL หน้าคลิป — ประกอบจาก id ที่ตรวจแล้วเท่านั้น
+      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
+        `https://www.facebook.com/reel/${v.videoId}`,
+      )}&show_text=false`;
   }
 }
 
@@ -112,6 +136,8 @@ export function buildWatchUrl(v: ParsedVideo): string {
       return `https://www.tiktok.com/video/${v.videoId}`;
     case "INSTAGRAM":
       return `https://www.instagram.com/reel/${v.videoId}/`;
+    case "FACEBOOK":
+      return `https://www.facebook.com/reel/${v.videoId}`;
   }
 }
 
@@ -119,4 +145,5 @@ export const VIDEO_PROVIDER_LABEL: Record<VideoProvider, string> = {
   YOUTUBE: "YouTube",
   TIKTOK: "TikTok",
   INSTAGRAM: "Instagram",
+  FACEBOOK: "Facebook",
 };

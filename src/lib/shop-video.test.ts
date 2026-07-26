@@ -99,3 +99,30 @@ describe('buildEmbedUrl / buildWatchUrl', () => {
     expect(hosts).toEqual(['www.youtube-nocookie.com', 'www.tiktok.com', 'www.instagram.com'])
   })
 })
+
+describe('Facebook (เพิ่ม 2026-07-26 — เป็นแพลตฟอร์มเดียวที่ให้ยอดวิวด้วย token ที่มีอยู่)', () => {
+  it('รับ /reel/{id} · /{page}/videos/{id} · /watch?v={id}', () => {
+    expect(parseVideoUrl('https://www.facebook.com/reel/800277546442607')).toEqual({
+      provider: 'FACEBOOK',
+      videoId: '800277546442607',
+    })
+    expect(parseVideoUrl('https://www.facebook.com/mypage/videos/800277546442607/')?.videoId).toBe(
+      '800277546442607',
+    )
+    expect(parseVideoUrl('https://www.facebook.com/watch?v=800277546442607')?.videoId).toBe(
+      '800277546442607',
+    )
+  })
+
+  it('ปฏิเสธลิงก์ย่อ /share/r/{code} — ต้องยิงตามไปถึงจะรู้ปลายทาง (SSRF)', () => {
+    expect(parseVideoUrl('https://www.facebook.com/share/r/1YNM1JjKGg/')).toBeNull()
+  })
+
+  it('URL ฝังชี้ไปที่ปลั๊กอินของ Facebook เสมอ และ href ถูก encode', () => {
+    const fb = parseVideoUrl('https://www.facebook.com/reel/800277546442607')!
+    const embed = buildEmbedUrl(fb)
+    expect(new URL(embed).hostname).toBe('www.facebook.com')
+    expect(new URL(embed).pathname).toBe('/plugins/video.php')
+    expect(new URL(embed).searchParams.get('href')).toBe('https://www.facebook.com/reel/800277546442607')
+  })
+})

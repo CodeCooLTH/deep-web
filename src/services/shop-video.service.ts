@@ -18,6 +18,19 @@ import { parseVideoUrl } from "@/lib/shop-video";
 /** จำนวนคลิปสูงสุดที่ร้านโชว์ได้ — กันหน้าร้านยาวจนเนื้อหาสำคัญตกจอ และกันโหลด iframe เกินจำเป็น */
 export const MAX_SHOP_VIDEOS = 6;
 
+/** รายการคลิปที่ให้ร้านเลือก — รูปเดียวกันทุกแพลตฟอร์ม ต่างกันแค่ที่มา */
+export type PickableVideo = {
+  provider: "INSTAGRAM" | "FACEBOOK";
+  videoId: string;
+  caption: string | null;
+  thumbnailUrl: string | null;
+  permalink: string;
+  accountName: string | null;
+  likeCount: number | null;
+  commentCount: number | null;
+  viewCount: number | null;
+};
+
 export type IgMediaItem = {
   videoId: string;
   caption: string | null;
@@ -105,6 +118,87 @@ export async function listInstagramVideos(shopId: string): Promise<IgMediaItem[]
   );
 }
 
+/**
+ * ดึง reels ของ Facebook Page ที่ร้านเชื่อมไว้
+ *
+ * เป็นแพลตฟอร์มเดียวตอนนี้ที่ให้ "ยอดวิว" มาด้วย token ที่มีอยู่แล้ว — Instagram ต้องใช้ scope
+ * instagram_manage_insights ที่ยังไม่ได้ขอ (ทดสอบจริงแล้วได้ error #10) ส่วน TikTok รออนุมัติ app
+ *
+ * ร้านเดียวมีได้หลายเพจ จึงรวมคลิปจากทุกเพจที่ ACTIVE
+ */
+export async function listFacebookVideos(shopId: string): Promise<PickableVideo[]> {
+  const channels = await prisma.shopChannel.findMany({
+    where: { shopId, provider: "MESSENGER", status: "ACTIVE" },
+    select: { externalId: true, accessTokenEnc: true, name: true },
+  });
+
+  const perPage = await Promise.all(
+    channels.map(async (ch) => {
+      try {
+        const token = decryptToken(ch.accessTokenEnc);
+        const url =
+          `${GRAPH_BASE}/${ch.externalId}/video_reels` +
+          `?fields=id,description,permalink_url,picture,views,likes.summary(true),comments.summary(true)` +
+          `&limit=25&access_token=${encodeURIComponent(token)}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return [];
+
+        const json = (await res.json()) as {
+          data?: Array<{
+            id: string;
+            description?: string;
+            permalink_url?: string;
+            picture?: string;
+            views?: number;
+            likes?: { summary?: { total_count?: number } };
+            comments?: { summary?: { total_count?: number } };
+          }>;
+        };
+
+        return (json.data ?? [])
+          .filter((v) => /^[0-9]{5,30}$/.test(v.id))
+          .map<PickableVideo>((v) => ({
+            provider: "FACEBOOK",
+            // Graph คืน id ของ reel ตรง ๆ ซึ่งใช้ประกอบ URL ฝังได้เลย (ต่างจาก Instagram ที่
+            // ต้องแกะ shortcode จาก permalink)
+            videoId: v.id,
+            caption: v.description ?? null,
+            thumbnailUrl: v.picture ?? null,
+            permalink: `https://www.facebook.com/reel/${v.id}`,
+            accountName: ch.name,
+            likeCount: v.likes?.summary?.total_count ?? null,
+            commentCount: v.comments?.summary?.total_count ?? null,
+            viewCount: v.views ?? null,
+          }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  return perPage.flat();
+}
+
+/** คลิปทั้งหมดที่ร้านเลือกได้ จากทุกช่องทางที่เชื่อมไว้ */
+export async function listPickableVideos(shopId: string): Promise<PickableVideo[]> {
+  const [ig, fb] = await Promise.all([listInstagramVideos(shopId), listFacebookVideos(shopId)]);
+  return [
+    ...fb,
+    ...ig.map<PickableVideo>((m) => ({
+      provider: "INSTAGRAM",
+      videoId: m.videoId,
+      caption: m.caption,
+      thumbnailUrl: m.thumbnailUrl,
+      permalink: m.permalink,
+      accountName: m.accountName,
+      likeCount: m.likeCount,
+      commentCount: m.commentCount,
+      // Instagram ให้ยอดวิวไม่ได้ด้วย scope ที่มี — null แล้ว UI ซ่อนช่องนี้ ไม่แสดง 0
+      viewCount: null,
+    })),
+  ];
+}
+
 /** ชื่อบัญชี IG — แยกฟังก์ชันเพราะเรียกครั้งเดียวต่อการดึงคลิปทั้งชุด ไม่ใช่ต่อคลิป */
 async function fetchIgUsername(igUserId: string, token: string): Promise<string | null> {
   try {
@@ -159,6 +253,7 @@ export async function replaceShopVideos(
     accountName?: string | null;
     likeCount?: number | null;
     commentCount?: number | null;
+    viewCount?: number | null;
   }>,
 ) {
   const capped = items.slice(0, MAX_SHOP_VIDEOS);
@@ -176,6 +271,7 @@ export async function replaceShopVideos(
         accountName: it.accountName ?? null,
         likeCount: it.likeCount ?? null,
         commentCount: it.commentCount ?? null,
+        viewCount: it.viewCount ?? null,
         sortOrder: i,
       })),
     });
