@@ -1,0 +1,78 @@
+// feature 00022 — ออเดอร์นี้เปิดพัสดุได้ไหม (SRS §5)
+//
+// แยกเป็นไฟล์ pure ไม่แตะ Prisma/session โดยเจตนา — ตรรกะนี้มีหลายสาขาและเป็นจุดที่
+// "ตัดสินผิดแล้วรบกวนร้านทุกวัน" จึงต้องเทสได้ครบทุกสาขาโดยไม่ต้องปั้นฐานข้อมูล
+//
+// แกนของการออกแบบคือแยก 2 ความหมายที่คนมักปนกัน:
+//   SKIP_SILENT = "ออเดอร์นี้ไม่เกี่ยวกับการส่งของ" → ห้ามรบกวนร้านเลย
+//   NEEDS_FIX   = "ควรส่งได้แต่ข้อมูลขาด"        → ต้องบอกว่าขาดช่องไหน
+// ถ้ารวมสองอย่างเป็น error เดียวกัน ร้านที่ขายของดิจิทัลจะเจอข้อความเตือนทุกออเดอร์
+// จนเลิกอ่าน แล้วพลาดเคสที่ต้องแก้จริง (FR-ISHIP-023)
+
+import {
+  findMissingReceiverFields,
+  findMissingSenderFields,
+  type DeepAddress,
+  type MissingAddressField,
+  type SenderAddress,
+} from "./mapping";
+
+export interface EligibilityOrderLike {
+  type: string;
+  fulfillmentMode: string;
+  buyerName: string | null;
+  buyerContact: string | null;
+  shippingAddress: DeepAddress | null;
+}
+
+export interface EligibilityAccountLike {
+  senderAddress: SenderAddress;
+}
+
+export type EligibilityResult =
+  | { eligible: true }
+  | { eligible: false; kind: "SKIP_SILENT"; reason: string }
+  | { eligible: false; kind: "NEEDS_FIX"; missing: MissingAddressField[] };
+
+export function checkEligibility(
+  order: EligibilityOrderLike,
+  account: EligibilityAccountLike | null,
+): EligibilityResult {
+  // ลำดับการตรวจสำคัญ: เช็ค "ไม่เกี่ยวกับการส่งของ" ให้หมดก่อน
+  // ไม่งั้นออเดอร์ดิจิทัลของร้านที่ยังไม่ตั้งที่อยู่ผู้ส่ง จะได้ NEEDS_FIX ทั้งที่ไม่ควรมีอะไรเตือนเลย
+  if (order.fulfillmentMode !== "SHIPPED") {
+    return { eligible: false, kind: "SKIP_SILENT", reason: "ออเดอร์นี้ไม่ต้องจัดส่ง" };
+  }
+  if (order.type !== "PHYSICAL") {
+    return {
+      eligible: false,
+      kind: "SKIP_SILENT",
+      reason: "ออเดอร์ประเภทนี้ไม่มีพัสดุให้ส่ง",
+    };
+  }
+  if (!account) {
+    return {
+      eligible: false,
+      kind: "SKIP_SILENT",
+      reason: "ร้านยังไม่ได้เชื่อมต่อ iShip",
+    };
+  }
+
+  // ที่อยู่ผู้ส่งก่อนผู้รับ — เป็นปัญหาระดับร้านที่แก้ครั้งเดียวจบ
+  // ถ้าบอกเรื่องผู้รับก่อน ร้านจะไล่แก้ทีละออเดอร์โดยไม่รู้ว่าต้นตออยู่ที่หน้าตั้งค่า
+  const missingSender = findMissingSenderFields(account.senderAddress);
+  if (missingSender.length > 0) {
+    return { eligible: false, kind: "NEEDS_FIX", missing: missingSender };
+  }
+
+  const missingReceiver = findMissingReceiverFields(
+    order.shippingAddress,
+    order.buyerName,
+    order.buyerContact,
+  );
+  if (missingReceiver.length > 0) {
+    return { eligible: false, kind: "NEEDS_FIX", missing: missingReceiver };
+  }
+
+  return { eligible: true };
+}

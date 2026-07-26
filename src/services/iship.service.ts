@@ -12,6 +12,7 @@ import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
 import { describeCarrierStatus } from "@/lib/iship/status";
+import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
@@ -345,57 +346,14 @@ export async function listBoxes(shopId: string) {
   return withTokenGuard(shopId, () => iship.listBoxes(token));
 }
 
-// ─── ความมีสิทธิ์ของออเดอร์ (pure — เทสได้โดยไม่ต้องมี DB) ──────────────────
-
-export interface EligibilityOrderLike {
-  type: string;
-  fulfillmentMode: string;
-  buyerName: string | null;
-  buyerContact: string | null;
-  shippingAddress: DeepAddress | null;
-}
-
-export type EligibilityResult =
-  | { eligible: true }
-  /** ออเดอร์นี้ไม่เกี่ยวกับการส่งของ — ห้ามรบกวนร้าน (FR-ISHIP-023) */
-  | { eligible: false; kind: "SKIP_SILENT"; reason: string }
-  /** ควรส่งได้แต่ข้อมูลขาด — ต้องบอกร้านว่าขาดอะไร */
-  | { eligible: false; kind: "NEEDS_FIX"; missing: MissingAddressField[] };
-
-export function checkEligibility(
-  order: EligibilityOrderLike,
-  account: { senderAddress: SenderAddress } | null,
-): EligibilityResult {
-  if (order.fulfillmentMode !== "SHIPPED") {
-    return { eligible: false, kind: "SKIP_SILENT", reason: "ออเดอร์นี้ไม่ต้องจัดส่ง" };
-  }
-  if (order.type !== "PHYSICAL") {
-    return {
-      eligible: false,
-      kind: "SKIP_SILENT",
-      reason: "ออเดอร์ประเภทนี้ไม่มีพัสดุให้ส่ง",
-    };
-  }
-  if (!account) {
-    return { eligible: false, kind: "SKIP_SILENT", reason: "ร้านยังไม่ได้เชื่อมต่อ iShip" };
-  }
-
-  const missingSender = findMissingSenderFields(account.senderAddress);
-  if (missingSender.length > 0) {
-    return { eligible: false, kind: "NEEDS_FIX", missing: missingSender };
-  }
-
-  const missingReceiver = findMissingReceiverFields(
-    order.shippingAddress,
-    order.buyerName,
-    order.buyerContact,
-  );
-  if (missingReceiver.length > 0) {
-    return { eligible: false, kind: "NEEDS_FIX", missing: missingReceiver };
-  }
-
-  return { eligible: true };
-}
+// ─── ความมีสิทธิ์ของออเดอร์ ─────────────────────────────────────────────────
+// ตรรกะจริงอยู่ที่ lib/iship/eligibility.ts (pure — เทสได้โดยไม่ต้องมีฐานข้อมูล)
+// re-export ไว้ที่นี่เพื่อให้ call site ฝั่ง service/route เรียกจากที่เดียวได้เหมือนเดิม
+export { checkEligibility } from "@/lib/iship/eligibility";
+export type {
+  EligibilityOrderLike,
+  EligibilityResult,
+} from "@/lib/iship/eligibility";
 
 // ─── พัสดุ ──────────────────────────────────────────────────────────────────
 
@@ -495,7 +453,7 @@ export async function createShipment(
   });
   if (!order) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำสั่งซื้อนี้");
 
-  const eligibility = checkEligibility(
+  const eligibility = evaluateEligibility(
     {
       type: order.type,
       fulfillmentMode: order.fulfillmentMode,
