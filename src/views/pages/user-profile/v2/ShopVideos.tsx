@@ -129,7 +129,10 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
         </span>
       )}
 
-      <span className='absolute inset-block-start-0 flex items-center justify-center is-full bs-full pointer-events-none'>
+      {/* inset-0 ไม่ใช่ inset-block-start-0 — ตัวหลังไม่ได้ให้ CSS อะไรเลยในโปรเจกต์นี้ (วัดแล้วได้
+          top: auto → ตกไปใช้ตำแหน่ง static คือใต้รูปปก) ปุ่มเล่นเลยไปอยู่ล่างคลิปแล้วโดน
+          overflow-hidden ตัดครึ่ง แทนที่จะอยู่กลาง */}
+      <span className='absolute inset-0 flex items-center justify-center pointer-events-none'>
         <span className='is-11 bs-11 rounded-full bg-black/45 text-white flex items-center justify-center'>
           <Icon icon='lucide:play' width={20} />
         </span>
