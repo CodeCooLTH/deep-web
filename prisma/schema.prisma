@@ -201,6 +201,7 @@ model Shop {
   members              ShopMember[] // NEW (feature 00008)
   invites              ShopInvite[] // NEW (feature 00008)
   inviteLinks          ShopInviteLink[] // NEW (feature 00012) — reusable staff invite link
+  videos               ShopVideo[] // คลิปที่ร้านเลือกโชว์บนหน้าร้านสาธารณะ (2026-07-26)
   conversations        Conversation[] // Deep Chat (feature 00011) — บทสนทนาที่ shop นี้เป็นคู่สนทนา
   channels             ShopChannel[] // Facebook/Instagram chat integration (feature 00018) — Page/IG ที่ร้านผูกไว้
   quickMessages        QuickMessage[] // ข้อความสำเร็จรูป (feature 00018 composer #2) — ระดับร้าน ทุกคนในร้านใช้ร่วมกัน
@@ -1292,4 +1293,29 @@ model ShopAiSetting {
 
   shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
   updatedBy User? @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+/// คลิปที่ร้านเลือกมาแสดงบนหน้าร้านสาธารณะ (2026-07-26)
+///
+/// ร้านไม่ได้ "วาง URL" เอง แต่เชื่อมบัญชีแล้วเลือกจากคลิปของตัวเองที่ระบบดึงมาให้ —
+/// จึงการันตีความเป็นเจ้าของโดยอัตโนมัติ เพราะเลือกได้เฉพาะคลิปในบัญชีที่ผ่าน OAuth มาแล้ว
+/// (ถ้าให้วาง URL อิสระ ร้านจะเอาคลิปคนอื่นมาอ้างเป็นของตัวเองได้)
+model ShopVideo {
+  id        String @id @default(uuid())
+  shopId    String
+  /// "INSTAGRAM" | "TIKTOK" | "YOUTUBE" — String ตาม convention เดิมของ repo (มิเรอร์ provider ของ ShopChannel)
+  provider  String
+  /// id/shortcode ของคลิปบนแพลตฟอร์มนั้น ใช้ประกอบ URL ฝังเอง ไม่เก็บ URL ดิบที่ผู้ใช้กำหนด
+  videoId   String
+  caption   String? @db.Text
+  /// รูปปกที่แพลตฟอร์มให้มา — เก็บไว้แสดงก่อนผู้ชมกดเล่น จะได้ไม่ต้องโหลด iframe ทุกอัน
+  thumbnailUrl String?
+  sortOrder Int    @default(0)
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  /// กันเลือกคลิปเดิมซ้ำในร้านเดียวกัน
+  @@unique([shopId, provider, videoId])
+  @@index([shopId, sortOrder])
 }
