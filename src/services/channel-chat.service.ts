@@ -518,8 +518,12 @@ export async function ingestInboundMessage(params: {
         // สแปม (feature 00018, user สั่ง 2026-07-24): เธรดสแปม "ลูกค้าทักมาใหม่ไม่เด้งกลับ" (ต่างจาก
         // hide/resolve) — อัปเดต lastMessageAt/lastInboundAt (ลำดับในถังสแปม + 24h window) แต่ไม่รีเซ็ต
         // isHidden/resolvedAt และไม่แตะ isSpam → เธรดอยู่ในสแปมต่อ; ไม่ส่ง Notification ด้านล่างด้วย
+        // ฝั่งเราตอบ (echo = ร้านตอบจากแอป Messenger / admin / FB auto-reply) = ถือว่า "อ่านแล้ว" →
+        // ขยับ shopLastReadAt เพื่อ reset unread เทิร์นถัดไป (user report 2026-07-26: FB auto-reply
+        // ทำ unread→read แต่ไม่ขยับ shopLastReadAt → ลูกค้าทักใหม่ นับซ้ำข้อความเทิร์นก่อนกลายเป็น 2)
+        // ไม่ขยับ lastMessageAt/lastInboundAt ตามเดิม (echo ไม่เด้งลำดับ/ไม่ยืด 24h window)
         ...(isEcho
-          ? {}
+          ? { shopLastReadAt: new Date() }
           : conversation.isSpam
             ? { lastMessageAt: occurredAt, lastInboundAt: occurredAt }
             : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
