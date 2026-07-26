@@ -12,7 +12,7 @@
  * Base: ไม่มี "dockable modal" primitive ใน Paces — โครง overlay อิง precedent ในโปรเจกต์
  * (CustomerPanelSheet.tsx/OrderQrSheet.tsx: fixed inset + z-80 carve-out HR7, React state ไม่ใช้ Preline)
  */
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
@@ -20,6 +20,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import type { IShipCreateMode } from '@/lib/iship/after-order-create'
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
 
@@ -88,6 +89,30 @@ type ProviderProps = {
 
 export default function DraftOrderProvider({ shopId, catalog, bestSellers, inventoryEnabled, children }: ProviderProps) {
   const [drafts, setDrafts] = useState<OrderDraft[]>([])
+
+  // feature 00022 — โหมดสร้างพัสดุของร้าน
+  // ที่นี่เป็น client component จึงถามผ่าน API ครั้งเดียวตอน mount (ต่างจากหน้า POS
+  // ที่ server ส่งมาให้ตอน render). ร้านที่ไม่ได้เชื่อมต่อ/ร้านบ้านพักจะได้ 403 หรือ
+  // connected=false → คงค่า 'OFF' ไว้ = ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์จากแชท
+  const [ishipCreateMode, setIshipCreateMode] = useState<IShipCreateMode>('OFF')
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/seller/iship/connection', { cache: 'no-store' })
+        if (!res.ok) return
+        const body = (await res.json()) as { connected?: boolean; status?: string; createMode?: string }
+        if (alive && body.connected && body.status === 'ACTIVE') {
+          setIshipCreateMode((body.createMode as IShipCreateMode) ?? 'OFF')
+        }
+      } catch {
+        // เงียบโดยเจตนา — ถามไม่ได้ก็คงเป็น 'OFF' ไม่ควรรบกวนหน้าแชทด้วย error เรื่องขนส่ง
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
   const router = useRouter()
   const pathname = usePathname()
 
@@ -211,6 +236,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               initialSalesChannel={chatChannelToSalesChannel(d.channel)}
               conversationId={d.conversationId}
               editOrderToken={d.editOrderToken ?? undefined}
+              ishipCreateMode={ishipCreateMode}
               onSuccess={() => handleSuccess(d)}
               compact
             />
