@@ -34,9 +34,12 @@ interface AvailableVideo {
 }
 
 /** ป้ายบอกแหล่งที่มาบนการ์ดที่ให้เลือก */
+// simple-icons = โลโก้แบรนด์จริง ไม่ใช่ไอคอนเส้นที่วาดเลียนแบบ
+// ต้องใส่ prefix เสมอเพราะไฟล์นี้ใช้ @iconify/react ตรง ๆ ไม่ใช่ Icon wrapper ที่เติม tabler: ให้
+// (ชื่อไม่มี prefix จะไม่ render อะไรเลยและไม่มี error — เจอจริงตอน user ทักว่าไอคอนหาย)
 const SOURCE: Record<string, { icon: string; label: string; className: string }> = {
-  FACEBOOK: { icon: 'brand-facebook', label: 'Facebook', className: 'bg-info text-white' },
-  INSTAGRAM: { icon: 'brand-instagram', label: 'Instagram', className: 'bg-danger text-white' },
+  FACEBOOK: { icon: 'simple-icons:facebook', label: 'Facebook', className: 'bg-info text-white' },
+  INSTAGRAM: { icon: 'simple-icons:instagram', label: 'Instagram', className: 'bg-danger text-white' },
 }
 
 /** key ของช่องทาง = provider + ชื่อบัญชี — ร้านเดียวมีได้หลายเพจ จึงแยกทีละเพจ ไม่ใช่ทีละแพลตฟอร์ม */
@@ -189,7 +192,7 @@ export default function ShopVideosClient() {
     return (
       <div className="card">
         <div className="card-body flex items-center gap-2 text-default-500">
-          <Icon icon="loader-2" className="animate-spin text-base" />
+          <Icon icon="tabler:loader-2" className="animate-spin text-base" />
           กำลังโหลดคลิปจากบัญชีที่เชื่อมไว้...
         </div>
       </div>
@@ -238,7 +241,7 @@ export default function ShopVideosClient() {
                     }`}
                   >
                     <span className={`flex size-4 items-center justify-center rounded-full ${SOURCE[src.provider]?.className ?? 'bg-default-200'}`}>
-                      <Icon icon={SOURCE[src.provider]?.icon ?? 'video'} className="text-xs" />
+                      <Icon icon={SOURCE[src.provider]?.icon ?? 'tabler:video'} className="text-xs" />
                     </span>
                     <span className="max-w-40 truncate">{src.label}</span>
                     <span className="text-default-400">{src.count}</span>
@@ -248,7 +251,7 @@ export default function ShopVideosClient() {
               })}
             </nav>
 
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
               {visible.map((v) => {
                 const key = `${v.provider}:${v.videoId}`
                 const order = chosen.indexOf(key)
@@ -268,7 +271,7 @@ export default function ShopVideosClient() {
                         /* eslint-disable-next-line @next/next/no-img-element -- รูปจาก CDN ของ Instagram */
                         <img src={v.thumbnailUrl} alt="" className="size-full object-cover" />
                       ) : (
-                        <Icon icon="video" className="text-default-400 text-2xl" />
+                        <Icon icon="tabler:video" className="text-default-400 text-2xl" />
                       )}
                     </span>
 
@@ -279,9 +282,16 @@ export default function ShopVideosClient() {
                     )}
 
                     <span className="block p-2">
+                      {/* ชื่อคลิปอยู่บนสุด ตัวใหญ่ สีเข้ม — เป็นสิ่งที่ร้านใช้แยกว่าคลิปไหนเป็นคลิปไหน
+                          จริง ๆ (user ทัก) ส่วนชื่อช่องทางกับยอดเป็นข้อมูลประกอบ ตัวเล็กลงได้ */}
+                      {v.caption && (
+                        <span className="text-default-900 mb-1.5 line-clamp-2 text-sm font-semibold">
+                          {v.caption}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1.5">
                         <span className={`flex size-4 items-center justify-center rounded-full ${SOURCE[v.provider]?.className ?? 'bg-default-200'}`}>
-                          <Icon icon={SOURCE[v.provider]?.icon ?? 'video'} className="text-xs" />
+                          <Icon icon={SOURCE[v.provider]?.icon ?? 'tabler:video'} className="text-xs" />
                         </span>
                         <span className="text-default-500 truncate text-xs">{v.accountName ?? SOURCE[v.provider]?.label}</span>
                       </span>
@@ -289,20 +299,17 @@ export default function ShopVideosClient() {
                         <span className="text-default-500 mt-1 flex items-center gap-2 text-xs">
                           {v.viewCount != null && (
                             <span className="flex items-center gap-1">
-                              <Icon icon="player-play" className="text-xs" />
+                              <Icon icon="tabler:player-play-filled" className="text-sm" />
                               {compact(v.viewCount)}
                             </span>
                           )}
                           {v.likeCount != null && (
                             <span className="flex items-center gap-1">
-                              <Icon icon="heart" className="text-xs" />
+                              <Icon icon="tabler:heart-filled" className="text-sm" />
                               {compact(v.likeCount)}
                             </span>
                           )}
                         </span>
-                      )}
-                      {v.caption && (
-                        <span className="text-default-600 mt-1 block truncate text-xs">{v.caption}</span>
                       )}
                     </span>
                   </button>

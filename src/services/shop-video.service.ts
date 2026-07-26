@@ -156,7 +156,8 @@ export async function listFacebookVideos(
         const token = decryptToken(ch.accessTokenEnc);
         const url =
           `${GRAPH_BASE}/${ch.externalId}/video_reels` +
-          `?fields=id,description,permalink_url,picture,views,likes.summary(true),comments.summary(true)` +
+          // thumbnails ให้ 1080x1920 ส่วน picture เป็นรูปย่อขนาดเล็กมาก ซึ่งเบลอเห็นได้ชัดบนจอใหญ่
+          `?fields=id,description,permalink_url,picture,thumbnails{uri,is_preferred},views,likes.summary(true),comments.summary(true)` +
           `&limit=25&access_token=${encodeURIComponent(token)}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) {
@@ -170,6 +171,7 @@ export async function listFacebookVideos(
             description?: string;
             permalink_url?: string;
             picture?: string;
+            thumbnails?: { data?: Array<{ uri?: string; is_preferred?: boolean }> };
             views?: number;
             likes?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
@@ -184,7 +186,12 @@ export async function listFacebookVideos(
             // ต้องแกะ shortcode จาก permalink)
             videoId: v.id,
             caption: v.description ?? null,
-            thumbnailUrl: v.picture ?? null,
+            // เลือกตัวที่ Meta ทำเครื่องหมายว่าเหมาะสุดก่อน แล้วค่อยไล่ลงมา — picture ไว้ท้ายสุด
+            thumbnailUrl:
+              v.thumbnails?.data?.find((t) => t.is_preferred)?.uri ??
+              v.thumbnails?.data?.[0]?.uri ??
+              v.picture ??
+              null,
             permalink: `https://www.facebook.com/reel/${v.id}`,
             accountName: ch.name,
             likeCount: v.likes?.summary?.total_count ?? null,
