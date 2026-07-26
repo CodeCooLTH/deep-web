@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
+import { describeCarrierStatus } from "@/lib/iship/status";
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
@@ -905,6 +906,107 @@ export async function requestPickup(
     });
     throw err;
   }
+}
+
+// ─── webhook (ไม่มี session — จับคู่จากข้อมูลใน payload) ────────────────────
+
+/**
+ * handleStatusWebhook — รับแจ้งสถานะพัสดุจาก iShip (FR-ISHIP-041)
+ *
+ * ข้อควรระวังสูงสุด: ห้ามเปลี่ยน Order.status ไม่ว่ากรณีใด (BR-ISHIP-41)
+ * การยืนยันรับของโดยผู้ซื้อคือเงื่อนไขเดียวที่ทำให้คำสั่งซื้อสำเร็จและมีผลต่อ Trust Score
+ * ถ้าปล่อยให้ระบบภายนอกดันออเดอร์เป็นสำเร็จได้ จะเปิดช่องปั่นคะแนนด้วยพัสดุปลอม
+ *
+ * ฟังก์ชันนี้ต้องไม่โยน error ออกไป — route ตอบ 200 ไปแล้ว และการโยนจะทำให้
+ * ผู้ให้บริการยิงซ้ำรัวโดยไม่มีประโยชน์
+ */
+export async function handleStatusWebhook(payload: unknown): Promise<void> {
+  if (!payload || typeof payload !== "object") return;
+  const p = payload as Record<string, unknown>;
+
+  const refCode = typeof p.ref_code === "string" ? p.ref_code : null;
+  const tracking = typeof p.tracking === "string" ? p.tracking : null;
+  const status = typeof p.status === "string" ? p.status : null;
+  if (!status || (!refCode && !tracking)) return;
+
+  // จับคู่ด้วย refCode ก่อน (เจาะจงกว่า) แล้วค่อย trackingNo
+  const shipment = await prisma.orderShipment.findFirst({
+    where: refCode ? { refCode } : { trackingNo: tracking! },
+    select: { id: true },
+  });
+  if (!shipment) {
+    // จับคู่ไม่ได้ = พัสดุของระบบอื่นที่ใช้บัญชี iShip เดียวกัน หรือข้อมูลเพี้ยน
+    // ทิ้งไป แต่ log ไว้ให้ทีมงานตรวจสอบได้ว่าเกิดบ่อยแค่ไหน
+    console.warn("[iship] webhook ที่จับคู่กับพัสดุในระบบไม่ได้", { refCode, tracking });
+    return;
+  }
+
+  // timestamp ของ iShip เป็น epoch วินาที — ถ้าไม่มีให้ใช้เวลาที่รับเข้ามาแทน
+  const epoch = typeof p.timestamp === "number" ? p.timestamp * 1000 : Date.now();
+  const occurredAt = new Date(epoch);
+  const dedupeKey = `${status}:${occurredAt.getTime()}`;
+
+  const meta = describeCarrierStatus(status);
+
+  await prisma.shipmentEvent.upsert({
+    where: { shipmentId_dedupeKey: { shipmentId: shipment.id, dedupeKey } },
+    create: {
+      shipmentId: shipment.id,
+      status,
+      statusText: meta.text,
+      statusDesc: typeof p.status_desc === "string" ? p.status_desc : null,
+      occurredAt,
+      source: "WEBHOOK",
+      dedupeKey,
+      payload: p as object,
+    },
+    update: {}, // ยิงซ้ำ = ไม่ทำอะไร (FR-ISHIP-041)
+  });
+
+  await prisma.orderShipment.update({
+    where: { id: shipment.id },
+    data: {
+      carrierStatus: status,
+      carrierStatusText: meta.text,
+      carrierStatusAt: occurredAt,
+      isOverWeight: p.is_over_weight === true,
+      isOverSize: p.is_over_size === true,
+      carrierPrice: typeof p.price === "number" ? p.price : undefined,
+    },
+  });
+}
+
+/** handlePickupWebhook — รับแจ้งสถานะรถเข้ารับ */
+export async function handlePickupWebhook(payload: unknown): Promise<void> {
+  if (!payload || typeof payload !== "object") return;
+  const p = payload as Record<string, unknown>;
+
+  const ticketPickupId =
+    p.ticketPickupId != null ? String(p.ticketPickupId) : null;
+  if (!ticketPickupId) return;
+
+  const pickup = await prisma.shipmentPickup.findFirst({
+    where: { ticketPickupId },
+    select: { id: true },
+  });
+  if (!pickup) return;
+
+  // สถานะฝั่งผู้ให้บริการเป็นตัวเลข/ข้อความที่ไม่คงที่ — แปลงเป็นชุดของเราเท่าที่ตีความได้
+  const closedAt = typeof p.closed_at === "string" ? new Date(p.closed_at) : null;
+  const acceptedAt = typeof p.accepted_at === "string" ? new Date(p.accepted_at) : null;
+
+  await prisma.shipmentPickup.update({
+    where: { id: pickup.id },
+    data: {
+      status: closedAt ? "CLOSED" : acceptedAt ? "ACCEPTED" : undefined,
+      staffName: typeof p.staffInfoName === "string" ? p.staffInfoName : undefined,
+      staffPhone: typeof p.staffInfoPhone === "string" ? p.staffInfoPhone : undefined,
+      timeoutAtText: typeof p.timeoutAtText === "string" ? p.timeoutAtText : undefined,
+      ticketMessage: typeof p.ticketMessage === "string" ? p.ticketMessage : undefined,
+      acceptedAt: acceptedAt && !Number.isNaN(acceptedAt.getTime()) ? acceptedAt : undefined,
+      closedAt: closedAt && !Number.isNaN(closedAt.getTime()) ? closedAt : undefined,
+    },
+  });
 }
 
 export async function cancelPickup(shopId: string, pickupId: string) {

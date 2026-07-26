@@ -23,10 +23,15 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   // header เหมือน browser; authentication ของ route นี้คือลายเซ็น X-Hub-Signature-256
   // ที่ตัว route ตรวจเอง จึงไม่มี CSRF surface (CSRF อาศัย cookie ที่ browser แนบให้).
   // rate-limit ยัง apply ปกติ
+  // ยกเว้น /api/webhooks/* — ผู้ให้บริการภายนอก (iShip feat 00022) ยิง server-to-server
+  // ไม่มี Origin header เหมือน browser; authentication ของ route กลุ่มนี้คือ secret ที่ฝัง
+  // อยู่ใน path ซึ่ง route ตรวจเอง ไม่ได้อาศัย cookie จึงไม่มี CSRF surface
+  // rate-limit ยัง apply ปกติ
   if (
     MUTATION_METHODS.has(request.method) &&
     !pathname.startsWith('/api/app/') &&
     !pathname.startsWith('/api/cron/') &&
+    !pathname.startsWith('/api/webhooks/') &&
     pathname !== '/api/channels/facebook/webhook'
   ) {
     if (!isAllowedOrigin(request.headers.get('origin'))) {
