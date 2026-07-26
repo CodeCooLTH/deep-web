@@ -21,6 +21,7 @@ import { computeCompletionRate } from '@/lib/order-stats'
 // View Imports
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import { getShopProfileStats } from '@/services/shop.service'
+import { getShopVideos } from '@/services/shop-video.service'
 import { getShopAvailability } from '@/services/room.service'
 import { getTierGradient } from '@/lib/trust-tier'
 import { toFileUrl } from '@/lib/file-url'
@@ -103,6 +104,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
 
   // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
   const profileStats = await getShopProfileStats(shop.id)
+  const shopVideos = await getShopVideos(shop.id)
   const availability = isLodging ? await getShopAvailability(shop.id, 3) : null
   // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
   const shopReviews = await prisma.review.findMany({
@@ -228,6 +230,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             memberSince: profileTab.memberSince,
           },
           channels: profileStats.channels,
+          videos: shopVideos,
           reviews: shopReviews.map((r) => ({
             id: r.id,
             rating: r.rating,

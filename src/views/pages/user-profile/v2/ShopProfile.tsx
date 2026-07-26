@@ -22,6 +22,7 @@ import AvailabilityCalendar, { type AvailabilityData } from './AvailabilityCalen
 import OfficialChannels, { type OfficialChannel } from './OfficialChannels'
 import ReviewSummary, { type RatingBucket } from './ReviewSummary'
 import ReviewList, { type ReviewListItem } from './ReviewList'
+import ShopVideos, { type ShopVideoItem } from './ShopVideos'
 import AboutOverview, { type AboutData } from '../profile/AboutOverview'
 import { ProfileRightContent } from '../profile'
 import type { SerializedProduct } from '../profile'
@@ -35,6 +36,7 @@ export type ShopProfileData = {
   otherProducts: SerializedProduct[]
   about: AboutData
   channels: OfficialChannel[]
+  videos: ShopVideoItem[]
   reviews: ReviewListItem[]
   avgRating: number | null
   reviewCount: number
@@ -95,6 +97,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
               <div className='flex flex-col gap-5'>
                 <AboutOverview data={data.about} />
                 {data.channels.length > 0 && <OfficialChannels channels={data.channels} />}
+                <ShopVideos items={data.videos} />
               </div>
             ),
           },

@@ -17,6 +17,7 @@ import { getProductsByShop } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/lib/trust-tier'
 import { getShopProfileStats } from '@/services/shop.service'
+import { getShopVideos } from '@/services/shop-video.service'
 import { toFileUrl } from '@/lib/file-url'
 import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
@@ -69,6 +70,7 @@ export default async function PublicProfilePage({ params }: Props) {
   // buyer-only (ไม่มีร้าน) → null ทั้งก้อน แล้ว UI ซ่อน block ที่เกี่ยวข้องเอง
   const profileStats = user.shop ? await getShopProfileStats(user.shop.id) : null
   const recentReviews = await getReviewsByUsername(username, 10)
+  const shopVideos = user.shop ? await getShopVideos(user.shop.id) : []
 
   // ประเภทกิจการกำหนดชุดแท็บ (feat 00017) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า
   const isLodging = user.shop?.vertical === 'LODGING'
@@ -242,6 +244,7 @@ export default async function PublicProfilePage({ params }: Props) {
             chatResponseSampleSize: profileTab.chatResponseSampleSize,
           },
           channels: profileStats?.channels ?? [],
+          videos: shopVideos,
           reviews: recentReviews.map((r) => ({
             id: r.id,
             rating: r.rating,

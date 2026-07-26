@@ -73,6 +73,7 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้านค้า', icon: 'building-store' },
+      { url: '/public-profile', slug: 'seller:public-profile', label: 'โปรไฟล์สาธารณะ', icon: 'world' },
       // feature 00012 (Shop Staff Invite Links, Task 4.3) — เมนู "พนักงาน" จัดการลิงก์เชิญ + สมาชิก Business
       // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyStaffMenu ด้านล่าง — mirror applyInventoryGate)
       // icon 'users-group' verified มีจริงใน tabler set (api.iconify.design/tabler.json?icons=users-group → found)
