@@ -15,6 +15,23 @@
  */
 import { useId, useState, type ReactNode } from 'react'
 
+import { Icon } from '@iconify/react'
+
+/**
+ * ไอคอนประจำแท็บ — user เคาะชุดนี้เอง 2026-07-26 (convention no-emoji-use-icons กำหนดว่า
+ * จุดที่ควรมีไอคอนแต่สเปกไม่ได้ระบุตัว ต้องถามก่อน ห้ามเดา)
+ * ปักหมุด = ปุ่มเล่น สื่อว่าเป็นคลิป · สินค้า = กล่อง · เกี่ยวกับร้าน = วงกลม i · รีวิว = ดาว
+ * ห้องพัก/ปฏิทิน ของร้านบ้านพักใช้เตียงกับปฏิทินตามความหมายตรงตัว
+ */
+const TAB_ICON: Record<string, string> = {
+  pinned: 'tabler:player-play',
+  items: 'tabler:package',
+  rooms: 'tabler:bed',
+  calendar: 'tabler:calendar',
+  about: 'tabler:info-circle',
+  reviews: 'tabler:star',
+}
+
 export type ProfileTabDef = { key: string; label: string; content: ReactNode }
 
 export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
@@ -47,10 +64,13 @@ export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
               aria-controls={`${baseId}-panel-${i}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(i)}
-              className={`relative plb-3 text-[14.5px] font-semibold whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] ${
+              className={`relative plb-3 text-[14.5px] font-semibold whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] inline-flex items-center gap-1.5 ${
                 selected ? 'text-[var(--mui-palette-text-primary)]' : 'text-[var(--mui-palette-text-disabled)]'
               }`}
             >
+              {/* ไอคอนช่วยให้กวาดตาหาแท็บที่ต้องการได้โดยไม่ต้องอ่านทุกคำ — จางลงเมื่อไม่ได้เลือก
+                  เพื่อไม่ให้แย่งน้ำหนักกับแท็บที่ active */}
+              {TAB_ICON[t.key] && <Icon icon={TAB_ICON[t.key]} width={17} />}
               {t.label}
               {selected && (
                 <span className='absolute inline-start-0 inline-end-0 -bottom-px bs-[2.5px] rounded bg-primary' />
