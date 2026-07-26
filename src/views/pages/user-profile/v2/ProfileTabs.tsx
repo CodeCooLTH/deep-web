@@ -47,7 +47,7 @@ export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
               aria-controls={`${baseId}-panel-${i}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(i)}
-              className={`relative plb-3 text-[14.5px] font-semibold whitespace-nowrap bg-transparent border-0 cursor-pointer ${
+              className={`relative plb-3 text-[14.5px] font-semibold whitespace-nowrap bg-transparent border-0 cursor-pointer font-[inherit] ${
                 selected ? 'text-[var(--mui-palette-text-primary)]' : 'text-[var(--mui-palette-text-disabled)]'
               }`}
             >

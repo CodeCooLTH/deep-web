@@ -16,6 +16,7 @@ import { useSession } from 'next-auth/react'
 // อ้าง TierChipColor จาก SSOT ของระบบ tier โดยตรง (เดิมอ้างผ่าน TrustScoreCardData ซึ่งเป็นการ
 // อ้อมผ่าน component ที่ถูกลบไปพร้อมโปรไฟล์ชุดเดิม — ชี้ที่ต้นทางตรง ๆ ตรงกว่าและไม่ผูกกับ UI)
 import type { TierChipColor } from '@/lib/trust-tier'
+import { toFileUrl } from '@/lib/file-url'
 
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/index.tsx
 // Redesign (2026-07-04, hybrid FB Page × Threads spec) — เนื้อหา left/right column เดิม
@@ -94,6 +95,10 @@ const ProductCard = ({
   const price = parseFloat(product.price)
   const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 
+  // ค่ารูปที่เก็บใน DB มีสองแบบปนกัน — storage key กับ URL เต็ม ต้องแปลงก่อนใช้เสมอ
+  // (แปลงในการ์ดเหมือนที่ PublicRoomList ทำกับรูปห้องพัก ไม่ใช่แปลงที่หน้า จะได้ไม่ต้องไล่แก้ทุกหน้าที่เรียก)
+  const imageSrc = toFileUrl(product.imageUrl)
+
   const router = useRouter()
   const { status: sessionStatus } = useSession()
 
@@ -148,10 +153,10 @@ const ProductCard = ({
       )}
 
       <Box sx={{ position: 'relative', aspectRatio: '1/1', bgcolor: 'background.default' }}>
-        {product.imageUrl ? (
+        {imageSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={product.imageUrl}
+            src={imageSrc}
             alt={product.name}
             loading='lazy'
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}

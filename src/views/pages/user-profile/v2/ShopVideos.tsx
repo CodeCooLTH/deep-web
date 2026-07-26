@@ -102,7 +102,7 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
       type='button'
       onClick={() => setPlaying(true)}
       aria-label={`เล่นคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
-      className='relative aspect-[9/16] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full'
+      className='relative aspect-[9/16] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full font-[inherit]'
     >
       {item.thumbnailUrl && !imgFailed && (
         // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก CDN ของแพลตฟอร์ม
