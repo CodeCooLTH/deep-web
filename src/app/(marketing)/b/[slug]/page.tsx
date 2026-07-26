@@ -215,6 +215,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             repeatCustomerCount: profileStats.repeatCustomerCount,
             completionRate: profileStats.completionRate,
             canChat: true,
+            isLodging,
           },
           isLodging,
           rooms: publicRooms,

@@ -226,6 +226,7 @@ export default async function PublicProfilePage({ params }: Props) {
             repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
             completionRate: profileStats?.completionRate ?? null,
             canChat: !!user.shop && !isOwnShop,
+            isLodging,
           },
           isLodging,
           rooms: publicRooms,

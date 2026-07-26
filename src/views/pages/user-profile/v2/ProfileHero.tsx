@@ -11,8 +11,9 @@
  * ลำดับหลักฐานตั้งใจเรียงตามน้ำหนัก: ตัวตนร้าน → ระดับความน่าเชื่อถือ → เหรียญ → ตัวเลขธุรกรรม
  * → อัตราความสำเร็จ (ตัวเลขเดียวที่ให้พื้นที่ใหญ่ที่สุด) → ปุ่มคุย
  *
- * ทุก block ที่ข้อมูลเป็น null จะไม่ render เลย ไม่ใช่แสดงศูนย์ — ร้านใหม่ต้องดูเหมือนร้านใหม่
- * ตรง ๆ ไม่ใช่ร้านที่มีสถิติแย่ (กติกาเดียวกับหน้าลิงก์คำสั่งซื้อ)
+ * เหรียญ/ช่องทาง/รีวิว ที่ไม่มีข้อมูลจะไม่ render เลย — แต่ตัวเลขสามช่อง (ออเดอร์/ลูกค้า/ซื้อซ้ำ)
+ * แสดงเสมอโดยใส่ 0 ตามที่ user กำหนด 2026-07-26 เพราะเป็นโครงหลักของหน้า ถ้าซ่อนบางช่อง
+ * layout จะขยับไปมาระหว่างร้าน และผู้ซื้อแยกไม่ออกว่าช่องที่หายคือไม่มีหรือแค่ไม่แสดง
  *
  * Base: theme/vuexy/typescript-version/full-version/src/@core/components/mui/Avatar.tsx (fallback initials)
  *   + src/app/(marketing)/auth/sign-in/OrderLinkShell.tsx (ภาษาภาพเดียวกัน: รูปเต็มกว้าง + ไล่เงา + สถิติ)
@@ -46,7 +47,25 @@ export type ProfileHeroData = {
   repeatCustomerCount: number | null
   completionRate: number | null
   canChat: boolean
+  /** ร้านที่พักใช้คำคนละชุดกับร้านขายของ — ที่พักไม่มี "ออเดอร์" มีแต่ "การเข้าพัก" */
+  isLodging?: boolean
 }
+
+/** คำเรียกตัวเลขตามประเภทกิจการ — เปลี่ยนแค่คำ ไม่เปลี่ยนวิธีนับ */
+const STAT_LABELS = {
+  general: {
+    orders: 'ออเดอร์',
+    customers: 'จำนวนลูกค้า',
+    repeat: 'ลูกค้าใช้บริการซ้ำ',
+    rateCaption: 'อัตราความสำเร็จจากออเดอร์ทั้งหมดบน Deep',
+  },
+  lodging: {
+    orders: 'การเข้าพัก',
+    customers: 'จำนวนลูกค้า',
+    repeat: 'ลูกค้าใช้บริการซ้ำ',
+    rateCaption: 'อัตราความสำเร็จจากการเข้าพักทั้งหมดบน Deep',
+  },
+} as const
 
 /** จำนวนเหรียญที่โชว์เป็นไอคอน ที่เหลือยุบเป็นตัวนับ — กันแถวยาวจนดันเนื้อหาสำคัญตกจอ */
 const MAX_BADGE_ICONS = 5
@@ -60,11 +79,16 @@ function ProfileImg({ src, alt, className }: { src: string | null; alt: string; 
 }
 
 export default function ProfileHero({ data }: { data: ProfileHeroData }) {
+  const L = data.isLodging ? STAT_LABELS.lodging : STAT_LABELS.general
+
+  // แสดงครบสามค่าเสมอ ไม่มีข้อมูลให้เป็น 0 (user กำหนด 2026-07-26) — ต่างจากบล็อกอื่นในหน้านี้
+  // ที่ซ่อนเมื่อไม่มีข้อมูล เพราะสามค่านี้เป็นโครงหลักของหน้า การซ่อนบางช่องทำให้ layout ขยับ
+  // ไปมาระหว่างร้าน และผู้ซื้อเทียบสองร้านกันไม่ได้ว่าช่องที่หายไปคือไม่มีหรือแค่ไม่แสดง
   const stats = [
-    { value: data.completedOrders, label: 'ออเดอร์' },
-    { value: data.customerCount, label: 'ลูกค้า' },
-    { value: data.repeatCustomerCount, label: 'กลับมาซื้อซ้ำ' },
-  ].filter((s) => s.value != null)
+    { value: data.completedOrders ?? 0, label: L.orders },
+    { value: data.customerCount ?? 0, label: L.customers },
+    { value: data.repeatCustomerCount ?? 0, label: L.repeat },
+  ]
 
   const shownBadges = data.badges.slice(0, MAX_BADGE_ICONS)
   const restBadgeCount = data.totalBadgeCount - shownBadges.length
@@ -133,11 +157,10 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
         </div>
       )}
 
-      {/* ── ตัวเลขธุรกรรม: ซ่อนทั้งแถบถ้าไม่มีข้อมูลสักตัว ── */}
+      {/* ── ตัวเลขธุรกรรม: แสดงครบสามช่องเสมอ ── */}
       {/* ใช้ flex กระจายกลาง ไม่ใช่ grid 3 คอลัมน์ตายตัว — ร้านที่มีสถิติไม่ครบสามตัว (เช่นออเดอร์
           เก่าที่ยังไม่ผูก Customer) จะเหลือช่องเดียวแล้วเบี้ยวไปชิดซ้าย ดูเหมือนหน้าพัง (เจอตอน QA จริง) */}
-      {stats.length > 0 && (
-        <div className='flex justify-around gap-2 pli-5 plb-3.5 border-bs'>
+      <div className='flex justify-around gap-2 pli-5 plb-3.5 border-bs'>
           {stats.map((s) => (
             <div key={s.label} className='text-center min-is-[84px]'>
               <div className='text-[22px] font-extrabold tabular-nums leading-tight' style={{ letterSpacing: '-0.025em' }}>
@@ -148,8 +171,7 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
               </Typography>
             </div>
           ))}
-        </div>
-      )}
+      </div>
 
       {/* ── อัตราความสำเร็จ: ตัวเลขที่ได้พื้นที่ใหญ่สุดในหน้า เพราะเป็นสิ่งที่คนกำลังจะโอนเงินอยากรู้
              ที่สุด และเป็นสีเขียวตามหลัก verified-means-green ที่ใช้ทั้งระบบ ── */}
@@ -159,7 +181,7 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
             {`${data.completionRate}%`}
           </span>
           <Typography variant='body2' color='text.secondary'>
-            อัตราความสำเร็จจากออเดอร์ทั้งหมดบน Deep
+            {L.rateCaption}
           </Typography>
         </div>
       )}
