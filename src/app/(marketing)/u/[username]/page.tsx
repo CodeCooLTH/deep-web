@@ -19,14 +19,15 @@ import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/
 import { getShopProfileStats } from '@/services/shop.service'
 import { toFileUrl } from '@/lib/file-url'
 import { getReviewsByUsername } from '@/services/review.service'
-import { getPublicRooms } from '@/services/room.service'
+import { getPublicRooms, getShopAvailability } from '@/services/room.service'
+import AvailabilityCalendar from '@views/pages/user-profile/v2/AvailabilityCalendar'
+import ReviewList from '@views/pages/user-profile/v2/ReviewList'
 import PublicRoomList from '@views/pages/user-profile/v2/PublicRoomList'
 import AboutOverview from '@views/pages/user-profile/profile/AboutOverview'
 import ProfileHero from '@views/pages/user-profile/v2/ProfileHero'
 import ProfileTabs from '@views/pages/user-profile/v2/ProfileTabs'
 import OfficialChannels from '@views/pages/user-profile/v2/OfficialChannels'
 import ReviewSummary from '@views/pages/user-profile/v2/ReviewSummary'
-import RecentReviews from '@views/pages/user-profile/profile/RecentReviews'
 import { ProfileRightContent } from '@views/pages/user-profile/profile'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
@@ -80,6 +81,8 @@ export default async function PublicProfilePage({ params }: Props) {
   // ประเภทกิจการกำหนดชุดแท็บ (feat 00017) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า
   const isLodging = user.shop?.vertical === 'LODGING'
   const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id) : []
+  // ปฏิทินวันว่าง — เฉพาะร้านที่พัก ร้านทั่วไปไม่ต้องคิวรี
+  const availability = isLodging && user.shop ? await getShopAvailability(user.shop.id, 3) : null
   const publicRooms = rawRooms.map((r) => ({
     id: r.id,
     name: r.name,
@@ -250,6 +253,15 @@ export default async function PublicProfilePage({ params }: Props) {
                     label: 'บ้านพัก',
                     content: <PublicRoomList rooms={publicRooms} />,
                   },
+                  ...(availability
+                    ? [
+                        {
+                          key: 'calendar',
+                          label: 'ปฏิทิน',
+                          content: <AvailabilityCalendar data={availability} />,
+                        },
+                      ]
+                    : []),
                 ]
               : []),
             ...(!isLodging && pinnedProducts.length + otherProducts.length > 0
@@ -309,14 +321,12 @@ export default async function PublicProfilePage({ params }: Props) {
                           reviewCount={profileStats.reviewCount}
                           distribution={profileStats.ratingDistribution}
                         />
-                        <RecentReviews
-                          avgRating={profileStats.avgRating}
-                          reviews={recentReviews.map((r) => ({
+                        <ReviewList
+                          items={recentReviews.map((r) => ({
                             id: r.id,
                             rating: r.rating,
                             comment: r.comment,
-                            createdAt: r.createdAt.toISOString(),
-                            itemName: null,
+                            createdAtIso: r.createdAt.toISOString(),
                           }))}
                         />
                       </>
