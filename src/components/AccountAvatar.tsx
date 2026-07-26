@@ -20,11 +20,20 @@ interface Props {
 const AccountAvatar = ({ src, kind, className }: Props) => {
   const [failed, setFailed] = useState(false)
 
-  if (src && !failed) {
+  // resolve src (bug fix 2026-07-26: รูปร้านไม่ขึ้น) — Shop.logo/avatar เก็บเป็น storage fileId
+  // (เช่น "2026/07/26/uuid.jpg") ต้องเสิร์ฟผ่าน /api/files/; รูป FB เป็น http URL เต็มใช้ตรง ๆ
+  // (pattern เดียวกับ ChatAvatar/PanelAvatar). absolute path (/...) และ http(s) ใช้ตามเดิม
+  const resolvedSrc = src
+    ? src.startsWith('http') || src.startsWith('/')
+      ? src
+      : `/api/files/${src}`
+    : null
+
+  if (resolvedSrc && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
+        src={resolvedSrc}
         alt=""
         onError={() => setFailed(true)}
         className={`${className} rounded-full object-cover shrink-0`}
