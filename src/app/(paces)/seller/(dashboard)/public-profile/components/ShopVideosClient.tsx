@@ -39,6 +39,11 @@ const SOURCE: Record<string, { icon: string; label: string; className: string }>
   INSTAGRAM: { icon: 'brand-instagram', label: 'Instagram', className: 'bg-danger text-white' },
 }
 
+/** key ของช่องทาง = provider + ชื่อบัญชี — ร้านเดียวมีได้หลายเพจ จึงแยกทีละเพจ ไม่ใช่ทีละแพลตฟอร์ม */
+function sourceKeyOf(v?: AvailableVideo): string {
+  return v ? `${v.provider}|${v.accountName ?? ''}` : ''
+}
+
 /** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ */
 function compact(n: number): string {
   if (n < 1000) return String(n)
@@ -62,6 +67,8 @@ export default function ShopVideosClient() {
   // key = PROVIDER:videoId — id คนละแพลตฟอร์มชนกันได้ในทางทฤษฎี
   const [chosen, setChosen] = useState<string[]>([])
   const [max, setMax] = useState(6)
+  // แท็บช่องทางที่กำลังดู — '' = ยังไม่เลือก (ตั้งเป็นช่องทางแรกหลังโหลด)
+  const [activeSource, setActiveSource] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,6 +90,7 @@ export default function ShopVideosClient() {
       }
       setAvailable(data.available)
       setMax(data.max)
+      setActiveSource((prev) => prev || sourceKeyOf(data.available[0]) || '')
 
       // ติ๊กไว้ล่วงหน้าเฉพาะคลิปที่ยังอยู่ในบัญชีจริง ณ ตอนนี้
       //
@@ -156,6 +164,27 @@ export default function ShopVideosClient() {
     }
   }
 
+  // จัดกลุ่มตามช่องทาง เรียงตามจำนวนคลิปมาก→น้อย ให้ช่องที่มีของเยอะอยู่แท็บแรก
+  const sources = Array.from(
+    available.reduce((acc, v) => {
+      const key = sourceKeyOf(v)
+      const cur = acc.get(key)
+      if (cur) cur.count += 1
+      else
+        acc.set(key, {
+          key,
+          provider: v.provider,
+          label: v.accountName ?? SOURCE[v.provider]?.label ?? v.provider,
+          count: 1,
+        })
+      return acc
+    }, new Map<string, { key: string; provider: string; label: string; count: number }>()),
+  )
+    .map(([, v]) => v)
+    .sort((a, b) => b.count - a.count)
+
+  const visible = available.filter((v) => sourceKeyOf(v) === activeSource)
+
   if (loading) {
     return (
       <div className="card">
@@ -187,8 +216,40 @@ export default function ShopVideosClient() {
           />
         ) : (
           <>
+            {/* แท็บช่องทาง — 17 คลิปจากหลายเพจปนกันในกริดเดียวหายาก (user ทัก 2026-07-26)
+                Base: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesReport.tsx (nav tabs)
+                ใช้ class ของ Paces แต่คุม active ด้วย React ไม่ใช่ data-hs-tab ของ Preline
+                เพราะหน้านี้ re-render ทุกครั้งที่ติ๊กเลือก ซึ่งเป็นเคสที่ Preline เคยพังในโปรเจกต์นี้ */}
+            <nav className="mb-base flex gap-x-1 overflow-x-auto" aria-label="ช่องทาง" role="tablist">
+              {sources.map((src) => {
+                const on = src.key === activeSource
+                const picked = chosen.filter((k) => k.startsWith(`${src.provider}:`)).length
+                return (
+                  <button
+                    key={src.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setActiveSource(src.key)}
+                    className={`inline-flex items-center gap-2 whitespace-nowrap border-b px-4 py-3 text-sm focus:outline-hidden ${
+                      on
+                        ? 'border-primary text-primary font-semibold'
+                        : 'text-default-600 hover:text-primary border-transparent'
+                    }`}
+                  >
+                    <span className={`flex size-4 items-center justify-center rounded-full ${SOURCE[src.provider]?.className ?? 'bg-default-200'}`}>
+                      <Icon icon={SOURCE[src.provider]?.icon ?? 'video'} className="text-xs" />
+                    </span>
+                    <span className="max-w-40 truncate">{src.label}</span>
+                    <span className="text-default-400">{src.count}</span>
+                    {picked > 0 && <span className="badge bg-primary/15 text-primary">{picked}</span>}
+                  </button>
+                )
+              })}
+            </nav>
+
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-              {available.map((v) => {
+              {visible.map((v) => {
                 const key = `${v.provider}:${v.videoId}`
                 const order = chosen.indexOf(key)
                 const picked = order >= 0
