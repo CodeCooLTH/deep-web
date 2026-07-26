@@ -383,6 +383,12 @@ authenticated data — บทเรียน `feedback_auth_api_cache_control`)
 
 ## E8 — Referral / context โฆษณา-ลิงก์ (`messaging_referrals`)
 
+> 🛑 **SUPERSEDED บางส่วนโดย [[EXTENSIONS-2026-07-26]] E5 (2026-07-26)** — FR-REF-02 (เก็บเฉพาะ
+> ตอนสร้างเธรด) และ E8.2 (badge บนหัวเธรด, `ads_context_data{ad_title}` อย่างเดียว) **ไม่เป็นจริงแล้ว**
+> ปัจจุบัน: อัปเดตทุกครั้งที่ลูกค้ากดโฆษณา (ค่าล่าสุด) + parse `ads_context_data` ครบทุกช่อง +
+> เก็บประวัติที่ `ConversationAdReferral` + UI เป็นแบนเนอร์ใต้ชื่อแชท ไม่ใช่ badge
+> FR-REF-01 และ FR-REF-03 ยังใช้ได้ตามเดิม
+
 ### E8.1 Requirement
 
 **Goal:** แสดง badge บนหัวเธรดว่าลูกค้าทักมาจากไหน (โฆษณา/ลิงก์แชร์) — ช่วย seller ประเมินคุณภาพลูกค้า/

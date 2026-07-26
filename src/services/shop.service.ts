@@ -231,3 +231,65 @@ export async function setShopSlug(shopId: string, rawSlug: string) {
   }
   return prisma.shop.update({ where: { id: shopId }, data: { slug } });
 }
+
+/**
+ * สถิติสำหรับหน้าร้านสาธารณะ /u/[username] (redesign 2026-07-26)
+ *
+ * รวมคิวรีที่หน้าโปรไฟล์ต้องใช้ไว้ที่เดียว เพื่อไม่ให้ page.tsx บวมและให้ทดสอบแยกได้
+ *
+ * กติกาสำคัญ: คืน null เมื่อ "ยังไม่มีข้อมูล" ไม่ใช่คืน 0 — ฝั่ง UI ใช้ null เป็นสัญญาณให้ซ่อน
+ * ทั้งบล็อกแทนการโชว์เลขศูนย์ ตามหลักของระบบที่ไม่แสดงตัวเลขที่ไม่มีความหมาย (PRD 00015 §11.3)
+ */
+export async function getShopProfileStats(shopId: string) {
+  const [statusGroups, customerGroups, ratingGroups, channels] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["status"],
+      where: { shopId },
+      _count: { _all: true },
+    }),
+    // นับ "ลูกค้า" จาก customerId ที่ผูกกับออเดอร์ของร้านนี้ — ออเดอร์ที่ยังไม่ผูก Customer
+    // (ของเก่าก่อน feat 00014) จะไม่ถูกนับ ซึ่งถูกต้องกว่าการเดาจากเบอร์ซ้ำ
+    prisma.order.groupBy({
+      by: ["customerId"],
+      where: { shopId, customerId: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.review.groupBy({
+      by: ["rating"],
+      where: { order: { shopId } },
+      _count: { _all: true },
+    }),
+    prisma.shopChannel.findMany({
+      where: { shopId, status: "ACTIVE" },
+      select: { provider: true, name: true, avatarUrl: true, externalId: true },
+    }),
+  ]);
+
+  const confirmed = statusGroups.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
+  const cancelled = statusGroups.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
+  const settled = confirmed + cancelled;
+
+  const customerCount = customerGroups.length;
+  // "กลับมาซื้อซ้ำ" = ลูกค้าที่สั่งกับร้านนี้ตั้งแต่ 2 ครั้งขึ้นไป
+  const repeatCustomerCount = customerGroups.filter((g) => g._count._all >= 2).length;
+
+  const reviewCount = ratingGroups.reduce((sum, g) => sum + g._count._all, 0);
+  const ratingSum = ratingGroups.reduce((sum, g) => sum + g.rating * g._count._all, 0);
+
+  // การกระจายดาว 5→1 — ค่าเฉลี่ยเท่ากันแต่กระจายต่างกันมีความหมายคนละอย่างต่อคนที่กำลังจะโอนเงิน
+  const ratingDistribution = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: ratingGroups.find((g) => g.rating === star)?._count._all ?? 0,
+  }));
+
+  return {
+    completedOrders: confirmed > 0 ? confirmed : null,
+    completionRate: settled > 0 ? Math.round((confirmed / settled) * 100) : null,
+    customerCount: customerCount > 0 ? customerCount : null,
+    repeatCustomerCount: repeatCustomerCount > 0 ? repeatCustomerCount : null,
+    avgRating: reviewCount > 0 ? Number((ratingSum / reviewCount).toFixed(1)) : null,
+    reviewCount,
+    ratingDistribution: reviewCount > 0 ? ratingDistribution : null,
+    channels,
+  };
+}

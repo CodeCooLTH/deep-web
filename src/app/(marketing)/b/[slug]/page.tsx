@@ -19,7 +19,12 @@ import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
-import UserProfile from '@views/pages/user-profile'
+import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
+import { getShopProfileStats } from '@/services/shop.service'
+import { getShopVideos } from '@/services/shop-video.service'
+import { getShopAvailability } from '@/services/room.service'
+import { getTierGradient } from '@/lib/trust-tier'
+import { toFileUrl } from '@/lib/file-url'
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
 import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 
@@ -97,6 +102,25 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   const isLodging = shop.vertical === 'LODGING'
   const rooms = isLodging ? await getPublicRooms(shop.id) : []
 
+  // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
+  const profileStats = await getShopProfileStats(shop.id)
+  const shopVideos = await getShopVideos(shop.id)
+  const availability = isLodging ? await getShopAvailability(shop.id, 3) : null
+  // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
+  const shopReviews = await prisma.review.findMany({
+    where: { order: { shopId: shop.id } },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+    select: { id: true, rating: true, comment: true, createdAt: true },
+  })
+  const publicRooms = rooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    capacity: r.maxGuests,
+    basePrice: Number(r.pricePerNight),
+    imageUrl: r.images[0] ?? null,
+  }))
+
   const pinnedProducts: SerializedProduct[] = isLodging
     ? []
     : rawPinnedProducts.map(serializeProductRow)
@@ -168,7 +192,59 @@ export default async function BusinessShopProfilePage({ params }: Props) {
         background: 'var(--mui-palette-background-paper)',
       }}
     >
-      <UserProfile profileHeader={profileHeader} profileTab={profileTab} />
+      <ShopProfile
+        data={{
+          hero: {
+            shopName: shop.shopName,
+            username: slug,
+            avatar: toFileUrl(shop.logo) ?? shop.user.avatar ?? null,
+            coverImage: toFileUrl(shop.coverImage),
+            tierGradient: getTierGradient(shop.trustScore),
+            trustScore: shop.trustScore,
+            tierLabel,
+            maxVerifyLevel,
+            category: shop.category ?? null,
+            memberSince: formatMonthYearTH(shop.createdAt),
+            badges: businessBadges.map((ub) => ({
+              id: ub.id,
+              name: ub.badge.name,
+              nameEN: ub.badge.nameEN,
+              icon: ub.badge.icon ?? '',
+            })),
+            totalBadgeCount: businessBadges.length,
+            completedOrders: profileStats.completedOrders,
+            customerCount: profileStats.customerCount,
+            repeatCustomerCount: profileStats.repeatCustomerCount,
+            completionRate: profileStats.completionRate,
+            canChat: true,
+            isLodging,
+          },
+          isLodging,
+          rooms: publicRooms,
+          availability,
+          pinnedProducts,
+          otherProducts,
+          about: {
+            bio: profileTab.bio,
+            location: profileTab.location,
+            memberSince: profileTab.memberSince,
+          },
+          channels: profileStats.channels,
+          videos: shopVideos,
+          reviews: shopReviews.map((r) => ({
+            id: r.id,
+            rating: r.rating,
+            comment: r.comment,
+            createdAtIso: r.createdAt.toISOString(),
+          })),
+          avgRating: profileStats.avgRating,
+          reviewCount: profileStats.reviewCount,
+          ratingDistribution: profileStats.ratingDistribution,
+          shopId: shop.id,
+          isOwnShop: false,
+          itemKind: profileTab.itemKind,
+        }}
+      />
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
         <NextLink href='/privacy' style={{ textDecoration: 'none' }}>

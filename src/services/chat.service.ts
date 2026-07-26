@@ -31,6 +31,9 @@ export interface ConversationSummary {
   chatGroupId: string | null
   // feature 00018 — สแปม (user สั่ง 2026-07-24); findMany คืน runtime อยู่แล้ว
   isSpam: boolean
+  // feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าเข้ามา (ชิป `ad_id.…` ในรายการแชท แบบ Business Suite,
+  // user request 2026-07-26); findMany คืน runtime อยู่แล้วเช่นกัน
+  referralAdId: string | null
 }
 
 export interface ChatMessageView {

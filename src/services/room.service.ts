@@ -176,3 +176,55 @@ export function serializeRoom(room: Room) {
 }
 
 export type SerializedRoom = ReturnType<typeof serializeRoom>;
+
+/**
+ * ปฏิทินวันว่างสำหรับหน้าร้านสาธารณะ (redesign 2026-07-26)
+ *
+ * คืนจำนวนห้องที่ยังว่างในแต่ละวัน ตั้งแต่วันนี้ไปข้างหน้า `months` เดือน
+ *
+ * นิยามคืนที่ถูกจอง: [checkIn, checkOut) — วัน checkOut ไม่นับเป็นคืนที่ถูกจอง (BR-LODG-31)
+ * ตรงกับ daterange '[)' ที่ EXCLUDE constraint ใช้ ถ้านับ checkOut ด้วยจะบล็อกวันที่ว่างจริง
+ * ทิ้งไปหนึ่งวันต่อการจองหนึ่งครั้ง
+ *
+ * ไม่รวมการจองที่ถูกยกเลิก — ห้องกลับมาว่างแล้ว
+ */
+export async function getShopAvailability(shopId: string, months = 3) {
+  const today = new Date();
+  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + months, 1));
+
+  const [totalRooms, bookings] = await Promise.all([
+    prisma.room.count({ where: { shopId, isActive: true } }),
+    prisma.order.findMany({
+      where: {
+        shopId,
+        roomId: { not: null },
+        status: { not: "CANCELLED" },
+        checkIn: { lt: end },
+        checkOut: { gt: start },
+      },
+      select: { roomId: true, checkIn: true, checkOut: true },
+    }),
+  ]);
+
+  // นับจำนวนห้องที่ถูกจองต่อวัน — key เป็น 'YYYY-MM-DD' ใน UTC เพราะ checkIn/checkOut
+  // เก็บเป็น @db.Date (ไม่มีเวลา/โซน) การแปลงเป็น local จะเลื่อนวันในโซนที่ offset ติดลบ
+  const bookedPerDay = new Map<string, number>();
+  for (const b of bookings) {
+    if (!b.checkIn || !b.checkOut) continue;
+    for (let d = new Date(b.checkIn); d < b.checkOut; d.setUTCDate(d.getUTCDate() + 1)) {
+      const key = d.toISOString().slice(0, 10);
+      bookedPerDay.set(key, (bookedPerDay.get(key) ?? 0) + 1);
+    }
+  }
+
+  return {
+    totalRooms,
+    startIso: start.toISOString().slice(0, 10),
+    months,
+    /** วันที่ห้องเต็มทุกห้อง — วันอื่นถือว่ายังจองได้ */
+    fullDates: [...bookedPerDay.entries()]
+      .filter(([, n]) => totalRooms > 0 && n >= totalRooms)
+      .map(([day]) => day),
+  };
+}

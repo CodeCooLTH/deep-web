@@ -81,7 +81,20 @@ export default function OrderLinkShell({
     <div className='flex min-bs-[100dvh] justify-center bg-[var(--mui-palette-background-paper)]'>
       <div className='is-full max-is-[480px] flex flex-col'>
         {/* ── HERO ─────────────────────────────────────────────── */}
-        <div className={`relative overflow-hidden ${compact ? 'bs-[132px]' : 'bs-[268px]'}`}>
+        {/* ความสูง hero มาจากงบพื้นที่จริง ไม่ใช่ความสวยอย่างเดียว — เครื่องอ้างอิงคือ iPhone
+            14 Pro Max (430x932) ซึ่งใน in-app browser ของ Messenger เหลือใช้จริงราว 712px
+            หลังหักแถบบน-ล่างของแอป ทุกทางเข้าสู่ระบบต้องอยู่เหนือขอบนั้นโดยไม่ต้องเลื่อน
+            240px คือค่าที่ยังให้ภาพร้านเด่นและ CTA ครบสามปุ่มยังอยู่เหนือ fold (วัดด้วย
+            getBoundingClientRect จริง ไม่ใช่กะด้วยตา) */}
+        {/* min-block-size ไม่ใช่ block-size ตายตัว และเนื้อหาอยู่ใน flow ปกติ (ไม่ absolute):
+            ตอนใช้ความสูงตายตัวคู่กับ absolute วัดจริงแล้วบล็อกข้อมูลร้านสูง 249px ล้นกรอบ 240px
+            ออกไปด้านบน -9px ซึ่งยังไม่เห็นรอยตัดเฉพาะกับชื่อร้านสั้น ๆ พอชื่อยาวขึ้นอีกบรรทัด
+            จะโดน overflow-hidden เฉือนหัวทันที ให้กรอบโตตามเนื้อหาเองปลอดภัยกว่าเดาตัวเลข */}
+        <div
+          className={`relative overflow-hidden flex flex-col justify-end ${
+            compact ? 'min-bs-[132px]' : 'min-bs-[240px]'
+          }`}
+        >
           {bg ? (
             <ShopImg
               src={bg}
@@ -101,7 +114,11 @@ export default function OrderLinkShell({
                 'linear-gradient(180deg, rgb(15 12 22 / 0.12) 0%, rgb(15 12 22 / 0.5) 52%, rgb(15 12 22 / 0.88) 100%)',
             }}
           />
-          <div className='absolute bottom-0 inline-start-0 inline-end-0 p-5 text-white'>
+          {/* pbe-11 (44px) ไม่ใช่ p-5 รอบด้าน: sheet ด้านล่างถูกดึงขึ้นทับ hero 24px (-mbs-6)
+              ถ้าเว้นล่างเท่าด้านอื่น บรรทัดสถิติจะโดนแผ่นขาวกินครึ่งตัวอักษร (เจอตอน QA จริง) */}
+          {/* relative (อยู่ใน flow) ไม่ใช่ absolute — เพื่อให้กรอบ hero ถูกดันสูงตามเนื้อหาจริง
+              pbe-11 (44px) เผื่อ sheet ที่ถูกดึงขึ้นทับ 24px ไม่ให้กินบรรทัดสถิติ */}
+          <div className='relative pli-5 pbs-5 pbe-11 text-white'>
             {!compact && (
               <div className='relative is-[62px] bs-[62px] rounded-2xl overflow-hidden border-[3px] border-white/90 flex items-center justify-center bg-primary text-white text-2xl font-extrabold mbe-3'>
                 <ShopImg src={ctx.logo} alt={ctx.shopName} className='is-full bs-full object-cover' />
@@ -148,7 +165,7 @@ export default function OrderLinkShell({
 
         {/* ── SHEET ────────────────────────────────────────────── */}
         <div className='relative -mbs-6 rounded-t-[22px] bg-[var(--mui-palette-background-paper)] p-5 pbe-6 flex-1'>
-          <div className='is-[38px] bs-1 rounded bg-[var(--mui-palette-divider)] mli-auto mbe-4' />
+          <div className='is-[38px] bs-1 rounded bg-[var(--mui-palette-divider)] mli-auto mbe-3' />
 
           {!compact && (
             <>
@@ -169,7 +186,7 @@ export default function OrderLinkShell({
               {/* ช่องทางที่ร้านเชื่อมไว้ — ผู้ซื้อเพิ่งคุยกับเพจนี้อยู่ในแชทเมื่อครู่
                   ไม่มีช่องทางไหนเชื่อมไว้เลย → ซ่อนทั้งบล็อก ไม่แสดงว่าว่าง */}
               {ctx.channels.length > 0 && (
-                <div className='flex flex-col gap-2 mbe-4 pbe-4 border-be'>
+                <div className='flex flex-col gap-1.5 mbe-3 pbe-3 border-be'>
                   {ctx.channels.map(ch => (
                     <div key={`${ch.provider}-${ch.name}`} className='flex items-center gap-2.5 min-is-0'>
                       <span className='is-[26px] bs-[26px] rounded-lg shrink-0 overflow-hidden flex items-center justify-center bg-primary/10 text-primary text-xs font-bold'>
@@ -190,7 +207,7 @@ export default function OrderLinkShell({
               {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
                   ไม่มีรีวิวที่เขียนข้อความ → service คืน null → ซ่อนบล็อก ไม่แต่งคำชมเอง */}
               {ctx.latestReview && (
-                <div className='rounded-xl bg-[var(--mui-palette-action-hover)] p-3 mbe-4'>
+                <div className='rounded-xl bg-[var(--mui-palette-action-hover)] p-3 mbe-3'>
                   <div className='flex items-center gap-2 mbe-1'>
                     {/* carve-out ของ HR12: typographic dingbat สีเดียว (★) ไม่ใช่ emoji — ตรงกับ
                         รายการยกเว้นใน docs/conventions/no-emoji-use-icons.md */}
@@ -215,7 +232,7 @@ export default function OrderLinkShell({
                   {`฿${ctx.totalAmount.toLocaleString('th-TH')}`}
                 </span>
               </div>
-              <Typography variant='caption' color='text.disabled' className='block mbe-4 tabular-nums'>
+              <Typography variant='caption' color='text.disabled' className='block mbe-3 tabular-nums'>
                 {`${formatOrderNo(ctx.publicToken, ctx.createdAtIso)} · ${formatDateTH(ctx.createdAtIso)}`}
               </Typography>
             </>

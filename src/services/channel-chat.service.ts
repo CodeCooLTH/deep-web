@@ -2,11 +2,11 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
-import type { MessagingEvent } from '@/lib/facebook/webhook-types'
+import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
@@ -412,12 +412,30 @@ export async function ingestInboundMessage(params: {
     story_mention: '[กล่าวถึงในสตอรี่ — เปิดดูใน Instagram]',
   }
   const attachmentFailedText = (attType && FAILED_TEXT_BY_TYPE[attType]) ?? UNSUPPORTED_ATTACHMENT_TEXT
-  // ข้อความที่ไม่มีทั้ง text และ attachment (reaction/ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มี
-  // เนื้อหาที่เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
-  const emptyMessageText = '[ข้อความไม่รองรับ — เปิดดูใน Messenger]'
+  // ข้อความที่ไม่มีทั้ง text และ attachment (ชนิดพิเศษที่ Messenger ส่ง message มาแต่ไม่มีเนื้อหาที่
+  // เราแสดงได้) → placeholder แทน body/preview ว่าง (บั๊กจริง prod: bubble ว่าง 2026-07-23)
+  //
+  // เคสที่ยืนยันแล้วว่าตกมาที่นี่ (user report 2026-07-26): ลูกค้ากด "Call me in Messenger"
+  // — การ์ดขอโทรกลับ. ทั้ง webhook และ Graph (`GET /{mid}?fields=message,attachments`) คืน
+  // `message: ""` ไม่มี attachments เลย → เนื้อหาการ์ดไม่ได้มาทางข้อความ ต้องเป็น webhook field
+  // อื่นที่ยังไม่ได้ subscribe (ยังไม่รู้ว่าอันไหน — ดู console.warn ด้านล่างที่เก็บ payload ไว้สืบ)
+  //
+  // ถ้อยคำจึงบอก "เคสที่พบบ่อยสุด" โดยไม่ฟันธงว่าเป็นการโทรเสมอ — เขียนว่า "ไม่รองรับการโทรกลับ"
+  // ตรง ๆ จะโกหกเมื่อเจอชนิดอื่นที่ตกมาทางเดียวกัน
+  const emptyMessageText = '[ข้อความพิเศษ เช่น คำขอโทรกลับ — ระบบยังไม่รองรับ เปิดดูใน Messenger]'
   // ข้อความจริง/สรุปจาก Graph มาก่อน placeholder แนบไฟล์เสมอ (bug prod 2026-07-24: template/order ที่มี
   // ข้อความถูกทับด้วย "[ไฟล์แนบ]" ทิ้งเนื้อหาจริง) — placeholder เฉพาะตอน "ไม่มีข้อความให้แสดงจริง ๆ"
   const body = mirroredFileId ? text : hasDisplayText ? displayText : hasAttachment ? attachmentFailedText : emptyMessageText
+  // diagnostic (2026-07-26): ข้อความที่ไม่มีทั้ง text และ attachment — ตอนนี้รู้แค่ว่าเคสหนึ่งคือ
+  // การ์ด "ขอโทรกลับ" แต่ยังระบุไม่ได้ว่ามาทาง field ไหน. log "คีย์" ของ message + ของ event
+  // (ไม่ log ค่า — กัน PII) ไว้ให้ครั้งหน้าที่เกิด จะได้รู้ว่ามีอะไรติดมาบ้างที่เรายังไม่ได้ parse
+  if (!hasDisplayText && !hasAttachment) {
+    console.warn('[fb-ingest] empty message (ไม่มี text/attachment)', {
+      messageKeys: Object.keys(event.message ?? {}),
+      eventKeys: Object.keys(event),
+      isEcho,
+    })
+  }
   const previewByType: Record<string, string> = {
     IMAGE: '[รูปภาพ]',
     VIDEO: '[วิดีโอ]',
@@ -554,17 +572,15 @@ export async function ingestInboundMessage(params: {
     return await prisma.$transaction(async (tx) => {
       let conversation = await tx.conversation.findUnique({ where: conversationWhere })
       if (!conversation) {
-        // referral (feature 00018 Phase 2): ลูกค้าคลิกโฆษณา/ลิงก์แล้วทัก — เก็บ context แรกเข้าตอนสร้างเธรด
-        const referral = event.message?.referral ?? event.referral
+        // referral ไม่เขียนตรงนี้แล้ว (E5 2026-07-26) — ย้ายไป ingestAdReferral ที่เรียกหลัง ingest
+        // เสร็จ เพื่อให้ลูกค้า "เก่า" ที่กดโฆษณาตัวใหม่แล้วทักซ้ำอัปเดตด้วย ไม่ใช่แค่ตอนสร้างเธรด
+        // (และเพื่อ mirror รูปโฆษณาได้ — network call ห้ามอยู่ในทรานแซกชัน)
         conversation = await tx.conversation.create({
           data: {
             shopId: channel.shopId,
             channel: provider,
             shopChannelId: channel.id,
             externalContactId: contact.id,
-            ...(referral
-              ? { referralSource: referral.source ?? null, referralAdTitle: referral.ads_context_data?.ad_title ?? null }
-              : {}),
           },
         })
       }
@@ -639,6 +655,90 @@ export async function ingestReadEvent(params: {
 
 // reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
 // เก็บ emoji ล่าสุดบน ChatMessage.reactionEmoji (unreact = null). scope ด้วย channel กันข้ามร้าน
+/**
+ * ingestAdReferral — บันทึก "ที่มา" ของเธรด: ลูกค้าทักมาจากโฆษณา/ลิงก์ m.me อันไหน (E5 2026-07-26)
+ *
+ * เขียน 2 ที่:
+ *  1. ตารางประวัติ ConversationAdReferral — แถวใหม่ทุกครั้ง ไม่ทับของเดิม เพราะ Meta ไม่มี Graph API
+ *     ให้อ่าน referral ย้อนหลัง ถ้าทับทิ้งคือหายถาวร (ข้อมูลดิบของรายงาน "ads ตัวไหนพาลูกค้ามา")
+ *  2. Conversation.referral* — ค่า "ล่าสุด" ที่แบนเนอร์บนหัวเธรดอ่าน (ไม่ต้อง join ทุกครั้งที่เปิดเธรด)
+ *
+ * ต้องเรียก **หลัง** ingest ข้อความเสร็จเสมอ — เธรดต้องมีอยู่แล้ว และ mirror รูป (network call)
+ * ห้ามอยู่ในทรานแซกชันเดียวกับการเขียนข้อความ
+ *
+ * ห้าม throw ในเส้นทางปกติ: referral คือข้อมูลเสริม ถ้าพังต้องไม่ทำให้ข้อความหาย เธรด/เพจที่หา
+ * ไม่เจอ = เงียบ (เหมือน ingestReadEvent)
+ */
+export async function ingestAdReferral(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  referral: Referral
+}): Promise<void> {
+  const { referral } = params
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  const contact = await prisma.externalContact.findUnique({
+    where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!contact) return
+  const conversation = await prisma.conversation.findUnique({
+    where: { shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id } },
+    select: { id: true },
+  })
+  if (!conversation) return
+
+  const ctx = referral.ads_context_data
+
+  // ข้อความโฆษณาจริง: `ad_title` ที่มากับ webhook คือ **ชื่อ ad ใน Ads Manager** ("video v3",
+  // "โพสแนวตั้ง") ผู้ขายอ่านแล้วไม่รู้ว่าเป็นโฆษณาชิ้นไหน (user report prod 2026-07-26) — ข้อความที่
+  // ลูกค้าเห็นจริงอยู่ที่โพสต์ ต้องดึงเพิ่มด้วย post_id. best-effort: ดึงไม่ได้ก็ตกไปใช้ ad_title
+  const post = ctx?.post_id
+    ? await fetchAdPostContent(params.pageExternalId, ctx.post_id, channel.accessToken)
+    : { message: null, fullPicture: null, permalink: null }
+
+  // เลือกรูปตามลำดับที่ "มีของจริง" มากสุด:
+  //   full_picture ของโพสต์ > photo_url > video_url
+  // โฆษณาวิดีโอ (เคสที่ user เจอ) ส่ง photo_url = null มาเสมอ ให้ thumbnail มาทาง video_url แทน —
+  // ถ้าดูแค่ photo_url แบนเนอร์จะไม่มีรูปทั้งที่ Meta ส่ง thumbnail มาให้แล้ว
+  const imageUrl = post.fullPicture ?? ctx?.photo_url ?? ctx?.video_url ?? null
+  // mirror เข้า storage เรา — URL ของ Meta หมดอายุ ถ้า hotlink ไว้แบนเนอร์จะรูปแตกภายหลัง
+  // (คืน null เองเมื่อโฮสต์ไม่อยู่ allow-list / timeout / ไฟล์ใหญ่เกิน → แบนเนอร์แสดงแบบไม่มีรูป)
+  const photoFileId = imageUrl ? await mirrorRemoteImage(imageUrl) : null
+
+  await prisma.$transaction([
+    prisma.conversationAdReferral.create({
+      data: {
+        conversationId: conversation.id,
+        source: referral.source ?? null,
+        adId: referral.ad_id ?? null,
+        adTitle: ctx?.ad_title ?? null,
+        adBody: post.message,
+        adPermalink: post.permalink,
+        photoFileId,
+        photoUrl: ctx?.photo_url ?? null,
+        videoUrl: ctx?.video_url ?? null,
+        postId: ctx?.post_id ?? null,
+        productId: ctx?.product_id ?? null,
+        flowId: ctx?.flow_id ?? null,
+        refPayload: referral.ref ?? null,
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        referralSource: referral.source ?? null,
+        referralAdTitle: ctx?.ad_title ?? null,
+        referralAdBody: post.message,
+        referralAdPermalink: post.permalink,
+        referralAdId: referral.ad_id ?? null,
+        referralPhotoFileId: photoFileId,
+      },
+    }),
+  ])
+}
+
 export async function ingestReactionEvent(params: {
   provider: string
   pageExternalId: string

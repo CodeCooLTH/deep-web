@@ -36,4 +36,15 @@ export const CONNECT_SCOPES = [
   'business_management',
   'instagram_basic',
   'instagram_manage_messages',
+  // instagram_manage_insights — "ขอไม่ได้" ตอนนี้ อย่าเพิ่งใส่กลับ
+  //
+  // ต้องใช้ดึงยอดวิวของ Reels (instagram_basic ให้แค่ like_count/comments_count ส่วน insights
+  // ตอบ #10 Application does not have permission) แต่พอใส่ใน scope แล้ว Meta ตีกลับทันทีที่หน้า
+  // login ว่า "Invalid Scopes: instagram_manage_insights" → **เชื่อมเพจไม่ได้ทั้งกระบวนการ**
+  // (user report prod 2026-07-26) — ชื่อ permission ถูกต้องตามเอกสาร Meta แต่แอปเรายังไม่ได้
+  // เปิดสิทธิ์นี้ ต้องเพิ่มเข้า use case ใน App Dashboard + ผ่าน App Review ก่อน
+  //
+  // ลำดับที่ถูกต้องเมื่อจะเอากลับ: เปิดใน App Dashboard → App Review ผ่าน → ค่อยใส่บรรทัดนี้กลับ
+  // → ร้านที่เชื่อม IG ไว้แล้วต้องกดเชื่อมใหม่ถึงจะได้ยอดวิว (token เก่าไม่มี scope)
+  // โค้ดฝั่ง shop-video.service ทนกับ token ที่ไม่มี scope นี้อยู่แล้ว (คืนยอดวิวเป็น null)
 ].join(',')

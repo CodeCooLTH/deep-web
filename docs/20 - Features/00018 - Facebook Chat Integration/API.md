@@ -139,7 +139,7 @@ Body เป็น **plain text** (ไม่ใช่ JSON) — คืนค่�
 | Body | `entry[].messaging[].message.attachments[].payload.url` / `.title` / `.template_type` / `.text` / `.summary` / `.elements[]` / `.coordinates` | mixed | no | URL/เนื้อหาของ attachment (รูป/template/location) — parse เต็มโดย `AttachmentPayloadSchema` (ดู [[EXTENSIONS-2026-07-25]] E2.5) |
 | Body | `entry[].messaging[].message.reply_to.mid` | `string` | no | mid ของข้อความที่ "ตอบทับ" (E9) |
 | Body | `entry[].messaging[].message.is_deleted` | `boolean` | no | `true` = ผู้ส่ง unsend ข้อความ (mid นี้) (E9) |
-| Body | `entry[].messaging[].message.referral` / `entry[].messaging[].referral` | `object` | no | `{ref, source, type, ad_id, ads_context_data{ad_title}}` — ลูกค้าคลิกโฆษณา/ลิงก์แล้วทัก (E8) |
+| Body | `entry[].messaging[].message.referral` / `entry[].messaging[].referral` | `object` | no | `{ref, source, type, ad_id, ads_context_data{ad_title, photo_url, video_url, post_id, product_id, flow_id}}` — ลูกค้าคลิกโฆษณา/ลิงก์แล้วทัก (E8, ขยาย field ครบใน E5) |
 | Body | `entry[].messaging[].read.watermark` | `number` | no | `message_reads` — ลูกค้าอ่านข้อความของเพจถึง timestamp นี้ (E6) |
 | Body | `entry[].messaging[].reaction.{mid,action,emoji,reaction}` | mixed | no | `message_reactions` — `action`: `"react"`\|`"unreact"`, `emoji` = Unicode จริง (E7) |
 
@@ -164,10 +164,11 @@ Body เป็น **plain text** (ไม่ใช่ JSON) — คืนค่�
 | 401 | `X-Hub-Signature-256` ไม่ผ่านการ verify | `{ "error": "invalid signature" }` |
 
 **Side-effects (ต่อ 1 messaging event ที่ประมวลผลสำเร็จ):**
-- **ข้อความปกติ:** upsert `ExternalContact`, get-or-create `Conversation` (เซ็ต `referralSource`/`referralAdTitle` ถ้ามี — เฉพาะตอนสร้างเธรดใหม่, E8), insert `ChatMessage` (แนบ `replyToMid` ถ้ามี, E9) + `ChatMessage` เพิ่มต่อรูปถ้ามีหลายรูปในข้อความเดียว (E2.5), update `Conversation` snapshot (`lastMessageAt`/`lastMessagePreview`/`lastSenderRole` + `lastInboundAt` ถ้าไม่ใช่ echo — เธรดสแปมอัปเดต `lastMessageAt`/`lastInboundAt` แต่ไม่รีเซ็ต `isHidden`/`resolvedAt`), insert `Notification` (เฉพาะไม่ใช่ echo **และไม่ใช่เธรดสแปม**) — ทั้งหมดใน `$transaction` เดียว
+- **ข้อความปกติ:** upsert `ExternalContact`, get-or-create `Conversation`, insert `ChatMessage` (แนบ `replyToMid` ถ้ามี, E9) + `ChatMessage` เพิ่มต่อรูปถ้ามีหลายรูปในข้อความเดียว (E2.5), update `Conversation` snapshot (`lastMessageAt`/`lastMessagePreview`/`lastSenderRole` + `lastInboundAt` ถ้าไม่ใช่ echo — เธรดสแปมอัปเดต `lastMessageAt`/`lastInboundAt` แต่ไม่รีเซ็ต `isHidden`/`resolvedAt`), insert `Notification` (เฉพาะไม่ใช่ echo **และไม่ใช่เธรดสแปม**) — ทั้งหมดใน `$transaction` เดียว
 - **`message.is_deleted=true` (unsend, E9):** `updateMany` บนแถวเดิม (`isDeleted=true`, ล้าง `body`/`imageUrl`/`reactionEmoji`) แล้ว return ทันที — ไม่เข้า flow ข้อความปกติด้านบน
 - **`event.read` (E6):** `updateMany` บน `Conversation.externalReadAt` เฉพาะเมื่อ watermark ใหม่กว่าเดิม — ไม่มี `ChatMessage`/`Notification` ใหม่
 - **`event.reaction` (E7):** `updateMany` บน `ChatMessage.reactionEmoji` (scope ด้วย `externalMessageId` + `shopChannelId`) — ไม่มี `ChatMessage`/`Notification` ใหม่
+- **`referral` (E8 → ขยายใน E5 2026-07-26):** เรียก `ingestAdReferral` **หลัง** flow ข้อความปกติจบ (ต้องมีเธรดก่อน) — mirror `ads_context_data.photo_url` เข้า storage แล้ว `$transaction` [insert `ConversationAdReferral` 1 แถว (ประวัติ ไม่ทับของเดิม), update `Conversation.referral*` เป็น**ค่าล่าสุด**]. อยู่ใน try/catch แยกจาก ingest ข้อความ — referral พังไม่ทำให้ข้อความหายและไม่ทำให้ Meta retry ทั้ง batch
 
 หลาย event ใน batch เดียวกันคนละ transaction — event หนึ่งพังไม่กระทบ event อื่น
 
@@ -583,5 +584,5 @@ trace กลับ [[SDS]] และ [[SRS]] ได้ครบ
 
 **Open Questions (คงเหลือหลัง v1.2):**
 - ส่งวิดีโอ/เสียง/ไฟล์/reply/reaction ออกช่องทางนอก (E7/E9 ขาออก) ยังไม่มี contract — TEXT/IMAGE ส่งออกได้แล้ว แต่ `sendOutboundMessage` ไม่มี parameter สำหรับชนิดอื่น (ดู §4.5)
-- `messaging_referrals` subscribe field ขาดใน `MESSENGER_SUBSCRIBED_FIELDS` — เพจที่เชื่อมก่อน 2026-07-25 ต้อง reconnect ถึงจะได้ pure-referral event เต็มรูป (ดู [[EXTENSIONS-2026-07-25]] E8.3)
+- `messaging_referrals` **อยู่ใน `MESSENGER_SUBSCRIBED_FIELDS` แล้ว** — แต่ Meta ล็อกชุด subscribe field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 จึงต้อง re-sync (`POST /api/channels` → `resubscribeShopChannels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - migration ต้นทางของ `Conversation.isSpam`/`externalReadAt` ยังไม่ยืนยันชื่อไฟล์ (ดู [[DATABASE]] §5.1 ลำดับ 18) — ไม่กระทบ contract ของ API แต่ควรปิด gap เอกสาร

@@ -126,6 +126,9 @@ export type ConversationListItem = {
   // user request 2026-07-25 — จำนวนออเดอร์ของลูกค้าเธรดนี้ โชว์ไอคอนตะกร้า + จำนวน (กดเปิด right panel
   // รายการคำสั่งซื้อ) — enrich ที่ route (/api/chat/conversations seller); optional เผื่อ payload เก่า
   orderCount?: number
+  // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
+  // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
+  referralAdId?: string | null
 }
 
 // ตัวเลือกตัวกรอง "เพจ" — ย้ายนิยามไป ChannelBadge.tsx แล้ว (feat 00018 งาน 2: PageFilterDropdown
@@ -920,13 +923,25 @@ export default function InboxList({
                         )}
                         {preview}
                       </span>
-                      {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว */}
-                      {(salesStatus !== 'UNSPECIFIED' || contactTags.length > 0) && (
+                      {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
+                          + E5: ชิป `ad_id.…` บอกว่าโฆษณาไหนพาลูกค้ามา (แบบ Business Suite) */}
+                      {(salesStatus !== 'UNSPECIFIED' || contactTags.length > 0 || !!c.referralAdId) && (
                         <span className="mt-1 flex flex-wrap items-center gap-1">
                           {/* ชิปโฟลเดอร์ย้ายไปมุมขวาล่าง (ใต้เวลา) แล้ว — user สั่ง 2026-07-24 */}
                           {salesStatus !== 'UNSPECIFIED' && (
                             <span className={`badge text-2xs ${SALES_STATUS_META[salesStatus]?.cls ?? ''}`}>
                               {SALES_STATUS_META[salesStatus]?.label ?? salesStatus}
+                            </span>
+                          )}
+                          {c.referralAdId && (
+                            // ตัดข้อความให้สั้น (`max-w-24 truncate`) เหมือน Business Suite ที่โชว์ "ad_id...."
+                            // — รหัสเต็มอ่านได้จาก title (hover) และที่แผงลูกค้าด้านขวา
+                            <span
+                              className="badge bg-default-100 text-default-600 text-2xs inline-flex max-w-24 items-center gap-1"
+                              title={`ad_id.${c.referralAdId}`}
+                            >
+                              <Icon icon="brand-meta" className="size-3 shrink-0" />
+                              <span className="truncate">ad_id.{c.referralAdId}</span>
                             </span>
                           )}
                           {contactTags.slice(0, 2).map((t) => (

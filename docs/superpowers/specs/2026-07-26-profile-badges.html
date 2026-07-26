@@ -1,0 +1,173 @@
+<title>Public Profile C — ตำแหน่งเหรียญตรา</title>
+<style>
+  :root{
+    --violet:#7367F0;--violet-soft:#efedfe;--green:#28C76F;--green-soft:#e3f8ec;
+    --amber:#FF9F43;--amber-soft:#fff1e2;--gold:#C99A2E;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;
+    --mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef;
+    --sh:0 2px 6px rgb(47 43 61/.10),0 18px 44px rgb(47 43 61/.16);
+  }
+  @media (prefers-color-scheme:dark){:root{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}}
+  :root[data-theme="dark"]{--violet-soft:#2b2547;--green-soft:#12301f;--amber-soft:#3a2513;--gold-soft:#332912;
+    --ink:#ece9f2;--ink-2:#b5b0c4;--ink-3:#847f95;--mist:#1c1928;--line:#332e44;--card:#231f32;--page:#121019}
+  :root[data-theme="light"]{--violet-soft:#efedfe;--green-soft:#e3f8ec;--amber-soft:#fff1e2;--gold-soft:#fbf1dc;
+    --ink:#2F2B3D;--ink-2:#5c5870;--ink-3:#8b8799;--mist:#F8F7FA;--line:#e8e6ee;--card:#fff;--page:#e9e7ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+    font-family:'Anuphan','IBM Plex Sans Thai','Noto Sans Thai',-apple-system,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:40px 20px 90px}
+  h1{font-size:29px;margin:0 0 8px;letter-spacing:-.02em}
+  .lede{margin:0;color:var(--ink-2);max-width:70ch}
+  .note{margin-top:16px;padding:13px 15px;border-radius:11px;background:var(--amber-soft);
+    font-size:13.5px;border-inline-start:3px solid var(--amber)}
+  .cols{display:flex;gap:30px;overflow-x:auto;padding:32px 0 16px;align-items:flex-start}
+  .col{flex:0 0 auto;width:430px}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--violet);
+    background:var(--violet-soft);padding:4px 10px;border-radius:20px;display:inline-block}
+  .col h2{font-size:19px;margin:11px 0 5px;letter-spacing:-.015em}
+  .col .desc{font-size:13.5px;color:var(--ink-2);margin:0 0 16px;min-height:80px}
+  .screen{border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--sh);background:var(--card)}
+  .verdict{margin-top:14px;font-size:12.5px;padding:11px 13px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+  .verdict b{display:block;margin-bottom:3px}
+  .tnum{font-variant-numeric:tabular-nums}
+  .ph{background:radial-gradient(at 30% 25%,#ff9f43 0,transparent 55%),
+    radial-gradient(at 75% 70%,#7367F0 0,transparent 52%),linear-gradient(140deg,#4339b5,#2F2B3D)}
+  .grad{background:linear-gradient(135deg,#f0b429 0%,#FF9F43 55%,#ffd79a 100%)}
+  .topbar{position:absolute;inset-inline:0;top:0;display:flex;justify-content:space-between;padding:14px 16px;z-index:2}
+  .ic{width:36px;height:36px;border-radius:50%;background:rgb(255 255 255/.92);display:grid;place-items:center;
+    font-size:15px;color:var(--ink);box-shadow:0 1px 4px rgb(0 0 0/.14)}
+  .ic-grp{display:flex;gap:8px}
+  .vchk{width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;display:grid;
+    place-items:center;font-size:10px;font-weight:700}
+  .tscore{display:inline-flex;align-items:center;gap:4px;background:#2F2B3D;color:#ffd45e;
+    padding:3px 9px;border-radius:20px;font-size:12.5px;font-weight:800}
+  .chip{background:var(--mist);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink-2)}
+  .c-cover{height:104px}
+  .c-wrap{text-align:center;padding:0 18px 14px;margin-top:-42px;position:relative}
+  .c-wrap .av{width:84px;height:84px;border-radius:50%;border:4px solid var(--card);margin:0 auto 10px;overflow:hidden}
+  .c-wrap h3{margin:0;font-size:20px;letter-spacing:-.02em}
+  .c-nl{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+  .c-wrap .sub{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
+  .st .v{font-size:22px;font-weight:800;letter-spacing:-.025em;display:block;line-height:1.15}
+  .st .l{font-size:11.5px;color:var(--ink-3)}
+  .rate{padding:13px 18px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:9px}
+  .rate .big{font-size:32px;font-weight:800;letter-spacing:-.03em;color:var(--green);line-height:1}
+  .rate .cap{font-size:12.5px;color:var(--ink-2)}
+  .cta{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:13px;
+    background:var(--violet);color:#fff;font-size:15.5px;font-weight:700;border:0;width:100%;
+    box-shadow:0 4px 14px rgb(115 103 240/.34);font-family:inherit;cursor:pointer}
+  .pad{padding:16px 18px 18px}
+
+  /* ── เหรียญ: แถวไอคอนกลม (แบบ 1) ── */
+  .medrow{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;padding:2px 18px 14px}
+  .med{width:40px;height:40px;border-radius:50%;background:var(--gold-soft);display:grid;place-items:center;
+    font-size:17px;border:1px solid rgb(201 154 46/.28)}
+  .med.more{background:var(--mist);border-color:var(--line);font-size:12.5px;font-weight:700;color:var(--ink-3)}
+
+  /* ── เหรียญ: การ์ดมีชื่อ (แบบ 2) ── */
+  .medsec{padding:14px 18px;border-top:1px solid var(--line)}
+  .medsec .hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .medsec h4{margin:0;font-size:14.5px}
+  .medsec .all{font-size:12.5px;color:var(--violet);font-weight:600}
+  .medgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .medcard{display:flex;align-items:center;gap:9px;background:var(--mist);border-radius:11px;padding:8px 10px}
+  .medcard .i{width:30px;height:30px;border-radius:9px;background:var(--gold-soft);display:grid;place-items:center;
+    font-size:14px;flex:0 0 auto}
+  .medcard .n{font-size:12.5px;font-weight:600;line-height:1.25}
+  .foot{margin-top:52px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .foot h2{margin:0 0 12px;font-size:18px}
+  .foot ul{margin:0;padding-inline-start:20px;color:var(--ink-2)}.foot li{margin-bottom:9px}
+  .foot b{color:var(--ink)}
+  code{background:var(--mist);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>เหรียญตราจะไปอยู่ตรงไหน</h1>
+  <p class="lede">ทั้งสองแบบใช้โครง C ที่เลือกไว้ ต่างกันที่น้ำหนักที่ให้เหรียญ และตำแหน่งที่วางเทียบกับตัวเลขสถิติ</p>
+  <div class="note">
+    <b>ต้องตัดสินเรื่องไอคอนก่อน:</b> เหรียญในระบบมี 31 ใบ แต่มีไฟล์ไอคอนจริงเพียง 9 ใบ อีก 22 ใบเก็บเป็นอักขระรูปภาพในข้อมูล กฎของโปรเจกต์ยกเว้นให้ใช้ค่าที่มาจากข้อมูลได้ แต่ถ้าแสดงจริงหน้าจะเป็นภาพผสมระหว่างไอคอนคมชัดกับอักขระรูปภาพที่คนละสไตล์กัน ในภาพนี้จำลองเป็นอักขระรูปภาพทั้งหมดเพื่อให้เห็นปัญหาตามจริง
+  </div>
+
+  <div class="cols">
+
+    <div class="col">
+      <span class="tag">แบบ 1</span>
+      <h2>แถวเหรียญใต้ชื่อ</h2>
+      <p class="desc">วางเป็นแถวไอคอนกลมกลางหน้า ต่อจากชื่อทันที ก่อนถึงตัวเลขสถิติ เหรียญกลายเป็นส่วนหนึ่งของการแนะนำตัว อ่านรวดเดียวจบตั้งแต่บนสุด</p>
+      <div class="screen">
+        <div style="position:relative">
+          <div class="c-cover grad"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+        </div>
+        <div class="c-wrap">
+          <div class="av ph"></div>
+          <h3>ธนภัทร อะไหล่ยนต์</h3>
+          <div class="c-nl"><span class="vchk">&#10003;</span><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+          <div class="sub">@thanaphat-parts &middot; อะไหล่ยานยนต์</div>
+        </div>
+        <div class="medrow">
+          <span class="med">&#128737;</span><span class="med">&#127942;</span><span class="med">&#9889;</span>
+          <span class="med">&#10004;</span><span class="med">&#10084;</span><span class="med more">+4</span>
+        </div>
+        <div class="stats">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="pad"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>เห็นเร็ว แต่ไม่รู้ว่าเหรียญอะไร</b>ไอคอนล้วนไม่มีชื่อกำกับ ผู้ซื้อใหม่ตีความไม่ออกว่าโล่หรือสายฟ้าหมายถึงอะไร ต้องกดเข้าไปดู</div>
+    </div>
+
+    <div class="col">
+      <span class="tag">แบบ 2</span>
+      <h2>ส่วนเหรียญมีชื่อกำกับ</h2>
+      <p class="desc">แยกเป็นส่วนของตัวเองใต้ตัวเลขสถิติ แสดงไอคอนคู่ชื่อเหรียญ สี่ใบเด่นก่อน แล้วมีทางกดดูทั้งหมด ผู้ซื้อรู้ทันทีว่าเหรียญแต่ละใบหมายถึงอะไรโดยไม่ต้องกด</p>
+      <div class="screen">
+        <div style="position:relative">
+          <div class="c-cover grad"></div>
+          <div class="topbar"><span class="ic">&#8249;</span><span class="ic-grp"><span class="ic">&#8593;</span><span class="ic">&#8230;</span></span></div>
+        </div>
+        <div class="c-wrap">
+          <div class="av ph"></div>
+          <h3>ธนภัทร อะไหล่ยนต์</h3>
+          <div class="c-nl"><span class="vchk">&#10003;</span><span class="tscore">&#9670; 72</span><span class="chip">Deep Classic</span></div>
+          <div class="sub">@thanaphat-parts &middot; อะไหล่ยานยนต์</div>
+        </div>
+        <div class="stats">
+          <div class="st"><span class="v tnum">128</span><span class="l">ออเดอร์</span></div>
+          <div class="st"><span class="v tnum">54</span><span class="l">ลูกค้า</span></div>
+          <div class="st"><span class="v tnum">31</span><span class="l">กลับมาซื้อซ้ำ</span></div>
+        </div>
+        <div class="rate"><span class="big tnum">98%</span><span class="cap">อัตราความสำเร็จ</span></div>
+        <div class="medsec">
+          <div class="hd"><h4>เหรียญตรา 9 ใบ</h4><span class="all">ดูทั้งหมด</span></div>
+          <div class="medgrid">
+            <div class="medcard"><span class="i">&#128737;</span><span class="n">ไร้ข้อร้องเรียน</span></div>
+            <div class="medcard"><span class="i">&#127942;</span><span class="n">ร้านค้าเก่าแก่</span></div>
+            <div class="medcard"><span class="i">&#9889;</span><span class="n">จัดส่งสายฟ้า</span></div>
+            <div class="medcard"><span class="i">&#10084;</span><span class="n">ขวัญใจชุมชน</span></div>
+          </div>
+        </div>
+        <div class="pad"><button class="cta">&#9993; แชทกับร้าน</button></div>
+      </div>
+      <div class="verdict"><b>สื่อความหมายได้จริง</b>ชื่อเหรียญคือสิ่งที่สร้างความเชื่อถือ ไม่ใช่รูปไอคอน แลกกับพื้นที่ที่ใช้มากขึ้นและดันปุ่มแชทลงไปอีก</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <h2>สิ่งที่ต้องตัดสิน</h2>
+    <ul>
+      <li><b>ไอคอนเหรียญ</b> — มีไฟล์จริงแค่ 9 จาก 31 ใบ ทางเลือกคือ ทำไฟล์ไอคอนให้ครบทุกใบ ซึ่งได้ภาพเป็นชุดเดียวกันแต่ต้องมีคนวาด หรือใช้ไอคอนจากชุดที่โปรเจกต์ใช้อยู่แล้วแทนอักขระรูปภาพ โดยจับคู่ชื่อเหรียญกับชื่อไอคอนไว้ที่เดียว หรือปล่อยตามข้อมูลเดิมซึ่งจะได้ภาพผสมสองสไตล์</li>
+      <li><b>จำนวนที่แสดง</b> — ผู้ใช้คนหนึ่งอาจได้หลายใบ ควรจำกัดที่แสดงหน้าแรกไว้ก่อนแล้วมีทางกดดูทั้งหมด ไม่ปล่อยให้ยาวจนดันเนื้อหาสำคัญตกจอ</li>
+      <li><b>ลำดับความสำคัญ</b> — เหรียญยืนยันตัวตนควรมาก่อนเหรียญความสำเร็จเสมอ เพราะเป็นหลักฐานคนละชั้นกัน</li>
+      <li><b>ร้านที่ยังไม่มีเหรียญ</b> — ซ่อนทั้งส่วน ไม่แสดงกรอบว่างหรือข้อความว่ายังไม่มี ใช้กติกาเดียวกับสถิติ</li>
+      <li><b>ผมแนะนำแบบ 2</b> เพราะสิ่งที่สร้างความน่าเชื่อถือคือชื่อเหรียญ ไม่ใช่รูป การโชว์ไอคอนล้วนโดยไม่มีชื่อทำให้ผู้ซื้อใหม่ตีความไม่ออก ซึ่งเสียประโยชน์ของเหรียญไปทั้งหมด</li>
+    </ul>
+  </div>
+</div>

@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
-import { ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -85,6 +85,25 @@ export async function POST(request: NextRequest) {
         })
       } else {
         await ingestInboundMessage({ provider, pageExternalId: pageId, event })
+
+        // ที่มาจากโฆษณา (E5) — referral มา 2 ที่: ซ้อนใน message (ลูกค้ากดโฆษณาแล้วทักครั้งแรก)
+        // หรือระดับ event (ลูกค้าที่มีเธรดอยู่แล้วกดโฆษณาตัวใหม่). ต้องทำ "หลัง" ingest ข้อความเสมอ
+        // เพราะเธรดเพิ่งถูกสร้างในขั้นตอนนั้น
+        const referral = event.message?.referral ?? event.referral
+        if (referral) {
+          try {
+            await ingestAdReferral({
+              provider,
+              pageExternalId: pageId,
+              // echo = ข้อความฝั่งเพจ ผู้ติดต่อคือ "อีกฝั่ง" (ตรรกะเดียวกับ ingestInboundMessage)
+              contactExternalId: event.message?.is_echo ? event.recipient.id : event.sender.id,
+              referral,
+            })
+          } catch (e) {
+            // referral เป็นข้อมูลเสริม — พังแล้วต้องไม่ทำให้ Meta retry ทั้ง batch จนข้อความค้าง
+            console.error('[fb-webhook] บันทึก ad referral ล้มเหลว', e instanceof Error ? e.message : e)
+          }
+        }
       }
     } catch (e) {
       console.error('[fb-webhook] ingest ล้มเหลว', e instanceof Error ? e.message : e)
