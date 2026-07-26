@@ -19,6 +19,9 @@ import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/
 import { getShopProfileStats } from '@/services/shop.service'
 import { toFileUrl } from '@/lib/file-url'
 import { getReviewsByUsername } from '@/services/review.service'
+import { getPublicRooms } from '@/services/room.service'
+import PublicRoomList from '@views/pages/user-profile/v2/PublicRoomList'
+import AboutOverview from '@views/pages/user-profile/profile/AboutOverview'
 import ProfileHero from '@views/pages/user-profile/v2/ProfileHero'
 import ProfileTabs from '@views/pages/user-profile/v2/ProfileTabs'
 import OfficialChannels from '@views/pages/user-profile/v2/OfficialChannels'
@@ -73,6 +76,17 @@ export default async function PublicProfilePage({ params }: Props) {
   // buyer-only (ไม่มีร้าน) → null ทั้งก้อน แล้ว UI ซ่อน block ที่เกี่ยวข้องเอง
   const profileStats = user.shop ? await getShopProfileStats(user.shop.id) : null
   const recentReviews = await getReviewsByUsername(username, 10)
+
+  // ประเภทกิจการกำหนดชุดแท็บ (feat 00017) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า
+  const isLodging = user.shop?.vertical === 'LODGING'
+  const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id) : []
+  const publicRooms = rawRooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    capacity: r.maxGuests,
+    basePrice: Number(r.pricePerNight),
+    imageUrl: r.images[0] ?? null,
+  }))
 
   const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
@@ -225,8 +239,20 @@ export default async function PublicProfilePage({ params }: Props) {
 
         <ProfileTabs
           tabs={[
+            // ชุดแท็บขึ้นกับประเภทกิจการของร้าน (Shop.vertical จาก feat 00017) ตามที่ user กำหนด
+            // 2026-07-26 — ร้านทั่วไปขายสินค้า/บริการ ส่วนบ้านพักขายคืนที่ว่าง คนละเรื่องกัน
+            // จึงใช้ชุดแท็บคนละชุด ไม่ยัดทุกอย่างลงชุดเดียวแล้วซ่อนเอา
             // แท็บที่ไม่มีข้อมูลไม่ถูกสร้างเป็นตัวเลือกเลย ไม่ใช่สร้างแล้วโชว์หน้าเปล่า
-            ...(pinnedProducts.length + otherProducts.length > 0
+            ...(isLodging && publicRooms.length > 0
+              ? [
+                  {
+                    key: 'rooms',
+                    label: 'บ้านพัก',
+                    content: <PublicRoomList rooms={publicRooms} />,
+                  },
+                ]
+              : []),
+            ...(!isLodging && pinnedProducts.length + otherProducts.length > 0
               ? [
                   {
                     key: 'items',
@@ -246,20 +272,36 @@ export default async function PublicProfilePage({ params }: Props) {
                   },
                 ]
               : []),
-            ...(profileStats && profileStats.channels.length > 0
-              ? [
-                  {
-                    key: 'channels',
-                    label: 'ช่องทาง Official',
-                    content: <OfficialChannels channels={profileStats.channels} />,
-                  },
-                ]
-              : []),
+            // "เกี่ยวกับร้าน" = ข้อมูลร้าน + ช่องทาง Official อยู่ด้วยกัน (user กำหนดชุดแท็บ 3 อัน
+            // 2026-07-26) ช่องทางย้ายมาอยู่ที่นี่แทนการเป็นแท็บของตัวเอง เพราะเป็นข้อมูลว่า
+            // "ติดต่อร้านนี้ได้ทางไหน" ซึ่งเป็นเรื่องเดียวกับการแนะนำร้าน
+            {
+              key: 'about',
+              label: isLodging ? 'เกี่ยวกับ' : 'เกี่ยวกับร้าน',
+              content: (
+                <div className='flex flex-col gap-5'>
+                  <AboutOverview
+                    data={{
+                      bio: profileTab.bio,
+                      location: profileTab.location,
+                      memberSince: profileTab.memberSince,
+                      chatResponseRate: profileTab.chatResponseRate,
+                      chatMedianResponseSec: profileTab.chatMedianResponseSec,
+                      chatResponseSampleSize: profileTab.chatResponseSampleSize,
+                    }}
+                  />
+                  {profileStats && profileStats.channels.length > 0 && (
+                    <OfficialChannels channels={profileStats.channels} />
+                  )}
+                </div>
+              ),
+            },
             ...(profileStats?.ratingDistribution && profileStats.avgRating != null
               ? [
                   {
                     key: 'reviews',
-                    label: 'รีวิว',
+                    // ใส่คะแนนในป้ายแท็บเลยตามที่ user ขอ — ผู้ซื้อเห็นเรตทันทีโดยไม่ต้องกดเข้าไป
+                    label: `รีวิว ${profileStats.avgRating}`,
                     content: (
                       <>
                         <ReviewSummary
