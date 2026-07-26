@@ -20,15 +20,7 @@ import { getShopProfileStats } from '@/services/shop.service'
 import { toFileUrl } from '@/lib/file-url'
 import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
-import AvailabilityCalendar from '@views/pages/user-profile/v2/AvailabilityCalendar'
-import ReviewList from '@views/pages/user-profile/v2/ReviewList'
-import PublicRoomList from '@views/pages/user-profile/v2/PublicRoomList'
-import AboutOverview from '@views/pages/user-profile/profile/AboutOverview'
-import ProfileHero from '@views/pages/user-profile/v2/ProfileHero'
-import ProfileTabs from '@views/pages/user-profile/v2/ProfileTabs'
-import OfficialChannels from '@views/pages/user-profile/v2/OfficialChannels'
-import ReviewSummary from '@views/pages/user-profile/v2/ReviewSummary'
-import { ProfileRightContent } from '@views/pages/user-profile/profile'
+import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
@@ -207,15 +199,13 @@ export default async function PublicProfilePage({ params }: Props) {
         background: 'var(--mui-palette-background-paper)',
       }}
     >
-      {/* redesign 2026-07-26 (ทิศทาง C) — ชุด v2 แทน UserProfile เดิม
-          ของเดิมยังอยู่ในโค้ดเบสจนกว่า user จะรับงาน แล้วค่อยลบทีเดียว */}
-      <div className='mli-auto max-is-[960px]'>
-        <ProfileHero
-          data={{
+      {/* redesign 2026-07-26 (ทิศทาง C) — ใช้ ShopProfile ร่วมกับ /b/[slug]
+          ของเดิม (UserProfile) ยังอยู่ในโค้ดเบสจนกว่า user จะรับงาน แล้วค่อยลบทีเดียว */}
+      <ShopProfile
+        data={{
+          hero: {
             shopName: profileHeader.shopName ?? profileHeader.fullName,
             username: profileHeader.username,
-            // โลโก้ร้านมาก่อนรูปโปรไฟล์ส่วนตัว — หน้านี้คือหน้า "ร้าน" ผู้ซื้อจำโลโก้ร้านได้
-            // ไม่ใช่รูปส่วนตัวของเจ้าของ (ร้านที่มีโลโก้แต่เจ้าของไม่มี avatar เคยขึ้นเป็นตัวอักษรย่อ)
             avatar: toFileUrl(user.shop?.logo) ?? profileHeader.profileImg ?? null,
             coverImage: toFileUrl(user.shop?.coverImage),
             tierGradient: getTierGradient(user.trustScore),
@@ -235,108 +225,37 @@ export default async function PublicProfilePage({ params }: Props) {
             customerCount: profileStats?.customerCount ?? null,
             repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
             completionRate: profileStats?.completionRate ?? null,
-            // ปุ่มแชทไม่ขึ้นบนร้านตัวเอง — คุยกับตัวเองไม่มีความหมาย (guard เดียวกับ B3 feat 00011)
             canChat: !!user.shop && !isOwnShop,
-          }}
-        />
+          },
+          isLodging,
+          rooms: publicRooms,
+          availability,
+          pinnedProducts,
+          otherProducts,
+          about: {
+            bio: profileTab.bio,
+            location: profileTab.location,
+            memberSince: profileTab.memberSince,
+            chatResponseRate: profileTab.chatResponseRate,
+            chatMedianResponseSec: profileTab.chatMedianResponseSec,
+            chatResponseSampleSize: profileTab.chatResponseSampleSize,
+          },
+          channels: profileStats?.channels ?? [],
+          reviews: recentReviews.map((r) => ({
+            id: r.id,
+            rating: r.rating,
+            comment: r.comment,
+            createdAtIso: r.createdAt.toISOString(),
+          })),
+          avgRating: profileStats?.avgRating ?? null,
+          reviewCount: profileStats?.reviewCount ?? 0,
+          ratingDistribution: profileStats?.ratingDistribution ?? null,
+          shopId: profileHeader.shopId ?? null,
+          isOwnShop,
+          itemKind: profileTab.itemKind,
+        }}
+      />
 
-        <ProfileTabs
-          tabs={[
-            // ชุดแท็บขึ้นกับประเภทกิจการของร้าน (Shop.vertical จาก feat 00017) ตามที่ user กำหนด
-            // 2026-07-26 — ร้านทั่วไปขายสินค้า/บริการ ส่วนบ้านพักขายคืนที่ว่าง คนละเรื่องกัน
-            // จึงใช้ชุดแท็บคนละชุด ไม่ยัดทุกอย่างลงชุดเดียวแล้วซ่อนเอา
-            // แท็บที่ไม่มีข้อมูลไม่ถูกสร้างเป็นตัวเลือกเลย ไม่ใช่สร้างแล้วโชว์หน้าเปล่า
-            ...(isLodging && publicRooms.length > 0
-              ? [
-                  {
-                    key: 'rooms',
-                    label: 'บ้านพัก',
-                    content: <PublicRoomList rooms={publicRooms} />,
-                  },
-                  ...(availability
-                    ? [
-                        {
-                          key: 'calendar',
-                          label: 'ปฏิทิน',
-                          content: <AvailabilityCalendar data={availability} />,
-                        },
-                      ]
-                    : []),
-                ]
-              : []),
-            ...(!isLodging && pinnedProducts.length + otherProducts.length > 0
-              ? [
-                  {
-                    key: 'items',
-                    label: 'สินค้าและบริการ',
-                    content: (
-                      <ProfileRightContent
-                        data={{
-                          pinnedProducts,
-                          otherProducts,
-                          openShopEmptyState: profileTab.openShopEmptyState,
-                          itemKind: profileTab.itemKind,
-                        }}
-                        shopId={profileHeader.shopId}
-                        isOwnShop={isOwnShop}
-                      />
-                    ),
-                  },
-                ]
-              : []),
-            // "เกี่ยวกับร้าน" = ข้อมูลร้าน + ช่องทาง Official อยู่ด้วยกัน (user กำหนดชุดแท็บ 3 อัน
-            // 2026-07-26) ช่องทางย้ายมาอยู่ที่นี่แทนการเป็นแท็บของตัวเอง เพราะเป็นข้อมูลว่า
-            // "ติดต่อร้านนี้ได้ทางไหน" ซึ่งเป็นเรื่องเดียวกับการแนะนำร้าน
-            {
-              key: 'about',
-              label: isLodging ? 'เกี่ยวกับ' : 'เกี่ยวกับร้าน',
-              content: (
-                <div className='flex flex-col gap-5'>
-                  <AboutOverview
-                    data={{
-                      bio: profileTab.bio,
-                      location: profileTab.location,
-                      memberSince: profileTab.memberSince,
-                      chatResponseRate: profileTab.chatResponseRate,
-                      chatMedianResponseSec: profileTab.chatMedianResponseSec,
-                      chatResponseSampleSize: profileTab.chatResponseSampleSize,
-                    }}
-                  />
-                  {profileStats && profileStats.channels.length > 0 && (
-                    <OfficialChannels channels={profileStats.channels} />
-                  )}
-                </div>
-              ),
-            },
-            ...(profileStats?.ratingDistribution && profileStats.avgRating != null
-              ? [
-                  {
-                    key: 'reviews',
-                    // ใส่คะแนนในป้ายแท็บเลยตามที่ user ขอ — ผู้ซื้อเห็นเรตทันทีโดยไม่ต้องกดเข้าไป
-                    label: `รีวิว ${profileStats.avgRating}`,
-                    content: (
-                      <>
-                        <ReviewSummary
-                          avgRating={profileStats.avgRating}
-                          reviewCount={profileStats.reviewCount}
-                          distribution={profileStats.ratingDistribution}
-                        />
-                        <ReviewList
-                          items={recentReviews.map((r) => ({
-                            id: r.id,
-                            rating: r.rating,
-                            comment: r.comment,
-                            createdAtIso: r.createdAt.toISOString(),
-                          }))}
-                        />
-                      </>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-        />
-      </div>
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
         <NextLink href='/privacy' style={{ textDecoration: 'none' }}>
