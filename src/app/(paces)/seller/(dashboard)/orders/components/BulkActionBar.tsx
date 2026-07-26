@@ -16,6 +16,9 @@
  *   (confirm → sending + progress bar → done breakdown) ไม่ใช่ confirm/alert ธรรมดา → คงเป็น custom
  *   card-overlay (Sweet Alerts ไม่เหมาะกับ progress loop; ดู safepay-ux Hard Rule 8 ขอบเขต = blocking alert/confirm)
  * Base (clipboard fallback): ../[token]/components/CopyLinkButton.tsx
+ * Base (ปุ่ม "พิมพ์ใบปะหน้า" feature 00022): ปุ่ม "ส่ง SMS กลุ่ม" ในไฟล์เดียวกันนี้
+ *   — ใช้ primitive ชุดเดิมทั้งหมด (btn + text-white/80 + rounded-full + gap-1.5 + spinner
+ *     disabled:opacity-50) ไม่ได้เพิ่ม primitive ใหม่เข้ามาใน bar นี้
  */
 
 import Icon from '@/components/wrappers/Icon'
