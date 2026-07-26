@@ -210,6 +210,9 @@ model Shop {
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
   expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
   aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
+  shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=GENERAL)
+  orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
+  shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -520,6 +523,9 @@ model Order {
   shipmentTracking ShipmentTracking?
   review           Review?
   smsCodes         SmsCode[]
+  // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ใบเดียว บังคับด้วย partial
+  // unique index `OrderShipment_active_order_key` — unmanaged SQL ดู DATABASE.md §4)
+  shipments        OrderShipment[]
 
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
@@ -1292,4 +1298,197 @@ model ShopAiSetting {
 
   shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
   updatedBy User? @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+// ============================================================================
+// feature 00022 — iShip Shipping Integration
+// ร้านผูกบัญชีขนส่ง iShip ด้วย token ที่วางเอง แล้วเปิดพัสดุจากคำสั่งซื้อ +
+// พิมพ์ใบปะหน้า A6 ได้จากหน้าเรา — ดู docs/20 - Features/00022 .../DATABASE.md
+//
+// 🛑 ใช้ได้เฉพาะร้าน Shop.vertical = "GENERAL" — ร้าน "LODGING" (บ้านพัก) ไม่มีฟีเจอร์นี้
+//    (BR-ISHIP-01/02) บังคับที่ service layer — DB ไม่มี cross-table CHECK
+// 🛑 ไม่แตะตาราง Order/Shop แม้แต่คอลัมน์เดียว — ได้แค่ back-relation (ไม่สร้างคอลัมน์จริง)
+// ============================================================================
+
+// ShopShippingAccount — การเชื่อมต่อ iShip ของร้าน + ค่าตั้งต้นทั้งหมดในตารางเดียว
+// ไม่แยกตาราง settings เพราะค่าเหล่านี้ไม่มีความหมายถ้าไม่มีการเชื่อมต่อ และเป็น 1:1 กับ Shop อยู่แล้ว
+model ShopShippingAccount {
+  id String @id @default(uuid())
+  // shopId @unique = 1 ร้าน 1 บัญชีขนส่ง (BR-ISHIP-10) บังคับที่ DB ไม่พึ่งวินัยของโค้ด
+  shopId   String @unique
+  provider String @default("ISHIP") // เผื่อผู้ให้บริการรายอื่นในอนาคต ไม่ต้อง migrate ซ้ำ
+  // accessTokenEnc: token ที่ร้านวางเอง ผ่าน AES-256-GCM แล้ว (src/lib/token-crypto.ts ตัวเดียวกับ
+  // ShopChannel ของ feature 00018) 🛑 ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
+  accessTokenEnc String
+  tokenLast4     String? // 4 ตัวท้ายไว้ให้ร้านยืนยันว่าใช่ใบที่ตั้งใจ (BR-ISHIP-13)
+  status         String  @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
+  // createMode: พฤติกรรมเมื่อสร้างคำสั่งซื้อ — "AUTO" | "ASK" | "OFF"
+  // 🛑 default ASK ตั้งใจ (BR-ISHIP-20): การเปิดพัสดุ = ค่าใช้จ่ายจริง ระบบต้องไม่ทำแทนโดยร้านไม่ได้สั่ง
+  createMode String @default("ASK")
+
+  // --- ที่อยู่ผู้ส่ง (บังคับครบก่อนเปิดใช้งาน BR-ISHIP-30 — nullable ใน DB เพราะกรอกทีหลังได้) ---
+  senderName    String?
+  senderPhone   String?
+  senderAddress String?
+  // 🛑 BR-ISHIP-31 — ชื่อฟิลด์กลับหัวกับ iShip ห้ามจับคู่ตามชื่อ:
+  //    senderSubdistrict (ตำบล/แขวง) → ส่งไปช่อง `src_district` ของ iShip
+  //    senderDistrict    (อำเภอ/เขต) → ส่งไปช่อง `src_amphure`  ของ iShip
+  senderSubdistrict String?
+  senderDistrict    String?
+  senderProvince    String?
+  senderPostcode    String?
+
+  // --- ค่าตั้งต้นของพัสดุ (แก้รายออเดอร์ได้ก่อนยืนยัน) ---
+  defaultCourierCode String?
+  defaultWeight      Decimal? @db.Decimal(6, 2) // กิโลกรัม
+  defaultWidth       Int? // เซนติเมตร
+  defaultLength      Int?
+  defaultHeight      Int?
+  defaultCategoryId  Int? // 0-11, 99 ตามที่ iShip กำหนด
+  // 🛑 default false ตั้งใจ (BR-ISHIP-27) — เผลอเปิด COD = เงินจริงที่ร้านจะได้รับผิดจำนวน
+  defaultCodEnabled Boolean  @default(false)
+  optOnTime         Boolean  @default(false) // ส่งตรงเวลา
+  optBoxShield      Boolean  @default(false) // ประกันกล่อง
+  optIsInsured      Boolean  @default(false) // ประกันสินค้า
+  optProductValue   Decimal? @db.Decimal(12, 2) // มูลค่าที่เอาประกัน (ใช้เมื่อ optIsInsured)
+  optServiceType    Int? // 1=เข้ารับ 2=นำไปส่งเอง; null = ตามตั้งค่าฝั่ง iShip
+  defaultRemark     String?
+
+  lastVerifiedAt    DateTime? // ทดสอบ token ผ่านล่าสุดเมื่อไหร่
+  lastVerifyError   String? // สาเหตุที่ทดสอบไม่ผ่านครั้งล่าสุด
+  connectedByUserId String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // 🛑 ไม่มีคอลัมน์ยอดเงินคงเหลือของบัญชี iShip โดยเจตนา (BR-ISHIP-53) — เก็บแล้วจะสื่อผิดว่า
+  //    Deep เป็นผู้ดูแลเงินก้อนนั้น ทั้งที่เป็นความสัมพันธ์ระหว่างร้านกับ iShip โดยตรง
+  @@index([status])
+}
+
+// OrderShipment — พัสดุ 1 ใบที่เปิดกับขนส่ง ผูกกับคำสั่งซื้อ 1 รายการ
+model OrderShipment {
+  id       String @id @default(uuid())
+  orderId  String
+  shopId   String // denormalized — query ระดับร้าน (หน้ารายการ/พิมพ์หลายใบ) โดยไม่ต้อง join Order
+  provider String @default("ISHIP")
+  // status: "PENDING" (กำลังสร้าง) | "CREATED" (สำเร็จ) | "CANCELLED" | "FAILED"
+  status      String  @default("PENDING")
+  courierCode String?
+  courierName String? // ชื่อที่แสดง ณ เวลาสร้าง — cache ไว้ ไม่ re-fetch ทุกครั้ง
+  trackingNo  String?
+  refCode     String? // data.ref ที่ iShip คืนมา
+  externalId  String? // data.id ฝั่ง iShip
+  // idempotencyKey: "<orderId>:<attemptGroup>" — ส่งไปเป็น custom_order_id ของ iShip ด้วย (BR-ISHIP-25)
+  // 🛑 retry จากใบ FAILED ต้องใช้คีย์เดิม เพื่อว่าถ้าคำขอเดิมสำเร็จฝั่ง iShip แต่ response หายระหว่างทาง
+  //    การยิงซ้ำจะไม่เกิดพัสดุใบที่สอง (BR-ISHIP-26). attemptGroup +1 เมื่อยกเลิกใบเดิมเท่านั้น
+  idempotencyKey String @unique
+
+  codAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  weight     Decimal? @db.Decimal(6, 2)
+  width      Int?
+  length     Int?
+  height     Int?
+  categoryId Int?
+
+  // snapshot: freeze ค่าที่ส่งไปจริง ไม่อ้างอิงสด — ถ้าอ้างอิงสด แล้วร้านแก้ค่าตั้งต้นทีหลัง
+  // ประวัติพัสดุเก่าจะเปลี่ยนตาม = อธิบายกับขนส่งไม่ได้ (บทเรียนเดียวกับ Order.depositAmount feat 00017)
+  senderSnapshot   Json?
+  receiverSnapshot Json?
+  optionsSnapshot  Json?
+
+  // สถานะฝั่งขนส่ง — 🛑 คนละชุดกับ Order.status และห้ามไปเปลี่ยน Order.status เอง (BR-ISHIP-40/41)
+  carrierStatus     String? // "order_success" | "picked_up" | "delivered" | ...
+  carrierStatusText String? // ข้อความไทยที่แสดงต่อผู้ใช้
+  carrierStatusAt   DateTime?
+  isOverSize        Boolean   @default(false) // ขนส่งวัดได้เกินที่ร้านแจ้ง (จาก webhook)
+  isOverWeight      Boolean   @default(false)
+  carrierPrice      Decimal?  @db.Decimal(12, 2) // ค่าส่งที่ขนส่งคิดจริง — แสดงเฉย ๆ ไม่ใช่ยอดที่ Deep เก็บ
+
+  labelPrintedAt  DateTime?
+  labelPrintCount Int       @default(0)
+  // isDryRun: พัสดุจำลองจากโหมดทดสอบ (BR-ISHIP-60/61) — ต้องมีเครื่องหมายบนหน้าจอ
+  // และต้องกรองออกจากสถิติทุกชนิด ไม่งั้น KPI เพี้ยนเพราะนับพัสดุที่ไม่มีอยู่จริง
+  isDryRun Boolean @default(false)
+
+  lastErrorCode String? // รหัสที่จับกลุ่มแล้วของเรา (TOKEN_INVALID / ADDRESS_INVALID / ...)
+  // lastErrorMessage: ข้อความดิบจาก iShip ไว้ให้ทีมงานตรวจสอบ 🛑 ห้ามแสดงตรงต่อผู้ใช้
+  // และต้อง redact token ออกก่อนบันทึกทุกครั้ง
+  lastErrorMessage String? @db.Text
+  attemptCount     Int     @default(0)
+
+  createdByUserId   String? // null = ระบบสร้างเองในโหมด AUTO (BR-ISHIP-28)
+  cancelledByUserId String?
+  cancelledAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shop   Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  events ShipmentEvent[]
+
+  // 🛑 partial unique index ที่ Prisma DSL ประกาศไม่ได้ — สร้างด้วย SQL มือใน migration
+  //    (unmanaged SQL: `prisma db pull` จะมองไม่เห็นแล้ว DROP ทิ้ง — ห้ามรันเด็ดขาด):
+  //    1) OrderShipment_active_order_key  ON ("orderId")    WHERE status <> 'CANCELLED'
+  //       = 1 ออเดอร์มีพัสดุที่ยังใช้งานอยู่ได้ใบเดียว แต่ยกเลิกแล้วเปิดใหม่ได้ (BR-ISHIP-22)
+  //    2) OrderShipment_trackingNo_key    ON ("trackingNo") WHERE trackingNo IS NOT NULL
+  //       = เลขติดตามห้ามซ้ำ แต่ใบที่ยังไม่สำเร็จมี trackingNo null ได้หลายใบ
+  @@index([orderId])
+  @@index([shopId, status])
+}
+
+// ShipmentEvent — ประวัติการเดินทางของพัสดุ (จาก webhook หรือจากการ poll traces)
+model ShipmentEvent {
+  id         String  @id @default(uuid())
+  shipmentId String
+  status     String // รหัสสถานะจากขนส่ง
+  statusText String? // ข้อความไทยสั้น
+  statusDesc String? @db.Text // คำอธิบายเต็มจากขนส่ง
+  location   String?
+  // occurredAt: เวลาที่เกิดเหตุการณ์จริงฝั่งขนส่ง ไม่ใช่เวลาที่เราบันทึก
+  occurredAt DateTime
+  source     String   @default("WEBHOOK") // "WEBHOOK" | "POLL"
+  // dedupeKey: "<status>:<occurredAt epoch>" — กัน webhook ยิงซ้ำแล้วไทม์ไลน์บวม (FR-ISHIP-041)
+  dedupeKey String
+  payload   Json? // ข้อมูลดิบไว้ตรวจสอบ (redact ข้อมูลอ่อนไหวก่อนบันทึก)
+  createdAt DateTime @default(now())
+
+  shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, dedupeKey])
+  @@index([shipmentId, occurredAt])
+}
+
+// ShipmentPickup — คำขอเรียกรถเข้ารับพัสดุ
+// 🛑 ระดับร้าน ไม่ใช่ระดับออเดอร์ (FR-ISHIP-051) — รถมารับครั้งเดียวได้หลายกล่อง
+model ShipmentPickup {
+  id             String  @id @default(uuid())
+  shopId         String
+  provider       String  @default("ISHIP")
+  courierCode    String
+  ticketPickupId String? // หมายเลขคำขอฝั่ง iShip
+  parcelCount    Int     @default(1)
+  pickupAddress  String? // snapshot ที่อยู่ที่ใช้เรียก ณ เวลานั้น
+  remark         String?
+  // status: "REQUESTED" | "ACCEPTED" | "CLOSED" | "CANCELLED" | "FAILED"
+  status        String  @default("REQUESTED")
+  staffName     String?
+  staffPhone    String?
+  timeoutAtText String? // ช่วงเวลาที่จะเข้ารับ — ข้อความตามที่ขนส่งส่งมา ไม่ parse เป็น date
+  ticketMessage String? @db.Text
+
+  isDryRun         Boolean @default(false)
+  lastErrorMessage String? @db.Text
+
+  createdByUserId String
+  acceptedAt      DateTime?
+  closedAt        DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, status])
 }
