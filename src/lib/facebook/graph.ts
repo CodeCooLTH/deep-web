@@ -133,6 +133,40 @@ export async function subscribePageToApp(pageId: string, pageToken: string): Pro
   })
 }
 
+// คู่ตรงข้ามของ subscribePageToApp — บอก Meta ให้เลิกส่ง webhook ของเพจนี้มาที่แอปเรา
+//
+// ทำไมต้องมี: ตอน seller กดถอดช่องทาง เดิมเราตั้ง status='DISCONNECTED' ในฐานข้อมูลเราฝ่ายเดียว
+// ฝั่ง Meta ยัง subscribe อยู่ → ข้อความลูกค้ายังวิ่งเข้า webhook เราต่อไปเรื่อย ๆ แล้วถูกโยนทิ้ง
+// ที่ปลายทาง (getChannelByExternalId คืน null) การ "รับมาแล้วทิ้ง" ยังถือว่าเราแตะข้อมูลบทสนทนา
+// ที่ร้านเลิกอนุญาตแล้ว — ผิดหลัก data minimization และเป็นข้อที่ Meta ตรวจตอน App Review ของ
+// pages_manage_metadata ("ผู้ใช้ถอนแล้วต้องคืน state ของเพจให้จริง")
+//
+// ไม่ต้องระบุ app id: Graph ตัด subscription ของแอปที่เป็นเจ้าของ token ที่ยิงมาให้เอง
+export async function unsubscribePageFromApp(pageId: string, pageToken: string): Promise<void> {
+  await graphFetch(`/${pageId}/subscribed_apps`, pageToken, { method: 'DELETE' })
+}
+
+// Page id ที่เป็นเจ้าของ page token ใบนี้ — จำเป็นเฉพาะตอนถอดแถว INSTAGRAM ซึ่ง externalId เก็บ
+// **IG account id** ไม่ใช่ page id (คนละ ID space) แต่ subscription ที่ต้องถอนอยู่ที่ Page
+// /me resolve เป็นเพจเจ้าของ token เสมอ — เหตุผลเดียวกับที่ getContactProfile ใช้ /me
+export async function getPageIdFromToken(pageToken: string): Promise<string | null> {
+  const json = await graphFetch('/me', pageToken, { query: { fields: 'id' } })
+  return typeof json.id === 'string' ? json.id : null
+}
+
+// IG business account ที่ผูกกับเพจนี้ (null ถ้าเพจไม่ได้ผูก IG) — ใช้ตรวจก่อนถอน subscription
+// ว่ายังมีช่องทาง IG ที่พึ่ง webhook ของเพจนี้อยู่หรือเปล่า
+export async function getInstagramAccountIdForPage(
+  pageId: string,
+  pageToken: string,
+): Promise<string | null> {
+  const json = await graphFetch(`/${pageId}`, pageToken, {
+    query: { fields: 'instagram_business_account' },
+  })
+  const ig = json.instagram_business_account as { id?: string } | undefined
+  return typeof ig?.id === 'string' ? ig.id : null
+}
+
 // ชื่อ/รูปลูกค้าสำหรับแสดงใน inbox — วิธีดึงต่างกันคนละช่องทาง (ทดสอบกับเพจจริงทุกเคสแล้ว)
 //
 // **Messenger:** ยิง GET /{psid} ตรง ๆ ไม่ได้ — Meta ตอบ 400 "cannot be loaded due to missing
