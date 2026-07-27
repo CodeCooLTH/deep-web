@@ -20,6 +20,9 @@
  */
 import { useState } from 'react'
 
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 
@@ -47,6 +50,8 @@ export type ProfileHeroData = {
   repeatCustomerCount: number | null
   completionRate: number | null
   canChat: boolean
+  /** ปลายทางของปุ่มแชท — null เมื่อยังไม่มีร้าน (ปุ่มจะไม่ถูก render) */
+  shopId?: string | null
   /** ร้านที่พักใช้คำคนละชุดกับร้านขายของ — ที่พักไม่มี "ออเดอร์" มีแต่ "การเข้าพัก" */
   isLodging?: boolean
 }
@@ -79,6 +84,18 @@ function ProfileImg({ src, alt, className }: { src: string | null; alt: string; 
 }
 
 export default function ProfileHero({ data }: { data: ProfileHeroData }) {
+  const router = useRouter()
+  const { status: sessionStatus } = useSession()
+
+  /** ยังไม่ล็อกอิน → ไปหน้าเข้าสู่ระบบแล้วเด้งกลับมาที่ห้องแชทเดิม (เส้นทางเดียวกับปุ่มสอบถามสินค้า) */
+  const goChat = () => {
+    if (!data.shopId) return
+    const target = `/messages/${data.shopId}`
+    router.push(
+      sessionStatus === 'authenticated' ? target : `/auth/sign-in?callbackUrl=${encodeURIComponent(target)}`,
+    )
+  }
+
   const L = data.isLodging ? STAT_LABELS.lodging : STAT_LABELS.general
 
   // แสดงครบสามค่าเสมอ ไม่มีข้อมูลให้เป็น 0 (user กำหนด 2026-07-26) — ต่างจากบล็อกอื่นในหน้านี้
@@ -186,18 +203,46 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
         </div>
       )}
 
-      {data.canChat && (
-        <div className='pli-5 pbs-4 pbe-4'>
+      {/* ปุ่มแชท — เดิมไม่มีทั้ง onClick และ href คือกดแล้วไม่เกิดอะไรขึ้นเลย ต่อปลายทางให้แล้ว
+          ยังไม่ล็อกอิน → พาไปหน้าเข้าสู่ระบบพร้อม callbackUrl กลับมาที่ห้องแชทเดิม
+          (เส้นทางเดียวกับปุ่ม "สอบถามสินค้านี้" ที่การ์ดสินค้า) */}
+      {data.canChat && data.shopId && (
+        <div className='pli-5 pbs-4 pbe-4 max-md:block hidden'>
           <Button
             fullWidth
             variant='contained'
             size='large'
+            onClick={goChat}
             startIcon={<Icon icon='lucide:message-circle' width={19} />}
             sx={{ minBlockSize: 50, borderRadius: '13px' }}
           >
             แชทกับร้าน
           </Button>
         </div>
+      )}
+
+      {/* บนจอกว้างปุ่มเต็มความกว้างกินพื้นที่เกินความสำคัญและดันเนื้อหาจริงตกจอ (user 2026-07-26)
+          จึงย้ายเป็นปุ่มลอยมุมขวาล่างแทน — กดได้ทุกจุดที่เลื่อนถึงโดยไม่แย่งพื้นที่เนื้อหา */}
+      {data.canChat && data.shopId && (
+        <Button
+          variant='contained'
+          size='large'
+          onClick={goChat}
+          startIcon={<Icon icon='lucide:message-circle' width={19} />}
+          sx={{
+            display: { xs: 'none', md: 'inline-flex' },
+            position: 'fixed',
+            insetBlockEnd: 24,
+            insetInlineEnd: 24,
+            zIndex: 30,
+            minBlockSize: 50,
+            borderRadius: '999px',
+            paddingInline: '22px',
+            boxShadow: '0 10px 28px rgb(47 43 61 / .28)',
+          }}
+        >
+          แชทกับร้าน
+        </Button>
       )}
     </div>
   )

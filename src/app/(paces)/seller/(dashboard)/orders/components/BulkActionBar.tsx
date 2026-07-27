@@ -16,6 +16,9 @@
  *   (confirm → sending + progress bar → done breakdown) ไม่ใช่ confirm/alert ธรรมดา → คงเป็น custom
  *   card-overlay (Sweet Alerts ไม่เหมาะกับ progress loop; ดู safepay-ux Hard Rule 8 ขอบเขต = blocking alert/confirm)
  * Base (clipboard fallback): ../[token]/components/CopyLinkButton.tsx
+ * Base (ปุ่ม "พิมพ์ใบปะหน้า" feature 00022): ปุ่ม "ส่ง SMS กลุ่ม" ในไฟล์เดียวกันนี้
+ *   — ใช้ primitive ชุดเดิมทั้งหมด (btn + text-white/80 + rounded-full + gap-1.5 + spinner
+ *     disabled:opacity-50) ไม่ได้เพิ่ม primitive ใหม่เข้ามาใน bar นี้
  */
 
 import Icon from '@/components/wrappers/Icon'
@@ -30,13 +33,84 @@ interface BulkActionBarProps {
   onClear: () => void
   /** buyer base URL (resolve ครั้งเดียวใน OrdersTable กัน hydration mismatch) */
   buyerBaseUrl: string
+  /**
+   * ร้านเชื่อมต่อ iShip อยู่และเป็นร้านประเภทสินค้าและบริการ (feature 00022)
+   * false = ไม่ render ปุ่มพิมพ์ใบปะหน้าเลย — ร้านบ้านพัก/ร้านที่ไม่ได้เชื่อมต่อ
+   * ต้องไม่เห็นปุ่มนี้ ไม่ใช่เห็นแล้วกดไม่ได้ (BR-ISHIP-01)
+   */
+  ishipEnabled?: boolean
 }
 
 // terminal = ส่ง SMS ไม่ได้ (เหมือน OrderActions.tsx)
 const isTerminal = (s: OrderRow['status']) => s === 'CONFIRMED' || s === 'CANCELLED'
 
-export default function BulkActionBar({ selectedRows, onClear, buyerBaseUrl }: BulkActionBarProps) {
+export default function BulkActionBar({
+  selectedRows,
+  onClear,
+  buyerBaseUrl,
+  ishipEnabled = false,
+}: BulkActionBarProps) {
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
+  const [printing, setPrinting] = useState(false)
+
+  /**
+   * พิมพ์ใบปะหน้าหลายใบ — เปิดแท็บใหม่ให้สั่งพิมพ์ได้ทันที
+   *
+   * ต้องดึงเป็น blob เองแทนที่จะ <a target="_blank"> เพราะ endpoint นี้เป็น POST
+   * (ส่งรายการที่เลือกไปใน body) และเราต้องอ่าน header ที่บอกว่ารายการไหนถูกข้าม
+   * FR-ISHIP-031 บังคับว่าต้องบอก ห้ามตัดทิ้งเงียบ — ถ้าเงียบ ร้านจะนึกว่าพิมพ์ครบ
+   * แล้วปิดงาน จนมีกล่องที่ไม่มีใบปะหน้าไปโผล่ที่ขนส่ง
+   */
+  const handlePrintLabels = async () => {
+    setPrinting(true)
+    try {
+      const res = await fetch('/api/seller/iship/labels/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderTokens: selectedRows.map((r) => r.original.shortCode || r.original.publicToken),
+        }),
+        cache: 'no-store',
+      })
+
+      if (!res.ok) {
+        let message = 'พิมพ์ใบปะหน้าไม่สำเร็จ'
+        try {
+          const body = (await res.json()) as { error?: { message?: string } }
+          if (body.error?.message) message = body.error.message
+        } catch {
+          // ใช้ข้อความ default
+        }
+        pacesToast.error(message)
+        return
+      }
+
+      const skippedCountHeader = Number(res.headers.get('x-skipped-count') ?? '0')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener')
+      // ปล่อย object URL หลังแท็บใหม่โหลดเสร็จ — revoke ทันทีจะทำให้แท็บว่างเปล่า
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+
+      if (skippedCountHeader > 0) {
+        const detail = res.headers.get('x-skipped-detail')
+        let reason = ''
+        try {
+          const items = JSON.parse(decodeURIComponent(detail ?? '[]')) as { reason: string }[]
+          reason = items[0]?.reason ? ` (${items[0].reason})` : ''
+        } catch {
+          // ไม่ต้องมีเหตุผลก็ยังต้องบอกจำนวนที่ข้าม
+        }
+        pacesToast.warning(`พิมพ์แล้ว แต่ข้าม ${skippedCountHeader} รายการ${reason}`)
+      } else {
+        pacesToast.success(`เปิดใบปะหน้า ${selectedRows.length} ใบแล้ว`)
+      }
+    } catch {
+      pacesToast.error('พิมพ์ใบปะหน้าไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   const selectedCount = selectedRows.length
   const eligibleRows = selectedRows.filter((r) => !isTerminal(r.original.status))
@@ -109,6 +183,17 @@ export default function BulkActionBar({ selectedRows, onClear, buyerBaseUrl }: B
 
           {/* zone 3: close */}
           <div className="ps-1 pe-2">
+            {ishipEnabled && (
+              <button
+                type="button"
+                onClick={handlePrintLabels}
+                disabled={printing}
+                className="btn text-white/80 hover:text-white hover:bg-white/10 rounded-full inline-flex items-center gap-1.5 text-nowrap disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Icon icon="printer" className="size-4.5" />
+                พิมพ์ใบปะหน้า
+              </button>
+            )}
             <button
               type="button"
               onClick={onClear}

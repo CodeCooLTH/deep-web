@@ -9,6 +9,7 @@
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { requireActiveShop } from '@/lib/shop-context'
+import { getConnection } from '@/services/iship.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
@@ -70,6 +71,15 @@ export default async function NewOrderPage() {
   // ระบบคลัง (Inventory Add-on) เปิดอยู่ไหม — ถ้าเปิด แสดงสต็อกคงเหลือใน grid/line + เตือน qty เกิน
   const inventoryEnabled = await isEntitlementActive(shop.id).catch(() => false)
 
+  // feature 00022 — โหมดสร้างพัสดุของร้าน ส่งลง form ตอน render (ไม่ต้องยิงถามฝั่ง client)
+  // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะได้ 'OFF' → ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์
+  const ishipCreateMode =
+    shop.vertical === 'GENERAL'
+      ? await getConnection(shop.id)
+          .then((c) => (c.connected && c.status === 'ACTIVE' ? c.createMode : 'OFF'))
+          .catch(() => 'OFF' as const)
+      : ('OFF' as const)
+
   // map Product → CatalogProduct (ใช้ร่วม catalog + bestSellers)
   const toCatalog = (p: any): CatalogProduct => ({
     id: p.id,
@@ -112,7 +122,7 @@ export default async function NewOrderPage() {
         saveLabel="บันทึกออเดอร์"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} />
+      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} />
     </>
   )
 }

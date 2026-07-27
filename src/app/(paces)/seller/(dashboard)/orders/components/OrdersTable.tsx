@@ -94,9 +94,11 @@ const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
   orders: OrderRow[]
+  /** ร้านเชื่อมต่อ iShip + เป็นร้านสินค้าและบริการ (feature 00022) */
+  ishipEnabled?: boolean
 }
 
-export default function OrdersTable({ orders }: Props) {
+export default function OrdersTable({ orders, ishipEnabled = false }: Props) {
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
@@ -482,6 +484,7 @@ export default function OrdersTable({ orders }: Props) {
 
     {/* bulk action bubble — โผล่เมื่อเลือก checkbox ≥1 (desktop) */}
     <BulkActionBar
+      ishipEnabled={ishipEnabled}
       selectedRows={table.getSelectedRowModel().rows}
       onClear={() => table.resetRowSelection()}
       buyerBaseUrl={buyerBaseUrl}

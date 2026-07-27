@@ -26,7 +26,6 @@ import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
-import UserProfile from '@views/pages/user-profile'
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
 import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 

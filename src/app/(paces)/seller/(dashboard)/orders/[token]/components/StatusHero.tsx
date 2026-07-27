@@ -38,9 +38,12 @@ export interface StatusHeroProps {
   fulfillmentMode: string
   /** true = order เกิดจากการชนะประมูล (มี auctionId) → badge ค้อนประมูล */
   isFromAuction?: boolean
+  /** เลขติดตาม/ขนส่งจากพัสดุ iShip ที่เปิดไว้แล้ว — เติมให้ ShipForm ล่วงหน้า (feature 00022) */
+  ishipTrackingNo?: string | null
+  ishipCourierName?: string | null
 }
 
-export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode, isFromAuction }: StatusHeroProps) {
+export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode, isFromAuction, ishipTrackingNo, ishipCourierName }: StatusHeroProps) {
   const s = STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
 
   // วันที่+เวลาแสดงคู่กันบรรทัดเดียว → ยุบเป็น formatDateTime ครั้งเดียว
@@ -140,7 +143,7 @@ export default function StatusHero({ publicToken, shortCode, status, createdAtIS
         {/* ShipForm full-width — นอก flex row กัน layout jump; ShipForm จัดการ toggle/collapse เอง ไม่ต้องมี wrapper toggle */}
         {isPending && needsShipping && (
           <div className="mt-3 border-t border-default-300 pt-3">
-            <ShipForm publicToken={publicToken} />
+            <ShipForm publicToken={publicToken} initialTrackingNo={ishipTrackingNo} initialProvider={ishipCourierName} />
           </div>
         )}
       </div>

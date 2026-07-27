@@ -138,24 +138,6 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     (ub) => ub.badge.audience === 'SELLER' || ub.badge.audience === 'ANY',
   )
 
-  // --- Header data -----------------------------------------------------------
-  const profileHeader: ProfileHeaderData = {
-    // fallback owner avatar เมื่อ shop ไม่มี logo
-    profileImg: shop.logo ?? shop.user.avatar,
-    fullName: shop.shopName,
-    // handle @slug — slug คือ route param ที่ query shop มา (การันตีไม่ null)
-    username: slug,
-    shopName: shop.shopName,
-    trustScore: shop.trustScore,
-    tierLabel,
-    tierColor,
-    maxVerifyLevel,
-    completedOrders,
-    completionRate,
-    avgRating,
-    showRating: reviewCount >= 3,
-  }
-
   // --- Profile tab data --------------------------------------------------------
   const profileTab: ProfileTabData = {
     achievements: businessBadges.map((ub) => ({

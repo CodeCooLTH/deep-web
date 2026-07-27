@@ -52,7 +52,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
 
   return (
     <div className='mli-auto max-is-[960px]'>
-      <ProfileHero data={data.hero} />
+      <ProfileHero data={{ ...data.hero, shopId: data.shopId }} />
 
       <ProfileTabs
         tabs={[

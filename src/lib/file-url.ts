@@ -14,5 +14,10 @@
  */
 export function toFileUrl(value: string | null | undefined): string | null {
   if (!value) return null;
-  return value.startsWith("http") ? value : `/api/files/${value}`;
+
+  // ค่าที่ขึ้นต้นด้วย "/" เป็น URL path ในเว็บเราอยู่แล้ว (เช่น /images/badges/x.png ที่มาจาก seed)
+  // ถ้าเติม prefix ให้จะกลายเป็น /api/files//images/... ซึ่งพัง — เช็คก่อนเสมอ
+  if (value.startsWith("http") || value.startsWith("/")) return value;
+
+  return `/api/files/${value}`;
 }

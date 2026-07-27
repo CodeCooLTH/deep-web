@@ -627,6 +627,17 @@ export async function getOrderByToken(publicToken: string) {
       // additive include — caller เดิมที่ไม่ใช้ buyer ไม่กระทบ
       buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
       shipmentTracking: true,
+      // feature 00022 — พัสดุ iShip ที่ยังใช้งานอยู่ (ถ้ามี) ใช้เป็น fallback ของเลขติดตาม
+      // เมื่อร้านยังไม่ได้กด "แจ้งจัดส่ง" ด้วยตัวเอง — ผู้ซื้อจะได้ไม่ต้องรอ
+      // ห้ามเขียนลง ShipmentTracking แทน: orderId เป็น unique และ shipOrder() สร้างแถวนั้น
+      // พร้อมเปลี่ยนสถานะออเดอร์ในทรานแซกชันเดียว ถ้าเราชิงสร้างไว้ก่อน ปุ่มแจ้งจัดส่ง
+      // ของร้านจะชน P2002 ใช้ไม่ได้อีกเลย
+      shipments: {
+        where: { status: 'CREATED' },
+        select: { trackingNo: true, courierName: true, courierCode: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       review: true,
     },
   });
