@@ -280,18 +280,39 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   }, [conversationId, shopId, beepEnabled])
 
   // ── realtime subscribe: chat:{conversationId} ──────────────────────────
+  // (user report 2026-07-26: บางเครื่อง "ไม่ realtime") — backend/trigger/broadcast พิสูจน์แล้วว่าทำงาน
+  // (anon client รับ broadcast ได้จริงบน conversation จริง) ปัญหาจึงอยู่ที่ subscribe ฝั่ง browser
+  // ที่อาจ error/timeout เงียบ ๆ แล้วไม่ heal เอง → เพิ่ม status callback: log + re-subscribe เมื่อ error
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
-    const channel = supabase
-      .channel(`chat:${conversationId}`)
-      .on('broadcast', { event: 'update' }, () => {
-        refetchNewer()
-        markReadDebounced()
-      })
-      .subscribe()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let closed = false
+
+    const join = () => {
+      if (closed) return
+      channel = supabase
+        .channel(`chat:${conversationId}`)
+        .on('broadcast', { event: 'update' }, () => {
+          refetchNewer()
+          markReadDebounced()
+        })
+        .subscribe((status) => {
+          // CHANNEL_ERROR/TIMED_OUT = join ล้มเหลว/หลุด — บางกรณี supabase-js ไม่ rejoin เอง →
+          // ถอดแล้ว re-join หลัง 3s (guard closed กัน loop ตอน unmount)
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !closed) {
+            console.warn('[chat-realtime] subscribe', status, '→ re-join', conversationId)
+            if (channel) supabase.removeChannel(channel)
+            retry = setTimeout(join, 3000)
+          }
+        })
+    }
+    join()
 
     return () => {
-      supabase.removeChannel(channel)
+      closed = true
+      if (retry) clearTimeout(retry)
+      if (channel) supabase.removeChannel(channel)
     }
   }, [conversationId, refetchNewer, markReadDebounced])
 
@@ -308,15 +329,15 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     }
   }, [refetchNewer])
 
-  // poll เบา ๆ ระหว่างเปิดเธรดอยู่ — read receipt ของ Meta มาทาง webhook โดย **ไม่ insert
-  // ChatMessage** จึงไม่มี realtime broadcast ให้เกาะ (ต่างจากข้อความใหม่) ถ้าไม่ poll ป้าย
-  // "ส่งแล้ว → อ่านแล้ว" จะไม่ขยับเลยจนกว่าผู้ใช้จะสลับแท็บกลับมาหรือมีข้อความใหม่เข้า
-  // (user report 2026-07-23). หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
+  // poll เบา ๆ ระหว่างเปิดเธรดอยู่ — 2 หน้าที่: (1) read receipt ของ Meta มาทาง webhook โดย **ไม่
+  // insert ChatMessage** จึงไม่มี realtime broadcast ให้เกาะ; (2) safety-net ของข้อความใหม่เผื่อ
+  // realtime socket ฝั่ง browser หลุด/ไม่ทำงาน (user report 2026-07-26 "ไม่ realtime") — ลด 20s→6s
+  // ให้ข้อความโผล่ภายใน ≤6s แม้ realtime ไม่ส่ง. หยุดเมื่อแท็บถูกซ่อน — ไม่กิน request ตอนไม่มีคนดู
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === 'visible') refetchNewer()
     }
-    const t = setInterval(tick, 20_000)
+    const t = setInterval(tick, 6_000)
     return () => clearInterval(t)
   }, [refetchNewer])
 
