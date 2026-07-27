@@ -180,6 +180,28 @@ describe("findMissingSenderFields — ที่อยู่ผู้ส่งบ
   it("ยังไม่ตั้งที่อยู่ผู้ส่งเลย = ขาดทุกช่อง", () => {
     expect(findMissingSenderFields(null).length).toBeGreaterThan(0);
   });
+
+  // เคยพลาดจริง: ฝั่งผู้ส่งยืมคำของผู้รับมาใช้ ทำให้ร้านที่ยังไม่ตั้งที่อยู่ผู้ส่งเห็น
+  // "ยังขาด ชื่อผู้รับ, เบอร์โทรผู้รับ, …" ทั้งที่ข้อมูลผู้รับครบ แล้วไล่แก้ผิดที่จนวนไม่จบ
+  it("คำที่คืนต้องเป็นของผู้ส่ง ห้ามมีคำว่า 'ผู้รับ' ปนแม้แต่คำเดียว", () => {
+    const missing = findMissingSenderFields(null);
+    expect(missing).toEqual([
+      "ชื่อผู้ส่ง",
+      "เบอร์โทรผู้ส่ง",
+      "ที่อยู่ผู้ส่ง",
+      "ตำบล (ผู้ส่ง)",
+      "อำเภอ (ผู้ส่ง)",
+      "จังหวัด (ผู้ส่ง)",
+      "รหัสไปรษณีย์ (ผู้ส่ง)",
+    ]);
+    expect(missing.some((m) => m.includes("ผู้รับ"))).toBe(false);
+  });
+
+  it("ขาดเฉพาะบางช่อง = คืนเฉพาะช่องนั้นด้วยคำของผู้ส่ง", () => {
+    expect(
+      findMissingSenderFields({ ...baseInput.sender, phone: "", postcode: null }),
+    ).toEqual(["เบอร์โทรผู้ส่ง", "รหัสไปรษณีย์ (ผู้ส่ง)"]);
+  });
 });
 
 describe("buildIdempotencyKey", () => {

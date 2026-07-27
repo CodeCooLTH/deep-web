@@ -17,6 +17,8 @@ export type OrderCardViewData = {
   status: string
   totalAmount: string // "1234.00"
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
+  /** พัสดุ iShip ที่เปิดแล้ว (feature 00022) — ไม่ส่งมา = ไม่แสดงแถวนี้ */
+  shipment?: { trackingNo: string | null; courierName: string | null } | null
 }
 
 export default function OrderCardView({
@@ -75,6 +77,16 @@ export default function OrderCardView({
           <span className="text-default-500">ยอดสุทธิ</span>
           <span className="text-primary font-bold">{priceLabel}</span>
         </div>
+        {/* พัสดุที่เปิดแล้ว (feature 00022) — เขียวเพราะเป็นสิ่งที่เกิดขึ้นจริงแล้ว ไม่ใช่สถานะรอ */}
+        {data.shipment?.trackingNo && (
+          <div className="border-default-200 mt-2.5 flex items-center justify-between gap-2 border-t border-dashed pt-2 text-xs">
+            <span className="text-default-500">พัสดุ</span>
+            <span className="text-success min-w-0 truncate font-semibold">
+              {data.shipment.courierName ? `${data.shipment.courierName} · ` : ''}
+              {data.shipment.trackingNo}
+            </span>
+          </div>
+        )}
       </div>
     </>
   )

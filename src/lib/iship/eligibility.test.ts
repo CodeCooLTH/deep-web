@@ -73,11 +73,14 @@ describe("checkEligibility — ข้ามเงียบ (ห้ามรบ�
 });
 
 describe("checkEligibility — ต้องแจ้งให้แก้ พร้อมบอกช่องที่ขาด", () => {
-  it("ร้านยังไม่ตั้งที่อยู่ผู้ส่ง", () => {
+  it("ร้านยังไม่ตั้งที่อยู่ผู้ส่ง — ต้องระบุว่าเป็นของผู้ส่ง ไม่ใช่ผู้รับ", () => {
     const r = checkEligibility(shippableOrder, { senderAddress: {} });
-    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX" });
+    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX", field: "SENDER" });
     if (r.eligible === false && r.kind === "NEEDS_FIX") {
       expect(r.missing.length).toBeGreaterThan(0);
+      // ปลายทางใช้ field ตัดสินว่าจะพาไปหน้าตั้งค่าหรือให้กรอกที่อยู่ผู้รับตรงนั้น
+      // ถ้าคำที่คืนมาเป็นของผู้รับ ร้านจะไปกรอกผิดที่แล้วสร้างพัสดุไม่ได้อยู่ดี
+      expect(r.missing.some((m) => m.includes("ผู้รับ"))).toBe(false);
     }
   });
 
@@ -93,7 +96,7 @@ describe("checkEligibility — ต้องแจ้งให้แก้ พร
       },
       account,
     );
-    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX" });
+    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX", field: "RECEIVER" });
     if (r.eligible === false && r.kind === "NEEDS_FIX") {
       expect(r.missing).toEqual(["ตำบล", "รหัสไปรษณีย์"]);
     }
@@ -101,7 +104,7 @@ describe("checkEligibility — ต้องแจ้งให้แก้ พร
 
   it("ไม่มีเบอร์ผู้รับ", () => {
     const r = checkEligibility({ ...shippableOrder, buyerContact: null }, account);
-    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX" });
+    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX", field: "RECEIVER" });
     if (r.eligible === false && r.kind === "NEEDS_FIX") {
       expect(r.missing).toContain("เบอร์โทรผู้รับ");
     }
@@ -119,9 +122,10 @@ describe("checkEligibility — ต้องแจ้งให้แก้ พร
     );
     // ทั้งสองฝั่งขาด แต่ต้องได้รายการของ "ผู้ส่ง" ก่อน ไม่งั้นร้านจะไล่แก้ทีละออเดอร์
     // โดยไม่รู้ว่าต้นตออยู่ที่หน้าตั้งค่า
-    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX" });
+    expect(r).toMatchObject({ eligible: false, kind: "NEEDS_FIX", field: "SENDER" });
     if (r.eligible === false && r.kind === "NEEDS_FIX") {
-      expect(r.missing).toContain("จังหวัด");
+      expect(r.missing).toContain("จังหวัด (ผู้ส่ง)");
+      expect(r.missing).not.toContain("จังหวัด");
     }
   });
 });

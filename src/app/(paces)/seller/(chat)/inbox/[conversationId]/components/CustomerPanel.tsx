@@ -59,6 +59,8 @@ export type CustomerPanelOrder = {
   checkOut: string | null
   // รายการสินค้า (user 2026-07-25: การ์ด right panel แสดงเหมือนในแชท — ชื่อ/จำนวน/ราคา/รูป)
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
+  /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ */
+  shipment?: { trackingNo: string | null; courierName: string | null } | null
 }
 
 export type CustomerPanelData = {
@@ -165,77 +167,27 @@ function OrderCard({
 }) {
   const { openDraft } = useDraftOrders()
   const [sending, setSending] = useState(false)
-  const [shipping, setShipping] = useState(false)
+  const hasShipment = !!o.shipment
 
   /**
-   * สร้างพัสดุ + แจ้งเลขติดตามในแชทรวดเดียว (feature 00022, user request 2026-07-26)
+   * เปิดหน้าต่างพัสดุ (feature 00022, user request 2026-07-27)
    *
-   * เหตุผลที่ต้องมีที่นี่: ร้านคุยกับลูกค้าอยู่ในห้องนี้ พอตกลงกันเรื่องที่อยู่เสร็จ
-   * ก็ควรเปิดพัสดุแล้วบอกเลขได้เลย ไม่ต้องสลับไปหน้าคำสั่งซื้อแล้วกลับมาพิมพ์เลขเอง
-   * — การให้คนคัดลอกเลขข้ามหน้าคือจุดที่เลขตกหล่นและพิมพ์ผิดบ่อยที่สุด
+   * เดิมปุ่มนี้ยิงสร้างพัสดุตรง ๆ ด้วยค่าตั้งต้นของร้านล้วน — ร้านที่เพิ่งตกลงเรื่องที่อยู่
+   * กับลูกค้าในห้องนี้แก้อะไรไม่ได้เลย ต้องออกไปหน้าคำสั่งซื้อแล้วเดินกลับมา
+   * ตอนนี้เปิดเป็นหน้าต่างเดียวกับโมดัลคำสั่งซื้อ (ย่อได้ ค้างข้ามห้อง) แล้วแก้ที่อยู่/ขนาด/
+   * ขนส่ง/COD ได้ก่อนกดสร้าง — กล่องยืนยันย้ายไปอยู่ตอนกดสร้างในหน้าต่างนั้น
    */
-  async function createShipmentAndNotify(e: React.MouseEvent) {
+  function openShipment(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    if (shipping) return
-
-    const ok = await pacesConfirm.question(
-      'สร้างพัสดุแล้วแจ้งเลขในแชท?',
-      'ระบบจะเปิดพัสดุกับขนส่งตามค่าที่ตั้งไว้ แล้วส่งเลขติดตามให้ลูกค้าในห้องนี้ — มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน',
-      { confirmButtonText: 'สร้างและแจ้งเลข' },
-    )
-    if (!ok) return
-
-    setShipping(true)
-    try {
-      const res = await fetch('/api/seller/iship/shipments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderToken: o.token }),
-        cache: 'no-store',
-      })
-      const data = (await res.json().catch(() => ({}))) as {
-        status?: string
-        trackingNo?: string | null
-        courierName?: string | null
-        lastErrorMessage?: string | null
-        error?: { message?: string }
-      }
-
-      if (!res.ok) {
-        pacesToast.error(data.error?.message ?? 'สร้างพัสดุไม่สำเร็จ')
-        return
-      }
-      if (data.status !== 'CREATED' || !data.trackingNo) {
-        pacesToast.error(data.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ')
-        return
-      }
-
-      // แจ้งเลขเป็นข้อความธรรมดา — ใช้ได้ทุกช่องทาง (Messenger/IG ไม่รองรับการ์ดของเรา)
-      const text = data.courierName
-        ? `จัดส่งด้วย ${data.courierName}\nเลขติดตามพัสดุ: ${data.trackingNo}`
-        : `เลขติดตามพัสดุ: ${data.trackingNo}`
-
-      const msgRes = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'TEXT', body: text }),
-      })
-
-      // พัสดุถูกเปิดไปแล้วจริง ๆ ต่อให้ส่งข้อความไม่ผ่าน — ต้องไม่บอกว่า "ล้มเหลว" ลอย ๆ
-      // ไม่งั้นร้านจะกดซ้ำแล้วนึกว่าไม่มีอะไรเกิดขึ้น (จริง ๆ กันซ้ำไว้แล้วแต่ก็สับสนอยู่ดี)
-      if (!msgRes.ok) {
-        pacesToast.warning(
-          `สร้างพัสดุแล้ว (${data.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
-        )
-        return
-      }
-      pacesToast.success('สร้างพัสดุและแจ้งเลขติดตามแล้ว')
-    } catch {
-      pacesToast.error('สร้างพัสดุไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setShipping(false)
-    }
+    openDraft({
+      conversationId,
+      customerName: contactName,
+      channel,
+      customerAvatar,
+      kind: 'SHIPMENT',
+      shipmentOrderToken: o.token,
+    })
   }
 
   // แตะการ์ด → เปิดโมดัลแก้ไขคำสั่งซื้อ (user 2026-07-25: ไม่เปิด tab ใหม่ ให้แก้ในโมดัลเดิม ไม่ต้องสลับจอ)
@@ -276,7 +228,14 @@ function OrderCard({
   // การ์ดเดียวกับในแชท (user 2026-07-25) — OrderCardView shared; แตะ = เปิดโมดัลแก้ไข; footer = ส่งเข้าแชท
   return (
     <OrderCardView
-      data={{ token: o.token, orderNo: o.orderNo, status: o.status, totalAmount: o.totalAmount, items: o.items }}
+      data={{
+        token: o.token,
+        orderNo: o.orderNo,
+        status: o.status,
+        totalAmount: o.totalAmount,
+        items: o.items,
+        shipment: o.shipment ?? null,
+      }}
       onEdit={openEdit}
       className="w-full"
       footer={
@@ -291,19 +250,16 @@ function OrderCard({
             <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
             ส่งเข้าแชท
           </button>
-          {/* feature 00022 — เปิดพัสดุแล้วแจ้งเลขในห้องนี้เลย ไม่ต้องสลับหน้า */}
+          {/* feature 00022 — เปิดหน้าต่างพัสดุในห้องนี้เลย ไม่ต้องสลับหน้า
+              คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม */}
           <button
             type="button"
-            onClick={createShipmentAndNotify}
-            disabled={shipping}
-            aria-label="สร้างพัสดุแล้วแจ้งเลขติดตามในแชท"
-            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+            onClick={openShipment}
+            aria-label={hasShipment ? 'ดูพัสดุของคำสั่งซื้อนี้' : 'สร้างพัสดุสำหรับคำสั่งซื้อนี้'}
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1"
           >
-            <Icon
-              icon={shipping ? 'loader-2' : 'truck-delivery'}
-              className={`text-sm ${shipping ? 'animate-spin' : ''}`}
-            />
-            สร้างพัสดุ
+            <Icon icon="truck-delivery" className="text-sm" />
+            {hasShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
           </button>
         </div>
       }
