@@ -10,7 +10,7 @@
  * โหมดนี้จึงไม่มีฟอร์มใด ๆ — มีแต่ทางออกเดียวที่ถูกต้อง
  *
  * Base: alert pattern จาก orders/[token]/components/ShipmentPanel.tsx (bg-warning/15) +
- *       settings/shipping/ShippingClient.tsx (bg-info/15)
+ *       settings/ShippingSettingsRow.tsx (bg-info/15)
  */
 
 import Link from 'next/link'
@@ -21,13 +21,18 @@ interface Props {
   missing: MissingSenderField[]
   /** ใช้ตัดสินว่าจะบอกว่า "ผู้รับครบแล้ว" ได้ไหม — ถ้าผู้รับก็ขาดด้วยจะเป็นข้อมูลเท็จ */
   missingReceiver: MissingReceiverField[]
+  /**
+   * deep-link เปิดโมดัลตั้งค่าที่แท็บที่อยู่ผู้ส่งทันที (feature 00022, 2026-07-29)
+   * หน้า /settings/shipping ถูกยกเลิกไปแล้ว — ถ้าพาไป /settings เฉย ๆ ร้านต้องไล่หาปุ่ม
+   * แล้วคลิกแท็บเองอีกที ซึ่งถอยหลังจากเดิมที่กดแล้วถึงจุดที่ต้องแก้เลย
+   */
   settingsHref?: string
 }
 
 export default function SenderIncompleteNotice({
   missing,
   missingReceiver,
-  settingsHref = '/settings/shipping',
+  settingsHref = '/settings?iship=settings&tab=sender',
 }: Props) {
   return (
     <div className="flex flex-col gap-3">

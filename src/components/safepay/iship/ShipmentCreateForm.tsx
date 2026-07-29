@@ -10,7 +10,7 @@
  * extraFields เป็น render-prop เพราะช่องพวกนั้นต้องรู้ว่าร้านเลือกขนส่งอะไรอยู่ ณ ขณะนั้น
  * (ใช้ทำตัวอย่างข้อความที่ลูกค้าจะได้รับ) — state ของขนส่งอยู่ในฟอร์มนี้ ไม่ยกขึ้นไปทั้งก้อน
  *
- * Base: settings/shipping/ShippingClient.tsx (บล็อกพัสดุ/บริการเสริม — form-input/form-select/
+ * Base: settings/ShippingSettingsRow.tsx (บล็อกพัสดุ/บริการเสริม — form-input/form-select/
  *       grid-cols-3 ขนาดกล่อง/checkbox), orders/new/components/CustomerQuickBlock.tsx
  *       (ปุ่มเลือกที่อยู่ + AddressSearchSheet), ShipmentPanel.tsx (ปุ่ม submit + spinner)
  */
