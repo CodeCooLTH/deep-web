@@ -1129,3 +1129,112 @@ export const IShipPickupSchema = v.object({
   parcelCount: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
   remark: v.nullish(shortText(255)),
 });
+
+// ── feature 00023 Chat Auto-Reply ───────────────────────────────────────────
+// SSOT: docs/20 - Features/00023 - Chat Auto-Reply/{API.md, DATABASE.md §3.8}
+//
+// WARNING: ห้ามรับ `specificity` จาก client เด็ดขาด — เป็น invariant ที่ service คำนวณเอง
+// ด้วย computeSpecificity() ทุกครั้งที่เขียน ถ้าเปิดให้ส่งมาได้ ลำดับการเลือกกฎจะเพี้ยน
+// โดยไม่มีใครรู้ตัว (ดู DATABASE.md §3.4)
+
+/**
+ * ค่าตั้งระดับร้าน — route รับเป็น **partial** แล้ว merge กับค่าปัจจุบันฝั่ง server
+ * เพราะ UI มีทั้งการกดสวิตช์ตัวเดียว (ส่งมาแค่ isEnabled) และการบันทึกฟอร์มเต็ม
+ * ถ้าบังคับส่งครบทุกครั้ง การกดสวิตช์จะต้องพก state ทั้งก้อนไปด้วย ซึ่งเสี่ยงเขียนทับค่าที่
+ * คนอื่นเพิ่งแก้ในแท็บอื่น
+ */
+export const AutoReplyConfigPatchSchema = v.partial(
+  v.object({
+  isEnabled: v.boolean(),
+  humanTakeoverPauseMode: v.picklist(['30M', '2H', 'MANUAL', 'UNTIL_RESOLVED']),
+  keywordCooldownSec: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(86_400)),
+  maxRepliesPerConversation: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
+  adsContextMode: v.picklist(['UNTIL_RESOLVED', 'HOURS', 'UNTIL_NEW_PRODUCT']),
+  adsContextHours: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(720))),
+    handoffPhrases: v.pipe(v.array(v.pipe(v.string(), v.trim(), v.maxLength(100))), v.maxLength(50)),
+  }),
+)
+
+export const AutoReplyKeywordCreateSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.minLength(1, 'ต้องระบุชื่อกลุ่มคำ'), v.maxLength(100)),
+  matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
+  priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
+})
+
+export const AutoReplyKeywordUpdateSchema = v.object({
+  name: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
+  matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
+  priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
+  isActive: v.optional(v.boolean()),
+})
+
+export const AutoReplyPhrasesSchema = v.object({
+  phrases: v.pipe(
+    v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),
+    v.minLength(1, 'ต้องระบุคำตรวจจับอย่างน้อย 1 คำ'),
+    v.maxLength(50),
+  ),
+})
+
+/** คำตอบยาวสุด — Meta จำกัดข้อความ 2000 ตัวอักษร เผื่อไว้ที่ 1000 ให้อ่านง่ายในแชท */
+const REPLY_TEXT_MAX = 1000
+
+export const AutoReplyRuleCreateSchema = v.object({
+  keywordId: v.nullable(v.string()),
+  shopChannelId: v.nullable(v.string()),
+  adId: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(64))),
+  adLabel: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(100))),
+  productId: v.nullable(v.string()),
+  replyText: v.pipe(v.string(), v.trim(), v.minLength(1, 'คำตอบต้องไม่ว่าง'), v.maxLength(REPLY_TEXT_MAX)),
+  isActive: v.optional(v.boolean()),
+  activeFrom: v.nullable(v.string()),
+  activeUntil: v.nullable(v.string()),
+})
+
+/**
+ * แก้กฎ = full replace ของเงื่อนไข/คำตอบ (ไม่ใช่ partial) และ **ไม่รับ keywordId**
+ * เพราะ service ตรึงกลุ่มคำไว้ตั้งแต่สร้าง (AutoReplyRuleUpdateInput = Omit<Input,'keywordId'>)
+ * เหตุผล: ถ้าย้ายกลุ่มได้ specificity/ระดับการเลือกจะเปลี่ยนความหมายทั้งชุดโดยไม่มี error ให้เห็น
+ */
+export const AutoReplyRuleUpdateSchema = v.object({
+  shopChannelId: v.nullable(v.string()),
+  adId: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(64))),
+  adLabel: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(100))),
+  productId: v.nullable(v.string()),
+  replyText: v.pipe(v.string(), v.trim(), v.minLength(1, 'คำตอบต้องไม่ว่าง'), v.maxLength(REPLY_TEXT_MAX)),
+  isActive: v.boolean(),
+  activeFrom: v.nullable(v.string()),
+  activeUntil: v.nullable(v.string()),
+})
+
+export const AutoReplyBulkSchema = v.object({
+  keywordIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(200)),
+  isActive: v.boolean(),
+})
+
+/** หน้าทดสอบกฎ (FR-020) — ไม่ส่งจริง ไม่บันทึก */
+export const AutoReplySimulateSchema = v.object({
+  message: v.pipe(v.string(), v.minLength(1, 'ต้องระบุข้อความลูกค้า'), v.maxLength(2000)),
+  shopChannelId: v.nullable(v.optional(v.string())),
+  adId: v.nullable(v.optional(v.string())),
+  productId: v.nullable(v.optional(v.string())),
+})
+
+export const AutoReplyTestModeSchema = v.object({
+  testMode: v.boolean(),
+  /** ชั่วโมงจนหมดอายุ — null = ไม่หมดอายุเอง (ไม่แนะนำ ดู AC-021-08) */
+  expiresInHours: v.nullable(v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(168)))),
+})
+
+export const AutoReplyTestThreadSchema = v.object({
+  conversationId: v.string(),
+  /** AC-021-06: UI ต้องให้ผู้ใช้ยืนยันก่อน เพราะข้อความจะถูกส่งถึงคนจริง — API บังคับ flag นี้ */
+  confirmed: v.literal(true, 'ต้องยืนยันก่อนเพิ่มเธรดเข้าโหมดทดสอบ'),
+})
+
+export const ConversationAutoReplyPatchSchema = v.object({
+  autoReplyEnabled: v.optional(v.nullable(v.boolean())),
+  clearPause: v.optional(v.boolean()),
+  clearHandoff: v.optional(v.boolean()),
+  contextProductId: v.optional(v.nullable(v.string())),
+})

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -14,6 +14,7 @@ import {
 } from "@/services/chat.service";
 import { enrichWithOrderStage } from "@/services/order-stage.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
+import { sweepStuckJobs } from "@/services/auto-reply.service";
 
 // per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
 // (บทเรียนโปรเจกต์ 2026-07-04: default header เป็น public ทำให้ carrier cache ข้าม user)
@@ -220,6 +221,24 @@ export async function GET(request: NextRequest) {
     // ป้ายขั้นตอนออเดอร์ล่าสุดในแถว (user request 2026-07-29 — แทนชิปตะกร้า+จำนวนเดิมของ 2026-07-25)
     // service กลาง: หน้า inbox โหลดหน้าแรกแบบ RSC ไม่ผ่าน route นี้ ต้องเรียกฟังก์ชันเดียวกันทั้งสองทาง
     const items = await enrichWithOrderStage(withUnread, activeCtx.shopId);
+
+    // ชั้นที่ 3(ข) ของการกู้คืนงานตอบอัตโนมัติ (feature 00023, SDS TD-001)
+    //
+    // cron ของโปรเจกต์นี้เป็นรายวัน (เจ้าของระบบตัดสินแล้วว่าไม่อัป plan) จึงพึ่ง cron เป็น
+    // กลไกหลักไม่ได้ — ทุกครั้งที่แอดมินเปิดกล่องข้อความคือโอกาสกวาดงานค้างของร้านนั้น
+    // ซึ่งในทางปฏิบัติเกิดบ่อยกว่าวันละครั้งมาก
+    //
+    // อยู่ใน after() ห้าม await ในเส้นทางตอบ response — หน้ากล่องข้อความต้องไม่ช้าลงเพราะเรื่องนี้
+    // และพังแล้วต้องไม่กระทบการโหลดรายการ
+    const sweepShopId = activeCtx.shopId;
+    after(async () => {
+      try {
+        await sweepStuckJobs({ shopId: sweepShopId, limit: 5 });
+      } catch (e) {
+        console.error("[chat] sweep งานตอบอัตโนมัติล้มเหลว", e instanceof Error ? e.message : e);
+      }
+    });
+
     return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
   }
 

@@ -67,6 +67,8 @@ export type CommandCenterData = {
   // มิเรอร์ businessPackageStatus/businessPackageTier ใน (dashboard)/layout.tsx
   packageStatus?: BusinessPackageStatusApp
   packageTier?: BusinessPackageTier | null
+  // canManage: เฉพาะ OWNER ที่กดไปหน้าจัดการแพ็กเกจได้ (คนอื่นเห็นข้อมูลแต่ไม่มีลิงก์)
+  packageCanManage?: boolean
 }
 
 // ─── SalesSeries (Sales Chart) ───────────────────────────────────────────────

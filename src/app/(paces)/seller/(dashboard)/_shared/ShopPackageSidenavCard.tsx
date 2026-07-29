@@ -39,9 +39,15 @@ import {
 interface ShopPackageSidenavCardProps {
   status: BusinessPackageStatusApp
   tier: BusinessPackageTier | null
+  /**
+   * true = OWNER ของร้าน → การ์ดทั้งใบเป็นลิงก์ไป /business + มี CTA จัดการ/อัพเกรด
+   * false = สมาชิกอื่น (ADMIN) → เห็นข้อมูลเหมือนกันทุกอย่าง แต่ "ดูอย่างเดียว" ไม่มีลิงก์/CTA
+   *   (Business Package สมัครระดับบัญชีเจ้าของ — คนอื่นกดไปก็จัดการไม่ได้ = dead-end)
+   */
+  canManage: boolean
 }
 
-export default function ShopPackageSidenavCard({ status, tier }: ShopPackageSidenavCardProps) {
+export default function ShopPackageSidenavCard({ status, tier, canManage }: ShopPackageSidenavCardProps) {
   const isLocked = status === 'LOCKED_RENEWAL_FAILED'
   const isActive = status === 'ACTIVE'
 
@@ -50,13 +56,23 @@ export default function ShopPackageSidenavCard({ status, tier }: ShopPackageSide
   const tierLabel = config?.label ?? 'Free'
   const priceLabel = config ? `฿${config.priceBaht.toLocaleString('th-TH')} ต่อเดือน` : null
 
+  // ดูอย่างเดียว → เป็น <div> ไม่ใช่ <Link> (กันกดแล้วไปเจอหน้าที่ทำอะไรไม่ได้) และไม่มี hover state
+  const Wrapper = canManage ? Link : 'div'
+  const wrapperProps = canManage
+    ? {
+        href: '/business',
+        'aria-label': `แพ็กเกจร้านค้า ${tierLabel}${isLocked ? ' ต่ออายุไม่สำเร็จ' : ''} ไปที่หน้าแพ็กเกจ`,
+      }
+    : {}
+
   return (
-    <Link
-      href="/business"
-      aria-label={`แพ็กเกจร้านค้า ${tierLabel}${isLocked ? ' ต่ออายุไม่สำเร็จ' : ''} ไปที่หน้าแพ็กเกจ`}
-      className={`shop-package-card flex items-center gap-2.5 rounded-md border-s-3 px-2.5 py-2.5 transition-colors text-(--sidenav-item-color) hover:text-(--sidenav-item-hover-color) hover:bg-(--sidenav-item-hover-bg) ${
-        isLocked ? 'border-danger' : 'border-primary'
-      }`}
+    <Wrapper
+      {...(wrapperProps as { href: string })}
+      className={`shop-package-card flex items-center gap-2.5 rounded-md border-s-3 px-2.5 py-2.5 text-(--sidenav-item-color) ${
+        canManage
+          ? 'transition-colors hover:text-(--sidenav-item-hover-color) hover:bg-(--sidenav-item-hover-bg)'
+          : ''
+      } ${isLocked ? 'border-danger' : 'border-primary'}`}
     >
       <Icon
         icon={isLocked ? 'alert-triangle' : 'crown'}
@@ -82,22 +98,25 @@ export default function ShopPackageSidenavCard({ status, tier }: ShopPackageSide
         )}
         {isActive && priceLabel && <p className="mt-0.5 text-2xs opacity-70">{priceLabel}</p>}
 
-        <div className="mt-2">
-          {status === 'NOT_SUBSCRIBED' && (
-            <span className="btn btn-sm bg-primary text-white hover:bg-primary-hover w-full">
-              อัพเกรดแพ็กเกจ
-            </span>
-          )}
-          {isActive && (
-            <span className="text-primary text-2xs font-bold">จัดการแพ็กเกจ →</span>
-          )}
-          {isLocked && (
-            <span className="btn btn-sm bg-danger text-white hover:bg-danger-hover w-full">
-              แก้ไขเลย →
-            </span>
-          )}
-        </div>
+        {/* CTA เฉพาะ OWNER — คนอื่นเห็นข้อมูลเหมือนกันแต่ไม่มีปุ่ม (จัดการแทนไม่ได้อยู่แล้ว) */}
+        {canManage && (
+          <div className="mt-2">
+            {status === 'NOT_SUBSCRIBED' && (
+              <span className="btn btn-sm bg-primary text-white hover:bg-primary-hover w-full">
+                อัพเกรดแพ็กเกจ
+              </span>
+            )}
+            {isActive && (
+              <span className="text-primary text-2xs font-bold">จัดการแพ็กเกจ →</span>
+            )}
+            {isLocked && (
+              <span className="btn btn-sm bg-danger text-white hover:bg-danger-hover w-full">
+                แก้ไขเลย →
+              </span>
+            )}
+          </div>
+        )}
       </div>
-    </Link>
+    </Wrapper>
   )
 }
