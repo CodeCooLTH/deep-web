@@ -15,7 +15,8 @@ import {
 } from "@/lib/gemini";
 import { getFile } from "@/lib/storage";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
-import { getAiSetting } from "@/services/ai-setting.service";
+import { getAiSetting, getEffectiveAiSetting } from "@/services/ai-setting.service";
+import { AiSuggestRequestSchema } from "@/lib/validations";
 import {
   resolveProductCards,
   buildProductBlock,
@@ -23,6 +24,17 @@ import {
   composeContextBlock,
 } from "@/services/ai-context.service";
 import { getConversationCrm } from "@/services/chat-crm.service";
+// feature 00019 ext (2026-07-29) — โควตาฟรีรายวัน + credit path + unlimited path (paid plan)
+import {
+  isOwnerPaidPlan,
+  claimFreeUsageOrFail,
+  refundFreeUsage,
+  getFreeRemainingAfterClaim,
+  logUsageEvent,
+  refundUsageEvent,
+} from "@/services/ai-suggest-quota.service";
+import { AI_SUGGEST_EXTRA_USE_PRICE_BAHT, WALLET_REASON_AI_SUGGEST } from "@/lib/ai-suggest-limit";
+import { deductCredit, creditWallet, getBalance } from "@/services/wallet.service";
 
 // feature 00018 composer improvement #3 — AI ช่วยร่างคำตอบ (Gemini)
 export const dynamic = "force-dynamic";
@@ -88,6 +100,119 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
   }
 
+  // shopId/conversationId แบบ narrowed เป็น const แยก — กันปัญหา TS ไม่ narrow ตัวแปร outer (activeCtx/
+  // conversation) ที่ถูก closure ด้านล่าง (refundUsage) จับไปใช้ (TS จำกัด narrowing ข้าม nested function)
+  const shopId = activeCtx.shopId;
+  const conversationId = conversation.id;
+
+  // ── feature 00019 ext (2026-07-29) — โควตาฟรีรายวัน + credit path + unlimited path ────────────
+  // BR-AIQ-12 ลำดับบังคับ: rate-limit (บนสุด, เดิม) → ownership เธรด (บนสุด, เดิม) → เช็ค paid-plan
+  // ก่อนเสมอ → paid=true ข้ามไปเรียก Gemini ทันที (unlimited path, ไม่แตะ counter/เครดิตเลย) →
+  // paid=false ค่อยเข้า free/credit path — ต้องเช็คก่อนงานหนักอื่น (context/media) กันเปลืองถ้าจะบล็อก
+  // body ผ่าน Valibot ตาม convention backend — body ว่าง/ไม่ใช่ JSON ถือว่าไม่ยืนยันหักเครดิต
+  // (endpoint นี้เดิมไม่มี body เลย client เก่าที่ไม่ส่งอะไรมาต้องยังทำงานได้ ไม่ 400)
+  const rawBody = await request.json().catch(() => ({}));
+  const parsedBody = v.safeParse(AiSuggestRequestSchema, rawBody ?? {});
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: parsedBody.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+  const confirmUseCredit = parsedBody.output.confirmUseCredit;
+
+  let isPaidPlan: boolean;
+  try {
+    isPaidPlan = await isOwnerPaidPlan(shopId);
+  } catch (e) {
+    // FR-AIQ-08: query สถานะ paid plan พังต้อง fail-closed — ห้าม default เป็น unlimited
+    console.error("[ai-suggest] isOwnerPaidPlan failed — fail-closed", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+  }
+
+  // usageKind ตัดสินว่าถ้า Gemini ล้มเหลวจริงต้องคืนอะไร (BR-AIQ-06/07) — UNLIMITED_PLAN ไม่มีอะไรต้องคืน
+  let usageKind: "FREE" | "CREDIT" | "UNLIMITED_PLAN" = "UNLIMITED_PLAN";
+  let usedCredit = false;
+  let freeRemaining: number | null = null;
+
+  if (!isPaidPlan) {
+    let claimed: boolean;
+    try {
+      claimed = await claimFreeUsageOrFail(shopId);
+    } catch (e) {
+      // FR-AIQ-08: query/update ตัวนับโควตาพัง ต้อง fail-closed เช่นกัน (ไม่ปล่อยผ่านฟรีแบบไม่จำกัด)
+      console.error("[ai-suggest] claimFreeUsageOrFail failed — fail-closed", e instanceof Error ? e.message : e);
+      return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+    }
+
+    if (claimed) {
+      usageKind = "FREE";
+      try {
+        freeRemaining = await getFreeRemainingAfterClaim(shopId);
+      } catch (e) {
+        // freeRemaining เป็นแค่ตัวเลขเสริมใน response (UX) — อ่านไม่ได้ไม่ควรทำให้ทั้ง request พัง
+        console.error("[ai-suggest] getFreeRemainingAfterClaim failed", e instanceof Error ? e.message : e);
+        freeRemaining = 0;
+      }
+    } else if (!confirmUseCredit) {
+      // ครบโควตาฟรีแล้วและยังไม่ได้ confirm ใช้เครดิต (FR-AIQ-03/04) — บล็อกก่อนเรียก Gemini
+      const balance = await getBalance(shopId).catch(() => 0);
+      return NextResponse.json(
+        {
+          error: "QUOTA_EXCEEDED",
+          canUseCredit: balance >= AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
+          priceBaht: AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
+          freeRemaining: 0,
+        },
+        { status: 402 },
+      );
+    } else {
+      // credit path — ผู้ใช้กด "ยืนยัน" มาแล้ว (FR-AIQ-04) หักเครดิต ฿1 ก่อนเรียก Gemini
+      try {
+        await deductCredit(
+          shopId,
+          AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
+          conversationId,
+          "ใช้เครดิตขอร่างคำตอบ AI เพิ่มหลังครบโควตาฟรีวันนี้",
+          WALLET_REASON_AI_SUGGEST.AI_SUGGEST_EXTRA_USE,
+        );
+      } catch (e) {
+        if (e instanceof Error && e.message === "INSUFFICIENT_CREDIT") {
+          const balance = await getBalance(shopId).catch(() => 0);
+          return NextResponse.json(
+            { error: "INSUFFICIENT_CREDIT", priceBaht: AI_SUGGEST_EXTRA_USE_PRICE_BAHT, balance },
+            { status: 402 },
+          );
+        }
+        console.error("[ai-suggest] deductCredit failed — fail-closed", e instanceof Error ? e.message : e);
+        return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+      }
+      usageKind = "CREDIT";
+      usedCredit = true;
+      freeRemaining = 0;
+    }
+  }
+
+  /** คืนสิทธิ์ที่ใช้ไป เมื่อ Gemini ล้มเหลวจริง (BR-AIQ-06/07) — unlimited path ไม่มีอะไรต้องคืน
+   *  best-effort compensate (มิเรอร์ AR-1 ของ send-sms/route.ts): ห้ามให้ compensate ล้มเหลวซ้อน
+   *  error หลักที่กำลังจะตอบผู้ใช้อยู่แล้ว — log ไว้สำหรับ manual reconcile แทน */
+  async function refundUsage() {
+    if (usageKind === "UNLIMITED_PLAN") return;
+    try {
+      if (usageKind === "FREE") {
+        await refundFreeUsage(shopId);
+      } else {
+        await creditWallet(
+          shopId,
+          AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
+          conversationId,
+          "คืนเครดิตขอร่างคำตอบ AI (Gemini ไม่สำเร็จ)",
+          WALLET_REASON_AI_SUGGEST.AI_SUGGEST_EXTRA_USE,
+        );
+      }
+      await refundUsageEvent(shopId, conversationId, usageKind);
+    } catch (e) {
+      console.error("[ai-suggest] refund compensate failed — manual reconcile needed", e instanceof Error ? e.message : e);
+    }
+  }
+
   const shop = await prisma.shop.findUnique({
     where: { id: activeCtx.shopId },
     select: { shopName: true, vertical: true },
@@ -111,7 +236,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ordered = rows.reverse();
 
   // feature 00019 — การตั้งค่า AI ของร้าน (fail-soft: อ่านไม่ได้ = ใช้ค่าเริ่มต้น, TFR-009/AC-010-03)
-  const aiSetting = await getAiSetting(activeCtx.shopId);
+  // feature 00019 ext (2026-07-29) FR-AIQ-10/BR-AIQ-13/14: บังคับสิทธิ์บริบทจริงตาม isPaidPlan ที่ชั้นนี้
+  // — ค่าที่เก็บใน DB (storedAiSetting) ไม่ถูกแตะ/เขียนทับเด็ดขาด แค่ไม่ใช้ตอนประกอบ prompt ถ้า non-paid
+  const storedAiSetting = await getAiSetting(activeCtx.shopId);
+  const aiSetting = getEffectiveAiSetting(storedAiSetting, isPaidPlan);
 
   // การ์ดสินค้า → ชื่อ+ราคาจริง (TFR-003) — batch query ครั้งเดียว ไม่ N+1
   // ปิดบริบทสินค้า = คงข้อความ placeholder เดิมทุกประการ (AC-004-03)
@@ -224,9 +352,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       customerName,
       customerNote: crm?.note ?? null,
     }, media);
-    return NextResponse.json({ suggestions }, { headers: NO_STORE_HEADERS });
+    // NFR-AIQ-Obs: audit log ทุก path ที่ผ่าน gate สำเร็จ — best-effort, ไม่ทำให้ response หลักพัง
+    await logUsageEvent({
+      shopId: activeCtx.shopId,
+      conversationId: conversation.id,
+      kind: usageKind,
+      amountBaht: usedCredit ? AI_SUGGEST_EXTRA_USE_PRICE_BAHT : 0,
+    });
+    return NextResponse.json({ suggestions, usedCredit, freeRemaining }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     if (e instanceof GeminiNotConfiguredError) {
+      // BR-AIQ-06/07: Gemini ล้มเหลวจริง (แม้เพราะยังไม่ตั้งค่า) ต้องคืนสิทธิ์ที่ใช้ไป — unlimited path ไม่มีอะไรคืน
+      await refundUsage();
       return NextResponse.json({ error: "ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ตั้งค่า)" }, { status: 503 });
     }
     if (e instanceof GeminiApiError) {
@@ -245,11 +382,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             customerNote: crm?.note ?? null,
           });
           console.warn("[ai-suggest] ถอยไปโหมดข้อความล้วน (ไฟล์แนบใช้ไม่ได้)");
-          return NextResponse.json({ suggestions, mediaSkipped: true }, { headers: NO_STORE_HEADERS });
+          // BR-AIQ-08: mediaSkipped:true = "สำเร็จ" เสมอ — ห้ามคืนโควตา/เครดิต แม้ไม่ได้ใช้ไฟล์แนบจริง
+          await logUsageEvent({
+            shopId: activeCtx.shopId,
+            conversationId: conversation.id,
+            kind: usageKind,
+            amountBaht: usedCredit ? AI_SUGGEST_EXTRA_USE_PRICE_BAHT : 0,
+          });
+          return NextResponse.json({ suggestions, mediaSkipped: true, usedCredit, freeRemaining }, { headers: NO_STORE_HEADERS });
         } catch (retryErr) {
           console.error("[ai-suggest] retry ไม่มีไฟล์แนบก็ยังพลาด", retryErr instanceof Error ? retryErr.message : retryErr);
         }
       }
+      // ล้มเหลวจริง (ทุกโมเดล/ไม่มี fallback สำเร็จ) — คืนสิทธิ์ที่ใช้ไป (BR-AIQ-06/07)
+      await refundUsage();
       // detail: surface สาเหตุจริงจาก Gemini ชั่วคราวเพื่อ diagnose (ไม่มี secret — ดู comment ใน gemini.ts)
       return NextResponse.json(
         { error: "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง", detail: e.message },
@@ -257,6 +403,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
     console.error("[POST /api/chat/conversations/[id]/ai-suggest]", e instanceof Error ? e.message : e);
+    // error อื่นที่ไม่คาดคิด (500) — ก็ถือเป็นความล้มเหลวจริงเช่นกัน ต้องคืนสิทธิ์เหมือนกัน (BR-AIQ-06/07)
+    await refundUsage();
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }

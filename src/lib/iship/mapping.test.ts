@@ -66,8 +66,7 @@ describe("buildCreateOrderPayload — การจับคู่ตำบล/�
 
   it("จังหวัดและรหัสไปรษณีย์ไปตรงช่องของตัวเอง", () => {
     const payload = buildCreateOrderPayload(baseInput);
-    // baseInput ใช้ "กรุงเทพมหานคร" (คำของชุดข้อมูลเดิม) — payload ต้องออกไปเป็นคำของ iShip
-    expect(payload.dst_province).toBe("กรุงเทพ");
+    expect(payload.dst_province).toBe("กรุงเทพมหานคร");
     expect(payload.dst_zipcode).toBe("10220");
     expect(payload.src_zipcode).toBe("10250");
   });
@@ -206,18 +205,23 @@ describe("findMissingSenderFields — ที่อยู่ผู้ส่งบ
   });
 });
 
-describe("normalizeProvince — ชื่อจังหวัดต้องตรงกับที่ iShip รู้จัก", () => {
-  it("กรุงเทพมหานคร (ข้อมูลเก่า) → กรุงเทพ", () => {
-    expect(normalizeProvince("กรุงเทพมหานคร")).toBe("กรุงเทพ");
+describe("normalizeProvince — ชื่อจังหวัดต้องตรงกับที่เอกสาร create_order กำหนด", () => {
+  // เอกสาร create_order (ตาราง field + ตัวอย่าง curl) เขียน "กรุงเทพมหานคร"
+  // ส่วนชุดข้อมูลที่อยู่ที่ใช้ใน picker เขียน "กรุงเทพ" — user ตัดสินให้ยึดเอกสาร
+  it("กรุงเทพ (จาก picker) → กรุงเทพมหานคร ตามเอกสาร", () => {
+    expect(normalizeProvince("กรุงเทพ")).toBe("กรุงเทพมหานคร");
   });
 
   it("มีช่องว่างหน้า-หลังก็ยังแปลงได้", () => {
-    expect(normalizeProvince("  กรุงเทพมหานคร  ")).toBe("กรุงเทพ");
+    expect(normalizeProvince("  กรุงเทพ  ")).toBe("กรุงเทพมหานคร");
+  });
+
+  it("ข้อมูลเก่าที่เป็น กรุงเทพมหานคร อยู่แล้ว คงเดิม", () => {
+    expect(normalizeProvince("กรุงเทพมหานคร")).toBe("กรุงเทพมหานคร");
   });
 
   it("จังหวัดอื่นคงเดิม ห้ามไปแตะ", () => {
     expect(normalizeProvince("เชียงใหม่")).toBe("เชียงใหม่");
-    expect(normalizeProvince("กรุงเทพ")).toBe("กรุงเทพ");
   });
 
   it("ว่าง/null → คืนค่าว่าง (ให้ตัวตรวจช่องที่ขาดจัดการต่อ)", () => {
@@ -227,17 +231,17 @@ describe("normalizeProvince — ชื่อจังหวัดต้องต
 });
 
 describe("payload ต้องส่งชื่อจังหวัดแบบ iShip เสมอ", () => {
-  it("ออเดอร์เก่าที่บันทึก กรุงเทพมหานคร ต้องออกไปเป็น กรุงเทพ ทั้งผู้ส่งและผู้รับ", () => {
+  it("ที่อยู่ที่เลือกจาก picker (กรุงเทพ) ต้องออกไปเป็น กรุงเทพมหานคร ทั้งผู้ส่งและผู้รับ", () => {
     const p = buildCreateOrderPayload({
       ...baseInput,
-      sender: { ...baseInput.sender, province: "กรุงเทพมหานคร" },
+      sender: { ...baseInput.sender, province: "กรุงเทพ" },
       receiver: {
         ...baseInput.receiver,
-        address: { ...baseInput.receiver.address, province: "กรุงเทพมหานคร" },
+        address: { ...baseInput.receiver.address, province: "กรุงเทพ" },
       },
     });
-    expect(p.src_province).toBe("กรุงเทพ");
-    expect(p.dst_province).toBe("กรุงเทพ");
+    expect(p.src_province).toBe("กรุงเทพมหานคร");
+    expect(p.dst_province).toBe("กรุงเทพมหานคร");
   });
 });
 

@@ -37,7 +37,12 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
   const [ctx, setCtx] = useState<ShipmentContextJson | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [notify, setNotify] = useState(true)
+  /**
+   * ปิดไว้เป็นค่าเริ่มต้น — การส่งข้อความหาลูกค้าเป็นการกระทำที่ถอนคืนไม่ได้
+   * ร้านต้องเป็นคนเลือกจังหวะเอง (มีปุ่ม "แจ้งเลขในแชท" ในหน้าสถานะให้กดเมื่อพร้อม)
+   * เดิมติ๊กไว้ให้ เลยกลายเป็นส่งอัตโนมัติทุกครั้งที่เปิดพัสดุ (user report 2026-07-29)
+   */
+  const [notify, setNotify] = useState(false)
   const [forceForm, setForceForm] = useState(false)
   const [sending, setSending] = useState(false)
 
@@ -106,8 +111,15 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
         return
       }
       pacesToast.success('สร้างพัสดุและแจ้งเลขติดตามแล้ว')
+      onDone()
+      return
     }
-    onDone()
+
+    // ไม่ได้ติ๊กแจ้ง — ต้องอยู่ที่หน้าสถานะต่อ ไม่ใช่ปิดแผงทิ้ง
+    // เพราะปุ่ม "แจ้งเลขในแชท" อยู่ในนั้น ปิดไปแล้วร้านจะไม่มีทางกดส่งเองได้จากตรงนี้
+    pacesToast.success(`สร้างพัสดุแล้ว (${shipment.trackingNo})`)
+    setCtx((c) => (c ? { ...c, shipment } : c))
+    setForceForm(false)
   }
 
   async function handleNotifyNow() {
@@ -198,6 +210,9 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
       orderToken={orderToken}
       missingReceiver={ctx.missingReceiver}
       receiver={ctx.receiver}
+      sender={ctx.sender}
+      items={ctx.items}
+      codSuggested={ctx.codSuggested}
       defaults={ctx.defaults}
       couriers={couriers as Courier[]}
       couriersError={couriersError}
