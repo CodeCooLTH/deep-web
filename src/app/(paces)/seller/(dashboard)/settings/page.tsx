@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
 import { ConnectedAccountsClient } from './ConnectedAccountsClient'
-import Link from 'next/link'
+import ShippingSettingsRow from './ShippingSettingsRow'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
 
@@ -57,13 +57,34 @@ export default async function SettingsPage() {
       })
     : null
   const showShipping = shop?.vertical === 'GENERAL'
-  const shipping = showShipping && activeCtx ? await getConnection(activeCtx.shopId) : null
+  const connection = showShipping && activeCtx ? await getConnection(activeCtx.shopId) : null
+
+  // ค่าตั้งต้นดึงมาพร้อมหน้าเลย (ไม่ lazy) — โมดัลตั้งค่าจะได้เปิดแล้วเห็นข้อมูลทันที
+  // ไม่มี spinner คั่น; เป็นข้อมูลของร้านเอง ไม่ใช่ PII ลูกค้า จึงไม่ติดกฎ neutralize-at-source
+  const shippingSettings =
+    connection?.connected && activeCtx
+      ? await (await import('@/services/iship.service')).getSettings(activeCtx.shopId)
+      : null
+
+  // ส่งเฉพาะข้อมูลที่ต้องใช้แสดงผล — ไม่มี token ในนี้ทุกกรณี (view type ของ service
+  // ไม่มี field token ตั้งแต่ระดับ type) หน้า seller อยู่ใต้ client layout → ทุกอย่างที่ส่ง
+  // ถูก serialize เข้า flight payload
+  const shipping = connection && {
+    connected: connection.connected,
+    status: connection.status,
+    tokenLast4: connection.tokenLast4,
+    lastVerifiedAt: connection.lastVerifiedAt?.toISOString() ?? null,
+    senderComplete: connection.senderComplete,
+    settingsComplete: connection.settingsComplete,
+    createMode: connection.createMode,
+  }
+  const isOwner = activeCtx?.role === 'OWNER'
 
   return (
     <>
       <PageBreadcrumb title="บัญชีที่เชื่อมต่อ" trail={[{ label: 'ภาพรวม' }]} />
 
-      {showShipping && (
+      {showShipping && shipping && (
         <div className="card mb-4">
           <div className="card-header">
             <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
@@ -71,35 +92,13 @@ export default async function SettingsPage() {
             </h5>
           </div>
           <div className="card-body">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-default-800">เชื่อมต่อ iShip</p>
-                <p className="text-default-500 text-sm mt-0.5">
-                  เปิดพัสดุจากคำสั่งซื้อและพิมพ์ใบปะหน้าได้จากที่นี่
-                </p>
-                <span
-                  className={
-                    shipping?.connected && shipping.status === 'ACTIVE'
-                      ? 'inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded mt-1'
-                      : shipping?.status === 'TOKEN_INVALID'
-                        ? 'inline-flex items-center gap-1 text-xs font-medium text-warning bg-warning/15 px-2 py-0.5 rounded mt-1'
-                        : 'inline-flex items-center gap-1 text-xs font-medium text-default-500 bg-default-200/50 px-2 py-0.5 rounded mt-1'
-                  }
-                >
-                  {shipping?.connected && shipping.status === 'ACTIVE'
-                    ? 'เชื่อมต่อแล้ว'
-                    : shipping?.status === 'TOKEN_INVALID'
-                      ? 'ต้องต่ออายุ Token'
-                      : 'ยังไม่ได้เชื่อมต่อ'}
-                </span>
-              </div>
-              <Link
-                href="/settings/shipping"
-                className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1.5 shrink-0"
-              >
-                {shipping?.connected ? 'จัดการ' : 'เชื่อมต่อ'}
-              </Link>
-            </div>
+            {/* user request 2026-07-29: ยกเลิกหน้า /settings/shipping — ทุก action อยู่ที่แถวนี้
+                ผ่านโมดัลแยกตามงาน (เชื่อมต่อ / เรียกรถ / ตั้งค่า 3 แท็บ) */}
+            <ShippingSettingsRow
+              isOwner={isOwner}
+              initialConnection={shipping}
+              initialSettings={shippingSettings}
+            />
           </div>
         </div>
       )}

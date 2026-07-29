@@ -706,6 +706,8 @@ export async function getOrdersByCustomer(
     checkIn: string | null;
     checkOut: string | null;
     items: { name: string; qty: number; price: string; imageFileId: string | null }[];
+    /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ */
+    shipment: { trackingNo: string | null; courierName: string | null } | null;
   }[];
   nextCursor: string | null;
 }> {
@@ -730,6 +732,14 @@ export async function getOrdersByCustomer(
       checkOut: true,
       // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
       items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
+      // feature 00022 — พอรู้ว่ามีพัสดุแล้วหรือยัง ปุ่มบนการ์ดจะได้บอกล่วงหน้าว่ากดแล้วเจออะไร
+      // เอามาพร้อมออเดอร์ ไม่ใช่ให้การ์ดแต่ละใบยิง API ถามเอง (ลิสต์ 20 ใบ = 20 คำขอ)
+      shipments: {
+        where: { status: { not: "CANCELLED" } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { trackingNo: true, courierName: true },
+      },
     },
   });
   const hasMore = rows.length > take;
@@ -751,6 +761,12 @@ export async function getOrdersByCustomer(
         price: it.price.toFixed(2),
         imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
       })),
+      shipment: o.shipments[0]
+        ? {
+            trackingNo: o.shipments[0].trackingNo,
+            courierName: o.shipments[0].courierName,
+          }
+        : null,
     })),
     nextCursor,
   };

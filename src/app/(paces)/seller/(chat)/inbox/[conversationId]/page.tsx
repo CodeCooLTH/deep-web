@@ -220,6 +220,13 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           checkOut: true,
           // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
           items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
+          // feature 00022 — shape เดียวกับ getOrdersByCustomer (lazy-load ต่อจากชุดนี้)
+          shipments: {
+            where: { status: { not: 'CANCELLED' } },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { trackingNo: true, courierName: true },
+          },
         },
       })
     : []
@@ -240,6 +247,9 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       price: it.price.toFixed(2),
       imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
     })),
+    shipment: o.shipments[0]
+      ? { trackingNo: o.shipments[0].trackingNo, courierName: o.shipments[0].courierName }
+      : null,
   }))
 
   // สถิติลูกค้า (user สั่ง 2026-07-24: แถว จำนวนออเดอร์/รวมยอดซื้อ/เป็นลูกค้ามา ในแท็บข้อมูลลูกค้า)

@@ -10,6 +10,7 @@ import {
   findMissingReceiverFields,
   findMissingSenderFields,
   isValidCategoryId,
+  normalizeProvince,
   type BuildPayloadInput,
 } from "./mapping";
 
@@ -65,7 +66,8 @@ describe("buildCreateOrderPayload — การจับคู่ตำบล/�
 
   it("จังหวัดและรหัสไปรษณีย์ไปตรงช่องของตัวเอง", () => {
     const payload = buildCreateOrderPayload(baseInput);
-    expect(payload.dst_province).toBe("กรุงเทพมหานคร");
+    // baseInput ใช้ "กรุงเทพมหานคร" (คำของชุดข้อมูลเดิม) — payload ต้องออกไปเป็นคำของ iShip
+    expect(payload.dst_province).toBe("กรุงเทพ");
     expect(payload.dst_zipcode).toBe("10220");
     expect(payload.src_zipcode).toBe("10250");
   });
@@ -179,6 +181,63 @@ describe("findMissingSenderFields — ที่อยู่ผู้ส่งบ
 
   it("ยังไม่ตั้งที่อยู่ผู้ส่งเลย = ขาดทุกช่อง", () => {
     expect(findMissingSenderFields(null).length).toBeGreaterThan(0);
+  });
+
+  // เคยพลาดจริง: ฝั่งผู้ส่งยืมคำของผู้รับมาใช้ ทำให้ร้านที่ยังไม่ตั้งที่อยู่ผู้ส่งเห็น
+  // "ยังขาด ชื่อผู้รับ, เบอร์โทรผู้รับ, …" ทั้งที่ข้อมูลผู้รับครบ แล้วไล่แก้ผิดที่จนวนไม่จบ
+  it("คำที่คืนต้องเป็นของผู้ส่ง ห้ามมีคำว่า 'ผู้รับ' ปนแม้แต่คำเดียว", () => {
+    const missing = findMissingSenderFields(null);
+    expect(missing).toEqual([
+      "ชื่อผู้ส่ง",
+      "เบอร์โทรผู้ส่ง",
+      "ที่อยู่ผู้ส่ง",
+      "ตำบล (ผู้ส่ง)",
+      "อำเภอ (ผู้ส่ง)",
+      "จังหวัด (ผู้ส่ง)",
+      "รหัสไปรษณีย์ (ผู้ส่ง)",
+    ]);
+    expect(missing.some((m) => m.includes("ผู้รับ"))).toBe(false);
+  });
+
+  it("ขาดเฉพาะบางช่อง = คืนเฉพาะช่องนั้นด้วยคำของผู้ส่ง", () => {
+    expect(
+      findMissingSenderFields({ ...baseInput.sender, phone: "", postcode: null }),
+    ).toEqual(["เบอร์โทรผู้ส่ง", "รหัสไปรษณีย์ (ผู้ส่ง)"]);
+  });
+});
+
+describe("normalizeProvince — ชื่อจังหวัดต้องตรงกับที่ iShip รู้จัก", () => {
+  it("กรุงเทพมหานคร (ข้อมูลเก่า) → กรุงเทพ", () => {
+    expect(normalizeProvince("กรุงเทพมหานคร")).toBe("กรุงเทพ");
+  });
+
+  it("มีช่องว่างหน้า-หลังก็ยังแปลงได้", () => {
+    expect(normalizeProvince("  กรุงเทพมหานคร  ")).toBe("กรุงเทพ");
+  });
+
+  it("จังหวัดอื่นคงเดิม ห้ามไปแตะ", () => {
+    expect(normalizeProvince("เชียงใหม่")).toBe("เชียงใหม่");
+    expect(normalizeProvince("กรุงเทพ")).toBe("กรุงเทพ");
+  });
+
+  it("ว่าง/null → คืนค่าว่าง (ให้ตัวตรวจช่องที่ขาดจัดการต่อ)", () => {
+    expect(normalizeProvince(null)).toBe("");
+    expect(normalizeProvince(undefined)).toBe("");
+  });
+});
+
+describe("payload ต้องส่งชื่อจังหวัดแบบ iShip เสมอ", () => {
+  it("ออเดอร์เก่าที่บันทึก กรุงเทพมหานคร ต้องออกไปเป็น กรุงเทพ ทั้งผู้ส่งและผู้รับ", () => {
+    const p = buildCreateOrderPayload({
+      ...baseInput,
+      sender: { ...baseInput.sender, province: "กรุงเทพมหานคร" },
+      receiver: {
+        ...baseInput.receiver,
+        address: { ...baseInput.receiver.address, province: "กรุงเทพมหานคร" },
+      },
+    });
+    expect(p.src_province).toBe("กรุงเทพ");
+    expect(p.dst_province).toBe("กรุงเทพ");
   });
 });
 

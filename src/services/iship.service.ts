@@ -22,6 +22,7 @@ import {
   type MissingAddressField,
   type SenderAddress,
 } from "@/lib/iship/mapping";
+import type { ShipmentContext } from "@/lib/iship/context";
 
 // ─── error ของชั้น service ที่ route แมปเป็น HTTP ได้ตรง ๆ ──────────────────
 
@@ -434,21 +435,7 @@ export async function resolveOrderIdByToken(
 export async function getShipmentPanel(
   shopId: string,
   orderId: string,
-): Promise<{
-  createMode: string;
-  shipment: ShipmentView | null;
-  missing: MissingAddressField[];
-  /** ค่าผู้รับที่มีอยู่ตอนนี้ — ใช้เติมฟอร์มแก้ไขในหน้าออเดอร์ (ไม่ต้องพิมพ์ใหม่ทั้งหมด) */
-  receiver: {
-    name: string | null;
-    phone: string | null;
-    line1: string | null;
-    subdistrict: string | null;
-    district: string | null;
-    province: string | null;
-    postcode: string | null;
-  };
-} | null> {
+): Promise<ShipmentContext | null> {
   const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
   if (!account || account.status === "DISCONNECTED") return null;
 
@@ -486,13 +473,21 @@ export async function getShipmentPanel(
 
   const addr = (order.shippingAddress as DeepAddress | null) ?? {};
 
+  // แยก "ติดที่ค่าระดับร้าน" ออกจาก "ข้อมูลผู้รับของออเดอร์นี้ขาด" อย่างเด็ดขาด
+  // เพราะสองอย่างนี้แก้คนละที่ และ createShipment ตรวจผู้ส่งก่อนเสมอ — ถ้าปลายทางแยกไม่ออก
+  // จะกางฟอร์มผู้รับให้ร้านกรอกทั้งที่กรอกครบแค่ไหนก็สร้างไม่ได้
+  const needsFix = !eligibility.eligible && eligibility.kind === "NEEDS_FIX";
+
   return {
+    orderId,
     createMode: account.createMode,
     shipment: shipment ? toShipmentView(shipment) : null,
-    missing:
-      !eligibility.eligible && eligibility.kind === "NEEDS_FIX"
-        ? eligibility.missing
-        : [],
+    blockedBy:
+      needsFix && eligibility.field === "SENDER"
+        ? { kind: "SENDER", missing: eligibility.missing }
+        : null,
+    missingReceiver:
+      needsFix && eligibility.field === "RECEIVER" ? eligibility.missing : [],
     receiver: {
       name: order.buyerName,
       phone: order.buyerContact,
@@ -501,6 +496,22 @@ export async function getShipmentPanel(
       district: addr.district ?? null,
       province: addr.province ?? null,
       postcode: addr.postcode ?? null,
+    },
+    defaults: {
+      courierCode: account.defaultCourierCode,
+      weight: account.defaultWeight ? Number(account.defaultWeight) : null,
+      width: account.defaultWidth,
+      length: account.defaultLength,
+      height: account.defaultHeight,
+      categoryId: account.defaultCategoryId,
+      codEnabled: account.defaultCodEnabled,
+      remark: account.defaultRemark,
+      optOnTime: account.optOnTime,
+      optBoxShield: account.optBoxShield,
+      optIsInsured: account.optIsInsured,
+      optProductValue: account.optProductValue
+        ? Number(account.optProductValue)
+        : null,
     },
   };
 }

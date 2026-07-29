@@ -11,9 +11,9 @@ import Typography from '@mui/material/Typography'
 import { prisma } from '@/lib/prisma'
 import { findShopBySlug } from '@/services/shop.service'
 import { getAvgRatingByShop } from '@/services/review.service'
-import { getProductsByShop } from '@/services/product.service'
+import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
-import { getPublicRooms } from '@/services/room.service'
+import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
@@ -90,10 +90,17 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   // serialize products: Decimal → string, images Json → string[] → first
   // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
   // Phase 3 (feature 00013): serialize แยกชุด pinned/other — ทั้งสองมาจาก Prisma row shape เดียวกัน
+  // ยอด "ขายแล้ว" ต่อสินค้า — ดึงครั้งเดียวสำหรับทั้งชุดปักหมุดและชุดที่เหลือ (query เดียว ไม่ใช่ต่อใบ)
+  const soldByProduct = await getConfirmedOrderCountByProduct([
+    ...rawPinnedProducts.map((p) => p.id),
+    ...rawOtherProducts.map((p) => p.id),
+  ])
+
   const serializeProductRow = (p: (typeof rawPinnedProducts)[number]): SerializedProduct => ({
     id: p.id,
     name: p.name,
     price: p.price.toFixed(2),
+    soldCount: soldByProduct.get(p.id) ?? 0,
     imageUrl: (p.images as string[])[0] ?? null,
   })
   // feature 00017 — ร้านประเภทบ้านพักแสดง "ห้องพัก" แทน "สินค้า" บนโปรไฟล์สาธารณะ (FR-LODG-07)
@@ -121,6 +128,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     imageUrl: r.images[0] ?? null,
   }))
 
+  // ยอด "เข้าพักแล้ว" ต่อห้อง — ต้องอยู่หลัง rooms ถูกสร้าง
+  const bookedByRoom = await getConfirmedBookingCountByRoom(rooms.map((r) => r.id))
+
   const pinnedProducts: SerializedProduct[] = isLodging
     ? []
     : rawPinnedProducts.map(serializeProductRow)
@@ -129,6 +139,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
         id: r.id,
         name: r.name,
         price: r.pricePerNight,
+        soldCount: bookedByRoom.get(r.id) ?? 0,
         imageUrl: r.images[0] ?? null,
       }))
     : rawOtherProducts.map(serializeProductRow)

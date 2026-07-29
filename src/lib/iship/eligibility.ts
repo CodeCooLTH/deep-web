@@ -14,6 +14,8 @@ import {
   findMissingSenderFields,
   type DeepAddress,
   type MissingAddressField,
+  type MissingReceiverField,
+  type MissingSenderField,
   type SenderAddress,
 } from "./mapping";
 
@@ -29,10 +31,29 @@ export interface EligibilityAccountLike {
   senderAddress: SenderAddress;
 }
 
+/**
+ * `field` บอกว่าที่ขาดเป็นของใคร — ปลายทางต้องใช้ตัวนี้ตัดสินว่าจะให้ร้าน "กรอกตรงนี้"
+ * (RECEIVER — แก้ได้ในหน้าออเดอร์/โมดัล) หรือ "ไปหน้าตั้งค่า" (SENDER — ค่าระดับร้าน)
+ * ห้ามเดาจากข้อความใน missing เพราะเป็นคำที่เอาไว้โชว์ ไม่ใช่ตัวจำแนก
+ */
 export type EligibilityResult =
   | { eligible: true }
   | { eligible: false; kind: "SKIP_SILENT"; reason: string }
-  | { eligible: false; kind: "NEEDS_FIX"; missing: MissingAddressField[] };
+  | {
+      eligible: false;
+      kind: "NEEDS_FIX";
+      field: "SENDER";
+      missing: MissingSenderField[];
+    }
+  | {
+      eligible: false;
+      kind: "NEEDS_FIX";
+      field: "RECEIVER";
+      missing: MissingReceiverField[];
+    };
+
+/** ทุกสาขา NEEDS_FIX รวมกัน — ใช้ตรงจุดที่ไม่สนว่าเป็นของใคร (เช่น ข้อความ error รวม) */
+export type NeedsFixMissing = MissingAddressField[];
 
 export function checkEligibility(
   order: EligibilityOrderLike,
@@ -62,7 +83,12 @@ export function checkEligibility(
   // ถ้าบอกเรื่องผู้รับก่อน ร้านจะไล่แก้ทีละออเดอร์โดยไม่รู้ว่าต้นตออยู่ที่หน้าตั้งค่า
   const missingSender = findMissingSenderFields(account.senderAddress);
   if (missingSender.length > 0) {
-    return { eligible: false, kind: "NEEDS_FIX", missing: missingSender };
+    return {
+      eligible: false,
+      kind: "NEEDS_FIX",
+      field: "SENDER",
+      missing: missingSender,
+    };
   }
 
   const missingReceiver = findMissingReceiverFields(
@@ -71,7 +97,12 @@ export function checkEligibility(
     order.buyerContact,
   );
   if (missingReceiver.length > 0) {
-    return { eligible: false, kind: "NEEDS_FIX", missing: missingReceiver };
+    return {
+      eligible: false,
+      kind: "NEEDS_FIX",
+      field: "RECEIVER",
+      missing: missingReceiver,
+    };
   }
 
   return { eligible: true };

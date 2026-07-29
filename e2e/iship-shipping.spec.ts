@@ -176,7 +176,9 @@ test.afterAll(async () => {
 // ─── A. ร้านบ้านพัก — BLOCKER ───────────────────────────────────────────────
 
 test.describe('A. ร้านบ้านพักต้องไม่มีฟีเจอร์นี้เลย (BR-ISHIP-01/02)', () => {
-  test('A1 หน้า /settings/shipping ตอบ 404', async ({ page, context }) => {
+  // หน้า /settings/shipping ถูกยกเลิกไปแล้ว (2026-07-29) — การตั้งค่าอยู่ในโมดัลบนหน้า /settings
+  // จึงพิสูจน์การซ่อนที่ "แถวไม่โผล่" แทนการเช็ค 404 ของ route (ดู A3)
+  test('A1 route เดิม /settings/shipping ไม่มีอยู่แล้ว', async ({ page, context }) => {
     await loginAs(context, fx.lodgingUserId)
     const res = await page.goto('/settings/shipping')
     expect(res?.status()).toBe(404)
@@ -211,17 +213,34 @@ test.describe('A. ร้านบ้านพักต้องไม่มี�
 // ─── B. ร้านที่ยังไม่เชื่อมต่อ ───────────────────────────────────────────────
 
 test.describe('B. สถานะการเชื่อมต่อ', () => {
-  test('B1 ร้าน GENERAL เห็นหน้าตั้งค่าการจัดส่ง', async ({ page, context }) => {
+  test('B1 ร้าน GENERAL เห็นแถว iShip พร้อมสถานะในหน้าตั้งค่า', async ({ page, context }) => {
     await loginAs(context, fx.generalUserId)
-    const res = await page.goto('/settings/shipping')
+    const res = await page.goto('/settings')
     expect(res?.status()).toBe(200)
+    await expect(page.getByText('เชื่อมต่อ iShip')).toBeVisible()
     await expect(page.getByText('เชื่อมต่อแล้ว').first()).toBeVisible()
   })
 
-  test('B2 การ์ดในหน้าตั้งค่าโผล่และลิงก์ไปหน้าการจัดส่ง', async ({ page, context }) => {
+  test('B2 กด "ตั้งค่า" เปิดโมดัล 3 แท็บ ไม่ใช่เปลี่ยนหน้า', async ({ page, context }) => {
     await loginAs(context, fx.generalUserId)
     await page.goto('/settings')
-    await expect(page.getByText('เชื่อมต่อ iShip')).toBeVisible()
+    await page.getByRole('button', { name: 'ตั้งค่า' }).click()
+    const modal = page.getByRole('dialog', { name: 'ตั้งค่าการจัดส่ง' })
+    await expect(modal).toBeVisible()
+    await expect(modal.getByRole('tab')).toHaveCount(3)
+    // ไม่เปลี่ยนหน้า — โมดัลลอยอยู่บน /settings เดิม
+    expect(new URL(page.url()).pathname).toBe('/settings')
+  })
+
+  test('B3 deep-link จากหน้าคำสั่งซื้อเปิดโมดัลที่แท็บที่อยู่ผู้ส่งทันที', async ({ page, context }) => {
+    await loginAs(context, fx.generalUserId)
+    await page.goto('/settings?iship=settings&tab=sender')
+    const modal = page.getByRole('dialog', { name: 'ตั้งค่าการจัดส่ง' })
+    await expect(modal).toBeVisible()
+    await expect(modal.getByRole('tab', { name: /ที่อยู่ผู้ส่ง/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 })
 
