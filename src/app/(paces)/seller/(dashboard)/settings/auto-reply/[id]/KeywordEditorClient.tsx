@@ -237,11 +237,13 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         </div>
       )}
 
-      {/* หัวเรื่อง + คำอธิบายว่าระบบนี้ทำอะไร ก่อนเข้าการ์ดเป็นขั้น (ตาม reference) */}
+      {/* subheader ใต้หัวเรื่อง (user request 2026-07-29) — เทียบเคียงข้อความของ reference
+          แต่เขียนให้ตรงกับสิ่งที่ระบบเราทำจริง: ของเราจับคำ ไม่ใช่ตอบข้อความแรกเสมอ */}
       <div className="mb-4">
         <p className="text-default-600 text-sm">
-          เมื่อลูกค้าทักเข้ามาทาง Messenger หรือ Instagram แล้วข้อความตรงกับคำที่ตั้งไว้
-          ระบบจะตอบให้ทันทีตามข้อความที่คุณเขียน โดยเลือกคำตอบตามเพจ โฆษณา หรือสินค้าที่ลูกค้าเข้ามา
+          ตอบลูกค้าที่ทักเข้ามาทาง Messenger หรือ Instagram โดยอัตโนมัติ
+          เมื่อข้อความตรงกับคำที่คุณตั้งไว้ ปรับข้อความได้เองว่าจะทักทาย ให้ข้อมูลเพิ่มเติม
+          หรือบอกว่าจะติดต่อกลับเมื่อไหร่ และตั้งคำตอบต่างกันตามเพจหรือโฆษณาที่ลูกค้าเข้ามาได้
         </p>
       </div>
 
@@ -685,10 +687,18 @@ function ExceptionSheet({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   แผงทดสอบ
+   หน้าแชทมือถือจำลอง — พิมพ์คุยกับเพจได้เหมือนเป็นลูกค้าจริง
    ═══════════════════════════════════════════════════════════════════ */
+type SimTurn =
+  | { who: 'customer'; text: string }
+  | { who: 'page'; text: string }
+  | { who: 'system'; kind: 'inactive' | 'handoff' | 'shop-off'; text: string; canFix?: boolean }
+
 function SimulatePanel({
-  channels, products, keywordId, onEnable, canEdit,
+  channels,
+  keywordId,
+  onEnable,
+  canEdit,
 }: {
   channels: Channel[]
   products: Product[]
@@ -696,32 +706,51 @@ function SimulatePanel({
   onEnable: () => void
   canEdit: boolean
 }) {
-  const [message, setMessage] = useState('')
-  const [shopChannelId, setShopChannelId] = useState('')
-  const [productId, setProductId] = useState('')
+  const [turns, setTurns] = useState<SimTurn[]>([])
+  const [draft, setDraft] = useState('')
+  const [channelId, setChannelId] = useState(channels[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<null | {
-    rawText: string
-    matched: { keywordName: string; matchedPhrase: string } | null
-    replyText: string | null
-    willHandoff: boolean
-    blockedBy: { reason: string; keywordId: string; keywordName: string } | null
-    shopEnabled: boolean
-    matchTrace?: { losers?: { keywordName: string; lostAt: string }[] }
-  }>(null)
 
-  async function run() {
-    if (!message.trim() || busy) return
+  const pageName = channels.find((c) => c.id === channelId)?.name ?? 'เพจของคุณ'
+
+  async function send() {
+    const text = draft.trim()
+    if (!text || busy) return
+    setDraft('')
+    setTurns((t) => [...t, { who: 'customer', text }])
     setBusy(true)
     try {
       const data = await callApi('/api/shops/auto-reply/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message, shopChannelId: shopChannelId || null, adId: null, productId: productId || null,
-        }),
+        body: JSON.stringify({ message: text, shopChannelId: channelId || null, adId: null, productId: null }),
       })
-      setResult(data)
+
+      // แปลงผลเป็น "เทิร์นในบทสนทนา" แทนที่จะเป็นรายงานผล — ผู้ใช้อ่านเป็นแชทได้เลย
+      if (data.blockedBy?.reason === 'KEYWORD_INACTIVE') {
+        setTurns((t) => [
+          ...t,
+          {
+            who: 'system',
+            kind: 'inactive',
+            text: `คำตรงกับ “${data.blockedBy.keywordName}” แล้ว แต่การตั้งค่านี้ปิดอยู่ ระบบจึงยังไม่ตอบ`,
+            canFix: canEdit && data.blockedBy.keywordId === keywordId,
+          },
+        ])
+      } else if (data.willHandoff) {
+        setTurns((t) => [
+          ...t,
+          { who: 'system', kind: 'handoff', text: 'ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน' },
+        ])
+      } else {
+        setTurns((t) => [...t, { who: 'page', text: data.replyText ?? '' }])
+        if (!data.shopEnabled) {
+          setTurns((t) => [
+            ...t,
+            { who: 'system', kind: 'shop-off', text: 'ระบบปิดอยู่ทั้งร้าน — นี่คือสิ่งที่จะเกิดขึ้นเมื่อเปิดแล้ว' },
+          ])
+        }
+      }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ')
     } finally {
@@ -731,108 +760,88 @@ function SimulatePanel({
 
   return (
     <div className="card xl:sticky xl:top-20">
-      <div className="card-header">
-        <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-          <Icon icon="flask" aria-hidden="true" />ทดสอบกฎ
-        </h5>
+      <div className="card-header flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h5 className="text-default-800 text-base font-semibold">ทดลองคุย</h5>
+          <p className="text-default-500 mt-0.5 text-xs">พิมพ์เหมือนเป็นลูกค้า ไม่ส่งจริง ไม่บันทึกอะไร</p>
+        </div>
+        {turns.length > 0 && (
+          <button className="btn btn-sm btn-soft-default" onClick={() => setTurns([])}>ล้าง</button>
+        )}
       </div>
-      <div className="card-body space-y-2.5">
-        <p className="text-default-500 text-xs">ทดลองอย่างเดียว ไม่ส่งถึงลูกค้า ไม่บันทึกอะไร</p>
-        <textarea className="form-textarea" rows={2} value={message}
-          placeholder="พิมพ์ข้อความแบบที่ลูกค้าจะทักเข้ามา"
-          onChange={(e) => setMessage(e.target.value)} aria-label="ข้อความลูกค้าสมมติ" />
-        <ChoiceSelect
-          options={channels.map((c) => ({ value: c.id, label: c.name }))}
-          placeholder="ไม่ระบุเพจ" value={shopChannelId} search={false}
-          onChange={(v) => setShopChannelId(v as string)} ariaLabel="เพจ"
-        />
-        <ChoiceSelect
-          options={products.map((p) => ({ value: p.id, label: p.name }))}
-          placeholder="ไม่ระบุสินค้า" value={productId} search
-          onChange={(v) => setProductId(v as string)} ariaLabel="สินค้า"
-        />
-        <button className="btn btn-primary w-full" disabled={busy || !message.trim()} onClick={run}>
-          {busy ? 'กำลังทดสอบ…' : 'ทดสอบ'}
-        </button>
 
-        {result && (
-          <div className="border-default-200 space-y-3 border-t pt-3">
-            {/* ถ้าระบบรู้สาเหตุ ต้องบอกสาเหตุ ไม่ใช่บอกอาการ — และถ้าแก้ได้ในคลิกเดียวให้ปุ่มไปเลย */}
-            {result.blockedBy?.reason === 'KEYWORD_INACTIVE' ? (
-              <div className="bg-warning/10 border-warning rounded border p-3">
-                <p className="text-default-800 text-sm font-medium">กลุ่มคำนี้ปิดอยู่</p>
-                <p className="text-default-600 mt-1 text-xs">
-                  คำที่ตั้งไว้ตรงกับข้อความนี้ แต่ระบบยังไม่นำมาใช้เพราะกลุ่ม “{result.blockedBy.keywordName}” ยังไม่เปิด
-                </p>
-                {canEdit && result.blockedBy.keywordId === keywordId && (
-                  <button className="btn btn-primary btn-sm mt-2" onClick={onEnable}>เปิดใช้งานเลย</button>
-                )}
-              </div>
-            ) : !result.shopEnabled ? (
-              <div className="bg-warning/10 border-warning rounded border p-3">
-                <p className="text-default-800 text-sm font-medium">ระบบตอบอัตโนมัติปิดอยู่ทั้งร้าน</p>
-                <p className="text-default-600 mt-1 text-xs">ผลด้านล่างคือสิ่งที่จะเกิดขึ้นเมื่อเปิดสวิตช์ใหญ่แล้ว</p>
-              </div>
-            ) : null}
-
-            {/* กรอบมือถือ — ให้ร้านเห็นว่าลูกค้าจะเห็นอะไรจริง ๆ ไม่ใช่แค่ข้อความลอย */}
-            <div className="border-default-300 bg-default-100 mx-auto w-full max-w-64 rounded-3xl border-4 p-2">
-              <div className="bg-white rounded-2xl p-2.5">
-                <div className="border-default-200 mb-2 flex items-center gap-2 border-b pb-2">
-                  <span className="bg-default-200 flex size-6 items-center justify-center rounded-full">
-                    <Icon icon="user" className="text-default-500 text-xs" aria-hidden="true" />
-                  </span>
-                  <span className="text-default-700 truncate text-xs font-medium">ลูกค้า</span>
-                </div>
-
-                {/* ข้อความที่ลูกค้าพิมพ์ */}
-                <div className="mb-1.5 flex justify-end">
-                  <span className="bg-default-100 text-default-800 max-w-full rounded-xl rounded-br-sm px-2.5 py-1.5 text-xs">
-                    {result.rawText}
-                  </span>
-                </div>
-
-                {/* คำตอบของระบบ */}
-                {result.willHandoff ? (
-                  <div className="border-default-200 rounded-lg border border-dashed px-2.5 py-2">
-                    <p className="text-default-700 text-xs font-medium">ระบบจะไม่ตอบ</p>
-                    <p className="text-default-500 mt-0.5 text-xs">
-                      {result.matched ? 'ยังไม่มีคำตอบให้ใช้ — ส่งต่อพนักงาน' : 'ไม่เข้าเงื่อนไขข้อใด — ส่งต่อพนักงาน'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex justify-start">
-                    <span className="bg-primary max-w-full rounded-xl rounded-bl-sm px-2.5 py-1.5 text-xs text-white">
-                      {result.replyText}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {result.matched && (
-              <dl className="text-default-600 space-y-1 text-xs">
-                <div className="flex justify-between gap-2">
-                  <dt>จับได้</dt>
-                  <dd className="text-default-800 text-end">
-                    {result.matched.keywordName} (“{result.matched.matchedPhrase}”)
-                  </dd>
-                </div>
-              </dl>
-            )}
-
-            {result.matchTrace?.losers && result.matchTrace.losers.length > 0 && (
-              <div>
-                <p className="text-default-500 mb-1 text-xs">กลุ่มอื่นที่ไม่ถูกเลือก</p>
-                <ul className="text-default-600 space-y-0.5 text-xs">
-                  {result.matchTrace.losers.slice(0, 5).map((l, i) => (
-                    <li key={i}>· {l.keywordName} (แพ้ที่เกณฑ์ {l.lostAt})</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+      <div className="card-body">
+        {channels.length > 1 && (
+          <div className="mb-3">
+            <ChoiceSelect
+              options={channels.map((c) => ({ value: c.id, label: c.name }))}
+              value={channelId} search={false}
+              onChange={(v) => setChannelId(v as string)} ariaLabel="เพจที่ทดลองคุย"
+            />
           </div>
         )}
+
+        {/* กรอบมือถือ — จำลองหน้าแชทที่ลูกค้าเห็นจริง */}
+        <div className="border-default-300 bg-default-200 mx-auto w-full max-w-72 rounded-3xl border-4 p-1.5">
+          <div className="flex h-96 flex-col overflow-hidden rounded-2xl bg-white">
+            {/* หัวแชท */}
+            <div className="border-default-200 flex flex-none items-center gap-2 border-b px-3 py-2">
+              <Icon icon="chevron-left" className="text-default-400 text-sm" aria-hidden="true" />
+              <span className="bg-primary/10 text-primary flex size-7 flex-none items-center justify-center rounded-full">
+                <Icon icon="building-store" className="text-sm" aria-hidden="true" />
+              </span>
+              <span className="text-default-800 min-w-0 flex-1 truncate text-xs font-semibold">{pageName}</span>
+            </div>
+
+            {/* บทสนทนา */}
+            <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
+              {turns.length === 0 ? (
+                <p className="text-default-400 pt-12 text-center text-xs">
+                  พิมพ์ข้อความด้านล่างเหมือนที่ลูกค้าจะทักเข้ามา
+                </p>
+              ) : (
+                turns.map((t, i) =>
+                  t.who === 'customer' ? (
+                    <div key={i} className="flex justify-end">
+                      <span className="bg-default-100 text-default-800 max-w-full rounded-2xl rounded-br-md px-3 py-1.5 text-xs whitespace-pre-wrap">
+                        {t.text}
+                      </span>
+                    </div>
+                  ) : t.who === 'page' ? (
+                    <div key={i} className="flex justify-start">
+                      <span className="bg-primary max-w-full rounded-2xl rounded-bl-md px-3 py-1.5 text-xs whitespace-pre-wrap text-white">
+                        {t.text}
+                      </span>
+                    </div>
+                  ) : (
+                    <div key={i} className="bg-warning/10 border-warning rounded-lg border px-2.5 py-2">
+                      <p className="text-default-700 text-xs">{t.text}</p>
+                      {t.canFix && (
+                        <button className="btn btn-primary btn-sm mt-1.5" onClick={onEnable}>เปิดใช้งานเลย</button>
+                      )}
+                    </div>
+                  ),
+                )
+              )}
+              {busy && <p className="text-default-400 text-xs">กำลังตอบ…</p>}
+            </div>
+
+            {/* ช่องพิมพ์ */}
+            <div className="border-default-200 flex flex-none items-center gap-2 border-t px-3 py-2">
+              <input
+                className="text-default-800 min-w-0 flex-1 bg-transparent text-xs outline-none"
+                placeholder="พิมพ์ข้อความ" value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
+                aria-label="ข้อความทดลอง"
+              />
+              <button type="button" onClick={send} disabled={busy || !draft.trim()}
+                className="text-primary flex-none disabled:opacity-40" aria-label="ส่ง">
+                <Icon icon="send" className="text-base" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
