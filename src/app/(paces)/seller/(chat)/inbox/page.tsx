@@ -50,6 +50,7 @@ import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listConversationsForShop, countUnreadByConversation } from '@/services/chat.service'
 import { listChannels } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
+import { enrichWithOrderStage } from '@/services/order-stage.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
@@ -139,6 +140,13 @@ export default async function SellerInboxPage() {
     // (data model เก็บ read-state ระดับห้องเท่านั้น — ดู comment ที่ countUnreadByConversation)
     const unreadMap = await countUnreadByConversation(result.items.map((c) => c.id))
 
+    // ป้ายขั้นตอนออเดอร์ล่าสุด (user request 2026-07-29) — service เดียวกับที่ GET /api/chat/conversations
+    // ใช้ ไม่งั้นหน้าแรกกับหน้าที่โหลดจากการกรองจะแสดงไม่เหมือนกัน (ของเดิม enrich อยู่ใน route ทางเดียว
+    // ชิปเลยไม่ขึ้นตอนโหลดหน้าแรก แล้วค่อยโผล่หลัง client refetch)
+    const stageMap = new Map(
+      (await enrichWithOrderStage(result.items, shop.id)).map((r) => [r.id, r.orderStage]),
+    )
+
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
     items = result.items.map((c) => {
@@ -175,6 +183,7 @@ export default async function SellerInboxPage() {
         unreadCount: unreadMap.get(c.id) ?? 0,
         // feature 00018 E5 — ชิป `ad_id.…` ในแถว (ร้านดูได้ว่าโฆษณาไหนพาลูกค้าคนนี้มา)
         referralAdId: c.referralAdId,
+        orderStage: stageMap.get(c.id) ?? null,
       }
     })
     nextCursor = result.nextCursor

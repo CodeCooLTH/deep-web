@@ -60,8 +60,14 @@ model User {
   sentChatMessages   ChatMessage[]  @relation("SentChatMessages") // ข้อความที่ user ส่ง (buyer หรือ seller)
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
-  createdExpenses Expense[] @relation("ExpenseCreatedBy") // NEW — back-relation ของ Expense.createdByUserId (Prisma-managed, ไม่มีคอลัมน์จริงฝั่งนี้)
+  createdExpenses  Expense[]       @relation("ExpenseCreatedBy") // NEW — back-relation ของ Expense.createdByUserId (Prisma-managed, ไม่มีคอลัมน์จริงฝั่งนี้)
   aiSettingUpdates ShopAiSetting[] // NEW (feature 00019) — การตั้งค่า AI ที่ผู้ใช้นี้แก้ล่าสุด
+
+  // --- feature 00023 Chat Auto-Reply (additive) ---
+  // back-relation ของ AutoReplyConfig.updatedByUserId เท่านั้น — createdByUserId/updatedByUserId
+  // ของ AutoReplyKeyword/AutoReplyRule และ testModeEnabledByUserId ของ AutoReplyConfig เป็น
+  // String ดิบไม่มี FK ตาม DATABASE.md §3 (audit เบา ไม่ผูก relation)
+  autoReplyConfigUpdates AutoReplyConfig[] @relation("AutoReplyConfigUpdatedBy")
 }
 
 model AuthAccount {
@@ -145,7 +151,7 @@ model Shop {
   // (แยกจาก User.trustScore ของ owner). PERSONAL shop ไม่ใช้ field นี้ (คง 0 default เสมอ — personal
   // ยังคำนวณ/แสดงผ่าน User.trustScore เดิม, service เดิมไม่แตะ field นี้). recalc โดย
   // recalculateShopTrustScore(shopId) (P5-3b, service layer) — monotonic rule (Math.max) เหมือน user เดิม
-  trustScore        Int       @default(0)
+  trustScore Int @default(0)
 
   // --- Pin Products (feature 00013, additive) ---
   // pinSlots: จำนวน slot ปักหมุดที่ร้านมีสิทธิ์ใช้พร้อมกัน. ทุกร้านเริ่ม 1 (free slot, BR-PIN-01);
@@ -159,9 +165,9 @@ model Shop {
   // denormalized จาก Deep Chat (Conversation/ChatMessage) เขียนโดย cron รายวัน
   // (`/api/cron/chat-response-metrics`, S-24) — เลือกอ่านสด null จนกว่า cron รอบแรกจะรัน
   // หรือ sample-size ไม่ถึงเกณฑ์ (FR-RESP-04, gate ≥3) ไม่ query สดตอน render public profile
-  chatResponseRate       Float?    // response rate % (0-100), FR-RESP-02; null = ยังไม่พอ sample
-  chatResponseSampleSize Int?      // denominator รอบล่าสุด (จำนวน conversation ใน window 90 วัน), FR-RESP-01
-  chatMedianResponseSec  Int?      // median เวลาตอบ (วินาที) เฉพาะ conv ที่ตอบแล้ว, FR-RESP-03
+  chatResponseRate       Float? // response rate % (0-100), FR-RESP-02; null = ยังไม่พอ sample
+  chatResponseSampleSize Int? // denominator รอบล่าสุด (จำนวน conversation ใน window 90 วัน), FR-RESP-01
+  chatMedianResponseSec  Int? // median เวลาตอบ (วินาที) เฉพาะ conv ที่ตอบแล้ว, FR-RESP-03
   chatMetricsUpdatedAt   DateTime? // เวลาที่ cron เขียนล่าสุด, FR-RESP-07
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
@@ -186,7 +192,7 @@ model Shop {
   // 🛑 immutable — ตั้งครั้งเดียวตอนสร้างธุรกิจ เปลี่ยนภายหลังไม่ได้ (BR-LODG-30, D-01)
   // บังคับที่ service layer เท่านั้น (ไม่มี DB trigger — โครงการไม่ใช้ trigger ที่ไหนเลย)
   // service ที่แก้ข้อมูลร้านต้องไม่รับ field นี้เข้ามาเลย
-  vertical String @default("GENERAL")
+  vertical            String  @default("GENERAL")
 
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical = GENERAL
@@ -217,6 +223,13 @@ model Shop {
   orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
   shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
 
+  // --- feature 00023 Chat Auto-Reply (additive) ---
+  autoReplyConfig   AutoReplyConfig? // การตั้งค่าระดับร้าน (1:1)
+  autoReplyKeywords AutoReplyKeyword[] // กลุ่มคำของร้านนี้
+  autoReplyRules    AutoReplyRule[] // กฎคำตอบของร้านนี้ (ทุกระดับ)
+  autoReplyJobs     AutoReplyJob[] // คิวงานตอบอัตโนมัติ scope ร้านนี้
+  autoReplyLogs     AutoReplyLog[] // บันทึกการตัดสินใจ scope ร้านนี้
+
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
@@ -235,17 +248,17 @@ model Shop {
 // Phase 2 จะเพิ่ม Order.roomId (FK, ON DELETE RESTRICT) → ห้ามลบห้องที่มีการจอง (BR-LODG-06)
 // ระหว่าง P1 ยังไม่มี relation นั้น แต่ห้ามเผลอเพิ่ม onDelete: Cascade ทีหลัง
 model Room {
-  id          String  @id @default(uuid())
-  shopId      String
-  name        String
-  description String? @db.Text
+  id            String   @id @default(uuid())
+  shopId        String
+  name          String
+  description   String?  @db.Text
   // images: array ของ fileId (จาก /api/upload) เรียงตามลำดับแสดงผล — ตัวแรก = รูปหลัก
   // มิเรอร์ Product.images ที่เป็น Json อยู่แล้ว (ไม่แยกตาราง RoomImage เพราะมีเพดาน 10 รูป
   // และไม่มี query ที่ต้อง join รูปเดี่ยว). เพดาน 10 บังคับที่ app layer (BR-LODG-34, D-05)
-  images      Json    @default("[]")
+  images        Json     @default("[]")
   // pricePerNight: ราคาต่อคืน — Decimal(12,2) ให้ตรงกับ Order.totalAmount/Product.price เดิม
   // CHECK(pricePerNight > 0) ใน migration SQL (BR-LODG-05)
-  pricePerNight Decimal @db.Decimal(12, 2)
+  pricePerNight Decimal  @db.Decimal(12, 2)
   maxGuests     Int?
   // facilities: key สิ่งอำนวยความสะดวก (src/lib/lodging.ts ROOM_FACILITIES) validate ที่ app layer
   // มิเรอร์ Shop.categories ที่เป็น String[] อยู่แล้ว — ไม่ทำตาราง lookup เพราะเป็นค่าคงที่ที่แอปกำหนด
@@ -398,22 +411,22 @@ model UserBadge {
 }
 
 model Product {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   shopId            String
   name              String
   sku               String? // รหัสสินค้า (optional; feature 00001 onboarding product form)
-  description       String?  @db.Text
-  shortDescription  String?  @db.VarChar(200)
-  attributes        Json     @default("{}")
-  price             Decimal  @db.Decimal(12, 2)
-  images            Json     @default("[]")
-  type              String   @default("PHYSICAL")
+  description       String?   @db.Text
+  shortDescription  String?   @db.VarChar(200)
+  attributes        Json      @default("{}")
+  price             Decimal   @db.Decimal(12, 2)
+  images            Json      @default("[]")
+  type              String    @default("PHYSICAL")
   // capability flags (P1 — spec 2026-05-10)
-  fulfillmentMode   String   @default("SHIPPED")
-  billingMode       String   @default("ONE_TIME")
+  fulfillmentMode   String    @default("SHIPPED")
+  billingMode       String    @default("ONE_TIME")
   billingPeriod     String?
   billingPeriodDays Int?
-  isActive          Boolean  @default(true)
+  isActive          Boolean   @default(true)
   // stockQty: Inventory Add-on (feature 00003) — NULL = untracked (opt-in, BR-INV-10), non-NULL >=0 = tracked.
   // CHECK(stockQty >= 0) enforce ใน migration SQL ด้วยมือ (NOT VALID + VALIDATE เพราะ table มี row จริง)
   stockQty          Int?
@@ -432,16 +445,20 @@ model Product {
   // กับ OrderItem.cost ที่ snapshot ไปแล้ว (historical accuracy, D-5)
   // CHECK(cost IS NULL OR cost >= 0) enforce ด้วยมือใน migration SQL (NOT VALID + VALIDATE เพราะ
   // Product มี row จริงบน prod แล้ว — pattern เดียวกับ stockQty/lowStockThreshold feature 00003/00009)
-  cost              Decimal? @db.Decimal(12, 2)
+  cost Decimal? @db.Decimal(12, 2)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   shop            Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orderItems      OrderItem[]
   tags            Tag[]
   stockMovements  StockMovement[] // Deep Stock Pro (feature 00009)
   chatMessageRefs ChatMessage[] // extension #1 Chat Product Context Card — back-relation ของ ChatMessage.productRefId
+
+  // --- feature 00023 Chat Auto-Reply (additive) ---
+  autoReplyRules           AutoReplyRule[] // เงื่อนไขสินค้าของกฎคำตอบ (nullable, onDelete SetNull ฝั่ง AutoReplyRule)
+  conversationAutoReplyCtx Conversation[]  @relation("ConversationContextProduct") // back-relation ของ Conversation.contextProductId
 
   @@index([shopId, stockQty])
   @@index([shopId, pinnedAt]) // Pin Products (00013) — query "pinnedAt not null ORDER BY pinnedAt desc" ต่อ shop (FR-PIN-06)
@@ -499,15 +516,15 @@ model Order {
   // การจอง = Order ที่ type = "BOOKING" ไม่ใช่ตารางแยก (BR-LODG-08) จึงได้ publicToken/
   // shortCode/slipFileId/customerId/review/Trust Score/ประวัติออเดอร์ มาใช้ซ้ำทั้งหมด
   // field กลุ่มนี้เป็น NULL เสมอสำหรับออเดอร์สินค้าปกติ (zero-regression BR-LODG-27)
-  roomId    String? // FK → Room, ON DELETE RESTRICT (ห้ามลบห้องที่มีการจอง BR-LODG-06)
-  checkIn   DateTime? @db.Date // วันเข้าพัก — รวมในช่วงที่กันคิว
-  checkOut  DateTime? @db.Date // วันเช็คเอาท์ — ไม่รวมในช่วงที่กันคิว (BR-LODG-31)
+  roomId        String? // FK → Room, ON DELETE RESTRICT (ห้ามลบห้องที่มีการจอง BR-LODG-06)
+  checkIn       DateTime? @db.Date // วันเข้าพัก — รวมในช่วงที่กันคิว
+  checkOut      DateTime? @db.Date // วันเช็คเอาท์ — ไม่รวมในช่วงที่กันคิว (BR-LODG-31)
   // depositAmount: ยอดมัดจำที่ต้องโอน — snapshot ที่คำนวณเสร็จแล้ว ไม่ใช่สูตรอ้างอิง Room
   // ถ้าอ้างอิงสด ยอดของการจองเก่าจะขยับเองเมื่อเจ้าของแก้ค่าเริ่มต้นของห้อง = ผิด BR-LODG-18
-  depositAmount Decimal? @db.Decimal(12, 2)
+  depositAmount Decimal?  @db.Decimal(12, 2)
   // cancelReason: BUYER_NO_TRANSFER | BUYER_REQUESTED | SHOP_ISSUE | MUTUAL (BR-LODG-36)
   // นับเข้าประวัติผู้จองเฉพาะ 2 ค่าแรก — ตัดสินจาก countsAgainstGuest ใน src/lib/lodging.ts
-  cancelReason String?
+  cancelReason  String?
 
   // --- feature 00017 Lodging Vertical (Phase 3: แม่บ้าน, additive nullable) ---
   // housekeeperId: แม่บ้านที่รับผิดชอบทำความสะอาดรอบเข้าพักนี้ (BR-LODG-20) — NULL = ยังไม่มอบหมาย
@@ -530,6 +547,16 @@ model Order {
   // unique index `OrderShipment_active_order_key` — unmanaged SQL ดู DATABASE.md §4)
   shipments        OrderShipment[]
 
+  // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
+  // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
+  //   EXCLUDE USING gist (roomId WITH =, daterange(checkIn, checkOut, '[)') WITH &&)
+  //   WHERE (roomId IS NOT NULL AND status <> 'CANCELLED')
+  // เป็นกลไก "เดียว" ที่กันจองทับได้จริงแม้กดพร้อมกัน — การตรวจก่อนบันทึกที่ระดับแอป
+  // มีช่องว่างระหว่างตรวจกับเขียนเสมอ
+  // 🛑 ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspection มองไม่เห็น constraint นี้
+  // แล้วจะสร้าง migration ที่ DROP ทิ้ง (precedent เดียวกับ partial unique index ของ feat 00008)
+  // ทดสอบจริงแล้ว: Prisma โยน P2010 + meta.code '23P01' (ไม่ใช่ P2002) ดู DATABASE.md §4.2.1
+
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
   @@index([customerId]) // feat 00014 — lookup order ต่อ customer
@@ -542,16 +569,6 @@ model Order {
   @@index([shopId, type, checkIn], map: "Order_shopId_type_checkIn_idx") // ปฏิทินรวมทุกห้อง + list การจอง
   @@index([customerId, status], map: "Order_customerId_status_idx") // นับประวัติการยกเลิกต่อลูกค้า
   @@index([housekeeperId, housekeepingStatus], map: "Order_housekeeperId_status_idx") // feat 00017 P3 — หน้ารวมงานแม่บ้านที่ค้าง
-
-  // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
-  // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
-  //   EXCLUDE USING gist (roomId WITH =, daterange(checkIn, checkOut, '[)') WITH &&)
-  //   WHERE (roomId IS NOT NULL AND status <> 'CANCELLED')
-  // เป็นกลไก "เดียว" ที่กันจองทับได้จริงแม้กดพร้อมกัน — การตรวจก่อนบันทึกที่ระดับแอป
-  // มีช่องว่างระหว่างตรวจกับเขียนเสมอ
-  // 🛑 ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspection มองไม่เห็น constraint นี้
-  // แล้วจะสร้าง migration ที่ DROP ทิ้ง (precedent เดียวกับ partial unique index ของ feat 00008)
-  // ทดสอบจริงแล้ว: Prisma โยน P2010 + meta.code '23P01' (ไม่ใช่ P2002) ดู DATABASE.md §4.2.1
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
@@ -591,7 +608,7 @@ model OrderItem {
   // แก้ Product.cost ทีหลังไม่มีผลย้อนหลังกับค่านี้เด็ดขาด (FR-EXP-02-AC-04, historical accuracy)
   // CHECK(cost IS NULL OR cost >= 0) enforce ด้วยมือใน migration SQL (NOT VALID + VALIDATE เพราะ
   // OrderItem มี row จริงบน prod แล้ว — pattern เดียวกับ stockDeducted feature 00003)
-  cost          Decimal? @db.Decimal(12, 2)
+  cost Decimal? @db.Decimal(12, 2)
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -1060,10 +1077,12 @@ model ShopChannel {
   status            String   @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
   createdAt         DateTime @default(now())
 
-  shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  contacts      ExternalContact[]
+  shop           Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  contacts       ExternalContact[]
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
-  conversations Conversation[]
+  conversations  Conversation[]
+  // back-relation ของ AutoReplyRule.shopChannelId (feature 00023, additive) — เงื่อนไขเพจของกฎคำตอบ
+  autoReplyRules AutoReplyRule[]
 
   // เดิม @@unique([provider, externalId]) = "1 เพจ 1 ร้านตลอดกาล" แม้ถอดแล้ว (status=DISCONNECTED)
   // ก็ยังกอด constraint ไว้ ทำให้ย้ายเพจไปร้านอื่นไม่ได้ (ชน P2002 ตลอดกาล) — แก้เป็น partial unique
@@ -1084,11 +1103,11 @@ model ExternalContact {
   customerId     String? // link → Customer (feature 00014) เมื่อได้เบอร์
   // --- CRM ต่อผู้ติดต่อ (feature 00018 tag/CRM) — ตามคนข้ามแชทของ contact นี้ ---
   // cross-channel merge (Messenger+IG+DEEP → โปรไฟล์เดียว) = Phase 2 (ต้อง resolve Customer ด้วยเบอร์)
-  note        String? // โน้ตอิสระที่ต้องจดจำ — AI ใช้ประกอบการร่างคำตอบด้วย
-  address     String?
-  salesStatus String   @default("UNSPECIFIED") // "UNSPECIFIED" | "INTERESTED" | "NOT_INTERESTED"
-  tags        String[] @default([])
-  phones      String[] @default([]) // เพิ่มได้หลายเบอร์ (CRM — คนละเรื่องกับ Customer.phone ที่ @unique)
+  note           String? // โน้ตอิสระที่ต้องจดจำ — AI ใช้ประกอบการร่างคำตอบด้วย
+  address        String?
+  salesStatus    String   @default("UNSPECIFIED") // "UNSPECIFIED" | "INTERESTED" | "NOT_INTERESTED"
+  tags           String[] @default([])
+  phones         String[] @default([]) // เพิ่มได้หลายเบอร์ (CRM — คนละเรื่องกับ Customer.phone ที่ @unique)
   createdAt      DateTime @default(now())
 
   channel       ShopChannel    @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
@@ -1116,49 +1135,72 @@ model Conversation {
   // --- feature 00018 Facebook/IG chat (additive) ---
   // channel: "DEEP" = แชทในแอป (ของเดิมทั้งหมด, default ทำให้ backfill ปลอดภัยเอง)
   //          "MESSENGER" | "INSTAGRAM" = เธรดจากช่องทางนอก (buyerUserId เป็น null)
-  channel           String    @default("DEEP")
-  shopChannelId     String?
-  externalContactId String?
+  channel             String    @default("DEEP")
+  shopChannelId       String?
+  externalContactId   String?
   // lastInboundAt: เวลาที่ "ลูกค้า" ส่งข้อความล่าสุด — ฐานคำนวณ 24h messaging window ของ Meta
   // ต่างจาก lastMessageAt ที่ขยับเมื่อฝั่งไหนส่งก็ได้
-  lastInboundAt     DateTime?
+  lastInboundAt       DateTime?
   // S-7 (ผลตัดสิน Q-4): ปักหมุด / ซ่อน / ปิดงาน ต่อเธรด — ใส่มาพร้อมกันในไฟล์ migration
   // เดียวเพราะ DB dev=prod แชร์กัน การ ALTER รอบสองมีต้นทุนความเสี่ยงมากกว่าการเพิ่มตอนนี้
   // ใช้กับเธรด DEEP ได้ด้วย ไม่ผูกกับช่องทางนอกอย่างเดียว
-  isPinned          Boolean   @default(false)
-  isHidden          Boolean   @default(false)
-  resolvedAt        DateTime? // null = ยังเปิดอยู่
+  isPinned            Boolean   @default(false)
+  isHidden            Boolean   @default(false)
+  resolvedAt          DateTime? // null = ยังเปิดอยู่
   // isSpam: เธรดสแปม (feature 00018, user สั่ง 2026-07-24) — คล้าย hide แต่ "ลูกค้าทักมาใหม่ไม่เด้งกลับ"
   // (ต่างจาก isHidden ที่ auto-unhide) และ webhook ไม่ส่ง Notification/beep; ยังรับ+เก็บข้อความปกติ
   // (Meta ส่ง webhook ระดับเพจ หยุดรายเธรดไม่ได้) — เปิดดูได้จากตัวกรอง "ดูสแปม"
-  isSpam            Boolean   @default(false)
+  isSpam              Boolean   @default(false)
   // alias: ชื่อในแชท (nickname ต่อเธรดนี้) — เช่น "Wave 110" (ชื่อจริงอยู่ที่ contact/customer) feat 00018 CRM
-  alias             String?
+  alias               String?
   // externalReadAt: watermark "ลูกค้าฝั่งช่องทางนอกอ่านถึงเวลานี้" (Messenger message_reads) — ข้อความ
   // ฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "อ่านแล้ว" (feature 00018 read receipt)
-  externalReadAt    DateTime?
+  externalReadAt      DateTime?
   // chatGroupId: กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (feature 00018) — null = ยังไม่จัดกลุ่ม (แท็บ "ทั้งหมด")
   // ต่อ conversation (ไม่ใช่ต่อลูกค้า) เพื่อให้ใช้ได้ทุกช่องทางรวม DEEP; ลบกลุ่ม → SetNull (เธรดกลับ "ทั้งหมด")
-  chatGroupId       String?
+  chatGroupId         String?
   // feature 00018 Phase 2 — ลูกค้าทักมาจากโฆษณา/ลิงก์ (messaging_referrals หรือ message.referral)
   //
   // E5 (2026-07-26): เปลี่ยนความหมายจาก "แรกเข้า" เป็น **ล่าสุด** — เดิมเซ็ตครั้งเดียวตอนสร้างเธรด
   // ลูกค้าเก่าที่กดโฆษณาตัวใหม่แล้วทักซ้ำจึงยังโชว์โฆษณาตัวแรกอยู่ ซึ่งผิดกับสิ่งที่ผู้ขายต้องรู้
   // (ลูกค้าคนนี้ "รอบนี้" มาจากโฆษณาไหน). ประวัติทั้งหมดยังอยู่ครบที่ ConversationAdReferral
-  referralSource       String? // "ADS" | "SHORTLINK"
-  referralAdTitle      String? // ads_context_data.ad_title = **ชื่อ ad ใน Ads Manager** ("video v3") ไม่ใช่ข้อความโฆษณา
-  referralAdBody       String? // ข้อความโฆษณาจริงที่ลูกค้าเห็น (ดึงจากโพสต์ด้วย post_id) — ตัวที่แสดงบนแบนเนอร์
-  referralAdPermalink  String? // ลิงก์โพสต์โฆษณา — ปุ่ม "ดูโฆษณา" บนแบนเนอร์
-  referralAdId         String? // referral.ad_id — คีย์ไปเทียบใน Ads Manager / Marketing API (Phase 2)
-  referralPhotoFileId  String? // รูปโฆษณาที่ mirror เข้า storage เราแล้ว (ไม่ hotlink CDN Meta ที่หมดอายุ)
+  referralSource      String? // "ADS" | "SHORTLINK"
+  referralAdTitle     String? // ads_context_data.ad_title = **ชื่อ ad ใน Ads Manager** ("video v3") ไม่ใช่ข้อความโฆษณา
+  referralAdBody      String? // ข้อความโฆษณาจริงที่ลูกค้าเห็น (ดึงจากโพสต์ด้วย post_id) — ตัวที่แสดงบนแบนเนอร์
+  referralAdPermalink String? // ลิงก์โพสต์โฆษณา — ปุ่ม "ดูโฆษณา" บนแบนเนอร์
+  referralAdId        String? // referral.ad_id — คีย์ไปเทียบใน Ads Manager / Marketing API (Phase 2)
+  referralPhotoFileId String? // รูปโฆษณาที่ mirror เข้า storage เราแล้ว (ไม่ hotlink CDN Meta ที่หมดอายุ)
 
-  buyer           User?            @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
-  shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  // --- feature 00023 Chat Auto-Reply (additive) ---
+  // null = ตามค่าระดับร้าน (AutoReplyConfig.isEnabled); true/false = ร้านตั้งค่าเธรดนี้ไว้ชัดเจน
+  // nullable ตั้งใจ: ต้องแยก "ยังไม่เคยตั้ง" ออกจาก "ตั้งเป็นปิด" ไม่งั้นปิดระดับร้านแล้วเปิดกลับ
+  // จะปลุกเธรดที่ร้านตั้งใจปิดไว้ขึ้นมาด้วย (AC-015-03)
+  autoReplyEnabled     Boolean?
+  // allowlist ของโหมดทดสอบ (AC-021-02/03) — มีผลเฉพาะตอน AutoReplyConfig.testMode = true
+  autoReplyTestEnabled Boolean   @default(false)
+  // หยุดชั่วคราวถึงเมื่อไหร่ (FR-016) — null = ไม่ถูกหยุด
+  autoReplyPausedUntil DateTime?
+  autoReplyCount       Int       @default(0) // นับคำตอบอัตโนมัติสะสม (AC-018-02)
+  lastAutoReplyAt      DateTime?
+  handoffAt            DateTime? // null = ยังไม่ถูกส่งต่อ
+  handoffReason        String?
+  // --- บริบทสินค้าของเธรด (FR-014) ---
+  contextProductId     String?
+  // "ADS_MAPPING" | "MANUAL" | "REFERRAL" — MANUAL ชนะเสมอ (BR-AR-12 / AC-014-02)
+  contextProductSource String?
+  contextProductAt     DateTime? // ใหม่กว่าชนะเมื่อที่มาระดับเดียวกัน (AC-014-03)
+
+  buyer           User?                    @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  shop            Shop                     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   messages        ChatMessage[]
-  shopChannel     ShopChannel?     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
-  externalContact ExternalContact? @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
-  chatGroup       ChatGroup?       @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
+  shopChannel     ShopChannel?             @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  externalContact ExternalContact?         @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
+  chatGroup       ChatGroup?               @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
   adReferrals     ConversationAdReferral[]
+  // feature 00023 Chat Auto-Reply (additive)
+  autoReplyJobs   AutoReplyJob[]
+  autoReplyLogs   AutoReplyLog[]
+  contextProduct  Product?                 @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
@@ -1166,6 +1208,13 @@ model Conversation {
   @@index([buyerUserId, lastMessageAt]) // buyer inbox (/messages): list ของ buyer เรียง lastMessageAt ล่าสุดก่อน (FR-CHAT-07-AC-01)
   @@index([shopId, isHidden, isPinned, lastMessageAt]) // inbox list กรอง "ยังเปิดอยู่ + ไม่ซ่อน" แล้วเรียงหมุดขึ้นก่อน — ครอบ query หลักของหน้า /inbox
   @@index([chatGroupId]) // กรองแท็บกลุ่ม (feature 00018)
+  // feature 00023 Chat Auto-Reply
+  @@index([shopId, autoReplyTestEnabled]) // หา allowlist ของโหมดทดสอบ
+  // 🛑 amend 2026-07-29 (GAP-06): sweeper fallback pass ต้องไล่หา "ข้อความลูกค้าล่าสุดที่ไม่มีงานผูก"
+  // ซึ่งสแกนจาก lastInboundAt — SDS TD-008 ใช้ pass นี้เป็นเหตุผลว่า "enqueue พังเงียบยอมรับได้"
+  // ถ้าไม่มี index เหตุผลนั้นไม่มีของจริงรองรับ. เพิ่มตอนนี้ฟรีเพราะยังไม่ migrate; เพิ่มทีหลัง
+  // ต้อง ALTER ตารางใหญ่บน DB ที่ dev/prod แชร์กัน
+  @@index([shopId, lastInboundAt])
 }
 
 // ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
@@ -1216,32 +1265,32 @@ model ChatGroup {
 
 // ChatMessage: ข้อความ 1 รายการ — TEXT หรือ IMAGE (1 รูป/ข้อความ, BR-CHAT-05) — append-only (ไม่มี updatedAt/edit/delete ใน MVP)
 model ChatMessage {
-  id             String   @id @default(uuid())
-  conversationId String
-  senderUserId   String?
+  id               String   @id @default(uuid())
+  conversationId   String
+  senderUserId     String?
   // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
-  senderRole     String // "BUYER" | "SHOP"
+  senderRole       String // "BUYER" | "SHOP"
   // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
-  type           String   @default("TEXT") // "TEXT" | "IMAGE" | "PRODUCT"
-  body           String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
-  imageUrl       String? // เฉพาะ type=IMAGE — reuse lib/storage upload route เดิม
+  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "PRODUCT"
+  body             String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
+  imageUrl         String? // เฉพาะ type=IMAGE — reuse lib/storage upload route เดิม
   // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
-  productRefId   String?
+  productRefId     String?
   // orderRefToken: การ์ดออเดอร์/ใบเสนอราคาในแชท (user request 2026-07-24) — เฉพาะ type=ORDER (แชท DEEP)
   // เก็บ Order.publicToken (live-join enrich ตอน GET เหมือน PRODUCT) ไม่ FK — order ลบไม่ลบข้อความ
   // ช่องทางนอก (Messenger/IG) ไม่ใช้ type=ORDER — ส่งเป็นลิงก์ TEXT แทน (Meta ไม่ render การ์ดในแอปเรา)
-  orderRefToken  String?
-  createdAt      DateTime @default(now())
+  orderRefToken    String?
+  createdAt        DateTime @default(now())
   // flaggedScam/scamMatchedRules: extension #3 Scam-link Detection — heuristic scam-link flag ณ เวลาส่ง (snapshot, ไม่ re-scan ย้อนหลัง BR-SCAM-05)
-  flaggedScam      Boolean @default(false)
+  flaggedScam      Boolean  @default(false)
   scamMatchedRules Json? // rule IDs ที่ match (audit) — เช่น ["R-SHORTENER","R-KEYWORD"]
   // feature 00018 Phase 2 — reaction บนข้อความนี้ (message_reactions webhook): emoji ล่าสุดจากลูกค้า/ร้าน
   // null = ไม่มี/ถูก unreact. เก็บ emoji ตรง ๆ (ไม่ normalize) แสดงมุมล่างบับเบิลในเธรด
   reactionEmoji    String?
   // feature 00018 Phase 3 — reply/unsend
   replyToMid       String? // externalMessageId ของข้อความที่ "ตอบทับ" (message.reply_to.mid) — แสดง quote
-  isDeleted        Boolean @default(false) // ผู้ส่ง unsend ข้อความ (message.is_deleted) — แสดง "ข้อความถูกลบ"
+  isDeleted        Boolean  @default(false) // ผู้ส่ง unsend ข้อความ (message.is_deleted) — แสดง "ข้อความถูกลบ"
 
   // --- feature 00018 (additive) ---
   // externalMessageId: mid จาก Meta — unique เพื่อ idempotency
@@ -1251,11 +1300,20 @@ model ChatMessage {
   deliveryStatus    String? // null = แชทในแอป (ไม่เกี่ยว) | "SENT" | "FAILED"
   failureReason     String?
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User?        @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
-  product      Product?     @relation(fields: [productRefId], references: [id], onDelete: SetNull)
+  // --- feature 00023 (additive) ---
+  // null = คนส่ง | "AUTO" = ระบบตอบ | "AUTO_TEST" = ระบบตอบขณะอยู่ในโหมดทดสอบ
+  // 🛑 คอลัมน์นี้คือสิ่งที่ทำให้ BR-AR-22 บังคับได้: "พนักงานตอบ" = senderRole='SHOP' AND autoReplyKind IS NULL
+  // ถ้าไม่มีคอลัมน์นี้ คำตอบของระบบเองจะถูกนับเป็น "พนักงานตอบ" แล้วระบบจะหยุดตัวเองทุกครั้งที่ตอบ
+  autoReplyKind String?
+
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productRefId], references: [id], onDelete: SetNull)
+  // feature 00023 Chat Auto-Reply — back-relation ของ AutoReplyJob.chatMessageId (@unique — 1:1)
+  autoReplyJob AutoReplyJob?
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
+  @@index([conversationId, autoReplyKind, createdAt]) // หา "ข้อความคนล่าสุด" ของเธรด (feature 00023)
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
@@ -1288,24 +1346,24 @@ model QuickMessage {
 // Period-level เท่านั้น (ไม่ allocate ลงรายออเดอร์, D-10/§4.4 ของ PRD) — ผูก shopId ตรง
 // ไม่มี state machine (แก้/ลบได้ทุกเวลา, BR §3.3) ไม่มี audit trail ละเอียด (createdByUserId = audit เบา)
 model Expense {
-  id     String @id @default(uuid())
-  shopId String
+  id              String   @id @default(uuid())
+  shopId          String
   // category: fixed list 7 ค่า — "RENT" | "PACKAGING" | "ADVERTISING" | "SHIPPING" | "SALARY" |
   // "UTILITIES" | "OTHER". String ตาม convention project (ไม่ใช้ Prisma enum จริง — เลี่ยง ALTER TYPE
   // ทุกครั้งที่ปรับหมวดในอนาคต, PRD §3.4 เหตุผล) ไม่มี DB CHECK ของค่า — validate ที่ Valibot เท่านั้น
   // (มิเรอร์ Shop.kind/ShopMember.role/Order.status/TopUpRequest.status ที่ไม่มี CHECK เช่นกัน)
-  category String
+  category        String
   // amount: > 0 เสมอ (BR §3.3, FR-EXP-03-AC-02) — DB CHECK ตรง (table ใหม่ ไม่มี row เก่า)
-  amount Decimal @db.Decimal(12, 2)
+  amount          Decimal  @db.Decimal(12, 2)
   // expenseDate: วันเกิดค่าใช้จ่าย — แยกจาก createdAt รองรับ backdate (D-11). ไม่มี DB default;
   // ถ้าไม่ระบุ service layer default เป็นวันนี้ (timezone ไทย) ก่อนเขียนลง DB (FR-EXP-03-AC-04)
-  expenseDate DateTime
-  note        String?  @db.Text
+  expenseDate     DateTime
+  note            String?  @db.Text
   // createdByUserId: ผู้บันทึก (owner หรือ admin ที่ staffCanViewFinance=true) — audit เบา, ไม่มี
   // versioning/diff history (Out of Scope PRD §5) — onDelete ไม่ระบุ = Restrict (มิเรอร์ ShopInviteLink)
   createdByUserId String
-  createdAt        DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   shop      Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
   createdBy User @relation("ExpenseCreatedBy", fields: [createdByUserId], references: [id])
@@ -1321,23 +1379,23 @@ model Expense {
 // การพก instruction ขนาดถึง 2KB ไปกับทุก query ที่ไม่ได้ใช้เป็นการเปลืองเปล่า ๆ —
 // ตารางนี้ถูกอ่านเฉพาะตอนขอร่างคำตอบและตอนเปิดหน้าตั้งค่าเท่านั้น
 model ShopAiSetting {
-  id String @id @default(uuid())
+  id                     String   @id @default(uuid())
   // shopId @unique = บังคับความสัมพันธ์ 1:1 ที่ระดับ DB ไม่พึ่งวินัยของโค้ด และเป็น index ของ query หลักไปในตัว
-  shopId String @unique
+  shopId                 String   @unique
   // instruction: คำสั่งประจำร้านที่เจ้าของร้านเขียนเอง — เพดาน 2,000 ตัวอักษรบังคับที่ Valibot
   // (ไม่ใช่ที่ DB) แล้วตัดซ้ำอีกครั้งตอนประกอบ prompt กันข้อมูลเก่าที่ยาวเกิน (defense-in-depth)
   instruction            String?
-  includeProductContext  Boolean @default(true)
-  includeCustomerContext Boolean @default(true)
+  includeProductContext  Boolean  @default(true)
+  includeCustomerContext Boolean  @default(true)
   // includeMediaContext: ส่ง "รูป/ข้อความเสียง" ในแชทเข้า AI ด้วย (feature 00019 ext, user 2026-07-24)
   // เพื่อให้ AI อ่านรูป (สลิป/ป้ายที่อยู่/รูปสินค้า) และถอดเสียงมาใช้ร่างคำตอบได้
   // ⚠ เปิด = ไฟล์จากลูกค้าถูกส่งเข้า Gemini ทั้งไฟล์ ซึ่งอาจมี PII (เบอร์/ที่อยู่ในรูป) — ต่างจาก
   // บริบทข้อความที่เรากรอง PII ออกก่อน จึงแยกเป็นสวิตช์ให้ร้านปิดได้ (default เปิดตามที่ user เลือก)
-  includeMediaContext    Boolean @default(true)
+  includeMediaContext    Boolean  @default(true)
   // updatedByUserId: SetNull — ลบผู้ใช้ต้องไม่ลบการตั้งค่าของร้านทิ้ง
-  updatedByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  updatedByUserId        String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
   updatedBy User? @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
@@ -1378,8 +1436,8 @@ model AiSuggestDailyUsage {
 // 🛑 ไม่ผูก logic gate ใด ๆ ของ feature นี้เลย — เขียนแบบ best-effort หลัง gate ตัดสินใจแล้วเท่านั้น
 // (ถ้า insert แถว event ล้มเหลว ต้องไม่ทำให้ request หลักที่ผู้ใช้รอ suggestions อยู่พังตาม)
 model AiSuggestUsageEvent {
-  id     String @id @default(uuid())
-  shopId String
+  id             String   @id @default(uuid())
+  shopId         String
   // conversationId: เก็บไว้เพื่อ trace เท่านั้น — ตั้งใจไม่ใส่ FK/relation ไปยัง Conversation (มิเรอร์
   // WalletTransaction.refId) เพื่อให้ audit log คงอยู่อิสระจากวงจรชีวิตของเธรดแชท (ลบ/archive
   // conversation ในอนาคตไม่ต้องแตะ/ลบ audit log นี้ตาม)
@@ -1387,17 +1445,17 @@ model AiSuggestUsageEvent {
   // kind: "FREE" | "CREDIT" | "UNLIMITED_PLAN" — String ตาม convention project (เทียบ WalletTransaction.type)
   // FREE = free path (non-paid, ในโควตา 10), CREDIT = credit path (non-paid, หักเครดิต ฿1),
   // UNLIMITED_PLAN = unlimited path (paid plan, bypass ทั้งหมด — BR-AIQ-02)
-  kind String
-  amountBaht Int @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
+  kind           String
+  amountBaht     Int      @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
   // status: "SUCCESS" | "REFUNDED" — เปลี่ยนจาก SUCCESS เป็น REFUNDED เมื่อสิทธิ์ที่ใช้ไปถูกคืน (BR-AIQ-07)
   // มีผลเฉพาะ kind FREE/CREDIT เท่านั้น — unlimited path ไม่มีอะไรให้คืน จึงไม่มีทาง REFUNDED (BR-AIQ-07/E4)
-  status String @default("SUCCESS")
+  status         String   @default("SUCCESS")
   // businessDay: denormalize "YYYY-MM-DD" เวลาไทยของ createdAt จาก todayThaiIsoDate() ตัวเดียวกับ
   // AiSuggestDailyUsage.date (ไม่ใช่ FK/ผูก logic ใด ๆ — แค่สำเนาไว้กันคำนวณ timezone ซ้ำตอน query
   // รายงาน) เพื่อ group by วันปฏิทินไทยแบบ exact-match ได้ตรงกับตัวนับโควตา สำหรับ admin cost
   // dashboard ในอนาคต (Deferred, NFR-AIQ-Obs) — ต่างจาก createdAt (timestamp เต็ม, ใช้ sort/range)
-  businessDay String
-  createdAt   DateTime @default(now())
+  businessDay    String
+  createdAt      DateTime @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
@@ -1418,10 +1476,10 @@ model AiSuggestUsageEvent {
 // ShopShippingAccount — การเชื่อมต่อ iShip ของร้าน + ค่าตั้งต้นทั้งหมดในตารางเดียว
 // ไม่แยกตาราง settings เพราะค่าเหล่านี้ไม่มีความหมายถ้าไม่มีการเชื่อมต่อ และเป็น 1:1 กับ Shop อยู่แล้ว
 model ShopShippingAccount {
-  id String @id @default(uuid())
+  id             String  @id @default(uuid())
   // shopId @unique = 1 ร้าน 1 บัญชีขนส่ง (BR-ISHIP-10) บังคับที่ DB ไม่พึ่งวินัยของโค้ด
-  shopId   String @unique
-  provider String @default("ISHIP") // เผื่อผู้ให้บริการรายอื่นในอนาคต ไม่ต้อง migrate ซ้ำ
+  shopId         String  @unique
+  provider       String  @default("ISHIP") // เผื่อผู้ให้บริการรายอื่นในอนาคต ไม่ต้อง migrate ซ้ำ
   // accessTokenEnc: token ที่ร้านวางเอง ผ่าน AES-256-GCM แล้ว (src/lib/token-crypto.ts ตัวเดียวกับ
   // ShopChannel ของ feature 00018) 🛑 ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
   accessTokenEnc String
@@ -1431,12 +1489,12 @@ model ShopShippingAccount {
   // 🛑 default OFF (BR-ISHIP-20): การเปิดพัสดุ = ค่าใช้จ่ายจริง ระบบต้องไม่ทำแทนโดยร้านไม่ได้สั่ง
   //    เดิมเป็น ASK แต่ร้านที่ยังไม่ได้ตั้งค่าอะไรเลยโดนถามทุกครั้งที่สร้างคำสั่งซื้อ —
   //    คำถามที่ตอบ "ไม่" ทุกครั้งคือคำถามที่ไม่ควรถาม ร้านเปิด ASK/AUTO เองได้ที่หน้าตั้งค่า
-  createMode String @default("OFF")
+  createMode     String  @default("OFF")
 
   // --- ที่อยู่ผู้ส่ง (บังคับครบก่อนเปิดใช้งาน BR-ISHIP-30 — nullable ใน DB เพราะกรอกทีหลังได้) ---
-  senderName    String?
-  senderPhone   String?
-  senderAddress String?
+  senderName        String?
+  senderPhone       String?
+  senderAddress     String?
   // 🛑 BR-ISHIP-31 — ชื่อฟิลด์กลับหัวกับ iShip ห้ามจับคู่ตามชื่อ:
   //    senderSubdistrict (ตำบล/แขวง) → ส่งไปช่อง `src_district` ของ iShip
   //    senderDistrict    (อำเภอ/เขต) → ส่งไปช่อง `src_amphure`  ของ iShip
@@ -1453,13 +1511,13 @@ model ShopShippingAccount {
   defaultHeight      Int?
   defaultCategoryId  Int? // 0-11, 99 ตามที่ iShip กำหนด
   // 🛑 default false ตั้งใจ (BR-ISHIP-27) — เผลอเปิด COD = เงินจริงที่ร้านจะได้รับผิดจำนวน
-  defaultCodEnabled Boolean  @default(false)
-  optOnTime         Boolean  @default(false) // ส่งตรงเวลา
-  optBoxShield      Boolean  @default(false) // ประกันกล่อง
-  optIsInsured      Boolean  @default(false) // ประกันสินค้า
-  optProductValue   Decimal? @db.Decimal(12, 2) // มูลค่าที่เอาประกัน (ใช้เมื่อ optIsInsured)
-  optServiceType    Int? // 1=เข้ารับ 2=นำไปส่งเอง; null = ตามตั้งค่าฝั่ง iShip
-  defaultRemark     String?
+  defaultCodEnabled  Boolean  @default(false)
+  optOnTime          Boolean  @default(false) // ส่งตรงเวลา
+  optBoxShield       Boolean  @default(false) // ประกันกล่อง
+  optIsInsured       Boolean  @default(false) // ประกันสินค้า
+  optProductValue    Decimal? @db.Decimal(12, 2) // มูลค่าที่เอาประกัน (ใช้เมื่อ optIsInsured)
+  optServiceType     Int? // 1=เข้ารับ 2=นำไปส่งเอง; null = ตามตั้งค่าฝั่ง iShip
+  defaultRemark      String?
 
   lastVerifiedAt    DateTime? // ทดสอบ token ผ่านล่าสุดเมื่อไหร่
   lastVerifyError   String? // สาเหตุที่ทดสอบไม่ผ่านครั้งล่าสุด
@@ -1476,21 +1534,21 @@ model ShopShippingAccount {
 
 // OrderShipment — พัสดุ 1 ใบที่เปิดกับขนส่ง ผูกกับคำสั่งซื้อ 1 รายการ
 model OrderShipment {
-  id       String @id @default(uuid())
-  orderId  String
-  shopId   String // denormalized — query ระดับร้าน (หน้ารายการ/พิมพ์หลายใบ) โดยไม่ต้อง join Order
-  provider String @default("ISHIP")
+  id             String  @id @default(uuid())
+  orderId        String
+  shopId         String // denormalized — query ระดับร้าน (หน้ารายการ/พิมพ์หลายใบ) โดยไม่ต้อง join Order
+  provider       String  @default("ISHIP")
   // status: "PENDING" (กำลังสร้าง) | "CREATED" (สำเร็จ) | "CANCELLED" | "FAILED"
-  status      String  @default("PENDING")
-  courierCode String?
-  courierName String? // ชื่อที่แสดง ณ เวลาสร้าง — cache ไว้ ไม่ re-fetch ทุกครั้ง
-  trackingNo  String?
-  refCode     String? // data.ref ที่ iShip คืนมา
-  externalId  String? // data.id ฝั่ง iShip
+  status         String  @default("PENDING")
+  courierCode    String?
+  courierName    String? // ชื่อที่แสดง ณ เวลาสร้าง — cache ไว้ ไม่ re-fetch ทุกครั้ง
+  trackingNo     String?
+  refCode        String? // data.ref ที่ iShip คืนมา
+  externalId     String? // data.id ฝั่ง iShip
   // idempotencyKey: "<orderId>:<attemptGroup>" — ส่งไปเป็น custom_order_id ของ iShip ด้วย (BR-ISHIP-25)
   // 🛑 retry จากใบ FAILED ต้องใช้คีย์เดิม เพื่อว่าถ้าคำขอเดิมสำเร็จฝั่ง iShip แต่ response หายระหว่างทาง
   //    การยิงซ้ำจะไม่เกิดพัสดุใบที่สอง (BR-ISHIP-26). attemptGroup +1 เมื่อยกเลิกใบเดิมเท่านั้น
-  idempotencyKey String @unique
+  idempotencyKey String  @unique
 
   codAmount  Decimal  @default(0) @db.Decimal(12, 2)
   weight     Decimal? @db.Decimal(6, 2)
@@ -1517,9 +1575,9 @@ model OrderShipment {
   labelPrintCount Int       @default(0)
   // isDryRun: พัสดุจำลองจากโหมดทดสอบ (BR-ISHIP-60/61) — ต้องมีเครื่องหมายบนหน้าจอ
   // และต้องกรองออกจากสถิติทุกชนิด ไม่งั้น KPI เพี้ยนเพราะนับพัสดุที่ไม่มีอยู่จริง
-  isDryRun Boolean @default(false)
+  isDryRun        Boolean   @default(false)
 
-  lastErrorCode String? // รหัสที่จับกลุ่มแล้วของเรา (TOKEN_INVALID / ADDRESS_INVALID / ...)
+  lastErrorCode    String? // รหัสที่จับกลุ่มแล้วของเรา (TOKEN_INVALID / ADDRESS_INVALID / ...)
   // lastErrorMessage: ข้อความดิบจาก iShip ไว้ให้ทีมงานตรวจสอบ 🛑 ห้ามแสดงตรงต่อผู้ใช้
   // และต้อง redact token ออกก่อนบันทึกทุกครั้ง
   lastErrorMessage String? @db.Text
@@ -1547,19 +1605,19 @@ model OrderShipment {
 
 // ShipmentEvent — ประวัติการเดินทางของพัสดุ (จาก webhook หรือจากการ poll traces)
 model ShipmentEvent {
-  id         String  @id @default(uuid())
+  id         String   @id @default(uuid())
   shipmentId String
   status     String // รหัสสถานะจากขนส่ง
   statusText String? // ข้อความไทยสั้น
-  statusDesc String? @db.Text // คำอธิบายเต็มจากขนส่ง
+  statusDesc String?  @db.Text // คำอธิบายเต็มจากขนส่ง
   location   String?
   // occurredAt: เวลาที่เกิดเหตุการณ์จริงฝั่งขนส่ง ไม่ใช่เวลาที่เราบันทึก
   occurredAt DateTime
   source     String   @default("WEBHOOK") // "WEBHOOK" | "POLL"
   // dedupeKey: "<status>:<occurredAt epoch>" — กัน webhook ยิงซ้ำแล้วไทม์ไลน์บวม (FR-ISHIP-041)
-  dedupeKey String
-  payload   Json? // ข้อมูลดิบไว้ตรวจสอบ (redact ข้อมูลอ่อนไหวก่อนบันทึก)
-  createdAt DateTime @default(now())
+  dedupeKey  String
+  payload    Json? // ข้อมูลดิบไว้ตรวจสอบ (redact ข้อมูลอ่อนไหวก่อนบันทึก)
+  createdAt  DateTime @default(now())
 
   shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
@@ -1579,11 +1637,11 @@ model ShipmentPickup {
   pickupAddress  String? // snapshot ที่อยู่ที่ใช้เรียก ณ เวลานั้น
   remark         String?
   // status: "REQUESTED" | "ACCEPTED" | "CLOSED" | "CANCELLED" | "FAILED"
-  status        String  @default("REQUESTED")
-  staffName     String?
-  staffPhone    String?
-  timeoutAtText String? // ช่วงเวลาที่จะเข้ารับ — ข้อความตามที่ขนส่งส่งมา ไม่ parse เป็น date
-  ticketMessage String? @db.Text
+  status         String  @default("REQUESTED")
+  staffName      String?
+  staffPhone     String?
+  timeoutAtText  String? // ช่วงเวลาที่จะเข้ารับ — ข้อความตามที่ขนส่งส่งมา ไม่ parse เป็น date
+  ticketMessage  String? @db.Text
 
   isDryRun         Boolean @default(false)
   lastErrorMessage String? @db.Text
@@ -1606,17 +1664,17 @@ model ShipmentPickup {
 /// จึงการันตีความเป็นเจ้าของโดยอัตโนมัติ เพราะเลือกได้เฉพาะคลิปในบัญชีที่ผ่าน OAuth มาแล้ว
 /// (ถ้าให้วาง URL อิสระ ร้านจะเอาคลิปคนอื่นมาอ้างเป็นของตัวเองได้)
 model ShopVideo {
-  id        String @id @default(uuid())
-  shopId    String
+  id           String   @id @default(uuid())
+  shopId       String
   /// "INSTAGRAM" | "TIKTOK" | "YOUTUBE" — String ตาม convention เดิมของ repo (มิเรอร์ provider ของ ShopChannel)
-  provider  String
+  provider     String
   /// id/shortcode ของคลิปบนแพลตฟอร์มนั้น ใช้ประกอบ URL ฝังเอง ไม่เก็บ URL ดิบที่ผู้ใช้กำหนด
-  videoId   String
-  caption   String? @db.Text
+  videoId      String
+  caption      String?  @db.Text
   /// รูปปกที่แพลตฟอร์มให้มา — เก็บไว้แสดงก่อนผู้ชมกดเล่น จะได้ไม่ต้องโหลด iframe ทุกอัน
   thumbnailUrl String?
   /// ชื่อบัญชีต้นทาง (เช่น @oilssm) — บอกผู้ชมว่าคลิปมาจากช่องไหน ไม่ใช่แค่แพลตฟอร์มอะไร
-  accountName String?
+  accountName  String?
   /// ยอด ณ เวลาที่ร้านกดเลือก — เป็น snapshot ไม่ใช่ค่าสด เพราะการยิง API ทุกครั้งที่มีคน
   /// เปิดหน้าร้านจะช้าและชนลิมิตของแพลตฟอร์ม ค่าจะอัปเดตเมื่อร้านกดบันทึกใหม่
   likeCount    Int?
@@ -1624,12 +1682,265 @@ model ShopVideo {
   /// ยอดวิว — ยังเป็น null เสมอสำหรับ Instagram เพราะต้องใช้ scope instagram_manage_insights
   /// ที่ยังไม่ได้ขอ (ทดสอบจริงแล้วได้ error #10) เผื่อไว้ให้ TikTok ที่ video.list ให้ view มาด้วย
   viewCount    Int?
-  sortOrder Int    @default(0)
-  createdAt DateTime @default(now())
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   /// กันเลือกคลิปเดิมซ้ำในร้านเดียวกัน
   @@unique([shopId, provider, videoId])
   @@index([shopId, sortOrder])
+}
+
+// ============================================================================
+// feature 00023 — Chat Auto-Reply (ตอบแชทอัตโนมัติจาก Keyword)
+// 6 ตารางใหม่ + คอลัมน์เพิ่มใน Conversation/ChatMessage — additive ล้วน
+// SSOT: docs/20 - Features/00023 - Chat Auto-Reply/DATABASE.md (FROZEN CONTRACT)
+// ============================================================================
+
+// AutoReplyConfig — การตั้งค่าระดับร้าน 1:1 กับ Shop — แยกตารางแทนเพิ่มคอลัมน์ใน Shop ด้วยเหตุผล
+// เดียวกับ ShopAiSetting (SDS TD-001 ของ 00019): Shop ถูกอ่านแทบทุก request การพกค่าที่ใช้เฉพาะ
+// ตอนตอบแชทไปด้วยทุก query เป็นการเปลืองเปล่า
+model AutoReplyConfig {
+  id     String @id @default(uuid())
+  // shopId @unique = 1 ร้าน 1 ชุดตั้งค่า บังคับที่ DB ไม่พึ่งวินัยโค้ด และเป็น index ของ query หลักไปในตัว
+  shopId String @unique
+
+  // 🛑 default false ตั้งใจ (BR-AR ระดับ 0): ระบบส่งข้อความถึงลูกค้าเองโดยไม่มีคนตรวจ
+  // ต้องไม่ทำงานจนกว่าร้านจะสั่งเปิดเอง — มิเรอร์ ShopShippingAccount.createMode = "ASK" ของ 00022
+  isEnabled Boolean @default(false)
+
+  // --- โหมดทดสอบ (FR-021) ---
+  // testMode = true → ตอบเฉพาะ Conversation ที่ autoReplyTestEnabled = true (allowlist)
+  testMode                Boolean   @default(false)
+  // หมดอายุเองกันร้านลืมปิด (AC-021-08) — null ทั้งที่ testMode=true ถือว่าไม่หมดอายุ (ไม่แนะนำ)
+  testModeExpiresAt       DateTime?
+  testModeEnabledByUserId String?
+
+  // --- การหยุดเมื่อพนักงานตอบ (FR-016) ---
+  // "30M" | "2H" | "MANUAL" (จนกว่าจะเปิดเอง) | "UNTIL_RESOLVED" (จนกว่าเธรดจะถูกปิด)
+  // String ไม่ใช่ Prisma enum ตาม convention เดิมทั้งโปรเจกต์ (Order.status/Shop.kind/Product.type)
+  // เลี่ยง ALTER TYPE ทุกครั้งที่เพิ่มตัวเลือก — validate ที่ Valibot เท่านั้น ไม่มี DB CHECK
+  humanTakeoverPauseMode String @default("2H")
+
+  // --- การจำกัดการตอบ (FR-018) ---
+  keywordCooldownSec        Int @default(300) // กลุ่มคำเดิมห้ามตอบซ้ำในเธรดเดิมภายในกี่วินาที
+  maxRepliesPerConversation Int @default(10) // ครบแล้วหยุดและส่งต่อพนักงาน
+
+  // --- อายุบริบทโฆษณา (FR-013) ---
+  // "UNTIL_RESOLVED" | "HOURS" | "UNTIL_NEW_PRODUCT"
+  adsContextMode  String @default("UNTIL_RESOLVED")
+  adsContextHours Int? // ใช้เมื่อ adsContextMode = "HOURS" เท่านั้น
+
+  // --- สัญญาณส่งต่อพนักงาน (FR-019 / AC-019-02) ---
+  // TEXT[] คอลัมน์เดียว ไม่ทำ table แยก — ลำดับไม่มีความหมาย ไม่มี query ที่ต้อง join/aggregate รายคำ
+  // (แบบเดียวกับ ExternalContact.tags/phones และ QuickMessage.imageFileIds)
+  handoffPhrases String[] @default([])
+
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  updatedBy User? @relation("AutoReplyConfigUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+// AutoReplyKeyword — กลุ่มคำ
+model AutoReplyKeyword {
+  id     String @id @default(uuid())
+  shopId String
+  name   String // ชื่อกลุ่มที่ร้านตั้งเอง เช่น "สนใจสินค้า"
+
+  // "EXACT" | "CONTAINS" | "STARTS_WITH"
+  // FUZZY เลื่อนไปเฟส 2 (PRD §5) — ค่าใหม่เพิ่มได้โดยไม่ต้อง migrate เพราะเป็น String
+  matchType String @default("CONTAINS")
+
+  // มากกว่า = ถูกเลือกก่อน (AC-003-02, เกณฑ์ที่ 1 ของ BR-AR-04)
+  priority Int @default(100)
+
+  // mode: "LIVE" = ตอบลูกค้าจริงทุกคน | "TEST" = ตอบเฉพาะเธรดใน allowlist (Conversation.autoReplyTestEnabled)
+  //
+  // 🛑 แยกโหมด "รายการต่อรายการ" ไม่ใช่ทั้งร้าน (user 2026-07-29) — ของเดิม AutoReplyConfig.testMode
+  // เปิดแล้วหยุดทั้งร้าน ทำให้ลืมปิด = ลูกค้าทุกคนไม่ได้คำตอบ. แบบใหม่ตัวที่ LIVE ยังทำงานปกติ
+  // ระหว่างที่ตัวใหม่ยัง TEST อยู่ → ปล่อยของทีละตัวได้โดยไม่กระทบของที่ใช้งานจริง
+  // default LIVE เพื่อให้แถวเดิมทั้งหมดพฤติกรรมไม่เปลี่ยน (additive-safe)
+  mode String @default("LIVE")
+
+  isActive Boolean @default(true)
+
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop    Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  phrases AutoReplyPhrase[]
+  // onDelete Cascade — ลบกลุ่มคำ ลบกฎของกลุ่มนั้นด้วย (กฎที่ไม่มีกลุ่มไม่มีความหมาย)
+  rules   AutoReplyRule[]
+  logs    AutoReplyLog[]
+
+  @@unique([shopId, name]) // AC-001-04 ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน
+  @@index([shopId, isActive, priority]) // query หลัก: โหลดกลุ่มที่เปิดใช้ของร้านเรียงตามลำดับความสำคัญ
+}
+
+// AutoReplyPhrase — คำตรวจจับภายในกลุ่ม
+model AutoReplyPhrase {
+  id        String @id @default(uuid())
+  keywordId String
+
+  phrase String // คำที่ร้านพิมพ์ (เก็บของเดิมไว้แสดงใน UI)
+
+  // normalizedPhrase: ผ่าน normalize ตัวเดียวกับที่ใช้กับข้อความลูกค้า (SRS — normalizeMessage)
+  // 🛑 เก็บที่ DB ไม่ normalize ตอน match: ถ้า normalize ทุกครั้งที่เทียบ จะเสียเวลาซ้ำทุกข้อความ
+  // และที่สำคัญกว่าคือใช้บังคับ unique กันคำซ้ำที่ "ต่างกันแค่รูปแบบ" ได้ (AC-002-03)
+  normalizedPhrase String
+
+  createdAt DateTime @default(now())
+
+  keyword AutoReplyKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@unique([keywordId, normalizedPhrase]) // AC-002-03 คำซ้ำในกลุ่มเดียวกันต้องถูกปฏิเสธ
+  @@index([keywordId])
+}
+
+// AutoReplyRule — กฎคำตอบ ทุกระดับอยู่ตารางเดียว โดยเงื่อนไขเป็นคอลัมน์ nullable — ตอบโจทย์ PRD §20
+// ที่ห้ามทั้ง "คอลัมน์ตายตัวเกินไป" และ "JSON จน query/index ไม่ได้"
+model AutoReplyRule {
+  id     String @id @default(uuid())
+  shopId String
+
+  // keywordId = null → กฎคำตอบกลาง (ระดับ 7 = ของเพจ ถ้า shopChannelId ไม่ null, ระดับ 8 = ของร้าน ถ้า null)
+  keywordId String?
+
+  // --- เงื่อนไข 3 มิติ (null = ไม่จำกัดมิตินั้น) ---
+  shopChannelId String? // เงื่อนไขเพจ
+  adId          String? // เงื่อนไขโฆษณา — String ดิบ ไม่ FK เพราะโฆษณาไม่ใช่ entity ในระบบเรา
+  adLabel       String? // ชื่อกำกับที่ร้านตั้งเอง (AC-007-01) — Meta ไม่ให้ชื่อแคมเปญ/AdSet
+  productId     String? // เงื่อนไขสินค้า
+
+  replyText String @db.Text // 🛑 ข้อความที่ส่งถึงลูกค้าตรงตัวทุกอักษร ห้ามระบบดัดแปลง (BR-AR หลัก)
+
+  // specificity: คะแนนความเฉพาะเจาะจง คำนวณตอนเขียนเสมอ (service layer, invariant)
+  //   = (shopChannelId != null ? 4 : 0) + (adId != null ? 2 : 0) + (productId != null ? 1 : 0)
+  // bitmask นี้เรียงลำดับตรงกับ AC-009-01 พอดีทุกระดับ:
+  //   7=K+เพจ+โฆษณา+สินค้า  6=K+เพจ+โฆษณา  5=K+เพจ+สินค้า  4=K+เพจ  1=K+สินค้า  0=K กลาง
+  // (2=K+โฆษณาไม่ระบุเพจ และ 3=K+โฆษณา+สินค้า ไม่อยู่ในลิสต์ของ PRD แต่เรียงลงตัวเองระหว่าง 4 กับ 1)
+  // 🛑 เก็บเป็นคอลัมน์ไม่คำนวณตอน query — ต้องใช้ ORDER BY ที่ index ได้ และต้องได้ผลเดิมทุกครั้ง (AC-011-03)
+  specificity Int
+
+  isActive    Boolean   @default(true)
+  activeFrom  DateTime? // ตารางเวลาเปิดใช้ (null = ไม่จำกัด)
+  activeUntil DateTime?
+
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop        Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  keyword     AutoReplyKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  // SetNull ทั้งคู่: ถอดเพจ/ลบสินค้า ต้องไม่ลบกฎทิ้ง (AC-006-05, AC-008-03) — กฎกลายเป็นกว้างขึ้น
+  // แล้ว service ตัดสินเองว่ายังใช้ได้ไหม ดีกว่าข้อมูลที่ร้านตั้งไว้หายเงียบ ๆ
+  shopChannel ShopChannel?      @relation(fields: [shopChannelId], references: [id], onDelete: SetNull)
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  logs        AutoReplyLog[]
+  // 🛑 unique constraint ที่ต้องบังคับจริง (AC-006-02 "1 กลุ่มคำ 1 คำตอบต่อ 1 เพจ") เขียนเป็น
+  // `CREATE UNIQUE INDEX ... NULLS NOT DISTINCT` ด้วยมือใน migration.sql — Prisma DSL
+  // `@@unique([shopId, keywordId, shopChannelId, adId, productId])` ประกาศได้ แต่ Postgres ถือว่า
+  // NULL ต่างกันเสมอ ทำให้กฎซ้ำที่มี NULL หลุดผ่านได้ (ดู DATABASE.md §3.4 ท้ายตาราง)
+
+  // query หลักของ rule resolution: กฎที่เปิดใช้ของกลุ่มคำนี้ เรียงเฉพาะเจาะจงมากก่อน
+  @@index([shopId, keywordId, isActive, specificity])
+  @@index([shopId, shopChannelId, adId])
+  @@index([productId])
+}
+
+// AutoReplyJob — ตารางที่สำคัญที่สุดของฟีเจอร์นี้ — เป็นทั้งคิวงานและกลไกกันตอบซ้ำในตัวเดียว
+model AutoReplyJob {
+  id String @id @default(uuid())
+
+  // 🛑 chatMessageId @unique = หัวใจของ BR-AR-21 / AC-017-01 "หนึ่งข้อความ หนึ่งคำตอบ"
+  // ข้อความลูกค้า 1 แถว สร้างงานได้ครั้งเดียวตลอดกาล — Meta redeliver / cron ทำซ้ำ / after() ทำงาน
+  // พร้อมกับ sweeper ล้วนชนที่ constraint นี้แล้วจบ ไม่ต้องพึ่งวินัยของโค้ดหรือ distributed lock
+  // (ใช้หลักการเดียวกับ ChatMessage.externalMessageId @unique ที่พิสูจน์แล้วใน feature 00018)
+  chatMessageId String @unique
+
+  conversationId String
+  shopId         String
+
+  // "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
+  status String @default("PENDING")
+
+  attempts  Int       @default(0)
+  // lockedAt/lockedBy: กัน worker 2 ตัวหยิบงานเดียวกัน (after() กับ cron sweeper)
+  // claim ด้วย conditional updateMany (WHERE status='PENDING') แบบเดียวกับ wallet.service deduct
+  lockedAt  DateTime?
+  lockedBy  String?
+  lastError String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  message      ChatMessage  @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  shop         Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt]) // cron sweeper: หางานค้างเรียงเก่าสุดก่อน
+  @@index([conversationId, createdAt])
+}
+
+// AutoReplyLog — บันทึกการตัดสินใจทุกครั้ง ทั้งตอบและไม่ตอบ
+model AutoReplyLog {
+  id             String  @id @default(uuid())
+  shopId         String
+  conversationId String
+  chatMessageId  String? // ข้อความขาเข้าที่เป็นต้นเหตุ (SetNull — ลบข้อความไม่ลบบันทึก)
+
+  // --- สิ่งที่เห็นและตีความ ---
+  rawText        String? @db.Text // ข้อความต้นฉบับ
+  normalizedText String? @db.Text // หลัง normalize (AC-010-06 — ใช้ debug ว่าทำไมไม่ match)
+
+  // --- ผลการจับคู่ ---
+  keywordId     String?
+  matchedPhrase String?
+  matchType     String?
+  // เกณฑ์ที่ทำให้ชนะ + กลุ่มที่แพ้ (AC-011-04) — Json เพราะเป็นข้อมูลวินิจฉัย
+  // ไม่มี query ไหนกรองด้วยเนื้อในของมัน (มิเรอร์ ChatMessage.scamMatchedRules)
+  matchTrace    Json?
+
+  // --- กฎที่ถูกเลือก ---
+  ruleId          String?
+  resolutionLevel String? // เช่น "KEYWORD_PAGE_AD" — ค่าคงที่ดู DATABASE.md §3.8
+
+  // --- บริบท ณ เวลาตัดสินใจ (snapshot ไม่ join ย้อนหลัง) ---
+  shopChannelId String?
+  adId          String?
+  productId     String?
+
+  // --- ผลลัพธ์ ---
+  // "REPLIED" | "SKIPPED" | "HANDOFF" | "FAILED"
+  decision   String
+  // 🛑 บังคับมีค่าเมื่อ decision != "REPLIED" (AC-024-02) — บันทึกเฉพาะตอนตอบทำให้ debug
+  // คำถามที่ร้านถามบ่อยที่สุด ("ทำไมไม่ตอบ") ไม่ได้เลย. ค่าคงที่ดู DATABASE.md §3.8
+  skipReason String?
+
+  replyText         String? @db.Text // ข้อความที่ส่งจริง
+  outboundMessageId String? // ChatMessage ฝั่งขาออกที่เกิดจากการตอบครั้งนี้
+
+  isTest       Boolean @default(false) // ตอบในโหมดทดสอบ (AC-021-05 กรองแยกได้)
+  durationMs   Int?
+  errorMessage String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  shop         Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  keyword      AutoReplyKeyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
+  rule         AutoReplyRule?    @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt]) // หน้ารายการบันทึกของร้าน
+  @@index([conversationId, createdAt]) // ดูประวัติของเธรดเดียว
+  @@index([shopId, decision, createdAt]) // กรอง "ที่ไม่ตอบ" / "ที่พัง"
+  @@index([shopId, keywordId, createdAt]) // กลุ่มคำไหนถูกใช้บ่อย
+  @@index([shopId, adId, createdAt]) // โฆษณาไหนสร้างบทสนทนาสูง
 }

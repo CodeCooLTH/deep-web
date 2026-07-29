@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -12,7 +12,9 @@ import {
   countUnreadByConversation,
   type ConversationSummary,
 } from "@/services/chat.service";
+import { enrichWithOrderStage } from "@/services/order-stage.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
+import { sweepStuckJobs } from "@/services/auto-reply.service";
 
 // per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
 // (บทเรียนโปรเจกต์ 2026-07-04: default header เป็น public ทำให้ carrier cache ข้าม user)
@@ -106,67 +108,6 @@ async function enrichWithBuyerCounterparty(
   });
 }
 
-/**
- * enrichWithOrderCount (user request 2026-07-25) — จำนวนออเดอร์ของลูกค้าเธรดนั้น เพื่อโชว์ไอคอน
- * ตะกร้า + จำนวน ในแถว inbox ฝั่ง seller (กดแล้วเปิด right panel รายการคำสั่งซื้อ). enrichment แยก
- * ไม่แตะ ConversationSummary (FROZEN CONTRACT, SDS §5) เหมือน counterparty/unread
- *
- * เส้นเชื่อม conversation → Customer: เธรดช่องทางนอก = ExternalContact.customerId,
- * เธรด DEEP = User.customer (back-relation Customer.userId) — ตรงกับ orders route (S-7)
- *
- * กัน N+1: resolve customerId ทั้งหน้า แล้วนับด้วย groupBy count query เดียว (รวมทุกชนิดออเดอร์)
- */
-async function enrichWithOrderCount<
-  T extends { externalContactId: string | null; buyerUserId: string | null },
->(items: T[], shopId: string): Promise<(T & { orderCount: number })[]> {
-  const externalContactIds = [
-    ...new Set(items.map((i) => i.externalContactId).filter((x): x is string => x !== null)),
-  ];
-  const buyerUserIds = [
-    ...new Set(items.map((i) => i.buyerUserId).filter((x): x is string => x !== null)),
-  ];
-
-  const [contacts, users] = await Promise.all([
-    externalContactIds.length
-      ? prisma.externalContact.findMany({
-          where: { id: { in: externalContactIds } },
-          select: { id: true, customerId: true },
-        })
-      : Promise.resolve([] as { id: string; customerId: string | null }[]),
-    buyerUserIds.length
-      ? prisma.user.findMany({
-          where: { id: { in: buyerUserIds } },
-          select: { id: true, customer: { select: { id: true } } },
-        })
-      : Promise.resolve([] as { id: string; customer: { id: string } | null }[]),
-  ]);
-  const contactCustomer = new Map(contacts.map((c) => [c.id, c.customerId]));
-  const userCustomer = new Map(users.map((u) => [u.id, u.customer?.id ?? null]));
-
-  const customerIdOf = (i: T): string | null =>
-    i.externalContactId
-      ? contactCustomer.get(i.externalContactId) ?? null
-      : i.buyerUserId
-        ? userCustomer.get(i.buyerUserId) ?? null
-        : null;
-
-  const customerIds = [...new Set(items.map(customerIdOf).filter((x): x is string => x !== null))];
-  if (customerIds.length === 0) {
-    return items.map((i) => ({ ...i, orderCount: 0 }));
-  }
-
-  const countRows = await prisma.order.groupBy({
-    by: ["customerId"],
-    where: { shopId, customerId: { in: customerIds } },
-    _count: { _all: true },
-  });
-  const countMap = new Map(countRows.map((r) => [r.customerId as string, r._count._all]));
-
-  return items.map((i) => {
-    const cid = customerIdOf(i);
-    return { ...i, orderCount: cid ? countMap.get(cid) ?? 0 : 0 };
-  });
-}
 
 /**
  * POST /api/chat/conversations — เริ่ม/เปิดบทสนทนาที่มีอยู่แล้ว โดย shopId (buyer surface เท่านั้น)
@@ -277,8 +218,27 @@ export async function GET(request: NextRequest) {
     // enrichment แยกเหมือน counterparty ไม่แตะ ConversationSummary (FROZEN CONTRACT)
     const unreadMap = await countUnreadByConversation(enriched.map((i) => i.id));
     const withUnread = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
-    // จำนวนออเดอร์ในแถว (user request 2026-07-25) — ไอคอนตะกร้า + จำนวน, เฉพาะ seller inbox
-    const items = await enrichWithOrderCount(withUnread, activeCtx.shopId);
+    // ป้ายขั้นตอนออเดอร์ล่าสุดในแถว (user request 2026-07-29 — แทนชิปตะกร้า+จำนวนเดิมของ 2026-07-25)
+    // service กลาง: หน้า inbox โหลดหน้าแรกแบบ RSC ไม่ผ่าน route นี้ ต้องเรียกฟังก์ชันเดียวกันทั้งสองทาง
+    const items = await enrichWithOrderStage(withUnread, activeCtx.shopId);
+
+    // ชั้นที่ 3(ข) ของการกู้คืนงานตอบอัตโนมัติ (feature 00023, SDS TD-001)
+    //
+    // cron ของโปรเจกต์นี้เป็นรายวัน (เจ้าของระบบตัดสินแล้วว่าไม่อัป plan) จึงพึ่ง cron เป็น
+    // กลไกหลักไม่ได้ — ทุกครั้งที่แอดมินเปิดกล่องข้อความคือโอกาสกวาดงานค้างของร้านนั้น
+    // ซึ่งในทางปฏิบัติเกิดบ่อยกว่าวันละครั้งมาก
+    //
+    // อยู่ใน after() ห้าม await ในเส้นทางตอบ response — หน้ากล่องข้อความต้องไม่ช้าลงเพราะเรื่องนี้
+    // และพังแล้วต้องไม่กระทบการโหลดรายการ
+    const sweepShopId = activeCtx.shopId;
+    after(async () => {
+      try {
+        await sweepStuckJobs({ shopId: sweepShopId, limit: 5 });
+      } catch (e) {
+        console.error("[chat] sweep งานตอบอัตโนมัติล้มเหลว", e instanceof Error ? e.message : e);
+      }
+    });
+
     return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
   }
 
