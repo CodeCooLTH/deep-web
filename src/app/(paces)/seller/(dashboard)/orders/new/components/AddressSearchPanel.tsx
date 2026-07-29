@@ -7,8 +7,10 @@
  * fetch/cache logic + แถวผลลัพธ์ (ตำบล › อำเภอ › จังหวัด › รหัส) ก็อปมาจาก AddressSearchSheet.tsx (mobile full-screen sheet)
  *   ปรับจาก full-screen เป็น inline dropdown — ห้ามแก้/import AddressSearchSheet (OOS-5) →
  *   cache แยกเป็น module-level ของตัวเอง (known-gap ยอมรับแล้ว ไม่ share กับมือถือ)
- * data: public/data/thai-address.json (jquery.Thailand.js, 7498 records) — fetch runtime + cache module-level
- *   (ไม่ import กัน tsc infer literal 982KB + ไม่เข้า JS bundle — served static, browser cache)
+ * data: public/data/iship-address.json (7,662 records) — fetch runtime + cache module-level
+ *   (ไม่ import กัน tsc infer literal ~1MB + ไม่เข้า JS bundle — served static, browser cache)
+ *   สำคัญ: ชุดข้อมูลของ iShip ไม่ใช่ thai-address.json เดิม — ที่อยู่ตรงนี้ถูกส่งไปเปิดพัสดุจริง
+ *   คำต้องตรงกับที่ iShip รู้จัก (กทม. iShip เรียก "กรุงเทพ" ชุดเดิมเรียก "กรุงเทพมหานคร")
  * เลือกแล้ว → เติม subdistrict/district/province/postcode พร้อมกันผ่าน onSelect
  *   (pattern เดียวกับ applyLocality ใน CustomerQuickBlock.tsx — ห้ามแก้ไฟล์นั้นเช่นกัน)
  * bug-fix (2026-07-22): dropdown ผลค้นหา `absolute top-full` โดน clip เมื่ออยู่ใน CartPanel
@@ -59,7 +61,7 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
     }
     if (loading) return
     setLoading(true)
-    fetch('/data/thai-address.json')
+    fetch('/data/iship-address.json')
       .then((r) => r.json())
       .then((data: AddrRecord[]) => {
         DESKTOP_ADDR_CACHE = data

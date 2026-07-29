@@ -64,8 +64,15 @@ export interface SenderAddress {
   postcode?: string | null;
 }
 
-/** ช่องที่อยู่ที่ขาด — ใช้บอกร้านว่าต้องไปเติมอะไร (FR-ISHIP-023) */
-export type MissingAddressField =
+/**
+ * ช่องที่อยู่ที่ขาด — ใช้บอกร้านว่าต้องไปเติมอะไร (FR-ISHIP-023)
+ *
+ * แยกผู้รับกับผู้ส่งเป็นคนละ type โดยเจตนา ไม่ใช่ type เดียวใช้ร่วมกัน:
+ * เดิมฝั่งผู้ส่งยืมคำของผู้รับมาใช้ ("ชื่อผู้รับ" ทั้งที่ตรวจ senderName) ทำให้ร้านที่ยัง
+ * ไม่ได้ตั้งที่อยู่ผู้ส่งเห็นข้อความว่า "ยังขาด ชื่อผู้รับ, เบอร์โทรผู้รับ, …" ทั้งที่ข้อมูล
+ * ผู้รับครบทุกช่อง แล้วไล่แก้ผิดที่จนวนไม่จบ (createShipment ตรวจผู้ส่งก่อนเสมอ)
+ */
+export type MissingReceiverField =
   | "ชื่อผู้รับ"
   | "เบอร์โทรผู้รับ"
   | "ที่อยู่"
@@ -74,7 +81,35 @@ export type MissingAddressField =
   | "จังหวัด"
   | "รหัสไปรษณีย์";
 
+export type MissingSenderField =
+  | "ชื่อผู้ส่ง"
+  | "เบอร์โทรผู้ส่ง"
+  | "ที่อยู่ผู้ส่ง"
+  | "ตำบล (ผู้ส่ง)"
+  | "อำเภอ (ผู้ส่ง)"
+  | "จังหวัด (ผู้ส่ง)"
+  | "รหัสไปรษณีย์ (ผู้ส่ง)";
+
+/** ใช้ตรงจุดที่รับได้ทั้งสองฝั่ง (ข้อความ error, payload ที่ส่งออก API) */
+export type MissingAddressField = MissingReceiverField | MissingSenderField;
+
 const isBlank = (v?: string | null): boolean => !v || v.trim() === "";
+
+/**
+ * normalizeProvince — แปลงชื่อจังหวัดให้ตรงกับที่ iShip รู้จัก
+ *
+ * ตั้งแต่ 2026-07-29 ช่องเลือกที่อยู่ใช้ชุดข้อมูลของ iShip แล้ว (public/data/iship-address.json)
+ * ที่อยู่ที่บันทึกใหม่จึงตรงอยู่แล้ว — ตัวนี้มีไว้กัน "ข้อมูลเก่า" ที่บันทึกด้วยชุดข้อมูลเดิม
+ * ซึ่งเรียก กทม. ว่า "กรุงเทพมหานคร" ส่วน iShip เรียก "กรุงเทพ"
+ *
+ * ไม่ทำแปลว่าออเดอร์เก่าปลายทางกรุงเทพ (186 ตำบล) เปิดพัสดุแล้วส่งชื่อจังหวัดที่ iShip ไม่รู้จัก
+ * จงใจแปลงเฉพาะเคสนี้เคสเดียว — ที่เหลือ (ชื่อตำบล/อำเภอต่างกัน 57 แถว, รหัสไปรษณีย์ 16 แถว)
+ * เดาแทนร้านไม่ได้ ต้องให้ร้านเลือกใหม่จากช่องค้นหา ไม่ใช่ให้ระบบทายแล้วส่งผิดที่เงียบ ๆ
+ */
+export function normalizeProvince(v?: string | null): string {
+  const s = (v ?? "").trim();
+  return s === "กรุงเทพมหานคร" ? "กรุงเทพ" : s;
+}
 
 /**
  * findMissingReceiverFields — ตรวจว่าที่อยู่ผู้รับพอส่งไหม
@@ -86,8 +121,8 @@ export function findMissingReceiverFields(
   addr: DeepAddress | null | undefined,
   receiverName?: string | null,
   receiverPhone?: string | null,
-): MissingAddressField[] {
-  const missing: MissingAddressField[] = [];
+): MissingReceiverField[] {
+  const missing: MissingReceiverField[] = [];
   if (isBlank(receiverName)) missing.push("ชื่อผู้รับ");
   if (isBlank(receiverPhone)) missing.push("เบอร์โทรผู้รับ");
   if (isBlank(addr?.line1)) missing.push("ที่อยู่");
@@ -98,18 +133,23 @@ export function findMissingReceiverFields(
   return missing;
 }
 
-/** ตรวจที่อยู่ผู้ส่งของร้าน (BR-ISHIP-30) — ต้องครบก่อนเปิดใช้งานการสร้างพัสดุ */
+/**
+ * ตรวจที่อยู่ผู้ส่งของร้าน (BR-ISHIP-30) — ต้องครบก่อนเปิดใช้งานการสร้างพัสดุ
+ *
+ * คำที่คืนต้องเป็นคำของ "ผู้ส่ง" เสมอ — ปลายทางเอาไปโชว์ตรง ๆ และเป็นตัวชี้ว่าร้านต้อง
+ * ไปแก้ที่หน้าตั้งค่า ไม่ใช่แก้ที่อยู่ผู้รับในออเดอร์
+ */
 export function findMissingSenderFields(
   sender: SenderAddress | null | undefined,
-): MissingAddressField[] {
-  const missing: MissingAddressField[] = [];
-  if (isBlank(sender?.name)) missing.push("ชื่อผู้รับ");
-  if (isBlank(sender?.phone)) missing.push("เบอร์โทรผู้รับ");
-  if (isBlank(sender?.address)) missing.push("ที่อยู่");
-  if (isBlank(sender?.subdistrict)) missing.push("ตำบล");
-  if (isBlank(sender?.district)) missing.push("อำเภอ");
-  if (isBlank(sender?.province)) missing.push("จังหวัด");
-  if (isBlank(sender?.postcode)) missing.push("รหัสไปรษณีย์");
+): MissingSenderField[] {
+  const missing: MissingSenderField[] = [];
+  if (isBlank(sender?.name)) missing.push("ชื่อผู้ส่ง");
+  if (isBlank(sender?.phone)) missing.push("เบอร์โทรผู้ส่ง");
+  if (isBlank(sender?.address)) missing.push("ที่อยู่ผู้ส่ง");
+  if (isBlank(sender?.subdistrict)) missing.push("ตำบล (ผู้ส่ง)");
+  if (isBlank(sender?.district)) missing.push("อำเภอ (ผู้ส่ง)");
+  if (isBlank(sender?.province)) missing.push("จังหวัด (ผู้ส่ง)");
+  if (isBlank(sender?.postcode)) missing.push("รหัสไปรษณีย์ (ผู้ส่ง)");
   return missing;
 }
 
@@ -172,7 +212,7 @@ export function buildCreateOrderPayload(
     // BR-ISHIP-31 — อ่านหัวไฟล์ก่อนแก้บรรทัดคู่นี้
     src_district: sender.subdistrict ?? "", // ตำบล → district
     src_amphure: sender.district ?? "", //      อำเภอ → amphure
-    src_province: sender.province ?? "",
+    src_province: normalizeProvince(sender.province),
     src_zipcode: sender.postcode ?? "",
 
     dst_name: receiver.name,
@@ -181,7 +221,7 @@ export function buildCreateOrderPayload(
     // BR-ISHIP-31 — อ่านหัวไฟล์ก่อนแก้บรรทัดคู่นี้
     dst_district: receiver.address.subdistrict ?? "", // ตำบล → district
     dst_amphure: receiver.address.district ?? "", //      อำเภอ → amphure
-    dst_province: receiver.address.province ?? "",
+    dst_province: normalizeProvince(receiver.address.province),
     dst_zipcode: receiver.address.postcode ?? "",
 
     weight: parcel.weight,

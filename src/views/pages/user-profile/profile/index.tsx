@@ -34,6 +34,8 @@ export type SerializedProduct = {
   price: string
   /** images[0] ?? null */
   imageUrl: string | null
+  /** จำนวนคำสั่งซื้อที่ยืนยันแล้ว (CONFIRMED) — 0 = ยังไม่มี ซึ่งจะไม่แสดงเลข ไม่ใช่แสดง 0 */
+  soldCount: number
 }
 
 export type ProfileTabData = {
@@ -86,11 +88,16 @@ const ProductCard = ({
   pinned,
   shopId,
   isOwnShop,
+  soldLabel,
+  soldUnit,
 }: {
   product: SerializedProduct
   pinned: boolean
   shopId: string | null
   isOwnShop?: boolean
+  /** "ขายแล้ว" หรือ "เข้าพักแล้ว" — ร้านที่พักใช้กริดเดียวกันแต่คนละคำ */
+  soldLabel: string
+  soldUnit: string
 }) => {
   const price = parseFloat(product.price)
   const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
@@ -124,7 +131,11 @@ const ProductCard = ({
       component={clickable ? 'button' : 'div'}
       type={clickable ? 'button' : undefined}
       onClick={clickable ? handleAskClick : undefined}
-      aria-label={clickable ? `สอบถาม ${product.name} ราคา ${priceLabel}` : product.name}
+      aria-label={
+        clickable
+          ? `สอบถาม ${product.name} ราคา ${priceLabel}${product.soldCount > 0 ? ` ${soldLabel} ${product.soldCount} ${soldUnit}` : ''}`
+          : product.name
+      }
       title={product.name}
       sx={{
         position: 'relative',
@@ -203,7 +214,10 @@ const ProductCard = ({
         </Box>
       )}
 
-      {/* ราคาลอยบนรูป — ข้อมูลเดียวที่ผู้ซื้อต้องเห็นก่อนตัดสินใจกด ชื่อสินค้าอยู่ใน title/aria-label */}
+      {/* ราคา + ยอดขายลอยบนรูป — สองอย่างที่ผู้ซื้อต้องเห็นก่อนตัดสินใจกด ชื่อสินค้าอยู่ใน title/aria-label
+          ยอดขายนับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันรับของแล้ว (ดู getConfirmedOrderCountByProduct)
+          ยังไม่มียอด = ไม่แสดงอะไรเลย ไม่ใช่แสดง 0 — กติกาเดียวกับตัวเลขอื่นทั้งหน้า เพราะ
+          "ขายแล้ว 0" อ่านแล้วแย่กว่าไม่บอก ทั้งที่สินค้าเพิ่งลงก็เป็น 0 เหมือนกัน */}
       <Box
         sx={{
           position: 'absolute',
@@ -212,13 +226,30 @@ const ProductCard = ({
           insetInlineEnd: 0,
           p: '8px 10px',
           color: 'white',
-          fontSize: '14px',
-          fontWeight: 800,
           textAlign: 'start',
           pointerEvents: 'none',
         }}
       >
-        {priceLabel}
+        <Box component='span' sx={{ display: 'block', fontSize: '14px', fontWeight: 800 }}>
+          {priceLabel}
+        </Box>
+        {product.soldCount > 0 && (
+          <Box
+            component='span'
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              mt: '1px',
+              fontSize: '11px',
+              fontWeight: 600,
+              opacity: 0.92,
+            }}
+          >
+            <Icon icon='tabler-shopping-bag-check' fontSize={12} />
+            {`${soldLabel} ${product.soldCount.toLocaleString('th-TH')} ${soldUnit}`}
+          </Box>
+        )}
       </Box>
 
       {/* โผล่ตอน hover เท่านั้น (user ขอ 2026-07-26) — จำกัดด้วย hover:hover เพราะบนจอสัมผัส
@@ -283,8 +314,8 @@ export const ProfileRightContent = ({
   // เปลี่ยนเฉพาะถ้อยคำให้ตรงกับสิ่งที่ผู้ใช้เห็นจริง
   const isRoom = itemKind === 'ROOM'
   const L = isRoom
-    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด' }
-    : { empty: 'ร้านนี้ยังไม่มีสินค้า', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด' }
+    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด', sold: 'เข้าพักแล้ว', soldUnit: 'ครั้ง' }
+    : { empty: 'ร้านนี้ยังไม่มีสินค้า', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด', sold: 'ขายแล้ว', soldUnit: 'คำสั่งซื้อ' }
 
   if (openShopEmptyState) return null
 
@@ -326,6 +357,8 @@ export const ProfileRightContent = ({
                     pinned
                     shopId={shopId ?? null}
                     isOwnShop={isOwnShop}
+                    soldLabel={L.sold}
+                    soldUnit={L.soldUnit}
                   />
                 ))}
               </Box>
@@ -358,6 +391,8 @@ export const ProfileRightContent = ({
                     pinned={false}
                     shopId={shopId ?? null}
                     isOwnShop={isOwnShop}
+                    soldLabel={L.sold}
+                    soldUnit={L.soldUnit}
                   />
                 ))}
               </Box>

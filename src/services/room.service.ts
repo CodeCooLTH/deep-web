@@ -188,6 +188,34 @@ export type SerializedRoom = ReturnType<typeof serializeRoom>;
  *
  * ไม่รวมการจองที่ถูกยกเลิก — ห้องกลับมาว่างแล้ว
  */
+/**
+ * จำนวนการเข้าพักที่เกิดขึ้นจริงต่อห้อง — คู่ขนานกับ getConfirmedOrderCountByProduct ของฝั่งสินค้า
+ *
+ * ร้านบ้านพักใช้กริดเดียวกับสินค้าบนหน้าร้านสาธารณะ ถ้าไม่ทำอันนี้ห้องพักจะไม่มีตัวเลขนี้เลย
+ * ทั้งที่เป็นข้อมูลชนิดเดียวกันที่ผู้ซื้อใช้ตัดสินใจเหมือนกัน
+ *
+ * นับเฉพาะ CONFIRMED ด้วยเหตุผลเดียวกัน — การจองที่ยังไม่ยืนยันไม่ใช่หลักฐานว่ามีคนเข้าพักจริง
+ * การจองผูกกับ Order.roomId ตรง ๆ (ไม่ผ่าน OrderItem) จึงนับ order ได้เลย ไม่ต้อง groupBy คู่
+ */
+export async function getConfirmedBookingCountByRoom(
+  roomIds: string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (roomIds.length === 0) return result;
+
+  const grouped = await prisma.order.groupBy({
+    by: ["roomId"],
+    where: { roomId: { in: roomIds }, status: "CONFIRMED" },
+    _count: { _all: true },
+  });
+
+  for (const row of grouped) {
+    if (!row.roomId) continue;
+    result.set(row.roomId, row._count._all);
+  }
+  return result;
+}
+
 export async function getShopAvailability(shopId: string, months = 3) {
   const today = new Date();
   const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));

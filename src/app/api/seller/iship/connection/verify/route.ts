@@ -8,7 +8,9 @@ import { verifyConnection } from "@/services/iship.service";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const guard = await requireGeneralShop({ ownerOnly: true });
+  // ชั่วคราว (user สั่ง 2026-07-29): ปลด ownerOnly — เป็นแค่การตรวจว่า token ที่มีอยู่ยังใช้ได้ไหม
+  // ไม่ได้แก้/เปิดเผยค่า token และไม่เปลี่ยนอะไรนอกจากสถานะการเชื่อมต่อ
+  const guard = await requireGeneralShop();
   if ("error" in guard) return guard.error;
 
   try {

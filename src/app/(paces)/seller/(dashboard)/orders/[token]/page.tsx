@@ -18,6 +18,7 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getOrderForShop } from '@/services/order.service'
 import { getShipmentPanel } from '@/services/iship.service'
+import { toShipmentContextJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -200,32 +201,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
             publicToken={order.publicToken}
             status={order.status}
           />
-          {/* ShipmentPanel — พัสดุ iShip (feature 00022). Date → ISO ก่อนข้ามขอบเขต RSC */}
+          {/* ShipmentPanel — พัสดุ iShip (feature 00022). Date → ISO ก่อนข้ามขอบเขต RSC
+              (แปลงที่ toShipmentContextJson จุดเดียว ใช้ร่วมกับ API ที่โมดัลในแชทเรียก) */}
           {shipmentPanel && (
             <ShipmentPanel
-              orderId={order.id}
-              missing={shipmentPanel.missing}
-              receiver={shipmentPanel.receiver}
-              shipment={
-                shipmentPanel.shipment
-                  ? {
-                      id: shipmentPanel.shipment.id,
-                      status: shipmentPanel.shipment.status,
-                      courierName: shipmentPanel.shipment.courierName,
-                      trackingNo: shipmentPanel.shipment.trackingNo,
-                      carrierStatusText: shipmentPanel.shipment.carrierStatusText,
-                      carrierStatusAt:
-                        shipmentPanel.shipment.carrierStatusAt?.toISOString() ?? null,
-                      isOverWeight: shipmentPanel.shipment.isOverWeight,
-                      isOverSize: shipmentPanel.shipment.isOverSize,
-                      labelPrintedAt:
-                        shipmentPanel.shipment.labelPrintedAt?.toISOString() ?? null,
-                      labelPrintCount: shipmentPanel.shipment.labelPrintCount,
-                      isDryRun: shipmentPanel.shipment.isDryRun,
-                      lastErrorMessage: shipmentPanel.shipment.lastErrorMessage,
-                    }
-                  : null
-              }
+              orderToken={order.publicToken}
+              context={toShipmentContextJson(shipmentPanel)}
             />
           )}
           <ShippingActivity
