@@ -423,12 +423,28 @@ export async function createOrder(
   return { result, dryRun: false };
 }
 
-/** ยกเลิกพัสดุ — ทำได้เฉพาะตอนที่ขนส่งยังไม่รับของเข้าระบบ */
-export async function cancelOrder(token: string, trackNo: string): Promise<void> {
+/**
+ * ยกเลิกพัสดุ — ทำได้เฉพาะตอนที่ขนส่งยังไม่รับของเข้าระบบ
+ *
+ * ระบุพัสดุด้วย courier_code + ref_code ไม่ใช่เลขติดตาม — ตามตัวอย่างจริงใน Postman
+ * collection ของ iShip (item "Cancel Order" → saved response originalRequest):
+ *   { "courier_code":"FlashExpress", "ref_code":"REFUAT...", "reason":"Customer canceled" }
+ *
+ * เดิมเราส่ง { track_no } ซึ่งไม่มีอยู่ในสัญญาของ endpoint นี้เลย ปุ่มยกเลิกจึงยิงแล้วไม่ผ่าน
+ * (ช่อง body ที่แสดงในหน้าเอกสารว่างเปล่า ตัวอย่างจริงซ่อนอยู่ใน response ที่บันทึกไว้)
+ */
+export async function cancelOrder(
+  token: string,
+  params: { courierCode: string; refCode: string; reason?: string },
+): Promise<void> {
   if (isDryRun()) return;
   await call<unknown>(token, "/api/cancel_order", {
     method: "POST",
-    body: { track_no: trackNo },
+    body: {
+      courier_code: params.courierCode,
+      ref_code: params.refCode,
+      reason: params.reason ?? "ร้านค้ายกเลิกคำสั่งซื้อ",
+    },
     timeoutMs: TIMEOUT_MS.write,
   });
 }

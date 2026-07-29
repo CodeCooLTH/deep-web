@@ -930,7 +930,13 @@ export async function cancelShipment(
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, status: true, trackingNo: true },
+    select: {
+      id: true,
+      status: true,
+      trackingNo: true,
+      refCode: true,
+      courierCode: true,
+    },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (row.status === "CANCELLED") {
@@ -938,8 +944,23 @@ export async function cancelShipment(
   }
 
   // ใบที่ยังไม่มี tracking (FAILED ตั้งแต่แรก) ไม่ต้องแจ้ง iShip — ไม่มีอะไรให้ยกเลิกที่นั่น
+  //
+  // iShip ระบุพัสดุด้วย ref_code + courier_code — ใบเก่าที่ไม่ได้เก็บ refCode ไว้จึงยกเลิก
+  // ฝั่งโน้นไม่ได้ ต้องบอกตรง ๆ ให้ไปยกเลิกที่หลังบ้าน iShip แทนการปิดใบฝั่งเราเงียบ ๆ
+  // แล้วปล่อยพัสดุจริงค้างอยู่กับขนส่ง
   if (row.trackingNo) {
-    await withTokenGuard(shopId, () => iship.cancelOrder(token, row.trackingNo!));
+    if (!row.refCode || !row.courierCode) {
+      throw new IShipServiceError(
+        "INVALID_STATE",
+        "ยกเลิกพัสดุใบนี้จากที่นี่ไม่ได้ เพราะไม่มีรหัสอ้างอิงของ iShip กรุณายกเลิกที่ระบบ iShip โดยตรง",
+      );
+    }
+    await withTokenGuard(shopId, () =>
+      iship.cancelOrder(token, {
+        courierCode: row.courierCode!,
+        refCode: row.refCode!,
+      }),
+    );
   }
 
   const updated = await prisma.orderShipment.update({
