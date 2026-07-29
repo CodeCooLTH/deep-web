@@ -15,7 +15,12 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime } from '@/lib/format-date'
-import { describeCarrierStatus, describeShipmentStatus } from '@/lib/iship/status'
+import {
+  SHIPMENT_STAGES,
+  describeCarrierStatus,
+  describeProgress,
+  describeShipmentStatus,
+} from '@/lib/iship/status'
 import type { ShipmentViewJson } from '@/lib/iship/context'
 
 interface TraceEvent {
@@ -58,6 +63,33 @@ const TONE_BADGE: Record<string, string> = {
   secondary: 'badge bg-secondary/15 text-secondary',
 }
 
+/**
+ * สีของแถบความคืบหน้า — เขียนเต็มคำทุกอัน เพราะ Tailwind สแกนซอร์สเป็นข้อความ
+ * เขียวสงวนไว้ให้ "ถึงมือผู้รับแล้ว" เท่านั้น ระหว่างทางใช้น้ำเงิน (Verified-Means-Green)
+ */
+const STAGE_DOT: Record<string, string> = {
+  progress: 'bg-primary text-white',
+  delivered: 'bg-success text-white',
+  diverted: 'bg-default-300 text-white',
+  stopped: 'bg-default-100 text-default-400',
+}
+
+const STAGE_LINE: Record<string, string> = {
+  progress: 'bg-primary',
+  delivered: 'bg-success',
+  diverted: 'bg-default-300',
+  stopped: 'bg-default-200',
+}
+
+const NOTICE_BOX: Record<string, string> = {
+  warning: 'bg-warning/15 text-warning',
+  danger: 'bg-danger/15 text-danger',
+  info: 'bg-info/15 text-info',
+  secondary: 'bg-default-100 text-default-600',
+  success: 'bg-success/15 text-success',
+  primary: 'bg-primary/15 text-primary',
+}
+
 function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-dashed border-default-200 py-2 text-sm last:border-0">
@@ -77,6 +109,11 @@ export default function ShipmentStatusView({
   const [busy, setBusy] = useState(false)
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [loadingTraces, setLoadingTraces] = useState(false)
+  // รายละเอียดดิบปิดไว้ก่อน — แถบ 4 ขั้นตอบคำถาม "ถึงไหนแล้ว" ได้ครบ
+  // ส่วนเวลา/สถานที่รายจุดจำเป็นเฉพาะตอนตามของหาย จึงให้กดเปิดเอง
+  const [showRaw, setShowRaw] = useState(false)
+
+  const progress = describeProgress(shipment.status, shipment.carrierStatus)
 
   async function handleRetry() {
     if (busy) return
@@ -225,6 +262,8 @@ export default function ShipmentStatusView({
 
   return (
     <div className="flex flex-col">
+      {/* ความคืบหน้า 4 ขั้น — บนสุดเหนือเลขติดตาม เพราะเป็นสิ่งที่ร้านอยากรู้ก่อน (user 2026-07-29)
+          อ่านจาก prop ตรง ๆ ไม่รอ /traces จึงเห็นทันทีที่เปิด ไม่มีจังหวะว่างให้ต้องรอ */}
       <section className="border-b-8 border-default-100 p-4">
         {shipment.isDryRun && (
           <p className="mb-3 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning">
@@ -233,6 +272,60 @@ export default function ShipmentStatusView({
           </p>
         )}
 
+        <ol className="grid list-none grid-cols-4 ps-0">
+          {SHIPMENT_STAGES.map((s, i) => {
+            const reached = i <= progress.stage
+            const isLast = i === SHIPMENT_STAGES.length - 1
+            return (
+              <li key={s.label} className="flex flex-col items-center gap-1.5">
+                <div className="flex w-full items-center">
+                  {/* เส้นเชื่อมซ้าย/ขวาของแต่ละจุด — ครึ่งซ้ายของจุดแรกและครึ่งขวาของจุดสุดท้าย
+                      ต้องโปร่ง ไม่งั้นแถบจะยื่นเลยจุดปลายออกไปทั้งสองข้าง */}
+                  <span
+                    className={`h-0.5 flex-1 ${i === 0 ? 'bg-transparent' : reached ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
+                  />
+                  <span
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
+                      reached ? STAGE_DOT[progress.tone] : 'bg-default-100 text-default-400'
+                    }`}
+                  >
+                    <Icon icon={s.icon} className="text-base" aria-hidden="true" />
+                  </span>
+                  <span
+                    className={`h-0.5 flex-1 ${isLast ? 'bg-transparent' : i < progress.stage ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
+                  />
+                </div>
+                <span
+                  className={`text-center text-2xs leading-tight ${
+                    i === progress.stage
+                      ? 'font-semibold text-default-900'
+                      : 'text-default-500'
+                  }`}
+                >
+                  {isLast ? (progress.lastLabel ?? s.label) : s.label}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+
+        {progress.notice && (
+          <p
+            className={`mb-0 mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+              NOTICE_BOX[progress.notice.tone] ?? NOTICE_BOX.secondary
+            }`}
+          >
+            <Icon
+              icon="tabler:alert-circle"
+              className="mt-0.5 shrink-0 text-base"
+              aria-hidden="true"
+            />
+            <span>{progress.notice.text}</span>
+          </p>
+        )}
+      </section>
+
+      <section className="border-b-8 border-default-100 p-4">
         <div className="text-center">
           <p className="mb-1 text-xs font-semibold tracking-wide text-default-400">เลขติดตามพัสดุ</p>
           <p className="mb-2 text-xl font-bold tabular-nums text-default-900">
@@ -291,26 +384,39 @@ export default function ShipmentStatusView({
       </section>
 
       <section className="border-b-8 border-default-100 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon icon="tabler:route" className="text-sm" aria-hidden="true" />
-          </span>
-          <h6 className="mb-0 text-sm font-semibold text-default-900">การเดินทางของพัสดุ</h6>
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => loadTraces()}
-            disabled={loadingTraces}
-            aria-label="โหลดสถานะล่าสุดอีกครั้ง"
-            className="btn btn-icon ms-auto text-default-500 hover:bg-default-100 disabled:opacity-50"
+            onClick={() => setShowRaw((v) => !v)}
+            aria-expanded={showRaw}
+            className="btn inline-flex items-center gap-1.5 p-0 text-sm text-primary hover:underline"
           >
-            {loadingTraces ? (
-              <span className="inline-block size-4 animate-spin rounded-full border-2 border-default-400 border-t-transparent" />
-            ) : (
-              <Icon icon="tabler:refresh" className="text-base" />
-            )}
+            <Icon
+              icon="tabler:chevron-down"
+              className={`text-base transition-transform ${showRaw ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+            {showRaw ? 'ซ่อนรายละเอียดการเดินทาง' : 'ดูรายละเอียดการเดินทาง'}
           </button>
+          {showRaw && (
+            <button
+              type="button"
+              onClick={() => loadTraces()}
+              disabled={loadingTraces}
+              aria-label="โหลดสถานะล่าสุดอีกครั้ง"
+              className="btn btn-icon ms-auto text-default-500 hover:bg-default-100 disabled:opacity-50"
+            >
+              {loadingTraces ? (
+                <span className="inline-block size-4 animate-spin rounded-full border-2 border-default-400 border-t-transparent" />
+              ) : (
+                <Icon icon="tabler:refresh" className="text-base" />
+              )}
+            </button>
+          )}
         </div>
 
+        {showRaw && (
+        <div className="mt-3">
         {/* ระหว่างโหลดครั้งแรก — โครงเทาแทนความว่างเปล่า ไม่งั้นดูเหมือนไม่มีข้อมูล */}
         {traces === null && loadingTraces && (
           <div className="flex flex-col gap-2" aria-busy="true">
@@ -354,6 +460,8 @@ export default function ShipmentStatusView({
           <p className="mb-0 text-xs text-default-400">
             ยังไม่ได้ข้อมูลการเดินทาง กดปุ่มรีเฟรชด้านบนเพื่อลองใหม่
           </p>
+        )}
+        </div>
         )}
       </section>
 
