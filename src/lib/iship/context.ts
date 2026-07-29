@@ -68,6 +68,13 @@ interface ShipmentContextBase {
   sender: SenderAddress;
   /** สินค้าในคำสั่งซื้อ — ให้ร้านกวาดตาว่ากำลังส่งของถูกใบ */
   items: ShipmentReviewItem[];
+  /**
+   * ยอดที่ต้องเก็บปลายทาง — มีค่าเมื่อคำสั่งซื้อนี้จ่ายแบบ COD เท่านั้น
+   *
+   * แยกจาก defaults.codEnabled (ค่าตั้งต้นของร้านว่า "เปิดใช้ COD ไหม") เพราะคนละเรื่องกัน:
+   * ร้านอาจเปิด COD ไว้ แต่ใบนี้ลูกค้าโอนมาแล้ว — ถ้าเติมยอดให้จะกลายเป็นเก็บเงินซ้ำ
+   */
+  codSuggested: number;
   defaults: ParcelDefaults;
 }
 

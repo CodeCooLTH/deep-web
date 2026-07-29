@@ -45,6 +45,8 @@ interface Props {
   sender: SenderAddress
   /** สินค้าในคำสั่งซื้อ — โชว์ในบล็อกตรวจ */
   items: ShipmentReviewItem[]
+  /** ยอดเก็บปลายทางของคำสั่งซื้อนี้ — 0 = ไม่ใช่ใบ COD */
+  codSuggested: number
   defaults: ParcelDefaults
   couriers: Courier[]
   /** โหลดรายชื่อขนส่งไม่ได้ — ยังสร้างได้ด้วยค่าตั้งต้นของร้าน */
@@ -138,6 +140,7 @@ export default function ShipmentCreateForm({
   receiver,
   sender,
   items,
+  codSuggested,
   defaults,
   couriers,
   couriersError = false,
@@ -187,8 +190,10 @@ export default function ShipmentCreateForm({
     defaults.optOnTime ||
     defaults.optBoxShield ||
     defaults.optIsInsured
-  const [extraOpen, setExtraOpen] = useState(hasPresetExtras)
-  const [codAmount, setCodAmount] = useState('')
+  const [extraOpen, setExtraOpen] = useState(hasPresetExtras || codSuggested > 0)
+  // ใบ COD เติมยอดจากคำสั่งซื้อให้เลย — เดิมปล่อยว่างแล้วร้านต้องเปิดดูยอดอีกหน้าแล้วพิมพ์เอง
+  // ซึ่งเป็นจังหวะที่พิมพ์ผิดได้ง่ายและผิดแล้วรู้ตอนขนส่งเก็บเงินลูกค้าผิดจำนวน (user 2026-07-29)
+  const [codAmount, setCodAmount] = useState(codSuggested > 0 ? String(codSuggested) : '')
   const [remark, setRemark] = useState(defaults.remark ?? '')
   const [onTime, setOnTime] = useState(defaults.optOnTime)
   const [boxShield, setBoxShield] = useState(defaults.optBoxShield)

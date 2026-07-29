@@ -200,6 +200,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
       receiver={ctx.receiver}
       sender={ctx.sender}
       items={ctx.items}
+      codSuggested={ctx.codSuggested}
       defaults={ctx.defaults}
       couriers={couriers as Courier[]}
       couriersError={couriersError}

@@ -71,6 +71,7 @@ export default function ShipmentPanel({ orderToken, context }: Props) {
           receiver={context.receiver}
           sender={context.sender}
           items={context.items}
+          codSuggested={context.codSuggested}
           defaults={context.defaults}
           couriers={couriers as Courier[]}
           couriersError={couriersError}

@@ -486,6 +486,8 @@ export async function getShipmentPanel(
       buyerName: true,
       buyerContact: true,
       shippingAddress: true,
+      totalAmount: true,
+      paymentMethod: true,
       // รายการสินค้า — ให้ร้านตรวจก่อนกดสร้างว่ากำลังเปิดพัสดุให้ออเดอร์ใบที่ตั้งใจ
       items: {
         select: { id: true, name: true, qty: true, price: true },
@@ -542,6 +544,9 @@ export async function getShipmentPanel(
       postcode: addr.postcode ?? null,
     },
     sender: senderOf(account),
+    // เติมยอดให้เฉพาะใบที่จ่ายปลายทางจริง — ใบที่ชำระแล้วต้องเป็น 0 ไม่ใช่ยอดคำสั่งซื้อ
+    codSuggested:
+      order.paymentMethod === "COD" ? Number(order.totalAmount) : 0,
     items: order.items.map((it) => ({
       id: it.id,
       name: it.name,
