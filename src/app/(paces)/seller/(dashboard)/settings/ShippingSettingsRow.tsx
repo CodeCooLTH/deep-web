@@ -173,27 +173,32 @@ function validateSettings(s: SettingsState): FieldErrors {
   return e
 }
 
-/** โลโก้ iShip — ไฟล์อาจยังไม่มีจริง จึงต้องมี fallback ไม่ให้เห็นรูปพัง
- *  Base: inbox/components/ChannelBadge.tsx (BadgeImage — useState + onError) */
+/**
+ * โลโก้ iShip — ไฟล์จริงเป็น app-icon สี่เหลี่ยมจัตุรัส 447x447 พื้นสีฟ้าเต็มกรอบ มุมมนมาในตัว
+ * จึงเรนเดอร์เต็มกรอบ (object-cover ไม่มี padding/ขอบ) — ถ้าใส่ขอบขาวหรือ padding จะเห็น
+ * กรอบซ้อนกับมุมมนของตัวไอคอนเอง
+ *
+ * ยังคง fallback ไว้เผื่อไฟล์หายจาก build — ตำแหน่งนี้ควรมีอะไรอยู่เสมอ ไม่ใช่ช่องว่าง
+ * Base: inbox/components/ChannelBadge.tsx (BadgeImage — useState + onError)
+ */
 function IShipLogo() {
   const [failed, setFailed] = useState(false)
-  return (
-    <span
-      className={`flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-default-200 ${
-        failed ? 'bg-primary/10' : 'bg-white'
-      }`}
-    >
-      {failed ? (
+  if (failed) {
+    return (
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-default-200 bg-primary/10">
         <Icon icon="truck-delivery" className="text-lg text-primary" aria-hidden="true" />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src="/images/logos/iship.jpeg"
-          alt="iShip"
-          className="size-full object-contain p-1"
-          onError={() => setFailed(true)}
-        />
-      )}
+      </span>
+    )
+  }
+  return (
+    <span className="size-9 shrink-0 overflow-hidden rounded-lg">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/logos/iship.jpeg"
+        alt="iShip"
+        className="size-full object-cover"
+        onError={() => setFailed(true)}
+      />
     </span>
   )
 }
