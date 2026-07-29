@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
     create: vi.fn(),
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
   },
@@ -18,7 +19,12 @@ const tx = vi.hoisted(() => ({
   shopChannel: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
-vi.mock('@/lib/facebook/graph', () => ({ subscribePageToApp: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/facebook/graph', () => ({
+  subscribePageToApp: vi.fn().mockResolvedValue(undefined),
+  unsubscribePageFromApp: vi.fn().mockResolvedValue(undefined),
+  getPageIdFromToken: vi.fn().mockResolvedValue(null),
+  getInstagramAccountIdForPage: vi.fn().mockResolvedValue(null),
+}))
 
 beforeAll(() => {
   process.env.CHANNEL_TOKEN_KEY = 'b'.repeat(64)
@@ -32,7 +38,12 @@ import {
   describePageStates,
 } from '@/services/shop-channel.service'
 import { encryptToken } from '@/lib/token-crypto'
-import { subscribePageToApp } from '@/lib/facebook/graph'
+import {
+  subscribePageToApp,
+  unsubscribePageFromApp,
+  getPageIdFromToken,
+  getInstagramAccountIdForPage,
+} from '@/lib/facebook/graph'
 
 const page = {
   id: 'PAGE1', name: 'ร้านทดสอบ', accessToken: 'page_token_plain',
@@ -45,6 +56,8 @@ describe('shop-channel.service', () => {
     // ค่าเริ่มต้น = เพจว่าง ไม่มีใครถือ และร้านนี้ยังไม่เคยมีแถวของเพจนี้
     db.shopChannel.findFirst.mockResolvedValue(null)
     db.shopChannel.findMany.mockResolvedValue([])
+    // ค่าเริ่มต้น = ไม่มีแถวให้ถอน subscription ต่อ (เทสที่สนใจเรื่องนี้ override เอง)
+    db.shopChannel.findUnique.mockResolvedValue(null)
     db.$transaction.mockImplementation(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx))
   })
 
@@ -244,6 +257,79 @@ describe('shop-channel.service', () => {
     it('channel ไม่ใช่ของ shopId นั้น (ownership guard) → throw ไม่แตะแถว', async () => {
       db.shopChannel.updateMany.mockResolvedValue({ count: 0 })
       await expect(disconnectChannel('ch1', 'shop-other')).rejects.toThrow('CHANNEL_NOT_FOUND_OR_FORBIDDEN')
+    })
+
+    // App Review (pages_manage_metadata): ถอดช่องทางแล้วต้องคืน state ให้เพจจริง ไม่ใช่ปล่อยให้
+    // Meta ส่งข้อความลูกค้ามาที่ webhook เราต่อแล้วเราทิ้งเอง
+    describe('ถอน webhook subscription ฝั่ง Meta', () => {
+      // encryptToken ต้องเรียกใน beforeEach ไม่ใช่ตัว describe body — body ถูก evaluate ตอน collect
+      // ซึ่งเกิดก่อน beforeAll ที่ตั้ง CHANNEL_TOKEN_KEY
+      beforeEach(() => {
+        db.shopChannel.updateMany.mockResolvedValue({ count: 1 })
+        db.shopChannel.findUnique.mockResolvedValue({
+          provider: 'MESSENGER',
+          externalId: 'PAGE1',
+          accessTokenEnc: encryptToken('page_token_plain'),
+        })
+      })
+
+      it('ไม่เหลือช่องทางไหนใช้เพจนี้แล้ว → ยิง DELETE subscribed_apps ด้วย page token ที่ถอดรหัสแล้ว', async () => {
+        db.shopChannel.findFirst.mockResolvedValue(null) // ไม่มีแถว active เหลือ
+        vi.mocked(getInstagramAccountIdForPage).mockResolvedValue(null) // เพจไม่ได้ผูก IG
+
+        await disconnectChannel('ch1', 'shop1')
+
+        expect(unsubscribePageFromApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain')
+      })
+
+      it('ยังมีแถว IG ของเพจเดียวกัน active อยู่ → ห้ามถอน (ไม่งั้นข้อความ IG หยุดเข้าเงียบ ๆ)', async () => {
+        vi.mocked(getInstagramAccountIdForPage).mockResolvedValue('IG1')
+        db.shopChannel.findFirst.mockImplementation(async ({ where }: any) =>
+          where.provider === 'INSTAGRAM' && where.externalId === 'IG1' ? { id: 'ch2' } : null,
+        )
+
+        await disconnectChannel('ch1', 'shop1')
+
+        expect(unsubscribePageFromApp).not.toHaveBeenCalled()
+      })
+
+      it('ยังมีแถว MESSENGER ของเพจนี้ active อยู่ (ร้านอื่นถือ) → ห้ามถอน', async () => {
+        db.shopChannel.findFirst.mockResolvedValue({ id: 'ch-other-shop' })
+
+        await disconnectChannel('ch1', 'shop1')
+
+        expect(unsubscribePageFromApp).not.toHaveBeenCalled()
+        // ไม่ต้องถาม Graph เรื่อง IG เลยเมื่อรู้แล้วว่ายังมีคนใช้ — ประหยัด call
+        expect(getInstagramAccountIdForPage).not.toHaveBeenCalled()
+      })
+
+      it('ถอดแถว INSTAGRAM → resolve page id จาก token ก่อน (externalId เป็น IG account id ไม่ใช่ page id)', async () => {
+        db.shopChannel.findUnique.mockResolvedValue({
+          provider: 'INSTAGRAM',
+          externalId: 'IG1',
+          accessTokenEnc: encryptToken('page_token_plain'),
+        })
+        vi.mocked(getPageIdFromToken).mockResolvedValue('PAGE1')
+        db.shopChannel.findFirst.mockResolvedValue(null)
+        vi.mocked(getInstagramAccountIdForPage).mockResolvedValue(null)
+
+        await disconnectChannel('ch1', 'shop1')
+
+        expect(getPageIdFromToken).toHaveBeenCalledWith('page_token_plain')
+        expect(unsubscribePageFromApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain')
+      })
+
+      it('Graph ล้มเหลว (token หมดอายุ) → การถอดช่องทางยังสำเร็จ ไม่ throw ออกไปหา user', async () => {
+        db.shopChannel.findFirst.mockResolvedValue(null)
+        vi.mocked(getInstagramAccountIdForPage).mockResolvedValue(null)
+        vi.mocked(unsubscribePageFromApp).mockRejectedValueOnce(new Error('token expired'))
+
+        await expect(disconnectChannel('ch1', 'shop1')).resolves.toBeUndefined()
+        expect(db.shopChannel.updateMany).toHaveBeenCalledWith({
+          where: { id: 'ch1', shopId: 'shop1' },
+          data: { status: 'DISCONNECTED' },
+        })
+      })
     })
   })
 })

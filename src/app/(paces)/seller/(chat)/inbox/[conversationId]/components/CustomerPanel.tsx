@@ -59,6 +59,8 @@ export type CustomerPanelOrder = {
   checkOut: string | null
   // รายการสินค้า (user 2026-07-25: การ์ด right panel แสดงเหมือนในแชท — ชื่อ/จำนวน/ราคา/รูป)
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
+  /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ */
+  shipment?: { trackingNo: string | null; courierName: string | null } | null
 }
 
 export type CustomerPanelData = {
@@ -165,6 +167,28 @@ function OrderCard({
 }) {
   const { openDraft } = useDraftOrders()
   const [sending, setSending] = useState(false)
+  const hasShipment = !!o.shipment
+
+  /**
+   * เปิดหน้าต่างพัสดุ (feature 00022, user request 2026-07-27)
+   *
+   * เดิมปุ่มนี้ยิงสร้างพัสดุตรง ๆ ด้วยค่าตั้งต้นของร้านล้วน — ร้านที่เพิ่งตกลงเรื่องที่อยู่
+   * กับลูกค้าในห้องนี้แก้อะไรไม่ได้เลย ต้องออกไปหน้าคำสั่งซื้อแล้วเดินกลับมา
+   * ตอนนี้เปิดเป็นหน้าต่างเดียวกับโมดัลคำสั่งซื้อ (ย่อได้ ค้างข้ามห้อง) แล้วแก้ที่อยู่/ขนาด/
+   * ขนส่ง/COD ได้ก่อนกดสร้าง — กล่องยืนยันย้ายไปอยู่ตอนกดสร้างในหน้าต่างนั้น
+   */
+  function openShipment(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openDraft({
+      conversationId,
+      customerName: contactName,
+      channel,
+      customerAvatar,
+      kind: 'SHIPMENT',
+      shipmentOrderToken: o.token,
+    })
+  }
 
   // แตะการ์ด → เปิดโมดัลแก้ไขคำสั่งซื้อ (user 2026-07-25: ไม่เปิด tab ใหม่ ให้แก้ในโมดัลเดิม ไม่ต้องสลับจอ)
   function openEdit() {
@@ -204,20 +228,38 @@ function OrderCard({
   // การ์ดเดียวกับในแชท (user 2026-07-25) — OrderCardView shared; แตะ = เปิดโมดัลแก้ไข; footer = ส่งเข้าแชท
   return (
     <OrderCardView
-      data={{ token: o.token, orderNo: o.orderNo, status: o.status, totalAmount: o.totalAmount, items: o.items }}
+      data={{
+        token: o.token,
+        orderNo: o.orderNo,
+        status: o.status,
+        totalAmount: o.totalAmount,
+        items: o.items,
+        shipment: o.shipment ?? null,
+      }}
       onEdit={openEdit}
       className="w-full"
       footer={
-        <div className="border-default-200 border-t p-2">
+        <div className="border-default-200 flex gap-2 border-t p-2">
           <button
             type="button"
             onClick={sendToChat}
             disabled={sending}
             aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
-            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 w-full gap-1 disabled:opacity-60"
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
           >
             <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
             ส่งเข้าแชท
+          </button>
+          {/* feature 00022 — เปิดหน้าต่างพัสดุในห้องนี้เลย ไม่ต้องสลับหน้า
+              คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม */}
+          <button
+            type="button"
+            onClick={openShipment}
+            aria-label={hasShipment ? 'ดูพัสดุของคำสั่งซื้อนี้' : 'สร้างพัสดุสำหรับคำสั่งซื้อนี้'}
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1"
+          >
+            <Icon icon="truck-delivery" className="text-sm" />
+            {hasShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
           </button>
         </div>
       }

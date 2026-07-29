@@ -985,3 +985,131 @@ export const ConfirmChannelPagesSchema = v.object({
   ),
   forceIds: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64))), v.maxLength(50))),
 });
+
+// ── feature 00022 — iShip Shipping Integration ───────────────────────────────
+
+// token ที่ร้านคัดลอกมาจากหลังบ้าน iShip. ตัวอย่างจริงยาว ~100 ตัว แต่ผู้ให้บริการ
+// ไม่ประกาศความยาวตายตัว จึงกำหนดช่วงกว้างพอที่จะไม่ปฏิเสธของจริง แต่ยังกันการวางผิดช่อง
+// ห้ามมีช่องว่างภายใน — เคสจริงที่เจอบ่อยคือ copy ติดขึ้นบรรทัดใหม่มาด้วย
+export const IShipConnectSchema = v.object({
+  token: v.pipe(
+    v.string(),
+    v.trim(),
+    v.minLength(20, "Token สั้นเกินไป กรุณาตรวจว่าคัดลอกมาครบ"),
+    v.maxLength(500, "Token ยาวเกินกว่าที่ระบบรองรับ"),
+    v.regex(/^\S+$/, "Token ต้องไม่มีช่องว่าง กรุณาคัดลอกใหม่"),
+  ),
+});
+
+const thaiPostcode = v.pipe(v.string(), v.regex(/^[0-9]{5}$/, "รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก"));
+const shortText = (max: number) => v.pipe(v.string(), v.trim(), v.maxLength(max));
+
+// ค่าตั้งต้นของร้าน — nullable ทุกช่อง เพราะร้านทยอยกรอกได้ ความครบถ้วนบังคับตอน
+// "จะเปิดพัสดุ" ไม่ใช่ตอนบันทึกฟอร์ม (BR-ISHIP-30 บังคับที่ service ไม่ใช่ที่ schema)
+// senderSubdistrict = ตำบล/แขวง, senderDistrict = อำเภอ/เขต — ดู BR-ISHIP-31
+export const IShipSettingsSchema = v.object({
+  senderName: v.nullish(shortText(120)),
+  senderPhone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรไม่ถูกต้อง"))),
+  senderAddress: v.nullish(shortText(255)),
+  senderSubdistrict: v.nullish(shortText(100)),
+  senderDistrict: v.nullish(shortText(100)),
+  senderProvince: v.nullish(shortText(100)),
+  senderPostcode: v.nullish(thaiPostcode),
+  defaultCourierCode: v.nullish(shortText(50)),
+  defaultWeight: v.nullish(v.pipe(v.number(), v.minValue(0.01), v.maxValue(100))),
+  defaultWidth: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+  defaultLength: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+  defaultHeight: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+  // หมวดพัสดุตามที่ iShip กำหนด (0-11 และ 99) — ไม่ใช่ช่วงต่อเนื่อง จึงใช้ picklist
+  defaultCategoryId: v.nullish(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
+  defaultCodEnabled: v.optional(v.boolean()),
+  optOnTime: v.optional(v.boolean()),
+  optBoxShield: v.optional(v.boolean()),
+  optIsInsured: v.optional(v.boolean()),
+  optProductValue: v.nullish(v.pipe(v.number(), v.minValue(1))),
+  optServiceType: v.nullish(v.picklist([1, 2])),
+  defaultRemark: v.nullish(shortText(255)),
+  createMode: v.optional(v.picklist(["AUTO", "ASK", "OFF"])),
+});
+
+// override รายออเดอร์ — ทุก field optional เพราะไม่ส่งมา = ใช้ค่าตั้งต้นของร้าน
+export const IShipCreateShipmentSchema = v.object({
+  // รับได้ 2 แบบ: orderId (uuid) จากหน้ารายละเอียดคำสั่งซื้อ หรือ orderToken
+  // (publicToken/shortCode) จากการ์ดในแชท ซึ่งรู้จักแค่ token — เซิร์ฟเวอร์แปลงให้เอง
+  orderId: v.optional(v.pipe(v.string(), v.uuid())),
+  orderToken: v.optional(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
+  /** ข้อมูลผู้รับที่ร้านกรอกเพิ่มตอนสร้าง — จะถูกเขียนกลับเข้าออเดอร์ก่อนเปิดพัสดุ */
+  receiver: v.optional(
+    v.object({
+      name: v.nullish(shortText(120)),
+      phone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
+      line1: v.nullish(shortText(255)),
+      subdistrict: v.nullish(shortText(100)),
+      district: v.nullish(shortText(100)),
+      province: v.nullish(shortText(100)),
+      postcode: v.nullish(thaiPostcode),
+      note: v.nullish(shortText(255)),
+    }),
+  ),
+  override: v.optional(
+    v.object({
+      courierCode: v.optional(shortText(50)),
+      weight: v.optional(v.pipe(v.number(), v.minValue(0.01), v.maxValue(100))),
+      width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+      length: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+      height: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+      categoryId: v.optional(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
+      codAmount: v.optional(v.pipe(v.number(), v.minValue(0))),
+      remark: v.nullish(shortText(255)),
+      options: v.optional(
+        v.object({
+          onTime: v.optional(v.boolean()),
+          boxShield: v.optional(v.boolean()),
+          isInsured: v.optional(v.boolean()),
+          productValue: v.nullish(v.pipe(v.number(), v.minValue(1))),
+          serviceType: v.nullish(v.picklist([1, 2])),
+        }),
+      ),
+    }),
+  ),
+});
+
+// ข้อมูลผู้รับที่ร้านกรอกเพิ่ม ณ ตอนกดสร้างพัสดุ (user feedback 2026-07-26)
+// ทุกช่อง optional — ส่งมาเฉพาะช่องที่กรอก ช่องที่ไม่ส่งจะคงค่าเดิมในออเดอร์ไว้
+// subdistrict = ตำบล/แขวง, district = อำเภอ/เขต (BR-ISHIP-31 — คนละความหมายกับของ iShip)
+export const IShipReceiverPatchSchema = v.object({
+  name: v.nullish(shortText(120)),
+  phone: v.nullish(v.pipe(v.string(), v.regex(/^0[0-9]{9}$/, "เบอร์โทรผู้รับไม่ถูกต้อง"))),
+  line1: v.nullish(shortText(255)),
+  subdistrict: v.nullish(shortText(100)),
+  district: v.nullish(shortText(100)),
+  province: v.nullish(shortText(100)),
+  postcode: v.nullish(thaiPostcode),
+  note: v.nullish(shortText(255)),
+});
+
+// พิมพ์หลายใบ — เพดาน 50 ใบต่อครั้ง (เกินแล้วต้องบอกจำนวนสูงสุด ไม่ใช่ตัดทิ้งเงียบ FR-ISHIP-031)
+export const IShipBulkLabelSchema = v.object({
+  shipmentIds: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.uuid())),
+      v.minLength(1, "กรุณาเลือกอย่างน้อย 1 รายการ"),
+      v.maxLength(50, "พิมพ์ได้สูงสุดครั้งละ 50 ใบ"),
+    ),
+  ),
+  // orderTokens: ทางเลือกสำหรับหน้ารายการคำสั่งซื้อ ซึ่งรู้จักแค่ publicToken/shortCode
+  // ไม่รู้จัก id ของพัสดุ — เซิร์ฟเวอร์แปลงให้เอง (ดู getLabelPdfForOrders)
+  orderTokens: v.optional(
+    v.pipe(
+      v.array(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
+      v.minLength(1, "กรุณาเลือกอย่างน้อย 1 รายการ"),
+      v.maxLength(50, "พิมพ์ได้สูงสุดครั้งละ 50 ใบ"),
+    ),
+  ),
+});
+
+export const IShipPickupSchema = v.object({
+  courierCode: shortText(50),
+  parcelCount: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
+  remark: v.nullish(shortText(255)),
+});

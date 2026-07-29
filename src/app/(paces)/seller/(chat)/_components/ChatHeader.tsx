@@ -30,8 +30,10 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import AccountAvatar from '@/components/AccountAvatar'
 import AppLogo from '@/components/AppLogo'
 import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
 import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleToggler'
@@ -47,6 +49,15 @@ export default function ChatHeader() {
   // ≥1024px ไม่ซ่อน: เป็นเลย์เอาต์ 3 คอลัมน์ที่ rail/เธรดอยู่บนจอเดียวกัน header เป็นแถบร่วมของทั้งหน้า
   const pathname = usePathname()
   const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '')
+
+  // โลโก้ร้านที่ active สำหรับปุ่ม "กลับหน้าหลัก" (bug fix 2026-07-26: chat ไม่ขึ้นโลโก้ร้าน) —
+  // ดึงจาก session เหมือน UserDropdownDetailed; ไม่มีโลโก้/บัญชีส่วนตัว → AccountAvatar fallback icon
+  const { data: session } = useSession()
+  const chatUser = (session as any)?.user as
+    | { avatar?: string | null; activeShopKind?: 'PERSONAL' | 'BUSINESS'; activeShopLogo?: string | null }
+    | undefined
+  const isBusiness = chatUser?.activeShopKind === 'BUSINESS'
+  const activeLogo = isBusiness ? (chatUser?.activeShopLogo ?? null) : (chatUser?.avatar ?? null)
 
   // เสียงเตือนข้อความใหม่ (user สั่ง 2026-07-23) — ปุ่มนี้คือสวิตช์ "ระดับแอป" ปิดแล้วเงียบทุกเธรด
   // (ปิดรายเธรดอยู่ที่หัวเธรดใน ChatThread) ค่าอ่านหลัง mount เท่านั้น: localStorage ไม่มีบน server
@@ -82,14 +93,15 @@ export default function ChatHeader() {
         <ChatSearchBox />
       </div>
 
-      {/* icon ร้านค้า ข้างช่องค้นหา — กลับหน้าหลัก (dashboard) เช่นกัน (user request 2026-07-23) */}
+      {/* โลโก้ร้าน ข้างช่องค้นหา — กลับหน้าหลัก (dashboard) เช่นกัน (user request 2026-07-23);
+          แสดงโลโก้ร้าน active (bug fix 2026-07-26) fallback เป็น icon ร้านเมื่อไม่มีโลโก้ */}
       <Link
         href="/dashboard"
         title="กลับหน้าหลัก"
         aria-label="กลับหน้าหลัก"
-        className="btn btn-icon bg-light text-dark inline-flex size-11 shrink-0 items-center justify-center"
+        className="inline-flex size-11 shrink-0 items-center justify-center"
       >
-        <Icon icon="building-store" className="text-lg" />
+        <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
       </Link>
 
       <div className="flex shrink-0 items-center gap-1">

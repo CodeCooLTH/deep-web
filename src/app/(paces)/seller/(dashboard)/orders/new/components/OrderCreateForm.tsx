@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
+import { runAfterOrderCreate, type IShipCreateMode } from '@/lib/iship/after-order-create'
 import * as Yup from 'yup'
 import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
@@ -56,6 +57,12 @@ interface Props {
   initialBuyerContact?: string
   /** prefill ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK) จากช่องทางแชท — ชนะ localStorage default */
   initialSalesChannel?: string
+  /**
+   * โหมดสร้างพัสดุ iShip ของร้าน (feature 00022) — ส่งมาจาก server ตอน render
+   * เพื่อไม่ต้องยิงถามทุกครั้งที่เปิดหน้า. ไม่ส่งมา = 'OFF' (ร้านที่ไม่ได้เชื่อมต่อ
+   * หรือร้านบ้านพัก จะไม่มีอะไรเกิดขึ้นเลย)
+   */
+  ishipCreateMode?: IShipCreateMode
   /** เรียกเมื่อสร้างสำเร็จ — ถ้ามี จะไม่ router.push (โมดัลจัดการปิด+refresh เอง); ไม่มี = behavior เดิม (/orders/new) */
   onSuccess?: (token: string | null) => void
   /** feature 00018 (user 2026-07-24): เธรดแชทที่สร้างออเดอร์นี้ — ส่งไป API เพื่อผูก ExternalContact
@@ -192,6 +199,7 @@ export default function OrderCreateForm({
   conversationId,
   editOrderToken,
   compact = false,
+  ishipCreateMode = 'OFF',
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -549,6 +557,15 @@ export default function OrderCreateForm({
       const isDesktop =
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
       if (isDesktop) pacesToast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
+
+      // feature 00022 — เปิดพัสดุตามโหมดที่ร้านตั้งไว้ (อัตโนมัติ / ถามก่อน / ปิด)
+      // วางไว้ "หลัง" ออเดอร์บันทึกสำเร็จและ "ก่อน" เปลี่ยนหน้าเสมอ:
+      // ถ้าเปลี่ยนหน้าไปก่อน component นี้จะถูก unmount แล้วคำถามจะหายกลางอากาศ
+      // ฟังก์ชันนี้ไม่โยน error ออกมา ความล้มเหลวของขนส่งจึงไม่กระทบออเดอร์ (BR-ISHIP-21)
+      // แก้ไขออเดอร์เดิม (PATCH) ไม่เข้าเงื่อนไข — เปิดพัสดุเฉพาะตอนสร้างใหม่
+      if (!editOrderToken) {
+        await runAfterOrderCreate(ishipCreateMode, order?.id ?? order?.order?.id ?? null)
+      }
       // โมดัลสร้างคำสั่งซื้อจากแชท (feature 00018): ไม่ navigate ออก — ให้ manager ปิด draft + refresh เอง
       if (onSuccess) {
         onSuccess(token ?? null)

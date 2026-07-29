@@ -14,6 +14,9 @@ import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
 import { ConnectedAccountsClient } from './ConnectedAccountsClient'
+import ShippingSettingsRow from './ShippingSettingsRow'
+import { resolveActiveShopContext } from '@/lib/shop-context'
+import { getConnection } from '@/services/iship.service'
 
 export const metadata: Metadata = { title: 'บัญชีที่เชื่อมต่อ' }
 
@@ -41,9 +44,64 @@ export default async function SettingsPage() {
   // ทำไม Set: O(1) lookup ตอน render provider rows ข้างล่าง
   const linkedProviders = new Set(accounts.map((a) => a.provider))
 
+  // feature 00022 — การ์ดทางเข้าหน้าตั้งค่าการจัดส่ง
+  // แสดงเฉพาะร้าน vertical = GENERAL: ร้านบ้านพักไม่มีพัสดุให้ส่ง การมีเมนูค้างอยู่
+  // คือความรกที่ทำให้เจ้าของที่พักสงสัยว่าต้องไปตั้งค่าอะไรหรือเปล่า (BR-ISHIP-01)
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id, activeShopId: (user as { activeShopId?: string | null }).activeShopId ?? null },
+  })
+  const shop = activeCtx
+    ? await prisma.shop.findUnique({
+        where: { id: activeCtx.shopId },
+        select: { vertical: true },
+      })
+    : null
+  const showShipping = shop?.vertical === 'GENERAL'
+  const connection = showShipping && activeCtx ? await getConnection(activeCtx.shopId) : null
+
+  // ค่าตั้งต้นดึงมาพร้อมหน้าเลย (ไม่ lazy) — โมดัลตั้งค่าจะได้เปิดแล้วเห็นข้อมูลทันที
+  // ไม่มี spinner คั่น; เป็นข้อมูลของร้านเอง ไม่ใช่ PII ลูกค้า จึงไม่ติดกฎ neutralize-at-source
+  const shippingSettings =
+    connection?.connected && activeCtx
+      ? await (await import('@/services/iship.service')).getSettings(activeCtx.shopId)
+      : null
+
+  // ส่งเฉพาะข้อมูลที่ต้องใช้แสดงผล — ไม่มี token ในนี้ทุกกรณี (view type ของ service
+  // ไม่มี field token ตั้งแต่ระดับ type) หน้า seller อยู่ใต้ client layout → ทุกอย่างที่ส่ง
+  // ถูก serialize เข้า flight payload
+  const shipping = connection && {
+    connected: connection.connected,
+    status: connection.status,
+    tokenLast4: connection.tokenLast4,
+    lastVerifiedAt: connection.lastVerifiedAt?.toISOString() ?? null,
+    senderComplete: connection.senderComplete,
+    settingsComplete: connection.settingsComplete,
+    createMode: connection.createMode,
+  }
+  const isOwner = activeCtx?.role === 'OWNER'
+
   return (
     <>
       <PageBreadcrumb title="บัญชีที่เชื่อมต่อ" trail={[{ label: 'ภาพรวม' }]} />
+
+      {showShipping && shipping && (
+        <div className="card mb-4">
+          <div className="card-header">
+            <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
+              การจัดส่ง
+            </h5>
+          </div>
+          <div className="card-body">
+            {/* user request 2026-07-29: ยกเลิกหน้า /settings/shipping — ทุก action อยู่ที่แถวนี้
+                ผ่านโมดัลแยกตามงาน (เชื่อมต่อ / เรียกรถ / ตั้งค่า 3 แท็บ) */}
+            <ShippingSettingsRow
+              isOwner={isOwner}
+              initialConnection={shipping}
+              initialSettings={shippingSettings}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="card">
         {/* section header — Paces border-dashed pattern จาก account-settings theme */}

@@ -12,7 +12,7 @@
  * Base: ไม่มี "dockable modal" primitive ใน Paces — โครง overlay อิง precedent ในโปรเจกต์
  * (CustomerPanelSheet.tsx/OrderQrSheet.tsx: fixed inset + z-80 carve-out HR7, React state ไม่ใช้ Preline)
  */
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
@@ -20,6 +20,8 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import ShipmentDraftPanel from './ShipmentDraftPanel'
+import type { IShipCreateMode } from '@/lib/iship/after-order-create'
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
 
@@ -30,6 +32,9 @@ function chatChannelToSalesChannel(channel: string): string | undefined {
   return undefined
 }
 
+/** ชนิดของงานในหน้าต่าง — คำสั่งซื้อ (เดิม) หรือพัสดุ (feature 00022) */
+export type DraftKind = 'ORDER' | 'SHIPMENT'
+
 export type OpenDraftInput = {
   conversationId: string
   customerName: string
@@ -38,16 +43,28 @@ export type OpenDraftInput = {
   customerAvatar?: string | null
   /** แก้ไขคำสั่งซื้อเดิม (user 2026-07-25) — มีค่า = โหลด order นี้เข้าฟอร์ม + submit PATCH; ไม่มี = สร้างใหม่ */
   editOrderToken?: string | null
+  /** default 'ORDER' — 'SHIPMENT' ต้องมี shipmentOrderToken ด้วย */
+  kind?: DraftKind
+  /** คำสั่งซื้อที่จะเปิด/ดูพัสดุ (feature 00022) */
+  shipmentOrderToken?: string | null
 }
 
-type OrderDraft = {
+type ChatDraft = {
   id: string
+  kind: DraftKind
   conversationId: string
   customerName: string
   customerAvatar: string | null
   channel: string
   editOrderToken: string | null // null = สร้างใหม่; มีค่า = แก้ไขออเดอร์นั้น
+  shipmentOrderToken: string | null
   state: 'expanded' | 'minimized'
+}
+
+/** คำบนหัวหน้าต่าง/chip — ต่างกันตามชนิดงาน ร้านจะได้รู้ว่า chip ที่ย่อไว้คืออะไร */
+function draftTitle(d: Pick<ChatDraft, 'kind' | 'editOrderToken'>): string {
+  if (d.kind === 'SHIPMENT') return 'พัสดุ'
+  return d.editOrderToken ? 'แก้ไขคำสั่งซื้อ' : 'คำสั่งซื้อใหม่'
 }
 
 /** avatar เล็กของลูกค้า + ไอคอนช่องทาง (chip/หัวโมดัล) — src เดียวกับ ChatAvatar (http URL / fileId / initials) */
@@ -87,16 +104,48 @@ type ProviderProps = {
 }
 
 export default function DraftOrderProvider({ shopId, catalog, bestSellers, inventoryEnabled, children }: ProviderProps) {
-  const [drafts, setDrafts] = useState<OrderDraft[]>([])
+  const [drafts, setDrafts] = useState<ChatDraft[]>([])
+
+  // feature 00022 — โหมดสร้างพัสดุของร้าน
+  // ที่นี่เป็น client component จึงถามผ่าน API ครั้งเดียวตอน mount (ต่างจากหน้า POS
+  // ที่ server ส่งมาให้ตอน render). ร้านที่ไม่ได้เชื่อมต่อ/ร้านบ้านพักจะได้ 403 หรือ
+  // connected=false → คงค่า 'OFF' ไว้ = ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์จากแชท
+  const [ishipCreateMode, setIshipCreateMode] = useState<IShipCreateMode>('OFF')
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/seller/iship/connection', { cache: 'no-store' })
+        if (!res.ok) return
+        const body = (await res.json()) as { connected?: boolean; status?: string; createMode?: string }
+        if (alive && body.connected && body.status === 'ACTIVE') {
+          setIshipCreateMode((body.createMode as IShipCreateMode) ?? 'OFF')
+        }
+      } catch {
+        // เงียบโดยเจตนา — ถามไม่ได้ก็คงเป็น 'OFF' ไม่ควรรบกวนหน้าแชทด้วย error เรื่องขนส่ง
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
   const router = useRouter()
   const pathname = usePathname()
 
   const openDraft = useCallback((input: OpenDraftInput) => {
     const editToken = input.editOrderToken ?? null
+    const kind: DraftKind = input.kind ?? 'ORDER'
+    const shipmentToken = input.shipmentOrderToken ?? null
     setDrafts((prev) => {
-      // dedup: แก้ไข → key ด้วย editOrderToken (แก้คนละออเดอร์ = คนละร่าง); สร้างใหม่ → key ด้วย conversationId
+      // dedup: พัสดุ → key ด้วยออเดอร์ที่จะเปิดพัสดุ; แก้ไข → key ด้วย editOrderToken
+      // (แก้คนละออเดอร์ = คนละร่าง); สร้างใหม่ → key ด้วย conversationId
       const existing = prev.find((d) =>
-        editToken ? d.editOrderToken === editToken : !d.editOrderToken && d.conversationId === input.conversationId,
+        kind === 'SHIPMENT'
+          ? d.kind === 'SHIPMENT' && d.shipmentOrderToken === shipmentToken
+          : d.kind === 'ORDER' &&
+            (editToken
+              ? d.editOrderToken === editToken
+              : !d.editOrderToken && d.conversationId === input.conversationId),
       )
       if (existing) {
         // มีร่างนี้อยู่แล้ว → ขยายตัวเดิม, ตัวอื่นที่ขยายอยู่ให้ย่อ (expanded ได้ทีละ 1)
@@ -104,13 +153,15 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
           d.id === existing.id ? { ...d, state: 'expanded' } : d.state === 'expanded' ? { ...d, state: 'minimized' } : d,
         )
       }
-      const next: OrderDraft = {
+      const next: ChatDraft = {
         id: (globalThis.crypto?.randomUUID?.() ?? `d${Date.now()}${prev.length}`),
+        kind,
         conversationId: input.conversationId,
         customerName: input.customerName,
         customerAvatar: input.customerAvatar ?? null,
         channel: input.channel,
         editOrderToken: editToken,
+        shipmentOrderToken: shipmentToken,
         state: 'expanded',
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
@@ -136,10 +187,19 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
   }, [])
 
   const handleSuccess = useCallback(
-    (draft: OrderDraft) => {
+    (draft: ChatDraft) => {
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id))
       pacesToast.success(draft.editOrderToken ? 'แก้ไขคำสั่งซื้อแล้ว' : 'สร้างคำสั่งซื้อแล้ว')
       // ถ้ากำลังเปิดแชทของ draft นี้อยู่ → refresh ให้แท็บคำสั่งซื้อเห็นออเดอร์ใหม่ทันที
+      if (pathname === `/inbox/${draft.conversationId}`) router.refresh()
+    },
+    [pathname, router],
+  )
+
+  /** พัสดุสำเร็จ — toast ขึ้นที่ ShipmentDraftPanel แล้ว (มีเคส "สร้างได้แต่ส่งข้อความไม่ผ่าน") */
+  const handleShipmentDone = useCallback(
+    (draft: ChatDraft) => {
+      setDrafts((prev) => prev.filter((d) => d.id !== draft.id))
       if (pathname === `/inbox/${draft.conversationId}`) router.refresh()
     },
     [pathname, router],
@@ -157,7 +217,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
         <div
           key={d.id}
           role="dialog"
-          aria-label={`สร้างคำสั่งซื้อ ${d.customerName}`}
+          aria-label={`${draftTitle(d)} ${d.customerName}`}
           aria-hidden={d.state !== 'expanded'}
           // z-80 = viewport overlay (Paces ไม่มี token; precedent CustomerPanelSheet/OrderQrSheet — HR7 carve-out)
           // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ). มือถือเต็มจอ (inset-0); desktop = หน้าต่างขนาดมือถือ
@@ -176,7 +236,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
             <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
             <div className="min-w-0 flex-1">
               <p className="mb-0 truncate text-sm font-semibold">
-                {d.editOrderToken ? 'แก้ไขคำสั่งซื้อ' : 'คำสั่งซื้อใหม่'} · {d.customerName}
+                {draftTitle(d)} · {d.customerName}
               </p>
               <p className="mb-0 truncate text-xs text-white/80">{getChannelDisplay(d.channel).label}</p>
             </div>
@@ -201,19 +261,28 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
           {/* compact = บังคับ layout มือถือ (QuickForm คอลัมน์เดียว) ทุกจอ — POS 3-col เดสก์ท็อปแน่นเกินในโมดัล
               (user report 2026-07-24). โมดัลแคบ (w-96) อยู่แล้วจึงไม่ต้อง max-w ครอบเพิ่ม */}
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <OrderCreateForm
-              shopId={shopId}
-              catalog={catalog}
-              bestSellers={bestSellers}
-              inventoryEnabled={inventoryEnabled}
-              formId={`draft-order-form-${d.id}`}
-              initialBuyerName={d.customerName}
-              initialSalesChannel={chatChannelToSalesChannel(d.channel)}
-              conversationId={d.conversationId}
-              editOrderToken={d.editOrderToken ?? undefined}
-              onSuccess={() => handleSuccess(d)}
-              compact
-            />
+            {d.kind === 'SHIPMENT' && d.shipmentOrderToken ? (
+              <ShipmentDraftPanel
+                conversationId={d.conversationId}
+                orderToken={d.shipmentOrderToken}
+                onDone={() => handleShipmentDone(d)}
+              />
+            ) : (
+              <OrderCreateForm
+                shopId={shopId}
+                catalog={catalog}
+                bestSellers={bestSellers}
+                inventoryEnabled={inventoryEnabled}
+                formId={`draft-order-form-${d.id}`}
+                initialBuyerName={d.customerName}
+                initialSalesChannel={chatChannelToSalesChannel(d.channel)}
+                conversationId={d.conversationId}
+                editOrderToken={d.editOrderToken ?? undefined}
+                ishipCreateMode={ishipCreateMode}
+                onSuccess={() => handleSuccess(d)}
+                compact
+              />
+            )}
           </div>
         </div>
       ))}
@@ -229,7 +298,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
                 <span className="flex min-w-0 flex-col text-start">
-                  <span className="text-default-500 text-2xs">{d.editOrderToken ? 'แก้ไขคำสั่งซื้อ' : 'คำสั่งซื้อใหม่'}</span>
+                  <span className="text-default-500 text-2xs">{draftTitle(d)}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
               </button>

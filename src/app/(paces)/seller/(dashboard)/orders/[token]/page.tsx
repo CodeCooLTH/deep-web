@@ -17,6 +17,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getOrderForShop } from '@/services/order.service'
+import { getShipmentPanel } from '@/services/iship.service'
+import { toShipmentContextJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -28,6 +30,7 @@ import OrderDetails from './components/OrderDetails'
 import type { ShippingAddressData } from './components/CustomerDetails'
 import ShippingActivity from './components/ShippingActivity'
 import OrderReviewCard from './components/OrderReviewCard'
+import ShipmentPanel from './components/ShipmentPanel'
 import type { OrderReviewData } from './components/OrderReviewCard'
 
 export const metadata: Metadata = { title: 'รายละเอียดออเดอร์' }
@@ -55,6 +58,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
   const order: any = orderRaw
+
+  // feature 00022 — ข้อมูลส่วน "การจัดส่ง" (พัสดุ iShip)
+  // คืน null เมื่อร้านไม่ได้เชื่อมต่อ หรือออเดอร์นี้ไม่เกี่ยวกับการส่งของ
+  // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
+  const shipmentPanel = await getShipmentPanel(shop.id, order.id)
 
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
@@ -122,6 +130,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}
         isFromAuction={Boolean(order.auctionId)}
+        ishipTrackingNo={shipmentPanel?.shipment?.trackingNo ?? null}
+        ishipCourierName={shipmentPanel?.shipment?.courierName ?? null}
       />
 
       {/* mt-base คั่นระหว่าง top bar กับ grid — Paces spacing token (--spacing-base=20px) ห้ามใช้ mt-[20px] */}
@@ -191,6 +201,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
             publicToken={order.publicToken}
             status={order.status}
           />
+          {/* ShipmentPanel — พัสดุ iShip (feature 00022). Date → ISO ก่อนข้ามขอบเขต RSC
+              (แปลงที่ toShipmentContextJson จุดเดียว ใช้ร่วมกับ API ที่โมดัลในแชทเรียก) */}
+          {shipmentPanel && (
+            <ShipmentPanel
+              orderToken={order.publicToken}
+              context={toShipmentContextJson(shipmentPanel)}
+            />
+          )}
           <ShippingActivity
             data={{
               status: order.status,

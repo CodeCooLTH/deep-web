@@ -37,7 +37,7 @@ const DataDeletionPage = () => {
           <div className='flex flex-col gap-2'>
             <Typography variant='h4'>การลบข้อมูลผู้ใช้ (User Data Deletion)</Typography>
             <Typography variant='caption' className='text-textSecondary'>
-              อัปเดตล่าสุด 17 มิถุนายน 2569
+              อัปเดตล่าสุด 27 กรกฎาคม 2569
             </Typography>
           </div>
 
@@ -93,26 +93,65 @@ const DataDeletionPage = () => {
                 <li>
                   <Typography variant='body2'>ข้อมูลที่เชื่อมโยงกับบัญชีทั้งหมด</Typography>
                 </li>
+                <li>
+                  <Typography variant='body2'>
+                    หากคุณเป็นร้านค้าที่เชื่อมเพจ Facebook หรือบัญชี Instagram ไว้:
+                    โทเค็นการเข้าถึงเพจ, บทสนทนากับลูกค้าที่ดึงเข้ามาแสดงในระบบ, ไฟล์แนบที่สำเนามาเก็บ
+                    และข้อมูลผู้ติดต่อจากช่องทางเหล่านั้น
+                  </Typography>
+                </li>
               </ul>
               <Typography variant='body2' className='mbs-3 text-textSecondary'>
                 หมายเหตุ: ข้อมูลธุรกรรมบางอย่างที่กฎหมายกำหนดให้เก็บ อาจถูกเก็บในรูปแบบไม่ระบุตัวตนตามที่กฎหมายอนุญาต
               </Typography>
             </div>
 
-            {/* หัวข้อ 3: กรอบเวลา */}
+            {/* หัวข้อ 3 — เพิ่ม 2569-07-27 สำหรับ Meta App Review (feature 00018)
+                คนที่ทักเข้าเพจร้านไม่ได้เป็นผู้ใช้ Deep จึงไม่มี username ให้อ้างอิงตามขั้นตอนข้อ 1
+                Meta บังคับว่าต้องมีช่องทางให้คนกลุ่มนี้ขอลบข้อมูลได้ด้วย ไม่ใช่เฉพาะผู้ถือบัญชี */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                3. กรอบเวลา
+                3. หากคุณเป็นลูกค้าที่ทักเข้าเพจของร้าน
+              </Typography>
+              <Typography variant='body2' className='mbe-3'>
+                หากคุณส่งข้อความหาเพจ Facebook หรือบัญชี Instagram ของร้านที่ใช้ Deep
+                บทสนทนานั้นจะปรากฏในกล่องข้อความของร้าน คุณขอให้ลบข้อมูลของคุณได้แม้ไม่มีบัญชี Deep:
+              </Typography>
+              <ul className='list-disc pli-6 flex flex-col gap-1'>
+                <li>
+                  <Typography variant='body2'>
+                    ส่งอีเมลมาที่ที่อยู่ในข้อ 1 พร้อมระบุชื่อเพจหรือบัญชี Instagram ของร้านที่คุณทักไป
+                    และชื่อโปรไฟล์ที่คุณใช้ทัก เพื่อให้เราค้นหาบทสนทนาที่ถูกต้อง
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant='body2'>
+                    เราจะลบบทสนทนา ไฟล์แนบ และข้อมูลผู้ติดต่อของคุณออกจากระบบของ Deep
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant='body2'>
+                    ข้อความต้นฉบับที่ยังอยู่บน Facebook หรือ Instagram อยู่นอกการควบคุมของเรา
+                    ต้องลบผ่านแอปของ Meta โดยตรง
+                  </Typography>
+                </li>
+              </ul>
+            </div>
+
+            {/* หัวข้อ 4: กรอบเวลา */}
+            <div>
+              <Typography variant='h6' className='mbe-3'>
+                4. กรอบเวลา
               </Typography>
               <Typography variant='body2'>
                 เราจะดำเนินการตามคำขอภายใน 30 วันนับจากวันที่ได้รับคำขอที่ครบถ้วน และจะยืนยันกลับทางอีเมล
               </Typography>
             </div>
 
-            {/* หัวข้อ 4: การติดต่อ */}
+            {/* หัวข้อ 5: การติดต่อ */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                4. การติดต่อ
+                5. การติดต่อ
               </Typography>
               <Typography variant='body2'>
                 หากมีคำถามเพิ่มเติม สามารถติดต่อเราได้ที่:{' '}

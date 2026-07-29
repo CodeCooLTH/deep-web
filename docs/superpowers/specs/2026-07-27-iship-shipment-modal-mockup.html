@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>โมดัลสร้าง/ดูพัสดุในแชท — feat 00022 (Mobile / Tablet / Desktop)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --p05:rgba(35,109,201,.05); --p10:rgba(35,109,201,.10); --p15:rgba(35,109,201,.15);
+    --success:#22c55e; --success-15:rgba(34,197,94,.15);
+    --warning:#f59e0b; --warning-15:rgba(245,158,11,.15);
+    --danger:#e5384f; --danger-15:rgba(229,56,79,.15);
+    --info:#0ea5e9; --info-15:rgba(14,165,233,.15);
+    --d50:#f8fafc; --d100:#f1f3f7; --d200:#e6e9ef; --d300:#d5dae2;
+    --d400:#8a94a6; --d500:#69707d; --d700:#3b3f45; --d800:#252a31;
+    --card:#fff; --body:#eef1f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Anuphan',system-ui,sans-serif;background:var(--body);color:var(--d800);padding:28px 18px 70px}
+  h1{font-size:21px;font-weight:700;margin:0 0 5px}
+  .lead{color:var(--d500);font-size:13.5px;margin:0 0 6px;max-width:900px;line-height:1.6}
+  .meta{color:var(--d400);font-size:12px;margin:0 0 24px}
+  h2.sec{font-size:13px;font-weight:700;color:var(--d500);text-transform:uppercase;letter-spacing:.05em;
+         margin:34px 0 6px;border-bottom:1px solid var(--d200);padding-bottom:7px}
+  .note{color:var(--d500);font-size:12.5px;margin:0 0 16px;max-width:900px;line-height:1.6}
+  .frames{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start}
+  .device{background:#fff;border:1px solid var(--d200);border-radius:15px;box-shadow:0 10px 30px rgba(20,30,60,.10);overflow:hidden}
+  .device>.cap{font-size:11.5px;font-weight:600;color:var(--d500);padding:9px 13px;border-bottom:1px solid var(--d200);
+               background:#fafbfc;display:flex;justify-content:space-between;gap:12px}
+  .mobile{width:340px} .tablet{width:470px} .desktop{width:760px}
+  svg{width:1em;height:1em;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── หน้าต่างโมดัล ─────────────────────────────────────────── */
+  .win{display:flex;flex-direction:column;background:#fff;height:660px}
+  .desktop .stage{height:660px;position:relative;background:var(--d100);display:flex;overflow:hidden}
+  .desktop .chatbg{flex:1;padding:16px;opacity:.5;pointer-events:none}
+  .desktop .win{position:absolute;top:14px;bottom:14px;right:14px;width:330px;height:auto;
+                border-radius:10px;box-shadow:0 12px 40px rgba(20,30,60,.24);overflow:hidden}
+
+  .titlebar{background:var(--primary);color:#fff;display:flex;align-items:center;gap:11px;padding:11px 13px;flex-shrink:0}
+  .titlebar .av{position:relative;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.22);
+                display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .titlebar .av .ch{position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:50%;
+                    background:#1877f2;border:2px solid var(--primary)}
+  .titlebar .tx{flex:1;min-width:0}
+  .titlebar .t1{font-size:13.5px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .titlebar .t2{font-size:11px;color:rgba(255,255,255,.82);line-height:1.3}
+  .titlebar .wbtn{width:29px;height:29px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+                  font-size:17px;cursor:pointer;flex-shrink:0}
+  .titlebar .wbtn:hover{background:rgba(255,255,255,.16)}
+
+  .body{flex:1;overflow:auto;background:#fff}
+  .blk{padding:13px 14px;border-bottom:8px solid var(--d100)}
+  .blk:last-child{border-bottom:none}
+  .blkhd{display:flex;align-items:center;gap:7px;margin:0 0 11px}
+  .blkhd .ic{width:24px;height:24px;border-radius:7px;background:var(--p10);color:var(--primary);
+             display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+  .blkhd .tt{font-size:13px;font-weight:700;color:var(--d800)}
+  .blkhd .hint{margin-left:auto;font-size:11px;color:var(--d400)}
+
+  .fld{margin-bottom:10px}
+  .fld:last-child{margin-bottom:0}
+  .fld>label{display:block;font-size:12px;font-weight:600;color:var(--d700);margin:0 0 5px}
+  .fld>label .req{color:var(--danger);margin-left:2px}
+  .inp{width:100%;border:1px solid var(--d300);border-radius:9px;padding:9px 11px;font-family:inherit;
+       font-size:13px;color:var(--d800);background:#fff;display:block}
+  .inp.err{border-color:var(--danger);background:rgba(229,56,79,.04)}
+  .errmsg{font-size:11.5px;color:var(--danger);margin:4px 0 0;display:flex;align-items:center;gap:4px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .sel{position:relative}
+  .sel .inp{appearance:none;padding-right:30px}
+  .sel .cv{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--d400);font-size:15px;pointer-events:none}
+  .unit{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--d400);font-size:11.5px;pointer-events:none}
+  .wrap{position:relative}
+
+  /* ปุ่มเลือกที่อยู่ (bottom-sheet trigger) */
+  .addrbtn{width:100%;border:1px solid var(--d300);border-radius:9px;padding:9px 11px;background:#fff;
+           display:flex;align-items:center;gap:9px;text-align:left;cursor:pointer}
+  .addrbtn .pin{color:var(--primary);font-size:16px}
+  .addrbtn .a1{font-size:13px;font-weight:600;color:var(--d800);line-height:1.3}
+  .addrbtn .a2{font-size:11.5px;color:var(--d500);line-height:1.3}
+  .addrbtn .a0{font-size:13px;color:var(--d400)}
+  .addrbtn .chev{margin-left:auto;color:var(--d400);font-size:15px}
+
+  /* accordion "เพิ่มเติม" */
+  .acc{border:1px solid var(--d200);border-radius:10px;overflow:hidden}
+  .acc>.h{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--d50);cursor:pointer}
+  .acc>.h .tt{font-size:12.5px;font-weight:600;color:var(--d700)}
+  .acc>.h .chev{margin-left:auto;color:var(--d400);font-size:15px}
+  .acc>.c{padding:12px;border-top:1px solid var(--d200)}
+
+  .chk{display:flex;align-items:flex-start;gap:9px;padding:2px 0}
+  .chk+.chk{margin-top:9px}
+  .box{width:18px;height:18px;border-radius:5px;border:1.6px solid var(--d300);flex-shrink:0;margin-top:1px;
+       display:flex;align-items:center;justify-content:center;background:#fff}
+  .box.on{background:var(--primary);border-color:var(--primary);color:#fff;font-size:12px}
+  .chk .lb{font-size:12.5px;font-weight:600;color:var(--d800);line-height:1.35}
+  .chk .sb{font-size:11.5px;color:var(--d500);line-height:1.4;margin-top:2px}
+
+  .preview{margin-top:9px;background:var(--d50);border:1px dashed var(--d300);border-radius:9px;padding:9px 11px}
+  .preview .pl{font-size:10.5px;font-weight:700;color:var(--d400);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+  .preview .pt{font-size:12px;color:var(--d700);line-height:1.5;white-space:pre-line}
+
+  .foot{flex-shrink:0;border-top:1px solid var(--d200);padding:11px 13px;background:#fff;
+        box-shadow:0 -3px 12px rgba(20,30,60,.05)}
+  .btn{width:100%;border:none;border-radius:9px;padding:11px;font-family:inherit;font-size:13.5px;font-weight:600;
+       display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+  .btn.pri{background:var(--primary);color:#fff}
+  .btn.soft{background:var(--p10);color:var(--primary)}
+  .btn.dgr{background:var(--danger-15);color:var(--danger)}
+  .btn.ghost{background:#fff;border:1px solid var(--d300);color:var(--d700)}
+  .btn.sm{padding:8px;font-size:12.5px;border-radius:8px}
+  .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .costnote{font-size:11px;color:var(--d400);text-align:center;margin:8px 0 0;line-height:1.45}
+
+  /* alert */
+  .alert{display:flex;gap:9px;padding:11px 12px;border-radius:10px;font-size:12.5px;line-height:1.5}
+  .alert.warn{background:var(--warning-15);color:#a45c07}
+  .alert.info{background:var(--info-15);color:#0369a1}
+  .alert .ai{font-size:16px;margin-top:1px}
+  .alert b{font-weight:700}
+  .misslist{margin:6px 0 0;padding-left:16px}
+  .misslist li{margin:1px 0}
+
+  /* สถานะพัสดุ */
+  .trk{text-align:center;padding:6px 0 2px}
+  .trk .lbl{font-size:11px;font-weight:700;color:var(--d400);letter-spacing:.05em;text-transform:uppercase}
+  .trk .no{font-size:20px;font-weight:700;color:var(--d800);letter-spacing:.04em;margin:5px 0 7px;
+           font-variant-numeric:tabular-nums}
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 11px;font-size:12px;font-weight:600}
+  .badge.ok{background:var(--success-15);color:#15803d}
+  .badge.mv{background:var(--info-15);color:#0369a1}
+  .badge.fail{background:var(--danger-15);color:var(--danger)}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--d200);font-size:12.5px}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--d500)}
+  .kv .v{font-weight:600;color:var(--d800);text-align:right}
+  .tl{margin:0;padding:0;list-style:none}
+  .tl li{position:relative;padding:0 0 14px 20px;border-left:1.6px solid var(--d200);margin-left:5px}
+  .tl li:last-child{border-left-color:transparent;padding-bottom:0}
+  .tl li::before{content:"";position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;
+                 background:#fff;border:2.2px solid var(--d300)}
+  .tl li.now::before{border-color:var(--primary);background:var(--primary)}
+  .tl .t{font-size:12.5px;font-weight:600;color:var(--d800)}
+  .tl .m{font-size:11.5px;color:var(--d500);margin-top:1px}
+
+  /* การ์ดออเดอร์ในแชท */
+  .ocard{border:1px solid var(--d200);border-radius:12px;overflow:hidden;background:#fff;max-width:330px}
+  .ocard .oh{background:var(--primary);color:#fff;padding:11px 13px;display:flex;gap:10px;align-items:center}
+  .ocard .oh .t1{font-size:14px;font-weight:700;line-height:1.25}
+  .ocard .oh .t2{font-size:11px;color:rgba(255,255,255,.85)}
+  .ocard .ob{padding:11px 13px}
+  .ocard .ln{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0}
+  .ocard .ln .k{color:var(--d500)}
+  .ocard .ln .v{font-weight:700}
+  .ocard .of{display:flex;gap:8px;border-top:1px solid var(--d200);padding:9px}
+  .ocard .of .btn{flex:1}
+
+  /* chat bg (desktop) */
+  .bub{max-width:74%;padding:9px 12px;border-radius:14px;font-size:12.5px;margin-bottom:9px;line-height:1.45}
+  .bub.them{background:#fff;border:1px solid var(--d200)}
+  .bub.me{background:var(--primary);color:#fff;margin-left:auto}
+  .dock{position:absolute;left:14px;bottom:14px;display:flex;align-items:center;gap:8px;background:#fff;
+        border:1px solid var(--d300);border-radius:30px;padding:6px 10px 6px 7px;box-shadow:0 6px 20px rgba(20,30,60,.16)}
+  .dock .av{width:30px;height:30px;border-radius:50%;background:var(--p10);color:var(--primary);
+            display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .dock .l1{font-size:10px;color:var(--d500)}
+  .dock .l2{font-size:12px;font-weight:600;color:var(--d800)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+  .tag{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:20px;background:#fff;border:1px solid var(--d200);color:var(--d600,#69707d)}
+</style>
+</head>
+<body>
+
+<h1>โมดัลสร้าง / ดูพัสดุ ในหน้าแชท</h1>
+<p class="lead">
+  ปุ่ม “สร้างพัสดุ” บนการ์ดออเดอร์ในห้องแชท เปลี่ยนจากยิง API ตรง เป็นเปิด<b>หน้าต่างพับได้ตัวเดียวกับโมดัลสร้าง/แก้ไขคำสั่งซื้อ</b>
+  ร้านแก้ที่อยู่ผู้รับ ขนาด น้ำหนัก ขนส่ง และ COD ได้ในที่เดียว แล้วขอเลขติดตามได้ทันที
+</p>
+<p class="meta">feat 00022 · 2026-07-27 · Paces (seller) · primary #236dc9 · Anuphan · ไอคอนจริงทั้งหมด ไม่มี emoji</p>
+
+<div class="legend">
+  <span class="tag">มือถือ &lt; 1024 → เต็มจอ</span>
+  <span class="tag">แท็บเล็ต &lt; 1024 → เต็มจอ (คอลัมน์เดียวเหมือนกัน)</span>
+  <span class="tag">เดสก์ท็อป ≥ 1024 → หน้าต่าง 330px dock ขวา อ่านแชทหลังได้</span>
+</div>
+
+<!-- ══════════════ A. โหมดสร้าง ══════════════ -->
+<h2 class="sec">A · โหมดสร้างพัสดุ — ยังไม่มีพัสดุในออเดอร์นี้</h2>
+<p class="note">
+  ทุกช่องเติมค่าตั้งต้นของร้านมาให้แล้ว ร้านที่ไม่ต้องแก้อะไรกดปุ่มเดียวจบเหมือนเดิม ·
+  ช่องที่ระบบรู้ว่ายังขาดจะติดกรอบแดงพร้อมข้อความใต้ช่อง (ในภาพคือ “ตำบล/อำเภอ”) ·
+  บล็อก “เพิ่มเติม” พับไว้เพราะร้านส่วนใหญ่ไม่แตะ
+</p>
+
+<div class="frames">
+
+  <!-- ── Mobile ── -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile · 340px</span><span>เต็มจอ</span></div>
+    <div class="win">
+      <div class="titlebar">
+        <span class="av">มน<span class="ch"></span></span>
+        <span class="tx">
+          <span class="t1">สร้างพัสดุ · มนตรี ลาสิโน</span>
+          <span class="t2">Messenger · DP2569077C7DE1DC</span>
+        </span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+      </div>
+
+      <div class="body">
+        <!-- ผู้รับ -->
+        <div class="blk">
+          <div class="blkhd">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
+            <span class="tt">ผู้รับ</span>
+            <span class="hint">บันทึกกลับเข้าออเดอร์</span>
+          </div>
+          <div class="fld">
+            <label>ชื่อผู้รับ<span class="req">*</span></label>
+            <input class="inp" value="นาย มนตรี ลาสิโน">
+          </div>
+          <div class="fld">
+            <label>เบอร์โทรผู้รับ<span class="req">*</span></label>
+            <input class="inp" value="0971482105">
+          </div>
+          <div class="fld">
+            <label>ที่อยู่ (บ้านเลขที่ / ถนน)<span class="req">*</span></label>
+            <input class="inp" value="1017 บ.ซันนี่เวิลด์">
+          </div>
+          <div class="fld">
+            <label>ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์<span class="req">*</span></label>
+            <button class="addrbtn">
+              <span class="pin"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+              <span>
+                <span class="a1">ต.ทับยาว · อ.ลาดกระบัง</span>
+                <span class="a2">กรุงเทพมหานคร · 10520</span>
+              </span>
+              <span class="chev"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- พัสดุ -->
+        <div class="blk">
+          <div class="blkhd">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></span>
+            <span class="tt">พัสดุ</span>
+            <span class="hint">ค่าตั้งต้นของร้าน</span>
+          </div>
+          <div class="fld">
+            <label>ขนส่ง</label>
+            <span class="sel">
+              <input class="inp" value="Flash Express">
+              <span class="cv"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </div>
+          <div class="fld">
+            <label>น้ำหนัก</label>
+            <span class="wrap">
+              <input class="inp" value="1.00">
+              <span class="unit">กก.</span>
+            </span>
+          </div>
+          <div class="fld">
+            <label>ขนาดกล่อง (กว้าง × ยาว × สูง)</label>
+            <div class="row3">
+              <input class="inp" value="20">
+              <input class="inp" value="30">
+              <input class="inp" value="10">
+            </div>
+            <p class="errmsg" style="color:var(--d400)">หน่วยเซนติเมตร</p>
+          </div>
+          <div class="fld">
+            <label>ประเภทสินค้า</label>
+            <span class="sel">
+              <input class="inp" value="อะไหล่ / ชิ้นส่วน">
+              <span class="cv"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </div>
+        </div>
+
+        <!-- เพิ่มเติม (พับ) -->
+        <div class="blk">
+          <div class="acc">
+            <div class="h">
+              <span style="color:var(--d400);font-size:15px"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="tt">เพิ่มเติม — เก็บเงินปลายทาง · หมายเหตุ · ประกัน</span>
+              <span class="chev"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- แจ้งเลขในแชท -->
+        <div class="blk">
+          <div class="chk">
+            <span class="box on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L19 7"/></svg></span>
+            <span>
+              <span class="lb">แจ้งเลขติดตามในแชทหลังสร้าง</span>
+              <span class="sb">ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่เปิดพัสดุสำเร็จ</span>
+            </span>
+          </div>
+          <div class="preview">
+            <div class="pl">ข้อความที่ลูกค้าจะได้รับ</div>
+            <div class="pt">จัดส่งด้วย Flash Express
+เลขติดตามพัสดุ: TH0123456789</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn pri">
+          <svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>
+          สร้างพัสดุ
+        </button>
+        <p class="costnote">มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน — จะมีหน้าต่างให้ยืนยันอีกครั้ง</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tablet ── -->
+  <div class="device tablet">
+    <div class="cap"><span>Tablet · 470px</span><span>เต็มจอ · คอลัมน์เดียวเหมือนมือถือ</span></div>
+    <div class="win">
+      <div class="titlebar">
+        <span class="av">มน<span class="ch"></span></span>
+        <span class="tx">
+          <span class="t1">สร้างพัสดุ · มนตรี ลาสิโน</span>
+          <span class="t2">Messenger · DP2569077C7DE1DC</span>
+        </span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+      </div>
+
+      <div class="body">
+        <div class="blk">
+          <div class="blkhd">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
+            <span class="tt">ผู้รับ</span>
+            <span class="hint">บันทึกกลับเข้าออเดอร์</span>
+          </div>
+          <div class="row2">
+            <div class="fld">
+              <label>ชื่อผู้รับ<span class="req">*</span></label>
+              <input class="inp" value="นาย มนตรี ลาสิโน">
+            </div>
+            <div class="fld">
+              <label>เบอร์โทรผู้รับ<span class="req">*</span></label>
+              <input class="inp" value="0971482105">
+            </div>
+          </div>
+          <div class="fld">
+            <label>ที่อยู่ (บ้านเลขที่ / ถนน)<span class="req">*</span></label>
+            <input class="inp" value="1017 บ.ซันนี่เวิลด์">
+          </div>
+          <div class="fld">
+            <label>ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์<span class="req">*</span></label>
+            <button class="addrbtn">
+              <span class="pin"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+              <span class="a0">เลือกตำบล / อำเภอ / จังหวัด</span>
+              <span class="chev"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+            </button>
+            <p class="errmsg">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.2v.1"/></svg>
+              ยังไม่ได้เลือก — จำเป็นสำหรับเปิดพัสดุ
+            </p>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="blkhd">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></span>
+            <span class="tt">พัสดุ</span>
+            <span class="hint">ค่าตั้งต้นของร้าน</span>
+          </div>
+          <div class="row2">
+            <div class="fld">
+              <label>ขนส่ง</label>
+              <span class="sel">
+                <input class="inp" value="Flash Express">
+                <span class="cv"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+              </span>
+            </div>
+            <div class="fld">
+              <label>น้ำหนัก</label>
+              <span class="wrap">
+                <input class="inp" value="1.00">
+                <span class="unit">กก.</span>
+              </span>
+            </div>
+          </div>
+          <div class="fld">
+            <label>ขนาดกล่อง (กว้าง × ยาว × สูง · ซม.)</label>
+            <div class="row3">
+              <input class="inp" value="20">
+              <input class="inp" value="30">
+              <input class="inp" value="10">
+            </div>
+          </div>
+          <div class="fld">
+            <label>ประเภทสินค้า</label>
+            <span class="sel">
+              <input class="inp" value="อะไหล่ / ชิ้นส่วน">
+              <span class="cv"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </div>
+        </div>
+
+        <!-- เพิ่มเติม กางแล้ว -->
+        <div class="blk">
+          <div class="acc">
+            <div class="h">
+              <span style="color:var(--d400);font-size:15px"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+              <span class="tt">เพิ่มเติม</span>
+              <span class="chev"><svg viewBox="0 0 24 24" style="transform:rotate(180deg)"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+            <div class="c">
+              <div class="fld">
+                <label>เก็บเงินปลายทาง (COD)</label>
+                <span class="wrap">
+                  <input class="inp" value="720">
+                  <span class="unit">บาท</span>
+                </span>
+                <p class="errmsg" style="color:var(--d400)">0 หรือเว้นว่าง = ไม่เก็บเงินปลายทาง</p>
+              </div>
+              <div class="fld">
+                <label>หมายเหตุถึงขนส่ง</label>
+                <input class="inp" value="โทรก่อนส่ง">
+              </div>
+              <div class="chk">
+                <span class="box"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L19 7"/></svg></span>
+                <span><span class="lb">ส่งตรงเวลา</span></span>
+              </div>
+              <div class="chk">
+                <span class="box"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L19 7"/></svg></span>
+                <span><span class="lb">กล่องกันกระแทก</span></span>
+              </div>
+              <div class="chk">
+                <span class="box on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L19 7"/></svg></span>
+                <span>
+                  <span class="lb">ประกันสินค้า</span>
+                  <span class="sb">ระบุมูลค่าสินค้าที่ต้องการเอาประกัน</span>
+                </span>
+              </div>
+              <div class="fld" style="margin-top:9px">
+                <span class="wrap">
+                  <input class="inp" value="720">
+                  <span class="unit">บาท</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="chk">
+            <span class="box on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L19 7"/></svg></span>
+            <span>
+              <span class="lb">แจ้งเลขติดตามในแชทหลังสร้าง</span>
+              <span class="sb">ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่เปิดพัสดุสำเร็จ</span>
+            </span>
+          </div>
+          <div class="preview">
+            <div class="pl">ข้อความที่ลูกค้าจะได้รับ</div>
+            <div class="pt">จัดส่งด้วย Flash Express
+เลขติดตามพัสดุ: TH0123456789</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn pri">
+          <svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>
+          สร้างพัสดุ
+        </button>
+        <p class="costnote">มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน — จะมีหน้าต่างให้ยืนยันอีกครั้ง</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Desktop ── -->
+  <div class="device desktop">
+    <div class="cap"><span>Desktop · 760px (ย่อจาก ≥1024)</span><span>หน้าต่าง dock ขวา · แชทหลังยังอ่านได้</span></div>
+    <div class="stage">
+      <div class="chatbg">
+        <div class="bub them">พี่ครับ ที่อยู่เปลี่ยนนิดนึงนะ เป็น 1017 บ.ซันนี่เวิลด์ ทับยาว ลาดกระบัง</div>
+        <div class="bub me">ได้เลยครับ เดี๋ยวผมแก้ให้แล้วเปิดพัสดุเลยนะครับ</div>
+        <div class="bub them">โอเคครับ ขอเลขพัสดุด้วยนะ</div>
+      </div>
+
+      <div class="win">
+        <div class="titlebar">
+          <span class="av">มน<span class="ch"></span></span>
+          <span class="tx">
+            <span class="t1">สร้างพัสดุ · มนตรี ลาสิโน</span>
+            <span class="t2">Messenger · DP2569077C7DE1DC</span>
+          </span>
+          <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+          <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+
+        <div class="body">
+          <div class="blk">
+            <div class="blkhd">
+              <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
+              <span class="tt">ผู้รับ</span>
+            </div>
+            <div class="fld">
+              <label>ชื่อผู้รับ<span class="req">*</span></label>
+              <input class="inp" value="นาย มนตรี ลาสิโน">
+            </div>
+            <div class="fld">
+              <label>เบอร์โทรผู้รับ<span class="req">*</span></label>
+              <input class="inp" value="0971482105">
+            </div>
+            <div class="fld">
+              <label>ที่อยู่ (บ้านเลขที่ / ถนน)<span class="req">*</span></label>
+              <input class="inp" value="1017 บ.ซันนี่เวิลด์">
+            </div>
+            <div class="fld">
+              <label>ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์<span class="req">*</span></label>
+              <button class="addrbtn">
+                <span class="pin"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+                <span>
+                  <span class="a1">ต.ทับยาว · อ.ลาดกระบัง</span>
+                  <span class="a2">กรุงเทพมหานคร · 10520</span>
+                </span>
+                <span class="chev"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="blk">
+            <div class="blkhd">
+              <span class="ic"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></span>
+              <span class="tt">พัสดุ</span>
+            </div>
+            <div class="fld">
+              <label>ขนส่ง</label>
+              <span class="sel">
+                <input class="inp" value="Flash Express">
+                <span class="cv"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+              </span>
+            </div>
+            <div class="row2">
+              <div class="fld">
+                <label>น้ำหนัก (กก.)</label>
+                <input class="inp" value="1.00">
+              </div>
+              <div class="fld">
+                <label>ประเภทสินค้า</label>
+                <span class="sel">
+                  <input class="inp" value="อะไหล่">
+                  <span class="cv"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+                </span>
+              </div>
+            </div>
+            <div class="fld">
+              <label>ขนาดกล่อง (กว้าง × ยาว × สูง · ซม.)</label>
+              <div class="row3">
+                <input class="inp" value="20">
+                <input class="inp" value="30">
+                <input class="inp" value="10">
+              </div>
+            </div>
+          </div>
+
+          <div class="blk">
+            <div class="acc">
+              <div class="h">
+                <span style="color:var(--d400);font-size:15px"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="tt">เพิ่มเติม — COD · หมายเหตุ · ประกัน</span>
+                <span class="chev"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="blk">
+            <div class="chk">
+              <span class="box on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L19 7"/></svg></span>
+              <span>
+                <span class="lb">แจ้งเลขติดตามในแชทหลังสร้าง</span>
+                <span class="sb">ส่งให้ลูกค้าในห้องนี้ทันที</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <button class="btn pri">
+            <svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>
+            สร้างพัสดุ
+          </button>
+          <p class="costnote">มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ B. โหมดสถานะ ══════════════ -->
+<h2 class="sec">B · โหมดสถานะ — ออเดอร์นี้มีพัสดุอยู่แล้ว</h2>
+<p class="note">
+  กดปุ่มเดิมบนการ์ดแล้วได้หน้านี้แทนฟอร์ม (ปุ่มบนการ์ดเปลี่ยนคำเป็น “ดูพัสดุ”) ·
+  ยกเลิกพัสดุสำเร็จ → โมดัลกลับไปโหมดสร้างเองโดยไม่ต้องปิด-เปิดใหม่
+</p>
+
+<div class="frames">
+  <div class="device mobile">
+    <div class="cap"><span>Mobile · สถานะปกติ</span><span>CREATED / กำลังขนส่ง</span></div>
+    <div class="win">
+      <div class="titlebar">
+        <span class="av">มน<span class="ch"></span></span>
+        <span class="tx">
+          <span class="t1">พัสดุ · มนตรี ลาสิโน</span>
+          <span class="t2">Flash Express · DP2569077C7DE1DC</span>
+        </span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+      </div>
+
+      <div class="body">
+        <div class="blk">
+          <div class="trk">
+            <div class="lbl">เลขติดตามพัสดุ</div>
+            <div class="no">TH0123456789</div>
+            <span class="badge mv">
+              <svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+              อยู่ระหว่างขนส่ง
+            </span>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="kv"><span class="k">ขนส่ง</span><span class="v">Flash Express</span></div>
+          <div class="kv"><span class="k">สร้างเมื่อ</span><span class="v">2569-07-27 10:24</span></div>
+          <div class="kv"><span class="k">น้ำหนัก / ขนาด</span><span class="v">1.00 กก. · 20×30×10 ซม.</span></div>
+          <div class="kv"><span class="k">เก็บเงินปลายทาง</span><span class="v">฿720</span></div>
+          <div class="kv"><span class="k">พิมพ์ใบปะหน้าแล้ว</span><span class="v">1 ครั้ง</span></div>
+        </div>
+
+        <div class="blk">
+          <div class="blkhd">
+            <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <span class="tt">สถานะล่าสุด</span>
+          </div>
+          <ul class="tl">
+            <li class="now">
+              <div class="t">ถึงศูนย์คัดแยกลาดกระบัง</div>
+              <div class="m">2569-07-27 14:02 · กรุงเทพมหานคร</div>
+            </li>
+            <li>
+              <div class="t">พนักงานเข้ารับพัสดุแล้ว</div>
+              <div class="m">2569-07-27 11:40 · ร้านค้า</div>
+            </li>
+            <li>
+              <div class="t">สร้างพัสดุสำเร็จ</div>
+              <div class="m">2569-07-27 10:24</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="foot">
+        <div class="btnrow" style="margin-bottom:8px">
+          <button class="btn soft sm">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>
+            คัดลอกเลข
+          </button>
+          <button class="btn soft sm">
+            <svg viewBox="0 0 24 24"><path d="M8 3h8v5H8z"/><path d="M6 8h12a2 2 0 0 1 2 2v5h-4v4H8v-4H4v-5a2 2 0 0 1 2-2"/></svg>
+            พิมพ์ใบปะหน้า
+          </button>
+        </div>
+        <button class="btn pri sm" style="margin-bottom:8px">
+          <svg viewBox="0 0 24 24"><path d="M21 4 3 11l7 3 3 7z"/></svg>
+          แจ้งเลขในแชท
+        </button>
+        <button class="btn dgr sm">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M18 6 6 18"/></svg>
+          ยกเลิกพัสดุ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="device mobile">
+    <div class="cap"><span>Mobile · สถานะล้มเหลว</span><span>FAILED → ลองใหม่ด้วยคีย์เดิม</span></div>
+    <div class="win">
+      <div class="titlebar">
+        <span class="av">มน<span class="ch"></span></span>
+        <span class="tx">
+          <span class="t1">พัสดุ · มนตรี ลาสิโน</span>
+          <span class="t2">DP2569077C7DE1DC</span>
+        </span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+      </div>
+
+      <div class="body">
+        <div class="blk">
+          <div class="trk">
+            <span class="badge fail">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5M12 16.2v.1"/></svg>
+              สร้างพัสดุไม่สำเร็จ
+            </span>
+          </div>
+          <div class="alert warn" style="margin-top:12px">
+            <span class="ai"><svg viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17.2v.1"/></svg></span>
+            <span>ขนส่งปฏิเสธ: รหัสไปรษณีย์ปลายทางไม่อยู่ในพื้นที่ให้บริการของ Flash Express</span>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="alert info">
+            <span class="ai"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8v.1"/></svg></span>
+            <span>ลองใหม่จะใช้<b>คีย์เดิม</b> ไม่เปิดพัสดุใบที่สอง — ถ้าครั้งก่อนเปิดสำเร็จแล้วแต่คำตอบหาย ระบบจะคืนใบเดิมให้</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn pri" style="margin-bottom:8px">
+          <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+          ลองใหม่
+        </button>
+        <button class="btn ghost sm">
+          <svg viewBox="0 0 24 24"><path d="M12 20h9M4 20l1-4 10-10 3 3-10 10z"/></svg>
+          แก้ข้อมูลแล้วลองใหม่
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ C. โหมดติดที่ร้าน ══════════════ -->
+<h2 class="sec">C · โหมดติดที่ร้าน — ที่อยู่ผู้ส่งยังไม่ครบ</h2>
+<p class="note">
+  นี่คือเคสที่วันนี้แสดงผิดเป็น “ยังขาด ชื่อผู้รับ, เบอร์โทรผู้รับ, …” แล้วกางฟอร์มผู้รับให้กรอก ทั้งที่กรอกไปก็สร้างไม่ได้ ·
+  หน้าใหม่บอกตรง ๆ ว่าติดที่ค่าระดับร้าน แล้วพาไปแก้ที่เดียวจบ · <b>ไม่มีฟอร์ม</b> เพราะไม่มีอะไรให้กรอกตรงนี้
+</p>
+
+<div class="frames">
+  <div class="device mobile">
+    <div class="cap"><span>Mobile · ติดที่ร้าน</span><span>blockedBy = SENDER</span></div>
+    <div class="win">
+      <div class="titlebar">
+        <span class="av">มน<span class="ch"></span></span>
+        <span class="tx">
+          <span class="t1">สร้างพัสดุ · มนตรี ลาสิโน</span>
+          <span class="t2">Messenger · DP2569077C7DE1DC</span>
+        </span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+        <span class="wbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+      </div>
+
+      <div class="body">
+        <div class="blk">
+          <div class="alert warn">
+            <span class="ai"><svg viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17.2v.1"/></svg></span>
+            <span>
+              <b>ยังตั้งที่อยู่ผู้ส่งของร้านไม่ครบ</b><br>
+              ขนส่งต้องรู้ว่าไปรับของที่ไหน — ตั้งครั้งเดียวใช้ได้กับทุกออเดอร์
+              <ul class="misslist">
+                <li>ชื่อผู้ส่ง</li>
+                <li>เบอร์โทรผู้ส่ง</li>
+                <li>ที่อยู่ผู้ส่ง</li>
+                <li>ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์ (ผู้ส่ง)</li>
+              </ul>
+            </span>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="alert info">
+            <span class="ai"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8v.1"/></svg></span>
+            <span>ข้อมูล<b>ผู้รับ</b>ของออเดอร์นี้ครบแล้ว — ตั้งที่อยู่ผู้ส่งเสร็จ กลับมากดสร้างได้เลย</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn pri">
+          <svg viewBox="0 0 24 24"><path d="M10.3 4h3.4l.5 2.3 2 1.2 2.2-.8 1.7 3-1.7 1.6v2.4l1.7 1.6-1.7 3-2.2-.8-2 1.2-.5 2.3h-3.4l-.5-2.3-2-1.2-2.2.8-1.7-3L5.6 14v-2.4L3.9 10l1.7-3 2.2.8 2-1.2z"/><circle cx="12" cy="12" r="2.6"/></svg>
+          ไปตั้งค่าที่อยู่ผู้ส่ง
+        </button>
+        <p class="costnote">เจ้าของร้านเท่านั้นที่ตั้งค่านี้ได้</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="device desktop" style="width:520px">
+    <div class="cap"><span>Desktop · หน้าต่างย่อลง dock ซ้ายล่าง</span><span>ย่อแล้วข้อมูลที่กรอกยังอยู่</span></div>
+    <div class="stage" style="height:300px">
+      <div class="chatbg">
+        <div class="bub them">พี่ครับ ที่อยู่เปลี่ยนนิดนึงนะ</div>
+        <div class="bub me">ได้เลยครับ เดี๋ยวผมแก้ให้</div>
+        <div class="bub them">ขอเลขพัสดุด้วยนะครับ</div>
+      </div>
+      <div class="dock">
+        <span class="av">มน</span>
+        <span>
+          <span class="l1" style="display:block">สร้างพัสดุ</span>
+          <span class="l2">มนตรี ลาสิโน</span>
+        </span>
+        <span style="color:var(--d400);font-size:15px;margin-left:6px"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ D. ปุ่มบนการ์ด ══════════════ -->
+<h2 class="sec">D · ปุ่มบนการ์ดออเดอร์ในแชท</h2>
+<p class="note">คำบนปุ่มเปลี่ยนตามสถานะจริง — ร้านรู้ตั้งแต่ก่อนกดว่าจะเจอฟอร์มหรือเจอเลขติดตาม</p>
+
+<div class="frames">
+  <div class="device" style="width:360px">
+    <div class="cap"><span>ยังไม่มีพัสดุ</span><span>“สร้างพัสดุ”</span></div>
+    <div style="padding:16px;background:var(--d100)">
+      <div class="ocard">
+        <div class="oh">
+          <svg viewBox="0 0 24 24" style="font-size:22px"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>
+          <span>
+            <span class="t1" style="display:block">โช๊คหลังคู่ เวฟ 110 สีดำ</span>
+            <span class="t2">คำสั่งซื้อ · DP2569077C7DE1DC</span>
+          </span>
+        </div>
+        <div class="ob">
+          <div class="ln"><span class="k">รายการ</span><span class="v">1 รายการ</span></div>
+          <div class="ln"><span class="k">ยอดสุทธิ</span><span class="v" style="color:var(--primary)">฿720</span></div>
+        </div>
+        <div class="of">
+          <button class="btn soft sm">
+            <svg viewBox="0 0 24 24"><path d="M21 4 3 11l7 3 3 7z"/></svg>
+            ส่งเข้าแชท
+          </button>
+          <button class="btn soft sm">
+            <svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+            สร้างพัสดุ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device" style="width:360px">
+    <div class="cap"><span>มีพัสดุแล้ว</span><span>“ดูพัสดุ” + เลขบนการ์ด</span></div>
+    <div style="padding:16px;background:var(--d100)">
+      <div class="ocard">
+        <div class="oh">
+          <svg viewBox="0 0 24 24" style="font-size:22px"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>
+          <span>
+            <span class="t1" style="display:block">โช๊คหลังคู่ เวฟ 110 สีดำ</span>
+            <span class="t2">คำสั่งซื้อ · DP2569077C7DE1DC</span>
+          </span>
+        </div>
+        <div class="ob">
+          <div class="ln"><span class="k">รายการ</span><span class="v">1 รายการ</span></div>
+          <div class="ln"><span class="k">ยอดสุทธิ</span><span class="v" style="color:var(--primary)">฿720</span></div>
+          <div class="ln" style="border-top:1px dashed var(--d200);margin-top:6px;padding-top:8px">
+            <span class="k">พัสดุ</span>
+            <span class="v" style="color:#15803d">Flash · TH0123456789</span>
+          </div>
+        </div>
+        <div class="of">
+          <button class="btn soft sm">
+            <svg viewBox="0 0 24 24"><path d="M21 4 3 11l7 3 3 7z"/></svg>
+            ส่งเข้าแชท
+          </button>
+          <button class="btn soft sm">
+            <svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+            ดูพัสดุ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

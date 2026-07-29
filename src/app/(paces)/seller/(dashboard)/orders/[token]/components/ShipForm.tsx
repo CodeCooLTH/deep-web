@@ -30,9 +30,17 @@ type TrackingFormValues = yup.InferType<typeof trackingSchema>
 
 interface ShipFormProps {
   publicToken: string
+  /**
+   * เลขติดตามจากพัสดุ iShip ที่เปิดไว้แล้ว (feature 00022) — เติมให้ล่วงหน้า
+   * เหตุผล: ร้านเพิ่งเปิดพัสดุจากหน้านี้เมื่อครู่ ถ้าต้องพิมพ์เลขเดิมซ้ำอีกรอบ
+   * ก็เท่ากับยังทำงานซ้ำอยู่ ซึ่งเป็นสิ่งที่ฟีเจอร์นี้ตั้งใจกำจัด
+   */
+  initialTrackingNo?: string | null
+  /** ชื่อขนส่งจาก iShip — เติมให้เฉพาะเมื่อ "ตรงกับตัวเลือกที่มีอยู่" เท่านั้น */
+  initialProvider?: string | null
 }
 
-export default function ShipForm({ publicToken }: ShipFormProps) {
+export default function ShipForm({ publicToken, initialTrackingNo, initialProvider }: ShipFormProps) {
   const router = useRouter()
   const [showShipForm, setShowShipForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -45,6 +53,13 @@ export default function ShipForm({ publicToken }: ShipFormProps) {
     reset,
   } = useForm<TrackingFormValues>({
     resolver: yupResolver(trackingSchema),
+    defaultValues: {
+      // provider เติมเฉพาะเมื่อชื่อตรงกับตัวเลือกในลิสต์พอดี — ชื่อขนส่งฝั่ง iShip
+      // สะกดไม่เหมือนกันเสมอไป (เช่น "KEX Express" กับ "Kerry Express")
+      // เติมค่าที่ไม่มีในลิสต์เข้าไปจะทำให้ select ว่างเปล่าแต่ validation ผ่าน = สับสนกว่าเดิม
+      provider: initialProvider && CARRIERS.includes(initialProvider) ? initialProvider : '',
+      trackingNo: initialTrackingNo ?? '',
+    },
   })
 
   const handleShip = async (values: TrackingFormValues) => {
