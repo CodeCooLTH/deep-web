@@ -16,6 +16,7 @@ import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
+  findMissingParcelFields,
   findMissingReceiverFields,
   findMissingSenderFields,
   type DeepAddress,
@@ -684,10 +685,21 @@ export async function createShipment(
   const length = override?.length ?? account.defaultLength;
   const height = override?.height ?? account.defaultHeight;
 
-  if (!courierCode || categoryId == null || weight == null || width == null || length == null || height == null) {
+  // ตรวจก่อนยิงเสมอ — ปล่อยให้ iShip ปฏิเสธแล้วค่อยรู้ = ร้านได้ข้อความปลายทางที่อ่านไม่ออก
+  // และเสียเวลาไปหนึ่งรอบ บอกเป็นช่อง ๆ ว่าขาดอะไร ไม่ใช่ "ข้อมูลไม่ครบ" ลอย ๆ
+  const missingParcel = findMissingParcelFields({
+    courierCode,
+    categoryId,
+    weight,
+    width,
+    length,
+    height,
+  });
+  if (missingParcel.length > 0) {
     throw new IShipServiceError(
       "INCOMPLETE_DATA",
-      "ยังตั้งค่าเริ่มต้นของพัสดุไม่ครบ (ขนส่ง ประเภทสินค้า น้ำหนัก หรือขนาดกล่อง)",
+      `ยังตั้งค่าพัสดุไม่ครบ — ขาด ${missingParcel.join(", ")} (ตั้งได้ที่หน้าตั้งค่าการจัดส่ง)`,
+      missingParcel,
     );
   }
 
