@@ -77,6 +77,30 @@ describe('deriveOrderStage', () => {
     })
   })
 
+  describe('จำนวนครั้งที่พิมพ์ใบปะหน้า', () => {
+    it('พิมพ์เอกสารแล้ว + นับได้ 3 → มี printCount ไว้ทำป้ายเสริม', () => {
+      const s = deriveOrderStage({ ...base, labelPrintedAt: hoursAgo(1), labelPrintCount: 3 }, NOW)
+      expect(s?.label).toBe('พิมพ์เอกสารแล้ว')
+      expect(s?.printCount).toBe(3)
+    })
+
+    it('แถวเก่าที่ไม่มีตัวนับ (0/null) → ไม่มี printCount ไม่เดาว่าพิมพ์ 1 ครั้ง', () => {
+      expect(deriveOrderStage({ ...base, labelPrintedAt: hoursAgo(1), labelPrintCount: 0 }, NOW)?.printCount)
+        .toBeUndefined()
+      expect(deriveOrderStage({ ...base, labelPrintedAt: hoursAgo(1), labelPrintCount: null }, NOW)?.printCount)
+        .toBeUndefined()
+    })
+
+    it('ขั้นอื่นไม่มี printCount แม้พัสดุจะเคยถูกพิมพ์มาแล้ว', () => {
+      const s = deriveOrderStage(
+        { ...base, status: 'SHIPPED', labelPrintedAt: hoursAgo(5), labelPrintCount: 4 },
+        NOW,
+      )
+      expect(s?.label).toBe('กำลังจัดส่ง')
+      expect(s?.printCount).toBeUndefined()
+    })
+  })
+
   it('รับ statusAt เป็น ISO string ได้ (ข้าม RSC boundary แล้ว Date กลายเป็น string)', () => {
     const s = deriveOrderStage({ ...base, statusAt: hoursAgo(1).toISOString() }, NOW)
     expect(s?.label).toBe('สั่งซื้อแล้ว')

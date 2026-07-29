@@ -126,7 +126,7 @@ export type ConversationListItem = {
   // user request 2026-07-29 — ป้ายขั้นตอนของออเดอร์ล่าสุด (แทน orderCount เดิมของ 2026-07-25)
   // null = ไม่ต้องแสดงชิป (ไม่เคยมีออเดอร์ หรือป้ายหมดอายุแล้ว — ดู deriveOrderStage)
   // enrich ด้วย enrichWithOrderStage ทั้งฝั่ง RSC (inbox/page.tsx) และ route; optional เผื่อ payload เก่า
-  orderStage?: { key: string; label: string; cls: string; icon: string } | null
+  orderStage?: { key: string; label: string; cls: string; icon: string; printCount?: number } | null
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null
@@ -983,6 +983,19 @@ export default function InboxList({
                           </span>
                         )
                       })()}
+                      {/* ป้ายเสริมจำนวนครั้งที่พิมพ์ (user request 2026-07-29) — มีเฉพาะขั้น "พิมพ์เอกสารแล้ว"
+                          แยกเป็นชิปที่สอง ไม่ต่อท้ายในชิปเดิม เพราะเป็นข้อมูลคนละชนิด (สถานะ vs จำนวน)
+                          และป้ายรวมกันจะยาวจนเบียดชิป ad_id/ชื่อกลุ่มบนจอแคบ. โทน default ไม่ใช่สีสถานะ —
+                          เป็นข้อมูลประกอบ ไม่ใช่สิ่งที่ต้องดึงสายตาแข่งกับสถานะ */}
+                      {c.orderStage?.printCount ? (
+                        <span
+                          className="badge bg-default-100 text-default-600 text-2xs mt-1 inline-flex w-fit shrink-0 items-center gap-1"
+                          title={`ใบปะหน้าถูกสั่งพิมพ์ ${c.orderStage.printCount} ครั้ง`}
+                        >
+                          <Icon icon="printer" width={12} height={12} className="shrink-0" />
+                          พิมพ์ {c.orderStage.printCount} ครั้ง
+                        </span>
+                      ) : null}
                     </span>
                   </div>
 

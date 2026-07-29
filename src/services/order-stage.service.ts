@@ -59,6 +59,7 @@ type LatestOrderRow = {
   status: string
   statusAt: Date
   labelPrintedAt: Date | null
+  labelPrintCount: number | null
   carrierStatus: string | null
 }
 
@@ -96,11 +97,12 @@ export async function enrichWithOrderStage<T extends Linkable>(
       o."customerId" AS "customerId",
       o."status"     AS "status",
       COALESCE(s."carrierStatusAt", o."updatedAt") AS "statusAt",
-      s."labelPrintedAt" AS "labelPrintedAt",
-      s."carrierStatus"  AS "carrierStatus"
+      s."labelPrintedAt"  AS "labelPrintedAt",
+      s."labelPrintCount" AS "labelPrintCount",
+      s."carrierStatus"   AS "carrierStatus"
     FROM "Order" o
     LEFT JOIN LATERAL (
-      SELECT sh."labelPrintedAt", sh."carrierStatus", sh."carrierStatusAt"
+      SELECT sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt"
       FROM "OrderShipment" sh
       WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
       ORDER BY sh."createdAt" DESC
@@ -118,6 +120,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         status: r.status,
         statusAt: r.statusAt,
         labelPrintedAt: r.labelPrintedAt,
+        labelPrintCount: r.labelPrintCount,
         carrierStatus: r.carrierStatus,
       },
     ]),

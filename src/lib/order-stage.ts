@@ -40,6 +40,21 @@ export interface OrderStageInput {
   labelPrintedAt: Date | string | null
   /** OrderShipment.carrierStatus ของพัสดุใบที่ยัง active */
   carrierStatus: string | null
+  /** OrderShipment.labelPrintCount — จำนวนครั้งที่กดพิมพ์ใบปะหน้าใบนี้ */
+  labelPrintCount?: number | null
+}
+
+export interface OrderStageResult {
+  key: OrderStageKey
+  label: string
+  cls: string
+  icon: string
+  /**
+   * ป้ายเสริม "พิมพ์ N ครั้ง" (user request 2026-07-29) — มีเฉพาะขั้น "พิมพ์เอกสารแล้ว"
+   * ประโยชน์คือเห็นใบที่ถูกพิมพ์ซ้ำหลายรอบ (พิมพ์พลาด/กระดาษติด/ทำหาย) ซึ่งเป็นสัญญาณว่ามีอะไรผิดปกติ
+   * ที่หน้างาน — ขั้นอื่นไม่ต้องมี เพราะจำนวนการพิมพ์ไม่ใช่ข้อมูลที่ต้องรู้ตอนของออกไปแล้ว
+   */
+  printCount?: number
 }
 
 /**
@@ -52,7 +67,7 @@ export interface OrderStageInput {
 export function deriveOrderStage(
   order: OrderStageInput | null,
   now: number = Date.now(),
-): { key: OrderStageKey; label: string; cls: string; icon: string } | null {
+): OrderStageResult | null {
   if (!order) return null
 
   const statusAt = new Date(order.statusAt).getTime()
@@ -73,5 +88,13 @@ export function deriveOrderStage(
     key = 'ORDERED'
   }
 
-  return { key, ...ORDER_STAGE_META[key] }
+  // นับจากข้อมูลจริงเท่านั้น — พัสดุที่มี labelPrintedAt แต่ labelPrintCount ยังเป็น 0/null
+  // (แถวเก่าก่อนมีคอลัมน์นับ) ถือว่า "ไม่รู้จำนวน" → ไม่แสดงป้าย ดีกว่าเดาว่า 1
+  const printCount = key === 'LABEL_PRINTED' ? order.labelPrintCount ?? 0 : 0
+
+  return {
+    key,
+    ...ORDER_STAGE_META[key],
+    ...(printCount > 0 ? { printCount } : {}),
+  }
 }
