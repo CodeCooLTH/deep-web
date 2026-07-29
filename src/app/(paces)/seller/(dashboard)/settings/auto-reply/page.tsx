@@ -61,6 +61,7 @@ export default async function AutoReplySettingsPage() {
           matchType: k.matchType,
           priority: k.priority,
           isActive: k.isActive,
+          mode: k.mode,
           phraseCount: k.phraseCount,
           ruleCount: k.ruleCount,
           updatedAt: k.updatedAt.toISOString(),

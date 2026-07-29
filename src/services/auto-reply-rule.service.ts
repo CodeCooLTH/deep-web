@@ -34,6 +34,8 @@ export type AutoReplyKeywordListItem = {
   matchType: string
   priority: number
   isActive: boolean
+  /** feature 00023 — 'LIVE' ตอบลูกค้าจริง | 'TEST' ตอบเฉพาะเธรดใน allowlist */
+  mode: string
   phraseCount: number
   ruleCount: number
   createdAt: Date
@@ -46,6 +48,7 @@ const KEYWORD_LIST_SELECT = {
   matchType: true,
   priority: true,
   isActive: true,
+  mode: true,
   createdAt: true,
   updatedAt: true,
   _count: { select: { phrases: true, rules: true } },
@@ -57,6 +60,7 @@ type KeywordListRow = {
   matchType: string
   priority: number
   isActive: boolean
+  mode: string
   createdAt: Date
   updatedAt: Date
   _count: { phrases: number; rules: number }
@@ -69,6 +73,7 @@ function toKeywordListItem(row: KeywordListRow): AutoReplyKeywordListItem {
     matchType: row.matchType,
     priority: row.priority,
     isActive: row.isActive,
+    mode: row.mode,
     phraseCount: row._count.phrases,
     ruleCount: row._count.rules,
     createdAt: row.createdAt,
@@ -114,7 +119,7 @@ export async function getKeywordDetail(id: string, shopId: string): Promise<Auto
   }
 }
 
-export type CreateKeywordInput = { name: string; matchType?: MatchType; priority?: number }
+export type CreateKeywordInput = { name: string; matchType?: MatchType; priority?: number; mode?: string }
 
 /**
  * createKeyword — สร้างกลุ่มใหม่เสมอในสถานะปิด (isActive=false) โดยตั้งใจ: กลุ่มที่เพิ่งสร้างยังไม่มี
@@ -136,6 +141,8 @@ export async function createKeyword(
         name,
         matchType: input.matchType ?? 'CONTAINS',
         priority: input.priority ?? 100,
+        // default TEST เมื่อไม่ระบุ — ของใหม่ควรเริ่มจากทดสอบเสมอ ปลอดภัยกว่าปล่อยชนลูกค้าทันที
+        mode: input.mode ?? 'TEST',
         isActive: false,
         createdByUserId: userId,
         updatedByUserId: userId,
@@ -156,6 +163,7 @@ export type UpdateKeywordInput = {
   matchType?: MatchType
   priority?: number
   isActive?: boolean
+  mode?: string
 }
 
 /**
@@ -182,6 +190,8 @@ export async function updateKeyword(
     }
     if (input.matchType !== undefined) data.matchType = input.matchType
     if (input.priority !== undefined) data.priority = input.priority
+    // สลับ LIVE/TEST ได้ตลอดโดยไม่ต้องปิดการตั้งค่าก่อน — ร้านจะได้ทดลองแล้วปล่อยจริงได้ทันที
+    if (input.mode !== undefined) data.mode = input.mode
 
     if (input.isActive === true && !existing.isActive) {
       await assertKeywordCompletion(tx, id, shopId)
@@ -233,6 +243,8 @@ export async function duplicateKeyword(
         name,
         matchType: source.matchType,
         priority: source.priority,
+        // สำเนาเริ่มที่ TEST เสมอ ไม่สืบทอด LIVE จากต้นฉบับ — กันเผลอทำสำเนาแล้วยิงลูกค้าจริงทันที
+        mode: 'TEST',
         isActive: false, // AC-001-08 — สำเนาต้องปิดไว้ก่อนเสมอ
         createdByUserId: userId,
         updatedByUserId: userId,

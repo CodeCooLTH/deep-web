@@ -1158,12 +1158,15 @@ export const AutoReplyConfigPatchSchema = v.partial(
 export const AutoReplyKeywordCreateSchema = v.object({
   name: v.pipe(v.string(), v.trim(), v.minLength(1, 'ต้องระบุชื่อกลุ่มคำ'), v.maxLength(100)),
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
+  // LIVE = ตอบลูกค้าจริง · TEST = ตอบเฉพาะเธรดใน allowlist (feature 00023, โหมดรายรายการ)
+  mode: v.optional(v.picklist(['LIVE', 'TEST'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
 })
 
 export const AutoReplyKeywordUpdateSchema = v.object({
   name: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
+  mode: v.optional(v.picklist(['LIVE', 'TEST'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
   isActive: v.optional(v.boolean()),
 })

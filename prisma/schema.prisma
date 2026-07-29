@@ -1436,8 +1436,8 @@ model AiSuggestDailyUsage {
 // 🛑 ไม่ผูก logic gate ใด ๆ ของ feature นี้เลย — เขียนแบบ best-effort หลัง gate ตัดสินใจแล้วเท่านั้น
 // (ถ้า insert แถว event ล้มเหลว ต้องไม่ทำให้ request หลักที่ผู้ใช้รอ suggestions อยู่พังตาม)
 model AiSuggestUsageEvent {
-  id     String @id @default(uuid())
-  shopId String
+  id             String   @id @default(uuid())
+  shopId         String
   // conversationId: เก็บไว้เพื่อ trace เท่านั้น — ตั้งใจไม่ใส่ FK/relation ไปยัง Conversation (มิเรอร์
   // WalletTransaction.refId) เพื่อให้ audit log คงอยู่อิสระจากวงจรชีวิตของเธรดแชท (ลบ/archive
   // conversation ในอนาคตไม่ต้องแตะ/ลบ audit log นี้ตาม)
@@ -1445,17 +1445,17 @@ model AiSuggestUsageEvent {
   // kind: "FREE" | "CREDIT" | "UNLIMITED_PLAN" — String ตาม convention project (เทียบ WalletTransaction.type)
   // FREE = free path (non-paid, ในโควตา 10), CREDIT = credit path (non-paid, หักเครดิต ฿1),
   // UNLIMITED_PLAN = unlimited path (paid plan, bypass ทั้งหมด — BR-AIQ-02)
-  kind String
-  amountBaht Int @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
+  kind           String
+  amountBaht     Int      @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
   // status: "SUCCESS" | "REFUNDED" — เปลี่ยนจาก SUCCESS เป็น REFUNDED เมื่อสิทธิ์ที่ใช้ไปถูกคืน (BR-AIQ-07)
   // มีผลเฉพาะ kind FREE/CREDIT เท่านั้น — unlimited path ไม่มีอะไรให้คืน จึงไม่มีทาง REFUNDED (BR-AIQ-07/E4)
-  status String @default("SUCCESS")
+  status         String   @default("SUCCESS")
   // businessDay: denormalize "YYYY-MM-DD" เวลาไทยของ createdAt จาก todayThaiIsoDate() ตัวเดียวกับ
   // AiSuggestDailyUsage.date (ไม่ใช่ FK/ผูก logic ใด ๆ — แค่สำเนาไว้กันคำนวณ timezone ซ้ำตอน query
   // รายงาน) เพื่อ group by วันปฏิทินไทยแบบ exact-match ได้ตรงกับตัวนับโควตา สำหรับ admin cost
   // dashboard ในอนาคต (Deferred, NFR-AIQ-Obs) — ต่างจาก createdAt (timestamp เต็ม, ใช้ sort/range)
-  businessDay String
-  createdAt   DateTime @default(now())
+  businessDay    String
+  createdAt      DateTime @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
@@ -1755,6 +1755,14 @@ model AutoReplyKeyword {
 
   // มากกว่า = ถูกเลือกก่อน (AC-003-02, เกณฑ์ที่ 1 ของ BR-AR-04)
   priority Int @default(100)
+
+  // mode: "LIVE" = ตอบลูกค้าจริงทุกคน | "TEST" = ตอบเฉพาะเธรดใน allowlist (Conversation.autoReplyTestEnabled)
+  //
+  // 🛑 แยกโหมด "รายการต่อรายการ" ไม่ใช่ทั้งร้าน (user 2026-07-29) — ของเดิม AutoReplyConfig.testMode
+  // เปิดแล้วหยุดทั้งร้าน ทำให้ลืมปิด = ลูกค้าทุกคนไม่ได้คำตอบ. แบบใหม่ตัวที่ LIVE ยังทำงานปกติ
+  // ระหว่างที่ตัวใหม่ยัง TEST อยู่ → ปล่อยของทีละตัวได้โดยไม่กระทบของที่ใช้งานจริง
+  // default LIVE เพื่อให้แถวเดิมทั้งหมดพฤติกรรมไม่เปลี่ยน (additive-safe)
+  mode String @default("LIVE")
 
   isActive Boolean @default(true)
 

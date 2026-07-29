@@ -11,6 +11,16 @@
 // กลุ่มไว้ที่นี่เพื่อไม่ให้มีค่าคงที่ตกหล่นเป็น SSOT ที่ไม่ครบ
 
 /** AutoReplyKeyword.matchType */
+/**
+ * โหมดของการตั้งค่าแต่ละชุด (feature 00023, user 2026-07-29)
+ * LIVE = ตอบลูกค้าจริงทุกคน · TEST = ตอบเฉพาะเธรดที่อยู่ใน allowlist ของโหมดทดสอบ
+ *
+ * แยกรายรายการแทนที่จะเป็นสวิตช์ระดับร้าน เพราะสวิตช์ร้านทำให้ "ลืมปิด = ลูกค้าทั้งร้าน
+ * ไม่ได้คำตอบ" ส่วนแบบนี้ลืมปิดกระทบแค่ชุดนั้น และปล่อยของทีละชุดได้
+ */
+export const AUTO_REPLY_MODES = ['LIVE', 'TEST'] as const
+export type AutoReplyMode = (typeof AUTO_REPLY_MODES)[number]
+
 export const MATCH_TYPES = ['EXACT', 'CONTAINS', 'STARTS_WITH'] as const
 export type MatchType = (typeof MATCH_TYPES)[number]
 
@@ -49,6 +59,8 @@ export const SKIP_REASONS = [
   'SHOP_DISABLED',
   'CONVERSATION_DISABLED',
   'NOT_IN_TEST_ALLOWLIST',
+  // การตั้งค่านี้อยู่โหมด TEST แต่เธรดไม่ได้อยู่ใน allowlist (feature 00023 mode รายรายการ)
+  'KEYWORD_TEST_ONLY',
   'SPAM',
   'HANDED_OFF',
   'PAUSED_HUMAN_TAKEOVER',

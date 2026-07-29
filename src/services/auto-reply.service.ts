@@ -126,6 +126,8 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
         name: true,
         matchType: true,
         priority: true,
+        // feature 00023 — โหมดรายรายการ ใช้ตัดสินที่ gate หลัง match ว่าตัวนี้ตอบได้ไหม
+        mode: true,
         phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
       },
       orderBy: { priority: 'desc' },
@@ -239,12 +241,12 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: reason })
     }
 
-    // gate 2 — โหมดทดสอบ (AC-021-03/09)
-    // WARNING: ต้องอยู่ตรงนี้ ก่อนโหลดกฎและก่อน match — ไม่งั้นเปิดโหมดทดสอบแล้วยังเสียต้นทุน
-    // ประมวลผลให้ทุกข้อความของทั้งร้านทั้งที่จะไม่ตอบอยู่ดี
-    const testModeActive =
+    // gate 2 — โหมดทดสอบระดับร้าน (ของเดิม ยังคงไว้เป็นสวิตช์ครอบทั้งร้าน)
+    // WARNING: ต้องอยู่ก่อนโหลดกฎและก่อน match — ไม่งั้นเปิดโหมดนี้แล้วยังเสียต้นทุนประมวลผล
+    // ให้ทุกข้อความของทั้งร้านทั้งที่จะไม่ตอบอยู่ดี (AC-021-09)
+    const shopTestModeActive =
       config.testMode && (!config.testModeExpiresAt || config.testModeExpiresAt > new Date())
-    if (testModeActive && !conversation.autoReplyTestEnabled) {
+    if (shopTestModeActive && !conversation.autoReplyTestEnabled) {
       return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'NOT_IN_TEST_ALLOWLIST' })
     }
 
@@ -281,6 +283,25 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     }
 
     const matched = matchKeywords(normalizedText, ruleSet, ctx)
+
+    // gate 6.5 — โหมดของ "การตั้งค่าที่ชนะ" (feature 00023, user 2026-07-29)
+    //
+    // WARNING: ต้องเช็ค **หลัง match** เพราะโหมดผูกกับการตั้งค่าแต่ละชุด ไม่ใช่ทั้งร้าน
+    // ชุดที่เป็น TEST ตอบได้เฉพาะเธรดที่ร้านเลือกไว้ ส่วนชุด LIVE ทำงานปกติในเธรดเดียวกัน
+    // นี่คือสิ่งที่ทำให้ "ปล่อยของทีละชุด" ได้โดยไม่กระทบชุดที่ใช้งานจริงอยู่
+    const winnerMode =
+      ruleSet.keywords.find((k) => k.id === matched.winner?.keywordId)?.mode ?? 'LIVE'
+    const isTestReply = winnerMode === 'TEST'
+    if (isTestReply && !conversation.autoReplyTestEnabled) {
+      return finish(job, 'SKIPPED', {
+        ...base,
+        decision: 'SKIPPED',
+        skipReason: 'KEYWORD_TEST_ONLY',
+        rawText,
+        normalizedText,
+        keywordId: matched.winner?.keywordId ?? null,
+      })
+    }
 
     // gate 7 — cooldown ของกลุ่มคำเดิมในเธรดเดิม (AC-018-01)
     if (matched.winner && config.keywordCooldownSec > 0) {
@@ -323,7 +344,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       productId: ctx.productId,
       resolutionLevel: resolved.resolutionLevel,
       ruleId: resolved.rule?.id ?? null,
-      isTest: testModeActive,
+      isTest: shopTestModeActive || isTestReply,
       durationMs: Date.now() - startedAt,
     }
 
@@ -347,7 +368,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       conversationId: conversation.id,
       shopId: job.shopId,
       text: replyText,
-      isTest: testModeActive,
+      isTest: shopTestModeActive || isTestReply,
     })
 
     if (!result.sent) {

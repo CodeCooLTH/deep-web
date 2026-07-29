@@ -37,6 +37,7 @@ export default function NewKeywordForm() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [matchType, setMatchType] = useState('CONTAINS')
+  const [mode, setMode] = useState('TEST')
   const [busy, setBusy] = useState(false)
 
   const selectedHint = MATCH_TYPE_OPTIONS.find((o) => o.value === matchType)?.hint ?? ''
@@ -50,7 +51,7 @@ export default function NewKeywordForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
-        body: JSON.stringify({ name: name.trim(), matchType }),
+        body: JSON.stringify({ name: name.trim(), matchType, mode }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'สร้างไม่สำเร็จ')
@@ -99,6 +100,24 @@ export default function NewKeywordForm() {
             ariaLabel="รูปแบบการตรวจจับ"
           />
           <p className="text-default-500 mt-1 text-xs">{selectedHint}</p>
+        </div>
+
+        <div>
+          <label htmlFor="kw-mode" className="text-default-700 mb-1 block text-sm font-medium">โหมด</label>
+          <ChoiceSelect
+            id="kw-mode"
+            options={[
+              { value: 'TEST', label: 'โหมดทดสอบ — ตอบเฉพาะแชทที่เลือก' },
+              { value: 'LIVE', label: 'ใช้งานจริง — ตอบลูกค้าทุกคน' },
+            ]}
+            value={mode} search={false} onChange={(v) => setMode(v as string)}
+            ariaLabel="โหมดของการตั้งค่านี้"
+          />
+          <p className="text-default-500 mt-1 text-xs">
+            {mode === 'TEST'
+              ? 'ปลอดภัยกว่า — ลองกับแชทของตัวเองก่อน ชุดอื่นที่ใช้งานจริงอยู่ไม่กระทบ'
+              : 'ตอบลูกค้าทุกคนทันทีที่เปิดใช้งาน'}
+          </p>
         </div>
 
         <div className="border-default-200 bg-default-50 rounded border border-dashed p-3">

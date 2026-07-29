@@ -387,12 +387,13 @@ model AutoReplyLog {
 | กลุ่ม | ค่าที่อนุญาต |
 |---|---|
 | `AutoReplyKeyword.matchType` | `EXACT` · `CONTAINS` · `STARTS_WITH` |
+| `AutoReplyKeyword.mode` | `LIVE` · `TEST` — **amend 2026-07-29** โหมดรายรายการ (migration `20260729190000_auto_reply_keyword_mode`) |
 | `AutoReplyConfig.humanTakeoverPauseMode` | `30M` · `2H` · `MANUAL` · `UNTIL_RESOLVED` |
 | `AutoReplyConfig.adsContextMode` | `UNTIL_RESOLVED` · `HOURS` · `UNTIL_NEW_PRODUCT` |
 | `AutoReplyJob.status` | `PENDING` · `PROCESSING` · `DONE` · `FAILED` · `SKIPPED` |
 | `AutoReplyLog.decision` | `REPLIED` · `SKIPPED` · `HANDOFF` · `FAILED` |
 | `AutoReplyLog.resolutionLevel` | `KEYWORD_PAGE_AD_PRODUCT` · `KEYWORD_PAGE_AD` · `KEYWORD_PAGE_PRODUCT` · `KEYWORD_PAGE` · `KEYWORD_PRODUCT` · `KEYWORD_DEFAULT` · `PAGE_DEFAULT` · `SHOP_DEFAULT` · `NONE` |
-| `AutoReplyLog.skipReason` | `SHOP_DISABLED` · `CONVERSATION_DISABLED` · `NOT_IN_TEST_ALLOWLIST` · `SPAM` · `HANDED_OFF` · `PAUSED_HUMAN_TAKEOVER` · `OUTBOUND_MESSAGE` · `KEYWORD_COOLDOWN` · `MAX_REPLIES_REACHED` · `NO_KEYWORD_MATCH` · `NO_RULE_MATCH` · `EMPTY_REPLY` · `WINDOW_CLOSED` · `CHANNEL_INACTIVE` · `DUPLICATE_JOB` |
+| `AutoReplyLog.skipReason` | `SHOP_DISABLED` · `CONVERSATION_DISABLED` · `NOT_IN_TEST_ALLOWLIST` · `SPAM` · `HANDED_OFF` · `PAUSED_HUMAN_TAKEOVER` · `OUTBOUND_MESSAGE` · `KEYWORD_COOLDOWN` · `MAX_REPLIES_REACHED` · `NO_KEYWORD_MATCH` · `NO_RULE_MATCH` · `EMPTY_REPLY` · `WINDOW_CLOSED` · `CHANNEL_INACTIVE` · `DUPLICATE_JOB` · `KEYWORD_TEST_ONLY` |
 | `ChatMessage.autoReplyKind` | `null` · `AUTO` · `AUTO_TEST` |
 | `Conversation.contextProductSource` | `ADS_MAPPING` · `MANUAL` · `REFERRAL` |
 

@@ -50,6 +50,7 @@ type Props = {
     matchType: string
     priority: number
     isActive: boolean
+    mode: string
     phrases: Phrase[]
     rules: Rule[]
   }
@@ -74,6 +75,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
   const router = useRouter()
 
   const [isActive, setIsActive] = useState(keyword.isActive)
+  const [mode, setMode] = useState(keyword.mode)
   const [name, setName] = useState(keyword.name)
   const [matchType, setMatchType] = useState(keyword.matchType)
   const [priority, setPriority] = useState(keyword.priority)
@@ -169,6 +171,31 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
     }
   }
 
+  /**
+   * สลับ LIVE/TEST มีผลทันที (feature 00023 โหมดรายรายการ)
+   * TEST = ตอบเฉพาะเธรดใน allowlist · LIVE = ตอบลูกค้าจริงทุกคน
+   * แยกรายรายการทำให้ปล่อยของทีละชุดได้โดยชุดที่ใช้งานจริงอยู่ไม่กระทบ
+   */
+  async function changeMode(next: string) {
+    if (!canEdit || busy || next === mode) return
+    setBusy(true)
+    const prev = mode
+    setMode(next)
+    try {
+      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: next }),
+      })
+      pacesToast.success(next === 'LIVE' ? 'เปลี่ยนเป็นใช้งานจริงแล้ว' : 'เปลี่ยนเป็นโหมดทดสอบแล้ว')
+      router.refresh()
+    } catch (e) {
+      setMode(prev)
+      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนโหมดไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function addPhrase() {
     const value = newPhrase.trim()
     if (!canEdit || !value || busy) return
@@ -246,6 +273,18 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           หรือบอกว่าจะติดต่อกลับเมื่อไหร่ และตั้งคำตอบต่างกันตามเพจหรือโฆษณาที่ลูกค้าเข้ามาได้
         </p>
       </div>
+
+      {mode === 'TEST' && (
+        <div className="card bg-warning/10 border-warning mb-4">
+          <div className="card-body flex items-center gap-3 py-3">
+            <Icon icon="flask" className="text-warning text-lg" aria-hidden="true" />
+            <p className="text-default-700 text-sm">
+              การตั้งค่านี้อยู่ในโหมดทดสอบ — ตอบเฉพาะแชทที่เลือกไว้ในหน้ารายการเท่านั้น
+              ลูกค้าทั่วไปจะยังไม่ได้รับคำตอบจากชุดนี้ (ชุดอื่นที่ใช้งานจริงอยู่ไม่กระทบ)
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-10">
         <div className="xl:col-span-7">

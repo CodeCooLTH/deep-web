@@ -36,6 +36,7 @@ type KeywordRow = {
   matchType: string
   priority: number
   isActive: boolean
+  mode: string
   phraseCount: number
   ruleCount: number
   updatedAt: string
@@ -55,12 +56,14 @@ const MATCH_TYPE_LABEL: Record<string, string> = {
 }
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE'
+type ModeFilter = 'ALL' | 'LIVE' | 'TEST'
 
 export default function AutoReplyListClient({ initialConfig, initialKeywords, canEdit }: Props) {
   const [config, setConfig] = useState(initialConfig)
   const [keywords, setKeywords] = useState(initialKeywords)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
 
@@ -69,10 +72,11 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
     return keywords.filter((k) => {
       if (statusFilter === 'ACTIVE' && !k.isActive) return false
       if (statusFilter === 'INACTIVE' && k.isActive) return false
+      if (modeFilter !== 'ALL' && k.mode !== modeFilter) return false
       if (q && !k.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [keywords, query, statusFilter])
+  }, [keywords, query, statusFilter, modeFilter])
 
   async function toggleShopSwitch(next: boolean) {
     if (!canEdit || busy) return
@@ -153,6 +157,28 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
         </div>
       )}
 
+      {/* stat cards — โครงเดียวกับหน้าสินค้า (products/components/ProductStats.tsx) */}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'ทั้งหมด', value: keywords.length, icon: 'message-bolt', tone: 'text-default-700' },
+          { label: 'ใช้งานจริง', value: keywords.filter((k) => k.mode === 'LIVE' && k.isActive).length, icon: 'broadcast', tone: 'text-success' },
+          { label: 'โหมดทดสอบ', value: keywords.filter((k) => k.mode === 'TEST').length, icon: 'flask', tone: 'text-warning' },
+          { label: 'ปิดอยู่', value: keywords.filter((k) => !k.isActive).length, icon: 'circle-off', tone: 'text-default-500' },
+        ].map((s) => (
+          <div key={s.label} className="card mb-0">
+            <div className="card-body flex items-center gap-3 py-3">
+              <span className="bg-default-100 flex size-9 flex-none items-center justify-center rounded">
+                <Icon icon={s.icon} className={`text-base ${s.tone}`} aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="text-default-800 block text-lg font-semibold">{s.value}</span>
+                <span className="text-default-500 block truncate text-xs">{s.label}</span>
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="card">
         <div className="card-header flex flex-wrap items-center justify-between gap-3">
           <h5 className="text-default-800 text-base font-semibold">ตอบแชทอัตโนมัติ</h5>
@@ -205,6 +231,17 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
                 search={false}
                 onChange={(v) => setStatusFilter(v as StatusFilter)}
                 ariaLabel="กรองตามสถานะ"
+              />
+            </div>
+            <div className="w-36">
+              <ChoiceSelect
+                options={[
+                  { value: 'ALL', label: 'ทุกโหมด' },
+                  { value: 'LIVE', label: 'ใช้งานจริง' },
+                  { value: 'TEST', label: 'โหมดทดสอบ' },
+                ]}
+                value={modeFilter} search={false}
+                onChange={(v) => setModeFilter(v as ModeFilter)} ariaLabel="กรองตามโหมด"
               />
             </div>
             {canEdit && (
@@ -265,6 +302,7 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
                     <th className="text-center">คำตรวจจับ</th>
                     <th className="text-center">กฎคำตอบ</th>
                     <th>รูปแบบ</th>
+                    <th>โหมด</th>
                     <th>สถานะ</th>
                     <th>แก้ไขล่าสุด</th>
                   </tr>
@@ -297,6 +335,13 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
                       <td className="text-center">{k.ruleCount}</td>
                       <td className="text-default-600 text-sm">
                         {MATCH_TYPE_LABEL[k.matchType] ?? k.matchType}
+                      </td>
+                      <td>
+                        {/* โหมดรายรายการ — ทดสอบใช้เหลือง (เตือน) ใช้งานจริงใช้น้ำเงิน (สถานะปกติ)
+                            ไม่ใช้เขียวเพราะเขียวสงวนไว้ให้ "เปิดใช้งานอยู่" ตาม Verified-Means-Green */}
+                        <span className={`badge ${k.mode === 'TEST' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}>
+                          {k.mode === 'TEST' ? 'ทดสอบ' : 'ใช้งานจริง'}
+                        </span>
                       </td>
                       <td>
                         {/* Verified-Means-Green: เขียว = ทำงานอยู่จริง ตรงกับที่ระบบใช้ทั้งแพลตฟอร์ม */}
