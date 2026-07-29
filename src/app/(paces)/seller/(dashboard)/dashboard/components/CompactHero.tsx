@@ -40,6 +40,8 @@ export interface CompactHeroProps {
   // เพื่อไม่ชนกับ tierName ที่แปลว่า trust tier ใน CommandCenterData — คนละเรื่องกัน)
   packageStatus: BusinessPackageStatusApp
   packageTier: BusinessPackageTier | null
+  /** true = OWNER → ทั้งแถวเป็นลิงก์ไป /business; false = สมาชิกอื่น เห็นข้อมูลเหมือนกันแต่กดไม่ได้ */
+  packageCanManage: boolean
 }
 
 export default function CompactHero({
@@ -54,6 +56,7 @@ export default function CompactHero({
   notiCount = 0,
   packageStatus,
   packageTier,
+  packageCanManage,
 }: CompactHeroProps) {
   const initial = shopName.trim().charAt(0).toUpperCase() || 'S'
   // clamp trustScore 0–100 เพื่อป้องกัน ring ล้นวง
@@ -296,21 +299,34 @@ export default function CompactHero({
           className="border-t mt-3 pt-3"
           style={{ borderColor: 'rgba(255,255,255,0.28)' }}
         >
-          <Link
-            href="/business"
-            aria-label={packageAriaLabel}
+          {/* ดูอย่างเดียว (ไม่ใช่ OWNER) → <div> ไม่ใช่ <Link> และไม่มีลูกศร — กันกดแล้วไปเจอ
+              หน้าที่จัดการอะไรไม่ได้ (Business Package สมัครระดับบัญชีเจ้าของ) */}
+          {(() => {
+            const rowInner = (
+              <>
+                <Icon icon={packageIcon} className="text-base shrink-0" aria-hidden="true" />
+                <span className="flex-1 min-w-0 truncate text-2xs font-semibold">{packageLabel}</span>
+                {isPackageActive && (
+                  <span className="badge bg-white/20 text-white text-2xs shrink-0">ใช้งานอยู่</span>
+                )}
+                {packageCanManage && (
+                  <span className="shrink-0 text-2xs" aria-hidden="true">&rarr;</span>
+                )}
+              </>
+            )
             // tap target ≥44px: py-2.5 ให้แถวดูบาง + minHeight:44 (inline) ชดเชยเนื้อหาเตี้ย
             // — pattern เดียวกับปุ่มกระดิ่ง Row 1 (style minWidth/minHeight:44)
-            className={`flex items-center gap-2 rounded-md border-s-3 px-2.5 py-2.5 transition-colors ${packageRowClasses}`}
-            style={{ minHeight: 44 }}
-          >
-            <Icon icon={packageIcon} className="text-base shrink-0" aria-hidden="true" />
-            <span className="flex-1 min-w-0 truncate text-2xs font-semibold">{packageLabel}</span>
-            {isPackageActive && (
-              <span className="badge bg-white/20 text-white text-2xs shrink-0">ใช้งานอยู่</span>
-            )}
-            <span className="shrink-0 text-2xs" aria-hidden="true">→</span>
-          </Link>
+            const rowClass = `flex items-center gap-2 rounded-md border-s-3 px-2.5 py-2.5 ${packageCanManage ? 'transition-colors' : ''} ${packageRowClasses}`
+            return packageCanManage ? (
+              <Link href="/business" aria-label={packageAriaLabel} className={rowClass} style={{ minHeight: 44 }}>
+                {rowInner}
+              </Link>
+            ) : (
+              <div className={rowClass} style={{ minHeight: 44 }}>
+                {rowInner}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>

@@ -124,7 +124,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
   let businessPackageTier: BusinessPackageTier | null = null
   try {
-    const subscription = await getSubscriptionStatus(user.id)
+    // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
+    // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
+    // แพ็กเกจ "ส่วนตัวของตัวเอง" แทนของร้าน (bug ที่เจอ 2026-07-29 ตอนเปิดให้ทุก role เห็น)
+    // มิเรอร์ isOwnerPaidPlan(shopId) ใน ai-suggest-quota.service ที่ resolve แบบเดียวกัน
+    const subscription = await getSubscriptionStatus(shop.userId)
     if (subscription) {
       businessPackageStatus = subscription.status as BusinessPackageStatusApp
       businessPackageTier = subscription.tier as BusinessPackageTier
@@ -166,13 +170,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }
       bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} unreadChatCount={unreadChatCount} />}
       sidenavFooterSlot={<OnboardingGate />}
-      // Business Package สมัครระดับบัญชีเจ้าของ — สมาชิก ADMIN ของ Business shop จัดการ billing
-      // เองไม่ได้ (มติเดียวกับ /settings/ai: STAFF ไม่เห็น badge อัพเกรดเพราะเป็น dead-end)
-      // → แสดงเฉพาะ active.role === 'OWNER'
+      // ทุก role เห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
+      // พนักงานก็ควรรู้ว่าร้านอยู่แพ็กเกจไหน) ต่างแค่ canManage — เฉพาะ OWNER ที่กดไปจัดการได้
       sidenavHeaderSlot={
-        active.role === 'OWNER' ? (
-          <ShopPackageSidenavCard status={businessPackageStatus} tier={businessPackageTier} />
-        ) : undefined
+        <ShopPackageSidenavCard
+          status={businessPackageStatus}
+          tier={businessPackageTier}
+          canManage={active.role === 'OWNER'}
+        />
       }
     >
       {children}
