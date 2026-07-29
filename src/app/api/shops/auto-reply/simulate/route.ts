@@ -5,6 +5,8 @@ import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { loadRuleSet } from '@/services/auto-reply.service'
 import { matchKeywords, resolveRule } from '@/services/auto-reply-match.service'
 import { AutoReplySimulateSchema } from '@/lib/validations'
+import { prisma } from '@/lib/prisma'
+import { getConfig } from '@/services/auto-reply-config.service'
 
 /**
  * POST /api/shops/auto-reply/simulate — ทดสอบกฎแบบกรอกเอง (FR-020)
@@ -44,6 +46,39 @@ export async function POST(request: NextRequest) {
   const matched = matchKeywords(normalizedText, ruleSet, matchCtx)
   const resolved = resolveRule(matched.winner?.keywordId ?? null, matchCtx, ruleSet)
 
+  // ── วินิจฉัยสาเหตุเมื่อไม่ match (V2) ────────────────────────────────────
+  //
+  // WARNING: ถ้าไม่ทำส่วนนี้ ผู้ใช้ที่พิมพ์คำตรงเป๊ะจะเห็นแค่ "ไม่ตรงกลุ่มคำใด" ซึ่งโยนความผิด
+  // ให้เขาทั้งที่ระบบรู้อยู่แล้วว่าสาเหตุคือกลุ่มคำถูกปิดไว้ (บั๊กจริงที่ user เจอบน prod 2026-07-29)
+  // หลักการ: ถ้าระบบรู้สาเหตุ ต้องบอกสาเหตุ ไม่ใช่บอกอาการ
+  let blockedBy: null | { reason: 'KEYWORD_INACTIVE'; keywordId: string; keywordName: string } = null
+  if (!matched.winner) {
+    const inactive = await prisma.autoReplyKeyword.findMany({
+      where: { shopId: ctx.shopId, isActive: false },
+      select: {
+        id: true,
+        name: true,
+        matchType: true,
+        priority: true,
+        phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
+      },
+    })
+    if (inactive.length > 0) {
+      // เทียบด้วย matcher ตัวเดียวกัน ไม่เขียน logic คู่ขนาน — ส่ง rules ว่างเพราะสนใจแค่ว่า
+      // "คำตรงไหม" ไม่ใช่ "มีกฎให้ใช้ไหม"
+      const hit = matchKeywords(normalizedText, { keywords: inactive as never, rules: [] }, matchCtx)
+      if (hit.winner) {
+        blockedBy = {
+          reason: 'KEYWORD_INACTIVE',
+          keywordId: hit.winner.keywordId,
+          keywordName: hit.winner.keywordName,
+        }
+      }
+    }
+  }
+
+  const config = await getConfig(ctx.shopId)
+
   return NextResponse.json(
     {
       rawText: parsed.output.message,
@@ -64,6 +99,9 @@ export async function POST(request: NextRequest) {
       replyText: resolved.rule?.replyText ?? null,
       // ไม่มีกฎให้ถอย = ระบบจะเงียบแล้วส่งต่อพนักงาน ไม่ใช่เดาคำตอบ
       willHandoff: !resolved.rule?.replyText?.trim(),
+      // V2 — บริบทที่ทำให้ UI อธิบายสาเหตุได้แทนที่จะบอกแค่อาการ
+      blockedBy,
+      shopEnabled: config.isEnabled,
     },
     { headers: AUTO_REPLY_NO_STORE },
   )

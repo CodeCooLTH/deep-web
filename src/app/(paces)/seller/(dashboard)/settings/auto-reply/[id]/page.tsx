@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getKeywordDetail } from '@/services/auto-reply-rule.service'
+import { getConfig } from '@/services/auto-reply-config.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import KeywordEditorClient from './KeywordEditorClient'
@@ -37,8 +38,8 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
   const keyword = await getKeywordDetail(id, activeCtx.shopId)
   if (!keyword) notFound()
 
-  // ตัวเลือกของ dropdown เงื่อนไข — scope shopId ทั้งคู่
-  const [channels, products] = await Promise.all([
+  // ตัวเลือกเงื่อนไข — scope shopId ทุกตัว
+  const [channels, products, config] = await Promise.all([
     prisma.shopChannel.findMany({
       where: { shopId: activeCtx.shopId, status: 'ACTIVE' },
       select: { id: true, name: true, provider: true },
@@ -46,10 +47,12 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
     }),
     prisma.product.findMany({
       where: { shopId: activeCtx.shopId, isActive: true },
-      select: { id: true, name: true },
+      // images: เอาไปทำการ์ดสินค้ามีรูป (user request 2026-07-29 "อยากให้เป็น card สินค้า + มีรูป")
+      select: { id: true, name: true, price: true, images: true },
       orderBy: { updatedAt: 'desc' },
       take: 200,
     }),
+    getConfig(activeCtx.shopId),
   ])
 
   return (
@@ -84,7 +87,14 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
           })),
         }}
         channels={channels}
-        products={products}
+        products={products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          price: p.price.toFixed(0),
+          // pattern เดียวกับ (chat)/layout.tsx และ orders/new — images[0] คือ storage fileId
+          image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
+        }))}
+        shopEnabled={config.isEnabled}
       />
     </>
   )

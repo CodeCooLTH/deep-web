@@ -1,20 +1,23 @@
 'use client'
 
 /**
- * KeywordEditorClient — แก้ไขกลุ่มคำ + คำตอบทุกระดับ + แผงทดสอบ (feature 00023, S-13 หน้า 2)
+ * KeywordEditorClient V2 — แก้ไขกลุ่มคำ (feature 00023, S-13)
  *
- * SSOT: docs/20 - Features/00023 - Chat Auto-Reply/UI-DESIGN-SPEC.md §4
+ * SSOT: docs/20 - Features/00023 - Chat Auto-Reply/UI-DESIGN-SPEC-V2.md
+ *       mockup: docs/superpowers/specs/2026-07-29-auto-reply-editor-v2-mockup.html
  *
- * Base (form-input/textarea + ตัวนับอักษร): src/app/(paces)/seller/(dashboard)/settings/ai/
+ * Base (card/form-input/textarea/switch): src/app/(paces)/seller/(dashboard)/settings/ai/
  *   AiSettingForm.tsx ซึ่ง Base เดิม = theme/paces/Admin/TS/src/app/(admin)/form/elements/
- *   components/InputTextfieldType.tsx
- * Base (chip/badge ของคำตรวจจับ): theme/paces/Admin/TS/src/app/(admin)/ui/badges/page.tsx
+ *   components/{InputTextfieldType,ChecksRadioSwitches}.tsx
  *
- * toast ใช้ pacesToast เท่านั้น (Hard Rule 9)
+ * WARNING: V1 มองการตั้งค่าเป็น "ตาราง 9 ระดับ" ตามที่ PRD §8 เขียน แต่ 9 ระดับนั้นคือสเปกของ
+ * resolver ไม่ใช่แบบจำลองในหัวเจ้าของร้าน ซึ่งคือ "ปกติตอบแบบนี้ ยกเว้น..." — V2 จึงเรียกว่า
+ * "คำตอบหลัก" + "ข้อยกเว้น" และเรียงข้อยกเว้นจากเจาะจงมากลงมาน้อยตามลำดับที่ระบบตัดสินจริง
+ *
+ * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 
@@ -31,20 +34,24 @@ type Rule = {
   isActive: boolean
   specificity: number
 }
-type Keyword = {
-  id: string
-  name: string
-  matchType: string
-  priority: number
-  isActive: boolean
-  phrases: Phrase[]
-  rules: Rule[]
-}
+type Channel = { id: string; name: string; provider: string }
+type Product = { id: string; name: string; price: string; image: string | null }
+type Ad = { adId: string; adTitle: string | null; hitCount: number }
+
 type Props = {
   canEdit: boolean
-  keyword: Keyword
-  channels: { id: string; name: string; provider: string }[]
-  products: { id: string; name: string }[]
+  shopEnabled: boolean
+  keyword: {
+    id: string
+    name: string
+    matchType: string
+    priority: number
+    isActive: boolean
+    phrases: Phrase[]
+    rules: Rule[]
+  }
+  channels: Channel[]
+  products: Product[]
 }
 
 const MATCH_TYPE_OPTIONS = [
@@ -53,55 +60,106 @@ const MATCH_TYPE_OPTIONS = [
   { value: 'STARTS_WITH', label: 'ขึ้นต้นด้วยคำ' },
 ]
 
-/** ป้ายภาษาคนของระดับกฎ — ห้ามโชว์ค่าดิบอย่าง KEYWORD_PAGE_AD ให้ผู้ใช้เห็น */
-const LEVEL_LABEL: Record<string, string> = {
-  KEYWORD_PAGE_AD_PRODUCT: 'กลุ่มคำ + เพจ + โฆษณา + สินค้า',
-  KEYWORD_PAGE_AD: 'กลุ่มคำ + เพจ + โฆษณา',
-  KEYWORD_PAGE_PRODUCT: 'กลุ่มคำ + เพจ + สินค้า',
-  KEYWORD_PAGE: 'กลุ่มคำ + เพจ',
-  KEYWORD_PRODUCT: 'กลุ่มคำ + สินค้า',
-  KEYWORD_DEFAULT: 'คำตอบกลางของกลุ่มคำ',
-  PAGE_DEFAULT: 'คำตอบกลางของเพจ',
-  SHOP_DEFAULT: 'คำตอบกลางของร้าน',
-  NONE: 'ไม่มีกฎที่ใช้ได้',
+async function callApi(url: string, init: RequestInit) {
+  const res = await fetch(url, { cache: 'no-store', ...init })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? 'ดำเนินการไม่สำเร็จ')
+  return data
 }
 
-export default function KeywordEditorClient({ canEdit, keyword, channels, products }: Props) {
+export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, channels, products }: Props) {
   const router = useRouter()
+
+  const [isActive, setIsActive] = useState(keyword.isActive)
   const [name, setName] = useState(keyword.name)
   const [matchType, setMatchType] = useState(keyword.matchType)
   const [priority, setPriority] = useState(keyword.priority)
-  const [isActive, setIsActive] = useState(keyword.isActive)
   const [phrases, setPhrases] = useState(keyword.phrases)
   const [newPhrase, setNewPhrase] = useState('')
   const [rules, setRules] = useState(keyword.rules)
   const [busy, setBusy] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
-  const defaultRule = rules.find((r) => !r.shopChannelId && !r.adId && !r.productId) ?? null
-  const overrides = rules.filter((r) => r.shopChannelId || r.adId || r.productId)
+  const defaultRule = useMemo(
+    () => rules.find((r) => !r.shopChannelId && !r.adId && !r.productId) ?? null,
+    [rules],
+  )
   const [defaultReply, setDefaultReply] = useState(defaultRule?.replyText ?? '')
 
-  async function call(url: string, init: RequestInit) {
-    const res = await fetch(url, { cache: 'no-store', ...init })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error ?? 'ดำเนินการไม่สำเร็จ')
-    return data
-  }
+  /** ข้อยกเว้นเรียงเจาะจงมากอยู่บน = ลำดับที่ระบบตัดสินจริง (ไม่ใช่ลำดับการสร้าง) */
+  const exceptions = useMemo(
+    () =>
+      rules
+        .filter((r) => r.shopChannelId || r.adId || r.productId)
+        .sort((a, b) => b.specificity - a.specificity || a.id.localeCompare(b.id)),
+    [rules],
+  )
 
-  async function saveGeneral() {
+  // แถบบันทึกลอย: บอกด้วยว่าแก้อะไรไป ไม่ใช่แค่ว่า "มีการแก้"
+  const dirty = useMemo(() => {
+    const d: string[] = []
+    if (name !== keyword.name) d.push('ชื่อกลุ่ม')
+    if (matchType !== keyword.matchType) d.push('รูปแบบการตรวจจับ')
+    if (priority !== keyword.priority) d.push('ลำดับความสำคัญ')
+    if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบหลัก')
+    return d
+  }, [name, matchType, priority, defaultReply, keyword, defaultRule])
+
+  /**
+   * สวิตช์มีผลทันที ไม่ต้องกดบันทึกแยก
+   * WARNING: V1 ให้สวิตช์อยู่ในฟอร์มที่ต้องกดบันทึก — user เปิดแล้วนึกว่าทำงาน แต่จริง ๆ ไม่ได้บันทึก
+   * แล้วสรุปว่า "ตั้งค่าแล้วระบบไม่ตอบ" (บั๊กจริงบน prod 2026-07-29) ไม่มีใครคาดหวังว่าสวิตช์ต้องยืนยัน
+   */
+  async function toggleActive(next: boolean) {
     if (!canEdit || busy) return
     setBusy(true)
+    setIsActive(next)
     try {
-      await call(`/api/shops/auto-reply/keywords/${keyword.id}`, {
+      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), matchType, priority, isActive }),
+        body: JSON.stringify({ isActive: next }),
       })
+      pacesToast.success(next ? 'เปิดใช้งานกลุ่มคำแล้ว' : 'ปิดกลุ่มคำแล้ว')
+      router.refresh()
+    } catch (e) {
+      setIsActive(!next)
+      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนสถานะไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveAll() {
+    if (!canEdit || busy || dirty.length === 0) return
+    setBusy(true)
+    try {
+      if (name !== keyword.name || matchType !== keyword.matchType || priority !== keyword.priority) {
+        await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name.trim(), matchType, priority }),
+        })
+      }
+      if (defaultReply !== (defaultRule?.replyText ?? '')) {
+        const payload = {
+          shopChannelId: null, adId: null, adLabel: null, productId: null,
+          replyText: defaultReply, isActive: true, activeFrom: null, activeUntil: null,
+        }
+        if (defaultRule) {
+          await callApi(`/api/shops/auto-reply/rules/${defaultRule.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          })
+        } else {
+          await callApi('/api/shops/auto-reply/rules', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, keywordId: keyword.id }),
+          })
+        }
+      }
       pacesToast.success('บันทึกแล้ว')
       router.refresh()
     } catch (e) {
-      // เปิดใช้งานไม่ได้เพราะยังไม่มีคำตรวจจับ/คำตอบ = ข้อความจาก API อธิบายเองแล้ว
-      setIsActive(keyword.isActive)
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
       setBusy(false)
@@ -113,19 +171,14 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
     if (!canEdit || !value || busy) return
     setBusy(true)
     try {
-      const data = await call(`/api/shops/auto-reply/keywords/${keyword.id}/phrases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const data = await callApi(`/api/shops/auto-reply/keywords/${keyword.id}/phrases`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phrases: [value] }),
       })
-      if (data.added?.length) {
-        setPhrases((p) => [...p, ...data.added.map((a: Phrase) => ({ id: a.id, phrase: a.phrase }))])
-      }
+      if (data.added?.length) setPhrases((p) => [...p, ...data.added])
       setNewPhrase('')
-      // ซ้ำข้ามกลุ่ม = เตือนแต่ยังเพิ่มได้ (AC-002-04) ต้องบอกว่าชนกับกลุ่มไหน ไม่ใช่เงียบ
       if (data.warnings?.length) pacesToast.warning(data.warnings[0])
       else if (data.skipped?.length) pacesToast.warning('คำนี้มีอยู่ในกลุ่มนี้แล้ว')
-      else pacesToast.success('เพิ่มคำแล้ว')
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มคำไม่สำเร็จ')
     } finally {
@@ -133,12 +186,12 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
     }
   }
 
-  async function removePhrase(phraseId: string) {
+  async function removePhrase(id: string) {
     if (!canEdit || busy) return
     setBusy(true)
     try {
-      await call(`/api/shops/auto-reply/keywords/${keyword.id}/phrases/${phraseId}`, { method: 'DELETE' })
-      setPhrases((p) => p.filter((x) => x.id !== phraseId))
+      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}/phrases/${id}`, { method: 'DELETE' })
+      setPhrases((p) => p.filter((x) => x.id !== id))
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ลบไม่สำเร็จ')
     } finally {
@@ -146,104 +199,78 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
     }
   }
 
-  async function saveDefaultReply() {
+  async function deleteException(id: string) {
     if (!canEdit || busy) return
     setBusy(true)
     try {
-      if (defaultRule) {
-        await call(`/api/shops/auto-reply/rules/${defaultRule.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            shopChannelId: null, adId: null, adLabel: null, productId: null,
-            replyText: defaultReply, isActive: true, activeFrom: null, activeUntil: null,
-          }),
-        })
-      } else {
-        const created = await call('/api/shops/auto-reply/rules', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            keywordId: keyword.id,
-            shopChannelId: null, adId: null, adLabel: null, productId: null,
-            replyText: defaultReply, activeFrom: null, activeUntil: null,
-          }),
-        })
-        setRules((r) => [...r, created])
-      }
-      pacesToast.success('บันทึกคำตอบกลางแล้ว')
-      router.refresh()
+      await callApi(`/api/shops/auto-reply/rules/${id}`, { method: 'DELETE' })
+      setRules((r) => r.filter((x) => x.id !== id))
+      pacesToast.success('ลบข้อยกเว้นแล้ว')
     } catch (e) {
-      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
+      pacesToast.error(e instanceof Error ? e.message : 'ลบไม่สำเร็จ')
     } finally {
       setBusy(false)
     }
   }
 
-  return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-      <div className="space-y-4 xl:col-span-2">
-        {/* ── ทั่วไป ─────────────────────────────────────────────── */}
-        <div className="card">
-          <div className="card-header flex items-center justify-between">
-            <h5 className="text-default-800 text-base font-semibold">ทั่วไป</h5>
-            <label className="flex items-center gap-2">
-              <span className="text-default-600 text-sm">เปิดใช้งาน</span>
-              <input
-                type="checkbox"
-                className="form-switch"
-                checked={isActive}
-                disabled={!canEdit || busy}
-                onChange={(e) => setIsActive(e.target.checked)}
-                aria-label="เปิดใช้งานกลุ่มคำนี้"
-              />
-            </label>
-          </div>
-          <div className="card-body space-y-3">
-            <div>
-              <label htmlFor="k-name" className="text-default-700 mb-1 block text-sm font-medium">ชื่อกลุ่มคำ</label>
-              <input id="k-name" className="form-input" value={name} disabled={!canEdit}
-                onChange={(e) => setName(e.target.value)} maxLength={100} />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="k-match" className="text-default-700 mb-1 block text-sm font-medium">รูปแบบการตรวจจับ</label>
-                <select id="k-match" className="form-select" value={matchType} disabled={!canEdit}
-                  onChange={(e) => setMatchType(e.target.value)}>
-                  {MATCH_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="k-pri" className="text-default-700 mb-1 block text-sm font-medium">ลำดับความสำคัญ</label>
-                <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
-                  min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
-                <p className="text-default-500 mt-1 text-xs">ค่ามากกว่าถูกเลือกก่อนเมื่อข้อความตรงหลายกลุ่ม</p>
-              </div>
-            </div>
-          </div>
-          {canEdit && (
-            <div className="card-footer flex justify-end">
-              <button className="btn btn-primary" disabled={busy} onClick={saveGeneral}>บันทึก</button>
-            </div>
-          )}
-        </div>
+  const condLabel = (r: Rule) => {
+    const parts: string[] = []
+    if (r.shopChannelId) parts.push(`เพจ ${channels.find((c) => c.id === r.shopChannelId)?.name ?? '—'}`)
+    if (r.adId) parts.push(`โฆษณา ${r.adLabel ?? r.adId}`)
+    if (r.productId) parts.push(`สินค้า ${products.find((p) => p.id === r.productId)?.name ?? '—'}`)
+    return parts
+  }
 
-        {/* ── คำตรวจจับ ───────────────────────────────────────────── */}
-        <div className="card">
-          <div className="card-header">
-            <h5 className="text-default-800 text-base font-semibold">คำตรวจจับ ({phrases.length})</h5>
-          </div>
-          <div className="card-body">
-            <p className="text-default-600 mb-3 text-sm">
-              ใส่คำที่ความหมายเหมือนกันได้หลายคำ ระบบจะเข้าใจว่าเป็นเรื่องเดียวกัน
-              และรองรับคำลงท้ายอย่าง ครับ/ค่ะ/จ้า ให้อัตโนมัติ
+  return (
+    <>
+      {!shopEnabled && (
+        <div className="card bg-warning/10 border-warning mb-4">
+          <div className="card-body flex items-center gap-3 py-3">
+            <Icon icon="alert-triangle" className="text-warning text-lg" aria-hidden="true" />
+            <p className="text-default-700 text-sm">
+              ระบบตอบอัตโนมัติปิดอยู่ทั้งร้าน — ตั้งค่าได้ แต่ลูกค้าจะยังไม่ได้รับคำตอบจนกว่าจะเปิดสวิตช์ในหน้ารายการ
             </p>
-            {phrases.length === 0 ? (
-              <p className="text-default-500 mb-3 text-sm">ยังไม่มีคำตรวจจับ — กลุ่มนี้จะยังเปิดใช้งานไม่ได้</p>
-            ) : (
-              <div className="mb-3 flex flex-wrap gap-2">
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="space-y-4 xl:col-span-2">
+          {/* ── หัวกลุ่มคำ + คำตรวจจับ ───────────────────────────── */}
+          <div className="card">
+            <div className="card-header flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <input
+                  className="form-input font-semibold"
+                  value={name}
+                  disabled={!canEdit}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={100}
+                  aria-label="ชื่อกลุ่มคำ"
+                />
+                <p className="text-default-500 mt-1.5 text-xs">
+                  ตรงเมื่อ{matchType === 'EXACT' ? 'ข้อความตรงกับ' : matchType === 'STARTS_WITH' ? 'ข้อความขึ้นต้นด้วย' : 'มีคำว่า'}
+                  {phrases.length > 0
+                    ? ' ' + phrases.map((p) => `“${p.phrase}”`).join(' หรือ ')
+                    : ' — ยังไม่ได้ใส่คำตรวจจับ'}
+                </p>
+              </div>
+              <div className="flex flex-none items-center gap-2">
+                <span className={`badge ${isActive ? 'bg-success/15 text-success' : 'bg-default-200 text-default-600'}`}>
+                  {isActive ? 'เปิดใช้งาน' : 'ปิดอยู่'}
+                </span>
+                <input
+                  type="checkbox" className="form-switch" checked={isActive}
+                  disabled={!canEdit || busy} onChange={(e) => toggleActive(e.target.checked)}
+                  aria-label="เปิดใช้งานกลุ่มคำนี้"
+                />
+              </div>
+            </div>
+
+            <div className="card-body">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 {phrases.map((p) => (
-                  <span key={p.id} className="badge bg-default-100 text-default-700 flex items-center gap-1">
+                  <span key={p.id} className="chip bg-default-100 text-default-700 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs">
                     {p.phrase}
                     {canEdit && (
                       <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
@@ -253,118 +280,346 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
                     )}
                   </span>
                 ))}
+                {canEdit && (
+                  <input
+                    className="form-input w-40" value={newPhrase} placeholder="เพิ่มคำ…"
+                    onChange={(e) => setNewPhrase(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhrase() } }}
+                    maxLength={200} aria-label="คำตรวจจับใหม่"
+                  />
+                )}
               </div>
-            )}
-            {canEdit && (
-              <div className="flex gap-2">
-                <input className="form-input flex-1" value={newPhrase} placeholder="เช่น สนใจ"
-                  onChange={(e) => setNewPhrase(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhrase() } }}
-                  maxLength={200} aria-label="คำตรวจจับใหม่" />
-                <button className="btn btn-soft-primary" disabled={busy || !newPhrase.trim()} onClick={addPhrase}>
-                  เพิ่ม
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="k-match" className="text-default-600 mb-1 block text-xs">รูปแบบการตรวจจับ</label>
+                  <select id="k-match" className="form-select" value={matchType} disabled={!canEdit}
+                    onChange={(e) => setMatchType(e.target.value)}>
+                    {MATCH_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
+                  <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
+                    min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header flex items-center justify-between">
+              <h5 className="text-default-800 text-base font-semibold">คำตอบหลัก</h5>
+              <span className="text-default-500 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
+            </div>
+            <div className="card-body">
+              <textarea className="form-textarea" rows={3} value={defaultReply} disabled={!canEdit}
+                maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
+                placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ" />
+              <p className="text-default-500 mt-1.5 text-xs">ใช้เมื่อไม่เข้าข้อยกเว้นด้านล่าง</p>
+            </div>
+          </div>
+
+          {/* ── บันไดข้อยกเว้น ────────────────────────────────────── */}
+          <div className="card">
+            <div className="card-header flex items-center justify-between">
+              <h5 className="text-default-800 text-base font-semibold">ข้อยกเว้น ({exceptions.length})</h5>
+              {canEdit && (
+                <button className="btn btn-primary btn-sm" onClick={() => setSheetOpen(true)}>
+                  <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มข้อยกเว้น
                 </button>
-              </div>
-            )}
+              )}
+            </div>
+            <div className="card-body">
+              <p className="text-default-500 mb-3 text-xs">
+                เฉพาะเจาะจงกว่าอยู่บน — ระบบเลือกอันบนสุดที่เข้าเงื่อนไข
+              </p>
+
+              {exceptions.length === 0 ? (
+                <div className="border-default-200 rounded border border-dashed px-4 py-6 text-center">
+                  <p className="text-default-600 text-sm">ยังไม่มีข้อยกเว้น</p>
+                  <p className="text-default-500 mt-1 text-xs">
+                    ทุกเธรดจะได้รับคำตอบหลักเหมือนกันหมด — เพิ่มข้อยกเว้นเมื่ออยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า
+                  </p>
+                </div>
+              ) : (
+                <div className="border-default-200 overflow-hidden rounded border">
+                  {exceptions.map((r, i) => (
+                    <div key={r.id}
+                      className={`border-default-200 p-3 ${i < exceptions.length - 1 ? 'border-b' : ''} ${i === 0 ? 'border-s-primary border-s-2' : ''}`}>
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-default-400 text-xs">เมื่อมาจาก</span>
+                        {condLabel(r).map((c) => (
+                          <span key={c} className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">{c}</span>
+                        ))}
+                      </div>
+                      <p className="bg-default-50 text-default-800 rounded p-2 text-sm">{r.replyText}</p>
+                      {canEdit && (
+                        <div className="mt-2 flex gap-1.5">
+                          <button className="btn btn-soft-default btn-sm" disabled={busy}
+                            onClick={() => deleteException(r.id)}>ลบ</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {/* ทำให้การถอยไปคำตอบหลักเป็นสิ่งที่ "เห็น" ไม่ใช่สิ่งที่ต้องรู้เอง */}
+                  <div className="bg-default-50 text-default-600 flex items-center gap-2 px-3 py-2.5 text-xs">
+                    <Icon icon="corner-down-right" aria-hidden="true" />
+                    ไม่เข้าข้อไหนเลย ใช้คำตอบหลัก
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* ── คำตอบกลาง ──────────────────────────────────────────── */}
-        <div className="card">
-          <div className="card-header">
-            <h5 className="text-default-800 text-base font-semibold">คำตอบกลาง</h5>
+        <div className="xl:col-span-1">
+          <SimulatePanel channels={channels} products={products} keywordId={keyword.id}
+            onEnable={() => toggleActive(true)} canEdit={canEdit} />
+        </div>
+      </div>
+
+      {/* ── แถบบันทึกลอย ───────────────────────────────────────── */}
+      {canEdit && dirty.length > 0 && (
+        <div className="bg-default-900 sticky bottom-4 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 shadow-lg">
+          <span className="text-sm text-white">แก้ไข {dirty.length} อย่าง: {dirty.join(', ')}</span>
+          <div className="flex gap-2">
+            <button className="btn btn-sm btn-soft-default" disabled={busy}
+              onClick={() => {
+                setName(keyword.name); setMatchType(keyword.matchType)
+                setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
+              }}>ยกเลิก</button>
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={saveAll}>บันทึก</button>
           </div>
-          <div className="card-body">
-            <p className="text-default-600 mb-2 text-sm">
-              ใช้เมื่อไม่ได้ตั้งคำตอบเฉพาะเพจ/โฆษณา/สินค้าไว้ — ลูกค้าจะได้รับข้อความนี้ตรงตามที่พิมพ์ทุกตัวอักษร
-            </p>
-            <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
-              maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
-              placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ" />
-            <div className="text-default-500 mt-1 text-end text-xs">{defaultReply.length}/{REPLY_MAX}</div>
+        </div>
+      )}
+
+      {sheetOpen && (
+        <ExceptionSheet
+          keywordId={keyword.id} channels={channels} products={products}
+          onClose={() => setSheetOpen(false)}
+          onCreated={(rule) => { setRules((r) => [...r, rule]); setSheetOpen(false); router.refresh() }}
+        />
+      )}
+    </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   sheet เพิ่มข้อยกเว้น
+   ═══════════════════════════════════════════════════════════════════ */
+function ExceptionSheet({
+  keywordId, channels, products, onClose, onCreated,
+}: {
+  keywordId: string
+  channels: Channel[]
+  products: Product[]
+  onClose: () => void
+  onCreated: (r: Rule) => void
+}) {
+  const [usePage, setUsePage] = useState(false)
+  const [useAd, setUseAd] = useState(false)
+  const [useProduct, setUseProduct] = useState(false)
+  const [channelId, setChannelId] = useState(channels[0]?.id ?? '')
+  const [adId, setAdId] = useState('')
+  const [productId, setProductId] = useState('')
+  const [productQuery, setProductQuery] = useState('')
+  const [reply, setReply] = useState('')
+  const [ads, setAds] = useState<Ad[] | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function loadAds() {
+    if (ads !== null) return
+    try {
+      const data = await callApi('/api/shops/auto-reply/ads', { method: 'GET' })
+      setAds(data.items ?? [])
+    } catch {
+      setAds([])
+    }
+  }
+
+  const visibleProducts = useMemo(() => {
+    const q = productQuery.trim().toLowerCase()
+    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products.slice(0, 12)
+  }, [products, productQuery])
+
+  /** ประโยคสรุปภาษาคน — ผู้ใช้ไม่ต้องรู้จักคำว่า specificity */
+  const summary = useMemo(() => {
+    const parts: string[] = []
+    if (usePage && channelId) parts.push(`เพจ “${channels.find((c) => c.id === channelId)?.name}”`)
+    if (useAd && adId) parts.push(`โฆษณา “${ads?.find((a) => a.adId === adId)?.adTitle ?? adId}”`)
+    if (useProduct && productId) parts.push(`สินค้า “${products.find((p) => p.id === productId)?.name}”`)
+    if (parts.length === 0) return null
+    return parts.join(' และ ')
+  }, [usePage, useAd, useProduct, channelId, adId, productId, channels, ads, products])
+
+  const canSubmit = summary !== null && reply.trim().length > 0 && !busy
+
+  async function submit() {
+    if (!canSubmit) return
+    setBusy(true)
+    try {
+      const created = await callApi('/api/shops/auto-reply/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keywordId,
+          shopChannelId: usePage ? channelId : null,
+          adId: useAd ? adId : null,
+          adLabel: useAd ? (ads?.find((a) => a.adId === adId)?.adTitle ?? null) : null,
+          productId: useProduct ? productId : null,
+          replyText: reply.trim(),
+          activeFrom: null,
+          activeUntil: null,
+        }),
+      })
+      pacesToast.success('เพิ่มข้อยกเว้นแล้ว')
+      onCreated(created)
+    } catch (e) {
+      pacesToast.error(e instanceof Error ? e.message : 'เพิ่มไม่สำเร็จ')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="bg-default-900/50 fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      {/* max-h-full พอ เพราะ parent เป็น fixed inset-0 ที่มี padding อยู่แล้ว — ไม่ต้องใช้ arbitrary vh */}
+      <div className="card mb-0 flex max-h-full w-full max-w-2xl flex-col overflow-hidden">
+        <div className="card-header flex items-center justify-between">
+          <h5 className="text-default-800 text-base font-semibold">เพิ่มข้อยกเว้น</h5>
+          <button onClick={onClose} className="text-default-500" aria-label="ปิด">
+            <Icon icon="x" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="card-body flex-1 overflow-y-auto">
+          <p className="text-default-600 mb-3 text-sm">ใช้ข้อยกเว้นนี้เมื่อลูกค้า…</p>
+
+          {/* เพจ */}
+          <div className={`mb-2.5 rounded border p-3 ${usePage ? 'border-primary' : 'border-default-200'}`}>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" className="form-checkbox" checked={usePage}
+                onChange={(e) => setUsePage(e.target.checked)} />
+              มาจากเพจ
+            </label>
+            {usePage && (
+              <select className="form-select mt-2.5" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+                {channels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
           </div>
-          {canEdit && (
-            <div className="card-footer flex justify-end">
-              <button className="btn btn-primary" disabled={busy || !defaultReply.trim()} onClick={saveDefaultReply}>
-                บันทึกคำตอบกลาง
-              </button>
+
+          {/* โฆษณา */}
+          <div className={`mb-2.5 rounded border p-3 ${useAd ? 'border-primary' : 'border-default-200'}`}>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" className="form-checkbox" checked={useAd}
+                onChange={(e) => { setUseAd(e.target.checked); if (e.target.checked) loadAds() }} />
+              กดมาจากโฆษณา
+            </label>
+            {useAd && (
+              <div className="mt-2.5">
+                {ads === null ? (
+                  <p className="text-default-500 text-xs">กำลังโหลด…</p>
+                ) : ads.length === 0 ? (
+                  <p className="text-default-500 text-xs">ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด</p>
+                ) : (
+                  ads.map((a) => (
+                    <button key={a.adId} type="button" onClick={() => setAdId(a.adId)}
+                      className={`mb-1.5 flex w-full items-center gap-2.5 rounded border p-2.5 text-start ${adId === a.adId ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
+                      <span className={`size-4 flex-none rounded-full border-2 ${adId === a.adId ? 'border-primary border-4' : 'border-default-300'}`} />
+                      <span className="min-w-0">
+                        <span className="text-default-800 block text-sm font-medium">{a.adTitle ?? a.adId}</span>
+                        <span className="text-default-500 block text-xs">ทัก {a.hitCount} ครั้ง</span>
+                      </span>
+                    </button>
+                  ))
+                )}
+                <p className="text-default-500 mt-1 text-xs">เลือกจากโฆษณาที่เคยมีลูกค้าทักเข้ามาจริง</p>
+              </div>
+            )}
+          </div>
+
+          {/* สินค้า — การ์ดมีรูป */}
+          <div className={`mb-2.5 rounded border p-3 ${useProduct ? 'border-primary' : 'border-default-200'}`}>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" className="form-checkbox" checked={useProduct}
+                onChange={(e) => setUseProduct(e.target.checked)} />
+              สนใจสินค้า
+            </label>
+            {useProduct && (
+              <div className="mt-2.5">
+                <input className="form-input mb-2.5" placeholder="ค้นหาสินค้า…" value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)} aria-label="ค้นหาสินค้า" />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {visibleProducts.map((p) => (
+                    <button key={p.id} type="button" onClick={() => setProductId(p.id)}
+                      className={`overflow-hidden rounded border text-start ${productId === p.id ? 'border-primary ring-primary/20 ring-2' : 'border-default-200'}`}>
+                      <span className="bg-default-100 flex h-16 items-center justify-center overflow-hidden">
+                        {p.image ? (
+                          <img src={p.image} alt="" className="size-full object-cover" />
+                        ) : (
+                          <Icon icon="package" className="text-default-400 text-xl" aria-hidden="true" />
+                        )}
+                      </span>
+                      <span className="block p-1.5">
+                        <span className="text-default-800 line-clamp-2 block text-xs font-medium">{p.name}</span>
+                        <span className="text-primary block text-xs font-semibold">฿{p.price}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4">
+            <label htmlFor="ex-reply" className="text-default-700 mb-1 block text-sm font-medium">ตอบว่า</label>
+            <textarea id="ex-reply" className="form-textarea" rows={3} value={reply} maxLength={REPLY_MAX}
+              onChange={(e) => setReply(e.target.value)} placeholder="ข้อความที่จะส่งให้ลูกค้าเมื่อเข้าเงื่อนไขนี้" />
+            <div className="text-default-500 mt-1 text-end text-xs">{reply.length}/{REPLY_MAX}</div>
+          </div>
+
+          {summary && (
+            <div className="bg-primary/8 text-primary mt-3 rounded p-3 text-xs leading-relaxed">
+              ข้อยกเว้นนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
+              <br />
+              ยิ่งระบุเงื่อนไขหลายอย่าง ยิ่งอยู่สูงในลำดับ และถูกเลือกก่อนข้อที่ระบุน้อยกว่า
             </div>
           )}
         </div>
 
-        {/* ── คำตอบเฉพาะ ─────────────────────────────────────────── */}
-        <div className="card">
-          <div className="card-header">
-            <h5 className="text-default-800 text-base font-semibold">คำตอบเฉพาะ ({overrides.length})</h5>
-          </div>
-          <div className="card-body">
-            <p className="text-default-600 mb-3 text-sm">
-              ตั้งคำตอบต่างกันตามเพจ โฆษณา หรือสินค้าได้ ระบบจะเลือกอันที่เฉพาะเจาะจงที่สุดก่อนเสมอ
-              และถ้าไม่มีจะถอยมาใช้คำตอบกลาง
-            </p>
-            {overrides.length === 0 ? (
-              <p className="text-default-500 text-sm">ยังไม่มีคำตอบเฉพาะ — ทุกเธรดจะได้รับคำตอบกลาง</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr><th>เงื่อนไข</th><th>คำตอบ</th><th>สถานะ</th></tr>
-                  </thead>
-                  <tbody>
-                    {overrides.map((r) => (
-                      <tr key={r.id}>
-                        <td className="text-sm">
-                          {r.shopChannelId && <div>เพจ: {channels.find((c) => c.id === r.shopChannelId)?.name ?? r.shopChannelId}</div>}
-                          {r.adId && <div>โฆษณา: {r.adLabel ?? r.adId}</div>}
-                          {r.productId && <div>สินค้า: {products.find((p) => p.id === r.productId)?.name ?? r.productId}</div>}
-                        </td>
-                        <td className="text-default-600 max-w-md text-sm">{r.replyText}</td>
-                        <td>
-                          <span className={`badge ${r.isActive ? 'bg-success/15 text-success' : 'bg-default-200 text-default-600'}`}>
-                            {r.isActive ? 'เปิด' : 'ปิด'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div className="card-footer flex justify-end gap-2">
+          <button className="btn btn-soft-default" onClick={onClose}>ยกเลิก</button>
+          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>เพิ่มข้อยกเว้น</button>
         </div>
-      </div>
-
-      {/* ── แผงทดสอบ ─────────────────────────────────────────────── */}
-      <div className="xl:col-span-1">
-        <SimulatePanel channels={channels} products={products} />
       </div>
     </div>
   )
 }
 
-/**
- * SimulatePanel — ทดสอบกฎแบบกรอกเอง (FR-020)
- *
- * เรียก /simulate ซึ่งใช้ matcher ตัวเดียวกับเส้นทางตอบจริง (ไม่มี logic คู่ขนาน) —
- * ผลที่เห็นจึงตรงกับสิ่งที่จะเกิดขึ้นจริง (AC-020-05) และไม่เขียน/ไม่ส่งอะไรทั้งสิ้น
- */
+/* ═══════════════════════════════════════════════════════════════════
+   แผงทดสอบ
+   ═══════════════════════════════════════════════════════════════════ */
 function SimulatePanel({
-  channels,
-  products,
+  channels, products, keywordId, onEnable, canEdit,
 }: {
-  channels: { id: string; name: string }[]
-  products: { id: string; name: string }[]
+  channels: Channel[]
+  products: Product[]
+  keywordId: string
+  onEnable: () => void
+  canEdit: boolean
 }) {
   const [message, setMessage] = useState('')
   const [shopChannelId, setShopChannelId] = useState('')
   const [productId, setProductId] = useState('')
-  const [adId, setAdId] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<null | {
     matched: { keywordName: string; matchedPhrase: string } | null
-    resolutionLevel: string
     replyText: string | null
     willHandoff: boolean
+    blockedBy: { reason: string; keywordId: string; keywordName: string } | null
+    shopEnabled: boolean
     matchTrace?: { losers?: { keywordName: string; lostAt: string }[] }
   }>(null)
 
@@ -372,19 +627,13 @@ function SimulatePanel({
     if (!message.trim() || busy) return
     setBusy(true)
     try {
-      const res = await fetch('/api/shops/auto-reply/simulate', {
+      const data = await callApi('/api/shops/auto-reply/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
         body: JSON.stringify({
-          message,
-          shopChannelId: shopChannelId || null,
-          adId: adId || null,
-          productId: productId || null,
+          message, shopChannelId: shopChannelId || null, adId: null, productId: productId || null,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'ทดสอบไม่สำเร็จ')
       setResult(data)
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ')
@@ -397,65 +646,75 @@ function SimulatePanel({
     <div className="card xl:sticky xl:top-20">
       <div className="card-header">
         <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-          <Icon icon="flask" aria-hidden="true" />
-          ทดสอบกฎ
+          <Icon icon="flask" aria-hidden="true" />ทดสอบกฎ
         </h5>
       </div>
-      <div className="card-body space-y-3">
-        <p className="text-default-500 text-xs">
-          ทดลองอย่างเดียว ไม่ส่งข้อความถึงลูกค้า และไม่บันทึกอะไรลงระบบ
-        </p>
-        <textarea className="form-textarea" rows={2} value={message} placeholder="พิมพ์ข้อความแบบที่ลูกค้าจะทักเข้ามา"
+      <div className="card-body space-y-2.5">
+        <p className="text-default-500 text-xs">ทดลองอย่างเดียว ไม่ส่งถึงลูกค้า ไม่บันทึกอะไร</p>
+        <textarea className="form-textarea" rows={2} value={message}
+          placeholder="พิมพ์ข้อความแบบที่ลูกค้าจะทักเข้ามา"
           onChange={(e) => setMessage(e.target.value)} aria-label="ข้อความลูกค้าสมมติ" />
         <select className="form-select" value={shopChannelId} onChange={(e) => setShopChannelId(e.target.value)} aria-label="เพจ">
           <option value="">ไม่ระบุเพจ</option>
           {channels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <input className="form-input" value={adId} placeholder="รหัสโฆษณา (ไม่ระบุก็ได้)"
-          onChange={(e) => setAdId(e.target.value)} aria-label="รหัสโฆษณา" />
         <select className="form-select" value={productId} onChange={(e) => setProductId(e.target.value)} aria-label="สินค้า">
           <option value="">ไม่ระบุสินค้า</option>
           {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <button className="btn btn-primary w-full" disabled={busy || !message.trim()} onClick={run}>
-          {busy ? 'กำลังทดสอบ...' : 'ทดสอบ'}
+          {busy ? 'กำลังทดสอบ…' : 'ทดสอบ'}
         </button>
 
         {result && (
-          <div className="border-default-200 mt-2 space-y-3 border-t pt-3">
-            {result.willHandoff ? (
+          <div className="border-default-200 space-y-3 border-t pt-3">
+            {/* ถ้าระบบรู้สาเหตุ ต้องบอกสาเหตุ ไม่ใช่บอกอาการ — และถ้าแก้ได้ในคลิกเดียวให้ปุ่มไปเลย */}
+            {result.blockedBy?.reason === 'KEYWORD_INACTIVE' ? (
               <div className="bg-warning/10 border-warning rounded border p-3">
+                <p className="text-default-800 text-sm font-medium">กลุ่มคำนี้ปิดอยู่</p>
+                <p className="text-default-600 mt-1 text-xs">
+                  คำที่ตั้งไว้ตรงกับข้อความนี้ แต่ระบบยังไม่นำมาใช้เพราะกลุ่ม “{result.blockedBy.keywordName}” ยังไม่เปิด
+                </p>
+                {canEdit && result.blockedBy.keywordId === keywordId && (
+                  <button className="btn btn-primary btn-sm mt-2" onClick={onEnable}>เปิดใช้งานเลย</button>
+                )}
+              </div>
+            ) : !result.shopEnabled ? (
+              <div className="bg-warning/10 border-warning rounded border p-3">
+                <p className="text-default-800 text-sm font-medium">ระบบตอบอัตโนมัติปิดอยู่ทั้งร้าน</p>
+                <p className="text-default-600 mt-1 text-xs">ผลด้านล่างคือสิ่งที่จะเกิดขึ้นเมื่อเปิดสวิตช์ใหญ่แล้ว</p>
+              </div>
+            ) : null}
+
+            {result.willHandoff ? (
+              <div className="border-default-200 rounded border border-dashed p-3">
                 <p className="text-default-800 text-sm font-medium">ระบบจะไม่ตอบ</p>
                 <p className="text-default-600 mt-1 text-xs">
-                  ไม่มีกฎที่ใช้ได้กับบริบทนี้ — เธรดจะถูกส่งต่อให้พนักงานแทนการเดาคำตอบ
+                  {result.matched
+                    ? 'ตรงกลุ่มคำแล้วแต่ยังไม่มีคำตอบให้ใช้ — เธรดจะถูกส่งต่อพนักงาน'
+                    : 'ไม่เข้าเงื่อนไขข้อใด — เธรดจะถูกส่งต่อพนักงานแทนการเดาคำตอบ'}
                 </p>
               </div>
             ) : (
               <div>
                 <p className="text-default-500 mb-1 text-xs">ลูกค้าจะได้รับ</p>
-                {/* บับเบิลแชทจำลอง — ใช้ bg-primary ของ Paces ไม่ใช่สีน้ำเงิน Facebook */}
                 <div className="bg-primary w-fit max-w-full rounded-lg px-3 py-2 text-sm text-white">
                   {result.replyText}
                 </div>
               </div>
             )}
 
-            <dl className="text-default-600 space-y-1 text-xs">
-              <div className="flex justify-between gap-2">
-                <dt>จับได้</dt>
-                <dd className="text-default-800 text-end">
-                  {result.matched ? `${result.matched.keywordName} ("${result.matched.matchedPhrase}")` : 'ไม่ตรงกลุ่มคำใด'}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>ใช้กฎระดับ</dt>
-                <dd className="text-default-800 text-end">
-                  {LEVEL_LABEL[result.resolutionLevel] ?? result.resolutionLevel}
-                </dd>
-              </div>
-            </dl>
+            {result.matched && (
+              <dl className="text-default-600 space-y-1 text-xs">
+                <div className="flex justify-between gap-2">
+                  <dt>จับได้</dt>
+                  <dd className="text-default-800 text-end">
+                    {result.matched.keywordName} (“{result.matched.matchedPhrase}”)
+                  </dd>
+                </div>
+              </dl>
+            )}
 
-            {/* AC-020-04: ต้องบอกได้ว่ากฎอื่นทำไมไม่ถูกเลือก — ส่วนที่ reference ของ Facebook ไม่มี */}
             {result.matchTrace?.losers && result.matchTrace.losers.length > 0 && (
               <div>
                 <p className="text-default-500 mb-1 text-xs">กลุ่มอื่นที่ไม่ถูกเลือก</p>
