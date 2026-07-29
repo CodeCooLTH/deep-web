@@ -10,7 +10,7 @@
  *       ปุ่มพิมพ์ใบปะหน้า/ยกเลิก) + badge จาก theme/paces/Admin/TS/src/app/(admin)/ui/badges
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -140,27 +140,39 @@ export default function ShipmentStatusView({
     }
   }
 
-  async function handleTraces() {
-    if (traces) {
-      setTraces(null) // กดซ้ำ = ยุบ
-      return
-    }
-    setLoadingTraces(true)
-    try {
-      const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/traces`, {
-        cache: 'no-store',
-      })
-      if (!res.ok) {
-        pacesToast.error(await readError(res))
-        return
+  /**
+   * โหลดการเดินทางของพัสดุ — ยิงเองตอนเปิดดู ไม่ต้องให้ร้านกดอีกที (user request 2026-07-29)
+   *
+   * เงียบเมื่อล้มเหลว (ไม่ขึ้น toast) เพราะเป็นการยิงอัตโนมัติที่ร้านไม่ได้สั่ง —
+   * เด้ง error ใส่หน้าทุกครั้งที่เปิดโมดัลจะกวนมากกว่ามีประโยชน์ ปุ่มรีเฟรชที่ร้านกดเอง
+   * ค่อยบอก error ตรง ๆ ได้
+   */
+  const loadTraces = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      setLoadingTraces(true)
+      try {
+        const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/traces`, {
+          cache: 'no-store',
+        })
+        if (!res.ok) {
+          if (!opts?.silent) pacesToast.error(await readError(res))
+          return
+        }
+        setTraces((await res.json()) as TraceEvent[])
+      } catch {
+        if (!opts?.silent) pacesToast.error('โหลดการเดินทางของพัสดุไม่สำเร็จ')
+      } finally {
+        setLoadingTraces(false)
       }
-      setTraces((await res.json()) as TraceEvent[])
-    } catch {
-      pacesToast.error('โหลดการเดินทางของพัสดุไม่สำเร็จ')
-    } finally {
-      setLoadingTraces(false)
-    }
-  }
+    },
+    [shipment.id],
+  )
+
+  // ยิงครั้งเดียวตอนเปิด — พัสดุที่ยังไม่มีเลขติดตามยังไม่มีอะไรให้ติดตาม จึงข้าม
+  useEffect(() => {
+    if (!shipment.trackingNo) return
+    void loadTraces({ silent: true })
+  }, [shipment.trackingNo, loadTraces])
 
   // ── สร้างไม่สำเร็จ — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
   if (shipment.status === 'FAILED') {
@@ -239,7 +251,9 @@ export default function ShipmentStatusView({
       </section>
 
       <section className="border-b-8 border-default-100 p-4">
-        <StatRow label="ขนส่ง" value={shipment.courierName ?? '—'} />
+        {/* ใบเก่าที่สร้างก่อน 2026-07-29 ไม่มี courierName เก็บไว้ (ตอนนั้นไม่มีโค้ดเขียนค่านี้เลย)
+            fallback เป็นรหัสขนส่งดีกว่าโชว์ "—" ซึ่งดูเหมือนข้อมูลหาย */}
+        <StatRow label="ขนส่ง" value={shipment.courierName ?? shipment.courierCode ?? '—'} />
         <StatRow label="สร้างเมื่อ" value={formatDateTime(new Date(shipment.createdAt))} />
         {shipment.carrierStatusAt && (
           <StatRow
@@ -247,6 +261,25 @@ export default function ShipmentStatusView({
             value={formatDateTime(new Date(shipment.carrierStatusAt))}
           />
         )}
+        {/* ค่าที่ถูกส่งไปจริงตอนเปิดพัสดุ — ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยขนาด/น้ำหนักเท่าไร
+            สำคัญเวลาค่าส่งไม่ตรงที่คิด หรือขนส่งชั่งแล้วได้ไม่เท่าที่แจ้ง */}
+        {shipment.weight != null && (
+          <StatRow label="น้ำหนักที่แจ้ง" value={`${shipment.weight} กก.`} />
+        )}
+        {shipment.width != null && shipment.length != null && shipment.height != null && (
+          <StatRow
+            label="ขนาดที่แจ้ง"
+            value={`${shipment.width}×${shipment.length}×${shipment.height} ซม.`}
+          />
+        )}
+        <StatRow
+          label="เก็บเงินปลายทาง"
+          value={
+            shipment.codAmount > 0
+              ? `฿${shipment.codAmount.toLocaleString('th-TH')}`
+              : 'ไม่เก็บ'
+          }
+        />
         <StatRow
           label="พิมพ์ใบปะหน้าแล้ว"
           value={
@@ -258,23 +291,36 @@ export default function ShipmentStatusView({
       </section>
 
       <section className="border-b-8 border-default-100 p-4">
-        <button
-          type="button"
-          onClick={handleTraces}
-          disabled={loadingTraces}
-          aria-expanded={!!traces}
-          className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary hover:bg-primary/25 disabled:opacity-50"
-        >
-          {loadingTraces ? (
-            <span className="inline-block size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          ) : (
-            <Icon icon="tabler:route" className="text-base" aria-hidden="true" />
-          )}
-          {traces ? 'ซ่อนการเดินทาง' : 'ดูการเดินทางของพัสดุ'}
-        </button>
+        <div className="mb-3 flex items-center gap-2">
+          <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon icon="tabler:route" className="text-sm" aria-hidden="true" />
+          </span>
+          <h6 className="mb-0 text-sm font-semibold text-default-900">การเดินทางของพัสดุ</h6>
+          <button
+            type="button"
+            onClick={() => loadTraces()}
+            disabled={loadingTraces}
+            aria-label="โหลดสถานะล่าสุดอีกครั้ง"
+            className="btn btn-icon ms-auto text-default-500 hover:bg-default-100 disabled:opacity-50"
+          >
+            {loadingTraces ? (
+              <span className="inline-block size-4 animate-spin rounded-full border-2 border-default-400 border-t-transparent" />
+            ) : (
+              <Icon icon="tabler:refresh" className="text-base" />
+            )}
+          </button>
+        </div>
+
+        {/* ระหว่างโหลดครั้งแรก — โครงเทาแทนความว่างเปล่า ไม่งั้นดูเหมือนไม่มีข้อมูล */}
+        {traces === null && loadingTraces && (
+          <div className="flex flex-col gap-2" aria-busy="true">
+            <span className="h-4 w-2/3 animate-pulse rounded bg-default-100" />
+            <span className="h-4 w-1/2 animate-pulse rounded bg-default-100" />
+          </div>
+        )}
 
         {traces && traces.length > 0 && (
-          <ol className="mt-3 flex flex-col gap-3">
+          <ol className="flex flex-col gap-3">
             {traces.map((t, i) => (
               <li key={`${t.status}-${t.occurredAt}-${i}`} className="flex gap-2">
                 <Icon
@@ -298,8 +344,15 @@ export default function ShipmentStatusView({
         )}
 
         {traces && traces.length === 0 && (
-          <p className="mb-0 mt-3 text-xs text-default-400">
+          <p className="mb-0 text-xs text-default-400">
             ยังไม่มีข้อมูลการเดินทาง — ขนส่งจะอัปเดตหลังรับพัสดุเข้าระบบ
+          </p>
+        )}
+
+        {/* ดึงไม่สำเร็จตอนเปิด (เงียบไว้ไม่เด้ง toast) — บอกตรงนี้แทน พร้อมทางกดเอง */}
+        {traces === null && !loadingTraces && (
+          <p className="mb-0 text-xs text-default-400">
+            ยังไม่ได้ข้อมูลการเดินทาง กดปุ่มรีเฟรชด้านบนเพื่อลองใหม่
           </p>
         )}
       </section>

@@ -72,6 +72,12 @@ export interface ShipmentViewJson {
   isDryRun: boolean;
   lastErrorCode: string | null;
   lastErrorMessage: string | null;
+  /** ข้อมูลพัสดุที่ถูกส่งไปจริง — ให้ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยค่าอะไร */
+  weight: number | null;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: number;
   createdAt: string;
 }
 

@@ -85,6 +85,12 @@ export interface ShipmentView {
   lastErrorCode: string | null;
   /** ข้อความไทยที่แสดงได้ — ไม่ใช่ข้อความดิบจาก iShip */
   lastErrorMessage: string | null;
+  /** ข้อมูลพัสดุที่ถูกส่งไปจริง — ให้ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยค่าอะไร */
+  weight: number | null;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: number;
   createdAt: Date;
 }
 
@@ -373,15 +379,42 @@ function toShipmentView(s: {
   labelPrintCount: number;
   isDryRun: boolean;
   lastErrorCode: string | null;
+  weight: unknown;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: unknown;
   createdAt: Date;
 }): ShipmentView {
   return {
     ...s,
+    // Decimal ของ Prisma → number ก่อนข้ามขอบเขต (Decimal serialize ข้าม RSC/HTTP ไม่ได้)
+    weight: s.weight == null ? null : Number(s.weight),
+    codAmount: Number(s.codAmount ?? 0),
     // ข้อความที่แสดงต่อผู้ใช้มาจาก error code ของเรา ไม่ใช่ lastErrorMessage ที่เป็นข้อความดิบ
     lastErrorMessage: s.lastErrorCode
       ? new IShipError(s.lastErrorCode as never).userMessage
       : null,
   };
+}
+
+/**
+ * resolveCourierName — แปลงรหัสขนส่งเป็นชื่อที่คนอ่านออก ณ เวลาสร้างพัสดุ
+ *
+ * ห้ามให้ล้มเหลวแล้วบล็อกการสร้างพัสดุ — มันเป็นแค่ข้อความบนจอ ไม่ใช่ข้อมูลที่ขนส่งต้องใช้
+ * คืน null เมื่อดึงไม่ได้/ไม่เจอ แล้วให้หน้าจอ fallback เป็นรหัสขนส่งแทน
+ */
+async function resolveCourierName(
+  shopId: string,
+  courierCode: string | null,
+): Promise<string | null> {
+  if (!courierCode) return null;
+  try {
+    const list = await listCouriers(shopId);
+    return list.find((c) => c.code === courierCode)?.name ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const SHIPMENT_SELECT = {
@@ -400,6 +433,11 @@ const SHIPMENT_SELECT = {
   labelPrintCount: true,
   isDryRun: true,
   lastErrorCode: true,
+  weight: true,
+  width: true,
+  length: true,
+  height: true,
+  codAmount: true,
   createdAt: true,
 } as const;
 
@@ -713,6 +751,10 @@ export async function createShipment(
       status: "PENDING",
       idempotencyKey,
       courierCode,
+      // ชื่อขนส่งสำหรับแสดงผล — เก็บ ณ เวลาสร้าง ไม่ re-fetch ทุกครั้งที่เปิดดู
+      // ถ้าดึงรายชื่อไม่ได้ ปล่อย null แล้วให้หน้าจอ fallback เป็นรหัสขนส่งแทน
+      // (ห้ามให้การดึงชื่อมาบล็อกการสร้างพัสดุ — มันเป็นแค่ข้อความบนจอ)
+      courierName: await resolveCourierName(shopId, courierCode),
       categoryId,
       weight,
       width,
