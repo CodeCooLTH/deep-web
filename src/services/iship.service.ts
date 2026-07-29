@@ -486,6 +486,11 @@ export async function getShipmentPanel(
       buyerName: true,
       buyerContact: true,
       shippingAddress: true,
+      // รายการสินค้า — ให้ร้านตรวจก่อนกดสร้างว่ากำลังเปิดพัสดุให้ออเดอร์ใบที่ตั้งใจ
+      items: {
+        select: { id: true, name: true, qty: true, price: true },
+        orderBy: { name: "asc" },
+      },
     },
   });
   if (!order) return null;
@@ -536,6 +541,14 @@ export async function getShipmentPanel(
       province: addr.province ?? null,
       postcode: addr.postcode ?? null,
     },
+    sender: senderOf(account),
+    items: order.items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      qty: it.qty,
+      // Decimal ข้ามขอบเขต RSC ไม่ได้ — แปลงตั้งแต่ที่นี่เหมือน field อื่นในไฟล์นี้
+      price: Number(it.price),
+    })),
     defaults: {
       courierCode: account.defaultCourierCode,
       weight: account.defaultWeight ? Number(account.defaultWeight) : null,

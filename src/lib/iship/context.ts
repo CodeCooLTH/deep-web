@@ -9,7 +9,19 @@
 // แปลงด้วย toShipmentContextJson() ที่เดียว — เดิมหน้าคำสั่งซื้อ map ทีละ field ใน JSX
 // ซึ่งพอมีที่ใช้จุดที่สองก็จะลอกไปทั้งก้อนแล้วลืม field ใหม่ที่เพิ่มทีหลัง
 
-import type { MissingReceiverField, MissingSenderField } from "./mapping";
+import type {
+  MissingReceiverField,
+  MissingSenderField,
+  SenderAddress,
+} from "./mapping";
+
+/** สินค้า 1 บรรทัดในบล็อก "ตรวจก่อนสร้างพัสดุ" — อ่านอย่างเดียว ไม่ใช่ตัวแก้ออเดอร์ */
+export interface ShipmentReviewItem {
+  id: string;
+  name: string;
+  qty: number;
+  price: number;
+}
 
 export interface ReceiverData {
   name: string | null;
@@ -52,6 +64,10 @@ interface ShipmentContextBase {
   /** ช่องผู้รับที่ขาด — กรอกแก้ได้ตรงจุดที่สร้างพัสดุ */
   missingReceiver: MissingReceiverField[];
   receiver: ReceiverData;
+  /** ที่อยู่ผู้ส่งจากการตั้งค่าร้าน — โชว์ให้ตรวจก่อนกดสร้าง แก้ในฟอร์มนี้ไม่ได้ */
+  sender: SenderAddress;
+  /** สินค้าในคำสั่งซื้อ — ให้ร้านกวาดตาว่ากำลังส่งของถูกใบ */
+  items: ShipmentReviewItem[];
   defaults: ParcelDefaults;
 }
 
