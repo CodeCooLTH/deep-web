@@ -24,6 +24,9 @@ import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
+import { getSubscriptionStatus } from '@/services/business-package.service'
+import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
+import ShopPackageSidenavCard from './_shared/ShopPackageSidenavCard'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -115,6 +118,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
     console.error('[layout] resolveExpenseAccess failed, fallback NO_SHOP (hide menu)', e)
   }
 
+  // Business Package sidenav card — ownerId = session user ไม่ใช่ active shop (Business Package
+  // ผูกกับบัญชีเจ้าของ ไม่ใช่ร้าน — มิเรอร์ business/page.tsx:51). fail-closed: query error → NOT_SUBSCRIBED
+  // (pattern เดียวกับ entitlementInfo บรรทัดด้านบน — ไม่ให้ layout crash จาก DB error)
+  let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
+  let businessPackageTier: BusinessPackageTier | null = null
+  try {
+    const subscription = await getSubscriptionStatus(user.id)
+    if (subscription) {
+      businessPackageStatus = subscription.status as BusinessPackageStatusApp
+      businessPackageTier = subscription.tier as BusinessPackageTier
+    }
+  } catch (e) {
+    console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
+  }
+
   // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
   // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
   // feature 00016 — applyExpenseMenu ซ่อน/ติด badge เมนู "ค่าใช้จ่าย" ตามสิทธิ์+แพ็กเกจ
@@ -148,6 +166,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }
       bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} unreadChatCount={unreadChatCount} />}
       sidenavFooterSlot={<OnboardingGate />}
+      // Business Package สมัครระดับบัญชีเจ้าของ — สมาชิก ADMIN ของ Business shop จัดการ billing
+      // เองไม่ได้ (มติเดียวกับ /settings/ai: STAFF ไม่เห็น badge อัพเกรดเพราะเป็น dead-end)
+      // → แสดงเฉพาะ active.role === 'OWNER'
+      sidenavHeaderSlot={
+        active.role === 'OWNER' ? (
+          <ShopPackageSidenavCard status={businessPackageStatus} tier={businessPackageTier} />
+        ) : undefined
+      }
     >
       {children}
       {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s

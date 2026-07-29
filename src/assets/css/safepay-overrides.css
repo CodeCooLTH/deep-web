@@ -144,6 +144,20 @@ html[data-text-scale="xl"] {
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }
 
+/* ─── Shop Package sidenav card — ยุบเหลือไอคอนกลางเมื่อ sidenav ย่อ ───────────────────
+   ทำงานคู่กับ ShopPackageSidenavCard.tsx (class .shop-package-card ครอบ Link ทั้งใบ,
+   .shop-package-card-text ครอบ label/value/badge/subtext/CTA ทั้งหมด). ไม่อยู่ใน media
+   query มือถือ (นอก @media ด้านบน) เพราะสถานะ on-hover/condensed เกิดได้ทั้ง desktop/tablet */
+html[data-sidenav-size="on-hover"] .app-menu:not(:hover) .shop-package-card,
+html[data-sidenav-size="condensed"] .shop-package-card {
+  padding-inline: 0;
+  justify-content: center;
+}
+html[data-sidenav-size="on-hover"] .app-menu:not(:hover) .shop-package-card .shop-package-card-text,
+html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
+  display: none;
+}
+
 /* ─── Chat app header (rewrite, .superpowers/sdd/chat-standalone.md) ──────────────
    /inbox* ไม่ใช้ VerticalLayout/Sidenav/TopBar ของ seller อีกต่อไป — ตัด .seller-chat-shell
    ทั้งชุดออกแล้ว (เดิม override --sidenav-width เป็น 320px + ลบ padding ของ .page-content ผ่าน
