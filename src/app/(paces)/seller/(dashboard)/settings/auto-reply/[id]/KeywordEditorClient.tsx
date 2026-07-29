@@ -37,7 +37,7 @@ type Rule = {
   isActive: boolean
   specificity: number
 }
-type Channel = { id: string; name: string; provider: string }
+type Channel = { id: string; name: string; provider: string; avatarUrl?: string | null }
 type Product = { id: string; name: string; price: string; image: string | null }
 type Ad = { adId: string; adTitle: string | null; hitCount: number }
 
@@ -726,16 +726,15 @@ function ExceptionSheet({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   หน้าแชทมือถือจำลอง — พิมพ์คุยกับเพจได้เหมือนเป็นลูกค้าจริง
+   ทดลองคุย — บับเบิลซ้าย/ขวา ไม่มีกรอบมือถือ (user 2026-07-29)
    ═══════════════════════════════════════════════════════════════════ */
 type SimTurn =
   | { who: 'customer'; text: string }
-  | { who: 'page'; text: string }
-  | { who: 'system'; kind: 'inactive' | 'handoff' | 'shop-off'; text: string; canFix?: boolean }
+  | { who: 'page'; text: string; note?: string }
+  | { who: 'none'; text: string }
 
 function SimulatePanel({
   channels,
-  keywordId,
   onEnable,
   canEdit,
 }: {
@@ -749,8 +748,9 @@ function SimulatePanel({
   const [draft, setDraft] = useState('')
   const [channelId, setChannelId] = useState(channels[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
+  const [needsEnable, setNeedsEnable] = useState(false)
 
-  const pageName = channels.find((c) => c.id === channelId)?.name ?? 'เพจของคุณ'
+  const page = channels.find((c) => c.id === channelId)
 
   async function send() {
     const text = draft.trim()
@@ -765,30 +765,19 @@ function SimulatePanel({
         body: JSON.stringify({ message: text, shopChannelId: channelId || null, adId: null, productId: null }),
       })
 
-      // แปลงผลเป็น "เทิร์นในบทสนทนา" แทนที่จะเป็นรายงานผล — ผู้ใช้อ่านเป็นแชทได้เลย
-      if (data.blockedBy?.reason === 'KEYWORD_INACTIVE') {
-        setTurns((t) => [
-          ...t,
-          {
-            who: 'system',
-            kind: 'inactive',
-            text: `คำตรงกับ “${data.blockedBy.keywordName}” แล้ว แต่การตั้งค่านี้ปิดอยู่ ระบบจึงยังไม่ตอบ`,
-            canFix: canEdit && data.blockedBy.keywordId === keywordId,
-          },
-        ])
-      } else if (data.willHandoff) {
-        setTurns((t) => [
-          ...t,
-          { who: 'system', kind: 'handoff', text: 'ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน' },
-        ])
+      if (data.willHandoff) {
+        setTurns((t) => [...t, { who: 'none', text: 'ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน' }])
       } else {
-        setTurns((t) => [...t, { who: 'page', text: data.replyText ?? '' }])
-        if (!data.shopEnabled) {
-          setTurns((t) => [
-            ...t,
-            { who: 'system', kind: 'shop-off', text: 'ระบบปิดอยู่ทั้งร้าน — นี่คือสิ่งที่จะเกิดขึ้นเมื่อเปิดแล้ว' },
-          ])
-        }
+        // บอกสถานะเป็นหมายเหตุใต้บับเบิล ไม่บังคำตอบ (user: "อยากให้ลองตอบเลยว่าจะตอบว่าอะไร")
+        const notes: string[] = []
+        if (data.winnerState && !data.winnerState.isActive) notes.push('ชุดนี้ยังไม่เปิดใช้งาน')
+        if (data.winnerState?.mode === 'TEST') notes.push('อยู่โหมดทดสอบ')
+        if (!data.shopEnabled) notes.push('ระบบปิดอยู่ทั้งร้าน')
+        setTurns((t) => [
+          ...t,
+          { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
+        ])
+        setNeedsEnable(!!data.winnerState && !data.winnerState.isActive)
       }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ')
@@ -805,81 +794,87 @@ function SimulatePanel({
           <p className="text-default-500 mt-0.5 text-xs">พิมพ์เหมือนเป็นลูกค้า ไม่ส่งจริง ไม่บันทึกอะไร</p>
         </div>
         {turns.length > 0 && (
-          <button className="btn btn-sm btn-soft-default" onClick={() => setTurns([])}>ล้าง</button>
+          <button className="btn btn-sm btn-soft-default" onClick={() => { setTurns([]); setNeedsEnable(false) }}>
+            ล้าง
+          </button>
         )}
       </div>
 
       <div className="card-body">
-        {channels.length > 1 && (
+        {channels.length > 0 && (
           <div className="mb-3">
-            <ChoiceSelect
-              options={channels.map((c) => ({ value: c.id, label: c.name }))}
-              value={channelId} search={false}
-              onChange={(v) => setChannelId(v as string)} ariaLabel="เพจที่ทดลองคุย"
-            />
+            {/* เลือกเพจพร้อมโลโก้ (user request) — ร้านที่มีหลายเพจจำจากรูปเร็วกว่าอ่านชื่อ */}
+            <div className="border-default-200 mb-2 flex items-center gap-2 rounded border p-2">
+              <span className="bg-default-100 flex size-8 flex-none items-center justify-center overflow-hidden rounded-full">
+                {page?.avatarUrl ? (
+                  <img src={page.avatarUrl} alt="" className="size-full object-cover" />
+                ) : (
+                  <Icon icon={page?.provider === 'INSTAGRAM' ? 'brand-instagram' : 'brand-messenger'}
+                    className="text-default-500 text-sm" aria-hidden="true" />
+                )}
+              </span>
+              <span className="text-default-800 min-w-0 flex-1 truncate text-sm font-medium">
+                {page?.name ?? 'เพจของคุณ'}
+              </span>
+            </div>
+            {channels.length > 1 && (
+              <ChoiceSelect
+                options={channels.map((c) => ({ value: c.id, label: c.name }))}
+                value={channelId} search={false}
+                onChange={(v) => setChannelId(v as string)} ariaLabel="เพจที่ทดลองคุย"
+              />
+            )}
           </div>
         )}
 
-        {/* กรอบมือถือ — จำลองหน้าแชทที่ลูกค้าเห็นจริง */}
-        <div className="border-default-300 bg-default-200 mx-auto w-full max-w-72 rounded-3xl border-4 p-1.5">
-          <div className="flex h-96 flex-col overflow-hidden rounded-2xl bg-white">
-            {/* หัวแชท */}
-            <div className="border-default-200 flex flex-none items-center gap-2 border-b px-3 py-2">
-              <Icon icon="chevron-left" className="text-default-400 text-sm" aria-hidden="true" />
-              <span className="bg-primary/10 text-primary flex size-7 flex-none items-center justify-center rounded-full">
-                <Icon icon="building-store" className="text-sm" aria-hidden="true" />
-              </span>
-              <span className="text-default-800 min-w-0 flex-1 truncate text-xs font-semibold">{pageName}</span>
-            </div>
-
-            {/* บทสนทนา */}
-            <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
-              {turns.length === 0 ? (
-                <p className="text-default-400 pt-12 text-center text-xs">
-                  พิมพ์ข้อความด้านล่างเหมือนที่ลูกค้าจะทักเข้ามา
-                </p>
+        {/* บทสนทนา — บับเบิลซ้าย/ขวาเปล่า ๆ ไม่มีกรอบมือถือ */}
+        <div className="min-h-48 space-y-2">
+          {turns.length === 0 ? (
+            <p className="text-default-400 py-10 text-center text-xs">
+              พิมพ์ข้อความด้านล่างเหมือนที่ลูกค้าจะทักเข้ามา
+            </p>
+          ) : (
+            turns.map((t, i) =>
+              t.who === 'customer' ? (
+                <div key={i} className="flex justify-end">
+                  <span className="bg-default-100 text-default-800 max-w-full rounded-2xl rounded-br-md px-3 py-2 text-sm whitespace-pre-wrap">
+                    {t.text}
+                  </span>
+                </div>
+              ) : t.who === 'page' ? (
+                <div key={i} className="flex flex-col items-start gap-1">
+                  <span className="bg-primary max-w-full rounded-2xl rounded-bl-md px-3 py-2 text-sm whitespace-pre-wrap text-white">
+                    {t.text}
+                  </span>
+                  {t.note && <span className="text-default-400 text-xs">{t.note}</span>}
+                </div>
               ) : (
-                turns.map((t, i) =>
-                  t.who === 'customer' ? (
-                    <div key={i} className="flex justify-end">
-                      <span className="bg-default-100 text-default-800 max-w-full rounded-2xl rounded-br-md px-3 py-1.5 text-xs whitespace-pre-wrap">
-                        {t.text}
-                      </span>
-                    </div>
-                  ) : t.who === 'page' ? (
-                    <div key={i} className="flex justify-start">
-                      <span className="bg-primary max-w-full rounded-2xl rounded-bl-md px-3 py-1.5 text-xs whitespace-pre-wrap text-white">
-                        {t.text}
-                      </span>
-                    </div>
-                  ) : (
-                    <div key={i} className="bg-warning/10 border-warning rounded-lg border px-2.5 py-2">
-                      <p className="text-default-700 text-xs">{t.text}</p>
-                      {t.canFix && (
-                        <button className="btn btn-primary btn-sm mt-1.5" onClick={onEnable}>เปิดใช้งานเลย</button>
-                      )}
-                    </div>
-                  ),
-                )
-              )}
-              {busy && <p className="text-default-400 text-xs">กำลังตอบ…</p>}
-            </div>
+                <p key={i} className="text-default-500 py-1 text-center text-xs">{t.text}</p>
+              ),
+            )
+          )}
+          {busy && <p className="text-default-400 text-xs">กำลังตอบ…</p>}
+        </div>
 
-            {/* ช่องพิมพ์ */}
-            <div className="border-default-200 flex flex-none items-center gap-2 border-t px-3 py-2">
-              <input
-                className="text-default-800 min-w-0 flex-1 bg-transparent text-xs outline-none"
-                placeholder="พิมพ์ข้อความ" value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
-                aria-label="ข้อความทดลอง"
-              />
-              <button type="button" onClick={send} disabled={busy || !draft.trim()}
-                className="text-primary flex-none disabled:opacity-40" aria-label="ส่ง">
-                <Icon icon="send" className="text-base" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
+        {needsEnable && canEdit && (
+          <button className="btn btn-soft-primary btn-sm mt-3 w-full" onClick={onEnable}>
+            เปิดใช้งานชุดนี้
+          </button>
+        )}
+
+        {/* ช่องพิมพ์ */}
+        <div className="border-default-200 mt-3 flex items-center gap-2 rounded-full border px-3 py-2">
+          <input
+            className="text-default-800 min-w-0 flex-1 bg-transparent text-sm outline-none"
+            placeholder="พิมพ์ข้อความ" value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
+            aria-label="ข้อความทดลอง"
+          />
+          <button type="button" onClick={send} disabled={busy || !draft.trim()}
+            className="text-primary flex-none disabled:opacity-40" aria-label="ส่ง">
+            <Icon icon="send" className="text-base" aria-hidden="true" />
+          </button>
         </div>
       </div>
     </div>

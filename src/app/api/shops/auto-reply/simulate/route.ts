@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as v from 'valibot'
 import { requireShopContext, AUTO_REPLY_NO_STORE } from '@/lib/auto-reply-route-context'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
-import { loadRuleSet } from '@/services/auto-reply.service'
 import { matchKeywords, resolveRule } from '@/services/auto-reply-match.service'
 import { AutoReplySimulateSchema } from '@/lib/validations'
 import { prisma } from '@/lib/prisma'
@@ -35,7 +34,31 @@ export async function POST(request: NextRequest) {
   }
 
   const normalizedText = normalizeMessage(parsed.output.message)
-  const ruleSet = await loadRuleSet(ctx.shopId)
+
+  // WARNING: พรีวิวต้องรวม "ชุดที่ยังปิดอยู่" ด้วย (user 2026-07-29)
+  // เพราะหน้านี้คือการดูว่า *ที่ตั้งไว้* จะตอบอะไร ไม่ใช่การทดสอบ gate ของระบบจริง
+  // ถ้ากรอง isActive ออก ผู้ใช้ที่กำลังตั้งค่าจะไม่มีทางเห็นคำตอบของตัวเองเลยจนกว่าจะเปิดใช้งาน
+  // ซึ่งกลับหัวกับลำดับการทำงานจริง (ตั้งค่า -> ดูผล -> ค่อยเปิด)
+  // ข้อมูล isActive ยังส่งกลับไปให้ UI บอกเป็นข้อความเล็ก ๆ ว่ายังไม่เปิด — ไม่บังคำตอบ
+  const [allKeywords, allRules] = await Promise.all([
+    prisma.autoReplyKeyword.findMany({
+      where: { shopId: ctx.shopId },
+      select: {
+        id: true, name: true, matchType: true, priority: true, isActive: true, mode: true,
+        phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
+      },
+      orderBy: { priority: 'desc' },
+    }),
+    prisma.autoReplyRule.findMany({
+      where: { shopId: ctx.shopId },
+      select: {
+        id: true, keywordId: true, shopChannelId: true, adId: true, productId: true,
+        specificity: true, isActive: true, activeFrom: true, activeUntil: true,
+        replyText: true, createdAt: true,
+      },
+    }),
+  ])
+  const ruleSet = { keywords: allKeywords, rules: allRules } as never
   const matchCtx = {
     shopChannelId: parsed.output.shopChannelId ?? null,
     adId: parsed.output.adId ?? null,
@@ -46,36 +69,11 @@ export async function POST(request: NextRequest) {
   const matched = matchKeywords(normalizedText, ruleSet, matchCtx)
   const resolved = resolveRule(matched.winner?.keywordId ?? null, matchCtx, ruleSet)
 
-  // ── วินิจฉัยสาเหตุเมื่อไม่ match (V2) ────────────────────────────────────
-  //
-  // WARNING: ถ้าไม่ทำส่วนนี้ ผู้ใช้ที่พิมพ์คำตรงเป๊ะจะเห็นแค่ "ไม่ตรงกลุ่มคำใด" ซึ่งโยนความผิด
-  // ให้เขาทั้งที่ระบบรู้อยู่แล้วว่าสาเหตุคือกลุ่มคำถูกปิดไว้ (บั๊กจริงที่ user เจอบน prod 2026-07-29)
-  // หลักการ: ถ้าระบบรู้สาเหตุ ต้องบอกสาเหตุ ไม่ใช่บอกอาการ
-  let blockedBy: null | { reason: 'KEYWORD_INACTIVE'; keywordId: string; keywordName: string } = null
-  if (!matched.winner) {
-    const inactive = await prisma.autoReplyKeyword.findMany({
-      where: { shopId: ctx.shopId, isActive: false },
-      select: {
-        id: true,
-        name: true,
-        matchType: true,
-        priority: true,
-        phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
-      },
-    })
-    if (inactive.length > 0) {
-      // เทียบด้วย matcher ตัวเดียวกัน ไม่เขียน logic คู่ขนาน — ส่ง rules ว่างเพราะสนใจแค่ว่า
-      // "คำตรงไหม" ไม่ใช่ "มีกฎให้ใช้ไหม"
-      const hit = matchKeywords(normalizedText, { keywords: inactive as never, rules: [] }, matchCtx)
-      if (hit.winner) {
-        blockedBy = {
-          reason: 'KEYWORD_INACTIVE',
-          keywordId: hit.winner.keywordId,
-          keywordName: hit.winner.keywordName,
-        }
-      }
-    }
-  }
+  // สถานะของชุดที่ชนะ — UI เอาไปบอกเป็นข้อความเล็ก ๆ ใต้คำตอบ ไม่บังคำตอบ
+  const winner = allKeywords.find((k) => k.id === matched.winner?.keywordId)
+  const winnerState = winner
+    ? { keywordId: winner.id, keywordName: winner.name, isActive: winner.isActive, mode: winner.mode }
+    : null
 
   const config = await getConfig(ctx.shopId)
 
@@ -99,8 +97,8 @@ export async function POST(request: NextRequest) {
       replyText: resolved.rule?.replyText ?? null,
       // ไม่มีกฎให้ถอย = ระบบจะเงียบแล้วส่งต่อพนักงาน ไม่ใช่เดาคำตอบ
       willHandoff: !resolved.rule?.replyText?.trim(),
-      // V2 — บริบทที่ทำให้ UI อธิบายสาเหตุได้แทนที่จะบอกแค่อาการ
-      blockedBy,
+      // บริบทให้ UI บอกสถานะได้ (ยังไม่เปิด / อยู่โหมดทดสอบ) โดยไม่ต้องบังคำตอบ
+      winnerState,
       shopEnabled: config.isEnabled,
     },
     { headers: AUTO_REPLY_NO_STORE },

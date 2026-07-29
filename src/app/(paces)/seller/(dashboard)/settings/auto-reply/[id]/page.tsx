@@ -42,7 +42,7 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
   const [channels, products, config] = await Promise.all([
     prisma.shopChannel.findMany({
       where: { shopId: activeCtx.shopId, status: 'ACTIVE' },
-      select: { id: true, name: true, provider: true },
+      select: { id: true, name: true, provider: true, avatarUrl: true },
       orderBy: { name: 'asc' },
     }),
     prisma.product.findMany({
