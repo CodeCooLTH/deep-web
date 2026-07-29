@@ -27,6 +27,7 @@ import type {
   ShipmentReviewItem,
   ShipmentViewJson,
 } from '@/lib/iship/context'
+import { useIShipBoxes } from './useIShipBoxes'
 import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
@@ -158,6 +159,12 @@ export default function ShipmentCreateForm({
   const [categoryId, setCategoryId] = useState(
     defaults.categoryId != null ? String(defaults.categoryId) : '',
   )
+
+  // กล่องของบัญชีร้าน — เลือกแล้วเติมขนาดให้ทั้ง 3 ช่อง เร็วกว่ากรอกเอง
+  // กล่องของร้านต้องขึ้นก่อนกล่องมาตรฐาน (~24 ใบ) ไม่งั้นจะไปกองท้ายจนร้านนึกว่าไม่มี
+  const { boxes } = useIShipBoxes()
+  const ownBoxes = boxes.filter((b) => b.user_id != null)
+  const standardBoxes = boxes.filter((b) => b.user_id == null)
 
   // เพิ่มเติม — เปิดอัตโนมัติเมื่อร้านตั้งค่าอะไรไว้ที่หน้าตั้งค่า ไม่งั้นร้านจะไม่รู้ว่ามี
   // COD/ประกันติดมากับพัสดุใบนี้ด้วย (ซ่อนไว้เงียบ ๆ = สร้างไปโดยไม่รู้ว่ามีค่าเหล่านี้)
@@ -446,6 +453,52 @@ export default function ShipmentCreateForm({
             onChange={(e) => setWeight(e.target.value)}
           />
         </div>
+
+        {boxes.length > 0 && (
+          <div className="mb-2.5">
+            <label className="form-label" htmlFor="shp-box">
+              กล่องที่ใช้ประจำ
+            </label>
+            <select
+              id="shp-box"
+              className="form-select"
+              defaultValue=""
+              onChange={(e) => {
+                const box = boxes.find((b) => String(b.id) === e.target.value)
+                if (!box) return
+                setWidth(String(box.width))
+                setLength(String(box.length))
+                setHeight(String(box.height))
+              }}
+            >
+              <option value="">เลือกเพื่อเติมขนาดให้อัตโนมัติ (หรือกรอกเองด้านล่าง)</option>
+              {ownBoxes.length > 0 ? (
+                <>
+                  <optgroup label="กล่องของร้าน">
+                    {ownBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="กล่องมาตรฐาน iShip">
+                    {standardBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))}
+                  </optgroup>
+                </>
+              ) : (
+                standardBoxes.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
 
         <div className="mb-2.5">
           <label className="form-label" htmlFor="shp-width">
