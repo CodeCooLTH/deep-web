@@ -1486,8 +1486,10 @@ model ShopShippingAccount {
   tokenLast4     String? // 4 ตัวท้ายไว้ให้ร้านยืนยันว่าใช่ใบที่ตั้งใจ (BR-ISHIP-13)
   status         String  @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
   // createMode: พฤติกรรมเมื่อสร้างคำสั่งซื้อ — "AUTO" | "ASK" | "OFF"
-  // 🛑 default ASK ตั้งใจ (BR-ISHIP-20): การเปิดพัสดุ = ค่าใช้จ่ายจริง ระบบต้องไม่ทำแทนโดยร้านไม่ได้สั่ง
-  createMode     String  @default("ASK")
+  // 🛑 default OFF (BR-ISHIP-20): การเปิดพัสดุ = ค่าใช้จ่ายจริง ระบบต้องไม่ทำแทนโดยร้านไม่ได้สั่ง
+  //    เดิมเป็น ASK แต่ร้านที่ยังไม่ได้ตั้งค่าอะไรเลยโดนถามทุกครั้งที่สร้างคำสั่งซื้อ —
+  //    คำถามที่ตอบ "ไม่" ทุกครั้งคือคำถามที่ไม่ควรถาม ร้านเปิด ASK/AUTO เองได้ที่หน้าตั้งค่า
+  createMode     String  @default("OFF")
 
   // --- ที่อยู่ผู้ส่ง (บังคับครบก่อนเปิดใช้งาน BR-ISHIP-30 — nullable ใน DB เพราะกรอกทีหลังได้) ---
   senderName        String?
