@@ -424,24 +424,18 @@ export async function sendMessage(params: {
       },
     })
 
-    // Notification เสมอ (ไม่เช็ค presence — ดู SRS TFR-CHAT-11 rationale) ผู้รับ = อีกฝ่าย
-    // feature 00018: เธรดช่องทางนอก ผู้รับคือ ExternalContact ที่ไม่มี User ใน Deep →
-    // ข้าม Notification (ลูกค้าได้รับผ่าน Messenger/IG เองอยู่แล้ว) ไม่ใช่ error
-    const recipientUserId = isBuyerClaim ? shop.userId : conversation.buyerUserId
-    if (recipientUserId) {
-      const senderLabel = isBuyerClaim
-        ? (await tx.user.findUnique({ where: { id: params.senderUserId }, select: { displayName: true } }))?.displayName ?? 'ผู้ซื้อ'
-        : shop.shopName
-      await tx.notification.create({
-        data: {
-          userId: recipientUserId,
-          kind: 'chat_message',
-          title: `ข้อความใหม่จาก ${senderLabel}`,
-          body: preview,
-          refId: params.conversationId,
-        },
-      })
-    }
+    // เลิกเขียน Notification kind="chat_message" (user สั่ง 2026-07-29)
+    // เดิมเขียนทุกข้อความ → 97.6% ของทั้งตารางเป็น chat_message (2,162 แถว, ร้านหนึ่ง unread 1,070)
+    // ทั้งที่ไม่มีผู้บริโภคจริง: ไม่มี push ที่อ่านตารางนี้, กระดิ่งเว็บกรองทิ้งแล้ว
+    // (BELL_HIDDEN_KINDS ใน notification.service), /api/app/notifications ออกแบบไว้สำหรับ
+    // outbid/won ตาม docstring ของมันเอง
+    //
+    // แชท unread ตัวจริงคำนวณจาก Conversation.shopLastReadAt/buyerLastReadAt + messages อยู่แล้ว
+    // แถวพวกนี้เป็นสำเนาซ้ำที่ต้องจ่าย INSERT ในทรานแซกชันส่งข้อความ (path ร้อนสุดของระบบ —
+    // ทุกข้อความขาเข้าจากในระบบ/Messenger/IG) แถมต้องจ่าย updateMany ซ้ำตอน markRead เพื่อ sync
+    //
+    // ถ้าจะกลับมาเปิดใหม่: ต้องมีผู้บริโภคจริงก่อน (push/inbox รวม) และต้องคิดเรื่องปริมาณ
+    // + retention ไม่ใช่เขียนทุกข้อความแบบเดิม
 
     return message as ChatMessageView
   })
@@ -456,13 +450,13 @@ export async function markRead(
   const conversation = await assertParticipant(conversationId, actorUserId)
   const field = role === 'BUYER' ? 'buyerLastReadAt' : 'shopLastReadAt'
 
-  await prisma.$transaction([
-    prisma.conversation.update({ where: { id: conversationId }, data: { [field]: new Date() } }),
-    prisma.notification.updateMany({
-      where: { userId: actorUserId, kind: 'chat_message', refId: conversationId, read: false },
-      data: { read: true },
-    }),
-  ])
+  // เดิมมี notification.updateMany sync แถว kind="chat_message" ให้เป็น read คู่กันด้วย —
+  // ตัดออกพร้อมกับการเลิกเขียนแถวนั้น (2026-07-29) ไม่มีแถวใหม่ให้ sync แล้ว และแถวเก่าที่ค้าง
+  // ก็ถูกกรองออกจากกระดิ่งอยู่แล้ว (BELL_HIDDEN_KINDS) — ประหยัด UPDATE ทุกครั้งที่เปิดอ่านแชท
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { [field]: new Date() },
+  })
   void conversation // ใช้แค่ยืนยัน ownership ผ่านแล้วเท่านั้น
 }
 

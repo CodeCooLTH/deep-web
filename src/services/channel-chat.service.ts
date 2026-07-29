@@ -548,24 +548,10 @@ export async function ingestInboundMessage(params: {
       },
     })
 
-    // แจ้งเตือนเจ้าของร้านเฉพาะข้อความจากลูกค้า (echo คือร้านตอบเอง ไม่ต้องเตือน); สแปม = เงียบ
-    if (!isEcho && !conversation.isSpam) {
-      const shop = await tx.shop.findUnique({
-        where: { id: channel.shopId },
-        select: { userId: true },
-      })
-      if (shop) {
-        await tx.notification.create({
-          data: {
-            userId: shop.userId,
-            kind: 'chat_message',
-            title: `ข้อความใหม่จาก ${contact.name ?? 'ลูกค้า'}`,
-            body: preview,
-            refId: conversation.id,
-          },
-        })
-      }
-    }
+    // เลิกเขียน Notification kind="chat_message" (user สั่ง 2026-07-29) — ดูเหตุผลเต็มที่
+    // chat.service.ts (จุดคู่กัน): ไม่มีผู้บริโภคจริง + เป็น INSERT ในทรานแซกชันรับข้อความ
+    // ซึ่งที่นี่ยิ่งหนักกว่า เพราะเป็น webhook ขาเข้าจาก Messenger/IG ที่ Meta ยิงถี่
+    // ร้านยังเห็นข้อความใหม่ผ่าน unreadChatCount (bottom nav/inbox) + realtime เหมือนเดิม
   }
 
   try {
