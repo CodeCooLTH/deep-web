@@ -47,6 +47,17 @@ export default function IShipModalShell({
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
 
+  // เก็บ onClose ไว้ใน ref แล้วให้ effect ด้านล่างรันครั้งเดียวตอน mount
+  //
+  // เดิม effect ผูก [onClose] ตรง ๆ ซึ่งพังจริง: ผู้เรียกประกาศ handler ใหม่ทุก render
+  // (closeSettings ใน ShippingSettingsRow) พอพิมพ์ 1 ตัวอักษร → setState → re-render →
+  // onClose เป็น reference ใหม่ → effect รันซ้ำ → โฟกัสเด้งไปปุ่มปิดทุกครั้งที่พิมพ์
+  // (user report 2026-07-29) — แก้ที่นี่ ไม่ใช่ให้ผู้เรียกทุกที่ต้องจำ memo handler เอง
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
+
   useEffect(() => {
     const panel = panelRef.current
     if (!panel) return
@@ -57,7 +68,7 @@ export default function IShipModalShell({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -80,7 +91,9 @@ export default function IShipModalShell({
 
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    // mount ครั้งเดียวโดยเจตนา — โฟกัสแรกต้องเกิดตอนเปิดโมดัลเท่านั้น ไม่ใช่ทุก render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     // HR7: z-80 = viewport overlay lock (Paces ไม่มี token; precedent OrderQrSheet/AccountSwitcherSheet)
