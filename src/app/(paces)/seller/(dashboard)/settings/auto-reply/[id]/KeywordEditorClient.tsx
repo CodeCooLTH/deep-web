@@ -22,7 +22,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
+import PagePicker from './PagePicker'
 
 const REPLY_MAX = 1000
 
@@ -58,12 +58,6 @@ type Props = {
   products: Product[]
 }
 
-const MATCH_TYPE_OPTIONS = [
-  { value: 'CONTAINS', label: 'มีคำอยู่ในประโยค' },
-  { value: 'EXACT', label: 'ตรงทั้งข้อความ' },
-  { value: 'STARTS_WITH', label: 'ขึ้นต้นด้วยคำ' },
-]
-
 async function callApi(url: string, init: RequestInit) {
   const res = await fetch(url, { cache: 'no-store', ...init })
   const data = await res.json().catch(() => ({}))
@@ -77,7 +71,14 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
   const [isActive, setIsActive] = useState(keyword.isActive)
   const [mode, setMode] = useState(keyword.mode)
   const [name, setName] = useState(keyword.name)
-  const [matchType, setMatchType] = useState(keyword.matchType)
+  /**
+   * รูปแบบการตรวจจับล็อกไว้ที่ค่าเดิมของชุดนั้น ไม่ให้แก้ผ่าน UI (user 2026-07-29)
+   *
+   * เอาตัวเลือกออกเพราะผู้ใช้ส่วนใหญ่ไม่เข้าใจความต่าง และค่าที่ "ทำงานจริง" มีตัวเดียว:
+   * ลูกค้าไทยไม่พิมพ์คำเปล่า ๆ ("สนใจครับ" / "สนใจ ราคาเท่าไหร่") ถ้าใช้ EXACT จะแทบไม่ match เลย
+   * คอลัมน์ยังอยู่ใน DB — ชุดเก่าที่เคยตั้ง EXACT/STARTS_WITH ไว้ยังทำงานเหมือนเดิม
+   */
+  const matchType = keyword.matchType
   const [priority, setPriority] = useState(keyword.priority)
   const [phrases, setPhrases] = useState(keyword.phrases)
   const [newPhrase, setNewPhrase] = useState('')
@@ -104,11 +105,10 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
   const dirty = useMemo(() => {
     const d: string[] = []
     if (name !== keyword.name) d.push('ชื่อกลุ่ม')
-    if (matchType !== keyword.matchType) d.push('รูปแบบการตรวจจับ')
     if (priority !== keyword.priority) d.push('ลำดับความสำคัญ')
     if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบหลัก')
     return d
-  }, [name, matchType, priority, defaultReply, keyword, defaultRule])
+  }, [name, priority, defaultReply, keyword, defaultRule])
 
   /**
    * สวิตช์มีผลทันที ไม่ต้องกดบันทึกแยก
@@ -344,20 +344,10 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="k-match" className="text-default-600 mb-1 block text-xs">รูปแบบการตรวจจับ</label>
-                  <ChoiceSelect
-                    id="k-match" options={MATCH_TYPE_OPTIONS} value={matchType} search={false}
-                    disabled={!canEdit} onChange={(v) => setMatchType(v as string)}
-                    ariaLabel="รูปแบบการตรวจจับ"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
-                  <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
-                    min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
-                </div>
+              <div className="sm:w-48">
+                <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
+                <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
+                  min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
               </div>
             </div>
           </div>
@@ -369,26 +359,22 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
           <div className="card">
             <div className="card-header">
-              <h5 className="text-default-800 text-base font-semibold">ให้ตอบข้อความนี้</h5>
+              <h5 className="text-default-800 text-base font-semibold">ข้อความตอบกลับพื้นฐาน</h5>
               <p className="text-default-500 mt-0.5 text-xs">ตอบทันทีที่ลูกค้าทักเข้ามาและตรงกับคำที่ตั้งไว้</p>
             </div>
             <div className="card-body">
-              {/* ตัวนับอยู่ในกรอบเดียวกับช่องพิมพ์ตาม reference — ผู้ใช้เห็นเพดานขณะพิมพ์
-                  ไม่ต้องเงยไปมองหัวการ์ด */}
-              <div className="border-default-200 focus-within:border-primary rounded border p-2.5">
-                <div className="mb-1 flex items-start justify-between gap-2">
-                  <span className="text-default-600 text-xs font-medium">ข้อความ</span>
-                  <span className="text-default-400 flex-none text-xs">{defaultReply.length}/{REPLY_MAX}</span>
-                </div>
-                <textarea
-                  className="text-default-800 w-full resize-none border-0 bg-transparent text-sm outline-none"
-                  rows={4} value={defaultReply} disabled={!canEdit} maxLength={REPLY_MAX}
-                  onChange={(e) => setDefaultReply(e.target.value)}
-                  placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                  aria-label="ข้อความตอบกลับ"
-                />
+              {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
+                  `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
+                  Tailwind กรอบของ textarea จึงไม่หาย ได้กรอบซ้อนกรอบ (บั๊กจริง 2026-07-29,
+                  ตรงกับ memory feedback_paces_forms_css_gotchas) — ใช้ form-textarea ตรง ๆ
+                  แล้ววางตัวนับไว้นอกกรอบแทน */}
+              <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
+                maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
+                placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
+                aria-label="ข้อความตอบกลับ" />
+              <div className="mt-1.5 flex justify-end">
+                <span className="text-default-400 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
               </div>
-              <p className="text-default-500 mt-1.5 text-xs">ใช้เมื่อไม่เข้าเงื่อนไขเฉพาะข้อใดด้านล่าง</p>
             </div>
           </div>
 
@@ -466,7 +452,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
             <div className="flex gap-2">
               <button className="btn btn-soft-default" disabled={busy || dirty.length === 0}
                 onClick={() => {
-                  setName(keyword.name); setMatchType(keyword.matchType)
+                  setName(keyword.name)
                   setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
                 }}>ยกเลิก</button>
               <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
@@ -726,7 +712,7 @@ function ExceptionSheet({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ทดลองคุย — บับเบิลซ้าย/ขวา ไม่มีกรอบมือถือ (user 2026-07-29)
+   แผงดูตัวอย่างการตอบ — หน้าตาเหมือนห้องแชทจริง (user 2026-07-29)
    ═══════════════════════════════════════════════════════════════════ */
 type SimTurn =
   | { who: 'customer'; text: string }
@@ -780,7 +766,7 @@ function SimulatePanel({
         setNeedsEnable(!!data.winnerState && !data.winnerState.isActive)
       }
     } catch (e) {
-      pacesToast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ')
+      pacesToast.error(e instanceof Error ? e.message : 'ดูตัวอย่างไม่สำเร็จ')
     } finally {
       setBusy(false)
     }
@@ -788,94 +774,106 @@ function SimulatePanel({
 
   return (
     <div className="card xl:sticky xl:top-20">
-      <div className="card-header flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h5 className="text-default-800 text-base font-semibold">ทดลองคุย</h5>
-          <p className="text-default-500 mt-0.5 text-xs">พิมพ์เหมือนเป็นลูกค้า ไม่ส่งจริง ไม่บันทึกอะไร</p>
-        </div>
+      {/* หัวแชท — ยืมโครงจากห้องแชทจริง (ผู้ใช้: "อยากให้ UI มันฟีลเหมือนอยู่หน้าแชท")
+          Base: src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:630-650
+          ต่างกันตรงตัวตนบนหัว: ห้องแชทจริงโชว์ "ลูกค้าคนไหน" แต่หน้านี้ลูกค้าเป็นตัวสมมติ
+          สิ่งที่ต้องรู้คือ "กำลังดูการตอบของเพจไหน" หัวจึงเป็นตัวเลือกเพจไปในตัว
+          (แก้ตัวเลือกซ้อน 2 จุดที่ user ทัก — ดู PagePicker.tsx) */}
+      <div className="card-header flex items-center gap-2">
+        {channels.length > 0 ? (
+          <PagePicker options={channels} value={channelId} onChange={setChannelId} />
+        ) : (
+          <p className="text-default-500 flex-1 text-sm">ยังไม่ได้เชื่อมเพจใด</p>
+        )}
         {turns.length > 0 && (
-          <button className="btn btn-sm btn-soft-default" onClick={() => { setTurns([]); setNeedsEnable(false) }}>
+          <button
+            className="btn btn-sm btn-soft-default flex-none"
+            onClick={() => { setTurns([]); setNeedsEnable(false) }}
+          >
             ล้าง
           </button>
         )}
       </div>
 
-      <div className="card-body">
-        {channels.length > 0 && (
-          <div className="mb-3">
-            {/* เลือกเพจพร้อมโลโก้ (user request) — ร้านที่มีหลายเพจจำจากรูปเร็วกว่าอ่านชื่อ */}
-            <div className="border-default-200 mb-2 flex items-center gap-2 rounded border p-2">
-              <span className="bg-default-100 flex size-8 flex-none items-center justify-center overflow-hidden rounded-full">
-                {page?.avatarUrl ? (
-                  <img src={page.avatarUrl} alt="" className="size-full object-cover" />
-                ) : (
-                  <Icon icon={page?.provider === 'INSTAGRAM' ? 'brand-instagram' : 'brand-messenger'}
-                    className="text-default-500 text-sm" aria-hidden="true" />
+      {/* บทสนทนา — Base ChatThread.tsx:887-980 (`my-5 flex items-start gap-2.5` + justify-end
+          ฝั่งเรา, บับเบิล `rounded px-6 py-3`, ลูกค้า `bg-light` / เพจ `bg-primary text-white`)
+          ฝั่งซ้าย = ลูกค้า ฝั่งขวา = เพจ ให้ตรงกับห้องแชทจริง (เดิมกลับข้างกัน) */}
+      <div className="bg-light/30 max-h-96 min-h-72 overflow-y-auto px-4">
+        {turns.length === 0 ? (
+          <p className="text-default-400 py-16 text-center text-sm">
+            พิมพ์ข้อความเหมือนที่ลูกค้าจะทักเข้ามา
+            <br />
+            แล้วดูว่าเพจจะตอบกลับว่าอะไร
+          </p>
+        ) : (
+          turns.map((t, i) =>
+            t.who === 'none' ? (
+              <p key={i} className="text-default-500 py-3 text-center text-xs">{t.text}</p>
+            ) : (
+              <div key={i} className={`my-5 flex items-start gap-2.5 ${t.who === 'page' ? 'justify-end' : ''}`}>
+                {t.who === 'customer' && (
+                  <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full">
+                    <Icon icon="user" width={16} height={16} aria-hidden="true" />
+                  </span>
                 )}
-              </span>
-              <span className="text-default-800 min-w-0 flex-1 truncate text-sm font-medium">
-                {page?.name ?? 'เพจของคุณ'}
-              </span>
-            </div>
-            {channels.length > 1 && (
-              <ChoiceSelect
-                options={channels.map((c) => ({ value: c.id, label: c.name }))}
-                value={channelId} search={false}
-                onChange={(v) => setChannelId(v as string)} ariaLabel="เพจที่ทดลองคุย"
-              />
-            )}
-          </div>
+                <div className="min-w-0">
+                  <div className={`rounded px-6 py-3 ${t.who === 'page' ? 'bg-primary' : 'bg-light'}`}>
+                    <p className={`mb-0 text-sm whitespace-pre-wrap ${t.who === 'page' ? 'text-white' : 'text-default-800'}`}>
+                      {t.text}
+                    </p>
+                  </div>
+                  {t.who === 'page' && t.note && (
+                    <div className="text-default-400 mt-1 flex justify-end text-xs">{t.note}</div>
+                  )}
+                </div>
+                {t.who === 'page' && (
+                  <span className="bg-default-100 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                    {page?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={page.avatarUrl} alt="" className="size-full object-cover" />
+                    ) : (
+                      <Icon icon="building-store" width={16} height={16} className="text-default-500" aria-hidden="true" />
+                    )}
+                  </span>
+                )}
+              </div>
+            ),
+          )
         )}
+        {busy && <p className="text-default-400 py-2 text-xs">กำลังตอบ…</p>}
+      </div>
 
-        {/* บทสนทนา — บับเบิลซ้าย/ขวาเปล่า ๆ ไม่มีกรอบมือถือ */}
-        <div className="min-h-48 space-y-2">
-          {turns.length === 0 ? (
-            <p className="text-default-400 py-10 text-center text-xs">
-              พิมพ์ข้อความด้านล่างเหมือนที่ลูกค้าจะทักเข้ามา
-            </p>
-          ) : (
-            turns.map((t, i) =>
-              t.who === 'customer' ? (
-                <div key={i} className="flex justify-end">
-                  <span className="bg-default-100 text-default-800 max-w-full rounded-2xl rounded-br-md px-3 py-2 text-sm whitespace-pre-wrap">
-                    {t.text}
-                  </span>
-                </div>
-              ) : t.who === 'page' ? (
-                <div key={i} className="flex flex-col items-start gap-1">
-                  <span className="bg-primary max-w-full rounded-2xl rounded-bl-md px-3 py-2 text-sm whitespace-pre-wrap text-white">
-                    {t.text}
-                  </span>
-                  {t.note && <span className="text-default-400 text-xs">{t.note}</span>}
-                </div>
-              ) : (
-                <p key={i} className="text-default-500 py-1 text-center text-xs">{t.text}</p>
-              ),
-            )
-          )}
-          {busy && <p className="text-default-400 text-xs">กำลังตอบ…</p>}
-        </div>
-
-        {needsEnable && canEdit && (
-          <button className="btn btn-soft-primary btn-sm mt-3 w-full" onClick={onEnable}>
+      {needsEnable && canEdit && (
+        <div className="border-default-200 border-t px-4 pt-3">
+          <button className="btn btn-soft-primary btn-sm w-full" onClick={onEnable}>
             เปิดใช้งานชุดนี้
           </button>
-        )}
+        </div>
+      )}
 
-        {/* ช่องพิมพ์ */}
-        <div className="border-default-200 mt-3 flex items-center gap-2 rounded-full border px-3 py-2">
+      {/* ช่องพิมพ์ — Base ChatThread.tsx composer (แถบล่างมีเส้นคั่น + ปุ่มส่งสีหลัก) */}
+      <div className="border-default-200 border-t p-3">
+        <div className="flex items-center gap-2">
           <input
-            className="text-default-800 min-w-0 flex-1 bg-transparent text-sm outline-none"
-            placeholder="พิมพ์ข้อความ" value={draft}
+            className="form-input"
+            placeholder="พิมพ์ข้อความ..."
+            value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
-            aria-label="ข้อความทดลอง"
+            aria-label="ข้อความจากลูกค้า"
           />
-          <button type="button" onClick={send} disabled={busy || !draft.trim()}
-            className="text-primary flex-none disabled:opacity-40" aria-label="ส่ง">
+          <button
+            type="button"
+            onClick={send}
+            disabled={busy || !draft.trim()}
+            className="btn btn-primary flex-none"
+            aria-label="ส่ง"
+          >
             <Icon icon="send" className="text-base" aria-hidden="true" />
+            ส่ง
           </button>
         </div>
+        <p className="text-default-400 mt-2 text-xs">ข้อความในหน้านี้ไม่ถูกส่งออกจริง และไม่ถูกบันทึกลงแชท</p>
       </div>
     </div>
   )
