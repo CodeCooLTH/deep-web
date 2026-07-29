@@ -37,6 +37,7 @@ import TablePagination from '@/components/table/TablePagination'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
 import { formatDateTime } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 
@@ -69,17 +70,28 @@ const STATUS_CHIPS = [
 const columnHelper = createColumnHelper<KeywordRow>()
 
 /** badge โหมด — ทดสอบ=เหลือง (เตือน) / ใช้งานจริง=น้ำเงิน
- *  ไม่ใช้เขียวเพราะเขียวสงวนให้ "เปิดใช้งานอยู่" ตาม Verified-Means-Green */
-function ModeBadge({ mode }: { mode: string }) {
+ *  ไม่ใช้เขียวเพราะเขียวสงวนให้ "เปิดใช้งานอยู่" ตาม Verified-Means-Green
+ *
+ *  ส่ง onToggle มา = กดสลับโหมดได้จากในตารางเลย (user 2026-07-29: "แล้วโหมดทดสอบแยกรายการล่ะ")
+ *  ไม่ต้องเข้าไปในหน้าแก้ไขทีละชุดเพื่อดูว่าชุดไหนยัง TEST อยู่ */
+function ModeBadge({ mode, onToggle, disabled }: { mode: string; onToggle?: () => void; disabled?: boolean }) {
+  const className = cn(
+    'badge text-2xs py-0 font-semibold',
+    mode === 'TEST' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary',
+  )
+  const label = mode === 'TEST' ? 'ทดสอบ' : 'ใช้งานจริง'
+  if (!onToggle) return <span className={className}>{label}</span>
   return (
-    <span
-      className={cn(
-        'badge text-2xs py-0 font-semibold',
-        mode === 'TEST' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary',
-      )}
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      title={mode === 'TEST' ? 'กดเพื่อเปลี่ยนเป็นใช้งานจริง' : 'กดเพื่อกลับเป็นโหมดทดสอบ'}
+      className={cn(className, 'hover:ring-default-300 inline-flex items-center gap-1 hover:ring-1')}
     >
-      {mode === 'TEST' ? 'ทดสอบ' : 'ใช้งานจริง'}
-    </span>
+      <Icon icon={mode === 'TEST' ? 'flask' : 'broadcast'} className="size-3" aria-hidden="true" />
+      {label}
+    </button>
   )
 }
 
@@ -122,6 +134,37 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
     }
   }
 
+  /** สลับ LIVE/TEST รายชุด — ถามก่อนเฉพาะขาไป LIVE (จุดที่ลูกค้าจริงเริ่มได้รับคำตอบ) */
+  async function toggleMode(row: KeywordRow) {
+    if (!canEdit || busyId) return
+    const next = row.mode === 'TEST' ? 'LIVE' : 'TEST'
+    if (next === 'LIVE') {
+      const ok = await pacesConfirm.warning(
+        `เปลี่ยน "${row.name}" เป็นใช้งานจริง?`,
+        'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
+        { confirmButtonText: 'ใช้งานจริง' },
+      )
+      if (!ok) return
+    }
+    setBusyId(row.id)
+    setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, mode: next } : r)))
+    try {
+      const res = await fetch(`/api/shops/auto-reply/keywords/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ mode: next }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'เปลี่ยนโหมดไม่สำเร็จ')
+      pacesToast.success(next === 'LIVE' ? `"${row.name}" ใช้งานจริงแล้ว` : `"${row.name}" กลับเป็นโหมดทดสอบแล้ว`)
+    } catch (e) {
+      setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, mode: row.mode } : r)))
+      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนโหมดไม่สำเร็จ')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const columns: ColumnDef<KeywordRow, any>[] = useMemo(
     () => [
       columnHelper.accessor('name', {
@@ -153,7 +196,13 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         header: 'โหมด',
         filterFn: 'equalsString',
         enableColumnFilter: true,
-        cell: ({ row }) => <ModeBadge mode={row.original.mode} />,
+        cell: ({ row }) => (
+          <ModeBadge
+            mode={row.original.mode}
+            onToggle={canEdit ? () => toggleMode(row.original) : undefined}
+            disabled={busyId === row.original.id}
+          />
+        ),
       }),
       columnHelper.accessor('phraseCount', {
         header: 'คำตรวจจับ',
@@ -400,7 +449,11 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                   {k.phraseCount} คำตรวจจับ · {k.ruleCount} คำตอบ
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <ModeBadge mode={k.mode} />
+                  <ModeBadge
+                    mode={k.mode}
+                    onToggle={canEdit ? () => toggleMode(k) : undefined}
+                    disabled={busyId === k.id}
+                  />
                   <span
                     className={cn(
                       'badge text-2xs py-0 font-semibold',

@@ -22,6 +22,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
 import PagePicker from './PagePicker'
 
 const REPLY_MAX = 1000
@@ -178,6 +179,16 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
    */
   async function changeMode(next: string) {
     if (!canEdit || busy || next === mode) return
+    // ขาไป LIVE = ลูกค้าจริงเริ่มได้รับคำตอบทันที ถามก่อนเสมอ
+    // ขากลับ TEST ไม่ต้องถาม (เป็นการ "หยุดความเสี่ยง" ไม่ใช่สร้าง)
+    if (next === 'LIVE') {
+      const ok = await pacesConfirm.warning(
+        'เปลี่ยนเป็นใช้งานจริง?',
+        'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
+        { confirmButtonText: 'ใช้งานจริง' },
+      )
+      if (!ok) return
+    }
     setBusy(true)
     const prev = mode
     setMode(next)
@@ -307,6 +318,29 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                     : ' — ยังไม่ได้ใส่คำตรวจจับ'}
                 </p>
               </div>
+              <div className="flex flex-none flex-wrap items-center gap-3">
+                {/* โหมดของกลุ่มคำนี้ (แยกจากโหมดทดสอบระดับร้าน) — ปล่อยของทีละชุดได้
+                    โดยชุดที่ใช้งานจริงอยู่ไม่กระทบ (user 2026-07-29) มีผลทันทีไม่ต้องกดบันทึก */}
+                <div className="bg-light inline-flex rounded-lg p-0.5" role="group" aria-label="โหมดของกลุ่มคำนี้">
+                  {[
+                    { value: 'TEST', label: 'ทดสอบ', active: 'bg-warning text-white' },
+                    { value: 'LIVE', label: 'ใช้งานจริง', active: 'bg-primary text-white' },
+                  ].map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      disabled={!canEdit || busy}
+                      onClick={() => changeMode(o.value)}
+                      aria-pressed={mode === o.value}
+                      className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                        mode === o.value ? o.active : 'text-default-500 hover:text-default-800'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+
               {/* สวิตช์อยู่ก่อนคำว่า เปิด/ปิด แบบเดียวกับ reference — อ่านเป็นประโยคเดียว
                   และมีผลทันทีไม่ต้องกดบันทึก */}
               <label className="flex flex-none cursor-pointer items-center gap-2">
@@ -319,6 +353,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                   {isActive ? 'เปิด' : 'ปิด'}
                 </span>
               </label>
+              </div>
             </div>
 
             <div className="card-body">
