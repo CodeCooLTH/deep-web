@@ -292,12 +292,29 @@ export async function getTraces(
   token: string,
   trackNo: string,
 ): Promise<IShipTraceRoute[]> {
-  const data = await call<{ trace_routes?: IShipTraceRoute[] }>(
-    token,
-    "/api/traces",
-    { method: "POST", body: { track_no: trackNo } },
-  );
-  return data?.trace_routes ?? [];
+  try {
+    const data = await call<{ trace_routes?: IShipTraceRoute[] }>(
+      token,
+      "/api/traces",
+      { method: "POST", body: { track_no: trackNo } },
+    );
+    return data?.trace_routes ?? [];
+  } catch (err) {
+    // พัสดุที่เพิ่งเปิดและขนส่งยังไม่สแกน → iShip ตอบ HTTP 500 body
+    // {"status":false,"message":"","data":[]} แทนที่จะคืนลิสต์ว่าง (ยืนยันกับ prod 2026-07-29
+    // ด้วย track จริง TH0205901RX26E0) — ไม่ใช่ระบบล่ม แต่เป็น "ยังไม่มีข้อมูล"
+    //
+    // แยกสองอย่างนี้ด้วย "ไม่มีข้อความอธิบายเลย" เท่านั้น — ถ้า iShip ส่งเหตุผลอะไรมา
+    // (token เสีย/เลขไม่มีจริง) ต้องยังเป็น error ตามเดิม ห้ามกลืนเงียบ
+    if (
+      err instanceof IShipError &&
+      err.httpStatus === 500 &&
+      !err.upstreamMessage
+    ) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 /** รายละเอียดพัสดุฝั่ง iShip — ใช้ยืนยันสถานะกลับ ไม่เชื่อ webhook อย่างเดียว */

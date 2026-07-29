@@ -1089,9 +1089,30 @@ export async function getTraces(shopId: string, shipmentId: string) {
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (!row.trackingNo) return [];
 
-  const routes = await withTokenGuard(shopId, () =>
-    iship.getTraces(token, row.trackingNo!),
-  );
+  /**
+   * ดึงไม่ได้ = ยังอ่านของเก่าที่เก็บไว้ได้ — ไม่ใช่พังทั้งหน้า
+   *
+   * ไทม์ไลน์เป็นการ "อ่านอย่างเดียว" การโยน error ทิ้งทั้งก้อนเพราะ upstream สะดุด
+   * แปลว่าเราทิ้งข้อมูลที่เก็บไว้แล้วโดยเปล่าประโยชน์ (โค้ดข้างล่างเก็บลง ShipmentEvent
+   * ไว้ตั้งแต่แรกก็เพื่อกรณีนี้ แต่เดิมไม่เคยถูกใช้อ่าน)
+   *
+   * TOKEN_INVALID ไม่กลืน — นั่นคือเรื่องที่ร้านต้องไปแก้ ไม่ใช่ความสะดุดชั่วคราว
+   */
+  let routes: Awaited<ReturnType<typeof iship.getTraces>>;
+  try {
+    routes = await withTokenGuard(shopId, () =>
+      iship.getTraces(token, row.trackingNo!),
+    );
+  } catch (err) {
+    if (err instanceof IShipError && err.code !== "TOKEN_INVALID") {
+      const stored = await prisma.shipmentEvent.findMany({
+        where: { shipmentId: row.id },
+        orderBy: { occurredAt: "asc" },
+      });
+      if (stored.length > 0) return stored;
+    }
+    throw err;
+  }
 
   // เก็บลงฐานข้อมูลด้วย เพื่อให้ไทม์ไลน์ยังอ่านได้แม้ผู้ให้บริการล่ม
   for (const r of routes) {
