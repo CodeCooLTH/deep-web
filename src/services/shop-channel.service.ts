@@ -1,6 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import { encryptToken, decryptToken } from '@/lib/token-crypto'
-import { subscribePageToApp, type PageInfo } from '@/lib/facebook/graph'
+import {
+  subscribePageToApp,
+  unsubscribePageFromApp,
+  getPageIdFromToken,
+  getInstagramAccountIdForPage,
+  type PageInfo,
+} from '@/lib/facebook/graph'
 
 // จัดการช่องทางที่ร้านผูกไว้ (feature 00018)
 // กติกาสำคัญ: accessTokenEnc ห้ามออกจากไฟล์นี้ในรูป plaintext ยกเว้นผ่าน
@@ -252,6 +258,69 @@ export async function disconnectChannel(channelId: string, shopId: string): Prom
   if (result.count === 0) {
     throw new Error('CHANNEL_NOT_FOUND_OR_FORBIDDEN')
   }
+
+  // อ่านแถว **หลัง** guard ผ่านแล้วเท่านั้น — ถึงบรรทัดนี้แปลว่าแถวนี้เป็นของ shopId จริง
+  // (อ่านก่อน updateMany = แตะแถวที่ยังไม่ผ่านการตรวจสิทธิ์ ต่อให้ไม่ได้คืนออกไปก็ไม่ควรทำ)
+  const row = await prisma.shopChannel.findUnique({
+    where: { id: channelId },
+    select: { provider: true, externalId: true, accessTokenEnc: true },
+  })
+  if (row) await stopPageWebhookIfUnused(row)
+}
+
+/**
+ * ถอน subscription ของเพจออกจากแอปเรา ถ้าไม่มีช่องทางไหนต้องใช้มันแล้ว
+ *
+ * เงื่อนไข "ถ้าไม่มีใครใช้แล้ว" สำคัญมาก: Meta ไม่มี subscribed_apps แยกของ Instagram —
+ * event ของ IG วิ่งผ่าน subscription ของ **Page ที่ผูก IG account นั้น** (เหตุผลเดียวกับที่
+ * resubscribeShopChannels วนเฉพาะแถว MESSENGER) ดังนั้นถ้าร้านถอดแค่ช่องทาง Messenger แล้วเรา
+ * unsubscribe ทันทีทั้งที่ IG ยังเชื่อมอยู่ → ข้อความ IG จะหยุดเข้าเงียบ ๆ ไม่มี error ให้เห็น
+ * และร้านจะไม่มีทางรู้จนกว่าลูกค้าจะบ่นว่าทักไปแล้วไม่ตอบ
+ *
+ * ล้มเหลวแล้วต้องไม่ throw: ผู้ใช้สั่งถอดช่องทาง = ต้องถอดได้เสมอ ไม่ว่าฝั่ง Meta จะตอบอะไร
+ * เคสที่พบบ่อยที่สุดคือ token หมดอายุ/ถูกเพิกถอนไปก่อนแล้ว (status TOKEN_INVALID) ซึ่งกรณีนั้น
+ * Meta ตัด subscription ให้อยู่แล้ว
+ */
+async function stopPageWebhookIfUnused(row: {
+  provider: string
+  externalId: string
+  accessTokenEnc: string
+}): Promise<void> {
+  try {
+    const pageToken = decryptToken(row.accessTokenEnc)
+    const pageId =
+      row.provider === 'MESSENGER' ? row.externalId : await getPageIdFromToken(pageToken)
+    if (!pageId) return
+
+    if (await isPageWebhookStillNeeded(pageId, pageToken)) return
+
+    await unsubscribePageFromApp(pageId, pageToken)
+  } catch (e) {
+    console.error(
+      '[shop-channel] ถอน subscription ของเพจล้มเหลว',
+      row.externalId,
+      e instanceof Error ? e.message : e,
+    )
+  }
+}
+
+// เช็คข้ามทุกร้าน ไม่ใช่เฉพาะร้านที่กดถอด — ถ้าเพจนี้ยัง active อยู่กับร้านอื่น (เช่นแถว IG ของ
+// ร้านอื่นที่ผูกเพจเดียวกัน) การถอน subscription จะไปตัดของร้านนั้นทิ้งด้วย
+async function isPageWebhookStillNeeded(pageId: string, pageToken: string): Promise<boolean> {
+  const messenger = await prisma.shopChannel.findFirst({
+    where: { provider: 'MESSENGER', externalId: pageId, status: { not: 'DISCONNECTED' } },
+    select: { id: true },
+  })
+  if (messenger) return true
+
+  const igAccountId = await getInstagramAccountIdForPage(pageId, pageToken)
+  if (!igAccountId) return false
+
+  const instagram = await prisma.shopChannel.findFirst({
+    where: { provider: 'INSTAGRAM', externalId: igAccountId, status: { not: 'DISCONNECTED' } },
+    select: { id: true },
+  })
+  return instagram !== null
 }
 
 export async function listChannels(shopId: string): Promise<ChannelView[]> {
