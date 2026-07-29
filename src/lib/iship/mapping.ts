@@ -96,6 +96,22 @@ export type MissingAddressField = MissingReceiverField | MissingSenderField;
 const isBlank = (v?: string | null): boolean => !v || v.trim() === "";
 
 /**
+ * normalizeProvince — แปลงชื่อจังหวัดให้ตรงกับที่ iShip รู้จัก
+ *
+ * ตั้งแต่ 2026-07-29 ช่องเลือกที่อยู่ใช้ชุดข้อมูลของ iShip แล้ว (public/data/iship-address.json)
+ * ที่อยู่ที่บันทึกใหม่จึงตรงอยู่แล้ว — ตัวนี้มีไว้กัน "ข้อมูลเก่า" ที่บันทึกด้วยชุดข้อมูลเดิม
+ * ซึ่งเรียก กทม. ว่า "กรุงเทพมหานคร" ส่วน iShip เรียก "กรุงเทพ"
+ *
+ * ไม่ทำแปลว่าออเดอร์เก่าปลายทางกรุงเทพ (186 ตำบล) เปิดพัสดุแล้วส่งชื่อจังหวัดที่ iShip ไม่รู้จัก
+ * จงใจแปลงเฉพาะเคสนี้เคสเดียว — ที่เหลือ (ชื่อตำบล/อำเภอต่างกัน 57 แถว, รหัสไปรษณีย์ 16 แถว)
+ * เดาแทนร้านไม่ได้ ต้องให้ร้านเลือกใหม่จากช่องค้นหา ไม่ใช่ให้ระบบทายแล้วส่งผิดที่เงียบ ๆ
+ */
+export function normalizeProvince(v?: string | null): string {
+  const s = (v ?? "").trim();
+  return s === "กรุงเทพมหานคร" ? "กรุงเทพ" : s;
+}
+
+/**
  * findMissingReceiverFields — ตรวจว่าที่อยู่ผู้รับพอส่งไหม
  *
  * คืน "รายการช่องที่ขาด" ไม่ใช่ boolean — เพราะ FR-ISHIP-023 บังคับว่าต้องบอกร้าน
@@ -196,7 +212,7 @@ export function buildCreateOrderPayload(
     // BR-ISHIP-31 — อ่านหัวไฟล์ก่อนแก้บรรทัดคู่นี้
     src_district: sender.subdistrict ?? "", // ตำบล → district
     src_amphure: sender.district ?? "", //      อำเภอ → amphure
-    src_province: sender.province ?? "",
+    src_province: normalizeProvince(sender.province),
     src_zipcode: sender.postcode ?? "",
 
     dst_name: receiver.name,
@@ -205,7 +221,7 @@ export function buildCreateOrderPayload(
     // BR-ISHIP-31 — อ่านหัวไฟล์ก่อนแก้บรรทัดคู่นี้
     dst_district: receiver.address.subdistrict ?? "", // ตำบล → district
     dst_amphure: receiver.address.district ?? "", //      อำเภอ → amphure
-    dst_province: receiver.address.province ?? "",
+    dst_province: normalizeProvince(receiver.address.province),
     dst_zipcode: receiver.address.postcode ?? "",
 
     weight: parcel.weight,

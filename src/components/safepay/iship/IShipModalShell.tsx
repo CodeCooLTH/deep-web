@@ -97,10 +97,14 @@ export default function IShipModalShell({
         className="absolute inset-0 bg-default-900/40 backdrop-blur-xs"
       />
 
-      {/* HR7: max-h-[92dvh] / safe-area — Paces ไม่มี token สำหรับความสูงหน้าจอมือถือ (precedent sheet อื่น) */}
+      {/* HR7: max-h-[92dvh] / safe-area — Paces ไม่มี token สำหรับความสูงหน้าจอมือถือ (precedent sheet อื่น)
+          transform-gpu: ทำให้ลูกที่เป็น position:fixed (เช่น AddressSearchSheet ในแท็บที่อยู่ผู้ส่ง)
+          ยึดกับ "กรอบโมดัล" แทน viewport — พฤติกรรม CSS: ancestor ที่มี transform เป็น containing block
+          ของ fixed descendant ถ้าไม่ใส่ บนเดสก์ท็อป sheet จะกางเต็มจอทับโมดัลจนดูหลุดกรอบ
+          (precedent: (chat)/_components/DraftOrderProvider.tsx) */}
       <div
         ref={panelRef}
-        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-card shadow-lg lg:max-h-[85dvh] lg:rounded-2xl ${DESKTOP_WIDTH[size]}`}
+        className={`relative flex max-h-[92dvh] w-full transform-gpu flex-col rounded-t-2xl bg-card shadow-lg lg:max-h-[85dvh] lg:rounded-2xl ${DESKTOP_WIDTH[size]}`}
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-default-200 px-5 pb-3 pt-4">
           <div className="absolute inset-x-0 top-2 mx-auto h-1 w-9 rounded-full bg-default-300 lg:hidden" />

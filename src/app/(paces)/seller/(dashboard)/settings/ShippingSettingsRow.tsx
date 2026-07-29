@@ -28,6 +28,9 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { formatDateTime } from '@/lib/format-date'
 import { ISHIP_CATEGORIES } from '@/lib/iship/mapping'
 import IShipModalShell from '@/components/safepay/iship/IShipModalShell'
+import AddressSearchSheet, {
+  type SelectedLocality,
+} from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
 
 // ─── Types (รูปเดียวกับที่ ShippingClient เคยรับ) ────────────────────────────
 
@@ -234,7 +237,17 @@ export default function ShippingSettingsRow({
   const [boxes, setBoxes] = useState<Box[]>([])
   const refLoaded = useRef(false)
 
+  // ที่อยู่ผู้ส่ง — เลือกจากชุดข้อมูล (ไม่พิมพ์เอง)
+  const [addrOpen, setAddrOpen] = useState(false)
+  const addrTriggerRef = useRef<HTMLButtonElement>(null)
+
   const isActive = connection.connected && connection.status !== 'TOKEN_INVALID'
+  const hasSenderLocality = !!(
+    settings?.senderSubdistrict ||
+    settings?.senderDistrict ||
+    settings?.senderProvince ||
+    settings?.senderPostcode
+  )
 
   // รายชื่อขนส่ง/กล่องโหลดตอนเปิดโมดัลตั้งค่าครั้งแรกเท่านั้น — แถวนี้ mount ทุกครั้งที่เข้า
   // /settings การยิง 2 endpoint ไป iShip ทุกครั้งทั้งที่ร้านไม่ได้เปิดโมดัลคือค่าใช้จ่ายเปล่า
@@ -533,7 +546,8 @@ export default function ShippingSettingsRow({
                 }`}
               >
                 <Icon icon="settings" className="text-base" aria-hidden="true" />
-                ตั้งค่า
+                {/* พนักงานเปิดดูได้แต่แก้ไม่ได้ — บอกตั้งแต่บนปุ่ม จะได้ไม่เสียเวลากรอกแล้วเซฟไม่ได้ */}
+                {isOwner ? 'ตั้งค่า' : 'ดูการตั้งค่า'}
               </button>
             </>
           )}
@@ -733,6 +747,18 @@ export default function ShippingSettingsRow({
             </div>
           }
         >
+          {/* พนักงานร้านเปิดดูได้แต่แก้ไม่ได้ (BR-ISHIP-03) — ต้องบอกตั้งแต่บนสุด
+              ไม่ใช่ปล่อยให้กรอกจนเสร็จแล้วหาปุ่มบันทึกไม่เจอ (user report 2026-07-29) */}
+          {!isOwner && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2.5 text-sm text-warning">
+              <Icon icon="lock" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+              <span>
+                เฉพาะเจ้าของร้านเท่านั้นที่แก้ไขการตั้งค่าการจัดส่งได้ ตอนนี้เปิดให้ดูค่าที่ตั้งไว้อย่างเดียว
+                — ถ้าต้องแก้ไข ให้เจ้าของร้านเข้ามาตั้งค่าเอง
+              </span>
+            </p>
+          )}
+
           {/* nav-tabs นอก card-header ต้องคุม margin/border เอง (precedent CustomerPanel) */}
           <div
             role="tablist"
@@ -782,13 +808,13 @@ export default function ShippingSettingsRow({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label" htmlFor="iship-senderName">ชื่อผู้ส่ง</label>
-                <input id="iship-senderName" type="text" className="form-input" maxLength={120}
+                <input id="iship-senderName" disabled={!isOwner} type="text" className="form-input" maxLength={120}
                   value={settings.senderName ?? ''}
                   onChange={(e) => patch({ senderName: e.target.value })} />
               </div>
               <div>
                 <label className="form-label" htmlFor="iship-senderPhone">เบอร์โทรผู้ส่ง</label>
-                <input id="iship-senderPhone" type="tel" inputMode="numeric" className={inputCls('senderPhone')}
+                <input id="iship-senderPhone" disabled={!isOwner} type="tel" inputMode="numeric" className={inputCls('senderPhone')}
                   aria-describedby={errors.senderPhone ? 'iship-senderPhone-err' : undefined}
                   value={settings.senderPhone ?? ''}
                   onChange={(e) => patch({ senderPhone: e.target.value })} />
@@ -796,40 +822,49 @@ export default function ShippingSettingsRow({
               </div>
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-senderAddress">ที่อยู่ (บ้านเลขที่ / ถนน)</label>
-                <input id="iship-senderAddress" type="text" className="form-input"
+                <input id="iship-senderAddress" disabled={!isOwner} type="text" className="form-input"
                   value={settings.senderAddress ?? ''}
                   onChange={(e) => patch({ senderAddress: e.target.value })} />
               </div>
               {/*
-                ป้ายกำกับต้องเขียนให้ชัดว่าช่องไหนคือระดับไหน — ระบบขนส่งเรียก "ตำบล" ว่า
-                district ส่วนเราเรียก "อำเภอ" ว่า district ถ้าคนกรอกสลับช่อง พัสดุจะไปผิดตำบล
-                โดยไม่มีอะไรฟ้อง (BR-ISHIP-31)
+                เลือกจากชุดข้อมูลแทนพิมพ์เอง (user request 2026-07-29) — เดิมเป็นช่องอิสระ 4 ช่อง
+                ซึ่งเป็นจุดที่คนสลับ "ตำบล" กับ "อำเภอ" ได้ง่ายที่สุด แล้วพัสดุไปผิดตำบล
+                โดยไม่มีอะไรฟ้อง (BR-ISHIP-31) · เลือกทีเดียวเติมครบ 4 ค่า และคำที่ได้มาจาก
+                ชุดข้อมูลของ iShip เอง จึงตรงกับที่ปลายทางรู้จักแน่นอน
               */}
-              <div>
-                <label className="form-label" htmlFor="iship-senderSubdistrict">ตำบล / แขวง</label>
-                <input id="iship-senderSubdistrict" type="text" className="form-input"
-                  value={settings.senderSubdistrict ?? ''}
-                  onChange={(e) => patch({ senderSubdistrict: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="iship-senderDistrict">อำเภอ / เขต</label>
-                <input id="iship-senderDistrict" type="text" className="form-input"
-                  value={settings.senderDistrict ?? ''}
-                  onChange={(e) => patch({ senderDistrict: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="iship-senderProvince">จังหวัด</label>
-                <input id="iship-senderProvince" type="text" className="form-input"
-                  value={settings.senderProvince ?? ''}
-                  onChange={(e) => patch({ senderProvince: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="iship-senderPostcode">รหัสไปรษณีย์</label>
-                <input id="iship-senderPostcode" type="text" inputMode="numeric" maxLength={5}
-                  className={inputCls('senderPostcode')}
-                  aria-describedby={errors.senderPostcode ? 'iship-senderPostcode-err' : undefined}
-                  value={settings.senderPostcode ?? ''}
-                  onChange={(e) => patch({ senderPostcode: e.target.value })} />
+              <div className="sm:col-span-2">
+                <label className="form-label" id="iship-sender-locality-label">
+                  ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์
+                </label>
+                <button
+                  ref={addrTriggerRef}
+                  type="button"
+                  disabled={!isOwner}
+                  onClick={() => setAddrOpen(true)}
+                  aria-labelledby="iship-sender-locality-label"
+                  className="flex w-full items-center gap-2 rounded-lg border border-default-300 px-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Icon
+                    icon="map-pin"
+                    className={`size-4 shrink-0 ${hasSenderLocality ? 'text-primary' : 'text-default-400'}`}
+                    aria-hidden="true"
+                  />
+                  {hasSenderLocality ? (
+                    <span className="min-w-0 flex-1 text-sm">
+                      <span className="block font-semibold text-default-900">
+                        ต.{settings.senderSubdistrict || '—'} · อ.{settings.senderDistrict || '—'}
+                      </span>
+                      <span className="block text-xs text-default-500">
+                        {settings.senderProvince || '—'} · {settings.senderPostcode || '—'}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1 text-sm text-default-400">
+                      แตะเพื่อเลือกตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์
+                    </span>
+                  )}
+                  <Icon icon="chevron-right" className="size-4 shrink-0 text-default-400" aria-hidden="true" />
+                </button>
                 {fieldError('senderPostcode')}
               </div>
             </div>
@@ -843,7 +878,7 @@ export default function ShippingSettingsRow({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label" htmlFor="iship-courier">ขนส่งที่ใช้ประจำ</label>
-                <select id="iship-courier" className="form-select"
+                <select id="iship-courier" disabled={!isOwner} className="form-select"
                   value={settings.defaultCourierCode ?? ''}
                   onChange={(e) => patch({ defaultCourierCode: e.target.value || null })}>
                   <option value="">เลือกขนส่ง</option>
@@ -854,7 +889,7 @@ export default function ShippingSettingsRow({
               </div>
               <div>
                 <label className="form-label" htmlFor="iship-category">ประเภทสินค้า</label>
-                <select id="iship-category" className="form-select"
+                <select id="iship-category" disabled={!isOwner} className="form-select"
                   value={settings.defaultCategoryId ?? ''}
                   onChange={(e) => patch({ defaultCategoryId: e.target.value === '' ? null : Number(e.target.value) })}>
                   <option value="">เลือกประเภท</option>
@@ -867,7 +902,7 @@ export default function ShippingSettingsRow({
               {/* เลือกกล่องมาตรฐานแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง */}
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-box">กล่องที่ใช้ประจำ</label>
-                <select id="iship-box" className="form-select" defaultValue=""
+                <select id="iship-box" disabled={!isOwner} className="form-select" defaultValue=""
                   onChange={(e) => {
                     const box = boxes.find((b) => String(b.id) === e.target.value)
                     if (box) patch({ defaultWidth: box.width, defaultLength: box.length, defaultHeight: box.height })
@@ -883,7 +918,7 @@ export default function ShippingSettingsRow({
 
               <div>
                 <label className="form-label" htmlFor="iship-defaultWeight">น้ำหนัก (กก.)</label>
-                <input id="iship-defaultWeight" type="number" step="0.1" min="0.01"
+                <input id="iship-defaultWeight" disabled={!isOwner} type="number" step="0.1" min="0.01"
                   className={inputCls('defaultWeight')}
                   aria-describedby={errors.defaultWeight ? 'iship-defaultWeight-err' : undefined}
                   value={settings.defaultWeight ?? ''}
@@ -893,19 +928,19 @@ export default function ShippingSettingsRow({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="form-label" htmlFor="iship-defaultWidth">กว้าง</label>
-                  <input id="iship-defaultWidth" type="number" min="1" className={inputCls('defaultWidth')}
+                  <input id="iship-defaultWidth" disabled={!isOwner} type="number" min="1" className={inputCls('defaultWidth')}
                     value={settings.defaultWidth ?? ''}
                     onChange={(e) => patch({ defaultWidth: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
                 <div>
                   <label className="form-label" htmlFor="iship-defaultLength">ยาว</label>
-                  <input id="iship-defaultLength" type="number" min="1" className={inputCls('defaultLength')}
+                  <input id="iship-defaultLength" disabled={!isOwner} type="number" min="1" className={inputCls('defaultLength')}
                     value={settings.defaultLength ?? ''}
                     onChange={(e) => patch({ defaultLength: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
                 <div>
                   <label className="form-label" htmlFor="iship-defaultHeight">สูง</label>
-                  <input id="iship-defaultHeight" type="number" min="1" className={inputCls('defaultHeight')}
+                  <input id="iship-defaultHeight" disabled={!isOwner} type="number" min="1" className={inputCls('defaultHeight')}
                     value={settings.defaultHeight ?? ''}
                     onChange={(e) => patch({ defaultHeight: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
@@ -916,7 +951,7 @@ export default function ShippingSettingsRow({
 
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-defaultRemark">หมายเหตุถึงคนส่งของ</label>
-                <input id="iship-defaultRemark" type="text" className="form-input" placeholder="เช่น ห้ามโยน"
+                <input id="iship-defaultRemark" disabled={!isOwner} type="text" className="form-input" placeholder="เช่น ห้ามโยน"
                   value={settings.defaultRemark ?? ''}
                   onChange={(e) => patch({ defaultRemark: e.target.value })} />
               </div>
@@ -930,22 +965,22 @@ export default function ShippingSettingsRow({
             {/* บริการเสริม */}
             <div className="mt-4 flex flex-col gap-3 border-t border-default-200 pt-4">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="form-checkbox" checked={settings.defaultCodEnabled}
+                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.defaultCodEnabled}
                   onChange={(e) => patch({ defaultCodEnabled: e.target.checked })} />
                 เก็บเงินปลายทาง (COD) เป็นค่าเริ่มต้น
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="form-checkbox" checked={settings.optOnTime}
+                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.optOnTime}
                   onChange={(e) => patch({ optOnTime: e.target.checked })} />
                 ใช้บริการส่งตรงเวลา
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="form-checkbox" checked={settings.optBoxShield}
+                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.optBoxShield}
                   onChange={(e) => patch({ optBoxShield: e.target.checked })} />
                 ประกันกล่องพัสดุ
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="form-checkbox" checked={settings.optIsInsured}
+                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.optIsInsured}
                   onChange={(e) => patch({ optIsInsured: e.target.checked })} />
                 ประกันสินค้า
               </label>
@@ -954,7 +989,7 @@ export default function ShippingSettingsRow({
                   <label className="form-label" htmlFor="iship-optProductValue">
                     มูลค่าสินค้าที่เอาประกัน (บาท)
                   </label>
-                  <input id="iship-optProductValue" type="number" min="1"
+                  <input id="iship-optProductValue" disabled={!isOwner} type="number" min="1"
                     className={inputCls('optProductValue')}
                     aria-describedby={errors.optProductValue ? 'iship-optProductValue-err' : undefined}
                     value={settings.optProductValue ?? ''}
@@ -979,7 +1014,7 @@ export default function ShippingSettingsRow({
                     : 'border-default-200'
                 }`}
               >
-                <input type="radio" name="iship-create-mode" className="form-radio mt-0.5"
+                <input type="radio" name="iship-create-mode" disabled={!isOwner} className="form-radio mt-0.5"
                   checked={settings.createMode === m.value}
                   onChange={() => patch({ createMode: m.value })} />
                 <span className="min-w-0">
@@ -992,6 +1027,34 @@ export default function ShippingSettingsRow({
               </label>
             ))}
           </div>
+
+          {/* sheet เลือกที่อยู่ — อยู่ในโมดัลโดยเจตนา (shell มี transform-gpu แล้ว จึงเต็ม "กรอบโมดัล"
+              ไม่ใช่เต็มจอทับโมดัล) · คืนโฟกัสกลับปุ่มเดิมตอนปิด ไม่งั้นคีย์บอร์ดหลงทาง */}
+          <AddressSearchSheet
+            open={addrOpen}
+            current={
+              hasSenderLocality
+                ? {
+                    subdistrict: settings.senderSubdistrict ?? '',
+                    district: settings.senderDistrict ?? '',
+                    province: settings.senderProvince ?? '',
+                    postcode: settings.senderPostcode ?? '',
+                  }
+                : null
+            }
+            onSelect={(loc: SelectedLocality) =>
+              patch({
+                senderSubdistrict: loc.subdistrict,
+                senderDistrict: loc.district,
+                senderProvince: loc.province,
+                senderPostcode: loc.postcode,
+              })
+            }
+            onClose={() => {
+              setAddrOpen(false)
+              addrTriggerRef.current?.focus()
+            }}
+          />
         </IShipModalShell>
       )}
     </>
