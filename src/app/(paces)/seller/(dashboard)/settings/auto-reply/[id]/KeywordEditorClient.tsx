@@ -12,7 +12,9 @@
  *
  * WARNING: V1 มองการตั้งค่าเป็น "ตาราง 9 ระดับ" ตามที่ PRD §8 เขียน แต่ 9 ระดับนั้นคือสเปกของ
  * resolver ไม่ใช่แบบจำลองในหัวเจ้าของร้าน ซึ่งคือ "ปกติตอบแบบนี้ ยกเว้น..." — V2 จึงเรียกว่า
- * "คำตอบหลัก" + "ข้อยกเว้น" และเรียงข้อยกเว้นจากเจาะจงมากลงมาน้อยตามลำดับที่ระบบตัดสินจริง
+ * "คำตอบหลัก" + "เงื่อนไขเฉพาะ" เรียงจากเจาะจงมากลงมาน้อยตามลำดับที่ระบบตัดสินจริง
+ * (ไม่ใช้คำว่า "ข้อยกเว้น" เพราะร้านที่ตั้งคำตอบต่อโฆษณาทุกตัว สิ่งเหล่านั้นคือของหลัก
+ *  ไม่ใช่ของแปลก — user ทักท้วง 2026-07-29 และถูกต้อง)
  *
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
@@ -87,7 +89,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
   )
   const [defaultReply, setDefaultReply] = useState(defaultRule?.replyText ?? '')
 
-  /** ข้อยกเว้นเรียงเจาะจงมากอยู่บน = ลำดับที่ระบบตัดสินจริง (ไม่ใช่ลำดับการสร้าง) */
+  /** เงื่อนไขเฉพาะเรียงเจาะจงมากอยู่บน = ลำดับที่ระบบตัดสินจริง (ไม่ใช่ลำดับการสร้าง) */
   const exceptions = useMemo(
     () =>
       rules
@@ -206,7 +208,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
     try {
       await callApi(`/api/shops/auto-reply/rules/${id}`, { method: 'DELETE' })
       setRules((r) => r.filter((x) => x.id !== id))
-      pacesToast.success('ลบข้อยกเว้นแล้ว')
+      pacesToast.success('ลบเงื่อนไขเฉพาะแล้ว')
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ลบไม่สำเร็จ')
     } finally {
@@ -235,8 +237,16 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         </div>
       )}
 
+      {/* หัวเรื่อง + คำอธิบายว่าระบบนี้ทำอะไร ก่อนเข้าการ์ดเป็นขั้น (ตาม reference) */}
+      <div className="mb-4">
+        <p className="text-default-600 text-sm">
+          เมื่อลูกค้าทักเข้ามาทาง Messenger หรือ Instagram แล้วข้อความตรงกับคำที่ตั้งไว้
+          ระบบจะตอบให้ทันทีตามข้อความที่คุณเขียน โดยเลือกคำตอบตามเพจ โฆษณา หรือสินค้าที่ลูกค้าเข้ามา
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-10">
-        <div className="space-y-4 xl:col-span-7">
+        <div className="xl:col-span-7">
           {/* ── หัวกลุ่มคำ + คำตรวจจับ ───────────────────────────── */}
           <div className="card">
             <div className="card-header flex flex-wrap items-start justify-between gap-3">
@@ -311,27 +321,47 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
             </div>
           </div>
 
+
+          {/* เส้นเชื่อมระหว่างขั้น — สื่อว่าอ่านต่อเนื่องเป็นลำดับ (ตาม reference ที่ user ส่ง) */}
+          <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
+
           {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
           <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h5 className="text-default-800 text-base font-semibold">คำตอบหลัก</h5>
-              <span className="text-default-500 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
+            <div className="card-header">
+              <h5 className="text-default-800 text-base font-semibold">ให้ตอบข้อความนี้</h5>
+              <p className="text-default-500 mt-0.5 text-xs">ตอบทันทีที่ลูกค้าทักเข้ามาและตรงกับคำที่ตั้งไว้</p>
             </div>
             <div className="card-body">
-              <textarea className="form-textarea" rows={3} value={defaultReply} disabled={!canEdit}
-                maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
-                placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ" />
-              <p className="text-default-500 mt-1.5 text-xs">ใช้เมื่อไม่เข้าข้อยกเว้นด้านล่าง</p>
+              {/* ตัวนับอยู่ในกรอบเดียวกับช่องพิมพ์ตาม reference — ผู้ใช้เห็นเพดานขณะพิมพ์
+                  ไม่ต้องเงยไปมองหัวการ์ด */}
+              <div className="border-default-200 focus-within:border-primary rounded border p-2.5">
+                <div className="mb-1 flex items-start justify-between gap-2">
+                  <span className="text-default-600 text-xs font-medium">ข้อความ</span>
+                  <span className="text-default-400 flex-none text-xs">{defaultReply.length}/{REPLY_MAX}</span>
+                </div>
+                <textarea
+                  className="text-default-800 w-full resize-none border-0 bg-transparent text-sm outline-none"
+                  rows={4} value={defaultReply} disabled={!canEdit} maxLength={REPLY_MAX}
+                  onChange={(e) => setDefaultReply(e.target.value)}
+                  placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
+                  aria-label="ข้อความตอบกลับ"
+                />
+              </div>
+              <p className="text-default-500 mt-1.5 text-xs">ใช้เมื่อไม่เข้าเงื่อนไขเฉพาะข้อใดด้านล่าง</p>
             </div>
           </div>
 
-          {/* ── บันไดข้อยกเว้น ────────────────────────────────────── */}
+
+          {/* เส้นเชื่อมระหว่างขั้น — สื่อว่าอ่านต่อเนื่องเป็นลำดับ (ตาม reference ที่ user ส่ง) */}
+          <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
+
+          {/* ── บันไดเงื่อนไขเฉพาะ ─────────────────────────────────── */}
           <div className="card">
             <div className="card-header flex items-center justify-between">
-              <h5 className="text-default-800 text-base font-semibold">ข้อยกเว้น ({exceptions.length})</h5>
+              <h5 className="text-default-800 text-base font-semibold">เงื่อนไขเฉพาะ ({exceptions.length})</h5>
               {canEdit && (
                 <button className="btn btn-primary btn-sm" onClick={() => setSheetOpen(true)}>
-                  <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มข้อยกเว้น
+                  <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
                 </button>
               )}
             </div>
@@ -342,9 +372,9 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
 
               {exceptions.length === 0 ? (
                 <div className="border-default-200 rounded border border-dashed px-4 py-6 text-center">
-                  <p className="text-default-600 text-sm">ยังไม่มีข้อยกเว้น</p>
+                  <p className="text-default-600 text-sm">ยังไม่มีเงื่อนไขเฉพาะ</p>
                   <p className="text-default-500 mt-1 text-xs">
-                    ทุกเธรดจะได้รับคำตอบหลักเหมือนกันหมด — เพิ่มข้อยกเว้นเมื่ออยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า
+                    ทุกเธรดจะได้รับคำตอบหลักเหมือนกันหมด — เพิ่มเงื่อนไขเฉพาะเมื่ออยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า
                   </p>
                 </div>
               ) : (
@@ -384,17 +414,24 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         </div>
       </div>
 
-      {/* ── แถบบันทึกลอย ───────────────────────────────────────── */}
-      {canEdit && dirty.length > 0 && (
-        <div className="bg-default-900 sticky bottom-4 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 shadow-lg">
-          <span className="text-sm text-white">แก้ไข {dirty.length} อย่าง: {dirty.join(', ')}</span>
-          <div className="flex gap-2">
-            <button className="btn btn-sm btn-soft-default" disabled={busy}
-              onClick={() => {
-                setName(keyword.name); setMatchType(keyword.matchType)
-                setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
-              }}>ยกเลิก</button>
-            <button className="btn btn-sm btn-primary" disabled={busy} onClick={saveAll}>บันทึก</button>
+      {/* ── footer บันทึก (ตาม reference) — เห็นตลอด ปุ่มจางเมื่อยังไม่มีการแก้
+             ต่างจาก reference ตรงที่บอกด้วยว่าแก้อะไรไปบ้าง ซึ่งช่วยตอนแก้หลายจุดพร้อมกัน ── */}
+      {canEdit && (
+        <div className="card sticky bottom-4 z-10 mt-4">
+          <div className="card-body flex flex-wrap items-center justify-between gap-3 py-3">
+            <span className="text-default-600 text-sm">
+              {dirty.length > 0 ? `แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}` : 'ยังไม่มีการเปลี่ยนแปลง'}
+            </span>
+            <div className="flex gap-2">
+              <button className="btn btn-soft-default" disabled={busy || dirty.length === 0}
+                onClick={() => {
+                  setName(keyword.name); setMatchType(keyword.matchType)
+                  setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
+                }}>ยกเลิก</button>
+              <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
+                บันทึกการเปลี่ยนแปลง
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -411,7 +448,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   sheet เพิ่มข้อยกเว้น
+   sheet เพิ่มเงื่อนไขเฉพาะ
    ═══════════════════════════════════════════════════════════════════ */
 function ExceptionSheet({
   keywordId, channels, products, onClose, onCreated,
@@ -426,7 +463,7 @@ function ExceptionSheet({
   const [useAd, setUseAd] = useState(false)
   const [useProduct, setUseProduct] = useState(false)
   const [channelIds, setChannelIds] = useState<string[]>([])
-  const [adId, setAdId] = useState('')
+  const [adIds, setAdIds] = useState<string[]>([])
   const [productId, setProductId] = useState('')
   const [productQuery, setProductQuery] = useState('')
   const [reply, setReply] = useState('')
@@ -455,40 +492,48 @@ function ExceptionSheet({
       const names = channelIds.map((id) => channels.find((c) => c.id === id)?.name).filter(Boolean)
       parts.push(names.length === 1 ? `เพจ “${names[0]}”` : `เพจ ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
     }
-    if (useAd && adId) parts.push(`โฆษณา “${ads?.find((a) => a.adId === adId)?.adTitle ?? adId}”`)
+    if (useAd && adIds.length > 0) {
+      const names = adIds.map((id) => ads?.find((a) => a.adId === id)?.adTitle ?? id)
+      parts.push(names.length === 1 ? `โฆษณา “${names[0]}”` : `โฆษณา ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
+    }
     if (useProduct && productId) parts.push(`สินค้า “${products.find((p) => p.id === productId)?.name}”`)
     if (parts.length === 0) return null
     return parts.join(' และ ')
-  }, [usePage, useAd, useProduct, channelIds, adId, productId, channels, ads, products])
+  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products])
 
-  const canSubmit = summary !== null && reply.trim().length > 0 && !busy && (!usePage || channelIds.length > 0)
+  const canSubmit =
+    summary !== null && reply.trim().length > 0 && !busy &&
+    (!usePage || channelIds.length > 0) && (!useAd || adIds.length > 0)
 
   async function submit() {
     if (!canSubmit) return
     setBusy(true)
     try {
-      // เลือกหลายเพจ = สร้างหลายข้อยกเว้นที่ใช้คำตอบเดียวกัน (1 แถวต่อ 1 เงื่อนไข)
-      const targets = usePage && channelIds.length > 0 ? channelIds : [null]
+      // เลือกหลายเพจ/หลายโฆษณา = สร้างเงื่อนไขเฉพาะทุกคู่ผสม (1 แถวต่อ 1 เงื่อนไข)
+      const pageTargets = usePage && channelIds.length > 0 ? channelIds : [null]
+      const adTargets = useAd && adIds.length > 0 ? adIds : [null]
       const created: Rule[] = []
-      for (const ch of targets) {
-        created.push(
-          await callApi('/api/shops/auto-reply/rules', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              keywordId,
-              shopChannelId: ch,
-              adId: useAd ? adId : null,
-              adLabel: useAd ? (ads?.find((a) => a.adId === adId)?.adTitle ?? null) : null,
-              productId: useProduct ? productId : null,
-              replyText: reply.trim(),
-              activeFrom: null,
-              activeUntil: null,
+      for (const ch of pageTargets) {
+        for (const ad of adTargets) {
+          created.push(
+            await callApi('/api/shops/auto-reply/rules', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                keywordId,
+                shopChannelId: ch,
+                adId: ad,
+                adLabel: ad ? (ads?.find((a) => a.adId === ad)?.adTitle ?? null) : null,
+                productId: useProduct ? productId : null,
+                replyText: reply.trim(),
+                activeFrom: null,
+                activeUntil: null,
+              }),
             }),
-          }),
-        )
+          )
+        }
       }
-      pacesToast.success(created.length > 1 ? `เพิ่มข้อยกเว้น ${created.length} ข้อแล้ว` : 'เพิ่มข้อยกเว้นแล้ว')
+      pacesToast.success(created.length > 1 ? `เพิ่มเงื่อนไขเฉพาะ ${created.length} ข้อแล้ว` : 'เพิ่มเงื่อนไขเฉพาะแล้ว')
       onCreated(created)
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มไม่สำเร็จ')
@@ -501,14 +546,14 @@ function ExceptionSheet({
       {/* max-h-full พอ เพราะ parent เป็น fixed inset-0 ที่มี padding อยู่แล้ว — ไม่ต้องใช้ arbitrary vh */}
       <div className="card mb-0 flex max-h-full w-full max-w-2xl flex-col overflow-hidden">
         <div className="card-header flex items-center justify-between">
-          <h5 className="text-default-800 text-base font-semibold">เพิ่มข้อยกเว้น</h5>
+          <h5 className="text-default-800 text-base font-semibold">เพิ่มเงื่อนไขเฉพาะ</h5>
           <button onClick={onClose} className="text-default-500" aria-label="ปิด">
             <Icon icon="x" aria-hidden="true" />
           </button>
         </div>
 
         <div className="card-body flex-1 overflow-y-auto">
-          <p className="text-default-600 mb-3 text-sm">ใช้ข้อยกเว้นนี้เมื่อลูกค้า…</p>
+          <p className="text-default-600 mb-3 text-sm">ใช้คำตอบนี้เมื่อลูกค้า…</p>
 
           {/* เพจ */}
           <div className={`mb-2.5 rounded border p-3 ${usePage ? 'border-primary' : 'border-default-200'}`}>
@@ -518,7 +563,7 @@ function ExceptionSheet({
               มาจากเพจ
             </label>
             {usePage && (
-              // ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างข้อยกเว้น 2 ข้อที่ใช้คำตอบเดียวกัน
+              // ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างเงื่อนไขเฉพาะ 2 ข้อที่ใช้คำตอบเดียวกัน
               // (ตาราง AutoReplyRule เก็บ 1 แถวต่อ 1 เงื่อนไข ไม่ใช่ array ของเพจ)
               <div className="mt-2.5 space-y-1.5">
                 {channels.length === 0 && <p className="text-default-500 text-xs">ยังไม่ได้เชื่อมเพจใด</p>}
@@ -553,16 +598,28 @@ function ExceptionSheet({
                 ) : ads.length === 0 ? (
                   <p className="text-default-500 text-xs">ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด</p>
                 ) : (
-                  ads.map((a) => (
-                    <button key={a.adId} type="button" onClick={() => setAdId(a.adId)}
-                      className={`mb-1.5 flex w-full items-center gap-2.5 rounded border p-2.5 text-start ${adId === a.adId ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
-                      <span className={`size-4 flex-none rounded-full border-2 ${adId === a.adId ? 'border-primary border-4' : 'border-default-300'}`} />
-                      <span className="min-w-0">
-                        <span className="text-default-800 block text-sm font-medium">{a.adTitle ?? a.adId}</span>
-                        <span className="text-default-500 block text-xs">ทัก {a.hitCount} ครั้ง</span>
-                      </span>
-                    </button>
-                  ))
+                  ads.map((a) => {
+                    const on = adIds.includes(a.adId)
+                    return (
+                      <label key={a.adId}
+                        className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded border p-2.5 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
+                        <input
+                          type="checkbox" className="form-checkbox flex-none" checked={on}
+                          onChange={(e) =>
+                            setAdIds((prev) => (e.target.checked ? [...prev, a.adId] : prev.filter((x) => x !== a.adId)))
+                          }
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-default-800 block truncate text-sm font-medium">{a.adTitle ?? a.adId}</span>
+                          {/* แสดง ID ด้วย (user request) — ชื่อโฆษณาซ้ำกันได้ ID คือตัวที่แยกออกจริง
+                              และร้านเอาไปเทียบกับ Ads Manager ได้ */}
+                          <span className="text-default-500 block truncate text-xs">
+                            ID {a.adId} · ทัก {a.hitCount} ครั้ง
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })
                 )}
                 <p className="text-default-500 mt-1 text-xs">เลือกจากโฆษณาที่เคยมีลูกค้าทักเข้ามาจริง</p>
               </div>
@@ -611,7 +668,7 @@ function ExceptionSheet({
 
           {summary && (
             <div className="bg-primary/8 text-primary mt-3 rounded p-3 text-xs leading-relaxed">
-              ข้อยกเว้นนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
+              คำตอบนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
               <br />
               ยิ่งระบุเงื่อนไขหลายอย่าง ยิ่งอยู่สูงในลำดับ และถูกเลือกก่อนข้อที่ระบุน้อยกว่า
             </div>
@@ -620,7 +677,7 @@ function ExceptionSheet({
 
         <div className="card-footer flex justify-end gap-2">
           <button className="btn btn-soft-default" onClick={onClose}>ยกเลิก</button>
-          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>เพิ่มข้อยกเว้น</button>
+          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>เพิ่มเงื่อนไขเฉพาะ</button>
         </div>
       </div>
     </div>

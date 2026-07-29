@@ -22,6 +22,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime } from '@/lib/format-date'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
+import TestModeCard from './TestModeCard'
 
 type ConfigView = {
   isEnabled: boolean
@@ -314,6 +315,15 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
           )}
         </div>
       </div>
+
+      {/* โหมดทดสอบอยู่ท้ายหน้า — เป็นเครื่องมือก่อนเปิดใช้จริง ไม่ใช่สิ่งที่ต้องเห็นทุกวัน
+          แต่ตอนเปิดอยู่จะมีแถบเตือนค้างด้านบนสุดของหน้าเสมอ (AC-021-07) */}
+      <TestModeCard
+        canEdit={canEdit}
+        testMode={config.testMode}
+        testModeExpiresAt={config.testModeExpiresAt}
+        onChanged={(next) => setConfig((c) => ({ ...c, ...next }))}
+      />
     </>
   )
 }
