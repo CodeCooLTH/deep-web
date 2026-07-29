@@ -21,6 +21,7 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime } from '@/lib/format-date'
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 
 type ConfigView = {
   isEnabled: boolean
@@ -192,16 +193,19 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
                 aria-label="ค้นหากลุ่มคำ"
               />
             </div>
-            <select
-              className="form-select w-auto"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              aria-label="กรองตามสถานะ"
-            >
-              <option value="ALL">ทั้งหมด</option>
-              <option value="ACTIVE">เปิดใช้งาน</option>
-              <option value="INACTIVE">ปิดอยู่</option>
-            </select>
+            <div className="w-40">
+              <ChoiceSelect
+                options={[
+                  { value: 'ALL', label: 'ทั้งหมด' },
+                  { value: 'ACTIVE', label: 'เปิดใช้งาน' },
+                  { value: 'INACTIVE', label: 'ปิดอยู่' },
+                ]}
+                value={statusFilter}
+                search={false}
+                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                ariaLabel="กรองตามสถานะ"
+              />
+            </div>
             {canEdit && (
               <Link href="/settings/auto-reply/new" className="btn btn-primary ms-auto">
                 <Icon icon="plus" className="me-1" aria-hidden="true" />

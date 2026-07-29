@@ -20,6 +20,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 
 const REPLY_MAX = 1000
 
@@ -234,8 +235,8 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-10">
+        <div className="space-y-4 xl:col-span-7">
           {/* ── หัวกลุ่มคำ + คำตรวจจับ ───────────────────────────── */}
           <div className="card">
             <div className="card-header flex flex-wrap items-start justify-between gap-3">
@@ -255,16 +256,18 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                     : ' — ยังไม่ได้ใส่คำตรวจจับ'}
                 </p>
               </div>
-              <div className="flex flex-none items-center gap-2">
-                <span className={`badge ${isActive ? 'bg-success/15 text-success' : 'bg-default-200 text-default-600'}`}>
-                  {isActive ? 'เปิดใช้งาน' : 'ปิดอยู่'}
-                </span>
+              {/* สวิตช์อยู่ก่อนคำว่า เปิด/ปิด แบบเดียวกับ reference — อ่านเป็นประโยคเดียว
+                  และมีผลทันทีไม่ต้องกดบันทึก */}
+              <label className="flex flex-none cursor-pointer items-center gap-2">
                 <input
                   type="checkbox" className="form-switch" checked={isActive}
                   disabled={!canEdit || busy} onChange={(e) => toggleActive(e.target.checked)}
                   aria-label="เปิดใช้งานกลุ่มคำนี้"
                 />
-              </div>
+                <span className={`text-sm font-medium ${isActive ? 'text-success' : 'text-default-500'}`}>
+                  {isActive ? 'เปิด' : 'ปิด'}
+                </span>
+              </label>
             </div>
 
             <div className="card-body">
@@ -293,10 +296,11 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label htmlFor="k-match" className="text-default-600 mb-1 block text-xs">รูปแบบการตรวจจับ</label>
-                  <select id="k-match" className="form-select" value={matchType} disabled={!canEdit}
-                    onChange={(e) => setMatchType(e.target.value)}>
-                    {MATCH_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <ChoiceSelect
+                    id="k-match" options={MATCH_TYPE_OPTIONS} value={matchType} search={false}
+                    disabled={!canEdit} onChange={(v) => setMatchType(v as string)}
+                    ariaLabel="รูปแบบการตรวจจับ"
+                  />
                 </div>
                 <div>
                   <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
@@ -374,7 +378,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           </div>
         </div>
 
-        <div className="xl:col-span-1">
+        <div className="xl:col-span-3">
           <SimulatePanel channels={channels} products={products} keywordId={keyword.id}
             onEnable={() => toggleActive(true)} canEdit={canEdit} />
         </div>
@@ -399,7 +403,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         <ExceptionSheet
           keywordId={keyword.id} channels={channels} products={products}
           onClose={() => setSheetOpen(false)}
-          onCreated={(rule) => { setRules((r) => [...r, rule]); setSheetOpen(false); router.refresh() }}
+          onCreated={(created) => { setRules((r) => [...r, ...created]); setSheetOpen(false); router.refresh() }}
         />
       )}
     </>
@@ -416,12 +420,12 @@ function ExceptionSheet({
   channels: Channel[]
   products: Product[]
   onClose: () => void
-  onCreated: (r: Rule) => void
+  onCreated: (r: Rule[]) => void
 }) {
   const [usePage, setUsePage] = useState(false)
   const [useAd, setUseAd] = useState(false)
   const [useProduct, setUseProduct] = useState(false)
-  const [channelId, setChannelId] = useState(channels[0]?.id ?? '')
+  const [channelIds, setChannelIds] = useState<string[]>([])
   const [adId, setAdId] = useState('')
   const [productId, setProductId] = useState('')
   const [productQuery, setProductQuery] = useState('')
@@ -447,34 +451,44 @@ function ExceptionSheet({
   /** ประโยคสรุปภาษาคน — ผู้ใช้ไม่ต้องรู้จักคำว่า specificity */
   const summary = useMemo(() => {
     const parts: string[] = []
-    if (usePage && channelId) parts.push(`เพจ “${channels.find((c) => c.id === channelId)?.name}”`)
+    if (usePage && channelIds.length > 0) {
+      const names = channelIds.map((id) => channels.find((c) => c.id === id)?.name).filter(Boolean)
+      parts.push(names.length === 1 ? `เพจ “${names[0]}”` : `เพจ ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
+    }
     if (useAd && adId) parts.push(`โฆษณา “${ads?.find((a) => a.adId === adId)?.adTitle ?? adId}”`)
     if (useProduct && productId) parts.push(`สินค้า “${products.find((p) => p.id === productId)?.name}”`)
     if (parts.length === 0) return null
     return parts.join(' และ ')
-  }, [usePage, useAd, useProduct, channelId, adId, productId, channels, ads, products])
+  }, [usePage, useAd, useProduct, channelIds, adId, productId, channels, ads, products])
 
-  const canSubmit = summary !== null && reply.trim().length > 0 && !busy
+  const canSubmit = summary !== null && reply.trim().length > 0 && !busy && (!usePage || channelIds.length > 0)
 
   async function submit() {
     if (!canSubmit) return
     setBusy(true)
     try {
-      const created = await callApi('/api/shops/auto-reply/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keywordId,
-          shopChannelId: usePage ? channelId : null,
-          adId: useAd ? adId : null,
-          adLabel: useAd ? (ads?.find((a) => a.adId === adId)?.adTitle ?? null) : null,
-          productId: useProduct ? productId : null,
-          replyText: reply.trim(),
-          activeFrom: null,
-          activeUntil: null,
-        }),
-      })
-      pacesToast.success('เพิ่มข้อยกเว้นแล้ว')
+      // เลือกหลายเพจ = สร้างหลายข้อยกเว้นที่ใช้คำตอบเดียวกัน (1 แถวต่อ 1 เงื่อนไข)
+      const targets = usePage && channelIds.length > 0 ? channelIds : [null]
+      const created: Rule[] = []
+      for (const ch of targets) {
+        created.push(
+          await callApi('/api/shops/auto-reply/rules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              keywordId,
+              shopChannelId: ch,
+              adId: useAd ? adId : null,
+              adLabel: useAd ? (ads?.find((a) => a.adId === adId)?.adTitle ?? null) : null,
+              productId: useProduct ? productId : null,
+              replyText: reply.trim(),
+              activeFrom: null,
+              activeUntil: null,
+            }),
+          }),
+        )
+      }
+      pacesToast.success(created.length > 1 ? `เพิ่มข้อยกเว้น ${created.length} ข้อแล้ว` : 'เพิ่มข้อยกเว้นแล้ว')
       onCreated(created)
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มไม่สำเร็จ')
@@ -504,9 +518,24 @@ function ExceptionSheet({
               มาจากเพจ
             </label>
             {usePage && (
-              <select className="form-select mt-2.5" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
-                {channels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              // ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างข้อยกเว้น 2 ข้อที่ใช้คำตอบเดียวกัน
+              // (ตาราง AutoReplyRule เก็บ 1 แถวต่อ 1 เงื่อนไข ไม่ใช่ array ของเพจ)
+              <div className="mt-2.5 space-y-1.5">
+                {channels.length === 0 && <p className="text-default-500 text-xs">ยังไม่ได้เชื่อมเพจใด</p>}
+                {channels.map((c) => (
+                  <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox" className="form-checkbox"
+                      checked={channelIds.includes(c.id)}
+                      onChange={(e) =>
+                        setChannelIds((prev) => (e.target.checked ? [...prev, c.id] : prev.filter((x) => x !== c.id)))
+                      }
+                    />
+                    <span className="text-default-700">{c.name}</span>
+                    <span className="text-default-400 text-xs">{c.provider === 'INSTAGRAM' ? 'Instagram' : 'Messenger'}</span>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
 
@@ -615,6 +644,7 @@ function SimulatePanel({
   const [productId, setProductId] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<null | {
+    rawText: string
     matched: { keywordName: string; matchedPhrase: string } | null
     replyText: string | null
     willHandoff: boolean
@@ -654,14 +684,16 @@ function SimulatePanel({
         <textarea className="form-textarea" rows={2} value={message}
           placeholder="พิมพ์ข้อความแบบที่ลูกค้าจะทักเข้ามา"
           onChange={(e) => setMessage(e.target.value)} aria-label="ข้อความลูกค้าสมมติ" />
-        <select className="form-select" value={shopChannelId} onChange={(e) => setShopChannelId(e.target.value)} aria-label="เพจ">
-          <option value="">ไม่ระบุเพจ</option>
-          {channels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select className="form-select" value={productId} onChange={(e) => setProductId(e.target.value)} aria-label="สินค้า">
-          <option value="">ไม่ระบุสินค้า</option>
-          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <ChoiceSelect
+          options={channels.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder="ไม่ระบุเพจ" value={shopChannelId} search={false}
+          onChange={(v) => setShopChannelId(v as string)} ariaLabel="เพจ"
+        />
+        <ChoiceSelect
+          options={products.map((p) => ({ value: p.id, label: p.name }))}
+          placeholder="ไม่ระบุสินค้า" value={productId} search
+          onChange={(v) => setProductId(v as string)} ariaLabel="สินค้า"
+        />
         <button className="btn btn-primary w-full" disabled={busy || !message.trim()} onClick={run}>
           {busy ? 'กำลังทดสอบ…' : 'ทดสอบ'}
         </button>
@@ -686,23 +718,40 @@ function SimulatePanel({
               </div>
             ) : null}
 
-            {result.willHandoff ? (
-              <div className="border-default-200 rounded border border-dashed p-3">
-                <p className="text-default-800 text-sm font-medium">ระบบจะไม่ตอบ</p>
-                <p className="text-default-600 mt-1 text-xs">
-                  {result.matched
-                    ? 'ตรงกลุ่มคำแล้วแต่ยังไม่มีคำตอบให้ใช้ — เธรดจะถูกส่งต่อพนักงาน'
-                    : 'ไม่เข้าเงื่อนไขข้อใด — เธรดจะถูกส่งต่อพนักงานแทนการเดาคำตอบ'}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-default-500 mb-1 text-xs">ลูกค้าจะได้รับ</p>
-                <div className="bg-primary w-fit max-w-full rounded-lg px-3 py-2 text-sm text-white">
-                  {result.replyText}
+            {/* กรอบมือถือ — ให้ร้านเห็นว่าลูกค้าจะเห็นอะไรจริง ๆ ไม่ใช่แค่ข้อความลอย */}
+            <div className="border-default-300 bg-default-100 mx-auto w-full max-w-64 rounded-3xl border-4 p-2">
+              <div className="bg-white rounded-2xl p-2.5">
+                <div className="border-default-200 mb-2 flex items-center gap-2 border-b pb-2">
+                  <span className="bg-default-200 flex size-6 items-center justify-center rounded-full">
+                    <Icon icon="user" className="text-default-500 text-xs" aria-hidden="true" />
+                  </span>
+                  <span className="text-default-700 truncate text-xs font-medium">ลูกค้า</span>
                 </div>
+
+                {/* ข้อความที่ลูกค้าพิมพ์ */}
+                <div className="mb-1.5 flex justify-end">
+                  <span className="bg-default-100 text-default-800 max-w-full rounded-xl rounded-br-sm px-2.5 py-1.5 text-xs">
+                    {result.rawText}
+                  </span>
+                </div>
+
+                {/* คำตอบของระบบ */}
+                {result.willHandoff ? (
+                  <div className="border-default-200 rounded-lg border border-dashed px-2.5 py-2">
+                    <p className="text-default-700 text-xs font-medium">ระบบจะไม่ตอบ</p>
+                    <p className="text-default-500 mt-0.5 text-xs">
+                      {result.matched ? 'ยังไม่มีคำตอบให้ใช้ — ส่งต่อพนักงาน' : 'ไม่เข้าเงื่อนไขข้อใด — ส่งต่อพนักงาน'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex justify-start">
+                    <span className="bg-primary max-w-full rounded-xl rounded-bl-sm px-2.5 py-1.5 text-xs text-white">
+                      {result.replyText}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {result.matched && (
               <dl className="text-default-600 space-y-1 text-xs">

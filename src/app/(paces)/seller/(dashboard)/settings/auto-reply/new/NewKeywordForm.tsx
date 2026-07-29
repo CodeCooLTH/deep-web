@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 
 const MATCH_TYPE_OPTIONS = [
   {
@@ -89,18 +90,14 @@ export default function NewKeywordForm() {
           <label htmlFor="kw-match" className="text-default-700 mb-1 block text-sm font-medium">
             รูปแบบการตรวจจับ
           </label>
-          <select
+          <ChoiceSelect
             id="kw-match"
-            className="form-select"
+            options={MATCH_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
             value={matchType}
-            onChange={(e) => setMatchType(e.target.value)}
-          >
-            {MATCH_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            search={false}
+            onChange={(v) => setMatchType(v as string)}
+            ariaLabel="รูปแบบการตรวจจับ"
+          />
           <p className="text-default-500 mt-1 text-xs">{selectedHint}</p>
         </div>
 
