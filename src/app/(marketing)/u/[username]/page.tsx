@@ -13,7 +13,7 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
-import { getProductsByShop } from '@/services/product.service'
+import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/lib/trust-tier'
 import { getShopProfileStats } from '@/services/shop.service'
@@ -125,10 +125,17 @@ export default async function PublicProfilePage({ params }: Props) {
   // serialize products: Decimal → string, images Json → string[] → first
   // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
   // Phase 3 (feature 00013): serialize แยกชุด pinned/other — ทั้งสองมาจาก Prisma row shape เดียวกัน
+  // ยอด "ขายแล้ว" ต่อสินค้า — ดึงครั้งเดียวสำหรับทั้งชุดปักหมุดและชุดที่เหลือ (query เดียว ไม่ใช่ต่อใบ)
+  const soldByProduct = await getConfirmedOrderCountByProduct([
+    ...rawPinnedProducts.map((p) => p.id),
+    ...rawOtherProducts.map((p) => p.id),
+  ])
+
   const serializeProductRow = (p: (typeof rawPinnedProducts)[number]): SerializedProduct => ({
     id: p.id,
     name: p.name,
     price: p.price.toFixed(2),
+    soldCount: soldByProduct.get(p.id) ?? 0,
     imageUrl: (p.images as string[])[0] ?? null,
   })
   const pinnedProducts: SerializedProduct[] = rawPinnedProducts.map(serializeProductRow)
