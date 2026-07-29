@@ -14,14 +14,25 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
-export type OrderStageKey = 'ORDERED' | 'LABEL_PRINTED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED'
+export type OrderStageKey =
+  | 'ORDERED'
+  | 'PARCEL_CREATED'
+  | 'LABEL_PRINTED'
+  | 'SHIPPING'
+  | 'DELIVERED'
+  | 'COMPLETED'
+  | 'CANCELLED'
 
 /** cls ใช้ pattern เดียวกับ ORDER_STATUS_META (bg-{semantic}/15 text-{semantic}) — Paces token ล้วน */
 export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: string; icon: string }> = {
   ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary', icon: 'shopping-cart' },
+  PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary', icon: 'package' },
   LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning', icon: 'printer' },
   SHIPPING: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info', icon: 'truck-delivery' },
   DELIVERED: { label: 'จัดส่งสำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
+  // COMPLETED = ปิดการขายแล้วโดยไม่มีการส่งของ (ขายหน้าร้าน/สินค้าดิจิทัล/บริการ) — ห้ามใช้คำว่า
+  // "จัดส่งสำเร็จ" ตรงนี้ เพราะไม่มีอะไรถูกส่งเลย
+  COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
   CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger', icon: 'circle-x' },
 }
 
@@ -42,6 +53,8 @@ export interface OrderStageInput {
   carrierStatus: string | null
   /** OrderShipment.labelPrintCount — จำนวนครั้งที่กดพิมพ์ใบปะหน้าใบนี้ */
   labelPrintCount?: number | null
+  /** มีพัสดุที่ยัง active อยู่หรือไม่ — ตัวตัดสินว่าจะอ่านสถานะจาก "พัสดุ" หรือจาก "ออเดอร์" */
+  hasShipment?: boolean
 }
 
 export interface OrderStageResult {
@@ -60,9 +73,20 @@ export interface OrderStageResult {
 /**
  * deriveOrderStage — แปลงออเดอร์ล่าสุด 1 ใบเป็นป้าย (null = ไม่ต้องแสดงชิป)
  *
- * ลำดับการตรวจสำคัญ: ยกเลิก → สำเร็จ → กำลังส่ง → พิมพ์แล้ว → สั่งซื้อแล้ว
- * ตรวจสถานะปลายทางก่อนเสมอ เพราะออเดอร์ที่ส่งถึงแล้วก็ยังมี labelPrintedAt ติดอยู่
- * (ถ้าเช็คการพิมพ์ก่อน ออเดอร์ที่ส่งสำเร็จแล้วจะค้างป้าย "พิมพ์เอกสารแล้ว" ตลอดไป)
+ * กติกาแกนกลาง (แก้ 2026-07-29 หลัง user เจอบั๊ก): **ถ้ามีพัสดุ ให้พัสดุเป็นตัวกำหนดสถานะการส่ง
+ * ห้ามให้ Order.status มาทับ**
+ *
+ * ทำไม: `Order.status='CONFIRMED'` ในระบบนี้แปลว่า "ปิดการขายแล้ว" ไม่ได้แปลว่า "ของถึงมือลูกค้า" —
+ * ร้านขายหน้าร้าน/เก็บเงินเสร็จก็กดปิดงานได้ทันทีตั้งแต่ขนส่งยังไม่มารับพัสดุด้วยซ้ำ. โค้ดเดิมแมป
+ * CONFIRMED → "จัดส่งสำเร็จ" ตรง ๆ ทำให้ออเดอร์ที่เพิ่งสร้างขึ้นป้าย "จัดส่งสำเร็จ" ทันที
+ * (ยืนยันกับข้อมูลจริง 2026-07-29: 2 เธรดขึ้น "จัดส่งสำเร็จ" ทั้งที่ carrierStatus ยังเป็น null
+ * = ขนส่งยังไม่แตะพัสดุเลย) ซึ่งตรงกับ BR-ISHIP-40/41 ที่ระบุว่าสถานะขนส่งเป็นคนละชุดกับ Order.status
+ *
+ * ลำดับ: ยกเลิก → [มีพัสดุ: ส่งถึง → กำลังส่ง → พิมพ์แล้ว → สร้างพัสดุแล้ว]
+ *                → [ไม่มีพัสดุ: กำลังส่ง → ปิดการขาย → สั่งซื้อแล้ว]
+ *
+ * ในสายพัสดุยังต้องตรวจสถานะปลายทางก่อน labelPrintedAt เสมอ เพราะ labelPrintedAt ไม่เคยถูกล้าง —
+ * ถ้าเช็คการพิมพ์ก่อน ของที่ส่งถึงแล้วจะค้างป้าย "พิมพ์เอกสารแล้ว" ตลอดไป
  */
 export function deriveOrderStage(
   order: OrderStageInput | null,
@@ -72,18 +96,36 @@ export function deriveOrderStage(
 
   const statusAt = new Date(order.statusAt).getTime()
   const age = now - statusAt
+  // มีพัสดุจริงเมื่อ hasShipment บอกมา หรืออนุมานจากร่องรอยของพัสดุ (รองรับ caller เก่าที่ยังไม่ส่ง flag)
+  const hasShipment = order.hasShipment ?? (order.labelPrintedAt != null || order.carrierStatus != null)
 
   let key: OrderStageKey
   if (order.status === 'CANCELLED') {
     if (age > CANCELLED_VISIBLE_MS) return null
     key = 'CANCELLED'
-  } else if (order.status === 'CONFIRMED' || order.carrierStatus === 'delivered') {
-    if (age > DELIVERED_VISIBLE_MS) return null
-    key = 'DELIVERED'
-  } else if (order.status === 'SHIPPED' || (order.carrierStatus && IN_TRANSIT.includes(order.carrierStatus))) {
+  } else if (hasShipment) {
+    // สายพัสดุ — ขนส่งคือคนเดียวที่รู้จริงว่าของอยู่ไหน
+    if (order.carrierStatus === 'delivered') {
+      if (age > DELIVERED_VISIBLE_MS) return null
+      key = 'DELIVERED'
+    } else if (
+      (order.carrierStatus && IN_TRANSIT.includes(order.carrierStatus)) ||
+      // SHIPPED ต่างจาก CONFIRMED: มันคือคำยืนยันของร้านว่า "ของออกไปแล้ว" ซึ่งพูดถึงตัวพัสดุตรง ๆ
+      // ไม่ใช่การปิดการขาย จึงเชื่อได้และต้องชนะ labelPrintedAt (ขนส่งมักอัปเดตช้ากว่าความจริง)
+      order.status === 'SHIPPED'
+    ) {
+      key = 'SHIPPING'
+    } else if (order.labelPrintedAt) {
+      key = 'LABEL_PRINTED'
+    } else {
+      key = 'PARCEL_CREATED'
+    }
+  } else if (order.status === 'SHIPPED') {
+    // ร้านกดแจ้งจัดส่งเองโดยไม่ได้เปิดพัสดุผ่านระบบขนส่ง
     key = 'SHIPPING'
-  } else if (order.labelPrintedAt) {
-    key = 'LABEL_PRINTED'
+  } else if (order.status === 'CONFIRMED') {
+    if (age > DELIVERED_VISIBLE_MS) return null
+    key = 'COMPLETED'
   } else {
     key = 'ORDERED'
   }

@@ -61,6 +61,7 @@ type LatestOrderRow = {
   labelPrintedAt: Date | null
   labelPrintCount: number | null
   carrierStatus: string | null
+  hasShipment: boolean
 }
 
 /**
@@ -99,10 +100,13 @@ export async function enrichWithOrderStage<T extends Linkable>(
       COALESCE(s."carrierStatusAt", o."updatedAt") AS "statusAt",
       s."labelPrintedAt"  AS "labelPrintedAt",
       s."labelPrintCount" AS "labelPrintCount",
-      s."carrierStatus"   AS "carrierStatus"
+      s."carrierStatus"   AS "carrierStatus",
+      -- มีแถวพัสดุที่ยัง active อยู่จริงหรือไม่ — ต้องเช็คจาก id ไม่ใช่จาก labelPrintedAt/carrierStatus
+      -- เพราะพัสดุที่เพิ่งสร้าง (ยังไม่พิมพ์ ขนส่งยังไม่แจ้ง) ทั้งสองคอลัมน์นั้นเป็น null ทั้งคู่
+      (s."id" IS NOT NULL) AS "hasShipment"
     FROM "Order" o
     LEFT JOIN LATERAL (
-      SELECT sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt"
+      SELECT sh."id", sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt"
       FROM "OrderShipment" sh
       WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
       ORDER BY sh."createdAt" DESC
@@ -122,6 +126,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         labelPrintedAt: r.labelPrintedAt,
         labelPrintCount: r.labelPrintCount,
         carrierStatus: r.carrierStatus,
+        hasShipment: r.hasShipment,
       },
     ]),
   )
