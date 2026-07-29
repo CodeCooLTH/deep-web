@@ -26,7 +26,7 @@ describe('deriveOrderStage', () => {
     expect(s?.label).toBe('พิมพ์เอกสารแล้ว')
   })
 
-  it('Order.status=SHIPPED → กำลังจัดส่ง', () => {
+  it('ร้านแจ้งจัดส่งเองโดยไม่เปิดพัสดุ (SHIPPED, ไม่มีพัสดุ) → กำลังจัดส่ง', () => {
     expect(deriveOrderStage({ ...base, status: 'SHIPPED' }, NOW)?.label).toBe('กำลังจัดส่ง')
   })
 
@@ -34,7 +34,7 @@ describe('deriveOrderStage', () => {
     // BR-ISHIP-40/41: สถานะขนส่งเป็นคนละชุดกับ Order.status และไม่ไปแก้ Order.status ให้
     // ป้ายจึงต้องอ่านทั้งสองทาง ไม่งั้นออเดอร์ที่ขนส่งรับไปแล้วจะยังขึ้น "พิมพ์เอกสารแล้ว"
     const s = deriveOrderStage(
-      { ...base, labelPrintedAt: hoursAgo(5), carrierStatus: 'picked_up' },
+      { ...base, hasShipment: true, labelPrintedAt: hoursAgo(5), carrierStatus: 'picked_up' },
       NOW,
     )
     expect(s?.label).toBe('กำลังจัดส่ง')
@@ -42,21 +42,82 @@ describe('deriveOrderStage', () => {
 
   it('ส่งถึงแล้ว → จัดส่งสำเร็จ (ต้องชนะ labelPrintedAt ที่ยังติดอยู่)', () => {
     const s = deriveOrderStage(
-      { status: 'PENDING', statusAt: hoursAgo(2), labelPrintedAt: hoursAgo(30), carrierStatus: 'delivered' },
+      {
+        status: 'PENDING', statusAt: hoursAgo(2), hasShipment: true,
+        labelPrintedAt: hoursAgo(30), carrierStatus: 'delivered',
+      },
       NOW,
     )
     expect(s?.label).toBe('จัดส่งสำเร็จ')
   })
 
-  describe('การหมดอายุของป้าย', () => {
-    it('จัดส่งสำเร็จ 2 วัน 23 ชม. → ยังแสดง', () => {
-      const s = deriveOrderStage({ ...base, status: 'CONFIRMED', statusAt: hoursAgo(71) }, NOW)
+  // ── บั๊กจริงที่ user เจอ 2026-07-29 ──────────────────────────────────────────
+  // ออเดอร์ที่เพิ่งสร้างขึ้นป้าย "จัดส่งสำเร็จ" ทันที เพราะร้านกดปิดการขาย (CONFIRMED)
+  // ตั้งแต่ขนส่งยังไม่มารับพัสดุ — ข้อมูลจริงตอนนั้น: hasShipment=true, carrierStatus=null
+  describe('Order.status ต้องไม่ทับสถานะของพัสดุ (regression)', () => {
+    it('มีพัสดุ + ร้านกด CONFIRMED แต่ขนส่งยังไม่แจ้ง → ต้องไม่ใช่ "จัดส่งสำเร็จ"', () => {
+      const s = deriveOrderStage(
+        {
+          status: 'CONFIRMED', statusAt: hoursAgo(1), hasShipment: true,
+          labelPrintedAt: null, carrierStatus: null,
+        },
+        NOW,
+      )
+      expect(s?.label).toBe('สร้างพัสดุแล้ว')
+    })
+
+    it('มีพัสดุ + พิมพ์แล้ว + ร้านกด CONFIRMED → ยังเป็น "พิมพ์เอกสารแล้ว"', () => {
+      const s = deriveOrderStage(
+        {
+          status: 'CONFIRMED', statusAt: hoursAgo(1), hasShipment: true,
+          labelPrintedAt: hoursAgo(1), carrierStatus: null,
+        },
+        NOW,
+      )
+      expect(s?.label).toBe('พิมพ์เอกสารแล้ว')
+    })
+
+    it('มีพัสดุ + ขนส่งแจ้งส่งถึงแล้ว → จัดส่งสำเร็จ (พัสดุยืนยันเอง)', () => {
+      const s = deriveOrderStage(
+        {
+          status: 'CONFIRMED', statusAt: hoursAgo(1), hasShipment: true,
+          labelPrintedAt: hoursAgo(20), carrierStatus: 'delivered',
+        },
+        NOW,
+      )
       expect(s?.label).toBe('จัดส่งสำเร็จ')
+    })
+  })
+
+  describe('ขายโดยไม่มีการส่งของ', () => {
+    it('ไม่มีพัสดุ + CONFIRMED → "สำเร็จ" ไม่ใช่ "จัดส่งสำเร็จ" (ไม่มีอะไรถูกส่ง)', () => {
+      const s = deriveOrderStage({ ...base, status: 'CONFIRMED', statusAt: hoursAgo(1) }, NOW)
+      expect(s?.label).toBe('สำเร็จ')
+    })
+
+    it('ไม่มีพัสดุ + CONFIRMED เกิน 3 วัน → หายไป', () => {
+      expect(deriveOrderStage({ ...base, status: 'CONFIRMED', statusAt: hoursAgo(73) }, NOW)).toBeNull()
+    })
+  })
+
+  it('มีพัสดุแต่ยังไม่พิมพ์ ออเดอร์ยัง PENDING → สร้างพัสดุแล้ว', () => {
+    expect(deriveOrderStage({ ...base, hasShipment: true }, NOW)?.label).toBe('สร้างพัสดุแล้ว')
+  })
+
+  describe('การหมดอายุของป้าย', () => {
+    // ใช้เส้นทาง "พัสดุส่งถึงแล้ว" — เป็นทางเดียวที่ให้ป้าย "จัดส่งสำเร็จ" หลังแก้บั๊ก 2026-07-29
+    const delivered = (h: number) => ({
+      status: 'PENDING', statusAt: hoursAgo(h), hasShipment: true,
+      labelPrintedAt: hoursAgo(h + 20), carrierStatus: 'delivered',
+    })
+
+    it('จัดส่งสำเร็จ 2 วัน 23 ชม. → ยังแสดง', () => {
+      expect(deriveOrderStage(delivered(71), NOW)?.label).toBe('จัดส่งสำเร็จ')
     })
 
     it('จัดส่งสำเร็จเกิน 3 วัน → หายไปเลย ไม่ตกไปเป็นป้ายอื่น', () => {
-      const s = deriveOrderStage({ ...base, status: 'CONFIRMED', statusAt: hoursAgo(73) }, NOW)
-      expect(s).toBeNull()
+      // ต้องเป็น null ไม่ใช่ตกไปเป็น "พิมพ์เอกสารแล้ว" ที่ labelPrintedAt ยังค้างอยู่
+      expect(deriveOrderStage(delivered(73), NOW)).toBeNull()
     })
 
     it('ยกเลิกภายใน 1 วัน → ยกเลิกแล้ว (เตือนแอดมิน)', () => {
