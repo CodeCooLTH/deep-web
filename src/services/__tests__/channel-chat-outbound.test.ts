@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 // ถ้าประกาศ db ด้วย const ธรรมดาแล้วอ้างใน factory จะชน TDZ (ReferenceError) (เจอปัญหานี้แล้วใน Task 7/8)
 const db = vi.hoisted(() => ({
   conversation: { findUnique: vi.fn(), update: vi.fn() },
-  chatMessage: { create: vi.fn(), findUnique: vi.fn() },
+  chatMessage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   shop: { findUnique: vi.fn() },
   shopMember: { findUnique: vi.fn() }, // canAccessShop เช็ค membership เมื่อไม่ใช่เจ้าของ
   shopChannel: { findUnique: vi.fn(), update: vi.fn() },
@@ -162,6 +162,72 @@ describe('sendOutboundMessage', () => {
 
     expect(result).toEqual(existing)
     expect(db.chatMessage.findUnique).toHaveBeenCalledWith({ where: { externalMessageId: 'mid.out.1' } })
+  })
+
+  // ── feature 00023 auto-reply (S-06) ────────────────────────────────────────
+  describe('เส้นทางระบบ (auto-reply) — systemShopId + autoReplyKind', () => {
+    it('ส่งด้วย systemShopId ที่ตรงกับเธรด → ผ่าน และติดป้าย autoReplyKind ลงแถว', async () => {
+      await sendOutboundMessage({
+        conversationId: 'conv1', actorUserId: null, systemShopId: 'shop1',
+        text: 'ราคา 590 บาทค่ะ', autoReplyKind: 'AUTO',
+      })
+      expect(db.chatMessage.create.mock.calls[0]![0].data.autoReplyKind).toBe('AUTO')
+      // ห้ามเผลอเขียน senderUserId เป็นค่าอะไรก็ตาม — เส้นทางระบบไม่มี user
+      expect(db.chatMessage.create.mock.calls[0]![0].data.senderUserId).toBeNull()
+    })
+
+    it('systemShopId ไม่ตรงกับเจ้าของเธรด → FORBIDDEN และไม่ยิง Send API (กันยิงข้ามร้าน)', async () => {
+      await expect(
+        sendOutboundMessage({
+          conversationId: 'conv1', actorUserId: null, systemShopId: 'shop-อื่น',
+          text: 'hi', autoReplyKind: 'AUTO',
+        }),
+      ).rejects.toThrow('FORBIDDEN')
+      expect(sendTextMessage).not.toHaveBeenCalled()
+    })
+
+    it('ส่ง systemShopId มาพร้อม actorUserId → INVALID_ACTOR (เจตนาไม่ชัด ปฏิเสธไว้ก่อน)', async () => {
+      await expect(
+        sendOutboundMessage({
+          conversationId: 'conv1', actorUserId: 'owner1', systemShopId: 'shop1', text: 'hi',
+        }),
+      ).rejects.toThrow('INVALID_ACTOR')
+    })
+
+    it('caller เดิม (ไม่ส่ง autoReplyKind) → แถวได้ autoReplyKind = null เหมือนเดิมทุกประการ', async () => {
+      await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สวัสดีครับ' })
+      expect(db.chatMessage.create.mock.calls[0]![0].data.autoReplyKind).toBeNull()
+    })
+
+    it('[กับดัก echo] echo แทรกก่อน → ต้อง UPDATE ติดป้ายย้อนหลัง ไม่ปล่อยแถวค้าง null', async () => {
+      db.chatMessage.create.mockRejectedValue(p2002(['externalMessageId']))
+      // แถวที่ ingest เขียนจาก echo — ไม่รู้ว่าใครส่ง จึงเป็น null
+      const fromEcho = { id: 'm-from-echo', createdAt: new Date(), externalMessageId: 'mid.out.1', autoReplyKind: null }
+      db.chatMessage.findUnique.mockResolvedValue(fromEcho)
+      db.chatMessage.updateMany.mockResolvedValue({ count: 1 })
+
+      const result = await sendOutboundMessage({
+        conversationId: 'conv1', actorUserId: null, systemShopId: 'shop1',
+        text: 'ราคา 590 บาทค่ะ', autoReplyKind: 'AUTO',
+      })
+
+      // ถ้าไม่ UPDATE แถวนี้ เกณฑ์ "พนักงานตอบ" (SHOP + autoReplyKind IS NULL) จะนับคำตอบ
+      // ของบอทเองเป็นพนักงาน แล้วระบบจะหยุดตัวเองถาวร = ตอบครั้งแรกแล้วเงียบตลอดกาล
+      expect(db.chatMessage.updateMany).toHaveBeenCalledWith({
+        where: { id: 'm-from-echo', autoReplyKind: null },
+        data: { autoReplyKind: 'AUTO' },
+      })
+      expect(result.autoReplyKind).toBe('AUTO')
+    })
+
+    it('echo แทรกก่อนบนเส้นทาง "คนส่ง" → ไม่ UPDATE อะไร (พฤติกรรมเดิมของ 00018 ต้องไม่เปลี่ยน)', async () => {
+      db.chatMessage.create.mockRejectedValue(p2002(['externalMessageId']))
+      db.chatMessage.findUnique.mockResolvedValue({ id: 'm-echo', createdAt: new Date(), externalMessageId: 'mid.out.1' })
+
+      await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สวัสดีครับ' })
+
+      expect(db.chatMessage.updateMany).not.toHaveBeenCalled()
+    })
   })
 
   it('P2002 ที่ไม่ใช่ externalMessageId (หรือไม่มี mid) → ยังคง throw ปกติ ไม่กลืน error ทิ้ง', async () => {
