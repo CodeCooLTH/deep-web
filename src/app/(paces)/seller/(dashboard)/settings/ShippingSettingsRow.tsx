@@ -84,6 +84,9 @@ interface Box {
   width: number
   length: number
   height: number
+  /** null = กล่องมาตรฐานของ iShip · มีค่า = กล่องที่ร้านสร้างเองบนหลังบ้าน iShip
+   *  (ชื่อ snake_case ตามที่ iShip คืนมา — route ส่งต่อ response ดิบ ไม่ได้แปลงชื่อ) */
+  user_id?: number | null
 }
 
 // ─── โหมดการสร้างพัสดุ ───────────────────────────────────────────────────────
@@ -240,6 +243,10 @@ export default function ShippingSettingsRow({
   // ที่อยู่ผู้ส่ง — เลือกจากชุดข้อมูล (ไม่พิมพ์เอง)
   const [addrOpen, setAddrOpen] = useState(false)
   const addrTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // กล่องของร้าน (สร้างเองบน iShip) vs กล่องมาตรฐาน — iShip แยกด้วย user_id
+  const ownBoxes = boxes.filter((b) => b.user_id != null)
+  const standardBoxes = boxes.filter((b) => b.user_id == null)
 
   const isActive = connection.connected && connection.status !== 'TOKEN_INVALID'
   const hasSenderLocality = !!(
@@ -884,7 +891,10 @@ export default function ShippingSettingsRow({
                 </select>
               </div>
 
-              {/* เลือกกล่องมาตรฐานแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง */}
+              {/* เลือกกล่องแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง
+                  แยกกลุ่มให้กล่องของร้านขึ้นก่อน: กล่องมาตรฐานมี ~24 ใบ ถ้าเรียงรวมกัน
+                  กล่องที่ร้านสร้างเองจะไปกองท้ายสุดจนร้านนึกว่าไม่มี (user report 2026-07-29)
+                  ร้านที่ยังไม่เคยสร้างกล่องเองจะเห็นลิสต์เรียบเหมือนเดิม ไม่มี label ลอยเปล่า ๆ */}
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-box">กล่องที่ใช้ประจำ</label>
                 <select id="iship-box" className="form-select" defaultValue=""
@@ -893,12 +903,35 @@ export default function ShippingSettingsRow({
                     if (box) patch({ defaultWidth: box.width, defaultLength: box.length, defaultHeight: box.height })
                   }}>
                   <option value="">เลือกเพื่อเติมขนาดให้อัตโนมัติ (หรือกรอกเองด้านล่าง)</option>
-                  {boxes.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} — {b.width}x{b.length}x{b.height} ซม.
-                    </option>
-                  ))}
+                  {ownBoxes.length > 0 ? (
+                    <>
+                      <optgroup label="กล่องของร้าน">
+                        {ownBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="กล่องมาตรฐาน iShip">
+                        {standardBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : (
+                    standardBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))
+                  )}
                 </select>
+                <p className="mb-0 mt-1 text-xs text-default-400">
+                  ไม่เจอกล่องที่ใช้ กรอกขนาดเองด้านล่างได้เลย ถ้าจะเพิ่มกล่องใหม่
+                  ให้ไปสร้างที่หลังบ้าน iShip ก่อน แล้วจะขึ้นที่นี่ให้เอง
+                </p>
               </div>
 
               <div>

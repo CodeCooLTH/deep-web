@@ -1,4 +1,8 @@
-// feature 00022 — กล่องมาตรฐานของ iShip (ให้ร้านเลือกแทนกรอกขนาดเอง)
+// feature 00022 — รายการกล่องจากบัญชี iShip ของร้าน (ให้เลือกแทนกรอกขนาดเอง)
+//
+// คืนทั้งกล่องมาตรฐานของ iShip (user_id = null) และกล่องที่ร้านสร้างเองบนหลังบ้าน iShip
+// (user_id มีค่า) — ส่งต่อทั้งก้อนโดยไม่กรอง เพราะหน้าจอต้องใช้ user_id แยกกลุ่มให้กล่อง
+// ของร้านขึ้นก่อน ไม่งั้นมันไปกองท้ายกล่องมาตรฐาน ~24 ใบจนร้านนึกว่าไม่มี
 
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { ishipJson, mapIShipError } from "@/lib/iship/route-helpers";
