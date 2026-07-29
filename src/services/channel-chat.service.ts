@@ -228,7 +228,16 @@ export async function ingestInboundMessage(params: {
   provider: string
   pageExternalId: string
   event: MessagingEvent
-}): Promise<{ status: IngestStatus; conversationId?: string }> {
+}): Promise<{
+  status: IngestStatus
+  conversationId?: string
+  // --- feature 00023 (additive) — caller ใช้สร้าง AutoReplyJob; ไม่ใช้ก็ไม่กระทบอะไร ---
+  headMessageId?: string
+  shopId?: string
+  senderRole?: string
+  /** true เมื่อ event.message.text มีเนื้อความจริง (ไม่ใช่ placeholder ที่เราเขียนเองตอน mirror ไม่ผ่าน) */
+  hasCustomerText?: boolean
+}> {
   const { provider, pageExternalId, event } = params
 
   // event ที่ไม่ใช่ข้อความ (delivery/read receipt ฯลฯ) — ไม่ใช่ error แค่ไม่สนใจ
@@ -282,6 +291,11 @@ export async function ingestInboundMessage(params: {
   })
 
   const text = event.message.text ?? null
+  // feature 00023 (TD-007): "ลูกค้าพิมพ์ข้อความจริงมาไหม" — ต้องดูจาก payload ของ Meta ตรงนี้
+  // ไม่ใช่จาก ChatMessage.body ที่เขียนลง DB เพราะ body อาจเป็น placeholder ที่ "เราเขียนเอง"
+  // เมื่อ mirror ไฟล์ไม่ผ่าน (เช่น "[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]") ซึ่งถ้าเอาไปจับคู่
+  // กลุ่มคำ ร้านที่มีคำว่า "รูป" จะโดนระบบตอบราคาสินค้าใส่ตอนลูกค้าส่งสติกเกอร์
+  const hasCustomerText = !!text && text.trim().length > 0
   const firstAttachment = event.message.attachments?.[0]
   const attType = firstAttachment?.type // 'image'|'video'|'audio'|'file'|'location'|'fallback'|...
   // attachment.type → ChatMessage.type (feature 00018, user request 2026-07-24 "รองรับทุกอย่าง")
@@ -481,8 +495,10 @@ export async function ingestInboundMessage(params: {
   // ต้องเป็น arrow function (ไม่ใช่ `function` ประกาศแยก) ไม่งั้น TS จะรีเซ็ต narrowing ของ
   // `channel` (ที่เช็ค !channel ไปแล้วด้านบน) เพราะ function declaration แบบ hoisted ถูกมองว่า
   // เรียกได้จากที่ไหนก็ได้ ทำให้ TS มองว่า channel เป็น null ได้อีก
+  // feature 00023: คืน id ของ "ข้อความหลัก" (ไม่ใช่รูปที่ 2 เป็นต้นไป) ให้ caller เอาไปสร้าง
+  // AutoReplyJob — การเพิ่มค่า return ไม่กระทบ caller เดิมที่เขียน `await writeMessage(...)` เฉย ๆ
   const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string; isSpam: boolean }) => {
-    await tx.chatMessage.create({
+    const headMessage = await tx.chatMessage.create({
       data: {
         conversationId: conversation.id,
         senderUserId: null,
@@ -566,6 +582,8 @@ export async function ingestInboundMessage(params: {
         })
       }
     }
+
+    return headMessage.id
   }
 
   try {
@@ -584,8 +602,15 @@ export async function ingestInboundMessage(params: {
           },
         })
       }
-      await writeMessage(tx, conversation)
-      return { status: 'STORED' as const, conversationId: conversation.id }
+      const headMessageId = await writeMessage(tx, conversation)
+      return {
+        status: 'STORED' as const,
+        conversationId: conversation.id,
+        headMessageId,
+        shopId: channel.shopId,
+        senderRole,
+        hasCustomerText,
+      }
     })
   } catch (e) {
     // ชนที่ externalMessageId = Meta ยิงข้อความซ้ำจริง หรือ echo ของข้อความที่เราส่งออกไปเอง
@@ -604,8 +629,15 @@ export async function ingestInboundMessage(params: {
       if (winner) {
         try {
           return await prisma.$transaction(async (tx) => {
-            await writeMessage(tx, winner)
-            return { status: 'STORED' as const, conversationId: winner.id }
+            const headMessageId = await writeMessage(tx, winner)
+            return {
+              status: 'STORED' as const,
+              conversationId: winner.id,
+              headMessageId,
+              shopId: channel.shopId,
+              senderRole,
+              hasCustomerText,
+            }
           })
         } catch (retryError) {
           // เอดจ์เคส: ข้อความเดียวกัน (mid เดิม) มาถึงซ้ำพอดีตอน retry — ยังคือ "มีอยู่แล้ว"
