@@ -419,6 +419,9 @@ logUsageEvent(shopId, conversationId, kind, ...): Promise<void> // เขีย�
 - สวิตช์ที่ `disabled` จะถูก screen reader ข้าม → ผูก banner เข้ากับกลุ่มสวิตช์ด้วย `aria-describedby` ไม่งั้นผู้ใช้ screen reader จะไม่รู้เลยว่าทำไมกดไม่ได้
 - ห้ามใช้ `title=` เป็นที่อธิบายอย่างเดียว (แตะจอไม่เห็น tooltip)
 - ⚠️ ไฟล์จริงใช้ **`PUT /api/shops/ai-settings`** ไม่ใช่ PATCH (verify แล้วที่ `AiSettingForm.tsx:56`) — FR-AIQ-10 ให้อ่านว่าเป็น PUT
+- 🛑 **contract ของ PUT เปลี่ยนตอน implement (2026-07-29, จาก reviewer + security finding):** เดิม `ShopAiSettingSchema` บังคับ `includeProductContext`/`includeCustomerContext` เป็น **required** → พอ client ร้าน non-paid ส่งมาแค่ `{ instruction }` ตาม FR-AIQ-10 จะโดน **400 ตั้งแต่ชั้น Valibot ก่อนถึง gate** ทำให้ร้าน non-paid แก้ "คำสั่งประจำร้าน" ไม่ได้เลย (ขัด FR-AIQ-09/BR-AIQ-13 ที่บอกว่าช่องนี้ไม่ถูก gate)
+  → แก้เป็น **3 ฟิลด์บริบท optional: ไม่ส่งมา = "ไม่เปลี่ยนค่าเดิม"** (`upsertAiSetting` เติมจากค่า stored) ไม่ใช่ full-replace อีกต่อไป. ผลพลอยได้: `includeMediaContext` เดิม default เป็น `true` เมื่อไม่ส่งมา ซึ่งอันตรายกว่า (client เก่าเขียนทับให้ "เปิด" ทั้งที่ร้านตั้งใจปิด = ไฟล์ลูกค้าเข้า AI ทั้งไฟล์) — ตอนนี้ fallback เป็นค่า stored แทน
+  → เพิ่ม `AiSuggestRequestSchema` (Valibot) ให้ `confirmUseCredit` ด้วย ตาม convention backend — input ตัวนี้ทำให้เงินถูกหักจึงต้องเป็น boolean แท้ (`"true"`/object ถูก reject ไม่ใช่ตีเป็น truthy)
 - ไฟล์นี้มี state `canEdit` อยู่แล้ว (OWNER/ADMIN = true, STAFF = false) → ร้าน non-paid ที่ผู้ใช้เป็น STAFF จะเจอ **2 เหตุผลพร้อมกัน** ที่กดไม่ได้ ต้องตัดสินว่าจะแสดง banner ไหน (ข้อเสนอ: แสดงของ `canEdit` ก่อน เพราะ STAFF อัพเกรดแพ็กเกจเองไม่ได้อยู่ดี)
 
 ---

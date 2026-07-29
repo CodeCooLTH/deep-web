@@ -67,27 +67,77 @@ export async function getAiSetting(shopId: string): Promise<ShopAiSetting> {
 }
 
 /**
+ * getEffectiveAiSetting — บังคับสิทธิ์บริบท AI จริงตามสถานะ paid plan ที่ "ชั้นประกอบ context"
+ * (feature 00019 ext 2026-07-29, FR-AIQ-10/BR-AIQ-13/14) — ร้าน non-paid ให้ถือว่า
+ * includeProductContext/includeCustomerContext/includeMediaContext เป็น false เสมอ ไม่ว่าค่าที่เก็บ
+ * ใน DB จะเป็นอะไร ค่าที่เก็บใน DB (`stored`) ห้ามถูกแตะ/เขียนทับ — gate ทำที่ read-time เท่านั้น
+ * (BR-AIQ-14) เพื่อให้อัปเกรดแล้วบริบทกลับมาทำงานตามค่าเดิมทันทีโดยผู้ใช้ไม่ต้องตั้งใหม่
+ *
+ * instruction (คำสั่งประจำร้าน) ไม่อยู่ใน gate นี้ — ทุกร้านใช้ได้ปกติ (BR-AIQ-13)
+ */
+export function getEffectiveAiSetting(stored: ShopAiSetting, isPaidPlan: boolean): ShopAiSetting {
+  if (isPaidPlan) return stored
+  return {
+    ...stored,
+    includeProductContext: false,
+    includeCustomerContext: false,
+    includeMediaContext: false,
+  }
+}
+
+/** โยนเมื่อร้าน non-paid พยายามเปลี่ยนค่า 3 ฟิลด์บริบท AI ผ่าน PUT ตรง ๆ (FR-AIQ-10, ข้าม UI ก็โดน) */
+export const CONTEXT_GATE_PAID_PLAN_REQUIRED = 'CONTEXT_GATE_PAID_PLAN_REQUIRED'
+
+/**
  * upsertAiSetting — บันทึกการตั้งค่า (full replace ไม่ใช่ partial patch ตาม API.md §4.2)
  *
  * ไม่ fail-soft: การบันทึกล้มเหลวต้องแจ้งผู้ใช้จริง ๆ ไม่ใช่กลืนเงียบแล้วทำเหมือนบันทึกสำเร็จ
  * (ต่างจาก getAiSetting ที่เป็นเส้นทางอ่านซึ่งมีค่าเริ่มต้นให้ถอยไปได้)
+ *
+ * @param isPaidPlan - สถานะ paid plan ของ owner ร้านนี้ (feature 00019 ext 2026-07-29, FR-AIQ-10) —
+ *   ร้าน non-paid ที่ payload พยายามเปลี่ยนค่า includeProductContext/includeCustomerContext/
+ *   includeMediaContext ให้ต่างจากค่าที่เก็บอยู่ (`stored`, ไม่ใช่ effective) จะถูกปฏิเสธทั้งคำขอ —
+ *   `instruction` ไม่ถูก gate เปลี่ยนได้เสมอ (BR-AIQ-13) ป้องกันการยิง API ตรงข้าม UI ที่ disable ไว้
+ * @throws Error(CONTEXT_GATE_PAID_PLAN_REQUIRED) ถ้า non-paid พยายามเปลี่ยน 3 ฟิลด์นั้น
  */
 export async function upsertAiSetting(
   shopId: string,
   updatedByUserId: string,
   input: {
     instruction: string
-    includeProductContext: boolean
-    includeCustomerContext: boolean
-    includeMediaContext: boolean
+    // 3 ฟิลด์บริบทเป็น optional — ไม่ส่งมา = "ไม่เปลี่ยนค่าเดิม" (เติมจาก stored ให้เอง)
+    // จำเป็นเพราะร้าน non-paid ถูก gate ห้ามเปลี่ยน 3 ฟิลด์นี้ (FR-AIQ-10) client จึงส่งมาแค่
+    // instruction — ถ้าบังคับ required ร้าน non-paid จะแก้ "คำสั่งประจำร้าน" ไม่ได้เลยทั้งที่
+    // BR-AIQ-13 บอกว่าช่องนี้ไม่ถูก gate
+    includeProductContext?: boolean
+    includeCustomerContext?: boolean
+    includeMediaContext?: boolean
   },
+  isPaidPlan: boolean,
 ): Promise<ShopAiSetting> {
+  const current = await getAiSetting(shopId) // ค่าที่เก็บจริง (stored) — ไม่ใช่ effective
+  // ฟิลด์ที่ไม่ได้ส่งมา = คงค่าเดิม (ไม่ใช่ reset เป็น default) — กันการเขียนทับสิ่งที่ร้าน
+  // ตั้งใจปิดไว้ โดยเฉพาะ includeMediaContext ที่การเปิดโดยไม่ตั้งใจ = ไฟล์ลูกค้าเข้า AI ทั้งไฟล์
+  const includeProductContext = input.includeProductContext ?? current.includeProductContext
+  const includeCustomerContext = input.includeCustomerContext ?? current.includeCustomerContext
+  const includeMediaContext = input.includeMediaContext ?? current.includeMediaContext
+
+  if (!isPaidPlan) {
+    const contextFieldsChanged =
+      includeProductContext !== current.includeProductContext ||
+      includeCustomerContext !== current.includeCustomerContext ||
+      includeMediaContext !== current.includeMediaContext
+    if (contextFieldsChanged) {
+      throw new Error(CONTEXT_GATE_PAID_PLAN_REQUIRED)
+    }
+  }
+
   const instruction = input.instruction.trim().slice(0, AI_INSTRUCTION_MAX_LENGTH)
   const data = {
     instruction: instruction === '' ? null : instruction,
-    includeProductContext: input.includeProductContext,
-    includeCustomerContext: input.includeCustomerContext,
-    includeMediaContext: input.includeMediaContext,
+    includeProductContext,
+    includeCustomerContext,
+    includeMediaContext,
     updatedByUserId,
   }
   const row = await prisma.shopAiSetting.upsert({

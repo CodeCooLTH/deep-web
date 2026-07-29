@@ -3,7 +3,8 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext } from "@/lib/shop-context";
-import { getAiSetting, upsertAiSetting } from "@/services/ai-setting.service";
+import { getAiSetting, upsertAiSetting, CONTEXT_GATE_PAID_PLAN_REQUIRED } from "@/services/ai-setting.service";
+import { isOwnerPaidPlan } from "@/services/ai-suggest-quota.service";
 import { ShopAiSettingSchema } from "@/lib/validations";
 
 /**
@@ -73,8 +74,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
 
+  // feature 00019 ext (2026-07-29) FR-AIQ-10: บังคับสิทธิ์บริบท AI จริงที่ backend — ร้าน non-paid
+  // ห้ามเปลี่ยนค่า 3 ฟิลด์บริบทแม้ยิง API ตรงข้าม UI (fail-closed เหมือน quota gate ของ ai-suggest)
+  let isPaidPlan: boolean;
   try {
-    const setting = await upsertAiSetting(ctx.shopId, ctx.userId, parsed.output);
+    isPaidPlan = await isOwnerPaidPlan(ctx.shopId);
+  } catch (e) {
+    console.error("[PUT /api/shops/ai-settings] isOwnerPaidPlan failed", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+  }
+
+  try {
+    const setting = await upsertAiSetting(ctx.shopId, ctx.userId, parsed.output, isPaidPlan);
     return NextResponse.json(
       {
         instruction: setting.instruction,
@@ -87,6 +98,15 @@ export async function PUT(request: NextRequest) {
       { headers: NO_STORE_HEADERS },
     );
   } catch (e) {
+    if (e instanceof Error && e.message === CONTEXT_GATE_PAID_PLAN_REQUIRED) {
+      return NextResponse.json(
+        {
+          error: "ปิดใช้งานบริบทสินค้า/ประวัติลูกค้า/ไฟล์แนบสำหรับแพ็กเกจนี้ — อัพเกรดแพ็กเกจธุรกิจเพื่อใช้งาน",
+          code: CONTEXT_GATE_PAID_PLAN_REQUIRED,
+        },
+        { status: 403 },
+      );
+    }
     // ไม่ fail-soft ที่เส้นทางเขียน — บันทึกไม่สำเร็จต้องแจ้งผู้ใช้จริง ห้ามกลืนเงียบ
     console.error("[PUT /api/shops/ai-settings]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
