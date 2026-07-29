@@ -16,6 +16,7 @@ import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
+  findMissingParcelFields,
   findMissingReceiverFields,
   findMissingSenderFields,
   type DeepAddress,
@@ -84,6 +85,12 @@ export interface ShipmentView {
   lastErrorCode: string | null;
   /** ข้อความไทยที่แสดงได้ — ไม่ใช่ข้อความดิบจาก iShip */
   lastErrorMessage: string | null;
+  /** ข้อมูลพัสดุที่ถูกส่งไปจริง — ให้ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยค่าอะไร */
+  weight: number | null;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: number;
   createdAt: Date;
 }
 
@@ -372,15 +379,42 @@ function toShipmentView(s: {
   labelPrintCount: number;
   isDryRun: boolean;
   lastErrorCode: string | null;
+  weight: unknown;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: unknown;
   createdAt: Date;
 }): ShipmentView {
   return {
     ...s,
+    // Decimal ของ Prisma → number ก่อนข้ามขอบเขต (Decimal serialize ข้าม RSC/HTTP ไม่ได้)
+    weight: s.weight == null ? null : Number(s.weight),
+    codAmount: Number(s.codAmount ?? 0),
     // ข้อความที่แสดงต่อผู้ใช้มาจาก error code ของเรา ไม่ใช่ lastErrorMessage ที่เป็นข้อความดิบ
     lastErrorMessage: s.lastErrorCode
       ? new IShipError(s.lastErrorCode as never).userMessage
       : null,
   };
+}
+
+/**
+ * resolveCourierName — แปลงรหัสขนส่งเป็นชื่อที่คนอ่านออก ณ เวลาสร้างพัสดุ
+ *
+ * ห้ามให้ล้มเหลวแล้วบล็อกการสร้างพัสดุ — มันเป็นแค่ข้อความบนจอ ไม่ใช่ข้อมูลที่ขนส่งต้องใช้
+ * คืน null เมื่อดึงไม่ได้/ไม่เจอ แล้วให้หน้าจอ fallback เป็นรหัสขนส่งแทน
+ */
+async function resolveCourierName(
+  shopId: string,
+  courierCode: string | null,
+): Promise<string | null> {
+  if (!courierCode) return null;
+  try {
+    const list = await listCouriers(shopId);
+    return list.find((c) => c.code === courierCode)?.name ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const SHIPMENT_SELECT = {
@@ -399,6 +433,11 @@ const SHIPMENT_SELECT = {
   labelPrintCount: true,
   isDryRun: true,
   lastErrorCode: true,
+  weight: true,
+  width: true,
+  length: true,
+  height: true,
+  codAmount: true,
   createdAt: true,
 } as const;
 
@@ -447,6 +486,11 @@ export async function getShipmentPanel(
       buyerName: true,
       buyerContact: true,
       shippingAddress: true,
+      // รายการสินค้า — ให้ร้านตรวจก่อนกดสร้างว่ากำลังเปิดพัสดุให้ออเดอร์ใบที่ตั้งใจ
+      items: {
+        select: { id: true, name: true, qty: true, price: true },
+        orderBy: { name: "asc" },
+      },
     },
   });
   if (!order) return null;
@@ -497,6 +541,14 @@ export async function getShipmentPanel(
       province: addr.province ?? null,
       postcode: addr.postcode ?? null,
     },
+    sender: senderOf(account),
+    items: order.items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      qty: it.qty,
+      // Decimal ข้ามขอบเขต RSC ไม่ได้ — แปลงตั้งแต่ที่นี่เหมือน field อื่นในไฟล์นี้
+      price: Number(it.price),
+    })),
     defaults: {
       courierCode: account.defaultCourierCode,
       weight: account.defaultWeight ? Number(account.defaultWeight) : null,
@@ -684,10 +736,21 @@ export async function createShipment(
   const length = override?.length ?? account.defaultLength;
   const height = override?.height ?? account.defaultHeight;
 
-  if (!courierCode || categoryId == null || weight == null || width == null || length == null || height == null) {
+  // ตรวจก่อนยิงเสมอ — ปล่อยให้ iShip ปฏิเสธแล้วค่อยรู้ = ร้านได้ข้อความปลายทางที่อ่านไม่ออก
+  // และเสียเวลาไปหนึ่งรอบ บอกเป็นช่อง ๆ ว่าขาดอะไร ไม่ใช่ "ข้อมูลไม่ครบ" ลอย ๆ
+  const missingParcel = findMissingParcelFields({
+    courierCode,
+    categoryId,
+    weight,
+    width,
+    length,
+    height,
+  });
+  if (missingParcel.length > 0) {
     throw new IShipServiceError(
       "INCOMPLETE_DATA",
-      "ยังตั้งค่าเริ่มต้นของพัสดุไม่ครบ (ขนส่ง ประเภทสินค้า น้ำหนัก หรือขนาดกล่อง)",
+      `ยังตั้งค่าพัสดุไม่ครบ — ขาด ${missingParcel.join(", ")} (ตั้งได้ที่หน้าตั้งค่าการจัดส่ง)`,
+      missingParcel,
     );
   }
 
@@ -701,6 +764,10 @@ export async function createShipment(
       status: "PENDING",
       idempotencyKey,
       courierCode,
+      // ชื่อขนส่งสำหรับแสดงผล — เก็บ ณ เวลาสร้าง ไม่ re-fetch ทุกครั้งที่เปิดดู
+      // ถ้าดึงรายชื่อไม่ได้ ปล่อย null แล้วให้หน้าจอ fallback เป็นรหัสขนส่งแทน
+      // (ห้ามให้การดึงชื่อมาบล็อกการสร้างพัสดุ — มันเป็นแค่ข้อความบนจอ)
+      courierName: await resolveCourierName(shopId, courierCode),
       categoryId,
       weight,
       width,

@@ -90,25 +90,42 @@ export type MissingSenderField =
   | "จังหวัด (ผู้ส่ง)"
   | "รหัสไปรษณีย์ (ผู้ส่ง)";
 
-/** ใช้ตรงจุดที่รับได้ทั้งสองฝั่ง (ข้อความ error, payload ที่ส่งออก API) */
-export type MissingAddressField = MissingReceiverField | MissingSenderField;
+/** ช่องพัสดุที่ขาด/ไม่ผ่านเกณฑ์ — ใช้บอกร้านเป็นช่อง ๆ ไม่ใช่ "ข้อมูลไม่ครบ" ลอย ๆ */
+export type MissingParcelField =
+  | "ขนส่ง"
+  | "ประเภทสินค้า"
+  | "น้ำหนัก"
+  | "ความกว้าง"
+  | "ความยาว"
+  | "ความสูง";
+
+/** ใช้ตรงจุดที่รับได้ทุกฝั่ง (ข้อความ error, payload ที่ส่งออก API) */
+export type MissingAddressField =
+  | MissingReceiverField
+  | MissingSenderField
+  | MissingParcelField;
 
 const isBlank = (v?: string | null): boolean => !v || v.trim() === "";
 
 /**
- * normalizeProvince — แปลงชื่อจังหวัดให้ตรงกับที่ iShip รู้จัก
+ * normalizeProvince — แปลงชื่อจังหวัดให้ตรงกับที่ create_order ต้องการ
  *
- * ตั้งแต่ 2026-07-29 ช่องเลือกที่อยู่ใช้ชุดข้อมูลของ iShip แล้ว (public/data/iship-address.json)
- * ที่อยู่ที่บันทึกใหม่จึงตรงอยู่แล้ว — ตัวนี้มีไว้กัน "ข้อมูลเก่า" ที่บันทึกด้วยชุดข้อมูลเดิม
- * ซึ่งเรียก กทม. ว่า "กรุงเทพมหานคร" ส่วน iShip เรียก "กรุงเทพ"
+ * ปม: มีสองแหล่งที่ขัดกันเรื่องชื่อ กทม.
+ *   - ชุดข้อมูลที่อยู่ที่ iShip ให้ใช้ (public/data/iship-address.json) เขียน "กรุงเทพ"
+ *     → ค่าที่ร้านเลือกจากช่องค้นหาตั้งแต่ 2026-07-29 จะเป็น "กรุงเทพ"
+ *   - เอกสาร create_order (ทั้งตาราง field และตัวอย่าง curl) เขียน "กรุงเทพมหานคร"
+ *     → นี่คือค่าที่ endpoint ต้องการจริง
  *
- * ไม่ทำแปลว่าออเดอร์เก่าปลายทางกรุงเทพ (186 ตำบล) เปิดพัสดุแล้วส่งชื่อจังหวัดที่ iShip ไม่รู้จัก
- * จงใจแปลงเฉพาะเคสนี้เคสเดียว — ที่เหลือ (ชื่อตำบล/อำเภอต่างกัน 57 แถว, รหัสไปรษณีย์ 16 แถว)
- * เดาแทนร้านไม่ได้ ต้องให้ร้านเลือกใหม่จากช่องค้นหา ไม่ใช่ให้ระบบทายแล้วส่งผิดที่เงียบ ๆ
+ * user ตัดสิน 2026-07-29: **ยึดเอกสาร** — ดังนั้นแปลงขาออกเป็น "กรุงเทพมหานคร" เสมอ
+ * ครอบทั้งข้อมูลใหม่ (ได้ "กรุงเทพ" จาก picker) และข้อมูลเก่า (เป็น "กรุงเทพมหานคร" อยู่แล้ว)
+ * ปลายทางจึงเหมือนกันหมดไม่ว่าที่อยู่จะถูกบันทึกตอนไหน
+ *
+ * จงใจแปลงเฉพาะ กทม. — จังหวัดอื่นสองแหล่งเขียนตรงกัน ส่วนที่ต่างกันที่เหลือเป็นระดับ
+ * ตำบล/อำเภอ/รหัสไปรษณีย์ (73 แถว) ซึ่งเดาแทนร้านไม่ได้ ต้องให้เลือกใหม่จากช่องค้นหา
  */
 export function normalizeProvince(v?: string | null): string {
   const s = (v ?? "").trim();
-  return s === "กรุงเทพมหานคร" ? "กรุงเทพ" : s;
+  return s === "กรุงเทพ" ? "กรุงเทพมหานคร" : s;
 }
 
 /**
@@ -150,6 +167,33 @@ export function findMissingSenderFields(
   if (isBlank(sender?.district)) missing.push("อำเภอ (ผู้ส่ง)");
   if (isBlank(sender?.province)) missing.push("จังหวัด (ผู้ส่ง)");
   if (isBlank(sender?.postcode)) missing.push("รหัสไปรษณีย์ (ผู้ส่ง)");
+  return missing;
+}
+
+/**
+ * findMissingParcelFields — ตรวจค่าพัสดุก่อนยิงไป iShip
+ *
+ * ทำที่ฝั่งเราก่อนเสมอ เพราะถ้าปล่อยให้ iShip ปฏิเสธ ร้านจะได้ข้อความปลายทางที่อ่านไม่ออก
+ * และเสียเวลาไปหนึ่งรอบ (เคสจริง 2026-07-29: iShip ตอบ "กรุณากรอก สีสินค้า …" แล้วเรา
+ * แปลเป็น "ระบบขนส่งขัดข้อง" ทำให้ร้านกดลองใหม่วนไปโดยไม่รู้ว่าต้องแก้อะไร)
+ *
+ * ตรวจช่วงค่าด้วย ไม่ใช่แค่ว่ามีค่า — ขนาด 0 หรือติดลบผ่าน type ได้แต่ขนส่งไม่รับ
+ */
+export function findMissingParcelFields(p: {
+  courierCode?: string | null;
+  categoryId?: number | null;
+  weight?: number | null;
+  width?: number | null;
+  length?: number | null;
+  height?: number | null;
+}): MissingParcelField[] {
+  const missing: MissingParcelField[] = [];
+  if (isBlank(p.courierCode)) missing.push("ขนส่ง");
+  if (p.categoryId == null || !isValidCategoryId(p.categoryId)) missing.push("ประเภทสินค้า");
+  if (p.weight == null || !(p.weight > 0)) missing.push("น้ำหนัก");
+  if (p.width == null || !(p.width > 0)) missing.push("ความกว้าง");
+  if (p.length == null || !(p.length > 0)) missing.push("ความยาว");
+  if (p.height == null || !(p.height > 0)) missing.push("ความสูง");
   return missing;
 }
 
@@ -259,6 +303,10 @@ export function buildCreateOrderPayload(
       // น้ำหนักต่อชิ้น = น้ำหนักรวม ÷ จำนวนชิ้นทั้งหมด (ประมาณการ — เราไม่เก็บรายชิ้น)
       product_weight: roundTo(parcel.weight / qtyTotal, 3),
       product_qty: it.qty,
+      // iShip บังคับช่องนี้ (ปฏิเสธจริงบน prod 2026-07-29 ด้วยข้อความ "กรุณากรอก สีสินค้า …")
+      // เราไม่ได้เก็บสีของสินค้าในระบบ จึงส่งคำว่าไม่ระบุแทนการเดา — ห้ามส่งค่าว่างหรือ
+      // เอาชื่อสินค้ามาใส่ เพราะจะกลายเป็นข้อมูลเท็จบนเอกสารขนส่ง
+      product_color: "ไม่ระบุ",
       product_price: it.price,
     }));
   }
