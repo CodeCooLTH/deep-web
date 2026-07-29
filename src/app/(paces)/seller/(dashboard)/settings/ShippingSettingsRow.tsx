@@ -28,6 +28,9 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { formatDateTime } from '@/lib/format-date'
 import { ISHIP_CATEGORIES } from '@/lib/iship/mapping'
 import IShipModalShell from '@/components/safepay/iship/IShipModalShell'
+import AddressSearchSheet, {
+  type SelectedLocality,
+} from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
 
 // ─── Types (รูปเดียวกับที่ ShippingClient เคยรับ) ────────────────────────────
 
@@ -81,6 +84,9 @@ interface Box {
   width: number
   length: number
   height: number
+  /** null = กล่องมาตรฐานของ iShip · มีค่า = กล่องที่ร้านสร้างเองบนหลังบ้าน iShip
+   *  (ชื่อ snake_case ตามที่ iShip คืนมา — route ส่งต่อ response ดิบ ไม่ได้แปลงชื่อ) */
+  user_id?: number | null
 }
 
 // ─── โหมดการสร้างพัสดุ ───────────────────────────────────────────────────────
@@ -234,7 +240,21 @@ export default function ShippingSettingsRow({
   const [boxes, setBoxes] = useState<Box[]>([])
   const refLoaded = useRef(false)
 
+  // ที่อยู่ผู้ส่ง — เลือกจากชุดข้อมูล (ไม่พิมพ์เอง)
+  const [addrOpen, setAddrOpen] = useState(false)
+  const addrTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // กล่องของร้าน (สร้างเองบน iShip) vs กล่องมาตรฐาน — iShip แยกด้วย user_id
+  const ownBoxes = boxes.filter((b) => b.user_id != null)
+  const standardBoxes = boxes.filter((b) => b.user_id == null)
+
   const isActive = connection.connected && connection.status !== 'TOKEN_INVALID'
+  const hasSenderLocality = !!(
+    settings?.senderSubdistrict ||
+    settings?.senderDistrict ||
+    settings?.senderProvince ||
+    settings?.senderPostcode
+  )
 
   // รายชื่อขนส่ง/กล่องโหลดตอนเปิดโมดัลตั้งค่าครั้งแรกเท่านั้น — แถวนี้ mount ทุกครั้งที่เข้า
   // /settings การยิง 2 endpoint ไป iShip ทุกครั้งทั้งที่ร้านไม่ได้เปิดโมดัลคือค่าใช้จ่ายเปล่า
@@ -715,21 +735,19 @@ export default function ShippingSettingsRow({
               >
                 ปิด
               </button>
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="btn inline-flex items-center justify-center gap-2 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
-                >
-                  {saving ? (
-                    <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <Icon icon="device-floppy" className="text-base" aria-hidden="true" />
-                  )}
-                  บันทึกการตั้งค่า
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="btn inline-flex items-center justify-center gap-2 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
+              >
+                {saving ? (
+                  <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <Icon icon="device-floppy" className="text-base" aria-hidden="true" />
+                )}
+                บันทึกการตั้งค่า
+              </button>
             </div>
           }
         >
@@ -801,35 +819,44 @@ export default function ShippingSettingsRow({
                   onChange={(e) => patch({ senderAddress: e.target.value })} />
               </div>
               {/*
-                ป้ายกำกับต้องเขียนให้ชัดว่าช่องไหนคือระดับไหน — ระบบขนส่งเรียก "ตำบล" ว่า
-                district ส่วนเราเรียก "อำเภอ" ว่า district ถ้าคนกรอกสลับช่อง พัสดุจะไปผิดตำบล
-                โดยไม่มีอะไรฟ้อง (BR-ISHIP-31)
+                เลือกจากชุดข้อมูลแทนพิมพ์เอง (user request 2026-07-29) — เดิมเป็นช่องอิสระ 4 ช่อง
+                ซึ่งเป็นจุดที่คนสลับ "ตำบล" กับ "อำเภอ" ได้ง่ายที่สุด แล้วพัสดุไปผิดตำบล
+                โดยไม่มีอะไรฟ้อง (BR-ISHIP-31) · เลือกทีเดียวเติมครบ 4 ค่า และคำที่ได้มาจาก
+                ชุดข้อมูลของ iShip เอง จึงตรงกับที่ปลายทางรู้จักแน่นอน
               */}
-              <div>
-                <label className="form-label" htmlFor="iship-senderSubdistrict">ตำบล / แขวง</label>
-                <input id="iship-senderSubdistrict" type="text" className="form-input"
-                  value={settings.senderSubdistrict ?? ''}
-                  onChange={(e) => patch({ senderSubdistrict: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="iship-senderDistrict">อำเภอ / เขต</label>
-                <input id="iship-senderDistrict" type="text" className="form-input"
-                  value={settings.senderDistrict ?? ''}
-                  onChange={(e) => patch({ senderDistrict: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="iship-senderProvince">จังหวัด</label>
-                <input id="iship-senderProvince" type="text" className="form-input"
-                  value={settings.senderProvince ?? ''}
-                  onChange={(e) => patch({ senderProvince: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="iship-senderPostcode">รหัสไปรษณีย์</label>
-                <input id="iship-senderPostcode" type="text" inputMode="numeric" maxLength={5}
-                  className={inputCls('senderPostcode')}
-                  aria-describedby={errors.senderPostcode ? 'iship-senderPostcode-err' : undefined}
-                  value={settings.senderPostcode ?? ''}
-                  onChange={(e) => patch({ senderPostcode: e.target.value })} />
+              <div className="sm:col-span-2">
+                <label className="form-label" id="iship-sender-locality-label">
+                  ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์
+                </label>
+                <button
+                  ref={addrTriggerRef}
+                  type="button"
+                 
+                  onClick={() => setAddrOpen(true)}
+                  aria-labelledby="iship-sender-locality-label"
+                  className="flex w-full items-center gap-2 rounded-lg border border-default-300 px-3 py-2.5 text-left"
+                >
+                  <Icon
+                    icon="map-pin"
+                    className={`size-4 shrink-0 ${hasSenderLocality ? 'text-primary' : 'text-default-400'}`}
+                    aria-hidden="true"
+                  />
+                  {hasSenderLocality ? (
+                    <span className="min-w-0 flex-1 text-sm">
+                      <span className="block font-semibold text-default-900">
+                        ต.{settings.senderSubdistrict || '—'} · อ.{settings.senderDistrict || '—'}
+                      </span>
+                      <span className="block text-xs text-default-500">
+                        {settings.senderProvince || '—'} · {settings.senderPostcode || '—'}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1 text-sm text-default-400">
+                      แตะเพื่อเลือกตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์
+                    </span>
+                  )}
+                  <Icon icon="chevron-right" className="size-4 shrink-0 text-default-400" aria-hidden="true" />
+                </button>
                 {fieldError('senderPostcode')}
               </div>
             </div>
@@ -864,7 +891,10 @@ export default function ShippingSettingsRow({
                 </select>
               </div>
 
-              {/* เลือกกล่องมาตรฐานแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง */}
+              {/* เลือกกล่องแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง
+                  แยกกลุ่มให้กล่องของร้านขึ้นก่อน: กล่องมาตรฐานมี ~24 ใบ ถ้าเรียงรวมกัน
+                  กล่องที่ร้านสร้างเองจะไปกองท้ายสุดจนร้านนึกว่าไม่มี (user report 2026-07-29)
+                  ร้านที่ยังไม่เคยสร้างกล่องเองจะเห็นลิสต์เรียบเหมือนเดิม ไม่มี label ลอยเปล่า ๆ */}
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-box">กล่องที่ใช้ประจำ</label>
                 <select id="iship-box" className="form-select" defaultValue=""
@@ -873,12 +903,37 @@ export default function ShippingSettingsRow({
                     if (box) patch({ defaultWidth: box.width, defaultLength: box.length, defaultHeight: box.height })
                   }}>
                   <option value="">เลือกเพื่อเติมขนาดให้อัตโนมัติ (หรือกรอกเองด้านล่าง)</option>
-                  {boxes.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} — {b.width}x{b.length}x{b.height} ซม.
-                    </option>
-                  ))}
+                  {ownBoxes.length > 0 ? (
+                    <>
+                      <optgroup label="กล่องของร้าน">
+                        {ownBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="กล่องมาตรฐาน iShip">
+                        {standardBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : (
+                    standardBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))
+                  )}
                 </select>
+                {/* ไม่พูดถึง "กรอกขนาดเองด้านล่าง" ซ้ำ — placeholder ในตัว select บอกไปแล้ว
+                    เหลือเฉพาะเรื่องที่ select บอกเองไม่ได้: กล่องใหม่ต้องไปเพิ่มที่ iShip
+                    (เราไม่รองรับการสร้างกล่อง และ iShip ก็ไม่มี endpoint ให้สร้างด้วย) */}
+                <p className="mb-0 mt-1 text-xs text-default-400">
+                  เพิ่มกล่องใหม่ได้ที่ระบบ iShip
+                </p>
               </div>
 
               <div>
@@ -992,6 +1047,34 @@ export default function ShippingSettingsRow({
               </label>
             ))}
           </div>
+
+          {/* sheet เลือกที่อยู่ — อยู่ในโมดัลโดยเจตนา (shell มี transform-gpu แล้ว จึงเต็ม "กรอบโมดัล"
+              ไม่ใช่เต็มจอทับโมดัล) · คืนโฟกัสกลับปุ่มเดิมตอนปิด ไม่งั้นคีย์บอร์ดหลงทาง */}
+          <AddressSearchSheet
+            open={addrOpen}
+            current={
+              hasSenderLocality
+                ? {
+                    subdistrict: settings.senderSubdistrict ?? '',
+                    district: settings.senderDistrict ?? '',
+                    province: settings.senderProvince ?? '',
+                    postcode: settings.senderPostcode ?? '',
+                  }
+                : null
+            }
+            onSelect={(loc: SelectedLocality) =>
+              patch({
+                senderSubdistrict: loc.subdistrict,
+                senderDistrict: loc.district,
+                senderProvince: loc.province,
+                senderPostcode: loc.postcode,
+              })
+            }
+            onClose={() => {
+              setAddrOpen(false)
+              addrTriggerRef.current?.focus()
+            }}
+          />
         </IShipModalShell>
       )}
     </>

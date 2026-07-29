@@ -47,6 +47,17 @@ export default function IShipModalShell({
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
 
+  // เก็บ onClose ไว้ใน ref แล้วให้ effect ด้านล่างรันครั้งเดียวตอน mount
+  //
+  // เดิม effect ผูก [onClose] ตรง ๆ ซึ่งพังจริง: ผู้เรียกประกาศ handler ใหม่ทุก render
+  // (closeSettings ใน ShippingSettingsRow) พอพิมพ์ 1 ตัวอักษร → setState → re-render →
+  // onClose เป็น reference ใหม่ → effect รันซ้ำ → โฟกัสเด้งไปปุ่มปิดทุกครั้งที่พิมพ์
+  // (user report 2026-07-29) — แก้ที่นี่ ไม่ใช่ให้ผู้เรียกทุกที่ต้องจำ memo handler เอง
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
+
   useEffect(() => {
     const panel = panelRef.current
     if (!panel) return
@@ -57,7 +68,7 @@ export default function IShipModalShell({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -80,7 +91,9 @@ export default function IShipModalShell({
 
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    // mount ครั้งเดียวโดยเจตนา — โฟกัสแรกต้องเกิดตอนเปิดโมดัลเท่านั้น ไม่ใช่ทุก render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     // HR7: z-80 = viewport overlay lock (Paces ไม่มี token; precedent OrderQrSheet/AccountSwitcherSheet)
@@ -97,10 +110,14 @@ export default function IShipModalShell({
         className="absolute inset-0 bg-default-900/40 backdrop-blur-xs"
       />
 
-      {/* HR7: max-h-[92dvh] / safe-area — Paces ไม่มี token สำหรับความสูงหน้าจอมือถือ (precedent sheet อื่น) */}
+      {/* HR7: max-h-[92dvh] / safe-area — Paces ไม่มี token สำหรับความสูงหน้าจอมือถือ (precedent sheet อื่น)
+          transform-gpu: ทำให้ลูกที่เป็น position:fixed (เช่น AddressSearchSheet ในแท็บที่อยู่ผู้ส่ง)
+          ยึดกับ "กรอบโมดัล" แทน viewport — พฤติกรรม CSS: ancestor ที่มี transform เป็น containing block
+          ของ fixed descendant ถ้าไม่ใส่ บนเดสก์ท็อป sheet จะกางเต็มจอทับโมดัลจนดูหลุดกรอบ
+          (precedent: (chat)/_components/DraftOrderProvider.tsx) */}
       <div
         ref={panelRef}
-        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-card shadow-lg lg:max-h-[85dvh] lg:rounded-2xl ${DESKTOP_WIDTH[size]}`}
+        className={`relative flex max-h-[92dvh] w-full transform-gpu flex-col rounded-t-2xl bg-card shadow-lg lg:max-h-[85dvh] lg:rounded-2xl ${DESKTOP_WIDTH[size]}`}
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-default-200 px-5 pb-3 pt-4">
           <div className="absolute inset-x-0 top-2 mx-auto h-1 w-9 rounded-full bg-default-300 lg:hidden" />

@@ -431,6 +431,39 @@ export async function getBestSellerProducts(shopId: string, take = 8) {
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 }
 
+/**
+ * จำนวน "คำสั่งซื้อที่ซื้อไปแล้ว" ต่อสินค้า — ใช้โชว์บนหน้าร้านสาธารณะ (user ขอ 2026-07-26)
+ *
+ * นับเฉพาะ **CONFIRMED** เท่านั้น: บน Deep ออเดอร์จะ CONFIRMED ก็ต่อเมื่อผู้ซื้อกดยืนยันว่าได้รับ
+ * ของแล้ว ตัวเลขนี้จึงแปลว่า "มีคนซื้อแล้วได้ของจริงกี่ครั้ง" ซึ่งเป็นสิ่งเดียวที่ควรเอาไปวางบนหน้า
+ * ที่คนใช้ตัดสินใจโอนเงิน — PENDING คือสร้างออเดอร์ไว้เฉย ๆ ใครก็สร้างได้ ถ้านับด้วยจะกลายเป็น
+ * ตัวเลขที่ร้านปั่นเองได้ ขัดกับเหตุผลทั้งหมดของแพลตฟอร์ม (เกณฑ์เดียวกับที่ Revenue/P&L ใช้)
+ *
+ * นับเป็น "จำนวนคำสั่งซื้อ" ไม่ใช่จำนวนชิ้น — ออเดอร์เดียวซื้อ 10 ชิ้นไม่ได้แปลว่ามีคนเชื่อใจร้าน
+ * 10 ครั้ง groupBy ด้วย [productId, orderId] จึงได้หนึ่งแถวต่อหนึ่งคู่ = จำนวนออเดอร์ที่ไม่ซ้ำพอดี
+ * (สินค้าเดียวกันลงสองบรรทัดในออเดอร์เดียวจะไม่ถูกนับซ้ำ)
+ *
+ * หมายเหตุ: ต่างจาก getBestSellerProducts ที่นับ **ทุกสถานะ** และนับเป็นจำนวนชิ้น — ตัวนั้นเป็น
+ * ตัวเลขฝั่งหลังบ้านให้ร้านดูเอง คนละความหมายกับตัวเลขที่โชว์ผู้ซื้อ
+ */
+export async function getConfirmedOrderCountByProduct(
+  productIds: string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (productIds.length === 0) return result;
+
+  const pairs = await prisma.orderItem.groupBy({
+    by: ["productId", "orderId"],
+    where: { productId: { in: productIds }, order: { status: "CONFIRMED" } },
+  });
+
+  for (const row of pairs) {
+    if (!row.productId) continue;
+    result.set(row.productId, (result.get(row.productId) ?? 0) + 1);
+  }
+  return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Chat Product Context Card (extension #1, feat 00011) — lightweight product ref
 // ใช้ 2 ที่: chat.service.sendMessage (S-17 verify cross-shop) +

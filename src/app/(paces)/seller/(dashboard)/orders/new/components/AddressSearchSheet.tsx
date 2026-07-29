@@ -3,8 +3,14 @@
 /**
  * AddressSearchSheet — full-screen sheet ค้นหาที่อยู่ไทย (quick create < lg)
  * Base: mockup 2026-07-06-quick-create-order.html (frame "แตะที่อยู่ → ค้นหา (full sheet)")
- * data: public/data/thai-address.json (jquery.Thailand.js, 7498 records) — fetch runtime + cache module-level
- *   (ไม่ import กัน tsc infer literal 982KB + ไม่เข้า JS bundle — served static, browser cache)
+ * data: public/data/iship-address.json (7,662 records) — fetch runtime + cache module-level
+ *   (ไม่ import กัน tsc infer literal ~1MB + ไม่เข้า JS bundle — served static, browser cache)
+ *
+ * สำคัญ: ใช้ชุดข้อมูลของ iShip ไม่ใช่ thai-address.json เดิม (user สั่ง 2026-07-29)
+ * เพราะที่อยู่ที่เลือกตรงนี้ถูกส่งต่อไปเปิดพัสดุจริง ถ้าคำไม่ตรงกับที่ iShip รู้จัก พัสดุจะเปิดไม่ได้
+ * หรือไปผิดที่ ตัวที่ต่างชัดสุดคือ **กทม.: iShip เรียก "กรุงเทพ" ชุดเดิมเรียก "กรุงเทพมหานคร"**
+ * (เทียบแล้วไม่ตรงกัน 259 แถว — กทม. 186 + ชื่อตำบล/อำเภอ 57 + รหัสไปรษณีย์ 16)
+ * ที่มา: ไฟล์ที่ iShip กำหนดให้ใช้ (Google Sheet ของผู้ให้บริการ) commit เข้า repo ไม่ยิงตอน runtime
  * พิมพ์ ตำบล/อำเภอ/จังหวัด/รหัส อย่างใดอย่างหนึ่ง → เลือก → เติมครบ 4 ฟิลด์
  */
 
@@ -47,7 +53,7 @@ export default function AddressSearchSheet({ open, current, onSelect, onClose }:
       return
     }
     setLoading(true)
-    fetch('/data/thai-address.json')
+    fetch('/data/iship-address.json')
       .then((r) => r.json())
       .then((data: AddrRecord[]) => {
         ADDR_CACHE = data

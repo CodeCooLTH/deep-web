@@ -52,6 +52,13 @@ export interface IShipBox {
   length: number;
   height: number;
   unit: string;
+  /**
+   * null = กล่องมาตรฐานของ iShip · มีค่า = กล่องที่บัญชีร้านนั้นสร้างเองบนหลังบ้าน iShip
+   *
+   * ต้องส่งต่อถึงหน้าจอ ไม่ตัดทิ้ง — กล่องมาตรฐานมี ~24 ใบ ถ้าไม่แยกกลุ่ม กล่องของร้าน
+   * จะไปกองท้ายสุดจนร้านนึกว่าไม่มี (user report 2026-07-29)
+   */
+  user_id?: number | null;
 }
 
 export interface IShipPrice {

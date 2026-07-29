@@ -521,6 +521,94 @@ export async function getUnreadCountForShop(shopId: string): Promise<number> {
   return ids.length
 }
 
+/**
+ * getConversationToastPreview — ข้อมูลเท่าที่ toast "มีข้อความใหม่" ต้องใช้ (feature 00018)
+ *
+ * ทำไมต้องมีฟังก์ชันแยก ไม่ยัดเนื้อหาลง realtime broadcast: payload ของ channel
+ * `chat:shop:{shopId}` เป็น **signal-only โดยตั้งใจ** (มีแค่ conversationId — ดู
+ * prisma/migrations/20260703000400_chat_realtime_broadcast/migration.sql ที่ระบุห้าม body/imageUrl
+ * หลุดผ่าน broadcast เพราะ Supabase Realtime กระจายให้ทุก client ที่ subscribe channel นั้นได้)
+ * toast แบบมีชื่อ+ข้อความจึงต้อง "ได้สัญญาณก่อน แล้วค่อยดึงเนื้อหาผ่าน API ที่ตรวจสิทธิ์" เสมอ
+ *
+ * ownership อยู่ใน WHERE ({ id, shopId }) ตามแบบเดียวกับ updateConversationState — ไม่ findUnique
+ * แล้วค่อยเทียบทีหลัง (กัน TOCTOU/IDOR) ไม่พบ/ไม่ใช่ของร้านนี้ → null เฉย ๆ ไม่แยกสองความหมาย
+ *
+ * allow-list ที่ระดับ select: คืนเฉพาะฟิลด์ที่ toast วาดจริง — ห้ามเพิ่ม phone/email/ที่อยู่
+ * (บทเรียน PII หลุดผ่าน RSC flight ของโปรเจกต์นี้: "ดึงมาแล้วค่อยตัดตอนแสดงผล" ไม่ปลอดภัยพอ)
+ */
+export interface ConversationToastPreview {
+  conversationId: string
+  senderName: string
+  senderAvatarUrl: string | null
+  preview: string | null
+  channel: string
+  /** ชื่อเพจ/บัญชีที่ลูกค้าทักเข้ามา — null เมื่อเป็นแชทในเว็บ Deep (ไม่มี ShopChannel) */
+  channelName: string | null
+  lastMessageAt: Date
+}
+
+export async function getConversationToastPreview(
+  conversationId: string,
+  shopId: string,
+): Promise<ConversationToastPreview | null> {
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: conversationId, shopId },
+    select: {
+      id: true,
+      channel: true,
+      lastMessagePreview: true,
+      lastMessageAt: true,
+      alias: true,
+      buyerUserId: true,
+      externalContactId: true,
+      shopChannelId: true,
+    },
+  })
+  if (!conversation) return null
+
+  // ชื่อที่แสดง: alias (ชื่อที่ร้านตั้งเองในแชท) ชนะชื่อจริงเสมอ — ตรงกับที่ InboxList แสดง
+  // ไม่งั้น toast กับรายการแชทจะเรียกคนคนเดียวกันคนละชื่อ
+  let senderName = conversation.alias ?? null
+  let senderAvatarUrl: string | null = null
+
+  if (conversation.externalContactId) {
+    const contact = await prisma.externalContact.findUnique({
+      where: { id: conversation.externalContactId },
+      select: { name: true, avatarUrl: true },
+    })
+    senderName = senderName ?? contact?.name ?? null
+    // Messenger ไม่คืนรูปโปรไฟล์ (ดู getContactProfile ใน lib/facebook/graph.ts) → null เป็นเรื่องปกติ
+    // ไม่ใช่ข้อผิดพลาด UI ต้อง fallback เป็นตัวอักษรแรกของชื่อเหมือน InboxList
+    senderAvatarUrl = contact?.avatarUrl ?? null
+  } else if (conversation.buyerUserId) {
+    const buyer = await prisma.user.findUnique({
+      where: { id: conversation.buyerUserId },
+      select: { displayName: true, avatar: true },
+    })
+    senderName = senderName ?? buyer?.displayName ?? null
+    senderAvatarUrl = buyer?.avatar ?? null
+  }
+
+  let channelName: string | null = null
+  if (conversation.shopChannelId) {
+    const channel = await prisma.shopChannel.findUnique({
+      where: { id: conversation.shopChannelId },
+      select: { name: true },
+    })
+    channelName = channel?.name ?? null
+  }
+
+  return {
+    conversationId: conversation.id,
+    senderName: senderName ?? 'ผู้ติดต่อ',
+    senderAvatarUrl,
+    preview: conversation.lastMessagePreview,
+    channel: conversation.channel,
+    channelName,
+    lastMessageAt: conversation.lastMessageAt,
+  }
+}
+
 // ---- internal: ownership guard ----
 async function assertParticipant(conversationId: string, actorUserId: string) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } })

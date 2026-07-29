@@ -59,7 +59,15 @@ export default function PacesToastContainer() {
     return (
       <div className={regionClass[placement]} aria-live="polite" aria-atomic="false">
         {items.map((t) => (
-          <PacesToastItem key={t.id} id={t.id} type={t.type} message={t.message} duration={t.duration} onClose={remove} />
+          <PacesToastItem
+            key={t.id}
+            id={t.id}
+            type={t.type}
+            message={t.message}
+            duration={t.duration}
+            chatMessage={t.chatMessage}
+            onClose={remove}
+          />
         ))}
       </div>
     )
