@@ -1,7 +1,8 @@
 'use client'
 
 /**
- * AiSettingForm — ฟอร์มตั้งค่าผู้ช่วยร่างคำตอบ AI (feature 00019, FR-001..FR-003)
+ * AiSettingForm — ฟอร์มตั้งค่าผู้ช่วยร่างคำตอบ AI (feature 00019, FR-001..FR-003
+ * + extension 2026-07-29 usage-limit FR-AIQ-09/10)
  *
  * Base (textarea + นับตัวอักษร): src/app/(paces)/seller/(dashboard)/products/components/
  *   ProductDescriptionCardV2.tsx (`form-textarea` + counter) ซึ่ง Base เดิมมาจาก
@@ -9,12 +10,22 @@
  * Base (สวิตช์ + คำอธิบายใต้ label): src/app/(paces)/seller/(dashboard)/business/[shopId]/invites/
  *   components/FinanceVisibilityToggle.tsx (`form-switch` controlled + description row)
  *   ซึ่ง Base เดิมมาจาก theme/paces/.../form/elements/components/ChecksRadioSwitches.tsx:71
+ * Base (banner `bg-info/15 text-info` + Icon `info-circle`): banner `!canEdit` ที่มีอยู่แล้วในไฟล์นี้
+ * Base (badge soft `bg-{color}/15 text-{color}`): docs/system/ui-guideline/paces-component-reference.md §6
  *
  * toast ใช้ pacesToast เท่านั้น (Hard Rule 9) — หน้านี้อยู่ใน (paces)
  * canEdit=false (STAFF) → ทุก control เป็น disabled และไม่ render ปุ่มบันทึก (AC-003-02)
  *   แต่ความปลอดภัยจริงอยู่ที่ PUT ซึ่งตรวจ role ฝั่ง server ซ้ำเสมอ (AC-003-03)
+ *
+ * gate ร้าน non-paid (isPaidPlan=false, FR-AIQ-09): สวิตช์ทั้ง 3 disabled + badge "อัพเกรด/ต่ออายุแพ็กเกจ"
+ * ท้ายหัวข้อ + banner เหนือกลุ่มสวิตช์ — ค่าที่แสดงเป็น "effective" (isPaidPlan ? stored : false)
+ * ไม่ใช่ stored ตรง ๆ เพื่อไม่ให้ผู้ใช้เข้าใจผิดว่ายังทำงานอยู่ (BR-AIQ-14 ค่า stored ใน DB ไม่ถูกแตะ
+ * — แค่ปิดการแสดง/แก้ที่ UI นี้เท่านั้น) กรณีชนกับ !canEdit (STAFF ของร้าน non-paid) — !canEdit ชนะ
+ * แสดงเฉพาะ banner เดิม ไม่แสดง banner/badge อัปเกรด (STAFF จัดการ billing เองไม่ได้อยู่แล้ว)
  */
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 
@@ -38,9 +49,14 @@ type Props = {
   initial: Setting
   /** OWNER/ADMIN = true, STAFF = false (อ่านอย่างเดียว) */
   canEdit: boolean
+  /** owner ของร้านมี BusinessPackageSubscription.status==="ACTIVE" (BR-AIQ-02) */
+  isPaidPlan: boolean
+  /** ร้าน non-paid ที่เคยสมัครแล้วแต่ subscription ถูกล็อกจาก renew ล้มเหลว — ใช้เลือกข้อความ badge */
+  subscriptionLapsed: boolean
 }
 
-export default function AiSettingForm({ initial, canEdit }: Props) {
+export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscriptionLapsed }: Props) {
+  const router = useRouter()
   const [instruction, setInstruction] = useState(initial.instruction)
   const [includeProductContext, setIncludeProductContext] = useState(initial.includeProductContext)
   const [includeCustomerContext, setIncludeCustomerContext] = useState(initial.includeCustomerContext)
@@ -48,19 +64,29 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
   const [saving, setSaving] = useState(false)
 
   const overLimit = instruction.length > INSTRUCTION_MAX
+  // ร้าน non-paid + แก้ไขได้ (ไม่ใช่ STAFF) → เห็น gate ของฟีเจอร์นี้ (banner + badge + disabled)
+  // STAFF ของร้าน non-paid ยังโดน disabled จาก !canEdit อยู่แล้ว แต่ไม่ต้องเห็น banner/badge อัปเกรดซ้ำ
+  const showUpgradeGate = !isPaidPlan && canEdit
+  const contextGateDescribedBy = showUpgradeGate ? 'ai-context-gate-notice' : undefined
 
   async function handleSave() {
     if (overLimit || saving) return
     setSaving(true)
     try {
+      // defense-in-depth คู่กับ backend reject (FR-AIQ-10) — ร้าน non-paid ไม่ส่ง 3 ฟิลด์บริบทเลย
+      const body = isPaidPlan
+        ? { instruction, includeProductContext, includeCustomerContext, includeMediaContext }
+        : { instruction }
       const res = await fetch('/api/shops/ai-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction, includeProductContext, includeCustomerContext, includeMediaContext }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
         pacesToast.error(data?.error ?? 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง')
+        // sync สถานะกรณีร้าน downgrade กลางคัน (E16) — ห้ามทำเหมือนบันทึกสำเร็จเงียบ ๆ
+        router.refresh()
         return
       }
       pacesToast.success('บันทึกการตั้งค่าแล้ว — คำแนะนำครั้งถัดไปจะใช้ค่าใหม่ทันที')
@@ -113,11 +139,38 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
         )}
       </div>
 
+      {/* ── banner บริบท AI ถูกจำกัดสำหรับร้าน non-paid (FR-AIQ-09) — วางระหว่างคำสั่งประจำร้าน
+          กับกลุ่มสวิตช์ตามสเปก, copy โครง class จาก banner !canEdit ด้านบนเป๊ะ, ผูกกับกลุ่มสวิตช์
+          ผ่าน aria-describedby ที่ input (ไม่ใช่ label — สวิตช์ disabled ถูก screen reader ข้าม) */}
+      {showUpgradeGate && (
+        <div id="ai-context-gate-notice" className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="info-circle" className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            ตอนนี้ AI เห็นเฉพาะข้อความในแชทเท่านั้น — ให้ AI เห็นข้อมูลสินค้า ประวัติลูกค้า และรูป/เสียงที่ลูกค้าส่งมาได้เมื่อใช้แพ็กเกจธุรกิจ{' '}
+            <Link href="/business" className="underline">
+              ดูแพ็กเกจ
+            </Link>
+          </span>
+        </div>
+      )}
+
       {/* ── สวิตช์บริบท ── */}
       <div className="space-y-3">
         <label className="border-default-200 flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3">
           <span className="min-w-0">
-            <span className="text-default-800 block text-sm font-medium">ให้ AI เห็นข้อมูลสินค้า</span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
+                ให้ AI เห็นข้อมูลสินค้า
+              </span>
+              {showUpgradeGate && (
+                <Link
+                  href="/business"
+                  className={`badge ${subscriptionLapsed ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}
+                >
+                  {subscriptionLapsed ? 'ต่ออายุแพ็กเกจ' : 'อัพเกรดแพ็กเกจ'}
+                </Link>
+              )}
+            </span>
             <span className="text-default-500 block text-xs">
               AI จะเห็นชื่อและราคาสินค้าที่เปิดขายของร้านนี้ เพื่อตอบคำถามเรื่องราคาได้ตรง
               (สินค้าที่ปิดขายและสินค้าของร้านอื่นไม่ถูกส่งไป)
@@ -126,15 +179,28 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
           <input
             type="checkbox"
             className="form-switch shrink-0"
-            checked={includeProductContext}
+            checked={isPaidPlan ? includeProductContext : false}
             onChange={(e) => setIncludeProductContext(e.target.checked)}
-            disabled={!canEdit || saving}
+            disabled={!canEdit || saving || !isPaidPlan}
+            aria-describedby={contextGateDescribedBy}
           />
         </label>
 
         <label className="border-default-200 flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3">
           <span className="min-w-0">
-            <span className="text-default-800 block text-sm font-medium">ให้ AI เห็นประวัติลูกค้า</span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
+                ให้ AI เห็นประวัติลูกค้า
+              </span>
+              {showUpgradeGate && (
+                <Link
+                  href="/business"
+                  className={`badge ${subscriptionLapsed ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}
+                >
+                  {subscriptionLapsed ? 'ต่ออายุแพ็กเกจ' : 'อัพเกรดแพ็กเกจ'}
+                </Link>
+              )}
+            </span>
             <span className="text-default-500 block text-xs">
               AI จะเห็นออเดอร์ล่าสุดของลูกค้ารายนั้นกับร้านนี้ (สถานะ ยอด วันที่) เพื่อตอบคำถาม
               &ldquo;ของถึงไหนแล้ว&rdquo; ได้ — เบอร์โทร อีเมล และที่อยู่ที่เก็บในระบบไม่ถูกส่งไปไม่ว่ากรณีใด
@@ -143,9 +209,10 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
           <input
             type="checkbox"
             className="form-switch shrink-0"
-            checked={includeCustomerContext}
+            checked={isPaidPlan ? includeCustomerContext : false}
             onChange={(e) => setIncludeCustomerContext(e.target.checked)}
-            disabled={!canEdit || saving}
+            disabled={!canEdit || saving || !isPaidPlan}
+            aria-describedby={contextGateDescribedBy}
           />
         </label>
 
@@ -154,7 +221,19 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
             ไฟล์จากลูกค้าถูกส่งทั้งไฟล์ ถ้าในรูปมีที่อยู่/เบอร์ AI ก็เห็น — ร้านต้องรู้ก่อนเปิด */}
         <label className="border-default-200 flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3">
           <span className="min-w-0">
-            <span className="text-default-800 block text-sm font-medium">ให้ AI อ่านรูปและฟังข้อความเสียง</span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
+                ให้ AI อ่านรูปและฟังข้อความเสียง
+              </span>
+              {showUpgradeGate && (
+                <Link
+                  href="/business"
+                  className={`badge ${subscriptionLapsed ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}
+                >
+                  {subscriptionLapsed ? 'ต่ออายุแพ็กเกจ' : 'อัพเกรดแพ็กเกจ'}
+                </Link>
+              )}
+            </span>
             <span className="text-default-500 block text-xs">
               AI จะเปิดดูรูป (สลิปโอนเงิน รูปสินค้า ที่อยู่จัดส่ง) และถอดข้อความเสียงที่ลูกค้าส่งมา
               เพื่อร่างคำตอบให้ตรงเรื่อง — ปิดไว้ AI จะเห็นแค่ว่า &ldquo;ลูกค้าส่งรูป/เสียงมา&rdquo;
@@ -166,9 +245,10 @@ export default function AiSettingForm({ initial, canEdit }: Props) {
           <input
             type="checkbox"
             className="form-switch shrink-0"
-            checked={includeMediaContext}
+            checked={isPaidPlan ? includeMediaContext : false}
             onChange={(e) => setIncludeMediaContext(e.target.checked)}
-            disabled={!canEdit || saving}
+            disabled={!canEdit || saving || !isPaidPlan}
+            aria-describedby={contextGateDescribedBy}
           />
         </label>
       </div>
