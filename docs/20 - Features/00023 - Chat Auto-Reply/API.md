@@ -128,7 +128,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SRS]]", "[[SDS]]"]
 
 | # | Method | Path | คำอธิบาย |
 |---|--------|------|----------|
-| 4.18 | `POST` | `/api/shops/auto-reply/test` | ทดสอบกฎแบบกรอกเอง — **ไม่ส่งจริง ไม่บันทึก** (FR-020) |
+| 4.18 | `POST` | `/api/shops/auto-reply/simulate` | ทดสอบกฎแบบกรอกเอง — **ไม่ส่งจริง ไม่บันทึก** (FR-020) |
 | 4.19 | `PUT` | `/api/shops/auto-reply/test-mode` | เปิด/ปิดโหมดทดสอบระดับร้าน |
 | 4.20 | `GET` | `/api/shops/auto-reply/test-mode/threads` | รายการเธรดใน allowlist |
 | 4.21 | `POST` | `/api/shops/auto-reply/test-mode/threads` | เพิ่มเธรดเข้า allowlist (ต้องยืนยัน) |
@@ -719,7 +719,7 @@ partial update — ทุกฟิลด์ของ §4.14 เป็น optiona
 
 ---
 
-### 4.18 `POST /api/shops/auto-reply/test`
+### 4.18 `POST /api/shops/auto-reply/simulate`
 
 **หน้าทดสอบกฎแบบกรอกเอง (FR-020)** — จำลองการตัดสินใจทั้งหมดแล้วคืนผลพร้อมเหตุผล
 

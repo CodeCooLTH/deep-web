@@ -55,7 +55,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SRS]]", "[[API]]", "[[../0001
 | [[PRD]] §3, §4.3, §6 | เป้าหมายธุรกิจ, เงื่อนไขที่ห้ามตอบ (9 ข้อเรียงลำดับ), ความเสี่ยง |
 | [[BRD]] FR-001..FR-024 | Functional Requirement + AC ที่การออกแบบนี้ต้อง realize |
 | [[DATABASE]] (FROZEN) | ชื่อ model/field/ค่าคงที่ทุกตัว + §5 migration + §6 กับดัก echo |
-| [[SRS]] (ยังไม่จัดทำ) | จะแตกจากเอกสารนี้ — ดู Open Questions §13 |
+| [[SRS]] | จัดทำแล้ว (commit `b27b7e1e`) — 30 TFR พร้อมอัลกอริทึม normalize/match/resolution |
 | `docs/20 - Features/00018 - Facebook Chat Integration/SDS.md` | เส้นทาง ingest/outbound เดิมที่ฟีเจอร์นี้ต่อเข้าไป |
 | `docs/20 - Features/00019 - AI Reply Assistant/SDS.md` | แบบอย่าง TD + การแยกตารางตั้งค่าออกจาก `Shop` (TD-001 ของ 00019) |
 | `docs/conventions/prisma-shared-db-drift.md` | ข้อบังคับ migration บน DB ที่ dev/prod ใช้ร่วมกัน |
@@ -396,7 +396,7 @@ sequenceDiagram
 
 - **Send API** — ไม่ retry ภายในคำขอเดียว; retry เกิดที่ระดับงาน (`attempts` ≤ 3) เท่านั้น เพื่อไม่ให้ผู้ใช้ได้รับหลายข้อความจาก retry ซ้อน retry (AC-012-05)
 - **Idempotency key ของทั้งฟีเจอร์คือ `AutoReplyJob.chatMessageId @unique`** — ไม่มี key อื่น ไม่มี lock อื่น (TD-002)
-- **สัญญา API เต็ม:** ดู `API.md` ของโมดูลนี้ (ยังไม่จัดทำ — ดู Open Questions)
+- **สัญญา API เต็ม:** ดู `API.md` ของโมดูลนี้ (จัดทำแล้ว commit `b27b7e1e` — 29 endpoint; หน้าทดสอบกฎ freeze ที่ `POST /api/shops/auto-reply/simulate` ตาม GAP-02)
 
 ---
 
@@ -869,7 +869,7 @@ flowchart TD
 ### T-15 — ชุดทดสอบ + QA
 
 - **Scope:** unit (normalize / specificity / matcher / claim), integration (webhook → job → send), Playwright E2E ตามเมนูจริง
-- **ไฟล์:** `src/**/__tests__/**`, `e2e/**`, `docs/20 - Features/00023 - Chat Auto-Reply/Tests/`
+- **ไฟล์:** `src/**/__tests__/**`, `e2e/**`, `docs/20 - Features/00023 - Chat Auto-Reply/TestCase.md`
 - **Dependency:** T-01..T-14
 - **Risk:** ต่ำ
 - **Acceptance:** ครอบ AC ทุกข้อในกลุ่ม "ความปลอดภัยของการตอบ" (§3.3 ของ BRD) 100%; regression list §7.5 ผ่าน
@@ -929,4 +929,4 @@ flowchart TD
 
 ---
 
-**หมายเหตุ:** schema และแผน migration ดู [[DATABASE]] (FROZEN) · acceptance criteria ต้นทางดู [[BRD]] · เป้าหมายธุรกิจและความเสี่ยงดู [[PRD]] · contract ระดับ endpoint จะแตกจากเอกสารนี้ไปที่ `API.md` · ชุดทดสอบไปที่ `Tests/`
+**หมายเหตุ:** schema และแผน migration ดู [[DATABASE]] (FROZEN) · acceptance criteria ต้นทางดู [[BRD]] · เป้าหมายธุรกิจและความเสี่ยงดู [[PRD]] · contract ระดับ endpoint จะแตกจากเอกสารนี้ไปที่ `API.md` · ชุดทดสอบดู `TestCase.md`

@@ -361,6 +361,11 @@ model AutoReplyLog {
   contextProduct Product? @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
 
   @@index([shopId, autoReplyTestEnabled]) // หา allowlist ของโหมดทดสอบ
+  // 🛑 amend 2026-07-29 (GAP-06): sweeper fallback pass ต้องไล่หา "ข้อความลูกค้าล่าสุดที่ไม่มีงานผูก"
+  // ซึ่งสแกนจาก lastInboundAt — SDS TD-008 ใช้ pass นี้เป็นเหตุผลว่า "enqueue พังเงียบยอมรับได้"
+  // ถ้าไม่มี index เหตุผลนั้นไม่มีของจริงรองรับ. เพิ่มตอนนี้ฟรีเพราะยังไม่ migrate; เพิ่มทีหลัง
+  // ต้อง ALTER ตารางใหญ่บน DB ที่ dev/prod แชร์กัน
+  @@index([shopId, lastInboundAt])
 ```
 
 **`ChatMessage` (เพิ่ม 1 คอลัมน์)**
