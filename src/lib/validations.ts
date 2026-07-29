@@ -1121,15 +1121,23 @@ export const IShipPickupSchema = v.object({
 // ด้วย computeSpecificity() ทุกครั้งที่เขียน ถ้าเปิดให้ส่งมาได้ ลำดับการเลือกกฎจะเพี้ยน
 // โดยไม่มีใครรู้ตัว (ดู DATABASE.md §3.4)
 
-export const AutoReplyConfigSchema = v.object({
+/**
+ * ค่าตั้งระดับร้าน — route รับเป็น **partial** แล้ว merge กับค่าปัจจุบันฝั่ง server
+ * เพราะ UI มีทั้งการกดสวิตช์ตัวเดียว (ส่งมาแค่ isEnabled) และการบันทึกฟอร์มเต็ม
+ * ถ้าบังคับส่งครบทุกครั้ง การกดสวิตช์จะต้องพก state ทั้งก้อนไปด้วย ซึ่งเสี่ยงเขียนทับค่าที่
+ * คนอื่นเพิ่งแก้ในแท็บอื่น
+ */
+export const AutoReplyConfigPatchSchema = v.partial(
+  v.object({
   isEnabled: v.boolean(),
   humanTakeoverPauseMode: v.picklist(['30M', '2H', 'MANUAL', 'UNTIL_RESOLVED']),
   keywordCooldownSec: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(86_400)),
   maxRepliesPerConversation: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
   adsContextMode: v.picklist(['UNTIL_RESOLVED', 'HOURS', 'UNTIL_NEW_PRODUCT']),
   adsContextHours: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(720))),
-  handoffPhrases: v.pipe(v.array(v.pipe(v.string(), v.trim(), v.maxLength(100))), v.maxLength(50)),
-})
+    handoffPhrases: v.pipe(v.array(v.pipe(v.string(), v.trim(), v.maxLength(100))), v.maxLength(50)),
+  }),
+)
 
 export const AutoReplyKeywordCreateSchema = v.object({
   name: v.pipe(v.string(), v.trim(), v.minLength(1, 'ต้องระบุชื่อกลุ่มคำ'), v.maxLength(100)),
