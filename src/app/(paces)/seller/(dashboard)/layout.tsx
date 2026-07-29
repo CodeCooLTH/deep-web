@@ -18,7 +18,6 @@ import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import ChatToastListener from './_shared/ChatToastListener'
-import SellerChatWidget from './_shared/SellerChatWidget'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
@@ -118,8 +117,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     console.error('[layout] resolveExpenseAccess failed, fallback NO_SHOP (hide menu)', e)
   }
 
-  // Business Package sidenav card — ownerId = session user ไม่ใช่ active shop (Business Package
-  // ผูกกับบัญชีเจ้าของ ไม่ใช่ร้าน — มิเรอร์ business/page.tsx:51). fail-closed: query error → NOT_SUBSCRIBED
+  // Business Package sidenav card — fail-closed: query error → NOT_SUBSCRIBED
   // (pattern เดียวกับ entitlementInfo บรรทัดด้านบน — ไม่ให้ layout crash จาก DB error)
   let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
   let businessPackageTier: BusinessPackageTier | null = null
@@ -188,10 +186,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       <ChatToastListener shopId={shop?.id ?? null} />
-      {/* SellerChatWidget (ChatWidget task, feat 00011 Deep Chat): floating bubble+panel
-          มุมขวาล่าง แสดงเฉพาะ ≥lg (mobile ใช้ SellerBottomNav "แชท" แทน) — mount ที่ layout
-          เหมือนกัน เพื่อ persist state ข้าม client-navigation (OQ3) */}
-      <SellerChatWidget initialUnreadCount={unreadChatCount} />
+      {/* SellerChatWidget (floating bubble มุมขวาล่าง) ถอด mount ออกตามที่ user สั่ง 2026-07-29 —
+          ทับพื้นที่เดียวกับ toast แจ้งข้อความใหม่ และซ้ำกับเมนู "แชท" ที่มีอยู่แล้วทั้ง sidenav
+          (desktop) และ SellerBottomNav (mobile). ไฟล์ widget ยังอยู่ในโปรเจกต์ (SellerChatWidget /
+          ChatWidgetList / ChatWidgetThreadPanel) — กลับมา mount ได้ทันทีถ้าเปลี่ยนใจ */}
     </VerticalLayout>
   )
 }
