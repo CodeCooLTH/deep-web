@@ -104,6 +104,7 @@ export async function approveTopUp(
       req.amount,
       requestId,
       "เติมเครดิต SMS (อนุมัติโดย admin)",
+      undefined, // reason — topup ปกติไม่มี reason แยกประเภท (มิเรอร์พฤติกรรมเดิมก่อน extension นี้)
       tx,
     );
 

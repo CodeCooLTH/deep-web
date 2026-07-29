@@ -82,3 +82,115 @@ export function describeShipmentStatus(
       return { text: status, tone: "secondary" };
   }
 }
+
+// ─── ความคืบหน้าแบบ 4 ขั้น ──────────────────────────────────────────────────
+
+/**
+ * แถบความคืบหน้าที่ร้านเห็น — ยุบ 15 สถานะของ iShip เหลือ 4 ขั้นที่คนอ่านเข้าใจทันที
+ * (user request 2026-07-29: "แสดงแค่ timeline ของสถานะ ไม่ต้องโชว์ข้อความดิบ")
+ *
+ * รายละเอียดดิบยังอยู่ครบใต้ปุ่ม "ดูรายละเอียดการเดินทาง" — ยุบเพื่อให้กวาดตาง่าย
+ * ไม่ใช่เพื่อตัดข้อมูลทิ้ง (เวลา/สถานที่จำเป็นตอนตามของหาย)
+ */
+export const SHIPMENT_STAGES = [
+  { label: "สร้างพัสดุ", icon: "tabler:package" },
+  { label: "รับเข้าระบบแล้ว", icon: "tabler:package-import" },
+  { label: "กำลังจัดส่ง", icon: "tabler:truck-delivery" },
+  { label: "จัดส่งสำเร็จ", icon: "tabler:circle-check" },
+] as const;
+
+/**
+ * โทนของทั้งแถบ — ไม่ไล่สีทีละช่วง เพราะสีผสมกลางทางอ่านกำกวม
+ *   progress  = กำลังเดินทาง (น้ำเงินถึงจุดที่ไปถึง, เทาที่เหลือ)
+ *   delivered = ถึงมือผู้รับแล้ว (เขียวทั้งแถบ)
+ *   diverted  = ส่งคืนต้นทางสำเร็จ (เทาทั้งแถบ — จบแล้วแต่ไม่ใช่ผลที่ต้องการ)
+ *   stopped   = ยกเลิก/หมดอายุ (เทาทั้งแถบ ไม่มีจุดไหนนับว่าถึง)
+ */
+export type ShipmentBarTone = "progress" | "delivered" | "diverted" | "stopped";
+
+export interface ShipmentProgress {
+  /** ขั้นที่ไปถึงแล้ว 0-3 */
+  stage: number;
+  tone: ShipmentBarTone;
+  /** ป้ายขั้นสุดท้ายที่ override (return_success ไม่ใช่ "จัดส่งสำเร็จ") */
+  lastLabel?: string;
+  /** เตือนเมื่อออกนอกเส้นทางปกติ — ห้ามแกล้งทำเป็นว่ายังเดินหน้าอยู่ */
+  notice?: { tone: ShipmentTone; text: string };
+}
+
+/** รหัสสถานะ → ขั้นบนแถบ. รหัสที่ไม่มีในนี้ = ยังไม่ขยับจากขั้นแรก */
+const STAGE_OF: Record<string, number> = {
+  order_success: 0,
+  no_courier: 0,
+  cannot_pickup: 0,
+  picked_up: 1,
+  with_branch: 1,
+  in_transit: 2,
+  progress: 2,
+  issue: 2,
+  return: 2,
+  cod_refund: 2,
+  delivered: 3,
+  return_success: 3,
+};
+
+const NOTICE_OF: Record<string, { tone: ShipmentTone; text: string }> = {
+  no_courier: { tone: "warning", text: "รอเลือกขนส่ง — พัสดุนี้ยังไม่ได้กำหนดขนส่ง" },
+  cannot_pickup: {
+    tone: "danger",
+    text: "ขนส่งเข้ารับพัสดุไม่ได้ — นัดรับใหม่หรือติดต่อขนส่งโดยตรง",
+  },
+  issue: {
+    tone: "danger",
+    text: "พัสดุมีปัญหาระหว่างทาง — ติดต่อขนส่งเพื่อตรวจสอบรายละเอียด",
+  },
+  return: { tone: "warning", text: "พัสดุกำลังตีกลับไปยังต้นทาง" },
+  cod_refund: { tone: "warning", text: "มีรายการขอเงินคืนค่าเก็บปลายทาง" },
+  return_success: { tone: "secondary", text: "พัสดุถูกส่งคืนต้นทางสำเร็จแล้ว" },
+  is_expired: {
+    tone: "secondary",
+    text: "พัสดุหมดอายุ — ขนส่งไม่ได้เข้ารับภายในเวลาที่กำหนด เปิดใบใหม่ได้",
+  },
+};
+
+/**
+ * describeProgress — สถานะพัสดุ (ของเรา + ของขนส่ง) → แถบ 4 ขั้น
+ *
+ * อ่านจากค่าที่มีอยู่ในมือทันที ไม่พึ่ง trace ที่ต้องรอเครือข่าย — แถบคือสิ่งแรกที่ร้านมอง
+ * ถ้าต้องรอโหลดก่อนถึงจะเห็น ก็เสียเจตนาของมันไป
+ */
+export function describeProgress(
+  shipmentStatus: string,
+  carrierStatus?: string | null,
+): ShipmentProgress {
+  if (shipmentStatus === "CANCELLED") {
+    return {
+      stage: -1,
+      tone: "stopped",
+      notice: {
+        tone: "secondary",
+        text: "ยกเลิกพัสดุแล้ว — เปิดพัสดุใบใหม่สำหรับคำสั่งซื้อนี้ได้",
+      },
+    };
+  }
+
+  const code = carrierStatus ?? undefined;
+  if (code === "cancelled" || code === "is_expired") {
+    return { stage: -1, tone: "stopped", notice: NOTICE_OF[code] };
+  }
+
+  const stage = code ? (STAGE_OF[code] ?? 0) : 0;
+  const tone: ShipmentBarTone =
+    code === "delivered"
+      ? "delivered"
+      : code === "return_success"
+        ? "diverted"
+        : "progress";
+
+  return {
+    stage,
+    tone,
+    lastLabel: code === "return_success" ? "ส่งคืนสำเร็จ" : undefined,
+    notice: code ? NOTICE_OF[code] : undefined,
+  };
+}

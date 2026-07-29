@@ -48,6 +48,10 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
 import { getSalesSeries } from '@/services/dashboard.service'
 import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
+// แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — RSC layout ไม่ส่ง prop ให้ page ได้ ต้อง fetch ซ้ำ
+// (query เล็ก ยอมรับได้ — ห้าม refactor เป็น context/global ตาม Controller decision)
+import { getSubscriptionStatus } from '@/services/business-package.service'
+import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -112,11 +116,27 @@ export default async function SellerDashboardPage() {
   let liveAuctionCount = 0
   // Sales Chart (mobile command center) — ยอดขายรายวันเดือนปัจจุบัน; null = fetch ล้ม → การ์ดซ่อนตัวเอง
   let mobileSalesSeries: SalesChartSeries | null = null
+  // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — ownerId = session user ไม่ใช่ active shop
+  // (Business Package ผูกกับบัญชีเจ้าของ ไม่ใช่ร้าน — มิเรอร์ (dashboard)/layout.tsx:121-131)
+  let packageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
+  let packageTier: BusinessPackageTier | null = null
 
   if (user?.id) {
     score = user.trustScore ?? 0
     level = getTrustLevel(score)
     levelColor = LEVEL_COLOR[level] ?? 'text-primary'
+
+    // แถบแพ็กเกจร้านค้าบนมือถือ — standalone try/catch แยกจาก block badge/shop ด้านล่าง
+    // (มิเรอร์ pattern independent block ของ (dashboard)/layout.tsx:126-134 — fail-closed NOT_SUBSCRIBED)
+    try {
+      const subscription = await getSubscriptionStatus(user.id)
+      if (subscription) {
+        packageStatus = subscription.status as BusinessPackageStatusApp
+        packageTier = subscription.tier as BusinessPackageTier
+      }
+    } catch (e) {
+      console.error('[dashboard] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
+    }
 
     try {
       // perf: getBadgeProgress ต้องการแค่ user.id (ไม่ขึ้นกับ shop) — kick off
@@ -329,6 +349,9 @@ export default async function SellerDashboardPage() {
             bestSellers,
             // Sales Chart การ์ด mini — ยอดขายรายวันเดือนปัจจุบัน (null=ซ่อนการ์ด)
             salesSeries: mobileSalesSeries,
+            // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)
+            packageStatus,
+            packageTier,
           }}
         />
       </div>

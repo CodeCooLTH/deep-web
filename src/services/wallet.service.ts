@@ -157,19 +157,23 @@ export async function deductCredit(
 }
 
 /**
- * creditWallet — เพิ่มเครดิต (topup) atomic; reuse ได้จาก topup.service หรือ route ใดก็ตาม
+ * creditWallet — เพิ่มเครดิต (topup/compensate) atomic; reuse ได้จาก topup.service หรือ route ใดก็ตาม
  * T5 (topup.service) ควรเรียก creditWallet นี้แทนทำเอง — single source of truth สำหรับ topup ledger
  *
  * @param shopId      - shop เจ้าของ wallet
  * @param amount      - จำนวน ฿ ที่ต้องการเพิ่ม (integer > 0)
  * @param refId       - reference id เช่น TopUpRequest.id
  * @param description - คำอธิบาย เช่น "TopUp อนุมัติโดย admin"
+ * @param reason      - เหตุผลเชิงระบบ (WALLET_REASON.* / WALLET_REASON_AI_SUGGEST.* ฯลฯ) เพื่อแยกประเภท
+ *                      ธุรกรรมสำหรับ admin/report — optional เพราะ caller เดิม (topup/send-sms compensate)
+ *                      ยังไม่เคยส่ง reason มาก่อน extension นี้ (feature 00019 ext 2026-07-29)
  */
 export async function creditWallet(
   shopId: string,
   amount: number,
   refId: string | undefined,
   description: string,
+  reason?: string,
   tx?: Prisma.TransactionClient,
 ): Promise<WalletTransaction> {
   // guard: amount ต้องเป็น integer บวก — ป้องกัน negative amount ที่ทำให้ increment กลายเป็น
@@ -203,6 +207,7 @@ export async function creditWallet(
         balanceAfter: wallet.balance,
         description,
         refId: refId ?? null,
+        reason: reason ?? null,
       },
     });
   };

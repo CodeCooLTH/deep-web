@@ -961,15 +961,31 @@ export const SetHousekeepingStatusSchema = v.object({
 });
 
 // ── feature 00019 AI Reply Assistant ─────────────────────────────────────────
-// body ของ PUT /api/shops/ai-settings — full replace ไม่ใช่ partial patch (API.md §4.2)
+// body ของ PUT /api/shops/ai-settings
 // instruction ≤2000 ตัวอักษร (BR-AI-03) ส่งค่าว่างเพื่อล้างคำสั่งได้
+//
+// feature 00019 ext (2026-07-29): 3 ฟิลด์บริบทเป็น optional — **ไม่ส่งมา = "ไม่เปลี่ยนค่าเดิม"**
+// (service เติมจากค่า stored ให้เอง) ไม่ใช่ full-replace แบบเดิมอีกต่อไป เพราะ:
+//   1. ร้าน non-paid ถูก gate ห้ามเปลี่ยน 3 ฟิลด์นี้ (FR-AIQ-10) client จึงส่งมาแค่ instruction
+//      ถ้ายังบังคับ required ที่นี่ จะ 400 ตั้งแต่ชั้น validate ก่อนถึง gate → ร้าน non-paid
+//      แก้ "คำสั่งประจำร้าน" ไม่ได้เลย ทั้งที่ BR-AIQ-13 บอกว่าช่องนี้ไม่ถูก gate
+//   2. default `true` แบบเดิมของ includeMediaContext อันตรายกว่า: client ที่ไม่ส่ง field มา
+//      จะถูกเขียนทับเป็นเปิด ทั้งที่ร้านอาจตั้งใจปิดไว้ (ไฟล์ลูกค้าเข้า AI ทั้งไฟล์) — fallback
+//      ไปค่า stored ปลอดภัยกว่าและยังไม่ 400 กับ client เก่าเหมือนเดิม
+// feature 00019 ext (2026-07-29) — body ของ POST /api/chat/conversations/{id}/ai-suggest
+// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเครดิต ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
+// input ตัวนี้ทำให้ "เงินจริงถูกหัก" จึงต้องเป็น boolean แท้เท่านั้น — ค่าอื่น (string "true",
+// object, array) ต้องตกเป็น false ไม่ใช่ตีความเป็น truthy
+export const AiSuggestRequestSchema = v.object({
+  confirmUseCredit: v.optional(v.boolean(), false),
+});
+
 export const ShopAiSettingSchema = v.object({
   instruction: v.pipe(v.string(), v.maxLength(2000, "คำสั่งประจำร้านต้องไม่เกิน 2,000 ตัวอักษร")),
-  includeProductContext: v.boolean(),
-  includeCustomerContext: v.boolean(),
+  includeProductContext: v.optional(v.boolean()),
+  includeCustomerContext: v.optional(v.boolean()),
   // feature 00019 ext (user 2026-07-24): ให้ AI อ่านรูป/ฟังข้อความเสียงในแชท
-  // optional + default true — client เวอร์ชันเก่าที่ยังไม่ส่ง field นี้ต้องบันทึกได้ (ไม่ 400)
-  includeMediaContext: v.optional(v.boolean(), true),
+  includeMediaContext: v.optional(v.boolean()),
 });
 
 // ── feature 00018 — ยืนยันเลือกเพจที่จะเชื่อม (POST /api/channels/facebook/confirm) ──────

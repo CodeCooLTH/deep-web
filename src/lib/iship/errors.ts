@@ -17,6 +17,7 @@ export type IShipErrorCode =
   | "ADDRESS_INVALID" // ที่อยู่ปลายทางไม่ผ่านการตรวจของขนส่ง
   | "COURIER_UNAVAILABLE" // ขนส่งเจ้านี้ไม่รับพื้นที่นี้/ปิดรับชั่วคราว
   | "SHIPMENT_NOT_CANCELLABLE" // ยกเลิกไม่ได้แล้ว เพราะขนส่งรับของไปแล้ว
+  | "REJECTED_BY_CARRIER" // iShip ปฏิเสธเพราะข้อมูลไม่ครบ/ไม่ผ่านเงื่อนไข — กดซ้ำก็ไม่ผ่าน
   | "UPSTREAM_TIMEOUT" // เรารอเกินเวลาที่กำหนด
   | "UPSTREAM_ERROR"; // อย่างอื่นทั้งหมดที่ฝั่ง iShip
 
@@ -32,6 +33,10 @@ const MESSAGES: Record<IShipErrorCode, string> = {
     "ขนส่งที่เลือกไม่รับพื้นที่ปลายทางนี้ในขณะนี้ กรุณาเลือกขนส่งเจ้าอื่น",
   SHIPMENT_NOT_CANCELLABLE:
     "ยกเลิกพัสดุไม่ได้แล้ว เพราะขนส่งรับของเข้าระบบไปแล้ว กรุณาติดต่อขนส่งหรือจัดการที่ระบบ iShip โดยตรง",
+  // ข้อความจริงจาก iShip จะถูกต่อท้ายให้ (ดู IShipError.userMessage) — เคสนี้เป็นเคสเดียว
+  // ที่ยอมให้ข้อความดิบถึงตาร้าน เพราะมันคือ "สิ่งที่ต้องแก้" ถ้าปิดไว้ร้านจะไม่มีทางรู้เลย
+  REJECTED_BY_CARRIER:
+    "ขนส่งไม่รับคำสั่งนี้ เพราะข้อมูลยังไม่ครบตามที่ขนส่งต้องการ",
   UPSTREAM_TIMEOUT:
     "ระบบขนส่งไม่ตอบสนองภายในเวลาที่กำหนด คำสั่งซื้อของคุณถูกบันทึกไว้แล้ว กรุณากดลองใหม่อีกครั้ง",
   UPSTREAM_ERROR:
@@ -53,7 +58,13 @@ export class IShipError extends Error {
     super(`IShipError(${code})`);
     this.name = "IShipError";
     this.code = code;
-    this.userMessage = MESSAGES[code];
+    // REJECTED_BY_CARRIER เป็นข้อยกเว้นเดียวของ BR-ISHIP §6.4 (ห้ามโชว์ข้อความดิบ):
+    // ข้อความดิบคือ "สิ่งที่ต้องแก้" เช่น "กรุณากรอก สีสินค้า …" ถ้าปิดไว้ร้านจะเห็นแต่
+    // "ระบบขัดข้อง กรุณาลองใหม่" แล้วกดวนไม่จบเพราะสาเหตุจริงไม่เคยถูกบอก (เคสจริง prod 2026-07-29)
+    this.userMessage =
+      code === "REJECTED_BY_CARRIER" && opts?.upstreamMessage
+        ? `${MESSAGES[code]} — ${redactToken(opts.upstreamMessage)}`
+        : MESSAGES[code];
     this.upstreamMessage = opts?.upstreamMessage;
     this.httpStatus = opts?.httpStatus;
   }
@@ -63,7 +74,12 @@ export class IShipError extends Error {
     return this.code === "TOKEN_INVALID";
   }
 
-  /** ล้มเหลวแบบ "กดลองใหม่แล้วมีโอกาสสำเร็จ" — ใช้ตัดสินว่าจะโชว์ปุ่มลองใหม่ไหม */
+  /**
+   * ล้มเหลวแบบ "กดลองใหม่แล้วมีโอกาสสำเร็จ" — ใช้ตัดสินว่าจะโชว์ปุ่มลองใหม่ไหม
+   *
+   * REJECTED_BY_CARRIER ไม่อยู่ในนี้โดยเจตนา: ข้อมูลยังไม่ครบ กดกี่ครั้งก็ได้ผลเดิม
+   * ต้องแก้ข้อมูลก่อนเท่านั้น การโชว์ปุ่มลองใหม่ในเคสนี้คือการหลอกให้ร้านเสียเวลา
+   */
   get retryable(): boolean {
     return (
       this.code === "UPSTREAM_TIMEOUT" ||
@@ -117,6 +133,18 @@ export function classifyUpstream(
     return "COURIER_UNAVAILABLE";
   if (/(cannot cancel|already.*(picked|accept)|ยกเลิกไม่ได้|รับพัสดุแล้ว)/.test(msg))
     return "SHIPMENT_NOT_CANCELLABLE";
+
+  // ปฏิเสธเพราะข้อมูลไม่ครบ/ไม่ผ่านเงื่อนไข — ต้องอยู่ท้ายสุดของ keyword ทั้งหมด
+  // เพราะเป็นตัวดักกว้าง ถ้าอยู่บนจะไปกลืนเคสที่เจาะจงกว่า (เช่น ที่อยู่/ยอดเงิน)
+  //
+  // เคสจริงที่พาให้เพิ่มอันนี้: iShip ตอบ "กรุณากรอก สีสินค้า …" แล้วเราเหมาเป็น
+  // UPSTREAM_ERROR → บอกร้านว่า "ระบบขนส่งขัดข้อง กรุณาลองใหม่" ทั้งที่ระบบไม่ได้ขัดข้อง
+  // และกดใหม่ก็ไม่มีวันผ่าน
+  if (/(กรุณากรอก|กรุณาระบุ|จำเป็นต้อง|ไม่ถูกต้อง|is required|required field|validation|invalid )/.test(msg))
+    return "REJECTED_BY_CARRIER";
+
+  // 422 = ปฏิเสธเชิงความหมาย ไม่ใช่ระบบล่ม — ถือเป็นข้อมูลไม่ผ่านไว้ก่อน
+  if (httpStatus === 422) return "REJECTED_BY_CARRIER";
 
   return "UPSTREAM_ERROR";
 }

@@ -217,6 +217,8 @@ model Shop {
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
   expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
   aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
+  aiSuggestDailyUsages AiSuggestDailyUsage[] // NEW (feature 00019 ext 2026-07-29) — ตัวนับโควตาฟรี ai-suggest ต่อวัน (เฉพาะร้าน non-paid, ≤1 แถวต่อวัน)
+  aiSuggestUsageEvents AiSuggestUsageEvent[] // NEW (feature 00019 ext 2026-07-29) — audit log ai-suggest ทุก path (FREE/CREDIT/UNLIMITED_PLAN)
   shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=GENERAL)
   orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
   shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
@@ -687,7 +689,9 @@ model WalletTransaction {
   refId        String?
   // reason: machine-filterable label แยก DEDUCT source — ("SMS_ORDER_LINK" | "INVENTORY_SUBSCRIPTION"
   // [feature 00003] | "BUSINESS_PACKAGE_SUBSCRIPTION" [feature 00008, NEW — ไม่มี DDL แค่ค่าใหม่] |
-  // "PIN_SLOT" [feature 00013, NEW — ซื้อ pin slot ฿99 ถาวร, ไม่มี DDL แค่ค่าใหม่]);
+  // "PIN_SLOT" [feature 00013, NEW — ซื้อ pin slot ฿99 ถาวร, ไม่มี DDL แค่ค่าใหม่] |
+  // "AI_SUGGEST_EXTRA_USE" [feature 00019 ext 2026-07-29, NEW — หัก/คืน ฿1 credit path ของ ai-suggest
+  // เกินโควตาฟรี BR-AIQ-01, ไม่มี DDL แค่ค่าใหม่]);
   // NULL = row เก่าก่อนฟีเจอร์ที่ใช้ field นี้ (backfill migration SQL)
   reason       String?
   createdAt    DateTime @default(now())
@@ -1395,6 +1399,68 @@ model ShopAiSetting {
 
   shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
   updatedBy User? @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+// --- AI Suggestion Usage Limit + Credit (feature 00019 ext, 2026-07-29) ---
+// SSOT: docs/20 - Features/00019 - AI Reply Assistant/EXTENSIONS-2026-07-29-usage-limit.md
+// ครอบเฉพาะ POST /api/chat/conversations/{id}/ai-suggest เท่านั้น (BR-AIQ-10) — ไม่ใช่โควตาของฟีเจอร์ AI อื่น
+
+// AiSuggestDailyUsage: ตัวนับโควตาฟรีต่อร้านต่อวัน (ปฏิทินไทย Asia/Bangkok, เที่ยงคืนรีเซ็ต)
+// ⚠️ ใช้เฉพาะร้านที่ "ไม่ใช่" paid plan — ร้าน paid plan (unlimited path) ไม่มีแถวถูกอ่าน/เขียนจากตารางนี้
+// เลยสักครั้ง (BR-AIQ-02, FR-AIQ-01/02)
+// date เป็น String "YYYY-MM-DD" จาก todayThaiIsoDate() (src/lib/date-range.ts, มีอยู่แล้ว) ไม่ใช่ DateTime —
+// ตั้งใจให้ query exact-match ตรงไปตรงมา ไม่ต้อง timezone-shift ซ้ำตอน query (BR-AIQ-05) และให้
+// @@unique([shopId, date]) เป็น WHERE ของ atomic conditional updateMany เดียว (claim free slot ตอนนับเพิ่ม,
+// คืนโควตาตอน refund) กัน concurrent request 2 ตัวแย่ง free slot สุดท้ายพร้อมกัน (FR-AIQ-07/E5,
+// NFR-AIQ-Concurrency — pattern เดียวกับ deductCredit ใน wallet.service.ts)
+// lazy-create: แถวถูกสร้างตอน "claim" จริงเท่านั้นผ่าน upsert — GET /api/chat/ai-quota (pre-check) อ่าน
+// อย่างเดียว ไม่สร้างแถว (FR-AIQ-05/E8) กันตารางบวมจากร้านที่แค่เปิดแผง AI ดูเฉย ๆ ไม่เคยกดขอร่างจริง
+model AiSuggestDailyUsage {
+  id        String   @id @default(uuid())
+  shopId    String
+  date      String // "YYYY-MM-DD" เวลาไทย (BR-AIQ-05)
+  count     Int      @default(0) // จำนวนครั้งที่ใช้ "โควตาฟรี" ไปแล้วของวันนี้ — cap ที่ 10 ในโค้ด (BR-AIQ-03/06), ห้ามติดลบ (CHECK ใน migration SQL — บั๊ก refund ซ้ำต้องชนที่ DB ไม่ใช่แค่ log)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // unique ทำหน้าที่ 2 อย่างพร้อมกัน: บังคับ "1 แถวต่อร้านต่อวัน" ที่ระดับ DB + เป็น index ของ WHERE
+  // เดียวที่ทุก query ใช้ (shopId+date คู่กันเสมอ) — ไม่มี query อื่นที่ filter shopId เดี่ยว ๆ บนตารางนี้
+  // จึงไม่ต้องมี index แยกเพิ่ม
+  @@unique([shopId, date])
+}
+
+// AiSuggestUsageEvent: audit log ทุกครั้งที่ ai-suggest ผ่าน gate นี้ "สำเร็จ" (ทั้ง 3 path — FREE/CREDIT/
+// UNLIMITED_PLAN) เก็บไว้เพื่อ debug + สนับสนุน admin cost dashboard ในอนาคต (Deferred เฟสนี้, NFR-AIQ-Obs)
+// 🛑 ไม่ผูก logic gate ใด ๆ ของ feature นี้เลย — เขียนแบบ best-effort หลัง gate ตัดสินใจแล้วเท่านั้น
+// (ถ้า insert แถว event ล้มเหลว ต้องไม่ทำให้ request หลักที่ผู้ใช้รอ suggestions อยู่พังตาม)
+model AiSuggestUsageEvent {
+  id     String @id @default(uuid())
+  shopId String
+  // conversationId: เก็บไว้เพื่อ trace เท่านั้น — ตั้งใจไม่ใส่ FK/relation ไปยัง Conversation (มิเรอร์
+  // WalletTransaction.refId) เพื่อให้ audit log คงอยู่อิสระจากวงจรชีวิตของเธรดแชท (ลบ/archive
+  // conversation ในอนาคตไม่ต้องแตะ/ลบ audit log นี้ตาม)
+  conversationId String
+  // kind: "FREE" | "CREDIT" | "UNLIMITED_PLAN" — String ตาม convention project (เทียบ WalletTransaction.type)
+  // FREE = free path (non-paid, ในโควตา 10), CREDIT = credit path (non-paid, หักเครดิต ฿1),
+  // UNLIMITED_PLAN = unlimited path (paid plan, bypass ทั้งหมด — BR-AIQ-02)
+  kind String
+  amountBaht Int @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
+  // status: "SUCCESS" | "REFUNDED" — เปลี่ยนจาก SUCCESS เป็น REFUNDED เมื่อสิทธิ์ที่ใช้ไปถูกคืน (BR-AIQ-07)
+  // มีผลเฉพาะ kind FREE/CREDIT เท่านั้น — unlimited path ไม่มีอะไรให้คืน จึงไม่มีทาง REFUNDED (BR-AIQ-07/E4)
+  status String @default("SUCCESS")
+  // businessDay: denormalize "YYYY-MM-DD" เวลาไทยของ createdAt จาก todayThaiIsoDate() ตัวเดียวกับ
+  // AiSuggestDailyUsage.date (ไม่ใช่ FK/ผูก logic ใด ๆ — แค่สำเนาไว้กันคำนวณ timezone ซ้ำตอน query
+  // รายงาน) เพื่อ group by วันปฏิทินไทยแบบ exact-match ได้ตรงกับตัวนับโควตา สำหรับ admin cost
+  // dashboard ในอนาคต (Deferred, NFR-AIQ-Obs) — ต่างจาก createdAt (timestamp เต็ม, ใช้ sort/range)
+  businessDay String
+  createdAt   DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt]) // audit trail ต่อร้าน เรียงเวลาล่าสุดก่อน (debug/support)
+  @@index([shopId, businessDay]) // รายงานต้นทุนรายวันต่อร้าน แบบ group by ปฏิทินไทย (admin cost dashboard, Deferred)
 }
 
 // ============================================================================

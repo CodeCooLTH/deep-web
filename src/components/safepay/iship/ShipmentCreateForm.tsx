@@ -19,9 +19,15 @@ import { useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import { ISHIP_CATEGORIES } from '@/lib/iship/mapping'
-import type { MissingReceiverField } from '@/lib/iship/mapping'
-import type { ParcelDefaults, ReceiverData, ShipmentViewJson } from '@/lib/iship/context'
+import { ISHIP_CATEGORIES, findMissingReceiverFields } from '@/lib/iship/mapping'
+import type { MissingReceiverField, SenderAddress } from '@/lib/iship/mapping'
+import type {
+  ParcelDefaults,
+  ReceiverData,
+  ShipmentReviewItem,
+  ShipmentViewJson,
+} from '@/lib/iship/context'
+import { useIShipBoxes } from './useIShipBoxes'
 import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
@@ -35,6 +41,12 @@ interface Props {
   orderToken: string
   missingReceiver: MissingReceiverField[]
   receiver: ReceiverData
+  /** ผู้ส่งจากการตั้งค่าร้าน — โชว์ในบล็อกตรวจ แก้ที่นี่ไม่ได้ */
+  sender: SenderAddress
+  /** สินค้าในคำสั่งซื้อ — โชว์ในบล็อกตรวจ */
+  items: ShipmentReviewItem[]
+  /** ยอดเก็บปลายทางของคำสั่งซื้อนี้ — 0 = ไม่ใช่ใบ COD */
+  codSuggested: number
   defaults: ParcelDefaults
   couriers: Courier[]
   /** โหลดรายชื่อขนส่งไม่ได้ — ยังสร้างได้ด้วยค่าตั้งต้นของร้าน */
@@ -64,10 +76,71 @@ function numOrUndefined(v: string): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
+/** ช่องที่ยังไม่ได้กรอก — เขียน class เต็มคำ ไม่ประกอบชื่อสีแบบ dynamic (Tailwind สแกนข้อความ) */
+function MissingChip({ label }: { label: string }) {
+  return <span className="badge bg-danger/15 text-danger">ขาด{label}</span>
+}
+
+/**
+ * ผู้ส่ง/ผู้รับ 1 ก้อนในบล็อกตรวจ — โครงเดียวกันทั้งคู่เพื่อให้ตาเทียบกันได้ทันที
+ * missing ส่งมาเฉพาะฝั่งผู้รับ (ผู้ส่งถูก gate ไว้ก่อนเข้าฟอร์มนี้แล้ว ที่นี่ fallback เฉย ๆ)
+ */
+function ReviewParty({
+  icon,
+  label,
+  party,
+  missing = [],
+}: {
+  icon: string
+  label: string
+  party: SenderAddress
+  missing?: MissingReceiverField[]
+}) {
+  const has = (v?: string | null) => !!v && v.trim() !== ''
+  const lacks = (f: MissingReceiverField) => missing.includes(f)
+  const locality = [party.subdistrict, party.district].filter(has).join(' · ')
+  const region = [party.province, party.postcode].filter(has).join(' ')
+
+  return (
+    <div className="flex gap-2.5">
+      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-default-100 text-default-500">
+        <Icon icon={icon} className="text-sm" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-xs text-default-400">{label}</p>
+        <p className="mb-0.5 flex flex-wrap items-center gap-1 text-sm font-semibold text-default-900">
+          {has(party.name) ? party.name : lacks('ชื่อผู้รับ') ? <MissingChip label="ชื่อ" /> : '—'}
+        </p>
+        <p className="mb-0.5 flex flex-wrap items-center gap-1 text-sm text-default-600">
+          {has(party.phone) ? (
+            party.phone
+          ) : lacks('เบอร์โทรผู้รับ') ? (
+            <MissingChip label="เบอร์โทร" />
+          ) : (
+            '—'
+          )}
+        </p>
+        <p className="mb-0 flex flex-wrap items-center gap-1 text-sm text-default-600">
+          {has(party.address) ? party.address : lacks('ที่อยู่') ? <MissingChip label="ที่อยู่" /> : '—'}
+          {locality !== '' && <span>{locality}</span>}
+          {!has(party.subdistrict) && lacks('ตำบล') && <MissingChip label="ตำบล" />}
+          {!has(party.district) && lacks('อำเภอ') && <MissingChip label="อำเภอ" />}
+          {region !== '' && <span>{region}</span>}
+          {!has(party.province) && lacks('จังหวัด') && <MissingChip label="จังหวัด" />}
+          {!has(party.postcode) && lacks('รหัสไปรษณีย์') && <MissingChip label="รหัสไปรษณีย์" />}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export default function ShipmentCreateForm({
   orderToken,
   missingReceiver,
   receiver,
+  sender,
+  items,
+  codSuggested,
   defaults,
   couriers,
   couriersError = false,
@@ -90,6 +163,25 @@ export default function ShipmentCreateForm({
     defaults.categoryId != null ? String(defaults.categoryId) : '',
   )
 
+  // กล่องของบัญชีร้าน — เลือกแล้วเติมขนาดให้ทั้ง 3 ช่อง เร็วกว่ากรอกเอง
+  // กล่องที่ร้านสร้างเองขึ้นก่อนชุดมาตรฐาน 26 ใบ ไม่งั้นจะไปกองท้ายจนร้านนึกว่าไม่มี
+  const { boxes } = useIShipBoxes()
+  const ownBoxes = boxes.filter((b) => b.user_id != null)
+  const standardBoxes = boxes.filter((b) => b.user_id == null)
+
+  /**
+   * กล่องที่ตรงกับขนาดในช่องตอนนี้ — ให้ select สะท้อนสิ่งที่กรอกอยู่จริง ไม่ใช่ state แยก
+   * ผลพลอยได้: เปิดฟอร์มมาแล้วเห็นชื่อกล่องที่ร้านตั้งค่าไว้เลย (ค่าตั้งต้นคือขนาดกล่องนั้น)
+   * และถ้าพิมพ์ขนาดเองจนไม่ตรงกล่องไหน ช่องจะกลับไปเป็นข้อความชวนเลือก ไม่ค้างชื่อกล่องผิด
+   */
+  const selectedBoxId = useMemo(() => {
+    const w = Number(width)
+    const l = Number(length)
+    const h = Number(height)
+    const hit = boxes.find((b) => b.width === w && b.length === l && b.height === h)
+    return hit ? String(hit.id) : ''
+  }, [boxes, width, length, height])
+
   // เพิ่มเติม — เปิดอัตโนมัติเมื่อร้านตั้งค่าอะไรไว้ที่หน้าตั้งค่า ไม่งั้นร้านจะไม่รู้ว่ามี
   // COD/ประกันติดมากับพัสดุใบนี้ด้วย (ซ่อนไว้เงียบ ๆ = สร้างไปโดยไม่รู้ว่ามีค่าเหล่านี้)
   const hasPresetExtras =
@@ -98,8 +190,10 @@ export default function ShipmentCreateForm({
     defaults.optOnTime ||
     defaults.optBoxShield ||
     defaults.optIsInsured
-  const [extraOpen, setExtraOpen] = useState(hasPresetExtras)
-  const [codAmount, setCodAmount] = useState('')
+  const [extraOpen, setExtraOpen] = useState(hasPresetExtras || codSuggested > 0)
+  // ใบ COD เติมยอดจากคำสั่งซื้อให้เลย — เดิมปล่อยว่างแล้วร้านต้องเปิดดูยอดอีกหน้าแล้วพิมพ์เอง
+  // ซึ่งเป็นจังหวะที่พิมพ์ผิดได้ง่ายและผิดแล้วรู้ตอนขนส่งเก็บเงินลูกค้าผิดจำนวน (user 2026-07-29)
+  const [codAmount, setCodAmount] = useState(codSuggested > 0 ? String(codSuggested) : '')
   const [remark, setRemark] = useState(defaults.remark ?? '')
   const [onTime, setOnTime] = useState(defaults.optOnTime)
   const [boxShield, setBoxShield] = useState(defaults.optBoxShield)
@@ -115,6 +209,36 @@ export default function ShipmentCreateForm({
 
   const setField = (k: keyof ReceiverData, v: string) => setForm((f) => ({ ...f, [k]: v }))
   const isMissing = (f: MissingReceiverField) => missingReceiver.includes(f)
+
+  /**
+   * ช่องผู้รับที่ยังขาด "ณ วินาทีนี้" — คำนวณจาก form ที่ร้านกำลังพิมพ์ ไม่ใช่ missingReceiver
+   * ที่ server คำนวณไว้ตอนโหลด (ตัวนั้นค้างอยู่กับค่าใน DB) บล็อกตรวจต้องเปลี่ยนตามที่พิมพ์
+   * ไม่งั้นกรอกครบแล้วยังขึ้นแดงอยู่ ซึ่งจะสอนให้ร้านเลิกเชื่อคำเตือน
+   */
+  const liveMissing = useMemo(
+    () =>
+      findMissingReceiverFields(
+        {
+          line1: form.line1,
+          subdistrict: form.subdistrict,
+          district: form.district,
+          province: form.province,
+          postcode: form.postcode,
+        },
+        form.name,
+        form.phone,
+      ),
+    [form],
+  )
+
+  // บล็อกตรวจ — โชว์ 3 รายการแรก ใช้ state ธรรมดาไม่ใช่ Preline collapse เพราะโมดัลแชท
+  // ถูกซ่อนด้วย hidden ไม่ unmount ทำให้ Preline ที่ init ตอน mount ครั้งเดียวใช้ไม่ได้
+  const [itemsOpen, setItemsOpen] = useState(false)
+  const itemCount = useMemo(() => items.reduce((s, it) => s + it.qty, 0), [items])
+  const itemsSubtotal = useMemo(
+    () => items.reduce((s, it) => s + it.price * it.qty, 0),
+    [items],
+  )
 
   const hasLocality = !!(form.subdistrict || form.district || form.province || form.postcode)
   const localityMissing =
@@ -348,6 +472,55 @@ export default function ShipmentCreateForm({
           />
         </div>
 
+        {boxes.length > 0 && (
+          <div className="mb-2.5">
+            <label className="form-label" htmlFor="shp-box">
+              กล่องที่ใช้
+            </label>
+            <select
+              id="shp-box"
+              className="form-select"
+              value={selectedBoxId}
+              onChange={(e) => {
+                const box = boxes.find((b) => String(b.id) === e.target.value)
+                if (!box) return
+                setWidth(String(box.width))
+                setLength(String(box.length))
+                setHeight(String(box.height))
+              }}
+            >
+              <option value="">เลือกกล่องเพื่อเติมขนาดให้ (หรือกรอกเองด้านล่าง)</option>
+              {ownBoxes.length > 0 ? (
+                <>
+                  <optgroup label="กล่องของร้าน">
+                    {ownBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="กล่องมาตรฐาน iShip">
+                    {standardBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))}
+                  </optgroup>
+                </>
+              ) : (
+                standardBoxes.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                  </option>
+                ))
+              )}
+            </select>
+            <p className="mb-0 mt-1 text-xs text-default-400">
+              เพิ่มกล่องใหม่ได้ที่ระบบ iShip
+            </p>
+          </div>
+        )}
+
         <div className="mb-2.5">
           <label className="form-label" htmlFor="shp-width">
             ขนาดกล่อง (กว้าง × ยาว × สูง · ซม.)
@@ -504,6 +677,91 @@ export default function ShipmentCreateForm({
       {extraFields && (
         <section className="border-b-8 border-default-100 p-4">{extraFields({ courierName })}</section>
       )}
+
+      {/* ตรวจก่อนสร้างพัสดุ — สรุปสิ่งที่ "มาจากที่อื่น" (ผู้ส่งจากการตั้งค่า + สินค้าจากออเดอร์)
+          คู่กับผู้รับที่กำลังพิมพ์ ไม่ทวนน้ำหนัก/ขนาด/COD ซ้ำเพราะร้านเพิ่งกรอกเองด้านบน */}
+      <section className="border-b-8 border-default-100 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon icon="tabler:clipboard-check" className="text-sm" aria-hidden="true" />
+          </span>
+          <h6 className="mb-0 text-sm font-semibold text-default-900">ตรวจก่อนสร้างพัสดุ</h6>
+          <span className="ms-auto text-xs text-default-400">กวาดตาก่อนกดสร้าง</span>
+        </div>
+
+        <div className="rounded-lg border border-dashed border-default-300 bg-default-50 p-3">
+          {liveMissing.length > 0 && (
+            <p className="mb-3 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">
+              <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+              <span>ผู้รับยังกรอกไม่ครบ {liveMissing.length} ช่อง — เลื่อนขึ้นไปกรอกด้านบนก่อนกดสร้าง</span>
+            </p>
+          )}
+
+          <ReviewParty icon="tabler:building-store" label="จาก (ผู้ส่ง)" party={sender} />
+
+          <div className="flex w-6 justify-center py-1.5">
+            <Icon icon="tabler:arrow-down" className="text-base text-default-300" aria-hidden="true" />
+          </div>
+
+          <ReviewParty
+            icon="tabler:map-pin"
+            label="ถึง (ผู้รับ)"
+            party={{
+              name: form.name,
+              phone: form.phone,
+              address: form.line1,
+              subdistrict: form.subdistrict,
+              district: form.district,
+              province: form.province,
+              postcode: form.postcode,
+            }}
+            missing={liveMissing}
+          />
+
+          <div className="mt-3 border-t border-dashed border-default-300 pt-3">
+            <p className="mb-2 text-xs text-default-400">สินค้าในคำสั่งซื้อ</p>
+            {items.length === 0 ? (
+              <p className="mb-0 text-sm text-default-400">ไม่มีรายการสินค้าในคำสั่งซื้อนี้</p>
+            ) : (
+              <>
+                <ul className="mb-0 flex list-none flex-col gap-1.5 ps-0">
+                  {(itemsOpen ? items : items.slice(0, 3)).map((it) => (
+                    <li key={it.id} className="flex items-start gap-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate text-default-700">{it.name}</span>
+                      <span className="shrink-0 text-default-500">×{it.qty}</span>
+                      <span className="shrink-0 font-semibold text-default-900">
+                        ฿{(it.price * it.qty).toLocaleString('th-TH')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                {items.length > 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setItemsOpen((v) => !v)}
+                    className="btn mt-1.5 inline-flex items-center gap-1 p-0 text-xs text-primary hover:underline"
+                  >
+                    <Icon
+                      icon="tabler:chevron-down"
+                      className={`text-sm transition-transform ${itemsOpen ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    />
+                    {itemsOpen ? 'ย่อ' : `ดูเพิ่มเติม (+${items.length - 3} รายการ)`}
+                  </button>
+                )}
+
+                <div className="mt-2 flex items-center justify-between border-t border-dashed border-default-300 pt-2 text-sm">
+                  <span className="text-default-500">รวมสินค้า {itemCount} ชิ้น</span>
+                  <span className="font-semibold text-default-900">
+                    ฿{itemsSubtotal.toLocaleString('th-TH')}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="p-4">
         <button
