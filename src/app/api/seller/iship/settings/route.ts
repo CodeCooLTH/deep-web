@@ -22,7 +22,12 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const guard = await requireGeneralShop({ ownerOnly: true });
+  // ชั่วคราว (user สั่ง 2026-07-29): ปลด ownerOnly ให้พนักงานร้านตั้งค่าได้ด้วย
+  // เดิม BR-ISHIP-03 ให้เฉพาะเจ้าของร้าน แต่ทำให้คนที่ไม่ใช่เจ้าของทดสอบ/ใช้งานไม่ได้เลย
+  // ผ่อนเฉพาะกลุ่ม "ตั้งค่า" (ที่อยู่ผู้ส่ง/ค่าตั้งต้นพัสดุ/โหมดสร้าง) — การวางและถอด token
+  // ยังเป็นสิทธิ์เจ้าของร้านเท่านั้น เพราะเป็น credential และถอดแล้วทั้งร้านใช้งานไม่ได้
+  // TODO: ตัดสินใจให้จบว่าจะคืน ownerOnly หรือแก้ BR-ISHIP-03 ถาวร
+  const guard = await requireGeneralShop();
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipSettingsSchema, await readJson(request));

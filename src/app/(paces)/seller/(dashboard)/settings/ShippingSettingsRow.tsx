@@ -546,8 +546,7 @@ export default function ShippingSettingsRow({
                 }`}
               >
                 <Icon icon="settings" className="text-base" aria-hidden="true" />
-                {/* พนักงานเปิดดูได้แต่แก้ไม่ได้ — บอกตั้งแต่บนปุ่ม จะได้ไม่เสียเวลากรอกแล้วเซฟไม่ได้ */}
-                {isOwner ? 'ตั้งค่า' : 'ดูการตั้งค่า'}
+                ตั้งค่า
               </button>
             </>
           )}
@@ -729,36 +728,22 @@ export default function ShippingSettingsRow({
               >
                 ปิด
               </button>
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="btn inline-flex items-center justify-center gap-2 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
-                >
-                  {saving ? (
-                    <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <Icon icon="device-floppy" className="text-base" aria-hidden="true" />
-                  )}
-                  บันทึกการตั้งค่า
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="btn inline-flex items-center justify-center gap-2 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
+              >
+                {saving ? (
+                  <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <Icon icon="device-floppy" className="text-base" aria-hidden="true" />
+                )}
+                บันทึกการตั้งค่า
+              </button>
             </div>
           }
         >
-          {/* พนักงานร้านเปิดดูได้แต่แก้ไม่ได้ (BR-ISHIP-03) — ต้องบอกตั้งแต่บนสุด
-              ไม่ใช่ปล่อยให้กรอกจนเสร็จแล้วหาปุ่มบันทึกไม่เจอ (user report 2026-07-29) */}
-          {!isOwner && (
-            <p className="mb-4 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2.5 text-sm text-warning">
-              <Icon icon="lock" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-              <span>
-                เฉพาะเจ้าของร้านเท่านั้นที่แก้ไขการตั้งค่าการจัดส่งได้ ตอนนี้เปิดให้ดูค่าที่ตั้งไว้อย่างเดียว
-                — ถ้าต้องแก้ไข ให้เจ้าของร้านเข้ามาตั้งค่าเอง
-              </span>
-            </p>
-          )}
-
           {/* nav-tabs นอก card-header ต้องคุม margin/border เอง (precedent CustomerPanel) */}
           <div
             role="tablist"
@@ -808,13 +793,13 @@ export default function ShippingSettingsRow({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label" htmlFor="iship-senderName">ชื่อผู้ส่ง</label>
-                <input id="iship-senderName" disabled={!isOwner} type="text" className="form-input" maxLength={120}
+                <input id="iship-senderName" type="text" className="form-input" maxLength={120}
                   value={settings.senderName ?? ''}
                   onChange={(e) => patch({ senderName: e.target.value })} />
               </div>
               <div>
                 <label className="form-label" htmlFor="iship-senderPhone">เบอร์โทรผู้ส่ง</label>
-                <input id="iship-senderPhone" disabled={!isOwner} type="tel" inputMode="numeric" className={inputCls('senderPhone')}
+                <input id="iship-senderPhone" type="tel" inputMode="numeric" className={inputCls('senderPhone')}
                   aria-describedby={errors.senderPhone ? 'iship-senderPhone-err' : undefined}
                   value={settings.senderPhone ?? ''}
                   onChange={(e) => patch({ senderPhone: e.target.value })} />
@@ -822,7 +807,7 @@ export default function ShippingSettingsRow({
               </div>
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-senderAddress">ที่อยู่ (บ้านเลขที่ / ถนน)</label>
-                <input id="iship-senderAddress" disabled={!isOwner} type="text" className="form-input"
+                <input id="iship-senderAddress" type="text" className="form-input"
                   value={settings.senderAddress ?? ''}
                   onChange={(e) => patch({ senderAddress: e.target.value })} />
               </div>
@@ -839,10 +824,10 @@ export default function ShippingSettingsRow({
                 <button
                   ref={addrTriggerRef}
                   type="button"
-                  disabled={!isOwner}
+                 
                   onClick={() => setAddrOpen(true)}
                   aria-labelledby="iship-sender-locality-label"
-                  className="flex w-full items-center gap-2 rounded-lg border border-default-300 px-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex w-full items-center gap-2 rounded-lg border border-default-300 px-3 py-2.5 text-left"
                 >
                   <Icon
                     icon="map-pin"
@@ -878,7 +863,7 @@ export default function ShippingSettingsRow({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label" htmlFor="iship-courier">ขนส่งที่ใช้ประจำ</label>
-                <select id="iship-courier" disabled={!isOwner} className="form-select"
+                <select id="iship-courier" className="form-select"
                   value={settings.defaultCourierCode ?? ''}
                   onChange={(e) => patch({ defaultCourierCode: e.target.value || null })}>
                   <option value="">เลือกขนส่ง</option>
@@ -889,7 +874,7 @@ export default function ShippingSettingsRow({
               </div>
               <div>
                 <label className="form-label" htmlFor="iship-category">ประเภทสินค้า</label>
-                <select id="iship-category" disabled={!isOwner} className="form-select"
+                <select id="iship-category" className="form-select"
                   value={settings.defaultCategoryId ?? ''}
                   onChange={(e) => patch({ defaultCategoryId: e.target.value === '' ? null : Number(e.target.value) })}>
                   <option value="">เลือกประเภท</option>
@@ -902,7 +887,7 @@ export default function ShippingSettingsRow({
               {/* เลือกกล่องมาตรฐานแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง */}
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-box">กล่องที่ใช้ประจำ</label>
-                <select id="iship-box" disabled={!isOwner} className="form-select" defaultValue=""
+                <select id="iship-box" className="form-select" defaultValue=""
                   onChange={(e) => {
                     const box = boxes.find((b) => String(b.id) === e.target.value)
                     if (box) patch({ defaultWidth: box.width, defaultLength: box.length, defaultHeight: box.height })
@@ -918,7 +903,7 @@ export default function ShippingSettingsRow({
 
               <div>
                 <label className="form-label" htmlFor="iship-defaultWeight">น้ำหนัก (กก.)</label>
-                <input id="iship-defaultWeight" disabled={!isOwner} type="number" step="0.1" min="0.01"
+                <input id="iship-defaultWeight" type="number" step="0.1" min="0.01"
                   className={inputCls('defaultWeight')}
                   aria-describedby={errors.defaultWeight ? 'iship-defaultWeight-err' : undefined}
                   value={settings.defaultWeight ?? ''}
@@ -928,19 +913,19 @@ export default function ShippingSettingsRow({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="form-label" htmlFor="iship-defaultWidth">กว้าง</label>
-                  <input id="iship-defaultWidth" disabled={!isOwner} type="number" min="1" className={inputCls('defaultWidth')}
+                  <input id="iship-defaultWidth" type="number" min="1" className={inputCls('defaultWidth')}
                     value={settings.defaultWidth ?? ''}
                     onChange={(e) => patch({ defaultWidth: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
                 <div>
                   <label className="form-label" htmlFor="iship-defaultLength">ยาว</label>
-                  <input id="iship-defaultLength" disabled={!isOwner} type="number" min="1" className={inputCls('defaultLength')}
+                  <input id="iship-defaultLength" type="number" min="1" className={inputCls('defaultLength')}
                     value={settings.defaultLength ?? ''}
                     onChange={(e) => patch({ defaultLength: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
                 <div>
                   <label className="form-label" htmlFor="iship-defaultHeight">สูง</label>
-                  <input id="iship-defaultHeight" disabled={!isOwner} type="number" min="1" className={inputCls('defaultHeight')}
+                  <input id="iship-defaultHeight" type="number" min="1" className={inputCls('defaultHeight')}
                     value={settings.defaultHeight ?? ''}
                     onChange={(e) => patch({ defaultHeight: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
@@ -951,7 +936,7 @@ export default function ShippingSettingsRow({
 
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-defaultRemark">หมายเหตุถึงคนส่งของ</label>
-                <input id="iship-defaultRemark" disabled={!isOwner} type="text" className="form-input" placeholder="เช่น ห้ามโยน"
+                <input id="iship-defaultRemark" type="text" className="form-input" placeholder="เช่น ห้ามโยน"
                   value={settings.defaultRemark ?? ''}
                   onChange={(e) => patch({ defaultRemark: e.target.value })} />
               </div>
@@ -965,22 +950,22 @@ export default function ShippingSettingsRow({
             {/* บริการเสริม */}
             <div className="mt-4 flex flex-col gap-3 border-t border-default-200 pt-4">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.defaultCodEnabled}
+                <input type="checkbox" className="form-checkbox" checked={settings.defaultCodEnabled}
                   onChange={(e) => patch({ defaultCodEnabled: e.target.checked })} />
                 เก็บเงินปลายทาง (COD) เป็นค่าเริ่มต้น
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.optOnTime}
+                <input type="checkbox" className="form-checkbox" checked={settings.optOnTime}
                   onChange={(e) => patch({ optOnTime: e.target.checked })} />
                 ใช้บริการส่งตรงเวลา
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.optBoxShield}
+                <input type="checkbox" className="form-checkbox" checked={settings.optBoxShield}
                   onChange={(e) => patch({ optBoxShield: e.target.checked })} />
                 ประกันกล่องพัสดุ
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" disabled={!isOwner} className="form-checkbox" checked={settings.optIsInsured}
+                <input type="checkbox" className="form-checkbox" checked={settings.optIsInsured}
                   onChange={(e) => patch({ optIsInsured: e.target.checked })} />
                 ประกันสินค้า
               </label>
@@ -989,7 +974,7 @@ export default function ShippingSettingsRow({
                   <label className="form-label" htmlFor="iship-optProductValue">
                     มูลค่าสินค้าที่เอาประกัน (บาท)
                   </label>
-                  <input id="iship-optProductValue" disabled={!isOwner} type="number" min="1"
+                  <input id="iship-optProductValue" type="number" min="1"
                     className={inputCls('optProductValue')}
                     aria-describedby={errors.optProductValue ? 'iship-optProductValue-err' : undefined}
                     value={settings.optProductValue ?? ''}
@@ -1014,7 +999,7 @@ export default function ShippingSettingsRow({
                     : 'border-default-200'
                 }`}
               >
-                <input type="radio" name="iship-create-mode" disabled={!isOwner} className="form-radio mt-0.5"
+                <input type="radio" name="iship-create-mode" className="form-radio mt-0.5"
                   checked={settings.createMode === m.value}
                   onChange={() => patch({ createMode: m.value })} />
                 <span className="min-w-0">
