@@ -62,7 +62,32 @@ export default function ChatToastListener({ shopId }: Props) {
             if (pathnameRef.current === `/inbox/${conversationId}`) return
             if (getChatWidgetActiveConversationId() === conversationId) return
           }
-          pacesToast.chat.info('คุณมีข้อความใหม่เข้ามา')
+
+          // broadcast ส่งมาแค่ id (signal-only โดยตั้งใจ — ห้าม body หลุดผ่าน Realtime) toast แบบ
+          // มีชื่อ+ข้อความจึงต้องมาขอเนื้อหาจาก API ที่ตรวจ session + scope shopId อีกชั้น
+          // ไม่มี id (payload เพี้ยน) หรือดึงไม่สำเร็จ → ถอยไปข้อความกลาง ๆ แบบเดิม ดีกว่าเงียบ
+          if (!conversationId) {
+            pacesToast.chat.info('คุณมีข้อความใหม่เข้ามา')
+            return
+          }
+
+          fetch(`/api/chat/conversations/${conversationId}/preview`, { cache: 'no-store' })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (!data?.conversationId) {
+                pacesToast.chat.info('คุณมีข้อความใหม่เข้ามา')
+                return
+              }
+              pacesToast.chat.message({
+                conversationId: data.conversationId,
+                senderName: data.senderName,
+                senderAvatarUrl: data.senderAvatarUrl ?? null,
+                preview: data.preview ?? null,
+                channel: data.channel,
+                channelName: data.channelName ?? null,
+              })
+            })
+            .catch(() => pacesToast.chat.info('คุณมีข้อความใหม่เข้ามา'))
         },
       )
       .subscribe()
