@@ -161,10 +161,23 @@ export default function ShipmentCreateForm({
   )
 
   // กล่องของบัญชีร้าน — เลือกแล้วเติมขนาดให้ทั้ง 3 ช่อง เร็วกว่ากรอกเอง
-  // กล่องของร้านต้องขึ้นก่อนกล่องมาตรฐาน (~24 ใบ) ไม่งั้นจะไปกองท้ายจนร้านนึกว่าไม่มี
+  // กล่องที่ร้านสร้างเองขึ้นก่อนชุดมาตรฐาน 26 ใบ ไม่งั้นจะไปกองท้ายจนร้านนึกว่าไม่มี
   const { boxes } = useIShipBoxes()
   const ownBoxes = boxes.filter((b) => b.user_id != null)
   const standardBoxes = boxes.filter((b) => b.user_id == null)
+
+  /**
+   * กล่องที่ตรงกับขนาดในช่องตอนนี้ — ให้ select สะท้อนสิ่งที่กรอกอยู่จริง ไม่ใช่ state แยก
+   * ผลพลอยได้: เปิดฟอร์มมาแล้วเห็นชื่อกล่องที่ร้านตั้งค่าไว้เลย (ค่าตั้งต้นคือขนาดกล่องนั้น)
+   * และถ้าพิมพ์ขนาดเองจนไม่ตรงกล่องไหน ช่องจะกลับไปเป็นข้อความชวนเลือก ไม่ค้างชื่อกล่องผิด
+   */
+  const selectedBoxId = useMemo(() => {
+    const w = Number(width)
+    const l = Number(length)
+    const h = Number(height)
+    const hit = boxes.find((b) => b.width === w && b.length === l && b.height === h)
+    return hit ? String(hit.id) : ''
+  }, [boxes, width, length, height])
 
   // เพิ่มเติม — เปิดอัตโนมัติเมื่อร้านตั้งค่าอะไรไว้ที่หน้าตั้งค่า ไม่งั้นร้านจะไม่รู้ว่ามี
   // COD/ประกันติดมากับพัสดุใบนี้ด้วย (ซ่อนไว้เงียบ ๆ = สร้างไปโดยไม่รู้ว่ามีค่าเหล่านี้)
@@ -457,12 +470,12 @@ export default function ShipmentCreateForm({
         {boxes.length > 0 && (
           <div className="mb-2.5">
             <label className="form-label" htmlFor="shp-box">
-              กล่องที่ใช้ประจำ
+              กล่องที่ใช้
             </label>
             <select
               id="shp-box"
               className="form-select"
-              defaultValue=""
+              value={selectedBoxId}
               onChange={(e) => {
                 const box = boxes.find((b) => String(b.id) === e.target.value)
                 if (!box) return
@@ -471,7 +484,7 @@ export default function ShipmentCreateForm({
                 setHeight(String(box.height))
               }}
             >
-              <option value="">เลือกเพื่อเติมขนาดให้อัตโนมัติ (หรือกรอกเองด้านล่าง)</option>
+              <option value="">เลือกกล่องเพื่อเติมขนาดให้ (หรือกรอกเองด้านล่าง)</option>
               {ownBoxes.length > 0 ? (
                 <>
                   <optgroup label="กล่องของร้าน">
@@ -497,6 +510,9 @@ export default function ShipmentCreateForm({
                 ))
               )}
             </select>
+            <p className="mb-0 mt-1 text-xs text-default-400">
+              เพิ่มกล่องใหม่ได้ที่ระบบ iShip
+            </p>
           </div>
         )}
 
