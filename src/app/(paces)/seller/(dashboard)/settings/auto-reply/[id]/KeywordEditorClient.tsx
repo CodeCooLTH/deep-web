@@ -305,25 +305,17 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-10">
         <div className="xl:col-span-7">
-          {/* ── หัวกลุ่มคำ + คำตรวจจับ ───────────────────────────── */}
+          {/* ── [A] ตั้งค่ากลุ่มคำ ───────────────────────────────── */}
           <div className="card">
-            <div className="card-header flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <input
-                  className="form-input font-semibold"
-                  value={name}
-                  disabled={!canEdit}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={100}
-                  aria-label="ชื่อกลุ่มคำ"
-                />
-                <p className="text-default-500 mt-1.5 text-xs">
-                  ตรงเมื่อ{matchType === 'EXACT' ? 'ข้อความตรงกับ' : matchType === 'STARTS_WITH' ? 'ข้อความขึ้นต้นด้วย' : 'มีคำว่า'}
-                  {phrases.length > 0
-                    ? ' ' + phrases.map((p) => `“${p.phrase}”`).join(' หรือ ')
-                    : ' — ยังไม่ได้ใส่คำตรวจจับ'}
-                </p>
-              </div>
+            {/* หัวการ์ด "รอง": text-md + ไอคอนเปล่าสีธีม — ไม่มีแผ่นสีรองไอคอน เพราะแผ่นนั้นสงวนให้
+                การ์ด [B] ใบเดียวในหน้า (spec §7) ลำดับชั้นจึงมาจาก treatment ไม่ใช่จากการทำให้
+                ใบอื่นจางลง ซึ่งเป็นต้นเหตุที่ user ทักว่า "ทุกอย่างจางไปหมด"
+                Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx → CardWithHeader (:182-197) */}
+            <div className="card-header flex flex-wrap items-center justify-between gap-3">
+              <h5 className="text-default-800 text-md flex min-w-0 items-center gap-2 font-semibold">
+                <Icon icon="adjustments-horizontal" className="text-primary size-4 flex-none" aria-hidden="true" />
+                ตั้งค่ากลุ่มคำ
+              </h5>
               {/* สถานะของกลุ่มคำนี้ 3 ค่า — ค่าเดียวจบ ไม่มีสวิตช์เปิด/ปิดซ้อนอีกชั้น
                   (user 2026-07-29: "ทดสอบไม่เท่ากับ INACTIVE นะ ต้องมี 3 สถานะ")
                   มีผลทันทีไม่ต้องกดบันทึก */}
@@ -346,26 +338,65 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
             </div>
 
             <div className="card-body">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                {phrases.map((p) => (
-                  <span key={p.id} className="chip bg-default-100 text-default-700 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs">
-                    {p.phrase}
-                    {canEdit && (
-                      <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
-                        aria-label={`ลบคำ ${p.phrase}`} className="text-default-500 hover:text-danger">
-                        <Icon icon="x" className="text-xs" aria-hidden="true" />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {canEdit && (
+              {/* ชื่อกลุ่ม: ย้ายลงมาอยู่ใน card-body พร้อม form-label ที่ผูก htmlFor (§11.2 ข้อ 17 a11y)
+                  หัวการ์ดจึงเหลือ "ชื่อการ์ด + สถานะ" ตามลำดับชั้นใน mockup แทนที่จะเป็น input ลอยในหัว
+                  ห่อ .input-group เพราะ .form-input มี width:100% แบบ unlayered → width utility บนตัว input
+                  เองไม่มีผลเลย ต้องคุมที่ตัวห่อ (paces-component-reference.md §4)
+                  Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (:15-22) */}
+              <div className="mb-5">
+                <label className="form-label" htmlFor="k-name">
+                  ชื่อกลุ่มคำ
+                </label>
+                <div className="input-group max-w-md">
                   <input
-                    className="form-input w-40" value={newPhrase} placeholder="เพิ่มคำ…"
-                    onChange={(e) => setNewPhrase(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhrase() } }}
-                    maxLength={200} aria-label="คำตรวจจับใหม่"
+                    id="k-name"
+                    className="form-input font-semibold"
+                    value={name}
+                    disabled={!canEdit}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={100}
+                    aria-label="ชื่อกลุ่มคำ"
                   />
-                )}
+                </div>
+              </div>
+
+              {/* label ครอบกลุ่มชิป (ไม่ผูก htmlFor เพราะกำกับทั้งกลุ่ม ไม่ใช่ช่องเดียว — ชื่อที่ a11y
+                  อ่านของช่องพิมพ์ยังเป็น aria-label "คำตรวจจับใหม่" ตามเดิม)
+                  ประโยคสรุปคำที่เคยอยู่ตรงนี้ ("มีคำว่า X หรือ Y") ถูกตัดทิ้ง ไม่ได้ทำให้จางลง —
+                  มันพูดซ้ำกับชิปที่อยู่ใต้มันเอง (กลไกเพดานเทา spec §7) */}
+              <div className="mb-3">
+                <label className="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {phrases.map((p) => (
+                    /* ชิปคำตรวจจับ = คลาสเดียวกับหน้ารายการเป๊ะ (SSOT: AutoReplyListing.tsx:96)
+                       ของชิ้นเดียวกันในสองหน้าต้องสีและทรงเดียวกัน — rounded (4px) ไม่ใช่ rounded-full */
+                    <span
+                      key={p.id}
+                      className="bg-primary/10 text-primary flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+                    >
+                      {p.phrase}
+                      {canEdit && (
+                        <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
+                          aria-label={`ลบคำ ${p.phrase}`} className="text-primary/60 hover:text-danger">
+                          <Icon icon="x" className="text-xs" aria-hidden="true" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                  {canEdit && (
+                    <div className="input-group w-full sm:w-64">
+                      <input
+                        /* .form-input ตั้งสี placeholder เป็นเทาที่ตก AA (2.9:1) ไว้แบบ unlayered
+                           → utility ธรรมดาแพ้ ต้องเติม ! เพื่อยกขึ้นเป็นเทาที่อ่านออกตามเพดานเทา (A-6) */
+                        className="form-input placeholder:text-default-500!"
+                        value={newPhrase} placeholder="เพิ่มคำ… แล้วกด Enter"
+                        onChange={(e) => setNewPhrase(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhrase() } }}
+                        maxLength={200} aria-label="คำตรวจจับใหม่"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="sm:w-48">
