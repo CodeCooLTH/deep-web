@@ -71,14 +71,16 @@ export type StatusPill = { label: string; bg: string; text: string; dot: string 
  * ต่างจาก getStatusPill (hex, buyer-facing pill ใน /o/[token]) — อันนั้นแยก PENDING ตาม
  * fulfillment/payment เป็น 3 label ส่วนอันนี้ยึด status ตรง ๆ 4 ค่า ตาม UI หลังบ้าน
  */
+export type OrderStatusTone = 'warning' | 'info' | 'success' | 'danger'
+
 export const ORDER_STATUS_META: Record<
   string,
-  { label: string; cls: string; icon: string }
+  { label: string; cls: string; icon: string; tone: OrderStatusTone }
 > = {
-  PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning', icon: 'clock' },
-  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-info/15 text-info', icon: 'truck' },
-  CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
-  CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger', icon: 'circle-x' },
+  PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning', icon: 'clock', tone: 'warning' },
+  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-info/15 text-info', icon: 'truck', tone: 'info' },
+  CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled', tone: 'success' },
+  CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger', icon: 'circle-x', tone: 'danger' },
 }
 
 // Palette tokens ตาม spec §2 — ห้ามแก้ค่าสีที่นี่โดยไม่ sync กับ mockup

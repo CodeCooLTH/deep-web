@@ -71,7 +71,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
             {/* rating stars */}
             <div className="mb-3">
               <Rating rating={review.rating} />
-              <span className="text-default-400 text-xs ml-2">{review.rating} / 5</span>
+              <span className="text-default-400 text-xs ms-2">{review.rating} / 5</span>
             </div>
 
             {/* comment หรือ empty-comment notice */}

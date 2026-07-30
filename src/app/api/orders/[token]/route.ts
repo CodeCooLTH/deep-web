@@ -89,7 +89,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json(order, { headers: NO_STORE });
   } catch (e: unknown) {
     if (e instanceof OrderNotFoundError) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
-    if (e instanceof OrderNotEditableError) return NextResponse.json({ error: "คำสั่งซื้อที่ยกเลิกแล้วแก้ไขไม่ได้" }, { status: 400 });
+    if (e instanceof OrderNotEditableError) {
+      return NextResponse.json({ error: "แก้ไขได้เฉพาะคำสั่งซื้อที่ยังรอดำเนินการเท่านั้น" }, { status: 400 });
+    }
     if (e instanceof ProductNotInShopError) return NextResponse.json({ error: "มีสินค้าที่ไม่ใช่ของร้านนี้" }, { status: 400 });
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json({ error: "ออเดอร์ที่ต้องจัดส่งต้องกรอกที่อยู่ให้ครบ" }, { status: 400 });

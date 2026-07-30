@@ -75,7 +75,10 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
         <h4 className="card-title">ข้อมูลผู้ซื้อ</h4>
       </div>
       <div className="card-body">
-        {!buyerContactMasked ? (
+        {/* เดิม gate ทั้งบล็อกด้วย buyerContactMasked อย่างเดียว → ออเดอร์ที่ร้านสร้างเองหน้าร้าน (POS)
+            และพิมพ์ชื่อลูกค้าไว้แล้วแต่ไม่มีเบอร์ จะขึ้น "ยังไม่มีผู้ซื้อยืนยัน" = ซ่อนข้อมูลที่ร้าน
+            กรอกเอง. แสดง empty-state ต่อเมื่อไม่มีทั้งชื่อและเบอร์เท่านั้น */}
+        {!buyerContactMasked && !displayName ? (
           // empty-state ที่ชัดเจน — ผู้ซื้อยังไม่ได้ยืนยันออเดอร์
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="user-off" className="text-3xl text-default-300 mb-2" />
@@ -125,17 +128,18 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
                 </div>
               )}
             </div>
-            {/* contact list — 1 row: เบอร์โทร (mask แล้ว) */}
+            {/* contact list — 1 row: เบอร์โทร (mask แล้ว) หรือบอกว่ายังไม่มี
+                <p> ไม่ใช่ <h5>: เบอร์โทรเป็นค่าข้อมูล ไม่ใช่หัวข้อ (screen reader อ่านเป็น heading ผิด) */}
             <ul className="text-default-400 space-y-2.5">
               <li>
                 <div className="flex items-center gap-2.5">
                   <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                    <Icon icon="phone" className="text-sm" />
+                    <Icon icon={buyerContactMasked ? 'phone' : 'phone-off'} className="text-sm" />
                   </span>
-                  <h5 className="text-default-400 font-medium text-sm">
+                  <p className="text-default-400 font-medium text-sm mb-0">
                     {/* mask แล้วจาก server (S-C1) — แสดงเฉพาะ 4 ตัวท้าย */}
-                    {buyerContactMasked}
-                  </h5>
+                    {buyerContactMasked ?? 'ยังไม่มีเบอร์ติดต่อ (ผู้ซื้อยังไม่ยืนยัน)'}
+                  </p>
                 </div>
               </li>
             </ul>

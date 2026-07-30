@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 import Icon from '@/components/wrappers/Icon'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
@@ -80,25 +81,11 @@ export default async function NewOrderPage() {
           .catch(() => 'OFF' as const)
       : ('OFF' as const)
 
-  // map Product → CatalogProduct (ใช้ร่วม catalog + bestSellers)
-  const toCatalog = (p: any): CatalogProduct => ({
-    id: p.id,
-    name: p.name,
-    description: p.description ?? null,
-    price: Number(p.price),
-    type: p.type,
-    fulfillmentMode: p.fulfillmentMode,
-    image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
-    // sku: ใช้ค้นหาใน ProductPickerSheet (ชื่อ+SKU) — optional
-    sku: p.sku ?? null,
-    // stockQty: NULL = untracked (ไม่โชว์สต็อก), number = tracked
-    stockQty: p.stockQty ?? null,
-  })
-
+  // map Product → CatalogProduct: ใช้ toCatalogProduct กลาง (แชร์กับหน้าแก้ไขออเดอร์)
   let catalog: CatalogProduct[] = []
   try {
     const products = await getProductsByShop(shop.id)
-    catalog = products.map(toCatalog)
+    catalog = products.map(toCatalogProduct)
   } catch {
     catalog = []
   }
@@ -106,7 +93,7 @@ export default async function NewOrderPage() {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalog)
+    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalogProduct)
   } catch {
     bestSellers = []
   }

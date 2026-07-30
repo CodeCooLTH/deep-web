@@ -26,7 +26,6 @@ import StatusHero from './components/StatusHero'
 import OrderSummary from './components/OrderSummary'
 import CustomerDetails from './components/CustomerDetails'
 import PaymentCard from './components/PaymentCard'
-import OrderDetails from './components/OrderDetails'
 import type { ShippingAddressData } from './components/CustomerDetails'
 import ShippingActivity from './components/ShippingActivity'
 import OrderReviewCard from './components/OrderReviewCard'
@@ -183,14 +182,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
           <OrderReviewCard review={reviewData} />
         </div>
 
-        {/* RIGHT — col-span-1 (30%): OrderDetails → PaymentCard → ShippingActivity */}
+        {/* RIGHT — col-span-1 (30%): PaymentCard → ShipmentPanel → ShippingActivity
+            การ์ด "รายละเอียดคำสั่งซื้อ" (OrderDetails) ถูกตัดออก: "วันที่สร้าง" ซ้ำกับ StatusHero
+            ทุกประการ, "สร้างโดย" คือชื่อร้านตัวเองเสมอ (ข้อมูลเป็นศูนย์) ส่วน "อัปเดตล่าสุด"
+            ย้ายไปเป็นเวลาของ step ปัจจุบันใน ShippingActivity ซึ่งเป็นที่ที่มันมีความหมายจริง */}
         <div className="space-y-base">
-          {/* OrderDetails: วันที่สร้าง/อัปเดต/ชื่อร้าน — render เสมอ (แทน ShippingAddress slot) */}
-          <OrderDetails
-            createdAtISO={createdAtISO}
-            updatedAtISO={updatedAtISO}
-            shopName={order.shop?.shopName ?? '—'}
-          />
           {/* PaymentCard — วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล (ไม่ใช่ PII) */}
           <PaymentCard
             paymentMethod={order.paymentMethod ?? null}
@@ -214,6 +210,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
               status: order.status,
               fulfillmentMode: order.fulfillmentMode,
               createdAtISO,
+              updatedAtISO,
               shipmentTracking: order.shipmentTracking
                 ? {
                     provider: order.shipmentTracking.provider,
