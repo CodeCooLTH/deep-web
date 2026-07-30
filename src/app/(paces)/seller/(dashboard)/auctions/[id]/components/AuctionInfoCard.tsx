@@ -1,13 +1,13 @@
 /**
  * AuctionInfoCard — kv card ข้อมูลตั้งต้นของประมูล (ขั้นบิด/reserve/ซื้อทันที/เวลาเปิด-ปิด)
  *
- * Base: src/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderDetails.tsx
- *   (icon-in-circle + label/value list — Base เดิมของไฟล์นั้นคือ theme
- *   .../order-details/components/CustomerDetails.tsx)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/CustomerDetails.tsx
+ *   (icon-in-circle + label/value list) — เดิม comment นี้ชี้ผ่าน OrderDetails.tsx ของหน้า
+ *   order detail ซึ่งถูกลบไปแล้ว (การ์ดนั้นเหลือแต่ข้อมูลซ้ำ/ข้อมูลคงที่) จึงชี้ theme ตรง ๆ แทน
  *
  * PII: แสดงแค่ตัวเลข/เวลาของ auction เอง ไม่มีข้อมูลผู้ใช้ใด ๆ ในการ์ดนี้
  *
- * ⚠️ ข้อจำกัด scope: ไม่แสดง "ราคาเริ่มต้น" (startPrice) — เหตุผลเดียวกับ AuctionControlPanel.tsx
+ * ข้อจำกัด scope: ไม่แสดง "ราคาเริ่มต้น" (startPrice) — เหตุผลเดียวกับ AuctionControlPanel.tsx
  * (DTO ไม่มี field นี้, ห้ามขยาย DTO เกิน orderId ในรอบนี้)
  * reserve แสดงแค่ "มี"/"ไม่มี" (ไม่โชว์ตัวเลขจริง) ตาม UI-DESIGN-SPEC §3 — ใช้ `hasReserve` boolean
  * ที่มีอยู่แล้วใน DTO (ไม่ใช่ `reservePrice` ตัวเลข)

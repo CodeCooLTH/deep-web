@@ -556,7 +556,12 @@ export default function OrderCreateForm({
       // toast เฉพาะ desktop POS (≥ lg) — mobile ไม่ต้อง (redirect ไปหน้าออเดอร์อยู่แล้ว, toast ซ้ำซ้อน; user req)
       const isDesktop =
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-      if (isDesktop) pacesToast.success('สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ')
+      if (isDesktop) {
+        // โหมดแก้ไข (PATCH) ไม่ได้สร้างลิงก์ใหม่ — copy เดิมชวนให้ "แชร์ลิงก์" ผิดบริบท
+        pacesToast.success(
+          editOrderToken ? 'บันทึกการแก้ไขแล้ว' : 'สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ',
+        )
+      }
 
       // feature 00022 — เปิดพัสดุตามโหมดที่ร้านตั้งไว้ (อัตโนมัติ / ถามก่อน / ปิด)
       // วางไว้ "หลัง" ออเดอร์บันทึกสำเร็จและ "ก่อน" เปลี่ยนหน้าเสมอ:

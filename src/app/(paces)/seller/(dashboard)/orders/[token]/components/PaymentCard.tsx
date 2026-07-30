@@ -101,8 +101,10 @@ export default function PaymentCard({
     }
     // TRANSFER / PROMPTPAY
     if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
-      if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-warning/15 text-warning' }
-      return { label: 'รอชำระ', cls: 'badge bg-danger/15 text-danger' }
+      if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info' }
+      // "รอชำระ" เป็นสถานะปกติของออเดอร์ที่เพิ่งสร้าง ไม่ใช่ความผิดพลาด — เดิมใช้ danger (แดง)
+      // ทำให้ออเดอร์ใหม่ทุกใบขึ้นแดงตั้งแต่วินาทีแรก แดงเลยไม่เหลือความหมาย
+      return { label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning' }
     }
     // วิธีอื่น (CASH/CARD/OTHER) หรือ paymentMethod null — ไม่แสดง badge
     return null

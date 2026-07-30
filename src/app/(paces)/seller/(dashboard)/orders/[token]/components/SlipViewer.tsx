@@ -10,7 +10,7 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface SlipViewerProps {
   slipFileId: string
@@ -21,6 +21,22 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
   const [showFull, setShowFull] = useState(false)
 
   const src = `/api/files/${slipFileId}`
+
+  // overlay นี้เป็น lightbox ที่เขียนเอง (ไม่ใช่ Swal) — เดิมปิดได้ทางเดียวคือคลิก
+  // ผู้ใช้คีย์บอร์ดจึงติดค้าง. ผูก Escape + ล็อก scroll ของ body ระหว่างเปิด
+  useEffect(() => {
+    if (!showFull) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowFull(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [showFull])
 
   if (errored) {
     return (
@@ -58,6 +74,9 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
       {/* Fullscreen overlay */}
       {showFull && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="สลิปโอนเงิน"
           className="fixed inset-0 z-50 flex items-center justify-center bg-dark/80 p-4"
           onClick={() => setShowFull(false)}
         >

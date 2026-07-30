@@ -10,6 +10,7 @@
  */
 'use client'
 
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
@@ -23,11 +24,8 @@ import CancelOrderButton from './CancelOrderButton'
 // re-export ชื่อเดิมไว้ กัน import ที่อื่นพัง (ปัจจุบันใช้เฉพาะในไฟล์นี้)
 export const STATUS_META = ORDER_STATUS_META
 
-export const TYPE_META: Record<string, { label: string; icon: string; cls: string }> = {
-  PHYSICAL: { label: 'สินค้าจับต้องได้', icon: 'package',        cls: 'bg-primary/15 text-primary' },
-  DIGITAL:  { label: 'ดิจิทัล',          icon: 'cloud-download', cls: 'bg-info/15 text-info' },
-  SERVICE:  { label: 'บริการ',            icon: 'tool',           cls: 'bg-success/15 text-success' },
-}
+// TYPE_META ถูกลบ — type badge ถอดออกไปตั้งแต่ 2026-06-16 (user request) และไม่มีใคร import
+// ต่อ (grep ยืนยัน 0 ผู้ใช้) การคง export ที่ไม่มีใครใช้ไว้ทำให้เข้าใจผิดว่ายังมี badge ประเภทสินค้า
 
 export interface StatusHeroProps {
   publicToken: string
@@ -41,6 +39,23 @@ export interface StatusHeroProps {
   /** เลขติดตาม/ขนส่งจากพัสดุ iShip ที่เปิดไว้แล้ว — เติมให้ ShipForm ล่วงหน้า (feature 00022) */
   ishipTrackingNo?: string | null
   ishipCourierName?: string | null
+}
+
+/**
+ * ปุ่มแก้ไขออเดอร์ — เดิมหน้ารายละเอียดไม่มี entry point เลย (มีแต่ในหน้ารายการ)
+ * style ตรงกับปุ่ม outline ของ SendSmsButton/CopyLinkButton (btn-sm + border-default-300)
+ * min-h-11 = 44px touch target
+ */
+function EditOrderLink({ publicToken }: { publicToken: string }) {
+  return (
+    <Link
+      href={`/orders/${publicToken}/edit`}
+      className="btn btn-sm border border-default-300 bg-card hover:bg-default-50 text-default-700 inline-flex items-center gap-1.5 text-xs min-h-11"
+    >
+      <Icon icon="pencil" className="text-base" aria-hidden="true" />
+      แก้ไข
+    </Link>
+  )
 }
 
 export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode, isFromAuction, ishipTrackingNo, ishipCourierName }: StatusHeroProps) {
@@ -95,6 +110,7 @@ export default function StatusHero({ publicToken, shortCode, status, createdAtIS
               <div className="flex items-center gap-2 flex-wrap">
                 <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
                 <SendSmsButton publicToken={publicToken} compact />
+                <EditOrderLink publicToken={publicToken} />
               </div>
             )}
 
@@ -103,6 +119,7 @@ export default function StatusHero({ publicToken, shortCode, status, createdAtIS
               <div className="flex items-center gap-2 flex-wrap">
                 <SendSmsButton publicToken={publicToken} compact />
                 <OrderCopyLink publicToken={publicToken} shortCode={shortCode} showPreview={false} />
+                <EditOrderLink publicToken={publicToken} />
               </div>
             )}
 
