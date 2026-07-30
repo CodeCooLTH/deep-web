@@ -74,6 +74,8 @@ import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
+import { useComposerHeight } from '@/hooks/useComposerHeight'
+import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -535,18 +537,50 @@ export default function ChatThread({
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
 
+  // ความสูงช่องพิมพ์: ลากปรับเอง + จำค่าล่าสุด + ขยายตามเนื้อหาเอง (user request 2026-07-30)
+  // ส่ง text เข้าไปเป็น trigger ให้วัดใหม่ทุกครั้งที่เนื้อหาเปลี่ยน รวมถึงตอนถูกเติมจาก
+  // ข้อความสำเร็จรูป/AI/สินค้า ซึ่งไม่ได้ผ่าน onChange ของผู้ใช้
+  const {
+    textareaRef: composerRef,
+    dragging: composerDragging,
+    handleProps: composerHandleProps,
+  } = useComposerHeight(text)
+
   // composer improvement #2 — เลือกข้อความสำเร็จรูป: แนบรูปถ้ามี (ทุกช่องทางรวม Messenger/IG) +
-  // เติมข้อความ/caption ลง composer (รูปมี caption → ตั้งเป็นข้อความ, ไม่มีรูป → ต่อท้ายข้อความเดิม)
-  function handleQuickPick(qm: QuickMessage) {
+  // เติมข้อความ/caption ลง composer
+  //
+  // user request 2026-07-30: ต้อง **แทนที่ข้อความเดิมทั้งหมด** ไม่ใช่ต่อท้าย — เดิมกดข้อความสำเร็จรูป
+  // 2 ครั้ง (หรือกดตอนพิมพ์ค้างไว้) ได้ข้อความต่อกันเป็นพืด ต้องมาลบเองทุกครั้ง
+  // มีข้อความเดิมอยู่ → ถามก่อนเสมอ เพราะการทับเป็นการทำลายสิ่งที่ผู้ใช้พิมพ์ไปแล้ว (ย้อนไม่ได้)
+  // ใช้ Sweet Alerts ตาม convention ของ (paces): ต้องคลิกตอบ = Swal, เด้งหายเอง = pacesToast
+  async function handleQuickPick(qm: QuickMessage) {
     // รูปหลายใบ (user สั่ง 2026-07-23) — แนบทั้งหมดลงคิว กดส่งครั้งเดียว ระบบทยอยส่งให้เอง
     // fallback imageFileId เดี่ยว: payload จาก API เวอร์ชันเก่าระหว่าง deploy
     const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
-    if (imgs.length > 0) {
-      setPendingImages(imgs.map((fileId) => ({ fileId, previewUrl: `/api/files/${fileId}` })))
-      if (qm.body) setText(qm.body)
-    } else if (qm.body) {
-      setText((prev) => (prev.trim() ? `${prev}\n${qm.body}` : qm.body))
+
+    // ถามเฉพาะตอนมีอะไรจะเสียจริง ๆ — ช่องว่างอยู่แล้วก็ทับได้เลยไม่ต้องกวนใจ
+    if (text.trim()) {
+      const result = await Swal.fire({
+        buttonsStyling: false,
+        icon: 'question',
+        title: 'แทนที่ข้อความที่พิมพ์ไว้?',
+        text: 'ข้อความสำเร็จรูปจะเขียนทับสิ่งที่อยู่ในช่องพิมพ์ตอนนี้ทั้งหมด',
+        showCancelButton: true,
+        confirmButtonText: 'แทนที่',
+        cancelButtonText: 'เก็บข้อความเดิมไว้',
+        customClass: {
+          confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
+          cancelButton: 'btn bg-light hover:text-default-800 mt-2',
+        },
+      })
+      if (!result.isConfirmed) return // ยกเลิก = ไม่แตะอะไรเลย แผงยังกางอยู่ให้เลือกอันอื่นต่อได้
     }
+
+    // แทนที่ทั้งชุด: รูปที่แนบค้างไว้ก่อนหน้าก็ถูกแทนด้วยของชุดใหม่ (ไม่มีรูป = ล้างของเดิมทิ้ง)
+    // ไม่งั้น "แทนที่" จะจริงแค่ครึ่งเดียว — ข้อความเปลี่ยนแต่รูปเก่ายังติดไปกับข้อความใหม่
+    setPendingImages(imgs.map((fileId) => ({ fileId, previewUrl: `/api/files/${fileId}` })))
+    setText(qm.body ?? '')
+
     // เลือกแล้วหุบแผงเอง — เนื้อหาถูกเติมลงช่องพิมพ์แล้ว ไม่มีเหตุให้กางค้างดันช่องพิมพ์ต่อ
     setActivePanel(null)
   }
@@ -1265,6 +1299,24 @@ export default function ChatThread({
               composerDisabled ? 'border-default-300 opacity-60' : 'border-default-300 focus-within:border-primary'
             }`}
           >
+            {/* แถบลากปรับความสูง (user request 2026-07-30) — อยู่บนสุดของกล่องเสมอ (เหนือคิวรูป)
+                เพราะช่องพิมพ์อยู่ล่างจอ การขยายคือลากขึ้น. ไม่ใช้ resize-y ของเบราว์เซอร์: กล่องนี้
+                overflow-hidden มุมลาก native (ขวาล่าง) จะโดนตัดหาย + native ทับ height ที่เราตั้ง
+                ตามเนื้อหา ทำให้ auto-grow พังทันทีที่ลากครั้งแรก — ดู comment เต็มที่ useComposerHeight */}
+            {!composerDisabled && (
+              <div
+                {...composerHandleProps}
+                className={`group flex h-3 w-full cursor-row-resize touch-none items-center justify-center ${
+                  composerDragging ? 'bg-default-200' : 'hover:bg-default-100'
+                } focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-1`}
+              >
+                <span
+                  className={`block h-0.5 w-8 rounded-full ${
+                    composerDragging ? 'bg-primary' : 'bg-default-300 group-hover:bg-default-400'
+                  }`}
+                />
+              </div>
+            )}
             {/* คิวรูปที่รอส่ง — หลายรูปได้ (ข้อความสำเร็จรูปที่มีหลายรูป, user สั่ง 2026-07-23)
                 เลื่อนแนวนอนเมื่อเกินความกว้าง; ลบได้ทีละใบ */}
             {pendingImages.length > 0 && (
@@ -1287,7 +1339,10 @@ export default function ChatThread({
             )}
             <textarea
               rows={1}
-              className="min-h-11 block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none transition-all focus:min-h-20 focus:ring-0"
+              // ความสูงถูกตั้งผ่าน ref ใน useComposerHeight (ต้อง "ยุบเป็น auto ก่อนวัด" ทุกครั้ง
+              // ไม่งั้นช่องไม่หดกลับตอนลบข้อความ) — จึงไม่มี style prop / ไม่มี min-h ที่นี่
+              ref={composerRef}
+              className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-0"
               placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
