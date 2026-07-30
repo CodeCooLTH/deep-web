@@ -29,7 +29,7 @@ import PaymentCard from './components/PaymentCard'
 import type { ShippingAddressData } from './components/CustomerDetails'
 import ShippingActivity from './components/ShippingActivity'
 import OrderReviewCard from './components/OrderReviewCard'
-import ShipmentPanel from './components/ShipmentPanel'
+import ShippingCard from './components/ShippingCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 
 export const metadata: Metadata = { title: 'รายละเอียดคำสั่งซื้อ' }
@@ -71,17 +71,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // สร้าง review data — mask PII ที่ RSC boundary ก่อนส่งข้าม (S-C1)
   // ห้ามส่ง raw phone/email ข้ามขอบเขต RSC→client แม้แต่ฟิลด์เดียว
   // เฉพาะ masked string หรือ displayName (public) เท่านั้นที่ข้ามได้
-  function maskContactLocal(c: string): string {
-    if (!c || c.length <= 4) return c || '—'
-    return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
-  }
-
+  // user decision 2026-07-30: โชว์เบอร์เต็มทั้งหน้า
+  // เดิมมาส์กเหลือ 4 ตัวท้ายตาม S-C1 แต่ทำให้ขัดกันเอง — การ์ดจัดส่ง (iShip) โชว์เบอร์เต็ม
+  // อยู่แล้วบนจอเดียวกัน การมาส์กฝั่งซ้ายจึงไม่ได้กันอะไร มีแต่ทำให้ร้านกดโทรหาลูกค้าไม่ได้
+  // หน้านี้โหลดได้เฉพาะเจ้าของร้านที่เป็นเจ้าของออเดอร์ (scope shopId ใน WHERE) — flight payload
+  // จึงไม่ได้ส่งให้ใครที่ไม่ควรเห็นอยู่แล้ว
   const reviewerLabel: string = (() => {
-    // buyer ลงทะเบียนแล้ว → displayName เป็น public field — ส่งได้ตรง
     if (order.buyer?.displayName) return order.buyer.displayName
-    // guest → mask ที่ server boundary ก่อน — ห้ามส่ง raw ข้าม RSC
     const raw = order.review?.reviewerContact ?? order.buyerContact ?? null
-    if (raw) return maskContactLocal(raw)
+    if (raw) return raw
     return 'ผู้ซื้อ (ไม่ระบุชื่อ)'
   })()
 
@@ -95,16 +93,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
       }
     : null
 
-  // S-C1 defense-in-depth: คำนวณ masked contact ให้ครบ "ก่อน" แล้ว neutralize raw บน order object
-  // เหตุผล: seller page อยู่ใต้ client VerticalLayout → Next serialize ทั้ง order object เข้า RSC
-  // flight payload (เห็นใน page source). lib มาส์กที่ปลายทางไม่พอ — raw ยังติด full-order blob.
-  // จึงลบ raw contact ทิ้งที่ source หลังดึง masked เสร็จ (downstream ไม่มีใครใช้ raw แล้ว:
-  // reviewerLabel + CustomerDetails ใช้ masked, OrderActions/SendSms ไม่รับ contact ตาม RC-8)
-  const buyerContactMasked = order.buyerContact ? maskContactLocal(order.buyerContact) : null
-  order.buyerContact = null
-  // เช่นเดียวกัน: reviewerContact (raw phone/email ใน review) — reviewerLabel mask ไปแล้วด้านบน
-  // neutralize ที่ source ให้ consistent กัน กันรั่วถ้าอนาคตมีใคร pass order.review ทั้งก้อน
-  if (order.review) order.review.reviewerContact = null
+  // เบอร์ผู้ซื้อ — ส่งเต็มไปแสดง (user decision 2026-07-30) พร้อมทำเป็นลิงก์ tel: ให้กดโทรได้
+  const buyerContact: string | null = order.buyerContact ?? null
 
   // Phase B: shippingAddress เป็น Json (Prisma คืน object แล้ว) — render card เฉพาะเมื่อมีค่าจริง
   const rawAddr = order.shippingAddress
@@ -141,10 +131,21 @@ export default async function OrderDetailPage({ params }: PageProps) {
               เดิมเป็นการ์ดท้ายแถว น้ำหนักเท่าการ์ดอื่น รีวิว 5 ดาวเลยไม่รู้สึกเหมือนอะไรเลย
               ไม่มีรีวิว → การ์ด empty-state ยังอยู่ท้ายแถวเหมือนเดิม ไม่ต้องเด่น */}
           {reviewData && <OrderReviewCard review={reviewData} />}
+          {/* การจัดส่ง = งานหลักของหน้านี้ → อยู่คอลัมน์กว้างใบแรก ไม่ใช่ยัดในคอลัมน์ขวาที่แคบ
+              render เฉพาะออเดอร์ที่ต้องส่งของ และยังไม่จบ (CONFIRMED/CANCELLED ไม่ต้องมีฟอร์ม) */}
+          {order.fulfillmentMode === 'SHIPPED' &&
+            (order.status === 'PENDING' || order.status === 'SHIPPED') && (
+              <ShippingCard
+                orderToken={order.publicToken}
+                ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
+                hasIshipShipment={Boolean(shipmentPanel?.shipment)}
+                initialTrackingNo={shipmentPanel?.shipment?.trackingNo ?? null}
+                initialProvider={shipmentPanel?.shipment?.courierName ?? null}
+              />
+            )}
           <CustomerDetails
             data={{
-              // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน
-              buyerContactMasked,
+              buyerContact,
               buyerDisplayName: order.buyer?.displayName ?? null,
               buyerUsername: order.buyer?.username ?? null,
               buyerName: order.buyerName ?? null,
@@ -201,14 +202,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
             publicToken={order.publicToken}
             status={order.status}
           />
-          {/* ShipmentPanel — พัสดุ iShip (feature 00022). Date → ISO ก่อนข้ามขอบเขต RSC
-              (แปลงที่ toShipmentContextJson จุดเดียว ใช้ร่วมกับ API ที่โมดัลในแชทเรียก) */}
-          {shipmentPanel && (
-            <ShipmentPanel
-              orderToken={order.publicToken}
-              context={toShipmentContextJson(shipmentPanel)}
-            />
-          )}
           <ShippingActivity
             data={{
               status: order.status,

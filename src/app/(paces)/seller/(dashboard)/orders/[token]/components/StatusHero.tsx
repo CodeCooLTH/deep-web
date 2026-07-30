@@ -16,7 +16,6 @@ import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { ORDER_STATUS_META } from '@/lib/order-display'
-import ShipForm from './ShipForm'
 import SendSmsButton from './SendSmsButton'
 import OrderCopyLink from './OrderCopyLink'
 import CancelOrderButton from './CancelOrderButton'
@@ -37,8 +36,9 @@ export interface StatusHeroProps {
   fulfillmentMode: string
   /** true = order เกิดจากการชนะประมูล (มี auctionId) → badge ค้อนประมูล */
   isFromAuction?: boolean
-  /** เลขติดตาม/ขนส่งจากพัสดุ iShip ที่เปิดไว้แล้ว — เติมให้ ShipForm ล่วงหน้า (feature 00022) */
+  /** @deprecated ย้ายไป ShippingCard แล้ว — คง prop ไว้กัน caller เดิมพัง (ไม่ถูกใช้) */
   ishipTrackingNo?: string | null
+  /** @deprecated ย้ายไป ShippingCard แล้ว */
   ishipCourierName?: string | null
 }
 
@@ -59,7 +59,7 @@ function EditOrderLink({ publicToken }: { publicToken: string }) {
   )
 }
 
-export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode, isFromAuction, ishipTrackingNo, ishipCourierName }: StatusHeroProps) {
+export default function StatusHero({ publicToken, shortCode, status, createdAtISO, fulfillmentMode, isFromAuction }: StatusHeroProps) {
   const s = STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
 
   // วันที่+เวลาแสดงคู่กันบรรทัดเดียว → ยุบเป็น formatDateTime ครั้งเดียว
@@ -225,12 +225,8 @@ export default function StatusHero({ publicToken, shortCode, status, createdAtIS
           </div>
         </div>
 
-        {/* ShipForm full-width — นอก flex row กัน layout jump; ShipForm จัดการ toggle/collapse เอง ไม่ต้องมี wrapper toggle */}
-        {isPending && needsShipping && (
-          <div className="mt-3 border-t border-default-300 pt-3">
-            <ShipForm publicToken={publicToken} initialTrackingNo={ishipTrackingNo} initialProvider={ishipCourierName} />
-          </div>
-        )}
+        {/* ShipForm ถูกย้ายออกไปที่การ์ด "การจัดส่ง" (ShippingCard) แล้ว —
+            เดิมปุ่มน้ำเงินเต็มความกว้างในนี้แข่งกับการ์ด iShip คอลัมน์ขวาโดยไม่บอกว่าต่างกันยังไง */}
       </div>
     </div>
     </>

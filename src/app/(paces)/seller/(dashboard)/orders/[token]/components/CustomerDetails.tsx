@@ -27,8 +27,8 @@ export type ShippingAddressData = {
 }
 
 export type CustomerDetailsData = {
-  /** เบอร์/อีเมลผู้ซื้อที่ mask แล้วจาก server (S-C1) — ห้ามส่ง raw ข้าม RSC boundary */
-  buyerContactMasked: string | null
+  /** เบอร์/อีเมลผู้ซื้อ (เต็ม) — user decision 2026-07-30: ร้านต้องกดโทรหาลูกค้าได้ */
+  buyerContact: string | null
   buyerDisplayName: string | null
   buyerUsername: string | null
   /** ชื่อที่ร้านบันทึกตอนสร้างออเดอร์ (buyer อาจยังไม่ลงทะเบียน) */
@@ -45,7 +45,7 @@ interface CustomerDetailsProps {
 
 const CustomerDetails = ({ data }: CustomerDetailsProps) => {
   const {
-    buyerContactMasked,
+    buyerContact,
     buyerDisplayName,
     buyerUsername,
     buyerName,
@@ -78,7 +78,7 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
         {/* เดิม gate ทั้งบล็อกด้วย buyerContactMasked อย่างเดียว → ออเดอร์ที่ร้านสร้างเองหน้าร้าน (POS)
             และพิมพ์ชื่อลูกค้าไว้แล้วแต่ไม่มีเบอร์ จะขึ้น "ยังไม่มีผู้ซื้อยืนยัน" = ซ่อนข้อมูลที่ร้าน
             กรอกเอง. แสดง empty-state ต่อเมื่อไม่มีทั้งชื่อและเบอร์เท่านั้น */}
-        {!buyerContactMasked && !displayName ? (
+        {!buyerContact && !displayName ? (
           // empty-state ที่ชัดเจน — ผู้ซื้อยังไม่ได้ยืนยันออเดอร์
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="user-off" className="text-3xl text-default-300 mb-2" />
@@ -134,12 +134,18 @@ const CustomerDetails = ({ data }: CustomerDetailsProps) => {
               <li>
                 <div className="flex items-center gap-2.5">
                   <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                    <Icon icon={buyerContactMasked ? 'phone' : 'phone-off'} className="text-sm" />
+                    <Icon icon={buyerContact ? 'phone' : 'phone-off'} className="text-sm" />
                   </span>
-                  <p className="text-default-400 font-medium text-sm mb-0">
-                    {/* mask แล้วจาก server (S-C1) — แสดงเฉพาะ 4 ตัวท้าย */}
-                    {buyerContactMasked ?? 'ยังไม่มีเบอร์ติดต่อ (ผู้ซื้อยังไม่ยืนยัน)'}
-                  </p>
+                  {/* เบอร์เต็ม + tel: กดโทรได้เลยจากมือถือ (เดิมมาส์กเหลือ 4 ตัวท้าย = โทรไม่ได้) */}
+                  {buyerContact ? (
+                    <a href={`tel:${buyerContact}`} className="text-default-800 font-medium text-sm hover:text-primary">
+                      {buyerContact}
+                    </a>
+                  ) : (
+                    <p className="text-default-400 font-medium text-sm mb-0">
+                      ยังไม่มีเบอร์ติดต่อ (ผู้ซื้อยังไม่ยืนยัน)
+                    </p>
+                  )}
                 </div>
               </li>
             </ul>
