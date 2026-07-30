@@ -53,8 +53,13 @@ export interface RuleSetKeyword {
   name: string
   matchType: MatchType
   priority: number
-  /** [ข้อสมมติ] เฉพาะกลุ่มที่เปิดใช้งาน (`isActive=true`) เท่านั้น — caller กรองมาด้วย query
-   *  ตาม index `[shopId, isActive, priority]` (TFR-008) ไม่ใช่หน้าที่ของ matcher */
+  /** 'TEST' | 'LIVE' — matcher ไม่ใช้ตัดสิน แต่ผู้เรียกใช้ต่อที่ gate หลัง match
+   *  (เก็บไว้ที่นี่เพราะ ruleSet คือชุดข้อมูลเดียวที่ processor ถืออยู่ตอนนั้น) */
+  status?: string
+  /** เธรดที่กลุ่มนี้ใช้ทดสอบ — มีผลเฉพาะตอน status='TEST' (user 2026-07-29) */
+  testConversationIds?: string[]
+  /** [ข้อสมมติ] เฉพาะกลุ่มที่ไม่ใช่ OFFLINE เท่านั้น — caller กรองมาด้วย query
+   *  ตาม index `[shopId, status, priority]` (TFR-008) ไม่ใช่หน้าที่ของ matcher */
   phrases: RuleSetPhrase[]
 }
 

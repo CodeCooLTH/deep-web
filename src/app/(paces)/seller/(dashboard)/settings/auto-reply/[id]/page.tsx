@@ -37,16 +37,17 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
   const keyword = await getKeywordDetail(id, activeCtx.shopId)
   if (!keyword) notFound()
 
-  // ตัวเลือกของ dropdown เงื่อนไข — scope shopId ทั้งคู่
+  // ตัวเลือกเงื่อนไข — scope shopId ทุกตัว
   const [channels, products] = await Promise.all([
     prisma.shopChannel.findMany({
       where: { shopId: activeCtx.shopId, status: 'ACTIVE' },
-      select: { id: true, name: true, provider: true },
+      select: { id: true, name: true, provider: true, avatarUrl: true },
       orderBy: { name: 'asc' },
     }),
     prisma.product.findMany({
       where: { shopId: activeCtx.shopId, isActive: true },
-      select: { id: true, name: true },
+      // images: เอาไปทำการ์ดสินค้ามีรูป (user request 2026-07-29 "อยากให้เป็น card สินค้า + มีรูป")
+      select: { id: true, name: true, price: true, images: true },
       orderBy: { updatedAt: 'desc' },
       take: 200,
     }),
@@ -70,7 +71,8 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
           name: keyword.name,
           matchType: keyword.matchType,
           priority: keyword.priority,
-          isActive: keyword.isActive,
+          status: keyword.status,
+          testThreadCount: keyword.testThreadCount,
           phrases: keyword.phrases.map((p) => ({ id: p.id, phrase: p.phrase })),
           rules: keyword.rules.map((r) => ({
             id: r.id,
@@ -84,7 +86,13 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
           })),
         }}
         channels={channels}
-        products={products}
+        products={products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          price: p.price.toFixed(0),
+          // pattern เดียวกับ (chat)/layout.tsx และ orders/new — images[0] คือ storage fileId
+          image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
+        }))}
       />
     </>
   )

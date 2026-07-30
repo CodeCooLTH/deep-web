@@ -20,8 +20,6 @@ import type { HumanTakeoverPauseMode, AdsContextMode } from '@/lib/auto-reply-co
 
 export type AutoReplyConfigView = {
   isEnabled: boolean
-  testMode: boolean
-  testModeExpiresAt: Date | null
   humanTakeoverPauseMode: string
   keywordCooldownSec: number
   maxRepliesPerConversation: number
@@ -39,8 +37,6 @@ export type AutoReplyConfigView = {
 export const DEFAULT_AUTO_REPLY_CONFIG: Omit<AutoReplyConfigView, 'pendingJobCount' | 'failedJobCount'> = {
   // [ข้อบังคับ] default false ตั้งใจ (BR-AR ระดับ 0) — ห้ามเปลี่ยนเป็น true ในโค้ดใด ๆ (AC-015-01)
   isEnabled: false,
-  testMode: false,
-  testModeExpiresAt: null,
   humanTakeoverPauseMode: '2H',
   keywordCooldownSec: 300,
   maxRepliesPerConversation: 10,
@@ -52,8 +48,6 @@ export const DEFAULT_AUTO_REPLY_CONFIG: Omit<AutoReplyConfigView, 'pendingJobCou
 
 const CONFIG_SELECT = {
   isEnabled: true,
-  testMode: true,
-  testModeExpiresAt: true,
   humanTakeoverPauseMode: true,
   keywordCooldownSec: true,
   maxRepliesPerConversation: true,
@@ -65,8 +59,6 @@ const CONFIG_SELECT = {
 
 type ConfigRow = {
   isEnabled: boolean
-  testMode: boolean
-  testModeExpiresAt: Date | null
   humanTakeoverPauseMode: string
   keywordCooldownSec: number
   maxRepliesPerConversation: number
@@ -82,8 +74,6 @@ function toConfigView(
 ): AutoReplyConfigView {
   return {
     isEnabled: row.isEnabled,
-    testMode: row.testMode,
-    testModeExpiresAt: row.testModeExpiresAt,
     humanTakeoverPauseMode: row.humanTakeoverPauseMode,
     keywordCooldownSec: row.keywordCooldownSec,
     maxRepliesPerConversation: row.maxRepliesPerConversation,
@@ -139,7 +129,7 @@ export type AutoReplyConfigInput = {
 
 /**
  * upsertConfig — บันทึกการตั้งค่า (full replace ตาม TFR-001 "การบันทึกใช้ upsert โดย shopId
- * เป็น key และเซ็ต updatedByUserId ทุกครั้ง") ไม่แตะ testMode* (แยกไปที่ setTestMode/expireTestMode
+ * เป็น key และเซ็ต updatedByUserId ทุกครั้ง")
  * เพราะมี invariant/สิทธิ์คนละชุด — ไม่ปนกันเพื่อกันการเผลอเคลียร์โหมดทดสอบตอนแก้ค่าอื่น)
  *
  * ไม่ทำ enum-range validation ซ้ำที่นี่ (`humanTakeoverPauseMode`/`adsContextMode` picklist,
@@ -173,64 +163,10 @@ export async function upsertConfig(
 }
 
 /**
- * setTestMode — เปิด/ปิดโหมดทดสอบ (FR-021) แยกจาก upsertConfig เพราะสิทธิ์/จังหวะเรียกต่างกัน
- * (ร้านอาจกดเปิด/ปิดโหมดทดสอบบ่อยกว่าการแก้ค่าตั้งค่าหลัก) และ lazy-upsert เหมือนกันเพราะ
- * ร้านอาจยังไม่เคยมีแถว `AutoReplyConfig` มาก่อนตอนกดเปิดโหมดทดสอบครั้งแรก
- */
-export async function setTestMode(
-  shopId: string,
-  userId: string,
-  input: { testMode: boolean; testModeExpiresAt: Date | null },
-): Promise<AutoReplyConfigView> {
-  const data = {
-    testMode: input.testMode,
-    testModeExpiresAt: input.testMode ? input.testModeExpiresAt : null,
-    testModeEnabledByUserId: input.testMode ? userId : null,
-    updatedByUserId: userId,
-  }
-  const row = await prisma.autoReplyConfig.upsert({
-    where: { shopId },
-    create: { shopId, ...data },
-    update: data,
-    select: CONFIG_SELECT,
-  })
-  const jobCounts = await getJobCounts(shopId)
-  return toConfigView(row, jobCounts)
-}
-
-/**
- * expireTestMode — GAP-03 (Gate 0 baseline, AC-021-08): ปิดโหมดทดสอบของทุกร้านที่หมดอายุแล้ว
- * (`testMode=true` และ `testModeExpiresAt <= now`) พร้อมสร้าง `Notification` แจ้งเจ้าของร้าน —
- * กันร้านเข้าใจผิดว่ายังทดสอบอยู่ (ความเสี่ยง PRD §6.1 "ร้านลืมปิดโหมดทดสอบ" กลับด้าน)
+ * 🛑 setTestMode / expireTestMode ถูกลบ 2026-07-29 — โหมดทดสอบไม่ใช่สวิตช์ระดับร้านอีกต่อไป
+ * ย้ายไปเป็น AutoReplyKeyword.status = 'TEST' + ตารางเธรดทดสอบรายกลุ่มคำ
+ * (user: "เอาระดับทั้งหมดออกไปเลย" + "ให้ตั้งค่าทดสอบได้ทีละอัน")
  *
- * เรียกเป็นระยะจาก cron sweeper (S-09) — ไม่รับ shopId เดี่ยว เพราะเป็นงานกวาดทุกร้านพร้อมกัน
- * แต่ละแถวอัปเดต+แจ้งเตือนในทรานแซกชันเดียวกัน (atomic ต่อร้าน ไม่ผูกข้ามร้าน — ร้านหนึ่งพังไม่ควร
- * ทำให้ร้านอื่นที่หมดอายุพร้อมกันไม่ถูกปิดตาม)
+ * ผลพลอยได้: ไม่ต้องมีวันหมดอายุ/แจ้งเตือน "ลืมปิดโหมดทดสอบ" อีก เพราะการลืมปิดแบบเดิม
+ * (ทั้งร้านเงียบ) เกิดไม่ได้แล้ว — ชุดที่ค้าง TEST อยู่กระทบแค่ตัวมันเอง
  */
-export async function expireTestMode(now: Date = new Date()): Promise<{ expiredShopIds: string[] }> {
-  const rows = await prisma.autoReplyConfig.findMany({
-    where: { testMode: true, testModeExpiresAt: { lte: now } },
-    select: { id: true, shopId: true, shop: { select: { userId: true } } },
-  })
-
-  const expiredShopIds: string[] = []
-  for (const row of rows) {
-    await prisma.$transaction([
-      prisma.autoReplyConfig.update({
-        where: { id: row.id },
-        data: { testMode: false, testModeExpiresAt: null, testModeEnabledByUserId: null },
-      }),
-      prisma.notification.create({
-        data: {
-          userId: row.shop.userId,
-          kind: 'auto_reply_test_mode_expired',
-          title: 'โหมดทดสอบตอบแชทอัตโนมัติหมดอายุแล้ว',
-          body: 'ระบบปิดโหมดทดสอบให้อัตโนมัติแล้ว เปิดใหม่ได้จากหน้าตั้งค่าตอบแชทอัตโนมัติ',
-          refId: row.shopId,
-        },
-      }),
-    ])
-    expiredShopIds.push(row.shopId)
-  }
-  return { expiredShopIds }
-}

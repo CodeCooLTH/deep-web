@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as v from 'valibot'
 import { requireShopContext, AUTO_REPLY_NO_STORE } from '@/lib/auto-reply-route-context'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
-import { loadRuleSet } from '@/services/auto-reply.service'
 import { matchKeywords, resolveRule } from '@/services/auto-reply-match.service'
 import { AutoReplySimulateSchema } from '@/lib/validations'
+import { prisma } from '@/lib/prisma'
+import { getConfig } from '@/services/auto-reply-config.service'
 
 /**
  * POST /api/shops/auto-reply/simulate — ทดสอบกฎแบบกรอกเอง (FR-020)
@@ -33,7 +34,31 @@ export async function POST(request: NextRequest) {
   }
 
   const normalizedText = normalizeMessage(parsed.output.message)
-  const ruleSet = await loadRuleSet(ctx.shopId)
+
+  // WARNING: พรีวิวต้องรวม "ชุดที่ยังปิดอยู่" ด้วย (user 2026-07-29)
+  // เพราะหน้านี้คือการดูว่า *ที่ตั้งไว้* จะตอบอะไร ไม่ใช่การทดสอบ gate ของระบบจริง
+  // ถ้ากรอง OFFLINE ออก ผู้ใช้ที่กำลังตั้งค่าจะไม่มีทางเห็นคำตอบของตัวเองเลยจนกว่าจะเปิดใช้งาน
+  // ซึ่งกลับหัวกับลำดับการทำงานจริง (ตั้งค่า -> ดูผล -> ค่อยเปิด)
+  // สถานะยังส่งกลับไปให้ UI บอกเป็นข้อความเล็ก ๆ ว่ายังไม่เปิด — ไม่บังคำตอบ
+  const [allKeywords, allRules] = await Promise.all([
+    prisma.autoReplyKeyword.findMany({
+      where: { shopId: ctx.shopId },
+      select: {
+        id: true, name: true, matchType: true, priority: true, status: true,
+        phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
+      },
+      orderBy: { priority: 'desc' },
+    }),
+    prisma.autoReplyRule.findMany({
+      where: { shopId: ctx.shopId },
+      select: {
+        id: true, keywordId: true, shopChannelId: true, adId: true, productId: true,
+        specificity: true, isActive: true, activeFrom: true, activeUntil: true,
+        replyText: true, createdAt: true,
+      },
+    }),
+  ])
+  const ruleSet = { keywords: allKeywords, rules: allRules } as never
   const matchCtx = {
     shopChannelId: parsed.output.shopChannelId ?? null,
     adId: parsed.output.adId ?? null,
@@ -43,6 +68,14 @@ export async function POST(request: NextRequest) {
 
   const matched = matchKeywords(normalizedText, ruleSet, matchCtx)
   const resolved = resolveRule(matched.winner?.keywordId ?? null, matchCtx, ruleSet)
+
+  // สถานะของชุดที่ชนะ — UI เอาไปบอกเป็นข้อความเล็ก ๆ ใต้คำตอบ ไม่บังคำตอบ
+  const winner = allKeywords.find((k) => k.id === matched.winner?.keywordId)
+  const winnerState = winner
+    ? { keywordId: winner.id, keywordName: winner.name, status: winner.status }
+    : null
+
+  const config = await getConfig(ctx.shopId)
 
   return NextResponse.json(
     {
@@ -64,6 +97,8 @@ export async function POST(request: NextRequest) {
       replyText: resolved.rule?.replyText ?? null,
       // ไม่มีกฎให้ถอย = ระบบจะเงียบแล้วส่งต่อพนักงาน ไม่ใช่เดาคำตอบ
       willHandoff: !resolved.rule?.replyText?.trim(),
+      // บริบทให้ UI บอกสถานะได้ (ยังไม่เปิด / อยู่โหมดทดสอบ) โดยไม่ต้องบังคำตอบ
+      winnerState,
     },
     { headers: AUTO_REPLY_NO_STORE },
   )

@@ -47,6 +47,10 @@ export interface ChatMessageView {
   productRefId: string | null // extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type='PRODUCT'
   orderRefToken: string | null // การ์ดออเดอร์ในแชท (user 2026-07-24) — เฉพาะ type='ORDER' (Order.publicToken)
   flaggedScam: boolean // extension #3 Scam-link Detection (FR-SCAM-03) — WARN banner เท่านั้น ไม่ block
+  // feature 00023 — null = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบขณะโหมดทดสอบ
+  // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
+  // findMany ด้านล่างไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้วตั้งแต่ migration — แค่ประกาศ type เพิ่ม
+  autoReplyKind: string | null
   createdAt: Date
 }
 

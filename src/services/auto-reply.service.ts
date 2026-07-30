@@ -113,19 +113,23 @@ export async function claimJob(jobId: string, lockedBy: string): Promise<boolean
 // rule set loader (+ cache)
 // ---------------------------------------------------------------------------
 
-/** โหลดกลุ่มคำ+กฎของร้าน (เฉพาะที่เปิดใช้งาน) พร้อม cache 60 วิ — config ไม่ถูก cache (TD-004) */
+/** โหลดกลุ่มคำ+กฎของร้าน (เฉพาะที่ไม่ใช่ OFFLINE) พร้อม cache 60 วิ — config ไม่ถูก cache (TD-004) */
 export async function loadRuleSet(shopId: string): Promise<RuleSet> {
   const cached = getRuleSetCache<RuleSet>(shopId)
   if (cached) return cached
 
   const [keywords, rules] = await Promise.all([
     prisma.autoReplyKeyword.findMany({
-      where: { shopId, isActive: true },
+      // OFFLINE ไม่ต้องโหลดเลย — ไม่มีทางตอบใครได้ การกรองที่ query ทำให้ไม่เสียแรง match ฟรี ๆ
+      where: { shopId, status: { not: 'OFFLINE' } },
       select: {
         id: true,
         name: true,
         matchType: true,
         priority: true,
+        // สถานะรายกลุ่ม ใช้ตัดสินที่ gate หลัง match ว่าตัวนี้ตอบเธรดนี้ได้ไหม
+        status: true,
+        testThreads: { select: { conversationId: true } },
         phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
       },
       orderBy: { priority: 'desc' },
@@ -148,7 +152,13 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
     }),
   ])
 
-  const ruleSet = { keywords, rules } as RuleSet
+  const ruleSet = {
+    keywords: keywords.map((k) => ({
+      ...k,
+      testConversationIds: k.testThreads.map((t) => t.conversationId),
+    })),
+    rules,
+  } as RuleSet
   setRuleSetCache(shopId, ruleSet)
   return ruleSet
 }
@@ -217,7 +227,6 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         isSpam: true,
         handoffAt: true,
         autoReplyEnabled: true,
-        autoReplyTestEnabled: true,
         autoReplyPausedUntil: true,
         autoReplyCount: true,
         shopChannelId: true,
@@ -231,22 +240,18 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     const config = await getConfig(job.shopId)
 
-    // gate 1 — สวิตช์ระดับร้าน / ระดับเธรด (เธรดชนะเมื่อถูกตั้งค่าไว้ชัดเจน)
-    const enabled = conversation.autoReplyEnabled ?? config.isEnabled
-    if (!enabled) {
-      const reason: SkipReason =
-        conversation.autoReplyEnabled === false ? 'CONVERSATION_DISABLED' : 'SHOP_DISABLED'
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: reason })
+    // gate 1 — สวิตช์ระดับเธรด (แอดมินปิดเธรดนี้เองจากกล่องข้อความ)
+    //
+    // 🛑 สวิตช์ระดับร้าน (AutoReplyConfig.isEnabled) ถูกถอดออกจากเส้นทางตัดสิน 2026-07-30
+    // ตามคำสั่ง user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user ปิดเอง ในแต่ละ row"
+    // ความปลอดภัยเดิม (ระบบต้องไม่ทำงานจนกว่าร้านจะสั่ง) ยังอยู่ครบ เพราะกลุ่มคำที่สร้างใหม่
+    // เป็น OFFLINE เสมอ — ไม่มีทางตอบใครจนกว่าร้านจะเปลี่ยนสถานะเอง
+    if (conversation.autoReplyEnabled === false) {
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
     }
 
-    // gate 2 — โหมดทดสอบ (AC-021-03/09)
-    // WARNING: ต้องอยู่ตรงนี้ ก่อนโหลดกฎและก่อน match — ไม่งั้นเปิดโหมดทดสอบแล้วยังเสียต้นทุน
-    // ประมวลผลให้ทุกข้อความของทั้งร้านทั้งที่จะไม่ตอบอยู่ดี
-    const testModeActive =
-      config.testMode && (!config.testModeExpiresAt || config.testModeExpiresAt > new Date())
-    if (testModeActive && !conversation.autoReplyTestEnabled) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'NOT_IN_TEST_ALLOWLIST' })
-    }
+    // 🛑 gate 2 เดิม (โหมดทดสอบระดับร้าน) ถูกลบ 2026-07-29 — โหมดทดสอบผูกกับกลุ่มคำแล้ว
+    // ตัดสินที่ gate 6.5 หลัง match แทน ดู AutoReplyKeyword.status
 
     // gate 3-5 — สถานะเธรด
     if (conversation.isSpam) {
@@ -281,6 +286,25 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     }
 
     const matched = matchKeywords(normalizedText, ruleSet, ctx)
+
+    // gate 6.5 — สถานะของ "กลุ่มคำที่ชนะ" (feature 00023, user 2026-07-29)
+    //
+    // WARNING: ต้องเช็ค **หลัง match** เพราะสถานะผูกกับกลุ่มคำแต่ละชุด ไม่ใช่ทั้งร้าน
+    // ชุด TEST ตอบได้เฉพาะเธรดที่ผูกไว้กับชุดนั้น ส่วนชุด LIVE ทำงานปกติในเธรดเดียวกัน
+    // นี่คือสิ่งที่ทำให้ "ปล่อยของทีละชุด" ได้โดยไม่กระทบชุดที่ใช้งานจริงอยู่
+    // (OFFLINE ไม่ต้องเช็คที่นี่ — ไม่ถูกโหลดเข้า ruleSet ตั้งแต่แรก)
+    const winner = ruleSet.keywords.find((k) => k.id === matched.winner?.keywordId)
+    const isTestReply = winner?.status === 'TEST'
+    if (isTestReply && !(winner?.testConversationIds ?? []).includes(conversation.id)) {
+      return finish(job, 'SKIPPED', {
+        ...base,
+        decision: 'SKIPPED',
+        skipReason: 'KEYWORD_TEST_ONLY',
+        rawText,
+        normalizedText,
+        keywordId: matched.winner?.keywordId ?? null,
+      })
+    }
 
     // gate 7 — cooldown ของกลุ่มคำเดิมในเธรดเดิม (AC-018-01)
     if (matched.winner && config.keywordCooldownSec > 0) {
@@ -323,7 +347,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       productId: ctx.productId,
       resolutionLevel: resolved.resolutionLevel,
       ruleId: resolved.rule?.id ?? null,
-      isTest: testModeActive,
+      isTest: isTestReply,
       durationMs: Date.now() - startedAt,
     }
 
@@ -347,7 +371,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       conversationId: conversation.id,
       shopId: job.shopId,
       text: replyText,
-      isTest: testModeActive,
+      isTest: isTestReply,
     })
 
     if (!result.sent) {

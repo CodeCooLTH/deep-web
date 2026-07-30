@@ -6,7 +6,7 @@
  * - TFR-004: ownership scope ของ shopChannelId/productId (ต้องเป็นของร้านเดียวกัน)
  * - AC-005-03: replyText ว่างหลัง trim ต้องถูกปฏิเสธ
  * - AC-002-03/04: phrase ซ้ำในกลุ่ม (block) vs ซ้ำข้ามกลุ่ม (warn ไม่บล็อก)
- * - TFR-006: กลุ่มที่เปิดใช้งานต้องมี phrase>=1 และมีคำตอบ(isActive)>=1 — บังคับตอนเปิดใช้งาน/ลบ phrase
+ * - TFR-006: กลุ่มที่ไม่ใช่ OFFLINE ต้องมี phrase>=1 และมีคำตอบ(isActive)>=1 — บังคับตอนเปลี่ยนสถานะ/ลบ phrase
  *   สุดท้าย/ลบหรือปิดกฎสุดท้าย
  * - P2002 -> error code ที่ route คาดหวัง (AUTO_REPLY_KEYWORD_NAME_DUPLICATE / AUTO_REPLY_RULE_CONDITION_DUPLICATE)
  *
@@ -33,6 +33,7 @@ const {
   ruleUpdate,
   ruleDelete,
   ruleCount,
+  testThreadCount,
   channelFindFirst,
   productFindFirst,
 } = vi.hoisted(() => ({
@@ -51,6 +52,7 @@ const {
   ruleUpdate: vi.fn(),
   ruleDelete: vi.fn(),
   ruleCount: vi.fn(),
+  testThreadCount: vi.fn(),
   channelFindFirst: vi.fn(),
   productFindFirst: vi.fn(),
 }))
@@ -59,6 +61,7 @@ const txMock = {
   autoReplyKeyword: { findFirst: keywordFindFirst, findMany: keywordFindMany, update: keywordUpdate },
   autoReplyPhrase: { count: phraseCount, delete: phraseDelete, findFirst: phraseFindFirst, createMany: phraseCreateMany },
   autoReplyRule: { findFirst: ruleFindFirst, create: ruleCreate, update: ruleUpdate, delete: ruleDelete, count: ruleCount },
+  autoReplyKeywordTestThread: { count: testThreadCount },
   shopChannel: { findFirst: channelFindFirst },
   product: { findFirst: productFindFirst },
 }
@@ -110,13 +113,13 @@ beforeEach(() => {
 })
 
 describe('createKeyword', () => {
-  it('สร้างใหม่เสมอในสถานะปิด (isActive=false) แม้ input ไม่ส่ง isActive มา', async () => {
+  it('สร้างใหม่เสมอในสถานะ OFFLINE — ห้ามแตะลูกค้าตั้งแต่วินาทีแรก', async () => {
     keywordCreate.mockResolvedValue({
-      id: 'kw-2', name: 'สนใจสินค้า', matchType: 'CONTAINS', priority: 100, isActive: false,
-      createdAt: new Date(), updatedAt: new Date(), _count: { phrases: 0, rules: 0 },
+      id: 'kw-2', name: 'สนใจสินค้า', matchType: 'CONTAINS', priority: 100, status: 'OFFLINE',
+      createdAt: new Date(), updatedAt: new Date(), phrases: [], _count: { phrases: 0, rules: 0, testThreads: 0 },
     } as never)
     await createKeyword(SHOP, USER, { name: 'สนใจสินค้า' })
-    expect(keywordCreate.mock.calls[0][0].data.isActive).toBe(false)
+    expect(keywordCreate.mock.calls[0][0].data.status).toBe('OFFLINE')
   })
 
   it('ชื่อว่างหลัง trim -> throw AUTO_REPLY_KEYWORD_NAME_EMPTY โดยไม่แตะ DB', async () => {
@@ -134,45 +137,57 @@ describe('createKeyword', () => {
   })
 })
 
-describe('updateKeyword — TFR-006 เปิดใช้งานต้องผ่านเงื่อนไขครบ', () => {
-  it('เปิดใช้งานกลุ่มที่ไม่มี phrase -> throw AUTO_REPLY_KEYWORD_NO_PHRASE', async () => {
-    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, isActive: false } as never)
+describe('updateKeyword — TFR-006 ออกจาก OFFLINE ต้องผ่านเงื่อนไขครบ', () => {
+  it('ไป LIVE ทั้งที่ไม่มี phrase -> throw AUTO_REPLY_KEYWORD_NO_PHRASE', async () => {
+    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'OFFLINE' } as never)
     phraseCount.mockResolvedValue(0 as never)
-    await expect(updateKeyword(KEYWORD, SHOP, USER, { isActive: true })).rejects.toThrow(
+    await expect(updateKeyword(KEYWORD, SHOP, USER, { status: 'LIVE' })).rejects.toThrow(
       'AUTO_REPLY_KEYWORD_NO_PHRASE',
     )
     expect(keywordUpdate).not.toHaveBeenCalled()
   })
 
   it('มี phrase แต่ไม่มีกฎที่เปิดใช้งาน -> throw AUTO_REPLY_KEYWORD_NO_ANSWER', async () => {
-    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, isActive: false } as never)
+    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'OFFLINE' } as never)
     phraseCount.mockResolvedValue(2 as never)
     ruleCount.mockResolvedValue(0 as never)
-    await expect(updateKeyword(KEYWORD, SHOP, USER, { isActive: true })).rejects.toThrow(
+    await expect(updateKeyword(KEYWORD, SHOP, USER, { status: 'LIVE' })).rejects.toThrow(
       'AUTO_REPLY_KEYWORD_NO_ANSWER',
     )
   })
 
-  it('ครบทั้งสองเงื่อนไข -> เปิดใช้งานได้ + invalidateShop', async () => {
-    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, isActive: false } as never)
+  it('ครบทั้งสองเงื่อนไข -> ไป LIVE ได้ + invalidateShop', async () => {
+    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'OFFLINE' } as never)
     phraseCount.mockResolvedValue(2 as never)
     ruleCount.mockResolvedValue(1 as never)
     keywordUpdate.mockResolvedValue({
-      id: KEYWORD, name: 'x', matchType: 'CONTAINS', priority: 100, isActive: true,
-      createdAt: new Date(), updatedAt: new Date(), _count: { phrases: 2, rules: 1 },
+      id: KEYWORD, name: 'x', matchType: 'CONTAINS', priority: 100, status: 'LIVE',
+      createdAt: new Date(), updatedAt: new Date(), phrases: [], _count: { phrases: 2, rules: 1, testThreads: 0 },
     } as never)
-    const result = await updateKeyword(KEYWORD, SHOP, USER, { isActive: true })
-    expect(result.isActive).toBe(true)
+    const result = await updateKeyword(KEYWORD, SHOP, USER, { status: 'LIVE' })
+    expect(result.status).toBe('LIVE')
     expect(invalidateShop).toHaveBeenCalledWith(SHOP)
   })
 
-  it('ปิดใช้งาน (isActive:false) ไม่ต้องเช็คเงื่อนไขความสมบูรณ์', async () => {
-    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, isActive: true } as never)
+
+  it('ไป TEST ทั้งที่ยังไม่มีแชททดสอบ -> throw AUTO_REPLY_KEYWORD_NO_TEST_THREAD', async () => {
+    // ถ้าไม่กันตรงนี้ TEST จะเท่ากับ OFFLINE แบบเงียบ ๆ แล้วร้านจะงงว่าตั้งทดสอบแล้วไม่มีอะไรเกิดขึ้น
+    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'OFFLINE' } as never)
+    phraseCount.mockResolvedValue(2 as never)
+    ruleCount.mockResolvedValue(1 as never)
+    testThreadCount.mockResolvedValue(0 as never)
+    await expect(updateKeyword(KEYWORD, SHOP, USER, { status: 'TEST' })).rejects.toThrow(
+      'AUTO_REPLY_KEYWORD_NO_TEST_THREAD',
+    )
+  })
+
+  it('กลับไป OFFLINE ไม่ต้องเช็คเงื่อนไขความสมบูรณ์', async () => {
+    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'LIVE' } as never)
     keywordUpdate.mockResolvedValue({
-      id: KEYWORD, name: 'x', matchType: 'CONTAINS', priority: 100, isActive: false,
-      createdAt: new Date(), updatedAt: new Date(), _count: { phrases: 0, rules: 0 },
+      id: KEYWORD, name: 'x', matchType: 'CONTAINS', priority: 100, status: 'OFFLINE',
+      createdAt: new Date(), updatedAt: new Date(), phrases: [], _count: { phrases: 0, rules: 0, testThreads: 0 },
     } as never)
-    await updateKeyword(KEYWORD, SHOP, USER, { isActive: false })
+    await updateKeyword(KEYWORD, SHOP, USER, { status: 'OFFLINE' })
     expect(phraseCount).not.toHaveBeenCalled()
   })
 })
@@ -238,18 +253,18 @@ describe('addPhrases — normalize + dedupe + duplicate detection (TFR-003)', ()
   })
 })
 
-describe('deletePhrase — TFR-006 กันลบ phrase สุดท้ายของกลุ่มที่เปิดอยู่', () => {
+describe('deletePhrase — TFR-006 กันลบ phrase สุดท้ายของกลุ่มที่ไม่ใช่ OFFLINE', () => {
   it('เป็น phrase สุดท้ายของกลุ่มที่เปิดใช้งาน -> throw AUTO_REPLY_KEYWORD_LAST_PHRASE', async () => {
     phraseFindFirst.mockResolvedValue({ id: 'ph-1' } as never)
-    keywordFindFirst.mockResolvedValue({ isActive: true } as never)
+    keywordFindFirst.mockResolvedValue({ status: 'LIVE' } as never)
     phraseCount.mockResolvedValue(0 as never) // เหลือ 0 หลังลบตัวนี้
     await expect(deletePhrase('ph-1', KEYWORD, SHOP)).rejects.toThrow('AUTO_REPLY_KEYWORD_LAST_PHRASE')
     expect(phraseDelete).not.toHaveBeenCalled()
   })
 
-  it('กลุ่มปิดอยู่ -> ลบ phrase สุดท้ายได้', async () => {
+  it('กลุ่มเป็น OFFLINE -> ลบ phrase สุดท้ายได้', async () => {
     phraseFindFirst.mockResolvedValue({ id: 'ph-1' } as never)
-    keywordFindFirst.mockResolvedValue({ isActive: false } as never)
+    keywordFindFirst.mockResolvedValue({ status: 'OFFLINE' } as never)
     await deletePhrase('ph-1', KEYWORD, SHOP)
     expect(phraseDelete).toHaveBeenCalledWith({ where: { id: 'ph-1' } })
     expect(invalidateShop).toHaveBeenCalledWith(SHOP)
@@ -414,7 +429,7 @@ describe('updateRule — recompute specificity ทุกครั้ง + TFR-00
       id: 'rule-1', shopId: SHOP, keywordId: KEYWORD, shopChannelId: null, productId: null,
       isActive: true, specificity: 0,
     } as never)
-    keywordFindFirst.mockResolvedValue({ isActive: true } as never)
+    keywordFindFirst.mockResolvedValue({ status: 'LIVE' } as never)
     ruleCount.mockResolvedValue(0 as never)
 
     await expect(
@@ -440,7 +455,7 @@ describe('updateRule — recompute specificity ทุกครั้ง + TFR-00
 describe('deleteRule — TFR-006 กันลบกฎสุดท้ายของกลุ่มที่เปิดอยู่', () => {
   it('เป็นกฎสุดท้ายที่เปิดใช้งานของกลุ่มที่เปิดอยู่ -> throw', async () => {
     ruleFindFirst.mockResolvedValue({ id: 'rule-1', shopId: SHOP, keywordId: KEYWORD, isActive: true } as never)
-    keywordFindFirst.mockResolvedValue({ isActive: true } as never)
+    keywordFindFirst.mockResolvedValue({ status: 'LIVE' } as never)
     ruleCount.mockResolvedValue(0 as never)
     await expect(deleteRule('rule-1', SHOP)).rejects.toThrow('AUTO_REPLY_KEYWORD_LAST_ANSWER')
     expect(ruleDelete).not.toHaveBeenCalled()

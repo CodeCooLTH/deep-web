@@ -122,7 +122,8 @@ function toConnectionView(a: AccountRow | null): ConnectionView {
       lastVerifyError: null,
       senderComplete: false,
       settingsComplete: false,
-      createMode: "ASK",
+      // ยังไม่เชื่อมต่อ = ต้องไม่มีอะไรเด้งถาม (ตรงกับ default ของ DB)
+      createMode: "OFF",
     };
   }
   return {
@@ -220,6 +221,9 @@ export async function connect(
       accessTokenEnc: encrypted,
       tokenLast4,
       status: "ACTIVE",
+      // ระบุตรง ๆ ไม่พึ่ง default ของ DB — ร้านที่เพิ่งเชื่อมต้องเงียบไว้ก่อน
+      // (ยังไม่ได้ตั้งขนาด/น้ำหนัก/ที่อยู่ผู้ส่งด้วยซ้ำ ถามไปก็ตอบ "ไม่" ทุกครั้ง)
+      createMode: "OFF",
       connectedByUserId: userId,
       lastVerifiedAt: new Date(),
     },

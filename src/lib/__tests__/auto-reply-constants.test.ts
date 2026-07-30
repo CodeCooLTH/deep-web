@@ -80,7 +80,7 @@ describe('ค่าคงที่ FROZEN §3.8 — จำนวนและเ�
   it('AutoReplyLog.decision', () =>
     expect(AUTO_REPLY_LOG_DECISIONS).toEqual(['REPLIED', 'SKIPPED', 'HANDOFF', 'FAILED']))
   it('resolutionLevel ครบ 9 ค่า', () => expect(RESOLUTION_LEVELS).toHaveLength(9))
-  it('skipReason ครบ 15 ค่า', () => expect(SKIP_REASONS).toHaveLength(15))
+  it('skipReason ครบ 16 ค่า', () => expect(SKIP_REASONS).toHaveLength(16))
   it('autoReplyKind 2 ค่า (ไม่รวม null ที่แทน "คนตอบเอง")', () =>
     expect(AUTO_REPLY_KINDS).toEqual(['AUTO', 'AUTO_TEST']))
   it('contextProductSource', () =>

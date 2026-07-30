@@ -1028,6 +1028,21 @@ export default function ChatThread({
                                 <span>ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก</span>
                               </div>
                             )}
+                            {/* feature 00023 — ป้ายบอกว่าข้อความนี้ระบบตอบเอง ไม่ใช่คนตอบ
+                                (AC-012-02, AC-021-05) แยกสีระหว่างตอบจริงกับตอบตอนโหมดทดสอบ
+                                เพราะสองอันนี้มีความหมายต่างกันมากสำหรับร้าน */}
+                            {mExt.autoReplyKind && (
+                              <span
+                                className={`mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs ${
+                                  mExt.autoReplyKind === 'AUTO_TEST'
+                                    ? 'bg-warning/15 text-warning'
+                                    : 'bg-info/15 text-info'
+                                }`}
+                              >
+                                <Icon icon="robot" className="text-xs" />
+                                {mExt.autoReplyKind === 'AUTO_TEST' ? 'ระบบตอบ (ทดสอบ)' : 'ระบบตอบ'}
+                              </span>
+                            )}
                           </>
                         )}
                           </div>

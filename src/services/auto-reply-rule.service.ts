@@ -33,8 +33,14 @@ export type AutoReplyKeywordListItem = {
   name: string
   matchType: string
   priority: number
-  isActive: boolean
+  /** 'OFFLINE' ไม่ตอบใครเลย | 'TEST' ตอบเฉพาะเธรดที่ระบุของกลุ่มนี้ | 'LIVE' ตอบทุกเธรด */
+  status: string
   phraseCount: number
+  /** คำตรวจจับจริง (สูงสุด 10 คำแรก) — หน้ารายการต้องเห็นคำ ไม่ใช่เห็นแค่จำนวน
+   *  (user 2026-07-30: "อยากให้แสดงข้อความที่ตรวจจับเลย ... user จะได้เห็นชัดเจน") */
+  phrases: string[]
+  /** จำนวนเธรดทดสอบที่ผูกกับกลุ่มนี้ — status='TEST' ที่ยังเป็น 0 = ไม่ตอบใครเลยจริง ๆ */
+  testThreadCount: number
   ruleCount: number
   createdAt: Date
   updatedAt: Date
@@ -45,10 +51,12 @@ const KEYWORD_LIST_SELECT = {
   name: true,
   matchType: true,
   priority: true,
-  isActive: true,
+  status: true,
   createdAt: true,
   updatedAt: true,
-  _count: { select: { phrases: true, rules: true } },
+  // take 10: หน้ารายการโชว์ได้ไม่กี่คำอยู่แล้ว ที่เหลือสรุปเป็น "+n" — ไม่ดึงมาทั้งหมดให้เปลือง
+  phrases: { select: { phrase: true }, take: 10, orderBy: { createdAt: 'asc' } },
+  _count: { select: { phrases: true, rules: true, testThreads: true } },
 } satisfies Prisma.AutoReplyKeywordSelect
 
 type KeywordListRow = {
@@ -56,10 +64,11 @@ type KeywordListRow = {
   name: string
   matchType: string
   priority: number
-  isActive: boolean
+  status: string
   createdAt: Date
   updatedAt: Date
-  _count: { phrases: number; rules: number }
+  phrases: { phrase: string }[]
+  _count: { phrases: number; rules: number; testThreads: number }
 }
 
 function toKeywordListItem(row: KeywordListRow): AutoReplyKeywordListItem {
@@ -68,8 +77,10 @@ function toKeywordListItem(row: KeywordListRow): AutoReplyKeywordListItem {
     name: row.name,
     matchType: row.matchType,
     priority: row.priority,
-    isActive: row.isActive,
+    status: row.status,
     phraseCount: row._count.phrases,
+    phrases: row.phrases.map((p) => p.phrase),
+    testThreadCount: row._count.testThreads,
     ruleCount: row._count.rules,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -78,7 +89,8 @@ function toKeywordListItem(row: KeywordListRow): AutoReplyKeywordListItem {
 
 export type AutoReplyPhraseView = { id: string; phrase: string; normalizedPhrase: string }
 
-export type AutoReplyKeywordDetail = AutoReplyKeywordListItem & {
+/** หน้าแก้ไขต้องการ phrase แบบเต็ม (มี id ไว้ลบรายคำ) จึงทับ `phrases: string[]` ของ list item */
+export type AutoReplyKeywordDetail = Omit<AutoReplyKeywordListItem, 'phrases'> & {
   phrases: AutoReplyPhraseView[]
   rules: AutoReplyRuleView[]
 }
@@ -117,8 +129,8 @@ export async function getKeywordDetail(id: string, shopId: string): Promise<Auto
 export type CreateKeywordInput = { name: string; matchType?: MatchType; priority?: number }
 
 /**
- * createKeyword — สร้างกลุ่มใหม่เสมอในสถานะปิด (isActive=false) โดยตั้งใจ: กลุ่มที่เพิ่งสร้างยังไม่มี
- * phrase/rule จะไม่มีทางผ่านเงื่อนไข TFR-006 อยู่แล้ว — เปิดใช้งานทำผ่าน updateKeyword หลังเติมข้อมูลครบ
+ * createKeyword — สร้างกลุ่มใหม่เสมอในสถานะ OFFLINE โดยตั้งใจ: กลุ่มที่เพิ่งสร้างยังไม่มี
+ * phrase/rule จะไม่มีทางผ่านเงื่อนไข TFR-006 อยู่แล้ว — เปลี่ยนสถานะทำผ่าน updateKeyword หลังเติมข้อมูลครบ
  */
 export async function createKeyword(
   shopId: string,
@@ -136,7 +148,7 @@ export async function createKeyword(
         name,
         matchType: input.matchType ?? 'CONTAINS',
         priority: input.priority ?? 100,
-        isActive: false,
+        status: 'OFFLINE',
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -155,12 +167,15 @@ export type UpdateKeywordInput = {
   name?: string
   matchType?: MatchType
   priority?: number
-  isActive?: boolean
+  status?: string
 }
 
 /**
- * updateKeyword — กำลังจะเปิดใช้งาน (isActive false -> true) ต้องผ่าน TFR-006 ก่อน
+ * updateKeyword — กำลังจะออกจาก OFFLINE (ไป TEST หรือ LIVE) ต้องผ่าน TFR-006 ก่อน
  * (มี phrase >=1 และมีคำตอบที่เปิดใช้งาน >=1 ระดับ) เช็คในทรานแซกชันเดียวกับการเขียน
+ *
+ * ไป TEST เพิ่มอีกด่าน: ต้องมีเธรดทดสอบอย่างน้อย 1 เธรด ไม่งั้น TEST จะเท่ากับ OFFLINE
+ * แบบเงียบ ๆ แล้วร้านจะงงว่าตั้งเป็นทดสอบแล้วทำไมไม่มีอะไรเกิดขึ้น
  */
 export async function updateKeyword(
   id: string,
@@ -182,11 +197,17 @@ export async function updateKeyword(
     }
     if (input.matchType !== undefined) data.matchType = input.matchType
     if (input.priority !== undefined) data.priority = input.priority
+    if (input.status !== undefined && input.status !== existing.status) {
+      if (input.status !== 'OFFLINE') {
+        await assertKeywordCompletion(tx, id, shopId)
+      }
+      if (input.status === 'TEST') {
+        const threads = await tx.autoReplyKeywordTestThread.count({ where: { keywordId: id } })
+        if (threads === 0) throw new Error('AUTO_REPLY_KEYWORD_NO_TEST_THREAD')
+      }
+      data.status = input.status
 
-    if (input.isActive === true && !existing.isActive) {
-      await assertKeywordCompletion(tx, id, shopId)
     }
-    if (input.isActive !== undefined) data.isActive = input.isActive
 
     try {
       return await tx.autoReplyKeyword.update({ where: { id }, data, select: KEYWORD_LIST_SELECT })
@@ -210,7 +231,7 @@ export async function deleteKeyword(id: string, shopId: string): Promise<void> {
 
 /**
  * duplicateKeyword — ทำสำเนากลุ่ม + phrase + rule ทั้งหมดในทรานแซกชันเดียว (AC-001-08)
- * สำเนาบังคับ isActive=false เสมอไม่ว่าต้นฉบับจะเปิดอยู่หรือไม่ — ชื่อ "{name} (สำเนา)" เพิ่ม suffix
+ * สำเนาบังคับ status=OFFLINE เสมอไม่ว่าต้นฉบับจะอยู่สถานะไหน — ชื่อ "{name} (สำเนา)" เพิ่ม suffix
  * ตัวเลขจนไม่ซ้ำ (สูงสุด 20 ครั้ง กัน loop ไม่จบ)
  */
 export async function duplicateKeyword(
@@ -233,7 +254,8 @@ export async function duplicateKeyword(
         name,
         matchType: source.matchType,
         priority: source.priority,
-        isActive: false, // AC-001-08 — สำเนาต้องปิดไว้ก่อนเสมอ
+        // สำเนาเริ่มที่ TEST เสมอ ไม่สืบทอด LIVE จากต้นฉบับ — กันเผลอทำสำเนาแล้วยิงลูกค้าจริงทันที
+        status: 'OFFLINE', // AC-001-08 — สำเนาต้องไม่ตอบใครก่อนเสมอ
         createdByUserId: userId,
         updatedByUserId: userId,
       },
@@ -391,7 +413,7 @@ export async function addPhrases(
     where: {
       normalizedPhrase: { in: normalizedList },
       keywordId: { not: keywordId },
-      keyword: { shopId, isActive: true },
+      keyword: { shopId, status: { not: 'OFFLINE' } },
     },
     select: { normalizedPhrase: true, keyword: { select: { id: true, name: true } } },
   })
@@ -415,11 +437,11 @@ export async function deletePhrase(phraseId: string, keywordId: string, shopId: 
 
     const keyword = await tx.autoReplyKeyword.findFirst({
       where: { id: keywordId, shopId },
-      select: { isActive: true },
+      select: { status: true },
     })
     if (!keyword) throw new Error('AUTO_REPLY_KEYWORD_NOT_FOUND')
 
-    if (keyword.isActive) {
+    if (keyword.status !== 'OFFLINE') {
       const remaining = await tx.autoReplyPhrase.count({ where: { keywordId, id: { not: phraseId } } })
       if (remaining === 0) throw new Error('AUTO_REPLY_KEYWORD_LAST_PHRASE')
     }
@@ -533,8 +555,8 @@ async function assertKeywordStillHasAnswerAfterRuleChange(
   shopId: string,
   excludeRuleId: string,
 ): Promise<void> {
-  const keyword = await tx.autoReplyKeyword.findFirst({ where: { id: keywordId, shopId }, select: { isActive: true } })
-  if (!keyword?.isActive) return
+  const keyword = await tx.autoReplyKeyword.findFirst({ where: { id: keywordId, shopId }, select: { status: true } })
+  if (!keyword || keyword.status === 'OFFLINE') return
   const remaining = await tx.autoReplyRule.count({
     where: { shopId, keywordId, isActive: true, id: { not: excludeRuleId } },
   })

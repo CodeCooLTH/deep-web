@@ -13,32 +13,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-
-const MATCH_TYPE_OPTIONS = [
-  {
-    value: 'CONTAINS',
-    label: 'มีคำอยู่ในประโยค',
-    hint: 'ลูกค้าพิมพ์ "สนใจครับ ราคาเท่าไหร่" ก็เข้ากลุ่มที่มีคำว่า "สนใจ" — ใช้ได้กับกรณีทั่วไปที่สุด',
-  },
-  {
-    value: 'EXACT',
-    label: 'ตรงทั้งข้อความ',
-    hint: 'ลูกค้าต้องพิมพ์ตรงคำเป๊ะเท่านั้น เหมาะกับคำสั้นที่ถ้าใช้แบบอื่นจะไปดักคำถามอื่น',
-  },
-  {
-    value: 'STARTS_WITH',
-    label: 'ขึ้นต้นด้วยคำ',
-    hint: 'ใช้เมื่อคำนั้นมักอยู่ต้นประโยคเสมอ',
-  },
-]
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 
 export default function NewKeywordForm() {
   const router = useRouter()
   const [name, setName] = useState('')
-  const [matchType, setMatchType] = useState('CONTAINS')
   const [busy, setBusy] = useState(false)
 
-  const selectedHint = MATCH_TYPE_OPTIONS.find((o) => o.value === matchType)?.hint ?? ''
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,7 +30,7 @@ export default function NewKeywordForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
-        body: JSON.stringify({ name: name.trim(), matchType }),
+        body: JSON.stringify({ name: name.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'สร้างไม่สำเร็จ')
@@ -85,28 +66,11 @@ export default function NewKeywordForm() {
           </p>
         </div>
 
-        <div>
-          <label htmlFor="kw-match" className="text-default-700 mb-1 block text-sm font-medium">
-            รูปแบบการตรวจจับ
-          </label>
-          <select
-            id="kw-match"
-            className="form-select"
-            value={matchType}
-            onChange={(e) => setMatchType(e.target.value)}
-          >
-            {MATCH_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-default-500 mt-1 text-xs">{selectedHint}</p>
-        </div>
 
         <div className="border-default-200 bg-default-50 rounded border border-dashed p-3">
           <p className="text-default-600 text-sm">
-            สร้างแล้วจะยังไม่ทำงานทันที — ต้องใส่คำตรวจจับและคำตอบก่อน แล้วจึงเปิดใช้งาน
+            สร้างแล้วจะอยู่สถานะ "ไม่ใช้งาน" ก่อนเสมอ — ใส่คำตรวจจับกับคำตอบให้ครบ
+            แล้วค่อยเลือกว่าจะทดสอบกับแชทที่ระบุ หรือให้ตอบลูกค้าจริง
           </p>
         </div>
       </div>
