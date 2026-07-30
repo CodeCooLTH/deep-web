@@ -1332,12 +1332,16 @@ model QuickMessage {
   // join/aggregate รายรูป (แบบเดียวกับ ExternalContact.tags/phones)
   imageFileIds    String[] @default([])
   createdByUserId String // audit เบา — ใครสร้าง (ไม่ใช่ ownership; ownership = shopId)
+  // sortOrder: ลำดับที่ร้านลากจัดเอง (user request 2026-07-30) — น้อย = อยู่ก่อน
+  // ตัวเลขห่างกันได้ ไม่ต้องต่อเนื่อง (reorder เขียนใหม่ทั้งชุดอยู่แล้ว)
+  sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@index([shopId, category, createdAt]) // list ต่อร้าน จัดกลุ่มตามหมวด เรียงใหม่ก่อน
+  @@index([shopId, sortOrder]) // list ต่อร้านตามลำดับที่ร้านจัดเอง (ลำดับหลักของแผงข้อความสำเร็จรูป)
 }
 
 // --- Expense & Cost Tracking (feature 00016, additive) ---

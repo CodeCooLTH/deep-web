@@ -54,7 +54,10 @@ const SELECT = {
 export async function listQuickMessages(shopId: string): Promise<QuickMessageView[]> {
   const rows = await prisma.quickMessage.findMany({
     where: { shopId },
-    orderBy: [{ category: 'asc' }, { createdAt: 'desc' }],
+    // sortOrder มาก่อนทุกอย่าง (user request 2026-07-30 — ร้านจัดลำดับเองได้) createdAt เป็นตัวตัดสิน
+    // เมื่อ sortOrder เท่ากัน: แถวที่สร้างใหม่หลัง reorder ได้ 0 เหมือนกันหมด ต้องมีลำดับที่แน่นอน
+    // ไม่งั้น Postgres คืนสลับไปมาระหว่างรีเฟรช
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     select: SELECT,
   })
   return rows.map(toView)
@@ -117,4 +120,25 @@ export async function updateQuickMessage(
 export async function deleteQuickMessage(id: string, shopId: string): Promise<void> {
   const result = await prisma.quickMessage.deleteMany({ where: { id, shopId } })
   if (result.count === 0) throw new Error('QUICK_MESSAGE_NOT_FOUND')
+}
+
+/**
+ * reorderQuickMessages — เขียนลำดับใหม่ทั้งชุดตาม id ที่ client ส่งมา (user request 2026-07-30)
+ *
+ * ownership: อัปเดตด้วย updateMany {id, shopId} ทุกแถว — id ที่ไม่ใช่ของร้านนี้จะโดน 0 แถวเงียบ ๆ
+ * (ไม่ throw) เพราะไม่มีอะไรให้แก้ และไม่ควรบอก client ว่า id นั้นมีอยู่จริงในร้านอื่น
+ *
+ * เขียนใหม่ทั้งชุดใน transaction เดียว ไม่ใช่ diff เฉพาะตัวที่ขยับ: ลำดับเป็นสถานะรวมของทั้งชุด
+ * ถ้าเขียนบางตัวแล้วพัง จะได้ลำดับที่ไม่ตรงกับที่ผู้ใช้เห็นตอนลาก (ครึ่งเก่าครึ่งใหม่)
+ *
+ * เริ่มที่ 1 ไม่ใช่ 0 — แถวที่ถูกสร้างใหม่หลังจากนี้ได้ default 0 จึงไปโผล่หน้าสุดเองโดยอัตโนมัติ
+ * (ของใหม่ที่เพิ่งเพิ่มควรหาเจอง่าย ไม่ใช่ไปต่อท้ายแถวที่ 20)
+ */
+export async function reorderQuickMessages(shopId: string, orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return
+  await prisma.$transaction(
+    orderedIds.map((id, i) =>
+      prisma.quickMessage.updateMany({ where: { id, shopId }, data: { sortOrder: i + 1 } }),
+    ),
+  )
 }

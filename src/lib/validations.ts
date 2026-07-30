@@ -797,6 +797,12 @@ export const QuickMessageCreateSchema = v.pipe(
 );
 export const QuickMessageUpdateSchema = QuickMessageCreateSchema;
 
+// จัดลำดับข้อความสำเร็จรูป (user request 2026-07-30) — ส่ง id ทั้งชุดตามลำดับใหม่
+// cap 500: ป้องกัน payload ยาวผิดปกติมาสั่ง transaction ใหญ่ (ร้านจริงมีหลักสิบ)
+export const QuickMessageReorderSchema = v.object({
+  orderedIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1), v.maxLength(500)),
+});
+
 // ── feature 00018 CRM/tag ต่อผู้ติดต่อ ─────────────────────────────────────────
 // PATCH partial — ทุกฟิลด์ optional (omit = ไม่แตะ). alias→Conversation, ที่เหลือ→ExternalContact
 export const ChatCrmPatchSchema = v.object({
