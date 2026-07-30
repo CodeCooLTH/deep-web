@@ -39,6 +39,39 @@ model: sonnet
    >
    > ถ้า Design Spec ของคุณมีจุดที่รู้ว่าเสี่ยงต่อการถูก critique ตีกลับ (เช่น เลือกใช้สีนอกระบบเพราะ theme บังคับ) ให้ระบุไว้ในหัวข้อ `Impeccable compliance` เพื่อให้ Controller รู้ว่าต้องเพ่งตรงไหนตอนรัน critique
 
+10. 🎨 **skill `frontend-design` — อ่านทุกครั้ง ทุก surface รวม `(paces)` (user สั่ง 2026-07-30:
+    "อยากให้ใช้ /frontend-design ในการพัฒนาให้เป็น production ui มากกว่านี้")**
+    อ่านจาก `.claude/skills/frontend-design/SKILL.md` (Read ได้ ไม่ต้องมี Skill tool)
+    ลำดับการอ่าน: `PRODUCT.md` → `DESIGN.md` + `.impeccable/design.json` → **`frontend-design`** → theme file
+
+    **บทบาทของมัน: มาตรฐานคุณภาพและวิจารณญาณ — ไม่ใช่ใบอนุญาตประดิษฐ์ component เอง**
+    theme ให้ "วัสดุ" (markup + class ที่มีจริง), frontend-design บอกว่า "ประกอบวัสดุนั้นยังไง
+    ให้ออกมาเป็นงาน production ไม่ใช่งานต่อ ๆ กันให้พอมี"
+
+    **สิ่งที่ต้องดึงมาใช้ให้ครบทุก spec (ใช้ได้เต็มที่ ไม่มีข้อจำกัด):**
+    - **ลำดับชั้นชัดขาด** — 1 อย่างเด่นที่สุดต่อหน้าจอ ที่เหลือถอยให้หมด ห้ามทุกการ์ดน้ำหนักเท่ากัน
+    - **type scale ตั้งใจ** — ขนาด/น้ำหนัก/ระยะบรรทัด เลือกมาเพื่อสื่อลำดับ ไม่ใช่ค่า default ที่ติดมา
+    - **จังหวะ spacing** — ระยะห่างสื่อความสัมพันธ์ ของที่เกี่ยวกันชิดกัน ของคนละเรื่องห่างกัน
+    - **ตัดของที่ไม่ได้ทำงานทิ้ง** — ทุก element ต้องมีเหตุผลว่าอยู่ไปทำไม (การ์ดที่มีข้อมูลคงที่/ซ้ำ = ตัด)
+    - **สถานะครบ** — empty / loading / error / เนื้อหายาวผิดปกติ ต้องออกแบบ ไม่ใช่ปล่อยให้พัง
+    - **ไม่เอา template answer** — ถ้าทางแก้แรกที่คิดได้คือสิ่งที่ทุก dashboard ทำเหมือนกันหมด ให้คิดต่ออีกชั้น
+
+    **เส้นเดียวที่ต่อรองไม่ได้ (เพราะมี grep gate จริง merge ไม่ผ่าน):**
+    frontend-design บอกให้ "เลือก palette/typeface เฉพาะของ brief นี้" และ "เสี่ยงทางสุนทรียะ" —
+    บน `(paces)` **ห้ามแปลเป็นค่าดิบ**: ห้าม `text-[NNpx]` / `bg-[rgba()]` / hex / font อื่นนอกจาก
+    Anuphan / component ที่ประดิษฐ์เอง (Hard Rule 1 + 7 + 5)
+    → แปลงความตั้งใจนั้นเป็น **Paces primitive ที่มีจริง** แทน (`text-2xs`…`text-xl`, `bg-{semantic}/15`,
+      `size-*`, `gap-base`, `rounded-lg`, `.card`/`.badge`/`btn`)
+    → ถ้า **จำเป็นจริง** ต้องใช้ค่าที่ Paces ไม่มี (เช่น raised-FAB, safe-area) → เขียนไว้ใน
+      `Impeccable compliance` ว่าจุดไหน เพราะอะไร ให้ Controller ตัดสิน **ห้ามใส่เงียบ ๆ**
+
+    **บน `(marketing)/**` (buyer/landing/`/u/[username]`/`/o/[token]`)** — เพดานสูงกว่ามาก
+    PRODUCT.md register = `brand` ("design IS the product") กล้าได้เต็มที่ภายใต้ Vuexy + Anuphan
+
+    **ลำดับความสำคัญเมื่อขัดกัน:** Hard Rule 1/5/7 (theme-copy + Anuphan + primitive) >
+    Impeccable (`design.json`) > frontend-design > รสนิยมส่วนตัว
+    — ขัดกันเมื่อไร **ต้องเขียนบอกใน spec ว่าขัดตรงไหนและเลือกทางไหน** ห้ามเงียบ
+
 ## Theme mapping (ต้องชี้ให้ตรง role)
 | Route | Theme | Source root |
 |---|---|---|
