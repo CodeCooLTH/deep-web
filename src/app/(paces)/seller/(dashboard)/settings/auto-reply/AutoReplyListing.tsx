@@ -443,8 +443,10 @@ export default function AutoReplyListing({
       </div>
 
       {!shopEnabled && (
-        <div className="bg-warning/10 border-default-200 flex items-center gap-2 border-y px-4 py-2.5">
-          <Icon icon="alert-triangle" className="text-warning size-4 flex-none" aria-hidden="true" />
+        <div className="bg-warning/10 border-default-200 flex items-center gap-2.5 border-y px-4 py-2.5">
+          <span className="bg-warning flex size-7 flex-none items-center justify-center rounded-lg text-white">
+            <Icon icon="alert-triangle" className="size-4" aria-hidden="true" />
+          </span>
           <p className="text-default-700 mb-0 text-sm">
             ระบบปิดอยู่ — ตั้งค่าล่วงหน้าได้ แต่จะยังไม่ตอบลูกค้าจนกว่าจะเปิดสวิตช์ด้านบน
           </p>

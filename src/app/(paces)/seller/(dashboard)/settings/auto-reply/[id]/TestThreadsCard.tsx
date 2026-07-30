@@ -194,7 +194,10 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
     <div className="card">
       <div className="card-header flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h5 className="text-default-800 text-base font-semibold">แชทสำหรับทดสอบ ({threads.length})</h5>
+          <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+            <Icon icon="flask" className="text-primary text-lg" aria-hidden="true" />
+            แชทสำหรับทดสอบ ({threads.length})
+          </h5>
           <p className="text-default-500 mt-0.5 text-xs">
             {status === 'TEST'
               ? 'ตอนนี้กลุ่มคำนี้จะตอบเฉพาะแชทในรายการนี้เท่านั้น'
