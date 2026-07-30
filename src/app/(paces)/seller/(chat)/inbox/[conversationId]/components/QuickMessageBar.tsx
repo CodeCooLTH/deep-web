@@ -83,6 +83,24 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
   const dragFrom = useRef<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
 
+  // ล้างสถานะลากที่ระดับ window — `dragend` ของการ์ดต้นทางไม่ยิงทุกกรณี (ปล่อยนอกหน้าต่าง/กด Esc
+  // ยกเลิกกลางทาง/ลากออกไปนอกเบราว์เซอร์) ผลคือการ์ดค้างกรอบน้ำเงินไว้และ dragFrom ค้างค่าเก่า
+  // ทำให้ลากครั้งถัดไปคำนวณตำแหน่งจากจุดเริ่มที่ผิด. ผูกครั้งเดียวเมื่ออยู่ในโหมดจัดลำดับ
+  useEffect(() => {
+    if (!sortMode) return
+    const clear = () => {
+      dragFrom.current = null
+      setDragOver(null)
+    }
+    window.addEventListener('dragend', clear)
+    window.addEventListener('drop', clear)
+    return () => {
+      window.removeEventListener('dragend', clear)
+      window.removeEventListener('drop', clear)
+      clear() // ออกจากโหมดจัดลำดับ = ต้องไม่มีไฮไลต์ค้างไว้ให้เห็นในโหมดปกติ
+    }
+  }, [sortMode])
+
   // บันทึกลำดับใหม่ — optimistic (สลับบนจอทันที) แล้วค่อยยิง API; ล้มเหลว → โหลดของจริงกลับมา
   const persistOrder = useCallback(async (next: QuickMessage[]) => {
     setItems(next)

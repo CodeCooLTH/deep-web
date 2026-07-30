@@ -883,7 +883,9 @@ export default function InboxList({
                     (≥1024px) และ kebab (<1024px) — ไม่ได้หายไปไหน. เหตุที่ทำเป็น indicator ไม่ใช่
                     ปุ่ม: ตำแหน่งหน้าชื่ออยู่ใน <Link> ปุ่มซ้อนใน anchor เป็น invalid HTML และคลิก
                     จะ propagate ไป navigate (เหตุผลเดียวกับที่ kebab ต้องเป็น sibling) */}
-                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
+                {/* py-4 (เดิม py-3) — user report 2026-07-30 "ขนาดการ์ดเล็กไปหน่อย"; คู่กับชื่อที่ขยับ
+                    เป็น text-base แถวจึงหายอึดอัดและกดโดนง่ายขึ้นบนจอสัมผัส */}
+                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-4 pe-3.75 ps-3.75">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
@@ -895,12 +897,17 @@ export default function InboxList({
                         imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
                       />
                     </span>
-                    {/* น้ำหนัก/สีตัวอักษรตามสถานะอ่าน — ยังไม่อ่าน = เข้ม+หนา, อ่านแล้ว = เทาลง
+                    {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
+                        เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน
+                        ทำให้ข้อมูลที่สำคัญที่สุดในแถว (ลูกค้าคนไหน) อ่านยากที่สุด และเธรดที่อ่านแล้ว
+                        คือส่วนใหญ่ของรายการ → ทั้งหน้าดูจางไปหมด
+                        สถานะอ่านสื่อด้วย 2 อย่างที่เหลืออยู่แล้ว: น้ำหนักฟอนต์ (bold/semibold) +
+                        บรรทัด preview ที่เทาลง + badge จำนวนที่ยังไม่อ่าน — ไม่ต้องเอาสีชื่อมาแลก
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
                       <span
-                        className={`flex items-center gap-1 truncate text-sm ${
-                          unread ? 'text-default-900 font-bold' : 'text-default-600 font-medium'
+                        className={`text-default-900 flex items-center gap-1 truncate text-base ${
+                          unread ? 'font-bold' : 'font-semibold'
                         }`}
                       >
                         {c.isPinned && (
@@ -919,9 +926,12 @@ export default function InboxList({
                           ใส่เฉพาะตอนมี preview จริง (ไม่ใส่ทับ fallback "เริ่มการสนทนาแล้ว")
                           senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
                           — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
+                      {/* preview: text-sm (เดิม text-xs) ให้อ่านออกคู่กับชื่อที่ใหญ่ขึ้น — และตอนนี้
+                          บรรทัดนี้เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) จึงคงคอนทราสต์
+                          ต่างกันชัดระหว่าง 2 สถานะไว้ */}
                       <span
-                        className={`block max-w-52 truncate text-xs ${
-                          unread ? 'text-default-800 font-semibold' : 'text-default-400'
+                        className={`mt-0.5 block max-w-52 truncate text-sm ${
+                          unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
                         {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
