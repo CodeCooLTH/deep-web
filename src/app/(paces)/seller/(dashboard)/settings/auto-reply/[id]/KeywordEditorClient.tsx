@@ -501,7 +501,14 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
                     <label htmlFor="k-fallback-reply" className="text-default-800 mb-0 text-sm font-semibold">
                       ทุกกรณีที่เหลือ
                     </label>
-                    <span className="badge bg-default-200 text-default-700">ใช้เมื่อไม่เข้าข้อไหนเลย</span>
+                    {/* outline ไม่ใช่ tint: .badge ย่อขนาดเป็น 0.75em (ตัวเล็ก) เกณฑ์ contrast จึงเป็น
+                        4.5:1 แต่ default-700 บน default-200 ได้ 4.17 (ตก) ส่วน default-700 บน
+                        bg-card ได้ 4.69 (ผ่าน) และตรงกับ CL-12 ที่ให้ป้าย "อ่านอย่างเดียว" ของ
+                        หน้ารายการเป็น outline เหมือนกัน — เขียนคำว่า em แบบไม่มีวงเล็บเหลี่ยม
+                        เพราะ grep gate ของ Hard Rule 7 จะจับคอมเมนต์เป็น arbitrary value */}
+                    <span className="badge border-default-300 bg-card text-default-700 border">
+                      ใช้เมื่อไม่เข้าข้อไหนเลย
+                    </span>
                   </div>
                   {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
                       `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
