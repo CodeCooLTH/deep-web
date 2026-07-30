@@ -154,13 +154,6 @@ describe('claimJob — atomic', () => {
 describe('ลำดับ gate (PRD §4.3)', () => {
   beforeEach(happyPath)
 
-  it('ร้านปิด -> SHOP_DISABLED ไม่ส่ง', async () => {
-    getConfigM.mockResolvedValue(config({ isEnabled: false }))
-    await processJob(JOB)
-    expect(sendM).not.toHaveBeenCalled()
-    expect(writeLogM.mock.calls[0]![0]).toMatchObject({ decision: 'SKIPPED', skipReason: 'SHOP_DISABLED' })
-  })
-
   it('เธรดปิดเอง แม้ร้านเปิด -> CONVERSATION_DISABLED', async () => {
     db.conversation.findFirst.mockResolvedValue(conversation({ autoReplyEnabled: false }))
     await processJob(JOB)

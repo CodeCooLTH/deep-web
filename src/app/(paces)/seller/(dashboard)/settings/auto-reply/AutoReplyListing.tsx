@@ -49,6 +49,8 @@ export type KeywordRow = {
   /** 'OFFLINE' | 'TEST' | 'LIVE' — ค่าเดียวจบ แทน isActive+mode เดิม */
   status: string
   phraseCount: number
+  /** คำตรวจจับจริง (สูงสุด 10 คำแรก) — user 2026-07-30 "อยากให้แสดงข้อความที่ตรวจจับเลย" */
+  phrases: string[]
   /** จำนวนแชทที่ผูกไว้ทดสอบ — TEST ที่เป็น 0 = ไม่ตอบใครเลยจริง ๆ ต้องเตือน */
   testThreadCount: number
   ruleCount: number
@@ -57,11 +59,14 @@ export type KeywordRow = {
 
 /** ป้ายสถานะ — เขียวสงวนให้ "ตอบลูกค้าจริง" เท่านั้นตาม Verified-Means-Green
  *  เหลือง = ทดสอบ (เตือนว่ายังไม่ถึงลูกค้าทุกคน) · เทา = ไม่ทำงาน */
-const STATUS_META: Record<string, { label: string; badge: string; icon: string }> = {
-  LIVE: { label: 'ตอบลูกค้าจริง', badge: 'bg-success/15 text-success', icon: 'broadcast' },
-  TEST: { label: 'ทดสอบ', badge: 'bg-warning/15 text-warning', icon: 'flask' },
-  OFFLINE: { label: 'ไม่ใช้งาน', badge: 'bg-default-200 text-default-500', icon: 'circle-off' },
+const STATUS_META: Record<string, { label: string; badge: string; icon: string; active: string }> = {
+  LIVE: { label: 'ตอบลูกค้าจริง', badge: 'bg-success/15 text-success', icon: 'broadcast', active: 'bg-success text-white' },
+  TEST: { label: 'ทดสอบ', badge: 'bg-warning/15 text-warning', icon: 'flask', active: 'bg-warning text-white' },
+  OFFLINE: { label: 'ไม่ใช้งาน', badge: 'bg-default-200 text-default-500', icon: 'circle-off', active: 'bg-default-500 text-white' },
 }
+
+/** ลำดับซ้าย→ขวา = เบาไปหนัก (ไม่ตอบใคร → ตอบบางแชท → ตอบทุกคน) เหมือนหน้าแก้ไขเป๊ะ */
+const STATUS_ORDER = ['OFFLINE', 'TEST', 'LIVE'] as const
 
 const STATUS_OPTIONS = [
   { value: 'All', label: 'ทุกสถานะ' },
@@ -78,6 +83,25 @@ const STATUS_CHIPS = [
   { key: 'TEST', label: 'ทดสอบ' },
   { key: 'OFFLINE', label: 'ไม่ใช้งาน' },
 ]
+
+/** ชิปคำตรวจจับ — เห็นคำจริงทันทีโดยไม่ต้องเปิดเข้าไปดู; เกิน 4 คำสรุปเป็น "+n" กันแถวสูงเกิน */
+function PhraseChips({ phrases, total }: { phrases: string[]; total: number }) {
+  if (total === 0) {
+    return <span className="text-warning text-xs">ยังไม่มีคำตรวจจับ</span>
+  }
+  const shown = phrases.slice(0, 4)
+  const rest = total - shown.length
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {shown.map((phrase) => (
+        <span key={phrase} className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">
+          {phrase}
+        </span>
+      ))}
+      {rest > 0 && <span className="text-default-400 text-xs">+{rest}</span>}
+    </div>
+  )
+}
 
 const columnHelper = createColumnHelper<KeywordRow>()
 
@@ -98,7 +122,34 @@ type Props = {
   canEdit: boolean
 }
 
+/**
+ * ปุ่มหยุดฉุกเฉิน — ไม่ใช่สวิตช์ที่ต้องจำไปเปิด (user 2026-07-30)
+ *
+ * เดิมเป็น `form-switch` ค้างอยู่ในหัวตาราง ซึ่งซ้ำกับสถานะรายแถว (ไม่ใช้งาน/ทดสอบ/ตอบลูกค้าจริง)
+ * และสร้างกับดักเดิมกลับมา: แถวเป็น "ตอบลูกค้าจริง" แต่เงียบ เพราะสวิตช์ร้านปิดอยู่คนละที่
+ * ตอนนี้สวิตช์ร้านเปิดให้เองตอนกลุ่มแรกออกจาก "ไม่ใช้งาน" (ดู updateKeyword) เหลือไว้เป็น
+ * "การกระทำ" สำหรับกรณีบอทพูดผิดแล้วต้องหยุดทุกกลุ่มในคลิกเดียว — ไม่ใช่ "สถานะ" ที่ต้องเรียนรู้
+ */
+function EmergencyStopButton({
+  busy, canEdit, onStop,
+}: { busy: boolean; canEdit: boolean; onStop: () => void }) {
+  if (!canEdit) return null
+  return (
+    <button
+      type="button"
+      className="btn btn-sm btn-soft-danger flex-none"
+      disabled={busy}
+      onClick={onStop}
+      title="หยุดการตอบอัตโนมัติทุกกลุ่มทันที โดยไม่ต้องแก้ทีละกลุ่ม"
+    >
+      <Icon icon="player-stop" className="size-4" aria-hidden="true" />
+      หยุดตอบทั้งหมด
+    </button>
+  )
+}
+
 export default function AutoReplyListing({ keywords, canEdit }: Props) {
+
   const router = useRouter()
   const [data, setData] = useState<KeywordRow[]>(() => [...keywords])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -138,7 +189,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         body: JSON.stringify({ status: next }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
-      pacesToast.success(`"${row.name}" → ${STATUS_META[next]?.label ?? next}`)
+      pacesToast.success(`เปลี่ยน "${row.name}" เป็น "${STATUS_META[next]?.label ?? next}" แล้ว`)
       // เข้าโหมดทดสอบ = ต้องไปเลือกแชทในหน้าแก้ไข ไม่งั้นไม่มีอะไรเกิดขึ้น
       if (next === 'TEST' && row.testThreadCount === 0) {
         pacesToast.warning('ยังไม่ได้เลือกแชทสำหรับทดสอบ — เปิดกลุ่มคำนี้แล้วเพิ่มแชทก่อน')
@@ -170,9 +221,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                 </Link>
               </h5>
               <p className="text-default-400 text-2xs mb-0">
-                {row.original.phraseCount > 0
-                  ? `${row.original.phraseCount} คำตรวจจับ`
-                  : 'ยังไม่มีคำตรวจจับ'}
+                {row.original.ruleCount} คำตอบ
               </p>
             </div>
           </div>
@@ -180,11 +229,8 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
       }),
       columnHelper.accessor('phraseCount', {
         header: 'คำตรวจจับ',
-        cell: ({ row }) => <span className="text-default-600">{row.original.phraseCount}</span>,
-      }),
-      columnHelper.accessor('ruleCount', {
-        header: 'คำตอบ',
-        cell: ({ row }) => <span className="text-default-600">{row.original.ruleCount}</span>,
+        enableSorting: false,
+        cell: ({ row }) => <PhraseChips phrases={row.original.phrases} total={row.original.phraseCount} />,
       }),
       columnHelper.accessor('status', {
         header: 'สถานะ',
@@ -194,15 +240,26 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             {canEdit ? (
-              <div className="w-40">
-                <ChoiceSelect
-                  options={STATUS_OPTIONS.filter((o) => o.value !== 'All')}
-                  value={row.original.status}
-                  search={false}
-                  disabled={busyId === row.original.id}
-                  onChange={(v) => changeStatus(row.original, v as string)}
-                  ariaLabel={`สถานะของ ${row.original.name}`}
-                />
+              /* ปุ่ม 3 ค่าแบบเดียวกับหน้าแก้ไขเป๊ะ — การตัดสินใจเดียวกันต้องหน้าตาเดียวกัน
+                 (เดิมเป็น dropdown ทำให้ต้องเรียนรู้ 2 แบบ = P2 ใน Impeccable critique 2026-07-30) */
+              <div className="bg-light inline-flex rounded-lg p-0.5" role="group" aria-label={`สถานะของ ${row.original.name}`}>
+                {STATUS_ORDER.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={busyId === row.original.id}
+                    onClick={() => changeStatus(row.original, key)}
+                    aria-pressed={row.original.status === key}
+                    className={cn(
+                      'rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors',
+                      row.original.status === key
+                        ? STATUS_META[key].active
+                        : 'text-default-500 hover:text-default-800',
+                    )}
+                  >
+                    {STATUS_META[key].label}
+                  </button>
+                ))}
               </div>
             ) : (
               <StatusBadge status={row.original.status} />
@@ -415,7 +472,11 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
 
       <DataTable<KeywordRow>
         table={table}
-        emptyMessage="ไม่พบกลุ่มคำ"
+        emptyMessage={
+          keywords.length === 0
+            ? 'ยังไม่มีกลุ่มคำ — เริ่มจากคำที่ลูกค้ามักถาม เช่น "สนใจ" หรือ "ราคา"'
+            : 'ไม่มีกลุ่มคำที่ตรงกับคำค้นหาหรือตัวกรอง'
+        }
         mobileCard={(row) => {
           const k = row.original
           return (
@@ -430,11 +491,31 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                 >
                   {k.name}
                 </Link>
-                <p className="text-default-400 mt-0.5 mb-0 text-xs">
-                  {k.phraseCount} คำตรวจจับ · {k.ruleCount} คำตอบ
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <StatusBadge status={k.status} />
+                <div className="mt-1">
+                  <PhraseChips phrases={k.phrases} total={k.phraseCount} />
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {canEdit ? (
+                    <div className="bg-light inline-flex rounded-lg p-0.5" role="group" aria-label={`สถานะของ ${k.name}`}>
+                      {STATUS_ORDER.map((key) => (
+                        <button
+                          key={key}
+                          type="button"
+                          disabled={busyId === k.id}
+                          onClick={() => changeStatus(k, key)}
+                          aria-pressed={k.status === key}
+                          className={cn(
+                            'rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors',
+                            k.status === key ? STATUS_META[key].active : 'text-default-500',
+                          )}
+                        >
+                          {STATUS_META[key].label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <StatusBadge status={k.status} />
+                  )}
                   {k.status === 'TEST' && k.testThreadCount === 0 && (
                     <span className="badge bg-warning/15 text-warning text-2xs py-0 font-semibold">
                       ยังไม่ได้เลือกแชท

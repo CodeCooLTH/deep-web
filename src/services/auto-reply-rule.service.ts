@@ -36,6 +36,9 @@ export type AutoReplyKeywordListItem = {
   /** 'OFFLINE' ไม่ตอบใครเลย | 'TEST' ตอบเฉพาะเธรดที่ระบุของกลุ่มนี้ | 'LIVE' ตอบทุกเธรด */
   status: string
   phraseCount: number
+  /** คำตรวจจับจริง (สูงสุด 10 คำแรก) — หน้ารายการต้องเห็นคำ ไม่ใช่เห็นแค่จำนวน
+   *  (user 2026-07-30: "อยากให้แสดงข้อความที่ตรวจจับเลย ... user จะได้เห็นชัดเจน") */
+  phrases: string[]
   /** จำนวนเธรดทดสอบที่ผูกกับกลุ่มนี้ — status='TEST' ที่ยังเป็น 0 = ไม่ตอบใครเลยจริง ๆ */
   testThreadCount: number
   ruleCount: number
@@ -51,6 +54,8 @@ const KEYWORD_LIST_SELECT = {
   status: true,
   createdAt: true,
   updatedAt: true,
+  // take 10: หน้ารายการโชว์ได้ไม่กี่คำอยู่แล้ว ที่เหลือสรุปเป็น "+n" — ไม่ดึงมาทั้งหมดให้เปลือง
+  phrases: { select: { phrase: true }, take: 10, orderBy: { createdAt: 'asc' } },
   _count: { select: { phrases: true, rules: true, testThreads: true } },
 } satisfies Prisma.AutoReplyKeywordSelect
 
@@ -62,6 +67,7 @@ type KeywordListRow = {
   status: string
   createdAt: Date
   updatedAt: Date
+  phrases: { phrase: string }[]
   _count: { phrases: number; rules: number; testThreads: number }
 }
 
@@ -73,6 +79,7 @@ function toKeywordListItem(row: KeywordListRow): AutoReplyKeywordListItem {
     priority: row.priority,
     status: row.status,
     phraseCount: row._count.phrases,
+    phrases: row.phrases.map((p) => p.phrase),
     testThreadCount: row._count.testThreads,
     ruleCount: row._count.rules,
     createdAt: row.createdAt,
@@ -82,7 +89,8 @@ function toKeywordListItem(row: KeywordListRow): AutoReplyKeywordListItem {
 
 export type AutoReplyPhraseView = { id: string; phrase: string; normalizedPhrase: string }
 
-export type AutoReplyKeywordDetail = AutoReplyKeywordListItem & {
+/** หน้าแก้ไขต้องการ phrase แบบเต็ม (มี id ไว้ลบรายคำ) จึงทับ `phrases: string[]` ของ list item */
+export type AutoReplyKeywordDetail = Omit<AutoReplyKeywordListItem, 'phrases'> & {
   phrases: AutoReplyPhraseView[]
   rules: AutoReplyRuleView[]
 }
@@ -198,6 +206,7 @@ export async function updateKeyword(
         if (threads === 0) throw new Error('AUTO_REPLY_KEYWORD_NO_TEST_THREAD')
       }
       data.status = input.status
+
     }
 
     try {

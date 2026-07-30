@@ -45,7 +45,6 @@ type Ad = { adId: string; adTitle: string | null; hitCount: number }
 
 type Props = {
   canEdit: boolean
-  shopEnabled: boolean
   keyword: {
     id: string
     name: string
@@ -75,7 +74,7 @@ const STATUS_META: Record<string, { label: string; active: string }> = {
   LIVE: { label: 'ตอบลูกค้าจริง', active: 'bg-success text-white' },
 }
 
-export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, channels, products }: Props) {
+export default function KeywordEditorClient({ canEdit, keyword, channels, products }: Props) {
   const router = useRouter()
 
   const [status, setStatus] = useState(keyword.status)
@@ -247,17 +246,6 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
 
   return (
     <>
-      {!shopEnabled && (
-        <div className="card bg-warning/10 border-warning mb-4">
-          <div className="card-body flex items-center gap-3 py-3">
-            <Icon icon="alert-triangle" className="text-warning text-lg" aria-hidden="true" />
-            <p className="text-default-700 text-sm">
-              ระบบตอบอัตโนมัติปิดอยู่ทั้งร้าน — ตั้งค่าได้ แต่ลูกค้าจะยังไม่ได้รับคำตอบจนกว่าจะเปิดสวิตช์ในหน้ารายการ
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* subheader ใต้หัวเรื่อง (user request 2026-07-29) — เทียบเคียงข้อความของ reference
           แต่เขียนให้ตรงกับสิ่งที่ระบบเราทำจริง: ของเราจับคำ ไม่ใช่ตอบข้อความแรกเสมอ */}
       <div className="mb-4">
@@ -271,8 +259,10 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
       {status === 'TEST' && (
         <div className="card bg-warning/10 border-warning mb-4">
           <div className="card-body flex items-center gap-3 py-3">
-            <Icon icon="flask" className="text-warning text-lg" aria-hidden="true" />
-            <p className="text-default-700 text-sm">
+            <span className="bg-warning flex size-8 flex-none items-center justify-center rounded-lg text-white">
+              <Icon icon="flask" className="text-base" aria-hidden="true" />
+            </span>
+            <p className="text-default-700 mb-0 text-sm">
               {testThreadCount > 0
                 ? `กลุ่มคำนี้อยู่ในโหมดทดสอบ — ตอบเฉพาะ ${testThreadCount} แชทที่เลือกไว้ด้านล่างเท่านั้น ลูกค้าทั่วไปจะยังไม่ได้รับคำตอบจากชุดนี้ (ชุดอื่นที่ตอบลูกค้าจริงอยู่ไม่กระทบ)`
                 : 'กลุ่มคำนี้อยู่ในโหมดทดสอบแต่ยังไม่ได้เลือกแชทสำหรับทดสอบ — ตอนนี้จึงไม่ตอบใครเลย เพิ่มแชทในตาราง "แชทสำหรับทดสอบ" ด้านล่างก่อน'}
@@ -350,6 +340,9 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                 <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
                 <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
                   min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
+                <p className="text-default-500 mt-1 text-xs">
+                  ใช้เมื่อข้อความเดียวเข้าหลายกลุ่มพร้อมกัน — ตัวเลขมากกว่าถูกเลือกก่อน
+                </p>
               </div>
             </div>
           </div>
@@ -359,9 +352,15 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
 
           {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
-          <div className="card">
+          {/* border-s-3 = accepted exception ของ (paces) ตาม DESIGN.md §6 —
+              การ์ดนี้คือข้อความที่ลูกค้าจะได้รับจริง ต้องอ่านออกทันทีว่าเป็นของชิ้นหลักของหน้า
+              ไม่ใช่ฟิลด์หนึ่งในสี่ที่หน้าตาเหมือนกันหมด (Impeccable critique 2026-07-30) */}
+          <div className="card border-s-primary border-s-3">
             <div className="card-header">
-              <h5 className="text-default-800 text-base font-semibold">ข้อความตอบกลับพื้นฐาน</h5>
+              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+                <Icon icon="message-2-reply" className="text-primary text-lg" aria-hidden="true" />
+                ข้อความตอบกลับพื้นฐาน
+              </h5>
               <p className="text-default-500 mt-0.5 text-xs">ตอบทันทีที่ลูกค้าทักเข้ามาและตรงกับคำที่ตั้งไว้</p>
             </div>
             <div className="card-body">
@@ -373,7 +372,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
               <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
                 maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
                 placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                aria-label="ข้อความตอบกลับ" />
+                aria-label="ข้อความตอบกลับพื้นฐาน" />
               <div className="mt-1.5 flex justify-end">
                 <span className="text-default-400 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
               </div>
@@ -387,7 +386,10 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           {/* ── บันไดเงื่อนไขเฉพาะ ─────────────────────────────────── */}
           <div className="card">
             <div className="card-header flex items-center justify-between">
-              <h5 className="text-default-800 text-base font-semibold">เงื่อนไขเฉพาะ ({exceptions.length})</h5>
+              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+                <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
+                เงื่อนไขเฉพาะ ({exceptions.length})
+              </h5>
               {canEdit && (
                 <button className="btn btn-primary btn-sm" onClick={() => setSheetOpen(true)}>
                   <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
@@ -452,6 +454,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
 
         <div className="xl:col-span-3">
           <SimulatePanel channels={channels} products={products} keywordId={keyword.id}
+            previewReply={defaultReply}
             onEnable={() => changeStatus('TEST')} canEdit={canEdit} />
         </div>
       </div>
@@ -469,7 +472,7 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                 onClick={() => {
                   setName(keyword.name)
                   setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
-                }}>ยกเลิก</button>
+                }}>ล้างที่แก้ไว้</button>
               <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
                 บันทึกการเปลี่ยนแปลง
               </button>
@@ -588,7 +591,10 @@ function ExceptionSheet({
       {/* max-h-full พอ เพราะ parent เป็น fixed inset-0 ที่มี padding อยู่แล้ว — ไม่ต้องใช้ arbitrary vh */}
       <div className="card mb-0 flex max-h-full w-full max-w-2xl flex-col overflow-hidden">
         <div className="card-header flex items-center justify-between">
-          <h5 className="text-default-800 text-base font-semibold">เพิ่มเงื่อนไขเฉพาะ</h5>
+          <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+            <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
+            เพิ่มเงื่อนไขเฉพาะ
+          </h5>
           <button onClick={onClose} className="text-default-500" aria-label="ปิด">
             <Icon icon="x" aria-hidden="true" />
           </button>
@@ -736,12 +742,15 @@ type SimTurn =
 
 function SimulatePanel({
   channels,
+  previewReply,
   onEnable,
   canEdit,
 }: {
   channels: Channel[]
   products: Product[]
   keywordId: string
+  /** คำตอบหลักที่ตั้งไว้ — โชว์เป็นตัวอย่างตั้งแต่ยังไม่พิมพ์ ไม่ต้องรอให้ลองก่อนถึงจะเห็น */
+  previewReply: string
   onEnable: () => void
   canEdit: boolean
 }) {
@@ -773,7 +782,6 @@ function SimulatePanel({
         const notes: string[] = []
         if (data.winnerState?.status === 'OFFLINE') notes.push('ชุดนี้ยังไม่ใช้งาน')
         if (data.winnerState?.status === 'TEST') notes.push('อยู่โหมดทดสอบ')
-        if (!data.shopEnabled) notes.push('ระบบปิดอยู่ทั้งร้าน')
         setTurns((t) => [
           ...t,
           { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
@@ -815,11 +823,31 @@ function SimulatePanel({
           ฝั่งซ้าย = ลูกค้า ฝั่งขวา = เพจ ให้ตรงกับห้องแชทจริง (เดิมกลับข้างกัน) */}
       <div className="bg-light/30 max-h-96 min-h-72 overflow-y-auto px-4">
         {turns.length === 0 ? (
-          <p className="text-default-400 py-16 text-center text-sm">
-            พิมพ์ข้อความเหมือนที่ลูกค้าจะทักเข้ามา
-            <br />
-            แล้วดูว่าเพจจะตอบกลับว่าอะไร
-          </p>
+          <div className="py-8">
+            {previewReply.trim() ? (
+              <>
+                <p className="text-default-400 mb-4 text-center text-xs">ตัวอย่างคำตอบที่ตั้งไว้</p>
+                {/* บับเบิลจาง ๆ ให้เห็นหน้าตาคำตอบจริงทันที ไม่ต้องพิมพ์ทดลองก่อน */}
+                <div className="flex items-start justify-end gap-2.5 opacity-60">
+                  <div className="bg-primary min-w-0 rounded px-6 py-3">
+                    <p className="mb-0 text-sm whitespace-pre-wrap text-white">{previewReply}</p>
+                  </div>
+                  <span className="bg-default-100 flex size-8 shrink-0 items-center justify-center rounded-full">
+                    <Icon icon="building-store" width={16} height={16} className="text-default-500" aria-hidden="true" />
+                  </span>
+                </div>
+                <p className="text-default-400 mt-6 text-center text-xs">
+                  พิมพ์ด้านล่างเพื่อลองว่าคำไหนเข้าเงื่อนไขไหน
+                </p>
+              </>
+            ) : (
+              <p className="text-default-400 py-8 text-center text-sm">
+                ยังไม่ได้ตั้งข้อความตอบกลับ
+                <br />
+                ใส่คำตอบทางซ้ายแล้วจะเห็นตัวอย่างตรงนี้
+              </p>
+            )}
+          </div>
         ) : (
           turns.map((t, i) =>
             t.who === 'none' ? (

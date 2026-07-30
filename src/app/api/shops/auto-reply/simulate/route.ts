@@ -99,7 +99,6 @@ export async function POST(request: NextRequest) {
       willHandoff: !resolved.rule?.replyText?.trim(),
       // บริบทให้ UI บอกสถานะได้ (ยังไม่เปิด / อยู่โหมดทดสอบ) โดยไม่ต้องบังคำตอบ
       winnerState,
-      shopEnabled: config.isEnabled,
     },
     { headers: AUTO_REPLY_NO_STORE },
   )

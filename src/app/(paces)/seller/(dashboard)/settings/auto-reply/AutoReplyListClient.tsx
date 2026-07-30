@@ -5,9 +5,14 @@
  *
  * SSOT: docs/20 - Features/00023 - Chat Auto-Reply/UI-DESIGN-SPEC.md §3
  *
- * Base (สวิตช์ `form-switch` controlled + description row): src/app/(paces)/seller/(dashboard)/
+ * Base (สวิตช์ `form-switch` controlled): src/app/(paces)/seller/(dashboard)/
  *   business/[shopId]/invites/components/FinanceVisibilityToggle.tsx ซึ่ง Base เดิมมาจาก
  *   theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71
+ *
+ * WARNING: สวิตช์เปิด/ปิดระดับร้านถูกลบทิ้ง 2026-07-30 (user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user
+ * ปิดเอง ในแต่ละ row") — มันซ้ำกับสถานะรายแถวและสร้างกับดัก "แถวเป็นตอบลูกค้าจริงแต่เงียบ
+ * เพราะสวิตช์ร้านปิดอยู่คนละที่" ซึ่งเป็นบั๊กแรกที่เจอตอนลองใช้จริง
+ * ความปลอดภัยเดิมยังอยู่: กลุ่มคำที่สร้างใหม่เป็น "ไม่ใช้งาน" เสมอ
  * Base (stat card ด้านบน): src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
  *   — import ตัวเดิมมาใช้ ไม่ก๊อปโครงซ้ำ (การ์ดตัวนี้ไม่มีอะไรผูกกับสินค้าเลย นอกจากชื่อไฟล์)
  * Base (ตาราง + toolbar + pagination): ./AutoReplyListing.tsx ซึ่ง Base = products/components/
@@ -19,45 +24,17 @@
  */
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { pacesToast } from '@/lib/paces-toast'
 import ProductStats, { type StatType } from '../../products/components/ProductStats'
 import AutoReplyListing, { type KeywordRow } from './AutoReplyListing'
 
-type ConfigView = { isEnabled: boolean }
-
 type Props = {
-  initialConfig: ConfigView
   initialKeywords: KeywordRow[]
   canEdit: boolean
 }
 
-export default function AutoReplyListClient({ initialConfig, initialKeywords, canEdit }: Props) {
-  const [config, setConfig] = useState(initialConfig)
+export default function AutoReplyListClient({ initialKeywords, canEdit }: Props) {
   const [keywords] = useState(initialKeywords)
-  const [busy, setBusy] = useState(false)
 
-  async function toggleShopSwitch(next: boolean) {
-    if (!canEdit || busy) return
-    setBusy(true)
-    // optimistic — คืนค่าเดิมถ้าพัง เพื่อไม่ให้ UI โกหกว่าเปิดอยู่ทั้งที่เซิร์ฟเวอร์ปฏิเสธ
-    const prev = config.isEnabled
-    setConfig((c) => ({ ...c, isEnabled: next }))
-    try {
-      const res = await fetch('/api/shops/auto-reply/config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ isEnabled: next }),
-      })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
-      pacesToast.success(next ? 'เปิดการตอบอัตโนมัติแล้ว' : 'ปิดการตอบอัตโนมัติแล้ว')
-    } catch (e) {
-      setConfig((c) => ({ ...c, isEnabled: prev }))
-      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const liveCount = keywords.filter((k) => k.status === 'LIVE').length
   const testCount = keywords.filter((k) => k.status === 'TEST').length
@@ -82,7 +59,7 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
       icon: 'broadcast',
       iconClassName: 'bg-success/15 text-success',
       bulletClassName: 'text-success',
-      metric: 'ทำงานกับทุกแชท',
+      metric: 'ตอบทุกแชท',
       metricValue: String(liveCount),
     },
     {
@@ -115,39 +92,6 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
         {statData.map((stat) => (
           <ProductStats key={stat.title} stat={stat} />
         ))}
-      </div>
-
-      {/* สวิตช์ระดับร้าน — แยกการ์ดจากตาราง เพราะเป็นสวิตช์ตัวเดียวที่คุมทุกกลุ่มคำ
-          ถ้ายัดเข้า card-header ของตารางจะดูเป็นแค่ตัวกรองอีกตัวหนึ่ง */}
-      <div className="card">
-        <div className="card-body flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h5 className="text-default-800 mb-0.5 text-base font-semibold">ตอบแชทอัตโนมัติ</h5>
-            <p className="text-default-500 mb-0 text-sm">
-              ตั้งกลุ่มคำที่ลูกค้ามักถาม แล้วกำหนดคำตอบไว้ล่วงหน้า ระบบจะตอบให้ทันทีที่ลูกค้าทักเข้ามา
-            </p>
-          </div>
-          <label className="flex flex-none items-center gap-2">
-            <span className={`text-sm ${config.isEnabled ? 'text-success' : 'text-default-500'}`}>
-              {config.isEnabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}
-            </span>
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={config.isEnabled}
-              disabled={!canEdit || busy}
-              onChange={(e) => toggleShopSwitch(e.target.checked)}
-              aria-label="เปิดใช้งานการตอบแชทอัตโนมัติ"
-            />
-          </label>
-        </div>
-        {!config.isEnabled && (
-          <div className="border-default-200 border-t px-4 py-3">
-            <p className="text-default-600 mb-0 text-sm">
-              ตอนนี้ปิดอยู่ — ตั้งค่าล่วงหน้าได้ แต่ระบบจะยังไม่ตอบลูกค้าจนกว่าจะเปิดสวิตช์นี้
-            </p>
-          </div>
-        )}
       </div>
 
       <AutoReplyListing keywords={keywords} canEdit={canEdit} />
