@@ -189,7 +189,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         body: JSON.stringify({ status: next }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
-      pacesToast.success(`"${row.name}" → ${STATUS_META[next]?.label ?? next}`)
+      pacesToast.success(`เปลี่ยน "${row.name}" เป็น "${STATUS_META[next]?.label ?? next}" แล้ว`)
       // เข้าโหมดทดสอบ = ต้องไปเลือกแชทในหน้าแก้ไข ไม่งั้นไม่มีอะไรเกิดขึ้น
       if (next === 'TEST' && row.testThreadCount === 0) {
         pacesToast.warning('ยังไม่ได้เลือกแชทสำหรับทดสอบ — เปิดกลุ่มคำนี้แล้วเพิ่มแชทก่อน')
@@ -472,7 +472,11 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
 
       <DataTable<KeywordRow>
         table={table}
-        emptyMessage="ไม่พบกลุ่มคำ"
+        emptyMessage={
+          keywords.length === 0
+            ? 'ยังไม่มีกลุ่มคำ — เริ่มจากคำที่ลูกค้ามักถาม เช่น "สนใจ" หรือ "ราคา"'
+            : 'ไม่มีกลุ่มคำที่ตรงกับคำค้นหาหรือตัวกรอง'
+        }
         mobileCard={(row) => {
           const k = row.original
           return (

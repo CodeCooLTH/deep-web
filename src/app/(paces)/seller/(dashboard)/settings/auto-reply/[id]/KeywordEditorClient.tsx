@@ -340,6 +340,9 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
                 <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
                 <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
                   min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
+                <p className="text-default-500 mt-1 text-xs">
+                  ใช้เมื่อข้อความเดียวเข้าหลายกลุ่มพร้อมกัน — ตัวเลขมากกว่าถูกเลือกก่อน
+                </p>
               </div>
             </div>
           </div>
@@ -369,7 +372,7 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
               <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
                 maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
                 placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                aria-label="ข้อความตอบกลับ" />
+                aria-label="ข้อความตอบกลับพื้นฐาน" />
               <div className="mt-1.5 flex justify-end">
                 <span className="text-default-400 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
               </div>
@@ -469,7 +472,7 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
                 onClick={() => {
                   setName(keyword.name)
                   setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
-                }}>ยกเลิก</button>
+                }}>ล้างที่แก้ไว้</button>
               <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
                 บันทึกการเปลี่ยนแปลง
               </button>

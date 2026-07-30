@@ -59,7 +59,7 @@ export default function AutoReplyListClient({ initialKeywords, canEdit }: Props)
       icon: 'broadcast',
       iconClassName: 'bg-success/15 text-success',
       bulletClassName: 'text-success',
-      metric: 'ทำงานกับทุกแชท',
+      metric: 'ตอบทุกแชท',
       metricValue: String(liveCount),
     },
     {
