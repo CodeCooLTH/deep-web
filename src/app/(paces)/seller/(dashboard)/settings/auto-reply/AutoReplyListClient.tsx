@@ -5,9 +5,14 @@
  *
  * SSOT: docs/20 - Features/00023 - Chat Auto-Reply/UI-DESIGN-SPEC.md §3
  *
- * Base (สวิตช์ `form-switch` controlled + description row): src/app/(paces)/seller/(dashboard)/
+ * Base (สวิตช์ `form-switch` controlled): src/app/(paces)/seller/(dashboard)/
  *   business/[shopId]/invites/components/FinanceVisibilityToggle.tsx ซึ่ง Base เดิมมาจาก
  *   theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71
+ *
+ * user 2026-07-30 "ทำไมการตั้งค่ามันมาอยู่หน้าลิส" — เดิมมีการ์ดสวิตช์ระดับร้านคั่นระหว่าง
+ * stat card กับตาราง ซึ่งซ้ำชื่อหน้า (breadcrumb ก็บอกว่า "ตอบแชทอัตโนมัติ" อยู่แล้ว) และกิน
+ * 3 แถวก่อนจะถึงรายการ ย้ายสวิตช์เข้าไปอยู่ในหัวตารางแทน — หน้านี้เป็น "หน้ารายการ" ไม่ใช่
+ * "หน้าตั้งค่า" ตามที่ user ขอให้เหมือนหน้าสินค้า
  * Base (stat card ด้านบน): src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
  *   — import ตัวเดิมมาใช้ ไม่ก๊อปโครงซ้ำ (การ์ดตัวนี้ไม่มีอะไรผูกกับสินค้าเลย นอกจากชื่อไฟล์)
  * Base (ตาราง + toolbar + pagination): ./AutoReplyListing.tsx ซึ่ง Base = products/components/
@@ -117,40 +122,13 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
         ))}
       </div>
 
-      {/* สวิตช์ระดับร้าน — แยกการ์ดจากตาราง เพราะเป็นสวิตช์ตัวเดียวที่คุมทุกกลุ่มคำ
-          ถ้ายัดเข้า card-header ของตารางจะดูเป็นแค่ตัวกรองอีกตัวหนึ่ง */}
-      <div className="card">
-        <div className="card-body flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h5 className="text-default-800 mb-0.5 text-base font-semibold">ตอบแชทอัตโนมัติ</h5>
-            <p className="text-default-500 mb-0 text-sm">
-              ตั้งกลุ่มคำที่ลูกค้ามักถาม แล้วกำหนดคำตอบไว้ล่วงหน้า ระบบจะตอบให้ทันทีที่ลูกค้าทักเข้ามา
-            </p>
-          </div>
-          <label className="flex flex-none items-center gap-2">
-            <span className={`text-sm ${config.isEnabled ? 'text-success' : 'text-default-500'}`}>
-              {config.isEnabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}
-            </span>
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={config.isEnabled}
-              disabled={!canEdit || busy}
-              onChange={(e) => toggleShopSwitch(e.target.checked)}
-              aria-label="เปิดใช้งานการตอบแชทอัตโนมัติ"
-            />
-          </label>
-        </div>
-        {!config.isEnabled && (
-          <div className="border-default-200 border-t px-4 py-3">
-            <p className="text-default-600 mb-0 text-sm">
-              ตอนนี้ปิดอยู่ — ตั้งค่าล่วงหน้าได้ แต่ระบบจะยังไม่ตอบลูกค้าจนกว่าจะเปิดสวิตช์นี้
-            </p>
-          </div>
-        )}
-      </div>
-
-      <AutoReplyListing keywords={keywords} canEdit={canEdit} />
+      <AutoReplyListing
+        keywords={keywords}
+        canEdit={canEdit}
+        shopEnabled={config.isEnabled}
+        shopSwitchBusy={busy}
+        onShopSwitch={toggleShopSwitch}
+      />
 
     </>
   )

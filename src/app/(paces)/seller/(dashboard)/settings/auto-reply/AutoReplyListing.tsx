@@ -96,9 +96,36 @@ function StatusBadge({ status }: { status: string }) {
 type Props = {
   keywords: KeywordRow[]
   canEdit: boolean
+  /** สวิตช์ระดับร้าน — อยู่ในหัวตารางแทนการ์ดแยก (user 2026-07-30 "ทำไมการตั้งค่ามันมาอยู่หน้าลิส") */
+  shopEnabled: boolean
+  shopSwitchBusy: boolean
+  onShopSwitch: (next: boolean) => void
 }
 
-export default function AutoReplyListing({ keywords, canEdit }: Props) {
+/** สวิตช์เปิด/ปิดทั้งร้าน — ใช้ทั้ง toolbar มือถือและ card-header เดสก์ท็อป */
+function ShopSwitch({
+  enabled, busy, canEdit, onChange,
+}: { enabled: boolean; busy: boolean; canEdit: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="bg-light/40 border-default-200 flex flex-none cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5">
+      <input
+        type="checkbox"
+        className="form-switch"
+        checked={enabled}
+        disabled={!canEdit || busy}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label="เปิดใช้งานการตอบแชทอัตโนมัติทั้งร้าน"
+      />
+      <span className={cn('text-sm font-medium', enabled ? 'text-success' : 'text-default-500')}>
+        {enabled ? 'ระบบเปิดอยู่' : 'ระบบปิดอยู่'}
+      </span>
+    </label>
+  )
+}
+
+export default function AutoReplyListing({
+  keywords, canEdit, shopEnabled, shopSwitchBusy, onShopSwitch,
+}: Props) {
   const router = useRouter()
   const [data, setData] = useState<KeywordRow[]>(() => [...keywords])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -317,6 +344,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
     <div className="card">
       {/* ===== Mobile toolbar (ซ่อนบน lg ขึ้นไป) — Base ProductsListing.tsx ===== */}
       <div className="space-y-2.5 px-4 pt-3 pb-2 lg:hidden">
+        <ShopSwitch enabled={shopEnabled} busy={shopSwitchBusy} canEdit={canEdit} onChange={onShopSwitch} />
         <div className="flex items-center gap-2">
           <div className="input-icon-group flex-1">
             <Icon icon="search" className="input-icon" />
@@ -404,6 +432,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <ShopSwitch enabled={shopEnabled} busy={shopSwitchBusy} canEdit={canEdit} onChange={onShopSwitch} />
           {canEdit && (
             <Link href="/settings/auto-reply/new" className="btn bg-primary hover:bg-primary-hover text-white">
               <Icon icon="plus" aria-hidden="true" />
@@ -412,6 +441,15 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
           )}
         </div>
       </div>
+
+      {!shopEnabled && (
+        <div className="bg-warning/10 border-default-200 flex items-center gap-2 border-y px-4 py-2.5">
+          <Icon icon="alert-triangle" className="text-warning size-4 flex-none" aria-hidden="true" />
+          <p className="text-default-700 mb-0 text-sm">
+            ระบบปิดอยู่ — ตั้งค่าล่วงหน้าได้ แต่จะยังไม่ตอบลูกค้าจนกว่าจะเปิดสวิตช์ด้านบน
+          </p>
+        </div>
+      )}
 
       <DataTable<KeywordRow>
         table={table}
