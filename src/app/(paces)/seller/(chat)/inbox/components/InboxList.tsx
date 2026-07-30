@@ -123,9 +123,10 @@ export type ConversationListItem = {
   // ตอนอยู่แท็บ "ทั้งหมด" ให้รู้ว่าเธรดนี้อยู่กลุ่มไหน (user สั่ง 2026-07-24)
   chatGroupId?: string | null
   isSpam?: boolean // feature 00018 — เธรดสแปม (user สั่ง 2026-07-24); ตัดสิน action spam/unspam ใน mini-action
-  // user request 2026-07-25 — จำนวนออเดอร์ของลูกค้าเธรดนี้ โชว์ไอคอนตะกร้า + จำนวน (กดเปิด right panel
-  // รายการคำสั่งซื้อ) — enrich ที่ route (/api/chat/conversations seller); optional เผื่อ payload เก่า
-  orderCount?: number
+  // user request 2026-07-29 — ป้ายขั้นตอนของออเดอร์ล่าสุด (แทน orderCount เดิมของ 2026-07-25)
+  // null = ไม่ต้องแสดงชิป (ไม่เคยมีออเดอร์ หรือป้ายหมดอายุแล้ว — ดู deriveOrderStage)
+  // enrich ด้วย enrichWithOrderStage ทั้งฝั่ง RSC (inbox/page.tsx) และ route; optional เผื่อ payload เก่า
+  orderStage?: { key: string; label: string; cls: string; icon: string; printCount?: number } | null
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null
@@ -952,12 +953,15 @@ export default function InboxList({
                           )}
                         </span>
                       )}
-                      {/* user request 2026-07-25 — ไอคอนตะกร้า + จำนวนออเดอร์ของลูกค้า (ถ้ามี ≥1) กดแล้ว
-                          เปิด right panel รายการคำสั่งซื้อ (นำไป /inbox/{id}?panel=orders → CustomerPanel
-                          เปิดแท็บออเดอร์; มือถือเด้ง sheet). เป็น <span role="link"> ไม่ใช่ <a>/<button>
-                          เพราะทั้งแถวอยู่ใน <Link> — nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่
-                          (precedent เดียวกับดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
-                      {(c.orderCount ?? 0) > 0 && (() => {
+                      {/* user request 2026-07-29 — ป้าย "ขั้นตอนล่าสุดของออเดอร์" แทนชิปตะกร้า+จำนวนเดิม
+                          (2026-07-25): จำนวนบอกแค่ว่าลูกค้าเคยซื้อกี่ครั้ง ไม่ได้บอกสิ่งที่แอดมินต้องรู้
+                          ระหว่างคุยว่า "ของถึงไหนแล้ว". อ้างอิงออเดอร์ล่าสุดใบเดียว; กฎการหมดอายุของป้าย
+                          (สำเร็จ 3 วัน / ยกเลิก 1 วัน) อยู่ที่ deriveOrderStage ใน src/lib/order-stage.ts
+                          กดแล้วเปิด right panel รายการคำสั่งซื้อเหมือนเดิม (/inbox/{id}?panel=orders)
+                          เป็น <span role="link"> ไม่ใช่ <a>/<button> เพราะทั้งแถวอยู่ใน <Link> —
+                          nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่ (precedent เดียวกับ
+                          ดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
+                      {c.orderStage && (() => {
                         const openOrders = (e: React.SyntheticEvent) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -971,14 +975,27 @@ export default function InboxList({
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') openOrders(e)
                             }}
-                            aria-label={`ดูรายการคำสั่งซื้อ ${c.orderCount} รายการ`}
-                            className="badge bg-primary/15 text-primary text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 hover:bg-primary/25 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-2"
+                            aria-label={`คำสั่งซื้อล่าสุด: ${c.orderStage.label} — ดูรายการคำสั่งซื้อ`}
+                            className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
                           >
-                            <Icon icon="shopping-cart" width={13} height={13} className="shrink-0" />
-                            {c.orderCount}
+                            <Icon icon={c.orderStage.icon} width={13} height={13} className="shrink-0" />
+                            {c.orderStage.label}
                           </span>
                         )
                       })()}
+                      {/* ป้ายเสริมจำนวนครั้งที่พิมพ์ (user request 2026-07-29) — มีเฉพาะขั้น "พิมพ์เอกสารแล้ว"
+                          แยกเป็นชิปที่สอง ไม่ต่อท้ายในชิปเดิม เพราะเป็นข้อมูลคนละชนิด (สถานะ vs จำนวน)
+                          และป้ายรวมกันจะยาวจนเบียดชิป ad_id/ชื่อกลุ่มบนจอแคบ. โทน default ไม่ใช่สีสถานะ —
+                          เป็นข้อมูลประกอบ ไม่ใช่สิ่งที่ต้องดึงสายตาแข่งกับสถานะ */}
+                      {c.orderStage?.printCount ? (
+                        <span
+                          className="badge bg-default-100 text-default-600 text-2xs mt-1 inline-flex w-fit shrink-0 items-center gap-1"
+                          title={`ใบปะหน้าถูกสั่งพิมพ์ ${c.orderStage.printCount} ครั้ง`}
+                        >
+                          <Icon icon="printer" width={12} height={12} className="shrink-0" />
+                          พิมพ์ {c.orderStage.printCount} ครั้ง
+                        </span>
+                      ) : null}
                     </span>
                   </div>
 

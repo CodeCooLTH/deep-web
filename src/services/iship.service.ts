@@ -16,6 +16,7 @@ import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
+  findMissingParcelFields,
   findMissingReceiverFields,
   findMissingSenderFields,
   type DeepAddress,
@@ -84,6 +85,12 @@ export interface ShipmentView {
   lastErrorCode: string | null;
   /** ข้อความไทยที่แสดงได้ — ไม่ใช่ข้อความดิบจาก iShip */
   lastErrorMessage: string | null;
+  /** ข้อมูลพัสดุที่ถูกส่งไปจริง — ให้ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยค่าอะไร */
+  weight: number | null;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: number;
   createdAt: Date;
 }
 
@@ -115,7 +122,8 @@ function toConnectionView(a: AccountRow | null): ConnectionView {
       lastVerifyError: null,
       senderComplete: false,
       settingsComplete: false,
-      createMode: "ASK",
+      // ยังไม่เชื่อมต่อ = ต้องไม่มีอะไรเด้งถาม (ตรงกับ default ของ DB)
+      createMode: "OFF",
     };
   }
   return {
@@ -213,6 +221,9 @@ export async function connect(
       accessTokenEnc: encrypted,
       tokenLast4,
       status: "ACTIVE",
+      // ระบุตรง ๆ ไม่พึ่ง default ของ DB — ร้านที่เพิ่งเชื่อมต้องเงียบไว้ก่อน
+      // (ยังไม่ได้ตั้งขนาด/น้ำหนัก/ที่อยู่ผู้ส่งด้วยซ้ำ ถามไปก็ตอบ "ไม่" ทุกครั้ง)
+      createMode: "OFF",
       connectedByUserId: userId,
       lastVerifiedAt: new Date(),
     },
@@ -372,15 +383,42 @@ function toShipmentView(s: {
   labelPrintCount: number;
   isDryRun: boolean;
   lastErrorCode: string | null;
+  weight: unknown;
+  width: number | null;
+  length: number | null;
+  height: number | null;
+  codAmount: unknown;
   createdAt: Date;
 }): ShipmentView {
   return {
     ...s,
+    // Decimal ของ Prisma → number ก่อนข้ามขอบเขต (Decimal serialize ข้าม RSC/HTTP ไม่ได้)
+    weight: s.weight == null ? null : Number(s.weight),
+    codAmount: Number(s.codAmount ?? 0),
     // ข้อความที่แสดงต่อผู้ใช้มาจาก error code ของเรา ไม่ใช่ lastErrorMessage ที่เป็นข้อความดิบ
     lastErrorMessage: s.lastErrorCode
       ? new IShipError(s.lastErrorCode as never).userMessage
       : null,
   };
+}
+
+/**
+ * resolveCourierName — แปลงรหัสขนส่งเป็นชื่อที่คนอ่านออก ณ เวลาสร้างพัสดุ
+ *
+ * ห้ามให้ล้มเหลวแล้วบล็อกการสร้างพัสดุ — มันเป็นแค่ข้อความบนจอ ไม่ใช่ข้อมูลที่ขนส่งต้องใช้
+ * คืน null เมื่อดึงไม่ได้/ไม่เจอ แล้วให้หน้าจอ fallback เป็นรหัสขนส่งแทน
+ */
+async function resolveCourierName(
+  shopId: string,
+  courierCode: string | null,
+): Promise<string | null> {
+  if (!courierCode) return null;
+  try {
+    const list = await listCouriers(shopId);
+    return list.find((c) => c.code === courierCode)?.name ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const SHIPMENT_SELECT = {
@@ -399,6 +437,11 @@ const SHIPMENT_SELECT = {
   labelPrintCount: true,
   isDryRun: true,
   lastErrorCode: true,
+  weight: true,
+  width: true,
+  length: true,
+  height: true,
+  codAmount: true,
   createdAt: true,
 } as const;
 
@@ -447,6 +490,13 @@ export async function getShipmentPanel(
       buyerName: true,
       buyerContact: true,
       shippingAddress: true,
+      totalAmount: true,
+      paymentMethod: true,
+      // รายการสินค้า — ให้ร้านตรวจก่อนกดสร้างว่ากำลังเปิดพัสดุให้ออเดอร์ใบที่ตั้งใจ
+      items: {
+        select: { id: true, name: true, qty: true, price: true },
+        orderBy: { name: "asc" },
+      },
     },
   });
   if (!order) return null;
@@ -497,6 +547,17 @@ export async function getShipmentPanel(
       province: addr.province ?? null,
       postcode: addr.postcode ?? null,
     },
+    sender: senderOf(account),
+    // เติมยอดให้เฉพาะใบที่จ่ายปลายทางจริง — ใบที่ชำระแล้วต้องเป็น 0 ไม่ใช่ยอดคำสั่งซื้อ
+    codSuggested:
+      order.paymentMethod === "COD" ? Number(order.totalAmount) : 0,
+    items: order.items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      qty: it.qty,
+      // Decimal ข้ามขอบเขต RSC ไม่ได้ — แปลงตั้งแต่ที่นี่เหมือน field อื่นในไฟล์นี้
+      price: Number(it.price),
+    })),
     defaults: {
       courierCode: account.defaultCourierCode,
       weight: account.defaultWeight ? Number(account.defaultWeight) : null,
@@ -684,10 +745,21 @@ export async function createShipment(
   const length = override?.length ?? account.defaultLength;
   const height = override?.height ?? account.defaultHeight;
 
-  if (!courierCode || categoryId == null || weight == null || width == null || length == null || height == null) {
+  // ตรวจก่อนยิงเสมอ — ปล่อยให้ iShip ปฏิเสธแล้วค่อยรู้ = ร้านได้ข้อความปลายทางที่อ่านไม่ออก
+  // และเสียเวลาไปหนึ่งรอบ บอกเป็นช่อง ๆ ว่าขาดอะไร ไม่ใช่ "ข้อมูลไม่ครบ" ลอย ๆ
+  const missingParcel = findMissingParcelFields({
+    courierCode,
+    categoryId,
+    weight,
+    width,
+    length,
+    height,
+  });
+  if (missingParcel.length > 0) {
     throw new IShipServiceError(
       "INCOMPLETE_DATA",
-      "ยังตั้งค่าเริ่มต้นของพัสดุไม่ครบ (ขนส่ง ประเภทสินค้า น้ำหนัก หรือขนาดกล่อง)",
+      `ยังตั้งค่าพัสดุไม่ครบ — ขาด ${missingParcel.join(", ")} (ตั้งได้ที่หน้าตั้งค่าการจัดส่ง)`,
+      missingParcel,
     );
   }
 
@@ -701,6 +773,10 @@ export async function createShipment(
       status: "PENDING",
       idempotencyKey,
       courierCode,
+      // ชื่อขนส่งสำหรับแสดงผล — เก็บ ณ เวลาสร้าง ไม่ re-fetch ทุกครั้งที่เปิดดู
+      // ถ้าดึงรายชื่อไม่ได้ ปล่อย null แล้วให้หน้าจอ fallback เป็นรหัสขนส่งแทน
+      // (ห้ามให้การดึงชื่อมาบล็อกการสร้างพัสดุ — มันเป็นแค่ข้อความบนจอ)
+      courierName: await resolveCourierName(shopId, courierCode),
       categoryId,
       weight,
       width,
@@ -863,7 +939,13 @@ export async function cancelShipment(
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, status: true, trackingNo: true },
+    select: {
+      id: true,
+      status: true,
+      trackingNo: true,
+      refCode: true,
+      courierCode: true,
+    },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (row.status === "CANCELLED") {
@@ -871,8 +953,23 @@ export async function cancelShipment(
   }
 
   // ใบที่ยังไม่มี tracking (FAILED ตั้งแต่แรก) ไม่ต้องแจ้ง iShip — ไม่มีอะไรให้ยกเลิกที่นั่น
+  //
+  // iShip ระบุพัสดุด้วย ref_code + courier_code — ใบเก่าที่ไม่ได้เก็บ refCode ไว้จึงยกเลิก
+  // ฝั่งโน้นไม่ได้ ต้องบอกตรง ๆ ให้ไปยกเลิกที่หลังบ้าน iShip แทนการปิดใบฝั่งเราเงียบ ๆ
+  // แล้วปล่อยพัสดุจริงค้างอยู่กับขนส่ง
   if (row.trackingNo) {
-    await withTokenGuard(shopId, () => iship.cancelOrder(token, row.trackingNo!));
+    if (!row.refCode || !row.courierCode) {
+      throw new IShipServiceError(
+        "INVALID_STATE",
+        "ยกเลิกพัสดุใบนี้จากที่นี่ไม่ได้ เพราะไม่มีรหัสอ้างอิงของ iShip กรุณายกเลิกที่ระบบ iShip โดยตรง",
+      );
+    }
+    await withTokenGuard(shopId, () =>
+      iship.cancelOrder(token, {
+        courierCode: row.courierCode!,
+        refCode: row.refCode!,
+      }),
+    );
   }
 
   const updated = await prisma.orderShipment.update({
@@ -1022,9 +1119,30 @@ export async function getTraces(shopId: string, shipmentId: string) {
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (!row.trackingNo) return [];
 
-  const routes = await withTokenGuard(shopId, () =>
-    iship.getTraces(token, row.trackingNo!),
-  );
+  /**
+   * ดึงไม่ได้ = ยังอ่านของเก่าที่เก็บไว้ได้ — ไม่ใช่พังทั้งหน้า
+   *
+   * ไทม์ไลน์เป็นการ "อ่านอย่างเดียว" การโยน error ทิ้งทั้งก้อนเพราะ upstream สะดุด
+   * แปลว่าเราทิ้งข้อมูลที่เก็บไว้แล้วโดยเปล่าประโยชน์ (โค้ดข้างล่างเก็บลง ShipmentEvent
+   * ไว้ตั้งแต่แรกก็เพื่อกรณีนี้ แต่เดิมไม่เคยถูกใช้อ่าน)
+   *
+   * TOKEN_INVALID ไม่กลืน — นั่นคือเรื่องที่ร้านต้องไปแก้ ไม่ใช่ความสะดุดชั่วคราว
+   */
+  let routes: Awaited<ReturnType<typeof iship.getTraces>>;
+  try {
+    routes = await withTokenGuard(shopId, () =>
+      iship.getTraces(token, row.trackingNo!),
+    );
+  } catch (err) {
+    if (err instanceof IShipError && err.code !== "TOKEN_INVALID") {
+      const stored = await prisma.shipmentEvent.findMany({
+        where: { shipmentId: row.id },
+        orderBy: { occurredAt: "asc" },
+      });
+      if (stored.length > 0) return stored;
+    }
+    throw err;
+  }
 
   // เก็บลงฐานข้อมูลด้วย เพื่อให้ไทม์ไลน์ยังอ่านได้แม้ผู้ให้บริการล่ม
   for (const r of routes) {

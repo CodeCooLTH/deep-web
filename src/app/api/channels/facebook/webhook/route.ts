@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import * as v from 'valibot'
 import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
+import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -19,6 +20,10 @@ import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReaction
 // retry ไปก็พังซ้ำเหมือนเดิม ไม่มีประโยชน์ → คง 200 กัน Meta ยิงรัว ๆ ไม่จบ
 
 export const dynamic = 'force-dynamic'
+
+// feature 00023: งานที่ทำใน after() นับรวมในอายุของ function เดียวกับ request นี้
+// ไม่ประกาศ = ถูกตัดที่ค่า default ของ platform แล้วงานตอบอัตโนมัติจะหายกลางคันแบบเงียบ ๆ
+export const maxDuration = 60
 
 // (S-2) เทียบ verify_token ด้วย timingSafeEqual แทน === — impact ต่ำ (เรียกครั้งเดียวตอน setup)
 // แต่ทำให้สอดคล้องกับหลักที่ประกาศไว้เองว่าลายเซ็นคือ authentication (เห็น pattern เดียวกันใน
@@ -64,6 +69,9 @@ export async function POST(request: NextRequest) {
 
   const provider = parsed.output.object === 'instagram' ? 'INSTAGRAM' : 'MESSENGER'
 
+  // เธรดที่มีงานตอบอัตโนมัติรอ — ประมวลผลใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00023)
+  const pendingConversationIds = new Set<string>()
+
   for (const { pageId, event } of extractMessagingEvents(parsed.output)) {
     try {
       if (event.read) {
@@ -84,7 +92,7 @@ export async function POST(request: NextRequest) {
           emoji: event.reaction.emoji,
         })
       } else {
-        await ingestInboundMessage({ provider, pageExternalId: pageId, event })
+        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event })
 
         // ที่มาจากโฆษณา (E5) — referral มา 2 ที่: ซ้อนใน message (ลูกค้ากดโฆษณาแล้วทักครั้งแรก)
         // หรือระดับ event (ลูกค้าที่มีเธรดอยู่แล้วกดโฆษณาตัวใหม่). ต้องทำ "หลัง" ingest ข้อความเสมอ
@@ -104,6 +112,34 @@ export async function POST(request: NextRequest) {
             console.error('[fb-webhook] บันทึก ad referral ล้มเหลว', e instanceof Error ? e.message : e)
           }
         }
+
+        // ตอบอัตโนมัติ (feature 00023) — ต้องอยู่ "หลัง" ingestAdReferral เสมอ
+        //
+        // ลำดับนี้ไม่ใช่เรื่องความสวยงามของโค้ด: เคสหลักของทั้งฟีเจอร์คือลูกค้ากดโฆษณาแล้วทัก
+        // ครั้งแรก ถ้า enqueue ก่อน referral ถูกบันทึก งานจะถูกประมวลผลโดยยังไม่มี adId ในเธรด
+        // แล้วเลือกกฎระดับเพจแทนระดับโฆษณา = ตอบราคาผิดรุ่น ซึ่งเป็นความเสียหายอันดับ 1 ใน PRD §6.1
+        //
+        // try/catch ของตัวเอง + enqueueAutoReplyJob ที่ไม่ throw (TD-008) = สองชั้น เพื่อให้แน่ใจว่า
+        // เส้นทาง isInfraError -> 503 ด้านล่างยังสงวนไว้ให้ ingestInboundMessage เท่านั้น
+        if (
+          ingested.status === 'STORED' &&
+          ingested.headMessageId &&
+          ingested.conversationId &&
+          ingested.shopId
+        ) {
+          try {
+            const job = await enqueueAutoReplyJob({
+              chatMessageId: ingested.headMessageId,
+              conversationId: ingested.conversationId,
+              shopId: ingested.shopId,
+              senderRole: ingested.senderRole ?? '',
+              hasCustomerText: ingested.hasCustomerText ?? false,
+            })
+            if (job.enqueued) pendingConversationIds.add(ingested.conversationId)
+          } catch (e) {
+            console.error('[fb-webhook] enqueue auto-reply ล้มเหลว', e instanceof Error ? e.message : e)
+          }
+        }
       }
     } catch (e) {
       console.error('[fb-webhook] ingest ล้มเหลว', e instanceof Error ? e.message : e)
@@ -116,6 +152,25 @@ export async function POST(request: NextRequest) {
       // logic/data error อื่น ๆ — ข้อความเดียวพังต้องไม่ทำให้ทั้ง batch ตกและถูก retry ทั้งก้อน
       // (retry ไปก็พังซ้ำเหมือนเดิม ไม่มีประโยชน์)
     }
+  }
+
+  // ตอบอัตโนมัติ (feature 00023) — ทำ "หลัง" ตอบ 200 ให้ Meta แล้วเท่านั้น
+  //
+  // Meta รอ 200 อยู่ ถ้าเราไปเลือกกฎ + ยิง Send API ก่อนตอบ เวลาที่ Meta ต้องรอจะผูกกับจำนวน
+  // event ใน batch แล้วพอช้าเกิน Meta จะส่ง batch เดิมซ้ำ ซึ่งยิ่งช้ายิ่งซ้ำเป็นวงจร (AC-022-01/02)
+  //
+  // callback ถูกห่อ try/catch ทั้งก้อน: งานตอบอัตโนมัติพังต้องไม่ทำให้ response ที่ส่งไปแล้ว
+  // กลายเป็น error และต้องไม่ไปแตะเส้นทาง isInfraError -> 503 ด้านบนซึ่งสงวนไว้ให้ ingest เท่านั้น
+  if (pendingConversationIds.size > 0) {
+    after(async () => {
+      for (const conversationId of pendingConversationIds) {
+        try {
+          await processPendingForConversation(conversationId)
+        } catch (e) {
+          console.error('[fb-webhook] auto-reply ล้มเหลว', conversationId, e instanceof Error ? e.message : e)
+        }
+      }
+    })
   }
 
   return NextResponse.json({ ok: true })

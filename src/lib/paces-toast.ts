@@ -63,8 +63,9 @@ export const PACES_TOAST_EVENT = 'paces:toast'
 
 const DEFAULT_DURATION = 3000
 
-/** toast แจ้งข้อความใหม่มีให้อ่านมากกว่า alert ปกติ — 8 วิ (เลือกโดย user 2026-07-29) */
-const CHAT_MESSAGE_DURATION = 8000
+/** toast แจ้งข้อความใหม่มีให้อ่านมากกว่า alert ปกติ — 10 วิ (user ปรับจาก 8 วิ 2026-07-29:
+ *  ต้องทันเห็นตอนกำลังทำอย่างอื่นอยู่คนละหน้า) เลื่อนเมาส์ทับแล้วหยุดนับต่อได้อยู่แล้ว */
+const CHAT_MESSAGE_DURATION = 10000
 
 function emit(
   type: PacesToastType,

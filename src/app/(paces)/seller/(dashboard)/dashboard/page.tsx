@@ -48,6 +48,10 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
 import { getSalesSeries } from '@/services/dashboard.service'
 import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
+// แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — RSC layout ไม่ส่ง prop ให้ page ได้ ต้อง fetch ซ้ำ
+// (query เล็ก ยอมรับได้ — ห้าม refactor เป็น context/global ตาม Controller decision)
+import { getSubscriptionStatus } from '@/services/business-package.service'
+import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -112,6 +116,13 @@ export default async function SellerDashboardPage() {
   let liveAuctionCount = 0
   // Sales Chart (mobile command center) — ยอดขายรายวันเดือนปัจจุบัน; null = fetch ล้ม → การ์ดซ่อนตัวเอง
   let mobileSalesSeries: SalesChartSeries | null = null
+  // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — resolve จาก "เจ้าของร้านที่เปิดอยู่"
+  // (shop.userId) ไม่ใช่ session user: สมาชิก ADMIN ของร้าน Business จะเห็นแพ็กเกจส่วนตัวของตัวเอง
+  // แทนของร้าน (bug 2026-07-29) — จึงต้องรอ requireActiveShop ก่อน ดูจุด fetch ด้านล่าง
+  let packageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
+  let packageTier: BusinessPackageTier | null = null
+  // canManage: เฉพาะ OWNER ที่กดไปหน้าจัดการแพ็กเกจได้ — คนอื่นเห็นข้อมูลเหมือนกันแต่ไม่มีลิงก์
+  let packageCanManage = false
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -128,6 +139,22 @@ export default async function SellerDashboardPage() {
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
+
+      // แถบแพ็กเกจ (Row 3 มือถือ) — ต้องอยู่หลัง requireActiveShop เพราะ resolve จาก shop.userId
+      // (เจ้าของร้าน) ไม่ใช่ session user; inner try/catch เพื่อไม่ให้ล้มลาม block นี้ทั้งก้อน
+      if (shop) {
+        packageCanManage = active?.role === 'OWNER'
+        try {
+          const subscription = await getSubscriptionStatus(shop.userId)
+          if (subscription) {
+            packageStatus = subscription.status as BusinessPackageStatusApp
+            packageTier = subscription.tier as BusinessPackageTier
+          }
+        } catch (e) {
+          console.error('[dashboard] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
+        }
+      }
+
       if (shop?.shopName) shopName = shop.shopName
       // owner-at-creation user (shop.userId) — สำหรับ Business shop นี้อาจไม่ใช่ session user ปัจจุบัน
       // (member ที่ไม่ใช่ owner) แต่ยังใช้ avatar/username ของ owner ได้ตาม pattern เดิม (public profile ผูกกับ shop.userId)
@@ -329,6 +356,10 @@ export default async function SellerDashboardPage() {
             bestSellers,
             // Sales Chart การ์ด mini — ยอดขายรายวันเดือนปัจจุบัน (null=ซ่อนการ์ด)
             salesSeries: mobileSalesSeries,
+            // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)
+            packageStatus,
+            packageTier,
+            packageCanManage,
           }}
         />
       </div>

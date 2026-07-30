@@ -48,6 +48,9 @@ export default function CommandCenter({ data }: Props) {
         orderCount={data.orderCount ?? 0}
         reviewCount={data.reviewCount ?? 0}
         avgRating={data.avgRating ?? 0}
+        packageStatus={data.packageStatus ?? 'NOT_SUBSCRIBED'}
+        packageTier={data.packageTier ?? null}
+        packageCanManage={data.packageCanManage ?? false}
       />
 
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
