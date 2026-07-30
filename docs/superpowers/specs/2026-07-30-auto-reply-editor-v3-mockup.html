@@ -1,0 +1,1125 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup V3 — หน้าแก้ไขกลุ่มคำ (ตอบแชทอัตโนมัติ 00023)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOKEN — ดึงจาก src/assets/css/config/_root.css (skin = "default", light)
+   ห้ามแก้ค่าในบล็อกนี้โดยไม่ cross-check กับไฟล์จริง
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --primary:#236dc9; --primary-hover:#1e5dab;
+  --success:#02bc9c; --warning:#f9bf59; --danger:#f7577e; --info:#5bc3e1;
+  --light:#eef2f7; --dark:#313a46;
+
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+  --d500:#a1a9b1; --d600:#8a969c; --d700:#6c757d; --d800:#343a40; --d900:#313a46;
+
+  --body-bg:#f6f7fb; --card:#fff; --body-color:#4c4c5c;
+  --radius:4px;
+  --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+
+  /* type scale จริงของ Paces */
+  --t-2xs:11px; --t-xs:13px; --t-sm:14px; --t-md:15px; --t-base:16px; --t-lg:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,system-ui,sans-serif;background:#e9ebf0;color:var(--body-color);
+     font-size:var(--t-sm);line-height:1.6;padding:24px 20px 60px}
+svg{display:block}
+button{font:inherit;cursor:pointer}
+
+/* ── เปลือกหน้าเอกสาร (ไม่ใช่ส่วนของ UI จริง) ───────────────────────── */
+.doc{max-width:1420px;margin:0 auto}
+.doc-h1{font-size:22px;font-weight:700;color:var(--d900)}
+.doc-sub{font-size:var(--t-sm);color:var(--d700);margin-top:4px}
+.doc-meta{font-size:var(--t-xs);color:var(--d600);margin-top:8px}
+.rack{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;margin-top:26px}
+.device{background:var(--body-bg);border:1px solid #d6dae1;border-radius:10px;
+        overflow:hidden;container-type:inline-size;box-shadow:0 4px 18px rgba(49,58,70,.08)}
+.device>.dlabel{background:var(--d900);color:#fff;font-size:var(--t-2xs);font-weight:600;
+                padding:7px 12px;display:flex;justify-content:space-between;gap:10px}
+.device>.dlabel em{font-style:normal;opacity:.62;font-weight:400}
+.d-desktop{width:1115px} .d-tablet{width:768px} .d-mobile{width:390px}
+.vp{padding:20px;overflow:auto}
+.d-desktop .vp{max-height:1560px}   /* พอให้เห็นทั้งหน้าโดยไม่ต้องเลื่อน */
+.d-tablet .vp{max-height:1100px}
+.d-mobile .vp{max-height:1100px}
+.d-mobile .vp,.d-tablet .vp{padding:16px}
+.sec-h{max-width:1420px;margin:44px auto 0;font-size:var(--t-base);font-weight:700;
+       color:var(--d900);display:flex;align-items:center;gap:10px}
+.sec-h::after{content:"";flex:1;height:1px;background:#cfd5dd}
+.sec-p{max-width:1420px;margin:6px auto 0;font-size:var(--t-xs);color:var(--d700)}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRIMITIVE จำลอง Paces — 1:1 กับ src/assets/css/custom/_card.css และ _root.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+      display:flex;flex-direction:column;height:fit-content}
+.card-header{border-bottom:1px dashed var(--d300);display:flex;flex-wrap:wrap;
+             align-items:center;justify-content:space-between;gap:12px;padding:15px 20px}
+.card-body{padding:20px}
+.d-mobile .card-header,.d-mobile .card-body{padding-left:16px;padding-right:16px}
+
+.btn{border:1px solid transparent;border-radius:var(--radius);font-size:var(--t-xs);
+     font-weight:500;padding:8px 14px;display:inline-flex;align-items:center;gap:6px;
+     line-height:1.3;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-light{background:var(--light);color:var(--d700)}
+.btn-outline{background:#fff;border-color:var(--d300);color:var(--d700)}
+.btn-sm{padding:5px 10px;font-size:var(--t-2xs)}
+.btn-icon{padding:6px;width:30px;height:30px;justify-content:center}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+
+.form-input,.form-textarea{width:100%;border:1px solid var(--d300);border-radius:var(--radius);
+  background:#fff;font:inherit;font-size:var(--t-sm);color:var(--d800);padding:0 12px;height:37px}
+.form-textarea{padding:10px 12px;height:auto;resize:none;line-height:1.65}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--d500)} /* ≠ d400 — กัน AA fail */
+.form-label{display:block;font-size:var(--t-xs);font-weight:600;color:var(--d800);margin-bottom:7px}
+
+.badge{font-size:var(--t-2xs);font-weight:600;padding:3px 9px;border-radius:var(--radius);
+       display:inline-flex;align-items:center;gap:5px;line-height:1.4}
+.b-primary{background:rgba(35,109,201,.10);color:var(--primary)}
+.b-success{background:rgba(2,188,156,.15);color:#03846e}
+.b-warning{background:rgba(249,191,89,.20);color:#9a6c10}
+.b-muted{background:var(--d200);color:var(--d700)}
+
+.table{width:100%;border-collapse:collapse;font-size:var(--t-xs)}
+.table th{text-align:start;font-size:var(--t-2xs);font-weight:600;color:var(--d700);
+          padding:9px 12px;border-bottom:1px solid var(--d300)} /* ← ถอด uppercase แล้ว */
+.table td{padding:11px 12px;border-bottom:1px solid var(--d300);color:var(--d800);vertical-align:middle}
+.table tr:last-child td{border-bottom:0}
+.table-responsive{overflow-x:auto}
+
+/* ── ไอคอนหัวข้อ: สองระดับ = กลไกสร้างลำดับชั้น ────────────────────── */
+.ic-plain{color:var(--primary);flex:none}                         /* การ์ดรอง */
+.ic-plate{width:32px;height:32px;border-radius:8px;flex:none;      /* พระเอกเท่านั้น */
+          background:rgba(35,109,201,.15);color:var(--primary);
+          display:flex;align-items:center;justify-content:center}
+.ic-solid{width:32px;height:32px;border-radius:8px;flex:none;color:#fff;
+          display:flex;align-items:center;justify-content:center}
+.ic-solid.warn{background:var(--warning)}
+
+.h-card{font-size:var(--t-md);font-weight:600;color:var(--d800);display:flex;align-items:center;gap:9px}
+.h-hero{font-size:var(--t-lg);font-weight:600;color:var(--d900);display:flex;align-items:center;gap:10px}
+.h-sub{font-size:var(--t-xs);color:var(--d700);margin-top:5px}
+.h-mini{font-size:var(--t-xs);font-weight:600;color:var(--d800);margin-bottom:9px}
+.meta{font-size:var(--t-2xs);color:var(--d400)}  /* d400 ใช้ได้เฉพาะ ตัวนับ/วันเวลา */
+
+/* ── โครงหน้า: 7/3 เมื่อพื้นที่เนื้อหา ≥1030px (= viewport 1280 − sidebar 245) ─ */
+.layout{display:flex;flex-direction:column;gap:0}
+.col-main{display:flex;flex-direction:column}
+.col-side{margin-top:14px}
+@container (min-width:1030px){
+  .layout{display:grid;grid-template-columns:7fr 3fr;gap:22px;align-items:start}
+  .col-side{margin-top:0;position:sticky;top:12px}
+}
+.connector{width:0;height:16px;border-left:2px dashed var(--d300);margin-inline-start:26px}
+.d-mobile .connector{margin-inline-start:20px;height:12px}
+
+/* ── [B] บันไดคำตอบ — Base: theme ui/list-group → Numbered ──────────── */
+.ladder{border:1px solid var(--d300);border-radius:var(--radius);overflow:hidden}
+.rung{display:flex;gap:12px;padding:14px 18px;border-bottom:1px solid var(--d300);background:#fff}
+.rung:last-child{border-bottom:0}
+.rung-n{width:22px;height:22px;border-radius:var(--radius);background:rgba(35,109,201,.10);
+        color:var(--primary);font-size:var(--t-2xs);font-weight:600;flex:none;
+        display:flex;align-items:center;justify-content:center;margin-top:1px}
+.rung-body{flex:1;min-width:0}
+.rung-when{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+.rung-when .lbl{font-size:var(--t-xs);color:var(--d700)}
+.rung-say{font-size:var(--t-sm);color:var(--d800);display:-webkit-box;-webkit-line-clamp:3;
+          -webkit-box-orient:vertical;overflow:hidden}
+.rung-acts{display:flex;gap:6px;flex:none;align-items:flex-start}
+.d-mobile .rung{flex-wrap:wrap}
+.d-mobile .rung-acts{width:100%;margin-top:10px}
+.d-mobile .rung-acts .btn{min-height:44px;flex:1;justify-content:center}
+
+/* แถวสุดท้าย = คำตอบพื้นฐาน — accent เส้นข้าง (exception ที่อนุมัติแล้ว DESIGN.md §6) */
+.rung-fallback{border-inline-start:3px solid var(--primary);background:#fff;
+               padding:14px 18px;display:block}
+.rung-fallback .h-mini{display:flex;align-items:center;justify-content:space-between;gap:10px}
+
+/* ── [A] บล็อกคำซ้ำ — แทนช่องตัวเลขลำดับความสำคัญ ─────────────────── */
+.dupe{border-top:1px dashed var(--d300);margin-top:18px;padding-top:16px}
+.dupe-why{font-size:var(--t-xs);color:var(--d800);margin-bottom:12px}
+.dupe-why b{color:var(--primary);font-weight:600}
+.rank{border:1px solid var(--d300);border-radius:var(--radius);overflow:hidden;margin-bottom:11px}
+.rank-row{display:flex;align-items:center;gap:10px;padding:10px 14px;
+          border-bottom:1px solid var(--d300);font-size:var(--t-xs);background:#fff}
+.rank-row:last-child{border-bottom:0}
+.rank-row.me{background:rgba(35,109,201,.05)}
+.rank-n{width:20px;font-weight:600;color:var(--d700);flex:none}
+.rank-row.me .rank-n{color:var(--primary)}
+.rank-name{flex:1;color:var(--d800);font-weight:500;display:flex;align-items:center;gap:7px}
+.rank-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.linkish{background:none;border:0;padding:0;color:var(--primary);font-size:var(--t-xs);
+         font-weight:500;text-decoration:underline;text-underline-offset:3px}
+
+/* ── ชิปคำตรวจจับ — bg-primary/10 ให้ตรงกับ PhraseChips หน้ารายการ ─── */
+.chips{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;background:rgba(35,109,201,.10);
+      color:var(--primary);border-radius:var(--radius);padding:5px 8px 5px 10px;
+      font-size:var(--t-xs);font-weight:500}
+.chip button{background:none;border:0;color:var(--primary);opacity:.6;display:flex;padding:2px}
+.chip button:hover{opacity:1}
+.chip-input{flex:1;min-width:150px}
+.d-mobile .chip-input{flex-basis:100%}
+
+/* ── สวิตช์สถานะ 3 ค่า — เก็บของเดิม (KeywordEditorClient.tsx:311-326) ── */
+.seg{display:inline-flex;background:var(--light);border-radius:8px;padding:2px;gap:2px}
+.seg button{background:none;border:0;border-radius:6px;padding:7px 13px;font-size:var(--t-xs);
+            font-weight:500;color:var(--d700);white-space:nowrap}
+.seg button[aria-pressed="true"].s-off{background:var(--d500);color:#fff}
+.seg button[aria-pressed="true"].s-test{background:var(--warning);color:#fff}
+.seg button[aria-pressed="true"].s-live{background:var(--success);color:#fff}
+.d-mobile .seg{display:flex;width:100%}
+.d-mobile .seg button{flex:1;min-height:44px;padding:7px 6px;text-align:center;justify-content:center}
+
+/* ── บรรทัดความพร้อม — ห้ามเขียว (Verified-Means-Green) ─────────────── */
+.ready{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:var(--t-xs)}
+.ready .ic{flex:none;margin-top:2px}
+.ready.warn .ic{color:var(--warning)}
+.ready.warn span{color:var(--d800)}   /* ข้อความไม่ใช้ text-warning — #f9bf59 ตก AA */
+.ready.ok{color:var(--d600)}
+.ready.ok .ic{color:var(--d600)}
+
+/* ── alert primitive — Base: theme ui/alerts/page.tsx:60 ──────────────── */
+.alert{display:flex;align-items:center;gap:12px;border-radius:var(--radius);
+       padding:12px 16px;font-size:var(--t-sm);margin-bottom:14px}
+.alert-warning{background:rgba(249,191,89,.15);color:var(--d900)}
+
+/* ── [C] แถบพับ ──────────────────────────────────────────────────────── */
+.collapsed-row{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:14px 20px;display:flex;align-items:center;gap:11px;font-size:var(--t-xs);color:var(--d700)}
+.collapsed-row .grow{flex:1}
+.d-mobile .collapsed-row{padding:14px 16px;flex-wrap:wrap}
+
+/* ── [D] แผงลองคุยดู ─────────────────────────────────────────────────── */
+.chat-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px dashed var(--d300)}
+.ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#c8d8ef,#e8eef7);
+     flex:none;display:flex;align-items:center;justify-content:center;color:#7e93b0;font-size:var(--t-2xs);font-weight:600}
+.chat-body{padding:18px 16px;background:var(--d100);min-height:184px;
+           display:flex;flex-direction:column;justify-content:flex-end;gap:8px}
+.chat-hint{text-align:center;font-size:var(--t-2xs);color:var(--d600)}
+.bubble{max-width:86%;padding:9px 13px;font-size:var(--t-sm);line-height:1.55;border-radius:12px}
+.bubble.shop{background:var(--primary);color:#fff;border-end-end-radius:3px;align-self:flex-end}
+.bubble.shop.ghost{background:rgba(35,109,201,.12);color:var(--primary)}
+.bubble.cust{background:#fff;color:var(--d800);border:1px solid var(--d300);border-end-start-radius:3px;align-self:flex-start}
+.composer{padding:12px 16px;border-top:1px dashed var(--d300)}
+.composer .row{display:flex;gap:8px}
+.activity{padding:11px 16px;border-top:1px dashed var(--d300);display:flex;
+          align-items:center;gap:9px;font-size:var(--t-xs);color:var(--d700)}
+.activity b{color:var(--d800);font-weight:600}
+
+/* ── [E] แถบบันทึก ───────────────────────────────────────────────────── */
+.savebar{position:sticky;bottom:12px;margin-top:18px;background:var(--d900);color:#fff;
+  border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:12px 18px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:var(--t-xs)}
+.savebar .btn-outline{background:transparent;border-color:rgba(255,255,255,.28);color:#fff}
+.d-mobile .savebar,.d-tablet .savebar{bottom:80px}   /* กัน SellerBottomNav 64px */
+.d-mobile .savebar{flex-wrap:wrap}
+.d-mobile .savebar .acts{display:flex;gap:8px;width:100%}
+.d-mobile .savebar .btn{flex:1;min-height:44px;justify-content:center}
+
+/* ── breadcrumb / back ───────────────────────────────────────────────── */
+.crumb{font-size:var(--t-xs);color:var(--d600);margin-bottom:3px}
+.crumb b{color:var(--d800);font-weight:500}
+.back{display:none;align-items:center;gap:6px;color:var(--primary);font-size:var(--t-xs);
+      font-weight:500;margin-bottom:10px}
+.page-h1{font-size:var(--t-lg);font-weight:700;color:var(--d900)}
+.page-sub{font-size:var(--t-xs);color:var(--d700);margin:3px 0 18px}
+@container (max-width:767px){ .crumb{display:none} .back{display:inline-flex} }
+
+/* ── skeleton ────────────────────────────────────────────────────────── */
+.sk{height:13px;background:var(--d300);border-radius:3px;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+/* ── sheet ───────────────────────────────────────────────────────────── */
+.sheet{border:1px solid var(--d300);border-radius:8px;background:#fff;box-shadow:var(--shadow-lg);overflow:hidden;max-width:520px}
+.sheet-h{padding:14px 18px;border-bottom:1px dashed var(--d300);display:flex;
+         align-items:center;justify-content:space-between}
+.sheet-b{padding:18px}
+.sheet-f{padding:14px 18px;border-top:1px dashed var(--d300);display:flex;justify-content:flex-end;gap:8px}
+.cond{border:1px solid var(--d300);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
+.cond.on{border-color:var(--primary);background:rgba(35,109,201,.04)}
+.cond-h{display:flex;align-items:center;gap:9px;font-size:var(--t-sm);color:var(--d800);font-weight:500}
+.cb{width:17px;height:17px;border:1.5px solid var(--d400);border-radius:3px;flex:none;background:#fff}
+.cb.on{background:var(--primary);border-color:var(--primary);position:relative}
+.cb.on::after{content:"";position:absolute;left:5px;top:1px;width:4px;height:9px;
+              border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+
+/* ── swal ────────────────────────────────────────────────────────────── */
+.swal{max-width:400px;background:#fff;border-radius:8px;box-shadow:var(--shadow-lg);
+      padding:26px 24px;text-align:center}
+.swal .ring{width:64px;height:64px;border-radius:50%;margin:0 auto 16px;display:flex;
+            align-items:center;justify-content:center;border:3px solid}
+.swal .ring.danger{border-color:var(--danger);color:var(--danger)}
+.swal .ring.warn{border-color:var(--warning);color:var(--warning)}
+.swal h4{font-size:var(--t-base);font-weight:600;color:var(--d900);margin-bottom:8px}
+.swal p{font-size:var(--t-xs);color:var(--d700);margin-bottom:20px}
+.swal .acts{display:flex;gap:9px;justify-content:center}
+
+/* ── toast ───────────────────────────────────────────────────────────── */
+.toast{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-lg);
+       padding:12px 15px;display:flex;gap:11px;align-items:flex-start;max-width:360px;
+       border-inline-start:3px solid var(--primary);font-size:var(--t-xs);color:var(--d800)}
+.toast.err{border-inline-start-color:var(--danger)}
+.toast.ok{border-inline-start-color:var(--success)}
+
+/* ── grid ของ panel ตัวอย่างสถานะ ────────────────────────────────────── */
+.panels{display:flex;flex-wrap:wrap;gap:20px;margin-top:20px;align-items:flex-start}
+.panel{width:520px;background:var(--body-bg);border:1px solid #d6dae1;border-radius:10px;
+       overflow:hidden;container-type:inline-size}
+.panel>.plabel{background:var(--d700);color:#fff;font-size:var(--t-2xs);font-weight:600;padding:7px 12px}
+.panel>.pbody{padding:16px}
+
+/* ── ตารางบันทึก ─────────────────────────────────────────────────────── */
+.note{max-width:1420px;margin:20px auto 0;background:#fff;border-radius:8px;
+      box-shadow:var(--shadow);padding:20px 22px}
+.note h3{font-size:var(--t-md);font-weight:700;color:var(--d900);margin-bottom:12px}
+.note table{width:100%;border-collapse:collapse;font-size:var(--t-xs)}
+.note th{text-align:start;padding:8px 10px;border-bottom:2px solid var(--d300);color:var(--d800);font-weight:600}
+.note td{padding:8px 10px;border-bottom:1px solid var(--d300);color:var(--d700);vertical-align:top}
+.note code{background:var(--d100);border-radius:3px;padding:1px 5px;
+           font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--d800)}
+.note li{margin:6px 0 6px 20px;font-size:var(--t-xs);color:var(--d700)}
+.swatch{display:inline-block;width:11px;height:11px;border-radius:2px;margin-inline-end:6px;
+        vertical-align:-1px;border:1px solid rgba(0,0,0,.08)}
+</style>
+
+<!-- ═══ SVG sprite (tabler) — ห้าม emoji (Hard Rule 12) ═══ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="s" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></g>
+  </defs>
+  <symbol id="i-msg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/></g></symbol>
+  <symbol id="i-adjust" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="6" r="2"/><path d="M4 6h8M16 6h4"/><circle cx="8" cy="12" r="2"/><path d="M4 12h2M10 12h10"/><circle cx="17" cy="18" r="2"/><path d="M4 18h11M19 18h1"/></g></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 9h4M10 3v6l-4.5 8a1.7 1.7 0 0 0 1.5 2.5h10a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/></g></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16h.01"/><path d="M10.36 3.59 2.48 17.09A1.91 1.91 0 0 0 4.11 20h15.78a1.91 1.91 0 0 0 1.64-2.87L13.64 3.59a1.91 1.91 0 0 0-3.28 0z"/></g></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></g></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.83 2.83 0 1 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></g></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></g></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></g></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></g></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14 21 3"/><path d="M21 3l-6.5 18a.55.55 0 0 1-1 0L10 14l-7-3.5a.55.55 0 0 1 0-1z"/></g></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M18 11l-6-6M6 11l6-6"/></g></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M18 13l-6 6M6 13l6 6"/></g></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></g></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></g></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="18" r="2"/><circle cx="7" cy="6" r="2"/><circle cx="17" cy="6" r="2"/><path d="M7 8v8M9 18h6a2 2 0 0 0 2-2V8"/></g></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></g></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M21 12c-2.4 4-5.4 6-9 6s-6.6-2-9-6c2.4-4 5.4-6 9-6s6.6 2 9 6"/></g></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></g></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M8 14h3v4H8z"/></g></symbol>
+</svg>
+
+<div class="doc">
+  <div class="doc-h1">หน้าแก้ไขกลุ่มคำ — ตอบแชทอัตโนมัติ (feature 00023) · Mockup V3</div>
+  <div class="doc-sub"><code>/settings/auto-reply/[id]</code> · seller subdomain · route group <code>(paces)</code> = Paces/Preline · skin <code>default</code></div>
+  <div class="doc-meta">
+    ทุกค่าสี/รัศมี/เงา/ขนาดตัวอักษรในไฟล์นี้ดึงจาก <code>src/assets/css/config/_root.css</code> +
+    <code>src/assets/css/custom/_card.css</code> ตัวจริง — ไม่มีค่าที่คิดขึ้นเอง ·
+    เนื้อหาเหมือนกันทั้ง 3 ขนาดจอ ต่างกันที่การจัดวางเท่านั้น
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     RACK — 3 devices, สถานะ = "ตอบลูกค้าจริง" (สถานะที่พบบ่อยที่สุด)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="doc sec-h" style="margin-top:30px">สถานะหลัก — “ตอบลูกค้าจริง” · มี 2 เงื่อนไขเฉพาะ · มีคำซ้ำกับกลุ่มอื่น</div>
+<div class="doc sec-p">พระเอกของหน้า = การ์ด <b>[B] คำตอบที่ลูกค้าจะได้รับ</b> — หัวเรื่อง 18px ใบเดียวในหน้า + ไอคอนแผ่น <code>bg-primary/15</code> ใบเดียวในหน้า + สูงที่สุด</div>
+
+<div class="doc rack">
+
+  <!-- ─────────────────── DESKTOP ─────────────────── -->
+  <div class="device d-desktop">
+    <div class="dlabel"><span>Desktop ≥1280 — 7/3</span><em>กรอบนี้ = พื้นที่เนื้อหา 1115px (viewport 1360 − sidebar 245)</em></div>
+    <div class="vp">
+
+      <div class="crumb">หน้าหลัก › ตั้งค่า › ตอบแชทอัตโนมัติ › <b>ทักถามราคา</b></div>
+      <a class="back"><svg class="ic" width="15" height="15"><use href="#i-chev-l"/></svg> ตอบแชทอัตโนมัติ</a>
+      <div class="page-h1">ทักถามราคา</div>
+      <div class="page-sub">ตั้งว่าลูกค้าพิมพ์อะไรแล้วเพจจะตอบอะไรกลับให้อัตโนมัติ</div>
+
+      <div class="layout">
+        <!-- ══ คอลัมน์หลัก ══ -->
+        <div class="col-main">
+
+          <!-- ───── [A] การ์ดตั้งค่ากลุ่ม ───── -->
+          <section class="card">
+            <div class="card-header">
+              <div class="h-card"><svg class="ic-plain" width="18" height="18"><use href="#i-adjust"/></svg> ตั้งค่ากลุ่มคำ</div>
+              <div class="seg" role="group" aria-label="สถานะของกลุ่มคำนี้">
+                <button class="s-off"  aria-pressed="false">ไม่ใช้งาน</button>
+                <button class="s-test" aria-pressed="false">ทดสอบ</button>
+                <button class="s-live" aria-pressed="true">ตอบลูกค้าจริง</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <label class="form-label" for="kn-d">ชื่อกลุ่มคำ</label>
+              <input class="form-input" id="kn-d" value="ทักถามราคา" style="font-weight:600;max-width:420px">
+
+              <div style="margin-top:20px">
+                <label class="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+                <div class="chips">
+                  <span class="chip">สนใจ <button aria-label="ลบคำ สนใจ"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <span class="chip">ราคา <button aria-label="ลบคำ ราคา"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <span class="chip">เท่าไหร่ <button aria-label="ลบคำ เท่าไหร่"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <span class="chip">กี่บาท <button aria-label="ลบคำ กี่บาท"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <input class="form-input chip-input" placeholder="เพิ่มคำ… แล้วกด Enter" style="max-width:230px">
+                </div>
+              </div>
+
+              <!-- ── บล็อกคำซ้ำ = ตัวแทนช่องตัวเลข 0–1000 ── -->
+              <div class="dupe">
+                <div class="h-mini" style="display:flex;align-items:center;gap:8px">
+                  <svg class="ic-plain" width="16" height="16"><use href="#i-branch"/></svg> คำที่ซ้ำกับกลุ่มอื่น
+                </div>
+                <p class="dupe-why"><b>“สนใจ”</b> ใช้อยู่ในกลุ่ม “ทักถามสินค้า” ด้วย — ถ้าลูกค้าพิมพ์คำนี้ ระบบจะเลือกกลุ่มที่อยู่บนสุด</p>
+                <div class="rank">
+                  <div class="rank-row"><span class="rank-n">1.</span><span class="rank-name">ทักถามสินค้า</span><span class="badge b-success">ตอบลูกค้าจริง</span></div>
+                  <div class="rank-row me"><span class="rank-n">2.</span><span class="rank-name">กลุ่มนี้</span><span class="badge b-success">ตอบลูกค้าจริง</span></div>
+                </div>
+                <div class="rank-actions">
+                  <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-up"/></svg> เลื่อนขึ้น</button>
+                  <button class="btn btn-outline btn-sm" disabled><svg width="13" height="13"><use href="#i-down"/></svg> เลื่อนลง</button>
+                  <button class="linkish" style="margin-inline-start:6px">ตั้งตัวเลขเอง</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="connector"></div>
+
+          <!-- ───── [B] พระเอก — บันไดคำตอบ ───── -->
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <div class="h-hero"><span class="ic-plate"><svg width="18" height="18"><use href="#i-msg"/></svg></span> คำตอบที่ลูกค้าจะได้รับ</div>
+                <div class="h-sub">ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด</div>
+              </div>
+              <button class="btn btn-primary"><svg width="15" height="15"><use href="#i-plus"/></svg> เพิ่มเงื่อนไขเฉพาะ</button>
+            </div>
+            <div class="card-body" style="padding-top:0">
+              <div class="ladder" style="margin-top:20px">
+
+                <div class="rung">
+                  <span class="rung-n">1</span>
+                  <div class="rung-body">
+                    <div class="rung-when">
+                      <span class="lbl">เมื่อมาจาก</span>
+                      <span class="badge b-primary"><svg width="12" height="12"><use href="#i-store"/></svg> เพจ ร้านเอ</span>
+                      <span class="badge b-primary">โฆษณา ลดราคาหน้าฝน</span>
+                    </div>
+                    <div class="rung-say">ทักจากโฆษณานี้รับส่วนลด 10% ทันทีค่ะ แจ้งชื่อสินค้าที่สนใจได้เลยนะคะ</div>
+                  </div>
+                  <div class="rung-acts">
+                    <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-pencil"/></svg> แก้ไข</button>
+                    <button class="btn btn-outline btn-sm btn-icon" aria-label="ลบเงื่อนไขข้อ 1"><svg width="14" height="14"><use href="#i-trash"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="rung">
+                  <span class="rung-n">2</span>
+                  <div class="rung-body">
+                    <div class="rung-when">
+                      <span class="lbl">เมื่อมาจาก</span>
+                      <span class="badge b-primary"><svg width="12" height="12"><use href="#i-store"/></svg> เพจ ร้านบี</span>
+                    </div>
+                    <div class="rung-say">สวัสดีค่ะ ร้านบียินดีให้บริการ สนใจสินค้าตัวไหนแจ้งได้เลยนะคะ</div>
+                  </div>
+                  <div class="rung-acts">
+                    <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-pencil"/></svg> แก้ไข</button>
+                    <button class="btn btn-outline btn-sm btn-icon" aria-label="ลบเงื่อนไขข้อ 2"><svg width="14" height="14"><use href="#i-trash"/></svg></button>
+                  </div>
+                </div>
+
+                <!-- แถวสุดท้าย = คำตอบพื้นฐานตัวจริง -->
+                <div class="rung-fallback">
+                  <div class="h-mini">
+                    <span>ทุกกรณีที่เหลือ</span>
+                    <span class="badge b-muted">ใช้เมื่อไม่เข้าข้อไหนเลย</span>
+                  </div>
+                  <textarea class="form-textarea" rows="4">สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ ทางร้านจะแจ้งราคาและสต็อกให้ทันทีนะคะ</textarea>
+                  <div class="meta" style="text-align:end;margin-top:6px">120/1000</div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- ══ คอลัมน์ขวา 30% = "ทดลอง/ตรวจสอบ" (ซ้าย = "ตั้งค่า") ══ -->
+        <aside class="col-side">
+          <section class="card">
+            <div class="chat-head">
+              <span class="ava">DS</span>
+              <div style="flex:1">
+                <div style="font-size:var(--t-sm);font-weight:600;color:var(--d800)">Deep Shop</div>
+                <div class="meta">ลองคุยดู — ไม่ส่งออกจริง</div>
+              </div>
+              <button class="btn btn-light btn-sm btn-icon" aria-label="เลือกเพจ"><svg width="14" height="14"><use href="#i-chev-d"/></svg></button>
+            </div>
+            <div class="chat-body" style="min-height:300px">
+              <div class="chat-hint">ตัวอย่างคำตอบที่ตั้งไว้</div>
+              <div class="bubble shop ghost">สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ</div>
+              <div class="chat-hint">พิมพ์ด้านล่างเพื่อลองดูว่าเพจจะตอบอะไร</div>
+            </div>
+            <div class="composer">
+              <div class="row">
+                <input class="form-input" placeholder="พิมพ์เหมือนเป็นลูกค้า…">
+                <button class="btn btn-primary btn-icon" aria-label="ส่งข้อความทดลอง"><svg width="16" height="16"><use href="#i-send"/></svg></button>
+              </div>
+              <div class="meta" style="margin-top:7px">ไม่ส่งออกจริง ไม่บันทึกลงแชท</div>
+            </div>
+            <div class="activity">
+              <svg width="15" height="15" style="color:var(--d600);flex:none"><use href="#i-clock"/></svg>
+              <span>ตอบไปแล้ว <b>24 ครั้ง</b> ใน 7 วัน · ล่าสุด 30 ก.ค. 2569 14:12</span>
+            </div>
+          </section>
+
+          <div class="connector"></div>
+
+          <!-- ───── [C] พับ เพราะสถานะ ≠ ทดสอบ ───── -->
+          <div class="collapsed-row" style="display:block">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+              <svg class="ic-plain" width="17" height="17"><use href="#i-flask"/></svg>
+              <b style="color:var(--d800);font-weight:600;font-size:var(--t-xs)">แชทสำหรับทดสอบ (2)</b>
+            </div>
+            <div style="font-size:var(--t-xs);color:var(--d700);margin-bottom:11px">มีผลเฉพาะตอนสถานะเป็น “ทดสอบ”</div>
+            <button class="btn btn-light btn-sm" style="width:100%;justify-content:center">ดูรายการ <svg width="13" height="13"><use href="#i-chev-d"/></svg></button>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ───── [E] แถบบันทึก ───── -->
+      <div class="savebar">
+        <span>แก้ไข 2 อย่าง: ชื่อกลุ่ม, คำตอบพื้นฐาน</span>
+        <span class="acts" style="display:flex;gap:9px">
+          <button class="btn btn-outline btn-sm">ล้างที่แก้ไว้</button>
+          <button class="btn btn-primary btn-sm">บันทึกการเปลี่ยนแปลง</button>
+        </span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────── TABLET ─────────────────── -->
+  <div class="device d-tablet">
+    <div class="dlabel"><span>Tablet 768 — คอลัมน์เดียว</span><em>ไม่มี sidebar · มี SellerBottomNav 64px</em></div>
+    <div class="vp">
+      <a class="back"><svg width="15" height="15"><use href="#i-chev-l"/></svg> ตอบแชทอัตโนมัติ</a>
+      <div class="page-h1">ทักถามราคา</div>
+      <div class="page-sub">ตั้งว่าลูกค้าพิมพ์อะไรแล้วเพจจะตอบอะไรกลับให้อัตโนมัติ</div>
+
+      <div class="layout">
+        <div class="col-main">
+          <section class="card">
+            <div class="card-header">
+              <div class="h-card"><svg class="ic-plain" width="18" height="18"><use href="#i-adjust"/></svg> ตั้งค่ากลุ่มคำ</div>
+              <div class="seg" role="group" aria-label="สถานะของกลุ่มคำนี้">
+                <button class="s-off" aria-pressed="false">ไม่ใช้งาน</button>
+                <button class="s-test" aria-pressed="false">ทดสอบ</button>
+                <button class="s-live" aria-pressed="true">ตอบลูกค้าจริง</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <label class="form-label" for="kn-t">ชื่อกลุ่มคำ</label>
+              <input class="form-input" id="kn-t" value="ทักถามราคา" style="font-weight:600">
+              <div style="margin-top:20px">
+                <label class="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+                <div class="chips">
+                  <span class="chip">สนใจ <button aria-label="ลบคำ สนใจ"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <span class="chip">ราคา <button aria-label="ลบคำ ราคา"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <span class="chip">เท่าไหร่ <button aria-label="ลบคำ เท่าไหร่"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <span class="chip">กี่บาท <button aria-label="ลบคำ กี่บาท"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+                  <input class="form-input chip-input" placeholder="เพิ่มคำ… แล้วกด Enter">
+                </div>
+              </div>
+              <div class="dupe">
+                <div class="h-mini" style="display:flex;align-items:center;gap:8px">
+                  <svg class="ic-plain" width="16" height="16"><use href="#i-branch"/></svg> คำที่ซ้ำกับกลุ่มอื่น
+                </div>
+                <p class="dupe-why"><b>“สนใจ”</b> ใช้อยู่ในกลุ่ม “ทักถามสินค้า” ด้วย — ถ้าลูกค้าพิมพ์คำนี้ ระบบจะเลือกกลุ่มที่อยู่บนสุด</p>
+                <div class="rank">
+                  <div class="rank-row"><span class="rank-n">1.</span><span class="rank-name">ทักถามสินค้า</span><span class="badge b-success">ตอบลูกค้าจริง</span></div>
+                  <div class="rank-row me"><span class="rank-n">2.</span><span class="rank-name">กลุ่มนี้</span><span class="badge b-success">ตอบลูกค้าจริง</span></div>
+                </div>
+                <div class="rank-actions">
+                  <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-up"/></svg> เลื่อนขึ้น</button>
+                  <button class="btn btn-outline btn-sm" disabled><svg width="13" height="13"><use href="#i-down"/></svg> เลื่อนลง</button>
+                  <button class="linkish" style="margin-inline-start:6px">ตั้งตัวเลขเอง</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="connector"></div>
+
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <div class="h-hero"><span class="ic-plate"><svg width="18" height="18"><use href="#i-msg"/></svg></span> คำตอบที่ลูกค้าจะได้รับ</div>
+                <div class="h-sub">ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด</div>
+              </div>
+              <button class="btn btn-primary"><svg width="15" height="15"><use href="#i-plus"/></svg> เพิ่มเงื่อนไขเฉพาะ</button>
+            </div>
+            <div class="card-body" style="padding-top:0">
+              <div class="ladder" style="margin-top:20px">
+                <div class="rung">
+                  <span class="rung-n">1</span>
+                  <div class="rung-body">
+                    <div class="rung-when"><span class="lbl">เมื่อมาจาก</span>
+                      <span class="badge b-primary"><svg width="12" height="12"><use href="#i-store"/></svg> เพจ ร้านเอ</span>
+                      <span class="badge b-primary">โฆษณา ลดราคาหน้าฝน</span></div>
+                    <div class="rung-say">ทักจากโฆษณานี้รับส่วนลด 10% ทันทีค่ะ แจ้งชื่อสินค้าที่สนใจได้เลยนะคะ</div>
+                  </div>
+                  <div class="rung-acts">
+                    <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-pencil"/></svg> แก้ไข</button>
+                    <button class="btn btn-outline btn-sm btn-icon" aria-label="ลบเงื่อนไขข้อ 1"><svg width="14" height="14"><use href="#i-trash"/></svg></button>
+                  </div>
+                </div>
+                <div class="rung">
+                  <span class="rung-n">2</span>
+                  <div class="rung-body">
+                    <div class="rung-when"><span class="lbl">เมื่อมาจาก</span>
+                      <span class="badge b-primary"><svg width="12" height="12"><use href="#i-store"/></svg> เพจ ร้านบี</span></div>
+                    <div class="rung-say">สวัสดีค่ะ ร้านบียินดีให้บริการ สนใจสินค้าตัวไหนแจ้งได้เลยนะคะ</div>
+                  </div>
+                  <div class="rung-acts">
+                    <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-pencil"/></svg> แก้ไข</button>
+                    <button class="btn btn-outline btn-sm btn-icon" aria-label="ลบเงื่อนไขข้อ 2"><svg width="14" height="14"><use href="#i-trash"/></svg></button>
+                  </div>
+                </div>
+                <div class="rung-fallback">
+                  <div class="h-mini"><span>ทุกกรณีที่เหลือ</span><span class="badge b-muted">ใช้เมื่อไม่เข้าข้อไหนเลย</span></div>
+                  <textarea class="form-textarea" rows="4">สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ ทางร้านจะแจ้งราคาและสต็อกให้ทันทีนะคะ</textarea>
+                  <div class="meta" style="text-align:end;margin-top:6px">120/1000</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="connector"></div>
+        </div>
+
+        <aside class="col-side">
+          <section class="card">
+            <div class="chat-head">
+              <span class="ava">DS</span>
+              <div style="flex:1">
+                <div style="font-size:var(--t-sm);font-weight:600;color:var(--d800)">Deep Shop</div>
+                <div class="meta">ลองคุยดู — ไม่ส่งออกจริง</div>
+              </div>
+              <button class="btn btn-light btn-sm btn-icon" aria-label="เลือกเพจ"><svg width="14" height="14"><use href="#i-chev-d"/></svg></button>
+            </div>
+            <div class="chat-body">
+              <div class="chat-hint">ตัวอย่างคำตอบที่ตั้งไว้</div>
+              <div class="bubble shop ghost">สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ</div>
+              <div class="chat-hint">พิมพ์ด้านล่างเพื่อลองดูว่าเพจจะตอบอะไร</div>
+            </div>
+            <div class="composer">
+              <div class="row">
+                <input class="form-input" placeholder="พิมพ์เหมือนเป็นลูกค้า…">
+                <button class="btn btn-primary btn-icon" aria-label="ส่งข้อความทดลอง"><svg width="16" height="16"><use href="#i-send"/></svg></button>
+              </div>
+              <div class="meta" style="margin-top:7px">ไม่ส่งออกจริง ไม่บันทึกลงแชท</div>
+            </div>
+            <div class="activity">
+              <svg width="15" height="15" style="color:var(--d600);flex:none"><use href="#i-clock"/></svg>
+              <span>ตอบไปแล้ว <b>24 ครั้ง</b> ใน 7 วัน · ล่าสุด 30 ก.ค. 2569 14:12</span>
+            </div>
+          </section>
+
+          <div class="connector"></div>
+
+          <div class="collapsed-row">
+            <svg class="ic-plain" width="17" height="17"><use href="#i-flask"/></svg>
+            <span class="grow"><b style="color:var(--d800);font-weight:600">แชทสำหรับทดสอบ (2)</b> · มีผลเฉพาะตอนสถานะเป็น “ทดสอบ”</span>
+            <button class="btn btn-light btn-sm">ดูรายการ <svg width="13" height="13"><use href="#i-chev-d"/></svg></button>
+          </div>
+        </aside>
+      </div>
+
+      <div class="savebar">
+        <span>แก้ไข 2 อย่าง: ชื่อกลุ่ม, คำตอบพื้นฐาน</span>
+        <span class="acts" style="display:flex;gap:9px">
+          <button class="btn btn-outline btn-sm">ล้างที่แก้ไว้</button>
+          <button class="btn btn-primary btn-sm">บันทึกการเปลี่ยนแปลง</button>
+        </span>
+      </div>
+      <div class="meta" style="text-align:center;margin-top:10px">▲ แถบบันทึก sticky ที่ <code>bottom-20</code> — เว้นที่ให้ SellerBottomNav 64px</div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── MOBILE ─────────────────── -->
+  <div class="device d-mobile">
+    <div class="dlabel"><span>Mobile 390</span><em>mobile-first</em></div>
+    <div class="vp">
+      <a class="back"><svg width="15" height="15"><use href="#i-chev-l"/></svg> ตอบแชทอัตโนมัติ</a>
+      <div class="page-h1">ทักถามราคา</div>
+      <div class="page-sub">ตั้งว่าลูกค้าพิมพ์อะไรแล้วเพจจะตอบอะไรกลับให้อัตโนมัติ</div>
+
+      <section class="card">
+        <div class="card-header" style="display:block">
+          <div class="h-card" style="margin-bottom:12px"><svg class="ic-plain" width="17" height="17"><use href="#i-adjust"/></svg> ตั้งค่ากลุ่มคำ</div>
+          <div class="seg" role="group" aria-label="สถานะของกลุ่มคำนี้">
+            <button class="s-off" aria-pressed="false">ไม่ใช้งาน</button>
+            <button class="s-test" aria-pressed="false">ทดสอบ</button>
+            <button class="s-live" aria-pressed="true">ตอบจริง</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <label class="form-label" for="kn-m">ชื่อกลุ่มคำ</label>
+          <input class="form-input" id="kn-m" value="ทักถามราคา" style="font-weight:600">
+          <div style="margin-top:18px">
+            <label class="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+            <div class="chips">
+              <span class="chip">สนใจ <button aria-label="ลบคำ สนใจ"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <span class="chip">ราคา <button aria-label="ลบคำ ราคา"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <span class="chip">เท่าไหร่ <button aria-label="ลบคำ เท่าไหร่"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <span class="chip">กี่บาท <button aria-label="ลบคำ กี่บาท"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <input class="form-input chip-input" placeholder="เพิ่มคำ… แล้วกด Enter">
+            </div>
+          </div>
+          <div class="dupe">
+            <div class="h-mini" style="display:flex;align-items:center;gap:8px">
+              <svg class="ic-plain" width="15" height="15"><use href="#i-branch"/></svg> คำที่ซ้ำกับกลุ่มอื่น
+            </div>
+            <p class="dupe-why"><b>“สนใจ”</b> ใช้ในกลุ่ม “ทักถามสินค้า” ด้วย — ถ้าลูกค้าพิมพ์คำนี้ ระบบจะเลือกกลุ่มที่อยู่บนสุด</p>
+            <div class="rank">
+              <div class="rank-row"><span class="rank-n">1.</span><span class="rank-name">ทักถามสินค้า</span></div>
+              <div class="rank-row me"><span class="rank-n">2.</span><span class="rank-name">กลุ่มนี้</span></div>
+            </div>
+            <div class="rank-actions">
+              <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-up"/></svg> เลื่อนขึ้น</button>
+              <button class="btn btn-outline btn-sm" disabled><svg width="13" height="13"><use href="#i-down"/></svg> เลื่อนลง</button>
+              <button class="linkish">ตั้งตัวเลขเอง</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="connector"></div>
+
+      <section class="card">
+        <div class="card-header" style="display:block">
+          <div class="h-hero" style="font-size:var(--t-base)"><span class="ic-plate" style="width:28px;height:28px"><svg width="16" height="16"><use href="#i-msg"/></svg></span> คำตอบที่ลูกค้าจะได้รับ</div>
+          <div class="h-sub">ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด</div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:13px;min-height:44px"><svg width="15" height="15"><use href="#i-plus"/></svg> เพิ่มเงื่อนไขเฉพาะ</button>
+        </div>
+        <div class="card-body">
+          <div class="ladder">
+            <div class="rung" style="padding:13px 14px">
+              <span class="rung-n">1</span>
+              <div class="rung-body">
+                <div class="rung-when"><span class="lbl">เมื่อมาจาก</span>
+                  <span class="badge b-primary">เพจ ร้านเอ</span><span class="badge b-primary">โฆษณา ลดราคาหน้าฝน</span></div>
+                <div class="rung-say">ทักจากโฆษณานี้รับส่วนลด 10% ทันทีค่ะ</div>
+              </div>
+              <div class="rung-acts">
+                <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-pencil"/></svg> แก้ไข</button>
+                <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-trash"/></svg> ลบ</button>
+              </div>
+            </div>
+            <div class="rung" style="padding:13px 14px">
+              <span class="rung-n">2</span>
+              <div class="rung-body">
+                <div class="rung-when"><span class="lbl">เมื่อมาจาก</span><span class="badge b-primary">เพจ ร้านบี</span></div>
+                <div class="rung-say">สวัสดีค่ะ ร้านบียินดีให้บริการ</div>
+              </div>
+              <div class="rung-acts">
+                <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-pencil"/></svg> แก้ไข</button>
+                <button class="btn btn-outline btn-sm"><svg width="13" height="13"><use href="#i-trash"/></svg> ลบ</button>
+              </div>
+            </div>
+            <div class="rung-fallback" style="padding:13px 14px">
+              <div class="h-mini" style="display:block"><span>ทุกกรณีที่เหลือ</span></div>
+              <textarea class="form-textarea" rows="5">สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ ทางร้านจะแจ้งราคาและสต็อกให้ทันทีนะคะ</textarea>
+              <div class="meta" style="text-align:end;margin-top:6px">120/1000</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="connector"></div>
+
+      <section class="card">
+        <div class="chat-head">
+          <span class="ava">DS</span>
+          <div style="flex:1">
+            <div style="font-size:var(--t-sm);font-weight:600;color:var(--d800)">Deep Shop</div>
+            <div class="meta">ลองคุยดู — ไม่ส่งออกจริง</div>
+          </div>
+          <button class="btn btn-light btn-sm btn-icon" aria-label="เลือกเพจ"><svg width="14" height="14"><use href="#i-chev-d"/></svg></button>
+        </div>
+        <div class="chat-body" style="min-height:140px">
+          <div class="chat-hint">ตัวอย่างคำตอบที่ตั้งไว้</div>
+          <div class="bubble shop ghost">สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ</div>
+        </div>
+        <div class="composer">
+          <div class="row">
+            <input class="form-input" placeholder="พิมพ์เหมือนเป็นลูกค้า…">
+            <button class="btn btn-primary btn-icon" style="min-width:44px;min-height:44px" aria-label="ส่งข้อความทดลอง"><svg width="16" height="16"><use href="#i-send"/></svg></button>
+          </div>
+          <div class="meta" style="margin-top:7px">ไม่ส่งออกจริง ไม่บันทึกลงแชท</div>
+        </div>
+        <div class="activity">
+          <svg width="15" height="15" style="color:var(--d600);flex:none"><use href="#i-clock"/></svg>
+          <span>ตอบไปแล้ว <b>24 ครั้ง</b> ใน 7 วัน · ล่าสุด 30 ก.ค. 14:12</span>
+        </div>
+      </section>
+
+      <div class="connector"></div>
+
+      <div class="collapsed-row">
+        <svg class="ic-plain" width="16" height="16"><use href="#i-flask"/></svg>
+        <span class="grow" style="font-size:var(--t-xs)"><b style="color:var(--d800);font-weight:600">แชทสำหรับทดสอบ (2)</b><br>มีผลเฉพาะตอนสถานะเป็น “ทดสอบ”</span>
+        <button class="btn btn-light btn-sm">ดูรายการ <svg width="13" height="13"><use href="#i-chev-d"/></svg></button>
+      </div>
+
+      <div class="savebar">
+        <span>แก้ไข 2 อย่าง: ชื่อกลุ่ม, คำตอบพื้นฐาน</span>
+        <span class="acts">
+          <button class="btn btn-outline btn-sm">ล้างที่แก้ไว้</button>
+          <button class="btn btn-primary btn-sm">บันทึก</button>
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     สถานะอื่น ๆ
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="doc sec-h">สถานะอื่นของหน้าเดียวกัน</div>
+<div class="doc sec-p">แสดงที่ความกว้าง 520px (โครงคอลัมน์เดียว) — เนื้อหาเหมือนกันทุกขนาดจอ</div>
+
+<div class="doc panels">
+
+  <!-- 1. สถานะ = ทดสอบ -->
+  <div class="panel">
+    <div class="plabel">สถานะ = “ทดสอบ” — แถบเตือนบนสุด + การ์ด [C] กางเต็ม</div>
+    <div class="pbody">
+      <div class="alert alert-warning">
+        <span class="ic-solid warn"><svg width="17" height="17"><use href="#i-flask"/></svg></span>
+        <span>กลุ่มคำนี้อยู่ในโหมดทดสอบ — ตอบเฉพาะ <b>2 แชท</b> ที่เลือกไว้ ลูกค้าคนอื่นจะไม่ได้รับข้อความนี้</span>
+      </div>
+
+      <section class="card" style="margin-bottom:14px">
+        <div class="card-header" style="display:block">
+          <div class="h-card" style="margin-bottom:11px"><svg class="ic-plain" width="17" height="17"><use href="#i-adjust"/></svg> ตั้งค่ากลุ่มคำ</div>
+          <div class="seg" role="group" aria-label="สถานะของกลุ่มคำนี้">
+            <button class="s-off" aria-pressed="false">ไม่ใช้งาน</button>
+            <button class="s-test" aria-pressed="true">ทดสอบ</button>
+            <button class="s-live" aria-pressed="false">ตอบลูกค้าจริง</button>
+          </div>
+          <div class="ready ok">
+            <svg class="ic" width="15" height="15"><use href="#i-check"/></svg>
+            <span>ตั้งค่าครบแล้ว เลือก “ตอบลูกค้าจริง” เมื่อพร้อม</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="h-card"><svg class="ic-plain" width="17" height="17"><use href="#i-flask"/></svg> แชทสำหรับทดสอบ (2)</div>
+            <div class="h-sub">ตอนนี้กลุ่มคำนี้จะตอบเฉพาะแชทในรายการนี้เท่านั้น</div>
+          </div>
+          <button class="btn btn-primary btn-sm"><svg width="14" height="14"><use href="#i-plus"/></svg> เพิ่มแชท</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>คู่สนทนา</th><th>ข้อความล่าสุด</th><th>เพิ่มเมื่อ</th><th style="text-align:end">จัดการ</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span style="display:flex;align-items:center;gap:8px"><span class="ava" style="width:26px;height:26px;font-size:10px">สม</span> สมชาย ท.</span></td>
+                <td style="color:var(--d700)">ราคาเท่าไหร่คะ</td>
+                <td class="meta">30 ก.ค. 2569</td>
+                <td style="text-align:end"><button class="btn btn-outline btn-sm btn-icon" aria-label="เอาแชทออกจากรายการทดสอบ"><svg width="14" height="14"><use href="#i-trash"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><span style="display:flex;align-items:center;gap:8px"><span class="ava" style="width:26px;height:26px;font-size:10px">นก</span> นก (ทีมงาน)</span></td>
+                <td style="color:var(--d700)">สนใจตัวนี้ค่ะ</td>
+                <td class="meta">29 ก.ค. 2569</td>
+                <td style="text-align:end"><button class="btn btn-outline btn-sm btn-icon" aria-label="เอาแชทออกจากรายการทดสอบ"><svg width="14" height="14"><use href="#i-trash"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 2. กลุ่มใหม่ — ยังไม่พร้อม + ไม่มีเงื่อนไขเฉพาะ -->
+  <div class="panel">
+    <div class="plabel">กลุ่มเพิ่งสร้าง — บรรทัดความพร้อม + ไม่มีเงื่อนไขเฉพาะ (เคสพบบ่อยที่สุด)</div>
+    <div class="pbody">
+      <section class="card" style="margin-bottom:14px">
+        <div class="card-header" style="display:block">
+          <div class="h-card" style="margin-bottom:11px"><svg class="ic-plain" width="17" height="17"><use href="#i-adjust"/></svg> ตั้งค่ากลุ่มคำ</div>
+          <div class="seg" role="group" aria-label="สถานะของกลุ่มคำนี้">
+            <button class="s-off" aria-pressed="true">ไม่ใช้งาน</button>
+            <button class="s-test" aria-pressed="false">ทดสอบ</button>
+            <button class="s-live" aria-pressed="false">ตอบลูกค้าจริง</button>
+          </div>
+          <div class="ready warn">
+            <svg class="ic" width="15" height="15"><use href="#i-warn"/></svg>
+            <span>ยังเปิดใช้ไม่ได้ — ยังไม่มีข้อความตอบกลับ ใส่คำตอบใน “ทุกกรณีที่เหลือ” ก่อน</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <label class="form-label" for="kn-e">ชื่อกลุ่มคำ</label>
+          <input class="form-input" id="kn-e" value="สอบถามการจัดส่ง" style="font-weight:600">
+          <div style="margin-top:18px">
+            <label class="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+            <div class="chips">
+              <span class="chip">ส่งยังไง <button aria-label="ลบคำ ส่งยังไง"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+              <input class="form-input chip-input" placeholder="เพิ่มคำ… แล้วกด Enter">
+            </div>
+          </div>
+          <div class="dupe">
+            <div class="rank-actions" style="justify-content:space-between">
+              <span style="font-size:var(--t-xs);color:var(--d700)">ยังไม่มีกลุ่มอื่นใช้คำซ้ำกับกลุ่มนี้</span>
+              <button class="linkish">ตั้งลำดับเอง</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="h-hero" style="font-size:var(--t-base)"><span class="ic-plate" style="width:28px;height:28px"><svg width="16" height="16"><use href="#i-msg"/></svg></span> คำตอบที่ลูกค้าจะได้รับ</div>
+          </div>
+          <button class="btn btn-outline btn-sm"><svg width="14" height="14"><use href="#i-plus"/></svg> เพิ่มเงื่อนไขเฉพาะ</button>
+        </div>
+        <div class="card-body">
+          <!-- ไม่มีเลข ไม่มีกล่องเส้นประ — เหลือแถวเดียว -->
+          <div class="ladder">
+            <div class="rung-fallback">
+              <div class="h-mini" style="display:block">ทุกกรณีที่เหลือ</div>
+              <textarea class="form-textarea" rows="4" placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"></textarea>
+              <div class="meta" style="text-align:end;margin-top:6px">0/1000</div>
+            </div>
+          </div>
+          <p style="font-size:var(--t-xs);color:var(--d700);margin-top:13px">
+            อยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า? <button class="linkish">เพิ่มเงื่อนไขเฉพาะ</button>
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 3. sheet โหมดแก้ไข -->
+  <div class="panel">
+    <div class="plabel">Sheet โหมด “แก้ไข” (ของใหม่) — prefilled จาก rule เดิม</div>
+    <div class="pbody" style="background:#dfe3e9">
+      <div class="sheet">
+        <div class="sheet-h">
+          <span style="font-size:var(--t-md);font-weight:600;color:var(--d900)">แก้เงื่อนไขเฉพาะ</span>
+          <button class="btn btn-light btn-sm btn-icon" aria-label="ปิด"><svg width="15" height="15"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="sheet-b">
+          <div class="cond on">
+            <div class="cond-h"><span class="cb on"></span> มาจากเพจ</div>
+            <div style="margin-top:11px"><select class="form-input" style="appearance:none"><option>ร้านเอ (Facebook)</option><option>ร้านบี (Facebook)</option></select></div>
+          </div>
+          <div class="cond on">
+            <div class="cond-h"><span class="cb on"></span> มาจากโฆษณา</div>
+            <div style="margin-top:11px"><select class="form-input" style="appearance:none"><option>ลดราคาหน้าฝน · 128 ครั้ง</option><option>เปิดร้านใหม่ · 41 ครั้ง</option></select></div>
+          </div>
+          <div class="cond">
+            <div class="cond-h"><span class="cb"></span> เกี่ยวกับสินค้า</div>
+          </div>
+
+          <label class="form-label" style="margin-top:16px">ข้อความตอบกลับของเงื่อนไขนี้</label>
+          <textarea class="form-textarea" rows="4">ทักจากโฆษณานี้รับส่วนลด 10% ทันทีค่ะ แจ้งชื่อสินค้าที่สนใจได้เลยนะคะ</textarea>
+          <div class="meta" style="text-align:end;margin-top:6px">62/1000</div>
+
+          <div style="background:rgba(35,109,201,.08);border-radius:var(--radius);padding:12px 14px;margin-top:14px;font-size:var(--t-xs);color:var(--d800);display:flex;gap:9px">
+            <svg width="16" height="16" style="color:var(--primary);flex:none;margin-top:1px"><use href="#i-info"/></svg>
+            <span>เงื่อนไขนี้เจาะจง 2 อย่าง จะถูกตรวจ<b>ก่อน</b>ข้อที่ระบุแค่เพจอย่างเดียว</span>
+          </div>
+        </div>
+        <div class="sheet-f">
+          <button class="btn btn-outline">ยกเลิก</button>
+          <button class="btn btn-primary">บันทึกเงื่อนไข</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. ด่านกันพลาด -->
+  <div class="panel">
+    <div class="plabel">ด่านกันพลาด — Sweet Alerts (pacesConfirm) + pacesToast (top-right)</div>
+    <div class="pbody" style="background:#dfe3e9">
+
+      <div class="swal" style="margin-bottom:16px">
+        <div class="ring warn"><svg width="30" height="30"><use href="#i-warn"/></svg></div>
+        <h4>เปลี่ยนเป็น “ตอบลูกค้าจริง”?</h4>
+        <p>กลุ่มคำนี้จะเริ่มตอบลูกค้าทุกคนทันที ตรวจข้อความตอบกลับให้เรียบร้อยก่อนนะคะ</p>
+        <div class="acts">
+          <button class="btn btn-outline">ยกเลิก</button>
+          <button class="btn btn-primary">เปิดใช้กับลูกค้าจริง</button>
+        </div>
+      </div>
+
+      <div class="swal" style="margin-bottom:16px">
+        <div class="ring danger"><svg width="30" height="30"><use href="#i-trash"/></svg></div>
+        <h4>ลบเงื่อนไขเฉพาะข้อนี้?</h4>
+        <p>ข้อความตอบของข้อนี้จะหายไป และกู้คืนไม่ได้ — กรณีที่เคยเข้าข้อนี้จะไปใช้คำตอบใน “ทุกกรณีที่เหลือ” แทน</p>
+        <div class="acts">
+          <button class="btn btn-outline">ยกเลิก</button>
+          <button class="btn btn-primary" style="background:var(--danger)">ลบเงื่อนไข</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+        <div class="toast err">
+          <svg width="17" height="17" style="color:var(--danger);flex:none;margin-top:1px"><use href="#i-warn"/></svg>
+          <span>ยังตั้งเป็นโหมดทดสอบไม่ได้ — เลือกแชทสำหรับทดสอบอย่างน้อย 1 แชทก่อน</span>
+        </div>
+        <div class="toast ok">
+          <svg width="17" height="17" style="color:var(--success);flex:none;margin-top:1px"><use href="#i-check"/></svg>
+          <span>บันทึกแล้ว — ข้อนี้ย้ายไปอยู่ลำดับที่ 2</span>
+        </div>
+        <div class="toast">
+          <svg width="17" height="17" style="color:var(--primary);flex:none;margin-top:1px"><use href="#i-info"/></svg>
+          <span>กลุ่มนี้จะถูกเลือกก่อน “ทักถามสินค้า” แล้ว</span>
+        </div>
+      </div>
+      <div class="meta" style="text-align:end;margin-top:9px">toast = <code>pacesToast</code> วางมุมขวาบน (Hard Rule 9)</div>
+    </div>
+  </div>
+
+  <!-- 5. STAFF read-only + skeleton -->
+  <div class="panel">
+    <div class="plabel">บัญชี STAFF (canEdit = false) + skeleton ตอนโหลดตารางแชท</div>
+    <div class="pbody">
+      <section class="card" style="margin-bottom:14px">
+        <div class="card-header">
+          <div class="h-card"><svg class="ic-plain" width="17" height="17"><use href="#i-adjust"/></svg> ตั้งค่ากลุ่มคำ</div>
+          <span class="badge b-success">ตอบลูกค้าจริง</span>
+        </div>
+        <div class="card-body">
+          <label class="form-label">ชื่อกลุ่มคำ</label>
+          <input class="form-input" value="ทักถามราคา" disabled style="font-weight:600;background:var(--d100);color:var(--d700)">
+          <div style="margin-top:18px">
+            <label class="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+            <div class="chips">
+              <span class="chip" style="padding-inline-end:10px">สนใจ</span>
+              <span class="chip" style="padding-inline-end:10px">ราคา</span>
+              <span class="chip" style="padding-inline-end:10px">เท่าไหร่</span>
+            </div>
+          </div>
+          <div class="ready ok" style="margin-top:18px">
+            <svg class="ic" width="15" height="15"><use href="#i-eye"/></svg>
+            <span>บัญชีนี้ดูได้อย่างเดียว — ให้เจ้าของร้านหรือผู้ดูแลแก้ไข</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div class="h-card"><svg class="ic-plain" width="17" height="17"><use href="#i-flask"/></svg> แชทสำหรับทดสอบ</div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:12px;align-items:center"><div class="sk" style="width:26px;height:26px;border-radius:50%"></div><div class="sk" style="flex:1"></div><div class="sk" style="width:70px"></div></div>
+          <div style="display:flex;gap:12px;align-items:center"><div class="sk" style="width:26px;height:26px;border-radius:50%"></div><div class="sk" style="flex:1"></div><div class="sk" style="width:70px"></div></div>
+          <div style="display:flex;gap:12px;align-items:center"><div class="sk" style="width:26px;height:26px;border-radius:50%"></div><div class="sk" style="flex:1"></div><div class="sk" style="width:70px"></div></div>
+        </div>
+      </section>
+      <div class="meta" style="margin-top:9px">skeleton แทนข้อความ “กำลังโหลด…” (operate.md)</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     บันทึกสำหรับ developer
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="doc sec-h">บันทึกสำหรับ developer — อ่านก่อนลงมือ</div>
+
+<div class="note">
+  <h3>1) Token ที่ใช้ในไฟล์นี้ — cross-check กับโค้ดจริงแล้ว</h3>
+  <table>
+    <tr><th style="width:210px">Token</th><th style="width:130px">ค่า</th><th>ที่มา / ใช้ตรงไหน</th></tr>
+    <tr><td><code>--color-primary</code></td><td><span class="swatch" style="background:#236dc9"></span>#236dc9</td><td><code>_root.css:15</code> — น้ำเงิน Paces (🛑 ไม่ใช่ม่วง #7367F0 ซึ่งเป็นของ buyer/Vuexy)</td></tr>
+    <tr><td><code>--color-success</code></td><td><span class="swatch" style="background:#02bc9c"></span>#02bc9c</td><td><code>_root.css:19</code> — ใช้จุดเดียว: ปุ่ม “ตอบลูกค้าจริง” ตอน active</td></tr>
+    <tr><td><code>--color-warning</code></td><td><span class="swatch" style="background:#f9bf59"></span>#f9bf59</td><td><code>_root.css:23</code> — ปุ่ม “ทดสอบ” active + แผ่นไอคอนทึบ + <code>bg-warning/15</code></td></tr>
+    <tr><td><code>--color-default-400</code></td><td><span class="swatch" style="background:#9ba6b7"></span>#9ba6b7</td><td>เพดาน: ใช้ได้เฉพาะ ตัวนับตัวอักษร / วันเวลา / ไอคอน decorative</td></tr>
+    <tr><td><code>--color-default-500</code></td><td><span class="swatch" style="background:#a1a9b1"></span>#a1a9b1</td><td>placeholder ทุกช่อง (d400 บนขาว = 2.9:1 <b>ตก AA</b>)</td></tr>
+    <tr><td><code>--color-default-800</code></td><td><span class="swatch" style="background:#343a40"></span>#343a40</td><td>ตัวอักษรเนื้อหาหลัก + หัวข้อการ์ดรอง</td></tr>
+    <tr><td><code>--radius</code></td><td>4px</td><td><code>_root.css:75</code> — <code>rounded</code> = 4px 🛑 ไม่ใช่ 8px (mockup V2 ใช้ 8 ผิด)</td></tr>
+    <tr><td><code>--shadow</code></td><td colspan="2"><code>0px 1px 4px 0px rgba(130,143,163,.15)</code> — เทาอมน้ำเงิน ไม่ใช่ดำสนิท · ห้าม <code>shadow-[]</code></td></tr>
+    <tr><td>type scale</td><td colspan="2"><code>--text-2xs:11</code> · <code>--text-xs:13</code> · <code>text-sm:14</code> · <code>--text-md:15</code> · <code>text-base:16</code> · <code>text-lg:18</code></td></tr>
+    <tr><td><code>.card-header</code></td><td colspan="2">เส้นล่างเป็น <b>dashed</b> <code>border-default-300</code> · padding <code>px-5 py-3.75</code> · <code>.card-body</code> = <code>p-5</code></td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <h3>2) ลำดับชั้นถูกสร้างด้วย treatment ไม่ใช่ด้วยสี</h3>
+  <table>
+    <tr><th style="width:150px">ระดับ</th><th style="width:250px">หัวข้อ</th><th>ไอคอน</th></tr>
+    <tr><td><b>พระเอก</b> — [B]</td><td><code>text-lg</code> (18) <code>font-semibold</code> <code>text-default-900</code></td><td>แผ่น <code>bg-primary/15 text-primary size-8 rounded-lg</code> — <b>ใบเดียวในหน้า</b></td></tr>
+    <tr><td>รอง — [A] [C] [D]</td><td><code>text-md</code> (15) <code>font-semibold</code> <code>text-default-800</code></td><td>เปล่า <code>text-primary size-4</code></td></tr>
+    <tr><td>หัวข้อย่อยในการ์ด</td><td><code>text-xs</code> (13) <code>font-semibold</code> <code>text-default-800</code></td><td>ไม่มี หรือ <code>size-4</code></td></tr>
+    <tr><td>ตัวนับ / วันเวลา</td><td><code>text-2xs</code> (11) <code>text-default-400</code></td><td>—</td></tr>
+  </table>
+  <p style="font-size:var(--t-xs);color:var(--d700);margin-top:11px">
+    เหตุผล: ถ้าทำให้เหลือ “การ์ดเดียวมีสี ที่เหลือเทา” หน้าจะกลับไปจางเหมือนเดิม —
+    จึงให้ทุกใบมีสีธีมได้ แต่ต่างกันที่ <b>treatment</b>
+  </p>
+</div>
+
+<div class="note">
+  <h3>3) จุดที่ต้องระวังตอน implement</h3>
+  <ul>
+    <li>🛑 Base ของบันได = <code>theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx</code> → <code>Numbered</code> (บรรทัด 381–411) แต่ <b>ห้ามลอก <code>text-[10px]</code> ที่บรรทัด 397</b> — ใช้ <code>text-2xs</code> (Hard Rule 7)</li>
+    <li>🛑 sheet ต้องเป็น overlay React ล้วน (Base: <code>orders/new/components/CustomerSearchSheet.tsx</code>) — <b>ห้าม Preline <code>hs-overlay</code></b> เพราะ mount ทีหลัง autoInit ไม่ผูก (บั๊กจริง 2026-07-30 ปุ่มลบกดไม่ติด)</li>
+    <li>🛑 <code>text-warning</code> = #f9bf59 บนพื้นขาว ≈ 1.9:1 <b>อ่านไม่ออก</b> — บรรทัดความพร้อมจึงใช้ <b>ไอคอน</b> <code>text-warning</code> + <b>ข้อความ</b> <code>text-default-800</code> ไม่ใช่ทั้งบรรทัดเป็นสีเตือน</li>
+    <li>🛑 บรรทัดความพร้อมตอน “ครบแล้ว” <b>ห้ามเป็นสีเขียว</b> — เขียวสงวนให้ “ยืนยันแล้ว” เท่านั้น (Verified-Means-Green) ใช้ <code>text-default-600</code></li>
+    <li>🛑 ปุ่มสถานะ 3 ค่า <b>คัดลอกของเดิมทั้งดุ้น</b> จาก <code>KeywordEditorClient.tsx:311-326</code> — <code>AutoReplyListing.tsx:243-261</code> ใช้ชุดเดียวกัน แก้ที่นี่ที่เดียวจะทำสองหน้าไม่ตรงกัน</li>
+    <li>🛑 แถบบันทึก <code>sticky bottom-20 lg:bottom-4</code> — <code>bottom-4</code> เดี่ยว ๆ โดน <code>SellerBottomNav</code> (fixed 64px) ทับบนมือถือ</li>
+    <li>🛑 ถอด <code>uppercase</code> ที่ <code>TestThreadsCard.tsx:275</code> (<code>thead</code>) — Sentence-Case Rule</li>
+    <li>🛑 แก้ <code>mapServiceError()</code> ใน <code>src/lib/auto-reply-route-context.ts</code> (บรรทัด 56–86) — <code>REQUIRES_PHRASE</code>/<code>REQUIRES_REPLY</code> เป็น <b>สาขาตาย</b> (service โยน <code>NO_PHRASE</code>/<code>NO_ANSWER</code>) + guard <code>DUPLICATE_NAME</code> อยู่ก่อน <code>DUPLICATE</code> แต่ service โยน <code>NAME_DUPLICATE</code> ลำดับคำกลับกัน → <b>รวม 9 รหัสตกเป็น 500 หรือได้ข้อความผิดเรื่อง</b> ดูตารางเต็มใน Design Spec §8</li>
+    <li>ปุ่ม “แก้ไข” ใช้ <code>PATCH /api/shops/auto-reply/rules/{id}</code> + <code>AutoReplyRuleUpdateSchema</code> ที่มีอยู่แล้ว — <b>ไม่ต้องแตะ backend</b></li>
+    <li>บล็อกคำซ้ำต้องเพิ่ม query ที่ <code>[id]/page.tsx</code> (รูปเดียวกับ <code>addPhrases()</code> <code>auto-reply-rule.service.ts:412-419</code>) → ส่งลง client เป็น <code>overlaps[]</code></li>
+    <li>ทุกจุดที่ทำลายข้อมูล (ลบเงื่อนไข / ล้างที่แก้ไว้) ต้องผ่าน <code>pacesConfirm.danger</code>; ขาไป LIVE ใช้ <code>pacesConfirm.warning</code> ของเดิม <b>ข้อความเดิมทุกคำ</b></li>
+    <li>ไอคอนทั้งหมดในไฟล์นี้เป็น tabler ผ่าน <code>@iconify/react</code> — <b>ห้าม emoji</b> (Hard Rule 12); SVG ในไฟล์นี้เป็นแค่ตัวแทนสำหรับ mockup</li>
+  </ul>
+</div>
+
+<div class="note">
+  <h3>4) Responsive — สรุปเป็นตาราง</h3>
+  <table>
+    <tr><th style="width:190px">ช่วงจอ</th><th>การจัดวาง</th></tr>
+    <tr><td><b>≥1280</b> (xl)</td><td>7/3 — <b>ซ้าย = “ตั้งค่า”</b> [A]→[B] ต่อด้วยเส้นประ · <b>ขวา = “ทดลอง”</b> [D]→[C] <code>sticky top-20</code> · [E] <code>sticky bottom-4</code><br><span style="color:var(--d600)">ย้าย [C] มาขวา (ต่างจากร่างแรกที่ให้อยู่ซ้าย) เพราะวัดจริงแล้วซ้ายยาว ~1400px ขวาจบที่ ~700px → คอลัมน์ขวายังว่าง; [C] กับ [D] เป็นเรื่อง “ทดลอง” เหมือนกัน จับคู่กันแล้วสองคอลัมน์สูงใกล้กัน</span></td></tr>
+    <tr><td><b>1024–1279</b> (lg)</td><td>คอลัมน์เดียว [A]→[B]→[D]→[C]→[E] — <b>ไม่แตก 7/3</b> เพราะ sidebar กิน 245px เหลือคอลัมน์ขวา ~234px แชทตัดคำเละ</td></tr>
+    <tr><td><b>640–1023</b> (sm/md)</td><td>คอลัมน์เดียว · ไม่มี sidebar · breadcrumb ซ่อน แสดงลิงก์ย้อนกลับแทน · ตารางแชทเลื่อนแนวนอนใน <code>.table-responsive</code> · [E] <code>sticky bottom-20</code></td></tr>
+    <tr><td><b>&lt;640</b></td><td>ทุกอย่างเต็มบรรทัด · ปุ่มสถานะแบ่ง 3 ช่องเท่ากัน <code>min-h-11</code> · ปุ่มแก้ไข/ลบลงบรรทัดใหม่ <code>min-h-11</code> · textarea <code>rows=5</code></td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <h3>5) เก็บของเดิม — ด่านกันพลาดที่ห้ามหาย</h3>
+  <ul>
+    <li>ยืนยันด้วย <code>pacesConfirm.warning</code> ก่อนเปลี่ยนเป็น “ตอบลูกค้าจริง” (ทั้งหน้านี้และหน้ารายการ)</li>
+    <li>ยืนยันก่อนผูกแชทคนจริงเข้ารายการทดสอบ + ส่ง <code>confirmed: true</code> ที่ API</li>
+    <li>server บังคับ ≥1 แชทตอน TEST · บังคับมีคำ + คำตอบก่อนออกจาก OFFLINE</li>
+    <li>toast เตือนคำซ้ำข้ามกลุ่ม / ซ้ำในกลุ่ม / คำที่ normalize แล้วว่าง — <b>ชื่อ field <code>created</code>/<code>duplicateInGroup</code>/<code>warnings</code> ห้ามเปลี่ยน</b> (เพิ่งแก้บั๊กไป)</li>
+    <li>toast เตือนตอนเอาแชทสุดท้ายออกจากรายการทดสอบ</li>
+    <li><code>PagePicker</code> เดิม (ห้ามกลับไป <code>hs-dropdown</code> — parent re-render ทุกครั้งที่พิมพ์)</li>
+    <li>พรีวิวไม่ส่งจริง ไม่บันทึกลงแชท + ประโยคกำกับ</li>
+    <li><code>matchType</code> ล็อกไม่ให้แก้ผ่าน UI</li>
+    <li>คอมเมนต์ WARNING ทุกอันในไฟล์ (เป็นบทเรียนจากบั๊กจริง)</li>
+  </ul>
+</div>
