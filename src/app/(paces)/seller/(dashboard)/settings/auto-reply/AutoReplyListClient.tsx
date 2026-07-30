@@ -9,10 +9,10 @@
  *   business/[shopId]/invites/components/FinanceVisibilityToggle.tsx ซึ่ง Base เดิมมาจาก
  *   theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71
  *
- * user 2026-07-30 "ทำไมการตั้งค่ามันมาอยู่หน้าลิส" — เดิมมีการ์ดสวิตช์ระดับร้านคั่นระหว่าง
- * stat card กับตาราง ซึ่งซ้ำชื่อหน้า (breadcrumb ก็บอกว่า "ตอบแชทอัตโนมัติ" อยู่แล้ว) และกิน
- * 3 แถวก่อนจะถึงรายการ ย้ายสวิตช์เข้าไปอยู่ในหัวตารางแทน — หน้านี้เป็น "หน้ารายการ" ไม่ใช่
- * "หน้าตั้งค่า" ตามที่ user ขอให้เหมือนหน้าสินค้า
+ * WARNING: สวิตช์เปิด/ปิดระดับร้านถูกลบทิ้ง 2026-07-30 (user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user
+ * ปิดเอง ในแต่ละ row") — มันซ้ำกับสถานะรายแถวและสร้างกับดัก "แถวเป็นตอบลูกค้าจริงแต่เงียบ
+ * เพราะสวิตช์ร้านปิดอยู่คนละที่" ซึ่งเป็นบั๊กแรกที่เจอตอนลองใช้จริง
+ * ความปลอดภัยเดิมยังอยู่: กลุ่มคำที่สร้างใหม่เป็น "ไม่ใช้งาน" เสมอ
  * Base (stat card ด้านบน): src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
  *   — import ตัวเดิมมาใช้ ไม่ก๊อปโครงซ้ำ (การ์ดตัวนี้ไม่มีอะไรผูกกับสินค้าเลย นอกจากชื่อไฟล์)
  * Base (ตาราง + toolbar + pagination): ./AutoReplyListing.tsx ซึ่ง Base = products/components/
@@ -24,45 +24,17 @@
  */
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { pacesToast } from '@/lib/paces-toast'
 import ProductStats, { type StatType } from '../../products/components/ProductStats'
 import AutoReplyListing, { type KeywordRow } from './AutoReplyListing'
 
-type ConfigView = { isEnabled: boolean }
-
 type Props = {
-  initialConfig: ConfigView
   initialKeywords: KeywordRow[]
   canEdit: boolean
 }
 
-export default function AutoReplyListClient({ initialConfig, initialKeywords, canEdit }: Props) {
-  const [config, setConfig] = useState(initialConfig)
+export default function AutoReplyListClient({ initialKeywords, canEdit }: Props) {
   const [keywords] = useState(initialKeywords)
-  const [busy, setBusy] = useState(false)
 
-  async function toggleShopSwitch(next: boolean) {
-    if (!canEdit || busy) return
-    setBusy(true)
-    // optimistic — คืนค่าเดิมถ้าพัง เพื่อไม่ให้ UI โกหกว่าเปิดอยู่ทั้งที่เซิร์ฟเวอร์ปฏิเสธ
-    const prev = config.isEnabled
-    setConfig((c) => ({ ...c, isEnabled: next }))
-    try {
-      const res = await fetch('/api/shops/auto-reply/config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ isEnabled: next }),
-      })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
-      pacesToast.success(next ? 'เปิดการตอบอัตโนมัติแล้ว' : 'ปิดการตอบอัตโนมัติแล้ว')
-    } catch (e) {
-      setConfig((c) => ({ ...c, isEnabled: prev }))
-      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const liveCount = keywords.filter((k) => k.status === 'LIVE').length
   const testCount = keywords.filter((k) => k.status === 'TEST').length
@@ -122,13 +94,7 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
         ))}
       </div>
 
-      <AutoReplyListing
-        keywords={keywords}
-        canEdit={canEdit}
-        shopEnabled={config.isEnabled}
-        shopSwitchBusy={busy}
-        onShopSwitch={toggleShopSwitch}
-      />
+      <AutoReplyListing keywords={keywords} canEdit={canEdit} />
 
     </>
   )

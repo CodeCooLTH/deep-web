@@ -56,6 +56,7 @@ export type ResolutionLevel = (typeof RESOLUTION_LEVELS)[number]
 
 /** AutoReplyLog.skipReason */
 export const SKIP_REASONS = [
+  // 🛑 เลิกใช้ 2026-07-30 (สวิตช์ระดับร้านถูกถอดออก) — ห้ามลบ แถว log เก่ายังมีค่านี้
   'SHOP_DISABLED',
   'CONVERSATION_DISABLED',
   // 🛑 เลิกใช้ 2026-07-29 (โหมดทดสอบระดับร้านถูกยกเลิก) แต่ห้ามลบออกจากรายการ —

@@ -15,7 +15,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getKeywordDetail } from '@/services/auto-reply-rule.service'
-import { getConfig } from '@/services/auto-reply-config.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import KeywordEditorClient from './KeywordEditorClient'
@@ -39,7 +38,7 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
   if (!keyword) notFound()
 
   // ตัวเลือกเงื่อนไข — scope shopId ทุกตัว
-  const [channels, products, config] = await Promise.all([
+  const [channels, products] = await Promise.all([
     prisma.shopChannel.findMany({
       where: { shopId: activeCtx.shopId, status: 'ACTIVE' },
       select: { id: true, name: true, provider: true, avatarUrl: true },
@@ -52,7 +51,6 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
       orderBy: { updatedAt: 'desc' },
       take: 200,
     }),
-    getConfig(activeCtx.shopId),
   ])
 
   return (
@@ -95,7 +93,6 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
           // pattern เดียวกับ (chat)/layout.tsx และ orders/new — images[0] คือ storage fileId
           image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
         }))}
-        shopEnabled={config.isEnabled}
       />
     </>
   )

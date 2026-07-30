@@ -240,12 +240,14 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     const config = await getConfig(job.shopId)
 
-    // gate 1 — สวิตช์ระดับร้าน / ระดับเธรด (เธรดชนะเมื่อถูกตั้งค่าไว้ชัดเจน)
-    const enabled = conversation.autoReplyEnabled ?? config.isEnabled
-    if (!enabled) {
-      const reason: SkipReason =
-        conversation.autoReplyEnabled === false ? 'CONVERSATION_DISABLED' : 'SHOP_DISABLED'
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: reason })
+    // gate 1 — สวิตช์ระดับเธรด (แอดมินปิดเธรดนี้เองจากกล่องข้อความ)
+    //
+    // 🛑 สวิตช์ระดับร้าน (AutoReplyConfig.isEnabled) ถูกถอดออกจากเส้นทางตัดสิน 2026-07-30
+    // ตามคำสั่ง user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user ปิดเอง ในแต่ละ row"
+    // ความปลอดภัยเดิม (ระบบต้องไม่ทำงานจนกว่าร้านจะสั่ง) ยังอยู่ครบ เพราะกลุ่มคำที่สร้างใหม่
+    // เป็น OFFLINE เสมอ — ไม่มีทางตอบใครจนกว่าร้านจะเปลี่ยนสถานะเอง
+    if (conversation.autoReplyEnabled === false) {
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
     }
 
     // 🛑 gate 2 เดิม (โหมดทดสอบระดับร้าน) ถูกลบ 2026-07-29 — โหมดทดสอบผูกกับกลุ่มคำแล้ว

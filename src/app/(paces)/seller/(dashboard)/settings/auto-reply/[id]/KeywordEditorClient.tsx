@@ -45,7 +45,6 @@ type Ad = { adId: string; adTitle: string | null; hitCount: number }
 
 type Props = {
   canEdit: boolean
-  shopEnabled: boolean
   keyword: {
     id: string
     name: string
@@ -75,7 +74,7 @@ const STATUS_META: Record<string, { label: string; active: string }> = {
   LIVE: { label: 'ตอบลูกค้าจริง', active: 'bg-success text-white' },
 }
 
-export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, channels, products }: Props) {
+export default function KeywordEditorClient({ canEdit, keyword, channels, products }: Props) {
   const router = useRouter()
 
   const [status, setStatus] = useState(keyword.status)
@@ -247,19 +246,6 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
 
   return (
     <>
-      {!shopEnabled && (
-        <div className="card bg-warning/10 border-warning mb-4">
-          <div className="card-body flex items-center gap-3 py-3">
-            <span className="bg-warning flex size-8 flex-none items-center justify-center rounded-lg text-white">
-              <Icon icon="alert-triangle" className="text-base" aria-hidden="true" />
-            </span>
-            <p className="text-default-700 mb-0 text-sm">
-              ระบบตอบอัตโนมัติปิดอยู่ทั้งร้าน — ตั้งค่าได้ แต่ลูกค้าจะยังไม่ได้รับคำตอบจนกว่าจะเปิดสวิตช์ในหน้ารายการ
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* subheader ใต้หัวเรื่อง (user request 2026-07-29) — เทียบเคียงข้อความของ reference
           แต่เขียนให้ตรงกับสิ่งที่ระบบเราทำจริง: ของเราจับคำ ไม่ใช่ตอบข้อความแรกเสมอ */}
       <div className="mb-4">
@@ -793,7 +779,6 @@ function SimulatePanel({
         const notes: string[] = []
         if (data.winnerState?.status === 'OFFLINE') notes.push('ชุดนี้ยังไม่ใช้งาน')
         if (data.winnerState?.status === 'TEST') notes.push('อยู่โหมดทดสอบ')
-        if (!data.shopEnabled) notes.push('ระบบปิดอยู่ทั้งร้าน')
         setTurns((t) => [
           ...t,
           { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
