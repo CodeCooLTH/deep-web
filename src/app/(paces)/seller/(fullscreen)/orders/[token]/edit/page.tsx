@@ -74,6 +74,16 @@ export default async function EditOrderPage({ params }: PageProps) {
   // เข้มกว่า service ที่บล็อกแค่ CANCELLED โดยตั้งใจ: ออเดอร์ที่ส่ง/ยืนยันแล้วมีรีวิว+trust score
   // ผูกอยู่ การรื้อ OrderItem ใหม่จะทำให้ประวัติไม่ตรงกับของที่ผู้ซื้อได้รับจริง
   if (order.status !== 'PENDING') {
+    // ข้อความต่างกันตามสถานะ — เดิมใช้ข้อความเดียวว่า "ให้ยกเลิกแล้วสร้างใหม่" ซึ่งใช้ไม่ได้กับ
+    // CONFIRMED/CANCELLED: CancelOrderButton คืน null เมื่อไม่ใช่ PENDING/SHIPPED ผู้ใช้จึงหา
+    // ปุ่มยกเลิกไม่เจอ = copy สั่งให้ทำสิ่งที่ระบบไม่มีให้ทำ
+    const blockedCopy: Record<string, string> = {
+      SHIPPED:
+        'คำสั่งซื้อนี้จัดส่งไปแล้ว จึงแก้ไขรายการสินค้าหรือยอดเงินไม่ได้ หากข้อมูลผิด ให้ยกเลิกคำสั่งซื้อแล้วสร้างใบใหม่',
+      CONFIRMED:
+        'ผู้ซื้อยืนยันรับสินค้าแล้ว คำสั่งซื้อที่ปิดแล้วแก้ไขไม่ได้ เพราะประวัติและคะแนนความน่าเชื่อถือถูกบันทึกไปแล้ว',
+      CANCELLED: 'คำสั่งซื้อนี้ถูกยกเลิกไปแล้ว หากยังต้องการขาย ให้สร้างคำสั่งซื้อใบใหม่',
+    }
     return (
       <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
         <Icon
@@ -82,10 +92,9 @@ export default async function EditOrderPage({ params }: PageProps) {
           height={64}
           className="text-warning mx-auto mb-4"
         />
-        <h2 className="text-dark mb-2 text-xl font-bold">แก้ไขคำสั่งซื้อนี้ไม่ได้แล้ว</h2>
+        <h2 className="text-dark mb-2 text-xl font-bold">แก้ไขคำสั่งซื้อ {orderNo} ไม่ได้</h2>
         <p className="text-default-400 mb-6">
-          แก้ไขได้เฉพาะออเดอร์ที่ยังรอดำเนินการเท่านั้น ออเดอร์ {orderNo} ถูกดำเนินการไปแล้ว
-          หากต้องการเปลี่ยนแปลง ให้ยกเลิกแล้วสร้างออเดอร์ใหม่
+          {blockedCopy[order.status] ?? 'แก้ไขได้เฉพาะคำสั่งซื้อที่ยังรอดำเนินการเท่านั้น'}
         </p>
         <Link
           href={`/orders/${order.publicToken}`}

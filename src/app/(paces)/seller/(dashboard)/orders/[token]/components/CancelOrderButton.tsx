@@ -29,7 +29,7 @@ export default function CancelOrderButton({ publicToken, status, className }: Ca
   if (status !== 'PENDING' && status !== 'SHIPPED') return null
 
   const handleCancel = async () => {
-    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', 'ออเดอร์จะถูกปิดทันที · ย้อนกลับไม่ได้', {
+    const ok = await pacesConfirm.danger('ยกเลิกคำสั่งซื้อนี้?', 'สินค้าจะถูกคืนเข้าสต็อก · ลิงก์ที่ส่งให้ผู้ซื้อจะใช้ไม่ได้ · ย้อนกลับไม่ได้', {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
     })
@@ -41,12 +41,12 @@ export default function CancelOrderButton({ publicToken, status, className }: Ca
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error || 'ไม่สามารถยกเลิกออเดอร์ได้')
+        throw new Error((data as { error?: string }).error || 'ยกเลิกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่')
       }
-      pacesToast.success('ยกเลิกแล้ว')
+      pacesToast.success('ยกเลิกคำสั่งซื้อแล้ว')
       router.refresh()
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'ไม่สามารถยกเลิกออเดอร์ได้'
+      const message = err instanceof Error ? err.message : 'ยกเลิกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่'
       pacesToast.error(message)
     } finally {
       setLoading(false)
@@ -58,9 +58,12 @@ export default function CancelOrderButton({ publicToken, status, className }: Ca
       type="button"
       onClick={handleCancel}
       disabled={loading}
-      className={`btn border border-danger text-danger hover:bg-danger/15 text-sm font-medium disabled:opacity-60 w-full${className ? ` ${className}` : ''}`}
+      // ลดน้ำหนักจาก "ปุ่มขอบแดงเต็มความกว้าง" → text button เล็ก
+      // เดิม action ที่ใช้น้อยที่สุดและย้อนกลับไม่ได้ กลับได้พื้นที่มากที่สุดในหน้า
+      // และบนมือถือไปนั่งอยู่ใต้ปุ่ม "ปิด" ของ ShipForm พอดี = กดพลาดง่าย
+      className={`btn btn-sm text-danger hover:bg-danger/10 inline-flex items-center gap-1.5 text-xs font-medium disabled:opacity-60 min-h-11${className ? ` ${className}` : ''}`}
     >
-      {loading ? 'กำลังยกเลิก...' : 'ยกเลิกออเดอร์'}
+      {loading ? 'กำลังยกเลิก...' : 'ยกเลิกคำสั่งซื้อ'}
     </button>
   )
 }

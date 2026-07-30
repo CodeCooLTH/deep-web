@@ -27,8 +27,8 @@ const STEP_ACTOR: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, { title: string; description: string; icon: string; done: boolean }> = {
   PENDING: {
-    title: 'สร้างออเดอร์แล้ว',
-    description: 'ผู้ขายสร้างออเดอร์แล้ว รอผู้ซื้อยืนยัน',
+    title: 'สร้างคำสั่งซื้อแล้ว',
+    description: 'ผู้ขายสร้างคำสั่งซื้อแล้ว รอผู้ซื้อยืนยัน',
     icon: 'file-plus',
     done: true,
   },
@@ -39,14 +39,14 @@ const STATUS_LABELS: Record<string, { title: string; description: string; icon: 
     done: true,
   },
   CONFIRMED: {
-    title: 'ออเดอร์สำเร็จ',
+    title: 'คำสั่งซื้อสำเร็จ',
     description: 'ผู้ซื้อยืนยันรับสินค้า/บริการเรียบร้อย',
     icon: 'circle-check-filled',
     done: true,
   },
   CANCELLED: {
     title: 'ยกเลิกแล้ว',
-    description: 'ออเดอร์ถูกยกเลิก',
+    description: 'คำสั่งซื้อถูกยกเลิก',
     icon: 'circle-x',
     done: false,
   },
@@ -169,7 +169,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">ประวัติสถานะออเดอร์</h4>
+        <h4 className="card-title">ประวัติสถานะคำสั่งซื้อ</h4>
       </div>
       <div className="card-body p-5 sm:p-7.5">
         {timelineItems.length === 0 ? (

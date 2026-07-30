@@ -32,7 +32,7 @@ import OrderReviewCard from './components/OrderReviewCard'
 import ShipmentPanel from './components/ShipmentPanel'
 import type { OrderReviewData } from './components/OrderReviewCard'
 
-export const metadata: Metadata = { title: 'รายละเอียดออเดอร์' }
+export const metadata: Metadata = { title: 'รายละเอียดคำสั่งซื้อ' }
 
 interface PageProps {
   params: Promise<{ token: string }>
@@ -82,7 +82,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     // guest → mask ที่ server boundary ก่อน — ห้ามส่ง raw ข้าม RSC
     const raw = order.review?.reviewerContact ?? order.buyerContact ?? null
     if (raw) return maskContactLocal(raw)
-    return 'ผู้ซื้อนิรนาม'
+    return 'ผู้ซื้อ (ไม่ระบุชื่อ)'
   })()
 
   const reviewData: OrderReviewData | null = order.review
@@ -116,7 +116,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   return (
     <>
       <PageBreadcrumb
-        title="รายละเอียดออเดอร์"
+        title="รายละเอียดคำสั่งซื้อ"
         trail={[{ label: 'คำสั่งซื้อ', href: '/orders' }]}
       />
 
@@ -137,6 +137,10 @@ export default async function OrderDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-base mt-base">
         {/* LEFT — col-span-3 (70%): CustomerDetails → OrderSummary → OrderReviewCard */}
         <div className="space-y-base lg:col-span-3">
+          {/* รีวิวขึ้นบนสุดเมื่อมีจริง — เป็น peak ของทั้ง product (seller ได้คำชมจากลูกค้า)
+              เดิมเป็นการ์ดท้ายแถว น้ำหนักเท่าการ์ดอื่น รีวิว 5 ดาวเลยไม่รู้สึกเหมือนอะไรเลย
+              ไม่มีรีวิว → การ์ด empty-state ยังอยู่ท้ายแถวเหมือนเดิม ไม่ต้องเด่น */}
+          {reviewData && <OrderReviewCard review={reviewData} />}
           <CustomerDetails
             data={{
               // S-C1: ใช้ masked ที่คำนวณ+ neutralize raw บน order แล้วด้านบน
@@ -178,8 +182,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
               }),
             }}
           />
-          {/* review card: compose กลับตาม retro action #4 + #9 — trust-critical info ที่ seller ต้องเห็น */}
-          <OrderReviewCard review={reviewData} />
+          {/* ยังไม่มีรีวิว → empty-state ท้ายแถว (มีรีวิวแล้วจะถูก render บนสุดแทน) */}
+          {!reviewData && <OrderReviewCard review={null} />}
         </div>
 
         {/* RIGHT — col-span-1 (30%): PaymentCard → ShipmentPanel → ShippingActivity
