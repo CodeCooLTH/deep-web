@@ -3,8 +3,8 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext } from "@/lib/shop-context";
-import { listQuickMessages, createQuickMessage } from "@/services/quick-message.service";
-import { QuickMessageCreateSchema } from "@/lib/validations";
+import { listQuickMessages, createQuickMessage, reorderQuickMessages } from "@/services/quick-message.service";
+import { QuickMessageCreateSchema, QuickMessageReorderSchema } from "@/lib/validations";
 
 // ข้อความสำเร็จรูป ระดับร้าน — feature 00018 composer improvement #2
 // per-user authenticated data — ห้าม shared cache (เหตุผลเดียวกับ conversations/[id]/route)
@@ -53,4 +53,31 @@ export async function POST(request: NextRequest) {
       parsed.output.imageFileIds ?? (parsed.output.imageFileId ? [parsed.output.imageFileId] : []),
   });
   return NextResponse.json(created, { status: 201, headers: NO_STORE_HEADERS });
+}
+
+/**
+ * PATCH /api/chat/quick-messages — จัดลำดับใหม่ทั้งชุด (user request 2026-07-30)
+ * body: { orderedIds: string[] } — ลำดับในอาร์เรย์ = ลำดับที่จะแสดง
+ *
+ * อยู่ที่ collection ไม่ใช่ /[id] เพราะการจัดลำดับเป็นการเปลี่ยน "ทั้งชุด" ไม่ใช่แก้รายตัว
+ * ownership อยู่ใน WHERE ของ service (updateMany {id, shopId}) — id ของร้านอื่นถูกข้ามเงียบ ๆ
+ */
+export async function PATCH(request: NextRequest) {
+  const ctx = await requireShopId();
+  if ("error" in ctx) return ctx.error;
+
+  const body = await request.json().catch(() => null);
+  if (body === null) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  const parsed = v.safeParse(QuickMessageReorderSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  try {
+    await reorderQuickMessages(ctx.shopId, parsed.output.orderedIds);
+    return NextResponse.json({ ok: true }, { headers: NO_STORE_HEADERS });
+  } catch (e) {
+    console.error("[PATCH /api/chat/quick-messages]", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "จัดลำดับไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+  }
 }
