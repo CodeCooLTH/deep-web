@@ -18,7 +18,7 @@
  *
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -66,6 +66,18 @@ async function callApi(url: string, init: RequestInit) {
   return data
 }
 
+/** เงื่อนไขเฉพาะ = แถวที่ระบุเพจ/โฆษณา/สินค้า อย่างน้อยหนึ่งอย่าง (ที่เหลือคือคำตอบพื้นฐาน) */
+const isException = (r: Rule) => Boolean(r.shopChannelId || r.adId || r.productId)
+
+/**
+ * ลำดับที่ resolver ไล่จริง (orderBy specificity desc, tie-break ด้วย id ให้ผลนิ่ง)
+ *
+ * เป็นสูตรเดียวของหน้านี้ — ใช้ทั้งตอนเรนเดอร์บันได และตอนคำนวณ "ลำดับใหม่" หลังบันทึก
+ * เพื่อบอกผู้ใช้ว่าข้อที่แก้ย้ายไปอยู่ลำดับไหน ถ้าแยกเป็นสองสูตรจะเพี้ยนกันเงียบ ๆ
+ */
+const sortExceptions = (list: Rule[]) =>
+  list.filter(isException).sort((a, b) => b.specificity - a.specificity || a.id.localeCompare(b.id))
+
 /** สถานะ 3 ค่าของกลุ่มคำ — เขียวสงวนให้ "ตอบลูกค้าจริง" ตาม Verified-Means-Green */
 const STATUS_ORDER = ['OFFLINE', 'TEST', 'LIVE'] as const
 const STATUS_META: Record<string, { label: string; active: string }> = {
@@ -94,21 +106,17 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
   const [rules, setRules] = useState(keyword.rules)
   const [busy, setBusy] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  /**
+   * แถวที่กำลังแก้ (null = โหมดเพิ่ม) — แยกจาก `sheetOpen` เพราะถ้าใช้ตัวเดียวคุมสองโหมด
+   * จะไม่มีทางรู้ว่าเปิดมาเพื่อเพิ่มหรือเพื่อแก้ และค่าที่ค้างจะรั่วข้ามครั้ง
+   */
+  const [editingRule, setEditingRule] = useState<Rule | null>(null)
 
-  const defaultRule = useMemo(
-    () => rules.find((r) => !r.shopChannelId && !r.adId && !r.productId) ?? null,
-    [rules],
-  )
+  const defaultRule = useMemo(() => rules.find((r) => !isException(r)) ?? null, [rules])
   const [defaultReply, setDefaultReply] = useState(defaultRule?.replyText ?? '')
 
   /** เงื่อนไขเฉพาะเรียงเจาะจงมากอยู่บน = ลำดับที่ระบบตัดสินจริง (ไม่ใช่ลำดับการสร้าง) */
-  const exceptions = useMemo(
-    () =>
-      rules
-        .filter((r) => r.shopChannelId || r.adId || r.productId)
-        .sort((a, b) => b.specificity - a.specificity || a.id.localeCompare(b.id)),
-    [rules],
-  )
+  const exceptions = useMemo(() => sortExceptions(rules), [rules])
 
   // แถบบันทึกลอย: บอกด้วยว่าแก้อะไรไป ไม่ใช่แค่ว่า "มีการแก้"
   const dirty = useMemo(() => {
@@ -237,6 +245,17 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 
   async function deleteException(id: string) {
     if (!canEdit || busy) return
+    /**
+     * ถามก่อนเสมอ — ลบแล้วกู้คืนไม่ได้ (เดิมกดปุ่มแล้วยิงลบทันที)
+     * WARNING: confirm ต้องมา *ก่อน* setBusy(true) ถ้าสลับลำดับ แล้ว user กดยกเลิก
+     * ต้องปลด busy เองในทุกทางออก ซึ่งลืมง่าย = ปุ่มทั้งหน้าค้าง disabled
+     */
+    const ok = await pacesConfirm.danger(
+      'ลบเงื่อนไขเฉพาะข้อนี้?',
+      'ข้อความตอบของข้อนี้จะหายไป และกู้คืนไม่ได้ — กรณีที่เคยเข้าข้อนี้จะไปใช้คำตอบใน "ทุกกรณีที่เหลือ" แทน',
+      { confirmButtonText: 'ลบเงื่อนไข' },
+    )
+    if (!ok) return
     setBusy(true)
     try {
       await callApi(`/api/shops/auto-reply/rules/${id}`, { method: 'DELETE' })
@@ -424,10 +443,12 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
                     </div>
                     {canEdit && (
                       <div className="flex gap-1.5 max-sm:w-full">
-                        {/* handler ของ "แก้ไข" (เปิด sheet โหมดแก้) เป็นงาน S-05 — รอบนี้ยัง disabled */}
-                        <button type="button" disabled
+                        {/* เปิด sheet โหมดแก้ = ส่ง rule ทั้งแถวไป prefill (ไม่ใช่แค่ id)
+                            sheet จึงอ่าน adLabel เดิมได้แม้รายการโฆษณายังโหลดไม่เสร็จ (CL-8) */}
+                        <button type="button"
                           className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
-                          aria-label={`แก้ไขเงื่อนไขข้อ ${i + 1}`}>
+                          aria-label={`แก้ไขเงื่อนไขข้อ ${i + 1}`}
+                          onClick={() => { setEditingRule(r); setSheetOpen(true) }}>
                           <Icon icon="pencil" className="size-3" aria-hidden="true" />แก้ไข
                         </button>
                         <button type="button" disabled={busy}
@@ -523,8 +544,27 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
       {sheetOpen && (
         <ExceptionSheet
           keywordId={keyword.id} channels={channels} products={products}
-          onClose={() => setSheetOpen(false)}
-          onCreated={(created) => { setRules((r) => [...r, ...created]); setSheetOpen(false); router.refresh() }}
+          rule={editingRule}
+          // เคลียร์ editingRule ด้วย ไม่งั้นกด "เพิ่มเงื่อนไขเฉพาะ" ครั้งถัดไปจะเปิดเป็นโหมดแก้
+          onClose={() => { setSheetOpen(false); setEditingRule(null) }}
+          onCreated={(created) => {
+            setRules((r) => [...r, ...created]); setSheetOpen(false); setEditingRule(null); router.refresh()
+          }}
+          onUpdated={(updated) => {
+            /**
+             * บอกลำดับใหม่เมื่อความเจาะจงเปลี่ยน (เช่น เพิ่มสินค้าเข้าไป → ขึ้นไปอยู่บนกว่าเดิม)
+             * เทียบ before/after ด้วย sortExceptions ตัวเดียวกับที่เรนเดอร์บันได
+             * และใช้ specificity ที่ service ส่งกลับมา — ห้ามคำนวณเองที่ client (TFR-004)
+             */
+            const before = sortExceptions(rules).findIndex((r) => r.id === updated.id)
+            const next = rules.map((r) => (r.id === updated.id ? updated : r))
+            const after = sortExceptions(next).findIndex((r) => r.id === updated.id)
+            setRules(next); setSheetOpen(false); setEditingRule(null)
+            pacesToast.success(
+              after !== before ? `บันทึกแล้ว — ข้อนี้ย้ายไปอยู่ลำดับที่ ${after + 1}` : 'บันทึกแล้ว',
+            )
+            router.refresh()
+          }}
         />
       )}
     </>
@@ -532,25 +572,34 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   sheet เพิ่มเงื่อนไขเฉพาะ
+   sheet เพิ่ม/แก้เงื่อนไขเฉพาะ — โหมดแก้ prefill จาก rule เดิมแล้ว PATCH
    ═══════════════════════════════════════════════════════════════════ */
 function ExceptionSheet({
-  keywordId, channels, products, onClose, onCreated,
+  keywordId, channels, products, rule = null, onClose, onCreated, onUpdated,
 }: {
   keywordId: string
   channels: Channel[]
   products: Product[]
+  /** null = โหมดเพิ่ม (POST ได้หลายข้อ) · Rule = โหมดแก้ (PATCH ข้อเดียว) */
+  rule?: Rule | null
   onClose: () => void
   onCreated: (r: Rule[]) => void
+  onUpdated: (r: Rule) => void
 }) {
-  const [usePage, setUsePage] = useState(false)
-  const [useAd, setUseAd] = useState(false)
-  const [useProduct, setUseProduct] = useState(false)
-  const [channelIds, setChannelIds] = useState<string[]>([])
-  const [adIds, setAdIds] = useState<string[]>([])
-  const [productId, setProductId] = useState('')
+  // derive จาก prop ไม่ต้องมี state `mode` แยก — state ซ้อนที่ต้อง sync เองคือที่มาของบั๊ก
+  const isEdit = rule !== null
+  /**
+   * prefill ผ่าน initializer ของ useState เท่านั้น — ถ้าใช้ useEffect แล้ว setState
+   * ค่าจะกระพริบหนึ่งเฟรม และถ้า effect รันซ้ำจะทับค่าที่ user พิมพ์ไปแล้ว
+   */
+  const [usePage, setUsePage] = useState(() => rule?.shopChannelId != null)
+  const [useAd, setUseAd] = useState(() => rule?.adId != null)
+  const [useProduct, setUseProduct] = useState(() => rule?.productId != null)
+  const [channelIds, setChannelIds] = useState<string[]>(() => (rule?.shopChannelId ? [rule.shopChannelId] : []))
+  const [adIds, setAdIds] = useState<string[]>(() => (rule?.adId ? [rule.adId] : []))
+  const [productId, setProductId] = useState(() => rule?.productId ?? '')
   const [productQuery, setProductQuery] = useState('')
-  const [reply, setReply] = useState('')
+  const [reply, setReply] = useState(() => rule?.replyText ?? '')
   const [ads, setAds] = useState<Ad[] | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -564,10 +613,30 @@ function ExceptionSheet({
     }
   }
 
+  /**
+   * โหมดแก้ที่ผูกโฆษณาไว้ต้องโหลดรายการโฆษณาเองตอนเปิด — ปกติ `ads` โหลดตอนติ๊ก checkbox
+   * เท่านั้น ถ้าไม่โหลดที่นี่ ช่องโฆษณาจะกางอยู่แต่ไม่มีตัวเลือกให้เห็นเลยว่าผูกอันไหนไว้
+   * (sheet mount ใหม่ทุกครั้งที่เปิด จึงรันครั้งเดียวพอ)
+   */
+  useEffect(() => {
+    if (rule?.adId) loadAds()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const visibleProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase()
-    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products.slice(0, 12)
-  }, [products, productQuery])
+    if (q) return products.filter((p) => p.name.toLowerCase().includes(q))
+    const first = products.slice(0, 12)
+    /**
+     * ปักสินค้าที่ผูกไว้ให้เห็นเสมอ — ถ้ามันอยู่นอก 12 ตัวแรก user จะเห็นเหมือน "ยังไม่ได้เลือก"
+     * แล้วกดบันทึกทับ = เงื่อนไขสินค้าเดิมหายโดยไม่มีใครรู้ตัว
+     */
+    if (productId && !first.some((p) => p.id === productId)) {
+      const pinned = products.find((p) => p.id === productId)
+      if (pinned) return [pinned, ...first.slice(0, 11)]
+    }
+    return first
+  }, [products, productQuery, productId])
 
   /** ประโยคสรุปภาษาคน — ผู้ใช้ไม่ต้องรู้จักคำว่า specificity */
   const summary = useMemo(() => {
@@ -577,22 +646,79 @@ function ExceptionSheet({
       parts.push(names.length === 1 ? `เพจ “${names[0]}”` : `เพจ ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
     }
     if (useAd && adIds.length > 0) {
-      const names = adIds.map((id) => ads?.find((a) => a.adId === id)?.adTitle ?? id)
+      // fallback rule.adLabel ก่อนตกไปที่ id ดิบ — ไม่งั้นโหมดแก้จะโชว์เลข ad id ระหว่าง ads โหลด
+      const names = adIds.map(
+        (id) => ads?.find((a) => a.adId === id)?.adTitle ?? (id === rule?.adId ? rule.adLabel : null) ?? id,
+      )
       parts.push(names.length === 1 ? `โฆษณา “${names[0]}”` : `โฆษณา ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
     }
     if (useProduct && productId) parts.push(`สินค้า “${products.find((p) => p.id === productId)?.name}”`)
     if (parts.length === 0) return null
     return parts.join(' และ ')
-  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products])
+  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products, rule])
+
+  const pageChosen = usePage && channelIds.length > 0
+  /** จำนวนมิติที่ติ๊กจริง — ใช้บอกความเจาะจงเป็นภาษาคน (ผู้ใช้ไม่ต้องรู้จักคำว่า specificity) */
+  const dimCount =
+    (pageChosen ? 1 : 0) + (useAd && adIds.length > 0 ? 1 : 0) + (useProduct && productId ? 1 : 0)
+
+  /**
+   * CL-1: โฆษณาผูกกับเพจในโมเดลข้อมูล — service โยน AUTO_REPLY_RULE_AD_REQUIRES_CHANNEL
+   * ถ้าได้ adId มาโดยไม่มี shopChannelId ก่อนหน้านี้ canSubmit ไม่บังคับข้อนี้ จึงกดถึงได้จริง
+   * บน prod แล้วได้ 500 (mapServiceError ที่แก้ใน S-02 เป็น backstop ไม่ใช่ทางกัน)
+   */
+  const adMissingPage = useAd && !pageChosen
 
   const canSubmit =
     summary !== null && reply.trim().length > 0 && !busy &&
-    (!usePage || channelIds.length > 0) && (!useAd || adIds.length > 0)
+    (!usePage || channelIds.length > 0) && (!useAd || adIds.length > 0) && !adMissingPage
+
+  /**
+   * CL-8: ลำดับของสูตรนี้คือตัวกันบั๊ก ไม่ใช่แค่ความสวย — ต้องคืน `rule.adLabel` ก่อนเสมอเมื่อ
+   * โฆษณาไม่ได้เปลี่ยน จึงไม่พึ่ง `ads` ที่เริ่มเป็น null และโหลด lazy เลย ถ้าใช้สูตรของโหมดเพิ่ม
+   * (`ads.find(...)`) ตรง ๆ ตอน ads ยังไม่มา จะส่ง adLabel: null ไปทับชื่อเดิม แล้วชิปในบันได
+   * กลายเป็นเลข ad id ดิบ (condLabel fallback `r.adLabel ?? r.adId`)
+   * เส้นทางนี้ทดสอบอัตโนมัติไม่ได้ — dev DB ไม่มีเงื่อนไขที่มี adId และโปรเจกต์ไม่มี RTL
+   * (vitest environment: "node") จึงต้องกันด้วยรูปของโค้ด
+   */
+  function resolveAdLabel(nextAdId: string | null): string | null {
+    if (nextAdId === null) return null
+    const fromList = ads?.find((a) => a.adId === nextAdId)?.adTitle ?? null
+    if (rule && nextAdId === rule.adId) return rule.adLabel ?? fromList
+    return fromList
+  }
 
   async function submit() {
     if (!canSubmit) return
     setBusy(true)
     try {
+      if (rule !== null) {
+        /**
+         * โหมดแก้ = 1 แถวคือ 1 rule จึง PATCH เดียว ไม่วนคู่ผสมเหมือนโหมดเพิ่ม
+         * AutoReplyRuleUpdateSchema ไม่ใช่ partial (A-2) — ต้องส่งครบ 8 field ทุกครั้ง
+         * ส่งขาด key = valibot 400 · ห้ามส่ง keywordId (schema ไม่รับ service ตรึงจากแถวเดิม)
+         */
+        const nextAdId = useAd && adIds[0] ? adIds[0] : null
+        // specificity ใน response คือค่าที่ service คำนวณใหม่ — ใช้ค่านั้น ห้าม optimistic เอง
+        const updated: Rule = await callApi(`/api/shops/auto-reply/rules/${rule.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopChannelId: usePage && channelIds[0] ? channelIds[0] : null,
+            adId: nextAdId,
+            adLabel: resolveAdLabel(nextAdId),
+            productId: useProduct && productId ? productId : null,
+            replyText: reply.trim(),
+            // คงค่าเดิม — hardcode true จะเปิดกฎที่ร้านตั้งใจปิดไว้เงียบ ๆ
+            isActive: rule.isActive,
+            activeFrom: null,
+            activeUntil: null,
+          }),
+        })
+        // toast อยู่ที่ parent เพราะต้องเทียบลำดับก่อน/หลังจาก rules ทั้งชุด
+        onUpdated(updated)
+        return
+      }
       // เลือกหลายเพจ/หลายโฆษณา = สร้างเงื่อนไขเฉพาะทุกคู่ผสม (1 แถวต่อ 1 เงื่อนไข)
       const pageTargets = usePage && channelIds.length > 0 ? channelIds : [null]
       const adTargets = useAd && adIds.length > 0 ? adIds : [null]
@@ -631,8 +757,8 @@ function ExceptionSheet({
       <div className="card mb-0 flex max-h-full w-full max-w-2xl flex-col overflow-hidden">
         <div className="card-header flex items-center justify-between">
           <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-            <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
-            เพิ่มเงื่อนไขเฉพาะ
+            <Icon icon="git-branch" className="text-primary size-4.5" aria-hidden="true" />
+            {isEdit ? 'แก้เงื่อนไขเฉพาะ' : 'เพิ่มเงื่อนไขเฉพาะ'}
           </h5>
           <button onClick={onClose} className="text-default-500" aria-label="ปิด">
             <Icon icon="x" aria-hidden="true" />
@@ -650,17 +776,23 @@ function ExceptionSheet({
               มาจากเพจ
             </label>
             {usePage && (
-              // ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างเงื่อนไขเฉพาะ 2 ข้อที่ใช้คำตอบเดียวกัน
+              // โหมดเพิ่ม: ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างเงื่อนไขเฉพาะ 2 ข้อที่ใช้คำตอบเดียวกัน
               // (ตาราง AutoReplyRule เก็บ 1 แถวต่อ 1 เงื่อนไข ไม่ใช่ array ของเพจ)
+              // โหมดแก้: 1 แถว = 1 เพจ จึงเป็น form-radio (CL-5) — checkbox ที่ทำตัวเป็น radio
+              // = โกหก affordance ส่วน <select> เป็น control ชนิดใหม่ใน sheet ทำ consistency แย่ลง
               <div className="mt-2.5 space-y-1.5">
                 {channels.length === 0 && <p className="text-default-500 text-xs">ยังไม่ได้เชื่อมเพจใด</p>}
                 {channels.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
-                      type="checkbox" className="form-checkbox"
+                      type={isEdit ? 'radio' : 'checkbox'}
+                      name={isEdit ? 'ex-page' : undefined}
+                      className={isEdit ? 'form-radio rounded-full!' : 'form-checkbox'}
                       checked={channelIds.includes(c.id)}
                       onChange={(e) =>
-                        setChannelIds((prev) => (e.target.checked ? [...prev, c.id] : prev.filter((x) => x !== c.id)))
+                        setChannelIds((prev) =>
+                          isEdit ? [c.id] : e.target.checked ? [...prev, c.id] : prev.filter((x) => x !== c.id),
+                        )
                       }
                     />
                     <span className="text-default-700">{c.name}</span>
@@ -678,6 +810,15 @@ function ExceptionSheet({
                 onChange={(e) => { setUseAd(e.target.checked); if (e.target.checked) loadAds() }} />
               กดมาจากโฆษณา
             </label>
+            {/* บอกเหตุผลไว้ก่อนติ๊ก — เงื่อนไขที่ระบุโฆษณาต้องมีเพจด้วยเสมอ (CL-1) */}
+            <p className="text-default-700 mt-1 text-xs">โฆษณาผูกกับเพจ — เลือกเพจที่โฆษณานั้นวิ่งอยู่ด้วย</p>
+            {adMissingPage && (
+              // ข้อความเป็น text-default-800 · text-warning ใช้ได้แค่ที่ไอคอน (บนพื้นขาว 1.9:1)
+              <p className="text-default-800 mt-1.5 flex items-start gap-1.5 text-xs">
+                <Icon icon="alert-triangle" className="text-warning mt-0.5 size-4 flex-none" aria-hidden="true" />
+                ติ๊ก “มาจากเพจ” แล้วเลือกเพจก่อน จึงจะบันทึกเงื่อนไขที่ระบุโฆษณาได้
+              </p>
+            )}
             {useAd && (
               <div className="mt-2.5">
                 {ads === null ? (
@@ -691,9 +832,18 @@ function ExceptionSheet({
                       <label key={a.adId}
                         className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded border p-2.5 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
                         <input
-                          type="checkbox" className="form-checkbox flex-none" checked={on}
+                          type={isEdit ? 'radio' : 'checkbox'}
+                          name={isEdit ? 'ex-ad' : undefined}
+                          className={isEdit ? 'form-radio rounded-full! flex-none' : 'form-checkbox flex-none'}
+                          checked={on}
                           onChange={(e) =>
-                            setAdIds((prev) => (e.target.checked ? [...prev, a.adId] : prev.filter((x) => x !== a.adId)))
+                            setAdIds((prev) =>
+                              isEdit
+                                ? [a.adId]
+                                : e.target.checked
+                                  ? [...prev, a.adId]
+                                  : prev.filter((x) => x !== a.adId),
+                            )
                           }
                         />
                         <span className="min-w-0 flex-1">
@@ -754,17 +904,31 @@ function ExceptionSheet({
           </div>
 
           {summary && (
-            <div className="bg-primary/8 text-primary mt-3 rounded p-3 text-xs leading-relaxed">
-              คำตอบนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
-              <br />
-              ยิ่งระบุเงื่อนไขหลายอย่าง ยิ่งอยู่สูงในลำดับ และถูกเลือกก่อนข้อที่ระบุน้อยกว่า
+            <div className="bg-primary/8 text-default-800 mt-3 flex gap-2 rounded p-3 text-xs leading-relaxed">
+              <Icon icon="info-circle" className="text-primary mt-0.5 size-4 flex-none" aria-hidden="true" />
+              <span>
+                คำตอบนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
+                {/* CL-7: บอกความเจาะจงเป็นจำนวนมิติที่ติ๊ก — พูดเฉพาะตอนที่ยังเป็นความจริง
+                    เพราะสูตรจริงคือ เพจ 4 + โฆษณา 2 + สินค้า 1 ข้อที่ระบุ "แค่เพจ" หรือ
+                    "แค่สินค้า" จึงไม่ได้ถูกตรวจก่อนข้อที่ระบุแค่เพจ (เท่ากัน/ต่ำกว่า) */}
+                {dimCount >= 2 && pageChosen && (
+                  <>
+                    <br />
+                    เงื่อนไขนี้เจาะจง {dimCount} อย่าง จะถูกตรวจก่อนข้อที่ระบุแค่เพจอย่างเดียว
+                  </>
+                )}
+              </span>
             </div>
           )}
         </div>
 
+        {/* CL-4: btn-soft-default / btn-primary ไม่มีนิยามใน CSS เลย และ .btn ไม่มีพื้นหลัง
+            → ปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ ใช้ variant จริงตาม paces-component-reference §1 */}
         <div className="card-footer flex justify-end gap-2">
-          <button className="btn btn-soft-default" onClick={onClose}>ยกเลิก</button>
-          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>เพิ่มเงื่อนไขเฉพาะ</button>
+          <button className="btn bg-light text-dark hover:bg-light-hover" onClick={onClose}>ยกเลิก</button>
+          <button className="btn bg-primary hover:bg-primary-hover text-white" disabled={!canSubmit} onClick={submit}>
+            {isEdit ? 'บันทึกเงื่อนไข' : 'เพิ่มเงื่อนไขเฉพาะ'}
+          </button>
         </div>
       </div>
     </div>
