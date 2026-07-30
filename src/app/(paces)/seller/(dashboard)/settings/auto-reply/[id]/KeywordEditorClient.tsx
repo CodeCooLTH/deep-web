@@ -198,10 +198,23 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phrases: [value] }),
       })
-      if (data.added?.length) setPhrases((p) => [...p, ...data.added])
+      /**
+       * WARNING: ชื่อ field ต้องตรงกับ AddPhrasesResult ของ service เป๊ะ —
+       * `created` / `duplicateInGroup` / `emptyAfterNormalize` / `warnings[]{phrase,...}`
+       * ของเดิมอ่าน `added` / `skipped` ซึ่ง **ไม่มีจริง** ผลคือบันทึกสำเร็จ (201) แต่ชิป
+       * ไม่ขึ้นจนกว่าจะรีโหลดหน้า และเตือน "คำซ้ำ" ไม่เคยทำงานเลย (บั๊กจริง จับได้ตอนเขียน
+       * E2E 2026-07-30 — grep + tsc มองไม่เห็นเพราะ response เป็น any)
+       */
+      if (data.created?.length) setPhrases((p) => [...p, ...data.created])
       setNewPhrase('')
-      if (data.warnings?.length) pacesToast.warning(data.warnings[0])
-      else if (data.skipped?.length) pacesToast.warning('คำนี้มีอยู่ในกลุ่มนี้แล้ว')
+      if (data.warnings?.length) {
+        const w = data.warnings[0]
+        pacesToast.warning(`"${w.phrase}" ใช้อยู่ในกลุ่ม "${w.conflictKeywordName}" ด้วย`)
+      } else if (data.duplicateInGroup?.length) {
+        pacesToast.warning('คำนี้มีอยู่ในกลุ่มนี้แล้ว')
+      } else if (data.emptyAfterNormalize?.length) {
+        pacesToast.warning('คำนี้ใช้ไม่ได้ — มีแต่วรรคตอนหรือช่องว่าง')
+      }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มคำไม่สำเร็จ')
     } finally {

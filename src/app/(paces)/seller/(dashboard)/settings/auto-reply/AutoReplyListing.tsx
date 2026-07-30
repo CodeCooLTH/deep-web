@@ -32,7 +32,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import DataTable from '@/components/table/DataTable'
-import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import Icon from '@/components/wrappers/Icon'
@@ -156,7 +155,6 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
-  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [statusChip, setStatusChip] = useState('All')
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -299,12 +297,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
               <button
                 type="button"
                 className="btn btn-icon btn-sm border-default-300 text-default-800 hover:border-default-400 border"
-                onClick={() => {
-                  'use no memo'
-                  setDeletingId(row.original.id)
-                }}
-                data-hs-overlay="#confirm-delete-modal"
-                suppressHydrationWarning
+                onClick={() => confirmDelete(row.original)}
                 aria-label={`ลบ ${row.original.name}`}
               >
                 <Icon icon="trash" className="text-danger text-base" aria-hidden="true" />
@@ -349,9 +342,23 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
     table.getColumn('status')?.setFilterValue(chip === 'All' ? undefined : chip)
   }
 
-  async function handleDelete() {
-    const id = deletingId
-    if (!id) return
+  /**
+   * ลบกลุ่มคำ — ถามด้วย pacesConfirm (Swal) ไม่ใช่ Preline overlay
+   *
+   * WARNING: ของเดิมใช้ `DeleteConfirmationModal` + `data-hs-overlay` ตามหน้าสินค้า
+   * แต่กดแล้ว modal ไม่เปิดเลยบนหน้านี้ (บั๊กจริง จับได้ตอน E2E 2026-07-30 — ปุ่มลบกดแล้ว
+   * ไม่มีอะไรเกิดขึ้น) Preline ผูก data-attribute ตอน autoInit ซึ่งไม่ครอบ element ที่
+   * mount ทีหลัง. convention ของโปรเจกต์สำหรับ confirm dialog ใน (paces) คือ Swal อยู่แล้ว
+   * (ดู memory feedback_sweet_alerts_modal) และในไฟล์นี้ก็ใช้ pacesConfirm ที่อื่นแล้ว
+   */
+  async function confirmDelete(row: KeywordRow) {
+    const ok = await pacesConfirm.danger(
+      `ลบ "${row.name}"?`,
+      'คำตรวจจับและคำตอบทั้งหมดในกลุ่มนี้จะหายไปด้วย และกู้คืนไม่ได้',
+      { confirmButtonText: 'ลบกลุ่มคำ' },
+    )
+    if (!ok) return
+    const id = row.id
     try {
       const res = await fetch(`/api/shops/auto-reply/keywords/${id}`, {
         method: 'DELETE',
@@ -359,14 +366,11 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'ลบไม่สำเร็จ')
       setData((prev) => prev.filter((k) => k.id !== id))
-      setDeletingId(null)
       setPagination((p) => ({ ...p, pageIndex: 0 }))
       pacesToast.success('ลบกลุ่มคำเรียบร้อย')
       router.refresh()
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ลบไม่สำเร็จ')
-    } finally {
-      window.HSOverlay?.close('#confirm-delete-modal')
     }
   }
 
@@ -557,18 +561,6 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         </div>
       )}
 
-      <DeleteConfirmationModal
-        onConfirm={handleDelete}
-        selectedCount={1}
-        itemName="กลุ่มคำ"
-        modalTitle="ยืนยันการลบ"
-        confirmButtonText="ลบ"
-        cancelButtonText="ยกเลิก"
-      >
-        <p className="text-default-500">
-          ลบกลุ่มคำนี้แล้วคำตอบทั้งหมดในกลุ่มจะหายไปด้วย และกู้คืนไม่ได้
-        </p>
-      </DeleteConfirmationModal>
     </div>
   )
 }

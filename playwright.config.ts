@@ -17,7 +17,9 @@ export default defineConfig({
   retries: 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://seller.deepth.local:4000',
+    // E2E_BASE_URL override — เผื่อ dev server หลัก (:4000) รันจาก worktree อื่นอยู่
+    // (เจอจริง 2026-07-30: :4000 เสิร์ฟ worktree revise-ui-order-link ทำให้ route ใหม่ 404)
+    baseURL: process.env.E2E_BASE_URL ?? 'http://seller.deepth.local:4000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: 10_000,
