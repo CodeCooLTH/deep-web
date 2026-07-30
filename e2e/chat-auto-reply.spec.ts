@@ -137,13 +137,10 @@ test.describe('ตอบแชทอัตโนมัติ — เส้นท
     await expect(row.getByText('สนใจ', { exact: true })).toBeVisible()
     await expect(row.getByText('ราคาเท่าไหร่', { exact: true })).toBeVisible()
 
-    // สถานะในตารางเป็นปุ่ม 3 ค่าแบบเดียวกับหน้าแก้ไข (ไม่ใช่ dropdown อีกแล้ว)
-    const rowStatus = page.getByRole('group', { name: `สถานะของ ${KEYWORD_NAME}` })
-    await expect(rowStatus.getByRole('button')).toHaveCount(3)
-    await expect(rowStatus.getByRole('button', { name: 'ตอบลูกค้าจริง' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    // สถานะในตารางเป็นป้ายอ่านอย่างเดียว — บอกสถานะปัจจุบัน ไม่ใช่สวิตช์ (S-15, user 2026-07-30)
+    await expect(row.getByText('ตอบลูกค้าจริง', { exact: true })).toBeVisible()
+    // regression: ห้ามมี control เปลี่ยนสถานะกลับมาในตาราง (เปลี่ยนได้ที่หน้าแก้ไขที่เดียว)
+    await expect(page.getByRole('group', { name: `สถานะของ ${KEYWORD_NAME}` })).toHaveCount(0)
 
     // ── 8) ลบ ──────────────────────────────────────────────────────
     await row.getByRole('button', { name: `ลบ ${KEYWORD_NAME}` }).click()
