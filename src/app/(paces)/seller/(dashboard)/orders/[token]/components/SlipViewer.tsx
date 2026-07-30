@@ -42,7 +42,8 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-default-400 border border-dashed border-default-300 rounded-xl">
         <Icon icon="photo-off" className="text-3xl" />
-        <p className="text-xs">ไม่สามารถโหลดสลิปได้</p>
+        <p className="text-xs">โหลดสลิปไม่สำเร็จ</p>
+        <p className="text-2xs">ลองรีเฟรชหน้า หรือขอให้ผู้ซื้อส่งสลิปใหม่</p>
       </div>
     )
   }

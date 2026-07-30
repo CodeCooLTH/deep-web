@@ -25,9 +25,15 @@ interface Props {
   /** token ของคำสั่งซื้อ — endpoint สร้างพัสดุรับ token ได้โดยตรง */
   orderToken: string
   context: ShipmentContextJson
+  /**
+   * bare = ไม่ห่อการ์ด/หัวการ์ดของตัวเอง (ผู้เรียกมีการ์ดอยู่แล้ว)
+   * ใช้เมื่อถูก render ข้างใน ShippingCard ซึ่งเป็นการ์ด "การจัดส่ง" ตัวจริง —
+   * ไม่งั้นได้การ์ดซ้อนการ์ด (DESIGN.md §6 ห้าม)
+   */
+  bare?: boolean
 }
 
-export default function ShipmentPanel({ orderToken, context }: Props) {
+export default function ShipmentPanel({ orderToken, context, bare = false }: Props) {
   const router = useRouter()
   const { couriers, error: couriersError } = useIShipCouriers(!context.blockedBy)
   // shipment ที่เพิ่งสร้าง/ลองใหม่ในรอบนี้ — แสดงผลทันทีโดยไม่รอ router.refresh()
@@ -40,16 +46,8 @@ export default function ShipmentPanel({ orderToken, context }: Props) {
     router.refresh()
   }
 
-  return (
-    <div className="card">
-      <div className="card-header">
-        <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
-          <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
-          การจัดส่ง
-        </h5>
-      </div>
-
-      {/* ไม่ใช้ card-body เพราะเนื้อในมีเส้นคั่นเต็มความกว้างระหว่างบล็อก (padding อยู่ในแต่ละบล็อก) */}
+  const body = (
+    <>
       {context.blockedBy ? (
         <div className="p-4">
           <SenderIncompleteNotice
@@ -79,6 +77,21 @@ export default function ShipmentPanel({ orderToken, context }: Props) {
           onExists={() => router.refresh()}
         />
       )}
+    </>
+  )
+
+  if (bare) return body
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
+          <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
+          การจัดส่ง
+        </h5>
+      </div>
+      {/* ไม่ใช้ card-body เพราะเนื้อในมีเส้นคั่นเต็มความกว้างระหว่างบล็อก (padding อยู่ในแต่ละบล็อก) */}
+      {body}
     </div>
   )
 }
