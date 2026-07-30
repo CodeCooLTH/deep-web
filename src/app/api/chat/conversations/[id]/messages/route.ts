@@ -7,7 +7,7 @@ import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
-import { sendOutboundMessage } from "@/services/channel-chat.service";
+import { sendOutboundMessage, syncMissingMessagesFromMeta } from "@/services/channel-chat.service";
 import { getProductsByIds } from "@/services/product.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
 import { CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS } from "@/lib/chat-constants";
@@ -86,6 +86,14 @@ export async function GET(
   }
 
   try {
+    // เติมข้อความที่ webhook ไม่เคยส่งมา (ตอบกลับอัตโนมัติของ Meta — ดู syncMissingMessagesFromMeta)
+    // ทำก่อน getMessages เพื่อให้ข้อความที่เพิ่งเติมโผล่ในรอบเดียวกันเลย ไม่ต้องรอ poll รอบหน้า
+    // เฉพาะการโหลดหน้าแรก (ไม่มี cursor) — เลื่อนดูประวัติย้อนหลังไม่ต้อง sync ซ้ำ
+    // ฟังก์ชันไม่ throw และมี throttle ในตัว จึงไม่ต้องห่อ try เพิ่มและไม่ถ่วงทุกครั้งที่ poll
+    if (!parsed.output.cursor) {
+      await syncMissingMessagesFromMeta(id);
+    }
+
     const result = await getMessages(id, userId, {
       cursor: parsed.output.cursor,
       take: parsed.output.take,

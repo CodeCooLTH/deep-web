@@ -32,6 +32,30 @@ export interface PacesToastDetail {
   message: string
   duration: number
   placement: PacesToastPlacement
+  /** payload ของ toast แจ้งข้อความใหม่ — มีเฉพาะตอนเรียกผ่าน pacesToast.chat.message() */
+  chatMessage?: ChatMessageToastPayload
+}
+
+/**
+ * ChatMessageToastPayload — toast แจ้ง "มีข้อความใหม่" หน้าตาแบบ notification ของ Facebook
+ * (user request 2026-07-29): รูปผู้ส่ง + ชื่อผู้ส่ง + ข้อความ / โลโก้ช่องทาง + ชื่อเพจ
+ *
+ * แยกเป็น payload ต่างหากแทนที่จะยัดทุกอย่างเป็น string ใน `message` เพราะ toast นี้มีลำดับชั้น
+ * ของข้อมูล (ชื่อหนา ข้อความธรรมดา บรรทัดรอง) + รูป + ปลายทางที่กดไป — ประกอบเป็น string ไม่ได้
+ *
+ * `message` ของ detail ยังถูกเซ็ตไว้เป็นข้อความสำรอง เพื่อให้ผู้อ่านหน้าจอ (aria-live) ได้ยิน
+ * ข้อความเดียวจบ และกันกรณี component ใหม่พังจนต้อง fallback
+ */
+export interface ChatMessageToastPayload {
+  conversationId: string
+  senderName: string
+  senderAvatarUrl: string | null
+  /** ข้อความล่าสุด — null ได้ (เช่นลูกค้าส่งรูปอย่างเดียว) UI แสดงข้อความแทนที่เหมาะสมเอง */
+  preview: string | null
+  /** "DEEP" | "MESSENGER" | "INSTAGRAM" — ใช้เลือกโลโก้ช่องทาง */
+  channel: string
+  /** ชื่อเพจ/บัญชีที่ลูกค้าทักเข้ามา — null เมื่อเป็นแชทในเว็บ Deep */
+  channelName: string | null
 }
 
 /** ชื่อ CustomEvent ที่ PacesToastContainer subscribe */
@@ -39,7 +63,16 @@ export const PACES_TOAST_EVENT = 'paces:toast'
 
 const DEFAULT_DURATION = 3000
 
-function emit(type: PacesToastType, message: string, options?: PacesToastOptions) {
+/** toast แจ้งข้อความใหม่มีให้อ่านมากกว่า alert ปกติ — 10 วิ (user ปรับจาก 8 วิ 2026-07-29:
+ *  ต้องทันเห็นตอนกำลังทำอย่างอื่นอยู่คนละหน้า) เลื่อนเมาส์ทับแล้วหยุดนับต่อได้อยู่แล้ว */
+const CHAT_MESSAGE_DURATION = 10000
+
+function emit(
+  type: PacesToastType,
+  message: string,
+  options?: PacesToastOptions,
+  chatMessage?: ChatMessageToastPayload,
+) {
   // SSR guard — helper ถูก import ใน client component แต่กันไว้กรณีเรียกตอน prerender
   if (typeof window === 'undefined') return
 
@@ -48,6 +81,7 @@ function emit(type: PacesToastType, message: string, options?: PacesToastOptions
     message,
     duration: options?.duration ?? DEFAULT_DURATION,
     placement: options?.placement ?? 'top-right',
+    ...(chatMessage ? { chatMessage } : {}),
   }
   window.dispatchEvent(new CustomEvent<PacesToastDetail>(PACES_TOAST_EVENT, { detail }))
 }
@@ -72,5 +106,16 @@ export const pacesToast = {
     error: (message: string, options?: PacesToastOptions) => chatEmit('error', message, options),
     warning: (message: string, options?: PacesToastOptions) => chatEmit('warning', message, options),
     info: (message: string, options?: PacesToastOptions) => chatEmit('info', message, options),
+    /**
+     * toast แจ้งข้อความใหม่หน้าตาแบบ notification (รูป+ชื่อ+ข้อความ+ช่องทาง)
+     * `message` ที่ส่งเข้า detail = ข้อความสำหรับผู้อ่านหน้าจอ/ตัวสำรอง
+     */
+    message: (payload: ChatMessageToastPayload, options?: PacesToastOptions) =>
+      emit(
+        'info',
+        `${payload.senderName} ส่งข้อความถึงคุณ: ${payload.preview ?? 'ส่งไฟล์แนบ'}`,
+        { duration: CHAT_MESSAGE_DURATION, ...options, placement: 'bottom-right' },
+        payload,
+      ),
   },
 }

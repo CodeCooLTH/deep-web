@@ -15,6 +15,7 @@
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
+import { ORDER_STATUS_META } from '@/lib/order-display'
 
 // actor ที่รับผิดชอบแต่ละ step (SafePay ไม่มี per-event user record → label ธรรมดา)
 const STEP_ACTOR: Record<string, string> = {
@@ -26,29 +27,40 @@ const STEP_ACTOR: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, { title: string; description: string; icon: string; done: boolean }> = {
   PENDING: {
-    title: 'สร้างออเดอร์แล้ว',
-    description: 'ออเดอร์ถูกสร้างโดย seller รอผู้ซื้อยืนยัน',
+    title: 'สร้างคำสั่งซื้อแล้ว',
+    description: 'ผู้ขายสร้างคำสั่งซื้อแล้ว รอผู้ซื้อยืนยัน',
     icon: 'file-plus',
     done: true,
   },
   SHIPPED: {
     title: 'จัดส่งแล้ว',
-    description: 'สินค้าถูกส่งออกจาก seller แล้ว',
+    description: 'ผู้ขายส่งสินค้าออกแล้ว',
     icon: 'truck',
     done: true,
   },
   CONFIRMED: {
-    title: 'ออเดอร์สำเร็จ',
+    title: 'คำสั่งซื้อสำเร็จ',
     description: 'ผู้ซื้อยืนยันรับสินค้า/บริการเรียบร้อย',
     icon: 'circle-check-filled',
     done: true,
   },
   CANCELLED: {
     title: 'ยกเลิกแล้ว',
-    description: 'ออเดอร์ถูกยกเลิก',
+    description: 'คำสั่งซื้อถูกยกเลิก',
     icon: 'circle-x',
     done: false,
   },
+}
+
+/**
+ * tone (จาก ORDER_STATUS_META) → class ของวงกลม dashed + icon
+ * ต้องเขียน class เต็มแบบ static — Tailwind สแกน source ตรง ๆ `border-${tone}` จะไม่ถูก generate
+ */
+const TONE_ACCENT: Record<string, { ring: string; icon: string }> = {
+  warning: { ring: 'border-warning', icon: 'text-warning' },
+  info: { ring: 'border-info', icon: 'text-info' },
+  success: { ring: 'border-success', icon: 'text-success' },
+  danger: { ring: 'border-danger', icon: 'text-danger' },
 }
 
 // ลำดับ state ตาม state machine ใหม่ (CANCELLED ไม่อยู่ใน flow ปกติ)
@@ -60,6 +72,12 @@ export type ShippingActivityData = {
   /** fulfillmentMode snapshot — ใช้กำหนด SHIPPED step visibility (spec §2) */
   fulfillmentMode: string
   createdAtISO: string
+  /**
+   * เวลาที่ออเดอร์เปลี่ยนสถานะล่าสุด — ใช้เป็นเวลาของ step ปัจจุบัน
+   * เดิม step หลังจาก "สร้างออเดอร์" ไม่มีเวลาเลย (เช่น "จัดส่งแล้ว" ลอย ๆ ไม่รู้ส่งวันไหน)
+   * ยังไม่ใช่ timestamp ต่อ event จริง (schema ไม่มี) — เป็นค่าที่ใกล้เคียงที่สุดที่มี
+   */
+  updatedAtISO: string
   shipmentTracking?: {
     provider: string
     trackingNo: string
@@ -71,7 +89,7 @@ interface ShippingActivityProps {
 }
 
 const ShippingActivity = ({ data }: ShippingActivityProps) => {
-  const { status, fulfillmentMode, createdAtISO, shipmentTracking } = data
+  const { status, fulfillmentMode, createdAtISO, updatedAtISO, shipmentTracking } = data
 
   // สร้าง timeline จาก state machine
   // ถ้า fulfillmentMode=NO_SHIPPING ไม่มี SHIPPED step — ตัดออก (spec §3 ShippingActivity)
@@ -117,6 +135,8 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
       icon: cancelled.icon,
       isDone: false,
       isPending: false,
+      // เวลายกเลิก = ครั้งสุดท้ายที่ออเดอร์ถูกแตะ
+      time: formatDateTime(updatedAtISO),
     })
   } else {
     visibleFlow.forEach((stepKey, idx) => {
@@ -134,7 +154,14 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
         icon: meta.icon,
         isDone,
         isPending,
-        time: idx === 0 ? formatDateTime(createdAtISO) : undefined,
+        // step แรก = เวลาสร้าง; step ปัจจุบันที่ไม่ใช่ step แรก = เวลาเปลี่ยนสถานะล่าสุด
+        // (step ที่ผ่านมาแล้วตรงกลางยังไม่มีเวลา — schema ไม่ได้เก็บ timestamp ต่อ event)
+        time:
+          idx === 0
+            ? formatDateTime(createdAtISO)
+            : idx === currentIdx
+              ? formatDateTime(updatedAtISO)
+              : undefined,
       })
     })
   }
@@ -142,7 +169,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">ประวัติสถานะออเดอร์</h4>
+        <h4 className="card-title">ประวัติสถานะคำสั่งซื้อ</h4>
       </div>
       <div className="card-body p-5 sm:p-7.5">
         {timelineItems.length === 0 ? (
@@ -152,31 +179,32 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
             {timelineItems.map((item, idx) => {
               const isLast = idx === timelineItems.length - 1
 
-              // สี dashed-circle + icon ตาม state (สอดคล้องกับ badge สี)
-              // CANCELLED=danger, pending(ยังไม่ถึง)=default-300, SHIPPED active=primary(น้ำเงิน), done อื่น=success
-              const accent =
-                item.key === 'CANCELLED'
-                  ? { ring: 'border-danger', icon: 'text-danger' }
-                  : item.isPending
-                    ? { ring: 'border-default-300', icon: 'text-default-300' }
-                    : item.key === 'SHIPPED'
-                      ? { ring: 'border-primary', icon: 'text-primary' }
-                      : { ring: 'border-success', icon: 'text-success' }
+              // ── สี/ป้ายของแต่ละ step ───────────────────────────────────────────
+              // เดิม hardcode map ซ้อนขึ้นมาเองที่นี่ ทำให้สถานะเดียวกันคนละสีกับ badge ใน
+              // StatusHero บนหน้าจอเดียวกัน (SHIPPED: ฟ้า vs น้ำเงิน) และ PENDING ขึ้นเขียวทั้งที่
+              // ออเดอร์ยังไม่จบ (เขียว = "ยืนยันแล้ว" เท่านั้น) → ยึด ORDER_STATUS_META เป็น SSOT
+              //
+              // step ที่ผ่านไปแล้ว = เขียว (เสร็จจริง) · step ปัจจุบัน = สีตามสถานะจาก SSOT
+              // · step ที่ยังไม่ถึง = neutral
+              const meta = ORDER_STATUS_META[item.key]
+              const isCurrent = !item.isPending && item.key === status
 
-              // badge label + สี ต่อ state — pending ระบุ step ที่รอให้ชัด (รอจัดส่ง/รอยืนยัน)
-              const badge =
-                item.key === 'CANCELLED'
-                  ? { label: 'ยกเลิก', className: 'bg-danger/15 text-danger' }
-                  : item.isPending
-                    ? {
-                        label: item.key === 'SHIPPED' ? 'รอจัดส่ง' : item.key === 'CONFIRMED' ? 'รอยืนยัน' : 'รอ',
-                        className: 'bg-default-100 text-default-400',
-                      }
-                    : item.key === 'SHIPPED'
-                      ? { label: 'กำลังส่ง', className: 'bg-primary/15 text-primary' }
-                      : item.key === 'PENDING'
-                        ? { label: 'สร้างแล้ว', className: 'bg-success/15 text-success' }
-                        : { label: 'สำเร็จ', className: 'bg-success/15 text-success' }
+              const accent = item.isPending
+                ? { ring: 'border-default-300', icon: 'text-default-300' }
+                : isCurrent
+                  ? TONE_ACCENT[meta?.tone ?? 'success']
+                  : TONE_ACCENT.success
+
+              // badge: step ปัจจุบันใช้ label+สีชุดเดียวกับ StatusHero เป๊ะ ๆ
+              // step ที่ผ่านแล้วบอกแค่ "เสร็จแล้ว" (ไม่แย่งสายตากับสถานะปัจจุบัน)
+              const badge = item.isPending
+                ? {
+                    label: item.key === 'SHIPPED' ? 'รอจัดส่ง' : item.key === 'CONFIRMED' ? 'รอยืนยัน' : 'รอ',
+                    className: 'bg-default-100 text-default-400',
+                  }
+                : isCurrent && meta
+                  ? { label: meta.label, className: meta.cls }
+                  : { label: 'เสร็จแล้ว', className: 'bg-success/15 text-success' }
 
               // actor: แสดงเฉพาะ step ที่เกิดขึ้นแล้ว (ไม่แสดงบน step ที่ยังไม่ถึง)
               const actor = item.isPending ? null : STEP_ACTOR[item.key]

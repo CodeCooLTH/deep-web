@@ -14,6 +14,11 @@
 import type { ActivityItem } from '@/services/activity.service'
 export type { ActivityItem }
 
+// ─── Business Package (แถบแพ็กเกจร้านค้าบนมือถือ — Row 3 ของ CompactHero) ────
+// import type จาก lib/business-package (pure module, client-safe) — ไม่ใช่ tierName (trust tier คนละเรื่อง)
+import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
+export type { BusinessPackageStatusApp, BusinessPackageTier }
+
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
 // Phase 2: Promo model + admin CRUD + dynamic banner ค่อยเพิ่ม
 export type PromoBanner = {
@@ -57,6 +62,13 @@ export type CommandCenterData = {
   // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวัน (เดือนปัจจุบัน) สำหรับการ์ด mini + full sheet
   // null/undefined = fetch ล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide ไม่ใช่ error state บน command center)
   salesSeries?: SalesSeries | null
+  // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — ตั้งชื่อ packageStatus/packageTier
+  // (ไม่ใช่ tier/tierLabel เปล่า ๆ) กันชนกับ tierName (trust tier ด้านบน — คนละเรื่อง)
+  // มิเรอร์ businessPackageStatus/businessPackageTier ใน (dashboard)/layout.tsx
+  packageStatus?: BusinessPackageStatusApp
+  packageTier?: BusinessPackageTier | null
+  // canManage: เฉพาะ OWNER ที่กดไปหน้าจัดการแพ็กเกจได้ (คนอื่นเห็นข้อมูลแต่ไม่มีลิงก์)
+  packageCanManage?: boolean
 }
 
 // ─── SalesSeries (Sales Chart) ───────────────────────────────────────────────

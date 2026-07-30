@@ -84,13 +84,24 @@ interface Box {
   width: number
   length: number
   height: number
+  /** null = กล่องมาตรฐานของ iShip · มีค่า = กล่องที่ร้านสร้างเองบนหลังบ้าน iShip
+   *  (ชื่อ snake_case ตามที่ iShip คืนมา — route ส่งต่อ response ดิบ ไม่ได้แปลงชื่อ) */
+  user_id?: number | null
 }
 
 // ─── โหมดการสร้างพัสดุ ───────────────────────────────────────────────────────
 // คำอธิบายใต้ตัวเลือกบอก "จะเกิดอะไรขึ้นจริง ๆ" ไม่ใช่แค่ชื่อโหมด — เพราะเลือกผิด
 // แล้วผลคือเงินจริงของร้าน (FR-ISHIP-012)
 
+// เรียง "ปิดไว้ก่อน" ขึ้นก่อน เพราะเป็นค่าเริ่มต้นของร้านใหม่ — ตัวเลือกที่ร้านใช้อยู่
+// ควรอยู่ตำแหน่งแรกที่ตามอง ไม่ใช่ต้องไล่หาท้ายสุด
 const CREATE_MODES = [
+  {
+    value: 'OFF',
+    label: 'ปิดไว้ก่อน',
+    hint: 'ไม่ทำอะไรอัตโนมัติ กดสร้างพัสดุเองได้จากหน้ารายละเอียดคำสั่งซื้อและหน้าแชท',
+    icon: 'player-pause',
+  },
   {
     value: 'ASK',
     label: 'ถามทุกครั้ง',
@@ -102,12 +113,6 @@ const CREATE_MODES = [
     label: 'สร้างพัสดุอัตโนมัติ',
     hint: 'เปิดพัสดุให้ทันทีที่บันทึกคำสั่งซื้อที่เข้าเงื่อนไข โดยไม่ถาม — มีค่าใช้จ่ายจริงทุกครั้ง',
     icon: 'bolt',
-  },
-  {
-    value: 'OFF',
-    label: 'ปิดไว้ก่อน',
-    hint: 'ไม่ทำอะไรอัตโนมัติ กดสร้างพัสดุเองได้จากหน้ารายละเอียดคำสั่งซื้อ',
-    icon: 'player-pause',
   },
 ]
 
@@ -240,6 +245,10 @@ export default function ShippingSettingsRow({
   // ที่อยู่ผู้ส่ง — เลือกจากชุดข้อมูล (ไม่พิมพ์เอง)
   const [addrOpen, setAddrOpen] = useState(false)
   const addrTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // กล่องของร้าน (สร้างเองบน iShip) vs กล่องมาตรฐาน — iShip แยกด้วย user_id
+  const ownBoxes = boxes.filter((b) => b.user_id != null)
+  const standardBoxes = boxes.filter((b) => b.user_id == null)
 
   const isActive = connection.connected && connection.status !== 'TOKEN_INVALID'
   const hasSenderLocality = !!(
@@ -884,7 +893,10 @@ export default function ShippingSettingsRow({
                 </select>
               </div>
 
-              {/* เลือกกล่องมาตรฐานแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง */}
+              {/* เลือกกล่องแล้วเติมขนาดให้ทั้ง 3 ช่องพร้อมกัน — เร็วกว่าให้กรอกเอง
+                  แยกกลุ่มให้กล่องของร้านขึ้นก่อน: กล่องมาตรฐานมี ~24 ใบ ถ้าเรียงรวมกัน
+                  กล่องที่ร้านสร้างเองจะไปกองท้ายสุดจนร้านนึกว่าไม่มี (user report 2026-07-29)
+                  ร้านที่ยังไม่เคยสร้างกล่องเองจะเห็นลิสต์เรียบเหมือนเดิม ไม่มี label ลอยเปล่า ๆ */}
               <div className="sm:col-span-2">
                 <label className="form-label" htmlFor="iship-box">กล่องที่ใช้ประจำ</label>
                 <select id="iship-box" className="form-select" defaultValue=""
@@ -893,12 +905,37 @@ export default function ShippingSettingsRow({
                     if (box) patch({ defaultWidth: box.width, defaultLength: box.length, defaultHeight: box.height })
                   }}>
                   <option value="">เลือกเพื่อเติมขนาดให้อัตโนมัติ (หรือกรอกเองด้านล่าง)</option>
-                  {boxes.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} — {b.width}x{b.length}x{b.height} ซม.
-                    </option>
-                  ))}
+                  {ownBoxes.length > 0 ? (
+                    <>
+                      <optgroup label="กล่องของร้าน">
+                        {ownBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="กล่องมาตรฐาน iShip">
+                        {standardBoxes.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : (
+                    standardBoxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — {b.width}x{b.length}x{b.height} ซม.
+                      </option>
+                    ))
+                  )}
                 </select>
+                {/* ไม่พูดถึง "กรอกขนาดเองด้านล่าง" ซ้ำ — placeholder ในตัว select บอกไปแล้ว
+                    เหลือเฉพาะเรื่องที่ select บอกเองไม่ได้: กล่องใหม่ต้องไปเพิ่มที่ iShip
+                    (เราไม่รองรับการสร้างกล่อง และ iShip ก็ไม่มี endpoint ให้สร้างด้วย) */}
+                <p className="mb-0 mt-1 text-xs text-default-400">
+                  เพิ่มกล่องใหม่ได้ที่ระบบ iShip
+                </p>
               </div>
 
               <div>

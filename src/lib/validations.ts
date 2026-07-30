@@ -797,6 +797,12 @@ export const QuickMessageCreateSchema = v.pipe(
 );
 export const QuickMessageUpdateSchema = QuickMessageCreateSchema;
 
+// จัดลำดับข้อความสำเร็จรูป (user request 2026-07-30) — ส่ง id ทั้งชุดตามลำดับใหม่
+// cap 500: ป้องกัน payload ยาวผิดปกติมาสั่ง transaction ใหญ่ (ร้านจริงมีหลักสิบ)
+export const QuickMessageReorderSchema = v.object({
+  orderedIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1), v.maxLength(500)),
+});
+
 // ── feature 00018 CRM/tag ต่อผู้ติดต่อ ─────────────────────────────────────────
 // PATCH partial — ทุกฟิลด์ optional (omit = ไม่แตะ). alias→Conversation, ที่เหลือ→ExternalContact
 export const ChatCrmPatchSchema = v.object({
@@ -961,15 +967,31 @@ export const SetHousekeepingStatusSchema = v.object({
 });
 
 // ── feature 00019 AI Reply Assistant ─────────────────────────────────────────
-// body ของ PUT /api/shops/ai-settings — full replace ไม่ใช่ partial patch (API.md §4.2)
+// body ของ PUT /api/shops/ai-settings
 // instruction ≤2000 ตัวอักษร (BR-AI-03) ส่งค่าว่างเพื่อล้างคำสั่งได้
+//
+// feature 00019 ext (2026-07-29): 3 ฟิลด์บริบทเป็น optional — **ไม่ส่งมา = "ไม่เปลี่ยนค่าเดิม"**
+// (service เติมจากค่า stored ให้เอง) ไม่ใช่ full-replace แบบเดิมอีกต่อไป เพราะ:
+//   1. ร้าน non-paid ถูก gate ห้ามเปลี่ยน 3 ฟิลด์นี้ (FR-AIQ-10) client จึงส่งมาแค่ instruction
+//      ถ้ายังบังคับ required ที่นี่ จะ 400 ตั้งแต่ชั้น validate ก่อนถึง gate → ร้าน non-paid
+//      แก้ "คำสั่งประจำร้าน" ไม่ได้เลย ทั้งที่ BR-AIQ-13 บอกว่าช่องนี้ไม่ถูก gate
+//   2. default `true` แบบเดิมของ includeMediaContext อันตรายกว่า: client ที่ไม่ส่ง field มา
+//      จะถูกเขียนทับเป็นเปิด ทั้งที่ร้านอาจตั้งใจปิดไว้ (ไฟล์ลูกค้าเข้า AI ทั้งไฟล์) — fallback
+//      ไปค่า stored ปลอดภัยกว่าและยังไม่ 400 กับ client เก่าเหมือนเดิม
+// feature 00019 ext (2026-07-29) — body ของ POST /api/chat/conversations/{id}/ai-suggest
+// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเครดิต ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
+// input ตัวนี้ทำให้ "เงินจริงถูกหัก" จึงต้องเป็น boolean แท้เท่านั้น — ค่าอื่น (string "true",
+// object, array) ต้องตกเป็น false ไม่ใช่ตีความเป็น truthy
+export const AiSuggestRequestSchema = v.object({
+  confirmUseCredit: v.optional(v.boolean(), false),
+});
+
 export const ShopAiSettingSchema = v.object({
   instruction: v.pipe(v.string(), v.maxLength(2000, "คำสั่งประจำร้านต้องไม่เกิน 2,000 ตัวอักษร")),
-  includeProductContext: v.boolean(),
-  includeCustomerContext: v.boolean(),
+  includeProductContext: v.optional(v.boolean()),
+  includeCustomerContext: v.optional(v.boolean()),
   // feature 00019 ext (user 2026-07-24): ให้ AI อ่านรูป/ฟังข้อความเสียงในแชท
-  // optional + default true — client เวอร์ชันเก่าที่ยังไม่ส่ง field นี้ต้องบันทึกได้ (ไม่ 400)
-  includeMediaContext: v.optional(v.boolean(), true),
+  includeMediaContext: v.optional(v.boolean()),
 });
 
 // ── feature 00018 — ยืนยันเลือกเพจที่จะเชื่อม (POST /api/channels/facebook/confirm) ──────
@@ -1113,3 +1135,103 @@ export const IShipPickupSchema = v.object({
   parcelCount: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
   remark: v.nullish(shortText(255)),
 });
+
+// ── feature 00023 Chat Auto-Reply ───────────────────────────────────────────
+// SSOT: docs/20 - Features/00023 - Chat Auto-Reply/{API.md, DATABASE.md §3.8}
+//
+// WARNING: ห้ามรับ `specificity` จาก client เด็ดขาด — เป็น invariant ที่ service คำนวณเอง
+// ด้วย computeSpecificity() ทุกครั้งที่เขียน ถ้าเปิดให้ส่งมาได้ ลำดับการเลือกกฎจะเพี้ยน
+// โดยไม่มีใครรู้ตัว (ดู DATABASE.md §3.4)
+
+/**
+ * ค่าตั้งระดับร้าน — route รับเป็น **partial** แล้ว merge กับค่าปัจจุบันฝั่ง server
+ * เพราะ UI มีทั้งการกดสวิตช์ตัวเดียว (ส่งมาแค่ isEnabled) และการบันทึกฟอร์มเต็ม
+ * ถ้าบังคับส่งครบทุกครั้ง การกดสวิตช์จะต้องพก state ทั้งก้อนไปด้วย ซึ่งเสี่ยงเขียนทับค่าที่
+ * คนอื่นเพิ่งแก้ในแท็บอื่น
+ */
+export const AutoReplyConfigPatchSchema = v.partial(
+  v.object({
+  isEnabled: v.boolean(),
+  humanTakeoverPauseMode: v.picklist(['30M', '2H', 'MANUAL', 'UNTIL_RESOLVED']),
+  keywordCooldownSec: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(86_400)),
+  maxRepliesPerConversation: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
+  adsContextMode: v.picklist(['UNTIL_RESOLVED', 'HOURS', 'UNTIL_NEW_PRODUCT']),
+  adsContextHours: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(720))),
+    handoffPhrases: v.pipe(v.array(v.pipe(v.string(), v.trim(), v.maxLength(100))), v.maxLength(50)),
+  }),
+)
+
+export const AutoReplyKeywordCreateSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.minLength(1, 'ต้องระบุชื่อกลุ่มคำ'), v.maxLength(100)),
+  matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
+  priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
+})
+
+export const AutoReplyKeywordUpdateSchema = v.object({
+  name: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
+  matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
+  priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
+  // OFFLINE ไม่ตอบใครเลย · TEST ตอบเฉพาะเธรดที่ผูกไว้กับกลุ่มนี้ · LIVE ตอบทุกเธรด
+  status: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
+})
+
+export const AutoReplyPhrasesSchema = v.object({
+  phrases: v.pipe(
+    v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),
+    v.minLength(1, 'ต้องระบุคำตรวจจับอย่างน้อย 1 คำ'),
+    v.maxLength(50),
+  ),
+})
+
+/** คำตอบยาวสุด — Meta จำกัดข้อความ 2000 ตัวอักษร เผื่อไว้ที่ 1000 ให้อ่านง่ายในแชท */
+const REPLY_TEXT_MAX = 1000
+
+export const AutoReplyRuleCreateSchema = v.object({
+  keywordId: v.nullable(v.string()),
+  shopChannelId: v.nullable(v.string()),
+  adId: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(64))),
+  adLabel: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(100))),
+  productId: v.nullable(v.string()),
+  replyText: v.pipe(v.string(), v.trim(), v.minLength(1, 'คำตอบต้องไม่ว่าง'), v.maxLength(REPLY_TEXT_MAX)),
+  isActive: v.optional(v.boolean()),
+  activeFrom: v.nullable(v.string()),
+  activeUntil: v.nullable(v.string()),
+})
+
+/**
+ * แก้กฎ = full replace ของเงื่อนไข/คำตอบ (ไม่ใช่ partial) และ **ไม่รับ keywordId**
+ * เพราะ service ตรึงกลุ่มคำไว้ตั้งแต่สร้าง (AutoReplyRuleUpdateInput = Omit<Input,'keywordId'>)
+ * เหตุผล: ถ้าย้ายกลุ่มได้ specificity/ระดับการเลือกจะเปลี่ยนความหมายทั้งชุดโดยไม่มี error ให้เห็น
+ */
+export const AutoReplyRuleUpdateSchema = v.object({
+  shopChannelId: v.nullable(v.string()),
+  adId: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(64))),
+  adLabel: v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(100))),
+  productId: v.nullable(v.string()),
+  replyText: v.pipe(v.string(), v.trim(), v.minLength(1, 'คำตอบต้องไม่ว่าง'), v.maxLength(REPLY_TEXT_MAX)),
+  isActive: v.boolean(),
+  activeFrom: v.nullable(v.string()),
+  activeUntil: v.nullable(v.string()),
+})
+
+/** หน้าทดสอบกฎ (FR-020) — ไม่ส่งจริง ไม่บันทึก */
+export const AutoReplySimulateSchema = v.object({
+  message: v.pipe(v.string(), v.minLength(1, 'ต้องระบุข้อความลูกค้า'), v.maxLength(2000)),
+  shopChannelId: v.nullable(v.optional(v.string())),
+  adId: v.nullable(v.optional(v.string())),
+  productId: v.nullable(v.optional(v.string())),
+})
+
+/** เธรดที่ใช้ทดสอบของกลุ่มคำหนึ่ง ๆ (แทนโหมดทดสอบระดับร้านเดิม — user 2026-07-29) */
+export const AutoReplyTestThreadSchema = v.object({
+  conversationId: v.string(),
+  /** AC-021-06: UI ต้องให้ผู้ใช้ยืนยันก่อน เพราะข้อความจะถูกส่งถึงคนจริง — API บังคับ flag นี้ */
+  confirmed: v.literal(true, 'ต้องยืนยันก่อนเพิ่มเธรดเข้าโหมดทดสอบ'),
+})
+
+export const ConversationAutoReplyPatchSchema = v.object({
+  autoReplyEnabled: v.optional(v.nullable(v.boolean())),
+  clearPause: v.optional(v.boolean()),
+  clearHandoff: v.optional(v.boolean()),
+  contextProductId: v.optional(v.nullable(v.string())),
+})

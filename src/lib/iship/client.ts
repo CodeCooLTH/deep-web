@@ -52,6 +52,13 @@ export interface IShipBox {
   length: number;
   height: number;
   unit: string;
+  /**
+   * null = กล่องมาตรฐานของ iShip · มีค่า = กล่องที่บัญชีร้านนั้นสร้างเองบนหลังบ้าน iShip
+   *
+   * ต้องส่งต่อถึงหน้าจอ ไม่ตัดทิ้ง — กล่องมาตรฐานมี ~24 ใบ ถ้าไม่แยกกลุ่ม กล่องของร้าน
+   * จะไปกองท้ายสุดจนร้านนึกว่าไม่มี (user report 2026-07-29)
+   */
+  user_id?: number | null;
 }
 
 export interface IShipPrice {
@@ -162,7 +169,8 @@ function unwrap<T>(body: unknown, httpStatus: number, token: string): T {
         : undefined;
 
   // status: true | 1 = สำเร็จ, false | 0 | undefined = ล้มเหลว
-  const ok = env.status === true || env.status === 1;
+  // v2 บาง endpoint (เช่น /api/v2/boxes) ใช้ชื่อ success แทน status — ต้องรับทั้งสองชื่อ
+  const ok = env.status === true || env.status === 1 || env.success === true;
   if (!ok) {
     throw new IShipError(classifyUpstream(httpStatus, rawMessage), {
       upstreamMessage: rawMessage ? redactToken(rawMessage, token) : undefined,
@@ -249,9 +257,19 @@ export function listCouriers(token: string): Promise<IShipCourier[]> {
   return call<IShipCourier[]>(token, "/api/courier_code");
 }
 
-/** กล่องมาตรฐาน — ให้ร้านเลือกแทนการกรอกขนาดเอง */
+/**
+ * กล่องที่บัญชีร้านใช้ได้ — ทั้งชุดมาตรฐานและกล่องที่ร้านสร้างเองบนหลังบ้าน iShip
+ *
+ * ต้องใช้ v2 เท่านั้น: /api/boxes (v1) คืนเฉพาะกล่องมาตรฐาน 26 ใบและ **ตัดกล่องของร้าน
+ * ทิ้งเงียบ ๆ** — ไม่ error ไม่มีสัญญาณอะไรบอกว่าหายไป ร้านที่สร้างกล่องเองไว้จึงเห็นแต่
+ * ชุดมาตรฐานแล้วนึกว่าระบบดึงไม่ได้ (ยืนยันกับบัญชีจริง 2026-07-29: v1=26 ใบ user_id null
+ * ล้วน / v2=30 ใบ มี 4 ใบ user_id=47784 ซึ่งเป็นกล่องของร้านจริง)
+ *
+ * v2 ห่อคำตอบด้วย { success, message, data } — ไม่ใช่ { status } เหมือน endpoint อื่น
+ * (unwrap รองรับทั้งสองรูปแล้ว)
+ */
 export function listBoxes(token: string): Promise<IShipBox[]> {
-  return call<IShipBox[]>(token, "/api/boxes");
+  return call<IShipBox[]>(token, "/api/v2/boxes");
 }
 
 /** ราคาโดยประมาณ — ค่าที่ได้เป็นการประเมินจากขนาด/น้ำหนักที่ร้านแจ้ง (BR-ISHIP-34) */
@@ -285,12 +303,29 @@ export async function getTraces(
   token: string,
   trackNo: string,
 ): Promise<IShipTraceRoute[]> {
-  const data = await call<{ trace_routes?: IShipTraceRoute[] }>(
-    token,
-    "/api/traces",
-    { method: "POST", body: { track_no: trackNo } },
-  );
-  return data?.trace_routes ?? [];
+  try {
+    const data = await call<{ trace_routes?: IShipTraceRoute[] }>(
+      token,
+      "/api/traces",
+      { method: "POST", body: { track_no: trackNo } },
+    );
+    return data?.trace_routes ?? [];
+  } catch (err) {
+    // พัสดุที่เพิ่งเปิดและขนส่งยังไม่สแกน → iShip ตอบ HTTP 500 body
+    // {"status":false,"message":"","data":[]} แทนที่จะคืนลิสต์ว่าง (ยืนยันกับ prod 2026-07-29
+    // ด้วย track จริง TH0205901RX26E0) — ไม่ใช่ระบบล่ม แต่เป็น "ยังไม่มีข้อมูล"
+    //
+    // แยกสองอย่างนี้ด้วย "ไม่มีข้อความอธิบายเลย" เท่านั้น — ถ้า iShip ส่งเหตุผลอะไรมา
+    // (token เสีย/เลขไม่มีจริง) ต้องยังเป็น error ตามเดิม ห้ามกลืนเงียบ
+    if (
+      err instanceof IShipError &&
+      err.httpStatus === 500 &&
+      !err.upstreamMessage
+    ) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 /** รายละเอียดพัสดุฝั่ง iShip — ใช้ยืนยันสถานะกลับ ไม่เชื่อ webhook อย่างเดียว */
@@ -399,12 +434,28 @@ export async function createOrder(
   return { result, dryRun: false };
 }
 
-/** ยกเลิกพัสดุ — ทำได้เฉพาะตอนที่ขนส่งยังไม่รับของเข้าระบบ */
-export async function cancelOrder(token: string, trackNo: string): Promise<void> {
+/**
+ * ยกเลิกพัสดุ — ทำได้เฉพาะตอนที่ขนส่งยังไม่รับของเข้าระบบ
+ *
+ * ระบุพัสดุด้วย courier_code + ref_code ไม่ใช่เลขติดตาม — ตามตัวอย่างจริงใน Postman
+ * collection ของ iShip (item "Cancel Order" → saved response originalRequest):
+ *   { "courier_code":"FlashExpress", "ref_code":"REFUAT...", "reason":"Customer canceled" }
+ *
+ * เดิมเราส่ง { track_no } ซึ่งไม่มีอยู่ในสัญญาของ endpoint นี้เลย ปุ่มยกเลิกจึงยิงแล้วไม่ผ่าน
+ * (ช่อง body ที่แสดงในหน้าเอกสารว่างเปล่า ตัวอย่างจริงซ่อนอยู่ใน response ที่บันทึกไว้)
+ */
+export async function cancelOrder(
+  token: string,
+  params: { courierCode: string; refCode: string; reason?: string },
+): Promise<void> {
   if (isDryRun()) return;
   await call<unknown>(token, "/api/cancel_order", {
     method: "POST",
-    body: { track_no: trackNo },
+    body: {
+      courier_code: params.courierCode,
+      ref_code: params.refCode,
+      reason: params.reason ?? "ร้านค้ายกเลิกคำสั่งซื้อ",
+    },
     timeoutMs: TIMEOUT_MS.write,
   });
 }

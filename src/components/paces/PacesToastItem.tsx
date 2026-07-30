@@ -14,9 +14,12 @@
 
 import logoSm from '@/assets/images/logo-sm.png'
 import { relativeTimeTh } from '@/lib/relative-time-th'
-import type { PacesToastType } from '@/lib/paces-toast'
+import type { ChatMessageToastPayload, PacesToastType } from '@/lib/paces-toast'
+import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
+import { generateInitials } from '@/utils/helpers'
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 const VARIANT: Record<PacesToastType, { icon: string; color: string }> = {
@@ -28,15 +31,49 @@ const VARIANT: Record<PacesToastType, { icon: string; color: string }> = {
 
 const EXIT_MS = 300 // ต้องตรงกับ `transition-all duration-300` บน container ด้านล่าง (ถ้าแก้ duration ต้องแก้คู่กัน)
 
+/**
+ * avatar ผู้ส่ง + fallback ตัวอักษรแรกของชื่อ
+ * Base: BuyerAvatar ใน src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx:174
+ * (ตรรกะเดียวกันเป๊ะ — http URL ใช้ตรง ๆ, ค่าอื่นถือเป็น fileId ของ storage ยิงผ่าน /api/files/)
+ * ไม่ import ตัวเดิมเพราะมันไม่ได้ export และอยู่ในไฟล์ client ก้อนใหญ่ (InboxList ทั้งหน้า)
+ *
+ * avatarUrl ของ Messenger เป็น null เสมอ (Meta ไม่ให้ profile_pic จนกว่าจะผ่าน App Review)
+ * → ตกมาที่ initials เป็นเรื่องปกติ ไม่ใช่บั๊ก
+ */
+function SenderAvatar({ avatar, name }: { avatar: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
+  if (!src || failed) {
+    return (
+      <span className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-full font-semibold">
+        {generateInitials(name) || '?'}
+      </span>
+    )
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="bg-default-100 size-12 shrink-0 rounded-full object-cover"
+    />
+  )
+}
+
 interface Props {
   id: number
   type: PacesToastType
   message: string
   duration: number
   onClose: (id: number) => void
+  /** มีค่า = toast แจ้งข้อความใหม่ (หน้าตาแบบ notification) แทน alert ปกติ */
+  chatMessage?: ChatMessageToastPayload
 }
 
-export default function PacesToastItem({ id, type, message, duration, onClose }: Props) {
+export default function PacesToastItem({ id, type, message, duration, onClose, chatMessage }: Props) {
+  const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [nowTick, setNowTick] = useState(() => Date.now())
@@ -83,6 +120,74 @@ export default function PacesToastItem({ id, type, message, duration, onClose }:
   const resume = () => startTimer(remainingRef.current)
 
   const shown = visible && !leaving
+
+  // ---- toast แจ้งข้อความใหม่ (user request 2026-07-29) ----
+  // layout ตาม notification ของ Facebook ที่ user ส่งมาเป็น reference:
+  //   [รูปผู้ส่ง + badge ช่องทาง]  **ชื่อ** ส่งข้อความถึงคุณ: "ข้อความ"
+  //                               เวลา · ชื่อเพจ                        [จุดยังไม่อ่าน]
+  // Hard Rule 6: เอา IA/ลำดับข้อมูลตาม ref แต่สี/ตัวอักษร/ระยะ = token ของ Paces ทั้งหมด
+  // (ไม่มีสีน้ำเงิน Facebook — จุดยังไม่อ่านใช้ bg-primary ของ Paces)
+  if (chatMessage) {
+    const openThread = () => {
+      router.push(`/inbox/${chatMessage.conversationId}`)
+      dismiss()
+    }
+
+    return (
+      <div
+        role="link"
+        tabIndex={0}
+        aria-label={message}
+        onMouseEnter={pause}
+        onMouseLeave={resume}
+        onClick={openThread}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            openThread()
+          }
+        }}
+        className={`bg-default-100 border-default-300 hover:bg-default-200 relative w-80 max-w-[calc(100vw-2rem)] cursor-pointer rounded-md border p-3 shadow transition-all duration-300 ${
+          shown ? 'translate-x-0 opacity-100' : 'translate-x-5 opacity-0'
+        }`}>
+        <div className="flex items-start gap-3">
+          {/* wrapper ต้อง relative — ChannelBadgeOverlay วาง absolute มุมล่างขวาของ avatar */}
+          <div className="relative shrink-0">
+            <SenderAvatar avatar={chatMessage.senderAvatarUrl} name={chatMessage.senderName} />
+            <ChannelBadgeOverlay channel={chatMessage.channel} />
+          </div>
+
+          {/* min-w-0 บังคับให้ลูกที่ truncate ย่อได้จริงใน flex (ไม่งั้นดันกล่องล้น) */}
+          <div className="min-w-0 flex-1">
+            <p className="text-default-700 text-sm">
+              <strong className="text-default-800 font-semibold">{chatMessage.senderName}</strong>{' '}
+              ส่งข้อความถึงคุณ
+              {chatMessage.preview ? `: "${chatMessage.preview}"` : ' (ไฟล์แนบ)'}
+            </p>
+            <p className="text-default-500 mt-1 truncate text-xs">
+              {relativeTimeTh(createdAt.current, nowTick)}
+              {chatMessage.channelName ? ` · ${chatMessage.channelName}` : ''}
+            </p>
+          </div>
+
+          {/* จุด "ยังไม่อ่าน" ตาม ref — ใช้ bg-primary ของ Paces ไม่ใช่น้ำเงิน Facebook */}
+          <span className="bg-primary mt-4 size-2.5 shrink-0 rounded-full" aria-hidden="true" />
+        </div>
+
+        <button
+          type="button"
+          // stopPropagation — ไม่งั้นกดปิดแล้วเด้งเข้าเธรดไปด้วย (การ์ดทั้งใบคลิกได้)
+          onClick={(e) => {
+            e.stopPropagation()
+            dismiss()
+          }}
+          aria-label="ปิด"
+          className="absolute end-1 top-1 flex items-center justify-center opacity-50 hover:opacity-100 focus:opacity-100 focus:outline-hidden">
+          <Icon icon="tabler:x" className="text-default-800 size-4" />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div

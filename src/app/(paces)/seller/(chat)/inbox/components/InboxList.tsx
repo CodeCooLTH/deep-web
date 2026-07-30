@@ -123,9 +123,10 @@ export type ConversationListItem = {
   // ตอนอยู่แท็บ "ทั้งหมด" ให้รู้ว่าเธรดนี้อยู่กลุ่มไหน (user สั่ง 2026-07-24)
   chatGroupId?: string | null
   isSpam?: boolean // feature 00018 — เธรดสแปม (user สั่ง 2026-07-24); ตัดสิน action spam/unspam ใน mini-action
-  // user request 2026-07-25 — จำนวนออเดอร์ของลูกค้าเธรดนี้ โชว์ไอคอนตะกร้า + จำนวน (กดเปิด right panel
-  // รายการคำสั่งซื้อ) — enrich ที่ route (/api/chat/conversations seller); optional เผื่อ payload เก่า
-  orderCount?: number
+  // user request 2026-07-29 — ป้ายขั้นตอนของออเดอร์ล่าสุด (แทน orderCount เดิมของ 2026-07-25)
+  // null = ไม่ต้องแสดงชิป (ไม่เคยมีออเดอร์ หรือป้ายหมดอายุแล้ว — ดู deriveOrderStage)
+  // enrich ด้วย enrichWithOrderStage ทั้งฝั่ง RSC (inbox/page.tsx) และ route; optional เผื่อ payload เก่า
+  orderStage?: { key: string; label: string; cls: string; icon: string; printCount?: number } | null
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null
@@ -464,11 +465,16 @@ export default function InboxList({
         const beepFor = data.items.find((it) => {
           if (it.lastSenderRole !== 'BUYER') return false
           const before = prevById.get(it.id)
-          // beep เฉพาะ "เริ่มเทิร์นใหม่ที่ยังไม่ตอบ" — เธรดเพิ่งเปลี่ยนจากฝั่งเราตอบล่าสุด (หรือเธรดใหม่)
-          // มาเป็นลูกค้าทัก. ถ้าก่อนหน้าลูกค้าทักอยู่แล้ว (before.lastSenderRole==='BUYER') = spam ต่อเนื่อง
-          // ในเทิร์นเดิม → ไม่ดังซ้ำ (user report 2026-07-26: ลูกค้า spam รัวๆ เสียงดังรัวๆ — ควรดังครั้งเดียว
-          // ต่อเทิร์น, reset เมื่อร้าน/echo ตอบ ซึ่งทำให้ lastSenderRole กลับเป็น SHOP)
-          if (before && before.lastSenderRole === 'BUYER') return false
+          // ดังทุกข้อความที่ลูกค้าส่งเข้ามา (user สั่ง 2026-07-30) — เกณฑ์เดียวคือ "มีข้อความใหม่จริง"
+          //
+          // ประวัติที่ต้องรู้ก่อนแก้ตรงนี้: เดิม (2026-07-26) มีเงื่อนไขเพิ่มว่าต้องเป็น "เทิร์นใหม่"
+          // เท่านั้น (ก่อนหน้าต้องเป็นฝั่งร้านพูดล่าสุด) เพราะ user รายงานว่าลูกค้า spam รัว ๆ แล้ว
+          // เสียงดังรัว ๆ. ผลข้างเคียงคือข้อความที่ 2, 3, 4 ในเทิร์นเดียวกันเงียบสนิท → user รายงาน
+          // 2026-07-30 ว่า "มีข้อความเข้าแต่ดังครั้งเดียว"
+          //
+          // ตอนนี้แก้ที่ต้นเหตุจริงแทน: ความน่ารำคาญมาจาก "ความถี่" ไม่ใช่ "จำนวนข้อความ" →
+          // ย้ายไปคุมด้วยระยะเวลาที่ playChatBeep (MIN_GAP_MS) ซึ่งรวบข้อความที่มาติดกันเร็วให้เหลือ
+          // เสียงเดียว โดยข้อความที่ห่างกันพอสมควรยังมีเสียงของตัวเองครบ
           return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
         })
         if (beepFor) playChatBeep({ shopId, conversationId: beepFor.id })
@@ -877,7 +883,9 @@ export default function InboxList({
                     (≥1024px) และ kebab (<1024px) — ไม่ได้หายไปไหน. เหตุที่ทำเป็น indicator ไม่ใช่
                     ปุ่ม: ตำแหน่งหน้าชื่ออยู่ใน <Link> ปุ่มซ้อนใน anchor เป็น invalid HTML และคลิก
                     จะ propagate ไป navigate (เหตุผลเดียวกับที่ kebab ต้องเป็น sibling) */}
-                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
+                {/* py-4 (เดิม py-3) — user report 2026-07-30 "ขนาดการ์ดเล็กไปหน่อย"; คู่กับชื่อที่ขยับ
+                    เป็น text-base แถวจึงหายอึดอัดและกดโดนง่ายขึ้นบนจอสัมผัส */}
+                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-4 pe-3.75 ps-3.75">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
@@ -889,12 +897,17 @@ export default function InboxList({
                         imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
                       />
                     </span>
-                    {/* น้ำหนัก/สีตัวอักษรตามสถานะอ่าน — ยังไม่อ่าน = เข้ม+หนา, อ่านแล้ว = เทาลง
+                    {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
+                        เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน
+                        ทำให้ข้อมูลที่สำคัญที่สุดในแถว (ลูกค้าคนไหน) อ่านยากที่สุด และเธรดที่อ่านแล้ว
+                        คือส่วนใหญ่ของรายการ → ทั้งหน้าดูจางไปหมด
+                        สถานะอ่านสื่อด้วย 2 อย่างที่เหลืออยู่แล้ว: น้ำหนักฟอนต์ (bold/semibold) +
+                        บรรทัด preview ที่เทาลง + badge จำนวนที่ยังไม่อ่าน — ไม่ต้องเอาสีชื่อมาแลก
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
                       <span
-                        className={`flex items-center gap-1 truncate text-sm ${
-                          unread ? 'text-default-900 font-bold' : 'text-default-600 font-medium'
+                        className={`text-default-900 flex items-center gap-1 truncate text-base ${
+                          unread ? 'font-bold' : 'font-semibold'
                         }`}
                       >
                         {c.isPinned && (
@@ -913,9 +926,12 @@ export default function InboxList({
                           ใส่เฉพาะตอนมี preview จริง (ไม่ใส่ทับ fallback "เริ่มการสนทนาแล้ว")
                           senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
                           — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
+                      {/* preview: text-sm (เดิม text-xs) ให้อ่านออกคู่กับชื่อที่ใหญ่ขึ้น — และตอนนี้
+                          บรรทัดนี้เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) จึงคงคอนทราสต์
+                          ต่างกันชัดระหว่าง 2 สถานะไว้ */}
                       <span
-                        className={`block max-w-52 truncate text-xs ${
-                          unread ? 'text-default-800 font-semibold' : 'text-default-400'
+                        className={`mt-0.5 block max-w-52 truncate text-sm ${
+                          unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
                         {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
@@ -952,12 +968,15 @@ export default function InboxList({
                           )}
                         </span>
                       )}
-                      {/* user request 2026-07-25 — ไอคอนตะกร้า + จำนวนออเดอร์ของลูกค้า (ถ้ามี ≥1) กดแล้ว
-                          เปิด right panel รายการคำสั่งซื้อ (นำไป /inbox/{id}?panel=orders → CustomerPanel
-                          เปิดแท็บออเดอร์; มือถือเด้ง sheet). เป็น <span role="link"> ไม่ใช่ <a>/<button>
-                          เพราะทั้งแถวอยู่ใน <Link> — nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่
-                          (precedent เดียวกับดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
-                      {(c.orderCount ?? 0) > 0 && (() => {
+                      {/* user request 2026-07-29 — ป้าย "ขั้นตอนล่าสุดของออเดอร์" แทนชิปตะกร้า+จำนวนเดิม
+                          (2026-07-25): จำนวนบอกแค่ว่าลูกค้าเคยซื้อกี่ครั้ง ไม่ได้บอกสิ่งที่แอดมินต้องรู้
+                          ระหว่างคุยว่า "ของถึงไหนแล้ว". อ้างอิงออเดอร์ล่าสุดใบเดียว; กฎการหมดอายุของป้าย
+                          (สำเร็จ 3 วัน / ยกเลิก 1 วัน) อยู่ที่ deriveOrderStage ใน src/lib/order-stage.ts
+                          กดแล้วเปิด right panel รายการคำสั่งซื้อเหมือนเดิม (/inbox/{id}?panel=orders)
+                          เป็น <span role="link"> ไม่ใช่ <a>/<button> เพราะทั้งแถวอยู่ใน <Link> —
+                          nested anchor เป็น invalid HTML + คลิกจะ navigate ผิดที่ (precedent เดียวกับ
+                          ดาวปักหมุด/kebab บรรทัดบน) stopPropagation กัน bubble ไปเปิดแชท */}
+                      {c.orderStage && (() => {
                         const openOrders = (e: React.SyntheticEvent) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -971,14 +990,27 @@ export default function InboxList({
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') openOrders(e)
                             }}
-                            aria-label={`ดูรายการคำสั่งซื้อ ${c.orderCount} รายการ`}
-                            className="badge bg-primary/15 text-primary text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 hover:bg-primary/25 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-2"
+                            aria-label={`คำสั่งซื้อล่าสุด: ${c.orderStage.label} — ดูรายการคำสั่งซื้อ`}
+                            className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
                           >
-                            <Icon icon="shopping-cart" width={13} height={13} className="shrink-0" />
-                            {c.orderCount}
+                            <Icon icon={c.orderStage.icon} width={13} height={13} className="shrink-0" />
+                            {c.orderStage.label}
                           </span>
                         )
                       })()}
+                      {/* ป้ายเสริมจำนวนครั้งที่พิมพ์ (user request 2026-07-29) — มีเฉพาะขั้น "พิมพ์เอกสารแล้ว"
+                          แยกเป็นชิปที่สอง ไม่ต่อท้ายในชิปเดิม เพราะเป็นข้อมูลคนละชนิด (สถานะ vs จำนวน)
+                          และป้ายรวมกันจะยาวจนเบียดชิป ad_id/ชื่อกลุ่มบนจอแคบ. โทน default ไม่ใช่สีสถานะ —
+                          เป็นข้อมูลประกอบ ไม่ใช่สิ่งที่ต้องดึงสายตาแข่งกับสถานะ */}
+                      {c.orderStage?.printCount ? (
+                        <span
+                          className="badge bg-default-100 text-default-600 text-2xs mt-1 inline-flex w-fit shrink-0 items-center gap-1"
+                          title={`ใบปะหน้าถูกสั่งพิมพ์ ${c.orderStage.printCount} ครั้ง`}
+                        >
+                          <Icon icon="printer" width={12} height={12} className="shrink-0" />
+                          พิมพ์ {c.orderStage.printCount} ครั้ง
+                        </span>
+                      ) : null}
                     </span>
                   </div>
 

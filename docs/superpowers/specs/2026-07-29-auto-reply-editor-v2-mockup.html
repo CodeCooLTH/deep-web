@@ -1,0 +1,338 @@
+<meta charset="utf-8">
+<title>Mockup — ตอบแชทอัตโนมัติ V2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --primary:#236dc9; --primary-soft:#e8f0fb;
+    --success:#28c76f; --success-soft:#e6f8ee;
+    --warning:#ff9f43; --warning-soft:#fff3e6;
+    --ink:#2f2b3d; --ink-2:#5d5870; --ink-3:#9891a8;
+    --line:#e6e3ee; --bg:#f6f5f9; --card:#fff;
+    --r:8px; --shadow:0 1px 2px rgba(47,43,61,.06),0 1px 3px rgba(47,43,61,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Anuphan,sans-serif;background:#eceaf2;color:var(--ink);padding:24px;line-height:1.55}
+
+  .page-title{max-width:1400px;margin:0 auto 20px}
+  .page-title h1{font-size:20px;font-weight:700}
+  .page-title p{color:var(--ink-2);font-size:14px;margin-top:4px}
+
+  .rack{max-width:1400px;margin:0 auto;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+  .device{background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;container-type:inline-size}
+  .device>.label{background:var(--ink);color:#fff;font-size:11px;font-weight:600;padding:6px 12px;letter-spacing:.04em}
+  .m{width:390px} .t{width:768px} .d{width:100%;min-width:1000px;flex:1}
+  .viewport{padding:14px;max-height:820px;overflow:auto}
+
+  /* ── primitives (จำลอง Paces) ───────────────────────── */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px}
+  .card-header{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .card-body{padding:14px}
+  h5{font-size:15px;font-weight:600}
+  .muted{color:var(--ink-2);font-size:13px}
+  .tiny{color:var(--ink-3);font-size:12px}
+  .btn{font-family:inherit;font-size:13px;font-weight:500;border:1px solid transparent;border-radius:6px;padding:7px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-ghost{background:#fff;border-color:var(--line);color:var(--ink-2)}
+  .btn-sm{padding:4px 10px;font-size:12px}
+  .input,.textarea{width:100%;font-family:inherit;font-size:14px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:#fff;color:var(--ink)}
+  .textarea{resize:none}
+  .switch{width:38px;height:21px;border-radius:999px;background:#d6d2e0;position:relative;flex:none}
+  .switch.on{background:var(--success)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.2s}
+  .switch.on::after{left:19px}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:#f0eef5;border-radius:999px;padding:3px 9px;font-size:12px;color:var(--ink-2)}
+  .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px}
+  .badge-on{background:var(--success-soft);color:#1a9c55}
+  .badge-off{background:#efedf4;color:var(--ink-3)}
+
+  /* ── บันไดข้อยกเว้น ─────────────────────────────────── */
+  .ladder{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .rung{padding:12px 14px;border-bottom:1px solid var(--line);background:#fff;position:relative}
+  .rung:last-child{border-bottom:0}
+  .rung.top{box-shadow:inset 3px 0 0 var(--primary)}
+  .rung .when{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:7px}
+  .when-label{font-size:12px;color:var(--ink-3);margin-right:2px}
+  .cond{background:var(--primary-soft);color:var(--primary);border-radius:5px;padding:3px 8px;font-size:12px;font-weight:500}
+  .rung .say{font-size:13.5px;color:var(--ink);background:#faf9fc;border-radius:6px;padding:8px 10px}
+  .rung .acts{margin-top:8px;display:flex;gap:6px}
+  .fallthrough{padding:10px 14px;background:#faf9fc;font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:7px}
+
+  /* ── การ์ดสินค้า ────────────────────────────────────── */
+  .pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  @container (min-width:700px){ .pgrid{grid-template-columns:repeat(4,1fr)} }
+  .pcard{border:1px solid var(--line);border-radius:7px;overflow:hidden;background:#fff;cursor:pointer}
+  .pcard.sel{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
+  .pcard .ph{height:64px;background:linear-gradient(135deg,#dfe6f2,#eef1f7);display:flex;align-items:center;justify-content:center;color:#a9b4c8;font-size:11px}
+  .pcard .pb{padding:7px 8px}
+  .pcard .pn{font-size:12.5px;font-weight:500;line-height:1.35}
+  .pcard .pp{font-size:12px;color:var(--primary);font-weight:600;margin-top:2px}
+
+  /* ── โฆษณา ──────────────────────────────────────────── */
+  .adrow{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-bottom:6px;background:#fff;cursor:pointer}
+  .adrow.sel{border-color:var(--primary);background:var(--primary-soft)}
+  .radio{width:15px;height:15px;border-radius:50%;border:2px solid #cfcada;flex:none}
+  .adrow.sel .radio{border-color:var(--primary);border-width:4px}
+
+  /* ── กล่องผลทดสอบ ───────────────────────────────────── */
+  .alert{border-radius:7px;padding:11px 13px;font-size:13px}
+  .alert-warn{background:var(--warning-soft);border:1px solid #ffd9b0}
+  .alert-warn b{color:#b45f0b}
+  .bubble{background:var(--primary);color:#fff;border-radius:12px 12px 12px 3px;padding:9px 12px;font-size:13.5px;width:fit-content;max-width:100%}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border:0}
+  .kv dt{color:var(--ink-3)} .kv dd{text-align:right;font-weight:500}
+
+  /* ── sheet เพิ่มข้อยกเว้น ───────────────────────────── */
+  .sheet{border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 8px 24px rgba(47,43,61,.12);overflow:hidden}
+  .sheet-h{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .sheet-b{padding:15px;max-height:none}
+  .cond-block{border:1px solid var(--line);border-radius:7px;padding:11px 12px;margin-bottom:9px}
+  .cond-block.active{border-color:var(--primary);background:#fcfdff}
+  .cond-head{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;margin-bottom:0}
+  .cond-block.active .cond-head{margin-bottom:10px}
+  .cbox{width:16px;height:16px;border:1.5px solid #cfcada;border-radius:4px;flex:none}
+  .cbox.on{background:var(--primary);border-color:var(--primary);position:relative}
+  .cbox.on::after{content:"";position:absolute;left:4.5px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .summary{background:var(--primary-soft);border-radius:7px;padding:11px 12px;font-size:12.5px;color:#1b4f92;margin-top:12px;line-height:1.6}
+
+  /* ── แถบบันทึกลอย ───────────────────────────────────── */
+  .savebar{position:sticky;bottom:0;background:var(--ink);color:#fff;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 6px 18px rgba(47,43,61,.25);margin-top:12px}
+  .savebar span{font-size:13px}
+  .savebar .btn-ghost{background:transparent;border-color:rgba(255,255,255,.3);color:#fff}
+
+  .two-col{display:block}
+  @container (min-width:900px){ .two-col{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start} }
+
+  .sec-title{font-size:13px;font-weight:600;color:var(--ink-2);margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+  .sec-title::after{content:"";flex:1;height:1px;background:var(--line)}
+  .note{max-width:1400px;margin:22px auto 0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .note h3{font-size:14px;margin-bottom:8px}
+  .note li{font-size:13px;color:var(--ink-2);margin:5px 0 5px 18px}
+</style>
+
+<div class="page-title">
+  <h1>ตอบแชทอัตโนมัติ — หน้าแก้ไขกลุ่มคำ (V2)</h1>
+  <p>Mockup · Paces theme · แสดง 3 ขนาดจอ — เนื้อหาเดียวกันทั้งสาม ต่างกันที่การจัดวาง</p>
+</div>
+
+<div class="rack">
+
+  <!-- ══════════ MOBILE ══════════ -->
+  <div class="device m">
+    <div class="label">MOBILE · 390px</div>
+    <div class="viewport">
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h5>ทดสอบ1</h5>
+            <div class="tiny" style="margin-top:3px">ตรงเมื่อมีคำว่า “ทดสอบ1” หรือ “ทดสอบ2”</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <span class="tiny">ปิดอยู่</span><div class="switch"></div>
+          </div>
+        </div>
+        <div class="card-body" style="padding-top:11px">
+          <button class="btn btn-ghost btn-sm">แก้คำตรวจจับ</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5>คำตอบหลัก</h5></div>
+        <div class="card-body">
+          <textarea class="textarea" rows="3">ระบบ Auto-Reply ตอบจ้า</textarea>
+          <div style="display:flex;justify-content:space-between;margin-top:6px">
+            <span class="tiny">ใช้เมื่อไม่เข้าข้อยกเว้นด้านล่าง</span><span class="tiny">22/1000</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h5>ข้อยกเว้น (2)</h5>
+          <button class="btn btn-primary btn-sm">+ เพิ่ม</button>
+        </div>
+        <div class="card-body">
+          <p class="tiny" style="margin-bottom:10px">เฉพาะเจาะจงกว่าอยู่บน — ระบบเลือกอันบนสุดที่เข้าเงื่อนไข</p>
+          <div class="ladder">
+            <div class="rung top">
+              <div class="when"><span class="when-label">เมื่อมาจาก</span><span class="cond">เพจ โช๊คแต่ง</span><span class="cond">โฆษณา โช๊ค 590</span></div>
+              <div class="say">รุ่นนี้มีขนาดเดียว ราคา 590 บาท มีบริการเก็บเงินปลายทางค่ะ</div>
+              <div class="acts"><button class="btn btn-ghost btn-sm">แก้ไข</button><button class="btn btn-ghost btn-sm">ลบ</button></div>
+            </div>
+            <div class="rung">
+              <div class="when"><span class="when-label">เมื่อมาจาก</span><span class="cond">เพจ โช๊คแต่ง</span></div>
+              <div class="say">รับโช๊ครุ่นไหนดีคะ แจ้งรุ่นรถและปีรถได้เลยค่ะ</div>
+              <div class="acts"><button class="btn btn-ghost btn-sm">แก้ไข</button><button class="btn btn-ghost btn-sm">ลบ</button></div>
+            </div>
+            <div class="fallthrough">↓ ไม่เข้าข้อไหนเลย → ใช้คำตอบหลัก</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h5>ทดสอบกฎ</h5></div>
+        <div class="card-body">
+          <input class="input" value="ทดสอบ1" style="margin-bottom:9px">
+          <button class="btn btn-primary" style="width:100%">ทดสอบ</button>
+          <div class="alert alert-warn" style="margin-top:11px">
+            <b>กลุ่มคำนี้ปิดอยู่</b>
+            <div style="margin-top:4px;color:var(--ink-2)">คำที่ตั้งไว้ตรงกับข้อความนี้ แต่ระบบยังไม่นำมาใช้เพราะกลุ่มยังไม่เปิด</div>
+            <button class="btn btn-primary btn-sm" style="margin-top:9px">เปิดใช้งานเลย</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="savebar"><span>แก้ไข 1 อย่าง: คำตอบหลัก</span><div style="display:flex;gap:7px"><button class="btn btn-ghost btn-sm">ยกเลิก</button><button class="btn btn-primary btn-sm">บันทึก</button></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════ TABLET ══════════ -->
+  <div class="device t">
+    <div class="label">TABLET · 768px — sheet “เพิ่มข้อยกเว้น”</div>
+    <div class="viewport">
+      <div class="sheet">
+        <div class="sheet-h"><h5>เพิ่มข้อยกเว้น</h5><span class="tiny" style="cursor:pointer">✕</span></div>
+        <div class="sheet-b">
+          <p class="muted" style="margin-bottom:12px">ใช้ข้อยกเว้นนี้เมื่อลูกค้า…</p>
+
+          <div class="cond-block active">
+            <div class="cond-head"><span class="cbox on"></span> มาจากเพจ</div>
+            <select class="input"><option>โช๊คแต่ง</option><option>สายยางมอเตอร์ไซค์</option></select>
+          </div>
+
+          <div class="cond-block active">
+            <div class="cond-head"><span class="cbox on"></span> กดมาจากโฆษณา</div>
+            <div class="adrow sel"><span class="radio"></span><div style="flex:1"><div style="font-size:13px;font-weight:500">โช๊ค 590</div><div class="tiny">ทัก 24 ครั้ง · ล่าสุด 2 ชม.ที่แล้ว</div></div></div>
+            <div class="adrow"><span class="radio"></span><div style="flex:1"><div style="font-size:13px;font-weight:500">สายยาง 390</div><div class="tiny">ทัก 8 ครั้ง · ล่าสุด 1 วันที่แล้ว</div></div></div>
+            <p class="tiny">เลือกจากโฆษณาที่เคยมีลูกค้าทักเข้ามาจริง</p>
+          </div>
+
+          <div class="cond-block">
+            <div class="cond-head"><span class="cbox"></span> สนใจสินค้า</div>
+          </div>
+
+          <div class="sec-title">ตอบว่า</div>
+          <textarea class="textarea" rows="3" placeholder="พิมพ์ข้อความที่จะส่งให้ลูกค้า"></textarea>
+
+          <div class="summary">
+            ข้อยกเว้นนี้จะถูกใช้เมื่อลูกค้าทักจากเพจ <b>“โช๊คแต่ง”</b> และกดมาจากโฆษณา <b>“โช๊ค 590”</b><br>
+            จะอยู่เหนือข้อยกเว้นอื่นทั้งหมด เพราะเจาะจงกว่า
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+            <button class="btn btn-ghost">ยกเลิก</button><button class="btn btn-primary">เพิ่มข้อยกเว้น</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ DESKTOP ══════════ -->
+  <div class="device d">
+    <div class="label">DESKTOP · ≥1000px — 2 คอลัมน์ + เลือกสินค้าแบบการ์ด</div>
+    <div class="viewport">
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h5>ทดสอบ1</h5>
+                <div class="tiny" style="margin-top:3px">ตรงเมื่อมีคำว่า “ทดสอบ1” หรือ “ทดสอบ2” อยู่ในข้อความ</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-on">เปิดใช้งาน</span><div class="switch on"></div></div>
+            </div>
+            <div class="card-body" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <span class="chip">ทดสอบ1 ✕</span><span class="chip">ทดสอบ2 ✕</span>
+              <input class="input" style="width:150px;padding:5px 9px;font-size:13px" placeholder="เพิ่มคำ…">
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h5>คำตอบหลัก</h5><span class="tiny">22/1000</span></div>
+            <div class="card-body">
+              <textarea class="textarea" rows="2">ระบบ Auto-Reply ตอบจ้า</textarea>
+              <p class="tiny" style="margin-top:6px">ใช้เมื่อไม่เข้าข้อยกเว้นด้านล่าง</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h5>ข้อยกเว้น (2)</h5><button class="btn btn-primary btn-sm">+ เพิ่มข้อยกเว้น</button></div>
+            <div class="card-body">
+              <p class="tiny" style="margin-bottom:10px">เฉพาะเจาะจงกว่าอยู่บน — ระบบเลือกอันบนสุดที่เข้าเงื่อนไข</p>
+              <div class="ladder">
+                <div class="rung top">
+                  <div class="when"><span class="when-label">เมื่อมาจาก</span><span class="cond">เพจ โช๊คแต่ง</span><span class="cond">โฆษณา โช๊ค 590</span></div>
+                  <div class="say">รุ่นนี้มีขนาดเดียว ราคา 590 บาท มีบริการเก็บเงินปลายทางค่ะ</div>
+                  <div class="acts"><button class="btn btn-ghost btn-sm">แก้ไข</button><button class="btn btn-ghost btn-sm">ลบ</button></div>
+                </div>
+                <div class="rung">
+                  <div class="when"><span class="when-label">เมื่อมาจาก</span><span class="cond">เพจ โช๊คแต่ง</span></div>
+                  <div class="say">รับโช๊ครุ่นไหนดีคะ แจ้งรุ่นรถและปีรถได้เลยค่ะ</div>
+                  <div class="acts"><button class="btn btn-ghost btn-sm">แก้ไข</button><button class="btn btn-ghost btn-sm">ลบ</button></div>
+                </div>
+                <div class="fallthrough">↓ ไม่เข้าข้อไหนเลย → ใช้คำตอบหลัก</div>
+              </div>
+
+              <div class="sec-title">เลือกสินค้า (ในหน้าเพิ่มข้อยกเว้น)</div>
+              <div class="pgrid">
+                <div class="pcard sel"><div class="ph">รูปสินค้า</div><div class="pb"><div class="pn">โช๊คหลังสปริง 320 มม.</div><div class="pp">฿390</div></div></div>
+                <div class="pcard"><div class="ph">รูปสินค้า</div><div class="pb"><div class="pn">โช๊คสามล้อบรรทุกหนัก</div><div class="pp">฿590</div></div></div>
+                <div class="pcard"><div class="ph">รูปสินค้า</div><div class="pb"><div class="pn">สายยางน้ำมัน 6 มม.</div><div class="pp">฿250</div></div></div>
+                <div class="pcard"><div class="ph">รูปสินค้า</div><div class="pb"><div class="pn">เบาะแต่ง Wave 110</div><div class="pp">฿890</div></div></div>
+              </div>
+              <p class="tiny" style="margin-top:7px">ร้านจำสินค้าจากรูป ไม่ใช่จากชื่อที่คล้ายกันหมด</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header"><h5>ทดสอบกฎ</h5></div>
+            <div class="card-body">
+              <p class="tiny" style="margin-bottom:9px">ทดลองอย่างเดียว ไม่ส่งถึงลูกค้า ไม่บันทึกอะไร</p>
+              <textarea class="textarea" rows="2" style="margin-bottom:8px">สนใจครับ</textarea>
+              <select class="input" style="margin-bottom:8px"><option>เพจ โช๊คแต่ง</option></select>
+              <select class="input" style="margin-bottom:10px"><option>โฆษณา โช๊ค 590</option></select>
+              <button class="btn btn-primary" style="width:100%">ทดสอบ</button>
+
+              <div style="border-top:1px solid var(--line);margin-top:13px;padding-top:13px">
+                <p class="tiny" style="margin-bottom:6px">ลูกค้าจะได้รับ</p>
+                <div class="bubble">รุ่นนี้มีขนาดเดียว ราคา 590 บาท มีบริการเก็บเงินปลายทางค่ะ</div>
+
+                <dl style="margin-top:12px">
+                  <div class="kv"><dt>จับได้</dt><dd>ทดสอบ1 (“ทดสอบ1”)</dd></div>
+                  <div class="kv"><dt>ใช้ข้อยกเว้น</dt><dd>เพจ + โฆษณา</dd></div>
+                </dl>
+
+                <p class="tiny" style="margin:11px 0 5px">ข้ออื่นที่ไม่ถูกเลือก</p>
+                <ul style="list-style:none">
+                  <li class="tiny">· เพจ โช๊คแต่ง — เจาะจงน้อยกว่า</li>
+                  <li class="tiny">· คำตอบหลัก — ใช้เมื่อไม่เข้าข้อยกเว้น</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="savebar"><span>แก้ไข 2 อย่าง: คำตอบหลัก, คำตรวจจับ</span><div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm">ยกเลิก</button><button class="btn btn-primary btn-sm">บันทึก</button></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <h3>จุดที่ตั้งใจให้ต่างจากของเดิม</h3>
+  <ul>
+    <li><b>บันไดข้อยกเว้น</b> — เรียงเฉพาะเจาะจงมากอยู่บน เพราะนั่นคือลำดับที่ระบบตัดสินจริง อ่านบนลงล่างแล้วเห็นทางเดินของการตัดสิน ไม่ต้องจำกฎ</li>
+    <li><b>ลูกศรท้ายบันได</b> — ทำให้การถอยไปคำตอบหลักเป็นสิ่งที่ “เห็น” ไม่ใช่สิ่งที่ต้องรู้เอง</li>
+    <li><b>ไม่ใส่เลข 1/2/3</b> — เลขสื่อว่า “ทำตามลำดับ” แต่ความจริงคือ “เลือกอันแรกที่เข้าเงื่อนไข”</li>
+    <li><b>บรรทัดสรุปใน sheet</b> — บอกเป็นประโยคว่าข้อยกเว้นจะทำงานเมื่อไหร่และอยู่ตำแหน่งไหน ผู้ใช้ไม่ต้องรู้จักคำว่า specificity</li>
+    <li><b>ผลทดสอบบอกสาเหตุ ไม่ใช่บอกอาการ</b> — “กลุ่มคำนี้ปิดอยู่” พร้อมปุ่มเปิดในคลิกเดียว แทนที่จะบอก “ไม่ตรงกลุ่มคำใด” ซึ่งโยนความผิดให้ผู้ใช้</li>
+    <li><b>สวิตช์มีผลทันที</b> ไม่ต้องกดบันทึกแยก — ส่วนที่เหลือใช้แถบบันทึกลอยแถบเดียวที่บอกด้วยว่าแก้อะไรไปบ้าง</li>
+    <li><b>สินค้าเป็นการ์ดมีรูป + ราคา</b> — ร้านอะไหล่จำสินค้าจากรูป ชื่อคล้ายกันหมด</li>
+    <li><b>โฆษณาแสดงจำนวนครั้งที่มีคนทัก</b> — ช่วยให้รู้ว่าตัวไหนคุ้มตั้งค่าก่อน</li>
+  </ul>
+</div>

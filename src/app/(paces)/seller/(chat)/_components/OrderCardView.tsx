@@ -94,7 +94,9 @@ export default function OrderCardView({
   return (
     // ความกว้างมาจาก className ของ caller (แชท=w-64 พอดี bubble, right panel=w-full เต็มคอลัมน์)
     <div className={`border-default-200 overflow-hidden rounded-lg border ${className}`}>
-      {onEdit ? (
+      {/* แตะเพื่อแก้ไขได้เฉพาะออเดอร์ที่ยังรอดำเนินการ — ตรงกับกฎเดียวกับปุ่มแก้ไขในหน้ารายการ/รายละเอียด
+          และกับ guard ใน updateOrder. เดิมเปิดโมดัลได้ทุกสถานะ แล้วไปเด้ง error ตอนกดบันทึก */}
+      {onEdit && data.status === 'PENDING' ? (
         <button
           type="button"
           onClick={onEdit}

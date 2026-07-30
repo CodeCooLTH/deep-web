@@ -144,7 +144,8 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
               </div>
             )}
             <div className="flex justify-between border-t border-default-300 pt-2">
-              <span className="font-bold uppercase text-sm">ยอดรวมทั้งหมด</span>
+              {/* ไม่ใส่ uppercase — ภาษาไทยไม่มีตัวพิมพ์ใหญ่ (ติดมาจาก "GRAND TOTAL" ของ theme) */}
+              <span className="font-bold text-sm">ยอดรวมทั้งหมด</span>
               <span className="font-bold text-sm text-default-800">{formatAmount(order.totalAmount)}</span>
             </div>
           </div>
@@ -221,7 +222,8 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
               )}
               {/* ยอดรวม: font-bold label + bg-default-50 value — เหมือน Grand Total ใน theme */}
               <tr className="border-default-300 border-t">
-                <td colSpan={3} className="text-end font-bold uppercase">
+                {/* ไม่ใส่ uppercase — ภาษาไทยไม่มีตัวพิมพ์ใหญ่ (ติดมาจาก "GRAND TOTAL" ของ theme) */}
+                <td colSpan={3} className="text-end font-bold">
                   ยอดรวมทั้งหมด
                 </td>
                 <td className="text-end font-bold bg-default-50">{formatAmount(order.totalAmount)}</td>

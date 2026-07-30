@@ -18,12 +18,14 @@ import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
 import ChatToastListener from './_shared/ChatToastListener'
-import SellerChatWidget from './_shared/SellerChatWidget'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
+import { getSubscriptionStatus } from '@/services/business-package.service'
+import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
+import ShopPackageSidenavCard from './_shared/ShopPackageSidenavCard'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -115,6 +117,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
     console.error('[layout] resolveExpenseAccess failed, fallback NO_SHOP (hide menu)', e)
   }
 
+  // Business Package sidenav card — fail-closed: query error → NOT_SUBSCRIBED
+  // (pattern เดียวกับ entitlementInfo บรรทัดด้านบน — ไม่ให้ layout crash จาก DB error)
+  let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
+  let businessPackageTier: BusinessPackageTier | null = null
+  try {
+    // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
+    // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
+    // แพ็กเกจ "ส่วนตัวของตัวเอง" แทนของร้าน (bug ที่เจอ 2026-07-29 ตอนเปิดให้ทุก role เห็น)
+    // มิเรอร์ isOwnerPaidPlan(shopId) ใน ai-suggest-quota.service ที่ resolve แบบเดียวกัน
+    const subscription = await getSubscriptionStatus(shop.userId)
+    if (subscription) {
+      businessPackageStatus = subscription.status as BusinessPackageStatusApp
+      businessPackageTier = subscription.tier as BusinessPackageTier
+    }
+  } catch (e) {
+    console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
+  }
+
   // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
   // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
   // feature 00016 — applyExpenseMenu ซ่อน/ติด badge เมนู "ค่าใช้จ่าย" ตามสิทธิ์+แพ็กเกจ
@@ -148,6 +168,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }
       bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} unreadChatCount={unreadChatCount} />}
       sidenavFooterSlot={<OnboardingGate />}
+      // ทุก role เห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
+      // พนักงานก็ควรรู้ว่าร้านอยู่แพ็กเกจไหน) ต่างแค่ canManage — เฉพาะ OWNER ที่กดไปจัดการได้
+      sidenavHeaderSlot={
+        <ShopPackageSidenavCard
+          status={businessPackageStatus}
+          tier={businessPackageTier}
+          canManage={active.role === 'OWNER'}
+        />
+      }
     >
       {children}
       {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s
@@ -157,10 +186,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       <ChatToastListener shopId={shop?.id ?? null} />
-      {/* SellerChatWidget (ChatWidget task, feat 00011 Deep Chat): floating bubble+panel
-          มุมขวาล่าง แสดงเฉพาะ ≥lg (mobile ใช้ SellerBottomNav "แชท" แทน) — mount ที่ layout
-          เหมือนกัน เพื่อ persist state ข้าม client-navigation (OQ3) */}
-      <SellerChatWidget initialUnreadCount={unreadChatCount} />
+      {/* SellerChatWidget (floating bubble มุมขวาล่าง) ถอด mount ออกตามที่ user สั่ง 2026-07-29 —
+          ทับพื้นที่เดียวกับ toast แจ้งข้อความใหม่ และซ้ำกับเมนู "แชท" ที่มีอยู่แล้วทั้ง sidenav
+          (desktop) และ SellerBottomNav (mobile). ไฟล์ widget ยังอยู่ในโปรเจกต์ (SellerChatWidget /
+          ChatWidgetList / ChatWidgetThreadPanel) — กลับมา mount ได้ทันทีถ้าเปลี่ยนใจ */}
     </VerticalLayout>
   )
 }

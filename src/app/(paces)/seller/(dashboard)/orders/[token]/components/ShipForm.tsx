@@ -11,6 +11,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import Select from '@/components/wrappers/Select'
+import Icon from '@/components/wrappers/Icon'
 
 const CARRIERS = [
   'Kerry Express',
@@ -72,14 +73,14 @@ export default function ShipForm({ publicToken, initialTrackingNo, initialProvid
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error || 'ไม่สามารถบันทึกการจัดส่งได้')
+        throw new Error((data as { error?: string }).error || 'บันทึกการจัดส่งไม่สำเร็จ กรุณาลองใหม่')
       }
       pacesToast.success('บันทึกการจัดส่งแล้ว')
       setShowShipForm(false)
       reset()
       router.refresh()
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'ไม่สามารถบันทึกการจัดส่งได้'
+      const message = err instanceof Error ? err.message : 'บันทึกการจัดส่งไม่สำเร็จ กรุณาลองใหม่'
       pacesToast.error(message)
     } finally {
       setLoading(false)
@@ -92,17 +93,19 @@ export default function ShipForm({ publicToken, initialTrackingNo, initialProvid
         type="button"
         onClick={() => setShowShipForm((v) => !v)}
         disabled={loading}
-        className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium disabled:opacity-60 w-full"
+        className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium disabled:opacity-60 w-full inline-flex items-center justify-center gap-2 min-h-11"
       >
-        {showShipForm ? 'ซ่อนฟอร์มจัดส่ง' : 'บันทึกการจัดส่ง'}
+        <Icon icon={showShipForm ? 'x' : 'truck-delivery'} className="text-base" aria-hidden="true" />
+        {/* label เดิม "บันทึกการจัดส่ง" ผิด — กดแล้วไม่ได้บันทึกอะไร แค่กางฟอร์ม
+            และคำว่า "บันทึก" ไปซ้ำกับปุ่มยืนยันข้างในที่บันทึกจริง */}
+        {showShipForm ? 'ปิดฟอร์ม' : 'กรอกเลขพัสดุ'}
       </button>
 
       {showShipForm && (
-        <form
-          onSubmit={handleSubmit(handleShip)}
-          className="bg-card border border-default-300 rounded p-5 flex flex-col gap-3"
-        >
-          <h4 className="text-sm font-semibold text-default-800">ข้อมูลการจัดส่ง</h4>
+        // ไม่ใส่ bg-card/border/rounded — ฟอร์มนี้อยู่ใน card-body ของ StatusHero อยู่แล้ว
+        // การ์ดซ้อนการ์ดผิด DESIGN.md §6; StatusHero ห่อ border-t ให้ด้านนอกแล้ว
+        <form onSubmit={handleSubmit(handleShip)} className="flex flex-col gap-3 pt-3">
+          <p className="text-sm font-semibold text-default-800 mb-0">ข้อมูลการจัดส่ง</p>
 
           <div>
             <label className="form-label text-xs mb-1 block">
@@ -154,12 +157,14 @@ export default function ShipForm({ publicToken, initialTrackingNo, initialProvid
             >
               {loading ? 'กำลังบันทึก...' : 'ยืนยันจัดส่ง'}
             </button>
+            {/* เดิมเขียน "ยกเลิก" ซึ่งซ้ำกับปุ่ม "ยกเลิกออเดอร์" (ทำลายล้าง) ที่อยู่ถัดลงไปไม่กี่พิกเซล
+                — คำเดียวกัน ผลลัพธ์คนละเรื่อง จึงเปลี่ยนเป็น "ปิด" */}
             <button
               type="button"
               onClick={() => { setShowShipForm(false); reset() }}
-              className="btn border border-default-300 bg-card hover:bg-default-50 text-default-700 text-sm"
+              className="btn border border-default-300 bg-card hover:bg-default-50 text-default-700 text-sm min-h-11"
             >
-              ยกเลิก
+              ปิด
             </button>
           </div>
         </form>

@@ -44,7 +44,7 @@ function smsErrorMessage(status: number): string {
     case 429:
       return 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่'
     case 422:
-      return 'ยังไม่มีเบอร์ผู้ซื้อในออเดอร์นี้ — ไม่สามารถส่ง SMS ได้'
+      return 'ยังไม่มีเบอร์ผู้ซื้อในคำสั่งซื้อนี้ — ส่ง SMS ไม่ได้ ให้คัดลอกลิงก์ส่งทางแชทแทน'
     default:
       return 'ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่'
   }

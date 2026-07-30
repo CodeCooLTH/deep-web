@@ -133,6 +133,57 @@ export async function subscribePageToApp(pageId: string, pageToken: string): Pro
   })
 }
 
+export interface GraphThreadMessage {
+  id: string
+  createdTime: Date
+  /** id ของผู้ส่ง — เทียบกับ page id เพื่อรู้ว่าเป็นฝั่งร้านหรือลูกค้า */
+  fromId: string | null
+  text: string | null
+  attachmentTypes: string[]
+}
+
+/**
+ * ข้อความย้อนหลังในเธรดจาก Graph (feature 00018 — user report 2026-07-30 "แชทเข้ามาไม่ครบ")
+ *
+ * ทำไมต้องมี ทั้งที่มี webhook อยู่แล้ว: **Meta ไม่ยิง `message_echoes` ให้ข้อความที่ระบบตอบกลับ
+ * อัตโนมัติของตัวเองส่ง** (ตอบกลับอัตโนมัติของโฆษณา/ข้อความทักทาย/การ์ดปุ่มโทร) — พิสูจน์กับเธรดจริง
+ * 2026-07-30: Meta มี 11 ข้อความ เราได้จาก webhook แค่ 5 ที่ขาดคือข้อความอัตโนมัติทั้งหมดในช่วง
+ * 4 วินาทีหลังลูกค้าคลิกโฆษณา ส่วนข้อความที่ "คนพิมพ์จริง" มาครบทุกอัน
+ * เป็นข้อจำกัดฝั่ง Meta ไม่ใช่ field ที่ subscribe เพิ่มแล้วจะได้ → ต้องมาดึงเอง
+ *
+ * ใช้ /me/conversations?user_id= เหมือน getContactProfile (pageToken resolve /me เป็นเพจเจ้าของเอง)
+ * — Messenger เท่านั้น: ฝั่ง Instagram endpoint นี้ตอบ error 2207085 (ดู comment ที่ getContactProfile)
+ */
+export async function fetchThreadMessages(
+  contactExternalId: string,
+  pageToken: string,
+  limit = 50,
+): Promise<GraphThreadMessage[]> {
+  const json = await graphFetch('/me/conversations', pageToken, {
+    query: {
+      user_id: contactExternalId,
+      fields: `messages.limit(${limit}){id,created_time,from,message,attachments{type}}`,
+    },
+  })
+  const threads = (json.data ?? []) as Array<{
+    messages?: { data?: Array<Record<string, unknown>> }
+  }>
+  const rows = threads[0]?.messages?.data ?? []
+
+  return rows.map((r) => {
+    const from = r.from as { id?: string } | undefined
+    const atts = (r.attachments as { data?: Array<{ type?: string }> } | undefined)?.data ?? []
+    return {
+      id: String(r.id),
+      createdTime: new Date(String(r.created_time)),
+      fromId: from?.id ?? null,
+      // Graph คืน message เป็น "" (ไม่ใช่ null) เมื่อเป็นการ์ด/template — normalize ให้เป็น null
+      text: typeof r.message === 'string' && r.message.length > 0 ? r.message : null,
+      attachmentTypes: atts.map((a) => a.type ?? 'unknown').filter(Boolean),
+    }
+  })
+}
+
 // คู่ตรงข้ามของ subscribePageToApp — บอก Meta ให้เลิกส่ง webhook ของเพจนี้มาที่แอปเรา
 //
 // ทำไมต้องมี: ตอน seller กดถอดช่องทาง เดิมเราตั้ง status='DISCONNECTED' ในฐานข้อมูลเราฝ่ายเดียว

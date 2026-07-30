@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -64,6 +64,119 @@ export async function syncInboundWindowFromMeta(conversationId: string): Promise
   })
   return realLast
 }
+
+/**
+ * syncMissingMessagesFromMeta — เติมข้อความที่ webhook ไม่เคยส่งมาให้ (user report 2026-07-30
+ * "แชทเข้ามาไม่ครบ")
+ *
+ * ทำไมต้องมี: **Meta ไม่ยิง `message_echoes` ให้ข้อความที่ระบบตอบกลับอัตโนมัติของตัวเองส่ง** —
+ * ตอบกลับอัตโนมัติของโฆษณา, ข้อความทักทาย, การ์ดปุ่มโทร. พิสูจน์กับเธรดจริง 2026-07-30:
+ * Meta มี 11 ข้อความ webhook ให้เราแค่ 5 ที่ขาดคือข้อความอัตโนมัติทั้งหมดในช่วง 4 วินาทีหลัง
+ * ลูกค้าคลิกโฆษณา ส่วนข้อความที่ "คนพิมพ์จริง" มาครบทุกอัน — เป็นข้อจำกัดฝั่ง Meta ไม่ใช่ field
+ * ที่ subscribe เพิ่มแล้วจะได้ ต้องมาดึงเอง
+ *
+ * เรียกตอน "เปิดเธรด" (user เลือก 2026-07-30) — จุดที่คนกำลังจะอ่านจริง ไม่ใช่ยิงรัวทุกครั้งที่มี event
+ *
+ * idempotent ด้วย `externalMessageId @unique` — ยิงซ้ำกี่รอบก็ไม่เกิดข้อความซ้ำ
+ * ไม่ throw: sync ไม่ได้ = เห็นเท่าที่ webhook ให้มา (พฤติกรรมเดิม) ดีกว่าเปิดเธรดไม่ได้เลย
+ *
+ * ข้อจำกัดที่ยังแก้ไม่ได้: Instagram — endpoint /me/conversations ฝั่ง IG ตอบ error 2207085
+ * (ดู comment ที่ getContactProfile) จึง sync ได้เฉพาะ MESSENGER
+ */
+export async function syncMissingMessagesFromMeta(
+  conversationId: string,
+): Promise<{ added: number }> {
+  // throttle ต่อเธรด — route ที่เรียกฟังก์ชันนี้ถูกยิงทุกครั้งที่ client poll ไม่ใช่แค่ตอนเปิดเธรด
+  // ถ้าไม่กัน จะได้ Graph call ทุกไม่กี่วินาทีต่อคนที่เปิดแชทค้างไว้ (โดนจำกัดอัตราแน่นอน)
+  // in-memory + globalThis: pattern เดียวกับ lib/api-rate-limit.ts — known-gap เดียวกันคือ
+  // serverless หลาย instance ต่างคนต่างนับ (ยอมรับได้: ผลเสียสูงสุดคือ sync ถี่กว่าที่ตั้งไว้เล็กน้อย)
+  const now = Date.now()
+  const store = (globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt ??
+    ((globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt = new Map())
+  const last = store.get(conversationId)
+  if (last && now - last < SYNC_THROTTLE_MS) return { added: 0 }
+  store.set(conversationId, now)
+
+  try {
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { shopChannel: true, externalContact: true },
+    })
+    // MESSENGER เท่านั้น (ดู comment หัวฟังก์ชัน) + ต้องมี token ที่ยังใช้ได้
+    if (
+      !conv ||
+      conv.channel !== 'MESSENGER' ||
+      !conv.shopChannel ||
+      !conv.externalContact ||
+      conv.shopChannel.status !== 'ACTIVE'
+    ) {
+      return { added: 0 }
+    }
+
+    const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
+    const remote = await fetchThreadMessages(conv.externalContact.externalUserId, pageToken, 50)
+    if (remote.length === 0) return { added: 0 }
+
+    const known = new Set(
+      (
+        await prisma.chatMessage.findMany({
+          where: { conversationId, externalMessageId: { in: remote.map((m) => m.id) } },
+          select: { externalMessageId: true },
+        })
+      ).map((m) => m.externalMessageId),
+    )
+    const missing = remote.filter((m) => !known.has(m.id))
+    if (missing.length === 0) return { added: 0 }
+
+    // pageId = externalId ของ ShopChannel — ใช้แยกว่าใครเป็นคนส่ง (Graph คืน from.id ของเพจสำหรับ
+    // ข้อความฝั่งร้าน รวมถึงข้อความที่ระบบอัตโนมัติส่งแทนเพจด้วย)
+    const pageId = conv.shopChannel.externalId
+
+    // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
+    // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
+    const result = await prisma.chatMessage.createMany({
+      data: missing.map((m) => ({
+        conversationId,
+        senderRole: m.fromId === pageId ? 'SHOP' : 'BUYER',
+        type: 'TEXT',
+        // ไม่มีข้อความจริง = การ์ด/template ที่ Graph ไม่ให้เนื้อหา — ใช้ placeholder ชุดเดียวกับ
+        // ฝั่ง webhook เพื่อไม่ให้เกิดบับเบิลว่างเปล่า (บทเรียน bubble ว่าง 2026-07-23)
+        body: m.text ?? SYNCED_EMPTY_TEXT,
+        createdAt: m.createdTime,
+        externalMessageId: m.id,
+      })),
+      skipDuplicates: true,
+    })
+
+    // อัปเดตสรุปเธรดเฉพาะเมื่อมีข้อความที่ "ใหม่กว่า" ที่เราเคยรู้ — ข้อความเก่าที่เพิ่งเติมย้อนหลัง
+    // ต้องไม่ไปเปลี่ยน preview/เวลาในรายการแชทให้ดูเหมือนมีความเคลื่อนไหวใหม่
+    const newest = missing.reduce((a, b) => (a.createdTime > b.createdTime ? a : b))
+    if (!conv.lastMessageAt || newest.createdTime > conv.lastMessageAt) {
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          lastMessageAt: newest.createdTime,
+          lastMessagePreview: newest.text ?? SYNCED_EMPTY_TEXT,
+          lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
+        },
+      })
+    }
+
+    return { added: result.count }
+  } catch (e) {
+    console.error(
+      '[fb-sync] ดึงข้อความย้อนหลังไม่สำเร็จ',
+      conversationId,
+      e instanceof Error ? e.message : e,
+    )
+    return { added: 0 }
+  }
+}
+
+/** placeholder ของข้อความที่ Graph ไม่ให้เนื้อหา (การ์ด/template) — ล้อกับฝั่ง webhook */
+const SYNCED_EMPTY_TEXT = '[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]'
+/** เว้นระยะก่อน sync เธรดเดิมซ้ำ — ข้อความปกติมาทาง webhook อยู่แล้ว sync เป็นแค่ตาข่ายรับส่วนที่หลุด */
+const SYNC_THROTTLE_MS = 5 * 60 * 1000
 
 export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
 
@@ -228,7 +341,16 @@ export async function ingestInboundMessage(params: {
   provider: string
   pageExternalId: string
   event: MessagingEvent
-}): Promise<{ status: IngestStatus; conversationId?: string }> {
+}): Promise<{
+  status: IngestStatus
+  conversationId?: string
+  // --- feature 00023 (additive) — caller ใช้สร้าง AutoReplyJob; ไม่ใช้ก็ไม่กระทบอะไร ---
+  headMessageId?: string
+  shopId?: string
+  senderRole?: string
+  /** true เมื่อ event.message.text มีเนื้อความจริง (ไม่ใช่ placeholder ที่เราเขียนเองตอน mirror ไม่ผ่าน) */
+  hasCustomerText?: boolean
+}> {
   const { provider, pageExternalId, event } = params
 
   // event ที่ไม่ใช่ข้อความ (delivery/read receipt ฯลฯ) — ไม่ใช่ error แค่ไม่สนใจ
@@ -282,6 +404,11 @@ export async function ingestInboundMessage(params: {
   })
 
   const text = event.message.text ?? null
+  // feature 00023 (TD-007): "ลูกค้าพิมพ์ข้อความจริงมาไหม" — ต้องดูจาก payload ของ Meta ตรงนี้
+  // ไม่ใช่จาก ChatMessage.body ที่เขียนลง DB เพราะ body อาจเป็น placeholder ที่ "เราเขียนเอง"
+  // เมื่อ mirror ไฟล์ไม่ผ่าน (เช่น "[ลูกค้าส่งรูปภาพ — เปิดดูใน Messenger]") ซึ่งถ้าเอาไปจับคู่
+  // กลุ่มคำ ร้านที่มีคำว่า "รูป" จะโดนระบบตอบราคาสินค้าใส่ตอนลูกค้าส่งสติกเกอร์
+  const hasCustomerText = !!text && text.trim().length > 0
   const firstAttachment = event.message.attachments?.[0]
   const attType = firstAttachment?.type // 'image'|'video'|'audio'|'file'|'location'|'fallback'|...
   // attachment.type → ChatMessage.type (feature 00018, user request 2026-07-24 "รองรับทุกอย่าง")
@@ -481,8 +608,10 @@ export async function ingestInboundMessage(params: {
   // ต้องเป็น arrow function (ไม่ใช่ `function` ประกาศแยก) ไม่งั้น TS จะรีเซ็ต narrowing ของ
   // `channel` (ที่เช็ค !channel ไปแล้วด้านบน) เพราะ function declaration แบบ hoisted ถูกมองว่า
   // เรียกได้จากที่ไหนก็ได้ ทำให้ TS มองว่า channel เป็น null ได้อีก
+  // feature 00023: คืน id ของ "ข้อความหลัก" (ไม่ใช่รูปที่ 2 เป็นต้นไป) ให้ caller เอาไปสร้าง
+  // AutoReplyJob — การเพิ่มค่า return ไม่กระทบ caller เดิมที่เขียน `await writeMessage(...)` เฉย ๆ
   const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string; isSpam: boolean }) => {
-    await tx.chatMessage.create({
+    const headMessage = await tx.chatMessage.create({
       data: {
         conversationId: conversation.id,
         senderUserId: null,
@@ -548,24 +677,13 @@ export async function ingestInboundMessage(params: {
       },
     })
 
-    // แจ้งเตือนเจ้าของร้านเฉพาะข้อความจากลูกค้า (echo คือร้านตอบเอง ไม่ต้องเตือน); สแปม = เงียบ
-    if (!isEcho && !conversation.isSpam) {
-      const shop = await tx.shop.findUnique({
-        where: { id: channel.shopId },
-        select: { userId: true },
-      })
-      if (shop) {
-        await tx.notification.create({
-          data: {
-            userId: shop.userId,
-            kind: 'chat_message',
-            title: `ข้อความใหม่จาก ${contact.name ?? 'ลูกค้า'}`,
-            body: preview,
-            refId: conversation.id,
-          },
-        })
-      }
-    }
+    // เลิกเขียน Notification kind="chat_message" (user สั่ง 2026-07-29) — ดูเหตุผลเต็มที่
+    // chat.service.ts (จุดคู่กัน): ไม่มีผู้บริโภคจริง + เป็น INSERT ในทรานแซกชันรับข้อความ
+    // ซึ่งที่นี่ยิ่งหนักกว่า เพราะเป็น webhook ขาเข้าจาก Messenger/IG ที่ Meta ยิงถี่
+    // ร้านยังเห็นข้อความใหม่ผ่าน unreadChatCount (bottom nav/inbox) + realtime เหมือนเดิม
+
+    // feature 00023: คืน id ของข้อความหลักให้ caller เอาไปสร้าง AutoReplyJob
+    return headMessage.id
   }
 
   try {
@@ -584,8 +702,15 @@ export async function ingestInboundMessage(params: {
           },
         })
       }
-      await writeMessage(tx, conversation)
-      return { status: 'STORED' as const, conversationId: conversation.id }
+      const headMessageId = await writeMessage(tx, conversation)
+      return {
+        status: 'STORED' as const,
+        conversationId: conversation.id,
+        headMessageId,
+        shopId: channel.shopId,
+        senderRole,
+        hasCustomerText,
+      }
     })
   } catch (e) {
     // ชนที่ externalMessageId = Meta ยิงข้อความซ้ำจริง หรือ echo ของข้อความที่เราส่งออกไปเอง
@@ -604,8 +729,15 @@ export async function ingestInboundMessage(params: {
       if (winner) {
         try {
           return await prisma.$transaction(async (tx) => {
-            await writeMessage(tx, winner)
-            return { status: 'STORED' as const, conversationId: winner.id }
+            const headMessageId = await writeMessage(tx, winner)
+            return {
+              status: 'STORED' as const,
+              conversationId: winner.id,
+              headMessageId,
+              shopId: channel.shopId,
+              senderRole,
+              hasCustomerText,
+            }
           })
         } catch (retryError) {
           // เอดจ์เคส: ข้อความเดียวกัน (mid เดิม) มาถึงซ้ำพอดีตอน retry — ยังคือ "มีอยู่แล้ว"
@@ -756,7 +888,19 @@ export async function ingestReactionEvent(params: {
 
 export async function sendOutboundMessage(params: {
   conversationId: string
-  actorUserId: string
+  // actorUserId = คนกดส่ง. null ได้เฉพาะเส้นทางระบบ (auto-reply) ซึ่งต้องส่ง systemShopId มาคู่กัน
+  actorUserId: string | null
+  // --- feature 00023 auto-reply (additive, optional — ไม่ส่ง = พฤติกรรมเดิมทุกประการ) ---
+  // systemShopId: เส้นทางที่ "ระบบ" เป็นผู้ส่ง ไม่มี user จริงให้เช็ค canAccessShop (TD-005)
+  //
+  // WARNING: นี่ไม่ใช่ flag ข้าม authz — มันคือการ **ย้ายคำถาม** จาก "user คนนี้แตะร้านนี้ได้ไหม"
+  // เป็น "เธรดนี้เป็นของร้านที่ระบบกำลังทำงานแทนจริงหรือเปล่า" แล้วบังคับให้ caller ประกาศ shopId
+  // ที่ตัวเองเชื่อว่าเป็นเจ้าของออกมาตรง ๆ เพื่อให้ฟังก์ชันนี้ cross-check กับเธรดจริงได้
+  // ถ้าไม่ตรง = โยนทันที. ผลคือ caller ที่ถือ conversationId จากที่อื่นมาเดา ๆ จะยิงข้ามร้านไม่ได้
+  // (ค่านี้มาจาก AutoReplyJob.shopId ซึ่งถูกเขียนตอน ingest webhook ฝั่ง server ไม่ได้มาจาก client)
+  systemShopId?: string
+  // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
+  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
   // text = ข้อความ (หรือ caption ของรูป); imageFileId = ส่งรูป (storage fileId) — อย่างน้อยต้องมีอย่างหนึ่ง
   text?: string
   imageFileId?: string
@@ -776,9 +920,19 @@ export async function sendOutboundMessage(params: {
     throw new Error('NOT_EXTERNAL_CHANNEL')
   }
 
-  // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
-  // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
-  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (params.systemShopId !== undefined) {
+    // เส้นทางระบบ (auto-reply) — ไม่มี user จริง จึงเช็คคนละคำถาม (TD-005)
+    // caller ต้องประกาศ shopId ที่ตัวเองเชื่อว่าเป็นเจ้าของเธรดออกมา แล้วเราตรวจกับของจริง
+    // ไม่ตรง = โยน. นี่คือสิ่งที่กันการยิงข้ามร้านแทน canAccessShop
+    if (params.systemShopId !== conversation.shopId) throw new Error('FORBIDDEN')
+    // กันเรียกผิดรูป: ส่ง systemShopId มาแต่ยังใส่ actorUserId = ตั้งใจอะไรไม่ชัด ปฏิเสธไว้ก่อน
+    if (params.actorUserId !== null) throw new Error('INVALID_ACTOR')
+  } else {
+    // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
+    // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
+    if (!params.actorUserId) throw new Error('FORBIDDEN')
+    if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  }
 
   // เช็คหน้าต่าง 24 ชม. ก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว
   if (!getWindowState(conversation.lastInboundAt).open) throw new Error('WINDOW_CLOSED')
@@ -859,6 +1013,8 @@ export async function sendOutboundMessage(params: {
           externalMessageId: mid || null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
           failureReason,
+          // feature 00023 — null = คนส่ง (พฤติกรรมเดิมทุก caller ที่ไม่ส่งค่านี้มา)
+          autoReplyKind: params.autoReplyKind ?? null,
         },
       })
 
@@ -879,7 +1035,24 @@ export async function sendOutboundMessage(params: {
     if (mid && isUniqueViolationOn(e, 'externalMessageId')) {
       const existing = await prisma.chatMessage.findUnique({ where: { externalMessageId: mid } })
       if (existing) {
-        message = existing
+        // WARNING: feature 00023 — คืนแถวเดิมเฉย ๆ ไม่พออีกต่อไป
+        //
+        // แถวที่ echo เขียนไว้จะมี autoReplyKind = null (ingest ไม่รู้ว่าใครเป็นคนส่ง) ถ้าปล่อยค้าง
+        // ไว้แบบนั้น เกณฑ์ "พนักงานเข้ามาตอบ" (senderRole=SHOP AND autoReplyKind IS NULL) จะนับ
+        // คำตอบของบอทเองเป็นพนักงาน แล้วระบบจะหยุดตัวเอง = ตอบครั้งแรกแล้วเงียบตลอดกาล
+        // และอาการจะถูกวินิจฉัยผิดเป็นบั๊ก cooldown เพราะดูจากภายนอกเหมือนกันทุกอย่าง
+        //
+        // จึงต้องติดป้ายย้อนหลังให้แถวนั้น. updateMany + เงื่อนไข autoReplyKind: null = idempotent
+        // และไม่ทับของที่ถูกต้องอยู่แล้ว (กรณี retry ที่แถวถูกติดป้ายไปแล้วรอบก่อน)
+        if (params.autoReplyKind) {
+          await prisma.chatMessage.updateMany({
+            where: { id: existing.id, autoReplyKind: null },
+            data: { autoReplyKind: params.autoReplyKind },
+          })
+          message = { ...existing, autoReplyKind: params.autoReplyKind }
+        } else {
+          message = existing
+        }
       } else {
         throw e
       }
