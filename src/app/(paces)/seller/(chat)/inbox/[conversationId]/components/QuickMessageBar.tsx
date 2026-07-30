@@ -280,9 +280,21 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                     </span>
                   )}
                   {imgs.length > 0 ? (
-                    <span className="relative block">
+                    // user report 2026-07-30: "รูปไม่ fit ความสูงรูปไม่เท่ากัน ดูแปลก"
+                    // เดิมใส่ aspect-square ไว้ที่ตัว <img> เอง — img เป็น replaced element ที่มี
+                    // intrinsic ratio ของตัวเอง การสั่ง aspect-ratio ทับจึงไม่ได้ผลแน่นอน และ
+                    // object-cover ก็ไม่มีอะไรให้ครอปเพราะความสูงยังเป็น auto → รูปสูงเท่าสัดส่วนจริง
+                    // ของแต่ละไฟล์ การ์ดจึงสูงไม่เท่ากัน
+                    // แก้: ให้ "กรอบ" (span ธรรมดา ไม่ใช่ replaced element) เป็นตัวกำหนดสี่เหลี่ยมจัตุรัส
+                    // แล้วรูปเติมเต็มกรอบแบบ absolute → ครอปจริง สูงเท่ากันทุกใบไม่ว่ารูปจะสัดส่วนใด
+                    <span className="relative block aspect-square w-full overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/files/${imgs[0]}`} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+                      <img
+                        src={`/api/files/${imgs[0]}`}
+                        alt=""
+                        loading="lazy"
+                        className="absolute inset-0 size-full object-cover"
+                      />
                       {imgs.length > 1 && (
                         <span className="bg-default-900/70 absolute end-1 bottom-1 rounded px-1 text-2xs text-white">
                           +{imgs.length - 1}
