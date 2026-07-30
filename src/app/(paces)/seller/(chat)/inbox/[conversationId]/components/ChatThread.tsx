@@ -75,6 +75,7 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
+import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -916,6 +917,34 @@ export default function ChatThread({
                       {copyBtn}
                     </div>
                   ) : null
+                // ข้อความ "ระบบ" ที่ Facebook แทรกเองในเธรด (user report 2026-07-30) — เช่น
+                // "คุณกำลังตอบกลับความคิดเห็น...ดูความคิดเห็น(url)" หรือ "<ชื่อ> replied to an ad."
+                // Meta ส่งมาในนามเพจ ถ้า render เป็นบับเบิลปกติจะเข้าใจผิดว่าแอดมินพิมพ์เอง
+                // (user: "ทำให้เข้าใจผิดว่าคนพิมพ์") + URL ดิบยาวเต็มจอ
+                // → บรรทัดกลางจอสีจางแบบ Messenger ตามรูปที่ user ส่งมา ไม่ใช่บับเบิล
+                const systemNotice = m.type === 'TEXT' ? parseMetaSystemNotice(m.body) : null
+                if (systemNotice) {
+                  return (
+                    <div key={m.id} className="my-5 px-4 text-center">
+                      <p className="text-default-600 mb-0 text-xs">
+                        {systemNotice.text}
+                        {systemNotice.url && (
+                          <>
+                            {' '}
+                            <a
+                              href={systemNotice.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary font-medium hover:underline"
+                            >
+                              {systemNotice.linkLabel}
+                            </a>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )
+                }
                 return (
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
                   <div key={m.id} className={`group my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
