@@ -364,89 +364,115 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
           {/* เส้นเชื่อมระหว่างขั้น — สื่อว่าอ่านต่อเนื่องเป็นลำดับ (ตาม reference ที่ user ส่ง) */}
           <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
 
-          {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
-          {/* border-s-3 = accepted exception ของ (paces) ตาม DESIGN.md §6 —
-              การ์ดนี้คือข้อความที่ลูกค้าจะได้รับจริง ต้องอ่านออกทันทีว่าเป็นของชิ้นหลักของหน้า
-              ไม่ใช่ฟิลด์หนึ่งในสี่ที่หน้าตาเหมือนกันหมด (Impeccable critique 2026-07-30) */}
-          <div className="card border-s-primary border-s-3">
-            <div className="card-header">
-              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-                <Icon icon="message-2-reply" className="text-primary text-lg" aria-hidden="true" />
-                ข้อความตอบกลับพื้นฐาน
-              </h5>
-              <p className="text-default-500 mt-0.5 text-xs">ตอบทันทีที่ลูกค้าทักเข้ามาและตรงกับคำที่ตั้งไว้</p>
-            </div>
-            <div className="card-body">
-              {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
-                  `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
-                  Tailwind กรอบของ textarea จึงไม่หาย ได้กรอบซ้อนกรอบ (บั๊กจริง 2026-07-29,
-                  ตรงกับ memory feedback_paces_forms_css_gotchas) — ใช้ form-textarea ตรง ๆ
-                  แล้ววางตัวนับไว้นอกกรอบแทน */}
-              <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
-                maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
-                placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                aria-label="ข้อความตอบกลับพื้นฐาน" />
-              <div className="mt-1.5 flex justify-end">
-                <span className="text-default-400 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
-              </div>
-            </div>
-          </div>
-
-
-          {/* เส้นเชื่อมระหว่างขั้น — สื่อว่าอ่านต่อเนื่องเป็นลำดับ (ตาม reference ที่ user ส่ง) */}
-          <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
-
-          {/* ── บันไดเงื่อนไขเฉพาะ ─────────────────────────────────── */}
+          {/* ── [B] บันไดคำตอบ = พระเอกของหน้า ─────────────────────────
+              ยุบการ์ดคำตอบพื้นฐาน + การ์ดเงื่อนไขเฉพาะเป็นบันไดใบเดียว: ลำดับแถวบนลงล่าง
+              = ลำดับที่ resolver ไล่จริง และแถวสุดท้ายคือ textarea คำตอบพื้นฐานตัวจริง
+              โครงนี้เองคือคำอธิบายกลไก จึงไม่ต้องมีย่อหน้าสอน (Impeccable critique 2026-07-30
+              Help 2/4 + Aesthetic 2/4 แก้ด้วยของชิ้นเดียว)
+              Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx → Numbered (:381-411) */}
           <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-                <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
-                เงื่อนไขเฉพาะ ({exceptions.length})
-              </h5>
+            <div className="card-header items-start">
+              <div className="min-w-0">
+                {/* ไอคอนแผ่น + text-lg มีที่นี่ใบเดียวในหน้า = ตัวแยกขั้นพระเอก/การ์ดรอง (spec §7)
+                    ใช้ treatment เป็นตัวแยกขั้น ไม่ใช่ "ใบเดียวมีสี ที่เหลือเทา" ซึ่งจะพาหน้ากลับไปจาง */}
+                <h5 className="text-default-900 flex items-center gap-2 text-lg font-semibold">
+                  <span className="bg-primary/15 text-primary flex size-8 flex-none items-center justify-center rounded-lg">
+                    {/* message-reply ไม่ใช่ message-2-reply — ชื่อหลังไม่มีในชุด tabler (ยืนยันกับ
+                        api.iconify.design แล้ว) ถ้าใส่ชื่อที่ไม่มี @iconify/react จะไม่ render svg เลย
+                        โดยไม่ throw และ tsc/grep/E2E ผ่านหมด = เห็นเป็นแผ่นสีว่าง ๆ เท่านั้น */}
+                    <Icon icon="message-reply" className="size-4.5" aria-hidden="true" />
+                  </span>
+                  คำตอบที่ลูกค้าจะได้รับ
+                </h5>
+                {/* CL-6: อธิบายกลไกเฉพาะเมื่อมีบันไดให้ไล่จริง — ตอน 0 เงื่อนไขประโยคนี้จะอธิบาย
+                    กลไกที่ยังไม่ทำงาน = เพิ่มภาระให้ร้านมือใหม่ซึ่งเป็นคนส่วนใหญ่ */}
+                {exceptions.length >= 1 && (
+                  <p className="text-default-700 mt-1.5 text-xs">
+                    ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด
+                  </p>
+                )}
+              </div>
               {canEdit && (
-                <button className="btn btn-primary btn-sm" onClick={() => setSheetOpen(true)}>
-                  <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
+                // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
+                // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
+                <button type="button"
+                  className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 flex-none text-white max-sm:w-full sm:min-h-0"
+                  onClick={() => setSheetOpen(true)}>
+                  <Icon icon="plus" className="size-3" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
                 </button>
               )}
             </div>
             <div className="card-body">
-              <p className="text-default-500 mb-3 text-xs">
-                เฉพาะเจาะจงกว่าอยู่บน — ระบบเลือกอันบนสุดที่เข้าเงื่อนไข
-              </p>
-
-              {exceptions.length === 0 ? (
-                <div className="border-default-200 rounded border border-dashed px-4 py-6 text-center">
-                  <p className="text-default-600 text-sm">ยังไม่มีเงื่อนไขเฉพาะ</p>
-                  <p className="text-default-500 mt-1 text-xs">
-                    ทุกเธรดจะได้รับคำตอบหลักเหมือนกันหมด — เพิ่มเงื่อนไขเฉพาะเมื่ออยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า
-                  </p>
-                </div>
-              ) : (
-                <div className="border-default-200 overflow-hidden rounded border">
-                  {exceptions.map((r, i) => (
-                    <div key={r.id}
-                      className={`border-default-200 p-3 ${i < exceptions.length - 1 ? 'border-b' : ''} ${i === 0 ? 'border-s-primary border-s-2' : ''}`}>
-                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                        <span className="text-default-400 text-xs">เมื่อมาจาก</span>
-                        {condLabel(r).map((c) => (
-                          <span key={c} className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">{c}</span>
-                        ))}
+              {/* overflow-hidden เพิ่มจาก theme — กันเส้น accent ซ้ายของแถวสุดท้ายทะลุมุมที่ rounded */}
+              <ul className="divide-default-200 border-default-300 divide-y overflow-hidden rounded border">
+                {exceptions.map((r, i) => (
+                  <li key={r.id} className="flex flex-wrap justify-between gap-1.5 px-4.75 py-3">
+                    <div className="flex min-w-0 flex-1 gap-3">
+                      <div className="bg-primary/10 text-primary text-2xs flex size-5.5 flex-none items-center justify-center rounded font-semibold">
+                        {i + 1}
                       </div>
-                      <p className="bg-default-50 text-default-800 rounded p-2 text-sm">{r.replyText}</p>
-                      {canEdit && (
-                        <div className="mt-2 flex gap-1.5">
-                          <button className="btn btn-soft-default btn-sm" disabled={busy}
-                            onClick={() => deleteException(r.id)}>ลบ</button>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-default-700 text-xs">เมื่อมาจาก</span>
+                          {condLabel(r).map((c) => (
+                            <span key={c} className="bg-primary/10 text-primary max-w-full truncate rounded px-2 py-0.5 text-xs font-medium">{c}</span>
+                          ))}
                         </div>
-                      )}
+                        {/* ข้อความล้วน ไม่ใส่กล่องซ้อนกล่องในบันได (anti-slop) */}
+                        <p className="text-default-800 mt-1 line-clamp-3 text-sm">{r.replyText}</p>
+                      </div>
                     </div>
-                  ))}
-                  {/* ทำให้การถอยไปคำตอบหลักเป็นสิ่งที่ "เห็น" ไม่ใช่สิ่งที่ต้องรู้เอง */}
-                  <div className="bg-default-50 text-default-600 flex items-center gap-2 px-3 py-2.5 text-xs">
-                    <Icon icon="corner-down-right" aria-hidden="true" />
-                    ไม่เข้าข้อไหนเลย ใช้คำตอบหลัก
+                    {canEdit && (
+                      <div className="flex gap-1.5 max-sm:w-full">
+                        {/* handler ของ "แก้ไข" (เปิด sheet โหมดแก้) เป็นงาน S-05 — รอบนี้ยัง disabled */}
+                        <button type="button" disabled
+                          className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
+                          aria-label={`แก้ไขเงื่อนไขข้อ ${i + 1}`}>
+                          <Icon icon="pencil" className="size-3" aria-hidden="true" />แก้ไข
+                        </button>
+                        <button type="button" disabled={busy}
+                          className="btn btn-sm text-danger hover:bg-danger min-h-11 flex-1 justify-center hover:text-white sm:min-h-0 sm:flex-none"
+                          aria-label={`ลบเงื่อนไขข้อ ${i + 1}`}
+                          onClick={() => deleteException(r.id)}>
+                          <Icon icon="trash" className="size-3" aria-hidden="true" />ลบ
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+
+                {/* แถวสุดท้าย = คำตอบพื้นฐานตัวจริง · เส้น accent ซ้ายอยู่ที่ "แถว" ไม่ใช่ขอบการ์ด
+                    accent จึงชี้ของจริงและไม่ซ้อน 2 ชั้น (accepted exception ตาม DESIGN.md §6 / spec §7) */}
+                <li className="border-s-primary border-s-3 px-4.75 py-3">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    {/* label ครอบเฉพาะข้อความ ห้ามครอบ badge — ไม่งั้น accessible name ของ textarea เพี้ยน */}
+                    <label htmlFor="k-fallback-reply" className="text-default-800 mb-0 text-sm font-semibold">
+                      ทุกกรณีที่เหลือ
+                    </label>
+                    <span className="badge bg-default-200 text-default-700">ใช้เมื่อไม่เข้าข้อไหนเลย</span>
                   </div>
-                </div>
+                  {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
+                      `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
+                      Tailwind กรอบของ textarea จึงไม่หาย ได้กรอบซ้อนกรอบ (บั๊กจริง 2026-07-29,
+                      ตรงกับ memory feedback_paces_forms_css_gotchas) — ใช้ form-textarea ตรง ๆ
+                      แล้ววางตัวนับไว้นอกกรอบแทน */}
+                  <textarea id="k-fallback-reply" className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
+                    maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
+                    placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
+                    aria-label="ทุกกรณีที่เหลือ" />
+                  <div className="mt-1.5 flex justify-end">
+                    <span className="text-default-400 text-2xs">{defaultReply.length}/{REPLY_MAX}</span>
+                  </div>
+                </li>
+              </ul>
+
+              {/* 0 เงื่อนไข (เคสพบบ่อยสุด): ไม่มีเลขลำดับ ไม่มีกล่องเส้นประ — ชวนเบา ๆ บรรทัดเดียว */}
+              {canEdit && exceptions.length === 0 && (
+                <p className="text-default-700 mt-3 text-xs">
+                  อยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า?{' '}
+                  <button type="button" className="text-primary font-medium hover:underline"
+                    onClick={() => setSheetOpen(true)}>เพิ่มเงื่อนไขเฉพาะ</button>
+                </p>
               )}
             </div>
           </div>

@@ -217,7 +217,7 @@
 | [D] ตัวเลือกเพจ | in-repo: `settings/auto-reply/[id]/PagePicker.tsx` | custom dropdown | เก็บเดิม (ห้ามกลับไป `hs-dropdown` — parent re-render ทุกครั้งที่พิมพ์) |
 | confirm ทุกจุด | `theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx` → wrapper `src/lib/paces-swal.ts` | `pacesConfirm.warning` / `.danger` | Hard Rule 8 |
 | toast ทุกจุด | `src/lib/paces-toast.ts` | `pacesToast.*` (top-right) | Hard Rule 9 |
-| ไอคอน | `theme/paces/Admin/TS/src/app/(admin)/icons/tabler/page.tsx` | tabler ผ่าน `@iconify/react` (wrapper `@/components/wrappers/Icon`) | ใช้เฉพาะชื่อที่โปรเจกต์ใช้จริงแล้ว: `message-2-reply` `adjustments-horizontal` `git-branch` `flask` `alert-triangle` `clock` `pencil` `trash` `plus` `x` `check` `send` `arrow-up` `arrow-down` `chevron-down` `chevron-left` `info-circle` `building-store` `eye` |
+| ไอคอน | `theme/paces/Admin/TS/src/app/(admin)/icons/tabler/page.tsx` | tabler ผ่าน `@iconify/react` (wrapper `@/components/wrappers/Icon`) | ใช้เฉพาะชื่อที่**ยืนยันแล้วว่ามีจริง**: `message-reply` (🛑 **ไม่ใช่ `message-2-reply` — ชื่อนั้นไม่มีในชุด tabler** ยืนยันกับ `api.iconify.design` แล้ว; ใส่ชื่อที่ไม่มี → `@iconify/react` ไม่ render svg เลยโดยไม่ throw และ tsc/grep/E2E ผ่านหมด เห็นเป็นแผ่นสีว่าง ๆ — จับได้ด้วย browser QA เท่านั้น) `adjustments-horizontal` `git-branch` `flask` `alert-triangle` `clock` `pencil` `trash` `plus` `x` `check` `send` `arrow-up` `arrow-down` `chevron-down` `chevron-left` `info-circle` `building-store` `eye` |
 
 **ไม่พบ theme match — ตัดสินแล้ว**
 
