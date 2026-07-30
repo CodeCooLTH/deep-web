@@ -24,6 +24,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import PagePicker from './PagePicker'
+import TestThreadsCard from './TestThreadsCard'
 
 const REPLY_MAX = 1000
 
@@ -50,8 +51,8 @@ type Props = {
     name: string
     matchType: string
     priority: number
-    isActive: boolean
-    mode: string
+    status: string
+    testThreadCount: number
     phrases: Phrase[]
     rules: Rule[]
   }
@@ -66,11 +67,19 @@ async function callApi(url: string, init: RequestInit) {
   return data
 }
 
+/** สถานะ 3 ค่าของกลุ่มคำ — เขียวสงวนให้ "ตอบลูกค้าจริง" ตาม Verified-Means-Green */
+const STATUS_ORDER = ['OFFLINE', 'TEST', 'LIVE'] as const
+const STATUS_META: Record<string, { label: string; active: string }> = {
+  OFFLINE: { label: 'ไม่ใช้งาน', active: 'bg-default-500 text-white' },
+  TEST: { label: 'ทดสอบ', active: 'bg-warning text-white' },
+  LIVE: { label: 'ตอบลูกค้าจริง', active: 'bg-success text-white' },
+}
+
 export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, channels, products }: Props) {
   const router = useRouter()
 
-  const [isActive, setIsActive] = useState(keyword.isActive)
-  const [mode, setMode] = useState(keyword.mode)
+  const [status, setStatus] = useState(keyword.status)
+  const [testThreadCount, setTestThreadCount] = useState(keyword.testThreadCount)
   const [name, setName] = useState(keyword.name)
   /**
    * รูปแบบการตรวจจับล็อกไว้ที่ค่าเดิมของชุดนั้น ไม่ให้แก้ผ่าน UI (user 2026-07-29)
@@ -112,24 +121,33 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
   }, [name, priority, defaultReply, keyword, defaultRule])
 
   /**
-   * สวิตช์มีผลทันที ไม่ต้องกดบันทึกแยก
+   * เปลี่ยนสถานะมีผลทันที ไม่ต้องกดบันทึกแยก
    * WARNING: V1 ให้สวิตช์อยู่ในฟอร์มที่ต้องกดบันทึก — user เปิดแล้วนึกว่าทำงาน แต่จริง ๆ ไม่ได้บันทึก
    * แล้วสรุปว่า "ตั้งค่าแล้วระบบไม่ตอบ" (บั๊กจริงบน prod 2026-07-29) ไม่มีใครคาดหวังว่าสวิตช์ต้องยืนยัน
    */
-  async function toggleActive(next: boolean) {
-    if (!canEdit || busy) return
+  async function changeStatus(next: string) {
+    if (!canEdit || busy || next === status) return
+    if (next === 'LIVE') {
+      const ok = await pacesConfirm.warning(
+        'ให้กลุ่มคำนี้ตอบลูกค้าจริง?',
+        'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
+        { confirmButtonText: 'ตอบลูกค้าจริง' },
+      )
+      if (!ok) return
+    }
     setBusy(true)
-    setIsActive(next)
+    const prev = status
+    setStatus(next)
     try {
       await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: next }),
+        body: JSON.stringify({ status: next }),
       })
-      pacesToast.success(next ? 'เปิดใช้งานกลุ่มคำแล้ว' : 'ปิดกลุ่มคำแล้ว')
+      pacesToast.success(`เปลี่ยนเป็น "${STATUS_META[next]?.label ?? next}" แล้ว`)
       router.refresh()
     } catch (e) {
-      setIsActive(!next)
+      setStatus(prev)
       pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนสถานะไม่สำเร็จ')
     } finally {
       setBusy(false)
@@ -167,41 +185,6 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
       router.refresh()
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /**
-   * สลับ LIVE/TEST มีผลทันที (feature 00023 โหมดรายรายการ)
-   * TEST = ตอบเฉพาะเธรดใน allowlist · LIVE = ตอบลูกค้าจริงทุกคน
-   * แยกรายรายการทำให้ปล่อยของทีละชุดได้โดยชุดที่ใช้งานจริงอยู่ไม่กระทบ
-   */
-  async function changeMode(next: string) {
-    if (!canEdit || busy || next === mode) return
-    // ขาไป LIVE = ลูกค้าจริงเริ่มได้รับคำตอบทันที ถามก่อนเสมอ
-    // ขากลับ TEST ไม่ต้องถาม (เป็นการ "หยุดความเสี่ยง" ไม่ใช่สร้าง)
-    if (next === 'LIVE') {
-      const ok = await pacesConfirm.warning(
-        'เปลี่ยนเป็นใช้งานจริง?',
-        'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
-        { confirmButtonText: 'ใช้งานจริง' },
-      )
-      if (!ok) return
-    }
-    setBusy(true)
-    const prev = mode
-    setMode(next)
-    try {
-      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: next }),
-      })
-      pacesToast.success(next === 'LIVE' ? 'เปลี่ยนเป็นใช้งานจริงแล้ว' : 'เปลี่ยนเป็นโหมดทดสอบแล้ว')
-      router.refresh()
-    } catch (e) {
-      setMode(prev)
-      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนโหมดไม่สำเร็จ')
     } finally {
       setBusy(false)
     }
@@ -285,13 +268,14 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         </p>
       </div>
 
-      {mode === 'TEST' && (
+      {status === 'TEST' && (
         <div className="card bg-warning/10 border-warning mb-4">
           <div className="card-body flex items-center gap-3 py-3">
             <Icon icon="flask" className="text-warning text-lg" aria-hidden="true" />
             <p className="text-default-700 text-sm">
-              การตั้งค่านี้อยู่ในโหมดทดสอบ — ตอบเฉพาะแชทที่เลือกไว้ในหน้ารายการเท่านั้น
-              ลูกค้าทั่วไปจะยังไม่ได้รับคำตอบจากชุดนี้ (ชุดอื่นที่ใช้งานจริงอยู่ไม่กระทบ)
+              {testThreadCount > 0
+                ? `กลุ่มคำนี้อยู่ในโหมดทดสอบ — ตอบเฉพาะ ${testThreadCount} แชทที่เลือกไว้ด้านล่างเท่านั้น ลูกค้าทั่วไปจะยังไม่ได้รับคำตอบจากชุดนี้ (ชุดอื่นที่ตอบลูกค้าจริงอยู่ไม่กระทบ)`
+                : 'กลุ่มคำนี้อยู่ในโหมดทดสอบแต่ยังไม่ได้เลือกแชทสำหรับทดสอบ — ตอนนี้จึงไม่ตอบใครเลย เพิ่มแชทในตาราง "แชทสำหรับทดสอบ" ด้านล่างก่อน'}
             </p>
           </div>
         </div>
@@ -318,41 +302,24 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                     : ' — ยังไม่ได้ใส่คำตรวจจับ'}
                 </p>
               </div>
-              <div className="flex flex-none flex-wrap items-center gap-3">
-                {/* โหมดของกลุ่มคำนี้ (แยกจากโหมดทดสอบระดับร้าน) — ปล่อยของทีละชุดได้
-                    โดยชุดที่ใช้งานจริงอยู่ไม่กระทบ (user 2026-07-29) มีผลทันทีไม่ต้องกดบันทึก */}
-                <div className="bg-light inline-flex rounded-lg p-0.5" role="group" aria-label="โหมดของกลุ่มคำนี้">
-                  {[
-                    { value: 'TEST', label: 'ทดสอบ', active: 'bg-warning text-white' },
-                    { value: 'LIVE', label: 'ใช้งานจริง', active: 'bg-primary text-white' },
-                  ].map((o) => (
-                    <button
-                      key={o.value}
-                      type="button"
-                      disabled={!canEdit || busy}
-                      onClick={() => changeMode(o.value)}
-                      aria-pressed={mode === o.value}
-                      className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                        mode === o.value ? o.active : 'text-default-500 hover:text-default-800'
-                      }`}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-
-              {/* สวิตช์อยู่ก่อนคำว่า เปิด/ปิด แบบเดียวกับ reference — อ่านเป็นประโยคเดียว
-                  และมีผลทันทีไม่ต้องกดบันทึก */}
-              <label className="flex flex-none cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox" className="form-switch" checked={isActive}
-                  disabled={!canEdit || busy} onChange={(e) => toggleActive(e.target.checked)}
-                  aria-label="เปิดใช้งานกลุ่มคำนี้"
-                />
-                <span className={`text-sm font-medium ${isActive ? 'text-success' : 'text-default-500'}`}>
-                  {isActive ? 'เปิด' : 'ปิด'}
-                </span>
-              </label>
+              {/* สถานะของกลุ่มคำนี้ 3 ค่า — ค่าเดียวจบ ไม่มีสวิตช์เปิด/ปิดซ้อนอีกชั้น
+                  (user 2026-07-29: "ทดสอบไม่เท่ากับ INACTIVE นะ ต้องมี 3 สถานะ")
+                  มีผลทันทีไม่ต้องกดบันทึก */}
+              <div className="bg-light inline-flex flex-none rounded-lg p-0.5" role="group" aria-label="สถานะของกลุ่มคำนี้">
+                {STATUS_ORDER.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={!canEdit || busy}
+                    onClick={() => changeStatus(key)}
+                    aria-pressed={status === key}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      status === key ? STATUS_META[key].active : 'text-default-500 hover:text-default-800'
+                    }`}
+                  >
+                    {STATUS_META[key].label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -468,11 +435,24 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
               )}
             </div>
           </div>
+
+          {/* เส้นเชื่อมระหว่างขั้น */}
+          <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
+
+          {/* ── แชทสำหรับทดสอบ ─────────────────────────────────────
+              user 2026-07-29: "แล้วไหนเลือกช่องทางทดสอบ ... มันควรมี table สำหรับ lists รายการแชท"
+              อยู่ในหน้าของกลุ่มคำ ไม่ใช่หน้าตั้งค่ารวม เพราะรายการนี้เป็นของกลุ่มคำนี้ตัวเดียว */}
+          <TestThreadsCard
+            keywordId={keyword.id}
+            status={status}
+            canEdit={canEdit}
+            onCountChange={setTestThreadCount}
+          />
         </div>
 
         <div className="xl:col-span-3">
           <SimulatePanel channels={channels} products={products} keywordId={keyword.id}
-            onEnable={() => toggleActive(true)} canEdit={canEdit} />
+            onEnable={() => changeStatus('TEST')} canEdit={canEdit} />
         </div>
       </div>
 
@@ -791,14 +771,14 @@ function SimulatePanel({
       } else {
         // บอกสถานะเป็นหมายเหตุใต้บับเบิล ไม่บังคำตอบ (user: "อยากให้ลองตอบเลยว่าจะตอบว่าอะไร")
         const notes: string[] = []
-        if (data.winnerState && !data.winnerState.isActive) notes.push('ชุดนี้ยังไม่เปิดใช้งาน')
-        if (data.winnerState?.mode === 'TEST') notes.push('อยู่โหมดทดสอบ')
+        if (data.winnerState?.status === 'OFFLINE') notes.push('ชุดนี้ยังไม่ใช้งาน')
+        if (data.winnerState?.status === 'TEST') notes.push('อยู่โหมดทดสอบ')
         if (!data.shopEnabled) notes.push('ระบบปิดอยู่ทั้งร้าน')
         setTurns((t) => [
           ...t,
           { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
         ])
-        setNeedsEnable(!!data.winnerState && !data.winnerState.isActive)
+        setNeedsEnable(data.winnerState?.status === 'OFFLINE')
       }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ดูตัวอย่างไม่สำเร็จ')
@@ -881,7 +861,7 @@ function SimulatePanel({
       {needsEnable && canEdit && (
         <div className="border-default-200 border-t px-4 pt-3">
           <button className="btn btn-soft-primary btn-sm w-full" onClick={onEnable}>
-            เปิดใช้งานชุดนี้
+            เริ่มทดสอบชุดนี้
           </button>
         </div>
       )}

@@ -1158,17 +1158,15 @@ export const AutoReplyConfigPatchSchema = v.partial(
 export const AutoReplyKeywordCreateSchema = v.object({
   name: v.pipe(v.string(), v.trim(), v.minLength(1, 'ต้องระบุชื่อกลุ่มคำ'), v.maxLength(100)),
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
-  // LIVE = ตอบลูกค้าจริง · TEST = ตอบเฉพาะเธรดใน allowlist (feature 00023, โหมดรายรายการ)
-  mode: v.optional(v.picklist(['LIVE', 'TEST'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
 })
 
 export const AutoReplyKeywordUpdateSchema = v.object({
   name: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
-  mode: v.optional(v.picklist(['LIVE', 'TEST'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
-  isActive: v.optional(v.boolean()),
+  // OFFLINE ไม่ตอบใครเลย · TEST ตอบเฉพาะเธรดที่ผูกไว้กับกลุ่มนี้ · LIVE ตอบทุกเธรด
+  status: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
 })
 
 export const AutoReplyPhrasesSchema = v.object({
@@ -1210,11 +1208,6 @@ export const AutoReplyRuleUpdateSchema = v.object({
   activeUntil: v.nullable(v.string()),
 })
 
-export const AutoReplyBulkSchema = v.object({
-  keywordIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(200)),
-  isActive: v.boolean(),
-})
-
 /** หน้าทดสอบกฎ (FR-020) — ไม่ส่งจริง ไม่บันทึก */
 export const AutoReplySimulateSchema = v.object({
   message: v.pipe(v.string(), v.minLength(1, 'ต้องระบุข้อความลูกค้า'), v.maxLength(2000)),
@@ -1223,12 +1216,7 @@ export const AutoReplySimulateSchema = v.object({
   productId: v.nullable(v.optional(v.string())),
 })
 
-export const AutoReplyTestModeSchema = v.object({
-  testMode: v.boolean(),
-  /** ชั่วโมงจนหมดอายุ — null = ไม่หมดอายุเอง (ไม่แนะนำ ดู AC-021-08) */
-  expiresInHours: v.nullable(v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(168)))),
-})
-
+/** เธรดที่ใช้ทดสอบของกลุ่มคำหนึ่ง ๆ (แทนโหมดทดสอบระดับร้านเดิม — user 2026-07-29) */
 export const AutoReplyTestThreadSchema = v.object({
   conversationId: v.string(),
   /** AC-021-06: UI ต้องให้ผู้ใช้ยืนยันก่อน เพราะข้อความจะถูกส่งถึงคนจริง — API บังคับ flag นี้ */

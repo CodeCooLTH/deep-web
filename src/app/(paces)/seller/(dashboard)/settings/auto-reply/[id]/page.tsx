@@ -73,8 +73,8 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
           name: keyword.name,
           matchType: keyword.matchType,
           priority: keyword.priority,
-          isActive: keyword.isActive,
-          mode: keyword.mode,
+          status: keyword.status,
+          testThreadCount: keyword.testThreadCount,
           phrases: keyword.phrases.map((p) => ({ id: p.id, phrase: p.phrase })),
           rules: keyword.rules.map((r) => ({
             id: r.id,

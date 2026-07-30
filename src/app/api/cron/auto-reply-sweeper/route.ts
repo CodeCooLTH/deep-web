@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { sweepStuckJobs } from "@/services/auto-reply.service";
-import { expireTestMode } from "@/services/auto-reply-config.service";
 import { deleteOldLogs } from "@/services/auto-reply-log.service";
 import { prisma } from "@/lib/prisma";
 
@@ -16,7 +15,7 @@ export const maxDuration = 60;
  *   (ทุก webhook ของร้านนั้น + ทุกครั้งที่แอดมินเปิดกล่องข้อความ)
  * งานที่ตกมาถึงตรงนี้ควรมีน้อยมาก — ถ้าตัวเลข recovered สูงผิดปกติแปลว่ามีบั๊กที่ชั้นบน
  *
- * รวม 4 งานไว้ route เดียวเพราะโควตา cron ต่อ plan มีจำกัด และทั้ง 4 งานเป็น idempotent
+ * รวม 3 งานไว้ route เดียวเพราะโควตา cron ต่อ plan มีจำกัด และทั้ง 4 งานเป็น idempotent
  * แยก try/catch ต่อ phase ตาม pattern ของ business-package-lifecycle
  */
 export async function GET(request: Request) {
@@ -40,17 +39,9 @@ export async function GET(request: Request) {
     console.error("[auto-reply-sweeper] กวาดงานค้างล้มเหลว", result.sweepError);
   }
 
-  // phase 2 — ปิดโหมดทดสอบที่หมดอายุ + แจ้งร้าน (AC-021-08)
-  //
-  // WARNING: การปิดที่นี่ช้าได้ถึง 1 วันเพราะ cron รายวัน — จึงต้องมีการตรวจ testModeExpiresAt
-  // ที่ gate ตอนตัดสินใจตอบด้วย (auto-reply.service) ห้ามพึ่ง cron อย่างเดียว ไม่งั้นร้านที่
-  // ตั้งหมดอายุ 2 ชม. จะยังอยู่ในโหมดทดสอบต่ออีกทั้งวัน = ลูกค้าจริงไม่ได้รับคำตอบโดยร้านไม่รู้ตัว
-  try {
-    result.expiredTestMode = await expireTestMode();
-  } catch (e) {
-    result.expireError = e instanceof Error ? e.message : String(e);
-    console.error("[auto-reply-sweeper] ปิดโหมดทดสอบล้มเหลว", result.expireError);
-  }
+  // 🛑 phase 2 เดิม (ปิดโหมดทดสอบที่หมดอายุ) ถูกลบ 2026-07-29 — โหมดทดสอบไม่ใช่สวิตช์
+  // ระดับร้านอีกต่อไป จึงไม่มี "ลืมปิดแล้วทั้งร้านเงียบ" ให้ต้องกู้ ชุดที่ค้าง TEST อยู่
+  // กระทบแค่ตัวมันเอง (ดู AutoReplyKeyword.status)
 
   // phase 3 — retention ของบันทึก 90 วัน (DATABASE.md §6)
   try {

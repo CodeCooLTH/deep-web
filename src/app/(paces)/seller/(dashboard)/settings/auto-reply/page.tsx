@@ -50,19 +50,15 @@ export default async function AutoReplySettingsPage() {
       />
 
       <AutoReplyListClient
-        initialConfig={{
-          isEnabled: config.isEnabled,
-          testMode: config.testMode,
-          testModeExpiresAt: config.testModeExpiresAt ? config.testModeExpiresAt.toISOString() : null,
-        }}
+        initialConfig={{ isEnabled: config.isEnabled }}
         initialKeywords={keywords.map((k) => ({
           id: k.id,
           name: k.name,
           matchType: k.matchType,
           priority: k.priority,
-          isActive: k.isActive,
-          mode: k.mode,
+          status: k.status,
           phraseCount: k.phraseCount,
+          testThreadCount: k.testThreadCount,
           ruleCount: k.ruleCount,
           updatedAt: k.updatedAt.toISOString(),
         }))}

@@ -20,16 +20,10 @@
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatDateTime } from '@/lib/format-date'
 import ProductStats, { type StatType } from '../../products/components/ProductStats'
 import AutoReplyListing, { type KeywordRow } from './AutoReplyListing'
-import TestModeCard from './TestModeCard'
 
-type ConfigView = {
-  isEnabled: boolean
-  testMode: boolean
-  testModeExpiresAt: string | null
-}
+type ConfigView = { isEnabled: boolean }
 
 type Props = {
   initialConfig: ConfigView
@@ -65,9 +59,9 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
     }
   }
 
-  const activeCount = keywords.filter((k) => k.isActive).length
-  const liveCount = keywords.filter((k) => k.mode === 'LIVE' && k.isActive).length
-  const testCount = keywords.filter((k) => k.mode === 'TEST').length
+  const liveCount = keywords.filter((k) => k.status === 'LIVE').length
+  const testCount = keywords.filter((k) => k.status === 'TEST').length
+  const offlineCount = keywords.filter((k) => k.status === 'OFFLINE').length
   const phraseTotal = keywords.reduce((sum, k) => sum + k.phraseCount, 0)
 
   const statData: StatType[] = [
@@ -78,8 +72,8 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
       icon: 'message-2-bolt',
       iconClassName: 'bg-primary/15 text-primary',
       bulletClassName: 'text-primary',
-      metric: 'เปิดใช้งาน',
-      metricValue: String(activeCount),
+      metric: 'คำตรวจจับรวม',
+      metricValue: String(phraseTotal),
     },
     {
       title: 'ตอบลูกค้าจริง',
@@ -88,7 +82,7 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
       icon: 'broadcast',
       iconClassName: 'bg-success/15 text-success',
       bulletClassName: 'text-success',
-      metric: 'โหมดใช้งานจริง',
+      metric: 'ทำงานกับทุกแชท',
       metricValue: String(liveCount),
     },
     {
@@ -98,44 +92,23 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
       icon: 'flask',
       iconClassName: 'bg-warning/15 text-warning',
       bulletClassName: 'text-warning',
-      metric: 'ตอบเฉพาะเธรดที่เลือก',
+      metric: 'ตอบเฉพาะแชทที่ระบุ',
       metricValue: String(testCount),
     },
     {
-      title: 'คำตรวจจับทั้งหมด',
-      value: phraseTotal,
+      title: 'ยังไม่ใช้งาน',
+      value: offlineCount,
       change: 0,
-      icon: 'text-recognition',
-      iconClassName: 'bg-info/15 text-info',
-      bulletClassName: 'text-info',
-      metric: 'เฉลี่ยต่อกลุ่ม',
-      metricValue: keywords.length ? (phraseTotal / keywords.length).toFixed(1) : '0',
+      icon: 'circle-off',
+      iconClassName: 'bg-default-200 text-default-500',
+      bulletClassName: 'text-default-400',
+      metric: 'ไม่ตอบใครเลย',
+      metricValue: String(offlineCount),
     },
   ]
 
-  const testModeOn = config.testMode
-
   return (
     <>
-      {/* แถบโหมดทดสอบ — ต้องเห็นตลอดไม่ใช่ toast ที่หายไป (AC-021-07)
-          ความเสี่ยงที่กันอยู่: ร้านลืมปิดแล้วเข้าใจว่าระบบทำงานอยู่ ทั้งที่ตอบแค่เธรดทดสอบ */}
-      {testModeOn && (
-        <div className="card border-warning bg-warning/10 mb-4">
-          <div className="card-body flex flex-wrap items-center gap-3">
-            <Icon icon="alert-triangle" className="text-warning text-xl" aria-hidden="true" />
-            <div className="flex-1">
-              <p className="text-default-800 font-semibold">กำลังอยู่ในโหมดทดสอบ</p>
-              <p className="text-default-600 text-sm">
-                ระบบจะตอบเฉพาะเธรดที่เลือกไว้เท่านั้น ลูกค้าคนอื่นจะไม่ได้รับคำตอบอัตโนมัติ
-                {config.testModeExpiresAt
-                  ? ` (หมดอายุ ${formatDateTime(new Date(config.testModeExpiresAt))})`
-                  : ' (ไม่ได้ตั้งเวลาหมดอายุไว้)'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* stat card — โครง/สัดส่วนเดียวกับหน้าสินค้าเป๊ะ (grid-cols-1 md:2 lg:4 + gap-1.25)
           change=0 ทุกใบเพราะยังไม่มีข้อมูลย้อนหลังให้เทียบ (หน้าสินค้าก็ส่ง 0 ด้วยเหตุผลเดียวกัน) */}
       <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-4">
@@ -179,14 +152,6 @@ export default function AutoReplyListClient({ initialConfig, initialKeywords, ca
 
       <AutoReplyListing keywords={keywords} canEdit={canEdit} />
 
-      {/* โหมดทดสอบอยู่ท้ายหน้า — เป็นเครื่องมือก่อนเปิดใช้จริง ไม่ใช่สิ่งที่ต้องเห็นทุกวัน
-          แต่ตอนเปิดอยู่จะมีแถบเตือนค้างด้านบนสุดของหน้าเสมอ (AC-021-07) */}
-      <TestModeCard
-        canEdit={canEdit}
-        testMode={config.testMode}
-        testModeExpiresAt={config.testModeExpiresAt}
-        onChanged={(next) => setConfig((c) => ({ ...c, ...next }))}
-      />
     </>
   )
 }

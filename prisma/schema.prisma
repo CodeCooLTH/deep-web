@@ -1176,8 +1176,6 @@ model Conversation {
   // nullable ตั้งใจ: ต้องแยก "ยังไม่เคยตั้ง" ออกจาก "ตั้งเป็นปิด" ไม่งั้นปิดระดับร้านแล้วเปิดกลับ
   // จะปลุกเธรดที่ร้านตั้งใจปิดไว้ขึ้นมาด้วย (AC-015-03)
   autoReplyEnabled     Boolean?
-  // allowlist ของโหมดทดสอบ (AC-021-02/03) — มีผลเฉพาะตอน AutoReplyConfig.testMode = true
-  autoReplyTestEnabled Boolean   @default(false)
   // หยุดชั่วคราวถึงเมื่อไหร่ (FR-016) — null = ไม่ถูกหยุด
   autoReplyPausedUntil DateTime?
   autoReplyCount       Int       @default(0) // นับคำตอบอัตโนมัติสะสม (AC-018-02)
@@ -1190,17 +1188,18 @@ model Conversation {
   contextProductSource String?
   contextProductAt     DateTime? // ใหม่กว่าชนะเมื่อที่มาระดับเดียวกัน (AC-014-03)
 
-  buyer           User?                    @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
-  shop            Shop                     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  messages        ChatMessage[]
-  shopChannel     ShopChannel?             @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
-  externalContact ExternalContact?         @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
-  chatGroup       ChatGroup?               @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
-  adReferrals     ConversationAdReferral[]
+  buyer                User?                        @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  shop                 Shop                         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  messages             ChatMessage[]
+  shopChannel          ShopChannel?                 @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  externalContact      ExternalContact?             @relation(fields: [externalContactId], references: [id], onDelete: Cascade)
+  chatGroup            ChatGroup?                   @relation(fields: [chatGroupId], references: [id], onDelete: SetNull)
+  adReferrals          ConversationAdReferral[]
   // feature 00023 Chat Auto-Reply (additive)
-  autoReplyJobs   AutoReplyJob[]
-  autoReplyLogs   AutoReplyLog[]
-  contextProduct  Product?                 @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
+  autoReplyJobs        AutoReplyJob[]
+  autoReplyLogs        AutoReplyLog[]
+  autoReplyTestThreads AutoReplyKeywordTestThread[]
+  contextProduct       Product?                     @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
@@ -1209,7 +1208,6 @@ model Conversation {
   @@index([shopId, isHidden, isPinned, lastMessageAt]) // inbox list กรอง "ยังเปิดอยู่ + ไม่ซ่อน" แล้วเรียงหมุดขึ้นก่อน — ครอบ query หลักของหน้า /inbox
   @@index([chatGroupId]) // กรองแท็บกลุ่ม (feature 00018)
   // feature 00023 Chat Auto-Reply
-  @@index([shopId, autoReplyTestEnabled]) // หา allowlist ของโหมดทดสอบ
   // 🛑 amend 2026-07-29 (GAP-06): sweeper fallback pass ต้องไล่หา "ข้อความลูกค้าล่าสุดที่ไม่มีงานผูก"
   // ซึ่งสแกนจาก lastInboundAt — SDS TD-008 ใช้ pass นี้เป็นเหตุผลว่า "enqueue พังเงียบยอมรับได้"
   // ถ้าไม่มี index เหตุผลนั้นไม่มีของจริงรองรับ. เพิ่มตอนนี้ฟรีเพราะยังไม่ migrate; เพิ่มทีหลัง
@@ -1710,12 +1708,10 @@ model AutoReplyConfig {
   // ต้องไม่ทำงานจนกว่าร้านจะสั่งเปิดเอง — มิเรอร์ ShopShippingAccount.createMode = "ASK" ของ 00022
   isEnabled Boolean @default(false)
 
-  // --- โหมดทดสอบ (FR-021) ---
-  // testMode = true → ตอบเฉพาะ Conversation ที่ autoReplyTestEnabled = true (allowlist)
-  testMode                Boolean   @default(false)
-  // หมดอายุเองกันร้านลืมปิด (AC-021-08) — null ทั้งที่ testMode=true ถือว่าไม่หมดอายุ (ไม่แนะนำ)
-  testModeExpiresAt       DateTime?
-  testModeEnabledByUserId String?
+  // 🛑 โหมดทดสอบ "ระดับร้าน" ถูกยกเลิก 2026-07-29 (user: "เอาระดับทั้งหมดออกไปเลย")
+  // ของเดิมเป็นสวิตช์ครอบทั้งร้าน + allowlist ที่ Conversation ทำให้ต้องเข้าใจ 2 ชั้นถึงจะ
+  // ตอบได้ว่า "ทำไมชุดนี้ไม่ตอบ" ตอนนี้ย้ายไปอยู่ที่ AutoReplyKeyword.status + ตารางเธรด
+  // ทดสอบรายชุด (AutoReplyKeywordTestThread) — ชั้นเดียว อ่านจบที่กลุ่มคำนั้นตัวเดียว
 
   // --- การหยุดเมื่อพนักงานตอบ (FR-016) ---
   // "30M" | "2H" | "MANUAL" (จนกว่าจะเปิดเอง) | "UNTIL_RESOLVED" (จนกว่าเธรดจะถูกปิด)
@@ -1758,29 +1754,50 @@ model AutoReplyKeyword {
   // มากกว่า = ถูกเลือกก่อน (AC-003-02, เกณฑ์ที่ 1 ของ BR-AR-04)
   priority Int @default(100)
 
-  // mode: "LIVE" = ตอบลูกค้าจริงทุกคน | "TEST" = ตอบเฉพาะเธรดใน allowlist (Conversation.autoReplyTestEnabled)
+  // สถานะของกลุ่มคำ — 3 ค่า ค่าเดียวจบ (user 2026-07-29 แทน isActive+mode ที่แยกกันแล้วสับสน)
+  //   "OFFLINE" = ไม่ตอบใครเลย ตั้งค่าไว้เฉย ๆ (ลองได้ผ่านแผงพรีวิวในหน้าตั้งค่า)
+  //   "TEST"    = ตอบเฉพาะเธรดที่ระบุไว้ใน AutoReplyKeywordTestThread ของกลุ่มนี้เท่านั้น
+  //               🛑 ต้องมีอย่างน้อย 1 เธรดเสมอ ไม่งั้น TEST จะกลายเป็น OFFLINE โดยปริยาย
+  //   "LIVE"    = ตอบทุกเธรดตามเงื่อนไขที่ตั้งไว้
   //
-  // 🛑 แยกโหมด "รายการต่อรายการ" ไม่ใช่ทั้งร้าน (user 2026-07-29) — ของเดิม AutoReplyConfig.testMode
-  // เปิดแล้วหยุดทั้งร้าน ทำให้ลืมปิด = ลูกค้าทุกคนไม่ได้คำตอบ. แบบใหม่ตัวที่ LIVE ยังทำงานปกติ
-  // ระหว่างที่ตัวใหม่ยัง TEST อยู่ → ปล่อยของทีละตัวได้โดยไม่กระทบของที่ใช้งานจริง
-  // default LIVE เพื่อให้แถวเดิมทั้งหมดพฤติกรรมไม่เปลี่ยน (additive-safe)
-  mode String @default("LIVE")
-
-  isActive Boolean @default(true)
+  // 🛑 default OFFLINE ตั้งใจ: กลุ่มที่เพิ่งสร้างยังไม่มีคำ/คำตอบ ต้องไม่แตะลูกค้าจนกว่าร้านจะสั่ง
+  // String ไม่ใช่ enum ตาม convention เดิมทั้งโปรเจกต์ — validate ที่ Valibot
+  status String @default("OFFLINE")
 
   createdByUserId String?
   updatedByUserId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  shop    Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  phrases AutoReplyPhrase[]
+  shop        Shop                         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  phrases     AutoReplyPhrase[]
   // onDelete Cascade — ลบกลุ่มคำ ลบกฎของกลุ่มนั้นด้วย (กฎที่ไม่มีกลุ่มไม่มีความหมาย)
-  rules   AutoReplyRule[]
-  logs    AutoReplyLog[]
+  rules       AutoReplyRule[]
+  logs        AutoReplyLog[]
+  testThreads AutoReplyKeywordTestThread[]
 
   @@unique([shopId, name]) // AC-001-04 ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน
-  @@index([shopId, isActive, priority]) // query หลัก: โหลดกลุ่มที่เปิดใช้ของร้านเรียงตามลำดับความสำคัญ
+  @@index([shopId, status, priority]) // query หลัก: โหลดกลุ่มที่ทำงานอยู่ของร้านเรียงตามลำดับความสำคัญ
+}
+
+/// เธรดที่ใช้ทดสอบของกลุ่มคำหนึ่ง ๆ (user 2026-07-29 "ให้ตั้งค่าทดสอบได้ทีละอัน")
+///
+/// มีผลเฉพาะตอน AutoReplyKeyword.status = "TEST" — กลุ่มนั้นจะตอบเฉพาะเธรดที่อยู่ในตารางนี้
+/// ทำให้ทดสอบชุดใหม่กับแชทของตัวเองได้ โดยชุดที่ LIVE อยู่ยังตอบลูกค้าจริงตามปกติในเวลาเดียวกัน
+///
+/// ทำไมเป็นตารางแยกไม่ใช่ String[] บน keyword: ต้อง join กับ Conversation เพื่อโชว์ชื่อคู่สนทนา
+/// ในหน้าตั้งค่า และต้องลบทิ้งอัตโนมัติเมื่อเธรดถูกลบ (FK cascade) — array ทำสองอย่างนี้ไม่ได้
+model AutoReplyKeywordTestThread {
+  id             String   @id @default(uuid())
+  keywordId      String
+  conversationId String
+  createdAt      DateTime @default(now())
+
+  keyword      AutoReplyKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([keywordId, conversationId]) // เธรดเดิมเพิ่มซ้ำในกลุ่มเดิมไม่ได้ — บังคับที่ DB ไม่พึ่งวินัยโค้ด
+  @@index([conversationId]) // ทางกลับ: เธรดนี้ถูกใช้ทดสอบกลุ่มไหนบ้าง (ใช้ตอน match)
 }
 
 // AutoReplyPhrase — คำตรวจจับภายในกลุ่ม

@@ -13,7 +13,7 @@
  * เปลี่ยนจาก Base:
  *   - columns: name / โหมด / คำตรวจจับ / คำตอบ / สถานะ / แก้ไขล่าสุด / การจัดการ
  *   - ไม่มีรูปสินค้า → leading เป็นไอคอนกลุ่มคำแทน thumbnail
- *   - สถานะเป็น `form-switch` กดแล้วมีผลทันที ไม่ใช่ badge อ่านอย่างเดียว
+ *   - สถานะเป็นปุ่ม 3 ค่า (ไม่ใช้งาน/ทดสอบ/ตอบลูกค้าจริง) กดแล้วมีผลทันที ไม่ใช่ badge อ่านอย่างเดียว
  *     (บทเรียน 2026-07-29: user เปิดสวิตช์ในฟอร์มแล้วไม่ได้กดบันทึก → ระบบไม่ตอบ แล้วงงว่าทำไม)
  *   - ตัวเลือกจำนวนต่อหน้าใช้ ChoiceSelect ไม่ใช่ `<select>` ดิบ (Hard Rule 7 / theme-guard)
  */
@@ -46,52 +46,50 @@ export type KeywordRow = {
   name: string
   matchType: string
   priority: number
-  isActive: boolean
-  mode: string
+  /** 'OFFLINE' | 'TEST' | 'LIVE' — ค่าเดียวจบ แทน isActive+mode เดิม */
+  status: string
   phraseCount: number
+  /** จำนวนแชทที่ผูกไว้ทดสอบ — TEST ที่เป็น 0 = ไม่ตอบใครเลยจริง ๆ ต้องเตือน */
+  testThreadCount: number
   ruleCount: number
   updatedAt: string
 }
 
-const MODE_OPTIONS = [
-  { value: 'All', label: 'ทุกโหมด' },
-  { value: 'LIVE', label: 'ใช้งานจริง' },
+/** ป้ายสถานะ — เขียวสงวนให้ "ตอบลูกค้าจริง" เท่านั้นตาม Verified-Means-Green
+ *  เหลือง = ทดสอบ (เตือนว่ายังไม่ถึงลูกค้าทุกคน) · เทา = ไม่ทำงาน */
+const STATUS_META: Record<string, { label: string; badge: string; icon: string }> = {
+  LIVE: { label: 'ตอบลูกค้าจริง', badge: 'bg-success/15 text-success', icon: 'broadcast' },
+  TEST: { label: 'ทดสอบ', badge: 'bg-warning/15 text-warning', icon: 'flask' },
+  OFFLINE: { label: 'ไม่ใช้งาน', badge: 'bg-default-200 text-default-500', icon: 'circle-off' },
+}
+
+const STATUS_OPTIONS = [
+  { value: 'All', label: 'ทุกสถานะ' },
+  { value: 'LIVE', label: 'ตอบลูกค้าจริง' },
   { value: 'TEST', label: 'ทดสอบ' },
+  { value: 'OFFLINE', label: 'ไม่ใช้งาน' },
 ]
 
 const PAGE_SIZE_OPTIONS = [5, 10, 15, 20].map((n) => ({ value: String(n), label: String(n) }))
 
 const STATUS_CHIPS = [
-  { key: 'all' as const, label: 'ทั้งหมด' },
-  { key: 'active' as const, label: 'เปิดใช้งาน' },
-  { key: 'inactive' as const, label: 'ปิดอยู่' },
+  { key: 'All', label: 'ทั้งหมด' },
+  { key: 'LIVE', label: 'ตอบลูกค้าจริง' },
+  { key: 'TEST', label: 'ทดสอบ' },
+  { key: 'OFFLINE', label: 'ไม่ใช้งาน' },
 ]
 
 const columnHelper = createColumnHelper<KeywordRow>()
 
-/** badge โหมด — ทดสอบ=เหลือง (เตือน) / ใช้งานจริง=น้ำเงิน
- *  ไม่ใช้เขียวเพราะเขียวสงวนให้ "เปิดใช้งานอยู่" ตาม Verified-Means-Green
- *
- *  ส่ง onToggle มา = กดสลับโหมดได้จากในตารางเลย (user 2026-07-29: "แล้วโหมดทดสอบแยกรายการล่ะ")
- *  ไม่ต้องเข้าไปในหน้าแก้ไขทีละชุดเพื่อดูว่าชุดไหนยัง TEST อยู่ */
-function ModeBadge({ mode, onToggle, disabled }: { mode: string; onToggle?: () => void; disabled?: boolean }) {
-  const className = cn(
-    'badge text-2xs py-0 font-semibold',
-    mode === 'TEST' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary',
-  )
-  const label = mode === 'TEST' ? 'ทดสอบ' : 'ใช้งานจริง'
-  if (!onToggle) return <span className={className}>{label}</span>
+/** ป้ายสถานะแบบกดได้ — กดแล้วเปิดเมนู 3 ค่า (user 2026-07-29 "ให้ตั้งค่าทดสอบได้ทีละอัน")
+ *  ไม่ใช้ ChoiceSelect เพราะในตารางต้องการป้ายที่อ่านสถานะได้ทันทีโดยไม่ต้องมีกรอบ input */
+function StatusBadge({ status }: { status: string }) {
+  const meta = STATUS_META[status] ?? STATUS_META.OFFLINE
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      disabled={disabled}
-      title={mode === 'TEST' ? 'กดเพื่อเปลี่ยนเป็นใช้งานจริง' : 'กดเพื่อกลับเป็นโหมดทดสอบ'}
-      className={cn(className, 'hover:ring-default-300 inline-flex items-center gap-1 hover:ring-1')}
-    >
-      <Icon icon={mode === 'TEST' ? 'flask' : 'broadcast'} className="size-3" aria-hidden="true" />
-      {label}
-    </button>
+    <span className={cn('badge text-2xs inline-flex items-center gap-1 py-0 font-semibold', meta.badge)}>
+      <Icon icon={meta.icon} className="size-3" aria-hidden="true" />
+      {meta.label}
+    </span>
   )
 }
 
@@ -108,58 +106,46 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [statusChip, setStatusChip] = useState<'all' | 'active' | 'inactive'>('all')
+  const [statusChip, setStatusChip] = useState('All')
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  /** เปิด/ปิดกลุ่มคำทันทีที่กดสวิตช์ — optimistic แล้วคืนค่าเดิมถ้าเซิร์ฟเวอร์ปฏิเสธ
-   *  (เปิดไม่ได้ถ้ายังไม่มีคำตรวจจับหรือคำตอบ — ต้องบอกเหตุผล ไม่ใช่เด้งกลับเงียบ ๆ) */
-  async function toggleActive(row: KeywordRow, next: boolean) {
-    if (!canEdit || busyId) return
-    setBusyId(row.id)
-    setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, isActive: next } : r)))
-    try {
-      const res = await fetch(`/api/shops/auto-reply/keywords/${row.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ isActive: next }),
-      })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
-      pacesToast.success(next ? `เปิดใช้งาน "${row.name}" แล้ว` : `ปิด "${row.name}" แล้ว`)
-    } catch (e) {
-      setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, isActive: !next } : r)))
-      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  /** สลับ LIVE/TEST รายชุด — ถามก่อนเฉพาะขาไป LIVE (จุดที่ลูกค้าจริงเริ่มได้รับคำตอบ) */
-  async function toggleMode(row: KeywordRow) {
-    if (!canEdit || busyId) return
-    const next = row.mode === 'TEST' ? 'LIVE' : 'TEST'
+  /**
+   * เปลี่ยนสถานะกลุ่มคำทันทีที่เลือก — optimistic แล้วคืนค่าเดิมถ้าเซิร์ฟเวอร์ปฏิเสธ
+   *
+   * ปฏิเสธได้จริง 2 กรณี และทั้งคู่ต้องบอกเหตุผล ไม่ใช่เด้งกลับเงียบ ๆ:
+   *   - ออกจาก "ไม่ใช้งาน" ทั้งที่ยังไม่มีคำตรวจจับหรือคำตอบ
+   *   - ตั้งเป็น "ทดสอบ" ทั้งที่ยังไม่ได้เลือกแชทสำหรับทดสอบเลย
+   */
+  async function changeStatus(row: KeywordRow, next: string) {
+    if (!canEdit || busyId || next === row.status) return
+    // ขาไป LIVE = ลูกค้าจริงทุกคนเริ่มได้รับคำตอบ ถามก่อนเสมอ
+    // ขาอื่นไม่ถาม (เป็นการลดขอบเขต ไม่ใช่ขยาย)
     if (next === 'LIVE') {
       const ok = await pacesConfirm.warning(
-        `เปลี่ยน "${row.name}" เป็นใช้งานจริง?`,
+        `ให้ "${row.name}" ตอบลูกค้าจริง?`,
         'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
-        { confirmButtonText: 'ใช้งานจริง' },
+        { confirmButtonText: 'ตอบลูกค้าจริง' },
       )
       if (!ok) return
     }
     setBusyId(row.id)
-    setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, mode: next } : r)))
+    setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
     try {
       const res = await fetch(`/api/shops/auto-reply/keywords/${row.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
-        body: JSON.stringify({ mode: next }),
+        body: JSON.stringify({ status: next }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'เปลี่ยนโหมดไม่สำเร็จ')
-      pacesToast.success(next === 'LIVE' ? `"${row.name}" ใช้งานจริงแล้ว` : `"${row.name}" กลับเป็นโหมดทดสอบแล้ว`)
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
+      pacesToast.success(`"${row.name}" → ${STATUS_META[next]?.label ?? next}`)
+      // เข้าโหมดทดสอบ = ต้องไปเลือกแชทในหน้าแก้ไข ไม่งั้นไม่มีอะไรเกิดขึ้น
+      if (next === 'TEST' && row.testThreadCount === 0) {
+        pacesToast.warning('ยังไม่ได้เลือกแชทสำหรับทดสอบ — เปิดกลุ่มคำนี้แล้วเพิ่มแชทก่อน')
+      }
     } catch (e) {
-      setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, mode: row.mode } : r)))
-      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนโหมดไม่สำเร็จ')
+      setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: row.status } : r)))
+      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
       setBusyId(null)
     }
@@ -192,18 +178,6 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
           </div>
         ),
       }),
-      columnHelper.accessor('mode', {
-        header: 'โหมด',
-        filterFn: 'equalsString',
-        enableColumnFilter: true,
-        cell: ({ row }) => (
-          <ModeBadge
-            mode={row.original.mode}
-            onToggle={canEdit ? () => toggleMode(row.original) : undefined}
-            disabled={busyId === row.original.id}
-          />
-        ),
-      }),
       columnHelper.accessor('phraseCount', {
         header: 'คำตรวจจับ',
         cell: ({ row }) => <span className="text-default-600">{row.original.phraseCount}</span>,
@@ -212,25 +186,36 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         header: 'คำตอบ',
         cell: ({ row }) => <span className="text-default-600">{row.original.ruleCount}</span>,
       }),
-      columnHelper.accessor('isActive', {
+      columnHelper.accessor('status', {
         header: 'สถานะ',
-        filterFn: 'equals',
+        filterFn: 'equalsString',
         enableColumnFilter: true,
         enableSorting: false,
         cell: ({ row }) => (
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={row.original.isActive}
-              disabled={!canEdit || busyId === row.original.id}
-              onChange={(e) => toggleActive(row.original, e.target.checked)}
-              aria-label={`เปิดใช้งาน ${row.original.name}`}
-            />
-            <span className={cn('text-xs', row.original.isActive ? 'text-success' : 'text-default-400')}>
-              {row.original.isActive ? 'เปิดใช้งาน' : 'ปิดอยู่'}
-            </span>
-          </label>
+          <div className="flex items-center gap-2">
+            {canEdit ? (
+              <div className="w-40">
+                <ChoiceSelect
+                  options={STATUS_OPTIONS.filter((o) => o.value !== 'All')}
+                  value={row.original.status}
+                  search={false}
+                  disabled={busyId === row.original.id}
+                  onChange={(v) => changeStatus(row.original, v as string)}
+                  ariaLabel={`สถานะของ ${row.original.name}`}
+                />
+              </div>
+            ) : (
+              <StatusBadge status={row.original.status} />
+            )}
+            {row.original.status === 'TEST' && row.original.testThreadCount === 0 && (
+              <span
+                className="text-warning"
+                title="ยังไม่ได้เลือกแชทสำหรับทดสอบ — กลุ่มนี้จะไม่ตอบใครเลย"
+              >
+                <Icon icon="alert-triangle" className="size-4" aria-hidden="true" />
+              </span>
+            )}
+          </div>
         ),
       }),
       columnHelper.accessor('updatedAt', {
@@ -300,11 +285,11 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
-  const currentModeFilter = (table.getColumn('mode')?.getFilterValue() as string) ?? 'All'
+  const currentStatusFilter = (table.getColumn('status')?.getFilterValue() as string) ?? 'All'
 
-  function handleChipChange(chip: 'all' | 'active' | 'inactive') {
+  function handleChipChange(chip: string) {
     setStatusChip(chip)
-    table.getColumn('isActive')?.setFilterValue(chip === 'all' ? undefined : chip === 'active')
+    table.getColumn('status')?.setFilterValue(chip === 'All' ? undefined : chip)
   }
 
   async function handleDelete() {
@@ -398,13 +383,13 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
             <span className="font-semibold">กรอง:</span>
             <div className="w-40">
               <ChoiceSelect
-                options={MODE_OPTIONS}
-                value={currentModeFilter}
+                options={STATUS_OPTIONS}
+                value={currentStatusFilter}
                 search={false}
                 onChange={(v) =>
-                  table.getColumn('mode')?.setFilterValue(v === 'All' ? undefined : v)
+                  table.getColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
                 }
-                ariaLabel="กรองตามโหมด"
+                ariaLabel="กรองตามสถานะ"
               />
             </div>
           </div>
@@ -449,30 +434,15 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                   {k.phraseCount} คำตรวจจับ · {k.ruleCount} คำตอบ
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <ModeBadge
-                    mode={k.mode}
-                    onToggle={canEdit ? () => toggleMode(k) : undefined}
-                    disabled={busyId === k.id}
-                  />
-                  <span
-                    className={cn(
-                      'badge text-2xs py-0 font-semibold',
-                      k.isActive ? 'bg-success/15 text-success' : 'bg-default-100 text-default-500',
-                    )}
-                  >
-                    {k.isActive ? 'เปิดใช้งาน' : 'ปิดอยู่'}
-                  </span>
+                  <StatusBadge status={k.status} />
+                  {k.status === 'TEST' && k.testThreadCount === 0 && (
+                    <span className="badge bg-warning/15 text-warning text-2xs py-0 font-semibold">
+                      ยังไม่ได้เลือกแชท
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  className="form-switch"
-                  checked={k.isActive}
-                  disabled={!canEdit || busyId === k.id}
-                  onChange={(e) => toggleActive(k, e.target.checked)}
-                  aria-label={`เปิดใช้งาน ${k.name}`}
-                />
                 <Link
                   href={`/settings/auto-reply/${k.id}`}
                   /* size-11 (44px) tap-target มือถือ — เหตุผลเดียวกับปุ่มสร้างด้านบน */
