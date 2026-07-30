@@ -34,6 +34,8 @@ const {
   ruleDelete,
   ruleCount,
   testThreadCount,
+  keywordCount,
+  configUpsert,
   channelFindFirst,
   productFindFirst,
 } = vi.hoisted(() => ({
@@ -53,15 +55,18 @@ const {
   ruleDelete: vi.fn(),
   ruleCount: vi.fn(),
   testThreadCount: vi.fn(),
+  keywordCount: vi.fn(),
+  configUpsert: vi.fn(),
   channelFindFirst: vi.fn(),
   productFindFirst: vi.fn(),
 }))
 
 const txMock = {
-  autoReplyKeyword: { findFirst: keywordFindFirst, findMany: keywordFindMany, update: keywordUpdate },
+  autoReplyKeyword: { findFirst: keywordFindFirst, findMany: keywordFindMany, update: keywordUpdate, count: keywordCount },
   autoReplyPhrase: { count: phraseCount, delete: phraseDelete, findFirst: phraseFindFirst, createMany: phraseCreateMany },
   autoReplyRule: { findFirst: ruleFindFirst, create: ruleCreate, update: ruleUpdate, delete: ruleDelete, count: ruleCount },
   autoReplyKeywordTestThread: { count: testThreadCount },
+  autoReplyConfig: { upsert: configUpsert },
   shopChannel: { findFirst: channelFindFirst },
   product: { findFirst: productFindFirst },
 }
@@ -160,6 +165,7 @@ describe('updateKeyword — TFR-006 ออกจาก OFFLINE ต้องผ�
     keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'OFFLINE' } as never)
     phraseCount.mockResolvedValue(2 as never)
     ruleCount.mockResolvedValue(1 as never)
+    keywordCount.mockResolvedValue(1 as never) // มีกลุ่มอื่นทำงานอยู่แล้ว -> ห้ามแตะสวิตช์ร้าน
     keywordUpdate.mockResolvedValue({
       id: KEYWORD, name: 'x', matchType: 'CONTAINS', priority: 100, status: 'LIVE',
       createdAt: new Date(), updatedAt: new Date(), _count: { phrases: 2, rules: 1, testThreads: 0 },
@@ -167,6 +173,23 @@ describe('updateKeyword — TFR-006 ออกจาก OFFLINE ต้องผ�
     const result = await updateKeyword(KEYWORD, SHOP, USER, { status: 'LIVE' })
     expect(result.status).toBe('LIVE')
     expect(invalidateShop).toHaveBeenCalledWith(SHOP)
+    // ร้านกดหยุดฉุกเฉินไว้แล้วมีกลุ่มอื่นทำงานอยู่ -> ห้ามปลุกสวิตช์ร้านกลับเงียบ ๆ
+    expect(configUpsert).not.toHaveBeenCalled()
+  })
+
+  it('กลุ่มแรกของร้านที่ออกจาก OFFLINE -> เปิดสวิตช์ระดับร้านให้เอง (กันกับดัก "ตั้งแล้วเงียบ")', async () => {
+    keywordFindFirst.mockResolvedValue({ id: KEYWORD, shopId: SHOP, status: 'OFFLINE' } as never)
+    phraseCount.mockResolvedValue(2 as never)
+    ruleCount.mockResolvedValue(1 as never)
+    keywordCount.mockResolvedValue(0 as never) // ยังไม่มีกลุ่มอื่นทำงาน = ครั้งแรกจริง
+    keywordUpdate.mockResolvedValue({
+      id: KEYWORD, name: 'x', matchType: 'CONTAINS', priority: 100, status: 'LIVE',
+      createdAt: new Date(), updatedAt: new Date(), _count: { phrases: 2, rules: 1, testThreads: 0 },
+    } as never)
+    await updateKeyword(KEYWORD, SHOP, USER, { status: 'LIVE' })
+    expect(configUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { shopId: SHOP } }),
+    )
   })
 
   it('ไป TEST ทั้งที่ยังไม่มีแชททดสอบ -> throw AUTO_REPLY_KEYWORD_NO_TEST_THREAD', async () => {

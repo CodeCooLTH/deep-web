@@ -198,6 +198,34 @@ export async function updateKeyword(
         if (threads === 0) throw new Error('AUTO_REPLY_KEYWORD_NO_TEST_THREAD')
       }
       data.status = input.status
+
+      /**
+       * เปิดสวิตช์ระดับร้านให้เองเมื่อกลุ่มแรกออกจาก OFFLINE (user 2026-07-30)
+       *
+       * WARNING: นี่คือกับดักตัวจริงที่เจอบน prod — ร้านตั้งกลุ่มคำเป็น "ตอบลูกค้าจริง"
+       * แล้วระบบเงียบ เพราะ AutoReplyConfig.isEnabled default false อยู่คนละหน้ากัน
+       * ร้านไม่มีทางเดาได้ว่าต้องไปเปิดอีกสวิตช์ (ตรงกับที่ user ถามว่า "ทำไมระบบไม่ตอบ")
+       *
+       * ทำไมไม่ลบคอลัมน์ทิ้งไปเลย: มันคือคันโยก rollback/หยุดฉุกเฉินของทั้งฟีเจอร์
+       * (PRD ข้อบังคับ "ต้อง rollback ได้") — เก็บความสามารถไว้ แต่ไม่ให้เป็นด่านที่ร้าน
+       * ต้องรู้จัก. การหยุดทั้งหมดยังทำได้จากปุ่มในหน้ารายการ
+       *
+       * เงื่อนไข `otherActive === 0` สำคัญ: เปิดให้เองเฉพาะ "ครั้งแรกที่ร้านมีอะไรทำงาน" เท่านั้น
+       * ถ้าร้านมีกลุ่มที่ทำงานอยู่แล้วแต่ isEnabled=false แปลว่าร้าน **ตั้งใจ** กดหยุดฉุกเฉินไว้
+       * ห้ามปลุกกลับเงียบ ๆ ไม่งั้นปุ่มหยุดฉุกเฉินจะเชื่อถือไม่ได้
+       */
+      if (input.status !== 'OFFLINE') {
+        const otherActive = await tx.autoReplyKeyword.count({
+          where: { shopId, status: { not: 'OFFLINE' }, id: { not: id } },
+        })
+        if (otherActive === 0) {
+          await tx.autoReplyConfig.upsert({
+            where: { shopId },
+            create: { shopId, isEnabled: true, updatedByUserId: userId },
+            update: { isEnabled: true, updatedByUserId: userId },
+          })
+        }
+      }
     }
 
     try {

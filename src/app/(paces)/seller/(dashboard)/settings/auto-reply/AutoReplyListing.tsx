@@ -102,30 +102,44 @@ type Props = {
   onShopSwitch: (next: boolean) => void
 }
 
-/** สวิตช์เปิด/ปิดทั้งร้าน — ใช้ทั้ง toolbar มือถือและ card-header เดสก์ท็อป */
-function ShopSwitch({
-  enabled, busy, canEdit, onChange,
-}: { enabled: boolean; busy: boolean; canEdit: boolean; onChange: (v: boolean) => void }) {
+/**
+ * ปุ่มหยุดฉุกเฉิน — ไม่ใช่สวิตช์ที่ต้องจำไปเปิด (user 2026-07-30)
+ *
+ * เดิมเป็น `form-switch` ค้างอยู่ในหัวตาราง ซึ่งซ้ำกับสถานะรายแถว (ไม่ใช้งาน/ทดสอบ/ตอบลูกค้าจริง)
+ * และสร้างกับดักเดิมกลับมา: แถวเป็น "ตอบลูกค้าจริง" แต่เงียบ เพราะสวิตช์ร้านปิดอยู่คนละที่
+ * ตอนนี้สวิตช์ร้านเปิดให้เองตอนกลุ่มแรกออกจาก "ไม่ใช้งาน" (ดู updateKeyword) เหลือไว้เป็น
+ * "การกระทำ" สำหรับกรณีบอทพูดผิดแล้วต้องหยุดทุกกลุ่มในคลิกเดียว — ไม่ใช่ "สถานะ" ที่ต้องเรียนรู้
+ */
+function EmergencyStopButton({
+  busy, canEdit, onStop,
+}: { busy: boolean; canEdit: boolean; onStop: () => void }) {
+  if (!canEdit) return null
   return (
-    <label className="bg-light/40 border-default-200 flex flex-none cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5">
-      <input
-        type="checkbox"
-        className="form-switch"
-        checked={enabled}
-        disabled={!canEdit || busy}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label="เปิดใช้งานการตอบแชทอัตโนมัติทั้งร้าน"
-      />
-      <span className={cn('text-sm font-medium', enabled ? 'text-success' : 'text-default-500')}>
-        {enabled ? 'ระบบเปิดอยู่' : 'ระบบปิดอยู่'}
-      </span>
-    </label>
+    <button
+      type="button"
+      className="btn btn-sm btn-soft-danger flex-none"
+      disabled={busy}
+      onClick={onStop}
+      title="หยุดการตอบอัตโนมัติทุกกลุ่มทันที โดยไม่ต้องแก้ทีละกลุ่ม"
+    >
+      <Icon icon="player-stop" className="size-4" aria-hidden="true" />
+      หยุดตอบทั้งหมด
+    </button>
   )
 }
 
 export default function AutoReplyListing({
   keywords, canEdit, shopEnabled, shopSwitchBusy, onShopSwitch,
 }: Props) {
+  async function confirmStop() {
+    const ok = await pacesConfirm.danger(
+      'หยุดตอบอัตโนมัติทุกกลุ่ม?',
+      'ลูกค้าที่ทักเข้ามาหลังจากนี้จะไม่ได้รับคำตอบอัตโนมัติเลย จนกว่าจะกดเปิดกลับ — การตั้งค่าทั้งหมดยังอยู่ครบ',
+      { confirmButtonText: 'หยุดทั้งหมด' },
+    )
+    if (ok) onShopSwitch(false)
+  }
+
   const router = useRouter()
   const [data, setData] = useState<KeywordRow[]>(() => [...keywords])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -344,7 +358,6 @@ export default function AutoReplyListing({
     <div className="card">
       {/* ===== Mobile toolbar (ซ่อนบน lg ขึ้นไป) — Base ProductsListing.tsx ===== */}
       <div className="space-y-2.5 px-4 pt-3 pb-2 lg:hidden">
-        <ShopSwitch enabled={shopEnabled} busy={shopSwitchBusy} canEdit={canEdit} onChange={onShopSwitch} />
         <div className="flex items-center gap-2">
           <div className="input-icon-group flex-1">
             <Icon icon="search" className="input-icon" />
@@ -432,7 +445,9 @@ export default function AutoReplyListing({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <ShopSwitch enabled={shopEnabled} busy={shopSwitchBusy} canEdit={canEdit} onChange={onShopSwitch} />
+          {shopEnabled && (
+            <EmergencyStopButton busy={shopSwitchBusy} canEdit={canEdit} onStop={confirmStop} />
+          )}
           {canEdit && (
             <Link href="/settings/auto-reply/new" className="btn bg-primary hover:bg-primary-hover text-white">
               <Icon icon="plus" aria-hidden="true" />
@@ -447,9 +462,19 @@ export default function AutoReplyListing({
           <span className="bg-warning flex size-7 flex-none items-center justify-center rounded-lg text-white">
             <Icon icon="alert-triangle" className="size-4" aria-hidden="true" />
           </span>
-          <p className="text-default-700 mb-0 text-sm">
-            ระบบปิดอยู่ — ตั้งค่าล่วงหน้าได้ แต่จะยังไม่ตอบลูกค้าจนกว่าจะเปิดสวิตช์ด้านบน
+          <p className="text-default-700 mb-0 flex-1 text-sm">
+            หยุดตอบทั้งหมดอยู่ — การตั้งค่าทุกกลุ่มยังอยู่ครบ แต่ลูกค้าจะยังไม่ได้รับคำตอบ
           </p>
+          {canEdit && (
+            <button
+              type="button"
+              className="btn btn-sm btn-soft-primary flex-none"
+              disabled={shopSwitchBusy}
+              onClick={() => onShopSwitch(true)}
+            >
+              เปิดกลับ
+            </button>
+          )}
         </div>
       )}
 
