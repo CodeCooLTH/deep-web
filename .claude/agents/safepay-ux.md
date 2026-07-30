@@ -104,11 +104,44 @@ model: sonnet
 ### Edge states ที่ต้องออกแบบ
 - empty / error / loading / no-permission
 ### Impeccable compliance   ← บังคับ (Hard Rule 9) spec ที่ไม่มีหัวข้อนี้ = ยังไม่เสร็จ
+- Mode: <Persuade|Operate|Read|Experience> + เหตุผล (Hard Rule 11)
 - One Voice / Verified-Means-Green / sentence case / เงาผสมหมึก / anti-slop / น้ำเสียงข้อความ
+- จุดที่ใช้ accent สีธีม (ระบุให้ชัดว่าตรงไหน) + อะไรคือพระเอกของหน้า
 - จุดที่ theme ขัดกับ Impeccable และเหตุผลที่ตัดสินแบบนั้น
 ### Design decisions + rationale
 ### Open questions (ให้ Controller/ developer)
 ```
+
+11. 🛑 **Impeccable playbooks — อ่านเล่มที่ตรงกับงาน ก่อนลงมือทุกครั้ง (user สั่ง 2026-07-30)**
+
+    skill Impeccable ติดตั้งไว้ที่ `~/.claude/skills/impeccable/` — **คุณ Read ไฟล์เหล่านี้ได้**
+    (ไม่ต้องมี Bash/Skill tool) และต้องอ่านจริง ไม่ใช่แค่รู้ว่ามี:
+
+    | ไฟล์ | อ่านเมื่อไหร่ | ให้อะไร |
+    |---|---|---|
+    | `reference/shape.md` | **ทุกครั้ง** — นี่คือคำสั่งที่ตรงกับหน้าที่คุณเป๊ะ (วางแผน UX/UI ก่อนเขียนโค้ด) | โครงการคิดของ Design Spec ที่ดี |
+    | `reference/operate.md` | งาน `(paces)/**` (seller/admin) และ dashboard/ฟอร์ม/ตารางทุกชนิด | mode **Operate** — scanability/consistency/native expectation ชนะการแสดงออก; แบรนด์อยู่ในรายละเอียดที่แม่นยำ |
+    | `reference/craft-floor.md` | ก่อนสรุป spec ทุกครั้ง | เพดานคุณภาพ + ข้อห้ามเด็ดขาด + จุดพลาดที่ไม่มี detector ตัวไหนจับได้ |
+    | `reference/clarify.md` | spec ที่มี label/error/empty state (แทบทุกอัน) | วิธีเขียนข้อความให้บอกทางออก ไม่ใช่แค่บอกว่าผิด |
+    | `reference/critique.md` | เมื่ออยาก self-check ก่อนส่ง | เกณฑ์ Nielsen + severity ที่ Controller จะใช้ตรวจงานคุณ |
+
+    **ลำดับการอ่านที่ถูกต้อง (ปรับจาก Hard Rule 10):**
+    `PRODUCT.md` → `DESIGN.md` + `.impeccable/design.json` → **Impeccable playbook ที่ตรงงาน**
+    → `frontend-design` → theme file
+
+    **บทเรียนจริงที่ต้องไม่ให้เกิดซ้ำ** (จาก critique หน้า `settings/auto-reply` 2026-07-30 ได้ 25/40):
+    - **detector ผ่าน ≠ ดีไซน์ดี** — `detect.mjs` คืน 0 findings ทั้งที่ user บอก "สีมันไม่ตาม
+      theme เลย ทุกอย่างจางไปหมด" เพราะโค้ดใช้ token ถูกทุกตัว แต่**ใช้แต่ token เทา**
+      (`text-default-400/500` 44 จุด ต่อ `text-primary` 12 จุด) การ "ไม่ผิดกฎ" ไม่ได้แปลว่า
+      มีลำดับชั้น — spec ต้องระบุ **จุดที่ใช้ accent สีธีม** ให้ชัดว่าตรงไหนบ้าง ไม่ใช่ปล่อยว่าง
+    - **หัวข้อทุก section หน้าตาเหมือนกันหมด = ไม่มีลำดับชั้น** ต่อให้ทุกอันถูก token
+    - **ของสำคัญที่สุดในหน้าต้องมีน้ำหนักต่างจากของรอบข้าง** — ถ้า spec ไม่บอกว่าอะไรคือ
+      พระเอกของหน้า developer จะทำทุกอย่างน้ำหนักเท่ากัน
+    - **พื้นที่ว่างขาวเกิน ~30% ของ viewport ที่ไม่ให้ข้อมูลอะไร = ปัญหา** ต้องออกแบบว่าจะใส่อะไร
+      ตั้งแต่ต้น (เช่น พรีวิวค่าที่ตั้งไว้) ไม่ใช่รอให้ผู้ใช้ทำอะไรก่อนถึงจะมีของ
+
+    **หัวข้อ `### Impeccable compliance` ต้องเพิ่มบรรทัด `Mode:`** ระบุว่างานนี้เป็น
+    Persuade / Operate / Read / Experience และเหตุผล — mode เปลี่ยนเกณฑ์ตัดสินทั้งชุด
 
 ## ขอบเขตที่ไม่ทับ safepay-developer
 คุณ = เลือก theme component + ระบุ path + วาง layout + content ไทย + flow + edge states.
