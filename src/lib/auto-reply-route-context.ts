@@ -52,33 +52,103 @@ export function forbidIfReadOnly(ctx: ShopRouteContext): NextResponse | null {
   return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขการตั้งค่านี้' }, { status: 403 })
 }
 
+/**
+ * ตาราง error → HTTP + ข้อความไทย เทียบด้วย **รหัสเต็มแบบ exact** (ไม่ใช่ `includes`)
+ *
+ * WARNING: ห้ามกลับไปใช้บันได `msg.includes(...)` เด็ดขาด — รหัสในฟีเจอร์นี้มี substring
+ * ซ้อนกันหลายชั้น (`NAME_DUPLICATE` / `DUPLICATE_NAME_EXHAUSTED` / `CONDITION_DUPLICATE`)
+ * ทำให้ลำดับ guard ตัดสินผลลัพธ์ และเคยเป็นบั๊กจริง: `includes('DUPLICATE_NAME')` อยู่ก่อน
+ * `includes('DUPLICATE')` แต่ service โยน `..._NAME_DUPLICATE` (ลำดับคำกลับกัน) → ตกสาขา
+ * generic ได้ข้อความรวม ๆ ส่วน `DUPLICATE_NAME_EXHAUSTED` เข้าสาขาแรกแล้วได้ข้อความผิดเรื่อง
+ * exact-match ไม่มีปัญหาลำดับ เพิ่มรหัสใหม่ได้โดยไม่ต้องคิดว่าต้องแทรกไว้ก่อน/หลังใคร
+ *
+ * ข้อความทุกบรรทัดผ่าน review copy มาแล้ว (Design Spec v3) — บอก "ทางออก" ให้ผู้ใช้ทุกข้อ
+ * ห้ามเรียบเรียงใหม่โดยไม่ผ่าน review
+ *
+ * NOTE: สองสาขาชื่อ `REQUIRES_*` (แบบ "ต้องมีคำ" / "ต้องมีคำตอบ") ถูกลบทิ้งแล้ว เพราะไม่มี
+ * service ตัวไหนโยนรหัสสองตัวนั้นเลย — ของจริงชื่อ `..._NO_PHRASE` / `..._NO_ANSWER` ตามตาราง
+ * ข้างล่าง สาขาตายพวกนั้นทำให้เข้าใจผิดว่าเคสนี้ถูกครอบแล้วทั้งที่ผู้ใช้ยังเจอ 500
+ * (รหัสที่ถูกลบ grep หาไม่เจอแล้วตามเจตนาของเกต — ที่มาเต็มดูที่ S-02 ใน
+ *  docs/scope/2026-07-30-00023-v3-scope-baseline.md)
+ *
+ * ใช้ `Map` ไม่ใช่ object literal เพราะ lookup ด้วยค่าที่มาจากภายนอก: `ERROR_MAP['toString']`
+ * บน object literal จะคืน method ของ prototype ซึ่ง truthy แต่ `.status` เป็น undefined →
+ * `NextResponse.json(..., { status: undefined })` ให้ **HTTP 200 body ว่าง** = error กลายเป็น
+ * success เงียบ ๆ และไม่มี log (วัดกับ node แล้ว). `Map` ไม่มี prototype key ให้ชนตั้งแต่ต้น
+ */
+const ERROR_MAP = new Map<string, { status: number; error: string }>(
+  Object.entries({
+  AUTO_REPLY_KEYWORD_NO_PHRASE: {
+    status: 400,
+    error: 'เปิดใช้ไม่ได้ — กลุ่มนี้ยังไม่มีคำตรวจจับ เพิ่มอย่างน้อย 1 คำก่อน',
+  },
+  AUTO_REPLY_KEYWORD_NO_ANSWER: {
+    status: 400,
+    error: 'เปิดใช้ไม่ได้ — ยังไม่มีข้อความตอบกลับ ใส่คำตอบใน "ทุกกรณีที่เหลือ" ก่อน',
+  },
+  AUTO_REPLY_KEYWORD_NO_TEST_THREAD: {
+    status: 400,
+    error: 'ยังตั้งเป็นโหมดทดสอบไม่ได้ — เลือกแชทสำหรับทดสอบอย่างน้อย 1 แชทก่อน',
+  },
+  AUTO_REPLY_KEYWORD_LAST_PHRASE: {
+    status: 400,
+    error:
+      'ลบคำสุดท้ายไม่ได้ตอนกลุ่มนี้ยังทำงานอยู่ — เปลี่ยนเป็น "ไม่ใช้งาน" ก่อน หรือเพิ่มคำอื่นแทน',
+  },
+  AUTO_REPLY_KEYWORD_LAST_ANSWER: {
+    status: 400,
+    error: 'ลบคำตอบสุดท้ายไม่ได้ตอนกลุ่มนี้ยังทำงานอยู่ — ต้องเหลือคำตอบไว้อย่างน้อย 1 ข้อ',
+  },
+  AUTO_REPLY_KEYWORD_NAME_EMPTY: { status: 400, error: 'ตั้งชื่อกลุ่มคำก่อนบันทึก' },
+  AUTO_REPLY_KEYWORD_NAME_TOO_LONG: {
+    status: 400,
+    error: 'ชื่อกลุ่มคำยาวเกินกำหนด ย่อให้สั้นลง',
+  },
+  AUTO_REPLY_KEYWORD_NAME_DUPLICATE: {
+    status: 409,
+    error: 'ชื่อนี้ใช้กับกลุ่มคำอื่นในร้านแล้ว ตั้งชื่ออื่นที่ไม่ซ้ำ',
+  },
+  AUTO_REPLY_KEYWORD_DUPLICATE_NAME_EXHAUSTED: {
+    status: 409,
+    error: 'ทำสำเนาไม่ได้ — มีกลุ่มคำชื่อคล้ายกันมากเกินไป เปลี่ยนชื่อต้นทางก่อน',
+  },
+  AUTO_REPLY_RULE_AD_REQUIRES_CHANNEL: {
+    status: 400,
+    error: 'เงื่อนไขที่ระบุโฆษณาต้องระบุเพจด้วย — เลือกเพจที่โฆษณานั้นวิ่งอยู่',
+  },
+  AUTO_REPLY_RULE_CENTRAL_CANNOT_HAVE_AD_OR_PRODUCT: {
+    status: 400,
+    error: 'เงื่อนไขระดับร้านระบุโฆษณาหรือสินค้าไม่ได้',
+  },
+  AUTO_REPLY_RULE_CONDITION_DUPLICATE: {
+    status: 409,
+    error: 'มีเงื่อนไขเฉพาะที่ใช้เงื่อนไขชุดนี้อยู่แล้ว — แก้ข้อเดิมแทนการเพิ่มข้อใหม่',
+  },
+  // รหัสเดียวจริง ๆ (`AUTO_REPLY_RULE_EMPTY_REPLY`) จึงอยู่ในตารางไม่ใช่ suffix rule
+  AUTO_REPLY_RULE_EMPTY_REPLY: { status: 400, error: 'คำตอบต้องไม่เป็นค่าว่าง' },
+  }),
+)
+
 /** แปลง error จาก service เป็น HTTP status — service โยน Error ที่มี message เป็นรหัส */
 export function mapServiceError(e: unknown, fallbackMessage: string): NextResponse {
   const msg = e instanceof Error ? e.message : String(e)
 
-  if (msg.includes('NOT_FOUND')) {
+  const mapped = ERROR_MAP.get(msg)
+  if (mapped) {
+    return NextResponse.json({ error: mapped.error }, { status: mapped.status })
+  }
+
+  // NOT_FOUND เทียบ suffix ต่อ เพราะมี 5 รหัสที่ prefix ต่างกันแต่ความหมายเดียวกัน
+  // (`AUTO_REPLY_KEYWORD_NOT_FOUND`, `AUTO_REPLY_PHRASE_NOT_FOUND`, `AUTO_REPLY_RULE_NOT_FOUND`,
+  // `AUTO_REPLY_RULE_CHANNEL_NOT_FOUND`, `AUTO_REPLY_RULE_PRODUCT_NOT_FOUND`) การใส่ทุกตัวลงตาราง
+  // จะพลาดง่ายเมื่อ service เพิ่ม entity ใหม่ — ใช้ `endsWith` ไม่ใช่ `includes` เพื่อไม่ให้ชน
+  // รหัสที่มีคำนี้อยู่กลางสตริง
+  //
+  // บังคับ prefix `AUTO_REPLY_` ร่วมด้วย เพราะโค้ดเบสมี `SHOP_NOT_FOUND` / `CONVERSATION_NOT_FOUND`
+  // / `PRODUCT_NOT_FOUND` อยู่จริง — วันที่ใครขยาย try ให้ครอบ service อื่น รหัสพวกนั้นจะได้ 404
+  // เงียบ ๆ โดยไม่มีร่องรอยใน log ซึ่งเป็นอาการที่ debug ยากที่สุด
+  if (msg.startsWith('AUTO_REPLY_') && msg.endsWith('NOT_FOUND')) {
     return NextResponse.json({ error: 'ไม่พบรายการที่ต้องการ' }, { status: 404 })
-  }
-  if (msg.includes('DUPLICATE_NAME')) {
-    return NextResponse.json({ error: 'ชื่อกลุ่มคำนี้มีอยู่แล้วในร้าน' }, { status: 409 })
-  }
-  if (msg.includes('DUPLICATE')) {
-    return NextResponse.json({ error: 'รายการนี้ซ้ำกับที่มีอยู่แล้ว' }, { status: 409 })
-  }
-  if (msg.includes('REQUIRES_PHRASE')) {
-    return NextResponse.json(
-      { error: 'กลุ่มคำที่เปิดใช้งานต้องมีคำตรวจจับอย่างน้อย 1 คำ' },
-      { status: 400 },
-    )
-  }
-  if (msg.includes('REQUIRES_REPLY')) {
-    return NextResponse.json(
-      { error: 'กลุ่มคำที่เปิดใช้งานต้องมีคำตอบอย่างน้อย 1 ระดับ' },
-      { status: 400 },
-    )
-  }
-  if (msg.includes('EMPTY_REPLY')) {
-    return NextResponse.json({ error: 'คำตอบต้องไม่เป็นค่าว่าง' }, { status: 400 })
   }
 
   console.error('[auto-reply-api]', msg)
