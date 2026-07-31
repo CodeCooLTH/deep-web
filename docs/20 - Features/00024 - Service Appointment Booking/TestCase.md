@@ -233,11 +233,15 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 
 | รอบ | วันที่ | ผล | หมายเหตุ |
 |-----|--------|-----|----------|
-| Spike กลไกความจุ | 2026-07-30 | ✅ **ผ่าน 9/9** | `spike-capacity.cjs` — พิสูจน์ EXCLUDE + ที่นั่ง + timezone + zero-regression บน DB จริง (rollback สะอาด) |
-| Unit | — | ยังไม่รัน | รอ implementation |
-| Integration | — | ยังไม่รัน | รอ implementation |
-| E2E | — | ยังไม่รัน | รอ implementation |
-| Visual QA | — | ยังไม่รัน | รอ implementation |
+| Spike กลไกความจุ (raw SQL) | 2026-07-30 | ✅ **ผ่าน 9/9** | `spike-capacity.cjs` — พิสูจน์ EXCLUDE + ที่นั่ง + timezone + zero-regression บน DB จริง (rollback สะอาด) |
+| Dry-run migration | 2026-07-31 | ✅ **ผ่าน 27/27 statement** | รัน `migration.sql` ทั้งไฟล์ใน transaction ที่ ROLLBACK — ไม่เหลือตาราง/คอลัมน์บน DB |
+| Apply migration | 2026-07-31 | ✅ สำเร็จ | `migrate deploy` บน DB ที่แชร์กับ prod (user อนุมัติ) — ยืนยันหลังรัน: `Order_service_seat_no_overlap`, `Order_service_fields_all_or_none`, `ServiceResource_capacity_positive` มีจริง **และ** constraint ของฟีเจอร์อื่นยังอยู่ครบ (`Order_room_no_overlap`, `Shop_userId_personal_key`, `OrderShipment_active_order_key`) → **TC-H06/TC-H07 ผ่าน** |
+| ยืนยันกลไกผ่าน Prisma model call | 2026-07-31 | ✅ **ผ่าน 3/3** | เส้นทางเดียวกับ production (ไม่ใช่ `$executeRaw`) ใน transaction ที่ ROLLBACK: ความจุ 2 จอง 3 ราย → ได้ `[1, 2, เต็ม]`; ช่วงต่อกันพอดี 11:00-12:00 ได้คิวคืน; ออเดอร์สินค้าปกติ 2 ใบสร้างได้ (zero-regression) |
+| tsc | 2026-07-31 | ✅ 78 = baseline เป๊ะ | ไม่มี error ในไฟล์ของฟีเจอร์นี้เลย (78 ตัวเป็นไฟล์ theme เดิมทั้งหมด) |
+| Unit (Vitest) | — | ยังไม่รัน | — |
+| **TC-A05 ยิงพร้อมกันจริง** | — | ⚠️ **ยังไม่รัน — blocker** | ต้องใช้แถวที่ commit จริง ทำใน transaction ที่ rollback ไม่ได้ ต้องรันบนสภาพแวดล้อมที่มีข้อมูลทดสอบได้ ห้ามข้าม |
+| E2E (Playwright) | — | ยังไม่รัน | รอ UI |
+| Visual QA | — | ยังไม่รัน | รอ UI |
 
 ---
 
