@@ -106,9 +106,9 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
       // feature 00019 — ตั้งค่าผู้ช่วยร่างคำตอบ AI (คำสั่งประจำร้าน + สวิตช์บริบทสินค้า/ลูกค้า)
       { url: '/settings/ai', slug: 'seller:settings-ai', label: 'ผู้ช่วยร่างคำตอบ AI', icon: 'sparkles' },
-      // feature 00023 — ตอบแชทอัตโนมัติจาก keyword (คนละเรื่องกับ AI ด้านบน: อันนั้นร่างให้คนกดส่ง
+      // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจาก keyword (คนละเรื่องกับ AI ด้านบน: อันนั้นร่างให้คนกดส่ง
       // อันนี้ระบบส่งเอง) วางต่อกันเพราะผู้ใช้จะเทียบสองอันนี้เสมอตอนเลือกว่าจะใช้อะไร
-      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'ตอบแชทอัตโนมัติ', icon: 'message-bolt' },
+      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'ผู้ช่วยอัตโนมัติ', icon: 'message-bolt' },
     ],
   },
 ]

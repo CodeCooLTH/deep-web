@@ -1584,6 +1584,21 @@ model AiSuggestUsageEvent {
   // รายงาน) เพื่อ group by วันปฏิทินไทยแบบ exact-match ได้ตรงกับตัวนับโควตา สำหรับ admin cost
   // dashboard ในอนาคต (Deferred, NFR-AIQ-Obs) — ต่างจาก createdAt (timestamp เต็ม, ใช้ sort/range)
   businessDay    String
+
+  // --- ต้นทุนจริงต่อครั้ง (user 2026-07-31: "จะได้คิดราคาขายได้") ---
+  //
+  // อ่านจาก usageMetadata ของ Gemini ไม่ใช่ประมาณจากความยาวข้อความ — โมเดล 3.x เป็น thinking
+  // model ที่เผา token "คิด" ก่อนตอบ ซึ่งนับรวมใน outputTokens และมองไม่เห็นจากคำตอบที่ได้
+  // นี่คือเหตุผลที่ต้นทุนจริงสูงกว่าที่เดาจากตัวอักษรมาก
+  //
+  // nullable ทั้งหมด: แถวเก่าก่อนฟีเจอร์นี้ไม่มีค่า และ Gemini อาจไม่ส่ง usageMetadata มา
+  // ซึ่งต้องไม่ทำให้บันทึกการใช้งานหายไปทั้งแถว
+  aiModel      String? // รุ่นที่ตอบจริง — อาจไม่ใช่ตัวแรกใน MODEL_CANDIDATES ถ้าถอยไปตัวสำรอง
+  inputTokens  Int?
+  outputTokens Int? // รวม thinking token
+  // Decimal ไม่ใช่ Float: ค่าอยู่ระดับเศษสตางค์ ($0.0042) และจะถูกเอาไป sum เพื่อตั้งราคาขาย
+  costUsd      Decimal? @db.Decimal(12, 8)
+
   createdAt      DateTime @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -1866,6 +1881,30 @@ model AutoReplyConfig {
   // TEXT[] คอลัมน์เดียว ไม่ทำ table แยก — ลำดับไม่มีความหมาย ไม่มี query ที่ต้อง join/aggregate รายคำ
   // (แบบเดียวกับ ExternalContact.tags/phones และ QuickMessage.imageFileIds)
   handoffPhrases String[] @default([])
+
+  // --- เวลาทำงานของระบบ (user 2026-07-31: "บางคนอยากให้ทำงานช่วง 18.00-9.00 เพื่อแทน
+  //     admin ตอนหลับ / บางคนอยากให้ทำทั้งวัน") ---
+  //
+  // ตั้งระดับร้าน ไม่ใช่รายกลุ่มคำ ตั้งใจ: ตารางนี้ตอบคำถามว่า "ตอนไหนไม่มีคนเฝ้าร้าน"
+  // ซึ่งเป็นคุณสมบัติของร้าน ไม่ใช่ของกลุ่มคำ
+  //
+  // "ALWAYS" = ทำงานตลอด (ค่าเริ่มต้น — ร้านที่มีอยู่แล้วต้องไม่เปลี่ยนพฤติกรรมกะทันหัน)
+  // "WINDOW" = ทำงานเฉพาะช่วงเวลา + วันที่กำหนด
+  activeScheduleMode String @default("ALWAYS")
+
+  // นาทีนับจากเที่ยงคืน **เวลาไทย** (0-1439); 18:00 = 1080, 09:00 = 540
+  //
+  // 🛑 เก็บเป็นนาที ไม่ใช่ DateTime/TIME ตั้งใจ: เซิร์ฟเวอร์รัน UTC การเก็บเป็นชนิดเวลาจะพา
+  // ให้ต้องแปลง tz ทุกที่ที่อ่าน แล้วเพี้ยน 7 ชั่วโมงแบบเงียบ ๆ. Int = ค่าที่ตีความได้ทางเดียว
+  //
+  // 🛑 end <= start หมายถึงช่วงข้ามเที่ยงคืน (18:00→09:00 ของวันรุ่งขึ้น) ไม่ใช่ค่าผิด —
+  // เป็นเคสหลักที่ user ขอด้วยซ้ำ ("แทน admin ตอนหลับ")
+  activeStartMin Int? // null เมื่อ mode = ALWAYS
+  activeEndMin   Int?
+
+  // bitmask วันที่ทำงาน — จันทร์=1, อังคาร=2, พุธ=4, ..., อาทิตย์=64; 127 = ทุกวัน
+  // ช่วงข้ามคืนยึด **วันที่เริ่ม** เป็นเจ้าของช่วง (ตั้งจันทร์ 18:00-09:00 = จันทร์คืนถึงอังคารเช้า)
+  activeDays Int @default(127)
 
   updatedByUserId String?
   createdAt       DateTime @default(now())

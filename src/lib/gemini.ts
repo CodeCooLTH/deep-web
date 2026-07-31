@@ -1,3 +1,4 @@
+import type { TokenUsage } from '@/lib/ai-pricing'
 import 'server-only'
 
 // Gemini helper (server-only) — feature 00018 composer improvement #3 (AI ช่วยร่างคำตอบ)
@@ -7,11 +8,23 @@ import 'server-only'
 // รายชื่อโมเดลที่จะลองตามลำดับ — Google ปลดระวางโมเดลเป็นระยะแล้วคืน 404 ทันที (บั๊กจริง prod
 // 2026-07-23: gemini-2.0-flash ถูกปิด "no longer available" ทั้งฟีเจอร์ AI ตายทันทีโดยไม่มี fallback)
 // ตั้ง GEMINI_MODEL ใน env = บังคับใช้ตัวเดียวไม่ต้อง fallback (เช่นเวลาต้องล็อกรุ่น/ต้นทุน)
-// ลำดับ default: รุ่นใหม่ก่อน แล้วถอยไปรุ่นเสถียรที่ถูกกว่า — อ้างอิงรายชื่อโมเดลปัจจุบันจาก
-// https://ai.google.dev/gemini-api/docs/models (ตรวจ 2026-07-23; 2.0-flash/2.0-flash-lite ตายแล้ว)
+//
+// ลำดับ default เรียงตาม **ความเร็ว** ไม่ใช่ความใหม่ (user 2026-07-31: "ตอนนี้มันช้ามาก
+// กว่าจะตอบทีนึง อยากได้คิดไวๆ เพราะข้อมูล prompt นึงไม่เยอะ")
+//
+// WARNING: ต้นเหตุที่ช้าคือ **thinking model** ไม่ใช่ prompt ใหญ่ — gemini-3.x คิดก่อนตอบทุกครั้ง
+// เผาทั้งเวลาและ token (ซึ่งคิดเงินในฝั่ง output ด้วย) ทั้งที่งานนี้คือ "เรียบเรียงคำตอบที่ร้าน
+// เขียนไว้ให้เข้ากับคำถาม" ซึ่งไม่ได้ประโยชน์จากการคิดเลย
+// flash-lite ปิดการคิดเป็นค่าเริ่มต้น (ai.google.dev/gemini-api/docs/thinking ตรวจ 2026-07-31)
+// ส่วน 3.6-flash ลดได้ต่ำสุดแค่ระดับ "minimal" ปิดสนิทไม่ได้
+//
+// คงสายสำรองไว้ครบ: Google ปลดระวางโมเดลแล้วคืน 404 เป็นระยะ (บั๊กจริง prod 2026-07-23)
+// ตั้ง GEMINI_MODEL ใน env = บังคับตัวเดียวไม่ถอย (ใช้ตอนต้อง A/B เทียบคุณภาพ/ต้นทุน)
+//
+// วัดผลได้ทันทีจากตัวเลข token ที่โชว์ใต้แผง AI: ถ้าการคิดถูกปิดจริง outputTokens จะลดฮวบ
 const MODEL_CANDIDATES: string[] = process.env.GEMINI_MODEL
   ? [process.env.GEMINI_MODEL]
-  : ['gemini-3.6-flash', 'gemini-2.5-flash']
+  : ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash']
 const GEMINI_ENDPOINT = (model: string, key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
 
@@ -172,11 +185,22 @@ function extractJsonObject(raw: string): string {
  * generateReplySuggestions — คืนข้อความร่าง 3 แบบสำหรับให้แอดมินเลือก/แก้ก่อนส่ง
  * throw GeminiNotConfiguredError ถ้าไม่มี key, GeminiApiError ถ้า Gemini ตอบผิดพลาด/parse ไม่ได้
  */
+export type SuggestResult = {
+  suggestions: string[]
+  /**
+   * token ที่ใช้จริงจาก `usageMetadata` ของ Gemini — null เมื่อ API ไม่ส่งมา
+   *
+   * ต้องอ่านจากที่นี่เท่านั้น ห้ามประมาณจากความยาวข้อความ: โมเดล 3.x เป็น thinking model
+   * ที่เผา token "คิด" ก่อนตอบ ซึ่งนับรวมใน output และมองไม่เห็นจากคำตอบที่ได้
+   */
+  usage: TokenUsage | null
+}
+
 export async function generateReplySuggestions(
   turns: SuggestTurn[],
   ctx: SuggestContext,
   media: SuggestMedia[] = [],
-): Promise<string[]> {
+): Promise<SuggestResult> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new GeminiNotConfiguredError()
 
@@ -190,6 +214,34 @@ export async function generateReplySuggestions(
     parts.push({ inline_data: { mime_type: m.mimeType, data: m.dataBase64 } })
   }
 
+  /**
+   * ปิด/ลดการ "คิด" ให้ตรงตามรุ่น — นี่คือตัวแปรที่ชี้ขาดเรื่องความเร็วของฟีเจอร์นี้
+   * (user 2026-07-31: "อยากได้คิดไวๆ เพราะข้อมูล prompt นึงไม่เยอะ")
+   *
+   * WARNING: สองพารามิเตอร์นี้ใช้ปนกันไม่ได้ เอกสารระบุตรง ๆ ว่า "avoid using thinking_level
+   * with the legacy thinking_budget parameter" — ส่งผิดรุ่นเสี่ยง 400 ทั้ง request
+   *   2.5 series : thinkingBudget = 0 ปิดสนิทได้ (flash-lite ไม่คิดอยู่แล้วโดยดีฟอลต์)
+   *   3.x series : thinkingLevel = "low" ลดได้ต่ำสุดเท่านี้ ปิดสนิทไม่ได้
+   * อ้างอิง ai.google.dev/gemini-api/docs/generate-content/thinking (ตรวจผ่าน context7 2026-07-31)
+   */
+  const thinkingConfigFor = (model: string): Record<string, unknown> | undefined => {
+    if (model.startsWith('gemini-2.5')) return { thinkingBudget: 0 }
+    if (model.startsWith('gemini-3')) return { thinkingLevel: 'low' }
+    return undefined // รุ่นที่ไม่รู้จัก: ไม่ส่งอะไรเลย ดีกว่าเดาแล้วโดนปฏิเสธทั้ง request
+  }
+
+  /**
+   * เพดาน output ตามรุ่น — **ไม่ใช่ตัวเร่งความเร็ว** แต่เป็นเพดานกันค่าใช้จ่ายบานปลาย
+   * (โมเดลไม่ได้ generate ช้าลงเพราะเพดานสูง มันแค่ "ยอมให้ยาวได้ถึงเท่านี้")
+   *
+   * WARNING: 4096 ของเดิมมีไว้เผื่อ token ที่ใช้ "คิด" ซึ่งกินโควตาก้อนเดียวกับคำตอบ
+   * ตั้งต่ำแล้ว JSON ถูกตัดกลางคัน โผล่มาเป็น `invalid json from gemini` ทั้งที่ HTTP 200
+   * (บั๊กจริง prod 2026-07-23) — รุ่น 2.5 ที่ปิดการคิดสนิทแล้วไม่มีความเสี่ยงนั้น
+   * จึงลดเหลือ 1536 ได้ (คำตอบไทย 3 ข้อ ~450-600 token เหลือเผื่อเท่าตัว)
+   * ส่วน 3.x ยังคิดอยู่ (ปิดสนิทไม่ได้) ต้องคง 4096 ไว้เหมือนเดิม
+   */
+  const maxOutputFor = (model: string): number => (model.startsWith('gemini-2.5') ? 1536 : 4096)
+
   const requestBody = {
     system_instruction: { parts: [{ text: buildSystemPrompt({ ...ctx, hasMedia: media.length > 0 }) }] },
     contents: [{ role: 'user', parts }],
@@ -201,9 +253,8 @@ export async function generateReplySuggestions(
         required: ['suggestions'],
       },
       temperature: 0.8,
-      // 4096 ไม่ใช่ 1024: โมเดลรุ่นใหม่ (gemini-3.x) เป็น thinking model — token ที่ใช้ "คิด"
-      // กินโควตา maxOutputTokens ก้อนเดียวกับคำตอบ ถ้าตั้งต่ำ JSON จะถูกตัดกลางคัน แล้วโผล่มาเป็น
-      // `invalid json from gemini` ทั้งที่ HTTP 200 (บั๊กจริง prod 2026-07-23)
+      // maxOutputTokens ย้ายไปตั้งตามรุ่นในลูป (ดู maxOutputFor) — ค่ากลางนี้ไม่ถูกใช้
+      // ปล่อยไว้เป็นค่าปลอดภัยเผื่อมีเส้นทางอื่นมาใช้ requestBody ตรง ๆ ในอนาคต
       maxOutputTokens: 4096,
     },
   }
@@ -212,6 +263,7 @@ export async function generateReplySuggestions(
   // เท่านั้น; error อื่น (401 key ผิด, 429 โควตาหมด, 400 payload ผิด) ถอยไปก็เจอเหมือนเดิม
   // ต้องโยนทันทีเพื่อให้เห็นสาเหตุจริง ไม่ใช่ไล่ยิงซ้ำเปล่า ๆ
   let res: Response | null = null
+  let usedModel = ''
   let lastError = ''
   for (const model of MODEL_CANDIDATES) {
     let attempt: Response
@@ -219,7 +271,16 @@ export async function generateReplySuggestions(
       attempt = await fetch(GEMINI_ENDPOINT(model, key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        // แนบ thinkingConfig ตามรุ่นที่กำลังลอง — ต้องอยู่ในลูป ไม่ใช่นอกลูป เพราะแต่ละรุ่น
+        // ในสายสำรองใช้พารามิเตอร์คนละตัว (ดู thinkingConfigFor)
+        body: JSON.stringify({
+          ...requestBody,
+          generationConfig: {
+            ...requestBody.generationConfig,
+            maxOutputTokens: maxOutputFor(model),
+            ...(thinkingConfigFor(model) ? { thinkingConfig: thinkingConfigFor(model) } : {}),
+          },
+        }),
         signal: AbortSignal.timeout(media.length > 0 ? REQUEST_TIMEOUT_MEDIA_MS : REQUEST_TIMEOUT_MS),
       })
     } catch (e) {
@@ -228,6 +289,7 @@ export async function generateReplySuggestions(
 
     if (attempt.ok) {
       res = attempt
+      usedModel = model
       break
     }
 
@@ -247,7 +309,20 @@ export async function generateReplySuggestions(
       content?: { parts?: { text?: string; thought?: boolean }[] }
       finishReason?: string
     }[]
+    // usageMetadata: จำนวน token ที่ใช้จริงของรอบนี้ (feature 00019 — แสดงต้นทุนต่อครั้งใน UI)
+    // candidatesTokenCount รวม thinking token แล้ว ตรงกับที่ Google คิดเงิน
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number }
   } | null
+
+  const um = data?.usageMetadata
+  const usage: TokenUsage | null =
+    um && typeof um.promptTokenCount === 'number'
+      ? {
+          inputTokens: um.promptTokenCount,
+          outputTokens: um.candidatesTokenCount ?? Math.max(0, (um.totalTokenCount ?? 0) - um.promptTokenCount),
+          model: usedModel,
+        }
+      : null
 
   const candidate = data?.candidates?.[0]
   // ต่อ text ของทุก part ที่ไม่ใช่ thought — ห้ามอ่านแค่ parts[0] เหมือนเดิม: โมเดลรุ่นใหม่แบ่ง
@@ -276,5 +351,5 @@ export async function generateReplySuggestions(
     .filter((s) => s.length > 0)
     .slice(0, 3)
   if (cleaned.length === 0) throw new GeminiApiError('no usable suggestions')
-  return cleaned
+  return { suggestions: cleaned, usage }
 }

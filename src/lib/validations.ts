@@ -1162,6 +1162,13 @@ export const AutoReplyConfigPatchSchema = v.partial(
   adsContextMode: v.picklist(['UNTIL_RESOLVED', 'HOURS', 'UNTIL_NEW_PRODUCT']),
   adsContextHours: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(720))),
     handoffPhrases: v.pipe(v.array(v.pipe(v.string(), v.trim(), v.maxLength(100))), v.maxLength(50)),
+    // เวลาทำงาน (feature 00023 เฟส A) — นาทีจากเที่ยงคืนเวลาไทย 0-1439
+    // ไม่บังคับ start < end: end <= start = ช่วงข้ามคืน (18:00→09:00) ซึ่งเป็นเคสหลักที่ร้านขอ
+    activeScheduleMode: v.picklist(['ALWAYS', 'WINDOW']),
+    activeStartMin: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1439))),
+    activeEndMin: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1439))),
+    // bitmask 7 วัน (จันทร์=1 ... อาทิตย์=64); 0 = ไม่ทำงานวันไหนเลย ซึ่งเป็นเจตนาที่ถูกต้อง
+    activeDays: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(127)),
   }),
 )
 

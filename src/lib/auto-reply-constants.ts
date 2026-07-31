@@ -69,6 +69,8 @@ export const SKIP_REASONS = [
   'PAUSED_HUMAN_TAKEOVER',
   'OUTBOUND_MESSAGE',
   'KEYWORD_COOLDOWN',
+  // นอกเวลาทำงานที่ร้านตั้งไว้ (feature 00023 เฟส A) — กลุ่มสถานะ TEST ไม่ติดด่านนี้
+  'OUTSIDE_SCHEDULE',
   'MAX_REPLIES_REACHED',
   'NO_KEYWORD_MATCH',
   'NO_RULE_MATCH',

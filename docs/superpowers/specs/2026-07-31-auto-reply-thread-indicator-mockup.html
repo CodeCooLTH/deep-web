@@ -1,0 +1,298 @@
+<meta charset="utf-8">
+<title>ป้าย "ระบบตอบกลับอัตโนมัติ" ในเธรดแชท — S-23 (feature 00023)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-card:#fff; --color-light:#eef2f7;
+    --color-default-100:#f6f7fb; --color-default-300:#e7e9eb; --color-default-400:#9ba6b7;
+    --color-default-600:#8a969c; --color-default-800:#343a40; --color-success:#02bc9c;
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2); --radius:4px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Anuphan,sans-serif;background:#f0f2f5;color:var(--color-default-800);padding:32px 20px 80px}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .lede{color:var(--color-default-600);font-size:14px;margin:0 0 8px;max-width:74ch;line-height:1.6}
+  h2{font-size:15px;font-weight:600;margin:44px 0 6px;padding-top:20px;border-top:1px solid var(--color-default-300)}
+  .note{color:var(--color-default-600);font-size:13px;margin:0 0 18px;max-width:74ch;line-height:1.65}
+  .note b{color:var(--color-default-800);font-weight:600}
+  .devices{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+  .device{background:var(--color-card);border:1px solid var(--color-default-300);border-radius:8px;overflow:hidden;box-shadow:var(--shadow-lg)}
+  .device-label{font-size:11px;color:var(--color-default-600);padding:6px 12px;background:var(--color-default-100);border-bottom:1px solid var(--color-default-300)}
+  .screen{padding:16px 12px;background:var(--color-card)}
+  .w-mobile{width:360px} .w-tablet{width:600px} .w-desktop{width:660px}
+
+  .msg{display:flex;margin:26px 0}
+  .msg.mine{justify-content:flex-end}
+  .col{min-width:0;max-width:78%;position:relative}
+  .bubble{border-radius:var(--radius);padding:12px 24px;font-size:14px;line-height:1.5;position:relative}
+  .bubble.mine{background:var(--color-primary);color:#fff}
+  .bubble.theirs{background:var(--color-light);color:var(--color-default-800)}
+  .meta{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:13px;color:var(--color-default-400)}
+  .meta.mine{justify-content:flex-end}
+  .meta svg,.tag svg{stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .meta svg{width:1em;height:1em}
+  .read{color:var(--color-success);display:inline-flex;align-items:center;gap:2px}
+  .avatar{width:20px;height:20px;border-radius:999px;background:var(--color-primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .avatar svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+
+  /* ---------- ป้ายเกยขอบบับเบิล ---------- */
+  /* z-index จำเป็น: บับเบิลเป็น position:relative และอยู่หลังป้ายใน DOM ถ้าไม่ยกขึ้นมาป้ายจะโดนทับ */
+  .tag{position:absolute;top:0;transform:translateY(-52%);display:inline-flex;align-items:center;gap:4px;z-index:2;
+       white-space:nowrap;font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;line-height:1.5;cursor:pointer}
+  .tag svg{width:13px;height:13px;flex:none}
+  .col.mine .tag{left:10px}       /* ฝั่งร้าน ป้ายชิดซ้ายของบับเบิล = ห่างจาก avatar/เวลา */
+
+  /* แบบ A — ป้ายขาว ขอบน้ำเงิน ตัวหนังสือน้ำเงิน */
+  .tag-a{background:var(--color-card);color:var(--color-primary);border:1px solid var(--color-primary);box-shadow:var(--shadow)}
+  /* แบบ B — ป้ายน้ำเงินเข้มทึบ ตัวหนังสือขาว + ขอบขาวคั่นจากบับเบิล */
+  .tag-b{background:var(--color-primary-hover);color:#fff;border:2px solid var(--color-card);box-shadow:var(--shadow)}
+
+  /* ---------- popover รายละเอียดเงื่อนไข (hover บนเดสก์ท็อป / แตะบนมือถือ) ---------- */
+  .tagwrap{position:absolute;top:0;left:10px;transform:translateY(-52%);z-index:3}
+  .tagwrap .tag{position:static;transform:none;left:auto}
+  .pop{position:absolute;bottom:100%;left:0;margin-bottom:8px;width:270px;background:var(--color-card);
+       border:1px solid var(--color-default-300);border-radius:6px;box-shadow:var(--shadow-lg);
+       text-align:left;opacity:0;visibility:hidden;transition:opacity .12s ease}
+  .tagwrap:hover .pop,.tagwrap:focus-within .pop{opacity:1;visibility:visible}
+  .pop-h{background:var(--color-default-100);border-bottom:1px solid var(--color-default-300);
+         padding:9px 13px;font-size:12px;font-weight:600;color:var(--color-default-800)}
+  .pop-b{padding:4px 13px 10px;font-size:12px;color:var(--color-default-600)}
+  .row{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--color-default-100);line-height:1.5}
+  .row:last-child{border-bottom:0}
+  .row dt{flex:0 0 68px;color:var(--color-default-600)}
+  .row dd{margin:0;flex:1;color:var(--color-default-800);min-width:0;word-break:break-word}
+  .row dd em{font-style:normal;color:var(--color-default-600)}
+  .row dd.none{color:var(--color-default-400)}
+  .sub{font-size:11px;font-weight:600;color:var(--color-default-600);padding:8px 0 2px}
+  .cmp{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .cmp>div{flex:1;min-width:300px}
+  .cmp h3{font-size:13px;font-weight:600;margin:0 0 10px;color:var(--color-default-800)}
+  .cmp h3 span{font-weight:400;color:var(--color-default-600)}
+  .pick{border:1px solid var(--color-default-300);border-radius:8px;padding:4px 12px 12px;background:var(--color-card)}
+</style>
+
+<h1>ป้าย “ระบบตอบกลับอัตโนมัติ” — แบบเกยขอบกล่องข้อความ</h1>
+<p class="lede">
+  S-23 · feature 00023 · <code>ChatThread.tsx</code>
+</p>
+<p class="note" style="max-width:74ch">
+  <b>ข้อจำกัดที่ต้องตัดสินก่อน:</b> บับเบิลฝั่งร้านเป็นสีน้ำเงินทึบ <code>#236dc9</code> อยู่แล้ว
+  ป้ายน้ำเงินวางทับตรง ๆ จะกลืนไปกับพื้น มองไม่เห็นว่าเป็นป้ายแยก
+  ต่างจากภาพตัวอย่างที่ badge ชมพูวางบนวงกลมฟ้าอ่อน (คนละสี จึงเด้ง)
+  ผมเลยทำ 2 ทางที่ยังเป็น “ป้ายน้ำเงิน” แต่แยกตัวออกจากบับเบิลได้จริง — เลือกมาหนึ่งอัน
+</p>
+
+<h2>เลือกแบบ</h2>
+<div class="cmp">
+  <div class="pick">
+    <h3>แบบ A — ป้ายขาว ตัวหนังสือน้ำเงิน <span>· เบา ไม่แย่งความสนใจจากข้อความ</span></h3>
+    <div class="screen">
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        <div class="bubble mine">ราคาส่งฟรีเมื่อซื้อครบ 500 บาทค่ะ</div>
+        <div class="meta mine">
+          <span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:32</span>
+          <span class="read"><svg viewBox="0 0 24 24"><path d="M2 12l5 5L17 7M13 17l1 1L22 8"/></svg>อ่านแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="pick">
+    <h3>แบบ B — ป้ายน้ำเงินเข้มทึบ ตัวหนังสือขาว <span>· ใกล้ภาพตัวอย่างที่สุด</span></h3>
+    <div class="screen">
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-b"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        <div class="bubble mine">ราคาส่งฟรีเมื่อซื้อครบ 500 บาทค่ะ</div>
+        <div class="meta mine">
+          <span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:32</span>
+          <span class="read"><svg viewBox="0 0 24 24"><path d="M2 12l5 5L17 7M13 17l1 1L22 8"/></svg>อ่านแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<h2>อยู่ในบทสนทนาจริง — 3 ขนาดจอ (ใช้แบบ A)</h2>
+<p class="note">
+  บอทตอบติดกันหลายข้อความ <b>ป้ายขึ้นทุกอัน</b> · ข้อความที่คนพิมพ์เองไม่มีป้าย — นั่นคือความต่างที่ป้ายนี้มีไว้บอก ·
+  ระยะห่างระหว่างข้อความต้องเพิ่มขึ้นเพื่อไม่ให้ป้ายชนบับเบิลที่อยู่เหนือมัน
+</p>
+<div class="devices">
+  <div class="device w-mobile">
+    <div class="device-label">Mobile · 360px</div>
+    <div class="screen">
+      <div class="msg"><div class="col"><div class="bubble theirs">สนใจสินค้าค่ะ ราคาเท่าไหร่คะ</div>
+        <div class="meta"><span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:31</span></div>
+      </div></div>
+
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        <div class="bubble mine">ราคาส่งฟรีเมื่อซื้อครบ 500 บาทค่ะ</div>
+      </div></div>
+
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        <div class="bubble mine">สนใจชิ้นไหนแจ้งได้เลยนะคะ</div>
+        <div class="meta mine">
+          <span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:32</span>
+          <span class="read"><svg viewBox="0 0 24 24"><path d="M2 12l5 5L17 7M13 17l1 1L22 8"/></svg>อ่านแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+
+      <div class="msg mine"><div class="col mine">
+        <div class="bubble mine">อันนี้แอดมินตอบเองนะคะ เดี๋ยวจัดส่งพรุ่งนี้ค่ะ</div>
+        <div class="meta mine">
+          <span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:40</span>
+          <span style="display:inline-flex;align-items:center;gap:2px"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>ส่งแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="device w-tablet">
+    <div class="device-label">Tablet · 600px — โหมดทดสอบ (ต่างที่คำ)</div>
+    <div class="screen">
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ · โหมดทดสอบ</span>
+        <div class="bubble mine">สวัสดีค่ะ ยินดีให้บริการนะคะ</div>
+        <div class="meta mine">
+          <span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:33</span>
+          <span style="display:inline-flex;align-items:center;gap:2px"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>ส่งแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="device w-desktop">
+    <div class="device-label">Desktop · คอลัมน์แชท ~660px — ข้อความสั้นกว่าป้าย</div>
+    <div class="screen">
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        <div class="bubble mine">ได้ค่ะ</div>
+        <div class="meta mine">
+          <span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:35</span>
+          <span style="display:inline-flex;align-items:center;gap:2px"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>ส่งแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+      <p class="note" style="margin:14px 0 0;font-size:12px">
+        ↑ เคสที่ต้องดูให้ดี: ข้อความสั้นกว่าป้าย ป้ายจะยื่นเลยขอบบับเบิลไปทางขวา
+        ผมล็อกป้ายให้ชิดซ้ายของบับเบิลเสมอ (ฝั่งร้าน) เพื่อให้ยื่นออกด้านนอกจอไม่ได้
+      </p>
+    </div>
+  </div>
+</div>
+
+<h2>เวลา — ตัดวินาทีออก เหลือไว้ตอนชี้</h2>
+<p class="note">
+  เธรดใช้ <code>formatTime</code> ที่คืน <code>14:32:01</code> ทุกจุด · เปลี่ยนเป็น <code>formatTimeHM</code>
+  ที่คืน <code>14:32</code> (มีอยู่แล้วในระบบ ทำไว้ตอนงานฝั่งผู้ซื้อ — ไม่ต้องเขียน formatter ใหม่)
+  แล้วเก็บเวลาเต็มไว้ที่ <code>title</code> ให้เห็นตอนชี้เมาส์
+  <br><b>ลองชี้ที่เวลาด้านล่าง</b> — บนมือถือไม่มี hover แต่ไม่เสียหาย เพราะวินาทีไม่ใช่ข้อมูลที่ต้องใช้ตัดสินใจอะไร
+</p>
+<div class="devices">
+  <div class="device w-mobile">
+    <div class="device-label">Mobile · 360px</div>
+    <div class="screen">
+      <div class="msg mine"><div class="col mine">
+        <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        <div class="bubble mine">ราคาส่งฟรีเมื่อซื้อครบ 500 บาทค่ะ</div>
+        <div class="meta mine">
+          <span title="14:32:01" style="display:inline-flex;align-items:center;gap:4px;cursor:help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:32</span>
+          <span class="read"><svg viewBox="0 0 24 24"><path d="M2 12l5 5L17 7M13 17l1 1L22 8"/></svg>อ่านแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+      <p class="note" style="margin:14px 0 0;font-size:12px">
+        แก้ 2 จุดในไฟล์เดียว (แถวเวลาปกติ + แถวเวลาของอัลบั้มรูป) — ไม่กระทบวันที่ที่คั่นกลางเธรด
+      </p>
+    </div>
+  </div>
+</div>
+
+<h2>ชี้ที่ป้าย → เห็นเงื่อนไขทั้งหมดของการตอบครั้งนั้น</h2>
+<p class="note">
+  <b>เอาเมาส์ไปชี้ที่ป้ายด้านล่าง</b> (บนมือถือใช้แตะ) · ทุกบรรทัดในกล่องนี้เป็นค่าที่ระบบ
+  <b>บันทึกไว้ตอนตัดสินใจตอบจริง</b> ไม่ใช่การเดาย้อนหลัง — ตาราง <code>AutoReplyLog</code> เก็บ
+  คำที่ตรง · วิธีจับคู่ · เพจ/โฆษณา/สินค้า ณ ตอนนั้น ครบอยู่แล้วตั้งแต่แรก แค่ยังไม่เคยเอามาแสดงที่ไหน
+</p>
+<div class="devices">
+  <div class="device w-desktop">
+    <div class="device-label">Desktop · ตอบจากเงื่อนไขเต็ม (เพจ + โฆษณา + สินค้า)</div>
+    <div class="screen" style="padding-top:230px">
+      <div class="msg mine"><div class="col mine">
+        <div class="tagwrap">
+          <div class="pop">
+            <div class="pop-h">ระบบตอบกลับอัตโนมัติ</div>
+            <div class="pop-b">
+              <dl style="margin:0">
+                <div class="row"><dt>กลุ่มคำ</dt><dd>ถามราคาสินค้า</dd></div>
+                <div class="row"><dt>คำที่ตรง</dt><dd>“ราคาเท่าไหร่” <em>· มีคำนี้อยู่ในข้อความ</em></dd></div>
+              </dl>
+              <div class="sub">เงื่อนไขที่ทำให้เลือกคำตอบนี้</div>
+              <dl style="margin:0">
+                <div class="row"><dt>เพจ</dt><dd>ร้านช่วงล่างซิ่ง</dd></div>
+                <div class="row"><dt>โฆษณา</dt><dd>โช้คหลังบรรทุกหนัก ซ้อนสาม สามล้อ ซาเล้ง 700 กิโล</dd></div>
+                <div class="row"><dt>สินค้า</dt><dd>โช้คหลังบรรทุกหนัก แกน 6 เซ็น</dd></div>
+                <div class="row"><dt>เวลา</dt><dd>14:32:01</dd></div>
+              </dl>
+            </div>
+          </div>
+          <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ</span>
+        </div>
+        <div class="bubble mine">อันนี้ราคา 590 บาทค่ะ ส่งฟรีปลายทาง</div>
+        <div class="meta mine">
+          <span title="14:32:01" style="display:inline-flex;align-items:center;gap:4px;cursor:help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:32</span>
+          <span class="read"><svg viewBox="0 0 24 24"><path d="M2 12l5 5L17 7M13 17l1 1L22 8"/></svg>อ่านแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="device w-mobile">
+    <div class="device-label">Mobile · 360px — ตอบแบบไม่มีเงื่อนไขเจาะจง (โหมดทดสอบ)</div>
+    <div class="screen" style="padding-top:200px">
+      <div class="msg mine"><div class="col mine">
+        <div class="tagwrap">
+          <div class="pop">
+            <div class="pop-h">ระบบตอบกลับอัตโนมัติ (โหมดทดสอบ)</div>
+            <div class="pop-b">
+              <dl style="margin:0">
+                <div class="row"><dt>กลุ่มคำ</dt><dd>ทักทายทั่วไป</dd></div>
+                <div class="row"><dt>คำที่ตรง</dt><dd>“สนใจ” <em>· ขึ้นต้นด้วยคำนี้</em></dd></div>
+              </dl>
+              <div class="sub">เงื่อนไขที่ทำให้เลือกคำตอบนี้</div>
+              <dl style="margin:0">
+                <div class="row"><dt>เพจ</dt><dd class="none">ไม่เจาะจง</dd></div>
+                <div class="row"><dt>โฆษณา</dt><dd class="none">ไม่เจาะจง</dd></div>
+                <div class="row"><dt>สินค้า</dt><dd class="none">ไม่เจาะจง</dd></div>
+                <div class="row"><dt>เวลา</dt><dd>14:33:47</dd></div>
+              </dl>
+              <p style="margin:8px 0 0;line-height:1.5">ใช้คำตอบปกติของกลุ่มนี้</p>
+            </div>
+          </div>
+          <span class="tag tag-a"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>ระบบตอบกลับอัตโนมัติ · โหมดทดสอบ</span>
+        </div>
+        <div class="bubble mine">สวัสดีค่ะ ยินดีให้บริการนะคะ</div>
+        <div class="meta mine">
+          <span title="14:33:47" style="display:inline-flex;align-items:center;gap:4px;cursor:help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>14:33</span>
+          <span style="display:inline-flex;align-items:center;gap:2px"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>ส่งแล้ว</span>
+          <span class="avatar"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5"/></svg></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</div>
+<p class="note" style="margin-top:20px">
+  <b>สิ่งที่ต้องต่อเพิ่มจากที่ผมทำไว้แล้ว:</b> ตอนนี้ท่อส่งมาแค่ชื่อกลุ่มคำ
+  ต้องส่ง <code>matchedPhrase</code> · <code>matchType</code> · <code>resolutionLevel</code> มาด้วย
+  และแปลงรหัสเพจ/โฆษณา/สินค้าเป็นชื่อจริง (ค่าที่บันทึกไว้เป็นรหัส ไม่ใช่ชื่อ)
+  — โหลดครั้งเดียวตอนเปิดเธรด ไม่ได้ยิงต่อข้อความ
+</p>

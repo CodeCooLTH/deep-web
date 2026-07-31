@@ -80,7 +80,10 @@ describe('ค่าคงที่ FROZEN §3.8 — จำนวนและเ�
   it('AutoReplyLog.decision', () =>
     expect(AUTO_REPLY_LOG_DECISIONS).toEqual(['REPLIED', 'SKIPPED', 'HANDOFF', 'FAILED']))
   it('resolutionLevel ครบ 9 ค่า', () => expect(RESOLUTION_LEVELS).toHaveLength(9))
-  it('skipReason ครบ 16 ค่า', () => expect(SKIP_REASONS).toHaveLength(16))
+  // 17 ไม่ใช่ 16: เพิ่ม OUTSIDE_SCHEDULE 2026-07-31 (เวลาทำงานของ DeepBot, feature 00023 เฟส A)
+  // แก้ตัวเลขนี้ได้เฉพาะเมื่อแก้ DATABASE.md §3.8 ให้ตรงกันแล้วเท่านั้น — เทสนี้มีไว้กันการเพิ่ม
+  // ค่าเงียบ ๆ โดยลืมอัปเดตเอกสารที่เป็น SSOT
+  it('skipReason ครบ 17 ค่า', () => expect(SKIP_REASONS).toHaveLength(17))
   it('autoReplyKind 2 ค่า (ไม่รวม null ที่แทน "คนตอบเอง")', () =>
     expect(AUTO_REPLY_KINDS).toEqual(['AUTO', 'AUTO_TEST']))
   it('contextProductSource', () =>
