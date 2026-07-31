@@ -237,11 +237,33 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | Dry-run migration | 2026-07-31 | ✅ **ผ่าน 27/27 statement** | รัน `migration.sql` ทั้งไฟล์ใน transaction ที่ ROLLBACK — ไม่เหลือตาราง/คอลัมน์บน DB |
 | Apply migration | 2026-07-31 | ✅ สำเร็จ | `migrate deploy` บน DB ที่แชร์กับ prod (user อนุมัติ) — ยืนยันหลังรัน: `Order_service_seat_no_overlap`, `Order_service_fields_all_or_none`, `ServiceResource_capacity_positive` มีจริง **และ** constraint ของฟีเจอร์อื่นยังอยู่ครบ (`Order_room_no_overlap`, `Shop_userId_personal_key`, `OrderShipment_active_order_key`) → **TC-H06/TC-H07 ผ่าน** |
 | ยืนยันกลไกผ่าน Prisma model call | 2026-07-31 | ✅ **ผ่าน 3/3** | เส้นทางเดียวกับ production (ไม่ใช่ `$executeRaw`) ใน transaction ที่ ROLLBACK: ความจุ 2 จอง 3 ราย → ได้ `[1, 2, เต็ม]`; ช่วงต่อกันพอดี 11:00-12:00 ได้คิวคืน; ออเดอร์สินค้าปกติ 2 ใบสร้างได้ (zero-regression) |
-| tsc | 2026-07-31 | ✅ 78 = baseline เป๊ะ | ไม่มี error ในไฟล์ของฟีเจอร์นี้เลย (78 ตัวเป็นไฟล์ theme เดิมทั้งหมด) |
-| Unit (Vitest) | — | ยังไม่รัน | — |
-| **TC-A05 ยิงพร้อมกันจริง** | — | ⚠️ **ยังไม่รัน — blocker** | ต้องใช้แถวที่ commit จริง ทำใน transaction ที่ rollback ไม่ได้ ต้องรันบนสภาพแวดล้อมที่มีข้อมูลทดสอบได้ ห้ามข้าม |
-| E2E (Playwright) | — | ยังไม่รัน | รอ UI |
-| Visual QA | — | ยังไม่รัน | รอ UI |
+| tsc | 2026-07-31 | ✅ **0 error** | baseline ของ worktree นี้เปลี่ยนจาก 78 เป็น **0** หลังรัน `npm run build` ครั้งแรก (build สร้าง type declaration ของ static asset ให้ error `Cannot find module '@/assets/images/*.svg'` หายหมด) — ต่อจากนี้เจอ error แม้ตัวเดียว = ของใหม่จริง |
+| Unit (Vitest) — มัดจำ | 2026-07-31 | ✅ **ผ่าน 14/14** | `src/services/__tests__/appointment-deposit.test.ts` ครอบ BR-RSV-43/44/47/48/51 — ฟังก์ชันบริสุทธิ์ไม่แตะ DB |
+| **TC-A05 ยิงพร้อมกันจริง (รอบแรก)** | 2026-07-31 | ❌ **ไม่ผ่าน — เจอบั๊กจริง** | สำเร็จ **0 จาก 12** (คาดหวัง 8) ด้วย deadlock (40P01) + transaction timeout 5 วินาที ดู §5.1 |
+| **TC-A05 ยิงพร้อมกันจริง (หลังแก้)** | 2026-07-31 | ✅ **ผ่าน 6/6 เช็ค · เสถียร 4 รอบติด** | ความจุ 8 ยิง 12 → สำเร็จ 8, 409 = 4, error อื่น 0, ที่นั่ง 1–8 ไม่ซ้ำ ยืนยันจากแถวจริงใน DB. ทดสอบภาระหนักเพิ่ม: 40 ยิงบนคิว 8 → 8/32 ✅ · 60 ยิงบนคิว 20 → 20/40 ✅ (ไม่มี timeout กลับมา) |
+| E2E (Playwright) | — | ยังไม่รัน | รอ browser QA |
+| Visual QA | — | ยังไม่รัน | — |
+
+### 5.1 บั๊กที่ TC-A05 จับได้ และการแก้ (2026-07-31)
+
+**อาการ:** ยิง 12 request พร้อมกันบนความจุ 8 → **สำเร็จ 0 ราย** ไม่ใช่จองทะลุความจุ แต่จองไม่ได้เลยสักคน ได้ error 2 แบบปนกัน: `40P01 deadlock detected` และ Prisma interactive transaction timeout (5,000 ms)
+
+**สาเหตุ:** EXCLUDE constraint บน GiST สร้าง **predicate lock** — เมื่อ transaction อื่นเขียนที่นั่งเดียวกันไว้แต่ **ยังไม่ commit** ตัวที่มาทีหลังจะ **ถูกบล็อกให้รอ ไม่ใช่ได้ error ทันที** จึงติดค้างอยู่ที่นั่งนั้น ไปลองที่นั่งถัดไปไม่ได้ พอหลายตัวรุมกันก็รอกันเป็นลูกโซ่จนเกิด deadlock และหมดเวลา transaction ยกชุด
+
+กลไก "ลองที่นั่งแล้วชน = ข้ามไปที่นั่งถัดไป" ตั้งอยู่บนสมมติฐานว่า *ชนแล้วได้ error ทันที* ซึ่งจริงเฉพาะกับแถวที่ **commit ไปแล้ว**
+
+**ทำไม spike รุ่นแรกไม่เจอ:** ทั้ง `spike-capacity.cjs` และรอบ "ยืนยันกลไกผ่าน Prisma model call" ยิง **ทีละตัวตามลำดับ** จึงชนกับแถวที่ commit แล้วเสมอ — ได้ error ทันทีจริงตามที่คาด ไม่เคยเจอเคสชนกับ transaction ที่ยังไม่ commit (ต่อยอดบทเรียน `feedback_spike_must_match_production_path`: spike ต้องตรงกับ *สภาพการใช้งานจริง* ไม่ใช่แค่ *เส้นทางโค้ดจริง*)
+
+**การแก้:** เพิ่ม `pg_advisory_xact_lock(24, hashtext(resourceId))` ที่ต้น `allocateSeat()` — เรียงคิวการจัดสรร **ต่อทรัพยากรหนึ่งหน่วย** ให้ทีละราย ลูปวนที่นั่งจึงเห็นเฉพาะแถวที่ commit แล้ว ซึ่งเป็นเงื่อนไขที่กลไกต้องการ
+
+- ทรัพยากรคนละตัวจองพร้อมกันได้ตามปกติ (lock แยกตาม resourceId)
+- เป็น xact lock → ปลดเองตอน transaction จบ ไม่มีทางลืมปลด
+- มี lock เดียว → ไม่มีทางเกิด deadlock
+- **EXCLUDE constraint ยังเป็นตัวตัดสินสุดท้ายเหมือนเดิม** advisory lock แค่ทำให้กลไกทำงานได้ ไม่ได้แทนที่
+
+**หมายเหตุความปลอดภัย:** ตอนที่บั๊กยังอยู่ ระบบ fail แบบปิด (fail-closed) — ไม่เคยจองเกินความจุ (0 ≤ 8) ความถูกต้องไม่เคยเสีย เสียแต่ความพร้อมใช้งาน
+
+**สคริปต์:** `scripts/tc-a05-concurrent-capacity.ts` (ปรับความจุ/จำนวนยิงผ่าน env `TC_A05_CAPACITY` / `TC_A05_ATTEMPTS`) รันบน **Postgres บนเครื่องเท่านั้น** — มี allowlist กันชี้ไป DB ที่แชร์กับ prod ตาม Hard Rule 13
 
 ---
 

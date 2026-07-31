@@ -99,18 +99,38 @@ function assertValidRange(start: Date, end: Date): void {
 }
 
 /**
+ * namespace ของ advisory lock ในระบบ — เลือกเลขคงที่ที่ไม่ชนกับฟีเจอร์อื่น
+ * (ตรวจแล้ว 2026-07-31: ยังไม่มีที่ไหนในโปรเจกต์ใช้ advisory lock เลย ตัวนี้เป็นตัวแรก)
+ * ถ้าจะเพิ่มที่อื่นในอนาคต ให้จองเลข namespace ใหม่ ห้ามใช้ซ้ำ
+ */
+const ADVISORY_NS_APPOINTMENT_SEAT = 24;
+
+/**
  * จัดสรร "ที่นั่งลำดับที่ n" ให้ออเดอร์หนึ่งใบ — หัวใจของการรองรับความจุ > 1 (BR-RSV-16)
  *
- * วิธีทำงาน: วนลองที่นั่ง 1..capacity — ที่นั่งไหน UPDATE ผ่าน = ได้ที่นั่งนั้น
- * ครบทุกที่นั่งแล้วยังชน = เต็มจริง
+ * วิธีทำงาน: กัน "การจัดสรรของทรัพยากรเดียวกัน" ให้เรียงคิวทีละคนด้วย advisory lock
+ * แล้ววนลองที่นั่ง 1..capacity — ที่นั่งไหน UPDATE ผ่าน = ได้ที่นั่งนั้น ครบแล้วยังชน = เต็มจริง
  *
  * IMPORTANT: ห้าม implement ด้วยการ count() นัดที่ทับกันแล้วเทียบ capacity เป็นตัวตัดสิน
  * มีช่องว่างระหว่าง "นับ" กับ "เขียน" เสมอ → กดพร้อมกันแล้วจองทะลุความจุได้ (BR-RSV-18.1)
- * ตัวตัดสินคือ EXCLUDE constraint `Order_service_seat_no_overlap` เท่านั้น
+ * ตัวตัดสินสุดท้ายคือ EXCLUDE constraint `Order_service_seat_no_overlap` เสมอ
  *
  * IMPORTANT: ทุกครั้งที่ลองต้องครอบ SAVEPOINT — Postgres poison ทั้ง transaction ทันที
  * ที่ constraint ยิง (25P02 current transaction is aborted) ถ้าไม่ครอบ ที่นั่งแรกที่ชน
- * จะทำให้ทั้งธุรกรรมตาย ทั้งที่ยังมีที่ว่างอยู่ (วัดจริงแล้วทั้ง spike 00017 และ 00024)
+ * จะทำให้ทั้งธุรกรรมตาย ทั้งที่ยังมีที่ว่างอยู่
+ *
+ * IMPORTANT: advisory lock ไม่ใช่ของประดับ — TC-A05 (ยิง 12 request พร้อมกันบนความจุ 8)
+ * พิสูจน์เมื่อ 2026-07-31 ว่า **ถ้าไม่มี lock นี้ ระบบจองไม่ได้เลยสักคน (สำเร็จ 0 จาก 12)**
+ * เพราะ EXCLUDE บน GiST สร้าง predicate lock: เมื่อ tx อื่นเขียนที่นั่งเดียวกันไว้แต่ยัง
+ * ไม่ commit เราจะ **ถูกบล็อกให้รอ ไม่ใช่ได้ error ทันที** → ติดค้างที่นั่งนั้น ไปลองที่นั่ง
+ * ถัดไปไม่ได้ → รอกันเป็นลูกโซ่จนเกิด deadlock (40P01) และหมดเวลา transaction ยกชุด
+ *
+ * spike รุ่นแรกไม่เจอเพราะทดสอบกับแถวที่ commit ไปแล้ว (ยิงทีละตัว) ซึ่งได้ error ทันทีจริง
+ * — พฤติกรรมคนละแบบกับการชน transaction ที่ยังไม่ commit (บทเรียน
+ * feedback_spike_must_match_production_path)
+ *
+ * ขอบเขตของ lock = ต่อทรัพยากรหนึ่งหน่วย ไม่ใช่ทั้งร้าน — ทรัพยากรคนละตัวจองพร้อมกันได้ปกติ
+ * เป็น xact lock จึงปลดเองตอน transaction จบ ไม่มีทางลืมปลด และมีแค่ lock เดียวจึงไม่มี deadlock
  */
 async function allocateSeat(
   tx: Prisma.TransactionClient,
@@ -122,6 +142,10 @@ async function allocateSeat(
   },
 ): Promise<number> {
   const { orderId, resource, start, end } = args;
+
+  // เรียงคิวการจัดสรรของทรัพยากรนี้ — ทำให้ลูปด้านล่างเห็นเฉพาะแถวที่ commit แล้ว
+  // ซึ่งเป็นเงื่อนไขที่กลไก "ลองแล้วชน = ข้ามไปที่นั่งถัดไป" ต้องการจึงจะทำงานถูก
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_NS_APPOINTMENT_SEAT}::int, hashtext(${resource.id})::int)`;
 
   for (let seat = 1; seat <= resource.capacity; seat++) {
     const savepoint = `seat_try_${seat}`;

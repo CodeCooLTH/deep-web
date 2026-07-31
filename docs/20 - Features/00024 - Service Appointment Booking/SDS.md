@@ -132,6 +132,11 @@ export class AppointmentTerminalError extends Error {
  *    ทำให้จองทะลุความจุได้เมื่อกดพร้อมกัน (BR-RSV-18.1)
  * 🛑 ทุกครั้งที่ลองต้องครอบ SAVEPOINT — EXCLUDE ที่ยิงจะ poison ทั้ง transaction (25P02)
  *    ถ้าไม่ครอบ ที่นั่งแรกที่ชนจะทำให้ทั้งธุรกรรมตาย ทั้งที่ยังมีที่ว่าง
+ * 🛑 ต้องมี advisory lock ต่อทรัพยากรก่อนเข้าลูป (เพิ่ม 2026-07-31 หลัง TC-A05 ไม่ผ่าน)
+ *    EXCLUDE บน GiST "บล็อกให้รอ" เมื่อชนกับ transaction ที่ยังไม่ commit ไม่ใช่ error ทันที
+ *    → ติดค้างที่นั่งนั้น ไปลองที่นั่งถัดไปไม่ได้ → deadlock + timeout ยกชุด
+ *    วัดจริง: ไม่มี lock นี้ ยิง 12 พร้อมกันบนความจุ 8 ได้สำเร็จ 0 ราย
+ *    (ดู DATABASE.md §4.2 และ TestCase.md §5.1)
  */
 async function allocateSeat(
   tx: Prisma.TransactionClient,
@@ -139,6 +144,10 @@ async function allocateSeat(
           start: Date; end: Date },
 ): Promise<number> {
   const { orderId, resource, start, end } = args
+
+  // เรียงคิวการจัดสรรของทรัพยากรนี้ — ทำให้ลูปเห็นเฉพาะแถวที่ commit แล้ว
+  // ขอบเขตต่อ resourceId (ไม่ใช่ทั้งร้าน), xact → ปลดเอง, lock เดียว → ไม่มี deadlock
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(24::int, hashtext(${resource.id})::int)`
 
   for (let seat = 1; seat <= resource.capacity; seat++) {
     const sp = `seat_try_${seat}`
