@@ -7,6 +7,8 @@
  *   block "Full Screen Below lg" (บรรทัด 645-671) — เต็มจอใต้ lg / การ์ดกึ่งกลางที่ lg ขึ้นไป
  *   เอาเฉพาะ "class มิติ" มาใช้ ส่วนกลไก open/close ยังเป็น React state จาก parent (ไม่ใช้
  *   Preline hs-overlay เพราะ parent คุมด้วย managerOpen อยู่แล้ว — ใช้ทั้งคู่จะขัดกัน)
+ * Base (ตารางรายการ): theme/paces/Admin/TS/src/app/(admin)/tables/static/components/HoverableRows.tsx
+ *   (.table-wrapper > table.table.table-hover > thead.font-semibold)
  * Base (ช่องค้นหา): theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ContactList.tsx:20-24
  * Base (ปุ่ม icon / ลูกศรจัดลำดับ): theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx (.btn.btn-icon)
  * Base (กรองหมวด): src/components/safepay/FilterDropdown.tsx (Base เดิม ui/dropdowns/page.tsx)
@@ -14,15 +16,15 @@
  * Form field: Base theme/paces form/elements (form-input/form-label) — Paces primitive (HR7)
  * upload รูป: reuse POST /api/upload (คืน {fileId}) เหมือน composer แนบรูป
  *
- * โครง (redesign 2026-07-31 — spec docs/superpowers/specs/2026-07-31-quick-message-manager-design.md):
- *   แยก "โหมดดูรายการ" ออกจาก "โหมดฟอร์ม" เด็ดขาด แทนที่จะยัดทั้งคู่ใน scroll เดียวกัน
- *   - ≥lg: 2 pane ถาวร (list ซ้าย 320px / ฟอร์มขวา) — ฟอร์มอยู่คนละคอลัมน์กับ list จึง
- *     "ไม่มีทางหลุดนอกจอ" ตอนกดแก้ไขรายการที่อยู่ล่าง ๆ (bug เดิม: startEdit เติมค่าลงฟอร์ม
- *     บนสุดแต่ไม่เลื่อนจอไปหา ผู้ใช้เลยเห็นว่า "กดแล้วไม่มีอะไรเกิดขึ้น")
- *   - <lg: สลับ view เต็มจอ list ↔ form ด้วยลูกศรย้อนกลับ (navigation ชัดเจน ไม่ผูกกับ scroll —
- *     scrollIntoView ยังเป็นการเลื่อนจอที่ผู้ใช้อาจไม่ทันสังเกต โดยเฉพาะเมื่อเปิด reduced-motion)
- *   จัดลำดับยกมาจากแถบล่างด้วย (API PATCH {orderedIds} เดิม) แต่กลไกหลักเป็น "ปุ่มลูกศร 44px"
- *   ไม่ใช่ drag เพราะ HTML5 draggable ไม่รองรับ touch — บนมือถือลากไม่ได้จริง (drag ยังมีบน desktop)
+ * โครง (spec docs/superpowers/specs/2026-07-31-quick-message-manager-design.md):
+ *   **หนึ่งหน้าต่อหนึ่งงาน** — โมดัลแสดงทีละอย่างเสมอ ไม่ว่าจอเล็กหรือใหญ่
+ *   - viewMode 'list' = ตารางเต็มโมดัล (หัวข้อ/หมวด/ข้อความ/จัดการ) + toolbar ค้นหา-กรอง-จัดลำดับ-เพิ่ม
+ *   - viewMode 'form' = ฟอร์มเต็มโมดัล มีลูกศรย้อนกลับที่ header (กดแถวไหนก็เข้าฟอร์มของแถวนั้น)
+ *   เดิมเคยเป็น 2 pane (list ซ้าย + ฟอร์มขวา) บน >=lg แต่ user เห็นของจริงแล้วสั่งเปลี่ยนเป็น
+ *   ตาราง + เปลี่ยนทั้งหน้าตอนกด เพราะ "เข้าใจง่ายกว่า" (2026-07-31) — ทั้งสองแบบแก้ bug เดิม
+ *   ได้เหมือนกัน (startEdit เติมค่าลงฟอร์มบนสุดแต่ไม่เลื่อนจอไปหา ผู้ใช้เลยเห็นว่ากดแล้วไม่มีอะไรเกิดขึ้น)
+ *   จัดลำดับยกมาจากแถบล่างด้วย (API PATCH {orderedIds} เดิม): >=lg ลากที่ grip / <lg ปุ่มลูกศร 44px
+ *   เพราะ HTML5 draggable ไม่ยิง event บนจอสัมผัส
  *
  * ข้อความสำเร็จรูปผูกระดับร้าน — ทุกคนในร้านเห็น/แก้ชุดเดียวกัน (ผลตัดสินผู้ใช้ 2026-07-23)
  */
@@ -335,10 +337,10 @@ export default function QuickMessageManager({
     [localItems, persistOrder],
   )
 
-  // ── ชิ้นส่วนที่ใช้ซ้ำระหว่าง 2 pane ────────────────────────────────────────
+
   const bodyLen = body.length
-  const showListPane = !(viewMode === 'form') // <lg เท่านั้น; ≥lg บังคับโชว์ด้วย lg:flex
-  const formHeading = isEditing ? 'แก้ไขข้อความ' : 'เพิ่มข้อความสำเร็จรูป'
+  const isList = viewMode === 'list'
+  const formHeading = isEditing ? 'แก้ไขข้อความสำเร็จรูป' : 'เพิ่มข้อความสำเร็จรูป'
 
   return (
     <div
@@ -349,34 +351,29 @@ export default function QuickMessageManager({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-auto sm:max-w-lg sm:rounded-lg lg:max-w-5xl">
+      {/* ความสูงคงที่ (sm:h-176 = 44rem) ไม่ใช่ h-auto — ไม่งั้นโมดัลหดตามจำนวนแถวทุกครั้งที่กรอง
+          แล้วเนื้อหาเด้งขึ้นลงกวนตา (user report 2026-07-31). max-h-full กันล้นบนจอเตี้ย */}
+      <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-176 sm:rounded-lg lg:max-w-5xl">
         {/* ── header ───────────────────────────────────────────────────────── */}
         <div className="card-header flex items-center justify-between gap-2">
-          {/* <lg ในหน้าฟอร์ม: ลูกศรย้อนกลับแทนไอคอนหัวข้อ (ปุ่ม "ยกเลิก" เดิมซ้ำซ้อนกับปุ่มนี้) */}
-          {!showListPane && (
+          {/* หน้าฟอร์มกินพื้นที่ทั้งโมดัล จึงต้องมีทางกลับที่ชัด — ลูกศรย้อนกลับแทนไอคอนหัวข้อ */}
+          {!isList && (
             <button
               type="button"
               onClick={backToList}
-              className="btn btn-icon border-default-300 min-h-11 min-w-11 lg:hidden"
+              className="btn btn-icon border-default-300 min-h-11 min-w-11"
               aria-label="ย้อนกลับไปรายการ"
             >
               <Icon icon="arrow-left" className="text-lg" />
             </button>
           )}
-          {/* ≥lg เห็นทั้งสอง pane พร้อมกัน หัวข้อจึงต้องเป็นของ "ทั้งโมดัล" เสมอ ไม่ใช่ของฟอร์ม —
-              viewMode มีความหมายเฉพาะ <lg เท่านั้น */}
           <h5 className="mb-0 flex min-w-0 grow items-center gap-2 text-base">
-            <Icon icon="message-2-bolt" className={`text-primary text-lg ${showListPane ? '' : 'hidden lg:inline'}`} />
+            {isList && <Icon icon="message-2-bolt" className="text-primary text-lg" />}
             <span className="truncate">
-              <span className={showListPane ? '' : 'hidden lg:inline'}>
-                {sortMode ? 'จัดลำดับข้อความสำเร็จรูป' : 'จัดการข้อความสำเร็จรูป'}
-              </span>
-              {!showListPane && <span className="lg:hidden">{formHeading}</span>}
+              {isList ? (sortMode ? 'จัดลำดับข้อความสำเร็จรูป' : 'จัดการข้อความสำเร็จรูป') : formHeading}
             </span>
-            {!loading && !error && (
-              <span className={`badge bg-primary/15 text-primary shrink-0 ${showListPane ? '' : 'hidden lg:inline-block'}`}>
-                {localItems.length}
-              </span>
+            {isList && !loading && !error && (
+              <span className="badge bg-primary/15 text-primary shrink-0">{localItems.length}</span>
             )}
           </h5>
           <button type="button" onClick={onClose} className="btn btn-icon border-default-300 shrink-0" aria-label="ปิด">
@@ -384,19 +381,13 @@ export default function QuickMessageManager({
           </button>
         </div>
 
-        {/* ── body: 2 pane ที่ ≥lg / สลับ view ที่ <lg ──────────────────────── */}
-        <div className="flex min-h-0 grow flex-col lg:flex-row">
-          {/* ══ LIST PANE ══ */}
-          <div
-            className={`min-h-0 grow flex-col lg:flex lg:w-80 lg:shrink-0 lg:grow-0 lg:border-e lg:border-default-200 ${
-              showListPane ? 'flex' : 'hidden'
-            }`}
-          >
-            {/* toolbar — โหมดจัดลำดับซ่อนค้นหา/กรอง เหลือแค่ปุ่ม toggle ซึ่งเป็นทางออกจากโหมดด้วย
-                (ไม่มีแถบ hint และไม่มีปุ่ม "เสร็จสิ้น" ท้ายลิสต์ — user สั่งให้ minimal 2026-07-31) */}
-            <div className="border-default-200 flex flex-col gap-2 border-b p-4">
+        {isList ? (
+          /* ══════════ หน้ารายการ (ตาราง) ══════════ */
+          <>
+            {/* toolbar — โหมดจัดลำดับซ่อนค้นหา/กรอง/เพิ่ม เหลือแค่ปุ่ม toggle ที่เป็นทางออกจากโหมดด้วย */}
+            <div className="border-default-200 flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center">
               {!sortMode && (
-                <div className="input-icon-group">
+                <div className="input-icon-group sm:max-w-xs">
                   <Icon icon="search" className="input-icon" />
                   <input
                     type="search"
@@ -408,7 +399,7 @@ export default function QuickMessageManager({
                   />
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:ms-auto">
                 {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
                 {!sortMode && categories.length > 0 && (
                   <FilterDropdown
@@ -423,7 +414,6 @@ export default function QuickMessageManager({
                     ]}
                   />
                 )}
-                <div className="grow" />
                 {localItems.length > 1 && (
                   <button
                     type="button"
@@ -433,23 +423,32 @@ export default function QuickMessageManager({
                     aria-label={sortMode ? 'เสร็จสิ้นการจัดลำดับ' : 'จัดลำดับข้อความสำเร็จรูป'}
                   >
                     <Icon icon={sortMode ? 'check' : 'arrows-sort'} className="text-base" />
-                    <span className="lg:sr-only">{sortMode ? 'เสร็จสิ้น' : 'จัดลำดับ'}</span>
+                    <span className="sm:sr-only">{sortMode ? 'เสร็จสิ้น' : 'จัดลำดับ'}</span>
+                  </button>
+                )}
+                {!sortMode && (
+                  <button
+                    type="button"
+                    onClick={startAdd}
+                    className="btn bg-primary hover:bg-primary-hover ms-auto text-nowrap text-white sm:ms-0"
+                  >
+                    <Icon icon="plus" className="text-base" />
+                    เพิ่มข้อความ
                   </button>
                 )}
               </div>
             </div>
 
-            {/* รายการ / สถานะพิเศษ */}
-            <div className="min-h-0 grow overflow-y-auto p-4">
+            <div className="min-h-0 grow overflow-y-auto">
               {loading ? (
-                <div role="status" aria-label="กำลังโหลด">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className="bg-default-100 mb-2 h-16 animate-pulse rounded-lg" />
+                <div className="p-4" role="status" aria-label="กำลังโหลด">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-default-100 mb-2 h-12 animate-pulse rounded-lg" />
                   ))}
                 </div>
               ) : error ? (
                 /* แยกจาก empty state ให้ชัด — เดิมโหลดพังแล้วขึ้น "ยังไม่มีข้อความ" ผู้ใช้นึกว่าข้อมูลหาย */
-                <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
                   <span className="bg-warning/15 text-warning flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="alert-triangle" className="text-2xl" />
                   </span>
@@ -464,12 +463,12 @@ export default function QuickMessageManager({
                   )}
                 </div>
               ) : localItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
                   <span className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="message-plus" className="text-2xl" />
                   </span>
                   <span className="text-default-800 text-sm font-semibold">ยังไม่มีข้อความสำเร็จรูป</span>
-                  <span className="text-default-500 text-xs">
+                  <span className="text-default-500 max-w-xs text-xs">
                     เพิ่มข้อความที่ใช้บ่อย เช่น ทักทายลูกค้าใหม่ หรือแจ้งเลขพัสดุ จะได้พิมพ์ครั้งเดียวใช้ได้ทุกแชท
                   </span>
                   <button
@@ -481,7 +480,7 @@ export default function QuickMessageManager({
                   </button>
                 </div>
               ) : visibleItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
                   <span className="bg-default-100 text-default-500 flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="search" className="text-2xl" />
                   </span>
@@ -493,202 +492,173 @@ export default function QuickMessageManager({
                     <Icon icon="x" className="me-1" /> ล้างตัวกรอง
                   </button>
                 </div>
-              ) : sortMode ? (
-                /* ── โหมดจัดลำดับ: แถวเรียบ ๆ ลากอย่างเดียว (user สั่ง 2026-07-31 ให้ตัดปุ่มลูกศรออก)
-                     จุดจับ = ไอคอน grip; touch ต้องทำเอง เพราะ HTML5 draggable ไม่ยิง event บนจอสัมผัส
-                     คีย์บอร์ดยังเรียงได้ด้วยลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (ไม่มีปุ่มให้เห็นแต่ยังใช้ได้) */
-                <ul className="flex flex-col gap-2">
-                  {visibleItems.map((qm, index) => (
-                    <li
-                      key={qm.id}
-                      data-sort-index={index}
-                      draggable
-                      tabIndex={0}
-                      onDragStart={() => {
-                        dragFrom.current = index
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault() // ไม่ preventDefault = เบราว์เซอร์ไม่ยอมให้ drop
-                        setDragOver(index)
-                      }}
-                      onDragLeave={() => setDragOver((c) => (c === index ? null : c))}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        const from = dragFrom.current
-                        dragFrom.current = null
-                        setDragOver(null)
-                        if (from != null) move(from, index)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                          e.preventDefault()
-                          move(index, index + (e.key === 'ArrowUp' ? -1 : 1))
-                        }
-                      }}
-                      aria-label={`${qm.title} — ลำดับที่ ${index + 1} จาก ${visibleItems.length}`}
-                      className={`flex cursor-grab items-center gap-3 rounded-lg border p-3 active:cursor-grabbing ${
-                        dragOver === index ? 'border-primary bg-primary/5' : 'border-default-200'
-                      }`}
-                    >
-                      <span className="text-default-400 w-4 shrink-0 text-2xs font-semibold">{index + 1}</span>
-                      <span className="text-default-800 min-w-0 grow truncate text-sm font-medium">{qm.title}</span>
-                      {/* touch-none บนจุดจับเท่านั้น — ถ้าใส่ทั้งแถวจะเลื่อนลิสต์ด้วยนิ้วไม่ได้ */}
-                      <span
-                        onTouchStart={() => {
-                          dragFrom.current = index
-                          setDragOver(index)
-                        }}
-                        onTouchMove={(e) => {
-                          if (dragFrom.current == null) return
-                          const t = e.touches[0]
-                          const row = document
-                            .elementFromPoint(t.clientX, t.clientY)
-                            ?.closest('[data-sort-index]')
-                          const to = row ? Number(row.getAttribute('data-sort-index')) : NaN
-                          if (!Number.isNaN(to)) setDragOver(to)
-                        }}
-                        onTouchEnd={() => {
-                          const from = dragFrom.current
-                          dragFrom.current = null
-                          const to = dragOver
-                          setDragOver(null)
-                          if (from != null && to != null) move(from, to)
-                        }}
-                        className="text-default-400 shrink-0 touch-none p-1"
-                        aria-hidden="true"
-                      >
-                        <Icon icon="grip-vertical" className="text-base" />
-                      </span>
-                    </li>
-                  ))}
-                </ul>
               ) : (
-                <ul className="flex flex-col gap-2">
-                  {visibleItems.map((qm) => {
-                    const imgs = imagesOf(qm)
-                    const selected = editingId === qm.id
-                    return (
-                      <li
-                        key={qm.id}
-                        className={`flex items-start gap-3 rounded-lg border p-3 ${
-                          selected ? 'border-primary bg-primary/5' : 'border-default-200'
-                        }`}
-                      >
-                        {/* คลิกทั้งแถว = เลือกมาแก้ไข (พื้นที่กดใหญ่กว่าไอคอนดินสอมาก) */}
-                        <button
-                          type="button"
-                          onClick={() => startEdit(qm)}
-                          className="flex min-w-0 grow items-start gap-3 text-start"
-                          aria-label={`แก้ไข ${qm.title}`}
-                        >
-                          {imgs.length > 0 && (
-                            <span className="border-default-200 relative block size-10 shrink-0 overflow-hidden rounded border">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
-                              {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากลิสต์โดยไม่ต้องกดเข้าไปแก้) */}
-                              {imgs.length > 1 && (
-                                <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
-                                  +{imgs.length - 1}
+                /* Base: theme/paces/Admin/TS/src/app/(admin)/tables/static/components/HoverableRows.tsx
+                   (.table-wrapper > table.table.table-hover > thead.font-semibold) */
+                <div className="table-wrapper">
+                  <table className="table table-hover">
+                    <thead className="font-semibold">
+                      <tr>
+                        {sortMode && <th className="w-10">ลำดับ</th>}
+                        {!sortMode && <th className="w-1">รูป</th>}
+                        <th>หัวข้อ</th>
+                        {!sortMode && <th className="hidden sm:table-cell">หมวด</th>}
+                        {!sortMode && <th className="hidden lg:table-cell">ข้อความ</th>}
+                        <th className="w-1 text-end">{sortMode ? 'ย้าย' : 'จัดการ'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleItems.map((qm, index) => {
+                        const imgs = imagesOf(qm)
+                        if (sortMode) {
+                          /* จัดลำดับ — ≥lg ลากที่ grip (HTML5 draggable ใช้ได้จริงเฉพาะเมาส์)
+                             <lg ปุ่มลูกศร 44px เพราะ draggable ไม่ยิง event บนจอสัมผัส
+                             คีย์บอร์ด: ลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (ใช้ได้ทุกขนาด) */
+                          return (
+                            <tr
+                              key={qm.id}
+                              draggable
+                              tabIndex={0}
+                              onDragStart={() => {
+                                dragFrom.current = index
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault() // ไม่ preventDefault = เบราว์เซอร์ไม่ยอมให้ drop
+                                setDragOver(index)
+                              }}
+                              onDragLeave={() => setDragOver((c) => (c === index ? null : c))}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                const from = dragFrom.current
+                                dragFrom.current = null
+                                setDragOver(null)
+                                if (from != null) move(from, index)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  move(index, index + (e.key === 'ArrowUp' ? -1 : 1))
+                                }
+                              }}
+                              aria-label={`${qm.title} — ลำดับที่ ${index + 1} จาก ${visibleItems.length}`}
+                              className={`lg:cursor-grab lg:active:cursor-grabbing ${
+                                dragOver === index ? 'bg-primary/5' : ''
+                              }`}
+                            >
+                              <td className="text-default-400 text-2xs font-semibold">{index + 1}</td>
+                              <td className="text-default-800 font-medium">{qm.title}</td>
+                              <td className="text-end">
+                                <span className="flex items-center justify-end gap-1 lg:hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => move(index, index - 1)}
+                                    disabled={index === 0}
+                                    className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
+                                    aria-label={`ย้าย "${qm.title}" ขึ้น`}
+                                  >
+                                    <Icon icon="chevron-up" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => move(index, index + 1)}
+                                    disabled={index === visibleItems.length - 1}
+                                    className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
+                                    aria-label={`ย้าย "${qm.title}" ลง`}
+                                  >
+                                    <Icon icon="chevron-down" />
+                                  </button>
                                 </span>
-                              )}
-                            </span>
-                          )}
-                          <span className="block min-w-0 grow">
-                            <span className="flex items-center gap-2">
-                              <span className="text-default-800 truncate text-sm font-semibold">{qm.title}</span>
-                              {qm.category && (
-                                <span className="badge bg-default-100 text-default-500 shrink-0 text-2xs">
-                                  {qm.category}
-                                </span>
-                              )}
-                            </span>
-                            {qm.body && (
-                              <span className="text-default-500 mt-0.5 line-clamp-2 block text-xs">{qm.body}</span>
-                            )}
-                          </span>
-                        </button>
-                        <div className="flex shrink-0 gap-1">
-                          {/* ≥lg คลิกแถวก็แก้ไขได้และ pane ขวาเห็นอยู่แล้ว — ปุ่มดินสอยังคงไว้ให้ affordance ชัด */}
-                          <button
-                            type="button"
+                                <Icon icon="grip-vertical" className="text-default-400 hidden text-base lg:inline" />
+                              </td>
+                            </tr>
+                          )
+                        }
+                        return (
+                          <tr
+                            key={qm.id}
                             onClick={() => startEdit(qm)}
-                            className="btn btn-icon border-default-300 min-h-11 min-w-11"
-                            aria-label={`แก้ไข ${qm.title}`}
+                            className={`cursor-pointer ${editingId === qm.id ? 'bg-primary/5' : ''}`}
                           >
-                            <Icon icon="pencil" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(qm)}
-                            className="btn btn-icon border-default-300 text-danger min-h-11 min-w-11"
-                            aria-label={`ลบ ${qm.title}`}
-                          >
-                            <Icon icon="trash" />
-                          </button>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
+                            <td>
+                              {imgs.length > 0 ? (
+                                <span className="border-default-200 relative block size-10 overflow-hidden rounded border">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
+                                  {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากตารางโดยไม่ต้องกดเข้าไปดู) */}
+                                  {imgs.length > 1 && (
+                                    <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
+                                      +{imgs.length - 1}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                /* ช่องว่างขนาดเท่ารูป — ไม่ใส่ placeholder ให้รก แต่ต้องกันไม่ให้แถวที่ไม่มีรูป
+                                   เตี้ยกว่าแถวอื่นจนตารางกระตุก */
+                                <span className="bg-default-100 block size-10 rounded" aria-hidden="true" />
+                              )}
+                            </td>
+                            <td>
+                              <span className="block min-w-0">
+                                <span className="text-default-800 block truncate font-medium">{qm.title}</span>
+                                {/* จอเล็กไม่มีคอลัมน์ข้อความ — ยกตัวอย่างเนื้อหามาไว้ใต้หัวข้อแทน ไม่งั้นแยกไม่ออก
+                                    ว่าอันไหนคืออันไหน (line-clamp ตั้ง display เอง ห้ามใส่ block ทับ) */}
+                                <span className="text-default-500 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
+                              </span>
+                            </td>
+                            <td className="hidden sm:table-cell">
+                              {qm.category ? (
+                                <span className="badge bg-default-100 text-default-500 text-2xs">{qm.category}</span>
+                              ) : (
+                                <span className="text-default-300">—</span>
+                              )}
+                            </td>
+                            <td className="hidden max-w-xs lg:table-cell">
+                              <span className="text-default-500 line-clamp-2 text-xs">{qm.body}</span>
+                            </td>
+                            <td className="text-end">
+                              <span className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    startEdit(qm)
+                                  }}
+                                  className="btn btn-icon border-default-300 min-h-11 min-w-11"
+                                  aria-label={`แก้ไข ${qm.title}`}
+                                >
+                                  <Icon icon="pencil" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(qm)
+                                  }}
+                                  className="btn btn-icon border-default-300 text-danger min-h-11 min-w-11"
+                                  aria-label={`ลบ ${qm.title}`}
+                                >
+                                  <Icon icon="trash" />
+                                </button>
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
-            {/* ท้าย list pane: จำนวนที่แสดง (≥lg) + ปุ่มหลักเต็มความกว้าง (<lg = โซนนิ้วโป้ง) */}
-            {!loading && !error && localItems.length > 0 && (
-              <>
-                {hasFilter && !sortMode && (
-                  <p className="text-default-400 border-default-200 mb-0 border-t px-4 py-2 text-2xs">
-                    แสดง {visibleItems.length} จาก {localItems.length} รายการ
-                  </p>
-                )}
-                {/* โหมดจัดลำดับไม่มีปุ่มท้ายลิสต์ — ออกจากโหมดด้วยปุ่ม toggle บน toolbar (user สั่ง minimal) */}
-                {!sortMode && (
-                  <div className="card-footer lg:hidden">
-                    <button
-                      type="button"
-                      onClick={startAdd}
-                      className="btn bg-primary hover:bg-primary-hover min-h-11 w-full text-white"
-                    >
-                      <Icon icon="plus" className="me-1" /> เพิ่มข้อความ
-                    </button>
-                  </div>
-                )}
-              </>
+            {hasFilter && !sortMode && !loading && !error && localItems.length > 0 && (
+              <p className="text-default-400 border-default-200 mb-0 border-t px-4 py-2 text-2xs">
+                แสดง {visibleItems.length} จาก {localItems.length} รายการ
+              </p>
             )}
-          </div>
-
-          {/* ══ FORM PANE ══ */}
-          <div
-            className={`min-h-0 grow flex-col lg:flex ${showListPane ? 'hidden' : 'flex'}`}
-            aria-label={formHeading}
-          >
-            {/* หัว pane เฉพาะ ≥lg — <lg ใช้ header ของ modal (มีลูกศรย้อนกลับ) แทน ไม่ซ้ำซ้อน */}
-            <div className="border-default-200 hidden items-center gap-2 border-b px-4 py-3 lg:flex">
-              <span className="text-default-800 min-w-0 grow truncate text-sm font-semibold">
-                {isEditing ? (
-                  <>
-                    แก้ไข: <span className="text-primary">{title || 'ข้อความสำเร็จรูป'}</span>
-                  </>
-                ) : (
-                  <>
-                    เพิ่มข้อความสำเร็จรูป
-                    <span className="text-default-400 ms-1 text-2xs font-normal">
-                      · เลือกรายการทางซ้ายเพื่อแก้ไข
-                    </span>
-                  </>
-                )}
-              </span>
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={() => resetForm()}
-                  className="text-primary shrink-0 text-xs font-semibold"
-                >
-                  ยกเลิกการแก้ไข
-                </button>
-              )}
-            </div>
-
+          </>
+        ) : (
+          /* ══════════ หน้าฟอร์ม (เต็มโมดัล) ══════════ */
+          <>
             <div className="min-h-0 grow overflow-y-auto p-4">
               <div className="mb-3 sm:flex sm:gap-3">
                 <div className="mb-3 sm:mb-0 sm:flex-1">
@@ -727,7 +697,7 @@ export default function QuickMessageManager({
                 </label>
                 <textarea
                   id="qm-body"
-                  className="form-input min-h-24"
+                  className="form-input min-h-40"
                   placeholder="พิมพ์เนื้อหาข้อความสำเร็จรูป..."
                   value={body}
                   maxLength={BODY_MAX}
@@ -743,7 +713,7 @@ export default function QuickMessageManager({
               </div>
 
               {/* รูปแนบ — ได้สูงสุด MAX_IMAGES รูป (user สั่ง 2026-07-23) เรียงตามลำดับที่จะส่งจริง */}
-              <div className="mb-3">
+              <div>
                 <span className="form-label">รูปแนบ (ไม่บังคับ · สูงสุด {MAX_IMAGES} รูป)</span>
                 <div className="flex flex-wrap items-center gap-2">
                   {imageFileIds.map((fileId, i) => (
@@ -784,20 +754,6 @@ export default function QuickMessageManager({
                   )}
                 </div>
               </div>
-
-              {/* ลบจากในฟอร์ม — <lg ผู้ใช้อยู่หน้านี้แล้ว ไม่ต้องย้อนกลับไปหาปุ่มถังขยะในลิสต์ */}
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = localItems.find((i) => i.id === editingId)
-                    if (target) handleDelete(target)
-                  }}
-                  className="text-danger border-default-200 mt-1 flex min-h-11 w-full items-center gap-2 border-t text-sm font-semibold lg:hidden"
-                >
-                  <Icon icon="trash" /> ลบข้อความนี้
-                </button>
-              )}
             </div>
 
             <div className="card-footer flex items-center gap-2">
@@ -808,44 +764,28 @@ export default function QuickMessageManager({
                     const target = localItems.find((i) => i.id === editingId)
                     if (target) handleDelete(target)
                   }}
-                  className="text-danger hidden min-h-11 items-center gap-2 text-sm font-semibold lg:flex"
+                  className="text-danger flex min-h-11 items-center gap-2 text-sm font-semibold"
                 >
-                  <Icon icon="trash" /> ลบข้อความนี้
+                  <Icon icon="trash" />
+                  <span className="hidden sm:inline">ลบข้อความนี้</span>
                 </button>
               )}
-              {/* spacer: ดันปุ่มยืนยันไปชิดขวาบน ≥lg ทุกกรณี (ไม่พึ่ง ms-auto ที่ปุ่มซึ่งบางกรณีไม่ถูก render) */}
-              <div className="hidden grow lg:block" />
-              {isEditing ? (
-                <button
-                  type="button"
-                  onClick={() => resetForm()}
-                  className="btn border-default-300 hidden min-h-11 lg:inline-flex"
-                >
-                  ยกเลิก
-                </button>
-              ) : (
-                canSave && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="btn border-default-300 hidden min-h-11 lg:inline-flex"
-                  >
-                    ล้างฟอร์ม
-                  </button>
-                )
-              )}
+              <div className="grow" />
+              <button type="button" onClick={backToList} className="btn border-default-300 min-h-11">
+                ยกเลิก
+              </button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={!canSave || saving}
-                className="btn bg-primary hover:bg-primary-hover min-h-11 w-full text-white disabled:opacity-60 lg:w-auto"
+                className="btn bg-primary hover:bg-primary-hover min-h-11 text-white disabled:opacity-60"
               >
                 <Icon icon={saving ? 'loader-2' : 'check'} className={`me-1 ${saving ? 'animate-spin' : ''}`} />
                 {isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มข้อความ'}
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   )

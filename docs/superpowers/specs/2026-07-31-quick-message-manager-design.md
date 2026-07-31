@@ -44,7 +44,10 @@ Parent: `QuickMessageBar.tsx` (335 บรรทัด)
 
 **(B) [เลือก] แยก view state ชัดเจน**
 
-| Breakpoint | โครง |
+> 🛑 **v3 (2026-07-31 หลัง user เห็นของจริงบน prod): เลิก 2-pane เปลี่ยนเป็น "ตาราง + เปลี่ยนทั้งหน้าเมื่อกด"**
+> ตารางด้านล่างเก็บไว้เป็นบันทึกทางเลือกที่เคยใช้ — ของจริงดูหัวข้อ **"แก้ทิศทางรอบ 3"**
+
+| Breakpoint | โครง (v2 — เลิกใช้แล้ว) |
 |---|---|
 | **Desktop ≥1024** | **2-pane ถาวรในโมดัลเดียว** — ซ้าย list pane (`lg:w-80` 320px, toolbar sticky + scroll ตัวเอง) / ขวา form pane (ยืดเต็มที่เหลือ) โมดัล `lg:max-w-5xl`. ฟอร์มอยู่คนละคอลัมน์กับ list → **ไม่มีทางหลุดนอกจอ = แก้ปัญหา #2 ที่ต้นเหตุ** |
 | **Tablet 768–1023** | single-column สลับ view เต็มจอเหมือน mobile แต่การ์ดกว้าง/สูงขึ้น และฟอร์ม `หัวข้อ`+`หมวด` วางคู่กันได้ที่ `sm:` |
@@ -66,9 +69,24 @@ Parent: `QuickMessageBar.tsx` (335 บรรทัด)
 | แถวจัดลำดับมีปุ่มลูกศรขึ้น/ลง 44px เป็นกลไกหลัก | **ตัดปุ่มลูกศรออก เหลือไอคอน grip อย่างเดียว** | user สั่งให้ minimal — แถวโล่งอ่านง่ายกว่า |
 | แถบ hint "กดลูกศรเพื่อสลับลำดับ..." | **ตัดทิ้ง** | user สั่ง |
 | ปุ่ม "เสร็จสิ้น" เต็มความกว้างท้ายลิสต์ | **ตัดทิ้ง** — ออกจากโหมดด้วยปุ่ม toggle บน toolbar (icon เปลี่ยนเป็น `check` + พื้น primary) | user สั่ง; ใช้ pattern เดียวกับ `bar:141-155` ที่มีอยู่แล้ว |
-| — | **เพิ่ม touch drag เอง** (`onTouchStart/Move/End` + `elementFromPoint` + `touch-none` ที่ grip) | ตัดลูกศรออกแล้ว ถ้าพึ่ง HTML5 `draggable` อย่างเดียว **มือถือจะเรียงไม่ได้เลย** เพราะ DnD ไม่ยิง event บนจอสัมผัส — ไอคอน grip ที่กดแล้วไม่มีอะไรเกิดขึ้นแย่กว่าไม่มีเลย |
+| — | **แยกกลไกตามอุปกรณ์: ≥lg ลากที่ grip / <lg ปุ่มลูกศรขึ้น-ลง 44px** (`lg:hidden` กับ `hidden lg:block`) | HTML5 `draggable` ไม่ยิง event บนจอสัมผัส ถ้าโชว์ grip บนมือถือคือโชว์ affordance ที่กดแล้วไม่มีอะไรเกิดขึ้น — แต่ละอุปกรณ์เห็นเฉพาะกลไกที่ใช้ได้จริง จึง minimal ทั้งคู่ (เคยลองเขียน touch-drag เองแล้วถอดออก: ซับซ้อนกว่าและ QA บนมือถือจริงไม่ได้) |
 | — | คีย์บอร์ด: ลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (`tabIndex={0}`) | ปุ่มหายไปแต่ต้องไม่ตัดคนใช้คีย์บอร์ดทิ้ง |
 | แถบล่าง (`QuickMessageBar`) ไม่มีตัวกรองหมวด และการ์ดไม่โชว์หมวด | **เพิ่มตัวกรองหมวดข้างช่องค้นหา + badge หมวดบนการ์ด** (บรรทัดจองพื้นที่ตายตัวเพื่อให้การ์ดสูงเท่ากัน) | user แจ้งว่าหาไม่เจอเพราะไม่มีทั้งสองอย่าง — ให้เท่ากับในโมดัล |
+
+### แก้ทิศทางรอบ 3 — โครงที่ใช้จริง (2026-07-31)
+
+**user ตัดสิน: "เปลี่ยนเป็น table ดีกว่า และถ้ากดแล้วก็ให้ render component ทั้งหน้าแทน เข้าใจง่ายกว่า"**
+
+| | v2 (2-pane) | **v3 (ใช้จริง)** |
+|---|---|---|
+| หน้ารายการ | การ์ดในคอลัมน์ซ้าย 320px | **ตาราง Paces เต็มโมดัล** — `หัวข้อ` / `หมวด` / `ข้อความ` / `จัดการ` |
+| กดแถว | ฟอร์มโผล่ที่ pane ขวา (เห็นสองอย่างพร้อมกัน) | **เปลี่ยนทั้งโมดัลเป็นหน้าฟอร์ม** + ลูกศรย้อนกลับที่ header |
+| Responsive | สลับ pane ที่ `lg` | ไม่มีการสลับโครงเลย — ต่างแค่ซ่อนคอลัมน์: `<sm` ซ่อนหมวด, `<lg` ซ่อนข้อความ (ยกตัวอย่างเนื้อหาไปไว้ใต้หัวข้อแทน) |
+| ปุ่มเพิ่ม | อยู่ในฟอร์มขวาที่กางค้าง | ปุ่ม `+ เพิ่มข้อความ` บน toolbar → เข้าหน้าฟอร์มเปล่า |
+
+**เหตุผล:** การ์ดในคอลัมน์แคบต้องตัดข้อความทิ้งเยอะจนแยกไม่ออกว่าอันไหนคืออันไหน และมีสองอย่างให้มองพร้อมกัน — ตารางให้ข้อมูลต่อแถวมากกว่าในพื้นที่เท่ากัน ส่วน "กดแล้วเปลี่ยนทั้งหน้า" เป็น mental model ที่ตรงกว่า. ทั้ง v2 และ v3 แก้ bug #2 (กดแก้ไขแล้วไม่เห็นอะไรเกิดขึ้น) ได้เหมือนกัน เพราะฟอร์มไม่ได้อยู่ใต้ scroll ของ list อีกต่อไป
+
+**bug ที่เจอตอนเปลี่ยน:** การ์ด v2 ใส่ `line-clamp-2 block` — `block` ทับ `display:-webkit-box` ที่ `line-clamp` ต้องใช้ ข้อความจึงไม่ถูกตัดจริง (เห็นได้จาก screenshot ของ user) v3 ตัด `block` ออกแล้ว
 
 ---
 
@@ -154,7 +172,8 @@ ASCII ย่อ:
 | 5 | ปุ่ม toggle จัดลำดับ | `QuickMessageBar.tsx:141-155` (เดิม) | icon-button `arrows-sort` / `check`, active = `bg-primary text-white` | copy pattern เป๊ะ |
 | 6 | แถว list | `QuickMessageManager.tsx:298-336` (เดิม) + card variant `border-primary` (`paces-component-reference.md` §7) | `<li>` row | คงโครงเดิม + (ก) `min-h-11 min-w-11` บนปุ่มแก้ไข/ลบ (ข) selected state `border-primary bg-primary/5` (เฉพาะ desktop) (ค) คลิกทั้งแถว = เลือกแก้ไข |
 | 7 | ปุ่ม toggle จัดลำดับ (เป็นทางออกจากโหมดด้วย) | `QuickMessageBar.tsx:141-155` (เดิม) | `btn` + icon `arrows-sort` ↔ `check`, active = `bg-primary text-white` | v2 ตัดปุ่มลูกศรต่อแถวและปุ่ม "เสร็จสิ้น" ท้ายลิสต์ออกตามคำสั่ง user |
-| 8 | Drag แถวจัดลำดับ | `QuickMessageBar.tsx:229-259` (เดิม) | HTML5 `draggable` + keyboard arrow + **touch handler เขียนเพิ่ม** | ปรับจากการ์ดแนวนอน → `<li>` แนวตั้ง; เพิ่ม `onTouchStart/Move/End` + `elementFromPoint` + `touch-none` เฉพาะที่ grip (ถ้าใส่ทั้งแถวจะเลื่อนลิสต์ด้วยนิ้วไม่ได้) |
+| 8 | จัดลำดับแถว — ≥lg drag | `QuickMessageBar.tsx:229-259` (เดิม) | HTML5 `draggable` + keyboard arrow | ปรับจากการ์ดแนวนอน → `<li>` แนวตั้ง; grip แสดงเฉพาะ `lg:block` |
+| 8b | จัดลำดับแถว — <lg ปุ่มลูกศร | `theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx` | `.btn.btn-icon` + `chevron-up`/`chevron-down` `min-h-11 min-w-11` | แสดงเฉพาะ `lg:hidden` — เป็นกลไกเดียวที่ใช้ได้จริงบนจอสัมผัส |
 | 9 | ฟอร์ม fields | `QuickMessageManager.tsx:200-270` (เดิม) | `.form-label` / `.form-input` | **ไม่แตะ logic** — ย้ายที่อยู่ไป pane/view ใหม่เท่านั้น |
 | 10 | Character counter (ใหม่) | ไม่มีไฟล์ theme ตรง — ประกอบจาก token `text-2xs` (`paces-component-reference.md` §8) | `<span className="text-2xs text-default-400">` | > 1800 ตัวอักษร เปลี่ยนเป็น `text-warning` |
 | 11 | Confirm ลบ | `theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx` ผ่าน `src/lib/paces-swal.ts` | `pacesConfirm.danger` | ไม่แตะ — เรียกซ้ำจากตำแหน่งใหม่ (form pane) ด้วย |

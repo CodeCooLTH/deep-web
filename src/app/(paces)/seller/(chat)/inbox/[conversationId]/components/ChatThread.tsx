@@ -72,6 +72,7 @@ import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
+import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
@@ -142,6 +143,33 @@ function CopyMessageButton({ text }: { text: string }) {
         className={`size-4 transition-transform duration-200 ${copied ? 'scale-125' : 'scale-100'}`}
       />
     </button>
+  )
+}
+
+/**
+ * ปุ่มบันทึกไฟล์ใต้สื่อ (user สั่ง 2026-07-31: "อยากให้อยู่ใต้รูป หรือไฟล์นั้นๆ")
+ *
+ * วางใต้สื่อ ไม่ใช่ในกลุ่มปุ่ม hover ข้างบับเบิล เพราะกลุ่มนั้นเป็น desktop-only (lg:group-hover)
+ * — บนมือถือจะกดไม่ได้เลย ทั้งที่การบันทึกรูปจากมือถือคือเคสหลัก
+ *
+ * ไฟล์ทั้งหมด serve จาก /api/files ซึ่งเป็นโดเมนเดียวกัน จึงใช้ attribute `download` ได้จริง
+ * (ถ้าเป็น cross-origin เบราว์เซอร์จะเมิน download แล้วเปิดหน้าใหม่แทน)
+ *
+ * หมายเหตุ: เว็บให้เลือก "บันทึก/บันทึกเป็น..." แบบเมนูคลิกขวาของเบราว์เซอร์ไม่ได้ —
+ * อันนั้นเป็นเมนูของตัวเบราว์เซอร์เอง เว็บสั่งไม่ได้ ที่ทำได้คือสั่งบันทึกหนึ่งปุ่ม
+ */
+function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์' }: { storageKey: string; label?: string }) {
+  // ชื่อไฟล์ = ส่วนท้ายของ storage key (กันเคสไม่มี '/' ด้วย fallback)
+  const filename = storageKey.split('/').filter(Boolean).pop() || 'attachment'
+  return (
+    <a
+      href={`/api/files/${storageKey}`}
+      download={filename}
+      className="text-default-500 hover:text-primary mt-1 inline-flex items-center gap-1 text-2xs font-medium"
+    >
+      <Icon icon="download" width={13} height={13} className="shrink-0" />
+      {label}
+    </a>
   )
 }
 
@@ -650,12 +678,17 @@ export default function ChatThread({
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
   // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
-  const imageSlides: { src: string }[] = []
+  // download: ตั้งชื่อไฟล์ตอนบันทึกจาก storage key (ไม่งั้นได้ชื่อเป็น path ของ /api/files)
+  const imageSlides: { src: string; download: { url: string; filename: string } }[] = []
   const slideIndexByMessageId = new Map<string, number>()
   for (const m of messages) {
     if (m.type === 'IMAGE' && m.imageUrl) {
       slideIndexByMessageId.set(m.id, imageSlides.length)
-      imageSlides.push({ src: `/api/files/${m.imageUrl}` })
+      const url = `/api/files/${m.imageUrl}`
+      imageSlides.push({
+        src: url,
+        download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
+      })
     }
   }
 
@@ -1017,12 +1050,21 @@ export default function ChatThread({
                                 />
                               </button>
                             )}
+                            {m.type === 'IMAGE' && m.imageUrl && (
+                              <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกรูป" />
+                            )}
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
-                              <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                              <>
+                                <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" />
+                              </>
                             )}
                             {m.type === 'AUDIO' && m.imageUrl && (
-                              <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                              <>
+                                <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" />
+                              </>
                             )}
                             {m.type === 'FILE' && m.imageUrl && (
                               <a
@@ -1035,6 +1077,7 @@ export default function ChatThread({
                                 เปิดไฟล์แนบ
                               </a>
                             )}
+                            {m.type === 'FILE' && m.imageUrl && <MediaDownloadLink storageKey={m.imageUrl} />}
                             {m.body && (
                               // whitespace-pre-wrap: คงการเว้นบรรทัด (\n) ที่ลูกค้า/เพจพิมพ์มา — ไม่งั้น
                               // เบราว์เซอร์ยุบเป็นช่องว่างเดียว เลข list/ย่อหน้าติดกันเป็นพรืดอ่านยาก
@@ -1425,8 +1468,15 @@ export default function ChatThread({
       index={lightboxIndex}
       close={() => setLightboxIndex(-1)}
       controller={{ closeOnBackdropClick: true }}
-      plugins={[Zoom]}
-      labels={{ Previous: 'รูปก่อนหน้า', Next: 'รูปถัดไป', Close: 'ปิด', 'Zoom in': 'ขยาย', 'Zoom out': 'ย่อ' }}
+      plugins={[Zoom, LightboxDownload]}
+      labels={{
+        Previous: 'รูปก่อนหน้า',
+        Next: 'รูปถัดไป',
+        Close: 'ปิด',
+        'Zoom in': 'ขยาย',
+        'Zoom out': 'ย่อ',
+        Download: 'บันทึกรูป',
+      }}
     />
     </>
   )
