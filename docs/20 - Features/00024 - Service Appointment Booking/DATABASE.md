@@ -128,6 +128,19 @@ model ServiceResource {
   //    (ดู DATABASE §4.2 และ SDS §3) — ปลอดภัยเพราะ seat ที่เกิน capacity จะไม่มีวันถูกลองเลย
   capacity Int @default(1)
 
+  // depositMode/depositValue: มัดจำเริ่มต้นของทรัพยากรนี้ (BR-RSV-43/44/45) — feature 00024 ส่วนขยาย 2026-07-31
+  //   FIXED   → depositValue = จำนวนบาท
+  //   PERCENT → depositValue = เปอร์เซ็นต์ของยอดรวมออเดอร์ (0-100)
+  // depositValue = 0 หมายถึง "ไม่เก็บมัดจำ" (BR-RSV-44) → ไม่แสดงส่วนมัดจำในทุก surface
+  // 🛑 ค่านี้เป็นแค่ "ค่าเริ่มต้นช่วยกรอก" — ยอดจริงของแต่ละนัด snapshot ไว้ที่ Order.depositAmount
+  //    ห้ามให้ออเดอร์อ้างอิงค่านี้สด มิฉะนั้นยอดของออเดอร์เก่าจะขยับเมื่อเจ้าของแก้ทรัพยากร (BR-RSV-46)
+  //    เหตุผลเดียวกับ durationMinutes ด้านบน และมิเรอร์ Room.depositMode ของ feature 00017 ตรง ๆ
+  // 🛑 มัดจำ "ไม่กั้น" การกันคิว — ไม่มีสถานะรอชำระ ไม่มีสลิป (BR-RSV-49/50)
+  //    ต่างจาก Room ที่ depositValue > 0 บังคับ flow แนบสลิปก่อนยืนยัน — อย่าลอก flow นั้นมาด้วย
+  // CHECK: depositMode IN ('FIXED','PERCENT') + depositValue >= 0 + (PERCENT → <= 100)
+  depositMode  String  @default("FIXED")
+  depositValue Decimal @default(0) @db.Decimal(12, 2)
+
   // isActive: ปิดการใช้งาน = ไม่รับนัดใหม่ แต่นัดเดิมยังอยู่ครบ (BR-RSV-07)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -181,6 +194,21 @@ model ServiceResource {
   serviceResource ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict)
   reschedules     AppointmentReschedule[]
 ```
+
+**มัดจำ — ใช้ฟิลด์เดิม ไม่เพิ่มคอลัมน์บน `Order`** (FR-RSV-12, ส่วนขยาย 2026-07-31)
+
+`Order.depositAmount Decimal? @db.Decimal(12, 2)` มีอยู่แล้วจาก feature 00017 และมีความหมายตรงกันพอดี ("ยอดมัดจำที่ต้องเก็บ — snapshot ที่คำนวณเสร็จแล้ว ไม่ใช่สูตรอ้างอิง") จึง **นำมาใช้ซ้ำทั้งดุ้น ไม่สร้างฟิลด์คู่ขนาน** — การมีสองฟิลด์ที่แปลว่ามัดจำเหมือนกันคือหนี้ที่ไม่จำเป็น
+
+ความต่างอยู่ที่ **ความหมายเชิงกระบวนการ ไม่ใช่โครงสร้าง**:
+
+| | feature 00017 (การจองห้องพัก) | feature 00024 (นัดหมายบริการ) |
+|---|---|---|
+| ที่มาของค่าเริ่มต้น | `Room.depositMode`/`depositValue` | `ServiceResource.depositMode`/`depositValue` |
+| กั้นการยืนยันไหม | ใช่ — `depositAmount > 0` บังคับ flow แนบสลิป | 🛑 **ไม่** — นัดกันคิวทันที (BR-RSV-49) |
+| ติดตามสถานะจ่ายไหม | ใช่ (`slipFileId` + ร้านกดยืนยัน) | 🛑 **ไม่** — แสดงยอดอย่างเดียว (BR-RSV-50) |
+| ยอดคงเหลือ | คำนวณตอนแสดงผล | คำนวณตอนแสดงผล (`totalAmount - depositAmount`, BR-RSV-51) ไม่เก็บเป็นฟิลด์ |
+
+🛑 **ข้อควรระวังสำหรับผู้พัฒนา:** อย่าลอก flow สลิปของ 00017 ติดมาด้วยเพราะเห็นว่าใช้ฟิลด์เดียวกัน — `needsSlip` ใน `booking.service.ts` ผูกกับ `type = 'BOOKING'` และต้องอยู่แบบนั้น
 
 **Index ที่เพิ่ม:**
 
@@ -314,6 +342,8 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_service_seat_no_overlap"
 |-------|-----------|-----|---------|
 | `ServiceResource` | `ServiceResource_capacity_positive` | `capacity >= 1` | BR-RSV-06 |
 | `ServiceResource` | `ServiceResource_duration_positive` | `durationMinutes IS NULL OR durationMinutes > 0` | BR-RSV-09 |
+| `ServiceResource` | `ServiceResource_deposit_mode` | `depositMode IN ('FIXED','PERCENT')` | BR-RSV-43 |
+| `ServiceResource` | `ServiceResource_deposit_value` | `depositValue >= 0 AND (depositMode <> 'PERCENT' OR depositValue <= 100)` | BR-RSV-45 |
 | `Order` | `Order_service_range` | `serviceStart IS NULL OR serviceEnd IS NULL OR serviceEnd > serviceStart` | BR-RSV-13 |
 | `Order` | `Order_service_seat_positive` | `serviceSeat IS NULL OR serviceSeat >= 1` | BR-RSV-06 |
 | `Order` | `Order_service_fields_all_or_none` | ฟิลด์นัด 4 ตัวต้องมีครบหรือว่างทั้งหมด | BR-RSV-12 |
@@ -377,6 +407,46 @@ npx dotenv -e .env.local -- npx prisma migrate deploy
 **Rollback:** ทุกอย่างเป็น additive — ถอยได้ด้วยการ DROP ตารางใหม่ 2 ตาราง, DROP constraint/index, และ DROP COLUMN 7 ตัว โดยไม่กระทบข้อมูลเดิมเลย (ไม่มีการแก้/ย้ายข้อมูลที่มีอยู่แม้แต่แถวเดียว)
 
 **หลัง migrate:** ⚠️ ต้อง **restart dev server** — Prisma client ที่ค้างอยู่จะไม่รู้จักฟิลด์ใหม่แล้วทำให้ session พัง (บทเรียนจาก feature seller-auth)
+
+> ✅ **สถานะ:** migration `20260731000100_service_appointment_booking` **apply ลง DB จริงแล้ว** (2026-07-31, user อนุมัติ) — ยืนยันหลังรันว่า constraint ใหม่ครบ และของฟีเจอร์อื่นยังอยู่ (`Order_room_no_overlap`, `Shop_userId_personal_key`, `OrderShipment_active_order_key`) **ห้าม apply ซ้ำ**
+
+### 5.1 Migration ที่ 2 — มัดจำ (FR-RSV-12, ส่วนขยาย 2026-07-31)
+
+🛑 ข้อห้ามเดิมทุกข้อยังใช้: **ห้าม `prisma migrate dev`**, **ห้าม `prisma db pull`** (จะลบ EXCLUDE constraint ของ 00008/00017/00024 ทิ้งทั้งหมด เพราะเป็น unmanaged SQL ที่ introspection มองไม่เห็น)
+
+**ไฟล์:** `prisma/migrations/2026073100XXXX_service_resource_deposit/migration.sql`
+
+**ลำดับ:**
+
+1. `ALTER TABLE "ServiceResource" ADD COLUMN "depositMode" TEXT NOT NULL DEFAULT 'FIXED'`
+2. `ALTER TABLE "ServiceResource" ADD COLUMN "depositValue" DECIMAL(12,2) NOT NULL DEFAULT 0`
+3. CHECK `ServiceResource_deposit_mode` — `depositMode IN ('FIXED','PERCENT')`
+4. CHECK `ServiceResource_deposit_value` — `depositValue >= 0 AND (depositMode <> 'PERCENT' OR depositValue <= 100)`
+
+```sql
+ALTER TABLE "ServiceResource"
+  ADD COLUMN "depositMode"  TEXT           NOT NULL DEFAULT 'FIXED',
+  ADD COLUMN "depositValue" DECIMAL(12,2)  NOT NULL DEFAULT 0;
+
+ALTER TABLE "ServiceResource" ADD CONSTRAINT "ServiceResource_deposit_mode"
+  CHECK ("depositMode" IN ('FIXED','PERCENT'));
+
+ALTER TABLE "ServiceResource" ADD CONSTRAINT "ServiceResource_deposit_value"
+  CHECK ("depositValue" >= 0 AND ("depositMode" <> 'PERCENT' OR "depositValue" <= 100));
+```
+
+**ทำไมปลอดภัย:** เพิ่มคอลัมน์ที่มี DEFAULT และ NOT NULL บน PostgreSQL 11+ ไม่ rewrite ตาราง (เก็บ default ไว้ใน catalog) — ตารางนี้ยังแทบไม่มีข้อมูลด้วย ค่าเริ่มต้น `FIXED`/`0` แปลว่า "ไม่เก็บมัดจำ" ทรัพยากรที่สร้างไปแล้วจึงพฤติกรรมไม่เปลี่ยน (BR-RSV-44)
+
+**ไม่แตะ `Order`** — มัดจำใช้ `Order.depositAmount` ที่มีอยู่แล้วจาก feature 00017 (ดู §3.2)
+
+**Rollback:** `ALTER TABLE "ServiceResource" DROP CONSTRAINT ... , DROP COLUMN "depositMode", DROP COLUMN "depositValue";` — additive ล้วน ไม่มีการแก้ข้อมูลเดิมแม้แต่แถวเดียว
+
+**การรัน:** ต้องขอ user ยืนยันก่อนเสมอ (DB ตัวเดียวกับ prod) แล้วรัน `migrate deploy` เท่านั้น — worktree นี้ไม่มี `.env` ของตัวเอง ต้อง source จาก repo หลักก่อน:
+
+```bash
+set -a && . /Users/craftman/Projects/safepay/.env.local && set +a
+npx prisma migrate deploy
+```
 
 ---
 
