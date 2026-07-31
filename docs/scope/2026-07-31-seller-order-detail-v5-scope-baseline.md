@@ -73,21 +73,21 @@ spec/baseline ของ phase นี้ enumerate ไว้แค่ 2 ค่า
 
 **หมายเหตุกระบวนการ:** นี่คือช่องที่ทั้ง design spec, scope baseline และ reviewer 8-gate มองไม่เห็น เพราะทุกชั้นอ่านจาก spec ที่ enumerate ค่าไม่ครบเหมือนกัน — เจอได้เพราะ query ค่าจริงในฐานตอน QA
 
-**G-2 · แถบตรึงโผล่ตั้งแต่ยังไม่เลื่อน — ปุ่มซ้ำ 2 ชุดบน desktop** (S-6)
+**G-2 · ~~แถบตรึงโผล่ตั้งแต่ยังไม่เลื่อน~~ — ถอน: ไม่ใช่บั๊ก (วัดผิด)**
 
-พบตอน browser QA 2026-07-31 บน `/orders/37f31198-...` (PENDING) viewport 1796x926:
+รายงานไว้ตอน browser QA 2026-07-31 ว่าปุ่ม action โผล่ซ้ำ 2 ชุดบน desktop → **ตรวจซ้ำแล้วไม่จริง ถอนทิ้ง**
 
-| ชุด | y | class ของแถบ | มองเห็น |
+โค้ดใน `StatusHero.tsx:169-172` คุมด้วย `stuck ? 'opacity-100' : 'pointer-events-none invisible h-0 opacity-0'` และ `aria-hidden={!stuck}` อยู่แล้ว วัดค่า computed จริงได้:
+
+| ชุด | y | สถานะจริง | ผู้ใช้เห็น |
 |---|---|---|---|
-| #1 แถบตรึง (StatusHero sticky wrapper) | 117 | `hidden items-center gap-2 lg:flex` | **ใช่ — ผิด** |
-| #2 inline มุมขวาบนหัวหน้า | 261 | `hidden items-center gap-2 lg:flex` | ใช่ (ถูก) |
-| #3 แถบล่าง | - | `lg:hidden fixed inset-x-0 bottom-0` | ไม่ (ถูก) |
+| แถบตรึง | 117 | `visibility: hidden` (สืบทอดจาก `invisible`) | ไม่ |
+| inline หัวหน้า | 261 | ปกติ | **ใช่ (ชุดเดียว)** |
+| แถบล่าง | - | `display: none` จาก `lg:hidden` | ไม่ |
 
-**สาเหตุ:** wrapper ของแถบตรึงใน `StatusHero.tsx` ไม่มีเงื่อนไข `stuck` คุมการแสดงผล — มีแค่ `hidden lg:flex` จึงโผล่ทันทีที่จอ ≥1024 ไม่ว่าจะเลื่อนหรือยัง ทั้งที่ `IntersectionObserver` คำนวณ `stuck` ไว้แล้ว
+**สาเหตุที่รายงานผิด:** probe รอบนั้นกรอง "มองเห็น" ด้วย `getBoundingClientRect().width>0 && height>0` อย่างเดียว — element ที่ `visibility:hidden` ยังมี layout box อยู่ จึงถูกนับว่ามองเห็น (probe รอบแรกที่เช็ค `visibility` ด้วย ให้ผลถูกว่ามีชุดเดียว)
 
-**ผลต่อผู้ใช้:** ผู้ขายเห็นปุ่ม "ส่งลิงก์ทาง SMS" + "แจ้งเลขพัสดุ" ซ้ำ 2 ชุดบนจอเดียว — ขัดกับหลักการหลักของ v5 ("ปุ่มอยู่ที่เดียว") โดยตรง
-
-**ต้องแก้ก่อน sign-off** — S-6 acceptance (2) ระบุว่าแถบตรึงต้องโผล่ "เมื่อการ์ดหัวหน้าพ้นจอ" ไม่ใช่ตลอดเวลา
+**บทเรียน:** เกณฑ์ "ผู้ใช้เห็นจริงไหม" ต้องเช็ค `visibility` + `display` + ancestor chain ไม่ใช่แค่ขนาดกล่อง — ไม่งั้นจะได้ false positive แบบนี้ และเกือบทำให้ไปแก้โค้ดที่ไม่ได้พัง
 
 ## Change Log
 > ทุกครั้งที่ Controller อนุมัติแก้ scope (รับเข้า/เลื่อนออก) จดที่นี่ — กัน creep เงียบ
