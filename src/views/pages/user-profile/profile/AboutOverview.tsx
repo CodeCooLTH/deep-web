@@ -49,7 +49,7 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {bio && (
-        <Typography component='p' sx={{ m: 0, fontSize: '14px', color: 'text.primary', lineHeight: 1.5 }}>
+        <Typography component='p' sx={{ m: 0, fontSize: '15px', color: 'text.primary', lineHeight: 1.5 }}>
           {bio}
         </Typography>
       )}

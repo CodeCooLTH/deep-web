@@ -249,9 +249,18 @@ export async function getShopProfileStats(shopId: string) {
     }),
     // นับ "ลูกค้า" จาก customerId ที่ผูกกับออเดอร์ของร้านนี้ — ออเดอร์ที่ยังไม่ผูก Customer
     // (ของเก่าก่อน feat 00014) จะไม่ถูกนับ ซึ่งถูกต้องกว่าการเดาจากเบอร์ซ้ำ
+    //
+    // status CONFIRMED (เพิ่ม 2026-07-31 จาก Impeccable critique): เดิมนับทุกสถานะ ทำให้หน้าร้าน
+    // แสดง "3 ออเดอร์" คู่กับ "23 จำนวนลูกค้า" ซึ่งเป็นไปไม่ได้ในสายตาคนอ่าน เพราะสองตัวเลข
+    // ใช้ตัวหารคนละชุด — ออเดอร์นับเฉพาะที่ผู้ซื้อยืนยันรับของแล้ว แต่ลูกค้านับ PENDING ด้วย
+    //
+    // บนหน้าที่ทั้งหน้ามีไว้พิสูจน์ว่าเชื่อได้ ตัวเลขที่เป็นไปไม่ได้หนึ่งตัวทำให้ผู้ซื้อสงสัยตัวเลขที่
+    // เหลือทั้งหมด และที่อันตรายกว่านั้นคือ PENDING เป็นสิ่งที่ร้านสร้างเองได้ไม่จำกัด — มิจฉาชีพ
+    // เปิดร้านแล้วสร้างออเดอร์ทิ้งไว้ 50 รายการก็ได้ "50 จำนวนลูกค้า" ฟรี ๆ ซึ่งขัดพันธกิจของ
+    // ทั้งแพลตฟอร์ม เกณฑ์เดียวกับ completionRate/ยอดขายรายสินค้าที่ใช้ CONFIRMED เท่านั้น
     prisma.order.groupBy({
       by: ["customerId"],
-      where: { shopId, customerId: { not: null } },
+      where: { shopId, customerId: { not: null }, status: "CONFIRMED" },
       _count: { _all: true },
     }),
     prisma.review.groupBy({
@@ -270,7 +279,7 @@ export async function getShopProfileStats(shopId: string) {
   const settled = confirmed + cancelled;
 
   const customerCount = customerGroups.length;
-  // "กลับมาซื้อซ้ำ" = ลูกค้าที่สั่งกับร้านนี้ตั้งแต่ 2 ครั้งขึ้นไป
+  // "กลับมาซื้อซ้ำ" = ลูกค้าที่ซื้อสำเร็จกับร้านนี้ตั้งแต่ 2 ครั้งขึ้นไป (นับจากชุด CONFIRMED เดียวกัน)
   const repeatCustomerCount = customerGroups.filter((g) => g._count._all >= 2).length;
 
   const reviewCount = ratingGroups.reduce((sum, g) => sum + g._count._all, 0);
