@@ -351,7 +351,9 @@ export default function QuickMessageManager({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-auto sm:rounded-lg lg:max-w-5xl">
+      {/* ความสูงคงที่ (sm:h-176 = 44rem) ไม่ใช่ h-auto — ไม่งั้นโมดัลหดตามจำนวนแถวทุกครั้งที่กรอง
+          แล้วเนื้อหาเด้งขึ้นลงกวนตา (user report 2026-07-31). max-h-full กันล้นบนจอเตี้ย */}
+      <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-176 sm:rounded-lg lg:max-w-5xl">
         {/* ── header ───────────────────────────────────────────────────────── */}
         <div className="card-header flex items-center justify-between gap-2">
           {/* หน้าฟอร์มกินพื้นที่ทั้งโมดัล จึงต้องมีทางกลับที่ชัด — ลูกศรย้อนกลับแทนไอคอนหัวข้อ */}
@@ -498,6 +500,7 @@ export default function QuickMessageManager({
                     <thead className="font-semibold">
                       <tr>
                         {sortMode && <th className="w-10">ลำดับ</th>}
+                        {!sortMode && <th className="w-1">รูป</th>}
                         <th>หัวข้อ</th>
                         {!sortMode && <th className="hidden sm:table-cell">หมวด</th>}
                         {!sortMode && <th className="hidden lg:table-cell">ข้อความ</th>}
@@ -577,24 +580,29 @@ export default function QuickMessageManager({
                             className={`cursor-pointer ${editingId === qm.id ? 'bg-primary/5' : ''}`}
                           >
                             <td>
-                              <span className="flex items-center gap-2.5">
-                                {imgs.length > 0 && (
-                                  <span className="border-default-200 relative block size-9 shrink-0 overflow-hidden rounded border">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
-                                    {imgs.length > 1 && (
-                                      <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
-                                        +{imgs.length - 1}
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
-                                <span className="min-w-0">
-                                  <span className="text-default-800 block truncate font-medium">{qm.title}</span>
-                                  {/* จอเล็กไม่มีคอลัมน์ข้อความ — ยกตัวอย่างเนื้อหามาไว้ใต้หัวข้อแทน ไม่งั้นแยกไม่ออก
-                                      ว่าอันไหนคืออันไหน (line-clamp ตั้ง display เอง ห้ามใส่ block ทับ) */}
-                                  <span className="text-default-500 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
+                              {imgs.length > 0 ? (
+                                <span className="border-default-200 relative block size-10 overflow-hidden rounded border">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
+                                  {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากตารางโดยไม่ต้องกดเข้าไปดู) */}
+                                  {imgs.length > 1 && (
+                                    <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
+                                      +{imgs.length - 1}
+                                    </span>
+                                  )}
                                 </span>
+                              ) : (
+                                /* ช่องว่างขนาดเท่ารูป — ไม่ใส่ placeholder ให้รก แต่ต้องกันไม่ให้แถวที่ไม่มีรูป
+                                   เตี้ยกว่าแถวอื่นจนตารางกระตุก */
+                                <span className="bg-default-100 block size-10 rounded" aria-hidden="true" />
+                              )}
+                            </td>
+                            <td>
+                              <span className="block min-w-0">
+                                <span className="text-default-800 block truncate font-medium">{qm.title}</span>
+                                {/* จอเล็กไม่มีคอลัมน์ข้อความ — ยกตัวอย่างเนื้อหามาไว้ใต้หัวข้อแทน ไม่งั้นแยกไม่ออก
+                                    ว่าอันไหนคืออันไหน (line-clamp ตั้ง display เอง ห้ามใส่ block ทับ) */}
+                                <span className="text-default-500 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
                               </span>
                             </td>
                             <td className="hidden sm:table-cell">
