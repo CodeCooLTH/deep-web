@@ -230,6 +230,18 @@ export async function generateReplySuggestions(
     return undefined // รุ่นที่ไม่รู้จัก: ไม่ส่งอะไรเลย ดีกว่าเดาแล้วโดนปฏิเสธทั้ง request
   }
 
+  /**
+   * เพดาน output ตามรุ่น — **ไม่ใช่ตัวเร่งความเร็ว** แต่เป็นเพดานกันค่าใช้จ่ายบานปลาย
+   * (โมเดลไม่ได้ generate ช้าลงเพราะเพดานสูง มันแค่ "ยอมให้ยาวได้ถึงเท่านี้")
+   *
+   * WARNING: 4096 ของเดิมมีไว้เผื่อ token ที่ใช้ "คิด" ซึ่งกินโควตาก้อนเดียวกับคำตอบ
+   * ตั้งต่ำแล้ว JSON ถูกตัดกลางคัน โผล่มาเป็น `invalid json from gemini` ทั้งที่ HTTP 200
+   * (บั๊กจริง prod 2026-07-23) — รุ่น 2.5 ที่ปิดการคิดสนิทแล้วไม่มีความเสี่ยงนั้น
+   * จึงลดเหลือ 1536 ได้ (คำตอบไทย 3 ข้อ ~450-600 token เหลือเผื่อเท่าตัว)
+   * ส่วน 3.x ยังคิดอยู่ (ปิดสนิทไม่ได้) ต้องคง 4096 ไว้เหมือนเดิม
+   */
+  const maxOutputFor = (model: string): number => (model.startsWith('gemini-2.5') ? 1536 : 4096)
+
   const requestBody = {
     system_instruction: { parts: [{ text: buildSystemPrompt({ ...ctx, hasMedia: media.length > 0 }) }] },
     contents: [{ role: 'user', parts }],
@@ -241,9 +253,8 @@ export async function generateReplySuggestions(
         required: ['suggestions'],
       },
       temperature: 0.8,
-      // 4096 ไม่ใช่ 1024: โมเดลรุ่นใหม่ (gemini-3.x) เป็น thinking model — token ที่ใช้ "คิด"
-      // กินโควตา maxOutputTokens ก้อนเดียวกับคำตอบ ถ้าตั้งต่ำ JSON จะถูกตัดกลางคัน แล้วโผล่มาเป็น
-      // `invalid json from gemini` ทั้งที่ HTTP 200 (บั๊กจริง prod 2026-07-23)
+      // maxOutputTokens ย้ายไปตั้งตามรุ่นในลูป (ดู maxOutputFor) — ค่ากลางนี้ไม่ถูกใช้
+      // ปล่อยไว้เป็นค่าปลอดภัยเผื่อมีเส้นทางอื่นมาใช้ requestBody ตรง ๆ ในอนาคต
       maxOutputTokens: 4096,
     },
   }
@@ -266,6 +277,7 @@ export async function generateReplySuggestions(
           ...requestBody,
           generationConfig: {
             ...requestBody.generationConfig,
+            maxOutputTokens: maxOutputFor(model),
             ...(thinkingConfigFor(model) ? { thinkingConfig: thinkingConfigFor(model) } : {}),
           },
         }),
