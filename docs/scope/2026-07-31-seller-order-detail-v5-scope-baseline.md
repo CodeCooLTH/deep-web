@@ -55,6 +55,24 @@
 - แก้ badge contrast ระดับ design system ทั้ง Paces (OOS-2)
 - รวม `formatAmount` กลางครบ 16 ไฟล์ (OOS-3, ทำบางส่วนใน scope ได้แต่ไม่บังคับครบ)
 
+## 🛑 GAP ที่ค้าง (พบตอน browser QA 2026-07-31 — ต้องตัดสินก่อน sign-off)
+
+**G-1 · `fulfillmentMode = 'PICKUP'` ไม่ถูกจัดการเลย**
+
+`fulfillmentMode` ใน `prisma/schema.prisma:425,490` เป็น **`String` ไม่ใช่ enum** และในฐานข้อมูลจริงมี **3 ค่า**: `SHIPPED` · `NO_SHIPPING` · **`PICKUP`** (ค่าหลังสร้างโดย `src/services/booking.service.ts:201` — ฝั่งที่พัก feature 00017)
+
+spec/baseline ของ phase นี้ enumerate ไว้แค่ 2 ค่า โค้ดจึงเขียนเงื่อนไขเป็น "ไม่ใช่ `NO_SHIPPING` = ต้องส่งของ":
+- `components/order-action-set.ts:65` — `const hasShipping = fulfillmentMode !== 'NO_SHIPPING'`
+- `components/OrderFactsCard.tsx:286` — `const showShippingSection = fulfillmentMode !== 'NO_SHIPPING'`
+
+**ผล:** ออเดอร์จองห้องพัก (`PICKUP`) จะแสดง section "การจัดส่ง" พร้อม callout "ยังไม่แจ้งเลขพัสดุ" และมีปุ่ม "แจ้งเลขพัสดุ" ทั้งที่ไม่มีอะไรต้องส่ง
+
+**สถานะการตรวจ:** ยืนยันจากโค้ดแล้ว (static) · **ยังไม่ได้เห็นบนจอจริง** — order `PICKUP` ที่มีในฐานไม่ได้เป็นของร้านที่ล็อกอินอยู่ตอน QA จึง render ไม่ขึ้น
+
+**ทางเลือก:** (ก) เปลี่ยนเงื่อนไขเป็น allow-list `fulfillmentMode === 'SHIPPED'` แทน deny-list (ปลอดภัยกว่า ค่าใหม่ในอนาคตจะไม่หลุดเข้าโหมดส่งของเอง) · (ข) จัด `PICKUP` เป็นโหมดที่ 3 ที่มี section ของตัวเอง ("รับเอง/เช็คอิน") = งานแยก
+
+**หมายเหตุกระบวนการ:** นี่คือช่องที่ทั้ง design spec, scope baseline และ reviewer 8-gate มองไม่เห็น เพราะทุกชั้นอ่านจาก spec ที่ enumerate ค่าไม่ครบเหมือนกัน — เจอได้เพราะ query ค่าจริงในฐานตอน QA
+
 ## Change Log
 > ทุกครั้งที่ Controller อนุมัติแก้ scope (รับเข้า/เลื่อนออก) จดที่นี่ — กัน creep เงียบ
 
