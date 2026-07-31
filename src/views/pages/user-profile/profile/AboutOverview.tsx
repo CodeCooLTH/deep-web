@@ -2,9 +2,6 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
-import Card from '@mui/material/Card'
-import CardHeader from '@mui/material/CardHeader'
-import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 
 // Icon Imports
@@ -45,41 +42,42 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
   const showResponse = chatResponseSampleSize != null && chatResponseSampleSize >= 3 && chatResponseRate != null
   const responseTimeLabel = formatResponseTime(chatMedianResponseSec)
 
+  // ถอด Card/CardHeader/CardContent ออก (user รายงาน padding ไม่เท่ากันระหว่างแท็บ 2026-07-30)
+  // นี่เป็นการ์ดใบเดียวในหน้า พอห่อการ์ด ตัวหนังสือถูกดันเข้าไป 44px จาก padding ของ CardContent
+  // ขณะที่แท็บอื่นอยู่ที่ 20px สลับแท็บแล้วบรรทัดกระโดด
+  // หัวข้อ "เกี่ยวกับร้าน" ตัดออกด้วย — ชื่อแท็บบอกอยู่แล้วว่าอยู่ส่วนไหน พูดซ้ำสองที่ในจอเดียว
   return (
-    <Card sx={{ boxShadow: 'var(--mui-customShadows-sm)' }}>
-      <CardHeader title='เกี่ยวกับร้าน' />
-      <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {bio && (
-          <Typography component='p' sx={{ m: 0, fontSize: '14px', color: 'text.primary', lineHeight: 1.5 }}>
-            {bio}
-          </Typography>
-        )}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {bio && (
+        <Typography component='p' sx={{ m: 0, fontSize: '14px', color: 'text.primary', lineHeight: 1.5 }}>
+          {bio}
+        </Typography>
+      )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'text.secondary' }}>
-          {location && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icon icon='tabler-map-pin' fontSize={16} />
-              {location}
-            </Box>
-          )}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'text.secondary' }}>
+        {location && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Icon icon='tabler-calendar' fontSize={16} />
-            เข้าร่วม {memberSince}
+            <Icon icon='tabler-map-pin' fontSize={16} />
+            {location}
           </Box>
-          {showResponse && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <Icon icon='tabler-message' fontSize={16} />
-              ตอบกลับ <Box component='strong' sx={{ color: 'text.primary' }}>{Math.round(chatResponseRate as number)}%</Box>
-              {responseTimeLabel && (
-                <>
-                  · ตอบเฉลี่ย <Box component='strong' sx={{ color: 'text.primary' }}>{responseTimeLabel}</Box>
-                </>
-              )}
-            </Box>
-          )}
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Icon icon='tabler-calendar' fontSize={16} />
+          เข้าร่วม {memberSince}
         </Box>
-      </CardContent>
-    </Card>
+        {showResponse && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <Icon icon='tabler-message' fontSize={16} />
+            ตอบกลับ <Box component='strong' sx={{ color: 'text.primary' }}>{Math.round(chatResponseRate as number)}%</Box>
+            {responseTimeLabel && (
+              <>
+                · ตอบเฉลี่ย <Box component='strong' sx={{ color: 'text.primary' }}>{responseTimeLabel}</Box>
+              </>
+            )}
+          </Box>
+        )}
+      </Box>
+    </Box>
   )
 }
 

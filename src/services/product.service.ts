@@ -403,10 +403,24 @@ export async function getProductsByShop(
  * นับเฉพาะ line ที่มี productId (ไม่นับ custom item) ของ order ในร้านนี้; คืนเฉพาะ product ที่ยัง active.
  * groupBy คืนลำดับตามยอดขาย แต่ findMany ไม่การันตีลำดับ → re-order ตาม best-seller ก่อนคืน.
  */
+/**
+ * สินค้าขายดีของร้าน (หลังบ้าน: dashboard + หน้า POS)
+ *
+ * status: "CONFIRMED" เพิ่มเข้ามา 2026-07-30 — เดิม**ไม่กรองสถานะเลย** จึงนับ PENDING กับ
+ * CANCELLED เป็นยอดขายด้วย ตัวเลข "ขายแล้ว N ชิ้น" ที่ร้านเห็นจึงสูงกว่าความจริงมาก
+ * (ตอนพบ ระบบมี PENDING 48 · CONFIRMED 17 · CANCELLED 5 — เกินไปเกือบ 3 เท่า) และอันดับ
+ * ขายดีก็เพี้ยนตามเพราะเรียงด้วยผลรวมที่ผิด สินค้าที่มีคนสร้างออเดอร์ทิ้งไว้เยอะแต่ไม่มีใคร
+ * ซื้อจริงจะขึ้นนำสินค้าที่ขายได้จริง — ซึ่งทำให้ร้านตัดสินใจสต็อกผิด
+ *
+ * ใช้เกณฑ์เดียวกับที่เหลือทั้งระบบ (Revenue/P&L และยอดบนหน้าร้านสาธารณะ) = CONFIRMED เท่านั้น
+ * เพื่อไม่ให้มีคำว่า "ขายแล้ว" สองความหมายในโปรดักต์เดียว
+ *
+ * ผลที่ต้องรู้: ตัวเลขในหน้าร้านจะลดลงจากเดิม นั่นคือสิ่งที่ถูก ไม่ใช่ของหาย
+ */
 export async function getBestSellerProducts(shopId: string, take = 8) {
   const grouped = await prisma.orderItem.groupBy({
     by: ["productId"],
-    where: { productId: { not: null }, order: { shopId } },
+    where: { productId: { not: null }, order: { shopId, status: "CONFIRMED" } },
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
     take,

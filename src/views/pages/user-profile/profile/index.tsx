@@ -2,7 +2,6 @@
 
 // MUI Imports
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 
 // Icon Imports
@@ -322,7 +321,7 @@ export const ProfileRightContent = ({
   return (
     <>
       {!hasAnyProduct ? (
-        <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
+        <Box id='pinned-products' sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
           <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#808390' }} />
           <Box>
             <Typography sx={{ color: '#808390', fontSize: '14px' }}>{L.empty}</Typography>
@@ -333,7 +332,7 @@ export const ProfileRightContent = ({
         <>
           {/* ── สินค้าปักหมุด (Phase 3: pinnedProducts จริงจาก getPinnedProducts — ซ่อนทั้งโซนเมื่อว่าง TFR-PIN-07) ── */}
           {pinnedProducts.length > 0 && (
-            <Box id='pinned-products' sx={{ px: { xs: '20px', md: '24px' }, pt: '18px', pb: '16px' }}>
+            <Box id='pinned-products' sx={{ pt: '18px', pb: '16px' }}>
               <Typography
                 component='h3'
                 sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
@@ -344,10 +343,12 @@ export const ProfileRightContent = ({
                 sx={{
                   display: 'grid',
                   // ผังเดียวกับแท็บปักหมุด (user 2026-07-26 "เน้นรูป เหมือน IG") — ชิดกันไม่มีช่องว่าง
-                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว; ดึงออกนอก padding ให้ชนขอบคอนเทนเนอร์จริง
+                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว
+                  // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
+                  // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
                   gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: 0,
-                  mx: { xs: '-20px', md: '-24px' },
+                  mx: '-20px',
                 }}
               >
                 {pinnedProducts.map((product) => (
@@ -367,7 +368,7 @@ export const ProfileRightContent = ({
 
           {/* ── สินค้าทั้งหมด (Phase 3: otherProducts = getProductsByShop excludePinned — ซ่อนเมื่อว่าง) ── */}
           {otherProducts.length > 0 && (
-            <Box id='all-products' sx={{ px: { xs: '20px', md: '24px' }, pb: '16px' }}>
+            <Box id='all-products' sx={{ pb: '16px' }}>
               <Typography
                 component='h3'
                 sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
@@ -378,10 +379,12 @@ export const ProfileRightContent = ({
                 sx={{
                   display: 'grid',
                   // ผังเดียวกับแท็บปักหมุด (user 2026-07-26 "เน้นรูป เหมือน IG") — ชิดกันไม่มีช่องว่าง
-                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว; ดึงออกนอก padding ให้ชนขอบคอนเทนเนอร์จริง
+                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว
+                  // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
+                  // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
                   gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: 0,
-                  mx: { xs: '-20px', md: '-24px' },
+                  mx: '-20px',
                 }}
               >
                 {otherProducts.map((product) => (
