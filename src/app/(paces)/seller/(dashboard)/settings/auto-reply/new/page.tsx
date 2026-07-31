@@ -21,7 +21,7 @@ export default function NewKeywordPage() {
         title="สร้างกลุ่มคำ"
         trail={[
           { label: 'ตั้งค่า', href: '/settings' },
-          { label: 'ตอบแชทอัตโนมัติ', href: '/settings/auto-reply' },
+          { label: 'ผู้ช่วยอัตโนมัติ', href: '/settings/auto-reply' },
           { label: 'สร้างกลุ่มคำ' },
         ]}
       />

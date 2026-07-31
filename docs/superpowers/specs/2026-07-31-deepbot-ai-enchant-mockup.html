@@ -1,0 +1,693 @@
+<title>DeepBot · AI Enchant รายกลุ่มคำ — mockup</title>
+<style>
+  :root{
+    --page:#f6f7fb; --card:#fff; --line:#e7e9eb; --line-soft:#f0f1f5;
+    --ink:#343a40; --ink-2:#6c757d; --muted:#8a969c; --faint:#9ba6b7;
+    --primary:#236dc9; --primary-ink:#1e3a8a; --primary-wash:#eaf1fb;
+    --success:#02bc9c; --success-ink:#065f46; --success-wash:#e6f8f4;
+    --warning:#f9bf59; --warning-ink:#92400e; --warning-wash:#fdf4e4;
+    --danger:#f1556c; --danger-wash:#fdecef;
+    --radius:4px; --shadow:0 1px 4px rgba(130,143,163,.15);
+    --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+    --font:"Anuphan","Sukhumvit Set","Noto Sans Thai",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --page:#16171d; --card:#1e1f27; --line:#293036; --line-soft:#232430;
+      --ink:#e4e4e7; --ink-2:#a1a9b1; --muted:#8391a2; --faint:#8391a2;
+      --primary:#5b9bea; --primary-ink:#bfd7f5; --primary-wash:#1b2a3f;
+      --success-ink:#7fe3cd; --success-wash:#12302b;
+      --warning-ink:#f4cf8e; --warning-wash:#33290f; --danger-wash:#331d22;
+      --shadow:0 1px 4px rgba(0,0,0,.4); --shadow-lg:0 .25rem 1rem rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --page:#16171d; --card:#1e1f27; --line:#293036; --line-soft:#232430;
+    --ink:#e4e4e7; --ink-2:#a1a9b1; --muted:#8391a2; --faint:#8391a2;
+    --primary:#5b9bea; --primary-ink:#bfd7f5; --primary-wash:#1b2a3f;
+    --success-ink:#7fe3cd; --success-wash:#12302b;
+    --warning-ink:#f4cf8e; --warning-wash:#33290f; --danger-wash:#331d22;
+    --shadow:0 1px 4px rgba(0,0,0,.4); --shadow-lg:0 .25rem 1rem rgba(0,0,0,.5);
+  }
+  :root[data-theme="light"]{
+    --page:#f6f7fb; --card:#fff; --line:#e7e9eb; --line-soft:#f0f1f5;
+    --ink:#343a40; --ink-2:#6c757d; --muted:#8a969c; --faint:#9ba6b7;
+    --primary:#236dc9; --primary-ink:#1e3a8a; --primary-wash:#eaf1fb;
+    --success-ink:#065f46; --success-wash:#e6f8f4;
+    --warning-ink:#92400e; --warning-wash:#fdf4e4; --danger-wash:#fdecef;
+    --shadow:0 1px 4px rgba(130,143,163,.15); --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);background:var(--page);color:var(--ink);
+       padding:40px 24px 96px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  .doc-h{font-size:26px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em;text-wrap:balance}
+  .doc-sub{color:var(--ink-2);font-size:15px;margin:0 0 8px;max-width:66ch}
+  .doc-meta{color:var(--faint);font-size:13px;margin:0 0 12px}
+  h2{font-size:17px;font-weight:600;margin:56px 0 6px;padding-top:24px;border-top:1px solid var(--line);
+     display:flex;align-items:baseline;gap:10px;text-wrap:balance}
+  h2 .n{font-size:12px;color:var(--primary);font-weight:600;font-variant-numeric:tabular-nums}
+  .lede{color:var(--ink-2);font-size:14px;margin:0 0 22px;max-width:70ch}
+  .lede b{color:var(--ink);font-weight:600}
+
+  .devices{display:flex;gap:20px;align-items:flex-start;overflow-x:auto;padding-bottom:8px}
+  .dev{flex:none;background:var(--card);border:1px solid var(--line);border-radius:10px;
+       overflow:hidden;box-shadow:var(--shadow-lg)}
+  .dev-cap{font-size:11px;color:var(--muted);padding:7px 13px;background:var(--line-soft);
+           border-bottom:1px solid var(--line);letter-spacing:.02em}
+  .screen{background:var(--page);padding:14px}
+  .w360{width:360px} .w720{width:720px} .w980{width:980px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+        box-shadow:var(--shadow);margin-bottom:12px}
+  .card-h{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+          justify-content:space-between;gap:12px}
+  .card-t{font-size:15px;font-weight:600;margin:0}
+  .card-d{font-size:12px;color:var(--muted);margin:2px 0 0}
+  .card-b{padding:16px}
+  .crumb{font-size:12px;color:var(--muted);margin:0 0 4px}
+  .crumb b{color:var(--ink);font-weight:500}
+  .page-t{font-size:19px;font-weight:600;margin:0 0 14px}
+
+  label.f{display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin:0 0 5px}
+  .inp{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);
+       border-radius:var(--radius);padding:8px 11px;font:inherit;font-size:13px}
+  .hint{font-size:11px;color:var(--faint);margin:5px 0 0;line-height:1.5}
+
+  .sw{width:40px;height:22px;border-radius:999px;background:var(--line);position:relative;flex:none}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:999px;
+             background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .sw.on{background:var(--primary)} .sw.on::after{left:21px}
+  .sw.sm{width:32px;height:18px} .sw.sm::after{width:12px;height:12px;top:3px;left:3px}
+  .sw.sm.on::after{left:17px}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;
+        color:var(--ink-2);background:var(--card)}
+  .chip.on{border-color:var(--primary);color:var(--primary);background:var(--primary-wash);font-weight:500}
+
+  .tag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;
+       font-size:11px;font-weight:500;white-space:nowrap}
+  .tag-ai{background:var(--primary);color:#fff}
+  .tag-off{background:var(--line-soft);color:var(--muted)}
+  .tag-live{background:var(--success-wash);color:var(--success-ink)}
+  .tag-test{background:var(--warning-wash);color:var(--warning-ink)}
+  .tag-warn{background:var(--warning-wash);color:var(--warning-ink)}
+
+  .rules{list-style:none;margin:0;padding:0}
+  .rules li{display:flex;align-items:flex-start;gap:9px;padding:9px 0;
+            border-bottom:1px solid var(--line-soft);font-size:13px}
+  .rules li:last-child{border-bottom:0}
+  .rules .x{color:var(--danger);font-weight:600;flex:none;line-height:1.5}
+  .rules .del{margin-left:auto;color:var(--faint);font-size:16px;line-height:1;flex:none}
+
+  .radios{border:1px solid var(--line);border-radius:var(--radius)}
+  .radios .r{display:flex;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:flex-start}
+  .radios .r:last-child{border-bottom:0}
+  .radios .r.on{background:var(--primary-wash)}
+  .dot{width:16px;height:16px;border-radius:999px;border:2px solid var(--line);flex:none;margin-top:2px;position:relative}
+  .r.on .dot{border-color:var(--primary)}
+  .r.on .dot::after{content:"";position:absolute;inset:2px;border-radius:999px;background:var(--primary)}
+  .r-t{font-size:13px;font-weight:500;margin:0}
+  .r-d{font-size:11px;color:var(--muted);margin:2px 0 0;line-height:1.5}
+
+  .prods{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:10px}
+  .prods .p{display:flex;align-items:center;gap:10px;padding:9px 12px;
+            border-bottom:1px solid var(--line-soft);font-size:12px}
+  .prods .p:last-child{border-bottom:0}
+  .cb{width:15px;height:15px;border-radius:3px;border:2px solid var(--line);flex:none;position:relative}
+  .cb.on{background:var(--primary);border-color:var(--primary)}
+  .cb.on::after{content:"";position:absolute;left:3.5px;top:.5px;width:4px;height:8px;
+                border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .p .price{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .ba{display:grid;gap:12px}
+  @media(min-width:820px){.ba{grid-template-columns:1fr 1fr}}
+  .pane{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--card)}
+  .pane-h{padding:9px 13px;font-size:12px;font-weight:600;border-bottom:1px solid var(--line);
+          display:flex;align-items:center;gap:8px}
+  .pane-h.base{background:var(--line-soft);color:var(--ink-2)}
+  .pane-h.ai{background:var(--primary-wash);color:var(--primary-ink)}
+  .pane-b{padding:13px}
+  .bub{border-radius:var(--radius);padding:10px 14px;font-size:13px;line-height:1.6}
+  .bub.them{background:var(--line-soft);color:var(--ink);display:inline-block}
+  .bub.us{background:var(--primary);color:#fff}
+  .from{font-size:11px;color:var(--faint);margin:0 0 6px}
+  .src{margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11px;color:var(--muted)}
+  .src b{color:var(--ink-2);font-weight:500}
+  mark{background:rgba(2,188,156,.2);color:inherit;padding:0 2px;border-radius:2px}
+
+  /* group list rows */
+  .rows{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--card)}
+  .row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+  .row:last-child{border-bottom:0}
+  .row .nm{font-size:13px;font-weight:500;min-width:0}
+  .row .sub{font-size:11px;color:var(--muted);margin-top:1px}
+  .row .rt{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
+
+  .tool{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:11px 14px;
+        border-bottom:1px solid var(--line);background:var(--line-soft)}
+  .tool .grow{flex:1;min-width:150px}
+  .bulk{display:flex;gap:8px;align-items:center;padding:9px 14px;background:var(--primary-wash);
+        border-bottom:1px solid var(--line);font-size:12px;color:var(--primary-ink);font-weight:500}
+  .bulk .sp{margin-left:auto;display:flex;gap:7px}
+  .ans{font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;
+       white-space:nowrap;max-width:44ch}
+  .uses{font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-2);flex:none;
+        min-width:56px;text-align:right}
+  .ico{color:var(--faint);font-size:14px;flex:none}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--warning);border-radius:var(--radius);
+           background:var(--warning-wash);padding:12px 15px;font-size:13px;margin:16px 0 0;color:var(--ink)}
+  .callout.q{border-left-color:var(--primary);background:var(--primary-wash)}
+  .callout b{font-weight:600}
+
+  .qs{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);overflow:hidden;margin-top:14px}
+  .qs .q{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .qs .q:last-child{border-bottom:0}
+  .qs h3{font-size:14px;font-weight:600;margin:0 0 5px}
+  .qs p{margin:0;font-size:13px;color:var(--ink-2);max-width:72ch}
+  .qs .why{font-size:12px;color:var(--muted);margin-top:6px}
+</style>
+
+<div class="wrap">
+
+<p class="doc-h">AI Enchant — ตั้งรายกลุ่มคำ</p>
+<p class="doc-sub">
+  ไม่มีสวิตช์ระดับร้าน ทุกอย่างอยู่ในหน้าแก้ไขกลุ่มคำนั้น ๆ — กลุ่มไหนอยากให้ AI ช่วย ก็เปิดของกลุ่มนั้น
+  กลุ่มที่ต้องส่งคำต่อคำก็ปิดไว้
+</p>
+<p class="doc-meta">
+  feature 00023 · 31 ก.ค. 2569 · mockup รอบ 2 · สียึด token Paces จริง (#236dc9)
+</p>
+<div class="callout q" style="margin-top:0">
+  <b>เปลี่ยนจากรอบแรก</b> — รอบแรกผมวางสวิตช์ไว้ระดับร้าน ซึ่งเป็นกับดักตัวเดียวกับที่ถูกรื้อทิ้งไปเมื่อวาน
+  (“แถวขึ้นว่าทำงานจริง แต่เงียบเพราะสวิตช์อีกที่ปิดอยู่”) รอบนี้ย้ายมาอยู่กับกลุ่มคำทั้งหมด
+</div>
+
+<h2><span class="n">01</span> อยู่ตรงไหน</h2>
+<p class="lede">
+  การ์ดใหม่ในหน้าแก้ไขกลุ่มคำ ต่อจากคำตอบ — เพราะมันคือ<b>สิ่งที่เกิดกับคำตอบ</b>
+  ไม่ใช่การตั้งค่าแยกที่ต้องไปหาที่อื่น
+</p>
+<div class="devices">
+  <div class="dev">
+    <div class="dev-cap">Desktop · 980px — ปิดอยู่ (ค่าเริ่มต้น)</div>
+    <div class="screen w980">
+      <p class="crumb">หน้าหลัก › ผู้ช่วยอัตโนมัติ › <b>ถามสเปกสินค้า</b></p>
+      <p class="page-t">ถามสเปกสินค้า</p>
+      <div class="card">
+        <div class="card-h">
+          <div><p class="card-t">คำตอบที่ลูกค้าจะได้รับ</p></div>
+          <span class="tag tag-live">ตอบลูกค้าจริง</span>
+        </div>
+        <div class="card-b" style="font-size:13px;color:var(--ink-2)">
+          คำตอบปกติ · เงื่อนไขเฉพาะ 2 ข้อ
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h">
+          <div>
+            <p class="card-t">ให้ AI ช่วยเรียบเรียงคำตอบของกลุ่มนี้</p>
+            <p class="card-d">ปิดอยู่ — DeepBot ส่งข้อความที่คุณตั้งไว้คำต่อคำ คาดเดาได้ทุกครั้ง</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="tag tag-off">ปิด</span><span class="sw"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dev">
+    <div class="dev-cap">Mobile · 360px</div>
+    <div class="screen w360">
+      <div class="card">
+        <div class="card-h" style="flex-direction:column;align-items:stretch;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <p class="card-t">ให้ AI ช่วยเรียบเรียงคำตอบ</p>
+            <span class="sw"></span>
+          </div>
+          <p class="card-d" style="margin:0">ปิดอยู่ — ส่งข้อความที่คุณตั้งไว้คำต่อคำ</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2><span class="n">02</span> เปิดแล้วตั้งอะไรได้</h2>
+<p class="lede">
+  ทุกค่าเป็นของกลุ่มนี้กลุ่มเดียว · ปุ่ม <b>คัดลอกจากกลุ่มอื่น</b> ไว้แก้ปัญหาพิมพ์ซ้ำ —
+  คัดลอกแล้วค่าเป็นของกลุ่มนี้จริง ๆ แก้ทีหลังไม่กระทบกลุ่มต้นทาง และไม่มีอะไรเปลี่ยนลับหลัง
+</p>
+<div class="devices">
+  <div class="dev">
+    <div class="dev-cap">Desktop · 980px — เปิดอยู่</div>
+    <div class="screen w980">
+      <div class="card">
+        <div class="card-h">
+          <div>
+            <p class="card-t">ให้ AI ช่วยเรียบเรียงคำตอบของกลุ่มนี้</p>
+            <p class="card-d">AI อ่านคำถามลูกค้า แล้วเสริมรายละเอียดเข้าไปในคำตอบที่คุณตั้งไว้</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="chip">คัดลอกจากกลุ่มอื่น</span>
+            <span class="tag tag-ai">เปิด</span><span class="sw on"></span>
+          </div>
+        </div>
+
+        <div class="card-b" style="border-bottom:1px solid var(--line)">
+          <label class="f">น้ำเสียง</label>
+          <div class="chips">
+            <span class="chip on">สุภาพ เป็นทางการ</span>
+            <span class="chip">เป็นกันเอง</span>
+            <span class="chip">กระชับ ตรงประเด็น</span>
+            <span class="chip">อบอุ่น ใส่ใจ</span>
+          </div>
+          <p class="hint">มีผลกับวิธีพูดเท่านั้น ไม่มีผลกับเนื้อหาที่ตอบ</p>
+        </div>
+
+        <div class="card-b" style="border-bottom:1px solid var(--line)">
+          <label class="f">กฎที่ห้ามฝ่าฝืน</label>
+          <ul class="rules">
+            <li><span class="x">✕</span><span>ห้ามลดราคา ห้ามต่อรอง ห้ามให้ส่วนลดใด ๆ</span><span class="del">×</span></li>
+            <li><span class="x">✕</span><span>ห้ามระบุวันจัดส่งที่แน่นอน</span><span class="del">×</span></li>
+            <li><span class="x">✕</span><span>ห้ามพูดถึงสินค้าที่ร้านไม่ได้ขาย</span><span class="del">×</span></li>
+          </ul>
+          <div style="display:flex;gap:8px;margin-top:11px">
+            <input class="inp" placeholder="พิมพ์กฎแล้วกดเพิ่ม เช่น ห้ามรับประกันเกิน 7 วัน">
+            <span class="chip on" style="align-self:center;white-space:nowrap">+ เพิ่ม</span>
+          </div>
+          <p class="hint">คำถามที่ชนกฎ DeepBot จะไม่ตอบเลยและส่งต่อให้คุณ แทนที่จะเดา</p>
+        </div>
+
+        <div class="card-b">
+          <label class="f">ข้อมูลที่ AI หยิบมาตอบได้</label>
+          <div class="radios">
+            <div class="r"><span class="dot"></span><div>
+              <p class="r-t">ไม่ใช้ข้อมูลสินค้าเลย</p>
+              <p class="r-d">เรียบเรียงจากคำตอบที่คุณตั้งไว้เท่านั้น ไม่เติมข้อเท็จจริงใหม่</p>
+            </div></div>
+            <div class="r on"><span class="dot"></span><div>
+              <p class="r-t">เฉพาะสินค้าที่เลือก</p>
+              <p class="r-d">เลือกทีละชิ้น — ตัวที่ข้อมูลครบและถูกต้องแน่นอน</p>
+            </div></div>
+            <div class="r"><span class="dot"></span><div>
+              <p class="r-t">สินค้าทั้งหมดในร้าน</p>
+              <p class="r-d">สะดวกที่สุด แต่สินค้าที่ข้อมูลยังไม่ครบก็จะถูกหยิบไปตอบด้วย</p>
+            </div></div>
+          </div>
+          <div class="prods">
+            <div class="p"><span class="cb on"></span><span>โช้คหลังบรรทุกหนัก ซ้อนสาม แกน 6 ซม.</span><span class="price">590 บาท</span></div>
+            <div class="p"><span class="cb on"></span><span>โช้คหลังเวฟ 110 แกน 5 ซม.</span><span class="price">450 บาท</span></div>
+            <div class="p"><span class="cb"></span><span>ชุดสีเวฟ 125 (ข้อมูลยังไม่ครบ)</span><span class="price">—</span></div>
+          </div>
+          <p class="hint">เลือกไว้ 2 จาก 3 ชิ้น</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2><span class="n">03</span> เปิดแล้วต่างยังไง</h2>
+<p class="lede">
+  ส่วนที่ตัดสินว่าฟีเจอร์นี้คุ้มไหม — <b>คำตอบที่คุณตั้งไว้ยังอยู่ครบทุกคำ</b>
+  AI ตอบเฉพาะสิ่งที่ลูกค้าถามเพิ่ม ไม่เขียนใหม่ทับของคุณ
+</p>
+<div class="pane" style="margin-bottom:12px">
+  <div class="pane-h base">ลูกค้าถาม</div>
+  <div class="pane-b"><span class="bub them">รับน้ำหนักได้เท่าไหร่ ใส่เวฟ 110 ได้ไหมครับ</span></div>
+</div>
+<div class="ba">
+  <div class="pane">
+    <div class="pane-h base"><span class="tag tag-off">ปิด</span> ส่งคำต่อคำ</div>
+    <div class="pane-b">
+      <p class="from">คำตอบที่ตั้งไว้ในกลุ่ม “ถามสเปกสินค้า”</p>
+      <div class="bub us">ราคา 590 ฟรีปลายทาง สนใจสีอะไรแจ้งได้เลยค่ะ</div>
+      <p class="src">ลูกค้าถามน้ำหนักกับรุ่นรถ แต่ได้คำตอบเรื่องราคา — ยังต้องรอแอดมินมาตอบต่ออยู่ดี</p>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-h ai"><span class="tag tag-ai">เปิด</span> เสริมจากข้อมูลสินค้า</div>
+    <div class="pane-b">
+      <p class="from">ฐานเดิม + ข้อมูลของ “โช้คหลังบรรทุกหนัก แกน 6 ซม.”</p>
+      <div class="bub us">ใส่เวฟ 110 ได้ค่ะ <mark>ตัวนี้รับน้ำหนักได้ถึง 700 กิโลกรัม แกน 6 ซม. ยาว 350 มม.</mark> ราคา 590 ฟรีปลายทาง สนใจสีอะไรแจ้งได้เลยค่ะ</div>
+      <p class="src"><b>ส่วนที่เน้น</b> = ข้อมูลจากสินค้าที่กลุ่มนี้อนุญาต · ประโยคที่เหลือคือคำตอบเดิมของคุณ ไม่ถูกแก้</p>
+    </div>
+  </div>
+</div>
+<div class="callout">
+  <b>กรณีชนกฎ</b> — ลูกค้าถาม “ลดได้ไหม เอา 500” ชนกฎ “ห้ามต่อรองราคา”
+  DeepBot จะ<b>ไม่ตอบเลย</b>และส่งต่อให้คุณ พร้อมบันทึกเหตุผลไว้ดูย้อนหลังได้
+  — เงียบดีกว่าตอบผิดในเรื่องที่ผูกพันเป็นเงิน
+</div>
+
+<h2><span class="n">04</span> รายการกลุ่มคำ</h2>
+<p class="lede">
+  เพราะตั้งรายกลุ่ม รายการต้องบอกได้ทันทีว่ากลุ่มไหนใช้ AI อยู่ —
+  ไม่งั้นร้านจะไม่รู้ว่าคำตอบไหนออกไปแบบคำต่อคำและคำตอบไหนถูกเรียบเรียง
+</p>
+<div class="devices">
+  <div class="dev">
+    <div class="dev-cap">Desktop · 980px</div>
+    <div class="screen w980">
+      <div class="rows">
+        <div class="row">
+          <div><div class="nm">ถามสเปกสินค้า</div><div class="sub">4 คำ · ตอบไปแล้ว 128 ครั้ง</div></div>
+          <div class="rt"><span class="tag tag-ai">AI</span><span class="tag tag-live">ตอบลูกค้าจริง</span><span class="sw sm on"></span></div>
+        </div>
+        <div class="row">
+          <div><div class="nm">เงื่อนไขรับประกัน</div><div class="sub">2 คำ · ตอบไปแล้ว 41 ครั้ง</div></div>
+          <div class="rt"><span class="tag tag-off">คำต่อคำ</span><span class="tag tag-live">ตอบลูกค้าจริง</span><span class="sw sm"></span></div>
+        </div>
+        <div class="row">
+          <div><div class="nm">ทักทายทั่วไป</div><div class="sub">3 คำ · ยังไม่เคยตอบ</div></div>
+          <div class="rt"><span class="tag tag-ai">AI</span><span class="tag tag-test">ทดสอบ</span><span class="sw sm on"></span></div>
+        </div>
+      </div>
+      <p class="hint" style="padding:0 2px">“เงื่อนไขรับประกัน” ปิด AI ไว้ตั้งใจ — คำตอบเชิงสัญญาต้องออกไปตรงตามที่เขียน ห้ามเรียบเรียงใหม่</p>
+    </div>
+  </div>
+</div>
+<div class="callout q">
+  นี่คือเหตุผลจริงที่ต้องตั้งรายกลุ่ม ไม่ใช่แค่เรื่องความยืดหยุ่น —
+  <b>บางคำตอบผูกพันเป็นสัญญา</b> (รับประกัน คืนของ ราคาที่ตกลงไว้) ต้องออกไปตรงตัว
+  ถ้ามีสวิตช์เดียวคุมทั้งร้าน ก็ต้องเลือกระหว่าง “ยอมให้ AI แตะคำตอบที่ห้ามแตะ” กับ “ไม่ได้ใช้ AI เลย”
+</div>
+
+<h2><span class="n">05</span> คำถามที่ตอบไม่ได้ — คลังที่โตเองจากงานประจำวัน</h2>
+<p class="lede">
+  ทุกครั้งที่ลูกค้าถามแล้วไม่เข้ากลุ่มคำไหนเลย ระบบบันทึกไว้อยู่แล้ว <b>วันนี้มี 317 ครั้ง</b>
+  แต่ไม่เคยมีที่ให้ดู — เปลี่ยนกองนั้นเป็น<b>คิวงานที่ตอบทีละข้อแล้วยัดเข้ากลุ่ม</b>
+</p>
+<div class="devices">
+  <div class="dev">
+    <div class="dev-cap">Desktop · 980px — คำถามจริงจากฐานข้อมูลร้านคุณ</div>
+    <div class="screen w980">
+      <div class="card">
+        <div class="card-h">
+          <div>
+            <p class="card-t">คำถามที่ DeepBot ตอบไม่ได้</p>
+            <p class="card-d">กรอกคำตอบครั้งเดียว ครั้งหน้าตอบได้เอง</p>
+          </div>
+          <span class="tag tag-warn">รอกรอก 24 ข้อ</span>
+        </div>
+        <div class="rows" style="border:0;border-radius:0">
+          <div class="row">
+            <div>
+              <div class="nm">“ส่วนใหญ่ตัดหมอกใช้รุ่นไหนครับ ที่ร้านแนะนำ”</div>
+              <div class="sub">ถูกถามแบบนี้ 8 ครั้งเดือนนี้ · ล่าสุดวันนี้ 16:41</div>
+            </div>
+            <div class="rt"><span class="chip">ข้าม</span><span class="chip on">กรอกคำตอบ</span></div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="nm">“ปกติตัดหมอกรุ่นนี้เป็นขั้วอะไรหรอครับ”</div>
+              <div class="sub">ถูกถามแบบนี้ 5 ครั้งเดือนนี้ · ล่าสุดเมื่อวาน</div>
+            </div>
+            <div class="rt"><span class="chip">ข้าม</span><span class="chip on">กรอกคำตอบ</span></div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="nm">“ราคาถูกสุดคือ 1,500 ต่อ 1 หลอด หรอครับ”</div>
+              <div class="sub">ถูกถามแบบนี้ 3 ครั้งเดือนนี้</div>
+            </div>
+            <div class="rt"><span class="chip">ข้าม</span><span class="chip on">กรอกคำตอบ</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="padding:0 2px">
+        “ครับ” · “ใช่ครับ” · “ปี 15” ถูกกรองออกอัตโนมัติ — ข้อความรับคำไม่ใช่คำถาม
+        ถ้าไม่กรองคิวจะมีแต่ขยะจนไม่มีใครเปิด
+      </p>
+    </div>
+  </div>
+  <div class="dev">
+    <div class="dev-cap">Mobile · 360px — กรอกคำตอบ</div>
+    <div class="screen w360">
+      <div class="card" style="margin:0">
+        <div class="card-h"><p class="card-t">เพิ่มเข้าคลังคำถาม</p></div>
+        <div class="card-b">
+          <label class="f">คำถามของลูกค้า</label>
+          <input class="inp" value="ส่วนใหญ่ตัดหมอกใช้รุ่นไหนครับ ที่ร้านแนะนำ" readonly>
+          <p class="hint">แก้ให้สั้นลงได้ ระบบจะจับคำถามที่ความหมายใกล้เคียงกันด้วย</p>
+          <label class="f" style="margin-top:13px">คำตอบที่ถูกต้อง</label>
+          <textarea class="inp" rows="4">ร้านแนะนำรุ่น H11 ครับ ใช้ได้กับรถส่วนใหญ่ ราคา 1,500 ต่อหลอด สว่างกว่าเดิม 2 เท่า</textarea>
+          <label class="f" style="margin-top:13px">เพิ่มเข้ากลุ่ม</label>
+          <div class="radios">
+            <div class="r on"><span class="dot"></span><div>
+              <p class="r-t">ถามสเปกสินค้า</p>
+              <p class="r-d">เปิด AI · น้ำเสียงสุภาพ · กฎ 3 ข้อ</p>
+            </div></div>
+            <div class="r"><span class="dot"></span><div>
+              <p class="r-t">เงื่อนไขรับประกัน</p>
+              <p class="r-d">ปิด AI · ส่งคำต่อคำ</p>
+            </div></div>
+            <div class="r"><span class="dot"></span><div>
+              <p class="r-t">สร้างกลุ่มใหม่</p>
+              <p class="r-d">ถ้าไม่เข้ากลุ่มไหนเลย = เรื่องที่ร้านยังไม่เคยตั้งไว้</p>
+            </div></div>
+          </div>
+          <label class="f" style="margin-top:13px">สินค้าที่เกี่ยวข้อง</label>
+          <div class="prods" style="margin-top:0">
+            <div class="p"><span class="cb on"></span><span>ไฟตัดหมอก H11</span><span class="price">1,500 บาท</span></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <span class="chip" style="flex:1;text-align:center">ยกเลิก</span>
+            <span class="chip on" style="flex:1;text-align:center">บันทึก</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="callout">
+  <b>เพิ่มจากในห้องแชทได้ด้วย</b> — เจอคำถามดี ๆ ระหว่างคุยกับลูกค้า
+  กดที่ข้อความนั้นแล้วเลือก “เพิ่มเข้ากลุ่ม” ได้เลย ไม่ต้องรอมาที่หน้านี้
+</div>
+
+<h2><span class="n">06</span> คำถามตัวอย่าง — วิธีจับคู่แบบที่สองของกลุ่ม</h2>
+<p class="lede">
+  อยู่ใน<b>หน้าแก้ไขกลุ่มคำ</b> ถัดจากช่องใส่คำ — กลุ่มหนึ่งจับลูกค้าได้ 2 ทาง:
+  <b>คำ</b> จับแบบตรงตัว และ <b>คำถามตัวอย่าง</b> จับแบบความหมายใกล้เคียง
+  ทั้งสองทางวิ่งเข้ากลุ่มเดียวกัน จึงใช้น้ำเสียง กฎ และขอบเขตสินค้าชุดเดียวกัน
+</p>
+<div class="devices">
+  <div class="dev">
+    <div class="dev-cap">Desktop · 980px</div>
+    <div class="screen w980">
+      <div class="card">
+        <div class="card-h">
+          <div><p class="card-t">คำถามตัวอย่าง</p><p class="card-d">กลุ่ม “ถามสเปกสินค้า” · ใช้คู่กับคำที่ตั้งไว้ 4 คำ</p></div>
+          <span class="tag tag-live">ใช้งานอยู่ 3 จาก 4</span>
+        </div>
+        <div class="rows" style="border:0;border-radius:0">
+          <div class="row">
+            <div>
+              <div class="nm">ตัดหมอกรุ่นไหนที่ร้านแนะนำ</div>
+              <div class="sub">ตอบไปแล้ว 12 ครั้ง · ผูกกับ ไฟตัดหมอก H11 · <span style="color:var(--primary)">แก้คำตอบ</span></div>
+            </div>
+            <div class="rt"><span class="sw sm on"></span></div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="nm">ตัดหมอกรุ่นนี้ใช้ขั้วอะไร</div>
+              <div class="sub">ตอบไปแล้ว 7 ครั้ง · ผูกกับ ไฟตัดหมอก H11</div>
+            </div>
+            <div class="rt"><span class="sw sm on"></span></div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="nm">ค่าส่งต่างจังหวัดคิดยังไง</div>
+              <div class="sub">ตอบไปแล้ว 31 ครั้ง · ไม่ผูกสินค้า</div>
+            </div>
+            <div class="rt"><span class="sw sm on"></span></div>
+          </div>
+          <div class="row" style="opacity:.55">
+            <div>
+              <div class="nm">โปรลด 50 บาทถึงสิ้นเดือน</div>
+              <div class="sub">ปิดไว้เมื่อ 30 ก.ค. · <span class="tag tag-warn">หมดอายุแล้ว</span></div>
+            </div>
+            <div class="rt"><span class="sw sm"></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="padding:0 2px">
+        แถวล่างสุดคือเหตุผลที่ต้องปิดได้ทีละข้อ — คำตอบที่เคยถูกวันหนึ่ง กลายเป็นผิดในอีกวันหนึ่ง
+      </p>
+    </div>
+  </div>
+</div>
+<div class="callout q">
+  <b>ทำไมต้องอยู่ในกลุ่ม ไม่ใช่คลังกลางของร้าน</b><br>
+  ถ้าเป็นคลังกลาง คำถามที่ไม่เข้ากลุ่มไหนเลยจะถูกตอบโดย<b>ไม่มีน้ำเสียง ไม่มีกฎ ไม่มีขอบเขตสินค้า</b>
+  เพราะของพวกนั้นอยู่ในกลุ่มทั้งหมด — กลายเป็นคำตอบที่ไม่มีใครคุม<br>
+  พออยู่ในกลุ่ม คำถามที่พิมพ์ไม่ตรงคำเลยยังวิ่งเข้ากลุ่มได้ แล้วโดนคุมด้วยกติกาเดียวกับคำตอบอื่นในกลุ่มนั้น<br>
+  <b>ลำดับ:</b> คำตรงตัวได้สิทธิ์ก่อนเสมอ (แน่นอนกว่า) → ไม่เข้าคำไหนค่อยเทียบความหมายกับคำถามตัวอย่าง
+</div>
+<div class="callout">
+  <b>ต่อกับสิ่งที่ทำเสร็จวันนี้</b> — ป้าย DeepBot ในห้องแชทที่ขึ้น prod ไปแล้ว
+  ชี้แล้วบอกว่าตอบด้วยกลุ่มคำไหน เงื่อนไขอะไร ต้องเพิ่มบรรทัดว่า
+  <b>“เข้ากลุ่มนี้เพราะคำตรงตัว หรือเพราะคำถามตัวอย่างข้อไหน”</b> ไม่งั้นพอบอทตอบแปลก จะยังไล่ไม่เจอว่ามาจากกลุ่มคำหรือมาจากคลัง
+</div>
+
+<h2><span class="n">07</span> จัดการคลังข้อมูลของกลุ่ม</h2>
+<p class="lede">
+  พอคลังโตขึ้นเป็นร้อยข้อ ต้องมีเครื่องมือจริง — <b>ค้นหา · เปิดปิดทีละหลายข้อ · ย้ายข้ามกลุ่ม ·
+  นำเข้าเป็นไฟล์</b> ไม่ใช่รายการยาว ๆ ที่เลื่อนหาเอาเอง
+</p>
+<div class="devices">
+  <div class="dev">
+    <div class="dev-cap">Desktop · 980px — เลือกไว้ 3 ข้อ</div>
+    <div class="screen w980">
+      <div class="card">
+        <div class="card-h">
+          <div>
+            <p class="card-t">คลังข้อมูลของกลุ่ม “ถามสเปกสินค้า”</p>
+            <p class="card-d">142 ข้อ · ใช้งานอยู่ 128 · ถูกใช้ตอบรวม 1,204 ครั้ง</p>
+          </div>
+          <span class="chip on">+ เพิ่มคำถาม</span>
+        </div>
+        <div class="tool">
+          <input class="inp grow" placeholder="ค้นหาจากคำถามหรือคำตอบ">
+          <span class="chip on">ทั้งหมด</span>
+          <span class="chip">ใช้งานอยู่</span>
+          <span class="chip">ปิดไว้</span>
+          <span class="chip">ไม่เคยถูกใช้</span>
+          <span class="chip">นำเข้าไฟล์</span>
+          <span class="chip">ส่งออก</span>
+        </div>
+        <div class="bulk">
+          <span>เลือกไว้ 3 ข้อ</span>
+          <div class="sp">
+            <span class="chip">เปิดใช้งาน</span>
+            <span class="chip">ปิด</span>
+            <span class="chip">ย้ายไปกลุ่มอื่น</span>
+            <span class="chip" style="color:var(--danger);border-color:var(--danger)">ลบ</span>
+          </div>
+        </div>
+        <div class="rows" style="border:0;border-radius:0">
+          <div class="row">
+            <span class="cb on"></span>
+            <div style="min-width:0">
+              <div class="nm">ตัดหมอกรุ่นไหนที่ร้านแนะนำ</div>
+              <div class="ans">ร้านแนะนำรุ่น H11 ครับ ใช้ได้กับรถส่วนใหญ่ ราคา 1,500 ต่อหลอด…</div>
+            </div>
+            <div class="rt"><span class="uses">12 ครั้ง</span><span class="ico">แก้</span><span class="sw sm on"></span></div>
+          </div>
+          <div class="row">
+            <span class="cb on"></span>
+            <div style="min-width:0">
+              <div class="nm">ตัดหมอกรุ่นนี้ใช้ขั้วอะไร</div>
+              <div class="ans">รุ่น H11 ใช้ขั้ว H11 ครับ ถ้ารถรุ่นอื่นแจ้งรุ่นรถมาได้เลย…</div>
+            </div>
+            <div class="rt"><span class="uses">7 ครั้ง</span><span class="ico">แก้</span><span class="sw sm on"></span></div>
+          </div>
+          <div class="row">
+            <span class="cb on"></span>
+            <div style="min-width:0">
+              <div class="nm">ค่าส่งต่างจังหวัดคิดยังไง</div>
+              <div class="ans">ส่งฟรีทั่วประเทศครับ เก็บเงินปลายทางได้…</div>
+            </div>
+            <div class="rt"><span class="uses">31 ครั้ง</span><span class="ico">แก้</span><span class="sw sm on"></span></div>
+          </div>
+          <div class="row" style="opacity:.55">
+            <span class="cb"></span>
+            <div style="min-width:0">
+              <div class="nm">โปรลด 50 บาทถึงสิ้นเดือน</div>
+              <div class="ans">ปิดไว้เมื่อ 30 ก.ค. — หมดอายุแล้ว</div>
+            </div>
+            <div class="rt"><span class="uses">0 ครั้ง</span><span class="ico">แก้</span><span class="sw sm"></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="padding:0 2px">
+        ตัวกรอง <b>“ไม่เคยถูกใช้”</b> คือตัวที่จะได้ใช้บ่อยสุด — ข้อที่กรอกไว้แล้วไม่มีใครถามเลย
+        คือคำถามที่ร้านเดาเอง ไม่ใช่คำถามที่ลูกค้าถามจริง
+      </p>
+    </div>
+  </div>
+  <div class="dev">
+    <div class="dev-cap">Mobile · 360px</div>
+    <div class="screen w360">
+      <div class="card" style="margin:0">
+        <div class="card-h" style="flex-direction:column;align-items:stretch;gap:9px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <p class="card-t">คลังข้อมูล</p><span class="chip on">+ เพิ่ม</span>
+          </div>
+          <input class="inp" placeholder="ค้นหา">
+          <div class="chips">
+            <span class="chip on">ทั้งหมด</span><span class="chip">ใช้งานอยู่</span><span class="chip">ไม่เคยถูกใช้</span>
+          </div>
+        </div>
+        <div class="rows" style="border:0;border-radius:0">
+          <div class="row">
+            <div style="min-width:0">
+              <div class="nm">ตัดหมอกรุ่นไหนที่ร้านแนะนำ</div>
+              <div class="ans" style="max-width:24ch">ร้านแนะนำรุ่น H11 ครับ…</div>
+            </div>
+            <div class="rt"><span class="uses">12</span><span class="sw sm on"></span></div>
+          </div>
+          <div class="row">
+            <div style="min-width:0">
+              <div class="nm">ตัดหมอกรุ่นนี้ใช้ขั้วอะไร</div>
+              <div class="ans" style="max-width:24ch">รุ่น H11 ใช้ขั้ว H11 ครับ…</div>
+            </div>
+            <div class="rt"><span class="uses">7</span><span class="sw sm on"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="callout q">
+  <b>นำเข้าไฟล์</b> — ร้านที่มีคำถาม-คำตอบเก็บไว้ใน Excel อยู่แล้ว (ซึ่งมีเยอะ)
+  ต้องยัดเข้ามาทีเดียวได้ ไม่ใช่พิมพ์ใหม่ทีละข้อ · <b>ส่งออก</b> ไว้สำรองและแก้เป็นชุด
+  <br>ตอนนำเข้าต้องเลือกกลุ่มปลายทาง และดูตัวอย่างก่อนยืนยันเสมอ — ข้อมูลผิดเป็นร้อยข้อแก้ทีหลังเจ็บ
+</div>
+
+<h2><span class="n">08</span> ที่ต้องเคาะก่อนเขียนโค้ด</h2>
+<div class="qs">
+  <div class="q">
+    <h3>เวลาทำงานยังเป็นระดับร้านอยู่ ใช่ที่ต้องการไหม</h3>
+    <p>ตารางเวลา 18:00–09:00 ที่ลงฐานข้อมูลไปแล้ววันนี้เป็นระดับร้าน ต่างจาก AI Enchant ที่คุณเพิ่งสั่งให้เป็นรายกลุ่ม</p>
+    <p class="why">เหตุผลที่ผมทำเป็นระดับร้าน: มันตอบว่า “ตอนไหนไม่มีคนเฝ้าร้าน” ซึ่งไม่ขึ้นกับกลุ่มคำ — แต่ถ้าอยากให้เป็นรายกลุ่มด้วย บอกได้ ยังแก้ทัน</p>
+  </div>
+  <div class="q">
+    <h3>ซ้ำกับ AI Reply Assistant ที่มีอยู่แล้วไหม</h3>
+    <p>ระบบมี AI ร่างคำตอบให้แอดมินกดส่งอยู่แล้ว (feature 00019) อันใหม่นี้คือ <b>ส่งเองอัตโนมัติ</b> ซึ่งเป็นคนละระดับความเสี่ยง</p>
+    <p class="why">ต้องตัดสิน: ใช้โมเดล/โควตา/ตัวกรองข้อมูลชุดเดียวกัน หรือแยกขาด — ถ้าแยกจะกลายเป็นสองระบบ AI ที่ต้องดูแลคู่ขนาน</p>
+  </div>
+  <div class="q">
+    <h3>AI แต่งเกินแล้วร้านเสียหาย กันยังไง</h3>
+    <p>ถ้า AI ตอบว่า “ส่งถึงพรุ่งนี้” แล้วส่งไม่ทัน ลูกค้าถือคำนั้นเป็นสัญญาของร้าน กฎห้ามตอบช่วยได้ระดับหนึ่งแต่กันไม่ได้ทุกกรณี</p>
+    <p class="why">ข้อเสนอ: ห้าม AI สร้างตัวเลขหรือวันเวลาที่ไม่ได้มาจากฐานข้อมูล — พูดได้เฉพาะสิ่งที่ระบบยืนยันได้</p>
+  </div>
+  <div class="q">
+    <h3>ข้อมูลอะไรที่ห้ามส่งเข้า AI</h3>
+    <p>มีกติกาอยู่แล้วว่าห้ามส่งเบอร์โทร อีเมล ที่อยู่ เข้าโมเดล — โหมดนี้อ่านข้อความลูกค้าเพื่อวิเคราะห์ จึงต้องกรองก่อนส่งทุกครั้ง</p>
+    <p class="why">ยืนยันว่าใช้ตัวกรองเดิม ไม่เขียนใหม่</p>
+  </div>
+  <div class="q">
+    <h3>ความจำจะโตจนคุมไม่อยู่ไหม</h3>
+    <p>ผ่านไปครึ่งปี ความจำอาจมี 200 ข้อ ขัดกันเองบ้าง เก่าไปบ้าง และทุกข้อถูกยัดเข้าไปทุกครั้งที่ตอบ</p>
+    <p class="why">ข้อเสนอ: จำกัดจำนวนที่ใช้งานพร้อมกัน (เช่น 50 ข้อ) · เรียงตามที่ถูกใช้บ่อย · ข้อที่ไม่ถูกใช้เลย 60 วันให้ขึ้นเตือนว่าน่าจะลบได้</p>
+  </div>
+  <div class="q">
+    <h3>ความจำขัดกับข้อมูลสินค้าจริง เชื่ออะไร</h3>
+    <p>ความจำบอกว่าราคา 590 แต่ในระบบร้านแก้เป็น 650 แล้ว</p>
+    <p class="why">ข้อเสนอ: <b>ข้อมูลในระบบชนะเสมอ</b> และแจ้งให้ร้านรู้ว่าความจำข้อนี้ขัดกับของจริง — ราคา/สต็อกเปลี่ยนบ่อยเกินกว่าจะให้ความจำที่บันทึกไว้วันก่อนมาทับ</p>
+  </div>
+  <div class="q">
+    <h3>AI ล่มหรือช้าระหว่างลูกค้ารอ</h3>
+    <p>โควตาหมด โมเดลล่ม หรือตอบช้าเกิน</p>
+    <p class="why">ข้อเสนอ: ถอยไปส่งคำตอบเดิมที่ตั้งไว้ทันที ลูกค้าได้คำตอบเสมอ ดีกว่าเงียบ</p>
+  </div>
+</div>
+
+<div class="callout q">
+  <b>ยังไม่ได้ออกแบบ</b> — หน้าจอระหว่าง AI คิด · โควตา/ค่าใช้จ่ายต่อข้อความ ·
+  การลองก่อนเปิดใช้จริง (น่าจะใช้สถานะ “ทดสอบ” ที่มีอยู่แล้วได้)
+</div>
+
+</div>
