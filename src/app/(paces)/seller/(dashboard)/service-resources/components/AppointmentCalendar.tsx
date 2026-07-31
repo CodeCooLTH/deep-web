@@ -223,16 +223,9 @@ export default function AppointmentCalendar({ resources }: Props) {
         </div>
       </div>
 
-      <div className="card-body">
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          {STATUS_ORDER.map((s) => (
-            <span key={s} className="inline-flex items-center gap-1.5">
-              <span className={`${STATUS_DOT[s]} inline-block size-3 rounded`} />
-              <span className="text-default-600">{APPOINTMENT_STATUS_LABEL[s]}</span>
-            </span>
-          ))}
-        </div>
-
+      {/* appointment-calendar — scope ของ CSS ที่ทำให้ปุ่มมุมมองที่กำลังใช้อยู่เด่นกว่าปุ่มอื่น
+          (ดู src/assets/css/plugins/_calendar.css) ไม่กระทบปฏิทินการจองห้องพักของ 00017 */}
+      <div className="card-body appointment-calendar">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
           initialView="dayGridMonth"
@@ -246,13 +239,15 @@ export default function AppointmentCalendar({ resources }: Props) {
             day: 'วัน',
             list: 'รายการ',
           }}
+          // 'prev,next,today' คั่นด้วยจุลภาคล้วน = กลุ่มเดียว ตรงกับ theme —
+          // เขียนเป็น 'prev,next today' (เว้นวรรค) จะกลายเป็นสองกลุ่มแล้วปุ่มตกบรรทัด
           // center ว่างเพราะวาดหัวเรื่อง พ.ศ. เองที่ card-header (FullCalendar แสดง ค.ศ.)
           headerToolbar={{
-            left: 'prev,next today',
+            left: 'prev,next,today',
             center: '',
             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
           }}
-          noEventsText="ยังไม่มีนัดในช่วงนี้"
+          noEventsText="ช่วงนี้ยังไม่มีนัด — นัดจะขึ้นเมื่อคุณระบุวันเข้าใช้บริการตอนสร้างออเดอร์"
           allDayText="ทั้งวัน"
           events={events}
           eventClick={onEventClick}
@@ -263,6 +258,17 @@ export default function AppointmentCalendar({ resources }: Props) {
           selectable={false}
           dayMaxEvents={3}
         />
+
+        {/* คำอธิบายสี — วางใต้ปฏิทิน ไม่ใช่เหนือ เพราะเป็นตัวช่วยอ่านที่เปิดดูตอนเห็นสีแล้ว
+            ถ้าวางไว้ข้างบนจะไปคั่นระหว่างหัวเรื่องกับ toolbar ทำให้อ่านลำดับไม่ออก */}
+        <div className="border-default-200 mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
+          {STATUS_ORDER.map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5">
+              <span className={`${STATUS_DOT[s]} inline-block size-3 rounded`} />
+              <span className="text-default-600">{APPOINTMENT_STATUS_LABEL[s]}</span>
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -93,13 +93,25 @@ spec/baseline ของ phase นี้ enumerate ไว้แค่ 2 ค่า
 
 | # | รายการ | ความเสี่ยง | เหตุผลที่ยอมรับ |
 |---|---|---|---|
-| 1 | S-12 กด submit โมดัลจริงจนบันทึกสำเร็จ ยังไม่ผ่านตา | ต่ำ | reuse `ShipForm` ตัวเดียวกับ create flow ที่ผ่าน browser QA แล้ว ต่างแค่ `mode='edit'` (verb+label) · service มี unit test 5 เคส |
+| 1 | ~~S-12 กด submit โมดัลจริงจนบันทึกสำเร็จ ยังไม่ผ่านตา~~ **CLOSED 2026-07-31** | — | กดจริงบนออเดอร์ `aa000003-…` (SHIPPED+MANUAL) ด้วยข้อมูลจริง: prefill ถูก · PATCH สำเร็จ · DB เปลี่ยนจริง · `status` ยังเป็น SHIPPED · หน้า re-render เองใน ~4–6s · คืนค่าเดิมแล้ว. หลักฐาน: `docs/qa/2026-07-31-edit-tracking-smoke.md`. **เหลือ:** เคส iShip (ปุ่มต้องหายทั้งปุ่ม) ยังไม่มีข้อมูลให้เปิดดู — ทั้งฐานไม่มีออเดอร์ SHIPPED ที่มี `OrderShipment` active |
 | 2 | S-4 CONFIRMED + มีรีวิวจริง | ต่ำ | `page.tsx:107` เป็น derived boolean ธรรมดา ไม่ใช่ logic ซับซ้อน |
 | 3 | S-2 NO_SHIPPING accessUrl บนจอจริง | ต่ำ-กลาง | gate ของ `PaymentCard` เดิมยกมาทั้งก้อนไม่เปลี่ยนเงื่อนไข |
 | 4 | S-8 หน้า list เทียบภาพ | แทบเป็นศูนย์ | `BulkActionBar.tsx` diff = 0 บรรทัด — regression เป็นไปไม่ได้ |
 | 5 | badge variant อื่นนอกจาก PENDING วัด contrast จริง | ต่ำ | เป็น mechanical token swap ชุดเดียวกันทั้ง 4 สถานะ |
-| 6 | **dark mode ของ `-ink` token** — นิยามใน `:root` เท่านั้น ไม่มี override ใน `[data-theme="dark"]` สีเข้ม (`#7f1d1d`,`#1e3a8a`) บน dark card `#1e1f27` น่าจะอ่านไม่ออก | ปานกลาง (โค้ด) / ต่ำ (ผู้ใช้) | `data-theme="light"` hardcode ที่ `(paces)/layout.tsx:56` และไม่มี toggle ให้ผู้ใช้สลับ → เข้าไม่ถึง dark mode · **latent bug ที่ต้องจด ไม่ใช่แค่ "ยังไม่ตรวจ"** |
-| 7 | `ORDER_STAGE_META` (`src/lib/order-stage.ts`) chip ฝั่ง inbox/chat ยังตก AA แบบเดียวกัน | นอกขอบเขต | คนละไฟล์/คนละหน้า ไม่อยู่ใน S-id ใด — carry เป็นหนี้แยก (ตอนนี้มี ink token ให้ใช้แล้ว) |
+| 6 | ~~**dark mode ของ `-ink` token**~~ **CLOSED 2026-07-31** — เพิ่ม override ครบ 5 ช่องใน `[data-theme="dark"]` วัดจากจอต่ำสุด **7.19:1** | — | 🛑 **เหตุผลที่เคยยอมรับไว้ผิดข้อเท็จจริง**: เขียนว่า "ไม่มี toggle ให้ผู้ใช้สลับ" แต่ **มีอยู่จริง** — `header.app-header > .topbar-item.hs-dropdown` (ไอคอนดวงอาทิตย์) มี label Light/Dark/System กดแล้วเปลี่ยน `data-theme` ทันที `data-theme="light"` ที่ layout เป็นแค่ค่าตั้งต้น SSR ไม่ได้ล็อก · gap นี้จึงเป็น **บั๊กที่ผู้ใช้เจอได้จริง** (danger `#7f1d1d` บนพื้น dark = **1.29:1**) ไม่ใช่ latent. หลักฐาน: `docs/qa/2026-07-31-ink-token-contrast.md` |
+| 7 | ~~`ORDER_STAGE_META` chip ฝั่ง inbox/chat ตก AA~~ **CLOSED 2026-07-31** | — | เปลี่ยนเป็น `text-{semantic}-ink` ครบ 7 ขั้น · วัดจากจอ ก่อน/หลัง: warning 1.54→6.56 · info 1.84→7.88 · success 2.11→6.68 · danger 2.68→8.47 · primary 4.17→8.44 (ก่อนแก้ตกทั้ง 5 ช่อง) |
+
+### หนี้ contrast ที่ยังเหลือ (พบตอนวัด 2026-07-31 — ยังไม่แก้)
+
+`bg-{semantic}/15 text-{semantic}` ยังเหลืออีก 3 ชุดที่ตก AA และเป็น status meta ที่ก๊อปกันคนละไฟล์ — สองตัวแรกทำซ้ำสิ่งที่ `ORDER_STATUS_META` (`src/lib/order-display.ts`) เป็น SSOT อยู่แล้ว ควรยุบมาใช้ตัวเดียวแทนไล่แก้สีทีละที่:
+
+| ไฟล์ | บรรทัด | วัดจากจอ |
+|---|---|---|
+| `orders/components/OrdersTable.tsx` | 47 | `รอดำเนินการ` = **1.54:1** |
+| `orders/components/OrderCard.tsx` | 35 | (ชุด token เดียวกัน) |
+| `inbox/components/InboxList.tsx` | 147 (`SALES_STATUS_META`) | (ชุด token เดียวกัน) |
+
+ป้ายส่วนลดในหน้า `/orders` ก็ตกเช่นกัน: `-40%` = **2.68:1**, `-100%` = **2.11:1**
 
 **แนะนำหลัง deploy:** smoke-test ปุ่ม "แก้ไขเลขพัสดุ" บนออเดอร์ SHIPPED+MANUAL จริง 1 ครั้ง เพื่อปิด gap #1 ด้วย real data
 
