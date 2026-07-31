@@ -113,6 +113,8 @@
   <b>สแปมใช้สี danger ของ Paces (#f7577e)</b> ตั้งแต่ยังไม่ถูกเลือก — เป็นถังที่ "ไม่ควรมีอะไรอยู่" ต่างจากมุมมองปกติ กวาดตาเจอโดยไม่ต้องอ่าน<br>
   เมื่อสถานะ/สแปมขึ้นมาเป็นแท็บแล้ว <b>จึงถูกถอดออกจากดรอป</b> — ไม่งั้นจะคุมเรื่องเดียวกันจาก 2 ที่แล้วขัดกันเอง<br>
   <span class="win">ได้:</span> สลับกลุ่ม/ปิดงาน/สแปม ยังคลิกเดียว · แท็บข้อความมีน้ำหนักต่างจาก segmented ชัด ไม่กวนกัน · ดรอปสั้นลงจนไม่ต้องเลื่อน<br>
+  <b>แท็กกรองได้แล้ว</b> (user สั่ง 2026-07-31) — เลือกหลายอันได้ ติดอันใดก็ได้ (OR) โชว์ครบพับหลายบรรทัด
+  ดึงรายการจาก <code>GET /api/chat/tags</code> ที่มีอยู่แล้ว<br>
   <span class="cost">เสีย:</span> ยังมี 3 แถวเมื่อมีตัวกรองค้างอยู่ (แถวชิป)
 </p>
 <div class="devices">
@@ -157,7 +159,7 @@
       </div>
       <button class="fbtn" style="width:100%;justify-content:flex-start">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-        ตัวกรอง <span class="cnt">1</span>
+        ตัวกรอง <span class="cnt">3</span>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-inline-start:auto"><path d="M18 15l-6-6-6 6"/></svg>
       </button>
       <div class="pop">
@@ -166,6 +168,14 @@
           <div class="chips">
             <button class="chip on">ทุกเพจ</button><button class="chip">ธนภัทร์ อะไหล่</button><button class="chip">ธนภัทร์ สาขา 2</button>
           </div>
+          <p class="lbl">แท็ก <span style="font-weight:400">— เลือกได้หลายอัน (ติดอันใดก็ได้)</span></p>
+          <div class="chips">
+            <button class="chip on">VIP</button><button class="chip">ลูกค้าเก่า</button>
+            <button class="chip on">ค้างชำระ</button><button class="chip">รอโอน</button>
+            <button class="chip">สนใจโช๊ค</button><button class="chip">ต่างจังหวัด</button>
+            <button class="chip">ขายส่ง</button>
+          </div>
+
           <p class="lbl">การอ่าน</p>
           <div class="chips">
             <button class="chip on">ทั้งหมด</button><button class="chip">ยังไม่อ่าน</button><button class="chip">อ่านแล้ว</button>
