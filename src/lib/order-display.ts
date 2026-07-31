@@ -56,6 +56,48 @@ export function showSlipZone(
   return status === 'PENDING' && !isCODPayment(paymentMethod)
 }
 
+/**
+ * PaymentBadge — badge สถานะการชำระเงิน (แยกจาก ORDER_STATUS_META ที่เป็น badge สถานะออเดอร์)
+ * null = ไม่แสดง badge (วิธีชำระที่ไม่รู้จัก เช่น CASH/CARD/OTHER หรือ paymentMethod ว่าง)
+ */
+export type PaymentBadge = { label: string; cls: string } | null
+
+/**
+ * getPaymentBadge — derive badge การชำระเงินจากสถานะออเดอร์ + วิธีชำระ + สลิป
+ *
+ * ทำไม: ยกมาจาก local fn ใน PaymentCard.tsx (T5, contract กลางให้ task อื่น import ร่วม)
+ * ต่างจาก ORDER_STATUS_META (badge สถานะออเดอร์ 4 ค่า PENDING/SHIPPED/CONFIRMED/CANCELLED)
+ * ตัวนี้คือ badge ของ "การชำระเงิน" โดยเฉพาะ — ใบเดียวกันอาจมี badge สถานะออเดอร์ = SHIPPED
+ * แต่ badge การชำระเงิน = "ชำระแล้ว" คนละแกนกัน
+ *
+ * Verified-Means-Green: เขียว (bg-success) สงวนไว้เฉพาะ "ชำระแล้ว" จริง (status=CONFIRMED)
+ * เท่านั้น — "รอตรวจสอบสลิป"/"รอชำระ"/"รอเก็บปลายทาง" ต้องเป็น info/warning ห้ามเขียว
+ */
+export function getPaymentBadge(
+  status: string,
+  paymentMethod: string | null | undefined,
+  slipFileId: string | null | undefined,
+): PaymentBadge {
+  if (status === 'CONFIRMED') {
+    return { label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success' }
+  }
+  if (status === 'CANCELLED') {
+    return { label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-400' }
+  }
+  if (isCODPayment(paymentMethod)) {
+    return { label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info' }
+  }
+  // TRANSFER / PROMPTPAY
+  if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
+    if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info' }
+    // "รอชำระ" เป็นสถานะปกติของออเดอร์ที่เพิ่งสร้าง ไม่ใช่ความผิดพลาด — ห้ามใช้ danger (แดง)
+    // ทำให้ออเดอร์ใหม่ทุกใบขึ้นแดงตั้งแต่วินาทีแรก แดงเลยไม่เหลือความหมาย
+    return { label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning' }
+  }
+  // วิธีอื่น (CASH/CARD/OTHER) หรือ paymentMethod null — ไม่แสดง badge
+  return null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
