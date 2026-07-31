@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
 import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError } from '@/lib/facebook/graph'
@@ -1062,5 +1063,14 @@ export async function sendOutboundMessage(params: {
   }
 
   if (failureReason) throw new Error(`SEND_FAILED: ${failureReason}`)
+
+  // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
+  //
+  // เงื่อนไข `!params.autoReplyKind` คือหัวใจ: ถ้าไม่แยก บอทจะหยุดตัวเองทุกครั้งที่ตอบ
+  // เพราะคำตอบของบอทก็เดินผ่านฟังก์ชันนี้เหมือนกัน (คอลัมน์ autoReplyKind มีไว้เพื่อการนี้)
+  // ทำหลังส่งสำเร็จเท่านั้น — ส่งไม่ผ่าน = ลูกค้าไม่ได้รับอะไร ไม่ใช่การรับช่วงต่อ
+  if (!params.autoReplyKind) {
+    await pauseForHumanTakeover(params.conversationId, conversation.shopId)
+  }
   return message
 }

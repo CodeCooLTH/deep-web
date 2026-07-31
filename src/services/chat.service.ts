@@ -3,6 +3,7 @@ import { canAccessShop } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
+import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 
 export type SenderRole = 'BUYER' | 'SHOP'
 export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
@@ -528,7 +529,7 @@ export async function sendMessage(params: {
   orderRefToken?: string | null // เฉพาะ type='ORDER' (การ์ดออเดอร์ในแชท, user 2026-07-24)
   replyToMid?: string | null // reply/quote (user 2026-07-25) — DEEP เก็บ id ของข้อความที่ตอบทับ; enrich match id/externalMessageId
 }): Promise<ChatMessageView> {
-  return prisma.$transaction(async (tx) => {
+  const sent = await prisma.$transaction(async (tx) => {
     const conversation = await tx.conversation.findUnique({ where: { id: params.conversationId } })
     if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
 
@@ -631,6 +632,15 @@ export async function sendMessage(params: {
 
     return { ...message, autoReply: null } as ChatMessageView
   })
+
+  // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
+  //
+  // เรียก **นอก** $transaction ตั้งใจ: การหยุดบอทไม่ใช่เงื่อนไขความถูกต้องของการส่งข้อความ
+  // ถ้าล้มก็ไม่ควรพา rollback ข้อความที่ส่งถึงลูกค้าไปแล้ว (ตัวฟังก์ชันเองก็กลืน error อยู่แล้ว)
+  if (params.senderRole === 'SHOP') {
+    await pauseForHumanTakeover(params.conversationId)
+  }
+  return sent
 }
 
 // ---- markRead ----
@@ -696,6 +706,10 @@ export async function updateConversationState(
     data,
   })
   if (result.count === 0) throw new Error('CONVERSATION_NOT_FOUND_OR_FORBIDDEN')
+
+  // feature 00023 — โหมด UNTIL_RESOLVED: ปิดงานเธรด = คืนให้ระบบดูแลต่อ
+  // (ตัวฟังก์ชันกรอง handoffReason เองแล้ว เธรดที่ล็อกด้วยเหตุอื่นจะไม่ถูกปลด)
+  if (action === 'resolve') await clearTakeoverOnResolve(conversationId, shopId)
 }
 
 // ---- getUnreadCountForShop ----
