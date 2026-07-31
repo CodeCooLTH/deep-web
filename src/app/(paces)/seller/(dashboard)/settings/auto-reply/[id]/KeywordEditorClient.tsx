@@ -109,6 +109,10 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
 
   const [status, setStatus] = useState(keyword.status)
   const [testThreadCount, setTestThreadCount] = useState(keyword.testThreadCount)
+  /** ตัวนับสั่งเปิดแผงเลือกแชทใน TestThreadsCard (ใช้ตัวนับไม่ใช่ boolean — กดซ้ำต้องทริกเกอร์ซ้ำได้) */
+  const [pickerSignal, setPickerSignal] = useState(0)
+  /** จำว่าผู้ใช้กด "ทดสอบ" ไว้ตอนยังไม่มีแชท — พอเลือกแชทแรกเสร็จให้สลับสถานะให้เอง */
+  const pendingTestRef = useRef(false)
   const [name, setName] = useState(keyword.name)
   /**
    * รูปแบบการตรวจจับล็อกไว้ที่ค่าเดิมของชุดนั้น ไม่ให้แก้ผ่าน UI (user 2026-07-29)
@@ -217,6 +221,19 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
    */
   async function changeStatus(next: string) {
     if (!canEdit || busy || next === status) return
+    /**
+     * ทางตันที่ user เจอบน prod 2026-07-31: กด "ทดสอบ" ตอนยังไม่มีแชท → server ปฏิเสธ
+     * (ต้องมี >=1 แชทก่อน) แล้วโยน toast แดงบอกให้ "เลือกแชทก่อน" — แต่แผงเลือกแชทอยู่
+     * ใต้จอไกลจากปุ่ม ผู้ใช้จึงติดวงกลม: จะเปิดโหมดทดสอบต้องมีแชท / จะเห็นที่เลือกแชทต้อง
+     * หาเอง กันด้วยการ **ไม่ยิง API เลย** แล้วพาไปที่แผงเลือกแชทแทน + จำไว้ว่าตั้งใจจะเปิด
+     * โหมดทดสอบ พอเลือกแชทแรกเสร็จจะสลับสถานะให้เอง (ผู้ใช้กดครั้งเดียวได้ผลตามที่ตั้งใจ)
+     */
+    if (next === 'TEST' && testThreadCount === 0) {
+      pendingTestRef.current = true
+      setPickerSignal((n) => n + 1)
+      pacesToast.info('เลือกแชทที่จะใช้ทดสอบก่อน แล้วระบบจะเปิดโหมดทดสอบให้อัตโนมัติ')
+      return
+    }
     if (next === 'LIVE') {
       const ok = await pacesConfirm.warning(
         'ให้กลุ่มคำนี้ตอบลูกค้าจริง?',
@@ -784,7 +801,16 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
             keywordId={keyword.id}
             status={status}
             canEdit={canEdit}
-            onCountChange={setTestThreadCount}
+            openPickerSignal={pickerSignal}
+            onCountChange={(count) => {
+              setTestThreadCount(count)
+              // ผู้ใช้กด "ทดสอบ" ไว้ตอน 0 แชท — พอมีแชทแรกแล้วเปิดโหมดให้เลย
+              // เขาจะได้ไม่ต้องเลื่อนกลับขึ้นไปกดปุ่มเดิมซ้ำ (ทางตันเดิม)
+              if (pendingTestRef.current && count > 0) {
+                pendingTestRef.current = false
+                void changeStatus('TEST')
+              }
+            }}
           />
         </div>
 
