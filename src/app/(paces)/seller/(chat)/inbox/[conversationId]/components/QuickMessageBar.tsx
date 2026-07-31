@@ -149,8 +149,11 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
   )
 
 
-  // จัดกลุ่มตามหมวดสำหรับแสดงผล (user สั่ง 2026-07-31) — "ไม่มีหมวดหมู่" มาก่อนเสมอ
-  // ตามตัวอย่างที่ user วาดให้ จากนั้นเรียงหมวดที่เหลือตามตัวอักษรไทย
+  // จัดกลุ่มตามหมวดสำหรับแสดงผล (user สั่ง 2026-07-31)
+  // **ลำดับกลุ่ม = ลำดับที่ผู้ใช้ลากเอง** (ผลตัดสิน user 2026-08-01): กลุ่มไหนมีข้อความที่อยู่
+  // อันดับต้นสุด กลุ่มนั้นขึ้นก่อน — Map เก็บลำดับตอน insert อยู่แล้ว และ filtered เรียงตาม
+  // sortOrder จาก DB จึงได้ลำดับนี้ฟรี ไม่ต้อง sort ทับ (เดิม sort ก.ไก่ ทำให้คุมลำดับไม่ได้)
+  // ผลพลอยได้: ไม่ต้องมี UI จัดลำดับกลุ่มแยก ใช้โหมดจัดลำดับเดิมคุมได้ทั้งกลุ่มและรายการ
   const groups = useMemo(() => {
     const map = new Map<string, QuickMessage[]>()
     for (const qm of filtered) {
@@ -159,12 +162,11 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
       if (list) list.push(qm)
       else map.set(key, [qm])
     }
-    const keys = Array.from(map.keys()).sort((a, b) => {
-      if (a === '') return -1
-      if (b === '') return 1
-      return a.localeCompare(b, 'th')
-    })
-    return keys.map((key) => ({ key, label: key || 'ไม่มีหมวดหมู่', items: map.get(key)! }))
+    return Array.from(map, ([key, groupItems]) => ({
+      key,
+      label: key || 'ไม่มีหมวดหมู่',
+      items: groupItems,
+    }))
   }, [filtered])
 
   /** การ์ดหนึ่งใบ — โครงเดิมทั้งหมด ต่างแค่ไม่ล็อกความกว้าง (w-32) แล้ว เพราะอยู่ใน grid */
@@ -228,7 +230,9 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
         {imgs.length > 0 ? (
           // กรอบเป็นตัวกำหนดสี่เหลี่ยมจัตุรัส แล้วรูปเติมเต็มแบบ absolute → ครอปจริง สูงเท่ากันทุกใบ
           // ไม่ว่าไฟล์จะสัดส่วนใด (ใส่ aspect-square ที่ <img> ตรง ๆ ไม่ได้ผล — เป็น replaced element)
-          <span className="relative block aspect-square w-full overflow-hidden">
+          {/* h-28 คงที่ ไม่ใช่ aspect-square — จัตุรัสทำให้ความสูงการ์ดผูกกับความกว้าง ยิ่งจอกว้าง
+              คอลัมน์ยิ่งกว้าง การ์ดยิ่งสูงจนกินพื้นที่ทั้งแผง (user เจอบน desktop 2026-08-01) */}
+          <span className="relative block h-28 w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`/api/files/${imgs[0]}`} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
             {imgs.length > 1 && (
@@ -240,7 +244,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
         ) : (
           // ไม่มีรูป → โชว์ข้อความแทนที่ช่องรูป (ต่างจากการ์ดสินค้าที่ขึ้น "ไม่มีรูป" เฉย ๆ
           // เพราะข้อความสำเร็จรูปแบบไม่มีรูปเป็นเคสปกติ ไม่ใช่ข้อมูลขาด)
-          <span className="bg-light text-default-700 flex aspect-square w-full items-center p-2.5 text-2xs">
+          <span className="bg-light text-default-700 flex h-28 w-full items-center p-2.5 text-2xs">
             <span className="line-clamp-5">{qm.body || qm.title}</span>
           </span>
         )}
