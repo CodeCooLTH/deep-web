@@ -227,6 +227,35 @@ describe('ลำดับ gate (PRD §4.3)', () => {
     expect(sendM).not.toHaveBeenCalled()
     expect(writeLogM.mock.calls[0]![0]).toMatchObject({ decision: 'HANDOFF', skipReason: 'NO_KEYWORD_MATCH' })
   })
+
+  /**
+   * บั๊กจริงบน prod 2026-07-31: ลูกค้าทักด้วยคำที่ตั้งไว้แล้วบอทเงียบ
+   *
+   * ต้นเหตุคือเคสนี้เคยเขียน `handoffAt` ซึ่งเป็นสวิตช์ **ถาวร** (ไม่มีที่ไหนเคลียร์กลับ)
+   * ทำให้ข้อความถัดไปทุกข้อความถูกตัดที่ gate ก่อนถึงขั้น match — ห้องตายตั้งแต่ข้อความแรก
+   * ที่ไม่ตรงคำ ซึ่งเป็นเคสปกติของแทบทุกบทสนทนา ("สวัสดีครับ")
+   *
+   * เทสนี้ล็อกไว้ว่า NO_KEYWORD_MATCH ต้องไม่แตะ conversation เลย
+   */
+  it('ไม่ match กลุ่มคำใด -> ห้ามเขียน handoffAt (ไม่งั้นห้องตายถาวร)', async () => {
+    matchM.mockReturnValue({ winner: null, matchTrace: { winner: null, criterion: null, losers: [] } } as never)
+    resolveM.mockReturnValue({ rule: null, resolutionLevel: 'NONE', fallbackFrom: [] } as never)
+    await processJob(JOB)
+    expect(db.conversation.update).not.toHaveBeenCalled()
+  })
+
+  /** ตรงข้ามกับเคสบน — เหตุผลที่แปลว่า "ตั้งค่าไม่ครบ" ยังต้องล็อกห้องไว้ให้คนมาดู */
+  it('match ได้แต่คำตอบว่าง -> ยังเขียน handoffAt ตามเดิม (EMPTY_REPLY)', async () => {
+    resolveM.mockReturnValue({
+      rule: { replyText: '   ' },
+      resolutionLevel: 'KEYWORD_ONLY',
+      fallbackFrom: [],
+    } as never)
+    await processJob(JOB)
+    expect(db.conversation.update.mock.calls[0]![0].data).toMatchObject({
+      handoffReason: 'EMPTY_REPLY',
+    })
+  })
 })
 
 describe('ส่งสำเร็จ / ล้มเหลว', () => {
