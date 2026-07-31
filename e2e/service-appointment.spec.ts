@@ -52,7 +52,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      await page.goto('/service-resources')
+      await page.goto('/queues')
 
       await expect(page.getByRole('heading', { name: 'คิวงานที่รับได้' })).toBeVisible()
       // ยังไม่มีคิวงาน → ต้องเห็น empty state ที่สอนว่าต้องทำอะไรต่อ ไม่ใช่หน้าว่าง
@@ -72,7 +72,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
     const seeded = await createShop({ kind: 'PERSONAL', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      const res = await page.goto('/service-resources')
+      const res = await page.goto('/queues')
       expect(res?.status()).toBe(404)
 
       await page.goto('/dashboard')
@@ -87,7 +87,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'LODGING' })
     try {
       await loginAs(context, seeded)
-      const res = await page.goto('/service-resources')
+      const res = await page.goto('/queues')
       expect(res?.status()).toBe(404)
 
       await page.goto('/dashboard')
@@ -125,12 +125,12 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      await page.goto('/service-resources/new')
+      await page.goto('/queues/new')
 
       await page.getByLabel('ชื่อคิวงาน').fill('หมอนวด A')
       await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
 
-      await page.waitForURL('**/service-resources')
+      await page.waitForURL('**/queues')
       await expect(page.getByText('หมอนวด A')).toBeVisible()
 
       const row = await prisma.serviceResource.findFirst({
@@ -152,7 +152,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      await page.goto('/service-resources/new')
+      await page.goto('/queues/new')
 
       await page.getByLabel('ชื่อคิวงาน').fill('คลาสเช้า')
       await page.getByLabel('จำนวนคิวที่รับพร้อมกัน').fill('8')
@@ -164,7 +164,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
       await expect(page.getByText('ลูกค้าจ่ายหน้างานอีก ฿700')).toBeVisible()
 
       await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
-      await page.waitForURL('**/service-resources')
+      await page.waitForURL('**/queues')
 
       const row = await prisma.serviceResource.findFirst({
         where: { shopId: seeded.shopId, name: 'คลาสเช้า' },
@@ -182,7 +182,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      await page.goto('/service-resources/new')
+      await page.goto('/queues/new')
 
       await page.getByLabel('ชื่อคิวงาน').fill('ทดสอบคิวศูนย์')
       await page.getByLabel('จำนวนคิวที่รับพร้อมกัน').fill('0')
@@ -217,7 +217,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
       })
 
       await loginAs(context, seeded)
-      await page.goto('/service-resources')
+      await page.goto('/queues')
 
       page.once('dialog', (d) => d.dismiss().catch(() => {}))
       await page.getByRole('button', { name: 'ลบช่างสมชาย' }).first().click()
@@ -243,7 +243,7 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      await page.goto('/service-resources')
+      await page.goto('/queues')
 
       // ปฏิทิน Paces (FullCalendar) อยู่ในหน้าคิวงานหน้าเดียวกัน
       await expect(page.getByRole('button', { name: 'เดือน' })).toBeVisible()
@@ -280,7 +280,7 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
       })
 
       await loginAs(context, seeded)
-      await page.goto('/service-resources')
+      await page.goto('/queues')
 
       await expect(page.getByText('สมชาย ใจดี').first()).toBeVisible()
       await expect(page.getByText('เตียงนวด 1').first()).toBeVisible()

@@ -23,13 +23,17 @@
  *   "จองแล้ว n จาก m คิว" ซึ่งคำนวณฝั่ง client เพราะ API ไม่ได้ส่งจำนวนมาให้ (API.md §4.5)
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
+// interactionPlugin จำเป็นสำหรับ dateClick (กดช่องวันเพื่อสร้างการจอง) — option นี้มาจาก
+// type augmentation ของ plugin ตัวนี้ ไม่ได้อยู่ใน core. theme ก็ import ตัวเดียวกัน
+// ยังคง editable/selectable = false — เปิด plugin ไม่ได้แปลว่าเปิดการลาก
+import interactionPlugin from '@fullcalendar/interaction'
 import FullCalendar from '@fullcalendar/react'
-import type { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core'
+import type { DatesSetArg, DateSelectArg, EventClickArg, EventInput } from '@fullcalendar/core'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import {
@@ -96,6 +100,30 @@ const STATUS_ORDER: AppointmentStatus[] = [
  *
  * IMPORTANT: เป็นตัวเลข "เพื่อดู" เท่านั้น ไม่ใช่ตัวตัดสินว่าจองได้/ไม่ได้ (BR-RSV-18)
  */
+
+// ── ความจุรายวัน (FR-RSV-04) ────────────────────────────────────────────────
+// เจ้าของร้านถามว่า "วันไหนยังรับรถได้อีก" ไม่ใช่ "วันนี้มีใบนัดกี่ใบ" — ร้านมีหลายคิวงาน
+// ถ้าโชว์แต่ใบนัด ต้องนับเองว่าเหลือที่ว่างไหม จึงสรุปเป็นแถบความจุต่อวัน
+//
+// IMPORTANT: เป็นตัวเลข "เพื่อดู" เท่านั้น ไม่ใช่ตัวตัดสินว่าจองได้/ไม่ได้ (BR-RSV-18)
+// ตัวตัดสินจริงคือ EXCLUDE constraint ตอนบันทึก — วันที่ขึ้นว่าเต็มจึงกันแค่ปุ่มลัด
+// ไม่ได้กันการสร้างออเดอร์ผ่านเส้นทางปกติ
+
+const BKK_OFFSET_MS = 7 * 60 * 60 * 1000
+const DAY_MS = 86_400_000
+
+/** คีย์ "YYYY-MM-DD" ตามปฏิทินไทย — ใช้จับนัดเข้ากับช่องวันของ FullCalendar */
+function bangkokDayKey(d: Date): string {
+  return new Date(d.getTime() + BKK_OFFSET_MS).toISOString().slice(0, 10)
+}
+
+/** ช่องวันของ FullCalendar เป็นเวลาเครื่อง — แปลงเป็นคีย์เดียวกันเพื่อเทียบกันได้ */
+function localDayKey(d: Date): string {
+  const m = `${d.getMonth() + 1}`.padStart(2, '0')
+  const day = `${d.getDate()}`.padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
 function bookedAtSameTime(item: AppointmentItem, all: AppointmentItem[]): number {
   if (!item.resource) return 0
   const aStart = new Date(item.start).getTime()
@@ -110,6 +138,7 @@ function bookedAtSameTime(item: AppointmentItem, all: AppointmentItem[]): number
 
 export default function AppointmentCalendar({ resources }: Props) {
   const router = useRouter()
+  const calendarRef = useRef<FullCalendar | null>(null)
   const [resourceId, setResourceId] = useState<string>(ALL)
   const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   const [title, setTitle] = useState('')
@@ -153,6 +182,68 @@ export default function AppointmentCalendar({ resources }: Props) {
     if (range) fetchAppointments(range.from, range.to, resourceId)
   }, [range, resourceId, fetchAppointments])
 
+
+  /**
+   * มือถือใช้มุมมอง "รายการ" แทนตารางเดือน — ตาราง 7 คอลัมน์บนจอ 375px อ่านไม่ออกจริง
+   * และพฤติกรรมจริงของร้านบนมือถือคือเปิดดู "วันนี้ใครเข้ามาบ้าง" ระหว่างทำงาน
+   * เปลี่ยนหลัง mount เพราะ initialView ต้องคงที่ตอน SSR ไม่งั้น hydration ไม่ตรง
+   */
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const apply = () => {
+      const api = calendarRef.current?.getApi()
+      if (!api) return
+      api.changeView(mq.matches ? 'listWeek' : 'dayGridMonth')
+    }
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+
+  /**
+   * ความจุรวมของวันหนึ่ง = ผลรวม capacity ของคิวงานที่กำลังดูอยู่
+   * กรองคิวงานเดียว → นับเฉพาะตัวนั้น (user ตัดสิน 2026-07-31: รวมทุกคิวงานเป็นตัวเดียว)
+   */
+  const totalCapacity = useMemo(
+    () =>
+      (resourceId ? resources.filter((r) => r.id === resourceId) : resources).reduce(
+        (sum, r) => sum + r.capacity,
+        0,
+      ),
+    [resources, resourceId],
+  )
+
+  /** จำนวนนัดต่อวัน (คีย์ตามปฏิทินไทย) — นับนัดที่คาบเกี่ยววันนั้น */
+  const bookedByDay = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const it of items) {
+      const start = new Date(it.start)
+      const end = new Date(it.end)
+      // นัดข้ามวันนับเข้าทุกวันที่มันกิน — วันนั้นถือว่าคิวถูกใช้ไปแล้ว
+      for (let t = start.getTime(); t < end.getTime(); t += DAY_MS) {
+        const k = bangkokDayKey(new Date(t))
+        map.set(k, (map.get(k) ?? 0) + 1)
+        if (end.getTime() - t <= DAY_MS) break
+      }
+    }
+    return map
+  }, [items])
+
+  /**
+   * กดช่องวัน → เปิดฟอร์มสร้างออเดอร์พร้อมวันที่กรอกไว้ให้แล้ว
+   * (user ตัดสิน 2026-07-31: ใช้ /orders/new เดิม ไม่ทำฟอร์มย่อในปฏิทิน)
+   * วันที่เต็มแล้วไม่เปิด — กันการเสียเวลากรอกแล้วโดนปฏิเสธตอนบันทึก
+   */
+  const onDateClick = useCallback(
+    (arg: { date: Date }) => {
+      const key = localDayKey(arg.date)
+      if (totalCapacity > 0 && (bookedByDay.get(key) ?? 0) >= totalCapacity) return
+      router.push(`/orders/new?appointmentDate=${key}`)
+    },
+    [router, bookedByDay, totalCapacity],
+  )
+
   const events: EventInput[] = useMemo(
     () =>
       items.map((it) => {
@@ -165,9 +256,11 @@ export default function AppointmentCalendar({ resources }: Props) {
           it.resource && it.resource.capacity > 1
             ? ` (จองแล้ว ${bookedAtSameTime(it, items)} จาก ${it.resource.capacity} คิว)`
             : ''
+        // เลขคำสั่งซื้อต่อท้ายเพื่อให้เห็น "มาจากออเดอร์ไหน" ก่อนกด ไม่ใช่กดแล้วค่อยรู้
+          // (user สั่ง 2026-07-31: การจองต้อง map กับ order ได้)
         return {
           id: it.orderToken,
-          title: `${base}${cap}`,
+          title: `${base}${cap}${it.orderNo ? ` · ${it.orderNo}` : ''}`,
           start: it.start,
           end: it.end,
           // นัดรายวัน (FR-RSV-13) ให้ FullCalendar วางเป็น all-day ไม่ใช่แถบเวลา 00:00-00:00
@@ -227,7 +320,7 @@ export default function AppointmentCalendar({ resources }: Props) {
           (ดู src/assets/css/plugins/_calendar.css) ไม่กระทบปฏิทินการจองห้องพักของ 00017 */}
       <div className="card-body appointment-calendar">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           locale="th"
           height="auto"
@@ -252,6 +345,45 @@ export default function AppointmentCalendar({ resources }: Props) {
           events={events}
           eventClick={onEventClick}
           datesSet={onDatesSet}
+          dateClick={onDateClick}
+          /* ช่องวันบอก 3 อย่างในบรรทัดเดียว: เลขวัน · จองแล้วกี่จากกี่คิว · ปุ่มจอง (โผล่ตอน hover)
+             ปุ่มอยู่ในแถบหัวช่องเพราะ FullCalendar ให้เราแทรก DOM ได้แค่ตรงนี้โดยไม่ต้องแฮ็ก
+             ภายใน — ต่างจาก mockup ที่วาดปุ่มไว้ก้นช่อง */
+          dayCellClassNames={(arg) => {
+            if (totalCapacity <= 0) return []
+            const n = bookedByDay.get(localDayKey(arg.date)) ?? 0
+            if (n >= totalCapacity) return ['appt-day-full']
+            if (n === totalCapacity - 1) return ['appt-day-tight']
+            return []
+          }}
+          dayCellContent={(arg) => {
+            const n = bookedByDay.get(localDayKey(arg.date)) ?? 0
+            const full = totalCapacity > 0 && n >= totalCapacity
+            return (
+              <div className="flex w-full items-center justify-between gap-2">
+                <span className="appt-day-cap text-default-600 text-xs font-semibold">
+                  {n > 0 && totalCapacity > 0
+                    ? full
+                      ? `เต็ม ${n}/${totalCapacity}`
+                      : `${n}/${totalCapacity}`
+                    : ''}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="appt-day-add text-primary inline-flex items-center gap-0.5 text-xs font-semibold">
+                    {full ? (
+                      'เต็มแล้ว'
+                    ) : (
+                      <>
+                        <Icon icon="tabler:plus" className="size-3" />
+                        จอง
+                      </>
+                    )}
+                  </span>
+                  <span>{arg.dayNumberText}</span>
+                </span>
+              </div>
+            )
+          }}
           // ตัด editable/droppable ออกจาก theme — ยังไม่รองรับการลากเปลี่ยนวัน
           // ถ้าเปิดไว้ผู้ใช้จะลากแล้วเข้าใจว่าบันทึกแล้วทั้งที่ไม่ได้บันทึก
           editable={false}

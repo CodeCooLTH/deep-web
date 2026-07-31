@@ -1,0 +1,714 @@
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     Mockup: ปฏิทินคิว (feature 00024) — ออกแบบใหม่ 2026-07-31
+     สีทั้งหมดคัดจาก src/assets/css/config/_root.css ของ Paces จริง ไม่ได้เดา
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --paces-bg: #f6f7fb;
+    --paces-card: #ffffff;
+    --paces-ink: #313a46;
+    --paces-body: #4c4c5c;
+    --paces-primary: #236dc9;
+    --paces-primary-hover: #1e5dab;
+    --paces-success: #02bc9c;
+    --paces-warning: #f9bf59;
+    --paces-danger: #f7577e;
+    --paces-b300: #e7e9eb;
+    --paces-b200: #eef2f7;
+    --paces-d400: #9ba6b7;
+    --paces-d700: #6c757d;
+
+    /* chrome ของหน้า mockup (คนละชั้นกับภาพจำลองสินค้า) */
+    --page-bg: #f2f3f7;
+    --page-fg: #22252b;
+    --page-muted: #5d6470;
+    --page-line: #d9dce3;
+    --page-panel: #ffffff;
+    --page-accent: #236dc9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg: #14161a;
+      --page-fg: #e6e8ec;
+      --page-muted: #9aa2b0;
+      --page-line: #2a2e36;
+      --page-panel: #1b1e24;
+      --page-accent: #6ea8f0;
+    }
+  }
+  :root[data-theme='dark'] {
+    --page-bg: #14161a;
+    --page-fg: #e6e8ec;
+    --page-muted: #9aa2b0;
+    --page-line: #2a2e36;
+    --page-panel: #1b1e24;
+    --page-accent: #6ea8f0;
+  }
+  :root[data-theme='light'] {
+    --page-bg: #f2f3f7;
+    --page-fg: #22252b;
+    --page-muted: #5d6470;
+    --page-line: #d9dce3;
+    --page-panel: #ffffff;
+    --page-accent: #236dc9;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: 'Anuphan', 'Noto Sans Thai', 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 20px 96px; }
+
+  .masthead { border-bottom: 2px solid var(--page-fg); padding-bottom: 20px; margin-bottom: 8px; }
+  .kicker {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--page-muted); margin: 0 0 6px;
+  }
+  h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.2; margin: 0 0 10px; text-wrap: balance; font-weight: 600; }
+  .sub { color: var(--page-muted); margin: 0; max-width: 62ch; }
+
+  h2 {
+    font-size: 22px; font-weight: 600; margin: 56px 0 6px;
+    padding-top: 20px; border-top: 1px solid var(--page-line);
+  }
+  h2:first-of-type { border-top: 0; }
+  h3 { font-size: 16px; font-weight: 600; margin: 28px 0 8px; }
+  .lede { color: var(--page-muted); margin: 0 0 20px; max-width: 68ch; }
+
+  /* ── กรอบอุปกรณ์ ───────────────────────────────────────────── */
+  .devices { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .device { flex: 1 1 320px; min-width: 0; }
+  .device-label {
+    font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--page-muted); margin: 0 0 8px; font-weight: 600;
+  }
+  .screen {
+    background: var(--paces-bg);
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    padding: 14px;
+    overflow-x: auto;
+    /* ภาพจำลองสินค้าเป็นสกินสว่างเสมอ เพราะ Paces default skin เป็นสว่าง
+       ไม่ inverse ตาม theme ของผู้อ่าน ไม่งั้นจะไม่ใช่ของจริง */
+    color: var(--paces-body);
+  }
+  .device--desktop { flex: 1 1 100%; }
+  .device--tablet { flex: 1 1 420px; }
+  .device--mobile { flex: 0 0 300px; }
+
+  /* ── ชิ้นส่วน Paces ────────────────────────────────────────── */
+  .card {
+    background: var(--paces-card);
+    border-radius: 8px;
+    border: 1px solid var(--paces-b300);
+  }
+  .card-header {
+    padding: 14px 16px;
+    border-bottom: 1px dashed var(--paces-b300);
+    display: flex; flex-wrap: wrap; gap: 10px;
+    align-items: center; justify-content: space-between;
+  }
+  .card-title { font-size: 15px; font-weight: 600; color: var(--paces-ink); margin: 0; }
+  .card-sub { font-size: 12.5px; color: var(--paces-d700); margin: 2px 0 0; }
+  .card-body { padding: 14px 16px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 6px; border: 1px solid transparent;
+    padding: 7px 12px; font-size: 13px; font-weight: 500;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--paces-primary); color: #fff; }
+  .btn-ghost { background: var(--paces-b200); color: var(--paces-d700); }
+  .btn-group { display: inline-flex; }
+  .btn-group .btn { border-radius: 0; }
+  .btn-group .btn:first-child { border-radius: 6px 0 0 6px; }
+  .btn-group .btn:last-child { border-radius: 0 6px 6px 0; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-radius: 999px; padding: 2px 9px;
+    font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  }
+  .b-sched { background: rgba(249,191,89,.18); color: #92400e; }
+  .b-conf  { background: rgba(2,188,156,.16); color: #065f46; }
+  .b-resc  { background: rgba(249,191,89,.18); color: #92400e; }
+  .b-done  { background: rgba(2,188,156,.16); color: #065f46; }
+  .b-noshow{ background: rgba(247,87,126,.16); color: #7f1d1d; }
+  .b-neutral { background: var(--paces-b200); color: var(--paces-d700); }
+
+  /* ── ตารางเดือน ───────────────────────────────────────────── */
+  .cal { border: 1px solid var(--paces-b300); border-radius: 6px; overflow: hidden; }
+  .cal-head, .cal-row { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .cal-head div {
+    padding: 8px 6px; text-align: center; font-size: 12px; font-weight: 600;
+    color: var(--paces-d700); background: var(--paces-b200);
+    border-right: 1px solid var(--paces-b300);
+  }
+  .cal-head div:last-child { border-right: 0; }
+
+  .day {
+    position: relative;
+    min-height: 92px; padding: 6px 7px;
+    border-right: 1px solid var(--paces-b300);
+    border-top: 1px solid var(--paces-b300);
+    background: var(--paces-card);
+    display: flex; flex-direction: column; gap: 5px;
+    font-size: 12px;
+  }
+  .day:last-child { border-right: 0; }
+  .day-num { font-size: 12.5px; font-weight: 600; color: var(--paces-ink); align-self: flex-end; }
+  .day.is-out { background: var(--paces-bg); }
+  .day.is-out .day-num { color: var(--paces-d400); font-weight: 400; }
+  .day.is-today .day-num {
+    background: var(--paces-primary); color: #fff;
+    border-radius: 999px; min-width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* แถบความจุ — สรุปทั้งวันในบรรทัดเดียว อ่านได้โดยไม่ต้องนับใบนัด */
+  .cap {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 600;
+  }
+  .cap-bar { flex: 1; height: 4px; border-radius: 999px; background: var(--paces-b200); overflow: hidden; }
+  .cap-fill { height: 100%; border-radius: 999px; }
+  .cap-free .cap-fill { background: var(--paces-primary); }
+  .cap-free { color: var(--paces-d700); }
+  .cap-tight .cap-fill { background: var(--paces-warning); }
+  .cap-tight { color: #92400e; }
+  .cap-full .cap-fill { background: var(--paces-danger); width: 100%; }
+  .cap-full { color: #7f1d1d; }
+
+  .ev {
+    border-radius: 4px; padding: 2px 6px; font-size: 11.5px;
+    color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ev-sched { background: var(--paces-warning); color: #4a3208; }
+  .ev-conf  { background: var(--paces-success); }
+  .ev-noshow{ background: var(--paces-danger); }
+  .ev-more { font-size: 11px; color: var(--paces-primary); font-weight: 600; }
+
+  /* hover → ปุ่มจองโผล่ในช่องวันนั้นเลย */
+  .day-add {
+    position: absolute; inset: auto 6px 6px 6px;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    background: var(--paces-primary); color: #fff;
+    border-radius: 5px; padding: 4px 8px; font-size: 11.5px; font-weight: 600;
+    opacity: 0; transform: translateY(3px);
+    transition: opacity .12s ease, transform .12s ease;
+    pointer-events: none;
+  }
+  .day:hover .day-add { opacity: 1; transform: translateY(0); }
+  .day.is-full:hover .day-add { background: var(--paces-b200); color: #7f1d1d; }
+  .day.is-out:hover .day-add { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) {
+    .day-add { transition: none; }
+  }
+  .day.is-demo-hover .day-add { opacity: 1; transform: translateY(0); }
+
+  /* ── รายการวัน (มือถือ + แผงขวา) ───────────────────────────── */
+  .agenda { display: flex; flex-direction: column; }
+  .agenda-row {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 11px 0; border-top: 1px solid var(--paces-b200);
+  }
+  .agenda-row:first-child { border-top: 0; }
+  .agenda-time {
+    font-size: 12.5px; font-weight: 600; color: var(--paces-ink);
+    min-width: 62px; font-variant-numeric: tabular-nums;
+  }
+  .agenda-main { flex: 1; min-width: 0; }
+  .agenda-name { font-size: 13px; font-weight: 500; color: var(--paces-ink); }
+  .agenda-meta { font-size: 12px; color: var(--paces-d700); margin-top: 1px; }
+  .order-link {
+    font-size: 11.5px; color: var(--paces-primary); font-weight: 600;
+    font-variant-numeric: tabular-nums; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+
+  .daystrip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .daystrip button {
+    flex: 0 0 auto; width: 46px; border-radius: 7px;
+    border: 1px solid var(--paces-b300); background: var(--paces-card);
+    padding: 6px 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-family: inherit; cursor: pointer; color: var(--paces-d700);
+  }
+  .daystrip button.on { background: var(--paces-primary); border-color: var(--paces-primary); color: #fff; }
+  .daystrip .dw { font-size: 10.5px; }
+  .daystrip .dd { font-size: 14px; font-weight: 600; }
+  .daystrip .dot { width: 5px; height: 5px; border-radius: 999px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--paces-d700); margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--paces-b200); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  /* ── บล็อกอธิบาย ──────────────────────────────────────────── */
+  .note {
+    background: var(--page-panel); border: 1px solid var(--page-line);
+    border-left: 3px solid var(--page-accent);
+    border-radius: 6px; padding: 14px 16px; margin: 18px 0;
+  }
+  .note p { margin: 0 0 8px; }
+  .note p:last-child { margin-bottom: 0; }
+  .note strong { color: var(--page-fg); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--page-line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--page-muted); font-weight: 600; }
+  .tbl-wrap { overflow-x: auto; }
+
+  ul { padding-left: 20px; }
+  li { margin: 5px 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px; background: var(--page-line); padding: 1px 5px; border-radius: 4px;
+  }
+  .q { color: var(--page-muted); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--page-accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="kicker">Feature 00024 · Mockup · 2026-07-31</p>
+    <h1>ปฏิทินคิว — ออกแบบใหม่</h1>
+    <p class="sub">
+      จำลอง 3 สถานะ (มีการจอง / จองไม่เต็ม / จองเต็ม) บน 3 ขนาดจอ
+      พร้อมการสร้างการจองจากปฏิทินโดยตรง และการโยงกลับไปยังคำสั่งซื้อต้นทาง
+    </p>
+  </header>
+
+  <div class="note">
+    <p><strong>ลองเอาเมาส์ชี้ที่ช่องวันในปฏิทินด้านล่าง</strong> — ปุ่มจองจะโผล่ในช่องนั้นเลย
+      วันที่เต็มแล้วจะขึ้นว่า “เต็มแล้ว” แทน กดไม่ได้</p>
+    <p class="q">หมายเหตุ: ฟอนต์จริงของระบบคือ Anuphan แต่หน้านี้โหลดฟอนต์จากภายนอกไม่ได้
+      จึงตกไปใช้ฟอนต์ไทยของเครื่อง — รูปทรงตัวอักษรจะต่างจากของจริงเล็กน้อย ส่วนสีคัดจาก
+      <code>_root.css</code> ของ Paces จริงทุกค่า</p>
+  </div>
+
+  <h2>1 · เดสก์ท็อป — มุมมองเดือน</h2>
+  <p class="lede">
+    มุมมองเริ่มต้นคือ <strong>เดือน</strong> เพราะคำถามแรกของร้านตกแต่งไฟคือ
+    “วันไหนยังรับรถได้อีก” ไม่ใช่ “ตอนนี้กี่โมง” — แต่ละช่องวันจึงสรุปเป็น
+    <strong>แถบความจุ</strong> ให้กวาดตาทีเดียวรู้ ไม่ต้องนับใบนัด
+  </p>
+
+  <div class="devices">
+    <div class="device device--desktop">
+      <p class="device-label">Desktop · 1440px</p>
+      <div class="screen">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <p class="card-title">ปฏิทินคิว · สิงหาคม 2569</p>
+              <p class="card-sub">กดที่ช่องวันเพื่อสร้างการจอง · กดที่นัดเพื่อเปิดคำสั่งซื้อ</p>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select style="border:1px solid var(--paces-b300);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;color:var(--paces-d700);background:#fff;">
+                <option>ดูทั้งหมด</option>
+                <option>ช่องบริการ 1</option>
+                <option>ช่องบริการ 2</option>
+              </select>
+              <div class="btn-group">
+                <button class="btn btn-primary">เดือน</button>
+                <button class="btn btn-ghost">สัปดาห์</button>
+                <button class="btn btn-ghost">วัน</button>
+                <button class="btn btn-ghost">รายการ</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="cal">
+              <div class="cal-head">
+                <div>จันทร์</div><div>อังคาร</div><div>พุธ</div><div>พฤหัส</div>
+                <div>ศุกร์</div><div>เสาร์</div><div>อาทิตย์</div>
+              </div>
+
+              <div class="cal-row">
+                <div class="day is-out"><span class="day-num">28</span></div>
+                <div class="day is-out"><span class="day-num">29</span></div>
+                <div class="day is-out"><span class="day-num">30</span></div>
+                <div class="day is-out"><span class="day-num">31</span></div>
+                <div class="day is-today">
+                  <span class="day-num">1</span>
+                  <div class="cap cap-free"><span>1/4</span><span class="cap-bar"><span class="cap-fill" style="width:25%"></span></span></div>
+                  <div class="ev ev-conf">ช่องบริการ 1 · สมชาย</div>
+                  <div class="day-add">+ จองวันนี้</div>
+                </div>
+                <div class="day">
+                  <span class="day-num">2</span>
+                  <div class="day-add">+ จองวันนี้</div>
+                </div>
+                <div class="day">
+                  <span class="day-num">3</span>
+                  <div class="day-add">+ จองวันนี้</div>
+                </div>
+              </div>
+
+              <div class="cal-row">
+                <div class="day">
+                  <span class="day-num">4</span>
+                  <div class="cap cap-free"><span>2/4</span><span class="cap-bar"><span class="cap-fill" style="width:50%"></span></span></div>
+                  <div class="ev ev-conf">ช่องบริการ 1 · วิภา</div>
+                  <div class="ev ev-sched">ช่องบริการ 2 · ธนา</div>
+                  <div class="day-add">+ จองวันนี้</div>
+                </div>
+                <div class="day is-demo-hover">
+                  <span class="day-num">5</span>
+                  <div class="cap cap-tight"><span>3/4</span><span class="cap-bar"><span class="cap-fill" style="width:75%"></span></span></div>
+                  <div class="ev ev-conf">ช่องบริการ 1 · ปรีชา</div>
+                  <div class="ev ev-sched">ช่องบริการ 2 · มานี</div>
+                  <div class="ev-more">+ อีก 1 รายการ</div>
+                  <div class="day-add">+ จองวันนี้</div>
+                </div>
+                <div class="day is-full">
+                  <span class="day-num">6</span>
+                  <div class="cap cap-full"><span>4/4 เต็ม</span><span class="cap-bar"><span class="cap-fill"></span></span></div>
+                  <div class="ev ev-conf">ช่องบริการ 1 · สุดา</div>
+                  <div class="ev ev-conf">ช่องบริการ 2 · เอกชัย</div>
+                  <div class="ev-more">+ อีก 2 รายการ</div>
+                  <div class="day-add">เต็มแล้ว</div>
+                </div>
+                <div class="day">
+                  <span class="day-num">7</span>
+                  <div class="cap cap-free"><span>1/4</span><span class="cap-bar"><span class="cap-fill" style="width:25%"></span></span></div>
+                  <div class="ev ev-noshow">ช่องบริการ 1 · กิตติ</div>
+                  <div class="day-add">+ จองวันนี้</div>
+                </div>
+                <div class="day"><span class="day-num">8</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">9</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">10</span><div class="day-add">+ จองวันนี้</div></div>
+              </div>
+
+              <div class="cal-row">
+                <div class="day"><span class="day-num">11</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">12</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">13</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">14</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">15</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">16</span><div class="day-add">+ จองวันนี้</div></div>
+                <div class="day"><span class="day-num">17</span><div class="day-add">+ จองวันนี้</div></div>
+              </div>
+            </div>
+
+            <div class="legend">
+              <span><i class="sw" style="background:var(--paces-warning)"></i> นัดแล้ว</span>
+              <span><i class="sw" style="background:var(--paces-success)"></i> ลูกค้ายืนยันแล้ว</span>
+              <span><i class="sw" style="background:var(--paces-warning)"></i> ลูกค้าขอเลื่อน</span>
+              <span><i class="sw" style="background:var(--paces-success)"></i> ให้บริการแล้ว</span>
+              <span><i class="sw" style="background:var(--paces-danger)"></i> ไม่มาตามนัด</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>สามสถานะที่โจทย์ขอ</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>สถานะ</th><th>ในปฏิทินเห็นเป็น</th><th>hover แล้วได้อะไร</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>มีการจองแล้ว</strong><br>(วันที่ 1, 4)</td>
+          <td>แถบความจุ <code>1/4</code> · <code>2/4</code> สีน้ำเงิน + ใบนัดเรียงใต้แถบ</td>
+          <td>ปุ่ม <strong>+ จองวันนี้</strong></td>
+        </tr>
+        <tr>
+          <td><strong>จองไม่เต็ม (ใกล้เต็ม)</strong><br>(วันที่ 5)</td>
+          <td>แถบเป็น <span class="badge b-sched">เหลือง</span> <code>3/4</code> — เตือนว่าเหลือคิวสุดท้าย</td>
+          <td>ปุ่ม <strong>+ จองวันนี้</strong> (ยังจองได้)</td>
+        </tr>
+        <tr>
+          <td><strong>จองเต็ม</strong><br>(วันที่ 6)</td>
+          <td>แถบเป็น <span class="badge b-noshow">แดง</span> <code>4/4 เต็ม</code></td>
+          <td>ขึ้นว่า <strong>เต็มแล้ว</strong> กดสร้างไม่ได้</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p><strong>ทำไมใช้แถบความจุแทนการนับใบนัดเอง</strong> — ร้านมีหลายคิวงาน (ช่องบริการ 1, 2, …)
+      ถ้าโชว์แต่ใบนัด เจ้าของต้องนับเองว่าวันนั้นเหลือที่ว่างไหม แถบสรุปตอบคำถามนั้นในบรรทัดเดียว</p>
+    <p><strong>สีของแถบไม่ใช่สีของสถานะนัด</strong> — แถบบอก “ความว่างของวัน”
+      ส่วนสีใบนัดบอก “สถานะของนัดใบนั้น” คนละเรื่องกัน จึงอ่านคู่กันได้โดยไม่ตีกัน</p>
+  </div>
+
+  <h2>2 · กดที่วัน — แผงรายละเอียด + โยงกลับคำสั่งซื้อ</h2>
+  <p class="lede">
+    กดที่ช่องวันที่มีนัด จะเปิดแผงด้านขวา (เดสก์ท็อป) หรือ bottom sheet (มือถือ)
+    ทุกแถวมี <strong>เลขคำสั่งซื้อ</strong> กดแล้วไปหน้าออเดอร์นั้นตรง ๆ
+  </p>
+
+  <div class="devices">
+    <div class="device device--tablet">
+      <p class="device-label">แผงรายละเอียดของวัน</p>
+      <div class="screen">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <p class="card-title">พุธ 5 ส.ค. 2569</p>
+              <p class="card-sub">จองแล้ว 3 จาก 4 คิว · เหลือ 1 คิว</p>
+            </div>
+            <button class="btn btn-primary">+ จองวันนี้</button>
+          </div>
+          <div class="card-body">
+            <div class="agenda">
+              <div class="agenda-row">
+                <div class="agenda-time">ทั้งวัน</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">ปรีชา สุขใจ</div>
+                  <div class="agenda-meta">ช่องบริการ 1 · ไฟหน้า LED + ฟิล์ม</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800014 ↗</a>
+                </div>
+                <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">ทั้งวัน</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">มานี ตั้งใจ</div>
+                  <div class="agenda-meta">ช่องบริการ 2 · เปลี่ยนโคมไฟหน้า</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800015 ↗</a>
+                </div>
+                <span class="badge b-sched">นัดแล้ว</span>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">ทั้งวัน</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">อนุชา ใจดี</div>
+                  <div class="agenda-meta">ช่องบริการ 2 · ปรับระดับไฟ</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800016 ↗</a>
+                </div>
+                <span class="badge b-resc">ลูกค้าขอเลื่อน</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="device device--tablet">
+      <p class="device-label">โหมดระบุช่วงเวลา — วันเดียวกัน หลายรอบ</p>
+      <div class="screen">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <p class="card-title">พฤหัส 6 ส.ค. 2569</p>
+              <p class="card-sub">จองแล้ว 4 จาก 4 คิว · เต็ม</p>
+            </div>
+            <button class="btn btn-ghost">เต็มแล้ว</button>
+          </div>
+          <div class="card-body">
+            <div class="agenda">
+              <div class="agenda-row">
+                <div class="agenda-time">09:00<br>12:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">สุดา พรหมมา</div>
+                  <div class="agenda-meta">ช่องบริการ 1</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800021 ↗</a>
+                </div>
+                <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">13:00<br>14:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">เอกชัย รุ่งเรือง</div>
+                  <div class="agenda-meta">ช่องบริการ 1</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800022 ↗</a>
+                </div>
+                <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">14:00<br>15:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">ณัฐพล วงศ์ทอง</div>
+                  <div class="agenda-meta">ช่องบริการ 2</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800023 ↗</a>
+                </div>
+                <span class="badge b-done">ให้บริการแล้ว</span>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">15:30<br>17:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">กิตติ ศรีสุข</div>
+                  <div class="agenda-meta">ช่องบริการ 2</div>
+                  <a class="order-link" href="#">คำสั่งซื้อ DP25690800024 ↗</a>
+                </div>
+                <span class="badge b-noshow">ไม่มาตามนัด</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3 · มือถือ — ไม่ใช้ตาราง 7 คอลัมน์</h2>
+  <p class="lede">
+    ตารางเดือน 7 ช่องบนจอ 375px อ่านไม่ออกจริง ๆ มือถือจึงเปลี่ยนเป็น
+    <strong>แถบเลือกวัน + รายการของวันนั้น</strong> ซึ่งตรงกับพฤติกรรมจริงที่ร้านเปิดดู
+    “วันนี้ใครเข้ามาบ้าง” ระหว่างทำงาน
+  </p>
+
+  <div class="devices">
+    <div class="device device--mobile">
+      <p class="device-label">Mobile · 375px — วันที่ยังไม่เต็ม</p>
+      <div class="screen">
+        <div class="card">
+          <div class="card-header" style="flex-direction:column;align-items:stretch;gap:8px;">
+            <p class="card-title">ปฏิทินคิว</p>
+            <div class="daystrip">
+              <button><span class="dw">จ</span><span class="dd">4</span><span class="dot" style="background:var(--paces-success)"></span></button>
+              <button class="on"><span class="dw">อ</span><span class="dd">5</span><span class="dot" style="background:#fff"></span></button>
+              <button><span class="dw">พ</span><span class="dd">6</span><span class="dot" style="background:var(--paces-danger)"></span></button>
+              <button><span class="dw">พฤ</span><span class="dd">7</span><span class="dot" style="background:var(--paces-success)"></span></button>
+              <button><span class="dw">ศ</span><span class="dd">8</span><span class="dot" style="background:transparent"></span></button>
+              <button><span class="dw">ส</span><span class="dd">9</span><span class="dot" style="background:transparent"></span></button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="cap cap-tight" style="margin-bottom:10px;">
+              <span>จองแล้ว 3 จาก 4 คิว</span>
+              <span class="cap-bar"><span class="cap-fill" style="width:75%"></span></span>
+            </div>
+            <div class="agenda">
+              <div class="agenda-row">
+                <div class="agenda-time">ทั้งวัน</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">ปรีชา สุขใจ</div>
+                  <div class="agenda-meta">ช่องบริการ 1</div>
+                  <a class="order-link" href="#">DP25690800014 ↗</a>
+                </div>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">ทั้งวัน</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">มานี ตั้งใจ</div>
+                  <div class="agenda-meta">ช่องบริการ 2</div>
+                  <a class="order-link" href="#">DP25690800015 ↗</a>
+                </div>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">ทั้งวัน</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">อนุชา ใจดี</div>
+                  <div class="agenda-meta">ช่องบริการ 2</div>
+                  <a class="order-link" href="#">DP25690800016 ↗</a>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;min-height:44px;">
+              + จองวันพุธ 5 ส.ค.
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="device device--mobile">
+      <p class="device-label">Mobile — วันที่เต็มแล้ว</p>
+      <div class="screen">
+        <div class="card">
+          <div class="card-header" style="flex-direction:column;align-items:stretch;gap:8px;">
+            <p class="card-title">ปฏิทินคิว</p>
+            <div class="daystrip">
+              <button><span class="dw">จ</span><span class="dd">4</span><span class="dot" style="background:var(--paces-success)"></span></button>
+              <button><span class="dw">อ</span><span class="dd">5</span><span class="dot" style="background:var(--paces-warning)"></span></button>
+              <button class="on"><span class="dw">พ</span><span class="dd">6</span><span class="dot" style="background:#fff"></span></button>
+              <button><span class="dw">พฤ</span><span class="dd">7</span><span class="dot" style="background:var(--paces-success)"></span></button>
+              <button><span class="dw">ศ</span><span class="dd">8</span><span class="dot" style="background:transparent"></span></button>
+              <button><span class="dw">ส</span><span class="dd">9</span><span class="dot" style="background:transparent"></span></button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="cap cap-full" style="margin-bottom:10px;">
+              <span>เต็มแล้ว 4 จาก 4 คิว</span>
+              <span class="cap-bar"><span class="cap-fill"></span></span>
+            </div>
+            <div class="agenda">
+              <div class="agenda-row">
+                <div class="agenda-time">09:00<br>12:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">สุดา พรหมมา</div>
+                  <div class="agenda-meta">ช่องบริการ 1</div>
+                  <a class="order-link" href="#">DP25690800021 ↗</a>
+                </div>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">13:00<br>14:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">เอกชัย รุ่งเรือง</div>
+                  <div class="agenda-meta">ช่องบริการ 1</div>
+                  <a class="order-link" href="#">DP25690800022 ↗</a>
+                </div>
+              </div>
+              <div class="agenda-row">
+                <div class="agenda-time">14:00<br>15:00</div>
+                <div class="agenda-main">
+                  <div class="agenda-name">ณัฐพล วงศ์ทอง</div>
+                  <div class="agenda-meta">ช่องบริการ 2</div>
+                  <a class="order-link" href="#">DP25690800023 ↗</a>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px;padding:10px;border-radius:6px;background:rgba(247,87,126,.08);font-size:12.5px;color:#7f1d1d;">
+              วันนี้เต็มแล้ว — เลือกวันอื่น หรือเพิ่มคิวงานถ้ารับได้มากกว่านี้
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>4 · สิ่งที่เปลี่ยนจากของเดิม</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>เรื่อง</th><th>ของเดิม</th><th>ที่เสนอ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>สร้างการจอง</td>
+          <td>ต้องออกจากปฏิทินไปที่ <code>/orders/new</code> เอง</td>
+          <td>hover ที่ช่องวัน → <strong>+ จองวันนี้</strong> เปิดฟอร์มพร้อมวันที่กรอกไว้แล้ว</td>
+        </tr>
+        <tr>
+          <td>รู้ว่าวันไหนเต็ม</td>
+          <td>ต้องนับใบนัดเอง</td>
+          <td>แถบความจุต่อวัน <code>3/4</code> + สีเตือนเมื่อใกล้เต็ม/เต็ม</td>
+        </tr>
+        <tr>
+          <td>โยงกลับคำสั่งซื้อ</td>
+          <td>กดที่นัดแล้วเด้งไปเลย ไม่เห็นเลขออเดอร์ก่อน</td>
+          <td>ทุกแถวโชว์ <strong>เลขคำสั่งซื้อ</strong> ให้เห็นก่อนกด</td>
+        </tr>
+        <tr>
+          <td>มือถือ</td>
+          <td>ตารางเดือน 7 คอลัมน์ เบียด</td>
+          <td>แถบเลือกวัน + รายการของวันนั้น + ปุ่มจองเต็มความกว้าง</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>5 · เรื่องที่ต้องตัดสินก่อนลงมือ</h2>
+  <ul>
+    <li><strong>กด “+ จองวันนี้” แล้วไปไหน</strong> — เปิดหน้า <code>/orders/new</code>
+      พร้อมวันที่กรอกไว้ให้แล้ว (ง่าย ทำได้เลย) หรือเปิดฟอร์มย่อในปฏิทินที่กรอกแค่ลูกค้า+บริการ
+      แล้วสร้างออเดอร์ให้เบื้องหลัง (เร็วกว่า แต่ต้องออกแบบฟอร์มใหม่)</li>
+    <li><strong>แถบความจุนับยังไงเมื่อร้านมีหลายคิวงาน</strong> — รวมทุกคิวงานเป็นตัวเดียว
+      (เช่น 2 ช่อง × 2 คิว = 4) หรือแยกแถบต่อคิวงาน</li>
+    <li><strong>“ใกล้เต็ม” เริ่มเตือนที่เท่าไร</strong> — mockup ใช้เหลือ 1 คิวสุดท้าย</li>
+    <li><strong>ไอคอนของปุ่ม “+ จองวันนี้”</strong> — ยังไม่ได้เลือก ขอให้ระบุก่อน (ห้ามเดาตาม Hard Rule 12)</li>
+  </ul>
+
+</div>
