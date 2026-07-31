@@ -883,9 +883,11 @@ export default function InboxList({
                     (≥1024px) และ kebab (<1024px) — ไม่ได้หายไปไหน. เหตุที่ทำเป็น indicator ไม่ใช่
                     ปุ่ม: ตำแหน่งหน้าชื่ออยู่ใน <Link> ปุ่มซ้อนใน anchor เป็น invalid HTML และคลิก
                     จะ propagate ไป navigate (เหตุผลเดียวกับที่ kebab ต้องเป็น sibling) */}
-                {/* py-4 (เดิม py-3) — user report 2026-07-30 "ขนาดการ์ดเล็กไปหน่อย"; คู่กับชื่อที่ขยับ
-                    เป็น text-base แถวจึงหายอึดอัดและกดโดนง่ายขึ้นบนจอสัมผัส */}
-                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-4 pe-3.75 ps-3.75">
+                {/* py-3 — เคยขยับเป็น py-4 (2026-07-30 "การ์ดเล็กไปหน่อย") แล้วถอยกลับวันถัดมา
+                    (user: "เอาจริง ๆ ทำมามันก็ใหญ่ไปอ่ะ") เพราะแถวนี้มีชิปหลายชั้นอยู่แล้ว
+                    (ad_id / สถานะขาย / โฟลเดอร์) ความสูงจึงมาจากเนื้อหา ไม่ใช่ padding —
+                    เพิ่ม padding ทับเข้าไปยิ่งทำให้เห็นเธรดต่อจอน้อยลงโดยไม่ได้อ่านง่ายขึ้น */}
+                <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
@@ -906,7 +908,7 @@ export default function InboxList({
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
                       <span
-                        className={`text-default-900 flex items-center gap-1 truncate text-base ${
+                        className={`text-default-900 flex items-center gap-1 truncate text-sm ${
                           unread ? 'font-bold' : 'font-semibold'
                         }`}
                       >
@@ -926,11 +928,12 @@ export default function InboxList({
                           ใส่เฉพาะตอนมี preview จริง (ไม่ใส่ทับ fallback "เริ่มการสนทนาแล้ว")
                           senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
                           — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
-                      {/* preview: text-sm (เดิม text-xs) ให้อ่านออกคู่กับชื่อที่ใหญ่ขึ้น — และตอนนี้
-                          บรรทัดนี้เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) จึงคงคอนทราสต์
-                          ต่างกันชัดระหว่าง 2 สถานะไว้ */}
+                      {/* preview: text-xs ตามเดิม (เคยขยับเป็น text-sm แล้วถอยกลับพร้อม padding แถว
+                          2026-07-31 — แถวสูงเกินไป). คงสี text-default-500 ที่ปรับจาก 400 ไว้
+                          เพราะเป็นเรื่องคอนทราสต์ให้อ่านออก ไม่ใช่เรื่องขนาด และตอนนี้บรรทัดนี้
+                          เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) */}
                       <span
-                        className={`mt-0.5 block max-w-52 truncate text-sm ${
+                        className={`block max-w-52 truncate text-xs ${
                           unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
