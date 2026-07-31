@@ -18,7 +18,7 @@
  *
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 // import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
@@ -126,6 +126,21 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
   const [showPriorityInput, setShowPriorityInput] = useState(false)
   const [phrases, setPhrases] = useState(keyword.phrases)
   const [newPhrase, setNewPhrase] = useState('')
+  /**
+   * S-16: ช่องพิมพ์คำใหม่ซ่อนอยู่หลังปุ่ม "เพิ่มคำ" — ช่องกว้างที่ค้างอยู่ตลอดทำให้แถวอ่านเป็น
+   * "ฟอร์ม" แทนที่จะเป็น "รายการคำ"
+   *
+   * WARNING: ต้องใช้ initializer ครั้งเดียว ห้าม derive จาก phrases.length ทุกรอบเรนเดอร์ —
+   * ไม่งั้นพอลบชิปตัวสุดท้ายทิ้ง ช่องจะเด้งเปิดเองกลางทางทั้งที่ผู้ใช้ไม่ได้สั่ง
+   */
+  const [addingPhrase, setAddingPhrase] = useState(() => keyword.phrases.length === 0)
+  const phraseInputRef = useRef<HTMLInputElement>(null)
+  const addPhraseBtnRef = useRef<HTMLButtonElement>(null)
+  /**
+   * จุดที่ต้องโฟกัสหลังสลับปุ่ม↔ช่อง — สั่งได้หลัง element ถูก mount แล้วเท่านั้นจึงต้องรอ useEffect
+   * ที่ไม่ผูกกับ addingPhrase ตรง ๆ เพราะตอนโหลดหน้าแบบ 0 คำ ช่องเปิดอยู่แล้ว แต่ห้ามขโมยโฟกัส
+   */
+  const pendingFocusRef = useRef<'input' | 'button' | null>(null)
   const [rules, setRules] = useState(keyword.rules)
   const [busy, setBusy] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -371,6 +386,26 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
     }
   }
 
+  /** โฟกัสตามที่สั่งไว้ตอนสลับปุ่ม↔ช่อง (a11y: ปิดช่องด้วย Esc แล้วโฟกัสห้ามหายไปจากหน้า) */
+  useEffect(() => {
+    const target = pendingFocusRef.current
+    if (!target) return
+    pendingFocusRef.current = null
+    if (target === 'input') phraseInputRef.current?.focus()
+    else addPhraseBtnRef.current?.focus()
+  }, [addingPhrase])
+
+  function openPhraseInput() {
+    pendingFocusRef.current = 'input'
+    setAddingPhrase(true)
+  }
+
+  function closePhraseInput() {
+    pendingFocusRef.current = 'button'
+    setNewPhrase('')
+    setAddingPhrase(false)
+  }
+
   const condLabel = (r: Rule) => {
     const parts: string[] = []
     if (r.shopChannelId) parts.push(`เพจ ${channels.find((c) => c.id === r.shopChannelId)?.name ?? '—'}`)
@@ -470,31 +505,81 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                        ของชิ้นเดียวกันในสองหน้าต้องสีและทรงเดียวกัน — rounded (4px) ไม่ใช่ rounded-full */
                     <span
                       key={p.id}
-                      className="bg-primary/10 text-primary flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+                      className={`bg-primary/10 text-primary flex max-w-full items-center gap-1 rounded py-0.5 text-xs font-medium ${
+                        canEdit ? 'ps-2 pe-1 sm:pe-2' : 'px-2'
+                      }`}
                     >
-                      {p.phrase}
+                      {/* คำยาวได้ถึง 200 ตัวอักษร — ต้องยอมตัดบรรทัดในชิป ไม่ใช่ดันแถวจนล้นจอมือถือ */}
+                      <span className="min-w-0 break-words">{p.phrase}</span>
                       {canEdit && (
+                        /* hit area 36px บนมือถือตาม precedent แท็ก CRM ที่ shipped แล้ว
+                           (CustomerCrmSection.tsx:288-295) — ไอคอนคงขนาดเดิมเพื่อไม่ให้ชิปบวม */
                         <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
-                          aria-label={`ลบคำ ${p.phrase}`} className="text-primary/60 hover:text-danger">
+                          aria-label={`ลบคำ ${p.phrase}`}
+                          className="text-primary/60 hover:text-danger hover:bg-primary/15 flex size-9 flex-none items-center justify-center rounded-full sm:size-4">
                           <Icon icon="x" className="text-xs" aria-hidden="true" />
                         </button>
                       )}
                     </span>
                   ))}
-                  {canEdit && (
-                    <div className="input-group w-full sm:w-64">
-                      <input
-                        /* .form-input ตั้งสี placeholder เป็นเทาที่ตก AA (2.9:1) ไว้แบบ unlayered
-                           → utility ธรรมดาแพ้ ต้องเติม ! เพื่อยกขึ้นเป็นเทาที่อ่านออกตามเพดานเทา (A-6) */
-                        className="form-input placeholder:text-default-500!"
-                        value={newPhrase} placeholder="เพิ่มคำ… แล้วกด Enter"
-                        onChange={(e) => setNewPhrase(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhrase() } }}
-                        maxLength={200} aria-label="คำตรวจจับใหม่"
-                      />
-                    </div>
-                  )}
+                  {canEdit &&
+                    (addingPhrase ? (
+                      /* สปินเนอร์อยู่ *นอก* .input-group เพราะ .input-group > :not(:last-child)
+                         จะถอดมุมโค้งด้านขวาของ input ทิ้ง (custom/_forms.css:270) = ช่องเปลี่ยนทรง
+                         ทุกครั้งที่กำลังบันทึก */
+                      <div className="flex w-full items-center gap-2 sm:w-auto">
+                        <div className="input-group w-full sm:w-56">
+                          <input
+                            ref={phraseInputRef}
+                            /* .form-input ตั้งสี placeholder เป็นเทาที่ตก AA (2.9:1) ไว้แบบ unlayered
+                               → utility ธรรมดาแพ้ ต้องเติม ! เพื่อยกขึ้นเป็นเทาที่อ่านออกตามเพดานเทา (A-6) */
+                            className="form-input placeholder:text-default-500! min-h-11 sm:min-h-0"
+                            value={newPhrase} placeholder="เช่น ส่งฟรีไหม"
+                            onChange={(e) => setNewPhrase(e.target.value)}
+                            /**
+                             * Enter = เพิ่มคำแล้ว "ค้างช่องไว้" ให้พิมพ์คำถัดไปต่อได้ทันที
+                             * (addPhrase ล้างค่าให้เอง) — ถ้ายุบกลับเป็นปุ่มทุกครั้ง ผู้ใช้ต้องกดปุ่ม
+                             * ไล่โฟกัสใหม่ต่อ 1 คำ = ช้ากว่าของเดิม
+                             * Esc = ปิดช่องแล้วคืนโฟกัสไปที่ปุ่ม
+                             */
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); addPhrase() }
+                              else if (e.key === 'Escape') { e.preventDefault(); closePhraseInput() }
+                            }}
+                            /**
+                             * ยุบกลับเป็นปุ่มเฉพาะตอนช่องว่าง — ถ้ามีข้อความค้างอยู่ต้องคงช่องไว้เหมือนเดิม
+                             * เพราะทั้งสองทางเลือกที่เหลือแย่กว่า: เพิ่มให้เอง = เขียน DB สิ่งที่ผู้ใช้ไม่ได้สั่ง,
+                             * ทิ้ง = "คำที่พิมพ์ไปหายไปไหน"
+                             */
+                            onBlur={() => { if (!newPhrase.trim()) setAddingPhrase(false) }}
+                            maxLength={200} aria-label="คำตรวจจับใหม่"
+                          />
+                        </div>
+                        {busy && (
+                          <Icon icon="loader-2" className="size-4 flex-none animate-spin text-default-500" aria-hidden="true" />
+                        )}
+                      </div>
+                    ) : (
+                      /* ปุ่มเส้นประ = precedent เดียวกับ "เปิดร้านของฉันเอง" (ChooseShopClient.tsx:206)
+                         เส้นประ ไม่ใช่พื้นสี — ถ้าใช้พื้นทึบจะอ่านเหมือนชิปอีกตัวที่เข้มกว่า ผู้ใช้จะนึกว่า
+                         มีคำว่า "เพิ่มคำ" อยู่ในกลุ่ม และต้องมีคำกำกับ ไม่ใช่ + เปล่า เพราะช่องพิมพ์ถูกซ่อนไปแล้ว */
+                      <button
+                        ref={addPhraseBtnRef}
+                        type="button"
+                        onClick={openPhraseInput}
+                        aria-expanded={addingPhrase}
+                        className="btn btn-sm border border-dashed border-default-300 text-primary hover:bg-primary/5 min-h-11 inline-flex items-center gap-1 sm:min-h-0"
+                      >
+                        <Icon icon="plus" className="size-3.5" aria-hidden="true" />
+                        เพิ่มคำ
+                      </button>
+                    ))}
                 </div>
+                {canEdit && addingPhrase && (
+                  /* helper โผล่เฉพาะตอนช่องเปิด และไม่พูดถึง Esc — บนมือถือซึ่งเป็น surface หลัก
+                     ของผู้ขายไม่มีปุ่มนั้นให้กด */
+                  <p className="text-default-600 mt-1.5 text-xs">กด Enter เพื่อเพิ่มทีละคำ</p>
+                )}
               </div>
 
               {/* ── บล็อก "คำที่ซ้ำกับกลุ่มอื่น" = ตัวแทนช่องเลข 0–1000 ─────────────

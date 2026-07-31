@@ -89,6 +89,12 @@ test.describe('ตอบแชทอัตโนมัติ — เส้นท
       await expect(page.getByText(phrase, { exact: true }).first()).toBeVisible()
     }
 
+    // S-16: Esc ยุบช่องกลับเป็นปุ่ม "เพิ่มคำ" แล้วกดปุ่มต้องเปิดช่องพร้อมโฟกัสให้พิมพ์ต่อได้ทันที
+    await page.keyboard.press('Escape')
+    await expect(page.getByLabel('คำตรวจจับใหม่')).toHaveCount(0)
+    await page.getByRole('button', { name: 'เพิ่มคำ' }).click()
+    await expect(page.getByLabel('คำตรวจจับใหม่')).toBeFocused()
+
     // ── 4) คำตอบหลัก + บันทึก ──────────────────────────────────────
     await page.getByLabel('คำตอบปกติ').fill('สนใจรายการไหนคะ ส่งชื่อสินค้ามาได้เลยค่ะ')
     // แถบบันทึกเป็น sticky — เลื่อนให้เข้าที่ก่อน ไม่งั้น Playwright ตัดสินว่า element ยังไม่นิ่ง
