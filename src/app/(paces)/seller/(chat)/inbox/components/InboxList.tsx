@@ -674,7 +674,31 @@ export default function InboxList({
         {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
             ตัวกรองอ่านแล้ว/ยังไม่อ่านย้ายเข้าปุ่ม "ตัวกรอง" แล้ว (user สั่ง 2026-07-24: แถวนี้แน่นเกินไป) */}
         {/* relative — popover ของ InboxFilterPanel ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
-        <div className="relative flex items-center gap-1.5">
+        <div className="relative flex w-full min-w-0 items-center gap-1.5">
+          {/* ปุ่มตัวกรองเดียวที่รวมช่องทาง/เพจ/สถานะ/การอ่าน/ซ่อน
+              อยู่ "หน้าแถว" ไม่ใช่ท้ายแถว (แก้ 2026-07-31 หลัง user รายงาน "filter หายไปไหน"):
+              ตอนนี้ตัวกรองทั้งหมดอยู่ในปุ่มนี้ปุ่มเดียว ถ้าวางท้ายแถวมันคือตัวแรกที่ถูกดันหลุด
+              ขอบเมื่อแท็บเยอะ = เข้าไม่ถึงตัวกรองเลย. ปักซ้ายแล้วแท็บเลื่อนไปทางขวาแทน
+              ปุ่มจึงเห็นเสมอไม่ว่าจะมีกี่กลุ่ม */}
+          <div className="shrink-0">
+            <InboxFilterPanel
+              value={filter}
+              onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
+              onClear={() => {
+                setFilter(DEFAULT_CHAT_FILTER)
+                // ล้างช่องทาง/เพจด้วย — ตอนนี้ทั้งสองอยู่ในปุ่มนี้แล้ว ถ้าไม่ล้าง ผู้ใช้กด
+                // "ล้างตัวกรอง" แล้วยังเห็นรายการถูกกรองอยู่โดยไม่รู้ว่าเพราะอะไร
+                handleChannelTabChange('ALL')
+              }}
+              open={openPanel === 'filter'}
+              onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
+              channelTab={channelTab}
+              onChannelChange={(tab) => handleChannelTabChange(tab as ChannelTab)}
+              pageFilter={pageFilter}
+              pageOptions={channels}
+              onPageChange={setPageFilter}
+            />
+          </div>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="กลุ่มแชท">
             <button
               type="button"
@@ -759,27 +783,6 @@ export default function InboxList({
             )}
           </div>
 
-          {/* ปุ่มตัวกรองเดียวที่รวมช่องทาง/เพจ/สถานะ/การอ่าน/ซ่อน — ชิดขวาสุดของแถวแท็บ
-              shrink-0 กันโดนแท็บที่ยาวบีบจนหาย (แถวแท็บ scroll แนวนอนได้เองอยู่แล้ว) */}
-          <div className="shrink-0">
-            <InboxFilterPanel
-              value={filter}
-              onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
-              onClear={() => {
-                setFilter(DEFAULT_CHAT_FILTER)
-                // ล้างช่องทาง/เพจด้วย — ตอนนี้ทั้งสองอยู่ในปุ่มนี้แล้ว ถ้าไม่ล้าง ผู้ใช้กด
-                // "ล้างตัวกรอง" แล้วยังเห็นรายการถูกกรองอยู่โดยไม่รู้ว่าเพราะอะไร
-                handleChannelTabChange('ALL')
-              }}
-              open={openPanel === 'filter'}
-              onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
-              channelTab={channelTab}
-              onChannelChange={(tab) => handleChannelTabChange(tab as ChannelTab)}
-              pageFilter={pageFilter}
-              pageOptions={channels}
-              onPageChange={setPageFilter}
-            />
-          </div>
         </div>
       </div>
 
