@@ -91,7 +91,7 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
               </Typography>
             </span>
             {href && (
-              <span className='text-[12.5px] font-semibold text-primary shrink-0 flex items-center gap-1'>
+              <span className='text-[13px] font-semibold text-primary shrink-0 flex items-center gap-1'>
                 เปิด
                 <Icon icon='lucide:external-link' width={13} />
               </span>
