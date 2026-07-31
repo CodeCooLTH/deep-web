@@ -247,7 +247,7 @@ export default function AppointmentCalendar({ resources }: Props) {
             center: '',
             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
           }}
-          noEventsText="ยังไม่มีนัดในช่วงนี้"
+          noEventsText="ช่วงนี้ยังไม่มีนัด — นัดจะขึ้นเมื่อคุณระบุวันเข้าใช้บริการตอนสร้างออเดอร์"
           allDayText="ทั้งวัน"
           events={events}
           eventClick={onEventClick}

@@ -163,6 +163,15 @@ export default function ResourceForm({ resource, granularity }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+      {/* การรับนัด — ตั้งค่าระดับร้าน วางไว้ในฟอร์มคิวงานตามที่ user สั่ง 2026-07-31
+          ("ตั้งค่าคิวงาน ให้อยู่ตอนสร้างคิวงาน") เพราะเป็นค่าที่ตั้งครั้งเดียวตอนเริ่มใช้
+
+          IMPORTANT: วางไว้ "บนสุด" ไม่ใช่เหนือปุ่มบันทึก — การ์ดนี้บันทึกทันทีที่เลือก
+          คนละ endpoint กับฟอร์ม ถ้าอยู่ติดปุ่มบันทึกจะชวนให้เข้าใจว่าต้องกดบันทึกก่อน
+          และกด "ยกเลิก" แล้วค่าที่เปลี่ยนไปจะไม่ย้อนกลับ (impeccable critique P2 2026-07-31)
+          อยู่บนสุดยังอ่านเป็นลำดับถูกด้วย: ตั้งว่ารับนัดแบบไหน → แล้วค่อยตั้งคิวงาน */}
+      <GranularitySetting value={granularity} />
+
       {/* ── ข้อมูลคิวงาน ── */}
       <div className="card">
         <div className="card-header">
@@ -330,12 +339,6 @@ export default function ResourceForm({ resource, granularity }: Props) {
           </div>
         </div>
       </div>
-
-      {/* การรับนัด — ตั้งค่าระดับร้าน วางไว้ในฟอร์มคิวงานตามที่ user สั่ง 2026-07-31
-          ("ตั้งค่าคิวงาน ให้อยู่ตอนสร้างคิวงาน") เพราะเป็นค่าที่ตั้งครั้งเดียวตอนเริ่มใช้
-          IMPORTANT: บันทึกทันทีที่เลือก แยกจากปุ่มบันทึกของฟอร์มนี้ (คนละ endpoint) —
-          copy ในการ์ดบอกไว้ว่ามีผลกับทั้งร้าน ไม่ใช่เฉพาะคิวงานนี้ */}
-      <GranularitySetting value={granularity} />
 
       <div className="flex items-center justify-end gap-2">
         <button

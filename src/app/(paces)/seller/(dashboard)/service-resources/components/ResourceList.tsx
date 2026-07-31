@@ -168,9 +168,17 @@ export default function ResourceList({ resources }: Props) {
             <Icon icon="tabler:armchair" className="text-default-400 size-7" />
           </div>
           <div>
-            <h5 className="text-default-800 font-medium">ยังไม่มีคิวงานที่รับได้</h5>
+            <h5 className="text-default-800 font-medium">เริ่มต้นด้วยการเพิ่มคิวงาน</h5>
+            {/* ตัวอย่างต้องตรงกับกลุ่มลูกค้าจริง — เดิมยกตัวอย่าง "เตียง ห้อง คลาส" ซึ่งเป็น
+                ร้านนวด/สปา ทำให้ร้านตกแต่งไฟหน้ารถ (ลูกค้ากลุ่มแรก) อ่านแล้วคิดว่า
+                "ไม่ใช่ระบบสำหรับร้านฉัน" (impeccable critique P1 2026-07-31) */}
             <p className="text-default-500 mt-1 text-sm">
-              เพิ่มรายการแรกเพื่อเริ่มรับนัด เช่น ชื่อช่าง เตียง ห้อง หรือคลาส
+              คิวงานคือสิ่งที่จำกัดว่ารับลูกค้าได้กี่รายพร้อมกัน
+              <br />
+              เช่น ช่องบริการ 1 · ช่างสมชาย · ลิฟต์ยกรถ
+            </p>
+            <p className="text-default-500 mt-1 text-sm">
+              เพิ่มอันแรกแล้วปฏิทินนัดจะขึ้นให้อัตโนมัติ
             </p>
           </div>
           <Link

@@ -48,12 +48,19 @@ export default async function ServiceResourcesPage() {
       <div className="flex flex-col gap-5">
         {/* ปฏิทินมาก่อนรายการ — งานประจำวันของร้านคือ "ดูว่าวันนี้มีใครเข้ามาบ้าง"
             ส่วนการตั้งค่าคิวงานทำครั้งเดียวตอนเริ่มใช้ (user รวมสองหน้าเป็นหน้าเดียว 2026-07-31)
-            ส่ง activeOnly ให้ตัวกรอง — กรองด้วยคิวงานที่ปิดแล้วไม่มีประโยชน์ */}
-        <AppointmentCalendar
-          resources={resources
-            .filter((r) => r.isActive)
-            .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
-        />
+            ส่ง activeOnly ให้ตัวกรอง — กรองด้วยคิวงานที่ปิดแล้วไม่มีประโยชน์
+
+            IMPORTANT: ยังไม่มีคิวงาน = ยังจองอะไรไม่ได้ → ซ่อนปฏิทินไปเลย
+            ไม่งั้นเจ้าของร้านที่เพิ่งเปิดเมนูนี้จะเจอตารางเดือนเปล่าเต็มจอ แล้วไม่รู้ว่า
+            ระบบพัง ยังไม่ตั้งค่า หรือแค่ยังไม่มีนัด ส่วน empty state ที่บอกขั้นตอนแรก
+            ก็ถูกดันลงไปใต้ปฏิทินจนต้องเลื่อนหา (impeccable critique P1 2026-07-31) */}
+        {resources.length > 0 && (
+          <AppointmentCalendar
+            resources={resources
+              .filter((r) => r.isActive)
+              .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
+          />
+        )}
         {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
         <ResourceList resources={resources.map(serializeServiceResource)} />
       </div>
