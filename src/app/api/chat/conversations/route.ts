@@ -181,6 +181,12 @@ export async function GET(request: NextRequest) {
     chatGroupId: searchParams.get("chatGroupId") ?? undefined,
     readState: searchParams.get("readState") ?? undefined,
     spam: searchParams.get("spam") === "true" ? true : undefined,
+    // tags: ส่งมาเป็น CSV (?tags=VIP,ค้างชำระ) — แยกแล้วตัดค่าว่างทิ้ง; ไม่มี = undefined ไม่ใช่ []
+    // เพราะ [] จะถูกตีความว่า "กรองด้วยแท็กแต่ไม่เลือกอะไรเลย" ซึ่งไม่ใช่เจตนา
+    tags: searchParams.get("tags")
+      ? searchParams.get("tags")!.split(",").map((t) => t.trim()).filter(Boolean)
+      : undefined,
+    shipment: searchParams.get("shipment") ?? undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -211,6 +217,8 @@ export async function GET(request: NextRequest) {
       chatGroupId: parsed.output.chatGroupId,
       readState: parsed.output.readState,
       spam: parsed.output.spam,
+      tags: parsed.output.tags,
+      shipment: parsed.output.shipment,
     });
     // B1: seller เห็น counterparty = buyer identity
     const enriched = await enrichWithBuyerCounterparty(result.items);

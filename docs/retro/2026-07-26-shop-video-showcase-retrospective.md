@@ -75,8 +75,8 @@ Instagram `GET /media` คืน `id` ที่ดูเหมือนใช้
 
 | รายการ | สถานะ |
 |---|---|
-| Integration test 6 เคส (`NOT_OWNED` / `VERIFY_UNAVAILABLE` / เกิน 6 / replace / ข้ามร้าน / ไม่มี session) | ยังไม่เขียน — ระบุไว้ใน TestCase.md |
-| E2E Playwright 6 เคส | ยังไม่เขียน |
+| Integration test | **ปิดแล้ว 2026-07-30** — 12 เคสใน `api/shops/current/videos/route.test.ts` และจับบั๊กได้จริง 2 ตัวตอนเขียน (เพดาน 6 คลิปไม่ถูกบังคับที่ route ทำให้ตอบ count เท็จ · เช็ค `failed` ก่อนเทียบเจ้าของ ทำให้ช่องทางเดียวล้มแล้วบล็อกทั้งหมด) |
+| E2E Playwright | **ปิดแล้ว 2026-07-30** — 6 เคสใน `e2e/shop-video-showcase.spec.ts` (เคสที่ต้องมี token FB/IG จริงยังนอกขอบเขต) |
 | ยอดวิว Instagram | ติดที่ App Review ของ Meta — ใส่ scope `instagram_manage_insights` เฉย ๆ ไม่ได้ Meta ตีกลับจนเชื่อมเพจไม่ได้ทั้งกระบวนการ (เจอบน prod วันเดียวกัน) |
 | TikTok | รอ TikTok อนุมัติแอป |
 

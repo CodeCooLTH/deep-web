@@ -4,38 +4,239 @@
   "title": "Design System: Deep (SafePay)",
   "extensions": {
     "colorMeta": {
-      "primary": { "role": "primary", "displayName": "Confident Violet", "canonical": "#7367F0", "tonalRamp": ["#1c1750", "#2c2480", "#4339b5", "#5a4ee0", "#7367F0", "#9389f4", "#b3acf8", "#d9d4fb"] },
-      "verified-green": { "role": "secondary", "displayName": "Verified Green", "canonical": "#28C76F", "tonalRamp": ["#0a3a20", "#11592f", "#177a40", "#1ea055", "#28C76F", "#5fd994", "#92e6b8", "#c8f3db"] },
-      "signal-cyan": { "role": "secondary", "displayName": "Signal Cyan", "canonical": "#00BAD1", "tonalRamp": ["#003a41", "#005a66", "#007e8e", "#009eb2", "#00BAD1", "#4dd2e1", "#8ee5ee", "#c8f3f8"] },
-      "warning-amber": { "role": "tertiary", "displayName": "Warning Amber", "canonical": "#FF9F43", "tonalRamp": ["#5c3300", "#874c00", "#b36700", "#e08400", "#FF9F43", "#ffb873", "#ffd1a3", "#ffe8d1"] },
-      "error-coral": { "role": "tertiary", "displayName": "Error Coral", "canonical": "#FF4C51", "tonalRamp": ["#5c0e10", "#871619", "#b31e22", "#e0282d", "#FF4C51", "#ff7d80", "#ffaaac", "#ffd6d7"] },
-      "ink": { "role": "neutral", "displayName": "Ink Plum", "canonical": "#2F2B3D", "tonalRamp": ["#2F2B3D", "#454155", "#5c5870", "#7a7689", "#9b98a8", "#bdbbc7", "#dedce4", "#f1f0f4"] },
-      "surface-mist": { "role": "neutral", "displayName": "Cool Mist", "canonical": "#F8F7FA", "tonalRamp": ["#2F2B3D", "#454155", "#6d6a7d", "#9b98a8", "#c6c4cf", "#e4e3e9", "#F8F7FA", "#FFFFFF"] }
+      "primary": {
+        "role": "primary",
+        "displayName": "Confident Violet",
+        "canonical": "#7367F0",
+        "tonalRamp": [
+          "#1c1750",
+          "#2c2480",
+          "#4339b5",
+          "#5a4ee0",
+          "#7367F0",
+          "#9389f4",
+          "#b3acf8",
+          "#d9d4fb"
+        ]
+      },
+      "verified-green": {
+        "role": "secondary",
+        "displayName": "Verified Green",
+        "canonical": "#28C76F",
+        "tonalRamp": [
+          "#0a3a20",
+          "#11592f",
+          "#177a40",
+          "#1ea055",
+          "#28C76F",
+          "#5fd994",
+          "#92e6b8",
+          "#c8f3db"
+        ]
+      },
+      "signal-cyan": {
+        "role": "secondary",
+        "displayName": "Signal Cyan",
+        "canonical": "#00BAD1",
+        "tonalRamp": [
+          "#003a41",
+          "#005a66",
+          "#007e8e",
+          "#009eb2",
+          "#00BAD1",
+          "#4dd2e1",
+          "#8ee5ee",
+          "#c8f3f8"
+        ]
+      },
+      "warning-amber": {
+        "role": "tertiary",
+        "displayName": "Warning Amber",
+        "canonical": "#FF9F43",
+        "tonalRamp": [
+          "#5c3300",
+          "#874c00",
+          "#b36700",
+          "#e08400",
+          "#FF9F43",
+          "#ffb873",
+          "#ffd1a3",
+          "#ffe8d1"
+        ]
+      },
+      "error-coral": {
+        "role": "tertiary",
+        "displayName": "Error Coral",
+        "canonical": "#FF4C51",
+        "tonalRamp": [
+          "#5c0e10",
+          "#871619",
+          "#b31e22",
+          "#e0282d",
+          "#FF4C51",
+          "#ff7d80",
+          "#ffaaac",
+          "#ffd6d7"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink Plum",
+        "canonical": "#2F2B3D",
+        "tonalRamp": [
+          "#2F2B3D",
+          "#454155",
+          "#5c5870",
+          "#7a7689",
+          "#9b98a8",
+          "#bdbbc7",
+          "#dedce4",
+          "#f1f0f4"
+        ]
+      },
+      "surface-mist": {
+        "role": "neutral",
+        "displayName": "Cool Mist",
+        "canonical": "#F8F7FA",
+        "tonalRamp": [
+          "#2F2B3D",
+          "#454155",
+          "#6d6a7d",
+          "#9b98a8",
+          "#c6c4cf",
+          "#e4e3e9",
+          "#F8F7FA",
+          "#FFFFFF"
+        ]
+      },
+      "paces-primary": {
+        "role": "primary (Paces skin)",
+        "displayName": "Paces Blue",
+        "canonical": "#236dc9",
+        "tonalRamp": [
+          "#0d2a4e",
+          "#123a6d",
+          "#1a5299",
+          "#1e5dab",
+          "#236dc9",
+          "#5a92d9",
+          "#94b8e8",
+          "#d3e2f5"
+        ]
+      },
+      "paces-danger": {
+        "role": "danger (Paces skin)",
+        "displayName": "Paces Rose",
+        "canonical": "#f7577e",
+        "tonalRamp": [
+          "#5c1428",
+          "#87203c",
+          "#b52d53",
+          "#d24a6b",
+          "#f7577e",
+          "#fa8ba6",
+          "#fcb9c9",
+          "#fde4ea"
+        ]
+      },
+      "paces-surface": {
+        "role": "surface/neutral (Paces skin)",
+        "displayName": "Paces Slate",
+        "canonical": "#eef2f7",
+        "tonalRamp": [
+          "#313a46",
+          "#495057",
+          "#8a969c",
+          "#9ba6b7",
+          "#a1a9b1",
+          "#e7e9eb",
+          "#eef2f7",
+          "#f6f7fb"
+        ]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display / h1", "purpose": "หัวเรื่องหน้า/hero. 46px, text-wrap: balance." },
-      "headline": { "displayName": "Headline / h3", "purpose": "หัวข้อ section. 28px." },
-      "title": { "displayName": "Title / h5", "purpose": "หัวข้อย่อย, ชื่อร้าน. 18px." },
-      "body": { "displayName": "Body", "purpose": "เนื้อหาหลัก ~15px, prose 65–75ch." },
-      "label": { "displayName": "Label / Caption", "purpose": "chip, caption, meta. 13px, ls 0.4px, sentence case." }
+      "display": {
+        "displayName": "Display / h1",
+        "purpose": "หัวเรื่องหน้า/hero. 46px, text-wrap: balance."
+      },
+      "headline": {
+        "displayName": "Headline / h3",
+        "purpose": "หัวข้อ section. 28px."
+      },
+      "title": {
+        "displayName": "Title / h5",
+        "purpose": "หัวข้อย่อย, ชื่อร้าน. 18px."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "เนื้อหาหลัก ~15px, prose 65–75ch."
+      },
+      "label": {
+        "displayName": "Label / Caption",
+        "purpose": "chip, caption, meta. 13px, ls 0.4px, sentence case."
+      }
     },
     "shadows": [
-      { "name": "sm", "value": "0 2px 8px rgb(47 43 61 / 0.12)", "purpose": "การ์ด/dropdown ตอนพัก." },
-      { "name": "md", "value": "0 3px 12px rgb(47 43 61 / 0.14)", "purpose": "การ์ด hover, แผงลอย." },
-      { "name": "lg", "value": "0 4px 18px rgb(47 43 61 / 0.16)", "purpose": "modal, popover, แผงสำคัญ." },
-      { "name": "primary-sm", "value": "0 2px 6px rgb(115 103 240 / 0.30)", "purpose": "ปุ่ม primary contained — เงาม่วงจาง." }
+      {
+        "name": "sm",
+        "value": "0 2px 8px rgb(47 43 61 / 0.12)",
+        "purpose": "การ์ด/dropdown ตอนพัก."
+      },
+      {
+        "name": "md",
+        "value": "0 3px 12px rgb(47 43 61 / 0.14)",
+        "purpose": "การ์ด hover, แผงลอย."
+      },
+      {
+        "name": "lg",
+        "value": "0 4px 18px rgb(47 43 61 / 0.16)",
+        "purpose": "modal, popover, แผงสำคัญ."
+      },
+      {
+        "name": "primary-sm",
+        "value": "0 2px 6px rgb(115 103 240 / 0.30)",
+        "purpose": "ปุ่ม primary contained — เงาม่วงจาง."
+      }
     ],
     "motion": [
-      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "easing หลักของ state transition (ออกแบบเอ็กซ์โพเนนเชียล ไม่เด้ง)." },
-      { "name": "duration-fast", "value": "150ms", "purpose": "hover/focus, feedback ทันที." },
-      { "name": "duration-base", "value": "200ms", "purpose": "transition ทั่วไปในฝั่ง product." }
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "easing หลักของ state transition (ออกแบบเอ็กซ์โพเนนเชียล ไม่เด้ง)."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "hover/focus, feedback ทันที."
+      },
+      {
+        "name": "duration-base",
+        "value": "200ms",
+        "purpose": "transition ทั่วไปในฝั่ง product."
+      }
     ],
     "breakpoints": [
-      { "name": "sm", "value": "600px" },
-      { "name": "md", "value": "900px" },
-      { "name": "lg", "value": "1200px" },
-      { "name": "seller-mobile", "value": "1024px" },
-      { "name": "xl", "value": "1536px" }
+      {
+        "name": "sm",
+        "value": "600px"
+      },
+      {
+        "name": "md",
+        "value": "900px"
+      },
+      {
+        "name": "lg",
+        "value": "1200px"
+      },
+      {
+        "name": "seller-mobile",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1536px"
+      }
     ]
   },
   "components": [
@@ -91,12 +292,37 @@
       "ขอบโค้งนุ่ม, เงาฟุ้งบาง, ฟอนต์เดียว Anuphan ทุก surface"
     ],
     "rules": [
-      { "name": "The One Voice Rule", "body": "Confident Violet ปรากฏ ≤ ~10% ของพื้นที่จอใดๆ — มันคือ accent ของ action ไม่ใช่ของตกแต่ง.", "section": "colors" },
-      { "name": "The Verified-Means-Green Rule", "body": "เขียว #28C76F สงวนไว้สำหรับความเชื่อใจที่ยืนยันแล้วเท่านั้น (verified/สำเร็จ/ผ่าน). ห้ามใช้กับสถานะที่ยังไม่ยืนยัน.", "section": "colors" },
-      { "name": "The One Family Rule", "body": "Anuphan เท่านั้นทุก surface ทุก subdomain (ยกเว้น monospace + icon font). ห้าม hardcode ฟอนต์อื่น.", "section": "typography" },
-      { "name": "The Sentence-Case Rule", "body": "ปุ่ม/label เป็น sentence case ไม่ใช่ ALL CAPS — ภาษาไทยไม่มี case.", "section": "typography" },
-      { "name": "The Ink-Tinted Shadow Rule", "body": "เงาทุกตัวผสมหมึกพลัม rgb(47 43 61) ไม่ใช่ดำสนิท.", "section": "elevation" },
-      { "name": "The Flat-At-Rest Rule", "body": "พื้นผิวแบนตอนพัก เงาเพิ่มเป็นการตอบสนองต่อ state.", "section": "elevation" }
+      {
+        "name": "The One Voice Rule",
+        "body": "Confident Violet ปรากฏ ≤ ~10% ของพื้นที่จอใดๆ — มันคือ accent ของ action ไม่ใช่ของตกแต่ง.",
+        "section": "colors"
+      },
+      {
+        "name": "The Verified-Means-Green Rule",
+        "body": "เขียว #28C76F สงวนไว้สำหรับความเชื่อใจที่ยืนยันแล้วเท่านั้น (verified/สำเร็จ/ผ่าน). ห้ามใช้กับสถานะที่ยังไม่ยืนยัน.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Family Rule",
+        "body": "Anuphan เท่านั้นทุก surface ทุก subdomain (ยกเว้น monospace + icon font). ห้าม hardcode ฟอนต์อื่น.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence-Case Rule",
+        "body": "ปุ่ม/label เป็น sentence case ไม่ใช่ ALL CAPS — ภาษาไทยไม่มี case.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ink-Tinted Shadow Rule",
+        "body": "เงาทุกตัวผสมหมึกพลัม rgb(47 43 61) ไม่ใช่ดำสนิท.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "พื้นผิวแบนตอนพัก เงาเพิ่มเป็นการตอบสนองต่อ state.",
+        "section": "elevation"
+      },
+      "โปรเจกต์นี้มี 2 skin: buyer/landing = Vuexy (primary ม่วง #7367F0), seller/admin `(paces)/**` = Paces (primary น้ำเงิน #236dc9, danger #f7577e). palette `paces-*` ถูกเพิ่มเข้ามา 2026-07-31 เพราะเดิม sidecar รู้จักแต่ Vuexy ทำให้ทุกไฟล์หลังบ้านถูกแจ้งว่าสีหลุด design system ทั้งที่ใช้ token ถูกต้องตาม Hard Rule 7"
     ],
     "dos": [
       "Do ใช้ Confident Violet #7367F0 เป็นสีทึบสำหรับ action/ลิงก์/โฟกัส ≤ ~10% ของจอ.",

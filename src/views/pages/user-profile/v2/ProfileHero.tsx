@@ -139,10 +139,10 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
           )}
           {/* คะแนนความน่าเชื่อถือ — ตำแหน่งข้างชื่อตามที่ user กำหนด สีของตัวเลขมาจากระดับจริง
               ไม่ได้ตายตัวเป็นเหลือง (ยึด SSOT docs/10 - Business Rules/Tier Lists.md) */}
-          <span className='inline-flex items-center gap-1 rounded-full plb-1 pli-2.5 text-[12.5px] font-extrabold bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)]'>
+          <span className='inline-flex items-center gap-1 rounded-full plb-1 pli-2.5 text-[13px] font-extrabold bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)]'>
             {data.trustScore}
           </span>
-          <span className='rounded-lg plb-1 pli-2.5 text-xs font-semibold bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
+          <span className='rounded-lg plb-1 pli-2.5 text-[13px] font-semibold bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
             {data.tierLabel}
           </span>
         </div>
@@ -154,24 +154,34 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
         </Typography>
       </div>
 
-      {/* ── เหรียญ: ไอคอนล้วนเพื่อให้อ่านรวดเดียวจบ รายละเอียดอยู่ในหน้าเหรียญเต็ม ── */}
+      {/* ── เหรียญ: ชิปที่บอกชื่อจริง ไม่ใช่วงกลมไอคอนล้วน ──
+             เดิมเป็นวงกลม 38px ที่มีแต่ไอคอน + title สำหรับ hover ซึ่งบนมือถือ (surface หลักของเรา)
+             ไม่มี hover เลย ผู้ชมจึงเห็นวงกลมสีลอย ๆ ที่ตีความไม่ได้ — ซึ่งตรงกับสิ่งที่ DESIGN.md
+             Principle #1 ห้ามไว้ตรง ๆ ว่า "ห้าม badge ตกแต่ง" เหรียญที่อ่านไม่ออกคือของตกแต่ง
+             ไม่ใช่หลักฐาน. ใส่ชื่อลงไปแล้วมันกลายเป็นหลักฐานที่ทำงานจริง
+
+             สีเปลี่ยนจาก warning-amber เป็นกลาง — DESIGN.md สงวนส้มไว้ให้ "รอดำเนินการ/เตือน"
+             การเอาสีเตือนมาใช้กับรางวัลที่ได้มาแล้วทำให้ความหมายของสีทั้งระบบเพี้ยน และไม่ใช้เขียว
+             เพราะ Verified-Means-Green สงวนไว้ให้ "ยืนยันแล้ว" โดยเฉพาะ ใช้กับทุกเหรียญจะทำให้
+             สัญญาณเขียวเฟ้อตามที่กติกาเตือนไว้เอง ── */}
       {shownBadges.length > 0 && (
-        <div className='flex justify-center gap-2.5 flex-wrap pli-5 pbe-3.5'>
+        <ul className='flex justify-center gap-2 flex-wrap pli-5 pbe-3.5 m-0 p-0 list-none'>
           {shownBadges.map((b) => (
-            <span
-              key={b.id}
-              title={b.name}
-              className='is-[38px] bs-[38px] rounded-full flex items-center justify-center bg-warning/10 text-warning border border-warning/25'
-            >
-              <Icon icon={badgeIconName(b.nameEN, b.icon)} width={18} />
-            </span>
+            <li key={b.id}>
+              <span className='inline-flex items-center gap-1.5 rounded-full plb-1 pli-2.5 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-primary)]'>
+                <Icon icon={badgeIconName(b.nameEN, b.icon)} width={15} className='shrink-0 opacity-70' />
+                {b.name}
+              </span>
+            </li>
           ))}
           {restBadgeCount > 0 && (
-            <span className='is-[38px] bs-[38px] rounded-full flex items-center justify-center bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-disabled)] text-xs font-bold'>
-              {`+${restBadgeCount}`}
-            </span>
+            <li>
+              <span className='inline-flex items-center rounded-full plb-1 pli-2.5 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-disabled)]'>
+                {`+${restBadgeCount}`}
+              </span>
+            </li>
           )}
-        </div>
+        </ul>
       )}
 
       {/* ── ตัวเลขธุรกรรม: แสดงครบสามช่องเสมอ ── */}
@@ -191,10 +201,17 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
       </div>
 
       {/* ── อัตราความสำเร็จ: ตัวเลขที่ได้พื้นที่ใหญ่สุดในหน้า เพราะเป็นสิ่งที่คนกำลังจะโอนเงินอยากรู้
-             ที่สุด และเป็นสีเขียวตามหลัก verified-means-green ที่ใช้ทั้งระบบ ── */}
+             ที่สุด และเป็นสีเขียวตามหลัก verified-means-green ที่ใช้ทั้งระบบ
+
+             ใช้ Verified Ink #18804A ไม่ใช่ #28C76F (DESIGN.md §2 "สองโทน") — เขียวหลักบนพื้นขาว
+             ได้ contrast แค่ 2.21:1 ตกเกณฑ์แม้กับตัวใหญ่ ตัวเลขที่สำคัญที่สุดในหน้าจึงเป็นตัวที่
+             ผู้สูงวัยอ่านยากที่สุดพอดี ซึ่งขัดกับกลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้ ── */}
       {data.completionRate != null && (
         <div className='flex items-baseline gap-2.5 pli-5 plb-3.5 border-bs'>
-          <span className='text-[32px] font-extrabold text-success tabular-nums leading-none' style={{ letterSpacing: '-0.03em' }}>
+          <span
+            className='text-[32px] font-extrabold tabular-nums leading-none'
+            style={{ color: '#18804A', letterSpacing: '-0.03em' }}
+          >
             {`${data.completionRate}%`}
           </span>
           <Typography variant='body2' color='text.secondary'>

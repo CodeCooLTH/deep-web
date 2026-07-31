@@ -58,7 +58,14 @@ qa-screenshots/
 
 # editor / tool working dirs (ไม่ใช่ source — ไม่ commit)
 .obsidian/
-.impeccable/
+# .impeccable — แชร์เฉพาะไฟล์ที่ทีมต้องใช้ร่วมกัน (2026-07-31)
+#   config.json = กฎ ignore ของ detector, design.json = design system (มี palette Paces ที่เพิ่มไว้)
+#   ที่เหลือเป็นของเครื่องใครเครื่องมัน: cache, ผลรัน critique/live, ภาพหน้าจอ
+#   config.local.json = ของส่วนตัวรายเครื่องโดยเจตนาของตัว skill เอง (เก็บ consent ฯลฯ)
+.impeccable/*
+!.impeccable/config.json
+!.impeccable/design.json
+.impeccable/config.local.json
 
 # Playwright
 /playwright-report/
