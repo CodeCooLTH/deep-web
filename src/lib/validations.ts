@@ -750,6 +750,9 @@ export const ChatConversationsQuerySchema = v.object({
   chatGroupId: v.optional(v.pipe(v.string(), v.uuid())),
   readState: v.optional(v.picklist(['unread', 'read'])),
   spam: v.optional(v.boolean()), // feature 00018: true = ดูเฉพาะสแปม (user สั่ง 2026-07-24)
+  // user สั่ง 2026-07-31 — แท็บ "ทั้งหมด" ต้องรวมเธรดสแปมด้วย (มีไอคอนแดงกำกับให้แยกออก)
+  // แยกจาก spam เพราะเป็นคนละความหมาย: spam=เห็นเฉพาะสแปม, includeSpam=ไม่กรองสแปมทิ้ง
+  includeSpam: v.optional(v.boolean()),
   // user สั่ง 2026-07-31 — กรองด้วยแท็กผู้ติดต่อ (ติดอันใดก็ได้) cap 20 กันยิง payload ยาวผิดปกติ
   tags: v.optional(v.pipe(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(40))), v.maxLength(20))),
   // user สั่ง 2026-07-31 — สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip)

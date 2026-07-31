@@ -291,6 +291,7 @@ export default function InboxList({
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
       if (filter.spam) params.set('spam', 'true')
+      else if (filter.includeSpam) params.set('spam', 'all')
       // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก เพื่อไม่ให้ query string รกโดยเปล่าประโยชน์
       if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
       if (filter.shipment !== 'all') params.set('shipment', filter.shipment)
@@ -321,7 +322,7 @@ export default function InboxList({
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.tags, filter.shipment, activeGroupId])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.includeSpam, filter.tags, filter.shipment, activeGroupId])
 
   // ชื่อกลุ่มที่เลือกอยู่ — ปุ่มดรอปดาวน์ต้องบอกได้ว่ากรองอะไรอยู่โดยไม่ต้องกดเปิด
   const activeGroupName = activeGroupId ? (groups.find((g) => g.id === activeGroupId)?.name ?? null) : null
@@ -427,8 +428,11 @@ export default function InboxList({
     setActiveGroupId(null)
     setFilter((f) => ({
       ...f,
-      status: tab === 'RESOLVED' ? 'resolved' : 'open',
+      // "ทั้งหมด" = ทั้งหมดจริง (เปิด+ปิดงาน+สแปม) — user สั่ง 2026-07-31 หลังพบว่าเธรดที่
+      // ปิดงาน/สแปมหายไปจากแท็บที่ชื่อว่า "ทั้งหมด" เลย แยกออกจากกันด้วยไอคอนหน้าชื่อแทน
+      status: tab === 'RESOLVED' ? 'resolved' : tab === 'SPAM' ? 'open' : 'all',
       spam: tab === 'SPAM',
+      includeSpam: tab === 'ALL',
     }))
   }
 
@@ -436,7 +440,7 @@ export default function InboxList({
    *  ต้องไม่โผล่ในกลุ่มเดิมของมัน (user เลือก 2026-07-31) */
   const selectGroupTab = (groupId: string) => {
     setActiveGroupId(groupId)
-    setFilter((f) => ({ ...f, status: 'open', spam: false }))
+    setFilter((f) => ({ ...f, status: 'open', spam: false, includeSpam: false }))
   }
 
   // ── feature 00018 กลุ่ม/แท็บจัดหมวดแชท ──
@@ -525,6 +529,7 @@ export default function InboxList({
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
       if (filter.spam) params.set('spam', 'true')
+      else if (filter.includeSpam) params.set('spam', 'all')
       // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก เพื่อไม่ให้ query string รกโดยเปล่าประโยชน์
       if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
       if (filter.shipment !== 'all') params.set('shipment', filter.shipment)

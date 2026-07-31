@@ -28,6 +28,8 @@ export type ChatFilterState = {
   // status/spam ยังอยู่ใน state (แท็บในส่วนหัวเป็นคนตั้ง) แต่ไม่ได้ render ในแผงนี้แล้ว — ดูข้อ 3
   status: 'open' | 'resolved' | 'all'
   spam: boolean
+  /** แท็บ "ทั้งหมด" — ไม่กรองเธรดสแปมทิ้ง (แยกออกด้วยไอคอนแดงหน้าชื่อแทน) */
+  includeSpam: boolean
   customerLinked: 'all' | 'linked' | 'unlinked'
   hidden: boolean
   readState: 'all' | 'unread' | 'read'
@@ -38,8 +40,11 @@ export type ChatFilterState = {
 }
 
 export const DEFAULT_CHAT_FILTER: ChatFilterState = {
-  status: 'open',
+  // ค่าเริ่มต้น = แท็บ "ทั้งหมด" ที่ถูกไฮไลต์ตอนเปิดหน้า จึงต้องเป็น all/รวมสแปม
+  // ไม่งั้นแท็บโชว์ว่าเลือก "ทั้งหมด" อยู่ แต่รายการกรองเฉพาะเธรดที่ยังไม่ปิดงาน
+  status: 'all',
   spam: false,
+  includeSpam: true,
   customerLinked: 'all',
   hidden: false,
   readState: 'all',

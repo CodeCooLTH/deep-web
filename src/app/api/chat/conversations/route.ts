@@ -180,7 +180,9 @@ export async function GET(request: NextRequest) {
     // feature 00018: กรองแท็บกลุ่ม + อ่านแล้ว/ยังไม่อ่าน
     chatGroupId: searchParams.get("chatGroupId") ?? undefined,
     readState: searchParams.get("readState") ?? undefined,
+    // spam=true → เฉพาะสแปม (แท็บสแปม); spam=all → รวมสแปมเข้ามาด้วย (แท็บทั้งหมด)
     spam: searchParams.get("spam") === "true" ? true : undefined,
+    includeSpam: searchParams.get("spam") === "all" ? true : undefined,
     // tags: ส่งมาเป็น CSV (?tags=VIP,ค้างชำระ) — แยกแล้วตัดค่าว่างทิ้ง; ไม่มี = undefined ไม่ใช่ []
     // เพราะ [] จะถูกตีความว่า "กรองด้วยแท็กแต่ไม่เลือกอะไรเลย" ซึ่งไม่ใช่เจตนา
     tags: searchParams.get("tags")
@@ -217,6 +219,7 @@ export async function GET(request: NextRequest) {
       chatGroupId: parsed.output.chatGroupId,
       readState: parsed.output.readState,
       spam: parsed.output.spam,
+      includeSpam: parsed.output.includeSpam,
       tags: parsed.output.tags,
       shipment: parsed.output.shipment,
     });
