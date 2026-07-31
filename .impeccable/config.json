@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      "docs/superpowers/specs/*mockup.html"
+    ],
     "ignoreValues": [
       {
         "rule": "broken-image",

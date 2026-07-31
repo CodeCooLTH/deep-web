@@ -50,9 +50,13 @@ type Props = {
   /** ร้านที่ active (resolve ที่ (chat)/layout.tsx) — ส่งต่อให้ InboxList ใช้ subscribe realtime
    *  `chat:shop:{shopId}`; null = resolve ไม่ได้ (ไม่มีร้าน/หลุดสิทธิ์) → ไม่ subscribe เฉย ๆ */
   shopId: string | null
+  /** ร้านเชื่อม iShip แล้วหรือยัง — ส่งต่อให้ InboxList ใช้ตัดสินว่าจะโชว์หัวข้อ "พัสดุ" ในตัวกรอง
+   *  รับจาก layout.tsx (RSC ถาม DB อยู่แล้ว) แทนที่จะให้ rail ยิง /api/seller/iship/connection เอง —
+   *  ประหยัดหนึ่ง round-trip และถูกต้องตั้งแต่ render แรก ไม่มีจังหวะที่ตัวกรองกะพริบหาย */
+  hasShipping?: boolean
 }
 
-export default function ChatRail({ shopId }: Props) {
+export default function ChatRail({ shopId, hasShipping = false }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [items, setItems] = useState<ConversationListItem[]>([])
@@ -143,7 +147,7 @@ export default function ChatRail({ shopId }: Props) {
           />
         </div>
       ) : (
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} railMode />
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} hasShipping={hasShipping} railMode />
       )}
     </SimpleBar>
   )

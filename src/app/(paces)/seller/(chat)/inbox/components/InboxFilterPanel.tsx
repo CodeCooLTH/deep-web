@@ -19,9 +19,10 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
-import { type ChannelFilterOption } from './ChannelBadge'
+import { ChannelBadgeOverlay, type ChannelFilterOption } from './ChannelBadge'
+import { PageAvatar } from './PageFilterDropdown'
 
-export type ShipmentFilterValue = 'all' | 'none' | 'unprinted' | 'printed'
+export type ShipmentFilterValue = 'all' | 'none' | 'unprinted' | 'printed' | 'problem'
 
 export type ChatFilterState = {
   // status/spam ยังอยู่ใน state (แท็บในส่วนหัวเป็นคนตั้ง) แต่ไม่ได้ render ในแผงนี้แล้ว — ดูข้อ 3
@@ -37,7 +38,9 @@ export type ChatFilterState = {
 }
 
 export const DEFAULT_CHAT_FILTER: ChatFilterState = {
-  status: 'open',
+  // ค่าเริ่มต้น = แท็บ "ทั้งหมด" ที่ถูกไฮไลต์ตอนเปิดหน้า จึงต้องเป็น 'all'
+  // ไม่งั้นแท็บโชว์ว่าเลือก "ทั้งหมด" อยู่ แต่รายการกรองเฉพาะเธรดที่ยังไม่ปิดงาน
+  status: 'all',
   spam: false,
   customerLinked: 'all',
   hidden: false,
@@ -77,20 +80,39 @@ const SHIPMENT_OPTIONS: { value: ShipmentFilterValue; label: string }[] = [
   { value: 'none', label: 'ยังไม่สร้างพัสดุ' },
   { value: 'unprinted', label: 'สร้างแล้ว ยังไม่พิมพ์' },
   { value: 'printed', label: 'พิมพ์แล้ว' },
+  // อยู่ในดรอปดาวน์ด้วยเพื่อให้ล้าง/สลับได้จากที่เดียวกับตัวอื่น — ส่วนชิปแดงในแถบตัวกรอง
+  // มีไว้เพราะตัวเลขของมันมีความหมายแม้ยังไม่ได้กรอง (บอกว่ามีกี่เคสรอจัดการ)
+  { value: 'problem', label: 'พัสดุมีปัญหา' },
 ]
 
-function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+function Chip({
+  on,
+  label,
+  onClick,
+  leading,
+}: {
+  on: boolean
+  label: string
+  onClick: () => void
+  /** ภาพนำหน้าข้อความ — ใช้กับชิปเพจ (รูปเพจ + โลโก้ช่องทาง) */
+  leading?: React.ReactNode
+}) {
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-sm font-medium whitespace-nowrap ${
+      // ชิปที่มีรูปนำหน้าต้องเว้นซ้ายน้อยลง ไม่งั้นรูปลอยห่างขอบ — เขียนเป็น ps เดียวแบบมีเงื่อนไข
+      // (ใส่ ps-1.5 กับ ps-3 พร้อมกันแล้วให้ class หลังชนะไม่ได้ — ผู้ชนะขึ้นกับลำดับใน CSS ที่ build ออกมา)
+      className={`flex items-center gap-2 rounded-full border py-1.5 pe-3 text-sm font-medium whitespace-nowrap ${
+        leading ? 'ps-1.5' : 'ps-3'
+      } ${
         on
           ? 'border-primary bg-primary text-white'
           : 'border-default-300 bg-card text-default-800 hover:bg-light'
       }`}
     >
+      {leading}
       {label}
     </button>
   )
@@ -219,7 +241,21 @@ export default function InboxFilterPanel({
               <Section title="เพจ">
                 <Chip on={draftPage === ''} label="ทุกเพจ" onClick={() => setDraftPage('')} />
                 {pageOptions.map((p) => (
-                  <Chip key={p.id} on={draftPage === p.id} label={p.name} onClick={() => setDraftPage(p.id)} />
+                  // ชื่อเพจอย่างเดียวไม่พอ — ร้านที่ตั้งชื่อเพจ Facebook กับ Instagram เหมือนกัน
+                  // จะเห็นชิปสองอันข้อความเดียวกันเป๊ะ เลือกไม่ถูก (user report 2026-07-31)
+                  // จึงเติมรูปเพจ + โลโก้ช่องทางมุมล่างขวา ชุดเดียวกับที่ใช้ในรายการแชท
+                  <Chip
+                    key={p.id}
+                    on={draftPage === p.id}
+                    label={p.name}
+                    onClick={() => setDraftPage(p.id)}
+                    leading={
+                      <span className="relative block shrink-0">
+                        <PageAvatar avatarUrl={p.avatarUrl} name={p.name} size="sm" />
+                        <ChannelBadgeOverlay channel={p.provider} size="sm" />
+                      </span>
+                    }
+                  />
                 ))}
               </Section>
             )}
@@ -268,11 +304,19 @@ export default function InboxFilterPanel({
             </Section>
 
             <Section title="อื่น ๆ">
-              <Chip
-                on={draft.hidden}
-                label="ที่ซ่อนไว้"
-                onClick={() => setDraft((d) => ({ ...d, hidden: !d.hidden }))}
-              />
+              {/* สวิตช์ ไม่ใช่ชิป (user สั่ง 2026-07-31 "อยากให้เป็น toggle เหมือนเดิม") —
+                  หัวข้ออื่นเป็นชุดตัวเลือกที่ต้องเลือกหนึ่งอัน แต่อันนี้เป็นเปิด/ปิดเดี่ยว ๆ
+                  ชิปเดี่ยวบอกไม่ได้ว่าตอนนี้ปิดอยู่หรือแค่ยังไม่ได้เลือก
+                  Base: src/app/(paces)/seller/(dashboard)/settings/ai/AiSettingForm.tsx (form-switch controlled) */}
+              <label className="flex w-full cursor-pointer items-center justify-between gap-3">
+                <span className="text-default-800 text-sm font-medium">ที่ซ่อนไว้</span>
+                <input
+                  type="checkbox"
+                  className="form-switch shrink-0"
+                  checked={draft.hidden}
+                  onChange={(e) => setDraft((d) => ({ ...d, hidden: e.target.checked }))}
+                />
+              </label>
             </Section>
           </div>
 

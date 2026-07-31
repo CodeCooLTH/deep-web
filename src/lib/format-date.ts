@@ -155,6 +155,54 @@ export function formatTimeHM(input: Date | string | number | null | undefined): 
   return `${p.hour}:${p.minute}`
 }
 
+/**
+ * "จันทร์ 4 ส.ค. 2569" — วันในสัปดาห์ + วันที่ย่อ (พ.ศ., timezone ไทย)
+ *
+ * ใช้เป็นหัวข้อของ "วันที่กำลังดูอยู่" ในปฏิทินคิว (feature 00024) ซึ่งต้องอ่านออกทันที
+ * ว่าเป็นวันอะไรของสัปดาห์ โดยไม่ต้องนับเอง — formatDate/formatDateTH ไม่มีชื่อวัน
+ *
+ * IMPORTANT: อยู่ในไฟล์นี้เพราะเป็น SSOT ของการ format วันที่ทั้งระบบ ห้ามเรียก Intl/
+ * toLocaleDateString เองที่ component (docs/conventions/date-format.md)
+ */
+export function formatWeekdayDateTH(
+  input: Date | string | number | null | undefined,
+): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  return `${weekdayTH(d)} ${formatDateTH(d)}`
+}
+
+/** ชื่อวันในสัปดาห์ภาษาไทยเต็ม ตามปฏิทินไทย — "จันทร์", "อังคาร", ... */
+export function weekdayTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  // 1970-01-01 (epoch day 0) เป็นวันพฤหัสบดี → เลื่อน index ให้เริ่มที่อาทิตย์
+  const idx = (((bangkokDayIndex(d) + 4) % 7) + 7) % 7
+  return WEEKDAY_TH[idx]
+}
+
+/** ชื่อวันแบบสั้น 1 ตัวอักษรพยางค์ต้น — ใช้ในแถบเลือกวันของปฏิทินที่พื้นที่แคบ */
+export function weekdayShortTH(
+  input: Date | string | number | null | undefined,
+): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const idx = (((bangkokDayIndex(d) + 4) % 7) + 7) % 7
+  return WEEKDAY_SHORT_TH[idx]
+}
+
+const WEEKDAY_TH = [
+  'อาทิตย์',
+  'จันทร์',
+  'อังคาร',
+  'พุธ',
+  'พฤหัสบดี',
+  'ศุกร์',
+  'เสาร์',
+] as const
+
+const WEEKDAY_SHORT_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'] as const
+
 // Bangkok = UTC+7 ตายตัว ไม่มี DST → คำนวณ "วันที่ตามปฏิทินไทย" ด้วย offset คงที่ได้ปลอดภัย
 const BKK_OFFSET_MS = 7 * 60 * 60 * 1000
 /** index ของวัน (จำนวนวันนับจาก epoch) ตามปฏิทินไทย — ใช้เทียบ "วันนี้/เมื่อวาน" */

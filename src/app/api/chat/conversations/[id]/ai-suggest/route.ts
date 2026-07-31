@@ -13,6 +13,7 @@ import {
   type SuggestTurn,
   type SuggestMedia,
 } from "@/lib/gemini";
+import { computeUsageCost } from "@/lib/ai-pricing";
 import { getFile } from "@/lib/storage";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
 import { getAiSetting, getEffectiveAiSetting } from "@/services/ai-setting.service";
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const suggestions = await generateReplySuggestions(turns, {
+    const { suggestions, usage } = await generateReplySuggestions(turns, {
       shopName: shop?.shopName ?? "ร้านค้า",
       vertical,
       instruction: aiSetting.instruction,
@@ -352,14 +353,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       customerName,
       customerNote: crm?.note ?? null,
     }, media);
+    const cost = usage ? computeUsageCost(usage) : null;
     // NFR-AIQ-Obs: audit log ทุก path ที่ผ่าน gate สำเร็จ — best-effort, ไม่ทำให้ response หลักพัง
     await logUsageEvent({
       shopId: activeCtx.shopId,
       conversationId: conversation.id,
       kind: usageKind,
       amountBaht: usedCredit ? AI_SUGGEST_EXTRA_USE_PRICE_BAHT : 0,
+      cost: cost ?? undefined,
     });
-    return NextResponse.json({ suggestions, usedCredit, freeRemaining }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ suggestions, usedCredit, freeRemaining, cost }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     if (e instanceof GeminiNotConfiguredError) {
       // BR-AIQ-06/07: Gemini ล้มเหลวจริง (แม้เพราะยังไม่ตั้งค่า) ต้องคืนสิทธิ์ที่ใช้ไป — unlimited path ไม่มีอะไรคืน
@@ -373,7 +376,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // request ใหญ่/ช้าเกิน ผู้ใช้ควรได้ร่างคำตอบจากข้อความอยู่ดี ดีกว่าเห็น error เปล่า ๆ
       if (media.length > 0) {
         try {
-          const suggestions = await generateReplySuggestions(turns, {
+          const { suggestions, usage } = await generateReplySuggestions(turns, {
             shopName: shop?.shopName ?? "ร้านค้า",
             vertical,
             instruction: aiSetting.instruction,
@@ -381,6 +384,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             customerName,
             customerNote: crm?.note ?? null,
           });
+          const cost = usage ? computeUsageCost(usage) : null;
           console.warn("[ai-suggest] ถอยไปโหมดข้อความล้วน (ไฟล์แนบใช้ไม่ได้)");
           // BR-AIQ-08: mediaSkipped:true = "สำเร็จ" เสมอ — ห้ามคืนโควตา/เครดิต แม้ไม่ได้ใช้ไฟล์แนบจริง
           await logUsageEvent({
@@ -388,8 +392,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             conversationId: conversation.id,
             kind: usageKind,
             amountBaht: usedCredit ? AI_SUGGEST_EXTRA_USE_PRICE_BAHT : 0,
+            cost: cost ?? undefined,
           });
-          return NextResponse.json({ suggestions, mediaSkipped: true, usedCredit, freeRemaining }, { headers: NO_STORE_HEADERS });
+          return NextResponse.json({ suggestions, mediaSkipped: true, usedCredit, freeRemaining, cost }, { headers: NO_STORE_HEADERS });
         } catch (retryErr) {
           console.error("[ai-suggest] retry ไม่มีไฟล์แนบก็ยังพลาด", retryErr instanceof Error ? retryErr.message : retryErr);
         }

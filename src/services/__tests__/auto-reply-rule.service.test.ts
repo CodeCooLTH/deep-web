@@ -90,6 +90,7 @@ import {
   updateKeyword,
   deleteKeyword,
   addPhrases,
+  getPhraseOverlaps,
   deletePhrase,
   createRule,
   updateRule,
@@ -466,5 +467,85 @@ describe('deleteRule — TFR-006 กันลบกฎสุดท้ายข�
     await deleteRule('rule-1', SHOP)
     expect(ruleDelete).toHaveBeenCalledWith({ where: { id: 'rule-1' } })
     expect(invalidateShop).toHaveBeenCalledWith(SHOP)
+  })
+})
+
+describe('getPhraseOverlaps — คำที่ซ้ำกับกลุ่มอื่น (แทนช่องลำดับความสำคัญดิบ)', () => {
+  /** แถวคำของกลุ่มที่กำลังเปิดดู (คิวรีที่ 1) */
+  const ownRow = (phrase: string, normalizedPhrase: string) => ({ phrase, normalizedPhrase })
+  /** แถวคำของกลุ่มอื่นที่ชนกัน (คิวรีที่ 2) */
+  const overlapRow = (
+    normalizedPhrase: string,
+    keyword: { id: string; name: string; priority: number; status: string },
+  ) => ({ phrase: normalizedPhrase, normalizedPhrase, keyword })
+
+  it('ไม่มีคำซ้ำกับใคร -> คืน []', async () => {
+    phraseFindMany.mockResolvedValueOnce([ownRow('สนใจ', 'สนใจ')] as never).mockResolvedValueOnce([] as never)
+    await expect(getPhraseOverlaps(SHOP, KEYWORD)).resolves.toEqual([])
+    // ownership: shopId ต้องอยู่ใน where ของคิวรีแรกด้วย ไม่ใช่กรองทีหลังใน JS
+    expect(phraseFindMany.mock.calls[0][0].where).toEqual({ keywordId: KEYWORD, keyword: { shopId: SHOP } })
+  })
+
+  it('ซ้ำ 2 กลุ่ม -> เรียง priority มาก->น้อย', async () => {
+    phraseFindMany
+      .mockResolvedValueOnce([ownRow('สนใจ', 'สนใจ')] as never)
+      .mockResolvedValueOnce([
+        overlapRow('สนใจ', { id: 'kw-low', name: 'ถามราคา', priority: 50, status: 'LIVE' }),
+        overlapRow('สนใจ', { id: 'kw-high', name: 'ทักถามสินค้า', priority: 200, status: 'TEST' }),
+      ] as never)
+
+    const result = await getPhraseOverlaps(SHOP, KEYWORD)
+    expect(result).toEqual([
+      { id: 'kw-high', name: 'ทักถามสินค้า', priority: 200, status: 'TEST', sharedPhrases: ['สนใจ'] },
+      { id: 'kw-low', name: 'ถามราคา', priority: 50, status: 'LIVE', sharedPhrases: ['สนใจ'] },
+    ])
+  })
+
+  /**
+   * tie-break เป็นส่วนหนึ่งของ contract ที่ล็อกไว้ให้ S-06 (ลำดับต้อง deterministic ไม่งั้น
+   * รายการในบล็อก "คำที่ซ้ำกับกลุ่มอื่น" สลับที่เองระหว่าง render) — เทสนี้กันคนแก้ comparator
+   * ให้เหลือแค่ priority แล้วพังเงียบ เพราะเคส priority ต่างกันจะยังผ่านอยู่
+   */
+  it('priority เท่ากัน -> tie-break ด้วยชื่อไทย ascending', async () => {
+    phraseFindMany
+      .mockResolvedValueOnce([ownRow('สนใจ', 'สนใจ')] as never)
+      .mockResolvedValueOnce([
+        overlapRow('สนใจ', { id: 'kw-b', name: 'ทักถามสินค้า', priority: 100, status: 'LIVE' }),
+        overlapRow('สนใจ', { id: 'kw-a', name: 'ถามราคา', priority: 100, status: 'LIVE' }),
+      ] as never)
+
+    const result = await getPhraseOverlaps(SHOP, KEYWORD)
+    expect(result.map((r) => r.id)).toEqual(['kw-a', 'kw-b']) // ถ.. มาก่อน ท.. ตาม localeCompare 'th'
+  })
+
+  it('กลุ่มที่ปิดอยู่ (OFFLINE) ต้องไม่ถูกนับ -> where ส่ง status ไม่เท่ากับ OFFLINE + ตัดกลุ่มตัวเอง', async () => {
+    // กลุ่ม OFFLINE ไม่ตอบใครเลย = ไม่ได้แข่งกับกลุ่มนี้ จึงต้องกรองที่ DB (ไม่ใช่ post-filter ใน JS)
+    phraseFindMany.mockResolvedValueOnce([ownRow('สนใจ', 'สนใจ')] as never).mockResolvedValueOnce([] as never)
+    await getPhraseOverlaps(SHOP, KEYWORD)
+    expect(phraseFindMany.mock.calls[1][0].where).toEqual({
+      normalizedPhrase: { in: ['สนใจ'] },
+      keywordId: { not: KEYWORD },
+      keyword: { shopId: SHOP, status: { not: 'OFFLINE' } },
+    })
+  })
+
+  it('ซ้ำ 2 คำกับกลุ่มเดียวกัน -> ยุบเป็น 1 รายการ ที่ sharedPhrases มี 2 สมาชิก', async () => {
+    phraseFindMany
+      .mockResolvedValueOnce([ownRow('สนใจ!!', 'สนใจ'), ownRow('ราคาเท่าไหร่', 'ราคาเทาไหร')] as never)
+      .mockResolvedValueOnce([
+        overlapRow('สนใจ', { id: 'kw-other', name: 'ทักถามสินค้า', priority: 100, status: 'LIVE' }),
+        overlapRow('ราคาเทาไหร', { id: 'kw-other', name: 'ทักถามสินค้า', priority: 100, status: 'LIVE' }),
+      ] as never)
+
+    const result = await getPhraseOverlaps(SHOP, KEYWORD)
+    expect(result).toHaveLength(1)
+    // ต้องเป็นคำต้นฉบับที่ร้านพิมพ์ ไม่ใช่รูปหลัง normalize
+    expect(result[0].sharedPhrases).toEqual(['สนใจ!!', 'ราคาเท่าไหร่'])
+  })
+
+  it('กลุ่มนี้ไม่มีคำเลย -> คืน [] ทันทีโดยไม่ยิงคิวรีที่สอง', async () => {
+    phraseFindMany.mockResolvedValueOnce([] as never)
+    await expect(getPhraseOverlaps(SHOP, KEYWORD)).resolves.toEqual([])
+    expect(phraseFindMany).toHaveBeenCalledTimes(1)
   })
 })

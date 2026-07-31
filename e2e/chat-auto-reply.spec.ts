@@ -89,8 +89,14 @@ test.describe('ตอบแชทอัตโนมัติ — เส้นท
       await expect(page.getByText(phrase, { exact: true }).first()).toBeVisible()
     }
 
+    // S-16: Esc ยุบช่องกลับเป็นปุ่ม "เพิ่มคำ" แล้วกดปุ่มต้องเปิดช่องพร้อมโฟกัสให้พิมพ์ต่อได้ทันที
+    await page.keyboard.press('Escape')
+    await expect(page.getByLabel('คำตรวจจับใหม่')).toHaveCount(0)
+    await page.getByRole('button', { name: 'เพิ่มคำ' }).click()
+    await expect(page.getByLabel('คำตรวจจับใหม่')).toBeFocused()
+
     // ── 4) คำตอบหลัก + บันทึก ──────────────────────────────────────
-    await page.getByLabel('ข้อความตอบกลับพื้นฐาน').fill('สนใจรายการไหนคะ ส่งชื่อสินค้ามาได้เลยค่ะ')
+    await page.getByLabel('คำตอบปกติ').fill('สนใจรายการไหนคะ ส่งชื่อสินค้ามาได้เลยค่ะ')
     // แถบบันทึกเป็น sticky — เลื่อนให้เข้าที่ก่อน ไม่งั้น Playwright ตัดสินว่า element ยังไม่นิ่ง
     const saveBtn = page.getByRole('button', { name: 'บันทึกการเปลี่ยนแปลง' })
     await saveBtn.scrollIntoViewIfNeeded()
@@ -137,13 +143,10 @@ test.describe('ตอบแชทอัตโนมัติ — เส้นท
     await expect(row.getByText('สนใจ', { exact: true })).toBeVisible()
     await expect(row.getByText('ราคาเท่าไหร่', { exact: true })).toBeVisible()
 
-    // สถานะในตารางเป็นปุ่ม 3 ค่าแบบเดียวกับหน้าแก้ไข (ไม่ใช่ dropdown อีกแล้ว)
-    const rowStatus = page.getByRole('group', { name: `สถานะของ ${KEYWORD_NAME}` })
-    await expect(rowStatus.getByRole('button')).toHaveCount(3)
-    await expect(rowStatus.getByRole('button', { name: 'ตอบลูกค้าจริง' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    // สถานะในตารางเป็นป้ายอ่านอย่างเดียว — บอกสถานะปัจจุบัน ไม่ใช่สวิตช์ (S-15, user 2026-07-30)
+    await expect(row.getByText('ตอบลูกค้าจริง', { exact: true })).toBeVisible()
+    // regression: ห้ามมี control เปลี่ยนสถานะกลับมาในตาราง (เปลี่ยนได้ที่หน้าแก้ไขที่เดียว)
+    await expect(page.getByRole('group', { name: `สถานะของ ${KEYWORD_NAME}` })).toHaveCount(0)
 
     // ── 8) ลบ ──────────────────────────────────────────────────────
     await row.getByRole('button', { name: `ลบ ${KEYWORD_NAME}` }).click()

@@ -1,0 +1,591 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v4 — รายละเอียดคำสั่งซื้อ (seller / Paces)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ═══ TOKEN — คัดจาก src/assets/css/config/_root.css ตรง ๆ (ห้ามเดาค่า) ═══ */
+:root{
+  --font-body:'Anuphan',"Noto Sans Thai",system-ui,sans-serif;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab;
+  --color-success:#02bc9c; --color-info:#5bc3e1; --color-warning:#f9bf59; --color-danger:#f7577e;
+  --color-light:#eef2f7;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#9ba6b7; --color-default-600:#8a969c; --color-default-700:#6c757d;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --text-xs:0.8125rem; --text-sm:0.875rem;
+  --text-md:15px;  --text-base:1rem; --text-lg:1.125rem; --text-2xl:1.5rem;
+  --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+  --shadow-lg:0 .25rem 1rem rgba(76,76,92,.2);
+  --spacing-base:20px; --radius:4px; --topbar-height:65px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-body);background:var(--color-default-300);color:var(--color-body-color);
+     font-size:var(--text-sm);line-height:1.5;padding:20px 18px 60px}
+svg{display:block;flex:none}
+button{font-family:inherit;cursor:pointer;background:none;border:0;color:inherit;text-align:left}
+
+/* ── กรอบเอกสาร (ไม่ใช่ส่วนของดีไซน์) ─────────────────────────────── */
+.doc{max-width:1560px;margin:0 auto}
+.doc h1{font-size:var(--text-2xl);font-weight:700;color:var(--color-default-900)}
+.doc>p{margin-top:6px;color:var(--color-default-700);max-width:920px}
+.notice{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;
+        margin:16px 0 20px;font-size:var(--text-xs);color:var(--color-default-700)}
+.notice b{color:var(--color-default-900)}
+.notice code{background:var(--color-default-200);padding:1px 5px;border-radius:var(--radius);font-size:var(--text-2xs)}
+.states{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;position:sticky;top:0;z-index:60;
+        background:var(--color-default-300);padding:10px 0}
+.states button{background:#fff;color:var(--color-default-700);box-shadow:var(--shadow);
+        border-radius:var(--radius);padding:8px 16px;font-weight:500}
+.states button[aria-pressed=true]{background:var(--color-default-900);color:#fff}
+.states .hint{font-size:var(--text-xs);align-self:center;margin-left:6px}
+.rack{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.frame{background:var(--color-body-bg);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-lg);
+       container-type:inline-size}
+.frame>.tag{background:var(--color-default-900);color:#fff;font-size:var(--text-2xs);font-weight:600;
+       padding:7px 12px;display:flex;justify-content:space-between;letter-spacing:.03em}
+.frame>.tag span:last-child{opacity:.65;font-weight:400}
+.frame .scroll{max-height:900px;overflow:auto}
+.f-m{width:390px} .f-t{width:768px} .f-d{width:1440px;max-width:100%}
+.deskrow{width:100%;overflow-x:auto;padding-bottom:6px}
+
+/* ═══ Paces primitive — ชื่อคลาสตรงกับของจริงเพื่อให้ dev เทียบได้ ═══════ */
+.shell{display:flex;min-height:100%}
+.sidenav{width:245px;flex:none;background:#fff;box-shadow:var(--shadow);display:none}
+.sidenav .brand{height:var(--topbar-height);display:flex;align-items:center;padding:0 20px;
+       font-weight:700;color:var(--color-primary);font-size:var(--text-base)}
+.sidenav ul{list-style:none;padding:10px 12px}
+.sidenav li{padding:9px 12px;border-radius:var(--radius);color:var(--color-default-700);
+       display:flex;align-items:center;gap:10px}
+.sidenav li.on{background:color-mix(in srgb,var(--color-primary) 12%,#fff);color:var(--color-primary);font-weight:500}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-height);background:#fff;box-shadow:var(--shadow);display:flex;
+       align-items:center;justify-content:space-between;padding:0 20px;flex:none}
+.crumb{color:var(--color-default-400)} .crumb b{color:var(--color-default-900);font-weight:600}
+.content{padding:var(--spacing-base);padding-bottom:120px;flex:1}
+/* คอลัมน์เดียว จำกัดความกว้างให้บรรทัดอ่านสบาย — ที่ว่างสองข้างบนจอ 1440 คือเจตนา */
+.wrapc{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:var(--spacing-base)}
+/* เงาบนของ bottom nav — ค่าเดียวกับของจริงใน SellerBottomNav.tsx:186
+   arbitrary โดยเจตนา (Paces ไม่มี token shadow ด้านบน มีแต่ shadow-md ที่ลงล่าง) มี comment กำกับตาม Hard Rule 7 */
+.bottomnav{display:flex;background:#fff;box-shadow:0 -4px 16px -6px rgba(47,43,61,.10);padding:8px 0}
+.bottomnav div{flex:1;text-align:center;font-size:var(--text-2xs);color:var(--color-default-400);
+       display:flex;flex-direction:column;align-items:center;gap:3px;min-height:56px;justify-content:center}
+.bottomnav div.on{color:var(--color-primary)}
+.bnav{position:absolute;left:0;right:0;bottom:0;z-index:40}
+
+.card{background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);
+      display:flex;flex-direction:column;height:fit-content;overflow-wrap:break-word}
+.card-body{padding:20px;flex:auto}
+
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:var(--radius);
+      padding:.15em .5em;font-size:.75em;font-weight:600;white-space:nowrap}
+.badge-label{padding:3px .8em;font-size:var(--text-2xs)}
+.bg-warning-15{background:color-mix(in srgb,var(--color-warning) 15%,transparent);color:var(--color-warning)}
+.bg-info-15{background:color-mix(in srgb,var(--color-info) 15%,transparent);color:var(--color-info)}
+.bg-success-15{background:color-mix(in srgb,var(--color-success) 15%,transparent);color:var(--color-success)}
+.bg-danger-15{background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger)}
+.bg-primary-15{background:color-mix(in srgb,var(--color-primary) 15%,transparent);color:var(--color-primary)}
+.bg-default-15{background:var(--color-default-200);color:var(--color-default-700)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;
+     border-radius:var(--radius);padding:7px 16px;font-size:var(--text-sm);font-weight:500;transition:all .15s}
+.btn-icon-sm{width:32px;height:32px;padding:0;background:var(--color-light);border-radius:50%;
+     color:var(--color-default-700)}
+
+.t-2xs{font-size:var(--text-2xs)} .t-xs{font-size:var(--text-xs)} .t-sm{font-size:var(--text-sm)}
+.t-md{font-size:var(--text-md)} .t-lg{font-size:var(--text-lg)} .t-2xl{font-size:var(--text-2xl)}
+.c-400{color:var(--color-default-400)} .c-600{color:var(--color-default-600)}
+.c-700{color:var(--color-default-700)} .c-800{color:var(--color-default-800)}
+.c-900{color:var(--color-default-900)} .c-primary{color:var(--color-primary)}
+.c-danger{color:var(--color-danger)}
+.fw5{font-weight:500} .fw6{font-weight:600} .fw7{font-weight:700}
+.row{display:flex;align-items:center;gap:8px} .wrap{flex-wrap:wrap}
+.between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.stack{display:flex;flex-direction:column}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}   /* เลขพัสดุเท่านั้น ไม่ใช่ข้อความไทย */
+
+/* ═══ HEADER — ไม่มีปุ่ม: สถานะ + เลข + ยอดเงิน + งานถัดไป 1 ประโยค ═══ */
+.hd{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.hd-top{display:flex;flex-direction:column;gap:12px}
+.hd-id .no{font-size:var(--text-lg);font-weight:700;color:var(--color-default-900);line-height:1.3;
+     margin-top:5px}
+.hd-money{display:flex;flex-direction:column;gap:3px}
+.hd-money .amt{font-size:var(--text-2xl);font-weight:700;color:var(--color-default-900);line-height:1.2}
+.hd-next{display:flex;gap:8px;align-items:flex-start;padding:11px 13px;border-radius:var(--radius);
+     background:var(--color-default-100);color:var(--color-default-800)}
+.hd-next svg{margin-top:2px;color:var(--color-primary)}
+.hd-next.done{background:color-mix(in srgb,var(--color-success) 15%,transparent)}
+.hd-next.done svg{color:var(--color-success)}
+.hd-next.dead{background:color-mix(in srgb,var(--color-danger) 15%,transparent)}
+.hd-next.dead svg{color:var(--color-danger)}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v4 — STAGE LIST: สถานะเป็นแกนหลักของหน้า แต่ละขั้นกาง/พับได้
+   Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/
+         components/ShippingActivity.tsx
+     โครงเดิมของ theme = เส้นประแนวตั้ง (after:border-dashed) + วงไอคอน 33px +
+     หัวข้อ + badge + เวลาขวา + คำอธิบาย → v4 เอาโครงนี้มาเป็น "ตัวหน้า" แล้วเติม
+     ความสามารถกาง/พับ (card-toggle ของ Paces: [data-action="card-toggle"] i หมุน 180°
+     ใน custom/_card.css) ไม่ใช่ pattern ที่คิดขึ้นใหม่
+   ═══════════════════════════════════════════════════════════════════════ */
+.stages{display:flex;flex-direction:column}
+.stage{position:relative;display:flex;gap:14px;padding-bottom:6px}
+/* เส้นประเชื่อมขั้น — ตรงกับ .after:border-dashed ของ ShippingActivity */
+.stage::after{content:"";position:absolute;left:16px;top:38px;bottom:-6px;
+     border-left:1px dashed var(--color-default-300)}
+.stage:last-child::after{display:none}
+.stage>.dot{width:33px;height:33px;border-radius:50%;display:flex;align-items:center;
+     justify-content:center;flex:none;z-index:1;margin-top:9px}
+.stage>.col{flex:1;min-width:0;padding-bottom:14px}
+
+.st-hd{width:100%;display:flex;align-items:flex-start;gap:12px;padding:11px 12px;
+     border-radius:var(--radius);min-height:44px}
+.st-hd:hover{background:var(--color-default-100)}
+.st-hd .ti{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.st-hd .name{font-size:var(--text-md);font-weight:500;color:var(--color-default-800)}
+.stage.current .st-hd .name{font-weight:700;color:var(--color-default-900)}
+.stage.todo .st-hd .name{color:var(--color-default-600)}
+.st-hd .sum{font-size:var(--text-xs);color:var(--color-default-700);display:flex;
+     align-items:center;gap:7px;flex-wrap:wrap}
+.st-hd .when{font-size:var(--text-2xs);color:var(--color-default-400);white-space:nowrap;margin-top:3px}
+.st-hd .chev{color:var(--color-default-400);margin-top:2px;transition:transform .2s}
+.stage.open .st-hd .chev{transform:rotate(-180deg)}
+
+.st-body{margin:2px 0 0 12px;padding:16px;border-radius:var(--radius);
+     background:var(--color-default-100)}
+.stage:not(.open) .st-body{display:none}
+
+/* คู่ค่า key/value ในเนื้อขั้น */
+.kv{display:flex;flex-direction:column;gap:12px}
+.kv .k{font-size:var(--text-2xs);color:var(--color-default-600);margin-bottom:2px}
+.kv .v{font-size:var(--text-sm);color:var(--color-default-900)}
+.divd{border-top:1px dashed var(--color-default-300);margin:14px 0}
+.plain{background:var(--color-card);border-radius:var(--radius);padding:12px 14px}
+
+/* ตารางสินค้า — Base: OrderSummary.tsx (table-bordered + thead bg-light/25) */
+table.tbl{width:100%;border-collapse:collapse;font-size:var(--text-sm);background:var(--color-card)}
+table.tbl th{background:color-mix(in srgb,var(--color-light) 25%,#fff);color:var(--color-default-700);
+     font-weight:600;font-size:var(--text-xs);text-align:left;padding:9px 13px;
+     border:1px solid var(--color-default-300)}
+table.tbl td{padding:11px 13px;border:1px solid var(--color-default-300);vertical-align:middle}
+table.tbl th.num,table.tbl td.num{text-align:right}
+.thumb{width:40px;height:40px;border-radius:var(--radius);background:var(--color-default-200);
+     display:flex;align-items:center;justify-content:center;color:var(--color-default-400);flex:none}
+.items-stack .it{display:flex;gap:11px;padding:11px 0;border-bottom:1px dashed var(--color-default-300)}
+.items-stack .it:first-child{padding-top:0}
+.items-stack .it:last-child{border-bottom:0}
+.bd{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+.bd .l{display:flex;justify-content:space-between;font-size:var(--text-sm)}
+.bd .l.total{border-top:1px dashed var(--color-default-300);padding-top:11px;margin-top:3px;
+     font-weight:700;color:var(--color-default-900);font-size:var(--text-md)}
+
+.callout{border-radius:var(--radius);padding:11px 13px;font-size:var(--text-xs);display:flex;gap:9px;
+     align-items:flex-start;color:var(--color-default-800)}
+.co-warning{background:color-mix(in srgb,var(--color-warning) 15%,transparent)}
+.co-default{background:var(--color-card)}
+.stars{display:flex;gap:2px;color:var(--color-warning)}
+/* แถวผู้ซื้อ — มือถือ 390px หักระยะเยื้องไทม์ไลน์แล้วแคบมาก ชื่อ+เบอร์บรรทัดเดียวไม่พอ
+   จึงวางซ้อนกันก่อน แล้วค่อยแยกซ้าย-ขวาที่ sm(640) (visual QA จับได้ว่าเบอร์ตัด 3 บรรทัด) */
+.buyer{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.tel{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;min-height:44px}
+@container (min-width:640px){
+  .buyer{flex-direction:row;align-items:center;justify-content:space-between}
+  .tel{min-height:0}
+}
+.av{width:40px;height:40px;border-radius:50%;background:var(--color-default-200);flex:none;
+     display:flex;align-items:center;justify-content:center;color:var(--color-default-700);
+     font-weight:600;font-size:var(--text-sm)}
+
+/* ═══ bubble ลอยกลางล่าง — ปุ่มทุกตัวของหน้าอยู่ที่นี่ที่เดียว
+   Base: src/app/(paces)/seller/(dashboard)/orders/components/BulkActionBar.tsx ═══ */
+.viewport{position:relative}
+.bulkbar{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);z-index:50;
+     max-width:calc(100% - 24px)}
+.pill{background:var(--color-default-900);border-radius:9999px;box-shadow:var(--shadow-lg);
+     display:flex;align-items:center;padding:8px 0}
+.pill .z1{display:flex;align-items:center;gap:8px;padding-inline:16px 12px;min-width:0}
+.pill .z1 .badge{background:var(--color-primary);color:#fff;border-radius:9999px;padding:3px 9px}
+.pill .z1 .lbl{font-size:var(--text-xs);color:rgb(255 255 255/.7);font-weight:500;white-space:nowrap;
+     overflow:hidden;text-overflow:ellipsis}
+.pill .div{border-left:1px solid rgb(255 255 255/.2);align-self:stretch;margin-block:6px}
+.pill .z2{display:flex;align-items:center;gap:6px;padding-inline:8px}
+.pill .z3{display:flex;align-items:center;padding-inline:4px 8px}
+.pill .g{border-radius:9999px;color:rgb(255 255 255/.8);gap:6px;white-space:nowrap}
+.pill .g:hover{color:#fff;background:rgb(255 255 255/.1)}
+.pill .p{border-radius:9999px;background:var(--color-primary);color:#fff;gap:6px;white-space:nowrap}
+.pill .p:hover{background:var(--color-primary-hover)}
+.pill .i{border-radius:9999px;color:rgb(255 255 255/.6);width:37px;height:37px;padding:0;
+     justify-content:center}
+.pill .i:hover{background:rgb(255 255 255/.1);color:#fff}
+
+/* ═══ breakpoint จริงของ Tailwind v4 (Paces ไม่ override): sm640 md768 lg1024 ═══ */
+@container (min-width:640px){
+  .items-stack{display:none} .items-table{display:block}
+  .kv{flex-direction:row;gap:26px} .kv>div{flex:1}
+  .st-hd{align-items:center}
+  .st-hd .ti{flex-direction:row;align-items:center;gap:14px}
+  .st-hd .name{flex:none;min-width:150px}
+  .st-hd .when{margin-top:0}
+}
+@container (max-width:639.98px){ .items-table{display:none} }
+@container (min-width:768px){
+  .hd-top{flex-direction:row;align-items:flex-start;justify-content:space-between}
+  .hd-money{align-items:flex-end}
+  .hd{padding:24px 26px}
+}
+@container (max-width:767.98px){
+  .bulkbar{left:12px;right:12px;transform:none;bottom:76px;max-width:none}
+  .pill{justify-content:space-between;padding-inline:6px}
+  .pill .g-label{display:none}
+  .pill .g{width:37px;height:37px;padding:0;justify-content:center}
+  .pill .z1{display:none}          /* สถานะ+เลขอยู่หัวหน้าแล้ว — ไม่งั้นตัวหนังสือเบียดทับกัน */
+  .pill .div:first-of-type{display:none}
+}
+@container (min-width:1024px){
+  .sidenav{display:block} .bottomnav{display:none}
+}
+</style>
+
+<div class="doc">
+  <h1>Mockup v4 — รายละเอียดคำสั่งซื้อ (seller) · แบบ C "สถานะเป็นแกนหลัก"</h1>
+  <p>หน้าคือไทม์ไลน์ของคำสั่งซื้อ แต่ละขั้นกาง/พับได้ — ขั้นที่กำลังเกิดกางอยู่ ขั้นที่จบแล้วพับ ลำดับความสำคัญมาจากวงจรของคำสั่งซื้อเอง ไม่ต้องจัดลำดับด้วยสายตา · <b>คลิกหัวขั้นเพื่อกาง/พับได้จริงในเอกสารนี้</b></p>
+
+  <div class="notice">
+    <b>Base (theme file ที่โครงมาจากจริง):</b>
+    <code>theme/paces/.../order-details/components/ShippingActivity.tsx</code> — เส้นประแนวตั้ง (<code>after:border-dashed</code>) + วงไอคอน 33px + หัวข้อ + badge + เวลาขวา + คำอธิบาย. v4 เอาโครงนี้มาเป็น <b>ตัวหน้า</b> แล้วเติมกาง/พับด้วย <code>card-toggle</code> ของ Paces (<code>[data-action="card-toggle"] i</code> หมุน 180° ใน <code>custom/_card.css</code>) — ไม่ใช่ pattern ที่คิดขึ้นใหม่<br>
+    ตารางสินค้า: <code>OrderSummary.tsx</code> · bubble: <code>orders/components/BulkActionBar.tsx</code><br><br>
+    <b>กติกาการกาง:</b> ขั้นที่ "กำลังเกิดหรือเพิ่งเกิด" กางอยู่ 1 ขั้น — PENDING/SHIPPED กาง <i>จัดส่ง</i> (ที่อยู่+เลขพัสดุคือสิ่งที่ผู้ขายต้องใช้), CONFIRMED กาง <i>ผู้ซื้อรับของ</i> (รีวิว = จุดจบ), CANCELLED กาง <i>สั่งซื้อแล้ว</i> (เหลือแค่อ้างอิงว่าสั่งอะไรไป)<br>
+    <b>ปุ่ม:</b> อยู่บน bubble ลอยล่างที่เดียว — ในเนื้อหา <b>0 ปุ่ม</b> (หัวขั้นที่กดกาง/พับไม่นับเป็น action ของคำสั่งซื้อ)
+  </div>
+
+  <div class="states" id="states"></div>
+  <div id="rack"></div>
+</div>
+
+<script>
+const P={
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+ truck:'<path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5"/>',
+ circleCheck:'<circle cx="12" cy="12" r="9"/><path d="M9 12l2 2l4-4"/>',
+ circleX:'<circle cx="12" cy="12" r="9"/><path d="M10 10l4 4m0-4l-4 4"/>',
+ calendar:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/>',
+ arrowRightCircle:'<circle cx="12" cy="12" r="9"/><path d="M8 12h8m-4-4l4 4l-4 4"/>',
+ copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+ pencil:'<path d="M4 20h4L18.5 9.5a2.828 2.828 0 1 0-4-4L4 16v4"/><path d="M13.5 6.5l4 4"/>',
+ dots:'<circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/>',
+ chevronDown:'<path d="M6 9l6 6l6-6"/>',
+ truckDelivery:'<path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17H3v-6h11m0 6h1m4 0h2v-5h-6m0-5h4l2 5"/><path d="M3 9h5M3 6h7"/>',
+ phone:'<path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+ mapPin:'<circle cx="12" cy="11" r="3"/><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0z"/>',
+ receipt:'<path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-3-2l-2 2l-2-2l-2 2l-2-2z"/><path d="M14 8h-2.5a1.5 1.5 0 0 0 0 3h1a1.5 1.5 0 0 1 0 3H10"/><path d="M12 7v10"/>',
+ cash:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+ cart:'<path d="M6 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M15 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 17H6V3H4"/><path d="M6 5l14 1l-1 7H6"/>',
+ user:'<circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>',
+ photo:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11l2.5 2.5L13 10l4 5"/><circle cx="8.5" cy="9" r="1"/>',
+ star:'<path d="M12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1L12 2l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/>',
+ starFill:'<path d="M12 17.75l-6.172 3.245l1.179-6.873l-5-4.867l6.9-1L12 2l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z" fill="currentColor" stroke="none"/>',
+ msg:'<path d="M8 9h8M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/>',
+ home:'<path d="M5 12H3l9-9l9 9h-2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/>',
+ box:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/>',
+};
+const ic=(n,s=16,c='')=>`<svg class="${c}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||''}</svg>`;
+
+const D={
+  orderNo:'DP25690751043FB1', createdAt:'15 ก.ค. 2569 14:32',
+  shippedAt:'16 ก.ค. 2569 09:10', confirmedAt:'18 ก.ค. 2569 20:04',
+  cancelledAt:'16 ก.ค. 2569 11:20',
+  buyer:'คุณสมหญิง ใจดี', phone:'081-234-5678',
+  address:'123/45 ซอยสุขุมวิท 71 แขวงคลองตันเหนือ เขตวัฒนา กรุงเทพมหานคร 10110',
+  note:'ฝากไว้กับ รปภ. คอนโดได้เลยค่ะ',
+  courier:'Kerry Express', tracking:'TH1234567890TH',
+  items:[{n:'กระเป๋าสะพายหนังแท้ สีน้ำตาล',p:1290,q:1},
+         {n:'พวงกุญแจหนัง สลักชื่อฟรี',p:150,q:2},
+         {n:'กระเป๋าสตางค์ใบสั้น',p:590,q:1}],
+  discount:100, vatPct:7,
+};
+const baht=n=>'฿'+n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+function breakdown(){
+  const sub=D.items.reduce((s,i)=>s+i.p*i.q,0);
+  const vat=+((sub-D.discount)*D.vatPct/100).toFixed(2);
+  return [
+    {label:'ยอดสินค้า',        value:sub,                show:true},
+    {label:'ส่วนลด',           value:D.discount,         show:D.discount>0, tone:'danger', prefix:'- '},
+    {label:`VAT ${D.vatPct}%`, value:vat,                show:vat>0},
+    {label:'ยอดรวมทั้งหมด',    value:sub-D.discount+vat, show:true, emphasis:true},
+  ].filter(r=>r.show);
+}
+const TOTAL=()=>breakdown().at(-1).value;
+
+const STATES={
+  PENDING:{
+    label:'รอดำเนินการ', cls:'bg-warning-15', icon:'clock',
+    next:{tone:'', text:'ขั้นต่อไป: ส่งลิงก์ให้ผู้ซื้อยืนยันตัวตนและชำระเงิน — เลขพัสดุแจ้งทีหลังได้'},
+    primary:{t:'ส่งลิงก์ทาง SMS (฿1)', i:'msg'},
+    ghosts:[{t:'แจ้งเลขพัสดุ', i:'truck'}],
+    menu:['คัดลอกลิงก์','คัดลอกที่อยู่จัดส่ง','แก้ไขคำสั่งซื้อ','ยกเลิกคำสั่งซื้อ'],
+    pay:{t:'รอตรวจสอบสลิป', c:'bg-info-15'},
+    stages:{ordered:'done', paid:'current', shipped:'todo', received:'todo'}, open:'shipped',
+  },
+  SHIPPED:{
+    label:'จัดส่งแล้ว', cls:'bg-info-15', icon:'truck',
+    next:{tone:'', text:'รอผู้ซื้อกดยืนยันรับของ — ตอนนี้ยังไม่ต้องทำอะไรเพิ่ม'},
+    primary:null,
+    ghosts:[{t:'คัดลอกลิงก์', i:'copy'},{t:'แก้ไขเลขพัสดุ', i:'pencil'}],
+    menu:['คัดลอกเลขพัสดุ','คัดลอกที่อยู่จัดส่ง','แก้ไขคำสั่งซื้อ','ยกเลิกคำสั่งซื้อ'],
+    pay:{t:'รอตรวจสอบสลิป', c:'bg-info-15'},
+    stages:{ordered:'done', paid:'done', shipped:'done', received:'current'}, open:'shipped',
+  },
+  CONFIRMED:{
+    label:'สำเร็จ', cls:'bg-success-15', icon:'circleCheck',
+    next:{tone:'done', text:'คำสั่งซื้อนี้จบสมบูรณ์แล้ว — ผู้ซื้อยืนยันรับของและรีวิวแล้ว'},
+    primary:null, ghosts:[{t:'คัดลอกลิงก์', i:'copy'}],
+    menu:['คัดลอกเลขพัสดุ','คัดลอกที่อยู่จัดส่ง'],
+    pay:{t:'ชำระแล้ว', c:'bg-success-15'},
+    stages:{ordered:'done', paid:'done', shipped:'done', received:'done'}, open:'received',
+  },
+  CANCELLED:{
+    label:'ยกเลิก', cls:'bg-danger-15', icon:'circleX',
+    next:{tone:'dead', text:'คำสั่งซื้อนี้ถูกยกเลิกแล้ว — สินค้าคืนเข้าสต็อก และลิงก์ที่เคยส่งให้ผู้ซื้อใช้ไม่ได้อีก'},
+    primary:null, ghosts:null, menu:null,
+    pay:{t:'ยกเลิก', c:'bg-default-15'},
+    stages:{ordered:'done', cancelled:'dead'}, open:'ordered',
+  },
+};
+
+/* ── header (ไม่มีปุ่ม) ─────────────────────────────────────────────── */
+function header(S){
+  return `
+  <div class="card">
+    <div class="hd">
+      <div class="hd-top">
+        <div class="hd-id">
+          <span class="row wrap" style="gap:10px">
+            <span class="badge badge-label ${S.cls}">${ic(S.icon,13)}${S.label}</span>
+            <span class="t-xs c-400 row" style="gap:5px">${ic('calendar',13)}${D.createdAt}</span>
+          </span>
+          <div class="no">${D.orderNo}</div>
+        </div>
+        <div class="hd-money">
+          <span class="t-2xs c-600">ยอดรวมทั้งหมด</span>
+          <span class="amt">${baht(TOTAL())}</span>
+          <span class="badge badge-label ${S.pay.c}">${S.pay.t}</span>
+        </div>
+      </div>
+      <p class="hd-next ${S.next.tone}">${ic('arrowRightCircle',16)}<span>${S.next.text}</span></p>
+    </div>
+  </div>`;
+}
+
+/* ── เนื้อในของแต่ละขั้น ─────────────────────────────────────────────── */
+function bodyOrdered(){
+  const rows=breakdown();
+  return `
+    <div class="items-table">
+      <table class="tbl">
+        <thead><tr><th>ชื่อสินค้า</th><th class="num">ราคา/ชิ้น</th><th class="num">จำนวน</th><th class="num">รวม</th></tr></thead>
+        <tbody>${D.items.map(i=>`
+          <tr><td><div class="row" style="gap:11px"><span class="thumb">${ic('photo',18)}</span>
+            <span class="t-sm fw5 c-900">${i.n}</span></div></td>
+            <td class="num c-700">${baht(i.p)}</td><td class="num c-700">${i.q}</td>
+            <td class="num fw6 c-900">${baht(i.p*i.q)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="items-stack plain">${D.items.map(i=>`
+      <div class="it"><span class="thumb">${ic('photo',18)}</span>
+        <div class="stack" style="flex:1;min-width:0"><span class="t-sm fw5 c-900">${i.n}</span>
+          <span class="t-xs c-700">${baht(i.p)} × ${i.q}</span></div>
+        <span class="t-sm fw6 c-900">${baht(i.p*i.q)}</span></div>`).join('')}
+    </div>
+    <div class="bd">${rows.map(r=>`
+      <div class="l ${r.emphasis?'total':''}">
+        <span class="${r.emphasis?'':'c-700'}">${r.label}</span>
+        <span class="${r.tone==='danger'?'c-danger':''}">${r.prefix||''}${baht(r.value)}</span>
+      </div>`).join('')}
+    </div>`;
+}
+
+function bodyPaid(S){
+  return `
+    <div class="kv">
+      <div><div class="k">วิธีชำระ</div><div class="v fw5">โอนเงิน</div></div>
+      <div><div class="k">ช่องทางการขาย</div><div class="v">Facebook</div></div>
+      <div><div class="k">สลิปโอนเงิน</div>
+        <div style="width:72px;height:90px;border-radius:var(--radius);background:var(--color-card);
+             display:flex;align-items:center;justify-content:center;color:var(--color-default-400);margin-top:4px">
+          ${ic('receipt',22)}</div></div>
+    </div>
+    ${S.pay.t==='รอตรวจสอบสลิป'?`<div class="callout co-default" style="margin-top:14px">${ic('clock',15)}
+      <span>ผู้ซื้อแนบสลิปแล้ว — ตรวจสอบยอดกับบัญชีร้านก่อนจัดส่ง</span></div>`:''}`;
+}
+
+function bodyShipped(S,st){
+  const sent = st==='done';
+  return `
+    <div class="buyer">
+      <div class="row" style="gap:11px;min-width:0">
+        <span class="av">ส</span>
+        <div class="stack" style="min-width:0"><span class="t-sm fw6 c-900">${D.buyer}</span>
+          <span class="t-2xs c-700">ยืนยัน OTP แล้ว</span></div>
+      </div>
+      <a href="tel:0812345678" class="tel t-sm c-primary fw5">${ic('phone',15)}${D.phone}</a>
+    </div>
+    <div class="plain">
+      <div class="row t-2xs c-600" style="gap:6px;margin-bottom:5px">${ic('mapPin',13)}ที่อยู่จัดส่ง</div>
+      <p class="t-sm c-900">${D.address}</p>
+    </div>
+    <div class="callout co-warning" style="margin-top:10px">${ic('msg',15)}
+      <span><b>หมายเหตุจากผู้ซื้อ</b> — ${D.note}</span></div>
+    <div class="divd"></div>
+    ${sent?`
+    <div class="kv">
+      <div><div class="k">ขนส่ง</div><div class="v fw5">${D.courier}</div></div>
+      <div><div class="k">เลขพัสดุ</div><div class="v mono fw6">${D.tracking}</div></div>
+      <div><div class="k">แจ้งจัดส่งเมื่อ</div><div class="v">${D.shippedAt}</div></div>
+    </div>`:`
+    <div class="callout co-default">${ic('truckDelivery',15)}
+      <span>ยังไม่แจ้งเลขพัสดุ — ส่งของแล้วให้กด <b>แจ้งเลขพัสดุ</b> ที่แถบด้านล่างจอ เลือกได้ว่าจะกรอกเลขที่ส่งเองหรือให้ระบบสร้างพัสดุ iShip ให้</span></div>`}`;
+}
+
+function bodyReceived(st){
+  if(st==='done') return `
+    <span class="stars" style="margin-bottom:8px">${ic('starFill',17).repeat(5)}</span>
+    <p class="t-sm c-800" style="font-style:italic">"แพ็คดีมาก ส่งไว ประทับใจค่ะ"</p>
+    <p class="t-2xs c-400" style="margin-top:8px">${D.buyer} · ${D.confirmedAt}</p>`;
+  return `
+    <div class="callout co-default">${ic('clock',15)}
+      <span>ผู้ซื้อจะกดยืนยันรับของเองผ่านลิงก์ — หลังยืนยันแล้วจะรีวิวร้านได้ และคะแนนความน่าเชื่อถือของร้านจะอัปเดต</span></div>`;
+}
+
+/* ── stage list ─────────────────────────────────────────────────────── */
+function stageRow(S,key,cfg){
+  const st=S.stages[key];
+  if(!st) return '';
+  const open = S.open===key;
+  const dotCls = st==='done' ? cfg.doneCls : st==='dead' ? 'bg-danger-15'
+               : st==='current' ? 'bg-primary-15' : '';
+  const dotStyle = (st==='todo') ? 'background:var(--color-default-100);color:var(--color-default-400)' : '';
+  return `
+  <div class="stage ${st} ${open?'open':''}" data-k="${key}">
+    <span class="dot ${dotCls}" style="${dotStyle}">${ic(cfg.icon,17)}</span>
+    <div class="col">
+      <button class="st-hd" aria-expanded="${open}">
+        <span class="ti">
+          <span class="name">${cfg.name(st)}</span>
+          <span class="sum">${cfg.sum(S,st)}</span>
+        </span>
+        <span class="when">${cfg.when(st)}</span>
+        ${cfg.body?`<span class="chev">${ic('chevronDown',17)}</span>`:''}
+      </button>
+      ${cfg.body?`<div class="st-body">${cfg.body(S,st)}</div>`:''}
+    </div>
+  </div>`;
+}
+
+const STAGE_DEFS=[
+  {key:'ordered', icon:'cart', doneCls:'bg-primary-15',
+   name:()=>'สั่งซื้อแล้ว',
+   sum:()=>`${D.items.length} รายการ · ${baht(TOTAL())}`,
+   when:()=>D.createdAt, body:bodyOrdered},
+  {key:'paid', icon:'cash', doneCls:'bg-success-15',
+   name:st=>st==='done'?'ชำระเงินแล้ว':'ชำระเงิน',
+   sum:S=>`โอนเงิน <span class="badge badge-label ${S.pay.c}">${S.pay.t}</span>`,
+   when:st=>st==='done'?D.createdAt:'รอผู้ซื้อชำระ', body:bodyPaid},
+  {key:'shipped', icon:'truck', doneCls:'bg-info-15',
+   name:st=>st==='done'?'จัดส่งแล้ว':'จัดส่ง',
+   sum:(S,st)=>st==='done'?`${D.courier} · <span class="mono">${D.tracking}</span>`
+                          :'ยังไม่แจ้งเลขพัสดุ',
+   when:st=>st==='done'?D.shippedAt:'รอจัดส่ง', body:(S,st)=>bodyShipped(S,st)},
+  {key:'received', icon:'circleCheck', doneCls:'bg-success-15',
+   name:st=>st==='done'?'ผู้ซื้อรับของแล้ว':'ผู้ซื้อรับของ',
+   sum:(S,st)=>st==='done'?'รีวิว 5 ดาว':'รอผู้ซื้อยืนยัน',
+   when:st=>st==='done'?D.confirmedAt:'รอดำเนินการ', body:(S,st)=>bodyReceived(st)},
+  {key:'cancelled', icon:'circleX', doneCls:'bg-danger-15',
+   name:()=>'ยกเลิกแล้ว',
+   sum:()=>'สินค้าถูกคืนเข้าสต็อกแล้ว',
+   when:()=>D.cancelledAt, body:null},
+];
+
+function stages(S){
+  return `<div class="card"><div class="card-body"><div class="stages">
+    ${STAGE_DEFS.map(d=>stageRow(S,d.key,d)).join('')}
+  </div></div></div>`;
+}
+
+/* ── bubble ─────────────────────────────────────────────────────────── */
+function bulkbar(S){
+  if(!S.primary && !S.ghosts && !S.menu) return '';
+  return `
+  <div class="bulkbar"><div class="pill">
+    <div class="z1"><span class="badge">${ic(S.icon,13)}${S.label}</span>
+      <span class="lbl">${D.orderNo}</span></div>
+    <span class="div" aria-hidden="true"></span>
+    <div class="z2">
+      ${(S.ghosts||[]).map(g=>`<button class="btn g">${ic(g.i,18)}<span class="g-label">${g.t}</span></button>`).join('')}
+      ${S.primary?`<button class="btn p">${ic(S.primary.i,18)}${S.primary.t}</button>`:''}
+    </div>
+    ${S.menu?`<span class="div" aria-hidden="true"></span>
+    <div class="z3"><button class="btn i" aria-label="ตัวเลือกเพิ่มเติม" title="${S.menu.join(' · ')}">${ic('dots',18)}</button></div>`:''}
+  </div></div>`;
+}
+
+function page(key){
+  const S=STATES[key];
+  return `
+  <div class="shell">
+    <aside class="sidenav"><div class="brand">Deep</div>
+      <ul><li>${ic('home',17)}ภาพรวม</li><li class="on">${ic('cart',17)}คำสั่งซื้อ</li>
+        <li>${ic('box',17)}สินค้า</li><li>${ic('msg',17)}แชท</li><li>${ic('user',17)}ลูกค้า</li></ul></aside>
+    <div class="main">
+      <div class="topbar"><span class="crumb">คำสั่งซื้อ / <b>รายละเอียดคำสั่งซื้อ</b></span>
+        <span class="btn btn-icon-sm">${ic('user',16)}</span></div>
+      <div class="content"><div class="wrapc">
+        ${header(S)}
+        ${stages(S)}
+      </div></div>
+    </div>
+  </div>`;
+}
+
+const DEVICES=[
+  {cls:'f-m',name:'MOBILE',note:'390px · < sm(640) → สินค้าเป็น stacked list'},
+  {cls:'f-t',name:'TABLET',note:'768px · < lg(1024) → bottom nav, ไม่มี sidenav'},
+];
+let cur='SHIPPED';
+function render(){
+  const S=STATES[cur], inner=page(cur);
+  const chrome=`${bulkbar(S)}
+    <nav class="bottomnav bnav"><div>${ic('home',19)}ภาพรวม</div><div class="on">${ic('cart',19)}คำสั่งซื้อ</div>
+      <div>${ic('box',19)}สินค้า</div><div>${ic('msg',19)}แชท</div></nav>`;
+  const frame=(cls,name,note)=>`
+    <div class="frame ${cls}"><div class="tag"><span>${name}</span><span>${note}</span></div>
+      <div class="viewport"><div class="scroll">${inner}</div>${chrome}</div></div>`;
+  document.getElementById('rack').innerHTML=`
+    <div class="rack">${DEVICES.map(d=>frame(d.cls,d.name,d.note)).join('')}</div>
+    <div class="deskrow" style="margin-top:20px">
+      ${frame('f-d','DESKTOP','1440px · lg(1024)+ → sidenav 245px + คอลัมน์เดียวกว้าง 900 กลางจอ')}</div>`;
+  document.querySelectorAll('#states button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===cur)));
+}
+document.getElementById('states').innerHTML=
+  Object.keys(STATES).map(k=>`<button data-k="${k}">${k} · ${STATES[k].label}</button>`).join('')
+  +`<span class="hint">สลับสถานะ · คลิกหัวขั้นเพื่อกาง/พับ · hover ⋮ เพื่อดูรายการในเมนู</span>`;
+document.getElementById('states').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return; cur=b.dataset.k; render();
+});
+// กาง/พับได้จริง — accordion แบบ 1 ขั้นเปิดต่อครั้ง (ตามกติกา "ขั้นที่กำลังเกิดกางอยู่")
+document.getElementById('rack').addEventListener('click',e=>{
+  const hd=e.target.closest('.st-hd'); if(!hd)return;
+  const stage=hd.closest('.stage'), k=stage.dataset.k, frame=stage.closest('.frame');
+  const willOpen=!stage.classList.contains('open');
+  frame.querySelectorAll('.stage').forEach(s=>{
+    const on = willOpen && s.dataset.k===k;
+    s.classList.toggle('open',on);
+    const h=s.querySelector('.st-hd'); if(h) h.setAttribute('aria-expanded',String(on));
+  });
+});
+render();
+</script>

@@ -1,0 +1,111 @@
+/**
+ * order-action-set.ts — pure logic: ชุด action (primary/ghost/menu) ของหน้ารายละเอียดคำสั่งซื้อ
+ *
+ * ทำไม: T5 contract กลาง — task การ์ดใบสั่งซื้อ/แถบ action/หัวหน้า (S-2, S-5, S-6) import
+ * ฟังก์ชันนี้ตัวเดียว แทนเขียน matrix สถานะซ้ำ 3 ที่ (บทเรียน feedback_lock_contract_before_parallel)
+ * ไม่มี JSX/markup — ฝั่ง UI เป็นคนแปลง ActionItem[] เป็นปุ่มเอง
+ *
+ * อ้างอิง:
+ *   - docs/superpowers/specs/2026-07-31-seller-order-detail-v5-design.md §3 (per-state matrix)
+ *   - docs/scope/2026-07-31-seller-order-detail-v5-scope-baseline.md Change Log
+ *     (S-5/S-6: ตัด "แก้ไขคำสั่งซื้อ" ออกจากเมนู ⋮ ของ SHIPPED — หน้า edit บล็อก non-PENDING
+ *     อยู่แล้ว กดไปเจอ dead-end)
+ */
+
+import type { OrderStatus } from '@/lib/order-display'
+
+export type ActionItem = { key: string; label: string; icon: string }
+
+export type OrderActionSet = {
+  primary: ActionItem | null
+  ghosts: ActionItem[]
+  menu: ActionItem[] // action รองใน ⋮
+}
+
+export type ShipmentSource = 'MANUAL' | 'ISHIP' | null
+
+export type GetOrderActionSetInput = {
+  status: OrderStatus
+  /**
+   * ค่าที่พบจริงในฐาน (String ไม่ใช่ enum): 'SHIPPED' | 'NO_SHIPPING' | 'PICKUP'
+   * (PICKUP มาจาก booking.service.ts feat 00017 — ออเดอร์จองที่พัก)
+   * เฉพาะ 'SHIPPED' เท่านั้นที่ถือว่า "ต้องส่งของ" — NO_SHIPPING (digital/service/subscription)
+   * และ PICKUP (จองที่พัก มติ user: ปฏิบัติเหมือนสินค้าดิจิทัล) ไม่มี action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง
+   */
+  fulfillmentMode: string
+  /**
+   * แหล่งที่มาของพัสดุ — null เมื่อยังไม่แจ้งเลขพัสดุเลย
+   * 'ISHIP' = ระบบสร้างพัสดุให้ (feat 00022) ห้ามเขียน ShipmentTracking เอง →
+   * "แก้ไขเลขพัสดุ" ต้องหายไปทั้งปุ่ม ไม่ใช่ปุ่มที่กดไม่ได้
+   */
+  shipmentSource: ShipmentSource
+}
+
+// ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
+const ACTIONS = {
+  sendSms: { key: 'send-sms', label: 'ส่งลิงก์ทาง SMS (฿1)', icon: 'message-forward' },
+  reportTracking: { key: 'report-tracking', label: 'แจ้งเลขพัสดุ', icon: 'truck' },
+  copyLink: { key: 'copy-link', label: 'คัดลอกลิงก์', icon: 'copy' },
+  copyAddress: { key: 'copy-address', label: 'คัดลอกที่อยู่จัดส่ง', icon: 'map-pin' },
+  editOrder: { key: 'edit-order', label: 'แก้ไขคำสั่งซื้อ', icon: 'edit' },
+  cancelOrder: { key: 'cancel-order', label: 'ยกเลิกคำสั่งซื้อ', icon: 'ban' },
+  editTracking: { key: 'edit-tracking', label: 'แก้ไขเลขพัสดุ', icon: 'pencil' },
+  copyTracking: { key: 'copy-tracking', label: 'คัดลอกเลขพัสดุ', icon: 'copy' },
+} as const satisfies Record<string, ActionItem>
+
+/**
+ * getOrderActionSet — คืนชุด action (primary/ghosts/menu) ของหน้าตามสถานะ + fulfillment + shipment source
+ *
+ * matrix อ้างอิง design §3 (แก้ตาม Change Log 2026-07-31):
+ *   PENDING:   primary=sendSms · ghost=[reportTracking] · menu=[copyLink,copyAddress,editOrder,cancelOrder]
+ *   SHIPPED:   primary=null    · ghost=[copyLink,editTracking(MANUAL only)] · menu=[copyTracking,copyAddress,cancelOrder]
+ *   CONFIRMED: primary=null    · ghost=[copyLink]  · menu=[copyTracking,copyAddress]
+ *   CANCELLED: primary=null    · ghost=[]           · menu=[]  (ไม่มีแถบเลย)
+ *
+ * fulfillmentMode !== 'SHIPPED' → ตัด action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่งออกทั้งหมด
+ * (reportTracking, editTracking, copyTracking, copyAddress) — คงเหลือ action อื่นตามปกติ
+ * ครอบคลุมทั้ง 'NO_SHIPPING' และ 'PICKUP' (G-1: จองที่พักไม่ใช่ NO_SHIPPING แต่ต้องไม่มี action พัสดุเหมือนกัน)
+ */
+export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
+  const { status, fulfillmentMode, shipmentSource } = input
+  // allow-list ไม่ใช่ deny-list โดยตั้งใจ — fulfillmentMode เป็น String ไม่ใช่ enum
+  // ค่าใหม่ในอนาคต (เช่น PICKUP ที่หลุดมารอบนี้ — G-1) จะได้ไม่ถูกนับเป็น "ต้องส่งของ" เองโดยอัตโนมัติ
+  const hasShipping = fulfillmentMode === 'SHIPPED'
+  const isManualShipment = shipmentSource === 'MANUAL'
+
+  if (status === 'CANCELLED') {
+    // "ไม่มีแถบเลย" ตาม design §3 — ครอบทั้ง primary/ghost/menu
+    return { primary: null, ghosts: [], menu: [] }
+  }
+
+  if (status === 'PENDING') {
+    const ghosts: ActionItem[] = []
+    if (hasShipping) ghosts.push(ACTIONS.reportTracking)
+
+    const menu: ActionItem[] = [ACTIONS.copyLink]
+    if (hasShipping) menu.push(ACTIONS.copyAddress)
+    menu.push(ACTIONS.editOrder, ACTIONS.cancelOrder)
+
+    return { primary: ACTIONS.sendSms, ghosts, menu }
+  }
+
+  if (status === 'SHIPPED') {
+    const ghosts: ActionItem[] = [ACTIONS.copyLink]
+    // "แก้ไขเลขพัสดุ" เฉพาะ MANUAL — ISHIP ต้องไม่มีปุ่มนี้เลย (system-generated, ห้ามเขียน
+    // ShipmentTracking ตาม feat 00022)
+    if (hasShipping && isManualShipment) ghosts.push(ACTIONS.editTracking)
+
+    // Change Log 2026-07-31: SHIPPED ไม่มี "แก้ไขคำสั่งซื้อ" ใน ⋮ (edit page บล็อก non-PENDING)
+    const menu: ActionItem[] = []
+    if (hasShipping) menu.push(ACTIONS.copyTracking, ACTIONS.copyAddress)
+    menu.push(ACTIONS.cancelOrder)
+
+    return { primary: null, ghosts, menu }
+  }
+
+  // CONFIRMED
+  const menu: ActionItem[] = []
+  if (hasShipping) menu.push(ACTIONS.copyTracking, ACTIONS.copyAddress)
+
+  return { primary: null, ghosts: [ACTIONS.copyLink], menu }
+}

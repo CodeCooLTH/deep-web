@@ -3,17 +3,34 @@
 /**
  * QuickMessageManager — modal จัดการข้อความสำเร็จรูป (CRUD) — feature 00018 composer improvement #2
  *
- * Shell: copy pattern จาก (dashboard)/dashboard/components/SalesChartSheet.tsx
- *   (fixed inset-0 flex, header title+close, ESC ปิด, role="dialog") — centered modal บน desktop
- *   (items-center justify-center + card max-w) / เกือบเต็มจอบนมือถือ
- * Form field: Base theme/paces form/elements (form-input/form-label/textarea) — Paces primitive (HR7)
- * ปุ่มลบ = pacesConfirm (Sweet Alerts — Hard Rule 8 confirm dialog)
+ * Base (modal shell / responsive sizing): theme/paces/Admin/TS/src/app/(admin)/ui/modals/page.tsx
+ *   block "Full Screen Below lg" (บรรทัด 645-671) — เต็มจอใต้ lg / การ์ดกึ่งกลางที่ lg ขึ้นไป
+ *   เอาเฉพาะ "class มิติ" มาใช้ ส่วนกลไก open/close ยังเป็น React state จาก parent (ไม่ใช้
+ *   Preline hs-overlay เพราะ parent คุมด้วย managerOpen อยู่แล้ว — ใช้ทั้งคู่จะขัดกัน)
+ * Base (ตารางรายการ): theme/paces/Admin/TS/src/app/(admin)/tables/static/components/HoverableRows.tsx
+ *   (.table-wrapper > table.table.table-hover > thead.font-semibold)
+ * Base (ช่องค้นหา): theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ContactList.tsx:20-24
+ * Base (ปุ่ม icon / ลูกศรจัดลำดับ): theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx (.btn.btn-icon)
+ * Base (กรองหมวด): src/components/safepay/FilterDropdown.tsx (Base เดิม ui/dropdowns/page.tsx)
+ * Base (confirm ลบ): theme/paces/.../plugins/sweet-alerts/components/SweetAlerts.tsx ผ่าน lib/paces-swal
+ * Form field: Base theme/paces form/elements (form-input/form-label) — Paces primitive (HR7)
  * upload รูป: reuse POST /api/upload (คืน {fileId}) เหมือน composer แนบรูป
+ *
+ * โครง (spec docs/superpowers/specs/2026-07-31-quick-message-manager-design.md):
+ *   **หนึ่งหน้าต่อหนึ่งงาน** — โมดัลแสดงทีละอย่างเสมอ ไม่ว่าจอเล็กหรือใหญ่
+ *   - viewMode 'list' = ตารางเต็มโมดัล (หัวข้อ/หมวด/ข้อความ/จัดการ) + toolbar ค้นหา-กรอง-จัดลำดับ-เพิ่ม
+ *   - viewMode 'form' = ฟอร์มเต็มโมดัล มีลูกศรย้อนกลับที่ header (กดแถวไหนก็เข้าฟอร์มของแถวนั้น)
+ *   เดิมเคยเป็น 2 pane (list ซ้าย + ฟอร์มขวา) บน >=lg แต่ user เห็นของจริงแล้วสั่งเปลี่ยนเป็น
+ *   ตาราง + เปลี่ยนทั้งหน้าตอนกด เพราะ "เข้าใจง่ายกว่า" (2026-07-31) — ทั้งสองแบบแก้ bug เดิม
+ *   ได้เหมือนกัน (startEdit เติมค่าลงฟอร์มบนสุดแต่ไม่เลื่อนจอไปหา ผู้ใช้เลยเห็นว่ากดแล้วไม่มีอะไรเกิดขึ้น)
+ *   จัดลำดับยกมาจากแถบล่างด้วย (API PATCH {orderedIds} เดิม): >=lg ลากที่ grip / <lg ปุ่มลูกศร 44px
+ *   เพราะ HTML5 draggable ไม่ยิง event บนจอสัมผัส
  *
  * ข้อความสำเร็จรูปผูกระดับร้าน — ทุกคนในร้านเห็น/แก้ชุดเดียวกัน (ผลตัดสินผู้ใช้ 2026-07-23)
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 
@@ -32,9 +49,19 @@ export type QuickMessage = {
 
 /** ต้องตรงกับ QUICK_MESSAGE_MAX_IMAGES ใน validations.ts (backend เป็นคนบังคับจริง) */
 const MAX_IMAGES = 5
+/** ต้องตรงกับ QuickMessageCreateSchema.body ใน validations.ts */
+const BODY_MAX = 2000
+/** เตือน "ใกล้ครบ" ก่อนถึงเพดาน — ไม่ใช่ error เพราะ maxLength กันเกินอยู่แล้ว */
+const BODY_WARN = 1800
+const CATEGORY_ALL = 'All'
 
 type Props = {
   items: QuickMessage[]
+  /** parent ยังโหลดรายการแรกอยู่ — กัน empty-state หลอกตาระหว่างรอ */
+  loading?: boolean
+  /** parent โหลดไม่สำเร็จ — ต้องแยกจาก "ไม่มีข้อมูล" ไม่งั้นผู้ใช้นึกว่าข้อความหายหมด */
+  error?: boolean
+  onRetry?: () => void
   onClose: () => void
   onChanged: () => void // ให้ parent refetch หลังสร้าง/แก้/ลบ
 }
@@ -42,7 +69,19 @@ type Props = {
 const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 const IMAGE_MAX = 5 * 1024 * 1024
 
-export default function QuickMessageManager({ items, onClose, onChanged }: Props) {
+/** รูปของรายการหนึ่ง — รวม field เก่า (เดี่ยว) กับใหม่ (อาร์เรย์) ให้เหลือรูปเดียวกันทั้งไฟล์ */
+function imagesOf(qm: QuickMessage): string[] {
+  return qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
+}
+
+export default function QuickMessageManager({
+  items,
+  loading = false,
+  error = false,
+  onRetry,
+  onClose,
+  onChanged,
+}: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
@@ -50,6 +89,48 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
   const [imageFileIds, setImageFileIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // view: มีผลเฉพาะ <lg (ที่ ≥lg render ทั้งสอง pane พร้อมกันด้วย responsive class)
+  const [viewMode, setViewMode] = useState<'list' | 'form'>('list')
+  const [q, setQ] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState(CATEGORY_ALL)
+  const [sortMode, setSortMode] = useState(false)
+
+  // จัดลำดับแบบ optimistic — สลับบนจอทันทีแล้วค่อยยิง API (เหมือน QuickMessageBar)
+  // localItems คือของที่เอาไปแสดง; sync จาก prop ทุกครั้งที่ parent refetch สำเร็จ
+  const [localItems, setLocalItems] = useState<QuickMessage[]>(items)
+  useEffect(() => {
+    setLocalItems(items)
+  }, [items])
+
+  const dragFrom = useRef<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+
+  const isEditing = editingId !== null
+  const canSave = title.trim().length > 0 && (body.trim().length > 0 || imageFileIds.length > 0)
+
+  const resetForm = useCallback(() => {
+    setEditingId(null)
+    setTitle('')
+    setCategory('')
+    setBody('')
+    setImageFileIds([])
+  }, [])
+
+  /** ฟอร์มมีอะไรที่จะหายถ้าย้อนกลับตอนนี้ไหม — ใช้ตัดสินว่าต้อง confirm ก่อนออกจาก form view */
+  const isDirty = useCallback(() => {
+    if (editingId) {
+      const orig = localItems.find((i) => i.id === editingId)
+      if (!orig) return false
+      return (
+        title !== orig.title ||
+        category !== (orig.category ?? '') ||
+        body !== orig.body ||
+        imageFileIds.join(',') !== imagesOf(orig).join(',')
+      )
+    }
+    return title.trim() !== '' || category.trim() !== '' || body.trim() !== '' || imageFileIds.length > 0
+  }, [editingId, localItems, title, category, body, imageFileIds])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -59,15 +140,50 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const isEditing = editingId !== null
-  const canSave = title.trim().length > 0 && (body.trim().length > 0 || imageFileIds.length > 0)
+  // ล้างสถานะลากที่ระดับ window — dragend ของแถวต้นทางไม่ยิงทุกกรณี (ปล่อยนอกหน้าต่าง/กด Esc
+  // ยกเลิกกลางทาง) ผลคือแถวค้างไฮไลต์ไว้และ dragFrom ค้างค่าเก่า ทำให้ลากครั้งถัดไปคำนวณผิด
+  useEffect(() => {
+    if (!sortMode) return
+    const clear = () => {
+      dragFrom.current = null
+      setDragOver(null)
+    }
+    window.addEventListener('dragend', clear)
+    window.addEventListener('drop', clear)
+    return () => {
+      window.removeEventListener('dragend', clear)
+      window.removeEventListener('drop', clear)
+      clear()
+    }
+  }, [sortMode])
 
-  function resetForm() {
-    setEditingId(null)
-    setTitle('')
-    setCategory('')
-    setBody('')
-    setImageFileIds([])
+  // ── หมวดทั้งหมดที่มีอยู่จริง (derive จากข้อมูล ไม่มีตาราง master) ──────────
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    for (const it of localItems) {
+      const c = it.category?.trim()
+      if (c) set.add(c)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'))
+  }, [localItems])
+
+  // โหมดจัดลำดับต้องแสดงทั้งชุดเสมอ — ลากสลับบน "ผลค้นหา" จะเขียนลำดับผิด เพราะ orderedIds
+  // ที่ส่งไปจะมีแค่ตัวที่ตรงคำค้น ตัวที่ถูกกรองออกจะโดนดันไปท้ายทั้งหมด (เหตุผลเดียวกับ bar)
+  const visibleItems = useMemo(() => {
+    if (sortMode) return localItems
+    const needle = q.trim().toLowerCase()
+    return localItems.filter((qm) => {
+      if (categoryFilter !== CATEGORY_ALL && (qm.category ?? '') !== categoryFilter) return false
+      if (!needle) return true
+      return qm.title.toLowerCase().includes(needle) || qm.body.toLowerCase().includes(needle)
+    })
+  }, [localItems, q, categoryFilter, sortMode])
+
+  const hasFilter = q.trim() !== '' || categoryFilter !== CATEGORY_ALL
+
+  function clearFilters() {
+    setQ('')
+    setCategoryFilter(CATEGORY_ALL)
   }
 
   function startEdit(qm: QuickMessage) {
@@ -75,8 +191,25 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
     setTitle(qm.title)
     setCategory(qm.category ?? '')
     setBody(qm.body)
-    // แถวเก่าที่ API ยังไม่ได้ส่ง imageFileIds (deploy คร่อมเวอร์ชัน) → fallback รูปเดี่ยว
-    setImageFileIds(qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : [])
+    setImageFileIds(imagesOf(qm))
+    // <lg: สลับไปหน้าฟอร์ม (≥lg ฟอร์มอยู่ pane ขวาที่มองเห็นอยู่แล้ว — บรรทัดนี้ไม่มีผล)
+    setViewMode('form')
+  }
+
+  function startAdd() {
+    resetForm()
+    setViewMode('form')
+  }
+
+  async function backToList() {
+    if (isDirty()) {
+      const ok = await pacesConfirm.question('ยกเลิกการแก้ไข?', 'การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไป', {
+        confirmButtonText: 'ยกเลิกการแก้ไข',
+      })
+      if (!ok) return
+    }
+    resetForm()
+    setViewMode('list')
   }
 
   // อัปโหลดได้ทีละหลายไฟล์ (multiple) — ทยอยยิงทีละไฟล์ตามลำดับที่เลือก เพื่อให้ลำดับรูปที่บันทึก
@@ -142,6 +275,8 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
       }
       pacesToast.success(isEditing ? 'แก้ไขข้อความสำเร็จรูปแล้ว' : 'เพิ่มข้อความสำเร็จรูปแล้ว')
       resetForm()
+      // <lg: กลับไปหน้ารายการเพื่อให้เห็นผลของสิ่งที่เพิ่งบันทึก (≥lg ไม่มีผล — เห็นอยู่แล้ว)
+      setViewMode('list')
       onChanged()
     } catch {
       pacesToast.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง')
@@ -162,12 +297,50 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
         return
       }
       pacesToast.success('ลบแล้ว')
-      if (editingId === qm.id) resetForm()
+      if (editingId === qm.id) {
+        resetForm()
+        setViewMode('list')
+      }
       onChanged()
     } catch {
       pacesToast.error('ลบไม่สำเร็จ ลองใหม่อีกครั้ง')
     }
   }
+
+  // บันทึกลำดับใหม่ — optimistic แล้วค่อยยิง API; ล้มเหลว → ดึงของจริงกลับมา (เหมือน bar)
+  const persistOrder = useCallback(
+    async (next: QuickMessage[]) => {
+      setLocalItems(next)
+      try {
+        const res = await fetch('/api/chat/quick-messages', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderedIds: next.map((x) => x.id) }),
+        })
+        if (!res.ok) throw new Error('failed')
+      } catch {
+        pacesToast.error('บันทึกลำดับไม่สำเร็จ')
+        onChanged() // ดึงลำดับจริงกลับมา ไม่ปล่อยให้จอโชว์ลำดับที่ไม่ได้ถูกบันทึก
+      }
+    },
+    [onChanged],
+  )
+
+  const move = useCallback(
+    (from: number, to: number) => {
+      if (from === to || from < 0 || to < 0 || to >= localItems.length) return
+      const next = [...localItems]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      persistOrder(next)
+    },
+    [localItems, persistOrder],
+  )
+
+
+  const bodyLen = body.length
+  const isList = viewMode === 'list'
+  const formHeading = isEditing ? 'แก้ไขข้อความสำเร็จรูป' : 'เพิ่มข้อความสำเร็จรูป'
 
   return (
     <div
@@ -178,166 +351,441 @@ export default function QuickMessageManager({ items, onClose, onChanged }: Props
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="card bg-card flex max-h-full w-full flex-col rounded-b-none sm:max-w-lg sm:rounded-lg">
-        {/* header */}
-        <div className="card-header flex items-center justify-between">
-          <h5 className="mb-0 flex items-center gap-2 text-base">
-            <Icon icon="message-2-bolt" className="text-primary text-lg" />
-            จัดการข้อความสำเร็จรูป
+      {/* ความสูงคงที่ (sm:h-176 = 44rem) ไม่ใช่ h-auto — ไม่งั้นโมดัลหดตามจำนวนแถวทุกครั้งที่กรอง
+          แล้วเนื้อหาเด้งขึ้นลงกวนตา (user report 2026-07-31). max-h-full กันล้นบนจอเตี้ย */}
+      <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-176 sm:rounded-lg lg:max-w-5xl">
+        {/* ── header ───────────────────────────────────────────────────────── */}
+        <div className="card-header flex items-center justify-between gap-2">
+          {/* หน้าฟอร์มกินพื้นที่ทั้งโมดัล จึงต้องมีทางกลับที่ชัด — ลูกศรย้อนกลับแทนไอคอนหัวข้อ */}
+          {!isList && (
+            <button
+              type="button"
+              onClick={backToList}
+              className="btn btn-icon border-default-300 min-h-11 min-w-11"
+              aria-label="ย้อนกลับไปรายการ"
+            >
+              <Icon icon="arrow-left" className="text-lg" />
+            </button>
+          )}
+          <h5 className="mb-0 flex min-w-0 grow items-center gap-2 text-base">
+            {isList && <Icon icon="message-2-bolt" className="text-primary text-lg" />}
+            <span className="truncate">
+              {isList ? (sortMode ? 'จัดลำดับข้อความสำเร็จรูป' : 'จัดการข้อความสำเร็จรูป') : formHeading}
+            </span>
+            {isList && !loading && !error && (
+              <span className="badge bg-primary/15 text-primary shrink-0">{localItems.length}</span>
+            )}
           </h5>
-          <button type="button" onClick={onClose} className="btn btn-icon border-default-300" aria-label="ปิด">
+          <button type="button" onClick={onClose} className="btn btn-icon border-default-300 shrink-0" aria-label="ปิด">
             <Icon icon="x" className="text-lg" />
           </button>
         </div>
 
-        <div className="min-h-0 grow overflow-y-auto p-4">
-          {/* ── form (เพิ่ม/แก้) ── */}
-          <div className="border-default-200 mb-4 rounded-lg border p-3">
-            <p className="text-default-700 mb-3 text-sm font-semibold">
-              {isEditing ? 'แก้ไขข้อความสำเร็จรูป' : 'เพิ่มข้อความสำเร็จรูป'}
-            </p>
-
-            <div className="mb-3">
-              <label className="form-label">หัวข้อ</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="เช่น ทักทาย, แจ้งเลขพัสดุ"
-                value={title}
-                maxLength={80}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">หมวด (ไม่บังคับ)</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="เช่น การจัดส่ง, ราคา"
-                value={category}
-                maxLength={40}
-                onChange={(e) => setCategory(e.target.value)}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">ข้อความ</label>
-              <textarea
-                className="form-input min-h-24"
-                placeholder="พิมพ์เนื้อหาข้อความสำเร็จรูป..."
-                value={body}
-                maxLength={2000}
-                onChange={(e) => setBody(e.target.value)}
-              />
-            </div>
-
-            {/* รูปแนบ — ได้สูงสุด MAX_IMAGES รูป (user สั่ง 2026-07-23) เรียงตามลำดับที่จะส่งจริง */}
-            <div className="mb-3">
-              <span className="form-label">รูปแนบ (ไม่บังคับ · สูงสุด {MAX_IMAGES} รูป)</span>
-              <div className="flex flex-wrap items-center gap-2">
-                {imageFileIds.map((fileId, i) => (
-                  <div key={fileId} className="border-default-200 relative size-16 shrink-0 overflow-hidden rounded-lg border">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/files/${fileId}`} alt={`รูปแนบที่ ${i + 1}`} className="size-full object-cover" />
-                    {/* ปุ่มลบมุมขวาบน — hit area 28px บนรูป 64px (เล็กกว่า 44px โดยตั้งใจ ไม่งั้นทับรูปทั้งใบ
-                        จนดูรูปไม่ออก) ปุ่มนี้เป็น action รองที่มีทางอื่นทดแทน: ลบทั้งชุดแล้วเลือกใหม่ */}
-                    <button
-                      type="button"
-                      onClick={() => setImageFileIds((prev) => prev.filter((x) => x !== fileId))}
-                      aria-label={`ลบรูปที่ ${i + 1}`}
-                      className="bg-default-900/60 absolute end-0.5 top-0.5 flex size-7 items-center justify-center rounded-full text-white"
-                    >
-                      <Icon icon="x" width={14} height={14} />
-                    </button>
-                  </div>
-                ))}
-                {imageFileIds.length < MAX_IMAGES && (
-                  <label className="btn border-default-300 min-h-11 cursor-pointer">
-                    <input
-                      type="file"
-                      accept={IMAGE_ACCEPT}
-                      multiple
-                      className="hidden"
-                      onChange={handleUpload}
-                      disabled={uploading}
-                    />
-                    <Icon icon={uploading ? 'loader-2' : 'photo-plus'} className={`me-1 ${uploading ? 'animate-spin' : ''}`} />
-                    {uploading ? 'กำลังอัปโหลด...' : 'เพิ่มรูป'}
-                  </label>
+        {isList ? (
+          /* ══════════ หน้ารายการ (ตาราง) ══════════ */
+          <>
+            {/* toolbar — โหมดจัดลำดับซ่อนค้นหา/กรอง/เพิ่ม เหลือแค่ปุ่ม toggle ที่เป็นทางออกจากโหมดด้วย */}
+            <div className="border-default-200 flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center">
+              {!sortMode && (
+                <div className="input-icon-group sm:max-w-xs">
+                  <Icon icon="search" className="input-icon" />
+                  <input
+                    type="search"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="ค้นหาหัวข้อหรือเนื้อหา"
+                    aria-label="ค้นหาข้อความสำเร็จรูป"
+                    className="form-input"
+                  />
+                </div>
+              )}
+              <div className="flex items-center gap-2 sm:ms-auto">
+                {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
+                {!sortMode && categories.length > 0 && (
+                  <FilterDropdown
+                    icon="tag"
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    defaultLabel="หมวด"
+                    resetValue={CATEGORY_ALL}
+                    options={[
+                      { value: CATEGORY_ALL, label: 'ทุกหมวด' },
+                      ...categories.map((c) => ({ value: c, label: c })),
+                    ]}
+                  />
+                )}
+                {localItems.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSortMode((s) => !s)}
+                    aria-pressed={sortMode}
+                    className={`btn text-nowrap ${sortMode ? 'bg-primary text-white' : 'bg-light text-dark'}`}
+                    aria-label={sortMode ? 'เสร็จสิ้นการจัดลำดับ' : 'จัดลำดับข้อความสำเร็จรูป'}
+                  >
+                    <Icon icon={sortMode ? 'check' : 'arrows-sort'} className="text-base" />
+                    <span className="sm:sr-only">{sortMode ? 'เสร็จสิ้น' : 'จัดลำดับ'}</span>
+                  </button>
+                )}
+                {!sortMode && (
+                  <button
+                    type="button"
+                    onClick={startAdd}
+                    className="btn bg-primary hover:bg-primary-hover ms-auto text-nowrap text-white sm:ms-0"
+                  >
+                    <Icon icon="plus" className="text-base" />
+                    เพิ่มข้อความ
+                  </button>
                 )}
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="min-h-0 grow overflow-y-auto">
+              {loading ? (
+                <div className="p-4" role="status" aria-label="กำลังโหลด">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-default-100 mb-2 h-12 animate-pulse rounded-lg" />
+                  ))}
+                </div>
+              ) : error ? (
+                /* แยกจาก empty state ให้ชัด — เดิมโหลดพังแล้วขึ้น "ยังไม่มีข้อความ" ผู้ใช้นึกว่าข้อมูลหาย */
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
+                  <span className="bg-warning/15 text-warning flex size-12 items-center justify-center rounded-lg">
+                    <Icon icon="alert-triangle" className="text-2xl" />
+                  </span>
+                  <span className="text-default-800 text-sm font-semibold">โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
+                  <span className="text-default-500 text-xs">
+                    ข้อความของคุณยังอยู่ครบ แค่ดึงข้อมูลไม่ได้ตอนนี้ ลองใหม่อีกครั้งได้เลย
+                  </span>
+                  {onRetry && (
+                    <button type="button" onClick={onRetry} className="btn border-default-300 mt-1 min-h-11">
+                      <Icon icon="refresh" className="me-1" /> ลองใหม่
+                    </button>
+                  )}
+                </div>
+              ) : localItems.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
+                  <span className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-lg">
+                    <Icon icon="message-plus" className="text-2xl" />
+                  </span>
+                  <span className="text-default-800 text-sm font-semibold">ยังไม่มีข้อความสำเร็จรูป</span>
+                  <span className="text-default-500 max-w-xs text-xs">
+                    เพิ่มข้อความที่ใช้บ่อย เช่น ทักทายลูกค้าใหม่ หรือแจ้งเลขพัสดุ จะได้พิมพ์ครั้งเดียวใช้ได้ทุกแชท
+                  </span>
+                  <button
+                    type="button"
+                    onClick={startAdd}
+                    className="btn bg-primary hover:bg-primary-hover mt-1 min-h-11 text-white"
+                  >
+                    <Icon icon="plus" className="me-1" /> เพิ่มข้อความแรก
+                  </button>
+                </div>
+              ) : visibleItems.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
+                  <span className="bg-default-100 text-default-500 flex size-12 items-center justify-center rounded-lg">
+                    <Icon icon="search" className="text-2xl" />
+                  </span>
+                  <span className="text-default-800 text-sm font-semibold">ไม่พบข้อความที่ตรงกับคำค้น</span>
+                  <span className="text-default-500 text-xs">
+                    ลองใช้คำอื่น หรือล้างตัวกรองเพื่อดูทั้ง {localItems.length} รายการ
+                  </span>
+                  <button type="button" onClick={clearFilters} className="btn border-default-300 mt-1 min-h-11">
+                    <Icon icon="x" className="me-1" /> ล้างตัวกรอง
+                  </button>
+                </div>
+              ) : (
+                /* Base: theme/paces/Admin/TS/src/app/(admin)/tables/static/components/HoverableRows.tsx
+                   (.table-wrapper > table.table.table-hover > thead.font-semibold) */
+                <div className="table-wrapper">
+                  <table className="table table-hover">
+                    <thead className="font-semibold">
+                      <tr>
+                        {sortMode && <th className="w-10">ลำดับ</th>}
+                        {!sortMode && <th className="w-1">รูป</th>}
+                        <th>หัวข้อ</th>
+                        {!sortMode && <th className="hidden sm:table-cell">หมวด</th>}
+                        {!sortMode && <th className="hidden lg:table-cell">ข้อความ</th>}
+                        <th className="w-1 text-end">{sortMode ? 'ย้าย' : 'จัดการ'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleItems.map((qm, index) => {
+                        const imgs = imagesOf(qm)
+                        if (sortMode) {
+                          /* จัดลำดับ — ≥lg ลากที่ grip (HTML5 draggable ใช้ได้จริงเฉพาะเมาส์)
+                             <lg ปุ่มลูกศร 44px เพราะ draggable ไม่ยิง event บนจอสัมผัส
+                             คีย์บอร์ด: ลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (ใช้ได้ทุกขนาด) */
+                          return (
+                            <tr
+                              key={qm.id}
+                              draggable
+                              tabIndex={0}
+                              onDragStart={() => {
+                                dragFrom.current = index
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault() // ไม่ preventDefault = เบราว์เซอร์ไม่ยอมให้ drop
+                                setDragOver(index)
+                              }}
+                              onDragLeave={() => setDragOver((c) => (c === index ? null : c))}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                const from = dragFrom.current
+                                dragFrom.current = null
+                                setDragOver(null)
+                                if (from != null) move(from, index)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  move(index, index + (e.key === 'ArrowUp' ? -1 : 1))
+                                }
+                              }}
+                              aria-label={`${qm.title} — ลำดับที่ ${index + 1} จาก ${visibleItems.length}`}
+                              className={`lg:cursor-grab lg:active:cursor-grabbing ${
+                                dragOver === index ? 'bg-primary/5' : ''
+                              }`}
+                            >
+                              <td className="text-default-400 text-2xs font-semibold">{index + 1}</td>
+                              <td className="text-default-800 font-medium">{qm.title}</td>
+                              <td className="text-end">
+                                <span className="flex items-center justify-end gap-1 lg:hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => move(index, index - 1)}
+                                    disabled={index === 0}
+                                    className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
+                                    aria-label={`ย้าย "${qm.title}" ขึ้น`}
+                                  >
+                                    <Icon icon="chevron-up" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => move(index, index + 1)}
+                                    disabled={index === visibleItems.length - 1}
+                                    className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
+                                    aria-label={`ย้าย "${qm.title}" ลง`}
+                                  >
+                                    <Icon icon="chevron-down" />
+                                  </button>
+                                </span>
+                                <Icon icon="grip-vertical" className="text-default-400 hidden text-base lg:inline" />
+                              </td>
+                            </tr>
+                          )
+                        }
+                        return (
+                          <tr
+                            key={qm.id}
+                            onClick={() => startEdit(qm)}
+                            className={`cursor-pointer ${editingId === qm.id ? 'bg-primary/5' : ''}`}
+                          >
+                            <td>
+                              {imgs.length > 0 ? (
+                                <span className="border-default-200 relative block size-10 overflow-hidden rounded border">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
+                                  {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากตารางโดยไม่ต้องกดเข้าไปดู) */}
+                                  {imgs.length > 1 && (
+                                    <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
+                                      +{imgs.length - 1}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                /* ช่องว่างขนาดเท่ารูป — ไม่ใส่ placeholder ให้รก แต่ต้องกันไม่ให้แถวที่ไม่มีรูป
+                                   เตี้ยกว่าแถวอื่นจนตารางกระตุก */
+                                <span className="bg-default-100 block size-10 rounded" aria-hidden="true" />
+                              )}
+                            </td>
+                            <td>
+                              <span className="block min-w-0">
+                                <span className="text-default-800 block truncate font-medium">{qm.title}</span>
+                                {/* จอเล็กไม่มีคอลัมน์ข้อความ — ยกตัวอย่างเนื้อหามาไว้ใต้หัวข้อแทน ไม่งั้นแยกไม่ออก
+                                    ว่าอันไหนคืออันไหน (line-clamp ตั้ง display เอง ห้ามใส่ block ทับ) */}
+                                <span className="text-default-500 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
+                              </span>
+                            </td>
+                            <td className="hidden sm:table-cell">
+                              {qm.category ? (
+                                <span className="badge bg-default-100 text-default-500 text-2xs">{qm.category}</span>
+                              ) : (
+                                <span className="text-default-300">—</span>
+                              )}
+                            </td>
+                            <td className="hidden max-w-xs lg:table-cell">
+                              <span className="text-default-500 line-clamp-2 text-xs">{qm.body}</span>
+                            </td>
+                            <td className="text-end">
+                              <span className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    startEdit(qm)
+                                  }}
+                                  className="btn btn-icon border-default-300 min-h-11 min-w-11"
+                                  aria-label={`แก้ไข ${qm.title}`}
+                                >
+                                  <Icon icon="pencil" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(qm)
+                                  }}
+                                  className="btn btn-icon border-default-300 text-danger min-h-11 min-w-11"
+                                  aria-label={`ลบ ${qm.title}`}
+                                >
+                                  <Icon icon="trash" />
+                                </button>
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {hasFilter && !sortMode && !loading && !error && localItems.length > 0 && (
+              <p className="text-default-400 border-default-200 mb-0 border-t px-4 py-2 text-2xs">
+                แสดง {visibleItems.length} จาก {localItems.length} รายการ
+              </p>
+            )}
+          </>
+        ) : (
+          /* ══════════ หน้าฟอร์ม (เต็มโมดัล) ══════════ */
+          <>
+            <div className="min-h-0 grow overflow-y-auto p-4">
+              <div className="mb-3 sm:flex sm:gap-3">
+                <div className="mb-3 sm:mb-0 sm:flex-1">
+                  <label className="form-label" htmlFor="qm-title">
+                    หัวข้อ
+                  </label>
+                  <input
+                    id="qm-title"
+                    type="text"
+                    className="form-input"
+                    placeholder="เช่น ทักทาย, แจ้งเลขพัสดุ"
+                    value={title}
+                    maxLength={80}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </div>
+                <div className="sm:flex-1">
+                  <label className="form-label" htmlFor="qm-category">
+                    หมวด (ไม่บังคับ)
+                  </label>
+                  <input
+                    id="qm-category"
+                    type="text"
+                    className="form-input"
+                    placeholder="เช่น การจัดส่ง, ราคา"
+                    value={category}
+                    maxLength={40}
+                    onChange={(e) => setCategory(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label" htmlFor="qm-body">
+                  ข้อความ
+                </label>
+                <textarea
+                  id="qm-body"
+                  className="form-input min-h-40"
+                  placeholder="พิมพ์เนื้อหาข้อความสำเร็จรูป..."
+                  value={body}
+                  maxLength={BODY_MAX}
+                  onChange={(e) => setBody(e.target.value)}
+                />
+                <p
+                  className={`mb-0 mt-1 text-end text-2xs ${
+                    bodyLen > BODY_WARN ? 'text-warning' : 'text-default-400'
+                  }`}
+                >
+                  {bodyLen} / {BODY_MAX}
+                </p>
+              </div>
+
+              {/* รูปแนบ — ได้สูงสุด MAX_IMAGES รูป (user สั่ง 2026-07-23) เรียงตามลำดับที่จะส่งจริง */}
+              <div>
+                <span className="form-label">รูปแนบ (ไม่บังคับ · สูงสุด {MAX_IMAGES} รูป)</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {imageFileIds.map((fileId, i) => (
+                    <div
+                      key={fileId}
+                      className="border-default-200 relative size-16 shrink-0 overflow-hidden rounded-lg border"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/files/${fileId}`} alt={`รูปแนบที่ ${i + 1}`} className="size-full object-cover" />
+                      {/* ปุ่มลบมุมขวาบน — hit area 28px บนรูป 64px (เล็กกว่า 44px โดยตั้งใจ ไม่งั้นทับรูปทั้งใบ
+                          จนดูรูปไม่ออก) ปุ่มนี้เป็น action รองที่มีทางอื่นทดแทน: ลบทั้งชุดแล้วเลือกใหม่ */}
+                      <button
+                        type="button"
+                        onClick={() => setImageFileIds((prev) => prev.filter((x) => x !== fileId))}
+                        aria-label={`ลบรูปที่ ${i + 1}`}
+                        className="bg-default-900/60 absolute end-0.5 top-0.5 flex size-7 items-center justify-center rounded-full text-white"
+                      >
+                        <Icon icon="x" width={14} height={14} />
+                      </button>
+                    </div>
+                  ))}
+                  {imageFileIds.length < MAX_IMAGES && (
+                    <label className="btn border-default-300 min-h-11 cursor-pointer">
+                      <input
+                        type="file"
+                        accept={IMAGE_ACCEPT}
+                        multiple
+                        className="hidden"
+                        onChange={handleUpload}
+                        disabled={uploading}
+                      />
+                      <Icon
+                        icon={uploading ? 'loader-2' : 'photo-plus'}
+                        className={`me-1 ${uploading ? 'animate-spin' : ''}`}
+                      />
+                      {uploading ? 'กำลังอัปโหลด...' : 'เพิ่มรูป'}
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="card-footer flex items-center gap-2">
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = localItems.find((i) => i.id === editingId)
+                    if (target) handleDelete(target)
+                  }}
+                  className="text-danger flex min-h-11 items-center gap-2 text-sm font-semibold"
+                >
+                  <Icon icon="trash" />
+                  <span className="hidden sm:inline">ลบข้อความนี้</span>
+                </button>
+              )}
+              <div className="grow" />
+              <button type="button" onClick={backToList} className="btn border-default-300 min-h-11">
+                ยกเลิก
+              </button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={!canSave || saving}
-                className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-60"
+                className="btn bg-primary hover:bg-primary-hover min-h-11 text-white disabled:opacity-60"
               >
                 <Icon icon={saving ? 'loader-2' : 'check'} className={`me-1 ${saving ? 'animate-spin' : ''}`} />
-                {isEditing ? 'บันทึกการแก้ไข' : 'เพิ่ม'}
+                {isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มข้อความ'}
               </button>
-              {isEditing && (
-                <button type="button" onClick={resetForm} className="btn border-default-300">
-                  ยกเลิก
-                </button>
-              )}
             </div>
-          </div>
-
-          {/* ── list ── */}
-          <p className="text-default-500 mb-2 text-2xs font-semibold">
-            ทั้งหมด {items.length} รายการ
-          </p>
-          {items.length === 0 ? (
-            <div className="text-default-400 py-6 text-center text-sm">ยังไม่มีข้อความสำเร็จรูป</div>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {items.map((qm) => (
-                <li key={qm.id} className="border-default-200 flex items-start gap-3 rounded-lg border p-3">
-                  {(() => {
-                    const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
-                    if (imgs.length === 0) return null
-                    return (
-                      <div className="border-default-200 relative size-10 shrink-0 overflow-hidden rounded border">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={`/api/files/${imgs[0]}`} alt="" className="size-full object-cover" />
-                        {/* มีหลายรูป → ป้ายจำนวนมุมล่างขวา (เห็นจากลิสต์โดยไม่ต้องกดเข้าไปแก้) */}
-                        {imgs.length > 1 && (
-                          <span className="bg-default-900/70 absolute end-0 bottom-0 px-1 text-2xs text-white">
-                            +{imgs.length - 1}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })()}
-                  <div className="min-w-0 grow">
-                    <div className="flex items-center gap-2">
-                      <p className="text-default-800 mb-0 truncate text-sm font-semibold">{qm.title}</p>
-                      {qm.category && <span className="badge bg-default-100 text-default-500 text-2xs shrink-0">{qm.category}</span>}
-                    </div>
-                    {qm.body && <p className="text-default-500 mb-0 mt-0.5 line-clamp-2 text-xs">{qm.body}</p>}
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <button type="button" onClick={() => startEdit(qm)} className="btn btn-sm btn-icon border-default-300" aria-label="แก้ไข">
-                      <Icon icon="pencil" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(qm)}
-                      className="btn btn-sm btn-icon border-default-300 text-danger"
-                      aria-label="ลบ"
-                    >
-                      <Icon icon="trash" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )

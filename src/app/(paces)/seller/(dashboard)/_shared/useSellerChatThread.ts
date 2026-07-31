@@ -49,6 +49,9 @@ export type ChatOrderCard = {
 export type OutgoingRetry = { type: 'TEXT' | 'IMAGE'; body: string | null; imageUrl?: string; replyToMessageId?: string }
 
 export type ChatMessageView = {
+  /** ลำดับที่แถวถูกบันทึกจริง — ตัวตัดสินเมื่อ createdAt เท่ากัน (ดู schema.prisma ChatMessage.seq)
+   *  optional เพราะข้อความ optimistic ที่สร้างฝั่ง client ยังไม่มีจนกว่าจะบันทึกจริง */
+  seq?: number
   id: string
   conversationId: string
   senderUserId: string
@@ -69,6 +72,16 @@ export type ChatMessageView = {
   // feature 00023 — null/ไม่มี = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบตอนโหมดทดสอบ
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   autoReplyKind?: string | null
+  // feature 00023 — เหตุผลเบื้องหลังคำตอบครั้งนั้น (snapshot จาก AutoReplyLog ตอนตัดสินใจ)
+  // แสดงตอนชี้/แตะที่ป้าย "ระบบตอบ"; ทุกฟิลด์ null ได้ = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น
+  autoReply?: {
+    keywordName: string | null
+    matchedPhrase: string | null
+    matchType: string | null
+    channelName: string | null
+    adLabel: string | null
+    productName: string | null
+  } | null
   // feature 00018 Phase 3 — reply/unsend
   isDeleted?: boolean // ผู้ส่ง unsend → แสดง "ข้อความถูกลบ"
   replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
@@ -273,9 +286,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         for (const m of data.items) map.set(m.id, m)
         // beepEnabled=false บนหน้า inbox — ปล่อยให้ InboxList เป็นเจ้าของ beep (กันเสียงเบิ้ล 2 ครั้ง)
         if (hasNewFromBuyer && beepEnabled) playChatBeep({ shopId, conversationId })
-        return Array.from(map.values()).sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        )
+        // seq เป็นตัวตัดสินเมื่อ createdAt เท่ากัน (Meta ส่งเวลาข้อความระบบมาแค่ระดับวินาที)
+        // ให้ตรงกับลำดับที่ server จัดมา — ข้อความ optimistic ยังไม่มี seq จึงถือว่าอยู่ท้ายสุด
+        return Array.from(map.values()).sort((a, b) => {
+          const dt = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          if (dt !== 0) return dt
+          return (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER)
+        })
       })
     } catch {
       // เงียบ — รอ broadcast ถัดไป/focus fallback

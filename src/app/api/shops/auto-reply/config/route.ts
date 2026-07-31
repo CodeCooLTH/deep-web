@@ -39,6 +39,12 @@ export async function PATCH(request: NextRequest) {
       adsContextMode: parsed.output.adsContextMode ?? (current.adsContextMode as never),
       adsContextHours: parsed.output.adsContextHours !== undefined ? parsed.output.adsContextHours : current.adsContextHours,
       handoffPhrases: parsed.output.handoffPhrases ?? current.handoffPhrases,
+      activeScheduleMode: parsed.output.activeScheduleMode ?? current.activeScheduleMode,
+      // `!== undefined` ไม่ใช่ `??` — null คือค่าที่มีความหมาย (ล้างช่วงเวลาตอนกลับไปโหมด ALWAYS)
+      // ถ้าใช้ ?? การส่ง null มาจะถูกมองเป็น "ไม่ได้ส่ง" แล้วค่าเก่าค้างอยู่ (บั๊กแบบเดียวกับ adsContextHours)
+      activeStartMin: parsed.output.activeStartMin !== undefined ? parsed.output.activeStartMin : current.activeStartMin,
+      activeEndMin: parsed.output.activeEndMin !== undefined ? parsed.output.activeEndMin : current.activeEndMin,
+      activeDays: parsed.output.activeDays ?? current.activeDays,
     })
     return NextResponse.json({ ...config, canEdit: true }, { headers: AUTO_REPLY_NO_STORE })
   } catch (e) {

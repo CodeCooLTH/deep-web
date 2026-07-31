@@ -8,6 +8,11 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { formatOrderNo } from "@/lib/order-no";
+import {
+  attachAppointmentInTx,
+  computeAppointmentDeposit,
+  resolveResourceForOrder,
+} from "@/services/appointment.service";
 
 // State machine ใหม่ตาม OMS redesign spec §2
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
@@ -88,7 +93,22 @@ export async function createOrder(shopId: string, data: {
   // ของเธรดเข้ากับ Customer (walk-in ที่ match จากเบอร์) ทันที — แชท/แท็บคำสั่งซื้อจะเห็นออเดอร์เลย
   // ไม่ต้องรอ buyer login. link ระดับ walk-in Customer นี้ upgrade เป็น full customer ตอน login ต่อได้
   conversationId?: string;
+  // feature 00024 — วันเข้าใช้บริการ (โหมด A: ร้านเลือกวันให้เลยตอนสร้างออเดอร์)
+  // ไม่ส่งมา = ออเดอร์เดินเส้นทางเดิมทุกประการ ฟิลด์นัดเป็น NULL ทั้งหมด (BR-RSV-04)
+  // depositAmount = ยอดมัดจำที่ร้านกรอกเอง (FR-RSV-12) ไม่ส่งมา = คำนวณจากค่าเริ่มต้นของทรัพยากร
+  appointment?: {
+    resourceId: string;
+    start: Date;
+    end: Date;
+    depositAmount?: string | null;
+  };
 }) {
+  // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
+  // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
+  const appointmentResource = data.appointment
+    ? await resolveResourceForOrder(shopId, data.appointment.resourceId)
+    : null;
+
   // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
   // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -167,10 +187,21 @@ export async function createOrder(shopId: string, data: {
   // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
   // orderDataBase ไม่รวม items แล้ว (เดิมมี items: { create: data.items } ตรงนี้) —
   // ย้ายการ build items ไปทำใน retry loop เพื่อแนบ stockDeducted ต่อ item (Inventory Add-on)
+  // feature 00024 — ยอดมัดจำของนัด (FR-RSV-12) คำนวณครั้งเดียวที่นี่แล้ว snapshot ลงออเดอร์
+  // ออเดอร์ที่ไม่มีนัด = undefined → คอลัมน์เป็น NULL เหมือนเดิมทุกประการ (BR-RSV-52)
+  const appointmentDeposit = appointmentResource
+    ? computeAppointmentDeposit({
+        resource: appointmentResource,
+        totalAmount: new Prisma.Decimal(totalAmount),
+        override: data.appointment?.depositAmount,
+      })
+    : undefined;
+
   const orderDataBase = {
     shopId,
     type: data.type,
     totalAmount,
+    depositAmount: appointmentDeposit,
     fulfillmentMode,
     buyerContact: data.buyerContact ?? undefined,
     buyerName: data.buyerName ?? undefined,
@@ -310,6 +341,23 @@ export async function createOrder(shopId: string, data: {
               note: null,
               actorUserId: null,
             },
+          });
+        }
+
+        // feature 00024 — ผูกวันนัดเข้ากับออเดอร์ที่เพิ่งสร้าง (โหมด A, FR-RSV-03)
+        //
+        // IMPORTANT: ต้องทำ "หลัง" tx.order.create โดยที่ create ยังไม่ใส่ฟิลด์นัด (SDS D-07)
+        // เหตุผล: การจัดสรรที่นั่งอาจชน EXCLUDE แล้วต้องลองที่นั่งถัดไป ถ้าใส่ที่นั่งไปตั้งแต่
+        // INSERT จะต้องสร้างออเดอร์ใหม่ทั้งใบเพื่อ retry (id/orderNo/publicToken ถูกใช้ไปแล้ว)
+        //
+        // ถ้าเต็มทุกที่นั่ง AppointmentSlotFullError จะถูกโยนออกไป → ทั้ง transaction rollback
+        // → ออเดอร์ไม่ถูกสร้างเลย ซึ่งถูกต้อง: ร้านตั้งใจสร้างออเดอร์พร้อมนัด ไม่ใช่ออเดอร์เปล่า
+        if (appointmentResource && data.appointment) {
+          await attachAppointmentInTx(tx, {
+            orderId: order.id,
+            resource: appointmentResource,
+            start: data.appointment.start,
+            end: data.appointment.end,
           });
         }
 
@@ -552,6 +600,57 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   });
 }
 
+// S-12 — seller พิมพ์เลขพัสดุผิดหลังกด "แจ้งจัดส่ง" แล้วแก้ไม่ได้ (shipOrder ใช้ไม่ได้ซ้ำ:
+// assertTransition(SHIPPED→SHIPPED) throw + shipmentTracking.orderId unique ทำให้ create ซ้ำไม่ได้)
+// ต้องยกเลิกทั้งใบเพื่อแก้เลขเดิม — updateShipmentTracking() คือ "update อย่างเดียว ไม่แตะ status"
+export class OrderNotShippedError extends Error {
+  constructor() { super("ORDER_NOT_SHIPPED"); this.name = "OrderNotShippedError"; }
+}
+export class ShipmentTrackingNotFoundError extends Error {
+  constructor() { super("SHIPMENT_TRACKING_NOT_FOUND"); this.name = "ShipmentTrackingNotFoundError"; }
+}
+// feature 00022 — เลขพัสดุที่มาจาก iShip เป็น system-generated (courier ยืนยันแล้ว) ห้าม
+// เขียนทับด้วยมือ; defensive แม้ UI จะซ่อนปุ่มแก้ไขไปแล้วสำหรับออเดอร์ที่มี OrderShipment ที่ active
+export class IShipManagedShipmentError extends Error {
+  constructor() { super("ISHIP_MANAGED_SHIPMENT"); this.name = "IShipManagedShipmentError"; }
+}
+
+/**
+ * updateShipmentTracking — แก้ไขเลขพัสดุ/ผู้ให้บริการ MANUAL (ShipmentTracking) หลัง SHIPPED แล้ว
+ * (S-12). ต่างจาก shipOrder(): ไม่เรียก assertTransition, ไม่แตะ order.status, ไม่ create แถวใหม่
+ * (update แถวเดิมที่ orderId unique อยู่แล้ว) — update-only เพื่อแก้พิมพ์ผิดโดยไม่ต้องยกเลิกทั้งใบ
+ *
+ * แยก MANUAL (ShipmentTracking, orderId unique, seller กรอกเอง) vs iShip (OrderShipment,
+ * orderId ไม่ unique — มีได้หลาย attempt, ระบบสร้าง/อัปเดตเอง) คนละ model กันเด็ดขาด:
+ * shipOrder()/updateShipmentTracking() เขียนเฉพาะ ShipmentTracking; iShip flow (create-shipment
+ * ฯลฯ) เขียนเฉพาะ OrderShipment — ไม่มีจุดไหนใน iShip flow เขียนลง ShipmentTracking (ดู comment
+ * ที่ getOrderByToken บรรทัด ~636) จึงเชื่อได้ว่า 2 model ไม่ทับกัน. ถ้าออเดอร์มี OrderShipment ที่
+ * ไม่ CANCELLED อยู่ (= ship ผ่าน iShip) กันการแก้ MANUAL ทับด้วย IShipManagedShipmentError
+ */
+export async function updateShipmentTracking(
+  publicToken: string,
+  data: { provider: string; trackingNo: string },
+) {
+  // scope ในคำสั่งเดียว (order + shipmentTracking + iShip shipments ที่ยัง active) แทนการ
+  // findUnique แล้วค่อย query เพิ่มทีหลัง — ownership ของ order ถูก route เช็คมาก่อนแล้ว (S-C7)
+  const order = await prisma.order.findFirst({
+    where: { publicToken },
+    include: {
+      shipmentTracking: true,
+      shipments: { where: { status: { not: "CANCELLED" } }, select: { id: true } },
+    },
+  });
+  if (!order) throw new Error("Order not found");
+  if (order.status !== "SHIPPED") throw new OrderNotShippedError();
+  if (!order.shipmentTracking) throw new ShipmentTrackingNotFoundError();
+  if (order.shipments.length > 0) throw new IShipManagedShipmentError();
+
+  return prisma.shipmentTracking.update({
+    where: { orderId: order.id },
+    data: { provider: data.provider, trackingNo: data.trackingNo },
+  });
+}
+
 export class CancelReasonRequiredError extends Error {
   constructor() { super("CANCEL_REASON_REQUIRED"); this.name = "CancelReasonRequiredError"; }
 }
@@ -612,6 +711,10 @@ export async function getOrderByToken(publicToken: string) {
       items: { include: { product: { select: { images: true } } } },
       // feature 00017 — relation nullable: ออเดอร์สินค้าได้ room = null ไม่กระทบอะไร
       room: { select: { name: true } },
+      // feature 00024 — ชื่อทรัพยากรสำหรับการ์ดนัดบนหน้าออเดอร์สาธารณะ (FR-RSV-05)
+      // relation nullable เช่นกัน: ออเดอร์ที่ไม่มีนัดได้ null ไม่กระทบเส้นทางเดิม
+      // select แค่ name — ไม่ดึงความจุ/มัดจำเริ่มต้นมาเพราะลูกค้าไม่ต้องเห็นค่าตั้งค่าของร้าน
+      serviceResource: { select: { name: true } },
       shop: {
         include: {
           user: {

@@ -14,7 +14,10 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
+import { isProblemCarrierStatus } from './iship/status'
+
 export type OrderStageKey =
+  | 'PARCEL_PROBLEM'
   | 'ORDERED'
   | 'PARCEL_CREATED'
   | 'LABEL_PRINTED'
@@ -23,17 +26,31 @@ export type OrderStageKey =
   | 'COMPLETED'
   | 'CANCELLED'
 
-/** cls ใช้ pattern เดียวกับ ORDER_STATUS_META (bg-{semantic}/15 text-{semantic}) — Paces token ล้วน */
+/**
+ * cls ใช้ pattern เดียวกับ ORDER_STATUS_META (`bg-{semantic}/15 text-{semantic}-ink`) — Paces token ล้วน
+ *
+ * เดิมใช้ `text-{semantic}` ตรงตัว ซึ่งตกคอนทราสต์ AA 4.5:1 ทุกช่อง เพราะสี semantic ของ Paces
+ * ถูกเลือกมาให้เป็น *พื้น* ไม่ใช่ *หมึก* (วัดบนพื้นชิปจริง = {semantic}/15 บนการ์ดขาว):
+ *   warning 1.54:1 · info 1.84:1 · success 2.11:1 · danger 2.68:1 · primary 4.17:1
+ * เปลี่ยนมาใช้ token "หมึก" (`--color-{semantic}-ink`, src/assets/css/config/_root.css) ผ่านทุกช่อง:
+ *   warning 6.56:1 · info 7.88:1 · success 6.68:1 · danger 8.47:1 · primary 8.44:1
+ * ตัวเลขทั้งสองชุดวัดจากจอจริง (computed color + พื้นหลังที่ composite แล้ว บนแถวรายการแชท
+ * seller.deepth.local/inbox) ไม่ใช่คำนวณบนกระดาษ — ดู docs/qa/2026-07-31-ink-token-contrast.md
+ * token มี override ฝั่ง [data-theme="dark"] แล้ว (วัดแล้วเช่นกัน ต่ำสุด 7.19:1) จึงไม่พังตอนเปิด dark mode
+ */
 export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: string; icon: string }> = {
-  ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary', icon: 'shopping-cart' },
-  PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary', icon: 'package' },
-  LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning', icon: 'printer' },
-  SHIPPING: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info', icon: 'truck-delivery' },
-  DELIVERED: { label: 'จัดส่งสำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
+  // พัสดุไม่ได้เดินหน้าตามปกติและมีคนต้องลงมือทำอะไร — ขั้นเดียวที่ "แย่งความสนใจ" ได้
+  // ป้ายบอกแค่ว่ามีปัญหา ไม่แยกคำต่อสถานะ เพราะ rail แชทแคบและร้านต้องเปิดดูรายละเอียดอยู่ดี
+  PARCEL_PROBLEM: { label: 'พัสดุมีปัญหา', cls: 'bg-danger/15 text-danger', icon: 'alert-triangle' },
+  ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'shopping-cart' },
+  PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'package' },
+  LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'printer' },
+  SHIPPING: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info-ink', icon: 'truck-delivery' },
+  DELIVERED: { label: 'จัดส่งสำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled' },
   // COMPLETED = ปิดการขายแล้วโดยไม่มีการส่งของ (ขายหน้าร้าน/สินค้าดิจิทัล/บริการ) — ห้ามใช้คำว่า
   // "จัดส่งสำเร็จ" ตรงนี้ เพราะไม่มีอะไรถูกส่งเลย
-  COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
-  CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger', icon: 'circle-x' },
+  COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled' },
+  CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x' },
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -42,6 +59,13 @@ export const CANCELLED_VISIBLE_MS = 1 * DAY_MS
 
 /** carrierStatus ที่ถือว่า "ของอยู่ระหว่างทาง" — ชุดเดียวกับ isInTransit ใน src/lib/iship/status.ts */
 const IN_TRANSIT = ['picked_up', 'with_branch', 'in_transit', 'progress']
+
+/**
+ * สถานะที่ร้านต้องรู้ทันที — นิยามเดียวกับ PROBLEM_CARRIER_STATUSES ใน lib/iship/status.ts
+ *
+ * import มาใช้แทนการเขียนซ้ำ เพราะถ้าสองที่นิยาม "มีปัญหา" ไม่ตรงกัน ตัวกรองจะกรองแล้วได้ผล
+ * ไม่ตรงกับป้ายที่เห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
+ */
 
 export interface OrderStageInput {
   status: string
@@ -105,7 +129,13 @@ export function deriveOrderStage(
     key = 'CANCELLED'
   } else if (hasShipment) {
     // สายพัสดุ — ขนส่งคือคนเดียวที่รู้จริงว่าของอยู่ไหน
-    if (order.carrierStatus === 'delivered') {
+    //
+    // ปัญหามาก่อนทุกอย่างและไม่มีวันหมดอายุ: ก่อนหน้านี้ issue/return/cannot_pickup/
+    // is_expired/cod_refund ตกลงไปเป็น "สร้างพัสดุแล้ว" ทั้งหมด — เคสที่ต้องเห็นด่วนที่สุด
+    // กลับกลืนหายไปกับพัสดุปกติ (user report 2026-07-31)
+    if (isProblemCarrierStatus(order.carrierStatus)) {
+      key = 'PARCEL_PROBLEM'
+    } else if (order.carrierStatus === 'delivered') {
       if (age > DELIVERED_VISIBLE_MS) return null
       key = 'DELIVERED'
     } else if (

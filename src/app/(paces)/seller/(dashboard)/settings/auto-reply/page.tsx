@@ -1,5 +1,5 @@
 /**
- * ตอบแชทอัตโนมัติ — รายการกลุ่มคำ /settings/auto-reply (feature 00023, S-13 หน้า 1)
+ * ผู้ช่วยอัตโนมัติ (Deep Chat-Bot Assistant) — รายการกลุ่มคำ /settings/auto-reply (feature 00023, S-13 หน้า 1)
  *
  * SSOT: docs/20 - Features/00023 - Chat Auto-Reply/{UI-DESIGN-SPEC.md §3, BRD.md §18.1, API.md}
  *
@@ -21,7 +21,7 @@ import { listKeywords } from '@/services/auto-reply-rule.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import AutoReplyListClient from './AutoReplyListClient'
 
-export const metadata: Metadata = { title: 'ตอบแชทอัตโนมัติ' }
+export const metadata: Metadata = { title: 'ผู้ช่วยอัตโนมัติ' }
 
 const EDITABLE_ROLES = ['OWNER', 'ADMIN']
 
@@ -41,8 +41,8 @@ export default async function AutoReplySettingsPage() {
   return (
     <>
       <PageBreadcrumb
-        title="ตอบแชทอัตโนมัติ"
-        trail={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ตอบแชทอัตโนมัติ' }]}
+        title="ผู้ช่วยอัตโนมัติ"
+        trail={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ผู้ช่วยอัตโนมัติ' }]}
       />
 
       <AutoReplyListClient

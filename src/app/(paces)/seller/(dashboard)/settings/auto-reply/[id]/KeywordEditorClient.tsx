@@ -18,9 +18,11 @@
  *
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+// import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
+import type { PhraseOverlap } from '@/services/auto-reply-rule.service'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import PagePicker from './PagePicker'
@@ -55,6 +57,8 @@ type Props = {
     phrases: Phrase[]
     rules: Rule[]
   }
+  /** กลุ่มอื่นในร้านที่ใช้คำตรวจจับซ้ำกับกลุ่มนี้ — เรียง priority desc มาจาก service แล้ว (A-3) */
+  overlaps: PhraseOverlap[]
   channels: Channel[]
   products: Product[]
 }
@@ -66,6 +70,18 @@ async function callApi(url: string, init: RequestInit) {
   return data
 }
 
+/** เงื่อนไขเฉพาะ = แถวที่ระบุเพจ/โฆษณา/สินค้า อย่างน้อยหนึ่งอย่าง (ที่เหลือคือคำตอบพื้นฐาน) */
+const isException = (r: Rule) => Boolean(r.shopChannelId || r.adId || r.productId)
+
+/**
+ * ลำดับที่ resolver ไล่จริง (orderBy specificity desc, tie-break ด้วย id ให้ผลนิ่ง)
+ *
+ * เป็นสูตรเดียวของหน้านี้ — ใช้ทั้งตอนเรนเดอร์บันได และตอนคำนวณ "ลำดับใหม่" หลังบันทึก
+ * เพื่อบอกผู้ใช้ว่าข้อที่แก้ย้ายไปอยู่ลำดับไหน ถ้าแยกเป็นสองสูตรจะเพี้ยนกันเงียบ ๆ
+ */
+const sortExceptions = (list: Rule[]) =>
+  list.filter(isException).sort((a, b) => b.specificity - a.specificity || a.id.localeCompare(b.id))
+
 /** สถานะ 3 ค่าของกลุ่มคำ — เขียวสงวนให้ "ตอบลูกค้าจริง" ตาม Verified-Means-Green */
 const STATUS_ORDER = ['OFFLINE', 'TEST', 'LIVE'] as const
 const STATUS_META: Record<string, { label: string; active: string }> = {
@@ -74,11 +90,29 @@ const STATUS_META: Record<string, { label: string; active: string }> = {
   LIVE: { label: 'ตอบลูกค้าจริง', active: 'bg-success text-white' },
 }
 
-export default function KeywordEditorClient({ canEdit, keyword, channels, products }: Props) {
+/**
+ * สีป้ายสถานะของ "กลุ่มอื่น" ในบล็อกคำซ้ำ — label ยังอ่านจาก STATUS_META ตัวเดียวข้างบน (SSOT, CL-10)
+ * ที่นี่เก็บเฉพาะสี เพราะ STATUS_META.active เป็นสีของ *ปุ่มที่ถูกเลือก* (พื้นทึบ) ซึ่งเอามาทำป้ายไม่ได้
+ *
+ * กฎเดียวกับป้ายอ่านอย่างเดียวของหน้ารายการ (CL-12/CL-17): fill = ทำงานอยู่ · outline = ไม่ทำงาน
+ * OFFLINE ห้ามใช้ text-default-700 บนพื้น default-200 — .badge ย่อตัวอักษรเป็น 0.75em (ตัวเล็ก)
+ * เกณฑ์จึงเป็น 4.5:1 แต่คู่นั้นได้ 4.17 (ตก) ส่วน outline บน bg-card ได้ 4.69 (ผ่าน)
+ */
+const STATUS_BADGE: Record<string, string> = {
+  OFFLINE: 'border-default-300 bg-card text-default-700 border',
+  TEST: 'bg-warning/15 text-warning',
+  LIVE: 'bg-success/15 text-success',
+}
+
+export default function KeywordEditorClient({ canEdit, keyword, overlaps, channels, products }: Props) {
   const router = useRouter()
 
   const [status, setStatus] = useState(keyword.status)
   const [testThreadCount, setTestThreadCount] = useState(keyword.testThreadCount)
+  /** ตัวนับสั่งเปิดแผงเลือกแชทใน TestThreadsCard (ใช้ตัวนับไม่ใช่ boolean — กดซ้ำต้องทริกเกอร์ซ้ำได้) */
+  const [pickerSignal, setPickerSignal] = useState(0)
+  /** จำว่าผู้ใช้กด "ทดสอบ" ไว้ตอนยังไม่มีแชท — พอเลือกแชทแรกเสร็จให้สลับสถานะให้เอง */
+  const pendingTestRef = useRef(false)
   const [name, setName] = useState(keyword.name)
   /**
    * รูปแบบการตรวจจับล็อกไว้ที่ค่าเดิมของชุดนั้น ไม่ให้แก้ผ่าน UI (user 2026-07-29)
@@ -89,33 +123,94 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
    */
   const matchType = keyword.matchType
   const [priority, setPriority] = useState(keyword.priority)
+  /**
+   * ช่องตัวเลข 0–1000 ซ่อนอยู่หลังลิงก์ "ตั้งตัวเลขเอง" และไม่โผล่มาเอง —
+   * เจ้าของร้านตอบไม่ได้ว่าควรใส่เลขเท่าไหร่ แต่ตอบได้ว่าอยากให้กลุ่มไหนมาก่อน (critique Recognition 2/4)
+   */
+  const [showPriorityInput, setShowPriorityInput] = useState(false)
   const [phrases, setPhrases] = useState(keyword.phrases)
   const [newPhrase, setNewPhrase] = useState('')
+  /**
+   * S-16: ช่องพิมพ์คำใหม่ซ่อนอยู่หลังปุ่ม "เพิ่มคำ" — ช่องกว้างที่ค้างอยู่ตลอดทำให้แถวอ่านเป็น
+   * "ฟอร์ม" แทนที่จะเป็น "รายการคำ"
+   *
+   * WARNING: ต้องใช้ initializer ครั้งเดียว ห้าม derive จาก phrases.length ทุกรอบเรนเดอร์ —
+   * ไม่งั้นพอลบชิปตัวสุดท้ายทิ้ง ช่องจะเด้งเปิดเองกลางทางทั้งที่ผู้ใช้ไม่ได้สั่ง
+   */
+  const [addingPhrase, setAddingPhrase] = useState(() => keyword.phrases.length === 0)
+  const phraseInputRef = useRef<HTMLInputElement>(null)
+  const addPhraseBtnRef = useRef<HTMLButtonElement>(null)
+  /**
+   * จุดที่ต้องโฟกัสหลังสลับปุ่ม↔ช่อง — สั่งได้หลัง element ถูก mount แล้วเท่านั้นจึงต้องรอ useEffect
+   * ที่ไม่ผูกกับ addingPhrase ตรง ๆ เพราะตอนโหลดหน้าแบบ 0 คำ ช่องเปิดอยู่แล้ว แต่ห้ามขโมยโฟกัส
+   */
+  const pendingFocusRef = useRef<'input' | 'button' | null>(null)
   const [rules, setRules] = useState(keyword.rules)
   const [busy, setBusy] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  /**
+   * แถวที่กำลังแก้ (null = โหมดเพิ่ม) — แยกจาก `sheetOpen` เพราะถ้าใช้ตัวเดียวคุมสองโหมด
+   * จะไม่มีทางรู้ว่าเปิดมาเพื่อเพิ่มหรือเพื่อแก้ และค่าที่ค้างจะรั่วข้ามครั้ง
+   */
+  const [editingRule, setEditingRule] = useState<Rule | null>(null)
 
-  const defaultRule = useMemo(
-    () => rules.find((r) => !r.shopChannelId && !r.adId && !r.productId) ?? null,
-    [rules],
-  )
+  const defaultRule = useMemo(() => rules.find((r) => !isException(r)) ?? null, [rules])
   const [defaultReply, setDefaultReply] = useState(defaultRule?.replyText ?? '')
 
   /** เงื่อนไขเฉพาะเรียงเจาะจงมากอยู่บน = ลำดับที่ระบบตัดสินจริง (ไม่ใช่ลำดับการสร้าง) */
-  const exceptions = useMemo(
+  const exceptions = useMemo(() => sortExceptions(rules), [rules])
+
+  /**
+   * อันดับที่ผู้ใช้เห็น = กลุ่มอื่นที่ใช้คำซ้ำ + กลุ่มนี้เอง เรียง priority มาก→น้อย
+   * กลุ่มนี้ใช้ `priority` จาก state ไม่ใช่ keyword.priority เพื่อให้รายการสลับที่ทันทีที่กดเลื่อน
+   * เสมอกันให้กลุ่มนี้อยู่ล่าง — ตรงกับสูตร A-1 ที่ต้อง "มากกว่า" จริงเท่านั้นถึงจะขึ้นไปอยู่บน
+   */
+  const ranking = useMemo(
     () =>
-      rules
-        .filter((r) => r.shopChannelId || r.adId || r.productId)
-        .sort((a, b) => b.specificity - a.specificity || a.id.localeCompare(b.id)),
-    [rules],
+      [
+        ...overlaps.map((o) => ({ id: o.id, name: o.name, priority: o.priority, status: o.status, isMe: false })),
+        { id: keyword.id, name: 'กลุ่มนี้', priority, status, isMe: true },
+      ].sort(
+        (a, b) =>
+          b.priority - a.priority ||
+          (a.isMe ? 1 : 0) - (b.isMe ? 1 : 0) ||
+          a.name.localeCompare(b.name, 'th'),
+      ),
+    [overlaps, keyword.id, priority, status],
   )
+  const myRank = ranking.findIndex((r) => r.isMe)
+
+  /**
+   * สูตร A-1: ขึ้น = มากกว่ากลุ่มที่สูงสุดอยู่ 1 · ลง = น้อยกว่ากลุ่มที่ต่ำสุดอยู่ 1
+   * ไม่แตะ priority ของกลุ่มอื่นแม้แต่ตัวเดียว (renumber ทั้งชุดต้องมี endpoint bulk ที่ยังไม่มี)
+   */
+  const upTarget = overlaps.length > 0 ? Math.min(1000, Math.max(...overlaps.map((o) => o.priority)) + 1) : priority
+  const downTarget = overlaps.length > 0 ? Math.max(0, Math.min(...overlaps.map((o) => o.priority)) - 1) : priority
+  // ปิดปุ่มเมื่ออยู่ปลายรายการ หรือเมื่อค่าที่จะได้เท่าเดิม (เช่นมีกลุ่มอื่นอยู่ที่ 1000 แล้ว) = กดไปก็ไม่เกิดอะไร
+  const canMoveUp = canEdit && !busy && myRank > 0 && upTarget !== priority
+  const canMoveDown = canEdit && !busy && myRank < ranking.length - 1 && downTarget !== priority
+
+  /**
+   * คำที่หยิบมาพูดในประโยคอธิบาย — เรียงตามลำดับชิปในหน้านี้ก่อน เพราะ sharedPhrases ที่ service
+   * ส่งมาวิ่งตาม createdAt ของ "กลุ่มอื่น" (A-3b) ซึ่งไม่ตรงกับลำดับที่ตาผู้ใช้กวาดอยู่บนจอ
+   */
+  const topOverlap = overlaps.length > 0 ? overlaps[0] : null
+  const sharedPhraseShown = useMemo(() => {
+    if (!topOverlap) return ''
+    const order = phrases.map((p) => p.phrase)
+    const rank = (s: string) => {
+      const i = order.indexOf(s)
+      return i === -1 ? order.length : i
+    }
+    return [...topOverlap.sharedPhrases].sort((a, b) => rank(a) - rank(b))[0] ?? ''
+  }, [topOverlap, phrases])
 
   // แถบบันทึกลอย: บอกด้วยว่าแก้อะไรไป ไม่ใช่แค่ว่า "มีการแก้"
   const dirty = useMemo(() => {
     const d: string[] = []
     if (name !== keyword.name) d.push('ชื่อกลุ่ม')
     if (priority !== keyword.priority) d.push('ลำดับความสำคัญ')
-    if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบหลัก')
+    if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบปกติ')
     return d
   }, [name, priority, defaultReply, keyword, defaultRule])
 
@@ -126,6 +221,19 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
    */
   async function changeStatus(next: string) {
     if (!canEdit || busy || next === status) return
+    /**
+     * ทางตันที่ user เจอบน prod 2026-07-31: กด "ทดสอบ" ตอนยังไม่มีแชท → server ปฏิเสธ
+     * (ต้องมี >=1 แชทก่อน) แล้วโยน toast แดงบอกให้ "เลือกแชทก่อน" — แต่แผงเลือกแชทอยู่
+     * ใต้จอไกลจากปุ่ม ผู้ใช้จึงติดวงกลม: จะเปิดโหมดทดสอบต้องมีแชท / จะเห็นที่เลือกแชทต้อง
+     * หาเอง กันด้วยการ **ไม่ยิง API เลย** แล้วพาไปที่แผงเลือกแชทแทน + จำไว้ว่าตั้งใจจะเปิด
+     * โหมดทดสอบ พอเลือกแชทแรกเสร็จจะสลับสถานะให้เอง (ผู้ใช้กดครั้งเดียวได้ผลตามที่ตั้งใจ)
+     */
+    if (next === 'TEST' && testThreadCount === 0) {
+      pendingTestRef.current = true
+      setPickerSignal((n) => n + 1)
+      pacesToast.info('เลือกแชทที่จะใช้ทดสอบก่อน แล้วระบบจะเปิดโหมดทดสอบให้อัตโนมัติ')
+      return
+    }
     if (next === 'LIVE') {
       const ok = await pacesConfirm.warning(
         'ให้กลุ่มคำนี้ตอบลูกค้าจริง?',
@@ -189,6 +297,36 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
     }
   }
 
+  /**
+   * เลื่อนลำดับ = PATCH `priority` ค่าเดียวตามสูตร A-1 แล้วมีผลทันที ไม่ต้องรอแถบบันทึก [E]
+   * เหตุผลเดียวกับสวิตช์สถานะ: ของที่กดแล้วเห็นรายการสลับที่ตรงหน้า ไม่มีใครคาดว่าต้องกดยืนยันอีกที
+   */
+  async function movePriority(dir: 'up' | 'down') {
+    if (dir === 'up' ? !canMoveUp : !canMoveDown) return
+    const next = dir === 'up' ? upTarget : downTarget
+    // ชื่อกลุ่มที่อยู่ติดกัน "ก่อนย้าย" คือสิ่งที่ผู้ใช้เห็นบนจอตอนกด จึงเป็นตัวที่ควรพูดถึงใน toast
+    const neighbor = ranking[dir === 'up' ? myRank - 1 : myRank + 1]?.name ?? ''
+    setBusy(true)
+    try {
+      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: next }),
+      })
+      setPriority(next)
+      pacesToast.success(
+        dir === 'up'
+          ? `กลุ่มนี้จะถูกเลือกก่อน "${neighbor}" แล้ว`
+          : `"${neighbor}" จะถูกเลือกก่อนกลุ่มนี้แล้ว`,
+      )
+      router.refresh()
+    } catch (e) {
+      pacesToast.error(e instanceof Error ? e.message : 'เลื่อนลำดับไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function addPhrase() {
     const value = newPhrase.trim()
     if (!canEdit || !value || busy) return
@@ -215,6 +353,11 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
       } else if (data.emptyAfterNormalize?.length) {
         pacesToast.warning('คำนี้ใช้ไม่ได้ — มีแต่วรรคตอนหรือช่องว่าง')
       }
+      /**
+       * บล็อก "คำที่ซ้ำกับกลุ่มอื่น" คำนวณที่ server (getPhraseOverlaps ใน page.tsx) —
+       * ถ้าไม่ refresh บล็อกจะไม่โผล่จนกว่าจะรีโหลดหน้า ทั้งที่ toast เพิ่งเตือนว่าคำนี้ซ้ำ (spec §9 ข้อ 2)
+       */
+      router.refresh()
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มคำไม่สำเร็จ')
     } finally {
@@ -237,6 +380,17 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 
   async function deleteException(id: string) {
     if (!canEdit || busy) return
+    /**
+     * ถามก่อนเสมอ — ลบแล้วกู้คืนไม่ได้ (เดิมกดปุ่มแล้วยิงลบทันที)
+     * WARNING: confirm ต้องมา *ก่อน* setBusy(true) ถ้าสลับลำดับ แล้ว user กดยกเลิก
+     * ต้องปลด busy เองในทุกทางออก ซึ่งลืมง่าย = ปุ่มทั้งหน้าค้าง disabled
+     */
+    const ok = await pacesConfirm.danger(
+      'ลบเงื่อนไขเฉพาะข้อนี้?',
+      'ข้อความตอบของข้อนี้จะหายไป และกู้คืนไม่ได้ — กรณีที่เคยเข้าข้อนี้จะไปใช้ "คำตอบปกติ" แทน',
+      { confirmButtonText: 'ลบเงื่อนไข' },
+    )
+    if (!ok) return
     setBusy(true)
     try {
       await callApi(`/api/shops/auto-reply/rules/${id}`, { method: 'DELETE' })
@@ -249,6 +403,26 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
     }
   }
 
+  /** โฟกัสตามที่สั่งไว้ตอนสลับปุ่ม↔ช่อง (a11y: ปิดช่องด้วย Esc แล้วโฟกัสห้ามหายไปจากหน้า) */
+  useEffect(() => {
+    const target = pendingFocusRef.current
+    if (!target) return
+    pendingFocusRef.current = null
+    if (target === 'input') phraseInputRef.current?.focus()
+    else addPhraseBtnRef.current?.focus()
+  }, [addingPhrase])
+
+  function openPhraseInput() {
+    pendingFocusRef.current = 'input'
+    setAddingPhrase(true)
+  }
+
+  function closePhraseInput() {
+    pendingFocusRef.current = 'button'
+    setNewPhrase('')
+    setAddingPhrase(false)
+  }
+
   const condLabel = (r: Rule) => {
     const parts: string[] = []
     if (r.shopChannelId) parts.push(`เพจ ${channels.find((c) => c.id === r.shopChannelId)?.name ?? '—'}`)
@@ -259,15 +433,10 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 
   return (
     <>
-      {/* subheader ใต้หัวเรื่อง (user request 2026-07-29) — เทียบเคียงข้อความของ reference
-          แต่เขียนให้ตรงกับสิ่งที่ระบบเราทำจริง: ของเราจับคำ ไม่ใช่ตอบข้อความแรกเสมอ */}
-      <div className="mb-4">
-        <p className="text-default-600 text-sm">
-          ตอบลูกค้าที่ทักเข้ามาทาง Messenger หรือ Instagram โดยอัตโนมัติ
-          เมื่อข้อความตรงกับคำที่คุณตั้งไว้ ปรับข้อความได้เองว่าจะทักทาย ให้ข้อมูลเพิ่มเติม
-          หรือบอกว่าจะติดต่อกลับเมื่อไหร่ และตั้งคำตอบต่างกันตามเพจหรือโฆษณาที่ลูกค้าเข้ามาได้
-        </p>
-      </div>
+      {/* ไม่มี subheader (user 2026-07-31 "ตัดข้อความยาว ๆ ออก") — ย่อหน้า 3 บรรทัดเดิม
+          อธิบายสิ่งที่หน้านี้ทำ ซึ่งการ์ดแต่ละใบบอกด้วยตัวเองอยู่แล้ว (การ์ด [A] = ตั้งค่ากลุ่มคำ,
+          [B] = คำตอบที่ลูกค้าจะได้รับ) การอธิบายซ้ำที่หัวหน้าคือ non-information ที่ดันเนื้อหา
+          จริงลงไปครึ่งจอบนมือถือ */}
 
       {status === 'TEST' && (
         <div className="card bg-warning/10 border-warning mb-4">
@@ -286,25 +455,17 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-10">
         <div className="xl:col-span-7">
-          {/* ── หัวกลุ่มคำ + คำตรวจจับ ───────────────────────────── */}
+          {/* ── [A] ตั้งค่ากลุ่มคำ ───────────────────────────────── */}
           <div className="card">
-            <div className="card-header flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <input
-                  className="form-input font-semibold"
-                  value={name}
-                  disabled={!canEdit}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={100}
-                  aria-label="ชื่อกลุ่มคำ"
-                />
-                <p className="text-default-500 mt-1.5 text-xs">
-                  ตรงเมื่อ{matchType === 'EXACT' ? 'ข้อความตรงกับ' : matchType === 'STARTS_WITH' ? 'ข้อความขึ้นต้นด้วย' : 'มีคำว่า'}
-                  {phrases.length > 0
-                    ? ' ' + phrases.map((p) => `“${p.phrase}”`).join(' หรือ ')
-                    : ' — ยังไม่ได้ใส่คำตรวจจับ'}
-                </p>
-              </div>
+            {/* หัวการ์ด "รอง": text-md + ไอคอนเปล่าสีธีม — ไม่มีแผ่นสีรองไอคอน เพราะแผ่นนั้นสงวนให้
+                การ์ด [B] ใบเดียวในหน้า (spec §7) ลำดับชั้นจึงมาจาก treatment ไม่ใช่จากการทำให้
+                ใบอื่นจางลง ซึ่งเป็นต้นเหตุที่ user ทักว่า "ทุกอย่างจางไปหมด"
+                Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx → CardWithHeader (:182-197) */}
+            <div className="card-header flex flex-wrap items-center justify-between gap-3">
+              <h5 className="text-default-800 text-md flex min-w-0 items-center gap-2 font-semibold">
+                <Icon icon="adjustments-horizontal" className="text-primary size-4 flex-none" aria-hidden="true" />
+                ตั้งค่ากลุ่มคำ
+              </h5>
               {/* สถานะของกลุ่มคำนี้ 3 ค่า — ค่าเดียวจบ ไม่มีสวิตช์เปิด/ปิดซ้อนอีกชั้น
                   (user 2026-07-29: "ทดสอบไม่เท่ากับ INACTIVE นะ ต้องมี 3 สถานะ")
                   มีผลทันทีไม่ต้องกดบันทึก */}
@@ -327,35 +488,186 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
             </div>
 
             <div className="card-body">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                {phrases.map((p) => (
-                  <span key={p.id} className="chip bg-default-100 text-default-700 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs">
-                    {p.phrase}
-                    {canEdit && (
-                      <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
-                        aria-label={`ลบคำ ${p.phrase}`} className="text-default-500 hover:text-danger">
-                        <Icon icon="x" className="text-xs" aria-hidden="true" />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {canEdit && (
+              {/* ชื่อกลุ่ม: ย้ายลงมาอยู่ใน card-body พร้อม form-label ที่ผูก htmlFor (§11.2 ข้อ 17 a11y)
+                  หัวการ์ดจึงเหลือ "ชื่อการ์ด + สถานะ" ตามลำดับชั้นใน mockup แทนที่จะเป็น input ลอยในหัว
+                  ห่อ .input-group เพราะ .form-input มี width:100% แบบ unlayered → width utility บนตัว input
+                  เองไม่มีผลเลย ต้องคุมที่ตัวห่อ (paces-component-reference.md §4)
+                  Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (:15-22) */}
+              <div className="mb-5">
+                <label className="form-label" htmlFor="k-name">
+                  ชื่อกลุ่มคำ
+                </label>
+                <div className="input-group max-w-md">
                   <input
-                    className="form-input w-40" value={newPhrase} placeholder="เพิ่มคำ…"
-                    onChange={(e) => setNewPhrase(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhrase() } }}
-                    maxLength={200} aria-label="คำตรวจจับใหม่"
+                    id="k-name"
+                    className="form-input font-semibold"
+                    value={name}
+                    disabled={!canEdit}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={100}
+                    aria-label="ชื่อกลุ่มคำ"
                   />
+                </div>
+              </div>
+
+              {/* label ครอบกลุ่มชิป (ไม่ผูก htmlFor เพราะกำกับทั้งกลุ่ม ไม่ใช่ช่องเดียว — ชื่อที่ a11y
+                  อ่านของช่องพิมพ์ยังเป็น aria-label "คำตรวจจับใหม่" ตามเดิม)
+                  ประโยคสรุปคำที่เคยอยู่ตรงนี้ ("มีคำว่า X หรือ Y") ถูกตัดทิ้ง ไม่ได้ทำให้จางลง —
+                  มันพูดซ้ำกับชิปที่อยู่ใต้มันเอง (กลไกเพดานเทา spec §7) */}
+              <div className="mb-3">
+                <label className="form-label">ตอบเมื่อลูกค้าพิมพ์</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {phrases.map((p) => (
+                    /* ชิปคำตรวจจับ = คลาสเดียวกับหน้ารายการเป๊ะ (SSOT: AutoReplyListing.tsx:96)
+                       ของชิ้นเดียวกันในสองหน้าต้องสีและทรงเดียวกัน — rounded (4px) ไม่ใช่ rounded-full */
+                    <span
+                      key={p.id}
+                      className={`bg-primary/10 text-primary flex max-w-full items-center gap-1 rounded py-0.5 text-xs font-medium ${
+                        canEdit ? 'ps-2 pe-1 sm:pe-2' : 'px-2'
+                      }`}
+                    >
+                      {/* คำยาวได้ถึง 200 ตัวอักษร — ต้องยอมตัดบรรทัดในชิป ไม่ใช่ดันแถวจนล้นจอมือถือ */}
+                      <span className="min-w-0 break-words">{p.phrase}</span>
+                      {canEdit && (
+                        /* hit area 36px บนมือถือตาม precedent แท็ก CRM ที่ shipped แล้ว
+                           (CustomerCrmSection.tsx:288-295) — ไอคอนคงขนาดเดิมเพื่อไม่ให้ชิปบวม */
+                        <button type="button" onClick={() => removePhrase(p.id)} disabled={busy}
+                          aria-label={`ลบคำ ${p.phrase}`}
+                          className="text-primary/60 hover:text-danger hover:bg-primary/15 flex size-9 flex-none items-center justify-center rounded-full sm:size-4">
+                          <Icon icon="x" className="text-xs" aria-hidden="true" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                  {canEdit &&
+                    (addingPhrase ? (
+                      /* สปินเนอร์อยู่ *นอก* .input-group เพราะ .input-group > :not(:last-child)
+                         จะถอดมุมโค้งด้านขวาของ input ทิ้ง (custom/_forms.css:270) = ช่องเปลี่ยนทรง
+                         ทุกครั้งที่กำลังบันทึก */
+                      <div className="flex w-full items-center gap-2 sm:w-auto">
+                        <div className="input-group w-full sm:w-56">
+                          <input
+                            ref={phraseInputRef}
+                            /* .form-input ตั้งสี placeholder เป็นเทาที่ตก AA (2.9:1) ไว้แบบ unlayered
+                               → utility ธรรมดาแพ้ ต้องเติม ! เพื่อยกขึ้นเป็นเทาที่อ่านออกตามเพดานเทา (A-6) */
+                            className="form-input placeholder:text-default-500! min-h-11 sm:min-h-0"
+                            value={newPhrase} placeholder="เช่น ส่งฟรีไหม"
+                            onChange={(e) => setNewPhrase(e.target.value)}
+                            /**
+                             * Enter = เพิ่มคำแล้ว "ค้างช่องไว้" ให้พิมพ์คำถัดไปต่อได้ทันที
+                             * (addPhrase ล้างค่าให้เอง) — ถ้ายุบกลับเป็นปุ่มทุกครั้ง ผู้ใช้ต้องกดปุ่ม
+                             * ไล่โฟกัสใหม่ต่อ 1 คำ = ช้ากว่าของเดิม
+                             * Esc = ปิดช่องแล้วคืนโฟกัสไปที่ปุ่ม
+                             */
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); addPhrase() }
+                              else if (e.key === 'Escape') { e.preventDefault(); closePhraseInput() }
+                            }}
+                            /**
+                             * ยุบกลับเป็นปุ่มเฉพาะตอนช่องว่าง — ถ้ามีข้อความค้างอยู่ต้องคงช่องไว้เหมือนเดิม
+                             * เพราะทั้งสองทางเลือกที่เหลือแย่กว่า: เพิ่มให้เอง = เขียน DB สิ่งที่ผู้ใช้ไม่ได้สั่ง,
+                             * ทิ้ง = "คำที่พิมพ์ไปหายไปไหน"
+                             */
+                            onBlur={() => { if (!newPhrase.trim()) setAddingPhrase(false) }}
+                            maxLength={200} aria-label="คำตรวจจับใหม่"
+                          />
+                        </div>
+                        {busy && (
+                          <Icon icon="loader-2" className="size-4 flex-none animate-spin text-default-500" aria-hidden="true" />
+                        )}
+                      </div>
+                    ) : (
+                      /* ปุ่มเส้นประ = precedent เดียวกับ "เปิดร้านของฉันเอง" (ChooseShopClient.tsx:206)
+                         เส้นประ ไม่ใช่พื้นสี — ถ้าใช้พื้นทึบจะอ่านเหมือนชิปอีกตัวที่เข้มกว่า ผู้ใช้จะนึกว่า
+                         มีคำว่า "เพิ่มคำ" อยู่ในกลุ่ม และต้องมีคำกำกับ ไม่ใช่ + เปล่า เพราะช่องพิมพ์ถูกซ่อนไปแล้ว */
+                      <button
+                        ref={addPhraseBtnRef}
+                        type="button"
+                        onClick={openPhraseInput}
+                        aria-expanded={addingPhrase}
+                        className="btn btn-sm border border-dashed border-default-300 text-primary hover:bg-primary/5 min-h-11 inline-flex items-center gap-1 sm:min-h-0"
+                      >
+                        <Icon icon="plus" className="size-3.5" aria-hidden="true" />
+                        เพิ่มคำ
+                      </button>
+                    ))}
+                </div>
+                {canEdit && addingPhrase && (
+                  /* helper โผล่เฉพาะตอนช่องเปิด และไม่พูดถึง Esc — บนมือถือซึ่งเป็น surface หลัก
+                     ของผู้ขายไม่มีปุ่มนั้นให้กด */
+                  <p className="text-default-600 mt-1.5 text-xs">กด Enter เพื่อเพิ่มทีละคำ</p>
                 )}
               </div>
 
-              <div className="sm:w-48">
-                <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
-                <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
-                  min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
-                <p className="text-default-500 mt-1 text-xs">
-                  ใช้เมื่อข้อความเดียวเข้าหลายกลุ่มพร้อมกัน — ตัวเลขมากกว่าถูกเลือกก่อน
-                </p>
+              {/* ── บล็อก "คำที่ซ้ำกับกลุ่มอื่น" = ตัวแทนช่องเลข 0–1000 ─────────────
+                  เจ้าของร้านตอบไม่ได้ว่าควรใส่เลขเท่าไหร่ แต่ตอบได้ว่าอยากให้กลุ่มไหนมาก่อน
+                  จึงแสดง "ใครชนะใคร" เป็นรายการ แล้วให้กดเลื่อนแทน (เลขยังเป็น int 0–1000 เหมือนเดิม
+                  ซ่อนหลังลิงก์ "ตั้งตัวเลขเอง" เป็นทางหนีเมื่อกดเลื่อนแล้วยังไม่ได้ผลที่ต้องการ)
+                  Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx → Numbered (:381-411) */}
+              <div className="border-default-300 mt-5 border-t border-dashed pt-4">
+                {overlaps.length > 0 ? (
+                  <>
+                    <h6 className="text-default-800 mb-1.5 flex items-center gap-2 text-sm font-semibold">
+                      <Icon icon="git-branch" className="text-primary size-4 flex-none" aria-hidden="true" />
+                      คำที่ซ้ำกับกลุ่มอื่น
+                    </h6>
+                    <p className="text-default-800 mb-3 text-xs">
+                      <span className="text-primary font-semibold">“{sharedPhraseShown}”</span> ใช้อยู่ในกลุ่ม “
+                      {topOverlap?.name}” ด้วย — ถ้าลูกค้าพิมพ์คำนี้ ระบบจะเลือกกลุ่มที่อยู่บนสุด
+                    </p>
+                    {/* overflow-hidden กันพื้นไฮไลต์ของแถวตัวเองทะลุมุมที่ rounded (เหมือนบันไดใน [B]) */}
+                    <ul className="divide-default-200 border-default-300 mb-3 divide-y overflow-hidden rounded border">
+                      {ranking.map((r, i) => (
+                        <li key={r.id}
+                          className={`flex items-center gap-2.5 px-4.75 py-2.5 text-xs ${r.isMe ? 'bg-primary/5' : ''}`}>
+                          <span className={`w-5 flex-none font-semibold ${r.isMe ? 'text-primary' : 'text-default-700'}`}>
+                            {i + 1}.
+                          </span>
+                          <span className="text-default-800 min-w-0 flex-1 truncate font-medium">{r.name}</span>
+                          <span className={`badge flex-none whitespace-nowrap ${STATUS_BADGE[r.status] ?? STATUS_BADGE.OFFLINE}`}>
+                            {STATUS_META[r.status]?.label ?? r.status}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* btn-outline ของ mockup ไม่มีนิยามใน Paces (CL-4) → ใช้ light/neutral variant จริง */}
+                      <button type="button" disabled={!canMoveUp} onClick={() => movePriority('up')}
+                        className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
+                        <Icon icon="arrow-up" className="size-3" aria-hidden="true" />เลื่อนขึ้น
+                      </button>
+                      <button type="button" disabled={!canMoveDown} onClick={() => movePriority('down')}
+                        className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
+                        <Icon icon="arrow-down" className="size-3" aria-hidden="true" />เลื่อนลง
+                      </button>
+                      {/* ต้องเห็นเสมอแม้ปุ่มเลื่อนจะ disabled ทั้งคู่ — ไม่งั้นเคส "กลุ่มอื่นอยู่ที่ 1000 แล้ว" จะตัน (A-1b) */}
+                      <button type="button" className="text-primary ms-1.5 text-xs font-medium underline underline-offset-4"
+                        onClick={() => setShowPriorityInput((v) => !v)}>
+                        ตั้งตัวเลขเอง
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-default-700 text-xs">ยังไม่มีกลุ่มอื่นใช้คำซ้ำกับกลุ่มนี้</span>
+                    <button type="button" className="text-primary text-xs font-medium underline underline-offset-4"
+                      onClick={() => setShowPriorityInput((v) => !v)}>
+                      ตั้งลำดับเอง
+                    </button>
+                  </div>
+                )}
+
+                {showPriorityInput && (
+                  <div className="mt-3 sm:w-48">
+                    <label className="form-label" htmlFor="k-pri">ตัวเลขลำดับ (0–1000)</label>
+                    {/* ห่อ .input-group เพราะ .form-input มี width:100% แบบ unlayered (paces-component-reference §4) */}
+                    <div className="input-group">
+                      <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
+                        min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
+                    </div>
+                    <p className="text-default-500 mt-1 text-xs">ตัวเลขมากกว่าถูกเลือกก่อน</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -364,90 +676,118 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
           {/* เส้นเชื่อมระหว่างขั้น — สื่อว่าอ่านต่อเนื่องเป็นลำดับ (ตาม reference ที่ user ส่ง) */}
           <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
 
-          {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
-          {/* border-s-3 = accepted exception ของ (paces) ตาม DESIGN.md §6 —
-              การ์ดนี้คือข้อความที่ลูกค้าจะได้รับจริง ต้องอ่านออกทันทีว่าเป็นของชิ้นหลักของหน้า
-              ไม่ใช่ฟิลด์หนึ่งในสี่ที่หน้าตาเหมือนกันหมด (Impeccable critique 2026-07-30) */}
-          <div className="card border-s-primary border-s-3">
-            <div className="card-header">
-              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-                <Icon icon="message-2-reply" className="text-primary text-lg" aria-hidden="true" />
-                ข้อความตอบกลับพื้นฐาน
-              </h5>
-              <p className="text-default-500 mt-0.5 text-xs">ตอบทันทีที่ลูกค้าทักเข้ามาและตรงกับคำที่ตั้งไว้</p>
-            </div>
-            <div className="card-body">
-              {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
-                  `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
-                  Tailwind กรอบของ textarea จึงไม่หาย ได้กรอบซ้อนกรอบ (บั๊กจริง 2026-07-29,
-                  ตรงกับ memory feedback_paces_forms_css_gotchas) — ใช้ form-textarea ตรง ๆ
-                  แล้ววางตัวนับไว้นอกกรอบแทน */}
-              <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
-                maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
-                placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                aria-label="ข้อความตอบกลับพื้นฐาน" />
-              <div className="mt-1.5 flex justify-end">
-                <span className="text-default-400 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
-              </div>
-            </div>
-          </div>
-
-
-          {/* เส้นเชื่อมระหว่างขั้น — สื่อว่าอ่านต่อเนื่องเป็นลำดับ (ตาม reference ที่ user ส่ง) */}
-          <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
-
-          {/* ── บันไดเงื่อนไขเฉพาะ ─────────────────────────────────── */}
+          {/* ── [B] บันไดคำตอบ = พระเอกของหน้า ─────────────────────────
+              ยุบการ์ดคำตอบพื้นฐาน + การ์ดเงื่อนไขเฉพาะเป็นบันไดใบเดียว: ลำดับแถวบนลงล่าง
+              = ลำดับที่ resolver ไล่จริง และแถวสุดท้ายคือ textarea คำตอบพื้นฐานตัวจริง
+              โครงนี้เองคือคำอธิบายกลไก จึงไม่ต้องมีย่อหน้าสอน (Impeccable critique 2026-07-30
+              Help 2/4 + Aesthetic 2/4 แก้ด้วยของชิ้นเดียว)
+              Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx → Numbered (:381-411) */}
           <div className="card">
-            <div className="card-header flex items-center justify-between">
-              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-                <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
-                เงื่อนไขเฉพาะ ({exceptions.length})
-              </h5>
+            <div className="card-header items-start">
+              <div className="min-w-0">
+                {/* ไอคอนแผ่น + text-lg มีที่นี่ใบเดียวในหน้า = ตัวแยกขั้นพระเอก/การ์ดรอง (spec §7)
+                    ใช้ treatment เป็นตัวแยกขั้น ไม่ใช่ "ใบเดียวมีสี ที่เหลือเทา" ซึ่งจะพาหน้ากลับไปจาง */}
+                <h5 className="text-default-900 flex items-center gap-2 text-lg font-semibold">
+                  <span className="bg-primary/15 text-primary flex size-8 flex-none items-center justify-center rounded-lg">
+                    {/* message-reply ไม่ใช่ message-2-reply — ชื่อหลังไม่มีในชุด tabler (ยืนยันกับ
+                        api.iconify.design แล้ว) ถ้าใส่ชื่อที่ไม่มี @iconify/react จะไม่ render svg เลย
+                        โดยไม่ throw และ tsc/grep/E2E ผ่านหมด = เห็นเป็นแผ่นสีว่าง ๆ เท่านั้น */}
+                    <Icon icon="message-reply" className="size-4.5" aria-hidden="true" />
+                  </span>
+                  คำตอบที่ลูกค้าจะได้รับ
+                </h5>
+                {/* CL-6: อธิบายกลไกเฉพาะเมื่อมีบันไดให้ไล่จริง — ตอน 0 เงื่อนไขประโยคนี้จะอธิบาย
+                    กลไกที่ยังไม่ทำงาน = เพิ่มภาระให้ร้านมือใหม่ซึ่งเป็นคนส่วนใหญ่ */}
+                {exceptions.length >= 1 && (
+                  <p className="text-default-700 mt-1.5 text-xs">
+                    ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด
+                  </p>
+                )}
+              </div>
               {canEdit && (
-                <button className="btn btn-primary btn-sm" onClick={() => setSheetOpen(true)}>
-                  <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
+                // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
+                // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
+                <button type="button"
+                  className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 flex-none text-white max-sm:w-full sm:min-h-0"
+                  onClick={() => setSheetOpen(true)}>
+                  <Icon icon="plus" className="size-3" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
                 </button>
               )}
             </div>
             <div className="card-body">
-              <p className="text-default-500 mb-3 text-xs">
-                เฉพาะเจาะจงกว่าอยู่บน — ระบบเลือกอันบนสุดที่เข้าเงื่อนไข
-              </p>
-
-              {exceptions.length === 0 ? (
-                <div className="border-default-200 rounded border border-dashed px-4 py-6 text-center">
-                  <p className="text-default-600 text-sm">ยังไม่มีเงื่อนไขเฉพาะ</p>
-                  <p className="text-default-500 mt-1 text-xs">
-                    ทุกเธรดจะได้รับคำตอบหลักเหมือนกันหมด — เพิ่มเงื่อนไขเฉพาะเมื่ออยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า
-                  </p>
-                </div>
-              ) : (
-                <div className="border-default-200 overflow-hidden rounded border">
-                  {exceptions.map((r, i) => (
-                    <div key={r.id}
-                      className={`border-default-200 p-3 ${i < exceptions.length - 1 ? 'border-b' : ''} ${i === 0 ? 'border-s-primary border-s-2' : ''}`}>
-                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                        <span className="text-default-400 text-xs">เมื่อมาจาก</span>
-                        {condLabel(r).map((c) => (
-                          <span key={c} className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">{c}</span>
-                        ))}
+              {/* overflow-hidden เพิ่มจาก theme — กันเส้น accent ซ้ายของแถวสุดท้ายทะลุมุมที่ rounded */}
+              <ul className="divide-default-200 border-default-300 divide-y overflow-hidden rounded border">
+                {exceptions.map((r, i) => (
+                  <li key={r.id} className="flex flex-wrap justify-between gap-1.5 px-4.75 py-3">
+                    <div className="flex min-w-0 flex-1 gap-3">
+                      <div className="bg-primary/10 text-primary text-2xs flex size-5.5 flex-none items-center justify-center rounded font-semibold">
+                        {i + 1}
                       </div>
-                      <p className="bg-default-50 text-default-800 rounded p-2 text-sm">{r.replyText}</p>
-                      {canEdit && (
-                        <div className="mt-2 flex gap-1.5">
-                          <button className="btn btn-soft-default btn-sm" disabled={busy}
-                            onClick={() => deleteException(r.id)}>ลบ</button>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-default-700 text-xs">เมื่อมาจาก</span>
+                          {condLabel(r).map((c) => (
+                            <span key={c} className="bg-primary/10 text-primary max-w-full truncate rounded px-2 py-0.5 text-xs font-medium">{c}</span>
+                          ))}
                         </div>
-                      )}
+                        {/* ข้อความล้วน ไม่ใส่กล่องซ้อนกล่องในบันได (anti-slop) */}
+                        <p className="text-default-800 mt-1 line-clamp-3 text-sm">{r.replyText}</p>
+                      </div>
                     </div>
-                  ))}
-                  {/* ทำให้การถอยไปคำตอบหลักเป็นสิ่งที่ "เห็น" ไม่ใช่สิ่งที่ต้องรู้เอง */}
-                  <div className="bg-default-50 text-default-600 flex items-center gap-2 px-3 py-2.5 text-xs">
-                    <Icon icon="corner-down-right" aria-hidden="true" />
-                    ไม่เข้าข้อไหนเลย ใช้คำตอบหลัก
+                    {canEdit && (
+                      <div className="flex gap-1.5 max-sm:w-full">
+                        {/* เปิด sheet โหมดแก้ = ส่ง rule ทั้งแถวไป prefill (ไม่ใช่แค่ id)
+                            sheet จึงอ่าน adLabel เดิมได้แม้รายการโฆษณายังโหลดไม่เสร็จ (CL-8) */}
+                        <button type="button"
+                          className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
+                          aria-label={`แก้ไขเงื่อนไขข้อ ${i + 1}`}
+                          onClick={() => { setEditingRule(r); setSheetOpen(true) }}>
+                          <Icon icon="pencil" className="size-3" aria-hidden="true" />แก้ไข
+                        </button>
+                        <button type="button" disabled={busy}
+                          className="btn btn-sm text-danger hover:bg-danger min-h-11 flex-1 justify-center hover:text-white sm:min-h-0 sm:flex-none"
+                          aria-label={`ลบเงื่อนไขข้อ ${i + 1}`}
+                          onClick={() => deleteException(r.id)}>
+                          <Icon icon="trash" className="size-3" aria-hidden="true" />ลบ
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+
+                {/* แถวสุดท้าย = คำตอบพื้นฐานตัวจริง · เส้น accent ซ้ายอยู่ที่ "แถว" ไม่ใช่ขอบการ์ด
+                    accent จึงชี้ของจริงและไม่ซ้อน 2 ชั้น (accepted exception ตาม DESIGN.md §6 / spec §7) */}
+                <li className="border-s-primary border-s-3 px-4.75 py-3">
+                  {/* ชื่อ "คำตอบปกติ" ไม่ใช่ "ทุกกรณีที่เหลือ" และไม่มี badge กำกับ (user +
+                      /impeccable clarify 2026-07-31): ของเดิมนิยามด้วยการปฏิเสธ 2 ชั้นซ้อนกัน
+                      ("ที่เหลือ" + "ไม่เข้าข้อไหนเลย") ซึ่งบังคับให้คนอ่านนึกเซ็ตทั้งหมดก่อนแล้ว
+                      ค่อยลบออก = รูปที่ยากที่สุดสำหรับกลุ่ม digital-literacy ต่ำ ซึ่ง PRODUCT.md
+                      ระบุเป็นผู้ใช้หลัก · badge ถูกตัดเพราะพูดซ้ำกับชื่อ และข้อมูลนั้นมีอยู่แล้วที่
+                      บรรทัดกลไกบนหัวการ์ด + ตำแหน่งแถวที่อยู่ล่างสุด */}
+                  <div className="mb-1.5">
+                    <label htmlFor="k-fallback-reply" className="text-default-800 mb-0 text-sm font-semibold">
+                      คำตอบปกติ
+                    </label>
                   </div>
-                </div>
-              )}
+                  {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
+                      `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
+                      Tailwind กรอบของ textarea จึงไม่หาย ได้กรอบซ้อนกรอบ (บั๊กจริง 2026-07-29,
+                      ตรงกับ memory feedback_paces_forms_css_gotchas) — ใช้ form-textarea ตรง ๆ
+                      แล้ววางตัวนับไว้นอกกรอบแทน */}
+                  <textarea id="k-fallback-reply" className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
+                    maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
+                    placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
+                    aria-label="คำตอบปกติ" />
+                  <div className="mt-1.5 flex justify-end">
+                    <span className="text-default-400 text-2xs">{defaultReply.length}/{REPLY_MAX}</span>
+                  </div>
+                </li>
+              </ul>
+
+              {/* 0 เงื่อนไข (เคสพบบ่อยสุด): ไม่มีเลขลำดับ ไม่มีกล่องเส้นประ — ชวนเบา ๆ บรรทัดเดียว */}
+              {/* ไม่มีบรรทัดชวนตรงนี้ (user 2026-07-31 "เอาออก มันซ้ำซ้อน") — ปุ่ม
+                  "เพิ่มเงื่อนไขเฉพาะ" อยู่หัวการ์ดใบนี้แล้ว การชวนซ้ำอีกครั้งคือพูด
+                  เรื่องเดียวกันสองที่ ซึ่งเป็นกฎเดียวกับที่ตัดประโยค "ตรงเมื่อมีคำว่า…" ทิ้ง */}
             </div>
           </div>
 
@@ -461,7 +801,16 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
             keywordId={keyword.id}
             status={status}
             canEdit={canEdit}
-            onCountChange={setTestThreadCount}
+            openPickerSignal={pickerSignal}
+            onCountChange={(count) => {
+              setTestThreadCount(count)
+              // ผู้ใช้กด "ทดสอบ" ไว้ตอน 0 แชท — พอมีแชทแรกแล้วเปิดโหมดให้เลย
+              // เขาจะได้ไม่ต้องเลื่อนกลับขึ้นไปกดปุ่มเดิมซ้ำ (ทางตันเดิม)
+              if (pendingTestRef.current && count > 0) {
+                pendingTestRef.current = false
+                void changeStatus('TEST')
+              }
+            }}
           />
         </div>
 
@@ -472,21 +821,34 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
         </div>
       </div>
 
-      {/* ── footer บันทึก (ตาม reference) — เห็นตลอด ปุ่มจางเมื่อยังไม่มีการแก้
-             ต่างจาก reference ตรงที่บอกด้วยว่าแก้อะไรไปบ้าง ซึ่งช่วยตอนแก้หลายจุดพร้อมกัน ── */}
-      {canEdit && (
-        <div className="card sticky bottom-4 z-10 mt-4">
+      {/* ── footer บันทึก — โผล่เฉพาะตอนมีของที่ยังไม่ได้บันทึก (CL-22)
+             เดิมแสดงตลอดพร้อมประโยคบอกว่ายังไม่ได้แก้อะไร + ปุ่มจาง 2 ปุ่ม = กินพื้นที่จอ
+             ถาวรเพื่อบอกว่า "ไม่มีอะไร" และลอยทับช่องพิมพ์คำตอบด้วย
+             ยังบอกว่าแก้อะไรไปบ้าง (ช่วยตอนแก้หลายจุดพร้อมกัน) — ต่างจาก reference ตรงนี้
+             fade เข้าใช้ starting:opacity-0 (Tailwind 4 = @starting-style) เพราะ Paces ไม่มี
+             keyframe เข้า/ออกให้ใช้ และห้ามเขียน CSS ใหม่
+             bottom-20 บนจอ <lg กัน SellerBottomNav (fixed 64px) ทับ ── */}
+      {canEdit && dirty.length > 0 && (
+        <div className="card sticky bottom-20 lg:bottom-4 z-10 mt-4 opacity-100 transition-opacity duration-200 starting:opacity-0">
           <div className="card-body flex flex-wrap items-center justify-between gap-3 py-3">
             <span className="text-default-600 text-sm">
-              {dirty.length > 0 ? `แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}` : 'ยังไม่มีการเปลี่ยนแปลง'}
+              {`แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}`}
             </span>
             <div className="flex gap-2">
-              <button className="btn btn-soft-default" disabled={busy || dirty.length === 0}
-                onClick={() => {
+              <button className="btn bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0" disabled={busy}
+                onClick={async () => {
+                  // ถามก่อนคืนค่า — กดพลาดแล้วสิ่งที่พิมพ์ไว้หายทั้งหมด กู้คืนไม่ได้
+                  const ok = await pacesConfirm.danger(
+                    'ล้างสิ่งที่แก้ไว้?',
+                    'ค่าที่แก้ในหน้านี้จะกลับไปเป็นค่าที่บันทึกไว้ล่าสุด',
+                    { confirmButtonText: 'ล้างที่แก้ไว้' },
+                  )
+                  if (!ok) return
                   setName(keyword.name)
                   setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
                 }}>ล้างที่แก้ไว้</button>
-              <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
+              <button className="btn bg-primary hover:bg-primary-hover min-h-11 text-white sm:min-h-0"
+                disabled={busy} onClick={saveAll}>
                 บันทึกการเปลี่ยนแปลง
               </button>
             </div>
@@ -497,8 +859,27 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
       {sheetOpen && (
         <ExceptionSheet
           keywordId={keyword.id} channels={channels} products={products}
-          onClose={() => setSheetOpen(false)}
-          onCreated={(created) => { setRules((r) => [...r, ...created]); setSheetOpen(false); router.refresh() }}
+          rule={editingRule}
+          // เคลียร์ editingRule ด้วย ไม่งั้นกด "เพิ่มเงื่อนไขเฉพาะ" ครั้งถัดไปจะเปิดเป็นโหมดแก้
+          onClose={() => { setSheetOpen(false); setEditingRule(null) }}
+          onCreated={(created) => {
+            setRules((r) => [...r, ...created]); setSheetOpen(false); setEditingRule(null); router.refresh()
+          }}
+          onUpdated={(updated) => {
+            /**
+             * บอกลำดับใหม่เมื่อความเจาะจงเปลี่ยน (เช่น เพิ่มสินค้าเข้าไป → ขึ้นไปอยู่บนกว่าเดิม)
+             * เทียบ before/after ด้วย sortExceptions ตัวเดียวกับที่เรนเดอร์บันได
+             * และใช้ specificity ที่ service ส่งกลับมา — ห้ามคำนวณเองที่ client (TFR-004)
+             */
+            const before = sortExceptions(rules).findIndex((r) => r.id === updated.id)
+            const next = rules.map((r) => (r.id === updated.id ? updated : r))
+            const after = sortExceptions(next).findIndex((r) => r.id === updated.id)
+            setRules(next); setSheetOpen(false); setEditingRule(null)
+            pacesToast.success(
+              after !== before ? `บันทึกแล้ว — ข้อนี้ย้ายไปอยู่ลำดับที่ ${after + 1}` : 'บันทึกแล้ว',
+            )
+            router.refresh()
+          }}
         />
       )}
     </>
@@ -506,25 +887,34 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   sheet เพิ่มเงื่อนไขเฉพาะ
+   sheet เพิ่ม/แก้เงื่อนไขเฉพาะ — โหมดแก้ prefill จาก rule เดิมแล้ว PATCH
    ═══════════════════════════════════════════════════════════════════ */
 function ExceptionSheet({
-  keywordId, channels, products, onClose, onCreated,
+  keywordId, channels, products, rule = null, onClose, onCreated, onUpdated,
 }: {
   keywordId: string
   channels: Channel[]
   products: Product[]
+  /** null = โหมดเพิ่ม (POST ได้หลายข้อ) · Rule = โหมดแก้ (PATCH ข้อเดียว) */
+  rule?: Rule | null
   onClose: () => void
   onCreated: (r: Rule[]) => void
+  onUpdated: (r: Rule) => void
 }) {
-  const [usePage, setUsePage] = useState(false)
-  const [useAd, setUseAd] = useState(false)
-  const [useProduct, setUseProduct] = useState(false)
-  const [channelIds, setChannelIds] = useState<string[]>([])
-  const [adIds, setAdIds] = useState<string[]>([])
-  const [productId, setProductId] = useState('')
+  // derive จาก prop ไม่ต้องมี state `mode` แยก — state ซ้อนที่ต้อง sync เองคือที่มาของบั๊ก
+  const isEdit = rule !== null
+  /**
+   * prefill ผ่าน initializer ของ useState เท่านั้น — ถ้าใช้ useEffect แล้ว setState
+   * ค่าจะกระพริบหนึ่งเฟรม และถ้า effect รันซ้ำจะทับค่าที่ user พิมพ์ไปแล้ว
+   */
+  const [usePage, setUsePage] = useState(() => rule?.shopChannelId != null)
+  const [useAd, setUseAd] = useState(() => rule?.adId != null)
+  const [useProduct, setUseProduct] = useState(() => rule?.productId != null)
+  const [channelIds, setChannelIds] = useState<string[]>(() => (rule?.shopChannelId ? [rule.shopChannelId] : []))
+  const [adIds, setAdIds] = useState<string[]>(() => (rule?.adId ? [rule.adId] : []))
+  const [productId, setProductId] = useState(() => rule?.productId ?? '')
   const [productQuery, setProductQuery] = useState('')
-  const [reply, setReply] = useState('')
+  const [reply, setReply] = useState(() => rule?.replyText ?? '')
   const [ads, setAds] = useState<Ad[] | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -538,10 +928,30 @@ function ExceptionSheet({
     }
   }
 
+  /**
+   * โหมดแก้ที่ผูกโฆษณาไว้ต้องโหลดรายการโฆษณาเองตอนเปิด — ปกติ `ads` โหลดตอนติ๊ก checkbox
+   * เท่านั้น ถ้าไม่โหลดที่นี่ ช่องโฆษณาจะกางอยู่แต่ไม่มีตัวเลือกให้เห็นเลยว่าผูกอันไหนไว้
+   * (sheet mount ใหม่ทุกครั้งที่เปิด จึงรันครั้งเดียวพอ)
+   */
+  useEffect(() => {
+    if (rule?.adId) loadAds()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const visibleProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase()
-    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products.slice(0, 12)
-  }, [products, productQuery])
+    if (q) return products.filter((p) => p.name.toLowerCase().includes(q))
+    const first = products.slice(0, 12)
+    /**
+     * ปักสินค้าที่ผูกไว้ให้เห็นเสมอ — ถ้ามันอยู่นอก 12 ตัวแรก user จะเห็นเหมือน "ยังไม่ได้เลือก"
+     * แล้วกดบันทึกทับ = เงื่อนไขสินค้าเดิมหายโดยไม่มีใครรู้ตัว
+     */
+    if (productId && !first.some((p) => p.id === productId)) {
+      const pinned = products.find((p) => p.id === productId)
+      if (pinned) return [pinned, ...first.slice(0, 11)]
+    }
+    return first
+  }, [products, productQuery, productId])
 
   /** ประโยคสรุปภาษาคน — ผู้ใช้ไม่ต้องรู้จักคำว่า specificity */
   const summary = useMemo(() => {
@@ -551,22 +961,79 @@ function ExceptionSheet({
       parts.push(names.length === 1 ? `เพจ “${names[0]}”` : `เพจ ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
     }
     if (useAd && adIds.length > 0) {
-      const names = adIds.map((id) => ads?.find((a) => a.adId === id)?.adTitle ?? id)
+      // fallback rule.adLabel ก่อนตกไปที่ id ดิบ — ไม่งั้นโหมดแก้จะโชว์เลข ad id ระหว่าง ads โหลด
+      const names = adIds.map(
+        (id) => ads?.find((a) => a.adId === id)?.adTitle ?? (id === rule?.adId ? rule.adLabel : null) ?? id,
+      )
       parts.push(names.length === 1 ? `โฆษณา “${names[0]}”` : `โฆษณา ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
     }
     if (useProduct && productId) parts.push(`สินค้า “${products.find((p) => p.id === productId)?.name}”`)
     if (parts.length === 0) return null
     return parts.join(' และ ')
-  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products])
+  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products, rule])
+
+  const pageChosen = usePage && channelIds.length > 0
+  /** จำนวนมิติที่ติ๊กจริง — ใช้บอกความเจาะจงเป็นภาษาคน (ผู้ใช้ไม่ต้องรู้จักคำว่า specificity) */
+  const dimCount =
+    (pageChosen ? 1 : 0) + (useAd && adIds.length > 0 ? 1 : 0) + (useProduct && productId ? 1 : 0)
+
+  /**
+   * CL-1: โฆษณาผูกกับเพจในโมเดลข้อมูล — service โยน AUTO_REPLY_RULE_AD_REQUIRES_CHANNEL
+   * ถ้าได้ adId มาโดยไม่มี shopChannelId ก่อนหน้านี้ canSubmit ไม่บังคับข้อนี้ จึงกดถึงได้จริง
+   * บน prod แล้วได้ 500 (mapServiceError ที่แก้ใน S-02 เป็น backstop ไม่ใช่ทางกัน)
+   */
+  const adMissingPage = useAd && !pageChosen
 
   const canSubmit =
     summary !== null && reply.trim().length > 0 && !busy &&
-    (!usePage || channelIds.length > 0) && (!useAd || adIds.length > 0)
+    (!usePage || channelIds.length > 0) && (!useAd || adIds.length > 0) && !adMissingPage
+
+  /**
+   * CL-8: ลำดับของสูตรนี้คือตัวกันบั๊ก ไม่ใช่แค่ความสวย — ต้องคืน `rule.adLabel` ก่อนเสมอเมื่อ
+   * โฆษณาไม่ได้เปลี่ยน จึงไม่พึ่ง `ads` ที่เริ่มเป็น null และโหลด lazy เลย ถ้าใช้สูตรของโหมดเพิ่ม
+   * (`ads.find(...)`) ตรง ๆ ตอน ads ยังไม่มา จะส่ง adLabel: null ไปทับชื่อเดิม แล้วชิปในบันได
+   * กลายเป็นเลข ad id ดิบ (condLabel fallback `r.adLabel ?? r.adId`)
+   * เส้นทางนี้ทดสอบอัตโนมัติไม่ได้ — dev DB ไม่มีเงื่อนไขที่มี adId และโปรเจกต์ไม่มี RTL
+   * (vitest environment: "node") จึงต้องกันด้วยรูปของโค้ด
+   */
+  function resolveAdLabel(nextAdId: string | null): string | null {
+    if (nextAdId === null) return null
+    const fromList = ads?.find((a) => a.adId === nextAdId)?.adTitle ?? null
+    if (rule && nextAdId === rule.adId) return rule.adLabel ?? fromList
+    return fromList
+  }
 
   async function submit() {
     if (!canSubmit) return
     setBusy(true)
     try {
+      if (rule !== null) {
+        /**
+         * โหมดแก้ = 1 แถวคือ 1 rule จึง PATCH เดียว ไม่วนคู่ผสมเหมือนโหมดเพิ่ม
+         * AutoReplyRuleUpdateSchema ไม่ใช่ partial (A-2) — ต้องส่งครบ 8 field ทุกครั้ง
+         * ส่งขาด key = valibot 400 · ห้ามส่ง keywordId (schema ไม่รับ service ตรึงจากแถวเดิม)
+         */
+        const nextAdId = useAd && adIds[0] ? adIds[0] : null
+        // specificity ใน response คือค่าที่ service คำนวณใหม่ — ใช้ค่านั้น ห้าม optimistic เอง
+        const updated: Rule = await callApi(`/api/shops/auto-reply/rules/${rule.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopChannelId: usePage && channelIds[0] ? channelIds[0] : null,
+            adId: nextAdId,
+            adLabel: resolveAdLabel(nextAdId),
+            productId: useProduct && productId ? productId : null,
+            replyText: reply.trim(),
+            // คงค่าเดิม — hardcode true จะเปิดกฎที่ร้านตั้งใจปิดไว้เงียบ ๆ
+            isActive: rule.isActive,
+            activeFrom: null,
+            activeUntil: null,
+          }),
+        })
+        // toast อยู่ที่ parent เพราะต้องเทียบลำดับก่อน/หลังจาก rules ทั้งชุด
+        onUpdated(updated)
+        return
+      }
       // เลือกหลายเพจ/หลายโฆษณา = สร้างเงื่อนไขเฉพาะทุกคู่ผสม (1 แถวต่อ 1 เงื่อนไข)
       const pageTargets = usePage && channelIds.length > 0 ? channelIds : [null]
       const adTargets = useAd && adIds.length > 0 ? adIds : [null]
@@ -605,8 +1072,8 @@ function ExceptionSheet({
       <div className="card mb-0 flex max-h-full w-full max-w-2xl flex-col overflow-hidden">
         <div className="card-header flex items-center justify-between">
           <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-            <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
-            เพิ่มเงื่อนไขเฉพาะ
+            <Icon icon="git-branch" className="text-primary size-4.5" aria-hidden="true" />
+            {isEdit ? 'แก้เงื่อนไขเฉพาะ' : 'เพิ่มเงื่อนไขเฉพาะ'}
           </h5>
           <button onClick={onClose} className="text-default-500" aria-label="ปิด">
             <Icon icon="x" aria-hidden="true" />
@@ -624,17 +1091,23 @@ function ExceptionSheet({
               มาจากเพจ
             </label>
             {usePage && (
-              // ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างเงื่อนไขเฉพาะ 2 ข้อที่ใช้คำตอบเดียวกัน
+              // โหมดเพิ่ม: ติ๊กได้หลายเพจ — เลือก 2 เพจ = สร้างเงื่อนไขเฉพาะ 2 ข้อที่ใช้คำตอบเดียวกัน
               // (ตาราง AutoReplyRule เก็บ 1 แถวต่อ 1 เงื่อนไข ไม่ใช่ array ของเพจ)
+              // โหมดแก้: 1 แถว = 1 เพจ จึงเป็น form-radio (CL-5) — checkbox ที่ทำตัวเป็น radio
+              // = โกหก affordance ส่วน <select> เป็น control ชนิดใหม่ใน sheet ทำ consistency แย่ลง
               <div className="mt-2.5 space-y-1.5">
                 {channels.length === 0 && <p className="text-default-500 text-xs">ยังไม่ได้เชื่อมเพจใด</p>}
                 {channels.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
-                      type="checkbox" className="form-checkbox"
+                      type={isEdit ? 'radio' : 'checkbox'}
+                      name={isEdit ? 'ex-page' : undefined}
+                      className={isEdit ? 'form-radio rounded-full!' : 'form-checkbox'}
                       checked={channelIds.includes(c.id)}
                       onChange={(e) =>
-                        setChannelIds((prev) => (e.target.checked ? [...prev, c.id] : prev.filter((x) => x !== c.id)))
+                        setChannelIds((prev) =>
+                          isEdit ? [c.id] : e.target.checked ? [...prev, c.id] : prev.filter((x) => x !== c.id),
+                        )
                       }
                     />
                     <span className="text-default-700">{c.name}</span>
@@ -652,6 +1125,15 @@ function ExceptionSheet({
                 onChange={(e) => { setUseAd(e.target.checked); if (e.target.checked) loadAds() }} />
               กดมาจากโฆษณา
             </label>
+            {/* บอกเหตุผลไว้ก่อนติ๊ก — เงื่อนไขที่ระบุโฆษณาต้องมีเพจด้วยเสมอ (CL-1) */}
+            <p className="text-default-700 mt-1 text-xs">โฆษณาผูกกับเพจ — เลือกเพจที่โฆษณานั้นวิ่งอยู่ด้วย</p>
+            {adMissingPage && (
+              // ข้อความเป็น text-default-800 · text-warning ใช้ได้แค่ที่ไอคอน (บนพื้นขาว 1.9:1)
+              <p className="text-default-800 mt-1.5 flex items-start gap-1.5 text-xs">
+                <Icon icon="alert-triangle" className="text-warning mt-0.5 size-4 flex-none" aria-hidden="true" />
+                ติ๊ก “มาจากเพจ” แล้วเลือกเพจก่อน จึงจะบันทึกเงื่อนไขที่ระบุโฆษณาได้
+              </p>
+            )}
             {useAd && (
               <div className="mt-2.5">
                 {ads === null ? (
@@ -665,9 +1147,18 @@ function ExceptionSheet({
                       <label key={a.adId}
                         className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded border p-2.5 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
                         <input
-                          type="checkbox" className="form-checkbox flex-none" checked={on}
+                          type={isEdit ? 'radio' : 'checkbox'}
+                          name={isEdit ? 'ex-ad' : undefined}
+                          className={isEdit ? 'form-radio rounded-full! flex-none' : 'form-checkbox flex-none'}
+                          checked={on}
                           onChange={(e) =>
-                            setAdIds((prev) => (e.target.checked ? [...prev, a.adId] : prev.filter((x) => x !== a.adId)))
+                            setAdIds((prev) =>
+                              isEdit
+                                ? [a.adId]
+                                : e.target.checked
+                                  ? [...prev, a.adId]
+                                  : prev.filter((x) => x !== a.adId),
+                            )
                           }
                         />
                         <span className="min-w-0 flex-1">
@@ -728,17 +1219,31 @@ function ExceptionSheet({
           </div>
 
           {summary && (
-            <div className="bg-primary/8 text-primary mt-3 rounded p-3 text-xs leading-relaxed">
-              คำตอบนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
-              <br />
-              ยิ่งระบุเงื่อนไขหลายอย่าง ยิ่งอยู่สูงในลำดับ และถูกเลือกก่อนข้อที่ระบุน้อยกว่า
+            <div className="bg-primary/8 text-default-800 mt-3 flex gap-2 rounded p-3 text-xs leading-relaxed">
+              <Icon icon="info-circle" className="text-primary mt-0.5 size-4 flex-none" aria-hidden="true" />
+              <span>
+                คำตอบนี้จะถูกใช้เมื่อลูกค้าทักจาก {summary}
+                {/* CL-7: บอกความเจาะจงเป็นจำนวนมิติที่ติ๊ก — พูดเฉพาะตอนที่ยังเป็นความจริง
+                    เพราะสูตรจริงคือ เพจ 4 + โฆษณา 2 + สินค้า 1 ข้อที่ระบุ "แค่เพจ" หรือ
+                    "แค่สินค้า" จึงไม่ได้ถูกตรวจก่อนข้อที่ระบุแค่เพจ (เท่ากัน/ต่ำกว่า) */}
+                {dimCount >= 2 && pageChosen && (
+                  <>
+                    <br />
+                    เงื่อนไขนี้เจาะจง {dimCount} อย่าง จะถูกตรวจก่อนข้อที่ระบุแค่เพจอย่างเดียว
+                  </>
+                )}
+              </span>
             </div>
           )}
         </div>
 
+        {/* CL-4: btn-soft-default / btn-primary ไม่มีนิยามใน CSS เลย และ .btn ไม่มีพื้นหลัง
+            → ปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ ใช้ variant จริงตาม paces-component-reference §1 */}
         <div className="card-footer flex justify-end gap-2">
-          <button className="btn btn-soft-default" onClick={onClose}>ยกเลิก</button>
-          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>เพิ่มเงื่อนไขเฉพาะ</button>
+          <button className="btn bg-light text-dark hover:bg-light-hover" onClick={onClose}>ยกเลิก</button>
+          <button className="btn bg-primary hover:bg-primary-hover text-white" disabled={!canSubmit} onClick={submit}>
+            {isEdit ? 'บันทึกเงื่อนไข' : 'เพิ่มเงื่อนไขเฉพาะ'}
+          </button>
         </div>
       </div>
     </div>

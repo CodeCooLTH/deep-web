@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
+import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 
 export type SenderRole = 'BUYER' | 'SHOP'
 export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
@@ -36,6 +38,22 @@ export interface ConversationSummary {
   referralAdId: string | null
 }
 
+/**
+ * feature 00023 — เหตุผลเบื้องหลังคำตอบอัตโนมัติ 1 ครั้ง (แสดงตอนชี้ที่ป้าย "ระบบตอบ")
+ *
+ * ชื่อเพจ/โฆษณา/สินค้าเป็น **ชื่อปัจจุบัน** ที่ resolve จากรหัสที่บันทึกไว้ — ต่างจากฟิลด์อื่น
+ * ในนี้ที่เป็น snapshot แท้ ๆ ยอมรับความไม่ตรงจุดนี้เพราะทางเลือกคือแสดงรหัสดิบ (uuid/ad id)
+ * ซึ่งร้านอ่านไม่รู้เรื่องเลย; null = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น หรือของถูกลบไปแล้ว
+ */
+export interface AutoReplyTrace {
+  keywordName: string | null
+  matchedPhrase: string | null
+  matchType: string | null // "EXACT" | "CONTAINS" | "STARTS_WITH" — แปลเป็นไทยที่ชั้น UI
+  channelName: string | null
+  adLabel: string | null
+  productName: string | null
+}
+
 export interface ChatMessageView {
   id: string
   conversationId: string
@@ -51,6 +69,16 @@ export interface ChatMessageView {
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   // findMany ด้านล่างไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้วตั้งแต่ migration — แค่ประกาศ type เพิ่ม
   autoReplyKind: string | null
+  // seq — ลำดับที่แถวถูกบันทึกจริง ใช้ตัดสินเมื่อ createdAt เท่ากัน (ดูเหตุผลใน schema.prisma)
+  // findMany ไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้ว — ประกาศ type เพิ่มให้ฝั่ง client ใช้เรียงได้
+  // optional เพราะข้อความ optimistic ที่ client สร้างเองยังไม่มี seq จนกว่าจะบันทึกจริง
+  seq?: number
+  // feature 00023 — "ทำไมบอทตอบข้อความนี้" ทั้งชุด สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
+  //
+  // ทุกค่าเป็น snapshot ที่ AutoReplyLog บันทึกไว้ **ตอนตัดสินใจตอบ** ไม่ใช่การคำนวณย้อนหลัง —
+  // ถ้าร้านแก้กฎทีหลัง ข้อความเก่ายังบอกความจริง ณ ตอนนั้นได้ถูกต้อง
+  // ไม่ใช่คอลัมน์ใน ChatMessage — getMessages join มาเติมให้ (null = คนพิมพ์เอง หรือหาบันทึกไม่เจอ)
+  autoReply: AutoReplyTrace | null
   createdAt: Date
 }
 
@@ -111,7 +139,7 @@ function customerLinkedWhere(mode: 'linked' | 'unlinked'): Prisma.ConversationWh
 }
 
 /** สถานะพัสดุของ "ออเดอร์ล่าสุด" ของลูกค้าในเธรดนั้น (feature 00018 — user สั่ง 2026-07-31) */
-export type ShipmentFilter = 'none' | 'unprinted' | 'printed'
+export type ShipmentFilter = 'none' | 'unprinted' | 'printed' | 'problem'
 
 /**
  * conversationIdsByShipmentState — id ของเธรดที่ออเดอร์ล่าสุดของลูกค้าอยู่ในสถานะพัสดุที่ระบุ
@@ -136,10 +164,11 @@ export async function conversationIdsByShipmentState(
       SELECT DISTINCT ON (o."customerId")
         o."customerId" AS "customerId",
         s."id"             AS "shipmentId",
-        s."labelPrintedAt" AS "labelPrintedAt"
+        s."labelPrintedAt" AS "labelPrintedAt",
+        s."carrierStatus"  AS "carrierStatus"
       FROM "Order" o
       LEFT JOIN LATERAL (
-        SELECT sh."id", sh."labelPrintedAt"
+        SELECT sh."id", sh."labelPrintedAt", sh."carrierStatus"
         FROM "OrderShipment" sh
         WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
         ORDER BY sh."createdAt" DESC
@@ -159,7 +188,11 @@ export async function conversationIdsByShipmentState(
           ? Prisma.sql`l."shipmentId" IS NULL`
           : state === 'unprinted'
             ? Prisma.sql`l."shipmentId" IS NOT NULL AND l."labelPrintedAt" IS NULL`
-            : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
+            : // ใช้รายชื่อสถานะชุดเดียวกับป้ายในแถว — ถ้านิยาม "มีปัญหา" สองที่ไม่ตรงกัน
+              // ตัวกรองจะกรองแล้วได้ผลไม่ตรงกับที่ตาเห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
+              state === 'problem'
+              ? Prisma.sql`l."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])`
+              : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
       }
   `
   return rows.map((r) => r.id)
@@ -239,8 +272,10 @@ export async function listConversationsForShop(
       ...(opts.chatGroupId ? { chatGroupId: opts.chatGroupId } : {}),
       ...(readIdFilter ?? {}),
       ...(status === 'open' ? { resolvedAt: null } : status === 'resolved' ? { resolvedAt: { not: null } } : {}),
-      // สแปม (feature 00018): มุมมองปกติตัดสแปมออก (isSpam:false); มุมมอง "ดูสแปม" โชว์เฉพาะสแปม
-      // และไม่กรอง isHidden (สแปมเป็นถังแยก — ดูทั้งหมดในนั้น) เพื่อไม่ให้เธรดสแปมหายไปด้วย 2 เงื่อนไข
+      // สแปม (feature 00018): "ดูสแปม" โชว์เฉพาะสแปม และไม่กรอง isHidden (สแปมเป็นถังแยก —
+      // ดูทั้งหมดในนั้น) เพื่อไม่ให้เธรดสแปมหายไปด้วย 2 เงื่อนไข
+      // แท็บ "ทั้งหมด" รวมเธรดที่ปิดงานแล้ว (status 'all') แต่ยังตัดสแปมออกเสมอ —
+      // user ลองรวมสแปมแล้วขอถอยกลับ 2026-07-31: ถังสแปมต้องเป็นถังแยกจริง ๆ
       ...(opts.spam ? { isSpam: true } : { isSpam: false, isHidden: hidden }),
       ...(orParts.length > 0 ? { AND: orParts } : {}),
     },
@@ -313,6 +348,34 @@ export async function unreadConversationIdsForShop(shopId: string): Promise<stri
   return rows.map((r) => r.id)
 }
 
+/**
+ * countUnreadSpamConversations — จำนวนเธรด "สแปมที่ยังไม่อ่าน" สำหรับ badge บนแท็บสแปม
+ * (user สั่ง 2026-07-31: นับเฉพาะที่ยังไม่อ่าน เกิน 99 แสดง 99+)
+ *
+ * นิยาม "ยังไม่อ่าน" ยกมาจาก unreadConversationIdsForShop ตัวเดียวกันเป๊ะ (SSOT) เพิ่มแค่
+ * isSpam = true — ถ้าแก้เงื่อนไขที่นั่นต้องแก้ที่นี่ด้วย ไม่งั้นตัวเลขบนแท็บกับรายการจะไม่ตรงกัน
+ *
+ * performance: หยุดนับที่ 100 แถว (LIMIT ใน subquery) — UI แสดงแค่ "99+" อยู่แล้ว จึงไม่มี
+ * เหตุผลให้ scan สแปมทั้งกอง ร้านที่โดนสแปมถล่มคือเคสที่ต้องระวังที่สุดพอดี. วิ่งบน index
+ * ChatMessage(conversationId, createdAt) ที่มีอยู่แล้ว เหมือน unreadConversationIdsForShop
+ */
+export async function countUnreadSpamConversations(shopId: string): Promise<number> {
+  const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+    SELECT count(*)::bigint AS n FROM (
+      SELECT DISTINCT c.id
+      FROM "Conversation" c
+      JOIN "ChatMessage" m ON m."conversationId" = c.id
+      WHERE c."shopId" = ${shopId}
+        AND c."isSpam" = true
+        AND m."senderRole" = 'BUYER'
+        AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
+        AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
+      LIMIT 100
+    ) t
+  `
+  return Number(rows[0]?.n ?? 0)
+}
+
 export async function listConversationsForBuyer(
   buyerUserId: string,
   opts: { cursor?: string; take?: number } = {},
@@ -375,6 +438,24 @@ async function listConversations(
   }
 }
 
+/**
+ * cursor ของหน้าเธรด — รูปแบบ "<iso>|<seq>" (composite keyset)
+ *
+ * เดิมเป็น ISO ล้วนแล้วกรองด้วย createdAt < cursor ซึ่งพลาดเมื่อมีหลายข้อความเวลาเดียวกันเป๊ะ:
+ * แถวที่เสมอกับขอบหน้าจะถูกตัดทิ้งทั้งกลุ่มหรือซ้ำ (Meta ส่งเวลาข้อความระบบมาแค่ระดับวินาที
+ * จึงเสมอกันบ่อยจริง) — seq เข้ามาเป็นตัวตัดสิน
+ *
+ * ยังรับรูปเก่าได้ (seq = null) เพราะ client ที่เปิดค้างอยู่ตอน deploy ยังถือ cursor รูปเดิม
+ */
+function parseMessageCursor(raw?: string): { createdAt: Date; seq: number | null } | null {
+  if (!raw) return null
+  const [iso, seqRaw] = raw.split('|')
+  const createdAt = new Date(iso)
+  if (Number.isNaN(createdAt.getTime())) return null
+  const seq = Number(seqRaw)
+  return { createdAt, seq: seqRaw !== undefined && Number.isFinite(seq) ? seq : null }
+}
+
 // ---- getMessages ----
 // conversationId มาจาก client (path param) — ต้อง verify ownership จริงในนี้ (ต่างจาก listConversations*)
 export async function getMessages(
@@ -385,19 +466,97 @@ export async function getMessages(
   await assertParticipant(conversationId, actorUserId)
 
   const take = opts.take ?? 30
+  const cursor = parseMessageCursor(opts.cursor)
   const rows = await prisma.chatMessage.findMany({
     where: {
       conversationId,
-      ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
+      ...(cursor
+        ? cursor.seq === null
+          ? // cursor รูปเก่า (ISO ล้วน) ที่ client เดิมยังถืออยู่ — คงพฤติกรรมเดิมไว้
+            { createdAt: { lt: cursor.createdAt } }
+          : // keyset composite: เก่ากว่าจริง ๆ หรือเวลาเท่ากันแต่ seq น้อยกว่า
+            {
+              OR: [
+                { createdAt: { lt: cursor.createdAt } },
+                { createdAt: cursor.createdAt, seq: { lt: cursor.seq } },
+              ],
+            }
+        : {}),
     },
-    orderBy: { createdAt: 'desc' }, // ใหม่→เก่า (pagination); client reverse ก่อน render
+    // ใหม่→เก่า (pagination); client reverse ก่อน render
+    // seq เป็นตัวตัดสินเมื่อ createdAt เท่ากัน — Meta ส่งเวลาข้อความระบบ/การ์ดมาแค่ระดับวินาที
+    // ทำให้เสมอกันบ่อย ถ้าไม่มีตัวตัดสินลำดับจะไม่แน่นอนและกระโดดข้ามแถวตอนแบ่งหน้าได้
+    orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
     take: take + 1,
   })
   const hasMore = rows.length > take
   const page = hasMore ? rows.slice(0, take) : rows
+
+  // feature 00023 — "ทำไมบอทตอบข้อความนี้" สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
+  //
+  // join ผ่าน AutoReplyLog.outboundMessageId แทนการเพิ่มคอลัมน์ใน ChatMessage เพราะความสัมพันธ์นี้
+  // ถูกบันทึกไว้แล้วตั้งแต่ตอนตัดสินใจตอบ — เพิ่มคอลัมน์ = ข้อมูลซ้ำที่ต้องคอยให้ตรงกันสองที่
+  //
+  // กรองด้วย conversationId ไม่ใช่ `outboundMessageId IN (...)` ตั้งใจ: outboundMessageId ไม่มี index
+  // แต่ [conversationId, createdAt] มี และจำนวนแถวที่ได้ถูกจำกัดด้วย maxRepliesPerConversation
+  // (ค่าเริ่มต้น 10) อยู่แล้ว จึงเป็น index scan สั้น ๆ ไม่ใช่ seq scan ทั้งตาราง
+  const traceByMessageId = new Map<string, AutoReplyTrace>()
+  if (page.some((m) => m.autoReplyKind)) {
+    const logs = await prisma.autoReplyLog.findMany({
+      where: { conversationId, decision: 'REPLIED', outboundMessageId: { not: null } },
+      select: {
+        outboundMessageId: true,
+        matchedPhrase: true,
+        matchType: true,
+        shopChannelId: true,
+        adId: true,
+        productId: true,
+        keyword: { select: { name: true } },
+      },
+    })
+
+    // แปลงรหัสเป็นชื่อที่ร้านอ่านรู้เรื่อง — batch ทีเดียวทั้งเธรด ไม่ยิงต่อข้อความ
+    // โฆษณาไม่ใช่ entity ในระบบเรา (ไม่มีตาราง Ad) จึงต้องหาชื่อจาก referral ที่เคยรับ webhook ไว้
+    const ids = <T,>(xs: (T | null)[]) => [...new Set(xs.filter((x): x is T => x != null))]
+    const [channels, ads, products] = await Promise.all([
+      prisma.shopChannel.findMany({
+        where: { id: { in: ids(logs.map((l) => l.shopChannelId)) } },
+        select: { id: true, name: true },
+      }),
+      prisma.conversationAdReferral.findMany({
+        where: { adId: { in: ids(logs.map((l) => l.adId)) } },
+        select: { adId: true, adTitle: true, adBody: true },
+        distinct: ['adId'],
+      }),
+      prisma.product.findMany({
+        where: { id: { in: ids(logs.map((l) => l.productId)) } },
+        select: { id: true, name: true },
+      }),
+    ])
+    const channelName = new Map(channels.map((c) => [c.id, c.name]))
+    const productName = new Map(products.map((p) => [p.id, p.name]))
+    // adTitle (ชื่อใน Ads Manager) มักว่าง — ข้อความโฆษณาจริงเป็นสิ่งที่ร้านจำได้มากกว่า
+    const adLabel = new Map(ads.map((a) => [a.adId as string, a.adTitle ?? a.adBody ?? null]))
+
+    for (const l of logs) {
+      if (!l.outboundMessageId) continue
+      traceByMessageId.set(l.outboundMessageId, {
+        keywordName: l.keyword?.name ?? null,
+        matchedPhrase: l.matchedPhrase,
+        matchType: l.matchType,
+        channelName: l.shopChannelId ? (channelName.get(l.shopChannelId) ?? null) : null,
+        adLabel: l.adId ? (adLabel.get(l.adId) ?? null) : null,
+        productName: l.productId ? (productName.get(l.productId) ?? null) : null,
+      })
+    }
+  }
+
   return {
-    items: page as ChatMessageView[],
-    nextCursor: hasMore ? page[page.length - 1]!.createdAt.toISOString() : null,
+    items: page.map((m) => ({
+      ...m,
+      autoReply: traceByMessageId.get(m.id) ?? null,
+    })) as ChatMessageView[],
+    nextCursor: hasMore ? `${page[page.length - 1]!.createdAt.toISOString()}|${page[page.length - 1]!.seq}` : null,
   }
 }
 
@@ -413,7 +572,7 @@ export async function sendMessage(params: {
   orderRefToken?: string | null // เฉพาะ type='ORDER' (การ์ดออเดอร์ในแชท, user 2026-07-24)
   replyToMid?: string | null // reply/quote (user 2026-07-25) — DEEP เก็บ id ของข้อความที่ตอบทับ; enrich match id/externalMessageId
 }): Promise<ChatMessageView> {
-  return prisma.$transaction(async (tx) => {
+  const sent = await prisma.$transaction(async (tx) => {
     const conversation = await tx.conversation.findUnique({ where: { id: params.conversationId } })
     if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
 
@@ -441,10 +600,11 @@ export async function sendMessage(params: {
       // idempotent-guard: ข้อความล่าสุดของ conversation เป็น PRODUCT + productRefId เดียวกัน → คืนแถวเดิม ไม่ insert ซ้ำ
       const lastMessage = await tx.chatMessage.findFirst({
         where: { conversationId: params.conversationId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
       })
       if (lastMessage && lastMessage.type === 'PRODUCT' && lastMessage.productRefId === params.productRefId) {
-        return lastMessage as ChatMessageView
+        // autoReply: ข้อความที่ "คน" เพิ่งส่ง ไม่มีบันทึกการตัดสินใจของบอทอยู่แล้วโดยนิยาม
+        return { ...lastMessage, autoReply: null } as ChatMessageView
       }
     }
 
@@ -513,8 +673,17 @@ export async function sendMessage(params: {
     // ถ้าจะกลับมาเปิดใหม่: ต้องมีผู้บริโภคจริงก่อน (push/inbox รวม) และต้องคิดเรื่องปริมาณ
     // + retention ไม่ใช่เขียนทุกข้อความแบบเดิม
 
-    return message as ChatMessageView
+    return { ...message, autoReply: null } as ChatMessageView
   })
+
+  // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
+  //
+  // เรียก **นอก** $transaction ตั้งใจ: การหยุดบอทไม่ใช่เงื่อนไขความถูกต้องของการส่งข้อความ
+  // ถ้าล้มก็ไม่ควรพา rollback ข้อความที่ส่งถึงลูกค้าไปแล้ว (ตัวฟังก์ชันเองก็กลืน error อยู่แล้ว)
+  if (params.senderRole === 'SHOP') {
+    await pauseForHumanTakeover(params.conversationId)
+  }
+  return sent
 }
 
 // ---- markRead ----
@@ -580,6 +749,10 @@ export async function updateConversationState(
     data,
   })
   if (result.count === 0) throw new Error('CONVERSATION_NOT_FOUND_OR_FORBIDDEN')
+
+  // feature 00023 — โหมด UNTIL_RESOLVED: ปิดงานเธรด = คืนให้ระบบดูแลต่อ
+  // (ตัวฟังก์ชันกรอง handoffReason เองแล้ว เธรดที่ล็อกด้วยเหตุอื่นจะไม่ถูกปลด)
+  if (action === 'resolve') await clearTakeoverOnResolve(conversationId, shopId)
 }
 
 // ---- getUnreadCountForShop ----
