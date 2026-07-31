@@ -73,6 +73,22 @@ spec/baseline ของ phase นี้ enumerate ไว้แค่ 2 ค่า
 
 **หมายเหตุกระบวนการ:** นี่คือช่องที่ทั้ง design spec, scope baseline และ reviewer 8-gate มองไม่เห็น เพราะทุกชั้นอ่านจาก spec ที่ enumerate ค่าไม่ครบเหมือนกัน — เจอได้เพราะ query ค่าจริงในฐานตอน QA
 
+**G-2 · แถบตรึงโผล่ตั้งแต่ยังไม่เลื่อน — ปุ่มซ้ำ 2 ชุดบน desktop** (S-6)
+
+พบตอน browser QA 2026-07-31 บน `/orders/37f31198-...` (PENDING) viewport 1796x926:
+
+| ชุด | y | class ของแถบ | มองเห็น |
+|---|---|---|---|
+| #1 แถบตรึง (StatusHero sticky wrapper) | 117 | `hidden items-center gap-2 lg:flex` | **ใช่ — ผิด** |
+| #2 inline มุมขวาบนหัวหน้า | 261 | `hidden items-center gap-2 lg:flex` | ใช่ (ถูก) |
+| #3 แถบล่าง | - | `lg:hidden fixed inset-x-0 bottom-0` | ไม่ (ถูก) |
+
+**สาเหตุ:** wrapper ของแถบตรึงใน `StatusHero.tsx` ไม่มีเงื่อนไข `stuck` คุมการแสดงผล — มีแค่ `hidden lg:flex` จึงโผล่ทันทีที่จอ ≥1024 ไม่ว่าจะเลื่อนหรือยัง ทั้งที่ `IntersectionObserver` คำนวณ `stuck` ไว้แล้ว
+
+**ผลต่อผู้ใช้:** ผู้ขายเห็นปุ่ม "ส่งลิงก์ทาง SMS" + "แจ้งเลขพัสดุ" ซ้ำ 2 ชุดบนจอเดียว — ขัดกับหลักการหลักของ v5 ("ปุ่มอยู่ที่เดียว") โดยตรง
+
+**ต้องแก้ก่อน sign-off** — S-6 acceptance (2) ระบุว่าแถบตรึงต้องโผล่ "เมื่อการ์ดหัวหน้าพ้นจอ" ไม่ใช่ตลอดเวลา
+
 ## Change Log
 > ทุกครั้งที่ Controller อนุมัติแก้ scope (รับเข้า/เลื่อนออก) จดที่นี่ — กัน creep เงียบ
 
