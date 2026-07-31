@@ -3,7 +3,7 @@
 // Phase 2 additions (S-3, S-13): isCODPayment, isHttpUrl, showSlipZone
 
 import { describe, it, expect } from 'vitest'
-import { getStatusPill, getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone } from './order-display'
+import { getStatusPill, getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone, getPaymentBadge } from './order-display'
 
 // palette snapshot ใช้ตรวจ bg/text/dot จาก spec §2
 const P = {
@@ -295,5 +295,96 @@ describe('showSlipZone', () => {
 
   it('SHIPPED + COD → false', () => {
     expect(showSlipZone('SHIPPED', 'COD')).toBe(false)
+  })
+})
+
+// -------------------------------------------------------------------------
+// T5: getPaymentBadge — badge สถานะการชำระเงิน (Verified-Means-Green)
+// -------------------------------------------------------------------------
+describe('getPaymentBadge', () => {
+  it('CONFIRMED → ชำระแล้ว + success (เขียว — จุดเดียวที่อนุญาต)', () => {
+    const b = getPaymentBadge('CONFIRMED', 'TRANSFER', 'slip-1')
+    expect(b).toEqual({ label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink' })
+  })
+
+  it('CONFIRMED + COD → ยังเป็น ชำระแล้ว (status ชนะก่อน isCODPayment check)', () => {
+    const b = getPaymentBadge('CONFIRMED', 'COD', null)
+    expect(b?.label).toBe('ชำระแล้ว')
+  })
+
+  it('CANCELLED → ยกเลิก + default (ไม่ใช่เขียว)', () => {
+    const b = getPaymentBadge('CANCELLED', 'TRANSFER', null)
+    expect(b).toEqual({ label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-800' })
+    expect(b?.cls).not.toContain('success')
+  })
+
+  it('PENDING + COD → รอเก็บปลายทาง + info (ไม่ใช่เขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'COD', null)
+    expect(b).toEqual({ label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info-ink' })
+  })
+
+  it('SHIPPED + COD → รอเก็บปลายทาง (ไม่ใช่แค่ PENDING)', () => {
+    const b = getPaymentBadge('SHIPPED', 'เก็บเงินปลายทาง', null)
+    expect(b?.label).toBe('รอเก็บปลายทาง')
+    expect(b?.cls).not.toContain('success')
+  })
+
+  it('PENDING + TRANSFER + มีสลิป → รอตรวจสอบสลิป + info (ไม่ใช่เขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'TRANSFER', 'slip-abc')
+    expect(b).toEqual({ label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info-ink' })
+  })
+
+  it('PENDING + PROMPTPAY + มีสลิป → รอตรวจสอบสลิป', () => {
+    const b = getPaymentBadge('PENDING', 'PROMPTPAY', 'slip-abc')
+    expect(b?.label).toBe('รอตรวจสอบสลิป')
+  })
+
+  it('PENDING + TRANSFER + ไม่มีสลิป → รอชำระ + warning (ไม่ใช่ danger/แดง หรือเขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'TRANSFER', null)
+    expect(b).toEqual({ label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning-ink' })
+  })
+
+  it('PENDING + PROMPTPAY + ไม่มีสลิป → รอชำระ + warning', () => {
+    const b = getPaymentBadge('PENDING', 'PROMPTPAY', undefined)
+    expect(b?.label).toBe('รอชำระ')
+    expect(b?.cls).toContain('warning')
+  })
+
+  // T14 P4: เดิม return null ทำให้ badge หายเงียบ ๆ เมื่อ paymentMethod เป็น free text/ไม่รู้จัก
+  // (เช่น seller กรอกเอง "พร้อมเพย์ 081-234-5678") — ตอนนี้ต้องตอบคำถาม "ได้เงินหรือยัง" ได้เสมอ
+  it('PENDING + CASH (วิธีที่ไม่รู้จัก) → badge fallback "ยังไม่ยืนยันการชำระ" + warning (ไม่ใช่เขียว)', () => {
+    const b = getPaymentBadge('PENDING', 'CASH', null)
+    expect(b).toEqual({ label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink' })
+  })
+
+  it('PENDING + paymentMethod null → badge fallback "ยังไม่ยืนยันการชำระ" (ไม่ใช่ null — ไม่หายไปเงียบ ๆ)', () => {
+    const b = getPaymentBadge('PENDING', null, null)
+    expect(b).toEqual({ label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink' })
+  })
+
+  it('PENDING + free-text paymentMethod จริงจากฐาน → ยังได้ badge fallback ไม่ใช่หายไปทั้งหน้า', () => {
+    const b = getPaymentBadge('PENDING', 'พร้อมเพย์ 081-234-5678', null)
+    expect(b).not.toBeNull()
+    expect(b?.label).toBe('ยังไม่ยืนยันการชำระ')
+    expect(b?.cls).not.toContain('success')
+  })
+
+  it('ไม่มี label ไหนได้ bg-success ยกเว้น "ชำระแล้ว" (Verified-Means-Green regression)', () => {
+    const cases: Parameters<typeof getPaymentBadge>[] = [
+      ['PENDING', 'COD', null],
+      ['PENDING', 'TRANSFER', 'slip-1'],
+      ['PENDING', 'TRANSFER', null],
+      ['PENDING', 'PROMPTPAY', 'slip-1'],
+      ['SHIPPED', 'COD', null],
+      ['CANCELLED', 'TRANSFER', null],
+      ['PENDING', 'CASH', null],
+      ['PENDING', null, null],
+    ]
+    for (const [status, pm, slip] of cases) {
+      const b = getPaymentBadge(status, pm, slip)
+      if (b && b.label !== 'ชำระแล้ว') {
+        expect(b.cls).not.toContain('success')
+      }
+    }
   })
 })

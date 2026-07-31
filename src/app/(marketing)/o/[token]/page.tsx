@@ -32,6 +32,8 @@ import OrderAccessBlock from './OrderAccessBlock'
 import ClaimOtpPrompt from './ClaimOtpPrompt'
 import PhoneVerifyPrompt from './PhoneVerifyPrompt'
 import type { PublicOrderData } from './OrderDetailMobile'
+// feature 00024 — ชนิดสถานะนัด (SSOT เดียวกับที่ service/UI ใช้)
+import type { AppointmentStatus } from '@/lib/appointments'
 import BookingGuestView from './BookingGuestView'
 
 type Props = { params: Promise<{ token: string }> }
@@ -214,6 +216,22 @@ export default async function PublicOrderPage({ params }: Props) {
       cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,
       slipFileId: order.slipFileId ?? null,
       accessUrl: order.accessUrl ?? null,
+      // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) เติมที่จุดนี้เท่านั้น คือ "หลังผ่าน grant"
+      // แล้ว ไม่แตะกลไกด่านของ feature 00015 เหนือบรรทัดนี้เลย
+      // ออเดอร์ที่ไม่มีนัด → null → การ์ดไม่ถูก render เลย DOM เหมือนเดิมทุกประการ
+      appointment:
+        order.serviceStart && order.serviceEnd && order.serviceResource
+          ? {
+              resourceName: order.serviceResource.name,
+              startIso: order.serviceStart.toISOString(),
+              endIso: order.serviceEnd.toISOString(),
+              // appointmentStatus เป็น String? ใน schema — ออเดอร์ที่มีนัดจะถูกตั้งเป็น
+              // SCHEDULED ตั้งแต่ตอนสร้างเสมอ (attachAppointmentInTx) fallback ไว้กันข้อมูลเก่า
+              status: (order.appointmentStatus ?? 'SCHEDULED') as AppointmentStatus,
+              buyerConfirmedAt: order.buyerConfirmedAt?.toISOString() ?? null,
+              rescheduleNote: order.rescheduleRequestNote ?? null,
+            }
+          : null,
     }
 
     return <PublicOrderClient order={data} />

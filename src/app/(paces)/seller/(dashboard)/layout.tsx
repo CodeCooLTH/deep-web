@@ -13,6 +13,7 @@ import {
   applyStaffMenu,
   applyExpenseMenu,
   applyVerticalMenu,
+  applyAppointmentMenu,
 } from './_seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
@@ -143,13 +144,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // ลำดับสำคัญ: applyVerticalMenu อยู่ "ชั้นนอกสุด" โดยตั้งใจ — กรองหลัง gate อื่นทุกตัว
   // เพื่อไม่ให้ badge/disable ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว
   // (เช่น badge "เลือกแพ็กเกจ" ของสต็อก ต้องไม่โผล่ในร้านบ้านพักที่ไม่มีเมนูสต็อกเลย)
+  // feature 00024 — applyAppointmentMenu ซ่อนเมนู "ทรัพยากรบริการ" จากร้านที่ไม่เข้าเงื่อนไข
+  //   ต้องใช้ทั้ง kind และ vertical (BR-RSV-01) จึงส่ง active.kind เข้าไปด้วย
+  //   วางไว้ชั้นในกว่า applyVerticalMenu เพราะเป็น filter ล้วนเหมือนกัน ลำดับไม่มีผลต่อผลลัพธ์
   const menuItems = applyVerticalMenu(
-    applyExpenseMenu(
-      applyStaffMenu(
-        applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
-        { kind: active.kind, role: active.role },
+    applyAppointmentMenu(
+      applyExpenseMenu(
+        applyStaffMenu(
+          applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
+          { kind: active.kind, role: active.role },
+        ),
+        expenseAccessDecision,
       ),
-      expenseAccessDecision,
+      { kind: active.kind, vertical: shop.vertical },
     ),
     shop.vertical,
   )

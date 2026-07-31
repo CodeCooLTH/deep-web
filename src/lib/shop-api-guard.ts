@@ -14,7 +14,9 @@ export function jsonNoStore(body: unknown, init?: { status?: number }) {
   return NextResponse.json(body, { status: init?.status, headers: NO_STORE });
 }
 
-type GuardResult = { error: NextResponse } | { shopId: string };
+// userId เพิ่มตอน feature 00024 — ต้องบันทึกว่า "ใคร" เป็นคนเลื่อนนัดลงประวัติ (BR-RSV-30)
+// additive: caller เดิมที่อ่านแค่ shopId ไม่กระทบ
+type GuardResult = { error: NextResponse } | { shopId: string; userId: string };
 
 /** ต้องเป็นสมาชิกของร้านปัจจุบัน (OWNER หรือ ADMIN) */
 export async function requireShopMember(): Promise<GuardResult> {
@@ -22,11 +24,12 @@ export async function requireShopMember(): Promise<GuardResult> {
   if (!session?.user) return { error: jsonNoStore({ error: "unauthorized" }, { status: 401 }) };
   // cast จำเป็น: NextAuth Session.user ไม่ประกาศ id/activeShopId และโปรเจกต์ไม่มี d.ts
   // augmentation (comment ใน shop-context ที่ว่า "รับ Session ตรง ๆ ได้" ไม่จริงที่ call site)
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  );
+  const typedSession = session as unknown as {
+    user: { id: string; activeShopId?: string | null };
+  };
+  const active = await requireActiveShop(typedSession);
   if (!active) return { error: jsonNoStore({ error: "FORBIDDEN" }, { status: 403 }) };
-  return { shopId: active.shop.id };
+  return { shopId: active.shop.id, userId: typedSession.user.id };
 }
 
 /**
@@ -45,7 +48,7 @@ export async function requireLodgingShop(): Promise<GuardResult> {
   if (!shop || shop.vertical !== "LODGING") {
     return { error: jsonNoStore({ error: "NOT_LODGING_SHOP" }, { status: 403 }) };
   }
-  return { shopId: ctx.shopId };
+  return { shopId: ctx.shopId, userId: ctx.userId };
 }
 
 type GeneralGuardResult =

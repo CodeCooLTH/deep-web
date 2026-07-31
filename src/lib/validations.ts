@@ -1239,3 +1239,105 @@ export const ConversationAutoReplyPatchSchema = v.object({
   clearHandoff: v.optional(v.boolean()),
   contextProductId: v.optional(v.nullable(v.string())),
 })
+
+// ── feature 00024 Service Appointment Booking ────────────────────────────────
+
+// เวลานัดส่งเป็น ISO-8601 ที่มี offset เสมอ (ต่างจากการจองบ้านพักที่เป็นวันล้วน)
+// บริการละเอียดระดับนาที การไม่มี offset ทำให้ตีความเวลาเพี้ยนข้ามเขตเวลา (BR-RSV-40)
+const IsoDateTimeWithOffset = v.pipe(
+  v.string(),
+  v.regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
+    "ต้องเป็นเวลารูปแบบ ISO-8601 พร้อมเขตเวลา",
+  ),
+)
+
+// จำนวนคิวที่รับพร้อมกัน — จำนวนเต็มตั้งแต่ 1 (BR-RSV-06)
+const CapacityInt = v.pipe(
+  v.number(),
+  v.integer("จำนวนคิวต้องเป็นจำนวนเต็ม"),
+  v.minValue(1, "จำนวนคิวต้องมีอย่างน้อย 1"),
+)
+
+const ServiceResourceBaseFields = {
+  name: v.pipe(v.string(), v.trim(), v.minLength(1, "ต้องระบุชื่อ"), v.maxLength(100)),
+  description: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(1000)))),
+  durationMinutes: v.optional(
+    v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1, "ระยะเวลาต้องมากกว่า 0"))),
+  ),
+  capacity: v.optional(CapacityInt),
+  // มัดจำเริ่มต้นของทรัพยากร (BR-RSV-43/44/45) — เป็นแค่ "ค่าตั้งต้นช่วยกรอก" ตอนสร้างออเดอร์
+  // IMPORTANT: ยอดจริงของแต่ละนัด snapshot ไว้ที่ Order.depositAmount (BR-RSV-46)
+  // DecimalString กันค่าติดลบไว้แล้วที่ระดับ regex; เพดาน 100 ของ PERCENT ตรวจที่ระดับ object
+  depositMode: v.optional(v.picklist(["FIXED", "PERCENT"])),
+  depositValue: v.optional(DecimalString),
+}
+
+// PERCENT ต้องไม่เกิน 100 (BR-RSV-45) — ตรวจที่ระดับ object เพราะต้องเห็นสองฟิลด์พร้อมกัน
+// มิเรอร์ CHECK constraint ServiceResource_deposit_value ใน migration
+//
+// IMPORTANT: ต้องเขียน callback แบบ inline ให้ TS infer พารามิเตอร์จาก context
+// ถ้าแยกเป็น const แล้ว annotate เองจะ compile ไม่ผ่าน — v.check บังคับให้ input type
+// ตรงกับ output ของ object เป๊ะ ๆ (Create มี name บังคับ, Update ไม่มี) ซึ่งเขียนตัวเดียว
+// ให้ครอบทั้งสอง schema ไม่ได้
+const DEPOSIT_PERCENT_MESSAGE = "เปอร์เซ็นต์มัดจำต้องไม่เกิน 100"
+
+export const CreateServiceResourceSchema = v.pipe(
+  v.object(ServiceResourceBaseFields),
+  v.check(
+    (o) =>
+      o.depositMode !== "PERCENT" ||
+      o.depositValue === undefined ||
+      Number(o.depositValue) <= 100,
+    DEPOSIT_PERCENT_MESSAGE,
+  ),
+)
+
+export const UpdateServiceResourceSchema = v.pipe(
+  v.object({
+    name: v.optional(ServiceResourceBaseFields.name),
+    description: ServiceResourceBaseFields.description,
+    durationMinutes: ServiceResourceBaseFields.durationMinutes,
+    capacity: ServiceResourceBaseFields.capacity,
+    depositMode: ServiceResourceBaseFields.depositMode,
+    depositValue: ServiceResourceBaseFields.depositValue,
+    isActive: v.optional(v.boolean()),
+  }),
+  v.check(
+    (o) =>
+      o.depositMode !== "PERCENT" ||
+      o.depositValue === undefined ||
+      Number(o.depositValue) <= 100,
+    DEPOSIT_PERCENT_MESSAGE,
+  ),
+)
+
+// ตั้ง/เลื่อนนัด — ฝั่งร้าน
+export const SetAppointmentSchema = v.object({
+  resourceId: v.pipe(v.string(), v.minLength(1)),
+  start: IsoDateTimeWithOffset,
+  end: IsoDateTimeWithOffset,
+  reason: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+})
+
+// ปิดผลนัด — ฝั่งร้าน
+export const AppointmentOutcomeSchema = v.object({
+  outcome: v.picklist(["COMPLETED", "NO_SHOW"]),
+})
+
+// ขอเลื่อนนัด — ฝั่งลูกค้า (ขอได้อย่างเดียว เปลี่ยนเวลาเองไม่ได้ BR-RSV-23)
+export const RequestRescheduleSchema = v.object({
+  note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+})
+
+// ฟิลด์นัดที่แนบมากับการสร้างออเดอร์ (โหมด A) — แยก schema ไม่ยัดเข้า CreateOrderSchema
+// เพื่อไม่ให้ blast radius ไปโดน caller เดิมของ schema นั้น
+export const OrderAppointmentSchema = v.object({
+  resourceId: v.pipe(v.string(), v.minLength(1)),
+  start: IsoDateTimeWithOffset,
+  end: IsoDateTimeWithOffset,
+  // ยอดมัดจำที่ตกลงกับลูกค้า (FR-RSV-12) — ไม่ส่งมา = ให้ service คำนวณจากค่าเริ่มต้นของทรัพยากร
+  // ส่งมา = ใช้ค่านี้ (ร้านแก้เองได้เสมอ, BR-RSV-48). DecimalString กันค่าติดลบแล้ว
+  // เพดาน "ไม่เกินยอดรวม" บังคับที่ service เพราะต้องรู้ totalAmount ก่อน (BR-RSV-47)
+  depositAmount: v.optional(DecimalString),
+})

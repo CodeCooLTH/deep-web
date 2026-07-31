@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isExclusionViolation } from "@/lib/prisma-errors";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { genShortCode } from "@/services/order.service";
@@ -46,17 +47,11 @@ export class SlipRequiredError extends Error {
 /**
  * ตรวจ error ของ EXCLUDE constraint (Postgres SQLSTATE 23P01)
  *
- * IMPORTANT: Prisma ไม่ map เป็น P2002 (unique) — วัดจริงบน DB แล้วได้
- * PrismaClientKnownRequestError { code: 'P2010', meta: { code: '23P01', message: ... } }
- * แต่ model call อาจถูกห่อเป็น Unknown ต่างจาก raw จึงไม่ผูกกับ class ใด class เดียว
- * ดู DATABASE.md §4.2.1 (ผลการทดลอง 2026-07-22)
+ * ย้ายตัวจริงไป src/lib/prisma-errors.ts แล้วตอนทำ feature 00024 (มีผู้ใช้สองฟีเจอร์)
+ * คง re-export ไว้ที่เดิมเพื่อไม่ให้ import path ของโค้ด 00017 เปลี่ยน
+ * ดู DATABASE.md §4.2.1 ของทั้ง 00017 และ 00024 (ผลการทดลองจริงทั้งสองรอบ)
  */
-export function isExclusionViolation(err: unknown): boolean {
-  const meta = (err as { meta?: { code?: string; message?: string } })?.meta;
-  if (meta?.code === "23P01") return true;
-  const text = `${meta?.message ?? ""} ${(err as Error)?.message ?? ""}`;
-  return /23P01|exclusion constraint/i.test(text);
-}
+export { isExclusionViolation };
 
 /**
  * ดึงช่วงวันที่ชนจาก DETAIL ของ error เพื่อบอกผู้ใช้ว่าติดวันไหน (API §5.2)

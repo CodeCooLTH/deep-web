@@ -52,6 +52,8 @@ import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
 
 import ReviewForm from './ReviewForm'
+// feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
+import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
 
 export type PublicOrderData = {
   publicToken: string
@@ -92,6 +94,8 @@ export type PublicOrderData = {
   // Phase 2 fields (S-2 frozen contract) — UI ใช้ใน S-8/S-9/S-10; type เพิ่มก่อน UI task
   slipFileId: string | null
   accessUrl: string | null
+  // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) null = ออเดอร์นี้ไม่มีนัด → ไม่ render การ์ดเลย
+  appointment: import('./AppointmentCard').PublicAppointment | null
 }
 
 type Props = {
@@ -590,6 +594,18 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 {cancelCopy}
               </Typography>
             </Box>
+          )}
+
+          {/* ── feature 00024: การ์ดนัดหมาย ──
+              วางก่อน "รายการสินค้า" โดยตั้งใจ — สำหรับออเดอร์ที่มีนัด "นัดวันไหน" คือข้อมูล
+              ที่ลูกค้าต้องการที่สุดของหน้านี้ ตรงตาม user story ("ไม่ต้องเลื่อนหาในแชท")
+              ออเดอร์ที่ไม่มีนัด → appointment เป็น null → ไม่มี DOM ส่วนนี้เลย หน้าจอเหมือนเดิม */}
+          {order.appointment && (
+            <AppointmentCard
+              token={order.publicToken}
+              appointment={order.appointment}
+              orderCancelled={order.status === 'CANCELLED'}
+            />
           )}
 
           {/* ── 6. Items card ── */}

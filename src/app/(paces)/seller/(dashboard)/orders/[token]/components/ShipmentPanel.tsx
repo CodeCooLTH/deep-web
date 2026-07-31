@@ -85,10 +85,12 @@ export default function ShipmentPanel({ orderToken, context, bare = false }: Pro
   return (
     <div className="card">
       <div className="card-header">
-        <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
+        {/* P6 (T14): เดิมใช้ <h5> เป็นกล่อง border เปล่า ๆ ไม่ใช่หัวข้อจริง — เปลี่ยนเป็น <p> คงคลาส/ภาพเดิม
+            (เหมือน S-3/T14 ที่แก้จุดอื่นในหน้านี้แล้ว) */}
+        <p className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
           <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
           การจัดส่ง
-        </h5>
+        </p>
       </div>
       {/* ไม่ใช้ card-body เพราะเนื้อในมีเส้นคั่นเต็มความกว้างระหว่างบล็อก (padding อยู่ในแต่ละบล็อก) */}
       {body}
