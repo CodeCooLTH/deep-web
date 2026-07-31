@@ -71,15 +71,19 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
 
   const label = isTest ? 'ระบบตอบ · ทดสอบ' : 'ระบบตอบ'
 
+  // ป้ายชิดขวา (user 2026-07-31): ข้อความฝั่งร้านจัดชิดขวาอยู่แล้ว ป้ายที่เกาะซ้ายสุดของบับเบิล
+  // กว้าง ๆ จะดูหลุดออกจากกลุ่มของตัวเอง — กล่องรายละเอียดจึงต้องกางไปทางซ้าย (end-0) ด้วย
+  // ไม่งั้นชนขอบจอขวาบนมือถือ
+
   return (
     <div
       ref={wrapRef}
-      className="absolute top-0 start-2.5 z-20 -translate-y-1/2"
+      className="absolute top-0 end-2.5 z-20 -translate-y-1/2"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
       {open && (
-        <div className="border-default-300 bg-card absolute bottom-full start-0 z-30 mb-2 w-64 rounded-md border text-start shadow-lg">
+        <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 w-64 rounded-md border text-start shadow-lg">
           <div className="bg-default-100 border-default-300 text-default-800 border-b px-3 py-2 text-xs font-semibold">
             ระบบตอบกลับอัตโนมัติ{isTest ? ' (โหมดทดสอบ)' : ''}
           </div>
