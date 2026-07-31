@@ -756,7 +756,7 @@ export default function InboxList({
         {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
             ตัวกรองอ่านแล้ว/ยังไม่อ่านย้ายเข้าปุ่ม "ตัวกรอง" แล้ว (user สั่ง 2026-07-24: แถวนี้แน่นเกินไป) */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="border-default-200 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto border-b" role="tablist" aria-label="มุมมองและกลุ่มแชท">
+          <div className="border-default-200 flex min-w-0 flex-1 items-center gap-3 border-b" role="tablist" aria-label="มุมมองและกลุ่มแชท">
             {/* แท็บข้อความมีเส้นใต้ (mockup V1) — น้ำหนักต่างจาก segmented ด้านบนชัดเจน ไม่แย่งกันเด่น
                 สแปมใช้สี danger ตั้งแต่ยังไม่ถูกเลือก เพราะเป็นถังที่ "ไม่ควรมีอะไรอยู่" (user สั่ง) */}
             {([
@@ -791,15 +791,17 @@ export default function InboxList({
                 "custom group เยอะ ๆ แล้ว width ล้น UI เพี้ยน")
                 ต้นเหตุคือจำนวนกลุ่มไม่จำกัดแต่พื้นที่จำกัด — เรียงเป็นแท็บยังไงก็ล้นวันหนึ่ง
                 ปุ่มเดียว + ตัวเลขบอกจำนวน จึงกว้างคงที่เสมอไม่ว่าจะมีกี่กลุ่ม และบอกได้ด้วยว่ามีกี่อัน */}
-            <span className="bg-default-300 mx-1 h-4 w-px shrink-0" aria-hidden="true" />
-            <div className="relative shrink-0 pb-1.5">
+            <span className="bg-default-300 ms-auto h-4 w-px shrink-0" aria-hidden="true" />
+            <div className="relative shrink-0">
               <button
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded={openPanel === 'group'}
                 onClick={() => setOpenPanel(openPanel === 'group' ? null : 'group')}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-nowrap ${
-                  activeGroupId ? 'bg-primary text-white font-semibold' : 'bg-light text-default-700 font-medium'
+                className={`-mb-px flex items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                  activeGroupId
+                    ? 'border-primary text-primary font-semibold'
+                    : 'border-transparent text-default-600 font-medium'
                 }`}
               >
                 <Icon icon="folder" width={14} height={14} className="shrink-0" />
@@ -810,11 +812,7 @@ export default function InboxList({
                 ) : (
                   <>
                     กลุ่ม
-                    {groups.length > 0 && (
-                      <span className="badge bg-default-200 text-default-700 text-2xs rounded-full px-1.5">
-                        {groups.length}
-                      </span>
-                    )}
+                    {groups.length > 0 && <span className="text-default-500">{groups.length}</span>}
                   </>
                 )}
                 <Icon icon={openPanel === 'group' ? 'chevron-up' : 'chevron-down'} width={12} height={12} />
