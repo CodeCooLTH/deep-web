@@ -381,15 +381,10 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
 
   return (
     <>
-      {/* subheader ใต้หัวเรื่อง (user request 2026-07-29) — เทียบเคียงข้อความของ reference
-          แต่เขียนให้ตรงกับสิ่งที่ระบบเราทำจริง: ของเราจับคำ ไม่ใช่ตอบข้อความแรกเสมอ */}
-      <div className="mb-4">
-        <p className="text-default-600 text-sm">
-          ตอบลูกค้าที่ทักเข้ามาทาง Messenger หรือ Instagram โดยอัตโนมัติ
-          เมื่อข้อความตรงกับคำที่คุณตั้งไว้ ปรับข้อความได้เองว่าจะทักทาย ให้ข้อมูลเพิ่มเติม
-          หรือบอกว่าจะติดต่อกลับเมื่อไหร่ และตั้งคำตอบต่างกันตามเพจหรือโฆษณาที่ลูกค้าเข้ามาได้
-        </p>
-      </div>
+      {/* ไม่มี subheader (user 2026-07-31 "ตัดข้อความยาว ๆ ออก") — ย่อหน้า 3 บรรทัดเดิม
+          อธิบายสิ่งที่หน้านี้ทำ ซึ่งการ์ดแต่ละใบบอกด้วยตัวเองอยู่แล้ว (การ์ด [A] = ตั้งค่ากลุ่มคำ,
+          [B] = คำตอบที่ลูกค้าจะได้รับ) การอธิบายซ้ำที่หัวหน้าคือ non-information ที่ดันเนื้อหา
+          จริงลงไปครึ่งจอบนมือถือ */}
 
       {status === 'TEST' && (
         <div className="card bg-warning/10 border-warning mb-4">
@@ -691,13 +686,9 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
               </ul>
 
               {/* 0 เงื่อนไข (เคสพบบ่อยสุด): ไม่มีเลขลำดับ ไม่มีกล่องเส้นประ — ชวนเบา ๆ บรรทัดเดียว */}
-              {canEdit && exceptions.length === 0 && (
-                <p className="text-default-700 mt-3 text-xs">
-                  อยากตอบต่างกันตามเพจ โฆษณา หรือสินค้า?{' '}
-                  <button type="button" className="text-primary font-medium hover:underline"
-                    onClick={() => setSheetOpen(true)}>เพิ่มเงื่อนไขเฉพาะ</button>
-                </p>
-              )}
+              {/* ไม่มีบรรทัดชวนตรงนี้ (user 2026-07-31 "เอาออก มันซ้ำซ้อน") — ปุ่ม
+                  "เพิ่มเงื่อนไขเฉพาะ" อยู่หัวการ์ดใบนี้แล้ว การชวนซ้ำอีกครั้งคือพูด
+                  เรื่องเดียวกันสองที่ ซึ่งเป็นกฎเดียวกับที่ตัดประโยค "ตรงเมื่อมีคำว่า…" ทิ้ง */}
             </div>
           </div>
 

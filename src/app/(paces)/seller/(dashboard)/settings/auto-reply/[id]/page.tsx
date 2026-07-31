@@ -64,11 +64,13 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
     <>
       <PageBreadcrumb
         title={keyword.name}
-        trail={[
-          { label: 'ตั้งค่า', href: '/settings' },
-          { label: 'ตอบแชทอัตโนมัติ', href: '/settings/auto-reply' },
-          { label: keyword.name },
-        ]}
+        /**
+         * 3 ขั้นพอ (user 2026-07-31) — ของเดิมเป็น 5 ขั้นและลงท้ายด้วยชื่อกลุ่มซ้ำ 2 ครั้ง
+         * เพราะ PageBreadcrumb ต่อ `title` เข้าท้าย trail ให้เองอยู่แล้ว การใส่ชื่อกลุ่ม
+         * ใน trail ด้วยจึงซ้ำ · ยุบ "ตั้งค่า > ตอบแชทอัตโนมัติ" เป็นขั้นเดียวชื่อ
+         * "ตั้งค่าการตอบกลับ" ที่ชี้หน้ารายการโดยตรง — ผู้ใช้ไม่ได้มาจากหน้า /settings
+         */
+        trail={[{ label: 'ตั้งค่าการตอบกลับ', href: '/settings/auto-reply' }]}
       />
 
       <KeywordEditorClient
