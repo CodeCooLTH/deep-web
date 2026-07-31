@@ -16,6 +16,7 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
+import { getChannelDisplay, type ChannelFilterOption } from './ChannelBadge'
 
 export type ChatFilterState = {
   status: 'open' | 'resolved' | 'all'
@@ -66,6 +67,15 @@ type Props = {
   value: ChatFilterState
   onChange: (patch: Partial<ChatFilterState>) => void
   onClear: () => void
+  // ── ช่องทาง/เพจ ย้ายเข้ามาอยู่ในปุ่มนี้ (user สั่ง 2026-07-31 "ตัวกรองกองกันเยอะไป") ──
+  // เดิมเป็น pill แถวแยก + ดรอปดาวน์เพจอีกตัว บนคอลัมน์แคบ wrap เป็น 3-4 แถว
+  /** 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM' */
+  channelTab: string
+  onChannelChange: (tab: string) => void
+  /** shopChannelId ที่เลือก, '' = ทุกเพจ */
+  pageFilter: string
+  pageOptions: ChannelFilterOption[]
+  onPageChange: (id: string) => void
   /** controlled open — state อยู่ที่ InboxList เพื่อให้ popover ตัวกรองเปิดได้ทีละตัว
    *  (bug: เดิมต่างคนต่างถือ state เปิดพร้อมกันแล้วทับกันเอง) */
   open: boolean
@@ -87,9 +97,23 @@ function RadioRow({ selected, label, onClick }: { selected: boolean; label: stri
   )
 }
 
-export default function InboxFilterPanel({ value, onChange, onClear, open, onOpenChange }: Props) {
+export default function InboxFilterPanel({
+  value,
+  onChange,
+  onClear,
+  open,
+  onOpenChange,
+  channelTab,
+  onChannelChange,
+  pageFilter,
+  pageOptions,
+  onPageChange,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null)
-  const activeCount = countActiveFilters(value)
+  // นับช่องทาง/เพจด้วย — ตอนนี้อยู่ในปุ่มเดียวกันแล้ว ถ้าไม่นับ ผู้ใช้จะมองไม่ออกว่ากำลังกรองอยู่
+  // (ปุ่มไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม และ chip ของช่องทาง/เพจก็ไม่มี)
+  const activeCount =
+    countActiveFilters(value) + (channelTab !== 'ALL' ? 1 : 0) + (pageFilter ? 1 : 0)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -145,6 +169,41 @@ export default function InboxFilterPanel({ value, onChange, onClear, open, onOpe
           </div>
 
           <div className="p-1">
+            {/* ช่องทาง — ย้ายมาจาก pill แถวแยก (user สั่ง 2026-07-31)
+                ใส่ไอคอนช่องทางหน้าตัวเลือกเพื่อให้กวาดตาเจอเร็วเท่าตอนเป็น pill */}
+            <p className="text-default-500 px-2 pt-2 pb-1 text-xs font-medium">ช่องทาง</p>
+            {(['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM'] as const).map((tab) => {
+              const display = tab === 'ALL' ? null : getChannelDisplay(tab)
+              return (
+                <RadioRow
+                  key={tab}
+                  selected={channelTab === tab}
+                  label={tab === 'ALL' ? 'ทุกช่องทาง' : display!.label}
+                  onClick={() => onChannelChange(tab)}
+                />
+              )
+            })}
+
+            {/* เพจ — โผล่เฉพาะตอนที่มีอะไรให้เลือกจริง: ไม่ใช่แท็บ Deep (ไม่มีเพจ) และมีมากกว่า 1 เพจ
+                (ร้านที่มีเพจเดียวเลือกไปก็ได้ผลเท่าเดิม) */}
+            {channelTab !== 'DEEP' && pageOptions.length > 1 && (
+              <>
+                <hr className="dropdown-divider" />
+                <p className="text-default-500 px-2 pt-2 pb-1 text-xs font-medium">เพจ</p>
+                <RadioRow selected={pageFilter === ''} label="ทุกเพจ" onClick={() => onPageChange('')} />
+                {pageOptions.map((p) => (
+                  <RadioRow
+                    key={p.id}
+                    selected={pageFilter === p.id}
+                    label={p.name}
+                    onClick={() => onPageChange(p.id)}
+                  />
+                ))}
+              </>
+            )}
+
+            <hr className="dropdown-divider" />
+
             {/* สถานะ */}
             <p className="text-default-500 px-2 pt-2 pb-1 text-xs font-medium">สถานะ</p>
             {STATUS_OPTIONS.map((o) => (

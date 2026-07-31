@@ -87,12 +87,11 @@ import { playChatBeep } from '@/lib/chat-sound'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
-import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
-import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
+import { ChannelBadgeOverlay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
   id: string
@@ -141,7 +140,6 @@ type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
 /** tab ตัวกรองช่องทาง — 'ALL' ไม่ใช่ ChatChannel จริง จึงแยก union เพิ่ม */
 type ChannelTab = 'ALL' | ChatChannel
-const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
 const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -629,70 +627,13 @@ export default function InboxList({
           </div>
         )}
 
-        {/* channel tabs — pill ไอคอนล้วน (user สั่งเพิ่ม 2026-07-22 บ่าย): "ทั้งหมด" เป็นข้อความ,
-            Deep/Messenger/Instagram เหลือไอคอนล้วน — React state ขับ active เอง ไม่ใช้
-            data-hs-tab (เหตุผลเดิม ดู comment หัวไฟล์) shrink-0 กันปุ่มบีบ + overflow-x-auto
-            กันตกบรรทัดถ้า rail แคบผิดปกติ (ปกติพอดีบรรทัดเดียวที่ 320px) */}
-        {/* channel tabs + ตัวกรอง + เพจ รวมเป็นแถวเดียว flex-wrap (user request 2026-07-23: mobile
-            filter กระชับ) — ไหลลงบรรทัดใหม่เองเมื่อแคบ ไม่ใช่ 2 แถวตายตัว. relative สำหรับ popover
-            (InboxFilterPanel/PageFilterDropdown) ที่ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
-        <div className="relative flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1.5" aria-label="ตัวกรองช่องทาง" role="tablist">
-          {CHANNEL_TABS.map((tab) => {
-            const active = channelTab === tab
-            const display = tab === 'ALL' ? null : getChannelDisplay(tab)
-            const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
-            return (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                title={label}
-                aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
-                onClick={() => handleChannelTabChange(tab)}
-                className={
-                  tab === 'ALL'
-                    ? `shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                        active ? 'bg-primary text-white' : 'bg-light text-default-700'
-                      }`
-                    : `flex size-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-primary/15' : 'bg-light'}`
-                }
-              >
-                {display && (
-                  <Icon
-                    icon={display.icon}
-                    width={16}
-                    height={16}
-                    className={display.iconClassName}
-                    style={display.iconStyle}
-                  />
-                )}
-                {tab === 'ALL' && label}
-              </button>
-            )
-          })}
-          </div>
-          {/* ตัวกรอง/เพจ อยู่ในแถวเดียวกับ channel tabs แล้ว (flex-wrap ของ container ด้านนอก) —
-              S-7: ปุ่ม "ตัวกรอง" แสดงเสมอ; "เพจ" ซ่อนเมื่อ tab=Deep/ไม่มีเพจ */}
-          <InboxFilterPanel
-            value={filter}
-            onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
-            onClear={() => setFilter(DEFAULT_CHAT_FILTER)}
-            open={openPanel === 'filter'}
-            onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
-          />
-
-          {channelTab !== 'DEEP' && channels.length > 0 && (
-            <PageFilterDropdown
-              value={pageFilter}
-              options={channels}
-              onChange={setPageFilter}
-              open={openPanel === 'page'}
-              onOpenChange={(o) => setOpenPanel(o ? 'page' : null)}
-            />
-          )}
-
+        {/* ช่องทาง/เพจ/ตัวกรอง ยุบรวมเป็นปุ่ม "ตัวกรอง" ปุ่มเดียวแล้ว (user สั่ง 2026-07-31
+            "ตัวกรองกองกันเยอะไป") — ตัวปุ่มย้ายไปอยู่ท้ายแถวแท็บกลุ่มด้านล่าง ไม่ใช่แถวของตัวเอง
+            เดิมแถวนี้เป็น pill ช่องทาง 4 ปุ่ม + ดรอปดาวน์เพจ + ปุ่มตัวกรอง ซึ่งบนคอลัมน์แคบ
+            wrap เป็น 3-4 แถว. ไม่วางคู่ช่องค้นหาตามภาพที่ user เลือก เพราะโหมด rail (เดสก์ท็อป)
+            ย้ายช่องค้นหาไป topbar แล้ว ปุ่มจะเหลือลอยเดี่ยวกินแถวเปล่า — ท้ายแถวแท็บได้ 2 แถว
+            เท่ากันในโหมดปกติ และเหลือแถวเดียวในโหมด rail */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
               ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก
               อยู่บนตัวปุ่มเองแล้ว chip ด้านล่างจึงเป็นชื่อเดียวกันซ้ำสองบรรทัดติดกัน — ล้างตัวกรอง
@@ -732,7 +673,8 @@ export default function InboxList({
 
         {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
             ตัวกรองอ่านแล้ว/ยังไม่อ่านย้ายเข้าปุ่ม "ตัวกรอง" แล้ว (user สั่ง 2026-07-24: แถวนี้แน่นเกินไป) */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* relative — popover ของ InboxFilterPanel ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
+        <div className="relative flex items-center gap-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="กลุ่มแชท">
             <button
               type="button"
@@ -815,6 +757,28 @@ export default function InboxList({
                 <Icon icon="plus" width={16} height={16} />
               </button>
             )}
+          </div>
+
+          {/* ปุ่มตัวกรองเดียวที่รวมช่องทาง/เพจ/สถานะ/การอ่าน/ซ่อน — ชิดขวาสุดของแถวแท็บ
+              shrink-0 กันโดนแท็บที่ยาวบีบจนหาย (แถวแท็บ scroll แนวนอนได้เองอยู่แล้ว) */}
+          <div className="shrink-0">
+            <InboxFilterPanel
+              value={filter}
+              onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
+              onClear={() => {
+                setFilter(DEFAULT_CHAT_FILTER)
+                // ล้างช่องทาง/เพจด้วย — ตอนนี้ทั้งสองอยู่ในปุ่มนี้แล้ว ถ้าไม่ล้าง ผู้ใช้กด
+                // "ล้างตัวกรอง" แล้วยังเห็นรายการถูกกรองอยู่โดยไม่รู้ว่าเพราะอะไร
+                handleChannelTabChange('ALL')
+              }}
+              open={openPanel === 'filter'}
+              onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
+              channelTab={channelTab}
+              onChannelChange={(tab) => handleChannelTabChange(tab as ChannelTab)}
+              pageFilter={pageFilter}
+              pageOptions={channels}
+              onPageChange={setPageFilter}
+            />
           </div>
         </div>
       </div>
