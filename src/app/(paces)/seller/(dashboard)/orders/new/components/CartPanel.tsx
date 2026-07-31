@@ -15,6 +15,7 @@
  */
 
 import { useMemo, useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -47,7 +48,7 @@ const PAYMENT_OPTIONS = [
   { value: 'OTHER', label: 'อื่นๆ' },
 ]
 
-type AccKey = 'customer' | 'payment' | 'shipping' | 'note'
+type AccKey = 'customer' | 'payment' | 'shipping' | 'appointment' | 'note'
 
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,6 +62,12 @@ interface Props {
   /** S-1: ส่งต่อให้ CustomerSelectBlock (embedded) ใช้เติมฟิลด์จาก paste-parse popover */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setValue?: UseFormSetValue<any>
+  /**
+   * feature 00024 — บล็อกวันเข้าใช้บริการ (variant="embedded")
+   * รับเป็น node สำเร็จรูปจาก OrderCreateForm แทนที่จะรับ prop ของนัดหมายมาทั้งชุด
+   * เพราะแผงนี้ไม่ได้เกี่ยวกับตรรกะการจอง แค่ให้ที่ยืนกับมัน
+   */
+  appointmentBlock?: ReactNode
 }
 
 export default function CartPanel({
@@ -71,6 +78,7 @@ export default function CartPanel({
   formId,
   inventoryEnabled = false,
   setValue,
+  appointmentBlock,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -355,6 +363,20 @@ export default function CartPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── accordion: วันเข้าใช้บริการ (feature 00024 — เฉพาะร้านที่เปิดคิวงาน) ──
+           อยู่หลังที่อยู่จัดส่ง ก่อนหมายเหตุ ตาม Design Spec ส่วน C
+           ต้องอยู่ "ใน" แผงนี้ ไม่ใช่ลอยเหนือ grid — ไม่งั้นจะไปกินความสูงของ
+           lg:h-[calc(100vh-9.5rem)] จนแถบยอดรวม+ปุ่มบันทึกหลุดใต้จอ */}
+      {appointmentBlock && (
+        <div className="border-t border-default-200">
+          <button type="button" onClick={() => toggle('appointment')} className={accBtn}>
+            <Icon icon="calendar-event" className="size-4 text-default-400" /> วันเข้าใช้บริการ
+            {chevron(openKey === 'appointment')}
+          </button>
+          {openKey === 'appointment' && appointmentBlock}
         </div>
       )}
 

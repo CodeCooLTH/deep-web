@@ -697,6 +697,35 @@ export default function OrderCreateForm({
   //   right (lg:col-span-1) = sticky summary panel
   //
   // M0-b: pb-20 บน form wrapper กัน sticky bottom bar ทับ content ล่างสุด (mobile)
+  /**
+   * feature 00024 — บล็อกวันเข้าใช้บริการ
+   *
+   * QuickForm (มือถือ) กับ CartPanel (เดสก์ท็อป) render พร้อมกันเสมอ สลับด้วย CSS
+   * ไม่ใช่ React — บล็อกนี้จึงต้องมี "สองใบ" เหมือนที่ลูกค้า/ชำระเงินทำอยู่แล้ว
+   * state ไม่แตกเพราะทั้งคู่อ่าน-เขียนผ่าน control ตัวเดียวกันของ RHF
+   * แต่ id ของ input ต้องแยก (idPrefix) ไม่งั้น id ซ้ำใน DOM แล้ว label ผูกผิดช่อง
+   */
+  const renderAppointmentBlock = (idPrefix: string, variant: 'card' | 'embedded') =>
+    serviceResourcesEnabled && serviceResources.length > 0 ? (
+      <AppointmentBlock
+        idPrefix={idPrefix}
+        variant={variant}
+        control={control}
+        errors={errors}
+        setValue={setValue}
+        resources={serviceResources}
+        granularity={appointmentGranularity}
+        total={barTotal}
+        value={{
+          resourceId: appointmentWatch?.resourceId,
+          date: appointmentWatch?.date,
+          startTime: appointmentWatch?.startTime,
+          endTime: appointmentWatch?.endTime,
+          depositAmount: appointmentWatch?.depositAmount,
+        }}
+      />
+    ) : null
+
   return (
     <form
       id={formId}
@@ -717,30 +746,6 @@ export default function OrderCreateForm({
         onDismiss={() => setSubmitStatus('idle')}
       />
 
-      {/* feature 00024 — บล็อกวันเข้าใช้บริการ วางหลังข้อมูลหลักของออเดอร์ ก่อนของเสริมท้ายสุด
-          ตรงกับ Business Flow ใน BRD ("กรอกลูกค้าและรายการบริการตามปกติ → เลือกทรัพยากร")
-          render จุดเดียวครอบทั้งสอง layout เพื่อไม่ให้ mobile/desktop มี state ของฟอร์มคนละชุด
-          (QuickForm กับ CartPanel render พร้อมกันเสมอ ต่างกันแค่ CSS ซ่อน/แสดง) */}
-      {serviceResourcesEnabled && serviceResources.length > 0 && (
-        <div className="mt-4">
-          <AppointmentBlock
-            control={control}
-            errors={errors}
-            setValue={setValue}
-            resources={serviceResources}
-            granularity={appointmentGranularity}
-            total={barTotal}
-            value={{
-              resourceId: appointmentWatch?.resourceId,
-              date: appointmentWatch?.date,
-              startTime: appointmentWatch?.startTime,
-              endTime: appointmentWatch?.endTime,
-              depositAmount: appointmentWatch?.depositAmount,
-            }}
-          />
-        </div>
-      )}
-
       {/* ═══ Render: < lg = QuickForm (inline), ≥ lg = POS split ═══ */}
 
       {/* < lg (มือถือ+แท็บเล็ต): QuickForm inline scroll (T4-T8 เติมเนื้อ section)
@@ -757,6 +762,7 @@ export default function OrderCreateForm({
           inventoryEnabled={inventoryEnabled}
           subtotal={barSubtotal}
           total={barTotal}
+          appointmentBlock={renderAppointmentBlock('m', 'card')}
           compact={compact}
         />
       </div>
@@ -775,6 +781,7 @@ export default function OrderCreateForm({
             formId={formId}
             inventoryEnabled={inventoryEnabled}
             setValue={setValue}
+            appointmentBlock={renderAppointmentBlock('d', 'embedded')}
           />
         </div>
       </div>
