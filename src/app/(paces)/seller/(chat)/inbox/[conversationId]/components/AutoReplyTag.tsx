@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 
 /**
- * ป้าย "ระบบตอบ" ที่เกยขอบบนของบับเบิล + กล่องบอกเหตุผลเบื้องหลังคำตอบครั้งนั้น (feature 00023 S-23)
+ * ป้าย "DeepBot" ที่เกยขอบบนของบับเบิล + กล่องบอกเหตุผลเบื้องหลังคำตอบครั้งนั้น (feature 00023 S-23)
  *
  * แทนที่ชิปเดิมที่อยู่ **ข้างใน** บับเบิล (user 2026-07-31: "มันต้องเป็น label บนกล่องข้อความ
  * คล้าย ๆ unread ไม่ได้อยู่ใน chat แบบนี้")
@@ -69,7 +69,9 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
     }
   }, [open])
 
-  const label = isTest ? 'ระบบตอบ · ทดสอบ' : 'ระบบตอบ'
+  // ชื่อแบรนด์ของตัวช่วยตอบ (user 2026-07-31) — สั้นกว่าคำอธิบายเชิงระบบ และทำให้ร้าน
+  // พูดถึงมันเป็น "ตัวตน" ที่สั่งงานได้ ไม่ใช่ฟีเจอร์นิรนาม; UI ใช้ชื่อการค้า Deep เสมอ
+  const label = isTest ? 'DeepBot · ทดสอบ' : 'DeepBot'
 
   // ป้ายชิดขวา (user 2026-07-31): ข้อความฝั่งร้านจัดชิดขวาอยู่แล้ว ป้ายที่เกาะซ้ายสุดของบับเบิล
   // กว้าง ๆ จะดูหลุดออกจากกลุ่มของตัวเอง — กล่องรายละเอียดจึงต้องกางไปทางซ้าย (end-0) ด้วย
@@ -85,7 +87,7 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
       {open && (
         <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 w-64 rounded-md border text-start shadow-lg">
           <div className="bg-default-100 border-default-300 text-default-800 border-b px-3 py-2 text-xs font-semibold">
-            ระบบตอบกลับอัตโนมัติ{isTest ? ' (โหมดทดสอบ)' : ''}
+            ตอบโดย DeepBot{isTest ? ' (โหมดทดสอบ)' : ''}
           </div>
           <div className="text-default-600 px-3 py-2 text-xs">
             {trace ? (
@@ -122,7 +124,7 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label={`${label} — เปิดดูเงื่อนไขที่ใช้ตอบ`}
+        aria-label={`${label} ตอบข้อความนี้ — เปิดดูเงื่อนไขที่ใช้ตอบ`}
         className="border-primary text-primary bg-card inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"
       >
         <Icon icon="robot" className="text-xs" />
