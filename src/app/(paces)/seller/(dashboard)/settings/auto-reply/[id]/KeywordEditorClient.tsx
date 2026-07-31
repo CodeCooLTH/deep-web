@@ -21,6 +21,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+// import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
+import type { PhraseOverlap } from '@/services/auto-reply-rule.service'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import PagePicker from './PagePicker'
@@ -55,6 +57,8 @@ type Props = {
     phrases: Phrase[]
     rules: Rule[]
   }
+  /** กลุ่มอื่นในร้านที่ใช้คำตรวจจับซ้ำกับกลุ่มนี้ — เรียง priority desc มาจาก service แล้ว (A-3) */
+  overlaps: PhraseOverlap[]
   channels: Channel[]
   products: Product[]
 }
@@ -86,7 +90,21 @@ const STATUS_META: Record<string, { label: string; active: string }> = {
   LIVE: { label: 'ตอบลูกค้าจริง', active: 'bg-success text-white' },
 }
 
-export default function KeywordEditorClient({ canEdit, keyword, channels, products }: Props) {
+/**
+ * สีป้ายสถานะของ "กลุ่มอื่น" ในบล็อกคำซ้ำ — label ยังอ่านจาก STATUS_META ตัวเดียวข้างบน (SSOT, CL-10)
+ * ที่นี่เก็บเฉพาะสี เพราะ STATUS_META.active เป็นสีของ *ปุ่มที่ถูกเลือก* (พื้นทึบ) ซึ่งเอามาทำป้ายไม่ได้
+ *
+ * กฎเดียวกับป้ายอ่านอย่างเดียวของหน้ารายการ (CL-12/CL-17): fill = ทำงานอยู่ · outline = ไม่ทำงาน
+ * OFFLINE ห้ามใช้ text-default-700 บนพื้น default-200 — .badge ย่อตัวอักษรเป็น 0.75em (ตัวเล็ก)
+ * เกณฑ์จึงเป็น 4.5:1 แต่คู่นั้นได้ 4.17 (ตก) ส่วน outline บน bg-card ได้ 4.69 (ผ่าน)
+ */
+const STATUS_BADGE: Record<string, string> = {
+  OFFLINE: 'border-default-300 bg-card text-default-700 border',
+  TEST: 'bg-warning/15 text-warning',
+  LIVE: 'bg-success/15 text-success',
+}
+
+export default function KeywordEditorClient({ canEdit, keyword, overlaps, channels, products }: Props) {
   const router = useRouter()
 
   const [status, setStatus] = useState(keyword.status)
@@ -101,6 +119,11 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
    */
   const matchType = keyword.matchType
   const [priority, setPriority] = useState(keyword.priority)
+  /**
+   * ช่องตัวเลข 0–1000 ซ่อนอยู่หลังลิงก์ "ตั้งตัวเลขเอง" และไม่โผล่มาเอง —
+   * เจ้าของร้านตอบไม่ได้ว่าควรใส่เลขเท่าไหร่ แต่ตอบได้ว่าอยากให้กลุ่มไหนมาก่อน (critique Recognition 2/4)
+   */
+  const [showPriorityInput, setShowPriorityInput] = useState(false)
   const [phrases, setPhrases] = useState(keyword.phrases)
   const [newPhrase, setNewPhrase] = useState('')
   const [rules, setRules] = useState(keyword.rules)
@@ -117,6 +140,51 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
 
   /** เงื่อนไขเฉพาะเรียงเจาะจงมากอยู่บน = ลำดับที่ระบบตัดสินจริง (ไม่ใช่ลำดับการสร้าง) */
   const exceptions = useMemo(() => sortExceptions(rules), [rules])
+
+  /**
+   * อันดับที่ผู้ใช้เห็น = กลุ่มอื่นที่ใช้คำซ้ำ + กลุ่มนี้เอง เรียง priority มาก→น้อย
+   * กลุ่มนี้ใช้ `priority` จาก state ไม่ใช่ keyword.priority เพื่อให้รายการสลับที่ทันทีที่กดเลื่อน
+   * เสมอกันให้กลุ่มนี้อยู่ล่าง — ตรงกับสูตร A-1 ที่ต้อง "มากกว่า" จริงเท่านั้นถึงจะขึ้นไปอยู่บน
+   */
+  const ranking = useMemo(
+    () =>
+      [
+        ...overlaps.map((o) => ({ id: o.id, name: o.name, priority: o.priority, status: o.status, isMe: false })),
+        { id: keyword.id, name: 'กลุ่มนี้', priority, status, isMe: true },
+      ].sort(
+        (a, b) =>
+          b.priority - a.priority ||
+          (a.isMe ? 1 : 0) - (b.isMe ? 1 : 0) ||
+          a.name.localeCompare(b.name, 'th'),
+      ),
+    [overlaps, keyword.id, priority, status],
+  )
+  const myRank = ranking.findIndex((r) => r.isMe)
+
+  /**
+   * สูตร A-1: ขึ้น = มากกว่ากลุ่มที่สูงสุดอยู่ 1 · ลง = น้อยกว่ากลุ่มที่ต่ำสุดอยู่ 1
+   * ไม่แตะ priority ของกลุ่มอื่นแม้แต่ตัวเดียว (renumber ทั้งชุดต้องมี endpoint bulk ที่ยังไม่มี)
+   */
+  const upTarget = overlaps.length > 0 ? Math.min(1000, Math.max(...overlaps.map((o) => o.priority)) + 1) : priority
+  const downTarget = overlaps.length > 0 ? Math.max(0, Math.min(...overlaps.map((o) => o.priority)) - 1) : priority
+  // ปิดปุ่มเมื่ออยู่ปลายรายการ หรือเมื่อค่าที่จะได้เท่าเดิม (เช่นมีกลุ่มอื่นอยู่ที่ 1000 แล้ว) = กดไปก็ไม่เกิดอะไร
+  const canMoveUp = canEdit && !busy && myRank > 0 && upTarget !== priority
+  const canMoveDown = canEdit && !busy && myRank < ranking.length - 1 && downTarget !== priority
+
+  /**
+   * คำที่หยิบมาพูดในประโยคอธิบาย — เรียงตามลำดับชิปในหน้านี้ก่อน เพราะ sharedPhrases ที่ service
+   * ส่งมาวิ่งตาม createdAt ของ "กลุ่มอื่น" (A-3b) ซึ่งไม่ตรงกับลำดับที่ตาผู้ใช้กวาดอยู่บนจอ
+   */
+  const topOverlap = overlaps.length > 0 ? overlaps[0] : null
+  const sharedPhraseShown = useMemo(() => {
+    if (!topOverlap) return ''
+    const order = phrases.map((p) => p.phrase)
+    const rank = (s: string) => {
+      const i = order.indexOf(s)
+      return i === -1 ? order.length : i
+    }
+    return [...topOverlap.sharedPhrases].sort((a, b) => rank(a) - rank(b))[0] ?? ''
+  }, [topOverlap, phrases])
 
   // แถบบันทึกลอย: บอกด้วยว่าแก้อะไรไป ไม่ใช่แค่ว่า "มีการแก้"
   const dirty = useMemo(() => {
@@ -197,6 +265,36 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
     }
   }
 
+  /**
+   * เลื่อนลำดับ = PATCH `priority` ค่าเดียวตามสูตร A-1 แล้วมีผลทันที ไม่ต้องรอแถบบันทึก [E]
+   * เหตุผลเดียวกับสวิตช์สถานะ: ของที่กดแล้วเห็นรายการสลับที่ตรงหน้า ไม่มีใครคาดว่าต้องกดยืนยันอีกที
+   */
+  async function movePriority(dir: 'up' | 'down') {
+    if (dir === 'up' ? !canMoveUp : !canMoveDown) return
+    const next = dir === 'up' ? upTarget : downTarget
+    // ชื่อกลุ่มที่อยู่ติดกัน "ก่อนย้าย" คือสิ่งที่ผู้ใช้เห็นบนจอตอนกด จึงเป็นตัวที่ควรพูดถึงใน toast
+    const neighbor = ranking[dir === 'up' ? myRank - 1 : myRank + 1]?.name ?? ''
+    setBusy(true)
+    try {
+      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: next }),
+      })
+      setPriority(next)
+      pacesToast.success(
+        dir === 'up'
+          ? `กลุ่มนี้จะถูกเลือกก่อน "${neighbor}" แล้ว`
+          : `"${neighbor}" จะถูกเลือกก่อนกลุ่มนี้แล้ว`,
+      )
+      router.refresh()
+    } catch (e) {
+      pacesToast.error(e instanceof Error ? e.message : 'เลื่อนลำดับไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function addPhrase() {
     const value = newPhrase.trim()
     if (!canEdit || !value || busy) return
@@ -223,6 +321,11 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
       } else if (data.emptyAfterNormalize?.length) {
         pacesToast.warning('คำนี้ใช้ไม่ได้ — มีแต่วรรคตอนหรือช่องว่าง')
       }
+      /**
+       * บล็อก "คำที่ซ้ำกับกลุ่มอื่น" คำนวณที่ server (getPhraseOverlaps ใน page.tsx) —
+       * ถ้าไม่ refresh บล็อกจะไม่โผล่จนกว่าจะรีโหลดหน้า ทั้งที่ toast เพิ่งเตือนว่าคำนี้ซ้ำ (spec §9 ข้อ 2)
+       */
+      router.refresh()
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มคำไม่สำเร็จ')
     } finally {
@@ -399,13 +502,75 @@ export default function KeywordEditorClient({ canEdit, keyword, channels, produc
                 </div>
               </div>
 
-              <div className="sm:w-48">
-                <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
-                <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
-                  min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
-                <p className="text-default-500 mt-1 text-xs">
-                  ใช้เมื่อข้อความเดียวเข้าหลายกลุ่มพร้อมกัน — ตัวเลขมากกว่าถูกเลือกก่อน
-                </p>
+              {/* ── บล็อก "คำที่ซ้ำกับกลุ่มอื่น" = ตัวแทนช่องเลข 0–1000 ─────────────
+                  เจ้าของร้านตอบไม่ได้ว่าควรใส่เลขเท่าไหร่ แต่ตอบได้ว่าอยากให้กลุ่มไหนมาก่อน
+                  จึงแสดง "ใครชนะใคร" เป็นรายการ แล้วให้กดเลื่อนแทน (เลขยังเป็น int 0–1000 เหมือนเดิม
+                  ซ่อนหลังลิงก์ "ตั้งตัวเลขเอง" เป็นทางหนีเมื่อกดเลื่อนแล้วยังไม่ได้ผลที่ต้องการ)
+                  Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx → Numbered (:381-411) */}
+              <div className="border-default-300 mt-5 border-t border-dashed pt-4">
+                {overlaps.length > 0 ? (
+                  <>
+                    <h6 className="text-default-800 mb-1.5 flex items-center gap-2 text-sm font-semibold">
+                      <Icon icon="git-branch" className="text-primary size-4 flex-none" aria-hidden="true" />
+                      คำที่ซ้ำกับกลุ่มอื่น
+                    </h6>
+                    <p className="text-default-800 mb-3 text-xs">
+                      <span className="text-primary font-semibold">“{sharedPhraseShown}”</span> ใช้อยู่ในกลุ่ม “
+                      {topOverlap?.name}” ด้วย — ถ้าลูกค้าพิมพ์คำนี้ ระบบจะเลือกกลุ่มที่อยู่บนสุด
+                    </p>
+                    {/* overflow-hidden กันพื้นไฮไลต์ของแถวตัวเองทะลุมุมที่ rounded (เหมือนบันไดใน [B]) */}
+                    <ul className="divide-default-200 border-default-300 mb-3 divide-y overflow-hidden rounded border">
+                      {ranking.map((r, i) => (
+                        <li key={r.id}
+                          className={`flex items-center gap-2.5 px-4.75 py-2.5 text-xs ${r.isMe ? 'bg-primary/5' : ''}`}>
+                          <span className={`w-5 flex-none font-semibold ${r.isMe ? 'text-primary' : 'text-default-700'}`}>
+                            {i + 1}.
+                          </span>
+                          <span className="text-default-800 min-w-0 flex-1 truncate font-medium">{r.name}</span>
+                          <span className={`badge flex-none whitespace-nowrap ${STATUS_BADGE[r.status] ?? STATUS_BADGE.OFFLINE}`}>
+                            {STATUS_META[r.status]?.label ?? r.status}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* btn-outline ของ mockup ไม่มีนิยามใน Paces (CL-4) → ใช้ light/neutral variant จริง */}
+                      <button type="button" disabled={!canMoveUp} onClick={() => movePriority('up')}
+                        className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
+                        <Icon icon="arrow-up" className="size-3" aria-hidden="true" />เลื่อนขึ้น
+                      </button>
+                      <button type="button" disabled={!canMoveDown} onClick={() => movePriority('down')}
+                        className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
+                        <Icon icon="arrow-down" className="size-3" aria-hidden="true" />เลื่อนลง
+                      </button>
+                      {/* ต้องเห็นเสมอแม้ปุ่มเลื่อนจะ disabled ทั้งคู่ — ไม่งั้นเคส "กลุ่มอื่นอยู่ที่ 1000 แล้ว" จะตัน (A-1b) */}
+                      <button type="button" className="text-primary ms-1.5 text-xs font-medium underline underline-offset-4"
+                        onClick={() => setShowPriorityInput((v) => !v)}>
+                        ตั้งตัวเลขเอง
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-default-700 text-xs">ยังไม่มีกลุ่มอื่นใช้คำซ้ำกับกลุ่มนี้</span>
+                    <button type="button" className="text-primary text-xs font-medium underline underline-offset-4"
+                      onClick={() => setShowPriorityInput((v) => !v)}>
+                      ตั้งลำดับเอง
+                    </button>
+                  </div>
+                )}
+
+                {showPriorityInput && (
+                  <div className="mt-3 sm:w-48">
+                    <label className="form-label" htmlFor="k-pri">ตัวเลขลำดับ (0–1000)</label>
+                    {/* ห่อ .input-group เพราะ .form-input มี width:100% แบบ unlayered (paces-component-reference §4) */}
+                    <div className="input-group">
+                      <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
+                        min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
+                    </div>
+                    <p className="text-default-500 mt-1 text-xs">ตัวเลขมากกว่าถูกเลือกก่อน</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

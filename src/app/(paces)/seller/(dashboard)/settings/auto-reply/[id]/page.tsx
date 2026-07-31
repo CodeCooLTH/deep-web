@@ -14,7 +14,7 @@ import { notFound } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { getKeywordDetail } from '@/services/auto-reply-rule.service'
+import { getKeywordDetail, getPhraseOverlaps } from '@/services/auto-reply-rule.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import KeywordEditorClient from './KeywordEditorClient'
@@ -37,8 +37,14 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
   const keyword = await getKeywordDetail(id, activeCtx.shopId)
   if (!keyword) notFound()
 
-  // ตัวเลือกเงื่อนไข — scope shopId ทุกตัว
-  const [channels, products] = await Promise.all([
+  /**
+   * ตัวเลือกเงื่อนไข + กลุ่มอื่นที่ใช้คำซ้ำ — scope shopId ทุกตัว
+   *
+   * WARNING (A-8): getPhraseOverlaps ไม่ใช่ ownership check — ถ้า keywordId ไม่ใช่ของร้านนี้
+   * มันคืน [] เงียบ ๆ (fail-closed) ไม่ throw เหมือน service ตัวอื่น จึงต้องเรียก *หลัง*
+   * getKeywordDetail(id, shopId) + notFound() เท่านั้น ห้ามยกขึ้นไปขนานกับ guard
+   */
+  const [channels, products, overlaps] = await Promise.all([
     prisma.shopChannel.findMany({
       where: { shopId: activeCtx.shopId, status: 'ACTIVE' },
       select: { id: true, name: true, provider: true, avatarUrl: true },
@@ -51,6 +57,7 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
       orderBy: { updatedAt: 'desc' },
       take: 200,
     }),
+    getPhraseOverlaps(activeCtx.shopId, id),
   ])
 
   return (
@@ -85,6 +92,7 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
             specificity: r.specificity,
           })),
         }}
+        overlaps={overlaps}
         channels={channels}
         products={products.map((p) => ({
           id: p.id,
