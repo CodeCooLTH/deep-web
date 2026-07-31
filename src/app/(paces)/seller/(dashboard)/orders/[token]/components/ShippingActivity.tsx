@@ -228,18 +228,32 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                   {/* คอลัมน์ขวา: title+badge / เวลา / description / actor — min-w-0 ให้ข้อความไทยพันบรรทัดได้ */}
                   <div className={cn('flex-1 min-w-0', isLast ? '' : 'pb-5')}>
                     <div className="flex justify-between gap-2">
-                      <h5 className={cn('mb-1.25', item.isPending ? 'text-default-400' : '')}>
-                        {item.title}
+                      {/* title ต้องไม่ใช่ heading จริง (h5) — theme ต้นทาง (ExpandedActivity.tsx) ซ้อน
+                          badge <span> ไว้ใน <h5> ทำให้เกิด heading ปลอมซ้ำหลายอันต่อหน้า + screen-reader
+                          outline พัง (S-3). ใช้ <p> + badge เป็น sibling แทน — WCAG AA เป็น non-negotiable
+                          ใน PRODUCT.md จึงจงใจไม่ copy จุดนี้ตรง ๆ จาก theme (Hard Rule 6 อนุญาตให้ adapt
+                          เมื่อ theme เองผิด)
+                          ขนาด/สีที่ใช้มาจาก design spec 2026-07-31-seller-order-detail-v5-design.md §4
+                          (`text-md font-medium text-default-800`) — ไม่ใช่ "เหมือน h5 เดิม": h5 ของ Paces
+                          ไม่ได้ set font-size ใน _reboot.css จึง inherit token --text-body + --color-body-color
+                          ของเดิม การเปลี่ยนมาเป็น --text-md/--color-default-800 จึงเป็นการเปลี่ยนตาม spec
+                          โดยตั้งใจ ไม่ใช่ของที่บังเอิญเท่ากัน */}
+                      <div className="flex items-center min-w-0 mb-1.25">
+                        <p className={cn('text-md font-medium', item.isPending ? 'text-default-400' : 'text-default-800')}>
+                          {item.title}
+                        </p>
                         <span className={cn('badge badge-label ms-2.5', badge.className)}>{badge.label}</span>
-                      </h5>
+                      </div>
                       {(item.time || item.isPending) && (
-                        <span className={cn('text-xs whitespace-nowrap shrink-0', item.time ? 'text-default-400' : 'text-default-300')}>
+                        <span className="text-xs whitespace-nowrap shrink-0 text-default-400">
                           {item.time ?? 'รอดำเนินการ'}
                         </span>
                       )}
                     </div>
                     {/* break-words ให้ข้อความไทยยาวพันบรรทัดได้ในคอลัมน์แคบ */}
-                    <p className={cn('mb-1.25 text-sm break-words', item.isPending ? 'text-default-300' : 'text-default-400')}>
+                    {/* text-default-300 บน body text (description) contrast ไม่พอ (S-11) → ใช้ text-default-400 เสมอ
+                        ไม่ว่า pending หรือไม่ — border-default-300/after:border-default-300 (เส้น divider) ไม่แตะ */}
+                    <p className="mb-1.25 text-sm break-words text-default-400">
                       {item.description}
                     </p>
                     {actor && <span className="text-default-500 text-xs">{actor}</span>}

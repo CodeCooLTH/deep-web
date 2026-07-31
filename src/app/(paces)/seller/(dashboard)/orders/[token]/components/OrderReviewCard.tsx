@@ -80,7 +80,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
                 &ldquo;{review.comment}&rdquo;
               </p>
             ) : (
-              <p className="text-default-300 text-sm italic">ไม่มีความคิดเห็นเพิ่มเติม</p>
+              <p className="text-default-400 text-sm italic">ไม่มีความคิดเห็นเพิ่มเติม</p>
             )}
           </>
         )}
