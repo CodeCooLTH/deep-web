@@ -1,28 +1,32 @@
 /**
  * OrderActionBar — แถบ action ของหน้ารายละเอียดคำสั่งซื้อ (seller), S-5 (<1024) + S-6 (≥1024)
  *
- * render ได้ 3 ตำแหน่งจาก **ชุดข้อมูลเดียวกัน** (`actionSet` ที่คำนวณมาจาก `getOrderActionSet()`
+ * render ได้ 2 ตำแหน่งจาก **ชุดข้อมูลเดียวกัน** (`actionSet` ที่คำนวณมาจาก `getOrderActionSet()`
  * — order-action-set.ts, T5 contract) — ไฟล์นี้ไม่มี status conditional ใด ๆ เอง (dumb component,
  * page เป็นคนเลือกว่าจะ mount variant ไหนตรงไหน + ต่อ business logic จริงใน T11):
  *
  *   - variant="bottom" — แถบเต็มความกว้างติดล่าง (<1024) แทนที่ SellerBottomNav ที่ถูกซ่อนไปแล้ว
  *   - variant="inline" — แถวปุ่มในมุมขวาบนของการ์ดหัวหน้า (≥1024)
- *   - variant="stuck"  — แถบตรึงใต้ topbar (≥1024) โผล่เมื่อการ์ดหัวหน้าเลื่อนพ้นจอ
  *
- * ทำไมไม่ใช่ 3 component แยก: design §3 บังคับ "ชุดปุ่มเดียวกัน render จากฟังก์ชันเดียว ห้ามเขียน
- * markup ซ้ำ" — GhostButton/PrimaryButton (sub-render ภายในไฟล์นี้) ใช้ร่วมกันทั้ง 3 variant
- * ต่างกันแค่ "เปลือก" (fixed bar เต็มความกว้าง vs แถวเปล่าในการ์ด vs แถบตรึง sticky) + ขนาดปุ่ม
- * (44px แถบล่าง ตาม tap-target / 37px inline·stuck ตาม token `.btn-icon`) + inline/stuck แสดง
- * label เสมอ ส่วนแถบล่างสลับ icon-only↔label ตามว่ามี primary หรือไม่ (ไม่ให้แถบดูโหว่)
+ * (เดิมมี variant="stuck" ตัวที่ 3 สำหรับแถบตรึงใต้ topbar — T11 ลบออก: StatusHero.tsx (T7) ห่อ
+ * sticky wrapper ของ "แถบตรึง" เอง แล้วใช้ variant="inline" ข้างในแทน ไม่ใช้ variant="stuck" ตรง ๆ
+ * เพราะ .stuck ประกอบเป็น bar เต็มตัว [sticky/w-full/justify-end] ไม่มีช่องแทรก "who" (badge+เลข+
+ * ยอด) เป็น sibling — ดู comment หัวไฟล์ StatusHero.tsx. `stuckVisible` prop จึงไม่มีใครใช้ ลบทิ้ง
+ * ด้วยกัน เป็น dead code ตั้งแต่เขียน ไม่เคยถูกเรียกจริง)
+ *
+ * ทำไมไม่ใช่ 2 component แยก: design §3 บังคับ "ชุดปุ่มเดียวกัน render จากฟังก์ชันเดียว ห้ามเขียน
+ * markup ซ้ำ" — GhostButton/PrimaryButton (sub-render ภายในไฟล์นี้) ใช้ร่วมกันทั้ง 2 variant
+ * ต่างกันแค่ "เปลือก" (fixed bar เต็มความกว้าง vs แถวเปล่าในการ์ด) + ขนาดปุ่ม (44px แถบล่าง ตาม
+ * tap-target / 37px inline ตาม token `.btn-icon`) + inline แสดง label เสมอ ส่วนแถบล่างสลับ
+ * icon-only↔label ตามว่ามี primary หรือไม่ (ไม่ให้แถบดูโหว่)
  *
  * ⋮ = OrderOverflowMenu (page-specific — order-action-set.ts, custom dropdown pattern)
  * "ไม่มี action เลย" (CANCELLED) → return null ทั้งก้อน ไม่ใช่แถบว่าง (design §3)
  *
  * Base: docs/superpowers/specs/2026-07-30-seller-order-detail-v5-mockup.html
- *   .abar/.abar .p/.abar .g/.abar.noprimary/.hd-acts + actionBar()/headerActions()/stuckBar()
+ *   .abar/.abar .p/.abar .g/.abar.noprimary/.hd-acts + actionBar()/headerActions()
  * Base (primitive ปุ่ม min-h-11=44px + click-outside dropdown): orders/components/BulkActionBar.tsx,
  *   orders/components/OrderCardMenu.tsx
- * Base (แถบตรึง sticky top-(--topbar-height) + h-0 toggle เมื่อไม่ stuck): StatusHero.tsx
  * Base (เงาบน + safe-area — arbitrary โดยเจตนา, Paces ไม่มี token): _shared/SellerBottomNav.tsx:186,195
  */
 
@@ -30,7 +34,7 @@ import Icon from '@/components/wrappers/Icon'
 import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderOverflowMenu'
 import type { ActionItem, OrderActionSet } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 
-export type OrderActionBarVariant = 'bottom' | 'inline' | 'stuck'
+export type OrderActionBarVariant = 'bottom' | 'inline'
 
 export interface OrderActionBarProps {
   variant: OrderActionBarVariant
@@ -38,12 +42,6 @@ export interface OrderActionBarProps {
   actionSet: OrderActionSet
   /** page เป็นคนต่อ logic จริง (ยิง API/Swal confirm/เปิด modal ฯลฯ) — component นี้ไม่มี business logic */
   onAction: (key: string) => void
-  /**
-   * เฉพาะ variant="stuck" — คุมการโผล่/หายด้วย opacity จาก IntersectionObserver ของ parent
-   * (S-6: reuse กลไก "stuck" ที่มีอยู่แล้วใน StatusHero.tsx ห้ามเขียน sticky observer ซ้ำสอง)
-   * component นี้ไม่มี observer เอง แค่รับ boolean มา render ค่าเริ่มต้น false (ซ่อน)
-   */
-  stuckVisible?: boolean
 }
 
 interface ButtonProps {
@@ -94,7 +92,7 @@ function PrimaryButton({ item, onAction, size }: ButtonProps & { size: 'sm' | 'l
   )
 }
 
-export default function OrderActionBar({ variant, actionSet, onAction, stuckVisible = false }: OrderActionBarProps) {
+export default function OrderActionBar({ variant, actionSet, onAction }: OrderActionBarProps) {
   const { primary, ghosts, menu } = actionSet
 
   // ไม่มี action เลย (CANCELLED) → ไม่ render อะไรทั้งก้อน ไม่ใช่แถบว่าง (design §3 บังคับ)
@@ -106,7 +104,7 @@ export default function OrderActionBar({ variant, actionSet, onAction, stuckVisi
     return (
       <div
         className={[
-          // <1024 เท่านั้น — ≥1024 action ย้ายไปมุมขวาบนของการ์ดหัวหน้า (variant="inline") + แถบตรึง (variant="stuck")
+          // <1024 เท่านั้น — ≥1024 action ย้ายไปมุมขวาบนของการ์ดหัวหน้า + แถบตรึง (variant="inline" ทั้งคู่ — ดู StatusHero.tsx)
           'lg:hidden',
           'fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-card px-3 pt-2.5',
           // เงาบน — arbitrary โดยเจตนา (Paces ไม่มี token เงาด้านบน) ค่าเดียวกับ SellerBottomNav.tsx:186
@@ -125,29 +123,8 @@ export default function OrderActionBar({ variant, actionSet, onAction, stuckVisi
     )
   }
 
-  if (variant === 'stuck') {
-    return (
-      <div
-        className={[
-          'hidden lg:flex', // ≥1024 เท่านั้น (แถบตรึงไม่มีบนมือถือ/แท็บเล็ต — ตรงนั้นใช้ variant="bottom" อยู่แล้ว)
-          // sticky ใต้ topbar — CSS var ของธีมตรง ๆ (Hard Rule 7) เหมือน StatusHero.tsx เดิม
-          'sticky top-(--topbar-height) z-30 w-full items-center justify-end gap-2',
-          'border-b border-default-300 bg-card px-5 py-2.5 shadow transition-opacity',
-          // h-0 + invisible ตอนยังไม่ stuck → ไม่จองพื้นที่ ไม่ดันเนื้อหาลง (pattern เดียวกับ StatusHero.tsx)
-          stuckVisible ? 'opacity-100' : 'pointer-events-none invisible h-0 opacity-0',
-        ].join(' ')}
-        aria-hidden={!stuckVisible}
-      >
-        {ghosts.map((g) => (
-          <GhostButton key={g.key} item={g} onAction={onAction} size="sm" iconOnly={false} />
-        ))}
-        {primary && <PrimaryButton item={primary} onAction={onAction} size="sm" />}
-        <OrderOverflowMenu items={menu} onAction={onAction} size="sm" dropDirection="down" />
-      </div>
-    )
-  }
-
-  // variant === 'inline' — แถวเปล่า ไม่มี wrapper ตำแหน่งเอง (วางในมุมขวาบนของการ์ดหัวหน้าโดย caller)
+  // variant === 'inline' — แถวเปล่า ไม่มี wrapper ตำแหน่งเอง (วางในมุมขวาบนของการ์ดหัวหน้า หรือใน
+  // sticky wrapper ของแถบตรึง — ทั้งคู่คุม chrome/ตำแหน่งเอง ที่นี่ render แค่แถวปุ่ม)
   return (
     <div className="hidden items-center gap-2 lg:flex">
       {ghosts.map((g) => (

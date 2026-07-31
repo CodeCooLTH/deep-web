@@ -43,9 +43,21 @@ import { getPaymentBadge } from '@/lib/order-display'
 import { PAYMENT_LABELS, PAYMENT_ICONS } from '../../components/data'
 import SalesChannelBadge from '@/components/safepay/SalesChannelBadge'
 import SlipViewer from './SlipViewer'
-import type { ShippingAddressData } from './CustomerDetails'
 
 // ─── types ──────────────────────────────────────────────────────────────────
+
+/**
+ * ที่อยู่จัดส่ง — เดิม import จาก CustomerDetails.tsx (ลบไปแล้วใน T11 หลัง OrderFactsCard
+ * ยุบเอาข้อมูลผู้ซื้อ/ที่อยู่มารวมไว้ที่นี่ทั้งหมด) ย้าย type มาไว้ที่เดียวกับ consumer เดียวที่เหลือ
+ */
+export type ShippingAddressData = {
+  line1?: string | null
+  subdistrict?: string | null
+  district?: string | null
+  province?: string | null
+  postcode?: string | null
+  note?: string | null
+}
 
 export type OrderFactsBuyer = {
   /** เบอร์/อีเมลผู้ซื้อ (เต็ม) — user decision 2026-07-30: ร้านต้องกดโทรหาลูกค้าได้ */

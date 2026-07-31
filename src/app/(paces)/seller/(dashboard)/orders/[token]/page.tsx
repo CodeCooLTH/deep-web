@@ -1,16 +1,26 @@
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/page.tsx
  *
- * Re-source จาก Paces order-details (layout re-arrange 2026-06-16):
- * - StatusHeroV2 = full-width top bar (title + action bar: primary CTA + ⋮ overflow incl. ยกเลิก)
- * - 70/30 grid (lg:grid-cols-4): LEFT col-span-3 = CustomerDetails → OrderSummary → OrderReviewCard
- *   RIGHT col-span-1 = ShippingAddress → PaymentCard → ShippingActivity
- * - action/cancel ย้ายเข้า StatusHeroV2 (⋮ overflow) ทั้งหมด — ไม่มี OrderActionPanel/CancelZone card
- * - theme-fidelity: CustomerDetails (avatar จริง), OrderSummary (thumbnail สินค้า), ShippingActivity (narrow-fix)
- * - คง: data fetching (getOrderForShop + buyer.avatar + product.images), auth guard, shop ownership check
- * - PII: mask + neutralize raw contact ที่ server boundary ก่อนส่งข้าม RSC (S-C1) — ห้ามแตะ
- *   (avatar/imageUrl = URL ไม่ใช่ PII; product.images resolve เป็น imageUrl ที่ server ก่อนส่ง)
- * - Date → .toISOString() ก่อนส่งข้ามขอบเขต RSC→client component
+ * v5 (T11) — ผสาน component ใหม่ทั้งหมดของ redesign v5 (S-1..S-9, S-12 wiring):
+ *   docs/superpowers/specs/2026-07-31-seller-order-detail-v5-design.md
+ *   docs/scope/2026-07-31-seller-order-detail-v5-scope-baseline.md
+ * - StatusHero (T7) = หัวหน้าเต็มความกว้างเหนือ grid (ปุ่ม inline+stuck ในตัวเอง ผ่าน onAction)
+ * - grid 75/25 (`grid grid-cols-1 lg:grid-cols-4 gap-base`): ซ้าย col-span-3 = OrderFactsCard
+ *   (การ์ด "ใบสั่งซื้อ" รวม 3 section — ผู้ซื้อ+ที่อยู่ / รายการ+เงิน+ชำระเงิน / การจัดส่ง, T6)
+ *   ขวา col-span-1 = OrderReviewCard (เฉพาะ CONFIRMED ที่มีรีวิวจริง, T3) → ShippingActivity (T2)
+ * - OrderActionBar variant="bottom" (T8, <1024) + ShipmentEntryModal (T9, controlled by
+ *   OrderDetailClient) แทนที่ SellerBottomNav ของหน้านี้ (S-7 ตัดไปแล้วที่ SellerBottomNav.tsx)
+ * - onAction ต่อ logic จริง (ยิง API/Swal/clipboard/เปิด modal) ใน OrderDetailClient.tsx —
+ *   page.tsx (RSC) ส่งฟังก์ชันข้ามขอบเขต server→client ไม่ได้ จึงมี client wrapper เดียวเป็นเจ้าของ
+ *   handler ทั้งหมด ส่วน OrderFactsCard/OrderReviewCard/ShippingActivity ยังส่งผ่าน `children`
+ *   จาก RSC ตรง ๆ (ไม่ลากเข้า client bundle)
+ * - shipmentSource ('MANUAL'|'ISHIP'|null): ISHIP เมื่อมี OrderShipment ที่ยัง active
+ *   (shipmentPanel.shipment, ไม่ CANCELLED) MANUAL เมื่อมี order.shipmentTracking — คุมว่ามีปุ่ม
+ *   "แก้ไขเลขพัสดุ" ไหม (ผ่าน getOrderActionSet, S-12)
+ * - ลบ (ไม่มีใคร import แล้ว — verified grep): OrderSummary.tsx, CustomerDetails.tsx,
+ *   PaymentCard.tsx, ShippingCard.tsx — เนื้อหารวมเข้า OrderFactsCard.tsx หมดแล้ว (T6)
+ * - คง: data fetching (getOrderForShop + buyer.avatar + product.images), auth guard, shop
+ *   ownership check, PII mask/neutralize ที่ server boundary (S-C1 — ห้ามแตะ), Date→ISO ก่อนส่งข้าม RSC
  */
 
 import { getServerSession } from 'next-auth'
@@ -22,15 +32,13 @@ import { toShipmentContextJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import StatusHero from './components/StatusHero'
-import OrderSummary from './components/OrderSummary'
-import CustomerDetails from './components/CustomerDetails'
-import PaymentCard from './components/PaymentCard'
-import type { ShippingAddressData } from './components/CustomerDetails'
+import OrderDetailClient from './components/OrderDetailClient'
+import OrderFactsCard from './components/OrderFactsCard'
+import type { ShippingAddressData, OrderFactsShipping } from './components/OrderFactsCard'
 import ShippingActivity from './components/ShippingActivity'
 import OrderReviewCard from './components/OrderReviewCard'
-import ShippingCard from './components/ShippingCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
+import type { ShipmentSource } from './components/order-action-set'
 
 export const metadata: Metadata = { title: 'รายละเอียดคำสั่งซื้อ' }
 
@@ -66,7 +74,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
-  const updatedAtISO = (order.updatedAt as Date).toISOString()
 
   // สร้าง review data — mask PII ที่ RSC boundary ก่อนส่งข้าม (S-C1)
   // ห้ามส่ง raw phone/email ข้ามขอบเขต RSC→client แม้แต่ฟิลด์เดียว
@@ -92,6 +99,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         createdAtISO: (order.review.createdAt as Date).toISOString(),
       }
     : null
+  // S-4: การ์ดรีวิวแสดงเฉพาะ CONFIRMED ที่มีรีวิวจริง (ไม่ใช่ empty-state) — status อื่นไม่ render เลย
+  const showReviewCard = order.status === 'CONFIRMED' && reviewData !== null
 
   // เบอร์ผู้ซื้อ — ส่งเต็มไปแสดง (user decision 2026-07-30) พร้อมทำเป็นลิงก์ tel: ให้กดโทรได้
   const buyerContact: string | null = order.buyerContact ?? null
@@ -103,6 +112,45 @@ export default async function OrderDetailPage({ params }: PageProps) {
       ? (rawAddr as ShippingAddressData)
       : null
 
+  // ที่อยู่จัดส่งรวมเป็นบรรทัดเดียว — payload ของ action "copy-address" (clipboard)
+  const addressText: string | null = shippingAddr
+    ? [
+        shippingAddr.line1,
+        [shippingAddr.subdistrict, shippingAddr.district].filter(Boolean).join(' '),
+        [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' '),
+      ]
+        .filter((l) => l && String(l).trim())
+        .join(', ')
+    : null
+
+  // shipmentSource — ตัดสินจาก 2 แหล่ง: ISHIP (OrderShipment ที่ยัง active, ไม่ CANCELLED) ก่อน
+  // MANUAL (order.shipmentTracking) — ทั้งสองไม่ควรมีพร้อมกันตาม business flow ปกติของระบบ
+  // (feat 00022: ห้ามเขียน ShipmentTracking ให้ออเดอร์ที่ใช้ iShip) แต่ถ้าเกิดขึ้นจริง ให้ ISHIP
+  // ชนะเพราะเป็น system-generated source of truth
+  const shipmentSource: ShipmentSource = shipmentPanel?.shipment
+    ? 'ISHIP'
+    : order.shipmentTracking
+      ? 'MANUAL'
+      : null
+
+  // ข้อมูลการจัดส่งสำหรับ OrderFactsCard (section 3) + prefill ShipmentEntryModal (mode='edit')
+  const shippingInfo: OrderFactsShipping | null =
+    shipmentSource === 'ISHIP'
+      ? {
+          courier: shipmentPanel!.shipment!.courierName ?? '—',
+          trackingNo: shipmentPanel!.shipment!.trackingNo ?? '—',
+          shippedAtISO: shipmentPanel!.shipment!.createdAt.toISOString(),
+          isIship: true,
+        }
+      : shipmentSource === 'MANUAL'
+        ? {
+            courier: order.shipmentTracking.provider,
+            trackingNo: order.shipmentTracking.trackingNo,
+            shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
+            isIship: false,
+          }
+        : null
+
   return (
     <>
       <PageBreadcrumb
@@ -110,63 +158,41 @@ export default async function OrderDetailPage({ params }: PageProps) {
         trail={[{ label: 'คำสั่งซื้อ', href: '/orders' }]}
       />
 
-      {/* StatusHero — full-width เหนือ grid (T5: ย้ายออกจาก left column) */}
-      <StatusHero
+      <OrderDetailClient
         publicToken={order.publicToken}
-        shortCode={order.shortCode}
+        shortCode={order.shortCode ?? null}
         status={order.status}
         type={order.type}
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}
         isFromAuction={Boolean(order.auctionId)}
-        ishipTrackingNo={shipmentPanel?.shipment?.trackingNo ?? null}
-        ishipCourierName={shipmentPanel?.shipment?.courierName ?? null}
-      />
-
-      {/* mt-base คั่นระหว่าง top bar กับ grid — Paces spacing token (--spacing-base=20px) ห้ามใช้ mt-[20px] */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-base mt-base">
-        {/* LEFT — col-span-3 (70%): CustomerDetails → OrderSummary → OrderReviewCard */}
-        <div className="space-y-base lg:col-span-3">
-          {/* รีวิวขึ้นบนสุดเมื่อมีจริง — เป็น peak ของทั้ง product (seller ได้คำชมจากลูกค้า)
-              เดิมเป็นการ์ดท้ายแถว น้ำหนักเท่าการ์ดอื่น รีวิว 5 ดาวเลยไม่รู้สึกเหมือนอะไรเลย
-              ไม่มีรีวิว → การ์ด empty-state ยังอยู่ท้ายแถวเหมือนเดิม ไม่ต้องเด่น */}
-          {reviewData && <OrderReviewCard review={reviewData} />}
-          {/* การจัดส่ง = งานหลักของหน้านี้ → อยู่คอลัมน์กว้างใบแรก ไม่ใช่ยัดในคอลัมน์ขวาที่แคบ
-              render เฉพาะออเดอร์ที่ต้องส่งของ และยังไม่จบ (CONFIRMED/CANCELLED ไม่ต้องมีฟอร์ม) */}
-          {order.fulfillmentMode === 'SHIPPED' &&
-            (order.status === 'PENDING' || order.status === 'SHIPPED') && (
-              <ShippingCard
-                orderToken={order.publicToken}
-                ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
-                hasIshipShipment={Boolean(shipmentPanel?.shipment)}
-                initialTrackingNo={shipmentPanel?.shipment?.trackingNo ?? null}
-                initialProvider={shipmentPanel?.shipment?.courierName ?? null}
-              />
-            )}
-          <CustomerDetails
-            data={{
-              buyerContact,
-              buyerDisplayName: order.buyer?.displayName ?? null,
-              buyerUsername: order.buyer?.username ?? null,
-              buyerName: order.buyerName ?? null,
-              // avatar: Facebook CDN URL หรือ null (ไม่ใช่ PII — URL สาธารณะ) — ส่งได้ตาม spec
-              avatar: order.buyer?.avatar ?? null,
-              // shippingAddr: render อิสระจาก buyer-confirmed state (seller อาจกรอกก่อน)
-              shippingAddr,
-            }}
-          />
-          <OrderSummary
-            order={{
-              publicToken: order.publicToken,
-              type: order.type,
-              totalAmount: order.totalAmount,
-              discount: order.discount ?? null,
-              vatRate: order.vatRate ?? null,
-              vatAmount: order.vatAmount ?? null,
-              createdAtISO,
-              items: (order.items ?? []).map((item: any) => {
+        totalAmount={Number(order.totalAmount)}
+        paymentMethod={order.paymentMethod ?? null}
+        slipFileId={order.slipFileId ?? null}
+        shipmentSource={shipmentSource}
+        ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
+        hasIshipShipment={Boolean(shipmentPanel?.shipment)}
+        trackingNo={shippingInfo?.trackingNo ?? null}
+        provider={shippingInfo?.courier ?? null}
+        addressText={addressText}
+      >
+        {/* grid 75/25 (≥1024) · คอลัมน์เดียว (<1024) — Base: order-details/page.tsx
+            `grid grid-cols-1 lg:grid-cols-4 gap-base` + `space-y-base lg:col-span-3` */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
+          {/* ซ้าย — col-span-3 (75%): การ์ด "ใบสั่งซื้อ" (ข้อเท็จจริง — เห็นหมดเสมอ ไม่มีกาง/พับ) */}
+          <div className="space-y-base lg:col-span-3">
+            <OrderFactsCard
+              buyer={{
+                buyerContact,
+                buyerDisplayName: order.buyer?.displayName ?? null,
+                buyerUsername: order.buyer?.username ?? null,
+                buyerName: order.buyerName ?? null,
+                // avatar: Facebook CDN URL หรือ null (ไม่ใช่ PII — URL สาธารณะ) — ส่งได้ตาม spec
+                avatar: order.buyer?.avatar ?? null,
+                shippingAddr,
+              }}
+              items={(order.items ?? []).map((item: any) => {
                 // resolve imageUrl server-side — pattern เดียวกับ products/page.tsx L98-99
-                // images เป็น Json array of strings (full URL หรือ storage key)
                 const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
                 const firstImg: string = rawImages[0] ?? ''
                 const imageUrl: string | null = firstImg
@@ -180,44 +206,42 @@ export default async function OrderDetailPage({ params }: PageProps) {
                   price: item.price,
                   imageUrl,
                 }
-              }),
-            }}
-          />
-          {/* ยังไม่มีรีวิว → empty-state ท้ายแถว (มีรีวิวแล้วจะถูก render บนสุดแทน) */}
-          {!reviewData && <OrderReviewCard review={null} />}
-        </div>
+              })}
+              discount={order.discount ?? null}
+              vatRate={order.vatRate ?? null}
+              vatAmount={order.vatAmount ?? null}
+              totalAmount={order.totalAmount}
+              paymentMethod={order.paymentMethod ?? null}
+              salesChannel={order.salesChannel ?? null}
+              slipFileId={order.slipFileId ?? null}
+              accessUrl={order.accessUrl ?? null}
+              fulfillmentMode={order.fulfillmentMode}
+              publicToken={order.publicToken}
+              status={order.status}
+              shipping={shippingInfo}
+            />
+          </div>
 
-        {/* RIGHT — col-span-1 (30%): PaymentCard → ShipmentPanel → ShippingActivity
-            การ์ด "รายละเอียดคำสั่งซื้อ" (OrderDetails) ถูกตัดออก: "วันที่สร้าง" ซ้ำกับ StatusHero
-            ทุกประการ, "สร้างโดย" คือชื่อร้านตัวเองเสมอ (ข้อมูลเป็นศูนย์) ส่วน "อัปเดตล่าสุด"
-            ย้ายไปเป็นเวลาของ step ปัจจุบันใน ShippingActivity ซึ่งเป็นที่ที่มันมีความหมายจริง */}
-        <div className="space-y-base">
-          {/* PaymentCard — วิธีชำระ/ช่องทาง/สลิป/ลิงก์ดิจิทัล (ไม่ใช่ PII) */}
-          <PaymentCard
-            paymentMethod={order.paymentMethod ?? null}
-            salesChannel={order.salesChannel ?? null}
-            slipFileId={order.slipFileId ?? null}
-            accessUrl={order.accessUrl ?? null}
-            fulfillmentMode={order.fulfillmentMode}
-            publicToken={order.publicToken}
-            status={order.status}
-          />
-          <ShippingActivity
-            data={{
-              status: order.status,
-              fulfillmentMode: order.fulfillmentMode,
-              createdAtISO,
-              updatedAtISO,
-              shipmentTracking: order.shipmentTracking
-                ? {
-                    provider: order.shipmentTracking.provider,
-                    trackingNo: order.shipmentTracking.trackingNo,
-                  }
-                : null,
-            }}
-          />
+          {/* ขวา — col-span-1 (25%): รีวิว (เมื่อมี) → ประวัติคำสั่งซื้อ (เหตุการณ์ อ่านอย่างเดียว) */}
+          <div className="space-y-base">
+            {showReviewCard && <OrderReviewCard review={reviewData} />}
+            <ShippingActivity
+              data={{
+                status: order.status,
+                fulfillmentMode: order.fulfillmentMode,
+                createdAtISO,
+                updatedAtISO: (order.updatedAt as Date).toISOString(),
+                shipmentTracking: order.shipmentTracking
+                  ? {
+                      provider: order.shipmentTracking.provider,
+                      trackingNo: order.shipmentTracking.trackingNo,
+                    }
+                  : null,
+              }}
+            />
+          </div>
         </div>
-      </div>
+      </OrderDetailClient>
     </>
   )
 }

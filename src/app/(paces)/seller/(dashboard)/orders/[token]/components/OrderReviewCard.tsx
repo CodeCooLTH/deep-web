@@ -39,7 +39,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">รีวิวคำสั่งซื้อ</h4>
+        <h4 className="card-title">รีวิวจากผู้ซื้อ</h4>
       </div>
       <div className="card-body">
         {!review ? (

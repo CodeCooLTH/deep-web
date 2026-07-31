@@ -261,8 +261,11 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                     {item.key === 'SHIPPED' && shipmentTracking && (
                       <p className="text-default-400 text-xs mt-0.5">
                         {shipmentTracking.provider} · เลขพัสดุ:{' '}
-                        {/* font-mono เฉพาะเลขพัสดุ (latin/ตัวเลข) — ไม่กระทบ Anuphan (HR5) */}
-                        <span className="font-mono">{shipmentTracking.trackingNo}</span>
+                        {/* T11 fix: ของเดิมใช้ font-mono จริง (ไม่ใช่แค่ comment) — ผิด design spec §4
+                            "ห้าม font-mono กับเลขพัสดุ" (Anuphan ไม่มี mono → fallback Courier หลุดธีม,
+                            feedback_font_mono_breaks_anuphan) ใช้ tabular-nums + tracking-wide แทน
+                            เหมือน OrderFactsCard.tsx */}
+                        <span className="tabular-nums tracking-wide">{shipmentTracking.trackingNo}</span>
                       </p>
                     )}
                   </div>
