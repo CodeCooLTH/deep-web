@@ -48,28 +48,6 @@
   }
 }
 
-.heroText {
-  background: linear-gradient(135deg, #28c76f 0%, #5a4aff 47.92%, #ff3739 100%) repeat;
-  background-size: 200% 200%;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: rgba(0, 0, 0, 0);
-  animation: shine 2s ease-in-out infinite alternate;
-}
-
-@keyframes shine {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
 
 .teamCard {
   border-start-start-radius: 90px;

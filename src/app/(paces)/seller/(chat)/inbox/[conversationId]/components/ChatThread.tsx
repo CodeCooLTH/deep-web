@@ -1006,6 +1006,17 @@ export default function ChatThread({
           + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
           "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
           ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      {/* relative: ให้แผงข้อความสำเร็จรูปวางทับ "พื้นที่ข้อความ" ได้พอดี (user สั่ง 2026-07-31
+          "อยากปรับให้ panel นี้เต็มช่องแชทไปเลย") — วางทับแทนที่จะดันเลย์เอาต์ เพราะลิสต์ข้อความ
+          ยัง mount อยู่ ตำแหน่ง scroll จึงไม่รีเซ็ตตอนปิดแผง */}
+      <div className="relative flex min-h-0 grow flex-col">
+      {quickOpen && (
+        <QuickMessageBar
+          onPick={handleQuickPick}
+          disabled={composerDisabled}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
       <div
         ref={scrollRef}
         className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
@@ -1353,6 +1364,7 @@ export default function ChatThread({
           ))
         )}
       </div>
+      </div>
 
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
@@ -1371,13 +1383,8 @@ export default function ChatThread({
           />
         )}
 
-        {quickOpen && (
-          <QuickMessageBar
-            onPick={handleQuickPick}
-            disabled={composerDisabled}
-            onClose={() => setActivePanel(null)}
-          />
-        )}
+        {/* แผงข้อความสำเร็จรูปย้ายไปวางทับพื้นที่ข้อความด้านบนแล้ว (ดู relative wrapper) —
+            ไม่ได้อยู่เหนือ composer เหมือนแผง AI/สินค้าอีกต่อไป */}
 
         {productOpen && (
           <ProductPickerPanel
