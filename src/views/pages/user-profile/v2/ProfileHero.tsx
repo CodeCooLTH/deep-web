@@ -154,24 +154,34 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
         </Typography>
       </div>
 
-      {/* ── เหรียญ: ไอคอนล้วนเพื่อให้อ่านรวดเดียวจบ รายละเอียดอยู่ในหน้าเหรียญเต็ม ── */}
+      {/* ── เหรียญ: ชิปที่บอกชื่อจริง ไม่ใช่วงกลมไอคอนล้วน ──
+             เดิมเป็นวงกลม 38px ที่มีแต่ไอคอน + title สำหรับ hover ซึ่งบนมือถือ (surface หลักของเรา)
+             ไม่มี hover เลย ผู้ชมจึงเห็นวงกลมสีลอย ๆ ที่ตีความไม่ได้ — ซึ่งตรงกับสิ่งที่ DESIGN.md
+             Principle #1 ห้ามไว้ตรง ๆ ว่า "ห้าม badge ตกแต่ง" เหรียญที่อ่านไม่ออกคือของตกแต่ง
+             ไม่ใช่หลักฐาน. ใส่ชื่อลงไปแล้วมันกลายเป็นหลักฐานที่ทำงานจริง
+
+             สีเปลี่ยนจาก warning-amber เป็นกลาง — DESIGN.md สงวนส้มไว้ให้ "รอดำเนินการ/เตือน"
+             การเอาสีเตือนมาใช้กับรางวัลที่ได้มาแล้วทำให้ความหมายของสีทั้งระบบเพี้ยน และไม่ใช้เขียว
+             เพราะ Verified-Means-Green สงวนไว้ให้ "ยืนยันแล้ว" โดยเฉพาะ ใช้กับทุกเหรียญจะทำให้
+             สัญญาณเขียวเฟ้อตามที่กติกาเตือนไว้เอง ── */}
       {shownBadges.length > 0 && (
-        <div className='flex justify-center gap-2.5 flex-wrap pli-5 pbe-3.5'>
+        <ul className='flex justify-center gap-2 flex-wrap pli-5 pbe-3.5 m-0 p-0 list-none'>
           {shownBadges.map((b) => (
-            <span
-              key={b.id}
-              title={b.name}
-              className='is-[38px] bs-[38px] rounded-full flex items-center justify-center bg-warning/10 text-warning border border-warning/25'
-            >
-              <Icon icon={badgeIconName(b.nameEN, b.icon)} width={18} />
-            </span>
+            <li key={b.id}>
+              <span className='inline-flex items-center gap-1.5 rounded-full plb-1 pli-2.5 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-primary)]'>
+                <Icon icon={badgeIconName(b.nameEN, b.icon)} width={15} className='shrink-0 opacity-70' />
+                {b.name}
+              </span>
+            </li>
           ))}
           {restBadgeCount > 0 && (
-            <span className='is-[38px] bs-[38px] rounded-full flex items-center justify-center bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-disabled)] text-xs font-bold'>
-              {`+${restBadgeCount}`}
-            </span>
+            <li>
+              <span className='inline-flex items-center rounded-full plb-1 pli-2.5 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-disabled)]'>
+                {`+${restBadgeCount}`}
+              </span>
+            </li>
           )}
-        </div>
+        </ul>
       )}
 
       {/* ── ตัวเลขธุรกรรม: แสดงครบสามช่องเสมอ ── */}
