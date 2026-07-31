@@ -418,11 +418,12 @@ export default function InboxList({
     ? 'SPAM'
     : filter.status === 'resolved'
       ? 'RESOLVED'
-      : filter.status === 'all'
-        ? null // ไม่ตรงกับแท็บไหน (ไม่มี UI ตั้งค่านี้แล้ว แต่กันไว้)
-        : activeGroupId === null
-          ? 'ALL'
-          : null
+      : // "ทั้งหมด" = status 'all' และไม่ได้อยู่ในกลุ่มไหน — เดิม 'all' ถูกใช้เป็นเคส
+        // "ไม่มี UI ไหนตั้งค่านี้" เลย return null พอแท็บทั้งหมดเปลี่ยนมาตั้ง 'all' จริง
+        // มันเลยตกเข้าเคสนั้นจนไม่มีแท็บไหน active เลย (user report 2026-07-31)
+        activeGroupId === null && filter.status === 'all'
+        ? 'ALL'
+        : null
 
   const selectViewTab = (tab: Exclude<ViewTab, null>) => {
     setActiveGroupId(null)

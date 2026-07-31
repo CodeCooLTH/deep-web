@@ -304,11 +304,19 @@ export default function InboxFilterPanel({
             </Section>
 
             <Section title="อื่น ๆ">
-              <Chip
-                on={draft.hidden}
-                label="ที่ซ่อนไว้"
-                onClick={() => setDraft((d) => ({ ...d, hidden: !d.hidden }))}
-              />
+              {/* สวิตช์ ไม่ใช่ชิป (user สั่ง 2026-07-31 "อยากให้เป็น toggle เหมือนเดิม") —
+                  หัวข้ออื่นเป็นชุดตัวเลือกที่ต้องเลือกหนึ่งอัน แต่อันนี้เป็นเปิด/ปิดเดี่ยว ๆ
+                  ชิปเดี่ยวบอกไม่ได้ว่าตอนนี้ปิดอยู่หรือแค่ยังไม่ได้เลือก
+                  Base: src/app/(paces)/seller/(dashboard)/settings/ai/AiSettingForm.tsx (form-switch controlled) */}
+              <label className="flex w-full cursor-pointer items-center justify-between gap-3">
+                <span className="text-default-800 text-sm font-medium">ที่ซ่อนไว้</span>
+                <input
+                  type="checkbox"
+                  className="form-switch shrink-0"
+                  checked={draft.hidden}
+                  onChange={(e) => setDraft((d) => ({ ...d, hidden: e.target.checked }))}
+                />
+              </label>
             </Section>
           </div>
 
