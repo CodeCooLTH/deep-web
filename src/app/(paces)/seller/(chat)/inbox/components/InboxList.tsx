@@ -203,6 +203,9 @@ type Props = {
   initialItems: ConversationListItem[]
   initialNextCursor: string | null
   channels: ChannelFilterOption[]
+  /** ร้านเชื่อม iShip แล้วหรือยัง (ShopShippingAccount status=ACTIVE) — ใช้ซ่อนหัวข้อ "พัสดุ"
+   *  ในตัวกรองสำหรับร้านที่ไม่ได้ใช้ ตัดสินฝั่ง server ไม่ต้องให้ client ยิงถามเพิ่ม */
+  hasShipping?: boolean
   /** กลุ่ม/แท็บจัดหมวดแชทของร้าน (feature 00018) — SSR ส่งมา, client จัดการเพิ่ม/ลบต่อ */
   initialGroups?: ChatGroupTab[]
   /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
@@ -218,6 +221,7 @@ export default function InboxList({
   initialNextCursor,
   channels,
   initialGroups = [],
+  hasShipping = false,
   railMode = false,
   shopId = null,
 }: Props) {
@@ -232,6 +236,16 @@ export default function InboxList({
   // feature 00018 กลุ่ม/แท็บจัดหมวดแชท (ตัวกรองอ่านแล้ว/ยังไม่อ่าน ย้ายเข้า filter.readState แล้ว)
   const [groups, setGroups] = useState<ChatGroupTab[]>(initialGroups)
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null) // null = แท็บ "ทั้งหมด"
+
+  // แท็กทั้งหมดที่ร้านเคยใช้ — ใช้ทำชิปในตัวกรอง (user สั่ง 2026-07-31)
+  // endpoint เดียวกับที่ TagInput ใช้อยู่แล้ว ไม่ต้องทำใหม่; ล้มเหลว = ไม่มีหัวข้อแท็ก ไม่พังทั้งหน้า
+  const [allTags, setAllTags] = useState<string[]>([])
+  useEffect(() => {
+    fetch('/api/chat/tags', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { tags: [] }))
+      .then((d) => setAllTags(Array.isArray(d.tags) ? d.tags : []))
+      .catch(() => {})
+  }, [])
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
@@ -276,6 +290,9 @@ export default function InboxList({
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
       if (filter.spam) params.set('spam', 'true')
+      // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก เพื่อไม่ให้ query string รกโดยเปล่าประโยชน์
+      if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
+      if (filter.shipment !== 'all') params.set('shipment', filter.shipment)
       if (activeGroupId) params.set('chatGroupId', activeGroupId)
       if (filter.readState !== 'all') params.set('readState', filter.readState)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
@@ -303,7 +320,7 @@ export default function InboxList({
     }
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
-  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, activeGroupId])
+  }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.tags, filter.shipment, activeGroupId])
 
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
@@ -365,6 +382,38 @@ export default function InboxList({
     }
   }
 
+  // ── แท็บมุมมอง: ทั้งหมด / ปิดงาน / สแปม (มาตรฐาน ลบไม่ได้) + กลุ่มที่ร้านสร้างเอง ──
+  // user สั่ง 2026-07-31 (mockup V1): ปิดงาน/สแปม เป็นมุมมองพื้นฐานในแถวเดียวกับกลุ่ม
+  //
+  // ไม่ได้เก็บ state แยก — derive จาก filter ที่มีอยู่ (resolvedAt/isSpam คือแหล่งความจริงเดียวกับ
+  // ที่ปุ่ม action ในแถวเขียน) แท็บกับปุ่มจึงสัมพันธ์กันเองทันที ไม่ต้องเขียน sync
+  type ViewTab = 'ALL' | 'RESOLVED' | 'SPAM' | null
+  const activeViewTab: ViewTab = filter.spam
+    ? 'SPAM'
+    : filter.status === 'resolved'
+      ? 'RESOLVED'
+      : filter.status === 'all'
+        ? null // ไม่ตรงกับแท็บไหน (ไม่มี UI ตั้งค่านี้แล้ว แต่กันไว้)
+        : activeGroupId === null
+          ? 'ALL'
+          : null
+
+  const selectViewTab = (tab: Exclude<ViewTab, null>) => {
+    setActiveGroupId(null)
+    setFilter((f) => ({
+      ...f,
+      status: tab === 'RESOLVED' ? 'resolved' : 'open',
+      spam: tab === 'SPAM',
+    }))
+  }
+
+  /** เข้ากลุ่มที่ร้านสร้างเอง — คืน status/spam เป็นปกติ เพราะเธรดที่ปิดงาน/สแปมแล้ว
+   *  ต้องไม่โผล่ในกลุ่มเดิมของมัน (user เลือก 2026-07-31) */
+  const selectGroupTab = (groupId: string) => {
+    setActiveGroupId(groupId)
+    setFilter((f) => ({ ...f, status: 'open', spam: false }))
+  }
+
   // ── feature 00018 กลุ่ม/แท็บจัดหมวดแชท ──
   // สร้างกลุ่มใหม่ (inline "+") — POST แล้วเพิ่มเข้า state + สลับไปแท็บนั้นเลย
   const handleCreateGroup = async () => {
@@ -385,7 +434,7 @@ export default function InboxList({
         return
       }
       setGroups((g) => [...g, data as ChatGroupTab])
-      setActiveGroupId(data.id)
+      selectGroupTab(data.id)
       setNewGroupName('')
       setAddingGroup(false)
     } catch {
@@ -451,6 +500,9 @@ export default function InboxList({
       if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
       if (filter.hidden) params.set('hidden', 'true')
       if (filter.spam) params.set('spam', 'true')
+      // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก เพื่อไม่ให้ query string รกโดยเปล่าประโยชน์
+      if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
+      if (filter.shipment !== 'all') params.set('shipment', filter.shipment)
       if (activeGroupId) params.set('chatGroupId', activeGroupId)
       if (filter.readState !== 'all') params.set('readState', filter.readState)
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
@@ -597,7 +649,10 @@ export default function InboxList({
             filter กระชับ) — ไหลลงบรรทัดใหม่เองเมื่อแคบ ไม่ใช่ 2 แถวตายตัว. relative สำหรับ popover
             (InboxFilterPanel/PageFilterDropdown) ที่ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
         <div className="relative flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1.5" aria-label="ตัวกรองช่องทาง" role="tablist">
+          <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" aria-label="ตัวกรองช่องทาง" role="tablist">
+          {/* segmented control — พื้นเทาก้อนเดียว ตัวที่เลือกเป็นการ์ดขาวยกขึ้น (mockup V1, 2026-07-31)
+              เดิมเป็น pill 4 ก้อนลอยแยกกัน ทำให้ดูเป็นของ 4 ชิ้นทั้งที่เป็นตัวเลือกชุดเดียวกัน
+              และแย่งความเด่นกับปุ่มตัวกรอง — user รายงานว่า "รก ดูไม่ออกว่าอะไรสำคัญ" */}
           {CHANNEL_TABS.map((tab) => {
             const active = channelTab === tab
             const display = tab === 'ALL' ? null : getChannelDisplay(tab)
@@ -611,13 +666,9 @@ export default function InboxList({
                 title={label}
                 aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
                 onClick={() => handleChannelTabChange(tab)}
-                className={
-                  tab === 'ALL'
-                    ? `shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                        active ? 'bg-primary text-white' : 'bg-light text-default-700'
-                      }`
-                    : `flex size-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-primary/15' : 'bg-light'}`
-                }
+                className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
+                  active ? 'bg-card text-dark shadow-sm font-semibold' : 'text-default-600'
+                }`}
               >
                 {display && (
                   <Icon
@@ -633,39 +684,29 @@ export default function InboxList({
             )
           })}
           </div>
-          {/* ตัวกรอง/เพจ อยู่ในแถวเดียวกับ channel tabs แล้ว (flex-wrap ของ container ด้านนอก) —
-              S-7: ปุ่ม "ตัวกรอง" แสดงเสมอ; "เพจ" ซ่อนเมื่อ tab=Deep/ไม่มีเพจ */}
+          {/* ปุ่มตัวกรองเดียว — เพจย้ายเข้าไปเป็นหัวข้อข้างในแล้ว ไม่มีดรอปดาวน์เพจแยกอีก
+              (mockup V1 ที่ user อนุมัติ 2026-07-31) */}
           <InboxFilterPanel
             value={filter}
-            onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
-            onClear={() => setFilter(DEFAULT_CHAT_FILTER)}
+            onApply={(next, page) => {
+              setFilter(next)
+              setPageFilter(page)
+            }}
             open={openPanel === 'filter'}
             onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
+            channelTab={channelTab}
+            pageFilter={pageFilter}
+            pageOptions={channels}
+            allTags={allTags}
+            hasShipping={hasShipping}
           />
-
-          {channelTab !== 'DEEP' && channels.length > 0 && (
-            <PageFilterDropdown
-              value={pageFilter}
-              options={channels}
-              onChange={setPageFilter}
-              open={openPanel === 'page'}
-              onOpenChange={(o) => setOpenPanel(o ? 'page' : null)}
-            />
-          )}
 
           {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
               ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก
               อยู่บนตัวปุ่มเองแล้ว chip ด้านล่างจึงเป็นชื่อเดียวกันซ้ำสองบรรทัดติดกัน — ล้างตัวกรอง
               ยังทำได้จากในดรอปดาวน์ (ตัวเลือก "ทุกเพจ") ต่างจากตัวกรองสถานะ/ผูกลูกค้า/ซ่อน ที่ปุ่ม
               "ตัวกรอง" ไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม chip จึงยังจำเป็น */}
-          {filter.status !== 'open' && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              สถานะ: {filter.status === 'resolved' ? 'ปิดงานแล้ว' : 'ทั้งหมด'}
-              <button type="button" onClick={() => setFilter((f) => ({ ...f, status: 'open' }))} aria-label="ล้างตัวกรองสถานะ" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
+          {/* ชิปสถานะ/สแปม ถูกถอดออก 2026-07-31 — แท็บในแถวล่างแสดงอยู่แล้ว ถ้าโชว์ทั้งคู่จะซ้ำซ้อน */}
           {filter.customerLinked !== 'all' && (
             <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
               {filter.customerLinked === 'linked' ? 'ผูกลูกค้าแล้ว' : 'ยังไม่ผูกลูกค้า'}
@@ -682,14 +723,6 @@ export default function InboxList({
               </button>
             </span>
           )}
-          {filter.spam && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              กำลังดูสแปม
-              <button type="button" onClick={() => setFilter((f) => ({ ...f, spam: false }))} aria-label="เลิกดูสแปม" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
           {/* ไม่มี chip ของ "การอ่าน" (user สั่ง 2026-07-24: ปุ่มตัวกรองขึ้น badge (1) อยู่แล้ว = ซ้ำซ้อน)
               — ล้างได้จากในดรอปดาวน์ (radio "ทั้งหมด") ต่างจาก chip สถานะ/ผูกลูกค้า/ซ่อน/สแปม ที่เก็บไว้
               เพราะบอก "ค่าที่เลือกคืออะไร" ซึ่ง badge ตัวเลขบอกไม่ได้ */}
@@ -698,32 +731,55 @@ export default function InboxList({
         {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
             ตัวกรองอ่านแล้ว/ยังไม่อ่านย้ายเข้าปุ่ม "ตัวกรอง" แล้ว (user สั่ง 2026-07-24: แถวนี้แน่นเกินไป) */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="กลุ่มแชท">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeGroupId === null}
-              onClick={() => setActiveGroupId(null)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                activeGroupId === null ? 'bg-primary text-white' : 'bg-light text-default-700'
-              }`}
-            >
-              ทั้งหมด
-            </button>
+          <div className="border-default-200 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto border-b" role="tablist" aria-label="มุมมองและกลุ่มแชท">
+            {/* แท็บข้อความมีเส้นใต้ (mockup V1) — น้ำหนักต่างจาก segmented ด้านบนชัดเจน ไม่แย่งกันเด่น
+                สแปมใช้สี danger ตั้งแต่ยังไม่ถูกเลือก เพราะเป็นถังที่ "ไม่ควรมีอะไรอยู่" (user สั่ง) */}
+            {([
+              { key: 'ALL', label: 'ทั้งหมด', icon: null, danger: false },
+              { key: 'RESOLVED', label: 'ปิดงาน', icon: 'circle-check', danger: false },
+              { key: 'SPAM', label: 'สแปม', icon: 'alert-octagon', danger: true },
+            ] as const).map((t) => {
+              const on = activeViewTab === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => selectViewTab(t.key)}
+                  className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                    t.danger
+                      ? on
+                        ? 'border-danger text-danger font-semibold'
+                        : 'border-transparent text-danger font-medium'
+                      : on
+                        ? 'border-primary text-primary font-semibold'
+                        : 'border-transparent text-default-600 font-medium'
+                  }`}
+                >
+                  {t.icon && <Icon icon={t.icon} width={14} height={14} className="shrink-0" />}
+                  {t.label}
+                </button>
+              )
+            })}
+            {/* เส้นคั่นแยกมุมมองมาตรฐาน (ลบไม่ได้) ออกจากกลุ่มที่ร้านสร้างเอง */}
+            <span className="bg-default-300 mx-1 h-4 w-px shrink-0" aria-hidden="true" />
             {groups.map((g) => (
               <button
                 key={g.id}
                 type="button"
                 role="tab"
                 aria-selected={activeGroupId === g.id}
-                onClick={() => setActiveGroupId(g.id)}
+                onClick={() => selectGroupTab(g.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   handleDeleteGroup(g)
                 }}
                 title="คลิกขวาเพื่อลบกลุ่ม"
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                  activeGroupId === g.id ? 'bg-primary text-white' : 'bg-light text-default-700'
+                className={`-mb-px shrink-0 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                  activeGroupId === g.id
+                    ? 'border-primary text-primary font-semibold'
+                    : 'border-transparent text-default-600 font-medium'
                 }`}
               >
                 {g.name}

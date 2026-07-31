@@ -103,6 +103,14 @@ export default async function SellerInboxPage() {
 
   // ── data fetch (try/catch แยกจาก JSX construction — react-hooks/error-boundaries) ──
   let items: ConversationListItem[] = []
+  // ร้านเชื่อม iShip แล้วหรือยัง — ใช้ซ่อนหัวข้อ "พัสดุ" ในตัวกรองสำหรับร้านที่ไม่ได้ใช้
+  // ถามจาก DB ที่นี่ (RSC) ไม่ต้องให้ client ยิง API เพิ่มอีกรอบ
+  const shippingAccount = await prisma.shopShippingAccount.findUnique({
+    where: { shopId: shop.id },
+    select: { status: true },
+  })
+  const hasShipping = shippingAccount?.status === 'ACTIVE'
+
   let nextCursor: string | null = null
   let loadFailed = false
 
@@ -222,6 +230,7 @@ export default async function SellerInboxPage() {
           initialNextCursor={nextCursor}
           channels={channels}
           initialGroups={groups}
+          hasShipping={hasShipping}
           shopId={shop.id}
           railMode
         />
