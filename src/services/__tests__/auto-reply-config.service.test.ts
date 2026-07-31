@@ -127,6 +127,10 @@ describe('upsertConfig', () => {
       adsContextMode: 'UNTIL_RESOLVED',
       adsContextHours: 999, // ค่าค้างจากโหมดก่อนหน้า — ต้องถูกล้าง
       handoffPhrases: [],
+      activeScheduleMode: 'ALWAYS',
+      activeStartMin: null,
+      activeEndMin: null,
+      activeDays: 127,
     })
 
     const call = configUpsert.mock.calls[0][0]
@@ -158,6 +162,10 @@ describe('upsertConfig', () => {
       adsContextMode: 'HOURS',
       adsContextHours: 24,
       handoffPhrases: [],
+      activeScheduleMode: 'ALWAYS',
+      activeStartMin: null,
+      activeEndMin: null,
+      activeDays: 127,
     })
 
     const call = configUpsert.mock.calls[0][0]

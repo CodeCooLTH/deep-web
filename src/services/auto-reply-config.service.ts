@@ -22,6 +22,11 @@ export type AutoReplyConfigView = {
   isEnabled: boolean
   humanTakeoverPauseMode: string
   keywordCooldownSec: number
+  /** เวลาทำงาน (feature 00023 เฟส A) — "ALWAYS" | "WINDOW"; นาทีจากเที่ยงคืนเวลาไทย */
+  activeScheduleMode: string
+  activeStartMin: number | null
+  activeEndMin: number | null
+  activeDays: number
   maxRepliesPerConversation: number
   adsContextMode: string
   adsContextHours: number | null
@@ -40,6 +45,10 @@ export const DEFAULT_AUTO_REPLY_CONFIG: Omit<AutoReplyConfigView, 'pendingJobCou
   humanTakeoverPauseMode: '2H',
   keywordCooldownSec: 300,
   maxRepliesPerConversation: 10,
+  activeScheduleMode: 'ALWAYS',
+  activeStartMin: null,
+  activeEndMin: null,
+  activeDays: 127,
   adsContextMode: 'UNTIL_RESOLVED',
   adsContextHours: null,
   handoffPhrases: [],
@@ -50,6 +59,10 @@ const CONFIG_SELECT = {
   isEnabled: true,
   humanTakeoverPauseMode: true,
   keywordCooldownSec: true,
+  activeScheduleMode: true,
+  activeStartMin: true,
+  activeEndMin: true,
+  activeDays: true,
   maxRepliesPerConversation: true,
   adsContextMode: true,
   adsContextHours: true,
@@ -61,6 +74,11 @@ type ConfigRow = {
   isEnabled: boolean
   humanTakeoverPauseMode: string
   keywordCooldownSec: number
+  /** เวลาทำงาน (feature 00023 เฟส A) — "ALWAYS" | "WINDOW"; นาทีจากเที่ยงคืนเวลาไทย */
+  activeScheduleMode: string
+  activeStartMin: number | null
+  activeEndMin: number | null
+  activeDays: number
   maxRepliesPerConversation: number
   adsContextMode: string
   adsContextHours: number | null
@@ -76,6 +94,10 @@ function toConfigView(
     isEnabled: row.isEnabled,
     humanTakeoverPauseMode: row.humanTakeoverPauseMode,
     keywordCooldownSec: row.keywordCooldownSec,
+    activeScheduleMode: row.activeScheduleMode,
+    activeStartMin: row.activeStartMin,
+    activeEndMin: row.activeEndMin,
+    activeDays: row.activeDays,
     maxRepliesPerConversation: row.maxRepliesPerConversation,
     adsContextMode: row.adsContextMode,
     adsContextHours: row.adsContextHours,
@@ -121,6 +143,11 @@ export type AutoReplyConfigInput = {
   isEnabled: boolean
   humanTakeoverPauseMode: HumanTakeoverPauseMode
   keywordCooldownSec: number
+  /** เวลาทำงาน (feature 00023 เฟส A) — "ALWAYS" | "WINDOW"; นาทีจากเที่ยงคืนเวลาไทย */
+  activeScheduleMode: string
+  activeStartMin: number | null
+  activeEndMin: number | null
+  activeDays: number
   maxRepliesPerConversation: number
   adsContextMode: AdsContextMode
   adsContextHours: number | null
@@ -145,6 +172,10 @@ export async function upsertConfig(
     isEnabled: input.isEnabled,
     humanTakeoverPauseMode: input.humanTakeoverPauseMode,
     keywordCooldownSec: input.keywordCooldownSec,
+    activeScheduleMode: input.activeScheduleMode,
+    activeStartMin: input.activeStartMin,
+    activeEndMin: input.activeEndMin,
+    activeDays: input.activeDays,
     maxRepliesPerConversation: input.maxRepliesPerConversation,
     adsContextMode: input.adsContextMode,
     // adsContextHours ต้องเป็น null เสมอเมื่อไม่ใช่โหมด HOURS (TFR-027) — กันค่าที่ค้างจากโหมดก่อนหน้า

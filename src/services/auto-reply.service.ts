@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { isWithinSchedule } from '@/lib/auto-reply-schedule'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { getRuleSetCache, setRuleSetCache } from '@/lib/auto-reply-cache'
 import type { SkipReason } from '@/lib/auto-reply-constants'
@@ -300,6 +301,23 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         ...base,
         decision: 'SKIPPED',
         skipReason: 'KEYWORD_TEST_ONLY',
+        rawText,
+        normalizedText,
+        keywordId: matched.winner?.keywordId ?? null,
+      })
+    }
+
+    // gate 6.6 — เวลาทำงานของร้าน (user 2026-07-31: "ทำงานช่วง 18.00-9.00 แทน admin ตอนหลับ")
+    //
+    // WARNING: อยู่ **หลัง** gate 6.5 ทั้งที่เป็นการเช็คที่ถูกกว่ามาก เพราะต้องรู้ก่อนว่ากลุ่มที่ชนะ
+    // อยู่สถานะ TEST ไหม — ร้านที่ตั้งเวลาไว้ 18:00-09:00 แล้วมานั่งทดสอบตอนบ่าย จะเจอบอทเงียบ
+    // โดยไม่มีเหตุผลให้ดู ซึ่งเป็นบทเรียนเดียวกับ cooldown ที่แก้ไปเมื่อเช้าวันเดียวกัน
+    // ต้นทุนที่จ่ายเพิ่มคือการ match ในหน่วยความจำที่ทำไปแล้ว ไม่ใช่ query ใหม่
+    if (!isTestReply && !isWithinSchedule(config, new Date())) {
+      return finish(job, 'SKIPPED', {
+        ...base,
+        decision: 'SKIPPED',
+        skipReason: 'OUTSIDE_SCHEDULE',
         rawText,
         normalizedText,
         keywordId: matched.winner?.keywordId ?? null,
