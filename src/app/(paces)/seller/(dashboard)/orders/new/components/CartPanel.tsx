@@ -17,6 +17,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { useController, useWatch } from 'react-hook-form'
+// feature 00024 — SSOT ของการ format วันที่ (พ.ศ. + ชื่อวัน) ห้าม format เองที่ component
+import { formatWeekdayDateTH } from '@/lib/format-date'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import Select from '@/components/wrappers/Select'
@@ -68,6 +70,11 @@ interface Props {
    * เพราะแผงนี้ไม่ได้เกี่ยวกับตรรกะการจอง แค่ให้ที่ยืนกับมัน
    */
   appointmentBlock?: ReactNode
+  /**
+   * feature 00024 — วันที่ที่ปฏิทินคิวส่งมาทาง ?appointmentDate (รูปแบบ YYYY-MM-DD)
+   * มีค่า = ผู้ใช้ตั้งใจสร้างนัด → accordion ต้องกางเอง และโชว์วันที่บนหัวให้เห็นทันที
+   */
+  appointmentPrefilledDate?: string | null
 }
 
 export default function CartPanel({
@@ -79,6 +86,7 @@ export default function CartPanel({
   inventoryEnabled = false,
   setValue,
   appointmentBlock,
+  appointmentPrefilledDate,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -170,6 +178,19 @@ export default function CartPanel({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shippingHasError = !!(errors?.shippingAddress as any)
   const shippingOpen = openKey === 'shipping' || shippingHasError
+
+  /**
+   * feature 00024 — accordion วันเข้าใช้บริการต้อง "กางเอง" เมื่อมีวันที่ส่งมาจากปฏิทิน
+   *
+   * IMPORTANT: เนื้อใน accordion ไม่ได้แค่ถูกซ่อน แต่ **ไม่ถูก render เลย** (`&&` ข้างล่าง)
+   * ถ้าปล่อยให้พับ ผู้ใช้ที่กดวันในปฏิทินจะไม่เห็นว่ามีวันที่ถูกพามา แล้วกดบันทึกไป
+   * ได้ออเดอร์เปล่าที่ไม่มีนัดโดยไม่มี error อะไรเลย — ปฏิทินยังว่างเหมือนเดิม
+   * (เจอตอน QA 2026-07-31 หลัง commit 58e5b33b ย้ายบล็อกนี้เข้ามาในแผงขวา
+   *  ก่อนหน้านั้นบล็อกกางอยู่เสมอ ปัญหานี้จึงไม่เคยมี)
+   *
+   * ใช้ idiom เดียวกับ shippingOpen ด้านบน — "เปิดถ้าผู้ใช้กด หรือถ้ามีเหตุที่ต้องเห็น"
+   */
+  const appointmentOpen = openKey === 'appointment' || !!appointmentPrefilledDate
 
   const chevron = (active: boolean) => (
     <Icon icon="chevron-down" className={`ms-auto size-4 text-default-400 transition ${active ? 'rotate-180' : ''}`} />
@@ -368,15 +389,23 @@ export default function CartPanel({
 
       {/* ── accordion: วันเข้าใช้บริการ (feature 00024 — เฉพาะร้านที่เปิดคิวงาน) ──
            อยู่หลังที่อยู่จัดส่ง ก่อนหมายเหตุ ตาม Design Spec ส่วน C
-           ต้องอยู่ "ใน" แผงนี้ ไม่ใช่ลอยเหนือ grid — ไม่งั้นจะไปกินความสูงของ
-           lg:h-[calc(100vh-9.5rem)] จนแถบยอดรวม+ปุ่มบันทึกหลุดใต้จอ */}
+           ต้องอยู่ "ใน" แผงนี้ ไม่ใช่ลอยเหนือ grid — ไม่งั้นจะไปกินความสูงของ grid
+           ที่ถูกล็อกเท่าจอ จนแถบยอดรวม+ปุ่มบันทึกหลุดใต้จอ (ดู OrderCreateForm
+           HR7 exception: viewport-lock — Paces ไม่มี token สำหรับความสูงเท่า viewport) */}
       {appointmentBlock && (
         <div className="border-t border-default-200">
           <button type="button" onClick={() => toggle('appointment')} className={accBtn}>
             <Icon icon="calendar-event" className="size-4 text-default-400" /> วันเข้าใช้บริการ
-            {chevron(openKey === 'appointment')}
+            {/* วันที่ที่ปฏิทินพามาต้องอ่านได้โดยไม่ต้องกางก่อน — ใช้ชื่อวันด้วย
+                เพราะเจ้าของร้านคิดเป็น "ศุกร์นี้" ไม่ใช่ "5 ส.ค." */}
+            {appointmentPrefilledDate && (
+              <span className="badge bg-primary/15 text-primary">
+                {formatWeekdayDateTH(appointmentPrefilledDate)}
+              </span>
+            )}
+            {chevron(appointmentOpen)}
           </button>
-          {openKey === 'appointment' && appointmentBlock}
+          {appointmentOpen && appointmentBlock}
         </div>
       )}
 

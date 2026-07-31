@@ -449,13 +449,21 @@ export default function OrderCreateForm({
    *
    * IMPORTANT: เติมแค่ "วันที่" ไม่เลือกคิวงานให้ — ปฏิทินไม่รู้ว่าผู้ใช้ตั้งใจคิวงานไหน
    * และการเลือกให้เองจะทำให้ผู้ใช้เผลอบันทึกผิดคิวงานโดยไม่ทันสังเกต
+   *
+   * IMPORTANT: ค่านี้ต้องส่งต่อให้ CartPanel ด้วย ไม่ใช่แค่เขียนลงฟอร์ม —
+   * บนเดสก์ท็อปบล็อกนัดอยู่ใน accordion ที่ไม่ถูก render ตอนพับ ถ้าไม่บอกให้กางเอง
+   * ผู้ใช้จะไม่มีทางเห็นว่ามีวันที่ถูกพามา แล้วได้ออเดอร์เปล่าโดยไม่มี error
    */
+  const appointmentPrefilledDate = (() => {
+    const d = searchParams.get('appointmentDate')
+    return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null
+  })()
+
   useEffect(() => {
     if (!serviceResourcesEnabled) return
-    const d = searchParams.get('appointmentDate')
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setValue('appointment.date', d)
+    if (appointmentPrefilledDate) setValue('appointment.date', appointmentPrefilledDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, serviceResourcesEnabled])
+  }, [appointmentPrefilledDate, serviceResourcesEnabled])
 
   // ── ★ default channel/payment ที่ seller ตั้งไว้ (localStorage) → override ตอน mount (client-only) ──
   // key ตรงกับ ChannelPaymentSelect (DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY); ใส่ใน useForm defaultValues ไม่ได้ (SSR ไม่มี window)
@@ -782,6 +790,7 @@ export default function OrderCreateForm({
             inventoryEnabled={inventoryEnabled}
             setValue={setValue}
             appointmentBlock={renderAppointmentBlock('d', 'embedded')}
+            appointmentPrefilledDate={appointmentPrefilledDate}
           />
         </div>
       </div>

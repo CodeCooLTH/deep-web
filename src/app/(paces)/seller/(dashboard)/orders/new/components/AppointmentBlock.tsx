@@ -220,6 +220,19 @@ export default function AppointmentBlock({
 
   const fields = (
     <div className="flex flex-col gap-4">
+        {/* มีวันที่แล้วแต่ยังไม่เลือกคิวงาน = ออเดอร์นี้จะไม่มีนัดติดไป (BR-RSV-04)
+            เกิดบ่อยสุดตอนมาจากปฏิทิน ซึ่งส่งมาแค่วันที่ ไม่รู้ว่าผู้ใช้ตั้งใจคิวงานไหน
+            ต้องบอกให้รู้ ไม่ใช่ปล่อยให้บันทึกแล้วงงว่าทำไมปฏิทินยังว่าง
+            ตั้งใจไม่บล็อกการบันทึก — แค่บอกผลที่จะตามมา (pattern เดียวกับกล่องเตือนวันย้อนหลัง) */}
+        {value.date && !value.resourceId && (
+          <div className="bg-warning/10 border-warning/30 rounded-lg border p-3">
+            <p className="text-default-800 text-sm font-medium">ยังไม่ได้เลือกคิวงาน</p>
+            <p className="text-default-600 mt-1 text-sm">
+              เลือกคิวงานด้านล่างก่อน ไม่งั้นออเดอร์นี้จะถูกบันทึกเป็นออเดอร์ปกติที่ไม่มีวันนัด
+            </p>
+          </div>
+        )}
+
         {/* คิวงาน — field ที่ bind RHF ต้องเป็น form-select ไม่ใช่ hs-dropdown */}
         <div>
           <label htmlFor={`${idPrefix}-appt-resource`} className="form-label">รับนัดโดย</label>
