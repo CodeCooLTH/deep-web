@@ -238,8 +238,20 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
                     }`}
                   >
                     {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt={p.name} loading="lazy" className="aspect-square w-full object-cover" />
+                      // aspect-square ต้องอยู่ที่ "กรอบ" ไม่ใช่ที่ <img> — img เป็น replaced element ที่มี
+                      // intrinsic ratio ของตัวเอง สั่ง aspect-ratio ทับไม่ได้ผลแน่นอน และ object-cover
+                      // ไม่มีอะไรให้ครอปเพราะความสูงยัง auto → รูปสูงตามสัดส่วนจริงของแต่ละไฟล์
+                      // การ์ดจึงสูงไม่เท่ากัน (บั๊กเดียวกับแผงข้อความสำเร็จรูปที่ user รายงาน 2026-07-30
+                      // — ไฟล์นี้คัดลอกโครงมาจากกันจึงติดมาด้วย แก้พร้อมกันกันเจอซ้ำ)
+                      <span className="relative block aspect-square w-full overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={p.name}
+                          loading="lazy"
+                          className="absolute inset-0 size-full object-cover"
+                        />
+                      </span>
                     ) : (
                       <span className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-default-100 text-default-300">
                         <Icon icon="package" className="size-8" />

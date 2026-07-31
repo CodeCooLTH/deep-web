@@ -221,11 +221,14 @@ export default function RoomImages({ value, onChange }: RoomImagesProps) {
               {uploading.map((u) => (
                 <div
                   key={u.key}
-                  className="border-default-300 relative overflow-hidden rounded-lg border opacity-60"
+                  // aspect-square ย้ายมาที่กรอบ (div นี้ relative+overflow-hidden อยู่แล้ว) — เดิมอยู่ที่
+                  // <img> ซึ่งเป็น replaced element จึงคุม ratio ไม่ได้จริง (h-auto ยิ่งยืนยันว่าความสูง
+                  // มาจากสัดส่วนไฟล์) รูปแต่ละใบเลยสูงไม่เท่ากันในกริดเดียวกัน
+                  className="border-default-300 relative aspect-square overflow-hidden rounded-lg border opacity-60"
                 >
                   {/* blob: URL — next/image ไม่รองรับและจะ warn */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={u.previewUrl} alt={u.name} className="aspect-square h-auto w-full object-cover" />
+                  <img src={u.previewUrl} alt={u.name} className="absolute inset-0 size-full object-cover" />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                     <Icon icon="tabler:loader-2" className="size-6 animate-spin text-white" />
                   </div>

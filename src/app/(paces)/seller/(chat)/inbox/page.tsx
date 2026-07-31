@@ -103,11 +103,22 @@ export default async function SellerInboxPage() {
 
   // ── data fetch (try/catch แยกจาก JSX construction — react-hooks/error-boundaries) ──
   let items: ConversationListItem[] = []
+  // ร้านเชื่อม iShip แล้วหรือยัง — ใช้ซ่อนหัวข้อ "พัสดุ" ในตัวกรองสำหรับร้านที่ไม่ได้ใช้
+  // ถามจาก DB ที่นี่ (RSC) ไม่ต้องให้ client ยิง API เพิ่มอีกรอบ
+  const shippingAccount = await prisma.shopShippingAccount.findUnique({
+    where: { shopId: shop.id },
+    select: { status: true },
+  })
+  const hasShipping = shippingAccount?.status === 'ACTIVE'
+
   let nextCursor: string | null = null
   let loadFailed = false
 
   try {
-    const result = await listConversationsForShop(shop.id, { take: 20 })
+    // status ต้องตรงกับ DEFAULT_CHAT_FILTER ของ InboxList เสมอ — รายการที่เห็นตอนเข้าหน้า
+    // ครั้งแรกคือชุดนี้ (client ยังไม่ refetch จนกว่าตัวกรองจะเปลี่ยน) ถ้าไม่ตรงกันจะเกิดอาการ
+    // "เธรดที่ปิดงานแล้วหายไปตอนเข้าครั้งแรก แต่กดสลับแท็บไปกลับแล้วโผล่" (user report 2026-07-31)
+    const result = await listConversationsForShop(shop.id, { take: 20, status: 'all' })
 
     // B1 enrich — batch query identity คู่สนทนา (ดู comment หัวไฟล์)
     // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
@@ -222,6 +233,7 @@ export default async function SellerInboxPage() {
           initialNextCursor={nextCursor}
           channels={channels}
           initialGroups={groups}
+          hasShipping={hasShipping}
           shopId={shop.id}
           railMode
         />

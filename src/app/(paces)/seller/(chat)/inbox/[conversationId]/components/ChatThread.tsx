@@ -69,9 +69,11 @@
  * "กลับหน้าหลัก" ที่ ChatHeader.tsx — คนละปลายทาง: ปุ่มนี้ไป /inbox ไม่ใช่ /dashboard)
  */
 import Icon from '@/components/wrappers/Icon'
+import { pacesToast } from '@/lib/paces-toast'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
+import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
 import { generateInitials } from '@/utils/helpers'
 import { formatTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
@@ -142,6 +144,165 @@ function CopyMessageButton({ text }: { text: string }) {
         className={`size-4 transition-transform duration-200 ${copied ? 'scale-125' : 'scale-100'}`}
       />
     </button>
+  )
+}
+
+/**
+ * สติกเกอร์/อีโมจิเข้ามาเป็นข้อความชนิด IMAGE เหมือนรูปทั่วไป (ingest จัด attachment type
+ * 'sticker' เป็น 'IMAGE') และเราไม่ได้เก็บตัวแยกไว้ใน DB เลย — ปุ่มบันทึกจึงไปโผล่บนสติกเกอร์
+ * ด้วย ซึ่งไม่มีใครอยากบันทึก (user report 2026-07-31)
+ *
+ * แยกด้วยขนาดจริงของรูป: วัดจากเธรดจริงบน prod สติกเกอร์ = 100x100 ส่วนรูปที่ลูกค้าส่ง =
+ * 918–1254 px ช่องว่างกว้างพอให้ตัดที่ 240 ได้อย่างปลอดภัย
+ *
+ * เลือกวิธีนี้แทนการเพิ่มคอลัมน์ isSticker เพราะ (1) ใช้ได้กับข้อความเก่าที่มีอยู่แล้วทันที
+ * — คอลัมน์ใหม่ backfill ไม่ได้ เพราะไม่ได้เก็บ sticker_id ไว้ (2) ไม่ต้องแตะ schema ของ DB
+ * ที่ dev/prod ใช้ร่วมกัน. ถ้าวันหนึ่งอยากได้แม่นจริง ต้องเก็บ sticker_id ตั้งแต่ ingest
+ */
+const STICKER_MAX_PX = 240
+
+/**
+ * ปุ่มบันทึกไฟล์ใต้สื่อ (user สั่ง 2026-07-31: "อยากให้อยู่ใต้รูป หรือไฟล์นั้นๆ")
+ *
+ * วางใต้สื่อ ไม่ใช่ในกลุ่มปุ่ม hover ข้างบับเบิล เพราะกลุ่มนั้นเป็น desktop-only (lg:group-hover)
+ * — บนมือถือจะกดไม่ได้เลย ทั้งที่การบันทึกรูปจากมือถือคือเคสหลัก
+ *
+ * **มือถือใช้ Web Share API ไม่ใช่ `download`** (user สั่ง 2026-07-31: "กดบนมือถือให้บันทึก
+ * เข้า photos ตอนนี้มันเข้า download เอาไปใช้ต่อยาก") — `<a download>` บนมือถือลงโฟลเดอร์
+ * Files/Downloads เสมอ เว็บเขียนลงคลังรูปโดยตรงไม่ได้ ทางเดียวที่เข้า Photos/แกลเลอรีได้จริง
+ * คือเปิดชีตแชร์ของ OS ซึ่งมีเมนู "บันทึกรูปภาพ" อยู่
+ *
+ * desktop ยังใช้ `<a download>` ตามเดิม — เดสก์ท็อปบางตัวรองรับ share files ด้วย ถ้าปล่อยให้
+ * ใช้ share จะกลายเป็นเปิดหน้าต่างแชร์แทนที่จะบันทึกลงเครื่อง ซึ่งแย่กว่าเดิม จึงเช็ค
+ * pointer แบบ coarse (นิ้ว) ไม่ใช่แค่ว่ารองรับ API ไหม
+ */
+/**
+ * บันทึกไฟล์ลงเครื่อง — คืน true ถ้าจัดการเองแล้ว (แชร์สำเร็จ/ผู้ใช้ยกเลิก), false ถ้าให้ผู้เรียก
+ * ถอยไปใช้วิธีดาวน์โหลดปกติ ใช้ร่วมกันระหว่างปุ่มใต้สื่อกับปุ่มในหน้าดูรูปเต็มจอ
+ */
+async function shareToDevice(url: string, filename: string): Promise<boolean> {
+  const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  if (!isTouch || typeof navigator === 'undefined' || !navigator.canShare) return false
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return false
+    const blob = await res.blob()
+    const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' })
+    if (!navigator.canShare({ files: [file] })) return false
+    await navigator.share({ files: [file] })
+    return true
+  } catch (err) {
+    // ผู้ใช้กดยกเลิกชีตแชร์เอง = จบงานแล้ว ห้ามถอยไปดาวน์โหลดซ้ำให้งง
+    return (err as Error)?.name === 'AbortError'
+  }
+}
+
+function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์' }: { storageKey: string; label?: string }) {
+  const [busy, setBusy] = useState(false)
+  // เช็คใน effect ไม่ใช่ตอน render — ฝั่ง SSR ไม่มี window ถ้าอ่านตอน render จะ hydration mismatch
+  const [canSaveAs, setCanSaveAs] = useState(false)
+  useEffect(() => {
+    setCanSaveAs('showSaveFilePicker' in window)
+  }, [])
+  const url = `/api/files/${storageKey}`
+  // ชื่อไฟล์ = ส่วนท้ายของ storage key (กันเคสไม่มี '/' ด้วย fallback)
+  const filename = storageKey.split('/').filter(Boolean).pop() || 'attachment'
+
+  const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    if (!isTouch || typeof navigator === 'undefined' || !navigator.canShare) return // desktop → ปล่อย <a download> ทำงานตามปกติ
+    e.preventDefault()
+    setBusy(true)
+    try {
+      if (await shareToDevice(url, filename)) return
+      // แชร์ไม่ได้/โหลดไม่สำเร็จ → ถอยไปดาวน์โหลดแบบเดิม ดีกว่าเงียบไปเฉย ๆ
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * "บันทึกเป็น…" — กล่องเลือกที่เก็บ/ตั้งชื่อไฟล์ของ OS ผ่าน File System Access API
+   * (Chrome/Edge เดสก์ท็อปเท่านั้น; Safari/Firefox/มือถือไม่มี จึงไม่ render ปุ่มนี้)
+   *
+   * ต้องเรียก showSaveFilePicker ก่อน fetch — API ตระกูลนี้ต้องการ transient activation
+   * ถ้า await fetch ก่อนจะโดนปฏิเสธเพราะถือว่าไม่ได้มาจากการกดของผู้ใช้แล้ว
+   */
+  const handleSaveAs = async () => {
+    const picker = (window as unknown as { showSaveFilePicker?: (o: { suggestedName?: string }) => Promise<FileSystemFileHandle> })
+      .showSaveFilePicker
+    if (!picker) return
+    try {
+      const handle = await picker({ suggestedName: filename })
+      setBusy(true)
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`fetch ${res.status}`)
+      const blob = await res.blob()
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+    } catch (err) {
+      // ผู้ใช้กดยกเลิกกล่องเลือกที่เก็บ = ไม่ใช่ error
+      if ((err as Error)?.name === 'AbortError') return
+      pacesToast.chat.error('บันทึกไฟล์ไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className="mt-1 flex items-center gap-2">
+      <a
+        href={url}
+        download={filename}
+        onClick={handleClick}
+        aria-busy={busy}
+        className="text-default-500 hover:text-primary inline-flex items-center gap-1 text-2xs font-medium"
+      >
+        <Icon icon={busy ? 'loader-2' : 'download'} width={13} height={13} className={`shrink-0 ${busy ? 'animate-spin' : ''}`} />
+        {label}
+      </a>
+      {canSaveAs && (
+        <>
+          <span className="bg-default-300 h-3 w-px" aria-hidden="true" />
+          <button type="button" onClick={handleSaveAs} className="text-default-500 hover:text-primary text-2xs font-medium">
+            บันทึกเป็น…
+          </button>
+        </>
+      )}
+    </span>
+  )
+}
+
+/**
+ * รูปในเธรด — คลิกเปิดเต็มจอ + ปุ่มบันทึกใต้รูป (ซ่อนปุ่มถ้าเป็นสติกเกอร์ ดู STICKER_MAX_PX)
+ * วัดขนาดตอน onLoad เพราะขนาดจริงไม่ได้เก็บใน DB
+ */
+function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: () => void }) {
+  const [isSticker, setIsSticker] = useState(false)
+  return (
+    <>
+      {/* คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
+          ครอบแทนใส่ onClick บน <img> เพื่อให้โฟกัส/คีย์บอร์ด/screen reader ใช้ได้จริง
+          (block + w-fit กันปุ่มยืดเต็มความกว้างบับเบิลจนกดโดนที่ว่างข้างรูป) */}
+      <button type="button" onClick={onOpen} aria-label="ดูรูปเต็มจอ" className="block w-fit cursor-zoom-in">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/api/files/${storageKey}`}
+          alt="รูปภาพที่ส่ง"
+          className="max-w-60 rounded"
+          onLoad={(e) => {
+            const el = e.currentTarget
+            if (el.naturalWidth <= STICKER_MAX_PX && el.naturalHeight <= STICKER_MAX_PX) setIsSticker(true)
+          }}
+        />
+      </button>
+      {!isSticker && <MediaDownloadLink storageKey={storageKey} label="บันทึกรูป" />}
+    </>
   )
 }
 
@@ -650,12 +811,17 @@ export default function ChatThread({
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
   // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
-  const imageSlides: { src: string }[] = []
+  // download: ตั้งชื่อไฟล์ตอนบันทึกจาก storage key (ไม่งั้นได้ชื่อเป็น path ของ /api/files)
+  const imageSlides: { src: string; download: { url: string; filename: string } }[] = []
   const slideIndexByMessageId = new Map<string, number>()
   for (const m of messages) {
     if (m.type === 'IMAGE' && m.imageUrl) {
       slideIndexByMessageId.set(m.id, imageSlides.length)
-      imageSlides.push({ src: `/api/files/${m.imageUrl}` })
+      const url = `/api/files/${m.imageUrl}`
+      imageSlides.push({
+        src: url,
+        download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
+      })
     }
   }
 
@@ -1000,29 +1166,23 @@ export default function ChatThread({
                         ) : (
                           <>
                             {m.type === 'IMAGE' && m.imageUrl && (
-                              // คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
-                              // ครอบแทนใส่ onClick บน <img> เพื่อให้โฟกัส/คีย์บอร์ด/screen reader ใช้ได้จริง
-                              // (block + w-fit กันปุ่มยืดเต็มความกว้างบับเบิลจนกดโดนที่ว่างข้างรูป)
-                              <button
-                                type="button"
-                                onClick={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
-                                aria-label="ดูรูปเต็มจอ"
-                                className="block w-fit cursor-zoom-in"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={`/api/files/${m.imageUrl}`}
-                                  alt="รูปภาพที่ส่ง"
-                                  className="max-w-60 rounded"
-                                />
-                              </button>
+                              <ChatImageMessage
+                                storageKey={m.imageUrl}
+                                onOpen={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
+                              />
                             )}
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
-                              <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                              <>
+                                <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" />
+                              </>
                             )}
                             {m.type === 'AUDIO' && m.imageUrl && (
-                              <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                              <>
+                                <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" />
+                              </>
                             )}
                             {m.type === 'FILE' && m.imageUrl && (
                               <a
@@ -1035,6 +1195,7 @@ export default function ChatThread({
                                 เปิดไฟล์แนบ
                               </a>
                             )}
+                            {m.type === 'FILE' && m.imageUrl && <MediaDownloadLink storageKey={m.imageUrl} />}
                             {m.body && (
                               // whitespace-pre-wrap: คงการเว้นบรรทัด (\n) ที่ลูกค้า/เพจพิมพ์มา — ไม่งั้น
                               // เบราว์เซอร์ยุบเป็นช่องว่างเดียว เลข list/ย่อหน้าติดกันเป็นพรืดอ่านยาก
@@ -1425,8 +1586,26 @@ export default function ChatThread({
       index={lightboxIndex}
       close={() => setLightboxIndex(-1)}
       controller={{ closeOnBackdropClick: true }}
-      plugins={[Zoom]}
-      labels={{ Previous: 'รูปก่อนหน้า', Next: 'รูปถัดไป', Close: 'ปิด', 'Zoom in': 'ขยาย', 'Zoom out': 'ย่อ' }}
+      plugins={[Zoom, LightboxDownload]}
+      // มือถือ: ให้ปุ่มในหน้าดูรูปเต็มจอเข้าคลังรูปเหมือนปุ่มใต้รูป (ค่าเริ่มต้นของ plugin
+      // บันทึกลง Downloads ซึ่ง user บอกว่าเอาไปใช้ต่อยาก) — desktop คงพฤติกรรมเดิมของ plugin
+      download={{
+        download: async ({ slide, saveAs }) => {
+          const d = (slide as { download?: { url: string; filename: string } }).download
+          const url = d?.url ?? (slide.src as string)
+          const filename = d?.filename ?? 'image'
+          if (await shareToDevice(url, filename)) return
+          saveAs(url, filename)
+        },
+      }}
+      labels={{
+        Previous: 'รูปก่อนหน้า',
+        Next: 'รูปถัดไป',
+        Close: 'ปิด',
+        'Zoom in': 'ขยาย',
+        'Zoom out': 'ย่อ',
+        Download: 'บันทึกรูป',
+      }}
     />
     </>
   )

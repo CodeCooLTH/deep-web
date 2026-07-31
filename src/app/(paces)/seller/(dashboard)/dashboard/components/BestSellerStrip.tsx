@@ -53,8 +53,14 @@ export default function BestSellerStrip({ products }: Props) {
             className="w-24 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95"
           >
             {p.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.image} alt={p.name} className="aspect-square w-full object-cover" />
+              // aspect-square ต้องอยู่ที่กรอบ ไม่ใช่ที่ <img> — img เป็น replaced element ที่มี
+              // intrinsic ratio ของตัวเอง สั่ง aspect-ratio ทับไม่ได้ผล และ object-cover ไม่มีอะไร
+              // ให้ครอปเพราะความสูงยัง auto → รูปสูงตามสัดส่วนไฟล์ การ์ดในแถวจึงสูงไม่เท่ากัน
+              // (บั๊กเดียวกับแผงข้อความสำเร็จรูปที่ user รายงาน 2026-07-30)
+              <span className="relative block aspect-square w-full overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.image} alt={p.name} className="absolute inset-0 size-full object-cover" />
+              </span>
             ) : (
               <span className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-default-100 text-default-300">
                 <Icon icon="package" className="size-8" />

@@ -140,9 +140,14 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount }: Selle
     setOpen(false)
   }
 
-  // /orders = หน้า full-screen focused (มี back มุมซ้ายบน) → ซ่อน bottom nav (user req)
+  // /orders (list) = หน้า full-screen focused (มี back มุมซ้ายบน) → ซ่อน bottom nav (user req)
+  // /orders/<token> (order detail, S-7) = งานเดียวจบ พื้นที่แถบล่างเอาไปทำ action bar แทน
+  // → ซ่อนเฉพาะ path ที่มี segment เดียวหลัง /orders/ และไม่ใช่ 'new' (สร้างออเดอร์ต้องเห็น nav ปกติ)
+  // /orders/<token>/edit มี 2 segment ไม่ match regex นี้ → ยังเห็น nav ตามปกติ
   // วาง return null หลัง hooks ทั้งหมดเพื่อไม่ละเมิด rules of hooks
-  if (pathname === '/orders') {
+  const orderDetailMatch = pathname.match(/^\/orders\/([^/]+)$/)
+  const isOrderDetail = orderDetailMatch !== null && orderDetailMatch[1] !== 'new'
+  if (pathname === '/orders' || isOrderDetail) {
     return null
   }
 

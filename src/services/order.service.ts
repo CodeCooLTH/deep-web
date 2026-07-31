@@ -600,6 +600,57 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   });
 }
 
+// S-12 — seller พิมพ์เลขพัสดุผิดหลังกด "แจ้งจัดส่ง" แล้วแก้ไม่ได้ (shipOrder ใช้ไม่ได้ซ้ำ:
+// assertTransition(SHIPPED→SHIPPED) throw + shipmentTracking.orderId unique ทำให้ create ซ้ำไม่ได้)
+// ต้องยกเลิกทั้งใบเพื่อแก้เลขเดิม — updateShipmentTracking() คือ "update อย่างเดียว ไม่แตะ status"
+export class OrderNotShippedError extends Error {
+  constructor() { super("ORDER_NOT_SHIPPED"); this.name = "OrderNotShippedError"; }
+}
+export class ShipmentTrackingNotFoundError extends Error {
+  constructor() { super("SHIPMENT_TRACKING_NOT_FOUND"); this.name = "ShipmentTrackingNotFoundError"; }
+}
+// feature 00022 — เลขพัสดุที่มาจาก iShip เป็น system-generated (courier ยืนยันแล้ว) ห้าม
+// เขียนทับด้วยมือ; defensive แม้ UI จะซ่อนปุ่มแก้ไขไปแล้วสำหรับออเดอร์ที่มี OrderShipment ที่ active
+export class IShipManagedShipmentError extends Error {
+  constructor() { super("ISHIP_MANAGED_SHIPMENT"); this.name = "IShipManagedShipmentError"; }
+}
+
+/**
+ * updateShipmentTracking — แก้ไขเลขพัสดุ/ผู้ให้บริการ MANUAL (ShipmentTracking) หลัง SHIPPED แล้ว
+ * (S-12). ต่างจาก shipOrder(): ไม่เรียก assertTransition, ไม่แตะ order.status, ไม่ create แถวใหม่
+ * (update แถวเดิมที่ orderId unique อยู่แล้ว) — update-only เพื่อแก้พิมพ์ผิดโดยไม่ต้องยกเลิกทั้งใบ
+ *
+ * แยก MANUAL (ShipmentTracking, orderId unique, seller กรอกเอง) vs iShip (OrderShipment,
+ * orderId ไม่ unique — มีได้หลาย attempt, ระบบสร้าง/อัปเดตเอง) คนละ model กันเด็ดขาด:
+ * shipOrder()/updateShipmentTracking() เขียนเฉพาะ ShipmentTracking; iShip flow (create-shipment
+ * ฯลฯ) เขียนเฉพาะ OrderShipment — ไม่มีจุดไหนใน iShip flow เขียนลง ShipmentTracking (ดู comment
+ * ที่ getOrderByToken บรรทัด ~636) จึงเชื่อได้ว่า 2 model ไม่ทับกัน. ถ้าออเดอร์มี OrderShipment ที่
+ * ไม่ CANCELLED อยู่ (= ship ผ่าน iShip) กันการแก้ MANUAL ทับด้วย IShipManagedShipmentError
+ */
+export async function updateShipmentTracking(
+  publicToken: string,
+  data: { provider: string; trackingNo: string },
+) {
+  // scope ในคำสั่งเดียว (order + shipmentTracking + iShip shipments ที่ยัง active) แทนการ
+  // findUnique แล้วค่อย query เพิ่มทีหลัง — ownership ของ order ถูก route เช็คมาก่อนแล้ว (S-C7)
+  const order = await prisma.order.findFirst({
+    where: { publicToken },
+    include: {
+      shipmentTracking: true,
+      shipments: { where: { status: { not: "CANCELLED" } }, select: { id: true } },
+    },
+  });
+  if (!order) throw new Error("Order not found");
+  if (order.status !== "SHIPPED") throw new OrderNotShippedError();
+  if (!order.shipmentTracking) throw new ShipmentTrackingNotFoundError();
+  if (order.shipments.length > 0) throw new IShipManagedShipmentError();
+
+  return prisma.shipmentTracking.update({
+    where: { orderId: order.id },
+    data: { provider: data.provider, trackingNo: data.trackingNo },
+  });
+}
+
 export class CancelReasonRequiredError extends Error {
   constructor() { super("CANCEL_REASON_REQUIRED"); this.name = "CancelReasonRequiredError"; }
 }

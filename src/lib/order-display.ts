@@ -56,6 +56,54 @@ export function showSlipZone(
   return status === 'PENDING' && !isCODPayment(paymentMethod)
 }
 
+/**
+ * PaymentBadge — badge สถานะการชำระเงิน (แยกจาก ORDER_STATUS_META ที่เป็น badge สถานะออเดอร์)
+ * null = ไม่แสดง badge (วิธีชำระที่ไม่รู้จัก เช่น CASH/CARD/OTHER หรือ paymentMethod ว่าง)
+ */
+export type PaymentBadge = { label: string; cls: string } | null
+
+/**
+ * getPaymentBadge — derive badge การชำระเงินจากสถานะออเดอร์ + วิธีชำระ + สลิป
+ *
+ * ทำไม: ยกมาจาก local fn ใน PaymentCard.tsx (T5, contract กลางให้ task อื่น import ร่วม)
+ * ต่างจาก ORDER_STATUS_META (badge สถานะออเดอร์ 4 ค่า PENDING/SHIPPED/CONFIRMED/CANCELLED)
+ * ตัวนี้คือ badge ของ "การชำระเงิน" โดยเฉพาะ — ใบเดียวกันอาจมี badge สถานะออเดอร์ = SHIPPED
+ * แต่ badge การชำระเงิน = "ชำระแล้ว" คนละแกนกัน
+ *
+ * Verified-Means-Green: เขียว (bg-success) สงวนไว้เฉพาะ "ชำระแล้ว" จริง (status=CONFIRMED)
+ * เท่านั้น — "รอตรวจสอบสลิป"/"รอชำระ"/"รอเก็บปลายทาง" ต้องเป็น info/warning ห้ามเขียว
+ */
+export function getPaymentBadge(
+  status: string,
+  paymentMethod: string | null | undefined,
+  slipFileId: string | null | undefined,
+): PaymentBadge {
+  // T14 P1: text-{semantic} บน bg-{semantic}/15 ตกคอนทราสต์ AA (วัดจริง: warning 1.54:1 ฯลฯ)
+  // → ใช้ token "หมึก" คู่กัน (text-{semantic}-ink, src/assets/css/config/_root.css) ผ่าน ≥4.5:1
+  if (status === 'CONFIRMED') {
+    return { label: 'ชำระแล้ว', cls: 'badge bg-success/15 text-success-ink' }
+  }
+  if (status === 'CANCELLED') {
+    // default-400 บน default-100 = 2.3:1 (ไม่ผ่าน) → default-800 (~10.7:1)
+    return { label: 'ยกเลิก', cls: 'badge bg-default-100 text-default-800' }
+  }
+  if (isCODPayment(paymentMethod)) {
+    return { label: 'รอเก็บปลายทาง', cls: 'badge bg-info/15 text-info-ink' }
+  }
+  // TRANSFER / PROMPTPAY
+  if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
+    if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info-ink' }
+    // "รอชำระ" เป็นสถานะปกติของออเดอร์ที่เพิ่งสร้าง ไม่ใช่ความผิดพลาด — ห้ามใช้ danger (แดง)
+    // ทำให้ออเดอร์ใหม่ทุกใบขึ้นแดงตั้งแต่วินาทีแรก แดงเลยไม่เหลือความหมาย
+    return { label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning-ink' }
+  }
+  // T14 P4 fix: เดิม return null ตรงนี้ทำให้ badge หายทั้งหน้าเมื่อ paymentMethod เป็น free text
+  // จริงในฐาน (เช่น "พร้อมเพย์ 081-234-5678" ที่ seller กรอกเอง ไม่ตรง enum TRANSFER/PROMPTPAY/COD
+  // เป๊ะ ๆ) — คำถาม "ได้เงินหรือยัง" ต้องตอบได้เสมอ ใช้ warning (ไม่ใช่เขียว, Verified-Means-Green
+  // สงวนไว้ให้ status===CONFIRMED เท่านั้น) แทนการซ่อนข้อมูลไปเงียบ ๆ
+  return { label: 'ยังไม่ยืนยันการชำระ', cls: 'badge bg-warning/15 text-warning-ink' }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
@@ -77,10 +125,12 @@ export const ORDER_STATUS_META: Record<
   string,
   { label: string; cls: string; icon: string; tone: OrderStatusTone }
 > = {
-  PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning', icon: 'clock', tone: 'warning' },
-  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-info/15 text-info', icon: 'truck', tone: 'info' },
-  CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled', tone: 'success' },
-  CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger', icon: 'circle-x', tone: 'danger' },
+  // T14 P1: text-{semantic} บน bg-{semantic}/15 ตกคอนทราสต์ AA จริง (วัด: PENDING 1.54:1,
+  // SHIPPED 1.83:1, CONFIRMED 2.11:1, CANCELLED 2.68:1) → text-{semantic}-ink (≥4.5:1 ทุกตัว)
+  PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning-ink', icon: 'clock', tone: 'warning' },
+  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-info/15 text-info-ink', icon: 'truck', tone: 'info' },
+  CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled', tone: 'success' },
+  CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x', tone: 'danger' },
 }
 
 // Palette tokens ตาม spec §2 — ห้ามแก้ค่าสีที่นี่โดยไม่ sync กับ mockup

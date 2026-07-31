@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
+  buildOptionsSnapshot,
   findMissingReceiverFields,
   findMissingSenderFields,
   isValidCategoryId,
@@ -266,5 +267,38 @@ describe("isValidCategoryId", () => {
     expect(isValidCategoryId(99)).toBe(true);
     expect(isValidCategoryId(12)).toBe(false);
     expect(isValidCategoryId(-1)).toBe(false);
+  });
+});
+
+describe("buildOptionsSnapshot — หมายเหตุต้องไปถึงขนส่ง", () => {
+  const shop = {
+    optOnTime: true,
+    optBoxShield: false,
+    optIsInsured: false,
+    optProductValue: null,
+    optServiceType: null,
+    defaultRemark: "ระวังแตก",
+  };
+
+  it("เก็บหมายเหตุที่ร้านกรอกในฟอร์ม", () => {
+    const snap = buildOptionsSnapshot({ remark: "ห้ามโยน", options: {} }, shop);
+    expect(snap.remark).toBe("ห้ามโยน");
+  });
+
+  it("ร้านลบหมายเหตุทิ้ง = ไม่ส่งหมายเหตุ ไม่ใช่ย้อนไปใช้ค่าตั้งต้นของร้าน", () => {
+    expect(buildOptionsSnapshot({ options: {} }, shop).remark).toBeNull();
+    expect(buildOptionsSnapshot({ remark: "", options: {} }, shop).remark).toBe("");
+  });
+
+  it("งานที่ไม่มี override เลย (สร้างอัตโนมัติ) ใช้ค่าตั้งต้นของร้าน", () => {
+    const snap = buildOptionsSnapshot(undefined, shop);
+    expect(snap.remark).toBe("ระวังแตก");
+    expect(snap.onTime).toBe(true);
+  });
+
+  it("หมายเหตุที่เก็บไว้ต่อเข้า payload ได้จริง — กันหลุดแบบเดิมซ้ำ", () => {
+    const snap = buildOptionsSnapshot({ remark: " ห้ามโยน ", options: {} }, shop);
+    const payload = buildCreateOrderPayload({ ...baseInput, remark: snap.remark });
+    expect(payload.remark).toBe("ห้ามโยน");
   });
 });

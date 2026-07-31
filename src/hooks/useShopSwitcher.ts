@@ -5,8 +5,12 @@
  * AccountSwitcherSheet, SwitchShopButton) แทนที่ handleSwitch เดิมที่ก็อปมาซ้ำกัน 3 ที่
  *
  * เปลี่ยนพฤติกรรมจากเดิม (router.refresh()) เป็น: โชว์ full-screen overlay อย่างน้อย 3000ms
- * แล้ว hard-navigate ไปหน้า dashboard เสมอ (window.location.href) — บังคับทุกหน้าโหลดข้อมูล
- * server ใหม่ทั้งหมด แก้ปัญหาข้อมูลไม่รีเฟรชหลังสลับร้าน
+ * แล้ว hard-navigate (window.location.href) — บังคับทุกหน้าโหลดข้อมูล server ใหม่ทั้งหมด
+ * แก้ปัญหาข้อมูลไม่รีเฟรชหลังสลับร้าน
+ *
+ * ปลายทางเริ่มต้น = /dashboard (topbar/mobile-sheet/subscriptions ใช้ค่านี้) — caller ที่อยาก
+ * ให้กลับหน้าเดิมของตัวเอง (เช่น chat header อยากอยู่ที่ /inbox ให้แชทของร้านใหม่โหลดตาม) ส่ง
+ * landingPath ผ่าน option ได้ (feat chat shop-switcher 2026-07-30)
  *
  * Base logic: src/layouts/components/TopBar/components/UserDropdownDetailed.tsx handleSwitch (เดิม)
  */
@@ -27,11 +31,17 @@ export interface ShopSwitchTarget {
   logo?: string | null
 }
 
+interface UseShopSwitcherOptions {
+  // ปลายทาง hard-navigate หลังสลับสำเร็จ (default /dashboard) — chat ส่ง '/inbox'
+  landingPath?: string
+}
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
-export function useShopSwitcher() {
+export function useShopSwitcher(options?: UseShopSwitcherOptions) {
+  const landingPath = options?.landingPath ?? DASHBOARD_PATH
   const { update } = useSession()
   const [switching, setSwitching] = useState(false)
   const [target, setTarget] = useState<ShopSwitchTarget | undefined>(undefined)
@@ -82,9 +92,9 @@ export function useShopSwitcher() {
 
       // hard-navigate เสมอ (ไม่ใช่ router.refresh) — บังคับ server data ทุกหน้า re-render ใหม่หมด
       // ไม่ setSwitching(false) ตรงนี้ — ปล่อย overlay ค้างจน browser unload หน้านี้จริง
-      window.location.href = DASHBOARD_PATH
+      window.location.href = landingPath
     },
-    [update],
+    [update, landingPath],
   )
 
   return { switching, target, switchShop }
