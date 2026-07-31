@@ -251,7 +251,8 @@ export default function InboxList({
   // S-7 (ตัวกรองแชท): สถานะ/ผูกลูกค้า/ที่ซ่อน — init = default เดียวกับ SSR (status=open, hidden=false)
   const [filter, setFilter] = useState<ChatFilterState>(DEFAULT_CHAT_FILTER)
   // popover ตัวกรองเปิดได้ทีละตัว — state อยู่ที่นี่ (bug: เดิมสองตัวถือ state เอง เปิดพร้อมกันแล้วทับกัน)
-  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | null>(null)
+  const [openPanel, setOpenPanel] = useState<'filter' | 'page' | 'group' | null>(null)
+  const groupMenuRef = useRef<HTMLDivElement | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
   // feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) เฉพาะเธรดช่องทางนอก
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null)
@@ -321,6 +322,30 @@ export default function InboxList({
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
   }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.tags, filter.shipment, activeGroupId])
+
+  // ชื่อกลุ่มที่เลือกอยู่ — ปุ่มดรอปดาวน์ต้องบอกได้ว่ากรองอะไรอยู่โดยไม่ต้องกดเปิด
+  const activeGroupName = activeGroupId ? (groups.find((g) => g.id === activeGroupId)?.name ?? null) : null
+
+  // ปิดดรอปดาวน์กลุ่มเมื่อคลิกนอกเมนู/กด Escape
+  useEffect(() => {
+    if (openPanel !== 'group') return
+    const onPointerDown = (e: MouseEvent) => {
+      const el = groupMenuRef.current
+      // ไม่ปิดถ้าคลิกในตัวเมนูเอง หรือคลิกที่ปุ่มเปิด (ปุ่มมี toggle ของตัวเองอยู่แล้ว
+      // ถ้าปิดตรงนี้ด้วยจะกลายเป็นปิดแล้วเปิดใหม่ทันที = กดปุ่มปิดเมนูไม่ได้)
+      if (el?.contains(e.target as Node) || el?.parentElement?.contains(e.target as Node)) return
+      setOpenPanel((prev) => (prev === 'group' ? null : prev))
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenPanel((prev) => (prev === 'group' ? null : prev))
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [openPanel])
 
   // สลับ tab ช่องทาง — เมื่อกลับไป Deep ต้องล้างตัวกรองเพจไปด้วย (filter ไม่ apply กับ Deep)
   const handleChannelTabChange = (tab: ChannelTab) => {
@@ -762,58 +787,125 @@ export default function InboxList({
                 </button>
               )
             })}
-            {/* เส้นคั่นแยกมุมมองมาตรฐาน (ลบไม่ได้) ออกจากกลุ่มที่ร้านสร้างเอง */}
+            {/* กลุ่มที่ร้านสร้างเอง → ปุ่มดรอปดาวน์ ไม่ใช่แท็บเรียงยาว (user report 2026-07-31:
+                "custom group เยอะ ๆ แล้ว width ล้น UI เพี้ยน")
+                ต้นเหตุคือจำนวนกลุ่มไม่จำกัดแต่พื้นที่จำกัด — เรียงเป็นแท็บยังไงก็ล้นวันหนึ่ง
+                ปุ่มเดียว + ตัวเลขบอกจำนวน จึงกว้างคงที่เสมอไม่ว่าจะมีกี่กลุ่ม และบอกได้ด้วยว่ามีกี่อัน */}
             <span className="bg-default-300 mx-1 h-4 w-px shrink-0" aria-hidden="true" />
-            {groups.map((g) => (
+            <div className="relative shrink-0 pb-1.5">
               <button
-                key={g.id}
                 type="button"
-                role="tab"
-                aria-selected={activeGroupId === g.id}
-                onClick={() => selectGroupTab(g.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  handleDeleteGroup(g)
-                }}
-                title="คลิกขวาเพื่อลบกลุ่ม"
-                className={`-mb-px shrink-0 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
-                  activeGroupId === g.id
-                    ? 'border-primary text-primary font-semibold'
-                    : 'border-transparent text-default-600 font-medium'
+                aria-haspopup="menu"
+                aria-expanded={openPanel === 'group'}
+                onClick={() => setOpenPanel(openPanel === 'group' ? null : 'group')}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-nowrap ${
+                  activeGroupId ? 'bg-primary text-white font-semibold' : 'bg-light text-default-700 font-medium'
                 }`}
               >
-                {g.name}
+                <Icon icon="folder" width={14} height={14} className="shrink-0" />
+                {/* เลือกอยู่ → โชว์ชื่อกลุ่ม (ผู้ใช้ต้องรู้ว่ากำลังกรองอะไรอยู่โดยไม่ต้องเปิดดรอป)
+                    ไม่ได้เลือก → โชว์คำว่า "กลุ่ม" + จำนวนที่มี */}
+                {activeGroupName ? (
+                  <span className="max-w-28 truncate">{activeGroupName}</span>
+                ) : (
+                  <>
+                    กลุ่ม
+                    {groups.length > 0 && (
+                      <span className="badge bg-default-200 text-default-700 text-2xs rounded-full px-1.5">
+                        {groups.length}
+                      </span>
+                    )}
+                  </>
+                )}
+                <Icon icon={openPanel === 'group' ? 'chevron-up' : 'chevron-down'} width={12} height={12} />
               </button>
-            ))}
-            {addingGroup ? (
-              <input
-                autoFocus
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateGroup()
-                  else if (e.key === 'Escape') {
-                    setAddingGroup(false)
-                    setNewGroupName('')
-                  }
-                }}
-                onBlur={handleCreateGroup}
-                maxLength={40}
-                placeholder="ชื่อกลุ่ม"
-                aria-label="ชื่อกลุ่มใหม่"
-                className="text-default-800 w-28 shrink-0 rounded-full bg-light px-3 py-1.5 text-sm outline-none"
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAddingGroup(true)}
-                aria-label="เพิ่มกลุ่ม"
-                title="เพิ่มกลุ่ม"
-                className="text-default-600 flex size-8 shrink-0 items-center justify-center rounded-full bg-light"
-              >
-                <Icon icon="plus" width={16} height={16} />
-              </button>
-            )}
+
+              {openPanel === 'group' && (
+                <div
+                  ref={groupMenuRef}
+                  role="menu"
+                  className="border-default-300 bg-card absolute end-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={activeGroupId === null}
+                    onClick={() => {
+                      setActiveGroupId(null)
+                      setOpenPanel(null)
+                    }}
+                    className="dropdown-item text-sm"
+                  >
+                    <Icon icon="check" className={`size-4 ${activeGroupId === null ? 'text-primary' : 'opacity-0'}`} />
+                    ทุกกลุ่ม
+                  </button>
+
+                  {groups.map((g) => (
+                    // แถวเป็น div ไม่ใช่ button — มีปุ่มลบซ้อนอยู่ข้างใน (button ซ้อน button = invalid HTML)
+                    <div key={g.id} className="group/gi flex items-center">
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={activeGroupId === g.id}
+                        onClick={() => {
+                          selectGroupTab(g.id)
+                          setOpenPanel(null)
+                        }}
+                        className="dropdown-item min-w-0 flex-1 text-sm"
+                      >
+                        <Icon icon="check" className={`size-4 ${activeGroupId === g.id ? 'text-primary' : 'opacity-0'}`} />
+                        <span className="truncate">{g.name}</span>
+                      </button>
+                      {/* ลบกลุ่ม — ย้ายมาจาก "คลิกขวาที่แท็บ" ซึ่งค้นพบเองไม่ได้และใช้บนมือถือไม่ได้เลย */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGroup(g)}
+                        aria-label={`ลบกลุ่ม ${g.name}`}
+                        title="ลบกลุ่ม"
+                        className="text-default-400 hover:text-danger flex size-8 shrink-0 items-center justify-center"
+                      >
+                        <Icon icon="trash" width={14} height={14} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <hr className="dropdown-divider" />
+
+                  {addingGroup ? (
+                    <div className="px-2 py-1">
+                      <input
+                        autoFocus
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleCreateGroup()
+                          else if (e.key === 'Escape') {
+                            setAddingGroup(false)
+                            setNewGroupName('')
+                          }
+                        }}
+                        onBlur={handleCreateGroup}
+                        maxLength={40}
+                        placeholder="ชื่อกลุ่มใหม่"
+                        aria-label="ชื่อกลุ่มใหม่"
+                        // ไม่ใช้ .form-input ตรงนี้ — _forms.css ไม่ได้ห่อ @layer ทำให้ width utility
+                        // ไม่มีผลบน .form-input (บทเรียน feedback_paces_forms_css_gotchas) แล้วช่องจะล้นดรอปดาวน์
+                        className="text-default-800 bg-light w-full rounded-md px-3 py-1.5 text-sm outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAddingGroup(true)}
+                      className="dropdown-item text-primary text-sm"
+                    >
+                      <Icon icon="plus" className="size-4" />
+                      สร้างกลุ่มใหม่
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1041,6 +1133,12 @@ export default function InboxList({
                           e.stopPropagation()
                           router.push(`/inbox/${c.id}?panel=orders`)
                         }
+                        // "พิมพ์แล้ว" กับ "พิมพ์ N ครั้ง" บอกเรื่องเดียวกัน (user 2026-07-31) — รู้จำนวน
+                        // เมื่อไหร่ก็ใช้จำนวนไปเลย ได้ข้อมูลมากกว่าในพื้นที่เท่ากัน ไม่ต้องมี 2 ชิป
+                        const stageLabel =
+                          c.orderStage.key === 'LABEL_PRINTED' && c.orderStage.printCount
+                            ? `พิมพ์ ${c.orderStage.printCount} ครั้ง`
+                            : c.orderStage.label
                         return (
                           <span
                             role="link"
@@ -1049,27 +1147,14 @@ export default function InboxList({
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') openOrders(e)
                             }}
-                            aria-label={`คำสั่งซื้อล่าสุด: ${c.orderStage.label} — ดูรายการคำสั่งซื้อ`}
+                            aria-label={`คำสั่งซื้อล่าสุด: ${stageLabel} — ดูรายการคำสั่งซื้อ`}
                             className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
                           >
                             <Icon icon={c.orderStage.icon} width={13} height={13} className="shrink-0" />
-                            {c.orderStage.label}
+                            {stageLabel}
                           </span>
                         )
                       })()}
-                      {/* ป้ายเสริมจำนวนครั้งที่พิมพ์ (user request 2026-07-29) — มีเฉพาะขั้น "พิมพ์เอกสารแล้ว"
-                          แยกเป็นชิปที่สอง ไม่ต่อท้ายในชิปเดิม เพราะเป็นข้อมูลคนละชนิด (สถานะ vs จำนวน)
-                          และป้ายรวมกันจะยาวจนเบียดชิป ad_id/ชื่อกลุ่มบนจอแคบ. โทน default ไม่ใช่สีสถานะ —
-                          เป็นข้อมูลประกอบ ไม่ใช่สิ่งที่ต้องดึงสายตาแข่งกับสถานะ */}
-                      {c.orderStage?.printCount ? (
-                        <span
-                          className="badge bg-default-100 text-default-600 text-2xs mt-1 inline-flex w-fit shrink-0 items-center gap-1"
-                          title={`ใบปะหน้าถูกสั่งพิมพ์ ${c.orderStage.printCount} ครั้ง`}
-                        >
-                          <Icon icon="printer" width={12} height={12} className="shrink-0" />
-                          พิมพ์ {c.orderStage.printCount} ครั้ง
-                        </span>
-                      ) : null}
                     </span>
                   </div>
 
