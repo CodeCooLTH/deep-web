@@ -298,6 +298,33 @@ export function checkPrice(
   });
 }
 
+export interface IShipOrderRow {
+  track_no: string;
+  status: number;
+  status_name?: string;
+  status_desc?: string;
+  updated_at?: string;
+}
+
+/**
+ * รายการพัสดุของร้านในช่วงวันที่ — ใช้ sync สถานะทั้งร้านด้วยการยิงครั้งเดียว
+ *
+ * ทำไมไม่วน traces ทีละใบ: traces เป็นรายพัสดุ ร้านที่มีของเดินอยู่ 100 ใบ = 100 คำขอต่อรอบ
+ * ตัวนี้คืนทั้งชุดในคำขอเดียว (ยืนยันกับบัญชีจริง 2026-07-31: 108 แถว/คำขอ)
+ *
+ * ข้อจำกัดของ iShip: ช่วงวันที่ต้องไม่เกิน 7 วัน (เกินแล้วตอบ code 1009 ไม่ใช่ error กลาง ๆ)
+ * ผู้เรียกต้องซอยช่วงเอง — ที่นี่ไม่ซอยให้ เพราะการซอยคือการตัดสินใจเรื่องจำนวนคำขอ
+ */
+export function queryOrders(
+  token: string,
+  startDate: string,
+  endDate: string,
+): Promise<IShipOrderRow[]> {
+  return call<IShipOrderRow[]>(token, "/api/query_orders", {
+    query: `start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`,
+  });
+}
+
 /** ประวัติการเดินทางของพัสดุ */
 export async function getTraces(
   token: string,

@@ -1664,6 +1664,10 @@ model ShopShippingAccount {
   defaultRemark      String?
 
   lastVerifiedAt    DateTime? // ทดสอบ token ผ่านล่าสุดเมื่อไหร่
+  // statusSyncedAt: ดึงสถานะพัสดุยกชุดจาก iShip สำเร็จล่าสุดเมื่อไหร่ (feature 00022)
+  // เก็บใน DB ไม่ใช่หน่วยความจำ เพราะบน serverless แต่ละคำขออาจคนละ instance —
+  // ตัวจับเวลาในหน่วยความจำจะกลายเป็น "ยิงใหม่ทุกคำขอ" โดยไม่มีใครเห็นว่าเกิดขึ้น
+  statusSyncedAt    DateTime?
   lastVerifyError   String? // สาเหตุที่ทดสอบไม่ผ่านครั้งล่าสุด
   connectedByUserId String
   createdAt         DateTime  @default(now())

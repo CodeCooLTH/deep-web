@@ -606,6 +606,38 @@ export default function InboxList({
     void refreshSpamUnreadRef.current(true)
   }, [])
 
+  /**
+   * จำนวนเธรดที่พัสดุมีปัญหา (feature 00022) — นับทั้งร้าน ไม่ใช่นับจากแถวที่โหลดมา
+   * เพราะรายการเป็น cursor pagination ทีละ 20 เคสที่อยู่หน้าถัดไปจะหายจากตัวเลขทันที
+   * throttle 60 วิเหมือน spamUnread ด้วยเหตุผลเดียวกัน (list ถูกยิงทุก 20 วิและ mount 2 ตัว)
+   */
+  const [problemCount, setProblemCount] = useState(0)
+  const problemFetchedAt = useRef(0)
+  const refreshProblemCount = useCallback(
+    async (force = false) => {
+      if (!hasShipping) return
+      const now = Date.now()
+      if (!force && now - problemFetchedAt.current < 60_000) return
+      problemFetchedAt.current = now
+      try {
+        const res = await fetch('/api/chat/problem-count', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = (await res.json()) as { count?: number }
+        setProblemCount(typeof data.count === 'number' ? data.count : 0)
+      } catch {
+        // เงียบ — ชิปเป็นข้อมูลเสริม ดึงไม่ได้ก็แค่ไม่โผล่รอบนั้น
+      }
+    },
+    [hasShipping],
+  )
+  const refreshProblemCountRef = useRef(refreshProblemCount)
+  useEffect(() => {
+    refreshProblemCountRef.current = refreshProblemCount
+  })
+  useEffect(() => {
+    void refreshProblemCountRef.current(true)
+  }, [])
+
   const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
     refreshTimer.current = setTimeout(() => {
@@ -769,6 +801,37 @@ export default function InboxList({
             allTags={allTags}
             hasShipping={hasShipping}
           />
+
+          {/* ชิป "พัสดุมีปัญหา" (feature 00022) — ตัวเลขมีความหมายแม้ยังไม่ได้กรอง
+              (บอกว่ามีกี่เคสรอจัดการ) ต่างจากตัวกรองอื่นที่ซ่อนในดรอปดาวน์ได้
+              ซ่อนทั้งก้อนเมื่อไม่มีปัญหา — ชิปที่ขึ้น 0 คือปุ่มที่กดแล้วไม่มีอะไรให้ดู
+              soft ตอนปกติ / ทึบตอนกำลังกรอง: ระดับจัดจ้านสูงสุดเกิดเฉพาะตอนผู้ใช้เลือกเอง */}
+          {hasShipping && problemCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilter((f) => ({
+                  ...f,
+                  shipment: f.shipment === 'problem' ? 'all' : 'problem',
+                }))
+                void refreshProblemCountRef.current(true)
+              }}
+              aria-pressed={filter.shipment === 'problem'}
+              aria-label={
+                filter.shipment === 'problem'
+                  ? 'กำลังกรองเฉพาะพัสดุมีปัญหา — กดเพื่อดูทั้งหมด'
+                  : `กรองเฉพาะพัสดุมีปัญหา (${problemCount} บทสนทนา)`
+              }
+              className={`badge text-2xs inline-flex items-center gap-1 py-2 ${
+                filter.shipment === 'problem'
+                  ? 'bg-danger text-white'
+                  : 'bg-danger/15 text-danger'
+              }`}
+            >
+              <Icon icon="alert-triangle" width={12} height={12} />
+              พัสดุมีปัญหา {problemCount > 99 ? '99+' : problemCount}
+            </button>
+          )}
 
           {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
               ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก

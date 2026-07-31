@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
@@ -134,7 +135,7 @@ function customerLinkedWhere(mode: 'linked' | 'unlinked'): Prisma.ConversationWh
 }
 
 /** สถานะพัสดุของ "ออเดอร์ล่าสุด" ของลูกค้าในเธรดนั้น (feature 00018 — user สั่ง 2026-07-31) */
-export type ShipmentFilter = 'none' | 'unprinted' | 'printed'
+export type ShipmentFilter = 'none' | 'unprinted' | 'printed' | 'problem'
 
 /**
  * conversationIdsByShipmentState — id ของเธรดที่ออเดอร์ล่าสุดของลูกค้าอยู่ในสถานะพัสดุที่ระบุ
@@ -159,10 +160,11 @@ export async function conversationIdsByShipmentState(
       SELECT DISTINCT ON (o."customerId")
         o."customerId" AS "customerId",
         s."id"             AS "shipmentId",
-        s."labelPrintedAt" AS "labelPrintedAt"
+        s."labelPrintedAt" AS "labelPrintedAt",
+        s."carrierStatus"  AS "carrierStatus"
       FROM "Order" o
       LEFT JOIN LATERAL (
-        SELECT sh."id", sh."labelPrintedAt"
+        SELECT sh."id", sh."labelPrintedAt", sh."carrierStatus"
         FROM "OrderShipment" sh
         WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
         ORDER BY sh."createdAt" DESC
@@ -182,7 +184,11 @@ export async function conversationIdsByShipmentState(
           ? Prisma.sql`l."shipmentId" IS NULL`
           : state === 'unprinted'
             ? Prisma.sql`l."shipmentId" IS NOT NULL AND l."labelPrintedAt" IS NULL`
-            : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
+            : // ใช้รายชื่อสถานะชุดเดียวกับป้ายในแถว — ถ้านิยาม "มีปัญหา" สองที่ไม่ตรงกัน
+              // ตัวกรองจะกรองแล้วได้ผลไม่ตรงกับที่ตาเห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
+              state === 'problem'
+              ? Prisma.sql`l."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])`
+              : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
       }
   `
   return rows.map((r) => r.id)

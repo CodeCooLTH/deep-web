@@ -753,7 +753,7 @@ export const ChatConversationsQuerySchema = v.object({
   // user สั่ง 2026-07-31 — กรองด้วยแท็กผู้ติดต่อ (ติดอันใดก็ได้) cap 20 กันยิง payload ยาวผิดปกติ
   tags: v.optional(v.pipe(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(40))), v.maxLength(20))),
   // user สั่ง 2026-07-31 — สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip)
-  shipment: v.optional(v.picklist(['none', 'unprinted', 'printed'])),
+  shipment: v.optional(v.picklist(['none', 'unprinted', 'printed', 'problem'])),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership

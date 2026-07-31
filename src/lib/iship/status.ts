@@ -194,3 +194,57 @@ export function describeProgress(
     notice: code ? NOTICE_OF[code] : undefined,
   };
 }
+
+// ─── รหัสตัวเลขจาก query_orders ────────────────────────────────────────────
+
+/**
+ * id ตัวเลข → status_code ที่เราเก็บใน OrderShipment.carrierStatus
+ *
+ * query_orders (endpoint แบบยกชุด) คืน status เป็นตัวเลข ส่วน traces/webhook คืนเป็น
+ * status_code ตัวหนังสือ — ต้องแปลงให้เป็นชุดเดียวกันก่อนเขียนลงฐานข้อมูล ไม่งั้นจะมี
+ * carrierStatus สองภาษาปนกันในคอลัมน์เดียว แล้ว UI ที่แมปด้วย status_code จะอ่านไม่ออก
+ *
+ * ที่มา: GET /api/order_statuses ของบัญชีจริง (2026-07-31) — id 99 = ปิดงาน
+ */
+const STATUS_ID_TO_CODE: Record<number, string> = {
+  1: "order_success",
+  2: "picked_up",
+  3: "delivered",
+  4: "issue",
+  5: "cancelled",
+  6: "progress",
+  7: "cannot_pickup",
+  8: "no_courier",
+  9: "with_branch",
+  10: "return",
+  11: "return_success",
+  12: "payment_success",
+  13: "in_transit",
+  14: "cod_refund",
+  15: "is_expired",
+  99: "close",
+};
+
+export function carrierStatusCodeFromId(id: number | null | undefined): string | null {
+  if (id == null) return null;
+  return STATUS_ID_TO_CODE[id] ?? null;
+}
+
+/**
+ * สถานะที่ร้านต้องรู้ทันที — ของไม่ได้เดินหน้าตามปกติและมีคนต้องลงมือทำอะไรสักอย่าง
+ *
+ * แยกออกมาเป็นชุดเดียวใช้ร่วมกันทั้งป้ายในรายการแชทและตัวกรอง เพื่อไม่ให้สองที่นิยาม
+ * คำว่า "มีปัญหา" ไม่ตรงกัน (ซึ่งจะทำให้ตัวกรองกรองแล้วได้ผลไม่ตรงกับป้ายที่เห็น)
+ */
+export const PROBLEM_CARRIER_STATUSES = [
+  "issue",
+  "cannot_pickup",
+  "return",
+  "is_expired",
+  "cod_refund",
+] as const;
+
+export function isProblemCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return (PROBLEM_CARRIER_STATUSES as readonly string[]).includes(code);
+}

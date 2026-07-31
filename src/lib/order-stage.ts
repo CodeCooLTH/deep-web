@@ -14,7 +14,10 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
+import { isProblemCarrierStatus } from './iship/status'
+
 export type OrderStageKey =
+  | 'PARCEL_PROBLEM'
   | 'ORDERED'
   | 'PARCEL_CREATED'
   | 'LABEL_PRINTED'
@@ -36,6 +39,9 @@ export type OrderStageKey =
  * token มี override ฝั่ง [data-theme="dark"] แล้ว (วัดแล้วเช่นกัน ต่ำสุด 7.19:1) จึงไม่พังตอนเปิด dark mode
  */
 export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: string; icon: string }> = {
+  // พัสดุไม่ได้เดินหน้าตามปกติและมีคนต้องลงมือทำอะไร — ขั้นเดียวที่ "แย่งความสนใจ" ได้
+  // ป้ายบอกแค่ว่ามีปัญหา ไม่แยกคำต่อสถานะ เพราะ rail แชทแคบและร้านต้องเปิดดูรายละเอียดอยู่ดี
+  PARCEL_PROBLEM: { label: 'พัสดุมีปัญหา', cls: 'bg-danger/15 text-danger', icon: 'alert-triangle' },
   ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'shopping-cart' },
   PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'package' },
   LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'printer' },
@@ -53,6 +59,13 @@ export const CANCELLED_VISIBLE_MS = 1 * DAY_MS
 
 /** carrierStatus ที่ถือว่า "ของอยู่ระหว่างทาง" — ชุดเดียวกับ isInTransit ใน src/lib/iship/status.ts */
 const IN_TRANSIT = ['picked_up', 'with_branch', 'in_transit', 'progress']
+
+/**
+ * สถานะที่ร้านต้องรู้ทันที — นิยามเดียวกับ PROBLEM_CARRIER_STATUSES ใน lib/iship/status.ts
+ *
+ * import มาใช้แทนการเขียนซ้ำ เพราะถ้าสองที่นิยาม "มีปัญหา" ไม่ตรงกัน ตัวกรองจะกรองแล้วได้ผล
+ * ไม่ตรงกับป้ายที่เห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
+ */
 
 export interface OrderStageInput {
   status: string
@@ -116,7 +129,13 @@ export function deriveOrderStage(
     key = 'CANCELLED'
   } else if (hasShipment) {
     // สายพัสดุ — ขนส่งคือคนเดียวที่รู้จริงว่าของอยู่ไหน
-    if (order.carrierStatus === 'delivered') {
+    //
+    // ปัญหามาก่อนทุกอย่างและไม่มีวันหมดอายุ: ก่อนหน้านี้ issue/return/cannot_pickup/
+    // is_expired/cod_refund ตกลงไปเป็น "สร้างพัสดุแล้ว" ทั้งหมด — เคสที่ต้องเห็นด่วนที่สุด
+    // กลับกลืนหายไปกับพัสดุปกติ (user report 2026-07-31)
+    if (isProblemCarrierStatus(order.carrierStatus)) {
+      key = 'PARCEL_PROBLEM'
+    } else if (order.carrierStatus === 'delivered') {
       if (age > DELIVERED_VISIBLE_MS) return null
       key = 'DELIVERED'
     } else if (

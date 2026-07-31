@@ -59,6 +59,9 @@ export default function ChatRail({ shopId }: Props) {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [channels, setChannels] = useState<ChannelFilterOption[]>([])
   const [groups, setGroups] = useState<ChatGroupTab[]>([])
+  // ร้านเชื่อม iShip แล้วหรือยัง — หน้า /inbox อ่านจาก DB ตอน RSC ได้ แต่ rail เป็น client ล้วน
+  // ถ้าไม่ถาม ตัวกรองพัสดุและชิป "พัสดุมีปัญหา" จะไม่มีวันโผล่บน rail เลยแม้ร้านจะเชื่อมแล้ว
+  const [hasShipping, setHasShipping] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -96,6 +99,18 @@ export default function ChatRail({ shopId }: Props) {
           console.error('[ChatRail] load groups failed', e)
         }
 
+        // non-fatal เหมือน channels/groups — ตัวกรองหายไปดีกว่ารายการแชทล่ม
+        let shippingActive = false
+        try {
+          const shippingRes = await fetch('/api/seller/iship/connection', { cache: 'no-store' })
+          if (shippingRes.ok) {
+            const shippingData = (await shippingRes.json()) as { status?: string | null }
+            shippingActive = shippingData.status === 'ACTIVE'
+          }
+        } catch (e) {
+          console.error('[ChatRail] load shipping status failed', e)
+        }
+
         const conversationsRes = await fetch('/api/chat/conversations?take=20')
         if (!conversationsRes.ok) throw new Error('load conversations failed')
         const conversationsData: ConversationsApiResponse = await conversationsRes.json()
@@ -103,6 +118,7 @@ export default function ChatRail({ shopId }: Props) {
         if (cancelled) return
         setChannels(channelOptions)
         setGroups(groupOptions)
+        setHasShipping(shippingActive)
         setItems(conversationsData.items)
         setNextCursor(conversationsData.nextCursor)
       } catch (e) {
@@ -143,7 +159,7 @@ export default function ChatRail({ shopId }: Props) {
           />
         </div>
       ) : (
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} railMode />
+        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} hasShipping={hasShipping} railMode />
       )}
     </SimpleBar>
   )
