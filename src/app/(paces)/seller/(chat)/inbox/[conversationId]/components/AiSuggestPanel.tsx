@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import Swal from 'sweetalert2'
-import { formatUsd, type UsageCost } from '@/lib/ai-pricing'
+import { formatTokensCompact, type UsageCost } from '@/lib/ai-pricing'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 
@@ -212,6 +212,19 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
           {!quota?.isPaidPlan && typeof quota?.freeRemaining === 'number' && quota.freeRemaining > 0 && (
             <span className="text-default-400 text-xs">เหลือฟรีวันนี้ {quota.freeRemaining}/10</span>
           )}
+          {/* ต้นทุนจริงของรอบล่าสุด (user 2026-07-31 — ย้ายจาก footer มาไว้ข้างปุ่ม refresh)
+              อยู่หัวแผงเพราะเป็นตัวเลขที่ร้านต้องเห็นสะสมจนคาดเดาค่าใช้จ่ายรายเดือนได้เอง
+              ไม่ใช่หมายเหตุท้ายแผงที่สายตาข้ามไป */}
+          {cost && (
+            <span
+              className="bg-default-100 text-default-600 rounded-full px-2 py-0.5 text-2xs tabular-nums whitespace-nowrap"
+              title={`${cost.model} · เข้า ${cost.inputTokens.toLocaleString()} token · ออก ${cost.outputTokens.toLocaleString()} token${cost.isEstimate ? ' · ไม่มีเรตของรุ่นนี้ ใช้เรตสูงสุดแทน (ค่าจริงถูกกว่านี้)' : ''}`}
+            >
+              {formatTokensCompact(cost.inputTokens + cost.outputTokens)} Token,{' '}
+              {cost.isEstimate ? '≤' : ''}
+              {cost.costUsd.toFixed(4)} USD
+            </span>
+          )}
           <div className="flex items-center gap-1">
             {showRefreshButton && (
               <button
@@ -297,20 +310,8 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
       </div>
 
       {/* footer disclaimer — ไม่มีเส้นคั่นในตัว (ดูเหตุผลที่ header) */}
-      <div className="text-default-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-1.5 text-2xs">
-        <span>AI สร้างคำแนะนำ — ตรวจทานก่อนส่งทุกครั้ง</span>
-        {/* ต้นทุนจริงของรอบนี้ (user 2026-07-31) — แสดงเสมอเมื่อมีค่า ไม่ซ่อนหลังการกดใด ๆ
-            เพราะจุดประสงค์คือให้ร้านเห็นสะสมจนคาดเดาได้เองว่าเดือนหนึ่งจะเท่าไหร่ */}
-        {cost && (
-          <span
-            className="text-default-500 tabular-nums"
-            title={`${cost.model} · เข้า ${cost.inputTokens.toLocaleString()} token · ออก ${cost.outputTokens.toLocaleString()} token (รวม token ที่ใช้คิด)${cost.isEstimate ? ' · ไม่มีเรตของรุ่นนี้ ใช้เรตสูงสุดแทน' : ''}`}
-          >
-            · รอบนี้ {(cost.inputTokens + cost.outputTokens).toLocaleString()} token{' '}
-            {cost.isEstimate ? '≤ ' : ''}
-            {formatUsd(cost.costUsd)}
-          </span>
-        )}
+      <div className="text-default-400 pt-1.5 text-2xs">
+        AI สร้างคำแนะนำ — ตรวจทานก่อนส่งทุกครั้ง
       </div>
     </div>
   )
