@@ -392,14 +392,10 @@ export default function QuickMessageManager({
               showListPane ? 'flex' : 'hidden'
             }`}
           >
-            {/* toolbar — ซ่อนตอนโหมดจัดลำดับ (แสดง hint แทน) */}
-            {sortMode ? (
-              <p className="text-primary bg-primary/5 border-default-200 mb-0 flex items-center gap-1.5 border-b px-4 py-2.5 text-2xs">
-                <Icon icon="info-circle" className="text-sm" />
-                กดลูกศรเพื่อสลับลำดับ (ลากได้บนคอมพิวเตอร์) — บันทึกอัตโนมัติ
-              </p>
-            ) : (
-              <div className="border-default-200 flex flex-col gap-2 border-b p-4">
+            {/* toolbar — โหมดจัดลำดับซ่อนค้นหา/กรอง เหลือแค่ปุ่ม toggle ซึ่งเป็นทางออกจากโหมดด้วย
+                (ไม่มีแถบ hint และไม่มีปุ่ม "เสร็จสิ้น" ท้ายลิสต์ — user สั่งให้ minimal 2026-07-31) */}
+            <div className="border-default-200 flex flex-col gap-2 border-b p-4">
+              {!sortMode && (
                 <div className="input-icon-group">
                   <Icon icon="search" className="input-icon" />
                   <input
@@ -411,36 +407,37 @@ export default function QuickMessageManager({
                     className="form-input"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
-                  {categories.length > 0 && (
-                    <FilterDropdown
-                      icon="tag"
-                      value={categoryFilter}
-                      onChange={setCategoryFilter}
-                      defaultLabel="หมวด"
-                      resetValue={CATEGORY_ALL}
-                      options={[
-                        { value: CATEGORY_ALL, label: 'ทุกหมวด' },
-                        ...categories.map((c) => ({ value: c, label: c })),
-                      ]}
-                    />
-                  )}
-                  <div className="grow" />
-                  {localItems.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setSortMode(true)}
-                      className="btn bg-light text-dark text-nowrap"
-                      aria-label="จัดลำดับข้อความสำเร็จรูป"
-                    >
-                      <Icon icon="arrows-sort" className="text-base" />
-                      <span className="lg:sr-only">จัดลำดับ</span>
-                    </button>
-                  )}
-                </div>
+              )}
+              <div className="flex items-center gap-2">
+                {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
+                {!sortMode && categories.length > 0 && (
+                  <FilterDropdown
+                    icon="tag"
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    defaultLabel="หมวด"
+                    resetValue={CATEGORY_ALL}
+                    options={[
+                      { value: CATEGORY_ALL, label: 'ทุกหมวด' },
+                      ...categories.map((c) => ({ value: c, label: c })),
+                    ]}
+                  />
+                )}
+                <div className="grow" />
+                {localItems.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSortMode((s) => !s)}
+                    aria-pressed={sortMode}
+                    className={`btn text-nowrap ${sortMode ? 'bg-primary text-white' : 'bg-light text-dark'}`}
+                    aria-label={sortMode ? 'เสร็จสิ้นการจัดลำดับ' : 'จัดลำดับข้อความสำเร็จรูป'}
+                  >
+                    <Icon icon={sortMode ? 'check' : 'arrows-sort'} className="text-base" />
+                    <span className="lg:sr-only">{sortMode ? 'เสร็จสิ้น' : 'จัดลำดับ'}</span>
+                  </button>
+                )}
               </div>
-            )}
+            </div>
 
             {/* รายการ / สถานะพิเศษ */}
             <div className="min-h-0 grow overflow-y-auto p-4">
@@ -497,12 +494,16 @@ export default function QuickMessageManager({
                   </button>
                 </div>
               ) : sortMode ? (
-                /* ── โหมดจัดลำดับ: ปุ่มลูกศรเป็นกลไกหลัก (ใช้ได้ทุกอุปกรณ์), drag เป็นของแถม ── */
+                /* ── โหมดจัดลำดับ: แถวเรียบ ๆ ลากอย่างเดียว (user สั่ง 2026-07-31 ให้ตัดปุ่มลูกศรออก)
+                     จุดจับ = ไอคอน grip; touch ต้องทำเอง เพราะ HTML5 draggable ไม่ยิง event บนจอสัมผัส
+                     คีย์บอร์ดยังเรียงได้ด้วยลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (ไม่มีปุ่มให้เห็นแต่ยังใช้ได้) */
                 <ul className="flex flex-col gap-2">
                   {visibleItems.map((qm, index) => (
                     <li
                       key={qm.id}
+                      data-sort-index={index}
                       draggable
+                      tabIndex={0}
                       onDragStart={() => {
                         dragFrom.current = index
                       }}
@@ -518,35 +519,46 @@ export default function QuickMessageManager({
                         setDragOver(null)
                         if (from != null) move(from, index)
                       }}
-                      className={`flex items-center gap-2 rounded-lg border p-2 ${
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                          e.preventDefault()
+                          move(index, index + (e.key === 'ArrowUp' ? -1 : 1))
+                        }
+                      }}
+                      aria-label={`${qm.title} — ลำดับที่ ${index + 1} จาก ${visibleItems.length}`}
+                      className={`flex cursor-grab items-center gap-3 rounded-lg border p-3 active:cursor-grabbing ${
                         dragOver === index ? 'border-primary bg-primary/5' : 'border-default-200'
                       }`}
                     >
-                      <span className="text-default-400 w-5 shrink-0 text-center text-2xs font-semibold">
-                        {index + 1}
-                      </span>
-                      <div className="flex shrink-0 gap-1">
-                        <button
-                          type="button"
-                          onClick={() => move(index, index - 1)}
-                          disabled={index === 0}
-                          className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
-                          aria-label={`ย้าย "${qm.title}" ขึ้น`}
-                        >
-                          <Icon icon="chevron-up" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => move(index, index + 1)}
-                          disabled={index === visibleItems.length - 1}
-                          className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
-                          aria-label={`ย้าย "${qm.title}" ลง`}
-                        >
-                          <Icon icon="chevron-down" />
-                        </button>
-                      </div>
+                      <span className="text-default-400 w-4 shrink-0 text-2xs font-semibold">{index + 1}</span>
                       <span className="text-default-800 min-w-0 grow truncate text-sm font-medium">{qm.title}</span>
-                      <Icon icon="grip-vertical" className="text-default-300 shrink-0 text-base" />
+                      {/* touch-none บนจุดจับเท่านั้น — ถ้าใส่ทั้งแถวจะเลื่อนลิสต์ด้วยนิ้วไม่ได้ */}
+                      <span
+                        onTouchStart={() => {
+                          dragFrom.current = index
+                          setDragOver(index)
+                        }}
+                        onTouchMove={(e) => {
+                          if (dragFrom.current == null) return
+                          const t = e.touches[0]
+                          const row = document
+                            .elementFromPoint(t.clientX, t.clientY)
+                            ?.closest('[data-sort-index]')
+                          const to = row ? Number(row.getAttribute('data-sort-index')) : NaN
+                          if (!Number.isNaN(to)) setDragOver(to)
+                        }}
+                        onTouchEnd={() => {
+                          const from = dragFrom.current
+                          dragFrom.current = null
+                          const to = dragOver
+                          setDragOver(null)
+                          if (from != null && to != null) move(from, to)
+                        }}
+                        className="text-default-400 shrink-0 touch-none p-1"
+                        aria-hidden="true"
+                      >
+                        <Icon icon="grip-vertical" className="text-base" />
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -629,16 +641,9 @@ export default function QuickMessageManager({
                     แสดง {visibleItems.length} จาก {localItems.length} รายการ
                   </p>
                 )}
-                <div className={`card-footer ${sortMode ? '' : 'lg:hidden'}`}>
-                  {sortMode ? (
-                    <button
-                      type="button"
-                      onClick={() => setSortMode(false)}
-                      className="btn bg-primary hover:bg-primary-hover min-h-11 w-full text-white"
-                    >
-                      <Icon icon="check" className="me-1" /> เสร็จสิ้น
-                    </button>
-                  ) : (
+                {/* โหมดจัดลำดับไม่มีปุ่มท้ายลิสต์ — ออกจากโหมดด้วยปุ่ม toggle บน toolbar (user สั่ง minimal) */}
+                {!sortMode && (
+                  <div className="card-footer lg:hidden">
                     <button
                       type="button"
                       onClick={startAdd}
@@ -646,8 +651,8 @@ export default function QuickMessageManager({
                     >
                       <Icon icon="plus" className="me-1" /> เพิ่มข้อความ
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </>
             )}
           </div>

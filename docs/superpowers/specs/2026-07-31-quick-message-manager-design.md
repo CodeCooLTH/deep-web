@@ -56,9 +56,19 @@ Parent: `QuickMessageBar.tsx` (335 บรรทัด)
 
 ### ผลตัดสินจาก user (2026-07-31)
 
-1. **ยกจัดลำดับเข้ามาในโมดัลด้วย** โดยใช้ **ปุ่มลูกศรขึ้น/ลง 44px เป็นกลไกหลัก** + drag เป็นของแถมบน desktop
-   เหตุผล: `bar` ใช้ HTML5 `draggable` ซึ่งไม่รองรับ touch — บนมือถือจึงลากไม่ได้จริง ปุ่มลูกศรกดได้ทุกอุปกรณ์ และเป็น reorder-by-button pattern มาตรฐาน ไม่ใช่การประดิษฐ์ affordance ใหม่ ใช้ API เดิม `PATCH {orderedIds}` ไม่มี backend เพิ่ม
+1. **ยกจัดลำดับเข้ามาในโมดัลด้วย** ใช้ API เดิม `PATCH {orderedIds}` ไม่มี backend เพิ่ม
 2. **แก้บั๊ก `bar:51-53` (fetch ล้มเหลวเงียบ) ไปพร้อมกัน** — เพิ่ม error state + ปุ่มลองใหม่ แยกจาก empty state จริง
+
+### แก้ทิศทางรอบ 2 หลัง user เห็นของจริงบน prod (2026-07-31)
+
+| เดิม (v1) | ใหม่ (v2) | เหตุผล |
+|---|---|---|
+| แถวจัดลำดับมีปุ่มลูกศรขึ้น/ลง 44px เป็นกลไกหลัก | **ตัดปุ่มลูกศรออก เหลือไอคอน grip อย่างเดียว** | user สั่งให้ minimal — แถวโล่งอ่านง่ายกว่า |
+| แถบ hint "กดลูกศรเพื่อสลับลำดับ..." | **ตัดทิ้ง** | user สั่ง |
+| ปุ่ม "เสร็จสิ้น" เต็มความกว้างท้ายลิสต์ | **ตัดทิ้ง** — ออกจากโหมดด้วยปุ่ม toggle บน toolbar (icon เปลี่ยนเป็น `check` + พื้น primary) | user สั่ง; ใช้ pattern เดียวกับ `bar:141-155` ที่มีอยู่แล้ว |
+| — | **เพิ่ม touch drag เอง** (`onTouchStart/Move/End` + `elementFromPoint` + `touch-none` ที่ grip) | ตัดลูกศรออกแล้ว ถ้าพึ่ง HTML5 `draggable` อย่างเดียว **มือถือจะเรียงไม่ได้เลย** เพราะ DnD ไม่ยิง event บนจอสัมผัส — ไอคอน grip ที่กดแล้วไม่มีอะไรเกิดขึ้นแย่กว่าไม่มีเลย |
+| — | คีย์บอร์ด: ลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (`tabIndex={0}`) | ปุ่มหายไปแต่ต้องไม่ตัดคนใช้คีย์บอร์ดทิ้ง |
+| แถบล่าง (`QuickMessageBar`) ไม่มีตัวกรองหมวด และการ์ดไม่โชว์หมวด | **เพิ่มตัวกรองหมวดข้างช่องค้นหา + badge หมวดบนการ์ด** (บรรทัดจองพื้นที่ตายตัวเพื่อให้การ์ดสูงเท่ากัน) | user แจ้งว่าหาไม่เจอเพราะไม่มีทั้งสองอย่าง — ให้เท่ากับในโมดัล |
 
 ---
 
@@ -120,13 +130,14 @@ ASCII ย่อ:
 └──────────────────────────┴─────────────────────────────────┘
 ```
 
-**โหมดจัดลำดับ (ทุกขนาด — ค้นหา/กรองซ่อนไป)**
+**โหมดจัดลำดับ (v2 — ค้นหา/กรองซ่อนไป เหลือปุ่ม toggle ที่เป็นทางออกจากโหมดด้วย)**
 ```
-│ [info] กดลูกศร หรือลากเพื่อสลับลำดับ │
-│ #1 [▲44][▼44] ทักทายลูกค้าใหม่   ⠿ │
-│ #2 [▲44][▼44] แจ้งเลขพัสดุ       ⠿ │
-│ [           ✓ เสร็จสิ้น           ] │
+│                        [✓ toggle]  │ ← พื้น primary = อยู่ในโหมดจัดลำดับ, กดซ้ำ = ออก
+│ 1  ทักทายลูกค้าใหม่              ⠿ │ ← ลากที่ grip (mouse + touch)
+│ 2  แจ้งเลขพัสดุ                  ⠿ │
+│ 3  วิธีชำระเงิน                  ⠿ │
 ```
+ไม่มีแถบ hint และไม่มีปุ่มท้ายลิสต์
 
 ---
 
@@ -142,8 +153,8 @@ ASCII ย่อ:
 | 4 | กรองหมวด | `src/components/safepay/FilterDropdown.tsx` (Base: `theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx`) | `<FilterDropdown icon="tag" defaultLabel="หมวด" resetValue="All" />` | 🛑 **บังคับใช้ตัวนี้ ไม่ใช่ `<select>` ไม่ใช่ `hs-dropdown` ดิบ** — toolbar อยู่ใน list ที่ re-render บ่อย (`paces-component-reference.md` §3) |
 | 5 | ปุ่ม toggle จัดลำดับ | `QuickMessageBar.tsx:141-155` (เดิม) | icon-button `arrows-sort` / `check`, active = `bg-primary text-white` | copy pattern เป๊ะ |
 | 6 | แถว list | `QuickMessageManager.tsx:298-336` (เดิม) + card variant `border-primary` (`paces-component-reference.md` §7) | `<li>` row | คงโครงเดิม + (ก) `min-h-11 min-w-11` บนปุ่มแก้ไข/ลบ (ข) selected state `border-primary bg-primary/5` (เฉพาะ desktop) (ค) คลิกทั้งแถว = เลือกแก้ไข |
-| 7 | ปุ่มลูกศรจัดลำดับ (ใหม่) | `theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx` | `.btn.btn-icon` + `chevron-up`/`chevron-down` `min-h-11 min-w-11` | ประกอบจาก primitive เดิม ไม่ใช่ custom component |
-| 8 | Drag (desktop bonus) | `QuickMessageBar.tsx:229-259` (เดิม) | HTML5 `draggable` + keyboard arrow | copy แล้วปรับจากการ์ดแนวนอน → `<li>` แนวตั้ง |
+| 7 | ปุ่ม toggle จัดลำดับ (เป็นทางออกจากโหมดด้วย) | `QuickMessageBar.tsx:141-155` (เดิม) | `btn` + icon `arrows-sort` ↔ `check`, active = `bg-primary text-white` | v2 ตัดปุ่มลูกศรต่อแถวและปุ่ม "เสร็จสิ้น" ท้ายลิสต์ออกตามคำสั่ง user |
+| 8 | Drag แถวจัดลำดับ | `QuickMessageBar.tsx:229-259` (เดิม) | HTML5 `draggable` + keyboard arrow + **touch handler เขียนเพิ่ม** | ปรับจากการ์ดแนวนอน → `<li>` แนวตั้ง; เพิ่ม `onTouchStart/Move/End` + `elementFromPoint` + `touch-none` เฉพาะที่ grip (ถ้าใส่ทั้งแถวจะเลื่อนลิสต์ด้วยนิ้วไม่ได้) |
 | 9 | ฟอร์ม fields | `QuickMessageManager.tsx:200-270` (เดิม) | `.form-label` / `.form-input` | **ไม่แตะ logic** — ย้ายที่อยู่ไป pane/view ใหม่เท่านั้น |
 | 10 | Character counter (ใหม่) | ไม่มีไฟล์ theme ตรง — ประกอบจาก token `text-2xs` (`paces-component-reference.md` §8) | `<span className="text-2xs text-default-400">` | > 1800 ตัวอักษร เปลี่ยนเป็น `text-warning` |
 | 11 | Confirm ลบ | `theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx` ผ่าน `src/lib/paces-swal.ts` | `pacesConfirm.danger` | ไม่แตะ — เรียกซ้ำจากตำแหน่งใหม่ (form pane) ด้วย |
@@ -171,7 +182,7 @@ ASCII ย่อ:
 
 **แนบรูป** — ไม่เปลี่ยนพฤติกรรม logic เดิมทั้งหมด (`:84-120`) ย้ายที่อยู่เท่านั้น
 
-**จัดลำดับ** — ปุ่ม toggle (แสดงเมื่อ `items.length > 1` เหมือน bar) → `sortMode=true` → ซ่อนค้นหา/กรอง, list แสดงทั้งชุดเสมอ (ไม่ filter), แต่ละแถวมีเลขลำดับ + ปุ่มลูกศรขึ้น/ลง 44px (**หลัก**) + `draggable` (desktop bonus, mechanic เดียวกับ `bar:229-259`) → ทุกการสลับเรียก `persistOrder()` optimistic แล้วยิง `PATCH {orderedIds}` ทันที (เหมือน `bar:105-118`) → ล้มเหลว: `pacesToast.error('บันทึกลำดับไม่สำเร็จ')` + sync กลับจาก `onChanged()` → "เสร็จสิ้น" ปิดโหมด
+**จัดลำดับ (v2)** — ปุ่ม toggle (แสดงเมื่อ `items.length > 1` เหมือน bar) → `sortMode=true` → ซ่อนค้นหา/กรอง, list แสดงทั้งชุดเสมอ (ไม่ filter), แต่ละแถว = เลขลำดับ + ชื่อ + ไอคอน grip เท่านั้น สลับลำดับด้วยการลาก (mouse ผ่าน HTML5 `draggable`, touch ผ่าน handler ที่เขียนเอง, คีย์บอร์ดผ่านลูกศรขึ้น/ลงเมื่อโฟกัสแถว) → ทุกการสลับเรียก `persistOrder()` optimistic แล้วยิง `PATCH {orderedIds}` ทันที (เหมือน `bar:105-118`) → ล้มเหลว: `pacesToast.error('บันทึกลำดับไม่สำเร็จ')` + sync กลับจาก `onChanged()` → **ออกจากโหมดด้วยปุ่ม toggle เดิม** (ไม่มีปุ่ม "เสร็จสิ้น" ท้ายลิสต์แล้ว)
 
 **ปิดโมดัล** — X / ESC / backdrop (เดิม) — ฟอร์ม dirty **ไม่** confirm พิเศษ (ปิดทั้งใบต่างจากย้อน view, ผู้ใช้ตั้งใจออกอยู่แล้ว ไม่เพิ่ม friction)
 
