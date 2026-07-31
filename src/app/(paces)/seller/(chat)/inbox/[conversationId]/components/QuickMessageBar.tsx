@@ -258,7 +258,10 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
     <>
       {/* แผงเต็มพื้นที่ข้อความ (user สั่ง 2026-07-31 "เต็มช่องแชทไปเลย") — วางทับลิสต์ข้อความ
           ที่ยัง mount อยู่ ตำแหน่ง scroll ของแชทจึงไม่รีเซ็ตตอนปิดแผง */}
-      <div className="bg-card absolute inset-0 z-10 flex flex-col">
+      {/* z-40: ต้องสูงกว่าทุกอย่างที่ลอยอยู่ในพื้นที่ข้อความ ไม่งั้นทะลุขึ้นมาบนแผง —
+          ป้าย DeepBot ของ AutoReplyTag เป็น z-20 และ tooltip ของมัน z-30 (user เจอ 2026-07-31)
+          ยังต่ำกว่าโมดัลจัดการ (z-90) ตามเดิม */}
+      <div className="bg-card absolute inset-0 z-40 flex flex-col">
         {/* header — โครงเดียวกับแผง AI (ชื่อ+ไอคอนซ้าย, action ขวา) */}
         <div className="border-default-300 flex items-center justify-between gap-2 border-b border-dashed px-4 py-2.5 sm:px-6">
           <span className="text-primary flex items-center gap-2 text-sm font-semibold">
