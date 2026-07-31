@@ -31,33 +31,33 @@ const PREVIEW_TOTAL = 1000
 const schema = Yup.object({
   name: Yup.string()
     .trim()
-    .min(1, 'กรุณากรอกชื่อทรัพยากร')
-    .max(100, 'ชื่อทรัพยากรต้องไม่เกิน 100 ตัวอักษร')
-    .required('กรุณากรอกชื่อทรัพยากร'),
+    .min(1, 'ใส่ชื่อไว้เพื่อให้เลือกได้ตอนสร้างออเดอร์')
+    .max(100, 'ชื่อยาวได้ไม่เกิน 100 ตัวอักษร')
+    .required('ใส่ชื่อไว้เพื่อให้เลือกได้ตอนสร้างออเดอร์'),
   description: Yup.string().max(1000).default(''),
   durationMinutes: Yup.number()
-    .typeError('กรุณากรอกเป็นตัวเลข')
-    .integer('กรอกเป็นจำนวนเต็ม')
-    .min(1, 'ระยะเวลาต้องมากกว่า 0')
+    .typeError('ใส่เป็นตัวเลข')
+    .integer('ใส่เป็นจำนวนเต็ม เช่น 60')
+    .min(1, 'ระยะเวลาต้องมากกว่า 0 นาที')
     .nullable()
     // .defined() จำเป็น: .nullable() อย่างเดียวทำให้ InferType มองเป็น optional
     // แล้วชนกับ generic ของ useForm (TS2322) — defined = ต้องมี key แต่เป็น null ได้
     .defined()
     .transform((v, o) => (o === '' || o === null ? null : v)),
   capacity: Yup.number()
-    .typeError('กรุณากรอกเป็นตัวเลข')
-    .integer('จำนวนคิวต้องเป็นจำนวนเต็ม')
-    .min(1, 'จำนวนคิวต้องมีอย่างน้อย 1')
+    .typeError('ใส่เป็นตัวเลข')
+    .integer('จำนวนคิวใส่เป็นจำนวนเต็ม เช่น 1')
+    .min(1, 'รับได้อย่างน้อย 1 คิว')
     .default(1)
-    .required('กรุณากรอกจำนวนคิว'),
+    .required('ใส่จำนวนคิวที่รับพร้อมกันได้'),
   depositMode: Yup.string().oneOf(['FIXED', 'PERCENT']).default('FIXED'),
   depositValue: Yup.number()
-    .typeError('กรุณากรอกเป็นตัวเลข')
-    .min(0, 'ต้องไม่ติดลบ')
+    .typeError('ใส่เป็นตัวเลข')
+    .min(0, 'มัดจำติดลบไม่ได้ ใส่ 0 ถ้าไม่เก็บมัดจำ')
     .default(0)
     .when('depositMode', {
       is: 'PERCENT',
-      then: (s) => s.max(100, 'เปอร์เซ็นต์มัดจำต้องไม่เกิน 100'),
+      then: (s) => s.max(100, 'เปอร์เซ็นต์มัดจำใส่ได้ไม่เกิน 100'),
     }),
 })
 
@@ -139,12 +139,12 @@ export default function ResourceForm({ resource }: Props) {
         }
 
         const map: Record<string, string> = {
-          VALIDATION_ERROR: 'ข้อมูลบางช่องยังไม่ถูกต้อง ลองตรวจอีกครั้ง',
+          VALIDATION_ERROR: 'มีบางช่องที่กรอกยังไม่ครบหรือไม่ถูกรูปแบบ',
           FEATURE_NOT_AVAILABLE: 'ระบบนัดหมายใช้ได้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ',
           RESOURCE_NOT_FOUND: 'ไม่พบทรัพยากรนี้ในร้าน',
           FORBIDDEN: 'บัญชีนี้ไม่ได้อยู่ในทีมของร้าน จึงจัดการรายการนี้ไม่ได้',
         }
-        pacesToast.error(map[data?.error as string] ?? 'บันทึกไม่สำเร็จ ลองอีกครั้ง')
+        pacesToast.error(map[data?.error as string] ?? 'บันทึกไม่สำเร็จ ลองกดบันทึกอีกครั้ง')
         return
       }
       pacesToast.success(isEdit ? 'บันทึกแล้ว' : 'เพิ่มทรัพยากรแล้ว')

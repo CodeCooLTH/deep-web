@@ -79,7 +79,7 @@ export default function ResourceList({ resources }: Props) {
     try {
       const updated = await patchResource(resource.id, { isActive: !resource.isActive })
       if (!updated) {
-        pacesToast.error('บันทึกไม่สำเร็จ ลองอีกครั้ง')
+        pacesToast.error('บันทึกไม่สำเร็จ ลองกดอีกครั้ง')
         return
       }
       setItems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
@@ -147,12 +147,12 @@ export default function ResourceList({ resources }: Props) {
             setItems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
             pacesToast.success('ปิดใช้งานแล้ว')
           } else {
-            pacesToast.error('บันทึกไม่สำเร็จ ลองอีกครั้ง')
+            pacesToast.error('บันทึกไม่สำเร็จ ลองกดอีกครั้ง')
           }
         }
         return
       }
-      pacesToast.error('ลบไม่สำเร็จ ลองอีกครั้ง')
+      pacesToast.error('ลบไม่สำเร็จ ลองกดอีกครั้ง')
     } catch {
       pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง')
     } finally {

@@ -96,7 +96,21 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
   // นัดข้ามวัน (เช่น 22:00–01:00) ต้องเห็นวันที่ทั้งสองฝั่ง ไม่งั้นอ่านแล้วเข้าใจผิด
   const crossesDay = formatDateTH(start) !== formatDateTH(end)
 
-  const showActions = !orderCancelled && state.status === 'SCHEDULED'
+  const showConfirm = !orderCancelled && state.status === 'SCHEDULED'
+  /**
+   * "ขอเลื่อนนัด" ยังกดได้หลังยืนยันไปแล้ว (user ตัดสิน 2026-07-31: ถอนได้ถ้าจำเป็น
+   * และต้องเป็นลูกค้าขอเอง) — กดยืนยันพลาดด้วยนิ้วโป้งบนมือถือแล้วติดกับ ต้องโทรหาร้าน
+   * ขัดกับ user story ที่ว่า "ไม่ต้องโทร"
+   *
+   * ไม่ต้องแตะ backend: requestAppointmentReschedule() บล็อกแค่สถานะที่จบแล้ว
+   * (COMPLETED/NO_SHOW) กับเลยเวลานัด — CONFIRMED_BY_BUYER ผ่านอยู่แล้ว
+   *
+   * ตั้งใจไม่ทำเป็น "ถอนการยืนยัน" ที่ย้อนสถานะกลับเป็น SCHEDULED เงียบ ๆ เพราะร้าน
+   * จะไม่รู้ว่าลูกค้าเปลี่ยนใจ — ส่งเป็นคำขอให้ร้านเห็นดีกว่า
+   */
+  const showReschedule =
+    !orderCancelled &&
+    (state.status === 'SCHEDULED' || state.status === 'CONFIRMED_BY_BUYER')
 
   const handleConfirm = async () => {
     setConfirming(true)
@@ -192,33 +206,41 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             <Typography variant="body2" color="text.secondary">
               คำสั่งซื้อนี้ถูกยกเลิกแล้ว นัดหมายนี้จึงไม่มีผลอีกต่อไป
             </Typography>
-          ) : showActions ? (
+          ) : showConfirm || showReschedule ? (
             <div className="flex flex-col gap-2">
-              <Button
-                fullWidth
-                variant="tonal"
-                color="primary"
-                disabled={confirming}
-                onClick={handleConfirm}
-                sx={{ minHeight: 44 }}
-              >
-                {confirming ? 'กำลังยืนยัน...' : 'ยืนยันนัด'}
-              </Button>
-              <Button
-                fullWidth
-                variant="outlined"
-                color="secondary"
-                onClick={() => setDialogOpen(true)}
-                sx={{ minHeight: 44 }}
-              >
-                ขอเลื่อนนัด
-              </Button>
+              {/* ยืนยันแล้ว → ไม่มีปุ่มยืนยันอีก แต่บอกให้เห็นว่ายืนยันไปเมื่อไร */}
+              {state.status === 'CONFIRMED_BY_BUYER' && (
+                <Typography variant="body2" color="success.main">
+                  คุณยืนยันนัดนี้แล้ว
+                  {state.buyerConfirmedAt
+                    ? ` เมื่อ ${formatDateTimeTH(state.buyerConfirmedAt)}`
+                    : ''}
+                </Typography>
+              )}
+              {showConfirm && (
+                <Button
+                  fullWidth
+                  variant="tonal"
+                  color="primary"
+                  disabled={confirming}
+                  onClick={handleConfirm}
+                  sx={{ minHeight: 44 }}
+                >
+                  {confirming ? 'กำลังยืนยัน...' : 'ยืนยันนัด'}
+                </Button>
+              )}
+              {showReschedule && (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  color="secondary"
+                  onClick={() => setDialogOpen(true)}
+                  sx={{ minHeight: 44 }}
+                >
+                  {state.status === 'CONFIRMED_BY_BUYER' ? 'มาไม่ได้ ขอเลื่อนนัด' : 'ขอเลื่อนนัด'}
+                </Button>
+              )}
             </div>
-          ) : state.status === 'CONFIRMED_BY_BUYER' ? (
-            <Typography variant="body2" color="success.main">
-              คุณยืนยันนัดนี้แล้ว
-              {state.buyerConfirmedAt ? ` เมื่อ ${formatDateTimeTH(state.buyerConfirmedAt)}` : ''}
-            </Typography>
           ) : state.status === 'RESCHEDULE_REQUESTED' ? (
             <div className="flex flex-col gap-1">
               <Typography variant="body2" color="text.secondary">

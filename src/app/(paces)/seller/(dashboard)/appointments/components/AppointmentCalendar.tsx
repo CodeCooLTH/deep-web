@@ -229,10 +229,13 @@ export default function AppointmentCalendar({ resources }: Props) {
 
   // ตัวกรองที่มีตัวเลือกเดียวไม่ได้ทำอะไร — ซ่อนไปเลย
   const showFilter = resources.length > 1
+  // คำบนปุ่มเลี่ยงศัพท์ "ทรัพยากร" — เจ้าของร้านคิดเป็น "ช่างคนนี้/เตียงนี้/คลาสนี้"
+  // ไม่ได้คิดเป็นคำรวมเชิงระบบ (user ถามเองว่า "กรองทรัพยากรคืออะไร" 2026-07-31)
   const filterOptions = [
-    { value: ALL, label: 'ทุกทรัพยากร' },
+    { value: ALL, label: 'ดูทั้งหมด' },
     ...resources.map((r) => ({ value: r.id, label: r.name })),
   ]
+  const filteredResource = resources.find((r) => r.id === resourceId) ?? null
 
   return (
     <div className="flex flex-col gap-4">
@@ -265,12 +268,30 @@ export default function AppointmentCalendar({ resources }: Props) {
               value={resourceId}
               options={filterOptions}
               onChange={setResourceId}
-              defaultLabel="ทรัพยากร"
+              defaultLabel="ดูทั้งหมด"
               resetValue={ALL}
               align="right"
             />
           )}
         </div>
+
+        {/* กำลังกรองอยู่ต้องเห็นชัดตลอด ไม่ใช่รู้จากสีปุ่มอย่างเดียว —
+            ร้านที่เปิดค้างไว้แล้วกลับมาดูจะได้ไม่เข้าใจผิดว่านัดหายไป */}
+        {filteredResource && (
+          <div className="border-default-200 flex flex-wrap items-center justify-between gap-2 border-t p-3">
+            <p className="text-default-600 text-sm">
+              กำลังดูเฉพาะ <span className="text-default-800 font-medium">{filteredResource.name}</span>
+              {' · '}นัดของรายการอื่นถูกซ่อนอยู่
+            </p>
+            <button
+              type="button"
+              onClick={() => setResourceId(ALL)}
+              className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 px-3 text-sm"
+            >
+              ดูทั้งหมด
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── ตัวเลื่อนวัน/สัปดาห์ ── */}

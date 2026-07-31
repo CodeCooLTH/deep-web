@@ -184,7 +184,7 @@ export default function AppointmentBlock({
             name="appointment.resourceId"
             render={({ field }) => (
               <select id="appt-resource" className="form-select" {...field} value={field.value ?? ''}>
-                <option value="">— ไม่ตั้งวันนัด —</option>
+                <option value="">ไม่ตั้งวันนัด (ออเดอร์ปกติ)</option>
                 {resources.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name} · รับพร้อมกัน {r.capacity} คิว
@@ -292,7 +292,7 @@ export default function AppointmentBlock({
                   <span className="text-default-400">ตรวจสอบคิวไม่สำเร็จ กรอกต่อได้ตามปกติ</span>
                 ) : bookedNow !== null && bookedNow >= selected.capacity ? (
                   <span className="text-warning">
-                    เต็มแล้ว {bookedNow} จาก {selected.capacity} คิว ในช่วงเวลานี้ — ลองเลือกเวลาอื่น
+                    เต็มแล้ว {bookedNow} จาก {selected.capacity} คิว ในช่วงเวลานี้ — เลือกเวลาอื่นหรือบันทึกไว้ก่อนก็ได้ ระบบจะแจ้งถ้าจองไม่ได้จริง
                   </span>
                 ) : bookedNow !== null ? (
                   <span className="text-info">
