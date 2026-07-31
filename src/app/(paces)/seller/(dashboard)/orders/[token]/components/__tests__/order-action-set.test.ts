@@ -1,6 +1,8 @@
 // order-action-set.test.ts — Vitest unit tests สำหรับ getOrderActionSet (T5 contract)
 //
-// ครอบทุกสถานะ × MANUAL/ISHIP/null × SHIPPED/NO_SHIPPING (matrix แบบ combinatorial)
+// ครอบทุกสถานะ × MANUAL/ISHIP/null × SHIPPED/NO_SHIPPING/PICKUP (matrix แบบ combinatorial)
+// PICKUP = ออเดอร์จองที่พัก (feat 00017 booking.service.ts) — G-1: ต้องไม่ถูกนับเป็น "ต้องส่งของ"
+// เหมือน SHIPPED (ปฏิบัติเหมือนสินค้าดิจิทัลตามมติ user)
 // อ้างอิง: docs/superpowers/specs/2026-07-31-seller-order-detail-v5-design.md §3
 //          docs/scope/2026-07-31-seller-order-detail-v5-scope-baseline.md Change Log
 
@@ -11,7 +13,7 @@ import type { OrderStatus } from '@/lib/order-display'
 const keys = (arr: { key: string }[]) => arr.map((a) => a.key)
 
 const SHIPMENT_SOURCES: ShipmentSource[] = ['MANUAL', 'ISHIP', null]
-const FULFILLMENT_MODES = ['SHIPPED', 'NO_SHIPPING']
+const FULFILLMENT_MODES = ['SHIPPED', 'NO_SHIPPING', 'PICKUP']
 const STATUSES: OrderStatus[] = ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED']
 
 // -------------------------------------------------------------------------
@@ -153,6 +155,59 @@ describe('NO_SHIPPING (digital/service) ไม่มี action เกี่ย�
 })
 
 // -------------------------------------------------------------------------
+// G-1 regression: PICKUP (จองที่พัก feat 00017) ต้องไม่ถูกนับเป็น "ต้องส่งของ"
+// เดิมโค้ดเป็น deny-list (เช็คว่าไม่ใช่ NO_SHIPPING) ทำให้ PICKUP หลุดเข้ามาเป็น hasShipping=true
+// ตอนนี้เป็น allow-list (=== 'SHIPPED') — PICKUP ต้องไม่มี action พัสดุ เหมือน NO_SHIPPING ทุกกรณี
+// -------------------------------------------------------------------------
+describe('PICKUP (จองที่พัก) ไม่มี action เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง — เหมือน NO_SHIPPING (G-1)', () => {
+  const SHIPMENT_KEYS = ['report-tracking', 'edit-tracking', 'copy-tracking', 'copy-address']
+
+  it('PENDING + PICKUP → ไม่มี report-tracking/copy-address; ยังมี copy-link/edit-order/cancel-order', () => {
+    const r = getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'PICKUP', shipmentSource: null })
+    const all = [...(r.primary ? [r.primary] : []), ...r.ghosts, ...r.menu]
+    for (const k of SHIPMENT_KEYS) {
+      expect(keys(all)).not.toContain(k)
+    }
+    expect(keys(r.menu)).toEqual(['copy-link', 'edit-order', 'cancel-order'])
+    expect(r.primary?.key).toBe('send-sms')
+  })
+
+  it('SHIPPED + PICKUP + MANUAL → ไม่มี report-tracking/edit-tracking/copy-tracking/copy-address (แม้ shipmentSource=MANUAL)', () => {
+    const r = getOrderActionSet({ status: 'SHIPPED', fulfillmentMode: 'PICKUP', shipmentSource: 'MANUAL' })
+    const all = [...r.ghosts, ...r.menu]
+    for (const k of SHIPMENT_KEYS) {
+      expect(keys(all)).not.toContain(k)
+    }
+    expect(keys(r.ghosts)).toEqual(['copy-link'])
+    expect(keys(r.menu)).toEqual(['cancel-order'])
+  })
+
+  it('SHIPPED + PICKUP + ISHIP → เหมือนกัน ไม่มี action พัสดุ', () => {
+    const r = getOrderActionSet({ status: 'SHIPPED', fulfillmentMode: 'PICKUP', shipmentSource: 'ISHIP' })
+    const all = [...r.ghosts, ...r.menu]
+    for (const k of SHIPMENT_KEYS) {
+      expect(keys(all)).not.toContain(k)
+    }
+  })
+
+  it('CONFIRMED + PICKUP → menu ว่าง (ตัด copy-tracking/copy-address ออกหมด), ghost=[copy-link]', () => {
+    const r = getOrderActionSet({ status: 'CONFIRMED', fulfillmentMode: 'PICKUP', shipmentSource: null })
+    expect(keys(r.menu)).toEqual([])
+    expect(keys(r.ghosts)).toEqual(['copy-link'])
+  })
+
+  it('PICKUP ให้ผลเหมือน NO_SHIPPING เป๊ะทุกสถานะ (contract เดียวกัน)', () => {
+    for (const status of STATUSES) {
+      for (const shipmentSource of SHIPMENT_SOURCES) {
+        const pickup = getOrderActionSet({ status, fulfillmentMode: 'PICKUP', shipmentSource })
+        const noShipping = getOrderActionSet({ status, fulfillmentMode: 'NO_SHIPPING', shipmentSource })
+        expect(pickup).toEqual(noShipping)
+      }
+    }
+  })
+})
+
+// -------------------------------------------------------------------------
 // Full combinatorial sweep — invariants ที่ต้องเป็นจริงทุกชุดค่าผสม
 // -------------------------------------------------------------------------
 describe('combinatorial sweep — invariants ทุกสถานะ × shipmentSource × fulfillmentMode', () => {
@@ -178,8 +233,9 @@ describe('combinatorial sweep — invariants ทุกสถานะ × shipmen
             expect(keys(r.menu)).not.toContain('edit-order')
           }
 
-          // invariant 4: NO_SHIPPING ไม่เคยมี action เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง
-          if (fulfillmentMode === 'NO_SHIPPING') {
+          // invariant 4: fulfillmentMode !== 'SHIPPED' (NO_SHIPPING หรือ PICKUP — G-1) ไม่เคยมี
+          // action เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง — allow-list ไม่ใช่ deny-list โดยตั้งใจ
+          if (fulfillmentMode !== 'SHIPPED') {
             for (const k of ['report-tracking', 'edit-tracking', 'copy-tracking', 'copy-address']) {
               expect(keys(all)).not.toContain(k)
             }

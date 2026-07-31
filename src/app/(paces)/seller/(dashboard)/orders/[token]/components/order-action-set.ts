@@ -26,7 +26,12 @@ export type ShipmentSource = 'MANUAL' | 'ISHIP' | null
 
 export type GetOrderActionSetInput = {
   status: OrderStatus
-  /** 'NO_SHIPPING' = digital/service/subscription — ไม่มี action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง */
+  /**
+   * ค่าที่พบจริงในฐาน (String ไม่ใช่ enum): 'SHIPPED' | 'NO_SHIPPING' | 'PICKUP'
+   * (PICKUP มาจาก booking.service.ts feat 00017 — ออเดอร์จองที่พัก)
+   * เฉพาะ 'SHIPPED' เท่านั้นที่ถือว่า "ต้องส่งของ" — NO_SHIPPING (digital/service/subscription)
+   * และ PICKUP (จองที่พัก มติ user: ปฏิบัติเหมือนสินค้าดิจิทัล) ไม่มี action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่ง
+   */
   fulfillmentMode: string
   /**
    * แหล่งที่มาของพัสดุ — null เมื่อยังไม่แจ้งเลขพัสดุเลย
@@ -57,12 +62,15 @@ const ACTIONS = {
  *   CONFIRMED: primary=null    · ghost=[copyLink]  · menu=[copyTracking,copyAddress]
  *   CANCELLED: primary=null    · ghost=[]           · menu=[]  (ไม่มีแถบเลย)
  *
- * fulfillmentMode==='NO_SHIPPING' → ตัด action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่งออกทั้งหมด
+ * fulfillmentMode !== 'SHIPPED' → ตัด action ที่เกี่ยวกับพัสดุ/ที่อยู่จัดส่งออกทั้งหมด
  * (reportTracking, editTracking, copyTracking, copyAddress) — คงเหลือ action อื่นตามปกติ
+ * ครอบคลุมทั้ง 'NO_SHIPPING' และ 'PICKUP' (G-1: จองที่พักไม่ใช่ NO_SHIPPING แต่ต้องไม่มี action พัสดุเหมือนกัน)
  */
 export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
   const { status, fulfillmentMode, shipmentSource } = input
-  const hasShipping = fulfillmentMode !== 'NO_SHIPPING'
+  // allow-list ไม่ใช่ deny-list โดยตั้งใจ — fulfillmentMode เป็น String ไม่ใช่ enum
+  // ค่าใหม่ในอนาคต (เช่น PICKUP ที่หลุดมารอบนี้ — G-1) จะได้ไม่ถูกนับเป็น "ต้องส่งของ" เองโดยอัตโนมัติ
+  const hasShipping = fulfillmentMode === 'SHIPPED'
   const isManualShipment = shipmentSource === 'MANUAL'
 
   if (status === 'CANCELLED') {

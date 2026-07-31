@@ -15,6 +15,10 @@
  * Mockup: docs/superpowers/specs/2026-07-30-seller-order-detail-v5-mockup.html
  *   (secBuyer()/secItems()/secShipping() — แหล่งความจริงเรื่องหน้าตา)
  * Scope baseline (มติ NO_SHIPPING): docs/scope/2026-07-31-seller-order-detail-v5-scope-baseline.md S-2
+ * G-1 fix: fulfillmentMode เป็น String ไม่ใช่ enum มีค่าจริง 3 แบบ SHIPPED/NO_SHIPPING/PICKUP
+ * (PICKUP มาจาก booking.service.ts feat 00017) — PICKUP ปฏิบัติเหมือน NO_SHIPPING ตามมติ user
+ * (ซ่อน section การจัดส่ง ไม่มี action พัสดุ) แต่ "ไม่" โชว์ลิงก์ส่งมอบดิจิทัล (showAccessUrl ยังคง
+ * เช็คเฉพาะ NO_SHIPPING เท่านั้น — จองที่พักไม่มีลิงก์ดาวน์โหลด)
  *
  * v5 หลักการ: การ์ดนี้คือ "ข้อเท็จจริง" ของออเดอร์ — เห็นหมดเสมอ ไม่มีกาง/พับ ไม่ผูกกับสถานะ
  * (v4 พังเพราะเอาข้อมูลลูกค้าไปฝังในขั้นที่พับได้ — CONFIRMED แล้วเบอร์ลูกค้าหายจากจอ)
@@ -22,7 +26,8 @@
  * 1 `.card` แบ่ง 3 section ด้วย `border-t border-dashed` — "ห้ามการ์ดซ้อนการ์ด" (anti-slop, Impeccable)
  * จึงไม่ใช้ `.card-header` ซ้อนใน section ย่อย ใช้ sec-hd แบบ icon+label ธรรมดาแทน
  *
- * S-2 (scope baseline): fulfillmentMode==='NO_SHIPPING' → ซ่อน section 3 ทั้ง section
+ * S-2 (scope baseline): fulfillmentMode !== 'SHIPPED' → ซ่อน section 3 ทั้ง section
+ * (ครอบทั้ง NO_SHIPPING และ PICKUP — G-1)
  * ลิงก์ส่งมอบดิจิทัล (accessUrl) ยุบเข้า section 2 แทน (ยกมาจาก PaymentCard.tsx ทั้งก้อน รวม state
  * ฟอร์มบันทึกลิงก์ — ปุ่ม "บันทึกลิงก์" เป็นข้อยกเว้นที่ spec อนุญาตไว้ นอกนั้นการ์ดนี้ไม่มีปุ่ม action)
  *
@@ -105,11 +110,15 @@ export interface OrderFactsCardProps {
   salesChannel: string | null
   slipFileId: string | null
   accessUrl: string | null
+  /**
+   * ค่าที่พบจริงในฐาน (String ไม่ใช่ enum): 'SHIPPED' | 'NO_SHIPPING' | 'PICKUP'
+   * (PICKUP = ออเดอร์จองที่พัก feat 00017 — booking.service.ts)
+   */
   fulfillmentMode: string
   publicToken: string
   /** status ของออเดอร์ — ใช้ derive payment badge (getPaymentBadge) */
   status: string
-  /** null = ยังไม่แจ้งเลขพัสดุ (แสดง callout); ไม่ render เลยถ้า fulfillmentMode==='NO_SHIPPING' (S-2) */
+  /** null = ยังไม่แจ้งเลขพัสดุ (แสดง callout); ไม่ render เลยถ้า fulfillmentMode !== 'SHIPPED' (S-2, G-1) */
   shipping: OrderFactsShipping | null
 }
 
@@ -245,6 +254,7 @@ export default function OrderFactsCard({
   const paymentLabel = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ยังไม่ระบุวิธีชำระ'
 
   // S-2: ลิงก์ส่งมอบดิจิทัล ยุบเข้า section 2 (ยกมาจาก PaymentCard.tsx ทั้งก้อน)
+  // เจตนาเช็คเฉพาะ 'NO_SHIPPING' ตรง ๆ (ไม่รวม PICKUP) — จองที่พักไม่มีลิงก์ดาวน์โหลดให้ส่งมอบ (G-1)
   const showAccessUrl = fulfillmentMode === 'NO_SHIPPING'
   const [accessUrlValue, setAccessUrlValue] = useState(accessUrl ?? '')
   const [accessUrlLoading, setAccessUrlLoading] = useState(false)
@@ -282,8 +292,11 @@ export default function OrderFactsCard({
     }
   }
 
-  // ── section 3: การจัดส่ง (ซ่อนทั้ง section เมื่อ NO_SHIPPING — S-2) ────────
-  const showShippingSection = fulfillmentMode !== 'NO_SHIPPING'
+  // ── section 3: การจัดส่ง (ซ่อนทั้ง section ถ้าไม่ใช่ SHIPPED — S-2, G-1) ────
+  // allow-list ไม่ใช่ deny-list โดยตั้งใจ — fulfillmentMode เป็น String ไม่ใช่ enum
+  // ค่าใหม่ในอนาคตจะได้ไม่หลุดเข้าโหมด "ต้องส่งของ" เองโดยอัตโนมัติ (นี่คือสาเหตุที่ PICKUP
+  // หลุดมารอบนี้ — เดิมเช็คแบบ deny-list ทำให้ PICKUP ถูกนับว่าต้องจัดส่งไปด้วย)
+  const showShippingSection = fulfillmentMode === 'SHIPPED'
 
   return (
     <div className="card">
@@ -589,7 +602,7 @@ export default function OrderFactsCard({
         )}
       </div>
 
-      {/* section 3 — การจัดส่ง (ซ่อนทั้ง section เมื่อ NO_SHIPPING — S-2 มติ user) */}
+      {/* section 3 — การจัดส่ง (ซ่อนทั้ง section ถ้า fulfillmentMode ไม่ใช่ SHIPPED — S-2 มติ user, G-1: ครอบ PICKUP ด้วย) */}
       {showShippingSection && (
         <div className="card-body border-t border-dashed border-default-300">
           <SecHead
