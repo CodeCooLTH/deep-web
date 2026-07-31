@@ -69,13 +69,16 @@
  * "กลับหน้าหลัก" ที่ ChatHeader.tsx — คนละปลายทาง: ปุ่มนี้ไป /inbox ไม่ใช่ /dashboard)
  */
 import Icon from '@/components/wrappers/Icon'
+import AutoReplyTag from './AutoReplyTag'
 import { pacesToast } from '@/lib/paces-toast'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
 import { generateInitials } from '@/utils/helpers'
-import { formatTime } from '@/lib/format-date'
+// user 2026-07-31: แถวเวลาแสดงแค่ ชม.:นาที — วินาทีไม่ใช่ข้อมูลที่ใช้ตัดสินใจอะไรในแชท
+// แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
+import { formatTime, formatTimeHM } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
 import Swal from 'sweetalert2'
@@ -1026,9 +1029,9 @@ export default function ChatThread({
                         {(showTime || (mine && (atBurstEnd || last.id === lastShopMsgId))) && (
                           <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
-                              <span className="flex items-center gap-1">
+                              <span className="flex items-center gap-1" title={formatTime(last.createdAt)}>
                                 <Icon icon="clock" />
-                                {formatTime(last.createdAt)}
+                                {formatTimeHM(last.createdAt)}
                               </span>
                             )}
                             {mine && last.id === lastShopMsgId ? (
@@ -1122,7 +1125,11 @@ export default function ChatThread({
                         max-w-96 (24rem) — precedent scale class เดียวกับ InboxList.tsx max-w-52 และ
                         max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
                         break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
-                    <div className="min-w-0 max-w-96 break-words">
+                    {/* relative: จุดยึดของป้าย "ระบบตอบ" ที่เกยขอบบนบับเบิล (feature 00023 S-23) */}
+                    <div className="relative min-w-0 max-w-96 break-words">
+                      {mExt.autoReplyKind && (
+                        <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
+                      )}
                       {/* reply quote (feature 00018 Phase 3) — กล่องจาง ๆ เยื้องเหนือบับเบิล ให้เห็นชัดว่าเป็น
                           quote คนละก้อนกับข้อความตอบ (user report 2026-07-25: ดูยาก) */}
                       {m.replyTo && (
@@ -1218,21 +1225,8 @@ export default function ChatThread({
                                 <span>ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก</span>
                               </div>
                             )}
-                            {/* feature 00023 — ป้ายบอกว่าข้อความนี้ระบบตอบเอง ไม่ใช่คนตอบ
-                                (AC-012-02, AC-021-05) แยกสีระหว่างตอบจริงกับตอบตอนโหมดทดสอบ
-                                เพราะสองอันนี้มีความหมายต่างกันมากสำหรับร้าน */}
-                            {mExt.autoReplyKind && (
-                              <span
-                                className={`mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs ${
-                                  mExt.autoReplyKind === 'AUTO_TEST'
-                                    ? 'bg-warning/15 text-warning'
-                                    : 'bg-info/15 text-info'
-                                }`}
-                              >
-                                <Icon icon="robot" className="text-xs" />
-                                {mExt.autoReplyKind === 'AUTO_TEST' ? 'ระบบตอบ (ทดสอบ)' : 'ระบบตอบ'}
-                              </span>
-                            )}
+                            {/* feature 00023 — ป้าย "ระบบตอบ" ย้ายออกจากบับเบิลไปเกยขอบบนแล้ว
+                                (user 2026-07-31) ดู AutoReplyTag ที่ต้นคอลัมน์ข้อความ */}
                           </>
                         )}
                           </div>
@@ -1267,9 +1261,9 @@ export default function ChatThread({
                             m._status === 'sent'))) && (
                         <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                           {showTime && (
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1" title={formatTime(m.createdAt)}>
                               <Icon icon="clock" />
-                              {formatTime(m.createdAt)}
+                              {formatTimeHM(m.createdAt)}
                             </span>
                           )}
                           {mine && m._status === 'sending' && (

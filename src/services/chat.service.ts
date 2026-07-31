@@ -36,6 +36,22 @@ export interface ConversationSummary {
   referralAdId: string | null
 }
 
+/**
+ * feature 00023 — เหตุผลเบื้องหลังคำตอบอัตโนมัติ 1 ครั้ง (แสดงตอนชี้ที่ป้าย "ระบบตอบ")
+ *
+ * ชื่อเพจ/โฆษณา/สินค้าเป็น **ชื่อปัจจุบัน** ที่ resolve จากรหัสที่บันทึกไว้ — ต่างจากฟิลด์อื่น
+ * ในนี้ที่เป็น snapshot แท้ ๆ ยอมรับความไม่ตรงจุดนี้เพราะทางเลือกคือแสดงรหัสดิบ (uuid/ad id)
+ * ซึ่งร้านอ่านไม่รู้เรื่องเลย; null = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น หรือของถูกลบไปแล้ว
+ */
+export interface AutoReplyTrace {
+  keywordName: string | null
+  matchedPhrase: string | null
+  matchType: string | null // "EXACT" | "CONTAINS" | "STARTS_WITH" — แปลเป็นไทยที่ชั้น UI
+  channelName: string | null
+  adLabel: string | null
+  productName: string | null
+}
+
 export interface ChatMessageView {
   id: string
   conversationId: string
@@ -51,6 +67,12 @@ export interface ChatMessageView {
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   // findMany ด้านล่างไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้วตั้งแต่ migration — แค่ประกาศ type เพิ่ม
   autoReplyKind: string | null
+  // feature 00023 — "ทำไมบอทตอบข้อความนี้" ทั้งชุด สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
+  //
+  // ทุกค่าเป็น snapshot ที่ AutoReplyLog บันทึกไว้ **ตอนตัดสินใจตอบ** ไม่ใช่การคำนวณย้อนหลัง —
+  // ถ้าร้านแก้กฎทีหลัง ข้อความเก่ายังบอกความจริง ณ ตอนนั้นได้ถูกต้อง
+  // ไม่ใช่คอลัมน์ใน ChatMessage — getMessages join มาเติมให้ (null = คนพิมพ์เอง หรือหาบันทึกไม่เจอ)
+  autoReply: AutoReplyTrace | null
   createdAt: Date
 }
 
@@ -425,8 +447,71 @@ export async function getMessages(
   })
   const hasMore = rows.length > take
   const page = hasMore ? rows.slice(0, take) : rows
+
+  // feature 00023 — "ทำไมบอทตอบข้อความนี้" สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
+  //
+  // join ผ่าน AutoReplyLog.outboundMessageId แทนการเพิ่มคอลัมน์ใน ChatMessage เพราะความสัมพันธ์นี้
+  // ถูกบันทึกไว้แล้วตั้งแต่ตอนตัดสินใจตอบ — เพิ่มคอลัมน์ = ข้อมูลซ้ำที่ต้องคอยให้ตรงกันสองที่
+  //
+  // กรองด้วย conversationId ไม่ใช่ `outboundMessageId IN (...)` ตั้งใจ: outboundMessageId ไม่มี index
+  // แต่ [conversationId, createdAt] มี และจำนวนแถวที่ได้ถูกจำกัดด้วย maxRepliesPerConversation
+  // (ค่าเริ่มต้น 10) อยู่แล้ว จึงเป็น index scan สั้น ๆ ไม่ใช่ seq scan ทั้งตาราง
+  const traceByMessageId = new Map<string, AutoReplyTrace>()
+  if (page.some((m) => m.autoReplyKind)) {
+    const logs = await prisma.autoReplyLog.findMany({
+      where: { conversationId, decision: 'REPLIED', outboundMessageId: { not: null } },
+      select: {
+        outboundMessageId: true,
+        matchedPhrase: true,
+        matchType: true,
+        shopChannelId: true,
+        adId: true,
+        productId: true,
+        keyword: { select: { name: true } },
+      },
+    })
+
+    // แปลงรหัสเป็นชื่อที่ร้านอ่านรู้เรื่อง — batch ทีเดียวทั้งเธรด ไม่ยิงต่อข้อความ
+    // โฆษณาไม่ใช่ entity ในระบบเรา (ไม่มีตาราง Ad) จึงต้องหาชื่อจาก referral ที่เคยรับ webhook ไว้
+    const ids = <T,>(xs: (T | null)[]) => [...new Set(xs.filter((x): x is T => x != null))]
+    const [channels, ads, products] = await Promise.all([
+      prisma.shopChannel.findMany({
+        where: { id: { in: ids(logs.map((l) => l.shopChannelId)) } },
+        select: { id: true, name: true },
+      }),
+      prisma.conversationAdReferral.findMany({
+        where: { adId: { in: ids(logs.map((l) => l.adId)) } },
+        select: { adId: true, adTitle: true, adBody: true },
+        distinct: ['adId'],
+      }),
+      prisma.product.findMany({
+        where: { id: { in: ids(logs.map((l) => l.productId)) } },
+        select: { id: true, name: true },
+      }),
+    ])
+    const channelName = new Map(channels.map((c) => [c.id, c.name]))
+    const productName = new Map(products.map((p) => [p.id, p.name]))
+    // adTitle (ชื่อใน Ads Manager) มักว่าง — ข้อความโฆษณาจริงเป็นสิ่งที่ร้านจำได้มากกว่า
+    const adLabel = new Map(ads.map((a) => [a.adId as string, a.adTitle ?? a.adBody ?? null]))
+
+    for (const l of logs) {
+      if (!l.outboundMessageId) continue
+      traceByMessageId.set(l.outboundMessageId, {
+        keywordName: l.keyword?.name ?? null,
+        matchedPhrase: l.matchedPhrase,
+        matchType: l.matchType,
+        channelName: l.shopChannelId ? (channelName.get(l.shopChannelId) ?? null) : null,
+        adLabel: l.adId ? (adLabel.get(l.adId) ?? null) : null,
+        productName: l.productId ? (productName.get(l.productId) ?? null) : null,
+      })
+    }
+  }
+
   return {
-    items: page as ChatMessageView[],
+    items: page.map((m) => ({
+      ...m,
+      autoReply: traceByMessageId.get(m.id) ?? null,
+    })) as ChatMessageView[],
     nextCursor: hasMore ? page[page.length - 1]!.createdAt.toISOString() : null,
   }
 }
@@ -474,7 +559,8 @@ export async function sendMessage(params: {
         orderBy: { createdAt: 'desc' },
       })
       if (lastMessage && lastMessage.type === 'PRODUCT' && lastMessage.productRefId === params.productRefId) {
-        return lastMessage as ChatMessageView
+        // autoReply: ข้อความที่ "คน" เพิ่งส่ง ไม่มีบันทึกการตัดสินใจของบอทอยู่แล้วโดยนิยาม
+        return { ...lastMessage, autoReply: null } as ChatMessageView
       }
     }
 
@@ -543,7 +629,7 @@ export async function sendMessage(params: {
     // ถ้าจะกลับมาเปิดใหม่: ต้องมีผู้บริโภคจริงก่อน (push/inbox รวม) และต้องคิดเรื่องปริมาณ
     // + retention ไม่ใช่เขียนทุกข้อความแบบเดิม
 
-    return message as ChatMessageView
+    return { ...message, autoReply: null } as ChatMessageView
   })
 }
 

@@ -69,6 +69,16 @@ export type ChatMessageView = {
   // feature 00023 — null/ไม่มี = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบตอนโหมดทดสอบ
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   autoReplyKind?: string | null
+  // feature 00023 — เหตุผลเบื้องหลังคำตอบครั้งนั้น (snapshot จาก AutoReplyLog ตอนตัดสินใจ)
+  // แสดงตอนชี้/แตะที่ป้าย "ระบบตอบ"; ทุกฟิลด์ null ได้ = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น
+  autoReply?: {
+    keywordName: string | null
+    matchedPhrase: string | null
+    matchType: string | null
+    channelName: string | null
+    adLabel: string | null
+    productName: string | null
+  } | null
   // feature 00018 Phase 3 — reply/unsend
   isDeleted?: boolean // ผู้ส่ง unsend → แสดง "ข้อความถูกลบ"
   replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
