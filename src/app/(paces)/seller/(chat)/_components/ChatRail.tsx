@@ -50,7 +50,9 @@ type Props = {
   /** ร้านที่ active (resolve ที่ (chat)/layout.tsx) — ส่งต่อให้ InboxList ใช้ subscribe realtime
    *  `chat:shop:{shopId}`; null = resolve ไม่ได้ (ไม่มีร้าน/หลุดสิทธิ์) → ไม่ subscribe เฉย ๆ */
   shopId: string | null
-  /** ร้านเชื่อม iShip แล้วหรือยัง — ส่งต่อให้ InboxList ใช้ตัดสินว่าจะโชว์หัวข้อ "พัสดุ" ในตัวกรอง */
+  /** ร้านเชื่อม iShip แล้วหรือยัง — ส่งต่อให้ InboxList ใช้ตัดสินว่าจะโชว์หัวข้อ "พัสดุ" ในตัวกรอง
+   *  รับจาก layout.tsx (RSC ถาม DB อยู่แล้ว) แทนที่จะให้ rail ยิง /api/seller/iship/connection เอง —
+   *  ประหยัดหนึ่ง round-trip และถูกต้องตั้งแต่ render แรก ไม่มีจังหวะที่ตัวกรองกะพริบหาย */
   hasShipping?: boolean
 }
 
@@ -61,9 +63,6 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [channels, setChannels] = useState<ChannelFilterOption[]>([])
   const [groups, setGroups] = useState<ChatGroupTab[]>([])
-  // ร้านเชื่อม iShip แล้วหรือยัง — หน้า /inbox อ่านจาก DB ตอน RSC ได้ แต่ rail เป็น client ล้วน
-  // ถ้าไม่ถาม ตัวกรองพัสดุและชิป "พัสดุมีปัญหา" จะไม่มีวันโผล่บน rail เลยแม้ร้านจะเชื่อมแล้ว
-  const [hasShipping, setHasShipping] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -101,18 +100,6 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
           console.error('[ChatRail] load groups failed', e)
         }
 
-        // non-fatal เหมือน channels/groups — ตัวกรองหายไปดีกว่ารายการแชทล่ม
-        let shippingActive = false
-        try {
-          const shippingRes = await fetch('/api/seller/iship/connection', { cache: 'no-store' })
-          if (shippingRes.ok) {
-            const shippingData = (await shippingRes.json()) as { status?: string | null }
-            shippingActive = shippingData.status === 'ACTIVE'
-          }
-        } catch (e) {
-          console.error('[ChatRail] load shipping status failed', e)
-        }
-
         const conversationsRes = await fetch('/api/chat/conversations?take=20')
         if (!conversationsRes.ok) throw new Error('load conversations failed')
         const conversationsData: ConversationsApiResponse = await conversationsRes.json()
@@ -120,7 +107,6 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
         if (cancelled) return
         setChannels(channelOptions)
         setGroups(groupOptions)
-        setHasShipping(shippingActive)
         setItems(conversationsData.items)
         setNextCursor(conversationsData.nextCursor)
       } catch (e) {
