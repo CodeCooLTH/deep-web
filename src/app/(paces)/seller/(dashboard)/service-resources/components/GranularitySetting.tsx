@@ -59,7 +59,8 @@ export default function GranularitySetting({ value }: Props) {
       <div className="card-header">
         <h4 className="card-title">การรับนัด</h4>
         <p className="text-default-500 mt-0.5 text-sm">
-          ตั้งว่าตอนคีย์ออเดอร์จะให้กรอกแค่วัน หรือกรอกเวลาด้วย
+          ตั้งว่าตอนคีย์ออเดอร์จะให้กรอกแค่วัน หรือกรอกเวลาด้วย —
+          ค่านี้ใช้กับคิวงานทุกอันของร้าน และบันทึกทันทีที่เลือก
         </p>
       </div>
       <div className="card-body">

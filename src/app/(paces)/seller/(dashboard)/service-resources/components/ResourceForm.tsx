@@ -24,6 +24,8 @@ import { pacesToast } from '@/lib/paces-toast'
 import { APPOINTMENT_DEPOSIT_MODES } from '@/lib/appointments'
 import { formatDateTime } from '@/lib/format-date'
 import type { SerializedServiceResource } from '@/services/service-resource.service'
+import type { AppointmentGranularity } from '@/lib/appointments'
+import GranularitySetting from './GranularitySetting'
 
 /** ยอดสมมติในกล่องตัวอย่าง — 1,000 บาท อ่านง่ายและคิดเปอร์เซ็นต์ในใจได้ทันที */
 const PREVIEW_TOTAL = 1000
@@ -63,12 +65,16 @@ const schema = Yup.object({
 
 type FormValues = Yup.InferType<typeof schema>
 
-type Props = { resource?: SerializedServiceResource }
+type Props = {
+  resource?: SerializedServiceResource
+  /** FR-RSV-13 — ค่าปัจจุบันของร้าน ส่งเข้าการ์ด "การรับนัด" ที่อยู่ท้ายฟอร์ม */
+  granularity: AppointmentGranularity
+}
 
 /** รายละเอียดของนัดที่ทำให้ลดจำนวนคิวไม่ได้ (409 CAPACITY_REDUCTION_BLOCKED) */
 type BlockedBy = { orderNo: string | null; start: string; end: string }
 
-export default function ResourceForm({ resource }: Props) {
+export default function ResourceForm({ resource, granularity }: Props) {
   const router = useRouter()
   const isEdit = !!resource
   const [blockedBy, setBlockedBy] = useState<BlockedBy | null>(null)
@@ -324,6 +330,12 @@ export default function ResourceForm({ resource }: Props) {
           </div>
         </div>
       </div>
+
+      {/* การรับนัด — ตั้งค่าระดับร้าน วางไว้ในฟอร์มคิวงานตามที่ user สั่ง 2026-07-31
+          ("ตั้งค่าคิวงาน ให้อยู่ตอนสร้างคิวงาน") เพราะเป็นค่าที่ตั้งครั้งเดียวตอนเริ่มใช้
+          IMPORTANT: บันทึกทันทีที่เลือก แยกจากปุ่มบันทึกของฟอร์มนี้ (คนละ endpoint) —
+          copy ในการ์ดบอกไว้ว่ามีผลกับทั้งร้าน ไม่ใช่เฉพาะคิวงานนี้ */}
+      <GranularitySetting value={granularity} />
 
       <div className="flex items-center justify-end gap-2">
         <button

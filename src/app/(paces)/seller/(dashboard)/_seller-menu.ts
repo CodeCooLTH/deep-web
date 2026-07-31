@@ -43,15 +43,6 @@ export const sellerMenuItems: MenuItemType[] = [
         label: 'คิวงาน',
         icon: 'armchair',
       },
-      // feature 00024 — ปฏิทินคิว (FR-RSV-04) gate เดียวกับ service-resources
-      // icon 'calendar-clock' — 'calendar-event' ถูกใช้โดยปฏิทินการจองของ 00017 แล้ว
-      // ถ้าใช้ซ้ำร้านที่เห็นทั้งสองเมนูไม่ได้ (คนละ vertical) ก็จริง แต่ในเมนูรวมจะสับสน
-      {
-        url: '/appointments',
-        slug: 'seller:appointments',
-        label: 'ปฏิทินคิว',
-        icon: 'calendar-clock',
-      },
       // feature 00017 — เห็นเฉพาะร้าน vertical=LODGING (กรองด้วย applyVerticalMenu ด้านล่าง)
       // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
       // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน
@@ -287,7 +278,7 @@ export function applyVerticalMenu(
  *
  * pattern เดียวกับ applyStaffMenu/applyVerticalMenu (กรอง child ออกจาก group)
  */
-const APPOINTMENT_ONLY_SLUGS = ['seller:service-resources', 'seller:appointments']
+const APPOINTMENT_ONLY_SLUGS = ['seller:service-resources']
 
 export function applyAppointmentMenu(
   items: MenuItemType[],

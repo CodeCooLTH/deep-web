@@ -16,14 +16,14 @@ import { notFound } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
+import { canUseAppointments } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import {
   listServiceResources,
   serializeServiceResource,
 } from '@/services/service-resource.service'
 import ResourceList from './components/ResourceList'
-import GranularitySetting from './components/GranularitySetting'
+import AppointmentCalendar from './components/AppointmentCalendar'
 
 export const metadata: Metadata = { title: 'คิวงาน' }
 
@@ -46,11 +46,13 @@ export default async function ServiceResourcesPage() {
     <>
       <PageBreadcrumb title="คิวงาน" />
       <div className="flex flex-col gap-5">
-        {/* ตั้งค่าหน่วยเวลาก่อน เพราะมันเปลี่ยนว่าฟอร์มคีย์ออเดอร์จะถามอะไร (FR-RSV-13) */}
-        <GranularitySetting
-          value={
-            (active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'
-          }
+        {/* ปฏิทินมาก่อนรายการ — งานประจำวันของร้านคือ "ดูว่าวันนี้มีใครเข้ามาบ้าง"
+            ส่วนการตั้งค่าคิวงานทำครั้งเดียวตอนเริ่มใช้ (user รวมสองหน้าเป็นหน้าเดียว 2026-07-31)
+            ส่ง activeOnly ให้ตัวกรอง — กรองด้วยคิวงานที่ปิดแล้วไม่มีประโยชน์ */}
+        <AppointmentCalendar
+          resources={resources
+            .filter((r) => r.isActive)
+            .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
         />
         {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
         <ResourceList resources={resources.map(serializeServiceResource)} />

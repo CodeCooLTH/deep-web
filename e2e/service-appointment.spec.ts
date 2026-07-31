@@ -61,7 +61,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
 
       // เมนูทั้งสองของฟีเจอร์ต้องโผล่ (gate ชั้นเมนู)
       await expect(page.getByRole('link', { name: 'คิวงาน' })).toBeVisible()
-      await expect(page.getByRole('link', { name: 'ปฏิทินคิว' })).toBeVisible()
+      
     } finally {
       await cleanup(seeded.userId)
     }
@@ -77,7 +77,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
 
       await page.goto('/dashboard')
       await expect(page.getByRole('link', { name: 'คิวงาน' })).toHaveCount(0)
-      await expect(page.getByRole('link', { name: 'ปฏิทินคิว' })).toHaveCount(0)
+      
     } finally {
       await cleanup(seeded.userId)
     }
@@ -243,13 +243,11 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       await loginAs(context, seeded)
-      await page.goto('/appointments')
+      await page.goto('/service-resources')
 
-      await expect(page.getByRole('button', { name: 'รายวัน' })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'รายสัปดาห์' })).toBeVisible()
-      await expect(
-        page.getByText('นัดจะขึ้นที่นี่เมื่อคุณระบุวันเข้าใช้บริการตอนสร้างออเดอร์'),
-      ).toBeVisible()
+      // ปฏิทิน Paces (FullCalendar) อยู่ในหน้าคิวงานหน้าเดียวกัน
+      await expect(page.getByRole('button', { name: 'เดือน' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'สัปดาห์' })).toBeVisible()
     } finally {
       await cleanup(seeded.userId)
     }
@@ -282,7 +280,7 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
       })
 
       await loginAs(context, seeded)
-      await page.goto('/appointments')
+      await page.goto('/service-resources')
 
       await expect(page.getByText('สมชาย ใจดี').first()).toBeVisible()
       await expect(page.getByText('เตียงนวด 1').first()).toBeVisible()

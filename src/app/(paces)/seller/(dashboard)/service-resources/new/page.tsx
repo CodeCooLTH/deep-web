@@ -11,7 +11,7 @@ import { notFound } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { canUseAppointments } from '@/lib/appointments'
+import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import ResourceForm from '../components/ResourceForm'
 
@@ -30,7 +30,7 @@ export default async function NewServiceResourcePage() {
   return (
     <>
       <PageBreadcrumb title="เพิ่มคิวงาน" subtitle="คิวงาน" />
-      <ResourceForm />
+      <ResourceForm granularity={(active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'} />
     </>
   )
 }
