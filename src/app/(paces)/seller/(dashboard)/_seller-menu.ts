@@ -1,6 +1,8 @@
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import type { ExpenseAccessDecision } from '@/services/expense-access.service'
+// feature 00024 — ใช้ตัวกั้นเดียวกับ API/หน้า เพื่อไม่ให้กติกาแตกเป็นสองชุด
+import { canUseAppointments } from '@/lib/appointments'
 
 export const sellerMenuItems: MenuItemType[] = [
   {
@@ -30,6 +32,25 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
+      // feature 00024 — เห็นเฉพาะร้าน kind=BUSINESS และ vertical=GENERAL พร้อมกัน
+      // (กรองด้วย applyAppointmentMenu ด้านล่าง — applyVerticalMenu ดูแค่ vertical จึงไม่พอ)
+      // icon 'armchair' user เลือกเอง 2026-07-31 (verified มีจริง — ใช้อยู่แล้วในโปรเจกต์)
+      // สื่อ "ที่นั่ง/เตียงที่จองได้" ตรงกับธุรกิจนวด/สปา/คลินิกซึ่งเป็นกลุ่มหลัก
+      {
+        url: '/service-resources',
+        slug: 'seller:service-resources',
+        label: 'ทรัพยากรบริการ',
+        icon: 'armchair',
+      },
+      // feature 00024 — ปฏิทินคิว (FR-RSV-04) gate เดียวกับ service-resources
+      // icon 'calendar-clock' — 'calendar-event' ถูกใช้โดยปฏิทินการจองของ 00017 แล้ว
+      // ถ้าใช้ซ้ำร้านที่เห็นทั้งสองเมนูไม่ได้ (คนละ vertical) ก็จริง แต่ในเมนูรวมจะสับสน
+      {
+        url: '/appointments',
+        slug: 'seller:appointments',
+        label: 'ปฏิทินคิว',
+        icon: 'calendar-clock',
+      },
       // feature 00017 — เห็นเฉพาะร้าน vertical=LODGING (กรองด้วย applyVerticalMenu ด้านล่าง)
       // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
       // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน
@@ -230,7 +251,7 @@ export function applyExpenseMenu(
  *   - ร้าน GENERAL ไม่มีห้องพัก → เมนูห้องพักไม่มีความหมาย
  * (BR-LODG-02: 1 ธุรกิจ = 1 ประเภท ต้องไม่เห็นเมนูของอีกฝั่งเลย)
  *
- * 🛑 การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-LODG-03) — ทุก route ของโดเมนบ้านพักต้องมี
+ * IMPORTANT: การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-LODG-03) — ทุก route ของโดเมนบ้านพักต้องมี
  * assertLodgingShop() ที่ทั้ง API route และ page-level server component ด้วยเสมอ
  * ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา" ไม่ได้ทำหน้าที่ป้องกัน
  *
@@ -248,5 +269,34 @@ export function applyVerticalMenu(
   return items.map((group) => !group.children ? group : {
     ...group,
     children: group.children.filter((child) => !hidden.includes(child.slug ?? '')),
+  })
+}
+
+/**
+ * applyAppointmentMenu — ซ่อนเมนูของระบบนัดหมาย (feature 00024, BR-RSV-01/02)
+ *
+ * ทำไมต้องมีตัวนี้แยกจาก applyVerticalMenu: ระบบนัดหมายต้องเข้าเงื่อนไข **สองอย่าง
+ * พร้อมกัน** (`kind = BUSINESS` และ `vertical = GENERAL`) ส่วน applyVerticalMenu รับมาแต่
+ * vertical จึงกรองร้านบุคคลธรรมดาที่เป็น GENERAL ออกไม่ได้ — ซึ่งเป็นเคสที่ BR-RSV-02
+ * ระบุชัดว่าต้องไม่เห็นเมนู
+ *
+ * IMPORTANT: การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-RSV-02 เหมือน BR-LODG-03) — ทุก
+ * route ของโดเมนนี้ต้องเรียก canUseAppointments() ที่ทั้ง API route และ page-level server
+ * component ด้วยเสมอ ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา"
+ *
+ * pattern เดียวกับ applyStaffMenu/applyVerticalMenu (กรอง child ออกจาก group)
+ */
+const APPOINTMENT_ONLY_SLUGS = ['seller:service-resources', 'seller:appointments']
+
+export function applyAppointmentMenu(
+  items: MenuItemType[],
+  shop: { kind: string; vertical: string },
+): MenuItemType[] {
+  if (canUseAppointments(shop)) return items
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.filter(
+      (child) => !APPOINTMENT_ONLY_SLUGS.includes(child.slug ?? ''),
+    ),
   })
 }
