@@ -136,3 +136,26 @@ ul:not([class]) {
 .marketing-body.m-app-shell {
   background-color: var(--mui-palette-background-paper);
 }
+
+/* ── รองรับ prefers-reduced-motion (เพิ่ม 2026-07-31 จาก Impeccable audit) ──
+ *
+ * ตรวจแล้วทั้ง repo ไม่มี guard นี้เลยแม้แต่ไฟล์เดียว ทั้งที่มีอนิเมชั่นวนไม่รู้จบอย่างน้อย 5 จุด
+ * (shine บนหัวเรื่อง landing, floaty, caret-blink, blinkDot, ripple) และ PRODUCT.md ผูกไว้เป็น
+ * ส่วนหนึ่งของ AA baseline ที่ประกาศไว้เอง
+ *
+ * ผู้ใช้ที่ตั้งค่านี้ไม่ได้แค่ "ไม่ชอบภาพเคลื่อนไหว" — กลุ่ม vestibular disorder เจอการเคลื่อนไหว
+ * ที่หยุดไม่ได้แล้วเวียนหัว/คลื่นไส้จริง และตรงกับกลุ่มผู้สูงวัยที่เราตั้งใจดูแลเป็นพิเศษ
+ *
+ * ไม่ตัดทิ้งทั้งหมด (0.01ms) เพราะจะทำให้ transition ที่สื่อสถานะหายไปด้วยจนกดแล้วไม่รู้ว่าติดไหม
+ * — ใช้วิธีตัดการวนซ้ำและย่นเวลาแทน ผู้ใช้ยังได้ feedback แต่ไม่มีอะไรขยับค้างบนจอ
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.12s !important;
+    scroll-behavior: auto !important;
+  }
+}
