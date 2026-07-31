@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
-import { CreateOrderSchema } from "@/lib/validations";
+import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
+import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
 import { requireActiveShop } from "@/lib/shop-context";
@@ -46,10 +47,31 @@ export async function POST(request: NextRequest) {
   // ครอบ try-catch: เดิมไม่มี → exception ใด ๆ จาก createOrder ถูก Next กลืน
   // เป็น 500 ตัวเปล่า วินิจฉัยไม่ได้ (B9 transient ตอน OMS cutover พิสูจน์ปัญหานี้).
   // log server-side ให้เห็น + ตอบ structured ให้ client.
+  // feature 00024 — วันนัดที่แนบมา (ไม่บังคับ). ไม่ส่งมา = เส้นทางเดิมทุกประการ (BR-RSV-04)
+  // parse แยกจาก CreateOrderSchema เพื่อไม่ให้ blast radius ไปโดน caller เดิมของ schema นั้น
+  let appointment: { resourceId: string; start: Date; end: Date } | undefined;
+  const rawAppointment = (body as { appointment?: unknown })?.appointment;
+  if (rawAppointment !== undefined && rawAppointment !== null) {
+    const ap = v.safeParse(OrderAppointmentSchema, rawAppointment);
+    if (!ap.success) {
+      return NextResponse.json({ error: "ข้อมูลวันนัดไม่ถูกต้อง" }, { status: 400 });
+    }
+    const start = new Date(ap.output.start);
+    const end = new Date(ap.output.end);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return NextResponse.json({ error: "ข้อมูลวันนัดไม่ถูกต้อง" }, { status: 400 });
+    }
+    appointment = { resourceId: ap.output.resourceId, start, end };
+  }
+
   try {
-    const order = await createOrder(shop.id, parsed.output);
+    const order = await createOrder(shop.id, { ...parsed.output, appointment });
     return NextResponse.json(order, { status: 201 });
   } catch (e) {
+    // feature 00024 — error ของโดเมนนัดหมายต้องมี catch ครอบที่นี่ มิฉะนั้นตกเป็น 500
+    // (บทเรียน feedback_service_error_route_mapping)
+    const appointmentMapped = appointmentErrorResponse(e);
+    if (appointmentMapped) return appointmentMapped;
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json(
         { error: "ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)" },

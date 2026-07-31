@@ -8,6 +8,10 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { formatOrderNo } from "@/lib/order-no";
+import {
+  attachAppointmentInTx,
+  resolveResourceForOrder,
+} from "@/services/appointment.service";
 
 // State machine ใหม่ตาม OMS redesign spec §2
 // PENDING = สถานะเริ่มต้นทุก order; CONFIRMED = terminal สำเร็จ (ไม่มี COMPLETED)
@@ -88,7 +92,16 @@ export async function createOrder(shopId: string, data: {
   // ของเธรดเข้ากับ Customer (walk-in ที่ match จากเบอร์) ทันที — แชท/แท็บคำสั่งซื้อจะเห็นออเดอร์เลย
   // ไม่ต้องรอ buyer login. link ระดับ walk-in Customer นี้ upgrade เป็น full customer ตอน login ต่อได้
   conversationId?: string;
+  // feature 00024 — วันเข้าใช้บริการ (โหมด A: ร้านเลือกวันให้เลยตอนสร้างออเดอร์)
+  // ไม่ส่งมา = ออเดอร์เดินเส้นทางเดิมทุกประการ ฟิลด์นัดเป็น NULL ทั้งหมด (BR-RSV-04)
+  appointment?: { resourceId: string; start: Date; end: Date };
 }) {
+  // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
+  // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
+  const appointmentResource = data.appointment
+    ? await resolveResourceForOrder(shopId, data.appointment.resourceId)
+    : null;
+
   // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
   // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -310,6 +323,23 @@ export async function createOrder(shopId: string, data: {
               note: null,
               actorUserId: null,
             },
+          });
+        }
+
+        // feature 00024 — ผูกวันนัดเข้ากับออเดอร์ที่เพิ่งสร้าง (โหมด A, FR-RSV-03)
+        //
+        // IMPORTANT: ต้องทำ "หลัง" tx.order.create โดยที่ create ยังไม่ใส่ฟิลด์นัด (SDS D-07)
+        // เหตุผล: การจัดสรรที่นั่งอาจชน EXCLUDE แล้วต้องลองที่นั่งถัดไป ถ้าใส่ที่นั่งไปตั้งแต่
+        // INSERT จะต้องสร้างออเดอร์ใหม่ทั้งใบเพื่อ retry (id/orderNo/publicToken ถูกใช้ไปแล้ว)
+        //
+        // ถ้าเต็มทุกที่นั่ง AppointmentSlotFullError จะถูกโยนออกไป → ทั้ง transaction rollback
+        // → ออเดอร์ไม่ถูกสร้างเลย ซึ่งถูกต้อง: ร้านตั้งใจสร้างออเดอร์พร้อมนัด ไม่ใช่ออเดอร์เปล่า
+        if (appointmentResource && data.appointment) {
+          await attachAppointmentInTx(tx, {
+            orderId: order.id,
+            resource: appointmentResource,
+            start: data.appointment.start,
+            end: data.appointment.end,
           });
         }
 

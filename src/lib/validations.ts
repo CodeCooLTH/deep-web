@@ -1235,3 +1235,67 @@ export const ConversationAutoReplyPatchSchema = v.object({
   clearHandoff: v.optional(v.boolean()),
   contextProductId: v.optional(v.nullable(v.string())),
 })
+
+// ── feature 00024 Service Appointment Booking ────────────────────────────────
+
+// เวลานัดส่งเป็น ISO-8601 ที่มี offset เสมอ (ต่างจากการจองบ้านพักที่เป็นวันล้วน)
+// บริการละเอียดระดับนาที การไม่มี offset ทำให้ตีความเวลาเพี้ยนข้ามเขตเวลา (BR-RSV-40)
+const IsoDateTimeWithOffset = v.pipe(
+  v.string(),
+  v.regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
+    "ต้องเป็นเวลารูปแบบ ISO-8601 พร้อมเขตเวลา",
+  ),
+)
+
+// จำนวนคิวที่รับพร้อมกัน — จำนวนเต็มตั้งแต่ 1 (BR-RSV-06)
+const CapacityInt = v.pipe(
+  v.number(),
+  v.integer("จำนวนคิวต้องเป็นจำนวนเต็ม"),
+  v.minValue(1, "จำนวนคิวต้องมีอย่างน้อย 1"),
+)
+
+const ServiceResourceBaseFields = {
+  name: v.pipe(v.string(), v.trim(), v.minLength(1, "ต้องระบุชื่อ"), v.maxLength(100)),
+  description: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(1000)))),
+  durationMinutes: v.optional(
+    v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1, "ระยะเวลาต้องมากกว่า 0"))),
+  ),
+  capacity: v.optional(CapacityInt),
+}
+
+export const CreateServiceResourceSchema = v.object(ServiceResourceBaseFields)
+
+export const UpdateServiceResourceSchema = v.object({
+  name: v.optional(ServiceResourceBaseFields.name),
+  description: ServiceResourceBaseFields.description,
+  durationMinutes: ServiceResourceBaseFields.durationMinutes,
+  capacity: ServiceResourceBaseFields.capacity,
+  isActive: v.optional(v.boolean()),
+})
+
+// ตั้ง/เลื่อนนัด — ฝั่งร้าน
+export const SetAppointmentSchema = v.object({
+  resourceId: v.pipe(v.string(), v.minLength(1)),
+  start: IsoDateTimeWithOffset,
+  end: IsoDateTimeWithOffset,
+  reason: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+})
+
+// ปิดผลนัด — ฝั่งร้าน
+export const AppointmentOutcomeSchema = v.object({
+  outcome: v.picklist(["COMPLETED", "NO_SHOW"]),
+})
+
+// ขอเลื่อนนัด — ฝั่งลูกค้า (ขอได้อย่างเดียว เปลี่ยนเวลาเองไม่ได้ BR-RSV-23)
+export const RequestRescheduleSchema = v.object({
+  note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+})
+
+// ฟิลด์นัดที่แนบมากับการสร้างออเดอร์ (โหมด A) — แยก schema ไม่ยัดเข้า CreateOrderSchema
+// เพื่อไม่ให้ blast radius ไปโดน caller เดิมของ schema นั้น
+export const OrderAppointmentSchema = v.object({
+  resourceId: v.pipe(v.string(), v.minLength(1)),
+  start: IsoDateTimeWithOffset,
+  end: IsoDateTimeWithOffset,
+})

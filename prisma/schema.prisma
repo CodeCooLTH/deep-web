@@ -24,19 +24,20 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  authAccounts          AuthAccount[]
-  mobileAuthTickets     MobileAuthTicket[]
-  shops                 Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller
-  verifications         VerificationRecord[]
-  userBadges            UserBadge[]
-  trustScoreHistory     TrustScoreHistory[]
-  ordersAsBuyer         Order[]              @relation("BuyerOrders")
-  customer              Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
-  reviewsGiven          Review[]             @relation("ReviewerReviews")
-  verificationsReviewed VerificationRecord[] @relation("ReviewedBy")
-  topUpRequestsReviewed TopUpRequest[]       @relation("TopUpReviewedBy")
-  scamReports           ScamReport[]         @relation("ScamReporter")
-  scamReportsReviewed   ScamReport[]         @relation("ScamReviewer")
+  authAccounts           AuthAccount[]
+  mobileAuthTickets      MobileAuthTicket[]
+  shops                  Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller
+  verifications          VerificationRecord[]
+  userBadges             UserBadge[]
+  trustScoreHistory      TrustScoreHistory[]
+  ordersAsBuyer          Order[]                 @relation("BuyerOrders")
+  customer               Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
+  reviewsGiven           Review[]                @relation("ReviewerReviews")
+  verificationsReviewed  VerificationRecord[]    @relation("ReviewedBy")
+  topUpRequestsReviewed  TopUpRequest[]          @relation("TopUpReviewedBy")
+  scamReports            ScamReport[]            @relation("ScamReporter")
+  scamReportsReviewed    ScamReport[]            @relation("ScamReviewer")
+  appointmentReschedules AppointmentReschedule[] @relation("AppointmentRescheduleActor") // feature 00024
 
   // --- Buyer App (auction domain — additive, mobile-only) ---
   bids          Bid[]          @relation("UserBids")
@@ -197,6 +198,7 @@ model Shop {
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical = GENERAL
   housekeepers         Housekeeper[] // NEW (feature 00017 P3) — รายชื่อแม่บ้าน; ว่างเสมอสำหรับ GENERAL
+  serviceResources     ServiceResource[] // NEW (feature 00024) — ทรัพยากรที่จองเวลาได้; ว่างเสมอถ้าไม่เข้า BR-RSV-01
   products             Product[]
   orders               Order[]
   wallet               SellerWallet?
@@ -306,6 +308,68 @@ model Housekeeper {
   orders Order[] // การจองที่มอบหมายให้แม่บ้านคนนี้ — FK ฝั่ง Order เป็น SET NULL
 
   @@index([shopId, isActive], map: "Housekeeper_shopId_isActive_idx") // list แม่บ้านของร้าน
+}
+
+// ServiceResource: สิ่งที่ลูกค้าจองเวลาเข้ามาใช้ — feature 00024
+// เช่น ช่างหนึ่งคน / เตียงนวดหนึ่งเตียง / ห้องสตูดิโอ / คลาสเรียน / ชุดอุปกรณ์ให้เช่า
+// ว่างเสมอสำหรับ shop ที่ไม่เข้าเงื่อนไข BR-RSV-01 (ต้อง kind=BUSINESS "และ" vertical=GENERAL)
+model ServiceResource {
+  id          String  @id @default(uuid())
+  shopId      String
+  name        String
+  description String? @db.Text
+
+  // durationMinutes: ระยะเวลาบริการมาตรฐาน (นาที) — เป็น "ค่าตั้งต้นช่วยกรอก" เท่านั้น (BR-RSV-09)
+  // 🛑 ห้ามให้การนัดอ้างอิงค่านี้สด — นัดแต่ละครั้ง snapshot ช่วงเวลาจริงไว้ที่ Order.serviceStart/End
+  //    มิฉะนั้นเวลาของนัดเก่าจะขยับเองเมื่อเจ้าของแก้ค่ามาตรฐาน (บทเรียนเดียวกับ Room.depositMode)
+  durationMinutes Int?
+
+  // capacity: จำนวนนัดที่รับได้พร้อมกันในช่วงเวลาที่ทับกัน (BR-RSV-06) — CHECK(capacity >= 1)
+  // 🛑 ค่านี้ไม่ได้ถูกบังคับโดย EXCLUDE constraint โดยตรง — constraint บังคับแค่ "ที่นั่งเดียวกัน
+  //    ห้ามเวลาทับกัน" ส่วนเพดานจำนวนที่นั่งบังคับที่ service layer ด้วยการวนลอง seat 1..capacity
+  //    (ดู src/services/appointment.service.ts) — ปลอดภัยเพราะ seat ที่เกิน capacity ไม่มีวันถูกลอง
+  capacity Int @default(1)
+
+  // isActive: ปิดการใช้งาน = ไม่รับนัดใหม่ แต่นัดเดิมยังอยู่ครบ (BR-RSV-07)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orders Order[] // นัดของทรัพยากรนี้ — FK ฝั่ง Order เป็น Restrict ห้ามลบทรัพยากรที่มีนัด (BR-RSV-08)
+
+  @@index([shopId, isActive], map: "ServiceResource_shopId_isActive_idx")
+}
+
+// AppointmentReschedule: ประวัติการเลื่อนนัด — feature 00024
+// แยกตารางเพราะ BR-RSV-30 บังคับให้ "สะสมทุกครั้ง ไม่ทับของเดิม"
+// ใช้เป็นแหล่งนับจำนวนครั้งที่เลื่อนต่อออเดอร์/ต่อลูกค้า (FR-RSV-11) — ไม่มี counter column
+model AppointmentReschedule {
+  id      String @id @default(uuid())
+  orderId String
+
+  // สถานะก่อนเลื่อน (snapshot) — เก็บครบเพื่อให้ย้อนอ่านได้ว่าเดิมนัดไว้ตรงไหน
+  fromResourceId String?
+  fromStart      DateTime @db.Timestamptz(3)
+  fromEnd        DateTime @db.Timestamptz(3)
+
+  // สถานะหลังเลื่อน
+  toResourceId String?
+  toStart      DateTime @db.Timestamptz(3)
+  toEnd        DateTime @db.Timestamptz(3)
+
+  // actorRole: "SHOP" | "BUYER" — ใครเป็นต้นเหตุของการเลื่อนนี้
+  // ลูกค้า "ขอ" ได้แต่เปลี่ยนเองไม่ได้ (BR-RSV-23) → การย้ายเวลาจริงบันทึกเป็น SHOP เสมอ
+  // พร้อม reason ที่ลูกค้าให้ไว้ ถ้าเป็นการอนุมัติคำขอของลูกค้า
+  actorRole   String
+  actorUserId String?
+  reason      String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User? @relation("AppointmentRescheduleActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt], map: "AppointmentReschedule_orderId_createdAt_idx")
 }
 
 model VerificationRecord {
@@ -534,11 +598,37 @@ model Order {
   // แยกจาก Order.status โดยสิ้นเชิง — งานแม่บ้านไม่กระทบสถานะการจองและ Trust Score
   housekeepingStatus String?
 
-  shop             Shop              @relation(fields: [shopId], references: [id])
-  buyer            User?             @relation("BuyerOrders", fields: [buyerUserId], references: [id])
-  customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  room             Room?             @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  housekeeper      Housekeeper?      @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
+  // --- feature 00024: Service Appointment Booking (additive nullable ทั้งหมด) ---
+  // การนัดหมาย = Order ที่ type = "SERVICE" ไม่ใช่ตารางแยก (BR-RSV-10) — รูปแบบเดียวกับ 00017
+  // field กลุ่มนี้เป็น NULL เสมอสำหรับออเดอร์สินค้าปกติและการจองบ้านพัก (zero-regression BR-RSV-04)
+  serviceResourceId String? // FK → ServiceResource, ON DELETE RESTRICT (BR-RSV-08)
+
+  // serviceSeat: "ที่นั่งลำดับที่ n" ของทรัพยากรนั้น (1..capacity)
+  // 🛑 หัวใจของการรองรับความจุ > 1 — เป็นกลไกภายในล้วน ๆ ไม่ใช่ข้อมูลที่ผู้ใช้เห็นหรือเลือกเอง
+  //    service วนลอง seat 1,2,3... จนกว่า update จะผ่าน — ผ่านที่ไหน = ได้ที่นั่งนั้น
+  //    ห้ามส่งค่านี้ออกไปใน API response ใด ๆ (ดู docs API.md §1)
+  serviceSeat Int?
+
+  // serviceStart/serviceEnd: ช่วงเวลาเข้าใช้บริการ — timestamptz เพราะบริการละเอียดระดับนาที
+  // (ต่างจากบ้านพักที่ใช้ @db.Date ระดับวัน) นับแบบรวมเวลาเริ่ม ไม่รวมเวลาสิ้นสุด (BR-RSV-14)
+  serviceStart DateTime? @db.Timestamptz(3)
+  serviceEnd   DateTime? @db.Timestamptz(3)
+
+  // appointmentStatus: SCHEDULED | CONFIRMED_BY_BUYER | RESCHEDULE_REQUESTED | COMPLETED | NO_SHOW
+  // 🛑 แยกจาก Order.status โดยสิ้นเชิง (BR-RSV-33) — มิเรอร์ housekeepingStatus ของ feature 00017
+  //    การเปลี่ยนค่านี้ต้องไม่แตะ Order.status และไม่กระทบ Trust Score (BR-RSV-35/36)
+  appointmentStatus String?
+
+  buyerConfirmedAt      DateTime? // ลูกค้ากดยืนยันนัดเมื่อไร (BR-RSV-26) — NULL = ยังไม่ยืนยัน
+  rescheduleRequestNote String?   @db.Text // เหตุผลที่ลูกค้าขอเลื่อน (ไม่บังคับกรอก)
+
+  shop             Shop                    @relation(fields: [shopId], references: [id])
+  buyer            User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+  customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  room             Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  housekeeper      Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
+  serviceResource  ServiceResource?        @relation(fields: [serviceResourceId], references: [id], onDelete: Restrict) // feature 00024
+  reschedules      AppointmentReschedule[] // feature 00024 — ประวัติการเลื่อนนัด (สะสม BR-RSV-30)
   items            OrderItem[]
   shipmentTracking ShipmentTracking?
   review           Review?
@@ -556,6 +646,15 @@ model Order {
   // 🛑 ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspection มองไม่เห็น constraint นี้
   // แล้วจะสร้าง migration ที่ DROP ทิ้ง (precedent เดียวกับ partial unique index ของ feat 00008)
   // ทดสอบจริงแล้ว: Prisma โยน P2010 + meta.code '23P01' (ไม่ใช่ P2002) ดู DATABASE.md §4.2.1
+  //
+  // 🛑 EXCLUDE constraint `Order_service_seat_no_overlap` (feature 00024) ก็มีอยู่จริงเช่นกัน
+  // แต่ Prisma DSL ประกาศไม่ได้ (unmanaged SQL — migration 20260731000100):
+  //   EXCLUDE USING gist (serviceResourceId WITH =, serviceSeat WITH =,
+  //                       tstzrange(serviceStart, serviceEnd, '[)') WITH &&)
+  //   WHERE (serviceResourceId IS NOT NULL AND status <> 'CANCELLED')
+  // ต่างจากของบ้านพักตรงมิติ `serviceSeat` ที่ทำให้ทรัพยากรหนึ่งหน่วยรับได้หลายคิวพร้อมกัน
+  // ตามความจุที่ร้านตั้ง — เพดานความจุบังคับที่ service layer ด้วยการวนลอง seat 1..capacity
+  // ข้อห้าม db pull / migrate dev ข้างบนครอบ constraint นี้ด้วย
 
   // index รองรับ /api/files order-slip gate: findFirst({ where: { slipFileId } }) (S-7)
   @@index([slipFileId])
@@ -569,6 +668,9 @@ model Order {
   @@index([shopId, type, checkIn], map: "Order_shopId_type_checkIn_idx") // ปฏิทินรวมทุกห้อง + list การจอง
   @@index([customerId, status], map: "Order_customerId_status_idx") // นับประวัติการยกเลิกต่อลูกค้า
   @@index([housekeeperId, housekeepingStatus], map: "Order_housekeeperId_status_idx") // feat 00017 P3 — หน้ารวมงานแม่บ้านที่ค้าง
+  @@index([serviceResourceId, serviceStart], map: "Order_serviceResourceId_start_idx") // feat 00024 — ปฏิทินของทรัพยากร + หาที่ว่าง
+  @@index([shopId, type, serviceStart], map: "Order_shopId_type_serviceStart_idx") // feat 00024 — ปฏิทินคิวรวมของร้าน
+  @@index([shopId, appointmentStatus], map: "Order_shopId_appointmentStatus_idx") // feat 00024 — นัดที่รอร้านตัดสิน
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
