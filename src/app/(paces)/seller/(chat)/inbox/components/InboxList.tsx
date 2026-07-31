@@ -351,9 +351,9 @@ export default function InboxList({
         unpin: 'เลิกปักหมุดแล้ว',
         hide: 'ซ่อนบทสนทนาแล้ว',
         unhide: 'เลิกซ่อนแล้ว',
-        resolve: 'ปิดงานแล้ว — ดูได้จากตัวกรองสถานะ "ปิดงานแล้ว"',
+        resolve: 'ปิดงานแล้ว — ดูได้ที่แท็บ "ปิดงาน"',
         reopen: 'เปิดบทสนทนาใหม่แล้ว',
-        spam: 'ย้ายเข้าสแปมแล้ว — ดูได้จากตัวกรอง "ดูสแปม"',
+        spam: 'ย้ายเข้าสแปมแล้ว — ดูได้ที่แท็บ "สแปม"',
         unspam: 'เอาออกจากสแปมแล้ว',
       }
       pacesToast.chat.success(TOAST[action])
@@ -363,6 +363,44 @@ export default function InboxList({
     } finally {
       setActioningId(null)
     }
+  }
+
+  // ── แท็บมาตรฐาน "ปิดงาน"/"สแปม" (user สั่ง 2026-07-31) ──────────────────────
+  //
+  // ทำไมไม่สร้างเป็นแถวใน ChatGroup: ปิดงาน/สแปม มี field ของตัวเองอยู่แล้ว (resolvedAt / isSpam)
+  // ซึ่งเป็นสิ่งที่ปุ่ม shortcut ในแถว, เมนูคลิกขวา, และ auto-reply gate อ่านกันอยู่ ถ้าเพิ่มเป็นกลุ่ม
+  // จริงจะมีแหล่งความจริง 2 ที่แล้ววันหนึ่งไม่ตรงกันแน่ (กดปิดงานที่อื่นแต่ไม่ได้ย้ายกลุ่ม / ลากออก
+  // จากกลุ่มแต่ยังปิดงานอยู่) — ให้แท็บ "เป็น" field เดียวกันไปเลย shortcut จึงสัมพันธ์กันเองทันที
+  // ตามที่ user ต้องการ โดยไม่ต้องเขียน sync และลบไม่ได้โดยธรรมชาติ (ไม่มีแถวให้ลบ)
+  //
+  // derive จาก filter ไม่เก็บ state แยก — status/spam ตั้งได้จาก FilterDropdown ด้วย ถ้าเก็บ state
+  // ซ้อนกันแท็บกับดรอปดาวน์จะขัดกันเองเมื่อผู้ใช้ใช้คนละทาง
+  type StdTab = 'ALL' | 'RESOLVED' | 'SPAM' | null
+  const activeStdTab: StdTab = filter.spam
+    ? 'SPAM'
+    : filter.status === 'resolved'
+      ? 'RESOLVED'
+      : filter.status === 'all'
+        ? null // ดรอปดาวน์เลือก "ทุกสถานะ" — ไม่ตรงกับแท็บไหน ปล่อยให้ชิปอธิบายแทน
+        : activeGroupId === null
+          ? 'ALL'
+          : null
+
+  /** สลับแท็บมาตรฐาน — ต้องล้าง activeGroupId ด้วย เพราะแท็บกลุ่มกับแท็บมาตรฐานใช้แถบเดียวกัน */
+  const selectStdTab = (tab: Exclude<StdTab, null>) => {
+    setActiveGroupId(null)
+    setFilter((f) => ({
+      ...f,
+      status: tab === 'RESOLVED' ? 'resolved' : 'open',
+      spam: tab === 'SPAM',
+    }))
+  }
+
+  /** สลับไปแท็บกลุ่ม custom — คืน status/spam เป็นค่าปกติ เพราะเธรดที่ปิดงาน/สแปมแล้ว
+   *  ต้องไม่โผล่ในกลุ่มเดิมของมัน (user เลือก 2026-07-31) */
+  const selectGroupTab = (groupId: string) => {
+    setActiveGroupId(groupId)
+    setFilter((f) => ({ ...f, status: 'open', spam: false }))
   }
 
   // ── feature 00018 กลุ่ม/แท็บจัดหมวดแชท ──
@@ -385,7 +423,9 @@ export default function InboxList({
         return
       }
       setGroups((g) => [...g, data as ChatGroupTab])
-      setActiveGroupId(data.id)
+      // ผ่าน selectGroupTab ไม่ใช่ setActiveGroupId ตรง ๆ — ต้องล้าง status/spam ด้วย ไม่งั้น
+      // สร้างกลุ่มตอนอยู่แท็บ "สแปม"/"ปิดงาน" จะเด้งไปแท็บใหม่ทั้งที่ตัวกรองเดิมยังติดอยู่ → รายการว่าง
+      selectGroupTab(data.id)
       setNewGroupName('')
       setAddingGroup(false)
     } catch {
@@ -658,9 +698,11 @@ export default function InboxList({
               อยู่บนตัวปุ่มเองแล้ว chip ด้านล่างจึงเป็นชื่อเดียวกันซ้ำสองบรรทัดติดกัน — ล้างตัวกรอง
               ยังทำได้จากในดรอปดาวน์ (ตัวเลือก "ทุกเพจ") ต่างจากตัวกรองสถานะ/ผูกลูกค้า/ซ่อน ที่ปุ่ม
               "ตัวกรอง" ไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม chip จึงยังจำเป็น */}
-          {filter.status !== 'open' && (
+          {/* เหลือเฉพาะ status='all' (ดรอปดาวน์ "ทุกสถานะ") — ส่วน 'resolved' ไม่ต้องมีชิปแล้ว
+              เพราะแท็บ "ปิดงาน" บอกอยู่ (user สั่ง 2026-07-31) ถ้าโชว์ทั้งคู่จะซ้ำซ้อน */}
+          {filter.status === 'all' && (
             <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              สถานะ: {filter.status === 'resolved' ? 'ปิดงานแล้ว' : 'ทั้งหมด'}
+              สถานะ: ทุกสถานะ
               <button type="button" onClick={() => setFilter((f) => ({ ...f, status: 'open' }))} aria-label="ล้างตัวกรองสถานะ" className="inline-flex items-center">
                 <Icon icon="x" width={12} height={12} />
               </button>
@@ -682,14 +724,7 @@ export default function InboxList({
               </button>
             </span>
           )}
-          {filter.spam && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              กำลังดูสแปม
-              <button type="button" onClick={() => setFilter((f) => ({ ...f, spam: false }))} aria-label="เลิกดูสแปม" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
+          {/* ชิป "กำลังดูสแปม" ถูกถอดออก 2026-07-31 — แท็บ "สแปม" ทำหน้าที่นี้แล้ว (กดแท็บอื่นคือการออก) */}
           {/* ไม่มี chip ของ "การอ่าน" (user สั่ง 2026-07-24: ปุ่มตัวกรองขึ้น badge (1) อยู่แล้ว = ซ้ำซ้อน)
               — ล้างได้จากในดรอปดาวน์ (radio "ทั้งหมด") ต่างจาก chip สถานะ/ผูกลูกค้า/ซ่อน/สแปม ที่เก็บไว้
               เพราะบอก "ค่าที่เลือกคืออะไร" ซึ่ง badge ตัวเลขบอกไม่ได้ */}
@@ -702,21 +737,43 @@ export default function InboxList({
             <button
               type="button"
               role="tab"
-              aria-selected={activeGroupId === null}
-              onClick={() => setActiveGroupId(null)}
+              aria-selected={activeStdTab === 'ALL'}
+              onClick={() => selectStdTab('ALL')}
               className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                activeGroupId === null ? 'bg-primary text-white' : 'bg-light text-default-700'
+                activeStdTab === 'ALL' ? 'bg-primary text-white' : 'bg-light text-default-700'
               }`}
             >
               ทั้งหมด
             </button>
+            {/* แท็บมาตรฐาน — ทุกร้านมีเสมอ ลบไม่ได้ (ไม่ใช่แถวใน ChatGroup แต่อ่านจาก field
+                resolvedAt/isSpam ที่ปุ่ม shortcut ในแถวเขียนอยู่แล้ว จึงสัมพันธ์กันเองทันที)
+                วางต่อจาก "ทั้งหมด" ก่อนกลุ่มที่ร้านสร้างเอง (user เลือก 2026-07-31)
+                ไอคอนตรงกับปุ่ม shortcut ในแถวเพื่อให้โยงกันออกโดยไม่ต้องอ่าน */}
+            {([
+              { key: 'RESOLVED', label: 'ปิดงาน', icon: 'circle-check' },
+              { key: 'SPAM', label: 'สแปม', icon: 'alert-circle' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={activeStdTab === t.key}
+                onClick={() => selectStdTab(t.key)}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
+                  activeStdTab === t.key ? 'bg-primary text-white' : 'bg-light text-default-700'
+                }`}
+              >
+                <Icon icon={t.icon} width={14} height={14} className="shrink-0" />
+                {t.label}
+              </button>
+            ))}
             {groups.map((g) => (
               <button
                 key={g.id}
                 type="button"
                 role="tab"
                 aria-selected={activeGroupId === g.id}
-                onClick={() => setActiveGroupId(g.id)}
+                onClick={() => selectGroupTab(g.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   handleDeleteGroup(g)
