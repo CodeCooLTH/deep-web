@@ -115,6 +115,28 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 
 ---
 
+### 4.0 `PATCH /api/shops/current/appointment-settings`
+
+ตั้งค่าหน่วยเวลาของการนัดระดับร้าน (FR-RSV-13)
+
+**Request**
+
+```jsonc
+{ "appointmentGranularity": "DAY" }   // "DAY" | "TIME"
+```
+
+**Response 200** — `{ "appointmentGranularity": "DAY" }`
+
+**Errors:** `400 VALIDATION_ERROR` (ค่านอก 2 ตัวเลือก), `403 FEATURE_NOT_AVAILABLE`
+
+> 🛑 เปลี่ยนค่านี้ **ไม่แตะนัดที่บันทึกไว้แล้วแม้แต่แถวเดียว** (BR-RSV-55) — เป็นแค่ค่าที่บอกว่า
+> "ฟอร์มสร้างออเดอร์ควรถามอะไร" การแสดงผลของนัดเก่าตัดสินจากข้อมูลจริงของแถวนั้นเสมอ (BR-RSV-57)
+>
+> โหมด `DAY`: ฝั่ง client ส่ง `start` = 00:00 และ `end` = 00:00 ของวันถัดไป (เวลาไทย) —
+> **ไม่มีฟิลด์/flag ใหม่ใน payload ของ appointment** โครงสร้างเดิมรองรับอยู่แล้ว (BR-RSV-54)
+
+---
+
 ### 4.1.1 `GET /api/shops/current/service-resources`
 
 รายการทรัพยากรของร้าน (ใช้ทั้งหน้าตั้งค่าและ dropdown เลือกทรัพยากรในฟอร์ม POS)

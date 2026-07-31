@@ -11,7 +11,7 @@ import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
 // feature 00024 — ทรัพยากรที่จองได้ + ตัวกั้นฟีเจอร์ (ใช้ตัวเดียวกับ API/เมนู กติกาไม่แตกเป็นสองชุด)
-import { canUseAppointments } from '@/lib/appointments'
+import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { listServiceResources } from '@/services/service-resource.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -134,7 +134,7 @@ export default async function NewOrderPage() {
         saveLabel="บันทึกออเดอร์"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} />
+      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
     </>
   )
 }

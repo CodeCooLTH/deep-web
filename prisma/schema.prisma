@@ -195,6 +195,17 @@ model Shop {
   // service ที่แก้ข้อมูลร้านต้องไม่รับ field นี้เข้ามาเลย
   vertical            String  @default("GENERAL")
 
+  // appointmentGranularity: หน่วยเวลาของการนัด (feature 00024 FR-RSV-13) — DAY | TIME
+  //   DAY  = รับนัดเป็นรายวัน ฟอร์มไม่ถามเวลาเริ่ม/สิ้นสุด (ค่าเริ่มต้น — กรอกน้อยที่สุด)
+  //   TIME = ระบุช่วงเวลา เช่น 09:00-12:00
+  //
+  // IMPORTANT: เป็นแค่ค่าที่บอกว่า "ฟอร์มควรถามอะไร" (BR-RSV-55) — เปลี่ยนค่านี้ต้องไม่แตะ
+  //   นัดที่บันทึกไว้แล้วแม้แต่แถวเดียว ทั้งสองโหมดเก็บด้วย Order.serviceStart/serviceEnd
+  //   ชุดเดียวกัน โหมด DAY เก็บเป็นช่วงที่ครอบทั้งวันตามเวลาไทย ไม่มี flag แยก (BR-RSV-54)
+  //   การแสดงผลตัดสินจากข้อมูลจริงของแถวนั้น ไม่ใช่จากค่านี้ (BR-RSV-57)
+  // CHECK: appointmentGranularity IN ('DAY','TIME')
+  appointmentGranularity String @default("DAY")
+
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical = GENERAL
   housekeepers         Housekeeper[] // NEW (feature 00017 P3) — รายชื่อแม่บ้าน; ว่างเสมอสำหรับ GENERAL

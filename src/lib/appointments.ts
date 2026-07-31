@@ -63,6 +63,47 @@ export const APPOINTMENT_DEPOSIT_MODES = {
 
 export type AppointmentDepositMode = keyof typeof APPOINTMENT_DEPOSIT_MODES;
 
+/**
+ * หน่วยเวลาของการนัด (FR-RSV-13, BR-RSV-53) — ค่าตั้งค่าระดับร้าน
+ *
+ * IMPORTANT: เป็นแค่ค่าที่บอกว่า "ฟอร์มควรถามอะไร" ไม่ใช่ชนิดของข้อมูล — ทั้งสองโหมด
+ * เก็บด้วย Order.serviceStart/serviceEnd ชุดเดียวกัน (BR-RSV-54) เปลี่ยนโหมดต้องไม่แตะ
+ * นัดเก่าแม้แต่แถวเดียว (BR-RSV-55)
+ */
+export const APPOINTMENT_GRANULARITY = {
+  DAY: "DAY",
+  TIME: "TIME",
+} as const;
+
+export type AppointmentGranularity =
+  (typeof APPOINTMENT_GRANULARITY)[keyof typeof APPOINTMENT_GRANULARITY];
+
+export const APPOINTMENT_GRANULARITY_LABEL: Record<AppointmentGranularity, string> = {
+  DAY: "รับนัดเป็นรายวัน",
+  TIME: "ระบุช่วงเวลา",
+};
+
+export function isAppointmentGranularity(v: string): v is AppointmentGranularity {
+  return v === "DAY" || v === "TIME";
+}
+
+// เวลาไทยคงที่ UTC+7 ไม่มี DST → คำนวณขอบวันด้วย offset คงที่ได้ปลอดภัย
+const BKK_OFFSET_MS = 7 * 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
+
+/**
+ * นัดนี้กินทั้งวันพอดีไหม — ใช้ตัดสิน "การแสดงผล" ของแต่ละแถว
+ *
+ * IMPORTANT: ตัดสินจาก **ข้อมูลจริงของแถวนั้น** ไม่ใช่จากโหมดปัจจุบันของร้าน (BR-RSV-57)
+ * ร้านที่สลับโหมดไป-มาจะได้ไม่เห็นนัดเก่าเพี้ยน — นัดที่บันทึกตอนโหมดรายวันยังแสดงว่า
+ * "ทั้งวัน" ต่อไปแม้ร้านจะเปลี่ยนเป็นระบุช่วงเวลาแล้ว
+ */
+export function isAllDayAppointment(start: Date, end: Date): boolean {
+  const s = start.getTime() + BKK_OFFSET_MS;
+  const e = end.getTime() + BKK_OFFSET_MS;
+  return s % DAY_MS === 0 && e % DAY_MS === 0 && e - s === DAY_MS;
+}
+
 /** ป้ายภาษาไทยของสถานะนัด — ใช้ร่วมกันทุก surface เพื่อไม่ให้คำเรียกเพี้ยนกัน */
 export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
   SCHEDULED: "นัดแล้ว",

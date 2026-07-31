@@ -32,7 +32,11 @@ import Typography from '@mui/material/Typography'
 import { toast } from 'react-toastify'
 
 import CustomTextField from '@core/components/mui/TextField'
-import { APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from '@/lib/appointments'
+import {
+  APPOINTMENT_STATUS_LABEL,
+  isAllDayAppointment,
+  type AppointmentStatus,
+} from '@/lib/appointments'
 import { formatDateTH, formatDateTimeTH, formatTimeHM } from '@/lib/format-date'
 
 export type PublicAppointment = {
@@ -95,6 +99,9 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
   const end = new Date(state.endIso)
   // นัดข้ามวัน (เช่น 22:00–01:00) ต้องเห็นวันที่ทั้งสองฝั่ง ไม่งั้นอ่านแล้วเข้าใจผิด
   const crossesDay = formatDateTH(start) !== formatDateTH(end)
+  // ร้านที่รับนัดเป็นรายวัน (FR-RSV-13) — โชว์ "ทั้งวัน" แทนช่วงเวลาที่ไม่มีความหมายกับลูกค้า
+  // ตัดสินจากข้อมูลจริงของนัดนี้ ไม่ใช่จากค่าตั้งค่าปัจจุบันของร้าน (BR-RSV-57)
+  const allDay = isAllDayAppointment(start, end)
 
   const showConfirm = !orderCancelled && state.status === 'SCHEDULED'
   /**
@@ -183,9 +190,11 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
               {formatDateTH(start)}
             </Typography>
             <Typography variant="body1" color="text.primary">
-              {crossesDay
-                ? `${formatTimeHM(start)} – ${formatDateTH(end)} ${formatTimeHM(end)} น.`
-                : `${formatTimeHM(start)} – ${formatTimeHM(end)} น.`}
+              {allDay
+                ? 'ทั้งวัน'
+                : crossesDay
+                  ? `${formatTimeHM(start)} – ${formatDateTH(end)} ${formatTimeHM(end)} น.`
+                  : `${formatTimeHM(start)} – ${formatTimeHM(end)} น.`}
             </Typography>
             <Typography
               variant="body2"

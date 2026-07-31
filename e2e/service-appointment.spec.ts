@@ -1,7 +1,7 @@
 /**
  * E2E — ระบบนัดหมายวันเข้าใช้บริการ + มัดจำ (feature 00024)
  *
- * ครอบ TestCase.md กลุ่ม B (ตัวกั้นฟีเจอร์) และ C (ทรัพยากร) เฉพาะส่วนที่ต้องผ่าน browser จริง
+ * ครอบ TestCase.md กลุ่ม B (ตัวกั้นฟีเจอร์) และ C (คิวงาน) เฉพาะส่วนที่ต้องผ่าน browser จริง
  * กลุ่ม A (การกันจองเกินความจุ) ไม่อยู่ที่นี่ — พิสูจน์ด้วย scripts/tc-a05-concurrent-capacity.ts
  * ซึ่งยิงพร้อมกันจริงได้ ต่างจาก Playwright ที่กดทีละครั้ง
  *
@@ -45,7 +45,7 @@ async function createShop(opts: {
 }
 
 test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (กลุ่ม B)', () => {
-  test('TC-B01 ร้านบัญชีธุรกิจ + สินค้าและบริการ เข้าหน้าตั้งค่าทรัพยากรได้ และเห็นเมนู', async ({
+  test('TC-B01 ร้านบัญชีธุรกิจ + สินค้าและบริการ เข้าหน้าตั้งค่าคิวงานได้ และเห็นเมนู', async ({
     context,
     page,
   }) => {
@@ -54,13 +54,13 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
       await loginAs(context, seeded)
       await page.goto('/service-resources')
 
-      await expect(page.getByRole('heading', { name: 'ทรัพยากรที่จองได้' })).toBeVisible()
-      // ยังไม่มีทรัพยากร → ต้องเห็น empty state ที่สอนว่าต้องทำอะไรต่อ ไม่ใช่หน้าว่าง
-      await expect(page.getByText('ยังไม่มีทรัพยากรที่จองได้')).toBeVisible()
-      await expect(page.getByRole('link', { name: /เพิ่มทรัพยากร/ })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'คิวงานที่รับได้' })).toBeVisible()
+      // ยังไม่มีคิวงาน → ต้องเห็น empty state ที่สอนว่าต้องทำอะไรต่อ ไม่ใช่หน้าว่าง
+      await expect(page.getByText('ยังไม่มีคิวงานที่รับได้')).toBeVisible()
+      await expect(page.getByRole('link', { name: /เพิ่มคิวงาน/ })).toBeVisible()
 
       // เมนูทั้งสองของฟีเจอร์ต้องโผล่ (gate ชั้นเมนู)
-      await expect(page.getByRole('link', { name: 'ทรัพยากรบริการ' })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'คิวงาน' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'ปฏิทินคิว' })).toBeVisible()
     } finally {
       await cleanup(seeded.userId)
@@ -76,7 +76,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
       expect(res?.status()).toBe(404)
 
       await page.goto('/dashboard')
-      await expect(page.getByRole('link', { name: 'ทรัพยากรบริการ' })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: 'คิวงาน' })).toHaveCount(0)
       await expect(page.getByRole('link', { name: 'ปฏิทินคิว' })).toHaveCount(0)
     } finally {
       await cleanup(seeded.userId)
@@ -91,7 +91,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
       expect(res?.status()).toBe(404)
 
       await page.goto('/dashboard')
-      await expect(page.getByRole('link', { name: 'ทรัพยากรบริการ' })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: 'คิวงาน' })).toHaveCount(0)
     } finally {
       await cleanup(seeded.userId)
     }
@@ -117,8 +117,8 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
   })
 })
 
-test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + มัดจำ (FR-RSV-12)', () => {
-  test('TC-C01 สร้างทรัพยากรโดยไม่ระบุความจุ ได้ 1 คิว และไม่เก็บมัดจำ', async ({
+test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มัดจำ (FR-RSV-12)', () => {
+  test('TC-C01 สร้างคิวงานโดยไม่ระบุความจุ ได้ 1 คิว และไม่เก็บมัดจำ', async ({
     context,
     page,
   }) => {
@@ -127,8 +127,8 @@ test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + 
       await loginAs(context, seeded)
       await page.goto('/service-resources/new')
 
-      await page.getByLabel('ชื่อทรัพยากร').fill('หมอนวด A')
-      await page.getByRole('button', { name: 'เพิ่มทรัพยากร' }).click()
+      await page.getByLabel('ชื่อคิวงาน').fill('หมอนวด A')
+      await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
 
       await page.waitForURL('**/service-resources')
       await expect(page.getByText('หมอนวด A')).toBeVisible()
@@ -154,7 +154,7 @@ test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + 
       await loginAs(context, seeded)
       await page.goto('/service-resources/new')
 
-      await page.getByLabel('ชื่อทรัพยากร').fill('คลาสเช้า')
+      await page.getByLabel('ชื่อคิวงาน').fill('คลาสเช้า')
       await page.getByLabel('จำนวนคิวที่รับพร้อมกัน').fill('8')
       await page.getByLabel('เก็บมัดจำแบบ').selectOption('PERCENT')
       await page.getByLabel('จำนวน').fill('30')
@@ -163,7 +163,7 @@ test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + 
       await expect(page.getByText('มัดจำ ฿300')).toBeVisible()
       await expect(page.getByText('ลูกค้าจ่ายหน้างานอีก ฿700')).toBeVisible()
 
-      await page.getByRole('button', { name: 'เพิ่มทรัพยากร' }).click()
+      await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
       await page.waitForURL('**/service-resources')
 
       const row = await prisma.serviceResource.findFirst({
@@ -184,9 +184,9 @@ test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + 
       await loginAs(context, seeded)
       await page.goto('/service-resources/new')
 
-      await page.getByLabel('ชื่อทรัพยากร').fill('ทดสอบคิวศูนย์')
+      await page.getByLabel('ชื่อคิวงาน').fill('ทดสอบคิวศูนย์')
       await page.getByLabel('จำนวนคิวที่รับพร้อมกัน').fill('0')
-      await page.getByRole('button', { name: 'เพิ่มทรัพยากร' }).click()
+      await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
 
       await expect(page.getByText('จำนวนคิวต้องมีอย่างน้อย 1')).toBeVisible()
       const count = await prisma.serviceResource.count({ where: { shopId: seeded.shopId } })
@@ -196,13 +196,13 @@ test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + 
     }
   })
 
-  test('ลบทรัพยากรที่มีนัดผูกอยู่ไม่ได้ — ต้องเสนอปิดการใช้งานแทน', async ({ context, page }) => {
+  test('ลบคิวงานที่มีนัดผูกอยู่ไม่ได้ — ต้องเสนอปิดการใช้งานแทน', async ({ context, page }) => {
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
       const resource = await prisma.serviceResource.create({
         data: { shopId: seeded.shopId, name: 'ช่างสมชาย', capacity: 1 },
       })
-      // ออเดอร์ที่มีนัดผูกกับทรัพยากรนี้ → FK RESTRICT ต้องกันการลบ
+      // ออเดอร์ที่มีนัดผูกกับคิวงานนี้ → FK RESTRICT ต้องกันการลบ
       await prisma.order.create({
         data: {
           shopId: seeded.shopId,
@@ -226,7 +226,7 @@ test.describe('feature 00024 — ทรัพยากร (กลุ่ม C) + 
       await expect(page.getByText('ลบไม่ได้')).toBeVisible()
       await expect(page.getByRole('button', { name: 'ปิดการใช้งานแทน' })).toBeVisible()
 
-      // ทรัพยากรต้องยังอยู่
+      // คิวงานต้องยังอยู่
       const still = await prisma.serviceResource.count({ where: { id: resource.id } })
       expect(still).toBe(1)
     } finally {
@@ -313,7 +313,7 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     }
   })
 
-  test('ร้านที่ใช้ได้แต่ยังไม่มีทรัพยากร ก็ต้องไม่มีบล็อกวันนัด (ไม่มีอะไรให้เลือก)', async ({
+  test('ร้านที่ใช้ได้แต่ยังไม่มีคิวงาน ก็ต้องไม่มีบล็อกวันนัด (ไม่มีอะไรให้เลือก)', async ({
     context,
     page,
   }) => {
@@ -327,7 +327,7 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     }
   })
 
-  test('ร้านที่มีทรัพยากรแล้ว เห็นบล็อกวันนัด และค่าเริ่มต้นคือไม่ตั้งวันนัด', async ({
+  test('ร้านที่มีคิวงานแล้ว เห็นบล็อกวันนัด และค่าเริ่มต้นคือไม่ตั้งวันนัด', async ({
     context,
     page,
   }) => {
@@ -340,9 +340,9 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
       await page.goto('/orders/new')
 
       await expect(page.getByText('วันเข้าใช้บริการ')).toBeVisible()
-      const select = page.getByLabel('ทรัพยากรที่ให้บริการ')
+      const select = page.getByLabel('รับนัดโดย')
       await expect(select).toHaveValue('')
-      // ยังไม่เลือกทรัพยากร → ฟิลด์อื่นต้องยังไม่โผล่ (progressive reveal)
+      // ยังไม่เลือกคิวงาน → ฟิลด์อื่นต้องยังไม่โผล่ (progressive reveal)
       await expect(page.getByLabel('วันที่นัด')).toHaveCount(0)
     } finally {
       await prisma.serviceResource.deleteMany({ where: { shopId: seeded.shopId } })

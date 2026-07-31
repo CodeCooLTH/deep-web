@@ -22,6 +22,7 @@ import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
 // feature 00024 — บล็อกวันเข้าใช้บริการ (render เฉพาะร้านที่ใช้ระบบนัดหมายได้)
 import AppointmentBlock, { type ServiceResourceOption } from './AppointmentBlock'
+import type { AppointmentGranularity } from '@/lib/appointments'
 import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 
@@ -79,8 +80,10 @@ interface Props {
   /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (BUSINESS + GENERAL เท่านั้น, BR-RSV-01)
    *  false = ไม่ render บล็อกวันนัดเลย DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด */
   serviceResourcesEnabled?: boolean
-  /** feature 00024 — ทรัพยากรที่เปิดใช้งานของร้าน (ส่งมาจาก server ตอน render ไม่ยิงถามฝั่ง client) */
+  /** feature 00024 — คิวงานที่เปิดใช้งานของร้าน (ส่งมาจาก server ตอน render ไม่ยิงถามฝั่ง client) */
   serviceResources?: ServiceResourceOption[]
+  /** feature 00024 FR-RSV-13 — ร้านรับนัดเป็นรายวัน (DAY) หรือระบุช่วงเวลา (TIME) */
+  appointmentGranularity?: AppointmentGranularity
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -230,6 +233,7 @@ export default function OrderCreateForm({
   ishipCreateMode = 'OFF',
   serviceResourcesEnabled = false,
   serviceResources = [],
+  appointmentGranularity = 'DAY',
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -531,13 +535,27 @@ export default function OrderCreateForm({
     } | undefined
     const ap = values.appointment
     if (serviceResourcesEnabled && ap?.resourceId) {
-      if (!ap.date || !ap.startTime || !ap.endTime) {
-        setError('appointment.endTime', { message: 'กรอกวันที่ เวลาเริ่ม และเวลาสิ้นสุดให้ครบ' })
-        pacesToast.error('ระบุวันนัดไม่ครบ — กรอกวันที่ เวลาเริ่ม และเวลาสิ้นสุด')
+      if (!ap.date) {
+        setError('appointment.endTime', { message: 'เลือกวันที่นัดก่อน' })
+        pacesToast.error('ยังไม่ได้เลือกวันที่นัด')
         return
       }
-      const start = new Date(`${ap.date}T${ap.startTime}`)
-      const end = new Date(`${ap.date}T${ap.endTime}`)
+      let start: Date
+      let end: Date
+      if (appointmentGranularity === 'DAY') {
+        // โหมดรายวัน (FR-RSV-13): ส่งช่วงที่ครอบทั้งวันตามเวลาเครื่อง — ไม่มีฟิลด์ใหม่ใน payload
+        // โครงสร้างเดิมรองรับอยู่แล้ว (BR-RSV-54) และ isAllDayAppointment() ตอนแสดงผลจะจับได้เอง
+        start = new Date(`${ap.date}T00:00`)
+        end = new Date(start.getTime() + 86_400_000)
+      } else {
+        if (!ap.startTime || !ap.endTime) {
+          setError('appointment.endTime', { message: 'กรอกเวลาเริ่มและเวลาสิ้นสุดให้ครบ' })
+          pacesToast.error('ระบุวันนัดไม่ครบ — กรอกเวลาเริ่มและเวลาสิ้นสุด')
+          return
+        }
+        start = new Date(`${ap.date}T${ap.startTime}`)
+        end = new Date(`${ap.date}T${ap.endTime}`)
+      }
       if (isNaN(start.getTime()) || isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
         setError('appointment.endTime', { message: 'เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม' })
         pacesToast.error('เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม')
@@ -694,6 +712,7 @@ export default function OrderCreateForm({
             errors={errors}
             setValue={setValue}
             resources={serviceResources}
+            granularity={appointmentGranularity}
             total={barTotal}
             value={{
               resourceId: appointmentWatch?.resourceId,

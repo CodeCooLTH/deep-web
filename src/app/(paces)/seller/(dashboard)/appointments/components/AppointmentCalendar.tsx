@@ -26,6 +26,7 @@ import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
 import {
   APPOINTMENT_STATUS_LABEL,
+  isAllDayAppointment,
   type AppointmentStatus,
 } from '@/lib/appointments'
 import {
@@ -36,6 +37,19 @@ import {
 } from '@/lib/format-date'
 
 type ResourceOption = { id: string; name: string; capacity: number }
+
+/**
+ * ป้ายเวลาของนัดหนึ่งแถว — "ทั้งวัน" หรือช่วงเวลา
+ *
+ * IMPORTANT: ตัดสินจากข้อมูลจริงของแถวนั้น ไม่ใช่จากโหมดปัจจุบันของร้าน (BR-RSV-57)
+ * ร้านที่สลับโหมดไป-มาจะไม่เห็นนัดเก่าเพี้ยน
+ */
+function timeLabel(startIso: string, endIso: string): string {
+  const s = new Date(startIso)
+  const e = new Date(endIso)
+  if (isAllDayAppointment(s, e)) return 'ทั้งวัน'
+  return `${formatTimeHM(s)} – ${formatTimeHM(e)}`
+}
 
 /** รูปแบบ item ที่ GET /api/shops/current/appointments คืนมา (API.md §4.5) */
 type AppointmentItem = {
@@ -111,7 +125,7 @@ function sameBangkokDay(a: Date, b: Date): boolean {
 }
 
 /**
- * จำนวนนัดที่ทับช่วงเวลาของ item นี้ บนทรัพยากรเดียวกัน (รวมตัวเอง)
+ * จำนวนนัดที่ทับช่วงเวลาของ item นี้ บนคิวงานเดียวกัน (รวมตัวเอง)
  *
  * ใช้แสดง "จองแล้ว n จาก m คิว" — API ไม่ได้ส่งตัวเลขนี้มา จึงนับจาก dataset ที่โหลดอยู่
  * เกณฑ์ทับซ้อนมาตรฐาน: a.start < b.end && b.start < a.end (ต่อกันพอดีไม่ถือว่าทับ ตรงกับ
@@ -137,7 +151,7 @@ function StatusBadge({ status }: { status: string | null }) {
   return <span className={`badge ${STATUS_CLASS[s]}`}>{APPOINTMENT_STATUS_LABEL[s]}</span>
 }
 
-/** ป้ายความจุ — แสดงเฉพาะทรัพยากรที่รับได้มากกว่า 1 คิว (capacity=1 ไม่ต้องบอก ทุกคนรู้อยู่แล้ว) */
+/** ป้ายความจุ — แสดงเฉพาะคิวงานที่รับได้มากกว่า 1 คิว (capacity=1 ไม่ต้องบอก ทุกคนรู้อยู่แล้ว) */
 function CapacityChip({ item, all }: { item: AppointmentItem; all: AppointmentItem[] }) {
   if (!item.resource || item.resource.capacity <= 1) return null
   return (
@@ -229,8 +243,9 @@ export default function AppointmentCalendar({ resources }: Props) {
 
   // ตัวกรองที่มีตัวเลือกเดียวไม่ได้ทำอะไร — ซ่อนไปเลย
   const showFilter = resources.length > 1
-  // คำบนปุ่มเลี่ยงศัพท์ "ทรัพยากร" — เจ้าของร้านคิดเป็น "ช่างคนนี้/เตียงนี้/คลาสนี้"
-  // ไม่ได้คิดเป็นคำรวมเชิงระบบ (user ถามเองว่า "กรองทรัพยากรคืออะไร" 2026-07-31)
+  // ปุ่มบอกการกระทำ ("ดูทั้งหมด") แล้วโชว์ชื่อคิวงานที่เลือกแทน — ไม่เอาศัพท์รวมขึ้นปุ่ม
+  // เพราะเจ้าของร้านคิดเป็น "ช่องบริการ 1/ช่างคนนี้" ไม่ได้คิดเป็นคำรวม
+  // (user ถามเองว่า "กรองทรัพยากรคืออะไร" 2026-07-31 → เปลี่ยนศัพท์เป็น "คิวงาน" ทั้งระบบ)
   const filterOptions = [
     { value: ALL, label: 'ดูทั้งหมด' },
     ...resources.map((r) => ({ value: r.id, label: r.name })),
@@ -414,7 +429,7 @@ export default function AppointmentCalendar({ resources }: Props) {
                           className="border-default-200 hover:bg-default-50 block rounded-lg border p-2"
                         >
                           <p className="text-default-800 text-sm font-medium">
-                            {formatTimeHM(it.start)}
+                            {timeLabel(it.start, it.end)}
                           </p>
                           <p className="text-default-600 truncate text-sm">
                             {it.buyerName ?? 'ไม่ระบุชื่อ'}
@@ -506,7 +521,7 @@ function DayAgenda({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-default-800 font-medium">
-                  {formatTimeHM(it.start)} – {formatTimeHM(it.end)}
+                  {timeLabel(it.start, it.end)}
                 </p>
                 <p className="text-default-600 mt-0.5 truncate text-sm">
                   {it.buyerName ?? 'ไม่ระบุชื่อ'}
@@ -534,7 +549,7 @@ function DayAgenda({
         <table className="table w-full">
           <thead>
             <tr>
-              {['เวลา', 'ลูกค้า', 'ทรัพยากร', 'สถานะ', 'เลขคำสั่งซื้อ'].map((h) => (
+              {['เวลา', 'ลูกค้า', 'คิวงาน', 'สถานะ', 'เลขคำสั่งซื้อ'].map((h) => (
                 <th
                   key={h}
                   className="text-default-500 px-4 py-3 text-start text-sm font-medium"
@@ -552,7 +567,7 @@ function DayAgenda({
                     href={`/orders/${it.orderToken}`}
                     className="text-default-800 font-medium"
                   >
-                    {formatTimeHM(it.start)} – {formatTimeHM(it.end)}
+                    {timeLabel(it.start, it.end)}
                   </Link>
                 </td>
                 <td className="text-default-700 px-4 py-3">{it.buyerName ?? 'ไม่ระบุชื่อ'}</td>

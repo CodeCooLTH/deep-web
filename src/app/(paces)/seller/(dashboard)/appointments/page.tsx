@@ -35,7 +35,7 @@ export default async function AppointmentsPage() {
   if (!active) return null
   if (!canUseAppointments({ kind: active.kind, vertical: active.shop.vertical })) notFound()
 
-  // ตัวเลือกของตัวกรอง — เอาเฉพาะที่ยังเปิดใช้งาน เพราะกรองด้วยทรัพยากรที่ปิดแล้วไม่มีประโยชน์
+  // ตัวเลือกของตัวกรอง — เอาเฉพาะที่ยังเปิดใช้งาน เพราะกรองด้วยคิวงานที่ปิดแล้วไม่มีประโยชน์
   // ส่งแค่ id/name/capacity ที่ตัวกรองใช้จริง ไม่ส่งทั้ง object (หน้านี้อยู่ใต้ client layout)
   const resources = await listServiceResources(active.shop.id, { activeOnly: true })
 

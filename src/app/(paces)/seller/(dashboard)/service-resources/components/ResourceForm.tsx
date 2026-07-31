@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ResourceForm — สร้าง/แก้ไขทรัพยากรที่จองได้ (feature 00024, FR-RSV-01 + FR-RSV-12)
+ * ResourceForm — สร้าง/แก้ไขคิวงานที่รับได้ (feature 00024, FR-RSV-01 + FR-RSV-12)
  *
  * Base: src/app/(paces)/seller/(dashboard)/rooms/components/RoomForm.tsx
  *   — โครงเดียวกัน: .card > .card-body > form-label/form-input/form-select + ปุ่มท้ายฟอร์ม
@@ -141,13 +141,13 @@ export default function ResourceForm({ resource }: Props) {
         const map: Record<string, string> = {
           VALIDATION_ERROR: 'มีบางช่องที่กรอกยังไม่ครบหรือไม่ถูกรูปแบบ',
           FEATURE_NOT_AVAILABLE: 'ระบบนัดหมายใช้ได้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ',
-          RESOURCE_NOT_FOUND: 'ไม่พบทรัพยากรนี้ในร้าน',
+          RESOURCE_NOT_FOUND: 'ไม่พบคิวงานนี้ในร้าน',
           FORBIDDEN: 'บัญชีนี้ไม่ได้อยู่ในทีมของร้าน จึงจัดการรายการนี้ไม่ได้',
         }
         pacesToast.error(map[data?.error as string] ?? 'บันทึกไม่สำเร็จ ลองกดบันทึกอีกครั้ง')
         return
       }
-      pacesToast.success(isEdit ? 'บันทึกแล้ว' : 'เพิ่มทรัพยากรแล้ว')
+      pacesToast.success(isEdit ? 'บันทึกแล้ว' : 'เพิ่มคิวงานแล้ว')
       router.push('/service-resources')
       router.refresh()
     } catch {
@@ -157,16 +157,16 @@ export default function ResourceForm({ resource }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-      {/* ── ข้อมูลทรัพยากร ── */}
+      {/* ── ข้อมูลคิวงาน ── */}
       <div className="card">
         <div className="card-header">
-          <h4 className="card-title">ข้อมูลทรัพยากร</h4>
+          <h4 className="card-title">ข้อมูลคิวงาน</h4>
         </div>
         <div className="card-body">
           <div className="gap-base grid grid-cols-1 lg:grid-cols-2">
             <div className="lg:col-span-2">
               <label htmlFor="res-name" className="form-label">
-                ชื่อทรัพยากร<span className="text-danger ms-0.5">*</span>
+                ชื่อคิวงาน<span className="text-danger ms-0.5">*</span>
               </label>
               <input
                 id="res-name"
@@ -264,7 +264,7 @@ export default function ResourceForm({ resource }: Props) {
         <div className="card-header">
           <h4 className="card-title">มัดจำเริ่มต้น</h4>
           <p className="text-default-500 mt-0.5 text-sm">
-            ใช้เป็นค่าตั้งต้นของทรัพยากรนี้ ปรับเป็นรายออเดอร์ได้ตอนสร้างออเดอร์
+            ใช้เป็นค่าตั้งต้นของคิวงานนี้ ปรับเป็นรายออเดอร์ได้ตอนสร้างออเดอร์
           </p>
         </div>
         <div className="card-body">
@@ -339,7 +339,7 @@ export default function ResourceForm({ resource }: Props) {
           className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
         >
           {isSubmitting && <Icon icon="tabler:loader-2" className="me-1 size-4 animate-spin" />}
-          {isEdit ? 'บันทึก' : 'เพิ่มทรัพยากร'}
+          {isEdit ? 'บันทึก' : 'เพิ่มคิวงาน'}
         </button>
       </div>
     </form>

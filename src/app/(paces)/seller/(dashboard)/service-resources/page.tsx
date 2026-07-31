@@ -1,5 +1,5 @@
 /**
- * Service resources list — ทรัพยากรที่จองได้ของร้าน (feature 00024, FR-RSV-01)
+ * Service resources list — คิวงานที่รับได้ของร้าน (feature 00024, FR-RSV-01)
  *
  * Base: src/app/(paces)/seller/(dashboard)/rooms/page.tsx
  *   — โครงเดียวกันเป๊ะ (PageBreadcrumb + gate ระดับหน้า + list component)
@@ -16,15 +16,16 @@ import { notFound } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { canUseAppointments } from '@/lib/appointments'
+import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import {
   listServiceResources,
   serializeServiceResource,
 } from '@/services/service-resource.service'
 import ResourceList from './components/ResourceList'
+import GranularitySetting from './components/GranularitySetting'
 
-export const metadata: Metadata = { title: 'ทรัพยากรบริการ' }
+export const metadata: Metadata = { title: 'คิวงาน' }
 
 export default async function ServiceResourcesPage() {
   const session = await getServerSession(authOptions)
@@ -43,9 +44,17 @@ export default async function ServiceResourcesPage() {
 
   return (
     <>
-      <PageBreadcrumb title="ทรัพยากรบริการ" />
-      {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
-      <ResourceList resources={resources.map(serializeServiceResource)} />
+      <PageBreadcrumb title="คิวงาน" />
+      <div className="flex flex-col gap-5">
+        {/* ตั้งค่าหน่วยเวลาก่อน เพราะมันเปลี่ยนว่าฟอร์มคีย์ออเดอร์จะถามอะไร (FR-RSV-13) */}
+        <GranularitySetting
+          value={
+            (active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'
+          }
+        />
+        {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
+        <ResourceList resources={resources.map(serializeServiceResource)} />
+      </div>
     </>
   )
 }

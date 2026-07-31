@@ -35,11 +35,12 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00024 — เห็นเฉพาะร้าน kind=BUSINESS และ vertical=GENERAL พร้อมกัน
       // (กรองด้วย applyAppointmentMenu ด้านล่าง — applyVerticalMenu ดูแค่ vertical จึงไม่พอ)
       // icon 'armchair' user เลือกเอง 2026-07-31 (verified มีจริง — ใช้อยู่แล้วในโปรเจกต์)
-      // สื่อ "ที่นั่ง/เตียงที่จองได้" ตรงกับธุรกิจนวด/สปา/คลินิกซึ่งเป็นกลุ่มหลัก
+      // ป้าย "คิวงาน" มาจาก user โดยตรง — คำเดิม "ทรัพยากร" อ่านแล้วไม่เข้าใจ
+      // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน" 
       {
         url: '/service-resources',
         slug: 'seller:service-resources',
-        label: 'ทรัพยากรบริการ',
+        label: 'คิวงาน',
         icon: 'armchair',
       },
       // feature 00024 — ปฏิทินคิว (FR-RSV-04) gate เดียวกับ service-resources

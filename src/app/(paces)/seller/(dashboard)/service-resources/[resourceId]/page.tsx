@@ -1,10 +1,10 @@
 /**
- * แก้ไขทรัพยากรที่จองได้ (feature 00024, FR-RSV-01)
+ * แก้ไขคิวงานที่รับได้ (feature 00024, FR-RSV-01)
  *
  * Base: src/app/(paces)/seller/(dashboard)/rooms/[roomId]/page.tsx
  *   — โครงเดียวกัน ต่างแค่ service ที่โหลดข้อมูลเดิม
  *
- * IMPORTANT: getServiceResource() scope shopId ใน where ตั้งแต่ query แรก — ทรัพยากรของ
+ * IMPORTANT: getServiceResource() scope shopId ใน where ตั้งแต่ query แรก — คิวงานของ
  * ร้านอื่นจะไม่ถูกอ่านขึ้นมาเลย ไม่ใช่อ่านแล้วค่อยเช็คสิทธิ์ทีหลัง (ข้อมูลจะไหลเข้า RSC
  * payload ไปก่อนถูกปฏิเสธ — บทเรียน feedback_rsc_dal_authz)
  */
@@ -21,7 +21,7 @@ import {
 } from '@/services/service-resource.service'
 import ResourceForm from '../components/ResourceForm'
 
-export const metadata: Metadata = { title: 'แก้ไขทรัพยากร' }
+export const metadata: Metadata = { title: 'แก้ไขคิวงาน' }
 
 export default async function EditServiceResourcePage({
   params,
@@ -48,7 +48,7 @@ export default async function EditServiceResourcePage({
 
   return (
     <>
-      <PageBreadcrumb title={resource.name} subtitle="ทรัพยากรบริการ" />
+      <PageBreadcrumb title={resource.name} subtitle="คิวงาน" />
       {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
       <ResourceForm resource={serializeServiceResource(resource)} />
     </>

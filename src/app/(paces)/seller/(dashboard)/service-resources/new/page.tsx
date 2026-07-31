@@ -1,5 +1,5 @@
 /**
- * เพิ่มทรัพยากรที่จองได้ (feature 00024, FR-RSV-01)
+ * เพิ่มคิวงานที่รับได้ (feature 00024, FR-RSV-01)
  *
  * Base: src/app/(paces)/seller/(dashboard)/rooms/new/page.tsx (โครง gate + PageBreadcrumb เดียวกัน)
  *
@@ -15,7 +15,7 @@ import { canUseAppointments } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import ResourceForm from '../components/ResourceForm'
 
-export const metadata: Metadata = { title: 'เพิ่มทรัพยากร' }
+export const metadata: Metadata = { title: 'เพิ่มคิวงาน' }
 
 export default async function NewServiceResourcePage() {
   const session = await getServerSession(authOptions)
@@ -29,7 +29,7 @@ export default async function NewServiceResourcePage() {
 
   return (
     <>
-      <PageBreadcrumb title="เพิ่มทรัพยากร" subtitle="ทรัพยากรบริการ" />
+      <PageBreadcrumb title="เพิ่มคิวงาน" subtitle="คิวงาน" />
       <ResourceForm />
     </>
   )

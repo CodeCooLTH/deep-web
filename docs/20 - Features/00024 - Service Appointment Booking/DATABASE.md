@@ -430,6 +430,30 @@ npx dotenv -e .env.local -- npx prisma migrate deploy
 
 > ✅ **สถานะ:** migration `20260731000100_service_appointment_booking` **apply ลง DB จริงแล้ว** (2026-07-31, user อนุมัติ) — ยืนยันหลังรันว่า constraint ใหม่ครบ และของฟีเจอร์อื่นยังอยู่ (`Order_room_no_overlap`, `Shop_userId_personal_key`, `OrderShipment_active_order_key`) **ห้าม apply ซ้ำ**
 
+### 5.2 Migration ที่ 3 — หน่วยเวลาของการนัด (FR-RSV-13, ส่วนขยาย 2026-07-31)
+
+ข้อห้ามเดิมทุกข้อยังใช้ (ห้าม `migrate dev`, ห้าม `db pull`)
+
+**ไฟล์:** `prisma/migrations/2026073103XXXX_shop_appointment_granularity/migration.sql`
+
+```sql
+ALTER TABLE "Shop"
+  ADD COLUMN "appointmentGranularity" TEXT NOT NULL DEFAULT 'DAY';
+
+ALTER TABLE "Shop" ADD CONSTRAINT "Shop_appointment_granularity"
+  CHECK ("appointmentGranularity" IN ('DAY', 'TIME'));
+```
+
+**ทำไมอยู่บน `Shop` ไม่ใช่ `ServiceResource`:** เจ้าของบอกว่าอยากได้เป็น "เมนูตั้งค่า" ของร้าน (2026-07-31) และธุรกิจหนึ่งร้านมักรับนัดแบบเดียวกันทั้งร้าน — วางที่คิวงานจะบังคับให้ตัดสินซ้ำทุกครั้งที่เพิ่มคิวงานใหม่ โดยไม่ได้ประโยชน์กับเคสจริงที่เห็นตอนนี้ ถ้าภายหลังมีร้านที่ต้องผสมสองแบบ ค่อยเพิ่ม override ที่ `ServiceResource` ทีหลังได้โดยไม่ต้องย้ายของเดิม
+
+**ค่าเริ่มต้น `DAY`:** ร้านที่มีอยู่แล้วและร้านใหม่ได้แบบที่กรอกน้อยที่สุด — ตรงกับลูกค้ากลุ่มแรก (ร้านตกแต่งไฟหน้ารถ) 🛑 ค่านี้ **ไม่กระทบนัดที่บันทึกไว้แล้ว** เพราะเป็นแค่ค่าที่บอกว่า "ฟอร์มควรถามอะไร" (BR-RSV-55)
+
+🛑 **ไม่มีคอลัมน์ใหม่บน `Order`** — โหมดรายวันเก็บเป็นช่วงเวลาที่ครอบทั้งวันใน `serviceStart`/`serviceEnd` เดิม ไม่มี flag แยก (BR-RSV-54) การแสดงผลตัดสินจากข้อมูลจริงของแถวนั้น ไม่ใช่จากโหมดปัจจุบันของร้าน (BR-RSV-57) — ร้านที่สลับโหมดไป-มาจึงไม่เห็นนัดเก่าเพี้ยน
+
+**Rollback:** `ALTER TABLE "Shop" DROP CONSTRAINT "Shop_appointment_granularity", DROP COLUMN "appointmentGranularity";` — additive ล้วน
+
+---
+
 ### 5.1 Migration ที่ 2 — มัดจำ (FR-RSV-12, ส่วนขยาย 2026-07-31)
 
 🛑 ข้อห้ามเดิมทุกข้อยังใช้: **ห้าม `prisma migrate dev`**, **ห้าม `prisma db pull`** (จะลบ EXCLUDE constraint ของ 00008/00017/00024 ทิ้งทั้งหมด เพราะเป็น unmanaged SQL ที่ introspection มองไม่เห็น)

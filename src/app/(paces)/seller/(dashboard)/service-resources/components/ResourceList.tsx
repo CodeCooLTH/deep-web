@@ -1,12 +1,12 @@
 'use client'
 
 /**
- * ResourceList — รายการทรัพยากรที่จองได้ (feature 00024, FR-RSV-01)
+ * ResourceList — รายการคิวงานที่รับได้ (feature 00024, FR-RSV-01)
  *
  * Base: src/app/(paces)/seller/(dashboard)/rooms/components/RoomList.tsx
  *   — โครงเดียวกัน: .card > .card-header (title + action) > การ์ด mobile / ตาราง desktop
  *     ซึ่ง chase ต่อไปที่ theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/customers/components/CustomerTable.tsx
- *   ตัดออกจากต้นแบบ: RoomThumb (ทรัพยากรไม่มีรูป), FacilityIcons (ไม่มีสิ่งอำนวยความสะดวก)
+ *   ตัดออกจากต้นแบบ: RoomThumb (คิวงานไม่มีรูป), FacilityIcons (ไม่มีสิ่งอำนวยความสะดวก)
  *   เพิ่ม: คอลัมน์ระยะเวลา/คิว/มัดจำ + ปุ่มลบ (ห้องพักลบไม่ได้จาก list)
  *
  * Design Spec: safepay-ux ส่วน A. client component เพราะมี Sweet Alerts + toggle state
@@ -71,7 +71,7 @@ export default function ResourceList({ resources }: Props) {
    * สลับเปิด/ปิดใช้งาน — ตั้งใจ "ไม่" confirm ต่างจากห้องพักของ 00017
    *
    * ห้องพักต้อง confirm เพราะปิดแล้วหายจากโปรไฟล์สาธารณะที่ผู้ซื้อเห็น (กระทบคนนอก)
-   * ทรัพยากรบริการไม่มีหน้าสาธารณะแสดงรายการนี้เลย — ปิดแล้วแค่เลือกสำหรับนัดใหม่ไม่ได้
+   * คิวงานไม่มีหน้าสาธารณะแสดงรายการนี้เลย — ปิดแล้วแค่เลือกสำหรับนัดใหม่ไม่ได้
    * นัดเดิมไม่กระทบ (BR-RSV-07) เป็น setting ภายในล้วน จึงสลับได้ทันที
    */
   async function toggleActive(resource: SerializedServiceResource) {
@@ -92,7 +92,7 @@ export default function ResourceList({ resources }: Props) {
   }
 
   /**
-   * ลบทรัพยากร — blocking confirm ผ่าน Sweet Alerts ตาม convention ของโปรเจกต์
+   * ลบคิวงาน — blocking confirm ผ่าน Sweet Alerts ตาม convention ของโปรเจกต์
    *
    * ถ้า 409 RESOURCE_HAS_APPOINTMENTS → เปิด Swal ที่สองที่ "แก้ให้ได้เลย" ด้วยปุ่ม
    * ปิดการใช้งานแทน แทนที่จะบอกแค่ว่าทำไม่ได้แล้วปล่อยให้ผู้ใช้ไปหาทางเอง
@@ -101,7 +101,7 @@ export default function ResourceList({ resources }: Props) {
     const { default: Swal } = await import('sweetalert2')
     const confirm = await Swal.fire({
       title: `ลบ${resource.name}?`,
-      text: 'ลบออกจากรายการทรัพยากรที่จองได้ ถ้าต้องการใช้อีกภายหลังต้องเพิ่มใหม่',
+      text: 'ลบออกจากรายการคิวงานที่รับได้ ถ้าต้องการใช้อีกภายหลังต้องเพิ่มใหม่',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ลบ',
@@ -130,7 +130,7 @@ export default function ResourceList({ resources }: Props) {
       if (data?.error === 'RESOURCE_HAS_APPOINTMENTS') {
         const fallback = await Swal.fire({
           title: 'ลบไม่ได้',
-          text: 'ลบไม่ได้เพราะยังมีนัดผูกอยู่ — ปิดการใช้งานแทนได้ ทรัพยากรจะไม่ถูกเลือกสำหรับนัดใหม่ แต่นัดเดิมยังอยู่ครบ',
+          text: 'ลบไม่ได้เพราะยังมีนัดผูกอยู่ — ปิดการใช้งานแทนได้ คิวงานจะไม่ถูกเลือกสำหรับนัดใหม่ แต่นัดเดิมยังอยู่ครบ',
           icon: 'error',
           showCancelButton: true,
           confirmButtonText: 'ปิดการใช้งานแทน',
@@ -168,7 +168,7 @@ export default function ResourceList({ resources }: Props) {
             <Icon icon="tabler:armchair" className="text-default-400 size-7" />
           </div>
           <div>
-            <h5 className="text-default-800 font-medium">ยังไม่มีทรัพยากรที่จองได้</h5>
+            <h5 className="text-default-800 font-medium">ยังไม่มีคิวงานที่รับได้</h5>
             <p className="text-default-500 mt-1 text-sm">
               เพิ่มรายการแรกเพื่อเริ่มรับนัด เช่น ชื่อช่าง เตียง ห้อง หรือคลาส
             </p>
@@ -178,7 +178,7 @@ export default function ResourceList({ resources }: Props) {
             className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
           >
             <Icon icon="tabler:plus" className="me-1 size-4" />
-            เพิ่มทรัพยากร
+            เพิ่มคิวงาน
           </Link>
         </div>
       </div>
@@ -189,7 +189,7 @@ export default function ResourceList({ resources }: Props) {
     <div className="card">
       <div className="card-header flex items-center justify-between">
         <div>
-          <h4 className="card-title">ทรัพยากรที่จองได้</h4>
+          <h4 className="card-title">คิวงานที่รับได้</h4>
           <p className="text-default-500 mt-0.5 text-sm">
             {items.length} รายการ · ใช้งานอยู่ {activeCount}
           </p>
@@ -199,11 +199,11 @@ export default function ResourceList({ resources }: Props) {
           className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
         >
           <Icon icon="tabler:plus" className="me-1 size-4" />
-          เพิ่มทรัพยากร
+          เพิ่มคิวงาน
         </Link>
       </div>
 
-      {/* mobile: การ์ดต่อทรัพยากร */}
+      {/* mobile: การ์ดต่อคิวงาน */}
       <div className="divide-default-200 divide-y lg:hidden">
         {items.map((resource) => (
           <div key={resource.id} className="p-4">
