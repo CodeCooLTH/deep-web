@@ -836,6 +836,10 @@ export default function ChatThread({
   const readAt = externalReadAtLive ?? externalReadAtInitial
   const readAtMs = readAt ? new Date(readAt).getTime() : 0
 
+  // เธรดที่เกิดจาก "ตอบกลับความคิดเห็น" (private reply) — Meta แนบบรรทัดระบบที่มีลิงก์คอมเมนต์
+  // มาด้วยเสมอ จับจาก comment_id ในลิงก์ ไม่ใช่จากถ้อยคำ เพราะเพจตั้งภาษาต่างกันได้
+  const isCommentReplyThread = messages.some((m) => (m.body ?? '').includes('comment_id='))
+
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
   // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
@@ -972,13 +976,26 @@ export default function ChatThread({
               </span>
             </div>
           ) : !liveWindowOpen ? (
-            // แยก 2 เคส (user report 2026-07-24): ลูกค้ายังไม่เคยทัก vs ทักแล้วเกิน 24 ชม.
-            // ทั้งคู่ส่งไม่ได้เหมือนกัน แต่ข้อความต่างกันไม่ให้ผู้ขายเข้าใจผิดว่า "เกิน 24 ชม.ของใคร"
-            <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-              <Icon icon="message-circle-off" className="mt-0.5 shrink-0 text-lg" />
+            // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
+            //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
+            //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
+            //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
+            //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
+            //   3. ทักแล้วแต่เกิน 24 ชม. — อันนี้เป็นการเสียโอกาสจริง คงโทนแดงไว้
+            <div
+              className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
+                neverInbound ? 'bg-info/15 text-info' : 'bg-danger/15 text-danger'
+              }`}
+            >
+              <Icon
+                icon={neverInbound ? 'info-circle' : 'message-circle-off'}
+                className="mt-0.5 shrink-0 text-lg"
+              />
               <span>
                 {neverInbound
-                  ? 'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
+                  ? isCommentReplyThread
+                    ? 'เธรดนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ตอบได้ 1 ข้อความเท่านั้น ส่งเพิ่มได้เมื่อลูกค้าตอบกลับเข้ามา'
+                    : 'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
                   : 'เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'}
               </span>
             </div>

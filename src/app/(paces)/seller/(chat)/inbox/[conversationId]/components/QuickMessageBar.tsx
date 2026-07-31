@@ -247,8 +247,11 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
         {/* จองพื้นที่ตายตัว 2 บรรทัดทั้งชื่อและเนื้อความ — ไม่งั้นการ์ดในแถวเดียวกันสูงไม่เท่ากัน
             min-h-8 = 2 บรรทัดของ text-xs, min-h-7 = 2 บรรทัดของ text-2xs */}
         <span className="block p-2">
-          <span className="line-clamp-2 block min-h-8 text-xs font-medium text-dark">{qm.title}</span>
-          <span className="text-default-700 mt-0.5 line-clamp-2 block min-h-7 text-2xs">{qm.body}</span>
+          {/* ห้ามใส่ `block` คู่กับ line-clamp — line-clamp ตั้ง display:-webkit-box เอง
+              `block` จะไปทับ แล้วข้อความไม่ถูกตัดเลย (พลาดซ้ำรอบสอง user เจอ 2026-07-31:
+              คำอธิบายยาว 10 บรรทัดจนการ์ดสูงผิดปกติ) */}
+          <span className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{qm.title}</span>
+          <span className="text-default-700 mt-0.5 line-clamp-3 min-h-10.5 text-2xs">{qm.body}</span>
         </span>
       </button>
     )
@@ -258,7 +261,10 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
     <>
       {/* แผงเต็มพื้นที่ข้อความ (user สั่ง 2026-07-31 "เต็มช่องแชทไปเลย") — วางทับลิสต์ข้อความ
           ที่ยัง mount อยู่ ตำแหน่ง scroll ของแชทจึงไม่รีเซ็ตตอนปิดแผง */}
-      <div className="bg-card absolute inset-0 z-10 flex flex-col">
+      {/* z-40: ต้องสูงกว่าทุกอย่างที่ลอยอยู่ในพื้นที่ข้อความ ไม่งั้นทะลุขึ้นมาบนแผง —
+          ป้าย DeepBot ของ AutoReplyTag เป็น z-20 และ tooltip ของมัน z-30 (user เจอ 2026-07-31)
+          ยังต่ำกว่าโมดัลจัดการ (z-90) ตามเดิม */}
+      <div className="bg-card absolute inset-0 z-40 flex flex-col">
         {/* header — โครงเดียวกับแผง AI (ชื่อ+ไอคอนซ้าย, action ขวา) */}
         <div className="border-default-300 flex items-center justify-between gap-2 border-b border-dashed px-4 py-2.5 sm:px-6">
           <span className="text-primary flex items-center gap-2 text-sm font-semibold">
