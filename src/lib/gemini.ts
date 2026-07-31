@@ -8,11 +8,23 @@ import 'server-only'
 // รายชื่อโมเดลที่จะลองตามลำดับ — Google ปลดระวางโมเดลเป็นระยะแล้วคืน 404 ทันที (บั๊กจริง prod
 // 2026-07-23: gemini-2.0-flash ถูกปิด "no longer available" ทั้งฟีเจอร์ AI ตายทันทีโดยไม่มี fallback)
 // ตั้ง GEMINI_MODEL ใน env = บังคับใช้ตัวเดียวไม่ต้อง fallback (เช่นเวลาต้องล็อกรุ่น/ต้นทุน)
-// ลำดับ default: รุ่นใหม่ก่อน แล้วถอยไปรุ่นเสถียรที่ถูกกว่า — อ้างอิงรายชื่อโมเดลปัจจุบันจาก
-// https://ai.google.dev/gemini-api/docs/models (ตรวจ 2026-07-23; 2.0-flash/2.0-flash-lite ตายแล้ว)
+//
+// ลำดับ default เรียงตาม **ความเร็ว** ไม่ใช่ความใหม่ (user 2026-07-31: "ตอนนี้มันช้ามาก
+// กว่าจะตอบทีนึง อยากได้คิดไวๆ เพราะข้อมูล prompt นึงไม่เยอะ")
+//
+// WARNING: ต้นเหตุที่ช้าคือ **thinking model** ไม่ใช่ prompt ใหญ่ — gemini-3.x คิดก่อนตอบทุกครั้ง
+// เผาทั้งเวลาและ token (ซึ่งคิดเงินในฝั่ง output ด้วย) ทั้งที่งานนี้คือ "เรียบเรียงคำตอบที่ร้าน
+// เขียนไว้ให้เข้ากับคำถาม" ซึ่งไม่ได้ประโยชน์จากการคิดเลย
+// flash-lite ปิดการคิดเป็นค่าเริ่มต้น (ai.google.dev/gemini-api/docs/thinking ตรวจ 2026-07-31)
+// ส่วน 3.6-flash ลดได้ต่ำสุดแค่ระดับ "minimal" ปิดสนิทไม่ได้
+//
+// คงสายสำรองไว้ครบ: Google ปลดระวางโมเดลแล้วคืน 404 เป็นระยะ (บั๊กจริง prod 2026-07-23)
+// ตั้ง GEMINI_MODEL ใน env = บังคับตัวเดียวไม่ถอย (ใช้ตอนต้อง A/B เทียบคุณภาพ/ต้นทุน)
+//
+// วัดผลได้ทันทีจากตัวเลข token ที่โชว์ใต้แผง AI: ถ้าการคิดถูกปิดจริง outputTokens จะลดฮวบ
 const MODEL_CANDIDATES: string[] = process.env.GEMINI_MODEL
   ? [process.env.GEMINI_MODEL]
-  : ['gemini-3.6-flash', 'gemini-2.5-flash']
+  : ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash']
 const GEMINI_ENDPOINT = (model: string, key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
 

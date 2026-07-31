@@ -26,6 +26,10 @@ const RATES: Record<string, ModelRate> = {
   'gemini-3.5-flash': { inputPerMillion: 1.5, outputPerMillion: 9.0 },
   'gemini-3-flash-preview': { inputPerMillion: 0.5, outputPerMillion: 3.0 },
   'gemini-2.5-flash': { inputPerMillion: 0.3, outputPerMillion: 2.5 },
+  // flash-lite: ปิดการคิดเป็นค่าเริ่มต้น จึงเร็วและถูกที่สุดในสาย 2.5
+  // เรตยังไม่ได้ยืนยันจากหน้าราคาทางการ (หน้านั้นไม่ได้ลิสต์ไว้ตอนตรวจ 2026-07-31)
+  // จงใจ **ไม่ใส่** ในตารางนี้ เพื่อให้ตกไปใช้ FALLBACK_RATE แล้วขึ้นป้าย "≤" บน UI
+  // — ตัวเลขที่เอาไปตั้งราคาขายต้องไม่ใช่ค่าที่ผมเดาเอง ดีกว่าประเมินต่ำแล้วขายขาดทุน
 }
 
 /**
