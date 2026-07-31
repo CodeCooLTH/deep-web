@@ -242,7 +242,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     // gate 1 — สวิตช์ระดับเธรด (แอดมินปิดเธรดนี้เองจากกล่องข้อความ)
     //
-    // 🛑 สวิตช์ระดับร้าน (AutoReplyConfig.isEnabled) ถูกถอดออกจากเส้นทางตัดสิน 2026-07-30
+    // WARNING: สวิตช์ระดับร้าน (AutoReplyConfig.isEnabled) ถูกถอดออกจากเส้นทางตัดสิน 2026-07-30
     // ตามคำสั่ง user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user ปิดเอง ในแต่ละ row"
     // ความปลอดภัยเดิม (ระบบต้องไม่ทำงานจนกว่าร้านจะสั่ง) ยังอยู่ครบ เพราะกลุ่มคำที่สร้างใหม่
     // เป็น OFFLINE เสมอ — ไม่มีทางตอบใครจนกว่าร้านจะเปลี่ยนสถานะเอง
@@ -250,7 +250,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
     }
 
-    // 🛑 gate 2 เดิม (โหมดทดสอบระดับร้าน) ถูกลบ 2026-07-29 — โหมดทดสอบผูกกับกลุ่มคำแล้ว
+    // WARNING: gate 2 เดิม (โหมดทดสอบระดับร้าน) ถูกลบ 2026-07-29 — โหมดทดสอบผูกกับกลุ่มคำแล้ว
     // ตัดสินที่ gate 6.5 หลัง match แทน ดู AutoReplyKeyword.status
 
     // gate 3-5 — สถานะเธรด
@@ -359,10 +359,29 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         : resolved.rule
           ? 'EMPTY_REPLY'
           : 'NO_RULE_MATCH'
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { handoffAt: new Date(), handoffReason: reason },
-      })
+
+      /**
+       * WARNING: `NO_KEYWORD_MATCH` ต้อง **ไม่** เขียน `handoffAt` (บั๊กจริงที่ user เจอบน prod
+       * 2026-07-31 — ทักด้วยคำที่ตั้งไว้แล้วบอทเงียบ)
+       *
+       * `handoffAt` เป็นสวิตช์ **ถาวร**: gate ที่ `:260` เห็นค่านี้แล้วตัดทิ้งทุกข้อความถัดไป
+       * โดยไม่พยายาม match อีกเลย และ **ไม่มีที่ไหนในโค้ดเบสเคลียร์มันกลับเป็น null** (ต่างจาก
+       * `autoReplyPausedUntil` ที่หมดอายุเองตามเวลา)
+       *
+       * ผลคือ: ลูกค้าเปิดบทสนทนาด้วย "สวัสดีครับ" ซึ่งไม่ตรงคำที่ตั้งไว้ → ห้องนั้นตายถาวร
+       * ตั้งแต่ข้อความแรก แล้วคำที่ตรงจริงที่ตามมาทีหลังไม่มีวันได้รับคำตอบ ซึ่งเป็นเคสปกติ
+       * ของแทบทุกบทสนทนา
+       *
+       * BR-AR-08 สั่งให้ "เงียบแล้วส่งต่อคน" ซึ่งหมายถึง **ข้อความนั้น** — ไม่ได้สั่งให้ล็อกทั้งห้อง
+       * "บอทไม่เข้าใจข้อความนี้" ไม่เท่ากับ "คนเข้ามารับช่วงแล้ว" ซึ่งเป็นความหมายจริงของ `handoffAt`
+       * (ดู `MAX_REPLIES_REACHED` / `SEND_FAILED` ที่ล็อกถาวรแล้วสมเหตุสมผล)
+       */
+      if (reason !== 'NO_KEYWORD_MATCH') {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { handoffAt: new Date(), handoffReason: reason },
+        })
+      }
       return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason })
     }
 
