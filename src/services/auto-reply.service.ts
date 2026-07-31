@@ -307,7 +307,13 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     }
 
     // gate 7 — cooldown ของกลุ่มคำเดิมในเธรดเดิม (AC-018-01)
-    if (matched.winner && config.keywordCooldownSec > 0) {
+    //
+    // ยกเว้นกลุ่มที่อยู่สถานะ TEST (user 2026-07-31): cooldown มีไว้กันลูกค้าโดนตอบซ้ำถี่ ๆ
+    // แต่คนที่กำลังทดสอบ **ตั้งใจ** ยิงคำเดิมรัว ๆ เพื่อดูว่าตั้งค่าถูกไหม พอโดน cooldown
+    // ปิดปากบอทเงียบ ๆ อาการที่เห็นคือ "ตั้งแล้วไม่ทำงาน" ซึ่งแยกไม่ออกจากบั๊กจริง
+    // (user เจอกับตัว 2 รอบในสิบนาที) — ลูกค้าจริงไม่ได้รับผลกระทบ เพราะกลุ่ม TEST
+    // ตอบเฉพาะเธรดที่ร้านเลือกเองไว้ที่ gate 6.5 อยู่แล้ว
+    if (matched.winner && config.keywordCooldownSec > 0 && !isTestReply) {
       const since = new Date(Date.now() - config.keywordCooldownSec * 1000)
       const recent = await prisma.autoReplyLog.findFirst({
         where: {
