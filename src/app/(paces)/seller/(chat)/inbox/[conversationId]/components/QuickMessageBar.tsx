@@ -247,8 +247,11 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
         {/* จองพื้นที่ตายตัว 2 บรรทัดทั้งชื่อและเนื้อความ — ไม่งั้นการ์ดในแถวเดียวกันสูงไม่เท่ากัน
             min-h-8 = 2 บรรทัดของ text-xs, min-h-7 = 2 บรรทัดของ text-2xs */}
         <span className="block p-2">
-          <span className="line-clamp-2 block min-h-8 text-xs font-medium text-dark">{qm.title}</span>
-          <span className="text-default-700 mt-0.5 line-clamp-2 block min-h-7 text-2xs">{qm.body}</span>
+          {/* ห้ามใส่ `block` คู่กับ line-clamp — line-clamp ตั้ง display:-webkit-box เอง
+              `block` จะไปทับ แล้วข้อความไม่ถูกตัดเลย (พลาดซ้ำรอบสอง user เจอ 2026-07-31:
+              คำอธิบายยาว 10 บรรทัดจนการ์ดสูงผิดปกติ) */}
+          <span className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{qm.title}</span>
+          <span className="text-default-700 mt-0.5 line-clamp-3 min-h-10.5 text-2xs">{qm.body}</span>
         </span>
       </button>
     )
