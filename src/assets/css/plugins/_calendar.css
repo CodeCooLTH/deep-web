@@ -119,3 +119,43 @@
 .appointment-calendar .appt-day-tight .appt-day-cap {
     color: var(--color-warning-ink);
 }
+/**
+ * สีของป้ายนัดบนปฏิทิน (feature 00024)
+ *
+ * ต้องตั้งผ่านตัวแปรของ FullCalendar เอง ไม่ใช่ทับด้วย class Tailwind:
+ * `.fc-h-event { background-color: var(--fc-event-bg-color) }` มี specificity เท่ากับ
+ * `.bg-warning` (0,1,0) แล้วชนะเพราะมาทีหลังใน source order — ผลคือ bg-* ของ Tailwind
+ * ไม่มีผลเลย เหลือแต่ text-white กลืนพื้น (วัดได้ contrast 1.04:1)
+ *
+ * ใช้พื้นอ่อน + ตัวอักษร -ink ตาม idiom badge ของ Paces แทนพื้นทึบ+ตัวขาว
+ * เพราะขาวบน --color-warning ได้แค่ 1.66:1 ซึ่งยังตก AA อยู่ดี
+ *
+ * Verified-Means-Green: เขียวสงวนให้ "ลูกค้ายืนยันแล้ว" เท่านั้น
+ * ให้บริการแล้ว = จบไปแล้ว ใช้สีกลางหม่น ไม่ใช่สัญญาณ trust ที่ยังมีชีวิต
+ * ขอเลื่อน = info เพราะเป็นสถานะเดียวที่ร้านต้องลงมือทำ ต้องแยกจาก "นัดแล้ว" ให้ออก
+ */
+.appointment-calendar .fc-event.appt-ev-scheduled {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-warning) 20%, white);
+    --fc-event-border-color: var(--color-warning);
+    --fc-event-text-color: var(--color-warning-ink);
+}
+.appointment-calendar .fc-event.appt-ev-confirmed {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-success) 20%, white);
+    --fc-event-border-color: var(--color-success);
+    --fc-event-text-color: var(--color-success-ink);
+}
+.appointment-calendar .fc-event.appt-ev-reschedule {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-info) 20%, white);
+    --fc-event-border-color: var(--color-info);
+    --fc-event-text-color: var(--color-info-ink);
+}
+.appointment-calendar .fc-event.appt-ev-completed {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-default-500) 18%, white);
+    --fc-event-border-color: var(--color-default-500);
+    --fc-event-text-color: var(--color-default-800);
+}
+.appointment-calendar .fc-event.appt-ev-noshow {
+    --fc-event-bg-color: color-mix(in srgb, var(--color-danger) 20%, white);
+    --fc-event-border-color: var(--color-danger);
+    --fc-event-text-color: var(--color-danger-ink);
+}

@@ -776,7 +776,12 @@ export default function OrderCreateForm({
       </div>
 
       {/* ≥ lg (เดสก์ท็อป): POS split — ซ้าย product grid, ขวา cart panel (เนื้อในไม่แตะ) grid 2-col 50/50 ล็อกสูงเท่าจอ → แต่ละแพน scroll แยก, footer (ปุ่มบันทึก) ตรึงล่างเสมอ. HR7 exception: viewport-lock calc height, Paces ไม่มี token. compact = ซ่อนทุกจอ (ใช้ QuickForm แทน) */}
-      <div className={compact ? 'hidden' : 'hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:gap-4 lg:overflow-hidden'}> {/* HR7 exception: viewport-lock, Paces ไม่มี token (pre-existing, ไม่ได้แก้ในงานนี้) */}
+      {/* HR7 exception: viewport-lock — Paces ไม่มี token สำหรับความสูงเท่า viewport
+          `lg:grid-rows-[minmax(0,1fr)]` จำเป็น: grid row ปกติยืดตามเนื้อหา (auto) การล็อก
+          ความสูงที่ container อย่างเดียวจึงไม่บีบลูก — row โตทะลุแล้ว overflow-hidden ก็แค่
+          "ตัดทิ้ง" ทำให้ยอดรวม+ปุ่มบันทึกในแผงขวาหลุดหายไปเลย (วัดได้: การ์ดสูง 931px
+          ในกล่อง 748px) minmax(0,1fr) บังคับให้ row ไม่เกิน container ลูกจึง scroll ในตัวเอง */}
+      <div className={compact ? 'hidden' : 'hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-4 lg:overflow-hidden'}> {/* HR7 exception: viewport-lock + row clamp — Paces ไม่มี token */}
         <div className="min-w-0 lg:h-full lg:overflow-y-auto">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>
