@@ -90,6 +90,9 @@ export async function POST(request: NextRequest) {
           mid: event.reaction.mid,
           action: event.reaction.action,
           emoji: event.reaction.emoji,
+          // ส่งผู้กดกับเวลาไปด้วย — react ของ "ลูกค้า" เปิดหน้าต่าง 24 ชม. ใหม่ตามนโยบาย Meta
+          reactorExternalId: event.sender.id,
+          timestamp: event.timestamp,
         })
       } else {
         const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event })
