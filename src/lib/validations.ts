@@ -753,7 +753,7 @@ export const ChatConversationsQuerySchema = v.object({
   // user สั่ง 2026-07-31 — กรองด้วยแท็กผู้ติดต่อ (ติดอันใดก็ได้) cap 20 กันยิง payload ยาวผิดปกติ
   tags: v.optional(v.pipe(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(40))), v.maxLength(20))),
   // user สั่ง 2026-07-31 — สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip)
-  shipment: v.optional(v.picklist(['none', 'unprinted', 'printed'])),
+  shipment: v.optional(v.picklist(['none', 'unprinted', 'printed', 'problem'])),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership
@@ -1132,6 +1132,22 @@ export const IShipBulkLabelSchema = v.object({
       v.maxLength(50, "พิมพ์ได้สูงสุดครั้งละ 50 ใบ"),
     ),
   ),
+});
+
+// feature 00022 — ประเมินค่าส่งก่อนเปิดพัสดุ (ไม่ก่อค่าใช้จ่าย ยิงได้บ่อย)
+// ที่อยู่ผู้ส่งไม่รับจาก client โดยเจตนา — service อ่านจากการตั้งค่าร้านเสมอ
+export const IShipPriceQuoteSchema = v.object({
+  courierCode: shortText(50),
+  receiver: v.object({
+    subdistrict: v.nullish(shortText(120)),
+    district: v.nullish(shortText(120)),
+    province: v.nullish(shortText(120)),
+    postcode: v.nullish(shortText(10)),
+  }),
+  weight: v.pipe(v.number(), v.minValue(0.01), v.maxValue(100)),
+  width: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
+  length: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
+  height: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
 });
 
 export const IShipPickupSchema = v.object({

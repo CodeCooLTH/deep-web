@@ -64,6 +64,12 @@ export function computeUsageCost(usage: TokenUsage): UsageCost {
   return { ...usage, costUsd, isEstimate: !rate }
 }
 
+/** "2.6K" / "840" — ย่อหลักพันเพื่อให้ป้ายบนหัวแผงไม่ยาวจนดันปุ่ม refresh ตก */
+export function formatTokensCompact(tokens: number): string {
+  if (tokens < 1000) return String(tokens)
+  return `${(tokens / 1000).toFixed(1)}K`
+}
+
 /**
  * "$0.0042" — ทศนิยม 4 ตำแหน่งเพราะค่าต่อครั้งอยู่ระดับเศษสตางค์
  *

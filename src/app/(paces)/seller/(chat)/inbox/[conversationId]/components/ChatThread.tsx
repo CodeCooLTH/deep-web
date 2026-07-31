@@ -71,6 +71,7 @@
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
 import { pacesToast } from '@/lib/paces-toast'
+import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
@@ -147,6 +148,27 @@ function CopyMessageButton({ text }: { text: string }) {
         className={`size-4 transition-transform duration-200 ${copied ? 'scale-125' : 'scale-100'}`}
       />
     </button>
+  )
+}
+
+/**
+ * การ์ด "คำขอชำระเงิน" ของ Meta (user สั่ง 2026-07-31 ให้แสดงแบบ Business Suite)
+ *
+ * Meta ส่งมาเป็นข้อความล้วน "฿400.00 order" เท่านั้น — ไม่มี payload ของการ์ด ไม่มีสถานะ
+ * การชำระเงิน และไม่มี API ให้กด "Mark as paid"/"View order" (ดูเหตุผลเต็มใน lib/meta-order-card.ts)
+ * จึงยกเฉพาะยอดเงินขึ้นมาให้เด่น ไม่ใส่สถานะที่ยืนยันไม่ได้ และไม่ทำปุ่มที่กดแล้วไม่เกิดอะไร
+ */
+function MetaOrderCardBubble({ amount }: { amount: string }) {
+  return (
+    <div className="bg-light flex w-52 items-center gap-3 rounded-lg p-3">
+      <span className="bg-card text-default-900 flex size-10 shrink-0 items-center justify-center rounded-full">
+        <Icon icon="currency-baht" width={20} height={20} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-default-900 block text-base font-bold">{amount}</span>
+        <span className="text-default-500 block text-xs">คำขอชำระเงินผ่าน Messenger</span>
+      </span>
+    </div>
   )
 }
 
@@ -341,7 +363,10 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
     buf = []
   }
   for (const m of items) {
-    const bare = m.type === 'IMAGE' && !!m.imageUrl && !m.body
+    // รูปที่เป็นการ "ตอบกลับ" ข้อความอื่นต้องไม่ถูกยุบเข้าอัลบั้ม — แถวอัลบั้มไม่ได้ render
+    // กล่อง quote ทำให้ดูเหมือนลูกค้าส่งรูปมาเฉย ๆ ทั้งที่กำลังตอบกลับอยู่ (user report 2026-07-31)
+    // ปล่อยให้ไปทางแถวเดี่ยวซึ่งมีป้าย "ตอบกลับ…" อยู่แล้ว
+    const bare = m.type === 'IMAGE' && !!m.imageUrl && !m.body && !m.replyTo
     const prev = buf[buf.length - 1]
     const sameGroup =
       bare &&
@@ -981,6 +1006,17 @@ export default function ChatThread({
           + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
           "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
           ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      {/* relative: ให้แผงข้อความสำเร็จรูปวางทับ "พื้นที่ข้อความ" ได้พอดี (user สั่ง 2026-07-31
+          "อยากปรับให้ panel นี้เต็มช่องแชทไปเลย") — วางทับแทนที่จะดันเลย์เอาต์ เพราะลิสต์ข้อความ
+          ยัง mount อยู่ ตำแหน่ง scroll จึงไม่รีเซ็ตตอนปิดแผง */}
+      <div className="relative flex min-h-0 grow flex-col">
+      {quickOpen && (
+        <QuickMessageBar
+          onPick={handleQuickPick}
+          disabled={composerDisabled}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
       <div
         ref={scrollRef}
         className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
@@ -1162,12 +1198,18 @@ export default function ChatThread({
                         }
                         // รูป/วิดีโอล้วน (ไม่มี caption) → ไม่มีกรอบ bubble (มีสี+รูปทรงในตัว); เสียง/ไฟล์คงกรอบ
                         // ORDER = การ์ด self-contained เช่นกัน (มีกรอบ/สีในตัว) → ไม่ต้องกรอบ bubble ครอบ
+                        // การ์ดคำขอชำระเงินของ Meta มาเป็น TEXT "฿400.00 order" — self-contained เหมือน ORDER
+                        const metaOrder = m.type === 'TEXT' ? parseMetaOrderCard(m.body) : null
                         const bareImage =
-                          m.type === 'ORDER' || ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
+                          m.type === 'ORDER' ||
+                          !!metaOrder ||
+                          ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary text-white' : 'bg-light'}`}>
                         {m.type === 'ORDER' ? (
                           <OrderCardBubble card={m.orderCard ?? null} onEdit={openEditOrder} />
+                        ) : metaOrder ? (
+                          <MetaOrderCardBubble amount={metaOrder.amount} />
                         ) : m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
                         ) : (
@@ -1322,6 +1364,7 @@ export default function ChatThread({
           ))
         )}
       </div>
+      </div>
 
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
@@ -1340,13 +1383,8 @@ export default function ChatThread({
           />
         )}
 
-        {quickOpen && (
-          <QuickMessageBar
-            onPick={handleQuickPick}
-            disabled={composerDisabled}
-            onClose={() => setActivePanel(null)}
-          />
-        )}
+        {/* แผงข้อความสำเร็จรูปย้ายไปวางทับพื้นที่ข้อความด้านบนแล้ว (ดู relative wrapper) —
+            ไม่ได้อยู่เหนือ composer เหมือนแผง AI/สินค้าอีกต่อไป */}
 
         {productOpen && (
           <ProductPickerPanel

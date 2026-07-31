@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChannelBadgeOverlay, type ChannelFilterOption } from './ChannelBadge'
 import { PageAvatar } from './PageFilterDropdown'
 
-export type ShipmentFilterValue = 'all' | 'none' | 'unprinted' | 'printed'
+export type ShipmentFilterValue = 'all' | 'none' | 'unprinted' | 'printed' | 'problem'
 
 export type ChatFilterState = {
   // status/spam ยังอยู่ใน state (แท็บในส่วนหัวเป็นคนตั้ง) แต่ไม่ได้ render ในแผงนี้แล้ว — ดูข้อ 3
@@ -80,6 +80,9 @@ const SHIPMENT_OPTIONS: { value: ShipmentFilterValue; label: string }[] = [
   { value: 'none', label: 'ยังไม่สร้างพัสดุ' },
   { value: 'unprinted', label: 'สร้างแล้ว ยังไม่พิมพ์' },
   { value: 'printed', label: 'พิมพ์แล้ว' },
+  // อยู่ในดรอปดาวน์ด้วยเพื่อให้ล้าง/สลับได้จากที่เดียวกับตัวอื่น — ส่วนชิปแดงในแถบตัวกรอง
+  // มีไว้เพราะตัวเลขของมันมีความหมายแม้ยังไม่ได้กรอง (บอกว่ามีกี่เคสรอจัดการ)
+  { value: 'problem', label: 'พัสดุมีปัญหา' },
 ]
 
 function Chip({

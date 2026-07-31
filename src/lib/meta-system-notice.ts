@@ -27,7 +27,29 @@ export interface MetaSystemNotice {
  *
  * จับด้วยท้ายประโยคที่ตายตัว ไม่ใช่ทั้งประโยค เพราะส่วนหน้าคือชื่อคน (เปลี่ยนทุกคน)
  */
-const PLAIN_NOTICE_PATTERNS: RegExp[] = [/\breplied to an ad\.?$/i]
+const PLAIN_NOTICE_PATTERNS: RegExp[] = [
+  /\breplied to an ad\.?$/i,
+  // คำอธิบายใต้การ์ดคำขอชำระเงิน (user report 2026-07-31) — Meta ส่งเป็นข้อความแยกจากตัวการ์ด
+  // ในนามเพจ ทั้งที่เป็นคำบรรยายของระบบ: "You requested ฿400.00. <ชื่อลูกค้า> can review and
+  // confirm this order." — ยึดท้ายประโยคที่ตายตัว เพราะตรงกลางคือชื่อคน (เปลี่ยนทุกคน)
+  /\bcan review and confirm this order\.?$/i,
+  // ป้ายอัตโนมัติของ Meta (พบจริง 21 ครั้งใน DB): "Auto-label added: Order status marked as
+  // ordered." / "Auto-label added: Lead stage set to intake."
+  /^Auto-label added:\s/i,
+  // "Transfer requested" — บรรทัดบอกว่ามีการขอโอนเงิน (พบจริง 2 ครั้ง)
+  /^Transfer requested$/i,
+  // ป้ายสถานะลูกค้าที่ Meta ตั้งเอง — มาทั้งแบบมีและไม่มีคำนำหน้า "Auto-label added:"
+  // พบจริง: "Lead stage set to Converted" 22 ครั้ง, "Lead stage set to Qualified" 11 ครั้ง
+  /^Lead stage set to /i,
+  // "<ชื่อลูกค้า> replied to your automated welcome message. To change or remove this greeting,
+  // visit Messaging settings." — Meta บอกว่าลูกค้าตอบข้อความต้อนรับอัตโนมัติ (พบจริงหลายสิบครั้ง)
+  /\breplied to your automated welcome message\./i,
+  // placeholder ของข้อความที่ Meta ส่งมาโดยไม่มีทั้ง text และไฟล์แนบ (การ์ดโทรกลับ/การ์ดโฆษณา
+  // ที่ Business Suite แสดงเป็นการ์ดจริง แต่ payload ไม่ได้มากับ webhook — ดู channel-chat.service)
+  // ขึ้นเป็นบับเบิลสีร้านทำให้ดูเหมือนแอดมินพิมพ์ประโยคนี้เอง (user report 2026-07-31)
+  // ตราบใดที่ยังแสดงการ์ดจริงไม่ได้ อย่างน้อยต้องดูเป็นหมายเหตุของระบบ ไม่ใช่คำพูดของร้าน
+  /^\[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger\]$/,
+]
 
 /**
  * เงื่อนไขที่ยอมรับว่าเป็น "ข้อความระบบ" — ตั้งให้แคบไว้ก่อน เพราะถ้าจับพลาดจะเอาข้อความจริง
