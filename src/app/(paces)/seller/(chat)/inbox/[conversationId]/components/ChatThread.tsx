@@ -69,6 +69,7 @@
  * "กลับหน้าหลัก" ที่ ChatHeader.tsx — คนละปลายทาง: ปุ่มนี้ไป /inbox ไม่ใช่ /dashboard)
  */
 import Icon from '@/components/wrappers/Icon'
+import { pacesToast } from '@/lib/paces-toast'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
@@ -198,6 +199,11 @@ async function shareToDevice(url: string, filename: string): Promise<boolean> {
 
 function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์' }: { storageKey: string; label?: string }) {
   const [busy, setBusy] = useState(false)
+  // เช็คใน effect ไม่ใช่ตอน render — ฝั่ง SSR ไม่มี window ถ้าอ่านตอน render จะ hydration mismatch
+  const [canSaveAs, setCanSaveAs] = useState(false)
+  useEffect(() => {
+    setCanSaveAs('showSaveFilePicker' in window)
+  }, [])
   const url = `/api/files/${storageKey}`
   // ชื่อไฟล์ = ส่วนท้ายของ storage key (กันเคสไม่มี '/' ด้วย fallback)
   const filename = storageKey.split('/').filter(Boolean).pop() || 'attachment'
@@ -219,17 +225,56 @@ function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์
     }
   }
 
+  /**
+   * "บันทึกเป็น…" — กล่องเลือกที่เก็บ/ตั้งชื่อไฟล์ของ OS ผ่าน File System Access API
+   * (Chrome/Edge เดสก์ท็อปเท่านั้น; Safari/Firefox/มือถือไม่มี จึงไม่ render ปุ่มนี้)
+   *
+   * ต้องเรียก showSaveFilePicker ก่อน fetch — API ตระกูลนี้ต้องการ transient activation
+   * ถ้า await fetch ก่อนจะโดนปฏิเสธเพราะถือว่าไม่ได้มาจากการกดของผู้ใช้แล้ว
+   */
+  const handleSaveAs = async () => {
+    const picker = (window as unknown as { showSaveFilePicker?: (o: { suggestedName?: string }) => Promise<FileSystemFileHandle> })
+      .showSaveFilePicker
+    if (!picker) return
+    try {
+      const handle = await picker({ suggestedName: filename })
+      setBusy(true)
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`fetch ${res.status}`)
+      const blob = await res.blob()
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+    } catch (err) {
+      // ผู้ใช้กดยกเลิกกล่องเลือกที่เก็บ = ไม่ใช่ error
+      if ((err as Error)?.name === 'AbortError') return
+      pacesToast.chat.error('บันทึกไฟล์ไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <a
-      href={url}
-      download={filename}
-      onClick={handleClick}
-      aria-busy={busy}
-      className="text-default-500 hover:text-primary mt-1 inline-flex items-center gap-1 text-2xs font-medium"
-    >
-      <Icon icon={busy ? 'loader-2' : 'download'} width={13} height={13} className={`shrink-0 ${busy ? 'animate-spin' : ''}`} />
-      {label}
-    </a>
+    <span className="mt-1 flex items-center gap-2">
+      <a
+        href={url}
+        download={filename}
+        onClick={handleClick}
+        aria-busy={busy}
+        className="text-default-500 hover:text-primary inline-flex items-center gap-1 text-2xs font-medium"
+      >
+        <Icon icon={busy ? 'loader-2' : 'download'} width={13} height={13} className={`shrink-0 ${busy ? 'animate-spin' : ''}`} />
+        {label}
+      </a>
+      {canSaveAs && (
+        <>
+          <span className="bg-default-300 h-3 w-px" aria-hidden="true" />
+          <button type="button" onClick={handleSaveAs} className="text-default-500 hover:text-primary text-2xs font-medium">
+            บันทึกเป็น…
+          </button>
+        </>
+      )}
+    </span>
   )
 }
 
