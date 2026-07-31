@@ -199,7 +199,9 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
         )}
 
         <div
-          className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
+          // items-start: ให้การ์ดสูงตามเนื้อหาจริง (ซึ่งตอนนี้เท่ากันทุกใบเพราะจองพื้นที่ตายตัวแล้ว)
+          // ไม่ใช่ stretch ตาม default ของ flex ที่ยืดทุกใบให้เท่าใบที่สูงสุดแล้วดันช่องว่างไปกองที่ท้ายการ์ด
+          className="flex snap-x snap-mandatory items-start gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: 'none' }}
         >
           {loading ? (
@@ -308,9 +310,15 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                       <span className="line-clamp-5">{qm.body || qm.title}</span>
                     </span>
                   )}
+                  {/* จองพื้นที่ตายตัว 2 บรรทัดทั้งชื่อและเนื้อความ (user report 2026-07-31 "card มันไม่เท่ากัน")
+                      เดิมชื่อยาว 1-2 บรรทัดไม่แน่นอน และ body ที่ว่างไม่ถูก render เลย ({qm.body && ...})
+                      → โครงข้างในการ์ดแต่ละใบสูงไม่เท่ากัน พอ container เป็น flex ที่ยืดให้สูงเท่ากัน
+                      ช่องว่างเลยไปโผล่คนละตำแหน่ง ดูเหลื่อมกันทั้งแถว
+                      min-h-8 = 2 บรรทัดของ text-xs, min-h-7 = 2 บรรทัดของ text-2xs
+                      render <p> ของ body เสมอแม้ว่าง — ที่ว่างต้องถูกจองไว้เท่ากันทุกใบ */}
                   <div className="p-2">
-                    <p className="line-clamp-2 text-xs font-medium text-dark">{qm.title}</p>
-                    {qm.body && <p className="text-default-700 mt-0.5 line-clamp-2 text-2xs">{qm.body}</p>}
+                    <p className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{qm.title}</p>
+                    <p className="text-default-700 mt-0.5 line-clamp-2 min-h-7 text-2xs">{qm.body}</p>
                   </div>
                 </button>
               )

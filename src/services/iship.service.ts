@@ -16,6 +16,7 @@ import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility
 import {
   buildCreateOrderPayload,
   buildIdempotencyKey,
+  buildOptionsSnapshot,
   findMissingParcelFields,
   findMissingReceiverFields,
   findMissingSenderFields,
@@ -789,12 +790,17 @@ export async function createShipment(
         phone: order.buyerContact,
         ...receiverAddress,
       } as object,
-      optionsSnapshot: (override?.options ?? {
-        onTime: account.optOnTime,
-        boxShield: account.optBoxShield,
-        isInsured: account.optIsInsured,
-        productValue: account.optProductValue ? Number(account.optProductValue) : null,
-        serviceType: account.optServiceType,
+      // หมายเหตุ freeze รวมมากับตัวเลือกเสริม — ถ้าอ่านสดตอนยิง ใบที่ retry ทีหลัง
+      // จะได้หมายเหตุคนละอันกับที่ร้านกรอกไว้ตอนแรก (กติกาอยู่ใน buildOptionsSnapshot)
+      optionsSnapshot: buildOptionsSnapshot(override, {
+        optOnTime: account.optOnTime,
+        optBoxShield: account.optBoxShield,
+        optIsInsured: account.optIsInsured,
+        optProductValue: account.optProductValue
+          ? Number(account.optProductValue)
+          : null,
+        optServiceType: account.optServiceType,
+        defaultRemark: account.defaultRemark,
       }) as object,
       createdByUserId: userId,
     },
@@ -866,7 +872,11 @@ async function dispatchShipment(
     name: string;
     phone: string;
   };
-  const options = row.optionsSnapshot as unknown as ShipmentOverride["options"];
+  // หมายเหตุถูกเก็บรวมมากับตัวเลือกเสริมใน snapshot ก้อนเดียว
+  const snapshot = row.optionsSnapshot as unknown as
+    | (NonNullable<ShipmentOverride["options"]> & { remark?: string | null })
+    | null;
+  const options = snapshot ?? undefined;
 
   const order = await prisma.order.findUniqueOrThrow({
     where: { id: row.orderId },
@@ -886,6 +896,9 @@ async function dispatchShipment(
       categoryId: row.categoryId!,
     },
     codAmount: Number(row.codAmount),
+    // เคยหลุดตรงนี้: BuildPayloadInput รับ remark มาตลอด แต่ไม่มีใครส่งให้ —
+    // หมายเหตุอย่าง "ห้ามโยน" ที่ร้านกรอกจึงไม่เคยถึงขนส่งเลย (user report 2026-07-31)
+    remark: snapshot?.remark ?? null,
     options,
     items: order.items.map((i) => ({ name: i.name, qty: i.qty, price: Number(i.price) })),
   });
