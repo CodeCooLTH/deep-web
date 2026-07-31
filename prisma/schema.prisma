@@ -1431,6 +1431,15 @@ model ChatMessage {
   // ถ้าไม่มีคอลัมน์นี้ คำตอบของระบบเองจะถูกนับเป็น "พนักงานตอบ" แล้วระบบจะหยุดตัวเองทุกครั้งที่ตอบ
   autoReplyKind String?
 
+  // seq — ลำดับที่แถวถูกบันทึกจริง ใช้เป็นตัวตัดสินเมื่อ createdAt เท่ากัน (feature 00018)
+  // ทำไมต้องมี: Meta ส่งเวลาของข้อความระบบ/การ์ดมาแค่ระดับ "วินาที" (13:41:43.000) ขณะที่
+  // ข้อความปกติจาก webhook มีระดับมิลลิวินาที — ข้อความที่เกิดวินาทีเดียวกันจึงเสมอกัน แล้ว
+  // การเรียงด้วย createdAt อย่างเดียวได้ลำดับไม่แน่นอน (ขึ้นกับว่า Postgres คืนแถวไหนก่อน)
+  // พิสูจน์แล้วกับเธรดจริง: ลำดับของเราสลับกับที่ Graph API คืนมา (user report 2026-07-31)
+  // เป็น SERIAL ไม่ใช่ BIGSERIAL ตั้งใจ — BigInt ของ Prisma กลายเป็น JS BigInt ที่ JSON.stringify
+  // โยน error ทันทีเมื่อถูกส่งออกทาง API; Int รองรับ 2.1 พันล้านแถว เกินพอ
+  seq           Int      @unique @default(autoincrement())
+
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User?         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
   product      Product?      @relation(fields: [productRefId], references: [id], onDelete: SetNull)
