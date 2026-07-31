@@ -10,6 +10,9 @@ import { getProductsByShop, getBestSellerProducts } from '@/services/product.ser
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
+// feature 00024 — ทรัพยากรที่จองได้ + ตัวกั้นฟีเจอร์ (ใช้ตัวเดียวกับ API/เมนู กติกาไม่แตกเป็นสองชุด)
+import { canUseAppointments } from '@/lib/appointments'
+import { listServiceResources } from '@/services/service-resource.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
@@ -81,6 +84,28 @@ export default async function NewOrderPage() {
           .catch(() => 'OFF' as const)
       : ('OFF' as const)
 
+  // feature 00024 — ระบบนัดหมายเปิดให้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ (BR-RSV-01)
+  // ร้านที่ไม่เข้าเงื่อนไขจะไม่ได้รับทรัพยากรเลย → ฟอร์มไม่ render บล็อกวันนัด DOM เหมือนเดิมทุกจุด
+  // ดึงด้วย service function ตรง (มิเรอร์ listRooms ใน bookings/new/page.tsx) ไม่ fetch API ตัวเอง
+  const serviceResourcesEnabled = canUseAppointments({
+    kind: active.kind,
+    vertical: shop.vertical,
+  })
+  const serviceResources = serviceResourcesEnabled
+    ? await listServiceResources(shop.id, { activeOnly: true })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            durationMinutes: r.durationMinutes,
+            capacity: r.capacity,
+            depositMode: r.depositMode,
+            depositValue: r.depositValue.toFixed(2),
+          })),
+        )
+        .catch(() => [])
+    : []
+
   // map Product → CatalogProduct: ใช้ toCatalogProduct กลาง (แชร์กับหน้าแก้ไขออเดอร์)
   let catalog: CatalogProduct[] = []
   try {
@@ -109,7 +134,7 @@ export default async function NewOrderPage() {
         saveLabel="บันทึกออเดอร์"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} />
+      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} />
     </>
   )
 }

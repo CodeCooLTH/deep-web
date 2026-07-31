@@ -20,6 +20,8 @@ import { runAfterOrderCreate, type IShipCreateMode } from '@/lib/iship/after-ord
 import * as Yup from 'yup'
 import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
+// feature 00024 — บล็อกวันเข้าใช้บริการ (render เฉพาะร้านที่ใช้ระบบนัดหมายได้)
+import AppointmentBlock, { type ServiceResourceOption } from './AppointmentBlock'
 import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 
@@ -74,6 +76,11 @@ interface Props {
   /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
    *  (POS 3-col เดสก์ท็อปแน่นเกินไปในโมดัล user report 2026-07-24); footer submit sticky ในโมดัล */
   compact?: boolean
+  /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (BUSINESS + GENERAL เท่านั้น, BR-RSV-01)
+   *  false = ไม่ render บล็อกวันนัดเลย DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด */
+  serviceResourcesEnabled?: boolean
+  /** feature 00024 — ทรัพยากรที่เปิดใช้งานของร้าน (ส่งมาจาก server ตอน render ไม่ยิงถามฝั่ง client) */
+  serviceResources?: ServiceResourceOption[]
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -111,6 +118,14 @@ export interface FormValues {
     province?: string
     postcode?: string
     note?: string
+  }
+  // feature 00024 — วันเข้าใช้บริการ (ไม่บังคับ) ไม่เลือกทรัพยากร = ไม่ส่ง appointment เลย
+  appointment?: {
+    resourceId?: string
+    date?: string          // "YYYY-MM-DD" ตามเวลาเครื่อง
+    startTime?: string     // "HH:mm"
+    endTime?: string       // "HH:mm"
+    depositAmount?: number | null
   }
 }
 
@@ -178,6 +193,19 @@ const schema = Yup.object({
     postcode: Yup.string().optional(),
     note: Yup.string().optional(),
   }).optional(),
+  // feature 00024 — ทุกช่องไม่บังคับ; ความถูกต้องเชิงความสัมพันธ์ (เลือกทรัพยากรแล้วต้องมี
+  // วัน/เวลา, เวลาสิ้นสุดต้องหลังเวลาเริ่ม) ตรวจตอน submit เพราะต้องดูหลายฟิลด์พร้อมกัน
+  appointment: Yup.object({
+    resourceId: Yup.string().optional(),
+    date: Yup.string().optional(),
+    startTime: Yup.string().optional(),
+    endTime: Yup.string().optional(),
+    depositAmount: Yup.number()
+      .min(0, 'มัดจำต้องไม่ติดลบ')
+      .transform((v) => (isNaN(v) ? undefined : v))
+      .nullable()
+      .optional(),
+  }).optional(),
 })
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -200,6 +228,8 @@ export default function OrderCreateForm({
   editOrderToken,
   compact = false,
   ishipCreateMode = 'OFF',
+  serviceResourcesEnabled = false,
+  serviceResources = [],
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -430,6 +460,11 @@ export default function OrderCreateForm({
   )
   const barTotal = round2((barSubtotal - (barDiscount ?? 0)) * (1 + (barVatRate ?? 0) / 100))
 
+  // feature 00024 — ค่าปัจจุบันของบล็อกวันนัด (ส่งเข้า AppointmentBlock เพื่อคำนวณคิว/มัดจำสด)
+  const appointmentWatch = useWatch({ control, name: 'appointment' }) as
+    | FormValues['appointment']
+    | undefined
+
   // ── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = async (values: FormValues) => {
@@ -485,6 +520,40 @@ export default function OrderCreateForm({
       }
     }
 
+    // ── feature 00024: วันเข้าใช้บริการ (ไม่บังคับ) ────────────────────────
+    // ไม่เลือกทรัพยากร = ไม่ส่ง appointment เลย → ออเดอร์เดินเส้นทางเดิม 100% (BR-RSV-04)
+    // ตรวจความสัมพันธ์ระหว่างฟิลด์ที่นี่เพราะต้องดูหลายช่องพร้อมกัน (Yup แยกช่องทำไม่ได้สะอาด)
+    let appointmentPayload: {
+      resourceId: string
+      start: string
+      end: string
+      depositAmount?: string
+    } | undefined
+    const ap = values.appointment
+    if (serviceResourcesEnabled && ap?.resourceId) {
+      if (!ap.date || !ap.startTime || !ap.endTime) {
+        setError('appointment.endTime', { message: 'กรอกวันที่ เวลาเริ่ม และเวลาสิ้นสุดให้ครบ' })
+        pacesToast.error('ระบุวันนัดไม่ครบ — กรอกวันที่ เวลาเริ่ม และเวลาสิ้นสุด')
+        return
+      }
+      const start = new Date(`${ap.date}T${ap.startTime}`)
+      const end = new Date(`${ap.date}T${ap.endTime}`)
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+        setError('appointment.endTime', { message: 'เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม' })
+        pacesToast.error('เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม')
+        return
+      }
+      appointmentPayload = {
+        resourceId: ap.resourceId,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        // ส่งเป็น string ทศนิยม 2 ตำแหน่งให้ตรงกับ DecimalString ของ Valibot
+        ...(ap.depositAmount != null
+          ? { depositAmount: Number(ap.depositAmount).toFixed(2) }
+          : {}),
+      }
+    }
+
     // ── vatAmount (ส่ง undefined ถ้าไม่มี VAT) ─────────────────────────────
     const vatAmount =
       values.vatRate != null && values.vatRate > 0
@@ -522,6 +591,7 @@ export default function OrderCreateForm({
       ...(vatRate != null && vatRate > 0 ? { vatRate: vatRate / 100 } : {}),
       ...(vatAmount != null ? { vatAmount } : {}),
       ...(needsShipping && hasShippingData ? { shippingAddress: cleanShipping } : {}),
+      ...(appointmentPayload ? { appointment: appointmentPayload } : {}),
       // feature 00018 (user 2026-07-24): สร้างจากแชท → ผูก ExternalContact กับ Customer ทันที
       ...(conversationId ? { conversationId } : {}),
     }
@@ -612,6 +682,29 @@ export default function OrderCreateForm({
         errorMessage={submitError}
         onDismiss={() => setSubmitStatus('idle')}
       />
+
+      {/* feature 00024 — บล็อกวันเข้าใช้บริการ วางหลังข้อมูลหลักของออเดอร์ ก่อนของเสริมท้ายสุด
+          ตรงกับ Business Flow ใน BRD ("กรอกลูกค้าและรายการบริการตามปกติ → เลือกทรัพยากร")
+          render จุดเดียวครอบทั้งสอง layout เพื่อไม่ให้ mobile/desktop มี state ของฟอร์มคนละชุด
+          (QuickForm กับ CartPanel render พร้อมกันเสมอ ต่างกันแค่ CSS ซ่อน/แสดง) */}
+      {serviceResourcesEnabled && serviceResources.length > 0 && (
+        <div className="mt-4">
+          <AppointmentBlock
+            control={control}
+            errors={errors}
+            setValue={setValue}
+            resources={serviceResources}
+            total={barTotal}
+            value={{
+              resourceId: appointmentWatch?.resourceId,
+              date: appointmentWatch?.date,
+              startTime: appointmentWatch?.startTime,
+              endTime: appointmentWatch?.endTime,
+              depositAmount: appointmentWatch?.depositAmount,
+            }}
+          />
+        </div>
+      )}
 
       {/* ═══ Render: < lg = QuickForm (inline), ≥ lg = POS split ═══ */}
 
