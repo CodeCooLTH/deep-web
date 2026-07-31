@@ -140,3 +140,26 @@ tags?: string[]   // ใน opts ของ listConversationsForShop
 ```
 ใช้ array operator ของ Postgres ตรง ๆ — ขนาดข้อมูลระดับร้านทั่วไปยังไม่ต้องทำ GIN index
 (ถ้าโตจนช้าค่อยเพิ่มทีหลัง)
+
+### กรองด้วยสถานะพัสดุ iShip (เพิ่ม 2026-07-31)
+
+**ที่ตกลง:**
+- หัวข้อ **"พัสดุ (iShip)"** ในดรอป — **โผล่เฉพาะร้านที่เชื่อม iShip แล้ว**
+  (`ShopShippingAccount` ของร้านนั้น `status = 'ACTIVE'`) ร้านที่ไม่ได้ใช้ต้องไม่เห็นหัวข้อที่ไม่มีความหมาย
+- 3 ตัวเลือก: `ยังไม่สร้างพัสดุ` · `สร้างแล้ว ยังไม่พิมพ์` · `พิมพ์แล้ว`
+- ยึด **ออเดอร์ล่าสุด** ของลูกค้าคนนั้น — เหตุผล: ชิปสถานะออเดอร์ในแถว (`deriveOrderStage`)
+  ก็อ้างออเดอร์ล่าสุดเหมือนกัน ถ้าตัวกรองใช้คนละเกณฑ์ ผลลัพธ์จะขัดกับชิปที่ผู้ใช้เห็นตรงหน้า
+
+**ฝั่ง service:**
+
+ต่างจากตัวกรองอื่นตรงที่ข้ามหลายตาราง: `Conversation → ExternalContact.customerId →
+Order (ล่าสุด) → OrderShipment.labelPrintedAt`
+
+- `ยังไม่สร้างพัสดุ` = ออเดอร์ล่าสุดไม่มี `OrderShipment` ที่ยัง active
+- `สร้างแล้ว ยังไม่พิมพ์` = มีพัสดุ แต่ `labelPrintedAt IS NULL`
+- `พิมพ์แล้ว` = `labelPrintedAt IS NOT NULL`
+
+⚠️ Prisma แสดง "ออเดอร์ล่าสุดต่อลูกค้า" ใน `where` ตรง ๆ ไม่ได้ — ตัวกรองนี้จะต้องใช้ raw SQL
+(`DISTINCT ON` แบบเดียวกับ `enrichWithOrderStage` ใน `order-stage.service.ts`) แล้วเอา
+`conversationId` ที่ผ่านเกณฑ์มา `id: { in: [...] }` ต่อ — pattern เดียวกับที่ `readState`
+ทำอยู่แล้ว (ดึง id มาก่อนแล้วค่อยกรอง)
