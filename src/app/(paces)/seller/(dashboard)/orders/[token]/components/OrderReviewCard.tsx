@@ -31,7 +31,7 @@ export interface OrderReviewData {
 }
 
 interface OrderReviewCardProps {
-  /** null = ยังไม่มีรีวิวสำหรับออเดอร์นี้ */
+  /** null = ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้ */
   review: OrderReviewData | null
 }
 
@@ -39,14 +39,14 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">รีวิวออเดอร์</h4>
+        <h4 className="card-title">รีวิวคำสั่งซื้อ</h4>
       </div>
       <div className="card-body">
         {!review ? (
-          /* empty-state: ยังไม่มีรีวิวสำหรับออเดอร์นี้ */
+          /* empty-state: ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้ */
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="star-off" className="text-3xl text-default-300 mb-2" />
-            <p className="text-default-400 text-sm">ยังไม่มีรีวิวสำหรับออเดอร์นี้</p>
+            <p className="text-default-400 text-sm">ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้</p>
             <p className="text-default-400 text-xs mt-1">
               ผู้ซื้อจะสามารถรีวิวได้หลังยืนยันการรับสินค้า
             </p>
@@ -71,7 +71,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
             {/* rating stars */}
             <div className="mb-3">
               <Rating rating={review.rating} />
-              <span className="text-default-400 text-xs ml-2">{review.rating} / 5</span>
+              <span className="text-default-400 text-xs ms-2">{review.rating} / 5</span>
             </div>
 
             {/* comment หรือ empty-comment notice */}

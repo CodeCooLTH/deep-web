@@ -30,11 +30,10 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import AccountAvatar from '@/components/AccountAvatar'
 import AppLogo from '@/components/AppLogo'
+import ChatShopSwitcher from './ChatShopSwitcher'
 import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
 import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleToggler'
 import ThemeDropdown from '@/layouts/components/TopBar/components/ThemeDropdown'
@@ -50,14 +49,8 @@ export default function ChatHeader() {
   const pathname = usePathname()
   const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '')
 
-  // โลโก้ร้านที่ active สำหรับปุ่ม "กลับหน้าหลัก" (bug fix 2026-07-26: chat ไม่ขึ้นโลโก้ร้าน) —
-  // ดึงจาก session เหมือน UserDropdownDetailed; ไม่มีโลโก้/บัญชีส่วนตัว → AccountAvatar fallback icon
-  const { data: session } = useSession()
-  const chatUser = (session as any)?.user as
-    | { avatar?: string | null; activeShopKind?: 'PERSONAL' | 'BUSINESS'; activeShopLogo?: string | null }
-    | undefined
-  const isBusiness = chatUser?.activeShopKind === 'BUSINESS'
-  const activeLogo = isBusiness ? (chatUser?.activeShopLogo ?? null) : (chatUser?.avatar ?? null)
+  // โลโก้ร้าน active + สลับร้านย้ายเข้า ChatShopSwitcher (feat 2026-07-30) — ChatHeader ไม่ต้อง
+  // อ่าน session เองอีกต่อไปสำหรับส่วนนั้น
 
   // เสียงเตือนข้อความใหม่ (user สั่ง 2026-07-23) — ปุ่มนี้คือสวิตช์ "ระดับแอป" ปิดแล้วเงียบทุกเธรด
   // (ปิดรายเธรดอยู่ที่หัวเธรดใน ChatThread) ค่าอ่านหลัง mount เท่านั้น: localStorage ไม่มีบน server
@@ -93,16 +86,10 @@ export default function ChatHeader() {
         <ChatSearchBox />
       </div>
 
-      {/* โลโก้ร้าน ข้างช่องค้นหา — กลับหน้าหลัก (dashboard) เช่นกัน (user request 2026-07-23);
-          แสดงโลโก้ร้าน active (bug fix 2026-07-26) fallback เป็น icon ร้านเมื่อไม่มีโลโก้ */}
-      <Link
-        href="/dashboard"
-        title="กลับหน้าหลัก"
-        aria-label="กลับหน้าหลัก"
-        className="inline-flex size-11 shrink-0 items-center justify-center"
-      >
-        <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
-      </Link>
+      {/* ปุ่มร้าน ข้างช่องค้นหา — เดิมคลิกไป /dashboard อย่างเดียว (user request 2026-07-23);
+          เปลี่ยนเป็น dropdown สลับร้าน (feat 2026-07-30): คลิกเลือกร้านที่มีสิทธิ์ → สลับ context
+          → แชททั้งหมดโหลดตามร้านใหม่. ทางกลับหน้าหลักย้ายเข้าไปเป็นเมนู "กลับหน้าหลัก" ใน dropdown */}
+      <ChatShopSwitcher />
 
       <div className="flex shrink-0 items-center gap-1">
         <button

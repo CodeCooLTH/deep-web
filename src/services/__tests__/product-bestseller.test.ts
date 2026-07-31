@@ -42,7 +42,7 @@ describe('getBestSellerProducts', () => {
     expect(prisma.orderItem.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         by: ['productId'],
-        where: { productId: { not: null }, order: { shopId: 'shopX' } },
+        where: { productId: { not: null }, order: { shopId: 'shopX', status: 'CONFIRMED' } },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },
         take: 5,
@@ -51,6 +51,24 @@ describe('getBestSellerProducts', () => {
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: { in: ['p1'] }, shopId: 'shopX', isActive: true } }),
     )
+  })
+
+  /**
+   * status: 'CONFIRMED' เพิ่มเข้ามา 2026-07-30 — เดิมไม่กรองสถานะเลย จึงนับ PENDING กับ
+   * CANCELLED เป็นยอดขายด้วย ทำให้ตัวเลข "ขายแล้ว N ชิ้น" ที่ร้านเห็นสูงกว่าความจริงมาก และ
+   * อันดับขายดีเพี้ยน — สินค้าที่มีคนสร้างออเดอร์ทิ้งไว้เยอะแต่ไม่มีใครซื้อจริงจะขึ้นนำ ซึ่งทำให้
+   * ร้านตัดสินใจสต็อกผิด เทสนี้ล็อกเจตนาไว้ ไม่ให้ใครถอดตัวกรองออกโดยไม่รู้ตัว
+   */
+  it('นับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันแล้ว — PENDING/CANCELLED ต้องไม่ถูกนับเป็นยอดขาย', async () => {
+    vi.mocked(prisma.orderItem.groupBy).mockResolvedValue([{ productId: 'p1', _sum: { qty: 2 } }] as never)
+    vi.mocked(prisma.product.findMany).mockResolvedValue([{ id: 'p1' }] as never)
+
+    await getBestSellerProducts('shopX')
+
+    const where = vi.mocked(prisma.orderItem.groupBy).mock.calls[0][0].where as {
+      order: { status?: string }
+    }
+    expect(where.order.status).toBe('CONFIRMED')
   })
 
   it('product ที่ถูกปิด (isActive=false) หลุดจาก findMany → ไม่อยู่ในผลลัพธ์ (คงลำดับที่เหลือ)', async () => {

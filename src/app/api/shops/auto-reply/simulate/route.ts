@@ -37,14 +37,14 @@ export async function POST(request: NextRequest) {
 
   // WARNING: พรีวิวต้องรวม "ชุดที่ยังปิดอยู่" ด้วย (user 2026-07-29)
   // เพราะหน้านี้คือการดูว่า *ที่ตั้งไว้* จะตอบอะไร ไม่ใช่การทดสอบ gate ของระบบจริง
-  // ถ้ากรอง isActive ออก ผู้ใช้ที่กำลังตั้งค่าจะไม่มีทางเห็นคำตอบของตัวเองเลยจนกว่าจะเปิดใช้งาน
+  // ถ้ากรอง OFFLINE ออก ผู้ใช้ที่กำลังตั้งค่าจะไม่มีทางเห็นคำตอบของตัวเองเลยจนกว่าจะเปิดใช้งาน
   // ซึ่งกลับหัวกับลำดับการทำงานจริง (ตั้งค่า -> ดูผล -> ค่อยเปิด)
-  // ข้อมูล isActive ยังส่งกลับไปให้ UI บอกเป็นข้อความเล็ก ๆ ว่ายังไม่เปิด — ไม่บังคำตอบ
+  // สถานะยังส่งกลับไปให้ UI บอกเป็นข้อความเล็ก ๆ ว่ายังไม่เปิด — ไม่บังคำตอบ
   const [allKeywords, allRules] = await Promise.all([
     prisma.autoReplyKeyword.findMany({
       where: { shopId: ctx.shopId },
       select: {
-        id: true, name: true, matchType: true, priority: true, isActive: true, mode: true,
+        id: true, name: true, matchType: true, priority: true, status: true,
         phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
       },
       orderBy: { priority: 'desc' },
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   // สถานะของชุดที่ชนะ — UI เอาไปบอกเป็นข้อความเล็ก ๆ ใต้คำตอบ ไม่บังคำตอบ
   const winner = allKeywords.find((k) => k.id === matched.winner?.keywordId)
   const winnerState = winner
-    ? { keywordId: winner.id, keywordName: winner.name, isActive: winner.isActive, mode: winner.mode }
+    ? { keywordId: winner.id, keywordName: winner.name, status: winner.status }
     : null
 
   const config = await getConfig(ctx.shopId)
@@ -99,7 +99,6 @@ export async function POST(request: NextRequest) {
       willHandoff: !resolved.rule?.replyText?.trim(),
       // บริบทให้ UI บอกสถานะได้ (ยังไม่เปิด / อยู่โหมดทดสอบ) โดยไม่ต้องบังคำตอบ
       winnerState,
-      shopEnabled: config.isEnabled,
     },
     { headers: AUTO_REPLY_NO_STORE },
   )

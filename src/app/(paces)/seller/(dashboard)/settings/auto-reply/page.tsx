@@ -17,7 +17,6 @@ import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { getConfig } from '@/services/auto-reply-config.service'
 import { listKeywords } from '@/services/auto-reply-rule.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import AutoReplyListClient from './AutoReplyListClient'
@@ -37,10 +36,7 @@ export default async function AutoReplySettingsPage() {
   // defensive fallback เท่านั้น (ร้านถูกลบ/หลุดสิทธิ์กลางอากาศ) — auth guard เต็มอยู่ที่ layout
   if (!activeCtx) return null
 
-  const [config, keywords] = await Promise.all([
-    getConfig(activeCtx.shopId),
-    listKeywords(activeCtx.shopId),
-  ])
+  const keywords = await listKeywords(activeCtx.shopId)
 
   return (
     <>
@@ -50,19 +46,15 @@ export default async function AutoReplySettingsPage() {
       />
 
       <AutoReplyListClient
-        initialConfig={{
-          isEnabled: config.isEnabled,
-          testMode: config.testMode,
-          testModeExpiresAt: config.testModeExpiresAt ? config.testModeExpiresAt.toISOString() : null,
-        }}
         initialKeywords={keywords.map((k) => ({
           id: k.id,
           name: k.name,
           matchType: k.matchType,
           priority: k.priority,
-          isActive: k.isActive,
-          mode: k.mode,
+          status: k.status,
           phraseCount: k.phraseCount,
+          phrases: k.phrases,
+          testThreadCount: k.testThreadCount,
           ruleCount: k.ruleCount,
           updatedAt: k.updatedAt.toISOString(),
         }))}

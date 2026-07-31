@@ -22,7 +22,9 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
+import { pacesConfirm } from '@/lib/paces-swal'
+import PagePicker from './PagePicker'
+import TestThreadsCard from './TestThreadsCard'
 
 const REPLY_MAX = 1000
 
@@ -43,26 +45,19 @@ type Ad = { adId: string; adTitle: string | null; hitCount: number }
 
 type Props = {
   canEdit: boolean
-  shopEnabled: boolean
   keyword: {
     id: string
     name: string
     matchType: string
     priority: number
-    isActive: boolean
-    mode: string
+    status: string
+    testThreadCount: number
     phrases: Phrase[]
     rules: Rule[]
   }
   channels: Channel[]
   products: Product[]
 }
-
-const MATCH_TYPE_OPTIONS = [
-  { value: 'CONTAINS', label: 'มีคำอยู่ในประโยค' },
-  { value: 'EXACT', label: 'ตรงทั้งข้อความ' },
-  { value: 'STARTS_WITH', label: 'ขึ้นต้นด้วยคำ' },
-]
 
 async function callApi(url: string, init: RequestInit) {
   const res = await fetch(url, { cache: 'no-store', ...init })
@@ -71,13 +66,28 @@ async function callApi(url: string, init: RequestInit) {
   return data
 }
 
-export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, channels, products }: Props) {
+/** สถานะ 3 ค่าของกลุ่มคำ — เขียวสงวนให้ "ตอบลูกค้าจริง" ตาม Verified-Means-Green */
+const STATUS_ORDER = ['OFFLINE', 'TEST', 'LIVE'] as const
+const STATUS_META: Record<string, { label: string; active: string }> = {
+  OFFLINE: { label: 'ไม่ใช้งาน', active: 'bg-default-500 text-white' },
+  TEST: { label: 'ทดสอบ', active: 'bg-warning text-white' },
+  LIVE: { label: 'ตอบลูกค้าจริง', active: 'bg-success text-white' },
+}
+
+export default function KeywordEditorClient({ canEdit, keyword, channels, products }: Props) {
   const router = useRouter()
 
-  const [isActive, setIsActive] = useState(keyword.isActive)
-  const [mode, setMode] = useState(keyword.mode)
+  const [status, setStatus] = useState(keyword.status)
+  const [testThreadCount, setTestThreadCount] = useState(keyword.testThreadCount)
   const [name, setName] = useState(keyword.name)
-  const [matchType, setMatchType] = useState(keyword.matchType)
+  /**
+   * รูปแบบการตรวจจับล็อกไว้ที่ค่าเดิมของชุดนั้น ไม่ให้แก้ผ่าน UI (user 2026-07-29)
+   *
+   * เอาตัวเลือกออกเพราะผู้ใช้ส่วนใหญ่ไม่เข้าใจความต่าง และค่าที่ "ทำงานจริง" มีตัวเดียว:
+   * ลูกค้าไทยไม่พิมพ์คำเปล่า ๆ ("สนใจครับ" / "สนใจ ราคาเท่าไหร่") ถ้าใช้ EXACT จะแทบไม่ match เลย
+   * คอลัมน์ยังอยู่ใน DB — ชุดเก่าที่เคยตั้ง EXACT/STARTS_WITH ไว้ยังทำงานเหมือนเดิม
+   */
+  const matchType = keyword.matchType
   const [priority, setPriority] = useState(keyword.priority)
   const [phrases, setPhrases] = useState(keyword.phrases)
   const [newPhrase, setNewPhrase] = useState('')
@@ -104,31 +114,39 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
   const dirty = useMemo(() => {
     const d: string[] = []
     if (name !== keyword.name) d.push('ชื่อกลุ่ม')
-    if (matchType !== keyword.matchType) d.push('รูปแบบการตรวจจับ')
     if (priority !== keyword.priority) d.push('ลำดับความสำคัญ')
     if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบหลัก')
     return d
-  }, [name, matchType, priority, defaultReply, keyword, defaultRule])
+  }, [name, priority, defaultReply, keyword, defaultRule])
 
   /**
-   * สวิตช์มีผลทันที ไม่ต้องกดบันทึกแยก
+   * เปลี่ยนสถานะมีผลทันที ไม่ต้องกดบันทึกแยก
    * WARNING: V1 ให้สวิตช์อยู่ในฟอร์มที่ต้องกดบันทึก — user เปิดแล้วนึกว่าทำงาน แต่จริง ๆ ไม่ได้บันทึก
    * แล้วสรุปว่า "ตั้งค่าแล้วระบบไม่ตอบ" (บั๊กจริงบน prod 2026-07-29) ไม่มีใครคาดหวังว่าสวิตช์ต้องยืนยัน
    */
-  async function toggleActive(next: boolean) {
-    if (!canEdit || busy) return
+  async function changeStatus(next: string) {
+    if (!canEdit || busy || next === status) return
+    if (next === 'LIVE') {
+      const ok = await pacesConfirm.warning(
+        'ให้กลุ่มคำนี้ตอบลูกค้าจริง?',
+        'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
+        { confirmButtonText: 'ตอบลูกค้าจริง' },
+      )
+      if (!ok) return
+    }
     setBusy(true)
-    setIsActive(next)
+    const prev = status
+    setStatus(next)
     try {
       await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: next }),
+        body: JSON.stringify({ status: next }),
       })
-      pacesToast.success(next ? 'เปิดใช้งานกลุ่มคำแล้ว' : 'ปิดกลุ่มคำแล้ว')
+      pacesToast.success(`เปลี่ยนเป็น "${STATUS_META[next]?.label ?? next}" แล้ว`)
       router.refresh()
     } catch (e) {
-      setIsActive(!next)
+      setStatus(prev)
       pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนสถานะไม่สำเร็จ')
     } finally {
       setBusy(false)
@@ -171,31 +189,6 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
     }
   }
 
-  /**
-   * สลับ LIVE/TEST มีผลทันที (feature 00023 โหมดรายรายการ)
-   * TEST = ตอบเฉพาะเธรดใน allowlist · LIVE = ตอบลูกค้าจริงทุกคน
-   * แยกรายรายการทำให้ปล่อยของทีละชุดได้โดยชุดที่ใช้งานจริงอยู่ไม่กระทบ
-   */
-  async function changeMode(next: string) {
-    if (!canEdit || busy || next === mode) return
-    setBusy(true)
-    const prev = mode
-    setMode(next)
-    try {
-      await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: next }),
-      })
-      pacesToast.success(next === 'LIVE' ? 'เปลี่ยนเป็นใช้งานจริงแล้ว' : 'เปลี่ยนเป็นโหมดทดสอบแล้ว')
-      router.refresh()
-    } catch (e) {
-      setMode(prev)
-      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนโหมดไม่สำเร็จ')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function addPhrase() {
     const value = newPhrase.trim()
     if (!canEdit || !value || busy) return
@@ -205,10 +198,23 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phrases: [value] }),
       })
-      if (data.added?.length) setPhrases((p) => [...p, ...data.added])
+      /**
+       * WARNING: ชื่อ field ต้องตรงกับ AddPhrasesResult ของ service เป๊ะ —
+       * `created` / `duplicateInGroup` / `emptyAfterNormalize` / `warnings[]{phrase,...}`
+       * ของเดิมอ่าน `added` / `skipped` ซึ่ง **ไม่มีจริง** ผลคือบันทึกสำเร็จ (201) แต่ชิป
+       * ไม่ขึ้นจนกว่าจะรีโหลดหน้า และเตือน "คำซ้ำ" ไม่เคยทำงานเลย (บั๊กจริง จับได้ตอนเขียน
+       * E2E 2026-07-30 — grep + tsc มองไม่เห็นเพราะ response เป็น any)
+       */
+      if (data.created?.length) setPhrases((p) => [...p, ...data.created])
       setNewPhrase('')
-      if (data.warnings?.length) pacesToast.warning(data.warnings[0])
-      else if (data.skipped?.length) pacesToast.warning('คำนี้มีอยู่ในกลุ่มนี้แล้ว')
+      if (data.warnings?.length) {
+        const w = data.warnings[0]
+        pacesToast.warning(`"${w.phrase}" ใช้อยู่ในกลุ่ม "${w.conflictKeywordName}" ด้วย`)
+      } else if (data.duplicateInGroup?.length) {
+        pacesToast.warning('คำนี้มีอยู่ในกลุ่มนี้แล้ว')
+      } else if (data.emptyAfterNormalize?.length) {
+        pacesToast.warning('คำนี้ใช้ไม่ได้ — มีแต่วรรคตอนหรือช่องว่าง')
+      }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'เพิ่มคำไม่สำเร็จ')
     } finally {
@@ -253,17 +259,6 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
 
   return (
     <>
-      {!shopEnabled && (
-        <div className="card bg-warning/10 border-warning mb-4">
-          <div className="card-body flex items-center gap-3 py-3">
-            <Icon icon="alert-triangle" className="text-warning text-lg" aria-hidden="true" />
-            <p className="text-default-700 text-sm">
-              ระบบตอบอัตโนมัติปิดอยู่ทั้งร้าน — ตั้งค่าได้ แต่ลูกค้าจะยังไม่ได้รับคำตอบจนกว่าจะเปิดสวิตช์ในหน้ารายการ
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* subheader ใต้หัวเรื่อง (user request 2026-07-29) — เทียบเคียงข้อความของ reference
           แต่เขียนให้ตรงกับสิ่งที่ระบบเราทำจริง: ของเราจับคำ ไม่ใช่ตอบข้อความแรกเสมอ */}
       <div className="mb-4">
@@ -274,13 +269,16 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
         </p>
       </div>
 
-      {mode === 'TEST' && (
+      {status === 'TEST' && (
         <div className="card bg-warning/10 border-warning mb-4">
           <div className="card-body flex items-center gap-3 py-3">
-            <Icon icon="flask" className="text-warning text-lg" aria-hidden="true" />
-            <p className="text-default-700 text-sm">
-              การตั้งค่านี้อยู่ในโหมดทดสอบ — ตอบเฉพาะแชทที่เลือกไว้ในหน้ารายการเท่านั้น
-              ลูกค้าทั่วไปจะยังไม่ได้รับคำตอบจากชุดนี้ (ชุดอื่นที่ใช้งานจริงอยู่ไม่กระทบ)
+            <span className="bg-warning flex size-8 flex-none items-center justify-center rounded-lg text-white">
+              <Icon icon="flask" className="text-base" aria-hidden="true" />
+            </span>
+            <p className="text-default-700 mb-0 text-sm">
+              {testThreadCount > 0
+                ? `กลุ่มคำนี้อยู่ในโหมดทดสอบ — ตอบเฉพาะ ${testThreadCount} แชทที่เลือกไว้ด้านล่างเท่านั้น ลูกค้าทั่วไปจะยังไม่ได้รับคำตอบจากชุดนี้ (ชุดอื่นที่ตอบลูกค้าจริงอยู่ไม่กระทบ)`
+                : 'กลุ่มคำนี้อยู่ในโหมดทดสอบแต่ยังไม่ได้เลือกแชทสำหรับทดสอบ — ตอนนี้จึงไม่ตอบใครเลย เพิ่มแชทในตาราง "แชทสำหรับทดสอบ" ด้านล่างก่อน'}
             </p>
           </div>
         </div>
@@ -307,18 +305,25 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                     : ' — ยังไม่ได้ใส่คำตรวจจับ'}
                 </p>
               </div>
-              {/* สวิตช์อยู่ก่อนคำว่า เปิด/ปิด แบบเดียวกับ reference — อ่านเป็นประโยคเดียว
-                  และมีผลทันทีไม่ต้องกดบันทึก */}
-              <label className="flex flex-none cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox" className="form-switch" checked={isActive}
-                  disabled={!canEdit || busy} onChange={(e) => toggleActive(e.target.checked)}
-                  aria-label="เปิดใช้งานกลุ่มคำนี้"
-                />
-                <span className={`text-sm font-medium ${isActive ? 'text-success' : 'text-default-500'}`}>
-                  {isActive ? 'เปิด' : 'ปิด'}
-                </span>
-              </label>
+              {/* สถานะของกลุ่มคำนี้ 3 ค่า — ค่าเดียวจบ ไม่มีสวิตช์เปิด/ปิดซ้อนอีกชั้น
+                  (user 2026-07-29: "ทดสอบไม่เท่ากับ INACTIVE นะ ต้องมี 3 สถานะ")
+                  มีผลทันทีไม่ต้องกดบันทึก */}
+              <div className="bg-light inline-flex flex-none rounded-lg p-0.5" role="group" aria-label="สถานะของกลุ่มคำนี้">
+                {STATUS_ORDER.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={!canEdit || busy}
+                    onClick={() => changeStatus(key)}
+                    aria-pressed={status === key}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      status === key ? STATUS_META[key].active : 'text-default-500 hover:text-default-800'
+                    }`}
+                  >
+                    {STATUS_META[key].label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="card-body">
@@ -344,20 +349,13 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="k-match" className="text-default-600 mb-1 block text-xs">รูปแบบการตรวจจับ</label>
-                  <ChoiceSelect
-                    id="k-match" options={MATCH_TYPE_OPTIONS} value={matchType} search={false}
-                    disabled={!canEdit} onChange={(v) => setMatchType(v as string)}
-                    ariaLabel="รูปแบบการตรวจจับ"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
-                  <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
-                    min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
-                </div>
+              <div className="sm:w-48">
+                <label htmlFor="k-pri" className="text-default-600 mb-1 block text-xs">ลำดับความสำคัญ</label>
+                <input id="k-pri" type="number" className="form-input" value={priority} disabled={!canEdit}
+                  min={0} max={1000} onChange={(e) => setPriority(Number(e.target.value))} />
+                <p className="text-default-500 mt-1 text-xs">
+                  ใช้เมื่อข้อความเดียวเข้าหลายกลุ่มพร้อมกัน — ตัวเลขมากกว่าถูกเลือกก่อน
+                </p>
               </div>
             </div>
           </div>
@@ -367,28 +365,30 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
 
           {/* ── คำตอบหลัก ─────────────────────────────────────────── */}
-          <div className="card">
+          {/* border-s-3 = accepted exception ของ (paces) ตาม DESIGN.md §6 —
+              การ์ดนี้คือข้อความที่ลูกค้าจะได้รับจริง ต้องอ่านออกทันทีว่าเป็นของชิ้นหลักของหน้า
+              ไม่ใช่ฟิลด์หนึ่งในสี่ที่หน้าตาเหมือนกันหมด (Impeccable critique 2026-07-30) */}
+          <div className="card border-s-primary border-s-3">
             <div className="card-header">
-              <h5 className="text-default-800 text-base font-semibold">ให้ตอบข้อความนี้</h5>
+              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+                <Icon icon="message-2-reply" className="text-primary text-lg" aria-hidden="true" />
+                ข้อความตอบกลับพื้นฐาน
+              </h5>
               <p className="text-default-500 mt-0.5 text-xs">ตอบทันทีที่ลูกค้าทักเข้ามาและตรงกับคำที่ตั้งไว้</p>
             </div>
             <div className="card-body">
-              {/* ตัวนับอยู่ในกรอบเดียวกับช่องพิมพ์ตาม reference — ผู้ใช้เห็นเพดานขณะพิมพ์
-                  ไม่ต้องเงยไปมองหัวการ์ด */}
-              <div className="border-default-200 focus-within:border-primary rounded border p-2.5">
-                <div className="mb-1 flex items-start justify-between gap-2">
-                  <span className="text-default-600 text-xs font-medium">ข้อความ</span>
-                  <span className="text-default-400 flex-none text-xs">{defaultReply.length}/{REPLY_MAX}</span>
-                </div>
-                <textarea
-                  className="text-default-800 w-full resize-none border-0 bg-transparent text-sm outline-none"
-                  rows={4} value={defaultReply} disabled={!canEdit} maxLength={REPLY_MAX}
-                  onChange={(e) => setDefaultReply(e.target.value)}
-                  placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                  aria-label="ข้อความตอบกลับ"
-                />
+              {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
+                  `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
+                  Tailwind กรอบของ textarea จึงไม่หาย ได้กรอบซ้อนกรอบ (บั๊กจริง 2026-07-29,
+                  ตรงกับ memory feedback_paces_forms_css_gotchas) — ใช้ form-textarea ตรง ๆ
+                  แล้ววางตัวนับไว้นอกกรอบแทน */}
+              <textarea className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
+                maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
+                placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
+                aria-label="ข้อความตอบกลับพื้นฐาน" />
+              <div className="mt-1.5 flex justify-end">
+                <span className="text-default-400 text-xs">{defaultReply.length}/{REPLY_MAX}</span>
               </div>
-              <p className="text-default-500 mt-1.5 text-xs">ใช้เมื่อไม่เข้าเงื่อนไขเฉพาะข้อใดด้านล่าง</p>
             </div>
           </div>
 
@@ -399,7 +399,10 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
           {/* ── บันไดเงื่อนไขเฉพาะ ─────────────────────────────────── */}
           <div className="card">
             <div className="card-header flex items-center justify-between">
-              <h5 className="text-default-800 text-base font-semibold">เงื่อนไขเฉพาะ ({exceptions.length})</h5>
+              <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+                <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
+                เงื่อนไขเฉพาะ ({exceptions.length})
+              </h5>
               {canEdit && (
                 <button className="btn btn-primary btn-sm" onClick={() => setSheetOpen(true)}>
                   <Icon icon="plus" className="me-1" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
@@ -447,11 +450,25 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
               )}
             </div>
           </div>
+
+          {/* เส้นเชื่อมระหว่างขั้น */}
+          <div className="border-default-300 ms-6 h-4 border-s border-dashed" aria-hidden="true" />
+
+          {/* ── แชทสำหรับทดสอบ ─────────────────────────────────────
+              user 2026-07-29: "แล้วไหนเลือกช่องทางทดสอบ ... มันควรมี table สำหรับ lists รายการแชท"
+              อยู่ในหน้าของกลุ่มคำ ไม่ใช่หน้าตั้งค่ารวม เพราะรายการนี้เป็นของกลุ่มคำนี้ตัวเดียว */}
+          <TestThreadsCard
+            keywordId={keyword.id}
+            status={status}
+            canEdit={canEdit}
+            onCountChange={setTestThreadCount}
+          />
         </div>
 
         <div className="xl:col-span-3">
           <SimulatePanel channels={channels} products={products} keywordId={keyword.id}
-            onEnable={() => toggleActive(true)} canEdit={canEdit} />
+            previewReply={defaultReply}
+            onEnable={() => changeStatus('TEST')} canEdit={canEdit} />
         </div>
       </div>
 
@@ -466,9 +483,9 @@ export default function KeywordEditorClient({ canEdit, shopEnabled, keyword, cha
             <div className="flex gap-2">
               <button className="btn btn-soft-default" disabled={busy || dirty.length === 0}
                 onClick={() => {
-                  setName(keyword.name); setMatchType(keyword.matchType)
+                  setName(keyword.name)
                   setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
-                }}>ยกเลิก</button>
+                }}>ล้างที่แก้ไว้</button>
               <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
                 บันทึกการเปลี่ยนแปลง
               </button>
@@ -587,7 +604,10 @@ function ExceptionSheet({
       {/* max-h-full พอ เพราะ parent เป็น fixed inset-0 ที่มี padding อยู่แล้ว — ไม่ต้องใช้ arbitrary vh */}
       <div className="card mb-0 flex max-h-full w-full max-w-2xl flex-col overflow-hidden">
         <div className="card-header flex items-center justify-between">
-          <h5 className="text-default-800 text-base font-semibold">เพิ่มเงื่อนไขเฉพาะ</h5>
+          <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
+            <Icon icon="git-branch" className="text-primary text-lg" aria-hidden="true" />
+            เพิ่มเงื่อนไขเฉพาะ
+          </h5>
           <button onClick={onClose} className="text-default-500" aria-label="ปิด">
             <Icon icon="x" aria-hidden="true" />
           </button>
@@ -726,7 +746,7 @@ function ExceptionSheet({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ทดลองคุย — บับเบิลซ้าย/ขวา ไม่มีกรอบมือถือ (user 2026-07-29)
+   แผงดูตัวอย่างการตอบ — หน้าตาเหมือนห้องแชทจริง (user 2026-07-29)
    ═══════════════════════════════════════════════════════════════════ */
 type SimTurn =
   | { who: 'customer'; text: string }
@@ -735,12 +755,15 @@ type SimTurn =
 
 function SimulatePanel({
   channels,
+  previewReply,
   onEnable,
   canEdit,
 }: {
   channels: Channel[]
   products: Product[]
   keywordId: string
+  /** คำตอบหลักที่ตั้งไว้ — โชว์เป็นตัวอย่างตั้งแต่ยังไม่พิมพ์ ไม่ต้องรอให้ลองก่อนถึงจะเห็น */
+  previewReply: string
   onEnable: () => void
   canEdit: boolean
 }) {
@@ -770,17 +793,16 @@ function SimulatePanel({
       } else {
         // บอกสถานะเป็นหมายเหตุใต้บับเบิล ไม่บังคำตอบ (user: "อยากให้ลองตอบเลยว่าจะตอบว่าอะไร")
         const notes: string[] = []
-        if (data.winnerState && !data.winnerState.isActive) notes.push('ชุดนี้ยังไม่เปิดใช้งาน')
-        if (data.winnerState?.mode === 'TEST') notes.push('อยู่โหมดทดสอบ')
-        if (!data.shopEnabled) notes.push('ระบบปิดอยู่ทั้งร้าน')
+        if (data.winnerState?.status === 'OFFLINE') notes.push('ชุดนี้ยังไม่ใช้งาน')
+        if (data.winnerState?.status === 'TEST') notes.push('อยู่โหมดทดสอบ')
         setTurns((t) => [
           ...t,
           { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
         ])
-        setNeedsEnable(!!data.winnerState && !data.winnerState.isActive)
+        setNeedsEnable(data.winnerState?.status === 'OFFLINE')
       }
     } catch (e) {
-      pacesToast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ')
+      pacesToast.error(e instanceof Error ? e.message : 'ดูตัวอย่างไม่สำเร็จ')
     } finally {
       setBusy(false)
     }
@@ -788,94 +810,126 @@ function SimulatePanel({
 
   return (
     <div className="card xl:sticky xl:top-20">
-      <div className="card-header flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h5 className="text-default-800 text-base font-semibold">ทดลองคุย</h5>
-          <p className="text-default-500 mt-0.5 text-xs">พิมพ์เหมือนเป็นลูกค้า ไม่ส่งจริง ไม่บันทึกอะไร</p>
-        </div>
+      {/* หัวแชท — ยืมโครงจากห้องแชทจริง (ผู้ใช้: "อยากให้ UI มันฟีลเหมือนอยู่หน้าแชท")
+          Base: src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:630-650
+          ต่างกันตรงตัวตนบนหัว: ห้องแชทจริงโชว์ "ลูกค้าคนไหน" แต่หน้านี้ลูกค้าเป็นตัวสมมติ
+          สิ่งที่ต้องรู้คือ "กำลังดูการตอบของเพจไหน" หัวจึงเป็นตัวเลือกเพจไปในตัว
+          (แก้ตัวเลือกซ้อน 2 จุดที่ user ทัก — ดู PagePicker.tsx) */}
+      <div className="card-header flex items-center gap-2">
+        {channels.length > 0 ? (
+          <PagePicker options={channels} value={channelId} onChange={setChannelId} />
+        ) : (
+          <p className="text-default-500 flex-1 text-sm">ยังไม่ได้เชื่อมเพจใด</p>
+        )}
         {turns.length > 0 && (
-          <button className="btn btn-sm btn-soft-default" onClick={() => { setTurns([]); setNeedsEnable(false) }}>
+          <button
+            className="btn btn-sm btn-soft-default flex-none"
+            onClick={() => { setTurns([]); setNeedsEnable(false) }}
+          >
             ล้าง
           </button>
         )}
       </div>
 
-      <div className="card-body">
-        {channels.length > 0 && (
-          <div className="mb-3">
-            {/* เลือกเพจพร้อมโลโก้ (user request) — ร้านที่มีหลายเพจจำจากรูปเร็วกว่าอ่านชื่อ */}
-            <div className="border-default-200 mb-2 flex items-center gap-2 rounded border p-2">
-              <span className="bg-default-100 flex size-8 flex-none items-center justify-center overflow-hidden rounded-full">
-                {page?.avatarUrl ? (
-                  <img src={page.avatarUrl} alt="" className="size-full object-cover" />
-                ) : (
-                  <Icon icon={page?.provider === 'INSTAGRAM' ? 'brand-instagram' : 'brand-messenger'}
-                    className="text-default-500 text-sm" aria-hidden="true" />
-                )}
-              </span>
-              <span className="text-default-800 min-w-0 flex-1 truncate text-sm font-medium">
-                {page?.name ?? 'เพจของคุณ'}
-              </span>
-            </div>
-            {channels.length > 1 && (
-              <ChoiceSelect
-                options={channels.map((c) => ({ value: c.id, label: c.name }))}
-                value={channelId} search={false}
-                onChange={(v) => setChannelId(v as string)} ariaLabel="เพจที่ทดลองคุย"
-              />
+      {/* บทสนทนา — Base ChatThread.tsx:887-980 (`my-5 flex items-start gap-2.5` + justify-end
+          ฝั่งเรา, บับเบิล `rounded px-6 py-3`, ลูกค้า `bg-light` / เพจ `bg-primary text-white`)
+          ฝั่งซ้าย = ลูกค้า ฝั่งขวา = เพจ ให้ตรงกับห้องแชทจริง (เดิมกลับข้างกัน) */}
+      <div className="bg-light/30 max-h-96 min-h-72 overflow-y-auto px-4">
+        {turns.length === 0 ? (
+          <div className="py-8">
+            {previewReply.trim() ? (
+              <>
+                <p className="text-default-400 mb-4 text-center text-xs">ตัวอย่างคำตอบที่ตั้งไว้</p>
+                {/* บับเบิลจาง ๆ ให้เห็นหน้าตาคำตอบจริงทันที ไม่ต้องพิมพ์ทดลองก่อน */}
+                <div className="flex items-start justify-end gap-2.5 opacity-60">
+                  <div className="bg-primary min-w-0 rounded px-6 py-3">
+                    <p className="mb-0 text-sm whitespace-pre-wrap text-white">{previewReply}</p>
+                  </div>
+                  <span className="bg-default-100 flex size-8 shrink-0 items-center justify-center rounded-full">
+                    <Icon icon="building-store" width={16} height={16} className="text-default-500" aria-hidden="true" />
+                  </span>
+                </div>
+                <p className="text-default-400 mt-6 text-center text-xs">
+                  พิมพ์ด้านล่างเพื่อลองว่าคำไหนเข้าเงื่อนไขไหน
+                </p>
+              </>
+            ) : (
+              <p className="text-default-400 py-8 text-center text-sm">
+                ยังไม่ได้ตั้งข้อความตอบกลับ
+                <br />
+                ใส่คำตอบทางซ้ายแล้วจะเห็นตัวอย่างตรงนี้
+              </p>
             )}
           </div>
+        ) : (
+          turns.map((t, i) =>
+            t.who === 'none' ? (
+              <p key={i} className="text-default-500 py-3 text-center text-xs">{t.text}</p>
+            ) : (
+              <div key={i} className={`my-5 flex items-start gap-2.5 ${t.who === 'page' ? 'justify-end' : ''}`}>
+                {t.who === 'customer' && (
+                  <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full">
+                    <Icon icon="user" width={16} height={16} aria-hidden="true" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <div className={`rounded px-6 py-3 ${t.who === 'page' ? 'bg-primary' : 'bg-light'}`}>
+                    <p className={`mb-0 text-sm whitespace-pre-wrap ${t.who === 'page' ? 'text-white' : 'text-default-800'}`}>
+                      {t.text}
+                    </p>
+                  </div>
+                  {t.who === 'page' && t.note && (
+                    <div className="text-default-400 mt-1 flex justify-end text-xs">{t.note}</div>
+                  )}
+                </div>
+                {t.who === 'page' && (
+                  <span className="bg-default-100 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                    {page?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={page.avatarUrl} alt="" className="size-full object-cover" />
+                    ) : (
+                      <Icon icon="building-store" width={16} height={16} className="text-default-500" aria-hidden="true" />
+                    )}
+                  </span>
+                )}
+              </div>
+            ),
+          )
         )}
+        {busy && <p className="text-default-400 py-2 text-xs">กำลังตอบ…</p>}
+      </div>
 
-        {/* บทสนทนา — บับเบิลซ้าย/ขวาเปล่า ๆ ไม่มีกรอบมือถือ */}
-        <div className="min-h-48 space-y-2">
-          {turns.length === 0 ? (
-            <p className="text-default-400 py-10 text-center text-xs">
-              พิมพ์ข้อความด้านล่างเหมือนที่ลูกค้าจะทักเข้ามา
-            </p>
-          ) : (
-            turns.map((t, i) =>
-              t.who === 'customer' ? (
-                <div key={i} className="flex justify-end">
-                  <span className="bg-default-100 text-default-800 max-w-full rounded-2xl rounded-br-md px-3 py-2 text-sm whitespace-pre-wrap">
-                    {t.text}
-                  </span>
-                </div>
-              ) : t.who === 'page' ? (
-                <div key={i} className="flex flex-col items-start gap-1">
-                  <span className="bg-primary max-w-full rounded-2xl rounded-bl-md px-3 py-2 text-sm whitespace-pre-wrap text-white">
-                    {t.text}
-                  </span>
-                  {t.note && <span className="text-default-400 text-xs">{t.note}</span>}
-                </div>
-              ) : (
-                <p key={i} className="text-default-500 py-1 text-center text-xs">{t.text}</p>
-              ),
-            )
-          )}
-          {busy && <p className="text-default-400 text-xs">กำลังตอบ…</p>}
-        </div>
-
-        {needsEnable && canEdit && (
-          <button className="btn btn-soft-primary btn-sm mt-3 w-full" onClick={onEnable}>
-            เปิดใช้งานชุดนี้
+      {needsEnable && canEdit && (
+        <div className="border-default-200 border-t px-4 pt-3">
+          <button className="btn btn-soft-primary btn-sm w-full" onClick={onEnable}>
+            เริ่มทดสอบชุดนี้
           </button>
-        )}
+        </div>
+      )}
 
-        {/* ช่องพิมพ์ */}
-        <div className="border-default-200 mt-3 flex items-center gap-2 rounded-full border px-3 py-2">
+      {/* ช่องพิมพ์ — Base ChatThread.tsx composer (แถบล่างมีเส้นคั่น + ปุ่มส่งสีหลัก) */}
+      <div className="border-default-200 border-t p-3">
+        <div className="flex items-center gap-2">
           <input
-            className="text-default-800 min-w-0 flex-1 bg-transparent text-sm outline-none"
-            placeholder="พิมพ์ข้อความ" value={draft}
+            className="form-input"
+            placeholder="พิมพ์ข้อความ..."
+            value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
-            aria-label="ข้อความทดลอง"
+            aria-label="ข้อความจากลูกค้า"
           />
-          <button type="button" onClick={send} disabled={busy || !draft.trim()}
-            className="text-primary flex-none disabled:opacity-40" aria-label="ส่ง">
+          <button
+            type="button"
+            onClick={send}
+            disabled={busy || !draft.trim()}
+            className="btn btn-primary flex-none"
+            aria-label="ส่ง"
+          >
             <Icon icon="send" className="text-base" aria-hidden="true" />
+            ส่ง
           </button>
         </div>
+        <p className="text-default-400 mt-2 text-xs">ข้อความในหน้านี้ไม่ถูกส่งออกจริง และไม่ถูกบันทึกลงแชท</p>
       </div>
     </div>
   )

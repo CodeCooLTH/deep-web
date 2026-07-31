@@ -69,7 +69,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     select: {
       id: true,
       autoReplyEnabled: true,
-      autoReplyTestEnabled: true,
       autoReplyPausedUntil: true,
       autoReplyCount: true,
       handoffAt: true,

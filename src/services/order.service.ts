@@ -378,7 +378,11 @@ export async function updateOrder(shopId: string, publicToken: string, data: Par
   return await prisma.$transaction(async (tx) => {
     const existing = await tx.order.findFirst({ where: { publicToken, shopId }, select: { id: true, status: true } });
     if (!existing) throw new OrderNotFoundError();
-    if (existing.status === "CANCELLED") throw new OrderNotEditableError();
+    // แก้ได้เฉพาะ PENDING — ตรงกับกฎที่ UI ใช้อยู่แล้วทุกที่ (OrderActions/OrderCardMenu: canEdit = PENDING)
+    // เดิมบล็อกแค่ CANCELLED ทำให้โมดัลแก้ไขในแชท (ซึ่งไม่ได้ gate สถานะเลย) แก้ออเดอร์ที่
+    // SHIPPED/CONFIRMED ได้ = รื้อ OrderItem ทิ้งสร้างใหม่ + reverse/deduct สต็อก ทั้งที่ผู้ซื้อ
+    // รับของและรีวิวไปแล้ว → ประวัติไม่ตรงกับของที่ส่งจริง และ trust score อ้างอิงข้อมูลที่ถูกเปลี่ยนย้อนหลัง
+    if (existing.status !== "PENDING") throw new OrderNotEditableError();
 
     const entitlement = await tx.inventoryEntitlement.findUnique({ where: { shopId }, select: { status: true } });
     const inventoryActive = entitlement?.status === "ACTIVE";

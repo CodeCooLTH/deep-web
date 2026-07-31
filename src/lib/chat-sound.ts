@@ -67,10 +67,20 @@ function getAudio(): HTMLAudioElement | null {
 // ทริกเกอร์หลายที่พร้อมกัน จึง throttle. key = shopId เพื่อให้ต่างร้านมี rate-limit ของตัวเอง
 // (ในแท็บเดียว รายการ+เธรดของร้านเดียวกันใช้ key เดียว = dedup กันเอง ยังทำงาน)
 //
-// 400ms (user report 2026-07-26: ลูกค้าพิมพ์รัว ๆ แล้วบางข้อความเงียบ) — เดิม 1200ms กว้างเกิน
-// กลบข้อความจริงที่ห่างกัน < 1.2 วิ. list+thread+แท็บ ยิงข้อความ "เดียวกัน" ห่างกันแค่ ~ไม่กี่ ms
-// จึง 400ms ยัง dedup ซ้ำได้ครบ แต่ข้อความ "คนละอัน" ที่ห่างกัน ≥ 400ms จะมีเสียงของตัวเอง
-const MIN_GAP_MS = 400
+// ค่านี้ทำ 2 หน้าที่พร้อมกัน (ตั้งใจให้เป็นกลไกเดียว ไม่ซ้อน 2 ชั้น):
+//   1. dedup ข้อความ "เดียวกัน" ที่ทริกเกอร์จากหลายที่ — list+thread+หลายแท็บ ยิงห่างกันแค่ ~ไม่กี่ ms
+//   2. เว้นระยะระหว่างข้อความ "คนละอัน" ที่มาติดกันเร็ว ๆ ให้รวบเป็นเสียงเดียว
+//
+// 3000ms (user สั่ง 2026-07-30 "ดังทุกข้อความ แต่เว้นระยะ") — ประวัติของค่านี้:
+//   1200ms → 400ms (2026-07-26) เพราะตอนนั้นความน่ารำคาญจาก spam ถูกกันด้วยเงื่อนไข "เทิร์นใหม่"
+//   ที่ InboxList อยู่แล้ว ค่านี้จึงเหลือหน้าที่ dedup ล้วน ๆ
+//   เงื่อนไขนั้นถูกถอดออก 2026-07-30 (มันทำให้ข้อความที่ 2 เป็นต้นไปในเทิร์นเดียวกันเงียบสนิท)
+//   → หน้าที่คุมความถี่ย้ายมาอยู่ที่ค่านี้แทน จึงต้องกว้างพอที่จะรวบ spam รัว ๆ
+//
+// ผลลัพธ์: ข้อความที่ห่างกัน ≥ 3 วิ มีเสียงของตัวเองครบทุกอัน; รัวกว่านั้นรวบเป็นเสียงเดียว
+// หมายเหตุ: throttle key = shopId → ข้อความจากลูกค้า 2 คนที่มาห่างกันไม่ถึง 3 วิ จะได้เสียงเดียว
+// (ยอมรับได้ตามที่ user เลือก — จุดประสงค์คือ "ไม่รัวเป็นปืนกล" ไม่ใช่นับจำนวนเสียงให้ตรงจำนวนข้อความ)
+const MIN_GAP_MS = 3000
 const GLOBAL_THROTTLE_KEY = '__all__' // ใช้เมื่อไม่รู้ shopId (เช่น ChatWidget) — ยัง throttle แต่ไม่แยกร้าน
 const lastPlayedByShop = new Map<string, number>()
 
@@ -78,7 +88,7 @@ const lastPlayedByShop = new Map<string, number>()
 // แต่ละแท็บเป็น process แยก เบราว์เซอร์ไม่ dedup ให้เอง — ใช้ BroadcastChannel ให้แท็บที่กำลังจะเล่น
 // "ประกาศ" (พร้อม shopId) แล้วทุกแท็บ (รวมตัวเอง) ยึด throttle รายร้านเดียวกัน → ข้อความของร้านหนึ่ง
 // ดังครั้งเดียวทั้ง browser แต่ **ต่างร้านไม่กลบกัน**. race window = latency ของ message (~ไม่กี่ ms)
-// << MIN_GAP_MS (1.2s) จึง dedup ได้แทบทุกกรณี ไม่ต้องทำ leader-election
+// << MIN_GAP_MS จึง dedup ได้แทบทุกกรณี ไม่ต้องทำ leader-election
 let soundChannel: BroadcastChannel | null = null
 function getSoundChannel(): BroadcastChannel | null {
   if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null
@@ -107,7 +117,7 @@ export function playChatBeep(opts: { shopId?: string | null; conversationId?: st
   const now = Date.now()
   if (now - (lastPlayedByShop.get(key) ?? 0) < MIN_GAP_MS) return // throttle รายร้าน (ในแท็บ + ข้ามแท็บ)
   lastPlayedByShop.set(key, now)
-  // ประกาศให้แท็บอื่นก่อนเล่น — แท็บที่ประกาศทีหลังภายใน 1.2s (ร้านเดียวกัน) จะเงียบ; ต่างร้านไม่เกี่ยว
+  // ประกาศให้แท็บอื่นก่อนเล่น — แท็บที่ประกาศทีหลังภายใน MIN_GAP_MS (ร้านเดียวกัน) จะเงียบ; ต่างร้านไม่เกี่ยว
   getSoundChannel()?.postMessage({ playedAt: now, shopKey: key })
 
   const el = getAudio()

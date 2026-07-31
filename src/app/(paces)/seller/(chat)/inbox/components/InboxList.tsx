@@ -87,12 +87,11 @@ import { playChatBeep } from '@/lib/chat-sound'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
-import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
-import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
+import { ChannelBadgeOverlay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
 export type ConversationListItem = {
   id: string
@@ -141,7 +140,6 @@ type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
 /** tab ตัวกรองช่องทาง — 'ALL' ไม่ใช่ ChatChannel จริง จึงแยก union เพิ่ม */
 type ChannelTab = 'ALL' | ChatChannel
-const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
 const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -351,9 +349,9 @@ export default function InboxList({
         unpin: 'เลิกปักหมุดแล้ว',
         hide: 'ซ่อนบทสนทนาแล้ว',
         unhide: 'เลิกซ่อนแล้ว',
-        resolve: 'ปิดงานแล้ว — ดูได้จากตัวกรองสถานะ "ปิดงานแล้ว"',
+        resolve: 'ปิดงานแล้ว — ดูได้ที่แท็บ "ปิดงาน"',
         reopen: 'เปิดบทสนทนาใหม่แล้ว',
-        spam: 'ย้ายเข้าสแปมแล้ว — ดูได้จากตัวกรอง "ดูสแปม"',
+        spam: 'ย้ายเข้าสแปมแล้ว — ดูได้ที่แท็บ "สแปม"',
         unspam: 'เอาออกจากสแปมแล้ว',
       }
       pacesToast.chat.success(TOAST[action])
@@ -363,6 +361,44 @@ export default function InboxList({
     } finally {
       setActioningId(null)
     }
+  }
+
+  // ── แท็บมาตรฐาน "ปิดงาน"/"สแปม" (user สั่ง 2026-07-31) ──────────────────────
+  //
+  // ทำไมไม่สร้างเป็นแถวใน ChatGroup: ปิดงาน/สแปม มี field ของตัวเองอยู่แล้ว (resolvedAt / isSpam)
+  // ซึ่งเป็นสิ่งที่ปุ่ม shortcut ในแถว, เมนูคลิกขวา, และ auto-reply gate อ่านกันอยู่ ถ้าเพิ่มเป็นกลุ่ม
+  // จริงจะมีแหล่งความจริง 2 ที่แล้ววันหนึ่งไม่ตรงกันแน่ (กดปิดงานที่อื่นแต่ไม่ได้ย้ายกลุ่ม / ลากออก
+  // จากกลุ่มแต่ยังปิดงานอยู่) — ให้แท็บ "เป็น" field เดียวกันไปเลย shortcut จึงสัมพันธ์กันเองทันที
+  // ตามที่ user ต้องการ โดยไม่ต้องเขียน sync และลบไม่ได้โดยธรรมชาติ (ไม่มีแถวให้ลบ)
+  //
+  // derive จาก filter ไม่เก็บ state แยก — status/spam ตั้งได้จาก FilterDropdown ด้วย ถ้าเก็บ state
+  // ซ้อนกันแท็บกับดรอปดาวน์จะขัดกันเองเมื่อผู้ใช้ใช้คนละทาง
+  type StdTab = 'ALL' | 'RESOLVED' | 'SPAM' | null
+  const activeStdTab: StdTab = filter.spam
+    ? 'SPAM'
+    : filter.status === 'resolved'
+      ? 'RESOLVED'
+      : filter.status === 'all'
+        ? null // ดรอปดาวน์เลือก "ทุกสถานะ" — ไม่ตรงกับแท็บไหน ปล่อยให้ชิปอธิบายแทน
+        : activeGroupId === null
+          ? 'ALL'
+          : null
+
+  /** สลับแท็บมาตรฐาน — ต้องล้าง activeGroupId ด้วย เพราะแท็บกลุ่มกับแท็บมาตรฐานใช้แถบเดียวกัน */
+  const selectStdTab = (tab: Exclude<StdTab, null>) => {
+    setActiveGroupId(null)
+    setFilter((f) => ({
+      ...f,
+      status: tab === 'RESOLVED' ? 'resolved' : 'open',
+      spam: tab === 'SPAM',
+    }))
+  }
+
+  /** สลับไปแท็บกลุ่ม custom — คืน status/spam เป็นค่าปกติ เพราะเธรดที่ปิดงาน/สแปมแล้ว
+   *  ต้องไม่โผล่ในกลุ่มเดิมของมัน (user เลือก 2026-07-31) */
+  const selectGroupTab = (groupId: string) => {
+    setActiveGroupId(groupId)
+    setFilter((f) => ({ ...f, status: 'open', spam: false }))
   }
 
   // ── feature 00018 กลุ่ม/แท็บจัดหมวดแชท ──
@@ -385,7 +421,9 @@ export default function InboxList({
         return
       }
       setGroups((g) => [...g, data as ChatGroupTab])
-      setActiveGroupId(data.id)
+      // ผ่าน selectGroupTab ไม่ใช่ setActiveGroupId ตรง ๆ — ต้องล้าง status/spam ด้วย ไม่งั้น
+      // สร้างกลุ่มตอนอยู่แท็บ "สแปม"/"ปิดงาน" จะเด้งไปแท็บใหม่ทั้งที่ตัวกรองเดิมยังติดอยู่ → รายการว่าง
+      selectGroupTab(data.id)
       setNewGroupName('')
       setAddingGroup(false)
     } catch {
@@ -465,11 +503,16 @@ export default function InboxList({
         const beepFor = data.items.find((it) => {
           if (it.lastSenderRole !== 'BUYER') return false
           const before = prevById.get(it.id)
-          // beep เฉพาะ "เริ่มเทิร์นใหม่ที่ยังไม่ตอบ" — เธรดเพิ่งเปลี่ยนจากฝั่งเราตอบล่าสุด (หรือเธรดใหม่)
-          // มาเป็นลูกค้าทัก. ถ้าก่อนหน้าลูกค้าทักอยู่แล้ว (before.lastSenderRole==='BUYER') = spam ต่อเนื่อง
-          // ในเทิร์นเดิม → ไม่ดังซ้ำ (user report 2026-07-26: ลูกค้า spam รัวๆ เสียงดังรัวๆ — ควรดังครั้งเดียว
-          // ต่อเทิร์น, reset เมื่อร้าน/echo ตอบ ซึ่งทำให้ lastSenderRole กลับเป็น SHOP)
-          if (before && before.lastSenderRole === 'BUYER') return false
+          // ดังทุกข้อความที่ลูกค้าส่งเข้ามา (user สั่ง 2026-07-30) — เกณฑ์เดียวคือ "มีข้อความใหม่จริง"
+          //
+          // ประวัติที่ต้องรู้ก่อนแก้ตรงนี้: เดิม (2026-07-26) มีเงื่อนไขเพิ่มว่าต้องเป็น "เทิร์นใหม่"
+          // เท่านั้น (ก่อนหน้าต้องเป็นฝั่งร้านพูดล่าสุด) เพราะ user รายงานว่าลูกค้า spam รัว ๆ แล้ว
+          // เสียงดังรัว ๆ. ผลข้างเคียงคือข้อความที่ 2, 3, 4 ในเทิร์นเดียวกันเงียบสนิท → user รายงาน
+          // 2026-07-30 ว่า "มีข้อความเข้าแต่ดังครั้งเดียว"
+          //
+          // ตอนนี้แก้ที่ต้นเหตุจริงแทน: ความน่ารำคาญมาจาก "ความถี่" ไม่ใช่ "จำนวนข้อความ" →
+          // ย้ายไปคุมด้วยระยะเวลาที่ playChatBeep (MIN_GAP_MS) ซึ่งรวบข้อความที่มาติดกันเร็วให้เหลือ
+          // เสียงเดียว โดยข้อความที่ห่างกันพอสมควรยังมีเสียงของตัวเองครบ
           return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
         })
         if (beepFor) playChatBeep({ shopId, conversationId: beepFor.id })
@@ -584,78 +627,23 @@ export default function InboxList({
           </div>
         )}
 
-        {/* channel tabs — pill ไอคอนล้วน (user สั่งเพิ่ม 2026-07-22 บ่าย): "ทั้งหมด" เป็นข้อความ,
-            Deep/Messenger/Instagram เหลือไอคอนล้วน — React state ขับ active เอง ไม่ใช้
-            data-hs-tab (เหตุผลเดิม ดู comment หัวไฟล์) shrink-0 กันปุ่มบีบ + overflow-x-auto
-            กันตกบรรทัดถ้า rail แคบผิดปกติ (ปกติพอดีบรรทัดเดียวที่ 320px) */}
-        {/* channel tabs + ตัวกรอง + เพจ รวมเป็นแถวเดียว flex-wrap (user request 2026-07-23: mobile
-            filter กระชับ) — ไหลลงบรรทัดใหม่เองเมื่อแคบ ไม่ใช่ 2 แถวตายตัว. relative สำหรับ popover
-            (InboxFilterPanel/PageFilterDropdown) ที่ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
-        <div className="relative flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1.5" aria-label="ตัวกรองช่องทาง" role="tablist">
-          {CHANNEL_TABS.map((tab) => {
-            const active = channelTab === tab
-            const display = tab === 'ALL' ? null : getChannelDisplay(tab)
-            const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
-            return (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                title={label}
-                aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
-                onClick={() => handleChannelTabChange(tab)}
-                className={
-                  tab === 'ALL'
-                    ? `shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                        active ? 'bg-primary text-white' : 'bg-light text-default-700'
-                      }`
-                    : `flex size-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-primary/15' : 'bg-light'}`
-                }
-              >
-                {display && (
-                  <Icon
-                    icon={display.icon}
-                    width={16}
-                    height={16}
-                    className={display.iconClassName}
-                    style={display.iconStyle}
-                  />
-                )}
-                {tab === 'ALL' && label}
-              </button>
-            )
-          })}
-          </div>
-          {/* ตัวกรอง/เพจ อยู่ในแถวเดียวกับ channel tabs แล้ว (flex-wrap ของ container ด้านนอก) —
-              S-7: ปุ่ม "ตัวกรอง" แสดงเสมอ; "เพจ" ซ่อนเมื่อ tab=Deep/ไม่มีเพจ */}
-          <InboxFilterPanel
-            value={filter}
-            onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
-            onClear={() => setFilter(DEFAULT_CHAT_FILTER)}
-            open={openPanel === 'filter'}
-            onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
-          />
-
-          {channelTab !== 'DEEP' && channels.length > 0 && (
-            <PageFilterDropdown
-              value={pageFilter}
-              options={channels}
-              onChange={setPageFilter}
-              open={openPanel === 'page'}
-              onOpenChange={(o) => setOpenPanel(o ? 'page' : null)}
-            />
-          )}
-
+        {/* ช่องทาง/เพจ/ตัวกรอง ยุบรวมเป็นปุ่ม "ตัวกรอง" ปุ่มเดียวแล้ว (user สั่ง 2026-07-31
+            "ตัวกรองกองกันเยอะไป") — ตัวปุ่มย้ายไปอยู่ท้ายแถวแท็บกลุ่มด้านล่าง ไม่ใช่แถวของตัวเอง
+            เดิมแถวนี้เป็น pill ช่องทาง 4 ปุ่ม + ดรอปดาวน์เพจ + ปุ่มตัวกรอง ซึ่งบนคอลัมน์แคบ
+            wrap เป็น 3-4 แถว. ไม่วางคู่ช่องค้นหาตามภาพที่ user เลือก เพราะโหมด rail (เดสก์ท็อป)
+            ย้ายช่องค้นหาไป topbar แล้ว ปุ่มจะเหลือลอยเดี่ยวกินแถวเปล่า — ท้ายแถวแท็บได้ 2 แถว
+            เท่ากันในโหมดปกติ และเหลือแถวเดียวในโหมด rail */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* active-filter chips — x ในตัวเดียวกันคือปุ่มล้างตัวกรองนั้น
               ไม่มี chip ของ "เพจ" (user สั่ง 2026-07-23): ปุ่ม PageFilterDropdown แสดงชื่อเพจที่เลือก
               อยู่บนตัวปุ่มเองแล้ว chip ด้านล่างจึงเป็นชื่อเดียวกันซ้ำสองบรรทัดติดกัน — ล้างตัวกรอง
               ยังทำได้จากในดรอปดาวน์ (ตัวเลือก "ทุกเพจ") ต่างจากตัวกรองสถานะ/ผูกลูกค้า/ซ่อน ที่ปุ่ม
               "ตัวกรอง" ไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม chip จึงยังจำเป็น */}
-          {filter.status !== 'open' && (
+          {/* เหลือเฉพาะ status='all' (ดรอปดาวน์ "ทุกสถานะ") — ส่วน 'resolved' ไม่ต้องมีชิปแล้ว
+              เพราะแท็บ "ปิดงาน" บอกอยู่ (user สั่ง 2026-07-31) ถ้าโชว์ทั้งคู่จะซ้ำซ้อน */}
+          {filter.status === 'all' && (
             <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              สถานะ: {filter.status === 'resolved' ? 'ปิดงานแล้ว' : 'ทั้งหมด'}
+              สถานะ: ทุกสถานะ
               <button type="button" onClick={() => setFilter((f) => ({ ...f, status: 'open' }))} aria-label="ล้างตัวกรองสถานะ" className="inline-flex items-center">
                 <Icon icon="x" width={12} height={12} />
               </button>
@@ -677,14 +665,7 @@ export default function InboxList({
               </button>
             </span>
           )}
-          {filter.spam && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
-              กำลังดูสแปม
-              <button type="button" onClick={() => setFilter((f) => ({ ...f, spam: false }))} aria-label="เลิกดูสแปม" className="inline-flex items-center">
-                <Icon icon="x" width={12} height={12} />
-              </button>
-            </span>
-          )}
+          {/* ชิป "กำลังดูสแปม" ถูกถอดออก 2026-07-31 — แท็บ "สแปม" ทำหน้าที่นี้แล้ว (กดแท็บอื่นคือการออก) */}
           {/* ไม่มี chip ของ "การอ่าน" (user สั่ง 2026-07-24: ปุ่มตัวกรองขึ้น badge (1) อยู่แล้ว = ซ้ำซ้อน)
               — ล้างได้จากในดรอปดาวน์ (radio "ทั้งหมด") ต่างจาก chip สถานะ/ผูกลูกค้า/ซ่อน/สแปม ที่เก็บไว้
               เพราะบอก "ค่าที่เลือกคืออะไร" ซึ่ง badge ตัวเลขบอกไม่ได้ */}
@@ -692,26 +673,49 @@ export default function InboxList({
 
         {/* แถวกลุ่ม/แท็บจัดหมวดแชท (feature 00018): ทั้งหมด + กลุ่มที่ตั้งเอง (คลิกขวาลบ) + ปุ่มเพิ่ม inline
             ตัวกรองอ่านแล้ว/ยังไม่อ่านย้ายเข้าปุ่ม "ตัวกรอง" แล้ว (user สั่ง 2026-07-24: แถวนี้แน่นเกินไป) */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* relative — popover ของ InboxFilterPanel ใช้ inset-x-0 อ้างอิงแถวนี้ (กว้างเท่าแถว ไม่ล้นจอ) */}
+        <div className="relative flex items-center gap-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="กลุ่มแชท">
             <button
               type="button"
               role="tab"
-              aria-selected={activeGroupId === null}
-              onClick={() => setActiveGroupId(null)}
+              aria-selected={activeStdTab === 'ALL'}
+              onClick={() => selectStdTab('ALL')}
               className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
-                activeGroupId === null ? 'bg-primary text-white' : 'bg-light text-default-700'
+                activeStdTab === 'ALL' ? 'bg-primary text-white' : 'bg-light text-default-700'
               }`}
             >
               ทั้งหมด
             </button>
+            {/* แท็บมาตรฐาน — ทุกร้านมีเสมอ ลบไม่ได้ (ไม่ใช่แถวใน ChatGroup แต่อ่านจาก field
+                resolvedAt/isSpam ที่ปุ่ม shortcut ในแถวเขียนอยู่แล้ว จึงสัมพันธ์กันเองทันที)
+                วางต่อจาก "ทั้งหมด" ก่อนกลุ่มที่ร้านสร้างเอง (user เลือก 2026-07-31)
+                ไอคอนตรงกับปุ่ม shortcut ในแถวเพื่อให้โยงกันออกโดยไม่ต้องอ่าน */}
+            {([
+              { key: 'RESOLVED', label: 'ปิดงาน', icon: 'circle-check' },
+              { key: 'SPAM', label: 'สแปม', icon: 'alert-circle' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={activeStdTab === t.key}
+                onClick={() => selectStdTab(t.key)}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-nowrap ${
+                  activeStdTab === t.key ? 'bg-primary text-white' : 'bg-light text-default-700'
+                }`}
+              >
+                <Icon icon={t.icon} width={14} height={14} className="shrink-0" />
+                {t.label}
+              </button>
+            ))}
             {groups.map((g) => (
               <button
                 key={g.id}
                 type="button"
                 role="tab"
                 aria-selected={activeGroupId === g.id}
-                onClick={() => setActiveGroupId(g.id)}
+                onClick={() => selectGroupTab(g.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   handleDeleteGroup(g)
@@ -753,6 +757,28 @@ export default function InboxList({
                 <Icon icon="plus" width={16} height={16} />
               </button>
             )}
+          </div>
+
+          {/* ปุ่มตัวกรองเดียวที่รวมช่องทาง/เพจ/สถานะ/การอ่าน/ซ่อน — ชิดขวาสุดของแถวแท็บ
+              shrink-0 กันโดนแท็บที่ยาวบีบจนหาย (แถวแท็บ scroll แนวนอนได้เองอยู่แล้ว) */}
+          <div className="shrink-0">
+            <InboxFilterPanel
+              value={filter}
+              onChange={(patch) => setFilter((f) => ({ ...f, ...patch }))}
+              onClear={() => {
+                setFilter(DEFAULT_CHAT_FILTER)
+                // ล้างช่องทาง/เพจด้วย — ตอนนี้ทั้งสองอยู่ในปุ่มนี้แล้ว ถ้าไม่ล้าง ผู้ใช้กด
+                // "ล้างตัวกรอง" แล้วยังเห็นรายการถูกกรองอยู่โดยไม่รู้ว่าเพราะอะไร
+                handleChannelTabChange('ALL')
+              }}
+              open={openPanel === 'filter'}
+              onOpenChange={(o) => setOpenPanel(o ? 'filter' : null)}
+              channelTab={channelTab}
+              onChannelChange={(tab) => handleChannelTabChange(tab as ChannelTab)}
+              pageFilter={pageFilter}
+              pageOptions={channels}
+              onPageChange={setPageFilter}
+            />
           </div>
         </div>
       </div>
@@ -878,6 +904,10 @@ export default function InboxList({
                     (≥1024px) และ kebab (<1024px) — ไม่ได้หายไปไหน. เหตุที่ทำเป็น indicator ไม่ใช่
                     ปุ่ม: ตำแหน่งหน้าชื่ออยู่ใน <Link> ปุ่มซ้อนใน anchor เป็น invalid HTML และคลิก
                     จะ propagate ไป navigate (เหตุผลเดียวกับที่ kebab ต้องเป็น sibling) */}
+                {/* py-3 — เคยขยับเป็น py-4 (2026-07-30 "การ์ดเล็กไปหน่อย") แล้วถอยกลับวันถัดมา
+                    (user: "เอาจริง ๆ ทำมามันก็ใหญ่ไปอ่ะ") เพราะแถวนี้มีชิปหลายชั้นอยู่แล้ว
+                    (ad_id / สถานะขาย / โฟลเดอร์) ความสูงจึงมาจากเนื้อหา ไม่ใช่ padding —
+                    เพิ่ม padding ทับเข้าไปยิ่งทำให้เห็นเธรดต่อจอน้อยลงโดยไม่ได้อ่านง่ายขึ้น */}
                 <Link href={`/inbox/${c.id}`} className="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
@@ -890,12 +920,17 @@ export default function InboxList({
                         imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
                       />
                     </span>
-                    {/* น้ำหนัก/สีตัวอักษรตามสถานะอ่าน — ยังไม่อ่าน = เข้ม+หนา, อ่านแล้ว = เทาลง
+                    {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
+                        เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน
+                        ทำให้ข้อมูลที่สำคัญที่สุดในแถว (ลูกค้าคนไหน) อ่านยากที่สุด และเธรดที่อ่านแล้ว
+                        คือส่วนใหญ่ของรายการ → ทั้งหน้าดูจางไปหมด
+                        สถานะอ่านสื่อด้วย 2 อย่างที่เหลืออยู่แล้ว: น้ำหนักฟอนต์ (bold/semibold) +
+                        บรรทัด preview ที่เทาลง + badge จำนวนที่ยังไม่อ่าน — ไม่ต้องเอาสีชื่อมาแลก
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
                       <span
-                        className={`flex items-center gap-1 truncate text-sm ${
-                          unread ? 'text-default-900 font-bold' : 'text-default-600 font-medium'
+                        className={`text-default-900 flex items-center gap-1 truncate text-sm ${
+                          unread ? 'font-bold' : 'font-semibold'
                         }`}
                       >
                         {c.isPinned && (
@@ -914,9 +949,13 @@ export default function InboxList({
                           ใส่เฉพาะตอนมี preview จริง (ไม่ใส่ทับ fallback "เริ่มการสนทนาแล้ว")
                           senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
                           — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
+                      {/* preview: text-xs ตามเดิม (เคยขยับเป็น text-sm แล้วถอยกลับพร้อม padding แถว
+                          2026-07-31 — แถวสูงเกินไป). คงสี text-default-500 ที่ปรับจาก 400 ไว้
+                          เพราะเป็นเรื่องคอนทราสต์ให้อ่านออก ไม่ใช่เรื่องขนาด และตอนนี้บรรทัดนี้
+                          เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) */}
                       <span
                         className={`block max-w-52 truncate text-xs ${
-                          unread ? 'text-default-800 font-semibold' : 'text-default-400'
+                          unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
                         {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (

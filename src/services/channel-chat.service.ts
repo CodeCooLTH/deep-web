@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -64,6 +64,119 @@ export async function syncInboundWindowFromMeta(conversationId: string): Promise
   })
   return realLast
 }
+
+/**
+ * syncMissingMessagesFromMeta — เติมข้อความที่ webhook ไม่เคยส่งมาให้ (user report 2026-07-30
+ * "แชทเข้ามาไม่ครบ")
+ *
+ * ทำไมต้องมี: **Meta ไม่ยิง `message_echoes` ให้ข้อความที่ระบบตอบกลับอัตโนมัติของตัวเองส่ง** —
+ * ตอบกลับอัตโนมัติของโฆษณา, ข้อความทักทาย, การ์ดปุ่มโทร. พิสูจน์กับเธรดจริง 2026-07-30:
+ * Meta มี 11 ข้อความ webhook ให้เราแค่ 5 ที่ขาดคือข้อความอัตโนมัติทั้งหมดในช่วง 4 วินาทีหลัง
+ * ลูกค้าคลิกโฆษณา ส่วนข้อความที่ "คนพิมพ์จริง" มาครบทุกอัน — เป็นข้อจำกัดฝั่ง Meta ไม่ใช่ field
+ * ที่ subscribe เพิ่มแล้วจะได้ ต้องมาดึงเอง
+ *
+ * เรียกตอน "เปิดเธรด" (user เลือก 2026-07-30) — จุดที่คนกำลังจะอ่านจริง ไม่ใช่ยิงรัวทุกครั้งที่มี event
+ *
+ * idempotent ด้วย `externalMessageId @unique` — ยิงซ้ำกี่รอบก็ไม่เกิดข้อความซ้ำ
+ * ไม่ throw: sync ไม่ได้ = เห็นเท่าที่ webhook ให้มา (พฤติกรรมเดิม) ดีกว่าเปิดเธรดไม่ได้เลย
+ *
+ * ข้อจำกัดที่ยังแก้ไม่ได้: Instagram — endpoint /me/conversations ฝั่ง IG ตอบ error 2207085
+ * (ดู comment ที่ getContactProfile) จึง sync ได้เฉพาะ MESSENGER
+ */
+export async function syncMissingMessagesFromMeta(
+  conversationId: string,
+): Promise<{ added: number }> {
+  // throttle ต่อเธรด — route ที่เรียกฟังก์ชันนี้ถูกยิงทุกครั้งที่ client poll ไม่ใช่แค่ตอนเปิดเธรด
+  // ถ้าไม่กัน จะได้ Graph call ทุกไม่กี่วินาทีต่อคนที่เปิดแชทค้างไว้ (โดนจำกัดอัตราแน่นอน)
+  // in-memory + globalThis: pattern เดียวกับ lib/api-rate-limit.ts — known-gap เดียวกันคือ
+  // serverless หลาย instance ต่างคนต่างนับ (ยอมรับได้: ผลเสียสูงสุดคือ sync ถี่กว่าที่ตั้งไว้เล็กน้อย)
+  const now = Date.now()
+  const store = (globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt ??
+    ((globalThis as { __fbSyncAt?: Map<string, number> }).__fbSyncAt = new Map())
+  const last = store.get(conversationId)
+  if (last && now - last < SYNC_THROTTLE_MS) return { added: 0 }
+  store.set(conversationId, now)
+
+  try {
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { shopChannel: true, externalContact: true },
+    })
+    // MESSENGER เท่านั้น (ดู comment หัวฟังก์ชัน) + ต้องมี token ที่ยังใช้ได้
+    if (
+      !conv ||
+      conv.channel !== 'MESSENGER' ||
+      !conv.shopChannel ||
+      !conv.externalContact ||
+      conv.shopChannel.status !== 'ACTIVE'
+    ) {
+      return { added: 0 }
+    }
+
+    const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
+    const remote = await fetchThreadMessages(conv.externalContact.externalUserId, pageToken, 50)
+    if (remote.length === 0) return { added: 0 }
+
+    const known = new Set(
+      (
+        await prisma.chatMessage.findMany({
+          where: { conversationId, externalMessageId: { in: remote.map((m) => m.id) } },
+          select: { externalMessageId: true },
+        })
+      ).map((m) => m.externalMessageId),
+    )
+    const missing = remote.filter((m) => !known.has(m.id))
+    if (missing.length === 0) return { added: 0 }
+
+    // pageId = externalId ของ ShopChannel — ใช้แยกว่าใครเป็นคนส่ง (Graph คืน from.id ของเพจสำหรับ
+    // ข้อความฝั่งร้าน รวมถึงข้อความที่ระบบอัตโนมัติส่งแทนเพจด้วย)
+    const pageId = conv.shopChannel.externalId
+
+    // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
+    // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
+    const result = await prisma.chatMessage.createMany({
+      data: missing.map((m) => ({
+        conversationId,
+        senderRole: m.fromId === pageId ? 'SHOP' : 'BUYER',
+        type: 'TEXT',
+        // ไม่มีข้อความจริง = การ์ด/template ที่ Graph ไม่ให้เนื้อหา — ใช้ placeholder ชุดเดียวกับ
+        // ฝั่ง webhook เพื่อไม่ให้เกิดบับเบิลว่างเปล่า (บทเรียน bubble ว่าง 2026-07-23)
+        body: m.text ?? SYNCED_EMPTY_TEXT,
+        createdAt: m.createdTime,
+        externalMessageId: m.id,
+      })),
+      skipDuplicates: true,
+    })
+
+    // อัปเดตสรุปเธรดเฉพาะเมื่อมีข้อความที่ "ใหม่กว่า" ที่เราเคยรู้ — ข้อความเก่าที่เพิ่งเติมย้อนหลัง
+    // ต้องไม่ไปเปลี่ยน preview/เวลาในรายการแชทให้ดูเหมือนมีความเคลื่อนไหวใหม่
+    const newest = missing.reduce((a, b) => (a.createdTime > b.createdTime ? a : b))
+    if (!conv.lastMessageAt || newest.createdTime > conv.lastMessageAt) {
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          lastMessageAt: newest.createdTime,
+          lastMessagePreview: newest.text ?? SYNCED_EMPTY_TEXT,
+          lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
+        },
+      })
+    }
+
+    return { added: result.count }
+  } catch (e) {
+    console.error(
+      '[fb-sync] ดึงข้อความย้อนหลังไม่สำเร็จ',
+      conversationId,
+      e instanceof Error ? e.message : e,
+    )
+    return { added: 0 }
+  }
+}
+
+/** placeholder ของข้อความที่ Graph ไม่ให้เนื้อหา (การ์ด/template) — ล้อกับฝั่ง webhook */
+const SYNCED_EMPTY_TEXT = '[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]'
+/** เว้นระยะก่อน sync เธรดเดิมซ้ำ — ข้อความปกติมาทาง webhook อยู่แล้ว sync เป็นแค่ตาข่ายรับส่วนที่หลุด */
+const SYNC_THROTTLE_MS = 5 * 60 * 1000
 
 export type IngestStatus = 'STORED' | 'DUPLICATE' | 'NO_CHANNEL' | 'IGNORED'
 

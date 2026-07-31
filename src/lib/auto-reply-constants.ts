@@ -56,10 +56,13 @@ export type ResolutionLevel = (typeof RESOLUTION_LEVELS)[number]
 
 /** AutoReplyLog.skipReason */
 export const SKIP_REASONS = [
+  // 🛑 เลิกใช้ 2026-07-30 (สวิตช์ระดับร้านถูกถอดออก) — ห้ามลบ แถว log เก่ายังมีค่านี้
   'SHOP_DISABLED',
   'CONVERSATION_DISABLED',
+  // 🛑 เลิกใช้ 2026-07-29 (โหมดทดสอบระดับร้านถูกยกเลิก) แต่ห้ามลบออกจากรายการ —
+  // แถวบันทึกเก่าใน AutoReplyLog ยังมีค่านี้อยู่ ถ้าถอดออกจะอ่านของเดิมไม่ผ่าน validate
   'NOT_IN_TEST_ALLOWLIST',
-  // การตั้งค่านี้อยู่โหมด TEST แต่เธรดไม่ได้อยู่ใน allowlist (feature 00023 mode รายรายการ)
+  // กลุ่มคำที่ชนะอยู่สถานะ TEST แต่เธรดนี้ไม่ได้อยู่ในรายการแชททดสอบของกลุ่มนั้น
   'KEYWORD_TEST_ONLY',
   'SPAM',
   'HANDED_OFF',

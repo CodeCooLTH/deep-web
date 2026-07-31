@@ -22,15 +22,8 @@ import SlipViewer from './SlipViewer'
 // import label + icon map จาก shared data.ts แทน duplicate local copy
 import { PAYMENT_LABELS, PAYMENT_ICONS } from '../../components/data'
 import { isCODPayment } from '@/lib/order-display'
-
-// CHANNEL_LABELS ยังไม่มีใน shared data.ts — keep local
-const CHANNEL_LABELS: Record<string, string> = {
-  STOREFRONT: 'หน้าร้าน',
-  FACEBOOK: 'Facebook',
-  LINE: 'Line',
-  TIKTOK: 'TikTok / TikTok Shop',
-  OTHER: 'อื่นๆ',
-}
+// โลโก้ช่องทางการขาย — เดิมเป็นข้อความล้วน "ช่องทาง: Facebook" (user 2026-07-30: ขอโลโก้จริง)
+import SalesChannelBadge from '@/components/safepay/SalesChannelBadge'
 
 export interface PaymentCardProps {
   paymentMethod: string | null
@@ -56,13 +49,21 @@ export default function PaymentCard({
   // S-12: state สำหรับ accessUrl form
   const [accessUrlValue, setAccessUrlValue] = useState(accessUrl ?? '')
   const [accessUrlLoading, setAccessUrlLoading] = useState(false)
+  // error แสดงใต้ช่องกรอก ไม่ใช่ toast — ผู้ใช้ต้องเห็นข้อความติดกับช่องที่ต้องแก้
+  const [accessUrlError, setAccessUrlError] = useState('')
 
   const handleSaveAccessUrl = async () => {
     const url = accessUrlValue.trim()
     if (!url) {
-      pacesToast.error('กรุณากรอกลิงก์')
+      setAccessUrlError('กรุณากรอกลิงก์ที่จะส่งให้ผู้ซื้อ')
       return
     }
+    // เช็คฝั่ง client ก่อนยิง — helper text บอกกติกาไว้แล้ว ไม่ควรให้รู้ตัวตอน server ตีกลับ
+    if (!/^https?:\/\/.+/i.test(url)) {
+      setAccessUrlError('ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://')
+      return
+    }
+    setAccessUrlError('')
     setAccessUrlLoading(true)
     try {
       const res = await fetch(`/api/orders/${publicToken}/access-url`, {
@@ -72,12 +73,12 @@ export default function PaymentCard({
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error || 'บันทึกลิงก์ไม่สำเร็จ')
+        throw new Error((data as { error?: string }).error || 'บันทึกลิงก์ไม่สำเร็จ กรุณาลองใหม่')
       }
       pacesToast.success('บันทึกลิงก์แล้ว')
       router.refresh()
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'บันทึกลิงก์ไม่สำเร็จ'
+      const message = err instanceof Error ? err.message : 'บันทึกลิงก์ไม่สำเร็จ กรุณาลองใหม่'
       pacesToast.error(message)
     } finally {
       setAccessUrlLoading(false)
@@ -101,8 +102,10 @@ export default function PaymentCard({
     }
     // TRANSFER / PROMPTPAY
     if (paymentMethod === 'TRANSFER' || paymentMethod === 'PROMPTPAY') {
-      if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-warning/15 text-warning' }
-      return { label: 'รอชำระ', cls: 'badge bg-danger/15 text-danger' }
+      if (slipFileId) return { label: 'รอตรวจสอบสลิป', cls: 'badge bg-info/15 text-info' }
+      // "รอชำระ" เป็นสถานะปกติของออเดอร์ที่เพิ่งสร้าง ไม่ใช่ความผิดพลาด — เดิมใช้ danger (แดง)
+      // ทำให้ออเดอร์ใหม่ทุกใบขึ้นแดงตั้งแต่วินาทีแรก แดงเลยไม่เหลือความหมาย
+      return { label: 'รอชำระ', cls: 'badge bg-warning/15 text-warning' }
     }
     // วิธีอื่น (CASH/CARD/OTHER) หรือ paymentMethod null — ไม่แสดง badge
     return null
@@ -110,8 +113,7 @@ export default function PaymentCard({
 
   // icon + label สำหรับ payment row
   const paymentIcon: string = paymentMethod ? (PAYMENT_ICONS[paymentMethod] ?? 'wallet') : 'credit-card-off'
-  const paymentLabel: string = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ไม่ระบุ'
-  const channelLabel: string | null = salesChannel ? (CHANNEL_LABELS[salesChannel] ?? salesChannel) : null
+  const paymentLabel: string = paymentMethod ? (PAYMENT_LABELS[paymentMethod] ?? paymentMethod) : 'ยังไม่ระบุวิธีชำระ'
 
   // dividers: แสดงเฉพาะเมื่อมี section ถัดไป
   const hasSlipSection = slipFileId !== null
@@ -139,9 +141,12 @@ export default function PaymentCard({
                 <Icon icon={paymentIcon} className="size-4.5" />
               </span>
               <div>
-                <h5 className="text-default-800 font-medium text-sm">{paymentLabel}</h5>
-                {channelLabel && (
-                  <p className="text-default-400 text-xs">ช่องทาง: {channelLabel}</p>
+                <p className="text-default-800 font-medium text-sm mb-0">{paymentLabel}</p>
+                {/* ช่องทางขาย = โลโก้แบรนด์จริง + ชื่อ (เดิมเป็นข้อความ "ช่องทาง: Facebook") */}
+                {salesChannel && (
+                  <span className="mt-1 inline-flex">
+                    <SalesChannelBadge channel={salesChannel} />
+                  </span>
                 )}
               </div>
             </div>
@@ -193,10 +198,12 @@ export default function PaymentCard({
               <input
                 type="url"
                 value={accessUrlValue}
-                onChange={(e) => setAccessUrlValue(e.target.value)}
+                onChange={(e) => { setAccessUrlValue(e.target.value); if (accessUrlError) setAccessUrlError('') }}
                 placeholder="https://example.com/download/..."
                 className="form-input text-sm flex-1"
                 disabled={accessUrlLoading}
+                aria-invalid={accessUrlError ? true : undefined}
+                aria-describedby={accessUrlError ? 'access-url-error' : undefined}
               />
               <button
                 type="button"
@@ -207,6 +214,11 @@ export default function PaymentCard({
                 {accessUrlLoading ? 'กำลังบันทึก...' : 'บันทึกลิงก์'}
               </button>
             </div>
+            {accessUrlError && (
+              <p id="access-url-error" role="alert" className="text-danger text-xs mt-1.5">
+                {accessUrlError}
+              </p>
+            )}
             {/* แสดง URL ที่บันทึกอยู่ปัจจุบัน เพื่อยืนยันก่อน refresh */}
             {accessUrl && (
               <p className="text-xs text-default-400 break-all mt-2">

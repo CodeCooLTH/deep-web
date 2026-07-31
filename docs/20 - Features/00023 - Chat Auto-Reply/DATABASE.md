@@ -22,6 +22,41 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 
 ## 🛑 FROZEN CONTRACT
 
+> **แก้สัญญา 2026-07-29 (ครั้งที่ 3) — โหมดทดสอบย้ายจาก "ระดับร้าน" มาเป็น "รายกลุ่มคำ"**
+>
+> ที่มา: user "เอาระดับทั้งหมดออกไปเลย ยกเลิก" + "ให้ตั้งค่าทดสอบได้ทีละอัน" หลังลองใช้จริงบน prod
+> วันเดียวกับที่ deploy — ของเดิมต้องอ่าน **4 ค่า** ถึงจะตอบได้ว่า "ทำไมชุดนี้ไม่ตอบ"
+> (`AutoReplyConfig.testMode` + `Conversation.autoReplyTestEnabled` + `Keyword.isActive` + `Keyword.mode`)
+> และในสายตาคนใช้ "ทดสอบ" กับ "ปิดอยู่" แยกกันไม่ออก
+>
+> สิ่งที่เปลี่ยน:
+> - `AutoReplyKeyword.isActive` + `.mode` → ยุบเป็น **`status`** ค่าเดียว 3 ค่า: `OFFLINE` | `TEST` | `LIVE`
+> - ตารางใหม่ **`AutoReplyKeywordTestThread`** (keywordId, conversationId) = รายการแชททดสอบ **ของกลุ่มคำนั้น**
+> - ลบทิ้ง: `AutoReplyConfig.testMode` / `.testModeExpiresAt` / `.testModeEnabledByUserId`,
+>   `Conversation.autoReplyTestEnabled` และ index ของมัน
+> - `skipReason` `NOT_IN_TEST_ALLOWLIST` **เลิกใช้แต่ไม่ลบ** ออกจากรายการค่าคงที่ (แถวบันทึกเก่ายังมีค่านี้)
+> - migration: `20260729210000_auto_reply_keyword_status` — backfill `status` จาก `(isActive, mode)`
+>   และย้าย allowlist เดิมเข้าตารางใหม่ **ก่อน** DROP COLUMN เสมอ
+>
+> ความหมายของแต่ละสถานะ (คำของ user):
+> | status | ตอบใคร |
+> |---|---|
+> | `OFFLINE` | ไม่ตอบใครเลย ตั้งค่าไว้เฉย ๆ ลองได้ผ่านแผงพรีวิวในหน้าตั้งค่า |
+> | `TEST` | ตอบเฉพาะแชทที่ระบุไว้ของกลุ่มนั้น — **ต้องระบุอย่างน้อย 1 แชทเสมอ** ไม่งั้นเท่ากับ OFFLINE |
+> | `LIVE` | ตอบทุกแชทตามเงื่อนไขที่ตั้งไว้ |
+
+> **แก้สัญญา 2026-07-30 (ครั้งที่ 4) — สวิตช์ระดับร้านเลิกใช้**
+>
+> user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user ปิดเอง ในแต่ละ row" — `AutoReplyConfig.isEnabled`
+> ถูกถอดออกจากเส้นทางตัดสิน (gate 1 เหลือแค่ `Conversation.autoReplyEnabled`) และไม่มี UI แล้ว
+> คอลัมน์ยังอยู่ใน DB แต่ **ไม่มีที่อ่าน** — ทำเครื่องหมาย DEPRECATED ไว้ใน schema
+> ลบได้ในรอบทำความสะอาด (เลี่ยง migration ทำลายข้อมูลรอบสองในวันเดียว)
+>
+> เหตุผล: มันซ้ำกับ `AutoReplyKeyword.status` และสร้างกับดักเดิมกลับมา — กลุ่มเป็น `LIVE`
+> แต่เงียบเพราะสวิตช์ร้านปิดอยู่คนละหน้า ซึ่งเป็นบั๊กแรกที่เจอตอนลองใช้จริง
+> ความปลอดภัย BR-AR ระดับ 0 ยังอยู่ครบ เพราะกลุ่มคำที่สร้างใหม่เป็น `OFFLINE` เสมอ
+> `skipReason` `SHOP_DISABLED` เลิกใช้แต่ไม่ลบจากรายการค่าคงที่ (log เก่ามีค่านี้)
+
 ชื่อ model, ชื่อ field, ชนิดข้อมูล และค่าคงที่ในเอกสารนี้คือ **สัญญาที่ตกลงแล้ว** — เอกสาร SRS / SDS / API / TestCase และโค้ดทุกไฟล์ต้องอ้างชื่อเหล่านี้ตรงตัว ห้ามตั้งชื่อใหม่เอง ถ้าต้องเปลี่ยนต้องกลับมาแก้ที่นี่ก่อนแล้วแจ้งทุกฝ่าย (บทเรียน `feedback_lock_contract_before_parallel`)
 
 ---
@@ -89,11 +124,8 @@ model AutoReplyConfig {
   isEnabled Boolean @default(false)
 
   // --- โหมดทดสอบ (FR-021) ---
-  // testMode = true → ตอบเฉพาะ Conversation ที่ autoReplyTestEnabled = true (allowlist)
-  testMode          Boolean   @default(false)
-  // หมดอายุเองกันร้านลืมปิด (AC-021-08) — null ทั้งที่ testMode=true ถือว่าไม่หมดอายุ (ไม่แนะนำ)
-  testModeExpiresAt DateTime?
-  testModeEnabledByUserId String?
+  // 🛑 ลบ 2026-07-29 — testMode / testModeExpiresAt / testModeEnabledByUserId
+  // โหมดทดสอบไม่ใช่สวิตช์ระดับร้านอีกต่อไป ย้ายไป AutoReplyKeyword.status = "TEST"
 
   // --- การหยุดเมื่อพนักงานตอบ (FR-016) ---
   // "30M" | "2H" | "MANUAL" (จนกว่าจะเปิดเอง) | "UNTIL_RESOLVED" (จนกว่าเธรดจะถูกปิด)
@@ -139,7 +171,9 @@ model AutoReplyKeyword {
   // มากกว่า = ถูกเลือกก่อน (AC-003-02, เกณฑ์ที่ 1 ของ BR-AR-04)
   priority Int @default(100)
 
-  isActive Boolean @default(true)
+  // amend 2026-07-29 — แทน isActive+mode เดิม (ดู FROZEN CONTRACT ด้านบน)
+  // "OFFLINE" = ไม่ตอบใครเลย | "TEST" = ตอบเฉพาะแชทใน AutoReplyKeywordTestThread | "LIVE" = ตอบทุกแชท
+  status String @default("OFFLINE")
 
   createdByUserId String?
   updatedByUserId String?
@@ -151,11 +185,32 @@ model AutoReplyKeyword {
   // onDelete Cascade — ลบกลุ่มคำ ลบกฎของกลุ่มนั้นด้วย (กฎที่ไม่มีกลุ่มไม่มีความหมาย)
   rules   AutoReplyRule[]
   logs    AutoReplyLog[]
+  testThreads AutoReplyKeywordTestThread[]
 
   @@unique([shopId, name]) // AC-001-04 ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน
-  @@index([shopId, isActive, priority]) // query หลัก: โหลดกลุ่มที่เปิดใช้ของร้านเรียงตามลำดับความสำคัญ
+  @@index([shopId, status, priority]) // query หลัก: โหลดกลุ่มที่ทำงานอยู่ของร้านเรียงตามลำดับความสำคัญ
 }
 ```
+
+### 3.2.1 `AutoReplyKeywordTestThread` (เพิ่ม 2026-07-29)
+
+```prisma
+model AutoReplyKeywordTestThread {
+  id             String   @id @default(uuid())
+  keywordId      String
+  conversationId String
+  createdAt      DateTime @default(now())
+
+  keyword      AutoReplyKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([keywordId, conversationId])
+  @@index([conversationId])
+}
+```
+
+ทำไมเป็นตารางแยกไม่ใช่ `String[]` บน keyword: ต้อง join กับ `Conversation` เพื่อแสดงชื่อคู่สนทนา
+ในหน้าตั้งค่า และต้องหายเองเมื่อเธรดถูกลบ (FK cascade) — array ทำสองอย่างนี้ไม่ได้
 
 ### 3.3 `AutoReplyPhrase`
 
@@ -342,8 +397,8 @@ model AutoReplyLog {
   // nullable ตั้งใจ: ต้องแยก "ยังไม่เคยตั้ง" ออกจาก "ตั้งเป็นปิด" ไม่งั้นปิดระดับร้านแล้วเปิดกลับ
   // จะปลุกเธรดที่ร้านตั้งใจปิดไว้ขึ้นมาด้วย (AC-015-03)
   autoReplyEnabled     Boolean?
-  // allowlist ของโหมดทดสอบ (AC-021-02/03) — มีผลเฉพาะตอน AutoReplyConfig.testMode = true
-  autoReplyTestEnabled Boolean   @default(false)
+  // 🛑 ลบ 2026-07-29 — autoReplyTestEnabled (allowlist ระดับร้าน)
+  // ย้ายไปตาราง AutoReplyKeywordTestThread ซึ่งผูกกับ "กลุ่มคำ" ไม่ใช่ "ร้าน"
   // หยุดชั่วคราวถึงเมื่อไหร่ (FR-016) — null = ไม่ถูกหยุด
   autoReplyPausedUntil DateTime?
   autoReplyCount       Int       @default(0) // นับคำตอบอัตโนมัติสะสม (AC-018-02)
@@ -405,7 +460,8 @@ model AutoReplyLog {
 
 | ตาราง | Index | รองรับ query |
 |---|---|---|
-| `AutoReplyKeyword` | `[shopId, isActive, priority]` | โหลดกลุ่มคำที่เปิดใช้ของร้าน เรียงตามลำดับความสำคัญ (ทุกข้อความขาเข้า) |
+| `AutoReplyKeyword` | `[shopId, status, priority]` | โหลดกลุ่มคำที่ไม่ใช่ OFFLINE ของร้าน เรียงตามลำดับความสำคัญ (ทุกข้อความขาเข้า) |
+| `AutoReplyKeywordTestThread` | `[keywordId, conversationId]` unique · `[conversationId]` | รายการแชททดสอบของกลุ่มคำ + ทางกลับตอนตัดสินที่ gate 6.5 |
 | `AutoReplyPhrase` | `[keywordId]` | โหลดคำตรวจจับของกลุ่ม |
 | `AutoReplyRule` | `[shopId, keywordId, isActive, specificity]` | **query หลักของ rule resolution** — เฉพาะเจาะจงมากก่อน |
 | `AutoReplyRule` | `[shopId, shopChannelId, adId]` | หน้าตั้งค่า: ดูกฎของเพจ/โฆษณาหนึ่ง ๆ |
@@ -496,7 +552,7 @@ model AutoReplyLog {
 | FR-017 กันตอบซ้ำ | **`AutoReplyJob.chatMessageId @unique`** |
 | FR-018 จำกัดจำนวน/ระยะพัก | `AutoReplyConfig.keywordCooldownSec/maxRepliesPerConversation`, `Conversation.autoReplyCount/lastAutoReplyAt` |
 | FR-019 ส่งต่อพนักงาน | `Conversation.handoffAt/handoffReason`, `AutoReplyConfig.handoffPhrases` |
-| FR-020/021 โหมดทดสอบ | `AutoReplyConfig.testMode/testModeExpiresAt`, `Conversation.autoReplyTestEnabled`, `AutoReplyLog.isTest` |
+| FR-020/021 โหมดทดสอบ | `AutoReplyKeyword.status='TEST'`, `AutoReplyKeywordTestThread`, `AutoReplyLog.isTest` (amend 2026-07-29) |
 | FR-022/023 คิวงาน + งานค้างไม่หาย | `AutoReplyJob` ทั้งตาราง |
 | FR-024 บันทึก + ค้นหา | `AutoReplyLog` ทั้งตาราง + 5 index |
 

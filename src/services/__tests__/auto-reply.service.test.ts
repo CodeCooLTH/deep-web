@@ -54,7 +54,7 @@ const MSG = 'msg-1'
 
 function config(over: Record<string, unknown> = {}) {
   return {
-    isEnabled: true, testMode: false, testModeExpiresAt: null,
+    isEnabled: true,
     keywordCooldownSec: 0, maxRepliesPerConversation: 10,
     pendingJobCount: 0, failedJobCount: 0, ...over,
   } as never
@@ -63,7 +63,7 @@ function config(over: Record<string, unknown> = {}) {
 function conversation(over: Record<string, unknown> = {}) {
   return {
     id: CONV, isSpam: false, handoffAt: null, autoReplyEnabled: null,
-    autoReplyTestEnabled: false, autoReplyPausedUntil: null, autoReplyCount: 0,
+    autoReplyPausedUntil: null, autoReplyCount: 0,
     shopChannelId: 'ch-1', contextProductId: null, referralAdId: null, ...over,
   }
 }
@@ -154,35 +154,40 @@ describe('claimJob — atomic', () => {
 describe('ลำดับ gate (PRD §4.3)', () => {
   beforeEach(happyPath)
 
-  it('ร้านปิด -> SHOP_DISABLED ไม่ส่ง', async () => {
-    getConfigM.mockResolvedValue(config({ isEnabled: false }))
-    await processJob(JOB)
-    expect(sendM).not.toHaveBeenCalled()
-    expect(writeLogM.mock.calls[0]![0]).toMatchObject({ decision: 'SKIPPED', skipReason: 'SHOP_DISABLED' })
-  })
-
   it('เธรดปิดเอง แม้ร้านเปิด -> CONVERSATION_DISABLED', async () => {
     db.conversation.findFirst.mockResolvedValue(conversation({ autoReplyEnabled: false }))
     await processJob(JOB)
     expect(writeLogM.mock.calls[0]![0]).toMatchObject({ skipReason: 'CONVERSATION_DISABLED' })
   })
 
-  it('[AC-021-09] โหมดทดสอบ + เธรดนอก allowlist -> หยุดก่อนโหลดกฎและก่อน match', async () => {
-    getConfigM.mockResolvedValue(config({ testMode: true }))
+  it('กลุ่มคำที่ชนะเป็น TEST แต่เธรดนี้ไม่อยู่ในรายการทดสอบ -> KEYWORD_TEST_ONLY ไม่ส่ง', async () => {
+    // โหมดทดสอบผูกกับ "กลุ่มคำ" ไม่ใช่ทั้งร้าน (user 2026-07-29) จึงตัดสินหลัง match เสมอ
+    db.autoReplyKeyword.findMany.mockResolvedValue([
+      { id: 'kw-1', name: 'สนใจ', matchType: 'CONTAINS', priority: 100, status: 'TEST',
+        testThreads: [{ conversationId: 'conv-other' }], phrases: [] },
+    ])
     await processJob(JOB)
 
-    expect(writeLogM.mock.calls[0]![0]).toMatchObject({ skipReason: 'NOT_IN_TEST_ALLOWLIST' })
-    // ต้นทุนที่ต้องไม่ถูกจ่าย
-    expect(db.autoReplyKeyword.findMany).not.toHaveBeenCalled()
-    expect(matchM).not.toHaveBeenCalled()
+    expect(writeLogM.mock.calls[0]![0]).toMatchObject({ skipReason: 'KEYWORD_TEST_ONLY' })
     expect(sendM).not.toHaveBeenCalled()
   })
 
-  it('โหมดทดสอบ + เธรดอยู่ใน allowlist -> ไปต่อและติดธง isTest', async () => {
-    getConfigM.mockResolvedValue(config({ testMode: true }))
-    db.conversation.findFirst.mockResolvedValue(conversation({ autoReplyTestEnabled: true }))
+  it('กลุ่มคำที่ชนะเป็น TEST และเธรดนี้อยู่ในรายการ -> ส่งได้และติดธง isTest', async () => {
+    db.autoReplyKeyword.findMany.mockResolvedValue([
+      { id: 'kw-1', name: 'สนใจ', matchType: 'CONTAINS', priority: 100, status: 'TEST',
+        testThreads: [{ conversationId: CONV }], phrases: [] },
+    ])
     await processJob(JOB)
     expect(sendM.mock.calls[0]![0]).toMatchObject({ isTest: true })
+  })
+
+  it('กลุ่มคำที่ชนะเป็น LIVE -> ส่งโดยไม่ติดธง isTest แม้เธรดไม่อยู่ในรายการทดสอบ', async () => {
+    db.autoReplyKeyword.findMany.mockResolvedValue([
+      { id: 'kw-1', name: 'สนใจ', matchType: 'CONTAINS', priority: 100, status: 'LIVE',
+        testThreads: [], phrases: [] },
+    ])
+    await processJob(JOB)
+    expect(sendM.mock.calls[0]![0]).toMatchObject({ isTest: false })
   })
 
   it('เธรดสแปม -> SPAM', async () => {
