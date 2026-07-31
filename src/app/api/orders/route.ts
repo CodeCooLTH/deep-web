@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
   // log server-side ให้เห็น + ตอบ structured ให้ client.
   // feature 00024 — วันนัดที่แนบมา (ไม่บังคับ). ไม่ส่งมา = เส้นทางเดิมทุกประการ (BR-RSV-04)
   // parse แยกจาก CreateOrderSchema เพื่อไม่ให้ blast radius ไปโดน caller เดิมของ schema นั้น
-  let appointment: { resourceId: string; start: Date; end: Date } | undefined;
+  let appointment:
+    | { resourceId: string; start: Date; end: Date; depositAmount?: string | null }
+    | undefined;
   const rawAppointment = (body as { appointment?: unknown })?.appointment;
   if (rawAppointment !== undefined && rawAppointment !== null) {
     const ap = v.safeParse(OrderAppointmentSchema, rawAppointment);
@@ -61,7 +63,12 @@ export async function POST(request: NextRequest) {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return NextResponse.json({ error: "ข้อมูลวันนัดไม่ถูกต้อง" }, { status: 400 });
     }
-    appointment = { resourceId: ap.output.resourceId, start, end };
+    appointment = {
+      resourceId: ap.output.resourceId,
+      start,
+      end,
+      depositAmount: ap.output.depositAmount ?? null,
+    };
   }
 
   try {

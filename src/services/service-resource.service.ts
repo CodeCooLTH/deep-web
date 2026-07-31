@@ -18,6 +18,9 @@ const RESOURCE_SELECT = {
   description: true,
   durationMinutes: true,
   capacity: true,
+  // มัดจำเริ่มต้น (FR-RSV-12) — UI ใช้เติมยอดให้อัตโนมัติตอนเลือกทรัพยากรในฟอร์มสร้างออเดอร์
+  depositMode: true,
+  depositValue: true,
   isActive: true,
 } as const;
 
@@ -30,6 +33,53 @@ export async function listServiceResources(shopId: string, opts?: { activeOnly?:
   });
 }
 
+/**
+ * ทรัพยากรหนึ่งหน่วยสำหรับหน้าแก้ไข
+ *
+ * IMPORTANT: scope shopId ใน where ตั้งแต่ query แรก — ทรัพยากรของร้านอื่นจะไม่ถูกอ่าน
+ * ขึ้นมาเลย ไม่ใช่อ่านแล้วค่อยเช็คสิทธิ์ทีหลัง (ข้อมูลจะไหลเข้า RSC payload ไปก่อนถูกปฏิเสธ
+ * — บทเรียน feedback_rsc_dal_authz)
+ */
+export async function getServiceResource(shopId: string, resourceId: string) {
+  await assertShopCanUseAppointments(shopId);
+  const resource = await prisma.serviceResource.findFirst({
+    where: { id: resourceId, shopId },
+    select: RESOURCE_SELECT,
+  });
+  if (!resource) throw new ServiceResourceNotFoundError();
+  return resource;
+}
+
+/**
+ * แปลง Decimal → string ก่อนข้าม RSC boundary
+ *
+ * IMPORTANT: ส่ง Prisma.Decimal ตรง ๆ เข้า client component จะ crash ตอน runtime
+ * แม้ tsc จะผ่าน (มิเรอร์ serializeRoom ของ feature 00017 ด้วยเหตุผลเดียวกัน)
+ */
+export function serializeServiceResource(resource: {
+  id: string;
+  name: string;
+  description: string | null;
+  durationMinutes: number | null;
+  capacity: number;
+  depositMode: string;
+  depositValue: { toFixed(dp: number): string };
+  isActive: boolean;
+}) {
+  return {
+    id: resource.id,
+    name: resource.name,
+    description: resource.description,
+    durationMinutes: resource.durationMinutes,
+    capacity: resource.capacity,
+    depositMode: resource.depositMode,
+    depositValue: resource.depositValue.toFixed(2),
+    isActive: resource.isActive,
+  };
+}
+
+export type SerializedServiceResource = ReturnType<typeof serializeServiceResource>;
+
 export async function createServiceResource(
   shopId: string,
   input: {
@@ -37,6 +87,8 @@ export async function createServiceResource(
     description?: string | null;
     durationMinutes?: number | null;
     capacity?: number;
+    depositMode?: "FIXED" | "PERCENT";
+    depositValue?: string;
   },
 ) {
   await assertShopCanUseAppointments(shopId);
@@ -48,6 +100,9 @@ export async function createServiceResource(
       durationMinutes: input.durationMinutes ?? null,
       // ค่าเริ่มต้น 1 = ร้านที่ไม่สนใจเรื่องความจุไม่ต้องตั้งค่าอะไรเลย (BR-RSV-06)
       capacity: input.capacity ?? 1,
+      // ค่าเริ่มต้น FIXED/0 = "ไม่เก็บมัดจำ" — ร้านที่ไม่ใช้เรื่องนี้ไม่ต้องตั้งอะไรเลย (BR-RSV-44)
+      depositMode: input.depositMode ?? "FIXED",
+      depositValue: input.depositValue ?? "0",
     },
     select: RESOURCE_SELECT,
   });
@@ -61,6 +116,8 @@ export async function updateServiceResource(
     description?: string | null;
     durationMinutes?: number | null;
     capacity?: number;
+    depositMode?: "FIXED" | "PERCENT";
+    depositValue?: string;
     isActive?: boolean;
   },
 ) {
@@ -108,6 +165,10 @@ export async function updateServiceResource(
         ? { durationMinutes: input.durationMinutes }
         : {}),
       ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
+      // แก้มัดจำเริ่มต้นได้ตลอด — ไม่กระทบยอดของออเดอร์ที่สร้างไปแล้ว เพราะยอดถูก
+      // snapshot ไว้ที่ Order.depositAmount ตั้งแต่ตอนสร้าง (BR-RSV-46)
+      ...(input.depositMode !== undefined ? { depositMode: input.depositMode } : {}),
+      ...(input.depositValue !== undefined ? { depositValue: input.depositValue } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     },
     select: RESOURCE_SELECT,

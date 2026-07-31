@@ -48,6 +48,21 @@ export function canUseAppointments(
   return shop?.kind === "BUSINESS" && shop?.vertical === "GENERAL";
 }
 
+/**
+ * รูปแบบมัดจำเริ่มต้นของทรัพยากร (BR-RSV-43) — FR-RSV-12
+ *
+ * ประกาศแยกจาก DEPOSIT_MODES ของ src/lib/lodging.ts โดยตั้งใจ แม้ค่าจะเหมือนกันตอนนี้
+ * เพราะเป็นคนละโดเมน (บริการ vs ห้องพัก) และมีกฎต่างกันจริง: ของบ้านพัก มัดจำ > 0
+ * บังคับ flow แนบสลิปก่อนยืนยัน ส่วนของที่นี่ไม่กั้นการกันคิวเลย (BR-RSV-49/50)
+ * การ import ข้ามโดเมนจะทำให้คนแก้ทีหลังเข้าใจผิดว่าสองที่นี้ต้องเปลี่ยนพร้อมกัน
+ */
+export const APPOINTMENT_DEPOSIT_MODES = {
+  FIXED: "จำนวนเงิน (บาท)",
+  PERCENT: "เปอร์เซ็นต์ของยอดรวม",
+} as const;
+
+export type AppointmentDepositMode = keyof typeof APPOINTMENT_DEPOSIT_MODES;
+
 /** ป้ายภาษาไทยของสถานะนัด — ใช้ร่วมกันทุก surface เพื่อไม่ให้คำเรียกเพี้ยนกัน */
 export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
   SCHEDULED: "นัดแล้ว",

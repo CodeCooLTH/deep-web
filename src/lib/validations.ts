@@ -1262,17 +1262,51 @@ const ServiceResourceBaseFields = {
     v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1, "ระยะเวลาต้องมากกว่า 0"))),
   ),
   capacity: v.optional(CapacityInt),
+  // มัดจำเริ่มต้นของทรัพยากร (BR-RSV-43/44/45) — เป็นแค่ "ค่าตั้งต้นช่วยกรอก" ตอนสร้างออเดอร์
+  // IMPORTANT: ยอดจริงของแต่ละนัด snapshot ไว้ที่ Order.depositAmount (BR-RSV-46)
+  // DecimalString กันค่าติดลบไว้แล้วที่ระดับ regex; เพดาน 100 ของ PERCENT ตรวจที่ระดับ object
+  depositMode: v.optional(v.picklist(["FIXED", "PERCENT"])),
+  depositValue: v.optional(DecimalString),
 }
 
-export const CreateServiceResourceSchema = v.object(ServiceResourceBaseFields)
+// PERCENT ต้องไม่เกิน 100 (BR-RSV-45) — ตรวจที่ระดับ object เพราะต้องเห็นสองฟิลด์พร้อมกัน
+// มิเรอร์ CHECK constraint ServiceResource_deposit_value ใน migration
+//
+// IMPORTANT: ต้องเขียน callback แบบ inline ให้ TS infer พารามิเตอร์จาก context
+// ถ้าแยกเป็น const แล้ว annotate เองจะ compile ไม่ผ่าน — v.check บังคับให้ input type
+// ตรงกับ output ของ object เป๊ะ ๆ (Create มี name บังคับ, Update ไม่มี) ซึ่งเขียนตัวเดียว
+// ให้ครอบทั้งสอง schema ไม่ได้
+const DEPOSIT_PERCENT_MESSAGE = "เปอร์เซ็นต์มัดจำต้องไม่เกิน 100"
 
-export const UpdateServiceResourceSchema = v.object({
-  name: v.optional(ServiceResourceBaseFields.name),
-  description: ServiceResourceBaseFields.description,
-  durationMinutes: ServiceResourceBaseFields.durationMinutes,
-  capacity: ServiceResourceBaseFields.capacity,
-  isActive: v.optional(v.boolean()),
-})
+export const CreateServiceResourceSchema = v.pipe(
+  v.object(ServiceResourceBaseFields),
+  v.check(
+    (o) =>
+      o.depositMode !== "PERCENT" ||
+      o.depositValue === undefined ||
+      Number(o.depositValue) <= 100,
+    DEPOSIT_PERCENT_MESSAGE,
+  ),
+)
+
+export const UpdateServiceResourceSchema = v.pipe(
+  v.object({
+    name: v.optional(ServiceResourceBaseFields.name),
+    description: ServiceResourceBaseFields.description,
+    durationMinutes: ServiceResourceBaseFields.durationMinutes,
+    capacity: ServiceResourceBaseFields.capacity,
+    depositMode: ServiceResourceBaseFields.depositMode,
+    depositValue: ServiceResourceBaseFields.depositValue,
+    isActive: v.optional(v.boolean()),
+  }),
+  v.check(
+    (o) =>
+      o.depositMode !== "PERCENT" ||
+      o.depositValue === undefined ||
+      Number(o.depositValue) <= 100,
+    DEPOSIT_PERCENT_MESSAGE,
+  ),
+)
 
 // ตั้ง/เลื่อนนัด — ฝั่งร้าน
 export const SetAppointmentSchema = v.object({
@@ -1298,4 +1332,8 @@ export const OrderAppointmentSchema = v.object({
   resourceId: v.pipe(v.string(), v.minLength(1)),
   start: IsoDateTimeWithOffset,
   end: IsoDateTimeWithOffset,
+  // ยอดมัดจำที่ตกลงกับลูกค้า (FR-RSV-12) — ไม่ส่งมา = ให้ service คำนวณจากค่าเริ่มต้นของทรัพยากร
+  // ส่งมา = ใช้ค่านี้ (ร้านแก้เองได้เสมอ, BR-RSV-48). DecimalString กันค่าติดลบแล้ว
+  // เพดาน "ไม่เกินยอดรวม" บังคับที่ service เพราะต้องรู้ totalAmount ก่อน (BR-RSV-47)
+  depositAmount: v.optional(DecimalString),
 })

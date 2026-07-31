@@ -10,6 +10,7 @@ import { isCancelReason } from "@/lib/lodging";
 import { formatOrderNo } from "@/lib/order-no";
 import {
   attachAppointmentInTx,
+  computeAppointmentDeposit,
   resolveResourceForOrder,
 } from "@/services/appointment.service";
 
@@ -94,7 +95,13 @@ export async function createOrder(shopId: string, data: {
   conversationId?: string;
   // feature 00024 — วันเข้าใช้บริการ (โหมด A: ร้านเลือกวันให้เลยตอนสร้างออเดอร์)
   // ไม่ส่งมา = ออเดอร์เดินเส้นทางเดิมทุกประการ ฟิลด์นัดเป็น NULL ทั้งหมด (BR-RSV-04)
-  appointment?: { resourceId: string; start: Date; end: Date };
+  // depositAmount = ยอดมัดจำที่ร้านกรอกเอง (FR-RSV-12) ไม่ส่งมา = คำนวณจากค่าเริ่มต้นของทรัพยากร
+  appointment?: {
+    resourceId: string;
+    start: Date;
+    end: Date;
+    depositAmount?: string | null;
+  };
 }) {
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
@@ -180,10 +187,21 @@ export async function createOrder(shopId: string, data: {
   // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
   // orderDataBase ไม่รวม items แล้ว (เดิมมี items: { create: data.items } ตรงนี้) —
   // ย้ายการ build items ไปทำใน retry loop เพื่อแนบ stockDeducted ต่อ item (Inventory Add-on)
+  // feature 00024 — ยอดมัดจำของนัด (FR-RSV-12) คำนวณครั้งเดียวที่นี่แล้ว snapshot ลงออเดอร์
+  // ออเดอร์ที่ไม่มีนัด = undefined → คอลัมน์เป็น NULL เหมือนเดิมทุกประการ (BR-RSV-52)
+  const appointmentDeposit = appointmentResource
+    ? computeAppointmentDeposit({
+        resource: appointmentResource,
+        totalAmount: new Prisma.Decimal(totalAmount),
+        override: data.appointment?.depositAmount,
+      })
+    : undefined;
+
   const orderDataBase = {
     shopId,
     type: data.type,
     totalAmount,
+    depositAmount: appointmentDeposit,
     fulfillmentMode,
     buyerContact: data.buyerContact ?? undefined,
     buyerName: data.buyerName ?? undefined,
@@ -642,6 +660,10 @@ export async function getOrderByToken(publicToken: string) {
       items: { include: { product: { select: { images: true } } } },
       // feature 00017 — relation nullable: ออเดอร์สินค้าได้ room = null ไม่กระทบอะไร
       room: { select: { name: true } },
+      // feature 00024 — ชื่อทรัพยากรสำหรับการ์ดนัดบนหน้าออเดอร์สาธารณะ (FR-RSV-05)
+      // relation nullable เช่นกัน: ออเดอร์ที่ไม่มีนัดได้ null ไม่กระทบเส้นทางเดิม
+      // select แค่ name — ไม่ดึงความจุ/มัดจำเริ่มต้นมาเพราะลูกค้าไม่ต้องเห็นค่าตั้งค่าของร้าน
+      serviceResource: { select: { name: true } },
       shop: {
         include: {
           user: {

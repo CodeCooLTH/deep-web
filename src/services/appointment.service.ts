@@ -43,11 +43,55 @@ export async function assertShopCanUseAppointments(shopId: string): Promise<void
 async function loadActiveResource(shopId: string, resourceId: string) {
   const resource = await prisma.serviceResource.findFirst({
     where: { id: resourceId, shopId },
-    select: { id: true, name: true, capacity: true, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      capacity: true,
+      isActive: true,
+      // มัดจำเริ่มต้น (FR-RSV-12) — ใช้คำนวณยอดตั้งต้นตอนสร้างออเดอร์พร้อมนัด
+      depositMode: true,
+      depositValue: true,
+    },
   });
   if (!resource) throw new ServiceResourceNotFoundError();
   if (!resource.isActive) throw new ServiceResourceInactiveError();
   return resource;
+}
+
+/**
+ * คำนวณยอดมัดจำของออเดอร์หนึ่งใบ (FR-RSV-12, BR-RSV-46/47/48)
+ *
+ * IMPORTANT: ผลลัพธ์นี้ถูก "snapshot" ลง Order.depositAmount ตอนสร้าง — ห้ามให้ที่ไหน
+ * คำนวณสดจาก ServiceResource ตอนแสดงผล มิฉะนั้นยอดของออเดอร์เก่าจะขยับเมื่อร้าน
+ * แก้ค่าเริ่มต้นของทรัพยากร (BR-RSV-46 — บทเรียนเดียวกับ Room.depositMode ของ 00017)
+ *
+ * IMPORTANT: มัดจำไม่กั้นการกันคิว (BR-RSV-49) และไม่มีการติดตามสถานะจ่าย (BR-RSV-50)
+ * ฟังก์ชันนี้จึงคืนแค่ "ยอด" ไม่มีสถานะใด ๆ ติดมาด้วย
+ *
+ * @param override ยอดที่ร้านกรอกเอง — มีค่าเมื่อไร ชนะค่าเริ่มต้นของทรัพยากรเสมอ (BR-RSV-48)
+ */
+export function computeAppointmentDeposit(args: {
+  resource: { depositMode: string; depositValue: Prisma.Decimal };
+  totalAmount: Prisma.Decimal;
+  override?: string | null;
+}): Prisma.Decimal {
+  const { resource, totalAmount, override } = args;
+
+  const raw =
+    override !== undefined && override !== null
+      ? new Prisma.Decimal(override)
+      : resource.depositMode === "PERCENT"
+        ? totalAmount.mul(resource.depositValue).div(100)
+        : resource.depositValue;
+
+  // ปัดให้ตรงกับ Decimal(12,2) ของคอลัมน์ ก่อนเทียบเพดาน — กัน 33.333... ที่มาจาก PERCENT
+  const rounded = raw.toDecimalPlaces(2);
+
+  // ยอดมัดจำต้องไม่เกินยอดรวมของออเดอร์ (BR-RSV-47)
+  if (rounded.gt(totalAmount)) return totalAmount;
+  // กันค่าติดลบเชิงลึก — validation กันไว้แล้วแต่ service ไม่ควรเชื่อผู้เรียกฝ่ายเดียว
+  if (rounded.lt(0)) return new Prisma.Decimal(0);
+  return rounded;
 }
 
 function assertValidRange(start: Date, end: Date): void {

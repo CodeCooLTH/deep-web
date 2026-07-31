@@ -330,6 +330,20 @@ model ServiceResource {
   //    (ดู src/services/appointment.service.ts) — ปลอดภัยเพราะ seat ที่เกิน capacity ไม่มีวันถูกลอง
   capacity Int @default(1)
 
+  // depositMode/depositValue: มัดจำเริ่มต้นของทรัพยากรนี้ (BR-RSV-43/44/45)
+  //   FIXED   → depositValue = จำนวนบาท
+  //   PERCENT → depositValue = เปอร์เซ็นต์ของยอดรวมออเดอร์ (0-100)
+  // depositValue = 0 หมายถึง "ไม่เก็บมัดจำ" (BR-RSV-44) → ไม่แสดงส่วนมัดจำในทุก surface
+  // 🛑 ค่านี้เป็นแค่ "ค่าตั้งต้นช่วยกรอก" — ยอดจริงของแต่ละนัด snapshot ไว้ที่ Order.depositAmount
+  //    ห้ามให้ออเดอร์อ้างอิงค่านี้สด มิฉะนั้นยอดของออเดอร์เก่าจะขยับเมื่อเจ้าของแก้ทรัพยากร (BR-RSV-46)
+  //    เหตุผลเดียวกับ durationMinutes ด้านบน
+  // 🛑 มัดจำ "ไม่กั้น" การกันคิว — ไม่มีสถานะรอชำระ ไม่มีสลิป (BR-RSV-49/50)
+  //    ต่างจาก Room.depositMode ของ 00017 ที่ depositValue > 0 บังคับ flow แนบสลิปก่อนยืนยัน
+  //    อย่าลอก flow นั้นมาเพราะเห็นว่าใช้ Order.depositAmount ฟิลด์เดียวกัน
+  // CHECK: depositMode IN ('FIXED','PERCENT') + depositValue >= 0 + (PERCENT → <= 100)
+  depositMode  String  @default("FIXED")
+  depositValue Decimal @default(0) @db.Decimal(12, 2)
+
   // isActive: ปิดการใช้งาน = ไม่รับนัดใหม่ แต่นัดเดิมยังอยู่ครบ (BR-RSV-07)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
