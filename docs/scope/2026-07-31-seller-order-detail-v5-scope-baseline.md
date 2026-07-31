@@ -1,6 +1,6 @@
 # Scope Baseline — seller-order-detail-v5
 
-> **สถานะ:** `ACTIVE`
+> **สถานะ:** `SIGNED-OFF` (Gate 2 · 2026-07-31 · safepay-product)
 > **Phase:** Redesign หน้ารายละเอียดคำสั่งซื้อ (seller) ตาม Design Spec v5
 > **Branch:** `shinobu22/main-7`
 > **Commit ตั้งต้น:** `5665f681`
@@ -89,6 +89,20 @@ spec/baseline ของ phase นี้ enumerate ไว้แค่ 2 ค่า
 
 **บทเรียน:** เกณฑ์ "ผู้ใช้เห็นจริงไหม" ต้องเช็ค `visibility` + `display` + ancestor chain ไม่ใช่แค่ขนาดกล่อง — ไม่งั้นจะได้ false positive แบบนี้ และเกือบทำให้ไปแก้โค้ดที่ไม่ได้พัง
 
+## Known-gap ที่ยอมรับตอน sign-off (Gate 2)
+
+| # | รายการ | ความเสี่ยง | เหตุผลที่ยอมรับ |
+|---|---|---|---|
+| 1 | S-12 กด submit โมดัลจริงจนบันทึกสำเร็จ ยังไม่ผ่านตา | ต่ำ | reuse `ShipForm` ตัวเดียวกับ create flow ที่ผ่าน browser QA แล้ว ต่างแค่ `mode='edit'` (verb+label) · service มี unit test 5 เคส |
+| 2 | S-4 CONFIRMED + มีรีวิวจริง | ต่ำ | `page.tsx:107` เป็น derived boolean ธรรมดา ไม่ใช่ logic ซับซ้อน |
+| 3 | S-2 NO_SHIPPING accessUrl บนจอจริง | ต่ำ-กลาง | gate ของ `PaymentCard` เดิมยกมาทั้งก้อนไม่เปลี่ยนเงื่อนไข |
+| 4 | S-8 หน้า list เทียบภาพ | แทบเป็นศูนย์ | `BulkActionBar.tsx` diff = 0 บรรทัด — regression เป็นไปไม่ได้ |
+| 5 | badge variant อื่นนอกจาก PENDING วัด contrast จริง | ต่ำ | เป็น mechanical token swap ชุดเดียวกันทั้ง 4 สถานะ |
+| 6 | **dark mode ของ `-ink` token** — นิยามใน `:root` เท่านั้น ไม่มี override ใน `[data-theme="dark"]` สีเข้ม (`#7f1d1d`,`#1e3a8a`) บน dark card `#1e1f27` น่าจะอ่านไม่ออก | ปานกลาง (โค้ด) / ต่ำ (ผู้ใช้) | `data-theme="light"` hardcode ที่ `(paces)/layout.tsx:56` และไม่มี toggle ให้ผู้ใช้สลับ → เข้าไม่ถึง dark mode · **latent bug ที่ต้องจด ไม่ใช่แค่ "ยังไม่ตรวจ"** |
+| 7 | `ORDER_STAGE_META` (`src/lib/order-stage.ts`) chip ฝั่ง inbox/chat ยังตก AA แบบเดียวกัน | นอกขอบเขต | คนละไฟล์/คนละหน้า ไม่อยู่ใน S-id ใด — carry เป็นหนี้แยก (ตอนนี้มี ink token ให้ใช้แล้ว) |
+
+**แนะนำหลัง deploy:** smoke-test ปุ่ม "แก้ไขเลขพัสดุ" บนออเดอร์ SHIPPED+MANUAL จริง 1 ครั้ง เพื่อปิด gap #1 ด้วย real data
+
 ## Change Log
 > ทุกครั้งที่ Controller อนุมัติแก้ scope (รับเข้า/เลื่อนออก) จดที่นี่ — กัน creep เงียบ
 
@@ -97,6 +111,8 @@ spec/baseline ของ phase นี้ enumerate ไว้แค่ 2 ค่า
 | 2026-07-31 | baseline สร้าง | - | - |
 | 2026-07-31 | **G-1 CLOSED** — commit `0efcddb3` (allow-list `=== 'SHIPPED'`) + verify บนเบราว์เซอร์จริง (PICKUP ไม่มี section จัดส่ง ไม่โชว์เลขพัสดุ ปุ่มเหลือคัดลอกลิงก์+⋮) | Gate 1 audit ชี้ว่าการแก้อยู่ในไฟล์ที่ S-2/S-5/S-6/S-9 ประกาศไว้แล้ว ไม่แตะ OOS ใด ๆ จึงไม่ต้องเพิ่ม S-id ใหม่ | Controller |
 | 2026-07-31 | **มติ 6 — S-6 ใช้ `OrderActionBar variant="inline"` ในตัวห่อ sticky ของ StatusHero แทน `variant="stuck"` ตรงตัว** (และลบ `variant="stuck"`/`stuckVisible` ที่กลายเป็น dead code ทิ้ง) | แถบตรึงคือ "หัวหน้าแบบย่อ" (มี badge/เลข/ยอดเงินด้วย) ไม่ใช่แถวปุ่มเปล่า chrome จึงเป็นของหัวหน้า — ตรงกับที่ mockup ทำจริง (`stuckBar()` เรียก `headerActions()` ตัวเดิม) · acceptance S-6 ทั้ง 4 ข้อยังผ่านครบ (verify: แถบตรึงโผล่ที่ y=51 หลังเลื่อน, ปุ่มมาจาก actionSet ชุดเดียว) | Controller |
+| 2026-07-31 | **เพิ่ม token `--color-{semantic}-ink` ใน `_root.css` + เปลี่ยน `order-display.ts` ให้ badge ใช้ ink** | ปิด P1 ของ Impeccable critique (badge 1.54:1 → 5.01:1). **ไม่ใช่ CREEP**: `order-display.ts` เป็น SSOT ที่ S-2/S-11 อ้างถึงอยู่แล้ว · OOS-2 ห้าม "ไล่แก้ทั้งระบบ" ซึ่งไม่ได้ทำ (`ORDER_STAGE_META` ยังไม่แตะ) · **side benefit:** `/o/[token]` ฝั่ง buyer (`OrderDetailMobile.tsx`) import SSOT เดียวกัน จึงได้ contrast fix ไปด้วยฟรี | Controller |
+| 2026-07-31 | **Gate 2 = SIGNED-OFF** พร้อม known-gap 7 ข้อ (ดูหัวข้อด้านล่าง) | product ชั่งน้ำหนักแล้วว่า gap ที่เหลือเป็น low/medium risk ทั้งหมด ไม่มีข้อไหนควรหยุดงานไว้บน branch | safepay-product |
 | 2026-07-31 | **Gate 1 scope-audit = PASS** — ไม่มี CREEP · S-1..S-12 ครบ · ยังไม่ sign-off เพราะหนี้ QA เชิงพฤติกรรม 4 ข้อ (กด submit โมดัลจริง / NO_SHIPPING accessUrl / CONFIRMED+รีวิว / หน้า list เทียบภาพ) | - | safepay-product |
 | 2026-07-31 | **S-8 แก้ acceptance (1)** — ไม่ merge เป็น component เดียวกับ `BulkActionBar` แล้ว: สร้าง `src/components/safepay/OrderActionBar.tsx` สำหรับหน้า detail อย่างเดียว **ห้ามแตะ `BulkActionBar.tsx`** (acceptance (2) "หน้า list เหมือนเดิม 100%" จึงผ่านโดยอัตโนมัติเพราะไม่ถูกแก้) | planner พิสูจน์ว่าสองอันต่างกันทั้ง positioning (floating pill กลาง-ล่าง vs แถบเต็มความกว้างติดขอบล่าง), data model (`TableRow<OrderRow>[]` multi-select vs single-order state matrix) และ visual container — ของร่วมมีแค่ `.btn`/`.btn-icon` ซึ่งเป็น global primitive อยู่แล้ว ฝืนรวม = เพิ่ม complexity + เสี่ยงพังหน้า list โดยไม่ได้ประโยชน์ | Controller |
 | 2026-07-31 | **S-9 แก้ acceptance (1)** — ไม่ใช้ `DraftOrderProvider`/`ShipmentDraftPanel` ของแชท เปลี่ยนเป็นสร้าง `ShipmentEntryModal.tsx` ของหน้านี้เอง (ห่อ segmented MANUAL/iShip + `ShipForm`/`ShipmentPanel` เดิม) | planner ยืนยัน 3 ชั้น: (1) `ShipmentDraftPanel` บังคับ prop `conversationId` แต่ `Order` ไม่มี relation ไป `Conversation` เลย (ออเดอร์ POS ไม่มีให้ใช้) (2) `DraftOrderProvider` mount เฉพาะ `(chat)/layout.tsx` คนละ route group (3) spec ต้นทางระบุ "ห้ามแตะ `ShipmentTracking`" = iShip-only ทำโหมดกรอกเลขเองไม่ได้ | Controller |
