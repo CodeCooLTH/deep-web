@@ -178,12 +178,12 @@ export default function AppointmentBlock({
       <div className="card-body flex flex-col gap-4">
         {/* ทรัพยากร — field ที่ bind RHF ต้องเป็น form-select ไม่ใช่ hs-dropdown */}
         <div>
-          <label className="form-label">ทรัพยากรที่ให้บริการ</label>
+          <label htmlFor="appt-resource" className="form-label">ทรัพยากรที่ให้บริการ</label>
           <Controller
             control={control}
             name="appointment.resourceId"
             render={({ field }) => (
-              <select className="form-select" {...field} value={field.value ?? ''}>
+              <select id="appt-resource" className="form-select" {...field} value={field.value ?? ''}>
                 <option value="">— ไม่ตั้งวันนัด —</option>
                 {resources.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -199,12 +199,12 @@ export default function AppointmentBlock({
         {selected && (
           <>
             <div>
-              <label className="form-label">วันที่นัด</label>
+              <label htmlFor="appt-date" className="form-label">วันที่นัด</label>
               <Controller
                 control={control}
                 name="appointment.date"
                 render={({ field }) => (
-                  <input type="date" className="form-input" {...field} value={field.value ?? ''} />
+                  <input id="appt-date" type="date" className="form-input" {...field} value={field.value ?? ''} />
                 )}
               />
             </div>
@@ -225,12 +225,13 @@ export default function AppointmentBlock({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="form-label">เวลาเริ่ม</label>
+                <label htmlFor="appt-start" className="form-label">เวลาเริ่ม</label>
                 <Controller
                   control={control}
                   name="appointment.startTime"
                   render={({ field }) => (
                     <input
+                      id="appt-start"
                       type="time"
                       className="form-input"
                       {...field}
@@ -254,12 +255,13 @@ export default function AppointmentBlock({
                 />
               </div>
               <div>
-                <label className="form-label">เวลาสิ้นสุด</label>
+                <label htmlFor="appt-end" className="form-label">เวลาสิ้นสุด</label>
                 <Controller
                   control={control}
                   name="appointment.endTime"
                   render={({ field }) => (
                     <input
+                      id="appt-end"
                       type="time"
                       className="form-input"
                       min={value.startTime ?? undefined}
@@ -312,13 +314,14 @@ export default function AppointmentBlock({
 
             {/* ── มัดจำ (FR-RSV-12) ── */}
             <div>
-              <label className="form-label">มัดจำที่เก็บ</label>
+              <label htmlFor="appt-deposit" className="form-label">มัดจำที่เก็บ</label>
               <div className="flex items-center gap-2">
                 <Controller
                   control={control}
                   name="appointment.depositAmount"
                   render={({ field }) => (
                     <input
+                      id="appt-deposit"
                       type="number"
                       inputMode="decimal"
                       min={0}

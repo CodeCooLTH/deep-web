@@ -291,7 +291,7 @@ export default function ResourceList({ resources }: Props) {
                   <div className="flex items-center justify-end gap-2">
                     <Link
                       href={`/service-resources/${resource.id}`}
-                      className="btn bg-default-100 text-default-700 hover:bg-default-200 px-3 text-sm"
+                      className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 px-3 text-sm"
                     >
                       แก้ไข
                     </Link>
@@ -299,7 +299,7 @@ export default function ResourceList({ resources }: Props) {
                       type="button"
                       onClick={() => toggleActive(resource)}
                       disabled={busyId === resource.id}
-                      className="btn bg-default-100 text-default-700 hover:bg-default-200 px-3 text-sm"
+                      className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 px-3 text-sm"
                     >
                       {resource.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                     </button>
@@ -308,7 +308,7 @@ export default function ResourceList({ resources }: Props) {
                       onClick={() => removeResource(resource)}
                       disabled={busyId === resource.id}
                       aria-label={`ลบ${resource.name}`}
-                      className="btn bg-default-100 text-danger hover:bg-default-200 px-3"
+                      className="btn bg-default-100 text-danger hover:bg-default-200 min-h-11 min-w-11 px-3"
                     >
                       <Icon icon="tabler:trash" className="size-4" />
                     </button>

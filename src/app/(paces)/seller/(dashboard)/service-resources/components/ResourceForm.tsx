@@ -165,10 +165,11 @@ export default function ResourceForm({ resource }: Props) {
         <div className="card-body">
           <div className="gap-base grid grid-cols-1 lg:grid-cols-2">
             <div className="lg:col-span-2">
-              <label className="form-label">
+              <label htmlFor="res-name" className="form-label">
                 ชื่อทรัพยากร<span className="text-danger ms-0.5">*</span>
               </label>
               <input
+                id="res-name"
                 type="text"
                 className="form-input"
                 placeholder="เช่น หมอนวด A"
@@ -178,10 +179,11 @@ export default function ResourceForm({ resource }: Props) {
             </div>
 
             <div className="lg:col-span-2">
-              <label className="form-label">
+              <label htmlFor="res-description" className="form-label">
                 คำอธิบาย <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
               </label>
               <textarea
+                id="res-description"
                 className="form-input"
                 rows={3}
                 placeholder="เช่น นวดแผนไทย นวดน้ำมัน"
@@ -190,11 +192,12 @@ export default function ResourceForm({ resource }: Props) {
             </div>
 
             <div>
-              <label className="form-label">
+              <label htmlFor="res-duration" className="form-label">
                 ระยะเวลามาตรฐาน <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
+                  id="res-duration"
                   type="number"
                   inputMode="numeric"
                   min={1}
@@ -214,11 +217,12 @@ export default function ResourceForm({ resource }: Props) {
             </div>
 
             <div>
-              <label className="form-label">
+              <label htmlFor="res-capacity" className="form-label">
                 จำนวนคิวที่รับพร้อมกัน<span className="text-danger ms-0.5">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
+                  id="res-capacity"
                   type="number"
                   inputMode="numeric"
                   min={1}
@@ -267,8 +271,8 @@ export default function ResourceForm({ resource }: Props) {
           <div className="gap-base grid grid-cols-1 lg:grid-cols-2">
             <div>
               {/* field ที่ bind RHF ใช้ form-select native ไม่ใช่ hs-dropdown */}
-              <label className="form-label">เก็บมัดจำแบบ</label>
-              <select className="form-select" {...register('depositMode')}>
+              <label htmlFor="res-deposit-mode" className="form-label">เก็บมัดจำแบบ</label>
+              <select id="res-deposit-mode" className="form-select" {...register('depositMode')}>
                 {Object.entries(APPOINTMENT_DEPOSIT_MODES).map(([key, label]) => (
                   <option key={key} value={key}>
                     {label}
@@ -278,9 +282,10 @@ export default function ResourceForm({ resource }: Props) {
             </div>
 
             <div>
-              <label className="form-label">จำนวน</label>
+              <label htmlFor="res-deposit-value" className="form-label">จำนวน</label>
               <div className="flex items-center gap-2">
                 <input
+                  id="res-deposit-value"
                   type="number"
                   inputMode="numeric"
                   min={0}
