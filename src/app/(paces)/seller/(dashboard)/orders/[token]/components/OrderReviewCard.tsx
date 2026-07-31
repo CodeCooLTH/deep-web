@@ -44,25 +44,29 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
       <div className="card-body">
         {!review ? (
           /* empty-state: ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้ */
+          /* P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1) */
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="star-off" className="text-3xl text-default-300 mb-2" />
-            <p className="text-default-400 text-sm">ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้</p>
-            <p className="text-default-400 text-xs mt-1">
+            <p className="text-default-700 text-sm">ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้</p>
+            <p className="text-default-700 text-xs mt-1">
               ผู้ซื้อจะสามารถรีวิวได้หลังยืนยันการรับสินค้า
             </p>
           </div>
         ) : (
           <>
-            {/* reviewer label: raw จาก server (ไม่ mask — ดู comment หัวไฟล์) */}
+            {/* reviewer label: raw จาก server (ไม่ mask — ดู comment หัวไฟล์)
+                P6 (T14): เดิมใช้ <h5> ทำให้เกิด heading ปลอมต่อคำสั่งซื้อ (ไม่ใช่หัวข้อจริงของหน้า)
+                — เปลี่ยนเป็น <p> คงคลาส/ภาพเดิมทั้งหมด (เหมือน S-3 ที่แก้ไปแล้วใน ShippingActivity.tsx) */}
             <div className="mb-5 flex items-center gap-2.5">
               <span className="btn btn-icon bg-light text-default-800 size-8! rounded-full shrink-0">
                 <Icon icon="user" className="text-base" />
               </span>
               <div>
-                <h5 className="text-default-800 text-sm font-medium leading-tight">
+                <p className="text-default-800 text-sm font-medium leading-tight">
                   {review.reviewerLabel}
-                </h5>
-                <p className="text-default-400 text-xs mt-0.5">
+                </p>
+                {/* P5 (T14): text-default-400 = 2.46:1 ไม่ผ่าน AA → default-700 */}
+                <p className="text-default-700 text-xs mt-0.5">
                   {formatDateTime(review.createdAtISO)}
                 </p>
               </div>
@@ -71,16 +75,19 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
             {/* rating stars */}
             <div className="mb-3">
               <Rating rating={review.rating} />
-              <span className="text-default-400 text-xs ms-2">{review.rating} / 5</span>
+              <span className="text-default-700 text-xs ms-2">{review.rating} / 5</span>
             </div>
 
-            {/* comment หรือ empty-comment notice */}
+            {/* comment หรือ empty-comment notice
+                P5 (T14): text-default-600 (comment) = 3.03:1 · text-default-400 (empty) = 2.46:1
+                ไม่ผ่าน AA ทั้งคู่ → default-800 สำหรับ comment จริง (เนื้อหาหลัก, ~10.7:1) /
+                default-700 สำหรับ placeholder (~4.69:1) ยัง maintain hierarchy (comment เข้มกว่า) */}
             {review.comment ? (
-              <p className="text-default-600 text-sm italic leading-relaxed">
+              <p className="text-default-800 text-sm italic leading-relaxed">
                 &ldquo;{review.comment}&rdquo;
               </p>
             ) : (
-              <p className="text-default-400 text-sm italic">ไม่มีความคิดเห็นเพิ่มเติม</p>
+              <p className="text-default-700 text-sm italic">ไม่มีความคิดเห็นเพิ่มเติม</p>
             )}
           </>
         )}

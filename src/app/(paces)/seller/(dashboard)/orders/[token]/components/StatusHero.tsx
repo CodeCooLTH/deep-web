@@ -119,7 +119,9 @@ export default function StatusHero({
   shipmentSource = null,
   onAction,
 }: StatusHeroProps) {
-  const s = ORDER_STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-700', icon: 'help-circle' }
+  // fallback (status ไม่รู้จัก, ไม่ควรเกิดในทางปฏิบัติ) — default-800 บน default-100 (~10.7:1)
+  // ไม่ใช่ default-700 (~4.4:1 ตกคอนทราสต์บนพื้นนี้ — ต่างจากพื้นขาวล้วน) (T14 P1)
+  const s = ORDER_STATUS_META[status] ?? { label: status, cls: 'bg-default-100 text-default-800', icon: 'help-circle' }
 
   // วันที่+เวลาแสดงคู่กันบรรทัดเดียว → ยุบเป็น formatDateTime ครั้งเดียว
   const createdDisplay = formatDateTime(createdAtISO)
@@ -196,12 +198,14 @@ export default function StatusHero({
                   <Icon icon={s.icon} className="text-sm" />
                   {s.label}
                 </span>
-                <span className="text-default-400 flex items-center gap-1.25 text-xs">
+                {/* P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1) */}
+                <span className="text-default-700 flex items-center gap-1.25 text-xs">
                   <Icon icon="calendar" className="text-sm" />
                   {createdDisplay}
                 </span>
                 {isFromAuction && (
-                  <span className="badge badge-label bg-warning/15 text-warning text-2xs font-semibold">
+                  // P1 (T14): text-warning บน bg-warning/15 = 1.54:1 ไม่ผ่าน AA → text-warning-ink (~6.57:1)
+                  <span className="badge badge-label bg-warning/15 text-warning-ink text-2xs font-semibold">
                     <Icon icon="gavel" className="text-sm" />
                     จากการประมูล
                   </span>
@@ -217,7 +221,8 @@ export default function StatusHero({
                 หมายเหตุ: มือถือคอลัมน์เดียวต้องชิดซ้ายให้ตรงแนวกับซ้าย จึงไม่ใส่ items-end นอก md: */}
             <div className="flex flex-col gap-3 md:items-end">
               <div className="flex flex-col gap-0.75 md:items-end">
-                <span className="text-2xs text-default-600">ยอดรวมทั้งหมด</span>
+                {/* P5 (T14): text-default-600 = 3.03:1 ไม่ผ่าน AA → default-800 (label tier, ~10.7:1) */}
+                <span className="text-2xs text-default-800">ยอดรวมทั้งหมด</span>
                 <span className="text-2xl text-default-900 font-bold">{formatAmount(totalAmount)}</span>
                 {paymentBadge && (
                   <span className={`badge-label text-2xs font-semibold ${paymentBadge.cls}`}>

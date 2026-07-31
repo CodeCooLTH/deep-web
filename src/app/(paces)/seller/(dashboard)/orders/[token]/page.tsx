@@ -157,6 +157,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   return (
     <>
+      {/* P6 (T14): หน้านี้ไม่มี h1 เลย (PageBreadcrumb เป็น shared component ใช้ h4 — แก้เองไม่ได้,
+          กระทบทุกหน้า seller/admin ที่ใช้ breadcrumb ร่วมกัน จึงรายงานแทนแก้ตรงนั้น) เพิ่ม h1
+          visually-hidden เฉพาะไฟล์ของหน้านี้แทน (sr-only เป็น convention เดิมของโปรเจกต์ — ดู
+          seller/(dashboard)/products/components/ProductBasicCardV2.tsx) ให้ screen reader เจอ h1
+          จริงโดยไม่กระทบภาพที่ user เห็น (breadcrumb ยังโชว์ title แบบเดิมทุกอย่าง) */}
+      <h1 className="sr-only">รายละเอียดคำสั่งซื้อ</h1>
+
       <PageBreadcrumb
         title="รายละเอียดคำสั่งซื้อ"
         trail={[{ label: 'คำสั่งซื้อ', href: '/orders' }]}

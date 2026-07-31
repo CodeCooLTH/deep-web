@@ -26,6 +26,21 @@
     --color-light: #eef2f7;
     --color-dark: #313a46;
 
+    /* [T14 P1] "หมึก" คู่กับ semantic tone — ใช้แทน text-{semantic} บนพื้น {semantic}/15
+       เมื่อ semantic เองจาง (warning/info) แล้วตกคอนทราสต์ AA 4.5:1 (DESIGN.md §2 "สองโทน")
+       ค่าที่เลือกผ่าน AA ≥4.5:1 บนพื้น {semantic}/15 บนขาว จริง (คำนวณ sRGB alpha-composite
+       แบบเดียวกับที่เบราว์เซอร์ render — ดู docs/retro หรือ commit message สำหรับตัวเลขเต็ม):
+         warning/15 rgb(254,245,230) + #92400E  → 6.57:1
+         info/15    rgb(230,246,251) + #1E40AF  → 7.86:1
+         success/15 rgb(217,245,240) + #065F46  → 6.70:1
+         danger/15  rgb(254,230,236) + #7F1D1D  → 8.47:1
+         primary/15 rgb(222,233,247) + #1E3A8A  → 8.44:1 (ยังไม่มีจุดใช้งานในหน้านี้ แต่เติมไว้เป็น SSOT) */
+    --color-warning-ink: #92400e;
+    --color-info-ink: #1e40af;
+    --color-success-ink: #065f46;
+    --color-danger-ink: #7f1d1d;
+    --color-primary-ink: #1e3a8a;
+
     --color-secondary-hover: #695fcb;
     --color-success-hover: #02a085;
     --color-info-hover: #4da6bf;

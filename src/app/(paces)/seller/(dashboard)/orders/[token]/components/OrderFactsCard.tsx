@@ -308,8 +308,9 @@ export default function OrderFactsCard({
           // empty-state — ยกข้อความจาก CustomerDetails.tsx เดิม
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="user-off" className="mb-2 text-3xl text-default-300" />
-            <p className="text-sm text-default-400">ยังไม่มีผู้ซื้อยืนยัน</p>
-            <p className="mt-1 text-xs text-default-400">
+            {/* P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1) */}
+            <p className="text-sm text-default-700">ยังไม่มีผู้ซื้อยืนยัน</p>
+            <p className="mt-1 text-xs text-default-700">
               ผู้ซื้อจะต้องยืนยัน OTP ผ่านลิงก์ก่อนข้อมูลจะปรากฏ
             </p>
           </div>
@@ -352,7 +353,8 @@ export default function OrderFactsCard({
                 {buyer.buyerContact}
               </a>
             ) : (
-              <p className="mb-0 text-sm font-medium text-default-400">ยังไม่มีเบอร์ติดต่อ</p>
+              // P5 (T14): text-default-400 = 2.46:1 ไม่ผ่าน AA → default-700
+              <p className="mb-0 text-sm font-medium text-default-700">ยังไม่มีเบอร์ติดต่อ</p>
             )}
           </div>
         )}
@@ -360,7 +362,8 @@ export default function OrderFactsCard({
         {/* กล่องที่อยู่ — render อิสระจาก buyer-confirmed state (seller อาจกรอกก่อนผู้ซื้อยืนยัน) */}
         {buyer.shippingAddr && (
           <div className="rounded bg-default-100 px-3.5 py-3">
-            <div className="mb-1.25 flex items-center gap-1.5 text-2xs text-default-600">
+            {/* P5 (T14): text-default-600 = 3.03:1 ไม่ผ่าน AA → default-800 (label tier, ~10.7:1) */}
+            <div className="mb-1.25 flex items-center gap-1.5 text-2xs text-default-800">
               <Icon icon="map-pin" className="text-xs" aria-hidden="true" />
               ที่อยู่จัดส่ง
             </div>
@@ -399,7 +402,8 @@ export default function OrderFactsCard({
         {/* ---- mobile stacked list (<sm) ---- */}
         <div className="sm:hidden">
           {items.length === 0 ? (
-            <p className="py-6 text-center text-default-400">ยังไม่มีรายการสินค้า</p>
+            // P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700
+            <p className="py-6 text-center text-default-700">ยังไม่มีรายการสินค้า</p>
           ) : (
             <div className="divide-y divide-default-200">
               {items.map((item) => (
@@ -408,9 +412,11 @@ export default function OrderFactsCard({
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium leading-snug text-default-800">{item.name}</p>
                     {item.description && (
-                      <p className="mt-0.5 truncate text-2xs text-default-400">{item.description}</p>
+                      // P5 (T14): text-default-400 = 2.46:1 ไม่ผ่าน AA → default-700
+                      <p className="mt-0.5 truncate text-2xs text-default-700">{item.description}</p>
                     )}
-                    <p className="mt-1 text-sm text-default-500">
+                    {/* P5 (T14): text-default-500 = 2.38:1 ไม่ผ่าน AA → default-700 */}
+                    <p className="mt-1 text-sm text-default-700">
                       {formatAmount(item.price)} × {item.qty}{' '}
                       <span className="font-semibold text-default-800">
                         = {formatAmount(Number(item.price) * item.qty)}
@@ -432,11 +438,13 @@ export default function OrderFactsCard({
                   r.emphasis && 'mt-1 border-t border-default-300 pt-2 font-bold text-default-800',
                 )}
               >
-                <span className={r.emphasis ? '' : 'font-medium text-default-600'}>{r.label}</span>
+                {/* P5 (T14): text-default-600 = 3.03:1 ไม่ผ่าน AA → default-800 (ให้ตรงกับ desktop breakdown ที่ใช้ default-800 อยู่แล้ว) */}
+                <span className={r.emphasis ? '' : 'font-medium text-default-800'}>{r.label}</span>
                 <span
                   className={cn(
                     r.emphasis ? 'font-bold text-default-800' : 'text-default-800',
-                    r.tone === 'danger' && 'font-semibold text-danger',
+                    // P1-adjacent (T14): text-danger บนพื้นขาว = 3.17:1 ไม่ผ่าน AA → text-danger-ink (~10:1)
+                    r.tone === 'danger' && 'font-semibold text-danger-ink',
                   )}
                 >
                   {r.prefix ?? ''}
@@ -460,8 +468,9 @@ export default function OrderFactsCard({
             </thead>
             <tbody>
               {items.length === 0 ? (
+                // P5 (T14): text-default-400 = 2.46:1 ไม่ผ่าน AA → default-700
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-default-400">
+                  <td colSpan={4} className="py-6 text-center text-default-700">
                     ยังไม่มีรายการสินค้า
                   </td>
                 </tr>
@@ -472,9 +481,12 @@ export default function OrderFactsCard({
                       <div className="flex items-center gap-base">
                         <ItemThumbnail imageUrl={item.imageUrl} name={item.name} />
                         <div>
-                          <h5 className="mb-0.5 font-medium text-default-800">{item.name}</h5>
+                          {/* P6 (T14): ชื่อสินค้าไม่ใช่หัวข้อจริง — h5 ซ้ำจำนวนแถวทำให้ outline พัง
+                              (เหมือน S-3 ที่แก้ไปแล้วใน ShippingActivity.tsx) ใช้ <p> คงคลาส/ภาพเดิม */}
+                          <p className="mb-0.5 font-medium text-default-800">{item.name}</p>
                           {item.description && (
-                            <p className="text-2xs text-default-400">{item.description}</p>
+                            // P5 (T14): text-default-400 = 2.46:1 ไม่ผ่าน AA → default-700
+                            <p className="text-2xs text-default-700">{item.description}</p>
                           )}
                         </div>
                       </div>
@@ -502,7 +514,8 @@ export default function OrderFactsCard({
                     className={cn(
                       'text-end',
                       r.emphasis && 'bg-default-50 font-bold',
-                      r.tone === 'danger' && 'px-4 py-3 font-semibold text-danger',
+                      // P1-adjacent (T14): text-danger บนพื้นขาว = 3.17:1 ไม่ผ่าน AA → text-danger-ink (~10:1)
+                      r.tone === 'danger' && 'px-4 py-3 font-semibold text-danger-ink',
                     )}
                   >
                     {r.prefix ?? ''}
@@ -520,7 +533,8 @@ export default function OrderFactsCard({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:gap-6.5">
                 <div>
-                  <p className="mb-0.5 text-2xs text-default-600">วิธีชำระ</p>
+                  {/* P5 (T14): text-default-600 = 3.03:1 ไม่ผ่าน AA → default-800 (label tier) */}
+                  <p className="mb-0.5 text-2xs text-default-800">วิธีชำระ</p>
                   <p className="mb-0 flex items-center gap-1.5 text-sm font-medium text-default-900">
                     <Icon icon={paymentIcon} className="text-sm text-default-700" aria-hidden="true" />
                     {paymentLabel}
@@ -528,20 +542,20 @@ export default function OrderFactsCard({
                 </div>
                 {salesChannel && (
                   <div>
-                    <p className="mb-0.5 text-2xs text-default-600">ช่องทางการขาย</p>
+                    <p className="mb-0.5 text-2xs text-default-800">ช่องทางการขาย</p>
                     <SalesChannelBadge channel={salesChannel} />
                   </div>
                 )}
                 {paymentBadge && (
                   <div>
-                    <p className="mb-0.5 text-2xs text-default-600">สถานะ</p>
+                    <p className="mb-0.5 text-2xs text-default-800">สถานะ</p>
                     <span className={paymentBadge.cls}>{paymentBadge.label}</span>
                   </div>
                 )}
               </div>
               {slipFileId && (
                 <div>
-                  <p className="mb-1 text-2xs text-default-600">สลิปโอนเงิน</p>
+                  <p className="mb-1 text-2xs text-default-800">สลิปโอนเงิน</p>
                   <SlipViewer slipFileId={slipFileId} />
                 </div>
               )}
@@ -549,7 +563,7 @@ export default function OrderFactsCard({
           ) : (
             <div className="flex flex-col items-center py-4 text-center">
               <Icon icon="credit-card-off" className="mb-2 text-3xl text-default-300" />
-              <p className="text-sm text-default-400">ไม่มีข้อมูลการชำระเงิน</p>
+              <p className="text-sm text-default-700">ไม่มีข้อมูลการชำระเงิน</p>
             </div>
           )}
         </div>
@@ -561,7 +575,7 @@ export default function OrderFactsCard({
               <Icon icon="link" className="text-base text-default-400" aria-hidden="true" />
               <span className="text-sm font-semibold text-default-800">ลิงก์ส่งมอบสินค้า/บริการดิจิทัล</span>
             </div>
-            <p className="mb-3 text-xs text-default-400">
+            <p className="mb-3 text-xs text-default-700">
               กรอก URL เพื่อส่งมอบให้ผู้ซื้อ (ต้องเป็น http หรือ https)
             </p>
             <div className="flex gap-2">
@@ -589,13 +603,14 @@ export default function OrderFactsCard({
               </button>
             </div>
             {accessUrlError && (
-              <p id="access-url-error" role="alert" className="mt-1.5 text-xs text-danger">
+              // P1-adjacent (T14): text-danger บนพื้นขาว = 3.17:1 ไม่ผ่าน AA → text-danger-ink (~10:1)
+              <p id="access-url-error" role="alert" className="mt-1.5 text-xs text-danger-ink">
                 {accessUrlError}
               </p>
             )}
             {accessUrl && (
-              <p className="mt-2 break-all text-xs text-default-400">
-                <span className="font-medium text-default-600">บันทึกอยู่:</span> {accessUrl}
+              <p className="mt-2 break-all text-xs text-default-700">
+                <span className="font-medium text-default-800">บันทึกอยู่:</span> {accessUrl}
               </p>
             )}
           </div>
@@ -611,11 +626,13 @@ export default function OrderFactsCard({
             right={
               shipping ? (
                 // ทั้ง 2 ทาง (กรอกเอง/iShip) ใช้โทน info เดียวกัน — ต่างกันแค่ label
-                <span className="badge badge-label bg-info/15 text-info">
+                // P1 (T14): text-info บน bg-info/15 = 1.9:1 ไม่ผ่าน AA → text-info-ink (~7.86:1)
+                <span className="badge badge-label bg-info/15 text-info-ink">
                   {shipping.isIship ? 'ส่งผ่าน iShip' : 'ส่งเอง'}
                 </span>
               ) : (
-                <span className="badge badge-label bg-warning/15 text-warning">ยังไม่แจ้งเลขพัสดุ</span>
+                // P1 (T14): text-warning บน bg-warning/15 = 1.54:1 ไม่ผ่าน AA → text-warning-ink (~6.57:1)
+                <span className="badge badge-label bg-warning/15 text-warning-ink">ยังไม่แจ้งเลขพัสดุ</span>
               )
             }
           />
@@ -623,11 +640,11 @@ export default function OrderFactsCard({
           {shipping ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:gap-6.5">
               <div className="flex-1">
-                <p className="mb-0.5 text-2xs text-default-600">ขนส่ง</p>
+                <p className="mb-0.5 text-2xs text-default-800">ขนส่ง</p>
                 <p className="mb-0 text-sm font-medium text-default-900">{shipping.courier}</p>
               </div>
               <div className="flex-1">
-                <p className="mb-0.5 text-2xs text-default-600">เลขพัสดุ</p>
+                <p className="mb-0.5 text-2xs text-default-800">เลขพัสดุ</p>
                 {/* ห้าม font-mono — Anuphan ไม่มี mono จะ fallback Courier หลุดธีม
                     (feedback_font_mono_breaks_anuphan) ใช้ tabular-nums + tracking-wide แทน */}
                 <p className="mb-0 text-sm font-semibold tabular-nums tracking-wide text-default-900">
@@ -635,15 +652,20 @@ export default function OrderFactsCard({
                 </p>
               </div>
               <div className="flex-1">
-                <p className="mb-0.5 text-2xs text-default-600">แจ้งจัดส่งเมื่อ</p>
+                <p className="mb-0.5 text-2xs text-default-800">แจ้งจัดส่งเมื่อ</p>
                 <p className="mb-0 text-sm text-default-900">{formatDateTime(shipping.shippedAtISO)}</p>
               </div>
             </div>
           ) : (
             <div className="flex items-start gap-2.25 rounded bg-default-100 px-3.5 py-2.75 text-xs text-default-800">
               <Icon icon="truck-delivery" className="mt-0.5 text-sm text-default-600" aria-hidden="true" />
+              {/* P2 (T14): เดิมบอกตำแหน่งปุ่มแบบเดียว "แถบด้านล่างจอ" ซึ่งผิดบน ≥1024 (ปุ่มย้ายไปมุมขวาบน
+                  ของการ์ดหัวหน้า ตาม spec §3 "Per-state matrix") → แยกข้อความตาม breakpoint แทนพูดผิด */}
               <span>
-                ส่งของแล้วให้กด <span className="font-semibold">แจ้งเลขพัสดุ</span> ที่แถบด้านล่างจอ — เลือกได้ว่าจะกรอกเลขที่ส่งเองหรือให้ระบบสร้างพัสดุ iShip ให้
+                ส่งของแล้วให้กด <span className="font-semibold">แจ้งเลขพัสดุ</span>{' '}
+                <span className="lg:hidden">ที่แถบด้านล่างจอ</span>
+                <span className="hidden lg:inline">ที่มุมขวาบนของการ์ดหัวหน้า</span>
+                {' '}— เลือกได้ว่าจะกรอกเลขที่ส่งเองหรือให้ระบบสร้างพัสดุ iShip ให้
               </span>
             </div>
           )}

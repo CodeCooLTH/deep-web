@@ -164,11 +164,17 @@ export default function OrderDetailClient({
     }
   }
 
-  // Base: CancelOrderButton.tsx handleCancel — confirm (ข้อความเดิม) → POST → toast → refresh
+  // Base: CancelOrderButton.tsx handleCancel — confirm → POST → toast → refresh
+  // T14 (เพิ่ม): ของเดิมใช้ข้อความ "สินค้าจะถูกคืนเข้าสต็อก" ชุดเดียวทุกสถานะ — ไม่จริงเมื่อ
+  // status==='SHIPPED' (ของออกจากร้านไปแล้ว จะคืนสต็อกไม่ได้จริง ๆ) แยกข้อความตามสถานะแทน
   const handleCancelOrder = async () => {
+    const cancelDetail =
+      status === 'SHIPPED'
+        ? 'สินค้าถูกส่งออกไปแล้ว ระบบจะไม่คืนเข้าสต็อกอัตโนมัติ · ลิงก์ที่ส่งให้ผู้ซื้อจะใช้ไม่ได้ · ย้อนกลับไม่ได้'
+        : 'สินค้าจะถูกคืนเข้าสต็อก · ลิงก์ที่ส่งให้ผู้ซื้อจะใช้ไม่ได้ · ย้อนกลับไม่ได้'
     const ok = await pacesConfirm.danger(
       'ยกเลิกคำสั่งซื้อนี้?',
-      'สินค้าจะถูกคืนเข้าสต็อก · ลิงก์ที่ส่งให้ผู้ซื้อจะใช้ไม่ได้ · ย้อนกลับไม่ได้',
+      cancelDetail,
       { confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ไม่ใช่ตอนนี้' },
     )
     if (!ok) return
