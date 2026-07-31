@@ -110,6 +110,61 @@ function customerLinkedWhere(mode: 'linked' | 'unlinked'): Prisma.ConversationWh
   }
 }
 
+/** สถานะพัสดุของ "ออเดอร์ล่าสุด" ของลูกค้าในเธรดนั้น (feature 00018 — user สั่ง 2026-07-31) */
+export type ShipmentFilter = 'none' | 'unprinted' | 'printed'
+
+/**
+ * conversationIdsByShipmentState — id ของเธรดที่ออเดอร์ล่าสุดของลูกค้าอยู่ในสถานะพัสดุที่ระบุ
+ *
+ * ทำไม raw SQL: เกณฑ์คือ "ออเดอร์ล่าสุดต่อลูกค้า" ซึ่ง Prisma แสดงใน `where` ตรง ๆ ไม่ได้
+ * (relation filter ของ Prisma ตอบได้แค่ "มีออเดอร์สักใบที่ตรงเงื่อนไข" ซึ่งคนละความหมาย —
+ * ร้านที่เพิ่งพิมพ์ใบใหม่จะยังติดตัวกรอง "ยังไม่พิมพ์" เพราะมีใบเก่าที่ไม่เคยพิมพ์อยู่)
+ * DISTINCT ON เอาใบล่าสุดต่อลูกค้าก่อน แล้วค่อยตัดสิน — ตรรกะเดียวกับ enrichWithOrderStage
+ * ที่ชิปสถานะในแถวใช้ จึงไม่ขัดกับสิ่งที่ผู้ใช้เห็นตรงหน้า
+ *
+ * เชื่อม conversation → ลูกค้า 2 ทาง: ช่องทางนอกผ่าน ExternalContact.customerId,
+ * เธรด DEEP ผ่าน Customer.userId (เหมือน enrichWithOrderStage)
+ *
+ * คืน id ให้ caller เอาไปกรองด้วย `id: { in: [...] }` — pattern เดียวกับ readState
+ */
+export async function conversationIdsByShipmentState(
+  shopId: string,
+  state: ShipmentFilter,
+): Promise<string[]> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    WITH latest AS (
+      SELECT DISTINCT ON (o."customerId")
+        o."customerId" AS "customerId",
+        s."id"             AS "shipmentId",
+        s."labelPrintedAt" AS "labelPrintedAt"
+      FROM "Order" o
+      LEFT JOIN LATERAL (
+        SELECT sh."id", sh."labelPrintedAt"
+        FROM "OrderShipment" sh
+        WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
+        ORDER BY sh."createdAt" DESC
+        LIMIT 1
+      ) s ON true
+      WHERE o."shopId" = ${shopId} AND o."customerId" IS NOT NULL
+      ORDER BY o."customerId", o."createdAt" DESC
+    )
+    SELECT c."id" AS id
+    FROM "Conversation" c
+    LEFT JOIN "ExternalContact" ec ON ec."id" = c."externalContactId"
+    LEFT JOIN "Customer" cu ON cu."userId" = c."buyerUserId"
+    JOIN latest l ON l."customerId" = COALESCE(ec."customerId", cu."id")
+    WHERE c."shopId" = ${shopId}
+      AND ${
+        state === 'none'
+          ? Prisma.sql`l."shipmentId" IS NULL`
+          : state === 'unprinted'
+            ? Prisma.sql`l."shipmentId" IS NOT NULL AND l."labelPrintedAt" IS NULL`
+            : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
+      }
+  `
+  return rows.map((r) => r.id)
+}
+
 export async function listConversationsForShop(
   shopId: string,
   opts: {
@@ -129,6 +184,10 @@ export async function listConversationsForShop(
     readState?: 'unread' | 'read'
     // spam (feature 00018): false/undefined = รายการปกติ (ตัดสแปมออก), true = ดูเฉพาะสแปม
     spam?: boolean
+    // tags (user สั่ง 2026-07-31): กรองด้วยแท็กของผู้ติดต่อ — "ติดอันใดก็ได้" (OR) ไม่ใช่ต้องครบทุกอัน
+    tags?: string[]
+    // shipment (user สั่ง 2026-07-31): สถานะพัสดุของออเดอร์ล่าสุด — เฉพาะร้านที่เชื่อม iShip
+    shipment?: ShipmentFilter
   } = {},
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const status = opts.status ?? 'open'
@@ -150,6 +209,11 @@ export async function listConversationsForShop(
   if (opts.customerLinked && opts.customerLinked !== 'all') {
     orParts.push(customerLinkedWhere(opts.customerLinked))
   }
+  // แท็ก: hasSome = "ติดอันใดก็ได้" ตามที่ user เลือก (ไม่ใช่ hasEvery ที่ต้องครบทุกอัน)
+  // เธรด DEEP ไม่มี externalContact → relation filter ไม่ match เอง ไม่ throw (เหมือนเคส q)
+  if (opts.tags && opts.tags.length > 0) {
+    orParts.push({ externalContact: { tags: { hasSome: opts.tags } } })
+  }
 
   // อ่านแล้ว/ยังไม่อ่าน — เทียบ column-vs-column ทำใน where ตรง ๆ ไม่ได้ จึงดึง id ที่ยังไม่อ่านมาก่อน
   // แล้วกรองด้วย id in/notIn (unread=in, read=notIn). ทำเฉพาะเมื่อมีตัวกรอง (default ไม่ query เพิ่ม)
@@ -157,6 +221,14 @@ export async function listConversationsForShop(
   if (opts.readState) {
     const unreadIds = await unreadConversationIdsForShop(shopId)
     readIdFilter = opts.readState === 'unread' ? { id: { in: unreadIds } } : { id: { notIn: unreadIds } }
+  }
+
+  // พัสดุ iShip — เกณฑ์อ้าง "ออเดอร์ล่าสุดต่อลูกค้า" ทำใน where ของ Prisma ไม่ได้
+  // (ดู comment ที่ conversationIdsByShipmentState) จึงดึง id ที่ผ่านเกณฑ์มาก่อนแล้วกรองด้วย id
+  // ใส่ใน AND-array ไม่ใช่ top-level เพราะ readIdFilter ก็ใช้คีย์ `id` เหมือนกัน — assign ทับกันเงียบ ๆ
+  if (opts.shipment) {
+    const ids = await conversationIdsByShipmentState(shopId, opts.shipment)
+    orParts.push({ id: { in: ids } })
   }
 
   return listConversations(
@@ -167,8 +239,10 @@ export async function listConversationsForShop(
       ...(opts.chatGroupId ? { chatGroupId: opts.chatGroupId } : {}),
       ...(readIdFilter ?? {}),
       ...(status === 'open' ? { resolvedAt: null } : status === 'resolved' ? { resolvedAt: { not: null } } : {}),
-      // สแปม (feature 00018): มุมมองปกติตัดสแปมออก (isSpam:false); มุมมอง "ดูสแปม" โชว์เฉพาะสแปม
-      // และไม่กรอง isHidden (สแปมเป็นถังแยก — ดูทั้งหมดในนั้น) เพื่อไม่ให้เธรดสแปมหายไปด้วย 2 เงื่อนไข
+      // สแปม (feature 00018): "ดูสแปม" โชว์เฉพาะสแปม และไม่กรอง isHidden (สแปมเป็นถังแยก —
+      // ดูทั้งหมดในนั้น) เพื่อไม่ให้เธรดสแปมหายไปด้วย 2 เงื่อนไข
+      // แท็บ "ทั้งหมด" รวมเธรดที่ปิดงานแล้ว (status 'all') แต่ยังตัดสแปมออกเสมอ —
+      // user ลองรวมสแปมแล้วขอถอยกลับ 2026-07-31: ถังสแปมต้องเป็นถังแยกจริง ๆ
       ...(opts.spam ? { isSpam: true } : { isSpam: false, isHidden: hidden }),
       ...(orParts.length > 0 ? { AND: orParts } : {}),
     },

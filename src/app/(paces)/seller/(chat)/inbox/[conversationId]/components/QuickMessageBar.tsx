@@ -23,8 +23,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
 import QuickMessageManager, { type QuickMessage } from './QuickMessageManager'
+
+const CATEGORY_ALL = 'All'
 
 type Props = {
   /** เติมข้อความ/แนบรูปของ quick message ลง composer — parent ตัดสินเรื่องช่องทาง (external รูปไม่ได้) */
@@ -38,18 +41,24 @@ type Props = {
 export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
   const [items, setItems] = useState<QuickMessage[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState(CATEGORY_ALL)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/chat/quick-messages', { cache: 'no-store' })
-      if (!res.ok) return
+      if (!res.ok) throw new Error('failed')
       const data: { items: QuickMessage[] } = await res.json()
       setItems(data.items)
+      setLoadError(false)
     } catch {
-      // เงียบ — แผงสำเร็จรูปเป็น enhancement ไม่ควรทำให้ composer พัง
+      // ไม่ throw ต่อ — แผงสำเร็จรูปเป็น enhancement ไม่ควรทำให้ composer พัง
+      // แต่ต้อง "บอกว่าโหลดไม่ได้" ไม่ใช่เงียบ: เดิม catch เปล่าแล้วปล่อย items=[] ทำให้ทั้งแผงและ
+      // modal จัดการขึ้น "ยังไม่มีข้อความสำเร็จรูป" ทั้งที่ผู้ใช้มีอยู่ 30+ รายการ → นึกว่าข้อมูลหาย
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -68,13 +77,24 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose, managerOpen])
 
+  // หมวดที่มีอยู่จริง — derive จากข้อมูล ไม่มีตาราง master (ชุดเดียวกับที่ modal จัดการใช้)
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    for (const it of items) {
+      const c = it.category?.trim()
+      if (c) set.add(c)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'))
+  }, [items])
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return items
-    return items.filter(
-      (qm) => qm.title.toLowerCase().includes(needle) || qm.body.toLowerCase().includes(needle),
-    )
-  }, [items, q])
+    return items.filter((qm) => {
+      if (categoryFilter !== CATEGORY_ALL && (qm.category ?? '') !== categoryFilter) return false
+      if (!needle) return true
+      return qm.title.toLowerCase().includes(needle) || qm.body.toLowerCase().includes(needle)
+    })
+  }, [items, q, categoryFilter])
 
   // ── โหมดจัดลำดับ (user request 2026-07-30) ────────────────────────────────
   // ต้องเป็นโหมดแยก ไม่ใช่ลากได้ตลอดเวลา: การ์ดพวกนี้ "กดเพื่อใช้งาน" เป็นหลัก ถ้าลากได้ตลอด
@@ -185,21 +205,40 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             ลากการ์ดเพื่อสลับลำดับ (หรือกดที่การ์ดแล้วใช้ลูกศรซ้าย/ขวา) — บันทึกอัตโนมัติ
           </p>
         ) : (
-          <div className="input-icon-group mb-2">
-            <Icon icon="search" className="input-icon" />
-            <input
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="ค้นหาข้อความสำเร็จรูป"
-              aria-label="ค้นหาข้อความสำเร็จรูป"
-              className="form-input bg-card"
-            />
+          <div className="mb-2 flex items-center gap-2">
+            <div className="input-icon-group grow">
+              <Icon icon="search" className="input-icon" />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="ค้นหาข้อความสำเร็จรูป"
+                aria-label="ค้นหาข้อความสำเร็จรูป"
+                className="form-input bg-card"
+              />
+            </div>
+            {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน (เกณฑ์เดียวกับ modal จัดการ) */}
+            {categories.length > 0 && (
+              <FilterDropdown
+                icon="tag"
+                value={categoryFilter}
+                onChange={setCategoryFilter}
+                defaultLabel="หมวด"
+                resetValue={CATEGORY_ALL}
+                align="right"
+                options={[
+                  { value: CATEGORY_ALL, label: 'ทุกหมวด' },
+                  ...categories.map((c) => ({ value: c, label: c })),
+                ]}
+              />
+            )}
           </div>
         )}
 
         <div
-          className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
+          // items-start: ให้การ์ดสูงตามเนื้อหาจริง (ซึ่งตอนนี้เท่ากันทุกใบเพราะจองพื้นที่ตายตัวแล้ว)
+          // ไม่ใช่ stretch ตาม default ของ flex ที่ยืดทุกใบให้เท่าใบที่สูงสุดแล้วดันช่องว่างไปกองที่ท้ายการ์ด
+          className="flex snap-x snap-mandatory items-start gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: 'none' }}
         >
           {loading ? (
@@ -208,6 +247,15 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                 <div key={i} className="bg-default-100 h-36 w-32 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลด" />
               ))}
             </>
+          ) : loadError ? (
+            /* โหลดพัง ≠ ไม่มีข้อมูล — ต้องแยกให้ชัด ไม่งั้นผู้ใช้ที่มี 30+ รายการนึกว่าข้อความหายหมด */
+            <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
+              <Icon icon="alert-triangle" className="text-warning text-2xl" />
+              <span>โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
+              <button type="button" onClick={load} className="btn border-default-300 min-h-11">
+                <Icon icon="refresh" className="me-1" /> ลองใหม่
+              </button>
+            </div>
           ) : items.length === 0 ? (
             <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
               <Icon icon="message-plus" className="text-default-500 text-2xl" />
@@ -308,9 +356,22 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                       <span className="line-clamp-5">{qm.body || qm.title}</span>
                     </span>
                   )}
+                  {/* จองพื้นที่ตายตัว 2 บรรทัดทั้งชื่อและเนื้อความ (user report 2026-07-31 "card มันไม่เท่ากัน")
+                      เดิมชื่อยาว 1-2 บรรทัดไม่แน่นอน และ body ที่ว่างไม่ถูก render เลย ({qm.body && ...})
+                      → โครงข้างในการ์ดแต่ละใบสูงไม่เท่ากัน พอ container เป็น flex ที่ยืดให้สูงเท่ากัน
+                      ช่องว่างเลยไปโผล่คนละตำแหน่ง ดูเหลื่อมกันทั้งแถว
+                      min-h-8 = 2 บรรทัดของ text-xs, min-h-7 = 2 บรรทัดของ text-2xs
+                      render <p> ของ body เสมอแม้ว่าง — ที่ว่างต้องถูกจองไว้เท่ากันทุกใบ */}
                   <div className="p-2">
-                    <p className="line-clamp-2 text-xs font-medium text-dark">{qm.title}</p>
-                    {qm.body && <p className="text-default-700 mt-0.5 line-clamp-2 text-2xs">{qm.body}</p>}
+                    {/* หมวดเป็นบรรทัดจองพื้นที่ตายตัวเหมือนชื่อ/เนื้อความ — การ์ดที่ไม่มีหมวดต้องสูงเท่ากัน
+                        ไม่งั้นแถวเหลื่อมกันทั้งชุด (บทเรียนเดียวกับ min-h-8/min-h-7 ด้านล่าง) */}
+                    <p className="mb-0.5 min-h-5 truncate">
+                      {qm.category && (
+                        <span className="badge bg-default-100 text-default-500 text-2xs">{qm.category}</span>
+                      )}
+                    </p>
+                    <p className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{qm.title}</p>
+                    <p className="text-default-700 mt-0.5 line-clamp-2 min-h-7 text-2xs">{qm.body}</p>
                   </div>
                 </button>
               )
@@ -320,7 +381,14 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
       </div>
 
       {managerOpen && (
-        <QuickMessageManager items={items} onClose={() => setManagerOpen(false)} onChanged={load} />
+        <QuickMessageManager
+          items={items}
+          loading={loading}
+          error={loadError}
+          onRetry={load}
+          onClose={() => setManagerOpen(false)}
+          onChanged={load}
+        />
       )}
     </>
   )

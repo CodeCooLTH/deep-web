@@ -333,3 +333,62 @@ function roundTo(n: number, digits: number): number {
 export function buildIdempotencyKey(orderId: string, attemptGroup: number): string {
   return `${orderId}:${attemptGroup}`;
 }
+
+// ─── snapshot ของตัวเลือกเสริม + หมายเหตุ ──────────────────────────────────
+
+/** ค่าตั้งต้นระดับร้านเท่าที่ snapshot ต้องใช้ — ไม่ผูกกับ type ของ Prisma */
+export interface ShopParcelDefaults {
+  optOnTime: boolean;
+  optBoxShield: boolean;
+  optIsInsured: boolean;
+  optProductValue: number | null;
+  optServiceType: number | null;
+  defaultRemark: string | null;
+}
+
+export interface ParcelOptionsSnapshot {
+  onTime?: boolean;
+  boxShield?: boolean;
+  isInsured?: boolean;
+  productValue?: number | null;
+  serviceType?: number | null;
+  remark: string | null;
+}
+
+/**
+ * buildOptionsSnapshot — freeze ตัวเลือกเสริม + หมายเหตุที่จะส่งไปกับพัสดุใบนี้
+ *
+ * แยกออกมาเป็นฟังก์ชัน pure เพราะเคยพลาดตรงนี้มาแล้ว: หมายเหตุถูกรับมาทุกชั้น
+ * (ฟอร์ม → validation → service) แต่ไม่เคยถูกเก็บและไม่เคยถูกส่งต่อ ร้านกรอก "ห้ามโยน"
+ * ไปเท่าไหร่ก็ไม่ถึงขนส่ง (user report 2026-07-31) — พังเงียบเพราะไม่มีที่ให้เทสจับ
+ *
+ * กติกาที่ต้องคงไว้: ร้าน "ลบหมายเหตุทิ้ง" ในฟอร์ม ต้องได้ null ไม่ใช่ค่าตั้งต้นของร้าน
+ * เพราะการลบคือคำสั่ง ไม่ใช่การไม่ระบุ — ส่วนงานที่ไม่มี override เลย (โหมดสร้างอัตโนมัติ)
+ * จึงค่อยใช้ค่าตั้งต้นของร้าน
+ */
+export function buildOptionsSnapshot(
+  override:
+    | {
+        remark?: string | null;
+        options?: {
+          onTime?: boolean;
+          boxShield?: boolean;
+          isInsured?: boolean;
+          productValue?: number | null;
+          serviceType?: number | null;
+        };
+      }
+    | undefined,
+  shop: ShopParcelDefaults,
+): ParcelOptionsSnapshot {
+  return {
+    ...(override?.options ?? {
+      onTime: shop.optOnTime,
+      boxShield: shop.optBoxShield,
+      isInsured: shop.optIsInsured,
+      productValue: shop.optProductValue,
+      serviceType: shop.optServiceType,
+    }),
+    remark: override ? (override.remark ?? null) : shop.defaultRemark,
+  };
+}

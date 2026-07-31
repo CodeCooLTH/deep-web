@@ -426,6 +426,76 @@ export async function addPhrases(
   return { created, duplicateInGroup, emptyAfterNormalize, warnings }
 }
 
+export type PhraseOverlap = {
+  id: string
+  name: string
+  priority: number
+  status: string
+  /** คำต้นฉบับ (phrase) ที่ซ้ำกัน — ไม่ใช่ normalizedPhrase เพราะ UI เอาไปแสดงเป็นคำที่ร้านพิมพ์เอง */
+  sharedPhrases: string[]
+}
+
+/**
+ * getPhraseOverlaps — "กลุ่มอื่นในร้านนี้ที่ใช้คำตรวจจับซ้ำกับกลุ่มนี้"
+ *
+ * ตรรกะ where ชุดเดียวกับคำเตือนข้ามกลุ่มใน addPhrases (AC-002-04) แต่มองจากมุมกลุ่มที่กำลังเปิดดู
+ * เพื่อให้หน้าแก้ไขอธิบายเป็นประโยคได้ว่าคำไหนไปซ้ำกับกลุ่มไหน แทนที่จะให้ร้านเดาจากเลขลำดับความสำคัญดิบ
+ * (จงใจไม่ refactor addPhrases ให้มาเรียกตัวนี้ — shape ของ warnings มีเทสเดิมคุมอยู่ ไม่ต้องเสี่ยง)
+ *
+ * ทำไมตัด status='OFFLINE' ออก: กลุ่มที่ปิดอยู่ไม่ตอบใครเลย จึงไม่ได้แข่งชิงข้อความกับกลุ่มนี้
+ * เตือนไปก็เป็นสัญญาณหลอกให้ร้านไปแก้คำที่ไม่มีปัญหาอะไร
+ *
+ * shopId อยู่ใน where ของทั้งสองคิวรี (ownership TFR-005) ← ห้ามย้ายออกจากตรงนี้ไปกรองใน JS
+ */
+export async function getPhraseOverlaps(shopId: string, keywordId: string): Promise<PhraseOverlap[]> {
+  const own = await prisma.autoReplyPhrase.findMany({
+    where: { keywordId, keyword: { shopId } },
+    select: { phrase: true, normalizedPhrase: true },
+  })
+  // ไม่มีคำในกลุ่มนี้ = ไม่มีอะไรไปซ้ำกับใครได้ ตัดจบก่อนยิงคิวรีที่สองให้เปล่าประโยชน์
+  if (own.length === 0) return []
+
+  // normalizedPhrase -> phrase ต้นฉบับของกลุ่มนี้ (แสดงคำที่ร้านพิมพ์ ไม่ใช่รูปหลัง normalize)
+  const ownPhraseByNormalized = new Map(own.map((p) => [p.normalizedPhrase, p.phrase]))
+
+  const rows = await prisma.autoReplyPhrase.findMany({
+    where: {
+      normalizedPhrase: { in: [...ownPhraseByNormalized.keys()] },
+      keywordId: { not: keywordId },
+      keyword: { shopId, status: { not: 'OFFLINE' } },
+    },
+    select: {
+      phrase: true,
+      normalizedPhrase: true,
+      keyword: { select: { id: true, name: true, priority: true, status: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  // ยุบหลายคำที่ซ้ำกับกลุ่มเดียวกันให้เหลือรายการเดียว (UI แสดงเป็น 1 บรรทัดต่อ 1 กลุ่ม)
+  const byKeyword = new Map<string, PhraseOverlap>()
+  for (const row of rows) {
+    let entry = byKeyword.get(row.keyword.id)
+    if (!entry) {
+      entry = {
+        id: row.keyword.id,
+        name: row.keyword.name,
+        priority: row.keyword.priority,
+        status: row.keyword.status,
+        sharedPhrases: [],
+      }
+      byKeyword.set(row.keyword.id, entry)
+    }
+    const shared = ownPhraseByNormalized.get(row.normalizedPhrase) ?? row.phrase
+    if (!entry.sharedPhrases.includes(shared)) entry.sharedPhrases.push(shared)
+  }
+
+  // priority มาก->น้อย แล้ว tie-break ด้วยชื่อ เพื่อให้ลำดับที่ UI เห็น (และเทส) นิ่งเสมอ
+  return [...byKeyword.values()].sort(
+    (a, b) => b.priority - a.priority || a.name.localeCompare(b.name, 'th'),
+  )
+}
+
 /** deletePhrase — บล็อกถ้าเป็น phrase สุดท้ายของกลุ่มที่ยังเปิดใช้งานอยู่ (TFR-006) */
 export async function deletePhrase(phraseId: string, keywordId: string, shopId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {

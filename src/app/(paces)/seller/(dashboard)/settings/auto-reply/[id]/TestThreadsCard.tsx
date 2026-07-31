@@ -86,6 +86,24 @@ function ChannelLine({ provider, channelName }: { provider: string | null; chann
   )
 }
 
+/**
+ * หัวตาราง — ใช้ร่วมกันระหว่างตารางจริงกับ skeleton ตอนโหลด คอลัมน์จึงตรงกันแน่นอน
+ * ถอดคลาสบังคับตัวพิมพ์ใหญ่ออกแล้ว: ภาษาไทยไม่เห็นผลทางสายตาก็จริง แต่ทำให้ข้อความอังกฤษ/ตัวเลข
+ * ที่ปนมาเพี้ยน และขัด Sentence-Case Rule ของ Impeccable
+ */
+function ThreadTableHead({ canEdit }: { canEdit: boolean }) {
+  return (
+    <thead className="thead-sm">
+      <tr className="bg-light/25 text-2xs">
+        <th>คู่สนทนา</th>
+        <th>ข้อความล่าสุด</th>
+        <th>เพิ่มเมื่อ</th>
+        {canEdit && <th className="text-center">จัดการ</th>}
+      </tr>
+    </thead>
+  )
+}
+
 type Props = {
   keywordId: string
   status: string
@@ -194,8 +212,11 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
     <div className="card">
       <div className="card-header flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h5 className="text-default-800 flex items-center gap-2 text-base font-semibold">
-            <Icon icon="flask" className="text-primary text-lg" aria-hidden="true" />
+          {/* หัวการ์ด "รอง" — scale เดียวกับ [A] ตั้งค่ากลุ่มคำ (text-md + ไอคอนเปล่า size-4)
+              ไม่มีแผ่นสีรองไอคอน เพราะแผ่นสีนั้นสงวนให้การ์ด [B] ใบเดียวในหน้า (spec §7)
+              เดิมเป็น text-base + ไอคอน text-lg → การ์ดรองสองใบพูดคนละภาษา (CL-25) */}
+          <h5 className="text-default-800 text-md flex min-w-0 items-center gap-2 font-semibold">
+            <Icon icon="flask" className="text-primary size-4 flex-none" aria-hidden="true" />
             แชทสำหรับทดสอบ ({threads.length})
           </h5>
           <p className="text-default-500 mt-0.5 text-xs">
@@ -204,8 +225,17 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
               : 'ใช้เมื่อตั้งกลุ่มคำนี้เป็น "ทดสอบ" — สถานะอื่นรายการนี้จะไม่มีผล'}
           </p>
         </div>
+        {/* CL-4: คลาส soft variant ที่เคยใช้ตรงนี้ไม่มีนิยามใน CSS เลย และ .btn base ไม่มี
+            พื้นหลัง (_buttons.css:4-6) ปุ่มนี้จึงเรนเดอร์เป็นตัวหนังสือลอย ๆ มาตลอด —
+            เขียนสีตรงตาม convention ที่ใช้อยู่ 186 จุดในโปรเจกต์
+            หมายเหตุ: คอมเมนต์นี้ต้องอยู่ "นอก" วงเล็บของ {cond && (...)} เพราะถ้าอยู่ข้างใน
+            จะกลายเป็น child ตัวที่สองโดยไม่มี fragment = JSX พังเงียบ (บั๊กเดิมของ S-15) */}
         {canEdit && !picking && (
-          <button className="btn btn-soft-primary btn-sm flex-none" onClick={openPicker} disabled={busy}>
+          <button
+            className="btn btn-sm bg-primary hover:bg-primary-hover flex-none text-white"
+            onClick={openPicker}
+            disabled={busy}
+          >
             <Icon icon="plus" className="size-4" aria-hidden="true" />
             เพิ่มแชท
           </button>
@@ -227,7 +257,10 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
                 aria-label="ค้นหาแชท"
               />
             </div>
-            <button className="btn btn-soft-default btn-sm flex-none" onClick={() => setPicking(false)}>
+            <button
+              className="btn btn-sm bg-light text-dark hover:bg-light-hover flex-none"
+              onClick={() => setPicking(false)}
+            >
               ยกเลิก
             </button>
           </div>
@@ -257,8 +290,39 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
       )}
 
       {loading ? (
-        <div className="card-body">
-          <p className="text-default-400 text-sm">กำลังโหลด…</p>
+        // skeleton แทนตัวอักษรบอกสถานะ — เลียนคอลัมน์จริงของตาราง (avatar กลม / ชื่อ+ช่องทาง /
+        // ข้อความล่าสุด / วันที่ / ปุ่ม) เพื่อไม่ให้เนื้อหากระโดดตอนโหลดเสร็จ (operate.md: skeleton ไม่ใช่ spinner)
+        // Base: theme/paces/Admin/TS/src/app/(admin)/ui/placeholders/page.tsx:75-82
+        <div className="table-responsive" role="status" aria-label="โหลดรายการแชทอยู่">
+          <table className="table table-hover">
+            <ThreadTableHead canEdit={canEdit} />
+            <tbody>
+              {[0, 1, 2].map((row) => (
+                <tr key={row}>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <span className="bg-default-300 size-8 shrink-0 animate-pulse cursor-wait rounded-full" />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <span className="bg-default-300 block h-3.25 w-32 animate-pulse cursor-wait" />
+                        <span className="bg-default-300 block h-3.25 w-20 animate-pulse cursor-wait" />
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="bg-default-300 block h-3.25 w-40 animate-pulse cursor-wait" />
+                  </td>
+                  <td>
+                    <span className="bg-default-300 block h-3.25 w-24 animate-pulse cursor-wait" />
+                  </td>
+                  {canEdit && (
+                    <td>
+                      <span className="bg-default-300 mx-auto block size-8 animate-pulse cursor-wait rounded" />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : threads.length === 0 ? (
         <div className="card-body py-8 text-center">
@@ -271,14 +335,7 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
       ) : (
         <div className="table-responsive">
           <table className="table table-hover">
-            <thead className="thead-sm">
-              <tr className="bg-light/25 text-2xs uppercase">
-                <th>คู่สนทนา</th>
-                <th>ข้อความล่าสุด</th>
-                <th>เพิ่มเมื่อ</th>
-                {canEdit && <th className="text-center">จัดการ</th>}
-              </tr>
-            </thead>
+            <ThreadTableHead canEdit={canEdit} />
             <tbody>
               {threads.map((t) => (
                 <tr key={t.id}>

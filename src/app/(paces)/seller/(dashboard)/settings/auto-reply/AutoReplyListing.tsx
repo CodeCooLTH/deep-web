@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * AutoReplyListing — ตาราง listing กลุ่มคำตอบอัตโนมัติ (feature 00023, S-13)
+ * AutoReplyListing — ตาราง listing กลุ่มคำตอบอัตโนมัติ (feature 00023, S-13 / S-15)
  *
  * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductsListing.tsx
  *   (ซึ่ง Base เดิม = theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/products/
@@ -13,8 +13,10 @@
  * เปลี่ยนจาก Base:
  *   - columns: name / โหมด / คำตรวจจับ / คำตอบ / สถานะ / แก้ไขล่าสุด / การจัดการ
  *   - ไม่มีรูปสินค้า → leading เป็นไอคอนกลุ่มคำแทน thumbnail
- *   - สถานะเป็นปุ่ม 3 ค่า (ไม่ใช้งาน/ทดสอบ/ตอบลูกค้าจริง) กดแล้วมีผลทันที ไม่ใช่ badge อ่านอย่างเดียว
- *     (บทเรียน 2026-07-29: user เปิดสวิตช์ในฟอร์มแล้วไม่ได้กดบันทึก → ระบบไม่ตอบ แล้วงงว่าทำไม)
+ *   - คอลัมน์สถานะเป็น "ป้ายอ่านอย่างเดียว" (ไม่ใช้งาน/ทดสอบ/ตอบลูกค้าจริง) ไม่ใช่สวิตช์
+ *     ที่เปลี่ยนสถานะอยู่ "หน้าแก้ไขกลุ่มคำ" (`[id]/KeywordEditorClient.tsx`) ที่เดียว
+ *     (user สั่งตรง 2026-07-30: "สถานะตรงนี้ให้แสดงสถานะปัจจุบัน ไม่ใช่ให้เป็น switch ตรงนี้")
+ *     ย้อนการตัดสินใจ 2026-07-29 ที่เคยเอาปุ่ม 3 ค่ามาไว้ในตาราง — ห้ามเอาสวิตช์กลับมาที่นี่
  *   - ตัวเลือกจำนวนต่อหน้าใช้ ChoiceSelect ไม่ใช่ `<select>` ดิบ (Hard Rule 7 / theme-guard)
  */
 import { useMemo, useState } from 'react'
@@ -57,15 +59,17 @@ export type KeywordRow = {
 }
 
 /** ป้ายสถานะ — เขียวสงวนให้ "ตอบลูกค้าจริง" เท่านั้นตาม Verified-Means-Green
- *  เหลือง = ทดสอบ (เตือนว่ายังไม่ถึงลูกค้าทุกคน) · เทา = ไม่ทำงาน */
-const STATUS_META: Record<string, { label: string; badge: string; icon: string; active: string }> = {
-  LIVE: { label: 'ตอบลูกค้าจริง', badge: 'bg-success/15 text-success', icon: 'broadcast', active: 'bg-success text-white' },
-  TEST: { label: 'ทดสอบ', badge: 'bg-warning/15 text-warning', icon: 'flask', active: 'bg-warning text-white' },
-  OFFLINE: { label: 'ไม่ใช้งาน', badge: 'bg-default-200 text-default-500', icon: 'circle-off', active: 'bg-default-500 text-white' },
+ *  เหลือง = ทดสอบ (เตือนว่ายังไม่ถึงลูกค้าทุกคน)
+ *
+ *  รูปทรงบอกความหมายเอง: fill (tint) = กำลังทำงาน · outline = ไม่ทำงาน
+ *  OFFLINE ใช้ outline ไม่ใช่ tint เทา เพราะ `bg-default-200 text-default-500` เดิม = 2.12:1
+ *  ตก AA ยับ และมันคือสถานะที่เห็นบ่อยที่สุด (กลุ่มสร้างใหม่เป็น OFFLINE เสมอ);
+ *  `border-default-300 bg-card text-default-700` = 4.69:1 ผ่าน AA และถอยกว่า text-default-800 */
+const STATUS_META: Record<string, { label: string; badge: string; icon: string }> = {
+  LIVE: { label: 'ตอบลูกค้าจริง', badge: 'bg-success/15 text-success', icon: 'broadcast' },
+  TEST: { label: 'ทดสอบ', badge: 'bg-warning/15 text-warning', icon: 'flask' },
+  OFFLINE: { label: 'ไม่ใช้งาน', badge: 'border-default-300 bg-card text-default-700 border', icon: 'circle-off' },
 }
-
-/** ลำดับซ้าย→ขวา = เบาไปหนัก (ไม่ตอบใคร → ตอบบางแชท → ตอบทุกคน) เหมือนหน้าแก้ไขเป๊ะ */
-const STATUS_ORDER = ['OFFLINE', 'TEST', 'LIVE'] as const
 
 const STATUS_OPTIONS = [
   { value: 'All', label: 'ทุกสถานะ' },
@@ -104,47 +108,58 @@ function PhraseChips({ phrases, total }: { phrases: string[]; total: number }) {
 
 const columnHelper = createColumnHelper<KeywordRow>()
 
-/** ป้ายสถานะแบบกดได้ — กดแล้วเปิดเมนู 3 ค่า (user 2026-07-29 "ให้ตั้งค่าทดสอบได้ทีละอัน")
- *  ไม่ใช้ ChoiceSelect เพราะในตารางต้องการป้ายที่อ่านสถานะได้ทันทีโดยไม่ต้องมีกรอบ input */
+/** ป้ายสถานะ — อ่านอย่างเดียว ไม่ใช่ control
+ *  Base: theme/paces/.../dashboard/analytics/components/TotalVisitors.tsx:21-23 (badge ที่มีไอคอนข้างใน)
+ *  ไม่ใส่ `rounded-full`: ในหน้านี้ pill ถูกใช้กับของที่กดได้อยู่แล้ว (filter chip / ปุ่มสร้างมือถือ)
+ *  เหลี่ยม = อ่านอย่างเดียว — affordance ต่างกันตั้งแต่รูปทรง */
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status] ?? STATUS_META.OFFLINE
   return (
-    <span className={cn('badge text-2xs inline-flex items-center gap-1 py-0 font-semibold', meta.badge)}>
-      <Icon icon={meta.icon} className="size-3" aria-hidden="true" />
+    <span
+      className={cn(
+        'badge inline-flex items-center gap-1 py-0 text-xs font-semibold whitespace-nowrap',
+        meta.badge,
+      )}
+    >
+      <Icon icon={meta.icon} className="size-3.5" aria-hidden="true" />
       {meta.label}
     </span>
+  )
+}
+
+/**
+ * เซลล์สถานะ — ใช้ตัวเดียวกันทั้งตาราง desktop และการ์ดมือถือ
+ *
+ * ที่เปลี่ยนสถานะอยู่หน้าแก้ไขที่เดียว (ห้ามเอาสวิตช์กลับมาที่นี่ — ดูคอมเมนต์หัวไฟล์):
+ * หน้าแก้ไขคือที่เดียวที่มีบริบทครบ (คำตรวจจับ / คำตอบ / แชททดสอบ) และ guard ของ backend
+ * 2 ใน 3 ตัวแก้ได้เฉพาะที่นั่น — กดในตารางแล้วถูกปฏิเสธก็ต้องเด้งไปหน้าแก้ไขอยู่ดี
+ *
+ * เดิมเขียนโครงซ้ำ 2 ที่และเคส TEST+0 แชทหน้าตาไม่เหมือนกันจริง (desktop = ไอคอนเปล่า + title,
+ * mobile = badge ที่สอง) — ยุบเป็นตัวเดียวเพื่อให้ของเดียวกันมีหน้าตาเดียว
+ */
+function StatusCell({ status, testThreadCount }: { status: string; testThreadCount: number }) {
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1">
+      <StatusBadge status={status} />
+      {/* TEST ที่ยังไม่ผูกแชท = ป้ายบอก "ทดสอบ" แต่จริง ๆ ไม่ตอบใครเลย ต้องพูดออกมาเป็นข้อความ
+          ไม่ใช่ไอคอนเปล่า + title (title ไม่เด้งบนมือถือ ซึ่งคือ surface หลักของ seller)
+          สีเหลืองอยู่ที่ไอคอนเท่านั้น — text-warning บนพื้นขาว = 1.66:1 อ่านไม่ออก
+          ไม่ทำเป็น badge ใบที่สอง เพราะ badge 2 ใบข้างกันอ่านเหมือน "สองสถานะ" ซึ่งไม่จริง
+          และไม่ขึ้นกับ OFFLINE เพราะ OFFLINE ที่ไม่ตอบใครคือสิ่งที่ตั้งใจ
+          text-pretty: คอลัมน์สถานะแคบ ข้อความนี้หัก 2 บรรทัดได้ — กันคำโดดท้ายบรรทัด */}
+      {status === 'TEST' && testThreadCount === 0 && (
+        <span className="text-default-700 flex items-start gap-1 text-xs text-pretty">
+          <Icon icon="alert-triangle" className="text-warning size-3.5 shrink-0" aria-hidden="true" />
+          ยังไม่ได้เลือกแชท จึงยังไม่ตอบใคร
+        </span>
+      )}
+    </div>
   )
 }
 
 type Props = {
   keywords: KeywordRow[]
   canEdit: boolean
-}
-
-/**
- * ปุ่มหยุดฉุกเฉิน — ไม่ใช่สวิตช์ที่ต้องจำไปเปิด (user 2026-07-30)
- *
- * เดิมเป็น `form-switch` ค้างอยู่ในหัวตาราง ซึ่งซ้ำกับสถานะรายแถว (ไม่ใช้งาน/ทดสอบ/ตอบลูกค้าจริง)
- * และสร้างกับดักเดิมกลับมา: แถวเป็น "ตอบลูกค้าจริง" แต่เงียบ เพราะสวิตช์ร้านปิดอยู่คนละที่
- * ตอนนี้สวิตช์ร้านเปิดให้เองตอนกลุ่มแรกออกจาก "ไม่ใช้งาน" (ดู updateKeyword) เหลือไว้เป็น
- * "การกระทำ" สำหรับกรณีบอทพูดผิดแล้วต้องหยุดทุกกลุ่มในคลิกเดียว — ไม่ใช่ "สถานะ" ที่ต้องเรียนรู้
- */
-function EmergencyStopButton({
-  busy, canEdit, onStop,
-}: { busy: boolean; canEdit: boolean; onStop: () => void }) {
-  if (!canEdit) return null
-  return (
-    <button
-      type="button"
-      className="btn btn-sm btn-soft-danger flex-none"
-      disabled={busy}
-      onClick={onStop}
-      title="หยุดการตอบอัตโนมัติทุกกลุ่มทันที โดยไม่ต้องแก้ทีละกลุ่ม"
-    >
-      <Icon icon="player-stop" className="size-4" aria-hidden="true" />
-      หยุดตอบทั้งหมด
-    </button>
-  )
 }
 
 export default function AutoReplyListing({ keywords, canEdit }: Props) {
@@ -156,49 +171,6 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [statusChip, setStatusChip] = useState('All')
-  const [busyId, setBusyId] = useState<string | null>(null)
-
-  /**
-   * เปลี่ยนสถานะกลุ่มคำทันทีที่เลือก — optimistic แล้วคืนค่าเดิมถ้าเซิร์ฟเวอร์ปฏิเสธ
-   *
-   * ปฏิเสธได้จริง 2 กรณี และทั้งคู่ต้องบอกเหตุผล ไม่ใช่เด้งกลับเงียบ ๆ:
-   *   - ออกจาก "ไม่ใช้งาน" ทั้งที่ยังไม่มีคำตรวจจับหรือคำตอบ
-   *   - ตั้งเป็น "ทดสอบ" ทั้งที่ยังไม่ได้เลือกแชทสำหรับทดสอบเลย
-   */
-  async function changeStatus(row: KeywordRow, next: string) {
-    if (!canEdit || busyId || next === row.status) return
-    // ขาไป LIVE = ลูกค้าจริงทุกคนเริ่มได้รับคำตอบ ถามก่อนเสมอ
-    // ขาอื่นไม่ถาม (เป็นการลดขอบเขต ไม่ใช่ขยาย)
-    if (next === 'LIVE') {
-      const ok = await pacesConfirm.warning(
-        `ให้ "${row.name}" ตอบลูกค้าจริง?`,
-        'หลังจากนี้ลูกค้าทุกคนที่ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ จะได้รับคำตอบอัตโนมัติทันที',
-        { confirmButtonText: 'ตอบลูกค้าจริง' },
-      )
-      if (!ok) return
-    }
-    setBusyId(row.id)
-    setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
-    try {
-      const res = await fetch(`/api/shops/auto-reply/keywords/${row.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ status: next }),
-      })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'บันทึกไม่สำเร็จ')
-      pacesToast.success(`เปลี่ยน "${row.name}" เป็น "${STATUS_META[next]?.label ?? next}" แล้ว`)
-      // เข้าโหมดทดสอบ = ต้องไปเลือกแชทในหน้าแก้ไข ไม่งั้นไม่มีอะไรเกิดขึ้น
-      if (next === 'TEST' && row.testThreadCount === 0) {
-        pacesToast.warning('ยังไม่ได้เลือกแชทสำหรับทดสอบ — เปิดกลุ่มคำนี้แล้วเพิ่มแชทก่อน')
-      }
-    } catch (e) {
-      setData((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: row.status } : r)))
-      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
-    } finally {
-      setBusyId(null)
-    }
-  }
 
   const columns: ColumnDef<KeywordRow, any>[] = useMemo(
     () => [
@@ -228,6 +200,10 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
       columnHelper.accessor('phraseCount', {
         header: 'คำตรวจจับ',
         enableSorting: false,
+        /* คอลัมน์สถานะแคบลงมากหลังถอดปุ่ม 3 ค่า (~250px → ~150px) — ยกความกว้างที่คืนมา
+           ให้คอลัมน์นี้ (ตารางเป็น auto-layout: จองสัดส่วนไว้ตรงนี้ ที่เหลือค่อยแบ่งตามเนื้อหา)
+           ยิ่งกว้าง = PhraseChips โชว์คำจริงได้มากขึ้นก่อนจะสรุปเป็น "+n" */
+        meta: { headerClassName: 'w-2/5', cellClassName: 'w-2/5' },
         cell: ({ row }) => <PhraseChips phrases={row.original.phrases} total={row.original.phraseCount} />,
       }),
       columnHelper.accessor('status', {
@@ -235,42 +211,10 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         filterFn: 'equalsString',
         enableColumnFilter: true,
         enableSorting: false,
+        /* อ่านอย่างเดียวทั้ง OWNER และ STAFF — ไม่มี ternary canEdit แล้ว จะไม่มี write control
+           เผลอโผล่ในตารางที่คนกำลังกวาดตาหาข้อมูล */
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            {canEdit ? (
-              /* ปุ่ม 3 ค่าแบบเดียวกับหน้าแก้ไขเป๊ะ — การตัดสินใจเดียวกันต้องหน้าตาเดียวกัน
-                 (เดิมเป็น dropdown ทำให้ต้องเรียนรู้ 2 แบบ = P2 ใน Impeccable critique 2026-07-30) */
-              <div className="bg-light inline-flex rounded-lg p-0.5" role="group" aria-label={`สถานะของ ${row.original.name}`}>
-                {STATUS_ORDER.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={busyId === row.original.id}
-                    onClick={() => changeStatus(row.original, key)}
-                    aria-pressed={row.original.status === key}
-                    className={cn(
-                      'rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors',
-                      row.original.status === key
-                        ? STATUS_META[key].active
-                        : 'text-default-500 hover:text-default-800',
-                    )}
-                  >
-                    {STATUS_META[key].label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <StatusBadge status={row.original.status} />
-            )}
-            {row.original.status === 'TEST' && row.original.testThreadCount === 0 && (
-              <span
-                className="text-warning"
-                title="ยังไม่ได้เลือกแชทสำหรับทดสอบ — กลุ่มนี้จะไม่ตอบใครเลย"
-              >
-                <Icon icon="alert-triangle" className="size-4" aria-hidden="true" />
-              </span>
-            )}
-          </div>
+          <StatusCell status={row.original.status} testThreadCount={row.original.testThreadCount} />
         ),
       }),
       columnHelper.accessor('updatedAt', {
@@ -308,7 +252,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
       }),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canEdit, busyId],
+    [canEdit],
   )
 
   const table = useReactTable({
@@ -498,33 +442,9 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                 <div className="mt-1">
                   <PhraseChips phrases={k.phrases} total={k.phraseCount} />
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  {canEdit ? (
-                    <div className="bg-light inline-flex rounded-lg p-0.5" role="group" aria-label={`สถานะของ ${k.name}`}>
-                      {STATUS_ORDER.map((key) => (
-                        <button
-                          key={key}
-                          type="button"
-                          disabled={busyId === k.id}
-                          onClick={() => changeStatus(k, key)}
-                          aria-pressed={k.status === key}
-                          className={cn(
-                            'rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors',
-                            k.status === key ? STATUS_META[key].active : 'text-default-500',
-                          )}
-                        >
-                          {STATUS_META[key].label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <StatusBadge status={k.status} />
-                  )}
-                  {k.status === 'TEST' && k.testThreadCount === 0 && (
-                    <span className="badge bg-warning/15 text-warning text-2xs py-0 font-semibold">
-                      ยังไม่ได้เลือกแชท
-                    </span>
-                  )}
+                {/* เซลล์สถานะตัวเดียวกับตาราง desktop — ของเดียวกันต้องหน้าตาเดียว */}
+                <div className="mt-1.5">
+                  <StatusCell status={k.status} testThreadCount={k.testThreadCount} />
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">

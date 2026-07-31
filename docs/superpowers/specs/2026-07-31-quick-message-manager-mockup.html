@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redesign โมดัลจัดการข้อความสำเร็จรูป — feat 00018 (Mobile / Tablet / Desktop)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --p05:rgba(35,109,201,.05); --p10:rgba(35,109,201,.10); --p15:rgba(35,109,201,.15);
+    --success:#22c55e;
+    --warning:#f59e0b; --warning-15:rgba(245,158,11,.15);
+    --danger:#e5384f; --danger-15:rgba(229,56,79,.15);
+    --d50:#f8fafc; --d100:#f1f3f7; --d200:#e6e9ef; --d300:#d5dae2;
+    --d400:#8a94a6; --d500:#69707d; --d700:#3b3f45; --d800:#252a31;
+    --card:#fff; --body:#eef1f6;
+    --shadow:0 2px 6px rgba(130,143,163,.15);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Anuphan',system-ui,sans-serif;background:var(--body);color:var(--d800);padding:28px 18px 70px}
+  h1{font-size:21px;font-weight:700;margin:0 0 5px}
+  .lead{color:var(--d500);font-size:13.5px;margin:0 0 6px;max-width:960px;line-height:1.65}
+  .meta{color:var(--d400);font-size:12px;margin:0 0 10px}
+  .rulebox{background:#fff;border:1px solid var(--d200);border-radius:10px;padding:12px 15px;max-width:960px;
+           margin:0 0 26px;font-size:12.5px;color:var(--d700);line-height:1.7}
+  .rulebox b{color:var(--d800)}
+  h2.sec{font-size:13px;font-weight:700;color:var(--d500);text-transform:uppercase;letter-spacing:.05em;
+         margin:38px 0 6px;border-bottom:1px solid var(--d200);padding-bottom:7px}
+  .note{color:var(--d500);font-size:12.5px;margin:0 0 16px;max-width:960px;line-height:1.65}
+  .note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .frames{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start}
+  .device{background:#fff;border:1px solid var(--d200);border-radius:15px;box-shadow:0 10px 30px rgba(20,30,60,.10);overflow:hidden}
+  .device>.cap{font-size:11.5px;font-weight:600;color:var(--d500);padding:9px 13px;border-bottom:1px solid var(--d200);
+               background:#fafbfc;display:flex;justify-content:space-between;gap:12px}
+  .device>.cap .tagx{color:var(--primary);font-weight:700}
+  .mobile{width:340px} .tablet{width:470px} .desktop{width:860px}
+  svg{width:1em;height:1em;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── โครงโมดัล ─────────────────────────────────────────────── */
+  .win{display:flex;flex-direction:column;background:#fff;height:600px}
+  .desktop .win{height:560px}
+
+  .mhead{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--d200);flex-shrink:0}
+  .mhead .tt{font-size:14px;font-weight:600;color:var(--d800);display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .mhead .tt .ic{color:var(--primary);font-size:18px}
+  .mhead .cnt{background:var(--p15);color:var(--primary);font-size:11px;font-weight:700;border-radius:999px;
+              padding:2px 9px;flex-shrink:0}
+  .mhead .xbtn{width:36px;height:36px;border:1px solid var(--d300);border-radius:9px;display:flex;
+               align-items:center;justify-content:center;font-size:16px;color:var(--d500);flex-shrink:0}
+  .mhead .backbtn{width:44px;height:44px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+                  font-size:19px;color:var(--d700);background:var(--d100);flex-shrink:0}
+
+  /* toolbar */
+  .toolbar{padding:10px 14px;border-bottom:1px solid var(--d200);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:#fff}
+  .srch{position:relative;display:flex;align-items:center}
+  .srch .si{position:absolute;left:11px;font-size:15px;color:var(--d400)}
+  .srch input{width:100%;border:1px solid var(--d300);border-radius:9px;padding:9px 11px 9px 34px;font-family:inherit;
+              font-size:13px;color:var(--d800);background:#fff}
+  .srch input::placeholder{color:var(--d400)}
+  .trow{display:flex;gap:8px;align-items:center}
+  .chipbtn{display:flex;align-items:center;gap:6px;border:1px solid var(--d300);border-radius:9px;padding:0 11px;
+           height:38px;font-size:12.5px;color:var(--d700);background:#fff;white-space:nowrap}
+  .chipbtn .ic{font-size:15px;color:var(--d500)}
+  .chipbtn.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .chipbtn.on .ic{color:#fff}
+  .trow .grow{flex:1}
+
+  /* list */
+  .listwrap{flex:1;overflow:auto;padding:10px 14px;background:#fff}
+  .qrow{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--d200);border-radius:10px;
+        padding:10px;margin-bottom:8px;background:#fff}
+  .qrow.sel{border-color:var(--primary);background:var(--p05)}
+  .qrow .thumb{position:relative;width:40px;height:40px;border-radius:7px;overflow:hidden;flex-shrink:0;
+               border:1px solid var(--d200);background:linear-gradient(135deg,#c7d2e4,#9fb2cc)}
+  .qrow .thumb .pl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;opacity:.9}
+  .qrow .thumb .more{position:absolute;right:0;bottom:0;background:rgba(37,42,49,.72);color:#fff;font-size:9.5px;
+                     padding:0 3px;line-height:13px}
+  .qrow .mid{flex:1;min-width:0}
+  .qrow .t1{display:flex;align-items:center;gap:6px}
+  .qrow .t1 .nm{font-size:13px;font-weight:600;color:var(--d800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qrow .t1 .cat{background:var(--d100);color:var(--d500);font-size:10px;border-radius:999px;padding:1px 7px;flex-shrink:0}
+  .qrow .bd{font-size:11.5px;color:var(--d500);line-height:1.5;margin-top:3px;
+            display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .qrow .acts{display:flex;gap:5px;flex-shrink:0}
+  .iconbtn44{width:44px;height:44px;border:1px solid var(--d300);border-radius:9px;display:flex;
+             align-items:center;justify-content:center;font-size:16px;color:var(--d500);background:#fff}
+  .iconbtn44.dg{color:var(--danger);border-color:var(--danger-15);background:rgba(229,56,79,.04)}
+  .tapnote{position:relative}
+  .tapnote::after{content:'44px';position:absolute;right:-4px;top:-7px;background:var(--success);color:#fff;
+                  font-size:8px;font-weight:700;border-radius:4px;padding:0 3px;line-height:12px}
+
+  .listfoot{padding:8px 14px;font-size:11px;color:var(--d400);border-top:1px dashed var(--d200);flex-shrink:0}
+
+  /* sticky footer action */
+  .stickyfoot{padding:11px 14px;border-top:1px solid var(--d200);background:#fff;flex-shrink:0}
+  .btnfull{width:100%;height:46px;border-radius:10px;background:var(--primary);color:#fff;font-size:13.5px;
+           font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;border:none;font-family:inherit}
+  .btnfull.ghost{background:#fff;border:1px solid var(--d300);color:var(--d700)}
+
+  /* form */
+  .formwrap{flex:1;overflow:auto;padding:13px 14px;background:#fff}
+  .fld{margin-bottom:12px}
+  .fld>label{display:block;font-size:12px;font-weight:600;color:var(--d700);margin:0 0 5px}
+  .fld>label .opt{color:var(--d400);font-weight:400}
+  .inp{width:100%;border:1px solid var(--d300);border-radius:9px;padding:9px 11px;font-family:inherit;
+       font-size:13px;color:var(--d800);background:#fff;display:block}
+  .inp.ta{min-height:86px;line-height:1.6}
+  .inp.focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--p15)}
+  .cnt2{font-size:10.5px;color:var(--d400);text-align:right;margin-top:4px}
+  .cnt2.warn{color:var(--warning)}
+  .imgs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .imgs .th{position:relative;width:64px;height:64px;border-radius:9px;border:1px solid var(--d200);overflow:hidden;
+            background:linear-gradient(135deg,#c7d2e4,#9fb2cc);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px}
+  .imgs .th .rm{position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:50%;background:rgba(37,42,49,.62);
+                color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .imgs .add{height:44px;padding:0 13px;border:1px dashed var(--d300);border-radius:9px;display:flex;align-items:center;
+             gap:6px;font-size:12.5px;color:var(--d600,#5b626c);background:var(--d50)}
+  .delrow{display:flex;align-items:center;gap:7px;color:var(--danger);font-size:12.5px;font-weight:600;
+          padding:11px 2px;margin-top:4px;border-top:1px solid var(--d200)}
+
+  /* sort mode */
+  .sorthint{display:flex;align-items:center;gap:7px;background:var(--p05);color:var(--primary);font-size:11.5px;
+            padding:9px 14px;border-bottom:1px solid var(--d200);flex-shrink:0}
+  .srow{display:flex;align-items:center;gap:9px;border:1px solid var(--d200);border-radius:10px;padding:7px 9px;
+        margin-bottom:8px;background:#fff}
+  .srow .num{font-size:11px;font-weight:700;color:var(--d400);width:20px;flex-shrink:0}
+  .srow .arrows{display:flex;gap:4px;flex-shrink:0}
+  .srow .nm{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--d800);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow .grip{color:var(--d300);font-size:16px;flex-shrink:0}
+  .srow.drag{border-color:var(--primary);background:var(--p05);box-shadow:var(--shadow)}
+
+  /* empty / error / loading */
+  .estate{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+          padding:26px 26px;gap:9px;background:#fff}
+  .estate .bigic{width:52px;height:52px;border-radius:14px;background:var(--p10);color:var(--primary);
+                 display:flex;align-items:center;justify-content:center;font-size:25px}
+  .estate .bigic.warn{background:var(--warning-15);color:var(--warning)}
+  .estate .h{font-size:14px;font-weight:600;color:var(--d800)}
+  .estate .p{font-size:12px;color:var(--d500);line-height:1.65;max-width:250px}
+  .estate .cta{margin-top:5px;height:44px;padding:0 18px;border-radius:10px;background:var(--primary);color:#fff;
+               font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .estate .cta.ghost{background:#fff;border:1px solid var(--d300);color:var(--d700)}
+  .sk{height:62px;border-radius:10px;background:var(--d100);margin-bottom:8px}
+
+  /* desktop 2-pane */
+  .panes{flex:1;display:flex;min-height:0}
+  .lpane{width:320px;flex-shrink:0;border-right:1px solid var(--d200);display:flex;flex-direction:column;min-height:0}
+  .rpane{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--d50)}
+  .rphead{padding:12px 16px;border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:10px;background:#fff}
+  .rphead .t{font-size:13.5px;font-weight:600;color:var(--d800);flex:1;min-width:0;
+             white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rphead .sub{font-size:11.5px;color:var(--d400);font-weight:400}
+  .rphead .cancel{font-size:12px;color:var(--primary);font-weight:600;flex-shrink:0}
+  .rpbody{flex:1;overflow:auto;padding:14px 16px;background:#fff}
+  .rpfoot{padding:11px 16px;border-top:1px solid var(--d200);display:flex;align-items:center;gap:9px;background:#fff}
+  .rpfoot .del{display:flex;align-items:center;gap:6px;color:var(--danger);font-size:12.5px;font-weight:600;margin-right:auto}
+  .btn{height:42px;padding:0 18px;border-radius:9px;font-size:13px;font-weight:600;display:flex;
+       align-items:center;justify-content:center;gap:7px;font-family:inherit;border:none}
+  .btn.pri{background:var(--primary);color:#fff}
+  .btn.gh{background:#fff;border:1px solid var(--d300);color:var(--d700)}
+  .fldrow{display:flex;gap:12px}
+  .fldrow>.fld{flex:1}
+
+  /* callout */
+  .callout{max-width:960px;background:var(--p05);border:1px solid var(--d200);
+           border-radius:9px;padding:11px 14px;font-size:12.5px;color:var(--d700);line-height:1.7;margin:16px 0 0}
+  .callout.bad{background:rgba(229,56,79,.05)}
+  .callout b{color:var(--d800)}
+</style>
+</head>
+<body>
+
+<svg style="display:none">
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M8 9h8M8 13h4"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M7.5 7.5h.01"/><path d="M3 6v5.172a2 2 0 0 0 .586 1.414l7.71 7.71a2.41 2.41 0 0 0 3.408 0l5.592-5.592a2.41 2.41 0 0 0 0-3.408l-7.71-7.71A2 2 0 0 0 11.172 3H6a3 3 0 0 0-3 3"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M3 9l4-4 4 4M7 5v14M13 15l4 4 4-4M17 19V5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L18.5 9.5a2.83 2.83 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M12.5 21H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v6.5"/><path d="m3 16 4-4a2.8 2.8 0 0 1 4 0l3 3"/><path d="M14 14l1-1a2.8 2.8 0 0 1 3.5-.5"/><path d="M19 16v6M16 19h6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></symbol>
+  <symbol id="i-msgplus" viewBox="0 0 24 24"><path d="M12.5 20H8l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M19 16v6M16 19h6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.24 4.5 2.5 18a2 2 0 0 0 1.74 3h15.52a2 2 0 0 0 1.74-3L13.76 4.5a2 2 0 0 0-3.52 0"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11A8 8 0 0 0 6.3 5.7L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16"/><path d="M20 20v-4h-4"/></symbol>
+</svg>
+
+<h1>Redesign — โมดัล “จัดการข้อความสำเร็จรูป” (QuickMessageManager)</h1>
+<p class="lead">
+  feat 00018 · seller chat · Paces (Preline 4 + Tailwind 4) · primary น้ำเงิน <b>#236dc9</b><br>
+  แก้ปัญหาจัดการ 34+ รายการทั้ง mobile และ desktop — แยก “โหมดดูรายการ” ออกจาก “โหมดฟอร์ม” เด็ดขาด แทนที่จะให้ทั้งคู่ยัดใน scroll เดียวกัน
+</p>
+<p class="meta">2026-07-31 · spec: <code>2026-07-31-quick-message-manager-design.md</code> · ยังไม่ implement — รอ review</p>
+
+<div class="rulebox">
+  <b>ปัญหาที่แก้ (ยืนยันจากโค้ดจริง):</b><br>
+  ① ฟอร์ม “เพิ่ม” กางค้างบนสุดตลอด กินพื้นที่ก่อนถึงรายการทุกครั้ง (<code>:193, :195-288</code>)<br>
+  ② <b>bug หลัก</b> — กดดินสอที่รายการที่ 20 แล้ว “เหมือนไม่มีอะไรเกิดขึ้น” เพราะ <code>startEdit</code> เติมค่าลงฟอร์มบนสุดแต่ไม่เลื่อนจอไปหา (<code>:73-80</code>)<br>
+  ③ ไม่มีค้นหา/กรองหมวดในโมดัล ทั้งที่แถบล่างมีแล้ว (<code>bar:42,71-77</code>)<br>
+  ④ จัดลำดับทำได้เฉพาะที่แถบล่าง ต้องปิดโมดัลออกไป (<code>bar:79-129</code>)<br>
+  ⑤ desktop กว้างแค่ 512px จาก <code>sm:max-w-lg</code> (<code>:181</code>)<br>
+  ⑥ ปุ่มแก้ไข/ลบ ≈30px ต่ำกว่า tap target 44px (<code>:324-334</code>)<br>
+  ⑦ โหลดรายการพังแล้ว catch เงียบ → ขึ้น “ยังไม่มีข้อความ” ทั้งที่จริงคือโหลดไม่สำเร็จ (<code>bar:51-53</code>)
+</div>
+
+<!-- ══════════════════════ MOBILE ══════════════════════ -->
+<h2 class="sec">Mobile · &lt;640px</h2>
+<p class="note">
+  โมดัลเต็มจอ · <b>เปิดมาเจอรายการก่อนเสมอ</b> (ไม่ใช่ฟอร์ม) · ฟอร์มเป็นอีกหน้าที่สลับไปด้วยลูกศรย้อนกลับ ไม่ใช่การเลื่อนจอ
+  · ปุ่มหลักอยู่ sticky footer = โซนนิ้วโป้ง
+</p>
+<div class="frames">
+
+  <!-- Mobile: list -->
+  <div class="device mobile">
+    <div class="cap"><span>1 · หน้ารายการ (ค่าเริ่มต้น)</span><span class="tagx">list = พระเอก</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป <span class="cnt">34</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="toolbar">
+        <div class="srch"><svg class="si"><use href="#i-search"/></svg><input placeholder="ค้นหาหัวข้อหรือเนื้อหา"></div>
+        <div class="trow">
+          <div class="chipbtn"><svg class="ic"><use href="#i-tag"/></svg> หมวด <svg style="font-size:13px"><use href="#i-down"/></svg></div>
+          <div class="grow"></div>
+          <div class="chipbtn"><svg class="ic"><use href="#i-sort"/></svg> จัดลำดับ</div>
+        </div>
+      </div>
+      <div class="listwrap">
+        <div class="qrow">
+          <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+1</span></div>
+          <div class="mid">
+            <div class="t1"><span class="nm">ตามลูกค้า</span><span class="cat">ติดตาม</span></div>
+            <div class="bd">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้ประมาณเท่าไหร่ แจ้งแอดมินได้เลยนะคะ</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44 tapnote"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+        <div class="qrow">
+          <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+3</span></div>
+          <div class="mid">
+            <div class="t1"><span class="nm">รถยุโรป</span><span class="cat">ข้อมูลสินค้า</span></div>
+            <div class="bd">รุ่นนี้จำเป็นต้องติดตั้งระบบกันไฟโชว์นะคะ จึงจะอยู่ในเซต 12,900 บาทขึ้นไปค่ะ</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+        <div class="qrow">
+          <div class="mid">
+            <div class="t1"><span class="nm">ตัดแต่ง+ซิลิโคน</span></div>
+            <div class="bd">รถลูกค้าจะมีค่ากาวเพิ่ม 1,000 บาทนะคะ เนื่องจากรถลูกค้าเป็นโคมกาวแข็ง ต้องใช้น้ำยาโคมพิเศษค่ะ</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+        <div class="qrow">
+          <div class="mid">
+            <div class="t1"><span class="nm">แจ้งเลขพัสดุ</span><span class="cat">การจัดส่ง</span></div>
+            <div class="bd">เลขพัสดุของคุณคือ ... ตรวจสอบสถานะได้ที่ลิงก์นี้เลยค่ะ</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="stickyfoot">
+        <div class="btnfull"><svg><use href="#i-plus"/></svg> เพิ่มข้อความ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile: form -->
+  <div class="device mobile">
+    <div class="cap"><span>2 · หน้าฟอร์ม (กดดินสอ / กดทั้งแถว)</span><span class="tagx">แก้ bug ②</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="backbtn"><svg><use href="#i-back"/></svg></div>
+        <div class="tt" style="font-size:14px">แก้ไขข้อความ</div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="formwrap">
+        <div class="fld">
+          <label>หัวข้อ</label>
+          <div class="inp">ตามลูกค้า</div>
+        </div>
+        <div class="fld">
+          <label>หมวด <span class="opt">(ไม่บังคับ)</span></label>
+          <div class="inp">ติดตาม</div>
+        </div>
+        <div class="fld">
+          <label>ข้อความ</label>
+          <div class="inp ta focus">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้ประมาณเท่าไหร่ แจ้งแอดมินได้เลยนะคะ เดี๋ยวแนะนำตัวที่เหมาะให้ค่ะ</div>
+          <div class="cnt2">118 / 2000</div>
+        </div>
+        <div class="fld">
+          <label>รูปแนบ <span class="opt">(ไม่บังคับ · สูงสุด 5 รูป)</span></label>
+          <div class="imgs">
+            <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+            <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+            <div class="add"><svg><use href="#i-photo"/></svg> เพิ่มรูป</div>
+          </div>
+        </div>
+        <div class="delrow"><svg><use href="#i-trash"/></svg> ลบข้อความนี้</div>
+      </div>
+      <div class="stickyfoot">
+        <div class="btnfull"><svg><use href="#i-check"/></svg> บันทึกการแก้ไข</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile: sort -->
+  <div class="device mobile">
+    <div class="cap"><span>3 · โหมดจัดลำดับ</span><span class="tagx">ปุ่มลูกศร 44px</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดลำดับข้อความ <span class="cnt">34</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="sorthint"><svg><use href="#i-info"/></svg> กดลูกศรเพื่อสลับลำดับ (ลากได้บนคอมพิวเตอร์)</div>
+      <div class="listwrap">
+        <div class="srow">
+          <span class="num">1</span>
+          <div class="arrows">
+            <div class="iconbtn44" style="opacity:.35"><svg><use href="#i-up"/></svg></div>
+            <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+          </div>
+          <span class="nm">ตามลูกค้า</span>
+          <svg class="grip"><use href="#i-grip"/></svg>
+        </div>
+        <div class="srow drag">
+          <span class="num">2</span>
+          <div class="arrows">
+            <div class="iconbtn44 tapnote"><svg><use href="#i-up"/></svg></div>
+            <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+          </div>
+          <span class="nm">รถยุโรป</span>
+          <svg class="grip"><use href="#i-grip"/></svg>
+        </div>
+        <div class="srow">
+          <span class="num">3</span>
+          <div class="arrows">
+            <div class="iconbtn44"><svg><use href="#i-up"/></svg></div>
+            <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+          </div>
+          <span class="nm">ตัดแต่ง+ซิลิโคน</span>
+          <svg class="grip"><use href="#i-grip"/></svg>
+        </div>
+        <div class="srow">
+          <span class="num">4</span>
+          <div class="arrows">
+            <div class="iconbtn44"><svg><use href="#i-up"/></svg></div>
+            <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+          </div>
+          <span class="nm">แจ้งเลขพัสดุ</span>
+          <svg class="grip"><use href="#i-grip"/></svg>
+        </div>
+      </div>
+      <div class="stickyfoot">
+        <div class="btnfull"><svg><use href="#i-check"/></svg> เสร็จสิ้น</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- states -->
+<h2 class="sec">Mobile · สถานะพิเศษ</h2>
+<p class="note">
+  <b>“โหลดพัง” เป็นสถานะใหม่</b> — เดิมโค้ด <code>catch {}</code> เงียบ ทำให้โหลดไม่สำเร็จแล้วขึ้นหน้าตาเดียวกับ “ยังไม่มีข้อความ”
+  ผู้ใช้ที่มี 34 รายการจะนึกว่าข้อมูลหายหมด
+</p>
+<div class="frames">
+
+  <div class="device mobile">
+    <div class="cap"><span>4 · ยังไม่มีข้อความเลย (0 รายการ)</span><span class="tagx">empty ที่สอนใช้งาน</span></div>
+    <div class="win" style="height:420px">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป <span class="cnt">0</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="estate">
+        <div class="bigic"><svg><use href="#i-msgplus"/></svg></div>
+        <div class="h">ยังไม่มีข้อความสำเร็จรูป</div>
+        <div class="p">เพิ่มข้อความที่ใช้บ่อย เช่น ทักทายลูกค้าใหม่ หรือแจ้งเลขพัสดุ จะได้พิมพ์ครั้งเดียวใช้ได้ทุกแชท</div>
+        <div class="cta"><svg><use href="#i-plus"/></svg> เพิ่มข้อความแรก</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device mobile">
+    <div class="cap"><span>5 · ค้นหาไม่พบ</span><span class="tagx">ต่างจาก empty จริง</span></div>
+    <div class="win" style="height:420px">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป <span class="cnt">34</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="toolbar">
+        <div class="srch"><svg class="si"><use href="#i-search"/></svg><input value="ใบกำกับภาษี" style="color:var(--d800)"></div>
+      </div>
+      <div class="estate">
+        <div class="bigic"><svg><use href="#i-search"/></svg></div>
+        <div class="h">ไม่พบข้อความที่ตรงกับคำค้น</div>
+        <div class="p">ลองใช้คำอื่น หรือล้างตัวกรองเพื่อดูทั้ง 34 รายการ</div>
+        <div class="cta ghost"><svg><use href="#i-x"/></svg> ล้างตัวกรอง</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device mobile">
+    <div class="cap"><span>6 · โหลดไม่สำเร็จ <b style="color:var(--danger)">(ใหม่)</b></span><span class="tagx">แก้บั๊ก ⑦</span></div>
+    <div class="win" style="height:420px">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป</div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="estate">
+        <div class="bigic warn"><svg><use href="#i-warn"/></svg></div>
+        <div class="h">โหลดข้อความสำเร็จรูปไม่สำเร็จ</div>
+        <div class="p">ข้อความของคุณยังอยู่ครบ แค่ดึงข้อมูลไม่ได้ตอนนี้ ลองใหม่อีกครั้งได้เลย</div>
+        <div class="cta ghost"><svg><use href="#i-refresh"/></svg> ลองใหม่</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device mobile">
+    <div class="cap"><span>7 · กำลังโหลด</span><span class="tagx">skeleton ไม่ใช่ spinner</span></div>
+    <div class="win" style="height:420px">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป</div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="toolbar">
+        <div class="srch"><svg class="si"><use href="#i-search"/></svg><input placeholder="ค้นหาหัวข้อหรือเนื้อหา"></div>
+      </div>
+      <div class="listwrap">
+        <div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════ TABLET ══════════════════════ -->
+<h2 class="sec">Tablet · 768–1023px</h2>
+<p class="note">
+  ใช้ pattern เดียวกับ mobile (สลับหน้า ไม่ใช่ 2 คอลัมน์) แต่การ์ดกว้างขึ้น และฟอร์มวาง <code>หัวข้อ</code>+<code>หมวด</code> คู่กันได้<br>
+  <b>ทำไมไม่ทำ 2 คอลัมน์ที่ tablet:</b> 768px หัก padding + รายการ 320px แล้ว ฟอร์มจะเหลือแคบเกินใช้งานสบาย (ปุ่มแนบรูป/ช่องข้อความถูกบีบ) — เสี่ยงมากกว่าได้
+</p>
+<div class="frames">
+
+  <div class="device tablet">
+    <div class="cap"><span>8 · หน้ารายการ (tablet)</span><span class="tagx">การ์ดกว้างขึ้น</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป <span class="cnt">34</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="toolbar">
+        <div class="trow">
+          <div class="srch" style="flex:1"><svg class="si"><use href="#i-search"/></svg><input placeholder="ค้นหาหัวข้อหรือเนื้อหา"></div>
+          <div class="chipbtn"><svg class="ic"><use href="#i-tag"/></svg> หมวด <svg style="font-size:13px"><use href="#i-down"/></svg></div>
+          <div class="chipbtn"><svg class="ic"><use href="#i-sort"/></svg> จัดลำดับ</div>
+        </div>
+      </div>
+      <div class="listwrap">
+        <div class="qrow">
+          <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+1</span></div>
+          <div class="mid">
+            <div class="t1"><span class="nm">ตามลูกค้า</span><span class="cat">ติดตาม</span></div>
+            <div class="bd">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้ประมาณเท่าไหร่ แจ้งแอดมินได้เลยนะคะ เดี๋ยวแนะนำตัวที่เหมาะให้ค่ะ</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+        <div class="qrow">
+          <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+3</span></div>
+          <div class="mid">
+            <div class="t1"><span class="nm">รถยุโรป</span><span class="cat">ข้อมูลสินค้า</span></div>
+            <div class="bd">รุ่นนี้จำเป็นต้องติดตั้งระบบกันไฟโชว์นะคะ จึงจะอยู่ในเซต 12,900 บาทขึ้นไปค่ะ หากต่ำกว่านี้จะไม่สามารถติดตั้งได้</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+        <div class="qrow">
+          <div class="mid">
+            <div class="t1"><span class="nm">แจ้งเลขพัสดุ</span><span class="cat">การจัดส่ง</span></div>
+            <div class="bd">เลขพัสดุของคุณคือ ... ตรวจสอบสถานะได้ที่ลิงก์นี้เลยค่ะ</div>
+          </div>
+          <div class="acts">
+            <div class="iconbtn44"><svg><use href="#i-pencil"/></svg></div>
+            <div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="listfoot">แสดง 34 จาก 34 รายการ</div>
+      <div class="stickyfoot">
+        <div class="btnfull"><svg><use href="#i-plus"/></svg> เพิ่มข้อความ</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device tablet">
+    <div class="cap"><span>9 · หน้าฟอร์ม (tablet)</span><span class="tagx">หัวข้อ+หมวด คู่กัน</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="backbtn"><svg><use href="#i-back"/></svg></div>
+        <div class="tt" style="font-size:14px">แก้ไขข้อความ</div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="formwrap">
+        <div class="fldrow">
+          <div class="fld"><label>หัวข้อ</label><div class="inp">ตามลูกค้า</div></div>
+          <div class="fld"><label>หมวด <span class="opt">(ไม่บังคับ)</span></label><div class="inp">ติดตาม</div></div>
+        </div>
+        <div class="fld">
+          <label>ข้อความ</label>
+          <div class="inp ta focus">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้ประมาณเท่าไหร่ แจ้งแอดมินได้เลยนะคะ เดี๋ยวแนะนำตัวที่เหมาะให้ค่ะ</div>
+          <div class="cnt2">118 / 2000</div>
+        </div>
+        <div class="fld">
+          <label>รูปแนบ <span class="opt">(ไม่บังคับ · สูงสุด 5 รูป)</span></label>
+          <div class="imgs">
+            <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+            <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+            <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+            <div class="add"><svg><use href="#i-photo"/></svg> เพิ่มรูป</div>
+          </div>
+        </div>
+        <div class="delrow"><svg><use href="#i-trash"/></svg> ลบข้อความนี้</div>
+      </div>
+      <div class="stickyfoot">
+        <div class="btnfull"><svg><use href="#i-check"/></svg> บันทึกการแก้ไข</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════ DESKTOP ══════════════════════ -->
+<h2 class="sec">Desktop · ≥1024px</h2>
+<p class="note">
+  <b>2 คอลัมน์ถาวร</b> — รายการซ้าย (320px, เลื่อนเอง) / ฟอร์มขวา (ยืดเต็มที่เหลือ) โมดัลกว้าง <code>max-w-5xl</code><br>
+  ฟอร์มอยู่คนละคอลัมน์กับรายการ → <b>ไม่มีทางหลุดนอกจอ</b> = แก้ bug ② ที่ต้นเหตุ ไม่ใช่แค่เลื่อนจอไปหา
+</p>
+<div class="frames">
+
+  <div class="device desktop">
+    <div class="cap"><span>10 · เปิดมาครั้งแรก — ขวาเป็นโหมด “เพิ่ม” อยู่แล้ว</span><span class="tagx">ไม่ต้องกดอะไรก่อน</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป <span class="cnt">34 รายการ</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="panes">
+        <div class="lpane">
+          <div class="toolbar">
+            <div class="srch"><svg class="si"><use href="#i-search"/></svg><input placeholder="ค้นหา..."></div>
+            <div class="trow">
+              <div class="chipbtn"><svg class="ic"><use href="#i-tag"/></svg> หมวด <svg style="font-size:13px"><use href="#i-down"/></svg></div>
+              <div class="grow"></div>
+              <div class="chipbtn"><svg class="ic"><use href="#i-sort"/></svg></div>
+            </div>
+          </div>
+          <div class="listwrap">
+            <div class="qrow">
+              <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+1</span></div>
+              <div class="mid">
+                <div class="t1"><span class="nm">ตามลูกค้า</span><span class="cat">ติดตาม</span></div>
+                <div class="bd">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้...</div>
+              </div>
+            </div>
+            <div class="qrow">
+              <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+3</span></div>
+              <div class="mid">
+                <div class="t1"><span class="nm">รถยุโรป</span><span class="cat">ข้อมูลสินค้า</span></div>
+                <div class="bd">รุ่นนี้จำเป็นต้องติดตั้งระบบกันไฟโชว์นะคะ...</div>
+              </div>
+            </div>
+            <div class="qrow">
+              <div class="mid">
+                <div class="t1"><span class="nm">ตัดแต่ง+ซิลิโคน</span></div>
+                <div class="bd">รถลูกค้าจะมีค่ากาวเพิ่ม 1,000 บาทนะคะ...</div>
+              </div>
+            </div>
+            <div class="qrow">
+              <div class="mid">
+                <div class="t1"><span class="nm">แจ้งเลขพัสดุ</span><span class="cat">การจัดส่ง</span></div>
+                <div class="bd">เลขพัสดุของคุณคือ ... ตรวจสอบสถานะได้ที่ลิงก์นี้ค่ะ</div>
+              </div>
+            </div>
+          </div>
+          <div class="listfoot">แสดง 34 จาก 34 รายการ</div>
+        </div>
+        <div class="rpane">
+          <div class="rphead">
+            <div class="t">เพิ่มข้อความสำเร็จรูป <span class="sub">· เลือกรายการทางซ้ายเพื่อแก้ไข</span></div>
+          </div>
+          <div class="rpbody">
+            <div class="fldrow">
+              <div class="fld"><label>หัวข้อ</label><div class="inp" style="color:var(--d400)">เช่น ทักทาย, แจ้งเลขพัสดุ</div></div>
+              <div class="fld"><label>หมวด <span class="opt">(ไม่บังคับ)</span></label><div class="inp" style="color:var(--d400)">เช่น การจัดส่ง, ราคา</div></div>
+            </div>
+            <div class="fld">
+              <label>ข้อความ</label>
+              <div class="inp ta" style="color:var(--d400)">พิมพ์เนื้อหาข้อความสำเร็จรูป...</div>
+              <div class="cnt2">0 / 2000</div>
+            </div>
+            <div class="fld">
+              <label>รูปแนบ <span class="opt">(ไม่บังคับ · สูงสุด 5 รูป)</span></label>
+              <div class="imgs"><div class="add"><svg><use href="#i-photo"/></svg> เพิ่มรูป</div></div>
+            </div>
+          </div>
+          <div class="rpfoot">
+            <div class="btn gh" style="margin-left:auto">ล้างฟอร์ม</div>
+            <div class="btn pri"><svg><use href="#i-plus"/></svg> เพิ่มข้อความ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device desktop">
+    <div class="cap"><span>11 · คลิกแถวไหน — ฟอร์มขวาสลับเป็น “แก้ไข” ทันที</span><span class="tagx">แก้ bug ② ที่ต้นเหตุ</span></div>
+    <div class="win">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดการข้อความสำเร็จรูป <span class="cnt">34 รายการ</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="panes">
+        <div class="lpane">
+          <div class="toolbar">
+            <div class="srch"><svg class="si"><use href="#i-search"/></svg><input placeholder="ค้นหา..."></div>
+            <div class="trow">
+              <div class="chipbtn"><svg class="ic"><use href="#i-tag"/></svg> หมวด <svg style="font-size:13px"><use href="#i-down"/></svg></div>
+              <div class="grow"></div>
+              <div class="chipbtn"><svg class="ic"><use href="#i-sort"/></svg></div>
+            </div>
+          </div>
+          <div class="listwrap">
+            <div class="qrow sel">
+              <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+1</span></div>
+              <div class="mid">
+                <div class="t1"><span class="nm">ตามลูกค้า</span><span class="cat">ติดตาม</span></div>
+                <div class="bd">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้...</div>
+              </div>
+              <div class="acts"><div class="iconbtn44 dg"><svg><use href="#i-trash"/></svg></div></div>
+            </div>
+            <div class="qrow">
+              <div class="thumb"><div class="pl"><svg><use href="#i-photo"/></svg></div><span class="more">+3</span></div>
+              <div class="mid">
+                <div class="t1"><span class="nm">รถยุโรป</span><span class="cat">ข้อมูลสินค้า</span></div>
+                <div class="bd">รุ่นนี้จำเป็นต้องติดตั้งระบบกันไฟโชว์นะคะ...</div>
+              </div>
+            </div>
+            <div class="qrow">
+              <div class="mid">
+                <div class="t1"><span class="nm">ตัดแต่ง+ซิลิโคน</span></div>
+                <div class="bd">รถลูกค้าจะมีค่ากาวเพิ่ม 1,000 บาทนะคะ...</div>
+              </div>
+            </div>
+            <div class="qrow">
+              <div class="mid">
+                <div class="t1"><span class="nm">แจ้งเลขพัสดุ</span><span class="cat">การจัดส่ง</span></div>
+                <div class="bd">เลขพัสดุของคุณคือ ... ตรวจสอบสถานะได้ที่ลิงก์นี้ค่ะ</div>
+              </div>
+            </div>
+          </div>
+          <div class="listfoot">แสดง 34 จาก 34 รายการ</div>
+        </div>
+        <div class="rpane">
+          <div class="rphead">
+            <div class="t">แก้ไข: ตามลูกค้า</div>
+            <div class="cancel">ยกเลิกการแก้ไข</div>
+          </div>
+          <div class="rpbody">
+            <div class="fldrow">
+              <div class="fld"><label>หัวข้อ</label><div class="inp">ตามลูกค้า</div></div>
+              <div class="fld"><label>หมวด <span class="opt">(ไม่บังคับ)</span></label><div class="inp">ติดตาม</div></div>
+            </div>
+            <div class="fld">
+              <label>ข้อความ</label>
+              <div class="inp ta focus">ลูกค้าสนใจรุ่นไหนเป็นพิเศษไหมคะ หรือตั้งงบไว้ประมาณเท่าไหร่ แจ้งแอดมินได้เลยนะคะ เดี๋ยวแนะนำตัวที่เหมาะให้ค่ะ</div>
+              <div class="cnt2">118 / 2000</div>
+            </div>
+            <div class="fld">
+              <label>รูปแนบ <span class="opt">(ไม่บังคับ · สูงสุด 5 รูป)</span></label>
+              <div class="imgs">
+                <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+                <div class="th"><svg><use href="#i-photo"/></svg><div class="rm"><svg><use href="#i-x"/></svg></div></div>
+                <div class="add"><svg><use href="#i-photo"/></svg> เพิ่มรูป</div>
+              </div>
+            </div>
+          </div>
+          <div class="rpfoot">
+            <div class="del"><svg><use href="#i-trash"/></svg> ลบข้อความนี้</div>
+            <div class="btn gh">ยกเลิก</div>
+            <div class="btn pri"><svg><use href="#i-check"/></svg> บันทึกการแก้ไข</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device desktop">
+    <div class="cap"><span>12 · โหมดจัดลำดับ (desktop) — ลากได้ด้วย</span><span class="tagx">ค้นหา/กรองซ่อนไป</span></div>
+    <div class="win" style="height:460px">
+      <div class="mhead">
+        <div class="tt"><svg class="ic"><use href="#i-msg"/></svg> จัดลำดับข้อความสำเร็จรูป <span class="cnt">34 รายการ</span></div>
+        <div class="xbtn"><svg><use href="#i-x"/></svg></div>
+      </div>
+      <div class="panes">
+        <div class="lpane">
+          <div class="sorthint"><svg><use href="#i-info"/></svg> กดลูกศร หรือลากเพื่อสลับลำดับ</div>
+          <div class="listwrap">
+            <div class="srow">
+              <span class="num">1</span>
+              <div class="arrows">
+                <div class="iconbtn44" style="opacity:.35"><svg><use href="#i-up"/></svg></div>
+                <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+              </div>
+              <span class="nm">ตามลูกค้า</span><svg class="grip"><use href="#i-grip"/></svg>
+            </div>
+            <div class="srow drag">
+              <span class="num">2</span>
+              <div class="arrows">
+                <div class="iconbtn44"><svg><use href="#i-up"/></svg></div>
+                <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+              </div>
+              <span class="nm">รถยุโรป</span><svg class="grip"><use href="#i-grip"/></svg>
+            </div>
+            <div class="srow">
+              <span class="num">3</span>
+              <div class="arrows">
+                <div class="iconbtn44"><svg><use href="#i-up"/></svg></div>
+                <div class="iconbtn44"><svg><use href="#i-down"/></svg></div>
+              </div>
+              <span class="nm">ตัดแต่ง+ซิลิโคน</span><svg class="grip"><use href="#i-grip"/></svg>
+            </div>
+          </div>
+          <div class="stickyfoot">
+            <div class="btnfull"><svg><use href="#i-check"/></svg> เสร็จสิ้น</div>
+          </div>
+        </div>
+        <div class="rpane">
+          <div class="rphead"><div class="t">เพิ่มข้อความสำเร็จรูป <span class="sub">· ฟอร์มยังใช้ได้ตามปกติ</span></div></div>
+          <div class="rpbody">
+            <div class="fldrow">
+              <div class="fld"><label>หัวข้อ</label><div class="inp" style="color:var(--d400)">เช่น ทักทาย, แจ้งเลขพัสดุ</div></div>
+              <div class="fld"><label>หมวด <span class="opt">(ไม่บังคับ)</span></label><div class="inp" style="color:var(--d400)">เช่น การจัดส่ง, ราคา</div></div>
+            </div>
+            <div class="fld">
+              <label>ข้อความ</label>
+              <div class="inp ta" style="color:var(--d400)">พิมพ์เนื้อหาข้อความสำเร็จรูป...</div>
+              <div class="cnt2">0 / 2000</div>
+            </div>
+          </div>
+          <div class="rpfoot">
+            <div class="btn gh" style="margin-left:auto">ล้างฟอร์ม</div>
+            <div class="btn pri"><svg><use href="#i-plus"/></svg> เพิ่มข้อความ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="callout">
+  <b>สิ่งที่ยังคงเดิมทุกอย่าง (ไม่แตะ):</b> confirm ก่อนลบด้วย Sweet Alert · toast ผ่าน <code>pacesToast</code> (มุมขวาบน) ·
+  badge หมวดในการ์ด · thumbnail + ป้าย <code>+N</code> · ปิดด้วย ESC/คลิกพื้นหลัง · ตรรกะอัปโหลดรูปและข้อจำกัด
+  (หัวข้อ 80 · หมวด 40 · ข้อความ 2000 · รูป 5 · ไฟล์ละ 5MB) · API เดิมทั้งหมด ไม่มี endpoint ใหม่
+</div>
+
+<div class="callout bad">
+  <b>ยังไม่ implement</b> — เอกสารนี้เป็นแบบให้ review ก่อน ทุก block มี Theme Source Mapping ชี้ไฟล์ Paces จริงในสเปก
+  <code>2026-07-31-quick-message-manager-design.md</code> (Controller ตรวจแล้วว่าทุก path มีอยู่จริง)
+  · ไอคอนทั้งหมดในภาพนี้เป็น SVG แทนภาพ ของจริงใช้ <code>Icon</code> wrapper (tabler) — ไม่มี emoji ตาม Hard Rule 12
+</div>
+
+</body>
+</html>

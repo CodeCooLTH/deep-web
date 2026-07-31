@@ -229,7 +229,7 @@ const ProductCard = ({
           pointerEvents: 'none',
         }}
       >
-        <Box component='span' sx={{ display: 'block', fontSize: '14px', fontWeight: 800 }}>
+        <Box component='span' sx={{ display: 'block', fontSize: '15px', fontWeight: 800 }}>
           {priceLabel}
         </Box>
         {product.soldCount > 0 && (
@@ -276,7 +276,7 @@ const ProductCard = ({
               gap: '6px',
               bgcolor: 'white',
               color: '#2F2B3D',
-              fontSize: '12.5px',
+              fontSize: '13px',
               fontWeight: 700,
               borderRadius: '999px',
               px: '14px',
@@ -324,8 +324,8 @@ export const ProfileRightContent = ({
         <Box id='pinned-products' sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
           <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#808390' }} />
           <Box>
-            <Typography sx={{ color: '#808390', fontSize: '14px' }}>{L.empty}</Typography>
-            <Typography sx={{ color: '#808390', fontSize: '12px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
+            <Typography sx={{ color: '#808390', fontSize: '15px' }}>{L.empty}</Typography>
+            <Typography sx={{ color: '#808390', fontSize: '13px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
           </Box>
         </Box>
       ) : (
