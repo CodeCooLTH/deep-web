@@ -169,7 +169,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">ประวัติสถานะคำสั่งซื้อ</h4>
+        <h4 className="card-title">ประวัติคำสั่งซื้อ</h4>
       </div>
       <div className="card-body p-5 sm:p-7.5">
         {timelineItems.length === 0 ? (
@@ -227,7 +227,13 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
 
                   {/* คอลัมน์ขวา: title+badge / เวลา / description / actor — min-w-0 ให้ข้อความไทยพันบรรทัดได้ */}
                   <div className={cn('flex-1 min-w-0', isLast ? '' : 'pb-5')}>
-                    <div className="flex justify-between gap-2">
+                    {/* T12 (browser QA fix, S-3 mockup): เดิม flex justify-between วาง [title+badge] กับ
+                        [เวลา] บรรทัดเดียวกัน — คอลัมน์ขวาแคบ (~363px ที่ lg:col-span-1) บีบทุกอย่างจน
+                        title/badge/เวลาตัด 3-4 บรรทัด ตอนนี้ stack เป็นดีฟอลต์ (title+badge บรรทัดบน,
+                        เวลาบรรทัดล่าง) แล้วค่อยกลับมาเป็นแถวเดียวที่ sm (ตอน<1024 การ์ดนี้ยังกว้างเต็ม
+                        คอลัมน์เดียว มีที่พอ) ก่อนบีบกลับเป็น stack อีกครั้งที่ lg (จุดที่ grid หัก 25%
+                        ให้คอลัมน์นี้แคบลงจริง — ตรงกับที่ QA วัดได้) */}
+                    <div className="mb-1.25 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2 lg:flex-col lg:items-start lg:gap-1">
                       {/* title ต้องไม่ใช่ heading จริง (h5) — theme ต้นทาง (ExpandedActivity.tsx) ซ้อน
                           badge <span> ไว้ใน <h5> ทำให้เกิด heading ปลอมซ้ำหลายอันต่อหน้า + screen-reader
                           outline พัง (S-3). ใช้ <p> + badge เป็น sibling แทน — WCAG AA เป็น non-negotiable
@@ -238,11 +244,11 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                           ไม่ได้ set font-size ใน _reboot.css จึง inherit token --text-body + --color-body-color
                           ของเดิม การเปลี่ยนมาเป็น --text-md/--color-default-800 จึงเป็นการเปลี่ยนตาม spec
                           โดยตั้งใจ ไม่ใช่ของที่บังเอิญเท่ากัน */}
-                      <div className="flex items-center min-w-0 mb-1.25">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                         <p className={cn('text-md font-medium', item.isPending ? 'text-default-400' : 'text-default-800')}>
                           {item.title}
                         </p>
-                        <span className={cn('badge badge-label ms-2.5', badge.className)}>{badge.label}</span>
+                        <span className={cn('badge badge-label whitespace-nowrap shrink-0', badge.className)}>{badge.label}</span>
                       </div>
                       {(item.time || item.isPending) && (
                         <span className="text-xs whitespace-nowrap shrink-0 text-default-400">

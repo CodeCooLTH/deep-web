@@ -6,8 +6,9 @@
  * - เปลี่ยน content เป็น per-order review: rating (ใช้ Rating wrapper), comment, reviewer label
  * - ลบ: avatar image, country flag, dropdown actions, contact list (ไม่ใช่ scope นี้)
  * - เพิ่ม: empty-state ภาษาไทยถ้าไม่มีรีวิว
- * - reviewer label: รับ reviewerLabel (already-safe string) จาก RSC — mask เสร็จแล้วที่ server boundary
- *   ตาม PII constraint S-C1 — ห้ามส่ง raw phone/email ข้าม RSC→client; ห้าม mask ใน client component
+ * - reviewer label: รับ reviewerLabel จาก RSC — เป็น raw displayName/contact ตรง ๆ (ไม่ mask)
+ *   ตาม user decision 2026-07-30 (โชว์เบอร์เต็มทั้งหน้า) — S-C1 คุมแค่ neutralize-at-source
+ *   (scope shopId กัน flight payload หลุดไปหาคนที่ไม่ควรเห็น) ไม่ใช่ "ต้อง mask เสมอ"
  * - date → ISO string เพราะข้ามขอบเขต RSC → client ไม่ได้ถ้าเป็น Date object
  */
 
@@ -21,9 +22,8 @@ export interface OrderReviewData {
   /** comment อาจเป็น null */
   comment: string | null
   /**
-   * safe label สำหรับแสดงผู้รีวิว — mask เสร็จแล้วที่ RSC boundary (S-C1)
-   * ค่าเป็น displayName (public) หรือ masked contact หรือ 'ผู้ซื้อนิรนาม'
-   * ห้ามส่ง raw phone/email มาใน field นี้หรือ field อื่น
+   * label สำหรับแสดงผู้รีวิว — displayName (public) หรือ raw contact (เบอร์/อีเมล) เต็ม
+   * หรือ 'ผู้ซื้อ (ไม่ระบุชื่อ)' — ไม่ mask ตาม user decision 2026-07-30
    */
   reviewerLabel: string
   /** ISO string ของ review.createdAt */
@@ -53,7 +53,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
           </div>
         ) : (
           <>
-            {/* reviewer label: ใช้ reviewerLabel ที่ mask แล้วจาก server — ไม่ต้อง mask ที่นี่ (S-C1) */}
+            {/* reviewer label: raw จาก server (ไม่ mask — ดู comment หัวไฟล์) */}
             <div className="mb-5 flex items-center gap-2.5">
               <span className="btn btn-icon bg-light text-default-800 size-8! rounded-full shrink-0">
                 <Icon icon="user" className="text-base" />

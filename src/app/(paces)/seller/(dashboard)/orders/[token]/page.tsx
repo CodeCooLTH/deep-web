@@ -20,7 +20,13 @@
  * - ลบ (ไม่มีใคร import แล้ว — verified grep): OrderSummary.tsx, CustomerDetails.tsx,
  *   PaymentCard.tsx, ShippingCard.tsx — เนื้อหารวมเข้า OrderFactsCard.tsx หมดแล้ว (T6)
  * - คง: data fetching (getOrderForShop + buyer.avatar + product.images), auth guard, shop
- *   ownership check, PII mask/neutralize ที่ server boundary (S-C1 — ห้ามแตะ), Date→ISO ก่อนส่งข้าม RSC
+ *   ownership check, PII neutralize ที่ server boundary (S-C1 — ห้ามแตะ; ไม่ใช่ "mask" — โชว์เบอร์เต็ม
+ *   ตามมติ user 2026-07-30, ดู comment ที่ reviewerLabel ด้านล่าง), Date→ISO ก่อนส่งข้าม RSC
+ *
+ * T12 (browser QA fix) — RSC serialization error "Only plain objects can be passed to Client
+ * Components": OrderFactsCard เป็น 'use client' รับ items[].price/discount/vatRate/vatAmount/
+ * totalAmount เป็น Prisma `Decimal` ดิบ (ไม่ใช่ plain object) ข้ามขอบเขต RSC→client ไม่ได้ — แปลงเป็น
+ * `Number()` ที่ server boundary นี้ก่อนส่งทุกจุด (เหมือน Date→ISO ที่ทำอยู่แล้ว)
  */
 
 import { getServerSession } from 'next-auth'
@@ -75,14 +81,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
 
-  // สร้าง review data — mask PII ที่ RSC boundary ก่อนส่งข้าม (S-C1)
-  // ห้ามส่ง raw phone/email ข้ามขอบเขต RSC→client แม้แต่ฟิลด์เดียว
-  // เฉพาะ masked string หรือ displayName (public) เท่านั้นที่ข้ามได้
-  // user decision 2026-07-30: โชว์เบอร์เต็มทั้งหน้า
+  // สร้าง review data — ส่งข้าม RSC boundary ที่นี่ (S-C1: neutralize-at-source, ไม่ใช่ "mask")
+  // user decision 2026-07-30: โชว์เบอร์/ชื่อผู้ซื้อเต็มทั้งหน้า (ไม่มาส์ก)
   // เดิมมาส์กเหลือ 4 ตัวท้ายตาม S-C1 แต่ทำให้ขัดกันเอง — การ์ดจัดส่ง (iShip) โชว์เบอร์เต็ม
   // อยู่แล้วบนจอเดียวกัน การมาส์กฝั่งซ้ายจึงไม่ได้กันอะไร มีแต่ทำให้ร้านกดโทรหาลูกค้าไม่ได้
   // หน้านี้โหลดได้เฉพาะเจ้าของร้านที่เป็นเจ้าของออเดอร์ (scope shopId ใน WHERE) — flight payload
-  // จึงไม่ได้ส่งให้ใครที่ไม่ควรเห็นอยู่แล้ว
+  // จึงไม่ได้ส่งให้ใครที่ไม่ควรเห็นอยู่แล้ว — reviewerLabel จึงเป็น raw contact/displayName ตรง ๆ
   const reviewerLabel: string = (() => {
     if (order.buyer?.displayName) return order.buyer.displayName
     const raw = order.review?.reviewerContact ?? order.buyerContact ?? null
@@ -94,7 +98,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     ? {
         rating: order.review.rating,
         comment: order.review.comment ?? null,
-        // reviewerLabel คือ safe label ที่ mask แล้วจาก server — ไม่มี raw contact ข้ามมา
+        // reviewerLabel คือ raw contact/displayName จาก server (ไม่ mask — ดู comment ด้านบน)
         reviewerLabel,
         createdAtISO: (order.review.createdAt as Date).toISOString(),
       }
@@ -203,14 +207,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
                   name: item.name,
                   description: item.description ?? null,
                   qty: item.qty,
-                  price: item.price,
+                  // Decimal (Prisma) ไม่ใช่ plain object — ข้าม RSC→client boundary ไม่ได้ (T12 fix)
+                  price: Number(item.price),
                   imageUrl,
                 }
               })}
-              discount={order.discount ?? null}
-              vatRate={order.vatRate ?? null}
-              vatAmount={order.vatAmount ?? null}
-              totalAmount={order.totalAmount}
+              discount={order.discount != null ? Number(order.discount) : null}
+              vatRate={order.vatRate != null ? Number(order.vatRate) : null}
+              vatAmount={order.vatAmount != null ? Number(order.vatAmount) : null}
+              totalAmount={Number(order.totalAmount)}
               paymentMethod={order.paymentMethod ?? null}
               salesChannel={order.salesChannel ?? null}
               slipFileId={order.slipFileId ?? null}
