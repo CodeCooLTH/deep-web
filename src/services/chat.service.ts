@@ -184,8 +184,6 @@ export async function listConversationsForShop(
     readState?: 'unread' | 'read'
     // spam (feature 00018): false/undefined = รายการปกติ (ตัดสแปมออก), true = ดูเฉพาะสแปม
     spam?: boolean
-    /** true = ไม่กรองสแปมทิ้ง (แท็บ "ทั้งหมด") — ต่างจาก spam ที่แปลว่า "เห็นเฉพาะสแปม" */
-    includeSpam?: boolean
     // tags (user สั่ง 2026-07-31): กรองด้วยแท็กของผู้ติดต่อ — "ติดอันใดก็ได้" (OR) ไม่ใช่ต้องครบทุกอัน
     tags?: string[]
     // shipment (user สั่ง 2026-07-31): สถานะพัสดุของออเดอร์ล่าสุด — เฉพาะร้านที่เชื่อม iShip
@@ -243,13 +241,9 @@ export async function listConversationsForShop(
       ...(status === 'open' ? { resolvedAt: null } : status === 'resolved' ? { resolvedAt: { not: null } } : {}),
       // สแปม (feature 00018): "ดูสแปม" โชว์เฉพาะสแปม และไม่กรอง isHidden (สแปมเป็นถังแยก —
       // ดูทั้งหมดในนั้น) เพื่อไม่ให้เธรดสแปมหายไปด้วย 2 เงื่อนไข
-      // includeSpam (user สั่ง 2026-07-31): แท็บ "ทั้งหมด" ไม่กรองสแปมทิ้ง — เดิมชื่อแท็บว่า
-      // "ทั้งหมด" แต่ตัดทั้งเธรดที่ปิดงานและสแปมออก ผู้ใช้จึงหาเธรดที่เพิ่งปิดไปไม่เจอ
-      ...(opts.spam
-        ? { isSpam: true }
-        : opts.includeSpam
-          ? { isHidden: hidden }
-          : { isSpam: false, isHidden: hidden }),
+      // แท็บ "ทั้งหมด" รวมเธรดที่ปิดงานแล้ว (status 'all') แต่ยังตัดสแปมออกเสมอ —
+      // user ลองรวมสแปมแล้วขอถอยกลับ 2026-07-31: ถังสแปมต้องเป็นถังแยกจริง ๆ
+      ...(opts.spam ? { isSpam: true } : { isSpam: false, isHidden: hidden }),
       ...(orParts.length > 0 ? { AND: orParts } : {}),
     },
     { ...opts, pinnedFirst: true },
