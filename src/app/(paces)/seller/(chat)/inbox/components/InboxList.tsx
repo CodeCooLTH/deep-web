@@ -1099,15 +1099,6 @@ export default function InboxList({
                         channel={c.channel}
                         imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
                       />
-                      {/* จำนวนที่ยังไม่อ่าน — มุมบนขวาของรูปโปรไฟล์ (user สั่ง 2026-07-31)
-                          เดิมอยู่คอลัมน์ขวาใต้เวลา ซึ่งอยู่คนละฝั่งกับสิ่งที่มันหมายถึง สายตาต้อง
-                          กวาดข้ามทั้งแถวถึงจะรู้ว่าเธรดไหนมีข้อความใหม่ ติดกับ avatar แล้วเห็นพร้อมกัน
-                          ในสายตาเดียว (ring-card = เส้นขอบสีพื้นการ์ด กันเลขจมไปกับรูป) */}
-                      {unread && (
-                        <span className="bg-danger ring-card absolute -top-1 -end-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white ring-2">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )}
                     </span>
                     {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
                         เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน
@@ -1250,9 +1241,14 @@ export default function InboxList({
                       <span className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
-                      {/* badge จำนวนที่ยังไม่อ่านย้ายไปมุมบนขวาของ avatar แล้ว (user สั่ง 2026-07-31)
-                          และ badge "ปิดงานแล้ว" ถูกแทนด้วยไอคอน check หน้าชื่อ — คอลัมน์นี้จึงเหลือ
-                          แค่เวลากับชิปกลุ่ม */}
+                      {/* จำนวนที่ยังไม่อ่าน — คอลัมน์ขวา ใต้เวลา เหนือชิปกลุ่ม (user สั่ง 2026-07-31
+                          หลังลองแบบติดมุม avatar แล้วเลือกกลับมาที่เดิม) คงรูปวงกลมไว้ตามที่สั่ง
+                          badge "ปิดงานแล้ว" ไม่อยู่ตรงนี้แล้ว (เป็นไอคอน check หน้าชื่อ) จึงไม่เบียดกัน */}
+                      {unread && (
+                        <span className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                     </span>
                     {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (แท็บ "ทั้งหมด" เท่านั้น; ในแท็บกลุ่มเองไม่ย้ำ) */}
                     {groupChip && (
