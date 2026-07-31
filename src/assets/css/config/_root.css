@@ -165,6 +165,26 @@
     --color-default-900: var(--color-zinc-100);
     --color-default-950: var(--color-zinc-50);
 
+    /* [dark] "หมึก" ต้องกลับด้าน — ค่าใน @theme เป็นสีเข้ม (#7f1d1d, #1e3a8a) ซึ่งออกแบบมาให้อยู่บน
+       พื้น {semantic}/15 บน "การ์ดขาว" พอ --color-card กลายเป็น #1e1f27 พื้นชิปจะเข้มตาม แล้วหมึกเข้ม
+       บนพื้นเข้มตกคอนทราสต์ทันที (danger #7f1d1d บน rgb(63,39,52) = 1.29:1) — latent bug ตอนที่ยัง
+       hardcode data-theme="light" อยู่ที่ (paces)/layout.tsx แต่จะโผล่ทันทีที่เปิด dark mode
+       ตัวเลขต่อไปนี้ **วัดจากจอจริง** (Chrome, computed color + พื้นหลังที่ composite แล้ว, สลับ
+       data-theme=dark บนหน้า seller จริง) ไม่ใช่คำนวณบนกระดาษ — พื้นชิปที่วัดได้อยู่ในวงเล็บ:
+         warning/15 + #fcd34d → 8.22:1  (พื้น rgb(62,54,46))
+         info/15    + #7dd3fc → 7.35:1  (พื้น rgb(39,55,67))
+         success/15 + #6ee7b7 → 8.47:1  (พื้น rgb(25,54,56))
+         danger/15  + #fda4af → 7.19:1  (พื้น rgb(62,39,52))
+         primary/15 + #93c5fd → 7.99:1  (พื้น rgb(30,42,63))
+       ต่ำสุด 7.19:1 ผ่าน AA 4.5:1 ทุกช่อง — margin เผื่อไว้เพราะชิปชุดนี้ไปโผล่บนพื้นเข้มได้หลายชั้น
+       (card #1e1f27 / body #17181e / default-100 #272832) ซึ่งคำนวณแล้วต่ำสุดยังได้ 6.40:1
+       หลักฐานการวัด: docs/qa/2026-07-31-ink-token-contrast.md */
+    --color-warning-ink: #fcd34d;
+    --color-info-ink: #7dd3fc;
+    --color-success-ink: #6ee7b7;
+    --color-danger-ink: #fda4af;
+    --color-primary-ink: #93c5fd;
+
     .text-dark {
         color: #dce0fb !important;
     }

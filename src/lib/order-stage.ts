@@ -23,17 +23,28 @@ export type OrderStageKey =
   | 'COMPLETED'
   | 'CANCELLED'
 
-/** cls ใช้ pattern เดียวกับ ORDER_STATUS_META (bg-{semantic}/15 text-{semantic}) — Paces token ล้วน */
+/**
+ * cls ใช้ pattern เดียวกับ ORDER_STATUS_META (`bg-{semantic}/15 text-{semantic}-ink`) — Paces token ล้วน
+ *
+ * เดิมใช้ `text-{semantic}` ตรงตัว ซึ่งตกคอนทราสต์ AA 4.5:1 ทุกช่อง เพราะสี semantic ของ Paces
+ * ถูกเลือกมาให้เป็น *พื้น* ไม่ใช่ *หมึก* (วัดบนพื้นชิปจริง = {semantic}/15 บนการ์ดขาว):
+ *   warning 1.54:1 · info 1.84:1 · success 2.11:1 · danger 2.68:1 · primary 4.17:1
+ * เปลี่ยนมาใช้ token "หมึก" (`--color-{semantic}-ink`, src/assets/css/config/_root.css) ผ่านทุกช่อง:
+ *   warning 6.56:1 · info 7.88:1 · success 6.68:1 · danger 8.47:1 · primary 8.44:1
+ * ตัวเลขทั้งสองชุดวัดจากจอจริง (computed color + พื้นหลังที่ composite แล้ว บนแถวรายการแชท
+ * seller.deepth.local/inbox) ไม่ใช่คำนวณบนกระดาษ — ดู docs/qa/2026-07-31-ink-token-contrast.md
+ * token มี override ฝั่ง [data-theme="dark"] แล้ว (วัดแล้วเช่นกัน ต่ำสุด 7.19:1) จึงไม่พังตอนเปิด dark mode
+ */
 export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: string; icon: string }> = {
-  ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary', icon: 'shopping-cart' },
-  PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary', icon: 'package' },
-  LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning', icon: 'printer' },
-  SHIPPING: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info', icon: 'truck-delivery' },
-  DELIVERED: { label: 'จัดส่งสำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
+  ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'shopping-cart' },
+  PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'package' },
+  LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'printer' },
+  SHIPPING: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info-ink', icon: 'truck-delivery' },
+  DELIVERED: { label: 'จัดส่งสำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled' },
   // COMPLETED = ปิดการขายแล้วโดยไม่มีการส่งของ (ขายหน้าร้าน/สินค้าดิจิทัล/บริการ) — ห้ามใช้คำว่า
   // "จัดส่งสำเร็จ" ตรงนี้ เพราะไม่มีอะไรถูกส่งเลย
-  COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success', icon: 'circle-check-filled' },
-  CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger', icon: 'circle-x' },
+  COMPLETED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled' },
+  CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x' },
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
