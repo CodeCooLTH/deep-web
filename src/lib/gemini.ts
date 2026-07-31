@@ -214,6 +214,22 @@ export async function generateReplySuggestions(
     parts.push({ inline_data: { mime_type: m.mimeType, data: m.dataBase64 } })
   }
 
+  /**
+   * ปิด/ลดการ "คิด" ให้ตรงตามรุ่น — นี่คือตัวแปรที่ชี้ขาดเรื่องความเร็วของฟีเจอร์นี้
+   * (user 2026-07-31: "อยากได้คิดไวๆ เพราะข้อมูล prompt นึงไม่เยอะ")
+   *
+   * WARNING: สองพารามิเตอร์นี้ใช้ปนกันไม่ได้ เอกสารระบุตรง ๆ ว่า "avoid using thinking_level
+   * with the legacy thinking_budget parameter" — ส่งผิดรุ่นเสี่ยง 400 ทั้ง request
+   *   2.5 series : thinkingBudget = 0 ปิดสนิทได้ (flash-lite ไม่คิดอยู่แล้วโดยดีฟอลต์)
+   *   3.x series : thinkingLevel = "low" ลดได้ต่ำสุดเท่านี้ ปิดสนิทไม่ได้
+   * อ้างอิง ai.google.dev/gemini-api/docs/generate-content/thinking (ตรวจผ่าน context7 2026-07-31)
+   */
+  const thinkingConfigFor = (model: string): Record<string, unknown> | undefined => {
+    if (model.startsWith('gemini-2.5')) return { thinkingBudget: 0 }
+    if (model.startsWith('gemini-3')) return { thinkingLevel: 'low' }
+    return undefined // รุ่นที่ไม่รู้จัก: ไม่ส่งอะไรเลย ดีกว่าเดาแล้วโดนปฏิเสธทั้ง request
+  }
+
   const requestBody = {
     system_instruction: { parts: [{ text: buildSystemPrompt({ ...ctx, hasMedia: media.length > 0 }) }] },
     contents: [{ role: 'user', parts }],
@@ -244,7 +260,15 @@ export async function generateReplySuggestions(
       attempt = await fetch(GEMINI_ENDPOINT(model, key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        // แนบ thinkingConfig ตามรุ่นที่กำลังลอง — ต้องอยู่ในลูป ไม่ใช่นอกลูป เพราะแต่ละรุ่น
+        // ในสายสำรองใช้พารามิเตอร์คนละตัว (ดู thinkingConfigFor)
+        body: JSON.stringify({
+          ...requestBody,
+          generationConfig: {
+            ...requestBody.generationConfig,
+            ...(thinkingConfigFor(model) ? { thinkingConfig: thinkingConfigFor(model) } : {}),
+          },
+        }),
         signal: AbortSignal.timeout(media.length > 0 ? REQUEST_TIMEOUT_MEDIA_MS : REQUEST_TIMEOUT_MS),
       })
     } catch (e) {
