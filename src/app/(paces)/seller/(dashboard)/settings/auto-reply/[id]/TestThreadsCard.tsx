@@ -13,7 +13,7 @@
  * WARNING: การเพิ่มแชทเข้ารายการนี้ = ระบบจะส่งข้อความถึง "คนจริง" ในแชทนั้นเมื่อเขาทักเข้ามา
  * จึงต้องยืนยันก่อนเสมอ (pacesConfirm) และ API บังคับ `confirmed: true` ซ้ำอีกชั้น
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
@@ -109,15 +109,29 @@ type Props = {
   status: string
   canEdit: boolean
   onCountChange: (count: number) => void
+  /**
+   * ตัวนับที่พ่อเพิ่มค่าเพื่อ "สั่งเปิดแผงเลือกแชท" จากข้างนอก (S-10 prop contract / OR-3)
+   *
+   * ใช้ตัวนับไม่ใช่ boolean เพราะพ่ออาจสั่งเปิดซ้ำหลายครั้งติดกัน — boolean ที่เป็น true อยู่แล้ว
+   * จะไม่ทริกเกอร์ effect รอบสอง ทำให้กดปุ่มครั้งที่สองแล้วไม่มีอะไรเกิดขึ้น
+   */
+  openPickerSignal?: number
 }
 
-export default function TestThreadsCard({ keywordId, status, canEdit, onCountChange }: Props) {
+export default function TestThreadsCard({
+  keywordId,
+  status,
+  canEdit,
+  onCountChange,
+  openPickerSignal = 0,
+}: Props) {
   const [threads, setThreads] = useState<TestThread[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [picking, setPicking] = useState(false)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [search, setSearch] = useState('')
+  const cardRef = useRef<HTMLDivElement>(null)
 
   const reload = useCallback(async () => {
     try {
@@ -134,6 +148,20 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
   useEffect(() => {
     reload()
   }, [reload])
+
+  /**
+   * พ่อสั่งเปิดแผงเลือกแชทได้ (S-10 prop contract) — ใช้แก้ทางตัน: กด "ทดสอบ" ตอนยังไม่มีแชท
+   * แล้ว server ปฏิเสธ (ต้องมี >=1 แชทก่อน) แต่แผงเลือกแชทอยู่ไกลจากปุ่ม ผู้ใช้จึงติดวงกลม
+   * ข้าม signal=0 เพราะเป็นค่าเริ่มต้น ไม่ใช่คำสั่ง — ไม่งั้นแผงจะกางเองตอนโหลดหน้า
+   */
+  useEffect(() => {
+    if (openPickerSignal > 0) {
+      openPicker()
+      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    // openPicker เปลี่ยน identity ทุก render (function ในบอดี้) — ผูกกับ signal อย่างเดียว
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPickerSignal])
 
   async function openPicker() {
     setPicking(true)
@@ -209,7 +237,7 @@ export default function TestThreadsCard({ keywordId, status, canEdit, onCountCha
     .filter((c) => !q || c.name.toLowerCase().includes(q))
 
   return (
-    <div className="card">
+    <div className="card" ref={cardRef}>
       <div className="card-header flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           {/* หัวการ์ด "รอง" — scale เดียวกับ [A] ตั้งค่ากลุ่มคำ (text-md + ไอคอนเปล่า size-4)

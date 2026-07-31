@@ -388,6 +388,8 @@ export default function InboxList({
         pacesToast.chat.error('ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง')
         return
       }
+      // สแปม/เอาออกจากสแปม = ตัวเลขบนแท็บเปลี่ยนแน่ ๆ → ข้าม throttle
+      if (action === 'spam' || action === 'unspam') void refreshSpamUnread(true)
       const TOAST: Record<RowAction, string> = {
         pin: 'ปักหมุดบทสนทนาแล้ว',
         unpin: 'เลิกปักหมุดแล้ว',
@@ -572,9 +574,45 @@ export default function InboxList({
   })
 
   /** debounce กันกรณีข้อความรัวหลายห้องพร้อมกัน → refresh ทีเดียว */
+  /**
+   * จำนวนสแปมที่ยังไม่อ่าน สำหรับ badge บนแท็บ "สแปม" (user สั่ง 2026-07-31)
+   *
+   * performance: ตัวเลขนี้ไม่ได้ไปกับ response ของ list (list ถูกยิงทุกครั้งที่เปลี่ยนตัวกรอง
+   * และทุก 20 วินาทีจาก poll ส่วน InboxList ยัง mount พร้อมกัน 2 ตัวเสมอ — ChatRail + หน้า inbox)
+   * จึงเป็น endpoint แยกที่ throttle เอง 60 วินาที ยกเว้นจังหวะที่ตัวเลข "ต้องเปลี่ยนแน่ ๆ"
+   * คือกดสแปม/เอาออกจากสแปม และตอนเปิดอ่านเธรด ซึ่ง force ทันที
+   * ฝั่ง service ก็หยุดนับที่ 100 แถวอยู่แล้ว (UI แสดงแค่ 99+)
+   */
+  const [spamUnread, setSpamUnread] = useState(0)
+  const spamFetchedAt = useRef(0)
+  const refreshSpamUnread = useCallback(async (force = false) => {
+    const now = Date.now()
+    if (!force && now - spamFetchedAt.current < 60_000) return
+    spamFetchedAt.current = now
+    try {
+      const res = await fetch('/api/chat/spam-unread', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as { count?: number }
+      setSpamUnread(typeof data.count === 'number' ? data.count : 0)
+    } catch {
+      // เงียบ — badge เป็นข้อมูลเสริม ไม่คุ้มที่จะรบกวนผู้ใช้เมื่อดึงไม่สำเร็จ
+    }
+  }, [])
+  const refreshSpamUnreadRef = useRef(refreshSpamUnread)
+  useEffect(() => {
+    refreshSpamUnreadRef.current = refreshSpamUnread
+  })
+  useEffect(() => {
+    void refreshSpamUnreadRef.current(true)
+  }, [])
+
   const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
-    refreshTimer.current = setTimeout(() => refreshRef.current(), 400)
+    refreshTimer.current = setTimeout(() => {
+      refreshRef.current()
+      // throttle 60 วินาทีอยู่ในตัวมันเอง — ไม่ได้ยิงตามทุกรอบ poll
+      void refreshSpamUnreadRef.current()
+    }, 400)
   }, [])
 
   useEffect(() => {
@@ -617,6 +655,8 @@ export default function InboxList({
 
   useEffect(() => {
     if (!activeConversationId) return
+    // เธรดที่เพิ่งเปิดอาจเป็นสแปม → badge ต้องลดทันที ไม่ต้องรอ throttle
+    void refreshSpamUnreadRef.current(true)
     setLocalReadAt((prev) => ({ ...prev, [activeConversationId]: new Date().toISOString() }))
   }, [activeConversationId])
 
@@ -788,6 +828,12 @@ export default function InboxList({
                 >
                   {t.icon && <Icon icon={t.icon} width={14} height={14} className="shrink-0" />}
                   {t.label}
+                  {/* จำนวนสแปมที่ยังไม่อ่าน — เฉพาะแท็บสแปม (user สั่ง 2026-07-31) */}
+                  {t.key === 'SPAM' && spamUnread > 0 && (
+                    <span className="bg-danger flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white">
+                      {spamUnread > 99 ? '99+' : spamUnread}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -828,18 +874,23 @@ export default function InboxList({
                   role="menu"
                   className="border-default-300 bg-card absolute end-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-lg border py-1 shadow-lg"
                 >
+                  {/* ออกจากกลุ่ม = กลับไปมุมมอง "ทั้งหมด" เต็มรูป ไม่ใช่แค่ล้าง activeGroupId
+                      (user report 2026-07-31: กดแล้วแท็บทั้งหมดด้านนอกไม่ active) — การเข้ากลุ่ม
+                      ตั้ง status เป็น 'open' ไว้ด้วย ถ้าล้างแค่ id เดียว status ยังค้างที่ 'open'
+                      ซึ่งไม่ตรงกับแท็บไหนเลย. ใช้ selectViewTab ตัวเดียวกับแท็บด้านนอกจึงกลับไปตรงกันเสมอ
+                      ป้ายใช้คำว่า "ทั้งหมด" ให้ตรงกับแท็บที่มันพากลับไป (user สั่ง) */}
                   <button
                     type="button"
                     role="menuitemradio"
                     aria-checked={activeGroupId === null}
                     onClick={() => {
-                      setActiveGroupId(null)
+                      selectViewTab('ALL')
                       setOpenPanel(null)
                     }}
                     className="dropdown-item text-sm"
                   >
                     <Icon icon="check" className={`size-4 ${activeGroupId === null ? 'text-primary' : 'opacity-0'}`} />
-                    ทุกกลุ่ม
+                    ทั้งหมด
                   </button>
 
                   {groups.map((g) => (
@@ -1048,6 +1099,15 @@ export default function InboxList({
                         channel={c.channel}
                         imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
                       />
+                      {/* จำนวนที่ยังไม่อ่าน — มุมบนขวาของรูปโปรไฟล์ (user สั่ง 2026-07-31)
+                          เดิมอยู่คอลัมน์ขวาใต้เวลา ซึ่งอยู่คนละฝั่งกับสิ่งที่มันหมายถึง สายตาต้อง
+                          กวาดข้ามทั้งแถวถึงจะรู้ว่าเธรดไหนมีข้อความใหม่ ติดกับ avatar แล้วเห็นพร้อมกัน
+                          ในสายตาเดียว (ring-card = เส้นขอบสีพื้นการ์ด กันเลขจมไปกับรูป) */}
+                      {unread && (
+                        <span className="bg-danger ring-card absolute -top-1 -end-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white ring-2">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                     </span>
                     {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
                         เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน
@@ -1190,14 +1250,9 @@ export default function InboxList({
                       <span className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
-                      {/* badge "ปิดงานแล้ว" ถูกแทนด้วยไอคอน check หน้าชื่อแล้ว (2026-07-31) —
-                          เดิมมันเบียด badge ยังไม่อ่านออกไป ทำให้เธรดที่ปิดงานแต่มีข้อความใหม่
-                          ไม่เห็นจำนวนที่ยังไม่อ่านเลย ตอนนี้แสดงได้พร้อมกันแล้ว */}
-                      {unread && (
-                        <span className="badge text-2xs bg-danger text-white">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )}
+                      {/* badge จำนวนที่ยังไม่อ่านย้ายไปมุมบนขวาของ avatar แล้ว (user สั่ง 2026-07-31)
+                          และ badge "ปิดงานแล้ว" ถูกแทนด้วยไอคอน check หน้าชื่อ — คอลัมน์นี้จึงเหลือ
+                          แค่เวลากับชิปกลุ่ม */}
                     </span>
                     {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (แท็บ "ทั้งหมด" เท่านั้น; ในแท็บกลุ่มเองไม่ย้ำ) */}
                     {groupChip && (

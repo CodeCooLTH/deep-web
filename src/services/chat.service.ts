@@ -315,6 +315,34 @@ export async function unreadConversationIdsForShop(shopId: string): Promise<stri
   return rows.map((r) => r.id)
 }
 
+/**
+ * countUnreadSpamConversations — จำนวนเธรด "สแปมที่ยังไม่อ่าน" สำหรับ badge บนแท็บสแปม
+ * (user สั่ง 2026-07-31: นับเฉพาะที่ยังไม่อ่าน เกิน 99 แสดง 99+)
+ *
+ * นิยาม "ยังไม่อ่าน" ยกมาจาก unreadConversationIdsForShop ตัวเดียวกันเป๊ะ (SSOT) เพิ่มแค่
+ * isSpam = true — ถ้าแก้เงื่อนไขที่นั่นต้องแก้ที่นี่ด้วย ไม่งั้นตัวเลขบนแท็บกับรายการจะไม่ตรงกัน
+ *
+ * performance: หยุดนับที่ 100 แถว (LIMIT ใน subquery) — UI แสดงแค่ "99+" อยู่แล้ว จึงไม่มี
+ * เหตุผลให้ scan สแปมทั้งกอง ร้านที่โดนสแปมถล่มคือเคสที่ต้องระวังที่สุดพอดี. วิ่งบน index
+ * ChatMessage(conversationId, createdAt) ที่มีอยู่แล้ว เหมือน unreadConversationIdsForShop
+ */
+export async function countUnreadSpamConversations(shopId: string): Promise<number> {
+  const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+    SELECT count(*)::bigint AS n FROM (
+      SELECT DISTINCT c.id
+      FROM "Conversation" c
+      JOIN "ChatMessage" m ON m."conversationId" = c.id
+      WHERE c."shopId" = ${shopId}
+        AND c."isSpam" = true
+        AND m."senderRole" = 'BUYER'
+        AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
+        AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
+      LIMIT 100
+    ) t
+  `
+  return Number(rows[0]?.n ?? 0)
+}
+
 export async function listConversationsForBuyer(
   buyerUserId: string,
   opts: { cursor?: string; take?: number } = {},
