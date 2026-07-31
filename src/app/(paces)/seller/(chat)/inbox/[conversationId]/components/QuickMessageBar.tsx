@@ -38,6 +38,7 @@ type Props = {
 export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
   const [items, setItems] = useState<QuickMessage[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
   const [q, setQ] = useState('')
 
@@ -45,11 +46,15 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
     setLoading(true)
     try {
       const res = await fetch('/api/chat/quick-messages', { cache: 'no-store' })
-      if (!res.ok) return
+      if (!res.ok) throw new Error('failed')
       const data: { items: QuickMessage[] } = await res.json()
       setItems(data.items)
+      setLoadError(false)
     } catch {
-      // เงียบ — แผงสำเร็จรูปเป็น enhancement ไม่ควรทำให้ composer พัง
+      // ไม่ throw ต่อ — แผงสำเร็จรูปเป็น enhancement ไม่ควรทำให้ composer พัง
+      // แต่ต้อง "บอกว่าโหลดไม่ได้" ไม่ใช่เงียบ: เดิม catch เปล่าแล้วปล่อย items=[] ทำให้ทั้งแผงและ
+      // modal จัดการขึ้น "ยังไม่มีข้อความสำเร็จรูป" ทั้งที่ผู้ใช้มีอยู่ 30+ รายการ → นึกว่าข้อมูลหาย
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -210,6 +215,15 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                 <div key={i} className="bg-default-100 h-36 w-32 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลด" />
               ))}
             </>
+          ) : loadError ? (
+            /* โหลดพัง ≠ ไม่มีข้อมูล — ต้องแยกให้ชัด ไม่งั้นผู้ใช้ที่มี 30+ รายการนึกว่าข้อความหายหมด */
+            <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
+              <Icon icon="alert-triangle" className="text-warning text-2xl" />
+              <span>โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
+              <button type="button" onClick={load} className="btn border-default-300 min-h-11">
+                <Icon icon="refresh" className="me-1" /> ลองใหม่
+              </button>
+            </div>
           ) : items.length === 0 ? (
             <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
               <Icon icon="message-plus" className="text-default-500 text-2xl" />
@@ -328,7 +342,14 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
       </div>
 
       {managerOpen && (
-        <QuickMessageManager items={items} onClose={() => setManagerOpen(false)} onChanged={load} />
+        <QuickMessageManager
+          items={items}
+          loading={loading}
+          error={loadError}
+          onRetry={load}
+          onClose={() => setManagerOpen(false)}
+          onChanged={load}
+        />
       )}
     </>
   )
