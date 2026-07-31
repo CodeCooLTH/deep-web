@@ -79,3 +79,43 @@
     --fc-button-active-bg-color: var(--color-primary);
     --fc-button-active-border-color: var(--color-primary);
 }
+
+/**
+ * ปุ่ม "จอง" ในช่องวัน — โผล่ตอนชี้เมาส์ ไม่ใช่โชว์ค้างทุกช่อง
+ * (user สั่ง 2026-07-31: "hover วันที่นั้น ๆ สามารถสร้างการจองได้จาก Calendar เลย")
+ *
+ * ซ่อนด้วย opacity ไม่ใช่ display:none เพราะ FullCalendar คำนวณความสูงช่องจาก DOM จริง
+ * ถ้าสลับ display ช่องจะกระตุกตอนชี้
+ */
+.appointment-calendar .appt-day-add {
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+.appointment-calendar .fc-daygrid-day:hover .appt-day-add,
+.appointment-calendar .fc-daygrid-day:focus-within .appt-day-add {
+    opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+    .appointment-calendar .appt-day-add {
+        transition: none;
+    }
+}
+
+/* วันที่ใกล้เต็ม/เต็ม — ย้อมพื้นอ่อน ๆ ให้กวาดตาเห็นทั้งเดือนว่าวันไหนยังรับได้
+   ใช้ token ของ Paces ไม่ hardcode hex (Hard Rule 7) */
+.appointment-calendar .appt-day-tight {
+    background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+.appointment-calendar .appt-day-full {
+    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+/* วันเต็มกดไม่ได้ — ป้ายบอกเป็นสีเตือน ไม่ใช่สี primary ที่ชวนให้กด */
+.appointment-calendar .appt-day-full .appt-day-add {
+    color: var(--color-danger-ink);
+}
+.appointment-calendar .appt-day-full .appt-day-cap {
+    color: var(--color-danger-ink);
+}
+.appointment-calendar .appt-day-tight .appt-day-cap {
+    color: var(--color-warning-ink);
+}

@@ -441,6 +441,22 @@ export default function OrderCreateForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
+  /**
+   * feature 00024 — วันที่นัดที่ส่งมาจากปฏิทินคิว (?appointmentDate=YYYY-MM-DD)
+   *
+   * ปฏิทินเปิดหน้านี้พร้อมวันที่ที่ผู้ใช้กดไว้ เพื่อไม่ต้องกรอกซ้ำ
+   * (user สั่ง 2026-07-31: "อยากให้เมื่อ hover วันที่นั้น ๆ สร้างการจองได้จาก Calendar เลย")
+   *
+   * IMPORTANT: เติมแค่ "วันที่" ไม่เลือกคิวงานให้ — ปฏิทินไม่รู้ว่าผู้ใช้ตั้งใจคิวงานไหน
+   * และการเลือกให้เองจะทำให้ผู้ใช้เผลอบันทึกผิดคิวงานโดยไม่ทันสังเกต
+   */
+  useEffect(() => {
+    if (!serviceResourcesEnabled) return
+    const d = searchParams.get('appointmentDate')
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setValue('appointment.date', d)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, serviceResourcesEnabled])
+
   // ── ★ default channel/payment ที่ seller ตั้งไว้ (localStorage) → override ตอน mount (client-only) ──
   // key ตรงกับ ChannelPaymentSelect (DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY); ใส่ใน useForm defaultValues ไม่ได้ (SSR ไม่มี window)
   useEffect(() => {
