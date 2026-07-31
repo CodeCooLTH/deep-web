@@ -27,7 +27,7 @@ const CASES: ReadonlyArray<readonly [code: string, status: number, error: string
   [
     'AUTO_REPLY_KEYWORD_NO_ANSWER',
     400,
-    'เปิดใช้ไม่ได้ — ยังไม่มีข้อความตอบกลับ ใส่คำตอบใน "ทุกกรณีที่เหลือ" ก่อน',
+    'เปิดใช้ไม่ได้ — ยังไม่มีข้อความตอบกลับ ใส่ "คำตอบปกติ" ก่อน',
   ],
   [
     'AUTO_REPLY_KEYWORD_NO_TEST_THREAD',

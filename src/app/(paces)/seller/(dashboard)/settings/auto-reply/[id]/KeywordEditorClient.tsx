@@ -191,7 +191,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
     const d: string[] = []
     if (name !== keyword.name) d.push('ชื่อกลุ่ม')
     if (priority !== keyword.priority) d.push('ลำดับความสำคัญ')
-    if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบหลัก')
+    if (defaultReply !== (defaultRule?.replyText ?? '')) d.push('คำตอบปกติ')
     return d
   }, [name, priority, defaultReply, keyword, defaultRule])
 
@@ -355,7 +355,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
      */
     const ok = await pacesConfirm.danger(
       'ลบเงื่อนไขเฉพาะข้อนี้?',
-      'ข้อความตอบของข้อนี้จะหายไป และกู้คืนไม่ได้ — กรณีที่เคยเข้าข้อนี้จะไปใช้คำตอบใน "ทุกกรณีที่เหลือ" แทน',
+      'ข้อความตอบของข้อนี้จะหายไป และกู้คืนไม่ได้ — กรณีที่เคยเข้าข้อนี้จะไปใช้ "คำตอบปกติ" แทน',
       { confirmButtonText: 'ลบเงื่อนไข' },
     )
     if (!ok) return
@@ -656,19 +656,16 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                 {/* แถวสุดท้าย = คำตอบพื้นฐานตัวจริง · เส้น accent ซ้ายอยู่ที่ "แถว" ไม่ใช่ขอบการ์ด
                     accent จึงชี้ของจริงและไม่ซ้อน 2 ชั้น (accepted exception ตาม DESIGN.md §6 / spec §7) */}
                 <li className="border-s-primary border-s-3 px-4.75 py-3">
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                    {/* label ครอบเฉพาะข้อความ ห้ามครอบ badge — ไม่งั้น accessible name ของ textarea เพี้ยน */}
+                  {/* ชื่อ "คำตอบปกติ" ไม่ใช่ "ทุกกรณีที่เหลือ" และไม่มี badge กำกับ (user +
+                      /impeccable clarify 2026-07-31): ของเดิมนิยามด้วยการปฏิเสธ 2 ชั้นซ้อนกัน
+                      ("ที่เหลือ" + "ไม่เข้าข้อไหนเลย") ซึ่งบังคับให้คนอ่านนึกเซ็ตทั้งหมดก่อนแล้ว
+                      ค่อยลบออก = รูปที่ยากที่สุดสำหรับกลุ่ม digital-literacy ต่ำ ซึ่ง PRODUCT.md
+                      ระบุเป็นผู้ใช้หลัก · badge ถูกตัดเพราะพูดซ้ำกับชื่อ และข้อมูลนั้นมีอยู่แล้วที่
+                      บรรทัดกลไกบนหัวการ์ด + ตำแหน่งแถวที่อยู่ล่างสุด */}
+                  <div className="mb-1.5">
                     <label htmlFor="k-fallback-reply" className="text-default-800 mb-0 text-sm font-semibold">
-                      ทุกกรณีที่เหลือ
+                      คำตอบปกติ
                     </label>
-                    {/* outline ไม่ใช่ tint: .badge ย่อขนาดเป็น 0.75em (ตัวเล็ก) เกณฑ์ contrast จึงเป็น
-                        4.5:1 แต่ default-700 บน default-200 ได้ 4.17 (ตก) ส่วน default-700 บน
-                        bg-card ได้ 4.69 (ผ่าน) และตรงกับ CL-12 ที่ให้ป้าย "อ่านอย่างเดียว" ของ
-                        หน้ารายการเป็น outline เหมือนกัน — เขียนคำว่า em แบบไม่มีวงเล็บเหลี่ยม
-                        เพราะ grep gate ของ Hard Rule 7 จะจับคอมเมนต์เป็น arbitrary value */}
-                    <span className="badge border-default-300 bg-card text-default-700 border">
-                      ใช้เมื่อไม่เข้าข้อไหนเลย
-                    </span>
                   </div>
                   {/* WARNING: ห้ามห่อ textarea ด้วย div ที่มี border แล้วสั่ง border-0 ที่ตัว textarea —
                       `_forms.css` ของ Paces ไม่ห่อ @layer ทำให้ style ระดับ element ชนะ utility ของ
@@ -678,7 +675,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                   <textarea id="k-fallback-reply" className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
                     maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
                     placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
-                    aria-label="ทุกกรณีที่เหลือ" />
+                    aria-label="คำตอบปกติ" />
                   <div className="mt-1.5 flex justify-end">
                     <span className="text-default-400 text-2xs">{defaultReply.length}/{REPLY_MAX}</span>
                   </div>

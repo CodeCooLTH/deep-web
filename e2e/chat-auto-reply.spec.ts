@@ -90,7 +90,7 @@ test.describe('ตอบแชทอัตโนมัติ — เส้นท
     }
 
     // ── 4) คำตอบหลัก + บันทึก ──────────────────────────────────────
-    await page.getByLabel('ทุกกรณีที่เหลือ').fill('สนใจรายการไหนคะ ส่งชื่อสินค้ามาได้เลยค่ะ')
+    await page.getByLabel('คำตอบปกติ').fill('สนใจรายการไหนคะ ส่งชื่อสินค้ามาได้เลยค่ะ')
     // แถบบันทึกเป็น sticky — เลื่อนให้เข้าที่ก่อน ไม่งั้น Playwright ตัดสินว่า element ยังไม่นิ่ง
     const saveBtn = page.getByRole('button', { name: 'บันทึกการเปลี่ยนแปลง' })
     await saveBtn.scrollIntoViewIfNeeded()

@@ -84,7 +84,7 @@ const ERROR_MAP = new Map<string, { status: number; error: string }>(
   },
   AUTO_REPLY_KEYWORD_NO_ANSWER: {
     status: 400,
-    error: 'เปิดใช้ไม่ได้ — ยังไม่มีข้อความตอบกลับ ใส่คำตอบใน "ทุกกรณีที่เหลือ" ก่อน',
+    error: 'เปิดใช้ไม่ได้ — ยังไม่มีข้อความตอบกลับ ใส่ "คำตอบปกติ" ก่อน',
   },
   AUTO_REPLY_KEYWORD_NO_TEST_THREAD: {
     status: 400,
