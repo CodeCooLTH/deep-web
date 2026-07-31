@@ -1584,6 +1584,21 @@ model AiSuggestUsageEvent {
   // รายงาน) เพื่อ group by วันปฏิทินไทยแบบ exact-match ได้ตรงกับตัวนับโควตา สำหรับ admin cost
   // dashboard ในอนาคต (Deferred, NFR-AIQ-Obs) — ต่างจาก createdAt (timestamp เต็ม, ใช้ sort/range)
   businessDay    String
+
+  // --- ต้นทุนจริงต่อครั้ง (user 2026-07-31: "จะได้คิดราคาขายได้") ---
+  //
+  // อ่านจาก usageMetadata ของ Gemini ไม่ใช่ประมาณจากความยาวข้อความ — โมเดล 3.x เป็น thinking
+  // model ที่เผา token "คิด" ก่อนตอบ ซึ่งนับรวมใน outputTokens และมองไม่เห็นจากคำตอบที่ได้
+  // นี่คือเหตุผลที่ต้นทุนจริงสูงกว่าที่เดาจากตัวอักษรมาก
+  //
+  // nullable ทั้งหมด: แถวเก่าก่อนฟีเจอร์นี้ไม่มีค่า และ Gemini อาจไม่ส่ง usageMetadata มา
+  // ซึ่งต้องไม่ทำให้บันทึกการใช้งานหายไปทั้งแถว
+  aiModel      String? // รุ่นที่ตอบจริง — อาจไม่ใช่ตัวแรกใน MODEL_CANDIDATES ถ้าถอยไปตัวสำรอง
+  inputTokens  Int?
+  outputTokens Int? // รวม thinking token
+  // Decimal ไม่ใช่ Float: ค่าอยู่ระดับเศษสตางค์ ($0.0042) และจะถูกเอาไป sum เพื่อตั้งราคาขาย
+  costUsd      Decimal? @db.Decimal(12, 8)
+
   createdAt      DateTime @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)

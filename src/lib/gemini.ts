@@ -1,3 +1,4 @@
+import type { TokenUsage } from '@/lib/ai-pricing'
 import 'server-only'
 
 // Gemini helper (server-only) — feature 00018 composer improvement #3 (AI ช่วยร่างคำตอบ)
@@ -172,11 +173,22 @@ function extractJsonObject(raw: string): string {
  * generateReplySuggestions — คืนข้อความร่าง 3 แบบสำหรับให้แอดมินเลือก/แก้ก่อนส่ง
  * throw GeminiNotConfiguredError ถ้าไม่มี key, GeminiApiError ถ้า Gemini ตอบผิดพลาด/parse ไม่ได้
  */
+export type SuggestResult = {
+  suggestions: string[]
+  /**
+   * token ที่ใช้จริงจาก `usageMetadata` ของ Gemini — null เมื่อ API ไม่ส่งมา
+   *
+   * ต้องอ่านจากที่นี่เท่านั้น ห้ามประมาณจากความยาวข้อความ: โมเดล 3.x เป็น thinking model
+   * ที่เผา token "คิด" ก่อนตอบ ซึ่งนับรวมใน output และมองไม่เห็นจากคำตอบที่ได้
+   */
+  usage: TokenUsage | null
+}
+
 export async function generateReplySuggestions(
   turns: SuggestTurn[],
   ctx: SuggestContext,
   media: SuggestMedia[] = [],
-): Promise<string[]> {
+): Promise<SuggestResult> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new GeminiNotConfiguredError()
 
@@ -212,6 +224,7 @@ export async function generateReplySuggestions(
   // เท่านั้น; error อื่น (401 key ผิด, 429 โควตาหมด, 400 payload ผิด) ถอยไปก็เจอเหมือนเดิม
   // ต้องโยนทันทีเพื่อให้เห็นสาเหตุจริง ไม่ใช่ไล่ยิงซ้ำเปล่า ๆ
   let res: Response | null = null
+  let usedModel = ''
   let lastError = ''
   for (const model of MODEL_CANDIDATES) {
     let attempt: Response
@@ -228,6 +241,7 @@ export async function generateReplySuggestions(
 
     if (attempt.ok) {
       res = attempt
+      usedModel = model
       break
     }
 
@@ -247,7 +261,20 @@ export async function generateReplySuggestions(
       content?: { parts?: { text?: string; thought?: boolean }[] }
       finishReason?: string
     }[]
+    // usageMetadata: จำนวน token ที่ใช้จริงของรอบนี้ (feature 00019 — แสดงต้นทุนต่อครั้งใน UI)
+    // candidatesTokenCount รวม thinking token แล้ว ตรงกับที่ Google คิดเงิน
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number }
   } | null
+
+  const um = data?.usageMetadata
+  const usage: TokenUsage | null =
+    um && typeof um.promptTokenCount === 'number'
+      ? {
+          inputTokens: um.promptTokenCount,
+          outputTokens: um.candidatesTokenCount ?? Math.max(0, (um.totalTokenCount ?? 0) - um.promptTokenCount),
+          model: usedModel,
+        }
+      : null
 
   const candidate = data?.candidates?.[0]
   // ต่อ text ของทุก part ที่ไม่ใช่ thought — ห้ามอ่านแค่ parts[0] เหมือนเดิม: โมเดลรุ่นใหม่แบ่ง
@@ -276,5 +303,5 @@ export async function generateReplySuggestions(
     .filter((s) => s.length > 0)
     .slice(0, 3)
   if (cleaned.length === 0) throw new GeminiApiError('no usable suggestions')
-  return cleaned
+  return { suggestions: cleaned, usage }
 }

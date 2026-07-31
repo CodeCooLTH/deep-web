@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import Swal from 'sweetalert2'
+import { formatUsd, type UsageCost } from '@/lib/ai-pricing'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 
@@ -67,6 +68,11 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
   const [quotaError, setQuotaError] = useState<string | null>(null)
   const [suggestError, setSuggestError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<string[]>([])
+  /**
+   * ต้นทุนจริงของรอบล่าสุด (user 2026-07-31: "จะได้คิดราคาขายได้")
+   * null = ยังไม่เคยขอ หรือ Gemini ไม่ส่ง usageMetadata กลับมา — ต้องไม่แสดง 0 หลอกตา
+   */
+  const [cost, setCost] = useState<UsageCost | null>(null)
 
   // POST ai-suggest แบบ auto (unlimited path / free path เท่านั้น — credit path ยิงผ่าน handleUseCredit
   // ใน Swal preConfirm แยกต่างหาก ไม่ผ่านฟังก์ชันนี้)
@@ -88,6 +94,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
         return
       }
       setSuggestions(Array.isArray(data?.suggestions) ? data.suggestions : [])
+      setCost((data?.cost as UsageCost | null) ?? null)
       setPhase('success')
     } catch {
       setSuggestError(GENERIC_RETRY_MESSAGE)
@@ -177,8 +184,9 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
     })
 
     if (result.isConfirmed && result.value) {
-      const data = result.value as { suggestions?: string[] }
+      const data = result.value as { suggestions?: string[]; cost?: UsageCost | null }
       setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : [])
+      setCost(data.cost ?? null)
       setPhase('success')
       // API ไม่ส่ง balance หลังหักกลับมาตรง ๆ (contract response 200 มีแค่ suggestions/usedCredit/freeRemaining)
       // คำนวณจากยอดที่รู้ล่าสุด (จาก GET ai-quota) ลบราคาคงที่ ฿1 — ค่าประมาณที่ดีที่สุดที่ client มี
@@ -289,8 +297,20 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
       </div>
 
       {/* footer disclaimer — ไม่มีเส้นคั่นในตัว (ดูเหตุผลที่ header) */}
-      <div className="text-default-400 pt-1.5 text-2xs">
-        AI สร้างคำแนะนำ — ตรวจทานก่อนส่งทุกครั้ง
+      <div className="text-default-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-1.5 text-2xs">
+        <span>AI สร้างคำแนะนำ — ตรวจทานก่อนส่งทุกครั้ง</span>
+        {/* ต้นทุนจริงของรอบนี้ (user 2026-07-31) — แสดงเสมอเมื่อมีค่า ไม่ซ่อนหลังการกดใด ๆ
+            เพราะจุดประสงค์คือให้ร้านเห็นสะสมจนคาดเดาได้เองว่าเดือนหนึ่งจะเท่าไหร่ */}
+        {cost && (
+          <span
+            className="text-default-500 tabular-nums"
+            title={`${cost.model} · เข้า ${cost.inputTokens.toLocaleString()} token · ออก ${cost.outputTokens.toLocaleString()} token (รวม token ที่ใช้คิด)${cost.isEstimate ? ' · ไม่มีเรตของรุ่นนี้ ใช้เรตสูงสุดแทน' : ''}`}
+          >
+            · รอบนี้ {(cost.inputTokens + cost.outputTokens).toLocaleString()} token{' '}
+            {cost.isEstimate ? '≤ ' : ''}
+            {formatUsd(cost.costUsd)}
+          </span>
+        )}
       </div>
     </div>
   )

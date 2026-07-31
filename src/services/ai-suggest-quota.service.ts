@@ -166,6 +166,12 @@ export async function logUsageEvent(input: {
   conversationId: string
   kind: 'FREE' | 'CREDIT' | 'UNLIMITED_PLAN'
   amountBaht?: number
+  /**
+   * ต้นทุนจริงของรอบนี้ (user 2026-07-31) — undefined เมื่อ Gemini ไม่ส่ง usageMetadata มา
+   * เก็บเป็น null ไม่ใช่ 0: "ไม่รู้ต้นทุน" กับ "ต้นทุนศูนย์" ต่างกัน และถ้าเขียน 0 ค่าเฉลี่ย
+   * ที่เอาไปตั้งราคาขายจะต่ำกว่าความจริง
+   */
+  cost?: { model: string; inputTokens: number; outputTokens: number; costUsd: number }
 }): Promise<void> {
   try {
     await prisma.aiSuggestUsageEvent.create({
@@ -176,6 +182,10 @@ export async function logUsageEvent(input: {
         amountBaht: input.amountBaht ?? 0,
         status: 'SUCCESS',
         businessDay: todayThaiIsoDate(),
+        aiModel: input.cost?.model ?? null,
+        inputTokens: input.cost?.inputTokens ?? null,
+        outputTokens: input.cost?.outputTokens ?? null,
+        costUsd: input.cost?.costUsd ?? null,
       },
     })
   } catch (e) {
