@@ -365,7 +365,10 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
               </button>
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-default-700 mb-0 py-12 text-center text-sm">ไม่พบข้อความที่ค้นหา</p>
+            /* ต้องตรงกับตัวกรองที่ใช้จริง — กรองด้วยหมวดอย่างเดียวแล้วบอกว่า "ไม่พบที่ค้นหา" คือบอกผิด */
+            <p className="text-default-700 mb-0 py-12 text-center text-sm">
+              {q.trim() ? `ไม่พบข้อความที่ตรงกับ "${q.trim()}"` : `ไม่มีข้อความในหมวด "${categoryFilter}"`}
+            </p>
           ) : sortMode ? (
             /* โหมดจัดลำดับไม่แบ่งกลุ่ม — ลำดับที่บันทึกเป็นลำดับเดียวทั้งชุด ถ้าโชว์แยกกลุ่ม
                เลข #N จะไม่ตรงกับลำดับจริงและลากข้ามกลุ่มจะสับสน */

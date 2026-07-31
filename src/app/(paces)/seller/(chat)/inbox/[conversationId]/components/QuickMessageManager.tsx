@@ -286,9 +286,12 @@ export default function QuickMessageManager({
   }
 
   async function handleDelete(qm: QuickMessage) {
-    const ok = await pacesConfirm.danger('ลบข้อความสำเร็จรูป', `ต้องการลบ "${qm.title}" หรือไม่?`, {
-      confirmButtonText: 'ลบ',
-    })
+    // บอกผลที่ตามมาให้ครบ: ข้อความผูกระดับร้าน ลบแล้วหายทั้งร้าน ไม่ใช่แค่ของคนกด และกู้คืนไม่ได้
+    const ok = await pacesConfirm.danger(
+      `ลบ "${qm.title}"`,
+      'ทุกคนในร้านจะไม่เห็นข้อความนี้อีก และกู้คืนไม่ได้',
+      { confirmButtonText: 'ลบข้อความนี้' },
+    )
     if (!ok) return
     try {
       const res = await fetch(`/api/chat/quick-messages/${qm.id}`, { method: 'DELETE' })
@@ -296,7 +299,7 @@ export default function QuickMessageManager({
         pacesToast.error('ลบไม่สำเร็จ ลองใหม่อีกครั้ง')
         return
       }
-      pacesToast.success('ลบแล้ว')
+      pacesToast.success(`ลบ "${qm.title}" แล้ว`)
       if (editingId === qm.id) {
         resetForm()
         setViewMode('list')
@@ -504,9 +507,13 @@ export default function QuickMessageManager({
                   <span className="bg-default-100 text-default-500 flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="search" className="text-2xl" />
                   </span>
-                  <span className="text-default-800 text-sm font-semibold">ไม่พบข้อความที่ตรงกับคำค้น</span>
+                  {/* ข้อความต้องตรงกับตัวกรองที่ใช้จริง — กรองด้วยหมวดอย่างเดียวแล้วบอกว่า "ไม่พบคำค้น"
+                      คือบอกผิด ผู้ใช้จะไปนั่งแก้คำค้นที่ไม่มีอยู่ */}
+                  <span className="text-default-800 text-sm font-semibold">
+                    {q.trim() ? `ไม่พบข้อความที่ตรงกับ "${q.trim()}"` : `ไม่มีข้อความในหมวด "${categoryFilter}"`}
+                  </span>
                   <span className="text-default-500 text-xs">
-                    ลองใช้คำอื่น หรือล้างตัวกรองเพื่อดูทั้ง {localItems.length} รายการ
+                    {q.trim() ? 'ลองใช้คำอื่น หรือ' : ''}ล้างตัวกรองเพื่อดูทั้ง {localItems.length} รายการ
                   </span>
                   <button type="button" onClick={clearFilters} className="btn border-default-300 mt-1 min-h-11">
                     <Icon icon="x" className="me-1" /> ล้างตัวกรอง
