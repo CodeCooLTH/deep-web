@@ -41,12 +41,23 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
-/** avatar เพจ — รูปจริง (ShopChannel.avatarUrl) + fallback ตัวอักษรแรกของชื่อเพจเมื่อไม่มีรูป/โหลดพัง */
-function PageAvatar({ avatarUrl, name }: { avatarUrl: string | null; name: string }) {
+/** avatar เพจ — รูปจริง (ShopChannel.avatarUrl) + fallback ตัวอักษรแรกของชื่อเพจเมื่อไม่มีรูป/โหลดพัง
+ *  export เพราะแผงตัวกรอง (InboxFilterPanel) ต้องใช้รูปเพจชุดเดียวกัน — ร้านที่ตั้งชื่อเพจ Facebook
+ *  กับ Instagram เหมือนกันเป๊ะจะแยกไม่ออกถ้าเหลือแต่ข้อความ (user report 2026-07-31) */
+export function PageAvatar({
+  avatarUrl,
+  name,
+  size = 'md',
+}: {
+  avatarUrl: string | null
+  name: string
+  size?: 'sm' | 'md'
+}) {
   const [failed, setFailed] = useState(false)
+  const dim = size === 'sm' ? 'size-6' : 'size-8'
   if (!avatarUrl || failed) {
     return (
-      <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+      <span className={`bg-primary/10 text-primary flex ${dim} shrink-0 items-center justify-center rounded-full text-2xs font-semibold`}>
         {generateInitials(name) || '?'}
       </span>
     )
@@ -58,7 +69,7 @@ function PageAvatar({ avatarUrl, name }: { avatarUrl: string | null; name: strin
       alt={name}
       loading="lazy"
       onError={() => setFailed(true)}
-      className="size-8 shrink-0 rounded-full bg-default-100 object-cover"
+      className={`${dim} shrink-0 rounded-full bg-default-100 object-cover`}
     />
   )
 }
