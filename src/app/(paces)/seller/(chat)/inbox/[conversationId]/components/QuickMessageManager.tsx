@@ -494,14 +494,14 @@ export default function QuickMessageManager({
                   </button>
                 </div>
               ) : sortMode ? (
-                /* ── โหมดจัดลำดับ: แถวเรียบ ๆ ลากอย่างเดียว (user สั่ง 2026-07-31 ให้ตัดปุ่มลูกศรออก)
-                     จุดจับ = ไอคอน grip; touch ต้องทำเอง เพราะ HTML5 draggable ไม่ยิง event บนจอสัมผัส
-                     คีย์บอร์ดยังเรียงได้ด้วยลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (ไม่มีปุ่มให้เห็นแต่ยังใช้ได้) */
+                /* ── โหมดจัดลำดับ — แยกกลไกตามอุปกรณ์ (ผลตัดสิน user 2026-07-31)
+                     ≥lg: ลากที่ไอคอน grip (HTML5 draggable ใช้ได้จริงเฉพาะเมาส์)
+                     <lg: ปุ่มลูกศรขึ้น/ลง 44px แทน เพราะ draggable ไม่ยิง event บนจอสัมผัส
+                     คีย์บอร์ด: ลูกศรขึ้น/ลงเมื่อโฟกัสที่แถว (ใช้ได้ทุกขนาด) */
                 <ul className="flex flex-col gap-2">
                   {visibleItems.map((qm, index) => (
                     <li
                       key={qm.id}
-                      data-sort-index={index}
                       draggable
                       tabIndex={0}
                       onDragStart={() => {
@@ -526,39 +526,35 @@ export default function QuickMessageManager({
                         }
                       }}
                       aria-label={`${qm.title} — ลำดับที่ ${index + 1} จาก ${visibleItems.length}`}
-                      className={`flex cursor-grab items-center gap-3 rounded-lg border p-3 active:cursor-grabbing ${
+                      className={`flex items-center gap-3 rounded-lg border p-2 lg:cursor-grab lg:p-3 lg:active:cursor-grabbing ${
                         dragOver === index ? 'border-primary bg-primary/5' : 'border-default-200'
                       }`}
                     >
                       <span className="text-default-400 w-4 shrink-0 text-2xs font-semibold">{index + 1}</span>
                       <span className="text-default-800 min-w-0 grow truncate text-sm font-medium">{qm.title}</span>
-                      {/* touch-none บนจุดจับเท่านั้น — ถ้าใส่ทั้งแถวจะเลื่อนลิสต์ด้วยนิ้วไม่ได้ */}
-                      <span
-                        onTouchStart={() => {
-                          dragFrom.current = index
-                          setDragOver(index)
-                        }}
-                        onTouchMove={(e) => {
-                          if (dragFrom.current == null) return
-                          const t = e.touches[0]
-                          const row = document
-                            .elementFromPoint(t.clientX, t.clientY)
-                            ?.closest('[data-sort-index]')
-                          const to = row ? Number(row.getAttribute('data-sort-index')) : NaN
-                          if (!Number.isNaN(to)) setDragOver(to)
-                        }}
-                        onTouchEnd={() => {
-                          const from = dragFrom.current
-                          dragFrom.current = null
-                          const to = dragOver
-                          setDragOver(null)
-                          if (from != null && to != null) move(from, to)
-                        }}
-                        className="text-default-400 shrink-0 touch-none p-1"
-                        aria-hidden="true"
-                      >
-                        <Icon icon="grip-vertical" className="text-base" />
+                      {/* <lg: ปุ่มลูกศร (ลากไม่ได้บนจอสัมผัส) */}
+                      <span className="flex shrink-0 gap-1 lg:hidden">
+                        <button
+                          type="button"
+                          onClick={() => move(index, index - 1)}
+                          disabled={index === 0}
+                          className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
+                          aria-label={`ย้าย "${qm.title}" ขึ้น`}
+                        >
+                          <Icon icon="chevron-up" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => move(index, index + 1)}
+                          disabled={index === visibleItems.length - 1}
+                          className="btn btn-icon border-default-300 min-h-11 min-w-11 disabled:opacity-40"
+                          aria-label={`ย้าย "${qm.title}" ลง`}
+                        >
+                          <Icon icon="chevron-down" />
+                        </button>
                       </span>
+                      {/* ≥lg: จุดจับสำหรับลาก */}
+                      <Icon icon="grip-vertical" className="text-default-400 hidden shrink-0 text-base lg:block" />
                     </li>
                   ))}
                 </ul>
