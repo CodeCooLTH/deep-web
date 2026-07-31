@@ -1054,7 +1054,7 @@ export default function InboxList({
                         (token Paces ล้วน ไม่มี arbitrary value — HR7) */}
                     <span className="min-w-0 overflow-hidden text-start">
                       <span
-                        className={`text-default-900 flex items-center gap-1 truncate text-sm ${
+                        className={`text-default-900 flex items-center gap-1 truncate text-xs ${
                           unread ? 'font-bold' : 'font-semibold'
                         }`}
                       >
@@ -1065,6 +1065,27 @@ export default function InboxList({
                             height={14}
                             className="text-warning shrink-0"
                             aria-label="ปักหมุดไว้"
+                          />
+                        )}
+                        {/* ในแท็บ "ทั้งหมด" เธรดที่ปิดงาน/สแปมปนอยู่กับเธรดปกติโดยไม่มีอะไรบอก
+                            (user report 2026-07-31) — ใช้ไอคอนสีนำหน้าชื่อแบบเดียวกับดาวปักหมุด
+                            ไม่ใช้ข้อความ เพราะพื้นที่ชื่อแคบและ badge ข้อความแย่งสายตากับชื่อลูกค้า */}
+                        {isResolved && (
+                          <Icon
+                            icon="circle-check"
+                            width={14}
+                            height={14}
+                            className="text-success shrink-0"
+                            aria-label="ปิดงานแล้ว"
+                          />
+                        )}
+                        {c.isSpam && (
+                          <Icon
+                            icon="alert-octagon"
+                            width={14}
+                            height={14}
+                            className="text-danger shrink-0"
+                            aria-label="สแปม"
                           />
                         )}
                         <span className="truncate">{name}</span>
@@ -1079,7 +1100,7 @@ export default function InboxList({
                           เพราะเป็นเรื่องคอนทราสต์ให้อ่านออก ไม่ใช่เรื่องขนาด และตอนนี้บรรทัดนี้
                           เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) */}
                       <span
-                        className={`block max-w-52 truncate text-xs ${
+                        className={`block max-w-52 truncate text-2xs ${
                           unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
@@ -1162,19 +1183,16 @@ export default function InboxList({
                   <span className="flex shrink-0 flex-col items-end justify-between self-stretch py-0.5">
                     <span className="flex flex-col items-end gap-1.25">
                       {/* timestamp — สีตามสถานะอ่าน (main); indicator ปักหมุดอยู่หน้าชื่อแล้ว */}
-                      <span className={`text-xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
+                      <span className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
-                      {/* resolved กับ unread ไม่โชว์พร้อมกัน — resolved = badge "ปิดงานแล้ว" (S-7),
-                          ไม่งั้น badge จำนวนที่ยังไม่อ่าน (99+, main) */}
-                      {isResolved ? (
-                        <span className="badge text-2xs bg-success/15 text-success">ปิดงานแล้ว</span>
-                      ) : (
-                        unread && (
-                          <span className="badge text-2xs bg-danger text-white">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </span>
-                        )
+                      {/* badge "ปิดงานแล้ว" ถูกแทนด้วยไอคอน check หน้าชื่อแล้ว (2026-07-31) —
+                          เดิมมันเบียด badge ยังไม่อ่านออกไป ทำให้เธรดที่ปิดงานแต่มีข้อความใหม่
+                          ไม่เห็นจำนวนที่ยังไม่อ่านเลย ตอนนี้แสดงได้พร้อมกันแล้ว */}
+                      {unread && (
+                        <span className="badge text-2xs bg-danger text-white">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
                       )}
                     </span>
                     {/* ชิปโฟลเดอร์ = กลุ่มที่เธรดนี้อยู่ (แท็บ "ทั้งหมด" เท่านั้น; ในแท็บกลุ่มเองไม่ย้ำ) */}
