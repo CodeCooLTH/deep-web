@@ -147,29 +147,117 @@ function CopyMessageButton({ text }: { text: string }) {
 }
 
 /**
+ * สติกเกอร์/อีโมจิเข้ามาเป็นข้อความชนิด IMAGE เหมือนรูปทั่วไป (ingest จัด attachment type
+ * 'sticker' เป็น 'IMAGE') และเราไม่ได้เก็บตัวแยกไว้ใน DB เลย — ปุ่มบันทึกจึงไปโผล่บนสติกเกอร์
+ * ด้วย ซึ่งไม่มีใครอยากบันทึก (user report 2026-07-31)
+ *
+ * แยกด้วยขนาดจริงของรูป: วัดจากเธรดจริงบน prod สติกเกอร์ = 100x100 ส่วนรูปที่ลูกค้าส่ง =
+ * 918–1254 px ช่องว่างกว้างพอให้ตัดที่ 240 ได้อย่างปลอดภัย
+ *
+ * เลือกวิธีนี้แทนการเพิ่มคอลัมน์ isSticker เพราะ (1) ใช้ได้กับข้อความเก่าที่มีอยู่แล้วทันที
+ * — คอลัมน์ใหม่ backfill ไม่ได้ เพราะไม่ได้เก็บ sticker_id ไว้ (2) ไม่ต้องแตะ schema ของ DB
+ * ที่ dev/prod ใช้ร่วมกัน. ถ้าวันหนึ่งอยากได้แม่นจริง ต้องเก็บ sticker_id ตั้งแต่ ingest
+ */
+const STICKER_MAX_PX = 240
+
+/**
  * ปุ่มบันทึกไฟล์ใต้สื่อ (user สั่ง 2026-07-31: "อยากให้อยู่ใต้รูป หรือไฟล์นั้นๆ")
  *
  * วางใต้สื่อ ไม่ใช่ในกลุ่มปุ่ม hover ข้างบับเบิล เพราะกลุ่มนั้นเป็น desktop-only (lg:group-hover)
  * — บนมือถือจะกดไม่ได้เลย ทั้งที่การบันทึกรูปจากมือถือคือเคสหลัก
  *
- * ไฟล์ทั้งหมด serve จาก /api/files ซึ่งเป็นโดเมนเดียวกัน จึงใช้ attribute `download` ได้จริง
- * (ถ้าเป็น cross-origin เบราว์เซอร์จะเมิน download แล้วเปิดหน้าใหม่แทน)
+ * **มือถือใช้ Web Share API ไม่ใช่ `download`** (user สั่ง 2026-07-31: "กดบนมือถือให้บันทึก
+ * เข้า photos ตอนนี้มันเข้า download เอาไปใช้ต่อยาก") — `<a download>` บนมือถือลงโฟลเดอร์
+ * Files/Downloads เสมอ เว็บเขียนลงคลังรูปโดยตรงไม่ได้ ทางเดียวที่เข้า Photos/แกลเลอรีได้จริง
+ * คือเปิดชีตแชร์ของ OS ซึ่งมีเมนู "บันทึกรูปภาพ" อยู่
  *
- * หมายเหตุ: เว็บให้เลือก "บันทึก/บันทึกเป็น..." แบบเมนูคลิกขวาของเบราว์เซอร์ไม่ได้ —
- * อันนั้นเป็นเมนูของตัวเบราว์เซอร์เอง เว็บสั่งไม่ได้ ที่ทำได้คือสั่งบันทึกหนึ่งปุ่ม
+ * desktop ยังใช้ `<a download>` ตามเดิม — เดสก์ท็อปบางตัวรองรับ share files ด้วย ถ้าปล่อยให้
+ * ใช้ share จะกลายเป็นเปิดหน้าต่างแชร์แทนที่จะบันทึกลงเครื่อง ซึ่งแย่กว่าเดิม จึงเช็ค
+ * pointer แบบ coarse (นิ้ว) ไม่ใช่แค่ว่ารองรับ API ไหม
  */
+/**
+ * บันทึกไฟล์ลงเครื่อง — คืน true ถ้าจัดการเองแล้ว (แชร์สำเร็จ/ผู้ใช้ยกเลิก), false ถ้าให้ผู้เรียก
+ * ถอยไปใช้วิธีดาวน์โหลดปกติ ใช้ร่วมกันระหว่างปุ่มใต้สื่อกับปุ่มในหน้าดูรูปเต็มจอ
+ */
+async function shareToDevice(url: string, filename: string): Promise<boolean> {
+  const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  if (!isTouch || typeof navigator === 'undefined' || !navigator.canShare) return false
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return false
+    const blob = await res.blob()
+    const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' })
+    if (!navigator.canShare({ files: [file] })) return false
+    await navigator.share({ files: [file] })
+    return true
+  } catch (err) {
+    // ผู้ใช้กดยกเลิกชีตแชร์เอง = จบงานแล้ว ห้ามถอยไปดาวน์โหลดซ้ำให้งง
+    return (err as Error)?.name === 'AbortError'
+  }
+}
+
 function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์' }: { storageKey: string; label?: string }) {
+  const [busy, setBusy] = useState(false)
+  const url = `/api/files/${storageKey}`
   // ชื่อไฟล์ = ส่วนท้ายของ storage key (กันเคสไม่มี '/' ด้วย fallback)
   const filename = storageKey.split('/').filter(Boolean).pop() || 'attachment'
+
+  const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    if (!isTouch || typeof navigator === 'undefined' || !navigator.canShare) return // desktop → ปล่อย <a download> ทำงานตามปกติ
+    e.preventDefault()
+    setBusy(true)
+    try {
+      if (await shareToDevice(url, filename)) return
+      // แชร์ไม่ได้/โหลดไม่สำเร็จ → ถอยไปดาวน์โหลดแบบเดิม ดีกว่าเงียบไปเฉย ๆ
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <a
-      href={`/api/files/${storageKey}`}
+      href={url}
       download={filename}
+      onClick={handleClick}
+      aria-busy={busy}
       className="text-default-500 hover:text-primary mt-1 inline-flex items-center gap-1 text-2xs font-medium"
     >
-      <Icon icon="download" width={13} height={13} className="shrink-0" />
+      <Icon icon={busy ? 'loader-2' : 'download'} width={13} height={13} className={`shrink-0 ${busy ? 'animate-spin' : ''}`} />
       {label}
     </a>
+  )
+}
+
+/**
+ * รูปในเธรด — คลิกเปิดเต็มจอ + ปุ่มบันทึกใต้รูป (ซ่อนปุ่มถ้าเป็นสติกเกอร์ ดู STICKER_MAX_PX)
+ * วัดขนาดตอน onLoad เพราะขนาดจริงไม่ได้เก็บใน DB
+ */
+function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: () => void }) {
+  const [isSticker, setIsSticker] = useState(false)
+  return (
+    <>
+      {/* คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
+          ครอบแทนใส่ onClick บน <img> เพื่อให้โฟกัส/คีย์บอร์ด/screen reader ใช้ได้จริง
+          (block + w-fit กันปุ่มยืดเต็มความกว้างบับเบิลจนกดโดนที่ว่างข้างรูป) */}
+      <button type="button" onClick={onOpen} aria-label="ดูรูปเต็มจอ" className="block w-fit cursor-zoom-in">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/api/files/${storageKey}`}
+          alt="รูปภาพที่ส่ง"
+          className="max-w-60 rounded"
+          onLoad={(e) => {
+            const el = e.currentTarget
+            if (el.naturalWidth <= STICKER_MAX_PX && el.naturalHeight <= STICKER_MAX_PX) setIsSticker(true)
+          }}
+        />
+      </button>
+      {!isSticker && <MediaDownloadLink storageKey={storageKey} label="บันทึกรูป" />}
+    </>
   )
 }
 
@@ -1033,25 +1121,10 @@ export default function ChatThread({
                         ) : (
                           <>
                             {m.type === 'IMAGE' && m.imageUrl && (
-                              // คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
-                              // ครอบแทนใส่ onClick บน <img> เพื่อให้โฟกัส/คีย์บอร์ด/screen reader ใช้ได้จริง
-                              // (block + w-fit กันปุ่มยืดเต็มความกว้างบับเบิลจนกดโดนที่ว่างข้างรูป)
-                              <button
-                                type="button"
-                                onClick={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
-                                aria-label="ดูรูปเต็มจอ"
-                                className="block w-fit cursor-zoom-in"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={`/api/files/${m.imageUrl}`}
-                                  alt="รูปภาพที่ส่ง"
-                                  className="max-w-60 rounded"
-                                />
-                              </button>
-                            )}
-                            {m.type === 'IMAGE' && m.imageUrl && (
-                              <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกรูป" />
+                              <ChatImageMessage
+                                storageKey={m.imageUrl}
+                                onOpen={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
+                              />
                             )}
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
@@ -1469,6 +1542,17 @@ export default function ChatThread({
       close={() => setLightboxIndex(-1)}
       controller={{ closeOnBackdropClick: true }}
       plugins={[Zoom, LightboxDownload]}
+      // มือถือ: ให้ปุ่มในหน้าดูรูปเต็มจอเข้าคลังรูปเหมือนปุ่มใต้รูป (ค่าเริ่มต้นของ plugin
+      // บันทึกลง Downloads ซึ่ง user บอกว่าเอาไปใช้ต่อยาก) — desktop คงพฤติกรรมเดิมของ plugin
+      download={{
+        download: async ({ slide, saveAs }) => {
+          const d = (slide as { download?: { url: string; filename: string } }).download
+          const url = d?.url ?? (slide.src as string)
+          const filename = d?.filename ?? 'image'
+          if (await shareToDevice(url, filename)) return
+          saveAs(url, filename)
+        },
+      }}
       labels={{
         Previous: 'รูปก่อนหน้า',
         Next: 'รูปถัดไป',
