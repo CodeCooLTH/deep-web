@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — ส่วนหัวตัวกรองรายการแชท (feat 00018)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Paces token จริง (src/assets/css/config/_root.css) — ห้ามใช้ม่วง Vuexy #7367F0 ในหลังบ้าน ── */
+  :root{
+    --primary:#236dc9; --primary-hover:#1e5dab;
+    --card:#fff; --light:#eef2f7; --dark:#313a46;
+    --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7; --d500:#a1a9b1; --d600:#8a969c;
+    --page:#f4f6fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;color:var(--dark)}
+  .wrap{max-width:1400px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:24px;font-weight:700;margin:0 0 6px}
+  .sub{color:var(--d600);font-size:14px;margin:0 0 28px;line-height:1.7}
+  h2{font-size:17px;font-weight:600;margin:44px 0 4px;padding-top:20px;border-top:1px solid var(--d300)}
+  h2 .tag{font-size:12px;font-weight:500;border-radius:999px;padding:3px 10px;margin-inline-start:8px;vertical-align:middle}
+  .tag-now{background:var(--d200);color:var(--d600)}
+  .tag-a{background:rgba(35,109,201,.12);color:var(--primary)}
+  .note{color:var(--d600);font-size:13.5px;margin:6px 0 18px;line-height:1.75;max-width:74ch}
+  .note b{color:var(--dark);font-weight:600}
+  .win{color:#0f7b4f;font-weight:600}
+  .cost{color:#b4232a;font-weight:600}
+
+  .devices{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .device{background:var(--card);border:1px solid var(--d300);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .device-cap{font-size:11.5px;color:var(--d600);padding:8px 12px;border-bottom:1px dashed var(--d300);background:var(--d100);font-weight:500}
+  .m{width:375px} .t{width:768px} .r{width:320px}
+
+  /* ── ส่วนหัวรายการแชท ── */
+  .hdr{padding:12px;display:flex;flex-direction:column;gap:10px;border-bottom:1px dashed var(--d300)}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+  .row.nowrap{flex-wrap:nowrap;min-width:0}
+  .scroller{display:flex;gap:6px;align-items:center;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none}
+  .scroller::-webkit-scrollbar{display:none}
+
+  .search{display:flex;align-items:center;gap:8px;border:1px solid var(--d300);border-radius:8px;padding:8px 12px;background:rgba(238,242,247,.3);color:var(--d500);font-size:13.5px}
+  .search svg{flex:none}
+
+  .pill{border:0;border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:500;background:var(--light);color:#495057;white-space:nowrap;flex:none;font-family:inherit}
+  .pill.on{background:var(--primary);color:#fff}
+  .ic{width:34px;height:34px;border-radius:999px;background:var(--light);display:flex;align-items:center;justify-content:center;flex:none;border:0}
+  .ic.on{background:rgba(35,109,201,.15)}
+  .drop{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;padding:7px 12px;background:var(--light);color:var(--dark);font-size:13.5px;font-weight:500;white-space:nowrap;flex:none;font-family:inherit}
+  .drop .cnt{background:var(--primary);color:#fff;border-radius:999px;font-size:10.5px;padding:1px 6px;font-weight:600}
+  .add{width:30px;height:30px;border-radius:999px;background:var(--light);display:flex;align-items:center;justify-content:center;flex:none;border:0;color:var(--d600)}
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;background:rgba(35,109,201,.15);color:var(--primary);font-weight:500}
+
+  .rowcount{display:inline-block;font-size:11px;font-weight:600;color:var(--d600);background:var(--d200);border-radius:999px;padding:2px 9px;margin-bottom:8px}
+  .rowcount.good{background:rgba(15,123,79,.12);color:#0f7b4f}
+
+  /* แถวรายการแชทจำลอง — ให้เห็นว่าส่วนหัวกินที่เท่าไหร่เทียบของจริง */
+  .thread{display:flex;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px dashed var(--d300)}
+  .av{width:40px;height:40px;border-radius:999px;background:#dbe6f5;color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex:none}
+  .tname{font-size:14px;font-weight:600;color:#111827}
+  .tprev{font-size:12px;color:var(--d500);margin-top:2px}
+  .ttime{margin-inline-start:auto;font-size:11.5px;color:var(--d500);flex:none}
+  .fade{opacity:.45}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>ส่วนหัวตัวกรองรายการแชท — ทางเลือกการจัดวาง</h1>
+<p class="sub">
+  feat 00018 · seller <code>/inbox</code> · 2026-07-31<br>
+  ปัญหา: บนคอลัมน์แคบส่วนหัวกินไป <b>3 แถว</b> ก่อนถึงรายการแชทจริง<br>
+  เงื่อนไขที่เรียนรู้มาแล้ว: <b class="cost">ห้ามแลกจำนวนคลิกของสิ่งที่ใช้บ่อยที่สุด (สลับช่องทาง) เพื่อลดแถว</b>
+  — เคยลองยุบช่องทางเข้าดรอปดาวน์แล้ว user ปฏิเสธเพราะสลับ FB/IG กลายเป็น 3 คลิก
+</p>
+
+<!-- ══════════ ของเดิม ══════════ -->
+<h2>ของเดิม (ตอนนี้บน prod)<span class="tag tag-now">baseline</span></h2>
+<p class="note">
+  <span class="rowcount">3 แถว</span><br>
+  ทุกอย่างคลิกเดียวถึง แต่ <b>ดรอปดาวน์ "ทุกเพจ" ตกลงมาอยู่แถวของตัวเอง</b> เกือบตลอดบนคอลัมน์แคบ
+  และแสดงอยู่แม้ร้านจะมีเพจเดียว (กดไปก็ได้ผลเท่าเดิม)
+</p>
+<div class="devices">
+  <div class="device m"><div class="device-cap">Mobile · 375px</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์…</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ทุกเพจ<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread fade"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง Wave…</div></div><div class="ttime">2 ชม.</div></div>
+  </div>
+
+  <div class="device t"><div class="device-cap">Tablet · 768px</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ทุกเพจ<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่ และเบอร์โทร…</div></div><div class="ttime">16 ชม.</div></div>
+  </div>
+
+  <div class="device r"><div class="device-cap">Desktop rail · 320px (ค้นหาอยู่ topbar)</div>
+    <div class="hdr">
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row"><button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ทุกเพจ<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button></div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ…</div></div><div class="ttime">16 ชม.</div></div>
+  </div>
+</div>
+
+<!-- ══════════ ทาง A ══════════ -->
+<h2>ทาง A — ซ่อนสิ่งที่ไม่จำเป็นโดยอัตโนมัติ<span class="tag tag-a">ไม่เสียคลิกเลย</span></h2>
+<p class="note">
+  <span class="rowcount good">2 แถว (ร้านส่วนใหญ่)</span><br>
+  <b>ไม่ย้ายอะไรสักอย่าง</b> — แค่ไม่แสดงตัวเลือกที่กดไปก็ไม่เกิดผล:<br>
+  • pill ช่องทาง แสดงเฉพาะช่องทางที่ร้าน<b>มีจริง</b> (ร้านนี้มีแต่ FB → เหลือ <span class="win">ทั้งหมด + f</span>)<br>
+  • ดรอปดาวน์ "เพจ" โผล่เฉพาะร้านที่มี<b>มากกว่า 1 เพจ</b><br>
+  <span class="win">ได้:</span> ทุกอย่างยังคลิกเดียว ร้านที่มีหลายช่องทาง/หลายเพจก็ยังเห็นครบเหมือนเดิม<br>
+  <span class="cost">เสีย:</span> ร้านที่มีครบทุกช่องทาง + หลายเพจ ยังได้ 3 แถวเท่าเดิม (ไม่ได้แก้ทุกเคส)
+</p>
+<div class="devices">
+  <div class="device m"><div class="device-cap">Mobile · 375px — ร้านมีแต่ FB เพจเดียว</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์…</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง Wave…</div></div><div class="ttime">2 ชม.</div></div>
+    <div class="thread fade"><div class="av">อส</div><div><div class="tname">อรุณ แสงจันทร์</div><div class="tprev">คุณ: สวัสดีค่า…</div></div><div class="ttime">3 ชม.</div></div>
+  </div>
+
+  <div class="device t"><div class="device-cap">Tablet · 768px — ร้านมี FB + IG, 2 เพจ (เห็นครบเหมือนเดิม)</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ทุกเพจ<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่ และเบอร์โทร…</div></div><div class="ttime">16 ชม.</div></div>
+  </div>
+
+  <div class="device r"><div class="device-cap">Desktop rail · 320px — ร้านมีแต่ FB เพจเดียว</div>
+    <div class="hdr">
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง…</div></div><div class="ttime">2 ชม.</div></div>
+  </div>
+</div>
+
+<!-- ══════════ ทาง B ══════════ -->
+<h2>ทาง B — ยุบเฉพาะ "เพจ" เข้าปุ่มตัวกรอง<span class="tag tag-a">ช่องทางยังคลิกเดียว</span></h2>
+<p class="note">
+  <span class="rowcount good">2 แถว เสมอ</span><br>
+  pill ช่องทาง <b>อยู่ที่เดิมครบทุกปุ่ม</b> — ยุบเฉพาะดรอปดาวน์ "เพจ" เข้าไปเป็นหัวข้อหนึ่งในปุ่มตัวกรอง
+  (พร้อม badge นับ เมื่อเลือกเพจใดเพจหนึ่งอยู่)<br>
+  <span class="win">ได้:</span> 2 แถวเสมอทุกร้าน · สลับช่องทางยังคลิกเดียว (สิ่งที่ใช้บ่อยที่สุด)<br>
+  <span class="cost">เสีย:</span> เลือกเพจกลายเป็น 3 คลิก — กระทบเฉพาะร้านที่มีหลายเพจ
+</p>
+<div class="devices">
+  <div class="device m"><div class="device-cap">Mobile · 375px</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์…</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<span class="cnt">1</span></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง Wave…</div></div><div class="ttime">2 ชม.</div></div>
+    <div class="thread fade"><div class="av">อส</div><div><div class="tname">อรุณ แสงจันทร์</div><div class="tprev">คุณ: สวัสดีค่า…</div></div><div class="ttime">3 ชม.</div></div>
+  </div>
+
+  <div class="device t"><div class="device-cap">Tablet · 768px</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่ และเบอร์โทร…</div></div><div class="ttime">16 ชม.</div></div>
+  </div>
+
+  <div class="device r"><div class="device-cap">Desktop rail · 320px — ช่องทางเลื่อนแนวนอนได้</div>
+    <div class="hdr">
+      <div class="row nowrap">
+        <div class="scroller">
+          <button class="pill on">ทั้งหมด</button>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        </div>
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง</button>
+      </div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+        <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง…</div></div><div class="ttime">2 ชม.</div></div>
+  </div>
+</div>
+
+<!-- ══════════ ทาง C ══════════ -->
+<h2>ทาง C — จัดแถวใหม่ ไม่ซ่อนอะไรเลย<span class="tag tag-a">ทุกอย่างคลิกเดียว</span></h2>
+<p class="note">
+  <span class="rowcount good">2 แถว เสมอ</span><br>
+  ไม่ยุบ ไม่ซ่อน — แค่<b>สลับว่าอะไรอยู่แถวไหน</b>:<br>
+  แถว 1 = ช่องทาง + เพจ (เรื่อง "ดูจากที่ไหน") · แถว 2 = กลุ่ม + ตัวกรอง (เรื่อง "กรองยังไง")<br>
+  <span class="win">ได้:</span> ทุกตัวเลือกยังคลิกเดียวครบ · จัดกลุ่มตามความหมายชัดกว่าเดิม<br>
+  <span class="cost">เสีย:</span> ต้องระวังไม่ให้ปุ่มตัวกรองถูกดันหลุดขอบเมื่อกลุ่มเยอะ — mockup นี้จึง<b>ปักปุ่มไว้ซ้ายสุด</b>
+  แล้วให้กลุ่มเลื่อนแนวนอนแทน (บทเรียนจากรอบที่แล้วที่วางไว้ท้ายแถวแล้วหลุดจอ)
+</p>
+<div class="devices">
+  <div class="device m"><div class="device-cap">Mobile · 375px</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์…</div>
+      <div class="row nowrap">
+        <div class="scroller">
+          <button class="pill on">ทั้งหมด</button>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+          <button class="drop">ทุกเพจ<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+      </div>
+      <div class="row nowrap">
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง</button>
+        <div class="scroller">
+          <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+          <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง Wave…</div></div><div class="ttime">2 ชม.</div></div>
+    <div class="thread fade"><div class="av">อส</div><div><div class="tname">อรุณ แสงจันทร์</div><div class="tprev">คุณ: สวัสดีค่า…</div></div><div class="ttime">3 ชม.</div></div>
+  </div>
+
+  <div class="device t"><div class="device-cap">Tablet · 768px</div>
+    <div class="hdr">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>ค้นหาชื่อ ลูกค้า เบอร์ หรือข้อความในแชท</div>
+      <div class="row">
+        <button class="pill on">ทั้งหมด</button>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+        <button class="drop">ทุกเพจ<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row nowrap">
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง</button>
+        <div class="scroller">
+          <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+          <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ แปะชื่อที่อยู่ และเบอร์โทร…</div></div><div class="ttime">16 ชม.</div></div>
+  </div>
+
+  <div class="device r"><div class="device-cap">Desktop rail · 320px</div>
+    <div class="hdr">
+      <div class="row nowrap">
+        <div class="scroller">
+          <button class="pill on">ทั้งหมด</button>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#236dc9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></span>
+          <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C13584" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span>
+          <button class="drop">ทุกเพจ</button>
+        </div>
+      </div>
+      <div class="row nowrap">
+        <button class="drop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง</button>
+        <div class="scroller">
+          <button class="pill on">ทั้งหมด</button><button class="pill">ร้านอะไหล่</button><button class="pill">ทดสอบ</button>
+          <span class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="thread"><div class="av">พป</div><div><div class="tname">พี่ป้อม</div><div class="tprev">คุณ: ได้ค่ะ…</div></div><div class="ttime">16 ชม.</div></div>
+    <div class="thread"><div class="av">บส</div><div><div class="tname">บุญชัย สีดา</div><div class="tprev">คุณ: โช๊คหลัง…</div></div><div class="ttime">2 ชม.</div></div>
+  </div>
+</div>
+
+<h2>สรุปเปรียบเทียบ</h2>
+<p class="note">
+  <b>A</b> — ลดแถวได้เฉพาะร้านที่ไม่ได้ใช้ครบทุกช่องทาง/เพจ แต่<b>ไม่มีใครเสียคลิกเลยสักคน</b> และเสี่ยงต่ำสุด<br>
+  <b>B</b> — 2 แถวเสมอ แลกด้วยการเลือกเพจเป็น 3 คลิก (กระทบเฉพาะร้านหลายเพจ)<br>
+  <b>C</b> — 2 แถวเสมอ ไม่เสียคลิกเลย แต่ย้ายตำแหน่งของที่ผู้ใช้คุ้นมือแล้ว (ปุ่มตัวกรองย้ายลงแถวล่าง)<br><br>
+  <b>รวม A เข้ากับ B หรือ C ได้</b> — A เป็นกฎการซ่อน ไม่ใช่การจัดวาง จึงไม่ขัดกัน
+</p>
+
+</div>
+</body>
+</html>
