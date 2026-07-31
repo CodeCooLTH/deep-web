@@ -50,9 +50,11 @@ type Props = {
   /** ร้านที่ active (resolve ที่ (chat)/layout.tsx) — ส่งต่อให้ InboxList ใช้ subscribe realtime
    *  `chat:shop:{shopId}`; null = resolve ไม่ได้ (ไม่มีร้าน/หลุดสิทธิ์) → ไม่ subscribe เฉย ๆ */
   shopId: string | null
+  /** ร้านเชื่อม iShip แล้วหรือยัง — ส่งต่อให้ InboxList ใช้ตัดสินว่าจะโชว์หัวข้อ "พัสดุ" ในตัวกรอง */
+  hasShipping?: boolean
 }
 
-export default function ChatRail({ shopId }: Props) {
+export default function ChatRail({ shopId, hasShipping = false }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [items, setItems] = useState<ConversationListItem[]>([])
