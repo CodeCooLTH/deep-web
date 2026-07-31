@@ -128,11 +128,19 @@ const HeroSection = ({ mode }: { mode: SystemMode }) => {
             label='แพลตฟอร์มสร้างความน่าเชื่อถือ'
             className='mbe-5 font-medium'
           />
+          {/* หัวเรื่องเป็นหมึกหลัก ไม่ใช่ตัวอักษรไล่สี (เอาออก 2026-07-31 จาก Impeccable audit)
+              DESIGN.md เขียน "gradient text" ไว้ใน anti-references ตรง ๆ ว่าเป็นเทมเพลต AI-SaaS
+              ที่ระบบนี้ปฏิเสธ และไล่สีเดิมยังเอา verified-green (สีของ "เชื่อได้") กับ error-coral
+              (สีของ "ผิดพลาด") มาใช้เป็นของตกแต่ง ซึ่งขัด Verified-Means-Green Rule ที่เขียนไว้เอง —
+              สีที่มีความหมายเชิงความเชื่อใจจะเฟ้อถ้าเอามาแต่งหัวเรื่อง
+
+              ไม่ใส่ม่วงเน้นวรรคใดวรรคหนึ่งด้วย เพราะรอบ ๆ หัวเรื่องมีม่วงอยู่แล้วสองจุด (chip ด้านบน
+              + ปุ่ม CTA ด้านล่าง) และ One Voice Rule ระบุว่าม่วงคือ accent ของ action ไม่ใช่ของตกแต่ง
+              ลำดับชั้นมาจากขนาดกับน้ำหนักพอแล้ว ตรงกับ north star "The Trusted Counter" ที่สะอาด
+              และไม่ตะโกน */}
           <Typography
-            className={classnames(
-              'font-extrabold text-[1.75rem] sm:text-[2.875rem] mbe-4 leading-tight sm:leading-[56px]',
-              styles.heroText
-            )}
+            className='font-extrabold text-[1.75rem] sm:text-[2.875rem] mbe-4 leading-tight sm:leading-[56px]'
+            color='text.primary'
           >
             ตัวตนชัดเจน ลูกค้ามั่นใจ ยอดขายเติบโต
           </Typography>
