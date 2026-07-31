@@ -821,21 +821,34 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
         </div>
       </div>
 
-      {/* ── footer บันทึก (ตาม reference) — เห็นตลอด ปุ่มจางเมื่อยังไม่มีการแก้
-             ต่างจาก reference ตรงที่บอกด้วยว่าแก้อะไรไปบ้าง ซึ่งช่วยตอนแก้หลายจุดพร้อมกัน ── */}
-      {canEdit && (
-        <div className="card sticky bottom-4 z-10 mt-4">
+      {/* ── footer บันทึก — โผล่เฉพาะตอนมีของที่ยังไม่ได้บันทึก (CL-22)
+             เดิมแสดงตลอดพร้อมประโยคบอกว่ายังไม่ได้แก้อะไร + ปุ่มจาง 2 ปุ่ม = กินพื้นที่จอ
+             ถาวรเพื่อบอกว่า "ไม่มีอะไร" และลอยทับช่องพิมพ์คำตอบด้วย
+             ยังบอกว่าแก้อะไรไปบ้าง (ช่วยตอนแก้หลายจุดพร้อมกัน) — ต่างจาก reference ตรงนี้
+             fade เข้าใช้ starting:opacity-0 (Tailwind 4 = @starting-style) เพราะ Paces ไม่มี
+             keyframe เข้า/ออกให้ใช้ และห้ามเขียน CSS ใหม่
+             bottom-20 บนจอ <lg กัน SellerBottomNav (fixed 64px) ทับ ── */}
+      {canEdit && dirty.length > 0 && (
+        <div className="card sticky bottom-20 lg:bottom-4 z-10 mt-4 opacity-100 transition-opacity duration-200 starting:opacity-0">
           <div className="card-body flex flex-wrap items-center justify-between gap-3 py-3">
             <span className="text-default-600 text-sm">
-              {dirty.length > 0 ? `แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}` : 'ยังไม่มีการเปลี่ยนแปลง'}
+              {`แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}`}
             </span>
             <div className="flex gap-2">
-              <button className="btn btn-soft-default" disabled={busy || dirty.length === 0}
-                onClick={() => {
+              <button className="btn bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0" disabled={busy}
+                onClick={async () => {
+                  // ถามก่อนคืนค่า — กดพลาดแล้วสิ่งที่พิมพ์ไว้หายทั้งหมด กู้คืนไม่ได้
+                  const ok = await pacesConfirm.danger(
+                    'ล้างสิ่งที่แก้ไว้?',
+                    'ค่าที่แก้ในหน้านี้จะกลับไปเป็นค่าที่บันทึกไว้ล่าสุด',
+                    { confirmButtonText: 'ล้างที่แก้ไว้' },
+                  )
+                  if (!ok) return
                   setName(keyword.name)
                   setPriority(keyword.priority); setDefaultReply(defaultRule?.replyText ?? '')
                 }}>ล้างที่แก้ไว้</button>
-              <button className="btn btn-primary" disabled={busy || dirty.length === 0} onClick={saveAll}>
+              <button className="btn bg-primary hover:bg-primary-hover min-h-11 text-white sm:min-h-0"
+                disabled={busy} onClick={saveAll}>
                 บันทึกการเปลี่ยนแปลง
               </button>
             </div>
