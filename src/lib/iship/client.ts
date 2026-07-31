@@ -68,6 +68,9 @@ export interface IShipPrice {
   remote_area: string | number;
   price: number;
   total_price: number;
+  /** จำนวนวันโดยประมาณ — iShip ส่งมาเป็นสตริง (ยืนยันกับบัญชีจริง 2026-07-31: "3") */
+  estimate_shipping_date?: string | number;
+  fuel_surcharge_fee?: number;
 }
 
 export interface IShipCreateOrderResult {

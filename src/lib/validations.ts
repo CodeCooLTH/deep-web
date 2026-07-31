@@ -1134,6 +1134,22 @@ export const IShipBulkLabelSchema = v.object({
   ),
 });
 
+// feature 00022 — ประเมินค่าส่งก่อนเปิดพัสดุ (ไม่ก่อค่าใช้จ่าย ยิงได้บ่อย)
+// ที่อยู่ผู้ส่งไม่รับจาก client โดยเจตนา — service อ่านจากการตั้งค่าร้านเสมอ
+export const IShipPriceQuoteSchema = v.object({
+  courierCode: shortText(50),
+  receiver: v.object({
+    subdistrict: v.nullish(shortText(120)),
+    district: v.nullish(shortText(120)),
+    province: v.nullish(shortText(120)),
+    postcode: v.nullish(shortText(10)),
+  }),
+  weight: v.pipe(v.number(), v.minValue(0.01), v.maxValue(100)),
+  width: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
+  length: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
+  height: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
+});
+
 export const IShipPickupSchema = v.object({
   courierCode: shortText(50),
   parcelCount: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),

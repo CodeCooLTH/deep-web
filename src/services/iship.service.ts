@@ -20,6 +20,7 @@ import {
   findMissingParcelFields,
   findMissingReceiverFields,
   findMissingSenderFields,
+  normalizeProvince,
   type DeepAddress,
   type MissingAddressField,
   type SenderAddress,
@@ -1520,4 +1521,88 @@ export async function syncShipmentStatuses(
     data: { statusSyncedAt: new Date() },
   });
   return changed;
+}
+
+// ─── ประเมินค่าส่ง ──────────────────────────────────────────────────────────
+
+export interface PriceEstimate {
+  /** ค่าส่งรวมที่ขนส่งประเมิน (บาท) */
+  totalPrice: number;
+  /** จำนวนวันโดยประมาณ — null เมื่อขนส่งไม่ได้บอก */
+  estimateDays: number | null;
+  /** ปลายทางเป็นพื้นที่ห่างไกล — มีค่าส่งเพิ่มและใช้เวลานานกว่าปกติ */
+  remoteArea: boolean;
+}
+
+/**
+ * estimateShippingPrice — ถามค่าส่งก่อนเปิดพัสดุจริง (BR-ISHIP-34: เป็นการประเมิน ไม่ใช่ราคาผูกพัน)
+ *
+ * มีมาตั้งแต่แรกในชั้น client แต่ไม่เคยมีใครเรียก — ร้านจึงกดปุ่มที่เสียเงินจริงโดยไม่เคย
+ * เห็นตัวเลขสักครั้ง (ตรวจพบ 2026-07-31)
+ *
+ * ที่อยู่ผู้ส่งมาจากการตั้งค่าร้านเสมอ ไม่ให้ผู้เรียกส่งเข้ามา — ไม่งั้นหน้าจอจะประเมินราคา
+ * จากต้นทางที่ไม่ใช่ที่ส่งจริง
+ *
+ * BR-ISHIP-31 — ตำบลไปช่อง district, อำเภอไปช่อง amphure (กลับหัวกับชื่อฟิลด์ของ iShip)
+ */
+export async function estimateShippingPrice(
+  shopId: string,
+  input: {
+    courierCode: string;
+    receiver: {
+      subdistrict?: string | null;
+      district?: string | null;
+      province?: string | null;
+      postcode?: string | null;
+    };
+    weight: number;
+    width: number;
+    length: number;
+    height: number;
+  },
+): Promise<PriceEstimate> {
+  const { account, token } = await loadAccount(shopId);
+  const sender = senderOf(account);
+
+  const missingSender = findMissingSenderFields(sender);
+  if (missingSender.length > 0) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `ยังตั้งที่อยู่ผู้ส่งไม่ครบ — ขาด ${missingSender.join(", ")}`,
+      missingSender,
+    );
+  }
+
+  const r = input.receiver;
+  if (!r.subdistrict || !r.district || !r.province || !r.postcode) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      "ยังกรอกที่อยู่ปลายทางไม่ครบ จึงประเมินค่าส่งไม่ได้",
+    );
+  }
+
+  const price = await withTokenGuard(shopId, () =>
+    iship.checkPrice(token, {
+      courier_code: input.courierCode,
+      src_zipcode: sender.postcode ?? "",
+      src_province: normalizeProvince(sender.province),
+      src_amphure: sender.district ?? "", // อำเภอ
+      src_district: sender.subdistrict ?? "", // ตำบล
+      dst_zipcode: r.postcode ?? "",
+      dst_province: normalizeProvince(r.province),
+      dst_amphure: r.district ?? "", // อำเภอ
+      dst_district: r.subdistrict ?? "", // ตำบล
+      weight: input.weight,
+      width: input.width,
+      length: input.length,
+      height: input.height,
+    }),
+  );
+
+  const days = Number(price.estimate_shipping_date);
+  return {
+    totalPrice: price.total_price,
+    estimateDays: Number.isFinite(days) && days > 0 ? days : null,
+    remoteArea: Number(price.remote_area) > 0,
+  };
 }
