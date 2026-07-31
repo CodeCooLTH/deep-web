@@ -38,8 +38,8 @@ export const sellerMenuItems: MenuItemType[] = [
       // ป้าย "คิวงาน" มาจาก user โดยตรง — คำเดิม "ทรัพยากร" อ่านแล้วไม่เข้าใจ
       // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน" 
       {
-        url: '/service-resources',
-        slug: 'seller:service-resources',
+        url: '/queues',
+        slug: 'seller:queues',
         label: 'คิวงาน',
         icon: 'armchair',
       },
@@ -278,7 +278,7 @@ export function applyVerticalMenu(
  *
  * pattern เดียวกับ applyStaffMenu/applyVerticalMenu (กรอง child ออกจาก group)
  */
-const APPOINTMENT_ONLY_SLUGS = ['seller:service-resources']
+const APPOINTMENT_ONLY_SLUGS = ['seller:queues']
 
 export function applyAppointmentMenu(
   items: MenuItemType[],

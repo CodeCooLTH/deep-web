@@ -182,7 +182,7 @@ export default function ResourceList({ resources }: Props) {
             </p>
           </div>
           <Link
-            href="/service-resources/new"
+            href="/queues/new"
             className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
           >
             <Icon icon="tabler:plus" className="me-1 size-4" />
@@ -203,7 +203,7 @@ export default function ResourceList({ resources }: Props) {
           </p>
         </div>
         <Link
-          href="/service-resources/new"
+          href="/queues/new"
           className="btn bg-primary min-h-11 text-white hover:bg-primary-hover"
         >
           <Icon icon="tabler:plus" className="me-1 size-4" />
@@ -216,7 +216,7 @@ export default function ResourceList({ resources }: Props) {
         {items.map((resource) => (
           <div key={resource.id} className="p-4">
             <Link
-              href={`/service-resources/${resource.id}`}
+              href={`/queues/${resource.id}`}
               className="text-default-800 block truncate font-medium"
             >
               {resource.name}
@@ -276,7 +276,7 @@ export default function ResourceList({ resources }: Props) {
               <tr key={resource.id}>
                 <td className="px-4 py-3">
                   <Link
-                    href={`/service-resources/${resource.id}`}
+                    href={`/queues/${resource.id}`}
                     className="text-default-800 font-medium"
                   >
                     {resource.name}
@@ -298,7 +298,7 @@ export default function ResourceList({ resources }: Props) {
                 <td className="px-4 py-3 text-end">
                   <div className="flex items-center justify-end gap-2">
                     <Link
-                      href={`/service-resources/${resource.id}`}
+                      href={`/queues/${resource.id}`}
                       className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 px-3 text-sm"
                     >
                       แก้ไข
