@@ -80,8 +80,13 @@ export default async function ScamReportDetailPage({ params }: PageProps) {
                   rel="noreferrer"
                   className="border-default-200 hover:border-primary group block overflow-hidden rounded-lg border"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/files/${fid}`} alt="หลักฐาน" className="aspect-square w-full object-cover" />
+                  {/* aspect-square ต้องอยู่ที่กรอบ ไม่ใช่ที่ <img> — img เป็น replaced element ที่มี
+                      intrinsic ratio ของตัวเอง สั่ง aspect-ratio ทับไม่ได้ผล และ object-cover ไม่มี
+                      อะไรให้ครอปเพราะความสูงยัง auto → รูปหลักฐานแต่ละใบสูงไม่เท่ากันในกริดเดียวกัน */}
+                  <span className="relative block aspect-square w-full overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/files/${fid}`} alt="หลักฐาน" className="absolute inset-0 size-full object-cover" />
+                  </span>
                 </a>
               ))}
               {evidence.length === 0 && <p className="text-default-400 text-sm">ไม่มีหลักฐานแนบ</p>}
