@@ -103,7 +103,15 @@ erDiagram
 
     ChatMessage ||--o| AutoReplyJob : "1 ข้อความ 1 งาน"
     AutoReplyRule ||--o{ AutoReplyLog : "กฎที่ถูกเลือก"
+
+    AutoReplyKeyword ||--o{ AutoReplyQna : "คลังคำถามของกลุ่มนี้"
+    Shop ||--o{ AutoReplyQna : "scope"
+    Shop ||--o{ AutoReplyUnansweredQuestion : "คิวคำถามที่ตอบไม่ได้"
+    AutoReplyQna ||--o{ AutoReplyLog : "ข้อในคลังที่ถูกใช้ตอบ"
+    AutoReplyQna |o--o{ AutoReplyUnansweredQuestion : "คิวที่ถูกแปลงเป็นคลังแล้ว"
 ```
+
+**อ่าน ERD ตรงนี้ให้ถูก:** `AutoReplyQna` ผูกกับ `AutoReplyKeyword` **ไม่ใช่กับ `Shop` โดยตรงในเชิงความหมาย** (คอลัมน์ `shopId` มีไว้ให้ query เร็วเฉย ๆ) — คลังคำถามเป็นของกลุ่มคำ ไม่ใช่คลังกลางของร้าน ซึ่งเป็นข้อตัดสินของ user ที่มีเหตุผลรองรับ (ดู §3.9)
 
 ---
 
@@ -437,6 +445,32 @@ model AutoReplyLog {
   @@index([conversationId, autoReplyKind, createdAt]) // หา "ข้อความคนล่าสุด" ของเธรด
 ```
 
+**`AutoReplyLog` (เพิ่ม 2 คอลัมน์ — 2026-07-31 phase `00023-qna`)**
+
+```prisma
+  // "KEYWORD" = เข้ากลุ่มเพราะคำตรงตัว | "QNA" = เข้ากลุ่มเพราะข้อในคลังคำถาม
+  // 🛑 null = แถวที่บันทึกไว้ก่อน phase นี้ — ต้องอ่านว่า "KEYWORD" เสมอ และ **ห้าม backfill ทับ**
+  //    เหตุผล: backfill จะทำให้แยกไม่ออกว่าแถวไหน "รู้จริงว่าเป็น KEYWORD" กับแถวไหน "เดาให้"
+  //    ซึ่งเป็นสิ่งเดียวที่ตารางบันทึกมีไว้ทำ (ป้าย DeepBot อ่านคอลัมน์นี้ตรง ๆ)
+  matchedVia String?
+
+  // ข้อในคลังที่ถูกใช้ตอบ — SetNull เพราะลบข้อในคลังไม่ควรลบบันทึกว่าเคยตอบด้วยข้อนั้น
+  qnaId String?
+  qna   AutoReplyQna? @relation(fields: [qnaId], references: [id], onDelete: SetNull)
+```
+
+`resolutionLevel` ของแถวที่ตอบด้วยคลังเป็น `"QNA"` — **ไม่ใช่ `KEYWORD_DEFAULT`** เพราะคำตอบไม่ได้มาจาก `AutoReplyRule` เลย ถ้าใช้ชื่อระดับเดิมจะไล่ไม่ออกว่าคำตอบมาจากไหนตอนบอทตอบแปลก
+
+**`AutoReplyKeyword` (เพิ่ม 1 คอลัมน์ — 2026-07-31)**
+
+```prisma
+  // 🛑 คอลัมน์นี้ยัง **ไม่มีที่ไหนในโค้ดอ่านค่า** — ห้ามเข้าใจว่าเปิดใช้ได้แล้ว
+  // user ตัดสิน 2026-07-31: "ตรงตัวก่อน ความคล้ายเปิดทีหลัง" (A1 ใน Scope Baseline 00023-qna)
+  // ใส่มาพร้อม migration รอบนี้เพราะ dev DB = prod DB — การกลับมา ALTER TABLE รอบสอง
+  // มีต้นทุนความเสี่ยงมากกว่าคอลัมน์ที่นอนเฉย ๆ 1 คอลัมน์
+  qnaSimilarityEnabled Boolean @default(false)
+```
+
 ### 3.8 ค่าคงที่ (String constants — FROZEN)
 
 | กลุ่ม | ค่าที่อนุญาต |
@@ -447,12 +481,164 @@ model AutoReplyLog {
 | `AutoReplyConfig.adsContextMode` | `UNTIL_RESOLVED` · `HOURS` · `UNTIL_NEW_PRODUCT` |
 | `AutoReplyJob.status` | `PENDING` · `PROCESSING` · `DONE` · `FAILED` · `SKIPPED` |
 | `AutoReplyLog.decision` | `REPLIED` · `SKIPPED` · `HANDOFF` · `FAILED` |
-| `AutoReplyLog.resolutionLevel` | `KEYWORD_PAGE_AD_PRODUCT` · `KEYWORD_PAGE_AD` · `KEYWORD_PAGE_PRODUCT` · `KEYWORD_PAGE` · `KEYWORD_PRODUCT` · `KEYWORD_DEFAULT` · `PAGE_DEFAULT` · `SHOP_DEFAULT` · `NONE` |
+| `AutoReplyLog.resolutionLevel` | `KEYWORD_PAGE_AD_PRODUCT` · `KEYWORD_PAGE_AD` · `KEYWORD_PAGE_PRODUCT` · `KEYWORD_PAGE` · `KEYWORD_PRODUCT` · `KEYWORD_DEFAULT` · `PAGE_DEFAULT` · `SHOP_DEFAULT` · `NONE` · **`QNA`** (amend 2026-07-31) |
 | `AutoReplyLog.skipReason` | `SHOP_DISABLED` · `CONVERSATION_DISABLED` · `NOT_IN_TEST_ALLOWLIST` · `SPAM` · `HANDED_OFF` · `PAUSED_HUMAN_TAKEOVER` · `OUTBOUND_MESSAGE` · `KEYWORD_COOLDOWN` · `MAX_REPLIES_REACHED` · `NO_KEYWORD_MATCH` · `NO_RULE_MATCH` · `EMPTY_REPLY` · `WINDOW_CLOSED` · `CHANNEL_INACTIVE` · `DUPLICATE_JOB` · `KEYWORD_TEST_ONLY` · `OUTSIDE_SCHEDULE` |
+| **`AutoReplyLog.matchedVia`** | `KEYWORD` · `QNA` — **เพิ่ม 2026-07-31** · `null` = แถวเก่าก่อน phase นี้ (ต้องอ่านว่า `KEYWORD` เสมอ ห้าม backfill ทับ ดู §3.7) |
+| **`AutoReplyQna.source`** | `MANUAL` · `QUEUE` · `IMPORT` — **เพิ่ม 2026-07-31** |
+| **`AutoReplyUnansweredQuestion.status`** | `PENDING` · `DISMISSED` · `ANSWERED` — **เพิ่ม 2026-07-31** |
 | `ChatMessage.autoReplyKind` | `null` · `AUTO` · `AUTO_TEST` |
 | `Conversation.contextProductSource` | `ADS_MAPPING` · `MANUAL` · `REFERRAL` |
 
 ทั้งหมดเป็น `String` ไม่ใช่ Prisma enum ตาม convention ของโปรเจกต์ (`Order.status`, `Shop.kind`, `Product.type`, `Expense.category`) — เลี่ยง `ALTER TYPE` ทุกครั้งที่เพิ่มตัวเลือก และ **ไม่มี DB CHECK** validate ที่ Valibot ชั้นเดียว
+
+### 3.9 `AutoReplyQna` (เพิ่ม 2026-07-31 — phase `00023-qna`)
+
+คลังคำถาม-คำตอบ **ผูกกับกลุ่มคำ** ไม่ใช่คลังกลางของร้าน (user ตัดสิน — `docs/scope/2026-07-31-00023-ai-enhance-decisions.md` §3)
+
+เป็น **วิธีจับคู่ทางที่สอง** ของกลุ่มคำ: `AutoReplyPhrase` จับแบบตรงตัวตาม `matchType` ของกลุ่ม ส่วนตารางนี้จับ "ทั้งประโยค" แล้วมีคำตอบของตัวเอง — ต่างจาก `AutoReplyRule` ตรงที่ **1 กลุ่มมีได้หลายร้อยข้อ แต่ละข้อมีคำตอบต่างกัน** ในขณะที่ rule คือคำตอบเดียวของกลุ่มที่แตกตามเงื่อนไข เพจ/โฆษณา/สินค้า
+
+```prisma
+model AutoReplyQna {
+  id        String @id @default(uuid())
+  shopId    String // ซ้ำกับ keyword.shopId ตั้งใจ — ทุก query ของหน้าจัดการกรองด้วย shopId ตรง ๆ ไม่ต้อง join
+  keywordId String
+
+  question String @db.Text // คำถามที่ร้านพิมพ์ (เก็บของเดิมไว้แสดงใน UI)
+
+  // ผ่าน normalizeMessage() ตัวเดียวกับ AutoReplyPhrase.normalizedPhrase และข้อความลูกค้า
+  // 🛑 คำเตือนเดียวกับ AutoReplyPhrase: แก้ normalizeMessage เมื่อไหร่ คอลัมน์นี้ stale ทั้งตาราง
+  //    ต้อง backfill พร้อม deploy รอบเดียวกัน (SRS TFR-003 / TFR-031)
+  normalizedQuestion String
+
+  answer String @db.Text // 🛑 ส่งถึงลูกค้าตรงตัวทุกอักษร ห้ามระบบดัดแปลง (BR-AR หลัก เหมือน AutoReplyRule.replyText)
+
+  // รูปแนบ (storage fileId) — สูงสุด 5 บังคับที่ Valibot (user ตัดสิน 2026-07-31 A6)
+  // TEXT[] คอลัมน์เดียว ลำดับในอาร์เรย์ = ลำดับที่ส่ง — รูปแบบเดียวกับ QuickMessage.imageFileIds
+  // 🛑 Messenger ส่งรูปกับข้อความเป็น "คนละข้อความ" (attachment ไม่มี text ในตัว) ⇒ 5 รูป + ข้อความ
+  //    = ลูกค้าได้รับ 6 ข้อความรวด · ดู §3.11 เรื่องความล้มเหลวบางส่วนที่ถอนคืนไม่ได้
+  imageFileIds String[] @default([])
+
+  isActive Boolean @default(true)
+
+  // นับการถูกใช้ตอบจริง — ใช้ทั้งตัวกรอง "ไม่เคยถูกใช้" และคอลัมน์ "N ครั้ง" ในหน้าจัดการ
+  // 🛑 เก็บเป็นคอลัมน์ ไม่ COUNT จาก AutoReplyLog ตอน query: AutoReplyLog เป็นตารางที่โตเร็วที่สุด
+  //    ในระบบ (§4) การ COUNT ต่อแถวคลังทุกครั้งที่เปิดหน้า = N+1 บนตารางที่ใหญ่ที่สุด
+  useCount   Int       @default(0)
+  lastUsedAt DateTime?
+
+  // ที่มาของข้อ: "MANUAL" (ร้านพิมพ์เอง) | "QUEUE" (แปลงจากคิวคำถามที่ตอบไม่ได้) | "IMPORT" (นำเข้าไฟล์)
+  // ไม่ใช่ของประดับ — ใช้ตอบว่า "คลังที่โตขึ้นมาจากงานประจำวันจริงไหม" ซึ่งเป็นเหตุผลของฟีเจอร์
+  source String @default("MANUAL")
+
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop    Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  keyword AutoReplyKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  logs    AutoReplyLog[]
+
+  // คำถามซ้ำในกลุ่มเดียวกันต้องถูกปฏิเสธ — บังคับที่ DB ไม่พึ่งวินัยโค้ด (หลักเดียวกับ AutoReplyPhrase)
+  // 🛑 unique ที่ระดับ "กลุ่ม" ไม่ใช่ "ร้าน" ตั้งใจ: คำถามเดียวกันอยู่ได้หลายกลุ่ม เพราะแต่ละกลุ่ม
+  //    มีน้ำเสียง/กฎ/ขอบเขตของตัวเอง (จะมีผลจริงตอนทำ AI Enhance) — ตอนจับคู่ใช้ตัวตัดสินที่ §3.9.1
+  @@unique([keywordId, normalizedQuestion])
+  // query หลักของ QnA matching: โหลดข้อที่เปิดใช้ของร้านทั้งหมดในคิวรีเดียว (ไม่แยกตามกลุ่ม —
+  // ตอน match ยังไม่รู้ว่ากลุ่มไหน) แล้วกรอง keyword ที่ไม่ใช่ OFFLINE ในหน่วยความจำ
+  @@index([shopId, isActive])
+  // หน้าจัดการรายกลุ่ม: เรียงตามที่ถูกใช้บ่อย
+  @@index([keywordId, isActive, useCount])
+}
+```
+
+#### 3.9.1 ตัวตัดสินเมื่อคำถามเดียวกันอยู่หลายกลุ่ม (deterministic — ห้ามพึ่งลำดับที่ DB คืนมา)
+
+เรียงตามลำดับ หยุดที่เกณฑ์แรกที่ต่างกัน:
+1. `keyword.priority` มากกว่าชนะ (เกณฑ์เดียวกับ `TFR-009` ของกลุ่มคำ — ร้านที่ตั้ง priority ไว้แล้วต้องได้ผลเดิม)
+2. `useCount` มากกว่าชนะ (ข้อที่พิสูจน์แล้วว่าใช้จริง)
+3. `AutoReplyQna.id` น้อยกว่าชนะ (unique เสมอ ⇒ ไม่มีทางเสมอกันจริง)
+
+🛑 เกณฑ์ที่ 3 มีไว้ให้ผล **ซ้ำได้ทุกครั้ง** ตามหลักเดียวกับ AC-011-03 — ไม่ใช่ tie-break ที่คาดว่าจะได้ใช้
+
+### 3.10 `AutoReplyUnansweredQuestion` (เพิ่ม 2026-07-31 — phase `00023-qna`)
+
+คิว "คำถามที่ DeepBot ตอบไม่ได้" — **ตารางจริงที่เขียนตอนเกิดเหตุ ไม่ใช่ `groupBy` บน `AutoReplyLog` ตอนเปิดหน้า**
+
+เหตุผล 3 ข้อ (ทั้งสามข้อทำให้ `groupBy` ใช้ไม่ได้ ไม่ใช่แค่ช้ากว่า):
+1. `AutoReplyLog` ไม่มี index บน `normalizedText` และเป็นตารางที่โตเร็วที่สุดในระบบ (§4)
+2. คิวต้องมีสถานะ (`ข้าม` / `ตอบแล้ว`) ซึ่งเก็บใน log ที่เป็น append-only ไม่ได้
+3. ต้องกรอง PII **ตอนเขียน** (§3.10.1) — `groupBy` จะดึงที่อยู่/เบอร์ลูกค้าขึ้นมาโชว์ทุกครั้ง
+
+```prisma
+model AutoReplyUnansweredQuestion {
+  id     String @id @default(uuid())
+  shopId String
+
+  // normalize ด้วย normalizeMessage() ตัวเดียวกับทุกที่ — เป็นทั้งคีย์รวมแถวและตัวเทียบตอนแปลงเป็น QnA
+  normalizedQuestion String @db.Text
+  // ข้อความดิบตัวอย่างล่าสุด — ใช้แสดงในคิว (คนอ่านรู้เรื่องกว่ารูป normalize)
+  // ผ่านตัวกรอง §3.10.1 มาแล้วเช่นกัน ไม่ใช่ข้อความดิบที่ไม่ถูกกรอง
+  rawSample String @db.Text
+
+  hitCount    Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  // "PENDING" = รอกรอกคำตอบ | "DISMISSED" = ร้านกดข้าม | "ANSWERED" = แปลงเป็น AutoReplyQna แล้ว
+  status String @default("PENDING")
+
+  // ชี้ข้อในคลังที่เกิดจากคิวแถวนี้ — SetNull เพราะลบข้อในคลังไม่ควรลบประวัติว่าเคยตอบไปแล้ว
+  // (ถ้า SetNull แล้ว status ยังเป็น ANSWERED = "เคยตอบแล้วแต่ข้อนั้นถูกลบ" ซึ่งเป็นความจริง)
+  qnaId String?
+
+  dismissedAt     DateTime?
+  dismissedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  qna  AutoReplyQna? @relation("QnaFromQueue", fields: [qnaId], references: [id], onDelete: SetNull)
+
+  // 🛑 หัวใจของตาราง: ข้อความเดียวกันของร้านเดียวกัน = แถวเดียวตลอดกาล นับที่ hitCount
+  //    ทำให้ upsert ในเส้นทางร้อนเป็น operation เดียวและกันคิวบวมโดยไม่ต้องมี dedupe ในโค้ด
+  @@unique([shopId, normalizedQuestion])
+  // หน้าคิว: ของร้านนี้ ที่ยังรอกรอก เรียงตามที่ถูกถามบ่อย
+  @@index([shopId, status, hitCount])
+}
+```
+
+#### 3.10.1 ตัวกรองก่อนเขียนคิว (บังคับ — ไม่ใช่ตัวเลือกของ UI)
+
+ข้อความที่เข้าเงื่อนไขใดเงื่อนไขหนึ่ง **ไม่ถูกเขียนลงตารางนี้เลย** (ยังอยู่ใน `AutoReplyLog` ตามเดิม — ไม่มีการลบข้อมูล มีแต่การไม่ทำสำเนาเพิ่ม):
+
+| # | เงื่อนไข | เหตุผล | หลักฐานจาก prod |
+|---|---|---|---|
+| F-1 | ยาว ≤ 3 ตัวอักษรหลัง normalize | ข้อความรับคำ ไม่ใช่คำถาม | `ครับ`(7) `คับ` `รับ` `110` `เลส` |
+| F-2 | มีเลขติดกัน ≥ 9 ตัว | เบอร์โทร | `0852995863` |
+| F-3 | มีคำบ่งชี้ที่อยู่ (`ตำบล`/`อำเภอ`/`จังหวัด`/`หมู่`) หรือ ไปรษณีย์ 5 หลัก | ที่อยู่จัดส่ง | `... ตำบลศาลายา อำเภอพุทธมณฑล ... 73170 ...` |
+| F-4 | ยาวเกิน 80 ตัวอักษรหลัง normalize | ข้อความสั่งซื้อ/ที่อยู่ยาว ไม่ใช่คำถามที่นำกลับมาใช้ซ้ำได้ | แถว 119 / 142 / 171 ตัวอักษร |
+
+🛑 F-2/F-3/F-4 เป็น **มาตรการ PII** ไม่ใช่การกรองขยะ — ที่อยู่และเบอร์ลูกค้าไม่ควรถูก **คัดลอก** ไปอยู่ตารางใหม่ที่มีปุ่ม "ส่งออกเป็นไฟล์" อยู่ข้าง ๆ (memory `feedback_rsc_pii_neutralize_at_source`) · การกรองอยู่ที่ **ขาเขียน** ไม่ใช่ขาแสดงผล เพราะกรองตอนแสดงแปลว่าข้อมูลถูกเก็บไปแล้ว
+
+รายการคำ/เกณฑ์ทั้งหมด **ตายตัวในโค้ด** ร้านแก้ไม่ได้ (user ตัดสิน 2026-07-31 — A4 ใน Scope Baseline)
+
+### 3.11 รูปแนบในคำตอบอัตโนมัติ (เพิ่ม 2026-07-31 — user สั่ง "Auto Reply ต้องใส่รูปได้")
+
+**คอลัมน์ที่เพิ่ม:** `AutoReplyRule.imageFileIds String[] @default([])` และ `AutoReplyQna.imageFileIds String[] @default([])` — สูงสุด 5 บังคับที่ Valibot (A6)
+
+**ทำไมไม่ต้องสร้างอะไรใหม่ฝั่งส่ง:** `sendOutboundMessage()` (`channel-chat.service.ts:890`) รับ `imageFileId` และรองรับเส้นทางระบบ (`systemShopId` + `autoReplyKind`) อยู่แล้ว — `sendAutoReply()` แค่วนส่งต่อ
+
+#### 🛑 ข้อจำกัดของ Messenger ที่โมเดลนี้ต้องอยู่ร่วมด้วย (ไม่ใช่สิ่งที่แก้ได้ด้วยการออกแบบ DB)
+
+| # | ข้อเท็จจริง | ผลต่อการออกแบบ |
+|---|---|---|
+| 1 | Meta attachment **ไม่มี text ในตัว** | "รูป + ข้อความ" = 2 ข้อความแยก · 5 รูป + ข้อความ = **6 ข้อความรวด** |
+| 2 | แต่ละข้อความยิงแยกกัน = **ล้มเหลวแยกกันได้** | เกิดสถานะ "ลูกค้าได้รูปแต่ไม่ได้ข้อความ" ซึ่ง **ถอนคืนไม่ได้** |
+| 3 | โค้ดปัจจุบันกลืน error ของข้อความที่ตามหลังรูปด้วย `.catch(() => {})` (`:1063`) | 🛑 **ต้องแก้สำหรับเส้นทาง auto-reply** — คนกดส่งเองเห็นกับตาว่าไม่ขึ้น แต่บอทตอบตอนไม่มีใครเฝ้า ⇒ ต้องบันทึกลง `AutoReplyLog.errorMessage` อย่างน้อย |
+| 4 | Meta **มาดึงรูปเองจาก presigned URL อายุ 1 ชม.** | ข้อจำกัด MIME/ขนาดของ Supabase bucket มีผลตรง ๆ — เคยพังเงียบมาแล้ว (memory `project_supabase_uploads_bucket_mime_limit`) |
+
+**ผลต่อการนับ `Conversation.autoReplyCount` (เพดานตอบต่อเธรด AC-018-02):** คำตอบ 1 ชุดที่มี 5 รูป นับเป็น **1** ไม่ใช่ 6
+🛑 ถ้านับเป็น 6 ร้านที่ตั้งเพดานไว้ 10 จะโดนตัดจบหลังตอบไปแค่ชุดเดียวครึ่ง ซึ่งไม่ใช่สิ่งที่ "จำนวนคำตอบ" หมายถึงในสายตาร้าน
 
 ---
 
@@ -469,6 +655,12 @@ model AutoReplyLog {
 | `AutoReplyLog` | 5 index (ดู §3.6) | ครอบทุกเงื่อนไขค้นหาใน AC-024-03 |
 | `Conversation` | `[shopId, autoReplyTestEnabled]` | หา allowlist โหมดทดสอบ |
 | `ChatMessage` | `[conversationId, autoReplyKind, createdAt]` | หาข้อความ "คนส่ง" ล่าสุด เพื่อเช็ค human takeover |
+| **`AutoReplyQna`** | `[keywordId, normalizedQuestion]` unique | กันคำถามซ้ำในกลุ่มเดียวกันที่ระดับ DB |
+| **`AutoReplyQna`** | `[shopId, isActive]` | **query หลักของ QnA matching** — โหลดคลังที่เปิดใช้ของร้านในคิวรีเดียวต่อข้อความที่ไม่ตรงคำ (ผ่าน cache 60 วิ เหมือน ruleSet) |
+| **`AutoReplyQna`** | `[keywordId, isActive, useCount]` | หน้าจัดการรายกลุ่ม เรียงตามที่ถูกใช้บ่อย + ตัวกรอง "ไม่เคยถูกใช้" (`useCount = 0`) |
+| **`AutoReplyUnansweredQuestion`** | `[shopId, normalizedQuestion]` unique | **หัวใจ** — ข้อความเดิม = แถวเดิม ทำให้ upsert ในเส้นทางร้อนเป็น operation เดียว |
+| **`AutoReplyUnansweredQuestion`** | `[shopId, status, hitCount]` | หน้าคิว: ที่ยังรอกรอกของร้านนี้ เรียงตามที่ถูกถามบ่อย |
+| **`AutoReplyLog`** | ไม่เพิ่ม index สำหรับ `qnaId`/`matchedVia` | ตั้งใจ — ป้าย DeepBot join ด้วย `conversationId` ซึ่งมี index อยู่แล้ว · `AutoReplyLog` มี 5 index บนตารางที่โตเร็วที่สุดในระบบ การเพิ่มที่ 6-7 เพื่อ query ที่ยังไม่มีคนเรียกคือการจ่ายค่าเขียนฟรี |
 
 **ผลต่อ write performance และ storage:**
 - `ChatMessage` เป็นตารางที่เขียนถี่ที่สุดในระบบ — เพิ่ม 1 คอลัมน์ nullable + 1 index สามคอลัมน์ ต้นทุนเขียนเพิ่มเล็กน้อยแต่ยอมรับได้ เพราะ index นี้แทนที่การ scan เธรดทุกครั้งที่ตัดสินใจตอบ
@@ -492,6 +684,25 @@ model AutoReplyLog {
 6. `CREATE UNIQUE INDEX` บน `AutoReplyJob(chatMessageId)` และ `AutoReplyConfig(shopId)`
 
 🛑 **apply ด้วย `npx prisma migrate deploy -e .env.local` เท่านั้น และต้องขอ user ยืนยันก่อนทุกครั้ง** — `.env.local` ชี้ Supabase ที่ dev และ prod ใช้ร่วมกัน ห้าม `migrate dev` เด็ดขาด (จะ reset ลบข้อมูลจริง — memory `project_shared_db_drift_no_migrate_dev`)
+
+#### 5.1.1 migration รอบ `00023-qna` (2026-07-31) — `20260731xxxxxx_auto_reply_qna`
+
+**additive 100% — ไม่มี DROP / ไม่มี ALTER ที่เปลี่ยนชนิด / ไม่มี NOT NULL บนตารางเดิม**
+
+1. `CREATE TABLE "AutoReplyQna"` + index 3 ตัว (§4)
+2. `CREATE TABLE "AutoReplyUnansweredQuestion"` + index 2 ตัว
+3. `ALTER TABLE "AutoReplyLog" ADD COLUMN "matchedVia" TEXT, ADD COLUMN "qnaId" TEXT` — **nullable ทั้งคู่ ไม่มี DEFAULT** (ดู §3.7: null คือข้อมูล ไม่ใช่ค่าที่ขาด)
+4. `ALTER TABLE "AutoReplyKeyword" ADD COLUMN "qnaSimilarityEnabled" BOOLEAN NOT NULL DEFAULT false` — มี DEFAULT ⇒ PostgreSQL 11+ ไม่ rewrite ตาราง
+4b. `ALTER TABLE "AutoReplyRule" ADD COLUMN "imageFileIds" TEXT[] NOT NULL DEFAULT '{}'` (§3.11) — ลงรอบนี้เลยแม้ UI ในหน้าแก้ไขกลุ่มคำจะยังทำไม่ได้ (ติดงาน v3) เพื่อ**ไม่ต้องกลับมา ALTER รอบสองบน DB ที่ dev/prod แชร์กัน** (user ตัดสิน A5)
+5. FK: `AutoReplyLog.qnaId → AutoReplyQna(id) ON DELETE SET NULL` · `AutoReplyUnansweredQuestion.qnaId → AutoReplyQna(id) ON DELETE SET NULL`
+6. CHECK ค่าคงที่ (มิเรอร์ `AutoReplyConfig_active_schedule_mode` ของรอบก่อน):
+   `AutoReplyQna_source IN ('MANUAL','QUEUE','IMPORT')` · `AutoReplyUnansweredQuestion_status IN ('PENDING','DISMISSED','ANSWERED')` · `AutoReplyLog_matched_via IS NULL OR IN ('KEYWORD','QNA')`
+
+**backfill:** มีหนึ่งรายการและเป็น **สคริปต์แยก ไม่อยู่ใน migration** — `scripts/backfill-auto-reply-unanswered.ts` อ่าน `AutoReplyLog` ที่ `skipReason='NO_KEYWORD_MATCH'` (401 แถว ณ 2026-07-31) ผ่านตัวกรอง §3.10.1 แล้ว upsert เข้าคิว
+🛑 แยกออกจาก migration ตั้งใจ: สคริปต์ backfill ที่ **รันซ้ำได้ปลอดภัย** (upsert + `hitCount` คำนวณจากการนับ ไม่ใช่ increment) มีค่ามากกว่าการฝังใน migration ที่รันได้ครั้งเดียวและถ้าพลาดต้องแก้ด้วยมือบน prod
+🛑 สคริปต์นี้ **ห้ามมีคำสั่งลบใด ๆ** (Hard Rule 13) — อ่าน + upsert เท่านั้น
+
+⚠️ หลัง migrate **ต้อง restart dev server** (stale Prisma client → session 500)
 
 ⚠️ หลัง migrate **ต้อง restart dev server** — stale Prisma client ทำให้ session 500 (บทเรียน seller auth 2026-06-16)
 
