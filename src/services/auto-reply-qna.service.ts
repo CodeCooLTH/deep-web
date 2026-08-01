@@ -12,6 +12,7 @@
 //      ทันทีจะเจอ "ตั้งแล้วไม่ทำงาน" นาน 60 วินาที ซึ่งแยกไม่ออกจากบั๊กจริง
 //      (บทเรียนซ้ำรอย cooldown/ตารางเวลา 2026-07-31)
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { invalidateShop } from '@/lib/auto-reply-cache'
@@ -42,8 +43,12 @@ export interface QnaListResult {
 }
 
 /** ยืนยันว่ากลุ่มคำนี้เป็นของร้านนี้จริง — ใช้ก่อนทุกคำสั่งที่อ้าง keywordId จาก client */
-async function assertKeywordOwned(keywordId: string, shopId: string): Promise<void> {
-  const found = await prisma.autoReplyKeyword.findFirst({
+async function assertKeywordOwned(
+  keywordId: string,
+  shopId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma
+): Promise<void> {
+  const found = await db.autoReplyKeyword.findFirst({
     where: { id: keywordId, shopId },
     select: { id: true },
   })
@@ -136,14 +141,22 @@ export async function createQna(
   keywordId: string,
   shopId: string,
   input: { question: string; answer: string; imageFileIds?: string[]; source?: QnaSource },
-  actorUserId: string
+  actorUserId: string,
+  /**
+   * ส่ง tx มาเมื่อการสร้างต้อง atomic ร่วมกับการเขียนอื่น (เช่น `convertUnansweredToQna`
+   * ที่ต้องปิดคิวในทรานแซกชันเดียวกัน) — เมื่อส่ง tx มา **จะไม่ invalidate cache ให้**
+   * เพราะ commit ยังไม่เกิด ล้าง cache ตอนนั้นจะดูดค่าเก่ากลับเข้ามาใหม่ทันที
+   * ผู้เรียกต้อง `invalidateShop(shopId)` เองหลัง transaction สำเร็จ
+   */
+  tx?: Prisma.TransactionClient
 ): Promise<{ id: string }> {
-  await assertKeywordOwned(keywordId, shopId)
+  const db = tx ?? prisma
+  await assertKeywordOwned(keywordId, shopId, db)
   const images = input.imageFileIds ?? []
   const { q, a, normalized } = validateContent(input.question, input.answer, images)
 
   try {
-    const created = await prisma.autoReplyQna.create({
+    const created = await db.autoReplyQna.create({
       data: {
         shopId,
         keywordId,
@@ -157,7 +170,7 @@ export async function createQna(
       },
       select: { id: true },
     })
-    invalidateShop(shopId)
+    if (!tx) invalidateShop(shopId)
     return created
   } catch (e) {
     // @@unique([keywordId, normalizedQuestion]) — ให้ DB เป็นคนบอกว่าซ้ำ ไม่ใช่ findFirst ก่อนเขียน

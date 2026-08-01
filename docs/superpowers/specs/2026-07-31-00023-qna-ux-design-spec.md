@@ -635,10 +635,20 @@ import จาก `@/lib/format-date` ตรง ๆ
 `lastMessageIsAiEnhanced?: boolean` (default false) — enrich คู่กับ query เดิมของ
 `lastMessagePreview`/`lastSenderRole`
 
-> 🛑 **แก้ข้อเท็จจริง 2026-08-01:** ไม่ใช่ join — `lastMessagePreview`/`lastSenderRole`
-> เป็นคอลัมน์ denormalize บน `Conversation` ที่เขียนตอน insert ข้อความ
-> จึงต้องมี **migration เพิ่ม 2 คอลัมน์จริง** และเขียนค่า **explicit ทุกจุดที่เขียน
-> `lastMessagePreview`** (Prisma `update` ไม่แตะ field ที่ไม่ระบุ → ลืมจุดใดจุดหนึ่ง
-> ค่าเดิมค้าง ป้ายติดผิดข้อความ) · ฝั่งอ่านไม่ต้องแก้ route เพราะ `listConversations`
-> เป็น `findMany` ไม่มี `select` และ route spread ทุก field อยู่แล้ว
-> user ยืนยันให้ทำตามนี้ 2026-08-01
+> 🛑 **ข้อเท็จจริง + คำตัดสินสุดท้าย 2026-08-01 (ฉบับนี้แทนที่ของเดิมทั้งหมด):**
+> `lastMessagePreview`/`lastSenderRole` **ไม่ได้มาจาก join** — เป็นคอลัมน์ denormalize
+> บน `Conversation` ที่เขียนตอน insert ข้อความ **4 จุด** (`chat.service.ts:655`,
+> `channel-chat.service.ts:194/687/1097` — ยืนยันด้วยการเปิดอ่านทุกจุด)
+>
+> **แต่ไม่ได้แปลว่าต้องเพิ่มคอลัมน์ตาม** — user ตัดสิน 2026-08-01 ให้ใช้ **join enrich
+> ไม่แก้ schema เลย** (ยกเลิก task migration ที่เคยวางไว้) โดยสร้าง
+> `enrichWithAutoReplyBadge()` คู่กับ `enrichWithOrderStage()` ที่เรียกอยู่แล้วใน
+> `inbox/page.tsx` และ `api/chat/conversations/route.ts` · index
+> `@@index([conversationId, autoReplyKind, createdAt])` มีรออยู่แล้วใน schema
+>
+> เหตุผล: การเพิ่มคอลัมน์ = ต้อง sync 4 จุดตลอดไป และยังเหลือ known-gap เส้นทาง race
+> ของ echo Messenger ที่แปะ `autoReplyKind` ย้อนหลังโดยไม่อัปเดต snapshot → ป้ายไม่ขึ้น
+> ส่วน join อ่านจากข้อความจริงเสมอ จึงไม่มีทั้งภาระ sync และ known-gap นั้น
+>
+> ฝั่งอ่านไม่ต้องแก้ route เพราะ `listConversations` เป็น `findMany` ไม่มี `select`
+> และ route spread ทุก field อยู่แล้ว · รายละเอียดเต็มดู [[SDS]] §14.4

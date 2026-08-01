@@ -40,17 +40,22 @@ proven ใช้จริงใน `OrderCard.tsx`) — ให้ผล "วั�
 (default false) เข้า `ConversationListItem`, enrich คู่กับ query ที่มีอยู่แล้ว
 ของ `lastMessagePreview`/`lastSenderRole` (join ข้อความล่าสุดเดียวกัน ไม่เพิ่ม query รอบ)
 
-> 🛑 **แก้ข้อเท็จจริง 2026-08-01 (safepay-planner ตรวจโค้ดจริง — user ยืนยันให้ทำตามแผน):**
+> 🛑 **ข้อเท็จจริง + คำตัดสินสุดท้าย 2026-08-01 (ฉบับนี้แทนที่บันทึกก่อนหน้าในไฟล์นี้):**
 > ข้อความข้างบนสมมติผิดว่า `lastMessagePreview`/`lastSenderRole` มาจากการ join
-> ของจริงคือ **คอลัมน์ denormalize บน `Conversation` ที่เขียนตอน insert ข้อความ**
-> จึง **ต้องมี migration เพิ่ม 2 คอลัมน์จริง** (`lastMessageAutoReplyKind String?`,
-> `lastMessageIsAiEnhanced Boolean @default(false)`) ไม่ใช่แค่เติม field ใน type
-> และต้องเขียนค่าทั้งสอง **explicit ทุกจุดที่เขียน `lastMessagePreview`** เพราะ
-> Prisma `update` ไม่แตะ field ที่ไม่ระบุ — ลืมจุดใดจุดหนึ่ง = ค่าเดิมค้าง
-> ป้าย DeepBot จะติดผิดข้อความ (ไม่ใช่แค่ไม่ขึ้น)
-> known-gap ที่ยอมรับแล้ว: เส้นทาง race ของ echo Messenger ใน `channel-chat.service.ts`
-> ที่แปะ `autoReplyKind` ย้อนหลังไม่อัปเดต snapshot ซ้ำ → ป้ายจะไม่ขึ้นในเคสนั้น
-> (false negative ไม่ใช่ false positive) — ตัดสินใจไม่แก้ในรอบนี้
+> ของจริงคือ **คอลัมน์ denormalize บน `Conversation` ที่เขียนตอน insert ข้อความ 4 จุด**
+> (`chat.service.ts:655`, `channel-chat.service.ts:194/687/1097`)
+>
+> **คำตัดสินของ user: ใช้ join enrich — ไม่แก้ schema ไม่มี migration ในงานนี้**
+> สร้าง `enrichWithAutoReplyBadge()` คู่กับ `enrichWithOrderStage()` ที่เรียกอยู่แล้ว
+> ทั้งใน `inbox/page.tsx` และ `api/chat/conversations/route.ts` · index
+> `@@index([conversationId, autoReplyKind, createdAt])` มีรออยู่แล้วใน schema
+> (ใส่ไว้ตั้งแต่ base feature พร้อมคอมเมนต์ว่าเพื่อ feature 00023)
+>
+> เหตุผลที่ไม่เลือกทาง denormalize: ต้อง sync 4 จุดตลอดไป + ยังเหลือ known-gap
+> เส้นทาง race ของ echo Messenger ที่แปะ `autoReplyKind` ย้อนหลังโดยไม่อัปเดต snapshot
+> → ป้ายจะไม่ขึ้นในเคสนั้น · ทาง join อ่านจากข้อความจริงเสมอ จึงไม่มีปัญหาทั้งสองอย่าง
+>
+> `lastMessageIsAiEnhanced` = ค่าคงที่ `false` เสมอในเฟสนี้ (ยังไม่มี flag จริง ไม่ query เพิ่ม)
 
 **7. งบเวลาที่ยอมให้ AI ใช้ก่อนถอยไปตอบคำตอบดิบ**
 **8 วินาที** (อ้างอิง `gemini-2.5-flash-lite`)

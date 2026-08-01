@@ -152,26 +152,35 @@ export async function convertUnansweredToQna(
   input: { keywordId: string; question: string; answer: string; imageFileIds?: string[] },
   actorUserId: string
 ): Promise<{ qnaId: string }> {
-  const row = await prisma.autoReplyUnansweredQuestion.findFirst({
-    where: { id, shopId },
-    select: { id: true, status: true },
+  const created = await prisma.$transaction(async (tx) => {
+    // อ่านสถานะ "ในทรานแซกชันเดียวกับที่จะเขียน" — ถ้าอ่านนอก tx สองคำขอที่กดพร้อมกัน
+    // จะเห็น PENDING ทั้งคู่แล้วสร้าง QnA ซ้ำสองข้อ (unique constraint จับได้แค่ข้อความซ้ำเป๊ะ)
+    const row = await tx.autoReplyUnansweredQuestion.findFirst({
+      where: { id, shopId },
+      select: { id: true, status: true },
+    })
+    if (!row) throw new Error('AUTO_REPLY_UNANSWERED_NOT_FOUND')
+    if (row.status === 'ANSWERED') throw new Error('AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED')
+
+    // createQna ตรวจ ownership ของ keywordId + คำนวณ normalizedQuestion ให้แล้ว
+    // ส่ง tx เข้าไปเพื่อให้ทั้งสองคำสั่งล้มพร้อมกัน (cache invalidate ทำหลัง commit ข้างล่าง)
+    const qna = await createQna(
+      input.keywordId,
+      shopId,
+      { question: input.question, answer: input.answer, imageFileIds: input.imageFileIds, source: 'QUEUE' },
+      actorUserId,
+      tx
+    )
+
+    await tx.autoReplyUnansweredQuestion.updateMany({
+      where: { id, shopId },
+      data: { status: 'ANSWERED', qnaId: qna.id },
+    })
+
+    return qna
   })
-  if (!row) throw new Error('AUTO_REPLY_UNANSWERED_NOT_FOUND')
-  if (row.status === 'ANSWERED') throw new Error('AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED')
 
-  // createQna ตรวจ ownership ของ keywordId + คำนวณ normalizedQuestion + invalidate cache ให้แล้ว
-  const created = await createQna(
-    input.keywordId,
-    shopId,
-    { question: input.question, answer: input.answer, imageFileIds: input.imageFileIds, source: 'QUEUE' },
-    actorUserId
-  )
-
-  await prisma.autoReplyUnansweredQuestion.updateMany({
-    where: { id, shopId },
-    data: { status: 'ANSWERED', qnaId: created.id },
-  })
-
+  // หลัง commit เท่านั้น — ล้างก่อน commit จะดูดค่าเก่ากลับเข้า cache ทันที
   invalidateShop(shopId)
   return { qnaId: created.id }
 }

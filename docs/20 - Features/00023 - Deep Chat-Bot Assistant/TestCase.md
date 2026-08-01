@@ -190,6 +190,47 @@ npm run e2e -- e2e/auto-reply-*.spec.ts
 - `ChatMessage.autoReplyKind`: `null` · `AUTO` · `AUTO_TEST`
 - `Conversation.contextProductSource`: `ADS_MAPPING` · `MANUAL` · `REFERRAL`
 
+### 2.9 ค่าคงที่เพิ่ม — phase `00023-qna` (ต่อ §2.8 เดิม, [[DATABASE]] §3.8 FROZEN)
+
+- `AutoReplyLog.resolutionLevel` เพิ่ม: **`QNA`**
+- `AutoReplyLog.matchedVia`: `KEYWORD` · `QNA` · `null` (แถวเก่าก่อน phase นี้ — อ่านว่า `KEYWORD` เสมอ ห้าม backfill ทับ)
+- `AutoReplyQna.source`: `MANUAL` · `QUEUE` · `IMPORT`
+- `AutoReplyUnansweredQuestion.status`: `PENDING` · `DISMISSED` · `ANSWERED`
+- `AutoReplyKeyword.status` (ของเดิม แต่ใช้บ่อยในกลุ่มนี้): `LIVE` · `TEST` · `OFFLINE`
+- `AutoReplyConfig.activeScheduleMode` (ของเดิม แต่ TC-GATE-05 ต้องใช้): `ALWAYS` · `WINDOW`
+
+### 2.10 คลังคำถาม-คำตอบตั้งต้น (`AutoReplyQna`, SHOP-A เว้นแต่ระบุ)
+
+| รหัส | กลุ่มเจ้าของ | `question` | `answer` | `isActive` | `useCount` | `imageFileIds` | `source` |
+|---|---|---|---|---|---|---|---|
+| **QNA-1** | KW-INTEREST (LIVE) | `สอบถามรายละเอียด` | `[QNA-1] ยินดีให้ข้อมูลเพิ่มเติมค่ะ ทักมาได้เลย` | true | 5 | `[]` | MANUAL |
+| **QNA-INACTIVE** | KW-INTEREST | `มีของแถมไหม` | `[QNA-INACTIVE] มีค่ะ` | **false** | 0 | `[]` | MANUAL |
+| **QNA-IMG** | KW-PRICE | `ขอดูรูปสินค้า` | `""` (ว่าง — อนุญาตเพราะมีรูป) | true | 0 | `["f1","f2"]` | MANUAL |
+| **QNA-OFFLINE** | **KW-DRAFT** (ใหม่ — SHOP-A, `status="OFFLINE"`) | `ค่าส่งเท่าไหร่` | `[QNA-OFFLINE] ฟรีค่ะ` | true | 0 | `[]` | MANUAL |
+| **QNA-TEST** | **KW-TESTMODE** (ใหม่ — SHOP-A, `status="TEST"`, ผูก `AutoReplyKeywordTestThread` กับ CONV-TEST) | `รับประกันกี่เดือน` | `[QNA-TEST] รับประกัน 6 เดือนค่ะ` | true | 0 | `[]` | MANUAL |
+| **QNA-DUP-B** | KW-B (ของ SHOP-B) | `สอบถามรายละเอียด` (คำถาม**เดียวกับ** QNA-1 — คนละร้าน) | `[QNA-DUP-B] ...` | true | 999 | `[]` | MANUAL |
+
+> **KW-DRAFT** และ **KW-TESTMODE** เป็นกลุ่มคำใหม่ที่ต้อง seed เพิ่มจาก §2.5 เดิม — ใช้เฉพาะกลุ่ม R/S ของ phase นี้ ไม่ปนกับ TC เดิมของ base feature (ตั้งชื่อแยกกันตั้งใจให้ grep แยกออกจาก KW-* เดิมได้ทันที)
+
+### 2.11 คิวคำถามที่ตอบไม่ได้ตั้งต้น (`AutoReplyUnansweredQuestion`, SHOP-A)
+
+| รหัส | `normalizedQuestion` | `hitCount` | `status` | หมายเหตุ |
+|---|---|---|---|---|
+| **UQ-PENDING** | `ตัดหมอกรุ่นไหนที่ร้านแนะนำ` | 8 | PENDING | ใช้เคส list/dismiss/convert |
+| **UQ-DISMISSED** | `มีโปรวันเกิดไหม` | 3 | DISMISSED (`dismissedAt` มีค่า) | ใช้เคส restore |
+| **UQ-ANSWERED** | `มีบริการติดตั้งไหม` | 12 | ANSWERED (`qnaId` ชี้ QnA จริง) | ใช้เคสถามซ้ำหลังตอบแล้ว (hitCount ต้องยังโตได้) |
+
+### 2.12 ร้าน/กลุ่มคำ/เธรดแยกสำหรับเทสตารางเวลา (gate 6.6 — เป็นค่าระดับร้าน ไม่ใช่ระดับกลุ่มคำ)
+
+> แยกร้านใหม่ **SHOP-D** โดยเจตนา ไม่ใช้ SHOP-A — เพราะ `activeScheduleMode`/`activeStartMin`/`activeEndMin`/`activeDays` อยู่ที่ `AutoReplyConfig` (ระดับร้าน) การตั้งตารางเวลาแคบ ๆ บน SHOP-A จะไปกระทบ TC อื่นทั้งหมดของร้านเดียวกันที่ไม่เกี่ยวกับตารางเวลา
+
+| รหัส | รายละเอียด |
+|---|---|
+| **SHOP-D** | ร้านใหม่ `AutoReplyConfig.activeScheduleMode="WINDOW"`, `activeStartMin`/`activeEndMin` ตั้งให้ **นอกช่วงเวลาปัจจุบันเสมอ** (คำนวณ ณ runtime ไม่ hardcode เวลาตายตัว — ดู TC-GATE-05), `activeDays=ALL_DAYS_MASK` |
+| **KW-D** | กลุ่มคำ LIVE ของ SHOP-D, phrase `ราคา` |
+| **QNA-D** | ข้อในคลังของ KW-D, question `ราคาเท่าไหร่` |
+| **CONV-D** | เธรดของ SHOP-D |
+
 ---
 
 ## 3. Test Scenarios
@@ -1399,6 +1440,549 @@ npm run e2e -- e2e/auto-reply-*.spec.ts
 - **Expected Result:** `rg "react-toastify" "src/app/(paces)/"` = 0 (Hard Rule 9 — ใช้ `pacesToast`); `grep -rnP '[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]'` บนไฟล์ UI ที่แตะ = 0 (Hard Rule 12 — ห้าม emoji); ไม่มี arbitrary Tailwind value ที่ไม่มี comment กำกับ (Hard Rule 7); commit ที่แตะ UI มี `Base:` line (Hard Rule 3)
 - **Linked to:** มาตรฐานโปรเจกต์ (ไม่ใช่ AC ของ BRD แต่เป็นเงื่อนไข merge)
 
+### 3.17 กลุ่ม Q — [Unit] ส่วนขยาย `matchQna` + `shouldQueueUnanswered` (phase `00023-qna`)
+
+> 🛑 **ก่อนอ่านกลุ่มนี้:** สองไฟล์เทสมีอยู่แล้วและครอบคลุมสูงมาก — `src/lib/__tests__/auto-reply-qna-match.test.ts` (14 `it`, ครอบ EXACT/tie-break 3 เกณฑ์/OFFLINE-filter/isActive-filter/ข้อความว่าง/purity/imageFileIds/throw ตอน SIMILARITY/เคสจริงจาก prod 4 ข้อความ) และ `src/lib/__tests__/auto-reply-unanswered-filter.test.ts` (17 `it`/`it.each`, ครอบ F-1..F-4 ครบ + ตัวอย่างจริงจาก prod รวมคำที่ทีมสั่งให้ใช้ตรง ๆ: `ครับ`/`110`/`0852995863`/ที่อยู่ `สมประสงค์ ฉอยทิม 105 ม.1 ต.ลุ่มสุ่ม อ.ไทรโยค จ.กาญจนบุรี 71150`) **ห้ามเขียนซ้ำ** — กลุ่มนี้เขียนเฉพาะ **gap ที่ยังไม่ถูกเทส** เท่านั้น ยืนยันจากการเปิดอ่านไฟล์เทสทั้งสองจริง 2026-08-01
+
+#### TC-QM-01: ผู้ชนะยังคง deterministic เมื่อมีมากกว่า 2 candidate ชนกัน
+- **ประเภท:** [Unit] Vitest — ต่อไฟล์ `auto-reply-qna-match.test.ts` เดิม
+- **เหตุผลที่เป็น gap:** เทสเกณฑ์ 1-3 ของ DATABASE §3.9.1 ที่มีอยู่แล้ว ทดสอบทีละคู่ (2 candidate) เท่านั้น ยังไม่มีเคสที่ 3+ candidate ชนพร้อมกันจริง
+- **Steps:** สร้าง 4 ข้อในคลัง คำถามเดียวกัน อยู่คนละกลุ่ม priority [200, 100, 100, 100] (3 กลุ่มหลัง priority เท่ากัน ใช้ useCount [1, 9, 9] แยกผล — 2 กลุ่มท้าย useCount เท่ากันด้วยเพื่อบังคับ tie-break เกณฑ์ 3) → เรียก `matchQna` 20 รอบสลับลำดับ input
+- **Expected Result:** ผู้ชนะเป็นข้อเดิมทุกรอบ (priority มากสุดชนะก่อน, ถ้าเท่ากันดู useCount, ถ้าเท่ากันอีกดู `id` น้อยสุด) — ไม่ขึ้นกับลำดับ array ที่ส่งเข้า
+- **Linked to:** TFR-031 ข้อ 4, DATABASE §3.9.1
+
+#### TC-QM-02: `keywords` argument (ไม่ใช่แค่ `qnaSet`) ต้องไม่ถูกฟังก์ชันแก้ไข
+- **ประเภท:** [Unit] Vitest
+- **เหตุผลที่เป็น gap:** เทส purity ที่มีอยู่แล้วเช็คเฉพาะว่า `qnaSet` ไม่ถูกแก้ ยังไม่เช็ค `keywords`
+- **Steps:** เรียก `matchQna` พร้อม snapshot ของ `keywords` array ก่อน/หลังเรียก
+- **Expected Result:** `JSON.stringify(keywords)` เท่าเดิมทุกประการ
+- **Linked to:** TFR-031 (ฟังก์ชันบริสุทธิ์)
+
+#### TC-QM-03: คลังที่มีข้อซ้ำ `keywordId` เดียวกันหลายข้อ (ต่างคำถาม) ต้องไม่ปนกัน
+- **ประเภท:** [Unit] Vitest
+- **Steps:** กลุ่มเดียวมี 5 ข้อคำถามต่างกัน → ยิงคำถามที่ตรงกับข้อที่ 3 เท่านั้น
+- **Expected Result:** ได้ข้อที่ 3 เท่านั้น ไม่ได้ข้ออื่นของกลุ่มเดียวกันมาปน (พิสูจน์ loop กรองด้วย `normalizedQuestion` จริง ไม่ใช่แค่ `keywordId`)
+- **Linked to:** TFR-031
+
+#### TC-UF-01: 🛑 **ลำดับความสำคัญจริง — เบอร์โทรชนะที่อยู่เมื่อข้อความมีทั้งสองอย่าง**
+- **ประเภท:** [Unit] Vitest — ต่อไฟล์ `auto-reply-unanswered-filter.test.ts` เดิม
+- **เหตุผลที่เป็น gap:** เทส F-3 ที่มีอยู่แล้วใช้ `toMatchObject({keep:false})` **ไม่เช็คว่า `reason` เป็นตัวไหน** ทั้งที่ข้อความตัวอย่างจริง (`สมประสงค์ ฉอยทิม 105 ม.1 ต.ลุ่มสุ่ม อ.ไทรโยค จ.กาญจนบุรี 71150`) ไม่มีเบอร์โทรปน จึงไม่เคยพิสูจน์ลำดับจริงระหว่าง F-2/F-3 เลย ต้องสร้างข้อความที่มี **ทั้งเบอร์และคำบ่งชี้ที่อยู่พร้อมกัน**
+- **Steps:** `check('ส่งที่ ต.ศาลายา อ.พุทธมณฑล เบอร์ 0812345678')`
+- **Expected Result:** `{ keep: false, reason: 'LOOKS_LIKE_PHONE' }` — ตรงลำดับโค้ดจริง (`shouldQueueUnanswered` เช็คเบอร์**ก่อน**ที่อยู่) ถ้าได้ `LOOKS_LIKE_ADDRESS` แทน = โค้ดถูกแก้ลำดับโดยไม่ตั้งใจ ต้องแดง
+- **Linked to:** DATABASE §3.10.1
+
+#### TC-UF-02: 🛑 ข้อความยาวเกินที่มีเบอร์โทรปนอยู่จริง — TOO_LONG ต้องชนะก่อนเบอร์
+- **ประเภท:** [Unit] Vitest
+- **เหตุผลที่เป็น gap:** เทส F-4 เดิมชื่อ "ยาวเกินถูกจับก่อนเบอร์/ที่อยู่" แต่เนื้อหาจริงใช้ `'ก'.repeat(100)` ซึ่ง**ไม่มีเบอร์ปนอยู่เลย** — ไม่ได้พิสูจน์สิ่งที่ชื่อเทสอ้าง เป็นช่องโหว่ของเทสเดิมที่ต้องปิด
+- **Steps:** ใช้ข้อความจริงจาก TC-QREG (เช่นข้อความ 119+ ตัวอักษรที่มี `085-382-9345` ปนอยู่กลางประโยค)
+- **Expected Result:** `{ keep: false, reason: 'TOO_LONG' }` ไม่ใช่ `LOOKS_LIKE_PHONE`
+- **Linked to:** DATABASE §3.10.1
+
+#### TC-UF-03: คำรับคำที่ปนวรรณยุกต์/เว้นวรรคหัวท้าย ต้องยังถูกจับหลัง normalize
+- **ประเภท:** [Unit] Vitest
+- **Steps:** `check('  ครับ  ')`, `check('ครับ!!')`
+- **Expected Result:** ทั้งคู่ `{ keep: false, reason: 'ACKNOWLEDGEMENT' }` (พิสูจน์ว่า `check()` helper ที่ normalize ก่อนส่งเข้า `shouldQueueUnanswered` ทำงานถูก ไม่ใช่ raw string compare)
+- **Linked to:** DATABASE §3.10.1, TFR-033
+
+---
+
+### 3.18 กลุ่ม R — [Integration] `auto-reply-qna.service` + `auto-reply-unanswered.service`
+
+> DB จริง (dev Supabase) — mock เฉพาะจุดที่ระบุชัดเจน (TC-USV-11) ทุกแถวที่สร้างระหว่างเทสต้อง cleanup ด้วย `deleteTestData({ shopIds: [...], userIds: [...] })` หรือ `prisma.autoReplyQna.deleteMany({ where: { id: { in: createdIds } } })` (scope ด้วย id ที่เทสสร้างเอง — Hard Rule 13)
+
+#### TC-QSV-01: `createQna` คำนวณ `normalizedQuestion` ที่ service เท่านั้น
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียก `createQna(KW-INTEREST.id, SHOP-A, { question: '  สอบถามค่าส่ง!! ', answer: 'ตอบ' }, userId)` → อ่านแถวจริงจาก DB
+- **Expected Result:** `normalizedQuestion` เท่ากับ `normalizeMessage('  สอบถามค่าส่ง!! ')` เป๊ะ ต่อให้ client ไม่เคยส่งฟิลด์นี้มาเลย (schema ไม่มีช่องให้ client ส่ง)
+- **Linked to:** TFR-034 ข้อ 2
+
+#### TC-QSV-02: 🛑 คำถามซ้ำในกลุ่มเดียวกัน ชนที่ DB constraint จริง ไม่ใช่ race ของ `findFirst`
+- **ประเภท:** [Integration] Vitest
+- **Steps:** ยิง `createQna` ด้วยคำถามเดียวกัน 2 คำขอพร้อมกัน (`Promise.all`) เข้ากลุ่มเดียวกัน
+- **Expected Result:** สำเร็จ 1 แถว, อีกคำขอ throw `AUTO_REPLY_QNA_DUPLICATE` (มาจาก `@@unique([keywordId, normalizedQuestion])` + `isUniqueViolation` — ไม่ใช่จาก `findFirst` ก่อนเขียนซึ่งมีช่อง race)
+- **Linked to:** TFR-034 ข้อ 3, DATABASE §3.9
+
+#### TC-QSV-03: คำตอบว่างที่ไม่มีรูป vs มีรูป
+- **ประเภท:** [Integration] Vitest
+- **Steps:** (1) `createQna` answer=`''`, imageFileIds=`[]` (2) answer=`''`, imageFileIds=`['f1']`
+- **Expected Result:** (1) throw `AUTO_REPLY_QNA_ANSWER_EMPTY`; (2) สำเร็จ (TFR-036 ข้อ 6 — คำตอบรูปล้วนอนุญาต)
+- **Linked to:** TFR-034, TFR-036 ข้อ 6
+
+#### TC-QSV-04: ขอบเขตความยาว/จำนวนรูป
+- **ประเภท:** [Integration] Vitest
+- **Steps:** question 501 ตัวอักษร / answer 2001 ตัวอักษร / imageFileIds 6 รายการ (ทีละกรณี)
+- **Expected Result:** ตามลำดับ `AUTO_REPLY_QNA_QUESTION_TOO_LONG` / `AUTO_REPLY_QNA_ANSWER_TOO_LONG` / `AUTO_REPLY_QNA_TOO_MANY_IMAGES`
+- **Linked to:** API.md §4.31, DATABASE §3.9
+
+#### TC-QSV-05: `keywordId` ข้ามร้าน → `AUTO_REPLY_KEYWORD_NOT_FOUND`
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียก `createQna(KW-B(ของ SHOP-B).id, SHOP-A, {...})`
+- **Expected Result:** throw `AUTO_REPLY_KEYWORD_NOT_FOUND` (`assertKeywordOwned` ใช้ `where:{id, shopId}` จริง — ไม่ leak ว่ากลุ่มนั้นมีอยู่จริงแต่เป็นของร้านอื่น)
+- **Linked to:** TFR-034 ข้อ 1, memory `feedback_rsc_dal_authz`
+
+#### TC-QSV-06: `updateQna` partial — แก้เฉพาะ `isActive` ไม่กระทบ `question`/`answer`/`normalizedQuestion`
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `updateQna(QNA-1.id, SHOP-A, { isActive: false }, userId)` → อ่านแถว
+- **Expected Result:** `question`/`answer`/`normalizedQuestion`/`imageFileIds` เท่าเดิมทุกตัว, `isActive=false` เท่านั้นที่เปลี่ยน
+- **Linked to:** TFR-034
+
+#### TC-QSV-07: `updateQna` แก้ `question` เพียงฟิลด์เดียว → re-validate ทั้งชุดด้วยค่าที่เหลือของเดิม
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `updateQna(QNA-IMG.id, SHOP-A, { question: 'คำถามใหม่' }, userId)` (QNA-IMG มี answer ว่าง+มีรูปอยู่แล้ว)
+- **Expected Result:** สำเร็จ (เพราะ `imageFileIds` เดิมยังไม่ว่าง — ผ่าน `validateContent` รวม 3 ค่า) `normalizedQuestion` อัปเดตตามคำถามใหม่
+- **Linked to:** API.md §4.32 ("validate ทั้ง 3 ค่าใหม่รวมกัน")
+
+#### TC-QSV-08: `updateQna` แก้คำถามให้ชนกับข้ออื่นในกลุ่มเดียวกัน → 409
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `updateQna(QNA-INACTIVE.id, SHOP-A, { question: 'สอบถามรายละเอียด' }, userId)` (ชนคำถามของ QNA-1 ในกลุ่มเดียวกัน)
+- **Expected Result:** throw `AUTO_REPLY_QNA_DUPLICATE`; แถวเดิมไม่ถูกแก้ (question ยังเป็นค่าเก่า)
+- **Linked to:** TFR-034 ข้อ 3
+
+#### TC-QSV-09: `deleteQna` ข้ามร้าน → `NOT_FOUND` ไม่ลบข้ามขอบเขต
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `deleteQna(QNA-DUP-B.id, SHOP-A)` (ข้อนี้เป็นของ SHOP-B)
+- **Expected Result:** throw `AUTO_REPLY_QNA_NOT_FOUND`; แถวจริงของ SHOP-B ยังอยู่ครบ (query ยืนยันด้วย `shopId=SHOP-B`)
+- **Linked to:** TFR-034 ข้อ 1, `deleteMany` scope pattern
+
+#### TC-QSV-10: `listQna` — `stats` เป็นของทั้งกลุ่มเสมอ ไม่ใช่ของผลกรอง
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `listQna(KW-INTEREST.id, SHOP-A, { filter: 'INACTIVE' })` (กลุ่มนี้มี QNA-1 active + QNA-INACTIVE inactive)
+- **Expected Result:** `items` มีแค่ QNA-INACTIVE (1 แถว) แต่ `stats.total`/`stats.active`/`stats.totalUses` นับ**ทั้งกลุ่ม** (รวม QNA-1 ด้วย) — ตรง API.md §4.30
+- **Linked to:** API.md §4.30, TFR-034
+
+#### TC-QSV-11: `listQna` ค้นหาใน `question` **หรือ** `answer` (OR, insensitive)
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `listQna(KW-PRICE.id, SHOP-A, { search: 'รูป' })` (QNA-IMG มีคำว่า "รูป" ใน question)
+- **Expected Result:** พบ QNA-IMG แม้ `answer` ว่าง — ไม่ throw กับ answer ว่าง
+- **Linked to:** API.md §4.30
+
+#### TC-QSV-12: 🛑 **BLOCKER** — `bulkQna` MOVE ที่ชนคำถามซ้ำในกลุ่มปลายทาง คืน `failed[]` รายข้อ ไม่ throw ทั้งก้อน
+- **ประเภท:** [Integration] Vitest
+- **Precondition:** สร้าง QNA-X ("สอบถามรายละเอียด") ในกลุ่ม KW-PRICE (ปลายทาง) ไว้ล่วงหน้า, QNA-1 (คำถามเดียวกัน) อยู่กลุ่ม KW-INTEREST (ต้นทาง), และ QNA-INACTIVE (คำถามไม่ชน) อยู่กลุ่มเดียวกัน
+- **Steps:** `bulkQna(SHOP-A, [QNA-1.id, QNA-INACTIVE.id], 'MOVE', { targetKeywordId: KW-PRICE.id, actorUserId })`
+- **Expected Result:** `{ ok: 1, failed: [{ id: QNA-1.id, reason: 'AUTO_REPLY_QNA_DUPLICATE' }] }` — QNA-INACTIVE ย้ายสำเร็จ (`keywordId` เปลี่ยนจริงใน DB), QNA-1 **ยังอยู่กลุ่มเดิม** ไม่ถูกย้ายครึ่ง ๆ กลาง ๆ
+- **Linked to:** TFR-034 ข้อ 4, API.md §4.34
+
+#### TC-QSV-13: `bulkQna` id ปนกันระหว่างร้าน — id ของร้านอื่นตกไปที่ `failed[]`
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `bulkQna(SHOP-A, [QNA-1.id, QNA-DUP-B.id], 'DEACTIVATE', { actorUserId })`
+- **Expected Result:** `ok=1` (เฉพาะ QNA-1), `failed=[{id: QNA-DUP-B.id, reason:'AUTO_REPLY_QNA_NOT_FOUND'}]`; แถวจริงของ SHOP-B ไม่ถูกแตะ (`isActive` เดิมไม่เปลี่ยน)
+- **Linked to:** TFR-034 ข้อ 1/4
+
+#### TC-QSV-14: `bulkQna` MOVE ไม่มี `targetKeywordId` → throw ที่ชั้น service (defense-in-depth หลัง Valibot)
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียก service ตรง ๆ (ข้าม Valibot) `bulkQna(SHOP-A, [QNA-1.id], 'MOVE', { actorUserId })`
+- **Expected Result:** throw `AUTO_REPLY_QNA_MOVE_TARGET_REQUIRED`
+- **Linked to:** API.md §4.34
+
+#### TC-QSV-15: `markQnaUsed` ไม่ throw แม้ id ไม่มีจริง + เพิ่ม `useCount`/`lastUsedAt` ถูกต้องเมื่อ id มีจริง
+- **ประเภท:** [Integration] Vitest
+- **Steps:** (1) `markQnaUsed('id-ที่ไม่มีอยู่จริง')` (2) `markQnaUsed(QNA-1.id)` แล้วอ่านแถว
+- **Expected Result:** (1) resolve เงียบ ไม่ throw (Prisma P2025 ถูกจับใน `catch`) (2) `useCount` เดิม+1 พอดี, `lastUsedAt` เป็นเวลาปัจจุบัน
+- **Linked to:** TFR-032 ข้อ 5
+
+#### TC-QSV-16: ทุก write path เรียก `invalidateShop` — ทดสอบเห็นผลทันทีไม่ต้องรอ cache 60s
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียก `createQna` สร้างข้อใหม่ → **ทันที** เรียก `loadRuleSet(SHOP-A)` (หรือยิงข้อความจริงผ่าน `processJob`)
+- **Expected Result:** `loadRuleSet` เห็นข้อใหม่ทันที ไม่ต้องรอ 60 วินาที (พิสูจน์ cache ถูก invalidate จริง ไม่ใช่แค่ TTL หมดอายุพอดี)
+- **Linked to:** TFR-032 ข้อ 4, TFR-034 ข้อ 5
+
+#### TC-USV-01: `recordUnanswered` — ข้อความใหม่สร้างแถว, ข้อความซ้ำนับที่ `hitCount`
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียก `recordUnanswered({shopId: SHOP-A, rawText: 'ตัดหมอกรุ่นไหนดี', normalizedText: normalizeMessage('ตัดหมอกรุ่นไหนดี')})` 3 ครั้งติดกัน
+- **Expected Result:** มีแถวเดียวใน `AutoReplyUnansweredQuestion` (unique `[shopId, normalizedQuestion]`), `hitCount=3` (หรือ +3 จากค่าตั้งต้นถ้า seed ไว้แล้ว), `lastSeenAt` เป็นครั้งล่าสุด, `rawSample` เป็นข้อความล่าสุด — ไม่มีแถวที่ 2
+- **Linked to:** TFR-033 ข้อ 1, DATABASE §3.10
+
+#### TC-USV-02: ข้อความที่ตัวกรอง PII ปฏิเสธ → ไม่เขียนแถว
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `recordUnanswered({shopId: SHOP-A, rawText: 'ครับ', normalizedText: 'ครับ'})`
+- **Expected Result:** คืน `{queued:false, reason:'ACKNOWLEDGEMENT'}`; ไม่มีแถวใหม่ใน `AutoReplyUnansweredQuestion`
+- **Linked to:** TFR-033 ข้อ 1, DATABASE §3.10.1
+
+#### TC-USV-03: 🛑 **BLOCKER** — `recordUnanswered` ห้าม throw แม้ DB เขียนล้มเหลวจริง
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียก `recordUnanswered({shopId: 'id-shop-ที่ไม่มีอยู่จริง', rawText:'คำถามทดสอบ', normalizedText:'คำถามทดสอบ'})` (บังคับ FK violation จริงบน DB จริง ไม่ mock)
+- **Expected Result:** ไม่ throw — คืน `{queued:false, reason:'WRITE_FAILED'}`
+- **Linked to:** TFR-033 ข้อ 2, TD-013 pattern เดิม
+
+#### TC-USV-04: 🛑 **BLOCKER** — `recordUnanswered` ห้ามแตะ `Conversation.handoffAt` เด็ดขาด (regression guard บั๊ก prod 2026-07-31)
+- **ประเภท:** [Integration] Vitest
+- **Precondition:** CONV-1 มี `handoffAt=null`
+- **Steps:** เรียก `recordUnanswered` หลายครั้งติดกันด้วยข้อความต่าง ๆ ที่ผ่านตัวกรอง แล้วอ่าน `Conversation.handoffAt` ของ CONV-1
+- **Expected Result:** `handoffAt` ยังเป็น `null` ทุกครั้ง (ฟังก์ชันนี้ไม่มีโค้ดแตะตาราง `Conversation` เลย — grep ยืนยันคู่กับเทส)
+- **Linked to:** TFR-033 ข้อ 3, **prod bug 2026-07-31 (240 ห้อง)**
+
+#### TC-USV-05: ข้อความที่เคยตอบ/ข้ามแล้ว ถูกถามซ้ำ → `hitCount++` แต่ `status` ไม่รีเซ็ต
+- **ประเภท:** [Integration] Vitest
+- **Precondition:** ใช้ UQ-ANSWERED (`status='ANSWERED'`) และ UQ-DISMISSED (`status='DISMISSED'`)
+- **Steps:** เรียก `recordUnanswered` ด้วยข้อความเดียวกับ `normalizedQuestion` ของทั้งสองแถว
+- **Expected Result:** `hitCount` ของทั้งคู่เพิ่มขึ้น, `lastSeenAt` อัปเดต, **`status` ยังเป็น `ANSWERED`/`DISMISSED` เดิม** ไม่กลับเป็น `PENDING`
+- **Linked to:** TFR-033 ข้อ 4
+
+#### TC-USV-06: `listUnanswered` — `pendingCount` นับเฉพาะ PENDING เสมอไม่ว่า query `status` จะเป็นอะไร
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `listUnanswered(SHOP-A, { status: 'DISMISSED' })`
+- **Expected Result:** `items` มีเฉพาะแถว DISMISSED (UQ-DISMISSED) แต่ `pendingCount` นับแถว PENDING ทั้งหมดของร้าน (รวม UQ-PENDING) ไม่ใช่ 0
+- **Linked to:** API.md §4.37
+
+#### TC-USV-07: `dismissUnanswered` scope ด้วย `status='PENDING'` — เรียกซ้ำครั้งที่ 2 ได้ 404
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `dismissUnanswered(UQ-PENDING.id, SHOP-A, userId)` แล้วเรียกซ้ำทันที
+- **Expected Result:** ครั้งแรกสำเร็จ (`status='DISMISSED'`, `dismissedAt`/`dismissedByUserId` มีค่า); ครั้งที่ 2 throw `AUTO_REPLY_UNANSWERED_NOT_FOUND` (เพราะ `updateMany` ไม่เจอแถวที่ status ยังเป็น PENDING)
+- **Linked to:** API.md §4.38
+
+#### TC-USV-08: `restoreUnanswered` (undo) — กลับเป็น PENDING ได้เฉพาะจากสถานะ DISMISSED
+- **ประเภท:** [Integration] Vitest
+- **Steps:** (1) `restoreUnanswered(UQ-DISMISSED.id, SHOP-A)` (2) `restoreUnanswered(UQ-PENDING.id, SHOP-A)` (สถานะเป็น PENDING อยู่แล้ว)
+- **Expected Result:** (1) สำเร็จ — `status='PENDING'`, `dismissedAt`/`dismissedByUserId` เป็น `null` (2) throw `AUTO_REPLY_UNANSWERED_NOT_FOUND` (ไม่ใช่ DISMISSED จึงไม่เข้าเงื่อนไข `updateMany`)
+- **Linked to:** API.md §4.39 (⚠️ ยังไม่มีใน SRS §4.1 เดิม — ดู OQ-7)
+
+#### TC-USV-09: `convertUnansweredToQna` — path สำเร็จสร้าง QnA + ปิดคิวพร้อมกัน
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `convertUnansweredToQna(UQ-PENDING.id, SHOP-A, { keywordId: KW-INTEREST.id, question: 'ตัดหมอกรุ่นไหนที่ร้านแนะนำ', answer: 'รุ่น X ครับ' }, userId)`
+- **Expected Result:** คืน `{qnaId}`; แถว `AutoReplyQna` ใหม่มีจริง (`source='QUEUE'`); แถว UQ-PENDING เปลี่ยนเป็น `status='ANSWERED'`, `qnaId` ชี้ข้อใหม่
+- **Linked to:** TFR-033, API.md §4.40
+
+#### TC-USV-10: `convertUnansweredToQna` บนแถวที่ `status='ANSWERED'` อยู่แล้ว → 409 กันตอบซ้ำ
+- **ประเภท:** [Integration] Vitest
+- **Steps:** `convertUnansweredToQna(UQ-ANSWERED.id, SHOP-A, {...}, userId)`
+- **Expected Result:** throw `AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED`; ไม่มี `AutoReplyQna` แถวใหม่ถูกสร้าง (ตรวจสถานะก่อนเรียก `createQna`)
+- **Linked to:** API.md §4.40
+
+#### TC-USV-11: 🛑 **BLOCKER — ข้อขัดแย้งที่ต้องพิสูจน์ด้วยเทส: `convertUnansweredToQna` ไม่ใช่ทรานแซกชันเดียวจริง**
+- **ประเภท:** [Integration] Vitest — mock บางส่วน (spy บน `prisma.autoReplyUnansweredQuestion.updateMany` เท่านั้น, `createQna` เขียน DB จริง)
+- **เหตุผล:** เปิดอ่านโค้ดจริง (`auto-reply-unanswered.service.ts:149-177`) ยืนยันว่า `convertUnansweredToQna` เรียก `createQna(...)` แล้วตามด้วย `prisma.autoReplyUnansweredQuestion.updateMany(...)` เป็น **2 statement แยกกัน ไม่มี `prisma.$transaction` ห่อ** ทั้งที่ comment ในโค้ดบรรทัด 145-147 และ API.md §3.9 ("ทรานแซกชันเดียว") อ้างว่าเป็นทรานแซกชันเดียว — ถ้า statement ที่สองล้มเหลว จะ **ไม่มีการ rollback** สิ่งที่ statement แรกทำไปแล้ว
+- **Steps:**
+  1. `vi.spyOn(prisma.autoReplyUnansweredQuestion, 'updateMany').mockRejectedValueOnce(new Error('จำลอง DB ล้ม'))`
+  2. เรียก `convertUnansweredToQna(UQ-PENDING.id, SHOP-A, {...}, userId)` แล้วจับ error ที่ throw ออกมา
+  3. คืน spy กลับปกติ (`mockRestore`) แล้ว query `AutoReplyQna` ด้วย `question` ที่เพิ่งส่งไป และ query แถว `UQ-PENDING` อีกครั้ง
+- **Expected Result (พฤติกรรมจริงที่คาดว่าจะเกิด — ไม่ใช่พฤติกรรมที่ถูกต้อง):** error หลุดออกมาจริง **แต่** แถว `AutoReplyQna` ที่ `createQna` สร้างไปแล้ว **ยังอยู่ใน DB** (ไม่ถูก rollback) และ `UQ-PENDING.status` ยังเป็น `PENDING` (ไม่ถูกปิด) → เป็นข้อพิสูจน์ว่าเกิด "สร้าง QnA สำเร็จแต่ปิดคิวไม่สำเร็จ" ได้จริงตามที่ทีมกังวล
+- **Cleanup:** ลบแถว `AutoReplyQna` ที่ถูกสร้างระหว่างเทสด้วย id ที่เทสเก็บไว้เอง (`prisma.autoReplyQna.deleteMany({ where: { id: createdQnaId } })`) — ห้ามใช้ `deleteMany` แบบไม่ scope (Hard Rule 13)
+- **สิ่งที่ต้องรายงานกลับ dev:** ต้องห่อ `createQna` (เฉพาะส่วน insert) + `updateMany` ด้วย `prisma.$transaction` จริงก่อน merge S-11 — TC นี้เป็น **red-by-design** จนกว่าจะแก้
+- **Linked to:** TFR-033, API.md §3.9 ("ทรานแซกชันเดียว" — ขัดกับโค้ดจริง)
+
+#### TC-USV-12: `markAnsweredByText` — ปิดคิวเงียบเมื่อเจอ, ไม่ throw เมื่อไม่เจอ
+- **ประเภท:** [Integration] Vitest
+- **Steps:** (1) `markAnsweredByText(SHOP-A, 'ตัดหมอกรุ่นไหนที่ร้านแนะนำ', 'qna-id-x')` (ตรงกับ UQ-PENDING) (2) `markAnsweredByText(SHOP-A, 'ข้อความที่ไม่เคยอยู่ในคิว', 'qna-id-y')`
+- **Expected Result:** (1) UQ-PENDING เปลี่ยนเป็น `status='ANSWERED'`, `qnaId='qna-id-x'` (2) ไม่มี error, ไม่มีแถวใดถูกแก้
+- **Linked to:** TFR-037 ข้อ 5
+
+#### TC-USV-13: `markAnsweredByText` ไม่ throw แม้ DB ล้มเหลวจริง (ห่อ try/catch)
+- **ประเภท:** [Integration] Vitest
+- **Steps:** เรียกด้วย `shopId` ที่ไม่มีอยู่จริง
+- **Expected Result:** resolve เงียบ ไม่ throw
+- **Linked to:** TFR-037 ข้อ 5 (pattern เดียวกับ `recordUnanswered`)
+
+---
+
+### 3.19 กลุ่ม S — [Integration] 🛑 ตำแหน่งของ QnA ในเส้นทาง gate — "คำตรงตัวชนะก่อนเสมอ"
+
+> ทุกเคสในกลุ่มนี้ยิงข้อความผ่าน `processJob` จริง (mock เฉพาะชั้นส่งออก Meta ผ่าน `sendOutboundMessage`/Graph client ตาม pattern เดิมของโปรเจกต์) กลุ่มนี้คือกับดักที่ SDS §14.2 เตือนว่า **ถ้าลัดจะกลายเป็นช่องข้ามสวิตช์ทั้งหมด** — ทุกเคส 🛑 BLOCKER
+
+#### TC-GATE-01: 🛑 คำตรงตัวชนะก่อนเสมอ — แม้คำถามเดียวกันมีอยู่ทั้งกลุ่มคำและคลัง
+- **Precondition:** `KW-COD-EXACT` phrase `"เก็บปลายทาง"` (matchType EXACT) + สร้าง QnA คำถาม `"เก็บปลายทาง"` ผูกกับกลุ่มอื่นในร้านเดียวกัน
+- **Steps:** ส่งข้อความ `"เก็บปลายทาง"` เข้า CONV-1
+- **Expected Result:** `AutoReplyLog.matchedVia='KEYWORD'`, `matchType='EXACT'`, `qnaId=null` — คลังไม่ถูกแตะเลย แม้มีคำถามตรงกัน
+- **Linked to:** TFR-032 ข้อ 1, Phase Acceptance #2 (scope baseline)
+
+#### TC-GATE-02: 🛑 `NO_RULE_MATCH` ต้องไม่ถูกคลังมากลบร่องรอย
+- **Precondition:** กลุ่มคำ `KW-PRICE` ตรงคำ แต่**ไม่มีกฎคำตอบใดผูกกับกลุ่มนี้เลย** (ลบ R ทั้งหมดของ KW-PRICE ชั่วคราว) + มี QnA คำถามเดียวกับ phrase ของ KW-PRICE ผูกกับกลุ่มอื่น
+- **Steps:** ส่งข้อความที่ตรง phrase ของ KW-PRICE
+- **Expected Result:** `matchedVia=null`, `decision='HANDOFF'`, `skipReason='NO_RULE_MATCH'` — คลังไม่ถูกเรียกเลย (ถ้าคลังมาตอบแทน = บั๊กร้ายแรงที่ทำให้ร้านไม่มีวันเห็นว่ากลุ่มนี้ตั้งค่าค้างไว้)
+- **Linked to:** TFR-032 ข้อ 1 (เหตุผลข้อสำคัญที่สุดของทั้งภาคผนวก)
+
+#### TC-GATE-03: 🛑 QnA ของกลุ่ม OFFLINE ต้องไม่ตอบใคร
+- **Steps:** ส่งข้อความที่ตรงกับ QNA-OFFLINE (`ค่าส่งเท่าไหร่` ในกลุ่ม KW-DRAFT ที่ `status='OFFLINE'`) เข้า CONV-1
+- **Expected Result:** `matchedVia=null`, ไม่มีข้อความส่งออก, `recordUnanswered` ถูกเรียก (เพราะ `NO_KEYWORD_MATCH`) — `AutoReplyLog` ไม่มี `qnaId` ของ QNA-OFFLINE เลย
+- **Linked to:** TFR-031 ข้อ 2, TFR-032 ข้อ 2
+
+#### TC-GATE-04: 🛑 QnA ของกลุ่ม TEST ตอบเฉพาะเธรดทดสอบที่ผูกไว้
+- **Precondition:** QNA-TEST อยู่กลุ่ม KW-TESTMODE (`status='TEST'`) ที่ผูก `AutoReplyKeywordTestThread` กับ CONV-TEST เท่านั้น
+- **Steps:** (1) ส่งข้อความตรง QNA-TEST เข้า **CONV-1** (ไม่ใช่เธรดทดสอบ) (2) ส่งเข้า **CONV-TEST**
+- **Expected Result:** (1) `skipReason='KEYWORD_TEST_ONLY'`, ไม่ตอบ (2) ตอบสำเร็จด้วย `matchedVia='QNA'`, `isTest=true`, `ChatMessage.autoReplyKind='AUTO_TEST'`
+- **Linked to:** TFR-032 ข้อ 2, Phase Acceptance #3
+
+#### TC-GATE-05: 🛑 QnA ที่ยืมกลุ่มถูกบังคับตารางเวลาทำงานของร้านเหมือนกลุ่มคำปกติ
+- **Precondition:** SHOP-D (§2.12) — `activeScheduleMode='WINDOW'` นอกเวลาปัจจุบันเสมอ, QNA-D อยู่กลุ่ม KW-D (LIVE)
+- **Steps:** ส่งข้อความตรง QNA-D เข้า CONV-D
+- **Expected Result:** `skipReason='OUTSIDE_SCHEDULE'`, ไม่ตอบ, ไม่เขียนคิว unanswered (เพราะ reason ไม่ใช่ `NO_KEYWORD_MATCH`)
+- **Linked to:** TFR-032 ข้อ 2
+
+#### TC-GATE-06: 🛑 QnA ที่ยืมกลุ่มถูกบังคับ cooldown เดียวกับกลุ่มนั้น
+- **Precondition:** SHOP-A `keywordCooldownSec=300`
+- **Steps:** ส่งข้อความตรง QNA-1 สำเร็จครั้งแรก → ส่งข้อความ**เดิม**อีกครั้งทันที (ภายใน cooldown)
+- **Expected Result:** ครั้งแรก `decision='REPLIED'`, `matchedVia='QNA'`; ครั้งที่สอง `skipReason='KEYWORD_COOLDOWN'` — cooldown เทียบกับ `keywordId` ที่ QnA ยืมมา (`KW-INTEREST`) ไม่ใช่เทียบกับ `qnaId`
+- **Linked to:** TFR-032 ข้อ 2
+
+#### TC-GATE-07: คำตอบจาก QnA ไม่ผ่าน `resolveRule()` — กฎกลางของร้าน/เพจไม่มาแย่งคำตอบ
+- **Precondition:** SHOP-A มี R-SHOP-DEF (`SHOP_DEFAULT`) และ QNA-1 อยู่กลุ่ม KW-INTEREST ที่**ไม่มี**กฎระดับ KEYWORD_DEFAULT
+- **Steps:** ส่งข้อความตรง QNA-1
+- **Expected Result:** `resolutionLevel='QNA'` (ไม่ใช่ `SHOP_DEFAULT`), `ruleId=null`, `replyText` เท่ากับ `QNA-1.answer` เป๊ะทุกตัวอักษร (ไม่ใช่ replyText ของ R-SHOP-DEF)
+- **Linked to:** TFR-032 ข้อ 3
+
+#### TC-GATE-08: `markQnaUsed` ถูกเรียกเฉพาะตอนส่งสำเร็จ
+- **Steps:** mock `sendOutboundMessage` ให้ล้มเหลวเสมอ (คืน `sent:false`) → ส่งข้อความตรง QNA-1 → อ่าน `useCount`
+- **Expected Result:** `useCount` **ไม่เพิ่ม** เมื่อส่งล้มเหลว
+- **Linked to:** TFR-032 ข้อ 5
+
+#### TC-GATE-09: 🛑 **regression ตัวจริง — `NO_KEYWORD_MATCH` ต้องไม่ล็อกห้อง + ข้อความถัดไปยังตอบได้ปกติ**
+- **Steps:**
+  1. ส่งข้อความที่ไม่ตรงทั้งกลุ่มคำและคลังเข้า CONV-1 (เช่น `"สวัสดีครับ"` ที่ไม่ตรง `KW-START` เพราะสมมติปิดกลุ่มนั้นไว้ชั่วคราวในเทสนี้) → อ่าน `Conversation.handoffAt`
+  2. ส่งข้อความที่ 2 ที่ตรง `KW-INTEREST` เข้า **เธรดเดิม**
+- **Expected Result:** หลังขั้น 1: `handoffAt` ยังเป็น `null`, มีแถวใน `AutoReplyUnansweredQuestion`; หลังขั้น 2: **ได้รับคำตอบปกติ** (`decision='REPLIED'`) — ยืนยันว่าห้องไม่ถูกล็อกถาวรจากข้อความแรก (นี่คือ regression test ตรงจุดของบั๊ก prod 2026-07-31 ที่ล็อก 240 ห้อง)
+- **Linked to:** TFR-033 ข้อ 3, memory `project_chat_auto_reply_00023`
+
+#### TC-GATE-10: คำตอบจากคลังที่มีแต่รูปไม่มีข้อความ ต้องไม่ถูกตัดเป็น `EMPTY_REPLY`
+- **Steps:** ส่งข้อความตรง QNA-IMG (`answer=''`, `imageFileIds=['f1','f2']`)
+- **Expected Result:** `decision='REPLIED'` (ไม่ใช่ `HANDOFF`/`EMPTY_REPLY`); `sendAutoReply` ถูกเรียกด้วย `imageFileIds:['f1','f2']`
+- **Linked to:** TFR-036 ข้อ 6
+
+#### TC-GATE-11: `loadRuleSet` โหลด `qnas` มาพร้อม `keywords`/`rules` ในคิวรีเดียว ใช้ cache 60s เดียวกัน
+- **Steps:** เรียก `loadRuleSet(SHOP-A)` 2 ครั้งติดกันภายใน 1 วินาที พร้อม spy นับจำนวนครั้งที่ query `AutoReplyQna` จริง
+- **Expected Result:** query ยิงจริงแค่ 1 ครั้ง (ครั้งที่ 2 ได้จาก cache) และผลลัพธ์มีทั้ง `keywords`, `rules`, `qnas` ครบในก้อนเดียว
+- **Linked to:** TFR-032 ข้อ 4
+
+---
+
+### 3.20 กลุ่ม T — [API] contract 12 endpoint ใหม่ + ส่วนขยาย `/simulate`
+
+> 🛑 **ก่อนเขียน route จริง — ยืนยันจากโค้ด 2026-08-01: ยังไม่มี route ไหนใน `/api/shops/auto-reply/keywords/[id]/qna*`, `/api/shops/auto-reply/unanswered*`, `/api/chat/conversations/[id]/qna-from-message` เลยแม้แต่ไฟล์เดียว** (grep `find src/app/api/shops/auto-reply -maxdepth 2 -type d` ไม่มี `qna`/`unanswered`) และ `ERROR_MAP` ใน `auto-reply-route-context.ts` **ยังไม่มี entry ของ `AUTO_REPLY_QNA_*`/`AUTO_REPLY_UNANSWERED_*` แม้แต่ตัวเดียว** — ทุก TC ในกลุ่มนี้เป็น **doc-first (⚠️ ห้าม implement ก่อนมี PRD+BRD ผ่านแล้ว — ที่นี่ผ่านแล้วสำหรับ phase นี้ ตาม Hard Rule 11)**, route/schema ยังไม่มีจริง
+>
+> **ผลที่ตามมาโดยตรง (ต้องเขียนเทสให้จับสิ่งนี้ได้เมื่อ implement เสร็จ):** ถ้า dev implement endpoint โดยลืมเพิ่ม `ERROR_MAP` entry ก่อน — error 400/409 ที่ตั้งใจไว้ (`AUTO_REPLY_QNA_QUESTION_EMPTY` ฯลฯ) จะตกไปที่ fallback **500** ทันที (`mapServiceError` คืน 500 สำหรับรหัสที่ไม่ match `ERROR_MAP` และไม่ลงท้าย `NOT_FOUND`) — TC-QAPI-04/05/06 และ TC-UAPI-05 ถูกออกแบบให้ **แดงทันทีถ้าลืมขั้นตอนนี้**
+
+**§ คลังคำถาม-คำตอบ (API.md §3.8, §4.30-4.36)**
+
+#### TC-QAPI-01: `GET /keywords/{id}/qna` — happy path + 4 ตัวกรอง + `stats` ของทั้งกลุ่ม
+- **ประเภท:** [API]
+- **Steps:** GET ด้วย `filter=NEVER_USED`, `filter=ACTIVE`, `filter=INACTIVE`, `search=รูป` ตามลำดับ
+- **Expected Result:** 200 ทุกครั้ง, `items` กรองถูกต้องตาม `QnaListFilter`, `stats.total`/`active`/`totalUses` เท่ากันทุก request (ไม่ผันตามตัวกรอง)
+- **Linked to:** API.md §4.30, TFR-034
+
+#### TC-QAPI-02: `GET /keywords/{id}/qna` ข้ามร้าน → 404 (ไม่ leak)
+- **Steps:** ล็อกอินเป็นสมาชิก SHOP-B แล้ว GET ด้วย `id=KW-INTEREST.id` (ของ SHOP-A)
+- **Expected Result:** `404 KEYWORD_NOT_FOUND` — ไม่บอกว่ากลุ่มมีอยู่จริงแต่เป็นของร้านอื่น
+- **Linked to:** API.md §5, AC-001-05 (หลักเดียวกัน)
+
+#### TC-QAPI-03: `POST /keywords/{id}/qna` happy path — คืน `{id}` เท่านั้น (ไม่ใช่ object เต็ม)
+- **Steps:** POST body ถูกต้องครบ
+- **Expected Result:** `201 { id: string }` — ไม่มีฟิลด์อื่นปนมา (ต่างจาก `POST /keywords` ที่คืนเต็ม — ตรง OQ-6 ของ API.md; ถ้า FE ต้องการ object เต็มต้องเรียก GET ต่อ)
+- **Linked to:** API.md §4.31
+
+#### TC-QAPI-04: 🛑 `POST /keywords/{id}/qna` validation errors ต้องได้ 400/409 จริง ไม่ตกเป็น 500
+- **Steps:** ยิง 6 กรณีแยกกัน: question ว่าง, question เกิน 500, answer ว่าง+ไม่มีรูป, answer เกิน 2000, imageFileIds เกิน 5, คำถามซ้ำในกลุ่มเดียวกัน
+- **Expected Result:** ตามลำดับ `400 AUTO_REPLY_QNA_QUESTION_EMPTY` / `400 ..._QUESTION_TOO_LONG` / `400 ..._ANSWER_EMPTY` / `400 ..._ANSWER_TOO_LONG` / `400 ..._TOO_MANY_IMAGES` / `409 ..._DUPLICATE` — **ไม่มีกรณีใดได้ 500**
+- **Linked to:** API.md §5 (8 error code ใหม่ — TC นี้ครอบ 6/8), memory `feedback_service_error_route_mapping`
+
+#### TC-QAPI-05: `POST /keywords/{id}/qna` — 401/403/404
+- **Steps:** (1) ไม่มี session (2) session ที่ role นอก `EDITABLE_ROLES` (3) `keywordId` ของร้านอื่น
+- **Expected Result:** (1) `401 UNAUTHORIZED` (2) `403 FORBIDDEN_ROLE` (3) `404 KEYWORD_NOT_FOUND`
+- **⚠️ หมายเหตุสำคัญ (ดูสรุปข้อขัดแย้งท้ายเอกสาร):** กรณี (2) **seed ไม่ได้ผ่าน flow ปกติ** เพราะ `ShopMember.role` ในสคีมาปัจจุบันมีแค่ `"OWNER"`/`"ADMIN"` (ไม่มีค่า `"STAFF"` จริง) และ `EDITABLE_ROLES = ['OWNER','ADMIN']` ครอบทั้งสองค่าที่มีจริง — ต้อง seed แถว `ShopMember` ด้วยค่า `role` แปลกปลอม (เช่น `'VIEWER'`) ตรง ๆ ผ่าน Prisma เพื่อพิสูจน์ branch นี้เท่านั้น ไม่มีทางเกิดผ่าน flow จริงของระบบปัจจุบัน (ตรงกับ API.md OQ-1 ที่ทีมบันทึกไว้แล้ว)
+- **Linked to:** API.md §5, OQ-1
+
+#### TC-QAPI-06: `PATCH`/`DELETE /keywords/{id}/qna/{qnaId}` — 404 (ไม่มีอยู่จริง / ข้ามร้าน) + partial update
+- **Steps:** PATCH เฉพาะ `isActive`; DELETE ซ้ำ 2 ครั้ง
+- **Expected Result:** PATCH สำเร็จ `200 {ok:true}`, ฟิลด์อื่นไม่เปลี่ยน; DELETE ครั้งแรกสำเร็จ `200 {ok:true}`, ครั้งที่ 2 `404 AUTO_REPLY_QNA_NOT_FOUND`
+- **Linked to:** API.md §4.32, §4.33
+
+#### TC-QAPI-07: `POST /keywords/{id}/qna/bulk` — partial result เสมอ ไม่ throw ทั้งก้อน
+- **Steps:** ส่ง `action='MOVE'` พร้อม 1 id ที่จะชนซ้ำ + 1 id ที่ย้ายสำเร็จ (เหมือน TC-QSV-12 แต่ผ่าน HTTP)
+- **Expected Result:** `200 { ok: 1, failed: [{id, reason:'AUTO_REPLY_QNA_DUPLICATE'}] }`
+- **Linked to:** API.md §4.34
+
+#### TC-QAPI-08: `POST .../qna/bulk` request-level errors
+- **Steps:** (1) `action='MOVE'` ไม่มี `targetKeywordId` (2) `targetKeywordId` เป็นของร้านอื่น (3) `qnaIds=[]`
+- **Expected Result:** (1) `400 INVALID_INPUT` (Valibot `v.check`) (2) `404 KEYWORD_NOT_FOUND` (3) `400 INVALID_INPUT` (`v.minLength(1)`)
+- **Linked to:** API.md §4.34
+
+#### TC-QAPI-09: `POST .../qna/import` — พรีวิว/ผลนำเข้าตาม `importStockFromCsvRows` pattern
+- **Steps:** ส่ง rows 3 แถว: 1 แถวใหม่, 1 แถวซ้ำกับที่มีอยู่ (`normalizedQuestion` ชน), 1 แถว question ว่าง
+- **Expected Result:** `200 { added:1, duplicates:1, invalid:1, total:3 }`; แถวซ้ำ**ไม่ทับ**ของเดิม (ยัง ans เดิม); ทุกแถวที่เพิ่มมี `source='IMPORT'`
+- **🛑 หมายเหตุ:** endpoint/service นี้**ยังไม่มีโค้ดจริงเลย** (API.md ยืนยันชัดเจน "ยังไม่มีโค้ด S-16, P1") — TC นี้เป็น spec ล่วงหน้า ไม่ใช่ regression บนของที่มีอยู่
+- **Linked to:** API.md §4.35, TFR-035
+
+#### TC-QAPI-10: 🛑 **เพดานแถว CSV — ข้อขัดแย้งที่ยังไม่ถูกตัดสิน (OQ-5)**
+- **Steps:** ส่ง rows 501 แถว (Valibot `AutoReplyQnaImportSchema` ปัจจุบันเขียน cap ที่ 500) และ 1001 แถว
+- **Expected Result:** ⚠️ **ไม่สามารถกำหนดผลที่คาดหวังได้แน่นอนตอนนี้** เพราะเอกสาร 3 แหล่งขัดกันเอง — SRS TFR-035 ข้อ 4 เขียน "เพดานต่อไฟล์: 1,000 แถว เกินให้ปฏิเสธ", `parseCsv()` (`src/lib/csv.ts`) ที่มีอยู่แล้วจริง cap 500, และ mockup Modal 3 พูดถึง "ตัดเฉพาะ 500 แถวแรก" (ตัดครึ่งเงียบ ๆ ซึ่ง TFR-035 ข้อ 4 บอกห้ามทำแบบนี้ตรง ๆ) — **TC นี้ต้องรอ safepay-planner/PO ตัดสิน 1 ทางก่อน implement** (บันทึกไว้ในตารางข้อขัดแย้งท้ายเอกสาร)
+- **Linked to:** SRS TFR-035, API.md OQ-5
+
+#### TC-QAPI-11: `GET .../qna/export` — CSV UTF-8 BOM ตรงคอลัมน์
+- **Steps:** GET แล้วตรวจ response header + เนื้อไฟล์
+- **Expected Result:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="deep-auto-reply-qna-{keywordId}-{yyyymmdd}.csv"`, ไบต์แรกของ body เป็น BOM (`\uFEFF`), หัวคอลัมน์ `คำถาม, คำตอบ, เปิดใช้งาน`, คอลัมน์ที่ 3 เป็น `"ใช่"`/`"ไม่ใช่"` (ไม่ใช่ `true`/`false` ดิบ)
+- **Linked to:** API.md §4.36, TFR-035
+
+**§ คิวคำถามที่ตอบไม่ได้ (API.md §3.9, §4.37-4.40)**
+
+#### TC-UAPI-01: `GET /unanswered` — default `status=PENDING` + `pendingCount` คงที่
+- **Steps:** GET ไม่ส่ง `status` เลย, แล้ว GET `status=DISMISSED`
+- **Expected Result:** ครั้งแรกได้เฉพาะ PENDING; ครั้งสองได้เฉพาะ DISMISSED แต่ `pendingCount` เท่ากันทั้งสองครั้ง
+- **Linked to:** API.md §4.37
+
+#### TC-UAPI-02: `POST /unanswered/{id}/dismiss` + `restore` — happy path คู่กัน
+- **Steps:** dismiss แล้ว restore แถวเดียวกัน
+- **Expected Result:** ทั้งคู่ `200 {ok:true}`; หลัง dismiss `status='DISMISSED'`; หลัง restore กลับเป็น `'PENDING'`
+- **Linked to:** API.md §4.38, §4.39
+
+#### TC-UAPI-03: `dismiss`/`restore` ผิดสถานะ/ผิดร้าน → 404 ทั้งคู่
+- **Steps:** dismiss แถวที่ dismiss ไปแล้ว; restore แถวที่ยังเป็น PENDING; dismiss แถวของร้านอื่น
+- **Expected Result:** ทั้งสามกรณี `404 AUTO_REPLY_UNANSWERED_NOT_FOUND`
+- **Linked to:** API.md §4.38, §4.39
+
+#### TC-UAPI-04: `POST /unanswered/{id}/convert` happy path
+- **Steps:** POST body ตาม `AutoReplyUnansweredConvertSchema` ครบ
+- **Expected Result:** `200 { qnaId }`
+- **Linked to:** API.md §4.40
+
+#### TC-UAPI-05: 🛑 `convert` errors ครบชุด (proof ไม่ตก 500)
+- **Steps:** (1) `id` ไม่มีจริง (2) `id` ที่ `status='ANSWERED'` แล้ว (3) `keywordId` ของร้านอื่น (4) `question`/`answer` ไม่ผ่าน validation (5) คำถามซ้ำในกลุ่มปลายทาง
+- **Expected Result:** (1) `404 AUTO_REPLY_UNANSWERED_NOT_FOUND` (2) `409 AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED` (3) `404 KEYWORD_NOT_FOUND` (4) `400 AUTO_REPLY_QNA_*` ตามชนิด (5) `409 AUTO_REPLY_QNA_DUPLICATE`
+- **Linked to:** API.md §4.40, §5 (ครอบอีก 2/8 error code ใหม่ — รวมกับ TC-QAPI-04 ครบ 8/8)
+
+#### TC-UAPI-06: "สร้างกลุ่มใหม่" ใน flow convert เป็น 2 คำขอต่อเนื่อง ไม่ atomic ข้าม endpoint
+- **Steps:** (1) `POST /keywords` สร้างกลุ่มใหม่สำเร็จ (2) จำลอง `POST .../convert` ครั้งแรกล้มเหลว (เช่น answer ผิด) (3) retry `convert` เดิมด้วย `keywordId` จากขั้น (1)
+- **Expected Result:** ขั้น (3) สำเร็จโดย**ไม่สร้างกลุ่มซ้ำ** — พิสูจน์ตามที่ API.md §4.40 เตือนไว้ว่า UI/QA ต้องรับ edge case นี้เอง ไม่มี rollback ระดับ 2 endpoint
+- **Linked to:** API.md §4.40
+
+**§ mini action จากห้องแชท (API.md §4.41)**
+
+#### TC-MAPI-01: `POST .../qna-from-message` — สร้างกลุ่มใหม่ + QnA ในคำขอเดียว
+- **Steps:** body `{chatMessageId, question, answer, keywordId: null, newKeywordName: 'กลุ่มใหม่จากแชท'}`
+- **Expected Result:** `201 { qnaId, keywordId, keywordCreated: true }`; มีกลุ่มคำใหม่ `status='OFFLINE'` จริงใน DB
+- **Linked to:** API.md §4.41, TFR-037 ข้อ 2
+
+#### TC-MAPI-02: `qna-from-message` — เลือกกลุ่มที่มีอยู่แล้ว (`keywordCreated:false`)
+- **Steps:** body ส่ง `keywordId` ของ KW-PRICE ตรง ๆ
+- **Expected Result:** `201 { qnaId, keywordId: KW-PRICE.id, keywordCreated: false }`
+- **Linked to:** API.md §4.41
+
+#### TC-MAPI-03: `qna-from-message` ปิดคิวอัตโนมัติถ้าข้อความเคยอยู่ในคิว
+- **Precondition:** `chatMessageId` ที่ส่งมีข้อความตรงกับ UQ-PENDING (`normalizedQuestion` เดียวกัน)
+- **Steps:** เรียก endpoint
+- **Expected Result:** `qnaId` ใหม่ถูกสร้าง **และ** UQ-PENDING เปลี่ยนเป็น `status='ANSWERED'`, `qnaId` ชี้ข้อใหม่ (TFR-037 ข้อ 5 — ผ่าน `markAnsweredByText`)
+- **Linked to:** API.md §4.41, TFR-037 ข้อ 5
+
+#### TC-MAPI-04: `qna-from-message` errors — 404 เธรดข้ามร้าน, 400 validation, 409 คำถามซ้ำ
+- **Steps:** (1) `chatMessageId` ของเธรดร้านอื่น (2) `keywordId=null` และ `newKeywordName` ว่างด้วย (3) คำถามซ้ำในกลุ่มปลายทาง
+- **Expected Result:** (1) `404 CONVERSATION_NOT_FOUND` (2) `400` (Valibot `v.check` — "กรุณาเลือกกลุ่มหรือระบุชื่อกลุ่มใหม่") (3) `409 AUTO_REPLY_QNA_DUPLICATE`
+- **Linked to:** API.md §4.41
+
+**§ ส่วนขยาย `/simulate` (API.md §4.18-ext, SDS §14.3)**
+
+#### TC-SIMX-01: 🛑 **BLOCKER — parity ระหว่าง `/simulate` กับ path จริง (AC-020-05)**
+- **Steps:** ยิงข้อความเดียวกันเข้า (1) `POST /simulate` และ (2) ผ่าน webhook จริงเข้า `processJob` (mock ชั้นส่งออกเท่านั้น) โดยข้อความนี้ตรงกับ QnA เท่านั้น (ไม่ตรงกลุ่มคำ)
+- **Expected Result:** ทั้งสองทางได้ `matchedVia='QNA'`, `qna.id`/`replyText` เท่ากันเป๊ะ — ฟังก์ชัน `matchQna()` ตัวเดียวกัน ไม่มี logic คู่ขนาน
+- **⚠️ สถานะปัจจุบัน:** ยืนยันจากโค้ดจริง 2026-08-01 — `/simulate` **ยังไม่เรียก `matchQna` เลย** (`route.ts` ไม่มี import) → TC นี้ **แดงแน่นอนจนกว่า S-04 ส่วนขยาย simulate จะถูก implement ตาม API.md §4.18-ext ข้อ 1-3**
+- **Linked to:** AC-020-05, SDS §14.3, TFR-031
+
+#### TC-SIMX-02: `/simulate` ส่ง `allKeywords` (ไม่กรอง `status`) เข้า `matchQna` — ต่างจาก path จริงโดยเจตนา
+- **Steps:** สร้าง QnA ผูกกับกลุ่ม `status='OFFLINE'` → เรียก `/simulate`
+- **Expected Result:** `/simulate` **เห็น**คำตอบของ QnA กลุ่ม OFFLINE (preview ได้ก่อนเปิดใช้จริง — พฤติกรรมเดิมของหน้านี้) แต่ path จริงต้อง**ไม่เห็น** (อ้างอิง TC-GATE-03) — สอง TC นี้ต้องให้ผลต่างกันโดยตั้งใจ ถ้าเหมือนกันแปลว่า simulate implement ผิด
+- **Linked to:** SDS §14.3 (ตารางความต่าง)
+
+#### TC-SIMX-03: `/simulate` response มี `matchedVia`/`qna` ตามสัญญาใหม่
+- **Steps:** ยิงข้อความที่ตรง QnA ล้วน (ไม่ตรงกลุ่มคำ)
+- **Expected Result:** `matched=null`, `matchedVia='QNA'`, `qna={id,question,answer,imageFileIds}`, `replyText` เท่ากับ `qna.answer`, `willHandoff=false`
+- **Linked to:** API.md §4.18-ext
+
+#### TC-SIMX-04: `/simulate` — ข้อความที่ไม่ตรงทั้งกลุ่มคำและคลัง
+- **Steps:** ยิงข้อความที่ไม่ตรงอะไรเลย
+- **Expected Result:** `matched=null`, `matchedVia=null`, `qna=null`, `willHandoff=true`
+- **Linked to:** API.md §4.18-ext
+
+#### TC-SIMX-05: `qna.isActive=false` ไม่ถูก preview แม้ query ฝั่ง simulate ไม่กรอง `isActive`
+- **Steps:** สร้าง QnA `isActive=false` ที่ตรงข้อความทดสอบ → `/simulate`
+- **Expected Result:** `matchedVia=null` (กรองอยู่ใน `matchQna()` เอง บรรทัด 122 ไม่ใช่ที่ query — ยืนยันว่า simulate ไม่ต้องเพิ่ม filter เอง)
+- **Linked to:** SDS §14.3
+
+**§ ป้าย DeepBot ในรายการแชท (API.md §4.42 — นอกขอบเขต API.md ของ feature นี้จริง ๆ แต่ทีมขอให้ทดสอบในชุดนี้)**
+
+#### TC-QAPI-12: `GET /api/chat/conversations` (branch seller) — enrich 2 ฟิลด์ใหม่ + `lastMessageIsAiEnhanced` คงที่ `false`
+- **🛑 สถานะ:** ยืนยันจากโค้ด 2026-08-01 — `enrichWithAutoReplyBadge` **ยังไม่มีอยู่จริง** (grep `lastMessageAutoReplyKind`/`lastMessageIsAiEnhanced` ทั้งโปรเจกต์ = ว่างเปล่า) นี่คือ spec ล่วงหน้าของ S-20
+- **Steps:** เธรดที่ข้อความล่าสุดเป็นของบอท (`autoReplyKind='AUTO'`) vs เธรดที่พนักงานพิมพ์เอง
+- **Expected Result:** เธรดแรก `lastMessageAutoReplyKind='AUTO'`; เธรดหลัง `lastMessageAutoReplyKind=null`; ทุกเธรด `lastMessageIsAiEnhanced=false` เสมอ; **ไม่มีการเพิ่ม migration/คอลัมน์ใหม่บน `Conversation`** (SDS §14.4 — ตัดสินใช้ join enrich ไม่ persist)
+- **Linked to:** SDS §14.4, API.md §4.42, Scope Baseline S-20 (⚠️ ดูข้อขัดแย้งกับ ux spec Revision v2 ข้อ 6 ท้ายเอกสาร)
+
+---
+
+### 3.21 กลุ่ม U — [E2E] Playwright — คลังคำถาม/คิว/ป้าย DeepBot/นำเข้า-ส่งออก (S-18)
+
+> 🛑 ยังไม่มี UI จริง (`/settings/auto-reply/[id]/qna`, `/settings/auto-reply/unanswered` ยังไม่ถูกสร้าง — S-13/S-14 ยัง TODO) — สคริปต์เหล่านี้เขียนไว้ให้ S-18 เอาไป implement ทันทีที่ backend+UI พร้อม เขียนที่ `e2e/auto-reply-qna.spec.ts` (ต่อยอด `e2e/helpers/auth.ts`) bypass login ด้วย seller ที่ล็อกอินแล้ว, `http://seller.deepth.local:4000` เท่านั้น
+
+#### TC-QE2E-01: E2E — กรอกคำตอบจากคิว → ยิงข้อความจริง → บอทตอบจากคลัง (สายหลักของ Acceptance #1)
+- **Steps:** เปิด `/settings/auto-reply/unanswered` → เห็นคำถามในแท็บ "รอกรอก (N)" → กด "กรอกคำตอบ" → เลือกกลุ่มปลายทาง → กรอกคำตอบ → บันทึก → เปิดหน้าจำลอง `/settings/auto-reply/[id]/test` (หรือยิงผ่าน seed message จริงในเธรดทดสอบ) ด้วยคำถามเดียวกัน
+- **Expected Result:** แถวหายจากแท็บ "รอกรอก" ทันที (optimistic); ยิงคำถามซ้ำ → บอทตอบด้วยคำตอบที่เพิ่งกรอก; DB มี `AutoReplyQna` แถวใหม่ `source='QUEUE'`
+- **Linked to:** Phase Acceptance #1, S-13/S-14/S-18
+
+#### TC-QE2E-02: แท็บ "ข้ามแล้ว" + ปุ่มย้อนกลับมารอกรอก (undo)
+- **Steps:** ที่แท็บ "รอกรอก" กด "ข้าม" 1 แถว → สลับไปแท็บ "ข้ามแล้ว" → เห็นแถวนั้น → กด "↩ ย้อนกลับมารอกรอก"
+- **Expected Result:** หลังกด "ข้าม": แถวหายจาก "รอกรอก" ทันที + badge `รอกรอก N ข้อ` ลด 1 + toast `pacesToast.success` top-right; แท็บ "ข้ามแล้ว" แสดงแถวพร้อม "ถูกถาม N ครั้ง · ข้ามเมื่อ {formatRelativeDayTime}"; หลังกด undo: แถวกลับไปแท็บ "รอกรอก" + toast `ย้ายกลับไปที่รอกรอกแล้ว` + badge เพิ่มกลับ 1
+- **Linked to:** ux spec Revision v2 ข้อ 1, API §4.39
+
+#### TC-QE2E-03: คิวว่าง — empty state เป็นกลาง/บวก ไม่ใช่หน้าพัง
+- **Precondition:** ร้านทดสอบใหม่ที่ไม่มีคิวค้างเลย
+- **Steps:** เปิด `/settings/auto-reply/unanswered`
+- **Expected Result:** icon `circle-check` สีเขียว + หัวข้อ "ไม่มีคำถามที่รอกรอกตอนนี้" + ไม่มีปุ่ม action (ตาม ux spec §State list)
+- **Linked to:** ux spec — State list
+
+#### TC-QE2E-04: หน้าคลัง (`/settings/auto-reply/[id]/qna`) — ค้นหา + 4 ตัวกรอง + เลือกหลายข้อ + bulk MOVE
+- **Steps:** พิมพ์ค้นหา → เห็นผลกรอง real-time; คลิกชิป `NEVER_USED`; เลือก checkbox 2 แถว → แถบ bulk โผล่ → เลือก "ย้ายกลุ่ม" → เลือกปลายทาง → ยืนยัน
+- **Expected Result:** ผลค้นหา/กรองตรง; หลัง MOVE สำเร็จ toast `pacesToast.success` + แถวหายจากตารางปัจจุบัน (ย้ายไปกลุ่มอื่นแล้ว); ถ้า MOVE บางแถวชนซ้ำ → toast/บรรทัดแจ้ง "N รายการย้ายไม่สำเร็จ" พร้อม label ไทยของ `reason` (ไม่โชว์ code ดิบ — ตาม API.md §4.34)
+- **Linked to:** S-13, API.md §4.34
+
+#### TC-QE2E-05: นำเข้า CSV — พรีวิวก่อนยืนยันเสมอ
+- **Steps:** เลือกไฟล์ CSV ที่มี 1 แถวใหม่ + 1 แถวซ้ำ + 1 แถวรูปแบบผิด → ระบบแสดงพรีวิวจำนวนที่จะเพิ่ม/ซ้ำ/ผิด **ก่อน** กดยืนยัน → กดยืนยัน
+- **Expected Result:** พรีวิวตัวเลขตรงกับที่ backend จะคืน (TFR-035 ข้อ 1 — "ต้องแสดงตัวอย่างให้ยืนยันก่อนเขียนเสมอ"); หลังยืนยัน ตารางอัปเดตแสดงแถวใหม่
+- **Linked to:** TFR-035, S-16
+
+#### TC-QE2E-06: ส่งออก CSV — ไฟล์เปิดด้วย Excel ไทยได้ (BOM)
+- **Steps:** กดปุ่มส่งออก → ตรวจไฟล์ที่ดาวน์โหลด
+- **Expected Result:** ไฟล์ขึ้นต้นด้วย BOM, เปิดแล้วภาษาไทยไม่เพี้ยน, คอลัมน์ตรงตาม API.md §4.36
+- **Linked to:** API.md §4.36
+
+#### TC-QE2E-07: ป้าย DeepBot ในรายการแชท — ขึ้นเมื่อบอทตอบ, ไม่ขึ้นเมื่อพนักงานตอบเอง
+- **Steps:** (1) เปิด inbox ของเธรดที่ข้อความล่าสุดเป็นของบอท (2) เธรดที่ข้อความล่าสุดพนักงานพิมพ์เอง
+- **Expected Result:** (1) prefix แสดง icon หุ่นยนต์ + `DeepBot` (`text-primary`) แทน "คุณ: " ธรรมดา (2) แสดง "คุณ: " ปกติ ไม่มีไอคอน — เงื่อนไข **ต้อง**เป็น `lastSenderRole==='SHOP' && lastMessageAutoReplyKind != null` ไม่ใช่ `autoReplyCount > 0` (มิฉะนั้นป้ายจะติดค้างถาวรแม้พนักงานรับช่วงไปแล้ว)
+- **Linked to:** SDS §14.4, ux spec Revision v2 ข้อ 4, S-20
+
+#### TC-QE2E-08: mini action ใต้บับเบิลลูกค้า — เติมคำถาม/คำตอบอัตโนมัติ
+- **Precondition:** เธรดที่ลูกค้าถามแล้วพนักงานพิมพ์ตอบเอง (ไม่ใช่บอทตอบ) ในข้อความถัดไป
+- **Steps:** กด mini action ใต้บับเบิลลูกค้า → sheet เปิดขึ้น
+- **Expected Result:** ช่อง "คำถาม" เติมข้อความลูกค้าอัตโนมัติ, ช่อง "คำตอบ" เติมข้อความฝั่งร้านถัดไปในเธรดอัตโนมัติ (ไม่ใช่ช่องว่าง — ตาม TFR-037 ข้อ 2); ถ้าข้อความถัดไปเป็นของบอทเอง (`autoReplyKind!=null`) → ช่องคำตอบ**ไม่เติม**
+- **Linked to:** TFR-037, S-22
+
+---
+
+### 3.22 กลุ่ม V — [Regression] สิ่งที่ต้องไม่พัง — phase `00023-qna`
+
+#### TC-QREG-01: 🛑 **BLOCKER** — ร้านที่คำตรงตัวเคยตอบได้ ต้องยังตอบเหมือนเดิมทุกประการหลังเพิ่ม QnA
+- **Steps:** รันชุด TC-RES-01..14 (base feature เดิม) ซ้ำหลัง deploy phase `00023-qna` โดยไม่มี QnA ตั้งไว้เลยสำหรับกลุ่มคำที่ใช้ในเทสเหล่านั้น
+- **Expected Result:** ผลเหมือนเดิมทุกประการ (ไม่มี `matchedVia`/`qnaId` โผล่มาในเคสที่ไม่เกี่ยวกับคลัง — `matchedVia='KEYWORD'` เสมอเมื่อกลุ่มคำตรง)
+- **Linked to:** Phase Acceptance #2
+
+#### TC-QREG-02: โหมดทดสอบ (allowlist เธรดจริง) ยังทำงานปกติเมื่อกลุ่มที่ชนะมาจากคลัง
+- **Steps:** รันซ้ำ TC-TM-01/TC-TM-09 (base) แต่ให้คำตอบมาจาก QnA แทนกฎ
+- **Expected Result:** พฤติกรรม allowlist เหมือนเดิม (`KEYWORD_TEST_ONLY` เมื่อเธรดไม่อยู่ allowlist) — อ้างอิง TC-GATE-04 ซ้ำในบริบท regression
+- **Linked to:** BR-AR-16/17 (base)
+
+#### TC-QREG-03: cooldown ของกลุ่มคำเดิมไม่พังเมื่อผสมคำตอบจากคลังในเธรดเดียวกัน
+- **Steps:** ตอบด้วยกฎปกติของกลุ่ม A → ภายใน cooldown ยิงข้อความที่ตรงคลังของกลุ่ม B (คนละกลุ่ม)
+- **Expected Result:** กลุ่ม B ตอบได้ปกติ (cooldown แยกตาม `keywordId` ไม่ใช่ทั้งเธรด)
+- **Linked to:** AC-018-01 (base) + TFR-032 ข้อ 2
+
+#### TC-QREG-04: ตารางเวลาทำงาน (gate 6.6) ยังบังคับกับกลุ่มคำปกติเหมือนเดิมหลังเพิ่ม gate ของ QnA
+- **Steps:** รันซ้ำเคสนอกเวลาทำงานของกลุ่มคำปกติ (ไม่เกี่ยวกับคลัง) บน SHOP-D
+- **Expected Result:** `skipReason='OUTSIDE_SCHEDULE'` เหมือนก่อนมี phase นี้ — ยืนยันว่าการเสียบ QnA เข้า gate ไม่ได้ไปแตะลำดับ/เงื่อนไขเดิมของกลุ่มคำ
+- **Linked to:** (gate 6.6 เดิม — doc-debt ของ base TestCase.md, ดูหมายเหตุท้าย TC-UF)
+
+#### TC-QREG-05: handoff เมื่อพนักงานตอบเอง (human takeover) ยังหยุดบอททันทีแม้ธุรกิจใช้คลังอยู่
+- **Steps:** รันซ้ำ TC-HT-01 (base) ในเธรดที่เคยตอบด้วย QnA มาก่อน
+- **Expected Result:** พนักงานพิมพ์ตอบ → `autoReplyPausedUntil` ถูกตั้งตาม `humanTakeoverPauseMode` → ข้อความถัดไปของลูกค้าที่ตรงคลังก็ต้องเงียบเหมือนกับตรงกลุ่มคำ (`PAUSED_HUMAN_TAKEOVER` ไม่สนใจว่าคำตอบจะมาจากทางไหน)
+- **Linked to:** BR-AR-13 (base), TD-006
+
+#### TC-QREG-06: 🛑 **BLOCKER — บั๊ก `handoffAt` ล็อกห้องถาวร (prod 2026-07-31, 240 ห้อง) ต้องไม่กลับมา**
+- **Steps:** สุ่มยิงข้อความ "ทักทายอิสระ" ที่ไม่ตรงทั้งกลุ่มคำและคลัง 5 แบบต่างกันเข้าเธรดเดียวกันติดต่อกัน (จำลองลูกค้าเปิดบทสนทนาด้วยคำที่ระบบไม่รู้จักซ้ำหลายครั้ง) แล้วยิงข้อความที่ 6 ที่ตรงกลุ่มคำจริง
+- **Expected Result:** ทั้ง 5 ข้อความแรก: `handoffAt` ยังเป็น `null` ตลอด (query ยืนยันหลังทุกข้อความ ไม่ใช่แค่ครั้งสุดท้าย), มีแถวใน `AutoReplyUnansweredQuestion` (upsert รวมกันถ้าข้อความซ้ำ, แถวแยกถ้าไม่ซ้ำ); ข้อความที่ 6 **ได้รับคำตอบปกติ** — ถ้า `handoffAt` ถูกเซ็ตแม้แต่ครั้งเดียวในระหว่างนี้ = regression กลับไปเป็นบั๊กเดิม ต้อง block merge ทันที
+- **Linked to:** TFR-033 ข้อ 3, memory `project_chat_auto_reply_00023` (บั๊ก handoffAt ล็อกห้องถาวร 240 ห้อง)
+
 ---
 
 ## 4. Traceability Matrix
@@ -1586,6 +2170,26 @@ npm run e2e -- e2e/auto-reply-*.spec.ts
 | §7.2 การเปลี่ยนแปลง DB เป็นแบบเพิ่มอย่างเดียว | TC-REG-02, TC-REG-03 |
 | มาตรฐาน UI ของโปรเจกต์ (Hard Rule 3/7/9/12) | TC-REG-04 |
 
+### 4.4 Traceability เพิ่มเติม — phase `00023-qna` (TFR-031..037, ไม่มี AC-0XX ของตัวเอง — trace ตรงไปที่ SRS/Scope Baseline)
+
+| TFR / Acceptance / S-id | Test Case ที่ครอบคลุม |
+|---|---|
+| TFR-031 (`matchQna`) | TC-QM-01..03 + ไฟล์เทสเดิม `auto-reply-qna-match.test.ts` (14 เคส) |
+| TFR-032 (ตำแหน่งใน gate) | TC-GATE-01..11 🛑 ทั้งกลุ่มเป็น BLOCKER |
+| TFR-033 (คิว) | TC-USV-01..05, TC-USV-11..13, TC-GATE-09, TC-QREG-06 |
+| TFR-034 (CRUD/bulk/cache) | TC-QSV-01..16 |
+| TFR-035 (CSV) | TC-QAPI-09..11 (⚠️ TC-QAPI-10 blocked — OQ-5 ยังไม่ตัดสิน) |
+| TFR-036 (รูปแนบ) | TC-QSV-03 (answer ว่าง+รูป), TC-GATE-10 (ส่งจริง) — ส่วนใหญ่ "Done (base)" ตาม SDS §14.8 |
+| TFR-037 (mini action จากแชท) | TC-MAPI-01..04, TC-USV-12..13 |
+| Scope Baseline S-20 (ป้าย DeepBot) | TC-QAPI-12, TC-QE2E-07 |
+| Scope Baseline S-16 (CSV) | TC-QAPI-09..11, TC-QE2E-05..06 |
+| Scope Baseline S-22 (mini action) | TC-MAPI-01..04, TC-QE2E-08 |
+| Phase Acceptance #1 (ตอบจากคลังหลังกรอก) | TC-USV-09, TC-GATE-01, TC-QE2E-01 |
+| Phase Acceptance #2 (คำตรงตัวชนะเสมอ) | TC-GATE-01, TC-GATE-02, TC-QREG-01 |
+| Phase Acceptance #3 (OFFLINE/TEST/นอกเวลา ไม่ตอบ) | TC-GATE-03, TC-GATE-04, TC-GATE-05 |
+| Phase Acceptance #4 (คิวไม่มี PII) | TC-UF-01..03 + ไฟล์เทสเดิม `auto-reply-unanswered-filter.test.ts` (17 เคส) |
+| Phase Acceptance #5 (หน้าคลัง ค้นหา/กรอง/เลือกหลาย/ย้ายกลุ่ม) | TC-QE2E-04 |
+
 ---
 
 ## 5. สรุปจำนวนเคสตามประเภท
@@ -1623,6 +2227,24 @@ npm run e2e -- e2e/auto-reply-*.spec.ts
 
 **เคสที่เป็น 🛑 BLOCKER (ห้าม merge ถ้าไม่ผ่าน) — 31 เคส:**
 TC-NORM-05 · TC-MATCH-06 · TC-TIE-06 · TC-RES-10 · TC-RES-11 · TC-RES-14 · TC-CFG-19 · TC-INT-01 · TC-INT-03 · TC-INT-06 · TC-DUP-01 · TC-DUP-02 · TC-DUP-03 · TC-DUP-04 · TC-DUP-05 · TC-HT-01 · TC-CTX-02 · TC-CTX-08 · TC-TM-01 · TC-TM-05 · TC-TM-09 · TC-SIM-02 · TC-SIM-05 · TC-CC-01 · TC-SEC-02 · TC-SEC-04 · TC-SEC-05 · TC-NEG-02 · TC-NEG-04 · TC-NEG-07 · TC-LOG-02
+
+### 5.1 เพิ่มเติม phase `00023-qna` (เพิ่ม 2026-08-01 — นับแยกจาก 164 เคสเดิมของ base feature)
+
+**รวมเพิ่ม 74 test case** (BLOCKER 19 เคส) — ไม่รวมเทส unit ที่มีอยู่แล้วในไฟล์จริง (`auto-reply-qna-match.test.ts` 14 เคส + `auto-reply-unanswered-filter.test.ts` 17 เคส = 31 เคสที่ผ่านแล้วก่อนเอกสารนี้ถูกเขียน)
+
+| กลุ่ม | รหัส | จำนวน | ประเภทหลัก |
+|---|---|---|---|
+| Q · unit gap (matchQna/filter) | `TC-QM-*` / `TC-UF-*` | 6 | Unit |
+| R · qna/unanswered service | `TC-QSV-*` / `TC-USV-*` | 29 | Integration (1 เคสใช้ partial mock — TC-USV-11) |
+| S · ตำแหน่งใน gate | `TC-GATE-*` | 11 | Integration — 🛑 **ทั้งกลุ่มเป็น BLOCKER** |
+| T · API contract | `TC-QAPI-*` / `TC-UAPI-*` / `TC-MAPI-*` / `TC-SIMX-*` | 27 | API |
+| U · E2E Playwright (S-18) | `TC-QE2E-*` | 8 | E2E |
+| V · regression | `TC-QREG-*` | 6 | Integration — 2 เคสเป็น BLOCKER (TC-QREG-01, TC-QREG-06) |
+
+**เคสที่เป็น 🛑 BLOCKER ของ phase `00023-qna` — 19 เคส:**
+TC-QSV-12 · TC-USV-03 · TC-USV-04 · TC-USV-11 · TC-GATE-01 · TC-GATE-02 · TC-GATE-03 · TC-GATE-04 · TC-GATE-05 · TC-GATE-06 · TC-GATE-09 · TC-QAPI-04 · TC-QAPI-05 · TC-QAPI-10 · TC-UAPI-05 · TC-SIMX-01 · TC-QREG-01 · TC-QREG-06
+
+**รวมทั้งภาคผนวก:** base feature 164 + phase `00023-qna` 74 = **238 test case** (BLOCKER รวม 31 + 19 = 50)
 
 ---
 
@@ -1727,6 +2349,11 @@ flowchart LR
 | Q10 | **โหมด `MANUAL` / `UNTIL_RESOLVED`** แทนสถานะ "หยุดไม่มีกำหนด" ด้วยอะไร (`autoReplyPausedUntil` เป็น DateTime อย่างเดียว) | TC-HT-03 | SDS + safepay-database |
 | Q11 | **กลไกตรวจ "ส่งไปแล้ว"** ใน TC-DUP-03 — ใช้ `ChatMessage` ขาออกที่ผูกกับ job หรือ `AutoReplyLog.decision="REPLIED"` | TC-DUP-03 | SDS |
 | Q12 | **พฤติกรรมเมื่อกฎถูกแก้ระหว่างประมวลผล** — ใช้ snapshot หรือ re-validate ก่อนส่ง | TC-CC-03 | SDS |
+
+| Q13 | **`convertUnansweredToQna` ไม่ใช่ทรานแซกชันเดียวจริง** (โค้ดจริงไม่มี `prisma.$transaction`) ขัดกับ comment ในโค้ดและ API.md §3.9 — ต้องแก้ก่อน merge S-11 หรือแก้เอกสารให้ตรงกับความเสี่ยงที่ยอมรับ | TC-USV-11 🛑 BLOCKER | dev (S-11) |
+| Q14 | **เพดานแถว CSV import ขัดกัน 3 แหล่ง** (SRS 1,000 / `parseCsv()` จริง 500 / mockup "ตัดเฉพาะ 500 แถวแรก") | TC-QAPI-10 | safepay-planner/PO (= API.md OQ-5) |
+| Q15 | **`SHOP_LOCKED` (403) ที่ API.md อ้างว่าบังคับ "ทุก endpoint ที่เขียน" ไม่ถูก implement จริงในโค้ดปัจจุบันเลยสักจุด** — `requireShopContext()`/`forbidIfReadOnly()` (`auto-reply-route-context.ts`) ไม่อ่าน `activeCtx.locked` เลย ทั้งฐาน feature เดิม (keywords/rules/config) และ endpoint ใหม่ของ phase นี้จะสืบทอดช่องโหว่เดียวกันถ้าไม่แก้ helper ก่อน | ทุก TC ที่อ้าง 403 SHOP_LOCKED ใน API §5 (ยังไม่มี TC เฉพาะ — ต้องเพิ่มหลัง fix) | dev + safepay-reviewer |
+| Q16 | **role `STAFF` ไม่มีอยู่จริงใน `ShopMember.role`** (มีแค่ `OWNER`/`ADMIN`) ทำให้เทส 403 FORBIDDEN_ROLE ทุกจุดต้อง seed ค่า role แปลกปลอมตรง ๆ — ซ้ำกับ API.md OQ-1 เดิม ยกมาย้ำเพราะกระทบทุก endpoint ใหม่ | TC-QAPI-05 และทุก TC ที่อ้าง 403 | ยืนยันแล้วเป็น known-gap (API.md OQ-1) |
 
 **ข้อจำกัดความครอบคลุมที่ต้องยอมรับอย่างเปิดเผย:**
 
