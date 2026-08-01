@@ -78,6 +78,11 @@
     /* active คงเป็น primary → ปุ่มที่กำลังใช้อยู่เด่นออกมาจากปุ่มที่เหลือ */
     --fc-button-active-bg-color: var(--color-primary);
     --fc-button-active-border-color: var(--color-primary);
+    /* "วันนี้" — FullCalendar ตั้ง default เป็นเหลืองอุ่นและไม่เคยถูก override เลย
+       ขัด Cool Mist ด้วยเหตุผลเดียวกับครีม/ชมพูเดิม · ปิดพื้นทั้งช่อง แล้วย้ายไปเป็น
+       วงกลม primary รอบเลขวันแทน (ดู dayCellContent) ซึ่งเป็น convention ของปฏิทินทั่วไป
+       และ "วันนี้" คือตำแหน่งอ้างอิง ไม่ใช่สถานะดี/เสีย จึงห้ามใช้ warning/danger/success */
+    --fc-today-bg-color: transparent;
 }
 
 /**
@@ -112,23 +117,22 @@
     }
 }
 
-/* วันที่ใกล้เต็ม/เต็ม — ย้อมพื้นอ่อน ๆ ให้กวาดตาเห็นทั้งเดือนว่าวันไหนยังรับได้
-   ใช้ token ของ Paces ไม่ hardcode hex (Hard Rule 7) */
-.appointment-calendar .appt-day-tight {
-    background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
-}
-.appointment-calendar .appt-day-full {
-    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
-}
-/* วันเต็มกดไม่ได้ — ป้ายบอกเป็นสีเตือน ไม่ใช่สี primary ที่ชวนให้กด */
+/**
+ * สัญญาณความจุรายวัน — อยู่ที่ "ตัวเลข n/m" ไม่ใช่พื้นทั้งช่อง
+ *
+ * เดิมย้อมพื้นช่องด้วย warning/danger 10% ผลคือ:
+ *   - ครีมอุ่นทับ Cool Mist ของทั้งระบบ (DESIGN.md: "off-white เย็น ไม่ใช่ cream อุ่น")
+ *   - ช่อง 100x100px ที่ย้อมคือของตกแต่ง ไม่ใช่ข้อมูล — ตัวเลข n/m ต่างหากที่สื่อจริง
+ *   - user รายงาน 2026-08-01: "สีมันไม่ได้เลย หน้านี้"
+ * สีย้ายไปเป็น Tailwind class บนตัวเลขใน dayCellContent แล้ว (Design Spec: safepay-ux)
+ *
+ * "วันนี้" ก็ต้องเย็นด้วย — FullCalendar ตั้ง --fc-today-bg-color เป็นเหลืองอุ่นมาเป็นค่า
+ * เริ่มต้น และไม่เคยถูก override เลย ทำให้กลายเป็นสีที่เด่นที่สุดบนปฏิทินตอนไม่มีนัด
+ * ทั้งที่ "วันนี้" แค่ต้องอ้างอิงตำแหน่งได้ ไม่ใช่ข้อมูลที่ต้องเตือน
+ */
+/* วันเต็ม — ปุ่มจองเป็นสีเตือน ไม่ใช่ primary ที่ชวนให้กด */
 .appointment-calendar .appt-day-full .appt-day-add {
     color: var(--color-danger-ink);
-}
-.appointment-calendar .appt-day-full .appt-day-cap {
-    color: var(--color-danger-ink);
-}
-.appointment-calendar .appt-day-tight .appt-day-cap {
-    color: var(--color-warning-ink);
 }
 /**
  * สีของป้ายนัดบนปฏิทิน (feature 00024)

@@ -414,6 +414,26 @@ export default function AppointmentCalendar({ resources }: Props) {
                   ? `เต็ม ${n}/${totalCapacity}`
                   : `${n}/${totalCapacity}`
                 : ''
+            const tight = totalCapacity > 0 && !full && n > 0 && n === totalCapacity - 1
+            /**
+             * สีอยู่ที่ "ตัวเลข" ไม่ใช่พื้นทั้งช่อง — ตัวเลข n/m คือข้อมูลจริง
+             * ส่วนพื้นที่ย้อม 100x100px เป็นของตกแต่งที่ทับ Cool Mist ของทั้งระบบ
+             * (Design Spec: safepay-ux 2026-08-01 หลัง user บอกว่า "สีมันไม่ได้เลย")
+             *
+             * เดสก์ท็อป: วันเต็มได้ pill เล็ก (idiom เดียวกับ badge ของ Paces)
+             * มือถือ: ตัด pill ออก เหลือแค่สีตัวอักษร เพราะช่องกว้างจริง ~45px
+             * padding ของ pill จะดันความกว้างเกิน
+             */
+            const capClass = full
+              ? 'bg-danger/15 text-danger-ink rounded px-1.5 py-0.5 font-bold'
+              : tight
+                ? 'text-warning-ink font-bold'
+                : 'text-default-600 font-semibold'
+            const capClassMobile = full
+              ? 'text-danger-ink font-bold'
+              : tight
+                ? 'text-warning-ink font-bold'
+                : 'text-default-600 font-semibold'
             /**
              * ปุ่ม "จอง" ต้องเป็น <button> จริง ไม่ใช่ <span>
              * เดิมเป็น span ที่พึ่ง dateClick ของช่องทั้งช่อง → คีย์บอร์ดเข้าไม่ถึงเลย
@@ -422,7 +442,7 @@ export default function AppointmentCalendar({ resources }: Props) {
             const addButton = (
               <button
                 type="button"
-                className="appt-day-add btn btn-icon text-primary min-h-11 min-w-11"
+                className={`appt-day-add btn btn-icon min-h-11 min-w-11 ${full ? 'text-danger-ink' : 'text-primary'}`}
                 aria-label={full ? `${arg.dayNumberText} รับนัดเต็มแล้ว` : `จองคิววันที่ ${arg.dayNumberText}`}
                 onClick={(e) => {
                   // กันไม่ให้ dateClick ของช่องทำงานซ้ำอีกรอบ
@@ -438,8 +458,14 @@ export default function AppointmentCalendar({ resources }: Props) {
             if (isMobile) {
               return (
                 <div className="flex w-full flex-col items-center gap-0.5">
-                  <span>{arg.dayNumberText}</span>
-                  {cap && <span className="appt-day-cap text-default-600 text-xs font-semibold">{cap}</span>}
+                  <span
+                    className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
+                      arg.isToday ? 'bg-primary text-white' : 'text-default-700'
+                    }`}
+                  >
+                    {arg.dayNumberText}
+                  </span>
+                  {cap && <span className={`appt-day-cap text-xs ${capClassMobile}`}>{cap}</span>}
                   {addButton}
                 </div>
               )
@@ -447,10 +473,16 @@ export default function AppointmentCalendar({ resources }: Props) {
 
             return (
               <div className="flex w-full items-center justify-between gap-2">
-                <span className="appt-day-cap text-default-600 text-xs font-semibold">{cap}</span>
+                <span className={`appt-day-cap text-xs ${capClass}`}>{cap}</span>
                 <span className="flex items-center gap-1.5">
                   {addButton}
-                  <span>{arg.dayNumberText}</span>
+                  <span
+                    className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
+                      arg.isToday ? 'bg-primary text-white' : 'text-default-700'
+                    }`}
+                  >
+                    {arg.dayNumberText}
+                  </span>
                 </span>
               </div>
             )
