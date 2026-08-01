@@ -91,8 +91,9 @@ export const sellerMenuItems: MenuItemType[] = [
     label: 'ผู้ช่วยอัตโนมัติ',
     isTitle: true,
     children: [
-      // feature 00019 — AI ร่างคำตอบให้ "คนกดส่งเอง" (คนละเรื่องกับ DeepBot ที่ระบบส่งเอง)
-      { url: '/settings/ai', slug: 'seller:settings-ai', label: 'บุคลิก AI', icon: 'sparkles' },
+      // NOTE: "บุคลิก AI" (/settings/ai) ย้ายไปเป็นแท็บในเมนู ChatBot แล้ว (user สั่ง 2026-08-01
+      // "เพื่อเป็นการตั้งค่าตัวบอท") — route ยังอยู่ที่เดิม เข้าถึงผ่านแท็บ ห้ามเพิ่มกลับเป็นเมนู
+      // แยกอีก จะกลายเป็นสองทางเข้าไปที่เดียวกัน
       // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจากกลุ่มคำ + คลังคำถาม-คำตอบ
       /**
        * แยก Auto Reply กับ ChatBot เป็นคนละเมนู (user ตัดสิน 2026-08-01)

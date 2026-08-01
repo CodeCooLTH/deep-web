@@ -82,6 +82,74 @@ function isUniqueViolation(e: unknown): boolean {
 // อ่าน
 // ---------------------------------------------------------------------------
 
+/**
+ * คลังความรู้ระดับร้าน — ทุกข้อของร้านไม่ว่าผูกกลุ่มคำไหนหรือไม่ผูกเลย
+ * (user ตัดสิน 2026-08-01 ให้คลังเป็นของ ChatBot ไม่ใช่ของกลุ่มคำ)
+ */
+export async function listShopQna(
+  shopId: string,
+  opts: { search?: string } = {}
+): Promise<QnaListResult> {
+  const search = opts.search?.trim()
+  const where = {
+    shopId,
+    ...(search
+      ? {
+          OR: [
+            { question: { contains: search, mode: 'insensitive' as const } },
+            { answer: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+  }
+  const [items, total, active, uses] = await Promise.all([
+    prisma.autoReplyQna.findMany({
+      where,
+      select: {
+        id: true, question: true, answer: true, imageFileIds: true,
+        isActive: true, useCount: true, lastUsedAt: true, source: true, updatedAt: true,
+      },
+      orderBy: [{ useCount: 'desc' }, { updatedAt: 'desc' }],
+      take: 500,
+    }),
+    prisma.autoReplyQna.count({ where: { shopId } }),
+    prisma.autoReplyQna.count({ where: { shopId, isActive: true } }),
+    prisma.autoReplyQna.aggregate({ where: { shopId }, _sum: { useCount: true } }),
+  ])
+  return { items, stats: { total, active, totalUses: uses._sum.useCount ?? 0 } }
+}
+
+/** เพิ่มข้อเข้าคลังกลาง (ไม่ผูกกลุ่มคำ) */
+export async function createShopQna(
+  shopId: string,
+  input: { question: string; answer: string; imageFileIds?: string[] },
+  actorUserId: string
+): Promise<{ id: string }> {
+  const images = input.imageFileIds ?? []
+  const { q, a, normalized } = validateContent(input.question, input.answer, images)
+  try {
+    const created = await prisma.autoReplyQna.create({
+      data: {
+        shopId,
+        keywordId: null,
+        question: q,
+        normalizedQuestion: normalized,
+        answer: a,
+        imageFileIds: images,
+        source: 'MANUAL',
+        createdByUserId: actorUserId,
+        updatedByUserId: actorUserId,
+      },
+      select: { id: true },
+    })
+    invalidateShop(shopId)
+    return created
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new Error('AUTO_REPLY_QNA_DUPLICATE')
+    throw e
+  }
+}
+
 export async function listQna(
   keywordId: string,
   shopId: string,

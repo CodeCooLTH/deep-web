@@ -33,6 +33,7 @@ import { getAiSetting } from '@/services/ai-setting.service'
 import { isOwnerPaidPlan } from '@/services/ai-suggest-quota.service'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import ChatbotTabs from '../chatbot/ChatbotTabs'
 import Icon from '@/components/wrappers/Icon'
 import AiSettingForm from './AiSettingForm'
 
@@ -78,6 +79,7 @@ export default async function AiSettingsPage() {
         title="ผู้ช่วยร่างคำตอบ AI"
         trail={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ผู้ช่วยร่างคำตอบ AI' }]}
       />
+      <ChatbotTabs />
 
       <div className="card">
         <div className="card-header">

@@ -31,7 +31,10 @@ export type QnaMatchMode = (typeof QNA_MATCH_MODES)[number]
 /** ข้อหนึ่งในคลังคำถามที่ caller โหลดมาให้ (กรอง shopId ที่ query แล้ว) */
 export interface QnaSetItem {
   id: string
-  keywordId: string
+  /** null = ข้อในคลังกลางของร้าน ไม่ผูกกลุ่มคำ — `matchQna` ข้ามข้อพวกนี้เสมอ
+   *  เพราะการจับคู่ตรงตัวต้องมีกลุ่มให้ "ยืมเป็นเจ้าของ" ไปเดิน gate 6.5/6.6/7 (TFR-032 ข้อ 2)
+   *  ข้อที่ไม่ผูกกลุ่มเป็นความรู้สำหรับ ChatBot ซึ่งเดินคนละเส้นทาง */
+  keywordId: string | null
   /** คำถามที่ร้านพิมพ์ (raw) — ใช้แสดงในป้าย DeepBot / บันทึก */
   question: string
   /** ผ่าน `normalizeMessage()` มาแล้วตอนบันทึก — ไฟล์นี้ไม่ normalize เอง */
@@ -124,6 +127,8 @@ export function matchQna(
     // มันจะตรงกับข้อความว่างเท่านั้น ซึ่งถูกตัดไปแล้วข้างบน; กันไว้อีกชั้นให้ชัดเจน
     if (qna.normalizedQuestion === '') continue
 
+    // ข้อที่ไม่ผูกกลุ่ม = ความรู้ของ ChatBot ไม่ใช่ของเส้นทางจับคู่ตรงตัว — ข้ามเสมอ
+    if (!qna.keywordId) continue
     // กลุ่มเจ้าของไม่ได้ทำงาน (OFFLINE / ถูกลบ) ⇒ ข้อนี้ต้องเงียบตามกัน
     const priority = priorityByKeyword.get(qna.keywordId)
     if (priority === undefined) continue
@@ -144,5 +149,7 @@ export function matchQna(
   candidates.sort(compareCandidates)
   const winner = candidates[0]
 
-  return { qna: winner.qna, keywordId: winner.qna.keywordId, method: opts.mode }
+  // non-null ปลอดภัย: ข้อที่ keywordId เป็น null ถูกข้ามไปตั้งแต่ลูปข้างบนแล้ว
+  // (ผู้ชนะต้องมีกลุ่มเจ้าของเสมอ ไม่งั้น gate 6.5/6.6/7 ไม่มีอะไรให้เดิน)
+  return { qna: winner.qna, keywordId: winner.qna.keywordId as string, method: opts.mode }
 }
