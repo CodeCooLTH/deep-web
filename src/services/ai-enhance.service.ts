@@ -15,6 +15,7 @@
 // เพราะฟังก์ชันนี้กลืน error ทุกชนิดตามสัญญาข้างบน)
 
 import {
+  AI_CHATBOT_FREE_TIMEOUT_MS,
   AI_ENHANCE_TIMEOUT_MS,
   type AiEnhanceSkipReason,
 } from '@/lib/auto-reply-constants'
@@ -387,7 +388,10 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
   if (input.knowledge.length === 0 && !input.allowFreeAnswer) return none('NO_KNOWLEDGE_ANSWER')
 
   try {
-    const signal = AbortSignal.timeout(AI_ENHANCE_TIMEOUT_MS)
+    // โหมดตอบอิสระอาจเรียกโมเดล 3 รอบในงบก้อนเดียว จึงต้องมีงบของตัวเอง
+    const signal = AbortSignal.timeout(
+      input.allowFreeAnswer ? AI_CHATBOT_FREE_TIMEOUT_MS : AI_ENHANCE_TIMEOUT_MS
+    )
     const tone = (input.tone ?? '').trim() || DEFAULT_TONE
 
     // คลังส่งเข้า prompt เป็นคู่ถาม-ตอบ เรียงตามที่ service คัดมาแล้ว (ใช้บ่อยอยู่บน)
