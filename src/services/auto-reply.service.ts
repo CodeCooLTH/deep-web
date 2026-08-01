@@ -205,14 +205,25 @@ type JobRow = {
 }
 
 /** ปิดงานพร้อมเขียนบันทึก — บันทึกพังต้องไม่ทำให้สถานะงานค้าง (TD-013) */
+/**
+ * ปิดงาน + เขียนบันทึก
+ *
+ * `startedAt` เป็นพารามิเตอร์บังคับเพื่อให้ `durationMs` ถูกคำนวณ **ตอนเขียนจริง** เสมอ
+ *
+ * WARNING: เดิมค่านี้อยู่ใน object `common` ซึ่งถูกสร้างครั้งเดียวก่อนถึงด่าน AI แล้วทุก
+ * สาขาเอาค่าค้างนั้นไปใช้ — บันทึกจึงรายงาน 42-95ms ทั้งที่เรียก Gemini ไปหลายวินาที
+ * (เจอตอน user ไล่ดูว่าทำไมบอทไม่ตอบ 2026-08-01) คำนวณที่นี่จุดเดียวแปลว่าสาขาใหม่
+ * ที่ใครเพิ่มทีหลังได้ค่าถูกอัตโนมัติ ไม่มีอะไรให้ลืม
+ */
 async function finish(
   job: JobRow,
   status: 'DONE' | 'SKIPPED' | 'FAILED',
   log: Parameters<typeof writeLog>[0],
+  startedAt: number,
 ) {
   await prisma.autoReplyJob.update({ where: { id: job.id }, data: { status } })
   try {
-    await writeLog(log)
+    await writeLog({ ...log, durationMs: Date.now() - startedAt })
   } catch (e) {
     console.error('[auto-reply] เขียนบันทึกล้มเหลว', e instanceof Error ? e.message : e)
   }
@@ -246,7 +257,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     // gate 0 — ข้อความฝั่งร้าน (รวมคำตอบของบอทเอง) ห้ามนำมาตรวจจับเด็ดขาด (BR-AR-22)
     if (!message || message.senderRole !== 'BUYER') {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'OUTBOUND_MESSAGE' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'OUTBOUND_MESSAGE' }, startedAt)
     }
 
     const conversation = await prisma.conversation.findFirst({
@@ -264,7 +275,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       },
     })
     if (!conversation) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' }, startedAt)
     }
 
     const config = await getConfig(job.shopId)
@@ -276,7 +287,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     // ความปลอดภัยเดิม (ระบบต้องไม่ทำงานจนกว่าร้านจะสั่ง) ยังอยู่ครบ เพราะกลุ่มคำที่สร้างใหม่
     // เป็น OFFLINE เสมอ — ไม่มีทางตอบใครจนกว่าร้านจะเปลี่ยนสถานะเอง
     if (conversation.autoReplyEnabled === false) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' }, startedAt)
     }
 
     // WARNING: gate 2 เดิม (โหมดทดสอบระดับร้าน) ถูกลบ 2026-07-29 — โหมดทดสอบผูกกับกลุ่มคำแล้ว
@@ -284,13 +295,13 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     // gate 3-5 — สถานะเธรด
     if (conversation.isSpam) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'SPAM' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'SPAM' }, startedAt)
     }
     if (conversation.handoffAt) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'HANDED_OFF' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'HANDED_OFF' }, startedAt)
     }
     if (conversation.autoReplyPausedUntil && conversation.autoReplyPausedUntil > new Date()) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'PAUSED_HUMAN_TAKEOVER' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'PAUSED_HUMAN_TAKEOVER' }, startedAt)
     }
 
     // gate 6 — เพดานจำนวนคำตอบต่อเธรด (AC-018-02) ครบแล้วส่งต่อพนักงาน
@@ -299,7 +310,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         where: { id: conversation.id },
         data: { handoffAt: new Date(), handoffReason: 'MAX_REPLIES_REACHED' },
       })
-      return finish(job, 'SKIPPED', { ...base, decision: 'HANDOFF', skipReason: 'MAX_REPLIES_REACHED' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'HANDOFF', skipReason: 'MAX_REPLIES_REACHED' }, startedAt)
     }
 
     // --- ถึงตรงนี้ค่อยเริ่มงานที่มีต้นทุน ---
@@ -358,7 +369,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         keywordId: effectiveKeywordId,
         matchedVia,
         qnaId: qnaMatch?.qna.id ?? null,
-      })
+      }, startedAt)
     }
 
     // gate 6.6 — เวลาทำงานของร้าน (user 2026-07-31: "ทำงานช่วง 18.00-9.00 แทน admin ตอนหลับ")
@@ -377,7 +388,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         keywordId: effectiveKeywordId,
         matchedVia,
         qnaId: qnaMatch?.qna.id ?? null,
-      })
+      }, startedAt)
     }
 
     // gate 7 — cooldown ของกลุ่มคำเดิมในเธรดเดิม (AC-018-01)
@@ -411,7 +422,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           keywordId: effectiveKeywordId,
           matchedVia,
           qnaId: qnaMatch?.qna.id ?? null,
-        })
+        }, startedAt)
       }
     }
 
@@ -445,7 +456,6 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       matchedVia,
       qnaId: qnaMatch?.qna.id ?? null,
       isTest: isTestReply,
-      durationMs: Date.now() - startedAt,
     }
 
     // gate 8-9 — ไม่มีกลุ่มคำตรง หรือถอยจนไม่เหลือกฎ = เงียบแล้วส่งต่อคน ห้ามเดา (BR-AR-08)
@@ -511,7 +521,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
             resolutionLevel: 'CHATBOT',
             matchedVia: 'CHATBOT',
             errorMessage: null,
-          })
+          }, startedAt)
         }
 
         /**
@@ -526,7 +536,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
          */
         await recordUnanswered({ shopId: job.shopId, rawText, normalizedText })
       }
-      return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason })
+      return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason }, startedAt)
     }
 
     /**
@@ -585,7 +595,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           keywordId: effectiveKeywordId,
           matchedVia,
           qnaId: qnaMatch?.qna.id ?? null,
-        })
+        }, startedAt)
       }
         finalText = enhanced.text
       }
@@ -656,8 +666,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       errorMessage: [result.partialError, aiReason ? `AI_ENHANCE:${aiReason}` : null]
         .filter(Boolean)
         .join(' | ') || null,
-      durationMs: Date.now() - startedAt,
-    })
+    }, startedAt)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[auto-reply] processJob ล้มเหลว', jobId, msg)
