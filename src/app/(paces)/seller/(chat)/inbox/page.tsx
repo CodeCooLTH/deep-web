@@ -280,7 +280,10 @@ export default async function SellerInboxPage() {
             description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
           />
         </div>
-        <div className="h-full w-96 shrink-0">
+        {/* คอลัมน์ขวาของ empty-state ต้องโผล่ที่ breakpoint เดียวกับ CustomerPanel จริงใน
+            [conversationId]/page.tsx (xl = 1280px) ไม่งั้นช่วง 1024-1279 หน้าเปล่าจะมี 3 คอลัมน์
+            แต่พอกดเข้าห้องแชทเหลือ 2 คอลัมน์ — เลย์เอาต์กระตุกตอนสลับหน้า */}
+        <div className="hidden h-full w-96 shrink-0 xl:block">
           <div className="card flex h-full items-center justify-center">
             <SellerEmptyState
               compact

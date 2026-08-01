@@ -353,3 +353,102 @@ export async function generateReplySuggestions(
   if (cleaned.length === 0) throw new GeminiApiError('no usable suggestions')
   return { suggestions: cleaned, usage }
 }
+
+/* ══ generateText — เรียก Gemini แบบ "ข้อความเข้า ข้อความออก" ═══════════════════
+ *
+ * เพิ่ม 2026-08-01 สำหรับ AI Enhance (feature 00023) — user ทักถูกว่าไม่ควรเขียน client
+ * ขึ้นใหม่ทั้งที่ไฟล์นี้มีอยู่แล้ว โค้ดเดิมของ AI Enhance เขียน `systemInstruction`
+ * (camelCase) ซึ่ง REST v1beta ไม่รับ → 400 → ตกกลับคำตอบดิบเงียบ ๆ โดยไม่มีใครรู้
+ * ฟังก์ชันนี้จึงใช้ของที่พิสูจน์แล้วร่วมกัน: MODEL_CANDIDATES + การถอยเมื่อ 404 +
+ * thinking config ตามรุ่น + การอ่าน usageMetadata แบบเดียวกัน
+ *
+ * ต่างจาก `generateReplySuggestions`: ไม่บังคับ JSON schema, ไม่รับไฟล์แนบ,
+ * และ **รับ signal จากผู้เรียก** เพื่อให้คุมงบเวลารวมหลายการเรียกได้ (AI Enhance
+ * มีงบ 8 วินาทีก้อนเดียวสำหรับทั้งเรียบเรียงและด่านตรวจ)
+ */
+export async function generateText(opts: {
+  system?: string
+  user: string
+  maxOutputTokens: number
+  temperature?: number
+  signal: AbortSignal
+}): Promise<{ text: string; usage: TokenUsage | null }> {
+  const key = process.env.GEMINI_API_KEY
+  if (!key) throw new GeminiNotConfiguredError()
+
+  // ปิด/ลดการคิดตามรุ่น — เหตุผลเดียวกับ thinkingConfigFor ใน generateReplySuggestions
+  // (2.5 ปิดสนิทได้ด้วย thinkingBudget, 3.x ทำได้แค่ thinkingLevel:'low')
+  const thinkingFor = (model: string): Record<string, unknown> | undefined => {
+    if (model.startsWith('gemini-2.5')) return { thinkingBudget: 0 }
+    if (model.startsWith('gemini-3')) return { thinkingLevel: 'low' }
+    return undefined
+  }
+
+  let res: Response | null = null
+  let usedModel = ''
+  let lastError = ''
+
+  for (const model of MODEL_CANDIDATES) {
+    let attempt: Response
+    try {
+      attempt = await fetch(GEMINI_ENDPOINT(model, key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // snake_case ตาม REST v1beta — camelCase ถูกปฏิเสธเป็น 400 (บทเรียน 2026-08-01)
+          ...(opts.system ? { system_instruction: { parts: [{ text: opts.system }] } } : {}),
+          contents: [{ role: 'user', parts: [{ text: opts.user }] }],
+          generationConfig: {
+            temperature: opts.temperature ?? 0.3,
+            maxOutputTokens: opts.maxOutputTokens,
+            ...(thinkingFor(model) ? { thinkingConfig: thinkingFor(model) } : {}),
+          },
+        }),
+        signal: opts.signal,
+      })
+    } catch (e) {
+      // AbortError/TimeoutError ต้องโยนต่อตามเดิม ไม่กลืนเป็น GeminiApiError
+      if (e instanceof Error && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw e
+      throw new GeminiApiError(`fetch failed (${model}): ${e instanceof Error ? e.message : 'unknown'}`)
+    }
+
+    if (attempt.ok) {
+      res = attempt
+      usedModel = model
+      break
+    }
+    const errBody = await attempt.text().catch(() => '')
+    lastError = `gemini responded ${attempt.status} (${model}): ${errBody.slice(0, 400)}`
+    // ถอยไปรุ่นถัดไปเฉพาะ 404 เท่านั้น — error อื่นถอยไปก็เจอเหมือนเดิม
+    if (attempt.status !== 404) throw new GeminiApiError(lastError)
+    console.warn(`[gemini] model ${model} ใช้ไม่ได้ (404) — ลองตัวถัดไป`)
+  }
+
+  if (!res) throw new GeminiApiError(lastError || 'no usable gemini model')
+
+  const data = (await res.json().catch(() => null)) as {
+    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[]
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number }
+  } | null
+
+  const parts = data?.candidates?.[0]?.content?.parts ?? []
+  const text = parts
+    .filter((p) => !p.thought && typeof p.text === 'string')
+    .map((p) => p.text as string)
+    .join('')
+    .trim()
+  if (!text) throw new GeminiApiError(`empty response (${usedModel})`)
+
+  const um = data?.usageMetadata
+  const usage: TokenUsage | null =
+    um && typeof um.promptTokenCount === 'number'
+      ? {
+          inputTokens: um.promptTokenCount,
+          outputTokens:
+            um.candidatesTokenCount ?? Math.max(0, (um.totalTokenCount ?? 0) - um.promptTokenCount),
+          model: usedModel,
+        }
+      : null
+
+  return { text, usage }
+}

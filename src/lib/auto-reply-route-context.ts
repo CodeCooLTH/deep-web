@@ -181,6 +181,11 @@ const ERROR_MAP = new Map<string, { status: number; error: string }>(
 
   // คิวคำถามที่ตอบไม่ได้ — `AUTO_REPLY_UNANSWERED_NOT_FOUND` ถูก suffix rule ครอบแล้ว
   // ส่วนตัวนี้ต้องอยู่ในตารางเพราะลงท้ายด้วย ALREADY_ANSWERED (409 ไม่ใช่ 404)
+  // กฎห้ามตอบ (phase `00023-ai-enhance`) — NOT_FOUND ถูก suffix rule ครอบแล้ว
+  AUTO_REPLY_GUARDRAIL_RULE_EMPTY: { status: 400, error: 'กรุณาระบุกฎที่ห้ามตอบ' },
+  AUTO_REPLY_GUARDRAIL_RULE_TOO_LONG: { status: 400, error: 'กฎยาวเกินไป — ย่อให้ไม่เกิน 200 ตัวอักษร' },
+  AUTO_REPLY_GUARDRAIL_LIMIT_REACHED: { status: 400, error: 'กลุ่มนี้มีกฎครบ 30 ข้อแล้ว — ลบข้อที่ไม่ใช้ก่อนเพิ่มใหม่' },
+
   AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED: {
     status: 409,
     error: 'คำถามนี้ถูกตอบไปแล้ว — เปิดคลังคำถามของกลุ่มนั้นเพื่อแก้คำตอบเดิมแทน',

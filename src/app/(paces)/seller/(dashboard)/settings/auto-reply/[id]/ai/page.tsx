@@ -1,0 +1,91 @@
+/**
+ * AI Enhance ของกลุ่มคำ — /settings/auto-reply/[id]/ai
+ * feature 00023 · phase `00023-ai-enhance` · A-11 (บางส่วน)
+ *
+ * SSOT: docs/scope/2026-08-01-00023-ai-enhance-scope-baseline.md
+ *       + PRD.md §3.9 (BR-AR-31..36)
+ *
+ * Base: settings/auto-reply/[id]/qna/page.tsx (โครง RSC + PageBreadcrumb + KeywordTabs)
+ */
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { resolveActiveShopContext } from '@/lib/shop-context'
+import { getKeywordDetail } from '@/services/auto-reply-rule.service'
+import { listGuardrails, ensureDefaultGuardrails } from '@/services/auto-reply-guardrail.service'
+import { prisma } from '@/lib/prisma'
+import PageBreadcrumb from '@/components/PageBreadcrumb'
+import KeywordTabs from '../KeywordTabs'
+import AiEnhanceClient from './AiEnhanceClient'
+
+export const metadata: Metadata = { title: 'AI Enhance' }
+
+const EDITABLE_ROLES = ['OWNER', 'ADMIN']
+
+export default async function AiEnhancePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const session = await getServerSession(authOptions)
+  const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
+  if (!user) return null
+
+  const activeCtx = await resolveActiveShopContext({
+    user: { id: user.id, activeShopId: user.activeShopId ?? null },
+  })
+  if (!activeCtx) return null
+
+  const keyword = await getKeywordDetail(id, activeCtx.shopId)
+  if (!keyword) notFound()
+
+  // อ่านสวิตช์ตรงจากตาราง — `getKeywordDetail` ไม่ได้ select field นี้ (ของ phase ก่อนหน้า)
+  // และไม่แก้ select กลางเพราะหน้ารายการไม่ต้องใช้ ดึงเพิ่มเฉพาะหน้านี้ถูกกว่า
+  const flags = await prisma.autoReplyKeyword.findFirst({
+    where: { id, shopId: activeCtx.shopId },
+    select: { aiEnhanceEnabled: true, aiTone: true },
+  })
+
+  /**
+   * เปิดสวิตช์ไว้แล้วแต่ยังไม่มีกฎสักข้อ -> ใส่ชุดเริ่มต้นให้ตรงนี้ (user สั่ง 2026-08-01)
+   *
+   * ทำไมต้องมีที่นี่ทั้งที่ตอนกดสวิตช์ก็ใส่ให้แล้ว: ร้านที่เปิดสวิตช์ไว้ **ก่อน** โค้ดคัดลอก
+   * จะขึ้น production จะไม่มีกฎเลยและไม่มีทางได้มาโดยไม่ต้องปิด-เปิดสวิตช์ใหม่ ซึ่งเป็น
+   * ขั้นตอนที่ผู้ใช้ไม่มีทางเดาได้เอง
+   *
+   * ปลอดภัยที่จะเรียกทุกครั้ง: ตัวมันเองคัดลอกเฉพาะตอนกลุ่มยังไม่มีกฎสักข้อ ร้านที่ลบกฎ
+   * ทิ้งหมดโดยตั้งใจจะได้ชุดเริ่มต้นกลับมาเมื่อเปิดหน้าใหม่ — ยอมรับผลข้างเคียงนี้เพราะ
+   * "กฎว่างทั้งที่เปิด AI อยู่" คือสถานะที่อันตรายกว่า (AI พูดอะไรก็ได้โดยไม่มีกรอบ)
+   */
+  // สถานะเครดิต — ต้องบอกร้านตรง ๆ ว่าเปิดสวิตช์แล้วแต่ AI จะไม่ทำงานเพราะเงินไม่พอ
+  // (บั๊กที่ user เจอ 2026-08-01: กระเป๋าเป็น 0 ระบบข้ามการเรียก AI เงียบ ๆ ไม่มีใครรู้)
+  const wallet = await prisma.sellerWallet.findUnique({
+    where: { shopId: activeCtx.shopId },
+    select: { balance: true },
+  })
+
+  let guardrails = await listGuardrails(id, activeCtx.shopId)
+  if ((flags?.aiEnhanceEnabled ?? false) && guardrails.length === 0) {
+    await ensureDefaultGuardrails(id, activeCtx.shopId, user.id)
+    guardrails = await listGuardrails(id, activeCtx.shopId)
+  }
+
+  return (
+    <>
+      <PageBreadcrumb
+        title="ผู้ช่วยอัตโนมัติ"
+        trail={[{ label: 'กลุ่มคำทั้งหมด', href: '/settings/auto-reply' }]}
+      />
+
+      <KeywordTabs keywordId={id} />
+
+      <AiEnhanceClient
+        keywordId={id}
+        keywordName={keyword.name}
+        canEdit={EDITABLE_ROLES.includes(activeCtx.role)}
+        initialEnabled={flags?.aiEnhanceEnabled ?? false}
+        initialGuardrails={guardrails}
+        initialTone={flags?.aiTone ?? ''}
+        walletBalance={wallet?.balance ?? 0}
+      />
+    </>
+  )
+}

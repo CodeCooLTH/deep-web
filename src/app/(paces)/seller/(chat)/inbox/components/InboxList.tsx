@@ -1220,23 +1220,32 @@ export default function InboxList({
                           unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
-                        {c.lastSenderRole === 'SHOP' &&
-                          c.lastMessagePreview &&
-                          (c.lastMessageAutoReplyKind ? (
-                            <span className="text-primary inline-flex items-center gap-0.5 font-medium">
-                              <Icon icon="robot" width={12} height={12} aria-hidden="true" />
-                              {c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot'}:{' '}
-                            </span>
-                          ) : (
-                            <span className="text-default-500 font-normal">คุณ: </span>
-                          ))}
+                        {/* user request 2026-08-01: ป้าย DeepBot/DeepAI เคยแทนที่คำว่า "คุณ: " ตรงนี้
+                            ด้วยตัวอักษรสี primary + ไอคอน ซึ่งเด่นกว่าชื่อลูกค้าจนแย่งสายตาไปทั้งแถว
+                            ย้ายไปเป็นชิปในแถวป้ายด้านล่าง (ที่เดียวกับ "สั่งซื้อแล้ว"/แท็ก) แล้วคืน
+                            "คุณ: " ให้ทุกข้อความที่ฝั่งร้านส่ง ไม่ว่าคนหรือบอทเป็นคนส่ง — ในสายตา
+                            ลูกค้าทั้งคู่คือ "ร้าน" เหมือนกันอยู่แล้ว */}
+                        {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
+                          <span className="text-default-500 font-normal">คุณ: </span>
+                        )}
                         {preview}
                       </span>
                       {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
                           + E5: ชิป `ad_id.…` บอกว่าโฆษณาไหนพาลูกค้ามา (แบบ Business Suite) */}
-                      {(salesStatus !== 'UNSPECIFIED' || contactTags.length > 0 || !!c.referralAdId) && (
+                      {(salesStatus !== 'UNSPECIFIED' ||
+                        contactTags.length > 0 ||
+                        !!c.referralAdId ||
+                        (c.lastSenderRole === 'SHOP' && !!c.lastMessageAutoReplyKind)) && (
                         <span className="mt-1 flex flex-wrap items-center gap-1">
                           {/* ชิปโฟลเดอร์ย้ายไปมุมขวาล่าง (ใต้เวลา) แล้ว — user สั่ง 2026-07-24 */}
+                          {/* DeepBot/DeepAI — ย้ายมาจากหน้าบรรทัด preview (user 2026-08-01) ให้เป็น
+                              ป้ายระดับเดียวกับแท็ก/สถานะขาย ไม่แย่งสายตาจากชื่อลูกค้าอีกต่อไป */}
+                          {c.lastSenderRole === 'SHOP' && c.lastMessageAutoReplyKind && (
+                            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+                              <Icon icon="robot" width={12} height={12} className="shrink-0" aria-hidden="true" />
+                              {c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot'}
+                            </span>
+                          )}
                           {salesStatus !== 'UNSPECIFIED' && (
                             <span className={`badge text-2xs ${SALES_STATUS_META[salesStatus]?.cls ?? ''}`}>
                               {SALES_STATUS_META[salesStatus]?.label ?? salesStatus}

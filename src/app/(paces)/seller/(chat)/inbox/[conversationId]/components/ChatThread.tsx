@@ -892,6 +892,21 @@ export default function ChatThread({
           </div>
         </div>
 
+        {/* ข้อมูลลูกค้า — ปุ่มมีป้ายกำกับที่หัวเธรด สำหรับช่วงที่คอลัมน์ขวายังไม่โผล่ (<1280px)
+            user report 2026-08-01 (iPad Pro): "เปิดข้อมูลลูกค้าไม่ได้" ทั้งที่ปุ่มมีอยู่แล้ว —
+            ของเดิมเป็นไอคอนเปล่าไม่มีข้อความ อยู่มุมขวาสุดของแถบเครื่องมือเหนือช่องพิมพ์ ซึ่งล่างสุด
+            ของจอและไม่มีใครมองหาข้อมูลลูกค้าตรงนั้น. ที่ ≥1280px ไม่ต้องมี เพราะแผงอยู่ข้าง ๆ แล้ว
+            (breakpoint ต้องตรงกับ xl:block ของคอลัมน์ขวาใน page.tsx เสมอ) */}
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          title="ข้อมูลลูกค้า"
+          className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100 ms-auto hidden shrink-0 items-center gap-1 md:inline-flex xl:hidden"
+        >
+          <Icon icon="user-circle" className="text-base" />
+          <span>ข้อมูลลูกค้า</span>
+        </button>
+
         {/* ปิดเสียงเฉพาะเธรดนี้ (user สั่ง 2026-07-23) — ซ่อนเมื่อปิดเสียงระดับแอปอยู่แล้ว เพราะปุ่ม
             นี้จะไม่มีผลอะไรและทำให้เข้าใจผิดว่า "เปิดอยู่" ทั้งที่ทั้งแอปเงียบ (สวิตช์ระดับแอปอยู่ที่
             ChatHeader) */}
@@ -1511,14 +1526,16 @@ export default function ChatThread({
             <Icon icon="sparkles" className="text-lg" />
           </button>
 
-          {/* feature 00018 T5 — เปิด Customer Panel แบบ sheet เฉพาะจอเล็ก (<1024px) ที่ desktop ใช้
-              CustomerPanel.tsx แบบ persistent column แทน (ดู page.tsx)
+          {/* feature 00018 T5 — ทางเข้า Customer Panel แบบ sheet สำหรับ **มือถือ** (<768px) เท่านั้น
+              ตั้งแต่ 768px ขึ้นไปใช้ปุ่มมีป้ายกำกับ "ข้อมูลลูกค้า" ที่หัวเธรดแทน (หาเจอง่ายกว่ามาก —
+              user report 2026-08-01) และตั้งแต่ 1280px ขึ้นไปเป็นคอลัมน์ขวาจริง (ดู page.tsx)
+              ไอคอนเปล่าตรงนี้จึงเหลือไว้เฉพาะจอที่แคบจนหัวเธรดใส่ปุ่มมีข้อความไม่ไหว
               ms-auto: ดันไปชิดขวาสุดของแถวเครื่องมือ — คนละกลุ่มกับปุ่มแต่งข้อความ 3 ตัวทางซ้าย */}
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
             aria-label="ข้อมูลลูกค้า"
-            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 lg:hidden"
+            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 md:hidden"
           >
             <Icon icon="user-circle" className="text-lg" />
           </button>

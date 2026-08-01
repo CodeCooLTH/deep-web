@@ -19,6 +19,7 @@
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 // import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
@@ -102,6 +103,24 @@ const STATUS_BADGE: Record<string, string> = {
   OFFLINE: 'border-default-300 bg-card text-default-700 border',
   TEST: 'bg-warning/15 text-warning',
   LIVE: 'bg-success/15 text-success',
+}
+
+/**
+ * ป้าย DeepBot บนบับเบิลตัวอย่าง — ก็อป markup มาจากป้ายจริงในห้องแชท
+ * Base: src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/AutoReplyTag.tsx
+ *   (คลาสเดียวกันเป๊ะ รวมตำแหน่ง absolute top-0 end-2.5 -translate-y-1/2)
+ *
+ * ต่างจากของจริงตรงที่ **กดไม่ได้** — ของจริงกดแล้วกางกล่องบอกเงื่อนไขที่ใช้ตอบ ซึ่งมาจาก
+ * บันทึกการตอบจริง (AutoReplyLog) ที่ยังไม่เกิดในหน้าตั้งค่า ทำเป็นปุ่มที่กดแล้วไม่มีอะไร
+ * เกิดขึ้นแย่กว่าไม่ทำเป็นปุ่ม
+ */
+function PreviewBotTag() {
+  return (
+    <span className="border-primary text-primary bg-card absolute top-0 end-2.5 z-20 inline-flex -translate-y-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow">
+      <Icon icon="robot" className="text-xs" aria-hidden="true" />
+      DeepBot
+    </span>
+  )
 }
 
 export default function KeywordEditorClient({ canEdit, keyword, overlaps, channels, products }: Props) {
@@ -704,6 +723,8 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                   </p>
                 )}
               </div>
+              {/* NOTE: ปุ่ม "คลังคำถาม" เคยอยู่ตรงนี้ — กลายเป็น Tab "คลังคำตอบ" ของหน้านี้แล้ว
+                  (user สั่ง 2026-08-01) ไม่ต้องมีปุ่มซ้ำในการ์ด */}
               {canEdit && (
                 // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
                 // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
@@ -1345,10 +1366,15 @@ function SimulatePanel({
             {previewReply.trim() ? (
               <>
                 <p className="text-default-400 mb-4 text-center text-xs">ตัวอย่างคำตอบที่ตั้งไว้</p>
-                {/* บับเบิลจาง ๆ ให้เห็นหน้าตาคำตอบจริงทันที ไม่ต้องพิมพ์ทดลองก่อน */}
-                <div className="flex items-start justify-end gap-2.5 opacity-60">
-                  <div className="bg-primary min-w-0 rounded px-6 py-3">
-                    <p className="mb-0 text-sm whitespace-pre-wrap text-white">{previewReply}</p>
+                {/* แสดงให้เหมือนบับเบิลจริงในห้องแชท (user สั่ง 2026-08-01) — เดิมเป็นบับเบิลจาง
+                    opacity-60 และไม่มีป้าย DeepBot ทำให้ร้านไม่เห็นว่าลูกค้าจะเห็นอะไรจริง ๆ
+                    Base: ChatThread.tsx บับเบิลฝั่งร้าน (relative + max-w-96 + bg-primary) */}
+                <div className="flex items-start justify-end gap-2.5">
+                  <div className="relative min-w-0 max-w-96 break-words">
+                    <PreviewBotTag />
+                    <div className="bg-primary rounded px-6 py-3">
+                      <p className="mb-0 text-sm whitespace-pre-wrap text-white">{previewReply}</p>
+                    </div>
                   </div>
                   <span className="bg-default-100 flex size-8 shrink-0 items-center justify-center rounded-full">
                     <Icon icon="building-store" width={16} height={16} className="text-default-500" aria-hidden="true" />
@@ -1377,7 +1403,9 @@ function SimulatePanel({
                     <Icon icon="user" width={16} height={16} aria-hidden="true" />
                   </span>
                 )}
-                <div className="min-w-0">
+                <div className={`relative min-w-0 break-words ${t.who === 'page' ? 'max-w-96' : ''}`}>
+                  {/* ผลจำลองฝั่งร้าน = สิ่งที่ DeepBot จะส่ง จึงติดป้ายเดียวกับของจริง */}
+                  {t.who === 'page' && <PreviewBotTag />}
                   <div className={`rounded px-6 py-3 ${t.who === 'page' ? 'bg-primary' : 'bg-light'}`}>
                     <p className={`mb-0 text-sm whitespace-pre-wrap ${t.who === 'page' ? 'text-white' : 'text-default-800'}`}>
                       {t.text}

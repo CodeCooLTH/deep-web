@@ -1210,6 +1210,10 @@ export const AutoReplyKeywordUpdateSchema = v.object({
   name: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
+  // AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`) — ให้ AI เรียบเรียงคำตอบก่อนส่ง
+  aiEnhanceEnabled: v.optional(v.boolean()),
+  // น้ำเสียงของ AI Enhance — ว่างได้ (= กลับไปใช้ค่ากลาง)
+  aiTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
   // OFFLINE ไม่ตอบใครเลย · TEST ตอบเฉพาะเธรดที่ผูกไว้กับกลุ่มนี้ · LIVE ตอบทุกเธรด
   status: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
 })
@@ -1269,6 +1273,43 @@ export const AutoReplyUnansweredConvertSchema = v.object({
   question: v.pipe(v.string(), v.trim(), v.minLength(1, 'กรุณาระบุคำถาม'), v.maxLength(500, 'คำถามยาวเกิน 500 ตัวอักษร')),
   answer: v.pipe(v.string(), v.trim(), v.maxLength(2000, 'คำตอบยาวเกิน 2,000 ตัวอักษร')),
   imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5, 'แนบรูปได้สูงสุด 5 รูป'))),
+})
+
+/* ── ตั้งค่า ChatBot ระดับร้าน (phase `00023-ai-enhance`) ──────────────────── */
+
+// HH:mm 24 ชม. — รูปแบบเดียวกับตารางเวลาของ Auto Reply เพื่อไม่ให้มีสองมาตรฐานในระบบเดียว
+const TimeHHmm = v.pipe(v.string(), v.trim(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'รูปแบบเวลาต้องเป็น HH:mm'))
+
+export const AiChatbotConfigPatchSchema = v.object({
+  aiChatbotEnabled: v.optional(v.boolean()),
+  aiChatbotTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
+  aiChatbotStartTime: v.optional(v.union([TimeHHmm, v.literal('')])),
+  aiChatbotEndTime: v.optional(v.union([TimeHHmm, v.literal('')])),
+  aiEnhanceEnabled: v.optional(v.boolean()),
+  // ต้อง > 0 ตรงกับ CHECK ในฐาน — 0 แปลว่าปิดฟีเจอร์ ซึ่งมีสวิตช์ของตัวเองอยู่แล้ว
+  aiDailyCapBaht: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1, 'เพดานต้องมากกว่า 0'), v.maxValue(100000))),
+  aiCapAlertSmsOptIn: v.optional(v.boolean()),
+})
+
+/* ── กฎห้ามตอบ Guardrails (phase `00023-ai-enhance`) ─────────────────────── */
+
+const GuardrailRuleField = v.pipe(
+  v.string(), v.trim(),
+  v.minLength(1, 'กรุณาระบุกฎ'),
+  v.maxLength(200, 'กฎยาวเกิน 200 ตัวอักษร'),
+)
+// คำดักชั้นแรก — จำกัดจำนวนเพราะยิ่งเยอะยิ่งเสี่ยง false positive (บอทเงียบใส่ลูกค้าโดยไม่มีเหตุผลดี)
+const GuardrailPhrasesField = v.pipe(v.array(v.pipe(v.string(), v.trim())), v.maxLength(20, 'ใส่คำดักได้สูงสุด 20 คำต่อกฎ'))
+
+export const AutoReplyGuardrailCreateSchema = v.object({
+  rule: GuardrailRuleField,
+  denyPhrases: v.optional(GuardrailPhrasesField),
+})
+
+export const AutoReplyGuardrailUpdateSchema = v.object({
+  rule: v.optional(GuardrailRuleField),
+  denyPhrases: v.optional(GuardrailPhrasesField),
+  isActive: v.optional(v.boolean()),
 })
 
 export const AutoReplyPhrasesSchema = v.object({

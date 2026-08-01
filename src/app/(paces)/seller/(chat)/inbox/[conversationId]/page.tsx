@@ -334,7 +334,11 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         neverInbound={neverInbound}
         customerPanelData={customerPanelData}
       />
-      <div className="hidden h-full w-96 shrink-0 lg:block">
+      {/* bug fix 2026-08-01 (user report: iPad Pro เพี้ยน): เดิม `lg:block` = โผล่ที่ 1024px พร้อมกับ
+          rail (384px) ทำให้สองข้างกิน 768px เหลือคอลัมน์แชทแค่ 256px — ข้อความตัดบรรทัดทุก 3-4 คำ
+          เลื่อนเป็น `xl:block` (1280px) แทน ช่วง 1024-1279 ใช้ CustomerPanelSheet เหมือนจอเล็ก
+          (ปุ่มเปิดที่ ChatThread.tsx ต้องเป็น `xl:hidden` คู่กันเสมอ) */}
+      <div className="hidden h-full w-96 shrink-0 xl:block">
         <CustomerPanel data={customerPanelData} />
       </div>
     </div>

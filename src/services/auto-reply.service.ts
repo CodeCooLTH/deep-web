@@ -17,6 +17,8 @@ import { sendAutoReply } from '@/services/auto-reply-send.service'
 import { matchQna } from '@/lib/auto-reply-qna-match'
 import { markQnaUsed } from '@/services/auto-reply-qna.service'
 import { recordUnanswered } from '@/services/auto-reply-unanswered.service'
+import { enhanceReply } from '@/services/ai-enhance.service'
+import { checkCapBeforeCall, recordUsageAndBill } from '@/services/ai-enhance-billing.service'
 
 /**
  * auto-reply.service — คิวและตัวประมวลผลของระบบตอบอัตโนมัติ (feature 00023, S-07)
@@ -137,6 +139,10 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
         status: true,
         testThreads: { select: { conversationId: true } },
         phrases: { select: { id: true, phrase: true, normalizedPhrase: true } },
+        // AI Enhance (phase `00023-ai-enhance`) — โหลดมาพร้อม ruleSet เพื่อไม่ให้เพิ่ม query
+        // ในเส้นทางร้อน; กฎห้ามตอบจะ query แยกเฉพาะกลุ่มที่เปิดสวิตช์จริงเท่านั้น
+        aiEnhanceEnabled: true,
+        aiTone: true,
       },
       orderBy: { priority: 'desc' },
     }),
@@ -493,11 +499,73 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason })
     }
 
+    /**
+     * AI Enhance — ให้ AI เรียบเรียงคำตอบก่อนส่ง (phase `00023-ai-enhance`, BR-AR-31/32/33)
+     *
+     * WARNING: อยู่ **หลัง** ได้คำตอบดิบแล้วเท่านั้น และทำงานเฉพาะกลุ่มที่เปิดสวิตช์
+     * กลุ่มที่ปิด (ค่าเริ่มต้นของทุกกลุ่ม) ต้องไม่มี query เพิ่ม ไม่มี latency เพิ่ม
+     * ไม่มีการเรียก AI — early return ตั้งแต่เงื่อนไขแรก
+     *
+     * `enhanceReply` ไม่ throw เด็ดขาด (สัญญาของไฟล์นั้น) — ทุกความล้มเหลวคืนคำตอบดิบกลับมา
+     */
+    let finalText = replyText
+    let aiReason: string | null = null
+    const enhanceKeyword = ruleSet.keywords.find((k) => k.id === effectiveKeywordId)
+    if (enhanceKeyword?.aiEnhanceEnabled && replyText.trim()) {
+      // เพดานต่อวัน + เครดิต (BR-AR-35/36) — ตรวจ **ก่อน** เรียก AI เสมอ
+      // ไม่ผ่าน = ส่งคำตอบดิบตามปกติ ลูกค้าไม่รู้ว่าเกิดอะไรขึ้น (ไม่ใช่เงียบ)
+      const cap = await checkCapBeforeCall(job.shopId)
+      if (!cap.allowed) {
+        aiReason = cap.reason
+      } else {
+        const guardrails = await prisma.autoReplyGuardrail.findMany({
+          where: { keywordId: enhanceKeyword.id, shopId: job.shopId, isActive: true },
+          select: { rule: true, denyPhrases: true },
+        })
+        const enhanced = await enhanceReply({
+          rawAnswer: replyText,
+          customerText: rawText,
+          guardrails,
+          tone: enhanceKeyword.aiTone ?? null,
+        })
+        aiReason = enhanced.reason
+
+        // บันทึกการใช้ + สะสมเศษ + หักเมื่อครบ 1 บาท — ไม่ throw เอง
+        // บันทึกทุกครั้งที่เรียก AI จริง (มี usage) ไม่ว่าผลจะถูกใช้หรือถูกทิ้ง
+        // เพราะ Google คิดเงินตั้งแต่ตอนเรียก ไม่ใช่ตอนเราตัดสินใจใช้
+        if (enhanced.usage) {
+          await recordUsageAndBill({
+            shopId: job.shopId,
+            conversationId: conversation.id,
+            usage: enhanced.usage,
+            status: enhanced.enhanced ? 'SUCCESS' : 'FAILED',
+          })
+        }
+
+      // ชนกฎจริง = ไม่ส่งอะไรเลยและส่งต่อคน (BR-AR-33 — ต่างจากตัวตรวจล่มที่ถอยคำตอบดิบ)
+      if (enhanced.blocked) {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { handoffAt: new Date(), handoffReason: 'GUARDRAILS_BLOCKED' },
+        })
+        return finish(job, 'SKIPPED', {
+          ...common,
+          decision: 'HANDOFF',
+          skipReason: 'GUARDRAILS_BLOCKED',
+          keywordId: effectiveKeywordId,
+          matchedVia,
+          qnaId: qnaMatch?.qna.id ?? null,
+        })
+      }
+        finalText = enhanced.text
+      }
+    }
+
     // --- ส่งจริง ---
     const result = await sendAutoReply({
       conversationId: conversation.id,
       shopId: job.shopId,
-      text: replyText,
+      text: finalText,
       imageFileIds: replyImages,
       isTest: isTestReply,
     })
@@ -548,10 +616,16 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     return finish(job, 'DONE', {
       ...common,
       decision: 'REPLIED',
-      replyText,
+      // ต้องเป็นข้อความที่ **ส่งจริง** ไม่ใช่คำตอบดิบ — ไม่งั้นบันทึกจะโกหกว่าไม่มีอะไรเปลี่ยน
+      // ทั้งที่ AI เรียบเรียงไปแล้ว (บั๊กที่เจอตอน user ทดสอบ 2026-08-01)
+      replyText: finalText,
       outboundMessageId: result.messageId,
       // ความล้มเหลวบางส่วน (รูปบางใบส่งไม่ผ่าน) ต้องถูกบันทึก ไม่ใช่กลืน (TFR-036 ข้อ 4)
-      errorMessage: result.partialError ?? null,
+      // + เหตุผลที่ AI Enhance ไม่ได้ทำงาน (A-09) — ถ้าไม่บันทึกจะไม่มีทางรู้เลยว่าทำไม
+      // ข้อความออกมาเหมือนเดิม ซึ่งเป็นสิ่งที่เกิดขึ้นจริงตอน user ทดสอบครั้งแรก
+      errorMessage: [result.partialError, aiReason ? `AI_ENHANCE:${aiReason}` : null]
+        .filter(Boolean)
+        .join(' | ') || null,
       durationMs: Date.now() - startedAt,
     })
   } catch (e) {

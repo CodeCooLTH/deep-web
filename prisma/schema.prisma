@@ -245,6 +245,7 @@ model Shop {
   // feature 00023 phase 00023-qna (2026-07-31)
   autoReplyQnas               AutoReplyQna[] // คลังคำถาม-คำตอบ (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
   autoReplyUnansweredQuestions AutoReplyUnansweredQuestion[] // คิวคำถามที่บอทตอบไม่ได้
+  autoReplyGuardrails         AutoReplyGuardrail[] // กฎห้ามตอบของ AI Enhance (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -801,6 +802,22 @@ model SellerWallet {
   shopId    String   @unique
   // balance เป็น integer หน่วย ฿; RC-3: CHECK(balance >= 0) enforce ใน migration SQL ด้วยมือ
   balance   Int      @default(0)
+
+  /// เศษค่า AI Enhance ที่ยังไม่ถึงเกณฑ์หัก — phase `00023-ai-enhance` (BR-AR-36)
+  ///
+  /// ทำไมต้องมี: `balance` เป็นจำนวนเต็มบาท และ `deductCredit()` โยน INVALID_AMOUNT ถ้า
+  /// amount ไม่ใช่ integer บวก แต่ต้นทุนจริงต่อการตอบหนึ่งครั้งของ gemini-2.5-flash-lite
+  /// อยู่ระดับเศษสตางค์ — ปัดขึ้นเป็น 1 บาททุกครั้งจะกลายเป็น "1 บาท/ครั้งคงที่" ซึ่ง user
+  /// ปฏิเสธไปแล้ว (ต้องคิดตามที่ใช้จริง)
+  ///
+  /// กลไก (user เคาะ 2026-08-01): ทุกครั้งที่ AI ทำงานสำเร็จ บวกต้นทุนเข้าคอลัมน์นี้
+  /// พอสะสมถึง >= 1.0000 จึงหักจำนวนเต็มออกจาก balance แล้วเหลือเศษสะสมต่อ
+  /// ผลข้างเคียงที่ยอมรับ: ร้านเลิกใช้ก่อนสะสมครบ 1 บาท เศษค้างจะไม่ถูกหัก (ระดับสตางค์)
+  ///
+  /// Decimal(12,4) ไม่ใช่ Float — เป็นตัวเลขเงินที่ถูกบวกสะสมนับพันครั้ง ความคลาดเคลื่อน
+  /// ของ floating point จะสะสมตามไปด้วย (หลักเดียวกับ AiSuggestUsageEvent.costUsd)
+  pendingAiCostBaht Decimal @default(0) @db.Decimal(12, 4)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1906,6 +1923,47 @@ model AutoReplyConfig {
   // (แบบเดียวกับ ExternalContact.tags/phones และ QuickMessage.imageFileIds)
   handoffPhrases String[] @default([])
 
+  // --- เพดานค่าใช้จ่าย AI Enhance ต่อวัน (phase `00023-ai-enhance`, BR-AR-35) ---
+  //
+  // ตั้งระดับร้านไม่ใช่รายกลุ่มคำ ต่างจาก aiEnhanceEnabled โดยเจตนา: นี่คือเรื่องงบประมาณรวม
+  // ของร้าน ไม่ใช่พฤติกรรมของกลุ่มใดกลุ่มหนึ่ง — ร้านคิดเป็น "วันนี้ยอมจ่ายเท่าไหร่" ก้อนเดียว
+  //
+  // ค่าเริ่มต้น 50 บาท (user เคาะ 2026-08-01): ไม่ใช่ 0 เพราะจะบล็อกฟีเจอร์ตั้งแต่วันแรก
+  // และไม่ใช่ไม่จำกัดเพราะขัดเจตนาที่กลัวบิลบานปลายพอดี
+  /// AI ChatBot — ข้อความที่ไม่ตรงกลุ่มคำไหนเลย ให้ AI อ่านคลังคำตอบแล้วตอบเอง
+  /// (แทนที่จะเงียบ) · user ตัดสิน 2026-08-01 ให้เป็นสวิตช์ระดับร้าน
+  ///
+  /// ทำไมอยู่ระดับร้านไม่ใช่รายกลุ่มคำ: มันตัดสินว่า "เมื่อ**ไม่เข้า**กลุ่มไหนเลยจะทำอะไร"
+  /// ซึ่งไม่มีกลุ่มให้แขวน — ต่างจาก AI Enhance ที่ตัดสินว่า "เมื่อเข้ากลุ่มนี้แล้วทำอะไร"
+  /// และไม่สร้างกับดักเดิม เพราะมันได้แค่ **เพิ่มคำตอบตรงที่เคยเงียบ** ปิดปากกลุ่มไหนไม่ได้
+  aiChatbotEnabled Boolean @default(false)
+
+  /// ให้ AI ขัดเกลาคำตอบของ Auto Reply ก่อนส่ง — เป็น "option เสริม" ในเมนู ChatBot
+  /// (user ตัดสิน 2026-08-01: ย้ายจากสวิตช์รายกลุ่มคำขึ้นมาเป็นระดับร้าน)
+  ///
+  /// NOTE: `AutoReplyKeyword.aiEnhanceEnabled` ยังอยู่ในสคีมาแต่ **เลิกใช้แล้ว** — ไม่ลบทิ้ง
+  /// เพราะการถอดคอลัมน์บนฐานที่ใช้งานจริงแพงกว่าการปล่อยให้นอนเฉย และเผื่อวันหนึ่ง
+  /// ต้องการ override รายกลุ่มจริง ๆ จะได้ไม่ต้อง ALTER รอบสอง
+  aiEnhanceEnabled Boolean @default(false)
+
+  /// ช่วงเวลาที่ให้ ChatBot ทำงาน — null = ตลอดเวลา (รูปแบบเดียวกับ activeSchedule ของบอท)
+  /// เก็บเป็น HH:mm เวลาไทย · ข้ามเที่ยงคืนได้ (18:00-09:00 = ทำงานตอนร้านหลับ)
+  aiChatbotStartTime String?
+  aiChatbotEndTime   String?
+
+  /// น้ำเสียงของ AI ChatBot (null = ใช้ค่ากลาง) — แยกจาก aiTone รายกลุ่มคำ
+  aiChatbotTone String? @db.Text
+
+  aiDailyCapBaht Int @default(50)
+
+  // ร้านยอมจ่าย SMS 1 บาทเพื่อให้เตือนตอนใช้ถึง 80% ไหม — default ปิด เพราะการเตือนเรื่อง
+  // ค่าใช้จ่ายด้วยของที่มีค่าใช้จ่ายเองต้องเป็นการเลือกของร้าน ไม่ใช่สิ่งที่ระบบตัดสินให้
+  aiCapAlertSmsOptIn Boolean @default(false)
+
+  // วัน (ปฏิทินไทย YYYY-MM-DD) ที่ส่งเตือน 80% ไปแล้ว — กันเตือนซ้ำทุกข้อความหลังข้ามเส้น
+  // เก็บเป็นวันไม่ใช่ boolean เพราะต้องรีเซ็ตเองเมื่อขึ้นวันใหม่โดยไม่ต้องมี cron มาล้าง
+  aiCapAlertedDay String?
+
   // --- เวลาทำงานของระบบ (user 2026-07-31: "บางคนอยากให้ทำงานช่วง 18.00-9.00 เพื่อแทน
   //     admin ตอนหลับ / บางคนอยากให้ทำทั้งวัน") ---
   //
@@ -1967,6 +2025,23 @@ model AutoReplyKeyword {
   // ใส่คอลัมน์มาพร้อม migration รอบนี้เพราะ dev DB = prod DB — กลับมา ALTER รอบสองแพงกว่า
   qnaSimilarityEnabled Boolean @default(false)
 
+  /// AI Enhance — ให้ AI เรียบเรียงคำตอบสำเร็จรูปของกลุ่มนี้ก่อนส่ง (phase `00023-ai-enhance`, BR-AR-31)
+  ///
+  /// ค่าเริ่มต้น false โดยเจตนา: กลุ่มที่มีอยู่แล้วทุกกลุ่มบน prod ต้องมีพฤติกรรมเหมือนเดิม
+  /// ไม่มี latency เพิ่ม ไม่มีการเรียก AI ไม่มีการหักเงิน จนกว่าร้านจะกดเปิดเอง
+  ///
+  /// อยู่ระดับกลุ่มคำไม่ใช่ระดับร้าน (มติ user รอบแรกข้อ 1) — บางกลุ่มเป็นคำตอบที่ต้องส่ง
+  /// คำต่อคำ (เงื่อนไขรับประกัน/ราคา) การให้ AI แต่งใหม่คือความเสี่ยง ส่วนบางกลุ่มเป็นคำ
+  /// ทักทายที่แต่งได้อิสระ — สวิตช์เดียวทั้งร้านจึงตอบโจทย์ไม่ได้
+  aiEnhanceEnabled Boolean @default(false)
+
+  /// น้ำเสียงที่ให้ AI ใช้เรียบเรียง (phase `00023-ai-enhance`) — null = ใช้ค่ากลาง "สุภาพ เป็นกันเอง"
+  ///
+  /// เก็บเป็นข้อความอิสระไม่ใช่ enum โดยเจตนา: ร้านแต่ละแบบมีน้ำเสียงต่างกันมาก
+  /// (ร้านอะไหล่มอเตอร์ไซค์ vs ร้านเครื่องสำอาง) และคำที่ร้านเขียนเองจะถูกส่งเข้า prompt ตรง ๆ
+  /// ได้ผลดีกว่าการให้เลือกจากรายการที่เราคิดแทน — UI มีปุ่มลัดให้กดเติมคำที่ใช้บ่อย
+  aiTone String? @db.Text
+
   createdByUserId String?
   updatedByUserId String?
   createdAt       DateTime @default(now())
@@ -1975,6 +2050,7 @@ model AutoReplyKeyword {
   shop        Shop                         @relation(fields: [shopId], references: [id], onDelete: Cascade)
   phrases     AutoReplyPhrase[]
   qnas        AutoReplyQna[] // คลังคำถาม-คำตอบของกลุ่มนี้ (วิธีจับคู่ทางที่สอง)
+  guardrails  AutoReplyGuardrail[] // กฎห้ามตอบของกลุ่มนี้ (มีผลเมื่อ aiEnhanceEnabled = true)
   // onDelete Cascade — ลบกลุ่มคำ ลบกฎของกลุ่มนั้นด้วย (กฎที่ไม่มีกลุ่มไม่มีความหมาย)
   rules       AutoReplyRule[]
   logs        AutoReplyLog[]
@@ -1982,6 +2058,42 @@ model AutoReplyKeyword {
 
   @@unique([shopId, name]) // AC-001-04 ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน
   @@index([shopId, status, priority]) // query หลัก: โหลดกลุ่มที่ทำงานอยู่ของร้านเรียงตามลำดับความสำคัญ
+}
+
+/// กฎห้ามตอบ (Guardrails) ของกลุ่มคำหนึ่ง ๆ — phase `00023-ai-enhance` (BR-AR-32/33/34)
+///
+/// "AI ห้ามพูดถึงอะไร" — คนละกลไกกับ `AutoReplyConfig.handoffPhrases` ซึ่งดูคำที่ **ลูกค้า**
+/// พิมพ์เข้ามา ตัวนี้ดูสิ่งที่ **บอทกำลังจะพูด** ชนแล้วไม่ส่งอะไรเลยและส่งต่อคน
+///
+/// เก็บเป็นแถวต่อข้อ ไม่ใช่ text ก้อนเดียว เพราะร้านต้องลบทีละข้อได้ และต้องรู้ว่าข้อไหน
+/// มาจากชุดเริ่มต้นของ SafePay (`isFromDefaultSet`) เพื่อบังคับกฎ "ข้อที่ร้านลบแล้วห้ามเติมกลับ"
+/// ตอน SafePay อัปเดตชุดเริ่มต้นในอนาคต (AC-027-04)
+model AutoReplyGuardrail {
+  id        String @id @default(uuid())
+  shopId    String // ซ้ำกับ keyword.shopId โดยเจตนา — ทุก query ต้อง scope shopId ได้โดยไม่ join
+  /// null = กฎระดับร้าน ใช้กับ AI ChatBot (ข้อความที่ไม่เข้ากลุ่มไหนเลย จึงไม่มีกลุ่มให้ผูก)
+  keywordId String?
+
+  /// ข้อความกฎที่ร้านอ่านออก เช่น "ห้ามต่อรองราคา" — ใช้ทั้งแสดงใน UI และใส่ใน prompt ของด่านตรวจ
+  rule String @db.Text
+
+  /// คำ/วลีสำหรับ denylist ชั้นแรก (ไม่มีต้นทุน AI) — ว่างได้ ถ้าข้อนี้ตรวจด้วย AI อย่างเดียว
+  denyPhrases String[] @default([])
+
+  /// มาจากชุดเริ่มต้น 6 ข้อของ SafePay หรือร้านพิมพ์เอง — copy-by-value ตอนเปิดสวิตช์ครั้งแรก
+  isFromDefaultSet Boolean @default(false)
+
+  isActive Boolean @default(true)
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop    Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  keyword AutoReplyKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@index([keywordId, isActive]) // query หลัก: โหลดกฎที่ใช้งานอยู่ของกลุ่มที่กำลังจะตอบ
+  @@index([shopId]) // ทางกลับ: กฎทั้งหมดของร้าน (หน้ารวม/ตรวจสอบ)
 }
 
 /// เธรดที่ใช้ทดสอบของกลุ่มคำหนึ่ง ๆ (user 2026-07-29 "ให้ตั้งค่าทดสอบได้ทีละอัน")

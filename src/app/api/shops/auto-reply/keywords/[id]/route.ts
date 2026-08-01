@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as v from 'valibot'
 import { requireShopContext, forbidIfReadOnly, mapServiceError, AUTO_REPLY_NO_STORE } from '@/lib/auto-reply-route-context'
 import { getKeywordDetail, updateKeyword, deleteKeyword } from '@/services/auto-reply-rule.service'
+import { ensureDefaultGuardrails } from '@/services/auto-reply-guardrail.service'
 import { AutoReplyKeywordUpdateSchema } from '@/lib/validations'
 
 /** GET/PATCH/DELETE กลุ่มคำรายตัว (API.md §4.5-4.7) */
@@ -31,6 +32,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   try {
     const keyword = await updateKeyword(id, ctx.shopId, ctx.userId, parsed.output)
+
+    // เปิด AI Enhance ครั้งแรก -> คัดลอกชุดกฎห้ามตอบเริ่มต้นให้ (AC-027-01)
+    //
+    // WARNING: ตัวมันเองไม่ throw และคัดลอกเฉพาะตอนกลุ่มยังไม่มีกฎสักข้อ — ร้านที่ลบกฎทิ้ง
+    // แล้วปิด-เปิดสวิตช์ใหม่จะ **ไม่** ได้ของที่ลบไปแล้วกลับมา (AC-027-04)
+    if (parsed.output.aiEnhanceEnabled === true) {
+      await ensureDefaultGuardrails(id, ctx.shopId, ctx.userId)
+    }
+
     return NextResponse.json(keyword, { headers: AUTO_REPLY_NO_STORE })
   } catch (e) {
     return mapServiceError(e, 'บันทึกไม่สำเร็จ')

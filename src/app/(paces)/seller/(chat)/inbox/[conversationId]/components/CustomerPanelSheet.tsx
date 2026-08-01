@@ -54,7 +54,11 @@ export default function CustomerPanelSheet({ data, onClose }: Props) {
       />
 
       {/* panel — มือถือ: bottom-sheet เต็มกว้าง scroll ภายใน · desktop: modal กลาง max-w-sm */}
-      <div className="relative max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl bg-card pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-2 shadow-lg lg:max-h-[80dvh] lg:w-full lg:max-w-sm lg:rounded-2xl lg:pb-6 lg:pt-5"> {/* HR7 carve-out: ไม่มี token viewport-height/safe-area ใน Paces scale — precedent OrderQrSheet.tsx บรรทัดเดียวกัน */}
+      {/* lg:h-[80dvh] (ไม่ใช่ max-h): user report 2026-08-01 ว่าสลับแท็บแล้วกล่องขยับความสูง —
+          แท็บ "ข้อมูลลูกค้า" ยาวกว่า "โน้ต" หลายเท่า พอเป็น max-h กล่องจึงหดตามเนื้อหาทุกครั้งที่กด
+          ตำแหน่งแท็บเลื่อนหนีนิ้ว. ตรึงความสูงในโหมด modal (≥1024px) แล้วให้เนื้อหาเลื่อนข้างในแทน
+          มือถือยังเป็น max-h เหมือนเดิม เพราะ bottom-sheet สูงคงที่ทั้งที่เนื้อหาสั้นจะบังจอเปล่า ๆ */}
+      <div className="relative max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl bg-card pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-2 shadow-lg lg:h-[80dvh] lg:w-full lg:max-w-sm lg:rounded-2xl lg:pb-6 lg:pt-5"> {/* HR7 carve-out: ไม่มี token viewport-height/safe-area ใน Paces scale — precedent OrderQrSheet.tsx บรรทัดเดียวกัน */}
         {/* grip (มือถือเท่านั้น) */}
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-default-300 lg:hidden" />
 
