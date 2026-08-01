@@ -51,7 +51,24 @@ const MATCH_TYPE_LABEL: Record<string, string> = {
   STARTS_WITH: 'ขึ้นต้นด้วยคำนี้',
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+/**
+ * แถวที่ไม่มีค่า
+ *
+ * `hideWhenEmpty` ใช้กับบล็อก "ข้อมูลที่ใช้ประกอบการตอบ" ซึ่งมี 9 แถวและส่วนใหญ่ว่าง —
+ * การโชว์ "ไม่เจาะจง" ทั้งแถวทำให้กล่องสูงเกินจนโดนกรอบ scroll ตัดหัว (user เจอ 2026-08-01)
+ * ส่วนบล็อก "เงื่อนไขของเธรด" ยังโชว์แถวว่างตามเดิม เพราะที่นั่น "ไม่เจาะจง" คือคำตอบ
+ * ที่มีความหมาย (บอกว่ากฎถูกเลือกโดยไม่ผูกเพจ/โฆษณา)
+ */
+function Row({
+  label,
+  value,
+  hideWhenEmpty,
+}: {
+  label: string
+  value: string | null
+  hideWhenEmpty?: boolean
+}) {
+  if (hideWhenEmpty && !value) return null
   return (
     <div className="border-default-100 flex gap-2.5 border-b py-1 last:border-b-0">
       <dt className="text-default-600 w-16 shrink-0">{label}</dt>
@@ -65,6 +82,27 @@ function Row({ label, value }: { label: string; value: string | null }) {
 export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace: AutoReplyTrace | null }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  /**
+   * ตำแหน่งกล่องคำนวณจากปุ่มแล้ววางแบบ fixed
+   *
+   * WARNING: วางแบบ absolute ไม่ได้ — บล็อกข้อความอยู่ใน scroll container ที่มี overflow
+   * กล่องที่สูงกว่าพื้นที่เหนือปุ่มจะถูกตัดหัวทิ้ง (user เจอ 2026-08-01 หลังกล่องยาวขึ้น)
+   * fixed หลุดจากกรอบนั้น แล้วพลิกไปอยู่ใต้ปุ่มเองถ้าที่ด้านบนไม่พอ
+   */
+  const [pos, setPos] = useState<{ top: number; right: number; below: boolean } | null>(null)
+
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (!r) return
+    const spaceAbove = r.top
+    const below = spaceAbove < 320 // กล่องสูงได้ถึง ~300px — ที่ไม่พอก็พลิกลงล่าง
+    setPos({
+      top: below ? r.bottom + 8 : r.top - 8,
+      right: Math.max(8, window.innerWidth - r.right),
+      below,
+    })
+  }
 
   // ปิดเมื่อแตะที่อื่น/กด Escape — จำเป็นเฉพาะตอนเปิดด้วยการแตะ (hover ปิดตัวเองอยู่แล้ว)
   useEffect(() => {
@@ -102,11 +140,23 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
     <div
       ref={wrapRef}
       className="absolute top-0 end-2.5 z-20 -translate-y-1/2"
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => {
+        place()
+        setOpen(true)
+      }}
       onMouseLeave={() => setOpen(false)}
     >
       {open && (
-        <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 max-h-[60dvh] w-64 overflow-y-auto rounded-md border text-start shadow-lg" /* HR7 carve-out: ไม่มี token viewport-height ใน Paces — precedent CustomerPanelSheet.tsx */>
+        <div
+          className="border-default-300 bg-card fixed z-50 max-h-[60dvh] w-64 overflow-y-auto rounded-md border text-start shadow-lg"
+          /* HR7 carve-out: ตำแหน่งต้องคำนวณจาก viewport จริง (หนีกรอบ overflow) และ
+             ความสูงไม่มี token viewport-height ใน Paces — precedent CustomerPanelSheet.tsx */
+          style={
+            pos
+              ? { top: pos.below ? pos.top : undefined, bottom: pos.below ? undefined : window.innerHeight - pos.top, right: pos.right }
+              : undefined
+          }
+        >
           <div className="bg-default-100 border-default-300 text-default-800 border-b px-3 py-2 text-xs font-semibold">
             ตอบโดย {brand}{isTest ? ' (โหมดทดสอบ)' : ''}
           </div>
@@ -129,6 +179,7 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
                     </p>
                     <dl className="mb-0">
                       <Row
+                        hideWhenEmpty
                         label="คลังความรู้"
                         value={
                           trace.aiContext.knowledgeCount
@@ -141,16 +192,19 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
                         }
                       />
                       <Row
+                        hideWhenEmpty
                         label="สินค้า"
                         value={trace.aiContext.productCount ? `${trace.aiContext.productCount} รายการในระบบ` : null}
                       />
                       <Row
+                        hideWhenEmpty
                         label="ประวัติแชท"
                         value={trace.aiContext.historyCount ? `${trace.aiContext.historyCount} ข้อความก่อนหน้า` : null}
                       />
-                      <Row label="ค้นเว็บ" value={trace.aiContext.webSearch ? 'เปิด' : null} />
-                      <Row label="รูปจากลูกค้า" value={trace.aiContext.hasImages ? 'ใช้ประกอบด้วย' : null} />
+                      <Row hideWhenEmpty label="ค้นเว็บ" value={trace.aiContext.webSearch ? 'เปิด' : null} />
+                      <Row hideWhenEmpty label="รูปจากลูกค้า" value={trace.aiContext.hasImages ? 'ใช้ประกอบด้วย' : null} />
                       <Row
+                        hideWhenEmpty
                         label="กฎที่บังคับ"
                         value={
                           (trace.aiContext.guardrailBlock ?? 0) + (trace.aiContext.guardrailAvoid ?? 0) > 0
@@ -158,8 +212,8 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
                             : null
                         }
                       />
-                      <Row label="ขอบเขต" value={trace.aiContext.shopOnly ? 'ตอบเฉพาะเรื่องของร้าน' : null} />
-                      <Row label="คำสั่งเพิ่มเติม" value={trace.aiContext.hasExtraPrompt ? 'มี' : null} />
+                      <Row hideWhenEmpty label="ขอบเขต" value={trace.aiContext.shopOnly ? 'ตอบเฉพาะเรื่องของร้าน' : null} />
+                      <Row hideWhenEmpty label="คำสั่งเพิ่มเติม" value={trace.aiContext.hasExtraPrompt ? 'มี' : null} />
                     </dl>
                   </>
                 )}
@@ -201,8 +255,12 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
         </div>
       )}
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          place()
+          setOpen((v) => !v)
+        }}
         aria-expanded={open}
         aria-label={`${label} ตอบข้อความนี้ — เปิดดูเงื่อนไขที่ใช้ตอบ`}
         className="border-primary text-primary bg-card inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"
