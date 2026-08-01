@@ -21,6 +21,7 @@ import { cn } from '@/utils/helpers'
 import type { OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import OrderCard from './OrderCard'
+import IShipImportModal from './IShipImportModal'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -60,6 +61,8 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
   const [search,      setSearch]      = useState('')
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
+  // ดึงพัสดุจาก iShip มาสร้างออเดอร์ (ส่วนขยาย feature 00022)
+  const [importOpen, setImportOpen] = useState(false)
   const [filterOpen,  setFilterOpen]  = useState(false)
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
@@ -252,6 +255,17 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
             <Icon icon="bell" className="text-xl" />
           </Link>
 
+          {/* ดึงจาก iShip — สำหรับร้านที่เปิดพัสดุบน iShip ก่อนแล้วค่อยมาบันทึกออเดอร์
+              รองเป็นปุ่ม tonal เพราะ "สร้างออเดอร์" ยังเป็น action หลักของหน้านี้ */}
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="btn hidden shrink-0 bg-primary/15 text-primary-ink hover:bg-primary/25 lg:inline-flex"
+          >
+            <Icon icon="package-import" className="text-sm" />
+            ดึงจาก iShip
+          </button>
+
           {/* สร้างออเดอร์ — desktop เท่านั้น (มือถือใช้ FAB ใน bottom nav) */}
           <Link
             href="/orders/new"
@@ -386,6 +400,8 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           </div>
         </div>
       )}
+
+      <IShipImportModal open={importOpen} onClose={() => setImportOpen(false)} />
 
     </>
   )

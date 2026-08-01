@@ -8,6 +8,7 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
+import { createOrder } from "@/services/order.service";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
@@ -2012,4 +2013,103 @@ export async function unlinkShipment(
     }
     await tx.orderShipment.delete({ where: { id: row.id } });
   });
+}
+
+/**
+ * importParcelAsOrder — ดึงพัสดุจาก iShip มาสร้างคำสั่งซื้อใหม่ แล้วผูกให้เลย
+ *
+ * ใช้กับร้านที่เปิดพัสดุบน iShip ก่อนเสมอและไม่อยากคีย์ออเดอร์ซ้ำอีกรอบ
+ * ต่างจาก linkShipment ตรงที่ "ยังไม่มีคำสั่งซื้อ" — ตัวนี้สร้างให้จากข้อมูลบนพัสดุ
+ *
+ * ==========================================================================
+ * ข้อจำกัดที่แก้ไม่ได้: iShip ไม่คืนรายการสินค้า
+ * --------------------------------------------------------------------------
+ * ยืนยันแล้วทั้ง query_orders และ get_order — ไม่มี products/items ในคำตอบเลย
+ * (ขาออกเราส่ง products ไปได้ แต่ขาเข้าเขาไม่ส่งกลับ) พัสดุจึงบอกได้แค่ว่า
+ * "ส่งของให้ใคร ที่ไหน เก็บเงินเท่าไร" ไม่ได้บอกว่า "ขายอะไร"
+ *
+ * user ตัดสิน 2026-08-01: สร้างเลยด้วยรายการกลาง ๆ 1 บรรทัด แล้วให้ร้านไปแก้ชื่อ/ราคา
+ * ทีหลังได้ — เร็วกว่าการบังคับให้กรอกก่อน และร้านกลุ่มนี้ต้องการความเร็วเป็นหลัก
+ * ยอดเงินมาจาก cod_amount ซึ่งเป็นตัวเลขเดียวที่พัสดุรู้จริง (พัสดุที่จ่ายมาแล้ว = 0)
+ * ==========================================================================
+ */
+export async function importParcelAsOrder(
+  shopId: string,
+  userId: string,
+  trackingNo: string,
+  item?: { name?: string; price?: number },
+): Promise<{ orderId: string; orderToken: string; shipment: ShipmentView }> {
+  const parcel = await fetchParcel(shopId, trackingNo);
+
+  // กันสร้างออเดอร์ซ้ำจากพัสดุใบเดิม — เช็คก่อนแตะอะไรทั้งนั้น เพราะถ้าปล่อยให้ไปชน
+  // partial unique ตอนผูก ออเดอร์ที่เพิ่งสร้างจะค้างเป็นขยะโดยไม่มีพัสดุผูกอยู่
+  const taken = await prisma.orderShipment.findFirst({
+    where: { trackingNo },
+    select: { orderId: true },
+  });
+  if (taken) {
+    throw new IShipServiceError(
+      "SHIPMENT_EXISTS",
+      "พัสดุใบนี้ถูกผูกกับคำสั่งซื้ออื่นไปแล้ว",
+    );
+  }
+
+  const missing = findMissingReceiverFields(
+    {
+      line1: parcel.receiver.line1,
+      subdistrict: parcel.receiver.subdistrict,
+      district: parcel.receiver.district,
+      province: parcel.receiver.province,
+      postcode: parcel.receiver.postcode,
+    },
+    parcel.receiver.name,
+    parcel.receiver.phone,
+  );
+  if (missing.length > 0) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `พัสดุใบนี้มีข้อมูลผู้รับไม่ครบ — ขาด ${missing.join(", ")}`,
+      missing,
+    );
+  }
+
+  const order = await createOrder(shopId, {
+    items: [
+      {
+        // ค่าเริ่มต้นอ้างอิงกลับไปยังพัสดุได้ ร้านแก้ตั้งแต่ก่อนกดสร้างก็ได้
+        // (iShip ไม่คืนรายการสินค้า จึงเดาชื่อจริงแทนร้านไม่ได้)
+        name: item?.name?.trim() || `สินค้าตามพัสดุ ${parcel.trackNo}`,
+        qty: 1,
+        price: item?.price ?? parcel.codAmount,
+      },
+    ],
+    type: "PHYSICAL",
+    buyerName: parcel.receiver.name ?? undefined,
+    buyerContact: parcel.receiver.phone ?? undefined,
+    // COD เฉพาะใบที่มียอดเก็บปลายทางจริง — ใบที่จ่ายมาแล้วต้องไม่กลายเป็นเก็บเงินซ้ำ
+    // COD ผูกกับ cod_amount ของพัสดุเท่านั้น ไม่ผูกกับราคาที่ร้านพิมพ์ —
+    // ยอดที่ขนส่งจะไปเก็บจริงคือตัวที่อยู่บนพัสดุ ไม่ใช่ตัวที่เราบันทึก
+    paymentMethod: parcel.codAmount > 0 ? "COD" : undefined,
+    salesChannel: "ISHIP_IMPORT",
+    internalNote: `สร้างจากพัสดุ iShip ${parcel.trackNo}`,
+    shippingAddress: {
+      line1: parcel.receiver.line1 ?? undefined,
+      subdistrict: parcel.receiver.subdistrict ?? undefined,
+      district: parcel.receiver.district ?? undefined,
+      province: parcel.receiver.province ?? undefined,
+      postcode: parcel.receiver.postcode ?? undefined,
+    },
+  });
+
+  // ผูกทันทีด้วย KEEP_ORDER — ที่อยู่ในออเดอร์เพิ่งถูกสร้างจากพัสดุใบนี้เอง
+  // จึงตรงกันอยู่แล้วโดยนิยาม ไม่มีอะไรให้ reconcile
+  const shipment = await linkShipment(
+    shopId,
+    userId,
+    order.id,
+    trackingNo,
+    "KEEP_ORDER",
+  );
+
+  return { orderId: order.id, orderToken: order.publicToken, shipment };
 }

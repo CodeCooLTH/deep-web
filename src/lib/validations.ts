@@ -1112,6 +1112,17 @@ export const IShipLinkShipmentSchema = v.object({
   addressResolution: v.picklist(["KEEP_ORDER", "USE_ISHIP"]),
 });
 
+// ดึงพัสดุจาก iShip มาสร้างคำสั่งซื้อใหม่ (user สั่ง 2026-08-01)
+// รับแค่เลขติดตาม — ข้อมูลที่เหลือเซิร์ฟเวอร์ไปอ่านจาก iShip เอง ไม่รับจาก client
+// เพราะทั้งใบจะกลายเป็นคำสั่งซื้อจริง (ชื่อ/เบอร์/ที่อยู่ลูกค้า) เชื่อ payload ไม่ได้
+export const IShipImportParcelSchema = v.object({
+  trackingNo: v.pipe(v.string(), v.minLength(4), v.maxLength(64)),
+  // ร้านแก้ได้ก่อนกดสร้าง — ไม่ส่งมา = ใช้ค่าเริ่มต้นที่ service ประกอบจากพัสดุ
+  // (iShip ไม่คืนรายการสินค้า จึงเดาชื่อจริงแทนร้านไม่ได้ ต้องเปิดช่องให้แก้)
+  itemName: v.optional(shortText(200)),
+  itemPrice: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(10000000))),
+});
+
 // ข้อมูลผู้รับที่ร้านกรอกเพิ่ม ณ ตอนกดสร้างพัสดุ (user feedback 2026-07-26)
 // ทุกช่อง optional — ส่งมาเฉพาะช่องที่กรอก ช่องที่ไม่ส่งจะคงค่าเดิมในออเดอร์ไว้
 // subdistrict = ตำบล/แขวง, district = อำเภอ/เขต (BR-ISHIP-31 — คนละความหมายกับของ iShip)
