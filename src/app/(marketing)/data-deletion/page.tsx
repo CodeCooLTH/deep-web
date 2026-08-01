@@ -153,7 +153,11 @@ const DataDeletionPage = () => {
               <Typography variant='h6' className='mbe-3'>
                 5. การติดต่อ
               </Typography>
+              {/* ผู้ควบคุมข้อมูล — ต้องตรงกับหน้า privacy/terms และกับ responsible-1 ใน Meta Data Handling */}
               <Typography variant='body2'>
+                ผู้ควบคุมข้อมูลส่วนบุคคล: <strong>Sekson Oonnom</strong> (บุคคลธรรมดา) ประเทศไทย
+              </Typography>
+              <Typography variant='body2' className='mbs-2'>
                 หากมีคำถามเพิ่มเติม สามารถติดต่อเราได้ที่:{' '}
                 <a href='mailto:shinobu22@outlook.com' className='text-primary'>
                   shinobu22@outlook.com

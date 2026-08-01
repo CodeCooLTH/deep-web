@@ -138,6 +138,39 @@ export default function ShipmentStatusView({
     }
   }
 
+  /**
+   * เลิกผูก ≠ ยกเลิกพัสดุ — ใช้ pacesConfirm.question (ไม่ใช่ .danger) โดยเจตนา
+   * เพราะไม่มีอะไรถูกทำลาย พัสดุจริงบน iShip ยังอยู่ครบและยังส่งของตามปกติ
+   * ถ้าใช้กล่องแดงเหมือนยกเลิกพัสดุ ร้านจะกลัวจนไม่กล้าแก้ใบที่ผูกผิด
+   */
+  async function handleUnlink() {
+    if (busy) return
+    const ok = await pacesConfirm.question(
+      'ยกเลิกการผูกพัสดุนี้',
+      'พัสดุใบนี้จะไม่ผูกกับคำสั่งซื้อนี้อีก — พัสดุจริงที่ iShip จะไม่ถูกยกเลิก คุณเลือกผูกใบอื่นหรือสร้างใหม่ได้ทันที',
+      { confirmButtonText: 'ยกเลิกการผูก', cancelButtonText: 'ไม่ยกเลิก' },
+    )
+    if (!ok) return
+
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/unlink`, {
+        method: 'POST',
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        pacesToast.error(await readError(res))
+        return
+      }
+      pacesToast.success('ยกเลิกการผูกแล้ว')
+      onCancelled()
+    } catch {
+      pacesToast.error('ยกเลิกการผูกไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleCancel() {
     if (busy) return
     const ok = await pacesConfirm.danger(
@@ -340,6 +373,27 @@ export default function ShipmentStatusView({
             ขนส่งวัด{shipment.isOverWeight ? 'น้ำหนัก' : 'ขนาด'}ได้เกินกว่าที่แจ้งไว้ —
             ค่าส่งจริงอาจสูงกว่าที่ประเมิน
           </p>
+        )}
+
+        {/* ใบที่ผูกเข้ามา: ปุ่มเลิกผูกต้องอยู่ "ตรงนี้" ไม่ใช่ข้างปุ่มยกเลิกพัสดุที่ล่างสุด —
+            แยกตำแหน่ง แยกสี แยกคำถามยืนยัน 3 ชั้น เพราะสองปุ่มนี้ผลต่างกันคนละเรื่อง
+            (เลิกผูก = ย้อนกลับได้ / ยกเลิกพัสดุ = บอกขนส่งให้ยกเลิกของจริง) */}
+        {shipment.source === 'LINKED' && (
+          <div className="mt-3 rounded-lg bg-info/15 p-3">
+            <p className="mb-2 flex items-start gap-2 text-xs text-info-ink">
+              <Icon icon="tabler:link" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+              ผูกจาก iShip — พัสดุใบนี้ถูกสร้างไว้ก่อนแล้ว ไม่ได้เปิดจากคำสั่งซื้อนี้
+            </p>
+            <button
+              type="button"
+              onClick={handleUnlink}
+              disabled={busy}
+              className="btn inline-flex w-full items-center justify-center gap-1.5 bg-default-100 py-2 text-sm text-default-900 hover:bg-default-200 disabled:opacity-60"
+            >
+              <Icon icon="tabler:unlink" className="text-base" aria-hidden="true" />
+              ยกเลิกการผูก
+            </button>
+          </div>
         )}
       </section>
 

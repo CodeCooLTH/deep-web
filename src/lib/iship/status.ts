@@ -65,6 +65,25 @@ export function suggestsShipped(code?: string | null): boolean {
   return ["picked_up", "with_branch", "in_transit", "progress"].includes(code);
 }
 
+/**
+ * impliesDispatched — พัสดุ "ออกจากมือร้านไปแล้ว" หรือยัง (นับรวมที่ถึงปลายทางแล้ว)
+ *
+ * ต่างจาก suggestsShipped ตรงที่รวมสถานะปลายทางด้วย: delivered/return* แปลว่าของเดินทาง
+ * ไปแล้วแน่นอน ส่วน suggestsShipped ตั้งใจให้ครอบเฉพาะช่วง "กำลังเดินทาง" เพราะมันถูกใช้
+ * เพื่อ *เสนอ* ให้ร้านกดเปลี่ยนสถานะระหว่างที่พัสดุยังวิ่งอยู่
+ *
+ * ตัวนี้ใช้ตอนผูกพัสดุย้อนหลัง ซึ่งใบที่ผูกอาจส่งถึงผู้ซื้อไปแล้วตั้งแต่เมื่อวาน —
+ * ถ้าใช้ suggestsShipped ใบที่ส่งถึงแล้วจะไม่เข้าเงื่อนไข แล้วออเดอร์ค้าง "รอจัดส่ง"
+ * ทั้งที่ของถึงมือคนซื้อแล้ว ซึ่งเป็นอาการที่แย่กว่าเดิม
+ */
+export function impliesDispatched(code?: string | null): boolean {
+  if (!code) return false;
+  return (
+    suggestsShipped(code) ||
+    ["delivered", "payment_success", "return", "return_success"].includes(code)
+  );
+}
+
 /** สถานะพัสดุฝั่งเรา (OrderShipment.status) → ข้อความ/สีสำหรับ UI */
 export function describeShipmentStatus(
   status: string,

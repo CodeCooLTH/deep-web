@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import SenderIncompleteNotice from '@/components/safepay/iship/SenderIncompleteNotice'
 import ShipmentCreateForm, { type Courier } from '@/components/safepay/iship/ShipmentCreateForm'
+import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
 import ShipmentStatusView from '@/components/safepay/iship/ShipmentStatusView'
 import { useIShipCouriers } from '@/components/safepay/iship/useIShipCouriers'
 import type { ShipmentContextJson, ShipmentViewJson } from '@/lib/iship/context'
@@ -31,14 +32,26 @@ interface Props {
    * ไม่งั้นได้การ์ดซ้อนการ์ด (DESIGN.md §6 ห้าม)
    */
   bare?: boolean
+  /**
+   * CREATE = เปิดพัสดุใบใหม่ (เดิม) | LINK = เลือกใบที่ร้านเปิดไว้แล้วบน iShip มาผูก
+   * ผู้เรียกเป็นคนเลือกผ่าน segmented ของตัวเอง — ที่นี่แค่สลับเนื้อใน
+   */
+  ishipMode?: 'CREATE' | 'LINK'
 }
 
-export default function ShipmentPanel({ orderToken, context, bare = false }: Props) {
+export default function ShipmentPanel({
+  orderToken,
+  context,
+  bare = false,
+  ishipMode = 'CREATE',
+}: Props) {
   const router = useRouter()
   const { couriers, error: couriersError } = useIShipCouriers(!context.blockedBy)
   // shipment ที่เพิ่งสร้าง/ลองใหม่ในรอบนี้ — แสดงผลทันทีโดยไม่รอ router.refresh()
   const [shipment, setShipment] = useState<ShipmentViewJson | null>(context.shipment)
   const [forceForm, setForceForm] = useState(false)
+  // สลับกลับไปโหมดสร้างใหม่ได้จากสถานะว่างของแผงเลือกใบ (ไม่ต้องย้อนไปกดที่ segmented)
+  const [linkMode, setLinkMode] = useState(ishipMode === 'LINK')
 
   function afterChange(next: ShipmentViewJson | null) {
     setShipment(next)
@@ -61,6 +74,12 @@ export default function ShipmentPanel({ orderToken, context, bare = false }: Pro
           onCancelled={() => afterChange(null)}
           onRetried={afterChange}
           onEditRequest={() => setForceForm(true)}
+        />
+      ) : linkMode ? (
+        <ShipmentLinkPanel
+          orderToken={orderToken}
+          onLinked={afterChange}
+          onSwitchToCreate={() => setLinkMode(false)}
         />
       ) : (
         <ShipmentCreateForm

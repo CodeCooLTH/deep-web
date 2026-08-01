@@ -1700,6 +1700,10 @@ model OrderShipment {
   provider       String  @default("ISHIP")
   // status: "PENDING" (กำลังสร้าง) | "CREATED" (สำเร็จ) | "CANCELLED" | "FAILED"
   status         String  @default("PENDING")
+  // source: "CREATED" = Deep เปิดพัสดุใบนี้เอง | "LINKED" = ร้านเปิดไว้บน iShip แล้วเอามาผูก
+  // 🛑 ปุ่มยกเลิกของสองชนิดนี้คนละความหมาย — LINKED ต้องมีทาง "เลิกผูก" ที่ไม่ไปยกเลิก
+  //    พัสดุจริงของร้าน ส่วน CREATED ยกเลิกคือยกเลิกกับขนส่งจริง
+  source         String  @default("CREATED")
   courierCode    String?
   courierName    String? // ชื่อที่แสดง ณ เวลาสร้าง — cache ไว้ ไม่ re-fetch ทุกครั้ง
   trackingNo     String?
@@ -1744,6 +1748,9 @@ model OrderShipment {
   attemptCount     Int     @default(0)
 
   createdByUserId   String? // null = ระบบสร้างเองในโหมด AUTO (BR-ISHIP-28)
+  // linkedAt: เวลาที่ร้านกดผูก — ต่างจาก createdAt ซึ่งคือเวลาที่เราบันทึกแถวนี้
+  // (พัสดุจริงอาจถูกเปิดไว้ตั้งแต่เมื่อวาน แล้วเพิ่งมาผูกตอนนี้)
+  linkedAt          DateTime?
   cancelledByUserId String?
   cancelledAt       DateTime?
   createdAt         DateTime  @default(now())
@@ -1761,6 +1768,7 @@ model OrderShipment {
   //       = เลขติดตามห้ามซ้ำ แต่ใบที่ยังไม่สำเร็จมี trackingNo null ได้หลายใบ
   @@index([orderId])
   @@index([shopId, status])
+  @@index([shopId, source])
 }
 
 // ShipmentEvent — ประวัติการเดินทางของพัสดุ (จาก webhook หรือจากการ poll traces)

@@ -16,6 +16,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import SenderIncompleteNotice from '@/components/safepay/iship/SenderIncompleteNotice'
 import ShipmentCreateForm, { type Courier } from '@/components/safepay/iship/ShipmentCreateForm'
+import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
 import ShipmentStatusView from '@/components/safepay/iship/ShipmentStatusView'
 import { useIShipCouriers } from '@/components/safepay/iship/useIShipCouriers'
 import type { ShipmentContextJson, ShipmentViewJson } from '@/lib/iship/context'
@@ -44,6 +45,8 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
    */
   const [notify, setNotify] = useState(false)
   const [forceForm, setForceForm] = useState(false)
+  // สลับระหว่าง 'เปิดใบใหม่' กับ 'ผูกใบที่มีอยู่แล้วบน iShip'
+  const [linkMode, setLinkMode] = useState(false)
   const [sending, setSending] = useState(false)
 
   const { couriers, error: couriersError } = useIShipCouriers(!!ctx && !ctx.blockedBy)
@@ -205,7 +208,60 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
     )
   }
 
+  /**
+   * segmented 2 ทางเท่านั้น — ไม่มี "ส่งเอง (MANUAL)"
+   *
+   * ห้องแชทตั้งใจไม่รองรับ MANUAL มาแต่ต้น (แตะ ShipmentTracking ไม่ได้จากบริบทนี้ —
+   * ดูเหตุผลเต็มใน ShipmentEntryModal.tsx) งานนี้เพิ่มเฉพาะทางเลือกที่ร้องขอ
+   * ไม่ดึงขอบเขตที่เคยตัดออกไปแล้วกลับเข้ามา
+   *
+   * โชว์แม้ตอน forceForm (ลองใหม่หลังล้มเหลว) โดยเจตนา — เคส "ยิงสำเร็จแต่คำตอบหาย"
+   * คือเคสที่กด "ลองใหม่" ซ้ำเท่าไรก็ไม่ช่วย ต้องมาหาใบที่เกิดขึ้นจริงแล้วผูกเอง
+   */
+  const segCls = (active: boolean) =>
+    `btn inline-flex flex-1 items-center justify-center gap-1.5 border border-default-200 py-2 text-sm ${
+      active ? 'bg-primary text-white' : 'bg-default-50 text-default-900 hover:bg-default-100'
+    }`
+
+  const modeSwitch = (
+    <div className="flex px-4 pt-4" role="group" aria-label="เลือกวิธีเปิดพัสดุ">
+      <button
+        type="button"
+        onClick={() => setLinkMode(false)}
+        aria-pressed={!linkMode}
+        className={`${segCls(!linkMode)} rounded-e-none`}
+      >
+        <Icon icon="tabler:package-export" className="text-sm" aria-hidden="true" />
+        สร้างพัสดุใหม่
+      </button>
+      <button
+        type="button"
+        onClick={() => setLinkMode(true)}
+        aria-pressed={linkMode}
+        className={`${segCls(linkMode)} -ms-px rounded-s-none`}
+      >
+        <Icon icon="tabler:link" className="text-sm" aria-hidden="true" />
+        เลือกจาก iShip
+      </button>
+    </div>
+  )
+
+  if (linkMode) {
+    return (
+      <div>
+        {modeSwitch}
+        <ShipmentLinkPanel
+          orderToken={orderToken}
+          onLinked={handleCreated}
+          onSwitchToCreate={() => setLinkMode(false)}
+        />
+      </div>
+    )
+  }
+
   return (
+    <div>
+      {modeSwitch}
     <ShipmentCreateForm
       orderToken={orderToken}
       missingReceiver={ctx.missingReceiver}
@@ -255,5 +311,6 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
         </>
       )}
     />
+    </div>
   )
 }

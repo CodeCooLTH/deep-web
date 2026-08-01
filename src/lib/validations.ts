@@ -1100,6 +1100,18 @@ export const IShipCreateShipmentSchema = v.object({
   ),
 });
 
+// ผูกพัสดุที่ร้านเปิดไว้บน iShip แล้วเข้ากับคำสั่งซื้อ (ส่วนขยาย 2026-08-01)
+//
+// addressResolution บังคับให้ส่งมาเสมอ ไม่มีค่าปริยาย โดยเจตนา: มันคือคำตอบของคำถาม
+// "ที่อยู่สองฝั่งไม่ตรงกัน จะยึดฝั่งไหน" ซึ่งเป็นการตัดสินใจของร้าน ไม่ใช่สิ่งที่ระบบ
+// ควรเดาแทน — ค่าปริยายที่เงียบ ๆ จะกลายเป็นการเขียนทับที่อยู่โดยร้านไม่รู้ตัว
+export const IShipLinkShipmentSchema = v.object({
+  orderId: v.optional(v.pipe(v.string(), v.uuid())),
+  orderToken: v.optional(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
+  trackingNo: v.pipe(v.string(), v.minLength(4), v.maxLength(64)),
+  addressResolution: v.picklist(["KEEP_ORDER", "USE_ISHIP"]),
+});
+
 // ข้อมูลผู้รับที่ร้านกรอกเพิ่ม ณ ตอนกดสร้างพัสดุ (user feedback 2026-07-26)
 // ทุกช่อง optional — ส่งมาเฉพาะช่องที่กรอก ช่องที่ไม่ส่งจะคงค่าเดิมในออเดอร์ไว้
 // subdistrict = ตำบล/แขวง, district = อำเภอ/เขต (BR-ISHIP-31 — คนละความหมายกับของ iShip)
