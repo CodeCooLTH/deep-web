@@ -16,6 +16,7 @@ import { getChatbotConfig } from '@/services/ai-chatbot-config.service'
 import { listShopGuardrails } from '@/services/auto-reply-guardrail.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import ChatbotTabs from './ChatbotTabs'
 import ChatbotClient from './ChatbotClient'
 
 export const metadata: Metadata = { title: 'ChatBot' }
@@ -42,6 +43,7 @@ export default async function ChatbotPage() {
   return (
     <>
       <PageBreadcrumb title="ChatBot" trail={[{ label: 'ผู้ช่วยอัตโนมัติ' }]} />
+      <ChatbotTabs />
       <ChatbotClient
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}
         initialConfig={config}

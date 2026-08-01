@@ -2319,7 +2319,12 @@ model AutoReplyQna {
   // ซ้ำกับ keyword.shopId ตั้งใจ — ทุก query ของหน้าจัดการและของ matcher กรองด้วย shopId ตรง ๆ
   // ไม่ต้อง join กลับไปที่ AutoReplyKeyword ทุกครั้ง (แนวเดียวกับ AutoReplyRule.shopId)
   shopId    String
-  keywordId String
+  /// null = ข้ออยู่ในคลังกลางของร้าน ไม่ผูกกลุ่มคำใด (user ตัดสิน 2026-08-01)
+  ///
+  /// เดิมบังคับผูกกลุ่มคำเพราะออกแบบให้เป็น "วิธีจับคู่ทางที่สอง" ของกลุ่มนั้น ๆ
+  /// พอคลังกลายเป็นความรู้ของ ChatBot ที่ตอบทุกคำถาม การบังคับผูกกลุ่มจึงไม่มีความหมาย
+  /// ข้อที่ยังผูกกลุ่มอยู่ยังทำงานเหมือนเดิมทุกอย่าง (จับคู่ตรงตัวในกลุ่มนั้น)
+  keywordId String?
 
   question String @db.Text // คำถามที่ร้านพิมพ์ (เก็บของเดิมไว้แสดงใน UI)
 
@@ -2351,7 +2356,7 @@ model AutoReplyQna {
   updatedAt       DateTime @updatedAt
 
   shop        Shop                          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  keyword     AutoReplyKeyword              @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  keyword     AutoReplyKeyword?             @relation(fields: [keywordId], references: [id], onDelete: Cascade)
   logs        AutoReplyLog[]
   fromQueue   AutoReplyUnansweredQuestion[]
 
