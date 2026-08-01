@@ -286,9 +286,12 @@ export default function QuickMessageManager({
   }
 
   async function handleDelete(qm: QuickMessage) {
-    const ok = await pacesConfirm.danger('ลบข้อความสำเร็จรูป', `ต้องการลบ "${qm.title}" หรือไม่?`, {
-      confirmButtonText: 'ลบ',
-    })
+    // บอกผลที่ตามมาให้ครบ: ข้อความผูกระดับร้าน ลบแล้วหายทั้งร้าน ไม่ใช่แค่ของคนกด และกู้คืนไม่ได้
+    const ok = await pacesConfirm.danger(
+      `ลบ "${qm.title}"`,
+      'ทุกคนในร้านจะไม่เห็นข้อความนี้อีก และกู้คืนไม่ได้',
+      { confirmButtonText: 'ลบข้อความนี้' },
+    )
     if (!ok) return
     try {
       const res = await fetch(`/api/chat/quick-messages/${qm.id}`, { method: 'DELETE' })
@@ -296,7 +299,7 @@ export default function QuickMessageManager({
         pacesToast.error('ลบไม่สำเร็จ ลองใหม่อีกครั้ง')
         return
       }
-      pacesToast.success('ลบแล้ว')
+      pacesToast.success(`ลบ "${qm.title}" แล้ว`)
       if (editingId === qm.id) {
         resetForm()
         setViewMode('list')
@@ -355,24 +358,16 @@ export default function QuickMessageManager({
           แล้วเนื้อหาเด้งขึ้นลงกวนตา (user report 2026-07-31). max-h-full กันล้นบนจอเตี้ย */}
       <div className="card bg-card flex h-full max-h-full w-full flex-col rounded-b-none sm:h-176 sm:rounded-lg lg:max-w-5xl">
         {/* ── header ───────────────────────────────────────────────────────── */}
+        {/* header คงที่ทุก view — เดิมสลับเป็น [ลูกศรย้อนกลับ + ชื่อฟอร์ม] ตอนกดแก้ไข ทำให้ไอคอน
+            หายและหัวข้อเลื่อนตำแหน่ง ผู้ใช้รายงานว่า "เปลี่ยนไปแปลกๆ" (2026-07-31)
+            → ทางกลับย้ายไปอยู่แถบรองใต้ header แทน header จึงนิ่งตลอด */}
         <div className="card-header flex items-center justify-between gap-2">
-          {/* หน้าฟอร์มกินพื้นที่ทั้งโมดัล จึงต้องมีทางกลับที่ชัด — ลูกศรย้อนกลับแทนไอคอนหัวข้อ */}
-          {!isList && (
-            <button
-              type="button"
-              onClick={backToList}
-              className="btn btn-icon border-default-300 min-h-11 min-w-11"
-              aria-label="ย้อนกลับไปรายการ"
-            >
-              <Icon icon="arrow-left" className="text-lg" />
-            </button>
-          )}
           <h5 className="mb-0 flex min-w-0 grow items-center gap-2 text-base">
-            {isList && <Icon icon="message-2-bolt" className="text-primary text-lg" />}
+            <Icon icon="message-2-bolt" className="text-primary text-lg" />
             <span className="truncate">
-              {isList ? (sortMode ? 'จัดลำดับข้อความสำเร็จรูป' : 'จัดการข้อความสำเร็จรูป') : formHeading}
+              {sortMode ? 'จัดลำดับข้อความสำเร็จรูป' : 'จัดการข้อความสำเร็จรูป'}
             </span>
-            {isList && !loading && !error && (
+            {!loading && !error && (
               <span className="badge bg-primary/15 text-primary shrink-0">{localItems.length}</span>
             )}
           </h5>
@@ -381,13 +376,40 @@ export default function QuickMessageManager({
           </button>
         </div>
 
+        {/* แถบรอง — มีเฉพาะตอนอยู่หน้าฟอร์ม บอกว่ากำลังทำอะไรกับรายการไหน + ทางกลับ */}
+        {!isList && (
+          <div className="border-default-200 flex items-center gap-2 border-b px-5 py-2.5">
+            <button
+              type="button"
+              onClick={backToList}
+              className="text-default-500 hover:text-primary flex size-9 shrink-0 items-center justify-center rounded"
+              aria-label="ย้อนกลับไปรายการ"
+            >
+              <Icon icon="arrow-left" className="text-lg" />
+            </button>
+            <span className="text-default-800 min-w-0 grow truncate text-sm font-semibold">
+              {isEditing ? (
+                <>
+                  แก้ไข: <span className="text-primary">{title || 'ข้อความสำเร็จรูป'}</span>
+                </>
+              ) : (
+                formHeading
+              )}
+            </span>
+          </div>
+        )}
+
         {isList ? (
           /* ══════════ หน้ารายการ (ตาราง) ══════════ */
           <>
-            {/* toolbar — โหมดจัดลำดับซ่อนค้นหา/กรอง/เพิ่ม เหลือแค่ปุ่ม toggle ที่เป็นทางออกจากโหมดด้วย */}
+            {/* toolbar — ทุกตัวสูง h-11 (44px) เท่ากันหมด: ค่าตั้งต้นของธีมไม่เท่ากันอยู่แล้ว
+                (.form-input = h-9.25 / 37px, .btn = py-1.75+text-sm ≈ 36px) ต่างกัน 1px
+                เห็นชัดเมื่อวางเรียงกัน (user รายงาน "ขนาดปุ่มไม่เท่ากัน" 2026-07-31)
+                44px ยังได้ tap target ตาม PRODUCT.md ไปในตัว
+                โหมดจัดลำดับซ่อนค้นหา/กรอง/เพิ่ม เหลือแค่ปุ่ม toggle ที่เป็นทางออกจากโหมดด้วย */}
             <div className="border-default-200 flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center">
               {!sortMode && (
-                <div className="input-icon-group sm:max-w-xs">
+                <div className="input-icon-group grow">
                   <Icon icon="search" className="input-icon" />
                   <input
                     type="search"
@@ -395,11 +417,11 @@ export default function QuickMessageManager({
                     onChange={(e) => setQ(e.target.value)}
                     placeholder="ค้นหาหัวข้อหรือเนื้อหา"
                     aria-label="ค้นหาข้อความสำเร็จรูป"
-                    className="form-input"
+                    className="form-input h-11"
                   />
                 </div>
               )}
-              <div className="flex items-center gap-2 sm:ms-auto">
+              <div className="flex items-center gap-2">
                 {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
                 {!sortMode && categories.length > 0 && (
                   <FilterDropdown
@@ -408,6 +430,7 @@ export default function QuickMessageManager({
                     onChange={setCategoryFilter}
                     defaultLabel="หมวด"
                     resetValue={CATEGORY_ALL}
+                    className="h-11"
                     options={[
                       { value: CATEGORY_ALL, label: 'ทุกหมวด' },
                       ...categories.map((c) => ({ value: c, label: c })),
@@ -419,7 +442,7 @@ export default function QuickMessageManager({
                     type="button"
                     onClick={() => setSortMode((s) => !s)}
                     aria-pressed={sortMode}
-                    className={`btn text-nowrap ${sortMode ? 'bg-primary text-white' : 'bg-light text-dark'}`}
+                    className={`btn h-11 text-nowrap ${sortMode ? 'bg-primary text-white' : 'bg-light text-dark'}`}
                     aria-label={sortMode ? 'เสร็จสิ้นการจัดลำดับ' : 'จัดลำดับข้อความสำเร็จรูป'}
                   >
                     <Icon icon={sortMode ? 'check' : 'arrows-sort'} className="text-base" />
@@ -430,7 +453,7 @@ export default function QuickMessageManager({
                   <button
                     type="button"
                     onClick={startAdd}
-                    className="btn bg-primary hover:bg-primary-hover ms-auto text-nowrap text-white sm:ms-0"
+                    className="btn bg-primary hover:bg-primary-hover ms-auto h-11 text-nowrap text-white sm:ms-0"
                   >
                     <Icon icon="plus" className="text-base" />
                     เพิ่มข้อความ
@@ -484,9 +507,13 @@ export default function QuickMessageManager({
                   <span className="bg-default-100 text-default-500 flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="search" className="text-2xl" />
                   </span>
-                  <span className="text-default-800 text-sm font-semibold">ไม่พบข้อความที่ตรงกับคำค้น</span>
+                  {/* ข้อความต้องตรงกับตัวกรองที่ใช้จริง — กรองด้วยหมวดอย่างเดียวแล้วบอกว่า "ไม่พบคำค้น"
+                      คือบอกผิด ผู้ใช้จะไปนั่งแก้คำค้นที่ไม่มีอยู่ */}
+                  <span className="text-default-800 text-sm font-semibold">
+                    {q.trim() ? `ไม่พบข้อความที่ตรงกับ "${q.trim()}"` : `ไม่มีข้อความในหมวด "${categoryFilter}"`}
+                  </span>
                   <span className="text-default-500 text-xs">
-                    ลองใช้คำอื่น หรือล้างตัวกรองเพื่อดูทั้ง {localItems.length} รายการ
+                    {q.trim() ? 'ลองใช้คำอื่น หรือ' : ''}ล้างตัวกรองเพื่อดูทั้ง {localItems.length} รายการ
                   </span>
                   <button type="button" onClick={clearFilters} className="btn border-default-300 mt-1 min-h-11">
                     <Icon icon="x" className="me-1" /> ล้างตัวกรอง
@@ -592,9 +619,10 @@ export default function QuickMessageManager({
                                   )}
                                 </span>
                               ) : (
-                                /* ช่องว่างขนาดเท่ารูป — ไม่ใส่ placeholder ให้รก แต่ต้องกันไม่ให้แถวที่ไม่มีรูป
-                                   เตี้ยกว่าแถวอื่นจนตารางกระตุก */
-                                <span className="bg-default-100 block size-10 rounded" aria-hidden="true" />
+                                /* ไม่มีรูป → เว้นว่างจริง ๆ ไม่ใส่กล่องเทา (กล่องเทาอ่านเป็น "รูปเสีย"
+                                   ทั้งคอลัมน์ — user ติว่า UI ดูไม่ทันสมัย 2026-07-31)
+                                   ความสูงแถวมาจากปุ่ม 44px ในคอลัมน์จัดการอยู่แล้ว ไม่ต้องค้ำ */
+                                <span className="block size-10" aria-hidden="true" />
                               )}
                             </td>
                             <td>
@@ -615,6 +643,9 @@ export default function QuickMessageManager({
                             <td className="hidden max-w-xs lg:table-cell">
                               <span className="text-default-500 line-clamp-2 text-xs">{qm.body}</span>
                             </td>
+                            {/* ปุ่มแบบ ghost — เดิมมีกรอบทุกใบ ทำให้ทั้งคอลัมน์เป็นตารางกล่องเล็ก ๆ
+                                รกและดูเก่า (user ติ 2026-07-31) เหลือพื้นตอน hover ก็พอ
+                                ยังกดง่ายเท่าเดิมเพราะพื้นที่กด 44px ไม่เปลี่ยน */}
                             <td className="text-end">
                               <span className="flex items-center justify-end gap-1">
                                 <button
@@ -623,10 +654,10 @@ export default function QuickMessageManager({
                                     e.stopPropagation()
                                     startEdit(qm)
                                   }}
-                                  className="btn btn-icon border-default-300 min-h-11 min-w-11"
+                                  className="text-default-500 hover:bg-light hover:text-primary flex size-11 items-center justify-center rounded-lg"
                                   aria-label={`แก้ไข ${qm.title}`}
                                 >
-                                  <Icon icon="pencil" />
+                                  <Icon icon="pencil" className="text-base" />
                                 </button>
                                 <button
                                   type="button"
@@ -634,10 +665,10 @@ export default function QuickMessageManager({
                                     e.stopPropagation()
                                     handleDelete(qm)
                                   }}
-                                  className="btn btn-icon border-default-300 text-danger min-h-11 min-w-11"
+                                  className="text-default-400 hover:bg-danger/10 hover:text-danger flex size-11 items-center justify-center rounded-lg"
                                   aria-label={`ลบ ${qm.title}`}
                                 >
-                                  <Icon icon="trash" />
+                                  <Icon icon="trash" className="text-base" />
                                 </button>
                               </span>
                             </td>

@@ -29,6 +29,21 @@ export type Seeded = {
   needsOnboarding: boolean
   password?: string
   username?: string
+  /**
+   * ร้านที่ active อยู่ — **บังคับสำหรับร้าน BUSINESS**
+   *
+   * jwt callback (src/lib/auth.ts:582) เติม token.activeShopId ให้เฉพาะตอน sign-in จริง
+   * (มี user/account) หรือ session.update() เท่านั้น — token ที่ helper นี้ mint เองไม่เข้า
+   * เงื่อนไขนั้น ค่าจึงไม่มีวันถูกเติมให้ภายหลัง
+   *
+   * ปล่อยว่างสำหรับร้าน BUSINESS = resolveActiveShopContext() หา active ไม่เจอ →
+   * fallback ไป getPersonalShop() ซึ่งกรอง kind='PERSONAL' → ไม่เจอ → layout เด้ง /choose-shop
+   * แต่ /choose-shop เห็นว่ามีร้านอยู่เลยเด้งกลับ /dashboard = **redirect loop** จนเทส timeout
+   * (เจอจริง 2026-07-31: E2E feature 00024 แดง 10/13 ด้วยอาการ page.goto timeout 15s)
+   *
+   * ร้าน PERSONAL ไม่ต้องส่ง — getPersonalShop() หาเจอเองจาก Shop.userId
+   */
+  activeShopId?: string
 }
 
 /** สร้าง user ตาม state → คืน userId + flag สำหรับ cookie */
@@ -83,6 +98,8 @@ export async function loginAs(context: BrowserContext, seeded: Seeded) {
       userId: seeded.userId,
       needsRegistration: seeded.needsRegistration,
       needsOnboarding: seeded.needsOnboarding,
+      // ใส่เฉพาะเมื่อ caller ระบุ — ไม่งั้นคง shape เดิมของ token ไว้ให้ spec อื่นที่ใช้ร้าน PERSONAL
+      ...(seeded.activeShopId ? { activeShopId: seeded.activeShopId } : {}),
     },
     secret: SECRET,
   })

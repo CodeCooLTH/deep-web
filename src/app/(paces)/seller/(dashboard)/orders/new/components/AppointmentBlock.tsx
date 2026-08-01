@@ -45,6 +45,18 @@ type Props = {
   granularity: AppointmentGranularity
   /** ยอดรวมปัจจุบันของออเดอร์ — ใช้คำนวณมัดจำตั้งต้นและยอดคงเหลือ */
   total: number
+  /**
+   * prefix ของ element id — QuickForm (มือถือ) กับ CartPanel (เดสก์ท็อป) render พร้อมกัน
+   * เสมอ (สลับด้วย CSS ไม่ใช่ React) ถ้าใช้ id ชุดเดียวกันจะซ้ำใน DOM แล้ว label
+   * ผูกผิดช่อง — ต้องแยก prefix ต่อ instance
+   */
+  idPrefix: string
+  /**
+   * 'card' = การ์ดเต็มใบ (มือถือ) · 'embedded' = เนื้อในล้วน ไม่มีการ์ด/หัวเรื่อง
+   * (เดสก์ท็อป อยู่ใน accordion ของ CartPanel ที่มีหัวเรื่องของตัวเองแล้ว)
+   * pattern เดียวกับ CustomerSelectBlock variant="embedded"
+   */
+  variant?: 'card' | 'embedded'
   /** ค่าที่ผู้ใช้กรอกอยู่ (watch จาก form owner) */
   value: {
     resourceId?: string
@@ -83,12 +95,32 @@ function addMinutes(time: string, minutes: number): string {
   return `${hh}:${mm}`
 }
 
+/**
+ * บล็อกนี้ mount พร้อมกันสองใบ (QuickForm มือถือ / CartPanel เดสก์ท็อป — สลับด้วย CSS)
+ * ถ้าปล่อยไว้ ทุกครั้งที่เปลี่ยนคิวงานหรือวันจะยิง availability ซ้ำสองรอบ
+ * จึงแชร์ promise ที่กำลังบินอยู่ของ URL เดียวกัน แล้วทิ้งทันทีที่จบ
+ * (ไม่ใช่ cache ผลลัพธ์ — ยังต้องได้คิวสดทุกครั้งที่ผู้ใช้เปลี่ยนค่า)
+ */
+const inFlightBusy = new Map<string, Promise<unknown>>()
+
+function fetchBusy(url: string): Promise<any> {
+  const hit = inFlightBusy.get(url)
+  if (hit) return hit
+  const p = fetch(url, { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
+    .finally(() => inFlightBusy.delete(url))
+  inFlightBusy.set(url, p)
+  return p
+}
+
 export default function AppointmentBlock({
   control,
   errors,
   setValue,
   resources,
   granularity,
+  idPrefix,
+  variant = 'card',
   total,
   value,
 }: Props) {
@@ -112,11 +144,9 @@ export default function AppointmentBlock({
     const to = new Date(from.getTime() + 86_400_000)
     setLoadingBusy(true)
     setBusyFailed(false)
-    fetch(
+    fetchBusy(
       `/api/shops/current/service-resources/availability?resourceId=${value.resourceId}&from=${from.toISOString()}&to=${to.toISOString()}`,
-      { cache: 'no-store' },
     )
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
       .then((d) => {
         if (cancelled) return
         setBusy(Array.isArray(d?.busy) ? d.busy : [])
@@ -188,21 +218,29 @@ export default function AppointmentBlock({
 
   if (resources.length === 0) return null
 
-  return (
-    <div className="card">
-      <div className="card-header">
-        <h4 className="card-title">วันเข้าใช้บริการ</h4>
-        <p className="text-default-500 mt-0.5 text-sm">ไม่บังคับ — ข้ามได้ถ้าลูกค้ายังไม่ระบุวัน</p>
-      </div>
-      <div className="card-body flex flex-col gap-4">
+  const fields = (
+    <div className="flex flex-col gap-4">
+        {/* มีวันที่แล้วแต่ยังไม่เลือกคิวงาน = ออเดอร์นี้จะไม่มีนัดติดไป (BR-RSV-04)
+            เกิดบ่อยสุดตอนมาจากปฏิทิน ซึ่งส่งมาแค่วันที่ ไม่รู้ว่าผู้ใช้ตั้งใจคิวงานไหน
+            ต้องบอกให้รู้ ไม่ใช่ปล่อยให้บันทึกแล้วงงว่าทำไมปฏิทินยังว่าง
+            ตั้งใจไม่บล็อกการบันทึก — แค่บอกผลที่จะตามมา (pattern เดียวกับกล่องเตือนวันย้อนหลัง) */}
+        {value.date && !value.resourceId && (
+          <div className="bg-warning/10 border-warning/30 rounded-lg border p-3">
+            <p className="text-default-800 text-sm font-medium">ยังไม่ได้เลือกคิวงาน</p>
+            <p className="text-default-600 mt-1 text-sm">
+              เลือกคิวงานด้านล่างก่อน ไม่งั้นออเดอร์นี้จะถูกบันทึกเป็นออเดอร์ปกติที่ไม่มีวันนัด
+            </p>
+          </div>
+        )}
+
         {/* คิวงาน — field ที่ bind RHF ต้องเป็น form-select ไม่ใช่ hs-dropdown */}
         <div>
-          <label htmlFor="appt-resource" className="form-label">รับนัดโดย</label>
+          <label htmlFor={`${idPrefix}-appt-resource`} className="form-label">รับนัดโดย</label>
           <Controller
             control={control}
             name="appointment.resourceId"
             render={({ field }) => (
-              <select id="appt-resource" className="form-select" {...field} value={field.value ?? ''}>
+              <select id={`${idPrefix}-appt-resource`} className="form-select" {...field} value={field.value ?? ''}>
                 <option value="">ไม่ตั้งวันนัด (ออเดอร์ปกติ)</option>
                 {resources.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -218,12 +256,12 @@ export default function AppointmentBlock({
         {selected && (
           <>
             <div>
-              <label htmlFor="appt-date" className="form-label">วันที่นัด</label>
+              <label htmlFor={`${idPrefix}-appt-date`} className="form-label">วันที่นัด</label>
               <Controller
                 control={control}
                 name="appointment.date"
                 render={({ field }) => (
-                  <input id="appt-date" type="date" className="form-input" {...field} value={field.value ?? ''} />
+                  <input id={`${idPrefix}-appt-date`} type="date" className="form-input" {...field} value={field.value ?? ''} />
                 )}
               />
             </div>
@@ -245,13 +283,13 @@ export default function AppointmentBlock({
             {!byDay && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="appt-start" className="form-label">เวลาเริ่ม</label>
+                <label htmlFor={`${idPrefix}-appt-start`} className="form-label">เวลาเริ่ม</label>
                 <Controller
                   control={control}
                   name="appointment.startTime"
                   render={({ field }) => (
                     <input
-                      id="appt-start"
+                      id={`${idPrefix}-appt-start`}
                       type="time"
                       className="form-input"
                       {...field}
@@ -275,13 +313,13 @@ export default function AppointmentBlock({
                 />
               </div>
               <div>
-                <label htmlFor="appt-end" className="form-label">เวลาสิ้นสุด</label>
+                <label htmlFor={`${idPrefix}-appt-end`} className="form-label">เวลาสิ้นสุด</label>
                 <Controller
                   control={control}
                   name="appointment.endTime"
                   render={({ field }) => (
                     <input
-                      id="appt-end"
+                      id={`${idPrefix}-appt-end`}
                       type="time"
                       className="form-input"
                       min={value.startTime ?? undefined}
@@ -335,14 +373,14 @@ export default function AppointmentBlock({
 
             {/* ── มัดจำ (FR-RSV-12) ── */}
             <div>
-              <label htmlFor="appt-deposit" className="form-label">มัดจำที่เก็บ</label>
+              <label htmlFor={`${idPrefix}-appt-deposit`} className="form-label">มัดจำที่เก็บ</label>
               <div className="flex items-center gap-2">
                 <Controller
                   control={control}
                   name="appointment.depositAmount"
                   render={({ field }) => (
                     <input
-                      id="appt-deposit"
+                      id={`${idPrefix}-appt-deposit`}
                       type="number"
                       inputMode="decimal"
                       min={0}
@@ -361,8 +399,21 @@ export default function AppointmentBlock({
               </p>
             </div>
           </>
-        )}
+      )}
+    </div>
+  )
+
+  // embedded = อยู่ใน accordion ของ CartPanel ซึ่งมีหัวเรื่องของตัวเองแล้ว
+  // ถ้าห่อการ์ดซ้ำจะกลายเป็นการ์ดซ้อนการ์ด (anti-slop) และดันความสูงแผงขวาจนปุ่มหลุดจอ
+  if (variant === 'embedded') return <div className="px-4 pb-4">{fields}</div>
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h4 className="card-title">วันเข้าใช้บริการ</h4>
+        <p className="text-default-500 mt-0.5 text-sm">ไม่บังคับ — ข้ามได้ถ้าลูกค้ายังไม่ระบุวัน</p>
       </div>
+      <div className="card-body">{fields}</div>
     </div>
   )
 }

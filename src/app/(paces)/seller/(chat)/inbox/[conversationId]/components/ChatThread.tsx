@@ -79,7 +79,7 @@ import LightboxDownload from 'yet-another-react-lightbox/plugins/download'
 import { generateInitials } from '@/utils/helpers'
 // user 2026-07-31: แถวเวลาแสดงแค่ ชม.:นาที — วินาทีไม่ใช่ข้อมูลที่ใช้ตัดสินใจอะไรในแชท
 // แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
-import { formatTime, formatTimeHM } from '@/lib/format-date'
+import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
 import Swal from 'sweetalert2'
@@ -422,6 +422,9 @@ type Props = {
   /** ลูกค้ายังไม่เคยทักเข้ามาเลย (lastInboundAt=NULL) — เธรดที่ร้าน initiate จาก Facebook เอง
    *  (user report 2026-07-24). แยก banner จาก "เกิน 24 ชม." ที่สื่อว่าลูกค้าเคยทักแล้ว */
   neverInbound: boolean
+  /** เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน และร้านได้ permission human_agent แล้ว → คนตอบเองได้อยู่ */
+  humanAgentOpen?: boolean
+  humanAgentExpiresAt?: string | null
   /** feature 00018 T5 — ข้อมูล Customer Panel เดียวกับที่ desktop column ใช้ (สำหรับ sheet มือถือ) */
   customerPanelData: CustomerPanelData
 }
@@ -603,6 +606,8 @@ export default function ChatThread({
   msRemaining,
   tokenInvalid,
   neverInbound,
+  humanAgentOpen = false,
+  humanAgentExpiresAt = null,
   customerPanelData,
 }: Props) {
   const { data: session } = useSession()
@@ -697,7 +702,9 @@ export default function ChatThread({
     return () => window.removeEventListener(CHAT_SOUND_EVENT, sync)
   }, [conversationId])
 
-  const composerDisabled = isExternal && (tokenInvalid || !liveWindowOpen)
+  // ระดับกลาง (เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน + ได้ permission แล้ว) ยังพิมพ์ได้ — service จะแนบ
+  // HUMAN_AGENT tag ให้เอง; ถ้ายังไม่ได้ permission ฝั่ง server ส่ง humanAgentOpen=false มาอยู่แล้ว
+  const composerDisabled = isExternal && (tokenInvalid || (!liveWindowOpen && !humanAgentOpen))
   // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
   // ตอนส่งไม่ได้ (window ปิด/token ตาย) เท่านั้น ไม่ปิดเพราะเป็นช่องทางนอกอีกต่อไป
   const attachDisabled = false
@@ -836,6 +843,10 @@ export default function ChatThread({
   const readAt = externalReadAtLive ?? externalReadAtInitial
   const readAtMs = readAt ? new Date(readAt).getTime() : 0
 
+  // เธรดที่เกิดจาก "ตอบกลับความคิดเห็น" (private reply) — Meta แนบบรรทัดระบบที่มีลิงก์คอมเมนต์
+  // มาด้วยเสมอ จับจาก comment_id ในลิงก์ ไม่ใช่จากถ้อยคำ เพราะเพจตั้งภาษาต่างกันได้
+  const isCommentReplyThread = messages.some((m) => (m.body ?? '').includes('comment_id='))
+
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
   // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
@@ -972,14 +983,39 @@ export default function ChatThread({
               </span>
             </div>
           ) : !liveWindowOpen ? (
-            // แยก 2 เคส (user report 2026-07-24): ลูกค้ายังไม่เคยทัก vs ทักแล้วเกิน 24 ชม.
-            // ทั้งคู่ส่งไม่ได้เหมือนกัน แต่ข้อความต่างกันไม่ให้ผู้ขายเข้าใจผิดว่า "เกิน 24 ชม.ของใคร"
-            <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-              <Icon icon="message-circle-off" className="mt-0.5 shrink-0 text-lg" />
+            // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
+            //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
+            //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
+            //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
+            //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
+            //   3. ทักแล้วแต่เกิน 24 ชม. — อันนี้เป็นการเสียโอกาสจริง คงโทนแดงไว้
+            <div
+              className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
+                neverInbound || humanAgentOpen ? 'bg-info/15 text-info' : 'bg-danger/15 text-danger'
+              }`}
+            >
+              <Icon
+                icon={neverInbound || humanAgentOpen ? 'info-circle' : 'message-circle-off'}
+                className="mt-0.5 shrink-0 text-lg"
+              />
               <span>
-                {neverInbound
-                  ? 'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
-                  : 'เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'}
+                {neverInbound ? (
+                  isCommentReplyThread ? (
+                    'เธรดนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ตอบได้ 1 ข้อความเท่านั้น ส่งเพิ่มได้เมื่อลูกค้าตอบกลับเข้ามา'
+                  ) : (
+                    'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
+                  )
+                ) : humanAgentOpen ? (
+                  // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
+                  // เพราะผู้ขายอาจเผลอส่งโปรโมชันซึ่งผิดนโยบายและทำให้แอปโดนระงับได้
+                  <>
+                    เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง{' '}
+                    <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : '7 วันนับจากข้อความล่าสุดของลูกค้า'}</span>{' '}
+                    — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
+                  </>
+                ) : (
+                  'เกิน 7 วันนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'
+                )}
               </span>
             </div>
           ) : (
@@ -1006,6 +1042,17 @@ export default function ChatThread({
           + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
           "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
           ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      {/* relative: ให้แผงข้อความสำเร็จรูปวางทับ "พื้นที่ข้อความ" ได้พอดี (user สั่ง 2026-07-31
+          "อยากปรับให้ panel นี้เต็มช่องแชทไปเลย") — วางทับแทนที่จะดันเลย์เอาต์ เพราะลิสต์ข้อความ
+          ยัง mount อยู่ ตำแหน่ง scroll จึงไม่รีเซ็ตตอนปิดแผง */}
+      <div className="relative flex min-h-0 grow flex-col">
+      {quickOpen && (
+        <QuickMessageBar
+          onPick={handleQuickPick}
+          disabled={composerDisabled}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
       <div
         ref={scrollRef}
         className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
@@ -1353,6 +1400,7 @@ export default function ChatThread({
           ))
         )}
       </div>
+      </div>
 
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
@@ -1371,13 +1419,8 @@ export default function ChatThread({
           />
         )}
 
-        {quickOpen && (
-          <QuickMessageBar
-            onPick={handleQuickPick}
-            disabled={composerDisabled}
-            onClose={() => setActivePanel(null)}
-          />
-        )}
+        {/* แผงข้อความสำเร็จรูปย้ายไปวางทับพื้นที่ข้อความด้านบนแล้ว (ดู relative wrapper) —
+            ไม่ได้อยู่เหนือ composer เหมือนแผง AI/สินค้าอีกต่อไป */}
 
         {productOpen && (
           <ProductPickerPanel

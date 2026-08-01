@@ -39,6 +39,7 @@ import { getProductsByShop, getBestSellerProducts } from '@/services/product.ser
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
 import ChatRail from './_components/ChatRail'
+import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
 
@@ -74,12 +75,21 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   let catalog: CatalogProduct[] = []
   let bestSellers: CatalogProduct[] = []
   let inventoryEnabled = false
+  // ร้านเชื่อม iShip แล้วหรือยัง — ใช้ตัดสินว่าจะโชว์หัวข้อ "พัสดุ" ในแผงตัวกรองของ rail ไหม
+  // ต้องถามที่ layout เพราะ rail อยู่ที่นี่ ไม่ใช่ที่ inbox/page.tsx (user report 2026-07-31:
+  // ตัวกรอง iShip หายไปบนเดสก์ท็อป — page.tsx ส่ง prop นี้ให้ list แบบเต็มจอของมือถืออยู่แล้ว
+  // แต่ rail ไม่เคยได้รับ จึงตกไปที่ค่า default = false)
+  let hasShipping = false
   if (activeCtx?.shopId) {
     const shopId = activeCtx.shopId
-    ;[catalog, bestSellers, inventoryEnabled] = await Promise.all([
+    ;[catalog, bestSellers, inventoryEnabled, hasShipping] = await Promise.all([
       getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
       getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
+      prisma.shopShippingAccount
+        .findUnique({ where: { shopId }, select: { status: true } })
+        .then((a) => a?.status === 'ACTIVE')
+        .catch(() => false),
     ])
   }
 
@@ -95,7 +105,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               fetch ของตัวเอง, mobile list=SSR ของ page.tsx) ไม่ใช่ component เดียวกันที่ถูกซ่อน/โชว์ */}
           {/* lg:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน */}
           <div className="hidden shrink-0 flex-col border-e border-default-200 lg:flex lg:w-96">
-            <ChatRail shopId={activeCtx?.shopId ?? null} />
+            <ChatRail shopId={activeCtx?.shopId ?? null} hasShipping={hasShipping} />
           </div>
 
           {/* children: /inbox (empty-state 2 คอลัมน์ desktop / list เต็มจอมือถือ) หรือ

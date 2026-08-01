@@ -148,22 +148,140 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
     [items, persistOrder],
   )
 
+
+  // จัดกลุ่มตามหมวดสำหรับแสดงผล (user สั่ง 2026-07-31)
+  // **ลำดับกลุ่ม = ลำดับที่ผู้ใช้ลากเอง** (ผลตัดสิน user 2026-08-01): กลุ่มไหนมีข้อความที่อยู่
+  // อันดับต้นสุด กลุ่มนั้นขึ้นก่อน — Map เก็บลำดับตอน insert อยู่แล้ว และ filtered เรียงตาม
+  // sortOrder จาก DB จึงได้ลำดับนี้ฟรี ไม่ต้อง sort ทับ (เดิม sort ก.ไก่ ทำให้คุมลำดับไม่ได้)
+  // ผลพลอยได้: ไม่ต้องมี UI จัดลำดับกลุ่มแยก ใช้โหมดจัดลำดับเดิมคุมได้ทั้งกลุ่มและรายการ
+  const groups = useMemo(() => {
+    const map = new Map<string, QuickMessage[]>()
+    for (const qm of filtered) {
+      const key = qm.category?.trim() || ''
+      const list = map.get(key)
+      if (list) list.push(qm)
+      else map.set(key, [qm])
+    }
+    return Array.from(map, ([key, groupItems]) => ({
+      key,
+      label: key || 'ไม่มีหมวดหมู่',
+      items: groupItems,
+    }))
+  }, [filtered])
+
+  /** การ์ดหนึ่งใบ — โครงเดิมทั้งหมด ต่างแค่ไม่ล็อกความกว้าง (w-32) แล้ว เพราะอยู่ใน grid */
+  function renderCard(qm: QuickMessage, index: number) {
+    const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
+    // โหมดจัดลำดับ: การ์ดเปลี่ยนหน้าที่จาก "กดเพื่อใช้" เป็น "ลากเพื่อเรียง" จึงไม่ส่ง onPick
+    const sortProps = sortMode
+      ? {
+          draggable: true,
+          onDragStart: () => {
+            dragFrom.current = index
+          },
+          onDragOver: (e: React.DragEvent) => {
+            e.preventDefault() // ไม่ preventDefault = เบราว์เซอร์ไม่ยอมให้ drop
+            setDragOver(index)
+          },
+          onDragLeave: () => setDragOver((c) => (c === index ? null : c)),
+          onDrop: (e: React.DragEvent) => {
+            e.preventDefault()
+            const from = dragFrom.current
+            dragFrom.current = null
+            setDragOver(null)
+            if (from != null) move(from, index)
+          },
+          onDragEnd: () => {
+            dragFrom.current = null
+            setDragOver(null)
+          },
+          // คีย์บอร์ด: ลากเมาส์ไม่ได้ก็ยังเรียงได้ (การ์ดโฟกัสได้อยู่แล้วเพราะเป็น <button>)
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+              e.preventDefault()
+              move(index, index + (e.key === 'ArrowLeft' ? -1 : 1))
+            }
+          },
+        }
+      : {}
+    return (
+      <button
+        key={qm.id}
+        type="button"
+        {...sortProps}
+        onClick={() => !disabled && !sortMode && onPick(qm)}
+        disabled={disabled && !sortMode}
+        title={sortMode ? `ลำดับที่ ${index + 1} — ลากเพื่อสลับ` : qm.body || qm.title}
+        aria-label={sortMode ? `${qm.title} — ลำดับที่ ${index + 1} จาก ${items.length}` : undefined}
+        className={`bg-card overflow-hidden rounded-xl border text-left transition-transform duration-150 ${
+          sortMode
+            ? `cursor-grab active:cursor-grabbing ${
+                dragOver === index ? 'border-primary ring-primary ring-2' : 'border-default-300'
+              }`
+            : 'border-default-200 hover:border-primary/40 hover:shadow-sm active:scale-95'
+        } ${disabled && !sortMode ? 'pointer-events-none opacity-50' : ''}`}
+      >
+        {sortMode && (
+          <span className="bg-primary/10 text-primary flex items-center justify-between px-2 py-1 text-2xs font-semibold">
+            <span>#{index + 1}</span>
+            <Icon icon="grip-vertical" className="text-sm" />
+          </span>
+        )}
+        {imgs.length > 0 ? (
+          // กรอบเป็นตัวกำหนดสี่เหลี่ยมจัตุรัส แล้วรูปเติมเต็มแบบ absolute → ครอปจริง สูงเท่ากันทุกใบ
+          // ไม่ว่าไฟล์จะสัดส่วนใด (ใส่ aspect-square ที่ <img> ตรง ๆ ไม่ได้ผล — เป็น replaced element)
+          {/* h-28 คงที่ ไม่ใช่ aspect-square — จัตุรัสทำให้ความสูงการ์ดผูกกับความกว้าง ยิ่งจอกว้าง
+              คอลัมน์ยิ่งกว้าง การ์ดยิ่งสูงจนกินพื้นที่ทั้งแผง (user เจอบน desktop 2026-08-01) */}
+          <span className="relative block h-28 w-full overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/api/files/${imgs[0]}`} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
+            {imgs.length > 1 && (
+              <span className="bg-default-900/70 absolute end-1 bottom-1 rounded px-1 text-2xs text-white">
+                +{imgs.length - 1}
+              </span>
+            )}
+          </span>
+        ) : (
+          // ไม่มีรูป → โชว์ข้อความแทนที่ช่องรูป (ต่างจากการ์ดสินค้าที่ขึ้น "ไม่มีรูป" เฉย ๆ
+          // เพราะข้อความสำเร็จรูปแบบไม่มีรูปเป็นเคสปกติ ไม่ใช่ข้อมูลขาด)
+          <span className="bg-light text-default-700 flex h-28 w-full items-center p-2.5 text-2xs">
+            <span className="line-clamp-5">{qm.body || qm.title}</span>
+          </span>
+        )}
+        {/* จองพื้นที่ตายตัว 2 บรรทัดทั้งชื่อและเนื้อความ — ไม่งั้นการ์ดในแถวเดียวกันสูงไม่เท่ากัน
+            min-h-8 = 2 บรรทัดของ text-xs, min-h-7 = 2 บรรทัดของ text-2xs */}
+        <span className="block p-2">
+          {/* ห้ามใส่ `block` คู่กับ line-clamp — line-clamp ตั้ง display:-webkit-box เอง
+              `block` จะไปทับ แล้วข้อความไม่ถูกตัดเลย (พลาดซ้ำรอบสอง user เจอ 2026-07-31:
+              คำอธิบายยาว 10 บรรทัดจนการ์ดสูงผิดปกติ) */}
+          <span className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{qm.title}</span>
+          <span className="text-default-700 mt-0.5 line-clamp-3 min-h-10.5 text-2xs">{qm.body}</span>
+        </span>
+      </button>
+    )
+  }
+
   return (
     <>
-      <div className="border-default-300 bg-primary/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6">
+      {/* แผงเต็มพื้นที่ข้อความ (user สั่ง 2026-07-31 "เต็มช่องแชทไปเลย") — วางทับลิสต์ข้อความ
+          ที่ยัง mount อยู่ ตำแหน่ง scroll ของแชทจึงไม่รีเซ็ตตอนปิดแผง */}
+      {/* z-40: ต้องสูงกว่าทุกอย่างที่ลอยอยู่ในพื้นที่ข้อความ ไม่งั้นทะลุขึ้นมาบนแผง —
+          ป้าย DeepBot ของ AutoReplyTag เป็น z-20 และ tooltip ของมัน z-30 (user เจอ 2026-07-31)
+          ยังต่ำกว่าโมดัลจัดการ (z-90) ตามเดิม */}
+      <div className="bg-card absolute inset-0 z-40 flex flex-col">
         {/* header — โครงเดียวกับแผง AI (ชื่อ+ไอคอนซ้าย, action ขวา) */}
-        <div className="flex items-center justify-between pb-1.5">
+        <div className="border-default-300 flex items-center justify-between gap-2 border-b border-dashed px-4 py-2.5 sm:px-6">
           <span className="text-primary flex items-center gap-2 text-sm font-semibold">
             <Icon icon="bolt" className="text-base" />
             ข้อความสำเร็จรูป
           </span>
           <div className="flex items-center gap-1">
-            {/* ปุ่มจัดลำดับ — ข้างไอคอนตั้งค่าตามที่ user ระบุ (2026-07-30) ซ่อนตอนยังไม่มีอะไรให้เรียง */}
+            {/* ปุ่มจัดลำดับ — ซ่อนตอนยังไม่มีอะไรให้เรียง */}
             {items.length > 1 && (
               <button
                 type="button"
                 onClick={() => setSortMode((s) => !s)}
-                className={`flex size-7 items-center justify-center rounded ${
+                className={`flex size-9 items-center justify-center rounded ${
                   sortMode ? 'bg-primary text-white' : 'text-default-500 hover:text-primary'
                 }`}
                 aria-pressed={sortMode}
@@ -176,7 +294,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             <button
               type="button"
               onClick={() => setManagerOpen(true)}
-              className="text-default-500 hover:text-primary flex size-7 items-center justify-center rounded"
+              className="text-default-500 hover:text-primary flex size-9 items-center justify-center rounded"
               aria-label="จัดการข้อความสำเร็จรูป"
               title="จัดการข้อความสำเร็จรูป"
             >
@@ -185,7 +303,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="text-default-500 hover:text-default-800 flex size-7 items-center justify-center rounded"
+              className="text-default-500 hover:text-default-800 flex size-9 items-center justify-center rounded"
               aria-label="ปิด"
             >
               <Icon icon="x" className="text-base" />
@@ -193,19 +311,15 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
           </div>
         </div>
 
-        {/* ค้นหา + สไลด์การ์ด — user สั่ง 2026-07-23: "แสดงผลเหมือนเลือกสินค้า (การ์ด ค้นหาได้
-            ถ้ามีเยอะก็ slide)" จึงยกโครงจาก ProductPickerPanel.tsx มาทั้งชุด: input-icon-group
-            ด้านบน + แถบการ์ดเลื่อนแนวนอน snap-x + ซ่อน scrollbar
-            การ์ดกว้างกว่าของสินค้า (w-32 vs w-24) เพราะเนื้อหาหลักคือ "ข้อความ" ไม่ใช่รูป */}
-        {/* โหมดจัดลำดับซ่อนช่องค้นหา แล้วแสดงทั้งชุดเสมอ — ลากสลับบน "ผลค้นหา" จะเขียนลำดับผิด
-            เพราะ orderedIds ที่ส่งไปจะมีแค่ตัวที่ตรงคำค้น ตัวที่ถูกกรองออกจะโดนดันไปท้ายทั้งหมด */}
+        {/* ค้นหา + กรองหมวด — โหมดจัดลำดับซ่อนทั้งแถว แล้วแสดงทั้งชุดเสมอ เพราะลากสลับบน
+            "ผลค้นหา" จะเขียนลำดับผิด (orderedIds ที่ส่งไปจะมีแค่ตัวที่ตรงคำค้น) */}
         {sortMode ? (
-          <p className="text-default-600 mb-2 flex items-center gap-1.5 text-2xs">
+          <p className="text-default-600 border-default-300 mb-0 flex items-center gap-1.5 border-b px-4 py-2 text-2xs sm:px-6">
             <Icon icon="info-circle" className="text-sm" />
             ลากการ์ดเพื่อสลับลำดับ (หรือกดที่การ์ดแล้วใช้ลูกศรซ้าย/ขวา) — บันทึกอัตโนมัติ
           </p>
         ) : (
-          <div className="mb-2 flex items-center gap-2">
+          <div className="border-default-300 flex items-center gap-2 border-b px-4 py-2.5 sm:px-6">
             <div className="input-icon-group grow">
               <Icon icon="search" className="input-icon" />
               <input
@@ -214,10 +328,10 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="ค้นหาข้อความสำเร็จรูป"
                 aria-label="ค้นหาข้อความสำเร็จรูป"
-                className="form-input bg-card"
+                className="form-input h-11"
               />
             </div>
-            {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน (เกณฑ์เดียวกับ modal จัดการ) */}
+            {/* ไม่มีใครตั้งหมวดเลย → ตัวกรองไม่มีประโยชน์ ซ่อนทั้งอัน */}
             {categories.length > 0 && (
               <FilterDropdown
                 icon="tag"
@@ -226,6 +340,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                 defaultLabel="หมวด"
                 resetValue={CATEGORY_ALL}
                 align="right"
+                className="h-11"
                 options={[
                   { value: CATEGORY_ALL, label: 'ทุกหมวด' },
                   ...categories.map((c) => ({ value: c, label: c })),
@@ -235,21 +350,16 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
           </div>
         )}
 
-        <div
-          // items-start: ให้การ์ดสูงตามเนื้อหาจริง (ซึ่งตอนนี้เท่ากันทุกใบเพราะจองพื้นที่ตายตัวแล้ว)
-          // ไม่ใช่ stretch ตาม default ของ flex ที่ยืดทุกใบให้เท่าใบที่สูงสุดแล้วดันช่องว่างไปกองที่ท้ายการ์ด
-          className="flex snap-x snap-mandatory items-start gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
-          style={{ scrollbarWidth: 'none' }}
-        >
+        <div className="min-h-0 grow overflow-y-auto overscroll-contain px-4 py-3 sm:px-6">
           {loading ? (
-            <>
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="bg-default-100 h-36 w-32 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลด" />
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-default-100 h-44 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลด" />
               ))}
-            </>
+            </div>
           ) : loadError ? (
             /* โหลดพัง ≠ ไม่มีข้อมูล — ต้องแยกให้ชัด ไม่งั้นผู้ใช้ที่มี 30+ รายการนึกว่าข้อความหายหมด */
-            <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
+            <div className="text-default-700 flex flex-col items-center gap-2 py-12 text-center text-sm">
               <Icon icon="alert-triangle" className="text-warning text-2xl" />
               <span>โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
               <button type="button" onClick={load} className="btn border-default-300 min-h-11">
@@ -257,7 +367,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
               </button>
             </div>
           ) : items.length === 0 ? (
-            <div className="text-default-700 flex w-full flex-col items-center gap-2 py-4 text-center text-sm">
+            <div className="text-default-700 flex flex-col items-center gap-2 py-12 text-center text-sm">
               <Icon icon="message-plus" className="text-default-500 text-2xl" />
               <span>ยังไม่มีข้อความสำเร็จรูป</span>
               <button type="button" onClick={() => setManagerOpen(true)} className="btn border-default-300 min-h-11">
@@ -265,117 +375,28 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
               </button>
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-default-700 mb-0 w-full py-4 text-center text-sm">ไม่พบข้อความที่ค้นหา</p>
+            /* ต้องตรงกับตัวกรองที่ใช้จริง — กรองด้วยหมวดอย่างเดียวแล้วบอกว่า "ไม่พบที่ค้นหา" คือบอกผิด */
+            <p className="text-default-700 mb-0 py-12 text-center text-sm">
+              {q.trim() ? `ไม่พบข้อความที่ตรงกับ "${q.trim()}"` : `ไม่มีข้อความในหมวด "${categoryFilter}"`}
+            </p>
+          ) : sortMode ? (
+            /* โหมดจัดลำดับไม่แบ่งกลุ่ม — ลำดับที่บันทึกเป็นลำดับเดียวทั้งชุด ถ้าโชว์แยกกลุ่ม
+               เลข #N จะไม่ตรงกับลำดับจริงและลากข้ามกลุ่มจะสับสน */
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {items.map((qm, index) => renderCard(qm, index))}
+            </div>
           ) : (
-            (sortMode ? items : filtered).map((qm, index) => {
-              // หลายรูปได้ — โชว์รูปแรก + ป้ายจำนวนที่เหลือ (การ์ดต้องสูงเท่ากันทุกใบ กวาดตาได้เร็ว)
-              const imgs = qm.imageFileIds?.length ? qm.imageFileIds : qm.imageFileId ? [qm.imageFileId] : []
-              // โหมดจัดลำดับ: การ์ดเปลี่ยนหน้าที่จาก "กดเพื่อใช้" เป็น "ลากเพื่อเรียง" จึงไม่ส่ง onPick
-              // HTML5 drag-and-drop ตรง ๆ ไม่พึ่ง library — เป็นลิสต์เดียวแนวนอน ไม่ต้องมี virtualization
-              const sortProps = sortMode
-                ? {
-                    draggable: true,
-                    onDragStart: () => {
-                      dragFrom.current = index
-                    },
-                    onDragOver: (e: React.DragEvent) => {
-                      e.preventDefault() // ไม่ preventDefault = เบราว์เซอร์ไม่ยอมให้ drop
-                      setDragOver(index)
-                    },
-                    onDragLeave: () => setDragOver((c) => (c === index ? null : c)),
-                    onDrop: (e: React.DragEvent) => {
-                      e.preventDefault()
-                      const from = dragFrom.current
-                      dragFrom.current = null
-                      setDragOver(null)
-                      if (from != null) move(from, index)
-                    },
-                    onDragEnd: () => {
-                      dragFrom.current = null
-                      setDragOver(null)
-                    },
-                    // คีย์บอร์ด: ลากเมาส์ไม่ได้ก็ยังเรียงได้ (การ์ดโฟกัสได้อยู่แล้วเพราะเป็น <button>)
-                    onKeyDown: (e: React.KeyboardEvent) => {
-                      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                        e.preventDefault()
-                        move(index, index + (e.key === 'ArrowLeft' ? -1 : 1))
-                      }
-                    },
-                  }
-                : {}
-              return (
-                <button
-                  key={qm.id}
-                  type="button"
-                  {...sortProps}
-                  onClick={() => !disabled && !sortMode && onPick(qm)}
-                  disabled={disabled && !sortMode}
-                  title={sortMode ? `ลำดับที่ ${index + 1} — ลากเพื่อสลับ` : qm.body || qm.title}
-                  aria-label={sortMode ? `${qm.title} — ลำดับที่ ${index + 1} จาก ${items.length}` : undefined}
-                  className={`w-32 shrink-0 snap-start overflow-hidden rounded-xl border bg-card text-left transition-transform duration-150 ${
-                    sortMode
-                      ? `cursor-grab active:cursor-grabbing ${
-                          dragOver === index ? 'border-primary ring-primary ring-2' : 'border-default-300'
-                        }`
-                      : 'border-default-200 hover:shadow-sm active:scale-95'
-                  } ${disabled && !sortMode ? 'pointer-events-none opacity-50' : ''}`}
-                >
-                  {/* ป้ายลำดับ + จุดจับ — ให้รู้ว่าตอนนี้กำลังเรียง ไม่ใช่กำลังเลือกใช้งาน */}
-                  {sortMode && (
-                    <span className="bg-primary/10 text-primary flex items-center justify-between px-2 py-1 text-2xs font-semibold">
-                      <span>#{index + 1}</span>
-                      <Icon icon="grip-vertical" className="text-sm" />
-                    </span>
-                  )}
-                  {imgs.length > 0 ? (
-                    // user report 2026-07-30: "รูปไม่ fit ความสูงรูปไม่เท่ากัน ดูแปลก"
-                    // เดิมใส่ aspect-square ไว้ที่ตัว <img> เอง — img เป็น replaced element ที่มี
-                    // intrinsic ratio ของตัวเอง การสั่ง aspect-ratio ทับจึงไม่ได้ผลแน่นอน และ
-                    // object-cover ก็ไม่มีอะไรให้ครอปเพราะความสูงยังเป็น auto → รูปสูงเท่าสัดส่วนจริง
-                    // ของแต่ละไฟล์ การ์ดจึงสูงไม่เท่ากัน
-                    // แก้: ให้ "กรอบ" (span ธรรมดา ไม่ใช่ replaced element) เป็นตัวกำหนดสี่เหลี่ยมจัตุรัส
-                    // แล้วรูปเติมเต็มกรอบแบบ absolute → ครอปจริง สูงเท่ากันทุกใบไม่ว่ารูปจะสัดส่วนใด
-                    <span className="relative block aspect-square w-full overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/api/files/${imgs[0]}`}
-                        alt=""
-                        loading="lazy"
-                        className="absolute inset-0 size-full object-cover"
-                      />
-                      {imgs.length > 1 && (
-                        <span className="bg-default-900/70 absolute end-1 bottom-1 rounded px-1 text-2xs text-white">
-                          +{imgs.length - 1}
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    // ไม่มีรูป → โชว์ข้อความแทนที่ช่องรูป (ต่างจากการ์ดสินค้าที่ขึ้น "ไม่มีรูป" เฉย ๆ
-                    // เพราะข้อความสำเร็จรูปแบบไม่มีรูปเป็นเคสปกติ ไม่ใช่ข้อมูลขาด)
-                    <span className="bg-light text-default-700 flex aspect-square w-full items-center p-2 text-2xs">
-                      <span className="line-clamp-5">{qm.body || qm.title}</span>
-                    </span>
-                  )}
-                  {/* จองพื้นที่ตายตัว 2 บรรทัดทั้งชื่อและเนื้อความ (user report 2026-07-31 "card มันไม่เท่ากัน")
-                      เดิมชื่อยาว 1-2 บรรทัดไม่แน่นอน และ body ที่ว่างไม่ถูก render เลย ({qm.body && ...})
-                      → โครงข้างในการ์ดแต่ละใบสูงไม่เท่ากัน พอ container เป็น flex ที่ยืดให้สูงเท่ากัน
-                      ช่องว่างเลยไปโผล่คนละตำแหน่ง ดูเหลื่อมกันทั้งแถว
-                      min-h-8 = 2 บรรทัดของ text-xs, min-h-7 = 2 บรรทัดของ text-2xs
-                      render <p> ของ body เสมอแม้ว่าง — ที่ว่างต้องถูกจองไว้เท่ากันทุกใบ */}
-                  <div className="p-2">
-                    {/* หมวดเป็นบรรทัดจองพื้นที่ตายตัวเหมือนชื่อ/เนื้อความ — การ์ดที่ไม่มีหมวดต้องสูงเท่ากัน
-                        ไม่งั้นแถวเหลื่อมกันทั้งชุด (บทเรียนเดียวกับ min-h-8/min-h-7 ด้านล่าง) */}
-                    <p className="mb-0.5 min-h-5 truncate">
-                      {qm.category && (
-                        <span className="badge bg-default-100 text-default-500 text-2xs">{qm.category}</span>
-                      )}
-                    </p>
-                    <p className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{qm.title}</p>
-                    <p className="text-default-700 mt-0.5 line-clamp-2 min-h-7 text-2xs">{qm.body}</p>
-                  </div>
-                </button>
-              )
-            })
+            groups.map((g) => (
+              <section key={g.key} className="mb-4 last:mb-0">
+                <p className="text-default-500 mb-2 text-2xs font-semibold">
+                  {g.label}
+                  <span className="text-default-400 ms-1.5 font-normal">({g.items.length})</span>
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {g.items.map((qm) => renderCard(qm, items.indexOf(qm)))}
+                </div>
+              </section>
+            ))
           )}
         </div>
       </div>

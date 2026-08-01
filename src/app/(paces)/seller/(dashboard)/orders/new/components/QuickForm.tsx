@@ -11,6 +11,7 @@
  */
 
 import { useState, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -33,6 +34,8 @@ interface Props {
   inventoryEnabled?: boolean
   subtotal: number
   total: number
+  /** feature 00024 — บล็อกวันเข้าใช้บริการ (variant="card") จาก OrderCreateForm */
+  appointmentBlock?: ReactNode
   /** compact = render ในโมดัลสร้างคำสั่งซื้อ (feature 00018) — footer sticky ในโมดัลแทน fixed viewport */
   compact?: boolean
 }
@@ -48,6 +51,7 @@ export default function QuickForm({
   inventoryEnabled = false,
   subtotal,
   total,
+  appointmentBlock,
   compact = false,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
@@ -109,6 +113,10 @@ export default function QuickForm({
           <p className="mt-1.5 text-xs text-danger">{(errors.items as { message?: string }).message}</p>
         )}
       </section>
+
+      {/* SECTION 3.5: วันเข้าใช้บริการ (feature 00024 — เฉพาะร้านที่เปิดคิวงาน)
+          หลังเลือกสินค้า/บริการแล้วค่อยนัดวัน ตาม Design Spec ส่วน C */}
+      {appointmentBlock}
 
       {/* SECTION 4: เพิ่มเติม — ส่วนลด/VAT/หมายเหตุ (ไม่ collapse; สไตล์เดียวกับ section อื่น) */}
       <section className={`border-b-8 border-default-100 ${secX} py-4`}>

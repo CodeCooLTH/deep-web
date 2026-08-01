@@ -17,6 +17,14 @@ import { prisma, loginAs, cleanup, type Seeded } from './helpers/auth'
 /**
  * สร้างร้านตามเงื่อนไขของฟีเจอร์ — ต้องระบุ kind/vertical เอง เพราะ createSeller() ของ helper
  * กลางสร้างร้าน INDIVIDUAL ซึ่งใช้ระบบนัดหมายไม่ได้
+ *
+ * IMPORTANT: ร้าน BUSINESS ต้องมีแถว ShopMember ด้วย ไม่ใช่แค่ Shop.userId
+ * ตั้งแต่ feature 00012 (ร้านธุรกิจ/ทีมงาน) การหา "ร้านที่ active" เดินสองทาง:
+ *   - PERSONAL → getPersonalShop() จับจาก Shop.userId + kind='PERSONAL'
+ *   - BUSINESS → jwt callback (lib/auth.ts) หา ShopMember แถวแรก แล้วตั้งเป็น token.activeShopId
+ *     จากนั้น resolveActiveShopContext() re-verify membership อีกชั้น (ไม่ trust JWT เปล่า ๆ)
+ * ถ้า seed แต่ Shop.userId ร้าน BUSINESS จะ "ล่องหน" — layout เด้งไป /choose-shop ทุกหน้า
+ * แล้วเทสจะแดงยกชุดโดยที่ฟีเจอร์ไม่ได้พัง (เจอจริง 2026-07-31 ตอนรัน E2E ชุดนี้ครั้งแรก)
  */
 async function createShop(opts: {
   kind: 'BUSINESS' | 'PERSONAL'
@@ -41,7 +49,19 @@ async function createShop(opts: {
       vertical: opts.vertical,
     },
   })
-  return { userId: user.id, shopId: shop.id, needsRegistration: false, needsOnboarding: false }
+  if (opts.kind === 'BUSINESS') {
+    await prisma.shopMember.create({
+      data: { shopId: shop.id, userId: user.id, role: 'OWNER' },
+    })
+  }
+  return {
+    userId: user.id,
+    shopId: shop.id,
+    needsRegistration: false,
+    needsOnboarding: false,
+    // ร้าน BUSINESS ต้องบอก activeShopId ตรง ๆ (ดูเหตุผลใน Seeded.activeShopId)
+    ...(opts.kind === 'BUSINESS' ? { activeShopId: shop.id } : {}),
+  }
 }
 
 test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (กลุ่ม B)', () => {
@@ -54,13 +74,17 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
       await loginAs(context, seeded)
       await page.goto('/queues')
 
-      await expect(page.getByRole('heading', { name: 'คิวงานที่รับได้' })).toBeVisible()
       // ยังไม่มีคิวงาน → ต้องเห็น empty state ที่สอนว่าต้องทำอะไรต่อ ไม่ใช่หน้าว่าง
-      await expect(page.getByText('ยังไม่มีคิวงานที่รับได้')).toBeVisible()
+      // (หัวเรื่อง 'คิวงานที่รับได้' เป็นของ card ตอน "มีรายการแล้ว" — ตอนว่างใช้ empty state แทน)
+      await expect(page.getByRole('heading', { name: 'เริ่มต้นด้วยการเพิ่มคิวงาน' })).toBeVisible()
+      await expect(page.getByText('คิวงานคือสิ่งที่จำกัดว่ารับลูกค้าได้กี่รายพร้อมกัน')).toBeVisible()
       await expect(page.getByRole('link', { name: /เพิ่มคิวงาน/ })).toBeVisible()
 
-      // เมนูทั้งสองของฟีเจอร์ต้องโผล่ (gate ชั้นเมนู)
-      await expect(page.getByRole('link', { name: 'คิวงาน' })).toBeVisible()
+      // เมนูของฟีเจอร์ต้องโผล่ (gate ชั้นเมนู) — เมนูอยู่ทั้ง sidebar และ nav มือถือ
+      // จับเฉพาะใบที่มองเห็นจริงบน viewport ปัจจุบัน
+      await expect(
+        page.getByRole('link', { name: 'คิวงาน' }).locator('visible=true').first(),
+      ).toBeVisible()
       
     } finally {
       await cleanup(seeded.userId)
@@ -131,7 +155,10 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
       await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
 
       await page.waitForURL('**/queues')
-      await expect(page.getByText('หมอนวด A')).toBeVisible()
+      // ResourceList render สองชุดพร้อมกัน (การ์ดมือถือ + ตารางเดสก์ท็อป สลับด้วย CSS)
+      // ชื่อคิวงานจึงอยู่ใน DOM สองที่เสมอ — .first() ใช้ไม่ได้เพราะใบแรกคือใบมือถือที่
+      // ถูก lg:hidden ซ่อนอยู่บนจอเดสก์ท็อป ต้องจับ "ใบที่ผู้ใช้เห็นจริง"
+      await expect(page.getByText('หมอนวด A').locator('visible=true')).toBeVisible()
 
       const row = await prisma.serviceResource.findFirst({
         where: { shopId: seeded.shopId, name: 'หมอนวด A' },
@@ -157,7 +184,8 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
       await page.getByLabel('ชื่อคิวงาน').fill('คลาสเช้า')
       await page.getByLabel('จำนวนคิวที่รับพร้อมกัน').fill('8')
       await page.getByLabel('เก็บมัดจำแบบ').selectOption('PERCENT')
-      await page.getByLabel('จำนวน').fill('30')
+      // exact: true — ไม่งั้นชนกับ 'จำนวนคิวที่รับพร้อมกัน' ที่มีคำว่า "จำนวน" อยู่ด้วย
+      await page.getByLabel('จำนวน', { exact: true }).fill('30')
 
       // กล่องตัวอย่างคิดจากออเดอร์สมมติ 1,000 บาท → มัดจำ 300 เหลือจ่ายหน้างาน 700
       await expect(page.getByText('มัดจำ ฿300')).toBeVisible()
@@ -188,7 +216,10 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
       await page.getByLabel('จำนวนคิวที่รับพร้อมกัน').fill('0')
       await page.getByRole('button', { name: 'เพิ่มคิวงาน' }).click()
 
-      await expect(page.getByText('จำนวนคิวต้องมีอย่างน้อย 1')).toBeVisible()
+      // ข้อความของ Yup ฝั่งฟอร์ม (ResourceForm) — ไม่ใช่ของ Valibot ฝั่ง API
+      // ('จำนวนคิวต้องมีอย่างน้อย 1' ที่ validations.ts:1266) เพราะฟอร์มกันไว้ก่อนถึง API
+      // ซึ่งถูกแล้ว: ผู้ใช้ได้ error ทันทีโดยไม่ต้องรอ round-trip
+      await expect(page.getByText('รับได้อย่างน้อย 1 คิว')).toBeVisible()
       const count = await prisma.serviceResource.count({ where: { shopId: seeded.shopId } })
       expect(count).toBe(0)
     } finally {
@@ -223,7 +254,8 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
       await page.getByRole('button', { name: 'ลบช่างสมชาย' }).first().click()
       await page.getByRole('button', { name: 'ลบ', exact: true }).click()
 
-      await expect(page.getByText('ลบไม่ได้')).toBeVisible()
+      // Swal มีคำว่า "ลบไม่ได้" ทั้งใน title และ text → .first() จับ title
+      await expect(page.getByText('ลบไม่ได้').first()).toBeVisible()
       await expect(page.getByRole('button', { name: 'ปิดการใช้งานแทน' })).toBeVisible()
 
       // คิวงานต้องยังอยู่
@@ -242,13 +274,22 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
   test('ไม่มีนัดวันนี้ → เห็นสถานะว่างที่บอกว่านัดจะขึ้นเมื่อไร', async ({ context, page }) => {
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {
+      // ต้องมีคิวงานอย่างน้อย 1 ก่อน — ยังไม่มีคิวงาน = ยังจองอะไรไม่ได้ ปฏิทินจึงถูกซ่อน
+      // ตั้งใจ (queues/page.tsx:57) ไม่ให้ร้านเปิดใหม่เจอตารางเดือนเปล่าเต็มจอแล้วสับสน
+      await prisma.serviceResource.create({
+        data: { shopId: seeded.shopId, name: 'ช่องบริการ 1', capacity: 1 },
+      })
       await loginAs(context, seeded)
       await page.goto('/queues')
 
       // ปฏิทิน Paces (FullCalendar) อยู่ในหน้าคิวงานหน้าเดียวกัน
-      await expect(page.getByRole('button', { name: 'เดือน' })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'สัปดาห์' })).toBeVisible()
+      // FullCalendar render ปุ่มมุมมองไว้หลายชุด (toolbar + ชุดสำรองของ responsive)
+      await expect(page.getByRole('button', { name: 'เดือน' }).first()).toBeVisible()
+      await expect(page.getByRole('button', { name: 'สัปดาห์' }).first()).toBeVisible()
+      // ไม่มีนัด → ช่องวันต้องไม่มีตัวเลข "จองแล้ว n/m" ค้างอยู่
+      await expect(page.getByText('เต็ม')).toHaveCount(0)
     } finally {
+      await prisma.serviceResource.deleteMany({ where: { shopId: seeded.shopId } })
       await cleanup(seeded.userId)
     }
   })
@@ -325,6 +366,51 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     }
   })
 
+  /**
+   * regression — วันที่ที่ปฏิทินส่งมาต้อง "มองเห็นได้โดยไม่ต้องกางเอง"
+   *
+   * เคยพังจริง: commit 58e5b33b ย้ายบล็อกนัดเข้าไปใน accordion ของแผงขวา ซึ่งพับอยู่
+   * และ **ไม่ถูก render เลย** ตอนพับ ผู้ใช้ที่กดวันในปฏิทินจึงไม่เห็นว่ามีวันที่ถูกพามา
+   * แล้วกดบันทึกไป ได้ออเดอร์เปล่าที่ไม่มีนัดโดยไม่มี error อะไรเลย
+   */
+  test('กดวันในปฏิทินแล้วมาที่ฟอร์ม — accordion ต้องกางเองและโชว์วันที่บนหัว', async ({
+    context,
+    page,
+  }) => {
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    try {
+      await prisma.serviceResource.create({
+        data: { shopId: seeded.shopId, name: 'ช่องบริการ 1', capacity: 2, durationMinutes: 60 },
+      })
+      await loginAs(context, seeded)
+
+      const d = new Date(Date.now() + 3 * 86_400_000)
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      await page.goto(`/orders/new?appointmentDate=${dateKey}`)
+
+      // accordion กางเอง → ช่องเลือกคิวงานมองเห็นได้ทันที ไม่ต้องกด
+      const resourceSelect = page.getByLabel('รับนัดโดย').locator('visible=true')
+      await expect(resourceSelect).toBeVisible()
+
+      // วันที่อ่านได้จากหัว accordion พร้อมชื่อวัน (formatWeekdayDateTH)
+      await expect(
+        page.getByText(/^(จันทร์|อังคาร|พุธ|พฤหัสบดี|ศุกร์|เสาร์|อาทิตย์) /).locator('visible=true'),
+      ).toBeVisible()
+
+      // ยังไม่เลือกคิวงาน = ออเดอร์นี้จะไม่มีนัด ต้องเตือนไว้ก่อน
+      await expect(page.getByText('ยังไม่ได้เลือกคิวงาน').locator('visible=true')).toBeVisible()
+
+      // เลือกคิวงานแล้ววันที่โผล่พร้อมค่าที่พามา และคำเตือนหายไป
+      await resourceSelect.selectOption({ index: 1 })
+      const dateField = page.getByLabel('วันที่นัด').locator('visible=true')
+      await expect(dateField).toHaveValue(dateKey)
+      await expect(page.getByText('ยังไม่ได้เลือกคิวงาน')).toHaveCount(0)
+    } finally {
+      await prisma.serviceResource.deleteMany({ where: { shopId: seeded.shopId } })
+      await cleanup(seeded.userId)
+    }
+  })
+
   test('ร้านที่มีคิวงานแล้ว เห็นบล็อกวันนัด และค่าเริ่มต้นคือไม่ตั้งวันนัด', async ({
     context,
     page,
@@ -337,8 +423,17 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
       await loginAs(context, seeded)
       await page.goto('/orders/new')
 
-      await expect(page.getByText('วันเข้าใช้บริการ')).toBeVisible()
-      const select = page.getByLabel('รับนัดโดย')
+      // บล็อกนี้อยู่ใน DOM สองที่เสมอ (การ์ดใน QuickForm มือถือ + หัว accordion ใน CartPanel
+      // เดสก์ท็อป — สลับด้วย CSS ไม่ใช่ React) จึงต้อง .first() ทุกตัวที่จับด้วยข้อความ
+      const trigger = page.getByText('วันเข้าใช้บริการ').locator('visible=true')
+      await expect(trigger).toBeVisible()
+
+      // เดสก์ท็อป: บล็อกนี้เป็น accordion ในแผงขวาที่ "พับอยู่" โดยค่าเริ่มต้น (CartPanel)
+      // เนื้อในยังไม่ถูก render จนกว่าจะกดเปิด — ต้องกดเหมือนผู้ใช้จริงก่อนถึงจะเห็นช่องเลือก
+      // (มือถือเป็นการ์ดกางอยู่แล้ว จึงไม่ต้องกด แต่ที่ viewport ของเทสคือเดสก์ท็อป)
+      await trigger.click()
+
+      const select = page.getByLabel('รับนัดโดย').locator('visible=true')
       await expect(select).toHaveValue('')
       // ยังไม่เลือกคิวงาน → ฟิลด์อื่นต้องยังไม่โผล่ (progressive reveal)
       await expect(page.getByLabel('วันที่นัด')).toHaveCount(0)

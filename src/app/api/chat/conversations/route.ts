@@ -15,6 +15,7 @@ import {
 import { enrichWithOrderStage } from "@/services/order-stage.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
 import { sweepStuckJobs } from "@/services/auto-reply.service";
+import { syncShipmentStatuses } from "@/services/iship.service";
 
 // per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
 // (บทเรียนโปรเจกต์ 2026-07-04: default header เป็น public ทำให้ carrier cache ข้าม user)
@@ -244,6 +245,17 @@ export async function GET(request: NextRequest) {
         await sweepStuckJobs({ shopId: sweepShopId, limit: 5 });
       } catch (e) {
         console.error("[chat] sweep งานตอบอัตโนมัติล้มเหลว", e instanceof Error ? e.message : e);
+      }
+
+      // ดึงสถานะพัสดุจาก iShip มาเติมป้ายในรายการแชท (feature 00022)
+      //
+      // เกาะจังหวะเดียวกับ sweep ข้างบนด้วยเหตุผลเดียวกัน: cron ของแพลนนี้เป็นรายวัน
+      // แต่แอดมินเปิดกล่องข้อความบ่อยกว่านั้นมาก — ตัว service กันความถี่เองไว้ที่ 15 นาที
+      // จึงกดรีเฟรชรัว ๆ ก็ไม่ยิง iShip เกินรอบ
+      try {
+        await syncShipmentStatuses(sweepShopId);
+      } catch (e) {
+        console.error("[chat] sync สถานะพัสดุล้มเหลว", e instanceof Error ? e.message : e);
       }
     });
 

@@ -68,18 +68,23 @@ const ALL = ''
  * ไม่มาตามนัด = danger เพราะเป็นผลลบจริง
  */
 const STATUS_CLASS: Record<AppointmentStatus, string> = {
-  SCHEDULED: 'bg-warning border-warning text-white',
-  CONFIRMED_BY_BUYER: 'bg-success border-success text-white',
-  RESCHEDULE_REQUESTED: 'bg-warning border-warning text-white',
-  COMPLETED: 'bg-success border-success text-white',
-  NO_SHOW: 'bg-danger border-danger text-white',
+  SCHEDULED: 'appt-ev-scheduled',
+  CONFIRMED_BY_BUYER: 'appt-ev-confirmed',
+  RESCHEDULE_REQUESTED: 'appt-ev-reschedule',
+  COMPLETED: 'appt-ev-completed',
+  NO_SHOW: 'appt-ev-noshow',
 }
 
+/**
+ * จุดสีในคำอธิบายใต้ปฏิทิน ต้องแยกได้ครบ 5 สถานะเท่ากับป้ายบนปฏิทิน
+ * เดิม 5 สถานะยุบเหลือ 3 สี ทำให้ "ลูกค้าขอเลื่อน" (สถานะเดียวที่ร้านต้องลงมือทำ)
+ * หน้าตาเหมือน "นัดแล้ว" เป๊ะ — กวาดตาทั้งเดือนแล้วหาใบที่ต้องโทรกลับไม่เจอ
+ */
 const STATUS_DOT: Record<AppointmentStatus, string> = {
   SCHEDULED: 'bg-warning',
   CONFIRMED_BY_BUYER: 'bg-success',
-  RESCHEDULE_REQUESTED: 'bg-warning',
-  COMPLETED: 'bg-success',
+  RESCHEDULE_REQUESTED: 'bg-info',
+  COMPLETED: 'bg-default-500',
   NO_SHOW: 'bg-danger',
 }
 
@@ -265,7 +270,8 @@ export default function AppointmentCalendar({ resources }: Props) {
           end: it.end,
           // นัดรายวัน (FR-RSV-13) ให้ FullCalendar วางเป็น all-day ไม่ใช่แถบเวลา 00:00-00:00
           allDay: isAllDayAppointment(new Date(it.start), new Date(it.end)),
-          className: STATUS_CLASS[status] ?? 'bg-default-400 border-default-400 text-white',
+          // fallback ใช้สีของ "จบแล้ว" — สถานะที่ไม่รู้จักไม่ควรดูเหมือนสิ่งที่ต้องลงมือทำ
+          className: STATUS_CLASS[status] ?? 'appt-ev-completed',
         }
       }),
     [items, resourceId],
@@ -388,6 +394,18 @@ export default function AppointmentCalendar({ resources }: Props) {
           // ถ้าเปิดไว้ผู้ใช้จะลากแล้วเข้าใจว่าบันทึกแล้วทั้งที่ไม่ได้บันทึก
           editable={false}
           selectable={false}
+          /**
+           * เพิ่มจาก theme (theme กับ BookingCalendar ของ 00017 ไม่ได้ตั้งค่านี้)
+           *
+           * ค่า default ของ FullCalendar คือ 'auto' ซึ่งแปลว่านัด "แบบมีเวลา" ในมุมมองเดือน
+           * จะถูก render เป็น dot event (จุด + ข้อความ พื้นหลังโปร่งใสเสมอ) → class
+           * bg-warning/bg-success/bg-danger ไม่มีผลเลย เหลือแค่ text-white ที่กลืนไปกับ
+           * พื้นช่องวัน วัดได้จริง contrast 1.04:1 (ต้องการ 4.5:1) และทุกสถานะหน้าตาเหมือนกันหมด
+           *
+           * 00017 ไม่เจอปัญหานี้เพราะการจองห้องพักเป็น all-day ซึ่ง render เป็นบล็อกอยู่แล้ว
+           * ร้านที่ตั้งหน่วยเวลาเป็นรายวันของ 00024 ก็รอดด้วยเหตุผลเดียวกัน
+           */
+          eventDisplay="block"
           dayMaxEvents={3}
         />
 

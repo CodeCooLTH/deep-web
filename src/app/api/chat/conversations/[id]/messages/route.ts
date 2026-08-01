@@ -32,9 +32,11 @@ function mapChatServiceError(e: unknown, context: string) {
     return NextResponse.json({ error: "ไม่พบสินค้านี้ในร้านค้านี้" }, { status: 400 });
   }
   if (e instanceof Error && e.message === "WINDOW_CLOSED") {
-    // feature 00018: เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า — Meta ไม่ให้ส่ง
+    // feature 00018: หมดหน้าต่างที่ Meta ให้ส่ง — ครอบทั้งเกิน 24 ชม. (เมื่อยังไม่เปิด HUMAN_AGENT)
+    // และเกิน 7 วัน (เมื่อเปิดแล้ว) จึงไม่ระบุตัวเลขในข้อความ ปล่อยให้แถบในเธรดบอกรายละเอียดแทน
+    // — แถบนั้นรู้ว่าร้านได้ permission human_agent หรือยัง ส่วน route นี้ไม่รู้
     return NextResponse.json(
-      { error: "เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความไม่ได้จนกว่าลูกค้าจะทักมาใหม่" },
+      { error: "หมดเวลาที่ Meta อนุญาตให้ส่งข้อความในเธรดนี้ — ต้องรอให้ลูกค้าทักเข้ามาใหม่" },
       { status: 409 },
     );
   }

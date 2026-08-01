@@ -15,7 +15,7 @@
  *       (ปุ่มเลือกที่อยู่ + AddressSearchSheet), ShipmentPanel.tsx (ปุ่ม submit + spinner)
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -239,6 +239,97 @@ export default function ShipmentCreateForm({
     () => items.reduce((s, it) => s + it.price * it.qty, 0),
     [items],
   )
+
+  /**
+   * ค่าส่งโดยประมาณ — ถามขนส่งจริงก่อนร้านกดปุ่มที่เสียเงิน
+   *
+   * ยิงได้บ่อยเพราะ check-price ไม่ก่อค่าใช้จ่าย แต่หน่วง 700ms หลังหยุดพิมพ์
+   * ไม่งั้นการพิมพ์น้ำหนัก "1.25" จะกลายเป็น 4 คำขอ
+   *
+   * ล้มเหลว = ไม่โชว์ราคา ไม่เด้ง error: ร้านไม่ได้สั่งให้ถามราคา และราคาที่ประเมินไม่ได้
+   * ก็ไม่ได้ขวางการเปิดพัสดุ
+   */
+  const [quote, setQuote] = useState<{
+    totalPrice: number
+    estimateDays: number | null
+    remoteArea: boolean
+  } | null>(null)
+  const [quoting, setQuoting] = useState(false)
+
+  const quoteKey = [
+    courierCode,
+    weight,
+    width,
+    length,
+    height,
+    form.subdistrict,
+    form.district,
+    form.province,
+    form.postcode,
+  ].join('|')
+
+  useEffect(() => {
+    const w = numOrUndefined(weight)
+    const wd = numOrUndefined(width)
+    const ln = numOrUndefined(length)
+    const ht = numOrUndefined(height)
+    const ready =
+      !!courierCode &&
+      w != null &&
+      wd != null &&
+      ln != null &&
+      ht != null &&
+      !!form.subdistrict &&
+      !!form.district &&
+      !!form.province &&
+      !!form.postcode
+    if (!ready) {
+      setQuote(null)
+      return
+    }
+
+    let alive = true
+    setQuoting(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/seller/iship/price', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            courierCode,
+            receiver: {
+              subdistrict: form.subdistrict,
+              district: form.district,
+              province: form.province,
+              postcode: form.postcode,
+            },
+            weight: w,
+            width: wd,
+            length: ln,
+            height: ht,
+          }),
+        })
+        if (!alive) return
+        if (!res.ok) {
+          setQuote(null)
+          return
+        }
+        setQuote(await res.json())
+      } catch {
+        if (alive) setQuote(null)
+      } finally {
+        if (alive) setQuoting(false)
+      }
+    }, 700)
+
+    return () => {
+      alive = false
+      clearTimeout(timer)
+    }
+    // quoteKey รวมทุกช่องที่มีผลต่อราคาไว้แล้ว — แยกเป็น dep ทีละตัวจะยิงซ้ำตอน form
+    // เปลี่ยน object identity โดยค่าที่เกี่ยวกับราคาไม่ได้เปลี่ยนเลย
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteKey])
 
   const hasLocality = !!(form.subdistrict || form.district || form.province || form.postcode)
   const localityMissing =
@@ -758,6 +849,39 @@ export default function ShipmentCreateForm({
                   </span>
                 </div>
               </>
+            )}
+          </div>
+
+          {/* ค่าส่งที่ขนส่งประเมิน — ร้านต้องเห็นตัวเลขก่อนกดปุ่มที่เสียเงินจริง
+              เป็นการประเมิน ไม่ใช่ราคาผูกพัน (BR-ISHIP-34) จึงเขียนกำกับไว้ตรง ๆ */}
+          <div className="mt-3 border-t border-dashed border-default-300 pt-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-default-500">ค่าส่งโดยประมาณ</span>
+              {quoting && !quote ? (
+                <span className="h-4 w-16 animate-pulse rounded bg-default-100" />
+              ) : quote ? (
+                <span className="font-semibold text-default-900">
+                  ฿{quote.totalPrice.toLocaleString('th-TH')}
+                </span>
+              ) : (
+                <span className="text-default-400">กรอกขนส่ง ขนาด และปลายทางให้ครบ</span>
+              )}
+            </div>
+            {quote && (
+              <p className="mb-0 mt-1 text-xs text-default-400">
+                ขนส่งประเมินจากขนาดและน้ำหนักที่แจ้ง — ค่าจริงอาจต่างถ้าชั่งแล้วไม่ตรง
+                {quote.estimateDays ? ` · ถึงปลายทางราว ${quote.estimateDays} วัน` : ''}
+              </p>
+            )}
+            {quote?.remoteArea && (
+              <p className="mb-0 mt-1 flex items-start gap-1.5 text-xs text-warning">
+                <Icon
+                  icon="tabler:map-pin-exclamation"
+                  className="mt-0.5 shrink-0 text-sm"
+                  aria-hidden="true"
+                />
+                ปลายทางเป็นพื้นที่ห่างไกล — มีค่าส่งเพิ่มและใช้เวลานานกว่าปกติ
+              </p>
             )}
           </div>
         </div>

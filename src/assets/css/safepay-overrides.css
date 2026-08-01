@@ -251,3 +251,18 @@ html[data-theme="dark"] .chat-header-logo {
   z-index: 40 !important;
 }
 
+
+/* ── รองรับ prefers-reduced-motion (เพิ่ม 2026-07-31 จาก Impeccable audit) ──
+ * คู่กับบล็อกเดียวกันใน (marketing)/marketing.css — สองสกินใช้ไฟล์ global คนละไฟล์
+ * เหตุผลเต็มอยู่ที่ marketing.css (PRODUCT.md ประกาศรองรับไว้ แต่ทั้ง repo ไม่มี guard เลย)
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.12s !important;
+    scroll-behavior: auto !important;
+  }
+}

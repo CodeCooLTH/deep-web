@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
@@ -68,6 +69,10 @@ export interface ChatMessageView {
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   // findMany ด้านล่างไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้วตั้งแต่ migration — แค่ประกาศ type เพิ่ม
   autoReplyKind: string | null
+  // seq — ลำดับที่แถวถูกบันทึกจริง ใช้ตัดสินเมื่อ createdAt เท่ากัน (ดูเหตุผลใน schema.prisma)
+  // findMany ไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้ว — ประกาศ type เพิ่มให้ฝั่ง client ใช้เรียงได้
+  // optional เพราะข้อความ optimistic ที่ client สร้างเองยังไม่มี seq จนกว่าจะบันทึกจริง
+  seq?: number
   // feature 00023 — "ทำไมบอทตอบข้อความนี้" ทั้งชุด สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
   //
   // ทุกค่าเป็น snapshot ที่ AutoReplyLog บันทึกไว้ **ตอนตัดสินใจตอบ** ไม่ใช่การคำนวณย้อนหลัง —
@@ -134,7 +139,7 @@ function customerLinkedWhere(mode: 'linked' | 'unlinked'): Prisma.ConversationWh
 }
 
 /** สถานะพัสดุของ "ออเดอร์ล่าสุด" ของลูกค้าในเธรดนั้น (feature 00018 — user สั่ง 2026-07-31) */
-export type ShipmentFilter = 'none' | 'unprinted' | 'printed'
+export type ShipmentFilter = 'none' | 'unprinted' | 'printed' | 'problem'
 
 /**
  * conversationIdsByShipmentState — id ของเธรดที่ออเดอร์ล่าสุดของลูกค้าอยู่ในสถานะพัสดุที่ระบุ
@@ -159,10 +164,11 @@ export async function conversationIdsByShipmentState(
       SELECT DISTINCT ON (o."customerId")
         o."customerId" AS "customerId",
         s."id"             AS "shipmentId",
-        s."labelPrintedAt" AS "labelPrintedAt"
+        s."labelPrintedAt" AS "labelPrintedAt",
+        s."carrierStatus"  AS "carrierStatus"
       FROM "Order" o
       LEFT JOIN LATERAL (
-        SELECT sh."id", sh."labelPrintedAt"
+        SELECT sh."id", sh."labelPrintedAt", sh."carrierStatus"
         FROM "OrderShipment" sh
         WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
         ORDER BY sh."createdAt" DESC
@@ -182,7 +188,11 @@ export async function conversationIdsByShipmentState(
           ? Prisma.sql`l."shipmentId" IS NULL`
           : state === 'unprinted'
             ? Prisma.sql`l."shipmentId" IS NOT NULL AND l."labelPrintedAt" IS NULL`
-            : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
+            : // ใช้รายชื่อสถานะชุดเดียวกับป้ายในแถว — ถ้านิยาม "มีปัญหา" สองที่ไม่ตรงกัน
+              // ตัวกรองจะกรองแล้วได้ผลไม่ตรงกับที่ตาเห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
+              state === 'problem'
+              ? Prisma.sql`l."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])`
+              : Prisma.sql`l."labelPrintedAt" IS NOT NULL`
       }
   `
   return rows.map((r) => r.id)
@@ -428,6 +438,24 @@ async function listConversations(
   }
 }
 
+/**
+ * cursor ของหน้าเธรด — รูปแบบ "<iso>|<seq>" (composite keyset)
+ *
+ * เดิมเป็น ISO ล้วนแล้วกรองด้วย createdAt < cursor ซึ่งพลาดเมื่อมีหลายข้อความเวลาเดียวกันเป๊ะ:
+ * แถวที่เสมอกับขอบหน้าจะถูกตัดทิ้งทั้งกลุ่มหรือซ้ำ (Meta ส่งเวลาข้อความระบบมาแค่ระดับวินาที
+ * จึงเสมอกันบ่อยจริง) — seq เข้ามาเป็นตัวตัดสิน
+ *
+ * ยังรับรูปเก่าได้ (seq = null) เพราะ client ที่เปิดค้างอยู่ตอน deploy ยังถือ cursor รูปเดิม
+ */
+function parseMessageCursor(raw?: string): { createdAt: Date; seq: number | null } | null {
+  if (!raw) return null
+  const [iso, seqRaw] = raw.split('|')
+  const createdAt = new Date(iso)
+  if (Number.isNaN(createdAt.getTime())) return null
+  const seq = Number(seqRaw)
+  return { createdAt, seq: seqRaw !== undefined && Number.isFinite(seq) ? seq : null }
+}
+
 // ---- getMessages ----
 // conversationId มาจาก client (path param) — ต้อง verify ownership จริงในนี้ (ต่างจาก listConversations*)
 export async function getMessages(
@@ -438,12 +466,27 @@ export async function getMessages(
   await assertParticipant(conversationId, actorUserId)
 
   const take = opts.take ?? 30
+  const cursor = parseMessageCursor(opts.cursor)
   const rows = await prisma.chatMessage.findMany({
     where: {
       conversationId,
-      ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
+      ...(cursor
+        ? cursor.seq === null
+          ? // cursor รูปเก่า (ISO ล้วน) ที่ client เดิมยังถืออยู่ — คงพฤติกรรมเดิมไว้
+            { createdAt: { lt: cursor.createdAt } }
+          : // keyset composite: เก่ากว่าจริง ๆ หรือเวลาเท่ากันแต่ seq น้อยกว่า
+            {
+              OR: [
+                { createdAt: { lt: cursor.createdAt } },
+                { createdAt: cursor.createdAt, seq: { lt: cursor.seq } },
+              ],
+            }
+        : {}),
     },
-    orderBy: { createdAt: 'desc' }, // ใหม่→เก่า (pagination); client reverse ก่อน render
+    // ใหม่→เก่า (pagination); client reverse ก่อน render
+    // seq เป็นตัวตัดสินเมื่อ createdAt เท่ากัน — Meta ส่งเวลาข้อความระบบ/การ์ดมาแค่ระดับวินาที
+    // ทำให้เสมอกันบ่อย ถ้าไม่มีตัวตัดสินลำดับจะไม่แน่นอนและกระโดดข้ามแถวตอนแบ่งหน้าได้
+    orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
     take: take + 1,
   })
   const hasMore = rows.length > take
@@ -513,7 +556,7 @@ export async function getMessages(
       ...m,
       autoReply: traceByMessageId.get(m.id) ?? null,
     })) as ChatMessageView[],
-    nextCursor: hasMore ? page[page.length - 1]!.createdAt.toISOString() : null,
+    nextCursor: hasMore ? `${page[page.length - 1]!.createdAt.toISOString()}|${page[page.length - 1]!.seq}` : null,
   }
 }
 
@@ -557,7 +600,7 @@ export async function sendMessage(params: {
       // idempotent-guard: ข้อความล่าสุดของ conversation เป็น PRODUCT + productRefId เดียวกัน → คืนแถวเดิม ไม่ insert ซ้ำ
       const lastMessage = await tx.chatMessage.findFirst({
         where: { conversationId: params.conversationId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
       })
       if (lastMessage && lastMessage.type === 'PRODUCT' && lastMessage.productRefId === params.productRefId) {
         // autoReply: ข้อความที่ "คน" เพิ่งส่ง ไม่มีบันทึกการตัดสินใจของบอทอยู่แล้วโดยนิยาม

@@ -42,6 +42,7 @@
  * กลับ PERSONAL (นั่นคือบั๊กเดิม)
  */
 import type { Metadata } from 'next'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -51,6 +52,7 @@ import { listConversationsForShop, countUnreadByConversation } from '@/services/
 import { listChannels } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
 import { enrichWithOrderStage } from '@/services/order-stage.service'
+import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
@@ -150,6 +152,18 @@ export default async function SellerInboxPage() {
     // unreadCount — badge ตัวเลขใน inbox list (user request 2026-07-23) นับสดจาก ChatMessage
     // (data model เก็บ read-state ระดับห้องเท่านั้น — ดู comment ที่ countUnreadByConversation)
     const unreadMap = await countUnreadByConversation(result.items.map((c) => c.id))
+
+    // ดึงสถานะพัสดุจาก iShip ก่อน enrich (feature 00022) — อยู่ใน after() จึงไม่หน่วงการโหลดหน้า
+    // รอบนี้ป้ายอาจยังเป็นค่าเดิม แล้ว safety-poll 20 วิของ InboxList จะพาค่าที่ sync แล้วมาเอง
+    // service กันความถี่ไว้ 15 นาที เปิดหน้าถี่แค่ไหนก็ไม่ยิง iShip เกินรอบ
+    const syncShopId = shop.id
+    after(async () => {
+      try {
+        await syncShipmentStatuses(syncShopId)
+      } catch (e) {
+        console.error('[inbox] sync สถานะพัสดุล้มเหลว', e instanceof Error ? e.message : e)
+      }
+    })
 
     // ป้ายขั้นตอนออเดอร์ล่าสุด (user request 2026-07-29) — service เดียวกับที่ GET /api/chat/conversations
     // ใช้ ไม่งั้นหน้าแรกกับหน้าที่โหลดจากการกรองจะแสดงไม่เหมือนกัน (ของเดิม enrich อยู่ใน route ทางเดียว

@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
-import { describeCarrierStatus } from "@/lib/iship/status";
+import { carrierStatusCodeFromId, describeCarrierStatus } from "@/lib/iship/status";
 import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
 import {
   buildCreateOrderPayload,
@@ -20,6 +20,7 @@ import {
   findMissingParcelFields,
   findMissingReceiverFields,
   findMissingSenderFields,
+  normalizeProvince,
   type DeepAddress,
   type MissingAddressField,
   type SenderAddress,
@@ -1405,4 +1406,203 @@ export async function cancelPickup(shopId: string, pickupId: string) {
     where: { id: pickupId },
     data: { status: "CANCELLED", cancelledAt: new Date() },
   });
+}
+
+// ─── sync สถานะพัสดุยกชุด ───────────────────────────────────────────────────
+
+/** เว้นระยะระหว่างการ sync — ร้านเปิดหน้าแชทถี่แค่ไหนก็ยิง iShip ไม่เกินนี้ */
+const STATUS_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+
+/** iShip จำกัดช่วงค้นหาไม่เกิน 7 วัน (ตอบ code 1009 ถ้าเกิน) — ขอ 6 วันกันเรื่องเขตเวลา */
+const SYNC_WINDOW_DAYS = 6;
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * syncShipmentStatuses — ดึงสถานะพัสดุทั้งร้านจาก iShip มาเขียนลง OrderShipment
+ *
+ * ทำไมต้องมี: สถานะขนส่งอัปเดตได้ทางเดียวคือ webhook ซึ่งยังไม่ได้ประสานกับ iShip
+ * (ยืนยัน 2026-07-31: ShipmentEvent 0 แถว, พัสดุที่เปิดไปแล้วทุกใบ carrierStatus = null)
+ * ป้ายสถานะในรายการแชทจึงค้างที่ "สร้างพัสดุแล้ว" ตลอดกาล
+ *
+ * ใช้ query_orders ซึ่งคืนทั้งชุดในคำขอเดียว — ไม่วน traces ทีละใบ เพราะร้านที่มีของเดินอยู่
+ * 100 ใบจะกลายเป็น 100 คำขอต่อรอบ
+ *
+ * เงียบเสมอเมื่อล้มเหลว: ตัวนี้ถูกเรียกเป็นงานเบื้องหลังตอนร้านเปิดหน้าแชท ร้านไม่ได้สั่ง
+ * และไม่ได้รออ่านผล — error ที่นี่ต้องไม่ทำให้รายการแชทพัง
+ *
+ * คืนจำนวนแถวที่สถานะเปลี่ยนจริง (0 = ไม่มีอะไรเปลี่ยน หรือยังไม่ถึงรอบ)
+ */
+export async function syncShipmentStatuses(
+  shopId: string,
+  opts?: { force?: boolean },
+): Promise<number> {
+  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  if (!account || account.status !== "ACTIVE") return 0;
+
+  const now = Date.now();
+  if (
+    !opts?.force &&
+    account.statusSyncedAt &&
+    now - account.statusSyncedAt.getTime() < STATUS_SYNC_INTERVAL_MS
+  ) {
+    return 0;
+  }
+
+  // พัสดุที่ยังต้องติดตาม — จบแล้ว (ส่งถึง/คืนสำเร็จ/หมดอายุ) ไม่ต้องถามซ้ำอีก
+  const tracking = await prisma.orderShipment.findMany({
+    where: {
+      shopId,
+      status: "CREATED",
+      trackingNo: { not: null },
+      OR: [
+        { carrierStatus: null },
+        { carrierStatus: { notIn: ["delivered", "return_success", "is_expired", "close"] } },
+      ],
+    },
+    select: { id: true, trackingNo: true, carrierStatus: true },
+  });
+  if (tracking.length === 0) {
+    await prisma.shopShippingAccount.update({
+      where: { shopId },
+      data: { statusSyncedAt: new Date() },
+    });
+    return 0;
+  }
+
+  const token = decryptToken(account.accessTokenEnc);
+  const end = new Date(now);
+  const start = new Date(now - SYNC_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  let rows: Awaited<ReturnType<typeof iship.queryOrders>>;
+  try {
+    rows = await withTokenGuard(shopId, () =>
+      iship.queryOrders(token, isoDate(start), isoDate(end)),
+    );
+  } catch {
+    // ไม่บันทึกเวลา = รอบหน้าลองใหม่ทันที ไม่ต้องรออีก 15 นาที
+    return 0;
+  }
+
+  const byTrack = new Map(rows.map((r) => [r.track_no, r]));
+  let changed = 0;
+
+  for (const s of tracking) {
+    const row = byTrack.get(s.trackingNo!);
+    if (!row) continue; // พัสดุที่เก่ากว่าช่วงที่ขอ — ปล่อยไว้ ไม่เดาสถานะแทนขนส่ง
+    const code = carrierStatusCodeFromId(row.status);
+    if (!code || code === s.carrierStatus) continue;
+
+    const changedAt = row.updated_at ? new Date(row.updated_at) : new Date();
+
+    await prisma.orderShipment.update({
+      where: { id: s.id },
+      data: {
+        carrierStatus: code,
+        carrierStatusText: describeCarrierStatus(code).text,
+        // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
+        // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
+        carrierStatusAt: changedAt,
+        // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
+        // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
+        // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
+        ...(code === "cancelled"
+          ? { status: "CANCELLED", cancelledAt: changedAt }
+          : {}),
+      },
+    });
+    changed += 1;
+  }
+
+  await prisma.shopShippingAccount.update({
+    where: { shopId },
+    data: { statusSyncedAt: new Date() },
+  });
+  return changed;
+}
+
+// ─── ประเมินค่าส่ง ──────────────────────────────────────────────────────────
+
+export interface PriceEstimate {
+  /** ค่าส่งรวมที่ขนส่งประเมิน (บาท) */
+  totalPrice: number;
+  /** จำนวนวันโดยประมาณ — null เมื่อขนส่งไม่ได้บอก */
+  estimateDays: number | null;
+  /** ปลายทางเป็นพื้นที่ห่างไกล — มีค่าส่งเพิ่มและใช้เวลานานกว่าปกติ */
+  remoteArea: boolean;
+}
+
+/**
+ * estimateShippingPrice — ถามค่าส่งก่อนเปิดพัสดุจริง (BR-ISHIP-34: เป็นการประเมิน ไม่ใช่ราคาผูกพัน)
+ *
+ * มีมาตั้งแต่แรกในชั้น client แต่ไม่เคยมีใครเรียก — ร้านจึงกดปุ่มที่เสียเงินจริงโดยไม่เคย
+ * เห็นตัวเลขสักครั้ง (ตรวจพบ 2026-07-31)
+ *
+ * ที่อยู่ผู้ส่งมาจากการตั้งค่าร้านเสมอ ไม่ให้ผู้เรียกส่งเข้ามา — ไม่งั้นหน้าจอจะประเมินราคา
+ * จากต้นทางที่ไม่ใช่ที่ส่งจริง
+ *
+ * BR-ISHIP-31 — ตำบลไปช่อง district, อำเภอไปช่อง amphure (กลับหัวกับชื่อฟิลด์ของ iShip)
+ */
+export async function estimateShippingPrice(
+  shopId: string,
+  input: {
+    courierCode: string;
+    receiver: {
+      subdistrict?: string | null;
+      district?: string | null;
+      province?: string | null;
+      postcode?: string | null;
+    };
+    weight: number;
+    width: number;
+    length: number;
+    height: number;
+  },
+): Promise<PriceEstimate> {
+  const { account, token } = await loadAccount(shopId);
+  const sender = senderOf(account);
+
+  const missingSender = findMissingSenderFields(sender);
+  if (missingSender.length > 0) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `ยังตั้งที่อยู่ผู้ส่งไม่ครบ — ขาด ${missingSender.join(", ")}`,
+      missingSender,
+    );
+  }
+
+  const r = input.receiver;
+  if (!r.subdistrict || !r.district || !r.province || !r.postcode) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      "ยังกรอกที่อยู่ปลายทางไม่ครบ จึงประเมินค่าส่งไม่ได้",
+    );
+  }
+
+  const price = await withTokenGuard(shopId, () =>
+    iship.checkPrice(token, {
+      courier_code: input.courierCode,
+      src_zipcode: sender.postcode ?? "",
+      src_province: normalizeProvince(sender.province),
+      src_amphure: sender.district ?? "", // อำเภอ
+      src_district: sender.subdistrict ?? "", // ตำบล
+      dst_zipcode: r.postcode ?? "",
+      dst_province: normalizeProvince(r.province),
+      dst_amphure: r.district ?? "", // อำเภอ
+      dst_district: r.subdistrict ?? "", // ตำบล
+      weight: input.weight,
+      width: input.width,
+      length: input.length,
+      height: input.height,
+    }),
+  );
+
+  const days = Number(price.estimate_shipping_date);
+  return {
+    totalPrice: price.total_price,
+    estimateDays: Number.isFinite(days) && days > 0 ? days : null,
+    remoteArea: Number(price.remote_area) > 0,
+  };
 }
