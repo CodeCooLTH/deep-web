@@ -86,6 +86,18 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // feature 00018 T5: vertical ยังต้อง query แยก (resolveActiveShopContext คืนแค่ shopId/kind/role/
   // locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวนี้แล้ว)
   const shopRow = await prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true, logo: true } })
+  // feature 00023 — ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI อยู่ไหม (ป้ายบนหัวเธรด)
+  const [chatbotCfg, testThread] = await Promise.all([
+    prisma.autoReplyConfig.findUnique({
+      where: { shopId: activeCtx.shopId },
+      select: { aiChatbotStatus: true },
+    }),
+    prisma.aiChatbotTestThread.findUnique({
+      where: { shopId_conversationId: { shopId: activeCtx.shopId, conversationId } },
+      select: { id: true },
+    }),
+  ])
+  const isChatbotTestThread = chatbotCfg?.aiChatbotStatus === 'TEST' && Boolean(testThread)
   if (!shopRow) {
     return (
       <SellerErrorState
@@ -313,6 +325,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         botPausedUntil={conversation.autoReplyPausedUntil ? conversation.autoReplyPausedUntil.toISOString() : null}
         botHandoffAt={conversation.handoffAt ? conversation.handoffAt.toISOString() : null}
         botHandoffReason={conversation.handoffReason}
+        isChatbotTestThread={isChatbotTestThread}
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}

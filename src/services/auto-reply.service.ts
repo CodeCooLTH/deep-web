@@ -538,8 +538,15 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
          * ลำดับการเขียนแน่นอนตอนเทส — คิวพังไม่ทำให้งานค้างสถานะเพราะ finish() ทำงานต่อเสมอ
          */
         await recordUnanswered({ shopId: job.shopId, rawText, normalizedText })
-        // เหตุผลที่บอทไม่ตอบ — รูปแบบเดียวกับ AI_ENHANCE:<reason> ของเส้นทาง Auto Reply
-        chatbotReason = chatbot.reason
+        /**
+         * เหตุผลที่บอทไม่ตอบ — บันทึกเฉพาะกรณีที่ ChatBot **ลองทำงานแล้วไม่สำเร็จ**
+         *
+         * WARNING (บั๊กจริง user เจอ 2026-08-01): เดิมบันทึกทุกเหตุผลรวมทั้ง OFFLINE/
+         * NOT_TEST_THREAD ซึ่งเกิดกับ *ทุกห้องของทุกร้าน* ที่ไม่เข้ากลุ่มคำ — หน้าประวัติ
+         * จึงเต็มไปด้วยแถว "ChatBot ปิดอยู่" ของร้านที่ไม่เคยเปิดใช้บอทเลย
+         * เหตุผลกลุ่มนี้ไม่ใช่ "ผลการทำงานของบอท" แต่คือ "บอทไม่ได้ถูกเรียกใช้"
+         */
+        if (!SILENT_CHATBOT_REASONS.has(chatbot.reason)) chatbotReason = chatbot.reason
       }
       return finish(
         job,
@@ -847,6 +854,12 @@ async function sendFallback(
   if (!sent.sent) return null
   return { sent: true, text, messageId: sent.messageId ?? null }
 }
+
+/**
+ * เหตุผลที่แปลว่า "ChatBot ไม่ได้ทำงานกับห้องนี้ตั้งแต่แรก" — ไม่บันทึกลงประวัติ
+ * เพราะเกิดกับทุกห้องที่ไม่เข้ากลุ่มคำ ไม่ได้บอกอะไรที่ร้านเอาไปแก้ได้
+ */
+const SILENT_CHATBOT_REASONS = new Set(['OFFLINE', 'NOT_TEST_THREAD', 'OUTSIDE_SCHEDULE'])
 
 type ChatbotOutcome =
   | { sent: true; text: string; messageId: string | null }

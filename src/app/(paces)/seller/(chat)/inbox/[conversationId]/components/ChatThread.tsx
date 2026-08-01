@@ -402,6 +402,8 @@ type Props = {
   botPausedUntil?: string | null
   botHandoffAt?: string | null
   botHandoffReason?: string | null
+  /** ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI (ChatBot อยู่โหมดทดสอบ) */
+  isChatbotTestThread?: boolean
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -606,6 +608,7 @@ export default function ChatThread({
   botPausedUntil = null,
   botHandoffAt = null,
   botHandoffReason = null,
+  isChatbotTestThread = false,
   channel,
   channelName,
   channelAvatarUrl,
@@ -986,6 +989,24 @@ export default function ChatThread({
           >
             <Icon icon="x" className="text-lg" />
           </button>
+        </div>
+      )}
+
+      {/* feature 00023 — ห้องนี้กำลังใช้ทดสอบ DeepAI (user สั่ง 2026-08-01)
+          ต้องเห็นตั้งแต่เปิดห้อง เพราะข้อความที่บอทส่งในโหมดนี้ถึงลูกค้าจริง
+          ไม่ใช่การจำลอง — คนที่ไม่รู้จะนึกว่าปลอดภัยแล้วลองพิมพ์เล่น */}
+      {isChatbotTestThread && (
+        <div className="px-4 pt-4">
+          <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+            <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              ห้องนี้กำลังใช้ทดสอบ DeepAI
+              <span className="block text-xs">ข้อความที่บอทตอบถูกส่งถึงลูกค้าจริง ไม่ใช่การจำลอง</span>
+            </span>
+            <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
+              ตั้งค่า
+            </Link>
+          </div>
         </div>
       )}
 
