@@ -48,6 +48,7 @@ const SKIP_LABEL: Record<string, string> = {
   OUTSIDE_SCHEDULE: 'อยู่นอกช่วงเวลาที่ตั้งให้บอททำงาน',
   NOT_TEST_THREAD: 'โหมดทดสอบ และแชทนี้ไม่ได้อยู่ในรายการทดสอบ',
   OFFLINE: 'ChatBot ปิดอยู่',
+  SUPERSEDED: 'ลูกค้าพิมพ์ต่อระหว่างที่บอทกำลังคิด — ตอบรวมในข้อความถัดไปแทน',
   SEND_FAILED: 'ส่งข้อความไม่สำเร็จ',
   UNEXPECTED_ERROR: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
 }

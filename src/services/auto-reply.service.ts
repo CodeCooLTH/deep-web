@@ -253,7 +253,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
   try {
     const message = await prisma.chatMessage.findUnique({
       where: { id: job.chatMessageId },
-      select: { body: true, senderRole: true, autoReplyKind: true, type: true, imageUrl: true },
+      select: { body: true, senderRole: true, autoReplyKind: true, type: true, imageUrl: true, createdAt: true },
     })
 
     // gate 0 — ข้อความฝั่งร้าน (รวมคำตอบของบอทเอง) ห้ามนำมาตรวจจับเด็ดขาด (BR-AR-22)
@@ -509,6 +509,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           customerText: rawText,
           // รูปที่ลูกค้าส่งมา — ส่งให้ AI ดูด้วย ไม่งั้นข้อความรูปล้วนจะไม่มีอะไรให้ตอบเลย
           imageUrls: message.imageUrl ? [message.imageUrl] : [],
+          messageAt: message.createdAt,
         })
         if (chatbot.sent) {
           await prisma.conversation.update({
@@ -857,11 +858,67 @@ type ChatbotOutcome =
  * เดิมคืน null ทุกกรณี บันทึกจึงไม่มีอะไรบอกว่าทำไมบอทเงียบ — ต้องไล่ query ฐาน prod
  * เทียบกับตาราง usage ทีละครั้งถึงจะรู้ (เกิดขึ้น 4 รอบในวันเดียว 2026-08-01)
  */
+/**
+ * มีข้อความใหม่ของลูกค้าเข้ามาหลังข้อความที่กำลังตอบไหม
+ *
+ * user 2026-08-01 ปฏิเสธการหน่วง 10 วินาที ("ไม่อยากให้หน่วง") — จึงใช้วิธีตรงข้าม:
+ * ตอบทันทีเหมือนเดิม แต่ถ้าระหว่างที่คิดคำตอบอยู่ลูกค้าพิมพ์ต่อ ให้ทิ้งคำตอบนี้
+ * แล้วปล่อยให้งานของข้อความล่าสุดตอบรวมทีเดียว
+ *
+ * ผลคือเคสปกติ (พิมพ์มาข้อความเดียว) ไม่ช้าลงแม้แต่มิลลิวินาทีเดียว ส่วนเคสพิมพ์รัว
+ * ได้คำตอบเดียวที่เข้าใจบริบทครบ แทนที่จะได้สามคำตอบที่ต่างคนต่างตอบคนละท่อน
+ */
+async function hasNewerBuyerMessage(conversationId: string, after: Date): Promise<boolean> {
+  const newer = await prisma.chatMessage.findFirst({
+    where: { conversationId, senderRole: 'BUYER', createdAt: { gt: after } },
+    select: { id: true },
+  })
+  return Boolean(newer)
+}
+
+/**
+ * รวมข้อความลูกค้าที่ยังไม่ได้ตอบให้เป็นคำถามเดียว
+ *
+ * ขอบเขต = ตั้งแต่ข้อความล่าสุดของฝั่งร้านเป็นต้นมา — ทุกอย่างก่อนหน้านั้นถือว่าตอบไปแล้ว
+ * จำกัด 5 ข้อความกัน prompt บวมจากลูกค้าที่พิมพ์รัวสิบกว่าบรรทัด
+ */
+async function collectPendingCustomerText(
+  conversationId: string,
+  upTo: Date,
+  fallback: string
+): Promise<string> {
+  const lastShop = await prisma.chatMessage.findFirst({
+    where: { conversationId, senderRole: 'SHOP', createdAt: { lte: upTo } },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  })
+  const rows = await prisma.chatMessage.findMany({
+    where: {
+      conversationId,
+      senderRole: 'BUYER',
+      type: 'TEXT',
+      body: { not: null },
+      createdAt: { lte: upTo, ...(lastShop ? { gt: lastShop.createdAt } : {}) },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+    select: { body: true },
+  })
+  const merged = rows
+    .reverse()
+    .map((r) => (r.body ?? '').trim())
+    .filter(Boolean)
+    .join('\n')
+  return merged || fallback
+}
+
 async function tryChatbotAnswer(params: {
   shopId: string
   conversationId: string
   customerText: string
   imageUrls?: string[]
+  /** เวลาของข้อความที่กำลังตอบ — ใช้ตรวจว่ามีข้อความใหม่แทรกไหม */
+  messageAt?: Date
 }): Promise<ChatbotOutcome> {
   try {
     const cfg = await prisma.autoReplyConfig.findUnique({
@@ -932,6 +989,14 @@ async function tryChatbotAnswer(params: {
       }
     }
 
+    /**
+     * ด่านที่ 1 ของการทิ้งคำตอบซ้ำซ้อน — เช็คก่อนเรียก AI เพราะตรงนี้ยังไม่เสียเงิน
+     * (ด่านที่ 2 อยู่ก่อนส่ง ดักกรณีลูกค้าพิมพ์ต่อระหว่างที่ AI กำลังคิด)
+     */
+    if (params.messageAt && (await hasNewerBuyerMessage(params.conversationId, params.messageAt))) {
+      return { sent: false, reason: 'SUPERSEDED' }
+    }
+
     const cap = await checkCapBeforeCall(params.shopId)
     if (!cap.allowed) return { sent: false, reason: 'DAILY_CAP_OR_NO_CREDIT' }
 
@@ -984,8 +1049,13 @@ async function tryChatbotAnswer(params: {
           }))
       : []
 
+    // รวมข้อความที่ลูกค้าพิมพ์รัวมาเป็นคำถามเดียว ("สนใจโช๊ค" + "สามล้อ" + "เท่าไร")
+    const customerText = params.messageAt
+      ? await collectPendingCustomerText(params.conversationId, params.messageAt, params.customerText)
+      : params.customerText
+
     const result = await answerFromKnowledge({
-      customerText: params.customerText,
+      customerText,
       imageUrls: params.imageUrls,
       products: products.map((p) => ({ name: p.name, price: p.price.toString() })),
       history,
@@ -1012,6 +1082,12 @@ async function tryChatbotAnswer(params: {
       // AI ตอบไม่ได้ (คลังไม่มีข้อมูล/ชนกฎ/ล้มเหลว) — ร้านเลือกได้ว่าจะเงียบหรือส่งข้อความสำรอง
       const fb = await sendFallback(params, cfg, status)
       return fb ?? { sent: false, reason: result.reason ?? 'AI_NO_ANSWER' }
+    }
+
+    // ด่านที่ 2 — ลูกค้าพิมพ์ต่อระหว่างที่ AI คิดอยู่ ทิ้งคำตอบนี้ ให้งานของข้อความ
+    // ล่าสุดตอบรวมแทน (โทเคนที่ใช้ไปแล้วยังถูกบันทึกด้านบน ไม่กลืนต้นทุนจริง)
+    if (params.messageAt && (await hasNewerBuyerMessage(params.conversationId, params.messageAt))) {
+      return { sent: false, reason: 'SUPERSEDED' }
     }
 
     const sent = await sendAutoReply({
