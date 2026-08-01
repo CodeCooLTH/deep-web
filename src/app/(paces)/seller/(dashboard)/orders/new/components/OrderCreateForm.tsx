@@ -738,7 +738,18 @@ export default function OrderCreateForm({
     <form
       id={formId}
       onSubmit={handleSubmit(onSubmit, (formErrors) => {
+        /**
+         * ต้องมี toast เสมอ — ไม่งั้นเดสก์ท็อปกดบันทึกแล้ว "เงียบสนิท"
+         * เพราะ error ของชื่อ/เบอร์อยู่ใน accordion ที่ (เดิม) ไม่ถูก render ตอนพับ
+         * (impeccable critique 2026-07-31 P0) ตอนนี้ CartPanel กาง accordion ที่มี error ให้แล้ว
+         * แต่ toast ยังจำเป็นเพราะเป็นสัญญาณเดียวที่เห็นได้ทันทีโดยไม่ต้องกวาดตาหา
+         */
+        pacesToast.error('กรอกข้อมูลไม่ครบ — ดูช่องที่ทำเครื่องหมายสีแดง')
+
         // scroll ไป field ที่ error แรก — กันคีย์บอร์ดมือถือบัง error ที่มองไม่เห็น
+        // ใช้ได้เฉพาะ field ที่ผูกด้วย register() ซึ่ง spread name ให้ (ที่อยู่จัดส่ง/ส่วนลด/VAT)
+        // ส่วน buyerName/buyerContact ผูกด้วย useController แบบ destructure จึงไม่มี name —
+        // ตรงนั้นพึ่ง toast + accordion ที่กางเองแทน
         const first = Object.keys(formErrors)[0]
         if (first) {
           document.querySelector(`[name="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -782,7 +793,9 @@ export default function OrderCreateForm({
           "ตัดทิ้ง" ทำให้ยอดรวม+ปุ่มบันทึกในแผงขวาหลุดหายไปเลย (วัดได้: การ์ดสูง 931px
           ในกล่อง 748px) minmax(0,1fr) บังคับให้ row ไม่เกิน container ลูกจึง scroll ในตัวเอง */}
       <div className={compact ? 'hidden' : 'hidden lg:grid lg:h-[calc(100vh-9.5rem)] lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-4 lg:overflow-hidden'}> {/* HR7 exception: viewport-lock + row clamp — Paces ไม่มี token */}
-        <div className="min-w-0 lg:h-full lg:overflow-y-auto">
+        {/* @container = ประกาศ containment ให้ ProductGrid วัดความกว้าง "แพน" แทน viewport
+            (ดูเหตุผลเต็มใน ProductGrid.tsx) — จุดเดียวในโปรเจกต์ที่ใช้ utility นี้ */}
+        <div className="@container min-w-0 lg:h-full lg:overflow-y-auto">
           <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
         </div>
         <div className="lg:h-full">

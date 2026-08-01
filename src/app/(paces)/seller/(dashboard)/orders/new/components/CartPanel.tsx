@@ -27,6 +27,8 @@ import CartLineItem from './CartLineItem'
 import CustomerSelectBlock from './CustomerSelectBlock'
 import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
+// SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับมือถือ (ดูเหตุผลใน order-options.ts)
+import { CHANNEL_OPTIONS, PAYMENT_OPTIONS } from './order-options'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
 
 const formatThb = (n: number) =>
@@ -34,21 +36,6 @@ const formatThb = (n: number) =>
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 // mirror ค่าที่ใช้ใน OrderCreateForm/PaymentChannelBlock
-const CHANNEL_OPTIONS = [
-  { value: 'STOREFRONT', label: 'หน้าร้าน' },
-  { value: 'FACEBOOK', label: 'Facebook' },
-  { value: 'LINE', label: 'Line' },
-  { value: 'TIKTOK', label: 'TikTok / TikTok Shop' },
-  { value: 'OTHER', label: 'อื่นๆ' },
-]
-const PAYMENT_OPTIONS = [
-  { value: 'CASH', label: 'เงินสด' },
-  { value: 'TRANSFER', label: 'โอนเงิน' },
-  { value: 'PROMPTPAY', label: 'พร้อมเพย์' },
-  { value: 'CARD', label: 'บัตรเครดิต/เดบิต' },
-  { value: 'COD', label: 'เก็บปลายทาง' },
-  { value: 'OTHER', label: 'อื่นๆ' },
-]
 
 type AccKey = 'customer' | 'payment' | 'shipping' | 'appointment' | 'note'
 
@@ -173,7 +160,19 @@ export default function CartPanel({
   const vatBase = subtotal - discountVal
   const vatAmount = round2(vatBase * (vatRate / 100))
   const total = round2(vatBase + vatAmount)
-  const count = items.length
+  /**
+   * "จำนวนแถว" ไม่เท่ากับ "จำนวนสินค้าจริง" — ฟอร์มเติมแถวเปล่ารอไว้เสมอ
+   * (spreadsheet pattern, OrderCreateForm.tsx:391-404) ทำให้ items.length ≥ 1 ตลอดเวลา
+   *
+   * เดิมใช้ items.length ตรง ๆ ผลคือ badge หัวตะกร้าขึ้น "1" ตั้งแต่เปิดหน้าทั้งที่ยังไม่ได้
+   * เพิ่มอะไร, empty state ที่สอนวิธีใช้ไม่มีทางถูกเห็น, และ disabled={count===0} ไม่เคยเป็นจริง
+   * (impeccable critique 2026-07-31 P1)
+   *
+   * predicate ต้องตรงกับที่ Yup transform ใช้ (OrderCreateForm.tsx:167-169) — ห้ามเขียนกฎซ้ำ
+   */
+  const count = items.filter(
+    (it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '',
+  ).length
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shippingHasError = !!(errors?.shippingAddress as any)
@@ -191,6 +190,20 @@ export default function CartPanel({
    * ใช้ idiom เดียวกับ shippingOpen ด้านบน — "เปิดถ้าผู้ใช้กด หรือถ้ามีเหตุที่ต้องเห็น"
    */
   const appointmentOpen = openKey === 'appointment' || !!appointmentPrefilledDate
+
+  /**
+   * ชื่อ+เบอร์ลูกค้าเป็นฟิลด์ "บังคับกรอก" แต่ถูกซ่อนใน accordion ที่พับเป็นค่าเริ่มต้น
+   * และเนื้อในไม่ถูก render ตอนพับ (`&&` ข้างล่าง) — ข้อความ error จึงไม่มีทางถูกแสดง
+   * ผลคือกดบันทึกแล้ว "ไม่มีอะไรเกิดขึ้น" ผู้ขายกดซ้ำแล้วสรุปว่าระบบเสีย
+   * (impeccable critique 2026-07-31 P0) ใช้ idiom เดียวกับ shippingOpen
+   */
+  const customerHasError = !!errors?.buyerName || !!errors?.buyerContact
+  const customerOpen = openKey === 'customer' || customerHasError
+
+  /** ป้ายบนหัว accordion ที่มี error — ใช้ primitive เดียวกับ badge "จำเป็น" ด้านล่าง */
+  const errorBadge = (
+    <span className="badge bg-danger/15 text-danger">ต้องแก้</span>
+  )
 
   const chevron = (active: boolean) => (
     <Icon icon="chevron-down" className={`ms-auto size-4 text-default-400 transition ${active ? 'rotate-180' : ''}`} />
@@ -247,9 +260,11 @@ export default function CartPanel({
       {/* ── accordion: ลูกค้า ── */}
       <div className="border-t border-default-200">
         <button type="button" onClick={() => toggle('customer')} className={accBtn}>
-          <Icon icon="user" className="size-4 text-default-400" /> ลูกค้า {chevron(openKey === 'customer')}
+          <Icon icon="user" className="size-4 text-default-400" /> ลูกค้า
+          {customerHasError && errorBadge}
+          {chevron(customerOpen)}
         </button>
-        {openKey === 'customer' && (
+        {customerOpen && (
           <div className="px-2 pb-2">
             <CustomerSelectBlock control={control} errors={errors} variant="embedded" setValue={setValue} />
           </div>
@@ -265,7 +280,7 @@ export default function CartPanel({
           <div className="flex flex-col gap-3 px-4 pb-4">
             <div>
               <div className="flex items-center justify-between">
-                <label className="form-label">ช่องทางการขาย</label>
+                <label htmlFor="cp-sales-channel" className="form-label">ช่องทางการขาย</label>
                 {/* S-4: ปุ่มดาวตั้งค่าเริ่มต้น — เขียน localStorage key เดียวกับมือถือ (DEFAULT_CHANNEL_KEY) */}
                 <button
                   type="button"
@@ -280,6 +295,7 @@ export default function CartPanel({
                 </button>
               </div>
               <Select
+                inputId="cp-sales-channel"
                 className="select2 react-select"
                 classNamePrefix="react-select"
                 isSearchable={false}
@@ -294,7 +310,7 @@ export default function CartPanel({
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <label className="form-label">วิธีชำระเงิน</label>
+                <label htmlFor="cp-payment-method" className="form-label">วิธีชำระเงิน</label>
                 {/* S-4: ปุ่มดาวตั้งค่าเริ่มต้น — เขียน localStorage key เดียวกับมือถือ (DEFAULT_PAYMENT_KEY) */}
                 <button
                   type="button"
@@ -309,6 +325,7 @@ export default function CartPanel({
                 </button>
               </div>
               <Select
+                inputId="cp-payment-method"
                 className="select2 react-select"
                 classNamePrefix="react-select"
                 isSearchable={false}
@@ -336,8 +353,8 @@ export default function CartPanel({
           {shippingOpen && (
             <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="form-label">ที่อยู่ / บ้านเลขที่ + ถนน<span className="ms-0.5 text-danger">*</span></label>
-                <input type="text" className="form-input" placeholder="123/4 ถ.สุขุมวิท" {...register('shippingAddress.line1')} />
+                <label htmlFor="cp-addr-line1" className="form-label">ที่อยู่ / บ้านเลขที่ + ถนน<span className="ms-0.5 text-danger">*</span></label>
+                <input id="cp-addr-line1" type="text" className="form-input" placeholder="123/4 ถ.สุขุมวิท" {...register('shippingAddress.line1')} />
               </div>
 
               {/* S-2: search-driven picker แทนช่อง ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ เดิม */}
@@ -360,27 +377,27 @@ export default function CartPanel({
               {manualAddrOpen && (
                 <>
                   <div>
-                    <label className="form-label">ตำบล / แขวง</label>
-                    <input type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.subdistrict')} />
+                    <label htmlFor="cp-addr-subdistrict" className="form-label">ตำบล / แขวง</label>
+                    <input id="cp-addr-subdistrict" type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.subdistrict')} />
                   </div>
                   <div>
-                    <label className="form-label">อำเภอ / เขต</label>
-                    <input type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.district')} />
+                    <label htmlFor="cp-addr-district" className="form-label">อำเภอ / เขต</label>
+                    <input id="cp-addr-district" type="text" className="form-input" placeholder="คลองเตย" {...register('shippingAddress.district')} />
                   </div>
                   <div>
-                    <label className="form-label">จังหวัด<span className="ms-0.5 text-danger">*</span></label>
-                    <input type="text" className="form-input" placeholder="กรุงเทพมหานคร" {...register('shippingAddress.province')} />
+                    <label htmlFor="cp-addr-province" className="form-label">จังหวัด<span className="ms-0.5 text-danger">*</span></label>
+                    <input id="cp-addr-province" type="text" className="form-input" placeholder="กรุงเทพมหานคร" {...register('shippingAddress.province')} />
                   </div>
                   <div>
-                    <label className="form-label">รหัสไปรษณีย์<span className="ms-0.5 text-danger">*</span></label>
-                    <input type="text" inputMode="numeric" className="form-input" placeholder="10110" {...register('shippingAddress.postcode')} />
+                    <label htmlFor="cp-addr-postcode" className="form-label">รหัสไปรษณีย์<span className="ms-0.5 text-danger">*</span></label>
+                    <input id="cp-addr-postcode" type="text" inputMode="numeric" className="form-input" placeholder="10110" {...register('shippingAddress.postcode')} />
                   </div>
                 </>
               )}
 
               <div className="sm:col-span-2">
-                <label className="form-label">หมายเหตุถึงผู้ส่ง</label>
-                <input type="text" className="form-input" placeholder="เช่น ฝากไว้ที่รปภ." {...register('shippingAddress.note')} />
+                <label htmlFor="cp-addr-note" className="form-label">หมายเหตุถึงผู้ส่ง</label>
+                <input id="cp-addr-note" type="text" className="form-input" placeholder="เช่น ฝากไว้ที่รปภ." {...register('shippingAddress.note')} />
               </div>
             </div>
           )}
@@ -433,6 +450,11 @@ export default function CartPanel({
 
       {/* ── footer: สรุป + บันทึก (pinned ล่างเสมอ) ── */}
       <div className="shrink-0 space-y-2 border-t border-default-200 p-4">
+        {/* error ของรายการสินค้า — เดิม render เฉพาะใน QuickForm ซึ่งอยู่ใน branch lg:hidden
+            เดสก์ท็อปจึงไม่มีทางเห็นข้อความ "ต้องมีสินค้าอย่างน้อย 1 รายการ" เลย */}
+        {errors?.items?.message && (
+          <p className="text-sm text-danger">{String(errors.items.message)}</p>
+        )}
         <div className="flex items-center justify-between text-sm">
           <span className="text-default-600">ยอดสินค้า</span>
           <span className="font-medium text-default-700">{formatThb(subtotal)}</span>

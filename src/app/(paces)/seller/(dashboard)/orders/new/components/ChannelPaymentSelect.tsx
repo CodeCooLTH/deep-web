@@ -12,20 +12,11 @@ import { useController } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import OptionPickerSheet, { type PickerOption } from './OptionPickerSheet'
+// SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับเดสก์ท็อป (ดูเหตุผลใน order-options.ts)
+import { CHANNEL_OPTIONS, PAYMENT_OPTIONS, labelOf } from './order-options'
 import type { FormValues } from './OrderCreateForm'
 
 // MVP: 4 ช่องทาง + 3 ชำระเงิน (ตาม mockup). OTHER/PROMPTPAY/CARD ปรับผ่าน desktop POS / order detail
-const CHANNEL_OPTIONS: PickerOption[] = [
-  { value: 'STOREFRONT', label: 'หน้าร้าน', icon: 'building-store' },
-  { value: 'FACEBOOK', label: 'Facebook', icon: 'brand-facebook' },
-  { value: 'LINE', label: 'LINE', icon: 'brand-line' },
-  { value: 'TIKTOK', label: 'TikTok', icon: 'brand-tiktok' },
-]
-const PAYMENT_OPTIONS: PickerOption[] = [
-  { value: 'CASH', label: 'เงินสด', icon: 'cash' },
-  { value: 'TRANSFER', label: 'โอนเงิน', icon: 'building-bank' },
-  { value: 'COD', label: 'เก็บเงินปลายทาง', icon: 'truck-delivery' },
-]
 
 export const DEFAULT_CHANNEL_KEY = 'deep.default.salesChannel'
 export const DEFAULT_PAYMENT_KEY = 'deep.default.paymentMethod'
@@ -85,7 +76,7 @@ export default function ChannelPaymentSelect({ control, compact = false }: Props
           <span className="w-28 shrink-0 text-sm font-semibold text-default-700">ช่องทางการขาย</span>
           <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
             {chOpt && <Icon icon={chOpt.icon} className="size-4 text-primary" />}
-            {chOpt?.label ?? '—'}
+            {labelOf(CHANNEL_OPTIONS, channelField.value) || '—'}
             <Icon icon="chevron-down" className="size-4 text-default-400" />
           </span>
         </button>
@@ -98,7 +89,7 @@ export default function ChannelPaymentSelect({ control, compact = false }: Props
           <span className="w-28 shrink-0 text-sm font-semibold text-default-700">การชำระเงิน</span>
           <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
             {pmOpt && <Icon icon={pmOpt.icon} className="size-4 text-primary" />}
-            {pmOpt?.label ?? '—'}
+            {labelOf(PAYMENT_OPTIONS, paymentField.value) || '—'}
             <Icon icon="chevron-down" className="size-4 text-default-400" />
           </span>
         </button>
