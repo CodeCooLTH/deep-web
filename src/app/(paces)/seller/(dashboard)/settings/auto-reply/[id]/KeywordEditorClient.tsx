@@ -19,6 +19,7 @@
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 // import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
@@ -704,15 +705,29 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                   </p>
                 )}
               </div>
-              {canEdit && (
-                // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
-                // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
-                <button type="button"
-                  className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 flex-none text-white max-sm:w-full sm:min-h-0"
-                  onClick={() => setSheetOpen(true)}>
-                  <Icon icon="plus" className="size-3" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
-                </button>
-              )}
+              {/* ทางเข้าคลังคำถาม (phase 00023-qna, S-15 แก้ 2026-08-01)
+                  เดิมเป็นปุ่มไอคอนในแถวของหน้ารายการกลุ่มคำ — ย้ายมาไว้ที่นี่ตามที่ user สั่ง
+                  เพราะคลังคำถามคือ "ทางที่สอง" ของการหาคำตอบให้กลุ่มนี้ จึงอยู่ในการ์ดคำตอบ
+                  ไม่ใช่ปุ่มลอยในแถวที่ผู้ใช้ต้องเดาว่าไอคอนหมายถึงอะไร
+                  ปุ่มรอง (bg-light) — ตัวหลักของการ์ดใบนี้ยังเป็น "เพิ่มเงื่อนไขเฉพาะ" */}
+              <div className="flex flex-none items-center gap-2 max-sm:w-full">
+                <Link
+                  href={`/settings/auto-reply/${keyword.id}/qna`}
+                  className="btn btn-sm bg-light text-default-700 min-h-11 flex-none max-sm:flex-1 sm:min-h-0"
+                >
+                  <Icon icon="message-2-bolt" className="size-3.5" aria-hidden="true" />
+                  คลังคำถาม
+                </Link>
+                {canEdit && (
+                  // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
+                  // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
+                  <button type="button"
+                    className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 flex-none text-white max-sm:flex-1 sm:min-h-0"
+                    onClick={() => setSheetOpen(true)}>
+                    <Icon icon="plus" className="size-3" aria-hidden="true" />เพิ่มเงื่อนไขเฉพาะ
+                  </button>
+                )}
+              </div>
             </div>
             <div className="card-body">
               {/* overflow-hidden เพิ่มจาก theme — กันเส้น accent ซ้ายของแถวสุดท้ายทะลุมุมที่ rounded */}

@@ -230,16 +230,10 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         header: 'การจัดการ',
         cell: ({ row }) => (
           <div className="flex items-center justify-center gap-1.5">
-            {/* คลังคำถาม-คำตอบของกลุ่มนี้ (phase 00023-qna, S-15) — ปุ่มไอคอนแบบเดียวกับ
-                "แก้ไข"/"ลบ" ที่อยู่ข้างกัน ไม่สร้างรูปแบบใหม่ในแถว */}
-            <Link
-              href={`/settings/auto-reply/${row.original.id}/qna`}
-              className="btn btn-icon btn-sm border-default-300 text-default-800 hover:border-default-400 border"
-              aria-label={`คลังคำถามของ ${row.original.name}`}
-              title="คลังคำถาม"
-            >
-              <Icon icon="message-2-bolt" className="text-base" aria-hidden="true" />
-            </Link>
+            {/* NOTE: ปุ่ม "คลังคำถาม" เคยอยู่ตรงนี้ (2026-08-01) แล้วย้ายออกในวันเดียวกันตาม
+                ที่ user สั่ง — ไปอยู่ในหน้าแก้ไขกลุ่มคำ ใต้การ์ด "คำตอบที่ลูกค้าจะได้รับ"
+                ซึ่งเป็นที่ที่มันควรอยู่ (คลังคือทางที่สองของการหาคำตอบให้กลุ่มนี้)
+                ไอคอนลอยในแถวทำให้ผู้ใช้ต้องเดาความหมาย ห้ามเอากลับมา */}
             <Link
               href={`/settings/auto-reply/${row.original.id}`}
               className="btn btn-icon btn-sm border-default-300 text-default-800 hover:border-default-400 border"
@@ -475,16 +469,7 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
-                {/* คลังคำถามของกลุ่มนี้ (S-15) — ปุ่มไอคอนแบบเดียวกับ "แก้ไข" ที่อยู่ข้างกัน */}
-                <Link
-                  href={`/settings/auto-reply/${k.id}/qna`}
-                  /* size-11 (44px) tap-target มือถือ — เหตุผลเดียวกับปุ่มสร้างด้านบน */
-                  className="btn btn-icon border-default-300 text-default-800 hover:border-default-400 size-11 min-h-0 border"
-                  aria-label={`คลังคำถามของ ${k.name}`}
-                  title="คลังคำถาม"
-                >
-                  <Icon icon="message-2-bolt" className="text-base" aria-hidden="true" />
-                </Link>
+                {/* ปุ่ม "คลังคำถาม" ย้ายไปหน้าแก้ไขกลุ่มคำแล้ว — ดูหมายเหตุในคอลัมน์ "การจัดการ" ของตาราง */}
                 <Link
                   href={`/settings/auto-reply/${k.id}`}
                   /* size-11 (44px) tap-target มือถือ — เหตุผลเดียวกับปุ่มสร้างด้านบน */
