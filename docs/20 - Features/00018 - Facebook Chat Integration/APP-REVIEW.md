@@ -37,7 +37,16 @@
 
 ### 2.2 `pages_manage_metadata` ✅ เขียนแล้ว
 
-> Deep uses this permission solely to manage webhook subscriptions for the Page the seller explicitly connects. On connect we call `POST /{page-id}/subscribed_apps` to subscribe to messaging events (`messages`, `message_echoes`, `message_reads`, `message_reactions`, `messaging_postbacks`, `messaging_referrals`) so incoming customer messages reach the seller's inbox in real time. When the seller disconnects the Page we call `DELETE /{page-id}/subscribed_apps` to stop receiving their data. We do not modify any other Page setting. Without it we cannot receive messages at all and cannot honour a disconnect request.
+ฟอร์มของ Meta ถาม 3 ประเด็นในช่องเดียว (ใช้ยังไง / ผู้ใช้ได้อะไร / ทำไมจำเป็น) — ฉบับนี้แยก
+ย่อหน้าตอบทีละข้อ ตรวจกับโค้ดแล้ว 2026-08-01 (`graph.ts` + `MESSENGER_SUBSCRIBED_FIELDS`)
+
+> Deep is a customer-service inbox that Thai online sellers use to answer messages from their own Facebook Page and linked Instagram account in one place.
+>
+> How we use the permission: it is used solely to manage this app's webhook subscription on the Page that the seller explicitly chooses during the connect flow. On connect we call `POST /{page-id}/subscribed_apps` with subscribed_fields = `messages`, `messaging_postbacks`, `message_reactions`, `message_echoes`, `message_reads`, `messaging_referrals`, so the Page's conversations are delivered to the seller's Deep inbox in real time. When the seller clicks "Disconnect" in Deep, we call `DELETE /{page-id}/subscribed_apps` so Meta immediately stops sending us that Page's data. We do not change the Page name, settings, tabs, or any other Page metadata, and we do not request analytics or insights with this permission.
+>
+> Value for the person using the app: the seller gets every customer message in one inbox they can answer from a computer or phone, together with their Instagram Direct messages, without switching between apps or leaving customers waiting. The same permission is what makes "Disconnect" honest — one click and the data flow actually stops on Meta's side, not just in our database.
+>
+> Why it is necessary: without the subscribe call no webhook events are delivered, so the inbox stays permanently empty and the product has no function at all; without the unsubscribe call we could not honour a seller's request to stop receiving their Page data. We never use data received through this permission for advertising, cross-app profiling, or resale.
 
 ### 2.3 `pages_messaging`
 
@@ -63,10 +72,9 @@
 
 ## 3. เช็คลิสต์ App Dashboard (งานนอกโค้ด — ต้องทำใน UI ของ Meta)
 
-- [ ] **Webhook callback URL** — 🛑 ของเดิมชี้ ngrok ที่ตายแล้ว ต้องเป็น
-      `https://seller.deepthailand.app/api/channels/facebook/webhook`
-      (verify token = ตัวเดียวกับ `FB_WEBHOOK_VERIFY_TOKEN` ใน Vercel Production)
-      **นี่เป็นความเสี่ยงข้อมูลลูกค้า ไม่ใช่แค่เรื่องผ่าน/ไม่ผ่านรีวิว** — ทำก่อนข้ออื่น
+- [x] **Webhook callback URL** — ✅ ชี้ prod จริงแล้ว (เคยเป็น ngrok ที่ตายแล้ว แต่แก้ไปแล้ว)
+      ยืนยัน 2026-08-01: query ฐาน prod พบ `ChatMessage` ของ `Conversation.channel='MESSENGER'`
+      210 ข้อความ ล่าสุดห่างจากเวลา query 28 วินาที = webhook เข้าจริงต่อเนื่อง
 - [ ] Privacy Policy URL → `https://deepthailand.app/privacy` *(ยืนยันแล้วว่า 200)*
 - [ ] Terms of Service URL → `https://deepthailand.app/terms` *(200)*
 - [ ] User Data Deletion → `https://deepthailand.app/data-deletion` *(200)*
@@ -80,6 +88,10 @@
 3. ลูกค้าส่งข้อความจาก Messenger/Instagram → เข้ามาในกล่องข้อความทันที
 4. **ผู้ขายพิมพ์ตอบด้วยมือ** ให้เห็นการพิมพ์จริง → ลูกค้าได้รับ
 5. กด "ยกเลิกการเชื่อมต่อ" → กลับไปส่งข้อความอีกครั้ง → ไม่เข้าแล้ว (พิสูจน์ว่า `DELETE subscribed_apps` ทำงานจริง)
+
+> ฝั่ง Instagram อัด screencast ได้เหมือนกัน — ยืนยัน 2026-08-01: ฐาน prod มีห้อง IG 1 ห้อง
+> 6 ข้อความ (Messenger 45 ห้อง 270 ข้อความ) = webhook ฝั่ง IG เข้าจริง ใช้ประกอบ
+> `instagram_basic` / `instagram_manage_messages` ได้
 
 ---
 
