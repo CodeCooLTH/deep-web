@@ -12,6 +12,9 @@ export interface ChatbotConfig {
   aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
+  aiChatbotShopOnly: boolean
+  aiChatbotOutOfScopeText: string | null
+  aiChatbotExtraPrompt: string | null
   aiChatbotFallbackMode: string
   aiChatbotFallbackText: string | null
   aiChatbotUseShopData: boolean
@@ -30,6 +33,9 @@ const DEFAULTS: ChatbotConfig = {
   aiChatbotStatus: 'OFFLINE',
   aiChatbotEnabled: false,
   aiChatbotTone: null,
+  aiChatbotShopOnly: false,
+  aiChatbotOutOfScopeText: null,
+  aiChatbotExtraPrompt: null,
   aiChatbotFallbackMode: 'MESSAGE',
   aiChatbotFallbackText: null,
   aiChatbotUseShopData: true,
@@ -51,6 +57,9 @@ export async function getChatbotConfig(shopId: string): Promise<ChatbotConfig> {
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotShopOnly: true,
+      aiChatbotOutOfScopeText: true,
+      aiChatbotExtraPrompt: true,
       aiChatbotFallbackMode: true,
       aiChatbotFallbackText: true,
       aiChatbotUseShopData: true,
@@ -81,6 +90,9 @@ export async function updateChatbotConfig(
       : {}),
     ...(input.aiChatbotEnabled !== undefined ? { aiChatbotEnabled: input.aiChatbotEnabled } : {}),
     ...(input.aiChatbotTone !== undefined ? { aiChatbotTone: input.aiChatbotTone?.trim() || null } : {}),
+    ...(input.aiChatbotShopOnly !== undefined ? { aiChatbotShopOnly: input.aiChatbotShopOnly } : {}),
+    ...(input.aiChatbotOutOfScopeText !== undefined ? { aiChatbotOutOfScopeText: input.aiChatbotOutOfScopeText?.trim() || null } : {}),
+    ...(input.aiChatbotExtraPrompt !== undefined ? { aiChatbotExtraPrompt: input.aiChatbotExtraPrompt?.trim() || null } : {}),
     ...(input.aiChatbotFallbackMode !== undefined ? { aiChatbotFallbackMode: input.aiChatbotFallbackMode } : {}),
     ...(input.aiChatbotFallbackText !== undefined ? { aiChatbotFallbackText: input.aiChatbotFallbackText ?.trim() || null } : {}),
     ...(input.aiChatbotUseShopData !== undefined ? { aiChatbotUseShopData: input.aiChatbotUseShopData } : {}),
@@ -104,6 +116,9 @@ export async function updateChatbotConfig(
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotShopOnly: true,
+      aiChatbotOutOfScopeText: true,
+      aiChatbotExtraPrompt: true,
       aiChatbotFallbackMode: true,
       aiChatbotFallbackText: true,
       aiChatbotUseShopData: true,

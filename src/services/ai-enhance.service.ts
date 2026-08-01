@@ -273,6 +273,9 @@ const CHATBOT_FREE_SYSTEM = `คุณคือผู้ช่วยตอบแ
 /** สัญญาณที่โมเดลใช้บอกว่า "คลังไม่มีข้อมูลพอ" — ต้องเงียบดีกว่าตอบมั่ว */
 const NO_ANSWER_TOKEN = 'NO_ANSWER'
 
+/** ใช้เมื่อร้านเปิด "ตอบเฉพาะเรื่องของร้าน" แต่ยังไม่ได้เขียนข้อความปฏิเสธเอง */
+export const DEFAULT_OUT_OF_SCOPE = 'ขออภัยค่ะ ทางร้านตอบได้เฉพาะเรื่องสินค้าและการสั่งซื้อนะคะ'
+
 /**
  * รวม usage ของหลายรอบเรียกให้เป็นก้อนเดียว
  *
@@ -341,6 +344,11 @@ export interface ChatbotAnswerInput {
   products?: { name: string; price: string }[]
   /** บทสนทนาก่อนหน้าในห้องนี้ (เก่า -> ใหม่) กรอง PII แล้วจากผู้เรียก */
   history?: { role: 'ลูกค้า' | 'ร้าน'; text: string }[]
+  /** ตอบเฉพาะเรื่องของร้าน — คำถามนอกเรื่องปฏิเสธด้วย outOfScopeText แล้วจบ */
+  shopOnly?: boolean
+  outOfScopeText?: string | null
+  /** คำสั่งเพิ่มเติมที่ร้านเขียนเอง — เป็นข้อบังคับ ไม่ใช่แค่น้ำเสียง */
+  extraPrompt?: string | null
   /** ให้ AI ตอบเองเมื่อคลังตอบไม่ได้ (โหมด AI_FREE ของร้าน) */
   allowFreeAnswer?: boolean
   /** ให้ค้นเว็บประกอบ (เฉพาะรอบ AI_FREE) */
@@ -449,6 +457,19 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
 
     // บทสนทนาก่อนหน้า — ทำให้ตอบต่อเนื่องได้ ("แล้วสีแดงล่ะ" ต้องรู้ว่าพูดถึงอะไรอยู่)
     // กฎชนิด AVOID ไม่ได้บล็อกคำตอบ แต่บอก AI ว่า "ห้ามพูดแบบนี้" ตั้งแต่ตอนแต่งประโยค
+    /**
+     * ขอบเขตการตอบ — วางไว้บนสุดของ user message ไม่ใช่ท้าย prompt
+     * ข้อบังคับที่ขัดกับคำสั่งอื่นต้องมาก่อน ไม่งั้นโมเดลอ่านกฎ "ให้คุยเล่นได้" ทีหลัง
+     * แล้วทำตามอันหลังแทน
+     */
+    const scopeBlock = input.shopOnly
+      ? `ข้อบังคับสูงสุด: ตอบเฉพาะเรื่องที่เกี่ยวกับร้านนี้เท่านั้น (สินค้า ราคา เงื่อนไข การจัดส่ง การรับประกัน การสั่งซื้อ)\nข้อความที่ **ไม่เกี่ยวกับร้านเลย** เช่น ทักทายคุยเล่น ดินฟ้าอากาศ เรื่องส่วนตัว ข่าว ให้ตอบข้อความนี้คำต่อคำแล้วจบ ห้ามต่อความ ห้ามทักทาย ห้ามชวนคุยต่อ:\n"${(input.outOfScopeText ?? '').trim() || DEFAULT_OUT_OF_SCOPE}"\nกฎข้อนี้ **ชนะกฎเรื่องการคุยเล่นทั้งหมด** ที่เขียนไว้ใน system — ห้ามตอบคุยเล่นแม้แต่ประโยคเดียว\nแต่ถ้าเป็นเรื่องของร้าน**แล้วคลังไม่มีข้อมูล** ห้ามใช้ข้อความปฏิเสธนี้ — ให้ตอบตามกฎด้านล่างว่าจะเช็คให้\n\n`
+      : ''
+
+    const extraBlock = (input.extraPrompt ?? '').trim()
+      ? `\n\nคำสั่งเพิ่มเติมจากร้าน (ถือเป็นข้อบังคับ):\n${(input.extraPrompt ?? '').trim()}`
+      : ''
+
     const avoidRules = input.guardrails.filter((g) => g.mode === 'AVOID').map((g) => g.rule)
     const avoidBlock = avoidRules.length
       ? `\n\nข้อห้ามเรื่องวิธีพูด (ยังต้องตอบ ห้ามเงียบ):\n${avoidRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
@@ -468,7 +489,7 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       }
       const r = await generateText({
         system: CHATBOT_SYSTEM.replace('{{TONE}}', tone),
-        user: `คลังความรู้ของร้าน:\n${kb || '(ยังไม่มีข้อมูลในคลัง)'}${productBlock}${historyBlock}${avoidBlock}\n\nคำถามของลูกค้า:\n${redacted.text || '(ลูกค้าส่งมาแต่รูป ไม่ได้พิมพ์ข้อความ)'}`,
+        user: `${scopeBlock}คลังความรู้ของร้าน:\n${kb || '(ยังไม่มีข้อมูลในคลัง)'}${productBlock}${historyBlock}${avoidBlock}${extraBlock}\n\nคำถามของลูกค้า:\n${redacted.text || '(ลูกค้าส่งมาแต่รูป ไม่ได้พิมพ์ข้อความ)'}`,
         imageUrls: input.imageUrls,
         maxOutputTokens: 1024,
         signal,

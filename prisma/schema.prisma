@@ -1961,6 +1961,12 @@ model AutoReplyConfig {
 
   /// ช่วงเวลาที่ให้ ChatBot ทำงาน — null = ตลอดเวลา (รูปแบบเดียวกับ activeSchedule ของบอท)
   /// เก็บเป็น HH:mm เวลาไทย · ข้ามเที่ยงคืนได้ (18:00-09:00 = ทำงานตอนร้านหลับ)
+  /// true = ตอบเฉพาะเรื่องของร้าน คำถามนอกเรื่องตอบด้วย aiChatbotOutOfScopeText แล้วจบ
+  aiChatbotShopOnly       Boolean @default(false)
+  aiChatbotOutOfScopeText String? @db.Text
+  /// คำสั่งเพิ่มเติมที่ร้านเขียนเอง — ฉีดเข้า prompt เป็นข้อบังคับ ไม่ใช่แค่น้ำเสียง
+  /// (ต่างจาก aiChatbotTone ที่ prompt จัดให้อยู่ใต้กฎข้อมูลเสมอ)
+  aiChatbotExtraPrompt    String? @db.Text
   /// สิ่งที่ทำเมื่อคลังความรู้ตอบคำถามนั้นไม่ได้ (user สั่ง 2026-08-01 "อยากให้ตอบทุกคำถาม")
   /// SILENT  = เงียบตามเดิม
   /// MESSAGE = ส่งข้อความสำรองที่ร้านเขียนไว้ (ค่าเริ่มต้น — ลูกค้าไม่ถูกปล่อยทิ้ง และไม่เสี่ยงแต่งเรื่อง)

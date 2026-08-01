@@ -878,6 +878,9 @@ async function tryChatbotAnswer(params: {
         aiChatbotUseShopData: true,
         aiChatbotUseChatHistory: true,
         aiChatbotUseWebSearch: true,
+        aiChatbotShopOnly: true,
+        aiChatbotOutOfScopeText: true,
+        aiChatbotExtraPrompt: true,
       },
     })
     const status = cfg?.aiChatbotStatus ?? 'OFFLINE'
@@ -986,6 +989,9 @@ async function tryChatbotAnswer(params: {
       imageUrls: params.imageUrls,
       products: products.map((p) => ({ name: p.name, price: p.price.toString() })),
       history,
+      shopOnly: cfg?.aiChatbotShopOnly ?? false,
+      outOfScopeText: cfg?.aiChatbotOutOfScopeText ?? null,
+      extraPrompt: cfg?.aiChatbotExtraPrompt ?? null,
       allowFreeAnswer: fallbackMode === 'AI_FREE',
       useWebSearch: cfg?.aiChatbotUseWebSearch ?? false,
       knowledge: knowledge.map((k) => ({ question: k.question, answer: k.answer })),

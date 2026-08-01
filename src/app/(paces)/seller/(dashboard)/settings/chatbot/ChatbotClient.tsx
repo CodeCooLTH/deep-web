@@ -33,6 +33,9 @@ export type ChatbotConfig = {
   aiChatbotEndTime: string | null
   aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
+  aiChatbotShopOnly: boolean
+  aiChatbotOutOfScopeText: string | null
+  aiChatbotExtraPrompt: string | null
   aiChatbotFallbackMode: string
   aiChatbotFallbackText: string | null
   aiChatbotUseShopData: boolean
@@ -65,6 +68,8 @@ const TONE_PRESETS = [
   'เป็นทางการ น่าเชื่อถือ',
   'อบอุ่น ใส่ใจ เหมือนคุยกับเพื่อน',
 ]
+
+const DEFAULT_OUT_OF_SCOPE_PLACEHOLDER = 'ขออภัยค่ะ ทางร้านตอบได้เฉพาะเรื่องสินค้าและการสั่งซื้อนะคะ'
 
 const DEFAULT_FALLBACK_PLACEHOLDER = 'ขอเช็คข้อมูลให้สักครู่นะคะ เดี๋ยวแอดมินมาตอบค่ะ'
 
@@ -583,6 +588,72 @@ export default function ChatbotClient({
             </button>
           </div>
         )}
+      </div>
+
+      {/* ── ขอบเขตการตอบ + คำสั่งเพิ่มเติม ───────────────────────────────
+          user 2026-08-01: "มีแบบเขียนเป็น Prompt ไว้ไหม ว่าถ้าไม่ได้ถามเกี่ยวกับ
+          ข้อมูลร้านค้า จะไม่ตอบ เช่น แอดมินไม่สามารถตอบคำถามนอกเหนือจากข้อมูลสินค้าได้ค่ะ" */}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">ขอบเขตการตอบ</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              คุมว่าบอทคุยนอกเรื่องร้านได้แค่ไหน และเขียนคำสั่งของคุณเองให้บอททำตามได้
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-3">
+          <label className="flex items-center justify-between gap-3">
+            <span className="min-w-0">
+              <span className="text-default-700 block text-sm">ตอบเฉพาะเรื่องของร้าน</span>
+              <span className="text-default-400 block text-xs">
+                คำถามที่ไม่เกี่ยวกับสินค้า รวมถึงคุยเล่น จะได้ข้อความปฏิเสธด้านล่างแล้วจบ
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="form-switch shrink-0"
+              disabled={!canEdit || busy}
+              checked={cfg.aiChatbotShopOnly}
+              onChange={(e) => patch({ aiChatbotShopOnly: e.target.checked }, 'บันทึกแล้ว')}
+            />
+          </label>
+
+          {cfg.aiChatbotShopOnly && (
+            <div>
+              <label htmlFor="cb-oos" className="form-label">ข้อความเมื่อถามนอกเรื่อง</label>
+              <input
+                id="cb-oos"
+                className="form-input"
+                maxLength={300}
+                disabled={!canEdit}
+                placeholder={DEFAULT_OUT_OF_SCOPE_PLACEHOLDER}
+                value={cfg.aiChatbotOutOfScopeText ?? ''}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotOutOfScopeText: e.target.value })}
+                onBlur={(e) => patch({ aiChatbotOutOfScopeText: e.target.value }, 'บันทึกข้อความแล้ว')}
+              />
+              <p className="text-default-400 mt-1 text-xs">เว้นว่าง = ใช้ข้อความกลาง</p>
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="cb-extra" className="form-label">คำสั่งเพิ่มเติม (เขียนเอง)</label>
+            <textarea
+              id="cb-extra"
+              className="form-textarea"
+              rows={3}
+              maxLength={2000}
+              disabled={!canEdit}
+              placeholder={'เช่น\nห้ามเรียกลูกค้าว่า "คุณลูกค้า" ให้เรียก "พี่"\nทุกครั้งที่ปิดการขาย ให้ขอเบอร์โทรและที่อยู่'}
+              value={cfg.aiChatbotExtraPrompt ?? ''}
+              onChange={(e) => setCfg({ ...cfg, aiChatbotExtraPrompt: e.target.value })}
+              onBlur={(e) => patch({ aiChatbotExtraPrompt: e.target.value }, 'บันทึกคำสั่งแล้ว')}
+            />
+            <p className="text-default-400 mt-1 text-xs">
+              ถือเป็นข้อบังคับ ไม่ใช่แค่น้ำเสียง — แต่ยังแทนที่กฎห้ามแต่งราคา/เงื่อนไขของร้านไม่ได้
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ── เมื่อคลังไม่มีคำตอบ ─────────────────────────────────────────────
