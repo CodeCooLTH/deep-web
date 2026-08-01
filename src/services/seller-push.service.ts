@@ -7,7 +7,7 @@
 // เรียกจาก call-site ที่รู้ว่ามี event จริงเกิดขึ้นแล้วเท่านั้น (webhook / sendMessage) และต้องเรียก
 // แบบ fire-and-forget (after() หรือ void) — push ที่ช้าหรือพังห้ามทำให้ event หลักล้ม
 import { prisma } from '@/lib/prisma'
-import { pushToUser } from './app-push.service'
+import { pushToUsers } from './app-push.service'
 import { getConversationToastPreview } from './chat.service'
 
 /** เวลาที่ต้องเว้นก่อนยิง noti ของเธรดเดิมซ้ำ — ลูกค้าพิมพ์ 5 ข้อความรวดเดียวต้องได้เด้งเดียว */
@@ -81,15 +81,13 @@ export async function pushNewChatMessage(params: {
     // ไม่งั้น noti จะขึ้นบรรทัดว่าง ๆ ดูเหมือนแอปพัง
     const body = preview.preview?.trim() || 'ส่งข้อความถึงคุณ'
 
-    await Promise.all(
-      audience.map((userId) =>
-        pushToUser(userId, preview.senderName, body, {
-          type: 'chat',
-          url: `/inbox/${params.conversationId}`,
-          conversationId: params.conversationId,
-        }),
-      ),
-    )
+    // pushToUsers (ไม่ใช่วน pushToUser) — ยุบเหลือ 1 query + 1 request ไป exp.host
+    // ร้านที่มีพนักงานหลายคนจะได้ noti "พร้อมกัน" ไม่ใช่ไล่ทีละคนห่างกันคนละ ~300ms
+    await pushToUsers(audience, preview.senderName, body, {
+      type: 'chat',
+      url: `/inbox/${params.conversationId}`,
+      conversationId: params.conversationId,
+    })
   } catch (e) {
     console.error('[seller-push] pushNewChatMessage failed', e)
   }
