@@ -148,6 +148,8 @@ export default function AppointmentCalendar({ resources }: Props) {
   const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   const [title, setTitle] = useState('')
   const [items, setItems] = useState<AppointmentItem[]>([])
+  /** มือถือ (<768px) — ใช้เลือก layout ของช่องวัน ตั้งค่าใน effect เดียวกับที่สลับมุมมอง */
+  const [isMobile, setIsMobile] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const fetchAppointments = useCallback(async (from: string, to: string, resource: string) => {
@@ -189,16 +191,27 @@ export default function AppointmentCalendar({ resources }: Props) {
 
 
   /**
-   * มือถือใช้มุมมอง "รายการ" แทนตารางเดือน — ตาราง 7 คอลัมน์บนจอ 375px อ่านไม่ออกจริง
-   * และพฤติกรรมจริงของร้านบนมือถือคือเปิดดู "วันนี้ใครเข้ามาบ้าง" ระหว่างทำงาน
+   * มือถือใช้มุมมอง "สัปดาห์" แทนตารางเดือน
+   *
+   * ตารางเดือน 7 คอลัมน์บนจอ 375px อ่านไม่ออกจริง (ป้ายนัดถูกตัดเหลือ "ช่างสม")
+   * แต่ "สัปดาห์" มีแถวเดียว บีบแค่แนวนอน จึงยืดความสูงต่อช่องให้วางเนื้อหาแนวตั้งได้
+   * และยังมีช่องวันให้กดสร้างนัด — ต่างจาก listWeek ที่ไม่มีช่องวันเลย
+   * (listWeek ยังอยู่ใน toolbar ให้ผู้ใช้เลือกเองได้ แค่ไม่ใช่ค่าบังคับ)
+   *
+   * IMPORTANT: บล็อกนี้เคยเป็น dead code ทั้งก้อน — `calendarRef` ถูกประกาศแต่
+   * **ไม่เคยผูกกับ <FullCalendar>** (ไม่มี ref={calendarRef}) ทำให้ getApi() คืน undefined
+   * เสมอ มือถือจึงเห็นตารางเดือนมาตลอดทั้งที่โค้ดตั้งใจเลี่ยง — วัดยืนยันแล้วที่ 375px
+   * ได้ `fc-dayGridMonth-view` และไม่เปลี่ยนแม้ข้าม breakpoint จริง (2026-08-01)
+   *
    * เปลี่ยนหลัง mount เพราะ initialView ต้องคงที่ตอน SSR ไม่งั้น hydration ไม่ตรง
    */
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
     const apply = () => {
+      setIsMobile(mq.matches)
       const api = calendarRef.current?.getApi()
       if (!api) return
-      api.changeView(mq.matches ? 'listWeek' : 'dayGridMonth')
+      api.changeView(mq.matches ? 'dayGridWeek' : 'dayGridMonth')
     }
     apply()
     mq.addEventListener('change', apply)
@@ -243,7 +256,12 @@ export default function AppointmentCalendar({ resources }: Props) {
   const onDateClick = useCallback(
     (arg: { date: Date }) => {
       const key = localDayKey(arg.date)
-      if (totalCapacity > 0 && (bookedByDay.get(key) ?? 0) >= totalCapacity) return
+      if (totalCapacity > 0 && (bookedByDay.get(key) ?? 0) >= totalCapacity) {
+        // เดิม return เปล่า ๆ — ผู้ใช้กดแล้วไม่มีอะไรเกิดขึ้น แล้วสรุปว่าเว็บพัง
+        // ต้องบอกว่า "ถูกป้องกันไว้" ไม่ใช่เงียบ (impeccable critique 2026-07-31)
+        pacesToast.warning(`${formatDateTH(arg.date)} รับนัดเต็มแล้ว — เลือกวันอื่น`)
+        return
+      }
       router.push(`/orders/new?appointmentDate=${key}`)
     },
     [router, bookedByDay, totalCapacity],
@@ -265,7 +283,12 @@ export default function AppointmentCalendar({ resources }: Props) {
           // (user สั่ง 2026-07-31: การจองต้อง map กับ order ได้)
         return {
           id: it.orderToken,
-          title: `${base}${cap}${it.orderNo ? ` · ${it.orderNo}` : ''}`,
+          /**
+           * มือถือเหลือแค่ชื่อผู้จอง — ช่องในมุมมองสัปดาห์กว้างจริง ~45px
+           * ยัดชื่อ + จำนวนคิว + เลขออเดอร์ลงไปได้แค่ "ช่างสม" แล้วตัดดิบ ๆ
+           * รายละเอียดเต็มยังกดเข้าไปดูได้ที่ออเดอร์ (onEventClick)
+           */
+          title: isMobile ? who : `${base}${cap}${it.orderNo ? ` · ${it.orderNo}` : ''}`,
           start: it.start,
           end: it.end,
           // นัดรายวัน (FR-RSV-13) ให้ FullCalendar วางเป็น all-day ไม่ใช่แถบเวลา 00:00-00:00
@@ -274,7 +297,8 @@ export default function AppointmentCalendar({ resources }: Props) {
           className: STATUS_CLASS[status] ?? 'appt-ev-completed',
         }
       }),
-    [items, resourceId],
+    // isMobile อยู่ใน dep ด้วย — title เปลี่ยนตามขนาดจอ ไม่งั้นหมุนจอแล้วป้ายไม่อัปเดต
+    [items, resourceId, isMobile],
   )
 
   const onEventClick = useCallback(
@@ -326,6 +350,9 @@ export default function AppointmentCalendar({ resources }: Props) {
           (ดู src/assets/css/plugins/_calendar.css) ไม่กระทบปฏิทินการจองห้องพักของ 00017 */}
       <div className="card-body appointment-calendar">
         <FullCalendar
+          /* ref นี้จำเป็นจริง — ไม่มีมันแล้ว calendarRef.current เป็น null ตลอด
+             ทำให้ effect ที่สลับมุมมองตามขนาดจอไม่เคยทำงานเลย (เจอ 2026-08-01) */
+          ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           locale="th"
@@ -341,10 +368,17 @@ export default function AppointmentCalendar({ resources }: Props) {
           // 'prev,next,today' คั่นด้วยจุลภาคล้วน = กลุ่มเดียว ตรงกับ theme —
           // เขียนเป็น 'prev,next today' (เว้นวรรค) จะกลายเป็นสองกลุ่มแล้วปุ่มตกบรรทัด
           // center ว่างเพราะวาดหัวเรื่อง พ.ศ. เองที่ card-header (FullCalendar แสดง ค.ศ.)
+          /**
+           * มือถือเหลือปุ่มมุมมองตัวเดียว — 8 ปุ่มไม่มีทางพอที่ 375px
+           * (เจอจริง: "วันนี้" ถูกบีบเป็นสองบรรทัดระหว่างปุ่ม prev/next กับปุ่มมุมมอง)
+           * ต้องลดจำนวนปุ่ม ไม่ใช่บีบให้พอ — เก็บ "รายการ" ไว้เพราะเป็นมุมมองที่ร้าน
+           * ใช้จริงบนมือถือ ("วันนี้ใครเข้ามาบ้าง") ส่วนเดือน/สัปดาห์เวลา/วัน ตัดออก
+           * เพราะซับซ้อนเกินจำเป็นบนจอแคบและเป็นต้นเหตุ overflow โดยตรง
+           */
           headerToolbar={{
             left: 'prev,next,today',
             center: '',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+            right: isMobile ? 'listWeek' : 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
           }}
           noEventsText="ช่วงนี้ยังไม่มีนัด — นัดจะขึ้นเมื่อคุณระบุวันเข้าใช้บริการตอนสร้างออเดอร์"
           allDayText="ทั้งวัน"
@@ -359,33 +393,96 @@ export default function AppointmentCalendar({ resources }: Props) {
             if (totalCapacity <= 0) return []
             const n = bookedByDay.get(localDayKey(arg.date)) ?? 0
             if (n >= totalCapacity) return ['appt-day-full']
-            if (n === totalCapacity - 1) return ['appt-day-tight']
+            /**
+             * IMPORTANT: ต้องมี `n > 0` ด้วย
+             *
+             * เดิมเช็คแค่ `n === totalCapacity - 1` — ร้านที่ความจุรวม = 1 (คิวงานเดียว
+             * ความจุ 1 ซึ่งเป็นเคสปกติของลูกค้ากลุ่มแรก) จะได้ `totalCapacity - 1 = 0`
+             * ทำให้ **วันที่ว่างเปล่า (n = 0) เข้าเงื่อนไข "ใกล้เต็ม" ทุกวัน**
+             * วัดบน prod: ย้อมไป 42 จาก 42 ช่อง = ทั้งเดือนเป็นครีม ซึ่งกลับหัวกับความหมาย
+             * (user รายงาน 2026-08-01: "สีมันไม่ได้เลย หน้านี้")
+             */
+            if (n > 0 && n === totalCapacity - 1) return ['appt-day-tight']
             return []
           }}
           dayCellContent={(arg) => {
             const n = bookedByDay.get(localDayKey(arg.date)) ?? 0
             const full = totalCapacity > 0 && n >= totalCapacity
+            const cap =
+              n > 0 && totalCapacity > 0
+                ? full
+                  ? `เต็ม ${n}/${totalCapacity}`
+                  : `${n}/${totalCapacity}`
+                : ''
+            const tight = totalCapacity > 0 && !full && n > 0 && n === totalCapacity - 1
+            /**
+             * สีอยู่ที่ "ตัวเลข" ไม่ใช่พื้นทั้งช่อง — ตัวเลข n/m คือข้อมูลจริง
+             * ส่วนพื้นที่ย้อม 100x100px เป็นของตกแต่งที่ทับ Cool Mist ของทั้งระบบ
+             * (Design Spec: safepay-ux 2026-08-01 หลัง user บอกว่า "สีมันไม่ได้เลย")
+             *
+             * เดสก์ท็อป: วันเต็มได้ pill เล็ก (idiom เดียวกับ badge ของ Paces)
+             * มือถือ: ตัด pill ออก เหลือแค่สีตัวอักษร เพราะช่องกว้างจริง ~45px
+             * padding ของ pill จะดันความกว้างเกิน
+             */
+            const capClass = full
+              ? 'bg-danger/15 text-danger-ink rounded px-1.5 py-0.5 font-bold'
+              : tight
+                ? 'text-warning-ink font-bold'
+                : 'text-default-600 font-semibold'
+            const capClassMobile = full
+              ? 'text-danger-ink font-bold'
+              : tight
+                ? 'text-warning-ink font-bold'
+                : 'text-default-600 font-semibold'
+            /**
+             * ปุ่ม "จอง" ต้องเป็น <button> จริง ไม่ใช่ <span>
+             * เดิมเป็น span ที่พึ่ง dateClick ของช่องทั้งช่อง → คีย์บอร์ดเข้าไม่ถึงเลย
+             * และ CSS ซ่อนด้วย :hover ทำให้จอสัมผัสไม่มีวันเห็น (แก้ที่ _calendar.css ด้วย)
+             */
+            const addButton = (
+              <button
+                type="button"
+                className={`appt-day-add btn btn-icon min-h-11 min-w-11 ${full ? 'text-danger-ink' : 'text-primary'}`}
+                aria-label={full ? `${arg.dayNumberText} รับนัดเต็มแล้ว` : `จองคิววันที่ ${arg.dayNumberText}`}
+                onClick={(e) => {
+                  // กันไม่ให้ dateClick ของช่องทำงานซ้ำอีกรอบ
+                  e.stopPropagation()
+                  onDateClick({ date: arg.date })
+                }}
+              >
+                <Icon icon={full ? 'tabler:ban' : 'tabler:plus'} className="size-4" />
+              </button>
+            )
+
+            // มือถือ: ช่องแคบ (~50px) วางแนวตั้ง เลขวันบนสุดตามที่ตาคาดหวังในปฏิทิน
+            if (isMobile) {
+              return (
+                <div className="flex w-full flex-col items-center gap-0.5">
+                  <span
+                    className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
+                      arg.isToday ? 'bg-primary text-white' : 'text-default-700'
+                    }`}
+                  >
+                    {arg.dayNumberText}
+                  </span>
+                  {cap && <span className={`appt-day-cap text-xs ${capClassMobile}`}>{cap}</span>}
+                  {addButton}
+                </div>
+              )
+            }
+
             return (
               <div className="flex w-full items-center justify-between gap-2">
-                <span className="appt-day-cap text-default-600 text-xs font-semibold">
-                  {n > 0 && totalCapacity > 0
-                    ? full
-                      ? `เต็ม ${n}/${totalCapacity}`
-                      : `${n}/${totalCapacity}`
-                    : ''}
-                </span>
+                <span className={`appt-day-cap text-xs ${capClass}`}>{cap}</span>
                 <span className="flex items-center gap-1.5">
-                  <span className="appt-day-add text-primary inline-flex items-center gap-0.5 text-xs font-semibold">
-                    {full ? (
-                      'เต็มแล้ว'
-                    ) : (
-                      <>
-                        <Icon icon="tabler:plus" className="size-3" />
-                        จอง
-                      </>
-                    )}
+                  {addButton}
+                  <span
+                    className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
+                      arg.isToday ? 'bg-primary text-white' : 'text-default-700'
+                    }`}
+                  >
+                    {arg.dayNumberText}
                   </span>
-                  <span>{arg.dayNumberText}</span>
                 </span>
               </div>
             )

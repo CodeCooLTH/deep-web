@@ -125,11 +125,18 @@ export async function listInstagramVideos(
       .filter((x): x is IgMediaItem => x !== null)
   );
 
-  // ยอดวิวดึงแบบ best-effort ขนานกัน — token ที่ไม่มี scope จะได้ null ทุกตัวโดยไม่ล้ม
-  const views = await Promise.all(items.map((it) => fetchIgViewCount(it.mediaId, token)));
-
+  // ยอดวิวของคลิป IG: ถอดออกแล้ว (2026-08-01, เตรียมยื่น Meta App Review)
+  //
+  // เดิมเรียก GET /{media-id}/insights?metric=views|plays แบบ best-effort ต่อคลิป ซึ่งต้องการ
+  // scope `instagram_manage_insights` ที่เราขอไม่ได้ (ใส่ใน scope แล้วหน้า login ตีกลับว่า
+  // "Invalid Scopes" เชื่อมเพจไม่ได้ทั้งกระบวนการ — ดู APP-REVIEW.md §4) call นี้จึงล้มเหลว
+  // 100% ทุกครั้งมาตลอด ได้ผลเป็น null เสมอ แลกกับการยิง Graph เพิ่ม 2 ครั้งต่อคลิป และทิ้ง
+  // ประวัติ error ไว้ให้ reviewer เห็นในบันทึกของแอป ขณะที่คำอธิบาย instagram_basic ที่เรายื่น
+  // ประกาศว่าไม่อ่าน insights — เก็บไว้ก็มีแต่ทำให้เอกสารกับพฤติกรรมจริงขัดกัน
+  //
+  // จะเอากลับมาได้เมื่อได้ instagram_manage_insights จริง (ต้องผ่าน App Review ก่อน)
   return {
-    items: items.map((it, i) => ({ ...it, viewCount: views[i] })),
+    items: items.map((it) => ({ ...it, viewCount: null })),
     failed: false,
   };
 }
@@ -233,34 +240,6 @@ export async function listPickableVideos(
     })),
   ];
   return { items, failed: ig.failed || fb.failed };
-}
-
-/**
- * ยอดวิวของ Reels บน Instagram — ต้องใช้ scope instagram_manage_insights
- *
- * แยกเป็นการเรียกต่างหาก ไม่รวมเข้าไปใน fields ของ /media โดยตั้งใจ: ถ้ารวมแล้ว token ไม่มี
- * scope นี้ Graph จะตอบ error ทั้ง request ทำให้ "ดึงรายการคลิปไม่ได้เลย" ทั้งที่แค่ยอดวิวขาด
- * ซึ่งตอนนี้คือทุกร้าน (ยังขอ scope ไม่ได้) การแยกออกมาทำให้กรณีแย่ที่สุดคือไม่มีตัวเลข
- *
- * ชื่อ metric ของ Meta เปลี่ยนไปมาตามเวอร์ชัน (plays → views) จึงลองไล่จนกว่าจะได้
- * ทุก error คืน null เงียบ ๆ — ไม่มียอดวิวไม่ใช่เรื่องที่ต้องหยุดทั้งฟีเจอร์
- */
-async function fetchIgViewCount(mediaId: string, token: string): Promise<number | null> {
-  for (const metric of ["views", "plays"]) {
-    try {
-      const res = await fetch(
-        `${GRAPH_BASE}/${mediaId}/insights?metric=${metric}&access_token=${encodeURIComponent(token)}`,
-        { cache: "no-store" },
-      );
-      if (!res.ok) continue;
-      const j = (await res.json()) as { data?: Array<{ values?: Array<{ value?: number }> }> };
-      const v = j.data?.[0]?.values?.[0]?.value;
-      if (typeof v === "number") return v;
-    } catch {
-      // ลอง metric ถัดไป
-    }
-  }
-  return null;
 }
 
 /** ชื่อบัญชี IG — แยกฟังก์ชันเพราะเรียกครั้งเดียวต่อการดึงคลิปทั้งชุด ไม่ใช่ต่อคลิป */

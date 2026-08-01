@@ -26,8 +26,9 @@ export default function MoreOptions({ control }: Props) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div>
-        <label className="form-label">ส่วนลด (บาท)</label>
+        <label htmlFor="mo-discount" className="form-label">ส่วนลด (บาท)</label>
         <input
+          id="mo-discount"
           type="number"
           inputMode="decimal"
           min={0}
@@ -39,8 +40,9 @@ export default function MoreOptions({ control }: Props) {
         />
       </div>
       <div>
-        <label className="form-label">VAT (%)</label>
+        <label htmlFor="mo-vat" className="form-label">VAT (%)</label>
         <input
+          id="mo-vat"
           type="number"
           inputMode="decimal"
           min={0}
@@ -53,8 +55,9 @@ export default function MoreOptions({ control }: Props) {
         />
       </div>
       <div className="sm:col-span-2">
-        <label className="form-label">หมายเหตุ</label>
+        <label htmlFor="mo-note" className="form-label">หมายเหตุ</label>
         <input
+          id="mo-note"
           type="text"
           placeholder="โน้ตภายใน (ไม่แสดงให้ลูกค้า)"
           className="form-input"

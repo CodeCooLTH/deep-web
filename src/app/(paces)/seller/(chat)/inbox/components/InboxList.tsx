@@ -88,7 +88,8 @@ import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
-import InboxFilterPanel, { type ChatFilterState, DEFAULT_CHAT_FILTER } from './InboxFilterPanel'
+import InboxFilterPanel from './InboxFilterPanel'
+import { buildChatListParams, DEFAULT_CHAT_FILTER, type ChatFilterState } from './chat-list-query'
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
@@ -288,21 +289,17 @@ export default function InboxList({
   const fetchList = async (opts: { cursor?: string; append: boolean }) => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ take: '20' })
-      if (opts.cursor) params.set('cursor', opts.cursor)
-      if (channelTab !== 'ALL') params.set('channel', channelTab)
-      if (pageFilter) params.set('shopChannelId', pageFilter)
-      if (debouncedQuery) params.set('q', debouncedQuery)
-      // S-7 ตัวกรอง — ส่งเฉพาะที่ไม่ใช่ default (ลด query param ที่ไม่จำเป็น; backend default = open/false)
-      if (filter.status !== 'open') params.set('status', filter.status)
-      if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
-      if (filter.hidden) params.set('hidden', 'true')
-      if (filter.spam) params.set('spam', 'true')
-      // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก เพื่อไม่ให้ query string รกโดยเปล่าประโยชน์
-      if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
-      if (filter.shipment !== 'all') params.set('shipment', filter.shipment)
-      if (activeGroupId) params.set('chatGroupId', activeGroupId)
-      if (filter.readState !== 'all') params.set('readState', filter.readState)
+      // S-7 ตัวกรอง — ประกอบผ่าน builder ตัวเดียวกับที่ ChatRail ใช้ดึงชุดแรก (ห้ามเขียน
+      // query string เองอีก: ชุดแรกกับชุด refetch ต้องสะกดตัวกรองชุดเดียวกันเสมอ ไม่งั้น
+      // "รายการหายตอนเข้าครั้งแรก แล้วโผล่ตอนสลับแท็บ" กลับมาอีก — ดู chat-list-query.ts)
+      const params = buildChatListParams(filter, {
+        take: 20,
+        cursor: opts.cursor,
+        channelTab,
+        pageFilter,
+        q: debouncedQuery,
+        chatGroupId: activeGroupId,
+      })
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!res.ok) throw new Error('load failed')
       const data: ApiResponse = await res.json()
@@ -529,20 +526,14 @@ export default function InboxList({
 
   const refreshFirstPage = async () => {
     try {
-      const params = new URLSearchParams({ take: '20' })
-      if (channelTab !== 'ALL') params.set('channel', channelTab)
-      if (pageFilter) params.set('shopChannelId', pageFilter)
-      if (debouncedQuery) params.set('q', debouncedQuery)
       // S-7: realtime refresh ต้องเคารพตัวกรองปัจจุบันด้วย (ไม่งั้นดึงแถวข้าม filter มา merge)
-      if (filter.status !== 'open') params.set('status', filter.status)
-      if (filter.customerLinked !== 'all') params.set('customerLinked', filter.customerLinked)
-      if (filter.hidden) params.set('hidden', 'true')
-      if (filter.spam) params.set('spam', 'true')
-      // แท็ก: ส่งเป็น CSV (route แยกเอง) — ไม่ส่งเมื่อไม่ได้เลือก เพื่อไม่ให้ query string รกโดยเปล่าประโยชน์
-      if (filter.tags.length > 0) params.set('tags', filter.tags.join(','))
-      if (filter.shipment !== 'all') params.set('shipment', filter.shipment)
-      if (activeGroupId) params.set('chatGroupId', activeGroupId)
-      if (filter.readState !== 'all') params.set('readState', filter.readState)
+      const params = buildChatListParams(filter, {
+        take: 20,
+        channelTab,
+        pageFilter,
+        q: debouncedQuery,
+        chatGroupId: activeGroupId,
+      })
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) return
       const data: ApiResponse = await res.json()
