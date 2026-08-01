@@ -25,6 +25,10 @@
 | `GET /{psid}?fields=name,username,profile_pic` | ชื่อ/รูปลูกค้าเพื่อแสดงในกล่องข้อความ | `pages_messaging`, `instagram_basic` |
 | `GET /{page-id}?fields=instagram_business_account` | หา IG account ที่ผูกกับเพจ | `instagram_basic` |
 | `GET /{page-id}_{post-id}?fields=message,full_picture,permalink_url` | เนื้อหาโพสต์/โฆษณาที่ลูกค้าทักมาจาก เพื่อแสดงแบนเนอร์ "ทักมาจากโฆษณานี้" | `pages_read_engagement` |
+| `GET /{page-id}/video_reels?fields=…,views,likes.summary(true),comments.summary(true)` | คลิปของเพจให้ร้านเลือกไปโชว์บนหน้าร้าน (feat 00021) | `pages_read_engagement` |
+| `GET /{ig-user-id}/media?fields=…,caption,media_url,like_count,comments_count` | คลิป IG ของร้านเอง ให้เลือกไปโชว์บนหน้าร้าน (feat 00021) | `instagram_basic` |
+| `GET /{ig-user-id}?fields=username` | ชื่อบัญชี IG ที่เป็นเจ้าของคลิป | `instagram_basic` |
+| ~~`GET /{media-id}/insights?metric=views\|plays`~~ | **ถอดออกแล้ว 2026-08-01** — ต้องใช้ `instagram_manage_insights` ที่ขอไม่ได้ ล้มเหลว 100% และขัดกับคำอธิบายที่ยื่น | — |
 | webhook fields | `messages, message_echoes, message_reads, message_reactions, messaging_postbacks, messaging_referrals` | `pages_messaging`, `pages_manage_metadata` |
 
 ---
@@ -66,17 +70,39 @@ auto-reply ที่ทริกเกอร์จากข้อความข
 >
 > Automation, disclosed. A seller may configure an auto-reply for their own Page (for example a greeting or an out-of-hours notice). It is triggered only by an incoming customer message, it is labelled in the inbox so the seller can see it was automatic, and the seller can switch it off or take over the thread at any moment. We do not send bulk, promotional, or unsolicited messages, and message content is never used for advertising, analytics, or resale.
 
-### 2.4 `pages_read_engagement`
+### 2.4 `pages_read_engagement` ✅ เติมให้ครบ 2026-08-01
 
-> When a customer starts a chat from a Page post or an ad, Meta delivers only the post/ad identifier in the messaging webhook. Deep calls `GET /{page-id}_{post-id}?fields=message,full_picture,permalink_url` on the seller's own Page to show a small banner above the conversation with the post's text, image, and a link, so the seller instantly knows which product the customer is asking about. We read only content published by the Page the seller connected, we never read other Pages, and we never post, comment, or react on their behalf. Without this permission the seller sees an unlabelled conversation and has to guess what the customer clicked. This data is not used for analytics, advertising, or resale.
+ฉบับเดิมพูดถึงแต่แบนเนอร์ "ทักมาจากโพสต์นี้" แต่โค้ดยังดึง `/{page-id}/video_reels` ด้วย
+(feat 00021) — อยู่ในขอบเขต permission อยู่แล้ว แต่ไม่เขียนไว้ = ดูเหมือนปกปิดเมื่อ reviewer
+เห็น call นั้น
+
+> Deep reads content published by the Page the seller connected, for two features.
+>
+> First, conversation context. When a customer starts a chat from a Page post or an ad, Meta delivers only the post/ad identifier in the messaging webhook. Deep calls `GET /{page-id}_{post-id}?fields=message,full_picture,permalink_url` and shows a small banner above the conversation with the post's text, image, and a link, so the seller instantly knows which product the customer is asking about instead of guessing.
+>
+> Second, the seller's own videos on their shop profile. Deep calls `GET /{page-id}/video_reels?fields=id,description,permalink_url,picture,thumbnails,views,likes.summary(true),comments.summary(true)` so the seller can pick which of their own reels to feature on their public Deep shop page. The counts come back with the reel and are shown to the seller only, as a hint of which clip performs best while they choose.
+>
+> We read only content published by the Page the seller connected. We never read other Pages, and we never post, comment, or react on the seller's behalf. This data is not used for advertising, cross-app profiling, or resale.
 
 ### 2.5 `business_management`
 
 > Most of our sellers administer their Page through a Meta Business Portfolio rather than a personal profile. For those sellers, the Page does not appear in `GET /me/accounts` unless this permission is granted, so the connection flow shows an empty list and they cannot use Deep at all. We use it read-only, purely to enumerate the Pages the person is allowed to manage during the connect step; Deep never creates, edits, or deletes any business asset, ad account, or user role, and never reads advertising or billing data. Without it, Business-managed sellers — the majority of our target users — are unable to connect.
 
-### 2.6 `instagram_basic`
+### 2.6 `instagram_basic` ✅ เขียนใหม่ 2026-08-01
 
-> Deep presents Messenger and Instagram Direct in one inbox. We call `GET /{page-id}?fields=instagram_business_account` to discover the Instagram professional account linked to the Page the seller connected, and `GET /{ig-user-id}?fields=name,username,profile_pic` to display the customer's username and profile photo next to their messages so the seller can tell conversations apart. We read only the account linked to the connected Page; we do not read media, insights, followers, or hashtags, and we never publish. Without this permission we cannot identify which Instagram account belongs to the seller, so Instagram conversations cannot be shown at all.
+🛑 ฉบับเดิมประกาศว่า *"we do not read media, insights, followers, or hashtags"* ซึ่ง **ผิด** —
+`shop-video.service.ts` (feat 00021 Shop Video Showcase) เรียก `/{ig-user-id}/media` จริง
+(reviewer เห็นประวัติการเรียก API ของแอปได้ = ตีกลับได้ทั้งชุด). แก้แล้ว 2 ทาง: ถอดการเรียก
+`/{media-id}/insights` ออกจากโค้ด (ล้มเหลว 100% อยู่แล้วเพราะไม่มี scope) + เขียนคำอธิบายให้
+ครอบคลุมการอ่านสื่อของร้านเองตามจริง
+
+> Deep does two things with the Instagram professional account linked to the Page a seller connects. First, it presents Instagram Direct next to Messenger in one inbox. Second, it lets the seller feature their own Instagram videos on their public Deep shop profile.
+>
+> The calls we make, all scoped to that one linked account: `GET /{page-id}?fields=instagram_business_account` to discover which Instagram account belongs to the connected Page; `GET /{ig-user-id}?fields=username` and `GET /{ig-scoped-user-id}?fields=name,username,profile_pic` to show who the seller is talking to and which account a video came from; and `GET /{ig-user-id}/media?fields=id,media_type,media_product_type,caption,thumbnail_url,media_url,permalink,like_count,comments_count` to render a picker in which the seller chooses which of their **own** reels to display on their Deep shop profile, and to render that video afterwards.
+>
+> Value for the person using the app: the seller answers Instagram customers without leaving Deep, and the shop profile they send to customers shows their real product videos instead of an empty page — they do not have to re-upload anything.
+>
+> Limits we hold ourselves to: we read only the account linked to the Page the seller connected, never another account; we do not read followers, hashtags, comment content, or insights; we never publish, edit, or delete anything on Instagram; and none of this data is used for advertising, cross-app profiling, or resale. Without this permission we cannot tell which Instagram account belongs to the seller, so Instagram conversations cannot be displayed at all.
 
 ### 2.7 `instagram_manage_messages`
 
