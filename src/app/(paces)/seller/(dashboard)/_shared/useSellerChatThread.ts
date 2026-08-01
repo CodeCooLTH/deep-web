@@ -77,6 +77,7 @@ export type ChatMessageView = {
   autoReply?: {
     // "CHATBOT" = AI แต่งจากคลังความรู้ (ป้าย DeepAI) · อื่น ๆ/null = คำตอบสำเร็จรูป (DeepBot)
     matchedVia: string | null
+    aiContext?: Record<string, unknown> | null
     keywordName: string | null
     matchedPhrase: string | null
     matchType: string | null

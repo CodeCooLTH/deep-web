@@ -523,6 +523,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
             outboundMessageId: chatbot.messageId,
             resolutionLevel: 'CHATBOT',
             matchedVia: 'CHATBOT',
+            aiContext: chatbot.aiContext ?? undefined,
             errorMessage: null,
           }, startedAt)
         }
@@ -862,7 +863,7 @@ async function sendFallback(
 const SILENT_CHATBOT_REASONS = new Set(['OFFLINE', 'NOT_TEST_THREAD', 'OUTSIDE_SCHEDULE'])
 
 type ChatbotOutcome =
-  | { sent: true; text: string; messageId: string | null }
+  | { sent: true; text: string; messageId: string | null; aiContext?: unknown; usedKnowledge?: string[] }
   | { sent: false; reason: string }
 
 /**
@@ -1126,7 +1127,13 @@ async function tryChatbotAnswer(params: {
         .catch((e) => console.error('[chatbot] นับ useCount ไม่สำเร็จ', e))
     }
 
-    return { sent: true, text: result.text, messageId: sent.messageId ?? null }
+    return {
+      sent: true,
+      text: result.text,
+      messageId: sent.messageId ?? null,
+      // เก็บ "ใช้อะไรตอบ" ไว้ให้กล่องรายละเอียดในห้องแชทอธิบายได้ (ไม่มี PII ในนี้)
+      aiContext: result.context ? { ...result.context, usedKnowledgeIds: result.usedKnowledgeIds ?? [] } : null,
+    }
   } catch (e) {
     console.error('[chatbot] tryChatbotAnswer ล้มเหลว', e)
     return { sent: false, reason: 'UNEXPECTED_ERROR' }

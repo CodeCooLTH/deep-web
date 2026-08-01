@@ -45,6 +45,21 @@ export interface ConversationSummary {
  * ในนี้ที่เป็น snapshot แท้ ๆ ยอมรับความไม่ตรงจุดนี้เพราะทางเลือกคือแสดงรหัสดิบ (uuid/ad id)
  * ซึ่งร้านอ่านไม่รู้เรื่องเลย; null = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น หรือของถูกลบไปแล้ว
  */
+/** ต้องตรงกับที่ ai-enhance.service.ts เขียนลง AutoReplyLog.aiContext */
+export interface AiAnswerContext {
+  mode?: 'KNOWLEDGE' | 'FREE'
+  knowledgeCount?: number
+  productCount?: number
+  historyCount?: number
+  webSearch?: boolean
+  shopOnly?: boolean
+  guardrailBlock?: number
+  guardrailAvoid?: number
+  hasExtraPrompt?: boolean
+  hasImages?: boolean
+  usedKnowledgeIds?: string[]
+}
+
 export interface AutoReplyTrace {
   /**
    * ที่มาของคำตอบ: "KEYWORD"/"QNA" = คำตอบสำเร็จรูปที่ร้านเขียนไว้ · "CHATBOT" = AI แต่งเอง
@@ -54,6 +69,8 @@ export interface AutoReplyTrace {
    * อีกอันเครื่องแต่งขึ้น ร้านต้องแยกออกตั้งแต่แรกเห็นว่าอันไหนต้องตรวจ
    */
   matchedVia: string | null
+  /** ข้อมูลที่ AI ใช้ประกอบการตอบครั้งนั้น (feature 00023) — null = ไม่ใช่คำตอบจาก AI */
+  aiContext: AiAnswerContext | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null // "EXACT" | "CONTAINS" | "STARTS_WITH" — แปลเป็นไทยที่ชั้น UI
@@ -520,6 +537,7 @@ export async function getMessages(
         adId: true,
         productId: true,
         matchedVia: true,
+        aiContext: true,
         keyword: { select: { name: true } },
       },
     })
@@ -551,6 +569,7 @@ export async function getMessages(
       if (!l.outboundMessageId) continue
       traceByMessageId.set(l.outboundMessageId, {
         matchedVia: l.matchedVia,
+        aiContext: (l.aiContext as AiAnswerContext | null) ?? null,
         keywordName: l.keyword?.name ?? null,
         matchedPhrase: l.matchedPhrase,
         matchType: l.matchType,

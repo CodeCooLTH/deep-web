@@ -366,6 +366,22 @@ export interface ChatbotAnswerResult {
   text: string | null
   /** id ของความรู้ที่โมเดลบอกว่าใช้ตอบ — ว่างได้ถ้าโมเดลไม่ระบุ (ไม่ถือเป็นความล้มเหลว) */
   usedKnowledgeIds?: string[]
+  /**
+   * สิ่งที่ใช้ประกอบการตอบครั้งนั้น — ไว้ตอบคำถาม "ทำไมตอบแบบนี้"
+   * 🛑 ห้ามใส่ข้อความลูกค้าหรือ PII เก็บแค่ว่าใช้อะไรบ้าง
+   */
+  context?: {
+    mode: 'KNOWLEDGE' | 'FREE'
+    knowledgeCount: number
+    productCount: number
+    historyCount: number
+    webSearch: boolean
+    shopOnly: boolean
+    guardrailBlock: number
+    guardrailAvoid: number
+    hasExtraPrompt: boolean
+    hasImages: boolean
+  }
   blocked: boolean
   reason: AiEnhanceSkipReason | 'NO_KNOWLEDGE_ANSWER' | null
   usage: TokenUsage | null
@@ -391,7 +407,8 @@ async function finishAnswer(
   usedIds: string[],
   usage: TokenUsage | null,
   input: ChatbotAnswerInput,
-  signal: AbortSignal
+  signal: AbortSignal,
+  context: ChatbotAnswerResult['context']
 ): Promise<ChatbotAnswerResult> {
   // ด่านตรวจใช้เฉพาะกฎชนิด BLOCK — กฎ AVOID มีผลตอนแต่งประโยคไปแล้ว
   // เอามาบล็อกซ้ำจะกลายเป็นเงียบ ซึ่งตรงข้ามกับสิ่งที่กฎนั้นต้องการพอดี
@@ -423,7 +440,7 @@ async function finishAnswer(
     }
   }
 
-  return { text: answer, usedKnowledgeIds: usedIds, blocked: false, reason: null, usage }
+  return { text: answer, usedKnowledgeIds: usedIds, blocked: false, reason: null, usage, context }
 }
 
 export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<ChatbotAnswerResult> {
@@ -471,6 +488,16 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       : ''
 
     const avoidRules = input.guardrails.filter((g) => g.mode === 'AVOID').map((g) => g.rule)
+    const baseContext = {
+      knowledgeCount: input.knowledge.length,
+      productCount: input.products?.length ?? 0,
+      historyCount: input.history?.length ?? 0,
+      shopOnly: Boolean(input.shopOnly),
+      guardrailBlock: input.guardrails.filter((g) => (g.mode ?? 'BLOCK') === 'BLOCK').length,
+      guardrailAvoid: avoidRules.length,
+      hasExtraPrompt: Boolean((input.extraPrompt ?? '').trim()),
+      hasImages: Boolean(input.imageUrls?.length),
+    }
     const avoidBlock = avoidRules.length
       ? `\n\nข้อห้ามเรื่องวิธีพูด (ยังต้องตอบ ห้ามเงียบ):\n${avoidRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
       : ''
@@ -531,14 +558,22 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
         answer = free.clean
         if (answer.length < MIN_REAL_ANSWER_LEN) return none('NO_KNOWLEDGE_ANSWER', usage)
         // รอบนี้ไม่มีข้อในคลังที่ "ถูกใช้" จริง จึงไม่นับสถิติให้ข้อไหน
-        return finishAnswer(answer, [], usage, input, signal)
+        return finishAnswer(answer, [], usage, input, signal, {
+          ...baseContext,
+          mode: 'FREE' as const,
+          webSearch: Boolean(input.useWebSearch),
+        })
       } catch (e) {
         const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
         return none(timedOut ? 'AI_ENHANCE_TIMEOUT' : 'AI_ENHANCE_ERROR', usage)
       }
     }
 
-    return finishAnswer(answer, used.usedIds, usage, input, signal)
+    return finishAnswer(answer, used.usedIds, usage, input, signal, {
+      ...baseContext,
+      mode: 'KNOWLEDGE' as const,
+      webSearch: false,
+    })
   } catch (e) {
     console.error('[ai-chatbot] unexpected', e)
     return none('AI_ENHANCE_ERROR')

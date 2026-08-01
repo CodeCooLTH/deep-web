@@ -19,8 +19,23 @@ import Icon from '@/components/wrappers/Icon'
  * พังในโปรเจกต์นี้มาแล้ว (docs/system/ui-guideline/paces-component-reference.md §3)
  */
 
+export type AiAnswerContext = {
+  mode?: 'KNOWLEDGE' | 'FREE'
+  knowledgeCount?: number
+  productCount?: number
+  historyCount?: number
+  webSearch?: boolean
+  shopOnly?: boolean
+  guardrailBlock?: number
+  guardrailAvoid?: number
+  hasExtraPrompt?: boolean
+  hasImages?: boolean
+  usedKnowledgeIds?: string[]
+}
+
 export type AutoReplyTrace = {
   matchedVia: string | null
+  aiContext?: AiAnswerContext | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null
@@ -91,7 +106,7 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
       onMouseLeave={() => setOpen(false)}
     >
       {open && (
-        <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 w-64 rounded-md border text-start shadow-lg">
+        <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 max-h-[60dvh] w-64 overflow-y-auto rounded-md border text-start shadow-lg" /* HR7 carve-out: ไม่มี token viewport-height ใน Paces — precedent CustomerPanelSheet.tsx */>
           <div className="bg-default-100 border-default-300 text-default-800 border-b px-3 py-2 text-xs font-semibold">
             ตอบโดย {brand}{isTest ? ' (โหมดทดสอบ)' : ''}
           </div>
@@ -101,8 +116,54 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
               // ยัดแถวว่างไว้จะโกหกว่ามีเงื่อนไขอยู่แต่หาไม่เจอ
               <>
                 <p className="mb-2">
-                  AI แต่งคำตอบนี้จากคลังความรู้ของร้าน เพราะข้อความนี้ไม่ตรงกลุ่มคำไหนเลย
+                  {trace.aiContext?.mode === 'FREE'
+                    ? 'คลังความรู้ตอบคำถามนี้ไม่ได้ AI จึงตอบเองตามที่ร้านอนุญาต'
+                    : 'AI แต่งคำตอบนี้จากคลังความรู้ของร้าน เพราะข้อความนี้ไม่ตรงกลุ่มคำไหนเลย'}
                 </p>
+                {/* บอกว่า "ใช้อะไรตอบ" ไม่ใช่แค่ "ตอบด้วย AI" — ร้านที่เจอคำตอบแปลก
+                    ต้องไล่ได้ว่าข้อมูลชุดไหนเข้าไปอยู่ใน prompt บ้าง (user สั่ง 2026-08-01) */}
+                {trace.aiContext && (
+                  <>
+                    <p className="text-default-600 mb-0 pt-1 pb-0.5 text-2xs font-semibold">
+                      ข้อมูลที่ใช้ประกอบการตอบ
+                    </p>
+                    <dl className="mb-0">
+                      <Row
+                        label="คลังความรู้"
+                        value={
+                          trace.aiContext.knowledgeCount
+                            ? `${trace.aiContext.knowledgeCount} ข้อ${
+                                trace.aiContext.usedKnowledgeIds?.length
+                                  ? ` · ใช้ตอบ ${trace.aiContext.usedKnowledgeIds.length} ข้อ`
+                                  : ''
+                              }`
+                            : null
+                        }
+                      />
+                      <Row
+                        label="สินค้า"
+                        value={trace.aiContext.productCount ? `${trace.aiContext.productCount} รายการในระบบ` : null}
+                      />
+                      <Row
+                        label="ประวัติแชท"
+                        value={trace.aiContext.historyCount ? `${trace.aiContext.historyCount} ข้อความก่อนหน้า` : null}
+                      />
+                      <Row label="ค้นเว็บ" value={trace.aiContext.webSearch ? 'เปิด' : null} />
+                      <Row label="รูปจากลูกค้า" value={trace.aiContext.hasImages ? 'ใช้ประกอบด้วย' : null} />
+                      <Row
+                        label="กฎที่บังคับ"
+                        value={
+                          (trace.aiContext.guardrailBlock ?? 0) + (trace.aiContext.guardrailAvoid ?? 0) > 0
+                            ? `หยุดไม่ตอบ ${trace.aiContext.guardrailBlock ?? 0} · เลี่ยงคำพูด ${trace.aiContext.guardrailAvoid ?? 0}`
+                            : null
+                        }
+                      />
+                      <Row label="ขอบเขต" value={trace.aiContext.shopOnly ? 'ตอบเฉพาะเรื่องของร้าน' : null} />
+                      <Row label="คำสั่งเพิ่มเติม" value={trace.aiContext.hasExtraPrompt ? 'มี' : null} />
+                    </dl>
+                  </>
+                )}
+                <p className="text-default-600 mb-0 pt-2 pb-0.5 text-2xs font-semibold">เงื่อนไขของเธรด</p>
                 <dl className="mb-0">
                   <Row label="เพจ" value={trace.channelName} />
                   <Row label="โฆษณา" value={trace.adLabel} />

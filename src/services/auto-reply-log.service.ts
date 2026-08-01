@@ -62,6 +62,8 @@ export type WriteLogEntry = {
   // null = ยังไม่ถึงขั้นจับคู่ (ถูกตัดที่ gate ก่อนหน้า) — ป้าย DeepBot อ่านค่านี้ตรง ๆ
   matchedVia?: MatchedVia | null
   qnaId?: string | null
+  /** ข้อมูลที่ AI ใช้ประกอบการตอบ (feature 00023) — 🛑 ห้ามใส่ PII */
+  aiContext?: unknown
 }
 
 /**
@@ -97,6 +99,8 @@ export async function writeLog(entry: WriteLogEntry) {
       ruleId: entry.ruleId ?? null,
       matchedVia: entry.matchedVia ?? null,
       qnaId: entry.qnaId ?? null,
+      // Prisma Json รับ undefined ไม่ได้ เหมือน matchTrace
+      aiContext: (entry.aiContext ?? null) as never,
       resolutionLevel: entry.resolutionLevel ?? null,
       shopChannelId: entry.shopChannelId ?? null,
       adId: entry.adId ?? null,
