@@ -380,6 +380,13 @@ export async function generateText(opts: {
    * ดาวน์โหลดแล้วส่งเป็น inline_data เพราะ Gemini เข้าถึง URL ของ CDN ฝั่ง Meta/Supabase เองไม่ได้
    */
   imageUrls?: string[]
+  /**
+   * เปิด Google Search grounding — ให้โมเดลค้นเว็บมาประกอบคำตอบ
+   *
+   * WARNING: ข้อมูลที่ได้เป็นของนอกร้าน ร้านไม่ได้รับรอง — ผู้เรียกต้องสั่งใน prompt เสมอว่า
+   * ห้ามใช้ข้อมูลจากเว็บมาตอบเรื่องราคา/เงื่อนไข/สต็อกของร้าน
+   */
+  useWebSearch?: boolean
   maxOutputTokens: number
   temperature?: number
   signal: AbortSignal
@@ -438,6 +445,7 @@ export async function generateText(opts: {
           ...(opts.system ? { system_instruction: { parts: [{ text: opts.system }] } } : {}),
           // รูปมาก่อนข้อความ: Gemini แนะนำให้วางสื่อไว้หน้า prompt เมื่อถามเกี่ยวกับสื่อนั้น
           contents: [{ role: 'user', parts: [...imageParts, { text: opts.user }] }],
+          ...(opts.useWebSearch ? { tools: [{ google_search: {} }] } : {}),
           generationConfig: {
             temperature: opts.temperature ?? 0.3,
             maxOutputTokens: opts.maxOutputTokens,

@@ -18,6 +18,7 @@ import { matchQna } from '@/lib/auto-reply-qna-match'
 import { markQnaUsed } from '@/services/auto-reply-qna.service'
 import { recordUnanswered } from '@/services/auto-reply-unanswered.service'
 import { enhanceReply, answerFromKnowledge, isChatbotWithinWindow } from '@/services/ai-enhance.service'
+import { redactPii } from '@/lib/pii-redact'
 import { checkCapBeforeCall, recordUsageAndBill } from '@/services/ai-enhance-billing.service'
 
 /**
@@ -803,6 +804,36 @@ export async function enrichWithAutoReplyBadge<T extends { id: string }>(
  *
  * WARNING: ห้าม throw — อยู่ในเส้นทางเดียวกับการตอบลูกค้า ทุกความล้มเหลวคืน null
  */
+/** ค่ากลางเมื่อร้านเลือกโหมดข้อความสำรองแต่ยังไม่ได้เขียนข้อความเอง */
+const DEFAULT_FALLBACK_TEXT = 'ขอเช็คข้อมูลให้สักครู่นะคะ เดี๋ยวแอดมินมาตอบค่ะ'
+
+/**
+ * ข้อความสำรองเมื่อ AI ตอบคำถามนั้นไม่ได้ (user สั่ง 2026-08-01 "อยากให้ตอบทุกคำถาม")
+ *
+ * เดิมเส้นทางนี้คือเงียบ ซึ่งแปลว่าลูกค้าถูกปล่อยทิ้งโดยไม่รู้ว่ามีใครเห็นข้อความไหม
+ * ค่าเริ่มต้นจึงเป็น MESSAGE ไม่ใช่ SILENT — และไม่เสียค่า AI เพราะเป็นข้อความคงที่
+ *
+ * WARNING: ต้องผ่าน cooldown/เพดานเหมือนคำตอบจาก AI ทุกประการ ไม่งั้นห้องที่โดนหน่วง
+ * จะได้ข้อความสำรองรัว ๆ แทน ซึ่งน่ารำคาญกว่าเงียบ (ผู้เรียกเช็คให้แล้วก่อนมาถึงนี่)
+ */
+async function sendFallback(
+  params: { shopId: string; conversationId: string },
+  cfg: { aiChatbotFallbackMode?: string | null; aiChatbotFallbackText?: string | null } | null,
+  status: string
+): Promise<{ sent: true; text: string; messageId: string | null } | null> {
+  if ((cfg?.aiChatbotFallbackMode ?? 'MESSAGE') !== 'MESSAGE') return null
+  const text = (cfg?.aiChatbotFallbackText ?? '').trim() || DEFAULT_FALLBACK_TEXT
+  const sent = await sendAutoReply({
+    conversationId: params.conversationId,
+    shopId: params.shopId,
+    text,
+    imageFileIds: [],
+    isTest: status === 'TEST',
+  })
+  if (!sent.sent) return null
+  return { sent: true, text, messageId: sent.messageId ?? null }
+}
+
 async function tryChatbotAnswer(params: {
   shopId: string
   conversationId: string
@@ -819,6 +850,11 @@ async function tryChatbotAnswer(params: {
         aiChatbotEndTime: true,
         aiChatbotCooldownSec: true,
         aiChatbotMaxPerHour: true,
+        aiChatbotFallbackMode: true,
+        aiChatbotFallbackText: true,
+        aiChatbotUseShopData: true,
+        aiChatbotUseChatHistory: true,
+        aiChatbotUseWebSearch: true,
       },
     })
     const status = cfg?.aiChatbotStatus ?? 'OFFLINE'
@@ -881,16 +917,53 @@ async function tryChatbotAnswer(params: {
       orderBy: { useCount: 'desc' },
       take: 200,
     })
-    if (knowledge.length === 0) return null
+    const fallbackMode = cfg?.aiChatbotFallbackMode ?? 'MESSAGE'
+    // คลังว่าง + ร้านไม่ได้เปิดให้ AI ตอบเอง = ไม่มีอะไรให้ทำงานด้วย ตกไปเส้นทางข้อความสำรอง
+    if (knowledge.length === 0 && fallbackMode !== 'AI_FREE') {
+      return sendFallback(params, cfg, status)
+    }
 
     const guardrails = await prisma.autoReplyGuardrail.findMany({
       where: { shopId: params.shopId, keywordId: null, isActive: true },
       select: { rule: true, denyPhrases: true },
     })
 
+    // สินค้าที่มีขายจริง — บอทเสนอได้เฉพาะในรายการนี้ และราคามาจากระบบ ไม่ใช่จากที่ร้านพิมพ์ไว้
+    const products = cfg?.aiChatbotUseShopData
+      ? await prisma.product.findMany({
+          where: { shopId: params.shopId, isActive: true },
+          select: { name: true, price: true },
+          orderBy: { name: 'asc' },
+          take: 100,
+        })
+      : []
+
+    // บทสนทนาก่อนหน้า — ทำให้ตอบต่อเนื่องได้ ("แล้วสีแดงล่ะ" ต้องรู้ว่ากำลังพูดถึงอะไร)
+    // เอาเฉพาะข้อความตัวอักษร และกรอง PII ก่อนส่งออกเหมือนคำถามหลัก
+    const history = cfg?.aiChatbotUseChatHistory
+      ? (
+          await prisma.chatMessage.findMany({
+            where: { conversationId: params.conversationId, type: 'TEXT', body: { not: null } },
+            orderBy: { createdAt: 'desc' },
+            take: 11, // 10 ข้อความก่อนหน้า + ข้อความปัจจุบันที่ต้องตัดออก
+            select: { senderRole: true, body: true, createdAt: true },
+          })
+        )
+          .slice(1)
+          .reverse()
+          .map((m) => ({
+            role: (m.senderRole === 'BUYER' ? 'ลูกค้า' : 'ร้าน') as 'ลูกค้า' | 'ร้าน',
+            text: redactPii(m.body ?? '').text.slice(0, 300),
+          }))
+      : []
+
     const result = await answerFromKnowledge({
       customerText: params.customerText,
       imageUrls: params.imageUrls,
+      products: products.map((p) => ({ name: p.name, price: p.price.toString() })),
+      history,
+      allowFreeAnswer: fallbackMode === 'AI_FREE',
+      useWebSearch: cfg?.aiChatbotUseWebSearch ?? false,
       knowledge: knowledge.map((k) => ({ question: k.question, answer: k.answer })),
       knowledgeIds: knowledge.map((k) => k.id),
       guardrails,
@@ -905,7 +978,10 @@ async function tryChatbotAnswer(params: {
         status: result.text ? 'SUCCESS' : 'FAILED',
       })
     }
-    if (!result.text) return null
+    if (!result.text) {
+      // AI ตอบไม่ได้ (คลังไม่มีข้อมูล/ชนกฎ/ล้มเหลว) — ร้านเลือกได้ว่าจะเงียบหรือส่งข้อความสำรอง
+      return sendFallback(params, cfg, status)
+    }
 
     const sent = await sendAutoReply({
       conversationId: params.conversationId,

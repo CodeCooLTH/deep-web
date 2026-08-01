@@ -12,6 +12,11 @@ export interface ChatbotConfig {
   aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
+  aiChatbotFallbackMode: string
+  aiChatbotFallbackText: string | null
+  aiChatbotUseShopData: boolean
+  aiChatbotUseChatHistory: boolean
+  aiChatbotUseWebSearch: boolean
   aiChatbotCooldownSec: number
   aiChatbotMaxPerHour: number
   aiChatbotStartTime: string | null
@@ -25,6 +30,11 @@ const DEFAULTS: ChatbotConfig = {
   aiChatbotStatus: 'OFFLINE',
   aiChatbotEnabled: false,
   aiChatbotTone: null,
+  aiChatbotFallbackMode: 'MESSAGE',
+  aiChatbotFallbackText: null,
+  aiChatbotUseShopData: true,
+  aiChatbotUseChatHistory: true,
+  aiChatbotUseWebSearch: false,
   aiChatbotCooldownSec: 30,
   aiChatbotMaxPerHour: 10,
   aiChatbotStartTime: null,
@@ -41,6 +51,11 @@ export async function getChatbotConfig(shopId: string): Promise<ChatbotConfig> {
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotFallbackMode: true,
+      aiChatbotFallbackText: true,
+      aiChatbotUseShopData: true,
+      aiChatbotUseChatHistory: true,
+      aiChatbotUseWebSearch: true,
       aiChatbotCooldownSec: true,
       aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
@@ -66,6 +81,11 @@ export async function updateChatbotConfig(
       : {}),
     ...(input.aiChatbotEnabled !== undefined ? { aiChatbotEnabled: input.aiChatbotEnabled } : {}),
     ...(input.aiChatbotTone !== undefined ? { aiChatbotTone: input.aiChatbotTone?.trim() || null } : {}),
+    ...(input.aiChatbotFallbackMode !== undefined ? { aiChatbotFallbackMode: input.aiChatbotFallbackMode } : {}),
+    ...(input.aiChatbotFallbackText !== undefined ? { aiChatbotFallbackText: input.aiChatbotFallbackText ?.trim() || null } : {}),
+    ...(input.aiChatbotUseShopData !== undefined ? { aiChatbotUseShopData: input.aiChatbotUseShopData } : {}),
+    ...(input.aiChatbotUseChatHistory !== undefined ? { aiChatbotUseChatHistory: input.aiChatbotUseChatHistory } : {}),
+    ...(input.aiChatbotUseWebSearch !== undefined ? { aiChatbotUseWebSearch: input.aiChatbotUseWebSearch } : {}),
     ...(input.aiChatbotCooldownSec !== undefined ? { aiChatbotCooldownSec: input.aiChatbotCooldownSec } : {}),
     ...(input.aiChatbotMaxPerHour !== undefined ? { aiChatbotMaxPerHour: input.aiChatbotMaxPerHour } : {}),
     ...(input.aiChatbotStartTime !== undefined ? { aiChatbotStartTime: input.aiChatbotStartTime || null } : {}),
@@ -84,6 +104,11 @@ export async function updateChatbotConfig(
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotFallbackMode: true,
+      aiChatbotFallbackText: true,
+      aiChatbotUseShopData: true,
+      aiChatbotUseChatHistory: true,
+      aiChatbotUseWebSearch: true,
       aiChatbotCooldownSec: true,
       aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,

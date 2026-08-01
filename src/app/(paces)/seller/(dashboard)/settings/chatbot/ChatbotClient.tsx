@@ -32,6 +32,11 @@ export type ChatbotConfig = {
   aiChatbotEndTime: string | null
   aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
+  aiChatbotFallbackMode: string
+  aiChatbotFallbackText: string | null
+  aiChatbotUseShopData: boolean
+  aiChatbotUseChatHistory: boolean
+  aiChatbotUseWebSearch: boolean
   aiChatbotCooldownSec: number
   aiChatbotMaxPerHour: number
   aiCapAlertSmsOptIn: boolean
@@ -59,6 +64,20 @@ const TONE_PRESETS = [
   'เป็นทางการ น่าเชื่อถือ',
   'อบอุ่น ใส่ใจ เหมือนคุยกับเพื่อน',
 ]
+
+const DEFAULT_FALLBACK_PLACEHOLDER = 'ขอเช็คข้อมูลให้สักครู่นะคะ เดี๋ยวแอดมินมาตอบค่ะ'
+
+const FALLBACK_MODES = [
+  { key: 'MESSAGE', label: 'ตอบข้อความสำรอง', hint: 'ลูกค้าไม่ถูกปล่อยเงียบ และไม่มีความเสี่ยงว่า AI จะแต่งเรื่อง' },
+  { key: 'AI_FREE', label: 'ให้ AI ตอบเองอย่างอิสระ', hint: 'ตอบได้ทุกคำถาม แต่ยังห้ามแต่งราคา/เงื่อนไขของร้าน — เสี่ยงพูดเกินที่ร้านตั้งไว้' },
+  { key: 'SILENT', label: 'เงียบ ไม่ตอบอะไรเลย', hint: 'พฤติกรรมเดิม — คำถามจะไปเข้าคิวให้ร้านมาตอบเอง' },
+] as const
+
+const DATA_SOURCES = [
+  { key: 'aiChatbotUseShopData' as const, label: 'สินค้าและราคาในระบบ', hint: 'ตอบราคาได้ตรงกับระบบเสมอ ไม่ต้องพิมพ์ซ้ำเข้าคลัง' },
+  { key: 'aiChatbotUseChatHistory' as const, label: 'บทสนทนาก่อนหน้าในห้องนั้น', hint: 'ตอบคำถามต่อเนื่องได้ เช่น "แล้วสีแดงล่ะ"' },
+  { key: 'aiChatbotUseWebSearch' as const, label: 'ค้นเว็บประกอบ', hint: 'ตอบเรื่องนอกร้านได้ เช่น สเปกรุ่นรถ — ค่าใช้จ่ายสูงขึ้น และข้อมูลนี้ร้านไม่ได้รับรอง' },
+] as const
 
 export default function ChatbotClient({
   canEdit,
@@ -530,6 +549,84 @@ export default function ChatbotClient({
             </button>
           </div>
         )}
+      </div>
+
+      {/* ── เมื่อคลังไม่มีคำตอบ ─────────────────────────────────────────────
+          user 2026-08-01: "อยากให้แชทบอทตอบทุกคำถาม ... แต่ถ้าไม่มีคลังความรู้
+          ก็ให้ตอบข้อมูล โดยลูกค้าต้องตั้งค่าได้" */}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">เมื่อคลังไม่มีคำตอบ</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              บอทตอบจากคลังความรู้เป็นหลักเสมอ ตรงนี้คือสิ่งที่ทำเมื่อคลังตอบคำถามนั้นไม่ได้
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-2.5">
+          {FALLBACK_MODES.map((m) => (
+            <label key={m.key} className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="radio"
+                name="fallback-mode"
+                className="form-radio mt-1 shrink-0"
+                checked={cfg.aiChatbotFallbackMode === m.key}
+                disabled={!canEdit || busy}
+                onChange={() => patch({ aiChatbotFallbackMode: m.key }, `เปลี่ยนเป็น "${m.label}" แล้ว`)}
+              />
+              <span className="min-w-0">
+                <span className="text-default-800 block text-sm font-medium">{m.label}</span>
+                <span className="text-default-500 block text-xs">{m.hint}</span>
+              </span>
+            </label>
+          ))}
+          {cfg.aiChatbotFallbackMode === 'MESSAGE' && (
+            <div className="ps-6">
+              <label htmlFor="cb-fallback" className="form-label">ข้อความสำรอง</label>
+              <textarea
+                id="cb-fallback"
+                className="form-textarea"
+                rows={2}
+                maxLength={500}
+                disabled={!canEdit}
+                placeholder={DEFAULT_FALLBACK_PLACEHOLDER}
+                value={cfg.aiChatbotFallbackText ?? ''}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotFallbackText: e.target.value })}
+                onBlur={(e) => patch({ aiChatbotFallbackText: e.target.value }, 'บันทึกข้อความสำรองแล้ว')}
+              />
+              <p className="text-default-400 mt-1 text-xs">เว้นว่างไว้ = ใช้ข้อความกลาง · ไม่มีค่า AI เพราะเป็นข้อความคงที่</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── แหล่งข้อมูลประกอบ ─────────────────────────────────────────────── */}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">ข้อมูลที่บอทใช้ประกอบการตอบ</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              เปิดมากขึ้น = ตอบได้ครอบคลุมขึ้น แต่ prompt ยาวขึ้นและค่าใช้จ่ายต่อครั้งสูงขึ้น
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-3">
+          {DATA_SOURCES.map((d) => (
+            <label key={d.key} className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="text-default-700 block text-sm">{d.label}</span>
+                <span className="text-default-400 block text-xs">{d.hint}</span>
+              </span>
+              <input
+                type="checkbox"
+                className="form-switch shrink-0"
+                disabled={!canEdit || busy}
+                checked={Boolean(cfg[d.key])}
+                onChange={(e) => patch({ [d.key]: e.target.checked }, 'บันทึกแล้ว')}
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* แชทสำหรับทดสอบ — การ์ดตัวเดียวกับของกลุ่มคำ ต่างแค่ scope เป็นระดับร้าน

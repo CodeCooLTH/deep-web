@@ -1961,6 +1961,16 @@ model AutoReplyConfig {
 
   /// ช่วงเวลาที่ให้ ChatBot ทำงาน — null = ตลอดเวลา (รูปแบบเดียวกับ activeSchedule ของบอท)
   /// เก็บเป็น HH:mm เวลาไทย · ข้ามเที่ยงคืนได้ (18:00-09:00 = ทำงานตอนร้านหลับ)
+  /// สิ่งที่ทำเมื่อคลังความรู้ตอบคำถามนั้นไม่ได้ (user สั่ง 2026-08-01 "อยากให้ตอบทุกคำถาม")
+  /// SILENT  = เงียบตามเดิม
+  /// MESSAGE = ส่งข้อความสำรองที่ร้านเขียนไว้ (ค่าเริ่มต้น — ลูกค้าไม่ถูกปล่อยทิ้ง และไม่เสี่ยงแต่งเรื่อง)
+  /// AI_FREE = ให้ AI ตอบเองจากความรู้ทั่วไป (ยังห้ามแต่งราคา/เงื่อนไขของร้าน)
+  aiChatbotFallbackMode String  @default("MESSAGE")
+  aiChatbotFallbackText String? @db.Text
+  /// แหล่งข้อมูลประกอบการตอบ — ของร้านเองเปิดไว้, ค้นเว็บต้องกดเปิดเอง (มีค่าใช้จ่าย + ข้อมูลนอกร้าน)
+  aiChatbotUseShopData    Boolean @default(true)
+  aiChatbotUseChatHistory Boolean @default(true)
+  aiChatbotUseWebSearch   Boolean @default(false)
   /// เว้นระยะขั้นต่ำระหว่างคำตอบของ ChatBot ในห้องเดียวกัน (วินาที) — 0 = ไม่เว้น
   /// คนละตัวกับ cooldown ของกลุ่มคำ เพราะ ChatBot ทำงานตอนไม่เข้ากลุ่มไหนเลย
   aiChatbotCooldownSec Int @default(30)
