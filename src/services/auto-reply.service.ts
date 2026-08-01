@@ -808,6 +808,8 @@ async function tryChatbotAnswer(params: {
         aiChatbotTone: true,
         aiChatbotStartTime: true,
         aiChatbotEndTime: true,
+        aiChatbotCooldownSec: true,
+        aiChatbotMaxPerHour: true,
       },
     })
     const status = cfg?.aiChatbotStatus ?? 'OFFLINE'
@@ -823,6 +825,41 @@ async function tryChatbotAnswer(params: {
     }
 
     if (!isChatbotWithinWindow(cfg?.aiChatbotStartTime, cfg?.aiChatbotEndTime, new Date())) return null
+
+    /**
+     * เพดานการตอบต่อห้อง — ChatBot ไม่มี cooldown ของกลุ่มคำมาคุมเหมือน Auto Reply
+     * เพราะมันทำงานตอน "ไม่เข้ากลุ่มไหนเลย" ถ้าไม่คุมตรงนี้ คนที่พิมพ์คำถามต่างกันรัว ๆ
+     * ในห้องเดียวจะเรียก AI ได้ทุกครั้งจนกว่าจะชนเพดานเงินต่อวันของทั้งร้าน
+     *
+     * โหมดทดสอบข้ามด่านนี้ ด้วยเหตุผลเดียวกับ cooldown ของกลุ่มคำ: คนที่กำลังทดสอบ
+     * ตั้งใจยิงซ้ำ ๆ เพื่อดูว่าตั้งค่าถูกไหม โดนหน่วงแล้วจะนึกว่าระบบพัง
+     */
+    if (status !== 'TEST') {
+      const cooldownSec = cfg?.aiChatbotCooldownSec ?? 30
+      const maxPerHour = cfg?.aiChatbotMaxPerHour ?? 10
+      const now = Date.now()
+
+      if (cooldownSec > 0) {
+        const last = await prisma.autoReplyLog.findFirst({
+          where: { conversationId: params.conversationId, matchedVia: 'CHATBOT', decision: 'REPLIED' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        })
+        if (last && now - last.createdAt.getTime() < cooldownSec * 1000) return null
+      }
+
+      if (maxPerHour > 0) {
+        const usedThisHour = await prisma.autoReplyLog.count({
+          where: {
+            conversationId: params.conversationId,
+            matchedVia: 'CHATBOT',
+            decision: 'REPLIED',
+            createdAt: { gte: new Date(now - 60 * 60 * 1000) },
+          },
+        })
+        if (usedThisHour >= maxPerHour) return null
+      }
+    }
 
     const cap = await checkCapBeforeCall(params.shopId)
     if (!cap.allowed) return null

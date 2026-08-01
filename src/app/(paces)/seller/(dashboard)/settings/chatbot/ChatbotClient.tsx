@@ -32,6 +32,8 @@ export type ChatbotConfig = {
   aiChatbotEndTime: string | null
   aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
+  aiChatbotCooldownSec: number
+  aiChatbotMaxPerHour: number
   aiCapAlertSmsOptIn: boolean
 }
 
@@ -389,6 +391,48 @@ export default function ChatbotClient({
               />
             </div>
             <p className="text-default-500 pb-2.5 text-xs">เครดิตคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
+          </div>
+
+          {/* เพดานต่อห้อง — คนละเรื่องกับเพดานเงินต่อวัน: อันนั้นคุมค่าใช้จ่ายรวมทั้งร้าน
+              อันนี้กันห้องเดียวยิงรัว ๆ จนกินโควตาของทุกห้องไปคนเดียว */}
+          <div className="border-default-200 flex flex-wrap items-end gap-3 border-t pt-3">
+            <div>
+              <label htmlFor="cb-cooldown" className="form-label">เว้นระยะระหว่างคำตอบ (วินาที)</label>
+              <input
+                id="cb-cooldown"
+                type="number"
+                min={0}
+                max={3600}
+                className="form-input"
+                value={cfg.aiChatbotCooldownSec}
+                disabled={!canEdit}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotCooldownSec: Number(e.target.value) })}
+                onBlur={(e) => {
+                  const n = Number(e.target.value)
+                  if (n >= 0 && n <= 3600) patch({ aiChatbotCooldownSec: n }, 'บันทึกการเว้นระยะแล้ว')
+                }}
+              />
+            </div>
+            <div>
+              <label htmlFor="cb-perhour" className="form-label">ตอบได้สูงสุดต่อห้องต่อชั่วโมง</label>
+              <input
+                id="cb-perhour"
+                type="number"
+                min={0}
+                max={200}
+                className="form-input"
+                value={cfg.aiChatbotMaxPerHour}
+                disabled={!canEdit}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotMaxPerHour: Number(e.target.value) })}
+                onBlur={(e) => {
+                  const n = Number(e.target.value)
+                  if (n >= 0 && n <= 200) patch({ aiChatbotMaxPerHour: n }, 'บันทึกเพดานต่อห้องแล้ว')
+                }}
+              />
+            </div>
+            <p className="text-default-500 pb-2.5 text-xs">
+              0 = ไม่จำกัด · โหมดทดสอบไม่ติดสองข้อนี้ จะได้ยิงซ้ำดูผลได้
+            </p>
           </div>
           <label className="flex items-center justify-between">
             <span className="text-default-700 text-sm">

@@ -1961,6 +1961,11 @@ model AutoReplyConfig {
 
   /// ช่วงเวลาที่ให้ ChatBot ทำงาน — null = ตลอดเวลา (รูปแบบเดียวกับ activeSchedule ของบอท)
   /// เก็บเป็น HH:mm เวลาไทย · ข้ามเที่ยงคืนได้ (18:00-09:00 = ทำงานตอนร้านหลับ)
+  /// เว้นระยะขั้นต่ำระหว่างคำตอบของ ChatBot ในห้องเดียวกัน (วินาที) — 0 = ไม่เว้น
+  /// คนละตัวกับ cooldown ของกลุ่มคำ เพราะ ChatBot ทำงานตอนไม่เข้ากลุ่มไหนเลย
+  aiChatbotCooldownSec Int @default(30)
+  /// เพดานจำนวนครั้งที่ ChatBot ตอบได้ต่อห้องต่อชั่วโมง — 0 = ไม่จำกัด
+  aiChatbotMaxPerHour  Int @default(10)
   aiChatbotStartTime String?
   aiChatbotEndTime   String?
 

@@ -1296,6 +1296,10 @@ export const AiChatbotConfigPatchSchema = v.object({
   aiChatbotStatus: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
   aiChatbotEnabled: v.optional(v.boolean()),
   aiChatbotTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
+  // 0 = ไม่เว้นระยะ / ไม่จำกัด — ต่างจากเพดานเงินที่ 0 ไม่มีความหมาย เพราะการ "ไม่จำกัด"
+  // ที่นี่เป็นทางเลือกที่ร้านต้องการจริง (ร้านที่คุยกับลูกค้าถี่ ๆ)
+  aiChatbotCooldownSec: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(3600, 'เว้นระยะได้ไม่เกิน 1 ชั่วโมง'))),
+  aiChatbotMaxPerHour: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(200, 'เพดานได้ไม่เกิน 200 ครั้งต่อชั่วโมง'))),
   aiChatbotStartTime: v.optional(v.union([TimeHHmm, v.literal('')])),
   aiChatbotEndTime: v.optional(v.union([TimeHHmm, v.literal('')])),
   aiEnhanceEnabled: v.optional(v.boolean()),

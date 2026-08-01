@@ -12,6 +12,8 @@ export interface ChatbotConfig {
   aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
+  aiChatbotCooldownSec: number
+  aiChatbotMaxPerHour: number
   aiChatbotStartTime: string | null
   aiChatbotEndTime: string | null
   aiEnhanceEnabled: boolean
@@ -23,6 +25,8 @@ const DEFAULTS: ChatbotConfig = {
   aiChatbotStatus: 'OFFLINE',
   aiChatbotEnabled: false,
   aiChatbotTone: null,
+  aiChatbotCooldownSec: 30,
+  aiChatbotMaxPerHour: 10,
   aiChatbotStartTime: null,
   aiChatbotEndTime: null,
   aiEnhanceEnabled: false,
@@ -37,6 +41,8 @@ export async function getChatbotConfig(shopId: string): Promise<ChatbotConfig> {
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotCooldownSec: true,
+      aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
       aiChatbotEndTime: true,
       aiEnhanceEnabled: true,
@@ -60,6 +66,8 @@ export async function updateChatbotConfig(
       : {}),
     ...(input.aiChatbotEnabled !== undefined ? { aiChatbotEnabled: input.aiChatbotEnabled } : {}),
     ...(input.aiChatbotTone !== undefined ? { aiChatbotTone: input.aiChatbotTone?.trim() || null } : {}),
+    ...(input.aiChatbotCooldownSec !== undefined ? { aiChatbotCooldownSec: input.aiChatbotCooldownSec } : {}),
+    ...(input.aiChatbotMaxPerHour !== undefined ? { aiChatbotMaxPerHour: input.aiChatbotMaxPerHour } : {}),
     ...(input.aiChatbotStartTime !== undefined ? { aiChatbotStartTime: input.aiChatbotStartTime || null } : {}),
     ...(input.aiChatbotEndTime !== undefined ? { aiChatbotEndTime: input.aiChatbotEndTime || null } : {}),
     ...(input.aiEnhanceEnabled !== undefined ? { aiEnhanceEnabled: input.aiEnhanceEnabled } : {}),
@@ -76,6 +84,8 @@ export async function updateChatbotConfig(
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotCooldownSec: true,
+      aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
       aiChatbotEndTime: true,
       aiEnhanceEnabled: true,
