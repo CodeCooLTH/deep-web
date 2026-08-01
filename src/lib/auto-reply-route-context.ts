@@ -14,14 +14,29 @@ import { resolveActiveShopContext } from '@/lib/shop-context'
  * เข้าไปตัดสินเอง ถ้าย้ายไปตัดสินใน service เมื่อไหร่จะตรวจไม่ได้ว่าครบทุกเส้นทางหรือไม่
  */
 
-/** role ที่แก้ไขการตั้งค่าได้ (AC-004-01) — STAFF อ่านได้อย่างเดียว */
+/**
+ * role ที่แก้ไขการตั้งค่าได้ (AC-004-01)
+ *
+ * NOTE (2026-08-01): ระบบมีแค่ `OWNER` (คนสร้างร้าน) กับ `ADMIN` (ทุกคนที่ถูกเชิญเข้ามา
+ * ทั้ง `shop-member.service` และ `invite-link.service` ใส่ `ADMIN` เสมอ) — **ไม่มี role
+ * `STAFF` อยู่จริงในสคีมา** คอมเมนต์เดิมที่เขียนว่า "STAFF อ่านได้อย่างเดียว" จึงชวนเข้าใจผิด
+ * ว่ามีทางเกิด 403 จาก role ซึ่งไม่มี — `canEdit` จาก role เป็น true เสมอสำหรับสมาชิกทุกคน
+ * (user ยืนยัน 2026-08-01 ว่าไม่เปลี่ยนสิทธิ์ใคร แค่แก้เอกสาร/เทสให้ตรงความจริง)
+ */
 const EDITABLE_ROLES = ['OWNER', 'ADMIN'] as const
 
 export const AUTO_REPLY_NO_STORE = {
   'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
 } as const
 
-export type ShopRouteContext = { userId: string; shopId: string; canEdit: boolean }
+export type ShopRouteContext = {
+  userId: string
+  shopId: string
+  canEdit: boolean
+  /** ร้าน Business ที่โดน package lock — อ่านได้แต่เขียนไม่ได้ (`Shop.packageLockedAt`) */
+  locked: boolean
+  lockReason: string | null
+}
 
 export async function requireShopContext(): Promise<ShopRouteContext | { error: NextResponse }> {
   const session = await getServerSession(authOptions)
@@ -43,11 +58,32 @@ export async function requireShopContext(): Promise<ShopRouteContext | { error: 
     userId,
     shopId: activeCtx.shopId,
     canEdit: (EDITABLE_ROLES as readonly string[]).includes(activeCtx.role),
+    locked: activeCtx.locked,
+    lockReason: activeCtx.lockReason,
   }
 }
 
-/** ใช้กับทุก endpoint ที่เขียนข้อมูล — STAFF ต้องถูกปฏิเสธเสมอ (AC-004-03) */
+/**
+ * ใช้กับทุก endpoint ที่เขียนข้อมูล (AC-004-03)
+ *
+ * WARNING: ตรวจ **สองอย่าง** ไม่ใช่อย่างเดียว:
+ *   1. role แก้ไขได้ไหม — วันนี้เป็นจริงเสมอ (ไม่มี role STAFF ในระบบ ดูหมายเหตุที่ EDITABLE_ROLES)
+ *      คงไว้เพื่อให้ยังทำงานถูกถ้าวันหนึ่งมี role อ่านอย่างเดียวเพิ่มเข้ามา
+ *   2. **ร้านโดน package lock อยู่ไหม** — เดิมไม่เคยตรวจเลยทั้งที่ `resolveActiveShopContext`
+ *      คืน `locked` ให้อยู่แล้ว ทำให้ร้าน Business ที่ถูกล็อกยังเขียนได้ทุก endpoint ของฟีเจอร์นี้
+ *      (พบ 2026-08-01 ตอนเขียน TestCase — `API.md` อ้าง SHOP_LOCKED มาตลอดแต่ไม่เคย implement)
+ */
 export function forbidIfReadOnly(ctx: ShopRouteContext): NextResponse | null {
+  if (ctx.locked) {
+    return NextResponse.json(
+      {
+        error: ctx.lockReason
+          ? `ร้านนี้ถูกระงับการแก้ไขชั่วคราว (${ctx.lockReason}) — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที`
+          : 'ร้านนี้ถูกระงับการแก้ไขชั่วคราว — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที',
+      },
+      { status: 403 }
+    )
+  }
   if (ctx.canEdit) return null
   return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขการตั้งค่านี้' }, { status: 403 })
 }
