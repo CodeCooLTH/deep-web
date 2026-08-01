@@ -205,6 +205,12 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
 
 const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแชทของร้านค้าออนไลน์ ตอบคำถามลูกค้าโดยใช้ "คลังความรู้ของร้าน" ที่ให้มาเป็นแหล่งข้อมูลเดียว
 
+เรื่องที่คลังไม่มีข้อมูล **ห้ามขึ้นต้นประโยคด้วยการบอกว่าร้านไม่มีข้อมูล** เด็ดขาด
+ให้พูดแบบนี้แทน แล้วต่อด้วยเรื่องสินค้าทันที:
+  "เรื่องนี้ขอเช็คให้อีกทีนะคะ เดี๋ยวแอดมินมายืนยันค่ะ"
+  "ขอสอบถามแอดมินก่อนนะคะ เดี๋ยวแจ้งกลับค่ะ"
+ห้ามใช้คำว่า "ไม่มีข้อมูล" "ไม่ได้ระบุไว้" "ต้องขออภัย" ในคำตอบ
+
 คุณ **ต้องประมวลผลข้อมูลในคลัง** ไม่ใช่แค่หาข้อที่ถ้อยคำตรงกัน:
 - ประกอบคำตอบจากหลายข้อรวมกันได้ เช่น ถามถึงสินค้าหลายตัวพร้อมกัน
 - คำนวณจากตัวเลขในคลังได้ เช่น ราคารวม ส่วนต่าง จำนวนเท่าตัว
@@ -216,7 +222,6 @@ const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแช�
 - ห้ามสร้างข้อเท็จจริงที่ไม่มีในคลังและอนุมานจากคลังไม่ได้ โดยเฉพาะราคา ระยะเวลาจัดส่ง การรับประกัน ช่องทางชำระเงิน สต็อก
 - ตัวเลขที่มีในคลังต้องตรงเป๊ะ ห้ามปัด ห้ามประมาณ ส่วนตัวเลขที่คำนวณเองต้องคำนวณจากตัวเลขในคลังเท่านั้น
 - ห้ามสัญญาอะไรแทนร้าน
-- เรื่องที่ไม่มีข้อมูล ห้ามตอบว่า "ไม่มีข้อมูล" แล้วจบ — ให้บอกว่าจะเช็คให้หรือให้แอดมินยืนยันอีกที แล้วชวนคุยเรื่องสินค้าต่อ
 - ตอบว่า NO_ANSWER คำเดียว **เฉพาะเมื่อคำถามไม่เกี่ยวกับสิ่งที่มีในคลังเลย** ไม่ใช่เพราะไม่มีข้อไหนถ้อยคำตรงกัน
 - ถ้าลูกค้าส่งรูปมา ให้ดูรูปแล้วเทียบกับสินค้าในคลัง — บอกได้ว่าตรงกับรายการไหน ราคาเท่าไร
   ถ้าดูแล้วไม่แน่ใจว่าเป็นตัวไหน ให้บอกตามตรงและถามกลับ ห้ามทายส่ง ๆ ว่าเป็นตัวใดตัวหนึ่ง
@@ -245,7 +250,8 @@ const CHATBOT_FREE_SYSTEM = `คุณคือผู้ช่วยตอบแ
 - ราคา สต็อก ค่าส่ง เงื่อนไข การรับประกัน ของร้านนี้ ต้องมาจากข้อมูลร้านที่ให้มาเท่านั้น ไม่มีข้อมูลให้บอกว่าจะให้แอดมินมาตอบ
 - ห้ามเสนอสินค้าที่ไม่มีในรายการที่ให้มา
 - ห้ามสัญญาอะไรแทนร้าน
-- ถ้าไม่มั่นใจ ให้บอกว่าจะเช็คให้หรือให้แอดมินยืนยันอีกที แล้วชวนคุยต่อ ห้ามตอบว่า "ไม่มีข้อมูล" แล้วจบ
+- ถ้าไม่มั่นใจ ให้พูดว่า "ขอเช็คให้อีกทีนะคะ เดี๋ยวแอดมินมายืนยันค่ะ" แล้วชวนคุยเรื่องสินค้าต่อ
+  ห้ามใช้คำว่า "ไม่มีข้อมูล" "ไม่ได้ระบุไว้" "ต้องขออภัย" ในคำตอบ
 
 พาบทสนทนาไปสู่การสั่งซื้อสินค้าที่ร้านมีขายจริงเสมอ
 
@@ -284,6 +290,26 @@ function extractUsedIds(answer: string, ids: string[] | undefined): { text: stri
     }
   }
   return { text, usedIds: [...usedIds] }
+}
+
+/**
+ * แยก "ตอบไม่ได้" ออกจาก "ตอบได้แต่มี marker ติดมา"
+ *
+ * WARNING (บั๊กจริงที่เจอตอนทดสอบ 2026-08-01): เทียบด้วย `includes('NO_ANSWER')` เฉย ๆ ไม่ได้
+ * โมเดลแปะ `[[NO_ANSWER]]` ต่อท้ายคำตอบที่ใช้ได้จริงมาด้วย ("ขอเช็คให้อีกทีนะคะ ... [[NO_ANSWER]]")
+ * ซึ่งจะถูกอ่านว่าตอบไม่ได้แล้วโยนคำตอบดี ๆ ทิ้ง
+ *
+ * ตัดสินจากสิ่งที่เหลือหลังลอก marker ออก: เหลือข้อความจริงพอสมควร = ตอบได้ ส่งอันนั้นไป
+ */
+const MIN_REAL_ANSWER_LEN = 12
+
+function stripMarkers(text: string): { clean: string; declaredNoAnswer: boolean } {
+  const declaredNoAnswer = text.toUpperCase().includes(NO_ANSWER_TOKEN)
+  const clean = text
+    .replace(/\[\[[^\]]*\]\]/g, '') // marker ทุกชนิดที่โมเดลแปะมา
+    .replace(new RegExp(NO_ANSWER_TOKEN, 'gi'), '')
+    .trim()
+  return { clean, declaredNoAnswer }
 }
 
 function mergeUsage(a: TokenUsage | null, b: TokenUsage | null): TokenUsage | null {
@@ -446,7 +472,8 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
     // แกะและตัดบรรทัด [[USED:...]] ก่อนตรวจอย่างอื่น — ทุกเส้นทางหลังจากนี้จะได้ทำงานกับ
     // ข้อความที่สะอาดแล้ว รวมถึง denylist ที่ไม่ควรไปเจอ marker ของระบบเอง
     const used = extractUsedIds(answer, input.knowledgeIds)
-    answer = used.text
+    const stripped = stripMarkers(used.text)
+    answer = stripped.clean
 
     /**
      * โมเดลบอกเองว่าคลังตอบไม่ได้
@@ -455,7 +482,8 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
      * แต่ยังคงเส้นห้ามแต่งข้อเท็จจริงของร้านไว้ครบ — และรอบนี้ค้นเว็บได้ถ้าร้านเปิดไว้
      * ร้านที่เลือก SILENT/MESSAGE ไม่เข้ารอบนี้เลย จึงไม่มีต้นทุนเพิ่ม
      */
-    if (answer.toUpperCase().includes(NO_ANSWER_TOKEN)) {
+    // ตอบไม่ได้จริง = ประกาศ NO_ANSWER **และ** ไม่เหลือข้อความจริงพอจะส่ง
+    if (stripped.declaredNoAnswer && answer.length < MIN_REAL_ANSWER_LEN) {
       if (!input.allowFreeAnswer) return none('NO_KNOWLEDGE_ANSWER', usage)
       try {
         const f = await generateText({
@@ -467,10 +495,9 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
           signal,
         })
         usage = mergeUsage(usage, f.usage)
-        answer = f.text.replace(/\[\[USED:[^\]]*\]\]/gi, '').trim()
-        if (!answer || answer.toUpperCase().includes(NO_ANSWER_TOKEN)) {
-          return none('NO_KNOWLEDGE_ANSWER', usage)
-        }
+        const free = stripMarkers(f.text)
+        answer = free.clean
+        if (answer.length < MIN_REAL_ANSWER_LEN) return none('NO_KNOWLEDGE_ANSWER', usage)
         // รอบนี้ไม่มีข้อในคลังที่ "ถูกใช้" จริง จึงไม่นับสถิติให้ข้อไหน
         return finishAnswer(answer, [], usage, input, signal)
       } catch (e) {
