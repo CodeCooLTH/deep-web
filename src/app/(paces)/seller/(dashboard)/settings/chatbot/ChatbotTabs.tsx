@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * แถบ Tab ของเมนู ChatBot — ตั้งค่าบอท / บุคลิก / คลังความรู้
+ * แถบ Tab ของเมนู ChatBot — ตั้งค่าบอท / บุคลิก / คลังความรู้ / ประวัติการตอบ
  * feature 00023 · user สั่ง 2026-08-01 ("บุคลิก AI ต้องโยกเข้าเมนู DeepBot เพื่อเป็นการตั้งค่าตัวบอท")
  *
  * Base: settings/auto-reply/[id]/KeywordTabs.tsx (segmented control ชุดเดียวกัน)
@@ -18,6 +18,7 @@ const TABS = [
   { href: '/settings/chatbot', label: 'ตั้งค่าบอท' },
   { href: '/settings/ai', label: 'บุคลิก' },
   { href: '/settings/chatbot/knowledge', label: 'คลังความรู้' },
+  { href: '/settings/chatbot/logs', label: 'ประวัติการตอบ' },
 ] as const
 
 export default function ChatbotTabs() {
