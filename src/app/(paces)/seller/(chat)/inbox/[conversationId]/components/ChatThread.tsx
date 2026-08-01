@@ -1511,14 +1511,17 @@ export default function ChatThread({
             <Icon icon="sparkles" className="text-lg" />
           </button>
 
-          {/* feature 00018 T5 — เปิด Customer Panel แบบ sheet เฉพาะจอเล็ก (<1024px) ที่ desktop ใช้
-              CustomerPanel.tsx แบบ persistent column แทน (ดู page.tsx)
+          {/* feature 00018 T5 — เปิด Customer Panel แบบ sheet เฉพาะจอที่ยังไม่มีคอลัมน์ขวาแบบ
+              persistent (<1280px) ที่กว้างกว่านั้นใช้ CustomerPanel.tsx เป็นคอลัมน์จริง (ดู page.tsx)
+              เกณฑ์เปลี่ยนจาก 1024 → 1280 เมื่อ 2026-08-01 (user report: iPad Pro เพี้ยน) ต้อง
+              เปลี่ยนคู่กับ `xl:block` ของคอลัมน์ขวาเสมอ ไม่งั้นช่วง 1024-1279 จะไม่มีทางเปิด
+              ข้อมูลลูกค้าเลย — ทั้งปุ่มนี้ซ่อนและคอลัมน์ก็ยังไม่โผล่
               ms-auto: ดันไปชิดขวาสุดของแถวเครื่องมือ — คนละกลุ่มกับปุ่มแต่งข้อความ 3 ตัวทางซ้าย */}
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
             aria-label="ข้อมูลลูกค้า"
-            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 lg:hidden"
+            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 xl:hidden"
           >
             <Icon icon="user-circle" className="text-lg" />
           </button>
