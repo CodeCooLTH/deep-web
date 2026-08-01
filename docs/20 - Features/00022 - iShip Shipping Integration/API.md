@@ -310,3 +310,79 @@ payload สถานะรถเข้ารับ: `ticketPickupId`, `staffInfo
 | `traces` | FR-ISHIP-040 |
 | `webhooks/iship/[secret]` | FR-ISHIP-041, BR-ISHIP-40/41 |
 | ทุก endpoint | FR-ISHIP-003, BR-ISHIP-01/02/03/05 |
+
+---
+
+## ส่วนขยาย 2026-08-01 — ผูกพัสดุที่มีอยู่แล้วบน iShip
+
+> รองรับ FR-ISHIP-025/026/027/028 · BR-ISHIP-29/45
+> ทุก endpoint อยู่ใต้กติกาเดียวกับหัวข้อบนสุด (`private, no-store` + `requireGeneralShop`)
+
+### `GET /api/seller/iship/unlinked`
+รายการพัสดุของร้านบน iShip ในช่วง 7 วันล่าสุดที่ยังไม่ถูกผูกกับคำสั่งซื้อใด
+
+ตอบ `200`:
+```json
+{
+  "parcels": [
+    {
+      "trackNo": "TH0205901RX26E0",
+      "courierCode": "FlashExpress",
+      "courierName": "Flash Express",
+      "courierLogo": "https://app.iship.cloud/express/flash-express.png",
+      "carrierStatus": "order_success",
+      "carrierStatusText": "รอเข้ารับพัสดุ",
+      "codAmount": 1250,
+      "receiver": {
+        "name": "สมชาย ใจดี", "phone": "0812345678",
+        "line1": "99/1 ถ.สุขุมวิท",
+        "subdistrict": "สีลม", "district": "บางรัก",
+        "province": "กรุงเทพ", "postcode": "10500"
+      },
+      "createdAtRaw": "2026-07-31 09:12:34",
+      "fromDeepOrphan": false
+    }
+  ]
+}
+```
+
+- ใช้ `query_orders` **คำขอเดียว** (payload จริงมีที่อยู่ครบ ไม่ต้องวน `get_order` รายใบ)
+- กรองออก: ใบที่ยกเลิกแล้ว + ใบที่ `trackingNo` ถูกใช้แล้ว (เทียบทั้งตาราง ไม่ใช่แค่ร้านนี้ เพราะ partial unique เป็นระดับตาราง)
+- `fromDeepOrphan: true` = `custom_order_id` เป็นรูป `idempotencyKey` ของเราแต่ไม่มีแถวคู่กันใน DB
+  → ใบที่เรายิงสำเร็จแต่ response หายกลางทาง (เดิมกู้คืนไม่ได้เลย)
+- 🛑 คำตอบมี PII ผู้รับของพัสดุทุกใบ — ห้าม cache ร่วม
+
+### `GET /api/seller/iship/unlinked/preview`
+`?trackingNo=<เลข>&orderId=<uuid>` หรือ `?trackingNo=<เลข>&orderToken=<token>`
+
+ตอบ `200`: `{ "parcel": {…}, "diff": [{ "field","label","order","parcel","same" } × 7], "hasConflict": bool }`
+
+อ่านพัสดุจาก iShip ใหม่ **ไม่ใช้ค่าจากรายการก่อนหน้า** — ตารางที่ร้านใช้ตัดสินใจต้องเป็น
+ข้อมูลชุดเดียวกับที่จะถูกเขียนลงคำสั่งซื้อจริง ไม่งั้นร้านยืนยันสิ่งหนึ่งแต่ระบบเขียนอีกสิ่งหนึ่ง
+
+การเทียบเป็นแบบ canonical: ตัดคำนำหน้า ต./อ./จ. ยุบช่องว่าง `กรุงเทพ`=`กรุงเทพมหานคร`
+เบอร์เทียบเฉพาะตัวเลข — ไม่งั้นจะฟ้องว่าต่างในเกือบทุกใบจนร้านเลิกอ่าน
+
+### `POST /api/seller/iship/shipments/link`
+```json
+{ "orderToken": "…", "trackingNo": "TH0205901RX26E0", "addressResolution": "KEEP_ORDER" }
+```
+`addressResolution`: `"KEEP_ORDER"` (ไม่แตะออเดอร์) | `"USE_ISHIP"` (เขียนที่อยู่จากพัสดุทับ
+ผ่าน `applyReceiverPatch` — แตะแค่ 3 คอลัมน์ ห้ามใช้ `updateOrder()`) · **บังคับส่ง ไม่มีค่าปริยาย**
+
+ตอบ `201`: รูปเดียวกับ `POST /shipments` (`ShipmentView`) เพิ่ม `source: "LINKED"`
+
+- `409 SHIPMENT_EXISTS` — คำสั่งซื้อมีพัสดุที่ใช้งานอยู่แล้ว **หรือ** เลขนี้ผูกกับคำสั่งซื้ออื่นไปแล้ว (ข้อความต่างกัน)
+- `409 INVALID_STATE` — พัสดุถูกยกเลิกไปแล้ว
+- `404 NOT_FOUND` — ไม่พบเลขนี้ในบัญชี iShip ของร้าน
+- `403 NOT_ELIGIBLE` — คำสั่งซื้อไม่ใช่แบบจัดส่ง
+- **ไม่เรียก `create_order`** → ไม่เกิดค่าใช้จ่ายใหม่ของร้าน
+- หลังสร้างแถวจะเรียก `getTraces()` เติมไทม์ไลน์ทันที — ล้มแล้ว **ไม่ rollback** การผูก
+  (เคสที่พบบ่อยที่สุดคือขนส่งยังไม่สแกน ซึ่ง iShip ตอบ 500 ไม่มีข้อความ)
+
+### `POST /api/seller/iship/shipments/[id]/unlink`
+เลิกผูก — **คนละเรื่องกับ `/cancel`** ตัวนี้ไม่แจ้งขนส่ง พัสดุจริงยังอยู่ครบและยังส่งของตามปกติ
+
+- ลบแถว `OrderShipment` ทิ้ง (ไม่ mark `CANCELLED` — ดู BR-ISHIP-29)
+- คืน `Order.status` เป็น `PENDING` และลบ `ShipmentTracking` ที่ตัวเองสร้างไว้ตอนผูก (BR-ISHIP-45)
+- `409 INVALID_STATE` ถ้าใบนั้น `source = CREATED` (Deep เปิดเอง) — ใบพวกนั้นต้องยกเลิกกับขนส่งจริง
