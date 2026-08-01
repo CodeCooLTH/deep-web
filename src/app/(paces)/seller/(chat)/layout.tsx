@@ -103,8 +103,11 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               เดิม) หน้า /inbox เองยัง render InboxList แบบ full-screen สำหรับจอเล็ก (lg:hidden
               ที่ inbox/page.tsx) เป็น duplication ที่ตั้งใจ — คนละ mode คนละ fetch (rail=client
               fetch ของตัวเอง, mobile list=SSR ของ page.tsx) ไม่ใช่ component เดียวกันที่ถูกซ่อน/โชว์ */}
-          {/* lg:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน */}
-          <div className="hidden shrink-0 flex-col border-e border-default-200 lg:flex lg:w-96">
+          {/* xl:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน
+              lg:w-80 (320px) สำหรับช่วงแท็บเล็ต 1024-1279: ที่ความกว้างนั้นคอลัมน์ขวายังไม่โผล่
+              (xl:block) แต่ rail 384px ยังกินพื้นที่มากเกินจำเป็นจนคอลัมน์แชทอึดอัด
+              — bug fix 2026-08-01 จาก user report iPad Pro */}
+          <div className="hidden shrink-0 flex-col border-e border-default-200 lg:flex lg:w-80 xl:w-96">
             <ChatRail shopId={activeCtx?.shopId ?? null} hasShipping={hasShipping} />
           </div>
 
