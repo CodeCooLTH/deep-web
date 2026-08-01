@@ -247,7 +247,7 @@ export default function UnansweredQueueClient({
   )
 }
 
-/* ══ Sheet — เพิ่มเข้าคลังคำถาม ═══════════════════════════════════════════════
+/* ══ Sheet — เพิ่มเข้าคลังความรู้ ═══════════════════════════════════════════════
  * Base: CustomerPanelSheet.tsx (bottom sheet <lg / centered modal ≥lg) */
 function AnswerSheet({
   row,
@@ -311,7 +311,7 @@ function AnswerSheet({
         const body = (await res.json().catch(() => null)) as { error?: string } | null
         throw new Error(body?.error ?? 'บันทึกคำตอบไม่สำเร็จ')
       }
-      pacesToast.success('เพิ่มเข้าคลังแล้ว — ครั้งหน้าตอบได้เอง')
+      pacesToast.success('เพิ่มเข้าคลังความรู้แล้ว — ครั้งหน้าตอบได้เอง')
       onSaved()
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกคำตอบไม่สำเร็จ')
@@ -324,7 +324,7 @@ function AnswerSheet({
     <div className="fixed inset-0 z-80 flex items-end justify-center bg-black/40 lg:items-center">
       <div className="bg-card max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl lg:max-h-[80dvh] lg:max-w-lg lg:rounded-2xl"> {/* HR7 carve-out: ไม่มี token viewport-height ใน Paces scale — precedent CustomerPanelSheet.tsx บรรทัดเดียวกัน */}
         <div className="border-default-200 flex items-center justify-between border-b px-4 py-3">
-          <h5 className="font-semibold">เพิ่มเข้าคลังคำถาม</h5>
+          <h5 className="font-semibold">เพิ่มเข้าคลังความรู้</h5>
           <button type="button" onClick={onClose} className="btn btn-icon btn-sm bg-light text-default-700" aria-label="ปิด">
             <Icon icon="x" className="size-4" aria-hidden="true" />
           </button>

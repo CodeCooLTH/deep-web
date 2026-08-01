@@ -38,7 +38,7 @@ type Props = {
   initialConfig: ChatbotConfig
   initialGuardrails: GuardrailRow[]
   walletBalance: number
-  /** จำนวนข้อในคลังคำตอบที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
+  /** จำนวนข้อในคลังความรู้ที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
   knowledgeCount: number
 }
 
@@ -162,11 +162,12 @@ export default function ChatbotClient({
               <span className="bg-primary/15 text-primary flex size-8 flex-none items-center justify-center rounded-lg">
                 <Icon icon="robot" className="size-4.5" aria-hidden="true" />
               </span>
-              ให้ AI ตอบข้อความที่ไม่เข้าเงื่อนไขไหนเลย
+              ตอบคำถามที่ Auto Reply ไม่รับ
             </h5>
             <p className="text-default-700 mt-1 text-xs">
-              ปกติข้อความที่ไม่ตรงเงื่อนไขของ Auto Reply จะเงียบ — เปิดตัวนี้แล้ว AI จะอ่านคลังคำตอบของร้าน
-              แล้วตอบให้แทน · <strong>คำที่ตั้งไว้ใน Auto Reply ยังชนะเสมอ</strong> AI ได้เฉพาะคำถามที่ไม่มีใครรับ
+              ข้อความที่ไม่ตรงเงื่อนไขไหนเลยจะเงียบไป — เปิดแล้ว AI จะอ่านคลังความรู้แล้วตอบให้แทน
+              <br />
+              <strong>คำตอบที่คุณตั้งไว้เองยังมาก่อนเสมอ</strong> AI ได้เฉพาะคำถามที่ไม่มีใครรับ
             </p>
           </div>
           <label className="flex flex-none items-center gap-2">
@@ -200,9 +201,9 @@ export default function ChatbotClient({
           <div className="card-body flex items-start gap-3">
             <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
             <div className="text-sm">
-              <p className="text-default-800 font-semibold">คลังคำตอบยังว่าง — AI ไม่มีข้อมูลให้ตอบ</p>
+              <p className="text-default-800 font-semibold">คลังความรู้ยังว่าง — AI ไม่มีข้อมูลให้ตอบ</p>
               <p className="text-default-700 mt-1">
-                ChatBot ตอบจากคลังคำตอบของร้านเท่านั้น ไม่ได้เดาเอง — เพิ่มคำถาม-คำตอบในเมนู Auto Reply ก่อน
+                ChatBot ตอบจากคลังความรู้เท่านั้น ไม่เดาเอง — เพิ่มข้อมูลที่แท็บ &ldquo;คลังความรู้&rdquo; ก่อน
               </p>
             </div>
           </div>
@@ -253,8 +254,7 @@ export default function ChatbotClient({
           <div className="min-w-0">
             <h5 className="text-default-900 text-base font-semibold">น้ำเสียง</h5>
             <p className="text-default-700 mt-1 text-xs">
-              ว่างไว้ = สุภาพ เป็นกันเอง อ่านง่าย · น้ำเสียงไม่มีอำนาจเหนือกฎข้อมูล
-              ราคาและเงื่อนไขยังต้องตรงกับคลังคำตอบเสมอ
+              ว่างไว้ = สุภาพ เป็นกันเอง อ่านง่าย · น้ำเสียงเปลี่ยนได้แค่ถ้อยคำ ไม่เปลี่ยนข้อมูลในคลังความรู้
             </p>
           </div>
         </div>
@@ -306,9 +306,9 @@ export default function ChatbotClient({
           <div className="min-w-0">
             <h5 className="text-default-900 text-base font-semibold">ขัดเกลาคำตอบของ Auto Reply</h5>
             <p className="text-default-700 mt-1 text-xs">
-              สำหรับคนที่อยากให้ AI ช่วยเกลาถ้อยคำเพิ่ม — คำตอบที่ตั้งไว้ใน Auto Reply จะถูก AI ปรับให้อ่านลื่นขึ้น
-              ก่อนส่ง โดย<strong>ข้อมูลอย่างราคา วันส่ง เงื่อนไข ต้องตรงเป๊ะ</strong> · เกิน 8 วินาทีส่งคำตอบเดิมแทนทันที
-              · มีค่าใช้จ่ายต่อครั้งเหมือนกัน
+              คำตอบที่คุณตั้งไว้ใน Auto Reply จะถูก AI ปรับถ้อยคำให้อ่านลื่นขึ้นก่อนส่ง
+              <br />
+              <strong>ราคา วันส่ง เงื่อนไข ต้องตรงกับที่คุณเขียนไว้เป๊ะ</strong> · เกิน 8 วินาทีส่งของเดิมแทน · คิดค่าใช้จ่ายต่อครั้ง
             </p>
           </div>
           <label className="flex flex-none items-center gap-2">
@@ -336,7 +336,7 @@ export default function ChatbotClient({
           <div className="min-w-0">
             <h5 className="text-default-900 text-base font-semibold">เพดานค่าใช้จ่ายต่อวัน</h5>
             <p className="text-default-700 mt-1 text-xs">
-              ใช้ครบแล้วระบบหยุดเรียก AI เองจนขึ้นวันใหม่ (เวลาไทย) — ลูกค้ายังได้คำตอบจาก Auto Reply ตามปกติ
+              ใช้ครบแล้วหยุดเรียก AI จนขึ้นวันใหม่ — Auto Reply ยังตอบตามปกติ ลูกค้าไม่รู้สึกว่าอะไรหายไป
             </p>
           </div>
         </div>
@@ -363,7 +363,7 @@ export default function ChatbotClient({
           <label className="flex items-center justify-between">
             <span className="text-default-700 text-sm">
               เตือนทาง SMS เมื่อใช้ถึง 80% ของเพดาน
-              <span className="text-default-400 block text-xs">มีค่าส่ง 1 บาทต่อครั้ง — ไม่เปิดก็ยังเห็นการเตือนในแอป</span>
+              <span className="text-default-400 block text-xs">ค่าส่ง 1 บาทต่อครั้ง — ไม่เปิดก็ยังเห็นเตือนในแอปอยู่ดี</span>
             </span>
             <input
               type="checkbox"
