@@ -47,9 +47,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // AC-016-04: แอดมินเปิดกลับเองก่อนครบเวลาได้
   if (o.clearPause) data.autoReplyPausedUntil = null
   // TD-012: ล้าง handoff = เธรดกลับมาให้ระบบดูแลต่อ (ต้องล้าง reason ด้วยไม่งั้นค้างสับสน)
+  //
+  // WARNING: ต้องรีเซ็ต autoReplyCount ด้วยเสมอ (บั๊กจริงที่ user เจอ 2026-08-01)
+  // เพดาน maxRepliesPerConversation นับสะสมตลอดอายุเธรด เธรดที่ถูกส่งต่อคนเพราะชนเพดาน
+  // จะมีค่านี้ค้างอยู่ที่เพดานพอดี — ล้าง handoffAt อย่างเดียวแปลว่าข้อความถัดไปชนเพดาน
+  // แล้วล็อกซ้ำทันที ปุ่ม "ให้บอทตอบต่อ" จึงเหมือนกดแล้วไม่มีอะไรเกิดขึ้น
+  //
+  // การกดปุ่มนี้คือร้านสั่งตรง ๆ ว่า "ให้บอทดูแลเธรดนี้ต่อ" การเริ่มนับใหม่จึงเป็นสิ่งที่
+  // ผู้ใช้ตั้งใจ ไม่ใช่ผลข้างเคียง
   if (o.clearHandoff) {
     data.handoffAt = null
     data.handoffReason = null
+    data.autoReplyCount = 0
   }
   if (o.contextProductId !== undefined) {
     data.contextProductId = o.contextProductId
