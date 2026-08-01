@@ -380,7 +380,7 @@ export default function ShipmentStatusView({
             (เลิกผูก = ย้อนกลับได้ / ยกเลิกพัสดุ = บอกขนส่งให้ยกเลิกของจริง) */}
         {shipment.source === 'LINKED' && (
           <div className="mt-3 rounded-lg bg-info/15 p-3">
-            <p className="mb-2 flex items-start gap-2 text-xs text-info">
+            <p className="mb-2 flex items-start gap-2 text-xs text-info-ink">
               <Icon icon="tabler:link" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
               ผูกจาก iShip — พัสดุใบนี้ถูกสร้างไว้ก่อนแล้ว ไม่ได้เปิดจากคำสั่งซื้อนี้
             </p>

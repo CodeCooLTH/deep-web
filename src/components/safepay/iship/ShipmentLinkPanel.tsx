@@ -36,12 +36,12 @@ import type {
 import type { ShipmentViewJson } from '@/lib/iship/context'
 
 const TONE_BADGE: Record<string, string> = {
-  primary: 'badge bg-primary/15 text-primary',
-  info: 'badge bg-info/15 text-info',
-  success: 'badge bg-success/15 text-success',
-  warning: 'badge bg-warning/15 text-warning',
-  danger: 'badge bg-danger/15 text-danger',
-  secondary: 'badge bg-secondary/15 text-secondary',
+  primary: 'badge bg-primary/15 text-primary-ink',
+  info: 'badge bg-info/15 text-info-ink',
+  success: 'badge bg-success/15 text-success-ink',
+  warning: 'badge bg-warning/15 text-warning-ink',
+  danger: 'badge bg-danger/15 text-danger-ink',
+  secondary: 'badge bg-secondary/15 text-default-700',
 }
 
 interface Props {
@@ -139,10 +139,15 @@ export default function ShipmentLinkPanel({
 
   async function handleLink() {
     if (busy || !preview) return
+    // แจกแจงให้ครบว่าจะเกิดอะไรบ้าง — กล่องยืนยันบังตารางเทียบอยู่ ร้านตอบคำถามนี้
+    // โดยดูตารางไม่ได้ ถ้าไม่สรุปมาให้ก็เท่ากับถามลอย ๆ
+    // และการเขียนทับที่อยู่ "ย้อนกลับไม่ได้" จริง ๆ (unlink คืนแค่สถานะกับเลขพัสดุ
+    // ไม่คืนที่อยู่เดิม) จึงต้องพูดตรงนี้ ไม่ใช่ปล่อยให้ร้านรู้ตอนสายเกินไป
+    const changed = preview.diff.filter((r) => !r.same).map((r) => r.label)
     const ok = await pacesConfirm.question(
       'ผูกพัสดุนี้กับคำสั่งซื้อ',
       resolution === 'USE_ISHIP'
-        ? `พัสดุ ${preview.parcel.trackNo} จะถูกผูกเข้ากับคำสั่งซื้อนี้ และที่อยู่ในคำสั่งซื้อจะถูกแก้ตามพัสดุใบนี้`
+        ? `พัสดุ ${preview.parcel.trackNo} จะถูกผูกเข้ากับคำสั่งซื้อนี้ และจะแก้ ${changed.length} ช่องในคำสั่งซื้อตามพัสดุใบนี้: ${changed.join(', ')} — แก้แล้วย้อนกลับไม่ได้ (ยกเลิกการผูกทีหลังไม่คืนที่อยู่เดิม)`
         : `พัสดุ ${preview.parcel.trackNo} จะถูกผูกเข้ากับคำสั่งซื้อนี้`,
       { confirmButtonText: 'ผูกพัสดุ', cancelButtonText: 'ไม่ใช่ตอนนี้' },
     )
@@ -185,7 +190,9 @@ export default function ShipmentLinkPanel({
           <button
             type="button"
             onClick={() => setPreview(null)}
-            className="btn inline-flex items-center gap-1 p-0 text-sm text-primary hover:underline"
+            // -ms-2 ดึงกลับให้ขอบตัวอักษรตรงกับเนื้อหาอื่น ทั้งที่ปุ่มมีพื้นที่แตะเต็ม 44px
+            // (ไม่มี Paces token สำหรับ "ปุ่ม text ที่ยังต้องได้ tap target เต็ม")
+            className="btn -ms-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm text-primary hover:underline"
           >
             <Icon icon="tabler:chevron-left" className="text-base" aria-hidden="true" />
             เลือกใบอื่น
@@ -231,11 +238,11 @@ export default function ShipmentLinkPanel({
                 current={resolution}
                 onChange={setResolution}
                 label="ใช้ที่อยู่จาก iShip ทับ"
-                help="แก้ที่อยู่ในคำสั่งซื้อให้ตรงกับพัสดุที่เลือก"
+                help="แก้ที่อยู่ในคำสั่งซื้อให้ตรงกับพัสดุที่เลือก — ย้อนกลับไม่ได้"
               />
             </fieldset>
           ) : (
-            <p className="mb-0 mt-4 flex items-start gap-2 rounded-lg bg-success/15 px-3 py-2 text-sm text-success">
+            <p className="mb-0 mt-4 flex items-start gap-2 rounded-lg bg-success/15 px-3 py-2 text-sm text-success-ink">
               <Icon
                 icon="tabler:circle-check"
                 className="mt-0.5 shrink-0 text-base"
@@ -287,7 +294,7 @@ export default function ShipmentLinkPanel({
 
       {loadError ? (
         <div className="p-4">
-          <p className="mb-3 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger">
+          <p className="mb-3 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger-ink">
             <Icon
               icon="tabler:alert-triangle"
               className="mt-0.5 shrink-0 text-base"
@@ -324,11 +331,24 @@ export default function ShipmentLinkPanel({
               <button
                 type="button"
                 onClick={() => void handleSelect(p)}
-                disabled={previewing !== null}
-                className="btn w-full p-4 text-start hover:bg-default-50 disabled:opacity-60"
+                disabled={previewing !== null && previewing !== p.trackNo}
+                aria-busy={previewing === p.trackNo}
+                // ห้ามใช้ .btn ที่นี่ — .btn คือ inline-flex + items-center + justify-center
+                // ลูกทั้งหมดจะถูกจับเรียงแนวนอนจนเนื้อ 5 บรรทัดยุบเป็นแถบเดียว
+                // ตามรอย Base จริง (AddressSearchSheet.tsx) ที่ใช้ flex เปล่า ไม่ใช่ .btn
+                className="flex w-full flex-col items-stretch gap-1 p-4 text-start hover:bg-default-50 disabled:opacity-60"
               >
                 <span className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-default-900">{p.trackNo}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {previewing === p.trackNo && (
+                      <Icon
+                        icon="tabler:loader-2"
+                        className="shrink-0 animate-spin text-base text-primary"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="truncate font-semibold text-default-900">{p.trackNo}</span>
+                  </span>
                   <span
                     className={
                       TONE_BADGE[describeCarrierStatus(p.carrierStatus).tone] ??
@@ -339,7 +359,7 @@ export default function ShipmentLinkPanel({
                   </span>
                 </span>
 
-                <span className="mt-1 flex items-center gap-1.5 text-sm text-default-500">
+                <span className="flex items-center gap-1.5 text-sm text-default-500">
                   <Icon
                     icon="tabler:truck-delivery"
                     className="shrink-0 text-base"
@@ -352,11 +372,13 @@ export default function ShipmentLinkPanel({
                   <span className="shrink-0">{shortThaiDate(p.createdAtRaw)}</span>
                 </span>
 
-                <span className="mt-1 block truncate text-sm text-default-900">
+                {/* ชื่อผู้รับคือสิ่งที่ร้านใช้ตัดสินว่า "ใบนี้ของลูกค้าคนนี้ไหม" จริง ๆ
+                    ไม่ใช่เลขพัสดุซึ่งเป็นสตริงสุ่มที่คนแยกไม่ออก — จึงหนากว่าที่อยู่ */}
+                <span className="truncate text-sm font-medium text-default-900">
                   {p.receiver.name ?? 'ไม่ระบุชื่อผู้รับ'}
                   {p.receiver.phone ? ` · ${p.receiver.phone}` : ''}
                 </span>
-                <span className="mt-0.5 block text-sm text-default-500">
+                <span className="text-sm text-default-500">
                   {[
                     p.receiver.subdistrict && `ต.${p.receiver.subdistrict}`,
                     p.receiver.district && `อ.${p.receiver.district}`,
@@ -367,15 +389,19 @@ export default function ShipmentLinkPanel({
                     .join(' ') || 'ไม่ระบุที่อยู่'}
                 </span>
 
-                {p.codAmount > 0 && (
-                  <span className="mt-1.5 inline-block badge bg-warning/15 text-warning">
-                    COD {p.codAmount.toLocaleString('th-TH')} บาท
-                  </span>
-                )}
-                {p.fromDeepOrphan && (
-                  <span className="mt-1.5 flex items-center gap-1.5 badge bg-info/15 text-info">
-                    <Icon icon="tabler:link" className="text-sm" aria-hidden="true" />
-                    สร้างจาก Deep แต่เลขไม่กลับมา
+                {(p.codAmount > 0 || p.fromDeepOrphan) && (
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {p.codAmount > 0 && (
+                      <span className="badge bg-warning/15 text-warning-ink">
+                        COD {p.codAmount.toLocaleString('th-TH')} บาท
+                      </span>
+                    )}
+                    {p.fromDeepOrphan && (
+                      <span className="badge inline-flex items-center gap-1 bg-info/15 text-info-ink">
+                        <Icon icon="tabler:link" className="text-sm" aria-hidden="true" />
+                        สร้างจาก Deep แต่เลขไม่กลับมา
+                      </span>
+                    )}
                   </span>
                 )}
               </button>
@@ -404,7 +430,7 @@ function DiffTable({ rows }: { rows: AddressDiffRow[] }) {
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium text-default-900">{r.label}</span>
             {!r.same && (
-              <span className="flex items-center gap-1 text-xs text-warning">
+              <span className="flex items-center gap-1 text-xs font-semibold text-warning-ink">
                 <Icon icon="tabler:alert-triangle" className="text-sm" aria-hidden="true" />
                 ต่างกัน
               </span>
