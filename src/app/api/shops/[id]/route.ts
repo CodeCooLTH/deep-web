@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { updateShop } from "@/services/shop.service";
 import { prisma } from "@/lib/prisma";
-import { isShopMember } from "@/lib/shop-context";
+import { canAccessShop } from "@/lib/shop-context";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -11,9 +11,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params;
   const shop = await prisma.shop.findUnique({ where: { id } });
-  // membership guard (Phase 4 D5) — แทน ownership-by-userId เดิม: owner หรือ admin ของ shop นี้แก้ได้
-  // (Personal shop: owner เป็น ShopMember(OWNER) ของตัวเองอยู่แล้วจาก backfill → ผ่านเหมือนเดิม ไม่ regress)
-  if (!shop || !(await isShopMember(id, (session.user as any).id))) {
+  // access guard — owner (PERSONAL หรือ BUSINESS owner) หรือ admin/staff ของร้านนี้ แก้ได้
+  //
+  // 🛑 bug fix 2026-08-01: เดิมใช้ isShopMember() อย่างเดียว ซึ่งดูแค่ตาราง ShopMember
+  // คอมเมนต์เดิมอ้างว่า "Personal shop: owner เป็น ShopMember(OWNER) ของตัวเองอยู่แล้วจาก backfill"
+  // แต่ backfill นั้นครอบเฉพาะร้านที่มีอยู่ ณ ตอนรัน — ร้าน PERSONAL ที่สร้างหลังจากนั้นไม่มีแถว
+  // ShopMember เลย (ensurePersonalShop / shop-info / auth.ts / createShop สร้างแต่แถว Shop)
+  // ผลคือ PATCH คืน 404 ทุกครั้ง = แก้ชื่อร้าน/หมวดหมู่/ที่อยู่/โลโก้/ภาพปก ไม่ได้เลยสักอย่าง
+  // ตรวจจริง: ร้าน PERSONAL ทั้ง 3 ร้านในระบบ ไม่มี ShopMember สักร้าน และ updatedAt ยังเท่ากับ
+  // createdAt ทุกร้าน (ไม่เคยอัปเดตสำเร็จ) — ผู้ใช้เห็นแค่ toast "บันทึกไม่สำเร็จ กรุณาลองใหม่"
+  // ซึ่งดูเหมือนเน็ตมีปัญหาชั่วคราว จึงไม่มีใครรายงาน
+  //
+  // canAccessShop() = owner-by-userId OR member — helper ตัวเดียวกับที่ฟีเจอร์แชทใช้
+  // (assertParticipant ใน chat.service) ซึ่งเคยเจอบั๊กคลาสเดียวกันมาก่อนและแก้ด้วยวิธีนี้แล้ว
+  if (!shop || !(await canAccessShop(id, (session.user as any).id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
