@@ -81,19 +81,30 @@
 }
 
 /**
- * ปุ่ม "จอง" ในช่องวัน — โผล่ตอนชี้เมาส์ ไม่ใช่โชว์ค้างทุกช่อง
+ * ปุ่ม "จอง" ในช่องวัน — บนเครื่องที่มีเมาส์ให้โผล่ตอนชี้ ไม่โชว์ค้างทุกช่อง
  * (user สั่ง 2026-07-31: "hover วันที่นั้น ๆ สามารถสร้างการจองได้จาก Calendar เลย")
+ * แต่บนจอสัมผัสต้องเห็นเสมอ เพราะไม่มี hover ให้ใช้ — ดู media query ด้านล่าง
  *
  * ซ่อนด้วย opacity ไม่ใช่ display:none เพราะ FullCalendar คำนวณความสูงช่องจาก DOM จริง
  * ถ้าสลับ display ช่องจะกระตุกตอนชี้
  */
-.appointment-calendar .appt-day-add {
-    opacity: 0;
-    transition: opacity 0.12s ease;
+/* ซ่อนเฉพาะอุปกรณ์ที่ "มี hover จริง" — จอสัมผัสไม่มี hover ปุ่มจึงต้องเห็นเสมอ
+   ไม่งั้นบนมือถือจะไม่มีทางรู้ว่ากดช่องวันเพื่อสร้างนัดได้ (เจอ 2026-08-01)
+   ผลพลอยได้: แท็บเล็ต/จอสัมผัสที่ใช้มุมมองเดือนก็เห็นด้วย */
+@media (hover: hover) {
+    .appointment-calendar .appt-day-add {
+        opacity: 0;
+        transition: opacity 0.12s ease;
+    }
+    .appointment-calendar .fc-daygrid-day:hover .appt-day-add,
+    .appointment-calendar .fc-daygrid-day:focus-within .appt-day-add {
+        opacity: 1;
+    }
 }
-.appointment-calendar .fc-daygrid-day:hover .appt-day-add,
-.appointment-calendar .fc-daygrid-day:focus-within .appt-day-add {
-    opacity: 1;
+/* สัญญาณโฟกัสต้องเห็นทุกอุปกรณ์ — อยู่นอก media query ข้างบนโดยตั้งใจ */
+.appointment-calendar .appt-day-add:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
     .appointment-calendar .appt-day-add {
@@ -158,4 +169,12 @@
     --fc-event-bg-color: color-mix(in srgb, var(--color-danger) 20%, white);
     --fc-event-border-color: var(--color-danger);
     --fc-event-text-color: var(--color-danger-ink);
+}
+
+/* ป้ายนัดในช่องแคบต้องตัดด้วย ellipsis ไม่ใช่ตัดดิบ ๆ
+   (ที่ 375px ช่องกว้างจริง ~45px เดิมได้ "ช่างสม" ห้วน ๆ อ่านไม่รู้เรื่อง) */
+.appointment-calendar .fc-event-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
