@@ -17,6 +17,7 @@ import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getKeywordDetail, getPhraseOverlaps } from '@/services/auto-reply-rule.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import KeywordTabs from './KeywordTabs'
 import KeywordEditorClient from './KeywordEditorClient'
 
 export const metadata: Metadata = { title: 'แก้ไขกลุ่มคำ' }
@@ -62,16 +63,15 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
 
   return (
     <>
+      {/* หัวหน้าเป็น "ผู้ช่วยอัตโนมัติ" ไม่ใช่ชื่อกลุ่มคำ (user สั่ง 2026-08-01)
+          ชื่อกลุ่มยังเห็นได้ในช่อง "ชื่อกลุ่มคำ" ของ Tab แรก จึงไม่หายไปไหน
+          ส่วน crumb กลางเป็นทางกลับไปหน้ารายการ */}
       <PageBreadcrumb
-        title={keyword.name}
-        /**
-         * 3 ขั้นพอ (user 2026-07-31) — ของเดิมเป็น 5 ขั้นและลงท้ายด้วยชื่อกลุ่มซ้ำ 2 ครั้ง
-         * เพราะ PageBreadcrumb ต่อ `title` เข้าท้าย trail ให้เองอยู่แล้ว การใส่ชื่อกลุ่ม
-         * ใน trail ด้วยจึงซ้ำ · ยุบ "ตั้งค่า > ผู้ช่วยอัตโนมัติ" เป็นขั้นเดียวชื่อ
-         * "ผู้ช่วยอัตโนมัติ" ที่ชี้หน้ารายการโดยตรง — ชื่อเดียวกับเมนู ไม่ให้ปลายทางเดียวกันมีสองชื่อ — ผู้ใช้ไม่ได้มาจากหน้า /settings
-         */
-        trail={[{ label: 'ผู้ช่วยอัตโนมัติ', href: '/settings/auto-reply' }]}
+        title="ผู้ช่วยอัตโนมัติ"
+        trail={[{ label: 'กลุ่มคำทั้งหมด', href: '/settings/auto-reply' }]}
       />
+
+      <KeywordTabs keywordId={id} />
 
       <KeywordEditorClient
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}

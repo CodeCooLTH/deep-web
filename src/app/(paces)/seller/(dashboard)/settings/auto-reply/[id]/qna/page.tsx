@@ -18,6 +18,7 @@ import { getKeywordDetail } from '@/services/auto-reply-rule.service'
 import { listQna } from '@/services/auto-reply-qna.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import KeywordTabs from '../KeywordTabs'
 import QnaListingClient from './QnaListingClient'
 
 export const metadata: Metadata = { title: 'คลังคำถาม' }
@@ -52,12 +53,11 @@ export default async function QnaLibraryPage({ params }: { params: Promise<{ id:
   return (
     <>
       <PageBreadcrumb
-        title="คลังคำถาม"
-        trail={[
-          { label: 'ผู้ช่วยอัตโนมัติ', href: '/settings/auto-reply' },
-          { label: keyword.name, href: `/settings/auto-reply/${id}` },
-        ]}
+        title="ผู้ช่วยอัตโนมัติ"
+        trail={[{ label: 'กลุ่มคำทั้งหมด', href: '/settings/auto-reply' }]}
       />
+
+      <KeywordTabs keywordId={id} />
 
       <QnaListingClient
         keywordId={id}

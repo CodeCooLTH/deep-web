@@ -168,6 +168,8 @@ export type UpdateKeywordInput = {
   matchType?: MatchType
   priority?: number
   status?: string
+  /** AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`, BR-AR-31) */
+  aiEnhanceEnabled?: boolean
 }
 
 /**
@@ -197,6 +199,9 @@ export async function updateKeyword(
     }
     if (input.matchType !== undefined) data.matchType = input.matchType
     if (input.priority !== undefined) data.priority = input.priority
+    // AI Enhance — สวิตช์ล้วน ไม่มีเงื่อนไขความพร้อมแบบ status เพราะเปิดแล้วอย่างแย่ที่สุด
+    // ลูกค้าก็ได้คำตอบดิบเดิม (BR-AR-31) ต่างจาก status ที่เปิดผิดแล้วบอทเงียบ/ตอบผิดคน
+    if (input.aiEnhanceEnabled !== undefined) data.aiEnhanceEnabled = input.aiEnhanceEnabled
     if (input.status !== undefined && input.status !== existing.status) {
       if (input.status !== 'OFFLINE') {
         await assertKeywordCompletion(tx, id, shopId)

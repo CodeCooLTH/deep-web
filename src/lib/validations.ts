@@ -1210,6 +1210,8 @@ export const AutoReplyKeywordUpdateSchema = v.object({
   name: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
+  // AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`) — ให้ AI เรียบเรียงคำตอบก่อนส่ง
+  aiEnhanceEnabled: v.optional(v.boolean()),
   // OFFLINE ไม่ตอบใครเลย · TEST ตอบเฉพาะเธรดที่ผูกไว้กับกลุ่มนี้ · LIVE ตอบทุกเธรด
   status: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
 })
