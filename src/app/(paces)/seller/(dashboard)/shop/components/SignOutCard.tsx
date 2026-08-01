@@ -82,7 +82,9 @@ export default function SignOutCard() {
   }
 
   return (
-    <div className="card mt-4">
+    /* -mx-4: edge-to-edge เท่ากับการ์ดอื่นในหน้านี้ (หักล้าง gutter 16px ของ shell)
+       ไม่ต้อง lg:mx-0 เพราะ call-site ครอบ lg:hidden ไว้แล้ว — การ์ดนี้ไม่มีบนเดสก์ท็อป */
+    <div className="card mt-4 -mx-4">
       <div className="card-header">
         <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
           บัญชีผู้ใช้
