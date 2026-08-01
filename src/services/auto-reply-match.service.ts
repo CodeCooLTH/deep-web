@@ -60,6 +60,9 @@ export interface RuleSetKeyword {
   status?: string
   /** เธรดที่กลุ่มนี้ใช้ทดสอบ — มีผลเฉพาะตอน status='TEST' (user 2026-07-29) */
   testConversationIds?: string[]
+  /** AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`) — matcher ไม่ใช้ตัดสิน
+   *  ผู้เรียกอ่านต่อหลังได้คำตอบดิบแล้ว เพื่อตัดสินว่าจะให้ AI เรียบเรียงไหม */
+  aiEnhanceEnabled?: boolean
   /** [ข้อสมมติ] เฉพาะกลุ่มที่ไม่ใช่ OFFLINE เท่านั้น — caller กรองมาด้วย query
    *  ตาม index `[shopId, status, priority]` (TFR-008) ไม่ใช่หน้าที่ของ matcher */
   phrases: RuleSetPhrase[]

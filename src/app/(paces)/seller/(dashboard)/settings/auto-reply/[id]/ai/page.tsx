@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getKeywordDetail } from '@/services/auto-reply-rule.service'
+import { listGuardrails } from '@/services/auto-reply-guardrail.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import KeywordTabs from '../KeywordTabs'
@@ -43,6 +44,8 @@ export default async function AiEnhancePage({ params }: { params: Promise<{ id: 
     select: { aiEnhanceEnabled: true },
   })
 
+  const guardrails = await listGuardrails(id, activeCtx.shopId)
+
   return (
     <>
       <PageBreadcrumb
@@ -57,6 +60,7 @@ export default async function AiEnhancePage({ params }: { params: Promise<{ id: 
         keywordName={keyword.name}
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}
         initialEnabled={flags?.aiEnhanceEnabled ?? false}
+        initialGuardrails={guardrails}
       />
     </>
   )

@@ -1273,6 +1273,27 @@ export const AutoReplyUnansweredConvertSchema = v.object({
   imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5, 'แนบรูปได้สูงสุด 5 รูป'))),
 })
 
+/* ── กฎห้ามตอบ Guardrails (phase `00023-ai-enhance`) ─────────────────────── */
+
+const GuardrailRuleField = v.pipe(
+  v.string(), v.trim(),
+  v.minLength(1, 'กรุณาระบุกฎ'),
+  v.maxLength(200, 'กฎยาวเกิน 200 ตัวอักษร'),
+)
+// คำดักชั้นแรก — จำกัดจำนวนเพราะยิ่งเยอะยิ่งเสี่ยง false positive (บอทเงียบใส่ลูกค้าโดยไม่มีเหตุผลดี)
+const GuardrailPhrasesField = v.pipe(v.array(v.pipe(v.string(), v.trim())), v.maxLength(20, 'ใส่คำดักได้สูงสุด 20 คำต่อกฎ'))
+
+export const AutoReplyGuardrailCreateSchema = v.object({
+  rule: GuardrailRuleField,
+  denyPhrases: v.optional(GuardrailPhrasesField),
+})
+
+export const AutoReplyGuardrailUpdateSchema = v.object({
+  rule: v.optional(GuardrailRuleField),
+  denyPhrases: v.optional(GuardrailPhrasesField),
+  isActive: v.optional(v.boolean()),
+})
+
 export const AutoReplyPhrasesSchema = v.object({
   phrases: v.pipe(
     v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),
