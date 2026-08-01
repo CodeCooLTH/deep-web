@@ -45,9 +45,17 @@ const TONE_BADGE: Record<string, string> = {
 }
 
 interface Props {
-  orderToken: string
-  /** เรียกหลังผูกสำเร็จ — ผู้เรียกสลับไปหน้าสถานะพัสดุ */
-  onLinked: (shipment: ShipmentViewJson) => void
+  /**
+   * 'LINK'   — ผูกกับคำสั่งซื้อที่มีอยู่แล้ว (ต้องมี orderToken) มีขั้นเทียบที่อยู่
+   * 'IMPORT' — ยังไม่มีคำสั่งซื้อ สร้างใหม่จากข้อมูลบนพัสดุเลย ไม่มีอะไรให้เทียบ
+   */
+  mode?: 'LINK' | 'IMPORT'
+  /** จำเป็นเฉพาะโหมด LINK */
+  orderToken?: string
+  /** เรียกหลังผูกสำเร็จ — ผู้เรียกสลับไปหน้าสถานะพัสดุ (โหมด LINK) */
+  onLinked?: (shipment: ShipmentViewJson) => void
+  /** เรียกหลังสร้างคำสั่งซื้อจากพัสดุสำเร็จ (โหมด IMPORT) */
+  onImported?: (result: { orderId: string; orderToken: string }) => void
   /** ร้านกดปุ่มในสถานะว่าง เพื่อไปเปิดพัสดุใบใหม่แทน — ไม่ส่งมา = ไม่แสดงปุ่มนั้น */
   onSwitchToCreate?: () => void
 }
@@ -76,16 +84,23 @@ function shortThaiDate(raw: string | null): string {
 }
 
 export default function ShipmentLinkPanel({
+  mode = 'LINK',
   orderToken,
   onLinked,
+  onImported,
   onSwitchToCreate,
 }: Props) {
+  const importing = mode === 'IMPORT'
   const [parcels, setParcels] = useState<UnlinkedParcelView[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [preview, setPreview] = useState<ParcelPreview | null>(null)
   const [previewing, setPreviewing] = useState<string | null>(null)
   const [resolution, setResolution] = useState<'KEEP_ORDER' | 'USE_ISHIP'>('KEEP_ORDER')
+  // โหมด IMPORT ไม่มีคำสั่งซื้อให้เทียบ จึงถือแค่ใบที่เลือก + ค่าที่ร้านแก้ได้
+  const [selected, setSelected] = useState<UnlinkedParcelView | null>(null)
+  const [itemName, setItemName] = useState('')
+  const [itemPrice, setItemPrice] = useState('')
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -115,10 +130,20 @@ export default function ShipmentLinkPanel({
 
   async function handleSelect(parcel: UnlinkedParcelView) {
     if (previewing) return
+
+    // โหมด IMPORT ยังไม่มีคำสั่งซื้ออยู่ก่อน จึงไม่มีที่อยู่ให้เทียบ — ข้ามการยิง preview
+    // ไปที่ขั้นยืนยันเลย พร้อมเติมค่าเริ่มต้นของรายการสินค้าจากพัสดุ
+    if (importing) {
+      setItemName(`สินค้าตามพัสดุ ${parcel.trackNo}`)
+      setItemPrice(parcel.codAmount > 0 ? String(parcel.codAmount) : '')
+      setSelected(parcel)
+      return
+    }
+
     setPreviewing(parcel.trackNo)
     try {
       const res = await fetch(
-        `/api/seller/iship/unlinked/preview?orderToken=${encodeURIComponent(orderToken)}&trackingNo=${encodeURIComponent(parcel.trackNo)}`,
+        `/api/seller/iship/unlinked/preview?orderToken=${encodeURIComponent(orderToken!)}&trackingNo=${encodeURIComponent(parcel.trackNo)}`,
         { cache: 'no-store' },
       )
       if (!res.ok) {
@@ -174,7 +199,7 @@ export default function ShipmentLinkPanel({
       }
       const body = (await res.json()) as ShipmentViewJson
       pacesToast.success('ผูกพัสดุสำเร็จ')
-      onLinked(body)
+      onLinked?.(body)
     } catch {
       pacesToast.error('ผูกพัสดุไม่สำเร็จ กรุณาลองใหม่')
     } finally {
@@ -182,7 +207,176 @@ export default function ShipmentLinkPanel({
     }
   }
 
-  // ── ขั้น 2: ยืนยัน ────────────────────────────────────────────────────────
+  async function handleImport() {
+    if (busy || !selected) return
+    const price = itemPrice.trim() === '' ? 0 : Number(itemPrice)
+    if (!Number.isFinite(price) || price < 0) {
+      pacesToast.error('ยอดเงินไม่ถูกต้อง')
+      return
+    }
+
+    const ok = await pacesConfirm.question(
+      'สร้างคำสั่งซื้อจากพัสดุนี้',
+      `จะสร้างคำสั่งซื้อใหม่ให้ ${selected.receiver.name ?? 'ผู้รับตามพัสดุ'} พร้อมผูกพัสดุ ${selected.trackNo} เข้าไปด้วย`,
+      { confirmButtonText: 'สร้างคำสั่งซื้อ', cancelButtonText: 'ไม่ใช่ตอนนี้' },
+    )
+    if (!ok) return
+
+    setBusy(true)
+    try {
+      const res = await fetch('/api/seller/iship/unlinked/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          trackingNo: selected.trackNo,
+          itemName: itemName.trim() || undefined,
+          itemPrice: price,
+        }),
+      })
+      if (!res.ok) {
+        pacesToast.error(await readError(res))
+        // ใบนี้อาจถูกใช้ไปแล้วระหว่างที่ร้านกรอกฟอร์ม — กลับไปรายการที่รีเฟรชแล้ว
+        setSelected(null)
+        void load()
+        return
+      }
+      const body = (await res.json()) as { orderId: string; orderToken: string }
+      pacesToast.success('สร้างคำสั่งซื้อจากพัสดุแล้ว')
+      onImported?.(body)
+    } catch {
+      pacesToast.error('สร้างคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── ขั้น 2 (โหมด IMPORT): ตรวจแล้วสร้างคำสั่งซื้อ ─────────────────────────
+  if (selected) {
+    const r = selected.receiver
+    const addressLine =
+      [
+        r.line1,
+        r.subdistrict && `ต.${r.subdistrict}`,
+        r.district && `อ.${r.district}`,
+        r.province,
+        r.postcode,
+      ]
+        .filter(Boolean)
+        .join(' ') || '—'
+
+    return (
+      <div>
+        <div className="border-b border-dashed border-default-200 p-4">
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            className="btn -ms-2 inline-flex min-h-11 items-center gap-1 px-2 text-sm text-primary hover:underline"
+          >
+            <Icon icon="tabler:chevron-left" className="text-base" aria-hidden="true" />
+            เลือกใบอื่น
+          </button>
+
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="font-semibold text-default-900">{selected.trackNo}</span>
+            <span
+              className={
+                TONE_BADGE[describeCarrierStatus(selected.carrierStatus).tone] ??
+                TONE_BADGE.secondary
+              }
+            >
+              {selected.carrierStatusText}
+            </span>
+          </div>
+          <p className="mb-0 mt-1 flex items-center gap-1.5 text-sm text-default-500">
+            <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
+            {selected.courierName ?? selected.courierCode ?? 'ไม่ระบุขนส่ง'}
+          </p>
+        </div>
+
+        <div className="p-4">
+          <h6 className="mb-2 text-sm font-semibold text-default-900">
+            ข้อมูลที่จะใช้สร้างคำสั่งซื้อ
+          </h6>
+          <dl className="mb-4 space-y-2">
+            <div className="rounded-lg bg-default-50 p-3">
+              <dt className="text-xs text-default-500">ผู้รับ</dt>
+              <dd className="mb-0 text-sm text-default-900">
+                {r.name ?? '—'}
+                {r.phone ? ` · ${r.phone}` : ''}
+              </dd>
+            </div>
+            <div className="rounded-lg bg-default-50 p-3">
+              <dt className="text-xs text-default-500">ที่อยู่จัดส่ง</dt>
+              <dd className="mb-0 text-sm text-default-900">{addressLine}</dd>
+            </div>
+          </dl>
+
+          {/* iShip ไม่คืนรายการสินค้ามาด้วย — เติมค่าเริ่มต้นไว้ให้กดผ่านได้เลย
+              แต่เปิดช่องให้ร้านแก้ เพราะระบบเดาแทนไม่ได้ว่าขายอะไรจริง */}
+          <p className="mb-3 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2 text-xs text-info-ink">
+            <Icon
+              icon="tabler:info-circle"
+              className="mt-0.5 shrink-0 text-base"
+              aria-hidden="true"
+            />
+            iShip ไม่ได้ส่งรายการสินค้ามาด้วย — แก้ชื่อกับยอดได้ที่นี่ หรือปล่อยไว้แล้วไปแก้ทีหลังก็ได้
+          </p>
+
+          <label className="mb-1 block text-sm font-medium text-default-900" htmlFor="import-item-name">
+            ชื่อรายการ
+          </label>
+          <input
+            id="import-item-name"
+            type="text"
+            className="form-input mb-3"
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
+            maxLength={200}
+          />
+
+          <label className="mb-1 block text-sm font-medium text-default-900" htmlFor="import-item-price">
+            ยอดเงิน (บาท)
+          </label>
+          <input
+            id="import-item-price"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            className="form-input"
+            value={itemPrice}
+            onChange={(e) => setItemPrice(e.target.value)}
+          />
+          {selected.codAmount > 0 ? (
+            <p className="mb-0 mt-1 text-xs text-default-500">
+              เติมมาจากยอดเก็บปลายทางของพัสดุ ({selected.codAmount.toLocaleString('th-TH')} บาท)
+              — ยอดที่ขนส่งจะไปเก็บจริงยึดตามพัสดุ ไม่ใช่ตัวเลขนี้
+            </p>
+          ) : (
+            <p className="mb-0 mt-1 text-xs text-default-500">
+              พัสดุใบนี้ไม่ใช่เก็บเงินปลายทาง จึงไม่มียอดให้เติมให้ กรอกเองได้ถ้าต้องการ
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={busy}
+            className="btn mt-4 inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+          >
+            {busy ? (
+              <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
+            ) : (
+              <Icon icon="tabler:file-plus" className="text-base" aria-hidden="true" />
+            )}
+            สร้างคำสั่งซื้อจากพัสดุนี้
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── ขั้น 2 (โหมด LINK): เทียบที่อยู่แล้วยืนยัน ────────────────────────────
   if (preview) {
     return (
       <div>
@@ -275,7 +469,9 @@ export default function ShipmentLinkPanel({
     <div>
       <div className="border-b border-dashed border-default-200 p-4">
         <p className="mb-3 text-sm text-default-500">
-          เลือกพัสดุที่คุณเปิดไว้แล้วบน iShip มาผูกกับคำสั่งซื้อนี้ — ไม่เปิดพัสดุใหม่
+          {importing
+            ? 'เลือกพัสดุที่คุณเปิดไว้แล้วบน iShip แล้วสร้างคำสั่งซื้อจากข้อมูลบนพัสดุเลย'
+            : 'เลือกพัสดุที่คุณเปิดไว้แล้วบน iShip มาผูกกับคำสั่งซื้อนี้ — ไม่เปิดพัสดุใหม่'}
         </p>
         <div className="input-icon-group">
           <span className="input-icon">
