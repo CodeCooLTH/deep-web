@@ -70,6 +70,7 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
+import BotPausedBanner from './BotPausedBanner'
 import { pacesToast } from '@/lib/paces-toast'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
@@ -397,6 +398,10 @@ type Props = {
   shopAvatar: string | null
   /** feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้ (ISO); ข้อความ SHOP ที่ createdAt <= ค่านี้ = อ่านแล้ว */
   externalReadAt: string | null
+  /** feature 00023 — สถานะบอทของเธรดนี้ (ดู BotPausedBanner) */
+  botPausedUntil?: string | null
+  botHandoffAt?: string | null
+  botHandoffReason?: string | null
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -598,6 +603,9 @@ export default function ChatThread({
   buyerAvatar,
   shopAvatar,
   externalReadAt: externalReadAtInitial,
+  botPausedUntil = null,
+  botHandoffAt = null,
+  botHandoffReason = null,
   channel,
   channelName,
   channelAvatarUrl,
@@ -978,6 +986,20 @@ export default function ChatThread({
           >
             <Icon icon="x" className="text-lg" />
           </button>
+        </div>
+      )}
+
+      {/* feature 00023 — บอทถูกพัก/ส่งต่อคนแล้ว
+          อยู่เหนือแบนเนอร์ 24 ชม. เพราะตอบคำถามคนละข้อกัน: อันนั้นบอกว่า "ส่งได้ไหม"
+          อันนี้บอกว่า "ทำไมบอทเงียบ" ซึ่งเป็นสิ่งที่ร้านสงสัยก่อนเสมอเมื่อเห็นห้องไม่ขยับ */}
+      {(botPausedUntil || botHandoffAt) && (
+        <div className="px-4 pt-4">
+          <BotPausedBanner
+            conversationId={conversationId}
+            pausedUntil={botPausedUntil}
+            handoffAt={botHandoffAt}
+            handoffReason={botHandoffReason}
+          />
         </div>
       )}
 

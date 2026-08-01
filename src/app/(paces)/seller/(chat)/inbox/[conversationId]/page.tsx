@@ -108,6 +108,10 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       channel: true,
       lastInboundAt: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
+      // feature 00023 — สถานะบอทของเธรดนี้ (พักเพราะคนเข้ามาตอบ / ส่งต่อคนแล้ว)
+      autoReplyPausedUntil: true,
+      handoffAt: true,
+      handoffReason: true,
       // feature 00018 E5 — ลูกค้าทักจากโฆษณา (แบนเนอร์บนหัวเธรด: รูป + ชื่อโฆษณา)
       // ค่าเหล่านี้เป็น "ครั้งล่าสุด" ที่ลูกค้ากดโฆษณาเข้ามา (ประวัติเต็มอยู่ที่ ConversationAdReferral)
       referralSource: true,
@@ -306,6 +310,9 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}
         externalReadAt={conversation.externalReadAt ? conversation.externalReadAt.toISOString() : null}
+        botPausedUntil={conversation.autoReplyPausedUntil ? conversation.autoReplyPausedUntil.toISOString() : null}
+        botHandoffAt={conversation.handoffAt ? conversation.handoffAt.toISOString() : null}
+        botHandoffReason={conversation.handoffReason}
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}
