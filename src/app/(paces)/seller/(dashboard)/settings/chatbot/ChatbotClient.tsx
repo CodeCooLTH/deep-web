@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import TestThreadsCard from '../auto-reply/[id]/TestThreadsCard'
 import { pacesConfirm } from '@/lib/paces-swal'
 
 export type GuardrailRow = {
@@ -39,8 +40,6 @@ type Props = {
   initialConfig: ChatbotConfig
   initialGuardrails: GuardrailRow[]
   walletBalance: number
-  initialTestThreads: { conversationId: string; name: string }[]
-  recentChats: { id: string; name: string; preview: string | null }[]
   /** จำนวนข้อในคลังความรู้ที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
   knowledgeCount: number
 }
@@ -65,8 +64,6 @@ export default function ChatbotClient({
   initialGuardrails,
   walletBalance,
   knowledgeCount,
-  initialTestThreads,
-  recentChats,
 }: Props) {
   const router = useRouter()
   const [cfg, setCfg] = useState(initialConfig)
@@ -75,8 +72,7 @@ export default function ChatbotClient({
   const [tone, setTone] = useState(initialConfig.aiChatbotTone ?? '')
   const [savedTone, setSavedTone] = useState(initialConfig.aiChatbotTone ?? '')
   const [busy, setBusy] = useState(false)
-  const [testThreads, setTestThreads] = useState(initialTestThreads)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [testThreadCount, setTestThreadCount] = useState(0)
 
   async function readError(res: Response, fallback: string) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
@@ -104,39 +100,6 @@ export default function ChatbotClient({
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
       setBusy(false)
-    }
-  }
-
-  async function addTestThread(c: { id: string; name: string }) {
-    if (!canEdit || busy) return
-    setBusy(true)
-    try {
-      const res = await fetch('/api/shops/auto-reply/chatbot/test-threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: c.id }),
-      })
-      if (!res.ok) throw new Error(await readError(res, 'เพิ่มแชทไม่สำเร็จ'))
-      setTestThreads((p) => (p.some((t) => t.conversationId === c.id) ? p : [{ conversationId: c.id, name: c.name }, ...p]))
-      setPickerOpen(false)
-      pacesToast.success(`เลือก "${c.name}" เป็นแชททดสอบแล้ว`)
-    } catch (e) {
-      pacesToast.error(e instanceof Error ? e.message : 'เพิ่มแชทไม่สำเร็จ')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function removeTestThread(conversationId: string) {
-    if (!canEdit || busy) return
-    const prev = testThreads
-    setTestThreads((p) => p.filter((t) => t.conversationId !== conversationId))
-    try {
-      const res = await fetch(`/api/shops/auto-reply/chatbot/test-threads/${conversationId}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error(await readError(res, 'เอาออกไม่สำเร็จ'))
-    } catch (e) {
-      setTestThreads(prev)
-      pacesToast.error(e instanceof Error ? e.message : 'เอาออกไม่สำเร็จ')
     }
   }
 
@@ -243,48 +206,10 @@ export default function ChatbotClient({
             })}
           </div>
           {status === 'TEST' && (
-            <div className="border-default-200 mt-3 rounded-lg border">
-              <div className="border-default-200 flex items-center justify-between border-b px-3 py-2">
-                <p className="text-default-700 text-sm font-medium">
-                  แชทที่ใช้ทดสอบ
-                  <span className="text-default-400 ms-1 text-xs font-normal">({testThreads.length})</span>
-                </p>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => setPickerOpen(true)}
-                    className="btn btn-sm bg-light text-default-700 min-h-11 sm:min-h-0"
-                  >
-                    <Icon icon="plus" className="size-4" aria-hidden="true" />
-                    เลือกแชท
-                  </button>
-                )}
-              </div>
-              {testThreads.length === 0 ? (
-                /* บอกผลลัพธ์ตรง ๆ ว่าตอนนี้ยังไม่ตอบใคร — ไม่ใช่แค่ "ว่าง" ซึ่งไม่บอกว่าแปลว่าอะไร */
-                <p className="text-default-500 px-3 py-4 text-center text-xs">
-                  ยังไม่ได้เลือกแชท — โหมดทดสอบจึงยังไม่ตอบใครเลย
-                </p>
-              ) : (
-                <ul className="divide-default-200 divide-y">
-                  {testThreads.map((t) => (
-                    <li key={t.conversationId} className="flex items-center gap-2 px-3 py-2">
-                      <span className="text-default-800 min-w-0 flex-1 truncate text-sm">{t.name}</span>
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => removeTestThread(t.conversationId)}
-                          className="btn btn-icon btn-sm bg-light text-danger shrink-0"
-                          aria-label={`เอา ${t.name} ออกจากรายการทดสอบ`}
-                        >
-                          <Icon icon="x" className="size-4" aria-hidden="true" />
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <p className="text-default-500 mt-2.5 text-xs">
+              ตอบเฉพาะแชทที่เลือกไว้ในการ์ด &ldquo;แชทสำหรับทดสอบ&rdquo; ด้านล่าง
+              {testThreadCount === 0 && ' — ตอนนี้ยังไม่ได้เลือกแชท ChatBot จึงยังไม่ตอบใครเลย'}
+            </p>
           )}
         </div>
       </div>
@@ -482,44 +407,6 @@ export default function ChatbotClient({
         </div>
       </div>
 
-      {pickerOpen && (
-        <div className="fixed inset-0 z-80 flex items-end justify-center bg-black/40 lg:items-center">
-          <div className="bg-card max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl lg:max-h-[80dvh] lg:max-w-md lg:rounded-2xl"> {/* HR7 carve-out: ไม่มี token viewport-height ใน Paces scale — precedent CustomerPanelSheet.tsx */}
-            <div className="border-default-200 flex items-center justify-between border-b px-4 py-3">
-              <h5 className="font-semibold">เลือกแชทสำหรับทดสอบ</h5>
-              <button type="button" onClick={() => setPickerOpen(false)} className="btn btn-icon btn-sm bg-light text-default-700" aria-label="ปิด">
-                <Icon icon="x" className="size-4" aria-hidden="true" />
-              </button>
-            </div>
-            {recentChats.length === 0 ? (
-              <p className="text-default-500 px-4 py-8 text-center text-sm">ยังไม่มีแชทในร้าน</p>
-            ) : (
-              <ul className="divide-default-200 divide-y">
-                {recentChats.map((c) => {
-                  const picked = testThreads.some((t) => t.conversationId === c.id)
-                  return (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        disabled={picked || busy}
-                        onClick={() => addTestThread(c)}
-                        className="hover:bg-light flex w-full items-center gap-2 px-4 py-2.5 text-start disabled:opacity-50"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="text-default-800 block truncate text-sm font-medium">{c.name}</span>
-                          <span className="text-default-400 block truncate text-xs">{c.preview ?? 'ยังไม่มีข้อความ'}</span>
-                        </span>
-                        {picked && <span className="badge bg-light text-default-500 shrink-0 text-2xs">เลือกแล้ว</span>}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── กฎห้ามตอบ ── */}
       <div className="card">
         <div className="card-header items-start">
@@ -600,6 +487,17 @@ export default function ChatbotClient({
           </div>
         )}
       </div>
+
+      {/* แชทสำหรับทดสอบ — การ์ดตัวเดียวกับของกลุ่มคำ ต่างแค่ scope เป็นระดับร้าน
+          (ดู TestThreadsCard prop `apiBase`) จึงหน้าตา/พฤติกรรมตรงกันทั้งสองที่ */}
+      <TestThreadsCard
+        apiBase="/api/shops/auto-reply/chatbot/test-threads"
+        scopeNoun="ChatBot"
+        triggerHint="ถามคำถามที่ไม่ตรงกลุ่มคำไหนเลย"
+        status={status}
+        canEdit={canEdit}
+        onCountChange={setTestThreadCount}
+      />
     </div>
   )
 }

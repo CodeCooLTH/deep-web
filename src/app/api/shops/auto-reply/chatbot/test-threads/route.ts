@@ -44,6 +44,8 @@ export async function GET() {
     name: r.conversation.alias ?? r.conversation.externalContact?.name ?? 'ไม่ทราบชื่อ',
     avatarUrl: r.conversation.externalContact?.avatarUrl ?? null,
     channelName: r.conversation.shopChannel?.name ?? null,
+    provider: r.conversation.shopChannel?.provider ?? null,
+    lastMessageAt: r.conversation.lastMessageAt,
     lastMessagePreview: r.conversation.lastMessagePreview,
   }))
 

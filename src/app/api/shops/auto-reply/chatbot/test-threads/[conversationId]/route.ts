@@ -14,5 +14,17 @@ export async function DELETE(_r: NextRequest, { params }: { params: Promise<{ co
 
   // deleteMany + shopId ใน where — เอาออกของร้านอื่นไม่ได้แม้เดา id ถูก
   await prisma.aiChatbotTestThread.deleteMany({ where: { shopId: ctx.shopId, conversationId } })
-  return NextResponse.json({ ok: true }, { headers: AUTO_REPLY_NO_STORE })
+
+  // คืนจำนวนที่เหลือ + สถานะ ให้ UI เตือนได้ว่า "เอาตัวสุดท้ายออกแล้ว = ChatBot เงียบสนิท"
+  const [remainingCount, cfg] = await Promise.all([
+    prisma.aiChatbotTestThread.count({ where: { shopId: ctx.shopId } }),
+    prisma.autoReplyConfig.findUnique({
+      where: { shopId: ctx.shopId },
+      select: { aiChatbotStatus: true },
+    }),
+  ])
+  return NextResponse.json(
+    { ok: true, remainingCount, status: cfg?.aiChatbotStatus ?? 'OFFLINE' },
+    { headers: AUTO_REPLY_NO_STORE }
+  )
 }

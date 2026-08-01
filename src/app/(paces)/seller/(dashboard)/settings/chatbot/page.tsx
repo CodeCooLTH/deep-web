@@ -33,32 +33,11 @@ export default async function ChatbotPage() {
   })
   if (!activeCtx) return null
 
-  const [config, guardrails, wallet, qnaCount, testThreads, recentChats] = await Promise.all([
+  const [config, guardrails, wallet, qnaCount] = await Promise.all([
     getChatbotConfig(activeCtx.shopId),
     listShopGuardrails(activeCtx.shopId),
     prisma.sellerWallet.findUnique({ where: { shopId: activeCtx.shopId }, select: { balance: true } }),
     prisma.autoReplyQna.count({ where: { shopId: activeCtx.shopId, isActive: true } }),
-    prisma.aiChatbotTestThread.findMany({
-      where: { shopId: activeCtx.shopId },
-      select: {
-        conversationId: true,
-        conversation: { select: { alias: true, externalContact: { select: { name: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    }),
-    // แชทล่าสุดให้เลือก — โหลดฝั่ง server ไม่ต้องให้ client ยิง API เพิ่มตอนเปิดตัวเลือก
-    prisma.conversation.findMany({
-      where: { shopId: activeCtx.shopId },
-      select: {
-        id: true,
-        alias: true,
-        lastMessagePreview: true,
-        externalContact: { select: { name: true } },
-      },
-      orderBy: { lastMessageAt: 'desc' },
-      take: 30,
-    }),
   ])
 
   return (
@@ -71,15 +50,6 @@ export default async function ChatbotPage() {
         initialGuardrails={guardrails}
         walletBalance={wallet?.balance ?? 0}
         knowledgeCount={qnaCount}
-        initialTestThreads={testThreads.map((t) => ({
-          conversationId: t.conversationId,
-          name: t.conversation.alias ?? t.conversation.externalContact?.name ?? 'ไม่ทราบชื่อ',
-        }))}
-        recentChats={recentChats.map((c) => ({
-          id: c.id,
-          name: c.alias ?? c.externalContact?.name ?? 'ไม่ทราบชื่อ',
-          preview: c.lastMessagePreview,
-        }))}
       />
     </>
   )

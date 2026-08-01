@@ -819,7 +819,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
               user 2026-07-29: "แล้วไหนเลือกช่องทางทดสอบ ... มันควรมี table สำหรับ lists รายการแชท"
               อยู่ในหน้าของกลุ่มคำ ไม่ใช่หน้าตั้งค่ารวม เพราะรายการนี้เป็นของกลุ่มคำนี้ตัวเดียว */}
           <TestThreadsCard
-            keywordId={keyword.id}
+            apiBase={`/api/shops/auto-reply/keywords/${keyword.id}/test-threads`}
             status={status}
             canEdit={canEdit}
             openPickerSignal={pickerSignal}
