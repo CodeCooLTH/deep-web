@@ -41,7 +41,7 @@ export default async function AiEnhancePage({ params }: { params: Promise<{ id: 
   // และไม่แก้ select กลางเพราะหน้ารายการไม่ต้องใช้ ดึงเพิ่มเฉพาะหน้านี้ถูกกว่า
   const flags = await prisma.autoReplyKeyword.findFirst({
     where: { id, shopId: activeCtx.shopId },
-    select: { aiEnhanceEnabled: true },
+    select: { aiEnhanceEnabled: true, aiTone: true },
   })
 
   /**
@@ -55,6 +55,13 @@ export default async function AiEnhancePage({ params }: { params: Promise<{ id: 
    * ทิ้งหมดโดยตั้งใจจะได้ชุดเริ่มต้นกลับมาเมื่อเปิดหน้าใหม่ — ยอมรับผลข้างเคียงนี้เพราะ
    * "กฎว่างทั้งที่เปิด AI อยู่" คือสถานะที่อันตรายกว่า (AI พูดอะไรก็ได้โดยไม่มีกรอบ)
    */
+  // สถานะเครดิต — ต้องบอกร้านตรง ๆ ว่าเปิดสวิตช์แล้วแต่ AI จะไม่ทำงานเพราะเงินไม่พอ
+  // (บั๊กที่ user เจอ 2026-08-01: กระเป๋าเป็น 0 ระบบข้ามการเรียก AI เงียบ ๆ ไม่มีใครรู้)
+  const wallet = await prisma.sellerWallet.findUnique({
+    where: { shopId: activeCtx.shopId },
+    select: { balance: true },
+  })
+
   let guardrails = await listGuardrails(id, activeCtx.shopId)
   if ((flags?.aiEnhanceEnabled ?? false) && guardrails.length === 0) {
     await ensureDefaultGuardrails(id, activeCtx.shopId, user.id)
@@ -76,6 +83,8 @@ export default async function AiEnhancePage({ params }: { params: Promise<{ id: 
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}
         initialEnabled={flags?.aiEnhanceEnabled ?? false}
         initialGuardrails={guardrails}
+        initialTone={flags?.aiTone ?? ''}
+        walletBalance={wallet?.balance ?? 0}
       />
     </>
   )

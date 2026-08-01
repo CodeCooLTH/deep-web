@@ -28,6 +28,8 @@ export interface EnhanceInput {
   customerText: string
   /** กฎห้ามตอบที่เปิดใช้งานอยู่ของกลุ่มคำนี้ */
   guardrails: { rule: string; denyPhrases: string[] }[]
+  /** น้ำเสียงที่ร้านตั้งไว้ — null/ว่าง = ใช้ค่ากลาง */
+  tone?: string | null
 }
 
 export interface EnhanceResult {
@@ -44,9 +46,25 @@ export interface EnhanceResult {
 
 /* ── prompt (user อนุมัติ 2026-08-01) ──────────────────────────────────────── */
 
-const REWRITE_SYSTEM = `คุณคือผู้ช่วยของร้านค้าออนไลน์ หน้าที่เดียวของคุณคือเรียบเรียงข้อความที่ร้านเขียนไว้ให้อ่านลื่นและสุภาพขึ้น
+const DEFAULT_TONE = 'สุภาพ เป็นกันเอง อ่านง่าย'
 
-กฎที่ห้ามฝ่าฝืน:
+/**
+ * น้ำเสียงถูกแทรกเข้า prompt ตรง ๆ (ข้อความที่ร้านพิมพ์เอง)
+ *
+ * WARNING: ห้ามให้น้ำเสียงมีอำนาจเหนือกฎข้อมูล — กฎ "ห้ามเพิ่ม/ตัดข้อมูล" ต้องอยู่ **หลัง**
+ * บรรทัดน้ำเสียงเสมอ เพื่อให้เป็นสิ่งสุดท้ายที่โมเดลอ่าน ร้านที่เขียนน้ำเสียงแบบ
+ * "ขายของเก่ง ๆ กระตุ้นให้รีบซื้อ" จะได้ไม่กลายเป็นใบอนุญาตให้แต่งเงื่อนไขเอง
+ */
+function buildRewriteSystem(tone: string | null | undefined): string {
+  const t = (tone ?? '').trim() || DEFAULT_TONE
+  return REWRITE_SYSTEM.replace('{{TONE}}', t)
+}
+
+const REWRITE_SYSTEM = `คุณคือผู้ช่วยของร้านค้าออนไลน์ หน้าที่เดียวของคุณคือเรียบเรียงข้อความที่ร้านเขียนไว้ให้อ่านลื่นขึ้น
+
+น้ำเสียงที่ร้านต้องการ: {{TONE}}
+
+กฎที่ห้ามฝ่าฝืน (สำคัญกว่าน้ำเสียงเสมอ):
 - ห้ามเพิ่มข้อมูลที่ไม่มีในต้นฉบับ — ราคา วันส่ง เงื่อนไข จำนวน ต้องตรงเป๊ะ ห้ามเดา ห้ามปัด
 - ห้ามตัดข้อมูลที่มีในต้นฉบับออก
 - ห้ามสัญญาอะไรแทนร้าน
@@ -123,7 +141,7 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
     let usage: TokenUsage | null = null
     try {
       const r = await generateText({
-        system: REWRITE_SYSTEM,
+        system: buildRewriteSystem(input.tone),
         user: `ข้อความล่าสุดของลูกค้า: ${input.customerText}\n\nข้อความที่ร้านเขียนไว้:\n${raw}`,
         maxOutputTokens: 1024,
         signal,

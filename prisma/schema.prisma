@@ -2011,6 +2011,13 @@ model AutoReplyKeyword {
   /// ทักทายที่แต่งได้อิสระ — สวิตช์เดียวทั้งร้านจึงตอบโจทย์ไม่ได้
   aiEnhanceEnabled Boolean @default(false)
 
+  /// น้ำเสียงที่ให้ AI ใช้เรียบเรียง (phase `00023-ai-enhance`) — null = ใช้ค่ากลาง "สุภาพ เป็นกันเอง"
+  ///
+  /// เก็บเป็นข้อความอิสระไม่ใช่ enum โดยเจตนา: ร้านแต่ละแบบมีน้ำเสียงต่างกันมาก
+  /// (ร้านอะไหล่มอเตอร์ไซค์ vs ร้านเครื่องสำอาง) และคำที่ร้านเขียนเองจะถูกส่งเข้า prompt ตรง ๆ
+  /// ได้ผลดีกว่าการให้เลือกจากรายการที่เราคิดแทน — UI มีปุ่มลัดให้กดเติมคำที่ใช้บ่อย
+  aiTone String? @db.Text
+
   createdByUserId String?
   updatedByUserId String?
   createdAt       DateTime @default(now())

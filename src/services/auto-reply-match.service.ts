@@ -63,6 +63,8 @@ export interface RuleSetKeyword {
   /** AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`) — matcher ไม่ใช้ตัดสิน
    *  ผู้เรียกอ่านต่อหลังได้คำตอบดิบแล้ว เพื่อตัดสินว่าจะให้ AI เรียบเรียงไหม */
   aiEnhanceEnabled?: boolean
+  /** น้ำเสียงที่ร้านตั้งไว้สำหรับ AI Enhance — matcher ไม่ใช้ ผู้เรียกส่งต่อให้ prompt */
+  aiTone?: string | null
   /** [ข้อสมมติ] เฉพาะกลุ่มที่ไม่ใช่ OFFLINE เท่านั้น — caller กรองมาด้วย query
    *  ตาม index `[shopId, status, priority]` (TFR-008) ไม่ใช่หน้าที่ของ matcher */
   phrases: RuleSetPhrase[]

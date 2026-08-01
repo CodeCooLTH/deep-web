@@ -27,7 +27,18 @@ type Props = {
   canEdit: boolean
   initialEnabled: boolean
   initialGuardrails: GuardrailRow[]
+  initialTone: string
+  /** ยอดเครดิตในกระเป๋า — 0 = AI จะไม่ถูกเรียกเลย ต้องเตือนให้เห็น */
+  walletBalance: number
 }
+
+/** ปุ่มลัดน้ำเสียงที่ใช้บ่อย — กดแล้วเติมลงช่อง แก้ต่อได้ ไม่ใช่ตัวเลือกตายตัว */
+const TONE_PRESETS = [
+  'สุภาพ เป็นกันเอง อ่านง่าย',
+  'สั้น กระชับ ตรงประเด็น',
+  'เป็นทางการ น่าเชื่อถือ',
+  'อบอุ่น ใส่ใจ เหมือนคุยกับเพื่อน',
+]
 
 export default function AiEnhanceClient({
   keywordId,
@@ -35,11 +46,15 @@ export default function AiEnhanceClient({
   canEdit,
   initialEnabled,
   initialGuardrails,
+  initialTone,
+  walletBalance,
 }: Props) {
   const router = useRouter()
   const [enabled, setEnabled] = useState(initialEnabled)
   const [rules, setRules] = useState<GuardrailRow[]>(initialGuardrails)
   const [newRule, setNewRule] = useState('')
+  const [tone, setTone] = useState(initialTone)
+  const [savedTone, setSavedTone] = useState(initialTone)
   const [busy, setBusy] = useState(false)
 
   async function readError(res: Response, fallback: string) {
@@ -64,6 +79,25 @@ export default function AiEnhanceClient({
       if (next) router.refresh()
     } catch (e) {
       setEnabled(!next)
+      pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveTone() {
+    if (!canEdit || busy || tone === savedTone) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/shops/auto-reply/keywords/${keywordId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aiTone: tone }),
+      })
+      if (!res.ok) throw new Error(await readError(res, 'บันทึกไม่สำเร็จ'))
+      setSavedTone(tone)
+      pacesToast.success('บันทึกน้ำเสียงแล้ว')
+    } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
       setBusy(false)
@@ -156,6 +190,72 @@ export default function AiEnhanceClient({
               aria-label="เปิดใช้ AI Enhance สำหรับกลุ่มคำนี้"
             />
           </label>
+        </div>
+      </div>
+
+      {/* เปิดสวิตช์แล้วแต่เครดิตหมด = AI จะไม่ถูกเรียกเลย ต้องบอกตรง ๆ ไม่ใช่เงียบ
+          (บั๊กที่ user เจอ 2026-08-01 — ข้อความออกมาเหมือนเดิมโดยไม่มีคำอธิบาย) */}
+      {enabled && walletBalance <= 0 && (
+        <div className="card">
+          <div className="card-body flex items-start gap-3">
+            <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
+            <div className="text-sm">
+              <p className="text-default-800 font-semibold">เครดิตในกระเป๋าหมด — AI ยังไม่ทำงาน</p>
+              <p className="text-default-700 mt-1">
+                สวิตช์เปิดอยู่ แต่ระบบจะข้ามการเรียก AI และส่งคำตอบเดิมของคุณตามปกติ
+                จนกว่าจะเติมเครดิต (กระเป๋าเดียวกับที่ใช้ส่ง SMS)
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-header items-start">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">น้ำเสียง</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              บอก AI ว่าอยากให้พูดกับลูกค้าแบบไหน — ว่างไว้ = สุภาพ เป็นกันเอง อ่านง่าย ·
+              น้ำเสียงไม่มีอำนาจเหนือกฎข้อมูล ราคาและเงื่อนไขยังต้องตรงกับที่คุณเขียนไว้เสมอ
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-2.5">
+          <div className="flex flex-wrap gap-2">
+            {TONE_PRESETS.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTone(t)}
+                disabled={!canEdit}
+                className="badge bg-light text-default-700 cursor-pointer rounded-full px-3 py-1 text-xs"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={tone}
+            onChange={(e) => setTone(e.target.value)}
+            className="form-textarea"
+            rows={2}
+            maxLength={300}
+            disabled={!canEdit}
+            placeholder="เช่น สุภาพ เป็นกันเอง ใช้คำว่าค่ะ ไม่ใช้ศัพท์เทคนิค"
+            aria-label="น้ำเสียงที่ให้ AI ใช้"
+          />
+          {canEdit && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={saveTone}
+                disabled={tone === savedTone || busy}
+                className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 text-white"
+              >
+                บันทึกน้ำเสียง
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

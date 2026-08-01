@@ -142,6 +142,7 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
         // AI Enhance (phase `00023-ai-enhance`) — โหลดมาพร้อม ruleSet เพื่อไม่ให้เพิ่ม query
         // ในเส้นทางร้อน; กฎห้ามตอบจะ query แยกเฉพาะกลุ่มที่เปิดสวิตช์จริงเท่านั้น
         aiEnhanceEnabled: true,
+        aiTone: true,
       },
       orderBy: { priority: 'desc' },
     }),
@@ -525,6 +526,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           rawAnswer: replyText,
           customerText: rawText,
           guardrails,
+          tone: enhanceKeyword.aiTone ?? null,
         })
         aiReason = enhanced.reason
 
