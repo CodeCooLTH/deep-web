@@ -230,8 +230,8 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
         {imgs.length > 0 ? (
           // กรอบเป็นตัวกำหนดสี่เหลี่ยมจัตุรัส แล้วรูปเติมเต็มแบบ absolute → ครอปจริง สูงเท่ากันทุกใบ
           // ไม่ว่าไฟล์จะสัดส่วนใด (ใส่ aspect-square ที่ <img> ตรง ๆ ไม่ได้ผล — เป็น replaced element)
-          {/* h-28 คงที่ ไม่ใช่ aspect-square — จัตุรัสทำให้ความสูงการ์ดผูกกับความกว้าง ยิ่งจอกว้าง
-              คอลัมน์ยิ่งกว้าง การ์ดยิ่งสูงจนกินพื้นที่ทั้งแผง (user เจอบน desktop 2026-08-01) */}
+          // h-28 คงที่ ไม่ใช่ aspect-square — จัตุรัสทำให้ความสูงการ์ดผูกกับความกว้าง ยิ่งจอกว้าง
+          // คอลัมน์ยิ่งกว้าง การ์ดยิ่งสูงจนกินพื้นที่ทั้งแผง (user เจอบน desktop 2026-08-01)
           <span className="relative block h-28 w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`/api/files/${imgs[0]}`} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
