@@ -95,8 +95,10 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/settings/ai', slug: 'seller:settings-ai', label: 'บุคลิกและคำสั่ง AI', icon: 'sparkles' },
       // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจากกลุ่มคำ + คลังคำถาม-คำตอบ
       { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'คำตอบของ DeepBot', icon: 'message-bolt' },
-      // ย้ายมาจากกลุ่ม STORE — ผู้ช่วยทั้งสองตัวตอบได้ก็ต่อเมื่อมีช่องทางเชื่อมต่ออยู่ก่อน
-      { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
+      // NOTE: "บัญชีที่เชื่อมต่อ" (/settings) เคยถูกย้ายมาไว้ที่นี่ชั่วคราว 2026-08-01 แล้วย้ายกลับ
+      // ในวันเดียวกัน — หน้านั้นเป็นรายการเพจ Facebook/LINE/IG ที่ "ทั้งระบบแชทใช้ร่วมกัน"
+      // (กล่องข้อความปกติก็ต้องใช้) ไม่ใช่ของผู้ช่วยอัตโนมัติ การเอามาไว้ในกลุ่มนี้ทำให้
+      // ผู้ใช้เข้าใจผิดว่าต้องเปิดผู้ช่วยก่อนถึงจะเชื่อมช่องทางได้ ห้ามย้ายกลับมาอีก
     ],
   },
   {
@@ -133,8 +135,9 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
+      { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
       // ย้ายออกไปกลุ่ม "ผู้ช่วยอัตโนมัติ" แล้ว (user สั่ง 2026-08-01):
-      //   /settings (บัญชีที่เชื่อมต่อ) · /settings/ai · /settings/auto-reply
+      //   /settings/ai (บุคลิกและคำสั่ง AI) · /settings/auto-reply (คำตอบของ DeepBot)
     ],
   },
 ]
