@@ -393,7 +393,16 @@ export default function AppointmentCalendar({ resources }: Props) {
             if (totalCapacity <= 0) return []
             const n = bookedByDay.get(localDayKey(arg.date)) ?? 0
             if (n >= totalCapacity) return ['appt-day-full']
-            if (n === totalCapacity - 1) return ['appt-day-tight']
+            /**
+             * IMPORTANT: ต้องมี `n > 0` ด้วย
+             *
+             * เดิมเช็คแค่ `n === totalCapacity - 1` — ร้านที่ความจุรวม = 1 (คิวงานเดียว
+             * ความจุ 1 ซึ่งเป็นเคสปกติของลูกค้ากลุ่มแรก) จะได้ `totalCapacity - 1 = 0`
+             * ทำให้ **วันที่ว่างเปล่า (n = 0) เข้าเงื่อนไข "ใกล้เต็ม" ทุกวัน**
+             * วัดบน prod: ย้อมไป 42 จาก 42 ช่อง = ทั้งเดือนเป็นครีม ซึ่งกลับหัวกับความหมาย
+             * (user รายงาน 2026-08-01: "สีมันไม่ได้เลย หน้านี้")
+             */
+            if (n > 0 && n === totalCapacity - 1) return ['appt-day-tight']
             return []
           }}
           dayCellContent={(arg) => {
