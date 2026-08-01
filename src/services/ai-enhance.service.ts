@@ -9,22 +9,17 @@
 //    อะไรเลย ทั้งที่คำตอบดิบของร้านพร้อมส่งอยู่แล้ว ทุกความล้มเหลวต้องกลายเป็น
 //    `{ text: rawAnswer, reason }` เสมอ
 //
-// ทำไมไม่ reuse `generateReplySuggestions` ของ 00019:
-//    ตัวนั้นบังคับรูปแบบผลลัพธ์เป็น JSON 3 ข้อเสนอ, ใช้ timeout 15 วินาที (มีแอดมินนั่งรอ),
-//    และรองรับไฟล์แนบ — ทั้งสามอย่างไม่ใช่สิ่งที่เส้นทางนี้ต้องการ การดัดตัวนั้นให้ทำสองงาน
-//    จะทำให้ทั้งสองฟีเจอร์ผูกกันจนแก้ตัวหนึ่งพังอีกตัว
+// ใช้ `generateText` ของ `lib/gemini.ts` ร่วมกับ 00019 — **ห้ามเขียน client เรียก Gemini
+// ขึ้นใหม่ในไฟล์นี้อีก** (บทเรียน 2026-08-01: เคยเขียนซ้ำแล้วใช้ `systemInstruction`
+// camelCase ซึ่ง REST v1beta ไม่รับ -> 400 -> ตกกลับคำตอบดิบเงียบ ๆ โดยไม่มีใครรู้
+// เพราะฟังก์ชันนี้กลืน error ทุกชนิดตามสัญญาข้างบน)
 
 import {
   AI_ENHANCE_TIMEOUT_MS,
   type AiEnhanceSkipReason,
 } from '@/lib/auto-reply-constants'
 import type { TokenUsage } from '@/lib/ai-pricing'
-
-/** รุ่นที่ใช้ — flash-lite เร็วและถูกที่สุดในสาย 2.5 (ปิดการคิดโดยดีฟอลต์) */
-const AI_ENHANCE_MODEL = process.env.AI_ENHANCE_MODEL || 'gemini-2.5-flash-lite'
-
-const ENDPOINT = (model: string, key: string) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
+import { generateText } from '@/lib/gemini'
 
 export interface EnhanceInput {
   /** คำตอบสำเร็จรูปที่ร้านเขียนไว้ — ต้นฉบับที่ห้ามเพี้ยน */
@@ -91,63 +86,6 @@ export function hitsDenylist(text: string, guardrails: { denyPhrases: string[] }
   return null
 }
 
-/* ── การเรียก Gemini แบบข้อความเดียว ───────────────────────────────────────── */
-
-async function callGemini(
-  systemText: string | null,
-  userText: string,
-  signal: AbortSignal,
-  maxOutputTokens: number
-): Promise<{ text: string; usage: TokenUsage | null }> {
-  const key = process.env.GEMINI_API_KEY
-  if (!key) throw new Error('GEMINI_NOT_CONFIGURED')
-
-  const body: Record<string, unknown> = {
-    contents: [{ role: 'user', parts: [{ text: userText }] }],
-    generationConfig: {
-      maxOutputTokens,
-      temperature: 0.3, // ต่ำ — งานนี้คือเรียบเรียง ไม่ใช่สร้างสรรค์
-      // flash-lite ไม่คิดอยู่แล้ว แต่ระบุให้ชัดกันรุ่นเปลี่ยนพฤติกรรม
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  }
-  if (systemText) body.systemInstruction = { parts: [{ text: systemText }] }
-
-  const res = await fetch(ENDPOINT(AI_ENHANCE_MODEL, key), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  })
-  if (!res.ok) throw new Error(`GEMINI_HTTP_${res.status}`)
-
-  const data = (await res.json().catch(() => null)) as {
-    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[]
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number }
-  } | null
-
-  const parts = data?.candidates?.[0]?.content?.parts ?? []
-  const text = parts
-    .filter((p) => !p.thought && typeof p.text === 'string')
-    .map((p) => p.text as string)
-    .join('')
-    .trim()
-  if (!text) throw new Error('GEMINI_EMPTY_RESPONSE')
-
-  const um = data?.usageMetadata
-  const usage: TokenUsage | null =
-    um && typeof um.promptTokenCount === 'number'
-      ? {
-          inputTokens: um.promptTokenCount,
-          outputTokens:
-            um.candidatesTokenCount ?? Math.max(0, (um.totalTokenCount ?? 0) - um.promptTokenCount),
-          model: AI_ENHANCE_MODEL,
-        }
-      : null
-
-  return { text, usage }
-}
-
 /* ── ตัวหลัก ────────────────────────────────────────────────────────────────── */
 
 /**
@@ -184,12 +122,12 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
     let rewritten: string
     let usage: TokenUsage | null = null
     try {
-      const r = await callGemini(
-        REWRITE_SYSTEM,
-        `ข้อความล่าสุดของลูกค้า: ${input.customerText}\n\nข้อความที่ร้านเขียนไว้:\n${raw}`,
+      const r = await generateText({
+        system: REWRITE_SYSTEM,
+        user: `ข้อความล่าสุดของลูกค้า: ${input.customerText}\n\nข้อความที่ร้านเขียนไว้:\n${raw}`,
+        maxOutputTokens: 1024,
         signal,
-        1024
-      )
+      })
       rewritten = r.text
       usage = r.usage
     } catch (e) {
@@ -206,7 +144,14 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
     const rules = active.map((g) => g.rule).filter(Boolean)
     if (rules.length > 0) {
       try {
-        const j = await callGemini(null, buildJudgePrompt(rules, rewritten), signal, 16)
+        // 128 ไม่ใช่ 16: คำตอบที่ต้องการคือคำเดียว แต่โมเดลอาจนำหน้าด้วยช่องว่าง/บรรทัดใหม่
+        // ถ้าเพดานเตี้ยเกินจะถูกตัดจนได้ข้อความว่าง -> ตัดสินไม่ได้ -> ถอยคำตอบดิบทุกครั้ง
+        const j = await generateText({
+          user: buildJudgePrompt(rules, rewritten),
+          maxOutputTokens: 128,
+          temperature: 0,
+          signal,
+        })
         const verdict = j.text.toUpperCase()
         if (verdict.includes('BLOCK')) {
           return { text: raw, enhanced: false, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage, elapsedMs: Date.now() - started }
