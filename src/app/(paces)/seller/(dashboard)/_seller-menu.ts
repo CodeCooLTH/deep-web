@@ -69,6 +69,36 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/inbox', slug: 'seller:inbox', label: 'ข้อความ', icon: 'message-circle' },
     ],
   },
+  /**
+   * ผู้ช่วยอัตโนมัติ — รวมทุกอย่างที่ "ระบบคุยกับลูกค้าแทนร้าน" ไว้กลุ่มเดียว (user สั่ง 2026-08-01)
+   *
+   * ทำไมต้องรวม: ของสามชิ้นนี้เคยกระจายอยู่ใน STORE ปนกับตั้งค่าร้าน/สต็อก/เครดิต ทั้งที่
+   * ผู้ใช้คิดถึงมันเป็นเรื่องเดียวกัน ("ใครตอบลูกค้าแทนฉัน") และต้องสลับไปมาระหว่างสามหน้านี้
+   * ตลอดตอนตั้งค่า — วางไว้ต่อจากกลุ่ม CUSTOMERS เพราะเป็นเรื่องของแชทเหมือนกัน
+   *
+   * คำที่ใช้ (Impeccable clarify + PRODUCT.md "ภาษาไทยเรียบง่าย ลด jargon"):
+   *   - "บุคลิกและคำสั่ง AI" — หน้านี้คือที่ตั้งคำสั่งประจำร้าน + น้ำเสียงของ AI ที่ร่างคำตอบให้คนกดส่ง
+   *     ไม่ใช้คำเดิม "ผู้ช่วยร่างคำตอบ AI" เพราะขึ้นต้นด้วย "ผู้ช่วย" ซ้ำกับชื่อกลุ่ม
+   *   - "คำตอบของ DeepBot" — DeepBot เป็นชื่อที่ลูกค้าเห็นในแชทจริงอยู่แล้ว (ป้ายในเธรด + รายการแชท)
+   *     จึงไม่ใช่ jargon และต้องใช้คำเดียวกันทั้งระบบ
+   *   - "บัญชีที่เชื่อมต่อ" — คงคำเดิมไว้ ไม่เปลี่ยนเป็น "ตั้งค่า" เพราะหน้านี้คือรายการเพจ
+   *     Facebook/LINE/IG ที่ผูกไว้ ไม่ใช่หน้าตั้งค่าของผู้ช่วย การเรียกว่า "ตั้งค่า" จะทำให้
+   *     ผู้ใช้เข้าไปหาสิ่งที่ไม่มีอยู่ตรงนั้น
+   */
+  {
+    icon: 'robot',
+    slug: 'seller-assistant',
+    label: 'ผู้ช่วยอัตโนมัติ',
+    isTitle: true,
+    children: [
+      // feature 00019 — AI ร่างคำตอบให้ "คนกดส่งเอง" (คนละเรื่องกับ DeepBot ที่ระบบส่งเอง)
+      { url: '/settings/ai', slug: 'seller:settings-ai', label: 'บุคลิกและคำสั่ง AI', icon: 'sparkles' },
+      // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจากกลุ่มคำ + คลังคำถาม-คำตอบ
+      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'คำตอบของ DeepBot', icon: 'message-bolt' },
+      // ย้ายมาจากกลุ่ม STORE — ผู้ช่วยทั้งสองตัวตอบได้ก็ต่อเมื่อมีช่องทางเชื่อมต่ออยู่ก่อน
+      { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
+    ],
+  },
   {
     icon: 'building-store',
     slug: 'seller-shops',
@@ -103,12 +133,8 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
-      { url: '/settings', slug: 'seller:settings', label: 'บัญชีที่เชื่อมต่อ', icon: 'link' },
-      // feature 00019 — ตั้งค่าผู้ช่วยร่างคำตอบ AI (คำสั่งประจำร้าน + สวิตช์บริบทสินค้า/ลูกค้า)
-      { url: '/settings/ai', slug: 'seller:settings-ai', label: 'ผู้ช่วยร่างคำตอบ AI', icon: 'sparkles' },
-      // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจาก keyword (คนละเรื่องกับ AI ด้านบน: อันนั้นร่างให้คนกดส่ง
-      // อันนี้ระบบส่งเอง) วางต่อกันเพราะผู้ใช้จะเทียบสองอันนี้เสมอตอนเลือกว่าจะใช้อะไร
-      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'ผู้ช่วยอัตโนมัติ', icon: 'message-bolt' },
+      // ย้ายออกไปกลุ่ม "ผู้ช่วยอัตโนมัติ" แล้ว (user สั่ง 2026-08-01):
+      //   /settings (บัญชีที่เชื่อมต่อ) · /settings/ai · /settings/auto-reply
     ],
   },
 ]
