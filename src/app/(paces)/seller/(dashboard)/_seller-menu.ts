@@ -92,7 +92,7 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       // feature 00019 — AI ร่างคำตอบให้ "คนกดส่งเอง" (คนละเรื่องกับ DeepBot ที่ระบบส่งเอง)
-      { url: '/settings/ai', slug: 'seller:settings-ai', label: 'บุคลิกและคำสั่ง AI', icon: 'sparkles' },
+      { url: '/settings/ai', slug: 'seller:settings-ai', label: 'บุคลิก AI', icon: 'sparkles' },
       // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจากกลุ่มคำ + คลังคำถาม-คำตอบ
       // "DeepBot" คำเดียว (user สั่ง 2026-08-01) — เดิม "คำตอบของ DeepBot" ยาวเกินสำหรับเมนู
       // และ "คำตอบของ" ไม่ได้เพิ่มความเข้าใจเมื่ออยู่ใต้หัวข้อกลุ่ม "ผู้ช่วยอัตโนมัติ" อยู่แล้ว
