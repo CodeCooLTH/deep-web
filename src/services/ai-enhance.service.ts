@@ -216,6 +216,7 @@ const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแช�
 - ห้ามสร้างข้อเท็จจริงที่ไม่มีในคลังและอนุมานจากคลังไม่ได้ โดยเฉพาะราคา ระยะเวลาจัดส่ง การรับประกัน ช่องทางชำระเงิน สต็อก
 - ตัวเลขที่มีในคลังต้องตรงเป๊ะ ห้ามปัด ห้ามประมาณ ส่วนตัวเลขที่คำนวณเองต้องคำนวณจากตัวเลขในคลังเท่านั้น
 - ห้ามสัญญาอะไรแทนร้าน
+- เรื่องที่ไม่มีข้อมูล ห้ามตอบว่า "ไม่มีข้อมูล" แล้วจบ — ให้บอกว่าจะเช็คให้หรือให้แอดมินยืนยันอีกที แล้วชวนคุยเรื่องสินค้าต่อ
 - ตอบว่า NO_ANSWER คำเดียว **เฉพาะเมื่อคำถามไม่เกี่ยวกับสิ่งที่มีในคลังเลย** ไม่ใช่เพราะไม่มีข้อไหนถ้อยคำตรงกัน
 - ถ้าลูกค้าส่งรูปมา ให้ดูรูปแล้วเทียบกับสินค้าในคลัง — บอกได้ว่าตรงกับรายการไหน ราคาเท่าไร
   ถ้าดูแล้วไม่แน่ใจว่าเป็นตัวไหน ให้บอกตามตรงและถามกลับ ห้ามทายส่ง ๆ ว่าเป็นตัวใดตัวหนึ่ง
@@ -244,7 +245,7 @@ const CHATBOT_FREE_SYSTEM = `คุณคือผู้ช่วยตอบแ
 - ราคา สต็อก ค่าส่ง เงื่อนไข การรับประกัน ของร้านนี้ ต้องมาจากข้อมูลร้านที่ให้มาเท่านั้น ไม่มีข้อมูลให้บอกว่าจะให้แอดมินมาตอบ
 - ห้ามเสนอสินค้าที่ไม่มีในรายการที่ให้มา
 - ห้ามสัญญาอะไรแทนร้าน
-- ถ้าไม่มั่นใจ ให้บอกตามตรงแล้วชวนคุยต่อ ดีกว่าตอบมั่ว
+- ถ้าไม่มั่นใจ ให้บอกว่าจะเช็คให้หรือให้แอดมินยืนยันอีกที แล้วชวนคุยต่อ ห้ามตอบว่า "ไม่มีข้อมูล" แล้วจบ
 
 พาบทสนทนาไปสู่การสั่งซื้อสินค้าที่ร้านมีขายจริงเสมอ
 
@@ -311,7 +312,7 @@ export interface ChatbotAnswerInput {
   knowledge: { question: string; answer: string }[]
   /** id เรียงตรงกับ knowledge — ใช้แปลงหมายเลขข้อที่โมเดลอ้างกลับเป็น id (ไม่ส่งเข้า prompt) */
   knowledgeIds?: string[]
-  guardrails: { rule: string; denyPhrases: string[] }[]
+  guardrails: { rule: string; denyPhrases: string[]; mode?: string }[]
   tone?: string | null
 }
 
@@ -347,11 +348,14 @@ async function finishAnswer(
   input: ChatbotAnswerInput,
   signal: AbortSignal
 ): Promise<ChatbotAnswerResult> {
-  if (hitsDenylist(answer, input.guardrails)) {
+  // ด่านตรวจใช้เฉพาะกฎชนิด BLOCK — กฎ AVOID มีผลตอนแต่งประโยคไปแล้ว
+  // เอามาบล็อกซ้ำจะกลายเป็นเงียบ ซึ่งตรงข้ามกับสิ่งที่กฎนั้นต้องการพอดี
+  const blockingRules = input.guardrails.filter((g) => (g.mode ?? 'BLOCK') === 'BLOCK')
+  if (hitsDenylist(answer, blockingRules)) {
     return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
   }
 
-  const rules = input.guardrails.map((g) => g.rule).filter(Boolean)
+  const rules = blockingRules.map((g) => g.rule).filter(Boolean)
   if (rules.length > 0) {
     try {
       const j = await generateText({
@@ -407,6 +411,12 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       : ''
 
     // บทสนทนาก่อนหน้า — ทำให้ตอบต่อเนื่องได้ ("แล้วสีแดงล่ะ" ต้องรู้ว่าพูดถึงอะไรอยู่)
+    // กฎชนิด AVOID ไม่ได้บล็อกคำตอบ แต่บอก AI ว่า "ห้ามพูดแบบนี้" ตั้งแต่ตอนแต่งประโยค
+    const avoidRules = input.guardrails.filter((g) => g.mode === 'AVOID').map((g) => g.rule)
+    const avoidBlock = avoidRules.length
+      ? `\n\nข้อห้ามเรื่องวิธีพูด (ยังต้องตอบ ห้ามเงียบ):\n${avoidRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
+      : ''
+
     const historyBlock = input.history?.length
       ? `\n\nบทสนทนาก่อนหน้า (เก่าไปใหม่):\n${input.history.map((h) => `${h.role}: ${h.text}`).join('\n')}`
       : ''
@@ -421,7 +431,7 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       }
       const r = await generateText({
         system: CHATBOT_SYSTEM.replace('{{TONE}}', tone),
-        user: `คลังความรู้ของร้าน:\n${kb || '(ยังไม่มีข้อมูลในคลัง)'}${productBlock}${historyBlock}\n\nคำถามของลูกค้า:\n${redacted.text || '(ลูกค้าส่งมาแต่รูป ไม่ได้พิมพ์ข้อความ)'}`,
+        user: `คลังความรู้ของร้าน:\n${kb || '(ยังไม่มีข้อมูลในคลัง)'}${productBlock}${historyBlock}${avoidBlock}\n\nคำถามของลูกค้า:\n${redacted.text || '(ลูกค้าส่งมาแต่รูป ไม่ได้พิมพ์ข้อความ)'}`,
         imageUrls: input.imageUrls,
         maxOutputTokens: 1024,
         signal,
@@ -450,7 +460,7 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       try {
         const f = await generateText({
           system: CHATBOT_FREE_SYSTEM.replace('{{TONE}}', tone),
-          user: `ข้อมูลของร้าน (ใช้ตอบเรื่องราคา/เงื่อนไขได้เฉพาะจากตรงนี้):\n${kb || '(ไม่มี)'}${productBlock}${historyBlock}\n\nคำถามของลูกค้า:\n${redactPii(input.customerText).text || '(ลูกค้าส่งมาแต่รูป)'}`,
+          user: `ข้อมูลของร้าน (ใช้ตอบเรื่องราคา/เงื่อนไขได้เฉพาะจากตรงนี้):\n${kb || '(ไม่มี)'}${productBlock}${historyBlock}${avoidBlock}\n\nคำถามของลูกค้า:\n${redactPii(input.customerText).text || '(ลูกค้าส่งมาแต่รูป)'}`,
           imageUrls: input.imageUrls,
           useWebSearch: input.useWebSearch,
           maxOutputTokens: 1024,

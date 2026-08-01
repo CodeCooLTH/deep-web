@@ -925,7 +925,7 @@ async function tryChatbotAnswer(params: {
 
     const guardrails = await prisma.autoReplyGuardrail.findMany({
       where: { shopId: params.shopId, keywordId: null, isActive: true },
-      select: { rule: true, denyPhrases: true },
+      select: { rule: true, denyPhrases: true, mode: true },
     })
 
     // สินค้าที่มีขายจริง — บอทเสนอได้เฉพาะในรายการนี้ และราคามาจากระบบ ไม่ใช่จากที่ร้านพิมพ์ไว้

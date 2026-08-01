@@ -20,6 +20,7 @@ export type GuardrailRow = {
   id: string
   rule: string
   denyPhrases: string[]
+  mode: string
   isFromDefaultSet: boolean
   isActive: boolean
 }
@@ -121,6 +122,24 @@ export default function ChatbotClient({
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** สลับ BLOCK <-> AVOID — optimistic เพราะเป็นการกดที่ผู้ใช้คาดหวังผลทันที */
+  async function toggleMode(r: { id: string; mode: string }) {
+    if (!canEdit || busy) return
+    const next = r.mode === 'AVOID' ? 'BLOCK' : 'AVOID'
+    setRules((p) => p.map((x) => (x.id === r.id ? { ...x, mode: next } : x)))
+    try {
+      const res = await fetch(`/api/shops/auto-reply/chatbot/guardrails/${r.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: next }),
+      })
+      if (!res.ok) throw new Error(await readError(res, 'เปลี่ยนชนิดกฎไม่สำเร็จ'))
+    } catch (e) {
+      setRules((p) => p.map((x) => (x.id === r.id ? { ...x, mode: r.mode } : x)))
+      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนชนิดกฎไม่สำเร็จ')
     }
   }
 
@@ -474,9 +493,11 @@ export default function ChatbotClient({
       <div className="card">
         <div className="card-header items-start">
           <div className="min-w-0">
-            <h5 className="text-default-900 text-base font-semibold">กฎห้ามตอบ</h5>
+            <h5 className="text-default-900 text-base font-semibold">กฎการตอบ</h5>
             <p className="text-default-700 mt-1 text-xs">
-              สิ่งที่ AI ห้ามพูดถึง — ชนกฎแล้วระบบจะไม่ส่งอะไรเลยและส่งต่อให้คนดูแทน
+              กดที่ป้ายหน้าแต่ละข้อเพื่อสลับชนิด — <span className="text-warning font-medium">หยุดไม่ตอบ</span>{' '}
+              คือชนแล้วไม่ส่งอะไรเลยและส่งต่อให้คนดู ส่วน{' '}
+              <span className="text-info font-medium">เลี่ยงคำพูดนี้</span> คือยังตอบอยู่ แต่สั่ง AI ว่าห้ามพูดแบบนั้น
             </p>
           </div>
           <span className="badge bg-light text-default-700 shrink-0">{rules.length} ข้อ</span>
@@ -494,9 +515,22 @@ export default function ChatbotClient({
                   <p className={`text-sm ${r.isActive ? 'text-default-800' : 'text-default-400 line-through'}`}>
                     {r.rule}
                   </p>
-                  {r.denyPhrases.length > 0 && (
-                    <p className="text-default-400 mt-0.5 text-xs">ดักคำ: {r.denyPhrases.join(' · ')}</p>
-                  )}
+                  <p className="text-default-400 mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                    {/* ชนิดกฎอ่านจากป้ายได้ทันที — สองชนิดนี้ให้ผลตรงข้ามกัน (เงียบ vs ยังตอบ)
+                        ถ้าแยกไม่ออกตั้งแต่แรกเห็น ร้านจะตั้งผิดชนิดแล้วงงว่าทำไมบอทเงียบ */}
+                    <button
+                      type="button"
+                      disabled={!canEdit || busy}
+                      onClick={() => toggleMode(r)}
+                      className={`badge shrink-0 text-2xs ${
+                        r.mode === 'AVOID' ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'
+                      }`}
+                      title="กดเพื่อสลับชนิดกฎ"
+                    >
+                      {r.mode === 'AVOID' ? 'เลี่ยงคำพูดนี้' : 'หยุดไม่ตอบ'}
+                    </button>
+                    {r.denyPhrases.length > 0 && <span>ดักคำ: {r.denyPhrases.join(' · ')}</span>}
+                  </p>
                 </div>
                 {r.isFromDefaultSet && (
                   <span className="badge bg-light text-default-500 shrink-0 text-2xs">ชุดเริ่มต้น</span>

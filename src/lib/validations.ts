@@ -1326,11 +1326,14 @@ const GuardrailPhrasesField = v.pipe(v.array(v.pipe(v.string(), v.trim())), v.ma
 export const AutoReplyGuardrailCreateSchema = v.object({
   rule: GuardrailRuleField,
   denyPhrases: v.optional(GuardrailPhrasesField),
+  /** BLOCK = ชนแล้วเงียบ · AVOID = ยังตอบ แต่ห้ามพูดแบบนั้น */
+  mode: v.optional(v.picklist(['BLOCK', 'AVOID'])),
 })
 
 export const AutoReplyGuardrailUpdateSchema = v.object({
   rule: v.optional(GuardrailRuleField),
   denyPhrases: v.optional(GuardrailPhrasesField),
+  mode: v.optional(v.picklist(['BLOCK', 'AVOID'])),
   isActive: v.optional(v.boolean()),
 })
 

@@ -2126,6 +2126,13 @@ model AutoReplyGuardrail {
   denyPhrases String[] @default([])
 
   /// มาจากชุดเริ่มต้น 6 ข้อของ SafePay หรือร้านพิมพ์เอง — copy-by-value ตอนเปิดสวิตช์ครั้งแรก
+  /// BLOCK = ชนแล้วไม่ส่งอะไรเลย ส่งต่อคน · AVOID = ยังตอบ แต่สั่ง AI ว่าห้ามพูดแบบนี้
+  ///
+  /// สองอย่างนี้แก้ปัญหาคนละแบบ: BLOCK ใช้กับเรื่องที่ร้านผูกพันตามกฎหมาย (คืนเงิน เคลม)
+  /// AVOID ใช้กับ "พูดแบบนั้นแล้วเสียลูกค้า" เช่นตอบว่าไม่มีข้อมูลแล้วจบบทสนทนา
+  /// ซึ่งการบล็อกจนเงียบยิ่งแย่กว่าเดิม
+  mode String @default("BLOCK")
+
   isFromDefaultSet Boolean @default(false)
 
   isActive Boolean @default(true)
