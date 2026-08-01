@@ -15,14 +15,48 @@ import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 // หน้าต่างตอบกลับมาตรฐานของ Meta — นับจากข้อความล่าสุด "ของลูกค้า"
 export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000
 
+/**
+ * HUMAN_AGENT tag — Meta ให้ "คนจริง" ตอบด้วยมือนอกหน้าต่าง 24 ชม. ได้ถึง 7 วัน
+ * (Messaging Policy: human agent tag "manually respond to user messages within a 7-day period")
+ * ครอบทั้ง Messenger และ Instagram
+ *
+ * 🛑 ใช้ได้เฉพาะข้อความที่ "คนพิมพ์เอง" เท่านั้น — ห้าม auto-reply/AI ยิงผ่าน tag นี้ และห้าม
+ * เนื้อหาโปรโมชัน (ผิดนโยบาย เสี่ยงโดนระงับแอป) จึง gate ที่ service ไม่ใช่แค่ซ่อนปุ่มใน UI
+ */
+export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * ต้องได้ permission `human_agent` จาก App Review ก่อนถึงจะยิงจริงได้ — ถ้ายังไม่ได้แล้วส่ง tag ไป
+ * Meta จะปฏิเสธทั้งข้อความ ซึ่งแย่กว่าการบล็อกไว้ตั้งแต่ต้น จึงเปิดด้วย env หลังได้อนุมัติแล้วเท่านั้น
+ */
+export function isHumanAgentEnabled(): boolean {
+  return process.env.META_HUMAN_AGENT_ENABLED === 'true'
+}
+
 export function getWindowState(
   lastInboundAt: Date | null,
   now: Date = new Date(),
-): { open: boolean; expiresAt: Date | null; msRemaining: number } {
-  if (!lastInboundAt) return { open: false, expiresAt: null, msRemaining: 0 }
+): {
+  open: boolean
+  expiresAt: Date | null
+  msRemaining: number
+  /** หน้าต่าง 7 วันของ HUMAN_AGENT ยังเปิดอยู่ไหม (คนตอบเองได้ แม้เกิน 24 ชม. แล้ว) */
+  humanAgentOpen: boolean
+  humanAgentExpiresAt: Date | null
+} {
+  if (!lastInboundAt) {
+    return { open: false, expiresAt: null, msRemaining: 0, humanAgentOpen: false, humanAgentExpiresAt: null }
+  }
   const expiresAt = new Date(lastInboundAt.getTime() + MESSAGING_WINDOW_MS)
   const msRemaining = expiresAt.getTime() - now.getTime()
-  return { open: msRemaining > 0, expiresAt, msRemaining: Math.max(0, msRemaining) }
+  const humanAgentExpiresAt = new Date(lastInboundAt.getTime() + HUMAN_AGENT_WINDOW_MS)
+  return {
+    open: msRemaining > 0,
+    expiresAt,
+    msRemaining: Math.max(0, msRemaining),
+    humanAgentOpen: humanAgentExpiresAt.getTime() > now.getTime(),
+    humanAgentExpiresAt,
+  }
 }
 
 /**
@@ -878,12 +912,36 @@ export async function ingestReactionEvent(params: {
   mid: string
   action: string // "react" | "unreact"
   emoji?: string
+  /** ผู้กด react — เท่ากับ pageExternalId เมื่อร้านเป็นคนกดเอง (Meta ยิง event ทั้งสองทาง) */
+  reactorExternalId?: string
+  /** เวลาของ event (ms) จาก Meta — ใช้เป็นเวลาที่หน้าต่างเปิดใหม่ */
+  timestamp?: number
 }): Promise<void> {
   const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
   if (!channel) return
+  const target = await prisma.chatMessage.findFirst({
+    where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
+    select: { conversationId: true },
+  })
+  if (!target) return
+
   await prisma.chatMessage.updateMany({
     where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
     data: { reactionEmoji: params.action === 'unreact' ? null : (params.emoji ?? null) },
+  })
+
+  // ลูกค้ากด react = หน้าต่าง 24 ชม. เปิดใหม่ตามนโยบาย Meta — เอกสาร Messaging Policy ระบุ
+  // "reacts to messages" เป็นหนึ่งใน action ที่เปิด/รีเซ็ตหน้าต่าง เท่ากับการส่งข้อความ
+  // เดิมเราเขียนแค่ reactionEmoji ทำให้ลูกค้ากดหัวใจแล้วระบบยังขึ้นว่าส่งไม่ได้ ทั้งที่ Meta ให้ส่งแล้ว
+  // (พบ 2026-08-01 ตอนไล่เอกสารเทียบโค้ด) — นับเฉพาะ 'react' ไม่นับ 'unreact' และต้องเป็นฝั่งลูกค้า
+  // เท่านั้น (ร้านกด react เองไม่เปิดหน้าต่างให้ตัวเอง)
+  const byCustomer = !!params.reactorExternalId && params.reactorExternalId !== params.pageExternalId
+  if (params.action === 'unreact' || !byCustomer) return
+  const at = params.timestamp ? new Date(params.timestamp) : new Date()
+  await prisma.conversation.updateMany({
+    // เขียนเฉพาะเมื่อใหม่กว่าของเดิม — กัน event ที่มาสลับลำดับดันเวลาถอยหลัง
+    where: { id: target.conversationId, OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: at } }] },
+    data: { lastInboundAt: at },
   })
 }
 
@@ -935,8 +993,22 @@ export async function sendOutboundMessage(params: {
     if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
   }
 
-  // เช็คหน้าต่าง 24 ชม. ก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว
-  if (!getWindowState(conversation.lastInboundAt).open) throw new Error('WINDOW_CLOSED')
+  // เช็คหน้าต่างก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว (1545041)
+  //
+  // 3 ระดับ: ในหน้าต่าง 24 ชม. = ส่งได้ปกติ | เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน = ส่งได้เฉพาะ
+  // "คนพิมพ์เอง" ผ่าน HUMAN_AGENT tag | เกิน 7 วัน = ส่งไม่ได้จริง ต้องรอลูกค้าทัก
+  //
+  // เงื่อนไข "คนพิมพ์เอง" = มี actorUserId (เส้นทางระบบ/auto-reply ส่ง systemShopId มาแทน
+  // และ actorUserId เป็น null เสมอ — ดู WARNING ที่ params) นี่คือ gate ของนโยบาย ห้ามผ่อน
+  const windowState = getWindowState(conversation.lastInboundAt)
+  const sentByHuman = params.actorUserId !== null && !params.autoReplyKind
+  let messageTag: 'HUMAN_AGENT' | undefined
+  if (!windowState.open) {
+    if (!(isHumanAgentEnabled() && windowState.humanAgentOpen && sentByHuman)) {
+      throw new Error('WINDOW_CLOSED')
+    }
+    messageTag = 'HUMAN_AGENT'
+  }
 
   // เช็คสถานะ channel ก่อนยิง Send API — token ตายแล้ว (ถูก markChannelTokenInvalid ไว้) หรือ
   // ร้านถอดการเชื่อมต่อไปแล้ว ยิงไปก็ error 190 ซ้ำแน่ ๆ ไม่ต้องเสีย round-trip ไป Graph (M-6)
@@ -956,14 +1028,14 @@ export async function sendOutboundMessage(params: {
     if (isImage) {
       // presigned URL อายุ 1 ชม. — Meta ดึงรูปไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-      mid = await sendImageMessage(pageToken, recipientId, imageUrl, params.replyToMid)
+      mid = await sendImageMessage(pageToken, recipientId, imageUrl, params.replyToMid, messageTag)
       // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
       // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
       if (bodyText.trim()) {
-        await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
+        await sendTextMessage(pageToken, recipientId, bodyText, null, messageTag).catch(() => {})
       }
     } else {
-      mid = await sendTextMessage(pageToken, recipientId, bodyText, params.replyToMid)
+      mid = await sendTextMessage(pageToken, recipientId, bodyText, params.replyToMid, messageTag)
     }
   } catch (e) {
     // reply/quote best-effort: ถ้ายิงพร้อม reply_to แล้ว Meta ปฏิเสธ (IG ไม่รองรับ / mid หมดอายุ) —
@@ -972,7 +1044,7 @@ export async function sendOutboundMessage(params: {
       try {
         if (isImage) {
           const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-          mid = await sendImageMessage(pageToken, recipientId, imageUrl)
+          mid = await sendImageMessage(pageToken, recipientId, imageUrl, null, messageTag)
           if (bodyText.trim()) await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
         } else {
           mid = await sendTextMessage(pageToken, recipientId, bodyText)

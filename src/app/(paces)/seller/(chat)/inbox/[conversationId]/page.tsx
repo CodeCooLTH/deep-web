@@ -48,7 +48,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { getWindowState, syncInboundWindowFromMeta } from '@/services/channel-chat.service'
+import { getWindowState, syncInboundWindowFromMeta, isHumanAgentEnabled } from '@/services/channel-chat.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
@@ -325,6 +325,11 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         }
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
+        // ระดับกลาง: เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน — คนตอบเองได้ผ่าน HUMAN_AGENT tag
+        // ต้องเช็ค isHumanAgentEnabled() ด้วย ไม่งั้นจะเปิดช่องพิมพ์ให้ทั้งที่ยังไม่ได้ permission
+        // แล้วไปเด้ง error ตอนกดส่ง ซึ่งแย่กว่าบอกตั้งแต่แรกว่าส่งไม่ได้
+        humanAgentOpen={isHumanAgentEnabled() && windowState.humanAgentOpen}
+        humanAgentExpiresAt={windowState.humanAgentExpiresAt?.toISOString() ?? null}
         tokenInvalid={tokenInvalid}
         neverInbound={neverInbound}
         customerPanelData={customerPanelData}
