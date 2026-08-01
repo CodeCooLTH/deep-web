@@ -15,6 +15,7 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
+import SignOutCard from './components/SignOutCard'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 
@@ -72,6 +73,13 @@ export default async function ShopSettingsPage() {
 
       {/* ShopForm รับ shop จริงของ seller — null = ยังไม่มีร้าน */}
       <ShopForm shop={shop} isExisting={isExisting} />
+
+      {/* ออกจากระบบ — เฉพาะ <1024px: `.seller-mobile-shell` ซ่อน TopBar + Sidenav ซึ่งเป็นที่อยู่
+          ของปุ่มออกจากระบบทั้งสองจุด ทำให้มือถือออกจากระบบไม่ได้เลย (ดู comment หัว SignOutCard)
+          ≥1024px ไม่ render — มี UserDropdownDetailed/UserProfileSettings ให้อยู่แล้ว */}
+      <div className="lg:hidden">
+        <SignOutCard />
+      </div>
     </>
   )
 }
