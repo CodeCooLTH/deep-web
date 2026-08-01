@@ -142,7 +142,7 @@ v1 จับคู่ **ตรงตัว 100% หลัง `normalizeMessage()
 | **S-12** | **`safepay-ux` Design Spec** ของ 2 หน้า (Hard Rule 8 — mandatory gate ก่อนแตะ frontend) | P0 | — | DONE (+Revision v2) |
 | S-13 | หน้า `/settings/auto-reply/[id]/qna` — ตาราง + ค้นหา + ชิปกรอง + เลือกหลายข้อ + แถบ bulk (mockup §07) | P0 | S-12, S-09, S-10 | DONE (2026-08-01) |
 | S-14 | หน้า `/settings/auto-reply/unanswered` — คิว + sheet กรอกคำตอบ + เลือกกลุ่มปลายทาง (mockup §05) | P0 | S-12, S-11 | DONE (2026-08-01 — รวมแท็บ ข้ามแล้ว + undo) |
-| S-15 | ลิงก์เข้า 2 หน้าใหม่จากหน้ารายการกลุ่มคำ (`AutoReplyListing.tsx` — **ไม่ใช่** `[id]/KeywordEditorClient.tsx`) | P1 | S-13, S-14 | TODO |
+| S-15 | ลิงก์เข้า 2 หน้าใหม่จากหน้ารายการกลุ่มคำ (`AutoReplyListing.tsx` — **ไม่ใช่** `[id]/KeywordEditorClient.tsx`) | P1 | S-13, S-14 | DONE (2026-08-01) |
 | S-16 | นำเข้า/ส่งออก **CSV UTF-8 BOM** คอลัมน์ `คำถาม, คำตอบ, เปิดใช้งาน` (service + API + UI พร้อมพรีวิวก่อนยืนยัน) | P1 | S-13 | TODO |
 | S-17 | ป้าย DeepBot บอก "ตอบจากคลังคำถาม + ข้อไหน" (`AutoReplyTag.tsx` — mockup §06 callout ท้าย) | P1 | S-04 | TODO |
 | **S-20** | **ป้าย "DeepBot" ในรายการแชท** (`InboxList.tsx`) เมื่อข้อความล่าสุดของแถวนั้นถูกตอบโดยบอท — user สั่ง 2026-07-31 พร้อมภาพอ้างอิง 2 รูป | P0 | S-12 | DONE (enrich + prefix ใน InboxList — ไม่มี migration ตามที่ user ตัดสิน) |
