@@ -17,7 +17,7 @@ import { sendAutoReply } from '@/services/auto-reply-send.service'
 import { matchQna } from '@/lib/auto-reply-qna-match'
 import { markQnaUsed } from '@/services/auto-reply-qna.service'
 import { recordUnanswered } from '@/services/auto-reply-unanswered.service'
-import { enhanceReply } from '@/services/ai-enhance.service'
+import { enhanceReply, answerFromKnowledge, isChatbotWithinWindow } from '@/services/ai-enhance.service'
 import { checkCapBeforeCall, recordUsageAndBill } from '@/services/ai-enhance-billing.service'
 
 /**
@@ -485,6 +485,34 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         })
       } else {
         /**
+         * ChatBot — ก่อนจะยอมเงียบ ลองให้ AI ตอบจากคลังความรู้ (phase `00023-ai-enhance`)
+         *
+         * WARNING: อยู่ใน `else` ของ NO_KEYWORD_MATCH เท่านั้น = **เฉพาะตรงที่เมื่อก่อนเงียบ**
+         * ไม่แตะเส้นทางที่ Auto Reply ตอบได้อยู่แล้ว คำที่ร้านตั้งไว้จึงชนะเสมอโดยโครงสร้าง
+         * ไม่ใช่โดยลำดับ if ที่ใครมาแก้ทีหลังแล้วสลับได้
+         */
+        const chatbot = await tryChatbotAnswer({
+          shopId: job.shopId,
+          conversationId: conversation.id,
+          customerText: rawText,
+        })
+        if (chatbot?.sent) {
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { autoReplyCount: { increment: 1 }, lastAutoReplyAt: new Date() },
+          })
+          return finish(job, 'DONE', {
+            ...common,
+            decision: 'REPLIED',
+            replyText: chatbot.text,
+            outboundMessageId: chatbot.messageId,
+            resolutionLevel: 'CHATBOT',
+            matchedVia: 'CHATBOT',
+            errorMessage: null,
+          })
+        }
+
+        /**
          * บันทึกเข้าคิว "คำถามที่ตอบไม่ได้" (phase 00023-qna, TFR-033)
          *
          * WARNING: อยู่ในสาขา `NO_KEYWORD_MATCH` เท่านั้น และ **อยู่ใน `else` ของ handoffAt**
@@ -753,4 +781,93 @@ export async function enrichWithAutoReplyBadge<T extends { id: string }>(
     lastMessageAutoReplyKind: byConversation.get(i.id) ?? null,
     lastMessageIsAiEnhanced: false,
   }))
+}
+
+
+/**
+ * tryChatbotAnswer — ให้ AI ตอบจากคลังความรู้เมื่อไม่มีกลุ่มคำไหนรับ
+ *
+ * คืน null เมื่อไม่ได้ตอบ (ปิดอยู่ / นอกเวลา / ไม่ใช่แชททดสอบ / เครดิตหมด / คลังว่าง /
+ * AI ตอบไม่ได้ / ชนกฎ) — ผู้เรียกเงียบตามเดิมและเก็บคำถามเข้าคิว
+ *
+ * WARNING: ห้าม throw — อยู่ในเส้นทางเดียวกับการตอบลูกค้า ทุกความล้มเหลวคืน null
+ */
+async function tryChatbotAnswer(params: {
+  shopId: string
+  conversationId: string
+  customerText: string
+}): Promise<{ sent: true; text: string; messageId: string | null } | null> {
+  try {
+    const cfg = await prisma.autoReplyConfig.findUnique({
+      where: { shopId: params.shopId },
+      select: {
+        aiChatbotStatus: true,
+        aiChatbotTone: true,
+        aiChatbotStartTime: true,
+        aiChatbotEndTime: true,
+      },
+    })
+    const status = cfg?.aiChatbotStatus ?? 'OFFLINE'
+    if (status === 'OFFLINE') return null
+
+    // TEST = ตอบเฉพาะแชทที่ร้านเลือกไว้ (โครงเดียวกับกลุ่มคำสถานะ TEST)
+    if (status === 'TEST') {
+      const allowed = await prisma.aiChatbotTestThread.findUnique({
+        where: { shopId_conversationId: { shopId: params.shopId, conversationId: params.conversationId } },
+        select: { id: true },
+      })
+      if (!allowed) return null
+    }
+
+    if (!isChatbotWithinWindow(cfg?.aiChatbotStartTime, cfg?.aiChatbotEndTime, new Date())) return null
+
+    const cap = await checkCapBeforeCall(params.shopId)
+    if (!cap.allowed) return null
+
+    // คลังความรู้ทั้งร้าน — ที่ถูกใช้บ่อยอยู่บน แล้วตัดที่ 200 ข้อกัน prompt บวม
+    // (200 ข้อ ~ หลักหมื่น token ซึ่งยังอยู่ในงบของ flash-lite และคุมต้นทุนต่อครั้งได้)
+    const knowledge = await prisma.autoReplyQna.findMany({
+      where: { shopId: params.shopId, isActive: true },
+      select: { question: true, answer: true },
+      orderBy: { useCount: 'desc' },
+      take: 200,
+    })
+    if (knowledge.length === 0) return null
+
+    const guardrails = await prisma.autoReplyGuardrail.findMany({
+      where: { shopId: params.shopId, keywordId: null, isActive: true },
+      select: { rule: true, denyPhrases: true },
+    })
+
+    const result = await answerFromKnowledge({
+      customerText: params.customerText,
+      knowledge,
+      guardrails,
+      tone: cfg?.aiChatbotTone ?? null,
+    })
+
+    if (result.usage) {
+      await recordUsageAndBill({
+        shopId: params.shopId,
+        conversationId: params.conversationId,
+        usage: result.usage,
+        status: result.text ? 'SUCCESS' : 'FAILED',
+      })
+    }
+    if (!result.text) return null
+
+    const sent = await sendAutoReply({
+      conversationId: params.conversationId,
+      shopId: params.shopId,
+      text: result.text,
+      imageFileIds: [],
+      isTest: status === 'TEST',
+    })
+    if (!sent.sent) return null
+
+    return { sent: true, text: result.text, messageId: sent.messageId ?? null }
+  } catch (e) {
+    console.error('[chatbot] tryChatbotAnswer ล้มเหลว', e)
+    return null
+  }
 }

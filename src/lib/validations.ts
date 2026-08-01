@@ -1281,6 +1281,8 @@ export const AutoReplyUnansweredConvertSchema = v.object({
 const TimeHHmm = v.pipe(v.string(), v.trim(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'รูปแบบเวลาต้องเป็น HH:mm'))
 
 export const AiChatbotConfigPatchSchema = v.object({
+  // ตรงกับ CHECK ในฐาน — ค่าอื่นถูกปฏิเสธตั้งแต่ชั้นนี้ ไม่ปล่อยให้ไปตายที่ DB
+  aiChatbotStatus: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
   aiChatbotEnabled: v.optional(v.boolean()),
   aiChatbotTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
   aiChatbotStartTime: v.optional(v.union([TimeHHmm, v.literal('')])),

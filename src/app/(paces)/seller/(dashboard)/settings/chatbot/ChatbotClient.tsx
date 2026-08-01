@@ -24,6 +24,7 @@ export type GuardrailRow = {
 }
 
 export type ChatbotConfig = {
+  aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
   aiChatbotStartTime: string | null
@@ -41,6 +42,13 @@ type Props = {
   /** จำนวนข้อในคลังความรู้ที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
   knowledgeCount: number
 }
+
+/** 3 สถานะ — คำเดียวกับกลุ่มคำของ Auto Reply เพื่อไม่ให้ร้านต้องเรียนความหมายใหม่ */
+const STATUS_OPTIONS = [
+  { key: 'OFFLINE', label: 'ไม่ใช้งาน', hint: 'ไม่ทำงานเลย' },
+  { key: 'TEST', label: 'ทดสอบ', hint: 'ตอบเฉพาะแชทที่เลือกไว้' },
+  { key: 'LIVE', label: 'เปิดใช้งาน', hint: 'ตอบลูกค้าจริงทุกคน' },
+] as const
 
 const TONE_PRESETS = [
   'สุภาพ เป็นกันเอง อ่านง่าย',
@@ -84,7 +92,7 @@ export default function ChatbotClient({
       if (!res.ok) throw new Error(await readError(res, 'บันทึกไม่สำเร็จ'))
       if (successMsg) pacesToast.success(successMsg)
       // เปิดสวิตช์หลักครั้งแรก server จะใส่กฎเริ่มต้นให้ — ดึงรายการจริงมาแสดง
-      if (partial.aiChatbotEnabled === true) router.refresh()
+      if (partial.aiChatbotStatus && partial.aiChatbotStatus !== 'OFFLINE') router.refresh()
     } catch (e) {
       setCfg(prev)
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
@@ -150,7 +158,8 @@ export default function ChatbotClient({
     }
   }
 
-  const on = cfg.aiChatbotEnabled
+  const status = cfg.aiChatbotStatus
+  const on = status !== 'OFFLINE'
 
   return (
     <div className="space-y-4">
@@ -170,17 +179,36 @@ export default function ChatbotClient({
               <strong>คำตอบที่คุณตั้งไว้เองยังมาก่อนเสมอ</strong> AI ได้เฉพาะคำถามที่ไม่มีใครรับ
             </p>
           </div>
-          <label className="flex flex-none items-center gap-2">
-            <span className="text-default-700 text-sm">{on ? 'เปิดอยู่' : 'ปิดอยู่'}</span>
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={on}
-              disabled={!canEdit || busy}
-              onChange={() => patch({ aiChatbotEnabled: !on }, !on ? 'เปิด ChatBot แล้ว' : 'ปิด ChatBot แล้ว')}
-              aria-label="เปิดใช้ ChatBot"
-            />
-          </label>
+        </div>
+        <div className="card-body">
+          {/* segmented 3 สถานะ — Base InboxList.tsx (พื้น bg-light ตัว active เป็นการ์ดยกขึ้น) */}
+          <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="สถานะ ChatBot">
+            {STATUS_OPTIONS.map((o) => {
+              const active = status === o.key
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  disabled={!canEdit || busy}
+                  onClick={() => patch({ aiChatbotStatus: o.key }, `เปลี่ยนเป็น "${o.label}" แล้ว`)}
+                  className={`flex min-w-0 flex-1 flex-col items-center justify-center rounded-md px-2 py-2 text-sm font-medium ${
+                    active ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
+                  }`}
+                >
+                  {o.label}
+                  <span className="text-default-400 text-2xs font-normal">{o.hint}</span>
+                </button>
+              )
+            })}
+          </div>
+          {status === 'TEST' && (
+            <p className="text-default-500 mt-2.5 text-xs">
+              โหมดทดสอบตอบเฉพาะแชทที่เลือกไว้ — ยังไม่มีหน้าจอให้เลือก กำลังทำอยู่
+              ระหว่างนี้ยังไม่มีแชทไหนถูกเลือก บอทจึงยังไม่ตอบใคร
+            </p>
+          )}
         </div>
       </div>
 
