@@ -14,14 +14,29 @@ import { resolveActiveShopContext } from '@/lib/shop-context'
  * เข้าไปตัดสินเอง ถ้าย้ายไปตัดสินใน service เมื่อไหร่จะตรวจไม่ได้ว่าครบทุกเส้นทางหรือไม่
  */
 
-/** role ที่แก้ไขการตั้งค่าได้ (AC-004-01) — STAFF อ่านได้อย่างเดียว */
+/**
+ * role ที่แก้ไขการตั้งค่าได้ (AC-004-01)
+ *
+ * NOTE (2026-08-01): ระบบมีแค่ `OWNER` (คนสร้างร้าน) กับ `ADMIN` (ทุกคนที่ถูกเชิญเข้ามา
+ * ทั้ง `shop-member.service` และ `invite-link.service` ใส่ `ADMIN` เสมอ) — **ไม่มี role
+ * `STAFF` อยู่จริงในสคีมา** คอมเมนต์เดิมที่เขียนว่า "STAFF อ่านได้อย่างเดียว" จึงชวนเข้าใจผิด
+ * ว่ามีทางเกิด 403 จาก role ซึ่งไม่มี — `canEdit` จาก role เป็น true เสมอสำหรับสมาชิกทุกคน
+ * (user ยืนยัน 2026-08-01 ว่าไม่เปลี่ยนสิทธิ์ใคร แค่แก้เอกสาร/เทสให้ตรงความจริง)
+ */
 const EDITABLE_ROLES = ['OWNER', 'ADMIN'] as const
 
 export const AUTO_REPLY_NO_STORE = {
   'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
 } as const
 
-export type ShopRouteContext = { userId: string; shopId: string; canEdit: boolean }
+export type ShopRouteContext = {
+  userId: string
+  shopId: string
+  canEdit: boolean
+  /** ร้าน Business ที่โดน package lock — อ่านได้แต่เขียนไม่ได้ (`Shop.packageLockedAt`) */
+  locked: boolean
+  lockReason: string | null
+}
 
 export async function requireShopContext(): Promise<ShopRouteContext | { error: NextResponse }> {
   const session = await getServerSession(authOptions)
@@ -43,11 +58,32 @@ export async function requireShopContext(): Promise<ShopRouteContext | { error: 
     userId,
     shopId: activeCtx.shopId,
     canEdit: (EDITABLE_ROLES as readonly string[]).includes(activeCtx.role),
+    locked: activeCtx.locked,
+    lockReason: activeCtx.lockReason,
   }
 }
 
-/** ใช้กับทุก endpoint ที่เขียนข้อมูล — STAFF ต้องถูกปฏิเสธเสมอ (AC-004-03) */
+/**
+ * ใช้กับทุก endpoint ที่เขียนข้อมูล (AC-004-03)
+ *
+ * WARNING: ตรวจ **สองอย่าง** ไม่ใช่อย่างเดียว:
+ *   1. role แก้ไขได้ไหม — วันนี้เป็นจริงเสมอ (ไม่มี role STAFF ในระบบ ดูหมายเหตุที่ EDITABLE_ROLES)
+ *      คงไว้เพื่อให้ยังทำงานถูกถ้าวันหนึ่งมี role อ่านอย่างเดียวเพิ่มเข้ามา
+ *   2. **ร้านโดน package lock อยู่ไหม** — เดิมไม่เคยตรวจเลยทั้งที่ `resolveActiveShopContext`
+ *      คืน `locked` ให้อยู่แล้ว ทำให้ร้าน Business ที่ถูกล็อกยังเขียนได้ทุก endpoint ของฟีเจอร์นี้
+ *      (พบ 2026-08-01 ตอนเขียน TestCase — `API.md` อ้าง SHOP_LOCKED มาตลอดแต่ไม่เคย implement)
+ */
 export function forbidIfReadOnly(ctx: ShopRouteContext): NextResponse | null {
+  if (ctx.locked) {
+    return NextResponse.json(
+      {
+        error: ctx.lockReason
+          ? `ร้านนี้ถูกระงับการแก้ไขชั่วคราว (${ctx.lockReason}) — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที`
+          : 'ร้านนี้ถูกระงับการแก้ไขชั่วคราว — ต่ออายุแพ็กเกจแล้วจะกลับมาแก้ไขได้ทันที',
+      },
+      { status: 403 }
+    )
+  }
   if (ctx.canEdit) return null
   return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขการตั้งค่านี้' }, { status: 403 })
 }
@@ -126,6 +162,29 @@ const ERROR_MAP = new Map<string, { status: number; error: string }>(
   },
   // รหัสเดียวจริง ๆ (`AUTO_REPLY_RULE_EMPTY_REPLY`) จึงอยู่ในตารางไม่ใช่ suffix rule
   AUTO_REPLY_RULE_EMPTY_REPLY: { status: 400, error: 'คำตอบต้องไม่เป็นค่าว่าง' },
+
+  /* ── คลังคำถาม-คำตอบ (phase `00023-qna`) ────────────────────────────────
+   * WARNING: รหัสกลุ่มนี้ **ไม่ได้ถูกครอบด้วย suffix rule** (`endsWith('NOT_FOUND')` -> 404)
+   * ถ้าไม่มีในตารางนี้จะตกไปสาขา generic แล้วผู้ใช้ได้ 500 ทั้งที่เป็นความผิดของ input
+   * — บทเรียนตรงจาก feat 00003 (`OutOfStockError` ตกหล่นจน route คืน 500)
+   * ทุกครั้งที่ service ในกลุ่มนี้เพิ่ม `throw new Error('AUTO_REPLY_QNA_...')` ตัวใหม่
+   * ต้องมาเพิ่มที่นี่ด้วยเสมอ
+   * (`AUTO_REPLY_QNA_NOT_FOUND` / `AUTO_REPLY_KEYWORD_NOT_FOUND` ไม่ต้องใส่ — suffix rule ครอบแล้ว)
+   */
+  AUTO_REPLY_QNA_QUESTION_EMPTY: { status: 400, error: 'กรุณาระบุคำถาม' },
+  AUTO_REPLY_QNA_QUESTION_TOO_LONG: { status: 400, error: 'คำถามยาวเกินไป — ย่อให้ไม่เกิน 500 ตัวอักษร' },
+  AUTO_REPLY_QNA_ANSWER_EMPTY: { status: 400, error: 'ต้องมีคำตอบหรือรูปอย่างน้อยหนึ่งอย่าง' },
+  AUTO_REPLY_QNA_ANSWER_TOO_LONG: { status: 400, error: 'คำตอบยาวเกินไป — ย่อให้ไม่เกิน 2,000 ตัวอักษร' },
+  AUTO_REPLY_QNA_TOO_MANY_IMAGES: { status: 400, error: 'แนบรูปได้สูงสุด 5 รูปต่อหนึ่งคำตอบ' },
+  AUTO_REPLY_QNA_DUPLICATE: { status: 409, error: 'มีคำถามนี้อยู่ในกลุ่มนี้แล้ว — แก้ข้อเดิมแทนการเพิ่มใหม่' },
+  AUTO_REPLY_QNA_MOVE_TARGET_REQUIRED: { status: 400, error: 'กรุณาเลือกกลุ่มปลายทางก่อนย้าย' },
+
+  // คิวคำถามที่ตอบไม่ได้ — `AUTO_REPLY_UNANSWERED_NOT_FOUND` ถูก suffix rule ครอบแล้ว
+  // ส่วนตัวนี้ต้องอยู่ในตารางเพราะลงท้ายด้วย ALREADY_ANSWERED (409 ไม่ใช่ 404)
+  AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED: {
+    status: 409,
+    error: 'คำถามนี้ถูกตอบไปแล้ว — เปิดคลังคำถามของกลุ่มนั้นเพื่อแก้คำตอบเดิมแทน',
+  },
   }),
 )
 

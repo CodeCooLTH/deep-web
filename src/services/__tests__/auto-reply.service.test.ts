@@ -13,6 +13,9 @@ const db = vi.hoisted(() => ({
   autoReplyJob: { create: vi.fn(), updateMany: vi.fn(), update: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
   autoReplyKeyword: { findMany: vi.fn() },
   autoReplyRule: { findMany: vi.fn() },
+  // phase 00023-qna — loadRuleSet โหลดคลังคำถามมาในรอบเดียวกัน (Promise.all 3 ตัว)
+  autoReplyQna: { findMany: vi.fn(), update: vi.fn() },
+  autoReplyUnansweredQuestion: { upsert: vi.fn() },
   autoReplyLog: { findFirst: vi.fn() },
   chatMessage: { findUnique: vi.fn(), findFirst: vi.fn() },
   conversation: { findFirst: vi.fn(), update: vi.fn() },
@@ -78,6 +81,9 @@ function happyPath() {
   db.conversation.findFirst.mockResolvedValue(conversation())
   db.autoReplyKeyword.findMany.mockResolvedValue([])
   db.autoReplyRule.findMany.mockResolvedValue([])
+  db.autoReplyQna.findMany.mockResolvedValue([])
+  db.autoReplyQna.update.mockResolvedValue({})
+  db.autoReplyUnansweredQuestion.upsert.mockResolvedValue({})
   getConfigM.mockResolvedValue(config())
   matchM.mockReturnValue({
     winner: { keywordId: 'kw-1', keywordName: 'สนใจ', priority: 100, matchType: 'CONTAINS', matchedPhrase: 'สนใจ', matchedPhraseNormalized: 'สนใจ', matchedLength: 4, bestSpecificity: 0 },

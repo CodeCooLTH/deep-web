@@ -51,8 +51,35 @@ export const RESOLUTION_LEVELS = [
   'PAGE_DEFAULT',
   'SHOP_DEFAULT',
   'NONE',
+  // เพิ่ม 2026-07-31 (phase 00023-qna) — คำตอบมาจาก AutoReplyQna ไม่ได้ผ่าน resolveRule เลย
+  //
+  // WARNING: ห้ามใช้ 'KEYWORD_DEFAULT' แทน แม้จะ "ใกล้เคียง": ค่านั้นแปลว่า "กฎกลางของกลุ่มคำถูกเลือก"
+  // ซึ่งจะทำให้ตอนบอทตอบแปลก คนไล่ปัญหาไปเปิดหา AutoReplyRule ที่ไม่มีอยู่จริง
+  // เป็นค่าที่ **ไม่มีทางออกจาก getResolutionLevel()** — ผู้เรียกเซ็ตตรง ๆ ที่ processJob (TFR-032)
+  'QNA',
 ] as const
 export type ResolutionLevel = (typeof RESOLUTION_LEVELS)[number]
+
+/**
+ * AutoReplyLog.matchedVia — ข้อความเข้ากลุ่มคำด้วยวิธีไหน (เพิ่ม 2026-07-31, phase 00023-qna)
+ *
+ * WARNING: `null` ในคอลัมน์นี้ = แถวที่บันทึกก่อน phase นี้ ต้องอ่านว่า `KEYWORD` เสมอ และ **ห้าม backfill
+ * ทับ** — การเติมย้อนหลังจะทำให้แยกไม่ออกระหว่างแถวที่ "รู้จริง" กับแถวที่ "เดาให้" ซึ่งเป็น
+ * สิ่งเดียวที่ตารางบันทึกมีไว้ทำ (ป้าย DeepBot ในห้องแชทอ่านค่านี้ตรง ๆ เพื่อบอกที่มาของคำตอบ)
+ */
+export const MATCHED_VIA = ['KEYWORD', 'QNA'] as const
+export type MatchedVia = (typeof MATCHED_VIA)[number]
+
+/** AutoReplyQna.source — ข้อในคลังมาจากไหน (ใช้ตอบว่าคลังโตจากงานประจำวันจริงไหม) */
+export const QNA_SOURCES = ['MANUAL', 'QUEUE', 'IMPORT'] as const
+export type QnaSource = (typeof QNA_SOURCES)[number]
+
+/** AutoReplyUnansweredQuestion.status */
+export const UNANSWERED_STATUSES = ['PENDING', 'DISMISSED', 'ANSWERED'] as const
+export type UnansweredStatus = (typeof UNANSWERED_STATUSES)[number]
+
+/** จำนวนรูปแนบสูงสุดต่อคำตอบ 1 ชุด (user ตัดสิน 2026-07-31 — ตรงกับ QuickMessage) */
+export const MAX_REPLY_IMAGES = 5
 
 /** AutoReplyLog.skipReason */
 export const SKIP_REASONS = [

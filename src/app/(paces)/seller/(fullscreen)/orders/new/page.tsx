@@ -125,13 +125,22 @@ export default async function NewOrderPage() {
 
   return (
     <>
-      {/* Header sticky ด้านบน พร้อมปุ่ม submit ที่ชี้ form id */}
+      {/*
+        Header sticky ด้านบน — **ไม่มีปุ่มบันทึก** โดยตั้งใจ
+
+        เดิมส่ง saveFormId มาด้วย ทำให้หน้านี้มีปุ่ม type="submit" ถึง 3 ตัวใน DOM พร้อมกัน
+        (หัวหน้า + footer มือถือ + footer เดสก์ท็อป) ซึ่งมี guard ไม่เท่ากัน — วัดในเบราว์เซอร์แล้ว
+        พบว่ากด Enter ในช่อง text จะไป trigger **ปุ่มบนหัว** ซึ่งเป็นตัวที่ไม่มี disabled เลย
+        = bypass guard ทั้งหมด (impeccable critique 2026-07-31 P1)
+
+        ตัดออกได้เพราะทั้งสองเส้นทางมีปุ่มบันทึกที่มองเห็นตลอดเวลาอยู่แล้ว:
+        เดสก์ท็อป = footer ของ CartPanel (pinned) · มือถือ = QuickSummaryPanel (fixed)
+        ปุ่ม primary น้ำหนักเท่ากันสองจุดบนจอเดียวไม่ได้ช่วยใคร
+      */}
       <FullscreenPageHeader
         title="สร้างออเดอร์"
         subtitle={`ร้าน ${shop.shopName}`}
         backHref="/orders"
-        saveFormId={FORM_ID}
-        saveLabel="บันทึกออเดอร์"
       />
       {/* Form body — Paces order-add card pattern */}
       <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />

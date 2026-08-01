@@ -28,7 +28,7 @@ import { buildInviteUrl } from '@/lib/invite-link'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import CurrentMembersTable from '../business/[shopId]/invites/components/CurrentMembersTable'
-import InviteLinkCard from './components/InviteLinkCard'
+import InviteLinkModal from './components/InviteLinkModal'
 
 export const metadata: Metadata = { title: 'พนักงาน' }
 
@@ -75,10 +75,11 @@ export default async function AdminsPage() {
 
   return (
     <>
-      <PageBreadcrumb title="พนักงาน" />
+      {/* ลิงก์เชิญย้ายจากการ์ดบนหน้า → โมดัลที่เรียกจากปุ่มระดับหน้า (feature 00012 ext)
+          หน้าจึงเหลือเนื้อหาหลักอย่างเดียว = รายชื่อสมาชิก */}
+      <PageBreadcrumb title="พนักงาน" action={<InviteLinkModal links={linkRows} />} />
 
       <div className="gap-5 grid grid-cols-1">
-        <InviteLinkCard links={linkRows} />
         <CurrentMembersTable
           members={memberRows}
           shopId={shop.id}

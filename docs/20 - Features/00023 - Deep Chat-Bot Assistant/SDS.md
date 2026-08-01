@@ -921,11 +921,217 @@ flowchart TD
 
 **Open Questions:**
 
-1. **SRS ยังไม่ได้จัดทำ** — Hard Rule 11 กำหนดลำดับ PRD→BRD→SRS→SDS เอกสารนี้ trace จาก BRD + DATABASE โดยตรง ต้องยืนยันกับ Controller ว่าจะ back-fill SRS ก่อน implement หรือให้ SDS ฉบับนี้ทำหน้าที่แทนในเฟสแรก (ถ้าเลือกอย่างหลัง ต้องบันทึกเป็นหนี้เอกสารอย่างเปิดเผย ไม่ใช่ปล่อยผ่านเงียบ ๆ)
-2. **`API.md` ยังไม่ได้จัดทำ** — §3.3 ระบุ endpoint ครบแล้วแต่ยังไม่มี contract ระดับ request/response
+1. **SRS ยังไม่ได้จัดทำ** — Hard Rule 11 กำหนดลำดับ PRD→BRD→SRS→SDS เอกสารนี้ trace จาก BRD + DATABASE โดยตรง ต้องยืนยันกับ Controller ว่าจะ back-fill SRS ก่อน implement หรือให้ SDS ฉบับนี้ทำหน้าที่แทนในเฟสแรก (ถ้าเลือกอย่างหลัง ต้องบันทึกเป็นหนี้เอกสารอย่างเปิดเผย ไม่ใช่ปล่อยผ่านเงียบ ๆ) — ✅ **ปิดแล้ว 2026-07-31/08-01:** SRS จัดทำแล้ว (มี TFR-031..037) และภาคผนวก §14 ของเอกสารนี้อิงโค้ดจริงปัจจุบัน
+2. **`API.md` ยังไม่ได้จัดทำ** — §3.3 ระบุ endpoint ครบแล้วแต่ยังไม่มี contract ระดับ request/response — ✅ **ปิดแล้ว 2026-08-01:** `API.md` มี contract 29 endpoint เดิม + 12 endpoint ของ phase `00023-qna`
 3. **ความถี่ cron ที่ plan ปัจจุบันรองรับ** — ต้องยืนยันว่า Vercel plan ของโปรเจกต์รองรับความถี่เท่าไหร่ ตัวเลขนี้กำหนดว่าเวลากู้คืนกรณีเลวร้ายคือ "นาที" หรือ "ชั่วโมง" (มีผลต่อ AC-023-02 โดยตรง)
 4. **pass สำรองของ sweeper ที่ไล่หาข้อความลูกค้าที่ไม่มีงานผูกอยู่** ต้องสแกนโดยเริ่มจาก `Conversation.lastInboundAt` ซึ่ง**ยังไม่มี index รองรับ** — schema freeze แล้วจึงเสนอให้ประเมินจริงหลัง T-09 แล้วค่อยตัดสินว่าต้องเพิ่ม index ในรอบถัดไปหรือไม่
 5. **`after` ของ Next 16.1.1** — ตอนลงมือต้องอ่าน `node_modules/next/dist/docs/` ยืนยัน signature และ export path ก่อนเขียนโค้ด ตาม `AGENTS.md` (ห้ามเชื่อความจำ)
+---
+
+## 14. ภาคผนวก `00023-qna` — คลังคำถาม-คำตอบ + คิวคำถามที่ตอบไม่ได้ + ป้าย DeepBot
+
+> เพิ่ม 2026-08-01 · ต่อยอดจาก §1-§13 (base feature) โดยไม่แก้ของเดิม — ทุกจุดที่โค้ดจริงเบี่ยงจาก
+> §6 TD-001..TD-015 (เช่น ไม่มี `AutoReplyConfig.isEnabled` ในเส้นทางตัดสินแล้ว, โหมดทดสอบย้ายไประดับ
+> กลุ่มคำ, มี gate 6.6 ตารางเวลา) **ภาคผนวกนี้อิงโค้ดจริงปัจจุบัน (`auto-reply.service.ts` ที่มีอยู่ตอนนี้)
+> ไม่ใช่ดีไซน์เดิมใน §6** — เป็นหนี้เอกสารที่ต้อง sync แยกต่างหาก ไม่ใช่ขอบเขตของภาคผนวกนี้
+> SSOT: SRS TFR-031..037 · DATABASE §3.9-§3.11 (FROZEN) · scope baseline `2026-07-31-00023-qna-library-scope-baseline.md`
+
+### 14.1 Component / Service Map
+
+| Component | หน้าที่ | เรียกจาก |
+|---|---|---|
+| `src/lib/auto-reply-qna-match.ts` — `matchQna()` | ฟังก์ชันบริสุทธิ์ จับคู่ทั้งประโยคแบบ `EXACT` (v1) กับคลัง — **ไม่มี I/O** | `processJob`, `/simulate` |
+| `src/lib/auto-reply-unanswered-filter.ts` — `shouldQueueUnanswered()` | ฟังก์ชันบริสุทธิ์ ตัดสินว่าข้อความควรเข้าคิวไหม (F-1..F-4) | `recordUnanswered` |
+| `src/services/auto-reply-qna.service.ts` | CRUD + bulk + `markQnaUsed` ของคลังรายกลุ่ม — ทุกจุดเขียนเรียก `invalidateShop()` | routes ใหม่ (S-09/S-10), `convertUnansweredToQna`, mini-action (S-22) |
+| `src/services/auto-reply-unanswered.service.ts` | `recordUnanswered` (เขียนตอนเกิดเหตุ) + list/dismiss/restore/convert/markAnsweredByText | `processJob` (เขียน), routes ใหม่ (S-11), mini-action (S-22) |
+| `src/services/auto-reply.service.ts` — `loadRuleSet()` + `processJob()` | โหลด `qnas` มาพร้อม `keywords`/`rules` ในคิวรีเดียว ใช้ cache ก้อนเดียวกัน (TD-004 เดิมยังใช้ได้ — TTL 60s) · `processJob` เรียก `matchQna` เป็นชั้นสำรองหลัง `matchKeywords` แพ้ | webhook `after()`, cron sweeper |
+| `src/app/api/shops/auto-reply/simulate/route.ts` | **ต้องแก้เพิ่ม** — ปัจจุบันไม่โหลด/ไม่เรียก `matchQna` เลย (ยืนยันจากโค้ด 2026-08-01) | หน้าทดสอบกฎ |
+
+**ห่วงโซ่ที่ต้องคงไว้:** `matchQna()` ไม่รู้จัก DB — ทุกฝั่งที่เรียก (`processJob`, `/simulate`) ต้องโหลด `qnaSet`
+เองแล้วส่งเป็น argument เหมือน `matchKeywords()` (TFR-031, D3 ของ scope baseline)
+
+### 14.2 ลำดับการจับคู่ — เสียบตรงไหนของ gate 0-7 เดิม
+
+```
+gate 0 (ข้อความฝั่งร้าน) → gate 1 (สวิตช์เธรด) → gate 3-5 (สแปม/handoff/pause)
+  → gate 6 (เพดานคำตอบ) → matchKeywords()
+  → 🆕 ถ้าไม่มีกลุ่มคำใดตรง (matched.winner === null) → matchQna()
+  → gate 6.5 (สถานะกลุ่มที่ "เป็นเจ้าของ" — คำตรงตัวหรือกลุ่มที่ QnA ยืมมา)
+  → gate 6.6 (ตารางเวลาทำงาน)
+  → gate 7 (cooldown ของกลุ่มเดียวกัน)
+  → 🆕 ถ้าชนะด้วย QnA → ใช้ qna.answer ตรง ๆ (ข้าม resolveRule) → gate 8-9 (มีคำตอบไหม)
+  → resolveRule() (เฉพาะเมื่อไม่ใช่ QnA)
+```
+
+**กฎบังคับ 3 ข้อ (TFR-032, D1/D2 ของ scope baseline) — ห้ามเปลี่ยนพฤติกรรม gate เดิมแม้แต่จุดเดียว:**
+
+1. **`matchQna` ทำงานเฉพาะเมื่อ `matched.winner === null` เท่านั้น** — ไม่ทำงานตอน "กลุ่มคำตรงแต่ไม่มีกฎ" (`NO_RULE_MATCH`) เพราะนั่นคือร้านตั้งค่าค้างไว้ครึ่งทาง ต้องให้ร้านเห็นว่าค้าง ไม่ใช่ให้คลังมากลบร่องรอย
+2. **ผู้ชนะจาก QnA ต้อง "ยืมกลุ่มคำเป็นเจ้าของ"** — `effectiveKeywordId = matched.winner?.keywordId ?? qnaMatch?.keywordId ?? null` แล้ว gate 6.5/6.6/7 ทั้งหมดอ่านจาก `effectiveKeywordId` ตัวนี้ ไม่ใช่ `matched.winner` ตรง ๆ — ถ้าลัดข้าม จะกลายเป็นช่องทางที่ข้ามสถานะ OFFLINE/TEST, ตารางเวลา, cooldown ได้ทั้งหมด (กับดัก "สวิตช์คนละที่" แบบเดียวกับที่รื้อทิ้งไปแล้ว 2026-07-30)
+3. **คำตอบจาก QnA ไม่ผ่าน `resolveRule()`** — `AutoReplyQna.answer` ใช้ตรง ๆ, `resolutionLevel` เซ็ตเป็น `"QNA"` ตรง ๆ (ไม่มีทางออกจาก `getResolutionLevel()`), `matchedVia = "QNA"`, `qnaId = qnaMatch.qna.id`
+
+**Postcondition สำคัญ:** ข้อความที่เข้าได้ทั้งกลุ่มคำและคลัง ต้องตอบจากกลุ่มคำเสมอ (`matchedVia = "KEYWORD"`) — "คำตรงตัวชนะก่อนเสมอ"
+
+### 14.3 ความต่างระหว่าง path จริง (`processJob`) กับ `/simulate`
+
+🛑 **ปัจจุบัน `/simulate` (`src/app/api/shops/auto-reply/simulate/route.ts`) ยังไม่โหลด/ไม่เรียก `matchQna` เลย — เป็นงานที่ต้องเพิ่ม ไม่ใช่ของที่มีอยู่แล้ว** (ยืนยันจากโค้ดตรง ๆ 2026-08-01)
+
+**ความต่างที่ต้องคงไว้เมื่อเพิ่ม (ห้าม copy `loadRuleSet` มาใช้ตรง ๆ):**
+
+| | `processJob` (`loadRuleSet`) | `/simulate` (ต้องเขียนเพิ่ม) |
+|---|---|---|
+| Keywords ที่โหลด | `status: { not: 'OFFLINE' }` เท่านั้น (เพราะ OFFLINE ไม่มีทางตอบใครจริง) | **ทั้งหมดไม่กรอง status** (พฤติกรรมเดิมของ `/simulate` — ต้องให้ร้านเห็นว่ากลุ่มที่ตั้งไว้จะตอบอะไร แม้ยังไม่เปิด) |
+| Qnas ที่ส่งเข้า `matchQna` | จาก `loadRuleSet` (cache 60s, ผูกกับ shopId) | โหลดแยกต่างหาก **ไม่ผ่าน cache เดียวกัน** เพราะ `/simulate` ต้อง "เห็นผลทันทีหลังแก้" (เหมือนที่ config ไม่ cache — TD-004 เดิม) |
+| `keywords` argument ที่ส่งให้ `matchQna` | เฉพาะที่ไม่ใช่ OFFLINE (`ruleSet.keywords`) | **ต้องส่ง `allKeywords` (ไม่กรอง status)** — ให้ QnA ของกลุ่ม OFFLINE ก็ preview ได้ ตรงกับที่ `matchKeywords` ฝั่ง simulate ทำอยู่แล้ว (ไม่งั้น simulate จะไม่ symmetric กับพฤติกรรมเดิมของมันเอง) |
+| `qna.isActive = false` | ถูกกรองออกตั้งแต่ query (`loadRuleSet` มี `where: { isActive: true }`) | **`matchQna()` กรองเองภายใน** (บรรทัด 122 ของ `auto-reply-qna-match.ts`) — ดังนั้นแม้ query ฝั่ง simulate จะไม่ใส่ `isActive` filter ก็ได้ผลลัพธ์เดียวกัน (ตั้งใจไม่ preview ข้อที่ปิดไว้ เพราะ `isActive` ของ QnA คือ "คำตอบถูกถอน" ไม่ใช่สถานะ workflow แบบ keyword) |
+
+**สิ่งที่ *ต้อง* เหมือนกันเป๊ะ (parity ที่ AC-020-05 บังคับ):** ฟังก์ชัน `matchQna()` ตัวเดียวกัน, เกณฑ์ tie-break เดียวกัน (DATABASE §3.9.1), ไม่มี logic คู่ขนานที่เขียนแยก
+
+### 14.4 การเขียน snapshot ของ `Conversation` — จุดเขียน `lastMessagePreview` ทั้งหมด (ยืนยันจากโค้ดจริง มีเลขบรรทัด)
+
+🛑 **มี 4 จุดจริง** (Controller ตรวจซ้ำเองด้วย grep + เปิดอ่านทุกจุด 2026-08-01 — เป็น `prisma.conversation.update` ทั้งสี่):
+
+| # | ไฟล์:บรรทัด | ฟังก์ชัน | เขียน `lastMessagePreview`/`lastSenderRole` คู่กับ | ต้องเขียน `matchedVia`/`qnaId`/`lastMessageAutoReplyKind` เพิ่มไหม |
+|---|---|---|---|---|
+| 1 | `channel-chat.service.ts:193-196` | sync ข้อความย้อนหลังจาก Graph API (fb-sync) | `lastMessageAt` | **ไม่เกี่ยว** — sync ดึงข้อความเก่าจาก Graph ไม่ใช่ auto-reply เขียนเอง `autoReplyKind` ของแถวที่ sync มาเป็น `null` เสมอ |
+| 2 | `channel-chat.service.ts:686-692` | `writeMessage` (ใช้ร่วมทั้ง inbound ingest และ retry-after-race) ภายใน `ingestInboundMessage` | `lastSenderRole` | **ไม่เกี่ยว** — เขียนตอนข้อความ**เข้า** (ลูกค้า/echo) ไม่ใช่ตอนบอทตอบออก |
+| 3 | `channel-chat.service.ts:1094-1098` | `sendOutboundMessage` (ภายใน `$transaction`) — path เดียวที่ทุกการส่งออกใช้ รวม `sendAutoReply()` | `lastMessageAt` | **นี่คือจุดเดียวที่ auto-reply ทำให้เกิด** — บรรทัด 1090 มี `autoReplyKind: params.autoReplyKind ?? null` เขียนลง `ChatMessage` อยู่แล้ว **แต่บรรทัด 1097 ไม่เขียนอะไรลง `Conversation` เพิ่มเติมสำหรับ S-20** (ป้าย DeepBot) |
+
+| 4 | `chat.service.ts:651-661` | `createMessage` (ภายใน `tx`) — ข้อความที่พนักงานพิมพ์เองในเว็บ | `lastMessageAt`, `lastSenderRole` | **ไม่เกี่ยว** — คนพิมพ์เอง `autoReplyKind` เป็น `null` เสมอ |
+
+**🛑 บันทึกไว้กันเข้าใจผิดซ้ำ:** ระหว่างทำงานนี้มีการรายงานว่า `chat.service.ts:655` เป็น "false positive ของ grep / เป็นแค่ type" — **ไม่จริง** เปิดอ่านแล้วเป็น `tx.conversation.update({ data: { lastMessagePreview: preview, ... } })` เต็มรูปแบบ จุดเขียนจึงมี 4 ไม่ใช่ 3 · บทเรียน: จำนวนจุดเขียนต้องยืนยันด้วยการเปิดอ่านทุกจุด ไม่ใช่เชื่อสรุปของใครรวมทั้งของ subagent
+
+**🛑 ผลต่องาน S-20 (ป้าย DeepBot ในรายการแชท) — คำตอบทางสถาปัตยกรรมที่เลือก: ไม่เพิ่มคอลัมน์ใหม่บน `Conversation` เลย**
+
+> ✅ **user ตัดสิน 2026-08-01: ใช้ join enrich ไม่แก้ schema** — ยกเลิก task migration (T20db) ที่เคยวางไว้
+> เหตุผลชี้ขาดคือ 4 จุดเขียนข้างบน: การเพิ่มคอลัมน์ = ต้อง sync ทั้งสี่จุดตลอดไป และยังเหลือ known-gap
+> เส้นทาง race ของ echo Messenger ที่แปะ `autoReplyKind` ย้อนหลังโดยไม่อัปเดต snapshot → ป้ายจะไม่ขึ้น
+> ส่วน join อ่านจากข้อความจริงเสมอ จึงไม่มีทั้งภาระ sync และ known-gap นั้น
+
+ux spec (`docs/superpowers/specs/2026-07-31-00023-qna-ux-design-spec.md` หน้า C, บรรทัด ~506-513) และ round2 decision ข้อ 6 ตรงกัน: **enrich ที่ระดับ query อ่าน (join ข้อความล่าสุดจริง) ไม่ใช่ persist เป็นคอลัมน์ใหม่** — ใช้ pattern เดียวกับ `enrichWithOrderStage()` (`order-stage.service.ts`, `DISTINCT ON`) และ `countUnreadByConversation()` ที่มีอยู่แล้วในโปรเจกต์
+
+**เหตุผลที่ห้ามเพิ่มคอลัมน์:**
+1. `DATABASE.md` (FROZEN สำหรับ phase `00023-qna`) **ไม่มี** `Conversation.lastMessageAutoReplyKind` — เพิ่มตอนนี้ = แก้ FROZEN CONTRACT กลางทาง ต้องเปิด migration ใหม่แยกต่างหาก (S-20 ไม่ได้อยู่ใน dependency ของ S-01 migration เดิม)
+2. Denormalize เพิ่มอีกคอลัมน์ = อีกจุดเขียนที่ต้อง sync กับ `lastMessagePreview`/`lastSenderRole` (3 จุดข้างบน) ตลอดไป — ความเสี่ยง "ลืมจุดใดจุดหนึ่ง = ค่าค้าง" ตัดปัญหาด้วยการไม่มีคอลัมน์ให้ค้างเลย
+3. Query join ที่จำเป็นมีต้นทุนต่ำ (1 raw SQL ต่อ batch ids, มี index `[conversationId, autoReplyKind, createdAt]` อยู่แล้วจาก base feature — DATABASE §4) เหมือน `enrichWithOrderStage`
+
+**ฟังก์ชันใหม่ที่ต้องสร้าง:** `enrichWithAutoReplyBadge<T extends {id:string}>(items: T[])` ใน `src/services/auto-reply.service.ts` (อยู่ไฟล์เดียวกับ `sweepStuckJobs` ที่ route นี้ import อยู่แล้ว):
+
+```sql
+SELECT DISTINCT ON (m."conversationId")
+  m."conversationId" AS "conversationId",
+  m."autoReplyKind"  AS "autoReplyKind"
+FROM "ChatMessage" m
+WHERE m."conversationId" IN (...)
+ORDER BY m."conversationId", m."createdAt" DESC
+```
+คืน `Map<conversationId, string|null>` แล้ว route ประกอบเป็น
+`{ ...i, lastMessageAutoReplyKind: map.get(i.id) ?? null, lastMessageIsAiEnhanced: false }`
+(`lastMessageIsAiEnhanced` **เป็นค่าคงที่ `false` เสมอในเฟสนี้** — ไม่มี `aiEnhanceEnabled` flag จริง ไม่ query อะไรเพิ่ม ดู §14.9 ข้อขัดแย้ง)
+
+เรียกต่อจาก `enrichWithOrderStage()` ใน `src/app/api/chat/conversations/route.ts` (บรรทัด 232) เฉพาะ branch `seller` (buyer inbox ไม่ต้องมีป้ายนี้)
+
+### 14.5 Sequence Diagram 1 — ลูกค้าถาม → บอทตอบจากคลังคำถาม
+
+```mermaid
+sequenceDiagram
+    participant C as ลูกค้า
+    participant W as webhook route
+    participant AR as auto-reply.service (processJob)
+    participant MK as matchKeywords
+    participant MQ as matchQna
+    participant CC as auto-reply-send.service
+    participant QS as auto-reply-qna.service
+    participant DB as PostgreSQL
+
+    C->>W: ทัก "สอบถามรายละเอียด"
+    W->>AR: enqueue + after() → processJob
+    AR->>DB: claim + โหลด job/message/conversation/config
+    AR->>AR: gate 0,1,3-6 ผ่านหมด
+    AR->>DB: loadRuleSet(shopId) — โหลด keywords+rules+qnas (cache 60s)
+    AR->>MK: matchKeywords(normalizedText, ruleSet, ctx)
+    MK-->>AR: winner = null (ไม่มีกลุ่มคำตรง)
+    AR->>MQ: matchQna(normalizedText, qnas, keywords, {mode:'EXACT'})
+    MQ-->>AR: { qna, keywordId, method }
+    Note over AR: effectiveKeywordId = qna.keywordId (ยืมกลุ่มเป็นเจ้าของ)
+    AR->>AR: gate 6.5 สถานะกลุ่ม → gate 6.6 ตารางเวลา → gate 7 cooldown (ผ่านหมด)
+    Note over AR: ข้าม resolveRule() — ใช้ qna.answer ตรง ๆ
+    AR->>CC: sendAutoReply({ text: qna.answer, imageFileIds: qna.imageFileIds })
+    CC->>DB: sendOutboundMessage (tx) — ChatMessage(autoReplyKind='AUTO') + Conversation snapshot
+    CC-->>AR: { sent: true, messageId }
+    AR->>DB: AutoReplyLog(decision='REPLIED', resolutionLevel='QNA', matchedVia='QNA', qnaId)
+    AR->>QS: markQnaUsed(qna.id) — useCount++, lastUsedAt=now
+    AR->>DB: Conversation.autoReplyCount++
+```
+
+### 14.6 Sequence Diagram 2 — ตอบไม่ได้ → เข้าคิว → ร้านกรอกคำตอบ → ตอบได้ครั้งถัดไป
+
+```mermaid
+sequenceDiagram
+    participant C as ลูกค้า
+    participant AR as auto-reply.service (processJob)
+    participant MK as matchKeywords
+    participant MQ as matchQna
+    participant UQ as auto-reply-unanswered.service
+    participant Filter as shouldQueueUnanswered
+    participant S as ร้าน (หน้า /settings/auto-reply/unanswered)
+    participant API as POST .../unanswered/{id}/convert
+    participant QS as auto-reply-qna.service
+    participant DB as PostgreSQL
+
+    C->>AR: ทัก "ตัดหมอกรุ่นไหนที่ร้านแนะนำ" (ครั้งแรก — ยังไม่มีในคลัง)
+    AR->>MK: matchKeywords(...)
+    MK-->>AR: winner = null
+    AR->>MQ: matchQna(...)
+    MQ-->>AR: null (ยังไม่มีข้อนี้ในคลัง)
+    Note over AR: replyText ว่าง + ไม่มี effectiveKeywordId → reason = NO_KEYWORD_MATCH
+    Note over AR: 🛑 ห้ามเขียน handoffAt (บั๊ก prod 2026-07-31 — ล็อกห้อง 240 ห้อง)
+    AR->>Filter: shouldQueueUnanswered(rawText, normalizedText)
+    Filter-->>AR: { keep: true }
+    AR->>UQ: recordUnanswered({ shopId, rawText, normalizedText })
+    UQ->>DB: upsert AutoReplyUnansweredQuestion (shopId, normalizedQuestion) — hitCount++
+    AR->>DB: AutoReplyLog(decision='HANDOFF', skipReason='NO_KEYWORD_MATCH') + job=SKIPPED
+    Note over C,AR: ลูกค้าไม่ได้รับคำตอบ — เธรดยังเปิดรับข้อความถัดไปปกติ (ไม่ล็อก)
+
+    S->>API: เปิดหน้าคิว → เห็นคำถามนี้ (hitCount=8) → กด "กรอกคำตอบ" → เลือกกลุ่ม → บันทึก
+    API->>QS: createQna(keywordId, shopId, {question, answer}, source='QUEUE')
+    QS->>DB: INSERT AutoReplyQna + invalidateShop(shopId)
+    API->>DB: UPDATE AutoReplyUnansweredQuestion SET status='ANSWERED', qnaId (ทรานแซกชันเดียวกับ createQna)
+
+    C->>AR: ทัก "ตัดหมอกรุ่นไหนที่ร้านแนะนำ" อีกครั้ง (ครั้งถัดไป)
+    AR->>MK: matchKeywords(...)
+    MK-->>AR: winner = null
+    AR->>MQ: matchQna(...)
+    MQ-->>AR: { qna, keywordId } — เจอแล้ว!
+    Note over AR: ตอบสำเร็จ — เหมือน Diagram 1
+```
+
+### 14.7 ข้อจำกัด/ความเสี่ยงเชิงออกแบบที่ dev ต้องรู้
+
+| ความเสี่ยง | เหตุผล | การกัน |
+|---|---|---|
+| จับคู่ตรงตัว 100% เท่านั้น (v1) | `AutoReplyKeyword.qnaSimilarityEnabled` มีคอลัมน์แล้วแต่ยังไม่มีที่อ่าน — `mode: 'SIMILARITY'` throw ถ้าถูกส่งมา (ป้องกันเงียบตอบผิด) | บันทึกไว้เป็น v2 — ห้าม implement ความคล้ายใน phase นี้ (Non-goal 3) |
+| bulk MOVE ทำทีละแถวไม่ใช่ transaction เดียว | กลุ่มปลายทางอาจมีคำถามซ้ำ — ถ้ายิงเป็นก้อนเดียว unique constraint จะทำให้ทั้งชุดล้มโดยไม่รู้ว่าข้อไหนเป็นปัญหา | `bulkQna()` วนทีละแถว คืน `failed[]` รายข้อ (ไม่ throw ทั้งก้อน) |
+| `recordUnanswered`/`markQnaUsed` ต้องไม่ throw เด็ดขาด | อยู่ในเส้นทางร้อนของการตอบลูกค้า — พังแล้วทำให้ job ค้างสถานะ/ตอบซ้ำเสียหายกว่าเสียบันทึก | ทั้งคู่ห่อ try/catch ภายในตัวเอง (ยืนยันจากโค้ด) |
+| คิว PII | ข้อความที่มีเบอร์/ที่อยู่/สั้นเกินไม่ถูกเขียนเข้าคิวเลย (กรองที่ขาเขียน) | `shouldQueueUnanswered()` — F-1..F-4 ตายตัวในโค้ด (D5/A4) |
+| `useCount`/`hitCount` denormalize | เก็บเป็นคอลัมน์ไม่ COUNT จาก `AutoReplyLog` (ตารางโตเร็วสุดในระบบ) | อัปเดตที่จุดเขียนเดียว (`markQnaUsed`, upsert ใน `recordUnanswered`) |
+| S-20 enrichment เพิ่ม query 1 ครั้งต่อการโหลด inbox | raw SQL `DISTINCT ON` บน index ที่มีอยู่แล้ว | จำกัดเฉพาะ `ids` ของหน้าปัจจุบัน (batch เดียวกับ unread/orderStage) ไม่ query ทั้งตาราง |
+
+### 14.8 Traceability เพิ่มเติม (ต่อ §12 เดิม)
+
+| Requirement | SDS Element | สถานะ |
+|---|---|---|
+| TFR-031 (matchQna) | §14.1, §14.2, §14.3 | Draft |
+| TFR-032 (ตำแหน่งใน gate) | §14.2 | Draft |
+| TFR-033 (คิว) | §14.6 Diagram 2 | Draft |
+| TFR-034 (CRUD/bulk/cache) | §14.1, §14.7 | Draft |
+| TFR-035 (CSV) | ดู §14.9 ข้อขัดแย้งเรื่องเพดานแถว | **BLOCKED — ต้องตัดสินก่อน implement S-16** |
+| TFR-036 (รูปแนบ) | มีอยู่แล้วใน `auto-reply-send.service.ts` (ยืนยันจากโค้ด — ไม่ต้องสร้างใหม่) | Done (base) |
+| TFR-037 (mini action จากแชท) | §14.1, API §4.41 | Draft |
+| Scope baseline S-20 | §14.4 (enrichment ไม่ persist คอลัมน์) | Draft |
+
+### 14.9 ข้อขัดแย้ง/ช่องโหว่ที่พบระหว่างอ่านโค้ด
+
+ดูหัวข้อ "ข้อขัดแย้ง/ช่องโหว่" ท้ายเอกสารนี้ — ไม่ซ้ำเนื้อหาที่นี่เพื่อไม่ให้เอกสารสองที่ไม่ตรงกัน
 
 ---
 

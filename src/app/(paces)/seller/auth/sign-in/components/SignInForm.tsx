@@ -16,6 +16,12 @@
  * - loading state: "กำลังเข้าสู่ระบบ..." + disabled
  * - login error แสดง inline ใต้ submit (errors.root) ไม่ใช่ toast
  * - field error style: cn('form-input', errors.x && '!border-danger') + invalid-msg
+ *
+ * feature 00012 ext — เคารพ `?callbackUrl=`:
+ *   เดิมทุกช่องทางเด้ง /dashboard ตายตัว ทำให้ผู้ถูกเชิญที่มาจาก /i/<slug> เสียบริบทคำเชิญทิ้ง
+ *   (ลิงก์ "เข้าสู่ระบบด้วยวิธีอื่น" ส่ง callbackUrl มาแล้ว แต่ฟอร์มนี้ไม่เคยอ่าน) ตอนนี้ทั้ง
+ *   credentials / Facebook / LINE / Instagram พากลับปลายทางเดิม โดย sanitize ผ่าน safeCallbackUrl
+ *   กัน open-redirect (ค่าจาก query string = ผู้โจมตีแก้ได้)
  */
 
 'use client'
@@ -24,11 +30,12 @@ import { Icon as BxIcon } from '@iconify/react'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
+import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { cn } from '@/utils/helpers'
 
 const schema = Yup.object({
@@ -44,6 +51,9 @@ type FormValues = Yup.InferType<typeof schema>
 
 export default function SignInForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // ปลายทางหลัง login — มาจาก query string จึงต้อง sanitize ทุกครั้ง (open-redirect)
+  const callbackUrl = safeCallbackUrl(searchParams.get('callbackUrl'))
   const [showPw, setShowPw] = useState(false)
   const {
     register,
@@ -56,18 +66,22 @@ export default function SignInForm() {
   })
 
   const handleFacebook = async () => {
-    // ชี้ตรง /dashboard (ไม่ผ่านหน้า loading กลาง /auth/callback/facebook) เพื่อลด redirect chain
+    // ชี้ตรงปลายทาง (ไม่ผ่านหน้า loading กลาง /auth/callback/facebook) เพื่อลด redirect chain
     // — NextAuth set session cookie ก่อน 302, proxy อ่าน JWT เด้ง onboarding/register ถูกอยู่แล้ว.
     //   redirect chain สั้นลงช่วยลด phishing-heuristic false-positive ของ Safe Browsing (2026-06-20)
-    await signIn('facebook', { callbackUrl: '/dashboard' })
+    await signIn('facebook', { callbackUrl })
   }
 
   const handleLine = async () => {
-    await signIn('line', { callbackUrl: '/auth/callback/line' })
+    // LINE/IG ยังผ่านหน้า loading กลางเพื่อรอ session ให้นิ่งก่อน (ต่างจาก FB) — ส่งปลายทางจริง
+    // ต่อไปทาง ?next= ให้หน้านั้น redirect ต่อ แทนที่จะจบตายตัวที่ /dashboard
+    await signIn('line', { callbackUrl: `/auth/callback/line?next=${encodeURIComponent(callbackUrl)}` })
   }
 
   const handleInstagram = async () => {
-    await signIn('instagram', { callbackUrl: '/auth/callback/instagram' })
+    await signIn('instagram', {
+      callbackUrl: `/auth/callback/instagram?next=${encodeURIComponent(callbackUrl)}`,
+    })
   }
 
   const onSubmit = async ({ username, password }: FormValues) => {
@@ -78,7 +92,7 @@ export default function SignInForm() {
     })
 
     if (result?.ok) {
-      router.push('/dashboard')
+      router.push(callbackUrl)
     } else {
       // generic error — ไม่บอก username/password อันไหนผิดเพื่อกัน enumeration
       // ทั้ง 2 field ขึ้น border แดงโดยไม่โชว์ text ซ้อน; ข้อความรวมอยู่ที่ errors.root
@@ -105,7 +119,7 @@ export default function SignInForm() {
             width={18}
             height={18}
             className="me-2 flex-shrink-0"
-            style={{ color: '#1877f2' }}
+            style={{ color: '#1877f2' }} // brand asset Facebook — carve-out จาก Paces token (Hard Rule 6)
           />
           เข้าสู่ระบบด้วย Facebook
         </button>
@@ -122,7 +136,7 @@ export default function SignInForm() {
             width={18}
             height={18}
             className="me-2 flex-shrink-0"
-            style={{ color: '#06C755' }}
+            style={{ color: '#06C755' }} // brand asset LINE — carve-out จาก Paces token (Hard Rule 6)
           />
           เข้าสู่ระบบด้วย LINE
         </button>
@@ -140,7 +154,7 @@ export default function SignInForm() {
               width={18}
               height={18}
               className="me-2 flex-shrink-0"
-              style={{ color: '#E1306C' }}
+              style={{ color: '#E1306C' }} // brand asset Instagram — carve-out จาก Paces token (Hard Rule 6)
             />
             เข้าสู่ระบบด้วย Instagram
           </button>

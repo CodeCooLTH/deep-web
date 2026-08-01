@@ -108,13 +108,14 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
 
   return (
     <div>
-      <label className="form-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</label>
+      <label htmlFor="asp-locality" className="form-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</label>
       <div ref={comboRef}>
         <div className="input-icon-group">
           <span className="input-icon">
             <Icon icon="search" className="size-4 text-default-400" />
           </span>
           <input
+            id="asp-locality"
             type="text"
             value={q}
             onChange={(e) => {

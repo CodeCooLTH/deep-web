@@ -81,7 +81,25 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SRS]]", "[[SDS]]"]
 
 **การ implement:** `const EDITABLE_ROLES = ["OWNER", "ADMIN"] as const` แล้วส่ง `canEdit` กลับไปให้ UI ตัดสินโหมดอ่านอย่างเดียว — 🛑 **ฝั่ง server ตรวจ role ซ้ำทุกคำขอที่เขียนเสมอ ห้ามเชื่อ `canEdit` ที่ client ส่งกลับมา**
 
+> ✅ **OQ-1 ปิดแล้ว 2026-08-01 (user ตัดสิน) — อ่านย่อหน้านี้ก่อนย่อหน้าเดิมด้านล่าง**
+>
+> **ไม่เพิ่ม role ใหม่ และไม่ลดสิทธิ์ใคร** — ระบบมี `OWNER` กับ `ADMIN` เท่านั้น ทั้งคู่แก้การตั้งค่าได้
+> ทุกที่ในเอกสารชุดนี้ที่เขียนว่า "STAFF อ่านอย่างเดียว" ให้อ่านว่า **ยังไม่มี role อ่านอย่างเดียวในระบบ**
+> ผลตามมาที่ต้องยึด:
+> - **`FORBIDDEN_ROLE` (403) ไม่มีทางเกิดจาก role** บน endpoint ของฟีเจอร์นี้ — คงรหัสไว้ในตาราง error
+>   เพื่อให้ยังถูกต้องถ้าวันหนึ่งมี role อ่านอย่างเดียวเพิ่มเข้ามา แต่ **ห้ามเขียนเทสที่คาดหวังว่าจะเกิดจริง**
+> - เทสสิทธิ์ทั้งหมดใช้ **ADMIN** แทน STAFF และเปลี่ยนสิ่งที่พิสูจน์เป็น "ADMIN แก้ได้จริง"
+> - **403 ที่เกิดจริงได้คือ `SHOP_LOCKED`** — และ **implement จริงแล้ว 2026-08-01** ใน `forbidIfReadOnly()`
+>   (`src/lib/auto-reply-route-context.ts`) ซึ่งเดิมไม่เคยอ่าน `activeCtx.locked` เลยทั้งที่เอกสารอ้างมาตลอด
+>   มีผลกับ 11 endpoint เดิมที่เรียก helper นี้อยู่แล้ว + endpoint ใหม่ทุกตัวของ phase `00023-qna`
+>
+> ---
+>
+> <details><summary>ข้อความเดิมของ OQ-1 (เก็บไว้เป็นบันทึกที่มา)</summary>
+>
 > 🛑 **OPEN QUESTION OQ-1 (ต้องให้ Controller ตัดสิน):** `ShopMember.role` ใน schema ปัจจุบันมีแค่ `"OWNER" | "ADMIN"` และ `ActiveShopContext.role` ก็ประกาศเป็น `"OWNER" | "ADMIN"` เท่านั้น — **ไม่มีค่า `STAFF` อยู่จริงในระบบ** พนักงานที่ถูกเชิญผ่าน feature 00012 จึงกลายเป็น `ADMIN` และ **แก้การตั้งค่าตอบอัตโนมัติได้** ซึ่งขัด AC-004-02/AC-004-03 โดยตรง ทางเลือก: (ก) เพิ่มค่า `STAFF` ใน `ShopMember.role` (คนละ feature — กระทบ 00012) (ข) ยอมรับว่าเฟสนี้ ADMIN = แก้ได้ แล้วแก้ BRD ให้ตรงความจริง เอกสารนี้เขียนตาม (ข) ไว้ก่อน โดยวางโครง `EDITABLE_ROLES` ให้เพิ่ม `STAFF` เข้ามาเป็น read-only ได้ทันทีเมื่อเลือก (ก)
+>
+> </details>
 
 ---
 
@@ -151,7 +169,43 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SRS]]", "[[SDS]]"]
 | 4.28 | `GET` | `/api/shops/auto-reply/ads` | โฆษณาที่เคยมีลูกค้าทักเข้ามาจริง (AC-007-05) |
 | 4.29 | `GET` | `/api/cron/auto-reply-sweeper` | Cron กวาดงานค้าง + ปิดโหมดทดสอบหมดอายุ + ลบข้อมูลเก่า |
 
-**รวม 29 endpoint** — ไม่มี endpoint ที่เกี่ยวกับ AI (เฟส 2)
+### 3.8 คลังคำถาม-คำตอบ (QnA) — phase `00023-qna`
+
+| # | Method | Path | คำอธิบาย |
+|---|--------|------|----------|
+| 4.30 | `GET` | `/api/shops/auto-reply/keywords/{id}/qna` | รายการข้อในคลังของกลุ่ม (ค้นหา + กรอง 4 แบบ) |
+| 4.31 | `POST` | `/api/shops/auto-reply/keywords/{id}/qna` | เพิ่มข้อในคลัง |
+| 4.32 | `PATCH` | `/api/shops/auto-reply/keywords/{id}/qna/{qnaId}` | แก้ข้อในคลัง |
+| 4.33 | `DELETE` | `/api/shops/auto-reply/keywords/{id}/qna/{qnaId}` | ลบข้อในคลัง |
+| 4.34 | `POST` | `/api/shops/auto-reply/keywords/{id}/qna/bulk` | เปิด/ปิด/ย้ายกลุ่ม/ลบหลายข้อ (คืน partial result) |
+| 4.35 | `POST` | `/api/shops/auto-reply/keywords/{id}/qna/import` | นำเข้า CSV (rows ที่ client parse แล้ว) |
+| 4.36 | `GET` | `/api/shops/auto-reply/keywords/{id}/qna/export` | ส่งออกเป็นไฟล์ CSV UTF-8 BOM |
+
+### 3.9 คิวคำถามที่ตอบไม่ได้
+
+| # | Method | Path | คำอธิบาย |
+|---|--------|------|----------|
+| 4.37 | `GET` | `/api/shops/auto-reply/unanswered` | คิวของร้าน (กรอง PENDING/DISMISSED) |
+| 4.38 | `POST` | `/api/shops/auto-reply/unanswered/{id}/dismiss` | กดข้าม (สถานะถาวร ไม่ลบแถว) |
+| 4.39 | `POST` | `/api/shops/auto-reply/unanswered/{id}/restore` | ยกเลิกการข้าม (undo — round2 decision ข้อ 1) |
+| 4.40 | `POST` | `/api/shops/auto-reply/unanswered/{id}/convert` | กรอกคำตอบ → สร้าง QnA + ปิดคิว (ทรานแซกชันเดียว) |
+
+### 3.10 สร้างจากห้องแชท
+
+| # | Method | Path | คำอธิบาย |
+|---|--------|------|----------|
+| 4.41 | `POST` | `/api/chat/conversations/{id}/qna-from-message` | mini action ใต้บับเบิลลูกค้า — สร้าง QnA พร้อมปิดคิวถ้ามี |
+
+**รวมเพิ่ม 12 endpoint (29 + 12 = 41)** — endpoint ที่แก้ของเดิม (ไม่นับเพิ่ม) ดู §3.11
+
+### 3.11 ส่วนที่แก้ของเดิม (ไม่ใช่ endpoint ใหม่)
+
+| Endpoint | แก้อะไร |
+|---|---|
+| `POST /api/shops/auto-reply/simulate` (§4.18 เดิม) | เพิ่ม `qna`/`matchedVia` ใน response — ดู §4.18-ext |
+| `GET /api/chat/conversations` (นอกฟีเจอร์นี้ — feature 00011/00018) | เพิ่ม `lastMessageAutoReplyKind`/`lastMessageIsAiEnhanced` ต่อ item — ดู §4.42 🛑 **endpoint นี้ไม่ได้อยู่ใน API.md ของฟีเจอร์นี้จริง ๆ — ดูข้อขัดแย้งท้ายข้อความ** |
+
+**รวม 41 endpoint** (29 ของ base feature + 12 ของ phase `00023-qna` ใน §3.8-§3.10) — ไม่มี endpoint ที่เกี่ยวกับ AI (เฟส 2)
 
 ---
 
@@ -1233,6 +1287,327 @@ export const ConversationContextProductSchema = v.object({
 
 ---
 
+### 4.18-ext ส่วนขยายของ `POST /api/shops/auto-reply/simulate` (phase `00023-qna`)
+
+🛑 **ยืนยันจากโค้ด 2026-08-01: `/simulate` ปัจจุบัน (`src/app/api/shops/auto-reply/simulate/route.ts`)
+ยังไม่โหลด/ไม่เรียก `matchQna` เลย** — ส่วนนี้คือ spec ที่ต้องเพิ่ม ไม่ใช่ของที่มีอยู่แล้ว
+
+**สิ่งที่ต้องเพิ่มในโค้ด:**
+1. โหลด `allQnas = prisma.autoReplyQna.findMany({ where: { shopId: ctx.shopId }, select: {...} })`
+   (ไม่ filter `isActive` ที่ query — `matchQna()` กรองเองภายใน, สอดคล้องกับที่ `allKeywords` ไม่ filter `status`)
+2. `const qnaMatch = matched.winner ? null : matchQna(normalizedText, allQnas, allKeywords, { mode: 'EXACT' })`
+   — ส่ง `allKeywords` (ไม่กรอง OFFLINE) ไม่ใช่ `ruleSet.keywords` แบบ `processJob` (ดู SDS §14.3)
+3. `effectiveKeywordId = matched.winner?.keywordId ?? qnaMatch?.keywordId ?? null` — ใช้แทน `matched.winner?.keywordId` ในบรรทัดที่หา `winner`/`winnerState` เดิม (route.ts:73)
+
+**Response — เพิ่มฟิลด์ (ต่อจาก schema เดิมของ §4.18)**
+
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|-------|------|----------|
+| `matchedVia` | `"KEYWORD" \| "QNA" \| null` | `null` เมื่อไม่ตอบเลย |
+| `qna` | `{ id, question, answer, imageFileIds } \| null` | ข้อที่ชนะจากคลัง — มีค่าเมื่อ `matchedVia = "QNA"` เท่านั้น |
+
+`replyText`/`willHandoff` เดิม: เมื่อ `qnaMatch` ไม่ null ให้ `replyText = qnaMatch.qna.answer` แทน `resolved.rule?.replyText`
+(ข้าม `resolveRule` เหมือน path จริง — TFR-032 ข้อ 3)
+
+```json
+// Response 200 (เพิ่มเติมจากเดิม)
+{
+  "matched": null,
+  "matchedVia": "QNA",
+  "qna": { "id": "q-1", "question": "สอบถามรายละเอียด", "answer": "...", "imageFileIds": [] },
+  "replyText": "...",
+  "willHandoff": false
+}
+```
+
+---
+
+### 4.30 `GET /api/shops/auto-reply/keywords/{id}/qna`
+
+รายการข้อในคลังของกลุ่ม — pattern เดียวกับ `GET /keywords/{id}/phrases` (route ต้นแบบ)
+
+**Request**
+
+| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+|------|-------|------|--------|----------|
+| Path | `id` | uuid | yes | keywordId — ต้องเป็นของร้านนี้ |
+| Query | `filter` | `"ALL"\|"ACTIVE"\|"INACTIVE"\|"NEVER_USED"` | no | ค่าเริ่มต้น `ALL` (ตรง `QnaListFilter` ใน service, ตรงชิป 4 ตัวของ mockup §07) |
+| Query | `search` | `string` | no | ค้นใน `question` **และ** `answer` (`OR`, `contains insensitive`) |
+
+**Response — Success (200)**
+
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|-------|------|----------|
+| `items[]` | `array` | `{ id, question, answer, imageFileIds, isActive, useCount, lastUsedAt, source, updatedAt }` |
+| `stats` | `object` | `{ total, active, totalUses }` — **ของทั้งกลุ่มเสมอ ไม่ใช่ของผลกรอง** (การ์ด header ต้องบอกภาพรวมแม้กรองอยู่ — ยืนยันจาก `listQna()`) |
+| `canEdit` | `boolean` | |
+
+**Response — Error:** `UNAUTHORIZED` (401), `KEYWORD_NOT_FOUND` (404 — รวมกรณีของร้านอื่น)
+
+```json
+{
+  "items": [
+    { "id": "q-1", "question": "สอบถามรายละเอียด", "answer": "ทักได้เลยค่ะ...",
+      "imageFileIds": [], "isActive": true, "useCount": 68, "lastUsedAt": "2026-07-31T09:00:00.000Z",
+      "source": "MANUAL", "updatedAt": "2026-07-31T09:00:00.000Z" }
+  ],
+  "stats": { "total": 142, "active": 128, "totalUses": 1204 },
+  "canEdit": true
+}
+```
+
+---
+
+### 4.31 `POST /api/shops/auto-reply/keywords/{id}/qna`
+
+**Request Body (Valibot — ต้องสร้างใหม่ใน `src/lib/validations.ts`)**
+
+```ts
+export const AutoReplyQnaCreateSchema = v.object({
+  question: v.pipe(v.string(), v.trim(), v.minLength(1, 'กรุณาระบุคำถาม'), v.maxLength(500, 'คำถามยาวเกินกำหนด (500 ตัวอักษร)')),
+  answer: v.pipe(v.string(), v.trim(), v.maxLength(2000, 'คำตอบยาวเกินกำหนด (2,000 ตัวอักษร)')),
+  imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5, 'แนบรูปได้สูงสุด 5 รูป')), []),
+})
+// หมายเหตุ: answer ว่างได้ถ้ามีรูป — ตรวจ cross-field ที่ service (validateContent) ไม่ใช่ที่ schema
+// เพราะ service เป็นจุดเดียวที่ยืนยันแล้วว่าตรวจถูก (ยืนยันจากโค้ด auto-reply-qna.service.ts:53-70)
+```
+
+🛑 `question`/`answer` ที่ยาวเกิน trim แล้ว = `400`; `answer` ว่างและไม่มีรูป = `400 AUTO_REPLY_QNA_ANSWER_EMPTY`
+
+**Response — Success (201):** `{ id: string }` (ยืนยันจาก `createQna()` — คืนแค่ `{id}` ไม่ใช่ object เต็ม; **ต่างจากรูปแบบ POST /keywords ที่คืน object เต็ม** — ถ้าต้องการ object เต็ม UI เรียก GET ต่อ หรือถ้าจะแก้ service ให้คืนเต็มต้องเป็น task แยก ระบุไว้ที่นี่เพื่อไม่ให้ FE เข้าใจผิดว่าได้ full object)
+
+**Response — Error:** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403), `INVALID_INPUT` (400),
+`KEYWORD_NOT_FOUND` (404), `AUTO_REPLY_QNA_QUESTION_EMPTY` (400), `AUTO_REPLY_QNA_QUESTION_TOO_LONG` (400),
+`AUTO_REPLY_QNA_ANSWER_EMPTY` (400), `AUTO_REPLY_QNA_ANSWER_TOO_LONG` (400), `AUTO_REPLY_QNA_TOO_MANY_IMAGES` (400),
+`AUTO_REPLY_QNA_DUPLICATE` (409 — ชน `@@unique([keywordId, normalizedQuestion])`)
+
+**Audit:** `createdByUserId`/`updatedByUserId` จาก session
+
+---
+
+### 4.32 `PATCH /api/shops/auto-reply/keywords/{id}/qna/{qnaId}`
+
+partial update — `updateQna()` รับ `{ question?, answer?, imageFileIds?, isActive? }`
+
+```ts
+export const AutoReplyQnaUpdateSchema = v.object({
+  question: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500))),
+  answer: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(2000))),
+  imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5))),
+  isActive: v.optional(v.boolean()),
+})
+```
+
+**พฤติกรรม:** ถ้าส่ง `question`/`answer`/`imageFileIds` ตัวใดตัวหนึ่ง service จะ validate **ทั้ง 3 ค่าใหม่รวมกัน**
+(ใช้ค่าเดิมเติมช่องที่ไม่ส่ง แล้ว re-validate ทั้งชุด) — ยืนยันจาก `updateQna()` บรรทัด 184-193
+
+**Response:** `200 { ok: true }` (service คืน `void` — route ต้อง wrap เอง)
+
+**Error:** เหมือน §4.31 + `AUTO_REPLY_QNA_NOT_FOUND` (404)
+
+---
+
+### 4.33 `DELETE /api/shops/auto-reply/keywords/{id}/qna/{qnaId}`
+
+**Response:** `200 { ok: true }` (ยืนยันจาก `deleteQna()` — `deleteMany` scope ด้วย `{id, shopId}`)
+**Error:** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403), `AUTO_REPLY_QNA_NOT_FOUND` (404)
+
+---
+
+### 4.34 `POST /api/shops/auto-reply/keywords/{id}/qna/bulk`
+
+🛑 **คืน partial result เสมอ ไม่ throw ทั้งก้อน** — ยืนยันจาก `bulkQna()` ตรง ๆ
+
+```ts
+export const AutoReplyQnaBulkSchema = v.pipe(
+  v.object({
+    action: v.picklist(['ACTIVATE', 'DEACTIVATE', 'MOVE', 'DELETE'], 'คำสั่งไม่ถูกต้อง'),
+    qnaIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1, 'กรุณาเลือกอย่างน้อย 1 ข้อ')),
+    targetKeywordId: v.optional(v.pipe(v.string(), v.uuid())),
+  }),
+  v.check((o) => o.action !== 'MOVE' || !!o.targetKeywordId, 'กรุณาเลือกกลุ่มปลายทาง'),
+)
+```
+
+**Response — Success (200)**
+
+```json
+{ "ok": 3, "failed": [{ "id": "q-9", "reason": "AUTO_REPLY_QNA_DUPLICATE" }] }
+```
+
+`failed[].reason` เป็นหนึ่งใน: `AUTO_REPLY_QNA_NOT_FOUND` (id ไม่ใช่ของร้านนี้), `AUTO_REPLY_QNA_DUPLICATE` (MOVE ชนคำถามซ้ำที่กลุ่มปลายทาง), `AUTO_REPLY_QNA_MOVE_FAILED` (อื่น ๆ) — **UI ต้องมี Thai label mapping 3 ค่านี้เอง ไม่ใช่โชว์ code ดิบ**
+
+**Error (request-level เท่านั้น — ไม่ใช่ per-item):** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403),
+`INVALID_INPUT` (400 — รวม `MOVE` ที่ไม่มี `targetKeywordId`), `AUTO_REPLY_QNA_MOVE_TARGET_REQUIRED` (400 — กรณีหลุด schema check มาถึง service),
+`KEYWORD_NOT_FOUND` (404 — `targetKeywordId` ไม่ใช่ของร้านนี้)
+
+---
+
+### 4.35 `POST /api/shops/auto-reply/keywords/{id}/qna/import`
+
+🛑 **ยังไม่มีโค้ด (S-16, P1) — spec นี้อิงลายเซ็น pattern ที่มีอยู่แล้วจริงของ `POST /api/inventory/csv/import`**
+(client parse CSV ด้วย `parseCsv()` จาก `src/lib/csv.ts` ก่อน แล้วส่ง rows ที่ parse แล้วเป็น JSON — **ไม่ใช่ raw file upload**)
+
+**Request Body**
+
+```ts
+export const AutoReplyQnaImportSchema = v.object({
+  rows: v.pipe(
+    v.array(v.object({
+      question: v.pipe(v.string(), v.trim(), v.maxLength(500)),
+      answer: v.pipe(v.string(), v.trim(), v.maxLength(2000)),
+      isActive: v.boolean(),
+    })),
+    v.minLength(1, 'ไฟล์ว่างเปล่า'),
+    // 🛑 เพดานยังไม่ชัด — ดูข้อขัดแย้งเรื่อง 500 vs 1000 แถว ต้องตัดสินก่อนเขียนโค้ด
+    v.maxLength(500, 'นำเข้าได้สูงสุด 500 แถวต่อครั้ง'),
+  ),
+})
+```
+
+**พฤติกรรม (มิเรอร์ `importStockFromCsvRows` — HTTP 200 เสมอถ้า body ผ่าน validation, ความล้มเหลวรายแถวอยู่ใน response):**
+- แถวที่ `question`/`normalizeMessage(question)` ว่าง → นับเป็น `invalid`
+- แถวที่คำถามซ้ำกับที่มีอยู่ในกลุ่มแล้ว (`normalizedQuestion` ชน) → นับเป็น `duplicate` **ข้าม ไม่ทับ** (TFR-035 ข้อ 2)
+- ทุกแถวที่สำเร็จ `source = 'IMPORT'`
+
+**Response — Success (200)**
+
+```json
+{ "added": 38, "duplicates": 2, "invalid": 1, "total": 41 }
+```
+
+**Error:** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403), `INVALID_INPUT` (400), `KEYWORD_NOT_FOUND` (404)
+
+**🛑 ต้องสร้างใหม่ทั้ง service function** (`importQnaRows` หรือชื่อใกล้เคียงใน `auto-reply-qna.service.ts`) — วน `createQna` ทีละแถวแบบ per-row isolation เหมือน `bulkQna` MOVE (ห้าม transaction เดียวทั้งไฟล์ — เหตุผลเดียวกัน)
+
+---
+
+### 4.36 `GET /api/shops/auto-reply/keywords/{id}/qna/export`
+
+**Response:** `text/csv; charset=utf-8` + `Content-Disposition: attachment` — ใช้ `stringifyCsv()` จาก `src/lib/csv.ts` (มี BOM ในตัวอยู่แล้ว — บรรทัด 42 `return '\ufeff' + body`) **ห้ามเขียน CSV builder ใหม่**
+
+คอลัมน์: `คำถาม, คำตอบ, เปิดใช้งาน` (ตรง A3 ของ scope baseline) — `เปิดใช้งาน` = `"ใช่"`/`"ไม่ใช่"` (ไม่ใช่ `true`/`false` ดิบ เพื่อให้ Excel ไทยอ่านง่าย)
+
+filename: `deep-auto-reply-qna-{keywordId}-{yyyymmdd}.csv` (มิเรอร์ pattern `inventory/csv/export`)
+
+**Error:** `UNAUTHORIZED` (401), `KEYWORD_NOT_FOUND` (404)
+
+---
+
+### 4.37 `GET /api/shops/auto-reply/unanswered`
+
+**Request**
+
+| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+|------|-------|------|--------|----------|
+| Query | `status` | `"PENDING"\|"DISMISSED"` | no | ค่าเริ่มต้น `PENDING` (ตรง `listUnanswered()` — **`ANSWERED` ไม่ใช่ค่าที่ query param นี้ควรรับ** เพราะ UI ไม่มีแท็บ "ตอบแล้ว" ตาม mockup — ถ้าส่ง `ANSWERED` มา service ก็ query ได้ตรง ๆ (ไม่ block) แต่ไม่มีหน้าจอไหนเรียก) |
+| Query | `search` | `string` | no | ค้นใน `rawSample` |
+
+**Response — Success (200)**
+
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|-------|------|----------|
+| `items[]` | `array` | `{ id, rawSample, normalizedQuestion, hitCount, firstSeenAt, lastSeenAt, status, qnaId }` |
+| `pendingCount` | `int` | **นับเฉพาะ `PENDING` เสมอไม่ว่า `status` query จะเป็นอะไร** (ยืนยันจาก `listUnanswered()` — ใช้กับ badge `รอกรอก {N} ข้อ` ของ card-header) |
+
+**Error:** `UNAUTHORIZED` (401), `SHOP_NOT_FOUND` (404)
+
+---
+
+### 4.38 `POST /api/shops/auto-reply/unanswered/{id}/dismiss`
+
+**Response:** `200 { ok: true }` · **Error:** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403), `AUTO_REPLY_UNANSWERED_NOT_FOUND` (404 — รวมกรณีสถานะไม่ใช่ `PENDING` แล้ว เพราะ `dismissUnanswered()` scope ด้วย `{id, shopId, status:'PENDING'}` ใน `updateMany`)
+
+---
+
+### 4.39 `POST /api/shops/auto-reply/unanswered/{id}/restore`
+
+undo ของ dismiss (round2 decision ข้อ 1 — **ไม่มีในตาราง SRS §4.1 เดิม ต้องขอ sync SRS แยก**)
+
+**Response:** `200 { ok: true }` · **Error:** เหมือน §4.38 (`restoreUnanswered()` scope ด้วย `{id, shopId, status:'DISMISSED'}`)
+
+---
+
+### 4.40 `POST /api/shops/auto-reply/unanswered/{id}/convert`
+
+```ts
+export const AutoReplyUnansweredConvertSchema = v.object({
+  keywordId: v.pipe(v.string(), v.uuid()),
+  question: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
+  answer: v.pipe(v.string(), v.trim(), v.maxLength(2000)),
+  imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5)), []),
+})
+```
+
+🛑 **"สร้างกลุ่มใหม่" (ตัวเลือกใน sheet ตาม mockup) ไม่ใช่ path ของ endpoint นี้โดยตรง** — UI ต้องเรียก
+`POST /api/shops/auto-reply/keywords` (สร้างกลุ่ม, ได้ `status:'OFFLINE'` เสมอ) **ก่อน** แล้วค่อยส่ง `keywordId` ที่ได้มาที่ endpoint นี้
+(2 คำขอต่อเนื่อง — ไม่ใช่ 1 คำขอที่ mux ทั้งสองอย่าง เพราะ `createKeyword`/`convertUnansweredToQna` เป็นคนละ service กัน
+และไม่ atomic กันข้าม 2 ฟังก์ชันนี้ — ต้องยอมรับ edge case ที่สร้างกลุ่มสำเร็จแต่ convert ล้มเหลว แล้ว UI ต้อง retry convert เดิม
+โดยไม่ต้องสร้างกลุ่มซ้ำ)
+
+**Response — Success (200):** `{ qnaId: string }`
+
+**Error:** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403), `AUTO_REPLY_UNANSWERED_NOT_FOUND` (404),
+`AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED` (409 — แถวถูก convert ไปแล้วโดยคำขออื่น), `KEYWORD_NOT_FOUND` (404),
+`AUTO_REPLY_QNA_QUESTION_EMPTY`/`TOO_LONG`/`ANSWER_EMPTY`/`TOO_LONG`/`TOO_MANY_IMAGES` (400), `AUTO_REPLY_QNA_DUPLICATE` (409)
+
+---
+
+### 4.41 `POST /api/chat/conversations/{id}/qna-from-message`
+
+mini action ใต้บับเบิลลูกค้า (S-22) — วางคู่ pattern กับ `PATCH .../auto-reply` (§4.24 เดิม, ตรวจ ownership ด้วย
+`prisma.conversation.findFirst({where:{id, shopId: ctx.shopId}})` ก่อนเสมอ)
+
+```ts
+export const QnaFromMessageSchema = v.pipe(
+  v.object({
+    chatMessageId: v.pipe(v.string(), v.uuid()), // ข้อความลูกค้าที่กด mini action ใต้บับเบิล
+    question: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
+    answer: v.pipe(v.string(), v.trim(), v.maxLength(2000)),
+    imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5)), []),
+    keywordId: v.nullable(v.pipe(v.string(), v.uuid())), // null = ต้องมี newKeywordName
+    newKeywordName: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(60))),
+  }),
+  v.check((o) => o.keywordId !== null || !!o.newKeywordName, 'กรุณาเลือกกลุ่มหรือระบุชื่อกลุ่มใหม่'),
+)
+```
+
+**พฤติกรรม (TFR-037):**
+1. ตรวจ `chatMessageId` เป็นของเธรดนี้จริง (`prisma.chatMessage.findFirst({where:{id, conversationId}})`)
+2. `keywordId === null` → เรียก `createKeyword(shopId, userId, {name: newKeywordName})` ก่อน (ได้กลุ่มใหม่ `status:'OFFLINE'`) แล้วใช้ id นั้นต่อ
+3. เรียก `createQna(keywordId, shopId, {question, answer, imageFileIds, source:'QUEUE'}, userId)`
+4. เรียก `markAnsweredByText(shopId, question, created.id)` — ปิดคิวถ้าข้อความนี้เคยอยู่ใน `AutoReplyUnansweredQuestion` (ไม่ throw ถ้าไม่เจอ — ยืนยันจากโค้ด)
+5. `invalidateShop(shopId)` (`createQna` เรียกให้แล้วในตัว — ไม่ต้องเรียกซ้ำ)
+
+**Response — Success (201):** `{ qnaId: string, keywordId: string, keywordCreated: boolean }`
+
+**Error:** `UNAUTHORIZED` (401), `FORBIDDEN_ROLE` (403), `SHOP_LOCKED` (403), `CONVERSATION_NOT_FOUND` (404 — เธรดไม่ใช่ของร้านนี้),
+`INVALID_INPUT` (400), `KEYWORD_NOT_FOUND` (404 — `keywordId` ส่งมาแต่ไม่ใช่ของร้านนี้),
+`AUTO_REPLY_KEYWORD_NAME_EMPTY`/`TOO_LONG`/`DUPLICATE` (400/400/409 — จาก `createKeyword`, มีใน ERROR_MAP อยู่แล้ว ✅),
+`AUTO_REPLY_QNA_*` ทั้งชุดเหมือน §4.31
+
+**Toast:** `pacesToast.chat.success` (bottom-right — มาจากห้องแชท, Hard Rule 9)
+
+---
+
+### 4.42 ส่วนขยาย `GET /api/chat/conversations` (นอกฟีเจอร์นี้ — S-20)
+
+🛑 **หมายเหตุขอบเขต:** endpoint นี้เป็นของ feature 00011/00018 ไม่ใช่ของ API.md ฉบับนี้จริง ๆ — บันทึกไว้ที่นี่
+เพราะ S-20 (ป้าย DeepBot) เป็นงานในชุด `00023-qna` แต่ **API.md ของ feature 00011/00018 ควรได้รับการ sync แยกต่างหาก**
+ไม่ใช่ผูกไว้ใน API.md ของ 00023 ถาวร (Controller ตัดสินว่าจะ sync ตอนไหน)
+
+**Response item — เพิ่ม 2 ฟิลด์**
+
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|-------|------|----------|
+| `lastMessageAutoReplyKind` | `"AUTO" \| "AUTO_TEST" \| null` | `autoReplyKind` ของ `ChatMessage` **ล่าสุดจริง** ของเธรด (enrich ด้วย join, ไม่ใช่คอลัมน์ที่ persist — ดู SDS §14.4) — `null` = ข้อความล่าสุดเป็นคนตอบ/ลูกค้าพิมพ์ |
+| `lastMessageIsAiEnhanced` | `boolean` | **ค่าคงที่ `false` เสมอในเฟสนี้** (ไม่มี `aiEnhanceEnabled` จริง — สงวนไว้สำหรับ DeepAI ในอนาคตตาม round2 decision ข้อ 5, ไม่ query อะไรเพิ่ม) |
+
+**เงื่อนไขที่ป้ายควรขึ้น (ฝั่ง UI ใช้ 2 ฟิลด์นี้ตัดสิน):** `lastSenderRole === 'SHOP' && lastMessageAutoReplyKind != null`
+— 🛑 **ไม่ใช่** `autoReplyCount > 0` (ป้ายจะติดค้างถาวรแม้พนักงานรับช่วงไปแล้ว — scope baseline เตือนไว้ตรง ๆ)
+
+เฉพาะ branch `seller` เท่านั้น (buyer inbox ไม่ต้องมี 2 ฟิลด์นี้)
+
 ## 5. Error Code Table
 
 **โครง error response มาตรฐาน**
@@ -1282,6 +1657,17 @@ export const ConversationContextProductSchema = v.object({
 | `LOG_NOT_FOUND` | 404 | ไม่พบบันทึกนี้ | |
 | `RATE_LIMITED` | 429 | ใช้งานถี่เกินไป กรุณารอสักครู่ | เกินเพดานของ endpoint — มี header `Retry-After: 60` |
 | `INTERNAL_ERROR` | 500 | เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง | ข้อผิดพลาดที่ไม่คาดคิด (log ฝั่ง server เท่านั้น) |
+
+| `AUTO_REPLY_QNA_QUESTION_EMPTY` | 400 | กรุณาระบุคำถาม | คำถามว่างหรือว่างหลัง normalize |
+| `AUTO_REPLY_QNA_QUESTION_TOO_LONG` | 400 | คำถามยาวเกินกำหนด (500 ตัวอักษร) | |
+| `AUTO_REPLY_QNA_ANSWER_EMPTY` | 400 | กรุณาระบุคำตอบ หรือแนบรูปอย่างน้อย 1 รูป | คำตอบว่างและไม่มีรูป (TFR-036 ข้อ 6) |
+| `AUTO_REPLY_QNA_ANSWER_TOO_LONG` | 400 | คำตอบยาวเกินกำหนด (2,000 ตัวอักษร) | |
+| `AUTO_REPLY_QNA_TOO_MANY_IMAGES` | 400 | แนบรูปได้สูงสุด 5 รูป | |
+| `AUTO_REPLY_QNA_DUPLICATE` | 409 | คำถามนี้มีอยู่ในกลุ่มแล้ว กรุณาแก้ไขข้อเดิมแทน | ชน `@@unique([keywordId, normalizedQuestion])` |
+| `AUTO_REPLY_QNA_MOVE_TARGET_REQUIRED` | 400 | กรุณาเลือกกลุ่มปลายทาง | bulk `MOVE` ไม่มี `targetKeywordId` |
+| `AUTO_REPLY_QNA_NOT_FOUND` | 404 | ไม่พบคำถามนี้ | ครอบด้วยกฎ suffix `NOT_FOUND` ใน `mapServiceError` อยู่แล้ว — **ไม่ต้องเพิ่มโค้ด** แต่ต้องมีแถวนี้ในเอกสารกันตกหล่น |
+| `AUTO_REPLY_UNANSWERED_NOT_FOUND` | 404 | ไม่พบรายการนี้ในคิว | ครอบด้วยกฎ suffix เช่นกัน — **ไม่ต้องเพิ่มโค้ด** |
+| `AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED` | 409 | คำถามนี้ถูกตอบไปแล้ว | `convertUnansweredToQna` เจอ `status='ANSWERED'` อยู่ก่อน |
 
 **หลักการของข้อความ error** (BRD §6.5) — ข้อความต้องบอก **สิ่งที่ทำต่อได้** ไม่ใช่บอกแค่ว่าผิด เช่น `PHRASE_REQUIRED` บอกทั้งกฎและทางออก 2 ทาง ไม่ใช่แค่ "ลบไม่ได้"
 
@@ -1351,6 +1737,10 @@ sequenceDiagram
     U->>CF: PATCH { isEnabled: true }
 ```
 
+### 6.3 คลังคำถาม-คำตอบ + คิวคำถามที่ตอบไม่ได้
+
+ดู sequence diagram เต็มที่ [[SDS]] §14.5 (ตอบจากคลัง) และ §14.6 (เข้าคิว → กรอกคำตอบ → ตอบได้ครั้งถัดไป)
+
 ---
 
 ## 7. Traceability
@@ -1373,6 +1763,10 @@ sequenceDiagram
 | `GET /ads` | FR-007 (AC-007-05) | `ConversationAdReferral` (ของเดิม 00018 — ไม่แตะ) |
 | `GET /api/cron/auto-reply-sweeper` | FR-023 (AC-023-02/03/04/05), FR-021 (AC-021-08), FR-024 (AC-024-05) | `AutoReplyJob` §3.5 + retention §6 |
 
+
+| `/keywords/{id}/qna` (GET/POST/PATCH/DELETE/bulk/import/export) | TFR-031, TFR-034, TFR-035 | `AutoReplyQna` DATABASE §3.9 |
+| `/unanswered` (GET/dismiss/restore/convert) | TFR-033 | `AutoReplyUnansweredQuestion` DATABASE §3.10 |
+| `/conversations/{id}/qna-from-message` | TFR-037 | `AutoReplyQna` + `AutoReplyUnansweredQuestion` |
 **FR ที่ไม่มี endpoint โดยตรง** (เป็นพฤติกรรมของ worker/webhook ไม่ใช่สัญญา HTTP) — ระบุไว้เพื่อไม่ให้เข้าใจว่าตกหล่น:
 FR-010 (normalize), FR-011 (ตัดสินเมื่อตรงหลายกลุ่ม), FR-012 (ส่งและแสดงผลในเธรด), FR-013 (อายุบริบท), FR-016 การหยุด**อัตโนมัติ**เมื่อพนักงานตอบ, FR-017 (กันตอบซ้ำ), FR-018 (จำกัดจำนวน/ระยะพัก), FR-022 (ตอบรับ Facebook ทันที) → ทั้งหมดอยู่ใน [[SDS]]
 
@@ -1391,9 +1785,21 @@ FR-010 (normalize), FR-011 (ตัดสินเมื่อตรงหลา�
 5. **การกันตอบซ้ำไม่ได้อยู่ในสัญญา HTTP** แต่อยู่ที่ `AutoReplyJob.chatMessageId @unique` — endpoint ทุกตัวในเอกสารนี้จึงไม่ต้องมี `Idempotency-Key`
 
 **Open Questions:**
-- **OQ-1** — ไม่มี role `STAFF` อยู่จริงใน `ShopMember.role` (มีแค่ `OWNER`/`ADMIN`) ทำให้ AC-004-02/03 บังคับไม่ได้ตามที่ BRD เขียน (ดู §2.1)
+- ~~**OQ-1**~~ — ✅ **ปิดแล้ว 2026-08-01:** ไม่เพิ่ม role ใหม่ ไม่ลดสิทธิ์ใคร · `FORBIDDEN_ROLE` (403) ไม่มีทางเกิดจาก role · 403 ที่เกิดจริงคือ `SHOP_LOCKED` ซึ่ง implement แล้วใน `forbidIfReadOnly()` · เทสสิทธิ์ใช้ ADMIN แทน STAFF (รายละเอียดเต็มดู §2.1)
 - **OQ-2** — ความถี่ของ cron sweeper ขัดกับข้อจำกัด Vercel Hobby (วันละครั้ง) ซึ่งทำให้ AC-023-02 ไม่มีความหมายในทางปฏิบัติ (ดู §4.29)
 - **OQ-3** — AC-002-03 เปิดทางเลือก "ปฏิเสธหรือรวมเป็นคำเดียว" สำหรับคำตรวจจับซ้ำ เอกสารนี้เลือก **รวมเงียบภายในคำขอเดียวกัน** แต่ **`409` เมื่อซ้ำกับของที่มีอยู่แล้วทั้งหมด** (§4.4 / §4.11) — ถ้า user อยากได้พฤติกรรมเดียวกันทั้งสองกรณีต้องแจ้งกลับมาแก้
 - **OQ-4** — `PUT /test-mode` อนุญาตให้เปิดโหมดขณะ allowlist ว่าง (คืน `warning` แทน `409`) ซึ่งสร้างสภาวะ "ทั้งร้านเงียบสนิท" ที่ PRD §6.1 ระบุเป็นความเสี่ยงระดับสูง — ถ้าต้องการให้บล็อกไปเลยต้องเปลี่ยนเป็น `409 TEST_MODE_NO_THREAD`
 
+
+**เพิ่ม 2026-08-01 (phase `00023-qna`) — 41 endpoint รวม:**
+
+จุดที่ DEV ต้องระวังเพิ่ม:
+6. 🛑 **ERROR_MAP ของ QNA/UNANSWERED ยังไม่มีเลยสักตัว** — ต้องเพิ่มก่อน/คู่กับ S-09/S-10/S-11 ไม่งั้น validation error ที่ควรเป็น 400/409 จะกลายเป็น 500 (ดู §5)
+7. `/simulate` ยังไม่รองรับ QnA — ต้องแก้ route จริง ไม่ใช่แค่เอกสาร (ดู §4.18-ext)
+8. ป้าย DeepBot ในรายการแชท **ไม่เพิ่มคอลัมน์ DB** — enrich ด้วย join ที่ read-time (ดู §4.42, SDS §14.4)
+
+**Open Questions ใหม่:**
+- **OQ-5** — เพดานแถว CSV import: SRS TFR-035 เขียน 1,000 แต่ `parseCsv()` ที่มีอยู่แล้ว cap 500 จริง และ mockup Modal 3 พูดถึง "ตัดเฉพาะ 500 แถวแรก" (ขัดกับ TFR-035 ที่บอกให้ปฏิเสธไม่ใช่ตัด) — ต้องเลือก 1 ทาง
+- **OQ-6** — `POST .../qna` คืนแค่ `{id}` ไม่ใช่ object เต็ม (ต่างจาก `POST /keywords`) — ยอมรับพฤติกรรมนี้ หรือแก้ service ให้คืนเต็ม
+- **OQ-7** — `restoreUnanswered` (undo) ไม่มีในตาราง SRS §4.1 — ต้องขอ safepay-planner sync SRS
 **หมายเหตุ:** schema ที่รองรับสัญญานี้ดู [[DATABASE]] (🛑 FROZEN) · ตรรกะการตัดสินใจและการออกแบบ service ดู [[SDS]] · acceptance criteria ต้นทางดู [[BRD]]

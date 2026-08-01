@@ -13,6 +13,7 @@ import AuthLogo from '@/components/AuthLogo'
 import { currentYear, META_DATA } from '@/config/constants'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import SignInForm from './components/SignInForm'
 import AuthCardShell from '../components/AuthCardShell'
 
@@ -33,7 +34,11 @@ export default function SellerSignInPage() {
           กรอกชื่อผู้ใช้และรหัสผ่านเพื่อเข้าสู่ระบบ
         </p>
 
-        <SignInForm />
+        {/* SignInForm อ่าน ?callbackUrl= ผ่าน useSearchParams — Suspense กัน hydration mismatch
+            (pattern เดียวกับ verify-otp/page.tsx) */}
+        <Suspense fallback={<p className="text-center text-default-400 py-8">กำลังโหลด...</p>}>
+          <SignInForm />
+        </Suspense>
 
         <p className="text-default-400 mt-7.5 text-center">
           ยังไม่มีบัญชี?&nbsp;

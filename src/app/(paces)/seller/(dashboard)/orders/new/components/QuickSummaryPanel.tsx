@@ -31,6 +31,19 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
   const vatRate = (useWatch({ control, name: 'vatRate' }) as number | undefined) ?? 0
   const vatAmount = vatRate > 0 ? Math.round((subtotal - discount) * (vatRate / 100) * 100) / 100 : 0
 
+  /**
+   * guard ต้องเท่ากับฝั่งเดสก์ท็อป (CartPanel) — เดิมปุ่มนี้ไม่มี disabled เลย
+   * ทำให้ guard ของอีกฝั่งแทบไม่มีความหมาย เพราะทั้งคู่อยู่ใน DOM พร้อมกันเสมอ
+   * predicate ตรงกับ Yup transform (OrderCreateForm.tsx:167-169) — ห้ามเขียนกฎซ้ำ
+   */
+  const items = (useWatch({ control, name: 'items' }) ?? []) as {
+    productId?: string | null
+    name?: string
+  }[]
+  const filledCount = items.filter(
+    (it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '',
+  ).length
+
   return (
     <div
       className={
@@ -70,7 +83,8 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
       <button
         type="submit"
         form={formId}
-        className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover"
+        disabled={filledCount === 0}
+        className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
       >
         <Icon icon="device-floppy" className="text-lg" />
         บันทึกออเดอร์

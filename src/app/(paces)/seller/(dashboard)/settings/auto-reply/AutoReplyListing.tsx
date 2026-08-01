@@ -230,6 +230,16 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
         header: 'การจัดการ',
         cell: ({ row }) => (
           <div className="flex items-center justify-center gap-1.5">
+            {/* คลังคำถาม-คำตอบของกลุ่มนี้ (phase 00023-qna, S-15) — ปุ่มไอคอนแบบเดียวกับ
+                "แก้ไข"/"ลบ" ที่อยู่ข้างกัน ไม่สร้างรูปแบบใหม่ในแถว */}
+            <Link
+              href={`/settings/auto-reply/${row.original.id}/qna`}
+              className="btn btn-icon btn-sm border-default-300 text-default-800 hover:border-default-400 border"
+              aria-label={`คลังคำถามของ ${row.original.name}`}
+              title="คลังคำถาม"
+            >
+              <Icon icon="message-2-bolt" className="text-base" aria-hidden="true" />
+            </Link>
             <Link
               href={`/settings/auto-reply/${row.original.id}`}
               className="btn btn-icon btn-sm border-default-300 text-default-800 hover:border-default-400 border"
@@ -334,6 +344,16 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
               aria-label="ค้นหากลุ่มคำ"
             />
           </div>
+          {/* คิวคำถามที่ตอบไม่ได้ (S-15) — บนมือถือเหลือแค่ไอคอนเพราะแถวนี้แคบ
+              มีข้อความเต็มใน aria-label/title แล้ว · min-h-11 = tap-target เท่าปุ่มข้าง ๆ */}
+          <Link
+            href="/settings/auto-reply/unanswered"
+            className="btn btn-icon btn-sm bg-light text-default-700 min-h-11 shrink-0 rounded-full"
+            aria-label="คำถามที่ตอบไม่ได้"
+            title="คำถามที่ตอบไม่ได้"
+          >
+            <Icon icon="inbox" className="size-4" aria-hidden="true" />
+          </Link>
           {canEdit && (
             <Link
               href="/settings/auto-reply/new"
@@ -409,6 +429,13 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {/* คิวคำถามที่ตอบไม่ได้ (phase 00023-qna, S-15) — เป็นปุ่มรอง (bg-light)
+              ไม่ใช่ primary เพราะงานหลักของหน้านี้ยังเป็นการจัดการกลุ่มคำ
+              ส่วนคิวคือ "งานที่ระบบเก็บมาให้" ซึ่งเข้าถึงเมื่อพร้อมจะนั่งกรอก */}
+          <Link href="/settings/auto-reply/unanswered" className="btn bg-light text-default-700">
+            <Icon icon="inbox" aria-hidden="true" />
+            คำถามที่ตอบไม่ได้
+          </Link>
           {canEdit && (
             <Link href="/settings/auto-reply/new" className="btn bg-primary hover:bg-primary-hover text-white">
               <Icon icon="plus" aria-hidden="true" />
@@ -448,6 +475,16 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
+                {/* คลังคำถามของกลุ่มนี้ (S-15) — ปุ่มไอคอนแบบเดียวกับ "แก้ไข" ที่อยู่ข้างกัน */}
+                <Link
+                  href={`/settings/auto-reply/${k.id}/qna`}
+                  /* size-11 (44px) tap-target มือถือ — เหตุผลเดียวกับปุ่มสร้างด้านบน */
+                  className="btn btn-icon border-default-300 text-default-800 hover:border-default-400 size-11 min-h-0 border"
+                  aria-label={`คลังคำถามของ ${k.name}`}
+                  title="คลังคำถาม"
+                >
+                  <Icon icon="message-2-bolt" className="text-base" aria-hidden="true" />
+                </Link>
                 <Link
                   href={`/settings/auto-reply/${k.id}`}
                   /* size-11 (44px) tap-target มือถือ — เหตุผลเดียวกับปุ่มสร้างด้านบน */

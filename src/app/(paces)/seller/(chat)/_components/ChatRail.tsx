@@ -38,6 +38,7 @@ import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import InboxList, { type ConversationListItem, type ChannelFilterOption, type ChatGroupTab } from '../inbox/components/InboxList'
+import { buildChatListParams, DEFAULT_CHAT_FILTER } from '../inbox/components/chat-list-query'
 
 // feat 00018 งาน 2: เก็บ field ดิบ (provider/name/avatarUrl) แทน label สำเร็จรูป — ตรงกับ
 // ChannelView ที่ GET /api/channels คืนมาอยู่แล้ว (allow-list ที่ shop-channel.service.ts)
@@ -100,7 +101,13 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
           console.error('[ChatRail] load groups failed', e)
         }
 
-        const conversationsRes = await fetch('/api/chat/conversations?take=20')
+        // bug fix (user report 2026-08-01): เดิมยิง '?take=20' เปล่า ๆ → backend ตกไป
+        // default status='open' ทั้งที่ InboxList ไฮไลต์แท็บ "ทั้งหมด" อยู่ → เธรดที่ปิดงานแล้ว
+        // หายไปตอนเข้าหน้าครั้งแรก แล้วโผล่หลังกดสลับแท็บไป-กลับ (การสลับ = refetch ด้วย
+        // status=all). ต้องประกอบจาก DEFAULT_CHAT_FILTER เสมอ ห้ามเขียน query string เอง —
+        // เป็นบั๊กเดียวกับที่ inbox/page.tsx (ฝั่ง SSR <1024px) เจอเมื่อ 2026-07-31
+        const initialParams = buildChatListParams(DEFAULT_CHAT_FILTER, { take: 20 })
+        const conversationsRes = await fetch(`/api/chat/conversations?${initialParams.toString()}`)
         if (!conversationsRes.ok) throw new Error('load conversations failed')
         const conversationsData: ConversationsApiResponse = await conversationsRes.json()
 

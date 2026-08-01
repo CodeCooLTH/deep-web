@@ -52,6 +52,7 @@ import { listConversationsForShop, countUnreadByConversation } from '@/services/
 import { listChannels } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
 import { enrichWithOrderStage } from '@/services/order-stage.service'
+import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
 import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
@@ -172,6 +173,13 @@ export default async function SellerInboxPage() {
       (await enrichWithOrderStage(result.items, shop.id)).map((r) => [r.id, r.orderStage]),
     )
 
+    // ป้าย DeepBot ในแถว (S-20) — ฟังก์ชันเดียวกับที่ GET /api/chat/conversations ใช้
+    // ด้วยเหตุผลเดียวกับ stageMap ข้างบน: ถ้า enrich ทางเดียว ป้ายจะไม่ขึ้นตอนโหลดหน้าแรก
+    // แล้วค่อยโผล่หลัง client refetch ซึ่งดูเหมือนบั๊กมากกว่าฟีเจอร์
+    const autoReplyBadgeMap = new Map(
+      (await enrichWithAutoReplyBadge(result.items)).map((r) => [r.id, r.lastMessageAutoReplyKind]),
+    )
+
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
     items = result.items.map((c) => {
@@ -209,6 +217,9 @@ export default async function SellerInboxPage() {
         // feature 00018 E5 — ชิป `ad_id.…` ในแถว (ร้านดูได้ว่าโฆษณาไหนพาลูกค้าคนนี้มา)
         referralAdId: c.referralAdId,
         orderStage: stageMap.get(c.id) ?? null,
+        // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
+        lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id) ?? null,
+        lastMessageIsAiEnhanced: false,
       }
     })
     nextCursor = result.nextCursor

@@ -6,6 +6,8 @@ import { matchKeywords, resolveRule } from '@/services/auto-reply-match.service'
 import { AutoReplySimulateSchema } from '@/lib/validations'
 import { prisma } from '@/lib/prisma'
 import { getConfig } from '@/services/auto-reply-config.service'
+// phase 00023-qna — คลังคำถาม-คำตอบ (วิธีจับคู่ทางที่สอง) ต้องเห็นในพรีวิวด้วย ไม่งั้น AC-020-05 พัง
+import { matchQna } from '@/lib/auto-reply-qna-match'
 
 /**
  * POST /api/shops/auto-reply/simulate — ทดสอบกฎแบบกรอกเอง (FR-020)
@@ -40,7 +42,7 @@ export async function POST(request: NextRequest) {
   // ถ้ากรอง OFFLINE ออก ผู้ใช้ที่กำลังตั้งค่าจะไม่มีทางเห็นคำตอบของตัวเองเลยจนกว่าจะเปิดใช้งาน
   // ซึ่งกลับหัวกับลำดับการทำงานจริง (ตั้งค่า -> ดูผล -> ค่อยเปิด)
   // สถานะยังส่งกลับไปให้ UI บอกเป็นข้อความเล็ก ๆ ว่ายังไม่เปิด — ไม่บังคำตอบ
-  const [allKeywords, allRules] = await Promise.all([
+  const [allKeywords, allRules, allQnas] = await Promise.all([
     prisma.autoReplyKeyword.findMany({
       where: { shopId: ctx.shopId },
       select: {
@@ -57,6 +59,21 @@ export async function POST(request: NextRequest) {
         replyText: true, createdAt: true,
       },
     }),
+    // คลังคำถาม-คำตอบของร้าน (phase 00023-qna)
+    //
+    // WARNING: **ห้ามใช้ `loadRuleSet()` แทน query นี้** แม้จะดูซ้ำซ้อน — `loadRuleSet` กรอง
+    // กลุ่มคำ OFFLINE ออก ซึ่งกลับหัวกับเจตนาของหน้าพรีวิว (ดูคอมเมนต์ WARNING ด้านบน)
+    // ถ้าเปลี่ยนมาใช้ ผู้ใช้ที่กำลังตั้งค่าจะไม่เห็นคำตอบในคลังของกลุ่มที่ยังไม่เปิดเลย
+    //
+    // NOTE: ไม่กรอง `isActive` ที่ query โดยเจตนา — `matchQna()` ตัดข้อที่ปิดอยู่ทิ้งเองข้างใน
+    // (จุดตัดสินเดียว ไม่มีเงื่อนไขคู่ขนาน หลักเดียวกับที่ฝั่ง keyword ก็ไม่กรอง `status` ที่นี่)
+    prisma.autoReplyQna.findMany({
+      where: { shopId: ctx.shopId },
+      select: {
+        id: true, keywordId: true, question: true, normalizedQuestion: true,
+        answer: true, imageFileIds: true, isActive: true, useCount: true,
+      },
+    }),
   ])
   const ruleSet = { keywords: allKeywords, rules: allRules } as never
   const matchCtx = {
@@ -67,10 +84,33 @@ export async function POST(request: NextRequest) {
   }
 
   const matched = matchKeywords(normalizedText, ruleSet, matchCtx)
+
+  /**
+   * คลังคำถาม-คำตอบ — วิธีจับคู่ "ทางที่สอง" (phase 00023-qna, TFR-032)
+   *
+   * WARNING: เงื่อนไขต้องเหมือน `processJob` เป๊ะ — เรียก **เฉพาะเมื่อไม่มีกลุ่มคำใดตรง**
+   * และ **ไม่** เรียกตอนกลุ่มคำตรงแต่ไม่มีกฎ (NO_RULE_MATCH) เพราะนั่นคือร้านตั้งค่าค้าง
+   * ครึ่งทางซึ่งร้านต้องเห็นว่าค้าง ไม่ใช่ให้คลังมากลบร่องรอย
+   *
+   * ส่ง `allKeywords` (ไม่กรอง status) โดยเจตนา — ต่างจาก `processJob` ที่ส่งเฉพาะกลุ่มที่
+   * ไม่ OFFLINE นี่ไม่ใช่ความไม่สอดคล้อง แต่คือ parity กับพฤติกรรมเดิมของหน้าพรีวิวเอง
+   * ซึ่งแสดงกลุ่มที่ยังไม่เปิดอยู่แล้ว (matchKeywords ข้างบนก็ใช้ชุดเดียวกันนี้)
+   */
+  const qnaMatch = matched.winner
+    ? null
+    : matchQna(normalizedText, allQnas, allKeywords, { mode: 'EXACT' })
+
+  /** กลุ่มคำที่ "เป็นเจ้าของ" คำตอบครั้งนี้ — คำตรงตัว หรือกลุ่มที่ QnA ยืมมา (TFR-032 ข้อ 2) */
+  const effectiveKeywordId = matched.winner?.keywordId ?? qnaMatch?.keywordId ?? null
+  const matchedVia: 'KEYWORD' | 'QNA' | null = matched.winner ? 'KEYWORD' : qnaMatch ? 'QNA' : null
+
+  // NOTE: ผู้ชนะจากคลังไม่ผ่าน resolveRule เลย (ใช้ qna.answer ตรง ๆ) — เรียกด้วย null
+  // เพื่อให้ fallbackFrom/resolutionLevel สะท้อนความจริงว่า "ไม่ได้มาจากกฎ"
   const resolved = resolveRule(matched.winner?.keywordId ?? null, matchCtx, ruleSet)
 
   // สถานะของชุดที่ชนะ — UI เอาไปบอกเป็นข้อความเล็ก ๆ ใต้คำตอบ ไม่บังคำตอบ
-  const winner = allKeywords.find((k) => k.id === matched.winner?.keywordId)
+  // ใช้ effectiveKeywordId เพื่อให้ผู้ชนะจากคลังก็โชว์สถานะกลุ่มเจ้าของได้เหมือนกัน
+  const winner = allKeywords.find((k) => k.id === effectiveKeywordId)
   const winnerState = winner
     ? { keywordId: winner.id, keywordName: winner.name, status: winner.status }
     : null
@@ -92,11 +132,24 @@ export async function POST(request: NextRequest) {
       // AC-020-04: ต้องบอกได้ว่ากฎอื่นทำไมไม่ถูกเลือก
       matchTrace: matched.matchTrace,
       fallbackFrom: resolved.fallbackFrom,
-      resolutionLevel: resolved.resolutionLevel,
-      ruleId: resolved.rule?.id ?? null,
-      replyText: resolved.rule?.replyText ?? null,
+      // ตอบจากคลัง = ไม่ได้ผ่านบันไดกฎ จึงรายงานระดับเป็น QNA ตรง ๆ (SDS §14.2 ข้อ 3)
+      resolutionLevel: qnaMatch ? 'QNA' : resolved.resolutionLevel,
+      ruleId: qnaMatch ? null : (resolved.rule?.id ?? null),
+      replyText: qnaMatch ? qnaMatch.qna.answer : (resolved.rule?.replyText ?? null),
       // ไม่มีกฎให้ถอย = ระบบจะเงียบแล้วส่งต่อพนักงาน ไม่ใช่เดาคำตอบ
-      willHandoff: !resolved.rule?.replyText?.trim(),
+      willHandoff: qnaMatch
+        ? !qnaMatch.qna.answer.trim()
+        : !resolved.rule?.replyText?.trim(),
+      // phase 00023-qna — บอกว่าคำตอบนี้มาทางไหน (API.md §4.18-ext)
+      matchedVia,
+      qna: qnaMatch
+        ? {
+            id: qnaMatch.qna.id,
+            question: qnaMatch.qna.question,
+            answer: qnaMatch.qna.answer,
+            imageFileIds: qnaMatch.qna.imageFileIds,
+          }
+        : null,
       // บริบทให้ UI บอกสถานะได้ (ยังไม่เปิด / อยู่โหมดทดสอบ) โดยไม่ต้องบังคำตอบ
       winnerState,
     },

@@ -294,6 +294,42 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
     }
   })
 
+  /**
+   * regression — วันว่างต้องไม่ถูกย้อมสี "ใกล้เต็ม"
+   *
+   * เคยพังจริง: เงื่อนไขเดิมเช็คแค่ `n === totalCapacity - 1` ร้านที่ความจุรวม = 1
+   * (คิวงานเดียว ความจุ 1 = เคสปกติของลูกค้ากลุ่มแรก) จะได้ 1-1 = 0 ทำให้วันที่
+   * ไม่มีนัดเลย (n=0) เข้าเงื่อนไขทุกวัน → ทั้งเดือนเป็นครีม 42/42 ช่อง
+   * user รายงานว่า "สีมันไม่ได้เลย" — tsc/build/grep มองไม่เห็นบั๊กแบบนี้
+   */
+  test('ร้านความจุ 1 และไม่มีนัด — ต้องไม่มีช่องวันไหนถูกย้อมสีเลย', async ({ context, page }) => {
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    try {
+      await prisma.serviceResource.create({
+        data: { shopId: seeded.shopId, name: 'ช่างซ่อม', capacity: 1 },
+      })
+      await loginAs(context, seeded)
+      await page.goto('/queues')
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(800)
+
+      const tinted = await page.evaluate(() => {
+        const cells = [...document.querySelectorAll('.appointment-calendar .fc-daygrid-day')]
+        return {
+          total: cells.length,
+          tight: cells.filter((c) => c.classList.contains('appt-day-tight')).length,
+          full: cells.filter((c) => c.classList.contains('appt-day-full')).length,
+        }
+      })
+      expect(tinted.total).toBeGreaterThan(0)
+      expect(tinted.tight, 'วันว่างต้องไม่ถูกย้อมว่าใกล้เต็ม').toBe(0)
+      expect(tinted.full, 'วันว่างต้องไม่ถูกย้อมว่าเต็ม').toBe(0)
+    } finally {
+      await prisma.serviceResource.deleteMany({ where: { shopId: seeded.shopId } })
+      await cleanup(seeded.userId)
+    }
+  })
+
   test('นัดที่มีอยู่แสดงบนปฏิทินพร้อมสถานะ และกดแล้วไปหน้าออเดอร์', async ({ context, page }) => {
     const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
     try {

@@ -156,8 +156,9 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
 
       {/* ชื่อ */}
       <div className="mb-2.5">
-        <label className="form-label">ชื่อลูกค้า</label>
+        <label htmlFor="cq-buyer-name" className="form-label">ชื่อลูกค้า</label>
         <input
+          id="cq-buyer-name"
           type="text"
           placeholder="ชื่อลูกค้า"
           className="form-input"
@@ -174,8 +175,9 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
 
       {/* เบอร์ — พิมพ์ (หรือ paste) → debounce → เปิด sheet ค้นหา/เพิ่มลูกค้า (รวมกรณีเปลี่ยนเบอร์หลังเลือกแล้ว) */}
       <div className="mb-2.5">
-        <label className="form-label">เบอร์โทร</label>
+        <label htmlFor="cq-buyer-contact" className="form-label">เบอร์โทร</label>
         <input
+          id="cq-buyer-contact"
           type="text"
           inputMode="tel"
           autoComplete="off"
@@ -208,8 +210,9 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
             </div>
           )}
           <div className="mb-2.5">
-            <label className="form-label">บ้านเลขที่ / หมู่ / ถนน</label>
+            <label htmlFor="cq-addr-line1" className="form-label">บ้านเลขที่ / หมู่ / ถนน</label>
             <input
+              id="cq-addr-line1"
               type="text"
               placeholder="เช่น 91 ม.7 ถ.พหลโยธิน"
               className="form-input"
@@ -219,9 +222,12 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
             />
           </div>
           <div>
-            <label className="form-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</label>
+            {/* control เป็น <button> ไม่ใช่ input — <label htmlFor> ผูกกับปุ่มไม่ได้ตามสเปก HTML
+                จึงใช้ aria-labelledby ชี้กลับมาที่ label แทน */}
+            <span id="cq-locality-label" className="form-label block">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</span>
             <button
               type="button"
+              aria-labelledby="cq-locality-label"
               onClick={() => setAddrOpen(true)}
               className="flex w-full items-center gap-2 rounded-lg border border-default-300 px-3 py-2.5 text-left"
             >
