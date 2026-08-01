@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ลิงก์เชิญเป็นโมดัล + หน้ารับคำเชิญไม่บังคับสร้างร้าน — feat 00012 ext (Mobile / Tablet / Desktop)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --p05:rgba(35,109,201,.05); --p10:rgba(35,109,201,.10); --p15:rgba(35,109,201,.15);
+    --success:#02bc9c; --success-15:rgba(2,188,156,.15); --success-ink:#065f46;
+    --warning:#f9bf59; --warning-15:rgba(249,191,89,.15);
+    --danger:#f7577e; --danger-15:rgba(247,87,126,.15);
+    --d50:#f8fafc; --d100:#f1f3f7; --d200:#e6e9ef; --d300:#d5dae2;
+    --d400:#8a94a6; --d500:#69707d; --d600:#5b626c; --d700:#3b3f45; --d800:#252a31;
+    --card:#fff; --body:#eef1f6;
+    --shadow:0 2px 6px rgba(130,143,163,.15);
+    --fb:#1877f2; --line:#06C755;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Anuphan',system-ui,sans-serif;background:var(--body);color:var(--d800);padding:28px 18px 70px}
+  h1{font-size:21px;font-weight:700;margin:0 0 5px}
+  .lead{color:var(--d500);font-size:13.5px;margin:0 0 6px;max-width:980px;line-height:1.65}
+  .meta{color:var(--d400);font-size:12px;margin:0 0 10px}
+  .rulebox{background:#fff;border:1px solid var(--d200);border-radius:10px;padding:12px 15px;max-width:980px;
+           margin:0 0 26px;font-size:12.5px;color:var(--d700);line-height:1.75}
+  .rulebox b{color:var(--d800)}
+  .rulebox code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px}
+  h2.sec{font-size:13px;font-weight:700;color:var(--d500);text-transform:uppercase;letter-spacing:.05em;
+         margin:38px 0 6px;border-bottom:1px solid var(--d200);padding-bottom:7px}
+  .note{color:var(--d500);font-size:12.5px;margin:0 0 16px;max-width:980px;line-height:1.7}
+  .note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .note b{color:var(--d700)}
+  .frames{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start}
+  .device{background:#fff;border:1px solid var(--d200);border-radius:15px;box-shadow:0 10px 30px rgba(20,30,60,.10);overflow:hidden}
+  .device>.cap{font-size:11.5px;font-weight:600;color:var(--d500);padding:9px 13px;border-bottom:1px solid var(--d200);
+               background:#fafbfc;display:flex;justify-content:space-between;gap:12px}
+  .device>.cap .tagx{color:var(--primary);font-weight:700}
+  .mobile{width:340px} .tablet{width:470px} .desktop{width:860px}
+  svg{width:1em;height:1em;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  svg.fill{fill:currentColor;stroke:none}
+
+  /* ═══ หน้าจอ app (พื้นหลัง body ของ dashboard) ═══ */
+  .app{background:var(--body);padding:14px;min-height:100%}
+  .desktop .app{padding:20px 24px}
+
+  /* page-title-head (.page-title-head = h-15 w-full flex items-center flex-wrap gap-2 md:justify-between) */
+  .pth{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:52px;justify-content:space-between}
+  .pth .ptitle{font-size:16px;font-weight:700;color:var(--d800)}
+  .pth .right{display:flex;align-items:center;gap:12px}
+  .crumb{display:none;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:var(--d500)}
+  .tablet .crumb,.desktop .crumb{display:flex}
+  .crumb a{color:var(--primary);text-decoration:none}
+  .crumb .cur{color:var(--d400)}
+
+  /* ปุ่ม */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;
+       font-family:inherit;font-size:13px;font-weight:600;border:1px solid transparent;white-space:nowrap;
+       padding:0 14px;height:38px;background:#fff;color:var(--d700);border-color:var(--d300)}
+  .btn.pri{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn.sm{height:34px;font-size:12.5px;padding:0 12px}
+  .btn.full{width:100%;height:46px;font-size:14px}
+  .btn.tall{height:48px}
+  .btn.dg{color:var(--danger);border-color:var(--danger-15);background:rgba(247,87,126,.06)}
+  .btn[disabled]{opacity:.6}
+  .iconbtn{width:44px;height:44px;border:1px solid var(--d300);border-radius:9px;display:flex;
+           align-items:center;justify-content:center;font-size:16px;color:var(--d500);background:#fff;flex-shrink:0}
+  .iconbtn.dg{color:var(--danger);border-color:var(--danger-15);background:rgba(247,87,126,.06)}
+
+  /* card / card-header / card-body */
+  .card{background:#fff;border:1px solid var(--d200);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;margin-top:12px}
+  .card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+               padding:13px 15px;border-bottom:1px solid var(--d200)}
+  .card-title{font-size:14px;font-weight:600;color:var(--d800);margin:0}
+  .card-body{padding:14px 15px}
+  .badge{display:inline-flex;align-items:center;border-radius:6px;font-size:11px;font-weight:600;padding:3px 8px;
+         background:var(--d100);color:var(--d600)}
+  .badge.pri{background:var(--p15);color:var(--primary)}
+  .badge.ok{background:var(--success-15);color:var(--success-ink)}
+
+  /* ตารางสมาชิก */
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:11px;font-weight:700;color:var(--d500);text-transform:uppercase;letter-spacing:.04em;
+     padding:9px 15px;border-bottom:1px solid var(--d200);background:var(--d50)}
+  td{padding:11px 15px;border-bottom:1px solid var(--d200);font-size:13px;color:var(--d700);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .who{display:flex;align-items:center;gap:9px}
+  .av{width:34px;height:34px;border-radius:50%;background:var(--p10);color:var(--primary);display:flex;
+      align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex-shrink:0}
+  .who .nm{font-size:13px;font-weight:600;color:var(--d800)}
+  .mlist .mrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--d200)}
+  .mlist .mrow:last-child{border-bottom:none}
+  .mlist .mid{flex:1;min-width:0}
+  .mlist .sub{font-size:11.5px;color:var(--d400);margin-top:2px}
+
+  /* ═══ โมดัล ═══ */
+  .stage{position:relative;background:var(--body);padding:14px;display:flex;align-items:center;justify-content:center;min-height:100%}
+  .stage::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.5)}
+  .modal{position:relative;width:100%;background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.28);
+         display:flex;flex-direction:column;overflow:hidden;max-height:100%}
+  .desktop .modal{max-width:560px}
+  .tablet .modal{max-width:440px}
+  .mhead{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--d200);flex-shrink:0}
+  .mhead .tt{font-size:14.5px;font-weight:600;color:var(--d800);display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .mhead .tt .ic{color:var(--primary);font-size:18px}
+  .mhead .xbtn{width:36px;height:36px;border:1px solid var(--d300);border-radius:9px;display:flex;
+               align-items:center;justify-content:center;font-size:16px;color:var(--d500);flex-shrink:0;background:#fff}
+  .mbody{padding:14px 15px;overflow:auto;flex:1}
+
+  .grp{margin-bottom:6px}
+  .grp .glab{font-size:12px;font-weight:700;color:var(--d700);margin:0 0 8px;display:flex;align-items:center;gap:6px}
+  .radios{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+  .tablet .radios,.desktop .radios{flex-direction:row}
+  .radio{flex:1;display:flex;align-items:center;gap:9px;border:1px solid var(--d300);border-radius:9px;
+         padding:0 12px;height:46px;font-size:13px;color:var(--d700);background:#fff;cursor:pointer}
+  .radio .dot{width:17px;height:17px;border-radius:50%;border:2px solid var(--d300);flex-shrink:0;position:relative}
+  .radio.on{border-color:var(--primary);background:var(--p05);color:var(--d800);font-weight:600}
+  .radio.on .dot{border-color:var(--primary)}
+  .radio.on .dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--primary)}
+  .radio .rec{font-size:10px;font-weight:700;color:var(--primary);background:var(--p15);border-radius:5px;padding:1px 5px;margin-left:auto}
+
+  .divx{border:none;border-top:1px solid var(--d200);margin:16px 0 13px}
+  .seclab{font-size:11.5px;font-weight:700;color:var(--d500);text-transform:uppercase;letter-spacing:.04em;
+          margin:0 0 9px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+  /* แถวลิงก์ (border-dashed ตาม primitive Paces) */
+  .linkrow{display:flex;flex-direction:column;gap:9px;border:1px dashed var(--d300);border-radius:9px;padding:11px;margin-bottom:9px}
+  .tablet .linkrow,.desktop .linkrow{flex-direction:row;align-items:center;justify-content:space-between}
+  .linkrow .lmid{min-width:0;flex:1}
+  .urlbox{display:flex;align-items:center;gap:8px;background:var(--d50);border:1px solid var(--d200);border-radius:8px;
+          padding:0 6px 0 10px;height:40px}
+  .urlbox .u{flex:1;min-width:0;font-size:12px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .urlbox .cp{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 9px;border-radius:6px;
+              background:var(--primary);color:#fff;font-size:11.5px;font-weight:600;flex-shrink:0}
+  .linkrow .exp{font-size:11px;color:var(--d400);margin-top:6px;display:flex;align-items:center;gap:5px}
+  .linkrow .lact{display:flex;gap:7px;flex-shrink:0}
+
+  .empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:26px 10px;text-align:center}
+  .empty .ei{font-size:34px;color:var(--d300)}
+  .empty p{margin:0;font-size:12.5px;color:var(--d500);font-weight:600;line-height:1.6}
+
+  /* ═══ AuthCardShell (หน้า /i/[slug]) ═══ */
+  .auth{background:var(--d100);padding:18px 14px;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;min-height:100%}
+  .desktop .auth{padding:26px}
+  .authlogo{display:flex;align-items:center;gap:8px;margin-bottom:18px;font-size:19px;font-weight:700;color:var(--d800)}
+  .authlogo .mark{width:30px;height:30px;border-radius:8px;background:var(--primary);color:#fff;display:flex;
+                  align-items:center;justify-content:center;font-size:15px}
+  .authcard{width:100%;max-width:400px;background:#fff;border:1px solid var(--d200);border-radius:12px;
+            box-shadow:0 6px 24px rgba(20,30,60,.08);padding:22px 20px}
+  .desktop .authcard{max-width:420px;padding:26px 24px}
+
+  /* แบนเนอร์คำเชิญ (แบบเดิม เล็ก) */
+  .invbar{display:flex;align-items:center;gap:11px;background:var(--p10);border-radius:9px;padding:11px;margin-bottom:18px}
+  .invbar .nm{font-size:14px;font-weight:700;color:var(--d800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .invbar .rl{font-size:12px;color:var(--d500)}
+  .shopav{width:44px;height:44px;border-radius:50%;background:var(--p15);color:var(--primary);display:flex;
+          align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0}
+
+  /* แบนเนอร์คำเชิญ (ใหม่ เด่น — หน้า accept) */
+  .invhero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;margin-bottom:20px}
+  .invhero .shopav{width:80px;height:80px;font-size:27px;margin-bottom:10px;border:3px solid #fff;
+                   box-shadow:0 4px 14px rgba(35,109,201,.22)}
+  .invhero .eyebrow{font-size:12px;color:var(--d500);font-weight:500}
+  .invhero .nm{font-size:19px;font-weight:700;color:var(--d800);line-height:1.4}
+  .invhero .rolechip{display:inline-flex;align-items:center;gap:5px;background:var(--p15);color:var(--primary);
+                     border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600;margin-top:7px}
+
+  .reassure{display:flex;gap:8px;align-items:flex-start;background:var(--success-15);border-radius:9px;padding:10px 11px;
+            margin-top:12px;font-size:11.5px;color:var(--success-ink);line-height:1.6}
+  .reassure .ri{color:var(--success-ink);font-size:15px;margin-top:1px}
+
+  /* ปุ่ม social */
+  .sbtn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:46px;border:1px solid var(--d300);
+        border-radius:9px;background:#fff;font-size:13.5px;font-weight:500;color:var(--d800);margin-bottom:11px}
+  .sbtn .bi{font-size:18px}
+  .sbtn.phone{border-color:var(--d300)}
+  .dashdiv{position:relative;text-align:center;margin:16px 0;color:var(--d400);font-size:12.5px}
+  .dashdiv::before{content:'';position:absolute;left:0;right:0;top:50%;border-top:1px dashed var(--d300)}
+  .dashdiv span{position:relative;background:#fff;padding:0 12px;font-weight:500}
+  .altlink{text-align:center;font-size:12.5px;color:var(--d400);margin:14px 0 0}
+  .altlink u{text-underline-offset:4px}
+
+  /* ฟอร์ม */
+  .fld{margin-bottom:13px}
+  .fld>label{display:block;font-size:12.5px;font-weight:600;color:var(--d700);margin:0 0 6px}
+  .fld .req{color:var(--danger)}
+  .igrp{position:relative;display:flex;align-items:center}
+  .igrp .ii{position:absolute;left:11px;font-size:16px;color:var(--d400)}
+  .inp{width:100%;border:1px solid var(--d300);border-radius:9px;padding:11px 12px 11px 36px;font-family:inherit;
+       font-size:13.5px;color:var(--d800);background:#fff}
+  .inp.plain{padding-left:12px}
+  .inp.focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--p15)}
+  .hint{font-size:11px;color:var(--d400);margin:5px 0 0;line-height:1.6}
+  .steps{display:flex;align-items:center;gap:6px;margin-bottom:15px}
+  .steps .st{flex:1;height:4px;border-radius:999px;background:var(--d200)}
+  .steps .st.on{background:var(--primary)}
+  .backrow{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--d500);font-weight:600;margin-bottom:13px}
+
+  /* OTP boxes */
+  .otps{display:flex;gap:7px;justify-content:center;margin-bottom:6px}
+  .otps .ob{width:44px;height:52px;border:1px solid var(--d300);border-radius:9px;display:flex;align-items:center;
+            justify-content:center;font-size:19px;font-weight:700;color:var(--d800);background:#fff}
+  .mobile .otps{gap:6px}
+  .mobile .otps .ob{width:44px;height:50px;font-size:18px}
+  .otps .ob.on{border-color:var(--primary);box-shadow:0 0 0 3px var(--p15)}
+  .otpmeta{text-align:center;font-size:12px;color:var(--d500);margin:12px 0 0}
+  .otpmeta .ph{font-size:16px;font-weight:700;color:var(--d800);display:block;margin-bottom:3px}
+
+  /* tap-target annotation */
+  .tapnote{position:relative}
+  .tapnote::after{content:'44px';position:absolute;right:-4px;top:-7px;background:var(--success);color:#fff;
+                  font-size:8px;font-weight:700;border-radius:4px;padding:0 3px;line-height:12px}
+
+  /* flow diagram */
+  .flow{display:flex;flex-wrap:wrap;gap:18px;max-width:980px}
+  .flowcol{flex:1;min-width:290px;background:#fff;border:1px solid var(--d200);border-radius:10px;padding:14px 15px}
+  .flowcol h3{margin:0 0 10px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .flowcol.bad h3{color:var(--danger)} .flowcol.good h3{color:var(--success-ink)}
+  .fstep{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--d700);line-height:1.6;padding:5px 0}
+  .fstep .n{width:20px;height:20px;border-radius:50%;background:var(--d100);color:var(--d600);font-size:10.5px;
+            font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .flowcol.bad .fstep.hl{color:var(--danger);font-weight:600}
+  .flowcol.bad .fstep.hl .n{background:var(--danger-15);color:var(--danger)}
+  .flowcol.good .fstep.hl{color:var(--success-ink);font-weight:600}
+  .flowcol.good .fstep.hl .n{background:var(--success-15);color:var(--success-ink)}
+
+  /* token table */
+  .tok{width:100%;max-width:980px;background:#fff;border:1px solid var(--d200);border-radius:10px;overflow:hidden;border-collapse:collapse}
+  .tok th{background:var(--d50)} .tok td{font-size:12.5px}
+  .tok td code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .sw{display:inline-block;width:13px;height:13px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid rgba(0,0,0,.08)}
+</style>
+</head>
+<body>
+
+<h1>ลิงก์เชิญพนักงาน → โมดัล &amp; หน้ารับคำเชิญที่ไม่บังคับสร้างร้าน</h1>
+<p class="lead">
+  feature 00012 ส่วนขยาย — (A) ยุบการ์ด “ลิงก์เชิญพนักงาน” ในหน้า <code>/admins</code> เป็นโมดัล
+  (B) ผู้ถูกเชิญที่กดลิงก์เข้ามาต้องจบที่ <b>หน้ารับคำเชิญ</b> เสมอ ไม่ถูกพาเข้า flow สมัคร/สร้างร้านของผู้ขาย
+</p>
+<p class="meta">2026-08-01 · seller subdomain · Paces (Preline 4 + Tailwind 4) · Anuphan · ทุกหน้าจอ: Mobile 340 / Tablet 470 / Desktop 860</p>
+
+<div class="rulebox">
+  <b>Theme sourcing (Hard Rule 1/3/7)</b><br>
+  • โมดัล = <code>theme/paces/…/apps/ecommerce/categories/components/AddCategoryModal.tsx</code> (hs-overlay → card &gt; card-header &gt; card-body) แปลงเป็น controlled ตาม in-app precedent <code>wallet/components/TopUpRequestModal.tsx</code><br>
+  • การ์ด/ตารางสมาชิก = ของเดิม <code>business/[shopId]/invites/components/CurrentMembersTable.tsx</code> (ไม่แตะ)<br>
+  • แถวลิงก์ + empty-state = ยกจาก <code>admins/components/InviteLinkCard.tsx</code> เดิม (<code>border-dashed</code>, icon <code>link</code>)<br>
+  • หน้า <code>/i/[slug]</code> = <code>seller/auth/components/AuthCardShell.tsx</code>; ปุ่ม social + dashed divider copy จาก <code>auth/sign-in/components/SignInForm.tsx</code>; multi-step + OTP boxes จาก <code>seller/register/page.tsx</code><br>
+  <b>Hard Rule 7</b> — ทุกอย่างประกอบจาก primitive (<code>card</code>/<code>btn</code>/<code>badge</code>/<code>form-input</code>/<code>rounded-lg</code>/<code>size-*</code>/<code>after:border-dashed</code>) ไม่มี arbitrary value<br>
+  <b>Hard Rule 12</b> — ไม่มี emoji: ทุกไอคอนในภาพนี้คือ SVG แทน <code>@iconify/react</code> tabler set · <b>Hard Rule 9</b> — toast ทุกจุดผ่าน <code>pacesToast</code> · <b>สี primary = <span class="sw" style="background:#236dc9"></span>#236dc9</b> (Paces น้ำเงิน ไม่ใช่ม่วง Vuexy)
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">A1 · หน้า /admins หลังยุบการ์ดออก</h2>
+<p class="note">
+  การ์ด “ลิงก์เชิญพนักงาน” หายไปจากหน้า เหลือ <b>ปุ่ม <code>ลิงก์เชิญพนักงาน</code> ที่แถวหัวหน้า</b> (slot ใหม่ <code>action</code> ของ
+  <code>PageBreadcrumb</code> — optional prop หน้าอื่นไม่กระทบ เพราะ <code>.page-title-head</code> เป็น <code>flex md:justify-between</code> อยู่แล้ว)
+  หน้าจึงเหลือเนื้อเดียว = รายชื่อสมาชิก อ่านง่ายขึ้นมาก โดยเฉพาะบนมือถือที่เดิมต้องเลื่อนผ่านกล่องลิงก์ก่อนถึงรายชื่อ
+  · <b>มือถือ</b> ตารางแปลงเป็น list การ์ด (pattern เดิมของ CurrentMembersTable) · badge โควตายังอยู่ที่ card-header เหมือนเดิม
+</p>
+
+<div class="frames">
+
+  <!-- Mobile -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px</span><span class="tagx">/admins</span></div>
+    <div class="app">
+      <div class="pth">
+        <span class="ptitle">พนักงาน</span>
+        <button class="btn pri sm">
+          <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg>
+          ลิงก์เชิญพนักงาน
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h4 class="card-title">สมาชิกทั้งหมด (3)</h4>
+          <span class="badge">โควตาแอดมิน 2/5 (แพ็กเกจ Pro)</span>
+        </div>
+        <div class="card-body mlist" style="padding-top:4px;padding-bottom:6px">
+          <div class="mrow">
+            <span class="av">สม</span>
+            <div class="mid">
+              <div class="nm" style="font-size:13px;font-weight:600;color:var(--d800)">สมชาย ใจดี</div>
+              <div class="sub">เข้าร่วม 2569-07-02</div>
+            </div>
+            <span class="badge pri">เจ้าของ</span>
+          </div>
+          <div class="mrow">
+            <span class="av">นภ</span>
+            <div class="mid">
+              <div class="nm" style="font-size:13px;font-weight:600;color:var(--d800)">นภา ศรีสุข</div>
+              <div class="sub">เข้าร่วม 2569-07-18</div>
+            </div>
+            <span class="badge">ผู้ดูแล</span>
+            <span class="iconbtn dg tapnote" style="width:38px;height:38px;font-size:15px">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>
+            </span>
+          </div>
+          <div class="mrow">
+            <span class="av">วิร</span>
+            <div class="mid">
+              <div class="nm" style="font-size:13px;font-weight:600;color:var(--d800)">วิรัช พงษ์ไพร</div>
+              <div class="sub">เข้าร่วม 2569-07-25</div>
+            </div>
+            <span class="badge">ผู้ดูแล</span>
+            <span class="iconbtn dg" style="width:38px;height:38px;font-size:15px">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablet -->
+  <div class="device tablet">
+    <div class="cap"><span>Tablet 470px</span><span class="tagx">/admins</span></div>
+    <div class="app">
+      <div class="pth">
+        <span class="ptitle">พนักงาน</span>
+        <div class="right">
+          <span class="crumb"><a href="#">หน้าหลัก</a>
+            <svg viewBox="0 0 24 24" style="font-size:13px"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="cur">พนักงาน</span></span>
+          <button class="btn pri sm">
+            <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg>
+            ลิงก์เชิญพนักงาน
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h4 class="card-title">สมาชิกทั้งหมด (3)</h4>
+          <span class="badge">โควตาแอดมิน 2/5 (แพ็กเกจ Pro)</span>
+        </div>
+        <table>
+          <thead><tr><th>สมาชิก</th><th>บทบาท</th><th style="text-align:right">จัดการ</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="who"><span class="av">สม</span><div><div class="nm">สมชาย ใจดี</div><div class="sub" style="font-size:11px;color:var(--d400)">2569-07-02</div></div></div></td>
+              <td><span class="badge pri">เจ้าของ</span></td>
+              <td style="text-align:right;color:var(--d300)">—</td>
+            </tr>
+            <tr>
+              <td><div class="who"><span class="av">นภ</span><div><div class="nm">นภา ศรีสุข</div><div class="sub" style="font-size:11px;color:var(--d400)">2569-07-18</div></div></div></td>
+              <td><span class="badge">ผู้ดูแล</span></td>
+              <td style="text-align:right"><span class="iconbtn dg" style="display:inline-flex;width:38px;height:38px;font-size:15px">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><div class="who"><span class="av">วิร</span><div><div class="nm">วิรัช พงษ์ไพร</div><div class="sub" style="font-size:11px;color:var(--d400)">2569-07-25</div></div></div></td>
+              <td><span class="badge">ผู้ดูแล</span></td>
+              <td style="text-align:right"><span class="iconbtn dg" style="display:inline-flex;width:38px;height:38px;font-size:15px">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop -->
+  <div class="device desktop">
+    <div class="cap"><span>Desktop 860px (พื้นที่เนื้อหา — ไม่รวม sidebar)</span><span class="tagx">/admins</span></div>
+    <div class="app">
+      <div class="pth">
+        <span class="ptitle">พนักงาน</span>
+        <div class="right">
+          <span class="crumb"><a href="#">หน้าหลัก</a>
+            <svg viewBox="0 0 24 24" style="font-size:13px"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="cur">พนักงาน</span></span>
+          <button class="btn pri">
+            <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg>
+            ลิงก์เชิญพนักงาน
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h4 class="card-title">สมาชิกทั้งหมด (3)</h4>
+          <span class="badge">โควตาแอดมิน 2/5 (แพ็กเกจ Pro)</span>
+        </div>
+        <table>
+          <thead><tr><th style="width:46%">สมาชิก</th><th>บทบาท</th><th>เข้าร่วมเมื่อ</th><th style="text-align:right">จัดการ</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="who"><span class="av">สม</span><span class="nm">สมชาย ใจดี</span></div></td>
+              <td><span class="badge pri">เจ้าของ</span></td>
+              <td>2569-07-02 09:14:22</td>
+              <td style="text-align:right;color:var(--d300)">—</td>
+            </tr>
+            <tr>
+              <td><div class="who"><span class="av">นภ</span><span class="nm">นภา ศรีสุข</span></div></td>
+              <td><span class="badge">ผู้ดูแล</span></td>
+              <td>2569-07-18 14:02:51</td>
+              <td style="text-align:right"><span class="iconbtn dg" style="display:inline-flex;width:38px;height:38px;font-size:15px">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></span></td>
+            </tr>
+            <tr>
+              <td><div class="who"><span class="av">วิร</span><span class="nm">วิรัช พงษ์ไพร</span></div></td>
+              <td><span class="badge">ผู้ดูแล</span></td>
+              <td>2569-07-25 18:37:09</td>
+              <td style="text-align:right"><span class="iconbtn dg" style="display:inline-flex;width:38px;height:38px;font-size:15px">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">A2 · โมดัล “ลิงก์เชิญพนักงาน” — สถานะมีลิงก์อยู่</h2>
+<p class="note">
+  โมดัลเดียวจบทุกงาน: <b>เลือกอายุ → สร้าง → คัดลอก → ยกเลิก</b> (เดิมต้องผ่าน SweetAlert <code>input:'select'</code> ซึ่งเลือกอายุแล้วเด้งปิด
+  ค่อยไปหาลิงก์ในการ์ด — สองที่สองจังหวะ) · กด “สร้างลิงก์” → <code>pacesToast.success</code> + <code>router.refresh()</code>
+  โดย<b>โมดัลยังเปิดค้าง</b> ลิงก์ใหม่โผล่ในลิสต์ทันที · ปุ่มยกเลิกลิงก์ยังยืนยันด้วย Sweet Alert ซ้อนบนโมดัล
+  (ตาม <code>feedback_sweet_alerts_modal</code> — dialog ที่ต้องตัดสินใจ = Swal, แจ้งผลแล้วหาย = pacesToast)<br>
+  <b>Mobile:</b> radio อายุเรียงแนวตั้ง (tap 46px) และแถวลิงก์ stack URL ไว้บน ปุ่มจัดการอยู่ล่าง — <b>Tablet/Desktop:</b> radio เรียงแนวนอน 3 ช่อง, แถวลิงก์เป็นแนวนอน
+</p>
+
+<div class="frames">
+
+  <!-- Mobile -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px</span><span class="tagx">modal · มีลิงก์</span></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="mhead">
+          <span class="tt"><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg></span>ลิงก์เชิญพนักงาน</span>
+          <span class="xbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+        <div class="mbody">
+          <div class="grp">
+            <p class="glab">อายุลิงก์</p>
+            <div class="radios">
+              <label class="radio"><span class="dot"></span>24 ชั่วโมง</label>
+              <label class="radio on"><span class="dot"></span>7 วัน <span class="rec">แนะนำ</span></label>
+              <label class="radio"><span class="dot"></span>30 วัน</label>
+            </div>
+            <button class="btn pri full tapnote">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              สร้างลิงก์เชิญ
+            </button>
+          </div>
+
+          <hr class="divx">
+          <p class="seclab"><span>ลิงก์ที่ใช้งานอยู่</span><span class="badge">2 ลิงก์</span></p>
+
+          <div class="linkrow">
+            <div class="lmid">
+              <div class="urlbox">
+                <span class="u">deepthailand.app/i/aB3xY7kQ9mLp</span>
+                <span class="cp"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอก</span>
+              </div>
+              <div class="exp">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                หมดอายุ 2569-08-08 · ใช้ซ้ำได้จนหมดอายุ
+              </div>
+            </div>
+            <div class="lact">
+              <span class="btn dg sm" style="width:100%">
+                <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l1-1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-1 1"/><path d="M3 3l18 18"/></svg>
+                ยกเลิกลิงก์
+              </span>
+            </div>
+          </div>
+
+          <div class="linkrow">
+            <div class="lmid">
+              <div class="urlbox">
+                <span class="u">deepthailand.app/i/Zq2Wm8Rt4Nvc</span>
+                <span class="cp"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอก</span>
+              </div>
+              <div class="exp">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                หมดอายุ 2569-08-02 · ใช้ซ้ำได้จนหมดอายุ
+              </div>
+            </div>
+            <div class="lact">
+              <span class="btn dg sm" style="width:100%">
+                <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l1-1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-1 1"/><path d="M3 3l18 18"/></svg>
+                ยกเลิกลิงก์
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablet -->
+  <div class="device tablet">
+    <div class="cap"><span>Tablet 470px</span><span class="tagx">modal · มีลิงก์</span></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="mhead">
+          <span class="tt"><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg></span>ลิงก์เชิญพนักงาน</span>
+          <span class="xbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+        <div class="mbody">
+          <div class="grp">
+            <p class="glab">อายุลิงก์</p>
+            <div class="radios">
+              <label class="radio"><span class="dot"></span>24 ชม.</label>
+              <label class="radio on"><span class="dot"></span>7 วัน</label>
+              <label class="radio"><span class="dot"></span>30 วัน</label>
+            </div>
+            <button class="btn pri full">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              สร้างลิงก์เชิญ
+            </button>
+          </div>
+
+          <hr class="divx">
+          <p class="seclab"><span>ลิงก์ที่ใช้งานอยู่</span><span class="badge">2 ลิงก์</span></p>
+
+          <div class="linkrow">
+            <div class="lmid">
+              <div class="urlbox">
+                <span class="u">deepthailand.app/i/aB3xY7kQ9mLp</span>
+                <span class="cp"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอก</span>
+              </div>
+              <div class="exp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>หมดอายุ 2569-08-08</div>
+            </div>
+            <div class="lact"><span class="iconbtn dg tapnote"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l1-1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-1 1"/><path d="M3 3l18 18"/></svg></span></div>
+          </div>
+
+          <div class="linkrow">
+            <div class="lmid">
+              <div class="urlbox">
+                <span class="u">deepthailand.app/i/Zq2Wm8Rt4Nvc</span>
+                <span class="cp"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอก</span>
+              </div>
+              <div class="exp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>หมดอายุ 2569-08-02</div>
+            </div>
+            <div class="lact"><span class="iconbtn dg"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l1-1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-1 1"/><path d="M3 3l18 18"/></svg></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop -->
+  <div class="device desktop">
+    <div class="cap"><span>Desktop 860px — โมดัล max-w 560px จัดกลาง</span><span class="tagx">modal · มีลิงก์ / ว่าง</span></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="mhead">
+          <span class="tt"><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg></span>ลิงก์เชิญพนักงาน</span>
+          <span class="xbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+        <div class="mbody">
+          <div class="grp">
+            <p class="glab">อายุลิงก์</p>
+            <div class="radios">
+              <label class="radio"><span class="dot"></span>24 ชั่วโมง</label>
+              <label class="radio on"><span class="dot"></span>7 วัน <span class="rec">แนะนำ</span></label>
+              <label class="radio"><span class="dot"></span>30 วัน</label>
+            </div>
+            <button class="btn pri full">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              สร้างลิงก์เชิญ
+            </button>
+          </div>
+
+          <hr class="divx">
+          <p class="seclab"><span>ลิงก์ที่ใช้งานอยู่</span><span class="badge">2 ลิงก์</span></p>
+
+          <div class="linkrow">
+            <div class="lmid">
+              <div class="urlbox">
+                <span class="u">https://deepthailand.app/i/aB3xY7kQ9mLp</span>
+                <span class="cp"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอก</span>
+              </div>
+              <div class="exp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>หมดอายุ 2569-08-08 · ใช้ซ้ำได้จนหมดอายุ</div>
+            </div>
+            <div class="lact"><span class="iconbtn dg tapnote"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l1-1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-1 1"/><path d="M3 3l18 18"/></svg></span></div>
+          </div>
+
+          <div class="linkrow">
+            <div class="lmid">
+              <div class="urlbox">
+                <span class="u">https://deepthailand.app/i/Zq2Wm8Rt4Nvc</span>
+                <span class="cp"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอก</span>
+              </div>
+              <div class="exp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>หมดอายุ 2569-08-02 · ใช้ซ้ำได้จนหมดอายุ</div>
+            </div>
+            <div class="lact"><span class="iconbtn dg"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l1-1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-1 1"/><path d="M3 3l18 18"/></svg></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:20px"><b>สถานะยังไม่มีลิงก์</b> — ส่วน “ลิงก์ที่ใช้งานอยู่” แทนที่ด้วย empty-state เดิม (icon <code>link</code> + ข้อความ) ส่วนเลือกอายุ/ปุ่มสร้างยังอยู่ด้านบนเหมือนเดิม</p>
+<div class="frames">
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px</span><span class="tagx">modal · ว่าง</span></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="mhead">
+          <span class="tt"><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg></span>ลิงก์เชิญพนักงาน</span>
+          <span class="xbtn"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+        <div class="mbody">
+          <div class="grp">
+            <p class="glab">อายุลิงก์</p>
+            <div class="radios">
+              <label class="radio"><span class="dot"></span>24 ชั่วโมง</label>
+              <label class="radio on"><span class="dot"></span>7 วัน <span class="rec">แนะนำ</span></label>
+              <label class="radio"><span class="dot"></span>30 วัน</label>
+            </div>
+            <button class="btn pri full">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              สร้างลิงก์เชิญ
+            </button>
+          </div>
+          <hr class="divx">
+          <p class="seclab"><span>ลิงก์ที่ใช้งานอยู่</span></p>
+          <div class="empty">
+            <span class="ei"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7"/></svg></span>
+            <p>ยังไม่มีลิงก์เชิญที่ใช้งานอยู่<br>เลือกอายุแล้วกดสร้างลิงก์ด้านบน</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">B0 · ต้นเหตุที่ผู้ถูกเชิญหลุดไป flow สร้างร้าน</h2>
+<div class="flow">
+  <div class="flowcol bad">
+    <h3><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/></svg> ตอนนี้ (ผิด)</h3>
+    <div class="fstep"><span class="n">1</span><span>กดลิงก์ <code>deepthailand.app/i/aB3xY…</code> → proxy พาไป seller subdomain</span></div>
+    <div class="fstep"><span class="n">2</span><span>ยังไม่ login → หน้า <code>/i</code> มีแค่ปุ่ม FB/LINE + ลิงก์ “เข้าสู่ระบบด้วยวิธีอื่น”</span></div>
+    <div class="fstep hl"><span class="n">3</span><span><code>/auth/sign-in?callbackUrl=/i/…</code> แต่ <code>SignInForm.tsx</code> <b>ไม่เคยอ่าน callbackUrl</b> (hardcode <code>/dashboard</code> ทั้ง credentials และ FB)</span></div>
+    <div class="fstep hl"><span class="n">4</span><span>login เสร็จ → เด้ง <code>/dashboard</code> → <b>คำเชิญหายไปเลย</b></span></div>
+    <div class="fstep hl"><span class="n">5</span><span>ไม่มีบัญชี → ทางเดียวคือ <code>/auth/sign-up</code> ที่บังคับกรอก <b>ชื่อร้าน + หมวดหมู่ร้าน</b> → สร้าง Personal shop → เด้ง <code>/onboarding</code> ต่อ = <i>“จะสร้างร้านทำไม”</i></span></div>
+  </div>
+  <div class="flowcol good">
+    <h3><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> หลังแก้</h3>
+    <div class="fstep"><span class="n">1</span><span>กดลิงก์ → seller subdomain (เหมือนเดิม)</span></div>
+    <div class="fstep hl"><span class="n">2</span><span>หน้า <code>/i</code> ให้เข้าได้ 3 ทางในหน้าเดียว: FB · LINE · <b>เบอร์โทร (OTP)</b></span></div>
+    <div class="fstep hl"><span class="n">3</span><span>เบอร์ใหม่ → สมัครสั้น (เบอร์ → ชื่อ → OTP) <b>ไม่ส่ง <code>shopName</code></b> เข้า provider <code>phone-otp</code> ⇒ <b>ไม่มี Shop ถูกสร้าง</b></span></div>
+    <div class="fstep hl"><span class="n">4</span><span>ไม่มี Personal shop ⇒ <code>needsOnboarding = !!personal &amp;&amp; …</code> เป็น <b>false</b> ⇒ proxy ไม่บังคับ onboarding (Lazy Personal shop ของ 00012 รองรับอยู่แล้ว)</span></div>
+    <div class="fstep hl"><span class="n">5</span><span>กลับมาหน้าเดิมทันที (<code>router.refresh()</code>) → <b>หน้ารับคำเชิญ</b> → กดยอมรับ → <code>/dashboard</code> ของร้านนั้น</span></div>
+    <div class="fstep"><span class="n">6</span><span>ทางลัดคนมีบัญชีอยู่แล้ว: <code>callbackUrl</code> ถูกเคารพจริงทั้ง credentials / FB / LINE (sanitize กัน open-redirect)</span></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">B1 · /i/[slug] — ยังไม่ login (เลือกวิธีเข้าสู่ระบบ)</h2>
+<p class="note">
+  แบนเนอร์ร้านอยู่บนสุดเสมอ เพื่อให้รู้ตลอดว่า “กำลังจะเข้าร้านไหน” · ปุ่มเบอร์โทรเป็นตัวใหม่ กดแล้ว<b>ไม่ redirect ออกจากหน้า</b>
+  — เปลี่ยนเนื้อการ์ดเป็นฟอร์มทีละขั้น (B2) · ลิงก์ล่างสุดสำหรับคนที่มี username/password อยู่แล้ว
+  ส่งไป <code>/auth/sign-in?callbackUrl=/i/&lt;slug&gt;</code> ที่ตอนนี้จะพากลับมาจริง
+</p>
+
+<div class="frames">
+  <!-- Mobile -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px</span><span class="tagx">/i/[slug] · guest</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="invbar">
+          <span class="shopav">บก</span>
+          <div style="min-width:0">
+            <div class="nm">บ้านกาแฟ ริมคลอง</div>
+            <div class="rl">เชิญคุณเป็น “ผู้ดูแลร้าน”</div>
+          </div>
+        </div>
+
+        <button class="sbtn tapnote"><span class="bi" style="color:var(--fb)"><svg class="fill" viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.7-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/></svg></span>เข้าสู่ระบบด้วย Facebook</button>
+        <button class="sbtn"><span class="bi" style="color:var(--line)"><svg class="fill" viewBox="0 0 24 24"><path d="M12 3C6.9 3 2.8 6.3 2.8 10.4c0 3.6 3.2 6.7 7.6 7.3.3.1.7.2.8.5.1.3.1.6 0 .9l-.1.8c0 .2-.2.9.8.5s5.4-3.2 7.3-5.4c1.4-1.5 2-3 2-4.6C21.2 6.3 17.1 3 12 3"/></svg></span>เข้าสู่ระบบด้วย LINE</button>
+        <button class="sbtn phone"><span class="bi" style="color:var(--d500)"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg></span>ใช้เบอร์โทรศัพท์</button>
+
+        <p class="altlink">มีชื่อผู้ใช้และรหัสผ่านอยู่แล้ว? <u>เข้าสู่ระบบ</u></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablet -->
+  <div class="device tablet">
+    <div class="cap"><span>Tablet 470px</span><span class="tagx">/i/[slug] · guest</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="invbar">
+          <span class="shopav">บก</span>
+          <div style="min-width:0">
+            <div class="nm">บ้านกาแฟ ริมคลอง</div>
+            <div class="rl">เชิญคุณเป็น “ผู้ดูแลร้าน”</div>
+          </div>
+        </div>
+        <button class="sbtn"><span class="bi" style="color:var(--fb)"><svg class="fill" viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.7-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/></svg></span>เข้าสู่ระบบด้วย Facebook</button>
+        <button class="sbtn"><span class="bi" style="color:var(--line)"><svg class="fill" viewBox="0 0 24 24"><path d="M12 3C6.9 3 2.8 6.3 2.8 10.4c0 3.6 3.2 6.7 7.6 7.3.3.1.7.2.8.5.1.3.1.6 0 .9l-.1.8c0 .2-.2.9.8.5s5.4-3.2 7.3-5.4c1.4-1.5 2-3 2-4.6C21.2 6.3 17.1 3 12 3"/></svg></span>เข้าสู่ระบบด้วย LINE</button>
+        <button class="sbtn phone"><span class="bi" style="color:var(--d500)"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg></span>ใช้เบอร์โทรศัพท์</button>
+        <p class="altlink">มีชื่อผู้ใช้และรหัสผ่านอยู่แล้ว? <u>เข้าสู่ระบบ</u></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop -->
+  <div class="device desktop">
+    <div class="cap"><span>Desktop 860px — AuthCardShell จัดกลาง</span><span class="tagx">/i/[slug] · guest</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="invbar">
+          <span class="shopav">บก</span>
+          <div style="min-width:0">
+            <div class="nm">บ้านกาแฟ ริมคลอง</div>
+            <div class="rl">เชิญคุณเป็น “ผู้ดูแลร้าน”</div>
+          </div>
+        </div>
+        <button class="sbtn"><span class="bi" style="color:var(--fb)"><svg class="fill" viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.7-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/></svg></span>เข้าสู่ระบบด้วย Facebook</button>
+        <button class="sbtn"><span class="bi" style="color:var(--line)"><svg class="fill" viewBox="0 0 24 24"><path d="M12 3C6.9 3 2.8 6.3 2.8 10.4c0 3.6 3.2 6.7 7.6 7.3.3.1.7.2.8.5.1.3.1.6 0 .9l-.1.8c0 .2-.2.9.8.5s5.4-3.2 7.3-5.4c1.4-1.5 2-3 2-4.6C21.2 6.3 17.1 3 12 3"/></svg></span>เข้าสู่ระบบด้วย LINE</button>
+        <button class="sbtn phone"><span class="bi" style="color:var(--d500)"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg></span>ใช้เบอร์โทรศัพท์</button>
+        <p class="altlink">มีชื่อผู้ใช้และรหัสผ่านอยู่แล้ว? <u>เข้าสู่ระบบ</u></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">B2 · /i/[slug] — สมัคร/เข้าด้วยเบอร์โทรแบบสั้น (3 ขั้น)</h2>
+<p class="note">
+  แถบขั้นตอนด้านบนบอกความยาวของ flow ตั้งแต่แรก (สั้น — ไม่ใช่ฟอร์มสมัครร้านยาว ๆ) · <b>ขั้น 1</b> กรอกเบอร์ → เช็ค
+  <code>/api/users/check-phone</code> เพื่อแยกทาง: <b>เบอร์ใหม่</b> ไปขั้น 2 (ชื่อ), <b>เบอร์ที่มีบัญชีแล้ว</b> ข้ามไปขั้น 3 ทันที
+  พร้อมเปลี่ยนหัวเรื่องเป็น “เข้าสู่ระบบ” · <b>ขั้น 3</b> OTP 6 หลัก → <code>signIn('phone-otp', { phone, otp, displayName, mode:'signup' })</code>
+  โดย<b>ไม่มี <code>shopName</code>/<code>category</code>/<code>username</code>/<code>password</code></b> ⇒ ผู้ใช้ถูกสร้างโดยไม่มีร้าน · Base ทั้งหมด: <code>seller/register/page.tsx</code>
+</p>
+
+<div class="frames">
+  <!-- Step 1 -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px · ขั้น 1/3</span><span class="tagx">เบอร์โทร</span></div>
+    <div class="auth">
+      <div class="authcard">
+        <div class="backrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg> กลับไปเลือกวิธีอื่น</div>
+        <div class="steps"><span class="st on"></span><span class="st"></span><span class="st"></span></div>
+        <div class="invbar" style="margin-bottom:16px">
+          <span class="shopav" style="width:36px;height:36px;font-size:13px">บก</span>
+          <div style="min-width:0"><div class="nm" style="font-size:13px">บ้านกาแฟ ริมคลอง</div><div class="rl" style="font-size:11.5px">เชิญคุณเป็นผู้ดูแลร้าน</div></div>
+        </div>
+        <div class="fld">
+          <label>เบอร์โทรศัพท์ <span class="req">*</span></label>
+          <div class="igrp">
+            <span class="ii"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg></span>
+            <input class="inp focus" value="0812345678">
+          </div>
+          <p class="hint">เราจะส่งรหัส 6 หลักไปยังเบอร์นี้ · ใช้ยืนยันตัวตนเท่านั้น</p>
+        </div>
+        <button class="btn pri full tapnote">ถัดไป</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px · ขั้น 2/3</span><span class="tagx">เบอร์ใหม่เท่านั้น</span></div>
+    <div class="auth">
+      <div class="authcard">
+        <div class="backrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg> ย้อนกลับ</div>
+        <div class="steps"><span class="st on"></span><span class="st on"></span><span class="st"></span></div>
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:var(--d800)">ตั้งชื่อที่แสดง</p>
+        <p style="margin:0 0 16px;font-size:12.5px;color:var(--d500);line-height:1.6">
+          ชื่อนี้จะแสดงในรายชื่อพนักงานของร้าน <b>บ้านกาแฟ ริมคลอง</b>
+        </p>
+        <div class="fld">
+          <label>ชื่อที่แสดง <span class="req">*</span></label>
+          <div class="igrp">
+            <span class="ii"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span>
+            <input class="inp focus" value="นภา ศรีสุข">
+          </div>
+          <p class="hint">2–50 ตัวอักษร · แก้ไขภายหลังได้ในหน้าตั้งค่า</p>
+        </div>
+        <div class="reassure" style="margin-bottom:14px">
+          <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg></span>
+          <span>คุณกำลังเข้าร่วมในฐานะ<b>ผู้ดูแล</b>ของร้านนี้ — ไม่ต้องสร้างร้านของตัวเอง</span>
+        </div>
+        <button class="btn pri full">ส่งรหัสยืนยัน</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px · ขั้น 3/3</span><span class="tagx">OTP</span></div>
+    <div class="auth">
+      <div class="authcard">
+        <div class="backrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg> ย้อนกลับ</div>
+        <div class="steps"><span class="st on"></span><span class="st on"></span><span class="st on"></span></div>
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:var(--d800);text-align:center">กรอกรหัสยืนยัน</p>
+        <p class="otpmeta" style="margin:0 0 16px"><span class="ph">******5678</span>ส่งรหัส 6 หลักไปแล้ว</p>
+        <div class="otps">
+          <span class="ob">4</span><span class="ob">9</span><span class="ob">2</span>
+          <span class="ob on">7</span><span class="ob"></span><span class="ob"></span>
+        </div>
+        <p class="otpmeta" style="margin-bottom:16px">ขอรหัสใหม่ได้ใน 42 วินาที</p>
+        <button class="btn pri full">ยืนยันและเข้าสู่ระบบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:20px">Tablet/Desktop ใช้การ์ดกว้างเท่ากับ B1 (max-w 400/420px) เนื้อในเหมือน Mobile ทุกประการ — ฟอร์มขั้นตอนไม่ควรกว้างเกินอ่านสบาย จึงไม่มี layout แยกตามจอ:</p>
+<div class="frames">
+  <div class="device tablet">
+    <div class="cap"><span>Tablet 470px · ขั้น 3/3</span><span class="tagx">OTP</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="steps"><span class="st on"></span><span class="st on"></span><span class="st on"></span></div>
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:var(--d800);text-align:center">กรอกรหัสยืนยัน</p>
+        <p class="otpmeta" style="margin:0 0 16px"><span class="ph">******5678</span>ส่งรหัส 6 หลักไปแล้ว</p>
+        <div class="otps">
+          <span class="ob">4</span><span class="ob">9</span><span class="ob">2</span>
+          <span class="ob on">7</span><span class="ob"></span><span class="ob"></span>
+        </div>
+        <p class="otpmeta" style="margin-bottom:16px">ขอรหัสใหม่ได้ใน 42 วินาที</p>
+        <button class="btn pri full">ยืนยันและเข้าสู่ระบบ</button>
+      </div>
+    </div>
+  </div>
+  <div class="device desktop">
+    <div class="cap"><span>Desktop 860px · ขั้น 1/3</span><span class="tagx">เบอร์โทร</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="backrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg> กลับไปเลือกวิธีอื่น</div>
+        <div class="steps"><span class="st on"></span><span class="st"></span><span class="st"></span></div>
+        <div class="invbar" style="margin-bottom:16px">
+          <span class="shopav" style="width:36px;height:36px;font-size:13px">บก</span>
+          <div style="min-width:0"><div class="nm" style="font-size:13px">บ้านกาแฟ ริมคลอง</div><div class="rl" style="font-size:11.5px">เชิญคุณเป็นผู้ดูแลร้าน</div></div>
+        </div>
+        <div class="fld">
+          <label>เบอร์โทรศัพท์ <span class="req">*</span></label>
+          <div class="igrp">
+            <span class="ii"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/></svg></span>
+            <input class="inp focus" value="0812345678">
+          </div>
+          <p class="hint">เราจะส่งรหัส 6 หลักไปยังเบอร์นี้ · ใช้ยืนยันตัวตนเท่านั้น</p>
+        </div>
+        <button class="btn pri full">ถัดไป</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">B3 · /i/[slug] — หน้ารับคำเชิญ (login แล้ว)</h2>
+<p class="note">
+  ปลายทางของทุกเส้นทาง · โลโก้ร้านขยายจาก <code>size-11</code> → <b><code>size-20</code> จัดกลาง</b> มีขอบขาว + เงา,
+  ชื่อร้านเป็นข้อความใหญ่สุดในการ์ด, chip บทบาท “ผู้ดูแลร้าน”, ปุ่มยอมรับเต็มความกว้าง
+  · แถบ success (<span class="sw" style="background:#02bc9c"></span><code>--color-success</code>) ตอบข้อสงสัยตรง ๆ ว่า
+  <b>ไม่ต้องสร้างร้านของตัวเอง</b> — คือประโยคที่แก้ความสับสนที่รายงานมา
+  · ไม่มีปุ่มรอง (ปฏิเสธ/ไว้ทีหลัง) เพราะการปิดแท็บคือการไม่รับอยู่แล้ว และลิงก์ยังใช้ซ้ำได้จนหมดอายุ
+</p>
+
+<div class="frames">
+  <!-- Mobile -->
+  <div class="device mobile">
+    <div class="cap"><span>Mobile 340px</span><span class="tagx">/i/[slug] · authed</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="invhero">
+          <span class="shopav">บก</span>
+          <span class="eyebrow">คุณได้รับคำเชิญให้เข้าร่วม</span>
+          <span class="nm">บ้านกาแฟ ริมคลอง</span>
+          <span class="rolechip">
+            <svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg>
+            ในฐานะผู้ดูแลร้าน
+          </span>
+        </div>
+        <button class="btn pri full tall tapnote">
+          <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+          ยอมรับคำเชิญ
+        </button>
+        <div class="reassure">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span>คุณจะเข้าใช้งาน<b>ร้านนี้</b>ในฐานะผู้ดูแลได้ทันที — <b>ไม่ต้องสร้างร้านของตัวเอง</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablet -->
+  <div class="device tablet">
+    <div class="cap"><span>Tablet 470px</span><span class="tagx">/i/[slug] · authed</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="invhero">
+          <span class="shopav">บก</span>
+          <span class="eyebrow">คุณได้รับคำเชิญให้เข้าร่วม</span>
+          <span class="nm">บ้านกาแฟ ริมคลอง</span>
+          <span class="rolechip">
+            <svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg>
+            ในฐานะผู้ดูแลร้าน
+          </span>
+        </div>
+        <button class="btn pri full tall">
+          <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+          ยอมรับคำเชิญ
+        </button>
+        <div class="reassure">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span>คุณจะเข้าใช้งาน<b>ร้านนี้</b>ในฐานะผู้ดูแลได้ทันที — <b>ไม่ต้องสร้างร้านของตัวเอง</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop -->
+  <div class="device desktop">
+    <div class="cap"><span>Desktop 860px</span><span class="tagx">/i/[slug] · authed + สถานะกำลังยอมรับ</span></div>
+    <div class="auth">
+      <div class="authlogo"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/></svg></span>Deep</div>
+      <div class="authcard">
+        <div class="invhero">
+          <span class="shopav">บก</span>
+          <span class="eyebrow">คุณได้รับคำเชิญให้เข้าร่วม</span>
+          <span class="nm">บ้านกาแฟ ริมคลอง</span>
+          <span class="rolechip">
+            <svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg>
+            ในฐานะผู้ดูแลร้าน
+          </span>
+        </div>
+        <button class="btn pri full tall" disabled>
+          <span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;display:inline-block"></span>
+          กำลังดำเนินการ...
+        </button>
+        <div class="reassure">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span>คุณจะเข้าใช้งาน<b>ร้านนี้</b>ในฐานะผู้ดูแลได้ทันที — <b>ไม่ต้องสร้างร้านของตัวเอง</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2 class="sec">Token cross-check</h2>
+<p class="note">เทียบค่าที่ใช้ในภาพกับ <code>DESIGN.md</code> / <code>.impeccable/design.json</code> และ token ของ Paces ก่อน mark approved (ตาม <code>feedback_mockup_token_crosscheck</code>)</p>
+<table class="tok">
+  <thead><tr><th>รายการ</th><th>ค่าในภาพ</th><th>ที่มา / หมายเหตุ</th></tr></thead>
+  <tbody>
+    <tr><td>primary</td><td><span class="sw" style="background:#236dc9"></span><code>#236dc9</code></td><td>Paces <code>--color-primary</code> — <b>ไม่ใช่</b> <code>#7367F0</code> ของ DESIGN.md ซึ่งเป็นของ buyer/Vuexy เท่านั้น (<code>feedback_paces_own_primary_not_violet</code>)</td></tr>
+    <tr><td>success (แถบยืนยัน/tap-note)</td><td><span class="sw" style="background:#02bc9c"></span><code>#02bc9c</code> · ตัวอักษร <span class="sw" style="background:#065f46"></span><code>#065f46</code></td><td><code>--color-success</code> / <code>--color-success-ink</code> ใน <code>src/assets/css/config/_root.css</code> — <b>ไม่ใช่</b> <code>#28C76F</code> ของ DESIGN.md ซึ่งเป็น verified-green ฝั่ง buyer/Vuexy (หลัก Verified-Means-Green คงไว้ แต่เฉดต้องเป็น token ของ Paces)</td></tr>
+    <tr><td>danger (ยกเลิกลิงก์/ลบ)</td><td><span class="sw" style="background:#f7577e"></span><code>#f7577e</code></td><td><code>--color-danger</code> ใน <code>_root.css</code> (skin ที่ใช้จริง = <code>default</code>, ยืนยันจาก <code>src/app/(paces)/layout.tsx</code>)</td></tr>
+    <tr><td>warning</td><td><span class="sw" style="background:#f9bf59"></span><code>#f9bf59</code></td><td><code>--color-warning</code> — ไม่ได้ใช้ในภาพนี้ ระบุไว้เพื่อความครบ</td></tr>
+    <tr><td>radius การ์ด / ปุ่ม / อินพุต</td><td><code>10px</code> / <code>8–9px</code></td><td><code>rounded-xl</code> (10px) และ <code>rounded-lg</code> (8px) ตาม <code>DESIGN.md → rounded</code> — ไม่มี <code>rounded-[Npx]</code></td></tr>
+    <tr><td>ฟอนต์</td><td>Anuphan 400/500/600/700</td><td>Hard Rule 5 — ทุก surface ทุก skin</td></tr>
+    <tr><td>tap target</td><td>≥ 44px (ปุ่มไอคอน 44, ปุ่มหลัก 46–48, radio 46)</td><td>จุดที่ทำเครื่องหมาย <span style="background:#02bc9c;color:#fff;font-size:9px;font-weight:700;border-radius:4px;padding:0 4px">44px</span> ในภาพ</td></tr>
+    <tr><td>เส้นประ (ลิงก์/divider)</td><td><code>1px dashed</code></td><td>primitive <code>after:border-dashed</code> ของ Paces (เหมือน InviteLinkCard เดิม)</td></tr>
+    <tr><td>รูปแบบวันที่</td><td><code>2569-08-08</code></td><td><code>formatDate</code> จาก <code>src/lib/format-date.ts</code> (พ.ศ., tz ไทย) — Hard Rule เรื่อง date-format</td></tr>
+    <tr><td>emoji</td><td>0 ตัว</td><td>Hard Rule 12 — ไอคอนทั้งหมดเป็น SVG แทน tabler set ผ่าน <code>@iconify/react</code></td></tr>
+    <tr><td>สี brand ภายนอก</td><td>FB <code>#1877f2</code> · LINE <code>#06C755</code></td><td>brand-asset exception ที่มีอยู่แล้วใน <code>SignInForm.tsx</code> (inline style + comment กำกับ)</td></tr>
+  </tbody>
+</table>
+
+<p class="note" style="margin-top:26px">
+  <b>หมายเหตุการอ่าน mockup:</b> ภาพนี้เป็น HTML ล้วนเพื่อสื่อ layout/สัดส่วน/ลำดับชั้น — ตอน implement ทุก element ต้องมาจาก
+  primitive/theme file ที่ระบุใน rulebox ด้านบน ไม่ใช่ copy CSS จากไฟล์นี้
+</p>
+
+</body>
+</html>

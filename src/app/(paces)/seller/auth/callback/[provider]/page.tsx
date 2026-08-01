@@ -4,11 +4,15 @@
  * OAuth callback — หน้า loading หลัง provider auth สำเร็จ (dynamic route รองรับทุก provider)
  *
  * NextAuth (callbackUrl) เด้งมาที่นี่หลัง /api/auth/callback/{provider} เซ็ต session เสร็จ
- * → รอ session authenticated → หน่วง spinner ขั้นต่ำ ~1.5s (UX) → /dashboard
+ * → รอ session authenticated → หน่วง spinner ขั้นต่ำ ~1.5s (UX) → ปลายทาง
  * user ใหม่ไม่มีเบอร์/slug → needsOnboarding=true → proxy force-redirect → /onboarding
  *
+ * ปลายทาง = `?next=` (sanitize ผ่าน safeCallbackUrl) ถ้าไม่ส่งมาก็ /dashboard ตามเดิม —
+ * feature 00012 ext: ผู้ถูกเชิญที่ login ด้วย LINE/IG จาก /i/<slug> ต้องถูกพากลับหน้าคำเชิญ
+ * ไม่ใช่ /dashboard (ซึ่งทำให้คำเชิญหายไปเฉย ๆ)
+ *
  * รองรับ: facebook, line, instagram (และ provider ใหม่ในอนาคต)
- * ⚠️ FB callbackUrl เดิม (/auth/callback/facebook) ยังทำงานได้ผ่าน [provider] segment นี้
+ * NOTE: FB callbackUrl เดิม (/auth/callback/facebook) ยังทำงานได้ผ่าน [provider] segment นี้
  *
  * Base (spinner): theme/paces/Admin/TS/src/app/(admin)/ui/spinners/page.tsx
  *   (border spinner: border-primary size-* animate-spin rounded-full border-3 border-t-transparent)
@@ -16,9 +20,10 @@
 
 import AuthLogo from '@/components/AuthLogo'
 import { pacesToast } from '@/lib/paces-toast'
+import { safeCallbackUrl } from '@/lib/safe-callback-url'
 import { useSession } from 'next-auth/react'
-import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useRef } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useRef } from 'react'
 
 // หน่วงขั้นต่ำให้ spinner โชว์ลื่น (อยู่ในช่วง 1-3s ที่ต้องการ)
 const MIN_DISPLAY_MS = 1500
@@ -37,26 +42,8 @@ const providerErrorMessage = (provider: string): string => {
   }
 }
 
-export default function OAuthCallbackPage() {
-  const { status } = useSession()
-  const router = useRouter()
-  const params = useParams()
-  // params.provider = string | string[] — Next dynamic route
-  const provider = Array.isArray(params.provider) ? params.provider[0] : (params.provider ?? '')
-  const mountedAt = useRef(Date.now())
-
-  useEffect(() => {
-    if (status === 'loading') return
-    if (status === 'authenticated') {
-      const wait = Math.max(0, MIN_DISPLAY_MS - (Date.now() - mountedAt.current))
-      const t = setTimeout(() => router.replace('/dashboard'), wait)
-      return () => clearTimeout(t)
-    }
-    // unauthenticated — provider ไม่สำเร็จ / เปิดหน้านี้ตรง ๆ โดยไม่มี session
-    pacesToast.error(providerErrorMessage(provider))
-    router.replace('/auth/sign-in')
-  }, [status, router, provider])
-
+/** หน้าจอ loading — แยกออกมาเพื่อใช้เป็น Suspense fallback ได้ด้วย (ผู้ใช้เห็นภาพเดียวกันตลอด) */
+function CallbackScreen() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-default-100">
       <div className="mb-2">
@@ -77,5 +64,40 @@ export default function OAuthCallbackPage() {
         <p className="text-default-400 text-xs">กำลังตั้งค่าบัญชีของคุณ</p>
       </div>
     </div>
+  )
+}
+
+function OAuthCallbackRedirector() {
+  const { status } = useSession()
+  const router = useRouter()
+  const params = useParams()
+  const searchParams = useSearchParams()
+  // params.provider = string | string[] — Next dynamic route
+  const provider = Array.isArray(params.provider) ? params.provider[0] : (params.provider ?? '')
+  // ปลายทางหลัง session พร้อม — sanitize เพราะ ?next= มาจาก URL ที่แก้ได้
+  const next = safeCallbackUrl(searchParams.get('next'))
+  const mountedAt = useRef(Date.now())
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (status === 'authenticated') {
+      const wait = Math.max(0, MIN_DISPLAY_MS - (Date.now() - mountedAt.current))
+      const t = setTimeout(() => router.replace(next), wait)
+      return () => clearTimeout(t)
+    }
+    // unauthenticated — provider ไม่สำเร็จ / เปิดหน้านี้ตรง ๆ โดยไม่มี session
+    pacesToast.error(providerErrorMessage(provider))
+    router.replace('/auth/sign-in')
+  }, [status, router, provider, next])
+
+  return <CallbackScreen />
+}
+
+export default function OAuthCallbackPage() {
+  // useSearchParams ต้องอยู่ใต้ Suspense (pattern เดียวกับ auth/verify-otp/page.tsx)
+  return (
+    <Suspense fallback={<CallbackScreen />}>
+      <OAuthCallbackRedirector />
+    </Suspense>
   )
 }
