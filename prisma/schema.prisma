@@ -242,6 +242,9 @@ model Shop {
   autoReplyRules    AutoReplyRule[] // กฎคำตอบของร้านนี้ (ทุกระดับ)
   autoReplyJobs     AutoReplyJob[] // คิวงานตอบอัตโนมัติ scope ร้านนี้
   autoReplyLogs     AutoReplyLog[] // บันทึกการตัดสินใจ scope ร้านนี้
+  // feature 00023 phase 00023-qna (2026-07-31)
+  autoReplyQnas               AutoReplyQna[] // คลังคำถาม-คำตอบ (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
+  autoReplyUnansweredQuestions AutoReplyUnansweredQuestion[] // คิวคำถามที่บอทตอบไม่ได้
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -1937,6 +1940,12 @@ model AutoReplyKeyword {
   // String ไม่ใช่ enum ตาม convention เดิมทั้งโปรเจกต์ — validate ที่ Valibot
   status String @default("OFFLINE")
 
+  // 🛑 ยัง **ไม่มีที่ไหนในโค้ดอ่านค่านี้** — ห้ามเข้าใจว่าเปิดใช้ได้แล้ว
+  // user ตัดสิน 2026-07-31: "ตรงตัวก่อน ความคล้ายเปิดทีหลัง" (Scope Baseline 00023-qna A1)
+  // การจับคู่คลังคำถามรอบแรกเป็น EXACT ล้วน ซึ่งปิดคิว NO_KEYWORD_MATCH ได้ 42% จากข้อมูลจริง
+  // ใส่คอลัมน์มาพร้อม migration รอบนี้เพราะ dev DB = prod DB — กลับมา ALTER รอบสองแพงกว่า
+  qnaSimilarityEnabled Boolean @default(false)
+
   createdByUserId String?
   updatedByUserId String?
   createdAt       DateTime @default(now())
@@ -1944,6 +1953,7 @@ model AutoReplyKeyword {
 
   shop        Shop                         @relation(fields: [shopId], references: [id], onDelete: Cascade)
   phrases     AutoReplyPhrase[]
+  qnas        AutoReplyQna[] // คลังคำถาม-คำตอบของกลุ่มนี้ (วิธีจับคู่ทางที่สอง)
   // onDelete Cascade — ลบกลุ่มคำ ลบกฎของกลุ่มนั้นด้วย (กฎที่ไม่มีกลุ่มไม่มีความหมาย)
   rules       AutoReplyRule[]
   logs        AutoReplyLog[]
@@ -2009,6 +2019,16 @@ model AutoReplyRule {
   productId     String? // เงื่อนไขสินค้า
 
   replyText String @db.Text // 🛑 ข้อความที่ส่งถึงลูกค้าตรงตัวทุกอักษร ห้ามระบบดัดแปลง (BR-AR หลัก)
+
+  // รูปแนบ (storage fileId) สูงสุด 5 บังคับที่ Valibot — user สั่ง 2026-07-31 "Auto Reply ต้องใส่รูปได้"
+  // รูปแบบเดียวกับ QuickMessage.imageFileIds: TEXT[] คอลัมน์เดียว ลำดับในอาร์เรย์ = ลำดับที่ส่ง
+  //
+  // 🛑 Messenger attachment ไม่มี text ในตัว ⇒ "5 รูป + ข้อความ" = ลูกค้าได้รับ 6 ข้อความรวด
+  //    และแต่ละชิ้นล้มเหลวแยกกันได้แบบถอนคืนไม่ได้ — ดู SRS TFR-036 ว่าต้องนับสำเร็จ/ล้มเหลวยังไง
+  //
+  // ⚠️ คอลัมน์นี้ลงมาก่อน UI: ช่องใส่รูปในหน้าแก้ไขกลุ่มคำยังทำไม่ได้เพราะงาน v3 ถือ
+  //    KeywordEditorClient.tsx อยู่ (user ตัดสิน A5 — ทำ backend ก่อน รอ v3 ปิดค่อยเติม UI)
+  imageFileIds String[] @default([])
 
   // specificity: คะแนนความเฉพาะเจาะจง คำนวณตอนเขียนเสมอ (service layer, invariant)
   //   = (shopChannelId != null ? 4 : 0) + (adId != null ? 2 : 0) + (productId != null ? 1 : 0)
@@ -2121,16 +2141,143 @@ model AutoReplyLog {
   durationMs   Int?
   errorMessage String? @db.Text
 
+  // --- feature 00023 phase 00023-qna (2026-07-31) ---
+  // "KEYWORD" = เข้ากลุ่มเพราะคำตรงตัว | "QNA" = เข้ากลุ่มเพราะข้อในคลังคำถาม
+  //
+  // 🛑 null = แถวที่บันทึกก่อน phase นี้ ต้องอ่านว่า "KEYWORD" เสมอ และ **ห้าม backfill ทับ**
+  // การ backfill จะทำให้แยกไม่ออกระหว่างแถวที่ "รู้จริง" กับแถวที่ "เดาให้" ซึ่งเป็นสิ่งเดียวที่
+  // ตารางบันทึกมีไว้ทำ (ป้าย DeepBot ในห้องแชทอ่านคอลัมน์นี้ตรง ๆ เพื่อบอกที่มาของคำตอบ)
+  matchedVia String?
+  // ข้อในคลังที่ถูกใช้ตอบครั้งนั้น — SetNull เพราะลบข้อในคลังไม่ควรลบบันทึกว่าเคยตอบด้วยข้อนั้น
+  qnaId      String?
+
   createdAt DateTime @default(now())
 
   shop         Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   keyword      AutoReplyKeyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
   rule         AutoReplyRule?    @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  qna          AutoReplyQna?     @relation(fields: [qnaId], references: [id], onDelete: SetNull)
 
   @@index([shopId, createdAt]) // หน้ารายการบันทึกของร้าน
   @@index([conversationId, createdAt]) // ดูประวัติของเธรดเดียว
   @@index([shopId, decision, createdAt]) // กรอง "ที่ไม่ตอบ" / "ที่พัง"
   @@index([shopId, keywordId, createdAt]) // กลุ่มคำไหนถูกใช้บ่อย
   @@index([shopId, adId, createdAt]) // โฆษณาไหนสร้างบทสนทนาสูง
+}
+
+// ---------------------------------------------------------------------------
+// feature 00023 phase `00023-qna` (2026-07-31) — คลังคำถาม-คำตอบ + คิวคำถามที่ตอบไม่ได้
+// SSOT: docs/20 - Features/00023 - Deep Chat-Bot Assistant/DATABASE.md §3.9-§3.11
+//       docs/scope/2026-07-31-00023-qna-library-scope-baseline.md
+// ---------------------------------------------------------------------------
+
+/// คลังคำถาม-คำตอบ **ของกลุ่มคำ** ไม่ใช่คลังกลางของร้าน (user ตัดสิน 2026-07-31)
+///
+/// เป็น "วิธีจับคู่ทางที่สอง": AutoReplyPhrase จับตรงตัวตาม matchType ของกลุ่ม ส่วนตารางนี้จับ
+/// ทั้งประโยคแล้วมีคำตอบของตัวเอง — ต่างจาก AutoReplyRule ตรงที่ 1 กลุ่มมีได้หลายร้อยข้อ
+/// แต่ละข้อคำตอบต่างกัน ในขณะที่ rule คือคำตอบเดียวของกลุ่มที่แตกตามเงื่อนไข เพจ/โฆษณา/สินค้า
+///
+/// ทำไมต้องอยู่ในกลุ่ม ไม่ใช่คลังกลาง: ของที่คุมคำตอบ (น้ำเสียง/กฎห้ามตอบ/ขอบเขตสินค้า ใน AI Enhance
+/// เฟสหน้า + สถานะ LIVE/TEST/OFFLINE + ตารางเวลา + cooldown) ทั้งหมดอยู่ที่กลุ่ม ถ้าคลังอยู่นอกกลุ่ม
+/// มันจะกลายเป็นช่องทางที่ตอบลูกค้าได้โดยไม่มีอะไรคุมเลย
+model AutoReplyQna {
+  id String @id @default(uuid())
+  // ซ้ำกับ keyword.shopId ตั้งใจ — ทุก query ของหน้าจัดการและของ matcher กรองด้วย shopId ตรง ๆ
+  // ไม่ต้อง join กลับไปที่ AutoReplyKeyword ทุกครั้ง (แนวเดียวกับ AutoReplyRule.shopId)
+  shopId    String
+  keywordId String
+
+  question String @db.Text // คำถามที่ร้านพิมพ์ (เก็บของเดิมไว้แสดงใน UI)
+
+  // ผ่าน normalizeMessage() ตัวเดียวกับ AutoReplyPhrase.normalizedPhrase และข้อความลูกค้า
+  // 🛑 คำเตือนเดียวกับ AutoReplyPhrase: แก้ normalizeMessage เมื่อไหร่ คอลัมน์นี้ stale ทั้งตาราง
+  //    ต้อง backfill พร้อม deploy รอบเดียวกัน (ดูหัวไฟล์ src/lib/auto-reply-normalize.ts)
+  normalizedQuestion String
+
+  answer String @db.Text // 🛑 ส่งถึงลูกค้าตรงตัวทุกอักษร ห้ามระบบดัดแปลง (เหมือน AutoReplyRule.replyText)
+
+  // รูปแนบ สูงสุด 5 บังคับที่ Valibot — ดูคำเตือนเรื่อง "6 ข้อความรวด" ที่ AutoReplyRule.imageFileIds
+  imageFileIds String[] @default([])
+
+  isActive Boolean @default(true)
+
+  // นับการถูกใช้ตอบจริง — ใช้ทั้งตัวกรอง "ไม่เคยถูกใช้" และคอลัมน์ "N ครั้ง" ในหน้าจัดการ
+  // 🛑 เก็บเป็นคอลัมน์ ไม่ COUNT จาก AutoReplyLog ตอน query: AutoReplyLog เป็นตารางที่โตเร็วที่สุด
+  //    ในระบบ การ COUNT ต่อแถวคลังทุกครั้งที่เปิดหน้า = N+1 บนตารางที่ใหญ่ที่สุด
+  useCount   Int       @default(0)
+  lastUsedAt DateTime?
+
+  // "MANUAL" (ร้านพิมพ์เอง) | "QUEUE" (แปลงจากคิว/จากห้องแชท) | "IMPORT" (นำเข้าไฟล์)
+  // ไม่ใช่ของประดับ — ใช้ตอบว่า "คลังโตขึ้นจากงานประจำวันจริงไหม" ซึ่งเป็นเหตุผลของฟีเจอร์นี้
+  source String @default("MANUAL")
+
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shop        Shop                          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  keyword     AutoReplyKeyword              @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  logs        AutoReplyLog[]
+  fromQueue   AutoReplyUnansweredQuestion[]
+
+  // คำถามซ้ำในกลุ่มเดียวกันต้องถูกปฏิเสธ — บังคับที่ DB ไม่พึ่งวินัยโค้ด (หลักเดียวกับ AutoReplyPhrase)
+  // 🛑 unique ที่ระดับ "กลุ่ม" ไม่ใช่ "ร้าน" ตั้งใจ: คำถามเดียวกันอยู่ได้หลายกลุ่ม เพราะแต่ละกลุ่ม
+  //    มีน้ำเสียง/กฎ/ขอบเขตของตัวเอง — ตอนจับคู่ใช้ตัวตัดสิน 3 ชั้น (DATABASE §3.9.1):
+  //    keyword.priority → useCount → qna.id (ห้ามพึ่งลำดับที่ DB คืนมา)
+  @@unique([keywordId, normalizedQuestion])
+  // query หลักของ QnA matching: โหลดคลังที่เปิดใช้ของร้านในคิวรีเดียว (ตอน match ยังไม่รู้ว่ากลุ่มไหน)
+  @@index([shopId, isActive])
+  // หน้าจัดการรายกลุ่ม: เรียงตามที่ถูกใช้บ่อย + ตัวกรอง "ไม่เคยถูกใช้" (useCount = 0)
+  @@index([keywordId, isActive, useCount])
+}
+
+/// คิว "คำถามที่ DeepBot ตอบไม่ได้" — ตารางจริงที่เขียนตอนเกิดเหตุ
+///
+/// 🛑 ทำไมไม่ groupBy บน AutoReplyLog ตอนเปิดหน้า (ทั้ง 3 ข้อทำให้ groupBy ใช้ไม่ได้ ไม่ใช่แค่ช้ากว่า):
+///   1. AutoReplyLog ไม่มี index บน normalizedText และเป็นตารางที่โตเร็วที่สุดในระบบ
+///   2. คิวต้องมีสถานะ (ข้าม/ตอบแล้ว) ซึ่งเก็บใน log ที่เป็น append-only ไม่ได้
+///   3. ต้องกรอง PII **ตอนเขียน** — groupBy จะดึงที่อยู่/เบอร์ลูกค้าขึ้นมาโชว์ทุกครั้ง
+///
+/// ตัวกรองก่อนเขียน (DATABASE §3.10.1, ตายตัวในโค้ด ร้านแก้ไม่ได้): ยาว ≤3 ตัวอักษร ·
+/// มีเลขติดกัน ≥9 ตัว · มีคำบ่งชี้ที่อยู่ · ยาวเกิน 80 ตัวอักษร — ข้อความที่ติดกรองไม่ถูกเขียนเลย
+/// (ยังอยู่ใน AutoReplyLog ตามเดิม ไม่มีการลบข้อมูล มีแต่การไม่ทำสำเนาเพิ่ม)
+model AutoReplyUnansweredQuestion {
+  id     String @id @default(uuid())
+  shopId String
+
+  // normalize ด้วย normalizeMessage() ตัวเดียวกับทุกที่ — เป็นทั้งคีย์รวมแถวและตัวเทียบตอนแปลงเป็น QnA
+  normalizedQuestion String @db.Text
+  // ข้อความดิบตัวอย่างล่าสุด (ผ่านตัวกรองเดียวกันมาแล้ว) — คนอ่านรู้เรื่องกว่ารูป normalize
+  rawSample          String @db.Text
+
+  hitCount    Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  // "PENDING" = รอกรอกคำตอบ | "DISMISSED" = ร้านกดข้าม | "ANSWERED" = แปลงเป็น AutoReplyQna แล้ว
+  //
+  // 🛑 ถูกถามซ้ำหลังเป็น ANSWERED/DISMISSED แล้ว: hitCount++ และ lastSeenAt อัปเดตตามปกติ
+  //    แต่ **ไม่เปลี่ยน status กลับ** — ถ้าตอบไปแล้วแต่ยังเข้ามาที่ NO_KEYWORD_MATCH อีก แปลว่า
+  //    คำตอบที่กรอกไว้ยัง match ไม่ติด (พิมพ์ต่างกันนิดเดียว) ตัวเลขนี้คือหลักฐานว่าถึงเวลา
+  //    เปิดโหมดความคล้ายแล้ว ถ้ารีเซ็ต status จะกลายเป็นคิวที่วนไม่จบและร้านจะเลิกเปิด
+  status String @default("PENDING")
+
+  // ชี้ข้อในคลังที่เกิดจากคิวแถวนี้ — SetNull เพราะลบข้อในคลังไม่ควรลบประวัติว่าเคยตอบไปแล้ว
+  qnaId String?
+
+  dismissedAt       DateTime?
+  dismissedByUserId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  shop Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  qna  AutoReplyQna? @relation(fields: [qnaId], references: [id], onDelete: SetNull)
+
+  // 🛑 หัวใจของตาราง: ข้อความเดียวกันของร้านเดียวกัน = แถวเดียวตลอดกาล นับที่ hitCount
+  //    ทำให้ upsert ในเส้นทางร้อนเป็น operation เดียวและกันคิวบวมโดยไม่ต้องมี dedupe ในโค้ด
+  @@unique([shopId, normalizedQuestion])
+  // หน้าคิว: ของร้านนี้ ที่ยังรอกรอก เรียงตามที่ถูกถามบ่อย
+  @@index([shopId, status, hitCount])
 }
