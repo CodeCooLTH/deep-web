@@ -626,11 +626,19 @@ import จาก `@/lib/format-date` ตรง ๆ
 ```
 
 ⚠️ S-id แยก (S-20a) — ไฟล์นี้ deploy อยู่ prod แล้ว ต้อง regression smoke ก่อน merge
-⚠️ prop `isTest` ไม่ได้ถูกลบ — ข้อเสนอ (ยังไม่ confirm): ย้ายข้อมูลโหมดทดสอบไปไว้
-ในกล่องรายละเอียดที่กดดูแทนป้ายหลัก — ต้องถาม user ยืนยันก่อน implement
+✅ **ยืนยันแล้ว 2026-08-01:** prop `isTest` ไม่ถูกลบ — ย้ายข้อมูลโหมดทดสอบไปแสดง
+เฉพาะในกล่องรายละเอียดที่กดดู (แถวนี้มีอยู่แล้วในโค้ด ~บรรทัด 90) ตัดออกจาก label หลักอย่างเดียว
 
 ### 6) Backend field รวมเข้า S-20
 
 `ConversationListItem` เพิ่ม `lastMessageAutoReplyKind?: string | null` +
 `lastMessageIsAiEnhanced?: boolean` (default false) — enrich คู่กับ query เดิมของ
 `lastMessagePreview`/`lastSenderRole`
+
+> 🛑 **แก้ข้อเท็จจริง 2026-08-01:** ไม่ใช่ join — `lastMessagePreview`/`lastSenderRole`
+> เป็นคอลัมน์ denormalize บน `Conversation` ที่เขียนตอน insert ข้อความ
+> จึงต้องมี **migration เพิ่ม 2 คอลัมน์จริง** และเขียนค่า **explicit ทุกจุดที่เขียน
+> `lastMessagePreview`** (Prisma `update` ไม่แตะ field ที่ไม่ระบุ → ลืมจุดใดจุดหนึ่ง
+> ค่าเดิมค้าง ป้ายติดผิดข้อความ) · ฝั่งอ่านไม่ต้องแก้ route เพราะ `listConversations`
+> เป็น `findMany` ไม่มี `select` และ route spread ทุก field อยู่แล้ว
+> user ยืนยันให้ทำตามนี้ 2026-08-01

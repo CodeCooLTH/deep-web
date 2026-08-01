@@ -30,14 +30,27 @@ proven ใช้จริงใน `OrderCard.tsx`) — ให้ผล "วั�
 - **DeepAI** = กลุ่มที่เปิด AI Enhance (รอ flag `aiEnhanceEnabled` ในอนาคต)
 - ตัดคำ "ทดสอบ" ออกจากป้ายทั้งหมด **รวมถึง `AutoReplyTag.tsx` ที่ deploy อยู่ prod แล้ว**
   (เดิม label = `isTest ? 'DeepBot · ทดสอบ' : 'DeepBot'` → ใหม่ = `isAiEnhanced ? 'DeepAI' : 'DeepBot'`)
-- ⚠️ ข้อเสนอที่ยังไม่ยืนยันจาก user ตรง ๆ: ย้ายข้อมูล "โหมดทดสอบ" ไปไว้ในกล่อง
-  รายละเอียดที่กดดูแทน (ไม่หายไปเลย แค่ไม่โผล่บนป้ายหลัก) — **ต้อง confirm ก่อน implement**
+- ✅ **ยืนยันแล้ว 2026-08-01 (รอบถัดมา):** ย้ายข้อมูล "โหมดทดสอบ" ไปไว้ในกล่อง
+  รายละเอียดที่กดดูแทน (ไม่หายไปเลย แค่ไม่โผล่บนป้ายหลัก) — แถวในกล่องรายละเอียด
+  มีอยู่แล้วในโค้ด (`AutoReplyTag.tsx` ~บรรทัด 90) จึงเหลือแค่ตัดออกจาก label หลัก
 - ⚠️ ผลกระทบ: แก้ไฟล์ prod จริง → ต้องมี S-id แยก (`S-20a`) รัน regression smoke ก่อน merge
 
 **6. Backend field สำหรับป้าย DeepBot**
 รวมเป็นงานเดียวกับ S-20 — เพิ่ม `lastMessageAutoReplyKind` + `lastMessageIsAiEnhanced`
 (default false) เข้า `ConversationListItem`, enrich คู่กับ query ที่มีอยู่แล้ว
 ของ `lastMessagePreview`/`lastSenderRole` (join ข้อความล่าสุดเดียวกัน ไม่เพิ่ม query รอบ)
+
+> 🛑 **แก้ข้อเท็จจริง 2026-08-01 (safepay-planner ตรวจโค้ดจริง — user ยืนยันให้ทำตามแผน):**
+> ข้อความข้างบนสมมติผิดว่า `lastMessagePreview`/`lastSenderRole` มาจากการ join
+> ของจริงคือ **คอลัมน์ denormalize บน `Conversation` ที่เขียนตอน insert ข้อความ**
+> จึง **ต้องมี migration เพิ่ม 2 คอลัมน์จริง** (`lastMessageAutoReplyKind String?`,
+> `lastMessageIsAiEnhanced Boolean @default(false)`) ไม่ใช่แค่เติม field ใน type
+> และต้องเขียนค่าทั้งสอง **explicit ทุกจุดที่เขียน `lastMessagePreview`** เพราะ
+> Prisma `update` ไม่แตะ field ที่ไม่ระบุ — ลืมจุดใดจุดหนึ่ง = ค่าเดิมค้าง
+> ป้าย DeepBot จะติดผิดข้อความ (ไม่ใช่แค่ไม่ขึ้น)
+> known-gap ที่ยอมรับแล้ว: เส้นทาง race ของ echo Messenger ใน `channel-chat.service.ts`
+> ที่แปะ `autoReplyKind` ย้อนหลังไม่อัปเดต snapshot ซ้ำ → ป้ายจะไม่ขึ้นในเคสนั้น
+> (false negative ไม่ใช่ false positive) — ตัดสินใจไม่แก้ในรอบนี้
 
 **7. งบเวลาที่ยอมให้ AI ใช้ก่อนถอยไปตอบคำตอบดิบ**
 **8 วินาที** (อ้างอิง `gemini-2.5-flash-lite`)
