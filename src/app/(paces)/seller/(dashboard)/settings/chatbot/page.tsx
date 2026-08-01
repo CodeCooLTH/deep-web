@@ -6,7 +6,7 @@
  *   ChatBot    = ส่วนเสริม AI ที่ครอบทุกข้อความ ตอบแทน/เสริมคนตามช่วงเวลา + มีค่าใช้จ่าย
  *                และเป็นที่อยู่ของ option "ขัดเกลาคำตอบของ Auto Reply"
  *
- * Base: settings/auto-reply/[id]/ai/page.tsx (โครง RSC + PageBreadcrumb)
+ * Base: settings/auto-reply/[id]/page.tsx (โครง RSC + PageBreadcrumb)
  */
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'

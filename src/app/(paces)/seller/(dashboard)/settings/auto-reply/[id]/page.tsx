@@ -17,7 +17,6 @@ import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getKeywordDetail, getPhraseOverlaps } from '@/services/auto-reply-rule.service'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import KeywordTabs from './KeywordTabs'
 import KeywordEditorClient from './KeywordEditorClient'
 
 export const metadata: Metadata = { title: 'แก้ไขกลุ่มคำ' }
@@ -67,11 +66,10 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
           ชื่อกลุ่มยังเห็นได้ในช่อง "ชื่อกลุ่มคำ" ของ Tab แรก จึงไม่หายไปไหน
           ส่วน crumb กลางเป็นทางกลับไปหน้ารายการ */}
       <PageBreadcrumb
-        title="ผู้ช่วยอัตโนมัติ"
+        title={keyword.name}
         trail={[{ label: 'กลุ่มคำทั้งหมด', href: '/settings/auto-reply' }]}
       />
 
-      <KeywordTabs keywordId={id} />
 
       <KeywordEditorClient
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}

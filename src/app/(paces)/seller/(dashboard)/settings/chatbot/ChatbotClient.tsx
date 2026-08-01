@@ -4,7 +4,9 @@
  * ChatBot — สวิตช์หลัก + ช่วงเวลา + น้ำเสียง + กฎห้ามตอบ + option ขัดเกลา Auto Reply + เพดาน
  * feature 00023 · phase `00023-ai-enhance`
  *
- * Base: settings/auto-reply/[id]/ai/AiEnhanceClient.tsx (.card / form-switch / pacesToast /
+ * Base: settings/auto-reply/[id]/KeywordEditorClient.tsx (.card / form-switch / pacesToast) +
+ * qna/QnaListingClient.tsx (รายการ divide-y + ปุ่มลบต่อแถว)
+ * (ไฟล์ ai/AiEnhanceClient.tsx ที่เคยเป็นต้นแบบถูกลบแล้วตอนย้ายทุกอย่างมาเมนูนี้ —
  *   รายการกฎ divide-y + ปุ่มลบต่อแถว) — ยกโครงมาทั้งชุด เปลี่ยนแค่ปลายทาง API เป็นระดับร้าน
  */
 import { useState } from 'react'
