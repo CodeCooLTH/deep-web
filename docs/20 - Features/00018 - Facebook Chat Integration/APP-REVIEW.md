@@ -48,9 +48,23 @@
 >
 > Why it is necessary: without the subscribe call no webhook events are delivered, so the inbox stays permanently empty and the product has no function at all; without the unsubscribe call we could not honour a seller's request to stop receiving their Page data. We never use data received through this permission for advertising, cross-app profiling, or resale.
 
-### 2.3 `pages_messaging`
+### 2.3 `pages_messaging` ✅ เขียนแล้ว
 
-> Deep is a customer-service inbox that Thai sellers use to answer their own customers. This permission is the core of the product: we receive customer messages through the Messenger webhook and send the seller's replies with `POST /me/messages`. We also call `GET /me/conversations` to backfill messages that a missed webhook would otherwise lose, and to read the participant's name so the seller knows who they are talking to. Every message is sent by a human seller (or an auto-reply the seller configured for their own Page) inside the standard 24-hour messaging window; we do not send unsolicited or bulk messages, and we do not use message content for advertising, analytics, or resale. Without this permission Deep cannot receive or answer any message, which is the app's only purpose.
+ตรวจกับโค้ดจริง 2026-08-01: `sendOutboundMessage` (`channel-chat.service.ts:948`) มีผู้เรียก
+**2 จุดเท่านั้น** — ผู้ขายกดส่งจากกล่องข้อความ (`api/chat/conversations/[id]/messages`) กับ
+auto-reply ที่ทริกเกอร์จากข้อความขาเข้า (`auto-reply-send.service`) ไม่มี broadcast/หว่าน
+(cron `auto-reply-sweeper` แค่ retry งานค้าง ไม่เริ่มบทสนทนาใหม่) — คำเคลม "no bulk/unsolicited"
+จึงพูดได้เต็มปาก
+
+> Deep is a customer-service inbox for Thai online sellers. The seller connects the Facebook Page they own, and from then on every conversation a customer starts with that Page appears in one place where the seller and their staff can read and answer it.
+>
+> How we use the permission. Receiving: our webhook subscribes to the connected Page's messaging events (`messages`, `message_echoes`, `message_reads`, `message_reactions`, `messaging_postbacks`, `messaging_referrals`) and stores each thread so it shows up in the seller's inbox in real time. Sending: when the seller types a reply and presses Send, we call `POST /me/messages` with `messaging_type: RESPONSE`, inside Meta's standard 24-hour window. Repairing gaps: we call `GET /me/conversations` to backfill messages that a dropped webhook would otherwise lose, and to read the participant's name so the seller knows who they are talking to. This is customer support in the sense of the allowed usage: every thread is user-initiated — the customer messages the Page first and the seller answers. We never message a person who has not messaged the Page.
+>
+> Value for the person using the app. Thai sellers typically run one Page plus Instagram and answer from a phone all day. Deep gives them a single inbox they can open on a computer, lets several staff share the work, and shows that customer's past orders and shipping status beside the conversation, so the seller answers "where is my parcel" without switching apps or asking the customer to repeat themselves.
+>
+> Why it is necessary. Without this permission Deep can neither receive nor send a single message, which is the app's entire purpose.
+>
+> Automation, disclosed. A seller may configure an auto-reply for their own Page (for example a greeting or an out-of-hours notice). It is triggered only by an incoming customer message, it is labelled in the inbox so the seller can see it was automatic, and the seller can switch it off or take over the thread at any moment. We do not send bulk, promotional, or unsolicited messages, and message content is never used for advertising, analytics, or resale.
 
 ### 2.4 `pages_read_engagement`
 
@@ -95,6 +109,43 @@
 
 ---
 
+## 3.1 บัญชีทดสอบสำหรับ reviewer + ขั้นตอนทดสอบ (ช่อง "Test and reproduce")
+
+ฟอร์มของ `pages_messaging` บังคับให้ส่ง test account เพราะ Deep เป็น "Page management
+surface" — และย้ำว่า reviewer ต้องใช้ **บัญชี Facebook จริงที่ได้ Tester role ใน App Roles**
+ห้ามใช้ test user ที่สร้างใน App Roles (test user รับ bot message ไม่ได้)
+
+**บัญชีผู้ขายทดสอบบน prod** (สร้าง 2026-08-01 ด้วย
+`scratchpad/create-review-account.ts` — idempotent รันซ้ำได้)
+
+| ค่า | |
+|---|---|
+| URL | `https://seller.deepthailand.app/auth/sign-in` |
+| username | `metareview` |
+| password | **ไม่เก็บในรีโป** — ดูในบันทึกที่ส่งให้ user ตอนสร้าง หรือรันสคริปต์ซ้ำเพื่อตั้งใหม่ |
+| shop | `Deep Review Test Shop` (slug `meta-review-test`, kind PERSONAL) |
+
+ยืนยันแล้วบน prod: `POST /api/auth/callback/seller-credentials` คืน session ที่มี
+`needsOnboarding: false`, `needsPhoneVerify: false`, `activeShopRole: OWNER` และ
+`/dashboard`, `/settings/channels`, `/inbox` คืน 200 ไม่โดน force-redirect
+(ถ้าขาดเบอร์โทรหรือ slug อย่างใดอย่างหนึ่ง `proxy.ts` จะเด้ง reviewer เข้า `/register`
+หรือ `/onboarding` ซึ่งบังคับ OTP มือถือ = reviewer ไปต่อไม่ได้ตั้งแต่ขั้นที่ 2)
+
+ข้อความที่วางในช่อง step-by-step (UI เป็นไทย จึงวงเล็บอังกฤษกำกับทุกปุ่ม):
+
+> The seller-facing UI is in Thai; English translations are in brackets.
+>
+> Step 1. Deep is a Page management surface, so please use the temporary seller account we created for you: `https://seller.deepthailand.app/auth/sign-in` — username `metareview`, password `<PASSWORD>`.
+> Step 2. In the left menu open "บัญชีที่เชื่อมต่อ" [Connected accounts], then click the blue button "เชื่อม Facebook Page" [Connect Facebook Page].
+> Step 3. Complete Meta's login dialog with your own reviewer account (granted the Tester role in App Roles) and allow access to a Page you administer.
+> Step 4. You are returned to Deep on the page picker "เลือกเพจที่จะเชื่อม" [Choose pages to connect]. Tick your Page and click "เชื่อมเพจที่เลือก" [Connect selected pages]. The Page now appears with the badge "เชื่อมแล้ว" [Connected].
+> Step 5. From a different Facebook account, open `m.me/<your-page>` and send any message to that Page.
+> Step 6. Back in Deep, click "ข้อความ" [Messages] in the left menu. The new conversation appears at the top of the list within a few seconds, with the customer's name and their message.
+> Step 7. Open the conversation, type any text in the box "พิมพ์ข้อความ..." [Type a message] and click "ส่ง" [Send]. The reply is delivered to the customer in Messenger — you can confirm it in the Messenger window from Step 5.
+> Step 8. To verify we stop receiving data on request: go back to "บัญชีที่เชื่อมต่อ" and click "ถอด" [Disconnect] on **both** the Messenger and the Instagram row of that Page. Deep then calls `DELETE /{page-id}/subscribed_apps`; new messages to the Page no longer reach the inbox.
+
+---
+
 ## 4. ของที่ยังขอไม่ได้ / อย่าเพิ่งใส่
 
 - `instagram_manage_insights` — ใส่ใน scope แล้ว Meta ตีกลับที่หน้า login ว่า
@@ -103,3 +154,15 @@
 - `human_agent` — คนละเรื่องกับชุดนี้ ใช้ตอบลูกค้าเกิน 24 ชม. (ถึง 7 วัน)
   โค้ดรออยู่แล้วหลัง env `META_HUMAN_AGENT_ENABLED` ขอเพิ่มได้เมื่อ Business
   Verification ผ่าน — ดูรายละเอียดใน SRS/หัวข้อหน้าต่างตอบกลับ
+- `pages_utility_messaging` — **ถอดออกจากใบยื่นแล้ว 2026-08-01 (ตัดสินใจโดย user)**
+  Meta นิยามว่าใช้ "จัดการ utility messaging template ของเพจ + ส่ง utility message"
+  (แจ้งสถานะออเดอร์/บัญชี, เตือนนัดหมาย — สร้างเทมเพลตผ่าน `POST /{page-id}/message_templates`
+  category `UTILITY`, ห้ามมีเนื้อหาการตลาด) **ระบบเรายังไม่มีทั้งเทมเพลตและเส้นทางส่ง**:
+  ตรวจ 2026-08-01 แล้ว ผู้เรียก Send API มีที่เดียวคือ `channel-chat.service.ts` และส่งได้แค่
+  `messaging_type: 'RESPONSE'` (ในหน้าต่าง 24 ชม.) กับ `MESSAGE_TAG` + `HUMAN_AGENT`
+  เท่านั้น — service ออเดอร์/iShip ไม่เคยเรียกฟังก์ชันส่งข้อความเลย และฟอร์มของ Meta ก็ขึ้น
+  `0 of 1 API call(s) required` เพราะไม่มีโค้ดเรียกจริง
+  **ถ้าจะเอาในอนาคต** (แจ้งเลขพัสดุเข้า Messenger แทน SMS ที่หักกระเป๋าร้าน ฿1/ครั้ง —
+  ข้อมูลพร้อมแล้วทั้ง `OrderShipment` และเส้นเชื่อมห้องแชท↔ลูกค้า↔ออเดอร์ของ
+  `order-stage.service`) ลำดับที่ถูกคือ **เช็คราคาส่งก่อน → feature doc → implement →
+  ยิง test call → ค่อยยื่นรอบถัดไป** ห้ามยื่นก่อนมีของ (หลักการข้อ 4 หัวเอกสาร)
