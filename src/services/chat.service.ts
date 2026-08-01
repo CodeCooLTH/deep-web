@@ -46,6 +46,14 @@ export interface ConversationSummary {
  * ซึ่งร้านอ่านไม่รู้เรื่องเลย; null = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น หรือของถูกลบไปแล้ว
  */
 export interface AutoReplyTrace {
+  /**
+   * ที่มาของคำตอบ: "KEYWORD"/"QNA" = คำตอบสำเร็จรูปที่ร้านเขียนไว้ · "CHATBOT" = AI แต่งเอง
+   * จากคลังความรู้ · null = แถวเก่าก่อนมีคอลัมน์นี้ ให้อ่านว่า KEYWORD (ดู DATABASE.md §3.8)
+   *
+   * ชั้น UI ใช้ค่านี้เลือกชื่อป้าย — คนละชื่อเพราะเป็นคนละอย่างจริง ๆ: อันหนึ่งร้านเขียนเอง
+   * อีกอันเครื่องแต่งขึ้น ร้านต้องแยกออกตั้งแต่แรกเห็นว่าอันไหนต้องตรวจ
+   */
+  matchedVia: string | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null // "EXACT" | "CONTAINS" | "STARTS_WITH" — แปลเป็นไทยที่ชั้น UI
@@ -511,6 +519,7 @@ export async function getMessages(
         shopChannelId: true,
         adId: true,
         productId: true,
+        matchedVia: true,
         keyword: { select: { name: true } },
       },
     })
@@ -541,6 +550,7 @@ export async function getMessages(
     for (const l of logs) {
       if (!l.outboundMessageId) continue
       traceByMessageId.set(l.outboundMessageId, {
+        matchedVia: l.matchedVia,
         keywordName: l.keyword?.name ?? null,
         matchedPhrase: l.matchedPhrase,
         matchType: l.matchType,

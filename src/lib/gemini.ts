@@ -366,9 +366,20 @@ export async function generateReplySuggestions(
  * และ **รับ signal จากผู้เรียก** เพื่อให้คุมงบเวลารวมหลายการเรียกได้ (AI Enhance
  * มีงบ 8 วินาทีก้อนเดียวสำหรับทั้งเรียบเรียงและด่านตรวจ)
  */
+/** 3 ใบพอสำหรับคำถามหนึ่งครั้ง และกันไม่ให้ prompt บวมจนต้นทุนต่อครั้งพุ่ง */
+const MAX_IMAGES_PER_CALL = 3
+/** 4 MB — เกินกว่านี้ inline_data จะทำให้ request ใหญ่จนช้ากว่างบเวลาที่มี */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024
+const SUPPORTED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+
 export async function generateText(opts: {
   system?: string
   user: string
+  /**
+   * รูปที่แนบไปกับคำถาม (URL) — ลูกค้าส่งรูปสินค้า/รูปอะไหล่มาถามได้ ไม่ใช่ทุกคนพิมพ์บรรยาย
+   * ดาวน์โหลดแล้วส่งเป็น inline_data เพราะ Gemini เข้าถึง URL ของ CDN ฝั่ง Meta/Supabase เองไม่ได้
+   */
+  imageUrls?: string[]
   maxOutputTokens: number
   temperature?: number
   signal: AbortSignal
@@ -384,6 +395,34 @@ export async function generateText(opts: {
     return undefined
   }
 
+  // ── โหลดรูปเป็น base64 ก่อนยิง ──
+  // รูปที่โหลดไม่สำเร็จ/ใหญ่เกิน = ข้ามรูปนั้น ไม่ใช่ล้มทั้งคำขอ — ลูกค้าที่พิมพ์ข้อความมาด้วย
+  // ยังควรได้คำตอบ และรูปเสียหนึ่งใบไม่ใช่เหตุให้ทั้งบทสนทนาเงียบ
+  const imageParts: { inline_data: { mime_type: string; data: string } }[] = []
+  for (const url of (opts.imageUrls ?? []).slice(0, MAX_IMAGES_PER_CALL)) {
+    try {
+      const r = await fetch(url, { signal: opts.signal })
+      if (!r.ok) {
+        console.warn(`[gemini] โหลดรูปไม่สำเร็จ ${r.status} — ข้ามรูปนี้`)
+        continue
+      }
+      const mime = r.headers.get('content-type')?.split(';')[0]?.trim() ?? 'image/jpeg'
+      if (!SUPPORTED_IMAGE_MIME.has(mime)) {
+        console.warn(`[gemini] ชนิดรูปไม่รองรับ (${mime}) — ข้ามรูปนี้`)
+        continue
+      }
+      const buf = Buffer.from(await r.arrayBuffer())
+      if (buf.byteLength > MAX_IMAGE_BYTES) {
+        console.warn(`[gemini] รูปใหญ่เกิน ${buf.byteLength} bytes — ข้ามรูปนี้`)
+        continue
+      }
+      imageParts.push({ inline_data: { mime_type: mime, data: buf.toString('base64') } })
+    } catch (e) {
+      if (e instanceof Error && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw e
+      console.warn('[gemini] โหลดรูปล้มเหลว — ข้ามรูปนี้', e)
+    }
+  }
+
   let res: Response | null = null
   let usedModel = ''
   let lastError = ''
@@ -397,7 +436,8 @@ export async function generateText(opts: {
         body: JSON.stringify({
           // snake_case ตาม REST v1beta — camelCase ถูกปฏิเสธเป็น 400 (บทเรียน 2026-08-01)
           ...(opts.system ? { system_instruction: { parts: [{ text: opts.system }] } } : {}),
-          contents: [{ role: 'user', parts: [{ text: opts.user }] }],
+          // รูปมาก่อนข้อความ: Gemini แนะนำให้วางสื่อไว้หน้า prompt เมื่อถามเกี่ยวกับสื่อนั้น
+          contents: [{ role: 'user', parts: [...imageParts, { text: opts.user }] }],
           generationConfig: {
             temperature: opts.temperature ?? 0.3,
             maxOutputTokens: opts.maxOutputTokens,

@@ -20,6 +20,7 @@ import Icon from '@/components/wrappers/Icon'
  */
 
 export type AutoReplyTrace = {
+  matchedVia: string | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null
@@ -71,7 +72,12 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
 
   // ชื่อแบรนด์ของตัวช่วยตอบ (user 2026-07-31) — สั้นกว่าคำอธิบายเชิงระบบ และทำให้ร้าน
   // พูดถึงมันเป็น "ตัวตน" ที่สั่งงานได้ ไม่ใช่ฟีเจอร์นิรนาม; UI ใช้ชื่อการค้า Deep เสมอ
-  const label = isTest ? 'DeepBot · ทดสอบ' : 'DeepBot'
+  //
+  // แยกสองชื่อตามที่มาจริง (user 2026-08-01): คำตอบสำเร็จรูปที่ร้านเขียนเอง = DeepBot
+  // ส่วนข้อความที่ AI แต่งขึ้นจากคลังความรู้ = DeepAI — ร้านต้องแยกออกตั้งแต่แรกเห็นว่า
+  // อันไหนคือคำพูดของตัวเองและอันไหนที่ควรอ่านตรวจก่อนปล่อยผ่าน
+  const brand = trace?.matchedVia === 'CHATBOT' ? 'DeepAI' : 'DeepBot'
+  const label = isTest ? `${brand} · ทดสอบ` : brand
 
   // ป้ายชิดขวา (user 2026-07-31): ข้อความฝั่งร้านจัดชิดขวาอยู่แล้ว ป้ายที่เกาะซ้ายสุดของบับเบิล
   // กว้าง ๆ จะดูหลุดออกจากกลุ่มของตัวเอง — กล่องรายละเอียดจึงต้องกางไปทางซ้าย (end-0) ด้วย
@@ -87,10 +93,23 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
       {open && (
         <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 w-64 rounded-md border text-start shadow-lg">
           <div className="bg-default-100 border-default-300 text-default-800 border-b px-3 py-2 text-xs font-semibold">
-            ตอบโดย DeepBot{isTest ? ' (โหมดทดสอบ)' : ''}
+            ตอบโดย {brand}{isTest ? ' (โหมดทดสอบ)' : ''}
           </div>
           <div className="text-default-600 px-3 py-2 text-xs">
-            {trace ? (
+            {trace?.matchedVia === 'CHATBOT' ? (
+              // คำตอบจาก AI ไม่ได้เกิดจากการจับคู่คำ จึงไม่มี "กลุ่มคำ"/"คำที่ตรง" ให้แสดง
+              // ยัดแถวว่างไว้จะโกหกว่ามีเงื่อนไขอยู่แต่หาไม่เจอ
+              <>
+                <p className="mb-2">
+                  AI แต่งคำตอบนี้จากคลังความรู้ของร้าน เพราะข้อความนี้ไม่ตรงกลุ่มคำไหนเลย
+                </p>
+                <dl className="mb-0">
+                  <Row label="เพจ" value={trace.channelName} />
+                  <Row label="โฆษณา" value={trace.adLabel} />
+                  <Row label="สินค้า" value={trace.productName} />
+                </dl>
+              </>
+            ) : trace ? (
               <>
                 <dl className="mb-0">
                   <Row label="กลุ่มคำ" value={trace.keywordName} />

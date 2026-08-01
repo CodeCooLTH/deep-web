@@ -241,7 +241,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
   try {
     const message = await prisma.chatMessage.findUnique({
       where: { id: job.chatMessageId },
-      select: { body: true, senderRole: true, autoReplyKind: true },
+      select: { body: true, senderRole: true, autoReplyKind: true, type: true, imageUrl: true },
     })
 
     // gate 0 — ข้อความฝั่งร้าน (รวมคำตอบของบอทเอง) ห้ามนำมาตรวจจับเด็ดขาด (BR-AR-22)
@@ -495,6 +495,8 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           shopId: job.shopId,
           conversationId: conversation.id,
           customerText: rawText,
+          // รูปที่ลูกค้าส่งมา — ส่งให้ AI ดูด้วย ไม่งั้นข้อความรูปล้วนจะไม่มีอะไรให้ตอบเลย
+          imageUrls: message.imageUrl ? [message.imageUrl] : [],
         })
         if (chatbot?.sent) {
           await prisma.conversation.update({
@@ -796,6 +798,7 @@ async function tryChatbotAnswer(params: {
   shopId: string
   conversationId: string
   customerText: string
+  imageUrls?: string[]
 }): Promise<{ sent: true; text: string; messageId: string | null } | null> {
   try {
     const cfg = await prisma.autoReplyConfig.findUnique({
@@ -841,6 +844,7 @@ async function tryChatbotAnswer(params: {
 
     const result = await answerFromKnowledge({
       customerText: params.customerText,
+      imageUrls: params.imageUrls,
       knowledge: knowledge.map((k) => ({ question: k.question, answer: k.answer })),
       knowledgeIds: knowledge.map((k) => k.id),
       guardrails,
