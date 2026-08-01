@@ -44,7 +44,7 @@ import ShipForm from './ShipForm'
 import ShipmentPanel from './ShipmentPanel'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 
-type Method = 'MANUAL' | 'ISHIP'
+type Method = 'MANUAL' | 'ISHIP' | 'ISHIP_LINK'
 
 interface ShipmentEntryModalProps {
   open: boolean
@@ -198,10 +198,19 @@ export default function ShipmentEntryModal({
                   type="button"
                   onClick={() => setMethod('ISHIP')}
                   aria-pressed={method === 'ISHIP'}
-                  className={`${segCls(method === 'ISHIP')} -ms-px rounded-s-none`}
+                  className={`${segCls(method === 'ISHIP')} -ms-px rounded-none`}
                 >
                   <Icon icon="package-export" className="text-sm" aria-hidden="true" />
                   สร้างพัสดุ iShip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMethod('ISHIP_LINK')}
+                  aria-pressed={method === 'ISHIP_LINK'}
+                  className={`${segCls(method === 'ISHIP_LINK')} -ms-px rounded-s-none`}
+                >
+                  <Icon icon="link" className="text-sm" aria-hidden="true" />
+                  เลือกจาก iShip
                 </button>
               </div>
             )}
@@ -211,7 +220,9 @@ export default function ShipmentEntryModal({
                 ? 'แก้ไขขนส่งหรือเลขพัสดุที่แจ้งไปแล้ว — ผู้ซื้อจะเห็นเลขใหม่ทันทีที่บันทึก'
                 : showManualForm
                   ? 'ส่งเอง: คุณส่งของกับขนส่งเอง แล้วนำเลขพัสดุมากรอกที่นี่เพื่อแจ้งผู้ซื้อ'
-                  : 'สร้างพัสดุ iShip: ระบบเปิดพัสดุและออกใบปะหน้าให้ ได้เลขพัสดุอัตโนมัติ'}
+                  : method === 'ISHIP_LINK'
+                    ? 'เลือกจาก iShip: ผูกพัสดุที่คุณเปิดไว้แล้วบน iShip เข้ากับคำสั่งซื้อนี้ ไม่เปิดใบใหม่'
+                    : 'สร้างพัสดุ iShip: ระบบเปิดพัสดุและออกใบปะหน้าให้ ได้เลขพัสดุอัตโนมัติ'}
             </p>
 
             {showManualForm ? (
@@ -227,7 +238,14 @@ export default function ShipmentEntryModal({
               />
             ) : (
               // ShipmentPanel มีกรอบการ์ดของตัวเอง — ที่นี่ต้องการเฉพาะเนื้อใน จึงส่ง bare
-              <ShipmentPanel orderToken={orderToken} context={ishipContext!} bare />
+              // key = method: สลับ segmented แล้วต้อง mount ใหม่ ไม่งั้นโหมดข้างในค้างค่าเดิม
+              <ShipmentPanel
+                key={method}
+                orderToken={orderToken}
+                context={ishipContext!}
+                bare
+                ishipMode={method === 'ISHIP_LINK' ? 'LINK' : 'CREATE'}
+              />
             )}
           </div>
         </div>

@@ -82,6 +82,8 @@ export interface ShipmentViewJson {
   id: string;
   orderId: string;
   status: string;
+  /** "CREATED" = Deep เปิดใบนี้เอง | "LINKED" = ผูกใบที่ร้านเปิดไว้บน iShip เข้ามา */
+  source: string;
   courierCode: string | null;
   courierName: string | null;
   trackingNo: string | null;

@@ -11,7 +11,21 @@ import { prisma } from "@/lib/prisma";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
-import { carrierStatusCodeFromId, describeCarrierStatus } from "@/lib/iship/status";
+import {
+  carrierStatusCodeFromId,
+  describeCarrierStatus,
+  impliesDispatched,
+} from "@/lib/iship/status";
+import {
+  diffReceiverAddress,
+  hasAddressConflict,
+  parseParcelRow,
+  parseParcelRows,
+  type ParcelPreview,
+  type UnlinkedParcelView,
+} from "@/lib/iship/unlinked";
+
+export type { ParcelPreview, UnlinkedParcelView };
 import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
 import {
   buildCreateOrderPayload,
@@ -73,6 +87,8 @@ export interface ShipmentView {
   id: string;
   orderId: string;
   status: string;
+  /** "CREATED" = Deep เปิดใบนี้เอง | "LINKED" = ร้านเปิดไว้บน iShip แล้วเอามาผูก */
+  source: string;
   courierCode: string | null;
   courierName: string | null;
   trackingNo: string | null;
@@ -373,6 +389,7 @@ function toShipmentView(s: {
   id: string;
   orderId: string;
   status: string;
+  source: string;
   courierCode: string | null;
   courierName: string | null;
   trackingNo: string | null;
@@ -427,6 +444,7 @@ const SHIPMENT_SELECT = {
   id: true,
   orderId: true,
   status: true,
+  source: true,
   courierCode: true,
   courierName: true,
   trackingNo: true,
@@ -1605,4 +1623,369 @@ export async function estimateShippingPrice(
     estimateDays: Number.isFinite(days) && days > 0 ? days : null,
     remoteArea: Number(price.remote_area) > 0,
   };
+}
+
+// ─── ผูกพัสดุที่มีอยู่แล้วบน iShip (ส่วนขยาย feature 00022) ─────────────────
+//
+// ปัญหาที่แก้: ร้านจำนวนหนึ่งเปิดพัสดุบนเว็บ iShip ก่อน แล้วค่อยมาบันทึกคำสั่งซื้อใน
+// ระบบเราทีหลัง ของเดิมมีแต่ "สร้างพัสดุใหม่" ร้านกลุ่มนี้จึงต้องเปิดใบที่สองทิ้งใบแรก
+// หรือไม่ก็เลิกใช้ส่วนจัดส่งของเราไปเลย
+
+/** รูปของ idempotencyKey ที่ Deep เป็นคนสร้าง — "<uuid>:<attempt>" หรือ "link:<track>:<attempt>" */
+const DEEP_KEY_RE =
+  /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:\d+|link:.+:\d+)$/i;
+
+/** ช่วงวันที่ที่ดึงรายการมาให้เลือก — iShip จำกัดไม่เกิน 7 วันต่อคำขอ (เกินแล้วตอบ code 1009) */
+const UNLINKED_WINDOW_DAYS = 6;
+
+/**
+ * listUnlinkedParcels — พัสดุของร้านบน iShip ที่ยังว่างให้ผูก
+ *
+ * ยิง query_orders ครั้งเดียวได้ทั้งชุดพร้อมที่อยู่ผู้รับครบ (ไม่ต้องวน get_order รายใบ
+ * ซึ่งจะกลายเป็นหลักร้อยคำขอต่อการเปิดหน้าจอหนึ่งครั้ง)
+ */
+export async function listUnlinkedParcels(
+  shopId: string,
+): Promise<UnlinkedParcelView[]> {
+  const { token } = await loadAccount(shopId);
+
+  const now = Date.now();
+  const rows = await withTokenGuard(shopId, () =>
+    iship.queryOrders(
+      token,
+      isoDate(new Date(now - UNLINKED_WINDOW_DAYS * 24 * 60 * 60 * 1000)),
+      isoDate(new Date(now)),
+    ),
+  );
+
+  const parcels = parseParcelRows(rows).filter((p) => {
+    // ยกเลิกไปแล้ว = ผูกไปก็ใช้ส่งของไม่ได้ ไม่ควรอยู่ในตัวเลือกตั้งแต่แรก
+    if (p.cancelledAtRaw) return false;
+    return carrierStatusCodeFromId(p.statusId) !== "cancelled";
+  });
+  if (parcels.length === 0) return [];
+
+  // ตัดใบที่ผูกไปแล้วออก — เทียบทั้งระบบไม่ใช่แค่ร้านนี้ เพราะ trackingNo มี partial
+  // unique ระดับตาราง ถ้าโชว์ใบที่ร้านอื่นถืออยู่ ร้านจะกดแล้วเจอ error ปลายทางเปล่า ๆ
+  const trackNos = parcels.map((p) => p.trackNo);
+  const [taken, deepKeys, couriers] = await Promise.all([
+    prisma.orderShipment.findMany({
+      where: { trackingNo: { in: trackNos } },
+      select: { trackingNo: true },
+    }),
+    prisma.orderShipment.findMany({
+      where: { shopId, idempotencyKey: { in: parcels.map((p) => p.customOrderId ?? "") } },
+      select: { idempotencyKey: true },
+    }),
+    // ชื่อขนส่งไว้โชว์ — ล้มก็ยังใช้งานต่อได้ด้วยรหัส ไม่ควรทำให้ทั้งหน้าจอพัง
+    listCouriers(shopId).catch(() => []),
+  ]);
+
+  const takenSet = new Set(taken.map((t) => t.trackingNo));
+  const knownKeys = new Set(deepKeys.map((d) => d.idempotencyKey));
+  const courierName = new Map(couriers.map((c) => [c.code, c.name]));
+
+  return parcels
+    .filter((p) => !takenSet.has(p.trackNo))
+    .map((p) => {
+      const carrierStatus = carrierStatusCodeFromId(p.statusId);
+      return {
+        trackNo: p.trackNo,
+        courierCode: p.courierCode,
+        courierName: p.courierCode ? (courierName.get(p.courierCode) ?? null) : null,
+        courierLogo: p.courierLogo,
+        carrierStatus,
+        // status_name ดิบจาก iShip ชนะคำของเรา เพราะเป็นคำที่ร้านเห็นบนเว็บ iShip อยู่แล้ว
+        carrierStatusText: p.statusName ?? describeCarrierStatus(carrierStatus).text,
+        codAmount: p.codAmount,
+        receiver: p.receiver,
+        createdAtRaw: p.createdAtRaw,
+        fromDeepOrphan:
+          p.customOrderId !== null &&
+          DEEP_KEY_RE.test(p.customOrderId) &&
+          !knownKeys.has(p.customOrderId),
+      };
+    })
+    .sort((a, b) => (b.createdAtRaw ?? "").localeCompare(a.createdAtRaw ?? ""));
+}
+
+/**
+ * previewLink — ดึงพัสดุใบเดียวพร้อมตารางเทียบที่อยู่กับคำสั่งซื้อ
+ *
+ * อ่านจาก iShip ใหม่ ไม่รับที่อยู่ที่ client ส่งมา — ที่อยู่ที่โชว์ให้ร้านตัดสินใจต้องเป็น
+ * ของจริงจากต้นทาง ไม่ใช่ค่าที่เดินทางผ่านเบราว์เซอร์มาแล้ว (แก้ระหว่างทางได้)
+ */
+export async function previewLink(
+  shopId: string,
+  orderId: string,
+  trackingNo: string,
+): Promise<ParcelPreview> {
+  const [{ order }, parcel] = await Promise.all([
+    loadOrderForLink(shopId, orderId),
+    fetchParcel(shopId, trackingNo),
+  ]);
+
+  const diff = diffReceiverAddress(
+    {
+      name: order.buyerName,
+      phone: order.buyerContact,
+      address: order.shippingAddress as DeepAddress | null,
+    },
+    parcel.receiver,
+  );
+
+  return { parcel, diff, hasConflict: hasAddressConflict(diff) };
+}
+
+/** อ่านคำสั่งซื้อ + กันเงื่อนไขที่ผูกไม่ได้ตั้งแต่ต้น */
+async function loadOrderForLink(shopId: string, orderId: string) {
+  const order = await prisma.order.findFirst({
+    // scope ownership ใน where เสมอ (feedback_rsc_dal_authz)
+    where: { id: orderId, shopId },
+    select: {
+      id: true,
+      publicToken: true,
+      status: true,
+      fulfillmentMode: true,
+      buyerName: true,
+      buyerContact: true,
+      shippingAddress: true,
+    },
+  });
+  if (!order) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำสั่งซื้อนี้");
+  if (order.fulfillmentMode !== "SHIPPED") {
+    throw new IShipServiceError("NOT_ELIGIBLE", "คำสั่งซื้อนี้ไม่ใช่แบบจัดส่ง");
+  }
+  return { order };
+}
+
+/** ดึงพัสดุใบเดียวจาก iShip แล้วแกะเป็นรูปที่หน้าจอใช้ได้ */
+async function fetchParcel(
+  shopId: string,
+  trackingNo: string,
+): Promise<UnlinkedParcelView> {
+  const { token } = await loadAccount(shopId);
+  const raw = await withTokenGuard(shopId, () => iship.getOrder(token, trackingNo));
+  const parcel = parseParcelRow(raw);
+  if (!parcel) {
+    throw new IShipServiceError(
+      "NOT_FOUND",
+      "ไม่พบพัสดุเลขนี้ในบัญชี iShip ของร้าน",
+    );
+  }
+  if (parcel.cancelledAtRaw) {
+    throw new IShipServiceError("INVALID_STATE", "พัสดุใบนี้ถูกยกเลิกไปแล้ว");
+  }
+
+  const carrierStatus = carrierStatusCodeFromId(parcel.statusId);
+  return {
+    trackNo: parcel.trackNo,
+    courierCode: parcel.courierCode,
+    courierName: await resolveCourierName(shopId, parcel.courierCode),
+    courierLogo: parcel.courierLogo,
+    carrierStatus,
+    carrierStatusText: parcel.statusName ?? describeCarrierStatus(carrierStatus).text,
+    codAmount: parcel.codAmount,
+    receiver: parcel.receiver,
+    createdAtRaw: parcel.createdAtRaw,
+    fromDeepOrphan: false,
+  };
+}
+
+export type AddressResolution = "KEEP_ORDER" | "USE_ISHIP";
+
+/**
+ * linkShipment — ผูกพัสดุที่มีอยู่แล้วเข้ากับคำสั่งซื้อ
+ *
+ * ไม่เรียก create_order เลยสักครั้ง = ไม่เกิดค่าใช้จ่ายใหม่ของร้าน แต่ยังต้องให้ร้าน
+ * ยืนยันอยู่ดี เพราะผูกผิดใบ = เลขติดตามผิดคนถูกส่งให้ผู้ซื้อ
+ */
+export async function linkShipment(
+  shopId: string,
+  userId: string,
+  orderId: string,
+  trackingNo: string,
+  addressResolution: AddressResolution,
+): Promise<ShipmentView> {
+  const { order } = await loadOrderForLink(shopId, orderId);
+  const parcel = await fetchParcel(shopId, trackingNo);
+
+  // 1 คำสั่งซื้อมีพัสดุที่ยังใช้งานอยู่ได้ใบเดียว (BR-ISHIP-22) — เหมือนทางสร้างใหม่
+  const active = await prisma.orderShipment.findFirst({
+    where: { orderId, status: { not: "CANCELLED" } },
+    select: { id: true },
+  });
+  if (active) {
+    throw new IShipServiceError(
+      "SHIPMENT_EXISTS",
+      "คำสั่งซื้อนี้มีพัสดุที่ยังใช้งานอยู่แล้ว",
+    );
+  }
+
+  // เลขติดตามห้ามซ้ำทั้งตาราง — เช็คก่อนเพื่อให้ได้ข้อความที่อธิบายได้ แทนที่จะปล่อยให้
+  // ชน partial unique แล้วโผล่เป็น error กลาง ๆ ที่ร้านอ่านไม่รู้เรื่อง
+  const taken = await prisma.orderShipment.findFirst({
+    where: { trackingNo },
+    select: { orderId: true },
+  });
+  if (taken) {
+    throw new IShipServiceError(
+      "SHIPMENT_EXISTS",
+      taken.orderId === orderId
+        ? "พัสดุใบนี้ผูกกับคำสั่งซื้อนี้อยู่แล้ว"
+        : "พัสดุใบนี้ถูกผูกกับคำสั่งซื้ออื่นไปแล้ว",
+    );
+  }
+
+  if (addressResolution === "USE_ISHIP") {
+    await applyReceiverPatch(shopId, orderId, {
+      name: parcel.receiver.name,
+      phone: parcel.receiver.phone,
+      line1: parcel.receiver.line1,
+      subdistrict: parcel.receiver.subdistrict,
+      district: parcel.receiver.district,
+      province: parcel.receiver.province,
+      postcode: parcel.receiver.postcode,
+    });
+  }
+
+  const cancelledCount = await prisma.orderShipment.count({
+    where: { orderId, status: "CANCELLED" },
+  });
+
+  const created = await prisma.orderShipment.create({
+    data: {
+      orderId,
+      shopId,
+      status: "CREATED",
+      source: "LINKED",
+      linkedAt: new Date(),
+      // คีย์คนละรูปกับใบที่เราเปิดเอง โดยเจตนา — ใบนี้ไม่เคยมี custom_order_id ของเรา
+      // ฝั่ง iShip การเอารูปเดิมมาใช้จะทำให้อ่านผิดว่าเราเป็นคนยิง create_order
+      idempotencyKey: `link:${trackingNo}:${cancelledCount + 1}`,
+      trackingNo,
+      courierCode: parcel.courierCode,
+      courierName: parcel.courierName,
+      codAmount: parcel.codAmount,
+      carrierStatus: parcel.carrierStatus,
+      carrierStatusText: parcel.carrierStatusText,
+      carrierStatusAt: new Date(),
+      createdByUserId: userId,
+      receiverSnapshot: parcel.receiver as object,
+    },
+    select: { id: true },
+  });
+
+  // เติมไทม์ไลน์ย้อนหลังทันที — ใบที่ผูกย้อนหลังอาจเดินทางไปไกลแล้วตั้งแต่เมื่อวาน
+  // ถ้าไม่ดึงตรงนี้ แถบความคืบหน้าจะค้างที่ขั้นแรกจนกว่าจะมีคนเปิดดูไทม์ไลน์
+  //
+  // ล้มแล้วห้าม rollback การผูก: แถวถูกสร้างถูกต้องแล้วจากสถานะที่ get_order คืนมา
+  // ส่วนนี้เป็นแค่การเติมรายละเอียด — และกรณีที่พบบ่อยที่สุดคือ "ขนส่งยังไม่สแกน"
+  // ซึ่ง iShip ตอบ 500 ไม่มีข้อความ (ไม่ใช่ความผิดพลาดจริง)
+  try {
+    await getTraces(shopId, created.id);
+  } catch {
+    // ตั้งใจกลืน — ดูเหตุผลด้านบน
+  }
+
+  await advanceOrderIfDispatched(order, parcel);
+
+  const row = await prisma.orderShipment.findUniqueOrThrow({
+    where: { id: created.id },
+    select: SHIPMENT_SELECT,
+  });
+  return toShipmentView(row);
+}
+
+/**
+ * advanceOrderIfDispatched — ขยับคำสั่งซื้อเป็น "จัดส่งแล้ว" เมื่อพัสดุออกเดินทางไปแล้ว
+ *
+ * ==========================================================================
+ * ข้อยกเว้นที่ user ตัดสินไว้ 2026-08-01 — ขอบเขตแคบ ๆ เฉพาะ "การผูกพัสดุ" เท่านั้น
+ * --------------------------------------------------------------------------
+ * BR-ISHIP-41 เดิมห้ามระบบขยับสถานะคำสั่งซื้อเอง (ให้ webhook แค่ "เสนอ") เหตุผลคือ
+ * พัสดุที่เราเปิดเองจะเดินทางไปพร้อมกับที่ร้านยังดูหน้าจออยู่ การให้ร้านกดยืนยันจึงไม่
+ * เสียเวลาอะไร
+ *
+ * แต่การผูกย้อนหลังเป็นคนละสถานการณ์: ร้านสร้างพัสดุไว้ตั้งแต่กลางวัน มาบันทึกคำสั่งซื้อ
+ * ตอนกลางคืน พัสดุอาจถึงมือผู้ซื้อไปแล้วด้วยซ้ำ ถ้าไม่ขยับให้ ออเดอร์จะค้างที่ "รอจัดส่ง"
+ * ทั้งที่ของถึงแล้ว — ผู้ซื้อที่เปิดลิงก์ออเดอร์จะเห็นข้อมูลที่ขัดกับความจริงตรงหน้า
+ *
+ * จึงเขียน ShipmentTracking ที่นี่ ซึ่ง "ทำลายข้อสังเกตเดิม" ที่ order.service เขียนไว้ว่า
+ * iShip flow ไม่เคยแตะตารางนั้น — ตั้งใจและจำกัดไว้ที่ฟังก์ชันนี้ฟังก์ชันเดียว
+ * ใช้ upsert เพราะ orderId เป็น unique: ออเดอร์ที่ร้านเคยกด "แจ้งจัดส่ง" ด้วยมือมาก่อน
+ * จะมีแถวอยู่แล้ว ถ้า create ตรง ๆ จะชน P2002 แล้วการผูกล้มทั้งที่ไม่มีอะไรผิด
+ * ==========================================================================
+ */
+async function advanceOrderIfDispatched(
+  order: { id: string; status: string },
+  parcel: UnlinkedParcelView,
+): Promise<void> {
+  // PENDING เท่านั้น — ออเดอร์ที่ยืนยัน/ยกเลิกไปแล้วห้ามถูกดึงกลับมาเป็น "จัดส่งแล้ว"
+  if (order.status !== "PENDING") return;
+  if (!impliesDispatched(parcel.carrierStatus)) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.shipmentTracking.upsert({
+      where: { orderId: order.id },
+      create: {
+        orderId: order.id,
+        provider: parcel.courierCode ?? "ISHIP",
+        trackingNo: parcel.trackNo,
+      },
+      update: {
+        provider: parcel.courierCode ?? "ISHIP",
+        trackingNo: parcel.trackNo,
+      },
+    });
+    await tx.order.update({ where: { id: order.id }, data: { status: "SHIPPED" } });
+  });
+}
+
+/**
+ * unlinkShipment — เลิกผูก (ไม่ยกเลิกพัสดุจริงกับขนส่ง)
+ *
+ * ทำไมต้อง "ลบแถว" ไม่ใช่ mark CANCELLED เหมือนการยกเลิกพัสดุ:
+ * partial unique ของ trackingNo ครอบทุกแถวที่ trackingNo ไม่เป็น null โดยไม่สนสถานะ
+ * ถ้าปิดใบด้วย CANCELLED เลขนั้นจะถูกจองไว้ตลอดกาล แล้วร้านที่ผูกผิดใบจะเอาไปผูกกับ
+ * คำสั่งซื้อที่ถูกต้องไม่ได้อีกเลย ซึ่งขัดกับเหตุผลทั้งหมดที่ปุ่มนี้มีอยู่
+ */
+export async function unlinkShipment(
+  shopId: string,
+  shipmentId: string,
+): Promise<void> {
+  const row = await prisma.orderShipment.findFirst({
+    where: { id: shipmentId, shopId },
+    select: { id: true, orderId: true, source: true, trackingNo: true },
+  });
+  if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
+  if (row.source !== "LINKED") {
+    throw new IShipServiceError(
+      "INVALID_STATE",
+      "พัสดุใบนี้เปิดผ่าน Deep — ต้องใช้ปุ่มยกเลิกพัสดุ ไม่ใช่เลิกผูก",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // คืนสถานะออเดอร์ที่ "ขยับให้ตอนผูก" กลับด้วย — ไม่งั้นเลิกผูกแล้วออเดอร์ยังค้าง
+    // เป็น "จัดส่งแล้ว" พร้อมเลขพัสดุที่ไม่เกี่ยวข้องกันอีกต่อไป
+    const tracking = await tx.shipmentTracking.findUnique({
+      where: { orderId: row.orderId },
+      select: { id: true, trackingNo: true },
+    });
+    if (tracking && row.trackingNo && tracking.trackingNo === row.trackingNo) {
+      await tx.shipmentTracking.delete({ where: { id: tracking.id } });
+      const order = await tx.order.findUnique({
+        where: { id: row.orderId },
+        select: { status: true },
+      });
+      if (order?.status === "SHIPPED") {
+        await tx.order.update({
+          where: { id: row.orderId },
+          data: { status: "PENDING" },
+        });
+      }
+    }
+    await tx.orderShipment.delete({ where: { id: row.id } });
+  });
 }
