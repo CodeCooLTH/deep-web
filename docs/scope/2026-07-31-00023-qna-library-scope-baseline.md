@@ -127,25 +127,25 @@ v1 จับคู่ **ตรงตัว 100% หลัง `normalizeMessage()
 
 | ID | รายการ | Pri | Dep | สถานะ |
 |----|--------|-----|-----|-------|
-| **S-00** | **doc-first (Hard Rule 11)** — เพิ่ม FR/BR/TFR/ตาราง/endpoint ลง SRS·SDS·DATABASE·API·TestCase ของ 00023 **ก่อนเขียนโค้ด** | P0 | — | TODO |
-| S-01 | migration additive เขียนมือ: `AutoReplyQna` + `AutoReplyUnansweredQuestion` + `AutoReplyLog.qnaId`/`matchedVia` + `AutoReplyKeyword.qnaSimilarityEnabled` (นอนเฉย — A1) | P0 | S-00 | TODO |
-| S-02 | ค่าคงที่: `MATCHED_VIA` (`KEYWORD`/`QNA`), `RESOLUTION_LEVELS` เพิ่ม `QNA` | P0 | S-01 | TODO |
-| S-03 | `src/lib/auto-reply-qna-match.ts` — ฟังก์ชันบริสุทธิ์ `matchQna()` โหมด `EXACT` (A1) + unit test | P0 | S-02 | TODO |
-| S-04 | เสียบ QnA เข้า `auto-reply.service.ts` (หลัง matchKeywords, ก่อน gate 6.5) + `loadRuleSet` โหลด QnA + `/simulate` เห็นผลเดียวกัน | P0 | S-03 | TODO |
-| S-05 | `auto-reply-qna.service.ts` — CRUD + bulk (เปิด/ปิด/ย้ายกลุ่ม/ลบ) + นับการใช้งาน | P0 | S-01 | TODO |
-| S-06 | คิว: เขียน upsert ตอน `NO_KEYWORD_MATCH` + ตัวกรอง PII/รับคำ (D5 + A4) + unit test ตัวกรอง | P0 | S-01 | TODO |
-| S-07 | สคริปต์ backfill คิวจาก `AutoReplyLog` 401 แถวเดิม (`scripts/backfill-auto-reply-unanswered.ts`) — **อ่านอย่างเดียว + upsert เท่านั้น** | P0 | S-06 | TODO |
-| S-08 | `auto-reply-unanswered.service.ts` — list/นับ/ข้าม/แปลงเป็น QnA | P0 | S-06 | TODO |
-| S-09 | API `/api/shops/auto-reply/keywords/[id]/qna` (GET list+filter, POST, PATCH, DELETE) + Valibot schema | P0 | S-05 | TODO |
-| S-10 | API `/api/shops/auto-reply/keywords/[id]/qna/bulk` (เปิด/ปิด/ย้ายกลุ่ม/ลบหลายข้อ) | P0 | S-05 | TODO |
-| S-11 | API `/api/shops/auto-reply/unanswered` (GET list, POST dismiss, POST convert) | P0 | S-08 | TODO |
-| **S-12** | **`safepay-ux` Design Spec** ของ 2 หน้า (Hard Rule 8 — mandatory gate ก่อนแตะ frontend) | P0 | — | TODO |
+| **S-00** | **doc-first (Hard Rule 11)** — เพิ่ม FR/BR/TFR/ตาราง/endpoint ลง SRS·SDS·DATABASE·API·TestCase ของ 00023 **ก่อนเขียนโค้ด** | P0 | — | DONE (SRS/DATABASE/SDS §14/API/TestCase ครบ 2026-08-01) |
+| S-01 | migration additive เขียนมือ: `AutoReplyQna` + `AutoReplyUnansweredQuestion` + `AutoReplyLog.qnaId`/`matchedVia` + `AutoReplyKeyword.qnaSimilarityEnabled` (นอนเฉย — A1) | P0 | S-00 | DONE (apply แล้วทั้ง dev + prod) |
+| S-02 | ค่าคงที่: `MATCHED_VIA` (`KEYWORD`/`QNA`), `RESOLUTION_LEVELS` เพิ่ม `QNA` | P0 | S-01 | DONE |
+| S-03 | `src/lib/auto-reply-qna-match.ts` — ฟังก์ชันบริสุทธิ์ `matchQna()` โหมด `EXACT` (A1) + unit test | P0 | S-02 | DONE (+unit test) |
+| S-04 | เสียบ QnA เข้า `auto-reply.service.ts` (หลัง matchKeywords, ก่อน gate 6.5) + `loadRuleSet` โหลด QnA + `/simulate` เห็นผลเดียวกัน | P0 | S-03 | DONE (รวม /simulate — T04b 2026-08-01) |
+| S-05 | `auto-reply-qna.service.ts` — CRUD + bulk (เปิด/ปิด/ย้ายกลุ่ม/ลบ) + นับการใช้งาน | P0 | S-01 | DONE |
+| S-06 | คิว: เขียน upsert ตอน `NO_KEYWORD_MATCH` + ตัวกรอง PII/รับคำ (D5 + A4) + unit test ตัวกรอง | P0 | S-01 | DONE (+unit test ตัวกรอง) |
+| S-07 | สคริปต์ backfill คิวจาก `AutoReplyLog` 401 แถวเดิม (`scripts/backfill-auto-reply-unanswered.ts`) — **อ่านอย่างเดียว + upsert เท่านั้น** | P2 | S-06 | โค้ดพร้อม ยังไม่รัน (user ตัดสิน 2026-08-01: ไม่จำเป็น — คิวเติมเอง) |
+| S-08 | `auto-reply-unanswered.service.ts` — list/นับ/ข้าม/แปลงเป็น QnA | P0 | S-06 | DONE |
+| S-09 | API `/api/shops/auto-reply/keywords/[id]/qna` (GET list+filter, POST, PATCH, DELETE) + Valibot schema | P0 | S-05 | DONE |
+| S-10 | API `/api/shops/auto-reply/keywords/[id]/qna/bulk` (เปิด/ปิด/ย้ายกลุ่ม/ลบหลายข้อ) | P0 | S-05 | DONE |
+| S-11 | API `/api/shops/auto-reply/unanswered` (GET list, POST dismiss, POST convert) | P0 | S-08 | DONE |
+| **S-12** | **`safepay-ux` Design Spec** ของ 2 หน้า (Hard Rule 8 — mandatory gate ก่อนแตะ frontend) | P0 | — | DONE (+Revision v2) |
 | S-13 | หน้า `/settings/auto-reply/[id]/qna` — ตาราง + ค้นหา + ชิปกรอง + เลือกหลายข้อ + แถบ bulk (mockup §07) | P0 | S-12, S-09, S-10 | TODO |
 | S-14 | หน้า `/settings/auto-reply/unanswered` — คิว + sheet กรอกคำตอบ + เลือกกลุ่มปลายทาง (mockup §05) | P0 | S-12, S-11 | TODO |
 | S-15 | ลิงก์เข้า 2 หน้าใหม่จากหน้ารายการกลุ่มคำ (`AutoReplyListing.tsx` — **ไม่ใช่** `[id]/KeywordEditorClient.tsx`) | P1 | S-13, S-14 | TODO |
 | S-16 | นำเข้า/ส่งออก **CSV UTF-8 BOM** คอลัมน์ `คำถาม, คำตอบ, เปิดใช้งาน` (service + API + UI พร้อมพรีวิวก่อนยืนยัน) | P1 | S-13 | TODO |
 | S-17 | ป้าย DeepBot บอก "ตอบจากคลังคำถาม + ข้อไหน" (`AutoReplyTag.tsx` — mockup §06 callout ท้าย) | P1 | S-04 | TODO |
-| **S-20** | **ป้าย "DeepBot" ในรายการแชท** (`InboxList.tsx`) เมื่อข้อความล่าสุดของแถวนั้นถูกตอบโดยบอท — user สั่ง 2026-07-31 พร้อมภาพอ้างอิง 2 รูป | P0 | S-12 | TODO |
+| **S-20** | **ป้าย "DeepBot" ในรายการแชท** (`InboxList.tsx`) เมื่อข้อความล่าสุดของแถวนั้นถูกตอบโดยบอท — user สั่ง 2026-07-31 พร้อมภาพอ้างอิง 2 รูป | P0 | S-12 | DONE (enrich + prefix ใน InboxList — ไม่มี migration ตามที่ user ตัดสิน) |
 | **S-21** | **แนบรูปในคำตอบอัตโนมัติ** — `imageFileIds` บน `AutoReplyRule` + `AutoReplyQna` · `sendAutoReply` ส่งรูป · แก้จุดที่ข้อความตามหลังรูปล้มแล้วเงียบ · ช่องอัปโหลดใน**หน้าใหม่** (ในหน้าแก้ไขกลุ่มคำ รอ Q5) | P0 | S-01, **Q5** บางส่วน | TODO |
 | **S-22** | **mini action ในห้องแชท** — กดใต้บับเบิลลูกค้าแล้วสร้าง QnA โดยเติมคำถาม+คำตอบมาให้อัตโนมัติ (`ChatThread.tsx`) | P0 | S-05, S-12 | TODO |
 | S-18 | E2E Playwright: กรอกคำตอบจากคิว → ยิงข้อความจริง → บอทตอบจากคลัง | P0 | S-13, S-14 | TODO |

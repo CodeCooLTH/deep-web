@@ -178,6 +178,13 @@ const ERROR_MAP = new Map<string, { status: number; error: string }>(
   AUTO_REPLY_QNA_TOO_MANY_IMAGES: { status: 400, error: 'แนบรูปได้สูงสุด 5 รูปต่อหนึ่งคำตอบ' },
   AUTO_REPLY_QNA_DUPLICATE: { status: 409, error: 'มีคำถามนี้อยู่ในกลุ่มนี้แล้ว — แก้ข้อเดิมแทนการเพิ่มใหม่' },
   AUTO_REPLY_QNA_MOVE_TARGET_REQUIRED: { status: 400, error: 'กรุณาเลือกกลุ่มปลายทางก่อนย้าย' },
+
+  // คิวคำถามที่ตอบไม่ได้ — `AUTO_REPLY_UNANSWERED_NOT_FOUND` ถูก suffix rule ครอบแล้ว
+  // ส่วนตัวนี้ต้องอยู่ในตารางเพราะลงท้ายด้วย ALREADY_ANSWERED (409 ไม่ใช่ 404)
+  AUTO_REPLY_UNANSWERED_ALREADY_ANSWERED: {
+    status: 409,
+    error: 'คำถามนี้ถูกตอบไปแล้ว — เปิดคลังคำถามของกลุ่มนั้นเพื่อแก้คำตอบเดิมแทน',
+  },
   }),
 )
 

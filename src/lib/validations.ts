@@ -1242,6 +1242,23 @@ export const AutoReplyQnaBulkSchema = v.object({
   targetKeywordId: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
 })
 
+/* ── คิวคำถามที่ตอบไม่ได้ (phase `00023-qna` — API.md §4.37-§4.40) ─────────── */
+
+export const AutoReplyUnansweredListQuerySchema = v.object({
+  // ตรงกับแท็บ 2 ตัวใน UI (Revision v2 ข้อ 1): "รอกรอก" = PENDING · "ข้ามแล้ว" = DISMISSED
+  // ANSWERED รับไว้ด้วยเพื่อให้ debug/ตรวจย้อนหลังได้ แม้ยังไม่มีแท็บให้กด
+  status: v.optional(v.picklist(['PENDING', 'DISMISSED', 'ANSWERED'])),
+  search: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
+  take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(200))),
+})
+
+export const AutoReplyUnansweredConvertSchema = v.object({
+  keywordId: v.pipe(v.string(), v.trim(), v.minLength(1, 'กรุณาเลือกกลุ่มคำปลายทาง')),
+  question: v.pipe(v.string(), v.trim(), v.minLength(1, 'กรุณาระบุคำถาม'), v.maxLength(500, 'คำถามยาวเกิน 500 ตัวอักษร')),
+  answer: v.pipe(v.string(), v.trim(), v.maxLength(2000, 'คำตอบยาวเกิน 2,000 ตัวอักษร')),
+  imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5, 'แนบรูปได้สูงสุด 5 รูป'))),
+})
+
 export const AutoReplyPhrasesSchema = v.object({
   phrases: v.pipe(
     v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),

@@ -127,6 +127,13 @@ export type ConversationListItem = {
   // null = ไม่ต้องแสดงชิป (ไม่เคยมีออเดอร์ หรือป้ายหมดอายุแล้ว — ดู deriveOrderStage)
   // enrich ด้วย enrichWithOrderStage ทั้งฝั่ง RSC (inbox/page.tsx) และ route; optional เผื่อ payload เก่า
   orderStage?: { key: string; label: string; cls: string; icon: string; printCount?: number } | null
+  // S-20 (phase 00023-qna) — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
+  // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null)
+  // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route
+  // optional เผื่อ payload เก่าที่ยังไม่มี field นี้ -> fallback เป็นพฤติกรรมเดิม ("คุณ: ")
+  lastMessageAutoReplyKind?: string | null
+  /** สงวนไว้สำหรับ DeepAI (AI Enhance) — ยังเป็น false เสมอในเฟสนี้ */
+  lastMessageIsAiEnhanced?: boolean
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null
@@ -1222,9 +1229,16 @@ export default function InboxList({
                           unread ? 'text-default-800 font-semibold' : 'text-default-500'
                         }`}
                       >
-                        {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
-                          <span className="text-default-500 font-normal">คุณ: </span>
-                        )}
+                        {c.lastSenderRole === 'SHOP' &&
+                          c.lastMessagePreview &&
+                          (c.lastMessageAutoReplyKind ? (
+                            <span className="text-primary inline-flex items-center gap-0.5 font-medium">
+                              <Icon icon="robot" width={12} height={12} aria-hidden="true" />
+                              {c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot'}:{' '}
+                            </span>
+                          ) : (
+                            <span className="text-default-500 font-normal">คุณ: </span>
+                          ))}
                         {preview}
                       </span>
                       {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
