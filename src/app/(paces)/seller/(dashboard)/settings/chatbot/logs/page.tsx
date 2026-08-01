@@ -31,7 +31,13 @@ export default async function ChatbotLogsPage() {
   if (!activeCtx) return null
 
   const rows = await prisma.autoReplyLog.findMany({
-    where: { shopId: activeCtx.shopId, matchedVia: 'CHATBOT' },
+    where: {
+      shopId: activeCtx.shopId,
+      // ทั้งครั้งที่ตอบสำเร็จ (matchedVia) และครั้งที่ไม่ได้ตอบพร้อมเหตุผล (errorMessage)
+      // — ครั้งที่ไม่ตอบคือสิ่งที่ร้านอยากรู้มากที่สุด ("ทำไมบอทเงียบ") การโชว์แต่ที่สำเร็จ
+      // ทำให้หน้านี้ดูเหมือนทุกอย่างปกติทั้งที่มีคำถามหลุดไปเรื่อย ๆ
+      OR: [{ matchedVia: 'CHATBOT' }, { errorMessage: { startsWith: 'CHATBOT:' } }],
+    },
     orderBy: { createdAt: 'desc' },
     take: 100,
     select: {
@@ -42,6 +48,7 @@ export default async function ChatbotLogsPage() {
       decision: true,
       isTest: true,
       durationMs: true,
+      errorMessage: true,
       conversationId: true,
       conversation: {
         select: {
@@ -59,6 +66,8 @@ export default async function ChatbotLogsPage() {
     customerText: r.rawText,
     replyText: r.replyText,
     decision: r.decision,
+    // 'CHATBOT:GUARDRAILS_BLOCKED' -> 'GUARDRAILS_BLOCKED'
+    skipReason: r.errorMessage?.startsWith('CHATBOT:') ? r.errorMessage.slice('CHATBOT:'.length) : null,
     isTest: r.isTest,
     durationMs: r.durationMs,
     conversationId: r.conversationId,

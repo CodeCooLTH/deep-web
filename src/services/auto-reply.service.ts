@@ -467,6 +467,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     const replyText = (qnaMatch ? qnaMatch.qna.answer : resolved?.rule?.replyText)?.trim() ?? ''
     const replyImages = qnaMatch ? qnaMatch.qna.imageFileIds : []
     if (!replyText && replyImages.length === 0) {
+      let chatbotReason: string | null = null
       const reason: SkipReason = !effectiveKeywordId
         ? 'NO_KEYWORD_MATCH'
         : qnaMatch || resolved?.rule
@@ -509,7 +510,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           // รูปที่ลูกค้าส่งมา — ส่งให้ AI ดูด้วย ไม่งั้นข้อความรูปล้วนจะไม่มีอะไรให้ตอบเลย
           imageUrls: message.imageUrl ? [message.imageUrl] : [],
         })
-        if (chatbot?.sent) {
+        if (chatbot.sent) {
           await prisma.conversation.update({
             where: { id: conversation.id },
             data: { autoReplyCount: { increment: 1 }, lastAutoReplyAt: new Date() },
@@ -536,8 +537,20 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
          * ลำดับการเขียนแน่นอนตอนเทส — คิวพังไม่ทำให้งานค้างสถานะเพราะ finish() ทำงานต่อเสมอ
          */
         await recordUnanswered({ shopId: job.shopId, rawText, normalizedText })
+        // เหตุผลที่บอทไม่ตอบ — รูปแบบเดียวกับ AI_ENHANCE:<reason> ของเส้นทาง Auto Reply
+        chatbotReason = chatbot.reason
       }
-      return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason }, startedAt)
+      return finish(
+        job,
+        'SKIPPED',
+        {
+          ...common,
+          decision: 'HANDOFF',
+          skipReason: reason,
+          errorMessage: chatbotReason ? `CHATBOT:${chatbotReason}` : null,
+        },
+        startedAt
+      )
     }
 
     /**
@@ -834,12 +847,22 @@ async function sendFallback(
   return { sent: true, text, messageId: sent.messageId ?? null }
 }
 
+type ChatbotOutcome =
+  | { sent: true; text: string; messageId: string | null }
+  | { sent: false; reason: string }
+
+/**
+ * WARNING: ทุกทางที่ "ไม่ได้ตอบ" ต้องคืนเหตุผลเสมอ ห้ามคืน null เปล่า
+ *
+ * เดิมคืน null ทุกกรณี บันทึกจึงไม่มีอะไรบอกว่าทำไมบอทเงียบ — ต้องไล่ query ฐาน prod
+ * เทียบกับตาราง usage ทีละครั้งถึงจะรู้ (เกิดขึ้น 4 รอบในวันเดียว 2026-08-01)
+ */
 async function tryChatbotAnswer(params: {
   shopId: string
   conversationId: string
   customerText: string
   imageUrls?: string[]
-}): Promise<{ sent: true; text: string; messageId: string | null } | null> {
+}): Promise<ChatbotOutcome> {
   try {
     const cfg = await prisma.autoReplyConfig.findUnique({
       where: { shopId: params.shopId },
@@ -858,7 +881,7 @@ async function tryChatbotAnswer(params: {
       },
     })
     const status = cfg?.aiChatbotStatus ?? 'OFFLINE'
-    if (status === 'OFFLINE') return null
+    if (status === 'OFFLINE') return { sent: false, reason: 'OFFLINE' }
 
     // TEST = ตอบเฉพาะแชทที่ร้านเลือกไว้ (โครงเดียวกับกลุ่มคำสถานะ TEST)
     if (status === 'TEST') {
@@ -866,10 +889,10 @@ async function tryChatbotAnswer(params: {
         where: { shopId_conversationId: { shopId: params.shopId, conversationId: params.conversationId } },
         select: { id: true },
       })
-      if (!allowed) return null
+      if (!allowed) return { sent: false, reason: 'NOT_TEST_THREAD' }
     }
 
-    if (!isChatbotWithinWindow(cfg?.aiChatbotStartTime, cfg?.aiChatbotEndTime, new Date())) return null
+    if (!isChatbotWithinWindow(cfg?.aiChatbotStartTime, cfg?.aiChatbotEndTime, new Date())) return { sent: false, reason: 'OUTSIDE_SCHEDULE' }
 
     /**
      * เพดานการตอบต่อห้อง — ChatBot ไม่มี cooldown ของกลุ่มคำมาคุมเหมือน Auto Reply
@@ -890,7 +913,7 @@ async function tryChatbotAnswer(params: {
           orderBy: { createdAt: 'desc' },
           select: { createdAt: true },
         })
-        if (last && now - last.createdAt.getTime() < cooldownSec * 1000) return null
+        if (last && now - last.createdAt.getTime() < cooldownSec * 1000) return { sent: false, reason: 'COOLDOWN' }
       }
 
       if (maxPerHour > 0) {
@@ -902,12 +925,12 @@ async function tryChatbotAnswer(params: {
             createdAt: { gte: new Date(now - 60 * 60 * 1000) },
           },
         })
-        if (usedThisHour >= maxPerHour) return null
+        if (usedThisHour >= maxPerHour) return { sent: false, reason: 'HOURLY_CAP' }
       }
     }
 
     const cap = await checkCapBeforeCall(params.shopId)
-    if (!cap.allowed) return null
+    if (!cap.allowed) return { sent: false, reason: 'DAILY_CAP_OR_NO_CREDIT' }
 
     // คลังความรู้ทั้งร้าน — ที่ถูกใช้บ่อยอยู่บน แล้วตัดที่ 200 ข้อกัน prompt บวม
     // (200 ข้อ ~ หลักหมื่น token ซึ่งยังอยู่ในงบของ flash-lite และคุมต้นทุนต่อครั้งได้)
@@ -920,7 +943,8 @@ async function tryChatbotAnswer(params: {
     const fallbackMode = cfg?.aiChatbotFallbackMode ?? 'MESSAGE'
     // คลังว่าง + ร้านไม่ได้เปิดให้ AI ตอบเอง = ไม่มีอะไรให้ทำงานด้วย ตกไปเส้นทางข้อความสำรอง
     if (knowledge.length === 0 && fallbackMode !== 'AI_FREE') {
-      return sendFallback(params, cfg, status)
+      const fb = await sendFallback(params, cfg, status)
+      return fb ?? { sent: false, reason: 'NO_KNOWLEDGE' }
     }
 
     const guardrails = await prisma.autoReplyGuardrail.findMany({
@@ -980,7 +1004,8 @@ async function tryChatbotAnswer(params: {
     }
     if (!result.text) {
       // AI ตอบไม่ได้ (คลังไม่มีข้อมูล/ชนกฎ/ล้มเหลว) — ร้านเลือกได้ว่าจะเงียบหรือส่งข้อความสำรอง
-      return sendFallback(params, cfg, status)
+      const fb = await sendFallback(params, cfg, status)
+      return fb ?? { sent: false, reason: result.reason ?? 'AI_NO_ANSWER' }
     }
 
     const sent = await sendAutoReply({
@@ -990,7 +1015,7 @@ async function tryChatbotAnswer(params: {
       imageFileIds: [],
       isTest: status === 'TEST',
     })
-    if (!sent.sent) return null
+    if (!sent.sent) return { sent: false, reason: 'SEND_FAILED' }
 
     /**
      * นับสถิติ "ถูกใช้ตอบ" ให้ความรู้ที่โมเดลอ้างว่าใช้ — นับหลังส่งสำเร็จเท่านั้น
@@ -1009,6 +1034,6 @@ async function tryChatbotAnswer(params: {
     return { sent: true, text: result.text, messageId: sent.messageId ?? null }
   } catch (e) {
     console.error('[chatbot] tryChatbotAnswer ล้มเหลว', e)
-    return null
+    return { sent: false, reason: 'UNEXPECTED_ERROR' }
   }
 }
