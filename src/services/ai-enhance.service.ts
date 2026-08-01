@@ -20,6 +20,7 @@ import {
 } from '@/lib/auto-reply-constants'
 import type { TokenUsage } from '@/lib/ai-pricing'
 import { generateText } from '@/lib/gemini'
+import { redactPii } from '@/lib/pii-redact'
 
 export interface EnhanceInput {
   /** คำตอบสำเร็จรูปที่ร้านเขียนไว้ — ต้นฉบับที่ห้ามเพี้ยน */
@@ -142,7 +143,9 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
     try {
       const r = await generateText({
         system: buildRewriteSystem(input.tone),
-        user: `ข้อความล่าสุดของลูกค้า: ${input.customerText}\n\nข้อความที่ร้านเขียนไว้:\n${raw}`,
+        // ลูกค้าอาจพิมพ์เบอร์/ที่อยู่มาในข้อความ — กรองก่อนออกจากระบบเราเสมอ
+        // (คำตอบดิบของร้านไม่ต้องกรอง: ร้านเขียนเอง ไม่ใช่ข้อมูลส่วนบุคคลของคนอื่น)
+        user: `ข้อความล่าสุดของลูกค้า: ${redactPii(input.customerText).text}\n\nข้อความที่ร้านเขียนไว้:\n${raw}`,
         maxOutputTokens: 1024,
         signal,
       })
@@ -170,15 +173,20 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
           temperature: 0,
           signal,
         })
+        // รอบตรวจกฎเสียเงินจริง — ต้องรวมเข้า usage ไม่ใช่ทิ้ง ไม่งั้นบิลต่ำกว่าที่จ่ายจริง
+        usage = mergeUsage(usage, j.usage)
         const verdict = j.text.toUpperCase()
         if (verdict.includes('BLOCK')) {
           return { text: raw, enhanced: false, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage, elapsedMs: Date.now() - started }
         }
         // ไม่ตอบ PASS ชัดเจน = ตัดสินไม่ได้ ไม่ใช่ผ่าน — ถอยคำตอบดิบ (fail-closed แบบ BR-AR-33)
-        if (!verdict.includes('PASS')) return fail('GUARDRAILS_CHECK_FAILED')
+        // คืน usage ที่ใช้ไปแล้วด้วย: ถอยคำตอบไม่ได้แปลว่าโทเคนที่เผาไปไม่ต้องจ่าย
+        if (!verdict.includes('PASS')) {
+          return { text: raw, enhanced: false, blocked: false, reason: 'GUARDRAILS_CHECK_FAILED', usage, elapsedMs: Date.now() - started }
+        }
       } catch {
         // ตัวตรวจเองล่ม/หมดเวลา -> ถอยคำตอบดิบ **ไม่ใช่** ส่งต่อคน (BR-AR-33)
-        return fail('GUARDRAILS_CHECK_FAILED')
+        return { text: raw, enhanced: false, blocked: false, reason: 'GUARDRAILS_CHECK_FAILED', usage, elapsedMs: Date.now() - started }
       }
     }
 
@@ -205,15 +213,58 @@ const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแช�
 
 น้ำเสียงที่ร้านต้องการ: {{TONE}}
 
-ตอบกลับเป็นข้อความที่จะส่งให้ลูกค้าเท่านั้น ห้ามมีคำอธิบายอื่น`
+ตอบกลับเป็นข้อความที่จะส่งให้ลูกค้าเท่านั้น ห้ามมีคำอธิบายอื่น
+ปิดท้ายด้วยบรรทัดใหม่ที่ระบุหมายเลขข้อในคลังที่ใช้ตอบ รูปแบบ [[USED:1,3]] — ระบบจะตัดบรรทัดนี้ทิ้งก่อนส่งให้ลูกค้า`
 
 /** สัญญาณที่โมเดลใช้บอกว่า "คลังไม่มีข้อมูลพอ" — ต้องเงียบดีกว่าตอบมั่ว */
 const NO_ANSWER_TOKEN = 'NO_ANSWER'
+
+/**
+ * รวม usage ของหลายรอบเรียกให้เป็นก้อนเดียว
+ *
+ * รอบตรวจกฎ (judge) เป็นการเรียกโมเดลจริงและเสียเงินจริง — เดิมโยน `j.usage` ทิ้ง
+ * ค่าใช้จ่ายที่บันทึกจึงต่ำกว่าที่จ่ายจริงทุกครั้งที่ร้านตั้งกฎห้ามตอบไว้
+ * ชื่อรุ่นใช้ของรอบแรก (รอบหลักที่กำหนดเรตส่วนใหญ่) และรอบ judge มักเป็นรุ่นเดียวกันอยู่แล้ว
+ */
+/**
+ * แกะบรรทัด [[USED:1,3]] ออกจากคำตอบ แล้วแปลงหมายเลขข้อเป็น id
+ *
+ * โมเดลอาจไม่ใส่มาเลย หรือใส่เลขนอกช่วง — ทั้งสองกรณีไม่ถือเป็นความล้มเหลว
+ * แค่ไม่ได้นับสถิติรอบนั้น ดีกว่าทิ้งคำตอบที่ใช้ได้เพราะเรื่องนับเลข
+ * แต่ **ต้องตัดบรรทัดนี้ทิ้งเสมอ** แม้แกะเลขไม่ได้ ไม่งั้นลูกค้าจะเห็น [[USED:...]] ในแชท
+ */
+function extractUsedIds(answer: string, ids: string[] | undefined): { text: string; usedIds: string[] } {
+  const re = /\[\[USED:([^\]]*)\]\]/gi
+  const matches = [...answer.matchAll(re)]
+  const text = answer.replace(re, '').trim()
+  if (!ids || ids.length === 0 || matches.length === 0) return { text, usedIds: [] }
+
+  const usedIds = new Set<string>()
+  for (const m of matches) {
+    for (const raw of (m[1] ?? '').split(',')) {
+      const n = Number(raw.trim())
+      if (Number.isInteger(n) && n >= 1 && n <= ids.length) usedIds.add(ids[n - 1])
+    }
+  }
+  return { text, usedIds: [...usedIds] }
+}
+
+function mergeUsage(a: TokenUsage | null, b: TokenUsage | null): TokenUsage | null {
+  if (!a) return b
+  if (!b) return a
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    model: a.model,
+  }
+}
 
 export interface ChatbotAnswerInput {
   customerText: string
   /** คลังความรู้ของร้าน — คู่คำถาม/คำตอบที่ใช้งานอยู่ */
   knowledge: { question: string; answer: string }[]
+  /** id เรียงตรงกับ knowledge — ใช้แปลงหมายเลขข้อที่โมเดลอ้างกลับเป็น id (ไม่ส่งเข้า prompt) */
+  knowledgeIds?: string[]
   guardrails: { rule: string; denyPhrases: string[] }[]
   tone?: string | null
 }
@@ -221,6 +272,8 @@ export interface ChatbotAnswerInput {
 export interface ChatbotAnswerResult {
   /** null = ไม่ตอบ (คลังไม่มีข้อมูล / ชนกฎ / ล้มเหลว) — ผู้เรียกต้องเงียบตามเดิม */
   text: string | null
+  /** id ของความรู้ที่โมเดลบอกว่าใช้ตอบ — ว่างได้ถ้าโมเดลไม่ระบุ (ไม่ถือเป็นความล้มเหลว) */
+  usedKnowledgeIds?: string[]
   blocked: boolean
   reason: AiEnhanceSkipReason | 'NO_KNOWLEDGE_ANSWER' | null
   usage: TokenUsage | null
@@ -254,9 +307,14 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
     let answer: string
     let usage: TokenUsage | null = null
     try {
+      // ข้อความลูกค้าอาจมีเบอร์/ที่อยู่/เลขบัญชีปนมา — กรองก่อนออกจากระบบเราเสมอ
+      const redacted = redactPii(input.customerText)
+      if (redacted.found.length > 0) {
+        console.info('[ai-chatbot] กรอง PII ก่อนส่งเข้า AI:', redacted.found.join(','))
+      }
       const r = await generateText({
         system: CHATBOT_SYSTEM.replace('{{TONE}}', tone),
-        user: `คลังความรู้ของร้าน:\n${kb}\n\nคำถามของลูกค้า:\n${input.customerText}`,
+        user: `คลังความรู้ของร้าน:\n${kb}\n\nคำถามของลูกค้า:\n${redacted.text}`,
         maxOutputTokens: 1024,
         signal,
       })
@@ -266,6 +324,11 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
       return none(timedOut ? 'AI_ENHANCE_TIMEOUT' : 'AI_ENHANCE_ERROR')
     }
+
+    // แกะและตัดบรรทัด [[USED:...]] ก่อนตรวจอย่างอื่น — ทุกเส้นทางหลังจากนี้จะได้ทำงานกับ
+    // ข้อความที่สะอาดแล้ว รวมถึง denylist ที่ไม่ควรไปเจอ marker ของระบบเอง
+    const used = extractUsedIds(answer, input.knowledgeIds)
+    answer = used.text
 
     // โมเดลบอกเองว่าตอบไม่ได้ — เงียบตามเดิม (คำถามจะไปเข้าคิวให้ร้านกรอกเอง)
     if (answer.toUpperCase().includes(NO_ANSWER_TOKEN)) return none('NO_KNOWLEDGE_ANSWER', usage)
@@ -283,6 +346,7 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
           temperature: 0,
           signal,
         })
+        usage = mergeUsage(usage, j.usage)
         const verdict = j.text.toUpperCase()
         if (verdict.includes('BLOCK')) {
           return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
@@ -294,7 +358,7 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       }
     }
 
-    return { text: answer, blocked: false, reason: null, usage }
+    return { text: answer, usedKnowledgeIds: used.usedIds, blocked: false, reason: null, usage }
   } catch (e) {
     console.error('[ai-chatbot] unexpected', e)
     return none('AI_ENHANCE_ERROR')

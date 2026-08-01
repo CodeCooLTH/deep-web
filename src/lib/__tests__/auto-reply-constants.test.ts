@@ -79,9 +79,11 @@ describe('ค่าคงที่ FROZEN §3.8 — จำนวนและเ�
     expect(AUTO_REPLY_JOB_STATUSES).toEqual(['PENDING', 'PROCESSING', 'DONE', 'FAILED', 'SKIPPED']))
   it('AutoReplyLog.decision', () =>
     expect(AUTO_REPLY_LOG_DECISIONS).toEqual(['REPLIED', 'SKIPPED', 'HANDOFF', 'FAILED']))
+  // 11 ไม่ใช่ 10: เพิ่ม 'CHATBOT' 2026-08-01 (phase 00023-ai-enhance — AI แต่งคำตอบจากหลายข้อ
+  // ในคลัง ไม่มีข้อต้นทางข้อเดียวให้อ้าง) · DATABASE.md §3.8 อัปเดตแล้ว
   // 10 ไม่ใช่ 9: เพิ่ม 'QNA' 2026-07-31 (phase 00023-qna — คำตอบจากคลังคำถามไม่ได้ผ่าน
   // resolveRule จึงต้องมีชื่อระดับของตัวเอง) · DATABASE.md §3.8 อัปเดตให้ตรงแล้ว
-  it('resolutionLevel ครบ 10 ค่า', () => expect(RESOLUTION_LEVELS).toHaveLength(10))
+  it('resolutionLevel ครบ 11 ค่า', () => expect(RESOLUTION_LEVELS).toHaveLength(11))
   it("'QNA' ต้องไม่มีทางออกจาก getResolutionLevel — ผู้เรียกเซ็ตตรง ๆ ที่ processJob (TFR-032)", () => {
     // ค่าที่ getResolutionLevel คืนได้ต้องไม่มี QNA เลย ไม่ว่า specificity/hasKeywordId จะเป็นอะไร
     const produced = new Set<string>()
@@ -90,9 +92,10 @@ describe('ค่าคงที่ FROZEN §3.8 — จำนวนและเ�
     expect(produced.has('QNA')).toBe(false)
   })
   // 17 ไม่ใช่ 16: เพิ่ม OUTSIDE_SCHEDULE 2026-07-31 (เวลาทำงานของ DeepBot, feature 00023 เฟส A)
+  // 18 ไม่ใช่ 17: เพิ่ม 'GUARDRAILS_BLOCKED' 2026-08-01 (ชนกฎห้ามตอบ = ไม่ส่งอะไรเลย)
   // แก้ตัวเลขนี้ได้เฉพาะเมื่อแก้ DATABASE.md §3.8 ให้ตรงกันแล้วเท่านั้น — เทสนี้มีไว้กันการเพิ่ม
   // ค่าเงียบ ๆ โดยลืมอัปเดตเอกสารที่เป็น SSOT
-  it('skipReason ครบ 17 ค่า', () => expect(SKIP_REASONS).toHaveLength(17))
+  it('skipReason ครบ 18 ค่า', () => expect(SKIP_REASONS).toHaveLength(18))
   it('autoReplyKind 2 ค่า (ไม่รวม null ที่แทน "คนตอบเอง")', () =>
     expect(AUTO_REPLY_KINDS).toEqual(['AUTO', 'AUTO_TEST']))
   it('contextProductSource', () =>

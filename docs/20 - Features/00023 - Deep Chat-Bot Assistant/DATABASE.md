@@ -481,8 +481,8 @@ model AutoReplyLog {
 | `AutoReplyConfig.adsContextMode` | `UNTIL_RESOLVED` · `HOURS` · `UNTIL_NEW_PRODUCT` |
 | `AutoReplyJob.status` | `PENDING` · `PROCESSING` · `DONE` · `FAILED` · `SKIPPED` |
 | `AutoReplyLog.decision` | `REPLIED` · `SKIPPED` · `HANDOFF` · `FAILED` |
-| `AutoReplyLog.resolutionLevel` | `KEYWORD_PAGE_AD_PRODUCT` · `KEYWORD_PAGE_AD` · `KEYWORD_PAGE_PRODUCT` · `KEYWORD_PAGE` · `KEYWORD_PRODUCT` · `KEYWORD_DEFAULT` · `PAGE_DEFAULT` · `SHOP_DEFAULT` · `NONE` · **`QNA`** (amend 2026-07-31) |
-| `AutoReplyLog.skipReason` | `SHOP_DISABLED` · `CONVERSATION_DISABLED` · `NOT_IN_TEST_ALLOWLIST` · `SPAM` · `HANDED_OFF` · `PAUSED_HUMAN_TAKEOVER` · `OUTBOUND_MESSAGE` · `KEYWORD_COOLDOWN` · `MAX_REPLIES_REACHED` · `NO_KEYWORD_MATCH` · `NO_RULE_MATCH` · `EMPTY_REPLY` · `WINDOW_CLOSED` · `CHANNEL_INACTIVE` · `DUPLICATE_JOB` · `KEYWORD_TEST_ONLY` · `OUTSIDE_SCHEDULE` |
+| `AutoReplyLog.resolutionLevel` | `KEYWORD_PAGE_AD_PRODUCT` · `KEYWORD_PAGE_AD` · `KEYWORD_PAGE_PRODUCT` · `KEYWORD_PAGE` · `KEYWORD_PRODUCT` · `KEYWORD_DEFAULT` · `PAGE_DEFAULT` · `SHOP_DEFAULT` · `NONE` · **`QNA`** (amend 2026-07-31) · **`CHATBOT`** (amend 2026-08-01 — AI แต่งคำตอบจากหลายข้อในคลัง ไม่มีข้อต้นทางข้อเดียวให้อ้าง ต่างจาก `QNA` ที่จับคู่ตรงตัวได้ข้อเดียว) |
+| `AutoReplyLog.skipReason` | `SHOP_DISABLED` · `CONVERSATION_DISABLED` · `NOT_IN_TEST_ALLOWLIST` · `SPAM` · `HANDED_OFF` · `PAUSED_HUMAN_TAKEOVER` · `OUTBOUND_MESSAGE` · `KEYWORD_COOLDOWN` · `MAX_REPLIES_REACHED` · `NO_KEYWORD_MATCH` · `NO_RULE_MATCH` · `EMPTY_REPLY` · `WINDOW_CLOSED` · `CHANNEL_INACTIVE` · `DUPLICATE_JOB` · `KEYWORD_TEST_ONLY` · `OUTSIDE_SCHEDULE` · **`GUARDRAILS_BLOCKED`** (amend 2026-08-01 — ข้อความที่จะส่งชนกฎห้ามตอบ จึงไม่ส่งอะไรเลยและส่งต่อคน) |
 | **`AutoReplyLog.matchedVia`** | `KEYWORD` · `QNA` — **เพิ่ม 2026-07-31** · `null` = แถวเก่าก่อน phase นี้ (ต้องอ่านว่า `KEYWORD` เสมอ ห้าม backfill ทับ ดู §3.7) |
 | **`AutoReplyQna.source`** | `MANUAL` · `QUEUE` · `IMPORT` — **เพิ่ม 2026-07-31** |
 | **`AutoReplyUnansweredQuestion.status`** | `PENDING` · `DISMISSED` · `ANSWERED` — **เพิ่ม 2026-07-31** |

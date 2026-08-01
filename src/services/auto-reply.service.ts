@@ -828,7 +828,7 @@ async function tryChatbotAnswer(params: {
     // (200 ข้อ ~ หลักหมื่น token ซึ่งยังอยู่ในงบของ flash-lite และคุมต้นทุนต่อครั้งได้)
     const knowledge = await prisma.autoReplyQna.findMany({
       where: { shopId: params.shopId, isActive: true },
-      select: { question: true, answer: true },
+      select: { id: true, question: true, answer: true },
       orderBy: { useCount: 'desc' },
       take: 200,
     })
@@ -841,7 +841,8 @@ async function tryChatbotAnswer(params: {
 
     const result = await answerFromKnowledge({
       customerText: params.customerText,
-      knowledge,
+      knowledge: knowledge.map((k) => ({ question: k.question, answer: k.answer })),
+      knowledgeIds: knowledge.map((k) => k.id),
       guardrails,
       tone: cfg?.aiChatbotTone ?? null,
     })
@@ -864,6 +865,20 @@ async function tryChatbotAnswer(params: {
       isTest: status === 'TEST',
     })
     if (!sent.sent) return null
+
+    /**
+     * นับสถิติ "ถูกใช้ตอบ" ให้ความรู้ที่โมเดลอ้างว่าใช้ — นับหลังส่งสำเร็จเท่านั้น
+     * ไม่ให้ล้มทั้งงานถ้าเขียนสถิติไม่ผ่าน: ลูกค้าได้คำตอบไปแล้ว ตัวเลขนับพลาดหนึ่งครั้ง
+     * เสียหายน้อยกว่าการโยน error กลับเข้าเส้นทางของ webhook
+     */
+    if (result.usedKnowledgeIds?.length) {
+      await prisma.autoReplyQna
+        .updateMany({
+          where: { id: { in: result.usedKnowledgeIds }, shopId: params.shopId },
+          data: { useCount: { increment: 1 } },
+        })
+        .catch((e) => console.error('[chatbot] นับ useCount ไม่สำเร็จ', e))
+    }
 
     return { sent: true, text: result.text, messageId: sent.messageId ?? null }
   } catch (e) {
