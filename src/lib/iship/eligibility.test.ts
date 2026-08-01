@@ -20,7 +20,6 @@ const account: EligibilityAccountLike = {
 };
 
 const shippableOrder: EligibilityOrderLike = {
-  type: "PHYSICAL",
   fulfillmentMode: "SHIPPED",
   buyerName: "สมชาย ใจดี",
   buyerContact: "0891082095",
@@ -48,24 +47,33 @@ describe("checkEligibility — ข้ามเงียบ (ห้ามรบ�
     expect(r).toMatchObject({ eligible: false, kind: "SKIP_SILENT" });
   });
 
-  it.each(["BOOKING", "DIGITAL", "SERVICE", "SUBSCRIPTION"])(
-    "ออเดอร์ประเภท %s ไม่มีพัสดุให้ส่ง",
-    (type) => {
-      const r = checkEligibility({ ...shippableOrder, type }, account);
-      expect(r).toMatchObject({ eligible: false, kind: "SKIP_SILENT" });
+  // เดิมที่นี่เทสว่า type ที่ไม่ใช่ PHYSICAL ต้องถูกข้าม — กฎนั้นถูกถอดออกแล้ว
+  // เพราะขัดกับ shipOrder() ที่ใช้ fulfillmentMode ตัดสิน (เจอจริงบน prod 2026-08-01:
+  // ออเดอร์ SERVICE ที่ต้องจัดส่งจริงถูกปฏิเสธ) ตอนนี้เทสกลับด้าน: ต้อง "ผ่าน"
+  it.each(["BOOKING", "DIGITAL", "SERVICE", "SUBSCRIPTION", "PHYSICAL"])(
+    "ออเดอร์ประเภท %s ที่ fulfillmentMode = SHIPPED ต้องเปิดพัสดุได้",
+    () => {
+      expect(checkEligibility(shippableOrder, account)).toEqual({ eligible: true });
     },
   );
+
+  it("ออเดอร์ที่ fulfillmentMode ไม่ใช่ SHIPPED ต้องข้ามเงียบ ไม่ว่าประเภทอะไร", () => {
+    for (const fulfillmentMode of ["NO_SHIPPING", "PICKUP", "DIGITAL_DELIVERY"]) {
+      const r = checkEligibility({ ...shippableOrder, fulfillmentMode }, account);
+      expect(r).toMatchObject({ eligible: false, kind: "SKIP_SILENT" });
+    }
+  });
 
   it("ร้านยังไม่ได้เชื่อมต่อ iShip", () => {
     const r = checkEligibility(shippableOrder, null);
     expect(r).toMatchObject({ eligible: false, kind: "SKIP_SILENT" });
   });
 
-  it("ออเดอร์ดิจิทัลของร้านที่ยังไม่ตั้งที่อยู่ผู้ส่ง ต้องยังข้ามเงียบ ไม่ใช่ NEEDS_FIX", () => {
-    // เคสนี้คือเหตุผลที่ลำดับการตรวจสำคัญ — ถ้าเช็คที่อยู่ผู้ส่งก่อนประเภทออเดอร์
+  it("ออเดอร์ที่ไม่ต้องจัดส่งของร้านที่ยังไม่ตั้งที่อยู่ผู้ส่ง ต้องข้ามเงียบ ไม่ใช่ NEEDS_FIX", () => {
+    // เคสนี้คือเหตุผลที่ลำดับการตรวจสำคัญ — ถ้าเช็คที่อยู่ผู้ส่งก่อน "ต้องส่งไหม"
     // ร้านขายของดิจิทัลจะเจอข้อความเตือนทุกออเดอร์ทั้งที่ไม่เกี่ยวกับตัวเองเลย
     const r = checkEligibility(
-      { ...shippableOrder, type: "DIGITAL" },
+      { ...shippableOrder, fulfillmentMode: "NO_SHIPPING" },
       { senderAddress: {} },
     );
     expect(r).toMatchObject({ eligible: false, kind: "SKIP_SILENT" });

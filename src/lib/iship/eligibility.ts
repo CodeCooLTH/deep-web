@@ -20,7 +20,10 @@ import {
 } from "./mapping";
 
 export interface EligibilityOrderLike {
-  type: string;
+  /**
+   * ไม่มี `type` ที่นี่โดยเจตนา — fulfillmentMode คือช่องเดียวที่ตัดสินว่าต้องส่งของไหม
+   * (ดูเหตุผลเต็มใน checkEligibility) การมี type อยู่ในสัญญาแต่ไม่ถูกใช้ = หลอกคนอ่าน
+   */
   fulfillmentMode: string;
   buyerName: string | null;
   buyerContact: string | null;
@@ -61,15 +64,23 @@ export function checkEligibility(
 ): EligibilityResult {
   // ลำดับการตรวจสำคัญ: เช็ค "ไม่เกี่ยวกับการส่งของ" ให้หมดก่อน
   // ไม่งั้นออเดอร์ดิจิทัลของร้านที่ยังไม่ตั้งที่อยู่ผู้ส่ง จะได้ NEEDS_FIX ทั้งที่ไม่ควรมีอะไรเตือนเลย
+  //
+  // ==========================================================================
+  // fulfillmentMode คือผู้ตัดสินคนเดียว — ห้ามเพิ่มเงื่อนไข order.type กลับเข้ามา
+  // --------------------------------------------------------------------------
+  // เดิมที่นี่บังคับ type === "PHYSICAL" ด้วย ทำให้ขัดกับ shipOrder() ใน order.service
+  // ซึ่งเขียนกำกับไว้ชัดว่าตั้งใจใช้ fulfillmentMode แทน type เพื่อรองรับ sub-box และ
+  // product type อื่นที่ override fulfillmentMode ได้
+  //
+  // ผลคือออเดอร์ใบเดียวกันแจ้งเลขพัสดุเองได้ แต่เปิดพัสดุผ่าน iShip ไม่ได้ — เจอจริงบน
+  // prod 2026-08-01: ออเดอร์ SERVICE + fulfillmentMode SHIPPED + มีที่อยู่ครบ โดนปฏิเสธ
+  // ด้วยข้อความ "คำสั่งซื้อนี้ไม่มีส่วนการจัดส่ง" ทั้งที่มันมีที่อยู่จัดส่งอยู่ตรงหน้า
+  //
+  // ร้านที่ขายบริการแล้วต้องส่งของประกอบ (เช่น ส่งอุปกรณ์ไปให้ก่อนนัดติดตั้ง) มีจริง
+  // และ fulfillmentMode คือช่องที่ผู้ใช้ตั้งใจบอกว่า "ใบนี้ต้องส่งของ" อยู่แล้ว
+  // ==========================================================================
   if (order.fulfillmentMode !== "SHIPPED") {
     return { eligible: false, kind: "SKIP_SILENT", reason: "ออเดอร์นี้ไม่ต้องจัดส่ง" };
-  }
-  if (order.type !== "PHYSICAL") {
-    return {
-      eligible: false,
-      kind: "SKIP_SILENT",
-      reason: "ออเดอร์ประเภทนี้ไม่มีพัสดุให้ส่ง",
-    };
   }
   if (!account) {
     return {

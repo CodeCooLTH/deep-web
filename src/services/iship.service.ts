@@ -494,18 +494,40 @@ export async function resolveOrderIdByToken(
  *
  * คืน null เมื่อร้านไม่ได้เชื่อมต่อหรือออเดอร์ไม่เกี่ยวกับการส่งของ — page จะได้ไม่ต้อง
  * render ส่วนนี้เลย (ไม่ใช่ render กล่องเปล่า)
+ *
+ * หน้าเว็บใช้ตัวนี้ (null พอแล้ว) ส่วน API ใช้ getShipmentPanelOrReason ที่บอกสาเหตุได้
  */
 export async function getShipmentPanel(
   shopId: string,
   orderId: string,
 ): Promise<ShipmentContext | null> {
+  const r = await getShipmentPanelOrReason(shopId, orderId);
+  return "ctx" in r ? r.ctx : null;
+}
+
+/**
+ * getShipmentPanelOrReason — เหมือน getShipmentPanel แต่บอกด้วยว่า "ทำไมถึงไม่มี"
+ *
+ * ทำไมต้องมี: เดิม 4 สาเหตุที่ต่างกันคนละเรื่อง (ร้านไม่ได้เชื่อม iShip / หาออเดอร์ไม่เจอ /
+ * ออเดอร์ไม่ต้องจัดส่ง) ถูกยุบเป็น null แล้ว route แปลเป็นข้อความเดียวว่า
+ * "คำสั่งซื้อนี้ไม่มีส่วนการจัดส่ง" — ซึ่งไม่ตรงกับสาเหตุไหนเลยและทำให้ร้านไล่แก้ผิดจุด
+ * (เจอจริง 2026-08-01: ร้านเห็นข้อความนี้บนออเดอร์ที่มีที่อยู่จัดส่งอยู่ตรงหน้า)
+ */
+export async function getShipmentPanelOrReason(
+  shopId: string,
+  orderId: string,
+): Promise<{ ctx: ShipmentContext } | { reason: string }> {
   const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
-  if (!account || account.status === "DISCONNECTED") return null;
+  if (!account) {
+    return { reason: "ร้านยังไม่ได้เชื่อมต่อ iShip — เชื่อมต่อได้ที่หน้าตั้งค่าการจัดส่ง" };
+  }
+  if (account.status === "DISCONNECTED") {
+    return { reason: "การเชื่อมต่อ iShip ถูกยกเลิกไว้ — เชื่อมต่อใหม่ที่หน้าตั้งค่าการจัดส่ง" };
+  }
 
   const order = await prisma.order.findFirst({
     where: { id: orderId, shopId },
     select: {
-      type: true,
       fulfillmentMode: true,
       buyerName: true,
       buyerContact: true,
@@ -519,11 +541,10 @@ export async function getShipmentPanel(
       },
     },
   });
-  if (!order) return null;
+  if (!order) return { reason: "ไม่พบคำสั่งซื้อนี้ในร้าน" };
 
   const eligibility = evaluateEligibility(
     {
-      type: order.type,
       fulfillmentMode: order.fulfillmentMode,
       buyerName: order.buyerName,
       buyerContact: order.buyerContact,
@@ -532,8 +553,11 @@ export async function getShipmentPanel(
     { senderAddress: senderOf(account) },
   );
 
-  // ออเดอร์ที่ไม่เกี่ยวกับการส่งของ (รับเอง/ดิจิทัล/บริการ/การจอง) — ไม่แสดงส่วนนี้เลย
-  if (!eligibility.eligible && eligibility.kind === "SKIP_SILENT") return null;
+  // ออเดอร์ที่ไม่เกี่ยวกับการส่งของ (ลูกค้ารับเอง ฯลฯ) — ไม่แสดงส่วนนี้เลย
+  // ส่ง reason ของ eligibility ออกไปตรง ๆ ไม่แต่งใหม่ ปลายทางจะได้เห็นเหตุผลจริง
+  if (!eligibility.eligible && eligibility.kind === "SKIP_SILENT") {
+    return { reason: eligibility.reason };
+  }
 
   const shipment = await prisma.orderShipment.findFirst({
     where: { orderId, status: { not: "CANCELLED" } },
@@ -548,7 +572,7 @@ export async function getShipmentPanel(
   // จะกางฟอร์มผู้รับให้ร้านกรอกทั้งที่กรอกครบแค่ไหนก็สร้างไม่ได้
   const needsFix = !eligibility.eligible && eligibility.kind === "NEEDS_FIX";
 
-  return {
+  const ctx: ShipmentContext = {
     orderId,
     createMode: account.createMode,
     shipment: shipment ? toShipmentView(shipment) : null,
@@ -595,6 +619,8 @@ export async function getShipmentPanel(
         : null,
     },
   };
+
+  return { ctx };
 }
 
 // ─── พัสดุ ──────────────────────────────────────────────────────────────────
@@ -707,7 +733,6 @@ export async function createShipment(
     where: { id: orderId, shopId },
     select: {
       id: true,
-      type: true,
       fulfillmentMode: true,
       buyerName: true,
       buyerContact: true,
@@ -720,7 +745,6 @@ export async function createShipment(
 
   const eligibility = evaluateEligibility(
     {
-      type: order.type,
       fulfillmentMode: order.fulfillmentMode,
       buyerName: order.buyerName,
       buyerContact: order.buyerContact,
