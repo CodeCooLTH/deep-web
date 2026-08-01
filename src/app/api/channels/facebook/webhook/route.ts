@@ -6,6 +6,7 @@ import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
+import { pushNewChatMessage } from '@/services/seller-push.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -114,6 +115,20 @@ export async function POST(request: NextRequest) {
             // referral เป็นข้อมูลเสริม — พังแล้วต้องไม่ทำให้ Meta retry ทั้ง batch จนข้อความค้าง
             console.error('[fb-webhook] บันทึก ad referral ล้มเหลว', e instanceof Error ? e.message : e)
           }
+        }
+
+        // Push notification เข้าแอปผู้ขาย — เฉพาะข้อความที่ "ลูกค้า" ส่งเข้ามาจริง
+        //
+        // senderRole !== 'BUYER' ถูกตัดออกด้วยเหตุผลตรง ๆ: echo ของข้อความที่เพจส่งเอง (รวมถึงที่
+        // DeepBot ตอบอัตโนมัติ) ก็วิ่งผ่าน webhook เส้นเดียวกันนี้ ถ้าไม่กรอง ผู้ขายจะได้ noti
+        // จากข้อความของตัวเอง — น่ารำคาญจนต้องปิด noti ทิ้ง
+        //
+        // after(): ยิงหลังตอบ 200 ให้ Meta แล้ว — Meta วัด latency ของ webhook และ retry ทั้ง batch
+        // ถ้าช้า/พัง; งาน push ไม่ควรมีสิทธิ์ทำให้ข้อความลูกค้าค้าง (เหตุผลเดียวกับที่ไฟล์นี้ห่อ
+        // ingestAdReferral ด้วย try/catch ของตัวเอง). ตัว service เองก็กลืน error อีกชั้นหนึ่ง
+        if (ingested.status === 'STORED' && ingested.shopId && ingested.conversationId && ingested.senderRole === 'BUYER') {
+          const { shopId, conversationId } = ingested
+          after(() => pushNewChatMessage({ shopId, conversationId }))
         }
 
         // ตอบอัตโนมัติ (feature 00023) — ต้องอยู่ "หลัง" ingestAdReferral เสมอ

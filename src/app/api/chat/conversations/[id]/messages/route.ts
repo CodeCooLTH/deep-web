@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
 import { sendOutboundMessage, syncMissingMessagesFromMeta } from "@/services/channel-chat.service";
 import { getProductsByIds } from "@/services/product.service";
+import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
 import { CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS } from "@/lib/chat-constants";
 
@@ -357,6 +358,23 @@ export async function POST(
       orderRefToken: type === "ORDER" ? orderRefToken ?? null : null,
       replyToMid, // reply/quote (DEEP) — id ของข้อความที่ตอบทับ
     });
+
+    // Push เข้าแอปผู้ขาย เมื่อ "ผู้ซื้อ" เป็นคนส่ง (แชท DEEP ในแอป/เว็บผู้ซื้อ)
+    //
+    // hook ที่ route ไม่ใช่ใน chat.service.sendMessage โดยตั้งใจ: seller-push.service import
+    // getConversationToastPreview จาก chat.service อยู่แล้ว ถ้าให้ chat.service เรียกกลับมาก็จะ
+    // เป็น circular import ทันที — route เป็นชั้นบนสุด จึงเรียกได้ทางเดียวไม่มีวงกลม
+    //
+    // ต้องอ่าน shopId ของเธรดเอง (sendMessage คืน ChatMessageView ซึ่งไม่มี shopId) — query เล็ก
+    // และอยู่หลังจากงานหลักสำเร็จแล้ว. void + service กลืน error เอง = ส่งไม่ได้ก็ไม่ทำให้การส่ง
+    // ข้อความล้มตาม (ข้อความถูกบันทึกไปแล้วตอนนี้)
+    if (senderRole === "BUYER") {
+      void prisma.conversation
+        .findUnique({ where: { id }, select: { shopId: true } })
+        .then((c) => (c ? pushNewChatMessage({ shopId: c.shopId, conversationId: id }) : undefined))
+        .catch(() => {});
+    }
+
     return NextResponse.json(message);
   } catch (e: unknown) {
     return mapChatServiceError(e, "POST /api/chat/conversations/[id]/messages");
