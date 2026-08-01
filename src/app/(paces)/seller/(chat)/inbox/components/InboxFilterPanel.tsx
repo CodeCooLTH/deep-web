@@ -22,32 +22,13 @@ import { useEffect, useRef, useState } from 'react'
 import { ChannelBadgeOverlay, type ChannelFilterOption } from './ChannelBadge'
 import { PageAvatar } from './PageFilterDropdown'
 
-export type ShipmentFilterValue = 'all' | 'none' | 'unprinted' | 'printed' | 'problem'
-
-export type ChatFilterState = {
-  // status/spam ยังอยู่ใน state (แท็บในส่วนหัวเป็นคนตั้ง) แต่ไม่ได้ render ในแผงนี้แล้ว — ดูข้อ 3
-  status: 'open' | 'resolved' | 'all'
-  spam: boolean
-  customerLinked: 'all' | 'linked' | 'unlinked'
-  hidden: boolean
-  readState: 'all' | 'unread' | 'read'
-  /** แท็กผู้ติดต่อ — "ติดอันใดก็ได้" (OR) ตามที่ user เลือก 2026-07-31 */
-  tags: string[]
-  /** สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip) */
-  shipment: ShipmentFilterValue
-}
-
-export const DEFAULT_CHAT_FILTER: ChatFilterState = {
-  // ค่าเริ่มต้น = แท็บ "ทั้งหมด" ที่ถูกไฮไลต์ตอนเปิดหน้า จึงต้องเป็น 'all'
-  // ไม่งั้นแท็บโชว์ว่าเลือก "ทั้งหมด" อยู่ แต่รายการกรองเฉพาะเธรดที่ยังไม่ปิดงาน
-  status: 'all',
-  spam: false,
-  customerLinked: 'all',
-  hidden: false,
-  readState: 'all',
-  tags: [],
-  shipment: 'all',
-}
+// type/ค่าเริ่มต้นย้ายไป chat-list-query.ts (plain TS) แล้ว — อยู่ที่เดียวกับตัวประกอบ query
+// ที่ผู้เรียกทุกจุดต้องใช้ร่วมกัน ไม่งั้น "ชุดแรกไม่ตรงกับแท็บที่ไฮไลต์" ซ้ำรอยเดิมได้อีก
+// re-export ไว้เพื่อไม่ต้องแก้ import site เดิมทั้งหมด
+export { DEFAULT_CHAT_FILTER } from './chat-list-query'
+export type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
+import type { ChatFilterState, ShipmentFilterValue } from './chat-list-query'
+import { DEFAULT_CHAT_FILTER } from './chat-list-query'
 
 /**
  * จำนวนตัวกรองที่ "ไม่ใช่ค่าเริ่มต้น" — โชว์เป็น badge บนปุ่ม
