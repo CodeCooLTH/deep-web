@@ -14,7 +14,7 @@ import {
 } from "@/services/chat.service";
 import { enrichWithOrderStage } from "@/services/order-stage.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
-import { sweepStuckJobs } from "@/services/auto-reply.service";
+import { sweepStuckJobs, enrichWithAutoReplyBadge } from "@/services/auto-reply.service";
 import { syncShipmentStatuses } from "@/services/iship.service";
 
 // per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
@@ -229,7 +229,11 @@ export async function GET(request: NextRequest) {
     const withUnread = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
     // ป้ายขั้นตอนออเดอร์ล่าสุดในแถว (user request 2026-07-29 — แทนชิปตะกร้า+จำนวนเดิมของ 2026-07-25)
     // service กลาง: หน้า inbox โหลดหน้าแรกแบบ RSC ไม่ผ่าน route นี้ ต้องเรียกฟังก์ชันเดียวกันทั้งสองทาง
-    const items = await enrichWithOrderStage(withUnread, activeCtx.shopId);
+    const withStage = await enrichWithOrderStage(withUnread, activeCtx.shopId);
+    // ป้าย DeepBot ในแถว (S-20) — อ่าน autoReplyKind ของข้อความล่าสุดจริงของแต่ละเธรด
+    // เรียกที่นี่และใน inbox/page.tsx ด้วยฟังก์ชันเดียวกัน ไม่งั้นหน้าแรก (RSC) กับหน้าที่โหลด
+    // จากการกรอง (route นี้) จะแสดงไม่เหมือนกัน — บทเรียนเดียวกับ enrichWithOrderStage
+    const items = await enrichWithAutoReplyBadge(withStage);
 
     // ชั้นที่ 3(ข) ของการกู้คืนงานตอบอัตโนมัติ (feature 00023, SDS TD-001)
     //

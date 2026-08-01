@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { isWithinSchedule } from '@/lib/auto-reply-schedule'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
@@ -636,4 +637,46 @@ export async function sweepStuckJobs(opts: { shopId?: string; limit?: number } =
   }
 
   return { scanned: stuck.length, recovered, closedAlreadySent: closed }
+}
+
+/**
+ * enrichWithAutoReplyBadge — เติมข้อมูลป้าย DeepBot ให้แถวในรายการแชท (S-20, phase `00023-qna`)
+ *
+ * ทำไมเป็น join ไม่ใช่คอลัมน์ที่ persist (user ตัดสิน 2026-08-01):
+ * `Conversation.lastMessagePreview`/`lastSenderRole` เป็นคอลัมน์ denormalize ที่เขียนตอน insert
+ * ข้อความ **4 จุด** (`chat.service.ts:655`, `channel-chat.service.ts:194/687/1097`) — การเพิ่ม
+ * คอลัมน์ที่ 3 แปลว่าต้อง sync ทั้งสี่จุดนั้นตลอดไป ลืมจุดใดจุดหนึ่ง = ค่าค้างแล้วป้าย **ติดผิด
+ * ข้อความ** ซึ่งแย่กว่าป้ายไม่ขึ้น · นอกจากนี้เส้นทาง race ของ echo Messenger ที่แปะ
+ * `autoReplyKind` ย้อนหลังไม่ได้อัปเดต snapshot ซ้ำ — ทาง join อ่านจากข้อความจริงเสมอจึงไม่มี
+ * ทั้งภาระ sync และช่องโหว่นั้น
+ *
+ * ทำไม raw SQL: ต้องได้ "ข้อความล่าสุด 1 แถวต่อเธรด" ของหลายเธรดในคิวรีเดียว — `DISTINCT ON`
+ * ของ Postgres ทำได้ตรง ๆ (pattern เดียวกับ `enrichWithOrderStage`) ส่วนทาง Prisma ต้องยิงทีละ
+ * เธรด = N+1 · index `[conversationId, autoReplyKind, createdAt]` มีอยู่แล้วใน schema ตั้งแต่
+ * base feature โดยใส่ไว้เพื่องานนี้โดยเฉพาะ
+ *
+ * NOTE: `lastMessageIsAiEnhanced` เป็น `false` ตายตัวในเฟสนี้ — ยังไม่มี flag `aiEnhanceEnabled`
+ * จริงในระบบ (DeepAI อยู่ในเอกสารล่วงหน้า PRD §3.9 เท่านั้น) จึงไม่ query อะไรเพิ่มเพื่อหาค่านี้
+ */
+export async function enrichWithAutoReplyBadge<T extends { id: string }>(
+  items: T[],
+): Promise<(T & { lastMessageAutoReplyKind: string | null; lastMessageIsAiEnhanced: boolean })[]> {
+  if (items.length === 0) return []
+
+  const ids = items.map((i) => i.id)
+  const rows = await prisma.$queryRaw<{ conversationId: string; autoReplyKind: string | null }[]>`
+    SELECT DISTINCT ON (m."conversationId")
+      m."conversationId" AS "conversationId",
+      m."autoReplyKind"  AS "autoReplyKind"
+    FROM "ChatMessage" m
+    WHERE m."conversationId" IN (${Prisma.join(ids)})
+    ORDER BY m."conversationId", m."createdAt" DESC, m."seq" DESC
+  `
+
+  const byConversation = new Map(rows.map((r) => [r.conversationId, r.autoReplyKind]))
+  return items.map((i) => ({
+    ...i,
+    lastMessageAutoReplyKind: byConversation.get(i.id) ?? null,
+    lastMessageIsAiEnhanced: false,
+  }))
 }

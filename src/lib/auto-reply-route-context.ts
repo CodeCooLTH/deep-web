@@ -162,6 +162,22 @@ const ERROR_MAP = new Map<string, { status: number; error: string }>(
   },
   // รหัสเดียวจริง ๆ (`AUTO_REPLY_RULE_EMPTY_REPLY`) จึงอยู่ในตารางไม่ใช่ suffix rule
   AUTO_REPLY_RULE_EMPTY_REPLY: { status: 400, error: 'คำตอบต้องไม่เป็นค่าว่าง' },
+
+  /* ── คลังคำถาม-คำตอบ (phase `00023-qna`) ────────────────────────────────
+   * WARNING: รหัสกลุ่มนี้ **ไม่ได้ถูกครอบด้วย suffix rule** (`endsWith('NOT_FOUND')` -> 404)
+   * ถ้าไม่มีในตารางนี้จะตกไปสาขา generic แล้วผู้ใช้ได้ 500 ทั้งที่เป็นความผิดของ input
+   * — บทเรียนตรงจาก feat 00003 (`OutOfStockError` ตกหล่นจน route คืน 500)
+   * ทุกครั้งที่ service ในกลุ่มนี้เพิ่ม `throw new Error('AUTO_REPLY_QNA_...')` ตัวใหม่
+   * ต้องมาเพิ่มที่นี่ด้วยเสมอ
+   * (`AUTO_REPLY_QNA_NOT_FOUND` / `AUTO_REPLY_KEYWORD_NOT_FOUND` ไม่ต้องใส่ — suffix rule ครอบแล้ว)
+   */
+  AUTO_REPLY_QNA_QUESTION_EMPTY: { status: 400, error: 'กรุณาระบุคำถาม' },
+  AUTO_REPLY_QNA_QUESTION_TOO_LONG: { status: 400, error: 'คำถามยาวเกินไป — ย่อให้ไม่เกิน 500 ตัวอักษร' },
+  AUTO_REPLY_QNA_ANSWER_EMPTY: { status: 400, error: 'ต้องมีคำตอบหรือรูปอย่างน้อยหนึ่งอย่าง' },
+  AUTO_REPLY_QNA_ANSWER_TOO_LONG: { status: 400, error: 'คำตอบยาวเกินไป — ย่อให้ไม่เกิน 2,000 ตัวอักษร' },
+  AUTO_REPLY_QNA_TOO_MANY_IMAGES: { status: 400, error: 'แนบรูปได้สูงสุด 5 รูปต่อหนึ่งคำตอบ' },
+  AUTO_REPLY_QNA_DUPLICATE: { status: 409, error: 'มีคำถามนี้อยู่ในกลุ่มนี้แล้ว — แก้ข้อเดิมแทนการเพิ่มใหม่' },
+  AUTO_REPLY_QNA_MOVE_TARGET_REQUIRED: { status: 400, error: 'กรุณาเลือกกลุ่มปลายทางก่อนย้าย' },
   }),
 )
 
