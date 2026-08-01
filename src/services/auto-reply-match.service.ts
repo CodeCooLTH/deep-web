@@ -33,6 +33,8 @@ import {
   type MatchType,
   type ResolutionLevel,
 } from '@/lib/auto-reply-constants'
+// type-only import — ไม่ทำลายความบริสุทธิ์ของไฟล์นี้ (ไม่มีโค้ดของ qna-match ถูกเรียกที่นี่)
+import type { QnaSetItem } from '@/lib/auto-reply-qna-match'
 
 // ---------------------------------------------------------------------------
 // ชนิดข้อมูลนำเข้า — ruleSet ที่ caller โหลดมาให้แล้ว (คิวรีเดียว, กรอง shopId/isActive มาแล้ว
@@ -81,6 +83,16 @@ export interface RuleSetRule {
 export interface RuleSet {
   keywords: RuleSetKeyword[]
   rules: RuleSetRule[]
+  /**
+   * คลังคำถาม-คำตอบของร้าน (phase `00023-qna`) — วิธีจับคู่ "ทางที่สอง"
+   *
+   * อยู่ใน RuleSet เดียวกันเพราะถูกโหลดในรอบเดียวกันและใช้ cache ก้อนเดียวกัน (TFR-032 ข้อ 4)
+   * `matchKeywords`/`resolveRule` ในไฟล์นี้ **ไม่แตะฟิลด์นี้เลย** — ผู้จับคู่คือ `matchQna()`
+   * ใน `src/lib/auto-reply-qna-match.ts` ซึ่ง processJob เรียกต่อเมื่อไม่มีกลุ่มคำใดตรง
+   *
+   * optional เพื่อให้ ruleSet ที่ประกอบในเทสเดิม (33 เทสของไฟล์นี้) ยังใช้ได้โดยไม่ต้องแก้
+   */
+  qnas?: QnaSetItem[]
 }
 
 /** บริบทจริงของเธรด ณ เวลาตัดสิน (TFR-010 ขั้นที่ 1) — คำนวณจากที่อื่น (TFR-011/012) แล้วส่งเข้ามา */

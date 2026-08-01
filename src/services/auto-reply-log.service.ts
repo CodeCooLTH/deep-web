@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type {
   AutoReplyLogDecision,
+  MatchedVia,
   MatchType,
   ResolutionLevel,
   SkipReason,
@@ -56,6 +57,11 @@ export type WriteLogEntry = {
   isTest?: boolean
   durationMs?: number | null
   errorMessage?: string | null
+  // --- phase 00023-qna (2026-07-31) ---
+  // ที่มาของคำตอบ: 'KEYWORD' = เข้ากลุ่มเพราะคำตรงตัว | 'QNA' = เข้ากลุ่มเพราะข้อในคลังคำถาม
+  // null = ยังไม่ถึงขั้นจับคู่ (ถูกตัดที่ gate ก่อนหน้า) — ป้าย DeepBot อ่านค่านี้ตรง ๆ
+  matchedVia?: MatchedVia | null
+  qnaId?: string | null
 }
 
 /**
@@ -89,6 +95,8 @@ export async function writeLog(entry: WriteLogEntry) {
       // Prisma Json รับ undefined ไม่ได้ ต้องแปลงเป็น null ให้ชัด
       matchTrace: (entry.matchTrace ?? null) as never,
       ruleId: entry.ruleId ?? null,
+      matchedVia: entry.matchedVia ?? null,
+      qnaId: entry.qnaId ?? null,
       resolutionLevel: entry.resolutionLevel ?? null,
       shopChannelId: entry.shopChannelId ?? null,
       adId: entry.adId ?? null,

@@ -13,7 +13,16 @@ import { getWindowState, sendOutboundMessage } from '@/services/channel-chat.ser
 
 /** ผลของการพยายามส่ง — caller (processor) เอาไปตัดสินว่าจะเขียน log แบบไหน */
 export type SendAutoReplyResult =
-  | { sent: true; messageId: string; attempts: number }
+  | {
+      sent: true
+      messageId: string
+      attempts: number
+      /**
+       * ชิ้นที่ส่งไม่ผ่านทั้งที่ชุดถือว่าสำเร็จ (รูปบางใบพลาด) — ผู้เรียกต้องบันทึกลง
+       * `AutoReplyLog.errorMessage` ห้ามกลืน (TFR-036 ข้อ 4)
+       */
+      partialError?: string
+    }
   | { sent: false; reason: SendSkipReason; error?: string; attempts: number }
 
 export type SendSkipReason =
@@ -47,6 +56,13 @@ export type SendAutoReplyParams = {
    */
   shopId: string
   text: string
+  /**
+   * รูปแนบ (storage fileId) สูงสุด 5 — ส่ง **ก่อน** ข้อความ ตามลำดับในอาร์เรย์ (TFR-036, A6)
+   *
+   * WARNING: Messenger attachment ไม่มี text ในตัว ⇒ รูป N ใบ + ข้อความ = ลูกค้าได้รับ N+1
+   * ข้อความรวด · แต่ละชิ้นล้มเหลวแยกกันได้และ **ถอนคืนไม่ได้**
+   */
+  imageFileIds?: string[]
   /** true = อยู่ในโหมดทดสอบ -> ติดป้าย AUTO_TEST แทน AUTO */
   isTest: boolean
 }
@@ -100,6 +116,50 @@ export async function sendAutoReply(params: SendAutoReplyParams): Promise<SendAu
   const autoReplyKind = params.isTest ? 'AUTO_TEST' : 'AUTO'
   let lastError = ''
 
+  /**
+   * ส่งรูปก่อน แล้วข้อความปิดท้าย (TFR-036 ข้อ 2, user ตัดสิน A6)
+   *
+   * WARNING: ส่งรูปทีละใบด้วยการเรียกแยก **ห้ามส่ง `text` ไปพร้อม `imageFileId`** ในการเรียกเดียว
+   * เพราะเส้นทางนั้นของ `sendOutboundMessage` เป็นเส้นทางของ "คนกดส่ง" ซึ่ง**กลืน error ของ
+   * caption ด้วย `.catch(() => {})`** (`channel-chat.service.ts:1063`) — ยอมรับได้เมื่อคนกดส่ง
+   * เห็นกับตาว่าไม่ขึ้น แต่บอทตอบตอนไม่มีใครเฝ้า ผลคือลูกค้าได้รูปเปล่าโดยไม่มีใครรู้
+   *
+   * WARNING: รูปที่ส่งไม่ผ่าน **ไม่ทำให้ทั้งชุดล้มเหลว** (TFR-036 ข้อ 3) — ถ้านับว่าล้มเหลว
+   * ระบบ retry จะส่งรูปที่สำเร็จไปแล้วซ้ำให้ลูกค้า ซึ่งถอนคืนไม่ได้และแย่กว่าการขาดรูป 1 ใบ
+   * (การกันตอบซ้ำอยู่ที่ระดับ "งาน" ไม่ใช่ระดับ "ชิ้นที่ส่ง")
+   */
+  const imageErrors: string[] = []
+  for (const [i, fileId] of (params.imageFileIds ?? []).entries()) {
+    try {
+      await sendOutboundMessage({
+        conversationId: conversation.id,
+        actorUserId: null,
+        systemShopId: params.shopId,
+        imageFileId: fileId,
+        autoReplyKind,
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      imageErrors.push(`รูปที่ ${i + 1}: ${msg}`)
+      console.error('[auto-reply-send] ส่งรูปไม่สำเร็จ', fileId, msg)
+    }
+  }
+
+  // คำตอบที่เป็นรูปล้วน (ไม่มีข้อความ) — ส่งรูปครบแล้วจบ ไม่ต้องยิงข้อความว่าง
+  if (!params.text.trim()) {
+    const allFailed = imageErrors.length > 0 && imageErrors.length === (params.imageFileIds ?? []).length
+    if (allFailed) {
+      return { sent: false, reason: 'SEND_FAILED', error: imageErrors.join(' · '), attempts: 1 }
+    }
+    return {
+      sent: true,
+      // ไม่มี ChatMessage ของข้อความให้อ้าง — รูปแต่ละใบเป็นแถวของตัวเอง
+      messageId: '',
+      attempts: 1,
+      ...(imageErrors.length ? { partialError: imageErrors.join(' · ') } : {}),
+    }
+  }
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const message = await sendOutboundMessage({
@@ -109,7 +169,12 @@ export async function sendAutoReply(params: SendAutoReplyParams): Promise<SendAu
         text: params.text,
         autoReplyKind,
       })
-      return { sent: true, messageId: message.id, attempts: attempt }
+      return {
+        sent: true,
+        messageId: message.id,
+        attempts: attempt,
+        ...(imageErrors.length ? { partialError: imageErrors.join(' · ') } : {}),
+      }
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e)
 

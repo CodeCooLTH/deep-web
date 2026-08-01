@@ -79,7 +79,16 @@ describe('ค่าคงที่ FROZEN §3.8 — จำนวนและเ�
     expect(AUTO_REPLY_JOB_STATUSES).toEqual(['PENDING', 'PROCESSING', 'DONE', 'FAILED', 'SKIPPED']))
   it('AutoReplyLog.decision', () =>
     expect(AUTO_REPLY_LOG_DECISIONS).toEqual(['REPLIED', 'SKIPPED', 'HANDOFF', 'FAILED']))
-  it('resolutionLevel ครบ 9 ค่า', () => expect(RESOLUTION_LEVELS).toHaveLength(9))
+  // 10 ไม่ใช่ 9: เพิ่ม 'QNA' 2026-07-31 (phase 00023-qna — คำตอบจากคลังคำถามไม่ได้ผ่าน
+  // resolveRule จึงต้องมีชื่อระดับของตัวเอง) · DATABASE.md §3.8 อัปเดตให้ตรงแล้ว
+  it('resolutionLevel ครบ 10 ค่า', () => expect(RESOLUTION_LEVELS).toHaveLength(10))
+  it("'QNA' ต้องไม่มีทางออกจาก getResolutionLevel — ผู้เรียกเซ็ตตรง ๆ ที่ processJob (TFR-032)", () => {
+    // ค่าที่ getResolutionLevel คืนได้ต้องไม่มี QNA เลย ไม่ว่า specificity/hasKeywordId จะเป็นอะไร
+    const produced = new Set<string>()
+    for (const spec of [0, 1, 4, 5, 6, 7]) produced.add(getResolutionLevel(spec, true))
+    for (const spec of [0, 4]) produced.add(getResolutionLevel(spec, false))
+    expect(produced.has('QNA')).toBe(false)
+  })
   // 17 ไม่ใช่ 16: เพิ่ม OUTSIDE_SCHEDULE 2026-07-31 (เวลาทำงานของ DeepBot, feature 00023 เฟส A)
   // แก้ตัวเลขนี้ได้เฉพาะเมื่อแก้ DATABASE.md §3.8 ให้ตรงกันแล้วเท่านั้น — เทสนี้มีไว้กันการเพิ่ม
   // ค่าเงียบ ๆ โดยลืมอัปเดตเอกสารที่เป็น SSOT

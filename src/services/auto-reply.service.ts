@@ -12,6 +12,10 @@ import {
 } from '@/services/auto-reply-match.service'
 import { writeLog } from '@/services/auto-reply-log.service'
 import { sendAutoReply } from '@/services/auto-reply-send.service'
+// phase 00023-qna — คลังคำถาม-คำตอบ (วิธีจับคู่ทางที่สอง) + คิวคำถามที่ตอบไม่ได้
+import { matchQna } from '@/lib/auto-reply-qna-match'
+import { markQnaUsed } from '@/services/auto-reply-qna.service'
+import { recordUnanswered } from '@/services/auto-reply-unanswered.service'
 
 /**
  * auto-reply.service — คิวและตัวประมวลผลของระบบตอบอัตโนมัติ (feature 00023, S-07)
@@ -119,7 +123,7 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
   const cached = getRuleSetCache<RuleSet>(shopId)
   if (cached) return cached
 
-  const [keywords, rules] = await Promise.all([
+  const [keywords, rules, qnas] = await Promise.all([
     prisma.autoReplyKeyword.findMany({
       // OFFLINE ไม่ต้องโหลดเลย — ไม่มีทางตอบใครได้ การกรองที่ query ทำให้ไม่เสียแรง match ฟรี ๆ
       where: { shopId, status: { not: 'OFFLINE' } },
@@ -151,6 +155,22 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
         createdAt: true,
       },
     }),
+    // คลังคำถาม-คำตอบ (phase 00023-qna) — โหลดในรอบเดียวกันและใช้ cache ก้อนเดียวกัน
+    // ไม่กรอง keywordId ที่นี่: matchQna ตัดข้อของกลุ่ม OFFLINE ทิ้งเองด้วยการเทียบกับ
+    // รายการกลุ่มที่ส่งเข้าไป (ซึ่ง query ด้านบนกรอง OFFLINE ออกแล้ว) — จุดตัดสินเดียว ไม่มีเงื่อนไขคู่ขนาน
+    prisma.autoReplyQna.findMany({
+      where: { shopId, isActive: true },
+      select: {
+        id: true,
+        keywordId: true,
+        question: true,
+        normalizedQuestion: true,
+        answer: true,
+        imageFileIds: true,
+        isActive: true,
+        useCount: true,
+      },
+    }),
   ])
 
   const ruleSet = {
@@ -159,6 +179,7 @@ export async function loadRuleSet(shopId: string): Promise<RuleSet> {
       testConversationIds: k.testThreads.map((t) => t.conversationId),
     })),
     rules,
+    qnas,
   } as RuleSet
   setRuleSetCache(shopId, ruleSet)
   return ruleSet
@@ -288,13 +309,37 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     const matched = matchKeywords(normalizedText, ruleSet, ctx)
 
+    /**
+     * คลังคำถาม-คำตอบ — วิธีจับคู่ "ทางที่สอง" (phase 00023-qna, TFR-032)
+     *
+     * WARNING: เรียก **เฉพาะเมื่อไม่มีกลุ่มคำใดตรง** เท่านั้น — "คำตรงตัวชนะก่อนเสมอ"
+     * (user decisions 2026-07-31 §3) และ **ไม่** เรียกตอน NO_RULE_MATCH:
+     * กลุ่มคำตรงแต่ไม่มีกฎ = ร้านตั้งค่าค้างไว้ครึ่งทาง ซึ่งร้านต้องเห็นว่าค้าง
+     * ถ้าปล่อยให้คลังมาตอบแทน อาการ "ตั้งกฎไว้แล้วไม่เคยถูกใช้" จะถูกกลบและไล่ไม่เจอ
+     */
+    const qnaMatch = matched.winner
+      ? null
+      : matchQna(normalizedText, ruleSet.qnas ?? [], ruleSet.keywords, { mode: 'EXACT' })
+
+    /**
+     * กลุ่มคำที่ "เป็นเจ้าของ" คำตอบครั้งนี้ — มาจากคำตรงตัว หรือจากกลุ่มที่ QnA ยืมมา
+     *
+     * WARNING: ตัวแปรนี้คือหัวใจของ TFR-032 ข้อ 2 — gate 6.5 (สถานะ), 6.6 (เวลาทำงาน)
+     * และ 7 (cooldown) ทั้งหมดต้องอ่านค่านี้ ไม่ใช่ `matched.winner` ตรง ๆ
+     * ถ้าลัดให้ QnA ข้าม gate เหล่านี้ มันจะกลายเป็นช่องทางที่ข้ามสถานะ OFFLINE/TEST,
+     * ข้ามตารางเวลา และข้าม cooldown ได้ทั้งหมด = กับดัก "สวิตช์คนละที่" ตัวเดียวกับที่
+     * ถูกรื้อทิ้งเมื่อ 2026-07-30 และเป็นเหตุผลที่ user เลือกให้คลังอยู่ในกลุ่มตั้งแต่แรก
+     */
+    const effectiveKeywordId = matched.winner?.keywordId ?? qnaMatch?.keywordId ?? null
+    const matchedVia: 'KEYWORD' | 'QNA' | null = matched.winner ? 'KEYWORD' : qnaMatch ? 'QNA' : null
+
     // gate 6.5 — สถานะของ "กลุ่มคำที่ชนะ" (feature 00023, user 2026-07-29)
     //
     // WARNING: ต้องเช็ค **หลัง match** เพราะสถานะผูกกับกลุ่มคำแต่ละชุด ไม่ใช่ทั้งร้าน
     // ชุด TEST ตอบได้เฉพาะเธรดที่ผูกไว้กับชุดนั้น ส่วนชุด LIVE ทำงานปกติในเธรดเดียวกัน
     // นี่คือสิ่งที่ทำให้ "ปล่อยของทีละชุด" ได้โดยไม่กระทบชุดที่ใช้งานจริงอยู่
     // (OFFLINE ไม่ต้องเช็คที่นี่ — ไม่ถูกโหลดเข้า ruleSet ตั้งแต่แรก)
-    const winner = ruleSet.keywords.find((k) => k.id === matched.winner?.keywordId)
+    const winner = ruleSet.keywords.find((k) => k.id === effectiveKeywordId)
     const isTestReply = winner?.status === 'TEST'
     if (isTestReply && !(winner?.testConversationIds ?? []).includes(conversation.id)) {
       return finish(job, 'SKIPPED', {
@@ -303,7 +348,9 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         skipReason: 'KEYWORD_TEST_ONLY',
         rawText,
         normalizedText,
-        keywordId: matched.winner?.keywordId ?? null,
+        keywordId: effectiveKeywordId,
+        matchedVia,
+        qnaId: qnaMatch?.qna.id ?? null,
       })
     }
 
@@ -320,7 +367,9 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         skipReason: 'OUTSIDE_SCHEDULE',
         rawText,
         normalizedText,
-        keywordId: matched.winner?.keywordId ?? null,
+        keywordId: effectiveKeywordId,
+        matchedVia,
+        qnaId: qnaMatch?.qna.id ?? null,
       })
     }
 
@@ -331,13 +380,15 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     // ปิดปากบอทเงียบ ๆ อาการที่เห็นคือ "ตั้งแล้วไม่ทำงาน" ซึ่งแยกไม่ออกจากบั๊กจริง
     // (user เจอกับตัว 2 รอบในสิบนาที) — ลูกค้าจริงไม่ได้รับผลกระทบ เพราะกลุ่ม TEST
     // ตอบเฉพาะเธรดที่ร้านเลือกเองไว้ที่ gate 6.5 อยู่แล้ว
-    if (matched.winner && config.keywordCooldownSec > 0 && !isTestReply) {
+    // WARNING: เงื่อนไขเป็น `effectiveKeywordId` ไม่ใช่ `matched.winner` — คำตอบจากคลังต้องติด
+    // cooldown เดียวกับคำตอบของกลุ่มนั้น ไม่งั้นลูกค้าที่พิมพ์คำถามเดิมรัว ๆ จะโดนตอบซ้ำทุกครั้ง
+    if (effectiveKeywordId && config.keywordCooldownSec > 0 && !isTestReply) {
       const since = new Date(Date.now() - config.keywordCooldownSec * 1000)
       const recent = await prisma.autoReplyLog.findFirst({
         where: {
           shopId: job.shopId,
           conversationId: job.conversationId,
-          keywordId: matched.winner.keywordId,
+          keywordId: effectiveKeywordId,
           decision: 'REPLIED',
           createdAt: { gte: since },
         },
@@ -350,37 +401,57 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           skipReason: 'KEYWORD_COOLDOWN',
           rawText,
           normalizedText,
-          keywordId: matched.winner.keywordId,
+          keywordId: effectiveKeywordId,
+          matchedVia,
+          qnaId: qnaMatch?.qna.id ?? null,
         })
       }
     }
 
-    const resolved = resolveRule(matched.winner?.keywordId ?? null, ctx, ruleSet)
+    /**
+     * WARNING: คำตอบจากคลัง **ไม่ผ่าน `resolveRule`** — คลังมีคำตอบของตัวเองอยู่แล้ว (TFR-032 ข้อ 3)
+     * ข้าม resolveRule ไปเลยเมื่อชนะด้วย QnA เพื่อไม่ให้กฎกลางของร้าน (ระดับ PAGE_DEFAULT/
+     * SHOP_DEFAULT) มาแย่งคำตอบที่ร้านกรอกไว้เจาะจงกับคำถามนั้น
+     */
+    const resolved = qnaMatch ? null : resolveRule(effectiveKeywordId, ctx, ruleSet)
 
-    const trace = { match: matched.matchTrace, fallbackFrom: resolved.fallbackFrom }
+    const trace = {
+      match: matched.matchTrace,
+      fallbackFrom: resolved?.fallbackFrom ?? [],
+      ...(qnaMatch ? { qna: { id: qnaMatch.qna.id, question: qnaMatch.qna.question, method: qnaMatch.method } } : {}),
+    }
     const common = {
       ...base,
       rawText,
       normalizedText,
-      keywordId: matched.winner?.keywordId ?? null,
+      keywordId: effectiveKeywordId,
+      // คำที่ตรง/วิธีจับ มีเฉพาะเส้นทางคำตรงตัว — เส้นทางคลังใช้ทั้งประโยค ไม่มี "คำ" ที่ตรง
       matchedPhrase: matched.winner?.matchedPhrase ?? null,
       matchType: matched.winner?.matchType ?? null,
       matchTrace: trace,
       shopChannelId: ctx.shopChannelId,
       adId: ctx.adId,
       productId: ctx.productId,
-      resolutionLevel: resolved.resolutionLevel,
-      ruleId: resolved.rule?.id ?? null,
+      // 'QNA' ไม่มีทางออกจาก getResolutionLevel() — เซ็ตตรงนี้จุดเดียว (TFR-032 ข้อ 3)
+      resolutionLevel: qnaMatch ? 'QNA' : (resolved?.resolutionLevel ?? 'NONE'),
+      ruleId: resolved?.rule?.id ?? null,
+      matchedVia,
+      qnaId: qnaMatch?.qna.id ?? null,
       isTest: isTestReply,
       durationMs: Date.now() - startedAt,
     }
 
     // gate 8-9 — ไม่มีกลุ่มคำตรง หรือถอยจนไม่เหลือกฎ = เงียบแล้วส่งต่อคน ห้ามเดา (BR-AR-08)
-    const replyText = resolved.rule?.replyText?.trim() ?? ''
-    if (!replyText) {
-      const reason: SkipReason = !matched.winner
+    //
+    // WARNING: "มีคำตอบ" = มีข้อความ **หรือมีรูป** (TFR-036 ข้อ 6) — คำตอบที่เป็นรูปล้วน
+    // (ซึ่งอนุญาต มิเรอร์ QuickMessage.body ที่ว่างได้ถ้ามีรูป) ต้องไม่ถูกตัดทิ้งเป็น
+    // EMPTY_REPLY แล้วล็อกห้องด้วย handoffAt
+    const replyText = (qnaMatch ? qnaMatch.qna.answer : resolved?.rule?.replyText)?.trim() ?? ''
+    const replyImages = qnaMatch ? qnaMatch.qna.imageFileIds : []
+    if (!replyText && replyImages.length === 0) {
+      const reason: SkipReason = !effectiveKeywordId
         ? 'NO_KEYWORD_MATCH'
-        : resolved.rule
+        : qnaMatch || resolved?.rule
           ? 'EMPTY_REPLY'
           : 'NO_RULE_MATCH'
 
@@ -405,6 +476,18 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           where: { id: conversation.id },
           data: { handoffAt: new Date(), handoffReason: reason },
         })
+      } else {
+        /**
+         * บันทึกเข้าคิว "คำถามที่ตอบไม่ได้" (phase 00023-qna, TFR-033)
+         *
+         * WARNING: อยู่ในสาขา `NO_KEYWORD_MATCH` เท่านั้น และ **อยู่ใน `else` ของ handoffAt**
+         * ให้เห็นชัดว่าเส้นทางนี้ไม่แตะ `handoffAt` — จุดนี้คือจุดเดียวกับบั๊กที่ล็อกห้องถาวร
+         * 240 ห้องบน prod เมื่อ 2026-07-31
+         *
+         * `recordUnanswered` ไม่ throw เองอยู่แล้ว (ห่อ try/catch ในตัว) แต่ `await` ไว้เพื่อให้
+         * ลำดับการเขียนแน่นอนตอนเทส — คิวพังไม่ทำให้งานค้างสถานะเพราะ finish() ทำงานต่อเสมอ
+         */
+        await recordUnanswered({ shopId: job.shopId, rawText, normalizedText })
       }
       return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason })
     }
@@ -414,6 +497,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       conversationId: conversation.id,
       shopId: job.shopId,
       text: replyText,
+      imageFileIds: replyImages,
       isTest: isTestReply,
     })
 
@@ -449,16 +533,24 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       return
     }
 
+    // WARNING: +1 ต่อ "ชุด" ไม่ใช่ต่อชิ้นที่ส่ง (DATABASE §3.11) — คำตอบที่มี 5 รูปนับเป็น 1
+    // ถ้านับเป็น 6 ร้านที่ตั้งเพดานไว้ 10 จะโดนตัดจบหลังตอบไปแค่ชุดเดียวครึ่ง ซึ่งไม่ใช่
+    // สิ่งที่ "จำนวนคำตอบ" หมายถึงในสายตาร้าน
     await prisma.conversation.update({
       where: { id: conversation.id },
       data: { autoReplyCount: { increment: 1 }, lastAutoReplyAt: new Date() },
     })
+
+    // นับการใช้งานของข้อในคลัง (TFR-032 ข้อ 5) — นับเฉพาะตอนส่งสำเร็จ ไม่ throw เอง
+    if (qnaMatch) await markQnaUsed(qnaMatch.qna.id)
 
     return finish(job, 'DONE', {
       ...common,
       decision: 'REPLIED',
       replyText,
       outboundMessageId: result.messageId,
+      // ความล้มเหลวบางส่วน (รูปบางใบส่งไม่ผ่าน) ต้องถูกบันทึก ไม่ใช่กลืน (TFR-036 ข้อ 4)
+      errorMessage: result.partialError ?? null,
       durationMs: Date.now() - startedAt,
     })
   } catch (e) {
