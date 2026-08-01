@@ -86,38 +86,39 @@ export default function KnowledgeClient({ canEdit, initialItems, initialStats }:
 
   return (
     <div className="card">
-      <div className="card-header flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className="card-header flex-col items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h4 className="card-title">คลังความรู้ของบอท</h4>
-          <p className="text-default-500 mt-1 text-xs">
+          <p className="text-default-500 mt-0.5 text-xs">
             {initialStats.total.toLocaleString('th-TH')} ข้อ · ใช้งานอยู่ {initialStats.active.toLocaleString('th-TH')} ·
-            ถูกใช้ตอบรวม {initialStats.totalUses.toLocaleString('th-TH')} ครั้ง
+            ถูกใช้ตอบ {initialStats.totalUses.toLocaleString('th-TH')} ครั้ง
           </p>
         </div>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={() => setEditing('NEW')}
-            /* min-h-11 (44px): tap-target มือถือ — btn-sm สูงราว 31px ไม่พอ (HR7 carve-out) */
-            className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 shrink-0 rounded-full text-white"
-          >
-            <Icon icon="plus" className="size-4" aria-hidden="true" />
-            เพิ่มความรู้
-          </button>
-        )}
-      </div>
-
-      <div className="px-4 pt-3 pb-2">
-        <div className="input-icon-group">
-          <Icon icon="search" className="input-icon" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            type="text"
-            className="form-input"
-            placeholder="ค้นหาจากคำถามหรือคำตอบ"
-            aria-label="ค้นหาในคลังความรู้"
-          />
+        <div className="flex items-center gap-2 sm:w-auto">
+          {/* ยุบช่องค้นหาเข้าแถวหัวการ์ด — เดิมกินอีกหนึ่งบล็อกเต็มความกว้างเหนือรายการ */}
+          <div className="input-icon-group min-w-0 flex-1 sm:w-56 sm:flex-none">
+            <Icon icon="search" className="input-icon" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              type="text"
+              className="form-input form-input-sm"
+              placeholder="ค้นหา"
+              aria-label="ค้นหาในคลังความรู้"
+            />
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setEditing('NEW')}
+              /* min-h-11 (44px): tap-target มือถือ — btn-sm สูงราว 31px ไม่พอ (HR7 carve-out) */
+              className="btn btn-sm bg-primary hover:bg-primary-hover min-h-11 shrink-0 rounded-full text-white"
+              aria-label="เพิ่มความรู้"
+            >
+              <Icon icon="plus" className="size-4" aria-hidden="true" />
+              <span className="hidden sm:inline">เพิ่ม</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -144,16 +145,21 @@ export default function KnowledgeClient({ canEdit, initialItems, initialStats }:
       ) : (
         <ul className="divide-default-200 divide-y">
           {visible.map((row) => (
-            <li key={row.id} className={`flex items-start gap-3 px-4 py-3 ${!row.isActive ? 'opacity-60' : ''}`}>
+            <li
+              key={row.id}
+              className={`flex items-center gap-2.5 px-4 py-2 ${!row.isActive ? 'opacity-60' : ''}`}
+            >
               <div className="min-w-0 flex-1">
                 <p className="text-default-800 truncate text-sm font-medium">{row.question}</p>
                 <p className="text-default-400 truncate text-xs">{row.answer || 'ตอบด้วยรูปอย่างเดียว'}</p>
               </div>
-              <span className="text-default-500 shrink-0 text-xs tabular-nums">
+              {/* จำนวนครั้งซ่อนบนมือถือ — ไม่ใช่ข้อมูลที่ต้องตัดสินใจ ณ ตรงนั้น */}
+              <span className="text-default-500 hidden shrink-0 text-xs tabular-nums sm:inline">
                 {row.useCount.toLocaleString('th-TH')} ครั้ง
               </span>
               {canEdit && (
                 <>
+                  {/* ลบย้ายไปอยู่ในโมดัลแก้ไข — แถวเหลือ 2 ปุ่ม อ่านง่ายขึ้นและกดลบพลาดยากขึ้น */}
                   <button
                     type="button"
                     onClick={() => setEditing(row)}
@@ -162,17 +168,9 @@ export default function KnowledgeClient({ canEdit, initialItems, initialStats }:
                   >
                     <Icon icon="pencil" className="size-4" aria-hidden="true" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(row)}
-                    className="btn btn-icon btn-sm bg-light text-danger shrink-0"
-                    aria-label={`ลบ ${row.question}`}
-                  >
-                    <Icon icon="trash" className="size-4" aria-hidden="true" />
-                  </button>
                   <input
                     type="checkbox"
-                    className="form-switch form-switch-sm mt-1 shrink-0"
+                    className="form-switch form-switch-sm shrink-0"
                     checked={row.isActive}
                     onChange={() => toggleActive(row)}
                     aria-label={row.isActive ? `ปิดใช้งาน ${row.question}` : `เปิดใช้งาน ${row.question}`}
@@ -187,6 +185,7 @@ export default function KnowledgeClient({ canEdit, initialItems, initialStats }:
       {editing && (
         <KnowledgeModal
           row={editing === 'NEW' ? null : editing}
+          onDelete={editing === 'NEW' ? undefined : () => remove(editing)}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
@@ -203,10 +202,12 @@ function KnowledgeModal({
   row,
   onClose,
   onSaved,
+  onDelete,
 }: {
   row: KnowledgeRow | null
   onClose: () => void
   onSaved: () => void
+  onDelete?: () => void
 }) {
   const [question, setQuestion] = useState(row?.question ?? '')
   const [answer, setAnswer] = useState(row?.answer ?? '')
@@ -270,8 +271,18 @@ function KnowledgeModal({
             />
           </div>
         </div>
-        <div className="border-default-200 flex justify-end gap-2 border-t px-4 py-3">
-          <button type="button" onClick={onClose} className="btn bg-light text-default-700 min-h-11">ยกเลิก</button>
+        <div className="border-default-200 flex items-center gap-2 border-t px-4 py-3">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="btn btn-icon bg-light text-danger min-h-11 me-auto"
+              aria-label="ลบข้อนี้"
+            >
+              <Icon icon="trash" className="size-4" aria-hidden="true" />
+            </button>
+          )}
+          <button type="button" onClick={onClose} className="btn bg-light text-default-700 min-h-11 ms-auto">ยกเลิก</button>
           <button type="button" onClick={save} disabled={!canSave} className="btn bg-primary hover:bg-primary-hover min-h-11 text-white">
             บันทึก
           </button>

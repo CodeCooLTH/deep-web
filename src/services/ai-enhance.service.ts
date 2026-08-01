@@ -189,3 +189,147 @@ export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> 
     return fail('AI_ENHANCE_ERROR')
   }
 }
+
+/* ══ ChatBot — ตอบคำถามที่ไม่เข้าเงื่อนไขไหนเลย โดยอ่านจากคลังความรู้ ══════════
+ * user ตัดสิน 2026-08-01 · สวิตช์ระดับร้าน (OFFLINE/TEST/LIVE)
+ */
+
+const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแชทของร้านค้าออนไลน์ ตอบคำถามลูกค้าโดยใช้ "คลังความรู้ของร้าน" ที่ให้มาเท่านั้น
+
+กฎที่ห้ามฝ่าฝืน:
+- ตอบได้เฉพาะสิ่งที่มีอยู่ในคลังความรู้ — ห้ามเดา ห้ามเติมข้อมูลจากความรู้ทั่วไป
+- ราคา เงื่อนไข ระยะเวลาจัดส่ง ต้องตรงกับคลังเป๊ะ ห้ามปัด ห้ามประมาณ
+- ห้ามสัญญาอะไรแทนร้าน
+- ถ้าคลังไม่มีข้อมูลพอจะตอบคำถามนี้ ให้ตอบว่า NO_ANSWER คำเดียว ห้ามพยายามตอบแบบกว้าง ๆ
+- ตอบภาษาไทย สั้นและตรงคำถาม
+
+น้ำเสียงที่ร้านต้องการ: {{TONE}}
+
+ตอบกลับเป็นข้อความที่จะส่งให้ลูกค้าเท่านั้น ห้ามมีคำอธิบายอื่น`
+
+/** สัญญาณที่โมเดลใช้บอกว่า "คลังไม่มีข้อมูลพอ" — ต้องเงียบดีกว่าตอบมั่ว */
+const NO_ANSWER_TOKEN = 'NO_ANSWER'
+
+export interface ChatbotAnswerInput {
+  customerText: string
+  /** คลังความรู้ของร้าน — คู่คำถาม/คำตอบที่ใช้งานอยู่ */
+  knowledge: { question: string; answer: string }[]
+  guardrails: { rule: string; denyPhrases: string[] }[]
+  tone?: string | null
+}
+
+export interface ChatbotAnswerResult {
+  /** null = ไม่ตอบ (คลังไม่มีข้อมูล / ชนกฎ / ล้มเหลว) — ผู้เรียกต้องเงียบตามเดิม */
+  text: string | null
+  blocked: boolean
+  reason: AiEnhanceSkipReason | 'NO_KNOWLEDGE_ANSWER' | null
+  usage: TokenUsage | null
+}
+
+/**
+ * ให้ AI ตอบจากคลังความรู้ (BR ของ ChatBot)
+ *
+ * WARNING: ไม่ throw เด็ดขาด เหมือน `enhanceReply` — อยู่ในเส้นทางเดียวกับการตอบลูกค้า
+ *
+ * ต่างจาก `enhanceReply` ตรงที่ **ความเสี่ยงสูงกว่ามาก**: ตัวนั้นเรียบเรียงข้อความที่ร้าน
+ * เขียนเองอยู่แล้ว ส่วนตัวนี้ AI แต่งประโยคขึ้นมาใหม่ — จึงบังคับให้ตอบจากคลังเท่านั้น
+ * และให้ตอบ NO_ANSWER เมื่อข้อมูลไม่พอ ดีกว่าปล่อยให้เดาแล้วสัญญาสิ่งที่ร้านให้ไม่ได้
+ */
+export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<ChatbotAnswerResult> {
+  const none = (reason: ChatbotAnswerResult['reason'], usage: TokenUsage | null = null): ChatbotAnswerResult => ({
+    text: null, blocked: false, reason, usage,
+  })
+
+  if (input.knowledge.length === 0) return none('NO_KNOWLEDGE_ANSWER')
+
+  try {
+    const signal = AbortSignal.timeout(AI_ENHANCE_TIMEOUT_MS)
+    const tone = (input.tone ?? '').trim() || DEFAULT_TONE
+
+    // คลังส่งเข้า prompt เป็นคู่ถาม-ตอบ เรียงตามที่ service คัดมาแล้ว (ใช้บ่อยอยู่บน)
+    const kb = input.knowledge
+      .map((k, i) => `${i + 1}. ถาม: ${k.question}\n   ตอบ: ${k.answer}`)
+      .join('\n')
+
+    let answer: string
+    let usage: TokenUsage | null = null
+    try {
+      const r = await generateText({
+        system: CHATBOT_SYSTEM.replace('{{TONE}}', tone),
+        user: `คลังความรู้ของร้าน:\n${kb}\n\nคำถามของลูกค้า:\n${input.customerText}`,
+        maxOutputTokens: 1024,
+        signal,
+      })
+      answer = r.text
+      usage = r.usage
+    } catch (e) {
+      const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+      return none(timedOut ? 'AI_ENHANCE_TIMEOUT' : 'AI_ENHANCE_ERROR')
+    }
+
+    // โมเดลบอกเองว่าตอบไม่ได้ — เงียบตามเดิม (คำถามจะไปเข้าคิวให้ร้านกรอกเอง)
+    if (answer.toUpperCase().includes(NO_ANSWER_TOKEN)) return none('NO_KNOWLEDGE_ANSWER', usage)
+
+    if (hitsDenylist(answer, input.guardrails)) {
+      return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
+    }
+
+    const rules = input.guardrails.map((g) => g.rule).filter(Boolean)
+    if (rules.length > 0) {
+      try {
+        const j = await generateText({
+          user: buildJudgePrompt(rules, answer),
+          maxOutputTokens: 128,
+          temperature: 0,
+          signal,
+        })
+        const verdict = j.text.toUpperCase()
+        if (verdict.includes('BLOCK')) {
+          return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
+        }
+        // ตัดสินไม่ได้ = ไม่ผ่าน — ตรงนี้ fail-closed แรงกว่า enhance เพราะไม่มีคำตอบดิบให้ถอยไป
+        if (!verdict.includes('PASS')) return none('GUARDRAILS_CHECK_FAILED', usage)
+      } catch {
+        return none('GUARDRAILS_CHECK_FAILED', usage)
+      }
+    }
+
+    return { text: answer, blocked: false, reason: null, usage }
+  } catch (e) {
+    console.error('[ai-chatbot] unexpected', e)
+    return none('AI_ENHANCE_ERROR')
+  }
+}
+
+/**
+ * ChatBot อยู่ในช่วงเวลาทำงานไหม — HH:mm เวลาไทย รองรับช่วงข้ามเที่ยงคืน
+ *
+ * ไม่ reuse `isWithinSchedule` ของ Auto Reply เพราะตัวนั้นรับเป็นนาที+วันในสัปดาห์
+ * (โครงคนละแบบ) การดัดให้รับสองรูปแบบทำให้ตัวที่ใช้งานจริงอยู่แล้วเสี่ยงพังโดยไม่จำเป็น
+ */
+export function isChatbotWithinWindow(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  now: Date
+): boolean {
+  if (!start || !end) return true // ไม่ได้ตั้ง = ทำงานตลอดเวลา
+
+  const parse = (t: string): number | null => {
+    const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(t)
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null
+  }
+  const s = parse(start)
+  const e = parse(end)
+  if (s === null || e === null) return true // ค่าเสีย = ไม่ปิดกั้น ดีกว่าเงียบโดยไม่มีเหตุผล
+
+  // เวลาไทยจาก Intl — ห้ามใช้ getHours() ของเครื่อง (serverless รันบน UTC)
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now)
+  const hh = Number(parts.find((p) => p.type === 'hour')?.value ?? '0')
+  const mm = Number(parts.find((p) => p.type === 'minute')?.value ?? '0')
+  const cur = hh * 60 + mm
+
+  // ช่วงข้ามเที่ยงคืน (18:00-09:00) = "อยู่หลังเวลาเริ่ม หรือ ก่อนเวลาจบ"
+  return s <= e ? cur >= s && cur < e : cur >= s || cur < e
+}

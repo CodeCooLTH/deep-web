@@ -246,6 +246,7 @@ model Shop {
   autoReplyQnas               AutoReplyQna[] // คลังคำถาม-คำตอบ (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
   autoReplyUnansweredQuestions AutoReplyUnansweredQuestion[] // คิวคำถามที่บอทตอบไม่ได้
   autoReplyGuardrails         AutoReplyGuardrail[] // กฎห้ามตอบของ AI Enhance (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
+  aiChatbotTestThreads        AiChatbotTestThread[] // แชทที่ใช้ทดสอบ ChatBot (มีผลตอน status=TEST)
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -1360,6 +1361,8 @@ model Conversation {
   // ถ้าไม่มี index เหตุผลนั้นไม่มีของจริงรองรับ. เพิ่มตอนนี้ฟรีเพราะยังไม่ migrate; เพิ่มทีหลัง
   // ต้อง ALTER ตารางใหญ่บน DB ที่ dev/prod แชร์กัน
   @@index([shopId, lastInboundAt])
+  aiChatbotTestThreads AiChatbotTestThread[] // แชทที่ถูกเลือกไว้ทดสอบ ChatBot
+
 }
 
 // ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
@@ -1938,6 +1941,16 @@ model AutoReplyConfig {
   /// และไม่สร้างกับดักเดิม เพราะมันได้แค่ **เพิ่มคำตอบตรงที่เคยเงียบ** ปิดปากกลุ่มไหนไม่ได้
   aiChatbotEnabled Boolean @default(false)
 
+  /// สถานะ ChatBot — "OFFLINE" | "TEST" | "LIVE" (user สั่ง 2026-08-01)
+  ///
+  /// ใช้คำเดียวกับ `AutoReplyKeyword.status` โดยเจตนา: ร้านเรียนรู้ความหมายไปแล้วรอบหนึ่ง
+  /// จากกลุ่มคำ การตั้งชื่อใหม่ให้ของที่ทำงานเหมือนกันคือการบังคับให้เรียนซ้ำ
+  ///   OFFLINE = ไม่ทำงานเลย · TEST = ตอบเฉพาะแชทที่เลือกไว้ · LIVE = ตอบลูกค้าจริงทุกคน
+  ///
+  /// NOTE: `aiChatbotEnabled` ด้านบนเป็นของเดิมก่อนมี 3 สถานะ — ยังคงไว้เพื่อไม่ให้โค้ดที่
+  /// อ่านค่านั้นพังระหว่างเปลี่ยนผ่าน แต่ตัวตัดสินจริงคือ `aiChatbotStatus`
+  aiChatbotStatus String @default("OFFLINE")
+
   /// ให้ AI ขัดเกลาคำตอบของ Auto Reply ก่อนส่ง — เป็น "option เสริม" ในเมนู ChatBot
   /// (user ตัดสิน 2026-08-01: ย้ายจากสวิตช์รายกลุ่มคำขึ้นมาเป็นระดับร้าน)
   ///
@@ -2058,6 +2071,23 @@ model AutoReplyKeyword {
 
   @@unique([shopId, name]) // AC-001-04 ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน
   @@index([shopId, status, priority]) // query หลัก: โหลดกลุ่มที่ทำงานอยู่ของร้านเรียงตามลำดับความสำคัญ
+}
+
+/// แชทที่ใช้ทดสอบ ChatBot — มีผลเฉพาะตอน `AutoReplyConfig.aiChatbotStatus = "TEST"`
+///
+/// โครงเดียวกับ `AutoReplyKeywordTestThread` ของกลุ่มคำ ต่างกันที่ผูกระดับร้าน
+/// เพราะ ChatBot เป็นสวิตช์ระดับร้าน ไม่มีกลุ่มคำให้ผูก
+model AiChatbotTestThread {
+  id             String   @id @default(uuid())
+  shopId         String
+  conversationId String
+  createdAt      DateTime @default(now())
+
+  shop         Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, conversationId]) // เลือกแชทเดิมซ้ำไม่ได้
+  @@index([shopId])
 }
 
 /// กฎห้ามตอบ (Guardrails) ของกลุ่มคำหนึ่ง ๆ — phase `00023-ai-enhance` (BR-AR-32/33/34)

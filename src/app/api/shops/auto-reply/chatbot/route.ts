@@ -37,7 +37,7 @@ export async function PATCH(request: NextRequest) {
 
     // เปิด ChatBot ครั้งแรก -> ใส่ชุดกฎเริ่มต้นระดับร้านให้ (เงื่อนไขเดียวกับรายกลุ่มคำ:
     // คัดลอกเฉพาะตอนยังไม่มีกฎสักข้อ ร้านที่ลบทิ้งแล้วปิด-เปิดใหม่จะไม่ได้ของเก่ากลับมา)
-    if (parsed.output.aiChatbotEnabled === true) {
+    if (parsed.output.aiChatbotEnabled === true || (parsed.output.aiChatbotStatus && parsed.output.aiChatbotStatus !== 'OFFLINE')) {
       await ensureShopDefaultGuardrails(ctx.shopId, ctx.userId)
     }
     return NextResponse.json(config, { headers: AUTO_REPLY_NO_STORE })

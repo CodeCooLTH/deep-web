@@ -4,13 +4,16 @@
  * ChatBot — สวิตช์หลัก + ช่วงเวลา + น้ำเสียง + กฎห้ามตอบ + option ขัดเกลา Auto Reply + เพดาน
  * feature 00023 · phase `00023-ai-enhance`
  *
- * Base: settings/auto-reply/[id]/ai/AiEnhanceClient.tsx (.card / form-switch / pacesToast /
+ * Base: settings/auto-reply/[id]/KeywordEditorClient.tsx (.card / form-switch / pacesToast) +
+ * qna/QnaListingClient.tsx (รายการ divide-y + ปุ่มลบต่อแถว)
+ * (ไฟล์ ai/AiEnhanceClient.tsx ที่เคยเป็นต้นแบบถูกลบแล้วตอนย้ายทุกอย่างมาเมนูนี้ —
  *   รายการกฎ divide-y + ปุ่มลบต่อแถว) — ยกโครงมาทั้งชุด เปลี่ยนแค่ปลายทาง API เป็นระดับร้าน
  */
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import TestThreadsCard from '../auto-reply/[id]/TestThreadsCard'
 import { pacesConfirm } from '@/lib/paces-swal'
 
 export type GuardrailRow = {
@@ -22,6 +25,7 @@ export type GuardrailRow = {
 }
 
 export type ChatbotConfig = {
+  aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
   aiChatbotStartTime: string | null
@@ -36,9 +40,16 @@ type Props = {
   initialConfig: ChatbotConfig
   initialGuardrails: GuardrailRow[]
   walletBalance: number
-  /** จำนวนข้อในคลังคำตอบที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
+  /** จำนวนข้อในคลังความรู้ที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
   knowledgeCount: number
 }
+
+/** 3 สถานะ — คำเดียวกับกลุ่มคำของ Auto Reply เพื่อไม่ให้ร้านต้องเรียนความหมายใหม่ */
+const STATUS_OPTIONS = [
+  { key: 'OFFLINE', label: 'ไม่ใช้งาน', hint: 'ไม่ทำงานเลย' },
+  { key: 'TEST', label: 'ทดสอบ', hint: 'ตอบเฉพาะแชทที่เลือกไว้' },
+  { key: 'LIVE', label: 'เปิดใช้งาน', hint: 'ตอบลูกค้าจริงทุกคน' },
+] as const
 
 const TONE_PRESETS = [
   'สุภาพ เป็นกันเอง อ่านง่าย',
@@ -61,6 +72,7 @@ export default function ChatbotClient({
   const [tone, setTone] = useState(initialConfig.aiChatbotTone ?? '')
   const [savedTone, setSavedTone] = useState(initialConfig.aiChatbotTone ?? '')
   const [busy, setBusy] = useState(false)
+  const [testThreadCount, setTestThreadCount] = useState(0)
 
   async function readError(res: Response, fallback: string) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
@@ -82,7 +94,7 @@ export default function ChatbotClient({
       if (!res.ok) throw new Error(await readError(res, 'บันทึกไม่สำเร็จ'))
       if (successMsg) pacesToast.success(successMsg)
       // เปิดสวิตช์หลักครั้งแรก server จะใส่กฎเริ่มต้นให้ — ดึงรายการจริงมาแสดง
-      if (partial.aiChatbotEnabled === true) router.refresh()
+      if (partial.aiChatbotStatus && partial.aiChatbotStatus !== 'OFFLINE') router.refresh()
     } catch (e) {
       setCfg(prev)
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
@@ -148,7 +160,8 @@ export default function ChatbotClient({
     }
   }
 
-  const on = cfg.aiChatbotEnabled
+  const status = cfg.aiChatbotStatus
+  const on = status !== 'OFFLINE'
 
   return (
     <div className="space-y-4">
@@ -160,24 +173,44 @@ export default function ChatbotClient({
               <span className="bg-primary/15 text-primary flex size-8 flex-none items-center justify-center rounded-lg">
                 <Icon icon="robot" className="size-4.5" aria-hidden="true" />
               </span>
-              ให้ AI ตอบข้อความที่ไม่เข้าเงื่อนไขไหนเลย
+              ตอบคำถามที่ Auto Reply ไม่รับ
             </h5>
             <p className="text-default-700 mt-1 text-xs">
-              ปกติข้อความที่ไม่ตรงเงื่อนไขของ Auto Reply จะเงียบ — เปิดตัวนี้แล้ว AI จะอ่านคลังคำตอบของร้าน
-              แล้วตอบให้แทน · <strong>คำที่ตั้งไว้ใน Auto Reply ยังชนะเสมอ</strong> AI ได้เฉพาะคำถามที่ไม่มีใครรับ
+              ข้อความที่ไม่ตรงเงื่อนไขไหนเลยจะเงียบไป — เปิดแล้ว AI จะอ่านคลังความรู้แล้วตอบให้แทน
+              <br />
+              <strong>คำตอบที่คุณตั้งไว้เองยังมาก่อนเสมอ</strong> AI ได้เฉพาะคำถามที่ไม่มีใครรับ
             </p>
           </div>
-          <label className="flex flex-none items-center gap-2">
-            <span className="text-default-700 text-sm">{on ? 'เปิดอยู่' : 'ปิดอยู่'}</span>
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={on}
-              disabled={!canEdit || busy}
-              onChange={() => patch({ aiChatbotEnabled: !on }, !on ? 'เปิด ChatBot แล้ว' : 'ปิด ChatBot แล้ว')}
-              aria-label="เปิดใช้ ChatBot"
-            />
-          </label>
+        </div>
+        <div className="card-body">
+          {/* segmented 3 สถานะ — Base InboxList.tsx (พื้น bg-light ตัว active เป็นการ์ดยกขึ้น) */}
+          <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="สถานะ ChatBot">
+            {STATUS_OPTIONS.map((o) => {
+              const active = status === o.key
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  disabled={!canEdit || busy}
+                  onClick={() => patch({ aiChatbotStatus: o.key }, `เปลี่ยนเป็น "${o.label}" แล้ว`)}
+                  className={`flex min-w-0 flex-1 flex-col items-center justify-center rounded-md px-2 py-2 text-sm font-medium ${
+                    active ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
+                  }`}
+                >
+                  {o.label}
+                  <span className="text-default-400 text-2xs font-normal">{o.hint}</span>
+                </button>
+              )
+            })}
+          </div>
+          {status === 'TEST' && (
+            <p className="text-default-500 mt-2.5 text-xs">
+              ตอบเฉพาะแชทที่เลือกไว้ในการ์ด &ldquo;แชทสำหรับทดสอบ&rdquo; ด้านล่าง
+              {testThreadCount === 0 && ' — ตอนนี้ยังไม่ได้เลือกแชท ChatBot จึงยังไม่ตอบใครเลย'}
+            </p>
+          )}
         </div>
       </div>
 
@@ -198,9 +231,9 @@ export default function ChatbotClient({
           <div className="card-body flex items-start gap-3">
             <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
             <div className="text-sm">
-              <p className="text-default-800 font-semibold">คลังคำตอบยังว่าง — AI ไม่มีข้อมูลให้ตอบ</p>
+              <p className="text-default-800 font-semibold">คลังความรู้ยังว่าง — AI ไม่มีข้อมูลให้ตอบ</p>
               <p className="text-default-700 mt-1">
-                ChatBot ตอบจากคลังคำตอบของร้านเท่านั้น ไม่ได้เดาเอง — เพิ่มคำถาม-คำตอบในเมนู Auto Reply ก่อน
+                ChatBot ตอบจากคลังความรู้เท่านั้น ไม่เดาเอง — เพิ่มข้อมูลที่แท็บ &ldquo;คลังความรู้&rdquo; ก่อน
               </p>
             </div>
           </div>
@@ -251,8 +284,7 @@ export default function ChatbotClient({
           <div className="min-w-0">
             <h5 className="text-default-900 text-base font-semibold">น้ำเสียง</h5>
             <p className="text-default-700 mt-1 text-xs">
-              ว่างไว้ = สุภาพ เป็นกันเอง อ่านง่าย · น้ำเสียงไม่มีอำนาจเหนือกฎข้อมูล
-              ราคาและเงื่อนไขยังต้องตรงกับคลังคำตอบเสมอ
+              ว่างไว้ = สุภาพ เป็นกันเอง อ่านง่าย · น้ำเสียงเปลี่ยนได้แค่ถ้อยคำ ไม่เปลี่ยนข้อมูลในคลังความรู้
             </p>
           </div>
         </div>
@@ -304,9 +336,9 @@ export default function ChatbotClient({
           <div className="min-w-0">
             <h5 className="text-default-900 text-base font-semibold">ขัดเกลาคำตอบของ Auto Reply</h5>
             <p className="text-default-700 mt-1 text-xs">
-              สำหรับคนที่อยากให้ AI ช่วยเกลาถ้อยคำเพิ่ม — คำตอบที่ตั้งไว้ใน Auto Reply จะถูก AI ปรับให้อ่านลื่นขึ้น
-              ก่อนส่ง โดย<strong>ข้อมูลอย่างราคา วันส่ง เงื่อนไข ต้องตรงเป๊ะ</strong> · เกิน 8 วินาทีส่งคำตอบเดิมแทนทันที
-              · มีค่าใช้จ่ายต่อครั้งเหมือนกัน
+              คำตอบที่คุณตั้งไว้ใน Auto Reply จะถูก AI ปรับถ้อยคำให้อ่านลื่นขึ้นก่อนส่ง
+              <br />
+              <strong>ราคา วันส่ง เงื่อนไข ต้องตรงกับที่คุณเขียนไว้เป๊ะ</strong> · เกิน 8 วินาทีส่งของเดิมแทน · คิดค่าใช้จ่ายต่อครั้ง
             </p>
           </div>
           <label className="flex flex-none items-center gap-2">
@@ -334,7 +366,7 @@ export default function ChatbotClient({
           <div className="min-w-0">
             <h5 className="text-default-900 text-base font-semibold">เพดานค่าใช้จ่ายต่อวัน</h5>
             <p className="text-default-700 mt-1 text-xs">
-              ใช้ครบแล้วระบบหยุดเรียก AI เองจนขึ้นวันใหม่ (เวลาไทย) — ลูกค้ายังได้คำตอบจาก Auto Reply ตามปกติ
+              ใช้ครบแล้วหยุดเรียก AI จนขึ้นวันใหม่ — Auto Reply ยังตอบตามปกติ ลูกค้าไม่รู้สึกว่าอะไรหายไป
             </p>
           </div>
         </div>
@@ -361,7 +393,7 @@ export default function ChatbotClient({
           <label className="flex items-center justify-between">
             <span className="text-default-700 text-sm">
               เตือนทาง SMS เมื่อใช้ถึง 80% ของเพดาน
-              <span className="text-default-400 block text-xs">มีค่าส่ง 1 บาทต่อครั้ง — ไม่เปิดก็ยังเห็นการเตือนในแอป</span>
+              <span className="text-default-400 block text-xs">ค่าส่ง 1 บาทต่อครั้ง — ไม่เปิดก็ยังเห็นเตือนในแอปอยู่ดี</span>
             </span>
             <input
               type="checkbox"
@@ -455,6 +487,17 @@ export default function ChatbotClient({
           </div>
         )}
       </div>
+
+      {/* แชทสำหรับทดสอบ — การ์ดตัวเดียวกับของกลุ่มคำ ต่างแค่ scope เป็นระดับร้าน
+          (ดู TestThreadsCard prop `apiBase`) จึงหน้าตา/พฤติกรรมตรงกันทั้งสองที่ */}
+      <TestThreadsCard
+        apiBase="/api/shops/auto-reply/chatbot/test-threads"
+        scopeNoun="ChatBot"
+        triggerHint="ถามคำถามที่ไม่ตรงกลุ่มคำไหนเลย"
+        status={status}
+        canEdit={canEdit}
+        onCountChange={setTestThreadCount}
+      />
     </div>
   )
 }

@@ -105,7 +105,16 @@ function ThreadTableHead({ canEdit }: { canEdit: boolean }) {
 }
 
 type Props = {
-  keywordId: string
+  /**
+   * base URL ของ API รายการแชททดสอบ — ทำเป็น prop เพราะการ์ดนี้ใช้ทั้งกับกลุ่มคำ
+   * (`/keywords/{id}/test-threads`) และกับ ChatBot ระดับร้าน (`/chatbot/test-threads`)
+   * ซึ่งมี response shape เดียวกัน ต่างแค่ scope
+   */
+  apiBase: string
+  /** สิ่งที่ "จะตอบ" ในข้อความอธิบาย — "กลุ่มคำนี้" หรือ "ChatBot" */
+  scopeNoun?: string
+  /** เงื่อนไขที่ทำให้ระบบตอบ ใช้ในกล่องยืนยันและ empty state */
+  triggerHint?: string
   status: string
   canEdit: boolean
   onCountChange: (count: number) => void
@@ -119,7 +128,9 @@ type Props = {
 }
 
 export default function TestThreadsCard({
-  keywordId,
+  apiBase,
+  scopeNoun = 'กลุ่มคำนี้',
+  triggerHint = 'พิมพ์ตรงกับคำในกลุ่มนี้',
   status,
   canEdit,
   onCountChange,
@@ -135,7 +146,7 @@ export default function TestThreadsCard({
 
   const reload = useCallback(async () => {
     try {
-      const data = await callApi(`/api/shops/auto-reply/keywords/${keywordId}/test-threads`)
+      const data = await callApi(apiBase)
       setThreads(data.items ?? [])
       onCountChange((data.items ?? []).length)
     } catch (e) {
@@ -143,7 +154,7 @@ export default function TestThreadsCard({
     } finally {
       setLoading(false)
     }
-  }, [keywordId, onCountChange])
+  }, [apiBase, onCountChange])
 
   useEffect(() => {
     reload()
@@ -187,13 +198,13 @@ export default function TestThreadsCard({
   async function addThread(c: Candidate) {
     const ok = await pacesConfirm.warning(
       `ใช้แชทของ "${c.name}" ทดสอบ?`,
-      'เมื่อคนนี้ทักเข้ามาและพิมพ์ตรงกับคำในกลุ่มนี้ ระบบจะส่งข้อความตอบกลับไปจริง ไม่ใช่การจำลอง',
+      `เมื่อคนนี้ทักเข้ามาและ${triggerHint} ระบบจะส่งข้อความตอบกลับไปจริง ไม่ใช่การจำลอง`,
       { confirmButtonText: 'ใช้แชทนี้ทดสอบ' },
     )
     if (!ok) return
     setBusy(true)
     try {
-      await callApi(`/api/shops/auto-reply/keywords/${keywordId}/test-threads`, {
+      await callApi(apiBase, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: c.id, confirmed: true }),
@@ -212,14 +223,11 @@ export default function TestThreadsCard({
   async function removeThread(t: TestThread) {
     setBusy(true)
     try {
-      const data = await callApi(
-        `/api/shops/auto-reply/keywords/${keywordId}/test-threads/${t.conversationId}`,
-        { method: 'DELETE' },
-      )
+      const data = await callApi(`${apiBase}/${t.conversationId}`, { method: 'DELETE' })
       await reload()
       // เอาแชทสุดท้ายออกทั้งที่ยังเป็นโหมดทดสอบ = กลุ่มนี้เงียบสนิททันที ต้องบอกตรงนั้นเลย
       if (data.remainingCount === 0 && data.status === 'TEST') {
-        pacesToast.warning('ไม่เหลือแชทสำหรับทดสอบแล้ว — กลุ่มคำนี้จะไม่ตอบใครเลย')
+        pacesToast.warning(`ไม่เหลือแชทสำหรับทดสอบแล้ว — ${scopeNoun}จะไม่ตอบใครเลย`)
       } else {
         pacesToast.success('เอาออกจากรายการทดสอบแล้ว')
       }
@@ -249,8 +257,8 @@ export default function TestThreadsCard({
           </h5>
           <p className="text-default-500 mt-0.5 text-xs">
             {status === 'TEST'
-              ? 'ตอนนี้กลุ่มคำนี้จะตอบเฉพาะแชทในรายการนี้เท่านั้น'
-              : 'ใช้เมื่อตั้งกลุ่มคำนี้เป็น "ทดสอบ" — สถานะอื่นรายการนี้จะไม่มีผล'}
+              ? `ตอนนี้${scopeNoun}จะตอบเฉพาะแชทในรายการนี้เท่านั้น`
+              : `ใช้เมื่อตั้ง${scopeNoun}เป็น "ทดสอบ" — สถานะอื่นรายการนี้จะไม่มีผล`}
           </p>
         </div>
         {/* CL-4: คลาส soft variant ที่เคยใช้ตรงนี้ไม่มีนิยามใน CSS เลย และ .btn base ไม่มี
@@ -357,7 +365,7 @@ export default function TestThreadsCard({
           <Icon icon="flask" className="text-default-300 mb-2 text-3xl" aria-hidden="true" />
           <p className="text-default-700 text-sm font-medium">ยังไม่ได้เลือกแชทสำหรับทดสอบ</p>
           <p className="text-default-500 mt-1 text-xs">
-            เลือกแชทของตัวเองหรือของทีมงาน แล้วทักเข้ามาด้วยคำที่ตั้งไว้เพื่อดูว่าระบบตอบอะไร
+            เลือกแชทของตัวเองหรือของทีมงาน แล้วทักเข้ามาเพื่อดูว่าระบบตอบอะไร
           </p>
         </div>
       ) : (

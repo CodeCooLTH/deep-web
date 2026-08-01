@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma'
 import { DEFAULT_AI_DAILY_CAP_BAHT } from '@/lib/auto-reply-constants'
 
 export interface ChatbotConfig {
+  aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
   aiChatbotStartTime: string | null
@@ -19,6 +20,7 @@ export interface ChatbotConfig {
 }
 
 const DEFAULTS: ChatbotConfig = {
+  aiChatbotStatus: 'OFFLINE',
   aiChatbotEnabled: false,
   aiChatbotTone: null,
   aiChatbotStartTime: null,
@@ -32,6 +34,7 @@ export async function getChatbotConfig(shopId: string): Promise<ChatbotConfig> {
   const row = await prisma.autoReplyConfig.findUnique({
     where: { shopId },
     select: {
+      aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
       aiChatbotStartTime: true,
@@ -50,6 +53,11 @@ export async function updateChatbotConfig(
   input: Partial<ChatbotConfig>
 ): Promise<ChatbotConfig> {
   const data = {
+    // เขียน enabled ตามไปด้วยเสมอ — คอลัมน์เดิมยังมีโค้ดอ่านอยู่ ปล่อยให้สองค่าขัดกัน
+    // แปลว่าหน้าจอบอกอย่าง ระบบทำอีกอย่าง ซึ่งหาสาเหตุยากที่สุด
+    ...(input.aiChatbotStatus !== undefined
+      ? { aiChatbotStatus: input.aiChatbotStatus, aiChatbotEnabled: input.aiChatbotStatus !== 'OFFLINE' }
+      : {}),
     ...(input.aiChatbotEnabled !== undefined ? { aiChatbotEnabled: input.aiChatbotEnabled } : {}),
     ...(input.aiChatbotTone !== undefined ? { aiChatbotTone: input.aiChatbotTone?.trim() || null } : {}),
     ...(input.aiChatbotStartTime !== undefined ? { aiChatbotStartTime: input.aiChatbotStartTime || null } : {}),
@@ -65,6 +73,7 @@ export async function updateChatbotConfig(
     create: { shopId, ...data },
     update: data,
     select: {
+      aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
       aiChatbotStartTime: true,
