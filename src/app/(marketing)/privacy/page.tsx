@@ -287,7 +287,12 @@ const PrivacyPage = () => {
               <Typography variant='h6' className='mbe-3'>
                 8. การติดต่อ
               </Typography>
+              {/* ผู้ควบคุมข้อมูล: ต้องตรงกับชื่อที่กรอกใน Meta Data Handling (responsible-1) และกับ
+                  เอกสารที่ใช้ทำ Business Verification — ยังไม่ได้จดนิติบุคคล จึงเป็นบุคคลธรรมดา */}
               <Typography variant='body2'>
+                ผู้ควบคุมข้อมูลส่วนบุคคล: <strong>Sekson Oonnom</strong> (บุคคลธรรมดา) ประเทศไทย
+              </Typography>
+              <Typography variant='body2' className='mbs-2'>
                 หากมีคำถามเกี่ยวกับนโยบายนี้ ติดต่อ:{' '}
                 <a href='mailto:shinobu22@outlook.com' className='text-primary'>
                   shinobu22@outlook.com

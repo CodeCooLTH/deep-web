@@ -186,7 +186,13 @@ const TermsPage = () => {
               <Typography variant='h6' className='mbe-3'>
                 10. การติดต่อ
               </Typography>
+              {/* ผู้ให้บริการ: Meta App Review + Business Verification เทียบชื่อผู้ควบคุมข้อมูลที่กรอกใน
+                  ฟอร์ม (responsible-1) กับที่ประกาศบนเว็บ ถ้าเว็บไม่ระบุชื่อเลยจะเทียบไม่ได้
+                  ยังไม่ได้จดนิติบุคคล → ผู้ให้บริการคือบุคคลธรรมดา ต้องสะกดตรงกับเอกสารยืนยันตัวตน */}
               <Typography variant='body2'>
+                ผู้ให้บริการ: <strong>Sekson Oonnom</strong> (บุคคลธรรมดา) ประเทศไทย
+              </Typography>
+              <Typography variant='body2' className='mbs-2'>
                 หากมีคำถามเกี่ยวกับข้อกำหนดนี้ ติดต่อ:{' '}
                 <a href='mailto:shinobu22@outlook.com' className='text-primary'>
                   shinobu22@outlook.com
