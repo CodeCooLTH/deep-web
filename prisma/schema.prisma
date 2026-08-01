@@ -1930,6 +1930,30 @@ model AutoReplyConfig {
   //
   // ค่าเริ่มต้น 50 บาท (user เคาะ 2026-08-01): ไม่ใช่ 0 เพราะจะบล็อกฟีเจอร์ตั้งแต่วันแรก
   // และไม่ใช่ไม่จำกัดเพราะขัดเจตนาที่กลัวบิลบานปลายพอดี
+  /// AI ChatBot — ข้อความที่ไม่ตรงกลุ่มคำไหนเลย ให้ AI อ่านคลังคำตอบแล้วตอบเอง
+  /// (แทนที่จะเงียบ) · user ตัดสิน 2026-08-01 ให้เป็นสวิตช์ระดับร้าน
+  ///
+  /// ทำไมอยู่ระดับร้านไม่ใช่รายกลุ่มคำ: มันตัดสินว่า "เมื่อ**ไม่เข้า**กลุ่มไหนเลยจะทำอะไร"
+  /// ซึ่งไม่มีกลุ่มให้แขวน — ต่างจาก AI Enhance ที่ตัดสินว่า "เมื่อเข้ากลุ่มนี้แล้วทำอะไร"
+  /// และไม่สร้างกับดักเดิม เพราะมันได้แค่ **เพิ่มคำตอบตรงที่เคยเงียบ** ปิดปากกลุ่มไหนไม่ได้
+  aiChatbotEnabled Boolean @default(false)
+
+  /// ให้ AI ขัดเกลาคำตอบของ Auto Reply ก่อนส่ง — เป็น "option เสริม" ในเมนู ChatBot
+  /// (user ตัดสิน 2026-08-01: ย้ายจากสวิตช์รายกลุ่มคำขึ้นมาเป็นระดับร้าน)
+  ///
+  /// NOTE: `AutoReplyKeyword.aiEnhanceEnabled` ยังอยู่ในสคีมาแต่ **เลิกใช้แล้ว** — ไม่ลบทิ้ง
+  /// เพราะการถอดคอลัมน์บนฐานที่ใช้งานจริงแพงกว่าการปล่อยให้นอนเฉย และเผื่อวันหนึ่ง
+  /// ต้องการ override รายกลุ่มจริง ๆ จะได้ไม่ต้อง ALTER รอบสอง
+  aiEnhanceEnabled Boolean @default(false)
+
+  /// ช่วงเวลาที่ให้ ChatBot ทำงาน — null = ตลอดเวลา (รูปแบบเดียวกับ activeSchedule ของบอท)
+  /// เก็บเป็น HH:mm เวลาไทย · ข้ามเที่ยงคืนได้ (18:00-09:00 = ทำงานตอนร้านหลับ)
+  aiChatbotStartTime String?
+  aiChatbotEndTime   String?
+
+  /// น้ำเสียงของ AI ChatBot (null = ใช้ค่ากลาง) — แยกจาก aiTone รายกลุ่มคำ
+  aiChatbotTone String? @db.Text
+
   aiDailyCapBaht Int @default(50)
 
   // ร้านยอมจ่าย SMS 1 บาทเพื่อให้เตือนตอนใช้ถึง 80% ไหม — default ปิด เพราะการเตือนเรื่อง
@@ -2047,7 +2071,8 @@ model AutoReplyKeyword {
 model AutoReplyGuardrail {
   id        String @id @default(uuid())
   shopId    String // ซ้ำกับ keyword.shopId โดยเจตนา — ทุก query ต้อง scope shopId ได้โดยไม่ join
-  keywordId String
+  /// null = กฎระดับร้าน ใช้กับ AI ChatBot (ข้อความที่ไม่เข้ากลุ่มไหนเลย จึงไม่มีกลุ่มให้ผูก)
+  keywordId String?
 
   /// ข้อความกฎที่ร้านอ่านออก เช่น "ห้ามต่อรองราคา" — ใช้ทั้งแสดงใน UI และใส่ใน prompt ของด่านตรวจ
   rule String @db.Text
@@ -2065,7 +2090,7 @@ model AutoReplyGuardrail {
   updatedAt       DateTime @updatedAt
 
   shop    Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  keyword AutoReplyKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  keyword AutoReplyKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
 
   @@index([keywordId, isActive]) // query หลัก: โหลดกฎที่ใช้งานอยู่ของกลุ่มที่กำลังจะตอบ
   @@index([shopId]) // ทางกลับ: กฎทั้งหมดของร้าน (หน้ารวม/ตรวจสอบ)

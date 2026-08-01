@@ -34,6 +34,43 @@ async function assertKeywordOwned(keywordId: string, shopId: string): Promise<vo
   if (!found) throw new Error('AUTO_REPLY_KEYWORD_NOT_FOUND')
 }
 
+/**
+ * กฎระดับร้าน — ใช้กับ ChatBot ซึ่งตอบข้อความที่ไม่เข้ากลุ่มไหนเลย จึงไม่มีกลุ่มให้ผูก
+ * (keywordId = null) แยกฟังก์ชันจากของรายกลุ่มเพื่อไม่ให้เผลอปนกันใน query เดียว
+ */
+export async function listShopGuardrails(shopId: string): Promise<GuardrailItem[]> {
+  return prisma.autoReplyGuardrail.findMany({
+    where: { shopId, keywordId: null },
+    select: { id: true, rule: true, denyPhrases: true, isFromDefaultSet: true, isActive: true },
+    orderBy: [{ isFromDefaultSet: 'desc' }, { createdAt: 'asc' }],
+  })
+}
+
+/** คัดลอกชุดเริ่มต้นเป็นกฎระดับร้าน — เรียกตอนเปิด ChatBot ครั้งแรก (เงื่อนไขเดียวกับรายกลุ่ม) */
+export async function ensureShopDefaultGuardrails(
+  shopId: string,
+  actorUserId: string
+): Promise<{ created: number }> {
+  try {
+    const existing = await prisma.autoReplyGuardrail.count({ where: { shopId, keywordId: null } })
+    if (existing > 0) return { created: 0 }
+    const result = await prisma.autoReplyGuardrail.createMany({
+      data: DEFAULT_GUARDRAILS.map((g) => ({
+        shopId,
+        keywordId: null,
+        rule: g.rule,
+        denyPhrases: g.denyPhrases,
+        isFromDefaultSet: true,
+        createdByUserId: actorUserId,
+      })),
+    })
+    return { created: result.count }
+  } catch (e) {
+    console.error('[guardrail] คัดลอกชุดเริ่มต้นระดับร้านไม่สำเร็จ', e)
+    return { created: 0 }
+  }
+}
+
 export async function listGuardrails(keywordId: string, shopId: string): Promise<GuardrailItem[]> {
   await assertKeywordOwned(keywordId, shopId)
   const rows = await prisma.autoReplyGuardrail.findMany({
@@ -76,6 +113,28 @@ export async function createGuardrail(
     select: { id: true },
   })
   return created
+}
+
+/** เพิ่มกฎระดับร้าน (keywordId = null) — ใช้กับ ChatBot */
+export async function createShopGuardrail(
+  shopId: string,
+  input: { rule: string; denyPhrases?: string[] },
+  actorUserId: string
+): Promise<{ id: string }> {
+  const rule = validateRule(input.rule)
+  const count = await prisma.autoReplyGuardrail.count({ where: { shopId, keywordId: null } })
+  if (count >= GUARDRAIL_MAX_PER_KEYWORD) throw new Error('AUTO_REPLY_GUARDRAIL_LIMIT_REACHED')
+  return prisma.autoReplyGuardrail.create({
+    data: {
+      shopId,
+      keywordId: null,
+      rule,
+      denyPhrases: (input.denyPhrases ?? []).map((p) => p.trim()).filter(Boolean),
+      isFromDefaultSet: false,
+      createdByUserId: actorUserId,
+    },
+    select: { id: true },
+  })
 }
 
 export async function updateGuardrail(

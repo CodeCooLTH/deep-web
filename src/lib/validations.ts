@@ -1275,6 +1275,22 @@ export const AutoReplyUnansweredConvertSchema = v.object({
   imageFileIds: v.optional(v.pipe(v.array(v.string()), v.maxLength(5, 'แนบรูปได้สูงสุด 5 รูป'))),
 })
 
+/* ── ตั้งค่า ChatBot ระดับร้าน (phase `00023-ai-enhance`) ──────────────────── */
+
+// HH:mm 24 ชม. — รูปแบบเดียวกับตารางเวลาของ Auto Reply เพื่อไม่ให้มีสองมาตรฐานในระบบเดียว
+const TimeHHmm = v.pipe(v.string(), v.trim(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'รูปแบบเวลาต้องเป็น HH:mm'))
+
+export const AiChatbotConfigPatchSchema = v.object({
+  aiChatbotEnabled: v.optional(v.boolean()),
+  aiChatbotTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
+  aiChatbotStartTime: v.optional(v.union([TimeHHmm, v.literal('')])),
+  aiChatbotEndTime: v.optional(v.union([TimeHHmm, v.literal('')])),
+  aiEnhanceEnabled: v.optional(v.boolean()),
+  // ต้อง > 0 ตรงกับ CHECK ในฐาน — 0 แปลว่าปิดฟีเจอร์ ซึ่งมีสวิตช์ของตัวเองอยู่แล้ว
+  aiDailyCapBaht: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1, 'เพดานต้องมากกว่า 0'), v.maxValue(100000))),
+  aiCapAlertSmsOptIn: v.optional(v.boolean()),
+})
+
 /* ── กฎห้ามตอบ Guardrails (phase `00023-ai-enhance`) ─────────────────────── */
 
 const GuardrailRuleField = v.pipe(

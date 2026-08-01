@@ -94,9 +94,19 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00019 — AI ร่างคำตอบให้ "คนกดส่งเอง" (คนละเรื่องกับ DeepBot ที่ระบบส่งเอง)
       { url: '/settings/ai', slug: 'seller:settings-ai', label: 'บุคลิก AI', icon: 'sparkles' },
       // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจากกลุ่มคำ + คลังคำถาม-คำตอบ
-      // "DeepBot" คำเดียว (user สั่ง 2026-08-01) — เดิม "คำตอบของ DeepBot" ยาวเกินสำหรับเมนู
-      // และ "คำตอบของ" ไม่ได้เพิ่มความเข้าใจเมื่ออยู่ใต้หัวข้อกลุ่ม "ผู้ช่วยอัตโนมัติ" อยู่แล้ว
-      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'DeepBot', icon: 'message-bolt' },
+      /**
+       * แยก Auto Reply กับ ChatBot เป็นคนละเมนู (user ตัดสิน 2026-08-01)
+       *
+       * เพราะเป็นคนละความคิดกันจริง ๆ ไม่ใช่ระดับความสามารถของของเดียวกัน:
+       *   Auto Reply — ตอบเป๊ะตามเงื่อนไขที่ร้านตั้ง ไม่มีค่าใช้จ่าย ไม่ตรงก็เงียบ
+       *   ChatBot    — ส่วนเสริม AI ที่ครอบทุกข้อความ ตอบแทน/เสริมคนตามช่วงเวลาที่ตั้ง
+       *                มีค่าใช้จ่ายต่อครั้ง และเป็นที่อยู่ของ option "ขัดเกลาคำตอบ Auto Reply"
+       *
+       * เรียง Auto Reply ก่อนโดยเจตนา — เป็นของฟรีที่ทุกร้านควรตั้งให้ครบก่อน
+       * แล้วค่อยพิจารณาเปิดของที่มีค่าใช้จ่าย
+       */
+      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'Auto Reply', icon: 'message-bolt' },
+      { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ChatBot', icon: 'robot' },
       // NOTE: "บัญชีที่เชื่อมต่อ" (/settings) เคยถูกย้ายมาไว้ที่นี่ชั่วคราว 2026-08-01 แล้วย้ายกลับ
       // ในวันเดียวกัน — หน้านั้นเป็นรายการเพจ Facebook/LINE/IG ที่ "ทั้งระบบแชทใช้ร่วมกัน"
       // (กล่องข้อความปกติก็ต้องใช้) ไม่ใช่ของผู้ช่วยอัตโนมัติ การเอามาไว้ในกลุ่มนี้ทำให้
