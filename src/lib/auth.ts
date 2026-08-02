@@ -8,6 +8,7 @@ import { evaluateSignupYearBadge } from "@/services/badge.service";
 import bcrypt from "bcryptjs";
 import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
 import { getPersonalShop, isShopMember } from "@/lib/shop-context";
+import { resolveOnboardingGate } from "@/lib/onboarding-gate";
 
 // Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
 // ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
@@ -117,7 +118,7 @@ export const authOptions: NextAuthOptions = {
     }),
     // FR-LO-15: Instagram OAuth — เตรียมโค้ดไว้ ปิด flag (ติด Meta Business Verification เหมือน FB)
     // ใช้งานจริงได้เมื่อผ่าน App Review + business verification แล้ว
-    // ⚠️ security R2: flag NEXT_PUBLIC_ENABLE_IG_LOGIN คุมแค่การ "render ปุ่ม" เท่านั้น —
+    // คำเตือน security R2: flag NEXT_PUBLIC_ENABLE_IG_LOGIN คุมแค่การ "render ปุ่ม" เท่านั้น —
     // provider นี้ active ที่ backend เสมอ. ตราบใดที่ INSTAGRAM_CLIENT_ID ว่าง flow จะ fail ที่ IG เอง.
     // อย่าตั้ง INSTAGRAM_CLIENT_ID ใน prod จนกว่าจะตั้งใจเปิด IG login (ไม่งั้น endpoint ใช้ได้ทั้งที่ปุ่มซ่อน)
     InstagramProvider({
@@ -452,7 +453,7 @@ export const authOptions: NextAuthOptions = {
      *   - jwt callback ถัดไปจะ findFirst เจอ AuthAccount ใหม่ → token.userId = intent.userId → session คงเดิม (AC-01/02)
      * ถ้าไม่มี intent → return true (login ปกติ — ไม่กระทบ FB/LINE login เดิม)
      *
-     * ⚠️ cookies() จาก next/headers ทำงานได้ใน signIn callback เพราะ NextAuth OAuth callback
+     * คำเตือน: cookies() จาก next/headers ทำงานได้ใน signIn callback เพราะ NextAuth OAuth callback
      *    รันใน App Router API route context (มี request scope) — ยืนยันจาก callback.js source
      */
     async signIn({ account }) {
@@ -587,12 +588,6 @@ export const authOptions: NextAuthOptions = {
           select: { phone: true, shops: { where: { kind: "PERSONAL" }, select: { id: true, slug: true } } },
         });
         const personal = u?.shops[0] ?? null;
-        // feature 00012 (Lazy Personal shop): gate ลงทะเบียน/onboarding บังคับ "เฉพาะคนที่ตั้งใจเป็น seller"
-        // = คนที่มี Personal shop แล้ว. ผู้ถูกเชิญ (ADMIN ของ business แต่ยังไม่มี Personal) ต้องไม่โดนบังคับ
-        // /register หรือ /onboarding — ไม่งั้นเข้า business dashboard ไม่ได้ (โดน proxy เด้งวน). คนที่ยังไม่มี
-        // ร้านเลย (nobody) ก็ไม่โดนบังคับ → layout พาไป /choose-shop ให้เลือก "เปิดร้าน" เอง
-        token.needsRegistration = !!personal && !u?.phone;
-        token.needsOnboarding = !!personal && !personal.slug;
 
         // activeShopId (feat 00008 TFR-012, ปรับ 00012) — trigger==='update' + client ส่ง activeShopId มา
         // (AccountSwitcher / หลัง accept invite) → ห้าม trust ตรง ๆ ต้อง re-verify membership (หรือ personal
@@ -622,6 +617,18 @@ export const authOptions: NextAuthOptions = {
           }
           token.activeShopId = defaultActive;
         }
+
+        // กฎเต็ม + เหตุผลอยู่ที่ lib/onboarding-gate.ts (SSOT ร่วมกับ session callback ด้านล่าง)
+        // สำคัญ: ต้องเรียก "หลัง" block activeShopId ด้านบนเสมอ — รอบ sign-in แรก token.activeShopId
+        // ยังเป็น undefined ถ้าเรียกก่อนจะได้ผลผิด (เดิมโค้ดนี้อยู่ก่อนหน้า block นั้น)
+        const gate = resolveOnboardingGate({
+          personalShopId: personal?.id ?? null,
+          personalShopSlug: personal?.slug ?? null,
+          activeShopId: (token.activeShopId as string | null | undefined) ?? null,
+          hasPhone: !!u?.phone,
+        });
+        token.needsRegistration = gate.needsRegistration;
+        token.needsOnboarding = gate.needsOnboarding;
       }
       return token;
     },
@@ -639,12 +646,8 @@ export const authOptions: NextAuthOptions = {
         if (user) {
           const personal = user.shops[0] ?? null;
           const shopSlug = personal?.slug ?? null;
-          // feature 00012 (Lazy Personal shop): needsPhoneVerify/needsOnboarding บังคับเฉพาะ "คนที่ตั้งใจเป็น
-          // seller" = มี Personal shop แล้ว. ผู้ถูกเชิญ (ADMIN business, ยังไม่มี Personal) / nobody ไม่โดนบังคับ
-          // — ไม่งั้น proxy เด้งไป /onboarding วน (mirror logic ใน jwt callback ด้านบน)
-          // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session)
-          const needsPhoneVerify = !!personal && !user.phone; // = needsRegistration (เฟส 1 /register)
-          const needsOnboarding = !!personal && !shopSlug; // = ต้อง setup slug (เฟส 2 /onboarding)
+          // needsPhoneVerify/needsOnboarding ย้ายไปคำนวณท้ายสุด (หลัง resolvedActiveShopId) —
+          // feature 00026 ต้องรู้ว่า active อยู่ร้านไหนก่อนถึงจะตัดสินได้ ดูคอมเมนต์เต็มตรงจุดคำนวณ
 
           // active-shop-context (feat 00008 TFR-012) — additive; re-verify membership ทุก render
           // (ไม่ trust JWT เพียงอย่างเดียว — JWT อายุ 30 วัน, admin อาจถูก remove ระหว่างทาง)
@@ -685,7 +688,7 @@ export const authOptions: NextAuthOptions = {
 
           // active shop identity (FB switcher) — query เฉพาะเมื่อ active เป็น BUSINESS
           // (resolvedActiveShopId != Personal id). PERSONAL → null → consumer fallback avatar/displayName
-          // 🛑 ต้องอยู่ใน try/catch — query นี้รันทุก session resolve; ถ้า throw ต้อง fail-closed
+          // สำคัญ: ต้องอยู่ใน try/catch — query นี้รันทุก session resolve; ถ้า throw ต้อง fail-closed
           //    (คง PERSONAL/null) ไม่ใช่ปล่อยให้ session callback พัง = session 500 ทุก seller business-active
           const personalShopId = user.shops[0]?.id ?? null;
           let activeShopKind: "PERSONAL" | "BUSINESS" = "PERSONAL";
@@ -713,6 +716,19 @@ export const authOptions: NextAuthOptions = {
             activeShopLogo = null;
             activeShopSlug = null;
           }
+
+          // กฎเดียวกับ jwt callback เป๊ะ ๆ (เรียก helper ตัวเดียวกัน — ดู lib/onboarding-gate.ts)
+          // jwt เป็นตัวที่ proxy.ts อ่านไปบังคับ redirect ที่ edge, อันนี้เป็นตัวที่ UI อ่านไปแสดงสถานะ
+          // ต้องเรียกหลัง resolvedActiveShopId เสมอ
+          // needsPhoneVerify = bool (ไม่ leak phone จริงเข้า session)
+          const gate = resolveOnboardingGate({
+            personalShopId: personal?.id ?? null,
+            personalShopSlug: shopSlug,
+            activeShopId: resolvedActiveShopId,
+            hasPhone: !!user.phone,
+          });
+          const needsPhoneVerify = gate.needsRegistration; // เฟส 1 /register
+          const needsOnboarding = gate.needsOnboarding; // เฟส 2 /onboarding
 
           // feature 00015 TD-002 — skip-window 5 นาทีหลัง sign-in ด้วย phone-otp เท่านั้น
           // (ใช้ที่ order-access.service.ts::resolveOrderAccess ตัดสิน PHONE_MATCH_AUTO_CLAIM)

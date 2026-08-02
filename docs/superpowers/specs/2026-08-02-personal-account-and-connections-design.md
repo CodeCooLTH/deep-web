@@ -35,7 +35,11 @@ user ที่เข้าระบบมาทาง **invite link** (feature 0
 | D3 | ตั้งรหัสผ่านตอนไม่มีเบอร์ | **ต้องยืนยันเบอร์ก่อนเสมอ** — reuse `set-phone` + `set-password` เดิม ได้ recovery path ฟรี |
 | D4 | กับดัก onboarding หลังสร้างร้าน | **เข้า wizard ทันที + มีปุ่ม "กลับไปร้านเดิม"** — บังคับ onboarding เฉพาะตอน active = ร้านส่วนตัว |
 | D5 | ลำดับส่ง | **1 feature เดียว ทำ A→B→C ต่อเนื่อง** — A ขึ้น prod ได้ก่อนโดยไม่ต้องรอ C |
-| D6 | งาน console ของ C | **user รับไปทำเอง** (เพิ่ม redirect URI ที่ LINE Developers Console + Meta App) |
+| D6 | งาน console ของ C | ~~user รับไปทำเอง (เพิ่ม redirect URI)~~ — **ยกเลิก: ไม่จำเป็น** ดู §6 |
+
+> **หมายเหตุสำคัญ (2026-08-02 หลัง approve):** D2/D3/D6 ตั้งอยู่บนสมมติฐานว่าส่วน C ยังไม่มีในระบบ
+> ซึ่ง**ผิด** — C เสร็จและอยู่บน prod แล้ว (ดู §6). D2 ต้องนำกลับมาให้ user ตัดสินใหม่หลังตรวจ
+> พฤติกรรมจริง; D3 ยังใช้ได้ (ตรงกับที่ระบบทำอยู่); D6 ยกเลิก
 
 ---
 
@@ -190,47 +194,59 @@ TS type `{ displayName?, username?, avatar? }` **ไม่กรองอะไ�
 
 ---
 
-## 6. ส่วน C — การ์ด "การเชื่อมต่อบัญชี" (ออกแบบไว้ ยังไม่ implement)
+## 6. ส่วน C — การเชื่อมต่อบัญชี
 
-3 แถว: **รหัสผ่าน** · **LINE** · **Facebook** — แต่ละแถวแสดงสถานะเชื่อมแล้ว/ยังไม่เชื่อม + ปุ่ม
+> **แก้ไข 2026-08-02 (หลัง approve):** เนื้อหาเดิมของหัวข้อนี้ **ผิด** — ระบุว่าต้องเขียน OAuth
+> link flow ใหม่ทั้งเส้น ความจริงคือ **C ถูกสร้างเสร็จและอยู่บน `origin/main` แล้ว** ตั้งแต่ commit
+> `e69513c4` (feature 00001 FR-LO-16). ข้อสรุปเดิมมาจากการอ่าน `authOptions.providers` แล้วสรุปว่า
+> "JWT strategy ไม่มี adapter → ทำ linking ไม่ได้" โดยไม่ได้ไล่ import ของ `auth.ts` ให้ครบ ซึ่ง
+> บรรทัดที่ 9 import `verifyLinkIntent` อยู่แล้ว. ทั้งย่อหน้า "วิธีที่ปฏิเสธ" เดิมจึงเป็นการปฏิเสธ
+> วิธีที่ระบบใช้งานจริงอยู่และใช้ได้ดี
 
-### C1. รหัสผ่าน (D3)
+### C1. ของที่มีอยู่แล้ว (อย่าสร้างซ้ำ)
 
-ไม่มีเบอร์ → การ์ดพาไปตั้งเบอร์ + OTP (`POST /api/account/set-phone` เดิม — สร้าง L1 PHONE_OTP
-ให้อัตโนมัติ ได้ trust score เพิ่ม) แล้วค่อยตั้งรหัสผ่านด้วย `POST /api/account/set-password` เดิม
-**ไม่ต้องเขียน API ใหม่เลย** และได้ recovery path (ลืมรหัส = OTP) มาฟรี
+| ชิ้น | ที่อยู่ |
+|------|---------|
+| UI เชื่อม/ยกเลิก LINE·Facebook·Instagram + จัดการรหัสผ่าน | `src/app/(paces)/seller/(dashboard)/settings/ConnectedAccountsClient.tsx` |
+| เริ่ม flow (ออก intent cookie) | `POST /api/account/link/start` |
+| ยกเลิกการเชื่อมต่อ | `/api/account/link/remove` |
+| OTP ประกอบ flow | `/api/account/link/send-otp` |
+| HMAC intent token | `src/lib/link-intent.ts` (+ test) |
+| ผูกจริงตอน OAuth กลับมา | `signIn` callback ใน `src/lib/auth.ts` |
+| หน้าที่ render | `/settings` — เมนู sidebar label "บัญชีที่เชื่อมต่อ" (`_seller-menu.ts:151`) |
 
-### C2. เชื่อม LINE / Facebook
+กลไก: กด Connect → `POST /link/start` ออก cookie `deep_link_intent` = HMAC(`NEXTAUTH_SECRET`)
+ของ `{userId, provider, exp}` (httpOnly, sameSite=lax, 5 นาที) → client เรียก `signIn(provider)`
+→ `signIn` callback อ่าน cookie แล้วผูก `AuthAccount` เข้ากับ `userId` ใน intent
+guard "ต้องเหลือวิธี login อย่างน้อย 1 ทาง" มีแล้วใน UI
 
-NextAuth v4 ที่นี่ใช้ JWT strategy **ไม่มี adapter** — การ login provider ทั้งที่ session ยังอยู่
-จึงกลายเป็นสร้าง user ใหม่ (ตรงกับอาการที่ user รายงาน)
+### C2. ปัญหาจริงคือ discoverability ไม่ใช่ capability
 
-**วิธีที่เลือก — เขียน OAuth link flow แยกจาก NextAuth ทั้งเส้น:**
+user ขอฟีเจอร์ที่มีอยู่แล้วเพราะ**หาไม่เจอ** — หน้า `/settings` ปนกัน 2 เรื่องที่คนละเจ้าของ:
 
-- `GET /api/account/link/{line|facebook}/start` — set state cookie HMAC ด้วย `NEXTAUTH_SECRET`
-  (pattern เดียวกับ `src/lib/sms-unlock-cookie.ts`) แล้ว redirect ไป authorize endpoint
-- `GET /api/account/link/{line|facebook}/callback` — verify state → แลก code เป็น token →
-  ได้ `providerAccountId` → เขียนแถว `AuthAccount` ผูกกับ `session.user.id`
+1. **ของร้าน** — รายการเพจ Facebook/LINE/IG ที่ระบบแชททั้งระบบใช้ร่วมกัน (ผูกกับ shop ที่ active)
+2. **ของตัวคน** — `ConnectedAccountsClient` = วิธี login เข้าบัญชี Deep ของ user คนนั้น (ไม่ผูกร้านเลย)
 
-session เดิมไม่ถูกแตะเลย → ตัดความเสี่ยง "session สลับเป็น user อื่นกลางคัน" ทิ้งทั้งหมด
+ทั้งหน้าอยู่ในกลุ่มเมนู "ร้านค้า" ใต้ชื่อที่อ่านแล้วเป็นเรื่องช่องทางแชท คนที่กำลังหา "การตั้งค่าของตัวฉัน"
+จึงไม่มีทางเดาว่าอยู่ตรงนั้น — เป็นอาการเดียวกับที่ทำให้ต้องมี `/account` ตั้งแต่แรก
 
-**วิธีที่ปฏิเสธ:** ยืม provider ของ NextAuth + เช็ค intent cookie ใน `signIn` callback —
-โค้ดน้อยกว่า แต่ callback ของ v4 ไม่ได้รับ `req` ต้องพึ่ง `cookies()` จาก next/headers ใน
-async context ของ NextAuth handler ซึ่งเปราะ และถ้าพลาด = สลับ session ทันที (failure mode ที่ยอมไม่ได้)
+**สิ่งที่ต้องตัดสิน (รอข้อเสนอจาก `safepay-ux`):** ย้าย `ConnectedAccountsClient` มาที่ `/account`
+ทั้งก้อน (แล้ว `/settings` เหลือเรื่องเพจของร้านล้วน ๆ) หรือคงไว้ที่เดิมแล้ว `/account` มีการ์ดสรุป
++ ลิงก์ข้าม — พร้อมคำในเมนูที่ต้องแก้ทั้งคู่
+คำเตือน: `_seller-menu.ts:111-114` บันทึกว่าหน้านี้เคยถูกย้ายไปมาแล้วครั้งหนึ่ง (2026-08-01)
+และลงเอยด้วย "ห้ามย้ายกลับมาอีก" — ต้องอ่านเหตุผลนั้นก่อนเสนอย้าย
 
-### C3. กฎของ C
+### C3. D2 (บัญชีซ้ำ = บล็อก) ต้อง verify ก่อนใช้
 
-- **บัญชีซ้ำ (D2):** ก่อนเขียน `AuthAccount` เช็ค `(provider, providerAccountId)` — ถ้าผูกกับ user
-  อื่นอยู่แล้ว → บล็อก + ข้อความบอกวิธีแก้ ("LINE นี้ผูกกับบัญชี Deep อื่นอยู่แล้ว — ออกจากระบบแล้ว
-  login ด้วย LINE นั้น หรือติดต่อแอดมิน") ไม่ย้าย ไม่ลบ ไม่ merge
-- **ยกเลิกการเชื่อมต่อ:** ห้ามถอดวิธี login สุดท้าย — ต้องเหลืออย่างน้อย 1 ทาง
-  (เบอร์+รหัสผ่าน หรือ provider อื่น)
+พบ `src/lib/account-merge-ticket.ts` (feature 00015) ที่ทำ **"ย้าย provider ไปผูกบัญชีเดิมที่ถือเบอร์"**
+อยู่แล้วในอีก flow หนึ่ง (หน้าลิงก์คำสั่งซื้อ) ตามหลัก "เบอร์ = single source of truth"
+ซึ่งอาจขัดกับมติ D2 ที่ user เคาะไว้ — **ต้องรายงานพฤติกรรมจริงให้ user ตัดสินอีกครั้ง
+ห้ามเขียน D2 ทับลงเอกสารเฉย ๆ**
 
-### C4. งานนอกโค้ดที่ user รับไปทำ (D6)
+### C4. งานนอกโค้ด
 
-เพิ่ม redirect URI ที่ LINE Developers Console + Meta App:
-`https://seller.deepthailand.app/api/account/link/{line|facebook}/callback`
-(+ URI ของ dev ถ้าจะเทสในเครื่อง)
+ไม่มี — redirect URI ที่เคยระบุว่า user ต้องไปเพิ่มเองใน console (D6) **ไม่จำเป็นแล้ว** เพราะ
+flow ที่ใช้จริงเดินผ่าน callback ของ NextAuth ที่ลงทะเบียนไว้อยู่แล้ว ไม่ได้สร้าง endpoint ใหม่
 
 ---
 
